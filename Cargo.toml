@@ -1,5 +1,5 @@
 [package]
-name = "wallet-sdk"
+name = "chia-wallet-sdk"
 version = "0.1.0"
 edition = "2021"
 

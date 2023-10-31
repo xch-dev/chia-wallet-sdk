@@ -227,6 +227,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "chia-wallet-sdk"
+version = "0.1.0"
+dependencies = [
+ "chia-bls",
+ "chia-client",
+ "chia-protocol",
+ "chia-wallet",
+]
+
+[[package]]
 name = "chia_streamable_macro"
 version = "0.2.12"
 source = "git+https://github.com/rigidity/chia_rs?branch=develop#c126305a5492eef905d043f4f3059ea29caba8b7"
@@ -1223,16 +1233,6 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
-
-[[package]]
-name = "wallet-sdk"
-version = "0.1.0"
-dependencies = [
- "chia-bls",
- "chia-client",
- "chia-protocol",
- "chia-wallet",
-]
 
 [[package]]
 name = "wasi"
