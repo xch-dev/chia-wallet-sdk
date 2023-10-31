@@ -1,22 +1,7 @@
-use std::sync::Arc;
+mod standard_wallet;
 
-use chia_client::Peer;
+pub use standard_wallet::*;
 
-use crate::KeyStore;
-
-pub struct Wallet<K>
-where
-    K: KeyStore,
-{
-    peer: Arc<Peer>,
-    key_store: K,
-}
-
-impl<K> Wallet<K>
-where
-    K: KeyStore,
-{
-    pub fn new(peer: Arc<Peer>, key_store: K) -> Self {
-        Self { peer, key_store }
-    }
+pub trait Wallet {
+    fn spendable_balance(&self) -> u64;
 }

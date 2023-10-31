@@ -1,4 +1,6 @@
-use chia_bls::{derive_keys::master_to_wallet_unhardened_intermediate, SecretKey};
+use chia_bls::{
+    derive_keys::master_to_wallet_unhardened_intermediate, DerivableKey, PublicKey, SecretKey,
+};
 
 use super::KeyStore;
 
@@ -16,4 +18,8 @@ impl SecretKeyStore {
     }
 }
 
-impl KeyStore for SecretKeyStore {}
+impl KeyStore for SecretKeyStore {
+    fn public_key(&self, index: u32) -> PublicKey {
+        self.intermediate_key.derive_unhardened(index).public_key()
+    }
+}
