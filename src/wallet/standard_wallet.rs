@@ -40,7 +40,9 @@ where
     K: KeyStore + 'static,
     S: StandardState + 'static,
 {
-    pub fn new(key_store: Arc<K>, peer: Arc<Peer>, state: Arc<Mutex<S>>) -> Self {
+    pub fn new(key_store: Arc<K>, peer: Arc<Peer>, state: S) -> Self {
+        let state = Arc::new(Mutex::new(state));
+
         let key_store_clone = Arc::clone(&key_store);
         let peer_clone = Arc::clone(&peer);
         let state_clone = Arc::clone(&state);
