@@ -241,7 +241,9 @@ dependencies = [
  "chia-protocol",
  "chia-wallet",
  "itertools",
+ "log",
  "parking_lot",
+ "tokio",
 ]
 
 [[package]]
