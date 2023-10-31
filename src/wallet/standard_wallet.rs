@@ -5,8 +5,9 @@ use crate::{KeyStore, Wallet};
 mod state;
 
 use chia_client::{Peer, PeerEvent};
-use chia_protocol::{RegisterForPhUpdates, RespondToPhUpdates};
+use chia_protocol::{BytesImpl, RegisterForPhUpdates, RespondToPhUpdates};
 use chia_wallet::standard::standard_puzzle_hash;
+use itertools::Itertools;
 use parking_lot::Mutex;
 pub use state::*;
 use tokio::sync::broadcast;
@@ -43,26 +44,10 @@ where
     pub fn new(key_store: Arc<K>, peer: Arc<Peer>, state: S) -> Self {
         let state = Arc::new(Mutex::new(state));
 
-        let key_store_clone = Arc::clone(&key_store);
-        let peer_clone = Arc::clone(&peer);
+        let event_receiver = peer.receiver().resubscribe();
         let state_clone = Arc::clone(&state);
 
         tokio::spawn(async move {
-            let puzzle_hash = standard_puzzle_hash(&key_store_clone.public_key(0));
-
-            let body = RegisterForPhUpdates::new(vec![puzzle_hash.into()], 0);
-            let response = peer_clone.request::<_, RespondToPhUpdates>(body).await;
-
-            match response {
-                Ok(response) => {
-                    state_clone.lock().update_coin_states(response.coin_states);
-                }
-                Err(error) => {
-                    log::error!("could not register for puzzle hash updates: {error}");
-                }
-            }
-
-            let event_receiver = peer_clone.receiver().resubscribe();
             Self::handle_events(event_receiver, state_clone).await;
         });
 
@@ -71,6 +56,26 @@ where
             peer,
             state,
         }
+    }
+
+    pub async fn sync(&self) {
+        match self.more_puzzle_hashes().await {
+            Ok(response) => self.state.lock().update_coin_states(response.coin_states),
+            Err(error) => log::error!("could not register for puzzle hash updates: {error}"),
+        }
+    }
+
+    async fn more_puzzle_hashes(&self) -> chia_client::Result<RespondToPhUpdates> {
+        let puzzle_hashes = (0..100)
+            .map(|index| {
+                let public_key = self.key_store.public_key(index);
+                BytesImpl::from(standard_puzzle_hash(&public_key))
+            })
+            .collect_vec();
+
+        self.peer
+            .request(RegisterForPhUpdates::new(puzzle_hashes, 0))
+            .await
     }
 
     async fn handle_events(
