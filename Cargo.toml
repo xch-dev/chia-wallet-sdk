@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+chia-protocol = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
+chia-wallet = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
+chia-bls = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
+chia-client = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
