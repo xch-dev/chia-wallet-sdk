@@ -1,11 +1,10 @@
 use std::sync::Arc;
 
-use tokio::sync::Mutex;
-
 use crate::{KeyStore, Wallet};
 
 mod state;
 
+use parking_lot::Mutex;
 pub use state::*;
 
 pub struct StandardWallet<K, S>
@@ -19,11 +18,15 @@ where
 
 impl<K, S> Wallet for StandardWallet<K, S>
 where
-    K: KeyStore,
-    S: StandardState,
+    K: KeyStore + Send,
+    S: StandardState + Send,
 {
     fn spendable_balance(&self) -> u64 {
-        0
+        self.state
+            .lock()
+            .spendable_coins()
+            .iter()
+            .fold(0, |balance, coin_state| balance + coin_state.coin.amount)
     }
 }
 

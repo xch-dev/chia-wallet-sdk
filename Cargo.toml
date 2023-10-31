@@ -8,4 +8,5 @@ chia-protocol = { git = "https://github.com/rigidity/chia_rs", branch = "develop
 chia-wallet = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
 chia-bls = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
 chia-client = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
-tokio = { version = "1.33.0", features = ["sync"] }
+itertools = "0.11.0"
+parking_lot = "0.12.1"
