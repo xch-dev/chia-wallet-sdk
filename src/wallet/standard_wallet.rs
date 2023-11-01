@@ -6,7 +6,10 @@ mod state;
 
 use chia_client::{Peer, PeerEvent};
 use chia_protocol::{BytesImpl, RegisterForPhUpdates, RespondToPhUpdates};
-use chia_wallet::standard::standard_puzzle_hash;
+use chia_wallet::{
+    standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
+    DeriveSynthetic,
+};
 use itertools::Itertools;
 use parking_lot::Mutex;
 pub use state::*;
@@ -69,7 +72,8 @@ where
         let puzzle_hashes = (0..100)
             .map(|index| {
                 let public_key = self.key_store.public_key(index);
-                BytesImpl::from(standard_puzzle_hash(&public_key))
+                let synthetic_key = public_key.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+                BytesImpl::from(standard_puzzle_hash(&synthetic_key))
             })
             .collect_vec();
 
