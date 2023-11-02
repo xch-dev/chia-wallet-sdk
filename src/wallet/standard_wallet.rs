@@ -5,7 +5,7 @@ use crate::{KeyStore, Wallet};
 mod state;
 
 use chia_client::{Peer, PeerEvent};
-use chia_protocol::{BytesImpl, RegisterForPhUpdates, RespondToPhUpdates};
+use chia_protocol::{BytesImpl, CoinState, RegisterForPhUpdates, RespondToPhUpdates};
 use chia_wallet::{
     standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
     DeriveSynthetic,
@@ -30,12 +30,8 @@ where
     K: KeyStore,
     S: StandardState,
 {
-    fn spendable_balance(&self) -> u64 {
-        self.state
-            .lock()
-            .spendable_coins()
-            .iter()
-            .fold(0, |balance, coin_state| balance + coin_state.coin.amount)
+    fn spendable_coins(&self) -> Vec<CoinState> {
+        self.state.lock().spendable_coins()
     }
 }
 
