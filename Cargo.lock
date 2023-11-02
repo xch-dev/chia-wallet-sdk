@@ -247,6 +247,7 @@ dependencies = [
  "itertools",
  "log",
  "parking_lot",
+ "thiserror",
  "tokio",
 ]
 

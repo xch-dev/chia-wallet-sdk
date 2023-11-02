@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 
-use chia_protocol::CoinState;
+use chia_protocol::{Coin, CoinState};
 use itertools::Itertools;
 
 pub trait StandardState: Send + Sync {
     /// Looks up created but not spent or pending coins.
-    fn spendable_coins(&self) -> Vec<CoinState>;
+    fn spendable_coins(&self) -> Vec<Coin>;
 
     /// Marks a coin as pending being spent.
     fn mark_pending(&mut self, coin_id: [u8; 32]);
@@ -30,7 +30,7 @@ impl InMemoryStandardState {
 }
 
 impl StandardState for InMemoryStandardState {
-    fn spendable_coins(&self) -> Vec<CoinState> {
+    fn spendable_coins(&self) -> Vec<Coin> {
         self.coin_states
             .iter()
             .filter(|item| {
@@ -38,7 +38,7 @@ impl StandardState for InMemoryStandardState {
                     && item.spent_height.is_none()
                     && !self.pending_spent.contains(&item.coin.coin_id())
             })
-            .cloned()
+            .map(|coin_state| coin_state.coin.clone())
             .collect_vec()
     }
 
