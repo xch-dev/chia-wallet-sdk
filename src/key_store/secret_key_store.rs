@@ -1,5 +1,5 @@
 use chia_bls::{
-    derive_keys::master_to_wallet_unhardened_intermediate, sign_raw, DerivableKey, PublicKey,
+    derive_keys::master_to_wallet_unhardened_intermediate, sign, DerivableKey, PublicKey,
     SecretKey, Signature,
 };
 use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
@@ -55,7 +55,7 @@ impl KeyStore for SecretKeyStore {
 impl Signer for SecretKeyStore {
     fn sign_message(&self, index: u32, message: &[u8]) -> Signature {
         let secret_key = &self.key_pairs[index as usize].secret_key;
-        sign_raw(secret_key, message)
+        sign(secret_key, message)
     }
 
     fn partial_sign_coin_spends(

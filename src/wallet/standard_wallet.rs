@@ -7,7 +7,7 @@ use chia_protocol::{Coin, CoinSpend, Program, RegisterForPhUpdates, RespondToPhU
 use chia_wallet::standard::{
     standard_puzzle_hash, StandardArgs, StandardSolution, STANDARD_PUZZLE,
 };
-use clvm_traits::{FromClvm, ToClvm};
+use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::CurriedProgram;
 use clvmr::{serde::node_from_bytes, Allocator};
 use itertools::Itertools;
@@ -102,7 +102,7 @@ where
                 .unwrap();
 
                 let conditions = if i == 0 {
-                    conditions.to_clvm(a).unwrap()
+                    clvm_quote!(conditions).to_clvm(a).unwrap()
                 } else {
                     a.null()
                 };

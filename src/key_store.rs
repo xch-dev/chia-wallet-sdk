@@ -1,4 +1,4 @@
-use chia_bls::{sign_raw, PublicKey, SecretKey, Signature};
+use chia_bls::{sign, PublicKey, SecretKey, Signature};
 use chia_protocol::{Bytes, CoinSpend};
 use clvm_traits::{FromClvm, Result, ToClvm};
 use clvmr::{run_program, Allocator, ChiaDialect};
@@ -180,7 +180,7 @@ pub fn partial_sign_coin_spends(
                 message.extend(domain_string);
             }
 
-            let signature = sign_raw(&secret_keys[index], message);
+            let signature = sign(&secret_keys[index], message);
             aggregate_signature.aggregate(&signature);
         }
     }
