@@ -1,18 +1,23 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use chia_bls::PublicKey;
 use chia_client::{Peer, PeerEvent};
-use chia_protocol::{Coin, CoinState, RegisterForPhUpdates, RespondToPhUpdates};
+use chia_protocol::{Coin, RegisterForPhUpdates, RespondToPhUpdates};
 use chia_wallet::{
     standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
     DeriveSynthetic,
 };
-use indexmap::IndexMap;
-use itertools::Itertools;
 use parking_lot::Mutex;
 use tokio::task::JoinHandle;
 
 use crate::KeyStore;
+
+mod derivation_info;
+mod standard_state;
+
+pub use derivation_info::*;
+pub use standard_state::*;
 
 pub trait Wallet {
     fn spendable_coins(&self) -> Vec<Coin>;
@@ -26,7 +31,7 @@ pub trait Wallet {
 
 #[async_trait]
 pub trait DerivationWallet {
-    fn puzzle_hash(&self, index: u32) -> [u8; 32];
+    fn derivation_index(&self, puzzle_hash: [u8; 32]) -> Option<u32>;
     fn unused_derivation_index(&self) -> Option<u32>;
     fn next_derivation_index(&self) -> u32;
 
@@ -63,25 +68,32 @@ pub trait DerivationWallet {
     }
 }
 
-pub struct StandardWallet {
+pub struct StandardWallet<S>
+where
+    S: StandardState,
+{
     key_store: Arc<KeyStore>,
     peer: Arc<Peer>,
-    state: Arc<Mutex<StandardState>>,
+    state: Arc<Mutex<S>>,
     join_handle: Option<JoinHandle<()>>,
 }
 
-impl Wallet for StandardWallet {
+impl<S> Wallet for StandardWallet<S>
+where
+    S: StandardState,
+{
     fn spendable_coins(&self) -> Vec<Coin> {
         self.state.lock().spendable_coins()
     }
 }
 
 #[async_trait]
-impl DerivationWallet for StandardWallet {
-    fn puzzle_hash(&self, index: u32) -> [u8; 32] {
-        let public_key = self.key_store.public_key(index);
-        let synthetic_key = public_key.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
-        standard_puzzle_hash(&synthetic_key)
+impl<S> DerivationWallet for StandardWallet<S>
+where
+    S: StandardState + 'static,
+{
+    fn derivation_index(&self, puzzle_hash: [u8; 32]) -> Option<u32> {
+        self.state.lock().derivation_index(puzzle_hash)
     }
 
     fn unused_derivation_index(&self) -> Option<u32> {
@@ -89,26 +101,36 @@ impl DerivationWallet for StandardWallet {
     }
 
     fn next_derivation_index(&self) -> u32 {
-        self.state.lock().derived_puzzle_hashes.len() as u32
+        self.state.lock().next_derivation_index()
     }
 
     async fn generate_puzzle_hashes(&self, puzzle_hashes: u32) -> anyhow::Result<Vec<[u8; 32]>> {
         let derivation_index = self.next_derivation_index();
 
-        let puzzle_hashes = (derivation_index..derivation_index + puzzle_hashes)
-            .map(|index| self.puzzle_hash(index));
+        let derivations = (derivation_index..derivation_index + puzzle_hashes).map(|index| {
+            let synthetic_pk = self.synthetic_pk(index);
+            let puzzle_hash = standard_puzzle_hash(&synthetic_pk);
+            DerivationInfo {
+                puzzle_hash,
+                synthetic_pk,
+            }
+        });
 
-        self.state.lock().add_puzzle_hashes(puzzle_hashes.clone());
+        self.state
+            .lock()
+            .insert_next_derivations(derivations.clone());
 
         let response: RespondToPhUpdates = self
             .peer
             .request(RegisterForPhUpdates::new(
-                puzzle_hashes.map(Into::into).collect(),
+                derivations
+                    .map(|derivation| derivation.puzzle_hash.into())
+                    .collect(),
                 0,
             ))
             .await?;
 
-        self.state.lock().apply_updates(response.coin_states);
+        self.state.lock().apply_state_updates(response.coin_states);
 
         Ok(response
             .puzzle_hashes
@@ -118,8 +140,11 @@ impl DerivationWallet for StandardWallet {
     }
 }
 
-impl StandardWallet {
-    pub fn new(key_store: Arc<KeyStore>, peer: Arc<Peer>, state: StandardState, gap: u32) -> Self {
+impl<S> StandardWallet<S>
+where
+    S: StandardState + 'static,
+{
+    pub fn new(key_store: Arc<KeyStore>, peer: Arc<Peer>, state: S, gap: u32) -> Self {
         let mut event_receiver = peer.receiver().resubscribe();
         let state = Arc::new(Mutex::new(state));
 
@@ -137,7 +162,7 @@ impl StandardWallet {
 
             while let Ok(event) = event_receiver.recv().await {
                 if let PeerEvent::CoinStateUpdate(update) = event {
-                    wallet.state.lock().apply_updates(update.items);
+                    wallet.state.lock().apply_state_updates(update.items);
                     if let Err(error) = wallet.sync(gap).await {
                         log::error!("failed to sync wallet after coin state update: {error}");
                     }
@@ -152,69 +177,20 @@ impl StandardWallet {
             join_handle: Some(join_handle),
         }
     }
+
+    fn synthetic_pk(&self, index: u32) -> PublicKey {
+        let public_key = self.key_store.public_key(index);
+        public_key.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+    }
 }
 
-impl Drop for StandardWallet {
+impl<S> Drop for StandardWallet<S>
+where
+    S: StandardState,
+{
     fn drop(&mut self) {
         if let Some(join_handle) = self.join_handle.take() {
             join_handle.abort();
-        }
-    }
-}
-
-#[derive(Default)]
-pub struct StandardState {
-    derived_puzzle_hashes: IndexMap<[u8; 32], Vec<CoinState>>,
-}
-
-impl StandardState {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn add_puzzle_hashes(&mut self, puzzle_hashes: impl Iterator<Item = [u8; 32]>) {
-        for puzzle_hash in puzzle_hashes {
-            self.derived_puzzle_hashes.insert(puzzle_hash, Vec::new());
-        }
-    }
-
-    pub fn unused_derivation_index(&self) -> Option<u32> {
-        let mut result = None;
-        for (i, coin_states) in self.derived_puzzle_hashes.values().enumerate().rev() {
-            if coin_states.is_empty() {
-                result = Some(i as u32);
-            } else {
-                break;
-            }
-        }
-        result
-    }
-
-    pub fn spendable_coins(&self) -> Vec<Coin> {
-        self.derived_puzzle_hashes
-            .values()
-            .flatten()
-            .filter(|item| item.created_height.is_some() && item.spent_height.is_none())
-            .map(|coin_state| coin_state.coin.clone())
-            .collect_vec()
-    }
-
-    pub fn apply_updates(&mut self, updates: Vec<CoinState>) {
-        for coin_state in updates {
-            let puzzle_hash = &coin_state.coin.puzzle_hash;
-
-            if let Some(coin_states) = self
-                .derived_puzzle_hashes
-                .get_mut(<&[u8; 32]>::from(puzzle_hash))
-            {
-                match coin_states
-                    .iter_mut()
-                    .find(|item| item.coin == coin_state.coin)
-                {
-                    Some(value) => *value = coin_state,
-                    None => coin_states.push(coin_state),
-                }
-            }
         }
     }
 }
