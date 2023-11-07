@@ -4,12 +4,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use chia_client::{Peer, PeerEvent};
 use chia_protocol::{Coin, CoinSpend, Program, RegisterForPhUpdates, RespondToPhUpdates};
-use chia_wallet::{
-    standard::{
-        standard_puzzle_hash, StandardArgs, StandardSolution, DEFAULT_HIDDEN_PUZZLE_HASH,
-        STANDARD_PUZZLE,
-    },
-    DeriveSynthetic,
+use chia_wallet::standard::{
+    standard_puzzle_hash, StandardArgs, StandardSolution, STANDARD_PUZZLE,
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::CurriedProgram;
@@ -162,8 +158,7 @@ where
 
         let derivations = (next..target).map(|index| {
             let public_key = self.key_store.lock().public_key(index);
-            let synthetic_pk = public_key.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
-            standard_puzzle_hash(&synthetic_pk)
+            standard_puzzle_hash(&public_key)
         });
 
         self.state
