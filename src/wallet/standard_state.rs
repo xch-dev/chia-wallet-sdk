@@ -1,12 +1,9 @@
-use chia_bls::PublicKey;
 use chia_protocol::{Coin, CoinState};
 use indexmap::IndexMap;
 use itertools::Itertools;
 
-use crate::DerivationInfo;
-
 pub trait StandardState: Send + Sync {
-    fn insert_next_derivations(&mut self, derivations: impl IntoIterator<Item = DerivationInfo>);
+    fn insert_next_derivations(&mut self, derivations: impl IntoIterator<Item = [u8; 32]>);
     fn derivation_index(&self, puzzle_hash: [u8; 32]) -> Option<u32>;
     fn unused_derivation_index(&self) -> Option<u32>;
     fn next_derivation_index(&self) -> u32;
@@ -15,7 +12,6 @@ pub trait StandardState: Send + Sync {
 }
 
 struct DerivationState {
-    synthetic_pk: PublicKey,
     coin_states: Vec<CoinState>,
 }
 
@@ -31,12 +27,11 @@ impl MemoryStandardState {
 }
 
 impl StandardState for MemoryStandardState {
-    fn insert_next_derivations(&mut self, derivations: impl IntoIterator<Item = DerivationInfo>) {
+    fn insert_next_derivations(&mut self, derivations: impl IntoIterator<Item = [u8; 32]>) {
         for derivation in derivations {
             self.derivations.insert(
-                derivation.puzzle_hash,
+                derivation,
                 DerivationState {
-                    synthetic_pk: derivation.synthetic_pk,
                     coin_states: Vec::new(),
                 },
             );

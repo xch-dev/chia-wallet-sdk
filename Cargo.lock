@@ -256,6 +256,7 @@ dependencies = [
  "chia-protocol",
  "chia-wallet",
  "clvm-traits",
+ "clvm-utils",
  "clvmr",
  "indexmap",
  "itertools",

@@ -9,6 +9,7 @@ chia-wallet = { git = "https://github.com/rigidity/chia_rs", branch = "develop" 
 chia-bls = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
 chia-client = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
 clvm-traits = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
+clvm-utils = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
 clvmr = "0.3.0"
 itertools = "0.11.0"
 parking_lot = "0.12.1"

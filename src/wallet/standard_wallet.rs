@@ -3,15 +3,25 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use chia_client::{Peer, PeerEvent};
-use chia_protocol::{Coin, RegisterForPhUpdates, RespondToPhUpdates};
+use chia_protocol::{Coin, CoinSpend, Program, RegisterForPhUpdates, RespondToPhUpdates};
 use chia_wallet::{
-    standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
+    standard::{
+        standard_puzzle_hash, StandardArgs, StandardSolution, DEFAULT_HIDDEN_PUZZLE_HASH,
+        STANDARD_PUZZLE,
+    },
     DeriveSynthetic,
 };
+use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::CurriedProgram;
+use clvmr::{serde::node_from_bytes, Allocator};
+use itertools::Itertools;
 use parking_lot::Mutex;
 use tokio::task::JoinHandle;
 
-use crate::{DerivationInfo, DerivationWallet, KeyStore, StandardState, Wallet};
+use crate::{
+    CoinSelectionError, CoinSelectionMode, Condition, DerivationWallet, KeyStore, StandardState,
+    Wallet,
+};
 
 pub struct StandardWallet<K, S>
 where
@@ -62,6 +72,59 @@ where
             join_handle: Some(join_handle),
         }
     }
+
+    pub fn spend_amount(
+        &self,
+        amount: u64,
+        mode: CoinSelectionMode,
+        conditions: &[Condition],
+    ) -> Result<Vec<CoinSpend>, CoinSelectionError> {
+        let coins = self.select_coins(amount, mode)?;
+        Ok(self.spend_coins(coins, conditions))
+    }
+
+    pub fn spend_coins(&self, coins: Vec<Coin>, conditions: &[Condition]) -> Vec<CoinSpend> {
+        let a = &mut Allocator::new();
+        let standard_puzzle = node_from_bytes(a, &STANDARD_PUZZLE).unwrap();
+
+        coins
+            .into_iter()
+            .enumerate()
+            .map(|(i, coin)| {
+                let puzzle_hash = &coin.puzzle_hash;
+                let index = self
+                    .derivation_index(puzzle_hash.into())
+                    .expect("cannot spend coin with unknown puzzle hash");
+                let synthetic_key = self.key_store.lock().public_key(index);
+
+                let args = StandardArgs { synthetic_key };
+                let puzzle = CurriedProgram {
+                    program: standard_puzzle,
+                    args,
+                }
+                .to_clvm(a)
+                .unwrap();
+
+                let conditions = if i == 0 {
+                    conditions.to_clvm(a).unwrap()
+                } else {
+                    a.null()
+                };
+
+                let solution = StandardSolution {
+                    original_public_key: None,
+                    delegated_puzzle: conditions,
+                    solution: a.null(),
+                }
+                .to_clvm(a)
+                .unwrap();
+
+                let puzzle = Program::from_clvm(a, puzzle).unwrap();
+                let solution = Program::from_clvm(a, solution).unwrap();
+                CoinSpend::new(coin, puzzle, solution)
+            })
+            .collect_vec()
+    }
 }
 
 impl<K, S> Wallet for StandardWallet<K, S>
@@ -100,11 +163,7 @@ where
         let derivations = (next..target).map(|index| {
             let public_key = self.key_store.lock().public_key(index);
             let synthetic_pk = public_key.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
-            let puzzle_hash = standard_puzzle_hash(&synthetic_pk);
-            DerivationInfo {
-                puzzle_hash,
-                synthetic_pk,
-            }
+            standard_puzzle_hash(&synthetic_pk)
         });
 
         self.state
@@ -114,9 +173,7 @@ where
         let response: RespondToPhUpdates = self
             .peer
             .request(RegisterForPhUpdates::new(
-                derivations
-                    .map(|derivation| derivation.puzzle_hash.into())
-                    .collect(),
+                derivations.map(|derivation| derivation.into()).collect(),
                 0,
             ))
             .await?;
