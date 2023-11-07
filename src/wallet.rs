@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
+use anyhow::Result;
 use async_trait::async_trait;
-use chia_bls::PublicKey;
 use chia_client::{Peer, PeerEvent};
 use chia_protocol::{Coin, RegisterForPhUpdates, RespondToPhUpdates};
 use chia_wallet::{
@@ -35,9 +35,9 @@ pub trait DerivationWallet {
     fn unused_derivation_index(&self) -> Option<u32>;
     fn next_derivation_index(&self) -> u32;
 
-    async fn generate_puzzle_hashes(&self, puzzle_hashes: u32) -> anyhow::Result<Vec<[u8; 32]>>;
+    async fn generate_puzzle_hashes(&self, puzzle_hashes: u32) -> Result<Vec<[u8; 32]>>;
 
-    async fn sync(&self, gap: u32) -> anyhow::Result<u32> {
+    async fn sync(&self, gap: u32) -> Result<u32> {
         // If there aren't any derivations, generate the first batch.
         if self.next_derivation_index() == 0 {
             self.generate_puzzle_hashes(gap).await?;
@@ -104,11 +104,12 @@ where
         self.state.lock().next_derivation_index()
     }
 
-    async fn generate_puzzle_hashes(&self, puzzle_hashes: u32) -> anyhow::Result<Vec<[u8; 32]>> {
+    async fn generate_puzzle_hashes(&self, puzzle_hashes: u32) -> Result<Vec<[u8; 32]>> {
         let derivation_index = self.next_derivation_index();
 
         let derivations = (derivation_index..derivation_index + puzzle_hashes).map(|index| {
-            let synthetic_pk = self.synthetic_pk(index);
+            let public_key = self.key_store.public_key(index);
+            let synthetic_pk = public_key.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
             let puzzle_hash = standard_puzzle_hash(&synthetic_pk);
             DerivationInfo {
                 puzzle_hash,
@@ -176,11 +177,6 @@ where
             state,
             join_handle: Some(join_handle),
         }
-    }
-
-    fn synthetic_pk(&self, index: u32) -> PublicKey {
-        let public_key = self.key_store.public_key(index);
-        public_key.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
     }
 }
 
