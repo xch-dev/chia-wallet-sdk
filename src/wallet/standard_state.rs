@@ -10,7 +10,6 @@ pub trait StandardState: Send + Sync {
     fn derivation_index(&self, puzzle_hash: [u8; 32]) -> Option<u32>;
     fn unused_derivation_index(&self) -> Option<u32>;
     fn next_derivation_index(&self) -> u32;
-
     fn spendable_coins(&self) -> Vec<Coin>;
     fn apply_state_updates(&mut self, updates: Vec<CoinState>);
 }

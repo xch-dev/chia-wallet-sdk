@@ -261,6 +261,7 @@ dependencies = [
  "itertools",
  "log",
  "parking_lot",
+ "sha2 0.10.8",
  "thiserror",
  "tokio",
 ]

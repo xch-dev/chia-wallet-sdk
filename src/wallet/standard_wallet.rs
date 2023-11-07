@@ -13,21 +13,23 @@ use tokio::task::JoinHandle;
 
 use crate::{DerivationInfo, DerivationWallet, KeyStore, StandardState, Wallet};
 
-pub struct StandardWallet<S>
+pub struct StandardWallet<K, S>
 where
+    K: KeyStore,
     S: StandardState,
 {
-    key_store: Arc<KeyStore>,
+    key_store: Arc<Mutex<K>>,
     peer: Arc<Peer>,
     state: Arc<Mutex<S>>,
     join_handle: Option<JoinHandle<()>>,
 }
 
-impl<S> StandardWallet<S>
+impl<K, S> StandardWallet<K, S>
 where
+    K: KeyStore + 'static,
     S: StandardState + 'static,
 {
-    pub fn new(key_store: Arc<KeyStore>, peer: Arc<Peer>, state: S, gap: u32) -> Self {
+    pub fn new(key_store: Arc<Mutex<K>>, peer: Arc<Peer>, state: S, gap: u32) -> Self {
         let mut event_receiver = peer.receiver().resubscribe();
         let state = Arc::new(Mutex::new(state));
 
@@ -62,8 +64,9 @@ where
     }
 }
 
-impl<S> Wallet for StandardWallet<S>
+impl<K, S> Wallet for StandardWallet<K, S>
 where
+    K: KeyStore,
     S: StandardState,
 {
     fn spendable_coins(&self) -> Vec<Coin> {
@@ -72,8 +75,9 @@ where
 }
 
 #[async_trait]
-impl<S> DerivationWallet for StandardWallet<S>
+impl<K, S> DerivationWallet for StandardWallet<K, S>
 where
+    K: KeyStore,
     S: StandardState + 'static,
 {
     fn derivation_index(&self, puzzle_hash: [u8; 32]) -> Option<u32> {
@@ -89,10 +93,12 @@ where
     }
 
     async fn generate_puzzle_hashes(&self, puzzle_hashes: u32) -> Result<Vec<[u8; 32]>> {
-        let derivation_index = self.next_derivation_index();
+        let next = self.next_derivation_index();
+        let target = next + puzzle_hashes;
+        self.key_store.lock().derive_keys_until(target);
 
-        let derivations = (derivation_index..derivation_index + puzzle_hashes).map(|index| {
-            let public_key = self.key_store.public_key(index);
+        let derivations = (next..target).map(|index| {
+            let public_key = self.key_store.lock().public_key(index);
             let synthetic_pk = public_key.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
             let puzzle_hash = standard_puzzle_hash(&synthetic_pk);
             DerivationInfo {
@@ -125,8 +131,9 @@ where
     }
 }
 
-impl<S> Drop for StandardWallet<S>
+impl<K, S> Drop for StandardWallet<K, S>
 where
+    K: KeyStore,
     S: StandardState,
 {
     fn drop(&mut self) {
