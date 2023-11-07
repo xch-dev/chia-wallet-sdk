@@ -23,6 +23,45 @@ where
     join_handle: Option<JoinHandle<()>>,
 }
 
+impl<S> StandardWallet<S>
+where
+    S: StandardState + 'static,
+{
+    pub fn new(key_store: Arc<KeyStore>, peer: Arc<Peer>, state: S, gap: u32) -> Self {
+        let mut event_receiver = peer.receiver().resubscribe();
+        let state = Arc::new(Mutex::new(state));
+
+        let wallet = Self {
+            key_store: key_store.clone(),
+            peer: peer.clone(),
+            state: state.clone(),
+            join_handle: None,
+        };
+
+        let join_handle = tokio::spawn(async move {
+            if let Err(error) = wallet.sync(gap).await {
+                log::error!("failed to perform initial wallet sync: {error}");
+            }
+
+            while let Ok(event) = event_receiver.recv().await {
+                if let PeerEvent::CoinStateUpdate(update) = event {
+                    wallet.state.lock().apply_state_updates(update.items);
+                    if let Err(error) = wallet.sync(gap).await {
+                        log::error!("failed to sync wallet after coin state update: {error}");
+                    }
+                }
+            }
+        });
+
+        Self {
+            key_store,
+            peer,
+            state,
+            join_handle: Some(join_handle),
+        }
+    }
+}
+
 impl<S> Wallet for StandardWallet<S>
 where
     S: StandardState,
@@ -83,45 +122,6 @@ where
             .into_iter()
             .map(|puzzle_hash| (&puzzle_hash).into())
             .collect())
-    }
-}
-
-impl<S> StandardWallet<S>
-where
-    S: StandardState + 'static,
-{
-    pub fn new(key_store: Arc<KeyStore>, peer: Arc<Peer>, state: S, gap: u32) -> Self {
-        let mut event_receiver = peer.receiver().resubscribe();
-        let state = Arc::new(Mutex::new(state));
-
-        let wallet = Self {
-            key_store: key_store.clone(),
-            peer: peer.clone(),
-            state: state.clone(),
-            join_handle: None,
-        };
-
-        let join_handle = tokio::spawn(async move {
-            if let Err(error) = wallet.sync(gap).await {
-                log::error!("failed to perform initial wallet sync: {error}");
-            }
-
-            while let Ok(event) = event_receiver.recv().await {
-                if let PeerEvent::CoinStateUpdate(update) = event {
-                    wallet.state.lock().apply_state_updates(update.items);
-                    if let Err(error) = wallet.sync(gap).await {
-                        log::error!("failed to sync wallet after coin state update: {error}");
-                    }
-                }
-            }
-        });
-
-        Self {
-            key_store,
-            peer,
-            state,
-            join_handle: Some(join_handle),
-        }
     }
 }
 
