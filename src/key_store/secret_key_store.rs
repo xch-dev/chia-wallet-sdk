@@ -2,20 +2,16 @@ use chia_bls::{
     derive_keys::master_to_wallet_unhardened_intermediate, sign, DerivableKey, PublicKey,
     SecretKey, Signature,
 };
+use chia_protocol::CoinSpend;
 use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
 use clvm_traits::Result;
-use itertools::Itertools;
+use clvmr::Allocator;
 
-use crate::{partial_sign_coin_spends, KeyStore, Signer};
+use crate::{sign_coin_spend, sign_coin_spends, KeyPair, KeyStore, PartialSignature, Signer};
 
 pub struct SecretKeyStore {
     intermediate_key: SecretKey,
     key_pairs: Vec<KeyPair>,
-}
-
-struct KeyPair {
-    public_key: PublicKey,
-    secret_key: SecretKey,
 }
 
 impl SecretKeyStore {
@@ -58,18 +54,31 @@ impl Signer for SecretKeyStore {
         sign(secret_key, message)
     }
 
-    fn partial_sign_coin_spends(
+    fn sign_coin_spend(
+        &self,
+        allocator: &mut Allocator,
+        coin_spend: &CoinSpend,
+        agg_sig_me_extra_data: [u8; 32],
+    ) -> Result<PartialSignature> {
+        sign_coin_spend(
+            allocator,
+            coin_spend,
+            &self.key_pairs,
+            agg_sig_me_extra_data,
+        )
+    }
+
+    fn sign_coin_spends(
         &self,
         allocator: &mut clvmr::Allocator,
         coin_spends: &[chia_protocol::CoinSpend],
         agg_sig_me_extra_data: [u8; 32],
-    ) -> Result<Signature> {
-        let secret_keys = self
-            .key_pairs
-            .iter()
-            .map(|key_pair| key_pair.secret_key.clone())
-            .collect_vec();
-
-        partial_sign_coin_spends(allocator, coin_spends, &secret_keys, agg_sig_me_extra_data)
+    ) -> Result<PartialSignature> {
+        sign_coin_spends(
+            allocator,
+            coin_spends,
+            &self.key_pairs,
+            agg_sig_me_extra_data,
+        )
     }
 }
