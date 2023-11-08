@@ -17,6 +17,116 @@ struct AggSigInfo {
     domain_string: Option<[u8; 32]>,
 }
 
+fn agg_sig_info(
+    coin_spend: &CoinSpend,
+    condition: Condition,
+    agg_sig_me_extra_data: [u8; 32],
+) -> Option<AggSigInfo> {
+    let mut hasher = Sha256::new();
+    hasher.update(agg_sig_me_extra_data);
+
+    let agg_sig_info = match condition {
+        Condition::AggSigParent {
+            public_key,
+            message,
+        } => {
+            hasher.update([43]);
+            let parent = &coin_spend.coin.parent_coin_info;
+            AggSigInfo {
+                public_key,
+                message,
+                additional_info: parent.to_vec(),
+                domain_string: Some(hasher.finalize_fixed().into()),
+            }
+        }
+        Condition::AggSigPuzzle {
+            public_key,
+            message,
+        } => {
+            hasher.update([44]);
+            let puzzle = &coin_spend.coin.puzzle_hash;
+            AggSigInfo {
+                public_key,
+                message,
+                additional_info: puzzle.to_vec(),
+                domain_string: Some(hasher.finalize_fixed().into()),
+            }
+        }
+        Condition::AggSigAmount {
+            public_key,
+            message,
+        } => {
+            hasher.update([45]);
+            AggSigInfo {
+                public_key,
+                message,
+                additional_info: u64_to_bytes(coin_spend.coin.amount),
+                domain_string: Some(hasher.finalize_fixed().into()),
+            }
+        }
+        Condition::AggSigPuzzleAmount {
+            public_key,
+            message,
+        } => {
+            hasher.update([46]);
+            let puzzle = &coin_spend.coin.puzzle_hash;
+            AggSigInfo {
+                public_key,
+                message,
+                additional_info: [puzzle.to_vec(), u64_to_bytes(coin_spend.coin.amount)].concat(),
+                domain_string: Some(hasher.finalize_fixed().into()),
+            }
+        }
+        Condition::AggSigParentAmount {
+            public_key,
+            message,
+        } => {
+            hasher.update([47]);
+            let parent = &coin_spend.coin.parent_coin_info;
+            AggSigInfo {
+                public_key,
+                message,
+                additional_info: [parent.to_vec(), u64_to_bytes(coin_spend.coin.amount)].concat(),
+                domain_string: Some(hasher.finalize_fixed().into()),
+            }
+        }
+        Condition::AggSigParentPuzzle {
+            public_key,
+            message,
+        } => {
+            hasher.update([48]);
+            let parent = &coin_spend.coin.parent_coin_info;
+            let puzzle = &coin_spend.coin.puzzle_hash;
+            AggSigInfo {
+                public_key,
+                message,
+                additional_info: [parent.to_vec(), puzzle.to_vec()].concat(),
+                domain_string: Some(hasher.finalize_fixed().into()),
+            }
+        }
+        Condition::AggSigUnsafe {
+            public_key,
+            message,
+        } => AggSigInfo {
+            public_key,
+            message,
+            additional_info: Vec::new(),
+            domain_string: None,
+        },
+        Condition::AggSigMe {
+            public_key,
+            message,
+        } => AggSigInfo {
+            public_key,
+            message,
+            additional_info: coin_spend.coin.coin_id().into(),
+            domain_string: Some(agg_sig_me_extra_data),
+        },
+        _ => return None,
+    };
+    Some(agg_sig_info)
+}
+
 pub fn partial_sign_coin_spends(
     allocator: &mut Allocator,
     coin_spends: &[CoinSpend],
@@ -37,109 +147,8 @@ pub fn partial_sign_coin_spends(
 
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
         for condition in conditions {
-            let mut hasher = Sha256::new();
-            hasher.update(agg_sig_me_extra_data);
-
-            let info = match condition {
-                Condition::AggSigParent {
-                    public_key,
-                    message,
-                } => {
-                    hasher.update([43]);
-                    let parent = &coin_spend.coin.parent_coin_info;
-                    AggSigInfo {
-                        public_key,
-                        message,
-                        additional_info: parent.to_vec(),
-                        domain_string: Some(hasher.finalize_fixed().into()),
-                    }
-                }
-                Condition::AggSigPuzzle {
-                    public_key,
-                    message,
-                } => {
-                    hasher.update([44]);
-                    let puzzle = &coin_spend.coin.puzzle_hash;
-                    AggSigInfo {
-                        public_key,
-                        message,
-                        additional_info: puzzle.to_vec(),
-                        domain_string: Some(hasher.finalize_fixed().into()),
-                    }
-                }
-                Condition::AggSigAmount {
-                    public_key,
-                    message,
-                } => {
-                    hasher.update([45]);
-                    AggSigInfo {
-                        public_key,
-                        message,
-                        additional_info: u64_to_bytes(coin_spend.coin.amount),
-                        domain_string: Some(hasher.finalize_fixed().into()),
-                    }
-                }
-                Condition::AggSigPuzzleAmount {
-                    public_key,
-                    message,
-                } => {
-                    hasher.update([46]);
-                    let puzzle = &coin_spend.coin.puzzle_hash;
-                    AggSigInfo {
-                        public_key,
-                        message,
-                        additional_info: [puzzle.to_vec(), u64_to_bytes(coin_spend.coin.amount)]
-                            .concat(),
-                        domain_string: Some(hasher.finalize_fixed().into()),
-                    }
-                }
-                Condition::AggSigParentAmount {
-                    public_key,
-                    message,
-                } => {
-                    hasher.update([47]);
-                    let parent = &coin_spend.coin.parent_coin_info;
-                    AggSigInfo {
-                        public_key,
-                        message,
-                        additional_info: [parent.to_vec(), u64_to_bytes(coin_spend.coin.amount)]
-                            .concat(),
-                        domain_string: Some(hasher.finalize_fixed().into()),
-                    }
-                }
-                Condition::AggSigParentPuzzle {
-                    public_key,
-                    message,
-                } => {
-                    hasher.update([48]);
-                    let parent = &coin_spend.coin.parent_coin_info;
-                    let puzzle = &coin_spend.coin.puzzle_hash;
-                    AggSigInfo {
-                        public_key,
-                        message,
-                        additional_info: [parent.to_vec(), puzzle.to_vec()].concat(),
-                        domain_string: Some(hasher.finalize_fixed().into()),
-                    }
-                }
-                Condition::AggSigUnsafe {
-                    public_key,
-                    message,
-                } => AggSigInfo {
-                    public_key,
-                    message,
-                    additional_info: Vec::new(),
-                    domain_string: None,
-                },
-                Condition::AggSigMe {
-                    public_key,
-                    message,
-                } => AggSigInfo {
-                    public_key,
-                    message,
-                    additional_info: coin_spend.coin.coin_id().into(),
-                    domain_string: Some(agg_sig_me_extra_data),
-                },
-                _ => continue,
+            let Some(info) = agg_sig_info(coin_spend, condition, agg_sig_me_extra_data) else {
+                continue;
             };
 
             let Some(index) = public_keys.iter().position(|pk| pk == &info.public_key) else {
