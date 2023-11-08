@@ -23,6 +23,10 @@ impl PartialSignature {
     pub fn into_complete_signature(self) -> Option<Signature> {
         self.is_complete().then_some(self.signature)
     }
+
+    pub fn unwrap(self) -> Signature {
+        self.into_complete_signature().unwrap()
+    }
 }
 
 impl std::ops::Add for PartialSignature {
