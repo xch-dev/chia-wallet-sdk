@@ -43,10 +43,7 @@ pub fn sign_coin_spend(
             aggregate + &sign(&key_pair.secret_key, required.final_message())
         });
 
-    Ok(PartialSignature {
-        signature,
-        missing_signatures,
-    })
+    Ok(PartialSignature::new(signature, missing_signatures))
 }
 
 pub fn sign_coin_spends(
