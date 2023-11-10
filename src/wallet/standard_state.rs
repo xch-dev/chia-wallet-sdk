@@ -1,6 +1,5 @@
 use chia_protocol::{Coin, CoinState};
 use indexmap::IndexMap;
-use itertools::Itertools;
 
 pub trait StandardState: Send + Sync {
     fn insert_next_derivations(&mut self, derivations: impl IntoIterator<Item = [u8; 32]>);
@@ -66,7 +65,7 @@ impl StandardState for MemoryStandardState {
             .flat_map(|derivation| &derivation.coin_states)
             .filter(|item| item.created_height.is_some() && item.spent_height.is_none())
             .map(|coin_state| coin_state.coin.clone())
-            .collect_vec()
+            .collect()
     }
 
     fn apply_state_updates(&mut self, updates: Vec<CoinState>) {
