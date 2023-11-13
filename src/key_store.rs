@@ -4,10 +4,10 @@ use clvm_traits::Result;
 use clvmr::Allocator;
 
 mod key_pair;
-mod secret_key_store;
+mod synthetic_key_store;
 
 pub use key_pair::*;
-pub use secret_key_store::*;
+pub use synthetic_key_store::*;
 
 use crate::PartialSignature;
 
