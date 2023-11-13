@@ -8,10 +8,7 @@ use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::CurriedProgram;
 use clvmr::{allocator::NodePtr, serde::node_from_bytes, Allocator};
 
-use crate::{
-    CoinSelectionError, CoinSelectionMode, Condition, DerivationState, DerivationWallet, KeyStore,
-    PuzzleGenerator, Wallet,
-};
+use crate::{Condition, DerivationState, DerivationWallet, KeyStore, PuzzleGenerator};
 
 pub type StandardWallet<K, S> = DerivationWallet<StandardPuzzleGenerator, K, S>;
 
@@ -28,63 +25,58 @@ where
     K: KeyStore + 'static,
     S: DerivationState + 'static,
 {
-    pub fn spend_amount(
-        &self,
-        amount: u64,
-        mode: CoinSelectionMode,
-        conditions: &[Condition],
-    ) -> Result<Vec<CoinSpend>, CoinSelectionError> {
-        let coins = self.select_coins(amount, mode)?;
-        Ok(self.spend_coins(coins, conditions))
-    }
-
     pub fn spend_coins(&self, coins: Vec<Coin>, conditions: &[Condition]) -> Vec<CoinSpend> {
-        let a = &mut Allocator::new();
-        let standard_puzzle = node_from_bytes(a, &STANDARD_PUZZLE).unwrap();
+        let mut a = Allocator::new();
+        let standard_puzzle = allocate_standard_puzzle(&mut a);
 
         coins
             .into_iter()
             .enumerate()
             .map(|(i, coin)| {
-                self.spend_coin(
-                    a,
+                let puzzle_hash = &coin.puzzle_hash;
+                let index = self
+                    .derivation_index(puzzle_hash.into())
+                    .expect("cannot spend coin with unknown puzzle hash");
+                let synthetic_key = self.public_key(index);
+
+                spend_standard_coin(
+                    &mut a,
                     standard_puzzle,
                     coin,
+                    synthetic_key,
                     if i == 0 { conditions } else { &[] },
                 )
+                .unwrap()
             })
-            .collect::<Result<_>>()
-            .unwrap()
+            .collect()
     }
+}
 
-    fn spend_coin(
-        &self,
-        a: &mut Allocator,
-        standard_puzzle: NodePtr,
-        coin: Coin,
-        conditions: &[Condition],
-    ) -> Result<CoinSpend> {
-        let puzzle_hash = &coin.puzzle_hash;
-        let index = self
-            .derivation_index(puzzle_hash.into())
-            .expect("cannot spend coin with unknown puzzle hash");
-        let synthetic_key = self.public_key(index);
+pub fn allocate_standard_puzzle(a: &mut Allocator) -> NodePtr {
+    node_from_bytes(a, &STANDARD_PUZZLE).unwrap()
+}
 
-        let puzzle = CurriedProgram {
-            program: standard_puzzle,
-            args: StandardArgs { synthetic_key },
-        }
-        .to_clvm(a)?;
-
-        let solution = StandardSolution {
-            original_public_key: None,
-            delegated_puzzle: clvm_quote!(conditions).to_clvm(a).unwrap(),
-            solution: a.null(),
-        }
-        .to_clvm(a)?;
-
-        let puzzle = Program::from_clvm(a, puzzle)?;
-        let solution = Program::from_clvm(a, solution)?;
-        Ok(CoinSpend::new(coin, puzzle, solution))
+pub fn spend_standard_coin(
+    a: &mut Allocator,
+    standard_puzzle: NodePtr,
+    coin: Coin,
+    synthetic_key: PublicKey,
+    conditions: &[Condition],
+) -> Result<CoinSpend> {
+    let puzzle = CurriedProgram {
+        program: standard_puzzle,
+        args: StandardArgs { synthetic_key },
     }
+    .to_clvm(a)?;
+
+    let solution = StandardSolution {
+        original_public_key: None,
+        delegated_puzzle: clvm_quote!(conditions).to_clvm(a).unwrap(),
+        solution: a.null(),
+    }
+    .to_clvm(a)?;
+
+    let puzzle = Program::from_clvm(a, puzzle)?;
+    let solution = Program::from_clvm(a, solution)?;
+    Ok(CoinSpend::new(coin, puzzle, solution))
 }
