@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Result;
 use chia_bls::PublicKey;
@@ -15,7 +15,7 @@ where
     K: KeyStore,
     S: DerivationState,
 {
-    phantom: PhantomData<P>,
+    puzzle_generator: P,
     key_store: Arc<Mutex<K>>,
     peer: Arc<Peer>,
     state: Arc<Mutex<S>>,
@@ -24,16 +24,22 @@ where
 
 impl<P, K, S> DerivationWallet<P, K, S>
 where
-    P: PuzzleGenerator + 'static,
+    P: PuzzleGenerator + Clone + 'static,
     K: KeyStore + 'static,
     S: DerivationState + 'static,
 {
-    pub fn new(key_store: Arc<Mutex<K>>, peer: Arc<Peer>, state: S, gap: u32) -> Self {
+    pub fn new(
+        puzzle_generator: P,
+        key_store: Arc<Mutex<K>>,
+        peer: Arc<Peer>,
+        state: S,
+        gap: u32,
+    ) -> Self {
         let mut event_receiver = peer.receiver().resubscribe();
         let state = Arc::new(Mutex::new(state));
 
         let wallet = Self {
-            phantom: PhantomData,
+            puzzle_generator: puzzle_generator.clone(),
             key_store: key_store.clone(),
             peer: peer.clone(),
             state: state.clone(),
@@ -56,7 +62,7 @@ where
         });
 
         Self {
-            phantom: PhantomData,
+            puzzle_generator,
             key_store,
             peer,
             state,
@@ -71,7 +77,7 @@ where
 
         let derivations = (next..target).map(|index| {
             let public_key = self.key_store.lock().public_key(index);
-            P::puzzle_hash(&public_key)
+            self.puzzle_generator.puzzle_hash(&public_key)
         });
 
         self.state

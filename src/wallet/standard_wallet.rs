@@ -12,15 +12,16 @@ use crate::{Condition, DerivationState, DerivationWallet, KeyStore, PuzzleGenera
 
 pub type StandardWallet<K, S> = DerivationWallet<StandardPuzzleGenerator, K, S>;
 
+#[derive(Debug, Clone, Copy)]
 pub struct StandardPuzzleGenerator;
 
 impl PuzzleGenerator for StandardPuzzleGenerator {
-    fn puzzle_hash(public_key: &PublicKey) -> [u8; 32] {
+    fn puzzle_hash(&self, public_key: &PublicKey) -> [u8; 32] {
         standard_puzzle_hash(public_key)
     }
 }
 
-impl<K, S> DerivationWallet<StandardPuzzleGenerator, K, S>
+impl<K, S> StandardWallet<K, S>
 where
     K: KeyStore + 'static,
     S: DerivationState + 'static,
