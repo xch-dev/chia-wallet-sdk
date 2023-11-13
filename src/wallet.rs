@@ -1,11 +1,11 @@
 use chia_protocol::Coin;
 
-mod derivation_wallet;
-mod standard_state;
+mod cat_wallet;
+mod derivation_state;
 mod standard_wallet;
 
-pub use derivation_wallet::*;
-pub use standard_state::*;
+pub use cat_wallet::*;
+pub use derivation_state::*;
 pub use standard_wallet::*;
 
 use crate::{select_coins, CoinSelectionError, CoinSelectionMode};

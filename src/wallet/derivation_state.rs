@@ -1,7 +1,7 @@
 use chia_protocol::{Coin, CoinState};
 use indexmap::IndexMap;
 
-pub trait StandardState: Send + Sync {
+pub trait DerivationState: Send + Sync {
     fn insert_next_derivations(&mut self, derivations: impl IntoIterator<Item = [u8; 32]>);
     fn derivation_index(&self, puzzle_hash: [u8; 32]) -> Option<u32>;
     fn unused_derivation_index(&self) -> Option<u32>;
@@ -10,30 +10,21 @@ pub trait StandardState: Send + Sync {
     fn apply_state_updates(&mut self, updates: Vec<CoinState>);
 }
 
-struct DerivationState {
-    coin_states: Vec<CoinState>,
-}
-
 #[derive(Default)]
-pub struct MemoryStandardState {
-    derivations: IndexMap<[u8; 32], DerivationState>,
+pub struct MemoryDerivationState {
+    derivations: IndexMap<[u8; 32], Vec<CoinState>>,
 }
 
-impl MemoryStandardState {
+impl MemoryDerivationState {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl StandardState for MemoryStandardState {
+impl DerivationState for MemoryDerivationState {
     fn insert_next_derivations(&mut self, derivations: impl IntoIterator<Item = [u8; 32]>) {
         for derivation in derivations {
-            self.derivations.insert(
-                derivation,
-                DerivationState {
-                    coin_states: Vec::new(),
-                },
-            );
+            self.derivations.insert(derivation, Vec::new());
         }
     }
 
@@ -46,7 +37,7 @@ impl StandardState for MemoryStandardState {
     fn unused_derivation_index(&self) -> Option<u32> {
         let mut result = None;
         for (i, derivation) in self.derivations.values().enumerate().rev() {
-            if derivation.coin_states.is_empty() {
+            if derivation.is_empty() {
                 result = Some(i as u32);
             } else {
                 break;
@@ -62,7 +53,7 @@ impl StandardState for MemoryStandardState {
     fn spendable_coins(&self) -> Vec<Coin> {
         self.derivations
             .values()
-            .flat_map(|derivation| &derivation.coin_states)
+            .flatten()
             .filter(|item| item.created_height.is_some() && item.spent_height.is_none())
             .map(|coin_state| coin_state.coin.clone())
             .collect()
@@ -74,12 +65,11 @@ impl StandardState for MemoryStandardState {
 
             if let Some(derivation) = self.derivations.get_mut(<&[u8; 32]>::from(puzzle_hash)) {
                 match derivation
-                    .coin_states
                     .iter_mut()
                     .find(|item| item.coin == coin_state.coin)
                 {
                     Some(value) => *value = coin_state,
-                    None => derivation.coin_states.push(coin_state),
+                    None => derivation.push(coin_state),
                 }
             }
         }
