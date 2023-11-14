@@ -1,6 +1,5 @@
 use chia_bls::{PublicKey, Signature};
 use chia_protocol::CoinSpend;
-use clvm_traits::Result;
 use clvmr::Allocator;
 
 mod key_pair;
@@ -9,7 +8,7 @@ mod synthetic_key_store;
 pub use key_pair::*;
 pub use synthetic_key_store::*;
 
-use crate::PartialSignature;
+use crate::{PartialSignature, SignError};
 
 pub trait KeyStore: Send + Sync {
     fn next_derivation_index(&self) -> u32;
@@ -32,12 +31,12 @@ pub trait Signer {
         allocator: &mut Allocator,
         coin_spend: &CoinSpend,
         agg_sig_me_extra_data: [u8; 32],
-    ) -> Result<PartialSignature>;
+    ) -> Result<PartialSignature, SignError>;
 
     fn sign_coin_spends(
         &self,
         allocator: &mut Allocator,
         coin_spends: &[CoinSpend],
         agg_sig_me_extra_data: [u8; 32],
-    ) -> Result<PartialSignature>;
+    ) -> Result<PartialSignature, SignError>;
 }

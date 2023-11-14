@@ -18,3 +18,7 @@ indexmap = "2.1.0"
 anyhow = "1.0.75"
 sha2 = "0.9.9"
 thiserror = "1.0.50"
+
+[dev-dependencies]
+hex = "0.4.3"
+hex-literal = "0.4.1"

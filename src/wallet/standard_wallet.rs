@@ -4,9 +4,13 @@ use chia_protocol::{Coin, CoinSpend, Program};
 use chia_wallet::standard::{
     standard_puzzle_hash, StandardArgs, StandardSolution, STANDARD_PUZZLE,
 };
-use clvm_traits::{clvm_quote, FromClvm, ToClvm};
+use clvm_traits::{clvm_quote, ToPtr};
 use clvm_utils::CurriedProgram;
-use clvmr::{allocator::NodePtr, serde::node_from_bytes, Allocator};
+use clvmr::{
+    allocator::NodePtr,
+    serde::{node_from_bytes, node_to_bytes},
+    Allocator,
+};
 
 use crate::{Condition, DerivationState, DerivationWallet, KeyStore, PuzzleGenerator};
 
@@ -26,9 +30,13 @@ where
     K: KeyStore + 'static,
     S: DerivationState + 'static,
 {
-    pub fn spend_coins(&self, coins: Vec<Coin>, conditions: &[Condition]) -> Vec<CoinSpend> {
+    pub fn spend_coins(
+        &self,
+        coins: Vec<Coin>,
+        conditions: &[Condition<NodePtr>],
+    ) -> Vec<CoinSpend> {
         let mut a = Allocator::new();
-        let standard_puzzle = allocate_standard_puzzle(&mut a);
+        let standard_puzzle = node_from_bytes(&mut a, &STANDARD_PUZZLE).unwrap();
 
         coins
             .into_iter()
@@ -53,31 +61,30 @@ where
     }
 }
 
-pub fn allocate_standard_puzzle(a: &mut Allocator) -> NodePtr {
-    node_from_bytes(a, &STANDARD_PUZZLE).unwrap()
-}
-
 pub fn spend_standard_coin(
     a: &mut Allocator,
     standard_puzzle: NodePtr,
     coin: Coin,
     synthetic_key: PublicKey,
-    conditions: &[Condition],
+    conditions: &[Condition<NodePtr>],
 ) -> Result<CoinSpend> {
     let puzzle = CurriedProgram {
         program: standard_puzzle,
         args: StandardArgs { synthetic_key },
     }
-    .to_clvm(a)?;
+    .to_ptr(a)?;
 
     let solution = StandardSolution {
         original_public_key: None,
-        delegated_puzzle: clvm_quote!(conditions).to_clvm(a).unwrap(),
-        solution: a.null(),
+        delegated_puzzle: clvm_quote!(conditions),
+        solution: (),
     }
-    .to_clvm(a)?;
+    .to_ptr(a)?;
 
-    let puzzle = Program::from_clvm(a, puzzle)?;
-    let solution = Program::from_clvm(a, solution)?;
+    let puzzle_bytes = node_to_bytes(a, puzzle)?;
+    let solution_bytes = node_to_bytes(a, solution)?;
+
+    let puzzle = Program::new(puzzle_bytes.into());
+    let solution = Program::new(solution_bytes.into());
     Ok(CoinSpend::new(coin, puzzle, solution))
 }

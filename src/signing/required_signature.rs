@@ -1,5 +1,6 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, CoinSpend};
+use clvmr::allocator::NodePtr;
 use sha2::{digest::FixedOutput, Digest, Sha256};
 
 use crate::{u64_to_bytes, Condition};
@@ -15,7 +16,7 @@ pub struct RequiredSignature {
 impl RequiredSignature {
     pub fn try_from_condition(
         coin_spend: &CoinSpend,
-        condition: Condition,
+        condition: Condition<NodePtr>,
         agg_sig_me_extra_data: [u8; 32],
     ) -> Option<Self> {
         let mut hasher = Sha256::new();

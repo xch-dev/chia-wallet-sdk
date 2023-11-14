@@ -163,7 +163,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "chia-bls"
 version = "0.2.13"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#d6741d71597815f1bcc2d1c721fa27007184222b"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -181,7 +181,7 @@ dependencies = [
 [[package]]
 name = "chia-client"
 version = "0.2.13"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#d6741d71597815f1bcc2d1c721fa27007184222b"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
 dependencies = [
  "chia-protocol",
  "chia-traits",
@@ -195,7 +195,7 @@ dependencies = [
 [[package]]
 name = "chia-protocol"
 version = "0.2.13"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#d6741d71597815f1bcc2d1c721fa27007184222b"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
 dependencies = [
  "arbitrary",
  "chia-bls",
@@ -210,7 +210,7 @@ dependencies = [
 [[package]]
 name = "chia-traits"
 version = "0.2.13"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#d6741d71597815f1bcc2d1c721fa27007184222b"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
 dependencies = [
  "chia_streamable_macro",
  "hex",
@@ -221,7 +221,7 @@ dependencies = [
 [[package]]
 name = "chia-wallet"
 version = "0.2.12"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#d6741d71597815f1bcc2d1c721fa27007184222b"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
 dependencies = [
  "arbitrary",
  "chia-bls",
@@ -246,6 +246,8 @@ dependencies = [
  "clvm-traits",
  "clvm-utils",
  "clvmr",
+ "hex",
+ "hex-literal",
  "indexmap",
  "log",
  "parking_lot",
@@ -257,7 +259,7 @@ dependencies = [
 [[package]]
 name = "chia_streamable_macro"
 version = "0.2.12"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#d6741d71597815f1bcc2d1c721fa27007184222b"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -268,7 +270,7 @@ dependencies = [
 [[package]]
 name = "clvm-derive"
 version = "0.2.12"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#d6741d71597815f1bcc2d1c721fa27007184222b"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -278,7 +280,7 @@ dependencies = [
 [[package]]
 name = "clvm-traits"
 version = "0.2.12"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#d6741d71597815f1bcc2d1c721fa27007184222b"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
 dependencies = [
  "clvm-derive",
  "clvmr",
@@ -289,7 +291,7 @@ dependencies = [
 [[package]]
 name = "clvm-utils"
 version = "0.2.12"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#d6741d71597815f1bcc2d1c721fa27007184222b"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
 dependencies = [
  "clvm-traits",
  "clvmr",
@@ -331,9 +333,9 @@ dependencies = [
 
 [[package]]
 name = "crypto-bigint"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "740fe28e594155f10cfc383984cbefd529d7396050557148f79cb0f621204124"
+checksum = "28f85c3514d2a6e64160359b45a3918c3b4178bcbf4ae5d03ab2d02e521c479a"
 dependencies = [
  "generic-array",
  "rand_core",
@@ -607,9 +609,9 @@ dependencies = [
 
 [[package]]
 name = "http"
-version = "0.2.9"
+version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd6effc99afb63425aff9b05836f029929e345a6148a14b7ecd5ab67af944482"
+checksum = "8947b1a6fad4393052c7ba1f4cd97bed3e953a95c79c92ad9b051a04611d9fbb"
 dependencies = [
  "bytes",
  "fnv",
@@ -679,9 +681,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.149"
+version = "0.2.150"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a08173bc88b7955d1b3145aa561539096c421ac8debde8cbc3612ec635fee29b"
+checksum = "89d92a4743f9a61002fae18374ed11e7973f530cb3a3255fb354818118b2203c"
 
 [[package]]
 name = "lock_api"
@@ -884,9 +886,9 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "primeorder"
-version = "0.13.2"
+version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c2fcef82c0ec6eefcc179b978446c399b3cdf73c392c35604e399eee6df1ee3"
+checksum = "c7dbe9ed3b56368bd99483eb32fe9c17fdd3730aebadc906918ce78d54c7eeb4"
 dependencies = [
  "elliptic-curve",
 ]
@@ -1062,9 +1064,9 @@ dependencies = [
 
 [[package]]
 name = "smallvec"
-version = "1.11.1"
+version = "1.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "942b4a808e05215192e39f4ab80813e599068285906cc91aa64f923db842bd5a"
+checksum = "4dccd0940a2dcdf68d092b8cbab7dc0ad8fa938bf95787e1b916b0e3d0e8e970"
 
 [[package]]
 name = "socket2"
@@ -1094,9 +1096,9 @@ checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
 
 [[package]]
 name = "syn"
-version = "2.0.38"
+version = "2.0.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e96b79aaa137db8f61e26363a0c9b47d8b4ec75da28b7d1d614c2303e232408b"
+checksum = "23e78b90f2fcf45d3e842032ce32e3f2d1545ba6636271dcbf24fa306d87be7a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1174,9 +1176,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.33.0"
+version = "1.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f38200e3ef7995e5ef13baec2f432a6da0aa9ac495b2c0e8f3b7eec2c92d653"
+checksum = "d0c014766411e834f7af5b8f4cf46257aab4036ca95e9d2c144a10f59ad6f5b9"
 dependencies = [
  "backtrace",
  "bytes",
@@ -1413,9 +1415,9 @@ checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 
 [[package]]
 name = "winnow"
-version = "0.5.18"
+version = "0.5.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "176b6138793677221d420fd2f0aeeced263f197688b36484660da767bca2fa32"
+checksum = "829846f3e3db426d4cee4510841b71a8e58aa2a76b1132579487ae430ccd9c7b"
 dependencies = [
  "memchr",
 ]

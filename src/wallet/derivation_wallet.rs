@@ -70,6 +70,10 @@ where
         }
     }
 
+    pub fn puzzle_generator(&self) -> &P {
+        &self.puzzle_generator
+    }
+
     async fn register_puzzle_hashes(&self, puzzle_hashes: u32) -> Result<Vec<[u8; 32]>> {
         let next = self.next_derivation_index();
         let target = next + puzzle_hashes;

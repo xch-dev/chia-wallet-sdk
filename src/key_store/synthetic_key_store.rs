@@ -4,10 +4,11 @@ use chia_bls::{
 };
 use chia_protocol::CoinSpend;
 use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
-use clvm_traits::Result;
 use clvmr::Allocator;
 
-use crate::{sign_coin_spend, sign_coin_spends, KeyPair, KeyStore, PartialSignature, Signer};
+use crate::{
+    sign_coin_spend, sign_coin_spends, KeyPair, KeyStore, PartialSignature, SignError, Signer,
+};
 
 pub struct SyntheticKeyStore {
     intermediate_key: SecretKey,
@@ -66,7 +67,7 @@ impl Signer for SyntheticKeyStore {
         allocator: &mut Allocator,
         coin_spend: &CoinSpend,
         agg_sig_me_extra_data: [u8; 32],
-    ) -> Result<PartialSignature> {
+    ) -> Result<PartialSignature, SignError> {
         sign_coin_spend(
             allocator,
             coin_spend,
@@ -80,7 +81,7 @@ impl Signer for SyntheticKeyStore {
         allocator: &mut clvmr::Allocator,
         coin_spends: &[chia_protocol::CoinSpend],
         agg_sig_me_extra_data: [u8; 32],
-    ) -> Result<PartialSignature> {
+    ) -> Result<PartialSignature, SignError> {
         sign_coin_spends(
             allocator,
             coin_spends,
