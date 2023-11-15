@@ -116,25 +116,21 @@ where
         }
 
         loop {
-            match self.unused_derivation_index() {
-                // Check if an unused derivation index was found.
-                Some(unused_index) => {
-                    // If so, calculate the extra unused derivations after that index.
-                    let last_index = self.next_derivation_index() - 1;
-                    let extra_indices = last_index - unused_index;
+            if let Some(unused_index) = self.unused_derivation_index() {
+                // Calculate the extra unused derivations after that index.
+                let last_index = self.next_derivation_index() - 1;
+                let extra_indices = last_index - unused_index;
 
-                    // Make sure at least `gap` indices are available if needed.
-                    if extra_indices < gap {
-                        self.register_puzzle_hashes(gap).await?;
-                    }
-
-                    // Return the unused derivation index.
-                    return Ok(unused_index);
-                }
-                // Otherwise, generate more puzzle hashes and check again.
-                None => {
+                // Make sure at least `gap` indices are available if needed.
+                if extra_indices < gap {
                     self.register_puzzle_hashes(gap).await?;
                 }
+
+                // Return the unused derivation index.
+                return Ok(unused_index);
+            } else {
+                // Generate more puzzle hashes and check again.
+                self.register_puzzle_hashes(gap).await?;
             }
         }
     }
