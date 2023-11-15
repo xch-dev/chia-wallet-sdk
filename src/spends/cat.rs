@@ -1,12 +1,12 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Coin, CoinSpend, Program};
+use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_wallet::{
     cat::{CatArgs, CatSolution, CoinProof, CAT_PUZZLE_HASH},
     standard::{StandardArgs, StandardSolution},
     LineageProof,
 };
 use clvm_traits::{clvm_quote, ToClvmError, ToPtr};
-use clvm_utils::{curry_tree_hash, tree_hash_atom, CurriedProgram};
+use clvm_utils::{curry_tree_hash, tree_hash, tree_hash_atom, CurriedProgram};
 use clvmr::{allocator::NodePtr, serde::node_to_bytes, Allocator};
 
 use crate::{CatCondition, Condition, CreateCoin};
@@ -18,6 +18,69 @@ pub struct CatSpend {
     pub extra_delta: i64,
     pub p2_puzzle_hash: [u8; 32],
     pub lineage_proof: LineageProof,
+}
+
+pub struct CatIssuance {
+    pub puzzle_hash: [u8; 32],
+    pub coin_spend: CoinSpend,
+}
+
+pub fn spend_new_eve_coin<T>(
+    a: &mut Allocator,
+    cat_puzzle: NodePtr,
+    parent_coin_id: Bytes32,
+    tail_program: T,
+    amount: u64,
+    conditions: &[CatCondition<NodePtr>],
+) -> Result<CatIssuance, ToClvmError>
+where
+    T: ToPtr,
+{
+    let tail_program_ptr = tail_program.to_ptr(a)?;
+    let inner_puzzle = clvm_quote!(conditions).to_ptr(a)?;
+    let inner_puzzle_hash = tree_hash(a, inner_puzzle);
+
+    let puzzle = CurriedProgram {
+        program: cat_puzzle,
+        args: CatArgs {
+            mod_hash: CAT_PUZZLE_HASH.into(),
+            tail_program_hash: tree_hash(a, tail_program_ptr).into(),
+            inner_puzzle,
+        },
+    }
+    .to_ptr(a)?;
+
+    let puzzle_hash = tree_hash(a, puzzle);
+    let coin = Coin::new(parent_coin_id, puzzle_hash.into(), amount);
+
+    let solution = CatSolution {
+        inner_puzzle_solution: (),
+        lineage_proof: None,
+        prev_coin_id: coin.coin_id().into(),
+        this_coin_info: coin.clone(),
+        next_coin_proof: CoinProof {
+            parent_coin_info: parent_coin_id,
+            inner_puzzle_hash: inner_puzzle_hash.into(),
+            amount,
+        },
+        prev_subtotal: 0,
+        extra_delta: 0,
+    }
+    .to_ptr(a)?;
+
+    let puzzle_bytes = node_to_bytes(a, puzzle).unwrap();
+    let solution_bytes = node_to_bytes(a, solution).unwrap();
+
+    let coin_spend = CoinSpend::new(
+        coin,
+        Program::new(puzzle_bytes.into()),
+        Program::new(solution_bytes.into()),
+    );
+
+    Ok(CatIssuance {
+        puzzle_hash,
+        coin_spend,
+    })
 }
 
 pub fn spend_cat_coins(
