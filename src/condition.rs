@@ -1,6 +1,8 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
-use clvm_traits::{FromClvm, MatchByte, ToClvm};
+use clvm_traits::{
+    clvm_list, destructure_list, from_clvm, match_list, to_clvm, FromClvm, MatchByte, ToClvm,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
@@ -170,21 +172,35 @@ where
     Normal(Condition<T>),
 
     #[clvm(list)]
-    Melt(Melt),
+    RunTail(RunTail<T>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(raw, list)]
-pub enum Melt {
-    Normal {
-        puzzle_hash: Bytes32,
-        amount: MatchByte<142>, // -113
-    },
-    Memos {
-        puzzle_hash: Bytes32,
-        amount: MatchByte<142>, // -113
-        memos: Vec<Bytes32>,
-    },
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunTail<T> {
+    pub program: T,
+    pub solution: T,
+}
+
+impl<Node, T> ToClvm<Node> for RunTail<T>
+where
+    Node: Clone,
+    T: ToClvm<Node>,
+{
+    to_clvm!(Node, self, f, {
+        clvm_list!(51, (), -113, &self.program, &self.solution).to_clvm(f)
+    });
+}
+
+impl<Node, T> FromClvm<Node> for RunTail<T>
+where
+    Node: Clone,
+    T: FromClvm<Node>,
+{
+    from_clvm!(Node, f, ptr, {
+        let destructure_list!(_, _, _, program, solution) =
+            <match_list!(MatchByte::<51>, (), MatchByte::<142>, T, T)>::from_clvm(f, ptr)?;
+        Ok(Self { program, solution })
+    });
 }
 
 #[cfg(test)]

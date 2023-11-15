@@ -1,7 +1,7 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_wallet::{
-    cat::{CatArgs, CatSolution, CoinProof, CAT_PUZZLE_HASH},
+    cat::{CatArgs, CatSolution, CoinProof, EverythingWithSignatureTailArgs, CAT_PUZZLE_HASH},
     standard::{StandardArgs, StandardSolution},
     LineageProof,
 };
@@ -9,7 +9,7 @@ use clvm_traits::{clvm_quote, ToClvmError, ToPtr};
 use clvm_utils::{curry_tree_hash, tree_hash, tree_hash_atom, CurriedProgram};
 use clvmr::{allocator::NodePtr, serde::node_to_bytes, Allocator};
 
-use crate::{CatCondition, Condition, CreateCoin};
+use crate::{CatCondition, Condition, CreateCoin, RunTail};
 
 pub struct CatSpend {
     pub coin: Coin,
@@ -20,23 +20,56 @@ pub struct CatSpend {
     pub lineage_proof: LineageProof,
 }
 
-pub struct CatIssuance {
+pub struct EveSpendInfo {
     pub puzzle_hash: [u8; 32],
     pub coin_spend: CoinSpend,
 }
 
-pub fn spend_new_eve_coin<T>(
+pub fn issue_cat_with_public_key(
+    a: &mut Allocator,
+    cat_puzzle: NodePtr,
+    everything_with_signature_puzzle: NodePtr,
+    public_key: PublicKey,
+    parent_coin_id: Bytes32,
+    amount: u64,
+    conditions: &[Condition<NodePtr>],
+) -> Result<EveSpendInfo, ToClvmError> {
+    let mut cat_conditions: Vec<CatCondition<NodePtr>> = Vec::with_capacity(conditions.len() + 1);
+    cat_conditions.extend(
+        conditions
+            .iter()
+            .map(|condition| CatCondition::Normal(condition.clone())),
+    );
+
+    let program = CurriedProgram {
+        program: everything_with_signature_puzzle,
+        args: EverythingWithSignatureTailArgs { public_key },
+    }
+    .to_ptr(a)?;
+
+    cat_conditions.push(CatCondition::RunTail(RunTail {
+        program,
+        solution: a.null(),
+    }));
+
+    spend_new_eve_cat(
+        a,
+        cat_puzzle,
+        parent_coin_id,
+        tree_hash(a, everything_with_signature_puzzle),
+        amount,
+        &cat_conditions,
+    )
+}
+
+pub fn spend_new_eve_cat(
     a: &mut Allocator,
     cat_puzzle: NodePtr,
     parent_coin_id: Bytes32,
-    tail_program: T,
+    tail_program_hash: [u8; 32],
     amount: u64,
     conditions: &[CatCondition<NodePtr>],
-) -> Result<CatIssuance, ToClvmError>
-where
-    T: ToPtr,
-{
-    let tail_program_ptr = tail_program.to_ptr(a)?;
+) -> Result<EveSpendInfo, ToClvmError> {
     let inner_puzzle = clvm_quote!(conditions).to_ptr(a)?;
     let inner_puzzle_hash = tree_hash(a, inner_puzzle);
 
@@ -44,7 +77,7 @@ where
         program: cat_puzzle,
         args: CatArgs {
             mod_hash: CAT_PUZZLE_HASH.into(),
-            tail_program_hash: tree_hash(a, tail_program_ptr).into(),
+            tail_program_hash: tail_program_hash.into(),
             inner_puzzle,
         },
     }
@@ -77,7 +110,7 @@ where
         Program::new(solution_bytes.into()),
     );
 
-    Ok(CatIssuance {
+    Ok(EveSpendInfo {
         puzzle_hash,
         coin_spend,
     })
