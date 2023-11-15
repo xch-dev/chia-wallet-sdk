@@ -70,6 +70,10 @@ where
         }
     }
 
+    pub fn peer(&self) -> &Peer {
+        &self.peer
+    }
+
     pub fn puzzle_generator(&self) -> &P {
         &self.puzzle_generator
     }

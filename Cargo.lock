@@ -163,7 +163,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "chia-bls"
 version = "0.2.13"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#961f4c9eb083823d0d8390d7e1f0dd81d4208034"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -181,7 +181,7 @@ dependencies = [
 [[package]]
 name = "chia-client"
 version = "0.2.13"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#961f4c9eb083823d0d8390d7e1f0dd81d4208034"
 dependencies = [
  "chia-protocol",
  "chia-traits",
@@ -195,7 +195,7 @@ dependencies = [
 [[package]]
 name = "chia-protocol"
 version = "0.2.13"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#961f4c9eb083823d0d8390d7e1f0dd81d4208034"
 dependencies = [
  "arbitrary",
  "chia-bls",
@@ -210,7 +210,7 @@ dependencies = [
 [[package]]
 name = "chia-traits"
 version = "0.2.13"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#961f4c9eb083823d0d8390d7e1f0dd81d4208034"
 dependencies = [
  "chia_streamable_macro",
  "hex",
@@ -221,7 +221,7 @@ dependencies = [
 [[package]]
 name = "chia-wallet"
 version = "0.2.12"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#961f4c9eb083823d0d8390d7e1f0dd81d4208034"
 dependencies = [
  "arbitrary",
  "chia-bls",
@@ -259,7 +259,7 @@ dependencies = [
 [[package]]
 name = "chia_streamable_macro"
 version = "0.2.12"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#961f4c9eb083823d0d8390d7e1f0dd81d4208034"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -270,7 +270,7 @@ dependencies = [
 [[package]]
 name = "clvm-derive"
 version = "0.2.12"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#961f4c9eb083823d0d8390d7e1f0dd81d4208034"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -280,7 +280,7 @@ dependencies = [
 [[package]]
 name = "clvm-traits"
 version = "0.2.12"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#961f4c9eb083823d0d8390d7e1f0dd81d4208034"
 dependencies = [
  "clvm-derive",
  "clvmr",
@@ -291,7 +291,7 @@ dependencies = [
 [[package]]
 name = "clvm-utils"
 version = "0.2.12"
-source = "git+https://github.com/rigidity/chia_rs?branch=develop#f3a1420081d552c083ee9c054d9bff3ccc558ab7"
+source = "git+https://github.com/rigidity/chia_rs?branch=develop#961f4c9eb083823d0d8390d7e1f0dd81d4208034"
 dependencies = [
  "clvm-traits",
  "clvmr",

@@ -1,12 +1,15 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Coin, CoinSpend, Program};
+use chia_protocol::{
+    wallet_protocol::RequestPuzzleSolution, Coin, CoinSpend, Program, RegisterForCoinUpdates,
+    RespondPuzzleSolution, RespondToCoinUpdates,
+};
 use chia_wallet::{
     cat::{CatArgs, CatSolution, CoinProof, CAT_PUZZLE, CAT_PUZZLE_HASH},
     standard::{StandardArgs, StandardSolution, STANDARD_PUZZLE},
     LineageProof,
 };
-use clvm_traits::{clvm_quote, ToClvmError, ToPtr};
-use clvm_utils::{curry_tree_hash, tree_hash_atom, CurriedProgram};
+use clvm_traits::{clvm_quote, FromPtr, ToClvmError, ToPtr};
+use clvm_utils::{curry_tree_hash, tree_hash, tree_hash_atom, CurriedProgram};
 use clvmr::{
     allocator::NodePtr,
     serde::{node_from_bytes, node_to_bytes},
@@ -63,7 +66,7 @@ where
     K: KeyStore + 'static,
     S: DerivationState + 'static,
 {
-    pub fn spend_coins(
+    pub async fn spend_coins(
         &self,
         coins: Vec<Coin>,
         conditions: &[CatCondition<NodePtr>],
@@ -72,31 +75,69 @@ where
         let standard_puzzle = node_from_bytes(&mut a, &STANDARD_PUZZLE).unwrap();
         let cat_puzzle = node_from_bytes(&mut a, &CAT_PUZZLE).unwrap();
 
-        let spends: Vec<CatSpend> = coins
-            .into_iter()
-            .enumerate()
-            .map(|(i, coin)| {
-                let puzzle_hash = &coin.puzzle_hash;
-                let index = self
-                    .derivation_index(puzzle_hash.into())
-                    .expect("cannot spend coin with unknown puzzle hash");
-                let synthetic_key = self.public_key(index);
-                let p2_puzzle_hash = StandardPuzzleGenerator.puzzle_hash(&synthetic_key);
+        let mut spends = Vec::new();
 
-                CatSpend {
-                    coin,
-                    synthetic_key,
-                    conditions: if i == 0 { conditions } else { &[] },
-                    extra_delta: 0,
-                    p2_puzzle_hash,
-                    lineage_proof: LineageProof {
-                        parent_coin_info: todo!(),
-                        inner_puzzle_hash: todo!(),
-                        amount: todo!(),
-                    },
-                }
-            })
-            .collect();
+        let parent_coin_updates: RespondToCoinUpdates = self
+            .peer()
+            .request(RegisterForCoinUpdates::new(
+                coins.iter().map(|coin| coin.parent_coin_info).collect(),
+                0,
+            ))
+            .await
+            .unwrap();
+
+        for (i, coin) in coins.into_iter().enumerate() {
+            // Coin info.
+            let puzzle_hash = &coin.puzzle_hash;
+            let index = self
+                .derivation_index(puzzle_hash.into())
+                .expect("cannot spend coin with unknown puzzle hash");
+            let synthetic_key = self.public_key(index);
+            let p2_puzzle_hash = StandardPuzzleGenerator.puzzle_hash(&synthetic_key);
+
+            // Lineage proof.
+            let parent_coin_state = parent_coin_updates
+                .coin_states
+                .iter()
+                .find(|coin_state| coin_state.coin == coin)
+                .cloned()
+                .unwrap();
+
+            let response: RespondPuzzleSolution = self
+                .peer()
+                .request(RequestPuzzleSolution::new(
+                    coin.parent_coin_info,
+                    parent_coin_state.spent_height.unwrap(),
+                ))
+                .await
+                .unwrap();
+
+            let response = response.response;
+
+            let parent_ptr = node_from_bytes(&mut a, response.puzzle.as_slice()).unwrap();
+
+            let parent_puzzle: CurriedProgram<NodePtr, CatArgs<NodePtr>> =
+                FromPtr::from_ptr(&a, parent_ptr).unwrap();
+
+            assert_eq!(tree_hash(&a, parent_puzzle.program), CAT_PUZZLE_HASH);
+
+            let parent_inner_puzzle_hash = tree_hash(&a, parent_puzzle.args.inner_puzzle);
+
+            // Spend information.
+            let spend = CatSpend {
+                coin,
+                synthetic_key,
+                conditions: if i == 0 { conditions } else { &[] },
+                extra_delta: 0,
+                p2_puzzle_hash,
+                lineage_proof: LineageProof {
+                    parent_coin_info: parent_coin_state.coin.parent_coin_info,
+                    inner_puzzle_hash: parent_inner_puzzle_hash.into(),
+                    amount: parent_coin_state.coin.amount,
+                },
+            };
+            spends.push(spend);
+        }
 
         spend_cat_coins(
             &mut a,
@@ -118,12 +159,12 @@ pub struct CatSpend<'a> {
     lineage_proof: LineageProof,
 }
 
-pub fn spend_cat_coins<'a>(
+pub fn spend_cat_coins(
     a: &mut Allocator,
     standard_puzzle: NodePtr,
     cat_puzzle: NodePtr,
     asset_id: &[u8; 32],
-    cat_spends: &[CatSpend<'a>],
+    cat_spends: &[CatSpend],
 ) -> Result<Vec<CoinSpend>, ToClvmError> {
     let mut total_delta = 0;
 
@@ -157,8 +198,8 @@ pub fn spend_cat_coins<'a>(
             let puzzle = CurriedProgram {
                 program: cat_puzzle,
                 args: CatArgs {
-                    mod_hash: CAT_PUZZLE_HASH,
-                    tail_program_hash: *asset_id,
+                    mod_hash: CAT_PUZZLE_HASH.into(),
+                    tail_program_hash: (*asset_id).into(),
                     inner_puzzle: CurriedProgram {
                         program: standard_puzzle,
                         args: StandardArgs {
@@ -170,8 +211,6 @@ pub fn spend_cat_coins<'a>(
             .to_ptr(a)?;
 
             // Construct the solution.
-            let next_parent_coin_info: &[u8; 32] = (&next_cat.coin.parent_coin_info).into();
-
             let solution = CatSolution {
                 inner_puzzle_solution: StandardSolution {
                     original_public_key: None,
@@ -179,11 +218,11 @@ pub fn spend_cat_coins<'a>(
                     solution: (),
                 },
                 lineage_proof: Some(cat_spend.lineage_proof.clone()),
-                prev_coin_id: prev_cat.coin.coin_id(),
+                prev_coin_id: prev_cat.coin.coin_id().into(),
                 this_coin_info: cat_spend.coin.clone(),
                 next_coin_proof: CoinProof {
-                    parent_coin_info: *next_parent_coin_info,
-                    inner_puzzle_hash: next_cat.p2_puzzle_hash,
+                    parent_coin_info: next_cat.coin.parent_coin_info,
+                    inner_puzzle_hash: next_cat.p2_puzzle_hash.into(),
                     amount: next_cat.coin.amount,
                 },
                 prev_subtotal,
