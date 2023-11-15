@@ -1,20 +1,16 @@
 use chia_bls::PublicKey;
-use chia_protocol::{
-    wallet_protocol::RequestPuzzleSolution, Coin, CoinSpend, RegisterForCoinUpdates,
-    RespondPuzzleSolution, RespondToCoinUpdates,
-};
+use chia_protocol::{Coin, CoinSpend, RegisterForCoinUpdates, RespondToCoinUpdates};
 use chia_wallet::{
     cat::{CatArgs, CAT_PUZZLE, CAT_PUZZLE_HASH},
     standard::STANDARD_PUZZLE,
     LineageProof,
 };
-use clvm_traits::FromPtr;
-use clvm_utils::{tree_hash, CurriedProgram};
+use clvm_utils::tree_hash;
 use clvmr::{allocator::NodePtr, serde::node_from_bytes, Allocator};
 
 use crate::{
-    cat_puzzle_hash, spend_cat_coins, CatCondition, CatSpend, DerivationState, DerivationWallet,
-    KeyStore, PuzzleGenerator, StandardPuzzleGenerator,
+    cat_puzzle_hash, request_puzzle_args, spend_cat_coins, CatCondition, CatSpend, DerivationState,
+    DerivationWallet, KeyStore, PuzzleGenerator, StandardPuzzleGenerator,
 };
 
 pub type CatWallet<I, K, S> = DerivationWallet<CatPuzzleGenerator<I>, K, S>;
@@ -100,25 +96,15 @@ where
                 .cloned()
                 .unwrap();
 
-            let response: RespondPuzzleSolution = self
-                .peer()
-                .request(RequestPuzzleSolution::new(
-                    coin.parent_coin_info,
-                    parent_coin_state.spent_height.unwrap(),
-                ))
-                .await
-                .unwrap();
-
-            let response = response.response;
-
-            let parent_ptr = node_from_bytes(&mut a, response.puzzle.as_slice()).unwrap();
-
-            let parent_puzzle: CurriedProgram<NodePtr, CatArgs<NodePtr>> =
-                FromPtr::from_ptr(&a, parent_ptr).unwrap();
-
-            assert_eq!(tree_hash(&a, parent_puzzle.program), CAT_PUZZLE_HASH);
-
-            let parent_inner_puzzle_hash = tree_hash(&a, parent_puzzle.args.inner_puzzle);
+            let cat_args: CatArgs<NodePtr> = request_puzzle_args(
+                &mut a,
+                self.peer(),
+                &coin,
+                CAT_PUZZLE_HASH,
+                parent_coin_state.spent_height.unwrap(),
+            )
+            .await
+            .unwrap();
 
             // Spend information.
             let spend = CatSpend {
@@ -133,7 +119,7 @@ where
                 p2_puzzle_hash,
                 lineage_proof: LineageProof {
                     parent_coin_info: parent_coin_state.coin.parent_coin_info,
-                    inner_puzzle_hash: parent_inner_puzzle_hash.into(),
+                    inner_puzzle_hash: tree_hash(&a, cat_args.inner_puzzle).into(),
                     amount: parent_coin_state.coin.amount,
                 },
             };
