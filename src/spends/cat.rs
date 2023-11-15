@@ -27,7 +27,7 @@ pub struct EveSpendInfo {
 
 pub fn issue_cat_with_public_key(
     a: &mut Allocator,
-    cat_puzzle: NodePtr,
+    cat_puzzle_ptr: NodePtr,
     everything_with_signature_puzzle: NodePtr,
     public_key: PublicKey,
     parent_coin_id: Bytes32,
@@ -54,7 +54,7 @@ pub fn issue_cat_with_public_key(
 
     spend_new_eve_cat(
         a,
-        cat_puzzle,
+        cat_puzzle_ptr,
         parent_coin_id,
         tree_hash(a, everything_with_signature_puzzle),
         amount,
@@ -64,7 +64,7 @@ pub fn issue_cat_with_public_key(
 
 pub fn spend_new_eve_cat(
     a: &mut Allocator,
-    cat_puzzle: NodePtr,
+    cat_puzzle_ptr: NodePtr,
     parent_coin_id: Bytes32,
     tail_program_hash: [u8; 32],
     amount: u64,
@@ -74,7 +74,7 @@ pub fn spend_new_eve_cat(
     let inner_puzzle_hash = tree_hash(a, inner_puzzle);
 
     let puzzle = CurriedProgram {
-        program: cat_puzzle,
+        program: cat_puzzle_ptr,
         args: CatArgs {
             mod_hash: CAT_PUZZLE_HASH.into(),
             tail_program_hash: tail_program_hash.into(),
@@ -118,8 +118,8 @@ pub fn spend_new_eve_cat(
 
 pub fn spend_cat_coins(
     a: &mut Allocator,
-    standard_puzzle: NodePtr,
-    cat_puzzle: NodePtr,
+    standard_puzzle_ptr: NodePtr,
+    cat_puzzle_ptr: NodePtr,
     asset_id: &[u8; 32],
     cat_spends: &[CatSpend],
 ) -> Result<Vec<CoinSpend>, ToClvmError> {
@@ -153,12 +153,12 @@ pub fn spend_cat_coins(
 
             // Construct the puzzle.
             let puzzle = CurriedProgram {
-                program: cat_puzzle,
+                program: cat_puzzle_ptr,
                 args: CatArgs {
                     mod_hash: CAT_PUZZLE_HASH.into(),
                     tail_program_hash: (*asset_id).into(),
                     inner_puzzle: CurriedProgram {
-                        program: standard_puzzle,
+                        program: standard_puzzle_ptr,
                         args: StandardArgs {
                             synthetic_key: cat_spend.synthetic_key.clone(),
                         },
