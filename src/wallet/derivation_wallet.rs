@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use async_trait::async_trait;
 use chia_bls::PublicKey;
 use chia_client::{Peer, PeerEvent};
 use chia_protocol::{Coin, RegisterForPhUpdates, RespondToPhUpdates};
-use parking_lot::Mutex;
-use tokio::task::JoinHandle;
+use tokio::{sync::Mutex, task::JoinHandle};
 
 use crate::{DerivationState, KeyStore, PuzzleGenerator, Wallet};
 
@@ -53,7 +53,8 @@ where
 
             while let Ok(event) = event_receiver.recv().await {
                 if let PeerEvent::CoinStateUpdate(update) = event {
-                    wallet.state.lock().apply_state_updates(update.items);
+                    dbg!(update.items.len());
+                    wallet.state.lock().await.apply_state_updates(update.items);
                     if let Err(error) = wallet.sync(gap).await {
                         log::error!("failed to sync wallet after coin state update: {error}");
                     }
@@ -79,28 +80,39 @@ where
     }
 
     async fn register_puzzle_hashes(&self, puzzle_hashes: u32) -> Result<Vec<[u8; 32]>> {
-        let next = self.next_derivation_index();
+        let next = self.next_derivation_index().await;
         let target = next + puzzle_hashes;
-        self.key_store.lock().derive_keys_until(target);
+        self.key_store.lock().await.derive_keys_until(target);
 
-        let derivations = (next..target).map(|index| {
-            let public_key = self.key_store.lock().public_key(index);
-            self.puzzle_generator.puzzle_hash(&public_key)
-        });
+        let key_store = self.key_store.lock().await;
+        let derivations: Vec<[u8; 32]> = (next..target)
+            .map(|index| {
+                let public_key = key_store.public_key(index);
+                self.puzzle_generator.puzzle_hash(&public_key)
+            })
+            .collect();
+        drop(key_store);
 
         self.state
             .lock()
+            .await
             .insert_next_derivations(derivations.clone());
 
         let response: RespondToPhUpdates = self
             .peer
             .request(RegisterForPhUpdates::new(
-                derivations.map(|derivation| derivation.into()).collect(),
+                derivations
+                    .into_iter()
+                    .map(|derivation| derivation.into())
+                    .collect(),
                 0,
             ))
             .await?;
 
-        self.state.lock().apply_state_updates(response.coin_states);
+        self.state
+            .lock()
+            .await
+            .apply_state_updates(response.coin_states);
 
         Ok(response
             .puzzle_hashes
@@ -111,14 +123,14 @@ where
 
     async fn sync(&self, gap: u32) -> Result<u32> {
         // If there aren't any derivations, generate the first batch.
-        if self.next_derivation_index() == 0 {
+        if self.next_derivation_index().await == 0 {
             self.register_puzzle_hashes(gap).await?;
         }
 
         loop {
-            if let Some(unused_index) = self.unused_derivation_index() {
+            if let Some(unused_index) = self.unused_derivation_index().await {
                 // Calculate the extra unused derivations after that index.
-                let last_index = self.next_derivation_index() - 1;
+                let last_index = self.next_derivation_index().await - 1;
                 let extra_indices = last_index - unused_index;
 
                 // Make sure at least `gap` indices are available if needed.
@@ -135,31 +147,32 @@ where
         }
     }
 
-    pub fn public_key(&self, index: u32) -> PublicKey {
-        self.key_store.lock().public_key(index)
+    pub async fn public_key(&self, index: u32) -> PublicKey {
+        self.key_store.lock().await.public_key(index)
     }
 
-    pub fn derivation_index(&self, puzzle_hash: [u8; 32]) -> Option<u32> {
-        self.state.lock().derivation_index(puzzle_hash)
+    pub async fn derivation_index(&self, puzzle_hash: [u8; 32]) -> Option<u32> {
+        self.state.lock().await.derivation_index(puzzle_hash)
     }
 
-    pub fn unused_derivation_index(&self) -> Option<u32> {
-        self.state.lock().unused_derivation_index()
+    pub async fn unused_derivation_index(&self) -> Option<u32> {
+        self.state.lock().await.unused_derivation_index()
     }
 
-    pub fn next_derivation_index(&self) -> u32 {
-        self.state.lock().next_derivation_index()
+    pub async fn next_derivation_index(&self) -> u32 {
+        self.state.lock().await.next_derivation_index()
     }
 }
 
+#[async_trait]
 impl<P, K, S> Wallet for DerivationWallet<P, K, S>
 where
     P: PuzzleGenerator,
     K: KeyStore,
     S: DerivationState,
 {
-    fn spendable_coins(&self) -> Vec<Coin> {
-        self.state.lock().spendable_coins()
+    async fn spendable_coins(&self) -> Vec<Coin> {
+        self.state.lock().await.spendable_coins()
     }
 }
 

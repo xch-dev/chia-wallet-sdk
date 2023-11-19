@@ -23,7 +23,7 @@ where
     K: KeyStore + 'static,
     S: DerivationState + 'static,
 {
-    pub fn spend_coins(
+    pub async fn spend_coins(
         &self,
         coins: Vec<Coin>,
         conditions: &[Condition<NodePtr>],
@@ -31,16 +31,16 @@ where
         let mut a = Allocator::new();
         let standard_puzzle = node_from_bytes(&mut a, &STANDARD_PUZZLE).unwrap();
 
-        coins
-            .into_iter()
-            .enumerate()
-            .map(|(i, coin)| {
-                let puzzle_hash = &coin.puzzle_hash;
-                let index = self
-                    .derivation_index(puzzle_hash.into())
-                    .expect("cannot spend coin with unknown puzzle hash");
-                let synthetic_key = self.public_key(index);
+        let mut coin_spends = Vec::new();
+        for (i, coin) in coins.into_iter().enumerate() {
+            let puzzle_hash = &coin.puzzle_hash;
+            let index = self
+                .derivation_index(puzzle_hash.into())
+                .await
+                .expect("cannot spend coin with unknown puzzle hash");
+            let synthetic_key = self.public_key(index).await;
 
+            coin_spends.push(
                 spend_standard_coin(
                     &mut a,
                     standard_puzzle,
@@ -48,8 +48,9 @@ where
                     synthetic_key,
                     if i == 0 { conditions } else { &[] },
                 )
-                .unwrap()
-            })
-            .collect()
+                .unwrap(),
+            );
+        }
+        coin_spends
     }
 }

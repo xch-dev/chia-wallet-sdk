@@ -84,8 +84,9 @@ where
             let puzzle_hash = &coin.puzzle_hash;
             let index = self
                 .derivation_index(puzzle_hash.into())
+                .await
                 .expect("cannot spend coin with unknown puzzle hash");
-            let synthetic_key = self.public_key(index);
+            let synthetic_key = self.public_key(index).await;
             let p2_puzzle_hash = StandardPuzzleGenerator.puzzle_hash(&synthetic_key);
 
             // Lineage proof.

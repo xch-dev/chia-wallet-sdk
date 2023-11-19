@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use chia_protocol::Coin;
 
 mod cat_wallet;
@@ -12,11 +13,13 @@ pub use derivation_wallet::*;
 pub use puzzle_generator::*;
 pub use standard_wallet::*;
 
+#[async_trait]
 pub trait Wallet {
-    fn spendable_coins(&self) -> Vec<Coin>;
+    async fn spendable_coins(&self) -> Vec<Coin>;
 
-    fn spendable_balance(&self) -> u64 {
+    async fn spendable_balance(&self) -> u64 {
         self.spendable_coins()
+            .await
             .iter()
             .fold(0, |balance, coin| balance + coin.amount)
     }

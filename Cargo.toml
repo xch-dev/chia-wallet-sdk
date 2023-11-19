@@ -11,13 +11,13 @@ chia-client = { git = "https://github.com/rigidity/chia_rs", branch = "develop" 
 clvm-traits = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
 clvm-utils = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
 clvmr = "0.3.0"
-parking_lot = "0.12.1"
 tokio = "1.33.0"
 log = "0.4.20"
 indexmap = "2.1.0"
 anyhow = "1.0.75"
 sha2 = "0.9.9"
 thiserror = "1.0.50"
+async-trait = "0.1.74"
 
 [dev-dependencies]
 hex = "0.4.3"
