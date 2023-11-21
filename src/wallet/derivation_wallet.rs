@@ -54,7 +54,12 @@ where
             while let Ok(event) = event_receiver.recv().await {
                 if let PeerEvent::CoinStateUpdate(update) = event {
                     dbg!(update.items.len());
-                    wallet.state.lock().await.apply_state_updates(update.items);
+                    wallet
+                        .state
+                        .lock()
+                        .await
+                        .apply_state_updates(update.items)
+                        .await;
                     if let Err(error) = wallet.sync(gap).await {
                         log::error!("failed to sync wallet after coin state update: {error}");
                     }
@@ -96,7 +101,8 @@ where
         self.state
             .lock()
             .await
-            .insert_next_derivations(derivations.clone());
+            .insert_next_derivations(derivations.clone())
+            .await;
 
         let response: RespondToPhUpdates = self
             .peer
@@ -112,7 +118,8 @@ where
         self.state
             .lock()
             .await
-            .apply_state_updates(response.coin_states);
+            .apply_state_updates(response.coin_states)
+            .await;
 
         Ok(response
             .puzzle_hashes
@@ -152,15 +159,15 @@ where
     }
 
     pub async fn derivation_index(&self, puzzle_hash: [u8; 32]) -> Option<u32> {
-        self.state.lock().await.derivation_index(puzzle_hash)
+        self.state.lock().await.derivation_index(puzzle_hash).await
     }
 
     pub async fn unused_derivation_index(&self) -> Option<u32> {
-        self.state.lock().await.unused_derivation_index()
+        self.state.lock().await.unused_derivation_index().await
     }
 
     pub async fn next_derivation_index(&self) -> u32 {
-        self.state.lock().await.next_derivation_index()
+        self.state.lock().await.next_derivation_index().await
     }
 }
 
@@ -172,7 +179,7 @@ where
     S: DerivationState,
 {
     async fn spendable_coins(&self) -> Vec<Coin> {
-        self.state.lock().await.spendable_coins()
+        self.state.lock().await.spendable_coins().await
     }
 }
 

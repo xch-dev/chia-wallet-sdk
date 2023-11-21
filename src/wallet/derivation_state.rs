@@ -1,13 +1,15 @@
+use async_trait::async_trait;
 use chia_protocol::{Coin, CoinState};
 use indexmap::IndexMap;
 
+#[async_trait]
 pub trait DerivationState: Send + Sync {
-    fn insert_next_derivations(&mut self, derivations: impl IntoIterator<Item = [u8; 32]>);
-    fn derivation_index(&self, puzzle_hash: [u8; 32]) -> Option<u32>;
-    fn unused_derivation_index(&self) -> Option<u32>;
-    fn next_derivation_index(&self) -> u32;
-    fn spendable_coins(&self) -> Vec<Coin>;
-    fn apply_state_updates(&mut self, updates: Vec<CoinState>);
+    async fn insert_next_derivations(&mut self, derivations: Vec<[u8; 32]>);
+    async fn derivation_index(&self, puzzle_hash: [u8; 32]) -> Option<u32>;
+    async fn unused_derivation_index(&self) -> Option<u32>;
+    async fn next_derivation_index(&self) -> u32;
+    async fn spendable_coins(&self) -> Vec<Coin>;
+    async fn apply_state_updates(&mut self, updates: Vec<CoinState>);
 }
 
 #[derive(Default)]
@@ -21,20 +23,21 @@ impl MemoryDerivationState {
     }
 }
 
+#[async_trait]
 impl DerivationState for MemoryDerivationState {
-    fn insert_next_derivations(&mut self, derivations: impl IntoIterator<Item = [u8; 32]>) {
+    async fn insert_next_derivations(&mut self, derivations: Vec<[u8; 32]>) {
         for derivation in derivations {
             self.derivations.insert(derivation, Vec::new());
         }
     }
 
-    fn derivation_index(&self, puzzle_hash: [u8; 32]) -> Option<u32> {
+    async fn derivation_index(&self, puzzle_hash: [u8; 32]) -> Option<u32> {
         self.derivations
             .get_index_of(&puzzle_hash)
             .map(|index| index as u32)
     }
 
-    fn unused_derivation_index(&self) -> Option<u32> {
+    async fn unused_derivation_index(&self) -> Option<u32> {
         let mut result = None;
         for (i, derivation) in self.derivations.values().enumerate().rev() {
             if derivation.is_empty() {
@@ -46,11 +49,11 @@ impl DerivationState for MemoryDerivationState {
         result
     }
 
-    fn next_derivation_index(&self) -> u32 {
+    async fn next_derivation_index(&self) -> u32 {
         self.derivations.len() as u32
     }
 
-    fn spendable_coins(&self) -> Vec<Coin> {
+    async fn spendable_coins(&self) -> Vec<Coin> {
         self.derivations
             .values()
             .flatten()
@@ -59,7 +62,7 @@ impl DerivationState for MemoryDerivationState {
             .collect()
     }
 
-    fn apply_state_updates(&mut self, updates: Vec<CoinState>) {
+    async fn apply_state_updates(&mut self, updates: Vec<CoinState>) {
         for coin_state in updates {
             let puzzle_hash = &coin_state.coin.puzzle_hash;
 
