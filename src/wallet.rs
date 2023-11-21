@@ -4,13 +4,11 @@ use chia_protocol::Coin;
 mod cat_wallet;
 mod derivation_state;
 mod derivation_wallet;
-mod puzzle_generator;
 mod standard_wallet;
 
 pub use cat_wallet::*;
 pub use derivation_state::*;
 pub use derivation_wallet::*;
-pub use puzzle_generator::*;
 pub use standard_wallet::*;
 
 #[async_trait]

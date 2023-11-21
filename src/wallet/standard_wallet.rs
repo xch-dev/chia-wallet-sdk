@@ -42,6 +42,14 @@ where
     S: DerivationState,
     K: KeyStore,
 {
+    pub fn new(state: Arc<Mutex<S>>, key_store: Arc<Mutex<K>>, peer: Arc<Peer>) -> Self {
+        Self {
+            state,
+            key_store,
+            peer,
+        }
+    }
+
     pub async fn spend_coins(
         &self,
         a: &mut Allocator,
@@ -53,14 +61,14 @@ where
         for (i, coin) in coins.into_iter().enumerate() {
             let puzzle_hash = &coin.puzzle_hash;
             let index = self
-                .state
+                .state()
                 .lock()
                 .await
                 .derivation_index(puzzle_hash.into())
                 .await
                 .expect("cannot spend coin with unknown puzzle hash");
 
-            let synthetic_key = self.key_store.lock().await.public_key(index);
+            let synthetic_key = self.key_store().lock().await.public_key(index);
 
             coin_spends.push(
                 spend_standard_coin(
