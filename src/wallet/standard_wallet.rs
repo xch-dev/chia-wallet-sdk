@@ -42,9 +42,9 @@ where
     S: DerivationState,
     K: KeyStore,
 {
-    pub fn new(state: Arc<Mutex<S>>, key_store: Arc<Mutex<K>>, peer: Arc<Peer>) -> Self {
+    pub fn new(state: S, key_store: Arc<Mutex<K>>, peer: Arc<Peer>) -> Self {
         Self {
-            state,
+            state: Arc::new(Mutex::new(state)),
             key_store,
             peer,
         }

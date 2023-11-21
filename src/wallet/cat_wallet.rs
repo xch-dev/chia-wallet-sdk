@@ -53,6 +53,15 @@ where
     S: DerivationState,
     K: KeyStore,
 {
+    pub fn new(state: S, key_store: Arc<Mutex<K>>, peer: Arc<Peer>, asset_id: [u8; 32]) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(state)),
+            key_store,
+            peer,
+            asset_id,
+        }
+    }
+
     pub async fn spend_coins(
         &self,
         coins: Vec<Coin>,
