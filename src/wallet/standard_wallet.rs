@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use chia_client::Peer;
 use chia_protocol::{Coin, CoinSpend};
 use chia_wallet::standard::standard_puzzle_hash;
 use clvmr::{allocator::NodePtr, Allocator};
 use tokio::sync::Mutex;
 
-use crate::{spend_standard_coin, Condition, DerivationState, DerivationWallet, KeyStore};
+use crate::{spend_standard_coin, Condition, DerivationState, DerivationWallet, KeyStore, Wallet};
 
 pub struct StandardWallet<S, K> {
     state: Arc<Mutex<S>>,
@@ -25,6 +26,17 @@ where
             key_store: self.key_store.clone(),
             peer: self.peer.clone(),
         }
+    }
+}
+
+#[async_trait]
+impl<S, K> Wallet for StandardWallet<S, K>
+where
+    S: DerivationState,
+    K: KeyStore,
+{
+    async fn spendable_coins(&self) -> Vec<Coin> {
+        self.state.lock().await.spendable_coins().await
     }
 }
 

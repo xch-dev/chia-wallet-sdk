@@ -7,7 +7,7 @@ use chia_protocol::{RegisterForPhUpdates, RespondToPhUpdates};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::{DerivationState, KeyStore};
+use crate::{DerivationState, KeyStore, Wallet};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncSettings {
@@ -23,7 +23,7 @@ impl Default for SyncSettings {
 }
 
 #[async_trait]
-pub trait DerivationWallet<S, K>
+pub trait DerivationWallet<S, K>: Wallet
 where
     S: DerivationState,
     K: KeyStore,

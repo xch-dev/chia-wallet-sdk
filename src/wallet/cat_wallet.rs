@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use chia_bls::PublicKey;
 use chia_client::Peer;
 use chia_protocol::{Coin, CoinSpend, RegisterForCoinUpdates, RespondToCoinUpdates};
@@ -14,7 +15,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     cat_puzzle_hash, request_puzzle_args, spend_cat_coins, CatCondition, CatSpend, DerivationState,
-    DerivationWallet, KeyStore,
+    DerivationWallet, KeyStore, Wallet,
 };
 
 pub struct CatWallet<S, K> {
@@ -36,6 +37,17 @@ where
             key_store: self.key_store.clone(),
             peer: self.peer.clone(),
         }
+    }
+}
+
+#[async_trait]
+impl<S, K> Wallet for CatWallet<S, K>
+where
+    S: DerivationState,
+    K: KeyStore,
+{
+    async fn spendable_coins(&self) -> Vec<Coin> {
+        self.state.lock().await.spendable_coins().await
     }
 }
 
