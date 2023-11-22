@@ -38,6 +38,10 @@ where
     async fn spendable_coins(&self) -> Vec<Coin> {
         self.state.lock().await.spendable_coins().await
     }
+
+    async fn pending_coins(&self) -> Vec<Coin> {
+        self.state.lock().await.pending_coins().await
+    }
 }
 
 impl<S, K> DerivationWallet<S, K> for StandardWallet<S, K>

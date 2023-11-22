@@ -9,6 +9,7 @@ pub trait DerivationState: Send + Sync {
     async fn unused_derivation_index(&self) -> Option<u32>;
     async fn next_derivation_index(&self) -> u32;
     async fn spendable_coins(&self) -> Vec<Coin>;
+    async fn pending_coins(&self) -> Vec<Coin>;
     async fn apply_state_updates(&mut self, updates: Vec<CoinState>);
 }
 
@@ -58,6 +59,15 @@ impl DerivationState for MemoryDerivationState {
             .values()
             .flatten()
             .filter(|item| item.created_height.is_some() && item.spent_height.is_none())
+            .map(|coin_state| coin_state.coin.clone())
+            .collect()
+    }
+
+    async fn pending_coins(&self) -> Vec<Coin> {
+        self.derivations
+            .values()
+            .flatten()
+            .filter(|item| item.spent_height.is_none())
             .map(|coin_state| coin_state.coin.clone())
             .collect()
     }
