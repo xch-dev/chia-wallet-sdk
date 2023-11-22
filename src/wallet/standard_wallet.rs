@@ -8,11 +8,24 @@ use tokio::sync::Mutex;
 
 use crate::{spend_standard_coin, Condition, DerivationState, DerivationWallet, KeyStore};
 
-#[derive(Clone)]
 pub struct StandardWallet<S, K> {
     state: Arc<Mutex<S>>,
     key_store: Arc<Mutex<K>>,
     peer: Arc<Peer>,
+}
+
+impl<S, K> Clone for StandardWallet<S, K>
+where
+    Arc<Mutex<S>>: Clone,
+    Arc<Mutex<K>>: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            state: self.state.clone(),
+            key_store: self.key_store.clone(),
+            peer: self.peer.clone(),
+        }
+    }
 }
 
 impl<S, K> DerivationWallet<S, K> for StandardWallet<S, K>

@@ -17,12 +17,26 @@ use crate::{
     DerivationWallet, KeyStore,
 };
 
-#[derive(Clone)]
 pub struct CatWallet<S, K> {
     asset_id: [u8; 32],
     state: Arc<Mutex<S>>,
     key_store: Arc<Mutex<K>>,
     peer: Arc<Peer>,
+}
+
+impl<S, K> Clone for CatWallet<S, K>
+where
+    Arc<Mutex<S>>: Clone,
+    Arc<Mutex<K>>: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            asset_id: self.asset_id,
+            state: self.state.clone(),
+            key_store: self.key_store.clone(),
+            peer: self.peer.clone(),
+        }
+    }
 }
 
 impl<S, K> DerivationWallet<S, K> for CatWallet<S, K>

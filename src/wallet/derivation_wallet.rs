@@ -4,11 +4,12 @@ use async_trait::async_trait;
 use chia_bls::PublicKey;
 use chia_client::{Error, Peer, PeerEvent};
 use chia_protocol::{RegisterForPhUpdates, RespondToPhUpdates};
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use crate::{DerivationState, KeyStore};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncSettings {
     pub minimum_unused_derivations: u32,
 }
@@ -32,7 +33,7 @@ where
     fn key_store(&self) -> &Arc<Mutex<K>>;
     fn peer(&self) -> &Arc<Peer>;
 
-    async fn sync(&self, sync_settings: SyncSettings) {
+    async fn keep_synced_automatically(&self, sync_settings: SyncSettings) {
         let mut event_receiver = self.peer().receiver().resubscribe();
 
         if let Err(error) = self.fetch_unused_puzzle_hash(&sync_settings).await {
@@ -62,7 +63,8 @@ where
         }
 
         loop {
-            if let Some(unused_index) = self.state().lock().await.unused_derivation_index().await {
+            let result = self.state().lock().await.unused_derivation_index().await;
+            if let Some(unused_index) = result {
                 // Calculate the extra unused derivations after that index.
                 let last_index = self.state().lock().await.next_derivation_index().await - 1;
                 let extra_indices = last_index - unused_index;
