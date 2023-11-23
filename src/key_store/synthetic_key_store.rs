@@ -54,6 +54,10 @@ impl KeyStore for SyntheticKeyStore {
 }
 
 impl Signer for SyntheticKeyStore {
+    fn secret_key(&self, index: u32) -> SecretKey {
+        self.keys.get_index(index as usize).unwrap().1.clone()
+    }
+
     fn has_public_key(&self, public_key: &PublicKey) -> bool {
         self.keys.contains_key(public_key)
     }

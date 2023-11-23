@@ -28,7 +28,7 @@ pub struct EveSpendInfo {
 pub fn issue_cat_with_public_key(
     a: &mut Allocator,
     cat_puzzle_ptr: NodePtr,
-    everything_with_signature_puzzle: NodePtr,
+    tail_puzzle_ptr: NodePtr,
     public_key: PublicKey,
     parent_coin_id: Bytes32,
     amount: u64,
@@ -41,14 +41,14 @@ pub fn issue_cat_with_public_key(
             .map(|condition| CatCondition::Normal(condition.clone())),
     );
 
-    let program = CurriedProgram {
-        program: everything_with_signature_puzzle,
+    let tail = CurriedProgram {
+        program: tail_puzzle_ptr,
         args: EverythingWithSignatureTailArgs { public_key },
     }
     .to_ptr(a)?;
 
     cat_conditions.push(CatCondition::RunTail(RunTail {
-        program,
+        program: tail,
         solution: a.null(),
     }));
 
@@ -56,7 +56,7 @@ pub fn issue_cat_with_public_key(
         a,
         cat_puzzle_ptr,
         parent_coin_id,
-        tree_hash(a, everything_with_signature_puzzle),
+        tree_hash(a, tail_puzzle_ptr),
         amount,
         &cat_conditions,
     )

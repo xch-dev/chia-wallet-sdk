@@ -12,6 +12,6 @@ pub trait KeyStore: Send + Sync {
         if index < self.next_derivation_index() {
             return Vec::new();
         }
-        self.derive_keys(index - self.next_derivation_index() + 1)
+        self.derive_keys(index - self.next_derivation_index())
     }
 }

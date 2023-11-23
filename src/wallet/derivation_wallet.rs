@@ -33,10 +33,19 @@ where
     fn key_store(&self) -> &Arc<Mutex<K>>;
     fn peer(&self) -> &Arc<Peer>;
 
+    async fn fetch_unused_puzzle_hash(
+        &self,
+        sync_settings: &SyncSettings,
+    ) -> Result<[u8; 32], Error> {
+        let derivation_index = self.fetch_unused_derivation_index(sync_settings).await?;
+        let public_key = self.key_store().lock().await.public_key(derivation_index);
+        Ok(self.calculate_puzzle_hash(&public_key))
+    }
+
     async fn keep_synced_automatically(&self, sync_settings: SyncSettings) {
         let mut event_receiver = self.peer().receiver().resubscribe();
 
-        if let Err(error) = self.fetch_unused_puzzle_hash(&sync_settings).await {
+        if let Err(error) = self.fetch_unused_derivation_index(&sync_settings).await {
             log::error!("failed to perform initial wallet sync: {error}");
         }
 
@@ -48,14 +57,17 @@ where
                     .apply_state_updates(update.items)
                     .await;
 
-                if let Err(error) = self.fetch_unused_puzzle_hash(&sync_settings).await {
+                if let Err(error) = self.fetch_unused_derivation_index(&sync_settings).await {
                     log::error!("failed to sync wallet after coin state update: {error}");
                 }
             }
         }
     }
 
-    async fn fetch_unused_puzzle_hash(&self, sync_settings: &SyncSettings) -> Result<u32, Error> {
+    async fn fetch_unused_derivation_index(
+        &self,
+        sync_settings: &SyncSettings,
+    ) -> Result<u32, Error> {
         // If there aren't any derivations, generate the first batch.
         if self.state().lock().await.next_derivation_index().await == 0 {
             self.register_puzzle_hashes(sync_settings.minimum_unused_derivations)

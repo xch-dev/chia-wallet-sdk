@@ -1,6 +1,6 @@
 use std::io;
 
-use chia_bls::{PublicKey, Signature};
+use chia_bls::{PublicKey, SecretKey, Signature};
 use chia_protocol::CoinSpend;
 use clvmr::{serde::node_from_bytes, Allocator};
 use thiserror::Error;
@@ -23,6 +23,7 @@ pub enum SignError {
 }
 
 pub trait Signer {
+    fn secret_key(&self, index: u32) -> SecretKey;
     fn has_public_key(&self, public_key: &PublicKey) -> bool;
     fn sign_message(&self, public_key: &PublicKey, message: &[u8]) -> Signature;
 
