@@ -56,7 +56,7 @@ pub fn issue_cat_with_public_key(
         a,
         cat_puzzle_ptr,
         parent_coin_id,
-        tree_hash(a, tail_puzzle_ptr),
+        tree_hash(a, tail),
         amount,
         &cat_conditions,
     )

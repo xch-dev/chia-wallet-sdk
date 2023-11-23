@@ -33,19 +33,16 @@ impl KeyStore for SyntheticKeyStore {
         self.keys.len() as u32
     }
 
-    fn derive_keys(&mut self, count: u32) -> Vec<PublicKey> {
+    fn derive_keys(&mut self, count: u32) {
         let next = self.next_derivation_index();
-        let mut public_keys = Vec::new();
         for index in next..(next + count) {
             let secret_key = self
                 .intermediate_key
                 .derive_unhardened(index)
                 .derive_synthetic(&self.hidden_puzzle_hash);
             let public_key = secret_key.public_key();
-            public_keys.push(public_key.clone());
             self.keys.insert(public_key, secret_key);
         }
-        public_keys
     }
 
     fn public_key(&self, index: u32) -> PublicKey {

@@ -42,12 +42,42 @@ where
         Ok(self.calculate_puzzle_hash(&public_key))
     }
 
-    async fn keep_synced_automatically(&self, sync_settings: SyncSettings) {
+    async fn keep_synced_automatically(&self, sync_settings: SyncSettings) -> Result<(), Error> {
         let mut event_receiver = self.peer().receiver().resubscribe();
 
-        if let Err(error) = self.fetch_unused_derivation_index(&sync_settings).await {
-            log::error!("failed to perform initial wallet sync: {error}");
+        let derivation_index = self.state().lock().await.next_derivation_index().await;
+        if derivation_index > 0 {
+            let mut derivations = Vec::new();
+            for index in 0..derivation_index {
+                let public_key = self.key_store().lock().await.public_key(index);
+                derivations.push(self.calculate_puzzle_hash(&public_key));
+            }
+
+            self.state()
+                .lock()
+                .await
+                .insert_next_derivations(derivations.clone())
+                .await;
+
+            let response: RespondToPhUpdates = self
+                .peer()
+                .request(RegisterForPhUpdates::new(
+                    derivations
+                        .into_iter()
+                        .map(|derivation| derivation.into())
+                        .collect(),
+                    0,
+                ))
+                .await?;
+
+            self.state()
+                .lock()
+                .await
+                .apply_state_updates(response.coin_states)
+                .await;
         }
+
+        self.fetch_unused_derivation_index(&sync_settings).await?;
 
         while let Ok(event) = event_receiver.recv().await {
             if let PeerEvent::CoinStateUpdate(update) = event {
@@ -57,11 +87,11 @@ where
                     .apply_state_updates(update.items)
                     .await;
 
-                if let Err(error) = self.fetch_unused_derivation_index(&sync_settings).await {
-                    log::error!("failed to sync wallet after coin state update: {error}");
-                }
+                self.fetch_unused_derivation_index(&sync_settings).await?;
             }
         }
+
+        Ok(())
     }
 
     async fn fetch_unused_derivation_index(
@@ -100,12 +130,13 @@ where
     async fn register_puzzle_hashes(&self, puzzle_hashes: u32) -> Result<Vec<[u8; 32]>, Error> {
         let next = self.state().lock().await.next_derivation_index().await;
         let target = next + puzzle_hashes;
-        let public_keys = self.key_store().lock().await.derive_keys_until(target);
+        self.key_store().lock().await.derive_keys_until(target);
 
-        let derivations: Vec<[u8; 32]> = public_keys
-            .iter()
-            .map(|public_key| self.calculate_puzzle_hash(public_key))
-            .collect();
+        let mut derivations = Vec::new();
+        for index in next..target {
+            let public_key = self.key_store().lock().await.public_key(index);
+            derivations.push(self.calculate_puzzle_hash(&public_key));
+        }
 
         self.state()
             .lock()

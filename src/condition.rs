@@ -170,8 +170,6 @@ where
     T: Clone,
 {
     Normal(Condition<T>),
-
-    #[clvm(list)]
     RunTail(RunTail<T>),
 }
 

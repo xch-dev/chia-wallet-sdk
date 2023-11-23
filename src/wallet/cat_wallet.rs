@@ -131,7 +131,7 @@ where
             let parent_coin_state = parent_coin_updates
                 .coin_states
                 .iter()
-                .find(|coin_state| coin_state.coin == coin)
+                .find(|coin_state| coin_state.coin.coin_id() == coin.parent_coin_info)
                 .cloned()
                 .unwrap();
 
