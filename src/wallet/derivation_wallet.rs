@@ -86,7 +86,7 @@ where
 
 pub async fn start_syncing<W, S, K>(
     wallet: Arc<Mutex<W>>,
-    peer: Peer,
+    peer: Arc<Peer>,
     sync_settings: SyncSettings,
 ) -> Result<(), Error>
 where
