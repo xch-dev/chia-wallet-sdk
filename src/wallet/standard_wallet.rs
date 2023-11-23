@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chia_client::Peer;
 use chia_protocol::{Coin, CoinSpend};
 use chia_wallet::standard::standard_puzzle_hash;
 use clvmr::{allocator::NodePtr, Allocator};
@@ -10,23 +9,8 @@ use tokio::sync::Mutex;
 use crate::{spend_standard_coin, Condition, DerivationState, DerivationWallet, KeyStore, Wallet};
 
 pub struct StandardWallet<S, K> {
-    state: Arc<Mutex<S>>,
+    state: S,
     key_store: Arc<Mutex<K>>,
-    peer: Arc<Peer>,
-}
-
-impl<S, K> Clone for StandardWallet<S, K>
-where
-    Arc<Mutex<S>>: Clone,
-    Arc<Mutex<K>>: Clone,
-{
-    fn clone(&self) -> Self {
-        Self {
-            state: self.state.clone(),
-            key_store: self.key_store.clone(),
-            peer: self.peer.clone(),
-        }
-    }
 }
 
 #[async_trait]
@@ -36,11 +20,11 @@ where
     K: KeyStore,
 {
     async fn spendable_coins(&self) -> Vec<Coin> {
-        self.state.lock().await.spendable_coins().await
+        self.state.spendable_coins().await
     }
 
     async fn pending_coins(&self) -> Vec<Coin> {
-        self.state.lock().await.pending_coins().await
+        self.state.pending_coins().await
     }
 }
 
@@ -53,16 +37,16 @@ where
         standard_puzzle_hash(public_key)
     }
 
-    fn state(&self) -> &Arc<Mutex<S>> {
+    fn state(&self) -> &S {
         &self.state
+    }
+
+    fn state_mut(&mut self) -> &mut S {
+        &mut self.state
     }
 
     fn key_store(&self) -> &Arc<Mutex<K>> {
         &self.key_store
-    }
-
-    fn peer(&self) -> &Arc<Peer> {
-        &self.peer
     }
 }
 
@@ -71,12 +55,8 @@ where
     S: DerivationState,
     K: KeyStore,
 {
-    pub fn new(state: S, key_store: Arc<Mutex<K>>, peer: Arc<Peer>) -> Self {
-        Self {
-            state: Arc::new(Mutex::new(state)),
-            key_store,
-            peer,
-        }
+    pub fn new(state: S, key_store: Arc<Mutex<K>>) -> Self {
+        Self { state, key_store }
     }
 
     pub async fn spend_coins(
@@ -90,14 +70,12 @@ where
         for (i, coin) in coins.into_iter().enumerate() {
             let puzzle_hash = &coin.puzzle_hash;
             let index = self
-                .state()
-                .lock()
-                .await
+                .state
                 .derivation_index(puzzle_hash.into())
                 .await
                 .expect("cannot spend coin with unknown puzzle hash");
 
-            let synthetic_key = self.key_store().lock().await.public_key(index);
+            let synthetic_key = self.key_store.lock().await.public_key(index);
 
             coin_spends.push(
                 spend_standard_coin(

@@ -20,24 +20,8 @@ use crate::{
 
 pub struct CatWallet<S, K> {
     asset_id: [u8; 32],
-    state: Arc<Mutex<S>>,
+    state: S,
     key_store: Arc<Mutex<K>>,
-    peer: Arc<Peer>,
-}
-
-impl<S, K> Clone for CatWallet<S, K>
-where
-    Arc<Mutex<S>>: Clone,
-    Arc<Mutex<K>>: Clone,
-{
-    fn clone(&self) -> Self {
-        Self {
-            asset_id: self.asset_id,
-            state: self.state.clone(),
-            key_store: self.key_store.clone(),
-            peer: self.peer.clone(),
-        }
-    }
 }
 
 #[async_trait]
@@ -47,17 +31,17 @@ where
     K: KeyStore,
 {
     async fn spendable_coins(&self) -> Vec<Coin> {
-        self.state.lock().await.spendable_coins().await
+        self.state.spendable_coins().await
     }
 
     async fn pending_coins(&self) -> Vec<Coin> {
-        self.state.lock().await.pending_coins().await
+        self.state.pending_coins().await
     }
 }
 
 impl<S, K> DerivationWallet<S, K> for CatWallet<S, K>
 where
-    S: DerivationState,
+    S: DerivationState + 'static,
     K: KeyStore,
 {
     fn calculate_puzzle_hash(&self, public_key: &PublicKey) -> [u8; 32] {
@@ -65,35 +49,35 @@ where
         cat_puzzle_hash(self.asset_id, inner_puzzle_hash)
     }
 
-    fn state(&self) -> &Arc<Mutex<S>> {
+    fn state(&self) -> &S {
         &self.state
+    }
+
+    fn state_mut(&mut self) -> &mut S {
+        &mut self.state
     }
 
     fn key_store(&self) -> &Arc<Mutex<K>> {
         &self.key_store
     }
-
-    fn peer(&self) -> &Arc<Peer> {
-        &self.peer
-    }
 }
 
 impl<S, K> CatWallet<S, K>
 where
-    S: DerivationState,
+    S: DerivationState + 'static,
     K: KeyStore,
 {
-    pub fn new(state: S, key_store: Arc<Mutex<K>>, peer: Arc<Peer>, asset_id: [u8; 32]) -> Self {
+    pub fn new(state: S, key_store: Arc<Mutex<K>>, asset_id: [u8; 32]) -> Self {
         Self {
-            state: Arc::new(Mutex::new(state)),
+            state,
             key_store,
-            peer,
             asset_id,
         }
     }
 
     pub async fn spend_coins(
         &self,
+        peer: &Peer,
         coins: Vec<Coin>,
         conditions: Vec<CatCondition<NodePtr>>,
     ) -> Vec<CoinSpend> {
@@ -104,8 +88,7 @@ where
         let mut spends = Vec::new();
         let mut conditions = Some(conditions);
 
-        let parent_coin_updates: RespondToCoinUpdates = self
-            .peer()
+        let parent_coin_updates: RespondToCoinUpdates = peer
             .request(RegisterForCoinUpdates::new(
                 coins.iter().map(|coin| coin.parent_coin_info).collect(),
                 0,
@@ -117,9 +100,7 @@ where
             // Coin info.
             let puzzle_hash = &coin.puzzle_hash;
             let index = self
-                .state()
-                .lock()
-                .await
+                .state
                 .derivation_index(puzzle_hash.into())
                 .await
                 .expect("cannot spend coin with unknown puzzle hash");
@@ -137,7 +118,7 @@ where
 
             let cat_args: CatArgs<NodePtr> = request_puzzle_args(
                 &mut a,
-                self.peer(),
+                peer,
                 &coin,
                 CAT_PUZZLE_HASH,
                 parent_coin_state.spent_height.unwrap(),
