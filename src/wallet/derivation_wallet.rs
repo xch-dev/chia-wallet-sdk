@@ -100,24 +100,14 @@ where
 
     let derivation_index = lock.state().next_derivation_index().await;
     if derivation_index > 0 {
-        let mut derivations = Vec::new();
+        let mut puzzle_hashes = Vec::new();
         for index in 0..derivation_index {
             let public_key = lock.key_store().lock().await.public_key(index);
-            derivations.push(lock.calculate_puzzle_hash(&public_key));
+            puzzle_hashes.push(lock.calculate_puzzle_hash(&public_key).into());
         }
 
-        lock.state_mut()
-            .insert_next_derivations(derivations.clone())
-            .await;
-
         let response: RespondToPhUpdates = peer
-            .request(RegisterForPhUpdates::new(
-                derivations
-                    .into_iter()
-                    .map(|derivation| derivation.into())
-                    .collect(),
-                0,
-            ))
+            .request(RegisterForPhUpdates::new(puzzle_hashes, 0))
             .await?;
 
         lock.state_mut()
