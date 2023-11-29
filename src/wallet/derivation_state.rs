@@ -80,7 +80,7 @@ impl DerivationState for MemoryDerivationState {
         self.derivations
             .values()
             .flatten()
-            .filter(|item| item.state.spent_height.is_none())
+            .filter(|item| item.state.spent_height.is_none() && !item.is_pending)
             .map(|coin_state| coin_state.state.coin.clone())
             .collect()
     }
