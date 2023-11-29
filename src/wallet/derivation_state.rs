@@ -9,14 +9,22 @@ pub trait DerivationState: Send + Sync {
     async fn unused_derivation_index(&self) -> Option<u32>;
     async fn next_derivation_index(&self) -> u32;
     async fn spendable_coins(&self) -> Vec<Coin>;
-    async fn pending_coins(&self) -> Vec<Coin>;
-    async fn coin_state(&self, coin: &Coin) -> Option<CoinState>;
+    async fn unconfirmed_coins(&self) -> Vec<Coin>;
+    async fn coin_state(&self, coin_id: [u8; 32]) -> Option<CoinState>;
     async fn apply_state_updates(&mut self, updates: Vec<CoinState>);
+    async fn is_pending(&self, coin_id: [u8; 32]) -> bool;
+    async fn set_pending(&mut self, coin_id: [u8; 32], is_pending: bool);
+    async fn pending_coins(&self) -> Vec<Coin>;
+}
+
+struct CoinData {
+    state: CoinState,
+    is_pending: bool,
 }
 
 #[derive(Default)]
 pub struct MemoryDerivationState {
-    derivations: IndexMap<[u8; 32], Vec<CoinState>>,
+    derivations: IndexMap<[u8; 32], Vec<CoinData>>,
 }
 
 impl MemoryDerivationState {
@@ -59,40 +67,79 @@ impl DerivationState for MemoryDerivationState {
         self.derivations
             .values()
             .flatten()
-            .filter(|item| item.created_height.is_some() && item.spent_height.is_none())
-            .map(|coin_state| coin_state.coin.clone())
+            .filter(|item| {
+                item.state.created_height.is_some()
+                    && item.state.spent_height.is_none()
+                    && !item.is_pending
+            })
+            .map(|coin_state| coin_state.state.coin.clone())
             .collect()
+    }
+
+    async fn unconfirmed_coins(&self) -> Vec<Coin> {
+        self.derivations
+            .values()
+            .flatten()
+            .filter(|item| item.state.spent_height.is_none())
+            .map(|coin_state| coin_state.state.coin.clone())
+            .collect()
+    }
+
+    async fn coin_state(&self, coin_id: [u8; 32]) -> Option<CoinState> {
+        self.derivations
+            .values()
+            .flatten()
+            .find(|item| item.state.coin.coin_id() == coin_id)
+            .map(|item| item.state.clone())
+    }
+
+    async fn apply_state_updates(&mut self, updates: Vec<CoinState>) {
+        for coin_state in updates {
+            let puzzle_hash = &coin_state.coin.puzzle_hash;
+            let data = CoinData {
+                state: coin_state.clone(),
+                is_pending: false,
+            };
+
+            if let Some(derivation) = self.derivations.get_mut(<&[u8; 32]>::from(puzzle_hash)) {
+                match derivation
+                    .iter_mut()
+                    .find(|item| item.state.coin == coin_state.coin)
+                {
+                    Some(value) => {
+                        *value = data;
+                    }
+                    None => derivation.push(data),
+                }
+            }
+        }
+    }
+
+    async fn is_pending(&self, coin_id: [u8; 32]) -> bool {
+        self.derivations
+            .values()
+            .flatten()
+            .find(|item| item.state.coin.coin_id() == coin_id)
+            .is_some_and(|item| item.is_pending)
+    }
+
+    async fn set_pending(&mut self, coin_id: [u8; 32], is_pending: bool) {
+        if let Some(item) = self
+            .derivations
+            .values_mut()
+            .flatten()
+            .find(|item| item.state.coin.coin_id() == coin_id)
+        {
+            item.is_pending = is_pending;
+        }
     }
 
     async fn pending_coins(&self) -> Vec<Coin> {
         self.derivations
             .values()
             .flatten()
-            .filter(|item| item.spent_height.is_none())
-            .map(|coin_state| coin_state.coin.clone())
+            .filter(|item| item.is_pending)
+            .map(|coin_state| coin_state.state.coin.clone())
             .collect()
-    }
-
-    async fn coin_state(&self, coin: &Coin) -> Option<CoinState> {
-        let puzzle_hash: [u8; 32] = (&coin.puzzle_hash).into();
-        self.derivations
-            .get(&puzzle_hash)
-            .and_then(|coin_states| coin_states.iter().find(|item| item.coin == *coin).cloned())
-    }
-
-    async fn apply_state_updates(&mut self, updates: Vec<CoinState>) {
-        for coin_state in updates {
-            let puzzle_hash = &coin_state.coin.puzzle_hash;
-
-            if let Some(derivation) = self.derivations.get_mut(<&[u8; 32]>::from(puzzle_hash)) {
-                match derivation
-                    .iter_mut()
-                    .find(|item| item.coin == coin_state.coin)
-                {
-                    Some(value) => *value = coin_state,
-                    None => derivation.push(coin_state),
-                }
-            }
-        }
     }
 }
