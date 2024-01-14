@@ -4,22 +4,8 @@ use chia_client::Peer;
 use chia_protocol::{Coin, RejectPuzzleSolution, RequestPuzzleSolution, RespondPuzzleSolution};
 use clvm_traits::{FromClvm, FromClvmError};
 use clvm_utils::{tree_hash, CurriedProgram};
-use clvmr::{
-    allocator::NodePtr, reduction::EvalErr, run_program, serde::node_from_bytes, Allocator,
-    ChiaDialect, FromNodePtr,
-};
+use clvmr::{allocator::NodePtr, serde::node_from_bytes, Allocator};
 use thiserror::Error;
-
-use crate::Condition;
-
-#[derive(Error, Debug)]
-pub enum EvaluateConditionsError {
-    #[error("{0}")]
-    Eval(#[from] EvalErr),
-
-    #[error("{0}")]
-    Clvm(#[from] FromClvmError),
-}
 
 #[derive(Error, Debug)]
 pub enum RequestPuzzleError {
@@ -49,16 +35,6 @@ pub fn u64_to_bytes(amount: u64) -> Vec<u8> {
     }
 
     slice.into()
-}
-
-pub fn evaluate_conditions(
-    allocator: &mut Allocator,
-    puzzle: NodePtr,
-    solution: NodePtr,
-) -> Result<Vec<Condition<NodePtr>>, EvaluateConditionsError> {
-    let dialect = ChiaDialect::new(0);
-    let output = run_program(allocator, &dialect, puzzle, solution, u64::MAX)?.1;
-    Ok(Vec::<Condition<NodePtr>>::from_node_ptr(allocator, output)?)
 }
 
 pub async fn request_puzzle_args<T>(

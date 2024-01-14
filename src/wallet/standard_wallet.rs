@@ -73,7 +73,7 @@ where
                 .await
                 .expect("cannot spend coin with unknown puzzle hash");
 
-            let synthetic_key = self.key_store.lock().await.public_key(index);
+            let synthetic_key = self.key_store.lock().await.public_key(index).await;
 
             coin_spends.push(
                 spend_standard_coin(

@@ -29,13 +29,17 @@ impl SyntheticKeyStore {
 }
 
 impl KeyStore for SyntheticKeyStore {
-    fn next_derivation_index(&self) -> u32 {
-        self.keys.len() as u32
+    async fn public_key(&self, index: u32) -> PublicKey {
+        self.keys.get_index(index as usize).unwrap().0.clone()
     }
 
-    fn derive_keys(&mut self, count: u32) {
-        let next = self.next_derivation_index();
-        for index in next..(next + count) {
+    async fn public_keys(&self) -> Vec<PublicKey> {
+        self.keys.iter().map(|key| key.0).cloned().collect()
+    }
+
+    async fn derive_to_index(&mut self, index: u32) {
+        let current = self.keys.len() as u32;
+        for index in current..index {
             let secret_key = self
                 .intermediate_key
                 .derive_unhardened(index)
@@ -44,22 +48,14 @@ impl KeyStore for SyntheticKeyStore {
             self.keys.insert(public_key, secret_key);
         }
     }
-
-    fn public_key(&self, index: u32) -> PublicKey {
-        self.keys.get_index(index as usize).unwrap().0.clone()
-    }
 }
 
 impl Signer for SyntheticKeyStore {
-    fn secret_key(&self, index: u32) -> SecretKey {
+    async fn secret_key(&self, index: u32) -> SecretKey {
         self.keys.get_index(index as usize).unwrap().1.clone()
     }
 
-    fn has_public_key(&self, public_key: &PublicKey) -> bool {
-        self.keys.contains_key(public_key)
-    }
-
-    fn sign_message(&self, public_key: &PublicKey, message: &[u8]) -> Signature {
+    async fn sign_message(&self, public_key: &PublicKey, message: &[u8]) -> Signature {
         sign(&self.keys[public_key], message)
     }
 }

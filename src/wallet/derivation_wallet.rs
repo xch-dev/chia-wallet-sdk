@@ -40,7 +40,12 @@ where
             let derivation_index = self
                 .fetch_unused_derivation_index(peer, sync_settings)
                 .await?;
-            let public_key = self.key_store().lock().await.public_key(derivation_index);
+            let public_key = self
+                .key_store()
+                .lock()
+                .await
+                .public_key(derivation_index)
+                .await;
             Ok(self.calculate_puzzle_hash(&public_key))
         }
     }
@@ -108,7 +113,7 @@ where
     if derivation_index > 0 {
         let mut puzzle_hashes = Vec::new();
         for index in 0..derivation_index {
-            let public_key = lock.key_store().lock().await.public_key(index);
+            let public_key = lock.key_store().lock().await.public_key(index).await;
             puzzle_hashes.push(lock.calculate_puzzle_hash(&public_key).into());
         }
 
@@ -150,11 +155,16 @@ where
 {
     let next = wallet.state().next_derivation_index().await;
     let target = next + puzzle_hashes;
-    wallet.key_store().lock().await.derive_keys_until(target);
+    wallet
+        .key_store()
+        .lock()
+        .await
+        .derive_to_index(target)
+        .await;
 
     let mut derivations = Vec::new();
     for index in next..target {
-        let public_key = wallet.key_store().lock().await.public_key(index);
+        let public_key = wallet.key_store().lock().await.public_key(index).await;
         derivations.push(wallet.calculate_puzzle_hash(&public_key));
     }
 
