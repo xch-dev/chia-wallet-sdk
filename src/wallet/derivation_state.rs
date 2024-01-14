@@ -1,20 +1,37 @@
-use async_trait::async_trait;
+use std::future::Future;
+
 use chia_protocol::{Coin, CoinState};
 use indexmap::IndexMap;
 
-#[async_trait]
 pub trait DerivationState: Send + Sync {
-    async fn insert_next_derivations(&mut self, derivations: Vec<[u8; 32]>);
-    async fn derivation_index(&self, puzzle_hash: [u8; 32]) -> Option<u32>;
-    async fn unused_derivation_index(&self) -> Option<u32>;
-    async fn next_derivation_index(&self) -> u32;
-    async fn spendable_coins(&self) -> Vec<Coin>;
-    async fn unconfirmed_coins(&self) -> Vec<Coin>;
-    async fn coin_state(&self, coin_id: [u8; 32]) -> Option<CoinState>;
-    async fn apply_state_updates(&mut self, updates: Vec<CoinState>);
-    async fn is_pending(&self, coin_id: [u8; 32]) -> bool;
-    async fn set_pending(&mut self, coin_id: [u8; 32], is_pending: bool);
-    async fn pending_coins(&self) -> Vec<Coin>;
+    fn insert_next_derivations(
+        &mut self,
+        derivations: Vec<[u8; 32]>,
+    ) -> impl Future<Output = ()> + Send;
+
+    fn derivation_index(&self, puzzle_hash: [u8; 32]) -> impl Future<Output = Option<u32>> + Send;
+
+    fn unused_derivation_index(&self) -> impl Future<Output = Option<u32>> + Send;
+
+    fn next_derivation_index(&self) -> impl Future<Output = u32> + Send;
+
+    fn spendable_coins(&self) -> impl Future<Output = Vec<Coin>> + Send;
+
+    fn unconfirmed_coins(&self) -> impl Future<Output = Vec<Coin>> + Send;
+
+    fn coin_state(&self, coin_id: [u8; 32]) -> impl Future<Output = Option<CoinState>> + Send;
+
+    fn apply_state_updates(&mut self, updates: Vec<CoinState>) -> impl Future<Output = ()> + Send;
+
+    fn is_pending(&self, coin_id: [u8; 32]) -> impl Future<Output = bool> + Send;
+
+    fn set_pending(
+        &mut self,
+        coin_id: [u8; 32],
+        is_pending: bool,
+    ) -> impl Future<Output = ()> + Send;
+
+    fn pending_coins(&self) -> impl Future<Output = Vec<Coin>> + Send;
 }
 
 struct CoinData {
@@ -33,7 +50,6 @@ impl MemoryDerivationState {
     }
 }
 
-#[async_trait]
 impl DerivationState for MemoryDerivationState {
     async fn insert_next_derivations(&mut self, derivations: Vec<[u8; 32]>) {
         for derivation in derivations {

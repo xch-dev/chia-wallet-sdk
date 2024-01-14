@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use chia_bls::PublicKey;
 use chia_client::Peer;
 use chia_protocol::{Coin, CoinSpend, RegisterForCoinUpdates, RespondToCoinUpdates};
@@ -24,7 +23,6 @@ pub struct CatWallet<S, K> {
     key_store: Arc<Mutex<K>>,
 }
 
-#[async_trait]
 impl<S, K> Wallet for CatWallet<S, K>
 where
     S: DerivationState,

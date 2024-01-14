@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use chia_protocol::{Coin, CoinSpend};
 use chia_wallet::standard::standard_puzzle_hash;
 use clvmr::{allocator::NodePtr, Allocator};
@@ -13,7 +12,6 @@ pub struct StandardWallet<S, K> {
     key_store: Arc<Mutex<K>>,
 }
 
-#[async_trait]
 impl<S, K> Wallet for StandardWallet<S, K>
 where
     S: DerivationState,
