@@ -4,13 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-chia-protocol = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
-chia-wallet = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
-chia-bls = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
-chia-client = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
-clvm-traits = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
-clvm-utils = { git = "https://github.com/rigidity/chia_rs", branch = "develop" }
-clvmr = "0.3.0"
+chia-protocol = { git = "https://github.com/Chia-Network/chia_rs" }
+chia-wallet = { git = "https://github.com/Chia-Network/chia_rs" }
+chia-bls = { git = "https://github.com/Chia-Network/chia_rs" }
+chia-client = { git = "https://github.com/Chia-Network/chia_rs" }
+clvm-traits = { git = "https://github.com/Chia-Network/chia_rs" }
+clvm-utils = { git = "https://github.com/Chia-Network/chia_rs" }
 tokio = "1.33.0"
 log = "0.4.20"
 indexmap = "2.1.0"
@@ -19,7 +18,12 @@ sha2 = "0.9.9"
 thiserror = "1.0.50"
 async-trait = "0.1.74"
 serde = { version = "1.0.193", features = ["derive"] }
+clvmr = "0.4.0"
 
 [dev-dependencies]
 hex = "0.4.3"
 hex-literal = "0.4.1"
+
+[patch.crates-io]
+clvm-traits = { git = "https://github.com/Chia-Network/chia_rs" }
+blst = { git = "https://github.com/supranational/blst.git", rev = "0d46eefa45fc1e57aceb42bba0e84eab3a7a9725" }

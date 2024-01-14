@@ -5,9 +5,9 @@ use chia_wallet::{
     standard::{StandardArgs, StandardSolution},
     LineageProof,
 };
-use clvm_traits::{clvm_quote, ToClvmError, ToPtr};
+use clvm_traits::{clvm_quote, ToClvmError};
 use clvm_utils::{curry_tree_hash, tree_hash, tree_hash_atom, CurriedProgram};
-use clvmr::{allocator::NodePtr, serde::node_to_bytes, Allocator};
+use clvmr::{allocator::NodePtr, Allocator, FromNodePtr, ToNodePtr};
 
 use crate::{CatCondition, Condition, CreateCoin, RunTail};
 
@@ -45,11 +45,11 @@ pub fn issue_cat_with_public_key(
         program: tail_puzzle_ptr,
         args: EverythingWithSignatureTailArgs { public_key },
     }
-    .to_ptr(a)?;
+    .to_node_ptr(a)?;
 
     cat_conditions.push(CatCondition::RunTail(RunTail {
         program: tail,
-        solution: a.null(),
+        solution: NodePtr::NIL,
     }));
 
     spend_new_eve_cat(
@@ -70,7 +70,7 @@ pub fn spend_new_eve_cat(
     amount: u64,
     conditions: &[CatCondition<NodePtr>],
 ) -> Result<EveSpendInfo, ToClvmError> {
-    let inner_puzzle = clvm_quote!(conditions).to_ptr(a)?;
+    let inner_puzzle = clvm_quote!(conditions).to_node_ptr(a)?;
     let inner_puzzle_hash = tree_hash(a, inner_puzzle);
 
     let puzzle = CurriedProgram {
@@ -81,7 +81,7 @@ pub fn spend_new_eve_cat(
             inner_puzzle,
         },
     }
-    .to_ptr(a)?;
+    .to_node_ptr(a)?;
 
     let puzzle_hash = tree_hash(a, puzzle);
     let coin = Coin::new(parent_coin_id, puzzle_hash.into(), amount);
@@ -99,15 +99,12 @@ pub fn spend_new_eve_cat(
         prev_subtotal: 0,
         extra_delta: 0,
     }
-    .to_ptr(a)?;
-
-    let puzzle_bytes = node_to_bytes(a, puzzle).unwrap();
-    let solution_bytes = node_to_bytes(a, solution).unwrap();
+    .to_node_ptr(a)?;
 
     let coin_spend = CoinSpend::new(
         coin,
-        Program::new(puzzle_bytes.into()),
-        Program::new(solution_bytes.into()),
+        Program::from_node_ptr(a, puzzle).unwrap(),
+        Program::from_node_ptr(a, solution).unwrap(),
     );
 
     Ok(EveSpendInfo {
@@ -165,7 +162,7 @@ pub fn spend_cat_coins(
                     },
                 },
             }
-            .to_ptr(a)?;
+            .to_node_ptr(a)?;
 
             // Construct the solution.
             let solution = CatSolution {
@@ -185,16 +182,13 @@ pub fn spend_cat_coins(
                 prev_subtotal,
                 extra_delta: cat_spend.extra_delta,
             }
-            .to_ptr(a)?;
-
-            let puzzle_bytes = node_to_bytes(a, puzzle).unwrap();
-            let solution_bytes = node_to_bytes(a, solution).unwrap();
+            .to_node_ptr(a)?;
 
             // Create the coin spend.
             Ok(CoinSpend::new(
                 cat_spend.coin.clone(),
-                Program::new(puzzle_bytes.into()),
-                Program::new(solution_bytes.into()),
+                Program::from_node_ptr(a, puzzle).unwrap(),
+                Program::from_node_ptr(a, solution).unwrap(),
             ))
         })
         .collect()

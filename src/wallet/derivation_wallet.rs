@@ -37,7 +37,7 @@ where
         &mut self,
         peer: &Peer,
         sync_settings: &SyncSettings,
-    ) -> Result<[u8; 32], Error> {
+    ) -> Result<[u8; 32], Error<()>> {
         let derivation_index = self
             .fetch_unused_derivation_index(peer, sync_settings)
             .await?;
@@ -49,7 +49,7 @@ where
         &mut self,
         peer: &Peer,
         sync_settings: &SyncSettings,
-    ) -> Result<u32, Error> {
+    ) -> Result<u32, Error<()>> {
         // If there aren't any derivations, generate the first batch.
         if self.state().next_derivation_index().await == 0 {
             register_more_puzzle_hashes(self, peer, sync_settings.minimum_unused_derivations)
@@ -88,7 +88,7 @@ pub async fn start_syncing<W, S, K>(
     wallet: Arc<Mutex<W>>,
     peer: Arc<Peer>,
     sync_settings: SyncSettings,
-) -> Result<(), Error>
+) -> Result<(), Error<()>>
 where
     W: DerivationWallet<S, K> + ?Sized,
     S: DerivationState,
@@ -136,7 +136,7 @@ async fn register_more_puzzle_hashes<W, S, K>(
     wallet: &mut W,
     peer: &Peer,
     puzzle_hashes: u32,
-) -> Result<Vec<[u8; 32]>, Error>
+) -> Result<Vec<[u8; 32]>, Error<()>>
 where
     W: DerivationWallet<S, K> + ?Sized,
     S: DerivationState,
