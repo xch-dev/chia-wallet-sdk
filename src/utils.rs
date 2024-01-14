@@ -1,12 +1,12 @@
 use std::io;
 
 use chia_client::Peer;
-use chia_protocol::{Coin, RequestPuzzleSolution, RespondPuzzleSolution};
-use clvm_traits::{FromClvmError, FromPtr};
+use chia_protocol::{Coin, RejectPuzzleSolution, RequestPuzzleSolution, RespondPuzzleSolution};
+use clvm_traits::{FromClvm, FromClvmError};
 use clvm_utils::{tree_hash, CurriedProgram};
 use clvmr::{
     allocator::NodePtr, reduction::EvalErr, run_program, serde::node_from_bytes, Allocator,
-    ChiaDialect,
+    ChiaDialect, FromNodePtr,
 };
 use thiserror::Error;
 
@@ -24,7 +24,7 @@ pub enum EvaluateConditionsError {
 #[derive(Error, Debug)]
 pub enum RequestPuzzleError {
     #[error("peer error: {0}")]
-    Peer(#[from] chia_client::Error),
+    Peer(#[from] chia_client::Error<RejectPuzzleSolution>),
 
     #[error("clvm error: {0}")]
     Clvm(#[from] FromClvmError),
@@ -58,7 +58,7 @@ pub fn evaluate_conditions(
 ) -> Result<Vec<Condition<NodePtr>>, EvaluateConditionsError> {
     let dialect = ChiaDialect::new(0);
     let output = run_program(allocator, &dialect, puzzle, solution, u64::MAX)?.1;
-    Ok(Vec::<Condition<NodePtr>>::from_ptr(allocator, output)?)
+    Ok(Vec::<Condition<NodePtr>>::from_node_ptr(allocator, output)?)
 }
 
 pub async fn request_puzzle_args<T>(
@@ -69,7 +69,7 @@ pub async fn request_puzzle_args<T>(
     height: u32,
 ) -> Result<T, RequestPuzzleError>
 where
-    T: FromPtr,
+    T: FromClvm<NodePtr>,
 {
     let response: RespondPuzzleSolution = peer
         .request(RequestPuzzleSolution::new(coin.parent_coin_info, height))
@@ -79,7 +79,7 @@ where
     let response = response.response;
 
     let ptr = node_from_bytes(a, response.puzzle.as_slice())?;
-    let puzzle: CurriedProgram<NodePtr, T> = FromPtr::from_ptr(a, ptr)?;
+    let puzzle: CurriedProgram<NodePtr, T> = FromClvm::from_clvm(a, ptr)?;
 
     let mod_hash = tree_hash(a, puzzle.program);
     if mod_hash != expected_mod_hash {

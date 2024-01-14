@@ -1,6 +1,5 @@
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
-use async_trait::async_trait;
 use chia_bls::PublicKey;
 use chia_client::{Error, Peer, PeerEvent};
 use chia_protocol::{RegisterForPhUpdates, RespondToPhUpdates};
@@ -22,7 +21,6 @@ impl Default for SyncSettings {
     }
 }
 
-#[async_trait]
 pub trait DerivationWallet<S, K>: Wallet + Send + Sync
 where
     S: DerivationState,
@@ -33,38 +31,53 @@ where
     fn state_mut(&mut self) -> &mut S;
     fn key_store(&self) -> &Arc<Mutex<K>>;
 
-    async fn fetch_unused_puzzle_hash(
+    fn fetch_unused_puzzle_hash(
         &mut self,
         peer: &Peer,
         sync_settings: &SyncSettings,
-    ) -> Result<[u8; 32], Error> {
-        let derivation_index = self
-            .fetch_unused_derivation_index(peer, sync_settings)
-            .await?;
-        let public_key = self.key_store().lock().await.public_key(derivation_index);
-        Ok(self.calculate_puzzle_hash(&public_key))
+    ) -> impl Future<Output = Result<[u8; 32], Error<()>>> + Send {
+        async {
+            let derivation_index = self
+                .fetch_unused_derivation_index(peer, sync_settings)
+                .await?;
+            let public_key = self.key_store().lock().await.public_key(derivation_index);
+            Ok(self.calculate_puzzle_hash(&public_key))
+        }
     }
 
-    async fn fetch_unused_derivation_index(
+    fn fetch_unused_derivation_index(
         &mut self,
         peer: &Peer,
         sync_settings: &SyncSettings,
-    ) -> Result<u32, Error> {
-        // If there aren't any derivations, generate the first batch.
-        if self.state().next_derivation_index().await == 0 {
-            register_more_puzzle_hashes(self, peer, sync_settings.minimum_unused_derivations)
-                .await?;
-        }
+    ) -> impl Future<Output = Result<u32, Error<()>>> + Send {
+        async {
+            // If there aren't any derivations, generate the first batch.
+            if self.state().next_derivation_index().await == 0 {
+                register_more_puzzle_hashes(self, peer, sync_settings.minimum_unused_derivations)
+                    .await?;
+            }
 
-        loop {
-            let result = self.state().unused_derivation_index().await;
-            if let Some(unused_index) = result {
-                // Calculate the extra unused derivations after that index.
-                let last_index = self.state().next_derivation_index().await - 1;
-                let extra_indices = last_index - unused_index;
+            loop {
+                let result = self.state().unused_derivation_index().await;
+                if let Some(unused_index) = result {
+                    // Calculate the extra unused derivations after that index.
+                    let last_index = self.state().next_derivation_index().await - 1;
+                    let extra_indices = last_index - unused_index;
 
-                // Make sure at least `gap` indices are available if needed.
-                if extra_indices < sync_settings.minimum_unused_derivations {
+                    // Make sure at least `gap` indices are available if needed.
+                    if extra_indices < sync_settings.minimum_unused_derivations {
+                        register_more_puzzle_hashes(
+                            self,
+                            peer,
+                            sync_settings.minimum_unused_derivations,
+                        )
+                        .await?;
+                    }
+
+                    // Return the unused derivation index.
+                    return Ok(unused_index);
+                } else {
+                    // Generate more puzzle hashes and check again.
                     register_more_puzzle_hashes(
                         self,
                         peer,
@@ -72,13 +85,6 @@ where
                     )
                     .await?;
                 }
-
-                // Return the unused derivation index.
-                return Ok(unused_index);
-            } else {
-                // Generate more puzzle hashes and check again.
-                register_more_puzzle_hashes(self, peer, sync_settings.minimum_unused_derivations)
-                    .await?;
             }
         }
     }
@@ -88,7 +94,7 @@ pub async fn start_syncing<W, S, K>(
     wallet: Arc<Mutex<W>>,
     peer: Arc<Peer>,
     sync_settings: SyncSettings,
-) -> Result<(), Error>
+) -> Result<(), Error<()>>
 where
     W: DerivationWallet<S, K> + ?Sized,
     S: DerivationState,
@@ -136,7 +142,7 @@ async fn register_more_puzzle_hashes<W, S, K>(
     wallet: &mut W,
     peer: &Peer,
     puzzle_hashes: u32,
-) -> Result<Vec<[u8; 32]>, Error>
+) -> Result<Vec<[u8; 32]>, Error<()>>
 where
     W: DerivationWallet<S, K> + ?Sized,
     S: DerivationState,

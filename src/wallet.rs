@@ -1,4 +1,5 @@
-use async_trait::async_trait;
+use std::future::Future;
+
 use chia_protocol::Coin;
 
 mod cat_wallet;
@@ -11,27 +12,30 @@ pub use derivation_state::*;
 pub use derivation_wallet::*;
 pub use standard_wallet::*;
 
-#[async_trait]
-pub trait Wallet {
+pub trait Wallet: Sync {
     /// Returns the coins that are spendable by this wallet.
-    async fn spendable_coins(&self) -> Vec<Coin>;
+    fn spendable_coins(&self) -> impl Future<Output = Vec<Coin>> + Send;
 
     /// Returns the total amount of coins that are spendable by this wallet.
-    async fn spendable_balance(&self) -> u64 {
-        self.spendable_coins()
-            .await
-            .iter()
-            .fold(0, |balance, coin| balance + coin.amount)
+    fn spendable_balance(&self) -> impl Future<Output = u64> + Send {
+        async {
+            self.spendable_coins()
+                .await
+                .iter()
+                .fold(0, |balance, coin| balance + coin.amount)
+        }
     }
 
     /// Returns the coins that are either spendable or pending in this wallet.
-    async fn pending_coins(&self) -> Vec<Coin>;
+    fn pending_coins(&self) -> impl Future<Output = Vec<Coin>> + Send;
 
     /// Returns the total amount of coins that are either spendable or pending in this wallet.
-    async fn pending_balance(&self) -> u64 {
-        self.pending_coins()
-            .await
-            .iter()
-            .fold(0, |balance, coin| balance + coin.amount)
+    fn pending_balance(&self) -> impl Future<Output = u64> + Send {
+        async {
+            self.pending_coins()
+                .await
+                .iter()
+                .fold(0, |balance, coin| balance + coin.amount)
+        }
     }
 }

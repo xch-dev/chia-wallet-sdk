@@ -1,7 +1,8 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
 use clvm_traits::{
-    clvm_list, destructure_list, from_clvm, match_list, to_clvm, FromClvm, MatchByte, ToClvm,
+    clvm_list, destructure_list, match_list, ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError,
+    MatchByte, ToClvm, ToClvmError,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
@@ -150,7 +151,7 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(raw, list)]
+#[clvm(untagged, list)]
 pub enum CreateCoin {
     Normal {
         puzzle_hash: Bytes32,
@@ -164,7 +165,7 @@ pub enum CreateCoin {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(raw, tuple)]
+#[clvm(untagged, tuple)]
 pub enum CatCondition<T>
 where
     T: Clone,
@@ -181,43 +182,43 @@ pub struct RunTail<T> {
 
 impl<Node, T> ToClvm<Node> for RunTail<T>
 where
-    Node: Clone,
     T: ToClvm<Node>,
 {
-    to_clvm!(Node, self, f, {
-        clvm_list!(51, (), -113, &self.program, &self.solution).to_clvm(f)
-    });
+    fn to_clvm(&self, encoder: &mut impl ClvmEncoder<Node = Node>) -> Result<Node, ToClvmError> {
+        clvm_list!(51, (), -113, &self.program, &self.solution).to_clvm(encoder)
+    }
 }
 
 impl<Node, T> FromClvm<Node> for RunTail<T>
 where
-    Node: Clone,
     T: FromClvm<Node>,
 {
-    from_clvm!(Node, f, ptr, {
+    fn from_clvm(
+        decoder: &impl ClvmDecoder<Node = Node>,
+        node: Node,
+    ) -> Result<Self, FromClvmError> {
         let destructure_list!(_, _, _, program, solution) =
-            <match_list!(MatchByte::<51>, (), MatchByte::<142>, T, T)>::from_clvm(f, ptr)?;
+            <match_list!(MatchByte::<51>, (), MatchByte::<142>, T, T)>::from_clvm(decoder, node)?;
         Ok(Self { program, solution })
-    });
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
 
-    use clvm_traits::{FromPtr, ToPtr};
-    use clvmr::{allocator::NodePtr, serde::node_to_bytes, Allocator};
+    use clvmr::{allocator::NodePtr, serde::node_to_bytes, Allocator, FromNodePtr, ToNodePtr};
     use hex_literal::hex;
 
     use super::*;
 
     fn check<T>(value: T, expected: &[u8])
     where
-        T: ToPtr + FromPtr + PartialEq + Debug,
+        T: ToNodePtr + FromNodePtr + PartialEq + Debug,
     {
         let a = &mut Allocator::new();
-        let serialized = value.to_ptr(a).unwrap();
-        let deserialized = T::from_ptr(a, serialized).unwrap();
+        let serialized = value.to_node_ptr(a).unwrap();
+        let deserialized = T::from_node_ptr(a, serialized).unwrap();
         assert_eq!(value, deserialized);
 
         let bytes = node_to_bytes(a, serialized).unwrap();
