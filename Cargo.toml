@@ -2,6 +2,11 @@
 name = "chia-wallet-sdk"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
+description = "An unofficial SDK for building Chia wallets."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/Rigidity/chia-wallet-sdk"
+repository = "https://github.com/Rigidity/chia-wallet-sdk"
 
 [dependencies]
 tokio = { version = "1.33.0", features = ["macros"] }
