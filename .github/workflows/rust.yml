@@ -1,0 +1,23 @@
+name: Rust
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Run tests
+        run: cargo test --all-features
+
+      - name: Clippy
+        run: cargo clippy
+
+      - name: Fmt
+        run: cargo fmt -- --files-with-diff --check

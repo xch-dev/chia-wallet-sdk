@@ -8,10 +8,7 @@ use clvm_traits::{
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 #[repr(u64)]
-pub enum Condition<T>
-where
-    T: Clone,
-{
+pub enum Condition<T> {
     Remark = 1,
 
     AggSigParent {
@@ -166,10 +163,7 @@ pub enum CreateCoin {
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(untagged, tuple)]
-pub enum CatCondition<T>
-where
-    T: Clone,
-{
+pub enum CatCondition<T> {
     Normal(Condition<T>),
     RunTail(RunTail<T>),
 }
