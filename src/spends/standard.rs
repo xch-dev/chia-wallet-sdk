@@ -32,3 +32,60 @@ pub fn spend_standard_coin(
 
     Ok(CoinSpend::new(coin, puzzle, solution))
 }
+
+#[cfg(test)]
+mod tests {
+    use chia_bls::{derive_keys::master_to_wallet_unhardened, SecretKey};
+    use chia_protocol::Bytes32;
+    use chia_wallet::{
+        standard::{DEFAULT_HIDDEN_PUZZLE_HASH, STANDARD_PUZZLE},
+        DeriveSynthetic,
+    };
+    use clvmr::serde::{node_from_bytes, node_to_bytes};
+    use hex_literal::hex;
+
+    use crate::{testing::SEED, CreateCoin};
+
+    use super::*;
+
+    // Calculates a synthetic key at the given derivation index, using the test seed.
+    fn synthetic_key(index: u32) -> PublicKey {
+        let sk = SecretKey::from_seed(SEED.as_ref());
+        let pk = sk.public_key();
+        let child_key = master_to_wallet_unhardened(&pk, index);
+        child_key.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+    }
+
+    #[test]
+    fn test_standard_spend() {
+        let a = &mut Allocator::new();
+        let standard_puzzle_ptr = node_from_bytes(a, &STANDARD_PUZZLE).unwrap();
+        let coin = Coin::new(Bytes32::from([0; 32]), Bytes32::from([1; 32]), 42);
+        let synthetic_key = synthetic_key(0);
+
+        let conditions = vec![Condition::CreateCoin(CreateCoin::Normal {
+            puzzle_hash: coin.puzzle_hash,
+            amount: coin.amount,
+        })];
+
+        let coin_spend =
+            spend_standard_coin(a, standard_puzzle_ptr, coin, synthetic_key, &conditions).unwrap();
+        let output_ptr = coin_spend
+            .puzzle_reveal
+            .run(a, 0, u64::MAX, &coin_spend.solution)
+            .unwrap()
+            .1;
+        let actual = node_to_bytes(a, output_ptr).unwrap();
+
+        let expected = hex!(
+            "
+            ffff32ffb08584adae5630842a1766bc444d2b872dd3080f4e5daaecf6f762a4
+            be7dc148f37868149d4217f3dcc9183fe61e48d8bfffa09744e53c76d9ce3c6b
+            eb75a3d414ebbec42e31e96621c66b7a832ca1feccceea80ffff33ffa0010101
+            0101010101010101010101010101010101010101010101010101010101ff2a80
+            80
+            "
+        );
+        assert_eq!(hex::encode(actual), hex::encode(expected));
+    }
+}
