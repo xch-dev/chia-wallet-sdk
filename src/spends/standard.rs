@@ -7,6 +7,7 @@ use clvmr::{allocator::NodePtr, Allocator, FromNodePtr, ToNodePtr};
 
 use crate::Condition;
 
+/// Creates a new coin spend for a given standard transaction coin.
 pub fn spend_standard_coin(
     a: &mut Allocator,
     standard_puzzle_ptr: NodePtr,

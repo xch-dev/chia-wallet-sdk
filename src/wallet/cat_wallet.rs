@@ -13,10 +13,11 @@ use clvmr::{allocator::NodePtr, serde::node_from_bytes, Allocator};
 use tokio::sync::Mutex;
 
 use crate::{
-    cat_puzzle_hash, request_puzzle_args, spend_cat_coins, CatCondition, CatSpend, DerivationState,
-    DerivationWallet, KeyStore, Wallet,
+    cat_puzzle_hash, spend_cat_coins, utils::request_puzzle_args, CatCondition, CatSpend,
+    DerivationState, DerivationWallet, KeyStore, Wallet,
 };
 
+/// A wallet that can spend CAT coins.
 pub struct CatWallet<S, K> {
     asset_id: [u8; 32],
     state: S,
@@ -65,6 +66,7 @@ where
     S: DerivationState + 'static,
     K: KeyStore,
 {
+    /// Creates a new CAT wallet with a given asset id.
     pub fn new(state: S, key_store: Arc<Mutex<K>>, asset_id: [u8; 32]) -> Self {
         Self {
             state,
@@ -73,6 +75,7 @@ where
         }
     }
 
+    /// Creates a CAT spend.
     pub async fn spend_coins(
         &self,
         peer: &Peer,

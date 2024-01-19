@@ -11,20 +11,32 @@ use clvmr::{allocator::NodePtr, Allocator, FromNodePtr, ToNodePtr};
 
 use crate::{CatCondition, Condition, CreateCoin, RunTail};
 
+/// The information required to spend a CAT coin.
+/// This assumes that the inner puzzle is a standard transaction.
 pub struct CatSpend {
+    /// The CAT coin that is being spent.
     pub coin: Coin,
+    /// The public key used for the inner puzzle.
     pub synthetic_key: PublicKey,
+    /// The desired output conditions for the coin spend.
     pub conditions: Vec<CatCondition<NodePtr>>,
+    /// The extra delta produced as part of this spend.
     pub extra_delta: i64,
+    /// The inner puzzle hash.
     pub p2_puzzle_hash: [u8; 32],
+    /// The lineage proof of the CAT.
     pub lineage_proof: LineageProof,
 }
 
+/// The information required to create and spend an eve CAT coin.
 pub struct EveSpendInfo {
+    /// The full puzzle hash of the eve CAT coin.
     pub puzzle_hash: [u8; 32],
+    /// The coin spend for the eve CAT.
     pub coin_spend: CoinSpend,
 }
 
+/// Constructs a coin spend to issue more of an `EverythingWithSignature` CAT.
 pub fn issue_cat_with_public_key(
     a: &mut Allocator,
     cat_puzzle_ptr: NodePtr,
@@ -62,6 +74,7 @@ pub fn issue_cat_with_public_key(
     )
 }
 
+/// Creates an eve CAT coin and spends it.
 pub fn spend_new_eve_cat(
     a: &mut Allocator,
     cat_puzzle_ptr: NodePtr,
@@ -113,6 +126,7 @@ pub fn spend_new_eve_cat(
     })
 }
 
+/// Creates a set of CAT coin spends for a given asset id.
 pub fn spend_cat_coins(
     a: &mut Allocator,
     standard_puzzle_ptr: NodePtr,
@@ -194,6 +208,7 @@ pub fn spend_cat_coins(
         .collect()
 }
 
+/// Calculates the puzzle hash of a CAT without generating the full puzzle.
 pub fn cat_puzzle_hash(asset_id: [u8; 32], inner_puzzle_hash: [u8; 32]) -> [u8; 32] {
     let mod_hash = tree_hash_atom(&CAT_PUZZLE_HASH);
     let asset_id_hash = tree_hash_atom(&asset_id);

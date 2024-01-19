@@ -8,8 +8,10 @@ use tokio::sync::Mutex;
 
 use crate::{DerivationState, KeyStore, Wallet};
 
+/// Settings used while syncing a derivation wallet.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncSettings {
+    /// The minimum number of unused derivation indices.
     pub minimum_unused_derivations: u32,
 }
 
@@ -21,16 +23,25 @@ impl Default for SyncSettings {
     }
 }
 
+/// Responsible for managing and syncing a derivation wallet.
 pub trait DerivationWallet<S, K>: Wallet + Send + Sync
 where
     S: DerivationState,
     K: KeyStore,
 {
+    /// Calculates the puzzle hash for a public key.
     fn calculate_puzzle_hash(&self, public_key: &PublicKey) -> [u8; 32];
+
+    /// TODO: Remove these.
     fn state(&self) -> &S;
+
+    /// TODO: Remove these.
     fn state_mut(&mut self) -> &mut S;
+
+    /// TODO: Remove these.
     fn key_store(&self) -> &Arc<Mutex<K>>;
 
+    /// Fetches the next unused puzzle hash.
     fn fetch_unused_puzzle_hash(
         &mut self,
         peer: &Peer,
@@ -50,6 +61,7 @@ where
         }
     }
 
+    /// Fetches the next unused derivation index.
     fn fetch_unused_derivation_index(
         &mut self,
         peer: &Peer,
@@ -95,6 +107,7 @@ where
     }
 }
 
+/// Starts syncing a derivation wallet.
 pub async fn start_syncing<W, S, K>(
     wallet: Arc<Mutex<W>>,
     peer: Arc<Peer>,

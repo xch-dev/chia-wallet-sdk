@@ -3,34 +3,46 @@ use std::future::Future;
 use chia_protocol::{Coin, CoinState};
 use indexmap::IndexMap;
 
+/// Responsible for keeping track of the state of derivation-based wallets.
 pub trait DerivationState: Send + Sync {
+    /// Adds new derived puzzle hashes.
     fn insert_next_derivations(
         &mut self,
         derivations: Vec<[u8; 32]>,
     ) -> impl Future<Output = ()> + Send;
 
+    /// Gets the derivation index of a puzzle hash.
     fn derivation_index(&self, puzzle_hash: [u8; 32]) -> impl Future<Output = Option<u32>> + Send;
 
+    /// Gets the derivation index of the next unused puzzle hash.
     fn unused_derivation_index(&self) -> impl Future<Output = Option<u32>> + Send;
 
+    /// Gets the next underived derivation index.
     fn next_derivation_index(&self) -> impl Future<Output = u32> + Send;
 
+    /// Gets the spendable coins.
     fn spendable_coins(&self) -> impl Future<Output = Vec<Coin>> + Send;
 
+    /// Gets the unconfirmed coins.
     fn unconfirmed_coins(&self) -> impl Future<Output = Vec<Coin>> + Send;
 
+    /// Gets the state of a coin.
     fn coin_state(&self, coin_id: [u8; 32]) -> impl Future<Output = Option<CoinState>> + Send;
 
+    /// Applies coin state updates.
     fn apply_state_updates(&mut self, updates: Vec<CoinState>) -> impl Future<Output = ()> + Send;
 
+    /// Checks if a coin is pending.
     fn is_pending(&self, coin_id: [u8; 32]) -> impl Future<Output = bool> + Send;
 
+    /// Sets the pending status of a coin.
     fn set_pending(
         &mut self,
         coin_id: [u8; 32],
         is_pending: bool,
     ) -> impl Future<Output = ()> + Send;
 
+    /// Gets the pending coins.
     fn pending_coins(&self) -> impl Future<Output = Vec<Coin>> + Send;
 }
 
@@ -39,12 +51,14 @@ struct CoinData {
     is_pending: bool,
 }
 
+/// In-memory derivation wallet state.
 #[derive(Default)]
 pub struct MemoryDerivationState {
     derivations: IndexMap<[u8; 32], Vec<CoinData>>,
 }
 
 impl MemoryDerivationState {
+    /// Constructs a new in-memory derivation wallet state.
     pub fn new() -> Self {
         Self::default()
     }

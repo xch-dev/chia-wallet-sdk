@@ -12,6 +12,7 @@ pub use derivation_state::*;
 pub use derivation_wallet::*;
 pub use standard_wallet::*;
 
+/// A wallet is responsible for managing coins.
 pub trait Wallet: Sync {
     /// Returns the coins that are spendable by this wallet.
     fn spendable_coins(&self) -> impl Future<Output = Vec<Coin>> + Send;

@@ -7,6 +7,7 @@ use indexmap::IndexMap;
 
 use crate::{KeyStore, Signer};
 
+/// A simple in-memory key store implementation for synthetic keys.
 pub struct SyntheticKeyStore {
     intermediate_sk: SecretKey,
     hidden_puzzle_hash: [u8; 32],
@@ -14,6 +15,8 @@ pub struct SyntheticKeyStore {
 }
 
 impl SyntheticKeyStore {
+    /// Creates a new key store with the default hidden puzzle hash.
+    /// An intermediate secret key is derived from the root key.
     pub fn new(root_key: &SecretKey) -> Self {
         Self {
             intermediate_sk: master_to_wallet_unhardened_intermediate(root_key),
@@ -22,9 +25,12 @@ impl SyntheticKeyStore {
         }
     }
 
-    pub fn with_hidden_puzzle_hash(mut self, hidden_puzzle_hash: [u8; 32]) -> Self {
-        self.hidden_puzzle_hash = hidden_puzzle_hash;
-        self
+    /// Creates a new key store with a custom hidden puzzle hash.
+    /// An intermediate secret key is derived from the root key.
+    pub fn new_with_hidden_puzzle(root_key: &SecretKey, hidden_puzzle_hash: [u8; 32]) -> Self {
+        let mut key_store = Self::new(root_key);
+        key_store.hidden_puzzle_hash = hidden_puzzle_hash;
+        key_store
     }
 }
 

@@ -10,6 +10,7 @@ pub enum CoinSelectionMode {
     Smallest,
 }
 
+/// An error that occurs when selecting coins.
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
 pub enum CoinSelectionError {
     /// There were no coins to select from.

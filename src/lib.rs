@@ -1,3 +1,7 @@
+#![deny(missing_docs)]
+
+//! This crate is a work in progress.
+
 mod coin_selection;
 mod condition;
 mod key_store;
@@ -9,7 +13,6 @@ pub use coin_selection::*;
 pub use condition::*;
 pub use key_store::*;
 pub use spends::*;
-pub use utils::*;
 pub use wallet::*;
 
 #[cfg(test)]

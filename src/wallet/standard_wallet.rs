@@ -7,15 +7,16 @@ use tokio::sync::Mutex;
 
 use crate::{spend_standard_coin, Condition, DerivationState, DerivationWallet, KeyStore, Wallet};
 
-pub struct StandardWallet<S, K> {
-    state: S,
-    key_store: Arc<Mutex<K>>,
+/// A wallet that can spend standard coins.
+pub struct StandardWallet<State, Keys> {
+    state: State,
+    key_store: Arc<Mutex<Keys>>,
 }
 
-impl<S, K> Wallet for StandardWallet<S, K>
+impl<State, Keys> Wallet for StandardWallet<State, Keys>
 where
-    S: DerivationState,
-    K: KeyStore,
+    State: DerivationState,
+    Keys: KeyStore,
 {
     async fn spendable_coins(&self) -> Vec<Coin> {
         self.state.spendable_coins().await
@@ -53,10 +54,12 @@ where
     S: DerivationState,
     K: KeyStore,
 {
+    /// Creates a new standard wallet.
     pub fn new(state: S, key_store: Arc<Mutex<K>>) -> Self {
         Self { state, key_store }
     }
 
+    /// Spends a list of coins.
     pub async fn spend_coins(
         &self,
         a: &mut Allocator,

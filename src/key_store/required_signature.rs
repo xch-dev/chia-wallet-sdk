@@ -1,38 +1,40 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes, CoinSpend};
+use chia_protocol::{Bytes, Coin};
 use clvmr::allocator::NodePtr;
 use sha2::{digest::FixedOutput, Digest, Sha256};
 
-use crate::{u64_to_bytes, Condition};
+use crate::{utils::u64_to_bytes, Condition};
 
+/// Information about how to sign an AggSig condition.
 #[derive(Debug, Clone)]
 pub struct RequiredSignature {
     public_key: PublicKey,
     raw_message: Bytes,
-    extra_data: Vec<u8>,
+    appended_info: Vec<u8>,
     domain_string: Option<[u8; 32]>,
 }
 
 impl RequiredSignature {
+    /// Converts a known AggSig condition to a `RequiredSignature` if possible.
     pub fn try_from_condition(
-        coin_spend: &CoinSpend,
+        coin: &Coin,
         condition: Condition<NodePtr>,
         agg_sig_me_extra_data: [u8; 32],
     ) -> Option<Self> {
         let mut hasher = Sha256::new();
         hasher.update(agg_sig_me_extra_data);
 
-        let agg_sig_info = match condition {
+        let required_signature = match condition {
             Condition::AggSigParent {
                 public_key,
                 message,
             } => {
                 hasher.update([43]);
-                let parent = &coin_spend.coin.parent_coin_info;
+                let parent = coin.parent_coin_info;
                 RequiredSignature {
                     public_key,
                     raw_message: message,
-                    extra_data: parent.to_vec(),
+                    appended_info: parent.to_vec(),
                     domain_string: Some(hasher.finalize_fixed().into()),
                 }
             }
@@ -41,11 +43,11 @@ impl RequiredSignature {
                 message,
             } => {
                 hasher.update([44]);
-                let puzzle = &coin_spend.coin.puzzle_hash;
+                let puzzle = coin.puzzle_hash;
                 RequiredSignature {
                     public_key,
                     raw_message: message,
-                    extra_data: puzzle.to_vec(),
+                    appended_info: puzzle.to_vec(),
                     domain_string: Some(hasher.finalize_fixed().into()),
                 }
             }
@@ -57,7 +59,7 @@ impl RequiredSignature {
                 RequiredSignature {
                     public_key,
                     raw_message: message,
-                    extra_data: u64_to_bytes(coin_spend.coin.amount),
+                    appended_info: u64_to_bytes(coin.amount),
                     domain_string: Some(hasher.finalize_fixed().into()),
                 }
             }
@@ -66,11 +68,11 @@ impl RequiredSignature {
                 message,
             } => {
                 hasher.update([46]);
-                let puzzle = &coin_spend.coin.puzzle_hash;
+                let puzzle = coin.puzzle_hash;
                 RequiredSignature {
                     public_key,
                     raw_message: message,
-                    extra_data: [puzzle.to_vec(), u64_to_bytes(coin_spend.coin.amount)].concat(),
+                    appended_info: [puzzle.to_vec(), u64_to_bytes(coin.amount)].concat(),
                     domain_string: Some(hasher.finalize_fixed().into()),
                 }
             }
@@ -79,11 +81,11 @@ impl RequiredSignature {
                 message,
             } => {
                 hasher.update([47]);
-                let parent = &coin_spend.coin.parent_coin_info;
+                let parent = coin.parent_coin_info;
                 RequiredSignature {
                     public_key,
                     raw_message: message,
-                    extra_data: [parent.to_vec(), u64_to_bytes(coin_spend.coin.amount)].concat(),
+                    appended_info: [parent.to_vec(), u64_to_bytes(coin.amount)].concat(),
                     domain_string: Some(hasher.finalize_fixed().into()),
                 }
             }
@@ -92,12 +94,12 @@ impl RequiredSignature {
                 message,
             } => {
                 hasher.update([48]);
-                let parent = &coin_spend.coin.parent_coin_info;
-                let puzzle = &coin_spend.coin.puzzle_hash;
+                let parent = coin.parent_coin_info;
+                let puzzle = coin.puzzle_hash;
                 RequiredSignature {
                     public_key,
                     raw_message: message,
-                    extra_data: [parent.to_vec(), puzzle.to_vec()].concat(),
+                    appended_info: [parent.to_vec(), puzzle.to_vec()].concat(),
                     domain_string: Some(hasher.finalize_fixed().into()),
                 }
             }
@@ -107,7 +109,7 @@ impl RequiredSignature {
             } => RequiredSignature {
                 public_key,
                 raw_message: message,
-                extra_data: Vec::new(),
+                appended_info: Vec::new(),
                 domain_string: None,
             },
             Condition::AggSigMe {
@@ -116,30 +118,34 @@ impl RequiredSignature {
             } => RequiredSignature {
                 public_key,
                 raw_message: message,
-                extra_data: coin_spend.coin.coin_id().into(),
+                appended_info: coin.coin_id().into(),
                 domain_string: Some(agg_sig_me_extra_data),
             },
             _ => return None,
         };
 
-        Some(agg_sig_info)
+        Some(required_signature)
     }
 
+    /// The public key required to verify the signature.
     pub fn public_key(&self) -> &PublicKey {
         &self.public_key
     }
 
+    /// The message field of the condition, without anything appended.
     pub fn raw_message(&self) -> &[u8] {
         self.raw_message.as_ref()
     }
 
-    pub fn extra_data(&self) -> &[u8] {
-        &self.extra_data
+    /// Additional coin information that is appended to the condition's message.
+    pub fn appended_info(&self) -> &[u8] {
+        &self.appended_info
     }
 
-    pub fn final_message(&self) -> Vec<u8> {
+    /// Computes the message that needs to be signed.
+    pub fn message(&self) -> Vec<u8> {
         let mut message = Vec::from(self.raw_message.as_ref());
-        message.extend(&self.extra_data);
+        message.extend(&self.appended_info);
         if let Some(domain_string) = self.domain_string {
             message.extend(domain_string);
         }
