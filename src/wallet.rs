@@ -2,15 +2,11 @@ use std::future::Future;
 
 use chia_protocol::Coin;
 
-mod cat_wallet;
-mod derivation_state;
-mod derivation_wallet;
-mod standard_wallet;
+mod coin_store;
+mod sync;
 
-pub use cat_wallet::*;
-pub use derivation_state::*;
-pub use derivation_wallet::*;
-pub use standard_wallet::*;
+pub use coin_store::*;
+pub use sync::*;
 
 /// A wallet is responsible for managing coins.
 pub trait Wallet: Sync {

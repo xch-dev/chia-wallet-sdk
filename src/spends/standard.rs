@@ -5,7 +5,7 @@ use clvm_traits::{clvm_quote, ToClvmError};
 use clvm_utils::CurriedProgram;
 use clvmr::{allocator::NodePtr, Allocator, FromNodePtr, ToNodePtr};
 
-use crate::Condition;
+use crate::{Condition, DerivationStore};
 
 /// Creates a new coin spend for a given standard transaction coin.
 pub fn spend_standard_coin(
@@ -32,6 +32,41 @@ pub fn spend_standard_coin(
     let solution = Program::from_node_ptr(a, solution).unwrap();
 
     Ok(CoinSpend::new(coin, puzzle, solution))
+}
+
+/// Spends a list of standard transaction coins.
+pub async fn spend_standard_coins(
+    a: &mut Allocator,
+    standard_puzzle_ptr: NodePtr,
+    derivation_store: &impl DerivationStore,
+    coins: Vec<Coin>,
+    conditions: &[Condition<NodePtr>],
+) -> Vec<CoinSpend> {
+    let mut coin_spends = Vec::new();
+    for (i, coin) in coins.into_iter().enumerate() {
+        let puzzle_hash = &coin.puzzle_hash;
+        let index = derivation_store
+            .index_of_puzzle_hash(puzzle_hash.into())
+            .await
+            .expect("cannot spend coin with unknown puzzle hash");
+
+        let synthetic_key = derivation_store
+            .public_key(index)
+            .await
+            .expect("cannot spend coin with unknown public key");
+
+        coin_spends.push(
+            spend_standard_coin(
+                a,
+                standard_puzzle_ptr,
+                coin,
+                synthetic_key,
+                if i == 0 { conditions } else { &[] },
+            )
+            .unwrap(),
+        );
+    }
+    coin_spends
 }
 
 #[cfg(test)]
