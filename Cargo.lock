@@ -338,6 +338,8 @@ dependencies = [
  "native-tls",
  "once_cell",
  "parking_lot",
+ "rand",
+ "rand_chacha",
  "sha2 0.9.9",
  "thiserror",
  "tokio",
