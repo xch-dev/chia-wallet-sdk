@@ -204,38 +204,37 @@ mod tests {
 
     use super::*;
 
-    // Creates a coin for testing purposes.
-    // The index is used to generate a fake parent coin id and puzzle hash.
-    fn coin(index: u8, amount: u64) -> Coin {
-        Coin::new(
-            Bytes32::from([index; 32]),
-            Bytes32::from([255 - index; 32]),
-            amount,
-        )
+    macro_rules! coin_list {
+        ( $( $coin:expr ),* $(,)? ) => {
+            vec![$( coin($coin) ),*]
+        };
+    }
+
+    macro_rules! coin_set {
+        ( $( $coin:expr ),* $(,)? ) => {{
+            let mut coins = HashSet::new();
+            $( coins.insert(coin($coin)); )*
+            coins
+        }};
+    }
+
+    fn coin(amount: u64) -> Coin {
+        Coin::new(Bytes32::from([0; 32]), Bytes32::from([0; 32]), amount)
     }
 
     #[test]
     fn test_select_coins() {
-        let coins = vec![
-            coin(0, 100),
-            coin(1, 200),
-            coin(2, 300),
-            coin(3, 400),
-            coin(4, 500),
-        ];
+        let coins = coin_list![100, 200, 300, 400, 500];
 
         // Sorted by amount, ascending.
         let selected = select_coins(coins, 700).unwrap();
-
-        let mut expected = HashSet::new();
-        expected.insert(coin(3, 400));
-        expected.insert(coin(2, 300));
+        let expected = coin_set![300, 400];
         assert_eq!(selected, expected);
     }
 
     #[test]
     fn test_insufficient_balance() {
-        let coins = vec![coin(0, 50), coin(1, 250), coin(2, 100000)];
+        let coins = coin_list![50, 250, 100000];
 
         // Select an amount that is too high.
         let selected = select_coins(coins, 9999999);
