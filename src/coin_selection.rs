@@ -225,11 +225,12 @@ mod tests {
         ];
 
         // Sorted by amount, ascending.
-        let selected: Vec<Coin> = select_coins(coins.clone(), 700)
-            .unwrap()
-            .into_iter()
-            .collect();
-        assert_eq!(selected, vec![coin(3, 400), coin(2, 300)]);
+        let selected = select_coins(coins, 700).unwrap();
+
+        let mut expected = HashSet::new();
+        expected.insert(coin(3, 400));
+        expected.insert(coin(2, 300));
+        assert_eq!(selected, expected);
     }
 
     #[test]
