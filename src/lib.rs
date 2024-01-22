@@ -3,9 +3,7 @@
 //! This crate is a work in progress.
 
 mod address;
-mod coin_selection;
 mod condition;
-mod derivation;
 mod signer;
 mod spends;
 mod ssl;
@@ -13,9 +11,7 @@ mod utils;
 mod wallet;
 
 pub use address::*;
-pub use coin_selection::*;
 pub use condition::*;
-pub use derivation::*;
 pub use signer::*;
 pub use spends::*;
 pub use ssl::*;

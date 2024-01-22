@@ -1,7 +1,7 @@
 use std::io;
 
 use chia_client::Peer;
-use chia_protocol::{Coin, RejectPuzzleSolution, RequestPuzzleSolution, RespondPuzzleSolution};
+use chia_protocol::{Coin, RejectPuzzleSolution};
 use clvm_traits::{FromClvm, FromClvmError};
 use clvm_utils::{tree_hash, CurriedProgram};
 use clvmr::{allocator::NodePtr, serde::node_from_bytes, Allocator};
@@ -47,14 +47,12 @@ pub async fn request_puzzle_args<T>(
 where
     T: FromClvm<NodePtr>,
 {
-    let response: RespondPuzzleSolution = peer
-        .request(RequestPuzzleSolution::new(coin.parent_coin_info, height))
-        .await
-        .unwrap();
+    let puzzle = peer
+        .request_puzzle_and_solution(coin.parent_coin_info, height)
+        .await?
+        .puzzle;
 
-    let response = response.response;
-
-    let ptr = node_from_bytes(a, response.puzzle.as_slice())?;
+    let ptr = node_from_bytes(a, puzzle.as_slice())?;
     let puzzle: CurriedProgram<NodePtr, T> = FromClvm::from_clvm(a, ptr)?;
 
     let mod_hash = tree_hash(a, puzzle.program);
