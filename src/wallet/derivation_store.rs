@@ -1,67 +1,131 @@
+use std::future::Future;
+
 use chia_bls::{
-    derive_keys::master_to_wallet_unhardened_intermediate, sign, DerivableKey, PublicKey,
-    SecretKey, Signature,
+    derive_keys::master_to_wallet_unhardened_intermediate, DerivableKey, PublicKey, SecretKey,
 };
-use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
+use chia_wallet::{
+    standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
+    DeriveSynthetic,
+};
 use indexmap::IndexMap;
+use parking_lot::Mutex;
 
-use crate::{KeyStore, Signer};
+use crate::Signer;
 
-pub struct SyntheticKeyStore {
-    intermediate_sk: SecretKey,
-    hidden_puzzle_hash: [u8; 32],
-    key_pairs: IndexMap<PublicKey, SecretKey>,
+/// Responsible for managing wallet derivations.
+pub trait DerivationStore {
+    /// Gets the number of derivations.
+    fn derivations(&self) -> impl Future<Output = u32> + Send;
+
+    /// Gets the derivation index of a puzzle hash.
+    fn index_of_puzzle_hash(
+        &self,
+        puzzle_hash: [u8; 32],
+    ) -> impl Future<Output = Option<u32>> + Send;
+
+    /// Gets the public key at a given index.
+    fn public_key(&self, index: u32) -> impl Future<Output = Option<PublicKey>> + Send;
+
+    /// Gets the puzzle hash at a given index.
+    fn puzzle_hash(&self, index: u32) -> impl Future<Output = Option<[u8; 32]>> + Send;
+
+    /// Generates a keypair and puzzle hash for each derivation up to the index.
+    fn derive_to_index(&self, index: u32) -> impl Future<Output = ()> + Send;
 }
 
-impl SyntheticKeyStore {
+/// An in-memory derivation store implementation.
+pub struct MemorySkDerivationStore {
+    intermediate_sk: SecretKey,
+    hidden_puzzle_hash: [u8; 32],
+    derivations: Mutex<IndexMap<PublicKey, SkDerivation>>,
+}
+
+#[derive(Clone)]
+struct SkDerivation {
+    secret_key: SecretKey,
+    puzzle_hash: [u8; 32],
+}
+
+impl MemorySkDerivationStore {
+    /// Creates a new key store with the default hidden puzzle hash.
+    /// An intermediate secret key is derived from the root key.
     pub fn new(root_key: &SecretKey) -> Self {
         Self {
             intermediate_sk: master_to_wallet_unhardened_intermediate(root_key),
             hidden_puzzle_hash: DEFAULT_HIDDEN_PUZZLE_HASH,
-            key_pairs: IndexMap::new(),
+            derivations: Mutex::new(IndexMap::new()),
         }
     }
 
-    pub fn with_hidden_puzzle_hash(mut self, hidden_puzzle_hash: [u8; 32]) -> Self {
-        self.hidden_puzzle_hash = hidden_puzzle_hash;
-        self
+    /// Creates a new key store with a custom hidden puzzle hash.
+    /// An intermediate secret key is derived from the root key.
+    pub fn new_with_hidden_puzzle(root_key: &SecretKey, hidden_puzzle_hash: [u8; 32]) -> Self {
+        let mut key_store = Self::new(root_key);
+        key_store.hidden_puzzle_hash = hidden_puzzle_hash;
+        key_store
     }
 }
 
-impl KeyStore for SyntheticKeyStore {
-    async fn public_key(&self, index: u32) -> PublicKey {
-        self.key_pairs.get_index(index as usize).unwrap().0.clone()
+impl DerivationStore for MemorySkDerivationStore {
+    async fn derivations(&self) -> u32 {
+        self.derivations.lock().len() as u32
     }
 
-    async fn public_keys(&self) -> Vec<PublicKey> {
-        self.key_pairs.iter().map(|key| key.0).cloned().collect()
+    async fn index_of_puzzle_hash(&self, puzzle_hash: [u8; 32]) -> Option<u32> {
+        self.derivations
+            .lock()
+            .iter()
+            .position(|derivation| derivation.1.puzzle_hash == puzzle_hash)
+            .map(|index| index as u32)
     }
 
-    async fn derive_to_index(&mut self, index: u32) {
-        let current = self.key_pairs.len() as u32;
+    async fn public_key(&self, index: u32) -> Option<PublicKey> {
+        self.derivations
+            .lock()
+            .get_index(index as usize)
+            .map(|derivation| derivation.0.clone())
+    }
+
+    async fn puzzle_hash(&self, index: u32) -> Option<[u8; 32]> {
+        self.derivations
+            .lock()
+            .get_index(index as usize)
+            .map(|derivation| derivation.1.puzzle_hash)
+    }
+
+    async fn derive_to_index(&self, index: u32) {
+        let mut derivations = self.derivations.lock();
+        let current = derivations.len() as u32;
         for index in current..index {
             let secret_key = self
                 .intermediate_sk
                 .derive_unhardened(index)
                 .derive_synthetic(&self.hidden_puzzle_hash);
             let public_key = secret_key.public_key();
-            self.key_pairs.insert(public_key, secret_key);
+            let puzzle_hash = standard_puzzle_hash(&public_key);
+            derivations.insert(
+                public_key,
+                SkDerivation {
+                    secret_key,
+                    puzzle_hash,
+                },
+            );
         }
     }
 }
 
-impl Signer for SyntheticKeyStore {
-    async fn secret_key(&self, index: u32) -> SecretKey {
-        self.key_pairs.get_index(index as usize).unwrap().1.clone()
-    }
-
-    async fn sign_message(&self, public_key: &PublicKey, message: &[u8]) -> Signature {
-        sign(&self.key_pairs[public_key], message)
+impl Signer for MemorySkDerivationStore {
+    async fn secret_key(&self, public_key: &PublicKey) -> Option<SecretKey> {
+        self.derivations
+            .lock()
+            .get(public_key)
+            .map(|derivation| derivation.secret_key.clone())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use chia_bls::sign;
     use hex::ToHex;
     use hex_literal::hex;
 
@@ -72,13 +136,18 @@ mod tests {
     #[tokio::test]
     async fn test_key_pairs() {
         let root_sk = SecretKey::from_seed(SEED.as_ref());
-        let mut key_store = SyntheticKeyStore::new(&root_sk);
+        let store = MemorySkDerivationStore::new(&root_sk);
 
         // Derive the first 10 keys.
-        key_store.derive_to_index(10).await;
+        store.derive_to_index(10).await;
 
-        let sks: Vec<SecretKey> = key_store.key_pairs.values().cloned().collect();
-        let pks: Vec<PublicKey> = key_store.public_keys().await;
+        let sks: Vec<SecretKey> = store
+            .derivations
+            .lock()
+            .values()
+            .map(|derivation| derivation.secret_key.clone())
+            .collect();
+        let pks: Vec<PublicKey> = store.derivations.lock().keys().cloned().collect();
 
         let sks_hex: Vec<String> = sks.iter().map(|sk| sk.to_bytes().encode_hex()).collect();
         let pks_hex: Vec<String> = pks.iter().map(|pk| pk.to_bytes().encode_hex()).collect();
@@ -122,15 +191,15 @@ mod tests {
     #[tokio::test]
     async fn test_sign_message() {
         let root_sk = SecretKey::from_seed(SEED.as_ref());
-        let mut key_store = SyntheticKeyStore::new(&root_sk);
+        let store = MemorySkDerivationStore::new(&root_sk);
 
         // Derive the first key.
-        key_store.derive_to_index(1).await;
+        store.derive_to_index(1).await;
 
         let message = b"Hello, Chia blockchain!";
 
-        let sk = key_store.secret_key(0).await;
-        let pk = key_store.public_key(0).await;
+        let pk = store.public_key(0).await.unwrap();
+        let sk = store.secret_key(&pk).await.unwrap();
 
         let sk_hex: String = sk.to_bytes().encode_hex();
         let pk_hex: String = pk.to_bytes().encode_hex();
@@ -146,14 +215,8 @@ mod tests {
             "8584adae5630842a1766bc444d2b872dd3080f4e5daaecf6f762a4be7dc148f37868149d4217f3dcc9183fe61e48d8bf"
         );
 
-        let sig_hex: String = key_store
-            .sign_message(&pk, message)
-            .await
-            .to_bytes()
-            .encode_hex();
-        let manual_sig_hex: String = sign(&sk, message).to_bytes().encode_hex();
+        let sig_hex: String = sign(&sk, message).to_bytes().encode_hex();
 
-        assert_eq!(sig_hex, manual_sig_hex);
         assert_eq!(
             sig_hex,
             hex::encode(hex!(

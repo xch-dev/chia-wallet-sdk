@@ -1,30 +1,45 @@
 use chia_bls::PublicKey;
+use chia_client::Peer;
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_wallet::{
     cat::{CatArgs, CatSolution, CoinProof, EverythingWithSignatureTailArgs, CAT_PUZZLE_HASH},
-    standard::{StandardArgs, StandardSolution},
+    standard::{standard_puzzle_hash, StandardArgs, StandardSolution},
     LineageProof,
 };
 use clvm_traits::{clvm_quote, ToClvmError};
 use clvm_utils::{curry_tree_hash, tree_hash, tree_hash_atom, CurriedProgram};
 use clvmr::{allocator::NodePtr, Allocator, FromNodePtr, ToNodePtr};
 
-use crate::{CatCondition, Condition, CreateCoin, RunTail};
+use crate::{
+    utils::request_puzzle_args, CatCondition, Condition, CreateCoin, DerivationStore, RunTail,
+};
 
+/// The information required to spend a CAT coin.
+/// This assumes that the inner puzzle is a standard transaction.
 pub struct CatSpend {
+    /// The CAT coin that is being spent.
     pub coin: Coin,
+    /// The public key used for the inner puzzle.
     pub synthetic_key: PublicKey,
+    /// The desired output conditions for the coin spend.
     pub conditions: Vec<CatCondition<NodePtr>>,
+    /// The extra delta produced as part of this spend.
     pub extra_delta: i64,
+    /// The inner puzzle hash.
     pub p2_puzzle_hash: [u8; 32],
+    /// The lineage proof of the CAT.
     pub lineage_proof: LineageProof,
 }
 
+/// The information required to create and spend an eve CAT coin.
 pub struct EveSpendInfo {
+    /// The full puzzle hash of the eve CAT coin.
     pub puzzle_hash: [u8; 32],
+    /// The coin spend for the eve CAT.
     pub coin_spend: CoinSpend,
 }
 
+/// Constructs a coin spend to issue more of an `EverythingWithSignature` CAT.
 pub fn issue_cat_with_public_key(
     a: &mut Allocator,
     cat_puzzle_ptr: NodePtr,
@@ -62,6 +77,7 @@ pub fn issue_cat_with_public_key(
     )
 }
 
+/// Creates an eve CAT coin and spends it.
 pub fn spend_new_eve_cat(
     a: &mut Allocator,
     cat_puzzle_ptr: NodePtr,
@@ -113,11 +129,86 @@ pub fn spend_new_eve_cat(
     })
 }
 
-pub fn spend_cat_coins(
+/// Creates spend for a list of CAT coins.
+#[allow(clippy::too_many_arguments)] // TODO: fix
+pub async fn spend_cat_coins(
     a: &mut Allocator,
     standard_puzzle_ptr: NodePtr,
     cat_puzzle_ptr: NodePtr,
-    asset_id: &[u8; 32],
+    derivation_store: &impl DerivationStore,
+    peer: &Peer,
+    coins: Vec<Coin>,
+    conditions: Vec<CatCondition<NodePtr>>,
+    asset_id: [u8; 32],
+) -> Vec<CoinSpend> {
+    let mut spends = Vec::new();
+    let mut conditions = Some(conditions);
+
+    let parents = peer
+        .register_for_coin_updates(coins.iter().map(|coin| coin.parent_coin_info).collect(), 0)
+        .await
+        .unwrap();
+
+    for (i, coin) in coins.into_iter().enumerate() {
+        // Coin info.
+        let puzzle_hash = &coin.puzzle_hash;
+        let index = derivation_store
+            .index_of_puzzle_hash(puzzle_hash.into())
+            .await
+            .expect("cannot spend coin with unknown puzzle hash");
+
+        let synthetic_key = derivation_store
+            .public_key(index)
+            .await
+            .expect("cannot spend coin with unknown public key");
+        let p2_puzzle_hash = standard_puzzle_hash(&synthetic_key);
+
+        // Lineage proof.
+        let parent = parents
+            .iter()
+            .find(|coin_state| coin_state.coin.coin_id() == coin.parent_coin_info)
+            .cloned()
+            .unwrap();
+
+        let cat_args: CatArgs<NodePtr> = request_puzzle_args(
+            a,
+            peer,
+            &coin,
+            CAT_PUZZLE_HASH,
+            parent.spent_height.unwrap(),
+        )
+        .await
+        .unwrap();
+
+        // Spend information.
+        let spend = CatSpend {
+            coin,
+            synthetic_key,
+            conditions: if i == 0 {
+                conditions.take().unwrap()
+            } else {
+                Vec::new()
+            },
+            extra_delta: 0,
+            p2_puzzle_hash,
+            lineage_proof: LineageProof {
+                parent_coin_info: parent.coin.parent_coin_info,
+                inner_puzzle_hash: tree_hash(a, cat_args.inner_puzzle).into(),
+                amount: parent.coin.amount,
+            },
+        };
+        spends.push(spend);
+    }
+
+    create_raw_cat_spends(a, standard_puzzle_ptr, cat_puzzle_ptr, asset_id, &spends).unwrap()
+}
+
+/// Creates a set of CAT coin spends for a given asset id.
+pub fn create_raw_cat_spends(
+    a: &mut Allocator,
+    standard_puzzle_ptr: NodePtr,
+    cat_puzzle_ptr: NodePtr,
+    asset_id: [u8; 32],
     cat_spends: &[CatSpend],
 ) -> Result<Vec<CoinSpend>, ToClvmError> {
     let mut total_delta = 0;
@@ -153,7 +244,7 @@ pub fn spend_cat_coins(
                 program: cat_puzzle_ptr,
                 args: CatArgs {
                     mod_hash: CAT_PUZZLE_HASH.into(),
-                    tail_program_hash: (*asset_id).into(),
+                    tail_program_hash: asset_id.into(),
                     inner_puzzle: CurriedProgram {
                         program: standard_puzzle_ptr,
                         args: StandardArgs {
@@ -194,6 +285,7 @@ pub fn spend_cat_coins(
         .collect()
 }
 
+/// Calculates the puzzle hash of a CAT without generating the full puzzle.
 pub fn cat_puzzle_hash(asset_id: [u8; 32], inner_puzzle_hash: [u8; 32]) -> [u8; 32] {
     let mod_hash = tree_hash_atom(&CAT_PUZZLE_HASH);
     let asset_id_hash = tree_hash_atom(&asset_id);

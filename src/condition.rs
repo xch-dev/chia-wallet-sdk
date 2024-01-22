@@ -5,8 +5,10 @@ use clvm_traits::{
     MatchByte, ToClvm, ToClvmError,
 };
 
+/// A condition that must be met in order to spend a coin.
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
+#[allow(missing_docs)]
 #[repr(u64)]
 pub enum Condition<T> {
     Remark = 1,
@@ -147,8 +149,10 @@ pub enum Condition<T> {
     } = 90,
 }
 
+/// A create coin condition.
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(untagged, list)]
+#[allow(missing_docs)]
 pub enum CreateCoin {
     Normal {
         puzzle_hash: Bytes32,
@@ -161,16 +165,21 @@ pub enum CreateCoin {
     },
 }
 
+/// A condition that must be met in order to spend a CAT coin.
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(untagged, tuple)]
+#[allow(missing_docs)]
 pub enum CatCondition<T> {
     Normal(Condition<T>),
     RunTail(RunTail<T>),
 }
 
+/// A run TAIL condition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunTail<T> {
+    /// The TAIL program reveal.
     pub program: T,
+    /// The solution to the TAIL program.
     pub solution: T,
 }
 
