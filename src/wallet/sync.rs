@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use chia_client::{Error, Peer, PeerEvent};
+use tokio::sync::mpsc;
 
 use crate::{CoinStore, DerivationStore};
 
@@ -25,6 +26,7 @@ pub async fn incremental_sync(
     derivation_store: Arc<impl DerivationStore>,
     coin_store: Arc<impl CoinStore>,
     config: SyncConfig,
+    synced_sender: mpsc::Sender<()>,
 ) -> Result<(), Error<()>> {
     let mut event_receiver = peer.receiver().resubscribe();
 
@@ -47,6 +49,8 @@ pub async fn incremental_sync(
     )
     .await?;
 
+    synced_sender.send(()).await.ok();
+
     while let Ok(event) = event_receiver.recv().await {
         if let PeerEvent::CoinStateUpdate(update) = event {
             coin_store.update_coin_state(update.items).await;
@@ -57,13 +61,16 @@ pub async fn incremental_sync(
                 &config,
             )
             .await?;
+
+            synced_sender.send(()).await.ok();
         }
     }
 
     Ok(())
 }
 
-async fn subscribe(
+/// Subscribe to another set of puzzle hashes.
+pub async fn subscribe(
     peer: &Peer,
     coin_store: &impl CoinStore,
     puzzle_hashes: Vec<[u8; 32]>,
@@ -75,7 +82,8 @@ async fn subscribe(
     Ok(())
 }
 
-async fn derive_more(
+/// Create more derivations for a wallet.
+pub async fn derive_more(
     peer: &Peer,
     derivation_store: &impl DerivationStore,
     coin_store: &impl CoinStore,
@@ -93,21 +101,26 @@ async fn derive_more(
     subscribe(peer, coin_store, puzzle_hashes).await
 }
 
-async fn unused_index(
+/// Gets the last unused derivation index for a wallet.
+pub async fn unused_index(
     derivation_store: &impl DerivationStore,
     coin_store: &impl CoinStore,
 ) -> Option<u32> {
     let derivations = derivation_store.derivations().await;
+    let mut unused_index = None;
     for index in (0..derivations).rev() {
         let puzzle_hash = derivation_store.puzzle_hash(index).await.unwrap();
         if !coin_store.is_used(puzzle_hash).await {
-            return Some(index);
+            unused_index = Some(index);
+        } else {
+            break;
         }
     }
-    None
+    unused_index
 }
 
-async fn sync_to_unused_index(
+/// Syncs a wallet such that there are enough unused derivations.
+pub async fn sync_to_unused_index(
     peer: &Peer,
     derivation_store: &impl DerivationStore,
     coin_store: &impl CoinStore,
@@ -132,7 +145,7 @@ async fn sync_to_unused_index(
 
         if let Some(unused_index) = result {
             // Calculate the extra unused derivations after that index.
-            let extra_indices = derivations - 1 - unused_index;
+            let extra_indices = derivations - unused_index;
 
             // Make sure at least `gap` indices are available if needed.
             if extra_indices < config.minimum_unused_derivations {
