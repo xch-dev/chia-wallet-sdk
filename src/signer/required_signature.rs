@@ -142,6 +142,11 @@ impl RequiredSignature {
         &self.appended_info
     }
 
+    /// The domain string that is appended to the condition's message.
+    pub fn domain_string(&self) -> Option<[u8; 32]> {
+        self.domain_string
+    }
+
     /// Computes the message that needs to be signed.
     pub fn message(&self) -> Vec<u8> {
         let mut message = Vec::from(self.raw_message.as_ref());
@@ -150,5 +155,109 @@ impl RequiredSignature {
             message.extend(domain_string);
         }
         message
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::testing::SEED;
+
+    use super::*;
+
+    use chia_bls::{derive_keys::master_to_wallet_unhardened, SecretKey};
+    use chia_protocol::Bytes32;
+    use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
+
+    #[test]
+    fn test_messages() {
+        let coin = Coin::new(Bytes32::from([1; 32]), Bytes32::from([2; 32]), 3);
+        let agg_sig_data = [4u8; 32];
+
+        let root_pk = SecretKey::from_seed(SEED.as_ref()).public_key();
+        let public_key =
+            master_to_wallet_unhardened(&root_pk, 0).derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+
+        let message: Bytes = vec![1, 2, 3].into();
+
+        macro_rules! condition {
+            ($condition:ident) => {
+                Condition::$condition {
+                    public_key: public_key.clone(),
+                    message: message.clone(),
+                }
+            };
+        }
+
+        let cases = vec![
+            (
+                condition!(AggSigMe),
+                hex::encode(coin.coin_id()),
+                Some(hex::encode(agg_sig_data)),
+            ),
+            (condition!(AggSigUnsafe), String::new(), None),
+            (
+                condition!(AggSigParent),
+                "0101010101010101010101010101010101010101010101010101010101010101".to_string(),
+                Some(
+                    "e30fe176cb4a03044620b0644b5570d8e11f9e144bea1ad63e98c94f0a8ba104".to_string(),
+                ),
+            ),
+            (
+                condition!(AggSigPuzzle),
+                "0202020202020202020202020202020202020202020202020202020202020202".to_string(),
+                Some(
+                    "56753940d4d262c6f36619c9f02a81e249788f3e1e7e5c5d51efef7def915d3b".to_string(),
+                ),
+            ),
+            (
+                condition!(AggSigParentPuzzle),
+                "0101010101010101010101010101010101010101010101010101010101010101\
+0202020202020202020202020202020202020202020202020202020202020202"
+                    .to_string(),
+                Some(
+                    "8374c0de21a2ee2394dda1aba8705617bb9bce71d7c483e9b5c7c883c4f5d7cb".to_string(),
+                ),
+            ),
+            (
+                condition!(AggSigAmount),
+                "03".to_string(),
+                Some(
+                    "4adba988ab536948864fb63ed13c779a16cc00a93b50a11ebf55985f586f05b9".to_string(),
+                ),
+            ),
+            (
+                condition!(AggSigPuzzleAmount),
+                "020202020202020202020202020202020202020202020202020202020202020203".to_string(),
+                Some(
+                    "06f2ea8543ec16347ca452086d4c5ef12e0240f1e6ed6233f961ea8eb612becb".to_string(),
+                ),
+            ),
+            (
+                condition!(AggSigParentAmount),
+                "010101010101010101010101010101010101010101010101010101010101010103".to_string(),
+                Some(
+                    "1e09a530a1f9fc586044116b300c0a90efa787ebcf0d6f221bbd1306f1a37a8c".to_string(),
+                ),
+            ),
+        ];
+
+        for (condition, appended_info, domain_string) in cases {
+            let required =
+                RequiredSignature::try_from_condition(&coin, condition, agg_sig_data).unwrap();
+
+            assert_eq!(required.public_key(), &public_key);
+            assert_eq!(required.raw_message(), message.as_ref());
+            assert_eq!(hex::encode(required.appended_info()), appended_info);
+            assert_eq!(required.domain_string().map(hex::encode), domain_string);
+
+            let mut message = Vec::<u8>::new();
+            message.extend(required.raw_message());
+            message.extend(required.appended_info());
+            if let Some(domain_string) = required.domain_string() {
+                message.extend(domain_string);
+            }
+
+            assert_eq!(hex::encode(message), hex::encode(required.message()));
+        }
     }
 }
