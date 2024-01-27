@@ -7,6 +7,7 @@ mod condition;
 mod signer;
 mod spends;
 mod ssl;
+mod stores;
 mod utils;
 mod wallet;
 
@@ -15,6 +16,7 @@ pub use condition::*;
 pub use signer::*;
 pub use spends::*;
 pub use ssl::*;
+pub use stores::*;
 pub use wallet::*;
 
 #[cfg(test)]
