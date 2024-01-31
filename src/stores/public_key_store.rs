@@ -13,6 +13,6 @@ pub trait PublicKeyStore {
     /// Gets the derivation index of a public key.
     fn index_of_pk(&self, public_key: &PublicKey) -> impl Future<Output = Option<u32>> + Send;
 
-    /// Generates a keypair and puzzle hash for each derivation up to the index.
+    /// Generates public keys up to the index.
     fn derive_to_index(&self, index: u32) -> impl Future<Output = ()> + Send;
 }
