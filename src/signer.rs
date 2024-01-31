@@ -1,6 +1,4 @@
-use std::future::Future;
-
-use chia_bls::{sign, PublicKey, SecretKey, Signature};
+use chia_bls::{sign, Signature};
 
 use chia_protocol::{CoinSpend, SpendBundle};
 use clvm_traits::{FromClvm, FromClvmError};
@@ -11,7 +9,7 @@ mod required_signature;
 
 pub use required_signature::*;
 
-use crate::Condition;
+use crate::{Condition, SecretKeyStore};
 
 /// An error that occurs while trying to sign a coin spend.
 #[derive(Debug, Error)]
@@ -29,15 +27,9 @@ pub enum SignSpendError {
     MissingKey,
 }
 
-/// Responsible for signing messages.
-pub trait Signer {
-    /// Gets the secret key for a given public key.
-    fn secret_key(&self, public_key: &PublicKey) -> impl Future<Output = Option<SecretKey>> + Send;
-}
-
 /// Signs each of the required messages in a coin spend.
 pub async fn sign_coin_spend(
-    signer: &impl Signer,
+    sk_store: &impl SecretKeyStore,
     allocator: &mut Allocator,
     coin_spend: &CoinSpend,
     agg_sig_me_extra_data: [u8; 32],
@@ -60,7 +52,7 @@ pub async fn sign_coin_spend(
             continue;
         };
 
-        let Some(sk) = signer.secret_key(required.public_key()).await else {
+        let Some(sk) = sk_store.to_secret_key(required.public_key()).await else {
             return Err(SignSpendError::MissingKey);
         };
 
@@ -72,7 +64,7 @@ pub async fn sign_coin_spend(
 
 /// Signs each of the coin spends in a spend bundle.
 pub async fn sign_spend_bundle(
-    signer: &impl Signer,
+    sk_store: &impl SecretKeyStore,
     allocator: &mut Allocator,
     spend_bundle: &SpendBundle,
     agg_sig_me_extra_data: [u8; 32],
@@ -80,7 +72,7 @@ pub async fn sign_spend_bundle(
     let mut aggregate_signature = Signature::default();
     for coin_spend in &spend_bundle.coin_spends {
         let signature =
-            sign_coin_spend(signer, allocator, coin_spend, agg_sig_me_extra_data).await?;
+            sign_coin_spend(sk_store, allocator, coin_spend, agg_sig_me_extra_data).await?;
         aggregate_signature += &signature;
     }
     Ok(aggregate_signature)

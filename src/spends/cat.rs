@@ -153,7 +153,7 @@ pub async fn spend_cat_coins(
         // Coin info.
         let puzzle_hash = &coin.puzzle_hash;
         let index = derivation_store
-            .index_of_puzzle_hash(puzzle_hash.into())
+            .index_of_ph(puzzle_hash.into())
             .await
             .expect("cannot spend coin with unknown puzzle hash");
 

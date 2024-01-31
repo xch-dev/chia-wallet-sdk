@@ -30,7 +30,7 @@ pub async fn incremental_sync(
 ) -> Result<(), Error<()>> {
     let mut event_receiver = peer.receiver().resubscribe();
 
-    let derivations = derivation_store.derivations().await;
+    let derivations = derivation_store.count().await;
 
     if derivations > 0 {
         let mut puzzle_hashes = Vec::new();
@@ -89,7 +89,7 @@ pub async fn derive_more(
     coin_store: &impl CoinStore,
     amount: u32,
 ) -> Result<(), Error<()>> {
-    let start = derivation_store.derivations().await;
+    let start = derivation_store.count().await;
     derivation_store.derive_to_index(start + amount).await;
 
     let mut puzzle_hashes: Vec<[u8; 32]> = Vec::new();
@@ -106,7 +106,7 @@ pub async fn unused_index(
     derivation_store: &impl DerivationStore,
     coin_store: &impl CoinStore,
 ) -> Option<u32> {
-    let derivations = derivation_store.derivations().await;
+    let derivations = derivation_store.count().await;
     let mut unused_index = None;
     for index in (0..derivations).rev() {
         let puzzle_hash = derivation_store.puzzle_hash(index).await.unwrap();
@@ -127,7 +127,7 @@ pub async fn sync_to_unused_index(
     config: &SyncConfig,
 ) -> Result<u32, Error<()>> {
     // If there aren't any derivations, generate the first batch.
-    let derivations = derivation_store.derivations().await;
+    let derivations = derivation_store.count().await;
 
     if derivations == 0 {
         derive_more(
@@ -140,7 +140,7 @@ pub async fn sync_to_unused_index(
     }
 
     loop {
-        let derivations = derivation_store.derivations().await;
+        let derivations = derivation_store.count().await;
         let result = unused_index(derivation_store, coin_store).await;
 
         if let Some(unused_index) = result {
