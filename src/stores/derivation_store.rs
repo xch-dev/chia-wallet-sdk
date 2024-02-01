@@ -19,6 +19,9 @@ pub trait DerivationStore: PublicKeyStore {
 
     /// Gets the puzzle hash at a given index.
     fn puzzle_hash(&self, index: u32) -> impl Future<Output = Option<[u8; 32]>> + Send;
+
+    /// Gets all of the puzzle hashes.
+    fn puzzle_hashes(&self) -> impl Future<Output = Vec<[u8; 32]>> + Send;
 }
 
 /// An in-memory derivation store implementation.
@@ -68,6 +71,14 @@ impl DerivationStore for SimpleDerivationStore {
             .lock()
             .get_index(index as usize)
             .map(|derivation| derivation.1.puzzle_hash)
+    }
+
+    async fn puzzle_hashes(&self) -> Vec<[u8; 32]> {
+        self.derivations
+            .lock()
+            .values()
+            .map(|item| item.puzzle_hash)
+            .collect()
     }
 }
 
