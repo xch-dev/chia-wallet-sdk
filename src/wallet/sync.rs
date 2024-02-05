@@ -75,10 +75,21 @@ pub async fn subscribe(
     coin_store: &impl CoinStore,
     puzzle_hashes: Vec<[u8; 32]>,
 ) -> Result<(), Error<()>> {
-    let coin_states = peer
-        .register_for_ph_updates(puzzle_hashes.into_iter().map(|ph| ph.into()).collect(), 0)
-        .await?;
-    coin_store.update_coin_state(coin_states).await;
+    let mut i = 0;
+    while i < puzzle_hashes.len() {
+        let coin_states = peer
+            .register_for_ph_updates(
+                puzzle_hashes[i..i + 100]
+                    .iter()
+                    .map(|ph| ph.into())
+                    .collect(),
+                0,
+            )
+            .await?;
+        coin_store.update_coin_state(coin_states).await;
+        // TODO: Remove this hardcoded value?
+        i += 100;
+    }
     Ok(())
 }
 
