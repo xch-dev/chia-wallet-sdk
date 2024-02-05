@@ -21,9 +21,7 @@ pub enum CoinSelectionError {
     ExceededMaxCoins,
 }
 
-/// This is not the most efficient coin selection method.
-/// It naively selects coins until an amount is reached.
-/// This should be replaced with a more thorough algorithm later.
+/// Uses the knapsack algorithm to select coins.
 pub fn select_coins(
     mut spendable_coins: Vec<Coin>,
     amount: u128,
