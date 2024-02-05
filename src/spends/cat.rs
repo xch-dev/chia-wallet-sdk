@@ -6,9 +6,9 @@ use chia_wallet::{
     standard::{standard_puzzle_hash, StandardArgs, StandardSolution},
     LineageProof,
 };
-use clvm_traits::{clvm_quote, ToClvmError};
+use clvm_traits::{clvm_quote, FromNodePtr, ToClvmError, ToNodePtr};
 use clvm_utils::{curry_tree_hash, tree_hash, tree_hash_atom, CurriedProgram};
-use clvmr::{allocator::NodePtr, Allocator, FromNodePtr, ToNodePtr};
+use clvmr::{allocator::NodePtr, Allocator};
 
 use crate::{
     utils::request_puzzle_args, CatCondition, Condition, CreateCoin, DerivationStore, RunTail,
@@ -166,7 +166,7 @@ pub async fn spend_cat_coins(
         // Lineage proof.
         let parent = parents
             .iter()
-            .find(|coin_state| coin_state.coin.coin_id() == coin.parent_coin_info)
+            .find(|coin_state| coin_state.coin.coin_id() == coin.parent_coin_info.to_bytes())
             .cloned()
             .unwrap();
 

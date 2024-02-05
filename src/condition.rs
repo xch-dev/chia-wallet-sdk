@@ -161,7 +161,7 @@ pub enum CreateCoin {
     Memos {
         puzzle_hash: Bytes32,
         amount: u64,
-        memos: Vec<Bytes32>,
+        memos: Vec<Bytes>,
     },
 }
 
@@ -210,7 +210,8 @@ where
 mod tests {
     use std::fmt::Debug;
 
-    use clvmr::{allocator::NodePtr, serde::node_to_bytes, Allocator, FromNodePtr, ToNodePtr};
+    use clvm_traits::{FromNodePtr, ToNodePtr};
+    use clvmr::{allocator::NodePtr, serde::node_to_bytes, Allocator};
     use hex_literal::hex;
 
     use super::*;
@@ -234,7 +235,7 @@ mod tests {
             Condition::<NodePtr>::CreateCoin(CreateCoin::Memos {
                 puzzle_hash: Bytes32::from([0; 32]),
                 amount: 0,
-                memos: vec![Bytes32::from([1; 32])],
+                memos: vec![Bytes::from([1; 32].to_vec())],
             }),
             &hex!(
                 "
