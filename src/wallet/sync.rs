@@ -171,15 +171,15 @@ pub async fn sync_to_unused_index(
 
             // Return the unused derivation index.
             return Ok(unused_index);
-        } else {
-            // Generate more puzzle hashes and check again.
-            derive_more(
-                peer,
-                derivation_store,
-                coin_store,
-                config.minimum_unused_derivations,
-            )
-            .await?;
         }
+
+        // Generate more puzzle hashes and check again.
+        derive_more(
+            peer,
+            derivation_store,
+            coin_store,
+            config.minimum_unused_derivations,
+        )
+        .await?;
     }
 }
