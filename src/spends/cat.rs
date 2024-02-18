@@ -7,7 +7,7 @@ use chia_wallet::{
     LineageProof,
 };
 use clvm_traits::{clvm_quote, FromNodePtr, ToClvmError, ToNodePtr};
-use clvm_utils::{curry_tree_hash, tree_hash, tree_hash_atom, CurriedProgram};
+use clvm_utils::{tree_hash, CurriedProgram};
 use clvmr::{allocator::NodePtr, Allocator};
 
 use crate::{
@@ -283,14 +283,4 @@ pub fn create_raw_cat_spends(
             ))
         })
         .collect()
-}
-
-/// Calculates the puzzle hash of a CAT without generating the full puzzle.
-pub fn cat_puzzle_hash(asset_id: [u8; 32], inner_puzzle_hash: [u8; 32]) -> [u8; 32] {
-    let mod_hash = tree_hash_atom(&CAT_PUZZLE_HASH);
-    let asset_id_hash = tree_hash_atom(&asset_id);
-    curry_tree_hash(
-        CAT_PUZZLE_HASH,
-        &[mod_hash, asset_id_hash, inner_puzzle_hash],
-    )
 }
