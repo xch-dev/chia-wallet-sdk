@@ -1,5 +1,5 @@
 mod coin_selection;
-mod sync;
+mod sync_manager;
 
 pub use coin_selection::*;
-pub use sync::*;
+pub use sync_manager::*;
