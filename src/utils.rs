@@ -36,29 +36,3 @@ pub fn u64_to_bytes(amount: u64) -> Vec<u8> {
 
     slice.into()
 }
-
-pub async fn request_puzzle_args<T>(
-    a: &mut Allocator,
-    peer: &Peer,
-    coin: &Coin,
-    expected_mod_hash: [u8; 32],
-    height: u32,
-) -> Result<T, RequestPuzzleError>
-where
-    T: FromClvm<NodePtr>,
-{
-    let puzzle = peer
-        .request_puzzle_and_solution(coin.parent_coin_info, height)
-        .await?
-        .puzzle;
-
-    let ptr = node_from_bytes(a, puzzle.as_slice())?;
-    let puzzle: CurriedProgram<NodePtr, T> = FromClvm::from_clvm(a, ptr)?;
-
-    let mod_hash = tree_hash(a, puzzle.program);
-    if mod_hash != expected_mod_hash {
-        return Err(RequestPuzzleError::WrongModHash(mod_hash));
-    }
-
-    Ok(puzzle.args)
-}

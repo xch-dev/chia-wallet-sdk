@@ -1,18 +1,17 @@
 use chia_bls::PublicKey;
 use chia_client::Peer;
-use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
+use chia_protocol::{Bytes32, Coin, CoinSpend, Program, RejectPuzzleSolution};
 use chia_wallet::{
     cat::{CatArgs, CatSolution, CoinProof, EverythingWithSignatureTailArgs, CAT_PUZZLE_HASH},
     standard::{standard_puzzle_hash, StandardArgs, StandardSolution},
     LineageProof,
 };
-use clvm_traits::{clvm_quote, FromNodePtr, ToClvmError, ToNodePtr};
+use clvm_traits::{clvm_quote, FromClvm, FromClvmError, FromNodePtr, ToClvmError, ToNodePtr};
 use clvm_utils::{tree_hash, CurriedProgram};
-use clvmr::{allocator::NodePtr, Allocator};
+use clvmr::{allocator::NodePtr, serde::node_from_bytes, Allocator};
+use thiserror::Error;
 
-use crate::{
-    utils::request_puzzle_args, CatCondition, Condition, CreateCoin, DerivationStore, RunTail,
-};
+use crate::{CatCondition, Condition, CreateCoin, DerivationStore, RunTail};
 
 /// The information required to spend a CAT coin.
 /// This assumes that the inner puzzle is a standard transaction.
@@ -129,8 +128,32 @@ pub fn spend_new_eve_cat(
     })
 }
 
+/// An error that occurs while trying to spend a CAT.
+#[derive(Debug, Error)]
+pub enum CatSpendError {
+    /// When the mod hash of a parent coin is not a CAT.
+    #[error("wrong mod hash")]
+    WrongModHash([u8; 32]),
+
+    /// When conversion to a CLVM NodePtr fails.
+    #[error("to clvm error: {0}")]
+    ToClvm(#[from] ToClvmError),
+
+    /// When conversion from a CLVM NodePtr fails.
+    #[error("from clvm error: {0}")]
+    FromClvm(#[from] FromClvmError),
+
+    /// When conversion to or from bytes fails.
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+
+    /// When a client request fails.
+    #[error("request puzzle solution error: {0}")]
+    Peer(#[from] chia_client::Error<RejectPuzzleSolution>),
+}
+
 /// Creates spend for a list of CAT coins.
-#[allow(clippy::too_many_arguments)] // TODO: fix
+#[allow(clippy::too_many_arguments)]
 pub async fn spend_cat_coins(
     a: &mut Allocator,
     standard_puzzle_ptr: NodePtr,
@@ -140,7 +163,7 @@ pub async fn spend_cat_coins(
     coins: Vec<Coin>,
     conditions: Vec<CatCondition<NodePtr>>,
     asset_id: [u8; 32],
-) -> Vec<CoinSpend> {
+) -> Result<Vec<CoinSpend>, CatSpendError> {
     let mut spends = Vec::new();
     let mut conditions = Some(conditions);
 
@@ -170,15 +193,18 @@ pub async fn spend_cat_coins(
             .cloned()
             .unwrap();
 
-        let cat_args: CatArgs<NodePtr> = request_puzzle_args(
-            a,
-            peer,
-            &coin,
-            CAT_PUZZLE_HASH,
-            parent.spent_height.unwrap(),
-        )
-        .await
-        .unwrap();
+        let puzzle = peer
+            .request_puzzle_and_solution(coin.parent_coin_info, parent.spent_height.unwrap())
+            .await?
+            .puzzle;
+
+        let ptr = node_from_bytes(a, puzzle.as_slice())?;
+        let puzzle: CurriedProgram<NodePtr, CatArgs<NodePtr>> = FromClvm::from_clvm(a, ptr)?;
+
+        let mod_hash = tree_hash(a, puzzle.program);
+        if mod_hash != CAT_PUZZLE_HASH {
+            return Err(CatSpendError::WrongModHash(mod_hash));
+        }
 
         // Spend information.
         let spend = CatSpend {
@@ -193,14 +219,20 @@ pub async fn spend_cat_coins(
             p2_puzzle_hash,
             lineage_proof: LineageProof {
                 parent_coin_info: parent.coin.parent_coin_info,
-                inner_puzzle_hash: tree_hash(a, cat_args.inner_puzzle).into(),
+                inner_puzzle_hash: tree_hash(a, puzzle.args.inner_puzzle).into(),
                 amount: parent.coin.amount,
             },
         };
         spends.push(spend);
     }
 
-    create_raw_cat_spends(a, standard_puzzle_ptr, cat_puzzle_ptr, asset_id, &spends).unwrap()
+    Ok(create_raw_cat_spends(
+        a,
+        standard_puzzle_ptr,
+        cat_puzzle_ptr,
+        asset_id,
+        &spends,
+    )?)
 }
 
 /// Creates a set of CAT coin spends for a given asset id.
