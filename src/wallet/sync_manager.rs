@@ -155,7 +155,10 @@ pub async fn subscribe<Err>(
     let mut i = 0;
     while i < puzzle_hashes.len() {
         let coin_states = sync_manager
-            .subscribe(puzzle_hashes[i..i + 100].to_vec(), 0)
+            .subscribe(
+                puzzle_hashes[i..(i + 100).min(puzzle_hashes.len())].to_vec(),
+                0,
+            )
             .await?;
         sync_manager.apply_updates(coin_states).await?;
         i += 100;
@@ -248,5 +251,188 @@ pub async fn sync_to_unused_index<Err>(
             config.minimum_unused_derivations,
         )
         .await?;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::{HashMap, HashSet};
+
+    use chia_bls::SecretKey;
+    use chia_protocol::{Bytes32, Coin};
+
+    use crate::{testing::SEED, MemoryCoinStore, PublicKeyStore, SkDerivationStore};
+
+    use super::*;
+
+    #[derive(Default)]
+    struct TestSyncManager {
+        // Coin id to hints.
+        hints: Mutex<HashMap<[u8; 32], HashSet<[u8; 32]>>>,
+        subscriptions: Mutex<Vec<[u8; 32]>>,
+        coin_states: Mutex<Vec<CoinState>>,
+        coin_store: Arc<MemoryCoinStore>,
+        synced_sender: Option<mpsc::Sender<()>>,
+        coin_state_receiver: Mutex<Option<mpsc::Receiver<Vec<CoinState>>>>,
+    }
+
+    impl TestSyncManager {
+        fn new(
+            coin_state_receiver: mpsc::Receiver<Vec<CoinState>>,
+            synced_sender: mpsc::Sender<()>,
+        ) -> Self {
+            Self {
+                synced_sender: Some(synced_sender),
+                coin_state_receiver: Mutex::new(Some(coin_state_receiver)),
+                ..Default::default()
+            }
+        }
+    }
+
+    impl SyncManager for TestSyncManager {
+        type Error = ();
+
+        async fn receive_updates(&self) -> Option<Vec<CoinState>> {
+            if let Some(receiver) = &mut *self.coin_state_receiver.lock().await {
+                return receiver.recv().await;
+            }
+            None
+        }
+
+        async fn subscribe(
+            &self,
+            puzzle_hashes: Vec<[u8; 32]>,
+            min_height: u32,
+        ) -> Result<Vec<CoinState>, Self::Error> {
+            self.subscriptions.lock().await.extend(&puzzle_hashes);
+
+            let hints = self.hints.lock().await;
+
+            Ok(self
+                .coin_states
+                .lock()
+                .await
+                .iter()
+                .filter(|coin_state| {
+                    let height = coin_state
+                        .spent_height
+                        .unwrap_or(0)
+                        .max(coin_state.created_height.unwrap_or(0));
+
+                    // If below min height, skip.
+                    if height < min_height {
+                        return false;
+                    }
+
+                    let puzzle_hash = &coin_state.coin.puzzle_hash.into();
+
+                    // If puzzle hash doesn't match,
+                    if !puzzle_hashes.contains(puzzle_hash) {
+                        // Check if the coin is hinted to one of the puzzle hashes.
+                        if let Some(hints) = hints.get(&coin_state.coin.coin_id()) {
+                            return puzzle_hashes.iter().any(|ph| hints.contains(ph));
+                        }
+
+                        return false;
+                    }
+
+                    true
+                })
+                .cloned()
+                .collect())
+        }
+
+        async fn is_used(&self, puzzle_hash: [u8; 32]) -> bool {
+            self.coin_store.is_used(puzzle_hash).await
+        }
+
+        async fn handle_synced(&self) -> Result<(), Self::Error> {
+            if let Some(sender) = &self.synced_sender {
+                sender.send(()).await.unwrap();
+            }
+            Ok(())
+        }
+
+        async fn apply_updates(&self, coin_states: Vec<CoinState>) -> Result<(), Self::Error> {
+            self.coin_store.update_coin_state(coin_states).await;
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sync_nothing() {
+        let root_sk = SecretKey::from_seed(SEED.as_ref());
+        let derivation_store = Arc::new(SkDerivationStore::new(&root_sk));
+
+        let (coin_state_sender, coin_state_receiver) = mpsc::channel(32);
+        let (synced_sender, mut synced_receiver) = mpsc::channel(32);
+        let sync = Arc::new(TestSyncManager::new(coin_state_receiver, synced_sender));
+
+        tokio::spawn(incremental_sync(
+            sync,
+            derivation_store,
+            SyncConfig::default(),
+        ));
+
+        drop(coin_state_sender);
+
+        synced_receiver.recv().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_sync_one_by_one_and_update() {
+        let root_sk = SecretKey::from_seed(SEED.as_ref());
+        let derivation_store = Arc::new(SkDerivationStore::new(&root_sk));
+
+        derivation_store.derive_to_index(10).await;
+        let puzzle_hashes = derivation_store.puzzle_hashes().await;
+
+        let (coin_state_sender, coin_state_receiver) = mpsc::channel(32);
+        let (synced_sender, mut synced_receiver) = mpsc::channel(32);
+        let sync = Arc::new(TestSyncManager::new(coin_state_receiver, synced_sender));
+
+        let coin_states: Vec<CoinState> = puzzle_hashes
+            .into_iter()
+            .map(|ph| {
+                CoinState::new(
+                    Coin::new(Bytes32::new([0; 32]), ph.into(), 1),
+                    None,
+                    Some(123),
+                )
+            })
+            .collect();
+        sync.coin_states.lock().await.extend(coin_states.clone());
+
+        tokio::spawn(incremental_sync(
+            sync.clone(),
+            derivation_store.clone(),
+            SyncConfig {
+                minimum_unused_derivations: 1,
+            },
+        ));
+
+        synced_receiver.recv().await.unwrap();
+
+        let coins: HashSet<Coin> = sync.coin_store.unspent_coins().await.into_iter().collect();
+        let expected_coins: HashSet<Coin> = coin_states
+            .into_iter()
+            .map(|coin_state| coin_state.coin)
+            .collect();
+        assert_eq!(coins, expected_coins);
+
+        assert_eq!(derivation_store.count().await, 11);
+
+        let next_ph = derivation_store.puzzle_hash(10).await.unwrap();
+        let coin_state = CoinState::new(
+            Coin::new(Bytes32::new([1; 32]), next_ph.into(), 1),
+            Some(1000),
+            Some(999),
+        );
+        coin_state_sender.send(vec![coin_state]).await.unwrap();
+
+        synced_receiver.recv().await.unwrap();
+
+        assert_eq!(sync.coin_store.unspent_coins().await.len(), 10);
+        assert_eq!(derivation_store.count().await, 12);
     }
 }
