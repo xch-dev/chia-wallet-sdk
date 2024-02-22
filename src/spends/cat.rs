@@ -1,132 +1,22 @@
-use chia_bls::PublicKey;
 use chia_client::Peer;
-use chia_protocol::{Bytes32, Coin, CoinSpend, Program, RejectPuzzleSolution};
+use chia_protocol::{Coin, CoinSpend, RejectPuzzleSolution};
 use chia_wallet::{
-    cat::{CatArgs, CatSolution, CoinProof, EverythingWithSignatureTailArgs, CAT_PUZZLE_HASH},
-    standard::{standard_puzzle_hash, StandardArgs, StandardSolution},
+    cat::{CatArgs, CAT_PUZZLE_HASH},
+    standard::standard_puzzle_hash,
     LineageProof,
 };
-use clvm_traits::{clvm_quote, FromClvm, FromClvmError, FromNodePtr, ToClvmError, ToNodePtr};
+use clvm_traits::{FromClvm, FromClvmError, ToClvmError};
 use clvm_utils::{tree_hash, CurriedProgram};
 use clvmr::{allocator::NodePtr, serde::node_from_bytes, Allocator};
 use thiserror::Error;
 
-use crate::{CatCondition, Condition, CreateCoin, DerivationStore, RunTail};
+use crate::{CatCondition, DerivationStore};
 
-/// The information required to spend a CAT coin.
-/// This assumes that the inner puzzle is a standard transaction.
-pub struct CatSpend {
-    /// The CAT coin that is being spent.
-    pub coin: Coin,
-    /// The public key used for the inner puzzle.
-    pub synthetic_key: PublicKey,
-    /// The desired output conditions for the coin spend.
-    pub conditions: Vec<CatCondition<NodePtr>>,
-    /// The extra delta produced as part of this spend.
-    pub extra_delta: i64,
-    /// The inner puzzle hash.
-    pub p2_puzzle_hash: [u8; 32],
-    /// The lineage proof of the CAT.
-    pub lineage_proof: LineageProof,
-}
+mod issuance;
+mod raw_spend;
 
-/// The information required to create and spend an eve CAT coin.
-pub struct EveSpendInfo {
-    /// The full puzzle hash of the eve CAT coin.
-    pub puzzle_hash: [u8; 32],
-    /// The coin spend for the eve CAT.
-    pub coin_spend: CoinSpend,
-}
-
-/// Constructs a coin spend to issue more of an `EverythingWithSignature` CAT.
-pub fn issue_cat_with_public_key(
-    a: &mut Allocator,
-    cat_puzzle_ptr: NodePtr,
-    tail_puzzle_ptr: NodePtr,
-    public_key: PublicKey,
-    parent_coin_id: Bytes32,
-    amount: u64,
-    conditions: &[Condition<NodePtr>],
-) -> Result<EveSpendInfo, ToClvmError> {
-    let mut cat_conditions: Vec<CatCondition<NodePtr>> = Vec::with_capacity(conditions.len() + 1);
-    cat_conditions.extend(
-        conditions
-            .iter()
-            .map(|condition| CatCondition::Normal(condition.clone())),
-    );
-
-    let tail = CurriedProgram {
-        program: tail_puzzle_ptr,
-        args: EverythingWithSignatureTailArgs { public_key },
-    }
-    .to_node_ptr(a)?;
-
-    cat_conditions.push(CatCondition::RunTail(RunTail {
-        program: tail,
-        solution: NodePtr::NIL,
-    }));
-
-    spend_new_eve_cat(
-        a,
-        cat_puzzle_ptr,
-        parent_coin_id,
-        tree_hash(a, tail),
-        amount,
-        &cat_conditions,
-    )
-}
-
-/// Creates an eve CAT coin and spends it.
-pub fn spend_new_eve_cat(
-    a: &mut Allocator,
-    cat_puzzle_ptr: NodePtr,
-    parent_coin_id: Bytes32,
-    tail_program_hash: [u8; 32],
-    amount: u64,
-    conditions: &[CatCondition<NodePtr>],
-) -> Result<EveSpendInfo, ToClvmError> {
-    let inner_puzzle = clvm_quote!(conditions).to_node_ptr(a)?;
-    let inner_puzzle_hash = tree_hash(a, inner_puzzle);
-
-    let puzzle = CurriedProgram {
-        program: cat_puzzle_ptr,
-        args: CatArgs {
-            mod_hash: CAT_PUZZLE_HASH.into(),
-            tail_program_hash: tail_program_hash.into(),
-            inner_puzzle,
-        },
-    }
-    .to_node_ptr(a)?;
-
-    let puzzle_hash = tree_hash(a, puzzle);
-    let coin = Coin::new(parent_coin_id, puzzle_hash.into(), amount);
-
-    let solution = CatSolution {
-        inner_puzzle_solution: (),
-        lineage_proof: None,
-        prev_coin_id: coin.coin_id().into(),
-        this_coin_info: coin.clone(),
-        next_coin_proof: CoinProof {
-            parent_coin_info: parent_coin_id,
-            inner_puzzle_hash: inner_puzzle_hash.into(),
-            amount,
-        },
-        prev_subtotal: 0,
-        extra_delta: 0,
-    }
-    .to_node_ptr(a)?;
-
-    let coin_spend = CoinSpend::new(
-        coin,
-        Program::from_node_ptr(a, puzzle).unwrap(),
-        Program::from_node_ptr(a, solution).unwrap(),
-    );
-
-    Ok(EveSpendInfo {
-        puzzle_hash,
-        coin_spend,
-    })
-}
+pub use issuance::*;
+pub use raw_spend::*;
 
 /// An error that occurs while trying to spend a CAT.
 #[derive(Debug, Error)]
@@ -147,19 +37,19 @@ pub enum CatSpendError {
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 
-    /// When a client request fails.
-    #[error("request puzzle solution error: {0}")]
+    /// When a request to the peer fails.
+    #[error("peer error: {0}")]
     Peer(#[from] chia_client::Error<RejectPuzzleSolution>),
 }
 
 /// Creates spend for a list of CAT coins.
 #[allow(clippy::too_many_arguments)]
-pub async fn spend_cat_coins(
+pub async fn construct_cat_spends(
     a: &mut Allocator,
     standard_puzzle_ptr: NodePtr,
     cat_puzzle_ptr: NodePtr,
-    derivation_store: &impl DerivationStore,
     peer: &Peer,
+    derivation_store: &impl DerivationStore,
     coins: Vec<Coin>,
     conditions: Vec<CatCondition<NodePtr>>,
     asset_id: [u8; 32],
@@ -226,93 +116,11 @@ pub async fn spend_cat_coins(
         spends.push(spend);
     }
 
-    Ok(create_raw_cat_spends(
+    Ok(spend_cat_coins(
         a,
         standard_puzzle_ptr,
         cat_puzzle_ptr,
         asset_id,
         &spends,
     )?)
-}
-
-/// Creates a set of CAT coin spends for a given asset id.
-pub fn create_raw_cat_spends(
-    a: &mut Allocator,
-    standard_puzzle_ptr: NodePtr,
-    cat_puzzle_ptr: NodePtr,
-    asset_id: [u8; 32],
-    cat_spends: &[CatSpend],
-) -> Result<Vec<CoinSpend>, ToClvmError> {
-    let mut total_delta = 0;
-
-    cat_spends
-        .iter()
-        .enumerate()
-        .map(|(index, cat_spend)| {
-            // Calculate the delta and add it to the subtotal.
-            let delta = cat_spend.conditions.iter().fold(
-                cat_spend.coin.amount as i64 - cat_spend.extra_delta,
-                |delta, condition| {
-                    if let CatCondition::Normal(Condition::CreateCoin(
-                        CreateCoin::Normal { amount, .. } | CreateCoin::Memos { amount, .. },
-                    )) = condition
-                    {
-                        return delta - *amount as i64;
-                    }
-                    delta
-                },
-            );
-
-            let prev_subtotal = total_delta;
-
-            total_delta += delta;
-
-            // Find information of neighboring coins on the ring.
-            let prev_cat = &cat_spends[index.wrapping_sub(1) % cat_spends.len()];
-            let next_cat = &cat_spends[index.wrapping_add(1) % cat_spends.len()];
-
-            // Construct the puzzle.
-            let puzzle = CurriedProgram {
-                program: cat_puzzle_ptr,
-                args: CatArgs {
-                    mod_hash: CAT_PUZZLE_HASH.into(),
-                    tail_program_hash: asset_id.into(),
-                    inner_puzzle: CurriedProgram {
-                        program: standard_puzzle_ptr,
-                        args: StandardArgs {
-                            synthetic_key: cat_spend.synthetic_key.clone(),
-                        },
-                    },
-                },
-            }
-            .to_node_ptr(a)?;
-
-            // Construct the solution.
-            let solution = CatSolution {
-                inner_puzzle_solution: StandardSolution {
-                    original_public_key: None,
-                    delegated_puzzle: clvm_quote!(&cat_spend.conditions),
-                    solution: (),
-                },
-                lineage_proof: Some(cat_spend.lineage_proof.clone()),
-                prev_coin_id: prev_cat.coin.coin_id().into(),
-                this_coin_info: cat_spend.coin.clone(),
-                next_coin_proof: CoinProof {
-                    parent_coin_info: next_cat.coin.parent_coin_info,
-                    inner_puzzle_hash: next_cat.p2_puzzle_hash.into(),
-                    amount: next_cat.coin.amount,
-                },
-                prev_subtotal,
-                extra_delta: cat_spend.extra_delta,
-            }
-            .to_node_ptr(a)?;
-
-            // Create the coin spend.
-            Ok(CoinSpend::new(
-                cat_spend.coin.clone(),
-                Program::from_node_ptr(a, puzzle).unwrap(),
-                Program::from_node_ptr(a, solution).unwrap(),
-            ))
-        })
-        .collect()
 }
