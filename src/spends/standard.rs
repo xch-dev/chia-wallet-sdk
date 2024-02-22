@@ -84,20 +84,15 @@ mod tests {
 
     use super::*;
 
-    // Calculates a synthetic key at the given derivation index, using the test seed.
-    fn synthetic_key(index: u32) -> PublicKey {
-        let sk = SecretKey::from_seed(SEED.as_ref());
-        let pk = sk.public_key();
-        let child_key = master_to_wallet_unhardened(&pk, index);
-        child_key.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
-    }
-
     #[test]
     fn test_standard_spend() {
+        let synthetic_key =
+            master_to_wallet_unhardened(&SecretKey::from_seed(SEED.as_ref()).public_key(), 0)
+                .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+
         let a = &mut Allocator::new();
         let standard_puzzle_ptr = node_from_bytes(a, &STANDARD_PUZZLE).unwrap();
         let coin = Coin::new(Bytes32::from([0; 32]), Bytes32::from([1; 32]), 42);
-        let synthetic_key = synthetic_key(0);
 
         let conditions = vec![Condition::CreateCoin(CreateCoin::Normal {
             puzzle_hash: coin.puzzle_hash,
