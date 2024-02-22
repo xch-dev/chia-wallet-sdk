@@ -332,7 +332,7 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "bech32",
  "bip39",
