@@ -209,6 +209,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "chia"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "89de95a5daa48a2749b7af27188b635d2843f52c8f5c230cab7ac22429413b1f"
+dependencies = [
+ "chia-protocol",
+ "chia-traits 0.5.2",
+ "chia-wallet",
+ "clvm-derive",
+ "clvm-traits",
+ "clvm-utils",
+ "clvmr",
+ "hex",
+ "hex-literal",
+ "thiserror",
+]
+
+[[package]]
 name = "chia-bls"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -234,7 +252,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "blst",
- "chia-traits 0.5.1",
+ "chia-traits 0.5.2",
  "hex",
  "hkdf",
  "sha2 0.10.8",
@@ -249,7 +267,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5ffc39ab1aa7e333539afe68739eca59c47160a5a3db85b886571b0b3438ad8"
 dependencies = [
  "chia-protocol",
- "chia-traits 0.5.1",
+ "chia-traits 0.5.2",
  "futures-util",
  "thiserror",
  "tokio",
@@ -265,7 +283,7 @@ checksum = "10a4f5e87514749bdc03b2a7915e34d8105980f161a29689de321b0dd7c7a835"
 dependencies = [
  "arbitrary",
  "chia-bls 0.5.1",
- "chia-traits 0.5.1",
+ "chia-traits 0.5.2",
  "chia_streamable_macro",
  "clvm-traits",
  "clvm-utils",
@@ -303,9 +321,9 @@ dependencies = [
 
 [[package]]
 name = "chia-traits"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "630c8f3ee351d7a70abd2b6edaae248e5e7e874c24c9251608a9f2e410073de7"
+checksum = "a80916358aa139bc9130f147ff784ba8858d41b959d6795e1e91a2c20ccc7409"
 dependencies = [
  "chia_streamable_macro",
  "hex",
@@ -332,10 +350,11 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "bech32",
  "bip39",
+ "chia",
  "chia-bls 0.5.1",
  "chia-client",
  "chia-protocol",
@@ -372,9 +391,9 @@ dependencies = [
 
 [[package]]
 name = "clvm-derive"
-version = "0.2.14"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9110e638f8a4d34922e0436282c7fe1a8149020aef3aacf699377dcd3f1553da"
+checksum = "26b1b1ba82707086cd36e6d36574559270d80f486dfc31be00cad202f842675f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -383,9 +402,9 @@ dependencies = [
 
 [[package]]
 name = "clvm-traits"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23fdd5089c9e32a4a563da945309c41577181087f5017a3104b031a4e58591e7"
+checksum = "421b8c8a1312d55840533b0facae8c0522627e24a9484001374d03055de6df00"
 dependencies = [
  "chia-bls 0.5.1",
  "clvm-derive",
