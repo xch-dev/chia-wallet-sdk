@@ -261,7 +261,7 @@ mod tests {
     use chia_bls::SecretKey;
     use chia_protocol::{Bytes32, Coin};
 
-    use crate::{testing::SEED, MemoryCoinStore, PublicKeyStore, SkDerivationStore};
+    use crate::{testing::SEED, MemoryCoinStore, PkDerivationStore, PublicKeyStore};
 
     use super::*;
 
@@ -361,8 +361,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_nothing() {
-        let root_sk = SecretKey::from_seed(SEED.as_ref());
-        let derivation_store = Arc::new(SkDerivationStore::new(&root_sk));
+        let root_pk = SecretKey::from_seed(SEED.as_ref()).public_key();
+        let derivation_store = Arc::new(PkDerivationStore::new(&root_pk));
 
         let (coin_state_sender, coin_state_receiver) = mpsc::channel(32);
         let (synced_sender, mut synced_receiver) = mpsc::channel(32);
@@ -381,8 +381,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_one_by_one_and_update() {
-        let root_sk = SecretKey::from_seed(SEED.as_ref());
-        let derivation_store = Arc::new(SkDerivationStore::new(&root_sk));
+        let root_pk = SecretKey::from_seed(SEED.as_ref()).public_key();
+        let derivation_store = Arc::new(PkDerivationStore::new(&root_pk));
 
         derivation_store.derive_to_index(10).await;
         let puzzle_hashes = derivation_store.puzzle_hashes().await;

@@ -19,10 +19,10 @@ impl RequiredSignature {
     pub fn try_from_condition(
         coin: &Coin,
         condition: Condition<NodePtr>,
-        agg_sig_me_extra_data: [u8; 32],
+        agg_sig_me: [u8; 32],
     ) -> Option<Self> {
         let mut hasher = Sha256::new();
-        hasher.update(agg_sig_me_extra_data);
+        hasher.update(agg_sig_me);
 
         let required_signature = match condition {
             Condition::AggSigParent {
@@ -119,7 +119,7 @@ impl RequiredSignature {
                 public_key,
                 raw_message: message,
                 appended_info: coin.coin_id().into(),
-                domain_string: Some(agg_sig_me_extra_data),
+                domain_string: Some(agg_sig_me),
             },
             _ => return None,
         };
@@ -148,7 +148,7 @@ impl RequiredSignature {
     }
 
     /// Computes the message that needs to be signed.
-    pub fn message(&self) -> Vec<u8> {
+    pub fn final_message(&self) -> Vec<u8> {
         let mut message = Vec::from(self.raw_message.as_ref());
         message.extend(&self.appended_info);
         if let Some(domain_string) = self.domain_string {
@@ -257,7 +257,7 @@ mod tests {
                 message.extend(domain_string);
             }
 
-            assert_eq!(hex::encode(message), hex::encode(required.message()));
+            assert_eq!(hex::encode(message), hex::encode(required.final_message()));
         }
     }
 }

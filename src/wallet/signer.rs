@@ -1,19 +1,29 @@
-use chia_bls::{sign, Signature};
+use std::future::Future;
 
+use chia_bls::{PublicKey, Signature};
 use chia_protocol::{CoinSpend, SpendBundle};
 use clvm_traits::{FromClvm, FromClvmError};
 use clvmr::{reduction::EvalErr, Allocator, NodePtr};
 use thiserror::Error;
 
-mod required_signature;
+use crate::{Condition, KeyStore};
 
-pub use required_signature::*;
+use super::RequiredSignature;
 
-use crate::{Condition, SecretKeyStore};
+/// Responsible for signing messages.
+pub trait Signer: KeyStore {
+    /// Signs a message with the corresponding secrt key.
+    /// If the secret key is not accessible to this signer, it will return `None`.
+    fn sign_message(
+        &self,
+        public_key: &PublicKey,
+        message: &[u8],
+    ) -> impl Future<Output = Option<Signature>> + Send;
+}
 
 /// An error that occurs while trying to sign a coin spend.
 #[derive(Debug, Error)]
-pub enum SignSpendError {
+pub enum ConditionsError {
     /// An error that occurs while trying to calculate the conditions.
     #[error("{0:?}")]
     Eval(#[from] EvalErr),
@@ -21,61 +31,70 @@ pub enum SignSpendError {
     /// An error that occurs while attempting to parse the conditions.
     #[error("{0}")]
     Clvm(#[from] FromClvmError),
-
-    /// An error that indicates that a key is missing.
-    #[error("missing key")]
-    MissingKey,
 }
 
-/// Signs each of the required messages in a coin spend.
-pub async fn sign_coin_spend(
-    sk_store: &impl SecretKeyStore,
+/// Calculates the required signatures for a coin spend.
+/// All of these signatures are aggregated together should
+/// sufficient, unless secp keys are used as well.
+pub fn required_signatures_for_coin_spend(
     allocator: &mut Allocator,
     coin_spend: &CoinSpend,
-    agg_sig_me_extra_data: [u8; 32],
-) -> Result<Signature, SignSpendError> {
+    agg_sig_me: [u8; 32],
+) -> Result<Vec<RequiredSignature>, ConditionsError> {
     let output = coin_spend
         .puzzle_reveal
         .run(allocator, 0, u64::MAX, &coin_spend.solution)?
         .1;
 
-    let conditions: Vec<Condition<NodePtr>> = FromClvm::from_clvm(allocator, output)?;
+    Ok(Vec::<Condition<NodePtr>>::from_clvm(allocator, output)?
+        .into_iter()
+        .filter_map(|condition| {
+            RequiredSignature::try_from_condition(&coin_spend.coin, condition, agg_sig_me)
+        })
+        .collect())
+}
 
+/// Calculates the required signatures for a spend bundle.
+/// All of these signatures are aggregated together should
+/// sufficient, unless secp keys are used as well.
+pub fn required_signatures_for_spend_bundle(
+    allocator: &mut Allocator,
+    spend_bundle: &SpendBundle,
+    agg_sig_me: [u8; 32],
+) -> Result<Vec<RequiredSignature>, ConditionsError> {
+    let mut required_signatures = Vec::new();
+    for coin_spend in &spend_bundle.coin_spends {
+        required_signatures.extend(required_signatures_for_coin_spend(
+            allocator, coin_spend, agg_sig_me,
+        )?);
+    }
+    Ok(required_signatures)
+}
+
+/// Tries to sign each of the messages, replacing the `Vec` with the unsuccessful items.
+pub async fn try_sign_all(
+    signer: &impl Signer,
+    required_signatures: &mut Vec<RequiredSignature>,
+) -> Signature {
+    let mut new_required_signatures = Vec::new();
     let mut aggregate_signature = Signature::default();
 
-    for condition in conditions {
-        let Some(required) = RequiredSignature::try_from_condition(
-            &coin_spend.coin,
-            condition,
-            agg_sig_me_extra_data,
-        ) else {
+    for required_signature in required_signatures.drain(..) {
+        let Some(signature) = signer
+            .sign_message(
+                required_signature.public_key(),
+                &required_signature.final_message(),
+            )
+            .await
+        else {
+            new_required_signatures.push(required_signature);
             continue;
         };
 
-        let Some(sk) = sk_store.to_secret_key(required.public_key()).await else {
-            return Err(SignSpendError::MissingKey);
-        };
-
-        aggregate_signature += &sign(&sk, &required.message());
-    }
-
-    Ok(aggregate_signature)
-}
-
-/// Signs each of the coin spends in a spend bundle.
-pub async fn sign_spend_bundle(
-    sk_store: &impl SecretKeyStore,
-    allocator: &mut Allocator,
-    spend_bundle: &SpendBundle,
-    agg_sig_me_extra_data: [u8; 32],
-) -> Result<Signature, SignSpendError> {
-    let mut aggregate_signature = Signature::default();
-    for coin_spend in &spend_bundle.coin_spends {
-        let signature =
-            sign_coin_spend(sk_store, allocator, coin_spend, agg_sig_me_extra_data).await?;
         aggregate_signature += &signature;
     }
-    Ok(aggregate_signature)
+
+    aggregate_signature
 }
 
 #[cfg(test)]
@@ -85,7 +104,7 @@ mod tests {
     use clvm_traits::{clvm_list, FromNodePtr, ToClvm};
     use hex_literal::hex;
 
-    use crate::{testing::SEED, PublicKeyStore, SkDerivationStore};
+    use crate::testing::SEED;
 
     use super::*;
 

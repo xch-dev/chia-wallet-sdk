@@ -3,7 +3,7 @@ use std::future::Future;
 use chia_bls::PublicKey;
 
 /// Keeps track of and derives wallet public keys by index.
-pub trait PublicKeyStore {
+pub trait KeyStore {
     /// Gets the number of public keys.
     fn count(&self) -> impl Future<Output = u32> + Send;
 
@@ -11,7 +11,7 @@ pub trait PublicKeyStore {
     fn public_key(&self, index: u32) -> impl Future<Output = Option<PublicKey>> + Send;
 
     /// Gets the derivation index of a public key.
-    fn index_of_pk(&self, public_key: &PublicKey) -> impl Future<Output = Option<u32>> + Send;
+    fn public_key_index(&self, public_key: &PublicKey) -> impl Future<Output = Option<u32>> + Send;
 
     /// Generates public keys up to the index.
     fn derive_to_index(&self, index: u32) -> impl Future<Output = ()> + Send;

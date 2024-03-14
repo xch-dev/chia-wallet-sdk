@@ -10,20 +10,21 @@ repository = "https://github.com/Rigidity/chia-wallet-sdk"
 
 [dependencies]
 tokio = { version = "1.33.0", features = ["macros"] }
-indexmap = "2.1.0"
-sha2 = "0.9.9"
-thiserror = "1.0.50"
-clvmr = "0.5.0"
-chia-protocol = "0.5.1"
-chia-wallet = "0.5.1"
+tokio-tungstenite = { version = "0.21.0", features = ["native-tls"] }
+sqlx = { version = "0.7.4", features = ["runtime-tokio", "sqlite"] }
+
 chia-bls = "0.5.1"
 chia-client = "0.5.1"
+chia-protocol = "0.5.1"
+chia-ssl = "0.2.14"
+chia-wallet = "0.5.1"
 clvm-traits = "0.5.1"
 clvm-utils = "0.5.1"
-chia-ssl = "0.2.14"
+
+clvmr = "0.5.0"
+sha2 = "0.9.9"
+thiserror = "1.0.50"
 native-tls = "0.2.11"
-tokio-tungstenite = { version = "0.21.0", features = ["native-tls"] }
-parking_lot = "0.12.1"
 hex = "0.4.3"
 bech32 = "0.9.1"
 rand = "0.8.5"

@@ -1,4 +1,4 @@
-use chia_bls::{derive_keys::master_to_wallet_unhardened_intermediate, DerivableKey, PublicKey};
+use chia_bls::{DerivableKey, PublicKey};
 use chia_wallet::{
     standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
     DeriveSynthetic,
@@ -6,37 +6,44 @@ use chia_wallet::{
 use indexmap::IndexMap;
 use parking_lot::Mutex;
 
-use crate::{DerivationStore, PublicKeyStore};
+use crate::{DerivationStore, KeyStore};
 
 /// An in-memory derivation store implementation.
-pub struct PkDerivationStore {
-    intermediate_pk: PublicKey,
+/// It is not necessarily secure enough to store secret keys in memory long term.
+pub struct SimpleDerivationStore<K> {
+    intermediate_key: K,
     hidden_puzzle_hash: [u8; 32],
     derivations: Mutex<IndexMap<PublicKey, [u8; 32]>>,
+    hardened: bool,
 }
 
-impl PkDerivationStore {
-    /// Creates a new key store with the default hidden puzzle hash.
-    /// An intermediate secret key is derived from the root key.
-    pub fn new(root_key: &PublicKey) -> Self {
+impl<K> SimpleDerivationStore<K> {
+    /// Creates a new derivation store with the default hidden puzzle hash.
+    /// Derives children from a given parent key.
+    pub fn new(intermediate_key: K, hardened: bool) -> Self {
         Self {
-            intermediate_pk: master_to_wallet_unhardened_intermediate(root_key),
+            intermediate_key,
             hidden_puzzle_hash: DEFAULT_HIDDEN_PUZZLE_HASH,
             derivations: Mutex::new(IndexMap::new()),
+            hardened,
         }
     }
 
-    /// Creates a new key store with a custom hidden puzzle hash.
-    /// An intermediate secret key is derived from the root key.
-    pub fn new_with_hidden_puzzle(root_key: &PublicKey, hidden_puzzle_hash: [u8; 32]) -> Self {
-        let mut key_store = Self::new(root_key);
+    /// Creates a new derivation store with a custom hidden puzzle hash.
+    /// Derives children from a given parent public key.
+    pub fn new_with_hidden_puzzle(
+        intermediate_key: K,
+        hidden_puzzle_hash: [u8; 32],
+        hardened: bool,
+    ) -> Self {
+        let mut key_store = Self::new(intermediate_key, hardened);
         key_store.hidden_puzzle_hash = hidden_puzzle_hash;
         key_store
     }
 }
 
-impl DerivationStore for PkDerivationStore {
-    async fn index_of_ph(&self, puzzle_hash: [u8; 32]) -> Option<u32> {
+impl<K> DerivationStore for SimpleDerivationStore<K> {
+    async fn puzzle_hash_index(&self, puzzle_hash: [u8; 32]) -> Option<u32> {
         self.derivations
             .lock()
             .iter()
@@ -56,7 +63,10 @@ impl DerivationStore for PkDerivationStore {
     }
 }
 
-impl PublicKeyStore for PkDerivationStore {
+impl<K> KeyStore for SimpleDerivationStore<K>
+where
+    K: DerivableKey + Sync,
+{
     async fn count(&self) -> u32 {
         self.derivations.lock().len() as u32
     }
@@ -68,7 +78,7 @@ impl PublicKeyStore for PkDerivationStore {
             .map(|derivation| derivation.0.clone())
     }
 
-    async fn index_of_pk(&self, public_key: &PublicKey) -> Option<u32> {
+    async fn public_key_index(&self, public_key: &PublicKey) -> Option<u32> {
         self.derivations
             .lock()
             .get_index_of(public_key)
@@ -101,7 +111,7 @@ mod tests {
     #[tokio::test]
     async fn test_key_pairs() {
         let root_pk = SecretKey::from_seed(SEED.as_ref()).public_key();
-        let store = PkDerivationStore::new(&root_pk);
+        let store = SimpleDerivationStore::new(&root_pk);
 
         // Derive the first 10 keys.
         store.derive_to_index(10).await;
