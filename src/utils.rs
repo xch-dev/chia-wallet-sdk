@@ -19,7 +19,7 @@ mod tests {
 
     #[test]
     fn test_bytes() {
-        assert_eq!(u64_to_bytes(0), &[]);
+        assert_eq!(u64_to_bytes(0), &[0; 0]);
         assert_eq!(u64_to_bytes(1), &[1]);
         assert_eq!(u64_to_bytes(45213), &[0, 176, 157]);
         assert_eq!(

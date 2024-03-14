@@ -24,10 +24,10 @@ pub struct HardenedMemorySigner {
 }
 
 impl HardenedMemorySigner {
-    pub fn new(intermediate_sk: SecretKey) -> Self {
+    pub fn new(intermediate_sk: SecretKey, hidden_puzzle_hash: [u8; 32]) -> Self {
         Self {
             intermediate_sk,
-            hidden_puzzle_hash: [0; 32],
+            hidden_puzzle_hash,
         }
     }
 }
@@ -48,10 +48,10 @@ pub struct UnhardenedMemorySigner {
 }
 
 impl UnhardenedMemorySigner {
-    pub fn new(intermediate_sk: SecretKey) -> Self {
+    pub fn new(intermediate_sk: SecretKey, hidden_puzzle_hash: [u8; 32]) -> Self {
         Self {
             intermediate_sk,
-            hidden_puzzle_hash: [0; 32],
+            hidden_puzzle_hash,
         }
     }
 }
@@ -204,7 +204,7 @@ mod tests {
             intermediate_sk.public_key(),
             DEFAULT_HIDDEN_PUZZLE_HASH,
         );
-        let signer = UnhardenedMemorySigner::new(intermediate_sk);
+        let signer = UnhardenedMemorySigner::new(intermediate_sk, DEFAULT_HIDDEN_PUZZLE_HASH);
 
         key_store.derive_to_index(1).await;
 

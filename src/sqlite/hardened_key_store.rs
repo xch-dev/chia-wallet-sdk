@@ -1,8 +1,8 @@
-use chia_bls::{sign, PublicKey, SecretKey, Signature};
+use chia_bls::{PublicKey, SecretKey};
 use chia_wallet::{standard::standard_puzzle_hash, DeriveSynthetic};
 use sqlx::SqlitePool;
 
-use crate::{DerivationStore, KeyStore, Signer};
+use crate::{DerivationStore, KeyStore};
 
 pub struct HardenedKeyStore {
     pool: SqlitePool,
@@ -129,15 +129,5 @@ impl DerivationStore for HardenedKeyStore {
             .into_iter()
             .map(|row| row.p2_puzzle_hash.try_into().unwrap())
             .collect()
-    }
-}
-
-impl Signer for HardenedKeyStore {
-    async fn sign_message(&self, index: u32, message: &[u8]) -> Signature {
-        let sk = self
-            .intermediate_sk
-            .derive_hardened(index)
-            .derive_synthetic(&self.hidden_puzzle_hash);
-        sign(&sk, message)
     }
 }
