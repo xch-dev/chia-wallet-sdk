@@ -261,7 +261,7 @@ mod tests {
     use chia_bls::SecretKey;
     use chia_protocol::{Bytes32, Coin};
 
-    use crate::{testing::SEED, MemoryCoinStore, PkDerivationStore, PublicKeyStore};
+    use crate::testing::SEED;
 
     use super::*;
 

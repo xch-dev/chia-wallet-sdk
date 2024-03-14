@@ -1,7 +1,8 @@
 use std::future::Future;
 
-use chia_bls::{PublicKey, Signature};
+use chia_bls::{sign, DerivableKey, SecretKey, Signature};
 use chia_protocol::{CoinSpend, SpendBundle};
+use chia_wallet::DeriveSynthetic;
 use clvm_traits::{FromClvm, FromClvmError};
 use clvmr::{reduction::EvalErr, Allocator, NodePtr};
 use thiserror::Error;
@@ -11,14 +12,58 @@ use crate::{Condition, KeyStore};
 use super::RequiredSignature;
 
 /// Responsible for signing messages.
-pub trait Signer: KeyStore {
+pub trait Signer {
     /// Signs a message with the corresponding secrt key.
     /// If the secret key is not accessible to this signer, it will return `None`.
-    fn sign_message(
-        &self,
-        public_key: &PublicKey,
-        message: &[u8],
-    ) -> impl Future<Output = Option<Signature>> + Send;
+    fn sign_message(&self, index: u32, message: &[u8]) -> impl Future<Output = Signature> + Send;
+}
+
+pub struct HardenedMemorySigner {
+    intermediate_sk: SecretKey,
+    hidden_puzzle_hash: [u8; 32],
+}
+
+impl HardenedMemorySigner {
+    pub fn new(intermediate_sk: SecretKey) -> Self {
+        Self {
+            intermediate_sk,
+            hidden_puzzle_hash: [0; 32],
+        }
+    }
+}
+
+impl Signer for HardenedMemorySigner {
+    async fn sign_message(&self, index: u32, message: &[u8]) -> Signature {
+        let sk = self
+            .intermediate_sk
+            .derive_hardened(index)
+            .derive_synthetic(&self.hidden_puzzle_hash);
+        sign(&sk, message)
+    }
+}
+
+pub struct UnhardenedMemorySigner {
+    intermediate_sk: SecretKey,
+    hidden_puzzle_hash: [u8; 32],
+}
+
+impl UnhardenedMemorySigner {
+    pub fn new(intermediate_sk: SecretKey) -> Self {
+        Self {
+            intermediate_sk,
+            hidden_puzzle_hash: [0; 32],
+        }
+    }
+}
+
+impl Signer for UnhardenedMemorySigner {
+    async fn sign_message(&self, index: u32, message: &[u8]) -> Signature {
+        let sk = self
+            .intermediate_sk
+            .derive_unhardened(index)
+            .derive_synthetic(&self.hidden_puzzle_hash);
+        sign(&sk, message)
+    }
 }
 
 /// An error that occurs while trying to sign a coin spend.
@@ -73,6 +118,7 @@ pub fn required_signatures_for_spend_bundle(
 
 /// Tries to sign each of the messages, replacing the `Vec` with the unsuccessful items.
 pub async fn try_sign_all(
+    key_store: &impl KeyStore,
     signer: &impl Signer,
     required_signatures: &mut Vec<RequiredSignature>,
 ) -> Signature {
@@ -80,18 +126,17 @@ pub async fn try_sign_all(
     let mut aggregate_signature = Signature::default();
 
     for required_signature in required_signatures.drain(..) {
-        let Some(signature) = signer
-            .sign_message(
-                required_signature.public_key(),
-                &required_signature.final_message(),
-            )
+        let Some(index) = key_store
+            .public_key_index(required_signature.public_key())
             .await
         else {
             new_required_signatures.push(required_signature);
             continue;
         };
 
-        aggregate_signature += &signature;
+        aggregate_signature += &signer
+            .sign_message(index, &required_signature.final_message())
+            .await;
     }
 
     aggregate_signature
@@ -99,12 +144,14 @@ pub async fn try_sign_all(
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::SecretKey;
+    use chia_bls::{derive_keys::master_to_wallet_unhardened_intermediate, SecretKey};
     use chia_protocol::{Bytes, Bytes32, Coin, Program};
+    use chia_wallet::standard::DEFAULT_HIDDEN_PUZZLE_HASH;
     use clvm_traits::{clvm_list, FromNodePtr, ToClvm};
     use hex_literal::hex;
+    use sqlx::SqlitePool;
 
-    use crate::testing::SEED;
+    use crate::{testing::SEED, UnhardenedKeyStore};
 
     use super::*;
 
@@ -124,6 +171,21 @@ mod tests {
         Program::from_node_ptr(&a, ptr).unwrap()
     }
 
+    async fn sign_coin_spend(
+        key_store: &UnhardenedKeyStore,
+        signer: &UnhardenedMemorySigner,
+        coin_spend: &CoinSpend,
+    ) -> Signature {
+        let mut a = Allocator::new();
+        let mut required_signatures =
+            required_signatures_for_coin_spend(&mut a, coin_spend, AGG_SIG_ME).unwrap();
+
+        let signature = try_sign_all(key_store, signer, &mut required_signatures).await;
+        assert!(required_signatures.is_empty());
+
+        signature
+    }
+
     macro_rules! condition {
         ($name:ident, $pk:expr, $msg:expr) => {
             Condition::<NodePtr>::$name {
@@ -133,17 +195,21 @@ mod tests {
         };
     }
 
-    #[tokio::test]
-    async fn test_sign_spend() {
+    #[sqlx::test]
+    async fn test_sign_spend(pool: SqlitePool) {
         let root_sk = SecretKey::from_seed(SEED.as_ref());
-        let sk_store = SkDerivationStore::new(&root_sk);
-        sk_store.derive_to_index(1).await;
+        let intermediate_sk = master_to_wallet_unhardened_intermediate(&root_sk);
+        let key_store = UnhardenedKeyStore::new(
+            pool,
+            intermediate_sk.public_key(),
+            DEFAULT_HIDDEN_PUZZLE_HASH,
+        );
+        let signer = UnhardenedMemorySigner::new(intermediate_sk);
 
-        let sk = sk_store.secret_key(0).await.unwrap();
-        let pk = sk.public_key();
+        key_store.derive_to_index(1).await;
+
+        let pk = key_store.public_key(0).await.unwrap();
         let msg = Bytes::new(vec![42; 42]);
-
-        let mut a = Allocator::new();
 
         macro_rules! test_conditions {
             ( $( $name:ident: $hex:expr ),* ) => { $(
@@ -153,7 +219,7 @@ mod tests {
                     serialize(clvm_list!(condition!($name, pk.clone(), msg.clone()))),
                 );
 
-                let signature = sign_coin_spend(&sk_store, &mut a, &coin_spend, AGG_SIG_ME).await.unwrap();
+                let signature = sign_coin_spend(&key_store, &signer, &coin_spend).await;
 
                 assert_eq!(hex::encode(signature.to_bytes()), hex::encode($hex));
             )* };

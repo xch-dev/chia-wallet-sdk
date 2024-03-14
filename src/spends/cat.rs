@@ -66,7 +66,7 @@ pub async fn construct_cat_spends(
         // Coin info.
         let puzzle_hash = &coin.puzzle_hash;
         let index = derivation_store
-            .index_of_ph(puzzle_hash.into())
+            .puzzle_hash_index(puzzle_hash.into())
             .await
             .expect("cannot spend coin with unknown puzzle hash");
 

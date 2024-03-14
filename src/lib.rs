@@ -1,7 +1,3 @@
-#![deny(missing_docs)]
-
-//! This crate is a work in progress.
-
 mod address;
 mod condition;
 mod spends;
