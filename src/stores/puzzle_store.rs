@@ -3,7 +3,7 @@ use std::future::Future;
 use crate::KeyStore;
 
 /// Keeps track of derived puzzle hashes in a wallet, based on its public keys.
-pub trait DerivationStore: KeyStore {
+pub trait PuzzleStore: KeyStore {
     /// Gets the derivation index of a puzzle hash.
     fn puzzle_hash_index(&self, puzzle_hash: [u8; 32]) -> impl Future<Output = Option<u32>> + Send;
 

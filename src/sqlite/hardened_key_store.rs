@@ -2,7 +2,7 @@ use chia_bls::{PublicKey, SecretKey};
 use chia_wallet::{standard::standard_puzzle_hash, DeriveSynthetic};
 use sqlx::SqlitePool;
 
-use crate::{DerivationStore, KeyStore};
+use crate::{KeyStore, PuzzleStore};
 
 pub struct HardenedKeyStore {
     pool: SqlitePool,
@@ -97,7 +97,7 @@ impl KeyStore for HardenedKeyStore {
     }
 }
 
-impl DerivationStore for HardenedKeyStore {
+impl PuzzleStore for HardenedKeyStore {
     async fn puzzle_hash(&self, index: u32) -> Option<[u8; 32]> {
         sqlx::query!(
             "SELECT `p2_puzzle_hash` FROM `hardened_keys` WHERE `index` = ?",

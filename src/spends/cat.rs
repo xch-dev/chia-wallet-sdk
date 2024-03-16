@@ -10,7 +10,7 @@ use clvm_utils::{tree_hash, CurriedProgram};
 use clvmr::{allocator::NodePtr, serde::node_from_bytes, Allocator};
 use thiserror::Error;
 
-use crate::{CatCondition, DerivationStore};
+use crate::{CatCondition, PuzzleStore};
 
 mod issuance;
 mod raw_spend;
@@ -49,7 +49,7 @@ pub async fn construct_cat_spends(
     standard_puzzle_ptr: NodePtr,
     cat_puzzle_ptr: NodePtr,
     peer: &Peer,
-    derivation_store: &impl DerivationStore,
+    puzzle_store: &impl PuzzleStore,
     coins: Vec<Coin>,
     conditions: Vec<CatCondition<NodePtr>>,
     asset_id: [u8; 32],
@@ -65,12 +65,12 @@ pub async fn construct_cat_spends(
     for (i, coin) in coins.into_iter().enumerate() {
         // Coin info.
         let puzzle_hash = &coin.puzzle_hash;
-        let index = derivation_store
+        let index = puzzle_store
             .puzzle_hash_index(puzzle_hash.into())
             .await
             .expect("cannot spend coin with unknown puzzle hash");
 
-        let synthetic_key = derivation_store
+        let synthetic_key = puzzle_store
             .public_key(index)
             .await
             .expect("cannot spend coin with unknown public key");
