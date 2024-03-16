@@ -1,4 +1,6 @@
 /target
-test.sqlite
-test.sqlite-wal
-test.sqlite-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.crt
+*.key

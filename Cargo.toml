@@ -8,6 +8,10 @@ authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
 homepage = "https://github.com/Rigidity/chia-wallet-sdk"
 repository = "https://github.com/Rigidity/chia-wallet-sdk"
 
+[workspace]
+resolver = "2"
+members = ["examples/*"]
+
 [dependencies]
 tokio = { version = "1.33.0", features = ["macros"] }
 tokio-tungstenite = { version = "0.21.0", features = ["native-tls"] }
