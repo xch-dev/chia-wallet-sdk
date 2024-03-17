@@ -37,7 +37,23 @@ impl Wallet {
             .derive_to_index(self.derivation_size)
             .await;
 
+        self.hardened_keys
+            .derive_to_index(self.derivation_size)
+            .await;
+
         for puzzle_hashes in self.unhardened_keys.puzzle_hashes().await.chunks(10000) {
+            let coin_states = self
+                .peer
+                .register_for_ph_updates(
+                    puzzle_hashes.iter().map(|ph| Bytes32::new(*ph)).collect(),
+                    0,
+                )
+                .await?;
+
+            self.apply_updates(coin_states).await?;
+        }
+
+        for puzzle_hashes in self.hardened_keys.puzzle_hashes().await.chunks(10000) {
             let coin_states = self
                 .peer
                 .register_for_ph_updates(
