@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT `index` FROM `unhardened_keys` WHERE `p2_puzzle_hash` = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "index",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0b67ef5198d8423c30338c4a5ceff6fa70154d994f81bb4eb57ba86a711242d9"
+}

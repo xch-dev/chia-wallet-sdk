@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT `public_key` FROM `unhardened_keys` WHERE `index` = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "public_key",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f82013f4973caeda9052f8cd469f09be9a826a52846d84e104fc4ecb0cc3fefb"
+}

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT COUNT(*) AS `count`\n            FROM `coin_states`\n            WHERE `puzzle_hash` = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "count",
+        "ordinal": 0,
+        "type_info": "Int"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "46abdc374ec5ec2c02039662abf87a44ba8481d5c28631499abdcbd1d6bb3357"
+}

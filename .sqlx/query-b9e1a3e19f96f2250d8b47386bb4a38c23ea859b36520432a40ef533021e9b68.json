@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT `p2_puzzle_hash` FROM `hardened_keys` WHERE `index` = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "p2_puzzle_hash",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b9e1a3e19f96f2250d8b47386bb4a38c23ea859b36520432a40ef533021e9b68"
+}

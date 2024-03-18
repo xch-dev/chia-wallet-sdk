@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                INSERT INTO `hardened_keys` (\n                    `index`,\n                    `public_key`,\n                    `p2_puzzle_hash`\n                )\n                VALUES (?, ?, ?)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "23522faa8d61acb76573c84a23cf308d6296ad35538c76fae9380033c5bac538"
+}
