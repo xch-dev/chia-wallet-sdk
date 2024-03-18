@@ -31,6 +31,9 @@ jobs:
       - name: Fmt
         run: cargo fmt -- --files-with-diff --check
 
+      - name: SQLx
+        run: cargo install sqlx-cli && cargo sqlx prepare --check
+
       - name: Publish
         if: startsWith(github.event.ref, 'refs/tags')
         env:
