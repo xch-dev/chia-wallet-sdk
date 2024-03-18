@@ -4,3 +4,4 @@
 *.sqlite-shm
 *.crt
 *.key
+.env
