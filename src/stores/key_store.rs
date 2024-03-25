@@ -12,7 +12,4 @@ pub trait KeyStore {
 
     /// Gets the derivation index of a public key.
     fn public_key_index(&self, public_key: &PublicKey) -> impl Future<Output = Option<u32>> + Send;
-
-    /// Generates public keys up to the index.
-    fn derive_to_index(&self, index: u32) -> impl Future<Output = ()> + Send;
 }

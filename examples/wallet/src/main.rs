@@ -12,7 +12,7 @@ use chia_protocol::{Bytes32, CoinState, NodeType};
 use chia_wallet::standard::DEFAULT_HIDDEN_PUZZLE_HASH;
 use chia_wallet_sdk::{
     connect_peer, create_tls_connector, load_ssl_cert, migrate, unused_indices, CoinStore,
-    HardenedKeyStore, KeyStore, PuzzleStore, SqliteCoinStore, UnhardenedKeyStore,
+    HardenedKeyStore, PuzzleStore, SqliteCoinStore, UnhardenedKeyStore,
 };
 use sqlx::SqlitePool;
 use thiserror::Error;
@@ -21,6 +21,7 @@ struct Wallet {
     peer: Peer,
     unhardened_keys: UnhardenedKeyStore,
     hardened_keys: HardenedKeyStore,
+    intermediate_sk: SecretKey,
     standard_coins: SqliteCoinStore,
     derivation_size: u32,
 }
@@ -38,7 +39,7 @@ impl Wallet {
             .await;
 
         self.hardened_keys
-            .derive_to_index(self.derivation_size)
+            .derive_to_index(self.derivation_size, &self.intermediate_sk)
             .await;
 
         for puzzle_hashes in self.unhardened_keys.puzzle_hashes().await.chunks(10000) {
@@ -131,7 +132,9 @@ impl Wallet {
     }
 
     async fn derive_hardened_to(&self, index: u32) -> Result<bool, WalletError> {
-        self.hardened_keys.derive_to_index(index).await;
+        self.hardened_keys
+            .derive_to_index(index, &self.intermediate_sk)
+            .await;
         let puzzle_hashes = self.hardened_keys.puzzle_hashes().await;
 
         let coin_states = self
@@ -205,8 +208,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         UnhardenedKeyStore::new(pool.clone(), intermediate_pk, DEFAULT_HIDDEN_PUZZLE_HASH);
 
     let intermediate_sk = master_to_wallet_hardened_intermediate(&sk);
-    let hardened_keys =
-        HardenedKeyStore::new(pool.clone(), intermediate_sk, DEFAULT_HIDDEN_PUZZLE_HASH);
+    let hardened_keys = HardenedKeyStore::new(pool.clone(), DEFAULT_HIDDEN_PUZZLE_HASH);
 
     let standard_coins = SqliteCoinStore::new(pool.clone());
 
@@ -214,6 +216,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         peer,
         unhardened_keys,
         hardened_keys,
+        intermediate_sk,
         standard_coins,
         derivation_size: 500,
     };

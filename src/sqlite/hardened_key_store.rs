@@ -6,17 +6,55 @@ use crate::{KeyStore, PuzzleStore};
 
 pub struct HardenedKeyStore {
     pool: SqlitePool,
-    intermediate_sk: SecretKey,
     hidden_puzzle_hash: [u8; 32],
 }
 
 impl HardenedKeyStore {
-    pub fn new(pool: SqlitePool, intermediate_sk: SecretKey, hidden_puzzle_hash: [u8; 32]) -> Self {
+    pub fn new(pool: SqlitePool, hidden_puzzle_hash: [u8; 32]) -> Self {
         Self {
             pool,
-            intermediate_sk,
             hidden_puzzle_hash,
         }
+    }
+
+    pub async fn derive_to_index(&self, index: u32, intermediate_sk: &SecretKey) {
+        let mut tx = self.pool.begin().await.unwrap();
+
+        let count = sqlx::query!("SELECT COUNT(*) AS `count` FROM `hardened_keys`")
+            .fetch_one(&self.pool)
+            .await
+            .unwrap()
+            .count as u32;
+
+        for i in count..index {
+            let sk = intermediate_sk
+                .derive_hardened(i)
+                .derive_synthetic(&self.hidden_puzzle_hash);
+            let pk = sk.public_key();
+            let p2_puzzle_hash = standard_puzzle_hash(&pk);
+
+            let pk_bytes = pk.to_bytes().to_vec();
+            let p2_puzzle_hash_bytes = p2_puzzle_hash.to_vec();
+
+            sqlx::query!(
+                "
+                INSERT INTO `hardened_keys` (
+                    `index`,
+                    `public_key`,
+                    `p2_puzzle_hash`
+                )
+                VALUES (?, ?, ?)
+                ",
+                i,
+                pk_bytes,
+                p2_puzzle_hash_bytes
+            )
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        }
+
+        tx.commit().await.unwrap();
     }
 }
 
@@ -53,47 +91,6 @@ impl KeyStore for HardenedKeyStore {
         .await
         .unwrap()
         .map(|row| row.index as u32)
-    }
-
-    async fn derive_to_index(&self, index: u32) {
-        let mut tx = self.pool.begin().await.unwrap();
-
-        let count = sqlx::query!("SELECT COUNT(*) AS `count` FROM `hardened_keys`")
-            .fetch_one(&self.pool)
-            .await
-            .unwrap()
-            .count as u32;
-
-        for i in count..index {
-            let sk = self
-                .intermediate_sk
-                .derive_hardened(i)
-                .derive_synthetic(&self.hidden_puzzle_hash);
-            let pk = sk.public_key();
-            let p2_puzzle_hash = standard_puzzle_hash(&pk);
-
-            let pk_bytes = pk.to_bytes().to_vec();
-            let p2_puzzle_hash_bytes = p2_puzzle_hash.to_vec();
-
-            sqlx::query!(
-                "
-                INSERT INTO `hardened_keys` (
-                    `index`,
-                    `public_key`,
-                    `p2_puzzle_hash`
-                )
-                VALUES (?, ?, ?)
-                ",
-                i,
-                pk_bytes,
-                p2_puzzle_hash_bytes
-            )
-            .execute(&mut *tx)
-            .await
-            .unwrap();
-        }
-
-        tx.commit().await.unwrap();
     }
 }
 

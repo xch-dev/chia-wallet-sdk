@@ -31,44 +31,8 @@ impl UnhardenedKeyStore {
             })
             .collect()
     }
-}
 
-impl KeyStore for UnhardenedKeyStore {
-    async fn count(&self) -> u32 {
-        sqlx::query!("SELECT COUNT(*) AS `count` FROM `unhardened_keys`")
-            .fetch_one(&self.pool)
-            .await
-            .unwrap()
-            .count as u32
-    }
-
-    async fn public_key(&self, index: u32) -> Option<PublicKey> {
-        sqlx::query!(
-            "SELECT `public_key` FROM `unhardened_keys` WHERE `index` = ?",
-            index
-        )
-        .fetch_optional(&self.pool)
-        .await
-        .unwrap()
-        .map(|row| {
-            let bytes = row.public_key.try_into().unwrap();
-            PublicKey::from_bytes(&bytes).unwrap()
-        })
-    }
-
-    async fn public_key_index(&self, public_key: &PublicKey) -> Option<u32> {
-        let public_key = public_key.to_bytes().to_vec();
-        sqlx::query!(
-            "SELECT `index` FROM `unhardened_keys` WHERE `public_key` = ?",
-            public_key
-        )
-        .fetch_optional(&self.pool)
-        .await
-        .unwrap()
-        .map(|row| row.index as u32)
-    }
-
-    async fn derive_to_index(&self, index: u32) {
+    pub async fn derive_to_index(&self, index: u32) {
         let mut tx = self.pool.begin().await.unwrap();
 
         let count = sqlx::query!("SELECT COUNT(*) AS `count` FROM `unhardened_keys`")
@@ -106,6 +70,42 @@ impl KeyStore for UnhardenedKeyStore {
         }
 
         tx.commit().await.unwrap();
+    }
+}
+
+impl KeyStore for UnhardenedKeyStore {
+    async fn count(&self) -> u32 {
+        sqlx::query!("SELECT COUNT(*) AS `count` FROM `unhardened_keys`")
+            .fetch_one(&self.pool)
+            .await
+            .unwrap()
+            .count as u32
+    }
+
+    async fn public_key(&self, index: u32) -> Option<PublicKey> {
+        sqlx::query!(
+            "SELECT `public_key` FROM `unhardened_keys` WHERE `index` = ?",
+            index
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .unwrap()
+        .map(|row| {
+            let bytes = row.public_key.try_into().unwrap();
+            PublicKey::from_bytes(&bytes).unwrap()
+        })
+    }
+
+    async fn public_key_index(&self, public_key: &PublicKey) -> Option<u32> {
+        let public_key = public_key.to_bytes().to_vec();
+        sqlx::query!(
+            "SELECT `index` FROM `unhardened_keys` WHERE `public_key` = ?",
+            public_key
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .unwrap()
+        .map(|row| row.index as u32)
     }
 }
 
