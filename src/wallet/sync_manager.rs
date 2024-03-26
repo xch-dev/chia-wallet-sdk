@@ -391,13 +391,7 @@ mod tests {
 
         let coin_states: Vec<CoinState> = puzzle_hashes
             .into_iter()
-            .map(|ph| {
-                CoinState::new(
-                    Coin::new(Bytes32::new([0; 32]), ph, 1),
-                    None,
-                    Some(123),
-                )
-            })
+            .map(|ph| CoinState::new(Coin::new(Bytes32::new([0; 32]), ph, 1), None, Some(123)))
             .collect();
         sync.coin_states.lock().await.extend(coin_states.clone());
 
