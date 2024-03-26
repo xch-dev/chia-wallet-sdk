@@ -90,7 +90,7 @@ pub fn spend_cat_coins(
                     solution: (),
                 },
                 lineage_proof: Some(cat_spend.lineage_proof.clone()),
-                prev_coin_id: prev_cat.coin.coin_id().into(),
+                prev_coin_id: prev_cat.coin.coin_id(),
                 this_coin_info: cat_spend.coin.clone(),
                 next_coin_proof: CoinProof {
                     parent_coin_info: next_cat.coin.parent_coin_info,
@@ -114,11 +114,11 @@ pub fn spend_cat_coins(
 
 #[cfg(test)]
 mod tests {
-    use chia::gen::{
+    use chia_bls::{derive_keys::master_to_wallet_unhardened, SecretKey};
+    use chia_consensus::gen::{
         conditions::EmptyVisitor, run_block_generator::run_block_generator,
         solution_generator::solution_generator,
     };
-    use chia_bls::{derive_keys::master_to_wallet_unhardened, SecretKey};
     use chia_protocol::Bytes32;
     use chia_wallet::{
         cat::{cat_puzzle_hash, CAT_PUZZLE},

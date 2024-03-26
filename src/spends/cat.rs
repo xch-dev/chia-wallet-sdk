@@ -64,9 +64,8 @@ pub async fn construct_cat_spends(
 
     for (i, coin) in coins.into_iter().enumerate() {
         // Coin info.
-        let puzzle_hash = &coin.puzzle_hash;
         let index = derivation_store
-            .index_of_ph(puzzle_hash.into())
+            .index_of_ph(coin.puzzle_hash)
             .await
             .expect("cannot spend coin with unknown puzzle hash");
 
@@ -79,7 +78,7 @@ pub async fn construct_cat_spends(
         // Lineage proof.
         let parent = parents
             .iter()
-            .find(|coin_state| coin_state.coin.coin_id() == coin.parent_coin_info.to_bytes())
+            .find(|coin_state| coin_state.coin.coin_id() == coin.parent_coin_info)
             .cloned()
             .unwrap();
 

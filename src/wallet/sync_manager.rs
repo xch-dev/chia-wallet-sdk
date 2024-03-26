@@ -1,7 +1,7 @@
 use std::{future::Future, sync::Arc};
 
 use chia_client::{Peer, PeerEvent};
-use chia_protocol::CoinState;
+use chia_protocol::{Bytes32, CoinState};
 use tokio::sync::{broadcast, mpsc, Mutex};
 
 use crate::{CoinStore, DerivationStore};
@@ -32,12 +32,12 @@ pub trait SyncManager {
     /// Subscribes to a set of puzzle hashes and returns the initial coin states.
     fn subscribe(
         &self,
-        puzzle_hashes: Vec<[u8; 32]>,
+        puzzle_hashes: Vec<Bytes32>,
         min_height: u32,
     ) -> impl Future<Output = Result<Vec<CoinState>, Self::Error>> + Send;
 
     /// Whether or not a given puzzle hash has been used.
-    fn is_used(&self, puzzle_hash: [u8; 32]) -> impl Future<Output = bool> + Send;
+    fn is_used(&self, puzzle_hash: Bytes32) -> impl Future<Output = bool> + Send;
 
     /// Sent whenever the wallet has been caught up.
     fn handle_synced(&self) -> impl Future<Output = Result<(), Self::Error>> + Send;
@@ -90,7 +90,7 @@ where
 
     async fn subscribe(
         &self,
-        puzzle_hashes: Vec<[u8; 32]>,
+        puzzle_hashes: Vec<Bytes32>,
         min_height: u32,
     ) -> Result<Vec<CoinState>, Self::Error> {
         self.peer
@@ -101,7 +101,7 @@ where
             .await
     }
 
-    async fn is_used(&self, puzzle_hash: [u8; 32]) -> bool {
+    async fn is_used(&self, puzzle_hash: Bytes32) -> bool {
         self.coin_store.is_used(puzzle_hash).await
     }
 
@@ -150,7 +150,7 @@ pub async fn incremental_sync<Err>(
 /// Subscribe to another set of puzzle hashes.
 pub async fn subscribe<Err>(
     sync_manager: &impl SyncManager<Error = Err>,
-    puzzle_hashes: Vec<[u8; 32]>,
+    puzzle_hashes: Vec<Bytes32>,
 ) -> Result<(), Err> {
     let mut i = 0;
     while i < puzzle_hashes.len() {
@@ -175,7 +175,7 @@ pub async fn derive_more<Err>(
     let start = derivation_store.count().await;
     derivation_store.derive_to_index(start + amount).await;
 
-    let mut puzzle_hashes: Vec<[u8; 32]> = Vec::new();
+    let mut puzzle_hashes: Vec<Bytes32> = Vec::new();
 
     for index in start..(start + amount) {
         puzzle_hashes.push(derivation_store.puzzle_hash(index).await.unwrap());
@@ -268,8 +268,8 @@ mod tests {
     #[derive(Default)]
     struct TestSyncManager {
         // Coin id to hints.
-        hints: Mutex<HashMap<[u8; 32], HashSet<[u8; 32]>>>,
-        subscriptions: Mutex<Vec<[u8; 32]>>,
+        hints: Mutex<HashMap<Bytes32, HashSet<Bytes32>>>,
+        subscriptions: Mutex<Vec<Bytes32>>,
         coin_states: Mutex<Vec<CoinState>>,
         coin_store: Arc<MemoryCoinStore>,
         synced_sender: Option<mpsc::Sender<()>>,
@@ -301,7 +301,7 @@ mod tests {
 
         async fn subscribe(
             &self,
-            puzzle_hashes: Vec<[u8; 32]>,
+            puzzle_hashes: Vec<Bytes32>,
             min_height: u32,
         ) -> Result<Vec<CoinState>, Self::Error> {
             self.subscriptions.lock().await.extend(&puzzle_hashes);
@@ -324,10 +324,8 @@ mod tests {
                         return false;
                     }
 
-                    let puzzle_hash = &coin_state.coin.puzzle_hash.into();
-
                     // If puzzle hash doesn't match,
-                    if !puzzle_hashes.contains(puzzle_hash) {
+                    if !puzzle_hashes.contains(&coin_state.coin.puzzle_hash) {
                         // Check if the coin is hinted to one of the puzzle hashes.
                         if let Some(hints) = hints.get(&coin_state.coin.coin_id()) {
                             return puzzle_hashes.iter().any(|ph| hints.contains(ph));
@@ -342,7 +340,7 @@ mod tests {
                 .collect())
         }
 
-        async fn is_used(&self, puzzle_hash: [u8; 32]) -> bool {
+        async fn is_used(&self, puzzle_hash: Bytes32) -> bool {
             self.coin_store.is_used(puzzle_hash).await
         }
 
@@ -395,7 +393,7 @@ mod tests {
             .into_iter()
             .map(|ph| {
                 CoinState::new(
-                    Coin::new(Bytes32::new([0; 32]), ph.into(), 1),
+                    Coin::new(Bytes32::new([0; 32]), ph, 1),
                     None,
                     Some(123),
                 )
@@ -424,7 +422,7 @@ mod tests {
 
         let next_ph = derivation_store.puzzle_hash(10).await.unwrap();
         let coin_state = CoinState::new(
-            Coin::new(Bytes32::new([1; 32]), next_ph.into(), 1),
+            Coin::new(Bytes32::new([1; 32]), next_ph, 1),
             Some(1000),
             Some(999),
         );

@@ -44,9 +44,8 @@ pub async fn spend_standard_coins(
 ) -> Vec<CoinSpend> {
     let mut coin_spends = Vec::new();
     for (i, coin) in coins.into_iter().enumerate() {
-        let puzzle_hash = &coin.puzzle_hash;
         let index = derivation_store
-            .index_of_ph(puzzle_hash.into())
+            .index_of_ph(coin.puzzle_hash)
             .await
             .expect("cannot spend coin with unknown puzzle hash");
 
