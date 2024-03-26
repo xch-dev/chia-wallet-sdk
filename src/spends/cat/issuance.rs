@@ -83,7 +83,7 @@ pub fn issue_cat_eve(
     let solution = CatSolution {
         inner_puzzle_solution: (),
         lineage_proof: None,
-        prev_coin_id: coin.coin_id().into(),
+        prev_coin_id: coin.coin_id(),
         this_coin_info: coin.clone(),
         next_coin_proof: CoinProof {
             parent_coin_info: parent_coin_id,

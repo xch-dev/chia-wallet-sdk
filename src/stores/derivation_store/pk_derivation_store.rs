@@ -1,4 +1,5 @@
 use chia_bls::{derive_keys::master_to_wallet_unhardened_intermediate, DerivableKey, PublicKey};
+use chia_protocol::Bytes32;
 use chia_wallet::{
     standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
     DeriveSynthetic,
@@ -11,8 +12,8 @@ use crate::{DerivationStore, PublicKeyStore};
 /// An in-memory derivation store implementation.
 pub struct PkDerivationStore {
     intermediate_pk: PublicKey,
-    hidden_puzzle_hash: [u8; 32],
-    derivations: Mutex<IndexMap<PublicKey, [u8; 32]>>,
+    hidden_puzzle_hash: Bytes32,
+    derivations: Mutex<IndexMap<PublicKey, Bytes32>>,
 }
 
 impl PkDerivationStore {
@@ -21,14 +22,14 @@ impl PkDerivationStore {
     pub fn new(root_key: &PublicKey) -> Self {
         Self {
             intermediate_pk: master_to_wallet_unhardened_intermediate(root_key),
-            hidden_puzzle_hash: DEFAULT_HIDDEN_PUZZLE_HASH,
+            hidden_puzzle_hash: DEFAULT_HIDDEN_PUZZLE_HASH.into(),
             derivations: Mutex::new(IndexMap::new()),
         }
     }
 
     /// Creates a new key store with a custom hidden puzzle hash.
     /// An intermediate secret key is derived from the root key.
-    pub fn new_with_hidden_puzzle(root_key: &PublicKey, hidden_puzzle_hash: [u8; 32]) -> Self {
+    pub fn new_with_hidden_puzzle(root_key: &PublicKey, hidden_puzzle_hash: Bytes32) -> Self {
         let mut key_store = Self::new(root_key);
         key_store.hidden_puzzle_hash = hidden_puzzle_hash;
         key_store
@@ -36,7 +37,7 @@ impl PkDerivationStore {
 }
 
 impl DerivationStore for PkDerivationStore {
-    async fn index_of_ph(&self, puzzle_hash: [u8; 32]) -> Option<u32> {
+    async fn index_of_ph(&self, puzzle_hash: Bytes32) -> Option<u32> {
         self.derivations
             .lock()
             .iter()
@@ -44,14 +45,14 @@ impl DerivationStore for PkDerivationStore {
             .map(|index| index as u32)
     }
 
-    async fn puzzle_hash(&self, index: u32) -> Option<[u8; 32]> {
+    async fn puzzle_hash(&self, index: u32) -> Option<Bytes32> {
         self.derivations
             .lock()
             .get_index(index as usize)
             .map(|derivation| *derivation.1)
     }
 
-    async fn puzzle_hashes(&self) -> Vec<[u8; 32]> {
+    async fn puzzle_hashes(&self) -> Vec<Bytes32> {
         self.derivations.lock().values().copied().collect()
     }
 }
@@ -82,9 +83,9 @@ impl PublicKeyStore for PkDerivationStore {
             let public_key = self
                 .intermediate_pk
                 .derive_unhardened(index)
-                .derive_synthetic(&self.hidden_puzzle_hash);
+                .derive_synthetic(&self.hidden_puzzle_hash.to_bytes());
             let puzzle_hash = standard_puzzle_hash(&public_key);
-            derivations.insert(public_key, puzzle_hash);
+            derivations.insert(public_key, puzzle_hash.into());
         }
     }
 }
