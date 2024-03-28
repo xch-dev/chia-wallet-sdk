@@ -61,7 +61,7 @@ impl TransactionStore {
     }
 
     /// Get a transaction by its id.
-    pub async fn transaction(&self, transaction_id: [u8; 32]) -> Result<SpendBundle> {
+    pub async fn transaction(&self, transaction_id: Bytes32) -> Result<SpendBundle> {
         let transaction_id = transaction_id.to_vec();
         let spend_transaction_id = transaction_id.clone();
 
@@ -142,12 +142,12 @@ impl TransactionStore {
     }
 
     /// Add a transaction to the store.
-    pub async fn add_transaction(&self, spend_bundle: SpendBundle) -> Result<bool> {
+    pub async fn add_transaction(&self, spend_bundle: SpendBundle) -> Result<()> {
         let transaction_id = spend_bundle.name().to_vec();
         let add_transaction_id = transaction_id.clone();
         let aggregated_signature = spend_bundle.aggregated_signature.to_bytes().to_vec();
 
-        let affected = sqlx::query!(
+        sqlx::query!(
             "
             REPLACE INTO `transactions` (
                 `transaction_id`,
@@ -159,12 +159,7 @@ impl TransactionStore {
             aggregated_signature
         )
         .execute(&self.db)
-        .await?
-        .rows_affected();
-
-        if affected == 0 {
-            return Ok(false);
-        }
+        .await?;
 
         for coin_spend in spend_bundle.coin_spends {
             let coin_id = coin_spend.coin.coin_id().to_vec();
@@ -200,21 +195,73 @@ impl TransactionStore {
             .await?;
         }
 
-        Ok(true)
+        Ok(())
     }
 
     /// Remove a transaction from the store.
-    pub async fn remove_transaction(&self, transaction_id: Bytes32) -> Result<bool> {
+    pub async fn remove_transaction(&self, transaction_id: Bytes32) -> Result<()> {
         let transaction_id = transaction_id.to_vec();
 
-        let affected = sqlx::query!(
+        sqlx::query!(
             "DELETE FROM `transactions` WHERE `transaction_id` = ?",
             transaction_id
         )
         .execute(&self.db)
-        .await?
-        .rows_affected();
+        .await?;
 
-        Ok(affected > 0)
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[sqlx::test]
+    async fn test_transaction_store(pool: SqlitePool) {
+        let store = TransactionStore::new(pool.clone());
+
+        // Add a transaction.
+        let coin = Coin {
+            parent_coin_info: Bytes32::default(),
+            puzzle_hash: Bytes32::default(),
+            amount: 100,
+        };
+
+        let puzzle_reveal = Program::default();
+        let solution = Program::default();
+
+        let coin_spend = CoinSpend {
+            coin: coin.clone(),
+            puzzle_reveal,
+            solution,
+        };
+
+        let spend_bundle = SpendBundle::new(vec![coin_spend], Signature::default());
+
+        let transaction_id = spend_bundle.name();
+
+        store.add_transaction(spend_bundle.clone()).await.unwrap();
+
+        // Get the transaction and compare.
+        let transaction = store.transaction(transaction_id).await.unwrap();
+        assert_eq!(transaction, spend_bundle);
+
+        // Get the removals and compare.
+        let removals = store.removals(transaction_id).await.unwrap();
+        assert_eq!(removals, vec![coin.clone()]);
+
+        // Get all spent coins and make sure the coin is there.
+        let spent_coins = store.spent_coins().await.unwrap();
+        assert_eq!(spent_coins, vec![coin]);
+
+        // Remove the transaction.
+        store.remove_transaction(transaction_id).await.unwrap();
+
+        // Make sure the transaction is gone.
+        assert!(matches!(
+            store.transaction(transaction_id).await,
+            Err(SqliteError::NotFound)
+        ));
     }
 }
