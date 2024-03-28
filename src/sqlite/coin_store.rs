@@ -2,6 +2,7 @@ use chia_protocol::{Bytes32, Coin, CoinState};
 use sqlx::SqlitePool;
 
 /// A SQLite implementation of a coin store. Uses the table name `standard_coin_states`.
+#[derive(Debug, Clone)]
 pub struct SqliteCoinStore {
     db: SqlitePool,
 }
@@ -17,9 +18,7 @@ impl SqliteCoinStore {
         sqlx::migrate!().run(&db).await?;
         Ok(Self { db })
     }
-}
 
-impl SqliteCoinStore {
     /// Apply a list of coin updates to the store.
     pub async fn apply_updates(&self, coin_states: Vec<CoinState>) {
         let mut tx = self.db.begin().await.unwrap();
