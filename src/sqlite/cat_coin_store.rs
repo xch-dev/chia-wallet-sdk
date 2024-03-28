@@ -1,6 +1,8 @@
 use chia_protocol::{Bytes32, Coin, CoinState};
 use sqlx::SqlitePool;
 
+use super::{Result, SqliteError};
+
 /// A SQLite implementation of a CAT coin store. Uses the table name `cat_coin_states`.
 #[derive(Debug, Clone)]
 pub struct SqliteCatStore {
@@ -15,17 +17,14 @@ impl SqliteCatStore {
     }
 
     /// Connect to a SQLite database and run migrations.
-    pub async fn new_with_migrations(
-        db: SqlitePool,
-        asset_id: Bytes32,
-    ) -> Result<Self, sqlx::Error> {
+    pub async fn new_with_migrations(db: SqlitePool, asset_id: Bytes32) -> Result<Self> {
         sqlx::migrate!().run(&db).await?;
         Ok(Self { db, asset_id })
     }
 
     /// Apply a list of coin updates to the store.
-    pub async fn apply_updates(&self, coin_states: Vec<CoinState>) {
-        let mut tx = self.db.begin().await.unwrap();
+    pub async fn apply_updates(&self, coin_states: Vec<CoinState>) -> Result<()> {
+        let mut tx = self.db.begin().await?;
         let asset_id = self.asset_id.to_vec();
 
         for coin_state in coin_states {
@@ -56,15 +55,14 @@ impl SqliteCatStore {
                 asset_id
             )
             .execute(&mut *tx)
-            .await
-            .unwrap();
+            .await?;
         }
 
-        tx.commit().await.unwrap();
+        Ok(tx.commit().await?)
     }
 
     /// Get a list of all unspent coins in the store.
-    pub async fn unspent_coins(&self) -> Vec<Coin> {
+    pub async fn unspent_coins(&self) -> Result<Vec<Coin>> {
         let rows = sqlx::query!(
             "
             SELECT `parent_coin_info`, `puzzle_hash`, `amount`
@@ -73,10 +71,10 @@ impl SqliteCatStore {
             "
         )
         .fetch_all(&self.db)
-        .await
-        .unwrap();
+        .await?;
 
-        rows.into_iter()
+        Ok(rows
+            .into_iter()
             .map(|row| {
                 let parent_coin_info = row.parent_coin_info;
                 let puzzle_hash = row.puzzle_hash;
@@ -88,14 +86,14 @@ impl SqliteCatStore {
                     amount,
                 }
             })
-            .collect()
+            .collect())
     }
 
     /// Get the state of a coin by its id.
-    pub async fn coin_state(&self, coin_id: Bytes32) -> Option<CoinState> {
+    pub async fn coin_state(&self, coin_id: Bytes32) -> Result<CoinState> {
         let coin_id = coin_id.to_vec();
 
-        let row = sqlx::query!(
+        let Some(row) = sqlx::query!(
             "
             SELECT `parent_coin_info`, `puzzle_hash`, `amount`, `created_height`, `spent_height`
             FROM `cat_coin_states`
@@ -104,10 +102,12 @@ impl SqliteCatStore {
             coin_id
         )
         .fetch_optional(&self.db)
-        .await
-        .unwrap()?;
+        .await?
+        else {
+            return Err(SqliteError::NotFound);
+        };
 
-        Some(CoinState {
+        Ok(CoinState {
             coin: Coin {
                 parent_coin_info: row.parent_coin_info.try_into().unwrap(),
                 puzzle_hash: row.puzzle_hash.try_into().unwrap(),
@@ -119,7 +119,7 @@ impl SqliteCatStore {
     }
 
     /// Check if a puzzle hash is used in the store.
-    pub async fn is_used(&self, puzzle_hash: Bytes32) -> bool {
+    pub async fn is_used(&self, puzzle_hash: Bytes32) -> Result<bool> {
         let puzzle_hash = puzzle_hash.to_vec();
 
         let row = sqlx::query!(
@@ -131,9 +131,8 @@ impl SqliteCatStore {
             puzzle_hash
         )
         .fetch_one(&self.db)
-        .await
-        .unwrap();
+        .await?;
 
-        row.count > 0
+        Ok(row.count > 0)
     }
 }

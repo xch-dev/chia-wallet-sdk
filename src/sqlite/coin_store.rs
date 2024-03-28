@@ -1,6 +1,8 @@
 use chia_protocol::{Bytes32, Coin, CoinState};
 use sqlx::SqlitePool;
 
+use super::{Result, SqliteError};
+
 /// A SQLite implementation of a coin store. Uses the table name `standard_coin_states`.
 #[derive(Debug, Clone)]
 pub struct SqliteCoinStore {
@@ -14,14 +16,14 @@ impl SqliteCoinStore {
     }
 
     /// Connect to a SQLite database and run migrations.
-    pub async fn new_with_migrations(db: SqlitePool) -> Result<Self, sqlx::Error> {
+    pub async fn new_with_migrations(db: SqlitePool) -> Result<Self> {
         sqlx::migrate!().run(&db).await?;
         Ok(Self { db })
     }
 
     /// Apply a list of coin updates to the store.
-    pub async fn apply_updates(&self, coin_states: Vec<CoinState>) {
-        let mut tx = self.db.begin().await.unwrap();
+    pub async fn apply_updates(&self, coin_states: Vec<CoinState>) -> Result<()> {
+        let mut tx = self.db.begin().await?;
 
         for coin_state in coin_states {
             let coin_id = coin_state.coin.coin_id().to_vec();
@@ -49,15 +51,14 @@ impl SqliteCoinStore {
                 coin_state.spent_height
             )
             .execute(&mut *tx)
-            .await
-            .unwrap();
+            .await?;
         }
 
-        tx.commit().await.unwrap();
+        Ok(tx.commit().await?)
     }
 
     /// Get a list of all unspent coins in the store.
-    pub async fn unspent_coins(&self) -> Vec<Coin> {
+    pub async fn unspent_coins(&self) -> Result<Vec<Coin>> {
         let rows = sqlx::query!(
             "
             SELECT `parent_coin_info`, `puzzle_hash`, `amount`
@@ -66,10 +67,10 @@ impl SqliteCoinStore {
             "
         )
         .fetch_all(&self.db)
-        .await
-        .unwrap();
+        .await?;
 
-        rows.into_iter()
+        Ok(rows
+            .into_iter()
             .map(|row| {
                 let parent_coin_info = row.parent_coin_info;
                 let puzzle_hash = row.puzzle_hash;
@@ -81,14 +82,14 @@ impl SqliteCoinStore {
                     amount,
                 }
             })
-            .collect()
+            .collect())
     }
 
     /// Get the state of a coin by its id.
-    pub async fn coin_state(&self, coin_id: Bytes32) -> Option<CoinState> {
+    pub async fn coin_state(&self, coin_id: Bytes32) -> Result<CoinState> {
         let coin_id = coin_id.to_vec();
 
-        let row = sqlx::query!(
+        let Some(row) = sqlx::query!(
             "
             SELECT `parent_coin_info`, `puzzle_hash`, `amount`, `created_height`, `spent_height`
             FROM `standard_coin_states`
@@ -97,10 +98,12 @@ impl SqliteCoinStore {
             coin_id
         )
         .fetch_optional(&self.db)
-        .await
-        .unwrap()?;
+        .await?
+        else {
+            return Err(SqliteError::NotFound);
+        };
 
-        Some(CoinState {
+        Ok(CoinState {
             coin: Coin {
                 parent_coin_info: row.parent_coin_info.try_into().unwrap(),
                 puzzle_hash: row.puzzle_hash.try_into().unwrap(),
@@ -112,7 +115,7 @@ impl SqliteCoinStore {
     }
 
     /// Check if a puzzle hash is used in the store.
-    pub async fn is_used(&self, puzzle_hash: Bytes32) -> bool {
+    pub async fn is_used(&self, puzzle_hash: Bytes32) -> Result<bool> {
         let puzzle_hash = puzzle_hash.to_vec();
 
         let row = sqlx::query!(
@@ -124,10 +127,9 @@ impl SqliteCoinStore {
             puzzle_hash
         )
         .fetch_one(&self.db)
-        .await
-        .unwrap();
+        .await?;
 
-        row.count > 0
+        Ok(row.count > 0)
     }
 }
 
@@ -163,10 +165,11 @@ mod tests {
                     spent_height: Some(15),
                 },
             ])
-            .await;
+            .await
+            .unwrap();
 
         // Make sure only one is unspent.
-        let unspent_coins = coin_store.unspent_coins().await;
+        let unspent_coins = coin_store.unspent_coins().await.unwrap();
         assert_eq!(unspent_coins.len(), 1);
         assert_eq!(unspent_coins[0].amount, 100);
     }
@@ -188,7 +191,10 @@ mod tests {
             spent_height: None,
         };
 
-        coin_store.apply_updates(vec![coin_state.clone()]).await;
+        coin_store
+            .apply_updates(vec![coin_state.clone()])
+            .await
+            .unwrap();
 
         // Ensure the result is the same as when it was put in.
         let roundtrip = coin_store
@@ -215,14 +221,20 @@ mod tests {
             spent_height: None,
         };
 
-        coin_store.apply_updates(vec![coin_state.clone()]).await;
+        coin_store
+            .apply_updates(vec![coin_state.clone()])
+            .await
+            .unwrap();
 
         // Ensure the puzzle hash we inserted is used.
-        let is_used = coin_store.is_used(coin_state.coin.puzzle_hash).await;
+        let is_used = coin_store
+            .is_used(coin_state.coin.puzzle_hash)
+            .await
+            .unwrap();
         assert!(is_used);
 
         // Ensure a different puzzle hash is not used.
-        let is_used = coin_store.is_used(Bytes32::new([1; 32])).await;
+        let is_used = coin_store.is_used(Bytes32::new([1; 32])).await.unwrap();
         assert!(!is_used);
     }
 }
