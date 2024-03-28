@@ -364,7 +364,7 @@ mod tests {
 
     #[sqlx::test]
     async fn test_sync_nothing(db: SqlitePool) {
-        let coin_store = Arc::new(SqliteCoinStore::connect(db).await.unwrap());
+        let coin_store = Arc::new(SqliteCoinStore::new_with_migrations(db).await.unwrap());
         let root_sk = SecretKey::from_seed(SEED.as_ref());
         let derivation_store = Arc::new(SkDerivationStore::new(&root_sk));
 
@@ -389,7 +389,7 @@ mod tests {
 
     #[sqlx::test]
     async fn test_sync_one_by_one_and_update(db: SqlitePool) {
-        let coin_store = Arc::new(SqliteCoinStore::connect(db).await.unwrap());
+        let coin_store = Arc::new(SqliteCoinStore::new_with_migrations(db).await.unwrap());
         let root_sk = SecretKey::from_seed(SEED.as_ref());
         let derivation_store = Arc::new(SkDerivationStore::new(&root_sk));
 

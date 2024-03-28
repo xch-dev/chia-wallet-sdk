@@ -1,28 +1,33 @@
 use chia_protocol::{Bytes32, Coin, CoinState};
 use sqlx::SqlitePool;
 
-/// A SQLite implementation of a coin store. Uses the table name `standard_coin_states`.
-pub struct SqliteCoinStore {
+/// A SQLite implementation of a CAT coin store. Uses the table name `cat_coin_states`.
+pub struct SqliteCatStore {
     db: SqlitePool,
+    asset_id: Bytes32,
 }
 
-impl SqliteCoinStore {
-    /// Create a new `SqliteCoinStore` from a connection pool.
-    pub fn new(db: SqlitePool) -> Self {
-        Self { db }
+impl SqliteCatStore {
+    /// Create a new `SqliteCatStore` from a connection pool.
+    pub fn new(db: SqlitePool, asset_id: Bytes32) -> Self {
+        Self { db, asset_id }
     }
 
     /// Connect to a SQLite database and run migrations.
-    pub async fn new_with_migrations(db: SqlitePool) -> Result<Self, sqlx::Error> {
+    pub async fn new_with_migrations(
+        db: SqlitePool,
+        asset_id: Bytes32,
+    ) -> Result<Self, sqlx::Error> {
         sqlx::migrate!().run(&db).await?;
-        Ok(Self { db })
+        Ok(Self { db, asset_id })
     }
 }
 
-impl SqliteCoinStore {
+impl SqliteCatStore {
     /// Apply a list of coin updates to the store.
     pub async fn apply_updates(&self, coin_states: Vec<CoinState>) {
         let mut tx = self.db.begin().await.unwrap();
+        let asset_id = self.asset_id.to_vec();
 
         for coin_state in coin_states {
             let coin_id = coin_state.coin.coin_id().to_vec();
@@ -32,22 +37,24 @@ impl SqliteCoinStore {
 
             sqlx::query!(
                 "
-                REPLACE INTO `standard_coin_states` (
+                REPLACE INTO `cat_coin_states` (
                     `coin_id`,
                     `parent_coin_info`,
                     `puzzle_hash`,
                     `amount`,
                     `created_height`,
-                    `spent_height`
+                    `spent_height`,
+                    `asset_id`
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ",
                 coin_id,
                 parent_coin_info,
                 puzzle_hash,
                 amount,
                 coin_state.created_height,
-                coin_state.spent_height
+                coin_state.spent_height,
+                asset_id
             )
             .execute(&mut *tx)
             .await
@@ -62,7 +69,7 @@ impl SqliteCoinStore {
         let rows = sqlx::query!(
             "
             SELECT `parent_coin_info`, `puzzle_hash`, `amount`
-            FROM `standard_coin_states`
+            FROM `cat_coin_states`
             WHERE `spent_height` IS NULL
             "
         )
@@ -92,7 +99,7 @@ impl SqliteCoinStore {
         let row = sqlx::query!(
             "
             SELECT `parent_coin_info`, `puzzle_hash`, `amount`, `created_height`, `spent_height`
-            FROM `standard_coin_states`
+            FROM `cat_coin_states`
             WHERE `coin_id` = ?
             ",
             coin_id
@@ -119,7 +126,7 @@ impl SqliteCoinStore {
         let row = sqlx::query!(
             "
             SELECT COUNT(*) AS `count`
-            FROM `standard_coin_states`
+            FROM `cat_coin_states`
             WHERE `puzzle_hash` = ?
             ",
             puzzle_hash
