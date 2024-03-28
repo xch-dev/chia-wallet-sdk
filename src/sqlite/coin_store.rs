@@ -7,18 +7,22 @@ use super::{Result, SqliteError};
 #[derive(Debug, Clone)]
 pub struct SqliteCoinStore {
     db: SqlitePool,
+    asset_id: Vec<u8>,
 }
 
 impl SqliteCoinStore {
     /// Create a new `SqliteCoinStore` from a connection pool.
-    pub fn new(db: SqlitePool) -> Self {
-        Self { db }
+    pub fn new(db: SqlitePool, asset_id: Option<Bytes32>) -> Self {
+        Self {
+            db,
+            asset_id: asset_id.map(|id| id.to_vec()).unwrap_or_default(),
+        }
     }
 
     /// Connect to a SQLite database and run migrations.
-    pub async fn new_with_migrations(db: SqlitePool) -> Result<Self> {
+    pub async fn new_with_migrations(db: SqlitePool, asset_id: Option<Bytes32>) -> Result<Self> {
         sqlx::migrate!().run(&db).await?;
-        Ok(Self { db })
+        Ok(Self::new(db, asset_id))
     }
 
     /// Apply a list of coin updates to the store.
@@ -30,25 +34,28 @@ impl SqliteCoinStore {
             let parent_coin_info = coin_state.coin.parent_coin_info.to_bytes().to_vec();
             let puzzle_hash = coin_state.coin.puzzle_hash.to_bytes().to_vec();
             let amount = coin_state.coin.amount as i64;
+            let asset_id = self.asset_id.clone();
 
             sqlx::query!(
                 "
-                REPLACE INTO `standard_coin_states` (
+                REPLACE INTO `coin_states` (
                     `coin_id`,
                     `parent_coin_info`,
                     `puzzle_hash`,
                     `amount`,
                     `created_height`,
-                    `spent_height`
+                    `spent_height`,
+                    `asset_id`
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ",
                 coin_id,
                 parent_coin_info,
                 puzzle_hash,
                 amount,
                 coin_state.created_height,
-                coin_state.spent_height
+                coin_state.spent_height,
+                asset_id
             )
             .execute(&mut *tx)
             .await?;
@@ -59,12 +66,15 @@ impl SqliteCoinStore {
 
     /// Get a list of all unspent coins in the store.
     pub async fn unspent_coins(&self) -> Result<Vec<Coin>> {
+        let asset_id = self.asset_id.clone();
+
         let rows = sqlx::query!(
             "
             SELECT `parent_coin_info`, `puzzle_hash`, `amount`
-            FROM `standard_coin_states`
-            WHERE `spent_height` IS NULL
-            "
+            FROM `coin_states`
+            WHERE `spent_height` IS NULL AND `asset_id` = ?
+            ",
+            asset_id
         )
         .fetch_all(&self.db)
         .await?;
@@ -88,14 +98,16 @@ impl SqliteCoinStore {
     /// Get the state of a coin by its id.
     pub async fn coin_state(&self, coin_id: Bytes32) -> Result<CoinState> {
         let coin_id = coin_id.to_vec();
+        let asset_id = self.asset_id.clone();
 
         let Some(row) = sqlx::query!(
             "
             SELECT `parent_coin_info`, `puzzle_hash`, `amount`, `created_height`, `spent_height`
-            FROM `standard_coin_states`
-            WHERE `coin_id` = ?
+            FROM `coin_states`
+            WHERE `coin_id` = ? AND `asset_id` = ?
             ",
-            coin_id
+            coin_id,
+            asset_id
         )
         .fetch_optional(&self.db)
         .await?
@@ -117,14 +129,16 @@ impl SqliteCoinStore {
     /// Check if a puzzle hash is used in the store.
     pub async fn is_used(&self, puzzle_hash: Bytes32) -> Result<bool> {
         let puzzle_hash = puzzle_hash.to_vec();
+        let asset_id = self.asset_id.clone();
 
         let row = sqlx::query!(
             "
             SELECT COUNT(*) AS `count`
-            FROM `standard_coin_states`
-            WHERE `puzzle_hash` = ?
+            FROM `coin_states`
+            WHERE `puzzle_hash` = ? AND `asset_id` = ?
             ",
-            puzzle_hash
+            puzzle_hash,
+            asset_id
         )
         .fetch_one(&self.db)
         .await?;
@@ -139,7 +153,7 @@ mod tests {
 
     #[sqlx::test]
     async fn test_unspent_coins(pool: SqlitePool) {
-        let coin_store = SqliteCoinStore::new_with_migrations(pool.clone())
+        let coin_store = SqliteCoinStore::new_with_migrations(pool.clone(), None)
             .await
             .unwrap();
 
@@ -176,7 +190,7 @@ mod tests {
 
     #[sqlx::test]
     async fn test_coin_state(pool: SqlitePool) {
-        let coin_store = SqliteCoinStore::new_with_migrations(pool.clone())
+        let coin_store = SqliteCoinStore::new_with_migrations(pool.clone(), None)
             .await
             .unwrap();
 
@@ -206,7 +220,7 @@ mod tests {
 
     #[sqlx::test]
     async fn test_is_used(pool: SqlitePool) {
-        let coin_store = SqliteCoinStore::new_with_migrations(pool.clone())
+        let coin_store = SqliteCoinStore::new_with_migrations(pool.clone(), None)
             .await
             .unwrap();
 
@@ -236,5 +250,50 @@ mod tests {
         // Ensure a different puzzle hash is not used.
         let is_used = coin_store.is_used(Bytes32::new([1; 32])).await.unwrap();
         assert!(!is_used);
+    }
+
+    #[sqlx::test]
+    async fn test_asset_id(pool: SqlitePool) {
+        let coin_store =
+            SqliteCoinStore::new_with_migrations(pool.clone(), Some(Bytes32::default()))
+                .await
+                .unwrap();
+
+        // Insert a coin state into the database.
+        let coin_state = CoinState {
+            coin: Coin {
+                parent_coin_info: Bytes32::default(),
+                puzzle_hash: Bytes32::default(),
+                amount: 100,
+            },
+            created_height: Some(10),
+            spent_height: None,
+        };
+
+        coin_store
+            .apply_updates(vec![coin_state.clone()])
+            .await
+            .unwrap();
+
+        // Ensure the result is the same as when it was put in.
+        let roundtrip = coin_store
+            .coin_state(coin_state.coin.coin_id())
+            .await
+            .expect("coin state not found");
+        assert_eq!(coin_state, roundtrip);
+
+        // Ensure the asset id is not confused with another one.
+        let another_coin_store = SqliteCoinStore::new(pool.clone(), Some(Bytes32::new([1; 32])));
+        another_coin_store
+            .coin_state(coin_state.coin.coin_id())
+            .await
+            .expect_err("coin state found");
+
+        // Ensure the asset id is not confused with not having one.
+        let another_coin_store = SqliteCoinStore::new(pool.clone(), None);
+        another_coin_store
+            .coin_state(coin_state.coin.coin_id())
+            .await
+            .expect_err("coin state found");
     }
 }
