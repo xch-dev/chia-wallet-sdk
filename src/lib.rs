@@ -11,6 +11,10 @@ mod stores;
 mod utils;
 mod wallet;
 
+/// The `sqlite` module contains the SQLite storage backend.
+#[cfg(any(test, feature = "sqlite"))]
+pub mod sqlite;
+
 pub use address::*;
 pub use condition::*;
 pub use signer::*;

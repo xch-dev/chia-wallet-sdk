@@ -4,7 +4,7 @@ use chia_client::{Peer, PeerEvent};
 use chia_protocol::{Bytes32, CoinState};
 use tokio::sync::{broadcast, mpsc, Mutex};
 
-use crate::{CoinStore, DerivationStore};
+use crate::{sqlite::SqliteCoinStore, DerivationStore};
 
 /// Settings used while syncing a derivation wallet.
 #[derive(Debug, Clone)]
@@ -50,17 +50,21 @@ pub trait SyncManager {
 }
 
 /// A simple implementation of a sync manager, that syncs against a single peer and coin store.
-pub struct SimpleSyncManager<C> {
+pub struct SimpleSyncManager {
     peer: Arc<Peer>,
     receiver: Mutex<broadcast::Receiver<PeerEvent>>,
     sender: mpsc::Sender<()>,
-    coin_store: Arc<C>,
+    coin_store: Arc<SqliteCoinStore>,
 }
 
-impl<C> SimpleSyncManager<C> {
+impl SimpleSyncManager {
     /// Creates a new sync manager for a given peer and coin store.
     /// The sender is for whenever the wallet is synced.
-    pub fn new(peer: Arc<Peer>, coin_store: Arc<C>, sender: mpsc::Sender<()>) -> Self {
+    pub fn new(
+        peer: Arc<Peer>,
+        coin_store: Arc<SqliteCoinStore>,
+        sender: mpsc::Sender<()>,
+    ) -> Self {
         let receiver = peer.receiver().resubscribe();
 
         Self {
@@ -72,10 +76,7 @@ impl<C> SimpleSyncManager<C> {
     }
 }
 
-impl<C> SyncManager for SimpleSyncManager<C>
-where
-    C: CoinStore + Send + Sync,
-{
+impl SyncManager for SimpleSyncManager {
     type Error = chia_client::Error<()>;
 
     async fn receive_updates(&self) -> Option<Vec<CoinState>> {
@@ -111,7 +112,7 @@ where
     }
 
     async fn apply_updates(&self, coin_states: Vec<CoinState>) -> Result<(), Self::Error> {
-        self.coin_store.update_coin_state(coin_states).await;
+        self.coin_store.apply_updates(coin_states).await;
         Ok(())
     }
 }
@@ -260,31 +261,35 @@ mod tests {
 
     use chia_bls::SecretKey;
     use chia_protocol::{Bytes32, Coin};
+    use sqlx::SqlitePool;
 
-    use crate::{testing::SEED, MemoryCoinStore, PublicKeyStore, SkDerivationStore};
+    use crate::{testing::SEED, PublicKeyStore, SkDerivationStore};
 
     use super::*;
 
-    #[derive(Default)]
     struct TestSyncManager {
         // Coin id to hints.
         hints: Mutex<HashMap<Bytes32, HashSet<Bytes32>>>,
         subscriptions: Mutex<Vec<Bytes32>>,
         coin_states: Mutex<Vec<CoinState>>,
-        coin_store: Arc<MemoryCoinStore>,
+        coin_store: Arc<SqliteCoinStore>,
         synced_sender: Option<mpsc::Sender<()>>,
         coin_state_receiver: Mutex<Option<mpsc::Receiver<Vec<CoinState>>>>,
     }
 
     impl TestSyncManager {
         fn new(
+            coin_store: Arc<SqliteCoinStore>,
             coin_state_receiver: mpsc::Receiver<Vec<CoinState>>,
             synced_sender: mpsc::Sender<()>,
         ) -> Self {
             Self {
+                hints: Default::default(),
                 synced_sender: Some(synced_sender),
                 coin_state_receiver: Mutex::new(Some(coin_state_receiver)),
-                ..Default::default()
+                subscriptions: Default::default(),
+                coin_states: Default::default(),
+                coin_store,
             }
         }
     }
@@ -352,19 +357,24 @@ mod tests {
         }
 
         async fn apply_updates(&self, coin_states: Vec<CoinState>) -> Result<(), Self::Error> {
-            self.coin_store.update_coin_state(coin_states).await;
+            self.coin_store.apply_updates(coin_states).await;
             Ok(())
         }
     }
 
-    #[tokio::test]
-    async fn test_sync_nothing() {
+    #[sqlx::test]
+    async fn test_sync_nothing(db: SqlitePool) {
+        let coin_store = Arc::new(SqliteCoinStore::connect(db).await.unwrap());
         let root_sk = SecretKey::from_seed(SEED.as_ref());
         let derivation_store = Arc::new(SkDerivationStore::new(&root_sk));
 
         let (coin_state_sender, coin_state_receiver) = mpsc::channel(32);
         let (synced_sender, mut synced_receiver) = mpsc::channel(32);
-        let sync = Arc::new(TestSyncManager::new(coin_state_receiver, synced_sender));
+        let sync = Arc::new(TestSyncManager::new(
+            coin_store,
+            coin_state_receiver,
+            synced_sender,
+        ));
 
         tokio::spawn(incremental_sync(
             sync,
@@ -377,8 +387,9 @@ mod tests {
         synced_receiver.recv().await.unwrap();
     }
 
-    #[tokio::test]
-    async fn test_sync_one_by_one_and_update() {
+    #[sqlx::test]
+    async fn test_sync_one_by_one_and_update(db: SqlitePool) {
+        let coin_store = Arc::new(SqliteCoinStore::connect(db).await.unwrap());
         let root_sk = SecretKey::from_seed(SEED.as_ref());
         let derivation_store = Arc::new(SkDerivationStore::new(&root_sk));
 
@@ -387,7 +398,11 @@ mod tests {
 
         let (coin_state_sender, coin_state_receiver) = mpsc::channel(32);
         let (synced_sender, mut synced_receiver) = mpsc::channel(32);
-        let sync = Arc::new(TestSyncManager::new(coin_state_receiver, synced_sender));
+        let sync = Arc::new(TestSyncManager::new(
+            coin_store,
+            coin_state_receiver,
+            synced_sender,
+        ));
 
         let coin_states: Vec<CoinState> = puzzle_hashes
             .into_iter()
