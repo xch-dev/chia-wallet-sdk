@@ -3,7 +3,7 @@ use sqlx::SqlitePool;
 
 use super::{Result, SqliteError};
 
-/// A SQLite implementation of a coin store. Uses the table name `standard_coin_states`.
+/// A SQLite implementation of a coin store. Uses the table name `coin_states`.
 #[derive(Debug, Clone)]
 pub struct SqliteCoinStore {
     db: SqlitePool,
@@ -153,9 +153,7 @@ mod tests {
 
     #[sqlx::test]
     async fn test_unspent_coins(pool: SqlitePool) {
-        let coin_store = SqliteCoinStore::new_with_migrations(pool.clone(), None)
-            .await
-            .unwrap();
+        let coin_store = SqliteCoinStore::new(pool.clone(), None);
 
         // Insert a spent and unspent coin.
         coin_store
@@ -190,9 +188,7 @@ mod tests {
 
     #[sqlx::test]
     async fn test_coin_state(pool: SqlitePool) {
-        let coin_store = SqliteCoinStore::new_with_migrations(pool.clone(), None)
-            .await
-            .unwrap();
+        let coin_store = SqliteCoinStore::new(pool.clone(), None);
 
         // Insert a coin state into the database.
         let coin_state = CoinState {
@@ -220,9 +216,7 @@ mod tests {
 
     #[sqlx::test]
     async fn test_is_used(pool: SqlitePool) {
-        let coin_store = SqliteCoinStore::new_with_migrations(pool.clone(), None)
-            .await
-            .unwrap();
+        let coin_store = SqliteCoinStore::new(pool.clone(), None);
 
         // Insert a coin state into the database.
         let coin_state = CoinState {
@@ -254,10 +248,7 @@ mod tests {
 
     #[sqlx::test]
     async fn test_asset_id(pool: SqlitePool) {
-        let coin_store =
-            SqliteCoinStore::new_with_migrations(pool.clone(), Some(Bytes32::default()))
-                .await
-                .unwrap();
+        let coin_store = SqliteCoinStore::new(pool.clone(), Some(Bytes32::default()));
 
         // Insert a coin state into the database.
         let coin_state = CoinState {

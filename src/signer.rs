@@ -80,12 +80,11 @@ pub async fn sign_spend_bundle(
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::SecretKey;
     use chia_protocol::{Bytes, Bytes32, Coin, Program};
     use clvm_traits::{clvm_list, FromNodePtr, ToClvm};
     use hex_literal::hex;
 
-    use crate::{testing::SEED, PublicKeyStore, SkDerivationStore};
+    use crate::{testing::SECRET_KEY, PublicKeyStore, SkDerivationStore};
 
     use super::*;
 
@@ -116,8 +115,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sign_spend() {
-        let root_sk = SecretKey::from_seed(SEED.as_ref());
-        let sk_store = SkDerivationStore::new(&root_sk);
+        let sk_store = SkDerivationStore::new(&SECRET_KEY);
         sk_store.derive_to_index(1).await;
 
         let sk = sk_store.secret_key(0).await.unwrap();

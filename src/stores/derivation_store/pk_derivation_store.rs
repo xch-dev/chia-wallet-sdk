@@ -92,16 +92,15 @@ impl PublicKeyStore for PkDerivationStore {
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::SecretKey;
     use hex::ToHex;
 
-    use crate::testing::SEED;
+    use crate::testing::SECRET_KEY;
 
     use super::*;
 
     #[tokio::test]
     async fn test_key_pairs() {
-        let root_pk = SecretKey::from_seed(SEED.as_ref()).public_key();
+        let root_pk = SECRET_KEY.public_key();
         let store = PkDerivationStore::new(&root_pk);
 
         // Derive the first 10 keys.

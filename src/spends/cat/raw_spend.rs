@@ -114,7 +114,7 @@ pub fn spend_cat_coins(
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::{derive_keys::master_to_wallet_unhardened, SecretKey};
+    use chia_bls::derive_keys::master_to_wallet_unhardened;
     use chia_consensus::gen::{
         conditions::EmptyVisitor, run_block_generator::run_block_generator,
         solution_generator::solution_generator,
@@ -128,15 +128,14 @@ mod tests {
     use clvmr::serde::{node_from_bytes, node_to_bytes};
     use hex_literal::hex;
 
-    use crate::testing::SEED;
+    use crate::testing::SECRET_KEY;
 
     use super::*;
 
     #[test]
     fn test_cat_spend() {
-        let synthetic_key =
-            master_to_wallet_unhardened(&SecretKey::from_seed(SEED.as_ref()).public_key(), 0)
-                .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let synthetic_key = master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0)
+            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
 
         let a = &mut Allocator::new();
         let standard_puzzle_ptr = node_from_bytes(a, &STANDARD_PUZZLE).unwrap();
@@ -206,9 +205,8 @@ mod tests {
 
     #[test]
     fn test_cat_spend_multi() {
-        let synthetic_key =
-            master_to_wallet_unhardened(&SecretKey::from_seed(SEED.as_ref()).public_key(), 0)
-                .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let synthetic_key = master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0)
+            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
 
         let mut a = Allocator::new();
         let standard_puzzle_ptr = node_from_bytes(&mut a, &STANDARD_PUZZLE).unwrap();

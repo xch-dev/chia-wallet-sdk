@@ -70,7 +70,7 @@ pub async fn spend_standard_coins(
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::{derive_keys::master_to_wallet_unhardened, SecretKey};
+    use chia_bls::derive_keys::master_to_wallet_unhardened;
     use chia_protocol::Bytes32;
     use chia_wallet::{
         standard::{DEFAULT_HIDDEN_PUZZLE_HASH, STANDARD_PUZZLE},
@@ -79,15 +79,14 @@ mod tests {
     use clvmr::serde::{node_from_bytes, node_to_bytes};
     use hex_literal::hex;
 
-    use crate::{testing::SEED, CreateCoin};
+    use crate::{testing::SECRET_KEY, CreateCoin};
 
     use super::*;
 
     #[test]
     fn test_standard_spend() {
-        let synthetic_key =
-            master_to_wallet_unhardened(&SecretKey::from_seed(SEED.as_ref()).public_key(), 0)
-                .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let synthetic_key = master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0)
+            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
 
         let a = &mut Allocator::new();
         let standard_puzzle_ptr = node_from_bytes(a, &STANDARD_PUZZLE).unwrap();

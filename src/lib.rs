@@ -28,9 +28,10 @@ mod testing {
     use std::str::FromStr;
 
     use bip39::Mnemonic;
+    use chia_bls::SecretKey;
     use once_cell::sync::Lazy;
 
     const MNEMONIC: &str = "setup update spoil lazy square course ring tell hard eager industry ticket guess amused build reunion woman system cause afraid first material machine morning";
-    pub(crate) static SEED: Lazy<[u8; 64]> =
-        Lazy::new(|| Mnemonic::from_str(MNEMONIC).unwrap().to_seed(""));
+    pub(crate) static SECRET_KEY: Lazy<SecretKey> =
+        Lazy::new(|| SecretKey::from_seed(&Mnemonic::from_str(MNEMONIC).unwrap().to_seed("")));
 }

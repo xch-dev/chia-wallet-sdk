@@ -160,11 +160,12 @@ impl RequiredSignature {
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::SEED;
+
+    use crate::testing::SECRET_KEY;
 
     use super::*;
 
-    use chia_bls::{derive_keys::master_to_wallet_unhardened, SecretKey};
+    use chia_bls::derive_keys::master_to_wallet_unhardened;
     use chia_protocol::Bytes32;
     use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
 
@@ -173,9 +174,8 @@ mod tests {
         let coin = Coin::new(Bytes32::from([1; 32]), Bytes32::from([2; 32]), 3);
         let agg_sig_data = [4u8; 32];
 
-        let root_pk = SecretKey::from_seed(SEED.as_ref()).public_key();
-        let public_key =
-            master_to_wallet_unhardened(&root_pk, 0).derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let public_key = master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0)
+            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
 
         let message: Bytes = vec![1, 2, 3].into();
 

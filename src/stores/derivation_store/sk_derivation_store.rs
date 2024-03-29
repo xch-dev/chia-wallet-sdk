@@ -124,14 +124,13 @@ mod tests {
     use hex::ToHex;
     use hex_literal::hex;
 
-    use crate::testing::SEED;
+    use crate::testing::SECRET_KEY;
 
     use super::*;
 
     #[tokio::test]
     async fn test_key_pairs() {
-        let root_sk = SecretKey::from_seed(SEED.as_ref());
-        let store = SkDerivationStore::new(&root_sk);
+        let store = SkDerivationStore::new(&SECRET_KEY);
 
         // Derive the first 10 keys.
         store.derive_to_index(10).await;
@@ -185,8 +184,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sign_message() {
-        let root_sk = SecretKey::from_seed(SEED.as_ref());
-        let store = SkDerivationStore::new(&root_sk);
+        let store = SkDerivationStore::new(&SECRET_KEY);
 
         // Derive the first key.
         store.derive_to_index(1).await;

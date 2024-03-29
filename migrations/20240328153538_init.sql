@@ -1,4 +1,22 @@
 -- Add migration script here
+CREATE TABLE `p2_derivations` (
+    `index` INT UNSIGNED NOT NULL,
+    `is_hardened` BOOLEAN NOT NULL,
+    `synthetic_pk` BLOB NOT NULL,
+    `p2_puzzle_hash` BLOB NOT NULL,
+    PRIMARY KEY (`index`, `is_hardened`)
+);
+
+CREATE TABLE `cat_puzzle_hashes` (
+    `puzzle_hash` BLOB NOT NULL PRIMARY KEY,
+    `index` INT UNSIGNED NOT NULL,
+    `is_hardened` BOOLEAN NOT NULL,
+    `asset_id` BLOB NOT NULL,
+    FOREIGN KEY(`index`, `is_hardened`)
+        REFERENCES `p2_derivations`(`index`, `is_hardened`)
+        ON DELETE CASCADE
+);
+
 CREATE TABLE `coin_states` (
     `coin_id` BLOB NOT NULL PRIMARY KEY,
     `parent_coin_info` BLOB NOT NULL,
