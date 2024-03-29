@@ -5,7 +5,7 @@ use sqlx::SqlitePool;
 
 use super::{Result, SqliteError};
 
-/// A key store that uses SQLite as a backend.
+/// A key store that uses SQLite as a backend. Uses the table name `derivations`.
 #[derive(Debug, Clone)]
 pub struct SqliteKeyStore {
     db: SqlitePool,
@@ -154,7 +154,7 @@ impl SqliteKeyStore {
     }
 
     /// Get the index of a puzzle hash.
-    pub async fn ph_index(&self, puzzle_hash: &Bytes32) -> Result<u32> {
+    pub async fn ph_index(&self, puzzle_hash: Bytes32) -> Result<u32> {
         let puzzle_hash = puzzle_hash.to_vec();
 
         let Some(record) = sqlx::query!(
@@ -195,6 +195,9 @@ mod tests {
 
         // Ensure empty by default.
         assert!(key_store.is_empty().await.unwrap());
+
+        let puzzle_hashes = key_store.puzzle_hashes().await.unwrap();
+        assert!(puzzle_hashes.is_empty());
 
         // Insert the first batch.
         let pk_batch_1: Vec<PublicKey> = (0..100)
@@ -246,7 +249,7 @@ mod tests {
             assert_eq!(actual, ph.into());
 
             // Ensure the index of the puzzle hash matches.
-            let index = key_store.ph_index(&ph.into()).await.unwrap();
+            let index = key_store.ph_index(ph.into()).await.unwrap();
             assert_eq!(index, i as u32);
         }
     }
