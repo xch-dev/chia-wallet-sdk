@@ -4,23 +4,21 @@
 
 mod address;
 mod condition;
-mod signer;
 mod spends;
 mod ssl;
-mod stores;
 mod utils;
-mod wallet;
 
 /// The `sqlite` module contains the SQLite storage backend.
 #[cfg(any(test, feature = "sqlite"))]
 pub mod sqlite;
 
+/// Contains logic needed to glue a wallet together with all of the data stores.
+pub mod wallet;
+
 pub use address::*;
 pub use condition::*;
-pub use signer::*;
 pub use spends::*;
 pub use ssl::*;
-pub use stores::*;
 pub use wallet::*;
 
 #[cfg(test)]

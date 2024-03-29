@@ -1,9 +1,23 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes, Coin};
-use clvmr::allocator::NodePtr;
+use chia_protocol::{Bytes, Coin, CoinSpend, SpendBundle};
+use clvm_traits::{FromClvm, FromClvmError};
+use clvmr::{allocator::NodePtr, reduction::EvalErr, Allocator};
 use sha2::{digest::FixedOutput, Digest, Sha256};
+use thiserror::Error;
 
 use crate::{utils::u64_to_bytes, Condition};
+
+/// An error that occurs while trying to sign a coin spend.
+#[derive(Debug, Error)]
+pub enum ConditionError {
+    /// An error that occurs while trying to calculate the conditions.
+    #[error("{0:?}")]
+    Eval(#[from] EvalErr),
+
+    /// An error that occurs while attempting to parse the conditions.
+    #[error("{0}")]
+    Clvm(#[from] FromClvmError),
+}
 
 /// Information about how to sign an AggSig condition.
 #[derive(Debug, Clone)]
@@ -16,13 +30,13 @@ pub struct RequiredSignature {
 
 impl RequiredSignature {
     /// Converts a known AggSig condition to a `RequiredSignature` if possible.
-    pub fn try_from_condition(
+    pub fn from_condition(
         coin: &Coin,
         condition: Condition<NodePtr>,
-        agg_sig_me_extra_data: [u8; 32],
+        agg_sig_me: [u8; 32],
     ) -> Option<Self> {
         let mut hasher = Sha256::new();
-        hasher.update(agg_sig_me_extra_data);
+        hasher.update(agg_sig_me);
 
         let required_signature = match condition {
             Condition::AggSigParent {
@@ -31,7 +45,7 @@ impl RequiredSignature {
             } => {
                 hasher.update([43]);
                 let parent = coin.parent_coin_info;
-                RequiredSignature {
+                Self {
                     public_key,
                     raw_message: message,
                     appended_info: parent.to_vec(),
@@ -44,7 +58,7 @@ impl RequiredSignature {
             } => {
                 hasher.update([44]);
                 let puzzle = coin.puzzle_hash;
-                RequiredSignature {
+                Self {
                     public_key,
                     raw_message: message,
                     appended_info: puzzle.to_vec(),
@@ -56,7 +70,7 @@ impl RequiredSignature {
                 message,
             } => {
                 hasher.update([45]);
-                RequiredSignature {
+                Self {
                     public_key,
                     raw_message: message,
                     appended_info: u64_to_bytes(coin.amount),
@@ -69,7 +83,7 @@ impl RequiredSignature {
             } => {
                 hasher.update([46]);
                 let puzzle = coin.puzzle_hash;
-                RequiredSignature {
+                Self {
                     public_key,
                     raw_message: message,
                     appended_info: [puzzle.to_vec(), u64_to_bytes(coin.amount)].concat(),
@@ -82,7 +96,7 @@ impl RequiredSignature {
             } => {
                 hasher.update([47]);
                 let parent = coin.parent_coin_info;
-                RequiredSignature {
+                Self {
                     public_key,
                     raw_message: message,
                     appended_info: [parent.to_vec(), u64_to_bytes(coin.amount)].concat(),
@@ -96,7 +110,7 @@ impl RequiredSignature {
                 hasher.update([48]);
                 let parent = coin.parent_coin_info;
                 let puzzle = coin.puzzle_hash;
-                RequiredSignature {
+                Self {
                     public_key,
                     raw_message: message,
                     appended_info: [parent.to_vec(), puzzle.to_vec()].concat(),
@@ -106,7 +120,7 @@ impl RequiredSignature {
             Condition::AggSigUnsafe {
                 public_key,
                 message,
-            } => RequiredSignature {
+            } => Self {
                 public_key,
                 raw_message: message,
                 appended_info: Vec::new(),
@@ -115,16 +129,50 @@ impl RequiredSignature {
             Condition::AggSigMe {
                 public_key,
                 message,
-            } => RequiredSignature {
+            } => Self {
                 public_key,
                 raw_message: message,
                 appended_info: coin.coin_id().into(),
-                domain_string: Some(agg_sig_me_extra_data),
+                domain_string: Some(agg_sig_me),
             },
             _ => return None,
         };
 
         Some(required_signature)
+    }
+
+    /// Calculates the required signatures for a coin spend.
+    /// All of these signatures are aggregated together should
+    /// sufficient, unless secp keys are used as well.
+    pub fn from_coin_spend(
+        allocator: &mut Allocator,
+        coin_spend: &CoinSpend,
+        agg_sig_me: [u8; 32],
+    ) -> Result<Vec<Self>, ConditionError> {
+        let output = coin_spend
+            .puzzle_reveal
+            .run(allocator, 0, u64::MAX, &coin_spend.solution)?
+            .1;
+
+        Ok(Vec::<Condition<NodePtr>>::from_clvm(allocator, output)?
+            .into_iter()
+            .filter_map(|condition| Self::from_condition(&coin_spend.coin, condition, agg_sig_me))
+            .collect())
+    }
+
+    /// Calculates the required signatures for a spend bundle.
+    /// All of these signatures are aggregated together should
+    /// sufficient, unless secp keys are used as well.
+    pub fn from_spend_bundle(
+        allocator: &mut Allocator,
+        spend_bundle: &SpendBundle,
+        agg_sig_me: [u8; 32],
+    ) -> Result<Vec<Self>, ConditionError> {
+        let mut required_signatures = Vec::new();
+        for coin_spend in &spend_bundle.coin_spends {
+            required_signatures.extend(Self::from_coin_spend(allocator, coin_spend, agg_sig_me)?);
+        }
+        Ok(required_signatures)
     }
 
     /// The public key required to verify the signature.
@@ -148,7 +196,7 @@ impl RequiredSignature {
     }
 
     /// Computes the message that needs to be signed.
-    pub fn message(&self) -> Vec<u8> {
+    pub fn final_message(&self) -> Vec<u8> {
         let mut message = Vec::from(self.raw_message.as_ref());
         message.extend(&self.appended_info);
         if let Some(domain_string) = self.domain_string {
@@ -243,7 +291,7 @@ mod tests {
 
         for (condition, appended_info, domain_string) in cases {
             let required =
-                RequiredSignature::try_from_condition(&coin, condition, agg_sig_data).unwrap();
+                RequiredSignature::from_condition(&coin, condition, agg_sig_data).unwrap();
 
             assert_eq!(required.public_key(), &public_key);
             assert_eq!(required.raw_message(), message.as_ref());
@@ -257,7 +305,7 @@ mod tests {
                 message.extend(domain_string);
             }
 
-            assert_eq!(hex::encode(message), hex::encode(required.message()));
+            assert_eq!(hex::encode(message), hex::encode(required.final_message()));
         }
     }
 }

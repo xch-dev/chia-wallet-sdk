@@ -3,6 +3,8 @@ use chia_protocol::Bytes32;
 use chia_wallet::standard::standard_puzzle_hash;
 use sqlx::SqlitePool;
 
+use crate::KeyStore;
+
 use super::{Result, SqliteError};
 
 /// A key store that uses SQLite as a backend. Uses the table name `derivations`.
@@ -132,32 +134,11 @@ impl SqliteKeyStore {
         Ok(Bytes32::new(record.p2_puzzle_hash.try_into().unwrap()))
     }
 
-    /// Get the index of a public key.
-    pub async fn pk_index(&self, public_key: &PublicKey) -> Result<u32> {
-        let public_key_bytes = public_key.to_bytes().to_vec();
-
-        let Some(record) = sqlx::query!(
-            "
-            SELECT `index` FROM `p2_derivations`
-            WHERE `synthetic_pk` = ? AND `is_hardened` = ?
-            ",
-            public_key_bytes,
-            self.is_hardened
-        )
-        .fetch_optional(&self.db)
-        .await?
-        else {
-            return Err(SqliteError::NotFound);
-        };
-
-        Ok(record.index as u32)
-    }
-
     /// Get the index of a puzzle hash.
-    pub async fn ph_index(&self, puzzle_hash: Bytes32) -> Result<u32> {
+    pub async fn ph_index(&self, puzzle_hash: Bytes32) -> Result<Option<u32>> {
         let puzzle_hash = puzzle_hash.to_vec();
 
-        let Some(record) = sqlx::query!(
+        Ok(sqlx::query!(
             "
             SELECT `index` FROM `p2_derivations`
             WHERE `p2_puzzle_hash` = ? AND `is_hardened` = ?
@@ -167,11 +148,28 @@ impl SqliteKeyStore {
         )
         .fetch_optional(&self.db)
         .await?
-        else {
-            return Err(SqliteError::NotFound);
-        };
+        .map(|record| record.index as u32))
+    }
+}
 
-        Ok(record.index as u32)
+impl KeyStore for SqliteKeyStore {
+    type Error = SqliteError;
+
+    /// Get the index of a public key.
+    async fn pk_index(&self, public_key: &PublicKey) -> Result<Option<u32>> {
+        let public_key_bytes = public_key.to_bytes().to_vec();
+
+        Ok(sqlx::query!(
+            "
+            SELECT `index` FROM `p2_derivations`
+            WHERE `synthetic_pk` = ? AND `is_hardened` = ?
+            ",
+            public_key_bytes,
+            self.is_hardened
+        )
+        .fetch_optional(&self.db)
+        .await?
+        .map(|record| record.index as u32))
     }
 }
 
@@ -183,6 +181,7 @@ mod tests {
         },
         DerivableKey,
     };
+    use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
 
     use crate::testing::SECRET_KEY;
 
@@ -201,13 +200,21 @@ mod tests {
 
         // Insert the first batch.
         let pk_batch_1: Vec<PublicKey> = (0..100)
-            .map(|i| intermediate_pk.derive_unhardened(i))
+            .map(|i| {
+                intermediate_pk
+                    .derive_unhardened(i)
+                    .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+            })
             .collect();
         key_store.extend_keys(0, &pk_batch_1).await.unwrap();
 
         // Insert the second batch.
         let pk_batch_2: Vec<PublicKey> = (100..200)
-            .map(|i| intermediate_pk.derive_unhardened(i))
+            .map(|i| {
+                intermediate_pk
+                    .derive_unhardened(i)
+                    .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+            })
             .collect();
         key_store.extend_keys(100, &pk_batch_2).await.unwrap();
 
@@ -230,13 +237,17 @@ mod tests {
 
         // Insert a batch of keys.
         let pk_batch: Vec<PublicKey> = (0..100)
-            .map(|i| intermediate_pk.derive_unhardened(i))
+            .map(|i| {
+                intermediate_pk
+                    .derive_unhardened(i)
+                    .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+            })
             .collect();
         key_store.extend_keys(0, &pk_batch).await.unwrap();
 
         for (i, pk) in pk_batch.into_iter().enumerate() {
             // Check the index of the key.
-            let index = key_store.pk_index(&pk).await.unwrap();
+            let index = key_store.pk_index(&pk).await.unwrap().unwrap();
             assert_eq!(index, i as u32);
 
             // Ensure the key at the index matches.
@@ -249,7 +260,7 @@ mod tests {
             assert_eq!(actual, ph.into());
 
             // Ensure the index of the puzzle hash matches.
-            let index = key_store.ph_index(ph.into()).await.unwrap();
+            let index = key_store.ph_index(ph.into()).await.unwrap().unwrap();
             assert_eq!(index, i as u32);
         }
     }
@@ -263,20 +274,25 @@ mod tests {
         let hardened_sk = master_to_wallet_hardened_intermediate(&SECRET_KEY);
 
         // Insert a public key to unhardened and make sure it's not in hardened.
-        let pk = unhardened_pk.derive_unhardened(0);
+        let pk = unhardened_pk
+            .derive_unhardened(0)
+            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
         unhardened_key_store
             .extend_keys(0, &[pk.clone()])
             .await
             .unwrap();
-        assert!(hardened_key_store.pk_index(&pk).await.is_err());
+        assert!(hardened_key_store.pk_index(&pk).await.unwrap().is_none());
 
         // Insert a public key to hardened and make sure it's not in unhardened.
-        let pk = hardened_sk.derive_hardened(0).public_key();
+        let pk = hardened_sk
+            .derive_hardened(0)
+            .public_key()
+            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
         hardened_key_store
             .extend_keys(0, &[pk.clone()])
             .await
             .unwrap();
-        assert!(unhardened_key_store.pk_index(&pk).await.is_err());
+        assert!(unhardened_key_store.pk_index(&pk).await.unwrap().is_none());
     }
 
     #[sqlx::test]
@@ -286,13 +302,21 @@ mod tests {
 
         // Insert a batch of keys.
         let pk_batch: Vec<PublicKey> = (0..100)
-            .map(|i| intermediate_pk.derive_unhardened(i))
+            .map(|i| {
+                intermediate_pk
+                    .derive_unhardened(i)
+                    .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+            })
             .collect();
         key_store.extend_keys(0, &pk_batch).await.unwrap();
 
         // Insert a batch of keys with overlap.
         let pk_batch: Vec<PublicKey> = (50..150)
-            .map(|i| intermediate_pk.derive_unhardened(i))
+            .map(|i| {
+                intermediate_pk
+                    .derive_unhardened(i)
+                    .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+            })
             .collect();
         key_store.extend_keys(50, &pk_batch).await.unwrap();
 
@@ -301,10 +325,20 @@ mod tests {
 
         // Check the first key.
         let pk = key_store.public_key(0).await.unwrap();
-        assert_eq!(pk, intermediate_pk.derive_unhardened(0));
+        assert_eq!(
+            pk,
+            intermediate_pk
+                .derive_unhardened(0)
+                .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+        );
 
         // Check the last key.
         let pk = key_store.public_key(149).await.unwrap();
-        assert_eq!(pk, intermediate_pk.derive_unhardened(149));
+        assert_eq!(
+            pk,
+            intermediate_pk
+                .derive_unhardened(149)
+                .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+        );
     }
 }
