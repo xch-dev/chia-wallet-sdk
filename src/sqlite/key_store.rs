@@ -1,27 +1,24 @@
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
 use chia_wallet::standard::standard_puzzle_hash;
-use sqlx::{Result, SqlitePool};
+use sqlx::{Acquire, Result, Sqlite};
 
 use crate::KeyStore;
 
 /// A key store that uses SQLite as a backend. Uses the table name `derivations`.
 #[derive(Debug, Clone)]
-pub struct SqliteKeyStore {
-    db: SqlitePool,
+pub struct SqliteKeyStore<T> {
+    db: T,
     is_hardened: bool,
 }
 
-impl SqliteKeyStore {
+impl<'a, T> SqliteKeyStore<T>
+where
+    for<'b> &'b T: Acquire<'a, Database = Sqlite>,
+{
     /// Create a new `SqliteKeyStore` from a connection pool.
-    pub fn new(db: SqlitePool, is_hardened: bool) -> Self {
+    pub fn new(db: T, is_hardened: bool) -> Self {
         Self { db, is_hardened }
-    }
-
-    /// Connect to a SQLite database and run migrations.
-    pub async fn new_with_migrations(db: SqlitePool, is_hardened: bool) -> Result<Self> {
-        sqlx::migrate!().run(&db).await?;
-        Ok(Self::new(db, is_hardened))
     }
 
     /// Check if the store contains any keys.
@@ -31,6 +28,8 @@ impl SqliteKeyStore {
 
     /// Get the number of keys in the store.
     pub async fn len(&self) -> Result<u32> {
+        let mut conn = self.db.acquire().await?;
+
         let record = sqlx::query!(
             "
             SELECT COUNT(*) as `count` FROM `p2_derivations`
@@ -38,7 +37,7 @@ impl SqliteKeyStore {
             ",
             self.is_hardened
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(record.count as u32)
@@ -46,6 +45,8 @@ impl SqliteKeyStore {
 
     /// Get all of the puzzle hashes in the store.
     pub async fn puzzle_hashes(&self) -> Result<Vec<Bytes32>> {
+        let mut conn = self.db.acquire().await?;
+
         let records = sqlx::query!(
             "
             SELECT `p2_puzzle_hash` FROM `p2_derivations`
@@ -54,7 +55,7 @@ impl SqliteKeyStore {
             ",
             self.is_hardened
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut *conn)
         .await?;
 
         Ok(records
@@ -96,6 +97,8 @@ impl SqliteKeyStore {
 
     /// Get the public key at the given index.
     pub async fn public_key(&self, index: u32) -> Result<Option<PublicKey>> {
+        let mut conn = self.db.acquire().await?;
+
         let Some(record) = sqlx::query!(
             "
             SELECT `synthetic_pk` FROM `p2_derivations`
@@ -104,7 +107,7 @@ impl SqliteKeyStore {
             index,
             self.is_hardened
         )
-        .fetch_optional(&self.db)
+        .fetch_optional(&mut *conn)
         .await?
         else {
             return Ok(None);
@@ -117,6 +120,8 @@ impl SqliteKeyStore {
 
     /// Get the puzzle hash at the given index.
     pub async fn puzzle_hash(&self, index: u32) -> Result<Option<Bytes32>> {
+        let mut conn = self.db.acquire().await?;
+
         let Some(record) = sqlx::query!(
             "
             SELECT `p2_puzzle_hash` FROM `p2_derivations`
@@ -125,7 +130,7 @@ impl SqliteKeyStore {
             index,
             self.is_hardened
         )
-        .fetch_optional(&self.db)
+        .fetch_optional(&mut *conn)
         .await?
         else {
             return Ok(None);
@@ -138,6 +143,7 @@ impl SqliteKeyStore {
 
     /// Get the index of a puzzle hash.
     pub async fn ph_index(&self, puzzle_hash: Bytes32) -> Result<Option<u32>> {
+        let mut conn = self.db.acquire().await?;
         let puzzle_hash = puzzle_hash.to_vec();
 
         Ok(sqlx::query!(
@@ -148,17 +154,21 @@ impl SqliteKeyStore {
             puzzle_hash,
             self.is_hardened
         )
-        .fetch_optional(&self.db)
+        .fetch_optional(&mut *conn)
         .await?
         .map(|record| record.index as u32))
     }
 }
 
-impl KeyStore for SqliteKeyStore {
+impl<T> KeyStore for SqliteKeyStore<T>
+where
+    for<'a, 'b> &'b T: Acquire<'a, Database = Sqlite>,
+{
     type Error = sqlx::Error;
 
     /// Get the index of a public key.
     async fn pk_index(&self, public_key: &PublicKey) -> Result<Option<u32>> {
+        let mut conn = self.db.acquire().await?;
         let public_key_bytes = public_key.to_bytes().to_vec();
 
         Ok(sqlx::query!(
@@ -169,7 +179,7 @@ impl KeyStore for SqliteKeyStore {
             public_key_bytes,
             self.is_hardened
         )
-        .fetch_optional(&self.db)
+        .fetch_optional(&mut *conn)
         .await?
         .map(|record| record.index as u32))
     }
@@ -184,6 +194,7 @@ mod tests {
         DerivableKey,
     };
     use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
+    use sqlx::SqlitePool;
 
     use crate::testing::SECRET_KEY;
 

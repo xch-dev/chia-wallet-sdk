@@ -1,34 +1,33 @@
 use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program, SpendBundle};
-use sqlx::{Result, SqlitePool};
+use sqlx::{Acquire, Result, Sqlite};
 
 /// A SQLite implementation of a transaction store. Uses the tables `transactions` and `coin_spends`.
 #[derive(Debug, Clone)]
-pub struct TransactionStore {
-    db: SqlitePool,
+pub struct SqliteTransactionStore<T> {
+    db: T,
 }
 
-impl TransactionStore {
+impl<'a, T> SqliteTransactionStore<T>
+where
+    for<'b> &'b T: Acquire<'a, Database = Sqlite>,
+{
     /// Create a new `TransactionStore` from a connection pool.
-    pub fn new(db: SqlitePool) -> Self {
+    pub fn new(db: T) -> Self {
         Self { db }
-    }
-
-    /// Connect to a SQLite database and run migrations.
-    pub async fn new_with_migrations(db: SqlitePool) -> Result<Self> {
-        sqlx::migrate!().run(&db).await?;
-        Ok(Self { db })
     }
 
     /// Get all spent coins from the store.
     pub async fn spent_coins(&self) -> Result<Vec<Coin>> {
+        let mut conn = self.db.acquire().await?;
+
         Ok(sqlx::query!(
             "
             SELECT `parent_coin_id`, `puzzle_hash`, `amount`
             FROM `coin_spends` ORDER BY `coin_id` ASC
             "
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut *conn)
         .await?
         .into_iter()
         .map(|record| {
@@ -46,11 +45,13 @@ impl TransactionStore {
 
     /// Get a list of all transactions in the store.
     pub async fn transactions(&self) -> Result<Vec<Bytes32>> {
+        let mut conn = self.db.acquire().await?;
+
         Ok(
             sqlx::query!(
                 "SELECT `transaction_id` AS `transaction_id: Vec<u8>` FROM `transactions`"
             )
-            .fetch_all(&self.db)
+            .fetch_all(&mut *conn)
             .await?
             .into_iter()
             .map(|row| row.transaction_id.try_into().unwrap())
@@ -60,6 +61,7 @@ impl TransactionStore {
 
     /// Get a transaction by its id.
     pub async fn transaction(&self, transaction_id: Bytes32) -> Result<Option<SpendBundle>> {
+        let mut tx = self.db.begin().await?;
         let transaction_id = transaction_id.to_vec();
         let spend_transaction_id = transaction_id.clone();
 
@@ -71,7 +73,7 @@ impl TransactionStore {
             ",
             transaction_id
         )
-        .fetch_optional(&self.db)
+        .fetch_optional(&mut *tx)
         .await?
         else {
             return Ok(None);
@@ -85,7 +87,7 @@ impl TransactionStore {
             ",
             spend_transaction_id
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut *tx)
         .await?
         .into_iter()
         .map(|row| {
@@ -104,6 +106,8 @@ impl TransactionStore {
         })
         .collect();
 
+        tx.commit().await?;
+
         let signature: [u8; 96] = transaction.aggregated_signature.try_into().unwrap();
         Ok(Some(SpendBundle::new(
             coin_spends,
@@ -113,6 +117,7 @@ impl TransactionStore {
 
     /// Get the coins spent by a transaction.
     pub async fn removals(&self, transaction_id: Bytes32) -> Result<Vec<Coin>> {
+        let mut conn = self.db.acquire().await?;
         let transaction_id = transaction_id.to_vec();
 
         Ok(sqlx::query!(
@@ -123,7 +128,7 @@ impl TransactionStore {
             ",
             transaction_id
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut *conn)
         .await?
         .into_iter()
         .map(|record| {
@@ -141,6 +146,7 @@ impl TransactionStore {
 
     /// Add a transaction to the store.
     pub async fn add_transaction(&self, spend_bundle: SpendBundle) -> Result<()> {
+        let mut tx = self.db.begin().await?;
         let transaction_id = spend_bundle.name().to_vec();
         let add_transaction_id = transaction_id.clone();
         let aggregated_signature = spend_bundle.aggregated_signature.to_bytes().to_vec();
@@ -156,7 +162,7 @@ impl TransactionStore {
             add_transaction_id,
             aggregated_signature
         )
-        .execute(&self.db)
+        .execute(&mut *tx)
         .await?;
 
         for coin_spend in spend_bundle.coin_spends {
@@ -189,22 +195,23 @@ impl TransactionStore {
                 solution,
                 transaction_id
             )
-            .execute(&self.db)
+            .execute(&mut *tx)
             .await?;
         }
 
-        Ok(())
+        tx.commit().await
     }
 
     /// Remove a transaction from the store.
     pub async fn remove_transaction(&self, transaction_id: Bytes32) -> Result<()> {
+        let mut conn = self.db.acquire().await?;
         let transaction_id = transaction_id.to_vec();
 
         sqlx::query!(
             "DELETE FROM `transactions` WHERE `transaction_id` = ?",
             transaction_id
         )
-        .execute(&self.db)
+        .execute(&mut *conn)
         .await?;
 
         Ok(())
@@ -213,11 +220,13 @@ impl TransactionStore {
 
 #[cfg(test)]
 mod tests {
+    use sqlx::SqlitePool;
+
     use super::*;
 
     #[sqlx::test]
     async fn test_transaction_store(pool: SqlitePool) {
-        let store = TransactionStore::new(pool.clone());
+        let store = SqliteTransactionStore::new(pool.clone());
 
         // Add a transaction.
         let coin = Coin {

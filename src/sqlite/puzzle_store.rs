@@ -1,33 +1,26 @@
 use chia_protocol::Bytes32;
 use chia_wallet::cat::cat_puzzle_hash;
-use sqlx::{Result, SqlitePool};
+use sqlx::{Acquire, Result, Sqlite};
 
 /// A CAT puzzle store that uses SQLite as a backend. Uses the table name `cat_puzzle_hashes`.
 #[derive(Debug, Clone)]
-pub struct SqlitePuzzleStore {
-    db: SqlitePool,
+pub struct SqlitePuzzleStore<T> {
+    db: T,
     is_hardened: bool,
     asset_id: Bytes32,
 }
 
-impl SqlitePuzzleStore {
+impl<'a, T> SqlitePuzzleStore<T>
+where
+    for<'b> &'b T: Acquire<'a, Database = Sqlite>,
+{
     /// Create a new `SqlitePuzzleStore` from a connection pool.
-    pub fn new(db: SqlitePool, is_hardened: bool, asset_id: Bytes32) -> Self {
+    pub fn new(db: T, is_hardened: bool, asset_id: Bytes32) -> Self {
         Self {
             db,
             is_hardened,
             asset_id,
         }
-    }
-
-    /// Connect to a SQLite database and run migrations.
-    pub async fn new_with_migrations(
-        db: SqlitePool,
-        is_hardened: bool,
-        asset_id: Bytes32,
-    ) -> Result<Self> {
-        sqlx::migrate!().run(&db).await?;
-        Ok(Self::new(db, is_hardened, asset_id))
     }
 
     /// Check if the store contains any hashes.
@@ -37,6 +30,7 @@ impl SqlitePuzzleStore {
 
     /// Get the number of hashes in the store.
     pub async fn len(&self) -> Result<u32> {
+        let mut conn = self.db.acquire().await?;
         let asset_id = self.asset_id.to_vec();
 
         let record = sqlx::query!(
@@ -47,7 +41,7 @@ impl SqlitePuzzleStore {
             self.is_hardened,
             asset_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(record.count as u32)
@@ -55,6 +49,7 @@ impl SqlitePuzzleStore {
 
     /// Get all of the puzzle hashes in the store.
     pub async fn puzzle_hashes(&self) -> Result<Vec<Bytes32>> {
+        let mut conn = self.db.acquire().await?;
         let asset_id = self.asset_id.to_vec();
 
         let records = sqlx::query!(
@@ -66,7 +61,7 @@ impl SqlitePuzzleStore {
             self.is_hardened,
             asset_id
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut *conn)
         .await?;
 
         Ok(records
@@ -94,7 +89,7 @@ impl SqlitePuzzleStore {
                 index,
                 self.is_hardened,
             )
-            .fetch_one(&self.db)
+            .fetch_one(&mut *tx)
             .await?
             .p2_puzzle_hash
             .try_into()
@@ -131,6 +126,7 @@ impl SqlitePuzzleStore {
 
     /// Get the puzzle hash at the given index.
     pub async fn puzzle_hash(&self, index: u32) -> Result<Option<Bytes32>> {
+        let mut conn = self.db.acquire().await?;
         let asset_id = self.asset_id.to_vec();
 
         let Some(record) = sqlx::query!(
@@ -142,7 +138,7 @@ impl SqlitePuzzleStore {
             self.is_hardened,
             asset_id
         )
-        .fetch_optional(&self.db)
+        .fetch_optional(&mut *conn)
         .await?
         else {
             return Ok(None);
@@ -153,6 +149,7 @@ impl SqlitePuzzleStore {
 
     /// Get the index of a CAT puzzle hash.
     pub async fn index(&self, puzzle_hash: Bytes32) -> Result<Option<u32>> {
+        let mut conn = self.db.acquire().await?;
         let asset_id = self.asset_id.to_vec();
         let puzzle_hash = puzzle_hash.to_vec();
 
@@ -165,7 +162,7 @@ impl SqlitePuzzleStore {
             self.is_hardened,
             asset_id
         )
-        .fetch_optional(&self.db)
+        .fetch_optional(&mut *conn)
         .await?
         else {
             return Ok(None);
@@ -180,6 +177,7 @@ mod tests {
     use chia_bls::{
         derive_keys::master_to_wallet_unhardened_intermediate, DerivableKey, PublicKey,
     };
+    use sqlx::SqlitePool;
 
     use crate::{sqlite::SqliteKeyStore, testing::SECRET_KEY};
 

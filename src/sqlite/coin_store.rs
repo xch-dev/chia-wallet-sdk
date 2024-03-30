@@ -1,26 +1,23 @@
 use chia_protocol::{Bytes32, Coin, CoinState};
-use sqlx::{Result, SqlitePool};
+use sqlx::{Acquire, Result, Sqlite};
 
 /// A SQLite implementation of a coin store. Uses the table name `coin_states`.
 #[derive(Debug, Clone)]
-pub struct SqliteCoinStore {
-    db: SqlitePool,
+pub struct SqliteCoinStore<T> {
+    db: T,
     asset_id: Vec<u8>,
 }
 
-impl SqliteCoinStore {
+impl<'a, T> SqliteCoinStore<T>
+where
+    for<'b> &'b T: Acquire<'a, Database = Sqlite>,
+{
     /// Create a new `SqliteCoinStore` from a connection pool.
-    pub fn new(db: SqlitePool, asset_id: Option<Bytes32>) -> Self {
+    pub fn new(db: T, asset_id: Option<Bytes32>) -> Self {
         Self {
             db,
             asset_id: asset_id.map(|id| id.to_vec()).unwrap_or_default(),
         }
-    }
-
-    /// Connect to a SQLite database and run migrations.
-    pub async fn new_with_migrations(db: SqlitePool, asset_id: Option<Bytes32>) -> Result<Self> {
-        sqlx::migrate!().run(&db).await?;
-        Ok(Self::new(db, asset_id))
     }
 
     /// Apply a list of coin updates to the store.
@@ -64,6 +61,7 @@ impl SqliteCoinStore {
 
     /// Get a list of all unspent coins in the store.
     pub async fn unspent_coins(&self) -> Result<Vec<Coin>> {
+        let mut conn = self.db.acquire().await?;
         let asset_id = self.asset_id.clone();
 
         let rows = sqlx::query!(
@@ -74,7 +72,7 @@ impl SqliteCoinStore {
             ",
             asset_id
         )
-        .fetch_all(&self.db)
+        .fetch_all(&mut *conn)
         .await?;
 
         Ok(rows
@@ -95,6 +93,7 @@ impl SqliteCoinStore {
 
     /// Get the state of a coin by its id.
     pub async fn coin_state(&self, coin_id: Bytes32) -> Result<Option<CoinState>> {
+        let mut conn = self.db.acquire().await?;
         let coin_id = coin_id.to_vec();
         let asset_id = self.asset_id.clone();
 
@@ -107,7 +106,7 @@ impl SqliteCoinStore {
             coin_id,
             asset_id
         )
-        .fetch_optional(&self.db)
+        .fetch_optional(&mut *conn)
         .await?
         else {
             return Ok(None);
@@ -126,6 +125,7 @@ impl SqliteCoinStore {
 
     /// Check if a puzzle hash is used in the store.
     pub async fn is_used(&self, puzzle_hash: Bytes32) -> Result<bool> {
+        let mut conn = self.db.acquire().await?;
         let puzzle_hash = puzzle_hash.to_vec();
         let asset_id = self.asset_id.clone();
 
@@ -138,7 +138,7 @@ impl SqliteCoinStore {
             puzzle_hash,
             asset_id
         )
-        .fetch_one(&self.db)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(row.count > 0)
@@ -147,6 +147,8 @@ impl SqliteCoinStore {
 
 #[cfg(test)]
 mod tests {
+    use sqlx::SqlitePool;
+
     use super::*;
 
     #[sqlx::test]

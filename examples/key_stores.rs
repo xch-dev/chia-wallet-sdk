@@ -8,7 +8,7 @@ use chia_bls::{
     DerivableKey, PublicKey, SecretKey,
 };
 use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
-use chia_wallet_sdk::sqlite::SqliteKeyStore;
+use chia_wallet_sdk::sqlite::{SqliteKeyStore, SQLITE_MIGRATOR};
 use sqlx::SqlitePool;
 
 // This is for simulator testing purposes only. Do not use this mnemonic on mainnet.
@@ -21,12 +21,13 @@ const MNEMONIC: &str = "
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pool = SqlitePool::connect(":memory:").await?;
+    SQLITE_MIGRATOR.run(&pool).await?;
 
     let seed = Mnemonic::from_str(MNEMONIC)?.to_seed("");
     let root_sk = SecretKey::from_seed(&seed);
 
-    let unhardened_key_store = SqliteKeyStore::new_with_migrations(pool.clone(), false).await?;
-    let hardened_key_store = SqliteKeyStore::new_with_migrations(pool, true).await?;
+    let unhardened_key_store = SqliteKeyStore::new(pool.clone(), false);
+    let hardened_key_store = SqliteKeyStore::new(pool, true);
 
     let int_pk = master_to_wallet_unhardened_intermediate(&root_sk.public_key());
     let int_sk = master_to_wallet_hardened_intermediate(&root_sk);
