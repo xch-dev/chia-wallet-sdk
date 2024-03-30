@@ -6,7 +6,6 @@ mod address;
 mod condition;
 mod spends;
 mod ssl;
-mod utils;
 
 /// The `sqlite` module contains the SQLite storage backend.
 #[cfg(any(test, feature = "sqlite"))]
