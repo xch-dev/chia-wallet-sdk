@@ -8,5 +8,8 @@ pub trait KeyStore {
     type Error;
 
     /// Returns the index for a given puzzle hash.
-    fn pk_index(&self, pk: &PublicKey) -> impl Future<Output = Result<Option<u32>, Self::Error>>;
+    fn pk_index(
+        &mut self,
+        pk: &PublicKey,
+    ) -> impl Future<Output = Result<Option<u32>, Self::Error>>;
 }

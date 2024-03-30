@@ -63,7 +63,7 @@ impl Signer for UnhardenedMemorySigner {
 
 /// Tries to sign each of the messages, replacing the `Vec` with the unsuccessful items.
 pub async fn sign_all_with<E>(
-    key_store: &impl KeyStore<Error = E>,
+    key_store: &mut impl KeyStore<Error = E>,
     signer: &impl Signer,
     required_signatures: &mut Vec<RequiredSignature>,
 ) -> Result<Signature, E> {
@@ -114,7 +114,7 @@ mod tests {
     }
 
     async fn sign_coin_spend<E>(
-        key_store: &impl KeyStore<Error = E>,
+        key_store: &mut impl KeyStore<Error = E>,
         signer: &impl Signer,
         coin_spend: &CoinSpend,
     ) -> Signature
@@ -147,7 +147,9 @@ mod tests {
         let root_sk: &SecretKey = &SECRET_KEY;
         let intermediate_sk = master_to_wallet_unhardened_intermediate(root_sk);
         let intermediate_pk = intermediate_sk.public_key();
-        let key_store = SqliteKeyStore::new(pool, false);
+
+        let mut conn = pool.acquire().await.unwrap();
+        let mut key_store = SqliteKeyStore::new(&mut conn, false);
         let signer = UnhardenedMemorySigner::new(intermediate_sk, DEFAULT_HIDDEN_PUZZLE_HASH);
 
         key_store
@@ -175,7 +177,7 @@ mod tests {
                     serialize(clvm_list!(condition!($name, pk.clone(), msg.clone()))),
                 );
 
-                let signature = sign_coin_spend(&key_store, &signer, &coin_spend).await;
+                let signature = sign_coin_spend(&mut key_store, &signer, &coin_spend).await;
 
                 assert_eq!(hex::encode(signature.to_bytes()), hex::encode($hex));
             )* };
