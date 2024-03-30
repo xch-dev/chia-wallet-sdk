@@ -39,3 +39,4 @@ chia-consensus = "0.6.0"
 hex-literal = "0.4.1"
 once_cell = "1.19.0"
 sqlx = { version = "*", features = ["runtime-tokio", "sqlite"] }
+tokio = {version = "*", features = ["full"] }
