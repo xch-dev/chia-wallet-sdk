@@ -1,8 +1,6 @@
 use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program, SpendBundle};
-use sqlx::SqlitePool;
-
-use super::{Result, SqliteError};
+use sqlx::{Result, SqlitePool};
 
 /// A SQLite implementation of a transaction store. Uses the tables `transactions` and `coin_spends`.
 #[derive(Debug, Clone)]
@@ -61,7 +59,7 @@ impl TransactionStore {
     }
 
     /// Get a transaction by its id.
-    pub async fn transaction(&self, transaction_id: Bytes32) -> Result<SpendBundle> {
+    pub async fn transaction(&self, transaction_id: Bytes32) -> Result<Option<SpendBundle>> {
         let transaction_id = transaction_id.to_vec();
         let spend_transaction_id = transaction_id.clone();
 
@@ -76,7 +74,7 @@ impl TransactionStore {
         .fetch_optional(&self.db)
         .await?
         else {
-            return Err(SqliteError::NotFound);
+            return Ok(None);
         };
 
         let coin_spends = sqlx::query!(
@@ -107,10 +105,10 @@ impl TransactionStore {
         .collect();
 
         let signature: [u8; 96] = transaction.aggregated_signature.try_into().unwrap();
-        Ok(SpendBundle::new(
+        Ok(Some(SpendBundle::new(
             coin_spends,
             Signature::from_bytes(&signature).unwrap(),
-        ))
+        )))
     }
 
     /// Get the coins spent by a transaction.
@@ -244,7 +242,11 @@ mod tests {
         store.add_transaction(spend_bundle.clone()).await.unwrap();
 
         // Get the transaction and compare.
-        let transaction = store.transaction(transaction_id).await.unwrap();
+        let transaction = store
+            .transaction(transaction_id)
+            .await
+            .unwrap()
+            .expect("no spend bundle");
         assert_eq!(transaction, spend_bundle);
 
         // Get the removals and compare.
@@ -259,9 +261,6 @@ mod tests {
         store.remove_transaction(transaction_id).await.unwrap();
 
         // Make sure the transaction is gone.
-        assert!(matches!(
-            store.transaction(transaction_id).await,
-            Err(SqliteError::NotFound)
-        ));
+        assert!(store.transaction(transaction_id).await.unwrap().is_none());
     }
 }

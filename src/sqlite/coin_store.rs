@@ -1,7 +1,5 @@
 use chia_protocol::{Bytes32, Coin, CoinState};
-use sqlx::SqlitePool;
-
-use super::{Result, SqliteError};
+use sqlx::{Result, SqlitePool};
 
 /// A SQLite implementation of a coin store. Uses the table name `coin_states`.
 #[derive(Debug, Clone)]
@@ -61,7 +59,7 @@ impl SqliteCoinStore {
             .await?;
         }
 
-        Ok(tx.commit().await?)
+        tx.commit().await
     }
 
     /// Get a list of all unspent coins in the store.
@@ -96,7 +94,7 @@ impl SqliteCoinStore {
     }
 
     /// Get the state of a coin by its id.
-    pub async fn coin_state(&self, coin_id: Bytes32) -> Result<CoinState> {
+    pub async fn coin_state(&self, coin_id: Bytes32) -> Result<Option<CoinState>> {
         let coin_id = coin_id.to_vec();
         let asset_id = self.asset_id.clone();
 
@@ -112,10 +110,10 @@ impl SqliteCoinStore {
         .fetch_optional(&self.db)
         .await?
         else {
-            return Err(SqliteError::NotFound);
+            return Ok(None);
         };
 
-        Ok(CoinState {
+        Ok(Some(CoinState {
             coin: Coin {
                 parent_coin_info: row.parent_coin_info.try_into().unwrap(),
                 puzzle_hash: row.puzzle_hash.try_into().unwrap(),
@@ -123,7 +121,7 @@ impl SqliteCoinStore {
             },
             created_height: row.created_height.map(|height| height as u32),
             spent_height: row.spent_height.map(|height| height as u32),
-        })
+        }))
     }
 
     /// Check if a puzzle hash is used in the store.
@@ -210,6 +208,7 @@ mod tests {
         let roundtrip = coin_store
             .coin_state(coin_state.coin.coin_id())
             .await
+            .unwrap()
             .expect("coin state not found");
         assert_eq!(coin_state, roundtrip);
     }
@@ -270,21 +269,24 @@ mod tests {
         let roundtrip = coin_store
             .coin_state(coin_state.coin.coin_id())
             .await
+            .unwrap()
             .expect("coin state not found");
         assert_eq!(coin_state, roundtrip);
 
         // Ensure the asset id is not confused with another one.
         let another_coin_store = SqliteCoinStore::new(pool.clone(), Some(Bytes32::new([1; 32])));
-        another_coin_store
+        assert!(another_coin_store
             .coin_state(coin_state.coin.coin_id())
             .await
-            .expect_err("coin state found");
+            .unwrap()
+            .is_none());
 
         // Ensure the asset id is not confused with not having one.
         let another_coin_store = SqliteCoinStore::new(pool.clone(), None);
-        another_coin_store
+        assert!(another_coin_store
             .coin_state(coin_state.coin.coin_id())
             .await
-            .expect_err("coin state found");
+            .unwrap()
+            .is_none());
     }
 }

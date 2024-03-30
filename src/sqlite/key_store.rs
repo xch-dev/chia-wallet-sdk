@@ -1,11 +1,9 @@
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
 use chia_wallet::standard::standard_puzzle_hash;
-use sqlx::SqlitePool;
+use sqlx::{Result, SqlitePool};
 
 use crate::KeyStore;
-
-use super::{Result, SqliteError};
 
 /// A key store that uses SQLite as a backend. Uses the table name `derivations`.
 #[derive(Debug, Clone)]
@@ -93,11 +91,11 @@ impl SqliteKeyStore {
             .await?;
         }
 
-        Ok(tx.commit().await?)
+        tx.commit().await
     }
 
     /// Get the public key at the given index.
-    pub async fn public_key(&self, index: u32) -> Result<PublicKey> {
+    pub async fn public_key(&self, index: u32) -> Result<Option<PublicKey>> {
         let Some(record) = sqlx::query!(
             "
             SELECT `synthetic_pk` FROM `p2_derivations`
@@ -109,14 +107,16 @@ impl SqliteKeyStore {
         .fetch_optional(&self.db)
         .await?
         else {
-            return Err(SqliteError::NotFound);
+            return Ok(None);
         };
 
-        Ok(PublicKey::from_bytes(&record.synthetic_pk.try_into().unwrap()).unwrap())
+        Ok(Some(
+            PublicKey::from_bytes(&record.synthetic_pk.try_into().unwrap()).unwrap(),
+        ))
     }
 
     /// Get the puzzle hash at the given index.
-    pub async fn puzzle_hash(&self, index: u32) -> Result<Bytes32> {
+    pub async fn puzzle_hash(&self, index: u32) -> Result<Option<Bytes32>> {
         let Some(record) = sqlx::query!(
             "
             SELECT `p2_puzzle_hash` FROM `p2_derivations`
@@ -128,10 +128,12 @@ impl SqliteKeyStore {
         .fetch_optional(&self.db)
         .await?
         else {
-            return Err(SqliteError::NotFound);
+            return Ok(None);
         };
 
-        Ok(Bytes32::new(record.p2_puzzle_hash.try_into().unwrap()))
+        Ok(Some(Bytes32::new(
+            record.p2_puzzle_hash.try_into().unwrap(),
+        )))
     }
 
     /// Get the index of a puzzle hash.
@@ -153,7 +155,7 @@ impl SqliteKeyStore {
 }
 
 impl KeyStore for SqliteKeyStore {
-    type Error = SqliteError;
+    type Error = sqlx::Error;
 
     /// Get the index of a public key.
     async fn pk_index(&self, public_key: &PublicKey) -> Result<Option<u32>> {
@@ -222,11 +224,19 @@ mod tests {
         assert_eq!(key_store.len().await.unwrap(), 200);
 
         // Check the first key.
-        let pk = key_store.public_key(0).await.unwrap();
+        let pk = key_store
+            .public_key(0)
+            .await
+            .unwrap()
+            .expect("no public key");
         assert_eq!(pk, pk_batch_1[0]);
 
         // Check the last key.
-        let pk = key_store.public_key(199).await.unwrap();
+        let pk = key_store
+            .public_key(199)
+            .await
+            .unwrap()
+            .expect("no public key");
         assert_eq!(pk, pk_batch_2[99]);
     }
 
@@ -251,12 +261,20 @@ mod tests {
             assert_eq!(index, i as u32);
 
             // Ensure the key at the index matches.
-            let actual = key_store.public_key(index).await.unwrap();
+            let actual = key_store
+                .public_key(index)
+                .await
+                .unwrap()
+                .expect("no public key");
             assert_eq!(actual, pk);
 
             // Ensure the puzzle hash at the index matches.
             let ph = standard_puzzle_hash(&pk);
-            let actual = key_store.puzzle_hash(index).await.unwrap();
+            let actual = key_store
+                .puzzle_hash(index)
+                .await
+                .unwrap()
+                .expect("no puzzle hash");
             assert_eq!(actual, ph.into());
 
             // Ensure the index of the puzzle hash matches.
@@ -324,7 +342,11 @@ mod tests {
         assert_eq!(key_store.len().await.unwrap(), 150);
 
         // Check the first key.
-        let pk = key_store.public_key(0).await.unwrap();
+        let pk = key_store
+            .public_key(0)
+            .await
+            .unwrap()
+            .expect("no public key");
         assert_eq!(
             pk,
             intermediate_pk
@@ -333,7 +355,11 @@ mod tests {
         );
 
         // Check the last key.
-        let pk = key_store.public_key(149).await.unwrap();
+        let pk = key_store
+            .public_key(149)
+            .await
+            .unwrap()
+            .expect("no public key");
         assert_eq!(
             pk,
             intermediate_pk

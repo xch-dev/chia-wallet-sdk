@@ -160,7 +160,11 @@ mod tests {
             .await
             .unwrap();
 
-        let pk = key_store.public_key(0).await.unwrap();
+        let pk = key_store
+            .public_key(0)
+            .await
+            .unwrap()
+            .expect("no public key");
         let msg = Bytes::new(vec![42; 42]);
 
         macro_rules! test_conditions {

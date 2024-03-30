@@ -1,8 +1,6 @@
 use chia_protocol::Bytes32;
 use chia_wallet::cat::cat_puzzle_hash;
-use sqlx::SqlitePool;
-
-use super::{Result, SqliteError};
+use sqlx::{Result, SqlitePool};
 
 /// A CAT puzzle store that uses SQLite as a backend. Uses the table name `cat_puzzle_hashes`.
 #[derive(Debug, Clone)]
@@ -132,7 +130,7 @@ impl SqlitePuzzleStore {
     }
 
     /// Get the puzzle hash at the given index.
-    pub async fn puzzle_hash(&self, index: u32) -> Result<Bytes32> {
+    pub async fn puzzle_hash(&self, index: u32) -> Result<Option<Bytes32>> {
         let asset_id = self.asset_id.to_vec();
 
         let Some(record) = sqlx::query!(
@@ -147,14 +145,14 @@ impl SqlitePuzzleStore {
         .fetch_optional(&self.db)
         .await?
         else {
-            return Err(SqliteError::NotFound);
+            return Ok(None);
         };
 
-        Ok(Bytes32::new(record.puzzle_hash.try_into().unwrap()))
+        Ok(Some(Bytes32::new(record.puzzle_hash.try_into().unwrap())))
     }
 
     /// Get the index of a CAT puzzle hash.
-    pub async fn index(&self, puzzle_hash: Bytes32) -> Result<u32> {
+    pub async fn index(&self, puzzle_hash: Bytes32) -> Result<Option<u32>> {
         let asset_id = self.asset_id.to_vec();
         let puzzle_hash = puzzle_hash.to_vec();
 
@@ -170,10 +168,10 @@ impl SqlitePuzzleStore {
         .fetch_optional(&self.db)
         .await?
         else {
-            return Err(SqliteError::NotFound);
+            return Ok(None);
         };
 
-        Ok(record.index as u32)
+        Ok(Some(record.index as u32))
     }
 }
 
@@ -211,8 +209,22 @@ mod tests {
 
         // Check indices and puzzle hashes.
         for (index, ph) in puzzle_hashes.into_iter().enumerate() {
-            assert_eq!(puzzle_store.index(ph).await.unwrap(), index as u32);
-            assert_eq!(puzzle_store.puzzle_hash(index as u32).await.unwrap(), ph);
+            assert_eq!(
+                puzzle_store
+                    .index(ph)
+                    .await
+                    .unwrap()
+                    .expect("no puzzle hash"),
+                index as u32
+            );
+            assert_eq!(
+                puzzle_store
+                    .puzzle_hash(index as u32)
+                    .await
+                    .unwrap()
+                    .expect("no puzzle hash"),
+                ph
+            );
         }
 
         // Try to extend duplicates.
