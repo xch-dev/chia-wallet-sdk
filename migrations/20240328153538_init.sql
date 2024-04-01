@@ -4,7 +4,6 @@ CREATE TABLE `p2_derivations` (
     `is_hardened` BOOLEAN NOT NULL,
     `synthetic_pk` BLOB NOT NULL,
     `p2_puzzle_hash` BLOB NOT NULL,
-    `used_height` INT UNSIGNED,
     PRIMARY KEY (`index`, `is_hardened`)
 );
 
