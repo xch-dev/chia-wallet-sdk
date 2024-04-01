@@ -8,7 +8,7 @@ use chia_bls::{
     DerivableKey, PublicKey, SecretKey,
 };
 use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
-use chia_wallet_sdk::sqlite::{SqliteKeyStore, SQLITE_MIGRATOR};
+use chia_wallet_sdk::sqlite::{fetch_puzzle_hash, insert_keys, SQLITE_MIGRATOR};
 use sqlx::SqlitePool;
 
 // This is for simulator testing purposes only. Do not use this mnemonic on mainnet.
@@ -31,46 +31,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let int_pk = master_to_wallet_unhardened_intermediate(&root_sk.public_key());
     let int_sk = master_to_wallet_hardened_intermediate(&root_sk);
 
-    // Block here to satisfy borrow checker.
-    {
-        let mut unhardened_key_store = SqliteKeyStore::new(&mut tx, false);
-        let unhardened_pks: Vec<PublicKey> = (0..100)
-            .map(|index| {
-                int_pk
-                    .derive_unhardened(index)
-                    .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
-            })
-            .collect();
-        unhardened_key_store
-            .extend_keys(0, unhardened_pks.as_slice())
-            .await?;
-    }
+    let unhardened_pks: Vec<PublicKey> = (0..100)
+        .map(|index| {
+            int_pk
+                .derive_unhardened(index)
+                .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+        })
+        .collect();
+    insert_keys(&mut tx, 0, unhardened_pks.as_slice(), false).await?;
 
-    // Block here to satisfy borrow checker.
-    {
-        let mut hardened_key_store = SqliteKeyStore::new(&mut tx, true);
-        let hardened_pks: Vec<PublicKey> = (0..100)
-            .map(|index| {
-                int_sk
-                    .derive_hardened(index)
-                    .public_key()
-                    .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
-            })
-            .collect();
-        hardened_key_store
-            .extend_keys(0, hardened_pks.as_slice())
-            .await?;
-    }
+    let hardened_pks: Vec<PublicKey> = (0..100)
+        .map(|index| {
+            int_sk
+                .derive_hardened(index)
+                .public_key()
+                .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+        })
+        .collect();
+    insert_keys(&mut tx, 0, hardened_pks.as_slice(), true).await?;
 
     tx.commit().await?;
 
     let mut conn = pool.acquire().await?;
-    let mut unhardened_key_store = SqliteKeyStore::new(&mut conn, false);
 
     println!(
         "First unhardened puzzle hash: {}",
-        unhardened_key_store
-            .puzzle_hash(0)
+        fetch_puzzle_hash(&mut conn, 0, false)
             .await?
             .expect("missing puzzle hash")
     );

@@ -2,168 +2,163 @@ use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program, SpendBundle};
 use sqlx::{Result, SqliteConnection};
 
-/// A SQLite implementation of a transaction store. Uses the tables `transactions` and `coin_spends`.
-#[derive(Debug)]
-pub struct SqliteTransactionStore<'a> {
-    db: &'a mut SqliteConnection,
-}
-
-impl<'a> SqliteTransactionStore<'a> {
-    /// Create a new `TransactionStore` from a connection pool.
-    pub fn new(db: &'a mut SqliteConnection) -> Self {
-        Self { db }
-    }
-
-    /// Get all spent coins from the store.
-    pub async fn spent_coins(&mut self) -> Result<Vec<Coin>> {
-        Ok(sqlx::query!(
-            "
+/// Get all spent coins from the store.
+pub async fn fetch_spent_coins(conn: &mut SqliteConnection) -> Result<Vec<Coin>> {
+    Ok(sqlx::query!(
+        "
             SELECT `parent_coin_id`, `puzzle_hash`, `amount`
             FROM `coin_spends` ORDER BY `coin_id` ASC
             "
-        )
-        .fetch_all(&mut *self.db)
-        .await?
-        .into_iter()
-        .map(|record| {
-            let parent_coin_id: [u8; 32] = record.parent_coin_id.try_into().unwrap();
-            let puzzle_hash: [u8; 32] = record.puzzle_hash.try_into().unwrap();
+    )
+    .fetch_all(&mut *conn)
+    .await?
+    .into_iter()
+    .map(|record| {
+        let parent_coin_id: [u8; 32] = record.parent_coin_id.try_into().unwrap();
+        let puzzle_hash: [u8; 32] = record.puzzle_hash.try_into().unwrap();
 
-            Coin {
-                parent_coin_info: parent_coin_id.into(),
-                puzzle_hash: puzzle_hash.into(),
-                amount: record.amount as u64,
-            }
-        })
-        .collect())
-    }
+        Coin {
+            parent_coin_info: parent_coin_id.into(),
+            puzzle_hash: puzzle_hash.into(),
+            amount: record.amount as u64,
+        }
+    })
+    .collect())
+}
 
-    /// Get a list of all transactions in the store.
-    pub async fn transactions(&mut self) -> Result<Vec<Bytes32>> {
-        Ok(
-            sqlx::query!(
-                "SELECT `transaction_id` AS `transaction_id: Vec<u8>` FROM `transactions`"
-            )
-            .fetch_all(&mut *self.db)
+/// Get a list of all transactions in the store.
+pub async fn fetch_transactions(conn: &mut SqliteConnection) -> Result<Vec<Bytes32>> {
+    Ok(
+        sqlx::query!("SELECT `transaction_id` AS `transaction_id: Vec<u8>` FROM `transactions`")
+            .fetch_all(&mut *conn)
             .await?
             .into_iter()
             .map(|row| row.transaction_id.try_into().unwrap())
             .collect(),
-        )
-    }
+    )
+}
 
-    /// Get a transaction by its id.
-    pub async fn transaction(&mut self, transaction_id: Bytes32) -> Result<Option<SpendBundle>> {
-        let transaction_id = transaction_id.to_vec();
-        let spend_transaction_id = transaction_id.clone();
+/// Get a transaction by its id.
+pub async fn fetch_transaction(
+    conn: &mut SqliteConnection,
+    transaction_id: Bytes32,
+) -> Result<Option<SpendBundle>> {
+    let transaction_id = transaction_id.to_vec();
+    let spend_transaction_id = transaction_id.clone();
 
-        let Some(transaction) = sqlx::query!(
-            "
+    let Some(transaction) = sqlx::query!(
+        "
             SELECT
                 `aggregated_signature` AS `aggregated_signature: Vec<u8>`
             FROM `transactions` WHERE `transaction_id` = ?
             ",
-            transaction_id
-        )
-        .fetch_optional(&mut *self.db)
-        .await?
-        else {
-            return Ok(None);
-        };
+        transaction_id
+    )
+    .fetch_optional(&mut *conn)
+    .await?
+    else {
+        return Ok(None);
+    };
 
-        let coin_spends = sqlx::query!(
-            "
+    let coin_spends = sqlx::query!(
+        "
             SELECT `coin_id`, `parent_coin_id`, `puzzle_hash`, `amount`,
                    `puzzle_reveal`, `solution`, `transaction_id`
             FROM `coin_spends` WHERE `transaction_id` = ?
             ",
-            spend_transaction_id
-        )
-        .fetch_all(&mut *self.db)
-        .await?
-        .into_iter()
-        .map(|row| {
-            let parent_coin_id: [u8; 32] = row.parent_coin_id.try_into().unwrap();
-            let puzzle_hash: [u8; 32] = row.puzzle_hash.try_into().unwrap();
+        spend_transaction_id
+    )
+    .fetch_all(&mut *conn)
+    .await?
+    .into_iter()
+    .map(|row| {
+        let parent_coin_id: [u8; 32] = row.parent_coin_id.try_into().unwrap();
+        let puzzle_hash: [u8; 32] = row.puzzle_hash.try_into().unwrap();
 
-            CoinSpend {
-                coin: Coin {
-                    parent_coin_info: parent_coin_id.into(),
-                    puzzle_hash: puzzle_hash.into(),
-                    amount: row.amount as u64,
-                },
-                puzzle_reveal: Program::from(row.puzzle_reveal),
-                solution: Program::from(row.solution),
-            }
-        })
-        .collect();
+        CoinSpend {
+            coin: Coin {
+                parent_coin_info: parent_coin_id.into(),
+                puzzle_hash: puzzle_hash.into(),
+                amount: row.amount as u64,
+            },
+            puzzle_reveal: Program::from(row.puzzle_reveal),
+            solution: Program::from(row.solution),
+        }
+    })
+    .collect();
 
-        let signature: [u8; 96] = transaction.aggregated_signature.try_into().unwrap();
-        Ok(Some(SpendBundle::new(
-            coin_spends,
-            Signature::from_bytes(&signature).unwrap(),
-        )))
-    }
+    let signature: [u8; 96] = transaction.aggregated_signature.try_into().unwrap();
+    Ok(Some(SpendBundle::new(
+        coin_spends,
+        Signature::from_bytes(&signature).unwrap(),
+    )))
+}
 
-    /// Get the coins spent by a transaction.
-    pub async fn removals(&mut self, transaction_id: Bytes32) -> Result<Vec<Coin>> {
-        let transaction_id = transaction_id.to_vec();
+/// Get the coins spent by a transaction.
+pub async fn fetch_removals(
+    conn: &mut SqliteConnection,
+    transaction_id: Bytes32,
+) -> Result<Vec<Coin>> {
+    let transaction_id = transaction_id.to_vec();
 
-        Ok(sqlx::query!(
-            "
+    Ok(sqlx::query!(
+        "
             SELECT `parent_coin_id`, `puzzle_hash`, `amount`
             FROM `coin_spends` WHERE `transaction_id` = ?
             ORDER BY `coin_id` ASC
             ",
-            transaction_id
-        )
-        .fetch_all(&mut *self.db)
-        .await?
-        .into_iter()
-        .map(|record| {
-            let parent_coin_id: [u8; 32] = record.parent_coin_id.try_into().unwrap();
-            let puzzle_hash: [u8; 32] = record.puzzle_hash.try_into().unwrap();
+        transaction_id
+    )
+    .fetch_all(&mut *conn)
+    .await?
+    .into_iter()
+    .map(|record| {
+        let parent_coin_id: [u8; 32] = record.parent_coin_id.try_into().unwrap();
+        let puzzle_hash: [u8; 32] = record.puzzle_hash.try_into().unwrap();
 
-            Coin {
-                parent_coin_info: parent_coin_id.into(),
-                puzzle_hash: puzzle_hash.into(),
-                amount: record.amount as u64,
-            }
-        })
-        .collect())
-    }
+        Coin {
+            parent_coin_info: parent_coin_id.into(),
+            puzzle_hash: puzzle_hash.into(),
+            amount: record.amount as u64,
+        }
+    })
+    .collect())
+}
 
-    /// Add a transaction to the store.
-    pub async fn add_transaction(&mut self, spend_bundle: SpendBundle) -> Result<()> {
-        let transaction_id = spend_bundle.name().to_vec();
-        let add_transaction_id = transaction_id.clone();
-        let aggregated_signature = spend_bundle.aggregated_signature.to_bytes().to_vec();
+/// Add a transaction to the store.
+pub async fn insert_transaction(
+    conn: &mut SqliteConnection,
+    spend_bundle: SpendBundle,
+) -> Result<()> {
+    let transaction_id = spend_bundle.name().to_vec();
+    let add_transaction_id = transaction_id.clone();
+    let aggregated_signature = spend_bundle.aggregated_signature.to_bytes().to_vec();
 
-        sqlx::query!(
-            "
+    sqlx::query!(
+        "
             REPLACE INTO `transactions` (
                 `transaction_id`,
                 `aggregated_signature`
             )
             VALUES (?, ?)
             ",
-            add_transaction_id,
-            aggregated_signature
-        )
-        .execute(&mut *self.db)
-        .await?;
+        add_transaction_id,
+        aggregated_signature
+    )
+    .execute(&mut *conn)
+    .await?;
 
-        for coin_spend in spend_bundle.coin_spends {
-            let coin_id = coin_spend.coin.coin_id().to_vec();
-            let parent_coin_id = coin_spend.coin.parent_coin_info.to_vec();
-            let puzzle_hash = coin_spend.coin.puzzle_hash.to_vec();
-            let amount = coin_spend.coin.amount as i64;
-            let puzzle_reveal = coin_spend.puzzle_reveal.as_ref().to_vec();
-            let solution = coin_spend.solution.as_ref().to_vec();
-            let transaction_id = transaction_id.clone();
+    for coin_spend in spend_bundle.coin_spends {
+        let coin_id = coin_spend.coin.coin_id().to_vec();
+        let parent_coin_id = coin_spend.coin.parent_coin_info.to_vec();
+        let puzzle_hash = coin_spend.coin.puzzle_hash.to_vec();
+        let amount = coin_spend.coin.amount as i64;
+        let puzzle_reveal = coin_spend.puzzle_reveal.as_ref().to_vec();
+        let solution = coin_spend.solution.as_ref().to_vec();
+        let transaction_id = transaction_id.clone();
 
-            sqlx::query!(
-                "
+        sqlx::query!(
+            "
                 REPLACE INTO `coin_spends` (
                     `coin_id`,
                     `parent_coin_id`,
@@ -175,34 +170,36 @@ impl<'a> SqliteTransactionStore<'a> {
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ",
-                coin_id,
-                parent_coin_id,
-                puzzle_hash,
-                amount,
-                puzzle_reveal,
-                solution,
-                transaction_id
-            )
-            .execute(&mut *self.db)
-            .await?;
-        }
-
-        Ok(())
-    }
-
-    /// Remove a transaction from the store.
-    pub async fn remove_transaction(&mut self, transaction_id: Bytes32) -> Result<()> {
-        let transaction_id = transaction_id.to_vec();
-
-        sqlx::query!(
-            "DELETE FROM `transactions` WHERE `transaction_id` = ?",
+            coin_id,
+            parent_coin_id,
+            puzzle_hash,
+            amount,
+            puzzle_reveal,
+            solution,
             transaction_id
         )
-        .execute(&mut *self.db)
+        .execute(&mut *conn)
         .await?;
-
-        Ok(())
     }
+
+    Ok(())
+}
+
+/// Remove a transaction from the store.
+pub async fn remove_transaction(
+    conn: &mut SqliteConnection,
+    transaction_id: Bytes32,
+) -> Result<()> {
+    let transaction_id = transaction_id.to_vec();
+
+    sqlx::query!(
+        "DELETE FROM `transactions` WHERE `transaction_id` = ?",
+        transaction_id
+    )
+    .execute(&mut *conn)
+    .await?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -214,7 +211,6 @@ mod tests {
     #[sqlx::test]
     async fn test_transaction_store(pool: SqlitePool) {
         let mut conn = pool.acquire().await.unwrap();
-        let mut store = SqliteTransactionStore::new(&mut conn);
 
         // Add a transaction.
         let coin = Coin {
@@ -236,28 +232,32 @@ mod tests {
 
         let transaction_id = spend_bundle.name();
 
-        store.add_transaction(spend_bundle.clone()).await.unwrap();
+        insert_transaction(&mut conn, spend_bundle.clone())
+            .await
+            .unwrap();
 
         // Get the transaction and compare.
-        let transaction = store
-            .transaction(transaction_id)
+        let transaction = fetch_transaction(&mut conn, transaction_id)
             .await
             .unwrap()
             .expect("no spend bundle");
         assert_eq!(transaction, spend_bundle);
 
         // Get the removals and compare.
-        let removals = store.removals(transaction_id).await.unwrap();
+        let removals = fetch_removals(&mut conn, transaction_id).await.unwrap();
         assert_eq!(removals, vec![coin.clone()]);
 
         // Get all spent coins and make sure the coin is there.
-        let spent_coins = store.spent_coins().await.unwrap();
+        let spent_coins = fetch_spent_coins(&mut conn).await.unwrap();
         assert_eq!(spent_coins, vec![coin]);
 
         // Remove the transaction.
-        store.remove_transaction(transaction_id).await.unwrap();
+        remove_transaction(&mut conn, transaction_id).await.unwrap();
 
         // Make sure the transaction is gone.
-        assert!(store.transaction(transaction_id).await.unwrap().is_none());
+        assert!(fetch_transaction(&mut conn, transaction_id)
+            .await
+            .unwrap()
+            .is_none());
     }
 }

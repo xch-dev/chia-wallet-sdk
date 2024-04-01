@@ -1,8 +1,6 @@
 use chia_bls::{sign, DerivableKey, SecretKey, Signature};
 use chia_wallet::DeriveSynthetic;
 
-use crate::{KeyStore, RequiredSignature};
-
 /// Responsible for signing messages.
 pub trait Signer {
     /// Signs a message with its corresponding public key, if possible.
@@ -61,28 +59,6 @@ impl Signer for UnhardenedMemorySigner {
     }
 }
 
-/// Tries to sign each of the messages, replacing the `Vec` with the unsuccessful items.
-pub async fn sign_all_with<E>(
-    key_store: &mut impl KeyStore<Error = E>,
-    signer: &impl Signer,
-    required_signatures: &mut Vec<RequiredSignature>,
-) -> Result<Signature, E> {
-    let mut new_required_signatures = Vec::new();
-    let mut aggregate_signature = Signature::default();
-
-    for required_signature in required_signatures.drain(..) {
-        let Some(index) = key_store.pk_index(required_signature.public_key()).await? else {
-            new_required_signatures.push(required_signature);
-            continue;
-        };
-
-        aggregate_signature += &signer.sign_message(index, &required_signature.final_message());
-    }
-
-    *required_signatures = new_required_signatures;
-    Ok(aggregate_signature)
-}
-
 #[cfg(test)]
 mod tests {
     use chia_bls::derive_keys::master_to_wallet_unhardened_intermediate;
@@ -91,9 +67,13 @@ mod tests {
     use clvm_traits::{clvm_list, FromNodePtr, ToClvm};
     use clvmr::{Allocator, NodePtr};
     use hex_literal::hex;
-    use sqlx::SqlitePool;
+    use sqlx::{SqliteConnection, SqlitePool};
 
-    use crate::{sqlite::SqliteKeyStore, testing::SECRET_KEY, Condition};
+    use crate::{
+        sqlite::{fetch_public_key, insert_keys, public_key_index},
+        testing::SECRET_KEY,
+        Condition, RequiredSignature,
+    };
 
     use super::*;
 
@@ -113,24 +93,27 @@ mod tests {
         Program::from_node_ptr(&a, ptr).unwrap()
     }
 
-    async fn sign_coin_spend<E>(
-        key_store: &mut impl KeyStore<Error = E>,
+    async fn sign_coin_spend(
+        conn: &mut SqliteConnection,
         signer: &impl Signer,
         coin_spend: &CoinSpend,
-    ) -> Signature
-    where
-        E: std::fmt::Debug,
-    {
+    ) -> Signature {
         let mut a = Allocator::new();
-        let mut required_signatures =
+        let required_signatures =
             RequiredSignature::from_coin_spend(&mut a, coin_spend, AGG_SIG_ME).unwrap();
 
-        let signature = sign_all_with(key_store, signer, &mut required_signatures)
-            .await
-            .unwrap();
-        assert!(required_signatures.is_empty());
+        let mut aggregated_signature = Signature::default();
 
-        signature
+        for required_signature in required_signatures {
+            let index = public_key_index(conn, required_signature.public_key(), false)
+                .await
+                .unwrap()
+                .unwrap();
+            aggregated_signature +=
+                &signer.sign_message(index, &required_signature.final_message());
+        }
+
+        aggregated_signature
     }
 
     macro_rules! condition {
@@ -149,21 +132,20 @@ mod tests {
         let intermediate_pk = intermediate_sk.public_key();
 
         let mut conn = pool.acquire().await.unwrap();
-        let mut key_store = SqliteKeyStore::new(&mut conn, false);
         let signer = UnhardenedMemorySigner::new(intermediate_sk, DEFAULT_HIDDEN_PUZZLE_HASH);
 
-        key_store
-            .extend_keys(
-                0,
-                &[intermediate_pk
-                    .derive_unhardened(0)
-                    .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)],
-            )
-            .await
-            .unwrap();
+        insert_keys(
+            &mut conn,
+            0,
+            &[intermediate_pk
+                .derive_unhardened(0)
+                .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)],
+            false,
+        )
+        .await
+        .unwrap();
 
-        let pk = key_store
-            .public_key(0)
+        let pk = fetch_public_key(&mut conn, 0, false)
             .await
             .unwrap()
             .expect("no public key");
@@ -177,7 +159,7 @@ mod tests {
                     serialize(clvm_list!(condition!($name, pk.clone(), msg.clone()))),
                 );
 
-                let signature = sign_coin_spend(&mut key_store, &signer, &coin_spend).await;
+                let signature = sign_coin_spend(&mut conn, &signer, &coin_spend).await;
 
                 assert_eq!(hex::encode(signature.to_bytes()), hex::encode($hex));
             )* };

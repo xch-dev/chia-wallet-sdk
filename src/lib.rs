@@ -7,6 +7,9 @@ mod condition;
 mod spends;
 mod ssl;
 
+/// The `prelude` module contains the most commonly used types and traits.
+pub mod prelude;
+
 /// The `sqlite` module contains the SQLite storage backend.
 #[cfg(any(test, feature = "sqlite"))]
 pub mod sqlite;
