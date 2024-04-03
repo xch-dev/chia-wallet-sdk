@@ -1,51 +1,53 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Coin, CoinSpend, Program};
+use chia_protocol::{Coin, CoinSpend};
 use chia_wallet::standard::{StandardArgs, StandardSolution};
-use clvm_traits::{clvm_quote, FromNodePtr, ToClvmError, ToNodePtr};
+use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::CurriedProgram;
-use clvmr::{allocator::NodePtr, Allocator};
+use clvmr::NodePtr;
 
-use crate::Condition;
+use crate::{SpendContext, SpendError};
 
-/// Creates a new coin spend for a given standard transaction coin.
-pub fn spend_standard_coin(
-    a: &mut Allocator,
-    standard_puzzle_ptr: NodePtr,
-    coin: Coin,
-    synthetic_key: PublicKey,
-    conditions: &[Condition<NodePtr>],
-) -> Result<CoinSpend, ToClvmError> {
-    let puzzle = CurriedProgram {
-        program: standard_puzzle_ptr,
-        args: StandardArgs { synthetic_key },
-    }
-    .to_node_ptr(a)?;
-
-    let solution = StandardSolution {
+/// Constructs a solution for the standard puzzle, given a list of condition.
+/// This assumes no hidden puzzle is being used in this spend.
+pub fn standard_solution<T>(conditions: T) -> StandardSolution<(u8, T), ()> {
+    StandardSolution {
         original_public_key: None,
         delegated_puzzle: clvm_quote!(conditions),
         solution: (),
     }
-    .to_node_ptr(a)?;
+}
 
-    let puzzle = Program::from_node_ptr(a, puzzle).unwrap();
-    let solution = Program::from_node_ptr(a, solution).unwrap();
+/// Creates a new coin spend for a given standard transaction coin.
+pub fn spend_standard_coin<T>(
+    ctx: &mut SpendContext,
+    coin: Coin,
+    synthetic_key: PublicKey,
+    conditions: T,
+) -> Result<CoinSpend, SpendError>
+where
+    T: ToClvm<NodePtr>,
+{
+    let standard_puzzle = ctx.standard_puzzle();
 
-    Ok(CoinSpend::new(coin, puzzle, solution))
+    let puzzle_reveal = ctx.serialize(CurriedProgram {
+        program: standard_puzzle,
+        args: StandardArgs { synthetic_key },
+    })?;
+    let solution = ctx.alloc(standard_solution(conditions))?;
+    let serialized_solution = ctx.serialize(solution)?;
+
+    Ok(CoinSpend::new(coin, puzzle_reveal, serialized_solution))
 }
 
 #[cfg(test)]
 mod tests {
     use chia_bls::derive_keys::master_to_wallet_unhardened;
     use chia_protocol::Bytes32;
-    use chia_wallet::{
-        standard::{DEFAULT_HIDDEN_PUZZLE_HASH, STANDARD_PUZZLE},
-        DeriveSynthetic,
-    };
-    use clvmr::serde::{node_from_bytes, node_to_bytes};
+    use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
+    use clvmr::{serde::node_to_bytes, Allocator};
     use hex_literal::hex;
 
-    use crate::{testing::SECRET_KEY, CreateCoin};
+    use crate::{testing::SECRET_KEY, CreateCoinWithoutMemos};
 
     use super::*;
 
@@ -54,23 +56,29 @@ mod tests {
         let synthetic_key = master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0)
             .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
 
-        let a = &mut Allocator::new();
-        let standard_puzzle_ptr = node_from_bytes(a, &STANDARD_PUZZLE).unwrap();
+        let mut a = Allocator::new();
+        let mut ctx = SpendContext::new(&mut a);
+
         let coin = Coin::new(Bytes32::from([0; 32]), Bytes32::from([1; 32]), 42);
+        let puzzle_hash = coin.puzzle_hash;
+        let amount = coin.amount;
 
-        let conditions = vec![Condition::CreateCoin(CreateCoin::Normal {
-            puzzle_hash: coin.puzzle_hash,
-            amount: coin.amount,
-        })];
-
-        let coin_spend =
-            spend_standard_coin(a, standard_puzzle_ptr, coin, synthetic_key, &conditions).unwrap();
+        let coin_spend = spend_standard_coin(
+            &mut ctx,
+            coin,
+            synthetic_key,
+            [CreateCoinWithoutMemos {
+                puzzle_hash,
+                amount,
+            }],
+        )
+        .unwrap();
         let output_ptr = coin_spend
             .puzzle_reveal
-            .run(a, 0, u64::MAX, &coin_spend.solution)
+            .run(&mut a, 0, u64::MAX, &coin_spend.solution)
             .unwrap()
             .1;
-        let actual = node_to_bytes(a, output_ptr).unwrap();
+        let actual = node_to_bytes(&a, output_ptr).unwrap();
 
         let expected = hex!(
             "

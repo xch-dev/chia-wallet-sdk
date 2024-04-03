@@ -5,7 +5,7 @@ use clvmr::{allocator::NodePtr, reduction::EvalErr, Allocator};
 use sha2::{digest::FixedOutput, Digest, Sha256};
 use thiserror::Error;
 
-use crate::Condition;
+use crate::{AggSig, AggSigKind};
 
 /// An error that occurs while trying to sign a coin spend.
 #[derive(Debug, Error)]
@@ -30,19 +30,15 @@ pub struct RequiredSignature {
 
 impl RequiredSignature {
     /// Converts a known AggSig condition to a `RequiredSignature` if possible.
-    pub fn from_condition(
-        coin: &Coin,
-        condition: Condition<NodePtr>,
-        agg_sig_me: [u8; 32],
-    ) -> Option<Self> {
+    pub fn from_condition(coin: &Coin, condition: AggSig, agg_sig_me: [u8; 32]) -> Option<Self> {
         let mut hasher = Sha256::new();
         hasher.update(agg_sig_me);
 
-        let required_signature = match condition {
-            Condition::AggSigParent {
-                public_key,
-                message,
-            } => {
+        let public_key = condition.public_key;
+        let message = condition.message;
+
+        let required_signature = match condition.kind {
+            AggSigKind::Parent => {
                 hasher.update([43]);
                 let parent = coin.parent_coin_info;
                 Self {
@@ -52,10 +48,7 @@ impl RequiredSignature {
                     domain_string: Some(hasher.finalize_fixed().into()),
                 }
             }
-            Condition::AggSigPuzzle {
-                public_key,
-                message,
-            } => {
+            AggSigKind::Puzzle => {
                 hasher.update([44]);
                 let puzzle = coin.puzzle_hash;
                 Self {
@@ -65,10 +58,7 @@ impl RequiredSignature {
                     domain_string: Some(hasher.finalize_fixed().into()),
                 }
             }
-            Condition::AggSigAmount {
-                public_key,
-                message,
-            } => {
+            AggSigKind::Amount => {
                 hasher.update([45]);
                 Self {
                     public_key,
@@ -77,10 +67,7 @@ impl RequiredSignature {
                     domain_string: Some(hasher.finalize_fixed().into()),
                 }
             }
-            Condition::AggSigPuzzleAmount {
-                public_key,
-                message,
-            } => {
+            AggSigKind::PuzzleAmount => {
                 hasher.update([46]);
                 let puzzle = coin.puzzle_hash;
                 Self {
@@ -90,10 +77,7 @@ impl RequiredSignature {
                     domain_string: Some(hasher.finalize_fixed().into()),
                 }
             }
-            Condition::AggSigParentAmount {
-                public_key,
-                message,
-            } => {
+            AggSigKind::ParentAmount => {
                 hasher.update([47]);
                 let parent = coin.parent_coin_info;
                 Self {
@@ -103,10 +87,7 @@ impl RequiredSignature {
                     domain_string: Some(hasher.finalize_fixed().into()),
                 }
             }
-            Condition::AggSigParentPuzzle {
-                public_key,
-                message,
-            } => {
+            AggSigKind::ParentPuzzle => {
                 hasher.update([48]);
                 let parent = coin.parent_coin_info;
                 let puzzle = coin.puzzle_hash;
@@ -117,25 +98,18 @@ impl RequiredSignature {
                     domain_string: Some(hasher.finalize_fixed().into()),
                 }
             }
-            Condition::AggSigUnsafe {
-                public_key,
-                message,
-            } => Self {
+            AggSigKind::Unsafe => Self {
                 public_key,
                 raw_message: message,
                 appended_info: Vec::new(),
                 domain_string: None,
             },
-            Condition::AggSigMe {
-                public_key,
-                message,
-            } => Self {
+            AggSigKind::Me => Self {
                 public_key,
                 raw_message: message,
                 appended_info: coin.coin_id().into(),
                 domain_string: Some(agg_sig_me),
             },
-            _ => return None,
         };
 
         Some(required_signature)
@@ -154,10 +128,18 @@ impl RequiredSignature {
             .run(allocator, 0, u64::MAX, &coin_spend.solution)?
             .1;
 
-        Ok(Vec::<Condition<NodePtr>>::from_clvm(allocator, output)?
-            .into_iter()
-            .filter_map(|condition| Self::from_condition(&coin_spend.coin, condition, agg_sig_me))
-            .collect())
+        let mut result = Vec::new();
+
+        for condition in Vec::<NodePtr>::from_clvm(allocator, output)? {
+            let agg_sig = AggSig::from_clvm(allocator, condition)?;
+            if let Some(required_signature) =
+                Self::from_condition(&coin_spend.coin, agg_sig, agg_sig_me)
+            {
+                result.push(required_signature);
+            }
+        }
+
+        Ok(result)
     }
 
     /// Calculates the required signatures for a spend bundle.
@@ -242,8 +224,9 @@ mod tests {
         let message: Bytes = vec![1, 2, 3].into();
 
         macro_rules! condition {
-            ($condition:ident) => {
-                Condition::$condition {
+            ($variant:ident) => {
+                AggSig {
+                    kind: AggSigKind::$variant,
                     public_key: public_key.clone(),
                     message: message.clone(),
                 }
@@ -252,27 +235,27 @@ mod tests {
 
         let cases = vec![
             (
-                condition!(AggSigMe),
+                condition!(Me),
                 hex::encode(coin.coin_id()),
                 Some(hex::encode(agg_sig_data)),
             ),
-            (condition!(AggSigUnsafe), String::new(), None),
+            (condition!(Unsafe), String::new(), None),
             (
-                condition!(AggSigParent),
+                condition!(Parent),
                 "0101010101010101010101010101010101010101010101010101010101010101".to_string(),
                 Some(
                     "e30fe176cb4a03044620b0644b5570d8e11f9e144bea1ad63e98c94f0a8ba104".to_string(),
                 ),
             ),
             (
-                condition!(AggSigPuzzle),
+                condition!(Puzzle),
                 "0202020202020202020202020202020202020202020202020202020202020202".to_string(),
                 Some(
                     "56753940d4d262c6f36619c9f02a81e249788f3e1e7e5c5d51efef7def915d3b".to_string(),
                 ),
             ),
             (
-                condition!(AggSigParentPuzzle),
+                condition!(ParentPuzzle),
                 "0101010101010101010101010101010101010101010101010101010101010101\
 0202020202020202020202020202020202020202020202020202020202020202"
                     .to_string(),
@@ -281,21 +264,21 @@ mod tests {
                 ),
             ),
             (
-                condition!(AggSigAmount),
+                condition!(Amount),
                 "03".to_string(),
                 Some(
                     "4adba988ab536948864fb63ed13c779a16cc00a93b50a11ebf55985f586f05b9".to_string(),
                 ),
             ),
             (
-                condition!(AggSigPuzzleAmount),
+                condition!(PuzzleAmount),
                 "020202020202020202020202020202020202020202020202020202020202020203".to_string(),
                 Some(
                     "06f2ea8543ec16347ca452086d4c5ef12e0240f1e6ed6233f961ea8eb612becb".to_string(),
                 ),
             ),
             (
-                condition!(AggSigParentAmount),
+                condition!(ParentAmount),
                 "010101010101010101010101010101010101010101010101010101010101010103".to_string(),
                 Some(
                     "1e09a530a1f9fc586044116b300c0a90efa787ebcf0d6f221bbd1306f1a37a8c".to_string(),

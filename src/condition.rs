@@ -4,204 +4,183 @@ use clvm_traits::{
     clvm_list, destructure_list, match_list, ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError,
     MatchByte, ToClvm, ToClvmError,
 };
+use clvmr::NodePtr;
 
-/// A condition that must be met in order to spend a coin.
+macro_rules! condition {
+    ( $name:ident, $code:expr ) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $name;
+        condition!(impl $name, $code);
+    };
+
+    ( $name:ident, $code:expr, { $( $field:ident: $ty:ty ),* $(,)? } ) => {
+        #[allow(missing_docs)]
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $name {
+            $( pub $field: $ty ),*
+        }
+        condition!(impl $name, $code, { $( $field: $ty ),* });
+    };
+
+    ( impl $name:ident, $code:expr ) => {
+        impl<Node> ToClvm<Node> for $name {
+            fn to_clvm(&self, encoder: &mut impl ClvmEncoder<Node = Node>) -> Result<Node, ToClvmError> {
+                clvm_list!($code).to_clvm(encoder)
+            }
+        }
+
+        impl<Node> FromClvm<Node> for $name {
+            fn from_clvm(
+                decoder: &impl ClvmDecoder<Node = Node>,
+                node: Node,
+            ) -> Result<Self, FromClvmError> {
+                let destructure_list!(code) = <match_list!(i32)>::from_clvm(decoder, node)?;
+                if code != $code {
+                    return Err(FromClvmError::Custom(format!("invalid code: {}", code)));
+                }
+                Ok(Self)
+            }
+        }
+    };
+
+    ( impl $name:ident, $code:expr, { $( $field:ident: $ty:ty ),* } ) => {
+        impl<Node> ToClvm<Node> for $name
+        where
+            $( $ty: ToClvm<Node> ),*
+        {
+            fn to_clvm(&self, encoder: &mut impl ClvmEncoder<Node = Node>) -> Result<Node, ToClvmError> {
+                clvm_list!($code, $( &self.$field ),*).to_clvm(encoder)
+            }
+        }
+
+        impl<Node> FromClvm<Node> for $name
+        where
+            $( $ty: FromClvm<Node> ),*
+        {
+            fn from_clvm(
+                decoder: &impl ClvmDecoder<Node = Node>,
+                node: Node,
+            ) -> Result<Self, FromClvmError> {
+                let destructure_list!(code, $( $field ),*) =
+                    <match_list!(i32, $( $ty, )* )>::from_clvm(decoder, node)?;
+                if code != $code {
+                    return Err(FromClvmError::Custom(format!("invalid code: {}", code)));
+                }
+                Ok(Self { $( $field ),* })
+            }
+        }
+    };
+}
+
+#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
-#[allow(missing_docs)]
-#[repr(u64)]
-pub enum Condition<T> {
-    Remark = 1,
-
-    AggSigParent {
-        public_key: PublicKey,
-        message: Bytes,
-    } = 43,
-
-    AggSigPuzzle {
-        public_key: PublicKey,
-        message: Bytes,
-    } = 44,
-
-    AggSigAmount {
-        public_key: PublicKey,
-        message: Bytes,
-    } = 45,
-
-    AggSigPuzzleAmount {
-        public_key: PublicKey,
-        message: Bytes,
-    } = 46,
-
-    AggSigParentAmount {
-        public_key: PublicKey,
-        message: Bytes,
-    } = 47,
-
-    AggSigParentPuzzle {
-        public_key: PublicKey,
-        message: Bytes,
-    } = 48,
-
-    AggSigUnsafe {
-        public_key: PublicKey,
-        message: Bytes,
-    } = 49,
-
-    AggSigMe {
-        public_key: PublicKey,
-        message: Bytes,
-    } = 50,
-
-    #[clvm(tuple)]
-    CreateCoin(CreateCoin) = 51,
-
-    ReserveFee {
-        amount: u64,
-    } = 52,
-
-    CreateCoinAnnouncement {
-        message: Bytes,
-    } = 60,
-
-    AssertCoinAnnouncement {
-        announcement_id: Bytes,
-    } = 61,
-
-    CreatePuzzleAnnouncement {
-        message: Bytes,
-    } = 62,
-
-    AssertPuzzleAnnouncement {
-        announcement_id: Bytes,
-    } = 63,
-
-    AssertConcurrentSpend {
-        coin_id: Bytes32,
-    } = 64,
-
-    AssertConcurrentPuzzle {
-        puzzle_hash: Bytes32,
-    } = 65,
-
-    AssertMyCoinId {
-        coin_id: Bytes32,
-    } = 70,
-
-    AssertMyParentId {
-        parent_id: Bytes32,
-    } = 71,
-
-    AssertMyPuzzleHash {
-        puzzle_hash: Bytes32,
-    } = 72,
-
-    AssertMyAmount {
-        amount: u64,
-    } = 73,
-
-    AssertMyBirthSeconds {
-        seconds: u64,
-    } = 74,
-
-    AssertMyBirthHeight {
-        block_height: u32,
-    } = 75,
-
-    AssertEphemeral = 76,
-
-    AssertSecondsRelative {
-        seconds: u64,
-    } = 80,
-
-    AssertSecondsAbsolute {
-        seconds: u64,
-    } = 81,
-
-    AssertHeightRelative {
-        block_height: u32,
-    } = 82,
-
-    AssertHeightAbsolute {
-        block_height: u32,
-    } = 83,
-
-    AssertBeforeSecondsRelative {
-        seconds: u64,
-    } = 84,
-
-    AssertBeforeSecondsAbsolute {
-        seconds: u64,
-    } = 85,
-
-    AssertBeforeHeightRelative {
-        block_height: u32,
-    } = 86,
-
-    AssertBeforeHeightAbsolute {
-        block_height: u32,
-    } = 87,
-
-    #[clvm(tuple)]
-    Softfork {
-        cost: u64,
-        rest: T,
-    } = 90,
+pub struct AggSig {
+    pub kind: AggSigKind,
+    pub public_key: PublicKey,
+    pub message: Bytes,
 }
 
-/// A create coin condition.
-#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(untagged, list)]
 #[allow(missing_docs)]
-pub enum CreateCoin {
-    Normal {
-        puzzle_hash: Bytes32,
-        amount: u64,
-    },
-    Memos {
-        puzzle_hash: Bytes32,
-        amount: u64,
-        memos: Vec<Bytes>,
-    },
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm, Hash)]
+#[repr(u8)]
+#[clvm(tuple)]
+pub enum AggSigKind {
+    Parent = 43,
+    Puzzle = 44,
+    Amount = 45,
+    PuzzleAmount = 46,
+    ParentAmount = 47,
+    ParentPuzzle = 48,
+    Unsafe = 49,
+    Me = 50,
 }
 
-/// A condition that must be met in order to spend a CAT coin.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(untagged, tuple)]
+pub enum CreateCoin {
+    WithoutMemos(CreateCoinWithoutMemos),
+    WithMemos(CreateCoinWithMemos),
+}
+
+condition!(Remark, 1, {});
+condition!(AggSigParent, 43, { public_key: PublicKey, message: Bytes });
+condition!(AggSigPuzzle, 44, { public_key: PublicKey, message: Bytes });
+condition!(AggSigAmount, 45, { public_key: PublicKey, message: Bytes });
+condition!(AggSigPuzzleAmount, 46, { public_key: PublicKey, message: Bytes });
+condition!(AggSigParentAmount, 47, { public_key: PublicKey, message: Bytes });
+condition!(AggSigParentPuzzle, 48, { public_key: PublicKey, message: Bytes });
+condition!(AggSigUnsafe, 49, { public_key: PublicKey, message: Bytes });
+condition!(AggSigMe, 50, { public_key: PublicKey, message: Bytes });
+condition!(CreateCoinWithoutMemos, 51, { puzzle_hash: Bytes32, amount: u64 });
+condition!(CreateCoinWithMemos, 51, { puzzle_hash: Bytes32, amount: u64, memos: Vec<Bytes> });
+condition!(ReserveFee, 52, { amount: u64 });
+condition!(CreateCoinAnnouncement, 60, { message: Bytes });
+condition!(AssertCoinAnnouncement, 61, { announcement_id: Bytes });
+condition!(CreatePuzzleAnnouncement, 62, { message: Bytes });
+condition!(AssertPuzzleAnnouncement, 63, { announcement_id: Bytes });
+condition!(AssertConcurrentSpend, 64, { coin_id: Bytes32 });
+condition!(AssertConcurrentPuzzle, 65, { puzzle_hash: Bytes32 });
+condition!(AssertMyCoinId, 70, { coin_id: Bytes32 });
+condition!(AssertMyParentId, 71, { parent_id: Bytes32 });
+condition!(AssertMyPuzzleHash, 72, { puzzle_hash: Bytes32 });
+condition!(AssertMyAmount, 73, { amount: u64 });
+condition!(AssertMyBirthSeconds, 74, { seconds: u64 });
+condition!(AssertMyBirthHeight, 75, { block_height: u32 });
+condition!(AssertEphemeral, 76, {});
+condition!(AssertSecondsRelative, 80, { seconds: u64 });
+condition!(AssertSecondsAbsolute, 81, { seconds: u64 });
+condition!(AssertHeightRelative, 82, { block_height: u32 });
+condition!(AssertHeightAbsolute, 83, { block_height: u32 });
+condition!(AssertBeforeSecondsRelative, 84, { seconds: u64 });
+condition!(AssertBeforeSecondsAbsolute, 85, { seconds: u64 });
+condition!(AssertBeforeHeightRelative, 86, { block_height: u32 });
+condition!(AssertBeforeHeightAbsolute, 87, { block_height: u32 });
+condition!(Softfork, 90, { cost: u64, rest: NodePtr });
+
+condition!(NewNftOwner, -10, {
+    new_owner: Option<Bytes32>,
+    trade_prices_list: Vec<NftTradePrice>,
+    new_did_inner_hash: Option<Bytes32>
+});
+
 #[allow(missing_docs)]
-pub enum CatCondition<T> {
-    Normal(Condition<T>),
-    RunTail(RunTail<T>),
+#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
+#[clvm(list)]
+pub struct NftTradePrice {
+    pub trade_price: u16,
+    pub puzzle_hash: Bytes32,
 }
 
 /// A run TAIL condition.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RunTail<T> {
+pub struct RunTail {
     /// The TAIL program reveal.
-    pub program: T,
+    pub program: NodePtr,
+
     /// The solution to the TAIL program.
-    pub solution: T,
+    pub solution: NodePtr,
 }
 
-impl<Node, T> ToClvm<Node> for RunTail<T>
-where
-    T: ToClvm<Node>,
-{
-    fn to_clvm(&self, encoder: &mut impl ClvmEncoder<Node = Node>) -> Result<Node, ToClvmError> {
+impl ToClvm<NodePtr> for RunTail {
+    fn to_clvm(
+        &self,
+        encoder: &mut impl ClvmEncoder<Node = NodePtr>,
+    ) -> Result<NodePtr, ToClvmError> {
         clvm_list!(51, (), -113, &self.program, &self.solution).to_clvm(encoder)
     }
 }
 
-impl<Node, T> FromClvm<Node> for RunTail<T>
-where
-    T: FromClvm<Node>,
-{
+impl FromClvm<NodePtr> for RunTail {
     fn from_clvm(
-        decoder: &impl ClvmDecoder<Node = Node>,
-        node: Node,
+        decoder: &impl ClvmDecoder<Node = NodePtr>,
+        node: NodePtr,
     ) -> Result<Self, FromClvmError> {
         let destructure_list!(_, _, _, program, solution) =
-            <match_list!(MatchByte::<51>, (), MatchByte::<142>, T, T)>::from_clvm(decoder, node)?;
+            <match_list!(MatchByte::<51>, (), MatchByte::<142>, NodePtr, NodePtr)>::from_clvm(
+                decoder, node,
+            )?;
         Ok(Self { program, solution })
     }
 }
@@ -211,7 +190,7 @@ mod tests {
     use std::fmt::Debug;
 
     use clvm_traits::{FromNodePtr, ToNodePtr};
-    use clvmr::{allocator::NodePtr, serde::node_to_bytes, Allocator};
+    use clvmr::{serde::node_to_bytes, Allocator};
     use hex_literal::hex;
 
     use super::*;
@@ -232,11 +211,11 @@ mod tests {
     #[test]
     fn test() {
         check(
-            Condition::<NodePtr>::CreateCoin(CreateCoin::Memos {
+            CreateCoinWithMemos {
                 puzzle_hash: Bytes32::from([0; 32]),
                 amount: 0,
                 memos: vec![Bytes::from([1; 32].to_vec())],
-            }),
+            },
             &hex!(
                 "
                 ff33ffa00000000000000000000000000000000000000000000000000000000000000000ff8
@@ -246,10 +225,10 @@ mod tests {
         );
 
         check(
-            Condition::<NodePtr>::CreateCoin(CreateCoin::Normal {
+            CreateCoinWithoutMemos {
                 puzzle_hash: Bytes32::from([0; 32]),
                 amount: 0,
-            }),
+            },
             &hex!(
                 "
                 ff33ffa00000000000000000000000000000000000000000000000000000000000000000ff8080

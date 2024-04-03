@@ -1,15 +1,15 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
+use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_wallet::{
     cat::{CatArgs, CatSolution, CoinProof, EverythingWithSignatureTailArgs, CAT_PUZZLE_HASH},
     standard::{StandardArgs, StandardSolution},
     LineageProof,
 };
-use clvm_traits::{clvm_quote, FromNodePtr, ToClvmError, ToNodePtr};
-use clvm_utils::{tree_hash, CurriedProgram};
-use clvmr::{Allocator, NodePtr};
+use clvm_traits::{clvm_quote, destructure_tuple, match_tuple, MatchByte, ToClvm};
+use clvm_utils::CurriedProgram;
+use clvmr::NodePtr;
 
-use crate::{CatCondition, Condition, CreateCoin, RunTail};
+use crate::{RunTail, SpendContext, SpendError};
 
 /// The information required to spend a CAT coin.
 /// This assumes that the inner puzzle is a standard transaction.
@@ -19,192 +19,172 @@ pub struct CatSpend {
     /// The public key used for the inner puzzle.
     pub synthetic_key: PublicKey,
     /// The desired output conditions for the coin spend.
-    pub conditions: Vec<CatCondition<NodePtr>>,
+    pub conditions: NodePtr,
     /// The extra delta produced as part of this spend.
     pub extra_delta: i64,
     /// The inner puzzle hash.
-    pub p2_puzzle_hash: [u8; 32],
+    pub p2_puzzle_hash: Bytes32,
     /// The lineage proof of the CAT.
     pub lineage_proof: LineageProof,
 }
 
 /// Creates a set of CAT coin spends for a given asset id.
 pub fn spend_cat_coins(
-    a: &mut Allocator,
-    standard_puzzle_ptr: NodePtr,
-    cat_puzzle_ptr: NodePtr,
-    asset_id: [u8; 32],
+    ctx: &mut SpendContext,
+    asset_id: Bytes32,
     cat_spends: &[CatSpend],
-) -> Result<Vec<CoinSpend>, ToClvmError> {
-    let mut total_delta = 0;
+) -> Result<Vec<CoinSpend>, SpendError> {
+    let cat_puzzle_ptr = ctx.cat_puzzle();
+    let standard_puzzle_ptr = ctx.standard_puzzle();
 
+    let mut coin_spends = Vec::new();
+    let mut total_delta = 0;
     let len = cat_spends.len();
 
-    cat_spends
-        .iter()
-        .enumerate()
-        .map(|(index, cat_spend)| {
-            // Calculate the delta and add it to the subtotal.
-            let delta = cat_spend.conditions.iter().fold(
-                cat_spend.coin.amount as i64 - cat_spend.extra_delta,
-                |delta, condition| {
-                    if let CatCondition::Normal(Condition::CreateCoin(
-                        CreateCoin::Normal { amount, .. } | CreateCoin::Memos { amount, .. },
-                    )) = condition
-                    {
-                        return delta - *amount as i64;
-                    }
-                    delta
-                },
-            );
+    for (index, cat_spend) in cat_spends.iter().enumerate() {
+        // Calculate the delta and add it to the subtotal.
+        let conditions: Vec<NodePtr> = ctx.extract(cat_spend.conditions)?;
+        let create_coins = conditions.into_iter().filter_map(|ptr| {
+            ctx.extract::<match_tuple!(MatchByte<51>, NodePtr, u64, NodePtr)>(ptr)
+                .ok()
+        });
+        let delta = create_coins.fold(
+            cat_spend.coin.amount as i64 - cat_spend.extra_delta,
+            |delta, destructure_tuple!(_, _, amount, _)| delta - amount as i64,
+        );
 
-            let prev_subtotal = total_delta;
+        let prev_subtotal = total_delta;
+        total_delta += delta;
 
-            total_delta += delta;
+        // Find information of neighboring coins on the ring.
+        let prev_cat = &cat_spends[if index == 0 { len - 1 } else { index - 1 }];
+        let next_cat = &cat_spends[if index == len - 1 { 0 } else { index + 1 }];
 
-            // Find information of neighboring coins on the ring.
-            let prev_cat = &cat_spends[if index == 0 { len - 1 } else { index - 1 }];
-            let next_cat = &cat_spends[if index == len - 1 { 0 } else { index + 1 }];
-
-            // Construct the puzzle.
-            let puzzle = CurriedProgram {
-                program: cat_puzzle_ptr,
-                args: CatArgs {
-                    mod_hash: CAT_PUZZLE_HASH.into(),
-                    tail_program_hash: asset_id.into(),
-                    inner_puzzle: CurriedProgram {
-                        program: standard_puzzle_ptr,
-                        args: StandardArgs {
-                            synthetic_key: cat_spend.synthetic_key.clone(),
-                        },
+        let puzzle_reveal = ctx.serialize(CurriedProgram {
+            program: cat_puzzle_ptr,
+            args: CatArgs {
+                mod_hash: CAT_PUZZLE_HASH.into(),
+                tail_program_hash: asset_id,
+                inner_puzzle: CurriedProgram {
+                    program: standard_puzzle_ptr,
+                    args: StandardArgs {
+                        synthetic_key: cat_spend.synthetic_key.clone(),
                     },
                 },
-            }
-            .to_node_ptr(a)?;
+            },
+        })?;
 
-            // Construct the solution.
-            let solution = CatSolution {
-                inner_puzzle_solution: StandardSolution {
-                    original_public_key: None,
-                    delegated_puzzle: clvm_quote!(&cat_spend.conditions),
-                    solution: (),
-                },
-                lineage_proof: Some(cat_spend.lineage_proof.clone()),
-                prev_coin_id: prev_cat.coin.coin_id(),
-                this_coin_info: cat_spend.coin.clone(),
-                next_coin_proof: CoinProof {
-                    parent_coin_info: next_cat.coin.parent_coin_info,
-                    inner_puzzle_hash: next_cat.p2_puzzle_hash.into(),
-                    amount: next_cat.coin.amount,
-                },
-                prev_subtotal,
-                extra_delta: cat_spend.extra_delta,
-            }
-            .to_node_ptr(a)?;
+        let solution = ctx.serialize(CatSolution {
+            inner_puzzle_solution: StandardSolution {
+                original_public_key: None,
+                delegated_puzzle: clvm_quote!(&cat_spend.conditions),
+                solution: (),
+            },
+            lineage_proof: Some(cat_spend.lineage_proof.clone()),
+            prev_coin_id: prev_cat.coin.coin_id(),
+            this_coin_info: cat_spend.coin.clone(),
+            next_coin_proof: CoinProof {
+                parent_coin_info: next_cat.coin.parent_coin_info,
+                inner_puzzle_hash: next_cat.p2_puzzle_hash,
+                amount: next_cat.coin.amount,
+            },
+            prev_subtotal,
+            extra_delta: cat_spend.extra_delta,
+        })?;
 
-            // Create the coin spend.
-            Ok(CoinSpend::new(
-                cat_spend.coin.clone(),
-                Program::from_node_ptr(a, puzzle).unwrap(),
-                Program::from_node_ptr(a, solution).unwrap(),
-            ))
-        })
-        .collect()
+        coin_spends.push(CoinSpend::new(
+            cat_spend.coin.clone(),
+            puzzle_reveal,
+            solution,
+        ));
+    }
+
+    Ok(coin_spends)
 }
 
 /// The information required to create and spend an eve CAT coin.
-pub struct EveSpendInfo {
+pub struct EveSpend {
     /// The full puzzle hash of the eve CAT coin.
-    pub puzzle_hash: [u8; 32],
+    pub puzzle_hash: Bytes32,
     /// The coin spend for the eve CAT.
     pub coin_spend: CoinSpend,
 }
 
 /// Constructs a coin spend to issue more of an `EverythingWithSignature` CAT.
-pub fn issue_cat_with_signature(
-    a: &mut Allocator,
-    cat_puzzle_ptr: NodePtr,
-    tail_puzzle_ptr: NodePtr,
+pub fn issue_cat_everything_with_signature<T>(
+    ctx: &mut SpendContext,
     public_key: PublicKey,
     parent_coin_id: Bytes32,
     amount: u64,
-    conditions: &[Condition<NodePtr>],
-) -> Result<EveSpendInfo, ToClvmError> {
-    let mut cat_conditions: Vec<CatCondition<NodePtr>> = Vec::with_capacity(conditions.len() + 1);
-    cat_conditions.extend(
-        conditions
-            .iter()
-            .map(|condition| CatCondition::Normal(condition.clone())),
-    );
+    conditions: T,
+) -> Result<EveSpend, SpendError>
+where
+    T: ToClvm<NodePtr>,
+{
+    let tail_puzzle_ptr = ctx.everything_with_signature_tail_puzzle();
 
-    let tail = CurriedProgram {
+    let tail = ctx.alloc(CurriedProgram {
         program: tail_puzzle_ptr,
         args: EverythingWithSignatureTailArgs { public_key },
-    }
-    .to_node_ptr(a)?;
+    })?;
+    let asset_id = ctx.tree_hash(tail);
 
-    cat_conditions.push(CatCondition::RunTail(RunTail {
+    let run_tail = RunTail {
         program: tail,
         solution: NodePtr::NIL,
-    }));
+    };
 
-    issue_cat_eve(
-        a,
-        cat_puzzle_ptr,
-        parent_coin_id,
-        tree_hash(a, tail),
-        amount,
-        &cat_conditions,
-    )
+    let conditions = (run_tail, conditions);
+
+    create_and_spend_eve_cat(ctx, parent_coin_id, asset_id, amount, conditions)
 }
 
 /// Creates an eve CAT coin and spends it.
-pub fn issue_cat_eve(
-    a: &mut Allocator,
-    cat_puzzle_ptr: NodePtr,
+pub fn create_and_spend_eve_cat<T>(
+    ctx: &mut SpendContext,
     parent_coin_id: Bytes32,
-    tail_program_hash: [u8; 32],
+    asset_id: Bytes32,
     amount: u64,
-    conditions: &[CatCondition<NodePtr>],
-) -> Result<EveSpendInfo, ToClvmError> {
-    let inner_puzzle = clvm_quote!(conditions).to_node_ptr(a)?;
-    let inner_puzzle_hash = tree_hash(a, inner_puzzle);
+    conditions: T,
+) -> Result<EveSpend, SpendError>
+where
+    T: ToClvm<NodePtr>,
+{
+    let cat_puzzle_ptr = ctx.cat_puzzle();
 
-    let puzzle = CurriedProgram {
+    let inner_puzzle = ctx.alloc(clvm_quote!(conditions))?;
+    let inner_puzzle_hash = ctx.tree_hash(inner_puzzle);
+
+    let puzzle = ctx.alloc(CurriedProgram {
         program: cat_puzzle_ptr,
         args: CatArgs {
             mod_hash: CAT_PUZZLE_HASH.into(),
-            tail_program_hash: tail_program_hash.into(),
+            tail_program_hash: asset_id,
             inner_puzzle,
         },
-    }
-    .to_node_ptr(a)?;
+    })?;
 
-    let puzzle_hash = tree_hash(a, puzzle);
-    let coin = Coin::new(parent_coin_id, puzzle_hash.into(), amount);
+    let puzzle_hash = ctx.tree_hash(puzzle);
+    let coin = Coin::new(parent_coin_id, puzzle_hash, amount);
 
-    let solution = CatSolution {
+    let solution = ctx.serialize(CatSolution {
         inner_puzzle_solution: (),
         lineage_proof: None,
         prev_coin_id: coin.coin_id(),
         this_coin_info: coin.clone(),
         next_coin_proof: CoinProof {
             parent_coin_info: parent_coin_id,
-            inner_puzzle_hash: inner_puzzle_hash.into(),
+            inner_puzzle_hash,
             amount,
         },
         prev_subtotal: 0,
         extra_delta: 0,
-    }
-    .to_node_ptr(a)?;
+    })?;
 
-    let coin_spend = CoinSpend::new(
-        coin,
-        Program::from_node_ptr(a, puzzle).unwrap(),
-        Program::from_node_ptr(a, solution).unwrap(),
-    );
+    let puzzle_reveal = ctx.serialize(puzzle)?;
+    let coin_spend = CoinSpend::new(coin, puzzle_reveal, solution);
 
-    Ok(EveSpendInfo {
+    Ok(EveSpend {
         puzzle_hash,
         coin_spend,
     })
@@ -217,16 +197,16 @@ mod tests {
         conditions::EmptyVisitor, run_block_generator::run_block_generator,
         solution_generator::solution_generator,
     };
-    use chia_protocol::Bytes32;
+    use chia_protocol::{Bytes32, Program};
     use chia_wallet::{
-        cat::{cat_puzzle_hash, CAT_PUZZLE},
-        standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH, STANDARD_PUZZLE},
+        cat::cat_puzzle_hash,
+        standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
         DeriveSynthetic,
     };
-    use clvmr::serde::{node_from_bytes, node_to_bytes};
+    use clvmr::{serde::node_to_bytes, Allocator};
     use hex_literal::hex;
 
-    use crate::testing::SECRET_KEY;
+    use crate::{testing::SECRET_KEY, CreateCoinWithoutMemos};
 
     use super::*;
 
@@ -235,14 +215,13 @@ mod tests {
         let synthetic_key = master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0)
             .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
 
-        let a = &mut Allocator::new();
-        let standard_puzzle_ptr = node_from_bytes(a, &STANDARD_PUZZLE).unwrap();
-        let cat_puzzle_ptr = node_from_bytes(a, &CAT_PUZZLE).unwrap();
+        let mut allocator = Allocator::new();
+        let mut ctx = SpendContext::new(&mut allocator);
 
-        let asset_id = [42; 32];
+        let asset_id = Bytes32::new([42; 32]);
 
-        let p2_puzzle_hash = standard_puzzle_hash(&synthetic_key);
-        let cat_puzzle_hash = cat_puzzle_hash(asset_id, p2_puzzle_hash);
+        let p2_puzzle_hash = Bytes32::new(standard_puzzle_hash(&synthetic_key));
+        let cat_puzzle_hash = cat_puzzle_hash(asset_id.to_bytes(), p2_puzzle_hash.to_bytes());
 
         let parent_coin = Coin::new(Bytes32::new([0; 32]), Bytes32::new(cat_puzzle_hash), 69);
         let coin = Coin::new(
@@ -251,17 +230,15 @@ mod tests {
             42,
         );
 
-        let conditions = vec![CatCondition::Normal(Condition::CreateCoin(
-            CreateCoin::Normal {
+        let conditions = ctx
+            .alloc([CreateCoinWithoutMemos {
                 puzzle_hash: coin.puzzle_hash,
                 amount: coin.amount,
-            },
-        ))];
+            }])
+            .unwrap();
 
         let coin_spend = spend_cat_coins(
-            a,
-            standard_puzzle_ptr,
-            cat_puzzle_ptr,
+            &mut ctx,
             asset_id,
             &[CatSpend {
                 coin,
@@ -281,10 +258,10 @@ mod tests {
 
         let output_ptr = coin_spend
             .puzzle_reveal
-            .run(a, 0, u64::MAX, &coin_spend.solution)
+            .run(&mut allocator, 0, u64::MAX, &coin_spend.solution)
             .unwrap()
             .1;
-        let actual = node_to_bytes(a, output_ptr).unwrap();
+        let actual = node_to_bytes(&mut allocator, output_ptr).unwrap();
 
         let expected = hex!(
             "
@@ -306,14 +283,13 @@ mod tests {
         let synthetic_key = master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0)
             .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
 
-        let mut a = Allocator::new();
-        let standard_puzzle_ptr = node_from_bytes(&mut a, &STANDARD_PUZZLE).unwrap();
-        let cat_puzzle_ptr = node_from_bytes(&mut a, &CAT_PUZZLE).unwrap();
+        let mut allocator = Allocator::new();
+        let mut ctx = SpendContext::new(&mut allocator);
 
-        let asset_id = [42; 32];
+        let asset_id = Bytes32::new([42; 32]);
 
-        let p2_puzzle_hash = standard_puzzle_hash(&synthetic_key);
-        let cat_puzzle_hash = cat_puzzle_hash(asset_id, p2_puzzle_hash);
+        let p2_puzzle_hash = Bytes32::new(standard_puzzle_hash(&synthetic_key));
+        let cat_puzzle_hash = cat_puzzle_hash(asset_id.to_bytes(), p2_puzzle_hash.to_bytes());
 
         let parent_coin_1 = Coin::new(Bytes32::new([0; 32]), Bytes32::new(cat_puzzle_hash), 69);
         let coin_1 = Coin::new(
@@ -336,17 +312,15 @@ mod tests {
             69,
         );
 
-        let conditions = vec![CatCondition::Normal(Condition::CreateCoin(
-            CreateCoin::Normal {
+        let conditions = ctx
+            .alloc([CreateCoinWithoutMemos {
                 puzzle_hash: coin_1.puzzle_hash,
                 amount: coin_1.amount + coin_2.amount + coin_3.amount,
-            },
-        ))];
+            }])
+            .unwrap();
 
         let coin_spends = spend_cat_coins(
-            &mut a,
-            standard_puzzle_ptr,
-            cat_puzzle_ptr,
+            &mut ctx,
             asset_id,
             &[
                 CatSpend {
@@ -364,7 +338,7 @@ mod tests {
                 CatSpend {
                     coin: coin_2,
                     synthetic_key: synthetic_key.clone(),
-                    conditions: Vec::new(),
+                    conditions: NodePtr::NIL,
                     extra_delta: 0,
                     lineage_proof: LineageProof {
                         parent_coin_info: parent_coin_2.parent_coin_info,
@@ -376,7 +350,7 @@ mod tests {
                 CatSpend {
                     coin: coin_3,
                     synthetic_key,
-                    conditions: Vec::new(),
+                    conditions: NodePtr::NIL,
                     extra_delta: 0,
                     lineage_proof: LineageProof {
                         parent_coin_info: parent_coin_3.parent_coin_info,
@@ -402,7 +376,8 @@ mod tests {
             .collect::<Vec<_>>();
         let gen = solution_generator(spend_vec).unwrap();
         let block =
-            run_block_generator::<Program, EmptyVisitor>(&mut a, &gen, &[], u64::MAX, 0).unwrap();
+            run_block_generator::<Program, EmptyVisitor>(&mut allocator, &gen, &[], u64::MAX, 0)
+                .unwrap();
 
         assert_eq!(block.cost, 101289468);
 
@@ -410,10 +385,10 @@ mod tests {
 
         let output_ptr_1 = coin_spends[0]
             .puzzle_reveal
-            .run(&mut a, 0, u64::MAX, &coin_spends[0].solution)
+            .run(&mut allocator, 0, u64::MAX, &coin_spends[0].solution)
             .unwrap()
             .1;
-        let actual = node_to_bytes(&a, output_ptr_1).unwrap();
+        let actual = node_to_bytes(&allocator, output_ptr_1).unwrap();
 
         let expected = hex!(
             "
@@ -431,10 +406,10 @@ mod tests {
 
         let output_ptr_2 = coin_spends[1]
             .puzzle_reveal
-            .run(&mut a, 0, u64::MAX, &coin_spends[1].solution)
+            .run(&mut allocator, 0, u64::MAX, &coin_spends[1].solution)
             .unwrap()
             .1;
-        let actual = node_to_bytes(&a, output_ptr_2).unwrap();
+        let actual = node_to_bytes(&allocator, output_ptr_2).unwrap();
 
         let expected = hex!(
             "
@@ -451,10 +426,10 @@ mod tests {
 
         let output_ptr_3 = coin_spends[2]
             .puzzle_reveal
-            .run(&mut a, 0, u64::MAX, &coin_spends[2].solution)
+            .run(&mut allocator, 0, u64::MAX, &coin_spends[2].solution)
             .unwrap()
             .1;
-        let actual = node_to_bytes(&a, output_ptr_3).unwrap();
+        let actual = node_to_bytes(&allocator, output_ptr_3).unwrap();
 
         let expected = hex!(
             "
