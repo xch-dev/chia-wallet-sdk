@@ -247,7 +247,7 @@ mod tests {
                 extra_delta: 0,
                 lineage_proof: LineageProof {
                     parent_coin_info: parent_coin.parent_coin_info,
-                    inner_puzzle_hash: p2_puzzle_hash.into(),
+                    inner_puzzle_hash: p2_puzzle_hash,
                     amount: parent_coin.amount,
                 },
                 p2_puzzle_hash,
@@ -261,7 +261,7 @@ mod tests {
             .run(&mut allocator, 0, u64::MAX, &coin_spend.solution)
             .unwrap()
             .1;
-        let actual = node_to_bytes(&mut allocator, output_ptr).unwrap();
+        let actual = node_to_bytes(&allocator, output_ptr).unwrap();
 
         let expected = hex!(
             "
@@ -330,7 +330,7 @@ mod tests {
                     extra_delta: 0,
                     lineage_proof: LineageProof {
                         parent_coin_info: parent_coin_1.parent_coin_info,
-                        inner_puzzle_hash: p2_puzzle_hash.into(),
+                        inner_puzzle_hash: p2_puzzle_hash,
                         amount: parent_coin_1.amount,
                     },
                     p2_puzzle_hash,
@@ -342,7 +342,7 @@ mod tests {
                     extra_delta: 0,
                     lineage_proof: LineageProof {
                         parent_coin_info: parent_coin_2.parent_coin_info,
-                        inner_puzzle_hash: p2_puzzle_hash.into(),
+                        inner_puzzle_hash: p2_puzzle_hash,
                         amount: parent_coin_2.amount,
                     },
                     p2_puzzle_hash,
@@ -354,7 +354,7 @@ mod tests {
                     extra_delta: 0,
                     lineage_proof: LineageProof {
                         parent_coin_info: parent_coin_3.parent_coin_info,
-                        inner_puzzle_hash: p2_puzzle_hash.into(),
+                        inner_puzzle_hash: p2_puzzle_hash,
                         amount: parent_coin_3.amount,
                     },
                     p2_puzzle_hash,
