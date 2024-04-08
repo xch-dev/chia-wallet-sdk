@@ -1,6 +1,5 @@
 #![deny(missing_docs)]
-
-//! This crate is a work in progress.
+#![doc = include_str!("../README.md")]
 
 mod address;
 mod condition;
@@ -22,6 +21,16 @@ pub use condition::*;
 pub use spends::*;
 pub use ssl::*;
 pub use wallet::*;
+
+fn trim_leading_zeros(mut slice: &[u8]) -> &[u8] {
+    while (!slice.is_empty()) && (slice[0] == 0) {
+        if slice.len() > 1 && (slice[1] & 0x80 == 0x80) {
+            break;
+        }
+        slice = &slice[1..];
+    }
+    slice
+}
 
 #[cfg(test)]
 mod testing {

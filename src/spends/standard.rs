@@ -39,6 +39,42 @@ where
     Ok(CoinSpend::new(coin, puzzle_reveal, serialized_solution))
 }
 
+/// A coin and its corresponding public key.
+pub struct StandardSpend {
+    /// The coin being spent.
+    pub coin: Coin,
+
+    /// The public key corresponding to the coin.
+    pub synthetic_key: PublicKey,
+}
+
+/// Spends a set of standard transaction coins.
+pub fn spend_standard_coins<T>(
+    ctx: &mut SpendContext,
+    standard_spends: Vec<StandardSpend>,
+    conditions: T,
+) -> Result<Vec<CoinSpend>, SpendError>
+where
+    T: ToClvm<NodePtr>,
+{
+    let mut coin_spends = Vec::new();
+
+    let conditions = ctx.alloc(conditions)?;
+
+    for (i, spend) in standard_spends.into_iter().enumerate() {
+        // todo: add announcements
+        let coin_spend = spend_standard_coin(
+            ctx,
+            spend.coin,
+            spend.synthetic_key,
+            if i == 0 { conditions } else { NodePtr::NIL },
+        )?;
+        coin_spends.push(coin_spend);
+    }
+
+    Ok(coin_spends)
+}
+
 #[cfg(test)]
 mod tests {
     use chia_bls::derive_keys::master_to_wallet_unhardened;

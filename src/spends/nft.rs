@@ -1,43 +1,30 @@
-use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
+use chia_bls::PublicKey;
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program};
 use chia_wallet::{
-    nft::{NftOwnershipLayerSolution, NftStateLayerSolution},
-    singleton::SingletonSolution,
-    standard::StandardSolution,
-    Proof,
+    nft::{
+        NftIntermediateLauncherArgs, NftOwnershipLayerArgs, NftOwnershipLayerSolution,
+        NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs, NftStateLayerSolution,
+        NFT_METADATA_UPDATER_PUZZLE_HASH, NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
+        NFT_STATE_LAYER_PUZZLE_HASH,
+    },
+    singleton::{
+        LauncherSolution, SingletonArgs, SingletonSolution, SingletonStruct,
+        SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH,
+    },
+    standard::{StandardArgs, StandardSolution},
+    EveProof, Proof,
 };
-use clvm_traits::{clvm_quote, ToClvm};
-use clvmr::NodePtr;
+use clvm_traits::{clvm_list, clvm_quote, ToClvm};
+use clvm_utils::CurriedProgram;
+use clvmr::{
+    sha2::{Digest, Sha256},
+    NodePtr,
+};
 
-use crate::{NewNftOwner, SpendContext, SpendError};
-
-/// The new DID owner of the NFT.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct NftOwner {
-    /// The DID id of the new owner.
-    did_id: Bytes32,
-
-    /// The DID inner puzzle hash of the new owner.
-    did_inner_puzzle_hash: Bytes32,
-}
-
-/// Constructs the ownership transfer condition.
-pub fn transfer_ownership(new_owner: Option<NftOwner>) -> NewNftOwner {
-    match new_owner {
-        Some(NftOwner {
-            did_id,
-            did_inner_puzzle_hash,
-        }) => NewNftOwner {
-            new_owner: Some(did_id),
-            trade_prices_list: Vec::new(),
-            new_did_inner_hash: Some(did_inner_puzzle_hash),
-        },
-        None => NewNftOwner {
-            new_owner: None,
-            trade_prices_list: Vec::new(),
-            new_did_inner_hash: None,
-        },
-    }
-}
+use crate::{
+    trim_leading_zeros, AssertCoinAnnouncement, AssertPuzzleAnnouncement, CreateCoinWithMemos,
+    CreateCoinWithoutMemos, CreatePuzzleAnnouncement, NewNftOwner, SpendContext, SpendError,
+};
 
 /// Spend an NFT.
 pub fn spend_nft<T>(
@@ -80,369 +67,255 @@ where
     Ok(coin_spend)
 }
 
-// pub fn mint_nfts(
-//     a: &mut Allocator,
-//     did_info: DidInfo,
-//     nft_mints: &[NftMint],
-//     start_index: usize,
-//     total_nft_count: usize,
-//     fee: u64,
-// ) -> Result<(Vec<CoinSpend>, Vec<[u8; 32]>)> {
-//     // Get DID info.
-//     let did_info = self
-//         .state
-//         .read()
-//         .await
-//         .get_did_info(did_id)
-//         .ok_or(anyhow::Error::msg("could not find DID info"))?;
+/// The information required to mint an NFT.
+pub struct MintInput {
+    /// The owner puzzle hash of the newly minted NFT.
+    pub owner_puzzle_hash: Bytes32,
+    /// The puzzle hash to send royalties to when trading the NFT.
+    pub royalty_puzzle_hash: Bytes32,
+    /// The percentage royalty to send to the royalty puzzle hash.
+    pub royalty_percentage: u16,
+    /// The NFT metadata.
+    pub metadata: NodePtr,
+    /// The parent coin to spend.
+    pub parent_coin_id: Bytes32,
+    /// The amount of the launcher coin and subsequent NFT coin.
+    pub amount: u64,
+}
 
-//     // Select coins and calculate amounts.
-//     let nft_amount = 1;
-//     let required_amount = nft_mints.len() as u64 * nft_amount + fee;
-//     let selected_coins = self
-//         .state
-//         .read()
-//         .await
-//         .select_standard_coins(required_amount);
-//     let funding_coin = selected_coins
-//         .first()
-//         .ok_or(anyhow::Error::msg("no funding coin"))?;
+/// The information required to create and spend an NFT bulk mint.
+pub struct BulkMint {
+    /// The coin spends for the NFT bulk mint.
+    pub coin_spends: Vec<CoinSpend>,
+    /// The new NFT outputs.
+    pub outputs: Vec<MintOutput>,
+}
 
-//     // Initialize the allocator and puzzles.
-//     let intermediate_launcher_mod = node_from_bytes(&mut a, &NFT_INTERMEDIATE_LAUNCHER_PUZZLE)?;
-//     let transfer_program_mod = node_from_bytes(&mut a, &NFT_ROYALTY_TRANSFER_PUZZLE)?;
-//     let ownership_layer_mod = node_from_bytes(&mut a, &NFT_OWNERSHIP_LAYER_PUZZLE)?;
-//     let state_layer_mod = node_from_bytes(&mut a, &NFT_STATE_LAYER_PUZZLE)?;
-//     let singleton_mod = node_from_bytes(&mut a, &SINGLETON_PUZZLE)?;
-//     let p2_mod = node_from_bytes(&mut a, &STANDARD_PUZZLE)?;
+/// The output of a single NFT mint.
+pub struct MintOutput {
+    /// The conditions that must be output from the parent to make this mint valid.
+    pub parent_conditions: Vec<NodePtr>,
+    /// The launcher id of the newly minted NFT.
+    pub launcher_id: Bytes32,
+}
 
-//     // Construct the p2 puzzle.
-//     let p2_puzzle_hash = self.state.write().await.unused_puzzle_hash().await?;
+/// Bulk mints a set of NFTs.
+pub fn mint_nfts(
+    ctx: &mut SpendContext,
+    inputs: Vec<MintInput>,
+    synthetic_key: PublicKey,
+    did_id: Bytes32,
+    did_inner_puzzle_hash: Bytes32,
+) -> Result<BulkMint, SpendError> {
+    let mut coin_spends = Vec::new();
+    let mut outputs = Vec::new();
 
-//     let p2_args = StandardArgs {
-//         synthetic_key: self
-//             .state
-//             .read()
-//             .await
-//             .key_store
-//             .secret_key_of(&p2_puzzle_hash)
-//             .ok_or(anyhow::Error::msg("missing secret key for p2 spend"))?
-//             .to_public_key(),
-//     }
-//     .to_clvm(&mut a)?;
-//     let p2 = curry(&mut a, p2_mod, p2_args)?;
+    let standard_puzzle = ctx.standard_puzzle();
+    let royalty_transfer_puzzle = ctx.nft_royalty_transfer();
+    let ownership_puzzle = ctx.nft_ownership_layer();
+    let state_puzzle = ctx.nft_state_layer();
+    let singleton_puzzle = ctx.singleton_top_layer();
+    let launcher_puzzle = ctx.singleton_launcher();
 
-//     // Collect spend information for each NFT mint.
-//     let mut coin_spends = Vec::new();
-//     let mut did_condition_list = Vec::new();
-//     let mut signatures = Vec::new();
-//     let mut nft_ids = Vec::new();
+    let p2 = ctx.alloc(CurriedProgram {
+        program: standard_puzzle,
+        args: StandardArgs { synthetic_key },
+    })?;
 
-//     // Prepare NFT mint spends.
-//     for (raw_index, nft_mint) in nft_mints.iter().enumerate() {
-//         let index = start_index + raw_index;
+    let mint_total = inputs.len();
 
-//         // Create intermediate launcher to prevent launcher id collisions.
-//         let intermediate_args = NftIntermediateLauncherArgs {
-//             launcher_puzzle_hash: LAUNCHER_PUZZLE_HASH,
-//             mint_number: index,
-//             mint_total: total_nft_count,
-//         }
-//         .to_clvm(&mut a)?;
-//         let intermediate_puzzle = curry(&mut a, intermediate_launcher_mod, intermediate_args)?;
-//         let intermediate_puzzle_hash = tree_hash(&a, intermediate_puzzle);
+    for (mint_index, input) in inputs.into_iter().enumerate() {
+        let mut parent_conditions = Vec::new();
 
-//         let intermediate_coin = Coin::new(
-//             did_info.coin_state.coin.coin_id().into(),
-//             intermediate_puzzle_hash.into(),
-//             0,
-//         );
+        // Create the intermediate launcher.
+        let intermediate_spend =
+            spend_new_intermediate_launcher(ctx, input.parent_coin_id, mint_index, mint_total)?;
+        let intermediate_id = intermediate_spend.coin.coin_id();
 
-//         let intermediate_coin_id = intermediate_coin.coin_id();
+        parent_conditions.push(ctx.alloc(CreateCoinWithoutMemos {
+            puzzle_hash: intermediate_spend.coin.puzzle_hash,
+            amount: intermediate_spend.coin.amount,
+        })?);
 
-//         did_condition_list.push(Condition::CreateCoin {
-//             puzzle_hash: intermediate_puzzle_hash,
-//             amount: 0,
-//             memos: vec![],
-//         });
+        let mut index_message = Sha256::new();
+        index_message.update(usize_to_bytes(mint_index));
+        index_message.update(usize_to_bytes(mint_total));
 
-//         // Spend intermediate launcher.
-//         let intermediate_solution = a.null();
+        let mut announcement_id = Sha256::new();
+        announcement_id.update(intermediate_id);
+        announcement_id.update(index_message.finalize());
 
-//         let intermediate_spend = CoinSpend::new(
-//             intermediate_coin.clone(),
-//             Program::from_clvm(&a, intermediate_puzzle)?,
-//             Program::from_clvm(&a, intermediate_solution)?,
-//         );
+        parent_conditions.push(ctx.alloc(AssertCoinAnnouncement {
+            announcement_id: Bytes::new(announcement_id.finalize().to_vec()),
+        })?);
 
-//         coin_spends.push(intermediate_spend);
+        coin_spends.push(intermediate_spend);
 
-//         // Assert intermediate launcher info in DID spend.
-//         let mut hasher = Sha256::new();
-//         hasher.update(int_to_bytes(index.into()));
-//         hasher.update(int_to_bytes(total_nft_count.into()));
-//         let announcement_message: [u8; 32] = hasher.finalize_fixed().into();
+        // Construct the eve NFT.
+        let launcher_coin = Coin::new(
+            intermediate_id,
+            SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
+            input.amount,
+        );
+        let launcher_id = launcher_coin.coin_id();
 
-//         let mut hasher = Sha256::new();
-//         hasher.update(intermediate_coin_id);
-//         hasher.update(announcement_message);
-//         let announcement_id: [u8; 32] = hasher.finalize_fixed().into();
+        parent_conditions.push(ctx.alloc(CreatePuzzleAnnouncement {
+            message: launcher_id.to_vec().into(),
+        })?);
 
-//         did_condition_list.push(Condition::AssertCoinAnnouncement { announcement_id });
+        let singleton_struct = SingletonStruct {
+            mod_hash: SINGLETON_TOP_LAYER_PUZZLE_HASH.into(),
+            launcher_id,
+            launcher_puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
+        };
 
-//         // Create the launcher coin.
-//         let launcher_coin = Coin::new(
-//             intermediate_coin_id.into(),
-//             LAUNCHER_PUZZLE_HASH.into(),
-//             nft_amount,
-//         );
-//         let launcher_id = launcher_coin.coin_id();
+        let royalty_transfer = CurriedProgram {
+            program: royalty_transfer_puzzle,
+            args: NftRoyaltyTransferPuzzleArgs {
+                singleton_struct: singleton_struct.clone(),
+                royalty_puzzle_hash: input.royalty_puzzle_hash,
+                trade_price_percentage: input.royalty_percentage,
+            },
+        };
 
-//         nft_ids.push(launcher_id);
+        let ownership_layer = CurriedProgram {
+            program: ownership_puzzle,
+            args: NftOwnershipLayerArgs {
+                mod_hash: NFT_OWNERSHIP_LAYER_PUZZLE_HASH.into(),
+                current_owner: None,
+                transfer_program: royalty_transfer,
+                inner_puzzle: p2,
+            },
+        };
 
-//         did_condition_list.push(Condition::CreatePuzzleAnnouncement {
-//             message: launcher_id,
-//         });
+        let state_layer = CurriedProgram {
+            program: state_puzzle,
+            args: NftStateLayerArgs {
+                mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                metadata: input.metadata,
+                metadata_updater_puzzle_hash: NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
+                inner_puzzle: ownership_layer,
+            },
+        };
 
-//         let nft_singleton_struct = SingletonStruct::from_launcher_id(launcher_id);
+        let singleton = ctx.alloc(CurriedProgram {
+            program: singleton_puzzle,
+            args: SingletonArgs {
+                singleton_struct,
+                inner_puzzle: state_layer,
+            },
+        })?;
 
-//         // Curry the NFT ownership layer for the eve coin.
-//         let eve_transfer_program_args = NftRoyaltyTransferPuzzleArgs {
-//             singleton_struct: nft_singleton_struct.clone(),
-//             royalty_puzzle_hash: nft_mint.royalty_puzzle_hash,
-//             trade_price_percentage: nft_mint.royalty_percentage,
-//         }
-//         .to_clvm(&mut a)?;
+        let eve_puzzle_hash = ctx.tree_hash(singleton);
 
-//         let eve_transfer_program = curry(&mut a, transfer_program_mod, eve_transfer_program_args)?;
+        let eve_message = ctx.alloc(clvm_list!(eve_puzzle_hash, input.amount, ()))?;
+        let eve_message_hash = ctx.tree_hash(eve_message);
 
-//         let eve_ownership_layer_args = NftOwnershipLayerArgs {
-//             mod_hash: NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
-//             current_owner: None,
-//             transfer_program: LazyNode(eve_transfer_program),
-//             inner_puzzle: LazyNode(p2),
-//         }
-//         .to_clvm(&mut a)?;
+        let mut announcement_id = Sha256::new();
+        announcement_id.update(launcher_id);
+        announcement_id.update(eve_message_hash);
 
-//         let eve_ownership_layer = curry(&mut a, ownership_layer_mod, eve_ownership_layer_args)?;
+        parent_conditions.push(ctx.alloc(AssertCoinAnnouncement {
+            announcement_id: Bytes::new(announcement_id.finalize().to_vec()),
+        })?);
 
-//         // Curry the NFT state layer for the eve coin.
-//         let metadata = nft_mint.metadata.to_clvm(&mut a)?;
+        // Spend the launcher coin.
+        let launcher_puzzle_reveal = ctx.serialize(launcher_puzzle)?;
+        let launcher_solution = ctx.serialize(LauncherSolution {
+            singleton_puzzle_hash: eve_puzzle_hash,
+            amount: input.amount,
+            key_value_list: (),
+        })?;
 
-//         let eve_state_layer_args = NftStateLayerArgs {
-//             mod_hash: NFT_STATE_LAYER_PUZZLE_HASH,
-//             metadata: LazyNode(metadata),
-//             metadata_updater_puzzle_hash: NFT_METADATA_UPDATER_PUZZLE_HASH,
-//             inner_puzzle: LazyNode(eve_ownership_layer),
-//         }
-//         .to_clvm(&mut a)?;
+        coin_spends.push(CoinSpend::new(
+            launcher_coin,
+            launcher_puzzle_reveal,
+            launcher_solution,
+        ));
 
-//         let eve_state_layer = curry(&mut a, state_layer_mod, eve_state_layer_args)?;
+        // Spend the eve coin.
+        let eve_coin = Coin::new(launcher_id, eve_puzzle_hash, input.amount);
 
-//         // Curry the singleton for the eve coin.
-//         let eve_singleton_args = SingletonArgs {
-//             singleton_struct: nft_singleton_struct,
-//             inner_puzzle: LazyNode(eve_state_layer),
-//         }
-//         .to_clvm(&mut a)?;
+        let eve_proof = Proof::Eve(EveProof {
+            parent_coin_info: intermediate_id,
+            amount: input.amount,
+        });
 
-//         let eve_singleton = curry(&mut a, singleton_mod, eve_singleton_args)?;
-//         let eve_puzzle_hash = tree_hash(&a, eve_singleton);
+        let eve_puzzle_reveal = ctx.serialize(singleton)?;
 
-//         // The DID spend will assert an announcement from the eve coin.
-//         let announcement_message_content =
-//             clvm_list!(eve_puzzle_hash, nft_amount, ()).to_clvm(&mut a)?;
-//         let announcement_message = tree_hash(&a, announcement_message_content);
+        let eve_coin_spend = spend_nft(
+            ctx,
+            eve_coin,
+            eve_puzzle_reveal,
+            eve_proof,
+            clvm_list!(
+                CreateCoinWithMemos {
+                    puzzle_hash: input.owner_puzzle_hash,
+                    amount: input.amount,
+                    memos: vec![Bytes::new(input.owner_puzzle_hash.to_vec())],
+                },
+                NewNftOwner {
+                    new_owner: Some(did_id),
+                    trade_prices_list: Vec::new(),
+                    new_did_inner_hash: Some(did_inner_puzzle_hash)
+                }
+            ),
+        )?;
+        let new_nft_owner_args = ctx.alloc(clvm_list!(did_id, (), did_inner_puzzle_hash))?;
 
-//         let mut hasher = Sha256::new();
-//         hasher.update(launcher_id);
-//         hasher.update(announcement_message);
-//         let announcement_id: [u8; 32] = hasher.finalize_fixed().into();
+        coin_spends.push(eve_coin_spend);
 
-//         did_condition_list.push(Condition::AssertCoinAnnouncement { announcement_id });
+        let mut announcement_id = Sha256::new();
+        announcement_id.update(eve_puzzle_hash);
+        announcement_id.update([0xad, 0x4c]);
+        announcement_id.update(ctx.tree_hash(new_nft_owner_args));
 
-//         // Spend the launcher coin.
-//         let launcher_solution = LauncherSolution {
-//             singleton_puzzle_hash: eve_puzzle_hash,
-//             amount: nft_amount,
-//             key_value_list: LazyNode(a.null()),
-//         }
-//         .to_clvm(&mut a)?;
+        parent_conditions.push(ctx.alloc(AssertPuzzleAnnouncement {
+            announcement_id: Bytes::new(announcement_id.finalize().to_vec()),
+        })?);
 
-//         let launcher_spend = CoinSpend::new(
-//             launcher_coin.clone(),
-//             Program::parse(&mut Cursor::new(&LAUNCHER_PUZZLE))?,
-//             Program::from_clvm(&a, launcher_solution)?,
-//         );
+        // Finalize the output.
+        outputs.push(MintOutput {
+            parent_conditions,
+            launcher_id,
+        });
+    }
 
-//         coin_spends.push(launcher_spend);
+    Ok(BulkMint {
+        coin_spends,
+        outputs,
+    })
+}
 
-//         // Create the eve coin info.
-//         let eve_coin = Coin::new(
-//             launcher_coin.coin_id().into(),
-//             eve_puzzle_hash.into(),
-//             nft_amount,
-//         );
+fn spend_new_intermediate_launcher(
+    ctx: &mut SpendContext,
+    parent_coin_id: Bytes32,
+    index: usize,
+    total: usize,
+) -> Result<CoinSpend, SpendError> {
+    let intermediate_puzzle = ctx.nft_intermediate_launcher();
 
-//         let eve_proof = EveProof {
-//             parent_coin_info: intermediate_coin.coin_id(),
-//             amount: nft_amount,
-//         };
+    let puzzle = ctx.alloc(CurriedProgram {
+        program: intermediate_puzzle,
+        args: NftIntermediateLauncherArgs {
+            launcher_puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
+            mint_number: index,
+            mint_total: total,
+        },
+    })?;
+    let puzzle_reveal = ctx.serialize(puzzle)?;
+    let solution = ctx.serialize(())?;
 
-//         self.state.write().await.update_nft(NftInfo {
-//             launcher_id,
-//             puzzle_reveal: Program::from_clvm(&a, eve_singleton)?,
-//             p2_puzzle_hash,
-//             coin_state: CoinState::new(eve_coin, None, None),
-//             proof: Proof::Eve(eve_proof),
-//         })?;
+    let puzzle_hash = ctx.tree_hash(puzzle);
 
-//         // Create eve coin spend.
-//         let eve_spend_conditions = vec![Condition::CreateCoin {
-//             puzzle_hash: nft_mint.target_puzzle_hash,
-//             amount: nft_amount as i64,
-//             memos: vec![nft_mint.target_puzzle_hash],
-//         }];
+    Ok(CoinSpend::new(
+        Coin::new(parent_coin_id, puzzle_hash, 0),
+        puzzle_reveal,
+        solution,
+    ))
+}
 
-//         let (eve_coin_spend, signature, announcement_message) = self
-//             .spend_nft(
-//                 &launcher_id,
-//                 NewOwner::DidInfo {
-//                     did_id: did_info.launcher_id,
-//                     did_inner_puzzle_hash: did_info.inner_puzzle_hash,
-//                 },
-//                 eve_spend_conditions,
-//             )
-//             .await?;
-
-//         coin_spends.push(eve_coin_spend);
-//         signatures.push(signature);
-
-//         // Assert eve puzzle announcement in funding spend.
-//         let mut hasher = Sha256::new();
-//         hasher.update(eve_puzzle_hash);
-//         hasher.update(announcement_message.unwrap());
-//         let announcement_id: [u8; 32] = hasher.finalize_fixed().into();
-
-//         did_condition_list.push(Condition::AssertPuzzleAnnouncement { announcement_id });
-//     }
-
-//     // Calculate change.
-//     let spent_amount = selected_coins
-//         .iter()
-//         .fold(0, |amount, coin| amount + coin.amount);
-//     let change_amount = spent_amount - required_amount;
-//     let change_puzzle_hash = self.state.write().await.unused_puzzle_hash().await?;
-
-//     // Calculate announcement message.
-//     let mut hasher = Sha256::new();
-//     selected_coins
-//         .iter()
-//         .for_each(|coin| hasher.update(coin.coin_id()));
-//     if change_amount > 0 {
-//         hasher.update(
-//             Coin::new(
-//                 funding_coin.coin_id().into(),
-//                 change_puzzle_hash.into(),
-//                 change_amount,
-//             )
-//             .coin_id(),
-//         );
-//     }
-
-//     let announcement_message: [u8; 32] = hasher.finalize_fixed().into();
-
-//     did_condition_list.push(Condition::CreateCoinAnnouncement {
-//         message: announcement_message,
-//     });
-
-//     // Calculate primary announcement id.
-//     let mut hasher = Sha256::new();
-//     hasher.update(funding_coin.coin_id());
-//     hasher.update(announcement_message);
-//     let primary_announcement_id: [u8; 32] = hasher.finalize_fixed().into();
-
-//     // Spend standard coins.
-//     for (index, coin) in selected_coins.iter().enumerate() {
-//         // Fetch the key pair.
-//         let secret_key = self
-//             .state
-//             .read()
-//             .await
-//             .key_store
-//             .secret_key_of((&coin.puzzle_hash).into())
-//             .ok_or(anyhow::Error::msg("missing secret key for fee coin spend"))?
-//             .clone();
-//         let public_key = secret_key.to_public_key();
-
-//         // Construct the p2 puzzle.
-//         let fee_p2_args = StandardArgs {
-//             synthetic_key: public_key,
-//         }
-//         .to_clvm(&mut a)?;
-//         let fee_p2 = curry(&mut a, p2_mod, fee_p2_args)?;
-
-//         // Calculate the conditions.
-//         let condition_list = if index == 0 {
-//             let mut condition_list = vec![];
-
-//             // Announce to other coins.
-//             if selected_coins.len() > 1 {
-//                 condition_list.push(Condition::CreateCoinAnnouncement {
-//                     message: announcement_message,
-//                 });
-//             }
-
-//             // Assert DID announcement.
-//             let mut hasher = Sha256::new();
-//             hasher.update(did_info.coin_state.coin.coin_id());
-//             hasher.update(announcement_message);
-//             let did_announcement_id: [u8; 32] = hasher.finalize_fixed().into();
-
-//             condition_list.push(Condition::AssertCoinAnnouncement {
-//                 announcement_id: did_announcement_id,
-//             });
-
-//             // Create change coin.
-//             if change_amount > 0 {
-//                 condition_list.push(Condition::CreateCoin {
-//                     puzzle_hash: change_puzzle_hash,
-//                     amount: change_amount as i64,
-//                     memos: vec![],
-//                 });
-//             }
-
-//             condition_list
-//         } else {
-//             vec![Condition::AssertCoinAnnouncement {
-//                 announcement_id: primary_announcement_id,
-//             }]
-//         };
-
-//         let conditions = clvm_quote!(condition_list).to_clvm(&mut a)?;
-//         let conditions_tree_hash = tree_hash(&a, conditions);
-//         let solution = StandardSolution::with_conditions(&mut a, conditions).to_clvm(&mut a)?;
-
-//         // Create the coin spend.
-//         let coin_spend = CoinSpend::new(
-//             coin.clone(),
-//             Program::from_clvm(&a, fee_p2)?,
-//             Program::from_clvm(&a, solution)?,
-//         );
-
-//         coin_spends.push(coin_spend);
-//     }
-
-//     let (did_message_spend, did_signature) = self
-//         .spend_did(
-//             did_id,
-//             did_info.inner_puzzle_hash,
-//             did_info.p2_puzzle_hash,
-//             did_condition_list,
-//         )
-//         .await?;
-
-//     coin_spends.push(did_message_spend);
-
-//     Ok((coin_spends, nft_ids))
-// }
+fn usize_to_bytes(amount: usize) -> Vec<u8> {
+    let bytes: Vec<u8> = amount.to_be_bytes().into();
+    trim_leading_zeros(bytes.as_slice()).to_vec()
+}

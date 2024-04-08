@@ -145,6 +145,17 @@ condition!(NewNftOwner, -10, {
     new_did_inner_hash: Option<Bytes32>
 });
 
+#[allow(clippy::derivable_impls)]
+impl Default for NewNftOwner {
+    fn default() -> Self {
+        Self {
+            new_owner: None,
+            trade_prices_list: Vec::new(),
+            new_did_inner_hash: None,
+        }
+    }
+}
+
 #[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
