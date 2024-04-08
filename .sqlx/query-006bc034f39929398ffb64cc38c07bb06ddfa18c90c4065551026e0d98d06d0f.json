@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                `aggregated_signature` AS `aggregated_signature: Vec<u8>`\n            FROM `transactions` WHERE `transaction_id` = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "aggregated_signature: Vec<u8>",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "006bc034f39929398ffb64cc38c07bb06ddfa18c90c4065551026e0d98d06d0f"
+}

@@ -1,5 +1,7 @@
 mod coin_selection;
-mod sync_manager;
+mod required_signature;
+mod signer;
 
 pub use coin_selection::*;
-pub use sync_manager::*;
+pub use required_signature::*;
+pub use signer::*;

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            REPLACE INTO `coin_states` (\n                `coin_id`,\n                `parent_coin_info`,\n                `puzzle_hash`,\n                `amount`,\n                `created_height`,\n                `spent_height`,\n                `asset_id`\n            )\n            VALUES (?, ?, ?, ?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "bad533ac6a860112d44be4389606d73b029d98e3fa4b1ca9942511ad1c214197"
+}

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT `synthetic_pk` FROM `p2_derivations`\n            WHERE `index` = ? AND `is_hardened` = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "synthetic_pk",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "10b8d89e9421b608226a0b1c7c8f5ffb6e2ea53cc67049339535f59982e42083"
+}
