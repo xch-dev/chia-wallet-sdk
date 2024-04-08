@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT `parent_coin_info`, `puzzle_hash`, `amount`\n        FROM `coin_states`\n        WHERE `spent_height` IS NULL AND `asset_id` = ?\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "parent_coin_info",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "puzzle_hash",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "amount",
+        "ordinal": 2,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1fd4d6b3390c2645379a62a37d0a91982be73a5e1fd2a26ec9847311282e4107"
+}

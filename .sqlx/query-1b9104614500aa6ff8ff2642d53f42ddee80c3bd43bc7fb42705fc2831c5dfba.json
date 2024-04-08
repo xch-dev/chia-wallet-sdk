@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT `puzzle_hash` FROM `cat_puzzle_hashes`\n            WHERE `is_hardened` = ? AND `asset_id` = ?\n            ORDER BY `index` ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "puzzle_hash",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1b9104614500aa6ff8ff2642d53f42ddee80c3bd43bc7fb42705fc2831c5dfba"
+}
