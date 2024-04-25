@@ -22,7 +22,8 @@ pub use spends::*;
 pub use ssl::*;
 pub use wallet::*;
 
-fn trim_leading_zeros(mut slice: &[u8]) -> &[u8] {
+/// Removes the leading zeros from a CLVM atom.
+pub fn trim_leading_zeros(mut slice: &[u8]) -> &[u8] {
     while (!slice.is_empty()) && (slice[0] == 0) {
         if slice.len() > 1 && (slice[1] & 0x80 == 0x80) {
             break;
@@ -30,6 +31,12 @@ fn trim_leading_zeros(mut slice: &[u8]) -> &[u8] {
         slice = &slice[1..];
     }
     slice
+}
+
+/// Converts a `usize` to an atom in CLVM format, with leading zeros trimmed.
+pub fn usize_to_bytes(amount: usize) -> Vec<u8> {
+    let bytes: Vec<u8> = amount.to_be_bytes().into();
+    trim_leading_zeros(bytes.as_slice()).to_vec()
 }
 
 #[cfg(test)]
