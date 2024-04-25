@@ -101,7 +101,8 @@ mod tests {
     ) -> Signature {
         let mut a = Allocator::new();
         let required_signatures =
-            RequiredSignature::from_coin_spend(&mut a, coin_spend, AGG_SIG_ME).unwrap();
+            RequiredSignature::from_coin_spend(&mut a, coin_spend, Bytes32::new(AGG_SIG_ME))
+                .unwrap();
 
         let mut aggregated_signature = Signature::default();
 

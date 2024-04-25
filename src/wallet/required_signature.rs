@@ -1,5 +1,5 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes, Coin, CoinSpend, SpendBundle};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, SpendBundle};
 use clvm_traits::{FromClvm, FromClvmError};
 use clvmr::{allocator::NodePtr, reduction::EvalErr, Allocator};
 use sha2::{digest::FixedOutput, Digest, Sha256};
@@ -25,12 +25,12 @@ pub struct RequiredSignature {
     public_key: PublicKey,
     raw_message: Bytes,
     appended_info: Vec<u8>,
-    domain_string: Option<[u8; 32]>,
+    domain_string: Option<Bytes32>,
 }
 
 impl RequiredSignature {
     /// Converts a known AggSig condition to a `RequiredSignature` if possible.
-    pub fn from_condition(coin: &Coin, condition: AggSig, agg_sig_me: [u8; 32]) -> Self {
+    pub fn from_condition(coin: &Coin, condition: AggSig, agg_sig_me: Bytes32) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(agg_sig_me);
 
@@ -90,7 +90,7 @@ impl RequiredSignature {
             public_key,
             raw_message: message,
             appended_info,
-            domain_string: Some(hasher.finalize_fixed().into()),
+            domain_string: Some(Bytes32::new(hasher.finalize_fixed().into())),
         }
     }
 
@@ -100,7 +100,7 @@ impl RequiredSignature {
     pub fn from_coin_spend(
         allocator: &mut Allocator,
         coin_spend: &CoinSpend,
-        agg_sig_me: [u8; 32],
+        agg_sig_me: Bytes32,
     ) -> Result<Vec<Self>, ConditionError> {
         let output = coin_spend
             .puzzle_reveal
@@ -125,7 +125,7 @@ impl RequiredSignature {
     pub fn from_spend_bundle(
         allocator: &mut Allocator,
         spend_bundle: &SpendBundle,
-        agg_sig_me: [u8; 32],
+        agg_sig_me: Bytes32,
     ) -> Result<Vec<Self>, ConditionError> {
         let mut required_signatures = Vec::new();
         for coin_spend in &spend_bundle.coin_spends {
@@ -150,7 +150,7 @@ impl RequiredSignature {
     }
 
     /// The domain string that is appended to the condition's message.
-    pub fn domain_string(&self) -> Option<[u8; 32]> {
+    pub fn domain_string(&self) -> Option<Bytes32> {
         self.domain_string
     }
 
@@ -159,7 +159,7 @@ impl RequiredSignature {
         let mut message = Vec::from(self.raw_message.as_ref());
         message.extend(&self.appended_info);
         if let Some(domain_string) = self.domain_string {
-            message.extend(domain_string);
+            message.extend(domain_string.to_bytes());
         }
         message
     }
@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn test_messages() {
         let coin = Coin::new(Bytes32::from([1; 32]), Bytes32::from([2; 32]), 3);
-        let agg_sig_data = [4u8; 32];
+        let agg_sig_data = Bytes32::new([4u8; 32]);
 
         let public_key = master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0)
             .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
@@ -265,7 +265,7 @@ mod tests {
             message.extend(required.raw_message());
             message.extend(required.appended_info());
             if let Some(domain_string) = required.domain_string() {
-                message.extend(domain_string);
+                message.extend(domain_string.to_bytes());
             }
 
             assert_eq!(hex::encode(message), hex::encode(required.final_message()));
