@@ -1,5 +1,10 @@
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+    sync::Arc,
+};
 
+use chia_bls::aggregate_verify;
 use chia_client::Peer;
 use chia_consensus::gen::{
     conditions::EmptyVisitor,
@@ -29,6 +34,8 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
+
+use crate::RequiredSignature;
 
 type PeerMapInner = HashMap<SocketAddr, UnboundedSender<WsMessage>>;
 type PeerMap = Arc<Mutex<PeerMapInner>>;
@@ -153,37 +160,15 @@ async fn handle_connection(
                     let tx = SendTransaction::from_bytes(message.data.as_ref()).unwrap();
                     let spend_bundle = tx.transaction;
 
-                    let mut allocator = Allocator::new();
-                    let gen = solution_generator(
-                        spend_bundle
-                            .coin_spends
-                            .iter()
-                            .cloned()
-                            .map(|spend| (spend.coin, spend.puzzle_reveal, spend.solution)),
-                    )
-                    .unwrap();
-
                     let transaction_id = spend_bundle.name();
 
-                    let error = match run_block_generator::<&[u8], EmptyVisitor>(
-                        &mut allocator,
-                        &gen,
-                        &[],
-                        11_000_000_000,
-                        MEMPOOL_MODE,
-                    ) {
-                        Ok(conds) => {
-                            let conds = OwnedSpendBundleConditions::from(&allocator, conds);
-                            process_spend_bundle(peer_map.clone(), conds, data, spend_bundle)
-                                .await
-                                .err()
-                        }
-                        Err(error) => Some(error),
-                    };
+                    let error = process_spend_bundle(peer_map.clone(), data, spend_bundle)
+                        .await
+                        .err();
 
                     let body = match error {
                         Some(error) => {
-                            TransactionAck::new(transaction_id, 3, Some(error.to_string()))
+                            TransactionAck::new(transaction_id, 3, Some(format!("{:?}", error.1)))
                         }
                         None => TransactionAck::new(transaction_id, 1, None),
                     }
@@ -399,10 +384,65 @@ async fn handle_connection(
 
 async fn process_spend_bundle(
     peer_map: PeerMap,
-    conds: OwnedSpendBundleConditions,
     data: Arc<Mutex<Data>>,
     spend_bundle: SpendBundle,
 ) -> Result<(), ValidationErr> {
+    let mut allocator = Allocator::new();
+    let gen = solution_generator(
+        spend_bundle
+            .coin_spends
+            .iter()
+            .cloned()
+            .map(|spend| (spend.coin, spend.puzzle_reveal, spend.solution)),
+    )
+    .unwrap();
+
+    let conds = run_block_generator::<&[u8], EmptyVisitor>(
+        &mut allocator,
+        &gen,
+        &[],
+        11_000_000_000,
+        MEMPOOL_MODE,
+    )?;
+
+    let conds = OwnedSpendBundleConditions::from(&allocator, conds);
+
+    let cond_puzzle_hashes = conds
+        .spends
+        .iter()
+        .map(|s| s.puzzle_hash)
+        .collect::<HashSet<_>>();
+
+    let bundle_puzzle_hashes = spend_bundle
+        .coin_spends
+        .iter()
+        .map(|s| s.coin.puzzle_hash)
+        .collect::<HashSet<_>>();
+
+    if cond_puzzle_hashes != bundle_puzzle_hashes {
+        return Err(ValidationErr(NodePtr::NIL, ErrorCode::InvalidSpendBundle));
+    }
+
+    let required_signatures = RequiredSignature::from_spend_bundle(
+        &mut allocator,
+        &spend_bundle,
+        WalletSimulator::AGG_SIG_ME.into(),
+    )
+    .unwrap();
+
+    if !aggregate_verify(
+        &spend_bundle.aggregated_signature,
+        required_signatures
+            .into_iter()
+            .map(|r| (r.public_key().clone(), r.final_message()))
+            .collect::<Vec<_>>(),
+    ) {
+        return Err(ValidationErr(
+            NodePtr::NIL,
+            ErrorCode::BadAggregateSignature,
+        ));
+    }
+
     let data = &mut data.lock().await;
 
     let mut removed_coins = IndexMap::new();
@@ -459,11 +499,10 @@ async fn process_spend_bundle(
     }
 
     // Validate removals.
-    for coin_state in removed_coins.values_mut() {
+    for (coin_id, coin_state) in removed_coins.iter_mut() {
         let height = data.block_height;
-        let coin_id = coin_state.coin.coin_id();
 
-        if !data.coin_states.contains_key(&coin_id) && !added_coins.contains_key(&coin_id) {
+        if !data.coin_states.contains_key(coin_id) && !added_coins.contains_key(coin_id) {
             return Err(ValidationErr(NodePtr::NIL, ErrorCode::UnknownUnspent));
         }
 

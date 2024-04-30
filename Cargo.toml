@@ -34,10 +34,11 @@ hex-literal = "0.4.1"
 serde_json = "1.0.115"
 serde = { version = "1.0.197", features = ["derive"] }
 futures-util = "0.3.30"
-futures-channel = "0.3.30"
+futures-channel = { version = "0.3.30", features = ["sink"] }
 chia-traits = "0.7.0"
 chia-consensus = "0.7.0"
 indexmap = "2.2.6"
+flate2 = { version = "1.0.29", features = ["zlib"] }
 
 [dev-dependencies]
 bip39 = "2.0.0"

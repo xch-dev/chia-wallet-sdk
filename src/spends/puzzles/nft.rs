@@ -68,7 +68,7 @@ where
 }
 
 /// The information required to mint an NFT.
-pub struct MintInput {
+pub struct MintInput<M> {
     /// The owner puzzle hash of the newly minted NFT.
     pub owner_puzzle_hash: Bytes32,
     /// The puzzle hash to send royalties to when trading the NFT.
@@ -76,9 +76,7 @@ pub struct MintInput {
     /// The percentage royalty to send to the royalty puzzle hash.
     pub royalty_percentage: u16,
     /// The NFT metadata.
-    pub metadata: NodePtr,
-    /// The parent coin to spend.
-    pub parent_coin_id: Bytes32,
+    pub metadata: M,
     /// The amount of the launcher coin and subsequent NFT coin.
     pub amount: u64,
 }
@@ -87,31 +85,27 @@ pub struct MintInput {
 pub struct BulkMint {
     /// The coin spends for the NFT bulk mint.
     pub coin_spends: Vec<CoinSpend>,
-    /// The new NFT outputs.
-    pub outputs: Vec<MintOutput>,
-}
-
-/// The output of a single NFT mint.
-pub struct MintOutput {
+    /// The new NFT launcher ids.
+    pub launcher_ids: Vec<Bytes32>,
     /// The conditions that must be output from the parent to make this mint valid.
     pub parent_conditions: Vec<NodePtr>,
-    /// The launcher id of the newly minted NFT.
-    pub launcher_id: Bytes32,
 }
 
 /// Bulk mints a set of NFTs.
-pub fn mint_nfts(
+#[allow(clippy::too_many_arguments)]
+pub fn mint_nfts<M>(
     ctx: &mut SpendContext,
-    inputs: Vec<MintInput>,
+    inputs: Vec<MintInput<M>>,
+    parent_coin_id: Bytes32,
     synthetic_key: PublicKey,
     did_id: Bytes32,
     did_inner_puzzle_hash: Bytes32,
     mint_start_index: usize,
     mint_total: usize,
-) -> Result<BulkMint, SpendError> {
-    let mut coin_spends = Vec::new();
-    let mut outputs = Vec::new();
-
+) -> Result<BulkMint, SpendError>
+where
+    M: ToClvm<NodePtr>,
+{
     let standard_puzzle = ctx.standard_puzzle();
     let royalty_transfer_puzzle = ctx.nft_royalty_transfer();
     let ownership_puzzle = ctx.nft_ownership_layer();
@@ -124,44 +118,22 @@ pub fn mint_nfts(
         args: StandardArgs { synthetic_key },
     })?;
 
+    let mut coin_spends = Vec::new();
+    let mut launcher_ids = Vec::new();
+    let mut parent_conditions = Vec::new();
+
     for (i, input) in inputs.into_iter().enumerate() {
-        let mut parent_conditions = Vec::new();
-
         // Create the intermediate launcher.
-        let intermediate_spend = spend_new_intermediate_launcher(
-            ctx,
-            input.parent_coin_id,
-            mint_start_index + i,
-            mint_total,
-        )?;
-        let intermediate_id = intermediate_spend.coin.coin_id();
+        let intermediate_launcher =
+            create_intermediate_launcher(ctx, parent_coin_id, mint_start_index + i, mint_total)?;
 
-        parent_conditions.push(ctx.alloc(CreateCoinWithoutMemos {
-            puzzle_hash: intermediate_spend.coin.puzzle_hash,
-            amount: intermediate_spend.coin.amount,
-        })?);
+        let intermediate_id = intermediate_launcher.coin_spend.coin.coin_id();
+        let launcher_id = intermediate_launcher.launcher_coin.coin_id();
 
-        let mut announcement_id = Sha256::new();
-        announcement_id.update(intermediate_id);
-        announcement_id.update(intermediate_launcher_message(
-            mint_start_index + i,
-            mint_total,
-        ));
-
-        parent_conditions.push(ctx.alloc(AssertCoinAnnouncement {
-            announcement_id: Bytes::new(announcement_id.finalize().to_vec()),
-        })?);
-
-        coin_spends.push(intermediate_spend);
+        parent_conditions.extend(intermediate_launcher.parent_conditions);
+        coin_spends.push(intermediate_launcher.coin_spend);
 
         // Construct the eve NFT.
-        let launcher_coin = Coin::new(
-            intermediate_id,
-            SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-            input.amount,
-        );
-        let launcher_id = launcher_coin.coin_id();
-
         parent_conditions.push(ctx.alloc(CreatePuzzleAnnouncement {
             message: launcher_id.to_vec().into(),
         })?);
@@ -231,7 +203,7 @@ pub fn mint_nfts(
         })?;
 
         coin_spends.push(CoinSpend::new(
-            launcher_coin,
+            intermediate_launcher.launcher_coin,
             launcher_puzzle_reveal,
             launcher_solution,
         ));
@@ -278,28 +250,33 @@ pub fn mint_nfts(
         })?);
 
         // Finalize the output.
-        outputs.push(MintOutput {
-            parent_conditions,
-            launcher_id,
-        });
+        launcher_ids.push(launcher_id);
     }
 
     Ok(BulkMint {
         coin_spends,
-        outputs,
+        launcher_ids,
+        parent_conditions,
     })
 }
 
-/// Creates a new intermediate launcher for a given parent coin id.
-/// The intermediate launcher is used to create a new launcher coin.
-/// You can use the output `CoinSpend` to spend the singleton launcher coin.
-/// The parent coin will need to create a coin with the returned puzzle hash and amount.
-pub fn spend_new_intermediate_launcher(
+/// Information required to create and spend a new intermediate launcher.
+pub struct IntermediateLauncher {
+    /// The coin spend for the new intermediate launcher.
+    pub coin_spend: CoinSpend,
+    /// The conditions that must be output from the parent to make this intermediate launcher valid.
+    pub parent_conditions: Vec<NodePtr>,
+    /// The final launcher coin.
+    pub launcher_coin: Coin,
+}
+
+/// Creates and spends a new intermediate launcher coin.
+pub fn create_intermediate_launcher(
     ctx: &mut SpendContext,
     parent_coin_id: Bytes32,
     index: usize,
     total: usize,
-) -> Result<CoinSpend, SpendError> {
+) -> Result<IntermediateLauncher, SpendError> {
     let intermediate_puzzle = ctx.nft_intermediate_launcher();
 
     let puzzle = ctx.alloc(CurriedProgram {
@@ -315,17 +292,34 @@ pub fn spend_new_intermediate_launcher(
 
     let puzzle_hash = ctx.tree_hash(puzzle);
 
-    Ok(CoinSpend::new(
+    let intermediate_spend = CoinSpend::new(
         Coin::new(parent_coin_id, puzzle_hash, 0),
         puzzle_reveal,
         solution,
-    ))
-}
+    );
 
-/// Calculates the announcement message to assert from the intermediate launcher.
-pub fn intermediate_launcher_message(index: usize, total: usize) -> Bytes32 {
+    let intermediate_id = intermediate_spend.coin.coin_id();
+
+    let mut parent_conditions = vec![ctx.alloc(CreateCoinWithoutMemos {
+        puzzle_hash: intermediate_spend.coin.puzzle_hash,
+        amount: intermediate_spend.coin.amount,
+    })?];
+
     let mut index_message = Sha256::new();
     index_message.update(usize_to_bytes(index));
     index_message.update(usize_to_bytes(total));
-    Bytes32::new(index_message.finalize().into())
+
+    let mut announcement_id = Sha256::new();
+    announcement_id.update(intermediate_id);
+    announcement_id.update(index_message.finalize());
+
+    parent_conditions.push(ctx.alloc(AssertCoinAnnouncement {
+        announcement_id: Bytes::new(announcement_id.finalize().to_vec()),
+    })?);
+
+    Ok(IntermediateLauncher {
+        coin_spend: intermediate_spend,
+        parent_conditions,
+        launcher_coin: Coin::new(intermediate_id, SINGLETON_LAUNCHER_PUZZLE_HASH.into(), 1),
+    })
 }
