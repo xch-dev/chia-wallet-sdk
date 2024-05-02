@@ -159,6 +159,11 @@ impl<'a> SpendContext<'a> {
         self.puzzles.insert(puzzle_hash, ptr);
     }
 
+    /// Checks whether a puzzle is in the cache.
+    pub fn get_puzzle(&self, puzzle_hash: &[u8; 32]) -> Option<NodePtr> {
+        self.puzzles.get(puzzle_hash).copied()
+    }
+
     /// Get a puzzle from the cache or allocate a new one.
     pub fn puzzle(&mut self, puzzle_hash: &[u8; 32], puzzle_bytes: &[u8]) -> NodePtr {
         if let Some(puzzle) = self.puzzles.get(puzzle_bytes) {

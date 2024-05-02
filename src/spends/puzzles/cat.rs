@@ -171,7 +171,7 @@ pub fn spend_cat_coins(
     Ok(coin_spends)
 }
 
-pub fn sig_cat_asset_id(public_key: PublicKey) -> Bytes32 {
+pub fn multi_issuance_asset_id(public_key: PublicKey) -> Bytes32 {
     let a = &mut Allocator::new();
     let tail_mod = node_from_bytes(a, &EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE).unwrap();
 

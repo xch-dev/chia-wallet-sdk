@@ -1,7 +1,9 @@
+mod offer_builder;
 mod offer_compression;
 mod offer_encoding;
 mod settlement_payments;
 
+pub use offer_builder::*;
 pub use offer_compression::*;
 pub use offer_encoding::*;
 pub use settlement_payments::*;
@@ -55,18 +57,16 @@ mod tests {
     use chia_bls::{sign, DerivableKey, SecretKey, Signature};
     use chia_protocol::{Bytes32, Coin, SpendBundle};
     use chia_wallet::{
-        cat::{cat_puzzle_hash, CatArgs, CAT_PUZZLE_HASH},
+        cat::cat_puzzle_hash,
         offer::SETTLEMENT_PAYMENTS_PUZZLE_HASH,
         standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
         DeriveSynthetic, LineageProof,
     };
-    use clvm_utils::CurriedProgram;
     use clvmr::Allocator;
     use hex_literal::hex;
 
     use crate::{
-        sig_cat_asset_id, spend_cat_coins, spend_standard_coin, testing::SECRET_KEY,
-        AssertPuzzleAnnouncement, BaseSpend, CatSpend, CreateCoinWithMemos, IssueCat,
+        spend_cat_coins, testing::SECRET_KEY, BaseSpend, CatSpend, CreateCoinWithMemos, IssueCat,
         RequiredSignature, SpendContext, StandardSpend, WalletSimulator,
     };
 
@@ -116,7 +116,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_offer() {
+    async fn test_offer() -> anyhow::Result<()> {
         let sim = WalletSimulator::new().await;
         let peer = sim.peer().await;
 
@@ -137,15 +137,12 @@ mod tests {
                 puzzle_hash: ph1,
                 amount: 1000,
                 memos: vec![ph1.to_vec().into()],
-            })
-            .unwrap()
-            .multi_issuance(pk1.clone(), 1000)
-            .unwrap();
+            })?
+            .multi_issuance(pk1.clone(), 1000)?;
 
         let coin_spends = StandardSpend::new(&mut ctx, xch1.coin.clone())
             .chain(issue_cat)
-            .finish(pk1.clone())
-            .unwrap();
+            .finish(pk1.clone())?;
 
         let mut spend_bundle = SpendBundle::new(coin_spends, Signature::default());
 
@@ -153,12 +150,11 @@ mod tests {
             &mut allocator,
             &spend_bundle.coin_spends,
             WalletSimulator::AGG_SIG_ME.into(),
-        )
-        .unwrap();
+        )?;
 
         spend_bundle.aggregated_signature = sign_tx(required_signatures);
 
-        let ack = peer.send_transaction(spend_bundle).await.unwrap();
+        let ack = peer.send_transaction(spend_bundle).await?;
         assert_eq!(ack.error, None);
         assert_eq!(ack.status, 1);
 
@@ -166,68 +162,39 @@ mod tests {
         let mut allocator = Allocator::new();
         let mut ctx = SpendContext::new(&mut allocator);
 
-        let asset_id = sig_cat_asset_id(pk1.clone());
-        let cat1_ph = cat_puzzle_hash(asset_id.into(), ph1.into()).into();
+        let cat1_ph = cat_puzzle_hash(cat_info.asset_id.into(), ph1.into()).into();
         let cat1 = Coin::new(cat_info.eve_coin.coin_id(), cat1_ph, 1000);
 
         let xch2 = sim.generate_coin(ph2, 1000).await.coin;
 
-        let nonce = calculate_nonce(&mut ctx, vec![cat1.coin_id(), xch2.coin_id()]).unwrap();
+        let requests = OfferBuilder::new(&mut ctx, vec![cat1.coin_id(), xch2.coin_id()])
+            .request_cat_payments(
+                cat_info.asset_id,
+                vec![Payment::WithMemos(PaymentWithMemos {
+                    puzzle_hash: ph2,
+                    amount: 1000,
+                    memos: vec![ph2.to_vec().into()],
+                })],
+            )?
+            .finish();
 
-        let cat_puzzle = ctx.cat_puzzle();
-        let offer_puzzle = ctx.settlement_payments_puzzle();
+        let mut coin_spends = requests.coin_spends;
 
-        let requested_cat = ctx
-            .alloc(CurriedProgram {
-                program: cat_puzzle,
-                args: CatArgs {
-                    mod_hash: CAT_PUZZLE_HASH.into(),
-                    tail_program_hash: asset_id,
-                    inner_puzzle: offer_puzzle,
-                },
-            })
-            .unwrap();
+        let xch_spends = StandardSpend::new(&mut ctx, xch2)
+            .settlement_coin(1000)?
+            .conditions(requests.assertions)?
+            .finish(pk2)?;
 
-        let requested = request_offer_payments(
-            &mut ctx,
-            nonce,
-            requested_cat,
-            vec![Payment::WithMemos(PaymentWithMemos {
-                puzzle_hash: ph2,
-                amount: 1000,
-                memos: vec![ph2.to_vec().into()],
-            })],
-        )
-        .unwrap();
+        let aggregated_signature = sign_tx(RequiredSignature::from_coin_spends(
+            &mut allocator,
+            &xch_spends,
+            WalletSimulator::AGG_SIG_ME.into(),
+        )?);
 
-        let conditions = [
-            ctx.alloc(CreateCoinWithMemos {
-                puzzle_hash: SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
-                amount: 1000,
-                memos: vec![SETTLEMENT_PAYMENTS_PUZZLE_HASH.to_vec().into()],
-            })
-            .unwrap(),
-            ctx.alloc(AssertPuzzleAnnouncement {
-                announcement_id: requested.puzzle_announcement_id,
-            })
-            .unwrap(),
-        ];
+        coin_spends.extend(xch_spends);
 
-        let xch_spend = spend_standard_coin(&mut ctx, xch2, pk2, conditions).unwrap();
-
-        let aggregated_signature = sign_tx(
-            RequiredSignature::from_coin_spend(
-                &mut allocator,
-                &xch_spend,
-                WalletSimulator::AGG_SIG_ME.into(),
-            )
-            .unwrap(),
-        );
-
-        let spend_bundle =
-            SpendBundle::new(vec![requested.coin_spend, xch_spend], aggregated_signature);
-
-        let offer_data = compress_offer(spend_bundle).unwrap();
+        let spend_bundle = SpendBundle::new(coin_spends, aggregated_signature);
+        let offer_data = compress_offer(spend_bundle)?;
 
         assert_eq!(hex::encode(&offer_data), hex::encode(EXAMPLE_OFFER_DATA));
 
@@ -235,21 +202,19 @@ mod tests {
         let mut allocator = Allocator::new();
         let mut ctx = SpendContext::new(&mut allocator);
 
-        let offer = Offer::from(decompress_offer(&offer_data).unwrap());
+        let offer = Offer::from(decompress_offer(&offer_data)?);
 
         let mut spend_bundle = offer.offered_spend_bundle;
 
-        let conditions = ctx
-            .alloc(vec![CreateCoinWithMemos {
-                puzzle_hash: SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
-                amount: 1000,
-                memos: vec![SETTLEMENT_PAYMENTS_PUZZLE_HASH.to_vec().into()],
-            }])
-            .unwrap();
+        let conditions = ctx.alloc(vec![CreateCoinWithMemos {
+            puzzle_hash: SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
+            amount: 1000,
+            memos: vec![SETTLEMENT_PAYMENTS_PUZZLE_HASH.to_vec().into()],
+        }])?;
 
         let cat_spend = spend_cat_coins(
             &mut ctx,
-            asset_id,
+            cat_info.asset_id,
             &[CatSpend {
                 coin: cat1,
                 synthetic_key: pk1,
@@ -262,24 +227,22 @@ mod tests {
                     amount: 1000,
                 },
             }],
-        )
-        .unwrap()
+        )?
         .remove(0);
 
-        spend_bundle.aggregated_signature += &sign_tx(
-            RequiredSignature::from_coin_spend(
-                &mut allocator,
-                &cat_spend,
-                WalletSimulator::AGG_SIG_ME.into(),
-            )
-            .unwrap(),
-        );
+        spend_bundle.aggregated_signature += &sign_tx(RequiredSignature::from_coin_spend(
+            &mut allocator,
+            &cat_spend,
+            WalletSimulator::AGG_SIG_ME.into(),
+        )?);
 
         spend_bundle.coin_spends.push(cat_spend);
 
-        let ack = peer.send_transaction(spend_bundle).await.unwrap();
+        let ack = peer.send_transaction(spend_bundle).await?;
         assert_eq!(ack.error, None);
         assert_eq!(ack.status, 1);
+
+        Ok(())
     }
 
     pub const EXAMPLE_OFFER_DATA: [u8; 535] = hex!(
