@@ -3,6 +3,8 @@ use std::{
     io::{self, ErrorKind, Read},
 };
 
+use chia_protocol::SpendBundle;
+use chia_traits::Streamable;
 use chia_wallet::{
     cat::{CAT_PUZZLE, CAT_PUZZLE_V1},
     nft::{
@@ -74,10 +76,20 @@ pub enum DecompressionError {
     /// The version is unsupported.
     #[error("unsupported version")]
     UnsupportedVersion,
+
+    /// A streamable error.
+    #[error("streamable error: {0}")]
+    Streamable(#[from] chia_traits::Error),
 }
 
 /// Decompresses an offer spend bundle.
-pub fn decompress_offer(bytes: &[u8]) -> Result<Vec<u8>, DecompressionError> {
+pub fn decompress_offer(bytes: &[u8]) -> Result<SpendBundle, DecompressionError> {
+    let decompressed_bytes = decompress_offer_bytes(bytes)?;
+    Ok(SpendBundle::from_bytes(&decompressed_bytes)?)
+}
+
+/// Decompresses an offer spend bundle into bytes.
+pub fn decompress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DecompressionError> {
     let version_bytes: [u8; 2] = bytes
         .get(0..2)
         .ok_or(DecompressionError::MissingVersionPrefix)?
@@ -94,8 +106,29 @@ pub fn decompress_offer(bytes: &[u8]) -> Result<Vec<u8>, DecompressionError> {
     Ok(decompress(&bytes[2..], &zdict)?)
 }
 
+#[derive(Debug, Error)]
+pub enum CompressionError {
+    #[error("io error: {0}")]
+    Io(#[from] io::Error),
+    #[error("streamable error: {0}")]
+    Streamable(#[from] chia_traits::Error),
+}
+
 /// Compresses an offer spend bundle.
-pub fn compress_offer(bytes: &[u8], version: u16) -> io::Result<Vec<u8>> {
+pub fn compress_offer(spend_bundle: SpendBundle) -> Result<Vec<u8>, CompressionError> {
+    let bytes = spend_bundle.to_bytes()?;
+    let version = required_compression_version(
+        spend_bundle
+            .coin_spends
+            .into_iter()
+            .map(|cs| cs.puzzle_reveal.to_vec())
+            .collect(),
+    );
+    Ok(compress_offer_bytes(&bytes, version)?)
+}
+
+/// Compresses an offer spend bundle from bytes.
+pub fn compress_offer_bytes(bytes: &[u8], version: u16) -> io::Result<Vec<u8>> {
     let mut output = version.to_be_bytes().to_vec();
     let zdict = zdict_for_version(version);
     output.extend(compress(bytes, &zdict)?);
@@ -142,7 +175,7 @@ mod tests {
     #[test]
     fn test_compression() {
         for version in MIN_VERSION..=MAX_VERSION {
-            let output = compress_offer(&DECOMPRESSED_OFFER_HEX, version).unwrap();
+            let output = compress_offer_bytes(&DECOMPRESSED_OFFER_HEX, version).unwrap();
 
             assert_eq!(
                 output.encode_hex::<String>(),
@@ -154,7 +187,7 @@ mod tests {
     #[test]
     fn test_decompression() {
         for _ in MIN_VERSION..=MAX_VERSION {
-            let output = decompress_offer(&COMPRESSED_OFFER_HEX).unwrap();
+            let output = decompress_offer_bytes(&COMPRESSED_OFFER_HEX).unwrap();
 
             assert_eq!(
                 output.encode_hex::<String>(),

@@ -6,7 +6,7 @@ use sha2::{digest::FixedOutput, Digest, Sha256};
 use crate::{SpendContext, SpendError};
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
+#[clvm(tuple)]
 pub struct SettlementPaymentsSolution {
     pub notarized_payments: Vec<NotarizedPayment>,
 }

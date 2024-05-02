@@ -388,6 +388,7 @@ async fn process_spend_bundle(
     spend_bundle: SpendBundle,
 ) -> Result<(), ValidationErr> {
     let mut allocator = Allocator::new();
+
     let gen = solution_generator(
         spend_bundle
             .coin_spends
@@ -423,9 +424,9 @@ async fn process_spend_bundle(
         return Err(ValidationErr(NodePtr::NIL, ErrorCode::InvalidSpendBundle));
     }
 
-    let required_signatures = RequiredSignature::from_spend_bundle(
+    let required_signatures = RequiredSignature::from_coin_spends(
         &mut allocator,
-        &spend_bundle,
+        &spend_bundle.coin_spends,
         WalletSimulator::AGG_SIG_ME.into(),
     )
     .unwrap();
@@ -627,9 +628,9 @@ mod tests {
 
         let mut a = Allocator::new();
 
-        let required_signatures = RequiredSignature::from_spend_bundle(
+        let required_signatures = RequiredSignature::from_coin_spends(
             &mut a,
-            spend_bundle,
+            &spend_bundle.coin_spends,
             Bytes32::new(WalletSimulator::AGG_SIG_ME),
         )
         .unwrap();

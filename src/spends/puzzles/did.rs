@@ -12,7 +12,7 @@ use chia_wallet::{
 use clvm_traits::{clvm_list, ToClvm};
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
-use sha2::{Digest, Sha256};
+use sha2::{digest::FixedOutput, Digest, Sha256};
 
 use crate::{
     create_launcher, standard_solution, AssertCoinAnnouncement, CreateCoinWithMemos, SpendContext,
@@ -95,7 +95,7 @@ pub fn create_did(
     announcement_id.update(eve_message_hash);
 
     parent_conditions.push(ctx.alloc(AssertCoinAnnouncement {
-        announcement_id: Bytes::new(announcement_id.finalize().to_vec()),
+        announcement_id: Bytes32::new(announcement_id.finalize_fixed().into()),
     })?);
 
     // Spend the launcher coin.
@@ -213,9 +213,9 @@ mod tests {
 
         let mut spend_bundle = SpendBundle::new(coin_spends, Signature::default());
 
-        let required_signatures = RequiredSignature::from_spend_bundle(
+        let required_signatures = RequiredSignature::from_coin_spends(
             &mut allocator,
-            &spend_bundle,
+            &spend_bundle.coin_spends,
             WalletSimulator::AGG_SIG_ME.into(),
         )
         .unwrap();

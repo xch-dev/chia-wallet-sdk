@@ -1,5 +1,5 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, SpendBundle};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use clvm_traits::{FromClvm, FromClvmError};
 use clvmr::{allocator::NodePtr, reduction::EvalErr, Allocator};
 use sha2::{digest::FixedOutput, Digest, Sha256};
@@ -122,13 +122,13 @@ impl RequiredSignature {
     /// Calculates the required signatures for a spend bundle.
     /// All of these signatures are aggregated together should
     /// sufficient, unless secp keys are used as well.
-    pub fn from_spend_bundle(
+    pub fn from_coin_spends(
         allocator: &mut Allocator,
-        spend_bundle: &SpendBundle,
+        coin_spends: &[CoinSpend],
         agg_sig_me: Bytes32,
     ) -> Result<Vec<Self>, ConditionError> {
         let mut required_signatures = Vec::new();
-        for coin_spend in &spend_bundle.coin_spends {
+        for coin_spend in coin_spends {
             required_signatures.extend(Self::from_coin_spend(allocator, coin_spend, agg_sig_me)?);
         }
         Ok(required_signatures)

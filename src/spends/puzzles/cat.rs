@@ -1,13 +1,16 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_wallet::{
-    cat::{CatArgs, CatSolution, CoinProof, EverythingWithSignatureTailArgs, CAT_PUZZLE_HASH},
+    cat::{
+        CatArgs, CatSolution, CoinProof, EverythingWithSignatureTailArgs, CAT_PUZZLE_HASH,
+        EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE,
+    },
     standard::{StandardArgs, StandardSolution},
     LineageProof,
 };
-use clvm_traits::{clvm_quote, destructure_tuple, match_tuple, MatchByte, ToClvm};
-use clvm_utils::CurriedProgram;
-use clvmr::NodePtr;
+use clvm_traits::{clvm_quote, destructure_tuple, match_tuple, MatchByte, ToClvm, ToNodePtr};
+use clvm_utils::{tree_hash, CurriedProgram};
+use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
 use crate::{RunTail, SpendContext, SpendError};
 
@@ -102,16 +105,34 @@ pub fn spend_cat_coins(
     Ok(coin_spends)
 }
 
+pub fn sig_cat_asset_id(public_key: PublicKey) -> Bytes32 {
+    let a = &mut Allocator::new();
+    let tail_mod = node_from_bytes(a, &EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE).unwrap();
+
+    let ptr = CurriedProgram {
+        program: tail_mod,
+        args: EverythingWithSignatureTailArgs { public_key },
+    }
+    .to_node_ptr(a)
+    .unwrap();
+
+    Bytes32::new(tree_hash(a, ptr))
+}
+
 /// The information required to create and spend an eve CAT coin.
 pub struct EveSpend {
     /// The full puzzle hash of the eve CAT coin.
     pub puzzle_hash: Bytes32,
     /// The coin spend for the eve CAT.
     pub coin_spend: CoinSpend,
+    /// The eve CAT coin id.
+    pub eve_coin_id: Bytes32,
+    /// The eve CAT inner puzzle hash.
+    pub eve_inner_puzzle_hash: Bytes32,
 }
 
 /// Constructs a coin spend to issue more of an `EverythingWithSignature` CAT.
-pub fn issue_cat_everything_with_signature<T>(
+pub fn issue_sig_cat<T>(
     ctx: &mut SpendContext,
     public_key: PublicKey,
     parent_coin_id: Bytes32,
@@ -182,22 +203,24 @@ where
     })?;
 
     let puzzle_reveal = ctx.serialize(puzzle)?;
-    let coin_spend = CoinSpend::new(coin, puzzle_reveal, solution);
+    let coin_spend = CoinSpend::new(coin.clone(), puzzle_reveal, solution);
 
     Ok(EveSpend {
         puzzle_hash,
         coin_spend,
+        eve_coin_id: coin.coin_id(),
+        eve_inner_puzzle_hash: inner_puzzle_hash,
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::derive_keys::master_to_wallet_unhardened;
+    use chia_bls::{derive_keys::master_to_wallet_unhardened, sign, Signature};
     use chia_consensus::gen::{
         conditions::EmptyVisitor, run_block_generator::run_block_generator,
         solution_generator::solution_generator,
     };
-    use chia_protocol::{Bytes32, Program};
+    use chia_protocol::{Bytes32, Program, SpendBundle};
     use chia_wallet::{
         cat::cat_puzzle_hash,
         standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
@@ -206,9 +229,72 @@ mod tests {
     use clvmr::{serde::node_to_bytes, Allocator};
     use hex_literal::hex;
 
-    use crate::{testing::SECRET_KEY, CreateCoinWithoutMemos};
+    use crate::{
+        spend_standard_coin, testing::SECRET_KEY, CreateCoinWithMemos, CreateCoinWithoutMemos,
+        RequiredSignature, WalletSimulator,
+    };
 
     use super::*;
+
+    #[tokio::test]
+    async fn test_cat_issuance() {
+        let sim = WalletSimulator::new().await;
+        let peer = sim.peer().await;
+
+        let mut allocator = Allocator::new();
+        let mut ctx = SpendContext::new(&mut allocator);
+
+        let sk = SECRET_KEY.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let pk = sk.public_key();
+        let puzzle_hash = standard_puzzle_hash(&pk).into();
+
+        let parent = sim.generate_coin(puzzle_hash, 1000).await;
+
+        let issue_cat = issue_sig_cat(
+            &mut ctx,
+            pk.clone(),
+            parent.coin.coin_id(),
+            1000,
+            [CreateCoinWithMemos {
+                puzzle_hash,
+                amount: 1000,
+                memos: vec![puzzle_hash.to_vec().into()],
+            }],
+        )
+        .unwrap();
+
+        let xch_spend = spend_standard_coin(
+            &mut ctx,
+            parent.coin,
+            pk,
+            [CreateCoinWithoutMemos {
+                puzzle_hash: issue_cat.puzzle_hash,
+                amount: 1000,
+            }],
+        )
+        .unwrap();
+
+        let coin_spends = vec![issue_cat.coin_spend, xch_spend];
+
+        let required_signatures = RequiredSignature::from_coin_spends(
+            &mut allocator,
+            &coin_spends,
+            WalletSimulator::AGG_SIG_ME.into(),
+        )
+        .unwrap();
+
+        let mut aggregated_signature = Signature::default();
+
+        for required in required_signatures {
+            aggregated_signature += &sign(&sk, required.final_message());
+        }
+
+        let spend_bundle = SpendBundle::new(coin_spends, aggregated_signature);
+
+        let ack = peer.send_transaction(spend_bundle).await.unwrap();
+        assert_eq!(ack.error, None);
+        assert_eq!(ack.status, 1);
+    }
 
     #[test]
     fn test_cat_spend() {

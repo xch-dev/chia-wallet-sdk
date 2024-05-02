@@ -5,10 +5,6 @@ use thiserror::Error;
 /// Errors you can get while trying to decode an address.
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum AddressError {
-    /// The wrong HRP prefix was used.
-    #[error("invalid prefix `{0}`")]
-    InvalidPrefix(String),
-
     /// The address was encoded as bech32, rather than bech32m.
     #[error("encoding is not bech32m")]
     InvalidFormat,
@@ -54,6 +50,7 @@ pub fn encode_puzzle_hash(puzzle_hash: [u8; 32], include_0x: bool) -> String {
 /// Decodes an address into a puzzle hash and HRP prefix.
 pub fn decode_address(address: &str) -> Result<([u8; 32], String), AddressError> {
     let (hrp, data, variant) = bech32::decode(address)?;
+
     if variant != Variant::Bech32m {
         return Err(AddressError::InvalidFormat);
     }

@@ -191,7 +191,7 @@ where
         announcement_id.update(eve_message_hash);
 
         parent_conditions.push(ctx.alloc(AssertCoinAnnouncement {
-            announcement_id: Bytes::new(announcement_id.finalize().to_vec()),
+            announcement_id: Bytes32::new(announcement_id.finalize().into()),
         })?);
 
         // Spend the launcher coin.
@@ -246,7 +246,7 @@ where
         announcement_id.update(ctx.tree_hash(new_nft_owner_args));
 
         parent_conditions.push(ctx.alloc(AssertPuzzleAnnouncement {
-            announcement_id: Bytes::new(announcement_id.finalize().to_vec()),
+            announcement_id: Bytes32::new(announcement_id.finalize().into()),
         })?);
 
         // Finalize the output.
@@ -314,7 +314,7 @@ pub fn create_intermediate_launcher(
     announcement_id.update(index_message.finalize());
 
     parent_conditions.push(ctx.alloc(AssertCoinAnnouncement {
-        announcement_id: Bytes::new(announcement_id.finalize().to_vec()),
+        announcement_id: Bytes32::new(announcement_id.finalize().into()),
     })?);
 
     Ok(IntermediateLauncher {
