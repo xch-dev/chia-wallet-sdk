@@ -12,7 +12,73 @@ use clvm_traits::{clvm_quote, destructure_tuple, match_tuple, MatchByte, ToClvm,
 use clvm_utils::{tree_hash, CurriedProgram};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
-use crate::{RunTail, SpendContext, SpendError};
+use crate::{BaseSpend, ChainedSpend, CreateCoinWithMemos, RunTail, SpendContext, SpendError};
+
+pub struct IssueCat<'a, 'b> {
+    ctx: &'a mut SpendContext<'b>,
+    parent_coin_id: Bytes32,
+    conditions: Vec<NodePtr>,
+    coin_spends: Vec<CoinSpend>,
+}
+
+pub struct IssuanceInfo {
+    pub asset_id: Bytes32,
+    pub eve_coin: Coin,
+    pub eve_inner_puzzle_hash: Bytes32,
+}
+
+impl<'a, 'b> IssueCat<'a, 'b> {
+    pub fn new(ctx: &'a mut SpendContext<'b>, parent_coin_id: Bytes32) -> Self {
+        Self {
+            ctx,
+            parent_coin_id,
+            conditions: Vec::new(),
+            coin_spends: Vec::with_capacity(1),
+        }
+    }
+
+    pub fn multi_issuance(
+        self,
+        public_key: PublicKey,
+        amount: u64,
+    ) -> Result<(ChainedSpend, IssuanceInfo), SpendError> {
+        let ctx = self.ctx;
+        let tail_puzzle_ptr = ctx.everything_with_signature_tail_puzzle();
+
+        let tail = ctx.alloc(CurriedProgram {
+            program: tail_puzzle_ptr,
+            args: EverythingWithSignatureTailArgs { public_key },
+        })?;
+        let asset_id = ctx.tree_hash(tail);
+
+        create_and_spend_eve_cat(
+            ctx,
+            self.parent_coin_id,
+            asset_id,
+            amount,
+            (
+                RunTail {
+                    program: tail,
+                    solution: NodePtr::NIL,
+                },
+                self.conditions,
+            ),
+        )
+    }
+}
+
+impl<'a, 'b> BaseSpend for IssueCat<'a, 'b> {
+    fn chain(mut self, chained_spend: ChainedSpend) -> Self {
+        self.conditions.extend(chained_spend.parent_conditions);
+        self.coin_spends.extend(chained_spend.coin_spends);
+        self
+    }
+
+    fn condition(mut self, condition: impl ToClvm<NodePtr>) -> Result<Self, SpendError> {
+        self.conditions.push(self.ctx.alloc(condition)?);
+        Ok(self)
+    }
+}
 
 /// The information required to spend a CAT coin.
 /// This assumes that the inner puzzle is a standard transaction.
@@ -119,47 +185,6 @@ pub fn sig_cat_asset_id(public_key: PublicKey) -> Bytes32 {
     Bytes32::new(tree_hash(a, ptr))
 }
 
-/// The information required to create and spend an eve CAT coin.
-pub struct EveSpend {
-    /// The full puzzle hash of the eve CAT coin.
-    pub puzzle_hash: Bytes32,
-    /// The coin spend for the eve CAT.
-    pub coin_spend: CoinSpend,
-    /// The eve CAT coin id.
-    pub eve_coin_id: Bytes32,
-    /// The eve CAT inner puzzle hash.
-    pub eve_inner_puzzle_hash: Bytes32,
-}
-
-/// Constructs a coin spend to issue more of an `EverythingWithSignature` CAT.
-pub fn issue_sig_cat<T>(
-    ctx: &mut SpendContext,
-    public_key: PublicKey,
-    parent_coin_id: Bytes32,
-    amount: u64,
-    conditions: T,
-) -> Result<EveSpend, SpendError>
-where
-    T: ToClvm<NodePtr>,
-{
-    let tail_puzzle_ptr = ctx.everything_with_signature_tail_puzzle();
-
-    let tail = ctx.alloc(CurriedProgram {
-        program: tail_puzzle_ptr,
-        args: EverythingWithSignatureTailArgs { public_key },
-    })?;
-    let asset_id = ctx.tree_hash(tail);
-
-    let run_tail = RunTail {
-        program: tail,
-        solution: NodePtr::NIL,
-    };
-
-    let conditions = (run_tail, conditions);
-
-    create_and_spend_eve_cat(ctx, parent_coin_id, asset_id, amount, conditions)
-}
-
 /// Creates an eve CAT coin and spends it.
 pub fn create_and_spend_eve_cat<T>(
     ctx: &mut SpendContext,
@@ -167,7 +192,7 @@ pub fn create_and_spend_eve_cat<T>(
     asset_id: Bytes32,
     amount: u64,
     conditions: T,
-) -> Result<EveSpend, SpendError>
+) -> Result<(ChainedSpend, IssuanceInfo), SpendError>
 where
     T: ToClvm<NodePtr>,
 {
@@ -205,12 +230,22 @@ where
     let puzzle_reveal = ctx.serialize(puzzle)?;
     let coin_spend = CoinSpend::new(coin.clone(), puzzle_reveal, solution);
 
-    Ok(EveSpend {
-        puzzle_hash,
-        coin_spend,
-        eve_coin_id: coin.coin_id(),
+    let chained_spend = ChainedSpend {
+        coin_spends: vec![coin_spend],
+        parent_conditions: vec![ctx.alloc(CreateCoinWithMemos {
+            puzzle_hash,
+            amount,
+            memos: vec![puzzle_hash.to_vec().into()],
+        })?],
+    };
+
+    let issuance_info = IssuanceInfo {
+        asset_id,
+        eve_coin: coin,
         eve_inner_puzzle_hash: inner_puzzle_hash,
-    })
+    };
+
+    Ok((chained_spend, issuance_info))
 }
 
 #[cfg(test)]
@@ -230,8 +265,8 @@ mod tests {
     use hex_literal::hex;
 
     use crate::{
-        spend_standard_coin, testing::SECRET_KEY, CreateCoinWithMemos, CreateCoinWithoutMemos,
-        RequiredSignature, WalletSimulator,
+        testing::SECRET_KEY, CreateCoinWithMemos, CreateCoinWithoutMemos, RequiredSignature,
+        StandardSpend, WalletSimulator,
     };
 
     use super::*;
@@ -246,35 +281,25 @@ mod tests {
 
         let sk = SECRET_KEY.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
         let pk = sk.public_key();
+
         let puzzle_hash = standard_puzzle_hash(&pk).into();
 
-        let parent = sim.generate_coin(puzzle_hash, 1000).await;
+        let xch_coin = sim.generate_coin(puzzle_hash, 1).await.coin;
 
-        let issue_cat = issue_sig_cat(
-            &mut ctx,
-            pk.clone(),
-            parent.coin.coin_id(),
-            1000,
-            [CreateCoinWithMemos {
+        let (issue_cat, _cat_info) = IssueCat::new(&mut ctx, xch_coin.coin_id())
+            .condition(CreateCoinWithMemos {
                 puzzle_hash,
-                amount: 1000,
+                amount: 1,
                 memos: vec![puzzle_hash.to_vec().into()],
-            }],
-        )
-        .unwrap();
+            })
+            .unwrap()
+            .multi_issuance(pk.clone(), 1)
+            .unwrap();
 
-        let xch_spend = spend_standard_coin(
-            &mut ctx,
-            parent.coin,
-            pk,
-            [CreateCoinWithoutMemos {
-                puzzle_hash: issue_cat.puzzle_hash,
-                amount: 1000,
-            }],
-        )
-        .unwrap();
-
-        let coin_spends = vec![issue_cat.coin_spend, xch_spend];
+        let coin_spends = StandardSpend::new(&mut ctx, xch_coin)
+            .chain(issue_cat)
+            .finish(pk)
+            .unwrap();
 
         let required_signatures = RequiredSignature::from_coin_spends(
             &mut allocator,

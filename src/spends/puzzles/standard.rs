@@ -5,7 +5,44 @@ use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
-use crate::{SpendContext, SpendError};
+use crate::{BaseSpend, ChainedSpend, SpendContext, SpendError};
+
+pub struct StandardSpend<'a, 'b> {
+    ctx: &'a mut SpendContext<'b>,
+    coin: Coin,
+    coin_spends: Vec<CoinSpend>,
+    conditions: Vec<NodePtr>,
+}
+
+impl<'a, 'b> StandardSpend<'a, 'b> {
+    pub fn new(ctx: &'a mut SpendContext<'b>, coin: Coin) -> Self {
+        Self {
+            ctx,
+            coin,
+            coin_spends: Vec::with_capacity(1),
+            conditions: Vec::new(),
+        }
+    }
+
+    pub fn finish(mut self, synthetic_key: PublicKey) -> Result<Vec<CoinSpend>, SpendError> {
+        let coin_spend = spend_standard_coin(self.ctx, self.coin, synthetic_key, self.conditions)?;
+        self.coin_spends.push(coin_spend);
+        Ok(self.coin_spends)
+    }
+}
+
+impl<'a, 'b> BaseSpend for StandardSpend<'a, 'b> {
+    fn chain(mut self, chained_spend: ChainedSpend) -> Self {
+        self.conditions.extend(chained_spend.parent_conditions);
+        self.coin_spends.extend(chained_spend.coin_spends);
+        self
+    }
+
+    fn condition(mut self, condition: impl ToClvm<NodePtr>) -> Result<Self, SpendError> {
+        self.conditions.push(self.ctx.alloc(condition)?);
+        Ok(self)
+    }
+}
 
 /// Constructs a solution for the standard puzzle, given a list of condition.
 /// This assumes no hidden puzzle is being used in this spend.
@@ -37,42 +74,6 @@ where
     let serialized_solution = ctx.serialize(solution)?;
 
     Ok(CoinSpend::new(coin, puzzle_reveal, serialized_solution))
-}
-
-/// A coin and its corresponding public key.
-pub struct StandardSpend {
-    /// The coin being spent.
-    pub coin: Coin,
-
-    /// The public key corresponding to the coin.
-    pub synthetic_key: PublicKey,
-}
-
-/// Spends a set of standard transaction coins.
-pub fn spend_standard_coins<T>(
-    ctx: &mut SpendContext,
-    standard_spends: Vec<StandardSpend>,
-    conditions: T,
-) -> Result<Vec<CoinSpend>, SpendError>
-where
-    T: ToClvm<NodePtr>,
-{
-    let mut coin_spends = Vec::new();
-
-    let conditions = ctx.alloc(conditions)?;
-
-    for (i, spend) in standard_spends.into_iter().enumerate() {
-        // todo: add announcements
-        let coin_spend = spend_standard_coin(
-            ctx,
-            spend.coin,
-            spend.synthetic_key,
-            if i == 0 { conditions } else { NodePtr::NIL },
-        )?;
-        coin_spends.push(coin_spend);
-    }
-
-    Ok(coin_spends)
 }
 
 #[cfg(test)]

@@ -65,9 +65,9 @@ mod tests {
     use hex_literal::hex;
 
     use crate::{
-        issue_sig_cat, sig_cat_asset_id, spend_cat_coins, spend_standard_coin, testing::SECRET_KEY,
-        AssertPuzzleAnnouncement, CatSpend, CreateCoinWithMemos, CreateCoinWithoutMemos,
-        RequiredSignature, SpendContext, WalletSimulator,
+        sig_cat_asset_id, spend_cat_coins, spend_standard_coin, testing::SECRET_KEY,
+        AssertPuzzleAnnouncement, BaseSpend, CatSpend, CreateCoinWithMemos, IssueCat,
+        RequiredSignature, SpendContext, StandardSpend, WalletSimulator,
     };
 
     fn sk1() -> SecretKey {
@@ -132,32 +132,22 @@ mod tests {
         let xch1 = sim.generate_coin(ph1, 1000).await;
 
         // Issue CAT.
-        let issue_cat = issue_sig_cat(
-            &mut ctx,
-            pk1.clone(),
-            xch1.coin.coin_id(),
-            1000,
-            [CreateCoinWithMemos {
+        let (issue_cat, cat_info) = IssueCat::new(&mut ctx, xch1.coin.coin_id())
+            .condition(CreateCoinWithMemos {
                 puzzle_hash: ph1,
                 amount: 1000,
                 memos: vec![ph1.to_vec().into()],
-            }],
-        )
-        .unwrap();
+            })
+            .unwrap()
+            .multi_issuance(pk1.clone(), 1000)
+            .unwrap();
 
-        let spend_xch = spend_standard_coin(
-            &mut ctx,
-            xch1.coin.clone(),
-            pk1.clone(),
-            [CreateCoinWithoutMemos {
-                puzzle_hash: issue_cat.puzzle_hash,
-                amount: 1000,
-            }],
-        )
-        .unwrap();
+        let coin_spends = StandardSpend::new(&mut ctx, xch1.coin.clone())
+            .chain(issue_cat)
+            .finish(pk1.clone())
+            .unwrap();
 
-        let mut spend_bundle =
-            SpendBundle::new(vec![issue_cat.coin_spend, spend_xch], Signature::default());
+        let mut spend_bundle = SpendBundle::new(coin_spends, Signature::default());
 
         let required_signatures = RequiredSignature::from_coin_spends(
             &mut allocator,
@@ -178,7 +168,7 @@ mod tests {
 
         let asset_id = sig_cat_asset_id(pk1.clone());
         let cat1_ph = cat_puzzle_hash(asset_id.into(), ph1.into()).into();
-        let cat1 = Coin::new(issue_cat.eve_coin_id, cat1_ph, 1000);
+        let cat1 = Coin::new(cat_info.eve_coin.coin_id(), cat1_ph, 1000);
 
         let xch2 = sim.generate_coin(ph2, 1000).await.coin;
 
@@ -268,7 +258,7 @@ mod tests {
                 extra_delta: 0,
                 lineage_proof: LineageProof {
                     parent_coin_info: xch1.coin.coin_id(),
-                    inner_puzzle_hash: issue_cat.eve_inner_puzzle_hash,
+                    inner_puzzle_hash: cat_info.eve_inner_puzzle_hash,
                     amount: 1000,
                 },
             }],
