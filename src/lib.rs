@@ -44,6 +44,12 @@ pub fn u64_to_bytes(num: u64) -> Vec<u8> {
     trim_leading_zeros(bytes.as_slice()).to_vec()
 }
 
+/// Converts a `u16` to an atom in CLVM format, with leading zeros trimmed.
+pub fn u16_to_bytes(num: u16) -> Vec<u8> {
+    let bytes: Vec<u8> = num.to_be_bytes().into();
+    trim_leading_zeros(bytes.as_slice()).to_vec()
+}
+
 #[cfg(test)]
 mod testing {
     use std::str::FromStr;

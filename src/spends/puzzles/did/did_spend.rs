@@ -9,13 +9,13 @@ use clvmr::NodePtr;
 
 use crate::{spend_singleton, DidInfo, InnerSpend, SpendContext, SpendError};
 
-pub fn spend_did<T>(
+pub fn spend_did<M>(
     ctx: &mut SpendContext,
-    did_info: DidInfo<T>,
+    did_info: &DidInfo<M>,
     inner_spend: InnerSpend,
 ) -> Result<CoinSpend, SpendError>
 where
-    T: ToClvm<NodePtr>,
+    M: ToClvm<NodePtr>,
 {
     let did_inner_puzzle = ctx.did_inner_puzzle();
 
@@ -30,7 +30,7 @@ where
                 launcher_id: did_info.launcher_id,
                 launcher_puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
             },
-            metadata: did_info.metadata,
+            metadata: &did_info.metadata,
         },
     })?;
 
@@ -40,9 +40,9 @@ where
 
     spend_singleton(
         ctx,
-        did_info.coin,
+        did_info.coin.clone(),
         did_info.launcher_id,
-        did_info.proof,
+        did_info.proof.clone(),
         did_spend,
     )
 }

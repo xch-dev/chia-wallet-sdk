@@ -14,11 +14,11 @@ mod tests {
         standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
         DeriveSynthetic,
     };
-    use clvmr::{Allocator, NodePtr};
+    use clvmr::Allocator;
 
     use crate::{
-        testing::SECRET_KEY, CreateCoinWithMemos, LaunchSingleton, RequiredSignature, SpendContext,
-        StandardSpend, WalletSimulator,
+        testing::SECRET_KEY, LaunchSingleton, RequiredSignature, SpendContext, StandardSpend,
+        WalletSimulator,
     };
 
     use super::*;
@@ -37,28 +37,12 @@ mod tests {
         let mut allocator = Allocator::new();
         let mut ctx = SpendContext::new(&mut allocator);
 
-        let recovery_did_list_hash = ctx.tree_hash(NodePtr::NIL);
-        let (launch_singleton, eve_inner_puzzle_hash, eve_did_info) = LaunchSingleton::new(
-            parent.coin_id(),
-            1,
-        )
-        .launch_did(&mut ctx, puzzle_hash, recovery_did_list_hash, 1, ())?;
+        let (launch_singleton, _did_info) =
+            LaunchSingleton::new(parent.coin_id(), 1).create_standard_did(&mut ctx, pk.clone())?;
 
-        let (inner_spend, _) = StandardSpend::new()
-            .condition(ctx.alloc(CreateCoinWithMemos {
-                puzzle_hash: eve_inner_puzzle_hash,
-                amount: eve_did_info.coin.amount,
-                memos: vec![puzzle_hash.to_vec().into()],
-            })?)
-            .inner_spend(&mut ctx, pk.clone())?;
-
-        let mut coin_spends = vec![spend_did(&mut ctx, eve_did_info, inner_spend)?];
-
-        coin_spends.extend(
-            StandardSpend::new()
-                .chain(launch_singleton)
-                .finish(&mut ctx, parent, pk)?,
-        );
+        let coin_spends = StandardSpend::new()
+            .chain(launch_singleton)
+            .finish(&mut ctx, parent, pk)?;
 
         let mut spend_bundle = SpendBundle::new(coin_spends, Signature::default());
 

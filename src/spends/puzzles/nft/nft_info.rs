@@ -2,12 +2,13 @@ use chia_protocol::{Bytes32, Coin};
 use chia_wallet::Proof;
 
 #[derive(Debug, Clone)]
-pub struct DidInfo<M> {
+pub struct NftInfo<M> {
     pub launcher_id: Bytes32,
     pub coin: Coin,
-    pub did_inner_puzzle_hash: Bytes32,
     pub proof: Proof,
-    pub recovery_did_list_hash: Bytes32,
-    pub num_verifications_required: u64,
     pub metadata: M,
+    pub metadata_updater_hash: Bytes32,
+    pub current_owner: Option<Bytes32>,
+    pub royalty_puzzle_hash: Bytes32,
+    pub royalty_percentage: u16,
 }
