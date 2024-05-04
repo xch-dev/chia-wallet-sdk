@@ -60,7 +60,7 @@ mod tests {
                 .finish(&mut ctx, parent, pk)?,
         );
 
-        let mut spend_bundle = dbg!(SpendBundle::new(coin_spends, Signature::default()));
+        let mut spend_bundle = SpendBundle::new(coin_spends, Signature::default());
 
         let required_signatures = RequiredSignature::from_coin_spends(
             &mut allocator,

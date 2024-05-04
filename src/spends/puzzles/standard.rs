@@ -46,6 +46,11 @@ impl StandardSpend {
         self
     }
 
+    pub fn conditions(mut self, conditions: impl IntoIterator<Item = NodePtr>) -> Self {
+        self.conditions.extend(conditions);
+        self
+    }
+
     pub fn finish(
         self,
         ctx: &mut SpendContext,

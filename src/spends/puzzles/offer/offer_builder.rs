@@ -8,55 +8,53 @@ use clvmr::NodePtr;
 use sha2::{digest::FixedOutput, Digest, Sha256};
 
 use crate::{
-    AssertPuzzleAnnouncement, NotarizedPayment, Payment, SettlementPaymentsSolution, SpendContext,
-    SpendError,
+    AssertPuzzleAnnouncement, ChainedSpend, NotarizedPayment, Payment, SettlementPaymentsSolution,
+    SpendContext, SpendError,
 };
 
-pub struct OfferRequests {
-    pub coin_spends: Vec<CoinSpend>,
-    pub assertions: Vec<AssertPuzzleAnnouncement>,
-}
-
-pub struct OfferBuilder<'a, 'b> {
-    ctx: &'a mut SpendContext<'b>,
+pub struct OfferBuilder {
     nonce: Bytes32,
     coin_spends: Vec<CoinSpend>,
-    assertions: Vec<AssertPuzzleAnnouncement>,
+    parent_conditions: Vec<NodePtr>,
 }
 
-impl<'a, 'b> OfferBuilder<'a, 'b> {
-    pub fn new(ctx: &'a mut SpendContext<'b>, offered_coin_ids: Vec<Bytes32>) -> Self {
+impl OfferBuilder {
+    pub fn new(offered_coin_ids: Vec<Bytes32>) -> Self {
         let nonce = calculate_nonce(offered_coin_ids);
-        Self::from_nonce(ctx, nonce)
+        Self::from_nonce(nonce)
     }
 
-    pub fn from_nonce(ctx: &'a mut SpendContext<'b>, nonce: Bytes32) -> Self {
+    pub fn from_nonce(nonce: Bytes32) -> Self {
         Self {
-            ctx,
             nonce,
             coin_spends: Vec::new(),
-            assertions: Vec::new(),
+            parent_conditions: Vec::new(),
         }
     }
 
-    pub fn request_xch_payments(self, payments: Vec<Payment>) -> Result<Self, SpendError> {
-        let puzzle = self.ctx.standard_puzzle();
-        self.request_payments(puzzle, payments)
+    pub fn request_xch_payments(
+        self,
+        ctx: &mut SpendContext,
+        payments: Vec<Payment>,
+    ) -> Result<Self, SpendError> {
+        let puzzle = ctx.standard_puzzle();
+        self.request_payments(ctx, puzzle, payments)
     }
 
     pub fn request_cat_payments(
         self,
+        ctx: &mut SpendContext,
         asset_id: Bytes32,
         payments: Vec<Payment>,
     ) -> Result<Self, SpendError> {
         let puzzle_hash = cat_puzzle_hash(asset_id.into(), SETTLEMENT_PAYMENTS_PUZZLE_HASH);
 
-        let puzzle = if let Some(puzzle) = self.ctx.get_puzzle(&puzzle_hash) {
+        let puzzle = if let Some(puzzle) = ctx.get_puzzle(&puzzle_hash) {
             puzzle
         } else {
-            let cat_puzzle = self.ctx.cat_puzzle();
-            let settlement_payments_puzzle = self.ctx.settlement_payments_puzzle();
-            let puzzle = self.ctx.alloc(CurriedProgram {
+            let cat_puzzle = ctx.cat_puzzle();
+            let settlement_payments_puzzle = ctx.settlement_payments_puzzle();
+            let puzzle = ctx.alloc(CurriedProgram {
                 program: cat_puzzle,
                 args: CatArgs {
                     mod_hash: CAT_PUZZLE_HASH.into(),
@@ -64,32 +62,33 @@ impl<'a, 'b> OfferBuilder<'a, 'b> {
                     inner_puzzle: settlement_payments_puzzle,
                 },
             })?;
-            self.ctx.preload(puzzle_hash, puzzle);
+            ctx.preload(puzzle_hash, puzzle);
             puzzle
         };
 
-        self.request_payments(puzzle, payments)
+        self.request_payments(ctx, puzzle, payments)
     }
 
     pub fn request_payments(
         mut self,
+        ctx: &mut SpendContext,
         puzzle: NodePtr,
         payments: Vec<Payment>,
     ) -> Result<Self, SpendError> {
         let (coin_spend, announcement_id) =
-            request_offer_payments(self.ctx, self.nonce, puzzle, payments)?;
+            request_offer_payments(ctx, self.nonce, puzzle, payments)?;
 
         self.coin_spends.push(coin_spend);
-        self.assertions
-            .push(AssertPuzzleAnnouncement { announcement_id });
+        self.parent_conditions
+            .push(ctx.alloc(AssertPuzzleAnnouncement { announcement_id })?);
 
         Ok(self)
     }
 
-    pub fn finish(self) -> OfferRequests {
-        OfferRequests {
+    pub fn finish(self) -> ChainedSpend {
+        ChainedSpend {
             coin_spends: self.coin_spends,
-            assertions: self.assertions,
+            parent_conditions: self.parent_conditions,
         }
     }
 }

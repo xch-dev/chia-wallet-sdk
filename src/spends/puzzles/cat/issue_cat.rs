@@ -34,6 +34,11 @@ impl IssueCat {
         self
     }
 
+    pub fn conditions(mut self, conditions: impl IntoIterator<Item = NodePtr>) -> Self {
+        self.conditions.extend(conditions);
+        self
+    }
+
     pub fn multi_issuance(
         self,
         ctx: &mut SpendContext,
