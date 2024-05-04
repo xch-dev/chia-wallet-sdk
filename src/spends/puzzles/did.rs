@@ -179,7 +179,7 @@ mod tests {
     };
     use clvmr::Allocator;
 
-    use crate::{spend_standard_coin, testing::SECRET_KEY, RequiredSignature, WalletSimulator};
+    use crate::{testing::SECRET_KEY, RequiredSignature, WalletSimulator};
 
     use super::*;
 

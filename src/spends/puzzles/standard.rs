@@ -1,46 +1,62 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Coin, CoinSpend};
 use chia_wallet::standard::{StandardArgs, StandardSolution};
-use clvm_traits::{clvm_quote, ToClvm};
+use clvm_traits::clvm_quote;
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
-use crate::{BaseSpend, ChainedSpend, SpendContext, SpendError};
+use crate::{BaseSpend, ChainedSpend, InnerSpend, SpendContext, SpendError};
 
-pub struct StandardSpend<'a, 'b> {
-    ctx: &'a mut SpendContext<'b>,
-    coin: Coin,
+#[derive(Default)]
+pub struct StandardSpend {
     coin_spends: Vec<CoinSpend>,
     conditions: Vec<NodePtr>,
 }
 
-impl<'a, 'b> StandardSpend<'a, 'b> {
-    pub fn new(ctx: &'a mut SpendContext<'b>, coin: Coin) -> Self {
-        Self {
-            ctx,
-            coin,
-            coin_spends: Vec::with_capacity(1),
-            conditions: Vec::new(),
-        }
+impl StandardSpend {
+    pub fn inner_spend(
+        self,
+        ctx: &mut SpendContext,
+        synthetic_key: PublicKey,
+    ) -> Result<(InnerSpend, Vec<CoinSpend>), SpendError> {
+        let standard_puzzle = ctx.standard_puzzle();
+
+        let puzzle = ctx.alloc(CurriedProgram {
+            program: standard_puzzle,
+            args: StandardArgs { synthetic_key },
+        })?;
+
+        let solution = ctx.alloc(standard_solution(self.conditions))?;
+
+        Ok((InnerSpend::new(puzzle, solution), self.coin_spends))
     }
 
-    pub fn finish(mut self, synthetic_key: PublicKey) -> Result<Vec<CoinSpend>, SpendError> {
-        let coin_spend = spend_standard_coin(self.ctx, self.coin, synthetic_key, self.conditions)?;
-        self.coin_spends.push(coin_spend);
-        Ok(self.coin_spends)
+    pub fn finish(
+        self,
+        ctx: &mut SpendContext,
+        coin: Coin,
+        synthetic_key: PublicKey,
+    ) -> Result<Vec<CoinSpend>, SpendError> {
+        let (inner_spend, mut coin_spends) = self.inner_spend(ctx, synthetic_key)?;
+
+        let puzzle_reveal = ctx.serialize(inner_spend.puzzle())?;
+        let solution = ctx.serialize(inner_spend.solution())?;
+        coin_spends.push(CoinSpend::new(coin, puzzle_reveal, solution));
+
+        Ok(coin_spends)
     }
 }
 
-impl<'a, 'b> BaseSpend for StandardSpend<'a, 'b> {
+impl BaseSpend for StandardSpend {
     fn chain(mut self, chained_spend: ChainedSpend) -> Self {
         self.conditions.extend(chained_spend.parent_conditions);
         self.coin_spends.extend(chained_spend.coin_spends);
         self
     }
 
-    fn condition(mut self, condition: impl ToClvm<NodePtr>) -> Result<Self, SpendError> {
-        self.conditions.push(self.ctx.alloc(condition)?);
-        Ok(self)
+    fn condition(mut self, condition: NodePtr) -> Self {
+        self.conditions.push(condition);
+        self
     }
 }
 
@@ -52,28 +68,6 @@ pub fn standard_solution<T>(conditions: T) -> StandardSolution<(u8, T), ()> {
         delegated_puzzle: clvm_quote!(conditions),
         solution: (),
     }
-}
-
-/// Creates a new coin spend for a given standard transaction coin.
-pub fn spend_standard_coin<T>(
-    ctx: &mut SpendContext,
-    coin: Coin,
-    synthetic_key: PublicKey,
-    conditions: T,
-) -> Result<CoinSpend, SpendError>
-where
-    T: ToClvm<NodePtr>,
-{
-    let standard_puzzle = ctx.standard_puzzle();
-
-    let puzzle_reveal = ctx.serialize(CurriedProgram {
-        program: standard_puzzle,
-        args: StandardArgs { synthetic_key },
-    })?;
-    let solution = ctx.alloc(standard_solution(conditions))?;
-    let serialized_solution = ctx.serialize(solution)?;
-
-    Ok(CoinSpend::new(coin, puzzle_reveal, serialized_solution))
 }
 
 #[cfg(test)]
@@ -97,19 +91,19 @@ mod tests {
         let mut ctx = SpendContext::new(&mut a);
 
         let coin = Coin::new(Bytes32::from([0; 32]), Bytes32::from([1; 32]), 42);
-        let puzzle_hash = coin.puzzle_hash;
-        let amount = coin.amount;
 
-        let coin_spend = spend_standard_coin(
-            &mut ctx,
-            coin,
-            synthetic_key,
-            [CreateCoinWithoutMemos {
-                puzzle_hash,
-                amount,
-            }],
-        )
-        .unwrap();
+        let coin_spend = StandardSpend::default()
+            .condition(
+                ctx.alloc(CreateCoinWithoutMemos {
+                    puzzle_hash: coin.puzzle_hash,
+                    amount: coin.amount,
+                })
+                .unwrap(),
+            )
+            .finish(&mut ctx, coin, synthetic_key)
+            .unwrap()
+            .remove(0);
+
         let output_ptr = coin_spend
             .puzzle_reveal
             .run(&mut a, 0, u64::MAX, &coin_spend.solution)
