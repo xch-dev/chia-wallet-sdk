@@ -66,8 +66,8 @@ mod tests {
     use hex_literal::hex;
 
     use crate::{
-        spend_cat_coins, testing::SECRET_KEY, BaseSpend, CatSpend, CreateCoinWithMemos, IssueCat,
-        RequiredSignature, SpendContext, StandardSpend, WalletSimulator,
+        testing::SECRET_KEY, CatSpend, CreateCoinWithMemos, IssueCat, RequiredSignature,
+        SpendContext, StandardSpend, WalletSimulator,
     };
 
     fn sk1() -> SecretKey {

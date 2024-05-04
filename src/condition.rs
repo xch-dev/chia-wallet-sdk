@@ -104,6 +104,22 @@ pub enum CreateCoin {
     WithMemos(CreateCoinWithMemos),
 }
 
+impl CreateCoin {
+    pub fn puzzle_hash(&self) -> Bytes32 {
+        match self {
+            Self::WithoutMemos(inner) => inner.puzzle_hash,
+            Self::WithMemos(inner) => inner.puzzle_hash,
+        }
+    }
+
+    pub fn amount(&self) -> u64 {
+        match self {
+            Self::WithoutMemos(inner) => inner.amount,
+            Self::WithMemos(inner) => inner.amount,
+        }
+    }
+}
+
 condition!(Remark, 1, {});
 condition!(AggSigParent, 43, { public_key: PublicKey, message: Bytes });
 condition!(AggSigPuzzle, 44, { public_key: PublicKey, message: Bytes });

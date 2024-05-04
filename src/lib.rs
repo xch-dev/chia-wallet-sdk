@@ -33,8 +33,14 @@ pub fn trim_leading_zeros(mut slice: &[u8]) -> &[u8] {
 }
 
 /// Converts a `usize` to an atom in CLVM format, with leading zeros trimmed.
-pub fn usize_to_bytes(amount: usize) -> Vec<u8> {
-    let bytes: Vec<u8> = amount.to_be_bytes().into();
+pub fn usize_to_bytes(num: usize) -> Vec<u8> {
+    let bytes: Vec<u8> = num.to_be_bytes().into();
+    trim_leading_zeros(bytes.as_slice()).to_vec()
+}
+
+/// Converts a `u64` to an atom in CLVM format, with leading zeros trimmed.
+pub fn u64_to_bytes(num: u64) -> Vec<u8> {
+    let bytes: Vec<u8> = num.to_be_bytes().into();
     trim_leading_zeros(bytes.as_slice()).to_vec()
 }
 

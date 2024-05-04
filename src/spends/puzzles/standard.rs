@@ -5,7 +5,7 @@ use clvm_traits::clvm_quote;
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
-use crate::{BaseSpend, ChainedSpend, InnerSpend, SpendContext, SpendError};
+use crate::{ChainedSpend, InnerSpend, SpendContext, SpendError};
 
 #[derive(Default)]
 pub struct StandardSpend {
@@ -14,6 +14,10 @@ pub struct StandardSpend {
 }
 
 impl StandardSpend {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn inner_spend(
         self,
         ctx: &mut SpendContext,
@@ -31,6 +35,17 @@ impl StandardSpend {
         Ok((InnerSpend::new(puzzle, solution), self.coin_spends))
     }
 
+    pub fn chain(mut self, chained_spend: ChainedSpend) -> Self {
+        self.coin_spends.extend(chained_spend.coin_spends);
+        self.conditions.extend(chained_spend.parent_conditions);
+        self
+    }
+
+    pub fn condition(mut self, condition: NodePtr) -> Self {
+        self.conditions.push(condition);
+        self
+    }
+
     pub fn finish(
         self,
         ctx: &mut SpendContext,
@@ -44,19 +59,6 @@ impl StandardSpend {
         coin_spends.push(CoinSpend::new(coin, puzzle_reveal, solution));
 
         Ok(coin_spends)
-    }
-}
-
-impl BaseSpend for StandardSpend {
-    fn chain(mut self, chained_spend: ChainedSpend) -> Self {
-        self.conditions.extend(chained_spend.parent_conditions);
-        self.coin_spends.extend(chained_spend.coin_spends);
-        self
-    }
-
-    fn condition(mut self, condition: NodePtr) -> Self {
-        self.conditions.push(condition);
-        self
     }
 }
 
@@ -92,7 +94,7 @@ mod tests {
 
         let coin = Coin::new(Bytes32::from([0; 32]), Bytes32::from([1; 32]), 42);
 
-        let coin_spend = StandardSpend::default()
+        let coin_spend = StandardSpend::new()
             .condition(
                 ctx.alloc(CreateCoinWithoutMemos {
                     puzzle_hash: coin.puzzle_hash,

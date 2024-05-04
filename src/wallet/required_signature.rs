@@ -5,7 +5,7 @@ use clvmr::{allocator::NodePtr, reduction::EvalErr, Allocator};
 use sha2::{digest::FixedOutput, Digest, Sha256};
 use thiserror::Error;
 
-use crate::{trim_leading_zeros, AggSig, AggSigKind};
+use crate::{u64_to_bytes, AggSig, AggSigKind};
 
 /// An error that occurs while trying to sign a coin spend.
 #[derive(Debug, Error)]
@@ -163,11 +163,6 @@ impl RequiredSignature {
         }
         message
     }
-}
-
-fn u64_to_bytes(amount: u64) -> Vec<u8> {
-    let bytes: Vec<u8> = amount.to_be_bytes().into();
-    trim_leading_zeros(bytes.as_slice()).to_vec()
 }
 
 #[cfg(test)]
