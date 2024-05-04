@@ -38,6 +38,16 @@ impl<'a> SpendContext<'a> {
         }
     }
 
+    /// Get a reference to the `Allocator`.
+    pub fn allocator(&self) -> &Allocator {
+        self.allocator
+    }
+
+    /// Get a mutable reference to the `Allocator`.
+    pub fn allocator_mut(&mut self) -> &mut Allocator {
+        self.allocator
+    }
+
     /// Allocate a new node and return its pointer.
     pub fn alloc<T>(&mut self, value: T) -> Result<NodePtr, SpendError>
     where

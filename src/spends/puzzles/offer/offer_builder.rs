@@ -138,3 +138,17 @@ pub fn request_offer_payments(
 
     Ok((coin_spend, puzzle_announcement_id))
 }
+
+pub fn offer_announcement_id(
+    ctx: &mut SpendContext,
+    puzzle_hash: Bytes32,
+    notarized_payment: NotarizedPayment,
+) -> Result<Bytes32, SpendError> {
+    let notarized_payment = ctx.alloc(notarized_payment)?;
+    let notarized_payment_hash = ctx.tree_hash(notarized_payment);
+
+    let mut hasher = Sha256::new();
+    hasher.update(puzzle_hash);
+    hasher.update(notarized_payment_hash);
+    Ok(Bytes32::new(hasher.finalize_fixed().into()))
+}

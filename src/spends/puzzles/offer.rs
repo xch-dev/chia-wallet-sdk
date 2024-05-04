@@ -57,17 +57,18 @@ mod tests {
     use chia_bls::{sign, DerivableKey, SecretKey, Signature};
     use chia_protocol::{Bytes32, Coin, SpendBundle};
     use chia_wallet::{
-        cat::cat_puzzle_hash,
+        cat::{cat_puzzle_hash, CatArgs, CAT_PUZZLE_HASH},
         offer::SETTLEMENT_PAYMENTS_PUZZLE_HASH,
         standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
         DeriveSynthetic, LineageProof,
     };
+    use clvm_utils::CurriedProgram;
     use clvmr::Allocator;
-    use hex_literal::hex;
 
     use crate::{
-        testing::SECRET_KEY, CatSpend, CreateCoinWithMemos, IssueCat, RequiredSignature,
-        SpendContext, StandardSpend, WalletSimulator,
+        testing::SECRET_KEY, AssertPuzzleAnnouncement, CatSpend, CreateCoinWithMemos,
+        CreateCoinWithoutMemos, InnerSpend, IssueCat, RequiredSignature, SpendContext,
+        StandardSpend, WalletSimulator,
     };
 
     fn sk1() -> SecretKey {
@@ -107,40 +108,37 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_offer() -> anyhow::Result<()> {
+    async fn test_offer_bundle() -> anyhow::Result<()> {
         let sim = WalletSimulator::new().await;
         let peer = sim.peer().await;
 
         let mut allocator = Allocator::new();
         let mut ctx = SpendContext::new(&mut allocator);
 
-        let pk1 = sk1().public_key();
-        let pk2 = sk2().public_key();
+        let sk = sk1();
+        let pk = sk.public_key();
 
-        let ph1 = Bytes32::new(standard_puzzle_hash(&pk1));
-        let ph2 = Bytes32::new(standard_puzzle_hash(&pk2));
+        let puzzle_hash = Bytes32::new(standard_puzzle_hash(&pk));
 
-        let xch1 = sim.generate_coin(ph1, 1000).await;
+        let parent = sim.generate_coin(puzzle_hash, 1000).await.coin;
 
-        // Issue CAT.
-        let (issue_cat, cat_info) = IssueCat::new(xch1.coin.coin_id())
+        let (issue_cat, cat_info) = IssueCat::new(parent.coin_id())
             .condition(ctx.alloc(CreateCoinWithMemos {
-                puzzle_hash: ph1,
+                puzzle_hash,
                 amount: 1000,
-                memos: vec![ph1.to_vec().into()],
+                memos: vec![puzzle_hash.to_vec().into()],
             })?)
-            .multi_issuance(&mut ctx, pk1.clone(), 1000)?;
+            .multi_issuance(&mut ctx, pk.clone(), 1000)?;
 
-        let coin_spends = StandardSpend::new().chain(issue_cat).finish(
-            &mut ctx,
-            xch1.coin.clone(),
-            pk1.clone(),
-        )?;
+        let coin_spends =
+            StandardSpend::new()
+                .chain(issue_cat)
+                .finish(&mut ctx, parent.clone(), pk.clone())?;
 
         let mut spend_bundle = SpendBundle::new(coin_spends, Signature::default());
 
         let required_signatures = RequiredSignature::from_coin_spends(
-            &mut allocator,
+            ctx.allocator_mut(),
             &spend_bundle.coin_spends,
             WalletSimulator::AGG_SIG_ME.into(),
         )?;
@@ -151,61 +149,58 @@ mod tests {
         assert_eq!(ack.error, None);
         assert_eq!(ack.status, 1);
 
-        // Create offer for CAT coin.
-        let mut allocator = Allocator::new();
-        let mut ctx = SpendContext::new(&mut allocator);
+        // Prepare offer contents.
+        let cat = Coin::new(
+            cat_info.eve_coin.coin_id(),
+            cat_puzzle_hash(cat_info.asset_id.into(), puzzle_hash.into()).into(),
+            1000,
+        );
 
-        let cat1_ph = cat_puzzle_hash(cat_info.asset_id.into(), ph1.into()).into();
-        let cat1 = Coin::new(cat_info.eve_coin.coin_id(), cat1_ph, 1000);
+        let xch = sim.generate_coin(puzzle_hash, 1000).await.coin;
 
-        let xch2 = sim.generate_coin(ph2, 1000).await.coin;
-
-        let requests = OfferBuilder::new(vec![cat1.coin_id(), xch2.coin_id()])
-            .request_cat_payments(
-                &mut ctx,
-                cat_info.asset_id,
-                vec![Payment::WithMemos(PaymentWithMemos {
-                    puzzle_hash: ph2,
-                    amount: 1000,
-                    memos: vec![ph2.to_vec().into()],
-                })],
-            )?
-            .finish();
-
-        let mut coin_spends = requests.coin_spends;
-
-        let xch_spends = StandardSpend::new()
-            .condition(ctx.alloc(CreateCoinWithMemos {
-                puzzle_hash: SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
+        let xch_payment = NotarizedPayment {
+            nonce: calculate_nonce(vec![cat.coin_id()]),
+            payments: vec![Payment::WithoutMemos(PaymentWithoutMemos {
+                puzzle_hash,
                 amount: 1000,
-                memos: vec![SETTLEMENT_PAYMENTS_PUZZLE_HASH.to_vec().into()],
-            })?)
-            .conditions(requests.parent_conditions)
-            .finish(&mut ctx, xch2, pk2)?;
+            })],
+        };
 
-        let aggregated_signature = sign_tx(RequiredSignature::from_coin_spends(
-            &mut allocator,
-            &xch_spends,
-            WalletSimulator::AGG_SIG_ME.into(),
-        )?);
+        let cat_payment = NotarizedPayment {
+            nonce: calculate_nonce(vec![xch.coin_id()]),
+            payments: vec![Payment::WithoutMemos(PaymentWithoutMemos {
+                puzzle_hash,
+                amount: 1000,
+            })],
+        };
 
-        coin_spends.extend(xch_spends);
+        let cat_puzzle = ctx.cat_puzzle();
+        let settlement_payments_puzzle = ctx.settlement_payments_puzzle();
 
-        let spend_bundle = SpendBundle::new(coin_spends, aggregated_signature);
-        let offer_data = compress_offer(spend_bundle)?;
+        let cat_settlements = ctx.alloc(CurriedProgram {
+            program: cat_puzzle,
+            args: CatArgs {
+                mod_hash: CAT_PUZZLE_HASH.into(),
+                tail_program_hash: cat_info.asset_id,
+                inner_puzzle: settlement_payments_puzzle,
+            },
+        })?;
 
-        assert_eq!(hex::encode(&offer_data), hex::encode(EXAMPLE_OFFER_DATA));
+        let cat_settlements_hash = ctx.tree_hash(cat_settlements);
 
-        // Decompress offer and accept it (we know the only requested payment is the CAT).
-        let mut allocator = Allocator::new();
-        let mut ctx = SpendContext::new(&mut allocator);
+        let assert_xch = offer_announcement_id(
+            &mut ctx,
+            SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
+            xch_payment.clone(),
+        )?;
 
-        let offer = Offer::from(decompress_offer(&offer_data)?);
+        let assert_cat =
+            offer_announcement_id(&mut ctx, cat_settlements_hash, cat_payment.clone())?;
 
-        let mut spend_bundle = offer.offered_spend_bundle;
+        let mut coin_spends = Vec::new();
 
         let lineage_proof = LineageProof {
-            parent_coin_info: xch1.coin.coin_id(),
+            parent_coin_info: parent.coin_id(),
             inner_puzzle_hash: cat_info.eve_inner_puzzle_hash,
             amount: 1000,
         };
@@ -216,19 +211,73 @@ mod tests {
                 amount: 1000,
                 memos: vec![SETTLEMENT_PAYMENTS_PUZZLE_HASH.to_vec().into()],
             })?)
-            .inner_spend(&mut ctx, pk1)?;
+            .condition(ctx.alloc(AssertPuzzleAnnouncement {
+                announcement_id: assert_xch,
+            })?)
+            .inner_spend(&mut ctx, pk.clone())?;
 
-        let cat_spends = CatSpend::new(cat_info.asset_id)
-            .spend(cat1, inner_spend, lineage_proof, 0)
+        let cat_to_settlement = CatSpend::new(cat_info.asset_id)
+            .spend(cat.clone(), inner_spend, lineage_proof, 0)
             .finish(&mut ctx)?;
 
-        spend_bundle.aggregated_signature += &sign_tx(RequiredSignature::from_coin_spends(
-            &mut allocator,
-            &cat_spends,
-            WalletSimulator::AGG_SIG_ME.into(),
-        )?);
+        coin_spends.extend(cat_to_settlement);
 
-        spend_bundle.coin_spends.extend(cat_spends);
+        let cat_settlement_coin = Coin::new(
+            cat.coin_id(),
+            cat_puzzle_hash(cat_info.asset_id.into(), SETTLEMENT_PAYMENTS_PUZZLE_HASH).into(),
+            1000,
+        );
+
+        let xch_to_settlement = StandardSpend::new()
+            .condition(ctx.alloc(CreateCoinWithoutMemos {
+                puzzle_hash: SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
+                amount: 1000,
+            })?)
+            .condition(ctx.alloc(AssertPuzzleAnnouncement {
+                announcement_id: assert_cat,
+            })?)
+            .finish(&mut ctx, xch.clone(), pk)?;
+
+        coin_spends.extend(xch_to_settlement);
+
+        let xch_settlement_coin =
+            Coin::new(xch.coin_id(), SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), 1000);
+
+        let lineage_proof = LineageProof {
+            parent_coin_info: cat_info.eve_coin.coin_id(),
+            inner_puzzle_hash: puzzle_hash,
+            amount: 1000,
+        };
+
+        let solution = ctx.alloc(SettlementPaymentsSolution {
+            notarized_payments: vec![cat_payment],
+        })?;
+        let inner_spend = InnerSpend::new(settlement_payments_puzzle, solution);
+
+        let settlement_to_cat = CatSpend::new(cat_info.asset_id)
+            .spend(cat_settlement_coin, inner_spend, lineage_proof, 0)
+            .finish(&mut ctx)?;
+
+        coin_spends.extend(settlement_to_cat);
+
+        let puzzle_reveal = ctx.serialize(settlement_payments_puzzle)?;
+        let solution = ctx.serialize(SettlementPaymentsSolution {
+            notarized_payments: vec![xch_payment],
+        })?;
+
+        let settlement_to_xch = CoinSpend::new(xch_settlement_coin, puzzle_reveal, solution);
+
+        coin_spends.push(settlement_to_xch);
+
+        let mut spend_bundle = SpendBundle::new(coin_spends, Signature::default());
+
+        let required_signatures = RequiredSignature::from_coin_spends(
+            ctx.allocator_mut(),
+            &spend_bundle.coin_spends,
+            WalletSimulator::AGG_SIG_ME.into(),
+        )?;
+
+        spend_bundle.aggregated_signature = sign_tx(required_signatures);
 
         let ack = peer.send_transaction(spend_bundle).await?;
         assert_eq!(ack.error, None);
@@ -236,10 +285,4 @@ mod tests {
 
         Ok(())
     }
-
-    pub const EXAMPLE_OFFER_DATA: [u8; 536] = hex!(
-        "
-        000678bb1ce2864b63606060622000726f47eb64fdea99caadb02b31f402df8f25f7274d2b562a6948cc62fff2cf7ddb5f983a783b75b4f61fadfd476bffd1da7fb4f61fadfdff0f54ed0f2edc1798effb9cf0aeb5d178dbdcc8a809b9476219d70798cf5d1b18b733b06b778dac5615541913a35ffc9c6b79778a6a3bea8e75083c0f7c30f34513ebfadb7c2aa5b367b2666442ab8ad1160511dd7f4688cc824572f653769c7cfbc2ce6ddbe2a95f0c549f2d7ec23d25e3e6139d83d3a7fe605704a6c3057d95755d3779e42f06ce3f129c14baf9b295e08dae6f3f9d7ef6bceecf9aef2dd4f7bf89f90511ca40167e50893bb869bbe4c3ee09c2ec76e1563d67bdc33cfd5edcd6ce7e18f22de58e1f0f2133204d18a075c88d98e1bc500f6cf086a6439c3d72dd7f9e30dfae15bf37ebf799901727cc3b3b265a8715dcdbee51f8f798c09d033c2b52fae767db9ae839d9891681b5364052fbff05e7f7df7b1be3b3e89e2df757859da7bdb7975899cebef46c61c7c539cfefff51bcfc1c1a7f8494815c63ff7f41f992f999193b4259b6987a1fffcb5550ef18bc29965f34f2f4c260fec87ae339cce0f069f9d3b2309a85f9f1c1236e7797fa3f6d64ffb539e2db7b6f8df36e69a71ffecbfe7ec27ea6d6c3d58edb3a8e941fc8793d375a70c2b28bba6fe30eefebf3c85c5f992bc8efc371b27f6e9cd9c2c0f2becb0db25b9eb6ac77bf67d63a6fd9a7d9c94f7f56a60100f2b976f4
-        "
-    );
 }
