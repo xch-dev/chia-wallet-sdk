@@ -8,6 +8,8 @@ pub use did_spend::*;
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use chia_bls::{sign, Signature};
     use chia_protocol::SpendBundle;
     use chia_wallet::{
@@ -17,11 +19,9 @@ mod tests {
     use clvmr::Allocator;
 
     use crate::{
-        testing::SECRET_KEY, LaunchSingleton, RequiredSignature, SpendContext, StandardSpend,
+        testing::SECRET_KEY, Chainable, Launcher, RequiredSignature, SpendContext, StandardSpend,
         WalletSimulator,
     };
-
-    use super::*;
 
     #[tokio::test]
     async fn test_create_did() -> anyhow::Result<()> {
@@ -37,8 +37,9 @@ mod tests {
         let mut allocator = Allocator::new();
         let mut ctx = SpendContext::new(&mut allocator);
 
-        let (launch_singleton, _did_info) =
-            LaunchSingleton::new(parent.coin_id(), 1).create_standard_did(&mut ctx, pk.clone())?;
+        let (launch_singleton, _did_info) = Launcher::new(parent.coin_id(), 1)
+            .create(&mut ctx)?
+            .create_standard_did(&mut ctx, pk.clone())?;
 
         let coin_spends = StandardSpend::new()
             .chain(launch_singleton)

@@ -15,8 +15,9 @@ use clvmr::NodePtr;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    spend_nft, u16_to_bytes, AssertPuzzleAnnouncement, ChainedSpend, CreateCoinWithMemos,
-    LaunchSingleton, NewNftOwner, NftInfo, SpendContext, SpendError, StandardSpend,
+    spend_nft, u16_to_bytes, AssertPuzzleAnnouncement, Chainable, ChainedSpend,
+    CreateCoinWithMemos, CreatePuzzleAnnouncement, NewNftOwner, NftInfo, SpendContext, SpendError,
+    SpendableLauncher, StandardSpend,
 };
 
 pub trait MintNft {
@@ -25,18 +26,17 @@ pub trait MintNft {
         ctx: &mut SpendContext,
         inner_puzzle_hash: Bytes32,
         metadata: M,
-        metadata_updater_hash: Bytes32,
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
     ) -> Result<(ChainedSpend, Bytes32, NftInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>;
 
+    #[allow(clippy::too_many_arguments)]
     fn mint_custom_standard_nft<M>(
         self,
         ctx: &mut SpendContext,
         metadata: M,
-        metadata_updater_hash: Bytes32,
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
         synthetic_key: PublicKey,
@@ -53,7 +53,6 @@ pub trait MintNft {
             ctx,
             inner_puzzle_hash,
             metadata,
-            metadata_updater_hash,
             royalty_puzzle_hash,
             royalty_percentage,
         )?;
@@ -120,7 +119,6 @@ pub trait MintNft {
         self.mint_custom_standard_nft(
             ctx,
             metadata,
-            NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
             royalty_puzzle_hash.into(),
             royalty_percentage,
             synthetic_key,
@@ -130,13 +128,12 @@ pub trait MintNft {
     }
 }
 
-impl MintNft for LaunchSingleton {
+impl MintNft for SpendableLauncher {
     fn mint_eve_nft<M>(
         self,
         ctx: &mut SpendContext,
         inner_puzzle_hash: Bytes32,
         metadata: M,
-        metadata_updater_hash: Bytes32,
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
     ) -> Result<(ChainedSpend, Bytes32, NftInfo<M>), SpendError>
@@ -155,11 +152,20 @@ impl MintNft for LaunchSingleton {
             ),
             inner_puzzle_hash,
         );
-        let nft_inner_puzzle_hash =
-            nft_state_layer_hash(metadata_hash, metadata_updater_hash, ownership_layer_hash);
+        let nft_inner_puzzle_hash = nft_state_layer_hash(
+            metadata_hash,
+            NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
+            ownership_layer_hash,
+        );
 
         let launcher_coin = self.coin().clone();
-        let (chained_spend, eve_coin) = self.finish(ctx, nft_inner_puzzle_hash, ())?;
+        let (mut chained_spend, eve_coin) = self.spend(ctx, nft_inner_puzzle_hash, ())?;
+
+        chained_spend
+            .parent_conditions
+            .push(ctx.alloc(CreatePuzzleAnnouncement {
+                message: launcher_coin.coin_id().to_vec().into(),
+            })?);
 
         let proof = Proof::Eve(EveProof {
             parent_coin_info: launcher_coin.parent_coin_info,
@@ -171,7 +177,7 @@ impl MintNft for LaunchSingleton {
             coin: eve_coin,
             proof,
             metadata,
-            metadata_updater_hash,
+            metadata_updater_hash: NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
             current_owner: None,
             royalty_puzzle_hash,
             royalty_percentage,
@@ -270,8 +276,8 @@ mod tests {
     use clvmr::Allocator;
 
     use crate::{
-        intermediate_launcher, spend_did, testing::SECRET_KEY, CreateDid, RequiredSignature,
-        WalletSimulator,
+        testing::SECRET_KEY, Chainable, CreateDid, IntermediateLauncher, Launcher,
+        RequiredSignature, StandardDidSpend, WalletSimulator,
     };
 
     use super::*;
@@ -291,37 +297,50 @@ mod tests {
 
         let parent = sim.generate_coin(puzzle_hash, 3).await.coin;
 
-        let (create_did, did_info) =
-            LaunchSingleton::new(parent.coin_id(), 1).create_standard_did(&mut ctx, pk.clone())?;
+        let (create_did, did_info) = Launcher::new(parent.coin_id(), 1)
+            .create(&mut ctx)?
+            .create_standard_did(&mut ctx, pk.clone())?;
 
         let mut coin_spends =
             StandardSpend::new()
                 .chain(create_did)
                 .finish(&mut ctx, parent, pk.clone())?;
 
-        let (intermediate, launcher) =
-            intermediate_launcher(&mut ctx, did_info.coin.coin_id(), 0, 1)?;
+        let (did_coin_spends, did_info) = StandardDidSpend::new()
+            .chain(
+                IntermediateLauncher::new(did_info.coin.coin_id(), 0, 2)
+                    .create(&mut ctx)?
+                    .mint_standard_nft(
+                        &mut ctx,
+                        (),
+                        100,
+                        pk.clone(),
+                        did_info.launcher_id,
+                        did_info.did_inner_puzzle_hash,
+                    )?
+                    .0,
+            )
+            .chain(
+                IntermediateLauncher::new(did_info.coin.coin_id(), 1, 2)
+                    .create(&mut ctx)?
+                    .mint_standard_nft(
+                        &mut ctx,
+                        (),
+                        300,
+                        pk.clone(),
+                        did_info.launcher_id,
+                        did_info.did_inner_puzzle_hash,
+                    )?
+                    .0,
+            )
+            .recreate()
+            .finish(&mut ctx, pk, did_info)?;
 
-        let (nft_mint, _nft_info) = launcher.mint_standard_nft(
-            &mut ctx,
-            (),
-            100,
-            pk.clone(),
-            did_info.launcher_id,
-            did_info.did_inner_puzzle_hash,
-        )?;
-
-        let (inner_spend, did_spends) = StandardSpend::new()
-            .chain(intermediate)
-            .chain(nft_mint)
-            .inner_spend(&mut ctx, pk)?;
-
-        coin_spends.extend(did_spends);
-        coin_spends.push(spend_did(&mut ctx, &did_info, inner_spend)?);
+        coin_spends.extend(did_coin_spends);
 
         let required_signatures = RequiredSignature::from_coin_spends(
             &mut allocator,
-            &coin_spends,
+            dbg!(&coin_spends),
             WalletSimulator::AGG_SIG_ME.into(),
         )?;
 

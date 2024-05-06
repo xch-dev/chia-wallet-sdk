@@ -127,7 +127,7 @@ mod tests {
     use clvmr::{serde::node_to_bytes, Allocator};
     use hex_literal::hex;
 
-    use crate::{testing::SECRET_KEY, CreateCoinWithoutMemos, StandardSpend};
+    use crate::{testing::SECRET_KEY, Chainable, CreateCoinWithoutMemos, StandardSpend};
 
     use super::*;
 

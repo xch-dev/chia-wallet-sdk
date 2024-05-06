@@ -1,18 +1,18 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes32, Coin};
+use chia_protocol::Bytes32;
 use chia_wallet::{
     did::DID_INNER_PUZZLE_HASH,
     singleton::{SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
     standard::standard_puzzle_hash,
-    EveProof, LineageProof, Proof,
+    EveProof, Proof,
 };
 use clvm_traits::ToClvm;
 use clvm_utils::{curry_tree_hash, tree_hash_atom, tree_hash_pair};
 use clvmr::NodePtr;
 
 use crate::{
-    spend_did, u64_to_bytes, ChainedSpend, CreateCoinWithMemos, DidInfo, LaunchSingleton,
-    SpendContext, SpendError, StandardSpend,
+    u64_to_bytes, ChainedSpend, DidInfo, SpendContext, SpendError, SpendableLauncher,
+    StandardDidSpend,
 };
 
 pub trait CreateDid {
@@ -23,7 +23,7 @@ pub trait CreateDid {
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
-    ) -> Result<(ChainedSpend, Bytes32, DidInfo<M>), SpendError>
+    ) -> Result<(ChainedSpend, DidInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>;
 
@@ -41,7 +41,7 @@ pub trait CreateDid {
     {
         let inner_puzzle_hash = standard_puzzle_hash(&synthetic_key).into();
 
-        let (mut create_did, did_inner_puzzle_hash, mut did_info) = self.create_eve_did(
+        let (mut create_did, did_info) = self.create_eve_did(
             ctx,
             inner_puzzle_hash,
             recovery_did_list_hash,
@@ -49,28 +49,12 @@ pub trait CreateDid {
             metadata,
         )?;
 
-        let (inner_spend, _) = StandardSpend::new()
-            .condition(ctx.alloc(CreateCoinWithMemos {
-                puzzle_hash: did_inner_puzzle_hash,
-                amount: did_info.coin.amount,
-                memos: vec![inner_puzzle_hash.to_vec().into()],
-            })?)
-            .inner_spend(ctx, synthetic_key)?;
+        let (coin_spends, did_info) =
+            StandardDidSpend::new()
+                .recreate()
+                .finish(ctx, synthetic_key, did_info)?;
 
-        let spend = spend_did(ctx, &did_info, inner_spend)?;
-        create_did.coin_spends.push(spend);
-
-        did_info.proof = Proof::Lineage(LineageProof {
-            parent_coin_info: did_info.launcher_id,
-            inner_puzzle_hash: did_inner_puzzle_hash,
-            amount: did_info.coin.amount,
-        });
-
-        did_info.coin = Coin::new(
-            did_info.coin.coin_id(),
-            did_info.coin.puzzle_hash,
-            did_info.coin.amount,
-        );
+        create_did.coin_spends.extend(coin_spends);
 
         Ok((create_did, did_info))
     }
@@ -87,15 +71,15 @@ pub trait CreateDid {
     }
 }
 
-impl CreateDid for LaunchSingleton {
+impl CreateDid for SpendableLauncher {
     fn create_eve_did<M>(
         self,
         ctx: &mut SpendContext,
-        inner_puzzle_hash: Bytes32,
+        owner_puzzle_hash: Bytes32,
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
-    ) -> Result<(ChainedSpend, Bytes32, DidInfo<M>), SpendError>
+    ) -> Result<(ChainedSpend, DidInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>,
     {
@@ -103,7 +87,7 @@ impl CreateDid for LaunchSingleton {
         let metadata_hash = ctx.tree_hash(metadata_ptr);
 
         let did_inner_puzzle_hash = did_inner_puzzle_hash(
-            inner_puzzle_hash,
+            owner_puzzle_hash,
             recovery_did_list_hash,
             num_verifications_required,
             self.coin().coin_id(),
@@ -111,7 +95,7 @@ impl CreateDid for LaunchSingleton {
         );
 
         let launcher_coin = self.coin().clone();
-        let (chained_spend, eve_coin) = self.finish(ctx, did_inner_puzzle_hash, ())?;
+        let (chained_spend, eve_coin) = self.spend(ctx, did_inner_puzzle_hash, ())?;
 
         let proof = Proof::Eve(EveProof {
             parent_coin_info: launcher_coin.parent_coin_info,
@@ -122,13 +106,14 @@ impl CreateDid for LaunchSingleton {
             launcher_id: launcher_coin.coin_id(),
             coin: eve_coin,
             did_inner_puzzle_hash,
+            owner_puzzle_hash,
             proof,
             recovery_did_list_hash,
             num_verifications_required,
             metadata,
         };
 
-        Ok((chained_spend, did_inner_puzzle_hash, did_info))
+        Ok((chained_spend, did_info))
     }
 }
 

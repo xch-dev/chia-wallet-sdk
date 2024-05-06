@@ -66,7 +66,7 @@ mod tests {
     use clvmr::Allocator;
 
     use crate::{
-        testing::SECRET_KEY, AssertPuzzleAnnouncement, CatSpend, CreateCoinWithMemos,
+        testing::SECRET_KEY, AssertPuzzleAnnouncement, CatSpend, Chainable, CreateCoinWithMemos,
         CreateCoinWithoutMemos, InnerSpend, IssueCat, RequiredSignature, SpendContext,
         StandardSpend, WalletSimulator,
     };

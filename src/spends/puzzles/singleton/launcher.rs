@@ -1,21 +1,14 @@
-use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_wallet::singleton::{
-    LauncherSolution, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH,
-};
-use clvm_traits::{clvm_list, ToClvm};
+use chia_protocol::{Bytes32, Coin};
+use chia_wallet::singleton::{SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH};
 use clvm_utils::{curry_tree_hash, tree_hash_atom, tree_hash_pair};
-use clvmr::NodePtr;
-use sha2::{digest::FixedOutput, Digest, Sha256};
 
-use crate::{
-    AssertCoinAnnouncement, ChainedSpend, CreateCoinWithoutMemos, SpendContext, SpendError,
-};
+use crate::{ChainedSpend, CreateCoinWithoutMemos, SpendContext, SpendError, SpendableLauncher};
 
-pub struct LaunchSingleton {
+pub struct Launcher {
     coin: Coin,
 }
 
-impl LaunchSingleton {
+impl Launcher {
     pub fn new(parent_coin_id: Bytes32, amount: u64) -> Self {
         Self {
             coin: Coin::new(
@@ -30,58 +23,19 @@ impl LaunchSingleton {
         &self.coin
     }
 
-    pub fn finish<T>(
-        self,
-        ctx: &mut SpendContext,
-        singleton_inner_puzzle_hash: Bytes32,
-        key_value_list: T,
-    ) -> Result<(ChainedSpend, Coin), SpendError>
-    where
-        T: ToClvm<NodePtr>,
-    {
-        let create_launcher = ctx.alloc(CreateCoinWithoutMemos {
-            puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-            amount: self.coin.amount,
-        })?;
+    pub fn create(self, ctx: &mut SpendContext) -> Result<SpendableLauncher, SpendError> {
+        let amount = self.coin.amount;
 
-        let singleton_puzzle_hash =
-            singleton_puzzle_hash(self.coin.coin_id(), singleton_inner_puzzle_hash);
-
-        let eve_message = ctx.alloc(clvm_list!(
-            singleton_puzzle_hash,
-            self.coin.amount,
-            &key_value_list
-        ))?;
-        let eve_message_hash = ctx.tree_hash(eve_message);
-
-        let mut announcement_id = Sha256::new();
-        announcement_id.update(self.coin.coin_id());
-        announcement_id.update(eve_message_hash);
-
-        let assert_announcement = ctx.alloc(AssertCoinAnnouncement {
-            announcement_id: Bytes32::new(announcement_id.finalize_fixed().into()),
-        })?;
-
-        let launcher = ctx.singleton_launcher();
-        let puzzle_reveal = ctx.serialize(launcher)?;
-
-        let solution = ctx.serialize(LauncherSolution {
-            singleton_puzzle_hash,
-            amount: self.coin.amount,
-            key_value_list,
-        })?;
-
-        let spend_launcher = CoinSpend::new(self.coin.clone(), puzzle_reveal, solution);
-
-        let chained_spend = ChainedSpend {
-            coin_spends: vec![spend_launcher],
-            parent_conditions: vec![create_launcher, assert_announcement],
-        };
-
-        let singleton_coin =
-            Coin::new(self.coin.coin_id(), singleton_puzzle_hash, self.coin.amount);
-
-        Ok((chained_spend, singleton_coin))
+        Ok(SpendableLauncher::new(
+            self.coin,
+            ChainedSpend {
+                parent_conditions: vec![ctx.alloc(CreateCoinWithoutMemos {
+                    puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
+                    amount,
+                })?],
+                coin_spends: Vec::new(),
+            },
+        ))
     }
 }
 
@@ -108,6 +62,8 @@ mod tests {
     };
     use clvm_utils::CurriedProgram;
     use clvmr::Allocator;
+
+    use crate::SpendContext;
 
     use super::*;
 

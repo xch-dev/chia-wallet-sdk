@@ -5,7 +5,7 @@ use clvm_traits::clvm_quote;
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
-use crate::{ChainedSpend, InnerSpend, SpendContext, SpendError};
+use crate::{Chainable, ChainedSpend, InnerSpend, SpendContext, SpendError};
 
 #[derive(Default)]
 pub struct StandardSpend {
@@ -35,22 +35,6 @@ impl StandardSpend {
         Ok((InnerSpend::new(puzzle, solution), self.coin_spends))
     }
 
-    pub fn chain(mut self, chained_spend: ChainedSpend) -> Self {
-        self.coin_spends.extend(chained_spend.coin_spends);
-        self.conditions.extend(chained_spend.parent_conditions);
-        self
-    }
-
-    pub fn condition(mut self, condition: NodePtr) -> Self {
-        self.conditions.push(condition);
-        self
-    }
-
-    pub fn conditions(mut self, conditions: impl IntoIterator<Item = NodePtr>) -> Self {
-        self.conditions.extend(conditions);
-        self
-    }
-
     pub fn finish(
         self,
         ctx: &mut SpendContext,
@@ -64,6 +48,19 @@ impl StandardSpend {
         coin_spends.push(CoinSpend::new(coin, puzzle_reveal, solution));
 
         Ok(coin_spends)
+    }
+}
+
+impl Chainable for StandardSpend {
+    fn chain(mut self, chained_spend: ChainedSpend) -> Self {
+        self.coin_spends.extend(chained_spend.coin_spends);
+        self.conditions.extend(chained_spend.parent_conditions);
+        self
+    }
+
+    fn condition(mut self, condition: NodePtr) -> Self {
+        self.conditions.push(condition);
+        self
     }
 }
 

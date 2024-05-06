@@ -139,7 +139,8 @@ mod tests {
     use clvmr::Allocator;
 
     use crate::{
-        testing::SECRET_KEY, CreateCoinWithMemos, RequiredSignature, StandardSpend, WalletSimulator,
+        testing::SECRET_KEY, Chainable, CreateCoinWithMemos, RequiredSignature, StandardSpend,
+        WalletSimulator,
     };
 
     use super::*;
