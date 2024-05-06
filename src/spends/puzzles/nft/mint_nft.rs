@@ -306,7 +306,7 @@ mod tests {
                 .chain(create_did)
                 .finish(&mut ctx, parent, pk.clone())?;
 
-        let (did_coin_spends, did_info) = StandardDidSpend::new()
+        let (did_coin_spends, _did_info) = StandardDidSpend::new()
             .chain(
                 IntermediateLauncher::new(did_info.coin.coin_id(), 0, 2)
                     .create(&mut ctx)?
