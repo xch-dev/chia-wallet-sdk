@@ -1,5 +1,5 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes32, Coin};
+use chia_protocol::Bytes32;
 use chia_wallet::{
     nft::{
         NFT_METADATA_UPDATER_PUZZLE_HASH, NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
@@ -7,18 +7,27 @@ use chia_wallet::{
     },
     singleton::{SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
     standard::standard_puzzle_hash,
-    EveProof, LineageProof, Proof,
+    EveProof, Proof,
 };
-use clvm_traits::{clvm_list, ToClvm};
+use clvm_traits::ToClvm;
 use clvm_utils::{curry_tree_hash, tree_hash_atom, tree_hash_pair};
 use clvmr::NodePtr;
-use sha2::{Digest, Sha256};
 
 use crate::{
-    spend_nft, u16_to_bytes, AssertPuzzleAnnouncement, Chainable, ChainedSpend,
-    CreateCoinWithMemos, CreatePuzzleAnnouncement, NewNftOwner, NftInfo, SpendContext, SpendError,
-    SpendableLauncher, StandardSpend,
+    u16_to_bytes, ChainedSpend, CreatePuzzleAnnouncement, NftInfo, SpendContext, SpendError,
+    SpendableLauncher, StandardNftSpend,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct StandardMint<M> {
+    pub metadata: M,
+    pub royalty_puzzle_hash: Bytes32,
+    pub royalty_percentage: u16,
+    pub synthetic_key: PublicKey,
+    pub owner_puzzle_hash: Bytes32,
+    pub did_id: Bytes32,
+    pub did_inner_puzzle_hash: Bytes32,
+}
 
 pub trait MintNft {
     fn mint_eve_nft<M>(
@@ -28,103 +37,37 @@ pub trait MintNft {
         metadata: M,
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
-    ) -> Result<(ChainedSpend, Bytes32, NftInfo<M>), SpendError>
-    where
-        M: ToClvm<NodePtr>;
-
-    #[allow(clippy::too_many_arguments)]
-    fn mint_custom_standard_nft<M>(
-        self,
-        ctx: &mut SpendContext,
-        metadata: M,
-        royalty_puzzle_hash: Bytes32,
-        royalty_percentage: u16,
-        synthetic_key: PublicKey,
-        did_id: Bytes32,
-        did_inner_puzzle_hash: Bytes32,
     ) -> Result<(ChainedSpend, NftInfo<M>), SpendError>
     where
-        M: ToClvm<NodePtr>,
-        Self: Sized,
-    {
-        let inner_puzzle_hash = standard_puzzle_hash(&synthetic_key).into();
-
-        let (mut mint_nft, nft_inner_puzzle_hash, mut nft_info) = self.mint_eve_nft(
-            ctx,
-            inner_puzzle_hash,
-            metadata,
-            royalty_puzzle_hash,
-            royalty_percentage,
-        )?;
-
-        let (inner_spend, _) = StandardSpend::new()
-            .condition(ctx.alloc(CreateCoinWithMemos {
-                puzzle_hash: inner_puzzle_hash,
-                amount: nft_info.coin.amount,
-                memos: vec![inner_puzzle_hash.to_vec().into()],
-            })?)
-            .condition(ctx.alloc(NewNftOwner {
-                new_owner: Some(did_id),
-                trade_prices_list: Vec::new(),
-                new_did_inner_hash: Some(did_inner_puzzle_hash),
-            })?)
-            .inner_spend(ctx, synthetic_key)?;
-
-        let new_nft_owner_args = ctx.alloc(clvm_list!(did_id, (), did_inner_puzzle_hash))?;
-
-        let mut announcement_id = Sha256::new();
-        announcement_id.update(nft_info.coin.puzzle_hash);
-        announcement_id.update([0xad, 0x4c]);
-        announcement_id.update(ctx.tree_hash(new_nft_owner_args));
-
-        mint_nft
-            .parent_conditions
-            .push(ctx.alloc(AssertPuzzleAnnouncement {
-                announcement_id: Bytes32::new(announcement_id.finalize().into()),
-            })?);
-
-        let spend = spend_nft(ctx, &nft_info, inner_spend)?;
-        mint_nft.coin_spends.push(spend);
-
-        nft_info.proof = Proof::Lineage(LineageProof {
-            parent_coin_info: nft_info.launcher_id,
-            inner_puzzle_hash: nft_inner_puzzle_hash,
-            amount: nft_info.coin.amount,
-        });
-
-        nft_info.coin = Coin::new(
-            nft_info.coin.coin_id(),
-            nft_info.coin.puzzle_hash,
-            nft_info.coin.amount,
-        );
-
-        Ok((mint_nft, nft_info))
-    }
+        M: ToClvm<NodePtr>;
 
     fn mint_standard_nft<M>(
         self,
         ctx: &mut SpendContext,
-        metadata: M,
-        royalty_percentage: u16,
-        synthetic_key: PublicKey,
-        did_id: Bytes32,
-        did_inner_puzzle_hash: Bytes32,
+        mint: StandardMint<M>,
     ) -> Result<(ChainedSpend, NftInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>,
         Self: Sized,
     {
-        let royalty_puzzle_hash = standard_puzzle_hash(&synthetic_key);
+        let inner_puzzle_hash = standard_puzzle_hash(&mint.synthetic_key).into();
 
-        self.mint_custom_standard_nft(
+        let (mut mint_nft, nft_info) = self.mint_eve_nft(
             ctx,
-            metadata,
-            royalty_puzzle_hash.into(),
-            royalty_percentage,
-            synthetic_key,
-            did_id,
-            did_inner_puzzle_hash,
-        )
+            inner_puzzle_hash,
+            mint.metadata,
+            mint.royalty_puzzle_hash,
+            mint.royalty_percentage,
+        )?;
+
+        let (nft_spend, nft_info) = StandardNftSpend::new()
+            .new_owner(mint.did_id, mint.did_inner_puzzle_hash)
+            .transfer(mint.owner_puzzle_hash)
+            .finish(ctx, mint.synthetic_key, nft_info)?;
+
+        mint_nft.extend(nft_spend);
+
+        Ok((mint_nft, nft_info))
     }
 }
 
@@ -136,7 +79,7 @@ impl MintNft for SpendableLauncher {
         metadata: M,
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
-    ) -> Result<(ChainedSpend, Bytes32, NftInfo<M>), SpendError>
+    ) -> Result<(ChainedSpend, NftInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>,
     {
@@ -175,6 +118,8 @@ impl MintNft for SpendableLauncher {
         let nft_info = NftInfo {
             launcher_id: launcher_coin.coin_id(),
             coin: eve_coin,
+            nft_inner_puzzle_hash,
+            owner_puzzle_hash: inner_puzzle_hash,
             proof,
             metadata,
             metadata_updater_hash: NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
@@ -183,7 +128,7 @@ impl MintNft for SpendableLauncher {
             royalty_percentage,
         };
 
-        Ok((chained_spend, nft_inner_puzzle_hash, nft_info))
+        Ok((chained_spend, nft_info))
     }
 }
 
@@ -277,7 +222,7 @@ mod tests {
 
     use crate::{
         testing::SECRET_KEY, Chainable, CreateDid, IntermediateLauncher, Launcher,
-        RequiredSignature, StandardDidSpend, WalletSimulator,
+        RequiredSignature, StandardDidSpend, StandardSpend, WalletSimulator,
     };
 
     use super::*;
@@ -306,31 +251,27 @@ mod tests {
                 .chain(create_did)
                 .finish(&mut ctx, parent, pk.clone())?;
 
+        let mint = StandardMint {
+            metadata: (),
+            royalty_puzzle_hash: puzzle_hash,
+            royalty_percentage: 100,
+            owner_puzzle_hash: puzzle_hash,
+            synthetic_key: pk.clone(),
+            did_id: did_info.launcher_id,
+            did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+        };
+
         let (did_coin_spends, _did_info) = StandardDidSpend::new()
             .chain(
                 IntermediateLauncher::new(did_info.coin.coin_id(), 0, 2)
                     .create(&mut ctx)?
-                    .mint_standard_nft(
-                        &mut ctx,
-                        (),
-                        100,
-                        pk.clone(),
-                        did_info.launcher_id,
-                        did_info.did_inner_puzzle_hash,
-                    )?
+                    .mint_standard_nft(&mut ctx, mint.clone())?
                     .0,
             )
             .chain(
                 IntermediateLauncher::new(did_info.coin.coin_id(), 1, 2)
                     .create(&mut ctx)?
-                    .mint_standard_nft(
-                        &mut ctx,
-                        (),
-                        300,
-                        pk.clone(),
-                        did_info.launcher_id,
-                        did_info.did_inner_puzzle_hash,
-                    )?
+                    .mint_standard_nft(&mut ctx, mint.clone())?
                     .0,
             )
             .recreate()

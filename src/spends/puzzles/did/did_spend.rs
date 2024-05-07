@@ -14,7 +14,7 @@ use crate::{
     SpendContext, SpendError, StandardSpend,
 };
 
-pub struct NoOutput;
+pub struct NoDidOutput;
 
 pub enum DidOutput {
     Recreate,
@@ -25,16 +25,16 @@ pub struct StandardDidSpend<T> {
     output: T,
 }
 
-impl Default for StandardDidSpend<NoOutput> {
+impl Default for StandardDidSpend<NoDidOutput> {
     fn default() -> Self {
         Self {
-            output: NoOutput,
+            output: NoDidOutput,
             standard_spend: StandardSpend::new(),
         }
     }
 }
 
-impl StandardDidSpend<NoOutput> {
+impl StandardDidSpend<NoDidOutput> {
     pub fn new() -> Self {
         Self::default()
     }

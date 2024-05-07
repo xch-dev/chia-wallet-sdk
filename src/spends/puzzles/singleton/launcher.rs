@@ -39,17 +39,22 @@ impl Launcher {
     }
 }
 
-pub fn singleton_puzzle_hash(launcher_id: Bytes32, inner_puzzle_hash: Bytes32) -> Bytes32 {
+pub fn singleton_struct_hash(launcher_id: Bytes32) -> Bytes32 {
     let singleton_hash = tree_hash_atom(&SINGLETON_TOP_LAYER_PUZZLE_HASH);
     let launcher_id_hash = tree_hash_atom(&launcher_id);
     let launcher_puzzle_hash = tree_hash_atom(&SINGLETON_LAUNCHER_PUZZLE_HASH);
 
     let pair = tree_hash_pair(launcher_id_hash, launcher_puzzle_hash);
-    let singleton_struct_hash = tree_hash_pair(singleton_hash, pair);
+    tree_hash_pair(singleton_hash, pair).into()
+}
 
+pub fn singleton_puzzle_hash(launcher_id: Bytes32, inner_puzzle_hash: Bytes32) -> Bytes32 {
     curry_tree_hash(
         SINGLETON_TOP_LAYER_PUZZLE_HASH,
-        &[singleton_struct_hash, inner_puzzle_hash.into()],
+        &[
+            singleton_struct_hash(launcher_id).into(),
+            inner_puzzle_hash.into(),
+        ],
     )
     .into()
 }
