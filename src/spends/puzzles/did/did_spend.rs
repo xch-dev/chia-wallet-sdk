@@ -61,7 +61,7 @@ impl StandardDidSpend<DidOutput> {
             DidOutput::Recreate => CreateCoinWithMemos {
                 puzzle_hash: did_info.did_inner_puzzle_hash,
                 amount: did_info.coin.amount,
-                memos: vec![did_info.owner_puzzle_hash.to_vec().into()],
+                memos: vec![did_info.p2_puzzle_hash.to_vec().into()],
             },
         };
 

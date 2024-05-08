@@ -91,8 +91,8 @@ impl StandardNftSpend<NftOutput> {
             coin_spends: Vec::new(),
         };
 
-        let owner_puzzle_hash = match self.output {
-            NftOutput::SamePuzzleHash => nft_info.owner_puzzle_hash,
+        let p2_puzzle_hash = match self.output {
+            NftOutput::SamePuzzleHash => nft_info.p2_puzzle_hash,
             NftOutput::NewPuzzleHash { puzzle_hash } => puzzle_hash,
         };
 
@@ -120,9 +120,9 @@ impl StandardNftSpend<NftOutput> {
         let (inner_spend, coin_spends) = self
             .standard_spend
             .condition(ctx.alloc(CreateCoinWithMemos {
-                puzzle_hash: owner_puzzle_hash,
+                puzzle_hash: p2_puzzle_hash,
                 amount: nft_info.coin.amount,
-                memos: vec![owner_puzzle_hash.to_vec().into()],
+                memos: vec![p2_puzzle_hash.to_vec().into()],
             })?)
             .inner_spend(ctx, synthetic_key)?;
 
@@ -148,7 +148,7 @@ impl StandardNftSpend<NftOutput> {
                     nft_info.royalty_puzzle_hash,
                     nft_info.royalty_percentage,
                 ),
-                owner_puzzle_hash,
+                p2_puzzle_hash,
             ),
         );
 

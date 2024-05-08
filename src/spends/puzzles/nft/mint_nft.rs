@@ -75,7 +75,7 @@ impl MintNft for SpendableLauncher {
     fn mint_eve_nft<M>(
         self,
         ctx: &mut SpendContext,
-        inner_puzzle_hash: Bytes32,
+        p2_puzzle_hash: Bytes32,
         metadata: M,
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
@@ -93,7 +93,7 @@ impl MintNft for SpendableLauncher {
                 royalty_puzzle_hash,
                 royalty_percentage,
             ),
-            inner_puzzle_hash,
+            p2_puzzle_hash,
         );
         let nft_inner_puzzle_hash = nft_state_layer_hash(
             metadata_hash,
@@ -119,7 +119,7 @@ impl MintNft for SpendableLauncher {
             launcher_id: launcher_coin.coin_id(),
             coin: eve_coin,
             nft_inner_puzzle_hash,
-            owner_puzzle_hash: inner_puzzle_hash,
+            p2_puzzle_hash,
             proof,
             metadata,
             metadata_updater_hash: NFT_METADATA_UPDATER_PUZZLE_HASH.into(),

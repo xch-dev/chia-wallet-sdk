@@ -75,7 +75,7 @@ impl CreateDid for SpendableLauncher {
     fn create_eve_did<M>(
         self,
         ctx: &mut SpendContext,
-        owner_puzzle_hash: Bytes32,
+        p2_puzzle_hash: Bytes32,
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
@@ -87,7 +87,7 @@ impl CreateDid for SpendableLauncher {
         let metadata_hash = ctx.tree_hash(metadata_ptr);
 
         let did_inner_puzzle_hash = did_inner_puzzle_hash(
-            owner_puzzle_hash,
+            p2_puzzle_hash,
             recovery_did_list_hash,
             num_verifications_required,
             self.coin().coin_id(),
@@ -106,7 +106,7 @@ impl CreateDid for SpendableLauncher {
             launcher_id: launcher_coin.coin_id(),
             coin: eve_coin,
             did_inner_puzzle_hash,
-            owner_puzzle_hash,
+            p2_puzzle_hash,
             proof,
             recovery_did_list_hash,
             num_verifications_required,
