@@ -281,7 +281,7 @@ mod tests {
 
         let required_signatures = RequiredSignature::from_coin_spends(
             &mut allocator,
-            dbg!(&coin_spends),
+            &coin_spends,
             WalletSimulator::AGG_SIG_ME.into(),
         )?;
 
