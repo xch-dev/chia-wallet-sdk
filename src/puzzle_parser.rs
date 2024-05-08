@@ -17,8 +17,7 @@ use clvmr::{
 use thiserror::Error;
 
 use crate::{
-    did_inner_puzzle_hash, singleton_puzzle_hash, CatInfo, CreateCoin, CreateCoinWithMemos,
-    DidInfo, NftInfo,
+    did_inner_puzzle_hash, singleton_puzzle_hash, CatInfo, CreateCoin, CreateCoinWithMemos, DidInfo,
 };
 
 #[derive(Debug, Error)]
@@ -48,7 +47,6 @@ pub enum PuzzleError {
 pub enum Puzzle {
     Cat(CatInfo),
     Did(DidInfo<NodePtr>),
-    Nft(NftInfo<NodePtr>),
 }
 
 impl Puzzle {
