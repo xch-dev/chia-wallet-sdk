@@ -41,7 +41,7 @@ pub trait CreateDid {
     {
         let inner_puzzle_hash = standard_puzzle_hash(&synthetic_key).into();
 
-        let (mut create_did, did_info) = self.create_eve_did(
+        let (create_did, did_info) = self.create_eve_did(
             ctx,
             inner_puzzle_hash,
             recovery_did_list_hash,
@@ -49,12 +49,9 @@ pub trait CreateDid {
             metadata,
         )?;
 
-        let (coin_spends, did_info) =
-            StandardDidSpend::new()
-                .recreate()
-                .finish(ctx, synthetic_key, did_info)?;
-
-        create_did.coin_spends.extend(coin_spends);
+        let did_info = StandardDidSpend::new()
+            .recreate()
+            .finish(ctx, synthetic_key, did_info)?;
 
         Ok((create_did, did_info))
     }

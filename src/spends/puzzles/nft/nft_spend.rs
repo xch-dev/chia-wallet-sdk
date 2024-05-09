@@ -88,7 +88,6 @@ impl StandardNftSpend<NftOutput> {
     {
         let mut chained_spend = ChainedSpend {
             parent_conditions: Vec::new(),
-            coin_spends: Vec::new(),
         };
 
         let p2_puzzle_hash = match self.output {
@@ -117,7 +116,7 @@ impl StandardNftSpend<NftOutput> {
                 })?);
         }
 
-        let (inner_spend, coin_spends) = self
+        let inner_spend = self
             .standard_spend
             .condition(ctx.alloc(CreateCoinWithMemos {
                 puzzle_hash: p2_puzzle_hash,
@@ -126,10 +125,8 @@ impl StandardNftSpend<NftOutput> {
             })?)
             .inner_spend(ctx, synthetic_key)?;
 
-        chained_spend.coin_spends.extend(coin_spends);
-        chained_spend
-            .coin_spends
-            .push(raw_nft_spend(ctx, &nft_info, inner_spend)?);
+        let nft_spend = raw_nft_spend(ctx, &nft_info, inner_spend)?;
+        ctx.spend(nft_spend);
 
         nft_info.current_owner = self
             .new_owner
@@ -317,10 +314,9 @@ mod tests {
             .create(&mut ctx)?
             .create_standard_did(&mut ctx, pk.clone())?;
 
-        let mut coin_spends =
-            StandardSpend::new()
-                .chain(create_did)
-                .finish(&mut ctx, parent, pk.clone())?;
+        StandardSpend::new()
+            .chain(create_did)
+            .finish(&mut ctx, parent, pk.clone())?;
 
         let (mint_nft, mut nft_info) = IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
             .create(&mut ctx)?
@@ -337,12 +333,11 @@ mod tests {
                 },
             )?;
 
-        let (did_spends, mut did_info) = StandardDidSpend::new()
-            .chain(mint_nft)
-            .recreate()
-            .finish(&mut ctx, pk.clone(), did_info)?;
-
-        coin_spends.extend(did_spends);
+        let mut did_info = StandardDidSpend::new().chain(mint_nft).recreate().finish(
+            &mut ctx,
+            pk.clone(),
+            did_info,
+        )?;
 
         for i in 0..5 {
             let mut spend = StandardNftSpend::new().update();
@@ -352,16 +347,16 @@ mod tests {
             }
 
             let (nft_spend, new_nft_info) = spend.finish(&mut ctx, pk.clone(), nft_info)?;
-
             nft_info = new_nft_info;
 
-            let (did_spends, new_did_info) = StandardDidSpend::new()
-                .chain(nft_spend)
-                .recreate()
-                .finish(&mut ctx, pk.clone(), did_info)?;
-            did_info = new_did_info;
-            coin_spends.extend(did_spends);
+            did_info = StandardDidSpend::new().chain(nft_spend).recreate().finish(
+                &mut ctx,
+                pk.clone(),
+                did_info,
+            )?;
         }
+
+        let coin_spends = ctx.take_spends();
 
         let required_signatures = RequiredSignature::from_coin_spends(
             &mut allocator,

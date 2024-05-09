@@ -53,7 +53,7 @@ impl StandardDidSpend<DidOutput> {
         ctx: &mut SpendContext,
         synthetic_key: PublicKey,
         mut did_info: DidInfo<M>,
-    ) -> Result<(Vec<CoinSpend>, DidInfo<M>), SpendError>
+    ) -> Result<DidInfo<M>, SpendError>
     where
         M: ToClvm<NodePtr>,
     {
@@ -65,12 +65,13 @@ impl StandardDidSpend<DidOutput> {
             },
         };
 
-        let (inner_spend, mut coin_spends) = self
+        let inner_spend = self
             .standard_spend
             .condition(ctx.alloc(create_coin)?)
             .inner_spend(ctx, synthetic_key)?;
 
-        coin_spends.push(raw_did_spend(ctx, &did_info, inner_spend)?);
+        let did_spend = raw_did_spend(ctx, &did_info, inner_spend)?;
+        ctx.spend(did_spend);
 
         match self.output {
             DidOutput::Recreate => {
@@ -88,7 +89,7 @@ impl StandardDidSpend<DidOutput> {
             }
         }
 
-        Ok((coin_spends, did_info))
+        Ok(did_info)
     }
 }
 
@@ -174,19 +175,17 @@ mod tests {
             .create(&mut ctx)?
             .create_standard_did(&mut ctx, pk.clone())?;
 
-        let mut coin_spends =
-            StandardSpend::new()
-                .chain(create_did)
-                .finish(&mut ctx, parent, pk.clone())?;
+        StandardSpend::new()
+            .chain(create_did)
+            .finish(&mut ctx, parent, pk.clone())?;
 
         for _ in 0..10 {
-            let (did_spends, new_did_info) =
-                StandardDidSpend::new()
-                    .recreate()
-                    .finish(&mut ctx, pk.clone(), did_info)?;
-            did_info = new_did_info;
-            coin_spends.extend(did_spends);
+            did_info = StandardDidSpend::new()
+                .recreate()
+                .finish(&mut ctx, pk.clone(), did_info)?;
         }
+
+        let coin_spends = ctx.take_spends();
 
         let required_signatures = RequiredSignature::from_coin_spends(
             &mut allocator,

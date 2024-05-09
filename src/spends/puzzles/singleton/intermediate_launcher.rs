@@ -44,7 +44,6 @@ impl IntermediateLauncher {
     }
 
     pub fn create(self, ctx: &mut SpendContext) -> Result<SpendableLauncher, SpendError> {
-        let mut coin_spends = Vec::new();
         let mut parent_conditions = Vec::new();
 
         let intermediate_puzzle = ctx.nft_intermediate_launcher();
@@ -70,7 +69,7 @@ impl IntermediateLauncher {
 
         let intermediate_id = self.intermediate_coin.coin_id();
 
-        coin_spends.push(CoinSpend::new(
+        ctx.spend(CoinSpend::new(
             self.intermediate_coin,
             puzzle_reveal,
             solution,
@@ -88,10 +87,7 @@ impl IntermediateLauncher {
             announcement_id: Bytes32::new(announcement_id.finalize().into()),
         })?);
 
-        let chained_spend = ChainedSpend {
-            coin_spends,
-            parent_conditions,
-        };
+        let chained_spend = ChainedSpend { parent_conditions };
 
         Ok(SpendableLauncher::new(self.launcher_coin, chained_spend))
     }

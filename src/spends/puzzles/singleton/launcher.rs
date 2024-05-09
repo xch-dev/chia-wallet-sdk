@@ -33,7 +33,6 @@ impl Launcher {
                     puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
                     amount,
                 })?],
-                coin_spends: Vec::new(),
             },
         ))
     }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use chia_protocol::{Bytes32, Program};
+use chia_protocol::{Bytes32, CoinSpend, Program};
 use chia_wallet::{
     cat::{CAT_PUZZLE, CAT_PUZZLE_HASH, EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE},
     did::{DID_INNER_PUZZLE, DID_INNER_PUZZLE_HASH},
@@ -27,6 +27,7 @@ use crate::SpendError;
 pub struct SpendContext<'a> {
     allocator: &'a mut Allocator,
     puzzles: HashMap<[u8; 32], NodePtr>,
+    coin_spends: Vec<CoinSpend>,
 }
 
 impl<'a> SpendContext<'a> {
@@ -35,17 +36,33 @@ impl<'a> SpendContext<'a> {
         Self {
             allocator,
             puzzles: HashMap::new(),
+            coin_spends: Vec::new(),
         }
     }
 
-    /// Get a reference to the `Allocator`.
+    /// Get a reference to the [`Allocator`].
     pub fn allocator(&self) -> &Allocator {
         self.allocator
     }
 
-    /// Get a mutable reference to the `Allocator`.
+    /// Get a mutable reference to the [`Allocator`].
     pub fn allocator_mut(&mut self) -> &mut Allocator {
         self.allocator
+    }
+
+    /// Get a reference to the list of coin spends.
+    pub fn spends(&self) -> &[CoinSpend] {
+        &self.coin_spends
+    }
+
+    /// Take the coin spends out of the [`SpendContext`].
+    pub fn take_spends(&mut self) -> Vec<CoinSpend> {
+        std::mem::take(&mut self.coin_spends)
+    }
+
+    /// Add a [`CoinSpend`] to the list.
+    pub fn spend(&mut self, coin_spend: CoinSpend) {
+        self.coin_spends.push(coin_spend);
     }
 
     /// Allocate a new node and return its pointer.

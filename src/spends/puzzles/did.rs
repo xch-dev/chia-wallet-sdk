@@ -41,9 +41,11 @@ mod tests {
             .create(&mut ctx)?
             .create_standard_did(&mut ctx, pk.clone())?;
 
-        let coin_spends = StandardSpend::new()
+        StandardSpend::new()
             .chain(launch_singleton)
             .finish(&mut ctx, parent, pk)?;
+
+        let coin_spends = ctx.take_spends();
 
         let mut spend_bundle = SpendBundle::new(coin_spends, Signature::default());
 

@@ -85,9 +85,12 @@ impl OfferBuilder {
         Ok(self)
     }
 
-    pub fn finish(self) -> ChainedSpend {
+    pub fn finish(self, ctx: &mut SpendContext) -> ChainedSpend {
+        for coin_spend in self.coin_spends {
+            ctx.spend(coin_spend);
+        }
+
         ChainedSpend {
-            coin_spends: self.coin_spends,
             parent_conditions: self.parent_conditions,
         }
     }

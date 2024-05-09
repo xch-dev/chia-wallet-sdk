@@ -246,10 +246,9 @@ mod tests {
             .create(&mut ctx)?
             .create_standard_did(&mut ctx, pk.clone())?;
 
-        let mut coin_spends =
-            StandardSpend::new()
-                .chain(create_did)
-                .finish(&mut ctx, parent, pk.clone())?;
+        StandardSpend::new()
+            .chain(create_did)
+            .finish(&mut ctx, parent, pk.clone())?;
 
         let mint = StandardMint {
             metadata: (),
@@ -261,7 +260,7 @@ mod tests {
             did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
         };
 
-        let (did_coin_spends, _did_info) = StandardDidSpend::new()
+        let _did_info = StandardDidSpend::new()
             .chain(
                 IntermediateLauncher::new(did_info.coin.coin_id(), 0, 2)
                     .create(&mut ctx)?
@@ -277,7 +276,7 @@ mod tests {
             .recreate()
             .finish(&mut ctx, pk, did_info)?;
 
-        coin_spends.extend(did_coin_spends);
+        let coin_spends = ctx.take_spends();
 
         let required_signatures = RequiredSignature::from_coin_spends(
             &mut allocator,

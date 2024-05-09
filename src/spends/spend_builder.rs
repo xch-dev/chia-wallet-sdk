@@ -1,4 +1,3 @@
-use chia_protocol::CoinSpend;
 use clvmr::NodePtr;
 
 pub trait Chainable {
@@ -18,7 +17,6 @@ pub trait Chainable {
 
 #[derive(Debug, Default, Clone)]
 pub struct ChainedSpend {
-    pub coin_spends: Vec<CoinSpend>,
     pub parent_conditions: Vec<NodePtr>,
 }
 
@@ -28,7 +26,6 @@ impl ChainedSpend {
     }
 
     pub fn extend(&mut self, other: ChainedSpend) {
-        self.coin_spends.extend(other.coin_spends);
         self.parent_conditions.extend(other.parent_conditions);
     }
 }

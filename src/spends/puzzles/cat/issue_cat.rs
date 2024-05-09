@@ -98,10 +98,9 @@ impl IssueCat {
         })?;
 
         let puzzle_reveal = ctx.serialize(puzzle)?;
-        let coin_spend = CoinSpend::new(coin.clone(), puzzle_reveal, solution);
+        ctx.spend(CoinSpend::new(coin.clone(), puzzle_reveal, solution));
 
         let chained_spend = ChainedSpend {
-            coin_spends: vec![coin_spend],
             parent_conditions: vec![ctx.alloc(CreateCoinWithMemos {
                 puzzle_hash,
                 amount,
@@ -166,9 +165,11 @@ mod tests {
             })?)
             .multi_issuance(&mut ctx, pk.clone(), 1)?;
 
-        let coin_spends = StandardSpend::new()
+        StandardSpend::new()
             .chain(issue_cat)
             .finish(&mut ctx, xch_coin, pk)?;
+
+        let coin_spends = ctx.take_spends();
 
         let required_signatures = RequiredSignature::from_coin_spends(
             &mut allocator,

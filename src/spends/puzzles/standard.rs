@@ -22,7 +22,11 @@ impl StandardSpend {
         self,
         ctx: &mut SpendContext,
         synthetic_key: PublicKey,
-    ) -> Result<(InnerSpend, Vec<CoinSpend>), SpendError> {
+    ) -> Result<InnerSpend, SpendError> {
+        for coin_spend in self.coin_spends {
+            ctx.spend(coin_spend);
+        }
+
         let standard_puzzle = ctx.standard_puzzle();
 
         let puzzle = ctx.alloc(CurriedProgram {
@@ -32,7 +36,7 @@ impl StandardSpend {
 
         let solution = ctx.alloc(standard_solution(self.conditions))?;
 
-        Ok((InnerSpend::new(puzzle, solution), self.coin_spends))
+        Ok(InnerSpend::new(puzzle, solution))
     }
 
     pub fn finish(
@@ -40,20 +44,17 @@ impl StandardSpend {
         ctx: &mut SpendContext,
         coin: Coin,
         synthetic_key: PublicKey,
-    ) -> Result<Vec<CoinSpend>, SpendError> {
-        let (inner_spend, mut coin_spends) = self.inner_spend(ctx, synthetic_key)?;
-
+    ) -> Result<(), SpendError> {
+        let inner_spend = self.inner_spend(ctx, synthetic_key)?;
         let puzzle_reveal = ctx.serialize(inner_spend.puzzle())?;
         let solution = ctx.serialize(inner_spend.solution())?;
-        coin_spends.push(CoinSpend::new(coin, puzzle_reveal, solution));
-
-        Ok(coin_spends)
+        ctx.spend(CoinSpend::new(coin, puzzle_reveal, solution));
+        Ok(())
     }
 }
 
 impl Chainable for StandardSpend {
     fn chain(mut self, chained_spend: ChainedSpend) -> Self {
-        self.coin_spends.extend(chained_spend.coin_spends);
         self.conditions.extend(chained_spend.parent_conditions);
         self
     }
@@ -76,54 +77,62 @@ pub fn standard_solution<T>(conditions: T) -> StandardSolution<(u8, T), ()> {
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::derive_keys::master_to_wallet_unhardened;
-    use chia_protocol::Bytes32;
-    use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
-    use clvmr::{serde::node_to_bytes, Allocator};
-    use hex_literal::hex;
+    use chia_bls::{sign, Signature};
+    use chia_protocol::SpendBundle;
+    use chia_wallet::{
+        standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
+        DeriveSynthetic,
+    };
+    use clvmr::Allocator;
 
-    use crate::{testing::SECRET_KEY, CreateCoinWithoutMemos};
+    use crate::{testing::SECRET_KEY, CreateCoinWithoutMemos, RequiredSignature, WalletSimulator};
 
     use super::*;
 
-    #[test]
-    fn test_standard_spend() {
-        let synthetic_key = master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0)
-            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+    #[tokio::test]
+    async fn test_standard_spend() -> anyhow::Result<()> {
+        let sim = WalletSimulator::new().await;
+        let peer = sim.peer().await;
 
-        let mut a = Allocator::new();
-        let mut ctx = SpendContext::new(&mut a);
+        let mut allocator = Allocator::new();
+        let mut ctx = SpendContext::new(&mut allocator);
 
-        let coin = Coin::new(Bytes32::from([0; 32]), Bytes32::from([1; 32]), 42);
+        let sk = SECRET_KEY.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let pk = sk.public_key();
+        let puzzle_hash = standard_puzzle_hash(&pk).into();
 
-        let coin_spend = StandardSpend::new()
+        let parent = sim.generate_coin(puzzle_hash, 1).await.coin;
+
+        StandardSpend::new()
             .condition(
                 ctx.alloc(CreateCoinWithoutMemos {
-                    puzzle_hash: coin.puzzle_hash,
-                    amount: coin.amount,
+                    puzzle_hash,
+                    amount: 1,
                 })
                 .unwrap(),
             )
-            .finish(&mut ctx, coin, synthetic_key)
-            .unwrap()
-            .remove(0);
+            .finish(&mut ctx, parent, pk)?;
 
-        let output_ptr = coin_spend
-            .puzzle_reveal
-            .run(&mut a, 0, u64::MAX, &coin_spend.solution)
-            .unwrap()
-            .1;
-        let actual = node_to_bytes(&a, output_ptr).unwrap();
+        let coin_spends = ctx.take_spends();
 
-        let expected = hex!(
-            "
-            ffff32ffb08584adae5630842a1766bc444d2b872dd3080f4e5daaecf6f762a4
-            be7dc148f37868149d4217f3dcc9183fe61e48d8bfffa09744e53c76d9ce3c6b
-            eb75a3d414ebbec42e31e96621c66b7a832ca1feccceea80ffff33ffa0010101
-            0101010101010101010101010101010101010101010101010101010101ff2a80
-            80
-            "
-        );
-        assert_eq!(hex::encode(actual), hex::encode(expected));
+        let required_signatures = RequiredSignature::from_coin_spends(
+            &mut allocator,
+            &coin_spends,
+            WalletSimulator::AGG_SIG_ME.into(),
+        )?;
+
+        let mut aggregated_signature = Signature::default();
+
+        for required in required_signatures {
+            aggregated_signature += &sign(&sk, required.final_message());
+        }
+
+        let ack = peer
+            .send_transaction(SpendBundle::new(coin_spends, aggregated_signature))
+            .await?;
+        assert_eq!(ack.error, None);
+        assert_eq!(ack.status, 1);
+
+        Ok(())
     }
 }

@@ -263,11 +263,13 @@ mod tests {
             },
         };
 
-        let standard_spend = StandardSpend::new()
+        StandardSpend::new()
             .chain(issue_cat)
             .finish(&mut ctx, parent, pk)?;
 
-        let coin_spend = standard_spend
+        let coin_spends = ctx.take_spends();
+
+        let coin_spend = coin_spends
             .into_iter()
             .find(|cs| cs.coin.coin_id() == issuance_info.eve_coin.coin_id())
             .unwrap();
@@ -305,11 +307,13 @@ mod tests {
             .create(&mut ctx)?
             .create_standard_did(&mut ctx, pk.clone())?;
 
-        let standard_spend = StandardSpend::new()
+        StandardSpend::new()
             .chain(create_did)
             .finish(&mut ctx, parent, pk)?;
 
-        let coin_spend = standard_spend
+        let coin_spends = ctx.take_spends();
+
+        let coin_spend = coin_spends
             .into_iter()
             .find(|cs| cs.coin.coin_id() == did_info.coin.parent_coin_info)
             .unwrap();

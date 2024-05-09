@@ -45,13 +45,11 @@ impl CatSpend {
         self
     }
 
-    pub fn finish(self, ctx: &mut SpendContext) -> Result<Vec<CoinSpend>, SpendError> {
+    pub fn finish(self, ctx: &mut SpendContext) -> Result<(), SpendError> {
         let cat_puzzle_ptr = ctx.cat_puzzle();
-
-        let mut coin_spends = Vec::new();
-        let mut total_delta = 0;
-
         let len = self.cat_spends.len();
+
+        let mut total_delta = 0;
 
         for (index, item) in self.cat_spends.iter().enumerate() {
             let CatSpendItem {
@@ -104,10 +102,10 @@ impl CatSpend {
                 extra_delta: *extra_delta,
             })?;
 
-            coin_spends.push(CoinSpend::new(coin.clone(), puzzle_reveal, solution));
+            ctx.spend(CoinSpend::new(coin.clone(), puzzle_reveal, solution));
         }
 
-        Ok(coin_spends)
+        Ok(())
     }
 }
 
@@ -151,7 +149,7 @@ mod tests {
             42,
         );
 
-        let (inner_spend, _) = StandardSpend::new()
+        let inner_spend = StandardSpend::new()
             .condition(ctx.alloc(CreateCoinWithoutMemos {
                 puzzle_hash: coin.puzzle_hash,
                 amount: coin.amount,
@@ -164,10 +162,11 @@ mod tests {
             amount: parent_coin.amount,
         };
 
-        let coin_spend = CatSpend::new(asset_id)
+        CatSpend::new(asset_id)
             .spend(coin, inner_spend, lineage_proof, 0)
-            .finish(&mut ctx)?
-            .remove(0);
+            .finish(&mut ctx)?;
+
+        let coin_spend = ctx.take_spends().remove(0);
 
         let output_ptr = coin_spend
             .puzzle_reveal
@@ -244,20 +243,22 @@ mod tests {
             amount: parent_coin_3.amount,
         };
 
-        let (inner_spend, _) = StandardSpend::new()
+        let inner_spend = StandardSpend::new()
             .condition(ctx.alloc(CreateCoinWithoutMemos {
                 puzzle_hash: coin_1.puzzle_hash,
                 amount: coin_1.amount + coin_2.amount + coin_3.amount,
             })?)
             .inner_spend(&mut ctx, synthetic_key.clone())?;
 
-        let (empty_spend, _) = StandardSpend::new().inner_spend(&mut ctx, synthetic_key)?;
+        let empty_spend = StandardSpend::new().inner_spend(&mut ctx, synthetic_key)?;
 
-        let coin_spends = CatSpend::new(asset_id)
+        CatSpend::new(asset_id)
             .spend(coin_1, inner_spend, lineage_1, 0)
             .spend(coin_2, empty_spend, lineage_2, 0)
             .spend(coin_3, empty_spend, lineage_3, 0)
             .finish(&mut ctx)?;
+
+        let coin_spends = ctx.take_spends();
 
         let spend_vec = coin_spends
             .clone()

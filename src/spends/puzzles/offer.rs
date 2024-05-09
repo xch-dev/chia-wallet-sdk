@@ -130,10 +130,11 @@ mod tests {
             })?)
             .multi_issuance(&mut ctx, pk.clone(), 1000)?;
 
-        let coin_spends =
-            StandardSpend::new()
-                .chain(issue_cat)
-                .finish(&mut ctx, parent.clone(), pk.clone())?;
+        StandardSpend::new()
+            .chain(issue_cat)
+            .finish(&mut ctx, parent.clone(), pk.clone())?;
+
+        let coin_spends = ctx.take_spends();
 
         let mut spend_bundle = SpendBundle::new(coin_spends, Signature::default());
 
@@ -197,15 +198,13 @@ mod tests {
         let assert_cat =
             offer_announcement_id(&mut ctx, cat_settlements_hash, cat_payment.clone())?;
 
-        let mut coin_spends = Vec::new();
-
         let lineage_proof = LineageProof {
             parent_coin_info: parent.coin_id(),
             inner_puzzle_hash: cat_info.eve_inner_puzzle_hash,
             amount: 1000,
         };
 
-        let (inner_spend, _) = StandardSpend::new()
+        let inner_spend = StandardSpend::new()
             .condition(ctx.alloc(CreateCoinWithMemos {
                 puzzle_hash: SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
                 amount: 1000,
@@ -216,11 +215,9 @@ mod tests {
             })?)
             .inner_spend(&mut ctx, pk.clone())?;
 
-        let cat_to_settlement = CatSpend::new(cat_info.asset_id)
+        CatSpend::new(cat_info.asset_id)
             .spend(cat.clone(), inner_spend, lineage_proof, 0)
             .finish(&mut ctx)?;
-
-        coin_spends.extend(cat_to_settlement);
 
         let cat_settlement_coin = Coin::new(
             cat.coin_id(),
@@ -228,7 +225,7 @@ mod tests {
             1000,
         );
 
-        let xch_to_settlement = StandardSpend::new()
+        StandardSpend::new()
             .condition(ctx.alloc(CreateCoinWithoutMemos {
                 puzzle_hash: SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
                 amount: 1000,
@@ -237,8 +234,6 @@ mod tests {
                 announcement_id: assert_cat,
             })?)
             .finish(&mut ctx, xch.clone(), pk)?;
-
-        coin_spends.extend(xch_to_settlement);
 
         let xch_settlement_coin =
             Coin::new(xch.coin_id(), SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), 1000);
@@ -254,21 +249,18 @@ mod tests {
         })?;
         let inner_spend = InnerSpend::new(settlement_payments_puzzle, solution);
 
-        let settlement_to_cat = CatSpend::new(cat_info.asset_id)
+        CatSpend::new(cat_info.asset_id)
             .spend(cat_settlement_coin, inner_spend, lineage_proof, 0)
             .finish(&mut ctx)?;
-
-        coin_spends.extend(settlement_to_cat);
 
         let puzzle_reveal = ctx.serialize(settlement_payments_puzzle)?;
         let solution = ctx.serialize(SettlementPaymentsSolution {
             notarized_payments: vec![xch_payment],
         })?;
 
-        let settlement_to_xch = CoinSpend::new(xch_settlement_coin, puzzle_reveal, solution);
+        ctx.spend(CoinSpend::new(xch_settlement_coin, puzzle_reveal, solution));
 
-        coin_spends.push(settlement_to_xch);
-
+        let coin_spends = ctx.take_spends();
         let mut spend_bundle = SpendBundle::new(coin_spends, Signature::default());
 
         let required_signatures = RequiredSignature::from_coin_spends(

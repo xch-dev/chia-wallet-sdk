@@ -62,10 +62,9 @@ impl SpendableLauncher {
             key_value_list,
         })?;
 
-        let spend_launcher = CoinSpend::new(self.coin.clone(), puzzle_reveal, solution);
+        ctx.spend(CoinSpend::new(self.coin.clone(), puzzle_reveal, solution));
 
         let mut chained_spend = self.chained_spend;
-        chained_spend.coin_spends.push(spend_launcher);
         chained_spend.parent_conditions.push(assert_announcement);
 
         let singleton_coin =
