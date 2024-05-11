@@ -402,7 +402,7 @@ async fn process_spend_bundle(
         &mut allocator,
         &gen,
         &[],
-        11_000_000_000,
+        6_600_000_000,
         MEMPOOL_MODE,
     )?;
 
