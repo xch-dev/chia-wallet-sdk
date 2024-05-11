@@ -2,7 +2,7 @@
 
 mod address;
 mod condition;
-mod puzzle_parser;
+mod parser;
 mod spends;
 mod ssl;
 
@@ -18,7 +18,7 @@ pub mod wallet;
 
 pub use address::*;
 pub use condition::*;
-pub use puzzle_parser::*;
+pub use parser::*;
 pub use spends::*;
 pub use ssl::*;
 pub use wallet::*;
