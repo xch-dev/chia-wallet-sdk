@@ -2,20 +2,21 @@ use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
 use chia_puzzles::{
     nft::{
+        NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs,
         NFT_METADATA_UPDATER_PUZZLE_HASH, NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
         NFT_ROYALTY_TRANSFER_PUZZLE_HASH, NFT_STATE_LAYER_PUZZLE_HASH,
     },
-    singleton::{SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
+    singleton::SingletonStruct,
     standard::{StandardArgs, STANDARD_PUZZLE_HASH},
     EveProof, Proof,
 };
 use clvm_traits::ToClvm;
-use clvm_utils::{curry_tree_hash, tree_hash_atom, tree_hash_pair, CurriedProgram, ToTreeHash};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    u16_to_bytes, ChainedSpend, CreatePuzzleAnnouncement, NftInfo, SpendContext, SpendError,
-    SpendableLauncher, StandardNftSpend,
+    ChainedSpend, CreatePuzzleAnnouncement, NftInfo, SpendContext, SpendError, SpendableLauncher,
+    StandardNftSpend,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -91,23 +92,38 @@ impl MintNft for SpendableLauncher {
         M: ToClvm<NodePtr>,
     {
         let metadata_ptr = ctx.alloc(&metadata)?;
-        let metadata_hash = ctx.tree_hash(metadata_ptr).into();
+        let metadata_hash = ctx.tree_hash(metadata_ptr);
 
-        let ownership_layer_hash = nft_ownership_layer_hash(
-            None,
-            nft_royalty_transfer_hash(
-                self.coin().coin_id(),
+        let transfer_program = CurriedProgram {
+            program: NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
+            args: NftRoyaltyTransferPuzzleArgs {
+                singleton_struct: SingletonStruct::new(self.coin().coin_id()),
                 royalty_puzzle_hash,
-                royalty_percentage,
-            ),
-            p2_puzzle_hash,
-        );
+                trade_price_percentage: royalty_percentage,
+            },
+        };
 
-        let nft_inner_puzzle_hash = nft_state_layer_hash(
-            metadata_hash,
-            NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
-            ownership_layer_hash,
-        );
+        let ownership_layer = CurriedProgram {
+            program: NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
+            args: NftOwnershipLayerArgs {
+                mod_hash: NFT_OWNERSHIP_LAYER_PUZZLE_HASH.into(),
+                current_owner: None,
+                transfer_program,
+                inner_puzzle: TreeHash::from(p2_puzzle_hash),
+            },
+        };
+
+        let nft_inner_puzzle_hash = CurriedProgram {
+            program: NFT_STATE_LAYER_PUZZLE_HASH,
+            args: NftStateLayerArgs {
+                mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                metadata: metadata_hash,
+                metadata_updater_puzzle_hash: NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
+                inner_puzzle: ownership_layer,
+            },
+        }
+        .tree_hash()
+        .into();
 
         let launcher_coin = self.coin();
         let (mut chained_spend, eve_coin) = self.spend(ctx, nft_inner_puzzle_hash, ())?;
@@ -140,90 +156,11 @@ impl MintNft for SpendableLauncher {
     }
 }
 
-pub fn nft_state_layer_hash(
-    metadata_hash: Bytes32,
-    metadata_updater_hash: Bytes32,
-    inner_puzzle_hash: Bytes32,
-) -> Bytes32 {
-    let mod_hash = tree_hash_atom(&NFT_STATE_LAYER_PUZZLE_HASH);
-    let metadata_updater_hash = tree_hash_atom(&metadata_updater_hash);
-
-    curry_tree_hash(
-        NFT_STATE_LAYER_PUZZLE_HASH,
-        &[
-            mod_hash,
-            metadata_hash.into(),
-            metadata_updater_hash,
-            inner_puzzle_hash.into(),
-        ],
-    )
-    .into()
-}
-
-pub fn nft_ownership_layer_hash(
-    current_owner: Option<Bytes32>,
-    transfer_program_hash: Bytes32,
-    inner_puzzle_hash: Bytes32,
-) -> Bytes32 {
-    let mod_hash = tree_hash_atom(&NFT_OWNERSHIP_LAYER_PUZZLE_HASH);
-    let current_owner_hash = match current_owner {
-        Some(did_id) => tree_hash_atom(&did_id),
-        None => tree_hash_atom(&[]),
-    };
-
-    curry_tree_hash(
-        NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
-        &[
-            mod_hash,
-            current_owner_hash,
-            transfer_program_hash.into(),
-            inner_puzzle_hash.into(),
-        ],
-    )
-    .into()
-}
-
-pub fn nft_royalty_transfer_hash(
-    launcher_id: Bytes32,
-    royalty_puzzle_hash: Bytes32,
-    royalty_percentage: u16,
-) -> Bytes32 {
-    let royalty_puzzle_hash = tree_hash_atom(&royalty_puzzle_hash);
-    let royalty_percentage_hash = tree_hash_atom(&u16_to_bytes(royalty_percentage));
-
-    let singleton_hash = tree_hash_atom(&SINGLETON_TOP_LAYER_PUZZLE_HASH);
-    let launcher_id_hash = tree_hash_atom(&launcher_id);
-    let launcher_puzzle_hash = tree_hash_atom(&SINGLETON_LAUNCHER_PUZZLE_HASH);
-
-    let pair = tree_hash_pair(launcher_id_hash, launcher_puzzle_hash);
-    let singleton_struct_hash = tree_hash_pair(singleton_hash, pair);
-
-    curry_tree_hash(
-        NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
-        &[
-            singleton_struct_hash,
-            royalty_puzzle_hash,
-            royalty_percentage_hash,
-        ],
-    )
-    .into()
-}
-
 #[cfg(test)]
 mod tests {
     use chia_bls::{sign, Signature};
     use chia_protocol::SpendBundle;
-    use chia_puzzles::{
-        nft::{
-            NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs,
-            NFT_METADATA_UPDATER_PUZZLE_HASH, NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
-            NFT_STATE_LAYER_PUZZLE_HASH,
-        },
-        singleton::{
-            SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH,
-        },
-        DeriveSynthetic,
-    };
+    use chia_puzzles::DeriveSynthetic;
     use clvm_utils::CurriedProgram;
     use clvmr::Allocator;
 
@@ -309,104 +246,5 @@ mod tests {
         assert_eq!(ack.status, 1);
 
         Ok(())
-    }
-
-    #[test]
-    fn test_state_layer_hash() {
-        let mut allocator = Allocator::new();
-        let mut ctx = SpendContext::new(&mut allocator);
-
-        let inner_puzzle = ctx.alloc([1, 2, 3]).unwrap();
-        let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
-
-        let metadata = ctx.alloc([4, 5, 6]).unwrap();
-        let metadata_hash = ctx.tree_hash(metadata).into();
-
-        let nft_state_layer = ctx.nft_state_layer();
-
-        let puzzle = ctx
-            .alloc(CurriedProgram {
-                program: nft_state_layer,
-                args: NftStateLayerArgs {
-                    mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
-                    metadata,
-                    metadata_updater_puzzle_hash: NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
-                    inner_puzzle,
-                },
-            })
-            .unwrap();
-        let allocated_puzzle_hash = ctx.tree_hash(puzzle);
-
-        let puzzle_hash = nft_state_layer_hash(
-            metadata_hash,
-            NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
-            inner_puzzle_hash,
-        );
-
-        assert_eq!(hex::encode(allocated_puzzle_hash), hex::encode(puzzle_hash));
-    }
-
-    #[test]
-    fn test_ownership_layer_hash() {
-        let mut allocator = Allocator::new();
-        let mut ctx = SpendContext::new(&mut allocator);
-
-        let inner_puzzle = ctx.alloc([1, 2, 3]).unwrap();
-        let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
-
-        let launcher_id = Bytes32::new([69; 32]);
-
-        let royalty_puzzle_hash = Bytes32::new([34; 32]);
-        let royalty_percentage = 100;
-
-        let current_owner = Some(Bytes32::new([42; 32]));
-
-        let nft_ownership_layer = ctx.nft_ownership_layer();
-        let nft_royalty_transfer = ctx.nft_royalty_transfer();
-
-        let transfer_program = ctx
-            .alloc(CurriedProgram {
-                program: nft_royalty_transfer,
-                args: NftRoyaltyTransferPuzzleArgs {
-                    singleton_struct: SingletonStruct {
-                        mod_hash: SINGLETON_TOP_LAYER_PUZZLE_HASH.into(),
-                        launcher_id,
-                        launcher_puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-                    },
-                    royalty_puzzle_hash,
-                    trade_price_percentage: royalty_percentage,
-                },
-            })
-            .unwrap();
-        let allocated_transfer_program_hash = ctx.tree_hash(transfer_program).into();
-
-        let puzzle = ctx
-            .alloc(CurriedProgram {
-                program: nft_ownership_layer,
-                args: NftOwnershipLayerArgs {
-                    mod_hash: NFT_OWNERSHIP_LAYER_PUZZLE_HASH.into(),
-                    current_owner,
-                    transfer_program,
-                    inner_puzzle,
-                },
-            })
-            .unwrap();
-        let allocated_puzzle_hash = ctx.tree_hash(puzzle);
-
-        let puzzle_hash = nft_ownership_layer_hash(
-            current_owner,
-            allocated_transfer_program_hash,
-            inner_puzzle_hash,
-        );
-
-        let transfer_program_hash =
-            nft_royalty_transfer_hash(launcher_id, royalty_puzzle_hash, royalty_percentage);
-
-        assert_eq!(
-            hex::encode(allocated_transfer_program_hash),
-            hex::encode(transfer_program_hash)
-        );
-
-        assert_eq!(hex::encode(allocated_puzzle_hash), hex::encode(puzzle_hash));
     }
 }
