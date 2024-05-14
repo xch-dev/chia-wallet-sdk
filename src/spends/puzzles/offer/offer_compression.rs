@@ -5,7 +5,7 @@ use std::{
 
 use chia_protocol::SpendBundle;
 use chia_traits::Streamable;
-use chia_wallet::{
+use chia_puzzles::{
     cat::{CAT_PUZZLE, CAT_PUZZLE_V1},
     nft::{
         NFT_METADATA_UPDATER_PUZZLE, NFT_OWNERSHIP_LAYER_PUZZLE, NFT_ROYALTY_TRANSFER_PUZZLE,

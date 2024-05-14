@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
-use chia_protocol::{Bytes32, CoinSpend, Program};
-use chia_wallet::{
-    cat::{CAT_PUZZLE, CAT_PUZZLE_HASH, EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE},
+use chia_protocol::{CoinSpend, Program};
+use chia_puzzles::{
+    cat::{
+        CAT_PUZZLE, CAT_PUZZLE_HASH, EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE,
+        EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE_HASH,
+    },
     did::{DID_INNER_PUZZLE, DID_INNER_PUZZLE_HASH},
     nft::{
         NFT_INTERMEDIATE_LAUNCHER_PUZZLE, NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH,
@@ -17,16 +20,15 @@ use chia_wallet::{
     standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
 };
 use clvm_traits::{FromNodePtr, ToNodePtr};
-use clvm_utils::tree_hash;
+use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
-use hex_literal::hex;
 
 use crate::SpendError;
 
 /// A wrapper around `Allocator` that caches puzzles and simplifies coin spending.
 pub struct SpendContext<'a> {
     allocator: &'a mut Allocator,
-    puzzles: HashMap<[u8; 32], NodePtr>,
+    puzzles: HashMap<TreeHash, NodePtr>,
     coin_spends: Vec<CoinSpend>,
 }
 
@@ -82,8 +84,8 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Compute the tree hash of a node pointer.
-    pub fn tree_hash(&self, ptr: NodePtr) -> Bytes32 {
-        Bytes32::new(tree_hash(self.allocator, ptr))
+    pub fn tree_hash(&self, ptr: NodePtr) -> TreeHash {
+        tree_hash(self.allocator, ptr)
     }
 
     /// Run a puzzle with a solution and return the result.
@@ -109,23 +111,23 @@ impl<'a> SpendContext<'a> {
 
     /// Allocate the standard puzzle and return its pointer.
     pub fn standard_puzzle(&mut self) -> NodePtr {
-        self.puzzle(&STANDARD_PUZZLE_HASH, &STANDARD_PUZZLE)
+        self.puzzle(STANDARD_PUZZLE_HASH, &STANDARD_PUZZLE)
     }
 
     /// Allocate the CAT puzzle and return its pointer.
     pub fn cat_puzzle(&mut self) -> NodePtr {
-        self.puzzle(&CAT_PUZZLE_HASH, &CAT_PUZZLE)
+        self.puzzle(CAT_PUZZLE_HASH, &CAT_PUZZLE)
     }
 
     /// Allocate the DID inner puzzle and return its pointer.
     pub fn did_inner_puzzle(&mut self) -> NodePtr {
-        self.puzzle(&DID_INNER_PUZZLE_HASH, &DID_INNER_PUZZLE)
+        self.puzzle(DID_INNER_PUZZLE_HASH, &DID_INNER_PUZZLE)
     }
 
     /// Allocate the NFT intermediate launcher puzzle and return its pointer.
     pub fn nft_intermediate_launcher(&mut self) -> NodePtr {
         self.puzzle(
-            &NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH,
+            NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH,
             &NFT_INTERMEDIATE_LAUNCHER_PUZZLE,
         )
     }
@@ -133,71 +135,62 @@ impl<'a> SpendContext<'a> {
     /// Allocate the NFT royalty transfer puzzle and return its pointer.
     pub fn nft_royalty_transfer(&mut self) -> NodePtr {
         self.puzzle(
-            &NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
+            NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
             &NFT_ROYALTY_TRANSFER_PUZZLE,
         )
     }
 
     /// Allocate the NFT ownership layer puzzle and return its pointer.
     pub fn nft_ownership_layer(&mut self) -> NodePtr {
-        self.puzzle(
-            &NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
-            &NFT_OWNERSHIP_LAYER_PUZZLE,
-        )
+        self.puzzle(NFT_OWNERSHIP_LAYER_PUZZLE_HASH, &NFT_OWNERSHIP_LAYER_PUZZLE)
     }
 
     /// Allocate the NFT state layer puzzle and return its pointer.
     pub fn nft_state_layer(&mut self) -> NodePtr {
-        self.puzzle(&NFT_STATE_LAYER_PUZZLE_HASH, &NFT_STATE_LAYER_PUZZLE)
+        self.puzzle(NFT_STATE_LAYER_PUZZLE_HASH, &NFT_STATE_LAYER_PUZZLE)
     }
 
     /// Allocate the singleton top layer puzzle and return its pointer.
     pub fn singleton_top_layer(&mut self) -> NodePtr {
-        self.puzzle(
-            &SINGLETON_TOP_LAYER_PUZZLE_HASH,
-            &SINGLETON_TOP_LAYER_PUZZLE,
-        )
+        self.puzzle(SINGLETON_TOP_LAYER_PUZZLE_HASH, &SINGLETON_TOP_LAYER_PUZZLE)
     }
 
     /// Allocate the singleton launcher puzzle and return its pointer.
     pub fn singleton_launcher(&mut self) -> NodePtr {
-        self.puzzle(&SINGLETON_LAUNCHER_PUZZLE_HASH, &SINGLETON_LAUNCHER_PUZZLE)
+        self.puzzle(SINGLETON_LAUNCHER_PUZZLE_HASH, &SINGLETON_LAUNCHER_PUZZLE)
     }
 
     /// Allocate the EverythingWithSignature TAIL puzzle and return its pointer.
     pub fn everything_with_signature_tail_puzzle(&mut self) -> NodePtr {
         // todo: add constant to chia_rs
         self.puzzle(
-            &hex!("1720d13250a7c16988eaf530331cefa9dd57a76b2c82236bec8bbbff91499b89"),
+            EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE_HASH,
             &EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE,
         )
     }
 
     /// Allocate the settlement payments puzzle and return its pointer.
     pub fn settlement_payments_puzzle(&mut self) -> NodePtr {
-        self.puzzle(
-            &SETTLEMENT_PAYMENTS_PUZZLE_HASH,
-            &SETTLEMENT_PAYMENTS_PUZZLE,
-        )
+        self.puzzle(SETTLEMENT_PAYMENTS_PUZZLE_HASH, &SETTLEMENT_PAYMENTS_PUZZLE)
     }
 
     /// Preload a puzzle into the cache.
-    pub fn preload(&mut self, puzzle_hash: [u8; 32], ptr: NodePtr) {
+    pub fn preload(&mut self, puzzle_hash: TreeHash, ptr: NodePtr) {
         self.puzzles.insert(puzzle_hash, ptr);
     }
 
     /// Checks whether a puzzle is in the cache.
-    pub fn get_puzzle(&self, puzzle_hash: &[u8; 32]) -> Option<NodePtr> {
+    pub fn get_puzzle(&self, puzzle_hash: &TreeHash) -> Option<NodePtr> {
         self.puzzles.get(puzzle_hash).copied()
     }
 
     /// Get a puzzle from the cache or allocate a new one.
-    pub fn puzzle(&mut self, puzzle_hash: &[u8; 32], puzzle_bytes: &[u8]) -> NodePtr {
-        if let Some(puzzle) = self.puzzles.get(puzzle_bytes) {
+    pub fn puzzle(&mut self, puzzle_hash: TreeHash, puzzle_bytes: &[u8]) -> NodePtr {
+        if let Some(puzzle) = self.puzzles.get(&puzzle_hash) {
             *puzzle
         } else {
             let puzzle = node_from_bytes(self.allocator, puzzle_bytes).unwrap();
-            self.puzzles.insert(*puzzle_hash, puzzle);
+            self.puzzles.insert(puzzle_hash, puzzle);
             puzzle
         }
     }

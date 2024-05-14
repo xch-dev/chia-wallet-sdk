@@ -189,7 +189,7 @@ mod tests {
             spent_height: None,
         };
 
-        upsert_coin_states(&mut conn, vec![coin_state.clone()], None)
+        upsert_coin_states(&mut conn, vec![coin_state], None)
             .await
             .unwrap();
 
@@ -216,7 +216,7 @@ mod tests {
             spent_height: None,
         };
 
-        upsert_coin_states(&mut conn, vec![coin_state.clone()], None)
+        upsert_coin_states(&mut conn, vec![coin_state], None)
             .await
             .unwrap();
 
@@ -249,7 +249,7 @@ mod tests {
             spent_height: None,
         };
 
-        upsert_coin_states(&mut conn, vec![coin_state.clone()], asset_id)
+        upsert_coin_states(&mut conn, vec![coin_state], asset_id)
             .await
             .unwrap();
 

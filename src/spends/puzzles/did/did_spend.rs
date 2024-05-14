@@ -1,6 +1,6 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Coin, CoinSpend};
-use chia_wallet::{
+use chia_puzzles::{
     did::{DidArgs, DidSolution},
     singleton::{SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
     LineageProof, Proof,
@@ -76,9 +76,9 @@ impl StandardDidSpend<DidOutput> {
         match self.output {
             DidOutput::Recreate => {
                 did_info.proof = Proof::Lineage(LineageProof {
-                    parent_coin_info: did_info.coin.parent_coin_info,
-                    inner_puzzle_hash: did_info.did_inner_puzzle_hash,
-                    amount: did_info.coin.amount,
+                    parent_parent_coin_id: did_info.coin.parent_coin_info,
+                    parent_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+                    parent_amount: did_info.coin.amount,
                 });
 
                 did_info.coin = Coin::new(
@@ -136,9 +136,9 @@ where
 
     spend_singleton(
         ctx,
-        did_info.coin.clone(),
+        did_info.coin,
         did_info.launcher_id,
-        did_info.proof.clone(),
+        did_info.proof,
         did_spend,
     )
 }
@@ -147,10 +147,11 @@ where
 mod tests {
     use chia_bls::{sign, Signature};
     use chia_protocol::SpendBundle;
-    use chia_wallet::{
-        standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
+    use chia_puzzles::{
+        standard::{StandardArgs, STANDARD_PUZZLE_HASH},
         DeriveSynthetic,
     };
+    use clvm_utils::ToTreeHash;
     use clvmr::Allocator;
 
     use crate::{testing::SECRET_KEY, CreateDid, Launcher, RequiredSignature, WalletSimulator};
@@ -165,24 +166,30 @@ mod tests {
         let mut allocator = Allocator::new();
         let mut ctx = SpendContext::new(&mut allocator);
 
-        let sk = SECRET_KEY.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let sk = SECRET_KEY.derive_synthetic();
         let pk = sk.public_key();
-        let puzzle_hash = standard_puzzle_hash(&pk).into();
+
+        let puzzle_hash = CurriedProgram {
+            program: STANDARD_PUZZLE_HASH,
+            args: StandardArgs { synthetic_key: pk },
+        }
+        .tree_hash()
+        .into();
 
         let parent = sim.generate_coin(puzzle_hash, 1).await.coin;
 
         let (create_did, mut did_info) = Launcher::new(parent.coin_id(), 1)
             .create(&mut ctx)?
-            .create_standard_did(&mut ctx, pk.clone())?;
+            .create_standard_did(&mut ctx, pk)?;
 
         StandardSpend::new()
             .chain(create_did)
-            .finish(&mut ctx, parent, pk.clone())?;
+            .finish(&mut ctx, parent, pk)?;
 
         for _ in 0..10 {
             did_info = StandardDidSpend::new()
                 .recreate()
-                .finish(&mut ctx, pk.clone(), did_info)?;
+                .finish(&mut ctx, pk, did_info)?;
         }
 
         let coin_spends = ctx.take_spends();

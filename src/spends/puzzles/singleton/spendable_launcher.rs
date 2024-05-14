@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_wallet::singleton::LauncherSolution;
+use chia_puzzles::singleton::LauncherSolution;
 use clvm_traits::{clvm_list, ToClvm};
 use clvmr::NodePtr;
 use sha2::{digest::FixedOutput, Digest, Sha256};
@@ -22,8 +22,8 @@ impl SpendableLauncher {
         }
     }
 
-    pub fn coin(&self) -> &Coin {
-        &self.coin
+    pub fn coin(&self) -> Coin {
+        self.coin
     }
 
     pub fn spend<T>(
@@ -62,7 +62,7 @@ impl SpendableLauncher {
             key_value_list,
         })?;
 
-        ctx.spend(CoinSpend::new(self.coin.clone(), puzzle_reveal, solution));
+        ctx.spend(CoinSpend::new(self.coin, puzzle_reveal, solution));
 
         let mut chained_spend = self.chained_spend;
         chained_spend.parent_conditions.push(assert_announcement);

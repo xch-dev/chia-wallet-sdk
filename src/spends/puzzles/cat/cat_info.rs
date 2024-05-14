@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_wallet::LineageProof;
+use chia_puzzles::LineageProof;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatInfo {

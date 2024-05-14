@@ -1,6 +1,6 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Coin, CoinSpend};
-use chia_wallet::standard::{StandardArgs, StandardSolution};
+use chia_puzzles::standard::{StandardArgs, StandardSolution};
 use clvm_traits::clvm_quote;
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
@@ -79,10 +79,8 @@ pub fn standard_solution<T>(conditions: T) -> StandardSolution<(u8, T), ()> {
 mod tests {
     use chia_bls::{sign, Signature};
     use chia_protocol::SpendBundle;
-    use chia_wallet::{
-        standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
-        DeriveSynthetic,
-    };
+    use chia_puzzles::{standard::STANDARD_PUZZLE_HASH, DeriveSynthetic};
+    use clvm_utils::ToTreeHash;
     use clvmr::Allocator;
 
     use crate::{testing::SECRET_KEY, CreateCoinWithoutMemos, RequiredSignature, WalletSimulator};
@@ -97,9 +95,15 @@ mod tests {
         let mut allocator = Allocator::new();
         let mut ctx = SpendContext::new(&mut allocator);
 
-        let sk = SECRET_KEY.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let sk = SECRET_KEY.derive_synthetic();
         let pk = sk.public_key();
-        let puzzle_hash = standard_puzzle_hash(&pk).into();
+
+        let puzzle_hash = CurriedProgram {
+            program: STANDARD_PUZZLE_HASH,
+            args: StandardArgs { synthetic_key: pk },
+        }
+        .tree_hash()
+        .into();
 
         let parent = sim.generate_coin(puzzle_hash, 1).await.coin;
 

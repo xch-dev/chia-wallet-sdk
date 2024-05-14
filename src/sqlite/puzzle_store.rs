@@ -1,5 +1,6 @@
 use chia_protocol::Bytes32;
-use chia_wallet::cat::cat_puzzle_hash;
+use chia_puzzles::cat::{CatArgs, CAT_PUZZLE_HASH};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use sqlx::{Result, SqliteConnection};
 
 use super::fetch_derivation_index;
@@ -71,8 +72,17 @@ pub async fn extend_cat_puzzle_hashes(
         .try_into()
         .unwrap();
 
-        let puzzle_hash = cat_puzzle_hash(asset_id.to_bytes(), p2_puzzle_hash);
-        puzzle_hashes.push(Bytes32::new(puzzle_hash));
+        let puzzle_hash = CurriedProgram {
+            program: CAT_PUZZLE_HASH,
+            args: CatArgs {
+                mod_hash: CAT_PUZZLE_HASH.into(),
+                tail_program_hash: asset_id,
+                inner_puzzle: TreeHash::new(p2_puzzle_hash),
+            },
+        }
+        .tree_hash();
+
+        puzzle_hashes.push(Bytes32::from(puzzle_hash));
 
         let puzzle_hash = puzzle_hash.to_vec();
         let asset_id = asset_id.to_vec();

@@ -55,14 +55,14 @@ mod tests {
     use super::*;
 
     use chia_bls::{sign, DerivableKey, SecretKey, Signature};
-    use chia_protocol::{Bytes32, Coin, SpendBundle};
-    use chia_wallet::{
-        cat::{cat_puzzle_hash, CatArgs, CAT_PUZZLE_HASH},
+    use chia_protocol::{Coin, SpendBundle};
+    use chia_puzzles::{
+        cat::{CatArgs, CAT_PUZZLE_HASH},
         offer::SETTLEMENT_PAYMENTS_PUZZLE_HASH,
-        standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
+        standard::{StandardArgs, STANDARD_PUZZLE_HASH},
         DeriveSynthetic, LineageProof,
     };
-    use clvm_utils::CurriedProgram;
+    use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
     use clvmr::Allocator;
 
     use crate::{
@@ -72,15 +72,11 @@ mod tests {
     };
 
     fn sk1() -> SecretKey {
-        SECRET_KEY
-            .derive_unhardened(0)
-            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+        SECRET_KEY.derive_unhardened(0).derive_synthetic()
     }
 
     fn sk2() -> SecretKey {
-        SECRET_KEY
-            .derive_unhardened(1)
-            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+        SECRET_KEY.derive_unhardened(1).derive_synthetic()
     }
 
     fn sign_tx(required_signatures: Vec<RequiredSignature>) -> Signature {
@@ -93,10 +89,10 @@ mod tests {
         let mut aggregated_signature = Signature::default();
 
         for req in required_signatures {
-            if req.public_key() == &pk1 {
+            if req.public_key() == pk1 {
                 let sig = sign(&sk1, &req.final_message());
                 aggregated_signature += &sig;
-            } else if req.public_key() == &pk2 {
+            } else if req.public_key() == pk2 {
                 let sig = sign(&sk2, &req.final_message());
                 aggregated_signature += &sig;
             } else {
@@ -118,7 +114,12 @@ mod tests {
         let sk = sk1();
         let pk = sk.public_key();
 
-        let puzzle_hash = Bytes32::new(standard_puzzle_hash(&pk));
+        let puzzle_hash = CurriedProgram {
+            program: STANDARD_PUZZLE_HASH,
+            args: StandardArgs { synthetic_key: pk },
+        }
+        .tree_hash()
+        .into();
 
         let parent = sim.generate_coin(puzzle_hash, 1000).await.coin;
 
@@ -128,11 +129,11 @@ mod tests {
                 amount: 1000,
                 memos: vec![puzzle_hash.to_vec().into()],
             })?)
-            .multi_issuance(&mut ctx, pk.clone(), 1000)?;
+            .multi_issuance(&mut ctx, pk, 1000)?;
 
         StandardSpend::new()
             .chain(issue_cat)
-            .finish(&mut ctx, parent.clone(), pk.clone())?;
+            .finish(&mut ctx, parent, pk)?;
 
         let coin_spends = ctx.take_spends();
 
@@ -151,11 +152,18 @@ mod tests {
         assert_eq!(ack.status, 1);
 
         // Prepare offer contents.
-        let cat = Coin::new(
-            cat_info.eve_coin.coin_id(),
-            cat_puzzle_hash(cat_info.asset_id.into(), puzzle_hash.into()).into(),
-            1000,
-        );
+        let cat_puzzle_hash = CurriedProgram {
+            program: CAT_PUZZLE_HASH,
+            args: CatArgs {
+                mod_hash: CAT_PUZZLE_HASH.into(),
+                tail_program_hash: cat_info.asset_id,
+                inner_puzzle: TreeHash::from(puzzle_hash),
+            },
+        }
+        .tree_hash()
+        .into();
+
+        let cat = Coin::new(cat_info.eve_coin.coin_id(), cat_puzzle_hash, 1000);
 
         let xch = sim.generate_coin(puzzle_hash, 1000).await.coin;
 
@@ -196,12 +204,12 @@ mod tests {
         )?;
 
         let assert_cat =
-            offer_announcement_id(&mut ctx, cat_settlements_hash, cat_payment.clone())?;
+            offer_announcement_id(&mut ctx, cat_settlements_hash.into(), cat_payment.clone())?;
 
         let lineage_proof = LineageProof {
-            parent_coin_info: parent.coin_id(),
-            inner_puzzle_hash: cat_info.eve_inner_puzzle_hash,
-            amount: 1000,
+            parent_parent_coin_id: parent.coin_id(),
+            parent_inner_puzzle_hash: cat_info.eve_inner_puzzle_hash,
+            parent_amount: 1000,
         };
 
         let inner_spend = StandardSpend::new()
@@ -213,17 +221,24 @@ mod tests {
             .condition(ctx.alloc(AssertPuzzleAnnouncement {
                 announcement_id: assert_xch,
             })?)
-            .inner_spend(&mut ctx, pk.clone())?;
+            .inner_spend(&mut ctx, pk)?;
 
         CatSpend::new(cat_info.asset_id)
-            .spend(cat.clone(), inner_spend, lineage_proof, 0)
+            .spend(cat, inner_spend, lineage_proof, 0)
             .finish(&mut ctx)?;
 
-        let cat_settlement_coin = Coin::new(
-            cat.coin_id(),
-            cat_puzzle_hash(cat_info.asset_id.into(), SETTLEMENT_PAYMENTS_PUZZLE_HASH).into(),
-            1000,
-        );
+        let cat_puzzle_hash = CurriedProgram {
+            program: CAT_PUZZLE_HASH,
+            args: CatArgs {
+                mod_hash: CAT_PUZZLE_HASH.into(),
+                tail_program_hash: cat_info.asset_id,
+                inner_puzzle: SETTLEMENT_PAYMENTS_PUZZLE_HASH,
+            },
+        }
+        .tree_hash()
+        .into();
+
+        let cat_settlement_coin = Coin::new(cat.coin_id(), cat_puzzle_hash, 1000);
 
         StandardSpend::new()
             .condition(ctx.alloc(CreateCoinWithoutMemos {
@@ -233,15 +248,15 @@ mod tests {
             .condition(ctx.alloc(AssertPuzzleAnnouncement {
                 announcement_id: assert_cat,
             })?)
-            .finish(&mut ctx, xch.clone(), pk)?;
+            .finish(&mut ctx, xch, pk)?;
 
         let xch_settlement_coin =
             Coin::new(xch.coin_id(), SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), 1000);
 
         let lineage_proof = LineageProof {
-            parent_coin_info: cat_info.eve_coin.coin_id(),
-            inner_puzzle_hash: puzzle_hash,
-            amount: 1000,
+            parent_parent_coin_id: cat_info.eve_coin.coin_id(),
+            parent_inner_puzzle_hash: puzzle_hash,
+            parent_amount: 1000,
         };
 
         let solution = ctx.alloc(SettlementPaymentsSolution {

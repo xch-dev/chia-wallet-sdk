@@ -1,9 +1,9 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_wallet::{
-    cat::{cat_puzzle_hash, CatArgs, CAT_PUZZLE_HASH},
+use chia_puzzles::{
+    cat::{CatArgs, CAT_PUZZLE_HASH},
     offer::SETTLEMENT_PAYMENTS_PUZZLE_HASH,
 };
-use clvm_utils::{tree_hash_atom, tree_hash_pair, CurriedProgram};
+use clvm_utils::{tree_hash_atom, tree_hash_pair, CurriedProgram, ToTreeHash};
 use clvmr::NodePtr;
 use sha2::{digest::FixedOutput, Digest, Sha256};
 
@@ -47,7 +47,15 @@ impl OfferBuilder {
         asset_id: Bytes32,
         payments: Vec<Payment>,
     ) -> Result<Self, SpendError> {
-        let puzzle_hash = cat_puzzle_hash(asset_id.into(), SETTLEMENT_PAYMENTS_PUZZLE_HASH);
+        let puzzle_hash = CurriedProgram {
+            program: CAT_PUZZLE_HASH,
+            args: CatArgs {
+                mod_hash: CAT_PUZZLE_HASH.into(),
+                tail_program_hash: asset_id,
+                inner_puzzle: SETTLEMENT_PAYMENTS_PUZZLE_HASH,
+            },
+        }
+        .tree_hash();
 
         let puzzle = if let Some(puzzle) = ctx.get_puzzle(&puzzle_hash) {
             puzzle
@@ -117,7 +125,7 @@ pub fn request_offer_payments(
     payments: Vec<Payment>,
 ) -> Result<(CoinSpend, Bytes32), SpendError> {
     let puzzle_reveal = ctx.serialize(puzzle)?;
-    let puzzle_hash = ctx.tree_hash(puzzle);
+    let puzzle_hash = ctx.tree_hash(puzzle).into();
 
     let notarized_payment = NotarizedPayment { nonce, payments };
 

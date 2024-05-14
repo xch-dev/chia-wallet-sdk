@@ -223,7 +223,7 @@ mod tests {
         let solution = Program::default();
 
         let coin_spend = CoinSpend {
-            coin: coin.clone(),
+            coin,
             puzzle_reveal,
             solution,
         };
@@ -245,7 +245,7 @@ mod tests {
 
         // Get the removals and compare.
         let removals = fetch_removals(&mut conn, transaction_id).await.unwrap();
-        assert_eq!(removals, vec![coin.clone()]);
+        assert_eq!(removals, vec![coin]);
 
         // Get all spent coins and make sure the coin is there.
         let spent_coins = fetch_spent_coins(&mut conn).await.unwrap();

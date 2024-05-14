@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_wallet::{
+use chia_puzzles::{
     cat::{CatArgs, CatSolution, CoinProof, CAT_PUZZLE_HASH},
     LineageProof,
 };
@@ -90,19 +90,19 @@ impl CatSpend {
 
             let solution = ctx.serialize(CatSolution {
                 inner_puzzle_solution: inner_spend.solution(),
-                lineage_proof: Some(lineage_proof.clone()),
+                lineage_proof: Some(*lineage_proof),
                 prev_coin_id: prev_cat.coin.coin_id(),
-                this_coin_info: coin.clone(),
+                this_coin_info: *coin,
                 next_coin_proof: CoinProof {
                     parent_coin_info: next_cat.coin.parent_coin_info,
-                    inner_puzzle_hash: ctx.tree_hash(inner_spend.puzzle()),
+                    inner_puzzle_hash: ctx.tree_hash(inner_spend.puzzle()).into(),
                     amount: next_cat.coin.amount,
                 },
                 prev_subtotal,
                 extra_delta: *extra_delta,
             })?;
 
-            ctx.spend(CoinSpend::new(coin.clone(), puzzle_reveal, solution));
+            ctx.spend(CoinSpend::new(*coin, puzzle_reveal, solution));
         }
 
         Ok(())
@@ -117,11 +117,11 @@ mod tests {
         solution_generator::solution_generator,
     };
     use chia_protocol::{Bytes32, Program};
-    use chia_wallet::{
-        cat::cat_puzzle_hash,
-        standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
+    use chia_puzzles::{
+        standard::{StandardArgs, STANDARD_PUZZLE_HASH},
         DeriveSynthetic,
     };
+    use clvm_utils::ToTreeHash;
     use clvmr::{serde::node_to_bytes, Allocator};
     use hex_literal::hex;
 
@@ -131,23 +131,32 @@ mod tests {
 
     #[test]
     fn test_cat_spend() -> anyhow::Result<()> {
-        let synthetic_key = master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0)
-            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let synthetic_key =
+            master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0).derive_synthetic();
 
         let mut allocator = Allocator::new();
         let mut ctx = SpendContext::new(&mut allocator);
 
         let asset_id = Bytes32::new([42; 32]);
 
-        let p2_puzzle_hash = Bytes32::new(standard_puzzle_hash(&synthetic_key));
-        let cat_puzzle_hash = cat_puzzle_hash(asset_id.to_bytes(), p2_puzzle_hash.to_bytes());
+        let p2_puzzle_hash = CurriedProgram {
+            program: STANDARD_PUZZLE_HASH,
+            args: StandardArgs { synthetic_key },
+        }
+        .tree_hash();
 
-        let parent_coin = Coin::new(Bytes32::new([0; 32]), Bytes32::new(cat_puzzle_hash), 69);
-        let coin = Coin::new(
-            Bytes32::from(parent_coin.coin_id()),
-            Bytes32::new(cat_puzzle_hash),
-            42,
-        );
+        let cat_puzzle_hash = CurriedProgram {
+            program: CAT_PUZZLE_HASH,
+            args: CatArgs {
+                mod_hash: CAT_PUZZLE_HASH.into(),
+                tail_program_hash: asset_id,
+                inner_puzzle: p2_puzzle_hash,
+            },
+        }
+        .tree_hash();
+
+        let parent_coin = Coin::new(Bytes32::new([0; 32]), cat_puzzle_hash.into(), 69);
+        let coin = Coin::new(parent_coin.coin_id(), cat_puzzle_hash.into(), 42);
 
         let inner_spend = StandardSpend::new()
             .condition(ctx.alloc(CreateCoinWithoutMemos {
@@ -157,9 +166,9 @@ mod tests {
             .inner_spend(&mut ctx, synthetic_key)?;
 
         let lineage_proof = LineageProof {
-            parent_coin_info: parent_coin.parent_coin_info,
-            inner_puzzle_hash: p2_puzzle_hash,
-            amount: parent_coin.amount,
+            parent_parent_coin_id: parent_coin.parent_coin_info,
+            parent_inner_puzzle_hash: p2_puzzle_hash.into(),
+            parent_amount: parent_coin.amount,
         };
 
         CatSpend::new(asset_id)
@@ -193,54 +202,56 @@ mod tests {
 
     #[test]
     fn test_cat_spend_multi() -> anyhow::Result<()> {
-        let synthetic_key = master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0)
-            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let synthetic_key =
+            master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0).derive_synthetic();
 
         let mut allocator = Allocator::new();
         let mut ctx = SpendContext::new(&mut allocator);
 
         let asset_id = Bytes32::new([42; 32]);
 
-        let p2_puzzle_hash = Bytes32::new(standard_puzzle_hash(&synthetic_key));
-        let cat_puzzle_hash = cat_puzzle_hash(asset_id.to_bytes(), p2_puzzle_hash.to_bytes());
+        let p2_puzzle_hash = CurriedProgram {
+            program: STANDARD_PUZZLE_HASH,
+            args: StandardArgs { synthetic_key },
+        }
+        .tree_hash();
 
-        let parent_coin_1 = Coin::new(Bytes32::new([0; 32]), Bytes32::new(cat_puzzle_hash), 69);
-        let coin_1 = Coin::new(
-            Bytes32::from(parent_coin_1.coin_id()),
-            Bytes32::new(cat_puzzle_hash),
-            42,
-        );
+        let cat_puzzle_hash = CurriedProgram {
+            program: CAT_PUZZLE_HASH,
+            args: CatArgs {
+                mod_hash: CAT_PUZZLE_HASH.into(),
+                tail_program_hash: asset_id,
+                inner_puzzle: p2_puzzle_hash,
+            },
+        }
+        .tree_hash()
+        .into();
 
-        let parent_coin_2 = Coin::new(Bytes32::new([0; 32]), Bytes32::new(cat_puzzle_hash), 69);
-        let coin_2 = Coin::new(
-            Bytes32::from(parent_coin_2.coin_id()),
-            Bytes32::new(cat_puzzle_hash),
-            34,
-        );
+        let parent_coin_1 = Coin::new(Bytes32::new([0; 32]), cat_puzzle_hash, 69);
+        let coin_1 = Coin::new(parent_coin_1.coin_id(), cat_puzzle_hash, 42);
 
-        let parent_coin_3 = Coin::new(Bytes32::new([0; 32]), Bytes32::new(cat_puzzle_hash), 69);
-        let coin_3 = Coin::new(
-            Bytes32::from(parent_coin_3.coin_id()),
-            Bytes32::new(cat_puzzle_hash),
-            69,
-        );
+        let parent_coin_2 = Coin::new(Bytes32::new([0; 32]), cat_puzzle_hash, 69);
+        let coin_2 = Coin::new(parent_coin_2.coin_id(), cat_puzzle_hash, 34);
+
+        let parent_coin_3 = Coin::new(Bytes32::new([0; 32]), cat_puzzle_hash, 69);
+        let coin_3 = Coin::new(parent_coin_3.coin_id(), cat_puzzle_hash, 69);
 
         let lineage_1 = LineageProof {
-            parent_coin_info: parent_coin_1.parent_coin_info,
-            inner_puzzle_hash: p2_puzzle_hash,
-            amount: parent_coin_1.amount,
+            parent_parent_coin_id: parent_coin_1.parent_coin_info,
+            parent_inner_puzzle_hash: p2_puzzle_hash.into(),
+            parent_amount: parent_coin_1.amount,
         };
 
         let lineage_2 = LineageProof {
-            parent_coin_info: parent_coin_2.parent_coin_info,
-            inner_puzzle_hash: p2_puzzle_hash,
-            amount: parent_coin_2.amount,
+            parent_parent_coin_id: parent_coin_2.parent_coin_info,
+            parent_inner_puzzle_hash: p2_puzzle_hash.into(),
+            parent_amount: parent_coin_2.amount,
         };
 
         let lineage_3 = LineageProof {
-            parent_coin_info: parent_coin_3.parent_coin_info,
-            inner_puzzle_hash: p2_puzzle_hash,
-            amount: parent_coin_3.amount,
+            parent_parent_coin_id: parent_coin_3.parent_coin_info,
+            parent_inner_puzzle_hash: p2_puzzle_hash.into(),
+            parent_amount: parent_coin_3.amount,
         };
 
         let inner_spend = StandardSpend::new()
@@ -248,7 +259,7 @@ mod tests {
                 puzzle_hash: coin_1.puzzle_hash,
                 amount: coin_1.amount + coin_2.amount + coin_3.amount,
             })?)
-            .inner_spend(&mut ctx, synthetic_key.clone())?;
+            .inner_spend(&mut ctx, synthetic_key)?;
 
         let empty_spend = StandardSpend::new().inner_spend(&mut ctx, synthetic_key)?;
 

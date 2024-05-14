@@ -1,13 +1,13 @@
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
-use chia_wallet::{
+use chia_puzzles::{
     did::DID_INNER_PUZZLE_HASH,
     singleton::{SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
-    standard::standard_puzzle_hash,
+    standard::{StandardArgs, STANDARD_PUZZLE_HASH},
     EveProof, Proof,
 };
 use clvm_traits::ToClvm;
-use clvm_utils::{curry_tree_hash, tree_hash_atom, tree_hash_pair};
+use clvm_utils::{curry_tree_hash, tree_hash_atom, tree_hash_pair, CurriedProgram, ToTreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -39,7 +39,12 @@ pub trait CreateDid {
         M: ToClvm<NodePtr>,
         Self: Sized,
     {
-        let inner_puzzle_hash = standard_puzzle_hash(&synthetic_key).into();
+        let inner_puzzle_hash = CurriedProgram {
+            program: STANDARD_PUZZLE_HASH,
+            args: StandardArgs { synthetic_key },
+        }
+        .tree_hash()
+        .into();
 
         let (create_did, did_info) = self.create_eve_did(
             ctx,
@@ -81,7 +86,7 @@ impl CreateDid for SpendableLauncher {
         M: ToClvm<NodePtr>,
     {
         let metadata_ptr = ctx.alloc(&metadata)?;
-        let metadata_hash = ctx.tree_hash(metadata_ptr);
+        let metadata_hash = ctx.tree_hash(metadata_ptr).into();
 
         let did_inner_puzzle_hash = did_inner_puzzle_hash(
             p2_puzzle_hash,
@@ -91,7 +96,7 @@ impl CreateDid for SpendableLauncher {
             metadata_hash,
         );
 
-        let launcher_coin = self.coin().clone();
+        let launcher_coin = self.coin();
         let (chained_spend, eve_coin) = self.spend(ctx, did_inner_puzzle_hash, ())?;
 
         let proof = Proof::Eve(EveProof {
@@ -148,7 +153,7 @@ pub fn did_inner_puzzle_hash(
 mod tests {
     use super::*;
 
-    use chia_wallet::{
+    use chia_puzzles::{
         did::DidArgs,
         singleton::{
             SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH,
@@ -163,10 +168,10 @@ mod tests {
         let mut ctx = SpendContext::new(&mut allocator);
 
         let inner_puzzle = ctx.alloc([1, 2, 3]).unwrap();
-        let inner_puzzle_hash = ctx.tree_hash(inner_puzzle);
+        let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
 
         let metadata = ctx.alloc([4, 5, 6]).unwrap();
-        let metadata_hash = ctx.tree_hash(metadata);
+        let metadata_hash = ctx.tree_hash(metadata).into();
 
         let launcher_id = Bytes32::new([34; 32]);
         let recovery_did_list_hash = Bytes32::new([42; 32]);

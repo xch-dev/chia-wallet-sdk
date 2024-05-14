@@ -26,12 +26,12 @@ impl ParseContext {
         self.solution
     }
 
-    pub fn parent_coin(&self) -> &Coin {
-        &self.parent_coin
+    pub fn parent_coin(&self) -> Coin {
+        self.parent_coin
     }
 
-    pub fn coin(&self) -> &Coin {
-        &self.coin
+    pub fn coin(&self) -> Coin {
+        self.coin
     }
 }
 

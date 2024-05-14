@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_wallet::{
+use chia_puzzles::{
     nft::{NftIntermediateLauncherArgs, NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH},
     singleton::SINGLETON_LAUNCHER_PUZZLE_HASH,
 };
@@ -35,12 +35,12 @@ impl IntermediateLauncher {
         }
     }
 
-    pub fn intermediate_coin(&self) -> &Coin {
-        &self.intermediate_coin
+    pub fn intermediate_coin(&self) -> Coin {
+        self.intermediate_coin
     }
 
-    pub fn launcher_coin(&self) -> &Coin {
-        &self.launcher_coin
+    pub fn launcher_coin(&self) -> Coin {
+        self.launcher_coin
     }
 
     pub fn create(self, ctx: &mut SpendContext) -> Result<SpendableLauncher, SpendError> {
@@ -60,7 +60,7 @@ impl IntermediateLauncher {
         let puzzle_hash = ctx.tree_hash(puzzle);
 
         parent_conditions.push(ctx.alloc(CreateCoinWithoutMemos {
-            puzzle_hash,
+            puzzle_hash: puzzle_hash.into(),
             amount: 0,
         })?);
 

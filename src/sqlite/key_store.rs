@@ -1,6 +1,7 @@
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
-use chia_wallet::standard::standard_puzzle_hash;
+use chia_puzzles::standard::{StandardArgs, STANDARD_PUZZLE_HASH};
+use clvm_utils::{CurriedProgram, ToTreeHash};
 use sqlx::{Result, SqliteConnection};
 
 /// Get the number of keys in the store.
@@ -50,7 +51,15 @@ pub async fn insert_keys(
     for (i, public_key) in public_keys.iter().enumerate() {
         let index = index + i as u32;
         let public_key_bytes = public_key.to_bytes().to_vec();
-        let p2_puzzle_hash = standard_puzzle_hash(public_key).to_vec();
+
+        let p2_puzzle_hash = CurriedProgram {
+            program: STANDARD_PUZZLE_HASH,
+            args: StandardArgs {
+                synthetic_key: *public_key,
+            },
+        }
+        .tree_hash()
+        .to_vec();
 
         sqlx::query!(
             "
@@ -148,7 +157,7 @@ pub async fn puzzle_hash_index(
 /// Get the index of a public key.
 pub async fn public_key_index(
     conn: &mut SqliteConnection,
-    public_key: &PublicKey,
+    public_key: PublicKey,
     is_hardened: bool,
 ) -> Result<Option<u32>> {
     let public_key_bytes = public_key.to_bytes().to_vec();
@@ -174,7 +183,7 @@ mod tests {
         },
         DerivableKey,
     };
-    use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
+    use chia_puzzles::DeriveSynthetic;
     use sqlx::SqlitePool;
 
     use crate::testing::SECRET_KEY;
@@ -195,21 +204,13 @@ mod tests {
 
         // Insert the first batch.
         let pk_batch_1: Vec<PublicKey> = (0..100)
-            .map(|i| {
-                intermediate_pk
-                    .derive_unhardened(i)
-                    .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
-            })
+            .map(|i| intermediate_pk.derive_unhardened(i).derive_synthetic())
             .collect();
         insert_keys(&mut conn, 0, &pk_batch_1, false).await.unwrap();
 
         // Insert the second batch.
         let pk_batch_2: Vec<PublicKey> = (100..200)
-            .map(|i| {
-                intermediate_pk
-                    .derive_unhardened(i)
-                    .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
-            })
+            .map(|i| intermediate_pk.derive_unhardened(i).derive_synthetic())
             .collect();
         insert_keys(&mut conn, 100, &pk_batch_2, false)
             .await
@@ -241,17 +242,13 @@ mod tests {
 
         // Insert a batch of keys.
         let pk_batch: Vec<PublicKey> = (0..100)
-            .map(|i| {
-                intermediate_pk
-                    .derive_unhardened(i)
-                    .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
-            })
+            .map(|i| intermediate_pk.derive_unhardened(i).derive_synthetic())
             .collect();
         insert_keys(&mut conn, 0, &pk_batch, false).await.unwrap();
 
         for (i, pk) in pk_batch.into_iter().enumerate() {
             // Check the index of the key.
-            let index = public_key_index(&mut conn, &pk, false)
+            let index = public_key_index(&mut conn, pk, false)
                 .await
                 .unwrap()
                 .unwrap();
@@ -265,7 +262,12 @@ mod tests {
             assert_eq!(actual, pk);
 
             // Ensure the puzzle hash at the index matches.
-            let ph = standard_puzzle_hash(&pk);
+            let ph = CurriedProgram {
+                program: STANDARD_PUZZLE_HASH,
+                args: StandardArgs { synthetic_key: pk },
+            }
+            .tree_hash();
+
             let actual = fetch_puzzle_hash(&mut conn, index, false)
                 .await
                 .unwrap()
@@ -289,13 +291,9 @@ mod tests {
         let hardened_sk = master_to_wallet_hardened_intermediate(&SECRET_KEY);
 
         // Insert a public key to unhardened and make sure it's not in hardened.
-        let pk = unhardened_pk
-            .derive_unhardened(0)
-            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
-        insert_keys(&mut conn, 0, &[pk.clone()], false)
-            .await
-            .unwrap();
-        assert!(public_key_index(&mut conn, &pk, true)
+        let pk = unhardened_pk.derive_unhardened(0).derive_synthetic();
+        insert_keys(&mut conn, 0, &[pk], false).await.unwrap();
+        assert!(public_key_index(&mut conn, pk, true)
             .await
             .unwrap()
             .is_none());
@@ -304,11 +302,9 @@ mod tests {
         let pk = hardened_sk
             .derive_hardened(0)
             .public_key()
-            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
-        insert_keys(&mut conn, 0, &[pk.clone()], true)
-            .await
-            .unwrap();
-        assert!(public_key_index(&mut conn, &pk, false)
+            .derive_synthetic();
+        insert_keys(&mut conn, 0, &[pk], true).await.unwrap();
+        assert!(public_key_index(&mut conn, pk, false)
             .await
             .unwrap()
             .is_none());
@@ -321,21 +317,13 @@ mod tests {
 
         // Insert a batch of keys.
         let pk_batch: Vec<PublicKey> = (0..100)
-            .map(|i| {
-                intermediate_pk
-                    .derive_unhardened(i)
-                    .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
-            })
+            .map(|i| intermediate_pk.derive_unhardened(i).derive_synthetic())
             .collect();
         insert_keys(&mut conn, 0, &pk_batch, false).await.unwrap();
 
         // Insert a batch of keys with overlap.
         let pk_batch: Vec<PublicKey> = (50..150)
-            .map(|i| {
-                intermediate_pk
-                    .derive_unhardened(i)
-                    .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
-            })
+            .map(|i| intermediate_pk.derive_unhardened(i).derive_synthetic())
             .collect();
         insert_keys(&mut conn, 50, &pk_batch, false).await.unwrap();
 
@@ -348,12 +336,7 @@ mod tests {
             .await
             .unwrap()
             .expect("no public key");
-        assert_eq!(
-            pk,
-            intermediate_pk
-                .derive_unhardened(0)
-                .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
-        );
+        assert_eq!(pk, intermediate_pk.derive_unhardened(0).derive_synthetic());
 
         // Check the last key.
         let pk = fetch_public_key(&mut conn, 149, false)
@@ -362,9 +345,7 @@ mod tests {
             .expect("no public key");
         assert_eq!(
             pk,
-            intermediate_pk
-                .derive_unhardened(149)
-                .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+            intermediate_pk.derive_unhardened(149).derive_synthetic()
         );
     }
 }

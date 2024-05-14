@@ -1,6 +1,6 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_wallet::{
+use chia_puzzles::{
     nft::{
         NftOwnershipLayerArgs, NftOwnershipLayerSolution, NftRoyaltyTransferPuzzleArgs,
         NftStateLayerArgs, NftStateLayerSolution, NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
@@ -136,7 +136,7 @@ impl StandardNftSpend<NftOutput> {
         let metadata_ptr = ctx.alloc(&nft_info.metadata)?;
 
         let new_inner_puzzle_hash = nft_state_layer_hash(
-            ctx.tree_hash(metadata_ptr),
+            ctx.tree_hash(metadata_ptr).into(),
             nft_info.metadata_updater_hash,
             nft_ownership_layer_hash(
                 nft_info.current_owner,
@@ -152,9 +152,9 @@ impl StandardNftSpend<NftOutput> {
         let new_puzzle_hash = singleton_puzzle_hash(nft_info.launcher_id, new_inner_puzzle_hash);
 
         nft_info.proof = Proof::Lineage(LineageProof {
-            parent_coin_info: nft_info.coin.parent_coin_info,
-            inner_puzzle_hash: nft_info.nft_inner_puzzle_hash,
-            amount: nft_info.coin.amount,
+            parent_parent_coin_id: nft_info.coin.parent_coin_info,
+            parent_inner_puzzle_hash: nft_info.nft_inner_puzzle_hash,
+            parent_amount: nft_info.coin.amount,
         });
 
         nft_info.coin = Coin::new(
@@ -216,9 +216,9 @@ where
 
     spend_singleton(
         ctx,
-        nft_info.coin.clone(),
+        nft_info.coin,
         nft_info.launcher_id,
-        nft_info.proof.clone(),
+        nft_info.proof,
         state_layer_spend,
     )
 }
@@ -285,10 +285,11 @@ mod tests {
 
     use chia_bls::{sign, Signature};
     use chia_protocol::SpendBundle;
-    use chia_wallet::{
-        standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
+    use chia_puzzles::{
+        standard::{StandardArgs, STANDARD_PUZZLE_HASH},
         DeriveSynthetic,
     };
+    use clvm_utils::ToTreeHash;
     use clvmr::Allocator;
 
     use crate::{
@@ -304,19 +305,25 @@ mod tests {
         let mut allocator = Allocator::new();
         let mut ctx = SpendContext::new(&mut allocator);
 
-        let sk = SECRET_KEY.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let sk = SECRET_KEY.derive_synthetic();
         let pk = sk.public_key();
-        let puzzle_hash = standard_puzzle_hash(&pk).into();
+
+        let puzzle_hash = CurriedProgram {
+            program: STANDARD_PUZZLE_HASH,
+            args: StandardArgs { synthetic_key: pk },
+        }
+        .tree_hash()
+        .into();
 
         let parent = sim.generate_coin(puzzle_hash, 2).await.coin;
 
         let (create_did, did_info) = Launcher::new(parent.coin_id(), 1)
             .create(&mut ctx)?
-            .create_standard_did(&mut ctx, pk.clone())?;
+            .create_standard_did(&mut ctx, pk)?;
 
         StandardSpend::new()
             .chain(create_did)
-            .finish(&mut ctx, parent, pk.clone())?;
+            .finish(&mut ctx, parent, pk)?;
 
         let (mint_nft, mut nft_info) = IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
             .create(&mut ctx)?
@@ -326,18 +333,17 @@ mod tests {
                     metadata: (),
                     royalty_puzzle_hash: puzzle_hash,
                     royalty_percentage: 300,
-                    synthetic_key: pk.clone(),
+                    synthetic_key: pk,
                     owner_puzzle_hash: puzzle_hash,
                     did_id: did_info.launcher_id,
                     did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
                 },
             )?;
 
-        let mut did_info = StandardDidSpend::new().chain(mint_nft).recreate().finish(
-            &mut ctx,
-            pk.clone(),
-            did_info,
-        )?;
+        let mut did_info = StandardDidSpend::new()
+            .chain(mint_nft)
+            .recreate()
+            .finish(&mut ctx, pk, did_info)?;
 
         for i in 0..5 {
             let mut spend = StandardNftSpend::new().update();
@@ -346,14 +352,13 @@ mod tests {
                 spend = spend.new_owner(did_info.launcher_id, did_info.did_inner_puzzle_hash);
             }
 
-            let (nft_spend, new_nft_info) = spend.finish(&mut ctx, pk.clone(), nft_info)?;
+            let (nft_spend, new_nft_info) = spend.finish(&mut ctx, pk, nft_info)?;
             nft_info = new_nft_info;
 
-            did_info = StandardDidSpend::new().chain(nft_spend).recreate().finish(
-                &mut ctx,
-                pk.clone(),
-                did_info,
-            )?;
+            did_info = StandardDidSpend::new()
+                .chain(nft_spend)
+                .recreate()
+                .finish(&mut ctx, pk, did_info)?;
         }
 
         let coin_spends = ctx.take_spends();

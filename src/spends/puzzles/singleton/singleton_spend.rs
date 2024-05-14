@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_wallet::{
+use chia_puzzles::{
     singleton::{
         SingletonArgs, SingletonSolution, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH,
         SINGLETON_TOP_LAYER_PUZZLE_HASH,
@@ -14,7 +14,7 @@ pub fn spend_singleton(
     ctx: &mut SpendContext,
     coin: Coin,
     launcher_id: Bytes32,
-    proof: Proof,
+    lineage_proof: Proof,
     inner_spend: InnerSpend,
 ) -> Result<CoinSpend, SpendError> {
     let singleton_puzzle = ctx.singleton_top_layer();
@@ -32,7 +32,7 @@ pub fn spend_singleton(
     })?;
 
     let solution = ctx.serialize(SingletonSolution {
-        proof,
+        lineage_proof,
         amount: coin.amount,
         inner_solution: inner_spend.solution(),
     })?;

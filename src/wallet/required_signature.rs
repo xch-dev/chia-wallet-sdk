@@ -135,8 +135,8 @@ impl RequiredSignature {
     }
 
     /// The public key required to verify the signature.
-    pub fn public_key(&self) -> &PublicKey {
-        &self.public_key
+    pub fn public_key(&self) -> PublicKey {
+        self.public_key
     }
 
     /// The message field of the condition, without anything appended.
@@ -173,15 +173,15 @@ mod tests {
 
     use chia_bls::derive_keys::master_to_wallet_unhardened;
     use chia_protocol::Bytes32;
-    use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
+    use chia_puzzles::DeriveSynthetic;
 
     #[test]
     fn test_messages() {
         let coin = Coin::new(Bytes32::from([1; 32]), Bytes32::from([2; 32]), 3);
         let agg_sig_data = Bytes32::new([4u8; 32]);
 
-        let public_key = master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0)
-            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let public_key =
+            master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0).derive_synthetic();
 
         let message: Bytes = vec![1, 2, 3].into();
 
@@ -251,7 +251,7 @@ mod tests {
         for (condition, appended_info, domain_string) in cases {
             let required = RequiredSignature::from_condition(&coin, condition, agg_sig_data);
 
-            assert_eq!(required.public_key(), &public_key);
+            assert_eq!(required.public_key(), public_key);
             assert_eq!(required.raw_message(), message.as_ref());
             assert_eq!(hex::encode(required.appended_info()), appended_info);
             assert_eq!(required.domain_string().map(hex::encode), domain_string);

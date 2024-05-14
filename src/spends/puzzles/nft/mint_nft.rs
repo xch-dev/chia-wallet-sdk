@@ -1,16 +1,16 @@
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
-use chia_wallet::{
+use chia_puzzles::{
     nft::{
         NFT_METADATA_UPDATER_PUZZLE_HASH, NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
         NFT_ROYALTY_TRANSFER_PUZZLE_HASH, NFT_STATE_LAYER_PUZZLE_HASH,
     },
     singleton::{SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
-    standard::standard_puzzle_hash,
+    standard::{StandardArgs, STANDARD_PUZZLE_HASH},
     EveProof, Proof,
 };
 use clvm_traits::ToClvm;
-use clvm_utils::{curry_tree_hash, tree_hash_atom, tree_hash_pair};
+use clvm_utils::{curry_tree_hash, tree_hash_atom, tree_hash_pair, CurriedProgram, ToTreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -50,7 +50,14 @@ pub trait MintNft {
         M: ToClvm<NodePtr>,
         Self: Sized,
     {
-        let inner_puzzle_hash = standard_puzzle_hash(&mint.synthetic_key).into();
+        let inner_puzzle_hash = CurriedProgram {
+            program: STANDARD_PUZZLE_HASH,
+            args: StandardArgs {
+                synthetic_key: mint.synthetic_key,
+            },
+        }
+        .tree_hash()
+        .into();
 
         let (mut mint_nft, nft_info) = self.mint_eve_nft(
             ctx,
@@ -84,7 +91,7 @@ impl MintNft for SpendableLauncher {
         M: ToClvm<NodePtr>,
     {
         let metadata_ptr = ctx.alloc(&metadata)?;
-        let metadata_hash = ctx.tree_hash(metadata_ptr);
+        let metadata_hash = ctx.tree_hash(metadata_ptr).into();
 
         let ownership_layer_hash = nft_ownership_layer_hash(
             None,
@@ -95,13 +102,14 @@ impl MintNft for SpendableLauncher {
             ),
             p2_puzzle_hash,
         );
+
         let nft_inner_puzzle_hash = nft_state_layer_hash(
             metadata_hash,
             NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
             ownership_layer_hash,
         );
 
-        let launcher_coin = self.coin().clone();
+        let launcher_coin = self.coin();
         let (mut chained_spend, eve_coin) = self.spend(ctx, nft_inner_puzzle_hash, ())?;
 
         chained_spend
@@ -205,7 +213,7 @@ pub fn nft_royalty_transfer_hash(
 mod tests {
     use chia_bls::{sign, Signature};
     use chia_protocol::SpendBundle;
-    use chia_wallet::{
+    use chia_puzzles::{
         nft::{
             NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs,
             NFT_METADATA_UPDATER_PUZZLE_HASH, NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
@@ -214,7 +222,6 @@ mod tests {
         singleton::{
             SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH,
         },
-        standard::DEFAULT_HIDDEN_PUZZLE_HASH,
         DeriveSynthetic,
     };
     use clvm_utils::CurriedProgram;
@@ -235,27 +242,32 @@ mod tests {
         let mut allocator = Allocator::new();
         let mut ctx = SpendContext::new(&mut allocator);
 
-        let sk = SECRET_KEY.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let sk = SECRET_KEY.derive_synthetic();
         let pk = sk.public_key();
 
-        let puzzle_hash = Bytes32::new(standard_puzzle_hash(&pk));
+        let puzzle_hash = CurriedProgram {
+            program: STANDARD_PUZZLE_HASH,
+            args: StandardArgs { synthetic_key: pk },
+        }
+        .tree_hash()
+        .into();
 
         let parent = sim.generate_coin(puzzle_hash, 3).await.coin;
 
         let (create_did, did_info) = Launcher::new(parent.coin_id(), 1)
             .create(&mut ctx)?
-            .create_standard_did(&mut ctx, pk.clone())?;
+            .create_standard_did(&mut ctx, pk)?;
 
         StandardSpend::new()
             .chain(create_did)
-            .finish(&mut ctx, parent, pk.clone())?;
+            .finish(&mut ctx, parent, pk)?;
 
         let mint = StandardMint {
             metadata: (),
             royalty_puzzle_hash: puzzle_hash,
             royalty_percentage: 100,
             owner_puzzle_hash: puzzle_hash,
-            synthetic_key: pk.clone(),
+            synthetic_key: pk,
             did_id: did_info.launcher_id,
             did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
         };
@@ -305,10 +317,10 @@ mod tests {
         let mut ctx = SpendContext::new(&mut allocator);
 
         let inner_puzzle = ctx.alloc([1, 2, 3]).unwrap();
-        let inner_puzzle_hash = ctx.tree_hash(inner_puzzle);
+        let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
 
         let metadata = ctx.alloc([4, 5, 6]).unwrap();
-        let metadata_hash = ctx.tree_hash(metadata);
+        let metadata_hash = ctx.tree_hash(metadata).into();
 
         let nft_state_layer = ctx.nft_state_layer();
 
@@ -340,7 +352,7 @@ mod tests {
         let mut ctx = SpendContext::new(&mut allocator);
 
         let inner_puzzle = ctx.alloc([1, 2, 3]).unwrap();
-        let inner_puzzle_hash = ctx.tree_hash(inner_puzzle);
+        let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
 
         let launcher_id = Bytes32::new([69; 32]);
 
@@ -366,7 +378,7 @@ mod tests {
                 },
             })
             .unwrap();
-        let allocated_transfer_program_hash = ctx.tree_hash(transfer_program);
+        let allocated_transfer_program_hash = ctx.tree_hash(transfer_program).into();
 
         let puzzle = ctx
             .alloc(CurriedProgram {

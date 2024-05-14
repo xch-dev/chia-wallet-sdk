@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_wallet::singleton::{SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH};
+use chia_puzzles::singleton::{SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH};
 use clvm_utils::{curry_tree_hash, tree_hash_atom, tree_hash_pair};
 
 use crate::{ChainedSpend, CreateCoinWithoutMemos, SpendContext, SpendError, SpendableLauncher};
@@ -19,8 +19,8 @@ impl Launcher {
         }
     }
 
-    pub fn coin(&self) -> &Coin {
-        &self.coin
+    pub fn coin(&self) -> Coin {
+        self.coin
     }
 
     pub fn create(self, ctx: &mut SpendContext) -> Result<SpendableLauncher, SpendError> {
@@ -60,7 +60,7 @@ pub fn singleton_puzzle_hash(launcher_id: Bytes32, inner_puzzle_hash: Bytes32) -
 
 #[cfg(test)]
 mod tests {
-    use chia_wallet::singleton::{
+    use chia_puzzles::singleton::{
         SingletonArgs, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH,
         SINGLETON_TOP_LAYER_PUZZLE_HASH,
     };
@@ -98,7 +98,7 @@ mod tests {
             .unwrap();
         let allocated_puzzle_hash = ctx.tree_hash(puzzle);
 
-        let puzzle_hash = singleton_puzzle_hash(launcher_id, inner_puzzle_hash);
+        let puzzle_hash = singleton_puzzle_hash(launcher_id, inner_puzzle_hash.into());
 
         assert_eq!(hex::encode(allocated_puzzle_hash), hex::encode(puzzle_hash));
     }

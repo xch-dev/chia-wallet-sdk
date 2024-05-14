@@ -1,12 +1,11 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_wallet::cat::{
+use chia_puzzles::cat::{
     CatArgs, CatSolution, CoinProof, EverythingWithSignatureTailArgs, CAT_PUZZLE_HASH,
 };
 use clvm_traits::clvm_quote;
-use clvm_utils::{curry_tree_hash, tree_hash_atom, CurriedProgram};
+use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
-use hex_literal::hex;
 
 use crate::{ChainedSpend, CreateCoinWithMemos, RunTail, SpendContext, SpendError};
 
@@ -51,7 +50,7 @@ impl IssueCat {
             program: tail_puzzle_ptr,
             args: EverythingWithSignatureTailArgs { public_key },
         })?;
-        let asset_id = ctx.tree_hash(tail);
+        let asset_id = ctx.tree_hash(tail).into();
 
         self.condition(ctx.alloc(RunTail {
             program: tail,
@@ -69,7 +68,7 @@ impl IssueCat {
         let cat_puzzle_ptr = ctx.cat_puzzle();
 
         let inner_puzzle = ctx.alloc(clvm_quote!(self.conditions))?;
-        let inner_puzzle_hash = ctx.tree_hash(inner_puzzle);
+        let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
 
         let puzzle = ctx.alloc(CurriedProgram {
             program: cat_puzzle_ptr,
@@ -80,14 +79,14 @@ impl IssueCat {
             },
         })?;
 
-        let puzzle_hash = ctx.tree_hash(puzzle);
+        let puzzle_hash = ctx.tree_hash(puzzle).into();
         let coin = Coin::new(self.parent_coin_id, puzzle_hash, amount);
 
         let solution = ctx.serialize(CatSolution {
             inner_puzzle_solution: (),
             lineage_proof: None,
             prev_coin_id: coin.coin_id(),
-            this_coin_info: coin.clone(),
+            this_coin_info: coin,
             next_coin_proof: CoinProof {
                 parent_coin_info: self.parent_coin_id,
                 inner_puzzle_hash,
@@ -98,7 +97,7 @@ impl IssueCat {
         })?;
 
         let puzzle_reveal = ctx.serialize(puzzle)?;
-        ctx.spend(CoinSpend::new(coin.clone(), puzzle_reveal, solution));
+        ctx.spend(CoinSpend::new(coin, puzzle_reveal, solution));
 
         let chained_spend = ChainedSpend {
             parent_conditions: vec![ctx.alloc(CreateCoinWithMemos {
@@ -118,23 +117,15 @@ impl IssueCat {
     }
 }
 
-pub fn multi_issuance_asset_id(public_key: &PublicKey) -> Bytes32 {
-    let public_key_hash = tree_hash_atom(&public_key.to_bytes());
-    curry_tree_hash(
-        hex!("1720d13250a7c16988eaf530331cefa9dd57a76b2c82236bec8bbbff91499b89"),
-        &[public_key_hash],
-    )
-    .into()
-}
-
 #[cfg(test)]
 mod tests {
     use chia_bls::{sign, Signature};
     use chia_protocol::SpendBundle;
-    use chia_wallet::{
-        standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
+    use chia_puzzles::{
+        standard::{StandardArgs, STANDARD_PUZZLE_HASH},
         DeriveSynthetic,
     };
+    use clvm_utils::ToTreeHash;
     use clvmr::Allocator;
 
     use crate::{
@@ -152,9 +143,16 @@ mod tests {
         let mut allocator = Allocator::new();
         let mut ctx = SpendContext::new(&mut allocator);
 
-        let sk = SECRET_KEY.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let sk = SECRET_KEY.derive_synthetic();
         let pk = sk.public_key();
-        let puzzle_hash = standard_puzzle_hash(&pk).into();
+
+        let puzzle_hash = CurriedProgram {
+            program: STANDARD_PUZZLE_HASH,
+            args: StandardArgs { synthetic_key: pk },
+        }
+        .tree_hash()
+        .into();
+
         let xch_coin = sim.generate_coin(puzzle_hash, 1).await.coin;
 
         let (issue_cat, _cat_info) = IssueCat::new(xch_coin.coin_id())
@@ -163,7 +161,7 @@ mod tests {
                 amount: 1,
                 memos: vec![puzzle_hash.to_vec().into()],
             })?)
-            .multi_issuance(&mut ctx, pk.clone(), 1)?;
+            .multi_issuance(&mut ctx, pk, 1)?;
 
         StandardSpend::new()
             .chain(issue_cat)

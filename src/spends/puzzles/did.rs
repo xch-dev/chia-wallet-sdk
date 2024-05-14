@@ -12,10 +12,11 @@ mod tests {
 
     use chia_bls::{sign, Signature};
     use chia_protocol::SpendBundle;
-    use chia_wallet::{
-        standard::{standard_puzzle_hash, DEFAULT_HIDDEN_PUZZLE_HASH},
+    use chia_puzzles::{
+        standard::{StandardArgs, STANDARD_PUZZLE_HASH},
         DeriveSynthetic,
     };
+    use clvm_utils::{CurriedProgram, ToTreeHash};
     use clvmr::Allocator;
 
     use crate::{
@@ -28,9 +29,15 @@ mod tests {
         let sim = WalletSimulator::new().await;
         let peer = sim.peer().await;
 
-        let sk = SECRET_KEY.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let sk = SECRET_KEY.derive_synthetic();
         let pk = sk.public_key();
-        let puzzle_hash = standard_puzzle_hash(&pk).into();
+
+        let puzzle_hash = CurriedProgram {
+            program: STANDARD_PUZZLE_HASH,
+            args: StandardArgs { synthetic_key: pk },
+        }
+        .tree_hash()
+        .into();
 
         let parent = sim.generate_coin(puzzle_hash, 1).await.coin;
 
@@ -39,7 +46,7 @@ mod tests {
 
         let (launch_singleton, _did_info) = Launcher::new(parent.coin_id(), 1)
             .create(&mut ctx)?
-            .create_standard_did(&mut ctx, pk.clone())?;
+            .create_standard_did(&mut ctx, pk)?;
 
         StandardSpend::new()
             .chain(launch_singleton)

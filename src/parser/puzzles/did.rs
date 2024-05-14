@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_wallet::{
+use chia_puzzles::{
     did::{DidArgs, DidSolution},
     LineageProof, Proof,
 };
@@ -75,16 +75,16 @@ pub fn parse_did(
 
     Ok(Some(DidInfo {
         launcher_id: args.singleton_struct.launcher_id,
-        coin: ctx.coin().clone(),
+        coin: ctx.coin(),
         p2_puzzle_hash,
         did_inner_puzzle_hash,
         recovery_did_list_hash: args.recovery_did_list_hash,
         num_verifications_required: args.num_verifications_required,
         metadata: args.metadata,
         proof: Proof::Lineage(LineageProof {
-            parent_coin_info: ctx.parent_coin().parent_coin_info,
-            inner_puzzle_hash: tree_hash(allocator, singleton.args().inner_puzzle).into(),
-            amount: ctx.parent_coin().amount,
+            parent_parent_coin_id: ctx.parent_coin().parent_coin_info,
+            parent_inner_puzzle_hash: tree_hash(allocator, singleton.args().inner_puzzle).into(),
+            parent_amount: ctx.parent_coin().amount,
         }),
     }))
 }
@@ -93,8 +93,9 @@ pub fn parse_did(
 mod tests {
     use chia_bls::PublicKey;
     use chia_protocol::{Bytes32, Coin};
-    use chia_wallet::standard::standard_puzzle_hash;
+    use chia_puzzles::standard::{StandardArgs, STANDARD_PUZZLE_HASH};
     use clvm_traits::ToNodePtr;
+    use clvm_utils::{CurriedProgram, ToTreeHash};
     use clvmr::Allocator;
 
     use crate::{
@@ -108,12 +109,17 @@ mod tests {
         let mut ctx = SpendContext::new(&mut allocator);
 
         let pk = PublicKey::default();
-        let puzzle_hash = standard_puzzle_hash(&pk).into();
+        let puzzle_hash = CurriedProgram {
+            program: STANDARD_PUZZLE_HASH,
+            args: StandardArgs { synthetic_key: pk },
+        }
+        .tree_hash()
+        .into();
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
 
         let (create_did, did_info) = Launcher::new(parent.coin_id(), 1)
             .create(&mut ctx)?
-            .create_standard_did(&mut ctx, pk.clone())?;
+            .create_standard_did(&mut ctx, pk)?;
 
         StandardSpend::new()
             .chain(create_did)
@@ -134,7 +140,7 @@ mod tests {
             puzzle,
             solution,
             coin_spend.coin,
-            did_info.coin.clone(),
+            did_info.coin,
         )?;
 
         let parse = parse_singleton(&mut allocator, &parse_ctx)?.unwrap();

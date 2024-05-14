@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_wallet::Proof;
+use chia_puzzles::Proof;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DidInfo<M> {

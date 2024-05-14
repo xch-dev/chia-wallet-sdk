@@ -103,7 +103,7 @@ impl WalletSimulator {
         let coin_id = coin.coin_id();
         let coin_state = CoinState::new(coin, None, Some(data.block_height));
 
-        data.coin_states.insert(coin_id, coin_state.clone());
+        data.coin_states.insert(coin_id, coin_state);
         coin_state
     }
 
@@ -200,8 +200,8 @@ async fn handle_connection(
                     let mut data = data.lock().await;
 
                     for coin_id in request.coin_ids.iter() {
-                        if let Some(coin_state) = data.coin_states.get(coin_id) {
-                            coin_states.push(coin_state.clone());
+                        if let Some(coin_state) = data.coin_states.get(coin_id).copied() {
+                            coin_states.push(coin_state);
                         }
 
                         data.coin_subscriptions
@@ -242,20 +242,20 @@ async fn handle_connection(
 
                     for (coin_id, coin_state) in data.coin_states.iter() {
                         if request.puzzle_hashes.contains(&coin_state.coin.puzzle_hash) {
-                            coin_states.insert(*coin_id, data.coin_states[coin_id].clone());
+                            coin_states.insert(*coin_id, data.coin_states[coin_id]);
                         }
                     }
 
                     for puzzle_hash in request.puzzle_hashes.iter() {
-                        if let Some(coin_state) = data.coin_states.get(puzzle_hash) {
-                            coin_states.insert(coin_state.coin.coin_id(), coin_state.clone());
+                        if let Some(coin_state) = data.coin_states.get(puzzle_hash).copied() {
+                            coin_states.insert(coin_state.coin.coin_id(), coin_state);
                         }
 
                         if let Some(hinted_coins) =
                             data.hinted_coins.get(&Bytes::new(puzzle_hash.to_vec()))
                         {
                             for coin_id in hinted_coins.iter() {
-                                coin_states.insert(*coin_id, data.coin_states[coin_id].clone());
+                                coin_states.insert(*coin_id, data.coin_states[coin_id]);
                             }
                         }
 
@@ -344,7 +344,7 @@ async fn handle_connection(
                         .coin_states
                         .iter()
                         .filter(|(_, cs)| cs.coin.parent_coin_info == request.coin_name)
-                        .map(|(_, cs)| cs.clone())
+                        .map(|(_, cs)| *cs)
                         .collect();
 
                     let response = Message {
@@ -406,7 +406,7 @@ async fn process_spend_bundle(
         MEMPOOL_MODE,
     )?;
 
-    let conds = OwnedSpendBundleConditions::from(&allocator, conds);
+    let conds = OwnedSpendBundleConditions::from(&allocator, conds).unwrap();
 
     let cond_puzzle_hashes = conds
         .spends
@@ -435,7 +435,7 @@ async fn process_spend_bundle(
         &spend_bundle.aggregated_signature,
         required_signatures
             .into_iter()
-            .map(|r| (r.public_key().clone(), r.final_message()))
+            .map(|r| (r.public_key(), r.final_message()))
             .collect::<Vec<_>>(),
     ) {
         return Err(ValidationErr(
@@ -552,21 +552,17 @@ async fn process_spend_bundle(
             let hint = Bytes32::new(hint);
 
             if puzzle_subscriptions.contains(&hint) {
-                peer_updates.extend(
-                    coins
-                        .iter()
-                        .map(|coin_id| data.coin_states[coin_id].clone()),
-                );
+                peer_updates.extend(coins.iter().map(|coin_id| data.coin_states[coin_id]));
             }
         }
 
         for coin_id in updates.keys() {
             if coin_subscriptions.contains(coin_id) {
-                peer_updates.insert(data.coin_states[coin_id].clone());
+                peer_updates.insert(data.coin_states[coin_id]);
             }
 
             if puzzle_subscriptions.contains(&data.coin_states[coin_id].coin.puzzle_hash) {
-                peer_updates.insert(data.coin_states[coin_id].clone());
+                peer_updates.insert(data.coin_states[coin_id]);
             }
         }
 
@@ -614,7 +610,7 @@ mod tests {
     use chia_bls::{sign, Signature};
     use chia_client::PeerEvent;
     use chia_protocol::{CoinSpend, SpendBundle};
-    use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
+    use chia_puzzles::DeriveSynthetic;
 
     use crate::{
         testing::SECRET_KEY, CreateCoinWithMemos, CreateCoinWithoutMemos, RequiredSignature,
@@ -624,7 +620,7 @@ mod tests {
     use super::*;
 
     fn sign_bundle(spend_bundle: &mut SpendBundle) {
-        let sk = SECRET_KEY.derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let sk = SECRET_KEY.derive_synthetic();
 
         let mut a = Allocator::new();
 
@@ -651,7 +647,7 @@ mod tests {
         let mut ctx = SpendContext::new(&mut a);
 
         let puzzle = ctx.alloc(1).unwrap();
-        let puzzle_hash = ctx.tree_hash(puzzle);
+        let puzzle_hash = ctx.tree_hash(puzzle).into();
         let puzzle_reveal = ctx.serialize(puzzle).unwrap();
 
         let mut coin = sim.generate_coin(puzzle_hash, 1000).await.coin;
@@ -664,7 +660,7 @@ mod tests {
                 }])
                 .unwrap();
 
-            let coin_spend = CoinSpend::new(coin.clone(), puzzle_reveal.clone(), solution);
+            let coin_spend = CoinSpend::new(coin, puzzle_reveal.clone(), solution);
 
             let mut spend_bundle = SpendBundle::new(vec![coin_spend], Signature::default());
             sign_bundle(&mut spend_bundle);
@@ -694,7 +690,7 @@ mod tests {
         let mut ctx = SpendContext::new(&mut a);
 
         let puzzle = ctx.alloc(1).unwrap();
-        let puzzle_hash = ctx.tree_hash(puzzle);
+        let puzzle_hash = ctx.tree_hash(puzzle).into();
         let puzzle_reveal = ctx.serialize(puzzle).unwrap();
 
         let solution = ctx
@@ -732,7 +728,7 @@ mod tests {
         let mut ctx = SpendContext::new(&mut a);
 
         let puzzle = ctx.alloc(1).unwrap();
-        let puzzle_hash = ctx.tree_hash(puzzle);
+        let puzzle_hash = ctx.tree_hash(puzzle).into();
         let puzzle_reveal = ctx.serialize(puzzle).unwrap();
 
         let mut cs = sim.generate_coin(puzzle_hash, 1000).await;
@@ -743,7 +739,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(results, vec![cs.clone()]);
+        assert_eq!(results, vec![cs]);
 
         // The initial state should still be the same.
         let results = peer
@@ -751,7 +747,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(results, vec![cs.clone()]);
+        assert_eq!(results, vec![cs]);
 
         let mut receiver = peer.receiver().resubscribe();
 
@@ -765,7 +761,7 @@ mod tests {
             }])
             .unwrap();
 
-        let coin_spend = CoinSpend::new(cs.coin.clone(), puzzle_reveal, solution);
+        let coin_spend = CoinSpend::new(cs.coin, puzzle_reveal, solution);
 
         let mut spend_bundle = SpendBundle::new(vec![coin_spend], Signature::default());
         sign_bundle(&mut spend_bundle);
@@ -799,7 +795,7 @@ mod tests {
         let mut ctx = SpendContext::new(&mut a);
 
         let puzzle = ctx.alloc(1).unwrap();
-        let puzzle_hash = ctx.tree_hash(puzzle);
+        let puzzle_hash = ctx.tree_hash(puzzle).into();
         let puzzle_reveal = ctx.serialize(puzzle).unwrap();
 
         let mut cs = sim.generate_coin(puzzle_hash, 1000).await;
@@ -810,7 +806,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(results, vec![cs.clone()]);
+        assert_eq!(results, vec![cs]);
 
         // The initial state should still be the same.
         let results = peer
@@ -818,7 +814,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(results, vec![cs.clone()]);
+        assert_eq!(results, vec![cs]);
 
         let mut receiver = peer.receiver().resubscribe();
 
@@ -832,7 +828,7 @@ mod tests {
             }])
             .unwrap();
 
-        let coin_spend = CoinSpend::new(cs.coin.clone(), puzzle_reveal, solution);
+        let coin_spend = CoinSpend::new(cs.coin, puzzle_reveal, solution);
 
         let mut spend_bundle = SpendBundle::new(vec![coin_spend], Signature::default());
         sign_bundle(&mut spend_bundle);
@@ -877,7 +873,7 @@ mod tests {
         let mut ctx = SpendContext::new(&mut a);
 
         let puzzle = ctx.alloc(1).unwrap();
-        let puzzle_hash = ctx.tree_hash(puzzle);
+        let puzzle_hash = ctx.tree_hash(puzzle).into();
         let puzzle_reveal = ctx.serialize(puzzle).unwrap();
 
         let cs = sim.generate_coin(puzzle_hash, 1000).await;
@@ -901,7 +897,7 @@ mod tests {
             }])
             .unwrap();
 
-        let coin_spend = CoinSpend::new(cs.coin.clone(), puzzle_reveal, solution);
+        let coin_spend = CoinSpend::new(cs.coin, puzzle_reveal, solution);
 
         let mut spend_bundle = SpendBundle::new(vec![coin_spend], Signature::default());
         sign_bundle(&mut spend_bundle);
@@ -942,7 +938,7 @@ mod tests {
         let mut ctx = SpendContext::new(&mut a);
 
         let puzzle = ctx.alloc(1).unwrap();
-        let puzzle_hash = ctx.tree_hash(puzzle);
+        let puzzle_hash = ctx.tree_hash(puzzle).into();
         let puzzle_reveal = ctx.serialize(puzzle).unwrap();
 
         let cs = sim.generate_coin(puzzle_hash, 1000).await;
@@ -954,7 +950,7 @@ mod tests {
             }])
             .unwrap();
 
-        let coin_spend = CoinSpend::new(cs.coin.clone(), puzzle_reveal.clone(), solution.clone());
+        let coin_spend = CoinSpend::new(cs.coin, puzzle_reveal.clone(), solution.clone());
 
         let mut spend_bundle = SpendBundle::new(vec![coin_spend], Signature::default());
         sign_bundle(&mut spend_bundle);
@@ -987,7 +983,7 @@ mod tests {
         let mut ctx = SpendContext::new(&mut a);
 
         let puzzle = ctx.alloc(1).unwrap();
-        let puzzle_hash = ctx.tree_hash(puzzle);
+        let puzzle_hash = ctx.tree_hash(puzzle).into();
         let puzzle_reveal = ctx.serialize(puzzle).unwrap();
 
         let cs = sim.generate_coin(puzzle_hash, 1000).await;
@@ -999,7 +995,7 @@ mod tests {
             }])
             .unwrap();
 
-        let coin_spend = CoinSpend::new(cs.coin.clone(), puzzle_reveal.clone(), solution.clone());
+        let coin_spend = CoinSpend::new(cs.coin, puzzle_reveal.clone(), solution.clone());
 
         let mut spend_bundle = SpendBundle::new(vec![coin_spend], Signature::default());
         sign_bundle(&mut spend_bundle);

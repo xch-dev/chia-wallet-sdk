@@ -7,7 +7,7 @@ use chia_bls::{
     },
     DerivableKey, PublicKey, SecretKey,
 };
-use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
+use chia_puzzles::DeriveSynthetic;
 use chia_wallet_sdk::sqlite::{fetch_puzzle_hash, insert_keys, SQLITE_MIGRATOR};
 use sqlx::SqlitePool;
 
@@ -32,11 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let int_sk = master_to_wallet_hardened_intermediate(&root_sk);
 
     let unhardened_pks: Vec<PublicKey> = (0..100)
-        .map(|index| {
-            int_pk
-                .derive_unhardened(index)
-                .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
-        })
+        .map(|index| int_pk.derive_unhardened(index).derive_synthetic())
         .collect();
     insert_keys(&mut tx, 0, unhardened_pks.as_slice(), false).await?;
 
@@ -45,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             int_sk
                 .derive_hardened(index)
                 .public_key()
-                .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)
+                .derive_synthetic()
         })
         .collect();
     insert_keys(&mut tx, 0, hardened_pks.as_slice(), true).await?;

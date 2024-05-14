@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_wallet::singleton::{
+use chia_puzzles::singleton::{
     SingletonArgs, SingletonSolution, SINGLETON_LAUNCHER_PUZZLE_HASH,
     SINGLETON_TOP_LAYER_PUZZLE_HASH,
 };
@@ -43,7 +43,7 @@ pub fn parse_singleton(
     allocator: &mut Allocator,
     ctx: &ParseContext,
 ) -> Result<Option<ParseSingleton>, ParseError> {
-    if ctx.mod_hash().to_bytes() != SINGLETON_TOP_LAYER_PUZZLE_HASH {
+    if ctx.mod_hash().to_bytes() != SINGLETON_TOP_LAYER_PUZZLE_HASH.to_bytes() {
         return Ok(None);
     }
 
@@ -59,8 +59,8 @@ pub fn parse_singleton(
         .launcher_puzzle_hash
         .as_ref();
 
-    if singleton_mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH
-        || launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH
+    if singleton_mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.to_bytes()
+        || launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH.to_bytes()
     {
         return Err(ParseError::InvalidSingletonStruct);
     }
