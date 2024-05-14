@@ -612,10 +612,7 @@ mod tests {
     use chia_protocol::{CoinSpend, SpendBundle};
     use chia_puzzles::DeriveSynthetic;
 
-    use crate::{
-        testing::SECRET_KEY, CreateCoinWithMemos, CreateCoinWithoutMemos, RequiredSignature,
-        SpendContext,
-    };
+    use crate::{testing::SECRET_KEY, CreateCoinWithMemos, CreateCoinWithoutMemos, SpendContext};
 
     use super::*;
 
