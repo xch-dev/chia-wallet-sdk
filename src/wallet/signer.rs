@@ -1,5 +1,5 @@
 use chia_bls::{sign, DerivableKey, SecretKey, Signature};
-use chia_wallet::DeriveSynthetic;
+use chia_puzzles::DeriveSynthetic;
 
 /// Responsible for signing messages.
 pub trait Signer {
@@ -28,7 +28,7 @@ impl Signer for HardenedMemorySigner {
         let sk = self
             .intermediate_sk
             .derive_hardened(index)
-            .derive_synthetic(&self.hidden_puzzle_hash);
+            .derive_synthetic_hidden(&self.hidden_puzzle_hash);
         sign(&sk, message)
     }
 }
@@ -54,7 +54,7 @@ impl Signer for UnhardenedMemorySigner {
         let sk = self
             .intermediate_sk
             .derive_unhardened(index)
-            .derive_synthetic(&self.hidden_puzzle_hash);
+            .derive_synthetic_hidden(&self.hidden_puzzle_hash);
         sign(&sk, message)
     }
 }
@@ -63,7 +63,7 @@ impl Signer for UnhardenedMemorySigner {
 mod tests {
     use chia_bls::derive_keys::master_to_wallet_unhardened_intermediate;
     use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program};
-    use chia_wallet::standard::DEFAULT_HIDDEN_PUZZLE_HASH;
+    use chia_puzzles::standard::DEFAULT_HIDDEN_PUZZLE_HASH;
     use clvm_traits::{clvm_list, FromNodePtr, ToClvm};
     use clvmr::{Allocator, NodePtr};
     use hex_literal::hex;
@@ -101,7 +101,8 @@ mod tests {
     ) -> Signature {
         let mut a = Allocator::new();
         let required_signatures =
-            RequiredSignature::from_coin_spend(&mut a, coin_spend, AGG_SIG_ME).unwrap();
+            RequiredSignature::from_coin_spend(&mut a, coin_spend, Bytes32::new(AGG_SIG_ME))
+                .unwrap();
 
         let mut aggregated_signature = Signature::default();
 
@@ -134,14 +135,13 @@ mod tests {
         let intermediate_pk = intermediate_sk.public_key();
 
         let mut conn = pool.acquire().await.unwrap();
-        let signer = UnhardenedMemorySigner::new(intermediate_sk, DEFAULT_HIDDEN_PUZZLE_HASH);
+        let signer =
+            UnhardenedMemorySigner::new(intermediate_sk, DEFAULT_HIDDEN_PUZZLE_HASH.into());
 
         insert_keys(
             &mut conn,
             0,
-            &[intermediate_pk
-                .derive_unhardened(0)
-                .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH)],
+            &[intermediate_pk.derive_unhardened(0).derive_synthetic()],
             false,
         )
         .await

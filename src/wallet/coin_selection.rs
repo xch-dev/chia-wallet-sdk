@@ -49,7 +49,7 @@ pub fn select_coins(
     for coin in spendable_coins.iter() {
         if coin.amount as u128 == amount {
             let mut result = HashSet::new();
-            result.insert(coin.clone());
+            result.insert(*coin);
             return Ok(result);
         }
     }
@@ -61,7 +61,7 @@ pub fn select_coins(
         let coin_amount = coin.amount as u128;
 
         if coin_amount < amount {
-            smaller_coins.insert(coin.clone());
+            smaller_coins.insert(*coin);
             smaller_sum += coin_amount;
         }
     }
@@ -117,7 +117,7 @@ fn sum_largest_coins(coins: &[Coin], amount: u128) -> HashSet<Coin> {
     let mut selected_sum = 0;
     for coin in coins {
         selected_sum += coin.amount as u128;
-        selected_coins.insert(coin.clone());
+        selected_coins.insert(*coin);
 
         if selected_sum >= amount {
             return selected_coins;
@@ -132,7 +132,7 @@ fn smallest_coin_above(coins: &[Coin], amount: u128) -> Option<Coin> {
     }
     for coin in coins.iter().rev() {
         if (coin.amount as u128) >= amount {
-            return Some(coin.clone());
+            return Some(*coin);
         }
     }
     unreachable!();
@@ -172,7 +172,7 @@ pub fn knapsack_coin_algorithm(
                 }
 
                 selected_sum += coin.amount as u128;
-                selected_coins.insert(coin.clone());
+                selected_coins.insert(*coin);
 
                 if selected_sum == amount {
                     return Some(selected_coins);

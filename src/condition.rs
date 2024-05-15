@@ -104,6 +104,22 @@ pub enum CreateCoin {
     WithMemos(CreateCoinWithMemos),
 }
 
+impl CreateCoin {
+    pub fn puzzle_hash(&self) -> Bytes32 {
+        match self {
+            Self::WithoutMemos(inner) => inner.puzzle_hash,
+            Self::WithMemos(inner) => inner.puzzle_hash,
+        }
+    }
+
+    pub fn amount(&self) -> u64 {
+        match self {
+            Self::WithoutMemos(inner) => inner.amount,
+            Self::WithMemos(inner) => inner.amount,
+        }
+    }
+}
+
 condition!(Remark, 1, {});
 condition!(AggSigParent, 43, { public_key: PublicKey, message: Bytes });
 condition!(AggSigPuzzle, 44, { public_key: PublicKey, message: Bytes });
@@ -117,9 +133,9 @@ condition!(CreateCoinWithoutMemos, 51, { puzzle_hash: Bytes32, amount: u64 });
 condition!(CreateCoinWithMemos, 51, { puzzle_hash: Bytes32, amount: u64, memos: Vec<Bytes> });
 condition!(ReserveFee, 52, { amount: u64 });
 condition!(CreateCoinAnnouncement, 60, { message: Bytes });
-condition!(AssertCoinAnnouncement, 61, { announcement_id: Bytes });
+condition!(AssertCoinAnnouncement, 61, { announcement_id: Bytes32 });
 condition!(CreatePuzzleAnnouncement, 62, { message: Bytes });
-condition!(AssertPuzzleAnnouncement, 63, { announcement_id: Bytes });
+condition!(AssertPuzzleAnnouncement, 63, { announcement_id: Bytes32 });
 condition!(AssertConcurrentSpend, 64, { coin_id: Bytes32 });
 condition!(AssertConcurrentPuzzle, 65, { puzzle_hash: Bytes32 });
 condition!(AssertMyCoinId, 70, { coin_id: Bytes32 });

@@ -1,11 +1,11 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes, Coin, CoinSpend, SpendBundle};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use clvm_traits::{FromClvm, FromClvmError};
 use clvmr::{allocator::NodePtr, reduction::EvalErr, Allocator};
 use sha2::{digest::FixedOutput, Digest, Sha256};
 use thiserror::Error;
 
-use crate::{trim_leading_zeros, AggSig, AggSigKind};
+use crate::{u64_to_bytes, AggSig, AggSigKind};
 
 /// An error that occurs while trying to sign a coin spend.
 #[derive(Debug, Error)]
@@ -25,12 +25,12 @@ pub struct RequiredSignature {
     public_key: PublicKey,
     raw_message: Bytes,
     appended_info: Vec<u8>,
-    domain_string: Option<[u8; 32]>,
+    domain_string: Option<Bytes32>,
 }
 
 impl RequiredSignature {
     /// Converts a known AggSig condition to a `RequiredSignature` if possible.
-    pub fn from_condition(coin: &Coin, condition: AggSig, agg_sig_me: [u8; 32]) -> Self {
+    pub fn from_condition(coin: &Coin, condition: AggSig, agg_sig_me: Bytes32) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(agg_sig_me);
 
@@ -90,7 +90,7 @@ impl RequiredSignature {
             public_key,
             raw_message: message,
             appended_info,
-            domain_string: Some(hasher.finalize_fixed().into()),
+            domain_string: Some(Bytes32::new(hasher.finalize_fixed().into())),
         }
     }
 
@@ -100,7 +100,7 @@ impl RequiredSignature {
     pub fn from_coin_spend(
         allocator: &mut Allocator,
         coin_spend: &CoinSpend,
-        agg_sig_me: [u8; 32],
+        agg_sig_me: Bytes32,
     ) -> Result<Vec<Self>, ConditionError> {
         let output = coin_spend
             .puzzle_reveal
@@ -122,21 +122,21 @@ impl RequiredSignature {
     /// Calculates the required signatures for a spend bundle.
     /// All of these signatures are aggregated together should
     /// sufficient, unless secp keys are used as well.
-    pub fn from_spend_bundle(
+    pub fn from_coin_spends(
         allocator: &mut Allocator,
-        spend_bundle: &SpendBundle,
-        agg_sig_me: [u8; 32],
+        coin_spends: &[CoinSpend],
+        agg_sig_me: Bytes32,
     ) -> Result<Vec<Self>, ConditionError> {
         let mut required_signatures = Vec::new();
-        for coin_spend in &spend_bundle.coin_spends {
+        for coin_spend in coin_spends {
             required_signatures.extend(Self::from_coin_spend(allocator, coin_spend, agg_sig_me)?);
         }
         Ok(required_signatures)
     }
 
     /// The public key required to verify the signature.
-    pub fn public_key(&self) -> &PublicKey {
-        &self.public_key
+    pub fn public_key(&self) -> PublicKey {
+        self.public_key
     }
 
     /// The message field of the condition, without anything appended.
@@ -150,7 +150,7 @@ impl RequiredSignature {
     }
 
     /// The domain string that is appended to the condition's message.
-    pub fn domain_string(&self) -> Option<[u8; 32]> {
+    pub fn domain_string(&self) -> Option<Bytes32> {
         self.domain_string
     }
 
@@ -159,15 +159,10 @@ impl RequiredSignature {
         let mut message = Vec::from(self.raw_message.as_ref());
         message.extend(&self.appended_info);
         if let Some(domain_string) = self.domain_string {
-            message.extend(domain_string);
+            message.extend(domain_string.to_bytes());
         }
         message
     }
-}
-
-fn u64_to_bytes(amount: u64) -> Vec<u8> {
-    let bytes: Vec<u8> = amount.to_be_bytes().into();
-    trim_leading_zeros(bytes.as_slice()).to_vec()
 }
 
 #[cfg(test)]
@@ -178,15 +173,15 @@ mod tests {
 
     use chia_bls::derive_keys::master_to_wallet_unhardened;
     use chia_protocol::Bytes32;
-    use chia_wallet::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, DeriveSynthetic};
+    use chia_puzzles::DeriveSynthetic;
 
     #[test]
     fn test_messages() {
         let coin = Coin::new(Bytes32::from([1; 32]), Bytes32::from([2; 32]), 3);
-        let agg_sig_data = [4u8; 32];
+        let agg_sig_data = Bytes32::new([4u8; 32]);
 
-        let public_key = master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0)
-            .derive_synthetic(&DEFAULT_HIDDEN_PUZZLE_HASH);
+        let public_key =
+            master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0).derive_synthetic();
 
         let message: Bytes = vec![1, 2, 3].into();
 
@@ -256,7 +251,7 @@ mod tests {
         for (condition, appended_info, domain_string) in cases {
             let required = RequiredSignature::from_condition(&coin, condition, agg_sig_data);
 
-            assert_eq!(required.public_key(), &public_key);
+            assert_eq!(required.public_key(), public_key);
             assert_eq!(required.raw_message(), message.as_ref());
             assert_eq!(hex::encode(required.appended_info()), appended_info);
             assert_eq!(required.domain_string().map(hex::encode), domain_string);
@@ -265,7 +260,7 @@ mod tests {
             message.extend(required.raw_message());
             message.extend(required.appended_info());
             if let Some(domain_string) = required.domain_string() {
-                message.extend(domain_string);
+                message.extend(domain_string.to_bytes());
             }
 
             assert_eq!(hex::encode(message), hex::encode(required.final_message()));
