@@ -69,17 +69,13 @@ impl IntermediateLauncher {
             },
         })?;
 
-        let puzzle_hash = ctx.tree_hash(puzzle);
-
         parent_conditions.push(ctx.alloc(CreateCoinWithoutMemos {
-            puzzle_hash: puzzle_hash.into(),
+            puzzle_hash: self.intermediate_coin.puzzle_hash,
             amount: 0,
         })?);
 
         let puzzle_reveal = ctx.serialize(puzzle)?;
         let solution = ctx.serialize(())?;
-
-        let intermediate_id = self.intermediate_coin.coin_id();
 
         ctx.spend(CoinSpend::new(
             self.intermediate_coin,
@@ -92,7 +88,7 @@ impl IntermediateLauncher {
         index_message.update(usize_to_bytes(self.mint_total));
 
         let mut announcement_id = Sha256::new();
-        announcement_id.update(intermediate_id);
+        announcement_id.update(self.intermediate_coin.coin_id());
         announcement_id.update(index_message.finalize());
 
         parent_conditions.push(ctx.alloc(AssertCoinAnnouncement {
