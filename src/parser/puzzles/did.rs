@@ -1,6 +1,6 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{
-    did::{DidArgs, DidSolution},
+    did::{DidArgs, DidSolution, DID_INNER_PUZZLE_HASH},
     LineageProof, Proof,
 };
 use clvm_traits::FromClvm;
@@ -18,6 +18,10 @@ pub fn parse_did(
     singleton: &ParseSingleton,
     max_cost: u64,
 ) -> Result<Option<DidInfo<NodePtr>>, ParseError> {
+    if singleton.inner_mod_hash().to_bytes() != DID_INNER_PUZZLE_HASH.to_bytes() {
+        return Ok(None);
+    }
+
     let args = DidArgs::<NodePtr, NodePtr>::from_clvm(allocator, singleton.inner_args())?;
 
     let DidSolution::InnerSpend(p2_solution) =
