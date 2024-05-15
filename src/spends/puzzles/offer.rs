@@ -1,12 +1,10 @@
 mod offer_builder;
 mod offer_compression;
 mod offer_encoding;
-mod settlement_payments;
 
 pub use offer_builder::*;
 pub use offer_compression::*;
 pub use offer_encoding::*;
-pub use settlement_payments::*;
 
 use chia_protocol::{CoinSpend, SpendBundle};
 
@@ -58,7 +56,10 @@ mod tests {
     use chia_protocol::{Coin, SpendBundle};
     use chia_puzzles::{
         cat::{CatArgs, CAT_PUZZLE_HASH},
-        offer::SETTLEMENT_PAYMENTS_PUZZLE_HASH,
+        offer::{
+            NotarizedPayment, Payment, PaymentWithoutMemos, SettlementPaymentsSolution,
+            SETTLEMENT_PAYMENTS_PUZZLE_HASH,
+        },
         standard::{StandardArgs, STANDARD_PUZZLE_HASH},
         DeriveSynthetic, LineageProof,
     };

@@ -4,7 +4,8 @@ use chia_protocol::{CoinSpend, Program};
 use chia_puzzles::{
     cat::{
         CAT_PUZZLE, CAT_PUZZLE_HASH, EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE,
-        EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE_HASH,
+        EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE_HASH, GENESIS_BY_COIN_ID_TAIL_PUZZLE,
+        GENESIS_BY_COIN_ID_TAIL_PUZZLE_HASH,
     },
     did::{DID_INNER_PUZZLE, DID_INNER_PUZZLE_HASH},
     nft::{
@@ -162,10 +163,17 @@ impl<'a> SpendContext<'a> {
 
     /// Allocate the EverythingWithSignature TAIL puzzle and return its pointer.
     pub fn everything_with_signature_tail_puzzle(&mut self) -> NodePtr {
-        // todo: add constant to chia_rs
         self.puzzle(
             EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE_HASH,
             &EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE,
+        )
+    }
+
+    // Allocate the GenesisByCoinId TAIL puzzle and return its pointer.
+    pub fn genesis_by_coin_id_tail_puzzle(&mut self) -> NodePtr {
+        self.puzzle(
+            GENESIS_BY_COIN_ID_TAIL_PUZZLE_HASH,
+            &GENESIS_BY_COIN_ID_TAIL_PUZZLE,
         )
     }
 

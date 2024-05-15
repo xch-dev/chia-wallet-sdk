@@ -1,16 +1,15 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
     cat::{CatArgs, CAT_PUZZLE_HASH},
-    offer::SETTLEMENT_PAYMENTS_PUZZLE_HASH,
+    offer::{
+        NotarizedPayment, Payment, SettlementPaymentsSolution, SETTLEMENT_PAYMENTS_PUZZLE_HASH,
+    },
 };
 use clvm_utils::{tree_hash_atom, tree_hash_pair, CurriedProgram, ToTreeHash};
 use clvmr::NodePtr;
 use sha2::{digest::FixedOutput, Digest, Sha256};
 
-use crate::{
-    AssertPuzzleAnnouncement, ChainedSpend, NotarizedPayment, Payment, SettlementPaymentsSolution,
-    SpendContext, SpendError,
-};
+use crate::{AssertPuzzleAnnouncement, ChainedSpend, SpendContext, SpendError};
 
 pub struct OfferBuilder {
     nonce: Bytes32,
