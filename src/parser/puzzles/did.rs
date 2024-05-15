@@ -1,16 +1,14 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{
     did::{DidArgs, DidSolution, DID_INNER_PUZZLE_HASH},
-    singleton::SingletonStruct,
+    singleton::{SingletonArgs, SingletonStruct, SINGLETON_TOP_LAYER_PUZZLE_HASH},
     LineageProof, Proof,
 };
 use clvm_traits::FromClvm;
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{reduction::Reduction, run_program, Allocator, ChiaDialect, NodePtr};
 
-use crate::{
-    singleton_puzzle_hash, CreateCoinWithMemos, DidInfo, ParseContext, ParseError, ParseSingleton,
-};
+use crate::{CreateCoinWithMemos, DidInfo, ParseContext, ParseError, ParseSingleton};
 
 pub fn parse_did(
     allocator: &mut Allocator,
@@ -75,8 +73,15 @@ pub fn parse_did(
     .tree_hash()
     .into();
 
-    let singleton_puzzle_hash =
-        singleton_puzzle_hash(args.singleton_struct.launcher_id, did_inner_puzzle_hash);
+    let singleton_puzzle_hash: Bytes32 = CurriedProgram {
+        program: SINGLETON_TOP_LAYER_PUZZLE_HASH,
+        args: SingletonArgs {
+            singleton_struct: args.singleton_struct,
+            inner_puzzle: TreeHash::from(did_inner_puzzle_hash),
+        },
+    }
+    .tree_hash()
+    .into();
 
     if singleton_puzzle_hash != ctx.coin().puzzle_hash {
         return Err(ParseError::UnknownDidOutput);

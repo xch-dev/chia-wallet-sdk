@@ -3,7 +3,7 @@ use chia_puzzles::{
     nft::{NftIntermediateLauncherArgs, NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH},
     singleton::SINGLETON_LAUNCHER_PUZZLE_HASH,
 };
-use clvm_utils::{curry_tree_hash, tree_hash_atom, CurriedProgram};
+use clvm_utils::{CurriedProgram, ToTreeHash};
 use sha2::{Digest, Sha256};
 
 use crate::{
@@ -20,13 +20,25 @@ pub struct IntermediateLauncher {
 
 impl IntermediateLauncher {
     pub fn new(parent_coin_id: Bytes32, mint_number: usize, mint_total: usize) -> Self {
-        let puzzle_hash = intermediate_launcher_puzzle_hash(mint_number, mint_total);
-        let intermediate_coin = Coin::new(parent_coin_id, puzzle_hash, 0);
+        let intermediate_puzzle_hash = CurriedProgram {
+            program: NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH,
+            args: NftIntermediateLauncherArgs {
+                launcher_puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
+                mint_number,
+                mint_total,
+            },
+        }
+        .tree_hash()
+        .into();
+
+        let intermediate_coin = Coin::new(parent_coin_id, intermediate_puzzle_hash, 0);
+
         let launcher_coin = Coin::new(
             intermediate_coin.coin_id(),
             SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
             1,
         );
+
         Self {
             mint_number,
             mint_total,
@@ -90,51 +102,5 @@ impl IntermediateLauncher {
         let chained_spend = ChainedSpend { parent_conditions };
 
         Ok(SpendableLauncher::new(self.launcher_coin, chained_spend))
-    }
-}
-
-fn intermediate_launcher_puzzle_hash(mint_number: usize, mint_total: usize) -> Bytes32 {
-    let launcher_hash = tree_hash_atom(&SINGLETON_LAUNCHER_PUZZLE_HASH);
-    let mint_number_hash = tree_hash_atom(&usize_to_bytes(mint_number));
-    let mint_total_hash = tree_hash_atom(&usize_to_bytes(mint_total));
-
-    curry_tree_hash(
-        NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH,
-        &[launcher_hash, mint_number_hash, mint_total_hash],
-    )
-    .into()
-}
-
-#[cfg(test)]
-mod tests {
-    use clvmr::Allocator;
-
-    use super::*;
-
-    #[test]
-    fn test_intermediate_hash() {
-        let mut allocator = Allocator::new();
-        let mut ctx = SpendContext::new(&mut allocator);
-
-        let mint_number = 3;
-        let mint_total = 4;
-
-        let intermediate_launcher_puzzle = ctx.nft_intermediate_launcher();
-
-        let puzzle = ctx
-            .alloc(CurriedProgram {
-                program: intermediate_launcher_puzzle,
-                args: NftIntermediateLauncherArgs {
-                    launcher_puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-                    mint_number,
-                    mint_total,
-                },
-            })
-            .unwrap();
-        let allocated_puzzle_hash = ctx.tree_hash(puzzle);
-
-        let puzzle_hash = intermediate_launcher_puzzle_hash(mint_number, mint_total);
-
-        assert_eq!(hex::encode(allocated_puzzle_hash), hex::encode(puzzle_hash));
     }
 }
