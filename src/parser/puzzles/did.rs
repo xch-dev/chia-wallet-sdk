@@ -1,15 +1,15 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{
     did::{DidArgs, DidSolution, DID_INNER_PUZZLE_HASH},
+    singleton::SingletonStruct,
     LineageProof, Proof,
 };
 use clvm_traits::FromClvm;
-use clvm_utils::tree_hash;
+use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{reduction::Reduction, run_program, Allocator, ChiaDialect, NodePtr};
 
 use crate::{
-    did_inner_puzzle_hash, singleton_puzzle_hash, CreateCoinWithMemos, DidInfo, ParseContext,
-    ParseError, ParseSingleton,
+    singleton_puzzle_hash, CreateCoinWithMemos, DidInfo, ParseContext, ParseError, ParseSingleton,
 };
 
 pub fn parse_did(
@@ -62,13 +62,18 @@ pub fn parse_did(
         return Err(ParseError::MissingCreateCoin);
     };
 
-    let did_inner_puzzle_hash = did_inner_puzzle_hash(
-        p2_puzzle_hash,
-        args.recovery_did_list_hash,
-        args.num_verifications_required,
-        args.singleton_struct.launcher_id,
-        tree_hash(allocator, args.metadata).into(),
-    );
+    let did_inner_puzzle_hash = CurriedProgram {
+        program: DID_INNER_PUZZLE_HASH,
+        args: DidArgs {
+            inner_puzzle: TreeHash::from(p2_puzzle_hash),
+            recovery_did_list_hash: args.recovery_did_list_hash,
+            num_verifications_required: args.num_verifications_required,
+            metadata: tree_hash(allocator, args.metadata),
+            singleton_struct: SingletonStruct::new(args.singleton_struct.launcher_id),
+        },
+    }
+    .tree_hash()
+    .into();
 
     let singleton_puzzle_hash =
         singleton_puzzle_hash(args.singleton_struct.launcher_id, did_inner_puzzle_hash);
