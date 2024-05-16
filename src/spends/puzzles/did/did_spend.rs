@@ -113,7 +113,7 @@ pub fn raw_did_spend<M>(
 where
     M: ToClvm<NodePtr>,
 {
-    let did_inner_puzzle = ctx.did_inner_puzzle();
+    let did_inner_puzzle = ctx.did_inner_puzzle()?;
 
     let puzzle = ctx.alloc(CurriedProgram {
         program: did_inner_puzzle,

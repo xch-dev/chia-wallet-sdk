@@ -46,7 +46,7 @@ impl CatSpend {
     }
 
     pub fn finish(self, ctx: &mut SpendContext) -> Result<(), SpendError> {
-        let cat_puzzle_ptr = ctx.cat_puzzle();
+        let cat_puzzle_ptr = ctx.cat_puzzle()?;
         let len = self.cat_spends.len();
 
         let mut total_delta = 0;

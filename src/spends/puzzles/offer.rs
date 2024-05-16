@@ -184,8 +184,8 @@ mod tests {
             })],
         };
 
-        let cat_puzzle = ctx.cat_puzzle();
-        let settlement_payments_puzzle = ctx.settlement_payments_puzzle();
+        let cat_puzzle = ctx.cat_puzzle()?;
+        let settlement_payments_puzzle = ctx.settlement_payments_puzzle()?;
 
         let cat_settlements = ctx.alloc(CurriedProgram {
             program: cat_puzzle,

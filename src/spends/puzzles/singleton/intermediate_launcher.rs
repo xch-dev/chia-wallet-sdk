@@ -58,7 +58,7 @@ impl IntermediateLauncher {
     pub fn create(self, ctx: &mut SpendContext) -> Result<SpendableLauncher, SpendError> {
         let mut parent_conditions = Vec::new();
 
-        let intermediate_puzzle = ctx.nft_intermediate_launcher();
+        let intermediate_puzzle = ctx.nft_intermediate_launcher()?;
 
         let puzzle = ctx.alloc(CurriedProgram {
             program: intermediate_puzzle,

@@ -36,7 +36,7 @@ impl OfferBuilder {
         ctx: &mut SpendContext,
         payments: Vec<Payment>,
     ) -> Result<Self, SpendError> {
-        let puzzle = ctx.standard_puzzle();
+        let puzzle = ctx.standard_puzzle()?;
         self.request_payments(ctx, puzzle, payments)
     }
 
@@ -59,8 +59,8 @@ impl OfferBuilder {
         let puzzle = if let Some(puzzle) = ctx.get_puzzle(&puzzle_hash) {
             puzzle
         } else {
-            let cat_puzzle = ctx.cat_puzzle();
-            let settlement_payments_puzzle = ctx.settlement_payments_puzzle();
+            let cat_puzzle = ctx.cat_puzzle()?;
+            let settlement_payments_puzzle = ctx.settlement_payments_puzzle()?;
             let puzzle = ctx.alloc(CurriedProgram {
                 program: cat_puzzle,
                 args: CatArgs {

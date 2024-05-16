@@ -216,7 +216,7 @@ pub fn raw_nft_spend<M>(
 where
     M: ToClvm<NodePtr>,
 {
-    let transfer_program_puzzle = ctx.nft_royalty_transfer();
+    let transfer_program_puzzle = ctx.nft_royalty_transfer()?;
 
     let transfer_program = CurriedProgram {
         program: transfer_program_puzzle,
@@ -259,7 +259,7 @@ pub fn spend_nft_state_layer<M>(
 where
     M: ToClvm<NodePtr>,
 {
-    let nft_state_layer = ctx.nft_state_layer();
+    let nft_state_layer = ctx.nft_state_layer()?;
 
     let puzzle = ctx.alloc(CurriedProgram {
         program: nft_state_layer,
@@ -287,7 +287,7 @@ pub fn spend_nft_ownership_layer<P>(
 where
     P: ToClvm<NodePtr>,
 {
-    let nft_ownership_layer = ctx.nft_ownership_layer();
+    let nft_ownership_layer = ctx.nft_ownership_layer()?;
 
     let puzzle = ctx.alloc(CurriedProgram {
         program: nft_ownership_layer,

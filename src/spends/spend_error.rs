@@ -16,4 +16,8 @@ pub enum SpendError {
     /// An error occurred while evaluating a program.
     #[error("eval error: {0}")]
     Eval(#[from] EvalErr),
+
+    /// An error occurred while reading or writing data.
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
 }

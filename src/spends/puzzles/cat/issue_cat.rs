@@ -44,7 +44,7 @@ impl IssueCat {
         public_key: PublicKey,
         amount: u64,
     ) -> Result<(ChainedSpend, CatIssuanceInfo), SpendError> {
-        let tail_puzzle_ptr = ctx.everything_with_signature_tail_puzzle();
+        let tail_puzzle_ptr = ctx.everything_with_signature_tail_puzzle()?;
 
         let tail = ctx.alloc(CurriedProgram {
             program: tail_puzzle_ptr,
@@ -65,7 +65,7 @@ impl IssueCat {
         asset_id: Bytes32,
         amount: u64,
     ) -> Result<(ChainedSpend, CatIssuanceInfo), SpendError> {
-        let cat_puzzle_ptr = ctx.cat_puzzle();
+        let cat_puzzle_ptr = ctx.cat_puzzle()?;
 
         let inner_puzzle = ctx.alloc(clvm_quote!(self.conditions))?;
         let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();

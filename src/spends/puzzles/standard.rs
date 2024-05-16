@@ -27,7 +27,7 @@ impl StandardSpend {
             ctx.spend(coin_spend);
         }
 
-        let standard_puzzle = ctx.standard_puzzle();
+        let standard_puzzle = ctx.standard_puzzle()?;
 
         let puzzle = ctx.alloc(CurriedProgram {
             program: standard_puzzle,
