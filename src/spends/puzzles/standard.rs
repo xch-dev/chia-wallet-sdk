@@ -7,6 +7,27 @@ use clvmr::NodePtr;
 
 use crate::{Chainable, ChainedSpend, InnerSpend, SpendContext, SpendError};
 
+/// ## Example
+///
+/// Here is an example of spending a standard p2 coin:
+///
+/// ```
+/// # use chia_bls::PublicKey;
+/// # use chia_protocol::{Bytes32, Coin};
+/// # use clvmr::Allocator;
+/// # use chia_wallet_sdk::*;
+/// # let mut allocator = Allocator::new();
+/// # let mut ctx = SpendContext::new(&mut allocator);
+/// # let public_key = PublicKey::default();
+/// # let puzzle_hash = Bytes32::default();
+/// # let coin = Coin::new(Bytes32::default(), Bytes32::default(), 1);
+/// let create_coin = CreateCoinWithoutMemos { puzzle_hash, amount: 1 };
+///
+/// StandardSpend::new()
+///     .condition(ctx.alloc(create_coin).unwrap())
+///     .finish(&mut ctx, coin, public_key)
+///     .unwrap()
+/// ```
 #[derive(Default)]
 pub struct StandardSpend {
     coin_spends: Vec<CoinSpend>,
@@ -77,65 +98,29 @@ pub fn standard_solution<T>(conditions: T) -> StandardSolution<(u8, T), ()> {
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::{sign, Signature};
-    use chia_protocol::SpendBundle;
-    use chia_puzzles::{standard::STANDARD_PUZZLE_HASH, DeriveSynthetic};
-    use clvm_utils::ToTreeHash;
     use clvmr::Allocator;
 
-    use crate::{testing::SECRET_KEY, CreateCoinWithoutMemos, RequiredSignature, WalletSimulator};
+    use crate::{test::TestWallet, CreateCoinWithoutMemos};
 
     use super::*;
 
     #[tokio::test]
     async fn test_standard_spend() -> anyhow::Result<()> {
-        let sim = WalletSimulator::new().await;
-        let peer = sim.peer().await;
-
         let mut allocator = Allocator::new();
-        let mut ctx = SpendContext::new(&mut allocator);
-
-        let sk = SECRET_KEY.derive_synthetic();
-        let pk = sk.public_key();
-
-        let puzzle_hash = CurriedProgram {
-            program: STANDARD_PUZZLE_HASH,
-            args: StandardArgs { synthetic_key: pk },
-        }
-        .tree_hash()
-        .into();
-
-        let parent = sim.generate_coin(puzzle_hash, 1).await.coin;
+        let mut wallet = TestWallet::new(&mut allocator, 1).await;
+        let ctx = &mut wallet.ctx;
 
         StandardSpend::new()
             .condition(
                 ctx.alloc(CreateCoinWithoutMemos {
-                    puzzle_hash,
+                    puzzle_hash: wallet.puzzle_hash,
                     amount: 1,
                 })
                 .unwrap(),
             )
-            .finish(&mut ctx, parent, pk)?;
+            .finish(ctx, wallet.coin, wallet.pk)?;
 
-        let coin_spends = ctx.take_spends();
-
-        let required_signatures = RequiredSignature::from_coin_spends(
-            &mut allocator,
-            &coin_spends,
-            WalletSimulator::AGG_SIG_ME.into(),
-        )?;
-
-        let mut aggregated_signature = Signature::default();
-
-        for required in required_signatures {
-            aggregated_signature += &sign(&sk, required.final_message());
-        }
-
-        let ack = peer
-            .send_transaction(SpendBundle::new(coin_spends, aggregated_signature))
-            .await?;
-        assert_eq!(ack.error, None);
-        assert_eq!(ack.status, 1);
+        wallet.submit().await?;
 
         Ok(())
     }

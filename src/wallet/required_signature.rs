@@ -167,9 +167,9 @@ impl RequiredSignature {
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::SECRET_KEY;
-
     use super::*;
+
+    use crate::test::SECRET_KEY;
 
     use chia_bls::derive_keys::master_to_wallet_unhardened;
     use chia_protocol::Bytes32;

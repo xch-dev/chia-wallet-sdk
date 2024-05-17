@@ -145,74 +145,36 @@ where
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::{sign, Signature};
-    use chia_protocol::SpendBundle;
-    use chia_puzzles::{
-        standard::{StandardArgs, STANDARD_PUZZLE_HASH},
-        DeriveSynthetic,
-    };
-    use clvm_utils::ToTreeHash;
     use clvmr::Allocator;
 
-    use crate::{testing::SECRET_KEY, CreateDid, Launcher, RequiredSignature, WalletSimulator};
+    use crate::{test::TestWallet, CreateDid, Launcher};
 
     use super::*;
 
     #[tokio::test]
     async fn test_did_recreation() -> anyhow::Result<()> {
-        let sim = WalletSimulator::new().await;
-        let peer = sim.peer().await;
-
         let mut allocator = Allocator::new();
-        let mut ctx = SpendContext::new(&mut allocator);
+        let mut wallet = TestWallet::new(&mut allocator, 1).await;
+        let ctx = &mut wallet.ctx;
 
-        let sk = SECRET_KEY.derive_synthetic();
-        let pk = sk.public_key();
-
-        let puzzle_hash = CurriedProgram {
-            program: STANDARD_PUZZLE_HASH,
-            args: StandardArgs { synthetic_key: pk },
-        }
-        .tree_hash()
-        .into();
-
-        let parent = sim.generate_coin(puzzle_hash, 1).await.coin;
-
-        let (create_did, mut did_info) = Launcher::new(parent.coin_id(), 1)
-            .create(&mut ctx)?
-            .create_standard_did(&mut ctx, pk)?;
+        let (create_did, mut did_info) = Launcher::new(wallet.coin.coin_id(), 1)
+            .create(ctx)?
+            .create_standard_did(ctx, wallet.pk)?;
 
         StandardSpend::new()
             .chain(create_did)
-            .finish(&mut ctx, parent, pk)?;
+            .finish(ctx, wallet.coin, wallet.pk)?;
 
         for _ in 0..10 {
             did_info = StandardDidSpend::new()
                 .recreate()
-                .finish(&mut ctx, pk, did_info)?;
+                .finish(ctx, wallet.pk, did_info)?;
         }
 
-        let coin_spends = ctx.take_spends();
+        wallet.submit().await?;
 
-        let required_signatures = RequiredSignature::from_coin_spends(
-            &mut allocator,
-            &coin_spends,
-            WalletSimulator::AGG_SIG_ME.into(),
-        )?;
-
-        let mut aggregated_signature = Signature::default();
-
-        for required in required_signatures {
-            aggregated_signature += &sign(&sk, required.final_message());
-        }
-
-        let ack = peer
-            .send_transaction(SpendBundle::new(coin_spends, aggregated_signature))
-            .await?;
-        assert_eq!(ack.error, None);
-        assert_eq!(ack.status, 1);
-
-        let coin_state = peer
+        let coin_state = wallet
+            .peer
             .register_for_coin_updates(vec![did_info.coin.coin_id()], 0)
             .await?
             .remove(0);

@@ -171,7 +171,7 @@ mod tests {
     };
     use sqlx::SqlitePool;
 
-    use crate::{sqlite::insert_keys, testing::SECRET_KEY};
+    use crate::{sqlite::insert_keys, test::SECRET_KEY};
 
     use super::*;
 
