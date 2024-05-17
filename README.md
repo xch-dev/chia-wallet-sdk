@@ -12,7 +12,7 @@ This is an unofficial wallet SDK for the [Chia blockchain](https://chia.net), en
 
 If you intend on writing an application that uses the Chia blockchain, be it a dApp, a wallet, or even just tooling on top of it, you will most likely need some code to interact with a Chia wallet. The worst case scenario is that you need to write an entire wallet and all of its driver code from scratch every time. This is very challenging to do, takes a lot of time, and can be error prone if anything is done wrong.
 
-To build driver code, you need libraries like `chia-bls` and `clvmr`, for interacting with Chia's native BLS signatures and CLVM runtime. You compose puzzles by currying them, and spend them by constructing solutions. Even with libraries in place to do this (assuming they are tested properly), it can be very tedious and hard to get right. That's what this wallet sdk is aiming to solve.
+To build driver code, you need libraries like [chia-bls](https://docs.rs/chia-bls) and [clvmr](https://docs.rs/clvm), for interacting with Chia's native BLS signatures and CLVM runtime. You compose puzzles by currying them, and spend them by constructing solutions. Even with libraries in place to do this (assuming they are tested properly), it can be very tedious and hard to get right. That's what this wallet sdk is aiming to solve.
 
 It's essentially a higher level wrapper over the core primitives that the Chia blockchain provides, and aims to make various things in the lifecycle of wallet development simpler such as state management and signing.
 
