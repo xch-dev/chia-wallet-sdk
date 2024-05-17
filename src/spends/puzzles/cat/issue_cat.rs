@@ -1,7 +1,8 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_puzzles::cat::{
-    CatArgs, CatSolution, CoinProof, EverythingWithSignatureTailArgs, CAT_PUZZLE_HASH,
+use chia_puzzles::{
+    cat::{CatArgs, CatSolution, CoinProof, EverythingWithSignatureTailArgs, CAT_PUZZLE_HASH},
+    LineageProof,
 };
 use clvm_traits::clvm_quote;
 use clvm_utils::CurriedProgram;
@@ -16,8 +17,8 @@ pub struct IssueCat {
 
 pub struct CatIssuanceInfo {
     pub asset_id: Bytes32,
+    pub lineage_proof: LineageProof,
     pub eve_coin: Coin,
-    pub eve_inner_puzzle_hash: Bytes32,
 }
 
 impl IssueCat {
@@ -44,7 +45,7 @@ impl IssueCat {
         public_key: PublicKey,
         amount: u64,
     ) -> Result<(ChainedSpend, CatIssuanceInfo), SpendError> {
-        let tail_puzzle_ptr = ctx.everything_with_signature_tail_puzzle();
+        let tail_puzzle_ptr = ctx.everything_with_signature_tail_puzzle()?;
 
         let tail = ctx.alloc(CurriedProgram {
             program: tail_puzzle_ptr,
@@ -56,16 +57,16 @@ impl IssueCat {
             program: tail,
             solution: NodePtr::NIL,
         })?)
-        .finish(ctx, asset_id, amount)
+        .finish_raw(ctx, asset_id, amount)
     }
 
-    pub fn finish(
+    pub fn finish_raw(
         self,
         ctx: &mut SpendContext,
         asset_id: Bytes32,
         amount: u64,
     ) -> Result<(ChainedSpend, CatIssuanceInfo), SpendError> {
-        let cat_puzzle_ptr = ctx.cat_puzzle();
+        let cat_puzzle_ptr = ctx.cat_puzzle()?;
 
         let inner_puzzle = ctx.alloc(clvm_quote!(self.conditions))?;
         let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
@@ -80,13 +81,13 @@ impl IssueCat {
         })?;
 
         let puzzle_hash = ctx.tree_hash(puzzle).into();
-        let coin = Coin::new(self.parent_coin_id, puzzle_hash, amount);
+        let eve_coin = Coin::new(self.parent_coin_id, puzzle_hash, amount);
 
         let solution = ctx.serialize(CatSolution {
             inner_puzzle_solution: (),
             lineage_proof: None,
-            prev_coin_id: coin.coin_id(),
-            this_coin_info: coin,
+            prev_coin_id: eve_coin.coin_id(),
+            this_coin_info: eve_coin,
             next_coin_proof: CoinProof {
                 parent_coin_info: self.parent_coin_id,
                 inner_puzzle_hash,
@@ -97,7 +98,7 @@ impl IssueCat {
         })?;
 
         let puzzle_reveal = ctx.serialize(puzzle)?;
-        ctx.spend(CoinSpend::new(coin, puzzle_reveal, solution));
+        ctx.spend(CoinSpend::new(eve_coin, puzzle_reveal, solution));
 
         let chained_spend = ChainedSpend {
             parent_conditions: vec![ctx.alloc(CreateCoinWithMemos {
@@ -109,8 +110,12 @@ impl IssueCat {
 
         let issuance_info = CatIssuanceInfo {
             asset_id,
-            eve_coin: coin,
-            eve_inner_puzzle_hash: inner_puzzle_hash,
+            lineage_proof: LineageProof {
+                parent_parent_coin_id: eve_coin.parent_coin_info,
+                parent_inner_puzzle_hash: inner_puzzle_hash,
+                parent_amount: eve_coin.amount,
+            },
+            eve_coin,
         };
 
         Ok((chained_spend, issuance_info))

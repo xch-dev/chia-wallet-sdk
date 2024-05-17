@@ -1,16 +1,15 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
     cat::{CatArgs, CAT_PUZZLE_HASH},
-    offer::SETTLEMENT_PAYMENTS_PUZZLE_HASH,
+    offer::{
+        NotarizedPayment, Payment, SettlementPaymentsSolution, SETTLEMENT_PAYMENTS_PUZZLE_HASH,
+    },
 };
 use clvm_utils::{tree_hash_atom, tree_hash_pair, CurriedProgram, ToTreeHash};
 use clvmr::NodePtr;
 use sha2::{digest::FixedOutput, Digest, Sha256};
 
-use crate::{
-    AssertPuzzleAnnouncement, ChainedSpend, NotarizedPayment, Payment, SettlementPaymentsSolution,
-    SpendContext, SpendError,
-};
+use crate::{AssertPuzzleAnnouncement, ChainedSpend, SpendContext, SpendError};
 
 pub struct OfferBuilder {
     nonce: Bytes32,
@@ -37,7 +36,7 @@ impl OfferBuilder {
         ctx: &mut SpendContext,
         payments: Vec<Payment>,
     ) -> Result<Self, SpendError> {
-        let puzzle = ctx.standard_puzzle();
+        let puzzle = ctx.standard_puzzle()?;
         self.request_payments(ctx, puzzle, payments)
     }
 
@@ -60,8 +59,8 @@ impl OfferBuilder {
         let puzzle = if let Some(puzzle) = ctx.get_puzzle(&puzzle_hash) {
             puzzle
         } else {
-            let cat_puzzle = ctx.cat_puzzle();
-            let settlement_payments_puzzle = ctx.settlement_payments_puzzle();
+            let cat_puzzle = ctx.cat_puzzle()?;
+            let settlement_payments_puzzle = ctx.settlement_payments_puzzle()?;
             let puzzle = ctx.alloc(CurriedProgram {
                 program: cat_puzzle,
                 args: CatArgs {

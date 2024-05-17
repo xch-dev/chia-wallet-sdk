@@ -1,12 +1,14 @@
-use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_puzzles::singleton::LauncherSolution;
+use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
+use chia_puzzles::singleton::{
+    LauncherSolution, SingletonArgs, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE,
+    SINGLETON_TOP_LAYER_PUZZLE_HASH,
+};
 use clvm_traits::{clvm_list, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 use sha2::{digest::FixedOutput, Digest, Sha256};
 
-use crate::{
-    singleton_puzzle_hash, AssertCoinAnnouncement, ChainedSpend, SpendContext, SpendError,
-};
+use crate::{AssertCoinAnnouncement, ChainedSpend, SpendContext, SpendError};
 
 #[must_use = "Launcher coins must be spent in order to create the singleton output."]
 pub struct SpendableLauncher {
@@ -35,8 +37,15 @@ impl SpendableLauncher {
     where
         T: ToClvm<NodePtr>,
     {
-        let singleton_puzzle_hash =
-            singleton_puzzle_hash(self.coin.coin_id(), singleton_inner_puzzle_hash);
+        let singleton_puzzle_hash = CurriedProgram {
+            program: SINGLETON_TOP_LAYER_PUZZLE_HASH,
+            args: SingletonArgs {
+                singleton_struct: SingletonStruct::new(self.coin.coin_id()),
+                inner_puzzle: TreeHash::from(singleton_inner_puzzle_hash),
+            },
+        }
+        .tree_hash()
+        .into();
 
         let eve_message = ctx.alloc(clvm_list!(
             singleton_puzzle_hash,
@@ -53,16 +62,17 @@ impl SpendableLauncher {
             announcement_id: Bytes32::new(announcement_id.finalize_fixed().into()),
         })?;
 
-        let launcher = ctx.singleton_launcher();
-        let puzzle_reveal = ctx.serialize(launcher)?;
-
         let solution = ctx.serialize(LauncherSolution {
             singleton_puzzle_hash,
             amount: self.coin.amount,
             key_value_list,
         })?;
 
-        ctx.spend(CoinSpend::new(self.coin, puzzle_reveal, solution));
+        ctx.spend(CoinSpend::new(
+            self.coin,
+            Program::from(SINGLETON_LAUNCHER_PUZZLE.to_vec()),
+            solution,
+        ));
 
         let mut chained_spend = self.chained_spend;
         chained_spend.parent_conditions.push(assert_announcement);

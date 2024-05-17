@@ -4,7 +4,8 @@ use chia_protocol::{CoinSpend, Program};
 use chia_puzzles::{
     cat::{
         CAT_PUZZLE, CAT_PUZZLE_HASH, EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE,
-        EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE_HASH,
+        EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE_HASH, GENESIS_BY_COIN_ID_TAIL_PUZZLE,
+        GENESIS_BY_COIN_ID_TAIL_PUZZLE_HASH,
     },
     did::{DID_INNER_PUZZLE, DID_INNER_PUZZLE_HASH},
     nft::{
@@ -110,22 +111,22 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Allocate the standard puzzle and return its pointer.
-    pub fn standard_puzzle(&mut self) -> NodePtr {
+    pub fn standard_puzzle(&mut self) -> Result<NodePtr, SpendError> {
         self.puzzle(STANDARD_PUZZLE_HASH, &STANDARD_PUZZLE)
     }
 
     /// Allocate the CAT puzzle and return its pointer.
-    pub fn cat_puzzle(&mut self) -> NodePtr {
+    pub fn cat_puzzle(&mut self) -> Result<NodePtr, SpendError> {
         self.puzzle(CAT_PUZZLE_HASH, &CAT_PUZZLE)
     }
 
     /// Allocate the DID inner puzzle and return its pointer.
-    pub fn did_inner_puzzle(&mut self) -> NodePtr {
+    pub fn did_inner_puzzle(&mut self) -> Result<NodePtr, SpendError> {
         self.puzzle(DID_INNER_PUZZLE_HASH, &DID_INNER_PUZZLE)
     }
 
     /// Allocate the NFT intermediate launcher puzzle and return its pointer.
-    pub fn nft_intermediate_launcher(&mut self) -> NodePtr {
+    pub fn nft_intermediate_launcher(&mut self) -> Result<NodePtr, SpendError> {
         self.puzzle(
             NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH,
             &NFT_INTERMEDIATE_LAUNCHER_PUZZLE,
@@ -133,7 +134,7 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Allocate the NFT royalty transfer puzzle and return its pointer.
-    pub fn nft_royalty_transfer(&mut self) -> NodePtr {
+    pub fn nft_royalty_transfer(&mut self) -> Result<NodePtr, SpendError> {
         self.puzzle(
             NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
             &NFT_ROYALTY_TRANSFER_PUZZLE,
@@ -141,36 +142,43 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Allocate the NFT ownership layer puzzle and return its pointer.
-    pub fn nft_ownership_layer(&mut self) -> NodePtr {
+    pub fn nft_ownership_layer(&mut self) -> Result<NodePtr, SpendError> {
         self.puzzle(NFT_OWNERSHIP_LAYER_PUZZLE_HASH, &NFT_OWNERSHIP_LAYER_PUZZLE)
     }
 
     /// Allocate the NFT state layer puzzle and return its pointer.
-    pub fn nft_state_layer(&mut self) -> NodePtr {
+    pub fn nft_state_layer(&mut self) -> Result<NodePtr, SpendError> {
         self.puzzle(NFT_STATE_LAYER_PUZZLE_HASH, &NFT_STATE_LAYER_PUZZLE)
     }
 
     /// Allocate the singleton top layer puzzle and return its pointer.
-    pub fn singleton_top_layer(&mut self) -> NodePtr {
+    pub fn singleton_top_layer(&mut self) -> Result<NodePtr, SpendError> {
         self.puzzle(SINGLETON_TOP_LAYER_PUZZLE_HASH, &SINGLETON_TOP_LAYER_PUZZLE)
     }
 
     /// Allocate the singleton launcher puzzle and return its pointer.
-    pub fn singleton_launcher(&mut self) -> NodePtr {
+    pub fn singleton_launcher(&mut self) -> Result<NodePtr, SpendError> {
         self.puzzle(SINGLETON_LAUNCHER_PUZZLE_HASH, &SINGLETON_LAUNCHER_PUZZLE)
     }
 
     /// Allocate the EverythingWithSignature TAIL puzzle and return its pointer.
-    pub fn everything_with_signature_tail_puzzle(&mut self) -> NodePtr {
-        // todo: add constant to chia_rs
+    pub fn everything_with_signature_tail_puzzle(&mut self) -> Result<NodePtr, SpendError> {
         self.puzzle(
             EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE_HASH,
             &EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE,
         )
     }
 
+    // Allocate the GenesisByCoinId TAIL puzzle and return its pointer.
+    pub fn genesis_by_coin_id_tail_puzzle(&mut self) -> Result<NodePtr, SpendError> {
+        self.puzzle(
+            GENESIS_BY_COIN_ID_TAIL_PUZZLE_HASH,
+            &GENESIS_BY_COIN_ID_TAIL_PUZZLE,
+        )
+    }
+
     /// Allocate the settlement payments puzzle and return its pointer.
-    pub fn settlement_payments_puzzle(&mut self) -> NodePtr {
+    pub fn settlement_payments_puzzle(&mut self) -> Result<NodePtr, SpendError> {
         self.puzzle(SETTLEMENT_PAYMENTS_PUZZLE_HASH, &SETTLEMENT_PAYMENTS_PUZZLE)
     }
 
@@ -185,13 +193,17 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Get a puzzle from the cache or allocate a new one.
-    pub fn puzzle(&mut self, puzzle_hash: TreeHash, puzzle_bytes: &[u8]) -> NodePtr {
+    pub fn puzzle(
+        &mut self,
+        puzzle_hash: TreeHash,
+        puzzle_bytes: &[u8],
+    ) -> Result<NodePtr, SpendError> {
         if let Some(puzzle) = self.puzzles.get(&puzzle_hash) {
-            *puzzle
+            Ok(*puzzle)
         } else {
-            let puzzle = node_from_bytes(self.allocator, puzzle_bytes).unwrap();
+            let puzzle = node_from_bytes(self.allocator, puzzle_bytes)?;
             self.puzzles.insert(puzzle_hash, puzzle);
-            puzzle
+            Ok(puzzle)
         }
     }
 }

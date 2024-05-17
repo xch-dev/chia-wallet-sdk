@@ -17,7 +17,7 @@ pub fn spend_singleton(
     lineage_proof: Proof,
     inner_spend: InnerSpend,
 ) -> Result<CoinSpend, SpendError> {
-    let singleton_puzzle = ctx.singleton_top_layer();
+    let singleton_puzzle = ctx.singleton_top_layer()?;
 
     let puzzle_reveal = ctx.serialize(CurriedProgram {
         program: singleton_puzzle,

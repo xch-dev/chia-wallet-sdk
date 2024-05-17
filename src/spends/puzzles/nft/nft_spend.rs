@@ -6,7 +6,10 @@ use chia_puzzles::{
         NftStateLayerArgs, NftStateLayerSolution, NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
         NFT_ROYALTY_TRANSFER_PUZZLE_HASH, NFT_STATE_LAYER_PUZZLE_HASH,
     },
-    singleton::{SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
+    singleton::{
+        SingletonArgs, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH,
+        SINGLETON_TOP_LAYER_PUZZLE_HASH,
+    },
     LineageProof, Proof,
 };
 use clvm_traits::{clvm_list, ToClvm};
@@ -15,8 +18,8 @@ use clvmr::NodePtr;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    singleton_puzzle_hash, spend_singleton, AssertPuzzleAnnouncement, Chainable, ChainedSpend,
-    CreateCoinWithMemos, InnerSpend, NewNftOwner, NftInfo, SpendContext, SpendError, StandardSpend,
+    spend_singleton, AssertPuzzleAnnouncement, Chainable, ChainedSpend, CreateCoinWithMemos,
+    InnerSpend, NewNftOwner, NftInfo, SpendContext, SpendError, StandardSpend,
 };
 
 pub struct NoNftOutput;
@@ -165,7 +168,15 @@ impl StandardNftSpend<NftOutput> {
         .tree_hash()
         .into();
 
-        let new_puzzle_hash = singleton_puzzle_hash(nft_info.launcher_id, new_inner_puzzle_hash);
+        let new_puzzle_hash = CurriedProgram {
+            program: SINGLETON_TOP_LAYER_PUZZLE_HASH,
+            args: SingletonArgs {
+                singleton_struct: SingletonStruct::new(nft_info.launcher_id),
+                inner_puzzle: TreeHash::from(new_inner_puzzle_hash),
+            },
+        }
+        .tree_hash()
+        .into();
 
         nft_info.proof = Proof::Lineage(LineageProof {
             parent_parent_coin_id: nft_info.coin.parent_coin_info,
@@ -205,7 +216,7 @@ pub fn raw_nft_spend<M>(
 where
     M: ToClvm<NodePtr>,
 {
-    let transfer_program_puzzle = ctx.nft_royalty_transfer();
+    let transfer_program_puzzle = ctx.nft_royalty_transfer()?;
 
     let transfer_program = CurriedProgram {
         program: transfer_program_puzzle,
@@ -248,7 +259,7 @@ pub fn spend_nft_state_layer<M>(
 where
     M: ToClvm<NodePtr>,
 {
-    let nft_state_layer = ctx.nft_state_layer();
+    let nft_state_layer = ctx.nft_state_layer()?;
 
     let puzzle = ctx.alloc(CurriedProgram {
         program: nft_state_layer,
@@ -276,7 +287,7 @@ pub fn spend_nft_ownership_layer<P>(
 where
     P: ToClvm<NodePtr>,
 {
-    let nft_ownership_layer = ctx.nft_ownership_layer();
+    let nft_ownership_layer = ctx.nft_ownership_layer()?;
 
     let puzzle = ctx.alloc(CurriedProgram {
         program: nft_ownership_layer,

@@ -121,11 +121,7 @@ mod tests {
             asset_id: issuance_info.asset_id,
             p2_puzzle_hash: puzzle_hash,
             coin: Coin::new(issuance_info.eve_coin.coin_id(), cat_puzzle_hash.into(), 1),
-            lineage_proof: LineageProof {
-                parent_parent_coin_id: issuance_info.eve_coin.parent_coin_info,
-                parent_inner_puzzle_hash: issuance_info.eve_inner_puzzle_hash,
-                parent_amount: 1,
-            },
+            lineage_proof: issuance_info.lineage_proof,
         };
 
         StandardSpend::new()

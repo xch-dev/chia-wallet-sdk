@@ -1,6 +1,7 @@
-use std::{cmp::Reverse, collections::HashSet};
+use std::cmp::Reverse;
 
 use chia_protocol::Coin;
+use indexmap::IndexSet;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use thiserror::Error;
@@ -25,7 +26,7 @@ pub enum CoinSelectionError {
 pub fn select_coins(
     mut spendable_coins: Vec<Coin>,
     amount: u128,
-) -> Result<HashSet<Coin>, CoinSelectionError> {
+) -> Result<Vec<Coin>, CoinSelectionError> {
     let max_coins = 500;
 
     // You cannot spend no coins.
@@ -48,13 +49,11 @@ pub fn select_coins(
     // Exact coin match.
     for coin in spendable_coins.iter() {
         if coin.amount as u128 == amount {
-            let mut result = HashSet::new();
-            result.insert(*coin);
-            return Ok(result);
+            return Ok(vec![*coin]);
         }
     }
 
-    let mut smaller_coins = HashSet::new();
+    let mut smaller_coins = IndexSet::new();
     let mut smaller_sum = 0;
 
     for coin in spendable_coins.iter() {
@@ -68,15 +67,12 @@ pub fn select_coins(
 
     // Check for an exact match.
     if smaller_sum == amount && smaller_coins.len() < max_coins && amount != 0 {
-        return Ok(smaller_coins);
+        return Ok(smaller_coins.into_iter().collect());
     }
 
     // There must be a single coin larger than the amount.
     if smaller_sum < amount {
-        let smallest_coin = smallest_coin_above(&spendable_coins, amount).unwrap();
-        let mut result = HashSet::new();
-        result.insert(smallest_coin);
-        return Ok(result);
+        return Ok(vec![smallest_coin_above(&spendable_coins, amount).unwrap()]);
     }
 
     // Apply the knapsack algorithm otherwise.
@@ -88,14 +84,14 @@ pub fn select_coins(
             u128::MAX,
             max_coins,
         ) {
-            return Ok(result);
+            return Ok(result.into_iter().collect());
         }
 
         // Knapsack failed to select coins, so try summing the largest coins.
         let summed_coins = sum_largest_coins(&spendable_coins, amount);
 
         if summed_coins.len() <= max_coins {
-            return Ok(summed_coins);
+            return Ok(summed_coins.into_iter().collect());
         } else {
             return Err(CoinSelectionError::ExceededMaxCoins);
         }
@@ -103,17 +99,15 @@ pub fn select_coins(
 
     // Try to find a large coin to select.
     if let Some(coin) = smallest_coin_above(&spendable_coins, amount) {
-        let mut result = HashSet::new();
-        result.insert(coin);
-        return Ok(result);
+        return Ok(vec![coin]);
     }
 
     // It would require too many coins to match the amount.
     Err(CoinSelectionError::ExceededMaxCoins)
 }
 
-fn sum_largest_coins(coins: &[Coin], amount: u128) -> HashSet<Coin> {
-    let mut selected_coins = HashSet::new();
+fn sum_largest_coins(coins: &[Coin], amount: u128) -> IndexSet<Coin> {
+    let mut selected_coins = IndexSet::new();
     let mut selected_sum = 0;
     for coin in coins {
         selected_sum += coin.amount as u128;
@@ -145,12 +139,12 @@ pub fn knapsack_coin_algorithm(
     amount: u128,
     max_amount: u128,
     max_coins: usize,
-) -> Option<HashSet<Coin>> {
+) -> Option<IndexSet<Coin>> {
     let mut best_sum = max_amount;
     let mut best_coins = None;
 
     for _ in 0..1000 {
-        let mut selected_coins = HashSet::new();
+        let mut selected_coins = IndexSet::new();
         let mut selected_sum = 0;
         let mut target_reached = false;
 
@@ -186,7 +180,7 @@ pub fn knapsack_coin_algorithm(
                         best_coins = Some(selected_coins.clone());
 
                         selected_sum -= coin.amount as u128;
-                        selected_coins.remove(coin);
+                        selected_coins.shift_remove(coin);
                     }
                 }
             }
@@ -208,14 +202,6 @@ mod tests {
         };
     }
 
-    macro_rules! coin_set {
-        ( $( $coin:expr ),* $(,)? ) => {{
-            let mut coins = HashSet::new();
-            $( coins.insert(coin($coin)); )*
-            coins
-        }};
-    }
-
     fn coin(amount: u64) -> Coin {
         Coin::new(Bytes32::from([0; 32]), Bytes32::from([0; 32]), amount)
     }
@@ -226,7 +212,7 @@ mod tests {
 
         // Sorted by amount, ascending.
         let selected = select_coins(coins, 700).unwrap();
-        let expected = coin_set![300, 400];
+        let expected = coin_list![400, 300];
         assert_eq!(selected, expected);
     }
 
