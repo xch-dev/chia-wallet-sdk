@@ -24,28 +24,15 @@ This SDK is built on top of the primitives developed in the [chia_rs](https://gi
 
 Currently, the following Chia primitives are supported:
 
-### P2 Puzzle (Standard Transaction)
+- [Standard Transactions](https://chialisp.com/standard-transactions), either as an inner puzzle or standalone
+- [CATs](https://chialisp.com/cats) (Chia Asset Tokens), with creation, parsing, and spending capabilities
+- [DIDs](https://chialisp.com/dids) (Decentralized Identifiers), with creation, parsing, and (limited) spending capabilities
+- [NFTs](https://chialisp.com/nfts) (Non-Fungible Tokens), with minting and (limited) spending capabilities
 
-You can spend the [standard transaction](https://chialisp.com/standard-transactions), either as an inner puzzle or by itself, with a list of conditions.
+Additionally, the wallet sdk is designed to be modular, so you can extend it with your own primitives and driver code if needed! Contributions are welcome for adding things to the wallet sdk itself as well.
 
-Note that the "hidden puzzle" functionality is not currently supported by the wallet sdk, and the (unspendable) `DEFAULT_HIDDEN_PUZZLE` will be used.
+## Credits
 
-### CATs (Chia Asset Tokens)
+Special thanks to [SumSet Tech, LLC](https://sumset.tech) for sponsoring the initial development of various parts of the wallet sdk.
 
-You can spend a CAT with any TAIL (Token Asset Issuance Limitations) program, whose hash is otherwise known as an asset id. You can also issue CATs with the "everything with signature" TAIL (multi-issuance) or "genesis by coin id" TAIL (single-issuance).
-
-Note that it is not currently possible to melt a CAT.
-
-You can also parse an unknown puzzle into the info required to spend a CAT.
-
-### DIDs (Decentralized Identifiers)
-
-You can create new DIDs and spend them to mint NFTs with them. You cannot currently update the metadata, recover, or transfer a DID.
-
-You can also parse an unknown puzzle into the info required to spend a DID.
-
-### NFTs (Non-Fungible Tokens)
-
-You can mint NFTs in bulk by spending a DID to creating an intermediate coin that launches the NFT. You can also spend and change the DID owner of an NFT.
-
-Note that you _cannot_ yet parse NFTs from unknown puzzles.
+Banner image produced by [Midjourney](https://www.midjourney.com).
