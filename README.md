@@ -26,7 +26,7 @@ Currently, the following Chia primitives are supported:
 
 - [Standard Transactions](https://chialisp.com/standard-transactions), either as an inner puzzle or standalone
 - [CATs](https://chialisp.com/cats) (Chia Asset Tokens), with creation, parsing, and spending capabilities
-- [DIDs](https://chialisp.com/dids) (Decentralized Identifiers), with creation, parsing, and (limited) spending capabilities
+- [DIDs](https://chialisp.com/dids) (Decentralized Identities), with creation, parsing, and (limited) spending capabilities
 - [NFTs](https://chialisp.com/nfts) (Non-Fungible Tokens), with minting and (limited) spending capabilities
 
 Additionally, the wallet sdk is designed to be modular, so you can extend it with your own primitives and driver code if needed! Contributions are welcome for adding things to the wallet sdk itself as well.
