@@ -1,8 +1,12 @@
+# Wallet SDK
+
 [![crate](https://img.shields.io/crates/v/chia-wallet-sdk.svg)](https://crates.io/crates/chia-wallet-sdk)
 [![documentation](https://docs.rs/chia-wallet-sdk/badge.svg)](https://docs.rs/chia-wallet-sdk)
 [![minimum rustc 1.75](https://img.shields.io/badge/rustc-1.75+-red.svg)](https://rust-lang.github.io/rfcs/2495-min-rust-version.html)
 
 This is an unofficial wallet SDK for the [Chia blockchain](https://chia.net), enabling the development of high-performance wallet applications built with Chia's [light wallet protocol](https://docs.chia.net/wallet-protocol).
+
+![image](https://github.com/Rigidity/chia-wallet-sdk/assets/35380458/06dd1f97-1f0e-4f6d-98cb-cbcb2b47ee70)
 
 ## Why do you need an SDK?
 
