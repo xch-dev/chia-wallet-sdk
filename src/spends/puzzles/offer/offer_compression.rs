@@ -4,7 +4,6 @@ use std::{
 };
 
 use chia_protocol::SpendBundle;
-use chia_traits::Streamable;
 use chia_puzzles::{
     cat::{CAT_PUZZLE, CAT_PUZZLE_V1},
     nft::{
@@ -15,6 +14,7 @@ use chia_puzzles::{
     singleton::SINGLETON_TOP_LAYER_PUZZLE,
     standard::STANDARD_PUZZLE,
 };
+use chia_traits::Streamable;
 use flate2::{
     read::{ZlibDecoder, ZlibEncoder},
     Compress, Compression, Decompress, FlushDecompress,
