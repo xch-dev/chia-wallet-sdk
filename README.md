@@ -1,4 +1,4 @@
-# Wallet SDK
+# Chia Wallet SDK
 
 [![crate](https://img.shields.io/crates/v/chia-wallet-sdk.svg)](https://crates.io/crates/chia-wallet-sdk)
 [![documentation](https://docs.rs/chia-wallet-sdk/badge.svg)](https://docs.rs/chia-wallet-sdk)
