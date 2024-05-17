@@ -605,6 +605,8 @@ async fn process_spend_bundle(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use std::collections::HashSet;
 
     use chia_bls::{sign, Signature};
@@ -612,9 +614,7 @@ mod tests {
     use chia_protocol::{CoinSpend, SpendBundle};
     use chia_puzzles::DeriveSynthetic;
 
-    use crate::{testing::SECRET_KEY, CreateCoinWithMemos, CreateCoinWithoutMemos, SpendContext};
-
-    use super::*;
+    use crate::{test::SECRET_KEY, CreateCoinWithMemos, CreateCoinWithoutMemos, SpendContext};
 
     fn sign_bundle(spend_bundle: &mut SpendBundle) {
         let sk = SECRET_KEY.derive_synthetic();

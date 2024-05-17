@@ -5,16 +5,7 @@ mod condition;
 mod parser;
 mod spends;
 mod ssl;
-
-/// The `prelude` module contains the most commonly used types and traits.
-pub mod prelude;
-
-/// The `sqlite` module contains the SQLite storage backend.
-#[cfg(any(test, feature = "sqlite"))]
-pub mod sqlite;
-
-/// Contains logic needed to glue a wallet together with all of the data stores.
-pub mod wallet;
+mod wallet;
 
 pub use address::*;
 pub use condition::*;
@@ -22,6 +13,16 @@ pub use parser::*;
 pub use spends::*;
 pub use ssl::*;
 pub use wallet::*;
+
+#[cfg(test)]
+mod test;
+
+/// The `sqlite` module contains the SQLite storage backend.
+#[cfg(any(test, feature = "sqlite"))]
+pub mod sqlite;
+
+#[cfg(any(test, feature = "sqlite"))]
+pub use sqlite::*;
 
 /// Removes the leading zeros from a CLVM atom.
 pub fn trim_leading_zeros(mut slice: &[u8]) -> &[u8] {
@@ -50,17 +51,4 @@ pub fn u64_to_bytes(num: u64) -> Vec<u8> {
 pub fn u16_to_bytes(num: u16) -> Vec<u8> {
     let bytes: Vec<u8> = num.to_be_bytes().into();
     trim_leading_zeros(bytes.as_slice()).to_vec()
-}
-
-#[cfg(test)]
-mod testing {
-    use std::str::FromStr;
-
-    use bip39::Mnemonic;
-    use chia_bls::SecretKey;
-    use once_cell::sync::Lazy;
-
-    const MNEMONIC: &str = "setup update spoil lazy square course ring tell hard eager industry ticket guess amused build reunion woman system cause afraid first material machine morning";
-    pub(crate) static SECRET_KEY: Lazy<SecretKey> =
-        Lazy::new(|| SecretKey::from_seed(&Mnemonic::from_str(MNEMONIC).unwrap().to_seed("")));
 }

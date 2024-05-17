@@ -186,7 +186,7 @@ mod tests {
     use chia_puzzles::DeriveSynthetic;
     use sqlx::SqlitePool;
 
-    use crate::testing::SECRET_KEY;
+    use crate::test::SECRET_KEY;
 
     use super::*;
 

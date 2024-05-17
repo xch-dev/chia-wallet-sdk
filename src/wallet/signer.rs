@@ -71,7 +71,7 @@ mod tests {
 
     use crate::{
         sqlite::{fetch_public_key, insert_keys, public_key_index},
-        testing::SECRET_KEY,
+        test::SECRET_KEY,
         RequiredSignature,
     };
     use crate::{AggSig, AggSigKind};
