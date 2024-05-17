@@ -207,12 +207,6 @@ mod tests {
         let assert_cat =
             offer_announcement_id(&mut ctx, cat_settlements_hash.into(), cat_payment.clone())?;
 
-        let lineage_proof = LineageProof {
-            parent_parent_coin_id: parent.coin_id(),
-            parent_inner_puzzle_hash: cat_info.eve_inner_puzzle_hash,
-            parent_amount: 1000,
-        };
-
         let inner_spend = StandardSpend::new()
             .condition(ctx.alloc(CreateCoinWithMemos {
                 puzzle_hash: SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
@@ -225,7 +219,7 @@ mod tests {
             .inner_spend(&mut ctx, pk)?;
 
         CatSpend::new(cat_info.asset_id)
-            .spend(cat, inner_spend, lineage_proof, 0)
+            .spend(cat, inner_spend, cat_info.lineage_proof, 0)
             .finish(&mut ctx)?;
 
         let cat_puzzle_hash = CurriedProgram {
