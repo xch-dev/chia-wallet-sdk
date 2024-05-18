@@ -1,9 +1,9 @@
 #![doc = include_str!("../README.md")]
 
 mod address;
+mod coin_selection;
 mod ssl;
-mod wallet;
 
 pub use address::*;
+pub use coin_selection::*;
 pub use ssl::*;
-pub use wallet::*;

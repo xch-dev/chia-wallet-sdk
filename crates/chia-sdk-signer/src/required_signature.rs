@@ -164,6 +164,12 @@ impl RequiredSignature {
     }
 }
 
+fn u64_to_bytes(value: u64) -> Vec<u8> {
+    let mut allocator = Allocator::new();
+    let atom = allocator.new_number(value.into()).unwrap();
+    allocator.atom(atom).as_ref().to_vec()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -171,6 +177,7 @@ mod tests {
     use chia_bls::{derive_keys::master_to_wallet_unhardened, SecretKey};
     use chia_protocol::Bytes32;
     use chia_puzzles::DeriveSynthetic;
+    use hex_literal::hex;
 
     #[test]
     fn test_messages() {
@@ -266,10 +273,4 @@ mod tests {
             assert_eq!(hex::encode(message), hex::encode(required.final_message()));
         }
     }
-}
-
-fn u64_to_bytes(value: u64) -> Vec<u8> {
-    let mut allocator = Allocator::new();
-    let atom = allocator.new_number(value.into()).unwrap();
-    allocator.atom(atom).as_ref().to_vec()
 }

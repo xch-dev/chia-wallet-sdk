@@ -15,4 +15,4 @@ thiserror = "1.0.61"
 [dev-dependencies]
 chia-puzzles = "0.8.0"
 hex = "0.4.3"
-chia-sdk-test = { version = "0.8.0", path = "../chia-sdk-test" }
+hex-literal = "0.4.1"
