@@ -10,27 +10,6 @@ use crate::{
     SpendContext, SpendError,
 };
 
-/// ## Example
-///
-/// Here is an example of spending a standard p2 coin:
-///
-/// ```
-/// # use chia_bls::PublicKey;
-/// # use chia_protocol::{Bytes32, Coin};
-/// # use clvmr::Allocator;
-/// # use chia_wallet_sdk::*;
-/// # let mut allocator = Allocator::new();
-/// # let mut ctx = SpendContext::new(&mut allocator);
-/// # let public_key = PublicKey::default();
-/// # let puzzle_hash = Bytes32::default();
-/// # let coin = Coin::new(Bytes32::default(), Bytes32::default(), 1);
-/// let create_coin = CreateCoinWithoutMemos { puzzle_hash, amount: 1 };
-///
-/// StandardSpend::new()
-///     .condition(ctx.alloc(create_coin).unwrap())
-///     .finish(&mut ctx, coin, public_key)
-///     .unwrap()
-/// ```
 #[derive(Default)]
 pub struct StandardSpend {
     coin_spends: Vec<CoinSpend>,
