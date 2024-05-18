@@ -12,7 +12,7 @@ use clvmr::NodePtr;
 
 use crate::{
     puzzles::{spend_singleton, StandardSpend},
-    spend_builder::{ChainedSpend, InnerSpend, P2Spend},
+    spend_builder::{InnerSpend, P2Spend, ParentConditions},
     SpendContext, SpendError,
 };
 
@@ -28,8 +28,8 @@ pub struct StandardDidSpend<T> {
 }
 
 impl<T> StandardDidSpend<T> {
-    pub fn chain(mut self, chained_spend: ChainedSpend) -> Self {
-        self.standard_spend = self.standard_spend.chain(chained_spend);
+    pub fn chain(mut self, chained: ParentConditions) -> Self {
+        self.standard_spend = self.standard_spend.chain(chained);
         self
     }
 }

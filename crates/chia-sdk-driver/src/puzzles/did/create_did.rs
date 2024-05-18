@@ -11,7 +11,9 @@ use clvm_traits::ToClvm;
 use clvm_utils::{tree_hash_atom, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
-use crate::{puzzles::SpendableLauncher, spend_builder::ChainedSpend, SpendContext, SpendError};
+use crate::{
+    puzzles::SpendableLauncher, spend_builder::ParentConditions, SpendContext, SpendError,
+};
 
 use super::StandardDidSpend;
 
@@ -23,7 +25,7 @@ pub trait CreateDid {
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
-    ) -> Result<(ChainedSpend, DidInfo<M>), SpendError>
+    ) -> Result<(ParentConditions, DidInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>;
 
@@ -34,7 +36,7 @@ pub trait CreateDid {
         num_verifications_required: u64,
         metadata: M,
         synthetic_key: PublicKey,
-    ) -> Result<(ChainedSpend, DidInfo<M>), SpendError>
+    ) -> Result<(ParentConditions, DidInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>,
         Self: Sized,
@@ -65,7 +67,7 @@ pub trait CreateDid {
         self,
         ctx: &mut SpendContext,
         synthetic_key: PublicKey,
-    ) -> Result<(ChainedSpend, DidInfo<()>), SpendError>
+    ) -> Result<(ParentConditions, DidInfo<()>), SpendError>
     where
         Self: Sized,
     {
@@ -81,7 +83,7 @@ impl CreateDid for SpendableLauncher {
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
-    ) -> Result<(ChainedSpend, DidInfo<M>), SpendError>
+    ) -> Result<(ParentConditions, DidInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>,
     {

@@ -1,8 +1,10 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::singleton::SINGLETON_LAUNCHER_PUZZLE_HASH;
-use chia_sdk_types::conditions::CreateCoinWithoutMemos;
 
-use crate::{spend_builder::ChainedSpend, SpendContext, SpendError};
+use crate::{
+    spend_builder::{P2Spend, ParentConditions},
+    SpendContext, SpendError,
+};
 
 use super::SpendableLauncher;
 
@@ -26,27 +28,29 @@ impl Launcher {
     }
 
     pub fn create(self, ctx: &mut SpendContext) -> Result<SpendableLauncher, SpendError> {
-        Ok(SpendableLauncher::new(
+        Ok(SpendableLauncher::with_parent(
             self.coin,
-            ChainedSpend::new(vec![ctx.alloc(CreateCoinWithoutMemos {
-                puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-                amount: self.coin.amount,
-            })?]),
+            ParentConditions::new().create_coin(
+                ctx,
+                SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
+                self.coin.amount,
+            )?,
         ))
     }
 
     pub fn create_from_intermediate(
         self,
         ctx: &mut SpendContext,
-    ) -> Result<(ChainedSpend, SpendableLauncher), SpendError> {
-        let chained_spend = ChainedSpend::new(vec![ctx.alloc(CreateCoinWithoutMemos {
-            puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-            amount: self.coin.amount,
-        })?]);
+    ) -> Result<(ParentConditions, SpendableLauncher), SpendError> {
+        let parent = ParentConditions::new().create_coin(
+            ctx,
+            SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
+            self.coin.amount,
+        )?;
 
         Ok((
-            chained_spend,
-            SpendableLauncher::new(self.coin, ChainedSpend::default()),
+            parent,
+            SpendableLauncher::with_parent(self.coin, ParentConditions::new()),
         ))
     }
 }

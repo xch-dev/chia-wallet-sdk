@@ -3,12 +3,14 @@ use chia_puzzles::{
     nft::{NftIntermediateLauncherArgs, NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH},
     singleton::SINGLETON_LAUNCHER_PUZZLE_HASH,
 };
-use chia_sdk_types::conditions::*;
 use clvm_utils::{CurriedProgram, ToTreeHash};
 use clvmr::Allocator;
 use sha2::{Digest, Sha256};
 
-use crate::{spend_builder::ChainedSpend, SpendContext, SpendError};
+use crate::{
+    spend_builder::{P2Spend, ParentConditions},
+    SpendContext, SpendError,
+};
 
 use super::SpendableLauncher;
 
@@ -57,7 +59,7 @@ impl IntermediateLauncher {
     }
 
     pub fn create(self, ctx: &mut SpendContext) -> Result<SpendableLauncher, SpendError> {
-        let mut parent_conditions = Vec::new();
+        let mut parent = ParentConditions::new();
 
         let intermediate_puzzle = ctx.nft_intermediate_launcher()?;
 
@@ -70,10 +72,7 @@ impl IntermediateLauncher {
             },
         })?;
 
-        parent_conditions.push(ctx.alloc(CreateCoinWithoutMemos {
-            puzzle_hash: self.intermediate_coin.puzzle_hash,
-            amount: 0,
-        })?);
+        parent = parent.create_coin(ctx, self.intermediate_coin.puzzle_hash, 0)?;
 
         let puzzle_reveal = ctx.serialize(puzzle)?;
         let solution = ctx.serialize(())?;
@@ -88,17 +87,13 @@ impl IntermediateLauncher {
         index_message.update(usize_to_bytes(self.mint_number));
         index_message.update(usize_to_bytes(self.mint_total));
 
-        let mut announcement_id = Sha256::new();
-        announcement_id.update(self.intermediate_coin.coin_id());
-        announcement_id.update(index_message.finalize());
+        parent = parent.assert_coin_announcement(
+            ctx,
+            self.intermediate_coin.coin_id(),
+            index_message.finalize(),
+        )?;
 
-        parent_conditions.push(ctx.alloc(AssertCoinAnnouncement {
-            announcement_id: Bytes32::new(announcement_id.finalize().into()),
-        })?);
-
-        let chained_spend = ChainedSpend::new(parent_conditions);
-
-        Ok(SpendableLauncher::new(self.launcher_coin, chained_spend))
+        Ok(SpendableLauncher::with_parent(self.launcher_coin, parent))
     }
 }
 

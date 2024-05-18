@@ -10,12 +10,16 @@ use chia_puzzles::{
     standard::{StandardArgs, STANDARD_PUZZLE_HASH},
     EveProof, Proof,
 };
-use chia_sdk_types::{conditions::*, puzzles::NftInfo};
+use chia_sdk_types::puzzles::NftInfo;
 use clvm_traits::ToClvm;
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
-use crate::{puzzles::SpendableLauncher, spend_builder::ChainedSpend, SpendContext, SpendError};
+use crate::{
+    puzzles::SpendableLauncher,
+    spend_builder::{P2Spend, ParentConditions},
+    SpendContext, SpendError,
+};
 
 use super::StandardNftSpend;
 
@@ -38,7 +42,7 @@ pub trait MintNft {
         metadata: M,
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
-    ) -> Result<(ChainedSpend, NftInfo<M>), SpendError>
+    ) -> Result<(ParentConditions, NftInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>;
 
@@ -46,7 +50,7 @@ pub trait MintNft {
         self,
         ctx: &mut SpendContext,
         mint: StandardMint<M>,
-    ) -> Result<(ChainedSpend, NftInfo<M>), SpendError>
+    ) -> Result<(ParentConditions, NftInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>,
         Self: Sized,
@@ -87,7 +91,7 @@ impl MintNft for SpendableLauncher {
         metadata: M,
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
-    ) -> Result<(ChainedSpend, NftInfo<M>), SpendError>
+    ) -> Result<(ParentConditions, NftInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>,
     {
@@ -128,9 +132,8 @@ impl MintNft for SpendableLauncher {
         let launcher_coin = self.coin();
         let (mut chained_spend, eve_coin) = self.spend(ctx, nft_inner_puzzle_hash, ())?;
 
-        chained_spend.parent_condition(ctx.alloc(CreatePuzzleAnnouncement {
-            message: launcher_coin.coin_id().to_vec().into(),
-        })?);
+        chained_spend = chained_spend
+            .create_puzzle_announcement(ctx, launcher_coin.coin_id().to_vec().into())?;
 
         let proof = Proof::Eve(EveProof {
             parent_coin_info: launcher_coin.parent_coin_info,

@@ -20,7 +20,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     puzzles::{spend_singleton, StandardSpend},
-    spend_builder::{ChainedSpend, InnerSpend, P2Spend},
+    spend_builder::{InnerSpend, P2Spend, ParentConditions},
     SpendContext, SpendError,
 };
 
@@ -79,8 +79,8 @@ impl<T> StandardNftSpend<T> {
         self
     }
 
-    pub fn chain(mut self, chained_spend: ChainedSpend) -> Self {
-        self.standard_spend = self.standard_spend.chain(chained_spend);
+    pub fn chain(mut self, chained: ParentConditions) -> Self {
+        self.standard_spend = self.standard_spend.chain(chained);
         self
     }
 }
@@ -97,11 +97,11 @@ impl StandardNftSpend<NftOutput> {
         ctx: &mut SpendContext,
         synthetic_key: PublicKey,
         mut nft_info: NftInfo<M>,
-    ) -> Result<(ChainedSpend, NftInfo<M>), SpendError>
+    ) -> Result<(ParentConditions, NftInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>,
     {
-        let mut chained_spend = ChainedSpend::default();
+        let mut parent = ParentConditions::default();
 
         let p2_puzzle_hash = match self.output {
             NftOutput::SamePuzzleHash => nft_info.p2_puzzle_hash,
@@ -122,7 +122,7 @@ impl StandardNftSpend<NftOutput> {
             announcement_id.update([0xad, 0x4c]);
             announcement_id.update(ctx.tree_hash(new_nft_owner_args));
 
-            chained_spend.parent_condition(ctx.alloc(AssertPuzzleAnnouncement {
+            parent.raw_condition(ctx.alloc(AssertPuzzleAnnouncement {
                 announcement_id: Bytes32::new(announcement_id.finalize().into()),
             })?);
         }
@@ -197,7 +197,7 @@ impl StandardNftSpend<NftOutput> {
 
         nft_info.nft_inner_puzzle_hash = new_inner_puzzle_hash;
 
-        Ok((chained_spend, nft_info))
+        Ok((parent, nft_info))
     }
 }
 

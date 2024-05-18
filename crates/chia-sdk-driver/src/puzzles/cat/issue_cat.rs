@@ -9,7 +9,10 @@ use clvm_traits::clvm_quote;
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
-use crate::{spend_builder::ChainedSpend, SpendContext, SpendError};
+use crate::{
+    spend_builder::{P2Spend, ParentConditions},
+    SpendContext, SpendError,
+};
 
 pub struct IssueCat {
     parent_coin_id: Bytes32,
@@ -45,7 +48,7 @@ impl IssueCat {
         ctx: &mut SpendContext,
         public_key: PublicKey,
         amount: u64,
-    ) -> Result<(ChainedSpend, CatIssuanceInfo), SpendError> {
+    ) -> Result<(ParentConditions, CatIssuanceInfo), SpendError> {
         let tail_puzzle_ptr = ctx.everything_with_signature_tail_puzzle()?;
 
         let tail = ctx.alloc(CurriedProgram {
@@ -66,7 +69,7 @@ impl IssueCat {
         ctx: &mut SpendContext,
         asset_id: Bytes32,
         amount: u64,
-    ) -> Result<(ChainedSpend, CatIssuanceInfo), SpendError> {
+    ) -> Result<(ParentConditions, CatIssuanceInfo), SpendError> {
         let cat_puzzle_ptr = ctx.cat_puzzle()?;
 
         let inner_puzzle = ctx.alloc(clvm_quote!(self.conditions))?;
@@ -101,11 +104,8 @@ impl IssueCat {
         let puzzle_reveal = ctx.serialize(puzzle)?;
         ctx.spend(CoinSpend::new(eve_coin, puzzle_reveal, solution));
 
-        let chained_spend = ChainedSpend::new(vec![ctx.alloc(CreateCoinWithMemos {
-            puzzle_hash,
-            amount,
-            memos: vec![puzzle_hash.to_vec().into()],
-        })?]);
+        let chained_spend =
+            ParentConditions::new().create_hinted_coin(ctx, puzzle_hash, amount, puzzle_hash)?;
 
         let issuance_info = CatIssuanceInfo {
             asset_id,

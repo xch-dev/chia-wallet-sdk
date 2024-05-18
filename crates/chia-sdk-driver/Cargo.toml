@@ -16,8 +16,6 @@ chia-sdk-test = { version = "0.8.0", path = "../chia-sdk-test" }
 chia-sdk-signer = { version = "0.8.0", path = "../chia-sdk-signer" }
 sha2 = "0.10.8"
 chia-traits = "0.8.0"
-flate2 = { version = "1.0.30", features = ["zlib"] }
-bech32 = "0.9.1"
 
 [dev-dependencies]
 anyhow = "1.0.86"

@@ -6,7 +6,7 @@ use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
 use crate::{
-    spend_builder::{ChainedSpend, InnerSpend, P2Spend},
+    spend_builder::{InnerSpend, P2Spend, ParentConditions},
     SpendContext, SpendError,
 };
 
@@ -20,8 +20,8 @@ impl StandardSpend {
         Self::default()
     }
 
-    pub fn chain(mut self, chained_spend: ChainedSpend) -> Self {
-        self.conditions.extend(chained_spend.parent_conditions());
+    pub fn chain(mut self, chained: ParentConditions) -> Self {
+        self.conditions.extend(chained.parent_conditions());
         self
     }
 
