@@ -156,8 +156,9 @@ impl MintNft for SpendableLauncher {
 
 #[cfg(test)]
 mod tests {
-    use crate::puzzles::{
-        CreateDid, IntermediateLauncher, Launcher, StandardDidSpend, StandardSpend,
+    use crate::{
+        puzzles::{CreateDid, IntermediateLauncher, Launcher, StandardDidSpend, StandardSpend},
+        spend_builder::P2Spend,
     };
 
     use super::*;
@@ -244,10 +245,7 @@ mod tests {
 
         StandardDidSpend::new()
             .chain(mint_nft)
-            .condition(ctx.alloc(CreateCoinWithoutMemos {
-                puzzle_hash: wallet.puzzle_hash,
-                amount: 0,
-            })?)
+            .create_coin(ctx, wallet.puzzle_hash, 0)?
             .recreate()
             .finish(ctx, wallet.pk, did_info)?;
 
@@ -292,10 +290,7 @@ mod tests {
         let (mint_nft, _nft_info) = launcher.mint_standard_nft(ctx, mint)?;
 
         let did_info = StandardDidSpend::new()
-            .condition(ctx.alloc(CreateCoinWithoutMemos {
-                puzzle_hash: wallet.puzzle_hash,
-                amount: 0,
-            })?)
+            .create_coin(ctx, wallet.puzzle_hash, 0)?
             .recreate()
             .finish(ctx, wallet.pk, did_info)?;
 

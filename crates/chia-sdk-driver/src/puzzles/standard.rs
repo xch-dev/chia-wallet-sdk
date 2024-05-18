@@ -6,13 +6,12 @@ use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
 use crate::{
-    spend_builder::{ChainedSpend, InnerSpend},
+    spend_builder::{ChainedSpend, InnerSpend, P2Spend},
     SpendContext, SpendError,
 };
 
 #[derive(Default)]
 pub struct StandardSpend {
-    coin_spends: Vec<CoinSpend>,
     conditions: Vec<NodePtr>,
 }
 
@@ -26,20 +25,11 @@ impl StandardSpend {
         self
     }
 
-    pub fn condition(mut self, condition: NodePtr) -> Self {
-        self.conditions.push(condition);
-        self
-    }
-
     pub fn inner_spend(
         self,
         ctx: &mut SpendContext,
         synthetic_key: PublicKey,
     ) -> Result<InnerSpend, SpendError> {
-        for coin_spend in self.coin_spends {
-            ctx.spend(coin_spend);
-        }
-
         let standard_puzzle = ctx.standard_puzzle()?;
 
         let puzzle = ctx.alloc(CurriedProgram {
@@ -70,28 +60,27 @@ impl StandardSpend {
     }
 }
 
+impl P2Spend for StandardSpend {
+    fn raw_condition(&mut self, condition: NodePtr) {
+        self.conditions.push(condition);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chia_sdk_test::TestWallet;
-    use chia_sdk_types::conditions::CreateCoinWithoutMemos;
     use clvmr::Allocator;
 
     use super::*;
 
     #[tokio::test]
     async fn test_standard_spend() -> anyhow::Result<()> {
+        let mut wallet = TestWallet::new(1).await;
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
-        let mut wallet = TestWallet::new(1).await;
 
         StandardSpend::new()
-            .condition(
-                ctx.alloc(CreateCoinWithoutMemos {
-                    puzzle_hash: wallet.puzzle_hash,
-                    amount: 1,
-                })
-                .unwrap(),
-            )
+            .create_coin(ctx, wallet.puzzle_hash, 1)?
             .finish(ctx, wallet.coin, wallet.pk)?;
 
         wallet.submit(ctx.take_spends()).await?;

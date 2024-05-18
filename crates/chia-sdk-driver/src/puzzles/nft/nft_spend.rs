@@ -20,7 +20,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     puzzles::{spend_singleton, StandardSpend},
-    spend_builder::{ChainedSpend, InnerSpend},
+    spend_builder::{ChainedSpend, InnerSpend, P2Spend},
     SpendContext, SpendError,
 };
 
@@ -83,10 +83,11 @@ impl<T> StandardNftSpend<T> {
         self.standard_spend = self.standard_spend.chain(chained_spend);
         self
     }
+}
 
-    pub fn condition(mut self, condition: NodePtr) -> Self {
-        self.standard_spend = self.standard_spend.condition(condition);
-        self
+impl<T> P2Spend for StandardNftSpend<T> {
+    fn raw_condition(&mut self, condition: NodePtr) {
+        self.standard_spend.raw_condition(condition);
     }
 }
 
@@ -108,7 +109,7 @@ impl StandardNftSpend<NftOutput> {
         };
 
         if let Some(new_owner) = &self.new_owner {
-            self.standard_spend = self.standard_spend.condition(ctx.alloc(new_owner)?);
+            self.standard_spend.raw_condition(ctx.alloc(new_owner)?);
 
             let new_nft_owner_args = ctx.alloc(clvm_list!(
                 new_owner.new_owner,
@@ -128,11 +129,7 @@ impl StandardNftSpend<NftOutput> {
 
         let inner_spend = self
             .standard_spend
-            .condition(ctx.alloc(CreateCoinWithMemos {
-                puzzle_hash: p2_puzzle_hash,
-                amount: nft_info.coin.amount,
-                memos: vec![p2_puzzle_hash.to_vec().into()],
-            })?)
+            .create_hinted_coin(ctx, p2_puzzle_hash, nft_info.coin.amount, p2_puzzle_hash)?
             .inner_spend(ctx, synthetic_key)?;
 
         let nft_spend = raw_nft_spend(ctx, &nft_info, inner_spend)?;

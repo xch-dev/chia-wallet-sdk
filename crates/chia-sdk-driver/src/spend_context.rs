@@ -1,25 +1,7 @@
 use std::collections::HashMap;
 
 use chia_protocol::{CoinSpend, Program};
-use chia_puzzles::{
-    cat::{
-        CAT_PUZZLE, CAT_PUZZLE_HASH, EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE,
-        EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE_HASH, GENESIS_BY_COIN_ID_TAIL_PUZZLE,
-        GENESIS_BY_COIN_ID_TAIL_PUZZLE_HASH,
-    },
-    did::{DID_INNER_PUZZLE, DID_INNER_PUZZLE_HASH},
-    nft::{
-        NFT_INTERMEDIATE_LAUNCHER_PUZZLE, NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH,
-        NFT_OWNERSHIP_LAYER_PUZZLE, NFT_OWNERSHIP_LAYER_PUZZLE_HASH, NFT_ROYALTY_TRANSFER_PUZZLE,
-        NFT_ROYALTY_TRANSFER_PUZZLE_HASH, NFT_STATE_LAYER_PUZZLE, NFT_STATE_LAYER_PUZZLE_HASH,
-    },
-    offer::{SETTLEMENT_PAYMENTS_PUZZLE, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
-    singleton::{
-        SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE,
-        SINGLETON_TOP_LAYER_PUZZLE_HASH,
-    },
-    standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
-};
+use chia_puzzles::{cat::*, did::*, nft::*, offer::*, singleton::*, standard::*};
 use clvm_traits::{FromNodePtr, ToNodePtr};
 use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};

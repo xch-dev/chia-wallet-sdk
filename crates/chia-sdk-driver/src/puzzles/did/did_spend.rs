@@ -5,14 +5,14 @@ use chia_puzzles::{
     singleton::{SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
     LineageProof, Proof,
 };
-use chia_sdk_types::{conditions::CreateCoinWithMemos, puzzles::DidInfo};
+use chia_sdk_types::puzzles::DidInfo;
 use clvm_traits::ToClvm;
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
 use crate::{
     puzzles::{spend_singleton, StandardSpend},
-    spend_builder::{ChainedSpend, InnerSpend},
+    spend_builder::{ChainedSpend, InnerSpend, P2Spend},
     SpendContext, SpendError,
 };
 
@@ -32,10 +32,11 @@ impl<T> StandardDidSpend<T> {
         self.standard_spend = self.standard_spend.chain(chained_spend);
         self
     }
+}
 
-    pub fn condition(mut self, condition: NodePtr) -> Self {
-        self.standard_spend = self.standard_spend.condition(condition);
-        self
+impl<T> P2Spend for StandardDidSpend<T> {
+    fn raw_condition(&mut self, condition: NodePtr) {
+        self.standard_spend.raw_condition(condition);
     }
 }
 
@@ -71,20 +72,18 @@ impl StandardDidSpend<DidOutput> {
     where
         M: ToClvm<NodePtr>,
     {
-        let create_coin = match self.output {
-            DidOutput::Recreate => CreateCoinWithMemos {
-                puzzle_hash: did_info.did_inner_puzzle_hash,
-                amount: did_info.coin.amount,
-                memos: vec![did_info.p2_puzzle_hash.to_vec().into()],
-            },
+        let spend = match self.output {
+            DidOutput::Recreate => self.standard_spend.create_hinted_coin(
+                ctx,
+                did_info.did_inner_puzzle_hash,
+                did_info.coin.amount,
+                did_info.p2_puzzle_hash,
+            )?,
         };
 
-        let inner_spend = self
-            .standard_spend
-            .condition(ctx.alloc(create_coin)?)
-            .inner_spend(ctx, synthetic_key)?;
-
+        let inner_spend = spend.inner_spend(ctx, synthetic_key)?;
         let did_spend = raw_did_spend(ctx, &did_info, inner_spend)?;
+
         ctx.spend(did_spend);
 
         match self.output {

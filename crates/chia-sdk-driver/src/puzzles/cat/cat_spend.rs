@@ -127,7 +127,7 @@ mod tests {
     use clvmr::{serde::node_to_bytes, Allocator};
     use hex_literal::hex;
 
-    use crate::puzzles::StandardSpend;
+    use crate::{puzzles::StandardSpend, spend_builder::P2Spend};
 
     use super::*;
 
@@ -137,7 +137,7 @@ mod tests {
             master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0).derive_synthetic();
 
         let mut allocator = Allocator::new();
-        let mut ctx = SpendContext::new(&mut allocator);
+        let ctx = &mut SpendContext::new(&mut allocator);
 
         let asset_id = Bytes32::new([42; 32]);
 
@@ -161,11 +161,8 @@ mod tests {
         let coin = Coin::new(parent_coin.coin_id(), cat_puzzle_hash.into(), 42);
 
         let inner_spend = StandardSpend::new()
-            .condition(ctx.alloc(CreateCoinWithoutMemos {
-                puzzle_hash: coin.puzzle_hash,
-                amount: coin.amount,
-            })?)
-            .inner_spend(&mut ctx, synthetic_key)?;
+            .create_coin(ctx, coin.puzzle_hash, coin.amount)?
+            .inner_spend(ctx, synthetic_key)?;
 
         let lineage_proof = LineageProof {
             parent_parent_coin_id: parent_coin.parent_coin_info,
@@ -175,7 +172,7 @@ mod tests {
 
         CatSpend::new(asset_id)
             .spend(coin, inner_spend, lineage_proof, 0)
-            .finish(&mut ctx)?;
+            .finish(ctx)?;
 
         let coin_spend = ctx.take_spends().remove(0);
 
@@ -208,7 +205,7 @@ mod tests {
             master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0).derive_synthetic();
 
         let mut allocator = Allocator::new();
-        let mut ctx = SpendContext::new(&mut allocator);
+        let ctx = &mut SpendContext::new(&mut allocator);
 
         let asset_id = Bytes32::new([42; 32]);
 
@@ -257,19 +254,20 @@ mod tests {
         };
 
         let inner_spend = StandardSpend::new()
-            .condition(ctx.alloc(CreateCoinWithoutMemos {
-                puzzle_hash: coin_1.puzzle_hash,
-                amount: coin_1.amount + coin_2.amount + coin_3.amount,
-            })?)
-            .inner_spend(&mut ctx, synthetic_key)?;
+            .create_coin(
+                ctx,
+                coin_1.puzzle_hash,
+                coin_1.amount + coin_2.amount + coin_3.amount,
+            )?
+            .inner_spend(ctx, synthetic_key)?;
 
-        let empty_spend = StandardSpend::new().inner_spend(&mut ctx, synthetic_key)?;
+        let empty_spend = StandardSpend::new().inner_spend(ctx, synthetic_key)?;
 
         CatSpend::new(asset_id)
             .spend(coin_1, inner_spend, lineage_1, 0)
             .spend(coin_2, empty_spend, lineage_2, 0)
             .spend(coin_3, empty_spend, lineage_3, 0)
-            .finish(&mut ctx)?;
+            .finish(ctx)?;
 
         let coin_spends = ctx.take_spends();
 

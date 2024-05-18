@@ -52,7 +52,7 @@ impl From<Offer> for SpendBundle {
 mod tests {
     use crate::{
         puzzles::{CatSpend, IssueCat, StandardSpend},
-        spend_builder::InnerSpend,
+        spend_builder::{InnerSpend, P2Spend},
         SpendContext,
     };
 
@@ -113,7 +113,7 @@ mod tests {
         let peer = sim.peer().await;
 
         let mut allocator = Allocator::new();
-        let mut ctx = SpendContext::new(&mut allocator);
+        let ctx = &mut SpendContext::new(&mut allocator);
 
         let sk = sk1();
         let pk = sk.public_key();
@@ -211,11 +211,12 @@ mod tests {
             offer_announcement_id(&mut ctx, cat_settlements_hash.into(), cat_payment.clone())?;
 
         let inner_spend = StandardSpend::new()
-            .condition(ctx.alloc(CreateCoinWithMemos {
-                puzzle_hash: SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
-                amount: 1000,
-                memos: vec![SETTLEMENT_PAYMENTS_PUZZLE_HASH.to_vec().into()],
-            })?)
+            .create_hinted_coin(
+                ctx,
+                SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
+                1000,
+                SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
+            )?
             .condition(ctx.alloc(AssertPuzzleAnnouncement {
                 announcement_id: assert_xch,
             })?)
