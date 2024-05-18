@@ -90,9 +90,7 @@ impl StandardNftSpend<NftOutput> {
     where
         M: ToClvm<NodePtr>,
     {
-        let mut chained_spend = ChainedSpend {
-            parent_conditions: Vec::new(),
-        };
+        let mut chained_spend = ChainedSpend::default();
 
         let p2_puzzle_hash = match self.output {
             NftOutput::SamePuzzleHash => nft_info.p2_puzzle_hash,
@@ -113,11 +111,9 @@ impl StandardNftSpend<NftOutput> {
             announcement_id.update([0xad, 0x4c]);
             announcement_id.update(ctx.tree_hash(new_nft_owner_args));
 
-            chained_spend
-                .parent_conditions
-                .push(ctx.alloc(AssertPuzzleAnnouncement {
-                    announcement_id: Bytes32::new(announcement_id.finalize().into()),
-                })?);
+            chained_spend.parent_condition(ctx.alloc(AssertPuzzleAnnouncement {
+                announcement_id: Bytes32::new(announcement_id.finalize().into()),
+            })?);
         }
 
         let inner_spend = self

@@ -62,7 +62,7 @@ impl StandardSpend {
 
 impl Chainable for StandardSpend {
     fn chain(mut self, chained_spend: ChainedSpend) -> Self {
-        self.conditions.extend(chained_spend.parent_conditions);
+        self.conditions.extend(chained_spend.parent_conditions());
         self
     }
 

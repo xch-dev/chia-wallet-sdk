@@ -98,9 +98,7 @@ impl OfferBuilder {
             ctx.spend(coin_spend);
         }
 
-        ChainedSpend {
-            parent_conditions: self.parent_conditions,
-        }
+        ChainedSpend::new(self.parent_conditions)
     }
 }
 

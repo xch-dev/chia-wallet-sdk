@@ -101,13 +101,11 @@ impl IssueCat {
         let puzzle_reveal = ctx.serialize(puzzle)?;
         ctx.spend(CoinSpend::new(eve_coin, puzzle_reveal, solution));
 
-        let chained_spend = ChainedSpend {
-            parent_conditions: vec![ctx.alloc(CreateCoinWithMemos {
-                puzzle_hash,
-                amount,
-                memos: vec![puzzle_hash.to_vec().into()],
-            })?],
-        };
+        let chained_spend = ChainedSpend::new(vec![ctx.alloc(CreateCoinWithMemos {
+            puzzle_hash,
+            amount,
+            memos: vec![puzzle_hash.to_vec().into()],
+        })?]);
 
         let issuance_info = CatIssuanceInfo {
             asset_id,

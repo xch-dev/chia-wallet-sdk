@@ -96,7 +96,7 @@ impl IntermediateLauncher {
             announcement_id: Bytes32::new(announcement_id.finalize().into()),
         })?);
 
-        let chained_spend = ChainedSpend { parent_conditions };
+        let chained_spend = ChainedSpend::new(parent_conditions);
 
         Ok(SpendableLauncher::new(self.launcher_coin, chained_spend))
     }

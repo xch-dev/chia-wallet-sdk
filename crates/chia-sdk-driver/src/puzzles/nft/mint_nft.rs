@@ -128,11 +128,9 @@ impl MintNft for SpendableLauncher {
         let launcher_coin = self.coin();
         let (mut chained_spend, eve_coin) = self.spend(ctx, nft_inner_puzzle_hash, ())?;
 
-        chained_spend
-            .parent_conditions
-            .push(ctx.alloc(CreatePuzzleAnnouncement {
-                message: launcher_coin.coin_id().to_vec().into(),
-            })?);
+        chained_spend.parent_condition(ctx.alloc(CreatePuzzleAnnouncement {
+            message: launcher_coin.coin_id().to_vec().into(),
+        })?);
 
         let proof = Proof::Eve(EveProof {
             parent_coin_info: launcher_coin.parent_coin_info,

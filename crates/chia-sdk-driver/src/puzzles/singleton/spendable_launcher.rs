@@ -30,7 +30,7 @@ impl SpendableLauncher {
     }
 
     pub fn spend<T>(
-        self,
+        mut self,
         ctx: &mut SpendContext,
         singleton_inner_puzzle_hash: Bytes32,
         key_value_list: T,
@@ -75,12 +75,11 @@ impl SpendableLauncher {
             solution,
         ));
 
-        let mut chained_spend = self.chained_spend;
-        chained_spend.parent_conditions.push(assert_announcement);
+        self.chained_spend.parent_condition(assert_announcement);
 
         let singleton_coin =
             Coin::new(self.coin.coin_id(), singleton_puzzle_hash, self.coin.amount);
 
-        Ok((chained_spend, singleton_coin))
+        Ok((self.chained_spend, singleton_coin))
     }
 }
