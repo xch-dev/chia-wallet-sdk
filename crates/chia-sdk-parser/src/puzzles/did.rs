@@ -4,11 +4,12 @@ use chia_puzzles::{
     singleton::{SingletonArgs, SingletonStruct, SINGLETON_TOP_LAYER_PUZZLE_HASH},
     LineageProof, Proof,
 };
+use chia_sdk_types::{conditions::CreateCoinWithMemos, puzzles::DidInfo};
 use clvm_traits::FromClvm;
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{reduction::Reduction, run_program, Allocator, ChiaDialect, NodePtr};
 
-use crate::{CreateCoinWithMemos, DidInfo, ParseContext, ParseError, ParseSingleton};
+use crate::{ParseContext, ParseError, ParseSingleton};
 
 pub fn parse_did(
     allocator: &mut Allocator,
@@ -108,14 +109,16 @@ mod tests {
     use chia_bls::PublicKey;
     use chia_protocol::{Bytes32, Coin};
     use chia_puzzles::standard::{StandardArgs, STANDARD_PUZZLE_HASH};
+    use chia_sdk_driver::{
+        puzzles::{CreateDid, Launcher, StandardSpend},
+        spend_builder::Chainable,
+        SpendContext,
+    };
     use clvm_traits::ToNodePtr;
     use clvm_utils::{CurriedProgram, ToTreeHash};
     use clvmr::Allocator;
 
-    use crate::{
-        parse_did, parse_puzzle, parse_singleton, Chainable, CreateDid, Launcher, SpendContext,
-        StandardSpend,
-    };
+    use crate::{parse_did, parse_puzzle, parse_singleton};
 
     #[test]
     fn test_parse_did() -> anyhow::Result<()> {

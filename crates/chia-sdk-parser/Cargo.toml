@@ -4,3 +4,15 @@ version = "0.8.0"
 edition = "2021"
 
 [dependencies]
+chia-protocol = "0.8.0"
+chia-puzzles = "0.8.0"
+clvm-traits = "0.8.0"
+clvm-utils = "0.8.0"
+clvmr = "0.7.0"
+thiserror = "1.0.61"
+chia-sdk-types = { version = "0.8.0", path = "../chia-sdk-types" }
+
+[dev-dependencies]
+anyhow = "1.0.86"
+chia-bls = "0.8.0"
+chia-sdk-driver = { version = "0.8.0", path = "../chia-sdk-driver" }

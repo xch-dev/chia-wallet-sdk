@@ -3,11 +3,12 @@ use chia_puzzles::{
     cat::{CatArgs, CatSolution, CAT_PUZZLE_HASH},
     LineageProof,
 };
+use chia_sdk_types::{conditions::CreateCoin, puzzles::CatInfo};
 use clvm_traits::FromClvm;
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{reduction::Reduction, run_program, Allocator, ChiaDialect, NodePtr};
 
-use crate::{CatInfo, CreateCoin, ParseContext, ParseError};
+use crate::{ParseContext, ParseError};
 
 pub fn parse_cat(
     allocator: &mut Allocator,
@@ -76,12 +77,16 @@ mod tests {
     use chia_bls::PublicKey;
     use chia_protocol::Coin;
     use chia_puzzles::standard::{StandardArgs, STANDARD_PUZZLE_HASH};
+    use chia_sdk_driver::{
+        puzzles::{IssueCat, StandardSpend},
+        spend_builder::Chainable,
+        SpendContext,
+    };
+    use chia_sdk_types::conditions::CreateCoinWithMemos;
     use clvm_traits::ToNodePtr;
     use clvm_utils::CurriedProgram;
 
-    use crate::{
-        parse_puzzle, Chainable, CreateCoinWithMemos, IssueCat, SpendContext, StandardSpend,
-    };
+    use crate::parse_puzzle;
 
     use super::*;
 
