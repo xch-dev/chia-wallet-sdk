@@ -79,7 +79,6 @@ mod tests {
     use chia_puzzles::standard::{StandardArgs, STANDARD_PUZZLE_HASH};
     use chia_sdk_driver::{
         puzzles::{IssueCat, StandardSpend},
-        spend_builder::Chainable,
         SpendContext,
     };
     use chia_sdk_types::conditions::CreateCoinWithMemos;

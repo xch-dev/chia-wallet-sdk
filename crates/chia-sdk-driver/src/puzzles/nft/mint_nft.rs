@@ -156,9 +156,8 @@ impl MintNft for SpendableLauncher {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        puzzles::{CreateDid, IntermediateLauncher, Launcher, StandardDidSpend, StandardSpend},
-        spend_builder::Chainable,
+    use crate::puzzles::{
+        CreateDid, IntermediateLauncher, Launcher, StandardDidSpend, StandardSpend,
     };
 
     use super::*;

@@ -12,7 +12,7 @@ use clvmr::NodePtr;
 
 use crate::{
     puzzles::{spend_singleton, StandardSpend},
-    spend_builder::{Chainable, ChainedSpend, InnerSpend},
+    spend_builder::{ChainedSpend, InnerSpend},
     SpendContext, SpendError,
 };
 
@@ -25,6 +25,18 @@ pub enum DidOutput {
 pub struct StandardDidSpend<T> {
     standard_spend: StandardSpend,
     output: T,
+}
+
+impl<T> StandardDidSpend<T> {
+    pub fn chain(mut self, chained_spend: ChainedSpend) -> Self {
+        self.standard_spend = self.standard_spend.chain(chained_spend);
+        self
+    }
+
+    pub fn condition(mut self, condition: NodePtr) -> Self {
+        self.standard_spend = self.standard_spend.condition(condition);
+        self
+    }
 }
 
 impl Default for StandardDidSpend<NoDidOutput> {
@@ -92,18 +104,6 @@ impl StandardDidSpend<DidOutput> {
         }
 
         Ok(did_info)
-    }
-}
-
-impl<T> Chainable for StandardDidSpend<T> {
-    fn chain(mut self, chained_spend: ChainedSpend) -> Self {
-        self.standard_spend = self.standard_spend.chain(chained_spend);
-        self
-    }
-
-    fn condition(mut self, condition: NodePtr) -> Self {
-        self.standard_spend = self.standard_spend.condition(condition);
-        self
     }
 }
 

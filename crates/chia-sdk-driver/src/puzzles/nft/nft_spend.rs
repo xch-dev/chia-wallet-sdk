@@ -20,7 +20,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     puzzles::{spend_singleton, StandardSpend},
-    spend_builder::{Chainable, ChainedSpend, InnerSpend},
+    spend_builder::{ChainedSpend, InnerSpend},
     SpendContext, SpendError,
 };
 
@@ -76,6 +76,16 @@ impl<T> StandardNftSpend<T> {
             trade_prices_list: Vec::new(),
             new_did_inner_hash: Some(did_inner_puzzle_hash),
         });
+        self
+    }
+
+    pub fn chain(mut self, chained_spend: ChainedSpend) -> Self {
+        self.standard_spend = self.standard_spend.chain(chained_spend);
+        self
+    }
+
+    pub fn condition(mut self, condition: NodePtr) -> Self {
+        self.standard_spend = self.standard_spend.condition(condition);
         self
     }
 }
@@ -191,18 +201,6 @@ impl StandardNftSpend<NftOutput> {
         nft_info.nft_inner_puzzle_hash = new_inner_puzzle_hash;
 
         Ok((chained_spend, nft_info))
-    }
-}
-
-impl<T> Chainable for StandardNftSpend<T> {
-    fn chain(mut self, chained_spend: ChainedSpend) -> Self {
-        self.standard_spend = self.standard_spend.chain(chained_spend);
-        self
-    }
-
-    fn condition(mut self, condition: NodePtr) -> Self {
-        self.standard_spend = self.standard_spend.condition(condition);
-        self
     }
 }
 

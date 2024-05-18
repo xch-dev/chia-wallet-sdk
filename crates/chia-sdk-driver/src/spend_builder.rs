@@ -1,10 +1,5 @@
 use clvmr::NodePtr;
 
-pub trait Chainable {
-    fn condition(self, condition: NodePtr) -> Self;
-    fn chain(self, other: ChainedSpend) -> Self;
-}
-
 #[derive(Debug, Default, Clone)]
 pub struct ChainedSpend {
     parent_conditions: Vec<NodePtr>,

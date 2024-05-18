@@ -52,7 +52,7 @@ impl From<Offer> for SpendBundle {
 mod tests {
     use crate::{
         puzzles::{CatSpend, IssueCat, StandardSpend},
-        spend_builder::{Chainable, InnerSpend},
+        spend_builder::InnerSpend,
         SpendContext,
     };
 

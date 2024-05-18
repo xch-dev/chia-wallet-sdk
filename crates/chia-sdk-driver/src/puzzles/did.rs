@@ -8,7 +8,6 @@ pub use did_spend::*;
 mod tests {
     use crate::{
         puzzles::{Launcher, StandardSpend},
-        spend_builder::Chainable,
         SpendContext,
     };
 

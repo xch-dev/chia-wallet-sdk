@@ -6,7 +6,7 @@ use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
 use crate::{
-    spend_builder::{Chainable, ChainedSpend, InnerSpend},
+    spend_builder::{ChainedSpend, InnerSpend},
     SpendContext, SpendError,
 };
 
@@ -19,6 +19,16 @@ pub struct StandardSpend {
 impl StandardSpend {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn chain(mut self, chained_spend: ChainedSpend) -> Self {
+        self.conditions.extend(chained_spend.parent_conditions());
+        self
+    }
+
+    pub fn condition(mut self, condition: NodePtr) -> Self {
+        self.conditions.push(condition);
+        self
     }
 
     pub fn inner_spend(
@@ -57,18 +67,6 @@ impl StandardSpend {
         let solution = ctx.serialize(inner_spend.solution())?;
         ctx.spend(CoinSpend::new(coin, puzzle_reveal, solution));
         Ok(())
-    }
-}
-
-impl Chainable for StandardSpend {
-    fn chain(mut self, chained_spend: ChainedSpend) -> Self {
-        self.conditions.extend(chained_spend.parent_conditions());
-        self
-    }
-
-    fn condition(mut self, condition: NodePtr) -> Self {
-        self.conditions.push(condition);
-        self
     }
 }
 

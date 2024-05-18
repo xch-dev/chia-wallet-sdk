@@ -126,7 +126,7 @@ mod tests {
     use chia_sdk_test::TestWallet;
     use clvmr::Allocator;
 
-    use crate::{puzzles::StandardSpend, spend_builder::Chainable};
+    use crate::puzzles::StandardSpend;
 
     use super::*;
 
