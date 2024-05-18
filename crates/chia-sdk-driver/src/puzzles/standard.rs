@@ -37,7 +37,11 @@ impl StandardSpend {
             args: StandardArgs { synthetic_key },
         })?;
 
-        let solution = ctx.alloc(standard_solution(self.conditions))?;
+        let solution = ctx.alloc(StandardSolution {
+            original_public_key: None,
+            delegated_puzzle: clvm_quote!(self.conditions),
+            solution: (),
+        })?;
 
         Ok(InnerSpend::new(puzzle, solution))
     }
@@ -65,16 +69,6 @@ impl Chainable for StandardSpend {
     fn condition(mut self, condition: NodePtr) -> Self {
         self.conditions.push(condition);
         self
-    }
-}
-
-/// Constructs a solution for the standard puzzle, given a list of condition.
-/// This assumes no hidden puzzle is being used in this spend.
-pub fn standard_solution<T>(conditions: T) -> StandardSolution<(u8, T), ()> {
-    StandardSolution {
-        original_public_key: None,
-        delegated_puzzle: clvm_quote!(conditions),
-        solution: (),
     }
 }
 
