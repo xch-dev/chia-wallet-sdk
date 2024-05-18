@@ -1,0 +1,11 @@
+[package]
+name = "chia-sdk-sqlite"
+version = "0.8.0"
+edition = "2021"
+
+[dependencies]
+chia-bls = "0.8.0"
+chia-protocol = "0.8.0"
+chia-puzzles = "0.8.0"
+clvm-utils = "0.8.0"
+sqlx = { version = "0.7.4", features = ["runtime-tokio", "sqlite"], optional = true }

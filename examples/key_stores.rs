@@ -8,7 +8,7 @@ use chia_bls::{
     DerivableKey, PublicKey, SecretKey,
 };
 use chia_puzzles::DeriveSynthetic;
-use chia_wallet_sdk::sqlite::{fetch_puzzle_hash, insert_keys, SQLITE_MIGRATOR};
+use chia_sdk_sqlite::{fetch_puzzle_hash, insert_keys, SQLITE_MIGRATOR};
 use sqlx::SqlitePool;
 
 // This is for simulator testing purposes only. Do not use this mnemonic on mainnet.

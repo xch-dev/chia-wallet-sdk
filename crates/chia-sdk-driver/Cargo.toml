@@ -1,0 +1,27 @@
+[package]
+name = "chia-sdk-driver"
+version = "0.8.0"
+edition = "2021"
+
+[dependencies]
+chia-bls = "0.8.0"
+chia-protocol = "0.8.0"
+chia-puzzles = "0.8.0"
+clvm-traits = "0.8.0"
+clvm-utils = "0.8.0"
+clvmr = "0.7.0"
+thiserror = "1.0.61"
+chia-sdk-types = { version = "0.8.0", path = "../chia-sdk-types" }
+chia-sdk-test = { version = "0.8.0", path = "../chia-sdk-test" }
+chia-sdk-signer = { version = "0.8.0", path = "../chia-sdk-signer" }
+sha2 = "0.10.8"
+chia-traits = "0.8.0"
+flate2 = { version = "1.0.30", features = ["zlib"] }
+bech32 = "0.9.1"
+
+[dev-dependencies]
+anyhow = "1.0.86"
+chia-consensus = "0.8.0"
+hex = "0.4.3"
+hex-literal = "0.4.1"
+tokio = { version = "1.37.0", features = ["full"] }
