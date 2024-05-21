@@ -13,17 +13,49 @@ members = ["crates/*"]
 resolver = "2"
 
 [dependencies]
-thiserror = "1.0.61"
-chia-protocol = "0.8.0"
-hex = "0.4.3"
-bech32 = "0.9.1"
-rand = "0.8.5"
-rand_chacha = "0.3.1"
-hex-literal = "0.4.1"
-indexmap = "2.2.6"
+thiserror.workspace = true
+chia-protocol.workspace = true
+hex.workspace = true
+bech32.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+hex-literal.workspace = true
+indexmap.workspace = true
+chia-sdk-client.workspace = true
+chia-sdk-driver.workspace = true
+chia-sdk-parser.workspace = true
+chia-sdk-signer.workspace = true
+chia-sdk-test.workspace = true
+chia-sdk-types.workspace = true
+
+[workspace.dependencies]
 chia-sdk-client = { version = "0.8.0", path = "./crates/chia-sdk-client" }
 chia-sdk-driver = { version = "0.8.0", path = "./crates/chia-sdk-driver" }
 chia-sdk-parser = { version = "0.8.0", path = "./crates/chia-sdk-parser" }
 chia-sdk-signer = { version = "0.8.0", path = "./crates/chia-sdk-signer" }
 chia-sdk-test = { version = "0.8.0", path = "./crates/chia-sdk-test" }
 chia-sdk-types = { version = "0.8.0", path = "./crates/chia-sdk-types" }
+chia-ssl = "0.7.0"
+chia-protocol = "0.8.0"
+chia-consensus = "0.8.0"
+chia-client = "0.8.0"
+chia-traits = "0.8.0"
+chia-bls = "0.8.0"
+chia-puzzles = "0.8.0"
+clvm-traits = "0.8.0"
+clvm-utils = "0.8.0"
+clvmr = "0.7.0"
+thiserror = "1.0.61"
+hex = "0.4.3"
+bech32 = "0.9.1"
+rand = "0.8.5"
+rand_chacha = "0.3.1"
+hex-literal = "0.4.1"
+indexmap = "2.2.6"
+futures-util = "0.3.30"
+futures-channel = "0.3.30"
+anyhow = "1.0.86"
+once_cell = "1.19.0"
+tokio = "1.37.0"
+tokio-tungstenite = { version = "0.21.0", features = ["native-tls"] }
+native-tls = "0.2.11"

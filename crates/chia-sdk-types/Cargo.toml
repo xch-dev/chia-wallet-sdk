@@ -4,12 +4,12 @@ version = "0.8.0"
 edition = "2021"
 
 [dependencies]
-chia-bls = "0.8.0"
-chia-protocol = "0.8.0"
-chia-puzzles = "0.8.0"
-clvm-traits = "0.8.0"
-clvmr = "0.7.0"
+chia-bls.workspace = true
+chia-protocol.workspace = true
+chia-puzzles.workspace = true
+clvm-traits.workspace = true
+clvmr.workspace = true
 
 [dev-dependencies]
-hex = "0.4.3"
-hex-literal = "0.4.1"
+hex.workspace = true
+hex-literal.workspace = true
