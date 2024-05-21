@@ -1,0 +1,17 @@
+[package]
+name = "chia-sdk-signer"
+version = "0.8.0"
+edition = "2021"
+
+[dependencies]
+chia-bls = "0.8.0"
+chia-protocol = "0.8.0"
+chia-sdk-types = { version = "0.8.0", path = "../chia-sdk-types" }
+clvm-traits = "0.8.0"
+clvmr = "0.7.0"
+thiserror = "1.0.61"
+
+[dev-dependencies]
+chia-puzzles = "0.8.0"
+hex = "0.4.3"
+hex-literal = "0.4.1"

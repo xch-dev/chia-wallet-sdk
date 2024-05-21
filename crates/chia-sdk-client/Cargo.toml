@@ -1,0 +1,11 @@
+[package]
+name = "chia-sdk-client"
+version = "0.8.0"
+edition = "2021"
+
+[dependencies]
+tokio-tungstenite = { version = "0.21.0", features = ["native-tls"] }
+native-tls = "0.2.11"
+thiserror = "1.0.61"
+chia-client = "0.8.0"
+chia-ssl = "0.7.0"
