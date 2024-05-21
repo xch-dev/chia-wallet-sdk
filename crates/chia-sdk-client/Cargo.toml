@@ -2,6 +2,11 @@
 name = "chia-sdk-client"
 version = "0.8.0"
 edition = "2021"
+license = "Apache-2.0"
+description = "Utilities for connecting to Chia full node peers via the light wallet protocol."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/Rigidity/chia-wallet-sdk"
+repository = "https://github.com/Rigidity/chia-wallet-sdk"
 
 [dependencies]
 chia-client.workspace = true

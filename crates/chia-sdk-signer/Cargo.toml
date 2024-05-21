@@ -2,6 +2,11 @@
 name = "chia-sdk-signer"
 version = "0.8.0"
 edition = "2021"
+license = "Apache-2.0"
+description = "Calculates the BLS signatures required for coin spends in a transaction."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/Rigidity/chia-wallet-sdk"
+repository = "https://github.com/Rigidity/chia-wallet-sdk"
 
 [dependencies]
 chia-bls.workspace = true
