@@ -15,4 +15,4 @@ chia-sdk-types = { version = "0.8.0", path = "../chia-sdk-types" }
 [dev-dependencies]
 anyhow = "1.0.86"
 chia-bls = "0.8.0"
-chia-sdk-driver = { version = "0.8.0", path = "../chia-sdk-driver" }
+chia-sdk-driver = { path = "../chia-sdk-driver" }
