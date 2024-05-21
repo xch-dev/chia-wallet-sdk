@@ -4,15 +4,15 @@ version = "0.8.0"
 edition = "2021"
 
 [dependencies]
-chia-protocol = "0.8.0"
-chia-puzzles = "0.8.0"
-clvm-traits = "0.8.0"
-clvm-utils = "0.8.0"
-clvmr = "0.7.0"
-thiserror = "1.0.61"
-chia-sdk-types = { version = "0.8.0", path = "../chia-sdk-types" }
+chia-protocol.workspace = true
+chia-puzzles.workspace = true
+clvm-traits.workspace = true
+clvm-utils.workspace = true
+clvmr.workspace = true
+thiserror.workspace = true
+chia-sdk-types.workspace = true
 
 [dev-dependencies]
-anyhow = "1.0.86"
-chia-bls = "0.8.0"
-chia-sdk-driver = { version = "0.8.0", path = "../chia-sdk-driver" }
+anyhow.workspace = true
+chia-bls.workspace = true
+chia-sdk-driver.workspace = true
