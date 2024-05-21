@@ -1,7 +1,9 @@
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::conditions::*;
-use clvmr::NodePtr;
-use sha2::{Digest, Sha256};
+use clvmr::{
+    sha2::{Digest, Sha256},
+    NodePtr,
+};
 
 use crate::{SpendContext, SpendError};
 

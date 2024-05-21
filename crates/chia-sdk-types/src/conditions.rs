@@ -153,7 +153,6 @@ condition!(AssertBeforeSecondsRelative, 84, { seconds: u64 });
 condition!(AssertBeforeSecondsAbsolute, 85, { seconds: u64 });
 condition!(AssertBeforeHeightRelative, 86, { block_height: u32 });
 condition!(AssertBeforeHeightAbsolute, 87, { block_height: u32 });
-condition!(Softfork, 90, { cost: u64, rest: NodePtr });
 
 condition!(NewNftOwner, -10, {
     new_owner: Option<Bytes32>,

@@ -2,8 +2,12 @@ use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_sdk_types::conditions::{AggSig, AggSigKind};
 use clvm_traits::{FromClvm, FromClvmError};
-use clvmr::{allocator::NodePtr, reduction::EvalErr, Allocator};
-use sha2::{digest::FixedOutput, Digest, Sha256};
+use clvmr::{
+    allocator::NodePtr,
+    reduction::EvalErr,
+    sha2::{Digest, Sha256},
+    Allocator,
+};
 use thiserror::Error;
 
 /// An error that occurs while trying to sign a coin spend.
@@ -89,7 +93,7 @@ impl RequiredSignature {
             public_key,
             raw_message: message,
             appended_info,
-            domain_string: Some(Bytes32::new(hasher.finalize_fixed().into())),
+            domain_string: Some(Bytes32::new(hasher.finalize().into())),
         }
     }
 

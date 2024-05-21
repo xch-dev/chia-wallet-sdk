@@ -22,13 +22,15 @@ use chia_protocol::{
 };
 use chia_sdk_signer::RequiredSignature;
 use chia_traits::Streamable;
-use clvmr::{Allocator, NodePtr, MEMPOOL_MODE};
+use clvmr::{
+    sha2::{Digest, Sha256},
+    Allocator, NodePtr, MEMPOOL_MODE,
+};
 use futures_channel::mpsc::{unbounded, UnboundedSender};
 use futures_util::{future, pin_mut, SinkExt, StreamExt, TryStreamExt};
 use indexmap::{IndexMap, IndexSet};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use sha2::{Digest, Sha256};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::Mutex,

@@ -15,8 +15,10 @@ use chia_puzzles::{
 use chia_sdk_types::{conditions::*, puzzles::NftInfo};
 use clvm_traits::{clvm_list, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
-use clvmr::NodePtr;
-use sha2::{Digest, Sha256};
+use clvmr::{
+    sha2::{Digest, Sha256},
+    NodePtr,
+};
 
 use crate::{
     puzzles::{spend_singleton, StandardSpend},

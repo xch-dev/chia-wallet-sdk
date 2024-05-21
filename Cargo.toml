@@ -14,7 +14,6 @@ resolver = "2"
 
 [dependencies]
 tokio = { version = "1.33.0", features = ["macros"] }
-sha2 = "0.9.9"
 thiserror = "1.0.61"
 clvmr = "0.7.0"
 chia-protocol = "0.8.0"
@@ -23,7 +22,6 @@ chia-client = "0.8.0"
 clvm-traits = "0.8.0"
 clvm-utils = "0.8.0"
 chia-ssl = "0.7.0"
-chia-traits = "0.8.0"
 native-tls = "0.2.11"
 tokio-tungstenite = { version = "0.21.0", features = ["native-tls"] }
 hex = "0.4.3"

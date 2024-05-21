@@ -4,8 +4,10 @@ use chia_puzzles::{
     singleton::SINGLETON_LAUNCHER_PUZZLE_HASH,
 };
 use clvm_utils::{CurriedProgram, ToTreeHash};
-use clvmr::Allocator;
-use sha2::{Digest, Sha256};
+use clvmr::{
+    sha2::{Digest, Sha256},
+    Allocator,
+};
 
 use crate::{
     spend_builder::{P2Spend, ParentConditions},
