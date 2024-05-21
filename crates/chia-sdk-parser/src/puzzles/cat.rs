@@ -79,9 +79,9 @@ mod tests {
     use chia_puzzles::standard::{StandardArgs, STANDARD_PUZZLE_HASH};
     use chia_sdk_driver::{
         puzzles::{IssueCat, StandardSpend},
+        spend_builder::P2Spend,
         SpendContext,
     };
-    use chia_sdk_types::conditions::CreateCoinWithMemos;
     use clvm_traits::ToNodePtr;
     use clvm_utils::CurriedProgram;
 
@@ -92,7 +92,7 @@ mod tests {
     #[test]
     fn test_parse_cat() -> anyhow::Result<()> {
         let mut allocator = Allocator::new();
-        let mut ctx = SpendContext::new(&mut allocator);
+        let ctx = &mut SpendContext::new(&mut allocator);
 
         let pk = PublicKey::default();
         let puzzle_hash = CurriedProgram {
@@ -104,12 +104,8 @@ mod tests {
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
 
         let (issue_cat, issuance_info) = IssueCat::new(parent.coin_id())
-            .condition(ctx.alloc(CreateCoinWithMemos {
-                puzzle_hash,
-                amount: 1,
-                memos: vec![puzzle_hash.to_vec().into()],
-            })?)
-            .multi_issuance(&mut ctx, pk, 1)?;
+            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
+            .multi_issuance(ctx, pk, 1)?;
 
         let cat_puzzle_hash = CurriedProgram {
             program: CAT_PUZZLE_HASH,
@@ -130,7 +126,7 @@ mod tests {
 
         StandardSpend::new()
             .chain(issue_cat)
-            .finish(&mut ctx, parent, pk)?;
+            .finish(ctx, parent, pk)?;
 
         let coin_spends = ctx.take_spends();
 

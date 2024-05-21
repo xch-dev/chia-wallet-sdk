@@ -88,8 +88,9 @@ impl<T> StandardNftSpend<T> {
 }
 
 impl<T> P2Spend for StandardNftSpend<T> {
-    fn raw_condition(&mut self, condition: NodePtr) {
-        self.standard_spend.raw_condition(condition);
+    fn raw_condition(mut self, condition: NodePtr) -> Self {
+        self.standard_spend = self.standard_spend.raw_condition(condition);
+        self
     }
 }
 
@@ -111,7 +112,7 @@ impl StandardNftSpend<NftOutput> {
         };
 
         if let Some(new_owner) = &self.new_owner {
-            self.standard_spend.raw_condition(ctx.alloc(new_owner)?);
+            self.standard_spend = self.standard_spend.raw_condition(ctx.alloc(new_owner)?);
 
             let new_nft_owner_args = ctx.alloc(clvm_list!(
                 new_owner.new_owner,
@@ -124,7 +125,7 @@ impl StandardNftSpend<NftOutput> {
             announcement_id.update([0xad, 0x4c]);
             announcement_id.update(ctx.tree_hash(new_nft_owner_args));
 
-            parent.raw_condition(ctx.alloc(AssertPuzzleAnnouncement {
+            parent = parent.raw_condition(ctx.alloc(AssertPuzzleAnnouncement {
                 announcement_id: Bytes32::new(announcement_id.finalize().into()),
             })?);
         }

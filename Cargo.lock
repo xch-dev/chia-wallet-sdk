@@ -301,7 +301,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-client"
-version = "0.1.0"
+version = "0.8.0"
 dependencies = [
  "chia-client",
  "chia-ssl",
@@ -445,6 +445,12 @@ version = "0.8.0"
 dependencies = [
  "bech32",
  "chia-protocol",
+ "chia-sdk-client",
+ "chia-sdk-driver",
+ "chia-sdk-parser",
+ "chia-sdk-signer",
+ "chia-sdk-test",
+ "chia-sdk-types",
  "hex",
  "hex-literal",
  "indexmap",

@@ -33,16 +33,6 @@ impl IssueCat {
         }
     }
 
-    pub fn condition(mut self, condition: NodePtr) -> Self {
-        self.conditions.push(condition);
-        self
-    }
-
-    pub fn conditions(mut self, conditions: impl IntoIterator<Item = NodePtr>) -> Self {
-        self.conditions.extend(conditions);
-        self
-    }
-
     pub fn multi_issuance(
         self,
         ctx: &mut SpendContext,
@@ -57,7 +47,7 @@ impl IssueCat {
         })?;
         let asset_id = ctx.tree_hash(tail).into();
 
-        self.condition(ctx.alloc(RunTail {
+        self.raw_condition(ctx.alloc(RunTail {
             program: tail,
             solution: NodePtr::NIL,
         })?)
@@ -121,6 +111,13 @@ impl IssueCat {
     }
 }
 
+impl P2Spend for IssueCat {
+    fn raw_condition(mut self, condition: NodePtr) -> Self {
+        self.conditions.push(condition);
+        self
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chia_sdk_test::TestWallet;
@@ -137,11 +134,7 @@ mod tests {
         let mut wallet = TestWallet::new(1).await;
 
         let (issue_cat, _cat_info) = IssueCat::new(wallet.coin.coin_id())
-            .condition(ctx.alloc(CreateCoinWithMemos {
-                puzzle_hash: wallet.puzzle_hash,
-                amount: 1,
-                memos: vec![wallet.puzzle_hash.to_vec().into()],
-            })?)
+            .create_hinted_coin(ctx, wallet.puzzle_hash, 1, wallet.puzzle_hash)?
             .multi_issuance(ctx, wallet.pk, 1)?;
 
         StandardSpend::new()

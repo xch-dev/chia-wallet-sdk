@@ -8,62 +8,52 @@ use clvmr::{
 use crate::{SpendContext, SpendError};
 
 pub trait P2Spend: Sized {
-    fn raw_condition(&mut self, condition: NodePtr);
+    fn raw_condition(self, condition: NodePtr) -> Self;
 
-    fn reserve_fee(mut self, ctx: &mut SpendContext, fee: u64) -> Result<Self, SpendError> {
-        let condition = ctx.alloc(ReserveFee { amount: fee })?;
-        self.raw_condition(condition);
-        Ok(self)
+    fn reserve_fee(self, ctx: &mut SpendContext, fee: u64) -> Result<Self, SpendError> {
+        Ok(self.raw_condition(ctx.alloc(ReserveFee { amount: fee })?))
     }
 
     fn create_coin(
-        mut self,
+        self,
         ctx: &mut SpendContext,
         puzzle_hash: Bytes32,
         amount: u64,
     ) -> Result<Self, SpendError> {
-        let condition = ctx.alloc(CreateCoinWithoutMemos {
+        Ok(self.raw_condition(ctx.alloc(CreateCoinWithoutMemos {
             puzzle_hash,
             amount,
-        })?;
-        self.raw_condition(condition);
-        Ok(self)
+        })?))
     }
 
     fn create_hinted_coin(
-        mut self,
+        self,
         ctx: &mut SpendContext,
         puzzle_hash: Bytes32,
         amount: u64,
         hint: Bytes32,
     ) -> Result<Self, SpendError> {
-        let condition = ctx.alloc(CreateCoinWithMemos {
+        Ok(self.raw_condition(ctx.alloc(CreateCoinWithMemos {
             puzzle_hash,
             amount,
             memos: vec![hint.to_vec().into()],
-        })?;
-        self.raw_condition(condition);
-        Ok(self)
+        })?))
     }
 
     fn create_coin_announcement(
-        mut self,
+        self,
         ctx: &mut SpendContext,
         message: Bytes,
     ) -> Result<Self, SpendError> {
-        let condition = ctx.alloc(CreateCoinAnnouncement { message })?;
-        self.raw_condition(condition);
-        Ok(self)
+        Ok(self.raw_condition(ctx.alloc(CreateCoinAnnouncement { message })?))
     }
 
     fn assert_raw_coin_announcement(
-        mut self,
+        self,
         ctx: &mut SpendContext,
         announcement_id: Bytes32,
     ) -> Result<Self, SpendError> {
-        let condition = ctx.alloc(AssertCoinAnnouncement { announcement_id })?;
-        self.raw_condition(condition);
-        Ok(self)
+        Ok(self.raw_condition(ctx.alloc(AssertCoinAnnouncement { announcement_id })?))
     }
 
     fn assert_coin_announcement(
@@ -79,23 +69,19 @@ pub trait P2Spend: Sized {
     }
 
     fn create_puzzle_announcement(
-        mut self,
+        self,
         ctx: &mut SpendContext,
         message: Bytes,
     ) -> Result<Self, SpendError> {
-        let condition = ctx.alloc(CreatePuzzleAnnouncement { message })?;
-        self.raw_condition(condition);
-        Ok(self)
+        Ok(self.raw_condition(ctx.alloc(CreatePuzzleAnnouncement { message })?))
     }
 
     fn assert_raw_puzzle_announcement(
-        mut self,
+        self,
         ctx: &mut SpendContext,
         announcement_id: Bytes32,
     ) -> Result<Self, SpendError> {
-        let condition = ctx.alloc(AssertPuzzleAnnouncement { announcement_id })?;
-        self.raw_condition(condition);
-        Ok(self)
+        Ok(self.raw_condition(ctx.alloc(AssertPuzzleAnnouncement { announcement_id })?))
     }
 
     fn assert_puzzle_announcement(
@@ -108,6 +94,70 @@ pub trait P2Spend: Sized {
         announcement_id.update(puzzle_hash);
         announcement_id.update(message);
         self.assert_raw_coin_announcement(ctx, Bytes32::new(announcement_id.finalize().into()))
+    }
+
+    fn assert_before_seconds_relative(
+        self,
+        ctx: &mut SpendContext,
+        seconds: u64,
+    ) -> Result<Self, SpendError> {
+        Ok(self.raw_condition(ctx.alloc(AssertBeforeSecondsRelative { seconds })?))
+    }
+
+    fn assert_seconds_relative(
+        self,
+        ctx: &mut SpendContext,
+        seconds: u64,
+    ) -> Result<Self, SpendError> {
+        Ok(self.raw_condition(ctx.alloc(AssertSecondsRelative { seconds })?))
+    }
+
+    fn assert_before_seconds_absolute(
+        self,
+        ctx: &mut SpendContext,
+        seconds: u64,
+    ) -> Result<Self, SpendError> {
+        Ok(self.raw_condition(ctx.alloc(AssertBeforeSecondsAbsolute { seconds })?))
+    }
+
+    fn assert_seconds_absolute(
+        self,
+        ctx: &mut SpendContext,
+        seconds: u64,
+    ) -> Result<Self, SpendError> {
+        Ok(self.raw_condition(ctx.alloc(AssertSecondsAbsolute { seconds })?))
+    }
+
+    fn assert_before_height_relative(
+        self,
+        ctx: &mut SpendContext,
+        block_height: u32,
+    ) -> Result<Self, SpendError> {
+        Ok(self.raw_condition(ctx.alloc(AssertBeforeHeightRelative { block_height })?))
+    }
+
+    fn assert_height_relative(
+        self,
+        ctx: &mut SpendContext,
+        block_height: u32,
+    ) -> Result<Self, SpendError> {
+        Ok(self.raw_condition(ctx.alloc(AssertHeightRelative { block_height })?))
+    }
+
+    fn assert_before_height_absolute(
+        self,
+        ctx: &mut SpendContext,
+        block_height: u32,
+    ) -> Result<Self, SpendError> {
+        Ok(self.raw_condition(ctx.alloc(AssertBeforeHeightAbsolute { block_height })?))
+    }
+
+    fn assert_height_absolute(
+        self,
+        ctx: &mut SpendContext,
+        block_height: u32,
+    ) -> Result<Self, SpendError> {
+        Ok(self.raw_condition(ctx.alloc(AssertHeightAbsolute { block_height })?))
     }
 }
 
@@ -131,8 +181,9 @@ impl ParentConditions {
 }
 
 impl P2Spend for ParentConditions {
-    fn raw_condition(&mut self, condition: NodePtr) {
+    fn raw_condition(mut self, condition: NodePtr) -> Self {
         self.conditions.push(condition);
+        self
     }
 }
 

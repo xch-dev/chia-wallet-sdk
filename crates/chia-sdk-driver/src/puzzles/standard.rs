@@ -61,8 +61,9 @@ impl StandardSpend {
 }
 
 impl P2Spend for StandardSpend {
-    fn raw_condition(&mut self, condition: NodePtr) {
+    fn raw_condition(mut self, condition: NodePtr) -> Self {
         self.conditions.push(condition);
+        self
     }
 }
 

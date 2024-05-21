@@ -35,8 +35,9 @@ impl<T> StandardDidSpend<T> {
 }
 
 impl<T> P2Spend for StandardDidSpend<T> {
-    fn raw_condition(&mut self, condition: NodePtr) {
-        self.standard_spend.raw_condition(condition);
+    fn raw_condition(mut self, condition: NodePtr) -> Self {
+        self.standard_spend = self.standard_spend.raw_condition(condition);
+        self
     }
 }
 
