@@ -84,7 +84,7 @@ pub struct AggSig {
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm, Hash)]
 #[repr(u8)]
-#[clvm(tuple)]
+#[clvm(atom)]
 pub enum AggSigKind {
     Parent = 43,
     Puzzle = 44,
@@ -98,7 +98,7 @@ pub enum AggSigKind {
 
 #[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(untagged, tuple)]
+#[clvm(transparent)]
 pub enum CreateCoin {
     WithoutMemos(CreateCoinWithoutMemos),
     WithMemos(CreateCoinWithMemos),

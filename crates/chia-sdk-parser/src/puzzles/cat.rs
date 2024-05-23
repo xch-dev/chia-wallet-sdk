@@ -42,7 +42,7 @@ pub fn parse_cat(
             program: CAT_PUZZLE_HASH,
             args: CatArgs {
                 mod_hash: CAT_PUZZLE_HASH.into(),
-                tail_program_hash: args.tail_program_hash,
+                asset_id: args.asset_id,
                 inner_puzzle: TreeHash::from(create_coin.puzzle_hash()),
             },
         }
@@ -61,7 +61,7 @@ pub fn parse_cat(
     };
 
     Ok(Some(CatInfo {
-        asset_id: args.tail_program_hash,
+        asset_id: args.asset_id,
         p2_puzzle_hash,
         coin: ctx.coin(),
         lineage_proof: LineageProof {
@@ -111,7 +111,7 @@ mod tests {
             program: CAT_PUZZLE_HASH,
             args: CatArgs {
                 mod_hash: CAT_PUZZLE_HASH.into(),
-                tail_program_hash: issuance_info.asset_id,
+                asset_id: issuance_info.asset_id,
                 inner_puzzle: TreeHash::from(puzzle_hash),
             },
         }
