@@ -69,7 +69,7 @@ impl IssueCat {
             program: cat_puzzle_ptr,
             args: CatArgs {
                 mod_hash: CAT_PUZZLE_HASH.into(),
-                tail_program_hash: asset_id,
+                asset_id,
                 inner_puzzle,
             },
         })?;

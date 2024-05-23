@@ -20,10 +20,7 @@ pub trait P2Spend: Sized {
         puzzle_hash: Bytes32,
         amount: u64,
     ) -> Result<Self, SpendError> {
-        Ok(self.raw_condition(ctx.alloc(CreateCoinWithoutMemos {
-            puzzle_hash,
-            amount,
-        })?))
+        Ok(self.raw_condition(ctx.alloc(CreateCoin::new(puzzle_hash, amount))?))
     }
 
     fn create_hinted_coin(
@@ -33,11 +30,11 @@ pub trait P2Spend: Sized {
         amount: u64,
         hint: Bytes32,
     ) -> Result<Self, SpendError> {
-        Ok(self.raw_condition(ctx.alloc(CreateCoinWithMemos {
+        Ok(self.raw_condition(ctx.alloc(CreateCoin::with_custom_hint(
             puzzle_hash,
             amount,
-            memos: vec![hint.to_vec().into()],
-        })?))
+            hint,
+        ))?))
     }
 
     fn create_coin_announcement(
@@ -131,33 +128,33 @@ pub trait P2Spend: Sized {
     fn assert_before_height_relative(
         self,
         ctx: &mut SpendContext,
-        block_height: u32,
+        height: u32,
     ) -> Result<Self, SpendError> {
-        Ok(self.raw_condition(ctx.alloc(AssertBeforeHeightRelative { block_height })?))
+        Ok(self.raw_condition(ctx.alloc(AssertBeforeHeightRelative { height })?))
     }
 
     fn assert_height_relative(
         self,
         ctx: &mut SpendContext,
-        block_height: u32,
+        height: u32,
     ) -> Result<Self, SpendError> {
-        Ok(self.raw_condition(ctx.alloc(AssertHeightRelative { block_height })?))
+        Ok(self.raw_condition(ctx.alloc(AssertHeightRelative { height })?))
     }
 
     fn assert_before_height_absolute(
         self,
         ctx: &mut SpendContext,
-        block_height: u32,
+        height: u32,
     ) -> Result<Self, SpendError> {
-        Ok(self.raw_condition(ctx.alloc(AssertBeforeHeightAbsolute { block_height })?))
+        Ok(self.raw_condition(ctx.alloc(AssertBeforeHeightAbsolute { height })?))
     }
 
     fn assert_height_absolute(
         self,
         ctx: &mut SpendContext,
-        block_height: u32,
+        height: u32,
     ) -> Result<Self, SpendError> {
-        Ok(self.raw_condition(ctx.alloc(AssertHeightAbsolute { block_height })?))
+        Ok(self.raw_condition(ctx.alloc(AssertHeightAbsolute { height })?))
     }
 }
 

@@ -42,16 +42,16 @@ pub fn parse_cat(
             program: CAT_PUZZLE_HASH,
             args: CatArgs {
                 mod_hash: CAT_PUZZLE_HASH.into(),
-                tail_program_hash: args.tail_program_hash,
-                inner_puzzle: TreeHash::from(create_coin.puzzle_hash()),
+                asset_id: args.asset_id,
+                inner_puzzle: TreeHash::from(create_coin.puzzle_hash),
             },
         }
         .tree_hash();
 
         if Bytes32::from(cat_puzzle_hash) == ctx.coin().puzzle_hash
-            && create_coin.amount() == ctx.coin().amount
+            && create_coin.amount == ctx.coin().amount
         {
-            p2_puzzle_hash = Some(create_coin.puzzle_hash());
+            p2_puzzle_hash = Some(create_coin.puzzle_hash);
             break;
         }
     }
@@ -61,7 +61,7 @@ pub fn parse_cat(
     };
 
     Ok(Some(CatInfo {
-        asset_id: args.tail_program_hash,
+        asset_id: args.asset_id,
         p2_puzzle_hash,
         coin: ctx.coin(),
         lineage_proof: LineageProof {
@@ -111,7 +111,7 @@ mod tests {
             program: CAT_PUZZLE_HASH,
             args: CatArgs {
                 mod_hash: CAT_PUZZLE_HASH.into(),
-                tail_program_hash: issuance_info.asset_id,
+                asset_id: issuance_info.asset_id,
                 inner_puzzle: TreeHash::from(puzzle_hash),
             },
         }

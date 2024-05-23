@@ -613,7 +613,7 @@ mod tests {
     use chia_bls::Signature;
     use chia_client::PeerEvent;
     use chia_protocol::{CoinSpend, SpendBundle};
-    use chia_sdk_types::conditions::*;
+    use chia_sdk_types::conditions::CreateCoin;
     use clvm_traits::{FromNodePtr, ToClvm};
     use clvm_utils::tree_hash;
 
@@ -631,11 +631,7 @@ mod tests {
         let mut coin = sim.generate_coin(puzzle_hash, 1000).await.coin;
 
         for _ in 0..1000 {
-            let solution = [CreateCoinWithoutMemos {
-                puzzle_hash,
-                amount: coin.amount - 1,
-            }]
-            .to_clvm(&mut a)?;
+            let solution = [CreateCoin::new(puzzle_hash, coin.amount - 1)].to_clvm(&mut a)?;
 
             let coin_spend = CoinSpend::new(
                 coin,
@@ -674,11 +670,7 @@ mod tests {
         let puzzle_hash = tree_hash(&a, puzzle).into();
         let puzzle_reveal = Program::from_node_ptr(&a, puzzle)?;
 
-        let solution = [CreateCoinWithoutMemos {
-            puzzle_hash,
-            amount: 1000,
-        }]
-        .to_clvm(&mut a)?;
+        let solution = [CreateCoin::new(puzzle_hash, 1000)].to_clvm(&mut a)?;
 
         let coin_spend = CoinSpend::new(
             Coin {
@@ -734,11 +726,7 @@ mod tests {
         while receiver.try_recv().is_ok() {}
 
         // Spend the coin.
-        let solution = [CreateCoinWithoutMemos {
-            puzzle_hash,
-            amount: cs.coin.amount - 1,
-        }]
-        .to_clvm(&mut a)?;
+        let solution = [CreateCoin::new(puzzle_hash, cs.coin.amount - 1)].to_clvm(&mut a)?;
 
         let coin_spend = CoinSpend::new(
             cs.coin,
@@ -804,11 +792,7 @@ mod tests {
         while receiver.try_recv().is_ok() {}
 
         // Spend the coin.
-        let solution = [CreateCoinWithoutMemos {
-            puzzle_hash,
-            amount: cs.coin.amount - 1,
-        }]
-        .to_clvm(&mut a)?;
+        let solution = [CreateCoin::new(puzzle_hash, cs.coin.amount - 1)].to_clvm(&mut a)?;
 
         let coin_spend = CoinSpend::new(
             cs.coin,
@@ -875,11 +859,11 @@ mod tests {
         while receiver.try_recv().is_ok() {}
 
         // Spend the coin.
-        let solution = [CreateCoinWithMemos {
+        let solution = [CreateCoin::with_custom_hint(
             puzzle_hash,
-            amount: cs.coin.amount - 1,
-            memos: vec![hint.to_bytes().to_vec().into()],
-        }]
+            cs.coin.amount - 1,
+            hint,
+        )]
         .to_clvm(&mut a)?;
 
         let coin_spend = CoinSpend::new(
@@ -932,11 +916,7 @@ mod tests {
 
         let cs = sim.generate_coin(puzzle_hash, 1000).await;
 
-        let solution = [CreateCoinWithoutMemos {
-            puzzle_hash,
-            amount: cs.coin.amount - 1,
-        }]
-        .to_clvm(&mut a)?;
+        let solution = [CreateCoin::new(puzzle_hash, cs.coin.amount - 1)].to_clvm(&mut a)?;
 
         let solution = Program::from_node_ptr(&a, solution)?;
         let coin_spend = CoinSpend::new(cs.coin, puzzle_reveal.clone(), solution.clone());
@@ -976,12 +956,7 @@ mod tests {
 
         let cs = sim.generate_coin(puzzle_hash, 1000).await;
 
-        let solution = [CreateCoinWithoutMemos {
-            puzzle_hash,
-            amount: cs.coin.amount - 1,
-        }]
-        .to_clvm(&mut a)?;
-
+        let solution = [CreateCoin::new(puzzle_hash, cs.coin.amount - 1)].to_clvm(&mut a)?;
         let solution = Program::from_node_ptr(&a, solution)?;
         let coin_spend = CoinSpend::new(cs.coin, puzzle_reveal.clone(), solution.clone());
         let spend_bundle = SpendBundle::new(vec![coin_spend], Signature::default());

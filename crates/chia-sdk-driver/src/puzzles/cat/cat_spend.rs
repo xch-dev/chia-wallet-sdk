@@ -70,7 +70,7 @@ impl CatSpend {
 
             let delta = create_coins
                 .fold(coin.amount as i64 - *extra_delta, |delta, create_coin| {
-                    delta - create_coin.amount() as i64
+                    delta - create_coin.amount as i64
                 });
 
             let prev_subtotal = total_delta;
@@ -84,7 +84,7 @@ impl CatSpend {
                 program: cat_puzzle_ptr,
                 args: CatArgs {
                     mod_hash: CAT_PUZZLE_HASH.into(),
-                    tail_program_hash: self.asset_id,
+                    asset_id: self.asset_id,
                     inner_puzzle: inner_spend.puzzle(),
                 },
             })?;
@@ -151,7 +151,7 @@ mod tests {
             program: CAT_PUZZLE_HASH,
             args: CatArgs {
                 mod_hash: CAT_PUZZLE_HASH.into(),
-                tail_program_hash: asset_id,
+                asset_id,
                 inner_puzzle: p2_puzzle_hash,
             },
         }
@@ -219,7 +219,7 @@ mod tests {
             program: CAT_PUZZLE_HASH,
             args: CatArgs {
                 mod_hash: CAT_PUZZLE_HASH.into(),
-                tail_program_hash: asset_id,
+                asset_id,
                 inner_puzzle: p2_puzzle_hash,
             },
         }
