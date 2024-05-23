@@ -43,15 +43,15 @@ pub fn parse_cat(
             args: CatArgs {
                 mod_hash: CAT_PUZZLE_HASH.into(),
                 asset_id: args.asset_id,
-                inner_puzzle: TreeHash::from(create_coin.puzzle_hash()),
+                inner_puzzle: TreeHash::from(create_coin.puzzle_hash),
             },
         }
         .tree_hash();
 
         if Bytes32::from(cat_puzzle_hash) == ctx.coin().puzzle_hash
-            && create_coin.amount() == ctx.coin().amount
+            && create_coin.amount == ctx.coin().amount
         {
-            p2_puzzle_hash = Some(create_coin.puzzle_hash());
+            p2_puzzle_hash = Some(create_coin.puzzle_hash);
             break;
         }
     }

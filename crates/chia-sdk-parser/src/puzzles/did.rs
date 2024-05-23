@@ -4,7 +4,7 @@ use chia_puzzles::{
     singleton::{SingletonArgs, SingletonStruct, SINGLETON_TOP_LAYER_PUZZLE_HASH},
     LineageProof, Proof,
 };
-use chia_sdk_types::{conditions::CreateCoinWithMemos, puzzles::DidInfo};
+use chia_sdk_types::{conditions::CreateCoin, puzzles::DidInfo};
 use clvm_traits::FromClvm;
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{reduction::Reduction, run_program, Allocator, ChiaDialect, NodePtr};
@@ -42,7 +42,7 @@ pub fn parse_did(
     let mut p2_puzzle_hash = None;
 
     for condition in conditions {
-        let Ok(create_coin) = CreateCoinWithMemos::from_clvm(allocator, condition) else {
+        let Ok(create_coin) = CreateCoin::from_clvm(allocator, condition) else {
             continue;
         };
 

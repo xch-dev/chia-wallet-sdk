@@ -76,7 +76,7 @@ impl<T> StandardNftSpend<T> {
         self.new_owner = Some(NewNftOwner {
             new_owner: Some(did_id),
             trade_prices_list: Vec::new(),
-            new_did_inner_hash: Some(did_inner_puzzle_hash),
+            new_did_p2_puzzle_hash: Some(did_inner_puzzle_hash),
         });
         self
     }
@@ -117,7 +117,7 @@ impl StandardNftSpend<NftOutput> {
             let new_nft_owner_args = ctx.alloc(clvm_list!(
                 new_owner.new_owner,
                 new_owner.trade_prices_list.clone(),
-                new_owner.new_did_inner_hash
+                new_owner.new_did_p2_puzzle_hash
             ))?;
 
             let mut announcement_id = Sha256::new();

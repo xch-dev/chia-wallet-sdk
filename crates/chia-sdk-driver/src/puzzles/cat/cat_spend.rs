@@ -70,7 +70,7 @@ impl CatSpend {
 
             let delta = create_coins
                 .fold(coin.amount as i64 - *extra_delta, |delta, create_coin| {
-                    delta - create_coin.amount() as i64
+                    delta - create_coin.amount as i64
                 });
 
             let prev_subtotal = total_delta;
