@@ -9,9 +9,9 @@ use clvmr::Allocator;
 use hex_literal::hex;
 use once_cell::sync::Lazy;
 
-mod wallet_simulator;
+mod simulator;
 
-pub use wallet_simulator::*;
+pub use simulator::*;
 
 pub static SECRET_KEY: Lazy<SecretKey> = Lazy::new(|| {
     SecretKey::from_bytes(&hex!(
@@ -25,7 +25,7 @@ pub struct TestWallet {
     pub pk: PublicKey,
     pub puzzle_hash: Bytes32,
     pub coin: Coin,
-    pub sim: WalletSimulator,
+    pub sim: Simulator,
     pub peer: Peer,
 }
 
@@ -34,8 +34,8 @@ impl TestWallet {
         let sk = SECRET_KEY.derive_synthetic();
         let pk = sk.public_key();
 
-        let sim = WalletSimulator::new().await;
-        let peer = sim.peer().await;
+        let sim = Simulator::new().await.unwrap();
+        let peer = sim.connect().await.unwrap();
 
         let puzzle_hash = CurriedProgram {
             program: STANDARD_PUZZLE_HASH,
@@ -44,7 +44,7 @@ impl TestWallet {
         .tree_hash()
         .into();
 
-        let coin = sim.generate_coin(puzzle_hash, amount).await.coin;
+        let coin = sim.mint_coin(puzzle_hash, amount).await;
 
         Self {
             sk,
@@ -62,7 +62,7 @@ impl TestWallet {
         let required_signatures = RequiredSignature::from_coin_spends(
             &mut allocator,
             &coin_spends,
-            WalletSimulator::AGG_SIG_ME.into(),
+            Simulator::AGG_SIG_ME,
         )?;
 
         let mut aggregated_signature = Signature::default();
@@ -74,8 +74,8 @@ impl TestWallet {
         let spend_bundle = SpendBundle::new(coin_spends, aggregated_signature);
         let ack = self.peer.send_transaction(spend_bundle).await?;
 
-        assert_eq!(ack.status, 1);
         assert_eq!(ack.error, None);
+        assert_eq!(ack.status, 1);
 
         Ok(())
     }

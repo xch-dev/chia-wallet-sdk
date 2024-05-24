@@ -59,3 +59,4 @@ once_cell = "1.19.0"
 tokio = "1.37.0"
 tokio-tungstenite = { version = "0.21.0", features = ["native-tls"] }
 native-tls = "0.2.11"
+log = "0.4.21"

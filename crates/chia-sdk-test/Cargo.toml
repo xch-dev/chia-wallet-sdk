@@ -21,6 +21,8 @@ clvmr.workspace = true
 futures-channel = { workspace = true, features = ["sink"] }
 futures-util.workspace = true
 indexmap.workspace = true
+thiserror.workspace = true
+log.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
 anyhow.workspace = true
