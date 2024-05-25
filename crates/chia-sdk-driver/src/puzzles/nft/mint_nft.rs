@@ -167,29 +167,37 @@ mod tests {
     use super::*;
 
     use chia_protocol::Coin;
-    use chia_sdk_test::TestWallet;
+    use chia_sdk_test::{test_transaction, Simulator};
     use clvmr::Allocator;
 
     #[tokio::test]
     async fn test_bulk_mint() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let sk = sim.secret_key().await?;
+        let pk = sk.public_key();
+
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = sim.mint_coin(puzzle_hash, 3).await;
+
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
-        let mut wallet = TestWallet::new(3).await;
 
-        let (create_did, did_info) = Launcher::new(wallet.coin.coin_id(), 1)
+        let (create_did, did_info) = Launcher::new(coin.coin_id(), 1)
             .create(ctx)?
-            .create_standard_did(ctx, wallet.pk)?;
+            .create_standard_did(ctx, pk)?;
 
         StandardSpend::new()
             .chain(create_did)
-            .finish(ctx, wallet.coin, wallet.pk)?;
+            .finish(ctx, coin, pk)?;
 
         let mint = StandardMint {
             metadata: (),
-            royalty_puzzle_hash: wallet.puzzle_hash,
+            royalty_puzzle_hash: puzzle_hash,
             royalty_percentage: 100,
-            owner_puzzle_hash: wallet.puzzle_hash,
-            synthetic_key: wallet.pk,
+            owner_puzzle_hash: puzzle_hash,
+            synthetic_key: pk,
             did_id: did_info.launcher_id,
             did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
         };
@@ -208,38 +216,46 @@ mod tests {
                     .0,
             )
             .recreate()
-            .finish(ctx, wallet.pk, did_info)?;
+            .finish(ctx, pk, did_info)?;
 
-        wallet.submit(ctx.take_spends()).await?;
+        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
 
         Ok(())
     }
 
     #[tokio::test]
     async fn test_nonstandard_intermediate_mint() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let sk = sim.secret_key().await?;
+        let pk = sk.public_key();
+
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = sim.mint_coin(puzzle_hash, 3).await;
+
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
-        let mut wallet = TestWallet::new(3).await;
 
-        let (create_did, did_info) = Launcher::new(wallet.coin.coin_id(), 1)
+        let (create_did, did_info) = Launcher::new(coin.coin_id(), 1)
             .create(ctx)?
-            .create_standard_did(ctx, wallet.pk)?;
+            .create_standard_did(ctx, pk)?;
 
         StandardSpend::new()
             .chain(create_did)
-            .finish(ctx, wallet.coin, wallet.pk)?;
+            .finish(ctx, coin, pk)?;
 
-        let intermediate_coin = Coin::new(did_info.coin.coin_id(), wallet.puzzle_hash, 0);
+        let intermediate_coin = Coin::new(did_info.coin.coin_id(), puzzle_hash, 0);
 
         let (create_launcher, launcher) =
             Launcher::new(intermediate_coin.coin_id(), 1).create_from_intermediate(ctx)?;
 
         let mint = StandardMint {
             metadata: (),
-            royalty_puzzle_hash: wallet.puzzle_hash,
+            royalty_puzzle_hash: puzzle_hash,
             royalty_percentage: 100,
-            owner_puzzle_hash: wallet.puzzle_hash,
-            synthetic_key: wallet.pk,
+            owner_puzzle_hash: puzzle_hash,
+            synthetic_key: pk,
             did_id: did_info.launcher_id,
             did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
         };
@@ -248,44 +264,52 @@ mod tests {
 
         StandardDidSpend::new()
             .chain(mint_nft)
-            .create_coin(ctx, wallet.puzzle_hash, 0)?
+            .create_coin(ctx, puzzle_hash, 0)?
             .recreate()
-            .finish(ctx, wallet.pk, did_info)?;
+            .finish(ctx, pk, did_info)?;
 
         StandardSpend::new()
             .chain(create_launcher)
-            .finish(ctx, intermediate_coin, wallet.pk)?;
+            .finish(ctx, intermediate_coin, pk)?;
 
-        wallet.submit(ctx.take_spends()).await?;
+        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
 
         Ok(())
     }
 
     #[tokio::test]
     async fn test_nonstandard_intermediate_mint_recreated_did() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let sk = sim.secret_key().await?;
+        let pk = sk.public_key();
+
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = sim.mint_coin(puzzle_hash, 3).await;
+
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
-        let mut wallet = TestWallet::new(3).await;
 
-        let (create_did, did_info) = Launcher::new(wallet.coin.coin_id(), 1)
+        let (create_did, did_info) = Launcher::new(coin.coin_id(), 1)
             .create(ctx)?
-            .create_standard_did(ctx, wallet.pk)?;
+            .create_standard_did(ctx, pk)?;
 
         StandardSpend::new()
             .chain(create_did)
-            .finish(ctx, wallet.coin, wallet.pk)?;
+            .finish(ctx, coin, pk)?;
 
-        let intermediate_coin = Coin::new(did_info.coin.coin_id(), wallet.puzzle_hash, 0);
+        let intermediate_coin = Coin::new(did_info.coin.coin_id(), puzzle_hash, 0);
 
         let (create_launcher, launcher) =
             Launcher::new(intermediate_coin.coin_id(), 1).create_from_intermediate(ctx)?;
 
         let mint = StandardMint {
             metadata: (),
-            royalty_puzzle_hash: wallet.puzzle_hash,
+            royalty_puzzle_hash: puzzle_hash,
             royalty_percentage: 100,
-            owner_puzzle_hash: wallet.puzzle_hash,
-            synthetic_key: wallet.pk,
+            owner_puzzle_hash: puzzle_hash,
+            synthetic_key: pk,
             did_id: did_info.launcher_id,
             did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
         };
@@ -293,20 +317,20 @@ mod tests {
         let (mint_nft, _nft_info) = launcher.mint_standard_nft(ctx, mint)?;
 
         let did_info = StandardDidSpend::new()
-            .create_coin(ctx, wallet.puzzle_hash, 0)?
+            .create_coin(ctx, puzzle_hash, 0)?
             .recreate()
-            .finish(ctx, wallet.pk, did_info)?;
+            .finish(ctx, pk, did_info)?;
 
         StandardDidSpend::new()
             .chain(mint_nft)
             .recreate()
-            .finish(ctx, wallet.pk, did_info)?;
+            .finish(ctx, pk, did_info)?;
 
         StandardSpend::new()
             .chain(create_launcher)
-            .finish(ctx, intermediate_coin, wallet.pk)?;
+            .finish(ctx, intermediate_coin, pk)?;
 
-        wallet.submit(ctx.take_spends()).await?;
+        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
 
         Ok(())
     }

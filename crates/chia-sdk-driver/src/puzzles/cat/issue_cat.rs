@@ -1,7 +1,10 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
-    cat::{CatArgs, CatSolution, CoinProof, EverythingWithSignatureTailArgs, CAT_PUZZLE_HASH},
+    cat::{
+        CatArgs, CatSolution, CoinProof, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs,
+        CAT_PUZZLE_HASH,
+    },
     LineageProof,
 };
 use chia_sdk_types::conditions::*;
@@ -31,6 +34,28 @@ impl IssueCat {
             parent_coin_id,
             conditions: Vec::new(),
         }
+    }
+
+    pub fn single_issuance(
+        self,
+        ctx: &mut SpendContext,
+        amount: u64,
+    ) -> Result<(ParentConditions, CatIssuanceInfo), SpendError> {
+        let tail_puzzle_ptr = ctx.genesis_by_coin_id_tail_puzzle()?;
+
+        let tail = ctx.alloc(CurriedProgram {
+            program: tail_puzzle_ptr,
+            args: GenesisByCoinIdTailArgs {
+                genesis_coin_id: self.parent_coin_id,
+            },
+        })?;
+        let asset_id = ctx.tree_hash(tail).into();
+
+        self.raw_condition(ctx.alloc(RunTail {
+            program: tail,
+            solution: NodePtr::NIL,
+        })?)
+        .finish_raw(ctx, asset_id, amount)
     }
 
     pub fn multi_issuance(
@@ -120,7 +145,8 @@ impl P2Spend for IssueCat {
 
 #[cfg(test)]
 mod tests {
-    use chia_sdk_test::TestWallet;
+    use chia_puzzles::standard::StandardArgs;
+    use chia_sdk_test::{test_transaction, Simulator};
     use clvmr::Allocator;
 
     use crate::puzzles::StandardSpend;
@@ -128,20 +154,55 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_cat_issuance() -> anyhow::Result<()> {
+    async fn test_single_issuance_cat() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let sk = sim.secret_key().await?;
+        let pk = sk.public_key();
+
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = sim.mint_coin(puzzle_hash, 1).await;
+
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
-        let mut wallet = TestWallet::new(1).await;
 
-        let (issue_cat, _cat_info) = IssueCat::new(wallet.coin.coin_id())
-            .create_hinted_coin(ctx, wallet.puzzle_hash, 1, wallet.puzzle_hash)?
-            .multi_issuance(ctx, wallet.pk, 1)?;
+        let (issue_cat, _cat_info) = IssueCat::new(coin.coin_id())
+            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
+            .single_issuance(ctx, 1)?;
 
         StandardSpend::new()
             .chain(issue_cat)
-            .finish(ctx, wallet.coin, wallet.pk)?;
+            .finish(ctx, coin, pk)?;
 
-        wallet.submit(ctx.take_spends()).await?;
+        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_multi_issuance_cat() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let sk = sim.secret_key().await?;
+        let pk = sk.public_key();
+
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = sim.mint_coin(puzzle_hash, 1).await;
+
+        let mut allocator = Allocator::new();
+        let ctx = &mut SpendContext::new(&mut allocator);
+
+        let (issue_cat, _cat_info) = IssueCat::new(coin.coin_id())
+            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
+            .multi_issuance(ctx, pk, 1)?;
+
+        StandardSpend::new()
+            .chain(issue_cat)
+            .finish(ctx, coin, pk)?;
+
+        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
 
         Ok(())
     }

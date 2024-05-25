@@ -13,7 +13,7 @@ use crate::Simulator;
 #[error("missing key")]
 pub struct KeyError;
 
-pub async fn test_transaction(
+pub async fn test_transaction_raw(
     peer: &Peer,
     coin_spends: Vec<CoinSpend>,
     secret_keys: &[SecretKey],
@@ -37,4 +37,13 @@ pub async fn test_transaction(
     Ok(peer
         .send_transaction(SpendBundle::new(coin_spends, aggregated_signature))
         .await?)
+}
+
+pub async fn test_transaction(peer: &Peer, coin_spends: Vec<CoinSpend>, secret_keys: &[SecretKey]) {
+    let ack = test_transaction_raw(peer, coin_spends, secret_keys)
+        .await
+        .expect("could not submit transaction");
+
+    assert_eq!(ack.error, None);
+    assert_eq!(ack.status, 1);
 }

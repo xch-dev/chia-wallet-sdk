@@ -112,245 +112,111 @@ impl CatSpend {
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::derive_keys::master_to_wallet_unhardened;
-    use chia_consensus::gen::{
-        conditions::EmptyVisitor, run_block_generator::run_block_generator,
-        solution_generator::solution_generator,
-    };
-    use chia_protocol::{Bytes32, Program};
-    use chia_puzzles::{
-        standard::{StandardArgs, STANDARD_PUZZLE_HASH},
-        DeriveSynthetic,
-    };
-    use chia_sdk_test::SECRET_KEY;
-    use clvm_utils::ToTreeHash;
-    use clvmr::{serde::node_to_bytes, Allocator};
-    use hex_literal::hex;
+    use chia_puzzles::standard::StandardArgs;
+    use chia_sdk_test::{test_transaction, Simulator};
+    use clvmr::Allocator;
 
-    use crate::{puzzles::StandardSpend, spend_builder::P2Spend};
+    use crate::{
+        puzzles::{IssueCat, StandardSpend},
+        spend_builder::P2Spend,
+    };
 
     use super::*;
 
-    #[test]
-    fn test_cat_spend() -> anyhow::Result<()> {
-        let synthetic_key =
-            master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0).derive_synthetic();
+    #[tokio::test]
+    async fn test_cat_spend_multi() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let sk = sim.secret_key().await?;
+        let pk = sk.public_key();
+
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = sim.mint_coin(puzzle_hash, 6).await;
 
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let asset_id = Bytes32::new([42; 32]);
+        let (issue_cat, issuance) = IssueCat::new(coin.coin_id())
+            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
+            .create_hinted_coin(ctx, puzzle_hash, 2, puzzle_hash)?
+            .create_hinted_coin(ctx, puzzle_hash, 3, puzzle_hash)?
+            .single_issuance(ctx, 6)?;
 
-        let p2_puzzle_hash = CurriedProgram {
-            program: STANDARD_PUZZLE_HASH,
-            args: StandardArgs { synthetic_key },
-        }
-        .tree_hash();
+        StandardSpend::new()
+            .chain(issue_cat)
+            .finish(ctx, coin, pk)?;
 
-        let cat_puzzle_hash = CurriedProgram {
-            program: CAT_PUZZLE_HASH,
-            args: CatArgs {
-                mod_hash: CAT_PUZZLE_HASH.into(),
-                asset_id,
-                inner_puzzle: p2_puzzle_hash,
-            },
-        }
-        .tree_hash();
+        let cat_puzzle_hash =
+            CatArgs::curry_tree_hash(issuance.asset_id, puzzle_hash.into()).into();
 
-        let parent_coin = Coin::new(Bytes32::new([0; 32]), cat_puzzle_hash.into(), 69);
-        let coin = Coin::new(parent_coin.coin_id(), cat_puzzle_hash.into(), 42);
-
-        let inner_spend = StandardSpend::new()
-            .create_coin(ctx, coin.puzzle_hash, coin.amount)?
-            .inner_spend(ctx, synthetic_key)?;
-
-        let lineage_proof = LineageProof {
-            parent_parent_coin_id: parent_coin.parent_coin_info,
-            parent_inner_puzzle_hash: p2_puzzle_hash.into(),
-            parent_amount: parent_coin.amount,
-        };
-
-        CatSpend::new(asset_id)
-            .spend(coin, inner_spend, lineage_proof, 0)
+        CatSpend::new(issuance.asset_id)
+            .spend(
+                Coin::new(issuance.eve_coin.coin_id(), cat_puzzle_hash, 1),
+                StandardSpend::new()
+                    .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
+                    .inner_spend(ctx, pk)?,
+                issuance.lineage_proof,
+                0,
+            )
+            .spend(
+                Coin::new(issuance.eve_coin.coin_id(), cat_puzzle_hash, 2),
+                StandardSpend::new()
+                    .create_hinted_coin(ctx, puzzle_hash, 2, puzzle_hash)?
+                    .inner_spend(ctx, pk)?,
+                issuance.lineage_proof,
+                0,
+            )
+            .spend(
+                Coin::new(issuance.eve_coin.coin_id(), cat_puzzle_hash, 3),
+                StandardSpend::new()
+                    .create_hinted_coin(ctx, puzzle_hash, 3, puzzle_hash)?
+                    .inner_spend(ctx, pk)?,
+                issuance.lineage_proof,
+                0,
+            )
             .finish(ctx)?;
 
-        let coin_spend = ctx.take_spends().remove(0);
-
-        let output_ptr = coin_spend
-            .puzzle_reveal
-            .run(&mut allocator, 0, u64::MAX, &coin_spend.solution)?
-            .1;
-        let actual = node_to_bytes(&allocator, output_ptr)?;
-
-        let expected = hex!(
-            "
-            ffff46ffa06438c882c2db9f5c2a8b4cbda9258c40a6583b2d7c6becc1678607
-            4d558c834980ffff3cffa1cb9c4d253a0e1a091d620a55616e104f3329f58ee8
-            6e708d0527b1cc58a73b649e80ffff3dffa0c3bb7f0a7e1bd2cae332bbd0d1a7
-            e275c1e6c643b2659e22c24f513886d3874e80ffff32ffb08584adae5630842a
-            1766bc444d2b872dd3080f4e5daaecf6f762a4be7dc148f37868149d4217f3dc
-            c9183fe61e48d8bfffa0e5924c23faf33c9a1bf18c70d40cb09e4b194f521b9f
-            6fceb2685c0612ac34a980ffff33ffa0f9f2d59294f2aae8f9833db876d1bf43
-            95d46af18c17312041c6f4a4d73fa041ff2a8080
-            "
-        );
-        assert_eq!(hex::encode(actual), hex::encode(expected));
+        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
 
         Ok(())
     }
 
-    #[test]
-    fn test_cat_spend_multi() -> anyhow::Result<()> {
-        let synthetic_key =
-            master_to_wallet_unhardened(&SECRET_KEY.public_key(), 0).derive_synthetic();
+    #[tokio::test]
+    async fn test_cat_spend() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let sk = sim.secret_key().await?;
+        let pk = sk.public_key();
+
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = sim.mint_coin(puzzle_hash, 1).await;
 
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let asset_id = Bytes32::new([42; 32]);
+        let (issue_cat, issuance) = IssueCat::new(coin.coin_id())
+            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
+            .single_issuance(ctx, 1)?;
 
-        let p2_puzzle_hash = CurriedProgram {
-            program: STANDARD_PUZZLE_HASH,
-            args: StandardArgs { synthetic_key },
-        }
-        .tree_hash();
-
-        let cat_puzzle_hash = CurriedProgram {
-            program: CAT_PUZZLE_HASH,
-            args: CatArgs {
-                mod_hash: CAT_PUZZLE_HASH.into(),
-                asset_id,
-                inner_puzzle: p2_puzzle_hash,
-            },
-        }
-        .tree_hash()
-        .into();
-
-        let parent_coin_1 = Coin::new(Bytes32::new([0; 32]), cat_puzzle_hash, 69);
-        let coin_1 = Coin::new(parent_coin_1.coin_id(), cat_puzzle_hash, 42);
-
-        let parent_coin_2 = Coin::new(Bytes32::new([0; 32]), cat_puzzle_hash, 69);
-        let coin_2 = Coin::new(parent_coin_2.coin_id(), cat_puzzle_hash, 34);
-
-        let parent_coin_3 = Coin::new(Bytes32::new([0; 32]), cat_puzzle_hash, 69);
-        let coin_3 = Coin::new(parent_coin_3.coin_id(), cat_puzzle_hash, 69);
-
-        let lineage_1 = LineageProof {
-            parent_parent_coin_id: parent_coin_1.parent_coin_info,
-            parent_inner_puzzle_hash: p2_puzzle_hash.into(),
-            parent_amount: parent_coin_1.amount,
-        };
-
-        let lineage_2 = LineageProof {
-            parent_parent_coin_id: parent_coin_2.parent_coin_info,
-            parent_inner_puzzle_hash: p2_puzzle_hash.into(),
-            parent_amount: parent_coin_2.amount,
-        };
-
-        let lineage_3 = LineageProof {
-            parent_parent_coin_id: parent_coin_3.parent_coin_info,
-            parent_inner_puzzle_hash: p2_puzzle_hash.into(),
-            parent_amount: parent_coin_3.amount,
-        };
+        StandardSpend::new()
+            .chain(issue_cat)
+            .finish(ctx, coin, pk)?;
 
         let inner_spend = StandardSpend::new()
-            .create_coin(
-                ctx,
-                coin_1.puzzle_hash,
-                coin_1.amount + coin_2.amount + coin_3.amount,
-            )?
-            .inner_spend(ctx, synthetic_key)?;
+            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
+            .inner_spend(ctx, pk)?;
 
-        let empty_spend = StandardSpend::new().inner_spend(ctx, synthetic_key)?;
+        let cat_puzzle_hash =
+            CatArgs::curry_tree_hash(issuance.asset_id, puzzle_hash.into()).into();
+        let cat_coin = Coin::new(issuance.eve_coin.coin_id(), cat_puzzle_hash, 1);
 
-        CatSpend::new(asset_id)
-            .spend(coin_1, inner_spend, lineage_1, 0)
-            .spend(coin_2, empty_spend, lineage_2, 0)
-            .spend(coin_3, empty_spend, lineage_3, 0)
+        CatSpend::new(issuance.asset_id)
+            .spend(cat_coin, inner_spend, issuance.lineage_proof, 0)
             .finish(ctx)?;
 
-        let coin_spends = ctx.take_spends();
-
-        let spend_vec = coin_spends
-            .clone()
-            .into_iter()
-            .map(|coin_spend| {
-                (
-                    coin_spend.coin,
-                    coin_spend.puzzle_reveal,
-                    coin_spend.solution,
-                )
-            })
-            .collect::<Vec<_>>();
-        let gen = solution_generator(spend_vec).unwrap();
-        let block =
-            run_block_generator::<Program, EmptyVisitor>(&mut allocator, &gen, &[], u64::MAX, 0)
-                .unwrap();
-
-        assert_eq!(block.cost, 101289468);
-
-        assert_eq!(coin_spends.len(), 3);
-
-        let output_ptr_1 = coin_spends[0]
-            .puzzle_reveal
-            .run(&mut allocator, 0, u64::MAX, &coin_spends[0].solution)
-            .unwrap()
-            .1;
-        let actual = node_to_bytes(&allocator, output_ptr_1).unwrap();
-
-        let expected = hex!(
-            "
-            ffff46ffa06438c882c2db9f5c2a8b4cbda9258c40a6583b2d7c6becc1678607
-            4d558c834980ffff3cffa1cb1cb6597fe61e67a6cbbcd4e8f0bda5e9fc56cd84
-            c9e9502772b410dc8a03207680ffff3dffa0742ddb368882193072ea013bde24
-            4a5c9d40ab4454c09666e84777a79307e17a80ffff32ffb08584adae5630842a
-            1766bc444d2b872dd3080f4e5daaecf6f762a4be7dc148f37868149d4217f3dc
-            c9183fe61e48d8bfffa004c476adfcffeacfef7c979bdd03b4641f1870d3f81b
-            20636eefbcf879bb64ec80ffff33ffa0f9f2d59294f2aae8f9833db876d1bf43
-            95d46af18c17312041c6f4a4d73fa041ff8200918080
-            "
-        );
-        assert_eq!(hex::encode(actual), hex::encode(expected));
-
-        let output_ptr_2 = coin_spends[1]
-            .puzzle_reveal
-            .run(&mut allocator, 0, u64::MAX, &coin_spends[1].solution)
-            .unwrap()
-            .1;
-        let actual = node_to_bytes(&allocator, output_ptr_2).unwrap();
-
-        let expected = hex!(
-            "
-            ffff46ffa0ae60b8db0664959078a1c6e51ca6a8fc55207c63a8ac74d026f1d9
-            15c406bac480ffff3cffa1cb9a41843ab318a8336f61a6bf9e8b0b1d555b9f07
-            cd19582e0bc52a961c65dc9e80ffff3dffa0294cda8d35164e01c4e3b7c07c36
-            a5bb2f38a23e93ef49c882ee74349a0df8bd80ffff32ffb08584adae5630842a
-            1766bc444d2b872dd3080f4e5daaecf6f762a4be7dc148f37868149d4217f3dc
-            c9183fe61e48d8bfffa0ba4484b961b7a2369d948d06c55b64bdbfaffb326bc1
-            3b490ab1215dd33d8d468080
-            "
-        );
-        assert_eq!(hex::encode(actual), hex::encode(expected));
-
-        let output_ptr_3 = coin_spends[2]
-            .puzzle_reveal
-            .run(&mut allocator, 0, u64::MAX, &coin_spends[2].solution)
-            .unwrap()
-            .1;
-        let actual = node_to_bytes(&allocator, output_ptr_3).unwrap();
-
-        let expected = hex!(
-            "
-            ffff46ffa0f8eacbef2bad0c7b27b638a90a37244e75013e977f250230856d05
-            a2784e1d0980ffff3cffa1cb17c47c5fa8d795efa0d9227d2066cde36dd4e845
-            7e8f4e507d2015a1c7f3d94b80ffff3dffa0629abc502829339c7880ee003c4e
-            68a8181d71206e50e7b36c29301ef60128f580ffff32ffb08584adae5630842a
-            1766bc444d2b872dd3080f4e5daaecf6f762a4be7dc148f37868149d4217f3dc
-            c9183fe61e48d8bfffa0ba4484b961b7a2369d948d06c55b64bdbfaffb326bc1
-            3b490ab1215dd33d8d468080
-            "
-        );
-        assert_eq!(hex::encode(actual), hex::encode(expected));
+        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
 
         Ok(())
     }

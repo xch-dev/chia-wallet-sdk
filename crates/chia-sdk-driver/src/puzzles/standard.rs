@@ -69,22 +69,30 @@ impl P2Spend for StandardSpend {
 
 #[cfg(test)]
 mod tests {
-    use chia_sdk_test::TestWallet;
+    use chia_sdk_test::{test_transaction, Simulator};
     use clvmr::Allocator;
 
     use super::*;
 
     #[tokio::test]
     async fn test_standard_spend() -> anyhow::Result<()> {
-        let mut wallet = TestWallet::new(1).await;
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let sk = sim.secret_key().await?;
+        let pk = sk.public_key();
+
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = sim.mint_coin(puzzle_hash, 1).await;
+
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
         StandardSpend::new()
-            .create_coin(ctx, wallet.puzzle_hash, 1)?
-            .finish(ctx, wallet.coin, wallet.pk)?;
+            .create_coin(ctx, puzzle_hash, 1)?
+            .finish(ctx, coin, pk)?;
 
-        wallet.submit(ctx.take_spends()).await?;
+        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
 
         Ok(())
     }

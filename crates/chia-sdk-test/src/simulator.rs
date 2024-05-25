@@ -258,7 +258,7 @@ mod tests {
 
         let coin = sim.mint_coin(puzzle_hash, 0).await;
 
-        let ack = test_transaction(
+        test_transaction(
             &peer,
             vec![CoinSpend::new(
                 coin,
@@ -270,8 +270,7 @@ mod tests {
             )],
             &[sk],
         )
-        .await?;
-        assert_eq!(ack.status, 1);
+        .await;
 
         Ok(())
     }
@@ -291,7 +290,7 @@ mod tests {
 
         let coin = sim.mint_coin(puzzle_hash, 0).await;
 
-        let ack = test_transaction(
+        test_transaction(
             &peer,
             vec![CoinSpend::new(
                 coin,
@@ -309,8 +308,7 @@ mod tests {
             )],
             &[sk1, sk2],
         )
-        .await?;
-        assert_eq!(ack.status, 1);
+        .await;
 
         Ok(())
     }
