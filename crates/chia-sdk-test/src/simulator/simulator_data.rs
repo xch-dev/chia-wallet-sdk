@@ -108,6 +108,13 @@ impl SimulatorData {
         spend_bundle: SpendBundle,
         max_cost: u64,
     ) -> Result<IndexMap<SocketAddr, IndexSet<CoinState>>, SimulatorError> {
+        if spend_bundle.coin_spends.is_empty() {
+            return Err(SimulatorError::Validation(ValidationErr(
+                NodePtr::NIL,
+                ErrorCode::InvalidSpendBundle,
+            )));
+        }
+
         let mut allocator = Allocator::new();
 
         let generator = solution_generator(
