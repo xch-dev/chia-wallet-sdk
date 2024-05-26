@@ -9,25 +9,25 @@ homepage = "https://github.com/Rigidity/chia-wallet-sdk"
 repository = "https://github.com/Rigidity/chia-wallet-sdk"
 
 [dependencies]
-chia-bls.workspace = true
-chia-client.workspace = true
-chia-consensus.workspace = true
-chia-protocol.workspace = true
-chia-traits.workspace = true
-clvm-utils.workspace = true
-clvm-traits.workspace = true
-clvmr.workspace = true
+chia-bls = { workspace = true }
+chia-client = { workspace = true }
+chia-consensus = { workspace = true }
+chia-protocol = { workspace = true }
+chia-traits = { workspace = true }
+clvm-utils = { workspace = true }
+clvm-traits = { workspace = true }
+clvmr = { workspace = true }
 futures-channel = { workspace = true, features = ["sink"] }
-futures-util.workspace = true
-indexmap.workspace = true
-thiserror.workspace = true
-log.workspace = true
-rand.workspace = true
-rand_chacha.workspace = true
-bip39.workspace = true
-anyhow.workspace = true
-hex-literal.workspace = true
+futures-util = { workspace = true }
+indexmap = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+bip39 = { workspace = true }
+anyhow = { workspace = true }
+hex-literal = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-tokio-tungstenite.workspace = true
-chia-sdk-types.workspace = true
-chia-sdk-signer.workspace = true
+tokio-tungstenite = { workspace = true }
+chia-sdk-types = { workspace = true }
+chia-sdk-signer = { workspace = true }

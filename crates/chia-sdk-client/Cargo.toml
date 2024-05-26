@@ -9,8 +9,8 @@ homepage = "https://github.com/Rigidity/chia-wallet-sdk"
 repository = "https://github.com/Rigidity/chia-wallet-sdk"
 
 [dependencies]
-chia-client.workspace = true
-chia-ssl.workspace = true
-tokio-tungstenite.workspace = true
-native-tls.workspace = true
-thiserror.workspace = true
+chia-client = { workspace = true }
+chia-ssl = { workspace = true }
+tokio-tungstenite = { workspace = true }
+native-tls = { workspace = true }
+thiserror = { workspace = true }

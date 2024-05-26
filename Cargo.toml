@@ -13,20 +13,20 @@ members = ["crates/*"]
 resolver = "2"
 
 [dependencies]
-thiserror.workspace = true
-chia-protocol.workspace = true
-hex.workspace = true
-bech32.workspace = true
-rand.workspace = true
-rand_chacha.workspace = true
-hex-literal.workspace = true
-indexmap.workspace = true
-chia-sdk-client.workspace = true
-chia-sdk-driver.workspace = true
-chia-sdk-parser.workspace = true
-chia-sdk-signer.workspace = true
-chia-sdk-test.workspace = true
-chia-sdk-types.workspace = true
+thiserror = { workspace = true }
+chia-protocol = { workspace = true }
+hex = { workspace = true }
+bech32 = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+hex-literal = { workspace = true }
+indexmap = { workspace = true }
+chia-sdk-client = { workspace = true }
+chia-sdk-driver = { workspace = true }
+chia-sdk-parser = { workspace = true }
+chia-sdk-signer = { workspace = true }
+chia-sdk-test = { workspace = true }
+chia-sdk-types = { workspace = true }
 
 [workspace.dependencies]
 chia-sdk-client = { version = "0.8.0", path = "./crates/chia-sdk-client" }

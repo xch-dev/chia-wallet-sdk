@@ -9,20 +9,20 @@ homepage = "https://github.com/Rigidity/chia-wallet-sdk"
 repository = "https://github.com/Rigidity/chia-wallet-sdk"
 
 [dependencies]
-chia-bls.workspace = true
-chia-protocol.workspace = true
-chia-puzzles.workspace = true
-chia-traits.workspace = true
-clvm-traits.workspace = true
-clvm-utils.workspace = true
-clvmr.workspace = true
-thiserror.workspace = true
-chia-sdk-types.workspace = true
-chia-sdk-test.workspace = true
+chia-bls = { workspace = true }
+chia-protocol = { workspace = true }
+chia-puzzles = { workspace = true }
+chia-traits = { workspace = true }
+clvm-traits = { workspace = true }
+clvm-utils = { workspace = true }
+clvmr = { workspace = true }
+thiserror = { workspace = true }
+chia-sdk-types = { workspace = true }
+chia-sdk-test = { workspace = true }
 
 [dev-dependencies]
-anyhow.workspace = true
-chia-consensus.workspace = true
-hex.workspace = true
-hex-literal.workspace = true
+anyhow = { workspace = true }
+chia-consensus = { workspace = true }
+hex = { workspace = true }
+hex-literal = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
