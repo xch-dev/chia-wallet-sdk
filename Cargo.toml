@@ -52,7 +52,6 @@ too_many_lines = "allow"
 missing_errors_doc = "allow"
 module_name_repetitions = "allow"
 multiple_crate_versions = "allow"
-# cargo_common_metadata = "allow" # This is a false positive
 
 [dependencies]
 thiserror = { workspace = true }
