@@ -1,7 +1,12 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use chia_consensus::gen::validation_error::{ErrorCode, ValidationErr};
-use chia_protocol::*;
+use chia_protocol::{
+    Bytes, Bytes32, CoinState, CoinStateUpdate, Message, NewPeakWallet, ProtocolMessageTypes,
+    RegisterForCoinUpdates, RegisterForPhUpdates, RejectPuzzleSolution, RequestChildren,
+    RequestPuzzleSolution, RespondChildren, RespondPuzzleSolution, RespondToCoinUpdates,
+    RespondToPhUpdates, SendTransaction, TransactionAck,
+};
 use chia_traits::Streamable;
 use clvmr::NodePtr;
 use futures_channel::mpsc;
@@ -17,7 +22,7 @@ use super::{
     peer_map::Ws, simulator_data::SimulatorData, simulator_error::SimulatorError, PeerMap,
 };
 
-pub async fn ws_connection(
+pub(crate) async fn ws_connection(
     peer_map: PeerMap,
     ws: WebSocketStream<TcpStream>,
     addr: SocketAddr,
@@ -75,22 +80,22 @@ async fn handle_message(
         }
         ProtocolMessageTypes::RegisterForCoinUpdates => {
             let request = RegisterForCoinUpdates::from_bytes(&request.data)?;
-            let response = register_for_coin_updates(addr, request, data).await?;
+            let response = register_for_coin_updates(addr, request, data)?;
             (ProtocolMessageTypes::RespondToCoinUpdates, response)
         }
         ProtocolMessageTypes::RegisterForPhUpdates => {
             let request = RegisterForPhUpdates::from_bytes(&request.data)?;
-            let response = register_for_ph_updates(addr, request, data).await?;
+            let response = register_for_ph_updates(addr, request, data)?;
             (ProtocolMessageTypes::RespondToPhUpdates, response)
         }
         ProtocolMessageTypes::RequestPuzzleSolution => {
             let request = RequestPuzzleSolution::from_bytes(&request.data)?;
-            let response = request_puzzle_solution(request, data).await?;
+            let response = request_puzzle_solution(&request, &data)?;
             (ProtocolMessageTypes::RespondPuzzleSolution, response)
         }
         ProtocolMessageTypes::RequestChildren => {
             let request = RequestChildren::from_bytes(&request.data)?;
-            let response = request_children(request, data).await?;
+            let response = request_children(&request, &data)?;
             (ProtocolMessageTypes::RespondChildren, response)
         }
         message_type => {
@@ -130,7 +135,7 @@ async fn send_transaction(
             return Ok(TransactionAck::new(
                 transaction_id,
                 3,
-                Some(format!("{:?}", validation_error)),
+                Some(format!("{validation_error:?}")),
             )
             .to_bytes()?
             .into());
@@ -180,7 +185,7 @@ async fn send_transaction(
         .into())
 }
 
-async fn register_for_coin_updates(
+fn register_for_coin_updates(
     peer: SocketAddr,
     request: RegisterForCoinUpdates,
     mut data: MutexGuard<'_, SimulatorData>,
@@ -188,7 +193,7 @@ async fn register_for_coin_updates(
     let coin_ids: IndexSet<Bytes32> = request.coin_ids.iter().copied().collect();
 
     let coin_states: Vec<CoinState> = data
-        .lookup_coin_ids(coin_ids.clone())
+        .lookup_coin_ids(&coin_ids)
         .into_iter()
         .filter(|cs| {
             let created_height = cs.created_height.unwrap_or(0);
@@ -209,7 +214,7 @@ async fn register_for_coin_updates(
     .into())
 }
 
-async fn register_for_ph_updates(
+fn register_for_ph_updates(
     peer: SocketAddr,
     request: RegisterForPhUpdates,
     mut data: MutexGuard<'_, SimulatorData>,
@@ -238,9 +243,9 @@ async fn register_for_ph_updates(
     .into())
 }
 
-async fn request_puzzle_solution(
-    request: RequestPuzzleSolution,
-    data: MutexGuard<'_, SimulatorData>,
+fn request_puzzle_solution(
+    request: &RequestPuzzleSolution,
+    data: &MutexGuard<'_, SimulatorData>,
 ) -> Result<Bytes, SimulatorError> {
     let reject = RejectPuzzleSolution {
         coin_name: request.coin_name,
@@ -262,9 +267,9 @@ async fn request_puzzle_solution(
         .into())
 }
 
-async fn request_children(
-    request: RequestChildren,
-    data: MutexGuard<'_, SimulatorData>,
+fn request_children(
+    request: &RequestChildren,
+    data: &MutexGuard<'_, SimulatorData>,
 ) -> Result<Bytes, SimulatorError> {
     Ok(RespondChildren::new(data.children(request.coin_name))
         .to_bytes()?

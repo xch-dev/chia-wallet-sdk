@@ -11,7 +11,7 @@ use clvm_utils::CurriedProgram;
 use crate::{spend_builder::InnerSpend, SpendContext, SpendError};
 
 pub fn spend_singleton(
-    ctx: &mut SpendContext,
+    ctx: &mut SpendContext<'_>,
     coin: Coin,
     launcher_id: Bytes32,
     lineage_proof: Proof,
@@ -19,7 +19,7 @@ pub fn spend_singleton(
 ) -> Result<CoinSpend, SpendError> {
     let singleton_puzzle = ctx.singleton_top_layer()?;
 
-    let puzzle_reveal = ctx.serialize(CurriedProgram {
+    let puzzle_reveal = ctx.serialize(&CurriedProgram {
         program: singleton_puzzle,
         args: SingletonArgs {
             singleton_struct: SingletonStruct {
@@ -31,7 +31,7 @@ pub fn spend_singleton(
         },
     })?;
 
-    let solution = ctx.serialize(SingletonSolution {
+    let solution = ctx.serialize(&SingletonSolution {
         lineage_proof,
         amount: coin.amount,
         inner_solution: inner_spend.solution(),

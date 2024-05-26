@@ -16,18 +16,22 @@ use crate::{
     SpendContext, SpendError,
 };
 
+#[derive(Debug, Clone, Copy)]
 pub struct NoDidOutput;
 
+#[derive(Debug, Clone, Copy)]
 pub enum DidOutput {
     Recreate,
 }
 
+#[derive(Debug, Clone)]
 pub struct StandardDidSpend<T> {
     standard_spend: StandardSpend,
     output: T,
 }
 
 impl<T> StandardDidSpend<T> {
+    #[must_use]
     pub fn chain(mut self, chained: ParentConditions) -> Self {
         self.standard_spend = self.standard_spend.chain(chained);
         self
@@ -51,10 +55,12 @@ impl Default for StandardDidSpend<NoDidOutput> {
 }
 
 impl StandardDidSpend<NoDidOutput> {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use]
     pub fn recreate(self) -> StandardDidSpend<DidOutput> {
         StandardDidSpend {
             standard_spend: self.standard_spend,
@@ -66,7 +72,7 @@ impl StandardDidSpend<NoDidOutput> {
 impl StandardDidSpend<DidOutput> {
     pub fn finish<M>(
         self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         synthetic_key: PublicKey,
         mut did_info: DidInfo<M>,
     ) -> Result<DidInfo<M>, SpendError>
@@ -108,7 +114,7 @@ impl StandardDidSpend<DidOutput> {
 }
 
 pub fn raw_did_spend<M>(
-    ctx: &mut SpendContext,
+    ctx: &mut SpendContext<'_>,
     did_info: &DidInfo<M>,
     inner_spend: InnerSpend,
 ) -> Result<CoinSpend, SpendError>
@@ -117,7 +123,7 @@ where
 {
     let did_inner_puzzle = ctx.did_inner_puzzle()?;
 
-    let puzzle = ctx.alloc(CurriedProgram {
+    let puzzle = ctx.alloc(&CurriedProgram {
         program: did_inner_puzzle,
         args: DidArgs {
             inner_puzzle: inner_spend.puzzle(),
@@ -132,7 +138,7 @@ where
         },
     })?;
 
-    let solution = ctx.alloc(DidSolution::InnerSpend(inner_spend.solution()))?;
+    let solution = ctx.alloc(&DidSolution::InnerSpend(inner_spend.solution()))?;
 
     let did_spend = InnerSpend::new(puzzle, solution);
 

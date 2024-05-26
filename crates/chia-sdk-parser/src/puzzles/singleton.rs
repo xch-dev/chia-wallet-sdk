@@ -1,3 +1,5 @@
+#![allow(clippy::missing_const_for_fn)]
+
 use chia_protocol::Bytes32;
 use chia_puzzles::singleton::{
     SingletonArgs, SingletonSolution, SINGLETON_LAUNCHER_PUZZLE_HASH,
@@ -9,6 +11,7 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{ParseContext, ParseError};
 
+#[derive(Debug, Clone, Copy)]
 pub struct ParseSingleton {
     args: SingletonArgs<NodePtr>,
     solution: SingletonSolution<NodePtr>,
@@ -18,29 +21,34 @@ pub struct ParseSingleton {
 }
 
 impl ParseSingleton {
+    #[must_use]
     pub fn args(&self) -> &SingletonArgs<NodePtr> {
         &self.args
     }
 
+    #[must_use]
     pub fn solution(&self) -> &SingletonSolution<NodePtr> {
         &self.solution
     }
 
+    #[must_use]
     pub fn inner_mod_hash(&self) -> Bytes32 {
         self.inner_mod_hash
     }
 
+    #[must_use]
     pub fn inner_args(&self) -> NodePtr {
         self.inner_args
     }
 
+    #[must_use]
     pub fn inner_solution(&self) -> NodePtr {
         self.inner_solution
     }
 }
 
 pub fn parse_singleton(
-    allocator: &mut Allocator,
+    allocator: &Allocator,
     ctx: &ParseContext,
 ) -> Result<Option<ParseSingleton>, ParseError> {
     if ctx.mod_hash().to_bytes() != SINGLETON_TOP_LAYER_PUZZLE_HASH.to_bytes() {

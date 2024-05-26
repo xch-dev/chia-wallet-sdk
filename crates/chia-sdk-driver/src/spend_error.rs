@@ -1,3 +1,5 @@
+use std::num::TryFromIntError;
+
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
 use thiserror::Error;
@@ -20,4 +22,8 @@ pub enum SpendError {
     /// An error occurred while reading or writing data.
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+
+    /// An error occurred while casting an integer.
+    #[error("failed to cast integer: {0}")]
+    FromInt(#[from] TryFromIntError),
 }

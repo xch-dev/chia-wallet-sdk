@@ -4,22 +4,22 @@ use futures_channel::mpsc::UnboundedSender;
 use tokio::sync::Mutex;
 use tokio_tungstenite::tungstenite::Message;
 
-pub type Ws = UnboundedSender<Message>;
+pub(crate) type Ws = UnboundedSender<Message>;
 type Peers = HashMap<SocketAddr, Ws>;
 
 #[derive(Default, Clone)]
-pub struct PeerMap(Arc<Mutex<Peers>>);
+pub(crate) struct PeerMap(Arc<Mutex<Peers>>);
 
 impl PeerMap {
-    pub async fn insert(&self, addr: SocketAddr, ws: Ws) {
+    pub(crate) async fn insert(&self, addr: SocketAddr, ws: Ws) {
         self.0.lock().await.insert(addr, ws);
     }
 
-    pub async fn remove(&self, addr: SocketAddr) {
+    pub(crate) async fn remove(&self, addr: SocketAddr) {
         self.0.lock().await.remove(&addr);
     }
 
-    pub async fn peers(&self) -> Vec<(SocketAddr, Ws)> {
+    pub(crate) async fn peers(&self) -> Vec<(SocketAddr, Ws)> {
         self.0
             .lock()
             .await

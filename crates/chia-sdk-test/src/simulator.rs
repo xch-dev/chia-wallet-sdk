@@ -19,6 +19,7 @@ mod simulator_data;
 mod simulator_error;
 mod ws_connection;
 
+#[derive(Debug)]
 pub struct Simulator {
     rng: Mutex<ChaCha8Rng>,
     addr: SocketAddr,
@@ -37,7 +38,7 @@ impl Simulator {
         let addr = "127.0.0.1:0";
         let peer_map = PeerMap::default();
         let listener = TcpListener::bind(addr).await?;
-        let addr = listener.local_addr().unwrap();
+        let addr = listener.local_addr()?;
         let data = Arc::new(Mutex::new(SimulatorData::default()));
 
         let data_clone = data.clone();

@@ -1,3 +1,5 @@
+#![allow(clippy::missing_const_for_fn)]
+
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
     nft::{NftIntermediateLauncherArgs, NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH},
@@ -16,6 +18,7 @@ use crate::{
 
 use super::SpendableLauncher;
 
+#[derive(Debug, Clone, Copy)]
 pub struct IntermediateLauncher {
     mint_number: usize,
     mint_total: usize,
@@ -24,6 +27,7 @@ pub struct IntermediateLauncher {
 }
 
 impl IntermediateLauncher {
+    #[must_use]
     pub fn new(parent_coin_id: Bytes32, mint_number: usize, mint_total: usize) -> Self {
         let intermediate_puzzle_hash = CurriedProgram {
             program: NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH,
@@ -52,20 +56,22 @@ impl IntermediateLauncher {
         }
     }
 
+    #[must_use]
     pub fn intermediate_coin(&self) -> Coin {
         self.intermediate_coin
     }
 
+    #[must_use]
     pub fn launcher_coin(&self) -> Coin {
         self.launcher_coin
     }
 
-    pub fn create(self, ctx: &mut SpendContext) -> Result<SpendableLauncher, SpendError> {
+    pub fn create(self, ctx: &mut SpendContext<'_>) -> Result<SpendableLauncher, SpendError> {
         let mut parent = ParentConditions::new();
 
         let intermediate_puzzle = ctx.nft_intermediate_launcher()?;
 
-        let puzzle = ctx.alloc(CurriedProgram {
+        let puzzle = ctx.alloc(&CurriedProgram {
             program: intermediate_puzzle,
             args: NftIntermediateLauncherArgs {
                 launcher_puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
@@ -76,8 +82,8 @@ impl IntermediateLauncher {
 
         parent = parent.create_coin(ctx, self.intermediate_coin.puzzle_hash, 0)?;
 
-        let puzzle_reveal = ctx.serialize(puzzle)?;
-        let solution = ctx.serialize(())?;
+        let puzzle_reveal = ctx.serialize(&puzzle)?;
+        let solution = ctx.serialize(&())?;
 
         ctx.spend(CoinSpend::new(
             self.intermediate_coin,

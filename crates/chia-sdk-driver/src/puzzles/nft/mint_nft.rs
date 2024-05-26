@@ -37,7 +37,7 @@ pub struct StandardMint<M> {
 pub trait MintNft {
     fn mint_eve_nft<M>(
         self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         inner_puzzle_hash: Bytes32,
         metadata: M,
         royalty_puzzle_hash: Bytes32,
@@ -48,7 +48,7 @@ pub trait MintNft {
 
     fn mint_standard_nft<M>(
         self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         mint: StandardMint<M>,
     ) -> Result<(ParentConditions, NftInfo<M>), SpendError>
     where
@@ -86,7 +86,7 @@ pub trait MintNft {
 impl MintNft for SpendableLauncher {
     fn mint_eve_nft<M>(
         self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         p2_puzzle_hash: Bytes32,
         metadata: M,
         royalty_puzzle_hash: Bytes32,

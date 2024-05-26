@@ -12,7 +12,10 @@ use chia_puzzles::{
     },
     LineageProof, Proof,
 };
-use chia_sdk_types::{conditions::*, puzzles::NftInfo};
+use chia_sdk_types::{
+    conditions::{AssertPuzzleAnnouncement, NewNftOwner},
+    puzzles::NftInfo,
+};
 use clvm_traits::{clvm_list, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{
@@ -26,13 +29,16 @@ use crate::{
     SpendContext, SpendError,
 };
 
+#[derive(Debug, Clone, Copy)]
 pub struct NoNftOutput;
 
+#[derive(Debug, Clone, Copy)]
 pub enum NftOutput {
     SamePuzzleHash,
     NewPuzzleHash { puzzle_hash: Bytes32 },
 }
 
+#[derive(Debug, Clone)]
 pub struct StandardNftSpend<T> {
     standard_spend: StandardSpend,
     output: T,
@@ -50,10 +56,12 @@ impl Default for StandardNftSpend<NoNftOutput> {
 }
 
 impl StandardNftSpend<NoNftOutput> {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use]
     pub fn update(self) -> StandardNftSpend<NftOutput> {
         StandardNftSpend {
             standard_spend: self.standard_spend,
@@ -62,6 +70,7 @@ impl StandardNftSpend<NoNftOutput> {
         }
     }
 
+    #[must_use]
     pub fn transfer(self, puzzle_hash: Bytes32) -> StandardNftSpend<NftOutput> {
         StandardNftSpend {
             standard_spend: self.standard_spend,
@@ -72,6 +81,7 @@ impl StandardNftSpend<NoNftOutput> {
 }
 
 impl<T> StandardNftSpend<T> {
+    #[must_use]
     pub fn new_owner(mut self, did_id: Bytes32, did_inner_puzzle_hash: Bytes32) -> Self {
         self.new_owner = Some(NewNftOwner {
             new_owner: Some(did_id),
@@ -81,6 +91,7 @@ impl<T> StandardNftSpend<T> {
         self
     }
 
+    #[must_use]
     pub fn chain(mut self, chained: ParentConditions) -> Self {
         self.standard_spend = self.standard_spend.chain(chained);
         self
@@ -97,7 +108,7 @@ impl<T> P2Spend for StandardNftSpend<T> {
 impl StandardNftSpend<NftOutput> {
     pub fn finish<M>(
         mut self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         synthetic_key: PublicKey,
         mut nft_info: NftInfo<M>,
     ) -> Result<(ParentConditions, NftInfo<M>), SpendError>
@@ -114,7 +125,7 @@ impl StandardNftSpend<NftOutput> {
         if let Some(new_owner) = &self.new_owner {
             self.standard_spend = self.standard_spend.raw_condition(ctx.alloc(new_owner)?);
 
-            let new_nft_owner_args = ctx.alloc(clvm_list!(
+            let new_nft_owner_args = ctx.alloc(&clvm_list!(
                 new_owner.new_owner,
                 new_owner.trade_prices_list.clone(),
                 new_owner.new_did_p2_puzzle_hash
@@ -125,7 +136,7 @@ impl StandardNftSpend<NftOutput> {
             announcement_id.update([0xad, 0x4c]);
             announcement_id.update(ctx.tree_hash(new_nft_owner_args));
 
-            parent = parent.raw_condition(ctx.alloc(AssertPuzzleAnnouncement {
+            parent = parent.raw_condition(ctx.alloc(&AssertPuzzleAnnouncement {
                 announcement_id: Bytes32::new(announcement_id.finalize().into()),
             })?);
         }
@@ -140,8 +151,7 @@ impl StandardNftSpend<NftOutput> {
 
         nft_info.current_owner = self
             .new_owner
-            .map(|value| value.new_owner)
-            .unwrap_or(nft_info.current_owner);
+            .map_or(nft_info.current_owner, |value| value.new_owner);
 
         let metadata_ptr = ctx.alloc(&nft_info.metadata)?;
 
@@ -205,7 +215,7 @@ impl StandardNftSpend<NftOutput> {
 }
 
 pub fn raw_nft_spend<M>(
-    ctx: &mut SpendContext,
+    ctx: &mut SpendContext<'_>,
     nft_info: &NftInfo<M>,
     inner_spend: InnerSpend,
 ) -> Result<CoinSpend, SpendError>
@@ -247,7 +257,7 @@ where
 }
 
 pub fn spend_nft_state_layer<M>(
-    ctx: &mut SpendContext,
+    ctx: &mut SpendContext<'_>,
     metadata: M,
     metadata_updater_puzzle_hash: Bytes32,
     inner_spend: InnerSpend,
@@ -257,7 +267,7 @@ where
 {
     let nft_state_layer = ctx.nft_state_layer()?;
 
-    let puzzle = ctx.alloc(CurriedProgram {
+    let puzzle = ctx.alloc(&CurriedProgram {
         program: nft_state_layer,
         args: NftStateLayerArgs {
             mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
@@ -267,7 +277,7 @@ where
         },
     })?;
 
-    let solution = ctx.alloc(NftStateLayerSolution {
+    let solution = ctx.alloc(&NftStateLayerSolution {
         inner_solution: inner_spend.solution(),
     })?;
 
@@ -275,7 +285,7 @@ where
 }
 
 pub fn spend_nft_ownership_layer<P>(
-    ctx: &mut SpendContext,
+    ctx: &mut SpendContext<'_>,
     current_owner: Option<Bytes32>,
     transfer_program: P,
     inner_spend: InnerSpend,
@@ -285,7 +295,7 @@ where
 {
     let nft_ownership_layer = ctx.nft_ownership_layer()?;
 
-    let puzzle = ctx.alloc(CurriedProgram {
+    let puzzle = ctx.alloc(&CurriedProgram {
         program: nft_ownership_layer,
         args: NftOwnershipLayerArgs {
             mod_hash: NFT_OWNERSHIP_LAYER_PUZZLE_HASH.into(),
@@ -295,7 +305,7 @@ where
         },
     })?;
 
-    let solution = ctx.alloc(NftOwnershipLayerSolution {
+    let solution = ctx.alloc(&NftOwnershipLayerSolution {
         inner_solution: inner_spend.solution(),
     })?;
 
