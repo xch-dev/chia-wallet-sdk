@@ -13,7 +13,6 @@ chia-bls.workspace = true
 chia-client.workspace = true
 chia-consensus.workspace = true
 chia-protocol.workspace = true
-chia-puzzles.workspace = true
 chia-traits.workspace = true
 clvm-utils.workspace = true
 clvm-traits.workspace = true
@@ -21,11 +20,13 @@ clvmr.workspace = true
 futures-channel = { workspace = true, features = ["sink"] }
 futures-util.workspace = true
 indexmap.workspace = true
+thiserror.workspace = true
+log.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
+bip39.workspace = true
 anyhow.workspace = true
 hex-literal.workspace = true
-once_cell.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-tungstenite.workspace = true
 chia-sdk-types.workspace = true

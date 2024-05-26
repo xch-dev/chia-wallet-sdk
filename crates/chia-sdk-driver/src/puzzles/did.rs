@@ -13,32 +13,40 @@ mod tests {
 
     use super::*;
 
-    use chia_sdk_test::TestWallet;
+    use chia_puzzles::standard::StandardArgs;
+    use chia_sdk_test::{test_transaction, Simulator};
     use clvmr::Allocator;
 
     #[tokio::test]
     async fn test_create_did() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let sk = sim.secret_key().await?;
+        let pk = sk.public_key();
+
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = sim.mint_coin(puzzle_hash, 1).await;
+
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
-        let mut wallet = TestWallet::new(1).await;
 
-        let (launch_singleton, _did_info) = Launcher::new(wallet.coin.coin_id(), 1)
+        let (launch_singleton, did_info) = Launcher::new(coin.coin_id(), 1)
             .create(ctx)?
-            .create_standard_did(ctx, wallet.pk)?;
+            .create_standard_did(ctx, pk)?;
 
         StandardSpend::new()
             .chain(launch_singleton)
-            .finish(ctx, wallet.coin, wallet.pk)?;
+            .finish(ctx, coin, pk)?;
 
-        wallet.submit(ctx.take_spends()).await?;
+        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
 
         // Make sure the DID was created.
-        let found_coins = wallet
-            .peer
-            .register_for_ph_updates(vec![wallet.puzzle_hash], 0)
+        let coin_state = sim
+            .coin_state(did_info.coin.coin_id())
             .await
-            .unwrap();
-        assert_eq!(found_coins.len(), 2);
+            .expect("expected did coin");
+        assert_eq!(coin_state.coin, did_info.coin);
 
         Ok(())
     }

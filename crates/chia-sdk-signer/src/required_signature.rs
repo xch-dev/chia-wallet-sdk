@@ -1,28 +1,15 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_sdk_types::conditions::{AggSig, AggSigKind};
-use clvm_traits::{FromClvm, FromClvmError};
+use clvm_traits::FromClvm;
 use clvmr::{
     allocator::NodePtr,
-    reduction::EvalErr,
     sha2::{Digest, Sha256},
     Allocator,
 };
-use thiserror::Error;
 
-/// An error that occurs while trying to sign a coin spend.
-#[derive(Debug, Error)]
-pub enum ConditionError {
-    /// An error that occurs while trying to calculate the conditions.
-    #[error("{0:?}")]
-    Eval(#[from] EvalErr),
+use crate::SignError;
 
-    /// An error that occurs while attempting to parse the conditions.
-    #[error("{0}")]
-    Clvm(#[from] FromClvmError),
-}
-
-/// Information about how to sign an AggSig condition.
 #[derive(Debug, Clone)]
 pub struct RequiredSignature {
     public_key: PublicKey,
@@ -104,7 +91,7 @@ impl RequiredSignature {
         allocator: &mut Allocator,
         coin_spend: &CoinSpend,
         agg_sig_me: Bytes32,
-    ) -> Result<Vec<Self>, ConditionError> {
+    ) -> Result<Vec<Self>, SignError> {
         let output = coin_spend
             .puzzle_reveal
             .run(allocator, 0, u64::MAX, &coin_spend.solution)?
@@ -116,6 +103,11 @@ impl RequiredSignature {
             let Ok(agg_sig) = AggSig::from_clvm(allocator, condition) else {
                 continue;
             };
+
+            if agg_sig.public_key.is_inf() {
+                return Err(SignError::InfinityPublicKey);
+            }
+
             result.push(Self::from_condition(&coin_spend.coin, agg_sig, agg_sig_me));
         }
 
@@ -129,7 +121,7 @@ impl RequiredSignature {
         allocator: &mut Allocator,
         coin_spends: &[CoinSpend],
         agg_sig_me: Bytes32,
-    ) -> Result<Vec<Self>, ConditionError> {
+    ) -> Result<Vec<Self>, SignError> {
         let mut required_signatures = Vec::new();
         for coin_spend in coin_spends {
             required_signatures.extend(Self::from_coin_spend(allocator, coin_spend, agg_sig_me)?);
