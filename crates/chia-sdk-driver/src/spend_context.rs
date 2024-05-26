@@ -45,7 +45,6 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Get a reference to the [`Allocator`].
-    #[must_use]
     pub fn allocator(&self) -> &Allocator {
         self.allocator
     }
@@ -56,7 +55,6 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Get a reference to the list of coin spends.
-    #[must_use]
     pub fn spends(&self) -> &[CoinSpend] {
         &self.coin_spends
     }
@@ -88,7 +86,6 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Compute the tree hash of a node pointer.
-    #[must_use]
     pub fn tree_hash(&self, ptr: NodePtr) -> TreeHash {
         tree_hash(self.allocator, ptr)
     }
@@ -192,7 +189,6 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Checks whether a puzzle is in the cache.
-    #[must_use]
     pub fn get_puzzle(&self, puzzle_hash: &TreeHash) -> Option<NodePtr> {
         self.puzzles.get(puzzle_hash).copied()
     }

@@ -8,6 +8,7 @@ use clvmr::{Allocator, NodePtr};
 use crate::ParseError;
 
 #[derive(Debug, Clone, Copy)]
+#[must_use]
 pub struct ParseContext {
     mod_hash: Bytes32,
     args: NodePtr,
@@ -17,27 +18,22 @@ pub struct ParseContext {
 }
 
 impl ParseContext {
-    #[must_use]
     pub fn mod_hash(&self) -> Bytes32 {
         self.mod_hash
     }
 
-    #[must_use]
     pub fn args(&self) -> NodePtr {
         self.args
     }
 
-    #[must_use]
     pub fn solution(&self) -> NodePtr {
         self.solution
     }
 
-    #[must_use]
     pub fn parent_coin(&self) -> Coin {
         self.parent_coin
     }
 
-    #[must_use]
     pub fn coin(&self) -> Coin {
         self.coin
     }

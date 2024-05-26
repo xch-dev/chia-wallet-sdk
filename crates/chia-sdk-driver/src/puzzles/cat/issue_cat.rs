@@ -18,6 +18,7 @@ use crate::{
 };
 
 #[derive(Debug)]
+#[must_use]
 pub struct IssueCat {
     parent_coin_id: Bytes32,
     conditions: Vec<NodePtr>,
@@ -31,7 +32,6 @@ pub struct CatIssuanceInfo {
 }
 
 impl IssueCat {
-    #[must_use]
     pub const fn new(parent_coin_id: Bytes32) -> Self {
         Self {
             parent_coin_id,

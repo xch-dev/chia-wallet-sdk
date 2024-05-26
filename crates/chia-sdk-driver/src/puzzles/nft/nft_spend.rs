@@ -39,6 +39,7 @@ pub enum NftOutput {
 }
 
 #[derive(Debug, Clone)]
+#[must_use]
 pub struct StandardNftSpend<T> {
     standard_spend: StandardSpend,
     output: T,
@@ -56,12 +57,10 @@ impl Default for StandardNftSpend<NoNftOutput> {
 }
 
 impl StandardNftSpend<NoNftOutput> {
-    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[must_use]
     pub fn update(self) -> StandardNftSpend<NftOutput> {
         StandardNftSpend {
             standard_spend: self.standard_spend,
@@ -70,7 +69,6 @@ impl StandardNftSpend<NoNftOutput> {
         }
     }
 
-    #[must_use]
     pub fn transfer(self, puzzle_hash: Bytes32) -> StandardNftSpend<NftOutput> {
         StandardNftSpend {
             standard_spend: self.standard_spend,
@@ -81,7 +79,6 @@ impl StandardNftSpend<NoNftOutput> {
 }
 
 impl<T> StandardNftSpend<T> {
-    #[must_use]
     pub fn new_owner(mut self, did_id: Bytes32, did_inner_puzzle_hash: Bytes32) -> Self {
         self.new_owner = Some(NewNftOwner {
             new_owner: Some(did_id),
@@ -91,7 +88,6 @@ impl<T> StandardNftSpend<T> {
         self
     }
 
-    #[must_use]
     pub fn chain(mut self, chained: ParentConditions) -> Self {
         self.standard_spend = self.standard_spend.chain(chained);
         self

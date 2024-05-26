@@ -10,6 +10,7 @@ use clvmr::NodePtr;
 use crate::{spend_builder::InnerSpend, SpendContext, SpendError};
 
 #[derive(Debug, Default)]
+#[must_use]
 pub struct CatSpend {
     asset_id: Bytes32,
     cat_spends: Vec<CatSpendItem>,
@@ -24,7 +25,6 @@ struct CatSpendItem {
 }
 
 impl CatSpend {
-    #[must_use]
     pub const fn new(asset_id: Bytes32) -> Self {
         Self {
             asset_id,
@@ -32,7 +32,6 @@ impl CatSpend {
         }
     }
 
-    #[must_use]
     pub fn spend(
         mut self,
         coin: Coin,

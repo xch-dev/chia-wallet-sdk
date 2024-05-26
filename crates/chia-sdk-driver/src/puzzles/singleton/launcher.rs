@@ -11,12 +11,12 @@ use crate::{
 use super::SpendableLauncher;
 
 #[derive(Debug, Clone, Copy)]
+#[must_use]
 pub struct Launcher {
     coin: Coin,
 }
 
 impl Launcher {
-    #[must_use]
     pub fn new(parent_coin_id: Bytes32, amount: u64) -> Self {
         Self {
             coin: Coin::new(
@@ -27,7 +27,6 @@ impl Launcher {
         }
     }
 
-    #[must_use]
     pub fn coin(&self) -> Coin {
         self.coin
     }

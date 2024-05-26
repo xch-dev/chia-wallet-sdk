@@ -165,12 +165,12 @@ pub trait P2Spend: Sized {
 }
 
 #[derive(Debug, Default, Clone)]
+#[must_use]
 pub struct ParentConditions {
     conditions: Vec<NodePtr>,
 }
 
 impl ParentConditions {
-    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -179,7 +179,6 @@ impl ParentConditions {
         self.conditions.extend(other.conditions);
     }
 
-    #[must_use]
     pub fn parent_conditions(&self) -> &[NodePtr] {
         &self.conditions
     }
@@ -193,23 +192,21 @@ impl P2Spend for ParentConditions {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[must_use]
 pub struct InnerSpend {
     puzzle: NodePtr,
     solution: NodePtr,
 }
 
 impl InnerSpend {
-    #[must_use]
     pub const fn new(puzzle: NodePtr, solution: NodePtr) -> Self {
         Self { puzzle, solution }
     }
 
-    #[must_use]
     pub const fn puzzle(&self) -> NodePtr {
         self.puzzle
     }
 
-    #[must_use]
     pub const fn solution(&self) -> NodePtr {
         self.solution
     }

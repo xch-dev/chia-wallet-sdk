@@ -15,12 +15,10 @@ pub struct CreateCoin {
 }
 
 impl CreateCoin {
-    #[must_use]
     pub const fn new(puzzle_hash: Bytes32, amount: u64) -> Self {
         Self::with_memos(puzzle_hash, amount, Vec::new())
     }
 
-    #[must_use]
     pub const fn with_memos(puzzle_hash: Bytes32, amount: u64, memos: Vec<Bytes>) -> Self {
         Self {
             puzzle_hash,
@@ -29,12 +27,10 @@ impl CreateCoin {
         }
     }
 
-    #[must_use]
     pub fn with_hint(puzzle_hash: Bytes32, amount: u64) -> Self {
         Self::with_custom_hint(puzzle_hash, amount, puzzle_hash)
     }
 
-    #[must_use]
     pub fn with_custom_hint(puzzle_hash: Bytes32, amount: u64, hint: Bytes32) -> Self {
         Self::with_memos(puzzle_hash, amount, vec![hint.into()])
     }

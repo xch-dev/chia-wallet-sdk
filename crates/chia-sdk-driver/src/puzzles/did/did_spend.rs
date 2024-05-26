@@ -25,13 +25,13 @@ pub enum DidOutput {
 }
 
 #[derive(Debug, Clone)]
+#[must_use]
 pub struct StandardDidSpend<T> {
     standard_spend: StandardSpend,
     output: T,
 }
 
 impl<T> StandardDidSpend<T> {
-    #[must_use]
     pub fn chain(mut self, chained: ParentConditions) -> Self {
         self.standard_spend = self.standard_spend.chain(chained);
         self
@@ -55,12 +55,10 @@ impl Default for StandardDidSpend<NoDidOutput> {
 }
 
 impl StandardDidSpend<NoDidOutput> {
-    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[must_use]
     pub fn recreate(self) -> StandardDidSpend<DidOutput> {
         StandardDidSpend {
             standard_spend: self.standard_spend,

@@ -11,17 +11,16 @@ use crate::{
 };
 
 #[derive(Debug, Default, Clone)]
+#[must_use]
 pub struct StandardSpend {
     conditions: Vec<NodePtr>,
 }
 
 impl StandardSpend {
-    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[must_use]
     #[allow(clippy::needless_pass_by_value)]
     pub fn chain(mut self, chained: ParentConditions) -> Self {
         self.conditions.extend(chained.parent_conditions());
