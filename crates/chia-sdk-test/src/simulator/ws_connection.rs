@@ -3,10 +3,7 @@ use std::{net::SocketAddr, sync::Arc};
 use chia_consensus::gen::validation_error::{ErrorCode, ValidationErr};
 use chia_protocol::*;
 use chia_traits::Streamable;
-use clvmr::{
-    sha2::{Digest, Sha256},
-    NodePtr,
-};
+use clvmr::NodePtr;
 use futures_channel::mpsc;
 use futures_util::{SinkExt, StreamExt};
 use indexmap::IndexSet;
@@ -140,10 +137,7 @@ async fn send_transaction(
         }
     };
 
-    // Calculate a deterministic but fake header hash.
-    let mut hasher = Sha256::new();
-    hasher.update(data.height().to_be_bytes());
-    let header_hash = Bytes32::new(hasher.finalize().into());
+    let header_hash = data.header_hash(data.height());
 
     let new_peak = Message {
         msg_type: ProtocolMessageTypes::NewPeakWallet,

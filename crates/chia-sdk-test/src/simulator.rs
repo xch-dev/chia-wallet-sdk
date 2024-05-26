@@ -87,13 +87,32 @@ impl Simulator {
         );
 
         data.create_coin(coin);
-
         coin
+    }
+
+    pub async fn add_hint(&self, coin_id: Bytes32, hint: Bytes32) {
+        let mut data = self.data.lock().await;
+        data.add_hint(coin_id, hint);
     }
 
     pub async fn coin_state(&self, coin_id: Bytes32) -> Option<CoinState> {
         let data = self.data.lock().await;
         data.coin_state(coin_id)
+    }
+
+    pub async fn height(&self) -> u32 {
+        let data = self.data.lock().await;
+        data.height()
+    }
+
+    pub async fn header_hash(&self, height: u32) -> Bytes32 {
+        let data = self.data.lock().await;
+        data.header_hash(height)
+    }
+
+    pub async fn peak_hash(&self) -> Bytes32 {
+        let data = self.data.lock().await;
+        data.header_hash(data.height())
     }
 
     pub async fn secret_key(&self) -> Result<SecretKey, bip39::Error> {
@@ -113,10 +132,10 @@ impl Drop for Simulator {
 #[cfg(test)]
 mod tests {
     use chia_bls::{PublicKey, Signature};
-    use chia_protocol::{CoinSpend, SpendBundle};
-    use chia_sdk_types::conditions::{AggSigMe, CreateCoin};
+    use chia_protocol::{CoinSpend, CoinStateUpdate, SpendBundle};
+    use chia_sdk_types::conditions::{AggSigMe, CreateCoin, Remark};
 
-    use crate::{test_transaction, to_program, to_puzzle};
+    use crate::{coin_state_updates, test_transaction, to_program, to_puzzle};
 
     use super::*;
 
@@ -434,6 +453,289 @@ mod tests {
 
         assert_eq!(found_1, Some(expected_1));
         assert_eq!(found_2, Some(expected_2));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_puzzle_solution() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+        let solution = to_program([Remark {}])?;
+
+        let coin = sim.mint_coin(puzzle_hash, 0).await;
+
+        let spend_bundle = SpendBundle::new(
+            vec![CoinSpend::new(
+                coin,
+                puzzle_reveal.clone(),
+                solution.clone(),
+            )],
+            Signature::default(),
+        );
+
+        let ack = peer.send_transaction(spend_bundle).await?;
+        assert_eq!(ack.status, 1);
+
+        let response = peer.request_puzzle_and_solution(coin.coin_id(), 0).await?;
+        assert_eq!(response.coin_name, coin.coin_id());
+        assert_eq!(response.puzzle, puzzle_reveal);
+        assert_eq!(response.solution, solution);
+        assert_eq!(response.height, 0);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_spent_coin_subscription() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+        let mut receiver = peer.receiver().resubscribe();
+
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+
+        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let mut coin_state = sim
+            .coin_state(coin.coin_id())
+            .await
+            .expect("missing coin state");
+
+        let coin_states = peer
+            .register_for_coin_updates(vec![coin.coin_id()], 0)
+            .await?;
+        assert_eq!(coin_states.len(), 1);
+        assert_eq!(coin_states[0], coin_state);
+
+        let spend_bundle = SpendBundle::new(
+            vec![CoinSpend::new(coin, puzzle_reveal, to_program(())?)],
+            Signature::default(),
+        );
+
+        let ack = peer.send_transaction(spend_bundle).await?;
+        assert_eq!(ack.status, 1);
+
+        coin_state.spent_height = Some(0);
+
+        let updates = coin_state_updates(&mut receiver);
+        assert_eq!(updates.len(), 1);
+
+        assert_eq!(
+            updates[0],
+            CoinStateUpdate::new(1, 1, sim.peak_hash().await, vec![coin_state])
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_created_coin_subscription() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+        let mut receiver = peer.receiver().resubscribe();
+
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+
+        let coin = sim.mint_coin(puzzle_hash, 1).await;
+        let child_coin = Coin::new(coin.coin_id(), puzzle_hash, 1);
+
+        let coin_states = peer
+            .register_for_coin_updates(vec![child_coin.coin_id()], 0)
+            .await?;
+        assert_eq!(coin_states.len(), 0);
+
+        let spend_bundle = SpendBundle::new(
+            vec![CoinSpend::new(
+                coin,
+                puzzle_reveal,
+                to_program([CreateCoin::new(puzzle_hash, 1)])?,
+            )],
+            Signature::default(),
+        );
+
+        let ack = peer.send_transaction(spend_bundle).await?;
+        assert_eq!(ack.status, 1);
+
+        let updates = coin_state_updates(&mut receiver);
+        assert_eq!(updates.len(), 1);
+
+        let coin_state = CoinState::new(child_coin, None, Some(0));
+
+        assert_eq!(
+            updates[0],
+            CoinStateUpdate::new(1, 1, sim.peak_hash().await, vec![coin_state])
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_spent_puzzle_subscription() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+        let mut receiver = peer.receiver().resubscribe();
+
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+
+        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let mut coin_state = sim
+            .coin_state(coin.coin_id())
+            .await
+            .expect("missing coin state");
+
+        let coin_states = peer
+            .register_for_ph_updates(vec![coin.puzzle_hash], 0)
+            .await?;
+        assert_eq!(coin_states.len(), 1);
+        assert_eq!(coin_states[0], coin_state);
+
+        let spend_bundle = SpendBundle::new(
+            vec![CoinSpend::new(coin, puzzle_reveal, to_program(())?)],
+            Signature::default(),
+        );
+
+        let ack = peer.send_transaction(spend_bundle).await?;
+        assert_eq!(ack.status, 1);
+
+        coin_state.spent_height = Some(0);
+
+        let updates = coin_state_updates(&mut receiver);
+        assert_eq!(updates.len(), 1);
+
+        assert_eq!(
+            updates[0],
+            CoinStateUpdate::new(1, 1, sim.peak_hash().await, vec![coin_state])
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_created_puzzle_subscription() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+        let mut receiver = peer.receiver().resubscribe();
+
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+
+        let coin = sim.mint_coin(puzzle_hash, 1).await;
+        let child_coin = Coin::new(coin.coin_id(), Bytes32::default(), 1);
+
+        let coin_states = peer
+            .register_for_ph_updates(vec![child_coin.puzzle_hash], 0)
+            .await?;
+        assert_eq!(coin_states.len(), 0);
+
+        let spend_bundle = SpendBundle::new(
+            vec![CoinSpend::new(
+                coin,
+                puzzle_reveal,
+                to_program([CreateCoin::new(child_coin.puzzle_hash, 1)])?,
+            )],
+            Signature::default(),
+        );
+
+        let ack = peer.send_transaction(spend_bundle).await?;
+        assert_eq!(ack.status, 1);
+
+        let updates = coin_state_updates(&mut receiver);
+        assert_eq!(updates.len(), 1);
+
+        let coin_state = CoinState::new(child_coin, None, Some(0));
+
+        assert_eq!(
+            updates[0],
+            CoinStateUpdate::new(1, 1, sim.peak_hash().await, vec![coin_state])
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_spent_hint_subscription() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+        let mut receiver = peer.receiver().resubscribe();
+
+        let hint = Bytes32::new([42; 32]);
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+
+        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        sim.add_hint(coin.coin_id(), hint).await;
+
+        let mut coin_state = sim
+            .coin_state(coin.coin_id())
+            .await
+            .expect("missing coin state");
+
+        let coin_states = peer.register_for_ph_updates(vec![hint], 0).await?;
+        assert_eq!(coin_states.len(), 1);
+        assert_eq!(coin_states[0], coin_state);
+
+        let spend_bundle = SpendBundle::new(
+            vec![CoinSpend::new(coin, puzzle_reveal, to_program(())?)],
+            Signature::default(),
+        );
+
+        let ack = peer.send_transaction(spend_bundle).await?;
+        assert_eq!(ack.status, 1);
+
+        coin_state.spent_height = Some(0);
+
+        let updates = coin_state_updates(&mut receiver);
+        assert_eq!(updates.len(), 1);
+
+        assert_eq!(
+            updates[0],
+            CoinStateUpdate::new(1, 1, sim.peak_hash().await, vec![coin_state])
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_created_hint_subscription() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+        let mut receiver = peer.receiver().resubscribe();
+
+        let hint = Bytes32::new([42; 32]);
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+
+        let coin = sim.mint_coin(puzzle_hash, 0).await;
+
+        let coin_states = peer.register_for_ph_updates(vec![hint], 0).await?;
+        assert_eq!(coin_states.len(), 0);
+
+        let spend_bundle = SpendBundle::new(
+            vec![CoinSpend::new(
+                coin,
+                puzzle_reveal,
+                to_program([CreateCoin::with_custom_hint(puzzle_hash, 0, hint)])?,
+            )],
+            Signature::default(),
+        );
+
+        let ack = peer.send_transaction(spend_bundle).await?;
+        assert_eq!(ack.status, 1);
+
+        let updates = coin_state_updates(&mut receiver);
+        assert_eq!(updates.len(), 1);
+
+        assert_eq!(
+            updates[0],
+            CoinStateUpdate::new(
+                1,
+                1,
+                sim.peak_hash().await,
+                vec![CoinState::new(
+                    Coin::new(coin.coin_id(), puzzle_hash, 0),
+                    None,
+                    Some(0)
+                )]
+            )
+        );
 
         Ok(())
     }

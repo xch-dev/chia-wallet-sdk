@@ -11,7 +11,10 @@ use chia_consensus::gen::{
 };
 use chia_protocol::{Bytes32, Coin, CoinState, PuzzleSolutionResponse, SpendBundle};
 use chia_sdk_signer::RequiredSignature;
-use clvmr::{Allocator, NodePtr};
+use clvmr::{
+    sha2::{Digest, Sha256},
+    Allocator, NodePtr,
+};
 use indexmap::{IndexMap, IndexSet};
 
 use crate::Simulator;
@@ -34,6 +37,16 @@ impl SimulatorData {
             coin.coin_id(),
             CoinState::new(coin, None, Some(self.height)),
         );
+    }
+
+    pub fn add_hint(&mut self, coin_id: Bytes32, hint: Bytes32) {
+        self.hinted_coins.entry(hint).or_default().insert(coin_id);
+    }
+
+    pub fn header_hash(&self, height: u32) -> Bytes32 {
+        let mut hasher = Sha256::new();
+        hasher.update(height.to_be_bytes());
+        Bytes32::new(hasher.finalize().into())
     }
 
     pub fn height(&self) -> u32 {
@@ -262,7 +275,7 @@ impl SimulatorData {
 
         // Send updates to peers.
         for peer in peers {
-            let peer_updates: &mut IndexSet<CoinState> = peer_updates.entry(peer).or_default();
+            let mut coin_states = IndexSet::new();
 
             let coin_subscriptions = self
                 .coin_subscriptions
@@ -276,26 +289,30 @@ impl SimulatorData {
                 .cloned()
                 .unwrap_or_default();
 
-            for (hint, coins) in added_hints.iter() {
+            for (hint, coins) in self.hinted_coins.iter() {
                 let Ok(hint) = hint.to_vec().try_into() else {
                     continue;
                 };
                 let hint = Bytes32::new(hint);
 
                 if puzzle_subscriptions.contains(&hint) {
-                    peer_updates.extend(coins.iter().map(|coin_id| self.coin_states[coin_id]));
+                    coin_states.extend(coins.iter().map(|coin_id| self.coin_states[coin_id]));
                 }
             }
 
             for coin_id in updates.keys() {
-                if coin_subscriptions.contains(coin_id) {
-                    peer_updates.insert(self.coin_states[coin_id]);
-                }
-
-                if puzzle_subscriptions.contains(&self.coin_states[coin_id].coin.puzzle_hash) {
-                    peer_updates.insert(self.coin_states[coin_id]);
+                if coin_subscriptions.contains(coin_id)
+                    || puzzle_subscriptions.contains(&self.coin_states[coin_id].coin.puzzle_hash)
+                {
+                    coin_states.insert(self.coin_states[coin_id]);
                 }
             }
+
+            if coin_states.is_empty() {
+                continue;
+            };
+
+            peer_updates.insert(peer, coin_states);
         }
 
         Ok(peer_updates)

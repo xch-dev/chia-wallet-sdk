@@ -1,6 +1,8 @@
+mod events;
 mod simulator;
 mod transaction;
 
+pub use events::*;
 pub use simulator::*;
 pub use transaction::*;
 
