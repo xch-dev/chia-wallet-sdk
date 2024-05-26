@@ -7,6 +7,12 @@ description = "Utilities for connecting to Chia full node peers via the light wa
 authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
 homepage = "https://github.com/Rigidity/chia-wallet-sdk"
 repository = "https://github.com/Rigidity/chia-wallet-sdk"
+readme = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[lints]
+workspace = true
 
 [dependencies]
 chia-client = { workspace = true }

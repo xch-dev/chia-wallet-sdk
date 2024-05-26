@@ -7,10 +7,52 @@ description = "An unofficial SDK for building Chia wallets."
 authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
 homepage = "https://github.com/Rigidity/chia-wallet-sdk"
 repository = "https://github.com/Rigidity/chia-wallet-sdk"
+readme = "README.md"
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [workspace]
-members = ["crates/*"]
 resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+keywords = ["chia", "wallet", "sdk", "blockchain", "cryptocurrency", "crypto"]
+categories = ["cryptography::cryptocurrencies", "development-tools"]
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+rust_2018_idioms = "deny"
+rust_2021_compatibility = "deny"
+future_incompatible = "deny"
+non_ascii_idents = "deny"
+nonstandard_style = "deny"
+unused_imports = "deny"
+unused_import_braces = "deny"
+unused_qualifications = "deny"
+unused_extern_crates = "deny"
+trivial_casts = "deny"
+trivial_numeric_casts = "deny"
+unreachable_pub = "deny"
+unreachable_code = "deny"
+unreachable_patterns = "deny"
+dead_code = "deny"
+deprecated = "deny"
+deprecated_in_future = "deny"
+missing_debug_implementations = "warn"
+missing_copy_implementations = "warn"
+
+[workspace.lints.rustdoc]
+all = "deny"
+
+[workspace.lints.clippy]
+all = "deny"
+cargo = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+too_many_lines = "allow"
+missing_errors_doc = "allow"
+module_name_repetitions = "allow"
+multiple_crate_versions = "allow"
+cargo_common_metadata = "allow" # This is a false positive
 
 [dependencies]
 thiserror = { workspace = true }

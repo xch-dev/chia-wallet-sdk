@@ -138,14 +138,7 @@ mod tests {
         let puzzle = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
         let solution = coin_spend.solution.to_node_ptr(&mut allocator)?;
 
-        let parse_ctx = parse_puzzle(
-            &mut allocator,
-            puzzle,
-            solution,
-            coin_spend.coin,
-            cat_info.coin,
-        )?;
-
+        let parse_ctx = parse_puzzle(&allocator, puzzle, solution, coin_spend.coin, cat_info.coin)?;
         let parse = parse_cat(&mut allocator, &parse_ctx, u64::MAX)?;
         assert_eq!(parse, Some(cat_info));
 

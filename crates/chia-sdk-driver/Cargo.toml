@@ -7,6 +7,10 @@ description = "Driver code for interacting with standard puzzles on the Chia blo
 authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
 homepage = "https://github.com/Rigidity/chia-wallet-sdk"
 repository = "https://github.com/Rigidity/chia-wallet-sdk"
+readme = { workspace = true }
+
+[lints]
+workspace = true
 
 [dependencies]
 chia-bls = { workspace = true }

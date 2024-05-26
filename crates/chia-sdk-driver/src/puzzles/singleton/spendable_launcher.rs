@@ -1,3 +1,5 @@
+#![allow(clippy::missing_const_for_fn)]
+
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzles::singleton::{
     LauncherSolution, SingletonArgs, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE,
@@ -13,6 +15,7 @@ use crate::{
 };
 
 #[must_use = "Launcher coins must be spent in order to create the singleton output."]
+#[derive(Debug, Clone)]
 pub struct SpendableLauncher {
     coin: Coin,
     parent: ParentConditions,
@@ -23,13 +26,14 @@ impl SpendableLauncher {
         Self { coin, parent }
     }
 
+    #[must_use]
     pub fn coin(&self) -> Coin {
         self.coin
     }
 
     pub fn spend<T>(
         mut self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         singleton_inner_puzzle_hash: Bytes32,
         key_value_list: T,
     ) -> Result<(ParentConditions, Coin), SpendError>
@@ -46,7 +50,7 @@ impl SpendableLauncher {
         .tree_hash()
         .into();
 
-        let eve_message = ctx.alloc(clvm_list!(
+        let eve_message = ctx.alloc(&clvm_list!(
             singleton_puzzle_hash,
             self.coin.amount,
             &key_value_list
@@ -57,7 +61,7 @@ impl SpendableLauncher {
             self.parent
                 .assert_coin_announcement(ctx, self.coin.coin_id(), eve_message_hash)?;
 
-        let solution = ctx.serialize(LauncherSolution {
+        let solution = ctx.serialize(&LauncherSolution {
             singleton_puzzle_hash,
             amount: self.coin.amount,
             key_value_list,

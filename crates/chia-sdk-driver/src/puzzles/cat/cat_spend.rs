@@ -3,18 +3,19 @@ use chia_puzzles::{
     cat::{CatArgs, CatSolution, CoinProof, CAT_PUZZLE_HASH},
     LineageProof,
 };
-use chia_sdk_types::conditions::*;
+use chia_sdk_types::conditions::CreateCoin;
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
 use crate::{spend_builder::InnerSpend, SpendContext, SpendError};
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct CatSpend {
     asset_id: Bytes32,
     cat_spends: Vec<CatSpendItem>,
 }
 
+#[derive(Debug)]
 struct CatSpendItem {
     coin: Coin,
     inner_spend: InnerSpend,
@@ -23,13 +24,15 @@ struct CatSpendItem {
 }
 
 impl CatSpend {
-    pub fn new(asset_id: Bytes32) -> Self {
+    #[must_use]
+    pub const fn new(asset_id: Bytes32) -> Self {
         Self {
             asset_id,
             cat_spends: Vec::new(),
         }
     }
 
+    #[must_use]
     pub fn spend(
         mut self,
         coin: Coin,
@@ -46,7 +49,7 @@ impl CatSpend {
         self
     }
 
-    pub fn finish(self, ctx: &mut SpendContext) -> Result<(), SpendError> {
+    pub fn finish(self, ctx: &mut SpendContext<'_>) -> Result<(), SpendError> {
         let cat_puzzle_ptr = ctx.cat_puzzle()?;
         let len = self.cat_spends.len();
 
@@ -68,10 +71,10 @@ impl CatSpend {
                 .into_iter()
                 .filter_map(|ptr| ctx.extract::<CreateCoin>(ptr).ok());
 
-            let delta = create_coins
-                .fold(coin.amount as i64 - *extra_delta, |delta, create_coin| {
-                    delta - create_coin.amount as i64
-                });
+            let delta = create_coins.fold(
+                i128::from(coin.amount) - i128::from(*extra_delta),
+                |delta, create_coin| delta - i128::from(create_coin.amount),
+            );
 
             let prev_subtotal = total_delta;
             total_delta += delta;
@@ -80,7 +83,7 @@ impl CatSpend {
             let prev_cat = &self.cat_spends[if index == 0 { len - 1 } else { index - 1 }];
             let next_cat = &self.cat_spends[if index == len - 1 { 0 } else { index + 1 }];
 
-            let puzzle_reveal = ctx.serialize(CurriedProgram {
+            let puzzle_reveal = ctx.serialize(&CurriedProgram {
                 program: cat_puzzle_ptr,
                 args: CatArgs {
                     mod_hash: CAT_PUZZLE_HASH.into(),
@@ -89,7 +92,7 @@ impl CatSpend {
                 },
             })?;
 
-            let solution = ctx.serialize(CatSolution {
+            let solution = ctx.serialize(&CatSolution {
                 inner_puzzle_solution: inner_spend.solution(),
                 lineage_proof: Some(*lineage_proof),
                 prev_coin_id: prev_cat.coin.coin_id(),
@@ -99,7 +102,7 @@ impl CatSpend {
                     inner_puzzle_hash: ctx.tree_hash(inner_spend.puzzle()).into(),
                     amount: next_cat.coin.amount,
                 },
-                prev_subtotal,
+                prev_subtotal: prev_subtotal.try_into()?,
                 extra_delta: *extra_delta,
             })?;
 

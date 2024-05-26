@@ -9,7 +9,7 @@ use thiserror::Error;
 
 use crate::Simulator;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Copy, Error)]
 #[error("missing key")]
 pub struct KeyError;
 
@@ -23,9 +23,10 @@ pub async fn test_transaction_raw(
     let required_signatures =
         RequiredSignature::from_coin_spends(&mut allocator, &coin_spends, Simulator::AGG_SIG_ME)?;
 
-    let key_pairs = HashMap::<PublicKey, &SecretKey>::from_iter(
-        secret_keys.iter().map(|sk| (sk.public_key(), sk)),
-    );
+    let key_pairs = secret_keys
+        .iter()
+        .map(|sk| (sk.public_key(), sk))
+        .collect::<HashMap<PublicKey, &SecretKey>>();
 
     let mut aggregated_signature = Signature::default();
 
@@ -39,6 +40,10 @@ pub async fn test_transaction_raw(
         .await?)
 }
 
+/// Signs and tests a transaction with the given coin spends and secret keys.
+///
+/// # Panics
+/// Will panic if the transaction could not be submitted or was not successful.
 pub async fn test_transaction(peer: &Peer, coin_spends: Vec<CoinSpend>, secret_keys: &[SecretKey]) {
     let ack = test_transaction_raw(peer, coin_spends, secret_keys)
         .await

@@ -7,7 +7,7 @@ use chia_puzzles::{
     },
     LineageProof,
 };
-use chia_sdk_types::conditions::*;
+use chia_sdk_types::conditions::RunTail;
 use clvm_traits::clvm_quote;
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
@@ -17,11 +17,13 @@ use crate::{
     SpendContext, SpendError,
 };
 
+#[derive(Debug)]
 pub struct IssueCat {
     parent_coin_id: Bytes32,
     conditions: Vec<NodePtr>,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct CatIssuanceInfo {
     pub asset_id: Bytes32,
     pub lineage_proof: LineageProof,
@@ -29,7 +31,8 @@ pub struct CatIssuanceInfo {
 }
 
 impl IssueCat {
-    pub fn new(parent_coin_id: Bytes32) -> Self {
+    #[must_use]
+    pub const fn new(parent_coin_id: Bytes32) -> Self {
         Self {
             parent_coin_id,
             conditions: Vec::new(),
@@ -38,12 +41,12 @@ impl IssueCat {
 
     pub fn single_issuance(
         self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         amount: u64,
     ) -> Result<(ParentConditions, CatIssuanceInfo), SpendError> {
         let tail_puzzle_ptr = ctx.genesis_by_coin_id_tail_puzzle()?;
 
-        let tail = ctx.alloc(CurriedProgram {
+        let tail = ctx.alloc(&CurriedProgram {
             program: tail_puzzle_ptr,
             args: GenesisByCoinIdTailArgs {
                 genesis_coin_id: self.parent_coin_id,
@@ -51,7 +54,7 @@ impl IssueCat {
         })?;
         let asset_id = ctx.tree_hash(tail).into();
 
-        self.raw_condition(ctx.alloc(RunTail {
+        self.raw_condition(ctx.alloc(&RunTail {
             program: tail,
             solution: NodePtr::NIL,
         })?)
@@ -60,19 +63,19 @@ impl IssueCat {
 
     pub fn multi_issuance(
         self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         public_key: PublicKey,
         amount: u64,
     ) -> Result<(ParentConditions, CatIssuanceInfo), SpendError> {
         let tail_puzzle_ptr = ctx.everything_with_signature_tail_puzzle()?;
 
-        let tail = ctx.alloc(CurriedProgram {
+        let tail = ctx.alloc(&CurriedProgram {
             program: tail_puzzle_ptr,
             args: EverythingWithSignatureTailArgs { public_key },
         })?;
         let asset_id = ctx.tree_hash(tail).into();
 
-        self.raw_condition(ctx.alloc(RunTail {
+        self.raw_condition(ctx.alloc(&RunTail {
             program: tail,
             solution: NodePtr::NIL,
         })?)
@@ -81,16 +84,16 @@ impl IssueCat {
 
     pub fn finish_raw(
         self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         asset_id: Bytes32,
         amount: u64,
     ) -> Result<(ParentConditions, CatIssuanceInfo), SpendError> {
         let cat_puzzle_ptr = ctx.cat_puzzle()?;
 
-        let inner_puzzle = ctx.alloc(clvm_quote!(self.conditions))?;
+        let inner_puzzle = ctx.alloc(&clvm_quote!(self.conditions))?;
         let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
 
-        let puzzle = ctx.alloc(CurriedProgram {
+        let puzzle = ctx.alloc(&CurriedProgram {
             program: cat_puzzle_ptr,
             args: CatArgs {
                 mod_hash: CAT_PUZZLE_HASH.into(),
@@ -102,7 +105,7 @@ impl IssueCat {
         let puzzle_hash = ctx.tree_hash(puzzle).into();
         let eve_coin = Coin::new(self.parent_coin_id, puzzle_hash, amount);
 
-        let solution = ctx.serialize(CatSolution {
+        let solution = ctx.serialize(&CatSolution {
             inner_puzzle_solution: (),
             lineage_proof: None,
             prev_coin_id: eve_coin.coin_id(),
@@ -116,7 +119,7 @@ impl IssueCat {
             extra_delta: 0,
         })?;
 
-        let puzzle_reveal = ctx.serialize(puzzle)?;
+        let puzzle_reveal = ctx.serialize(&puzzle)?;
         ctx.spend(CoinSpend::new(eve_coin, puzzle_reveal, solution));
 
         let chained_spend =

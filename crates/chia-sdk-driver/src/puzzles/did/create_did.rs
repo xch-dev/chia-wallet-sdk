@@ -20,7 +20,7 @@ use super::StandardDidSpend;
 pub trait CreateDid {
     fn create_eve_did<M>(
         self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         inner_puzzle_hash: Bytes32,
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,
@@ -31,7 +31,7 @@ pub trait CreateDid {
 
     fn create_custom_standard_did<M>(
         self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
@@ -65,7 +65,7 @@ pub trait CreateDid {
 
     fn create_standard_did(
         self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         synthetic_key: PublicKey,
     ) -> Result<(ParentConditions, DidInfo<()>), SpendError>
     where
@@ -78,7 +78,7 @@ pub trait CreateDid {
 impl CreateDid for SpendableLauncher {
     fn create_eve_did<M>(
         self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         p2_puzzle_hash: Bytes32,
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,

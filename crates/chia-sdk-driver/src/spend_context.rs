@@ -1,7 +1,25 @@
 use std::collections::HashMap;
 
 use chia_protocol::{CoinSpend, Program};
-use chia_puzzles::{cat::*, did::*, nft::*, offer::*, singleton::*, standard::*};
+use chia_puzzles::{
+    cat::{
+        CAT_PUZZLE, CAT_PUZZLE_HASH, EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE,
+        EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE_HASH, GENESIS_BY_COIN_ID_TAIL_PUZZLE,
+        GENESIS_BY_COIN_ID_TAIL_PUZZLE_HASH,
+    },
+    did::{DID_INNER_PUZZLE, DID_INNER_PUZZLE_HASH},
+    nft::{
+        NFT_INTERMEDIATE_LAUNCHER_PUZZLE, NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH,
+        NFT_OWNERSHIP_LAYER_PUZZLE, NFT_OWNERSHIP_LAYER_PUZZLE_HASH, NFT_ROYALTY_TRANSFER_PUZZLE,
+        NFT_ROYALTY_TRANSFER_PUZZLE_HASH, NFT_STATE_LAYER_PUZZLE, NFT_STATE_LAYER_PUZZLE_HASH,
+    },
+    offer::{SETTLEMENT_PAYMENTS_PUZZLE, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
+    singleton::{
+        SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE,
+        SINGLETON_TOP_LAYER_PUZZLE_HASH,
+    },
+    standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
+};
 use clvm_traits::{FromNodePtr, ToNodePtr};
 use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
@@ -9,6 +27,7 @@ use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr
 use crate::spend_error::SpendError;
 
 /// A wrapper around `Allocator` that caches puzzles and simplifies coin spending.
+#[derive(Debug)]
 pub struct SpendContext<'a> {
     allocator: &'a mut Allocator,
     puzzles: HashMap<TreeHash, NodePtr>,
@@ -26,6 +45,7 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Get a reference to the [`Allocator`].
+    #[must_use]
     pub fn allocator(&self) -> &Allocator {
         self.allocator
     }
@@ -36,6 +56,7 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Get a reference to the list of coin spends.
+    #[must_use]
     pub fn spends(&self) -> &[CoinSpend] {
         &self.coin_spends
     }
@@ -51,7 +72,7 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Allocate a new node and return its pointer.
-    pub fn alloc<T>(&mut self, value: T) -> Result<NodePtr, SpendError>
+    pub fn alloc<T>(&mut self, value: &T) -> Result<NodePtr, SpendError>
     where
         T: ToNodePtr,
     {
@@ -67,6 +88,7 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Compute the tree hash of a node pointer.
+    #[must_use]
     pub fn tree_hash(&self, ptr: NodePtr) -> TreeHash {
         tree_hash(self.allocator, ptr)
     }
@@ -84,7 +106,7 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Serialize a value and return a `Program`.
-    pub fn serialize<T>(&mut self, value: T) -> Result<Program, SpendError>
+    pub fn serialize<T>(&mut self, value: &T) -> Result<Program, SpendError>
     where
         T: ToNodePtr,
     {
@@ -143,7 +165,7 @@ impl<'a> SpendContext<'a> {
         self.puzzle(SINGLETON_LAUNCHER_PUZZLE_HASH, &SINGLETON_LAUNCHER_PUZZLE)
     }
 
-    /// Allocate the EverythingWithSignature TAIL puzzle and return its pointer.
+    /// Allocate the multi-issuance TAIL puzzle and return its pointer.
     pub fn everything_with_signature_tail_puzzle(&mut self) -> Result<NodePtr, SpendError> {
         self.puzzle(
             EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE_HASH,
@@ -151,7 +173,7 @@ impl<'a> SpendContext<'a> {
         )
     }
 
-    // Allocate the GenesisByCoinId TAIL puzzle and return its pointer.
+    /// Allocate the single-issuance TAIL puzzle and return its pointer.
     pub fn genesis_by_coin_id_tail_puzzle(&mut self) -> Result<NodePtr, SpendError> {
         self.puzzle(
             GENESIS_BY_COIN_ID_TAIL_PUZZLE_HASH,
@@ -170,6 +192,7 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Checks whether a puzzle is in the cache.
+    #[must_use]
     pub fn get_puzzle(&self, puzzle_hash: &TreeHash) -> Option<NodePtr> {
         self.puzzles.get(puzzle_hash).copied()
     }

@@ -10,16 +10,19 @@ use crate::{
     SpendContext, SpendError,
 };
 
-#[derive(Default)]
+#[derive(Debug, Default, Clone)]
 pub struct StandardSpend {
     conditions: Vec<NodePtr>,
 }
 
 impl StandardSpend {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use]
+    #[allow(clippy::needless_pass_by_value)]
     pub fn chain(mut self, chained: ParentConditions) -> Self {
         self.conditions.extend(chained.parent_conditions());
         self
@@ -27,17 +30,17 @@ impl StandardSpend {
 
     pub fn inner_spend(
         self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         synthetic_key: PublicKey,
     ) -> Result<InnerSpend, SpendError> {
         let standard_puzzle = ctx.standard_puzzle()?;
 
-        let puzzle = ctx.alloc(CurriedProgram {
+        let puzzle = ctx.alloc(&CurriedProgram {
             program: standard_puzzle,
             args: StandardArgs { synthetic_key },
         })?;
 
-        let solution = ctx.alloc(StandardSolution {
+        let solution = ctx.alloc(&StandardSolution {
             original_public_key: None,
             delegated_puzzle: clvm_quote!(self.conditions),
             solution: (),
@@ -48,13 +51,13 @@ impl StandardSpend {
 
     pub fn finish(
         self,
-        ctx: &mut SpendContext,
+        ctx: &mut SpendContext<'_>,
         coin: Coin,
         synthetic_key: PublicKey,
     ) -> Result<(), SpendError> {
         let inner_spend = self.inner_spend(ctx, synthetic_key)?;
-        let puzzle_reveal = ctx.serialize(inner_spend.puzzle())?;
-        let solution = ctx.serialize(inner_spend.solution())?;
+        let puzzle_reveal = ctx.serialize(&inner_spend.puzzle())?;
+        let solution = ctx.serialize(&inner_spend.solution())?;
         ctx.spend(CoinSpend::new(coin, puzzle_reveal, solution));
         Ok(())
     }

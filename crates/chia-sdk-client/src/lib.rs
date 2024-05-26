@@ -49,13 +49,13 @@ pub fn create_tls_connector(cert: &ChiaCertificate) -> Result<TlsConnector, nati
         .build()
 }
 
-/// Attempts to connect to a peer and return a handle to the WebSocket wrapper.
+/// Attempts to connect to a peer and return a handle to the websocket wrapper.
 pub async fn connect_peer(
     full_node_uri: &str,
     tls_connector: TlsConnector,
 ) -> Result<Peer, tokio_tungstenite::tungstenite::Error> {
     let (ws, _) = connect_async_tls_with_config(
-        format!("wss://{}/ws", full_node_uri),
+        format!("wss://{full_node_uri}/ws"),
         None,
         false,
         Some(Connector::NativeTls(tls_connector)),

@@ -21,8 +21,8 @@ use crate::Simulator;
 
 use super::simulator_error::SimulatorError;
 
-#[derive(Default)]
-pub struct SimulatorData {
+#[derive(Debug, Default, Clone)]
+pub(crate) struct SimulatorData {
     height: u32,
     coin_states: IndexMap<Bytes32, CoinState>,
     hinted_coins: IndexMap<Bytes32, IndexSet<Bytes32>>,
@@ -32,42 +32,43 @@ pub struct SimulatorData {
 }
 
 impl SimulatorData {
-    pub fn create_coin(&mut self, coin: Coin) {
+    pub(crate) fn create_coin(&mut self, coin: Coin) {
         self.coin_states.insert(
             coin.coin_id(),
             CoinState::new(coin, None, Some(self.height)),
         );
     }
 
-    pub fn add_hint(&mut self, coin_id: Bytes32, hint: Bytes32) {
+    pub(crate) fn add_hint(&mut self, coin_id: Bytes32, hint: Bytes32) {
         self.hinted_coins.entry(hint).or_default().insert(coin_id);
     }
 
-    pub fn header_hash(&self, height: u32) -> Bytes32 {
+    #[allow(clippy::unused_self)]
+    pub(crate) fn header_hash(&self, height: u32) -> Bytes32 {
         let mut hasher = Sha256::new();
         hasher.update(height.to_be_bytes());
         Bytes32::new(hasher.finalize().into())
     }
 
-    pub fn height(&self) -> u32 {
+    pub(crate) fn height(&self) -> u32 {
         self.height
     }
 
-    pub fn lookup_coin_ids(&self, coin_ids: IndexSet<Bytes32>) -> Vec<CoinState> {
+    pub(crate) fn lookup_coin_ids(&self, coin_ids: &IndexSet<Bytes32>) -> Vec<CoinState> {
         coin_ids
             .iter()
-            .filter_map(|coin_id| self.coin_states.get(coin_id).cloned())
+            .filter_map(|coin_id| self.coin_states.get(coin_id).copied())
             .collect()
     }
 
-    pub fn lookup_puzzle_hashes(
+    pub(crate) fn lookup_puzzle_hashes(
         &self,
         puzzle_hashes: IndexSet<Bytes32>,
         include_hints: bool,
     ) -> Vec<CoinState> {
         let mut coin_states = IndexMap::new();
 
-        for (coin_id, coin_state) in self.coin_states.iter() {
+        for (coin_id, coin_state) in &self.coin_states {
             if puzzle_hashes.contains(&coin_state.coin.puzzle_hash) {
                 coin_states.insert(*coin_id, self.coin_states[coin_id]);
             }
@@ -76,7 +77,7 @@ impl SimulatorData {
         if include_hints {
             for puzzle_hash in puzzle_hashes {
                 if let Some(hinted_coins) = self.hinted_coins.get(&puzzle_hash) {
-                    for coin_id in hinted_coins.iter() {
+                    for coin_id in hinted_coins {
                         coin_states.insert(*coin_id, self.coin_states[coin_id]);
                     }
                 }
@@ -86,25 +87,29 @@ impl SimulatorData {
         coin_states.into_values().collect()
     }
 
-    pub fn add_coin_subscriptions(&mut self, peer: SocketAddr, coin_ids: IndexSet<Bytes32>) {
+    pub(crate) fn add_coin_subscriptions(&mut self, peer: SocketAddr, coin_ids: IndexSet<Bytes32>) {
         self.coin_subscriptions
             .entry(peer)
             .or_default()
             .extend(coin_ids);
     }
 
-    pub fn add_puzzle_subscriptions(&mut self, peer: SocketAddr, puzzle_hashes: IndexSet<Bytes32>) {
+    pub(crate) fn add_puzzle_subscriptions(
+        &mut self,
+        peer: SocketAddr,
+        puzzle_hashes: IndexSet<Bytes32>,
+    ) {
         self.puzzle_subscriptions
             .entry(peer)
             .or_default()
             .extend(puzzle_hashes);
     }
 
-    pub fn puzzle_and_solution(&self, coin_id: Bytes32) -> Option<PuzzleSolutionResponse> {
+    pub(crate) fn puzzle_and_solution(&self, coin_id: Bytes32) -> Option<PuzzleSolutionResponse> {
         self.puzzle_and_solutions.get(&coin_id).cloned()
     }
 
-    pub fn children(&self, coin_id: Bytes32) -> Vec<CoinState> {
+    pub(crate) fn children(&self, coin_id: Bytes32) -> Vec<CoinState> {
         self.coin_states
             .values()
             .filter(|cs| cs.coin.parent_coin_info == coin_id)
@@ -112,11 +117,11 @@ impl SimulatorData {
             .collect()
     }
 
-    pub fn coin_state(&self, coin_id: Bytes32) -> Option<CoinState> {
-        self.coin_states.get(&coin_id).cloned()
+    pub(crate) fn coin_state(&self, coin_id: Bytes32) -> Option<CoinState> {
+        self.coin_states.get(&coin_id).copied()
     }
 
-    pub fn new_transaction(
+    pub(crate) fn new_transaction(
         &mut self,
         spend_bundle: SpendBundle,
         max_cost: u64,
@@ -188,7 +193,7 @@ impl SimulatorData {
         let mut added_hints = IndexMap::new();
         let mut puzzle_solutions = IndexMap::new();
 
-        for coin_spend in spend_bundle.coin_spends.into_iter() {
+        for coin_spend in spend_bundle.coin_spends {
             puzzle_solutions.insert(
                 coin_spend.coin.coin_id(),
                 PuzzleSolutionResponse {
@@ -201,8 +206,8 @@ impl SimulatorData {
         }
 
         // Calculate additions and removals.
-        for spend in conds.spends.iter() {
-            for new_coin in spend.create_coin.iter() {
+        for spend in &conds.spends {
+            for new_coin in &spend.create_coin {
                 let coin = Coin::new(spend.coin_id, new_coin.0, new_coin.1);
 
                 added_coins.insert(
@@ -229,14 +234,14 @@ impl SimulatorData {
             let coin_state = self
                 .coin_states
                 .get(&spend.coin_id)
-                .cloned()
+                .copied()
                 .unwrap_or(CoinState::new(coin, None, Some(self.height)));
 
             removed_coins.insert(spend.coin_id, coin_state);
         }
 
         // Validate removals.
-        for (coin_id, coin_state) in removed_coins.iter_mut() {
+        for (coin_id, coin_state) in &mut removed_coins {
             let height = self.height;
 
             if !self.coin_states.contains_key(coin_id) && !added_coins.contains_key(coin_id) {
@@ -289,7 +294,7 @@ impl SimulatorData {
                 .cloned()
                 .unwrap_or_default();
 
-            for (hint, coins) in self.hinted_coins.iter() {
+            for (hint, coins) in &self.hinted_coins {
                 let Ok(hint) = hint.to_vec().try_into() else {
                     continue;
                 };
