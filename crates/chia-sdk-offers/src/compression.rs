@@ -22,43 +22,14 @@ use flate2::{
 };
 use thiserror::Error;
 
-macro_rules! define_compression_versions {
-    ( $( $version:expr => $( $bytes:expr ),+ ; )+ ) => {
-        fn zdict_for_version(version: u16) -> Vec<u8> {
-            let mut bytes = Vec::new();
-            $( if version >= $version {
-                $( bytes.extend_from_slice(&$bytes); )+
-            } )+
-            bytes
-        }
+#[derive(Debug, Error)]
+pub enum CompressionError {
+    #[error("io error: {0}")]
+    Io(#[from] io::Error),
 
-        /// Returns the required compression version for the given puzzle reveals.
-
-        pub fn required_compression_version(puzzles: Vec<Vec<u8>>) -> u16 {
-            let mut required_version = MIN_VERSION;
-            $( {
-                $( if required_version < $version && puzzles.iter().any(|puzzle| puzzle == &$bytes) {
-                    required_version = $version;
-                } )+
-            } )+
-            required_version
-        }
-    };
+    #[error("streamable error: {0}")]
+    Streamable(#[from] chia_traits::Error),
 }
-
-const MIN_VERSION: u16 = 6;
-const MAX_VERSION: u16 = 6;
-
-define_compression_versions!(
-    1 => STANDARD_PUZZLE, CAT_PUZZLE_V1;
-    2 => SETTLEMENT_PAYMENTS_PUZZLE_V1;
-    3 => SINGLETON_TOP_LAYER_PUZZLE, NFT_STATE_LAYER_PUZZLE,
-         NFT_OWNERSHIP_LAYER_PUZZLE, NFT_METADATA_UPDATER_PUZZLE,
-         NFT_ROYALTY_TRANSFER_PUZZLE;
-    4 => CAT_PUZZLE;
-    5 => SETTLEMENT_PAYMENTS_PUZZLE;
-    6 => [0; 0]; // Purposefully break backwards compatibility.
-);
 
 /// An error than can occur while decompressing an offer.
 #[derive(Debug, Error)]
@@ -96,6 +67,74 @@ pub enum DecompressionError {
     Cast(#[from] TryFromIntError),
 }
 
+const MIN_VERSION: u16 = 6;
+const MAX_VERSION: u16 = 6;
+
+macro_rules! define_compression_versions {
+    ( $( $version:expr => $( $bytes:expr ),+ ; )+ ) => {
+        fn zdict_for_version(version: u16) -> Vec<u8> {
+            let mut bytes = Vec::new();
+            $( if version >= $version {
+                $( bytes.extend_from_slice(&$bytes); )+
+            } )+
+            bytes
+        }
+
+        /// Returns the required compression version for the given puzzle reveals.
+
+        pub fn required_compression_version(puzzles: Vec<Vec<u8>>) -> u16 {
+            let mut required_version = MIN_VERSION;
+            $( {
+                $( if required_version < $version && puzzles.iter().any(|puzzle| puzzle == &$bytes) {
+                    required_version = $version;
+                } )+
+            } )+
+            required_version
+        }
+    };
+}
+
+define_compression_versions!(
+    1 => STANDARD_PUZZLE, CAT_PUZZLE_V1;
+    2 => SETTLEMENT_PAYMENTS_PUZZLE_V1;
+    3 => SINGLETON_TOP_LAYER_PUZZLE, NFT_STATE_LAYER_PUZZLE,
+         NFT_OWNERSHIP_LAYER_PUZZLE, NFT_METADATA_UPDATER_PUZZLE,
+         NFT_ROYALTY_TRANSFER_PUZZLE;
+    4 => CAT_PUZZLE;
+    5 => SETTLEMENT_PAYMENTS_PUZZLE;
+    6 => [0; 0]; // Purposefully break backwards compatibility.
+);
+
+/// Compresses an offer spend bundle.
+pub fn compress_offer(spend_bundle: SpendBundle) -> Result<Vec<u8>, CompressionError> {
+    let bytes = spend_bundle.to_bytes()?;
+    let version = required_compression_version(
+        spend_bundle
+            .coin_spends
+            .into_iter()
+            .map(|cs| cs.puzzle_reveal.to_vec())
+            .collect(),
+    );
+    compress_offer_bytes(&bytes, version)
+}
+
+/// Compresses an offer spend bundle from bytes.
+pub fn compress_offer_bytes(bytes: &[u8], version: u16) -> Result<Vec<u8>, CompressionError> {
+    let mut output = version.to_be_bytes().to_vec();
+    let zdict = zdict_for_version(version);
+    output.extend(compress(bytes, &zdict)?);
+    Ok(output)
+}
+
+fn compress(input: &[u8], zdict: &[u8]) -> io::Result<Vec<u8>> {
+    let mut compress = Compress::new(Compression::new(6), true);
+    compress.set_dictionary(zdict)?;
+    let mut encoder = ZlibEncoder::new_with_compress(input, compress);
+    let mut output = Vec::new();
+    encoder.read_to_end(&mut output)?;
+    Ok(output)
+}
+
 /// Decompresses an offer spend bundle.
 pub fn decompress_offer(bytes: &[u8]) -> Result<SpendBundle, DecompressionError> {
     let decompressed_bytes = decompress_offer_bytes(bytes)?;
@@ -120,36 +159,6 @@ pub fn decompress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DecompressionErro
     decompress(&bytes[2..], &zdict)
 }
 
-#[derive(Debug, Error)]
-pub enum CompressionError {
-    #[error("io error: {0}")]
-    Io(#[from] io::Error),
-
-    #[error("streamable error: {0}")]
-    Streamable(#[from] chia_traits::Error),
-}
-
-/// Compresses an offer spend bundle.
-pub fn compress_offer(spend_bundle: SpendBundle) -> Result<Vec<u8>, CompressionError> {
-    let bytes = spend_bundle.to_bytes()?;
-    let version = required_compression_version(
-        spend_bundle
-            .coin_spends
-            .into_iter()
-            .map(|cs| cs.puzzle_reveal.to_vec())
-            .collect(),
-    );
-    compress_offer_bytes(&bytes, version)
-}
-
-/// Compresses an offer spend bundle from bytes.
-pub fn compress_offer_bytes(bytes: &[u8], version: u16) -> Result<Vec<u8>, CompressionError> {
-    let mut output = version.to_be_bytes().to_vec();
-    let zdict = zdict_for_version(version);
-    output.extend(compress(bytes, &zdict)?);
-    Ok(output)
-}
-
 fn decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DecompressionError> {
     let mut decompress = Decompress::new(true);
 
@@ -165,15 +174,6 @@ fn decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DecompressionError>
     let mut decoder = ZlibDecoder::new_with_decompress(&input[usize::try_from(i)?..], decompress);
     let mut output = Vec::new();
     decoder.read_to_end(&mut output)?;
-    Ok(output)
-}
-
-fn compress(input: &[u8], zdict: &[u8]) -> io::Result<Vec<u8>> {
-    let mut compress = Compress::new(Compression::new(6), true);
-    compress.set_dictionary(zdict)?;
-    let mut encoder = ZlibEncoder::new_with_compress(input, compress);
-    let mut output = Vec::new();
-    encoder.read_to_end(&mut output)?;
     Ok(output)
 }
 

@@ -353,12 +353,18 @@ name = "chia-sdk-offers"
 version = "0.8.0"
 dependencies = [
  "bech32",
+ "chia-bls 0.9.0",
  "chia-protocol",
  "chia-puzzles",
+ "chia-sdk-driver",
  "chia-traits 0.9.0",
+ "clvm-traits",
+ "clvm-utils",
+ "clvmr",
  "flate2",
  "hex",
  "hex-literal",
+ "indexmap",
  "thiserror",
 ]
 
