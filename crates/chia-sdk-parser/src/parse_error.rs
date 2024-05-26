@@ -16,7 +16,7 @@ pub enum ParseError {
     #[error("Incorrect hint")]
     MissingCreateCoin,
 
-    #[error("DID singleton struct mismatch")]
+    #[error("Singleton struct mismatch")]
     SingletonStructMismatch,
 
     #[error("Invalid singleton struct")]
