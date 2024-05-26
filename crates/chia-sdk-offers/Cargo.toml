@@ -27,7 +27,11 @@ clvmr = { workspace = true }
 flate2 = { workspace = true }
 indexmap = { workspace = true }
 chia-sdk-driver = { workspace = true }
+chia-sdk-types = { workspace = true }
 
 [dev-dependencies]
 hex-literal = { workspace = true }
 hex = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+anyhow = { workspace = true }
+chia-sdk-test = { workspace = true }

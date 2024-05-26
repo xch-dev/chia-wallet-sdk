@@ -352,11 +352,14 @@ dependencies = [
 name = "chia-sdk-offers"
 version = "0.8.0"
 dependencies = [
+ "anyhow",
  "bech32",
  "chia-bls 0.9.0",
  "chia-protocol",
  "chia-puzzles",
  "chia-sdk-driver",
+ "chia-sdk-test",
+ "chia-sdk-types",
  "chia-traits 0.9.0",
  "clvm-traits",
  "clvm-utils",
@@ -366,6 +369,7 @@ dependencies = [
  "hex-literal",
  "indexmap",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]

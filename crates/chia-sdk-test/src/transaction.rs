@@ -13,15 +13,14 @@ use crate::Simulator;
 #[error("missing key")]
 pub struct KeyError;
 
-pub async fn test_transaction_raw(
-    peer: &Peer,
-    coin_spends: Vec<CoinSpend>,
+pub fn sign_transaction(
+    coin_spends: &[CoinSpend],
     secret_keys: &[SecretKey],
-) -> anyhow::Result<TransactionAck> {
+) -> anyhow::Result<Signature> {
     let mut allocator = Allocator::new();
 
     let required_signatures =
-        RequiredSignature::from_coin_spends(&mut allocator, &coin_spends, Simulator::AGG_SIG_ME)?;
+        RequiredSignature::from_coin_spends(&mut allocator, coin_spends, Simulator::AGG_SIG_ME)?;
 
     let key_pairs = secret_keys
         .iter()
@@ -34,6 +33,16 @@ pub async fn test_transaction_raw(
         let sk = key_pairs.get(&required.public_key()).ok_or(KeyError)?;
         aggregated_signature += &sign(sk, required.final_message());
     }
+
+    Ok(aggregated_signature)
+}
+
+pub async fn test_transaction_raw(
+    peer: &Peer,
+    coin_spends: Vec<CoinSpend>,
+    secret_keys: &[SecretKey],
+) -> anyhow::Result<TransactionAck> {
+    let aggregated_signature = sign_transaction(&coin_spends, secret_keys)?;
 
     Ok(peer
         .send_transaction(SpendBundle::new(coin_spends, aggregated_signature))

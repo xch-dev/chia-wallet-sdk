@@ -10,6 +10,18 @@ pub struct RequestedPayments {
 }
 
 impl RequestedPayments {
+    pub fn new(
+        puzzle_hash: Bytes32,
+        puzzle_reveal: Program,
+        notarized_payments: Vec<NotarizedPayment>,
+    ) -> Self {
+        Self {
+            puzzle_hash,
+            puzzle_reveal,
+            notarized_payments,
+        }
+    }
+
     pub fn from_coin_spend(
         ctx: &mut SpendContext<'_>,
         coin_spend: CoinSpend,

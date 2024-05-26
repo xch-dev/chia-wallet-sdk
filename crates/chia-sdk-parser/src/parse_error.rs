@@ -17,11 +17,11 @@ pub enum ParseError {
     MissingCreateCoin,
 
     #[error("DID singleton struct mismatch")]
-    DidSingletonStructMismatch,
+    SingletonStructMismatch,
 
     #[error("Invalid singleton struct")]
     InvalidSingletonStruct,
 
-    #[error("Unknown DID output")]
-    UnknownDidOutput,
+    #[error("Unknown output, final puzzle hash mismatch")]
+    UnknownOutput,
 }

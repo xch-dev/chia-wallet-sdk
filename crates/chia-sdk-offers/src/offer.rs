@@ -13,6 +13,18 @@ pub struct Offer {
 }
 
 impl Offer {
+    pub fn new(
+        requested_payments: IndexMap<Bytes32, RequestedPayments>,
+        offered_coin_spends: Vec<CoinSpend>,
+        aggregated_signature: Signature,
+    ) -> Self {
+        Self {
+            requested_payments,
+            offered_coin_spends,
+            aggregated_signature,
+        }
+    }
+
     pub fn from_spend_bundle(
         ctx: &mut SpendContext<'_>,
         spend_bundle: SpendBundle,
