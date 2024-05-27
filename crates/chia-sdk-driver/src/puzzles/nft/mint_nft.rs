@@ -147,7 +147,6 @@ impl MintNft for SpendableLauncher {
             p2_puzzle_hash,
             proof,
             metadata,
-            metadata_updater_hash: NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
             current_owner: None,
             royalty_puzzle_hash,
             royalty_percentage,

@@ -3,13 +3,9 @@ use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
     nft::{
         NftOwnershipLayerArgs, NftOwnershipLayerSolution, NftRoyaltyTransferPuzzleArgs,
-        NftStateLayerArgs, NftStateLayerSolution, NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
-        NFT_ROYALTY_TRANSFER_PUZZLE_HASH, NFT_STATE_LAYER_PUZZLE_HASH,
+        NftStateLayerArgs, NftStateLayerSolution,
     },
-    singleton::{
-        SingletonArgs, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH,
-        SINGLETON_TOP_LAYER_PUZZLE_HASH,
-    },
+    singleton::SingletonArgs,
     LineageProof, Proof,
 };
 use chia_sdk_types::{
@@ -17,7 +13,7 @@ use chia_sdk_types::{
     puzzles::NftInfo,
 };
 use clvm_traits::{clvm_list, ToClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::CurriedProgram;
 use clvmr::{
     sha2::{Digest, Sha256},
     NodePtr,
@@ -151,46 +147,23 @@ impl StandardNftSpend<NftOutput> {
 
         let metadata_ptr = ctx.alloc(&nft_info.metadata)?;
 
-        let transfer_program = CurriedProgram {
-            program: NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
-            args: NftRoyaltyTransferPuzzleArgs {
-                singleton_struct: SingletonStruct::new(nft_info.launcher_id),
-                royalty_puzzle_hash: nft_info.royalty_puzzle_hash,
-                trade_price_percentage: nft_info.royalty_percentage,
-            },
-        };
+        let transfer_program = NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
+            nft_info.launcher_id,
+            nft_info.royalty_puzzle_hash,
+            nft_info.royalty_percentage,
+        );
 
-        let ownership_layer = CurriedProgram {
-            program: NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
-            args: NftOwnershipLayerArgs {
-                mod_hash: NFT_OWNERSHIP_LAYER_PUZZLE_HASH.into(),
-                current_owner: nft_info.current_owner,
-                transfer_program,
-                inner_puzzle: TreeHash::from(p2_puzzle_hash),
-            },
-        };
+        let ownership_layer = NftOwnershipLayerArgs::curry_tree_hash(
+            nft_info.current_owner,
+            transfer_program,
+            p2_puzzle_hash.into(),
+        );
 
-        let new_inner_puzzle_hash = CurriedProgram {
-            program: NFT_STATE_LAYER_PUZZLE_HASH,
-            args: NftStateLayerArgs {
-                mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
-                metadata: ctx.tree_hash(metadata_ptr),
-                metadata_updater_puzzle_hash: nft_info.metadata_updater_hash,
-                inner_puzzle: ownership_layer,
-            },
-        }
-        .tree_hash()
-        .into();
+        let state_layer =
+            NftStateLayerArgs::curry_tree_hash(ctx.tree_hash(metadata_ptr), ownership_layer);
 
-        let new_puzzle_hash = CurriedProgram {
-            program: SINGLETON_TOP_LAYER_PUZZLE_HASH,
-            args: SingletonArgs {
-                singleton_struct: SingletonStruct::new(nft_info.launcher_id),
-                inner_puzzle: TreeHash::from(new_inner_puzzle_hash),
-            },
-        }
-        .tree_hash()
-        .into();
+        let singleton_puzzle_hash =
+            SingletonArgs::curry_tree_hash(nft_info.launcher_id, state_layer);
 
         nft_info.proof = Proof::Lineage(LineageProof {
             parent_parent_coin_id: nft_info.coin.parent_coin_info,
@@ -200,11 +173,11 @@ impl StandardNftSpend<NftOutput> {
 
         nft_info.coin = Coin::new(
             nft_info.coin.coin_id(),
-            new_puzzle_hash,
+            singleton_puzzle_hash.into(),
             nft_info.coin.amount,
         );
 
-        nft_info.nft_inner_puzzle_hash = new_inner_puzzle_hash;
+        nft_info.nft_inner_puzzle_hash = state_layer.into();
 
         Ok((parent, nft_info))
     }
@@ -222,26 +195,17 @@ where
 
     let transfer_program = CurriedProgram {
         program: transfer_program_puzzle,
-        args: NftRoyaltyTransferPuzzleArgs {
-            singleton_struct: SingletonStruct {
-                mod_hash: SINGLETON_TOP_LAYER_PUZZLE_HASH.into(),
-                launcher_id: nft_info.launcher_id,
-                launcher_puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-            },
-            royalty_puzzle_hash: nft_info.royalty_puzzle_hash,
-            trade_price_percentage: nft_info.royalty_percentage,
-        },
+        args: NftRoyaltyTransferPuzzleArgs::new(
+            nft_info.launcher_id,
+            nft_info.royalty_puzzle_hash,
+            nft_info.royalty_percentage,
+        ),
     };
 
     let ownership_layer_spend =
         spend_nft_ownership_layer(ctx, nft_info.current_owner, transfer_program, inner_spend)?;
 
-    let state_layer_spend = spend_nft_state_layer(
-        ctx,
-        &nft_info.metadata,
-        nft_info.metadata_updater_hash,
-        ownership_layer_spend,
-    )?;
+    let state_layer_spend = spend_nft_state_layer(ctx, &nft_info.metadata, ownership_layer_spend)?;
 
     spend_singleton(
         ctx,
@@ -255,7 +219,6 @@ where
 pub fn spend_nft_state_layer<M>(
     ctx: &mut SpendContext<'_>,
     metadata: M,
-    metadata_updater_puzzle_hash: Bytes32,
     inner_spend: InnerSpend,
 ) -> Result<InnerSpend, SpendError>
 where
@@ -265,12 +228,7 @@ where
 
     let puzzle = ctx.alloc(&CurriedProgram {
         program: nft_state_layer,
-        args: NftStateLayerArgs {
-            mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
-            metadata,
-            metadata_updater_puzzle_hash,
-            inner_puzzle: inner_spend.puzzle(),
-        },
+        args: NftStateLayerArgs::new(metadata, inner_spend.puzzle()),
     })?;
 
     let solution = ctx.alloc(&NftStateLayerSolution {
@@ -293,12 +251,7 @@ where
 
     let puzzle = ctx.alloc(&CurriedProgram {
         program: nft_ownership_layer,
-        args: NftOwnershipLayerArgs {
-            mod_hash: NFT_OWNERSHIP_LAYER_PUZZLE_HASH.into(),
-            current_owner,
-            transfer_program,
-            inner_puzzle: inner_spend.puzzle(),
-        },
+        args: NftOwnershipLayerArgs::new(current_owner, transfer_program, inner_spend.puzzle()),
     })?;
 
     let solution = ctx.alloc(&NftOwnershipLayerSolution {

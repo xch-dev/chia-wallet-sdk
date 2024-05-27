@@ -120,7 +120,6 @@ pub fn parse_nft(
         coin: ctx.coin(),
         p2_puzzle_hash,
         nft_inner_puzzle_hash: state_puzzle_hash.into(),
-        metadata_updater_hash: state.metadata_updater_puzzle_hash,
         royalty_percentage: transfer.trade_price_percentage,
         royalty_puzzle_hash: transfer.royalty_puzzle_hash,
         current_owner,
