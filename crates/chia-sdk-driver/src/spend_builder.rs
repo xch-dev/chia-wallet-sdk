@@ -96,7 +96,7 @@ pub trait P2Spend: Sized {
         let mut announcement_id = Sha256::new();
         announcement_id.update(puzzle_hash);
         announcement_id.update(message);
-        self.assert_raw_coin_announcement(ctx, Bytes32::new(announcement_id.finalize().into()))
+        self.assert_raw_puzzle_announcement(ctx, Bytes32::new(announcement_id.finalize().into()))
     }
 
     fn assert_before_seconds_relative(
