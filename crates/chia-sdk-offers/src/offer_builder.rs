@@ -2,7 +2,7 @@ use chia_bls::Signature;
 use chia_protocol::{Bytes32, CoinSpend, Program};
 use chia_puzzles::offer::{NotarizedPayment, Payment};
 use chia_sdk_driver::{
-    spend_builder::{P2Spend, ParentConditions},
+    spend_builder::{P2Spend, SpendConditions},
     SpendContext, SpendError,
 };
 
@@ -15,7 +15,7 @@ use crate::Offer;
 #[derive(Debug, Clone)]
 pub struct RequestPayments {
     nonce: Bytes32,
-    required_conditions: ParentConditions,
+    required_conditions: SpendConditions,
     requested_payments: IndexMap<Program, Vec<NotarizedPayment>>,
 }
 
@@ -37,7 +37,7 @@ impl OfferBuilder<RequestPayments> {
         Self {
             state: RequestPayments {
                 nonce: offered_coin_ids.tree_hash().into(),
-                required_conditions: ParentConditions::new(),
+                required_conditions: SpendConditions::new(),
                 requested_payments: IndexMap::new(),
             },
         }
@@ -87,7 +87,7 @@ impl OfferBuilder<RequestPayments> {
         Ok(self)
     }
 
-    pub fn make_payments(self) -> (ParentConditions, OfferBuilder<MakePayments>) {
+    pub fn make_payments(self) -> (SpendConditions, OfferBuilder<MakePayments>) {
         let builder = OfferBuilder {
             state: MakePayments {
                 requested_payments: self.state.requested_payments,

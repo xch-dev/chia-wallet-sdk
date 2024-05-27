@@ -10,7 +10,7 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    spend_builder::{P2Spend, ParentConditions},
+    spend_builder::{P2Spend, SpendConditions},
     SpendContext, SpendError,
 };
 
@@ -18,11 +18,11 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct SpendableLauncher {
     coin: Coin,
-    parent: ParentConditions,
+    parent: SpendConditions,
 }
 
 impl SpendableLauncher {
-    pub fn with_parent(coin: Coin, parent: ParentConditions) -> Self {
+    pub fn with_parent(coin: Coin, parent: SpendConditions) -> Self {
         Self { coin, parent }
     }
 
@@ -36,7 +36,7 @@ impl SpendableLauncher {
         ctx: &mut SpendContext<'_>,
         singleton_inner_puzzle_hash: Bytes32,
         key_value_list: T,
-    ) -> Result<(ParentConditions, Coin), SpendError>
+    ) -> Result<(SpendConditions, Coin), SpendError>
     where
         T: ToClvm<NodePtr>,
     {

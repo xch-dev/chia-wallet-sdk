@@ -104,7 +104,7 @@ mod tests {
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
 
         let (issue_cat, issuance_info) = IssueCat::new(parent.coin_id())
-            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
+            .create_hinted_coin(ctx, puzzle_hash, 1)?
             .multi_issuance(ctx, pk, 1)?;
 
         let cat_puzzle_hash = CurriedProgram {

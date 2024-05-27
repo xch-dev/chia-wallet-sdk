@@ -13,7 +13,7 @@ use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
 use crate::{
-    spend_builder::{P2Spend, ParentConditions},
+    spend_builder::{P2Spend, SpendConditions},
     SpendContext, SpendError,
 };
 
@@ -43,7 +43,7 @@ impl IssueCat {
         self,
         ctx: &mut SpendContext<'_>,
         amount: u64,
-    ) -> Result<(ParentConditions, CatIssuanceInfo), SpendError> {
+    ) -> Result<(SpendConditions, CatIssuanceInfo), SpendError> {
         let tail_puzzle_ptr = ctx.genesis_by_coin_id_tail_puzzle()?;
 
         let tail = ctx.alloc(&CurriedProgram {
@@ -66,7 +66,7 @@ impl IssueCat {
         ctx: &mut SpendContext<'_>,
         public_key: PublicKey,
         amount: u64,
-    ) -> Result<(ParentConditions, CatIssuanceInfo), SpendError> {
+    ) -> Result<(SpendConditions, CatIssuanceInfo), SpendError> {
         let tail_puzzle_ptr = ctx.everything_with_signature_tail_puzzle()?;
 
         let tail = ctx.alloc(&CurriedProgram {
@@ -87,7 +87,7 @@ impl IssueCat {
         ctx: &mut SpendContext<'_>,
         asset_id: Bytes32,
         amount: u64,
-    ) -> Result<(ParentConditions, CatIssuanceInfo), SpendError> {
+    ) -> Result<(SpendConditions, CatIssuanceInfo), SpendError> {
         let cat_puzzle_ptr = ctx.cat_puzzle()?;
 
         let inner_puzzle = ctx.alloc(&clvm_quote!(self.conditions))?;
@@ -122,8 +122,7 @@ impl IssueCat {
         let puzzle_reveal = ctx.serialize(&puzzle)?;
         ctx.spend(CoinSpend::new(eve_coin, puzzle_reveal, solution));
 
-        let chained_spend =
-            ParentConditions::new().create_hinted_coin(ctx, puzzle_hash, amount, puzzle_hash)?;
+        let chained_spend = SpendConditions::new().create_hinted_coin(ctx, puzzle_hash, amount)?;
 
         let issuance_info = CatIssuanceInfo {
             asset_id,
@@ -171,7 +170,7 @@ mod tests {
         let ctx = &mut SpendContext::new(&mut allocator);
 
         let (issue_cat, _cat_info) = IssueCat::new(coin.coin_id())
-            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
+            .create_hinted_coin(ctx, puzzle_hash, 1)?
             .single_issuance(ctx, 1)?;
 
         StandardSpend::new()
@@ -198,7 +197,7 @@ mod tests {
         let ctx = &mut SpendContext::new(&mut allocator);
 
         let (issue_cat, _cat_info) = IssueCat::new(coin.coin_id())
-            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
+            .create_hinted_coin(ctx, puzzle_hash, 1)?
             .multi_issuance(ctx, pk, 1)?;
 
         StandardSpend::new()

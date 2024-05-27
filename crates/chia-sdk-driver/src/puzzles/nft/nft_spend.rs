@@ -25,7 +25,7 @@ use clvmr::{
 
 use crate::{
     puzzles::{spend_singleton, StandardSpend},
-    spend_builder::{InnerSpend, P2Spend, ParentConditions},
+    spend_builder::{InnerSpend, P2Spend, SpendConditions},
     SpendContext, SpendError,
 };
 
@@ -88,7 +88,7 @@ impl<T> StandardNftSpend<T> {
         self
     }
 
-    pub fn chain(mut self, chained: ParentConditions) -> Self {
+    pub fn chain(mut self, chained: SpendConditions) -> Self {
         self.standard_spend = self.standard_spend.chain(chained);
         self
     }
@@ -107,11 +107,11 @@ impl StandardNftSpend<NftOutput> {
         ctx: &mut SpendContext<'_>,
         synthetic_key: PublicKey,
         mut nft_info: NftInfo<M>,
-    ) -> Result<(ParentConditions, NftInfo<M>), SpendError>
+    ) -> Result<(SpendConditions, NftInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>,
     {
-        let mut parent = ParentConditions::default();
+        let mut parent = SpendConditions::default();
 
         let p2_puzzle_hash = match self.output {
             NftOutput::SamePuzzleHash => nft_info.p2_puzzle_hash,
@@ -139,7 +139,7 @@ impl StandardNftSpend<NftOutput> {
 
         let inner_spend = self
             .standard_spend
-            .create_hinted_coin(ctx, p2_puzzle_hash, nft_info.coin.amount, p2_puzzle_hash)?
+            .create_hinted_coin(ctx, p2_puzzle_hash, nft_info.coin.amount)?
             .inner_spend(ctx, synthetic_key)?;
 
         let nft_spend = raw_nft_spend(ctx, &nft_info, inner_spend)?;

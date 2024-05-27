@@ -12,7 +12,7 @@ use clvmr::{
 };
 
 use crate::{
-    spend_builder::{P2Spend, ParentConditions},
+    spend_builder::{P2Spend, SpendConditions},
     SpendContext, SpendError,
 };
 
@@ -65,7 +65,7 @@ impl IntermediateLauncher {
     }
 
     pub fn create(self, ctx: &mut SpendContext<'_>) -> Result<SpendableLauncher, SpendError> {
-        let mut parent = ParentConditions::new();
+        let mut parent = SpendConditions::new();
 
         let intermediate_puzzle = ctx.nft_intermediate_launcher()?;
 

@@ -17,7 +17,7 @@ use clvmr::NodePtr;
 
 use crate::{
     puzzles::SpendableLauncher,
-    spend_builder::{P2Spend, ParentConditions},
+    spend_builder::{P2Spend, SpendConditions},
     SpendContext, SpendError,
 };
 
@@ -42,7 +42,7 @@ pub trait MintNft {
         metadata: M,
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
-    ) -> Result<(ParentConditions, NftInfo<M>), SpendError>
+    ) -> Result<(SpendConditions, NftInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>;
 
@@ -50,7 +50,7 @@ pub trait MintNft {
         self,
         ctx: &mut SpendContext<'_>,
         mint: StandardMint<M>,
-    ) -> Result<(ParentConditions, NftInfo<M>), SpendError>
+    ) -> Result<(SpendConditions, NftInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>,
         Self: Sized,
@@ -91,7 +91,7 @@ impl MintNft for SpendableLauncher {
         metadata: M,
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
-    ) -> Result<(ParentConditions, NftInfo<M>), SpendError>
+    ) -> Result<(SpendConditions, NftInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>,
     {
