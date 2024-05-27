@@ -84,6 +84,11 @@ impl<T> StandardNftSpend<T> {
         self
     }
 
+    pub fn reset_owner(mut self) -> Self {
+        self.new_owner = None;
+        self
+    }
+
     pub fn chain(mut self, chained: SpendConditions) -> Self {
         self.standard_spend = self.standard_spend.chain(chained);
         self
