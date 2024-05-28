@@ -140,7 +140,7 @@ mod tests {
     use chia_protocol::{Bytes32, Coin};
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_driver::{
-        puzzles::{CreateDid, Launcher, MintNft, StandardMint, StandardSpend},
+        puzzles::{CreateDid, Launcher, MintNft, OwnerDid, StandardMint, StandardSpend},
         SpendContext,
     };
     use clvm_traits::ToNodePtr;
@@ -170,8 +170,10 @@ mod tests {
                     royalty_puzzle_hash: Bytes32::new([1; 32]),
                     owner_puzzle_hash: puzzle_hash,
                     synthetic_key: pk,
-                    did_id: did_info.launcher_id,
-                    did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+                    owner_did: Some(OwnerDid {
+                        did_id: did_info.launcher_id,
+                        did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+                    }),
                 },
             )?;
 

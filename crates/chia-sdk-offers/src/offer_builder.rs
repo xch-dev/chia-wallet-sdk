@@ -1,20 +1,50 @@
 use chia_bls::Signature;
 use chia_protocol::{Bytes32, CoinSpend, Program};
-use chia_puzzles::offer::{NotarizedPayment, Payment};
+use chia_puzzles::{
+    cat::CatArgs,
+    nft::{NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs},
+    offer::{NotarizedPayment, Payment},
+    singleton::SingletonArgs,
+};
 use chia_sdk_driver::{
     spend_builder::{P2Spend, SpendConditions},
     SpendContext, SpendError,
 };
 
-use clvm_traits::ToNodePtr;
-use clvm_utils::ToTreeHash;
+use chia_sdk_types::puzzles::NftInfo;
+use clvm_traits::{ToClvm, ToNodePtr};
+use clvm_utils::{CurriedProgram, ToTreeHash};
+use clvmr::NodePtr;
 use indexmap::IndexMap;
 
 use crate::Offer;
 
+#[derive(Debug, Clone, Copy)]
+pub struct NftPaymentInfo<M> {
+    pub launcher_id: Bytes32,
+    pub royalty_puzzle_hash: Bytes32,
+    pub royalty_percentage: u16,
+    pub current_owner: Option<Bytes32>,
+    pub metadata: M,
+}
+
+impl<M> NftPaymentInfo<M>
+where
+    M: Clone,
+{
+    pub fn from_nft_info(nft_info: &NftInfo<M>) -> Self {
+        Self {
+            launcher_id: nft_info.launcher_id,
+            royalty_puzzle_hash: nft_info.royalty_puzzle_hash,
+            royalty_percentage: nft_info.royalty_percentage,
+            current_owner: None,
+            metadata: nft_info.metadata.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RequestPayments {
-    nonce: Bytes32,
     required_conditions: SpendConditions,
     requested_payments: IndexMap<Program, Vec<NotarizedPayment>>,
 }
@@ -27,7 +57,14 @@ pub struct MakePayments {
 #[derive(Debug, Clone, Copy)]
 #[must_use]
 pub struct OfferBuilder<T> {
+    nonce: Bytes32,
     state: T,
+}
+
+impl<T> OfferBuilder<T> {
+    pub fn nonce(&self) -> Bytes32 {
+        self.nonce
+    }
 }
 
 impl OfferBuilder<RequestPayments> {
@@ -35,8 +72,8 @@ impl OfferBuilder<RequestPayments> {
         offered_coin_ids.sort();
 
         Self {
+            nonce: offered_coin_ids.tree_hash().into(),
             state: RequestPayments {
-                nonce: offered_coin_ids.tree_hash().into(),
                 required_conditions: SpendConditions::new(),
                 requested_payments: IndexMap::new(),
             },
@@ -49,6 +86,69 @@ impl OfferBuilder<RequestPayments> {
         payments: Vec<Payment>,
     ) -> Result<Self, SpendError> {
         let puzzle = ctx.settlement_payments_puzzle()?;
+        self.request_raw_payments(ctx, &puzzle, payments)
+    }
+
+    pub fn request_cat_payments(
+        self,
+        ctx: &mut SpendContext<'_>,
+        asset_id: Bytes32,
+        payments: Vec<Payment>,
+    ) -> Result<Self, SpendError> {
+        let settlement_payments_puzzle = ctx.settlement_payments_puzzle()?;
+        let cat_puzzle = ctx.cat_puzzle()?;
+
+        let puzzle = ctx.alloc(&CurriedProgram {
+            program: cat_puzzle,
+            args: CatArgs::new(asset_id, settlement_payments_puzzle),
+        })?;
+
+        self.request_raw_payments(ctx, &puzzle, payments)
+    }
+
+    pub fn request_nft_payments<M>(
+        self,
+        ctx: &mut SpendContext<'_>,
+        payment_info: NftPaymentInfo<M>,
+        payments: Vec<Payment>,
+    ) -> Result<Self, SpendError>
+    where
+        M: ToClvm<NodePtr>,
+    {
+        let settlement_payments_puzzle = ctx.settlement_payments_puzzle()?;
+        let transfer_program = ctx.nft_royalty_transfer()?;
+        let ownership_layer_puzzle = ctx.nft_ownership_layer()?;
+        let state_layer_puzzle = ctx.nft_state_layer()?;
+        let singleton_puzzle = ctx.singleton_top_layer()?;
+
+        let transfer = CurriedProgram {
+            program: transfer_program,
+            args: NftRoyaltyTransferPuzzleArgs::new(
+                payment_info.launcher_id,
+                payment_info.royalty_puzzle_hash,
+                payment_info.royalty_percentage,
+            ),
+        };
+
+        let ownership = CurriedProgram {
+            program: ownership_layer_puzzle,
+            args: NftOwnershipLayerArgs::new(
+                payment_info.current_owner,
+                transfer,
+                settlement_payments_puzzle,
+            ),
+        };
+
+        let state = CurriedProgram {
+            program: state_layer_puzzle,
+            args: NftStateLayerArgs::new(payment_info.metadata, ownership),
+        };
+
+        let puzzle = ctx.alloc(&CurriedProgram {
+            program: singleton_puzzle,
+            args: SingletonArgs::new(payment_info.launcher_id, state),
+        })?;
+
         self.request_raw_payments(ctx, &puzzle, payments)
     }
 
@@ -66,7 +166,7 @@ impl OfferBuilder<RequestPayments> {
         let puzzle_reveal = ctx.serialize(&puzzle_ptr)?;
 
         let notarized_payment = NotarizedPayment {
-            nonce: self.state.nonce,
+            nonce: self.nonce,
             payments,
         };
 
@@ -89,6 +189,7 @@ impl OfferBuilder<RequestPayments> {
 
     pub fn make_payments(self) -> (SpendConditions, OfferBuilder<MakePayments>) {
         let builder = OfferBuilder {
+            nonce: self.nonce,
             state: MakePayments {
                 requested_payments: self.state.requested_payments,
             },
@@ -227,11 +328,6 @@ mod tests {
             .concat(),
             a_offer.aggregated_signature() + b_offer.aggregated_signature(),
         );
-
-        println!("{SETTLEMENT_PAYMENTS_PUZZLE_HASH}");
-        println!("A COIN: {a:?}");
-        println!("B COIN: {b:?}");
-        dbg!(&spend_bundle);
 
         let ack = peer.send_transaction(spend_bundle).await?;
         assert_eq!(ack.error, None);

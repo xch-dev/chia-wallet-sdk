@@ -30,6 +30,11 @@ pub struct StandardMint<M> {
     pub royalty_percentage: u16,
     pub synthetic_key: PublicKey,
     pub owner_puzzle_hash: Bytes32,
+    pub owner_did: Option<OwnerDid>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct OwnerDid {
     pub did_id: Bytes32,
     pub did_inner_puzzle_hash: Bytes32,
 }
@@ -72,10 +77,16 @@ pub trait MintNft {
             mint.royalty_percentage,
         )?;
 
-        let (nft_spend, nft_info) = StandardNftSpend::new()
-            .new_owner(mint.did_id, mint.did_inner_puzzle_hash)
-            .transfer(mint.owner_puzzle_hash)
-            .finish(ctx, mint.synthetic_key, nft_info)?;
+        let mut nft_spend = StandardNftSpend::new();
+
+        if let Some(owner_did) = mint.owner_did {
+            nft_spend = nft_spend.new_owner(owner_did.did_id, owner_did.did_inner_puzzle_hash);
+        }
+
+        let (nft_spend, nft_info) =
+            nft_spend
+                .transfer(mint.owner_puzzle_hash)
+                .finish(ctx, mint.synthetic_key, nft_info)?;
 
         mint_nft.extend(nft_spend);
 
@@ -197,8 +208,10 @@ mod tests {
             royalty_percentage: 100,
             owner_puzzle_hash: puzzle_hash,
             synthetic_key: pk,
-            did_id: did_info.launcher_id,
-            did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+            owner_did: Some(OwnerDid {
+                did_id: did_info.launcher_id,
+                did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+            }),
         };
 
         let _did_info = StandardDidSpend::new()
@@ -255,8 +268,10 @@ mod tests {
             royalty_percentage: 100,
             owner_puzzle_hash: puzzle_hash,
             synthetic_key: pk,
-            did_id: did_info.launcher_id,
-            did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+            owner_did: Some(OwnerDid {
+                did_id: did_info.launcher_id,
+                did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+            }),
         };
 
         let (mint_nft, _nft_info) = launcher.mint_standard_nft(ctx, mint)?;
@@ -309,8 +324,10 @@ mod tests {
             royalty_percentage: 100,
             owner_puzzle_hash: puzzle_hash,
             synthetic_key: pk,
-            did_id: did_info.launcher_id,
-            did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+            owner_did: Some(OwnerDid {
+                did_id: did_info.launcher_id,
+                did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+            }),
         };
 
         let (mint_nft, _nft_info) = launcher.mint_standard_nft(ctx, mint)?;

@@ -85,7 +85,11 @@ impl<T> StandardNftSpend<T> {
     }
 
     pub fn reset_owner(mut self) -> Self {
-        self.new_owner = None;
+        self.new_owner = Some(NewNftOwner {
+            new_owner: None,
+            trade_prices_list: Vec::new(),
+            new_did_p2_puzzle_hash: None,
+        });
         self
     }
 
@@ -269,7 +273,8 @@ where
 #[cfg(test)]
 mod tests {
     use crate::puzzles::{
-        CreateDid, IntermediateLauncher, Launcher, MintNft, StandardDidSpend, StandardMint,
+        CreateDid, IntermediateLauncher, Launcher, MintNft, OwnerDid, StandardDidSpend,
+        StandardMint,
     };
 
     use super::*;
@@ -310,8 +315,10 @@ mod tests {
                     royalty_percentage: 300,
                     synthetic_key: pk,
                     owner_puzzle_hash: puzzle_hash,
-                    did_id: did_info.launcher_id,
-                    did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+                    owner_did: Some(OwnerDid {
+                        did_id: did_info.launcher_id,
+                        did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+                    }),
                 },
             )?;
 
