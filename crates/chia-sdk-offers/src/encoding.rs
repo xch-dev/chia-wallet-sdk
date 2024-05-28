@@ -34,8 +34,7 @@ pub fn decode_offer(offer: &str) -> Result<Vec<u8>, DecodeOfferError> {
 
 /// Encodes an offer.
 pub fn encode_offer(offer: &[u8]) -> Result<String, bech32::Error> {
-    let data = bech32::convert_bits(offer, 8, 5, true)
-        .unwrap()
+    let data = bech32::convert_bits(offer, 8, 5, true)?
         .into_iter()
         .map(u5::try_from_u8)
         .collect::<Result<Vec<_>, bech32::Error>>()?;

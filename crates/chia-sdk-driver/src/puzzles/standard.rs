@@ -6,24 +6,23 @@ use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
 use crate::{
-    spend_builder::{InnerSpend, P2Spend, ParentConditions},
+    spend_builder::{InnerSpend, P2Spend, SpendConditions},
     SpendContext, SpendError,
 };
 
 #[derive(Debug, Default, Clone)]
+#[must_use]
 pub struct StandardSpend {
     conditions: Vec<NodePtr>,
 }
 
 impl StandardSpend {
-    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[must_use]
     #[allow(clippy::needless_pass_by_value)]
-    pub fn chain(mut self, chained: ParentConditions) -> Self {
+    pub fn chain(mut self, chained: SpendConditions) -> Self {
         self.conditions.extend(chained.parent_conditions());
         self
     }

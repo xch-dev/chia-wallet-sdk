@@ -22,7 +22,6 @@ pub struct RequiredSignature {
 
 impl RequiredSignature {
     /// Converts a known [`AggSig`] condition to a `RequiredSignature` if possible.
-    #[must_use]
     pub fn from_condition(coin: &Coin, condition: AggSig, agg_sig_me: Bytes32) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(agg_sig_me);
@@ -133,31 +132,26 @@ impl RequiredSignature {
     }
 
     /// The public key required to verify the signature.
-    #[must_use]
     pub fn public_key(&self) -> PublicKey {
         self.public_key
     }
 
     /// The message field of the condition, without anything appended.
-    #[must_use]
     pub fn raw_message(&self) -> &[u8] {
         self.raw_message.as_ref()
     }
 
     /// Additional coin information that is appended to the condition's message.
-    #[must_use]
     pub fn appended_info(&self) -> &[u8] {
         &self.appended_info
     }
 
     /// The domain string that is appended to the condition's message.
-    #[must_use]
     pub fn domain_string(&self) -> Option<Bytes32> {
         self.domain_string
     }
 
     /// Computes the message that needs to be signed.
-    #[must_use]
     pub fn final_message(&self) -> Vec<u8> {
         let mut message = Vec::from(self.raw_message.as_ref());
         message.extend(&self.appended_info);

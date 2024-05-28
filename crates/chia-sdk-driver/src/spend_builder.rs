@@ -34,6 +34,15 @@ pub trait P2Spend: Sized {
         ctx: &mut SpendContext<'_>,
         puzzle_hash: Bytes32,
         amount: u64,
+    ) -> Result<Self, SpendError> {
+        Ok(self.raw_condition(ctx.alloc(&CreateCoin::with_hint(puzzle_hash, amount))?))
+    }
+
+    fn create_custom_hinted_coin(
+        self,
+        ctx: &mut SpendContext<'_>,
+        puzzle_hash: Bytes32,
+        amount: u64,
         hint: Bytes32,
     ) -> Result<Self, SpendError> {
         Ok(self.raw_condition(ctx.alloc(&CreateCoin::with_custom_hint(
@@ -96,7 +105,7 @@ pub trait P2Spend: Sized {
         let mut announcement_id = Sha256::new();
         announcement_id.update(puzzle_hash);
         announcement_id.update(message);
-        self.assert_raw_coin_announcement(ctx, Bytes32::new(announcement_id.finalize().into()))
+        self.assert_raw_puzzle_announcement(ctx, Bytes32::new(announcement_id.finalize().into()))
     }
 
     fn assert_before_seconds_relative(
@@ -165,12 +174,12 @@ pub trait P2Spend: Sized {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct ParentConditions {
+#[must_use]
+pub struct SpendConditions {
     conditions: Vec<NodePtr>,
 }
 
-impl ParentConditions {
-    #[must_use]
+impl SpendConditions {
     pub fn new() -> Self {
         Self::default()
     }
@@ -179,13 +188,12 @@ impl ParentConditions {
         self.conditions.extend(other.conditions);
     }
 
-    #[must_use]
     pub fn parent_conditions(&self) -> &[NodePtr] {
         &self.conditions
     }
 }
 
-impl P2Spend for ParentConditions {
+impl P2Spend for SpendConditions {
     fn raw_condition(mut self, condition: NodePtr) -> Self {
         self.conditions.push(condition);
         self
@@ -193,23 +201,21 @@ impl P2Spend for ParentConditions {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[must_use]
 pub struct InnerSpend {
     puzzle: NodePtr,
     solution: NodePtr,
 }
 
 impl InnerSpend {
-    #[must_use]
     pub const fn new(puzzle: NodePtr, solution: NodePtr) -> Self {
         Self { puzzle, solution }
     }
 
-    #[must_use]
     pub const fn puzzle(&self) -> NodePtr {
         self.puzzle
     }
 
-    #[must_use]
     pub const fn solution(&self) -> NodePtr {
         self.solution
     }

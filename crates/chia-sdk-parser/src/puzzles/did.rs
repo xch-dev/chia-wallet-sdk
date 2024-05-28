@@ -23,12 +23,12 @@ pub fn parse_did(
 
     let args = DidArgs::<NodePtr, NodePtr>::from_clvm(allocator, singleton.inner_args())?;
 
+    if args.singleton_struct != singleton.args().singleton_struct {
+        return Err(ParseError::SingletonStructMismatch);
+    }
+
     let DidSolution::InnerSpend(p2_solution) =
         DidSolution::<NodePtr>::from_clvm(allocator, singleton.inner_solution())?;
-
-    if args.singleton_struct != singleton.args().singleton_struct {
-        return Err(ParseError::DidSingletonStructMismatch);
-    }
 
     let Reduction(_cost, output) = run_program(
         allocator,
@@ -39,6 +39,7 @@ pub fn parse_did(
     )?;
 
     let conditions = Vec::<NodePtr>::from_clvm(allocator, output)?;
+
     let mut p2_puzzle_hash = None;
 
     for condition in conditions {
@@ -85,7 +86,7 @@ pub fn parse_did(
     .into();
 
     if singleton_puzzle_hash != ctx.coin().puzzle_hash {
-        return Err(ParseError::UnknownDidOutput);
+        return Err(ParseError::UnknownOutput);
     }
 
     Ok(Some(DidInfo {
@@ -106,40 +107,35 @@ pub fn parse_did(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use chia_bls::PublicKey;
-    use chia_protocol::{Bytes32, Coin};
-    use chia_puzzles::standard::{StandardArgs, STANDARD_PUZZLE_HASH};
+    use chia_protocol::Coin;
+    use chia_puzzles::standard::StandardArgs;
     use chia_sdk_driver::{
         puzzles::{CreateDid, Launcher, StandardSpend},
         SpendContext,
     };
     use clvm_traits::ToNodePtr;
-    use clvm_utils::{CurriedProgram, ToTreeHash};
-    use clvmr::Allocator;
 
-    use crate::{parse_did, parse_puzzle, parse_singleton};
+    use crate::{parse_puzzle, parse_singleton};
 
     #[test]
     fn test_parse_did() -> anyhow::Result<()> {
         let mut allocator = Allocator::new();
-        let mut ctx = SpendContext::new(&mut allocator);
+        let ctx = &mut SpendContext::new(&mut allocator);
 
         let pk = PublicKey::default();
-        let puzzle_hash = CurriedProgram {
-            program: STANDARD_PUZZLE_HASH,
-            args: StandardArgs { synthetic_key: pk },
-        }
-        .tree_hash()
-        .into();
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
 
         let (create_did, did_info) = Launcher::new(parent.coin_id(), 1)
-            .create(&mut ctx)?
-            .create_standard_did(&mut ctx, pk)?;
+            .create(ctx)?
+            .create_standard_did(ctx, pk)?;
 
         StandardSpend::new()
             .chain(create_did)
-            .finish(&mut ctx, parent, pk)?;
+            .finish(ctx, parent, pk)?;
 
         let coin_spends = ctx.take_spends();
 

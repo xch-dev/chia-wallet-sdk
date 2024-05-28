@@ -338,12 +338,35 @@ dependencies = [
  "chia-puzzles",
  "chia-sdk-test",
  "chia-sdk-types",
- "chia-traits 0.9.0",
  "clvm-traits",
  "clvm-utils",
  "clvmr",
  "hex",
  "hex-literal",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "chia-sdk-offers"
+version = "0.8.0"
+dependencies = [
+ "anyhow",
+ "bech32",
+ "chia-bls 0.9.0",
+ "chia-protocol",
+ "chia-puzzles",
+ "chia-sdk-driver",
+ "chia-sdk-test",
+ "chia-sdk-types",
+ "chia-traits 0.9.0",
+ "clvm-traits",
+ "clvm-utils",
+ "clvmr",
+ "flate2",
+ "hex",
+ "hex-literal",
+ "indexmap",
  "thiserror",
  "tokio",
 ]
@@ -464,6 +487,7 @@ dependencies = [
  "chia-protocol",
  "chia-sdk-client",
  "chia-sdk-driver",
+ "chia-sdk-offers",
  "chia-sdk-parser",
  "chia-sdk-signer",
  "chia-sdk-test",
@@ -581,6 +605,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "53fe5e26ff1b7aef8bca9c6080520cfb8d9333c7568e1829cef191a9723e5504"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "crc32fast"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a97769d94ddab943e4510d138150169a2758b5ef3eb191a9ee688de3e23ef7b3"
+dependencies = [
+ "cfg-if",
 ]
 
 [[package]]
@@ -732,6 +765,17 @@ checksum = "ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449"
 dependencies = [
  "rand_core",
  "subtle",
+]
+
+[[package]]
+name = "flate2"
+version = "1.0.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f54427cfd1c7829e2a139fcefea601bf088ebca651d2bf53ebc600eac295dae"
+dependencies = [
+ "crc32fast",
+ "libz-sys",
+ "miniz_oxide",
 ]
 
 [[package]]
@@ -995,6 +1039,17 @@ name = "libm"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
+
+[[package]]
+name = "libz-sys"
+version = "1.1.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e143b5e666b2695d28f6bca6497720813f699c9602dd7f5cac91008b8ada7f9"
+dependencies = [
+ "cc",
+ "pkg-config",
+ "vcpkg",
+]
 
 [[package]]
 name = "linux-raw-sys"

@@ -16,12 +16,12 @@ pub enum ParseError {
     #[error("Incorrect hint")]
     MissingCreateCoin,
 
-    #[error("DID singleton struct mismatch")]
-    DidSingletonStructMismatch,
+    #[error("Singleton struct mismatch")]
+    SingletonStructMismatch,
 
     #[error("Invalid singleton struct")]
     InvalidSingletonStruct,
 
-    #[error("Unknown DID output")]
-    UnknownDidOutput,
+    #[error("Unknown output, final puzzle hash mismatch")]
+    UnknownOutput,
 }

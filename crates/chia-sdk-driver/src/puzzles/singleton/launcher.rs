@@ -4,19 +4,19 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::singleton::SINGLETON_LAUNCHER_PUZZLE_HASH;
 
 use crate::{
-    spend_builder::{P2Spend, ParentConditions},
+    spend_builder::{P2Spend, SpendConditions},
     SpendContext, SpendError,
 };
 
 use super::SpendableLauncher;
 
 #[derive(Debug, Clone, Copy)]
+#[must_use]
 pub struct Launcher {
     coin: Coin,
 }
 
 impl Launcher {
-    #[must_use]
     pub fn new(parent_coin_id: Bytes32, amount: u64) -> Self {
         Self {
             coin: Coin::new(
@@ -27,7 +27,6 @@ impl Launcher {
         }
     }
 
-    #[must_use]
     pub fn coin(&self) -> Coin {
         self.coin
     }
@@ -35,7 +34,7 @@ impl Launcher {
     pub fn create(self, ctx: &mut SpendContext<'_>) -> Result<SpendableLauncher, SpendError> {
         Ok(SpendableLauncher::with_parent(
             self.coin,
-            ParentConditions::new().create_coin(
+            SpendConditions::new().create_coin(
                 ctx,
                 SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
                 self.coin.amount,
@@ -46,8 +45,8 @@ impl Launcher {
     pub fn create_from_intermediate(
         self,
         ctx: &mut SpendContext<'_>,
-    ) -> Result<(ParentConditions, SpendableLauncher), SpendError> {
-        let parent = ParentConditions::new().create_coin(
+    ) -> Result<(SpendConditions, SpendableLauncher), SpendError> {
+        let parent = SpendConditions::new().create_coin(
             ctx,
             SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
             self.coin.amount,
@@ -55,7 +54,7 @@ impl Launcher {
 
         Ok((
             parent,
-            SpendableLauncher::with_parent(self.coin, ParentConditions::new()),
+            SpendableLauncher::with_parent(self.coin, SpendConditions::new()),
         ))
     }
 }

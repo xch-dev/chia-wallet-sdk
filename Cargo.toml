@@ -52,6 +52,7 @@ too_many_lines = "allow"
 missing_errors_doc = "allow"
 module_name_repetitions = "allow"
 multiple_crate_versions = "allow"
+must_use_candidate = "allow"
 
 [dependencies]
 thiserror = { workspace = true }
@@ -64,6 +65,7 @@ hex-literal = { workspace = true }
 indexmap = { workspace = true }
 chia-sdk-client = { workspace = true }
 chia-sdk-driver = { workspace = true }
+chia-sdk-offers = { workspace = true }
 chia-sdk-parser = { workspace = true }
 chia-sdk-signer = { workspace = true }
 chia-sdk-test = { workspace = true }
@@ -72,6 +74,7 @@ chia-sdk-types = { workspace = true }
 [workspace.dependencies]
 chia-sdk-client = { version = "0.8.0", path = "./crates/chia-sdk-client" }
 chia-sdk-driver = { version = "0.8.0", path = "./crates/chia-sdk-driver" }
+chia-sdk-offers = { version = "0.8.0", path = "./crates/chia-sdk-offers" }
 chia-sdk-parser = { version = "0.8.0", path = "./crates/chia-sdk-parser" }
 chia-sdk-signer = { version = "0.8.0", path = "./crates/chia-sdk-signer" }
 chia-sdk-test = { version = "0.8.0", path = "./crates/chia-sdk-test" }
@@ -102,3 +105,4 @@ tokio = "1.37.0"
 tokio-tungstenite = { version = "0.21.0", features = ["native-tls"] }
 native-tls = "0.2.11"
 log = "0.4.21"
+flate2 = { version = "1.0.30", features = ["zlib"] }

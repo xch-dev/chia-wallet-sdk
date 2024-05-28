@@ -12,6 +12,7 @@ use clvmr::{Allocator, NodePtr};
 use crate::{ParseContext, ParseError};
 
 #[derive(Debug, Clone, Copy)]
+#[must_use]
 pub struct ParseSingleton {
     args: SingletonArgs<NodePtr>,
     solution: SingletonSolution<NodePtr>,
@@ -21,27 +22,22 @@ pub struct ParseSingleton {
 }
 
 impl ParseSingleton {
-    #[must_use]
     pub fn args(&self) -> &SingletonArgs<NodePtr> {
         &self.args
     }
 
-    #[must_use]
     pub fn solution(&self) -> &SingletonSolution<NodePtr> {
         &self.solution
     }
 
-    #[must_use]
     pub fn inner_mod_hash(&self) -> Bytes32 {
         self.inner_mod_hash
     }
 
-    #[must_use]
     pub fn inner_args(&self) -> NodePtr {
         self.inner_args
     }
 
-    #[must_use]
     pub fn inner_solution(&self) -> NodePtr {
         self.inner_solution
     }
