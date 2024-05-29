@@ -12,4 +12,4 @@ pub use chia_sdk_offers::*;
 pub use chia_sdk_parser as parser;
 pub use chia_sdk_signer::*;
 pub use chia_sdk_test::*;
-pub use chia_sdk_types as offer;
+pub use chia_sdk_types as types;
