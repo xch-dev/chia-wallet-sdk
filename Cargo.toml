@@ -16,7 +16,7 @@ resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
-keywords = ["chia", "wallet", "sdk", "blockchain", "cryptocurrency", "crypto"]
+keywords = ["chia", "wallet", "blockchain", "crypto"]
 categories = ["cryptography::cryptocurrencies", "development-tools"]
 
 [workspace.lints.rust]
