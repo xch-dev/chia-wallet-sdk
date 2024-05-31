@@ -179,7 +179,13 @@ mod tests {
             )
             .finish(ctx)?;
 
-        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
+        test_transaction(
+            &peer,
+            ctx.take_spends(),
+            &[sk],
+            sim.config().genesis_challenge,
+        )
+        .await;
 
         Ok(())
     }
@@ -218,7 +224,13 @@ mod tests {
             .spend(cat_coin, inner_spend, issuance.lineage_proof, 0)
             .finish(ctx)?;
 
-        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
+        test_transaction(
+            &peer,
+            ctx.take_spends(),
+            &[sk],
+            sim.config().genesis_challenge,
+        )
+        .await;
 
         Ok(())
     }

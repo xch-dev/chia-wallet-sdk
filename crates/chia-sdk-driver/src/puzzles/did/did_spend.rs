@@ -187,7 +187,13 @@ mod tests {
                 .finish(ctx, pk, did_info)?;
         }
 
-        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
+        test_transaction(
+            &peer,
+            ctx.take_spends(),
+            &[sk],
+            sim.config().genesis_challenge,
+        )
+        .await;
 
         let coin_state = sim
             .coin_state(did_info.coin.coin_id())

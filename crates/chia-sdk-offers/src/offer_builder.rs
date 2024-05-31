@@ -245,7 +245,11 @@ mod tests {
             .finish(ctx, a, a_public_key)?;
 
         let coin_spends = ctx.take_spends();
-        let signature = sign_transaction(&coin_spends, &[a_secret_key])?;
+        let signature = sign_transaction(
+            &coin_spends,
+            &[a_secret_key],
+            sim.config().genesis_challenge,
+        )?;
         let a_offer = partial_offer
             .make_payments()
             .finish(coin_spends, signature)?;
@@ -265,7 +269,11 @@ mod tests {
             .finish(ctx, b, b_public_key)?;
 
         let coin_spends = ctx.take_spends();
-        let signature = sign_transaction(&coin_spends, &[b_secret_key])?;
+        let signature = sign_transaction(
+            &coin_spends,
+            &[b_secret_key],
+            sim.config().genesis_challenge,
+        )?;
         let b_offer = partial_offer
             .make_payments()
             .finish(coin_spends, signature)?;

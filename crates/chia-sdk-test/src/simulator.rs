@@ -4,10 +4,10 @@ use bip39::Mnemonic;
 use chia_bls::SecretKey;
 use chia_client::Peer;
 use chia_protocol::{Bytes32, Coin, CoinState};
-use hex_literal::hex;
 use peer_map::PeerMap;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use simulator_config::SimulatorConfig;
 use simulator_data::SimulatorData;
 use simulator_error::SimulatorError;
 use tokio::{net::TcpListener, sync::Mutex, task::JoinHandle};
@@ -15,12 +15,14 @@ use tokio_tungstenite::connect_async;
 use ws_connection::ws_connection;
 
 mod peer_map;
+mod simulator_config;
 mod simulator_data;
 mod simulator_error;
 mod ws_connection;
 
 #[derive(Debug)]
 pub struct Simulator {
+    config: Arc<SimulatorConfig>,
     rng: Mutex<ChaCha8Rng>,
     addr: SocketAddr,
     data: Arc<Mutex<SimulatorData>>,
@@ -28,11 +30,11 @@ pub struct Simulator {
 }
 
 impl Simulator {
-    pub const AGG_SIG_ME: Bytes32 = Bytes32::new(hex!(
-        "ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb"
-    ));
-
     pub async fn new() -> Result<Self, SimulatorError> {
+        Self::with_config(SimulatorConfig::default()).await
+    }
+
+    pub async fn with_config(config: SimulatorConfig) -> Result<Self, SimulatorError> {
         log::info!("starting simulator");
 
         let addr = "127.0.0.1:0";
@@ -40,11 +42,14 @@ impl Simulator {
         let listener = TcpListener::bind(addr).await?;
         let addr = listener.local_addr()?;
         let data = Arc::new(Mutex::new(SimulatorData::default()));
+        let config = Arc::new(config);
 
         let data_clone = data.clone();
+        let config_clone = config.clone();
 
         let join_handle = tokio::spawn(async move {
             let data = data_clone;
+            let config = config_clone;
 
             while let Ok((stream, addr)) = listener.accept().await {
                 let stream = match tokio_tungstenite::accept_async(stream).await {
@@ -54,16 +59,27 @@ impl Simulator {
                         continue;
                     }
                 };
-                tokio::spawn(ws_connection(peer_map.clone(), stream, addr, data.clone()));
+                tokio::spawn(ws_connection(
+                    peer_map.clone(),
+                    stream,
+                    addr,
+                    config.clone(),
+                    data.clone(),
+                ));
             }
         });
 
         Ok(Self {
+            config,
             rng: Mutex::new(ChaCha8Rng::seed_from_u64(0)),
             addr,
             join_handle,
             data,
         })
+    }
+
+    pub fn config(&self) -> &SimulatorConfig {
+        &self.config
     }
 
     pub async fn connect(&self) -> Result<Peer, SimulatorError> {
@@ -133,7 +149,10 @@ impl Drop for Simulator {
 #[cfg(test)]
 mod tests {
     use chia_bls::{PublicKey, Signature};
-    use chia_protocol::{CoinSpend, CoinStateUpdate, SpendBundle};
+    use chia_protocol::{
+        CoinSpend, CoinStateFilters, CoinStateUpdate, RejectCoinState, RejectPuzzleState,
+        RequestCoinState, RequestPuzzleState, RespondCoinState, RespondPuzzleState, SpendBundle,
+    };
     use chia_sdk_types::conditions::{AggSigMe, CreateCoin, Remark};
 
     use crate::{coin_state_updates, test_transaction, to_program, to_puzzle};
@@ -289,6 +308,7 @@ mod tests {
                 }])?,
             )],
             &[sk],
+            sim.config.genesis_challenge,
         )
         .await;
 
@@ -327,6 +347,7 @@ mod tests {
                 ])?,
             )],
             &[sk1, sk2],
+            sim.config.genesis_challenge,
         )
         .await;
 
@@ -735,6 +756,124 @@ mod tests {
                     None,
                     Some(0)
                 )]
+            )
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_request_coin_state() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+
+        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let mut coin_state = sim
+            .coin_state(coin.coin_id())
+            .await
+            .expect("missing coin state");
+
+        let response = peer
+            .request_or_reject::<RespondCoinState, RejectCoinState, _>(RequestCoinState::new(
+                vec![coin.coin_id()],
+                None,
+                sim.config().genesis_challenge,
+                false,
+            ))
+            .await?;
+        assert_eq!(
+            response,
+            RespondCoinState::new(vec![coin.coin_id()], vec![coin_state])
+        );
+
+        let spend_bundle = SpendBundle::new(
+            vec![CoinSpend::new(coin, puzzle_reveal, to_program(())?)],
+            Signature::default(),
+        );
+
+        let ack = peer.send_transaction(spend_bundle).await?;
+        assert_eq!(ack.status, 1);
+
+        coin_state.spent_height = Some(0);
+
+        let response = peer
+            .request_or_reject::<RespondCoinState, RejectCoinState, _>(RequestCoinState::new(
+                vec![coin.coin_id()],
+                None,
+                sim.config().genesis_challenge,
+                false,
+            ))
+            .await?;
+        assert_eq!(
+            response,
+            RespondCoinState::new(vec![coin.coin_id()], vec![coin_state])
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_request_puzzle_state() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+
+        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let mut coin_state = sim
+            .coin_state(coin.coin_id())
+            .await
+            .expect("missing coin state");
+
+        let response = peer
+            .request_or_reject::<RespondPuzzleState, RejectPuzzleState, _>(RequestPuzzleState::new(
+                vec![puzzle_hash],
+                None,
+                sim.config().genesis_challenge,
+                CoinStateFilters::new(true, true, true, 0),
+                false,
+            ))
+            .await?;
+        assert_eq!(
+            response,
+            RespondPuzzleState::new(
+                vec![puzzle_hash],
+                0,
+                sim.header_hash(0).await,
+                true,
+                vec![coin_state]
+            )
+        );
+
+        let spend_bundle = SpendBundle::new(
+            vec![CoinSpend::new(coin, puzzle_reveal, to_program(())?)],
+            Signature::default(),
+        );
+
+        let ack = peer.send_transaction(spend_bundle).await?;
+        assert_eq!(ack.status, 1);
+
+        coin_state.spent_height = Some(0);
+
+        let response = peer
+            .request_or_reject::<RespondPuzzleState, RejectPuzzleState, _>(RequestPuzzleState::new(
+                vec![puzzle_hash],
+                None,
+                sim.config().genesis_challenge,
+                CoinStateFilters::new(true, true, true, 0),
+                false,
+            ))
+            .await?;
+        assert_eq!(
+            response,
+            RespondPuzzleState::new(
+                vec![puzzle_hash],
+                1,
+                sim.header_hash(1).await,
+                true,
+                vec![coin_state]
             )
         );
 
