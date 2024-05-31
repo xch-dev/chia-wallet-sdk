@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-offers"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Implements Chia offer file creation and acceptance."
