@@ -230,7 +230,13 @@ mod tests {
             .recreate()
             .finish(ctx, pk, did_info)?;
 
-        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
+        test_transaction(
+            &peer,
+            ctx.take_spends(),
+            &[sk],
+            sim.config().genesis_challenge,
+        )
+        .await;
 
         Ok(())
     }
@@ -286,7 +292,13 @@ mod tests {
             .chain(create_launcher)
             .finish(ctx, intermediate_coin, pk)?;
 
-        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
+        test_transaction(
+            &peer,
+            ctx.take_spends(),
+            &[sk],
+            sim.config().genesis_challenge,
+        )
+        .await;
 
         Ok(())
     }
@@ -346,7 +358,13 @@ mod tests {
             .chain(create_launcher)
             .finish(ctx, intermediate_coin, pk)?;
 
-        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
+        test_transaction(
+            &peer,
+            ctx.take_spends(),
+            &[sk],
+            sim.config().genesis_challenge,
+        )
+        .await;
 
         Ok(())
     }

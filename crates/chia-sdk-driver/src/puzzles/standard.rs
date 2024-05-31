@@ -94,7 +94,13 @@ mod tests {
             .create_coin(ctx, puzzle_hash, 1)?
             .finish(ctx, coin, pk)?;
 
-        test_transaction(&peer, ctx.take_spends(), &[sk]).await;
+        test_transaction(
+            &peer,
+            ctx.take_spends(),
+            &[sk],
+            sim.config().genesis_challenge,
+        )
+        .await;
 
         Ok(())
     }
