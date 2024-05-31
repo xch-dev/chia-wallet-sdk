@@ -413,7 +413,7 @@ fn request_puzzle_state(
         }
     }
 
-    if request.subscribe_when_finished && next_height.is_some() {
+    if request.subscribe_when_finished && next_height.is_none() {
         data.add_puzzle_subscriptions(peer, puzzle_hashes);
     }
 
