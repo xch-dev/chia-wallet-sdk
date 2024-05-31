@@ -1,15 +1,10 @@
 use chia_protocol::{Bytes, Bytes32, CoinSpend};
 use chia_sdk_types::conditions::{
-    AssertCoinAnnouncement, AssertPuzzleAnnouncement, CreateCoinAnnouncement,
+    announcement_id, AssertCoinAnnouncement, AssertPuzzleAnnouncement, CreateCoinAnnouncement,
     CreatePuzzleAnnouncement,
 };
 use clvm_traits::{FromClvm, ToNodePtr};
-use clvmr::{
-    reduction::Reduction,
-    run_program,
-    sha2::{Digest, Sha256},
-    Allocator, ChiaDialect, NodePtr,
-};
+use clvmr::{reduction::Reduction, run_program, Allocator, ChiaDialect, NodePtr};
 
 #[derive(Debug, Default, Clone)]
 pub struct Announcements {
@@ -73,13 +68,6 @@ pub fn debug_announcements(coin_spends: &[CoinSpend]) {
         !should_panic,
         "asserted announcements do not match created announcements"
     );
-}
-
-pub fn announcement_id(id: Bytes32, message: Bytes) -> Bytes32 {
-    let mut hasher = Sha256::new();
-    hasher.update(id);
-    hasher.update(message);
-    Bytes32::new(hasher.finalize().into())
 }
 
 pub fn announcements_for_spend(coin_spend: &CoinSpend) -> anyhow::Result<Announcements> {

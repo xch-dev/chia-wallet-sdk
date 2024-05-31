@@ -6,12 +6,12 @@ use chia_puzzles::{
     offer::{NotarizedPayment, Payment},
     singleton::SingletonArgs,
 };
-use chia_sdk_driver::{
-    spend_builder::{P2Spend, SpendConditions},
-    SpendContext, SpendError,
-};
+use chia_sdk_driver::{SpendContext, SpendError};
 
-use chia_sdk_types::puzzles::NftInfo;
+use chia_sdk_types::{
+    conditions::{announcement_id, AssertPuzzleAnnouncement},
+    puzzles::NftInfo,
+};
 use clvm_traits::{ToClvm, ToNodePtr};
 use clvm_utils::{CurriedProgram, ToTreeHash};
 use clvmr::NodePtr;
@@ -44,47 +44,33 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct RequestPayments {
-    required_conditions: SpendConditions,
-    requested_payments: IndexMap<Program, Vec<NotarizedPayment>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct MakePayments {
-    requested_payments: IndexMap<Program, Vec<NotarizedPayment>>,
-}
-
-#[derive(Debug, Clone, Copy)]
 #[must_use]
-pub struct OfferBuilder<T> {
+pub struct OfferBuilder {
     nonce: Bytes32,
-    state: T,
+    requested_payments: IndexMap<Program, Vec<NotarizedPayment>>,
 }
 
-impl<T> OfferBuilder<T> {
+impl OfferBuilder {
+    pub fn new(coin_ids: Vec<Bytes32>) -> Self {
+        Self::with_nonce(calculate_nonce(coin_ids))
+    }
+
+    pub fn with_nonce(nonce: Bytes32) -> Self {
+        Self {
+            nonce,
+            requested_payments: IndexMap::new(),
+        }
+    }
+
     pub fn nonce(&self) -> Bytes32 {
         self.nonce
-    }
-}
-
-impl OfferBuilder<RequestPayments> {
-    pub fn new(mut offered_coin_ids: Vec<Bytes32>) -> Self {
-        offered_coin_ids.sort();
-
-        Self {
-            nonce: offered_coin_ids.tree_hash().into(),
-            state: RequestPayments {
-                required_conditions: SpendConditions::new(),
-                requested_payments: IndexMap::new(),
-            },
-        }
     }
 
     pub fn request_standard_payments(
         self,
         ctx: &mut SpendContext<'_>,
         payments: Vec<Payment>,
-    ) -> Result<Self, SpendError> {
+    ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError> {
         let puzzle = ctx.settlement_payments_puzzle()?;
         self.request_raw_payments(ctx, &puzzle, payments)
     }
@@ -94,7 +80,7 @@ impl OfferBuilder<RequestPayments> {
         ctx: &mut SpendContext<'_>,
         asset_id: Bytes32,
         payments: Vec<Payment>,
-    ) -> Result<Self, SpendError> {
+    ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError> {
         let settlement_payments_puzzle = ctx.settlement_payments_puzzle()?;
         let cat_puzzle = ctx.cat_puzzle()?;
 
@@ -111,7 +97,7 @@ impl OfferBuilder<RequestPayments> {
         ctx: &mut SpendContext<'_>,
         payment_info: NftPaymentInfo<M>,
         payments: Vec<Payment>,
-    ) -> Result<Self, SpendError>
+    ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError>
     where
         M: ToClvm<NodePtr>,
     {
@@ -157,7 +143,7 @@ impl OfferBuilder<RequestPayments> {
         ctx: &mut SpendContext<'_>,
         puzzle: &P,
         payments: Vec<Payment>,
-    ) -> Result<Self, SpendError>
+    ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError>
     where
         P: ToNodePtr,
     {
@@ -170,8 +156,7 @@ impl OfferBuilder<RequestPayments> {
             payments,
         };
 
-        self.state
-            .requested_payments
+        self.requested_payments
             .entry(puzzle_reveal)
             .or_default()
             .extend([notarized_payment.clone()]);
@@ -179,38 +164,36 @@ impl OfferBuilder<RequestPayments> {
         let notarized_payment_ptr = ctx.alloc(&notarized_payment)?;
         let notarized_payment_hash = ctx.tree_hash(notarized_payment_ptr);
 
-        self.state.required_conditions = self
-            .state
-            .required_conditions
-            .assert_puzzle_announcement(ctx, puzzle_hash, notarized_payment_hash)?;
-
-        Ok(self)
-    }
-
-    pub fn make_payments(self) -> (SpendConditions, OfferBuilder<MakePayments>) {
-        let builder = OfferBuilder {
-            nonce: self.nonce,
-            state: MakePayments {
-                requested_payments: self.state.requested_payments,
-            },
+        let announcement = AssertPuzzleAnnouncement {
+            announcement_id: announcement_id(puzzle_hash, notarized_payment_hash),
         };
 
-        (self.state.required_conditions, builder)
+        Ok((announcement, self))
     }
-}
 
-impl OfferBuilder<MakePayments> {
+    pub fn make_payments(self) -> OfferBuilder {
+        OfferBuilder {
+            nonce: self.nonce,
+            requested_payments: self.requested_payments,
+        }
+    }
+
     pub fn finish(
         self,
         offered_coin_spends: Vec<CoinSpend>,
         aggregated_signature: Signature,
     ) -> Result<Offer, SpendError> {
         Ok(Offer::new(
-            self.state.requested_payments,
+            self.requested_payments,
             offered_coin_spends,
             aggregated_signature,
         ))
     }
+}
+
+pub fn calculate_nonce(mut coin_ids: Vec<Bytes32>) -> Bytes32 {
+    coin_ids.sort();
+    coin_ids.tree_hash().into()
 }
 
 #[cfg(test)]
@@ -220,7 +203,7 @@ mod tests {
         offer::{PaymentWithoutMemos, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
         standard::StandardArgs,
     };
-    use chia_sdk_driver::puzzles::StandardSpend;
+    use chia_sdk_driver::{puzzles::StandardSpend, spend_builder::P2Spend};
     use chia_sdk_test::{sign_transaction, Simulator};
     use clvmr::Allocator;
 
@@ -247,43 +230,45 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (a_conditions, partial_offer) = OfferBuilder::new(vec![a.coin_id()])
+        let (announcement, partial_offer) = OfferBuilder::new(vec![a.coin_id()])
             .request_standard_payments(
                 ctx,
                 vec![Payment::WithoutMemos(PaymentWithoutMemos {
                     puzzle_hash: a_puzzle_hash,
                     amount: b.amount,
                 })],
-            )?
-            .make_payments();
+            )?;
 
         StandardSpend::new()
-            .chain(a_conditions)
+            .raw_condition(ctx.alloc(&announcement)?)
             .create_coin(ctx, SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), a.amount)?
             .finish(ctx, a, a_public_key)?;
 
         let coin_spends = ctx.take_spends();
         let signature = sign_transaction(&coin_spends, &[a_secret_key])?;
-        let a_offer = partial_offer.finish(coin_spends, signature)?;
+        let a_offer = partial_offer
+            .make_payments()
+            .finish(coin_spends, signature)?;
 
-        let (b_conditions, partial_offer) = OfferBuilder::new(vec![b.coin_id()])
+        let (announcement, partial_offer) = OfferBuilder::new(vec![b.coin_id()])
             .request_standard_payments(
                 ctx,
                 vec![Payment::WithoutMemos(PaymentWithoutMemos {
                     puzzle_hash: b_puzzle_hash,
                     amount: a.amount,
                 })],
-            )?
-            .make_payments();
+            )?;
 
         StandardSpend::new()
-            .chain(b_conditions)
+            .raw_condition(ctx.alloc(&announcement)?)
             .create_coin(ctx, SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), b.amount)?
             .finish(ctx, b, b_public_key)?;
 
         let coin_spends = ctx.take_spends();
         let signature = sign_transaction(&coin_spends, &[b_secret_key])?;
-        let b_offer = partial_offer.finish(coin_spends, signature)?;
+        let b_offer = partial_offer
+            .make_payments()
+            .finish(coin_spends, signature)?;
 
         SettlementSpend::new(
             b_offer

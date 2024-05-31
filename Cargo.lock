@@ -438,6 +438,7 @@ dependencies = [
  "chia-protocol",
  "chia-puzzles",
  "clvm-traits",
+ "clvmr",
  "hex",
  "hex-literal",
 ]
