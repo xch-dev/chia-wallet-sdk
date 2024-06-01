@@ -3,20 +3,10 @@ use chia_puzzles::{
     singleton::{SingletonArgs, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
     LineageProof,
 };
-use clvm_traits::{FromClvm, FromClvmError};
+use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
-use thiserror::Error;
 
-use crate::Puzzle;
-
-#[derive(Debug, Error)]
-pub enum SingletonError {
-    #[error("invalid singleton struct")]
-    InvalidSingletonStruct,
-
-    #[error("failed to parse clvm value: {0}")]
-    FromClvm(#[from] FromClvmError),
-}
+use crate::{ParseError, Puzzle};
 
 #[derive(Debug, Clone, Copy)]
 pub struct SingletonPuzzle {
@@ -28,7 +18,7 @@ impl SingletonPuzzle {
     pub fn parse(
         allocator: &Allocator,
         puzzle: &Puzzle,
-    ) -> Result<Option<SingletonPuzzle>, SingletonError> {
+    ) -> Result<Option<SingletonPuzzle>, ParseError> {
         let Some(puzzle) = puzzle.as_curried() else {
             return Ok(None);
         };
@@ -42,7 +32,7 @@ impl SingletonPuzzle {
         if args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
             || args.singleton_struct.launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
         {
-            return Err(SingletonError::InvalidSingletonStruct);
+            return Err(ParseError::InvalidSingletonStruct);
         }
 
         Ok(Some(SingletonPuzzle {
