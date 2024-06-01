@@ -1,108 +1,123 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::{
     did::{DidArgs, DidSolution, DID_INNER_PUZZLE_HASH},
-    singleton::{SingletonArgs, SingletonStruct, SINGLETON_TOP_LAYER_PUZZLE_HASH},
-    LineageProof, Proof,
+    singleton::{SingletonArgs, SingletonStruct},
+    Proof,
 };
-use chia_sdk_types::{conditions::CreateCoin, puzzles::DidInfo};
+use chia_sdk_types::{
+    conditions::{Condition, CreateCoin},
+    puzzles::DidInfo,
+};
 use clvm_traits::FromClvm;
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
-use clvmr::{reduction::Reduction, run_program, Allocator, ChiaDialect, NodePtr};
+use clvmr::{Allocator, NodePtr};
 
-use crate::{ParseContext, ParseError, ParseSingleton};
+use crate::{puzzle_conditions, ParseError, Puzzle, SingletonPuzzle};
 
-pub fn parse_did(
-    allocator: &mut Allocator,
-    ctx: &ParseContext,
-    singleton: &ParseSingleton,
-    max_cost: u64,
-) -> Result<Option<DidInfo<NodePtr>>, ParseError> {
-    if singleton.inner_mod_hash().to_bytes() != DID_INNER_PUZZLE_HASH.to_bytes() {
-        return Ok(None);
-    }
+#[derive(Debug, Clone, Copy)]
+pub struct DidPuzzle {
+    pub p2_puzzle: Puzzle,
+    pub recovery_did_list_hash: Bytes32,
+    pub num_verifications_required: u64,
+    pub metadata: NodePtr,
+}
 
-    let args = DidArgs::<NodePtr, NodePtr>::from_clvm(allocator, singleton.inner_args())?;
-
-    if args.singleton_struct != singleton.args().singleton_struct {
-        return Err(ParseError::SingletonStructMismatch);
-    }
-
-    let DidSolution::InnerSpend(p2_solution) =
-        DidSolution::<NodePtr>::from_clvm(allocator, singleton.inner_solution())?;
-
-    let Reduction(_cost, output) = run_program(
-        allocator,
-        &ChiaDialect::new(0),
-        args.inner_puzzle,
-        p2_solution,
-        max_cost,
-    )?;
-
-    let conditions = Vec::<NodePtr>::from_clvm(allocator, output)?;
-
-    let mut p2_puzzle_hash = None;
-
-    for condition in conditions {
-        let Ok(create_coin) = CreateCoin::from_clvm(allocator, condition) else {
-            continue;
+impl DidPuzzle {
+    pub fn parse(
+        allocator: &Allocator,
+        launcher_id: Bytes32,
+        puzzle: &Puzzle,
+    ) -> Result<Option<Self>, ParseError> {
+        let Some(puzzle) = puzzle.as_curried() else {
+            return Ok(None);
         };
 
-        if create_coin.amount % 2 == 0 {
-            continue;
+        if puzzle.mod_hash != DID_INNER_PUZZLE_HASH {
+            return Ok(None);
         }
 
-        p2_puzzle_hash = create_coin
-            .memos
-            .first()
-            .and_then(|memo| Some(Bytes32::new(memo.as_ref().try_into().ok()?)));
-        break;
-    }
+        let args = DidArgs::<NodePtr, NodePtr>::from_clvm(allocator, puzzle.args)?;
 
-    let Some(p2_puzzle_hash) = p2_puzzle_hash else {
-        return Err(ParseError::MissingCreateCoin);
-    };
+        if args.singleton_struct != SingletonStruct::new(launcher_id) {
+            return Err(ParseError::InvalidSingletonStruct);
+        }
 
-    let did_inner_puzzle_hash = CurriedProgram {
-        program: DID_INNER_PUZZLE_HASH,
-        args: DidArgs {
-            inner_puzzle: TreeHash::from(p2_puzzle_hash),
+        Ok(Some(DidPuzzle {
+            p2_puzzle: Puzzle::parse(allocator, args.inner_puzzle),
             recovery_did_list_hash: args.recovery_did_list_hash,
             num_verifications_required: args.num_verifications_required,
-            metadata: tree_hash(allocator, args.metadata),
-            singleton_struct: SingletonStruct::new(args.singleton_struct.launcher_id),
-        },
-    }
-    .tree_hash()
-    .into();
-
-    let singleton_puzzle_hash: Bytes32 = CurriedProgram {
-        program: SINGLETON_TOP_LAYER_PUZZLE_HASH,
-        args: SingletonArgs {
-            singleton_struct: args.singleton_struct,
-            inner_puzzle: TreeHash::from(did_inner_puzzle_hash),
-        },
-    }
-    .tree_hash()
-    .into();
-
-    if singleton_puzzle_hash != ctx.coin().puzzle_hash {
-        return Err(ParseError::UnknownOutput);
+            metadata: args.metadata,
+        }))
     }
 
-    Ok(Some(DidInfo {
-        launcher_id: args.singleton_struct.launcher_id,
-        coin: ctx.coin(),
-        p2_puzzle_hash,
-        did_inner_puzzle_hash,
-        recovery_did_list_hash: args.recovery_did_list_hash,
-        num_verifications_required: args.num_verifications_required,
-        metadata: args.metadata,
-        proof: Proof::Lineage(LineageProof {
-            parent_parent_coin_id: ctx.parent_coin().parent_coin_info,
-            parent_inner_puzzle_hash: tree_hash(allocator, singleton.args().inner_puzzle).into(),
-            parent_amount: ctx.parent_coin().amount,
-        }),
-    }))
+    pub fn output(
+        &self,
+        allocator: &mut Allocator,
+        solution: NodePtr,
+    ) -> Result<Option<CreateCoin>, ParseError> {
+        let DidSolution::InnerSpend(p2_solution) =
+            DidSolution::<NodePtr>::from_clvm(allocator, solution)?;
+
+        let conditions = puzzle_conditions(allocator, self.p2_puzzle.ptr(), p2_solution)?;
+
+        let create_coin = conditions
+            .into_iter()
+            .find_map(|condition| match condition {
+                Condition::CreateCoin(create_coin) => Some(create_coin),
+                _ => None,
+            });
+
+        Ok(create_coin)
+    }
+
+    pub fn child_coin_info(
+        &self,
+        allocator: &mut Allocator,
+        singleton: &SingletonPuzzle,
+        parent_coin: Coin,
+        child_coin: Coin,
+        solution: NodePtr,
+    ) -> Result<DidInfo<NodePtr>, ParseError> {
+        let create_coin = self
+            .output(allocator, solution)?
+            .ok_or(ParseError::MissingChild)?;
+
+        let Some(hint) = create_coin.memos.first() else {
+            return Err(ParseError::MissingHint);
+        };
+
+        let p2_puzzle_hash = hint.try_into().map_err(|_| ParseError::MissingHint)?;
+
+        let did_inner_puzzle_hash = CurriedProgram {
+            program: DID_INNER_PUZZLE_HASH,
+            args: DidArgs {
+                inner_puzzle: TreeHash::from(p2_puzzle_hash),
+                recovery_did_list_hash: self.recovery_did_list_hash,
+                num_verifications_required: self.num_verifications_required,
+                metadata: tree_hash(allocator, self.metadata),
+                singleton_struct: SingletonStruct::new(singleton.launcher_id),
+            },
+        }
+        .tree_hash();
+
+        let singleton_puzzle_hash =
+            SingletonArgs::curry_tree_hash(singleton.launcher_id, did_inner_puzzle_hash);
+
+        if singleton_puzzle_hash != child_coin.puzzle_hash.into() {
+            return Err(ParseError::MismatchedOutput);
+        }
+
+        Ok(DidInfo {
+            launcher_id: singleton.launcher_id,
+            coin: child_coin,
+            p2_puzzle_hash,
+            did_inner_puzzle_hash: did_inner_puzzle_hash.into(),
+            recovery_did_list_hash: self.recovery_did_list_hash,
+            num_verifications_required: self.num_verifications_required,
+            metadata: self.metadata,
+            proof: Proof::Lineage(singleton.lineage_proof(parent_coin)),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -111,14 +126,12 @@ mod tests {
 
     use chia_bls::PublicKey;
     use chia_protocol::Coin;
-    use chia_puzzles::standard::StandardArgs;
+    use chia_puzzles::{singleton::SingletonSolution, standard::StandardArgs};
     use chia_sdk_driver::{
         puzzles::{CreateDid, Launcher, StandardSpend},
         SpendContext,
     };
     use clvm_traits::ToNodePtr;
-
-    use crate::{parse_puzzle, parse_singleton};
 
     #[test]
     fn test_parse_did() -> anyhow::Result<()> {
@@ -144,16 +157,27 @@ mod tests {
             .find(|cs| cs.coin.coin_id() == did_info.coin.parent_coin_info)
             .unwrap();
 
-        let puzzle = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
-        let solution = coin_spend.solution.to_node_ptr(&mut allocator)?;
+        let puzzle_ptr = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
+        let solution_ptr = coin_spend.solution.to_node_ptr(&mut allocator)?;
 
-        let parse_ctx = parse_puzzle(&allocator, puzzle, solution, coin_spend.coin, did_info.coin)?;
-        let parse = parse_singleton(&allocator, &parse_ctx)?.unwrap();
-        let parse = parse_did(&mut allocator, &parse_ctx, &parse, u64::MAX)?;
-        assert_eq!(
-            parse.map(|did_info| did_info.with_metadata(())),
-            Some(did_info)
-        );
+        let puzzle = Puzzle::parse(&allocator, puzzle_ptr);
+
+        let singleton =
+            SingletonPuzzle::parse(&allocator, &puzzle)?.expect("not a singleton puzzle");
+        let singleton_solution = SingletonSolution::<NodePtr>::from_clvm(&allocator, solution_ptr)?;
+
+        let did = DidPuzzle::parse(&allocator, singleton.launcher_id, &singleton.inner_puzzle)?
+            .expect("not a did puzzle");
+
+        let parsed_did_info = did.child_coin_info(
+            &mut allocator,
+            &singleton,
+            coin_spend.coin,
+            did_info.coin,
+            singleton_solution.inner_solution,
+        )?;
+
+        assert_eq!(parsed_did_info, did_info.with_metadata(NodePtr::NIL));
 
         Ok(())
     }

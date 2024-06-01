@@ -1,91 +1,112 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::{
     cat::{CatArgs, CatSolution, CAT_PUZZLE_HASH},
     LineageProof,
 };
-use chia_sdk_types::{conditions::CreateCoin, puzzles::CatInfo};
+use chia_sdk_types::{
+    conditions::{Condition, CreateCoin},
+    puzzles::CatInfo,
+};
 use clvm_traits::FromClvm;
-use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
-use clvmr::{reduction::Reduction, run_program, Allocator, ChiaDialect, NodePtr};
+use clvmr::{Allocator, NodePtr};
 
-use crate::{ParseContext, ParseError};
+use crate::{puzzle_conditions, ParseError, Puzzle};
 
-pub fn parse_cat(
-    allocator: &mut Allocator,
-    ctx: &ParseContext,
-    max_cost: u64,
-) -> Result<Option<CatInfo>, ParseError> {
-    if ctx.mod_hash().to_bytes() != CAT_PUZZLE_HASH.to_bytes() {
-        return Ok(None);
-    }
+#[derive(Debug, Clone, Copy)]
+pub struct CatPuzzle {
+    pub asset_id: Bytes32,
+    pub inner_puzzle: Puzzle,
+}
 
-    let args = CatArgs::<NodePtr>::from_clvm(allocator, ctx.args())?;
-    let solution = CatSolution::<NodePtr>::from_clvm(allocator, ctx.solution())?;
-
-    let Reduction(_cost, output) = run_program(
-        allocator,
-        &ChiaDialect::new(0),
-        args.inner_puzzle,
-        solution.inner_puzzle_solution,
-        max_cost,
-    )?;
-
-    let conditions = Vec::<NodePtr>::from_clvm(allocator, output)?;
-    let mut p2_puzzle_hash = None;
-
-    for condition in conditions {
-        let Ok(create_coin) = CreateCoin::from_clvm(allocator, condition) else {
-            continue;
+impl CatPuzzle {
+    pub fn parse(allocator: &Allocator, puzzle: &Puzzle) -> Result<Option<Self>, ParseError> {
+        let Some(puzzle) = puzzle.as_curried() else {
+            return Ok(None);
         };
 
-        let cat_puzzle_hash = CurriedProgram {
-            program: CAT_PUZZLE_HASH,
-            args: CatArgs {
-                mod_hash: CAT_PUZZLE_HASH.into(),
-                asset_id: args.asset_id,
-                inner_puzzle: TreeHash::from(create_coin.puzzle_hash),
-            },
+        if puzzle.mod_hash != CAT_PUZZLE_HASH {
+            return Ok(None);
         }
-        .tree_hash();
 
-        if Bytes32::from(cat_puzzle_hash) == ctx.coin().puzzle_hash
-            && create_coin.amount == ctx.coin().amount
-        {
-            p2_puzzle_hash = Some(create_coin.puzzle_hash);
-            break;
+        let args = CatArgs::<NodePtr>::from_clvm(allocator, puzzle.args)?;
+
+        if args.mod_hash != CAT_PUZZLE_HASH.into() {
+            return Err(ParseError::InvalidModHash);
         }
+
+        Ok(Some(CatPuzzle {
+            asset_id: args.asset_id,
+            inner_puzzle: Puzzle::parse(allocator, args.inner_puzzle),
+        }))
     }
 
-    let Some(p2_puzzle_hash) = p2_puzzle_hash else {
-        return Err(ParseError::MissingCreateCoin);
-    };
+    pub fn p2_outputs(
+        &self,
+        allocator: &mut Allocator,
+        solution: NodePtr,
+    ) -> Result<Vec<CreateCoin>, ParseError> {
+        let solution = CatSolution::<NodePtr>::from_clvm(allocator, solution)?;
 
-    Ok(Some(CatInfo {
-        asset_id: args.asset_id,
-        p2_puzzle_hash,
-        coin: ctx.coin(),
-        lineage_proof: LineageProof {
-            parent_parent_coin_id: ctx.parent_coin().parent_coin_info,
-            parent_inner_puzzle_hash: tree_hash(allocator, args.inner_puzzle).into(),
-            parent_amount: ctx.parent_coin().amount,
-        },
-    }))
+        let conditions = puzzle_conditions(
+            allocator,
+            self.inner_puzzle.ptr(),
+            solution.inner_puzzle_solution,
+        )?;
+
+        let create_coins = conditions
+            .into_iter()
+            .filter_map(|condition| match condition {
+                Condition::CreateCoin(create_coin) => Some(create_coin),
+                _ => None,
+            })
+            .collect();
+
+        Ok(create_coins)
+    }
+
+    pub fn child_coin_info(
+        &self,
+        allocator: &mut Allocator,
+        parent_coin: Coin,
+        child_coin: Coin,
+        solution: NodePtr,
+    ) -> Result<CatInfo, ParseError> {
+        let create_coin = self
+            .p2_outputs(allocator, solution)?
+            .into_iter()
+            .find(|create_coin| {
+                let cat_puzzle_hash =
+                    CatArgs::curry_tree_hash(self.asset_id, create_coin.puzzle_hash.into());
+
+                cat_puzzle_hash == child_coin.puzzle_hash.into()
+                    && create_coin.amount == child_coin.amount
+            })
+            .ok_or(ParseError::MissingChild)?;
+
+        Ok(CatInfo {
+            asset_id: self.asset_id,
+            p2_puzzle_hash: create_coin.puzzle_hash,
+            coin: child_coin,
+            lineage_proof: LineageProof {
+                parent_parent_coin_id: parent_coin.parent_coin_info,
+                parent_inner_puzzle_hash: self.inner_puzzle.curried_puzzle_hash().into(),
+                parent_amount: parent_coin.amount,
+            },
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use chia_bls::PublicKey;
     use chia_protocol::Coin;
-    use chia_puzzles::standard::{StandardArgs, STANDARD_PUZZLE_HASH};
+    use chia_puzzles::standard::StandardArgs;
     use chia_sdk_driver::{
         puzzles::{IssueCat, StandardSpend},
         spend_builder::P2Spend,
         SpendContext,
     };
     use clvm_traits::ToNodePtr;
-    use clvm_utils::CurriedProgram;
-
-    use crate::parse_puzzle;
 
     use super::*;
 
@@ -95,27 +116,14 @@ mod tests {
         let ctx = &mut SpendContext::new(&mut allocator);
 
         let pk = PublicKey::default();
-        let puzzle_hash = CurriedProgram {
-            program: STANDARD_PUZZLE_HASH,
-            args: StandardArgs { synthetic_key: pk },
-        }
-        .tree_hash()
-        .into();
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
 
         let (issue_cat, issuance_info) = IssueCat::new(parent.coin_id())
             .create_hinted_coin(ctx, puzzle_hash, 1)?
             .multi_issuance(ctx, pk, 1)?;
 
-        let cat_puzzle_hash = CurriedProgram {
-            program: CAT_PUZZLE_HASH,
-            args: CatArgs {
-                mod_hash: CAT_PUZZLE_HASH.into(),
-                asset_id: issuance_info.asset_id,
-                inner_puzzle: TreeHash::from(puzzle_hash),
-            },
-        }
-        .tree_hash();
+        let cat_puzzle_hash = CatArgs::curry_tree_hash(issuance_info.asset_id, puzzle_hash.into());
 
         let cat_info = CatInfo {
             asset_id: issuance_info.asset_id,
@@ -135,12 +143,15 @@ mod tests {
             .find(|cs| cs.coin.coin_id() == issuance_info.eve_coin.coin_id())
             .unwrap();
 
-        let puzzle = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
-        let solution = coin_spend.solution.to_node_ptr(&mut allocator)?;
+        let puzzle_ptr = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
+        let solution_ptr = coin_spend.solution.to_node_ptr(&mut allocator)?;
 
-        let parse_ctx = parse_puzzle(&allocator, puzzle, solution, coin_spend.coin, cat_info.coin)?;
-        let parse = parse_cat(&mut allocator, &parse_ctx, u64::MAX)?;
-        assert_eq!(parse, Some(cat_info));
+        let puzzle = Puzzle::parse(&allocator, puzzle_ptr);
+        let cat = CatPuzzle::parse(&allocator, &puzzle)?.expect("not a cat puzzle");
+        let parsed_cat_info =
+            cat.child_coin_info(&mut allocator, coin_spend.coin, cat_info.coin, solution_ptr)?;
+
+        assert_eq!(parsed_cat_info, cat_info);
 
         Ok(())
     }
