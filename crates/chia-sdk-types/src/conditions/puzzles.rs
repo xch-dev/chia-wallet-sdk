@@ -5,6 +5,15 @@ use clvm_traits::{apply_constants, FromClvm, ToClvm};
 #[apply_constants]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
+pub struct Remark {
+    #[clvm(constant = 1)]
+    pub opcode: u8,
+}
+
+#[derive(ToClvm, FromClvm)]
+#[apply_constants]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[clvm(list)]
 pub struct RunTail<P, S> {
     #[clvm(constant = 51)]
     pub opcode: u8,
@@ -14,6 +23,19 @@ pub struct RunTail<P, S> {
     pub magic_amount: i8,
     pub program: P,
     pub solution: S,
+}
+
+#[derive(ToClvm, FromClvm)]
+#[apply_constants]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[clvm(list)]
+pub struct MeltSingleton {
+    #[clvm(constant = 51)]
+    pub opcode: u8,
+    #[clvm(constant = ())]
+    pub puzzle_hash: (),
+    #[clvm(constant = -113)]
+    pub magic_amount: i8,
 }
 
 #[derive(ToClvm, FromClvm)]

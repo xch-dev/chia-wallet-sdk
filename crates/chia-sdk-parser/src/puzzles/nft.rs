@@ -1,135 +1,173 @@
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::{
     nft::{
         NftOwnershipLayerArgs, NftOwnershipLayerSolution, NftRoyaltyTransferPuzzleArgs,
-        NftStateLayerArgs, NftStateLayerSolution, NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
-        NFT_ROYALTY_TRANSFER_PUZZLE_HASH, NFT_STATE_LAYER_PUZZLE_HASH,
+        NftStateLayerArgs, NftStateLayerSolution, NFT_METADATA_UPDATER_PUZZLE_HASH,
+        NFT_OWNERSHIP_LAYER_PUZZLE_HASH, NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
+        NFT_STATE_LAYER_PUZZLE_HASH,
     },
-    singleton::SingletonArgs,
-    LineageProof, Proof,
+    singleton::{SingletonArgs, SingletonStruct},
+    Proof,
 };
 use chia_sdk_types::{
-    conditions::{CreateCoin, NewNftOwner},
+    conditions::{Condition, CreateCoin, NewNftOwner},
     puzzles::NftInfo,
 };
 use clvm_traits::FromClvm;
-use clvm_utils::{tree_hash, CurriedProgram};
-use clvmr::{reduction::Reduction, run_program, Allocator, ChiaDialect, NodePtr};
+use clvm_utils::tree_hash;
+use clvmr::{Allocator, NodePtr};
 
-use crate::{ParseContext, ParseError, ParseSingleton};
+use crate::{puzzle_conditions, ParseError, Puzzle, SingletonPuzzle};
 
-pub fn parse_nft(
-    allocator: &mut Allocator,
-    ctx: &ParseContext,
-    singleton: &ParseSingleton,
-    max_cost: u64,
-) -> Result<Option<NftInfo<NodePtr>>, ParseError> {
-    if singleton.inner_mod_hash().to_bytes() != NFT_STATE_LAYER_PUZZLE_HASH.to_bytes() {
-        return Ok(None);
-    }
+#[derive(Debug, Clone, Copy)]
+pub struct NftPuzzle {
+    pub p2_puzzle: Puzzle,
+    pub metadata: NodePtr,
+    pub current_owner: Option<Bytes32>,
+    pub royalty_puzzle_hash: Bytes32,
+    pub royalty_percentage: u16,
+}
 
-    let state =
-        NftStateLayerArgs::<NodePtr, NodePtr>::from_clvm(allocator, singleton.inner_args())?;
-    let state_solution =
-        NftStateLayerSolution::<NodePtr>::from_clvm(allocator, singleton.inner_solution())?;
-
-    let curried_ownership =
-        CurriedProgram::<NodePtr, NodePtr>::from_clvm(allocator, state.inner_puzzle)?;
-
-    if tree_hash(allocator, curried_ownership.program).to_bytes()
-        != NFT_OWNERSHIP_LAYER_PUZZLE_HASH.to_bytes()
-    {
-        return Ok(None);
-    }
-
-    let ownership =
-        NftOwnershipLayerArgs::<NodePtr, NodePtr>::from_clvm(allocator, curried_ownership.args)?;
-    let ownership_solution =
-        NftOwnershipLayerSolution::<NodePtr>::from_clvm(allocator, state_solution.inner_solution)?;
-
-    let curried_transfer =
-        CurriedProgram::<NodePtr, NodePtr>::from_clvm(allocator, ownership.transfer_program)?;
-
-    if tree_hash(allocator, curried_transfer.program).to_bytes()
-        != NFT_ROYALTY_TRANSFER_PUZZLE_HASH.to_bytes()
-    {
-        return Ok(None);
-    }
-
-    let transfer = NftRoyaltyTransferPuzzleArgs::from_clvm(allocator, curried_transfer.args)?;
-
-    if transfer.singleton_struct != singleton.args().singleton_struct {
-        return Err(ParseError::SingletonStructMismatch);
-    }
-
-    let Reduction(_cost, output) = run_program(
-        allocator,
-        &ChiaDialect::new(0),
-        ownership.inner_puzzle,
-        ownership_solution.inner_solution,
-        max_cost,
-    )?;
-
-    let conditions = Vec::<NodePtr>::from_clvm(allocator, output)?;
-
-    let mut p2_puzzle_hash = None;
-    let mut current_owner = ownership.current_owner;
-
-    for condition in conditions {
-        if let Ok(new_owner_condition) = NewNftOwner::from_clvm(allocator, condition) {
-            current_owner = new_owner_condition.new_owner;
-        }
-
-        let Ok(create_coin) = CreateCoin::from_clvm(allocator, condition) else {
-            continue;
+impl NftPuzzle {
+    pub fn parse(
+        allocator: &Allocator,
+        launcher_id: Bytes32,
+        puzzle: &Puzzle,
+    ) -> Result<Option<Self>, ParseError> {
+        let Some(puzzle) = puzzle.as_curried() else {
+            return Ok(None);
         };
 
-        if create_coin.amount % 2 == 0 {
-            continue;
+        if puzzle.mod_hash != NFT_STATE_LAYER_PUZZLE_HASH {
+            return Ok(None);
         }
 
-        p2_puzzle_hash = Some(create_coin.puzzle_hash);
-        break;
+        let state_args = NftStateLayerArgs::<NodePtr, NodePtr>::from_clvm(allocator, puzzle.args)?;
+
+        if state_args.mod_hash != NFT_STATE_LAYER_PUZZLE_HASH.into() {
+            return Err(ParseError::InvalidModHash);
+        }
+
+        if state_args.metadata_updater_puzzle_hash != NFT_METADATA_UPDATER_PUZZLE_HASH.into() {
+            return Err(ParseError::NonStandardLayer);
+        }
+
+        let Some(inner_puzzle) = Puzzle::parse(allocator, state_args.inner_puzzle).as_curried()
+        else {
+            return Err(ParseError::NonStandardLayer);
+        };
+
+        let ownership_args =
+            NftOwnershipLayerArgs::<NodePtr, NodePtr>::from_clvm(allocator, inner_puzzle.args)?;
+
+        if ownership_args.mod_hash != NFT_OWNERSHIP_LAYER_PUZZLE_HASH.into() {
+            return Err(ParseError::NonStandardLayer);
+        }
+
+        let Some(transfer_puzzle) =
+            Puzzle::parse(allocator, ownership_args.transfer_program).as_curried()
+        else {
+            return Err(ParseError::NonStandardLayer);
+        };
+
+        if transfer_puzzle.mod_hash != NFT_ROYALTY_TRANSFER_PUZZLE_HASH {
+            return Err(ParseError::NonStandardLayer);
+        }
+
+        let transfer_args =
+            NftRoyaltyTransferPuzzleArgs::from_clvm(allocator, transfer_puzzle.args)?;
+
+        if transfer_args.singleton_struct != SingletonStruct::new(launcher_id) {
+            return Err(ParseError::InvalidSingletonStruct);
+        }
+
+        Ok(Some(Self {
+            p2_puzzle: Puzzle::parse(allocator, ownership_args.inner_puzzle),
+            metadata: state_args.metadata,
+            current_owner: ownership_args.current_owner,
+            royalty_puzzle_hash: transfer_args.royalty_puzzle_hash,
+            royalty_percentage: transfer_args.trade_price_percentage,
+        }))
     }
 
-    let Some(p2_puzzle_hash) = p2_puzzle_hash else {
-        return Err(ParseError::MissingCreateCoin);
-    };
+    pub fn output(
+        &self,
+        allocator: &mut Allocator,
+        solution: NodePtr,
+    ) -> Result<(Option<CreateCoin>, Option<NewNftOwner>), ParseError> {
+        let state_solution = NftStateLayerSolution::from_clvm(allocator, solution)?;
+        let ownership_solution =
+            NftOwnershipLayerSolution::from_clvm(allocator, state_solution.inner_solution)?;
 
-    let ownership_puzzle_hash = NftOwnershipLayerArgs::curry_tree_hash(
-        current_owner,
-        tree_hash(allocator, ownership.transfer_program),
-        p2_puzzle_hash.into(),
-    );
+        let conditions = puzzle_conditions(
+            allocator,
+            self.p2_puzzle.ptr(),
+            ownership_solution.inner_solution,
+        )?;
 
-    let state_puzzle_hash = NftStateLayerArgs::curry_tree_hash(
-        tree_hash(allocator, state.metadata),
-        ownership_puzzle_hash,
-    );
+        let create_coin = conditions.iter().find_map(|condition| match condition {
+            Condition::CreateCoin(create_coin) => Some(create_coin),
+            _ => None,
+        });
 
-    let singleton_puzzle_hash = SingletonArgs::curry_tree_hash(
-        singleton.args().singleton_struct.launcher_id,
-        state_puzzle_hash,
-    );
+        let new_owner = conditions.iter().find_map(|condition| match condition {
+            Condition::NewNftOwner(new_owner) => Some(new_owner),
+            _ => None,
+        });
 
-    if singleton_puzzle_hash.to_bytes() != ctx.coin().puzzle_hash.to_bytes() {
-        return Err(ParseError::UnknownOutput);
+        Ok((create_coin.cloned(), new_owner.cloned()))
     }
 
-    Ok(Some(NftInfo {
-        launcher_id: singleton.args().singleton_struct.launcher_id,
-        coin: ctx.coin(),
-        p2_puzzle_hash,
-        nft_inner_puzzle_hash: state_puzzle_hash.into(),
-        royalty_percentage: transfer.trade_price_percentage,
-        royalty_puzzle_hash: transfer.royalty_puzzle_hash,
-        current_owner,
-        metadata: state.metadata,
-        proof: Proof::Lineage(LineageProof {
-            parent_parent_coin_id: ctx.parent_coin().parent_coin_info,
-            parent_inner_puzzle_hash: tree_hash(allocator, singleton.args().inner_puzzle).into(),
-            parent_amount: ctx.parent_coin().amount,
-        }),
-    }))
+    pub fn child_coin_info(
+        &self,
+        allocator: &mut Allocator,
+        singleton: &SingletonPuzzle,
+        parent_coin: Coin,
+        child_coin: Coin,
+        solution: NodePtr,
+    ) -> Result<NftInfo<NodePtr>, ParseError> {
+        let (create_coin, new_owner) = self.output(allocator, solution)?;
+        let create_coin = create_coin.ok_or(ParseError::MissingChild)?;
+
+        let current_owner = if let Some(condition) = new_owner {
+            condition.new_owner
+        } else {
+            self.current_owner
+        };
+
+        let transfer = NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
+            singleton.launcher_id,
+            self.royalty_puzzle_hash,
+            self.royalty_percentage,
+        );
+
+        let ownership = NftOwnershipLayerArgs::curry_tree_hash(
+            current_owner,
+            transfer,
+            create_coin.puzzle_hash.into(),
+        );
+
+        let state =
+            NftStateLayerArgs::curry_tree_hash(tree_hash(allocator, self.metadata), ownership);
+
+        let singleton_puzzle_hash = SingletonArgs::curry_tree_hash(singleton.launcher_id, state);
+
+        if singleton_puzzle_hash != child_coin.puzzle_hash.into() {
+            return Err(ParseError::MismatchedOutput);
+        }
+
+        Ok(NftInfo {
+            launcher_id: singleton.launcher_id,
+            coin: child_coin,
+            p2_puzzle_hash: create_coin.puzzle_hash,
+            nft_inner_puzzle_hash: state.into(),
+            royalty_percentage: self.royalty_percentage,
+            royalty_puzzle_hash: self.royalty_puzzle_hash,
+            current_owner,
+            metadata: self.metadata,
+            proof: Proof::Lineage(singleton.lineage_proof(parent_coin)),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -138,14 +176,12 @@ mod tests {
 
     use chia_bls::PublicKey;
     use chia_protocol::{Bytes32, Coin};
-    use chia_puzzles::standard::StandardArgs;
+    use chia_puzzles::{singleton::SingletonSolution, standard::StandardArgs};
     use chia_sdk_driver::{
         puzzles::{CreateDid, Launcher, MintNft, OwnerDid, StandardMint, StandardSpend},
         SpendContext,
     };
     use clvm_traits::ToNodePtr;
-
-    use crate::{parse_puzzle, parse_singleton};
 
     #[test]
     fn test_parse_nft() -> anyhow::Result<()> {
@@ -189,16 +225,27 @@ mod tests {
             .find(|cs| cs.coin.coin_id() == nft_info.coin.parent_coin_info)
             .unwrap();
 
-        let puzzle = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
-        let solution = coin_spend.solution.to_node_ptr(&mut allocator)?;
+        let puzzle_ptr = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
+        let solution_ptr = coin_spend.solution.to_node_ptr(&mut allocator)?;
 
-        let parse_ctx = parse_puzzle(&allocator, puzzle, solution, coin_spend.coin, nft_info.coin)?;
-        let parse = parse_singleton(&allocator, &parse_ctx)?.unwrap();
-        let parse = parse_nft(&mut allocator, &parse_ctx, &parse, u64::MAX)?;
-        assert_eq!(
-            parse.map(|nft_info| nft_info.with_metadata(())),
-            Some(nft_info)
-        );
+        let puzzle = Puzzle::parse(&allocator, puzzle_ptr);
+
+        let singleton =
+            SingletonPuzzle::parse(&allocator, &puzzle)?.expect("not a singleton puzzle");
+        let singleton_solution = SingletonSolution::<NodePtr>::from_clvm(&allocator, solution_ptr)?;
+
+        let nft = NftPuzzle::parse(&allocator, singleton.launcher_id, &singleton.inner_puzzle)?
+            .expect("not an nft puzzle");
+
+        let parsed_nft_info = nft.child_coin_info(
+            &mut allocator,
+            &singleton,
+            coin_spend.coin,
+            nft_info.coin,
+            singleton_solution.inner_solution,
+        )?;
+
+        assert_eq!(parsed_nft_info, nft_info.with_metadata(NodePtr::NIL));
 
         Ok(())
     }

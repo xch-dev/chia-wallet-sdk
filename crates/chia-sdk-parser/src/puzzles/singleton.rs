@@ -1,81 +1,61 @@
-#![allow(clippy::missing_const_for_fn)]
-
-use chia_protocol::Bytes32;
-use chia_puzzles::singleton::{
-    SingletonArgs, SingletonSolution, SINGLETON_LAUNCHER_PUZZLE_HASH,
-    SINGLETON_TOP_LAYER_PUZZLE_HASH,
+use chia_protocol::{Bytes32, Coin};
+use chia_puzzles::{
+    singleton::{SingletonArgs, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
+    LineageProof,
 };
-use clvm_traits::FromClvm;
-use clvm_utils::{tree_hash, CurriedProgram};
+use clvm_traits::{FromClvm, FromClvmError};
 use clvmr::{Allocator, NodePtr};
+use thiserror::Error;
 
-use crate::{ParseContext, ParseError};
+use crate::Puzzle;
+
+#[derive(Debug, Error)]
+pub enum SingletonError {
+    #[error("invalid singleton struct")]
+    InvalidSingletonStruct,
+
+    #[error("failed to parse clvm value: {0}")]
+    FromClvm(#[from] FromClvmError),
+}
 
 #[derive(Debug, Clone, Copy)]
-#[must_use]
-pub struct ParseSingleton {
-    args: SingletonArgs<NodePtr>,
-    solution: SingletonSolution<NodePtr>,
-    inner_mod_hash: Bytes32,
-    inner_args: NodePtr,
-    inner_solution: NodePtr,
+pub struct SingletonPuzzle {
+    pub launcher_id: Bytes32,
+    pub inner_puzzle: Puzzle,
 }
 
-impl ParseSingleton {
-    pub fn args(&self) -> &SingletonArgs<NodePtr> {
-        &self.args
+impl SingletonPuzzle {
+    pub fn parse(
+        allocator: &Allocator,
+        puzzle: &Puzzle,
+    ) -> Result<Option<SingletonPuzzle>, SingletonError> {
+        let Some(puzzle) = puzzle.as_curried() else {
+            return Ok(None);
+        };
+
+        if puzzle.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH {
+            return Ok(None);
+        }
+
+        let args = SingletonArgs::<NodePtr>::from_clvm(allocator, puzzle.args)?;
+
+        if args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
+            || args.singleton_struct.launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
+        {
+            return Err(SingletonError::InvalidSingletonStruct);
+        }
+
+        Ok(Some(SingletonPuzzle {
+            launcher_id: args.singleton_struct.launcher_id,
+            inner_puzzle: Puzzle::parse(allocator, args.inner_puzzle),
+        }))
     }
 
-    pub fn solution(&self) -> &SingletonSolution<NodePtr> {
-        &self.solution
+    pub fn lineage_proof(&self, parent_coin: Coin) -> LineageProof {
+        LineageProof {
+            parent_parent_coin_id: parent_coin.parent_coin_info,
+            parent_inner_puzzle_hash: self.inner_puzzle.curried_puzzle_hash().into(),
+            parent_amount: parent_coin.amount,
+        }
     }
-
-    pub fn inner_mod_hash(&self) -> Bytes32 {
-        self.inner_mod_hash
-    }
-
-    pub fn inner_args(&self) -> NodePtr {
-        self.inner_args
-    }
-
-    pub fn inner_solution(&self) -> NodePtr {
-        self.inner_solution
-    }
-}
-
-pub fn parse_singleton(
-    allocator: &Allocator,
-    ctx: &ParseContext,
-) -> Result<Option<ParseSingleton>, ParseError> {
-    if ctx.mod_hash().to_bytes() != SINGLETON_TOP_LAYER_PUZZLE_HASH.to_bytes() {
-        return Ok(None);
-    }
-
-    let singleton_args = SingletonArgs::<NodePtr>::from_clvm(allocator, ctx.args())?;
-    let singleton_solution = SingletonSolution::<NodePtr>::from_clvm(allocator, ctx.solution())?;
-
-    let CurriedProgram { program, args } =
-        CurriedProgram::<NodePtr, NodePtr>::from_clvm(allocator, singleton_args.inner_puzzle)?;
-
-    let singleton_mod_hash = singleton_args.singleton_struct.mod_hash.as_ref();
-    let launcher_puzzle_hash = singleton_args
-        .singleton_struct
-        .launcher_puzzle_hash
-        .as_ref();
-
-    if singleton_mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.to_bytes()
-        || launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH.to_bytes()
-    {
-        return Err(ParseError::InvalidSingletonStruct);
-    }
-
-    let inner_solution = singleton_solution.inner_solution;
-
-    Ok(Some(ParseSingleton {
-        args: singleton_args,
-        solution: singleton_solution,
-        inner_mod_hash: tree_hash(allocator, program).into(),
-        inner_args: args,
-        inner_solution,
-    }))
 }
