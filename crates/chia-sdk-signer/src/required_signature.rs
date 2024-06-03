@@ -2,10 +2,10 @@
 
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
-use chia_sdk_types::conditions::{AggSig, AggSigKind};
-use clvm_traits::FromClvm;
+use chia_sdk_parser::puzzle_conditions;
+use chia_sdk_types::conditions::{AggSig, AggSigKind, Condition};
+use clvm_traits::ToNodePtr;
 use clvmr::{
-    allocator::NodePtr,
     sha2::{Digest, Sha256},
     Allocator,
 };
@@ -87,22 +87,21 @@ impl RequiredSignature {
     }
 
     /// Calculates the required signatures for a coin spend.
-    /// All of these signatures are aggregated together should
+    /// All of these signatures aggregated together should be
     /// sufficient, unless secp keys are used as well.
     pub fn from_coin_spend(
         allocator: &mut Allocator,
         coin_spend: &CoinSpend,
         agg_sig_me: Bytes32,
     ) -> Result<Vec<Self>, SignError> {
-        let output = coin_spend
-            .puzzle_reveal
-            .run(allocator, 0, u64::MAX, &coin_spend.solution)?
-            .1;
+        let puzzle = coin_spend.puzzle_reveal.to_node_ptr(allocator)?;
+        let solution = coin_spend.solution.to_node_ptr(allocator)?;
+        let conditions = puzzle_conditions(allocator, puzzle, solution)?;
 
         let mut result = Vec::new();
 
-        for condition in Vec::<NodePtr>::from_clvm(allocator, output)? {
-            let Ok(agg_sig) = AggSig::from_clvm(allocator, condition) else {
+        for condition in conditions {
+            let Condition::AggSig(agg_sig) = condition else {
                 continue;
             };
 
@@ -117,7 +116,7 @@ impl RequiredSignature {
     }
 
     /// Calculates the required signatures for a spend bundle.
-    /// All of these signatures are aggregated together should
+    /// All of these signatures aggregated together should be
     /// sufficient, unless secp keys are used as well.
     pub fn from_coin_spends(
         allocator: &mut Allocator,
