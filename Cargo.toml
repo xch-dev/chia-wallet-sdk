@@ -7,7 +7,7 @@ description = "An unofficial SDK for building Chia wallets."
 authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
 homepage = "https://github.com/Rigidity/chia-wallet-sdk"
 repository = "https://github.com/Rigidity/chia-wallet-sdk"
-readme = "README.md"
+readme = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
 
@@ -16,6 +16,7 @@ resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
+readme = "README.md"
 keywords = ["chia", "wallet", "blockchain", "crypto"]
 categories = ["cryptography::cryptocurrencies", "development-tools"]
 
