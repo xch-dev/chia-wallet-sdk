@@ -21,6 +21,7 @@ clvm-traits = { workspace = true }
 clvmr = { workspace = true }
 thiserror = { workspace = true }
 chia-sdk-types = { workspace = true }
+chia-sdk-parser = { workspace = true }
 
 [dev-dependencies]
 chia-puzzles = { workspace = true }

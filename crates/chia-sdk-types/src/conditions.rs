@@ -32,6 +32,7 @@ pub enum Condition<T> {
     AssertMyCoinId(AssertMyCoinId),
     AssertMyParentId(AssertMyParentId),
     AssertMyPuzzleHash(AssertMyPuzzleHash),
+    AssertMyAmount(AssertMyAmount),
     AssertMyBirthSeconds(AssertMyBirthSeconds),
     AssertMyBirthHeight(AssertMyBirthHeight),
     AssertEphemeral(AssertEphemeral),

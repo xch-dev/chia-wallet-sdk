@@ -1,14 +1,14 @@
-use clvm_traits::FromClvmError;
-use clvmr::reduction::EvalErr;
+use chia_sdk_parser::ConditionError;
+use clvm_traits::ToClvmError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SignError {
-    #[error("{0:?}")]
-    Eval(#[from] EvalErr),
+    #[error("condition error: {0}")]
+    Condition(#[from] ConditionError),
 
-    #[error("{0}")]
-    Clvm(#[from] FromClvmError),
+    #[error("to clvm error: {0}")]
+    Clvm(#[from] ToClvmError),
 
     #[error("infinity public key")]
     InfinityPublicKey,

@@ -1,14 +1,15 @@
 use clvm_traits::FromClvmError;
-use clvmr::reduction::EvalErr;
 use thiserror::Error;
+
+use crate::ConditionError;
 
 #[derive(Debug, Error)]
 pub enum ParseError {
     #[error("failed to parse clvm value: {0}")]
     FromClvm(#[from] FromClvmError),
 
-    #[error("failed to evaluate puzzle and solution: {0}")]
-    Eval(#[from] EvalErr),
+    #[error("condition error: {0}")]
+    Condition(#[from] ConditionError),
 
     #[error("invalid mod hash")]
     InvalidModHash,
