@@ -106,7 +106,7 @@ impl NftPuzzle {
         )?;
 
         let create_coin = conditions.iter().find_map(|condition| match condition {
-            Condition::CreateCoin(create_coin) => Some(create_coin),
+            Condition::CreateCoin(create_coin) if create_coin.amount % 2 == 1 => Some(create_coin),
             _ => None,
         });
 
