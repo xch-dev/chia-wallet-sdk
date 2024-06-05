@@ -178,8 +178,7 @@ mod tests {
     use chia_protocol::{Bytes32, Coin};
     use chia_puzzles::{singleton::SingletonSolution, standard::StandardArgs};
     use chia_sdk_driver::{
-        puzzles::{CreateDid, Launcher, MintNft, OwnerDid, StandardMint, StandardSpend},
-        SpendContext,
+        CreateDid, Launcher, MintNft, OwnerDid, SpendContext, StandardMint, StandardSpend,
     };
     use clvm_traits::ToNodePtr;
 

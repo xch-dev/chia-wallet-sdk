@@ -101,11 +101,7 @@ mod tests {
     use chia_bls::PublicKey;
     use chia_protocol::Coin;
     use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_driver::{
-        puzzles::{IssueCat, StandardSpend},
-        spend_builder::P2Spend,
-        SpendContext,
-    };
+    use chia_sdk_driver::{IssueCat, P2Spend, SpendContext, StandardSpend};
     use clvm_traits::ToNodePtr;
 
     use super::*;
@@ -120,7 +116,7 @@ mod tests {
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
 
         let (issue_cat, issuance_info) = IssueCat::new(parent.coin_id())
-            .create_hinted_coin(ctx, puzzle_hash, 1)?
+            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
             .multi_issuance(ctx, pk, 1)?;
 
         let cat_puzzle_hash = CatArgs::curry_tree_hash(issuance_info.asset_id, puzzle_hash.into());

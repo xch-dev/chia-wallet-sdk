@@ -1,6 +1,6 @@
 use chia_protocol::{Coin, CoinSpend};
 use chia_puzzles::offer::{NotarizedPayment, SettlementPaymentsSolution};
-use chia_sdk_driver::{spend_builder::InnerSpend, SpendContext, SpendError};
+use chia_sdk_driver::{InnerSpend, SpendContext, SpendError};
 
 #[derive(Debug, Clone)]
 #[must_use]

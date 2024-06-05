@@ -144,7 +144,7 @@ impl StandardNftSpend<NftOutput> {
 
         let inner_spend = self
             .standard_spend
-            .create_hinted_coin(ctx, p2_puzzle_hash, nft_info.coin.amount)?
+            .create_hinted_coin(ctx, p2_puzzle_hash, nft_info.coin.amount, p2_puzzle_hash)?
             .inner_spend(ctx, synthetic_key)?;
 
         let nft_spend = raw_nft_spend(ctx, &nft_info, inner_spend)?;
