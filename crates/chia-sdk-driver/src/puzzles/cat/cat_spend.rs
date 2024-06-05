@@ -140,9 +140,9 @@ mod tests {
         let ctx = &mut SpendContext::new(&mut allocator);
 
         let (issue_cat, issuance) = IssueCat::new(coin.coin_id())
-            .create_hinted_coin(ctx, puzzle_hash, 1)?
-            .create_hinted_coin(ctx, puzzle_hash, 2)?
-            .create_hinted_coin(ctx, puzzle_hash, 3)?
+            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
+            .create_hinted_coin(ctx, puzzle_hash, 2, puzzle_hash)?
+            .create_hinted_coin(ctx, puzzle_hash, 3, puzzle_hash)?
             .single_issuance(ctx, 6)?;
 
         StandardSpend::new()
@@ -156,7 +156,7 @@ mod tests {
             .spend(
                 Coin::new(issuance.eve_coin.coin_id(), cat_puzzle_hash, 1),
                 StandardSpend::new()
-                    .create_hinted_coin(ctx, puzzle_hash, 1)?
+                    .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
                     .inner_spend(ctx, pk)?,
                 issuance.lineage_proof,
                 0,
@@ -164,7 +164,7 @@ mod tests {
             .spend(
                 Coin::new(issuance.eve_coin.coin_id(), cat_puzzle_hash, 2),
                 StandardSpend::new()
-                    .create_hinted_coin(ctx, puzzle_hash, 2)?
+                    .create_hinted_coin(ctx, puzzle_hash, 2, puzzle_hash)?
                     .inner_spend(ctx, pk)?,
                 issuance.lineage_proof,
                 0,
@@ -172,7 +172,7 @@ mod tests {
             .spend(
                 Coin::new(issuance.eve_coin.coin_id(), cat_puzzle_hash, 3),
                 StandardSpend::new()
-                    .create_hinted_coin(ctx, puzzle_hash, 3)?
+                    .create_hinted_coin(ctx, puzzle_hash, 3, puzzle_hash)?
                     .inner_spend(ctx, pk)?,
                 issuance.lineage_proof,
                 0,
@@ -205,7 +205,7 @@ mod tests {
         let ctx = &mut SpendContext::new(&mut allocator);
 
         let (issue_cat, issuance) = IssueCat::new(coin.coin_id())
-            .create_hinted_coin(ctx, puzzle_hash, 1)?
+            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
             .single_issuance(ctx, 1)?;
 
         StandardSpend::new()
@@ -213,7 +213,7 @@ mod tests {
             .finish(ctx, coin, pk)?;
 
         let inner_spend = StandardSpend::new()
-            .create_hinted_coin(ctx, puzzle_hash, 1)?
+            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
             .inner_spend(ctx, pk)?;
 
         let cat_puzzle_hash =

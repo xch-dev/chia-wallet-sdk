@@ -122,7 +122,8 @@ impl IssueCat {
         let puzzle_reveal = ctx.serialize(&puzzle)?;
         ctx.spend(CoinSpend::new(eve_coin, puzzle_reveal, solution));
 
-        let chained_spend = SpendConditions::new().create_hinted_coin(ctx, puzzle_hash, amount)?;
+        let chained_spend =
+            SpendConditions::new().create_hinted_coin(ctx, puzzle_hash, amount, puzzle_hash)?;
 
         let issuance_info = CatIssuanceInfo {
             asset_id,
@@ -170,7 +171,7 @@ mod tests {
         let ctx = &mut SpendContext::new(&mut allocator);
 
         let (issue_cat, _cat_info) = IssueCat::new(coin.coin_id())
-            .create_hinted_coin(ctx, puzzle_hash, 1)?
+            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
             .single_issuance(ctx, 1)?;
 
         StandardSpend::new()
@@ -203,7 +204,7 @@ mod tests {
         let ctx = &mut SpendContext::new(&mut allocator);
 
         let (issue_cat, _cat_info) = IssueCat::new(coin.coin_id())
-            .create_hinted_coin(ctx, puzzle_hash, 1)?
+            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
             .multi_issuance(ctx, pk, 1)?;
 
         StandardSpend::new()

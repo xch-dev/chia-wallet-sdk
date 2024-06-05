@@ -78,7 +78,7 @@ impl StandardDidSpend<DidOutput> {
         M: ToClvm<NodePtr>,
     {
         let spend = match self.output {
-            DidOutput::Recreate => self.standard_spend.create_custom_hinted_coin(
+            DidOutput::Recreate => self.standard_spend.create_hinted_coin(
                 ctx,
                 did_info.did_inner_puzzle_hash,
                 did_info.coin.amount,

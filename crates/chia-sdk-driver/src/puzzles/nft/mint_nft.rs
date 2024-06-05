@@ -266,7 +266,7 @@ mod tests {
         let intermediate_coin = Coin::new(did_info.coin.coin_id(), puzzle_hash, 0);
 
         let (create_launcher, launcher) =
-            Launcher::new(intermediate_coin.coin_id(), 1).create_from_intermediate(ctx)?;
+            Launcher::new(intermediate_coin.coin_id(), 1).create_now(ctx)?;
 
         let mint = StandardMint {
             metadata: (),
@@ -328,7 +328,7 @@ mod tests {
         let intermediate_coin = Coin::new(did_info.coin.coin_id(), puzzle_hash, 0);
 
         let (create_launcher, launcher) =
-            Launcher::new(intermediate_coin.coin_id(), 1).create_from_intermediate(ctx)?;
+            Launcher::new(intermediate_coin.coin_id(), 1).create_now(ctx)?;
 
         let mint = StandardMint {
             metadata: (),

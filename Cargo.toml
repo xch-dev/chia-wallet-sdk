@@ -43,7 +43,8 @@ missing_debug_implementations = "warn"
 missing_copy_implementations = "warn"
 
 [workspace.lints.rustdoc]
-all = "deny"
+all = { level = "deny", priority = -1 }
+missing_crate_level_docs = "allow"
 
 [workspace.lints.clippy]
 all = "deny"

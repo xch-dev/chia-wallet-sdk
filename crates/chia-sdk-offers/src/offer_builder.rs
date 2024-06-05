@@ -203,7 +203,7 @@ mod tests {
         offer::{PaymentWithoutMemos, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
         standard::StandardArgs,
     };
-    use chia_sdk_driver::{puzzles::StandardSpend, spend_builder::P2Spend};
+    use chia_sdk_driver::{P2Spend, StandardSpend};
     use chia_sdk_test::{sign_transaction, Simulator};
     use clvmr::Allocator;
 

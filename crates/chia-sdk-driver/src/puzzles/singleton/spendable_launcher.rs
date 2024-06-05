@@ -14,7 +14,8 @@ use crate::{
     SpendContext, SpendError,
 };
 
-#[must_use = "Launcher coins must be spent in order to create the singleton output."]
+/// A singleton launcher that is ready to be spent to create the eve singleton. See [`crate::Launcher`] for more information.
+#[must_use]
 #[derive(Debug, Clone)]
 pub struct SpendableLauncher {
     coin: Coin,
@@ -22,15 +23,21 @@ pub struct SpendableLauncher {
 }
 
 impl SpendableLauncher {
-    pub fn with_parent(coin: Coin, parent: SpendConditions) -> Self {
+    /// Creates a new [`SpendableLauncher`] with the specified launcher coin and parent conditions.
+    /// This is used internally by [`crate::Launcher::create`] and [`crate::IntermediateLauncher::create`].
+    /// You should not need to use this directly.
+    pub fn with_parent_conditions(coin: Coin, parent: SpendConditions) -> Self {
         Self { coin, parent }
     }
 
+    /// The singleton launcher coin that will be created when the parent is spent.
     #[must_use]
     pub fn coin(&self) -> Coin {
         self.coin
     }
 
+    /// Spends the launcher coin to create the eve singleton.
+    /// Includes an optional metadata value that is traditionally a list of key value pairs.
     pub fn spend<T>(
         mut self,
         ctx: &mut SpendContext<'_>,

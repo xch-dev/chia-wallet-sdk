@@ -127,10 +127,7 @@ mod tests {
     use chia_bls::PublicKey;
     use chia_protocol::Coin;
     use chia_puzzles::{singleton::SingletonSolution, standard::StandardArgs};
-    use chia_sdk_driver::{
-        puzzles::{CreateDid, Launcher, StandardSpend},
-        SpendContext,
-    };
+    use chia_sdk_driver::{CreateDid, Launcher, SpendContext, StandardSpend};
     use clvm_traits::ToNodePtr;
 
     #[test]

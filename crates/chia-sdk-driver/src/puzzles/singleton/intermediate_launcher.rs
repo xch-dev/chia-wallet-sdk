@@ -1,11 +1,8 @@
 #![allow(clippy::missing_const_for_fn)]
 
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_puzzles::{
-    nft::{NftIntermediateLauncherArgs, NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH},
-    singleton::SINGLETON_LAUNCHER_PUZZLE_HASH,
-};
-use clvm_utils::{CurriedProgram, ToTreeHash};
+use chia_puzzles::{nft::NftIntermediateLauncherArgs, singleton::SINGLETON_LAUNCHER_PUZZLE_HASH};
+use clvm_utils::CurriedProgram;
 use clvmr::{
     sha2::{Digest, Sha256},
     Allocator,
@@ -18,6 +15,11 @@ use crate::{
 
 use super::SpendableLauncher;
 
+/// An intermediate launcher is a coin that is created prior to the actual launcher coin.
+/// In this case, it automatically creates the launcher coin upon being spent.
+///
+/// The purpose of this is to allow multiple launcher coins to be created from a single parent.
+/// Without an intermediate launcher, they would all have the same coin id.
 #[derive(Debug, Clone, Copy)]
 #[must_use]
 pub struct IntermediateLauncher {
@@ -28,17 +30,10 @@ pub struct IntermediateLauncher {
 }
 
 impl IntermediateLauncher {
+    /// Create a new intermediate launcher with the given index. This makes the puzzle hash, and therefore coin id, unique.
     pub fn new(parent_coin_id: Bytes32, mint_number: usize, mint_total: usize) -> Self {
-        let intermediate_puzzle_hash = CurriedProgram {
-            program: NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH,
-            args: NftIntermediateLauncherArgs {
-                launcher_puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-                mint_number,
-                mint_total,
-            },
-        }
-        .tree_hash()
-        .into();
+        let intermediate_puzzle_hash =
+            NftIntermediateLauncherArgs::curry_tree_hash(mint_number, mint_total).into();
 
         let intermediate_coin = Coin::new(parent_coin_id, intermediate_puzzle_hash, 0);
 
@@ -56,14 +51,17 @@ impl IntermediateLauncher {
         }
     }
 
+    /// The intermediate coin that will be created when the parent is spent.
     pub fn intermediate_coin(&self) -> Coin {
         self.intermediate_coin
     }
 
+    /// The singleton launcher coin that will be created when the intermediate coin is spent.
     pub fn launcher_coin(&self) -> Coin {
         self.launcher_coin
     }
 
+    /// Spends the intermediate coin to create the launcher coin.
     pub fn create(self, ctx: &mut SpendContext<'_>) -> Result<SpendableLauncher, SpendError> {
         let mut parent = SpendConditions::new();
 
@@ -71,11 +69,7 @@ impl IntermediateLauncher {
 
         let puzzle = ctx.alloc(&CurriedProgram {
             program: intermediate_puzzle,
-            args: NftIntermediateLauncherArgs {
-                launcher_puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-                mint_number: self.mint_number,
-                mint_total: self.mint_total,
-            },
+            args: NftIntermediateLauncherArgs::new(self.mint_number, self.mint_total),
         })?;
 
         parent = parent.create_coin(ctx, self.intermediate_coin.puzzle_hash, 0)?;
@@ -99,7 +93,10 @@ impl IntermediateLauncher {
             index_message.finalize(),
         )?;
 
-        Ok(SpendableLauncher::with_parent(self.launcher_coin, parent))
+        Ok(SpendableLauncher::with_parent_conditions(
+            self.launcher_coin,
+            parent,
+        ))
     }
 }
 
