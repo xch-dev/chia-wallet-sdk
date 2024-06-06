@@ -234,4 +234,50 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_cat_melt() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let sk = sim.secret_key().await?;
+        let pk = sk.public_key();
+
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = sim.mint_coin(puzzle_hash, 10000).await;
+
+        let mut allocator = Allocator::new();
+        let ctx = &mut SpendContext::new(&mut allocator);
+
+        let (issue_cat, issuance) = IssueCat::new(coin.coin_id())
+            .create_hinted_coin(ctx, puzzle_hash, 10000, puzzle_hash)?
+            .multi_issuance(ctx, pk, 10000)?;
+
+        StandardSpend::new()
+            .chain(issue_cat)
+            .finish(ctx, coin, pk)?;
+
+        let inner_spend = StandardSpend::new()
+            .create_hinted_coin(ctx, puzzle_hash, 7000, puzzle_hash)?
+            .run_multi_issuance_tail(ctx, pk)?
+            .inner_spend(ctx, pk)?;
+
+        let cat_puzzle_hash =
+            CatArgs::curry_tree_hash(issuance.asset_id, puzzle_hash.into()).into();
+        let cat_coin = Coin::new(issuance.eve_coin.coin_id(), cat_puzzle_hash, 10000);
+
+        CatSpend::new(issuance.asset_id)
+            .spend(cat_coin, inner_spend, issuance.lineage_proof, -3000)
+            .finish(ctx)?;
+
+        test_transaction(
+            &peer,
+            ctx.take_spends(),
+            &[sk],
+            sim.config().genesis_challenge,
+        )
+        .await;
+
+        Ok(())
+    }
 }
