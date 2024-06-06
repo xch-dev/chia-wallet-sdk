@@ -329,7 +329,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-driver"
-version = "0.10.0"
+version = "0.10.2"
 dependencies = [
  "anyhow",
  "chia-bls 0.9.0",
@@ -373,7 +373,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-parser"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "anyhow",
  "chia-bls 0.9.0",
@@ -484,7 +484,7 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "bech32",
  "chia-protocol",
