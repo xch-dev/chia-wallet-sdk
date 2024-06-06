@@ -1,10 +1,14 @@
+use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
+use chia_puzzles::cat::{EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs};
 use chia_sdk_types::conditions::{
     AssertBeforeHeightAbsolute, AssertBeforeHeightRelative, AssertBeforeSecondsAbsolute,
     AssertBeforeSecondsRelative, AssertCoinAnnouncement, AssertHeightAbsolute,
     AssertHeightRelative, AssertPuzzleAnnouncement, AssertSecondsAbsolute, AssertSecondsRelative,
-    CreateCoin, CreateCoinAnnouncement, CreatePuzzleAnnouncement, ReserveFee,
+    CreateCoin, CreateCoinAnnouncement, CreatePuzzleAnnouncement, ReserveFee, RunTail,
 };
+use clvm_traits::ToClvm;
+use clvm_utils::CurriedProgram;
 use clvmr::{
     sha2::{Digest, Sha256},
     NodePtr,
@@ -161,6 +165,52 @@ pub trait P2Spend: Sized {
         height: u32,
     ) -> Result<Self, SpendError> {
         Ok(self.raw_condition(ctx.alloc(&AssertHeightAbsolute { height })?))
+    }
+
+    fn run_single_issuance_tail(
+        self,
+        ctx: &mut SpendContext<'_>,
+        genesis_coin_id: Bytes32,
+    ) -> Result<Self, SpendError> {
+        let genesis_by_coin_id_tail_puzzle = ctx.genesis_by_coin_id_tail_puzzle()?;
+
+        self.run_custom_tail(
+            ctx,
+            CurriedProgram {
+                program: genesis_by_coin_id_tail_puzzle,
+                args: GenesisByCoinIdTailArgs::new(genesis_coin_id),
+            },
+            (),
+        )
+    }
+
+    fn run_multi_issuance_tail(
+        self,
+        ctx: &mut SpendContext<'_>,
+        issuance_key: PublicKey,
+    ) -> Result<Self, SpendError> {
+        let everything_with_signature_tail_puzzle = ctx.everything_with_signature_tail_puzzle()?;
+
+        self.run_custom_tail(
+            ctx,
+            CurriedProgram {
+                program: everything_with_signature_tail_puzzle,
+                args: EverythingWithSignatureTailArgs::new(issuance_key),
+            },
+            (),
+        )
+    }
+
+    fn run_custom_tail(
+        self,
+        ctx: &mut SpendContext<'_>,
+        tail_program: impl ToClvm<NodePtr>,
+        tail_solution: impl ToClvm<NodePtr>,
+    ) -> Result<Self, SpendError> {
+        Ok(self.raw_condition(ctx.alloc(&RunTail {
+            program: tail_program,
+            solution: tail_solution,
+        })?))
     }
 }
 
