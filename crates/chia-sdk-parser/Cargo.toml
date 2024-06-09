@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-parser"
-version = "0.10.2"
+version = "0.10.3"
 edition = "2021"
 license = "Apache-2.0"
 description = "Parsers for standard Chia puzzles, to determine information required to spend coins."
@@ -26,4 +26,4 @@ chia-sdk-types = { workspace = true }
 [dev-dependencies]
 anyhow = { workspace = true }
 chia-bls = { workspace = true }
-chia-sdk-driver = { workspace = true }
+chia-sdk-driver = { path = "../chia-sdk-driver" }

@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-offers"
-version = "0.10.0"
+version = "0.10.3"
 edition = "2021"
 license = "Apache-2.0"
 description = "Implements Chia offer file creation and acceptance."
@@ -34,4 +34,4 @@ hex-literal = { workspace = true }
 hex = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 anyhow = { workspace = true }
-chia-sdk-test = { workspace = true }
+chia-sdk-test = { path = "../chia-sdk-test" }
