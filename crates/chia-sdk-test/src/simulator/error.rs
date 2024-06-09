@@ -2,7 +2,7 @@ use std::io;
 
 use chia_consensus::gen::validation_error::ValidationErr;
 use chia_protocol::ProtocolMessageTypes;
-use chia_sdk_signer::SignError;
+use chia_sdk_signer::SignerError;
 use futures_channel::mpsc::SendError;
 use thiserror::Error;
 use tokio_tungstenite::tungstenite;
@@ -21,8 +21,8 @@ pub enum SimulatorError {
     #[error("consensus error: {0}")]
     Consensus(#[from] chia_consensus::error::Error),
 
-    #[error("sign error: {0}")]
-    Sign(#[from] SignError),
+    #[error("signer error: {0}")]
+    Signer(#[from] SignerError),
 
     #[error("validation error: {0}")]
     Validation(#[from] ValidationErr),
