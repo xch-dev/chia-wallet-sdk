@@ -12,6 +12,12 @@ pub struct CreateCoinAnnouncement {
     pub message: Bytes,
 }
 
+impl CreateCoinAnnouncement {
+    pub fn new(message: Bytes) -> Self {
+        Self { message }
+    }
+}
+
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,6 +26,12 @@ pub struct AssertCoinAnnouncement {
     #[clvm(constant = 61)]
     pub opcode: u8,
     pub announcement_id: Bytes32,
+}
+
+impl AssertCoinAnnouncement {
+    pub fn new(announcement_id: Bytes32) -> Self {
+        Self { announcement_id }
+    }
 }
 
 #[derive(ToClvm, FromClvm)]
@@ -32,6 +44,12 @@ pub struct CreatePuzzleAnnouncement {
     pub message: Bytes,
 }
 
+impl CreatePuzzleAnnouncement {
+    pub fn new(message: Bytes) -> Self {
+        Self { message }
+    }
+}
+
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,6 +58,12 @@ pub struct AssertPuzzleAnnouncement {
     #[clvm(constant = 63)]
     pub opcode: u8,
     pub announcement_id: Bytes32,
+}
+
+impl AssertPuzzleAnnouncement {
+    pub fn new(announcement_id: Bytes32) -> Self {
+        Self { announcement_id }
+    }
 }
 
 pub fn announcement_id(coin_info: Bytes32, message: impl AsRef<[u8]>) -> Bytes32 {

@@ -485,7 +485,7 @@ mod tests {
         let peer = sim.connect().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
-        let solution = to_program([Remark {}])?;
+        let solution = to_program([Remark { rest: () }])?;
 
         let coin = sim.mint_coin(puzzle_hash, 0).await;
 
@@ -734,7 +734,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::with_custom_hint(puzzle_hash, 0, hint)])?,
+                to_program([CreateCoin::with_hint(puzzle_hash, 0, hint)])?,
             )],
             Signature::default(),
         );

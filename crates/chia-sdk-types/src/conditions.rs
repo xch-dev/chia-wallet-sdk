@@ -14,12 +14,12 @@ pub use output::*;
 pub use puzzles::*;
 pub use time::*;
 
-use clvm_traits::{apply_constants, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm};
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(transparent)]
 pub enum Condition<T> {
-    Remark(Remark),
+    Remark(Remark<T>),
     AggSig(AggSig),
     CreateCoin(CreateCoin),
     ReserveFee(ReserveFee),
@@ -44,20 +44,8 @@ pub enum Condition<T> {
     AssertBeforeSecondsAbsolute(AssertBeforeSecondsAbsolute),
     AssertBeforeHeightRelative(AssertBeforeHeightRelative),
     AssertBeforeHeightAbsolute(AssertBeforeHeightAbsolute),
-    Softfork(Softfork<T>),
     RunTail(RunTail<T, T>),
     MeltSingleton(MeltSingleton),
     NewNftOwner(NewNftOwner),
-}
-
-#[derive(ToClvm, FromClvm)]
-#[apply_constants]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[clvm(list)]
-pub struct Softfork<T> {
-    #[clvm(constant = 90)]
-    pub opcode: u8,
-    pub cost: u64,
-    #[clvm(rest)]
-    pub rest: T,
+    Softfork(Softfork<T>),
 }

@@ -41,6 +41,12 @@ pub struct AssertMyAmount {
     pub amount: u64,
 }
 
+impl AssertMyAmount {
+    pub fn new(amount: u64) -> Self {
+        Self { amount }
+    }
+}
+
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,6 +57,12 @@ pub struct AssertMyBirthSeconds {
     pub seconds: u64,
 }
 
+impl AssertMyBirthSeconds {
+    pub fn new(seconds: u64) -> Self {
+        Self { seconds }
+    }
+}
+
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,4 +71,10 @@ pub struct AssertMyBirthHeight {
     #[clvm(constant = 75)]
     pub opcode: u8,
     pub height: u32,
+}
+
+impl AssertMyBirthHeight {
+    pub fn new(height: u32) -> Self {
+        Self { height }
+    }
 }

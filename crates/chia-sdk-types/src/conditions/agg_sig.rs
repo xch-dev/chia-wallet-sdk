@@ -10,6 +10,16 @@ pub struct AggSig {
     pub message: Bytes,
 }
 
+impl AggSig {
+    pub fn new(kind: AggSigKind, public_key: PublicKey, message: Bytes) -> Self {
+        Self {
+            kind,
+            public_key,
+            message,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm, Hash)]
 #[repr(u8)]
 #[clvm(atom)]
@@ -35,6 +45,15 @@ pub struct AggSigParent {
     pub message: Bytes,
 }
 
+impl AggSigParent {
+    pub fn new(public_key: PublicKey, message: Bytes) -> Self {
+        Self {
+            public_key,
+            message,
+        }
+    }
+}
+
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,6 +63,15 @@ pub struct AggSigPuzzle {
     pub opcode: u8,
     pub public_key: PublicKey,
     pub message: Bytes,
+}
+
+impl AggSigPuzzle {
+    pub fn new(public_key: PublicKey, message: Bytes) -> Self {
+        Self {
+            public_key,
+            message,
+        }
+    }
 }
 
 #[derive(ToClvm, FromClvm)]
@@ -57,6 +85,15 @@ pub struct AggSigAmount {
     pub message: Bytes,
 }
 
+impl AggSigAmount {
+    pub fn new(public_key: PublicKey, message: Bytes) -> Self {
+        Self {
+            public_key,
+            message,
+        }
+    }
+}
+
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,6 +103,15 @@ pub struct AggSigPuzzleAmount {
     pub opcode: u8,
     pub public_key: PublicKey,
     pub message: Bytes,
+}
+
+impl AggSigPuzzleAmount {
+    pub fn new(public_key: PublicKey, message: Bytes) -> Self {
+        Self {
+            public_key,
+            message,
+        }
+    }
 }
 
 #[derive(ToClvm, FromClvm)]
@@ -79,6 +125,15 @@ pub struct AggSigParentAmount {
     pub message: Bytes,
 }
 
+impl AggSigParentAmount {
+    pub fn new(public_key: PublicKey, message: Bytes) -> Self {
+        Self {
+            public_key,
+            message,
+        }
+    }
+}
+
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +143,15 @@ pub struct AggSigParentPuzzle {
     pub opcode: u8,
     pub public_key: PublicKey,
     pub message: Bytes,
+}
+
+impl AggSigParentPuzzle {
+    pub fn new(public_key: PublicKey, message: Bytes) -> Self {
+        Self {
+            public_key,
+            message,
+        }
+    }
 }
 
 #[derive(ToClvm, FromClvm)]
@@ -101,6 +165,15 @@ pub struct AggSigUnsafe {
     pub message: Bytes,
 }
 
+impl AggSigUnsafe {
+    pub fn new(public_key: PublicKey, message: Bytes) -> Self {
+        Self {
+            public_key,
+            message,
+        }
+    }
+}
+
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,4 +183,13 @@ pub struct AggSigMe {
     pub opcode: u8,
     pub public_key: PublicKey,
     pub message: Bytes,
+}
+
+impl AggSigMe {
+    pub fn new(public_key: PublicKey, message: Bytes) -> Self {
+        Self {
+            public_key,
+            message,
+        }
+    }
 }
