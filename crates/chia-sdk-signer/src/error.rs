@@ -5,7 +5,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum SignerError {
     #[error("parse error: {0}")]
-    ParseError(#[from] ParseError),
+    Parse(#[from] ParseError),
 
     #[error("clvm error")]
     ToClvm(#[from] ToClvmError),
