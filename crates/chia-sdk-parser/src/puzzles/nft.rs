@@ -105,17 +105,24 @@ impl NftPuzzle {
             ownership_solution.inner_solution,
         )?;
 
-        let create_coin = conditions.iter().find_map(|condition| match condition {
-            Condition::CreateCoin(create_coin) if create_coin.amount % 2 == 1 => Some(create_coin),
-            _ => None,
-        });
+        let mut create_coin = None;
+        let mut new_nft_owner = None;
 
-        let new_owner = conditions.iter().find_map(|condition| match condition {
-            Condition::NewNftOwner(new_owner) => Some(new_owner),
-            _ => None,
-        });
+        for condition in conditions {
+            match condition {
+                Condition::CreateCoin(condition) => {
+                    create_coin = Some(condition);
+                }
+                Condition::Other(condition) => {
+                    if let Ok(condition) = NewNftOwner::from_clvm(allocator, condition) {
+                        new_nft_owner = Some(condition);
+                    }
+                }
+                _ => {}
+            }
+        }
 
-        Ok((create_coin.cloned(), new_owner.cloned()))
+        Ok((create_coin, new_nft_owner))
     }
 
     pub fn child_coin_info(

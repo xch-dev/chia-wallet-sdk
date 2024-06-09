@@ -15,10 +15,11 @@ pub use puzzles::*;
 pub use time::*;
 
 use clvm_traits::{FromClvm, ToClvm};
+use clvmr::NodePtr;
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(transparent)]
-pub enum Condition<T> {
+pub enum Condition<T = NodePtr> {
     Remark(Remark<T>),
     AggSig(AggSig),
     CreateCoin(CreateCoin),
@@ -44,8 +45,6 @@ pub enum Condition<T> {
     AssertBeforeSecondsAbsolute(AssertBeforeSecondsAbsolute),
     AssertBeforeHeightRelative(AssertBeforeHeightRelative),
     AssertBeforeHeightAbsolute(AssertBeforeHeightAbsolute),
-    RunTail(RunTail<T, T>),
-    MeltSingleton(MeltSingleton),
-    NewNftOwner(NewNftOwner),
     Softfork(Softfork<T>),
+    Other(T),
 }
