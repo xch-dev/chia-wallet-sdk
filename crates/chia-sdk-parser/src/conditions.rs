@@ -2,29 +2,18 @@ use std::collections::HashSet;
 
 use chia_protocol::{Coin, CoinSpend};
 use chia_sdk_types::conditions::Condition;
-use clvm_traits::{FromClvm, FromClvmError, ToClvmError, ToNodePtr};
-use clvmr::{
-    reduction::{EvalErr, Reduction},
-    Allocator, NodePtr,
-};
-use thiserror::Error;
+use clvm_traits::{FromClvm, ToNodePtr};
+use clvmr::{reduction::Reduction, Allocator, NodePtr};
 
-#[derive(Debug, Error)]
-pub enum ConditionError {
-    #[error("eval error: {0}")]
-    Eval(#[from] EvalErr),
-
-    #[error("clvm error: {0}")]
-    Clvm(#[from] FromClvmError),
-}
+use crate::ParseError;
 
 pub fn parse_conditions(
     allocator: &mut Allocator,
     conditions: NodePtr,
-) -> Result<Vec<Condition<NodePtr>>, FromClvmError> {
+) -> Result<Vec<Condition<NodePtr>>, ParseError> {
     Vec::<NodePtr>::from_clvm(allocator, conditions)?
         .into_iter()
-        .map(|condition| Condition::from_clvm(allocator, condition))
+        .map(|condition| Ok(Condition::from_clvm(allocator, condition)?))
         .collect()
 }
 
@@ -32,7 +21,7 @@ pub fn run_puzzle(
     allocator: &mut Allocator,
     puzzle: NodePtr,
     solution: NodePtr,
-) -> Result<NodePtr, EvalErr> {
+) -> Result<NodePtr, ParseError> {
     let Reduction(_cost, output) = clvmr::run_program(
         allocator,
         &clvmr::ChiaDialect::new(0),
@@ -47,24 +36,12 @@ pub fn puzzle_conditions(
     allocator: &mut Allocator,
     puzzle: NodePtr,
     solution: NodePtr,
-) -> Result<Vec<Condition<NodePtr>>, ConditionError> {
+) -> Result<Vec<Condition<NodePtr>>, ParseError> {
     let output = run_puzzle(allocator, puzzle, solution)?;
-    Ok(parse_conditions(allocator, output)?)
+    parse_conditions(allocator, output)
 }
 
-#[derive(Debug, Error)]
-pub enum ParseBundleError {
-    #[error("condition error: {0}")]
-    Condition(#[from] ConditionError),
-
-    #[error("to clvm error: {0}")]
-    ToClvm(#[from] ToClvmError),
-
-    #[error("from clvm error: {0}")]
-    From(#[from] FromClvmError),
-}
-
-pub fn non_ephemeral_coins(coin_spends: &[CoinSpend]) -> Result<Vec<Coin>, ParseBundleError> {
+pub fn non_ephemeral_coins(coin_spends: &[CoinSpend]) -> Result<Vec<Coin>, ParseError> {
     let mut allocator = Allocator::new();
     let mut created_coins = HashSet::new();
 

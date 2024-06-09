@@ -1,15 +1,17 @@
-use clvm_traits::FromClvmError;
+use clvm_traits::{FromClvmError, ToClvmError};
+use clvmr::reduction::EvalErr;
 use thiserror::Error;
-
-use crate::ConditionError;
 
 #[derive(Debug, Error)]
 pub enum ParseError {
-    #[error("failed to parse clvm value: {0}")]
+    #[error("failed to serialize clvm value: {0}")]
+    ToClvm(#[from] ToClvmError),
+
+    #[error("failed to deserialize clvm value: {0}")]
     FromClvm(#[from] FromClvmError),
 
-    #[error("condition error: {0}")]
-    Condition(#[from] ConditionError),
+    #[error("clvm eval error: {0}")]
+    Eval(#[from] EvalErr),
 
     #[error("invalid mod hash")]
     InvalidModHash,

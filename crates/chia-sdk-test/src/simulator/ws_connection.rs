@@ -21,10 +21,10 @@ use tokio::{
 use tokio_tungstenite::{tungstenite::Message as WsMessage, WebSocketStream};
 
 use super::{
+    error::SimulatorError,
     peer_map::Ws,
     simulator_config::SimulatorConfig,
     simulator_data::{new_transaction, SimulatorData},
-    simulator_error::SimulatorError,
     PeerMap,
 };
 

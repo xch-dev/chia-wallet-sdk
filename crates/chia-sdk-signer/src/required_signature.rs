@@ -10,7 +10,7 @@ use clvmr::{
     Allocator,
 };
 
-use crate::SignError;
+use crate::SignerError;
 
 #[derive(Debug, Clone)]
 pub struct RequiredSignature {
@@ -93,7 +93,7 @@ impl RequiredSignature {
         allocator: &mut Allocator,
         coin_spend: &CoinSpend,
         agg_sig_me: Bytes32,
-    ) -> Result<Vec<Self>, SignError> {
+    ) -> Result<Vec<Self>, SignerError> {
         let puzzle = coin_spend.puzzle_reveal.to_node_ptr(allocator)?;
         let solution = coin_spend.solution.to_node_ptr(allocator)?;
         let conditions = puzzle_conditions(allocator, puzzle, solution)?;
@@ -106,7 +106,7 @@ impl RequiredSignature {
             };
 
             if agg_sig.public_key.is_inf() {
-                return Err(SignError::InfinityPublicKey);
+                return Err(SignerError::InfinityPublicKey);
             }
 
             result.push(Self::from_condition(&coin_spend.coin, agg_sig, agg_sig_me));
@@ -122,7 +122,7 @@ impl RequiredSignature {
         allocator: &mut Allocator,
         coin_spends: &[CoinSpend],
         agg_sig_me: Bytes32,
-    ) -> Result<Vec<Self>, SignError> {
+    ) -> Result<Vec<Self>, SignerError> {
         let mut required_signatures = Vec::new();
         for coin_spend in coin_spends {
             required_signatures.extend(Self::from_coin_spend(allocator, coin_spend, agg_sig_me)?);

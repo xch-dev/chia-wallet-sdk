@@ -18,7 +18,7 @@ use clvmr::{
 use indexmap::{IndexMap, IndexSet};
 use tokio::sync::MutexGuard;
 
-use super::{simulator_config::SimulatorConfig, simulator_error::SimulatorError};
+use super::{error::SimulatorError, simulator_config::SimulatorConfig};
 
 #[derive(Debug, Default, Clone)]
 pub(crate) struct SimulatorData {

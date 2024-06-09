@@ -4,20 +4,20 @@ use bip39::Mnemonic;
 use chia_bls::SecretKey;
 use chia_client::Peer;
 use chia_protocol::{Bytes32, Coin, CoinState};
+use error::SimulatorError;
 use peer_map::PeerMap;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use simulator_config::SimulatorConfig;
 use simulator_data::SimulatorData;
-use simulator_error::SimulatorError;
 use tokio::{net::TcpListener, sync::Mutex, task::JoinHandle};
 use tokio_tungstenite::connect_async;
 use ws_connection::ws_connection;
 
+mod error;
 mod peer_map;
 mod simulator_config;
 mod simulator_data;
-mod simulator_error;
 mod ws_connection;
 
 #[derive(Debug)]
