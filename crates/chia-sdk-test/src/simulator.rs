@@ -150,7 +150,7 @@ impl Drop for Simulator {
 mod tests {
     use chia_bls::{PublicKey, Signature};
     use chia_protocol::{
-        CoinSpend, CoinStateFilters, CoinStateUpdate, RejectCoinState, RejectPuzzleState,
+        Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, RejectCoinState, RejectPuzzleState,
         RequestCoinState, RequestPuzzleState, RespondCoinState, RespondPuzzleState, SpendBundle,
     };
     use chia_sdk_types::conditions::{AggSigMe, CreateCoin, Remark};
@@ -245,10 +245,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([AggSigMe {
-                    public_key,
-                    message: Vec::new().into(),
-                }])?,
+                to_program([AggSigMe::new(public_key, Bytes::default())])?,
             )],
             Signature::default(),
         );
@@ -272,10 +269,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([AggSigMe {
-                    public_key: PublicKey::default(),
-                    message: Vec::new().into(),
-                }])?,
+                to_program([AggSigMe::new(PublicKey::default(), Bytes::default())])?,
             )],
             Signature::default(),
         );
@@ -302,10 +296,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([AggSigMe {
-                    public_key: pk,
-                    message: b"Hello, world!".to_vec().into(),
-                }])?,
+                to_program([AggSigMe::new(pk, b"Hello, world!".to_vec().into())])?,
             )],
             &[sk],
             sim.config.genesis_challenge,
@@ -336,14 +327,8 @@ mod tests {
                 coin,
                 puzzle_reveal,
                 to_program([
-                    AggSigMe {
-                        public_key: pk1,
-                        message: b"Hello, world!".to_vec().into(),
-                    },
-                    AggSigMe {
-                        public_key: pk2,
-                        message: b"Goodbye, world!".to_vec().into(),
-                    },
+                    AggSigMe::new(pk1, b"Hello, world!".to_vec().into()),
+                    AggSigMe::new(pk2, b"Goodbye, world!".to_vec().into()),
                 ])?,
             )],
             &[sk1, sk2],
@@ -485,7 +470,7 @@ mod tests {
         let peer = sim.connect().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
-        let solution = to_program([Remark { rest: () }])?;
+        let solution = to_program([Remark::new(())])?;
 
         let coin = sim.mint_coin(puzzle_hash, 0).await;
 
