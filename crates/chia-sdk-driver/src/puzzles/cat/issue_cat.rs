@@ -54,11 +54,8 @@ impl IssueCat {
         })?;
         let asset_id = ctx.tree_hash(tail).into();
 
-        self.raw_condition(ctx.alloc(&RunTail {
-            program: tail,
-            solution: NodePtr::NIL,
-        })?)
-        .finish_raw(ctx, asset_id, amount)
+        self.raw_condition(ctx.alloc(&RunTail::new(tail, ()))?)
+            .finish_raw(ctx, asset_id, amount)
     }
 
     pub fn multi_issuance(
@@ -75,11 +72,8 @@ impl IssueCat {
         })?;
         let asset_id = ctx.tree_hash(tail).into();
 
-        self.raw_condition(ctx.alloc(&RunTail {
-            program: tail,
-            solution: NodePtr::NIL,
-        })?)
-        .finish_raw(ctx, asset_id, amount)
+        self.raw_condition(ctx.alloc(&RunTail::new(tail, ()))?)
+            .finish_raw(ctx, asset_id, amount)
     }
 
     pub fn finish_raw(

@@ -32,13 +32,11 @@ impl RequiredSignature {
         let appended_info = match condition.kind {
             AggSigKind::Parent => {
                 hasher.update([43]);
-                let parent = coin.parent_coin_info;
-                parent.to_vec()
+                coin.parent_coin_info.to_vec()
             }
             AggSigKind::Puzzle => {
                 hasher.update([44]);
-                let puzzle = coin.puzzle_hash;
-                puzzle.to_vec()
+                coin.puzzle_hash.to_vec()
             }
             AggSigKind::Amount => {
                 hasher.update([45]);
@@ -56,9 +54,7 @@ impl RequiredSignature {
             }
             AggSigKind::ParentPuzzle => {
                 hasher.update([48]);
-                let parent = coin.parent_coin_info;
-                let puzzle = coin.puzzle_hash;
-                [parent.to_vec(), puzzle.to_vec()].concat()
+                [coin.parent_coin_info.to_vec(), coin.puzzle_hash.to_vec()].concat()
             }
             AggSigKind::Unsafe => {
                 return Self {

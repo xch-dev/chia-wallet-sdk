@@ -10,6 +10,12 @@ pub struct AssertSecondsRelative {
     pub seconds: u64,
 }
 
+impl AssertSecondsRelative {
+    pub fn new(seconds: u64) -> Self {
+        Self { seconds }
+    }
+}
+
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,6 +24,12 @@ pub struct AssertSecondsAbsolute {
     #[clvm(constant = 81)]
     pub opcode: u8,
     pub seconds: u64,
+}
+
+impl AssertSecondsAbsolute {
+    pub fn new(seconds: u64) -> Self {
+        Self { seconds }
+    }
 }
 
 #[derive(ToClvm, FromClvm)]
@@ -30,6 +42,12 @@ pub struct AssertHeightRelative {
     pub height: u32,
 }
 
+impl AssertHeightRelative {
+    pub fn new(height: u32) -> Self {
+        Self { height }
+    }
+}
+
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +56,12 @@ pub struct AssertHeightAbsolute {
     #[clvm(constant = 83)]
     pub opcode: u8,
     pub height: u32,
+}
+
+impl AssertHeightAbsolute {
+    pub fn new(height: u32) -> Self {
+        Self { height }
+    }
 }
 
 #[derive(ToClvm, FromClvm)]
@@ -50,6 +74,12 @@ pub struct AssertBeforeSecondsRelative {
     pub seconds: u64,
 }
 
+impl AssertBeforeSecondsRelative {
+    pub fn new(seconds: u64) -> Self {
+        Self { seconds }
+    }
+}
+
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,6 +88,12 @@ pub struct AssertBeforeSecondsAbsolute {
     #[clvm(constant = 85)]
     pub opcode: u8,
     pub seconds: u64,
+}
+
+impl AssertBeforeSecondsAbsolute {
+    pub fn new(seconds: u64) -> Self {
+        Self { seconds }
+    }
 }
 
 #[derive(ToClvm, FromClvm)]
@@ -70,6 +106,12 @@ pub struct AssertBeforeHeightRelative {
     pub height: u32,
 }
 
+impl AssertBeforeHeightRelative {
+    pub fn new(height: u32) -> Self {
+        Self { height }
+    }
+}
+
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,4 +120,10 @@ pub struct AssertBeforeHeightAbsolute {
     #[clvm(constant = 87)]
     pub opcode: u8,
     pub height: u32,
+}
+
+impl AssertBeforeHeightAbsolute {
+    pub fn new(height: u32) -> Self {
+        Self { height }
+    }
 }

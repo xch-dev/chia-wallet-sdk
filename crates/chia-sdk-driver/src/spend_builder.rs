@@ -40,11 +40,7 @@ pub trait P2Spend: Sized {
         amount: u64,
         hint: Bytes32,
     ) -> Result<Self, SpendError> {
-        Ok(self.raw_condition(ctx.alloc(&CreateCoin::with_custom_hint(
-            puzzle_hash,
-            amount,
-            hint,
-        ))?))
+        Ok(self.raw_condition(ctx.alloc(&CreateCoin::with_hint(puzzle_hash, amount, hint))?))
     }
 
     fn create_coin_announcement(
