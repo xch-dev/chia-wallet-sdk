@@ -3,10 +3,7 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::singleton::SINGLETON_LAUNCHER_PUZZLE_HASH;
 
-use crate::{
-    spend_builder::{P2Spend, SpendConditions},
-    SpendContext, SpendError,
-};
+use crate::Conditions;
 
 use super::SpendableLauncher;
 
@@ -39,33 +36,24 @@ impl Launcher {
 
     /// The parent coin specified when constructing the [`Launcher`] will create the launcher coin.
     /// By default, no hint is used when creating the coin. To specify a hint, use [`Launcher::create_hinted`].
-    pub fn create(self, ctx: &mut SpendContext<'_>) -> Result<SpendableLauncher, SpendError> {
-        Ok(SpendableLauncher::with_parent_conditions(
+    pub fn create(self) -> SpendableLauncher {
+        SpendableLauncher::with_parent_conditions(
             self.coin,
-            SpendConditions::new().create_coin(
-                ctx,
-                SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-                self.coin.amount,
-            )?,
-        ))
+            Conditions::new().create_coin(SINGLETON_LAUNCHER_PUZZLE_HASH.into(), self.coin.amount),
+        )
     }
 
     /// The parent coin specified when constructing the [`Launcher`] will create the launcher coin.
     /// The created launcher coin will be hinted to make identifying it easier later.
-    pub fn create_hinted(
-        self,
-        ctx: &mut SpendContext<'_>,
-        hint: Bytes32,
-    ) -> Result<SpendableLauncher, SpendError> {
-        Ok(SpendableLauncher::with_parent_conditions(
+    pub fn create_hinted(self, hint: Bytes32) -> SpendableLauncher {
+        SpendableLauncher::with_parent_conditions(
             self.coin,
-            SpendConditions::new().create_hinted_coin(
-                ctx,
+            Conditions::new().create_hinted_coin(
                 SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
                 self.coin.amount,
                 hint,
-            )?,
-        ))
+            ),
+        )
     }
 
     /// The parent coin specified when constructing the [`Launcher`] will create the launcher coin.
@@ -73,18 +61,11 @@ impl Launcher {
     ///
     /// This method is used to create the launcher coin immediately from the parent, then spend it later attached to any coin spend.
     /// For example, this is useful for minting NFTs from intermediate coins created with an earlier instance of a DID.
-    pub fn create_now(
-        self,
-        ctx: &mut SpendContext<'_>,
-    ) -> Result<(SpendConditions, SpendableLauncher), SpendError> {
-        Ok((
-            SpendConditions::new().create_coin(
-                ctx,
-                SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-                self.coin.amount,
-            )?,
-            SpendableLauncher::with_parent_conditions(self.coin, SpendConditions::new()),
-        ))
+    pub fn create_now(self) -> (Conditions, SpendableLauncher) {
+        (
+            Conditions::new().create_coin(SINGLETON_LAUNCHER_PUZZLE_HASH.into(), self.coin.amount),
+            SpendableLauncher::with_parent_conditions(self.coin, Conditions::new()),
+        )
     }
 
     /// The parent coin specified when constructing the [`Launcher`] will create the launcher coin.
@@ -92,19 +73,14 @@ impl Launcher {
     ///
     /// This method is used to create the launcher coin immediately from the parent, then spend it later attached to any coin spend.
     /// For example, this is useful for minting NFTs from intermediate coins created with an earlier instance of a DID.
-    pub fn create_hinted_now(
-        self,
-        ctx: &mut SpendContext<'_>,
-        hint: Bytes32,
-    ) -> Result<(SpendConditions, SpendableLauncher), SpendError> {
-        Ok((
-            SpendConditions::new().create_hinted_coin(
-                ctx,
+    pub fn create_hinted_now(self, hint: Bytes32) -> (Conditions, SpendableLauncher) {
+        (
+            Conditions::new().create_hinted_coin(
                 SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
                 self.coin.amount,
                 hint,
-            )?,
-            SpendableLauncher::with_parent_conditions(self.coin, SpendConditions::new()),
-        ))
+            ),
+            SpendableLauncher::with_parent_conditions(self.coin, Conditions::new()),
+        )
     }
 }

@@ -1,72 +1,24 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Coin, CoinSpend};
 use chia_puzzles::standard::{StandardArgs, StandardSolution};
-use clvm_traits::clvm_quote;
 use clvm_utils::CurriedProgram;
-use clvmr::NodePtr;
 
-use crate::{
-    spend_builder::{InnerSpend, P2Spend, SpendConditions},
-    SpendContext, SpendError,
-};
+use crate::{Conditions, Spend, SpendContext, SpendError};
 
-#[derive(Debug, Default, Clone)]
-#[must_use]
-pub struct StandardSpend {
-    conditions: Vec<NodePtr>,
-}
+pub fn p2_spend(
+    ctx: &mut SpendContext<'_>,
+    synthetic_key: PublicKey,
+    conditions: Conditions,
+) -> Result<Spend, SpendError> {
+    let standard_puzzle = ctx.standard_puzzle()?;
 
-impl StandardSpend {
-    pub fn new() -> Self {
-        Self::default()
-    }
+    let puzzle = ctx.alloc(&CurriedProgram {
+        program: standard_puzzle,
+        args: StandardArgs::new(synthetic_key),
+    })?;
 
-    #[allow(clippy::needless_pass_by_value)]
-    pub fn chain(mut self, chained: SpendConditions) -> Self {
-        self.conditions.extend(chained.parent_conditions());
-        self
-    }
+    let solution = ctx.alloc(&StandardSolution::from_conditions(conditions))?;
 
-    pub fn inner_spend(
-        self,
-        ctx: &mut SpendContext<'_>,
-        synthetic_key: PublicKey,
-    ) -> Result<InnerSpend, SpendError> {
-        let standard_puzzle = ctx.standard_puzzle()?;
-
-        let puzzle = ctx.alloc(&CurriedProgram {
-            program: standard_puzzle,
-            args: StandardArgs { synthetic_key },
-        })?;
-
-        let solution = ctx.alloc(&StandardSolution {
-            original_public_key: None,
-            delegated_puzzle: clvm_quote!(self.conditions),
-            solution: (),
-        })?;
-
-        Ok(InnerSpend::new(puzzle, solution))
-    }
-
-    pub fn finish(
-        self,
-        ctx: &mut SpendContext<'_>,
-        coin: Coin,
-        synthetic_key: PublicKey,
-    ) -> Result<(), SpendError> {
-        let inner_spend = self.inner_spend(ctx, synthetic_key)?;
-        let puzzle_reveal = ctx.serialize(&inner_spend.puzzle())?;
-        let solution = ctx.serialize(&inner_spend.solution())?;
-        ctx.spend(CoinSpend::new(coin, puzzle_reveal, solution));
-        Ok(())
-    }
-}
-
-impl P2Spend for StandardSpend {
-    fn raw_condition(mut self, condition: NodePtr) -> Self {
-        self.conditions.push(condition);
-        self
-    }
+    Ok(Spend::new(puzzle, solution))
 }
 
 #[cfg(test)]
@@ -90,9 +42,7 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        StandardSpend::new()
-            .create_coin(ctx, puzzle_hash, 1)?
-            .finish(ctx, coin, pk)?;
+        ctx.spend_p2_coin(coin, pk, Conditions::new().create_coin(puzzle_hash, 1))?;
 
         test_transaction(
             &peer,

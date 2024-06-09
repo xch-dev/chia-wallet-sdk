@@ -8,10 +8,7 @@ use clvmr::{
     Allocator,
 };
 
-use crate::{
-    spend_builder::{P2Spend, SpendConditions},
-    SpendContext, SpendError,
-};
+use crate::{Conditions, SpendContext, SpendError};
 
 use super::SpendableLauncher;
 
@@ -63,7 +60,7 @@ impl IntermediateLauncher {
 
     /// Spends the intermediate coin to create the launcher coin.
     pub fn create(self, ctx: &mut SpendContext<'_>) -> Result<SpendableLauncher, SpendError> {
-        let mut parent = SpendConditions::new();
+        let mut parent = Conditions::new();
 
         let intermediate_puzzle = ctx.nft_intermediate_launcher()?;
 
@@ -72,12 +69,12 @@ impl IntermediateLauncher {
             args: NftIntermediateLauncherArgs::new(self.mint_number, self.mint_total),
         })?;
 
-        parent = parent.create_coin(ctx, self.intermediate_coin.puzzle_hash, 0)?;
+        parent = parent.create_coin(self.intermediate_coin.puzzle_hash, 0);
 
         let puzzle_reveal = ctx.serialize(&puzzle)?;
         let solution = ctx.serialize(&())?;
 
-        ctx.spend(CoinSpend::new(
+        ctx.insert_coin_spend(CoinSpend::new(
             self.intermediate_coin,
             puzzle_reveal,
             solution,
@@ -87,15 +84,12 @@ impl IntermediateLauncher {
         index_message.update(usize_to_bytes(self.mint_number));
         index_message.update(usize_to_bytes(self.mint_total));
 
-        parent = parent.assert_coin_announcement(
-            ctx,
-            self.intermediate_coin.coin_id(),
-            index_message.finalize(),
-        )?;
-
         Ok(SpendableLauncher::with_parent_conditions(
             self.launcher_coin,
-            parent,
+            parent.assert_coin_announcement(
+                self.intermediate_coin.coin_id(),
+                index_message.finalize(),
+            ),
         ))
     }
 }

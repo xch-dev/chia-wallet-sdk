@@ -394,7 +394,6 @@ dependencies = [
  "chia-bls 0.9.0",
  "chia-protocol",
  "chia-puzzles",
- "chia-sdk-parser",
  "chia-sdk-types",
  "clvm-traits",
  "clvmr",
@@ -436,6 +435,7 @@ dependencies = [
 name = "chia-sdk-types"
 version = "0.10.3"
 dependencies = [
+ "anyhow",
  "chia-bls 0.9.0",
  "chia-protocol",
  "chia-puzzles",
@@ -443,6 +443,7 @@ dependencies = [
  "clvmr",
  "hex",
  "hex-literal",
+ "thiserror",
 ]
 
 [[package]]

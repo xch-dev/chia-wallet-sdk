@@ -2,31 +2,27 @@
 
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzles::singleton::{
-    LauncherSolution, SingletonArgs, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE,
-    SINGLETON_TOP_LAYER_PUZZLE_HASH,
+    LauncherSolution, SingletonArgs, SINGLETON_LAUNCHER_PUZZLE, SINGLETON_TOP_LAYER_PUZZLE_HASH,
 };
 use clvm_traits::{clvm_list, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
-use crate::{
-    spend_builder::{P2Spend, SpendConditions},
-    SpendContext, SpendError,
-};
+use crate::{Conditions, SpendContext, SpendError};
 
 /// A singleton launcher that is ready to be spent to create the eve singleton. See [`crate::Launcher`] for more information.
 #[must_use]
 #[derive(Debug, Clone)]
 pub struct SpendableLauncher {
     coin: Coin,
-    parent: SpendConditions,
+    parent: Conditions,
 }
 
 impl SpendableLauncher {
     /// Creates a new [`SpendableLauncher`] with the specified launcher coin and parent conditions.
     /// This is used internally by [`crate::Launcher::create`] and [`crate::IntermediateLauncher::create`].
     /// You should not need to use this directly.
-    pub fn with_parent_conditions(coin: Coin, parent: SpendConditions) -> Self {
+    pub fn with_parent_conditions(coin: Coin, parent: Conditions) -> Self {
         Self { coin, parent }
     }
 
@@ -43,16 +39,16 @@ impl SpendableLauncher {
         ctx: &mut SpendContext<'_>,
         singleton_inner_puzzle_hash: Bytes32,
         key_value_list: T,
-    ) -> Result<(SpendConditions, Coin), SpendError>
+    ) -> Result<(Conditions, Coin), SpendError>
     where
         T: ToClvm<NodePtr>,
     {
         let singleton_puzzle_hash = CurriedProgram {
             program: SINGLETON_TOP_LAYER_PUZZLE_HASH,
-            args: SingletonArgs {
-                singleton_struct: SingletonStruct::new(self.coin.coin_id()),
-                inner_puzzle: TreeHash::from(singleton_inner_puzzle_hash),
-            },
+            args: SingletonArgs::new(
+                self.coin.coin_id(),
+                TreeHash::from(singleton_inner_puzzle_hash),
+            ),
         }
         .tree_hash()
         .into();
@@ -64,9 +60,9 @@ impl SpendableLauncher {
         ))?;
         let eve_message_hash = ctx.tree_hash(eve_message);
 
-        self.parent =
-            self.parent
-                .assert_coin_announcement(ctx, self.coin.coin_id(), eve_message_hash)?;
+        self.parent = self
+            .parent
+            .assert_coin_announcement(self.coin.coin_id(), eve_message_hash);
 
         let solution = ctx.serialize(&LauncherSolution {
             singleton_puzzle_hash,
@@ -74,7 +70,7 @@ impl SpendableLauncher {
             key_value_list,
         })?;
 
-        ctx.spend(CoinSpend::new(
+        ctx.insert_coin_spend(CoinSpend::new(
             self.coin,
             Program::from(SINGLETON_LAUNCHER_PUZZLE.to_vec()),
             solution,

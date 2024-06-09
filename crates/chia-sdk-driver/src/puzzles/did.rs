@@ -6,10 +6,7 @@ pub use did_spend::*;
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        puzzles::{Launcher, StandardSpend},
-        SpendContext,
-    };
+    use crate::{Launcher, SpendContext};
 
     use super::*;
 
@@ -32,12 +29,10 @@ mod tests {
         let ctx = &mut SpendContext::new(&mut allocator);
 
         let (launch_singleton, did_info) = Launcher::new(coin.coin_id(), 1)
-            .create(ctx)?
+            .create()
             .create_standard_did(ctx, pk)?;
 
-        StandardSpend::new()
-            .chain(launch_singleton)
-            .finish(ctx, coin, pk)?;
+        ctx.spend_p2_coin(coin, pk, launch_singleton)?;
 
         test_transaction(
             &peer,

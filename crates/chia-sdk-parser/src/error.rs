@@ -1,7 +1,9 @@
+use chia_sdk_types::conditions::ConditionError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
 use thiserror::Error;
 
+// todo
 #[derive(Debug, Error)]
 pub enum ParseError {
     #[error("failed to serialize clvm value: {0}")]
@@ -9,6 +11,9 @@ pub enum ParseError {
 
     #[error("failed to deserialize clvm value: {0}")]
     FromClvm(#[from] FromClvmError),
+
+    #[error("failed to parse conditions: {0}")]
+    Conditions(#[from] ConditionError),
 
     #[error("clvm eval error: {0}")]
     Eval(#[from] EvalErr),

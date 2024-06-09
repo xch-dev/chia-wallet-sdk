@@ -1,11 +1,11 @@
-use chia_sdk_parser::ParseError;
+use chia_sdk_types::conditions::ConditionError;
 use clvm_traits::ToClvmError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SignerError {
-    #[error("parse error: {0}")]
-    Parse(#[from] ParseError),
+    #[error("condition error: {0}")]
+    Condition(#[from] ConditionError),
 
     #[error("clvm error")]
     ToClvm(#[from] ToClvmError),

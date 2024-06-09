@@ -20,7 +20,9 @@ chia-protocol = { workspace = true }
 chia-puzzles = { workspace = true }
 clvm-traits = { workspace = true }
 clvmr = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 hex = { workspace = true }
 hex-literal = { workspace = true }
+anyhow = { workspace = true }

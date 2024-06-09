@@ -1,9 +1,6 @@
-#![allow(clippy::missing_const_for_fn)]
-
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
-use chia_sdk_parser::puzzle_conditions;
-use chia_sdk_types::conditions::{AggSig, AggSigKind, Condition};
+use chia_sdk_types::conditions::{puzzle_conditions, AggSig, AggSigKind, Condition};
 use clvm_traits::ToNodePtr;
 use clvmr::{
     sha2::{Digest, Sha256},

@@ -11,9 +11,7 @@ use clvm_traits::ToClvm;
 use clvm_utils::{tree_hash_atom, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
-use crate::{puzzles::SpendableLauncher, spend_builder::SpendConditions, SpendContext, SpendError};
-
-use super::StandardDidSpend;
+use crate::{Conditions, SpendContext, SpendError, SpendableLauncher};
 
 pub trait CreateDid {
     fn create_eve_did<M>(
@@ -23,7 +21,7 @@ pub trait CreateDid {
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
-    ) -> Result<(SpendConditions, DidInfo<M>), SpendError>
+    ) -> Result<(Conditions, DidInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>;
 
@@ -34,14 +32,14 @@ pub trait CreateDid {
         num_verifications_required: u64,
         metadata: M,
         synthetic_key: PublicKey,
-    ) -> Result<(SpendConditions, DidInfo<M>), SpendError>
+    ) -> Result<(Conditions, DidInfo<M>), SpendError>
     where
-        M: ToClvm<NodePtr>,
+        M: ToClvm<NodePtr> + Clone,
         Self: Sized,
     {
         let inner_puzzle_hash = CurriedProgram {
             program: STANDARD_PUZZLE_HASH,
-            args: StandardArgs { synthetic_key },
+            args: StandardArgs::new(synthetic_key),
         }
         .tree_hash()
         .into();
@@ -54,9 +52,7 @@ pub trait CreateDid {
             metadata,
         )?;
 
-        let did_info = StandardDidSpend::new()
-            .recreate()
-            .finish(ctx, synthetic_key, did_info)?;
+        let did_info = ctx.spend_standard_did(&did_info, synthetic_key, Conditions::new())?;
 
         Ok((create_did, did_info))
     }
@@ -65,7 +61,7 @@ pub trait CreateDid {
         self,
         ctx: &mut SpendContext<'_>,
         synthetic_key: PublicKey,
-    ) -> Result<(SpendConditions, DidInfo<()>), SpendError>
+    ) -> Result<(Conditions, DidInfo<()>), SpendError>
     where
         Self: Sized,
     {
@@ -81,7 +77,7 @@ impl CreateDid for SpendableLauncher {
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
-    ) -> Result<(SpendConditions, DidInfo<M>), SpendError>
+    ) -> Result<(Conditions, DidInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr>,
     {

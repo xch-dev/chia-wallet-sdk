@@ -203,7 +203,7 @@ mod tests {
         offer::{PaymentWithoutMemos, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
         standard::StandardArgs,
     };
-    use chia_sdk_driver::{P2Spend, StandardSpend};
+    use chia_sdk_driver::Conditions;
     use chia_sdk_test::{sign_transaction, Simulator};
     use clvmr::Allocator;
 
@@ -239,10 +239,13 @@ mod tests {
                 })],
             )?;
 
-        StandardSpend::new()
-            .raw_condition(ctx.alloc(&announcement)?)
-            .create_coin(ctx, SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), a.amount)?
-            .finish(ctx, a, a_public_key)?;
+        ctx.spend_p2_coin(
+            a,
+            a_public_key,
+            Conditions::new()
+                .assert_raw_puzzle_announcement(announcement.announcement_id)
+                .create_coin(SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), a.amount),
+        )?;
 
         let coin_spends = ctx.take_spends();
         let signature = sign_transaction(
@@ -263,10 +266,13 @@ mod tests {
                 })],
             )?;
 
-        StandardSpend::new()
-            .raw_condition(ctx.alloc(&announcement)?)
-            .create_coin(ctx, SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), b.amount)?
-            .finish(ctx, b, b_public_key)?;
+        ctx.spend_p2_coin(
+            b,
+            b_public_key,
+            Conditions::new()
+                .assert_raw_puzzle_announcement(announcement.announcement_id)
+                .create_coin(SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), b.amount),
+        )?;
 
         let coin_spends = ctx.take_spends();
         let signature = sign_transaction(
