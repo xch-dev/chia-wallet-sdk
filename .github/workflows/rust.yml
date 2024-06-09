@@ -34,6 +34,9 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
+      - name: Cleanup coverage reports
+        run: rm -f cobertura.xml
+
       - name: Clippy
         run: cargo clippy --workspace --all-features --all-targets
 
