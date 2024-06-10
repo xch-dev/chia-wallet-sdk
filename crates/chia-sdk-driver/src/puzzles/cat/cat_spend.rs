@@ -119,7 +119,7 @@ mod tests {
     use chia_sdk_types::conditions::{Condition, RunTail};
     use clvmr::Allocator;
 
-    use crate::{p2_spend, puzzles::IssueCat, Conditions};
+    use crate::{issue_cat_from_coin, issue_cat_from_key, p2_spend, Conditions};
 
     use super::*;
 
@@ -137,14 +137,15 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (issue_cat, issuance) = IssueCat::new(
+        let (issue_cat, issuance) = issue_cat_from_coin(
+            ctx,
             coin.coin_id(),
+            6,
             Conditions::new()
                 .create_hinted_coin(puzzle_hash, 1, puzzle_hash)
                 .create_hinted_coin(puzzle_hash, 2, puzzle_hash)
                 .create_hinted_coin(puzzle_hash, 3, puzzle_hash),
-        )
-        .single_issuance(ctx, 6)?;
+        )?;
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
@@ -209,11 +210,12 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (issue_cat, issuance) = IssueCat::new(
+        let (issue_cat, issuance) = issue_cat_from_coin(
+            ctx,
             coin.coin_id(),
+            1,
             Conditions::new().create_hinted_coin(puzzle_hash, 1, puzzle_hash),
-        )
-        .single_issuance(ctx, 1)?;
+        )?;
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
@@ -259,11 +261,13 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (issue_cat, issuance) = IssueCat::new(
+        let (issue_cat, issuance) = issue_cat_from_key(
+            ctx,
             coin.coin_id(),
+            pk,
+            10000,
             Conditions::new().create_hinted_coin(puzzle_hash, 10000, puzzle_hash),
-        )
-        .multi_issuance(ctx, pk, 10000)?;
+        )?;
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
