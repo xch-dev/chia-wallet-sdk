@@ -190,7 +190,7 @@ mod tests {
 
     use chia_bls::DerivableKey;
     use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::{test_transaction, Simulator};
+    use chia_sdk_test::{secret_key, test_transaction, Simulator};
     use clvmr::Allocator;
 
     #[tokio::test]
@@ -198,7 +198,7 @@ mod tests {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
 
-        let sk = sim.secret_key().await?;
+        let sk = secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
@@ -250,7 +250,7 @@ mod tests {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
 
-        let sk = sim.secret_key().await?;
+        let sk = secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();

@@ -198,13 +198,14 @@ pub fn calculate_nonce(mut coin_ids: Vec<Bytes32>) -> Bytes32 {
 
 #[cfg(test)]
 mod tests {
+    use chia_bls::DerivableKey;
     use chia_protocol::{Coin, SpendBundle};
     use chia_puzzles::{
         offer::{PaymentWithoutMemos, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
         standard::StandardArgs,
     };
     use chia_sdk_driver::Conditions;
-    use chia_sdk_test::{sign_transaction, Simulator};
+    use chia_sdk_test::{secret_key, sign_transaction, Simulator};
     use clvmr::Allocator;
 
     use crate::SettlementSpend;
@@ -216,11 +217,11 @@ mod tests {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
 
-        let a_secret_key = sim.secret_key().await?;
+        let a_secret_key = secret_key()?.derive_unhardened(0);
         let a_public_key = a_secret_key.public_key();
         let a_puzzle_hash = StandardArgs::curry_tree_hash(a_public_key).into();
 
-        let b_secret_key = sim.secret_key().await?;
+        let b_secret_key = secret_key()?.derive_unhardened(1);
         let b_public_key = b_secret_key.public_key();
         let b_puzzle_hash = StandardArgs::curry_tree_hash(b_public_key).into();
 

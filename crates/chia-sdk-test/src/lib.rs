@@ -1,10 +1,12 @@
 mod announcements;
 mod events;
+mod keys;
 mod simulator;
 mod transaction;
 
 pub use announcements::*;
 pub use events::*;
+pub use keys::*;
 pub use simulator::*;
 pub use transaction::*;
 

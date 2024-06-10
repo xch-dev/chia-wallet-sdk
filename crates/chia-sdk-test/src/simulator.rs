@@ -1,7 +1,5 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use bip39::Mnemonic;
-use chia_bls::SecretKey;
 use chia_client::Peer;
 use chia_protocol::{Bytes32, Coin, CoinState};
 use error::SimulatorError;
@@ -131,13 +129,6 @@ impl Simulator {
         let data = self.data.lock().await;
         data.header_hash(data.height())
     }
-
-    pub async fn secret_key(&self) -> Result<SecretKey, bip39::Error> {
-        let entropy: [u8; 32] = self.rng.lock().await.gen();
-        let mnemonic = Mnemonic::from_entropy(&entropy)?;
-        let seed = mnemonic.to_seed("");
-        Ok(SecretKey::from_seed(&seed))
-    }
 }
 
 impl Drop for Simulator {
@@ -148,14 +139,14 @@ impl Drop for Simulator {
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::{PublicKey, Signature};
+    use chia_bls::{DerivableKey, PublicKey, Signature};
     use chia_protocol::{
         Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, RejectCoinState, RejectPuzzleState,
         RequestCoinState, RequestPuzzleState, RespondCoinState, RespondPuzzleState, SpendBundle,
     };
     use chia_sdk_types::conditions::{AggSigMe, CreateCoin, Remark};
 
-    use crate::{coin_state_updates, test_transaction, to_program, to_puzzle};
+    use crate::{coin_state_updates, secret_key, test_transaction, to_program, to_puzzle};
 
     use super::*;
 
@@ -235,7 +226,7 @@ mod tests {
     async fn test_bad_signature() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
-        let public_key = sim.secret_key().await?.public_key();
+        let public_key = secret_key()?.public_key();
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
@@ -284,7 +275,7 @@ mod tests {
     async fn test_valid_signature() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
-        let sk = sim.secret_key().await?;
+        let sk = secret_key()?;
         let pk = sk.public_key();
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -311,10 +302,10 @@ mod tests {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
 
-        let sk1 = sim.secret_key().await?;
+        let sk1 = secret_key()?.derive_unhardened(0);
         let pk1 = sk1.public_key();
 
-        let sk2 = sim.secret_key().await?;
+        let sk2 = secret_key()?.derive_unhardened(1);
         let pk2 = sk2.public_key();
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
