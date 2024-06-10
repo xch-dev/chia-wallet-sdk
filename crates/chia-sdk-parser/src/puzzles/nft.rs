@@ -184,7 +184,7 @@ mod tests {
     use chia_bls::PublicKey;
     use chia_protocol::{Bytes32, Coin};
     use chia_puzzles::{singleton::SingletonSolution, standard::StandardArgs};
-    use chia_sdk_driver::{CreateDid, Launcher, MintNft, OwnerDid, SpendContext, StandardMint};
+    use chia_sdk_driver::{CreateDid, Launcher, Mint, MintNft, SpendContext};
     use clvm_traits::ToNodePtr;
 
     #[test]
@@ -199,17 +199,17 @@ mod tests {
         let (create_did, did_info) =
             Launcher::new(parent.coin_id(), 1).create_standard_did(ctx, pk)?;
 
-        let (mint_nft, nft_info) = Launcher::new(did_info.coin.coin_id(), 1).mint_standard_nft(
+        let (mint_nft, nft_info) = Launcher::new(did_info.coin.coin_id(), 1).mint_nft(
             ctx,
-            StandardMint {
+            Mint {
                 metadata: (),
                 royalty_percentage: 300,
                 royalty_puzzle_hash: Bytes32::new([1; 32]),
-                owner_puzzle_hash: puzzle_hash,
-                synthetic_key: pk,
-                owner_did: Some(OwnerDid {
-                    did_id: did_info.launcher_id,
-                    did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+                puzzle_hash,
+                owner: Some(NewNftOwner {
+                    new_owner: Some(did_info.launcher_id),
+                    trade_prices_list: Vec::new(),
+                    new_did_p2_puzzle_hash: Some(did_info.did_inner_puzzle_hash),
                 }),
             },
         )?;

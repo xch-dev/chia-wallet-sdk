@@ -1,37 +1,34 @@
-use chia_bls::PublicKey;
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::{
     nft::{NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs},
-    standard::StandardArgs,
-    EveProof, Proof,
+    singleton::SingletonArgs,
+    EveProof, LineageProof, Proof,
 };
-use chia_sdk_types::{conditions::NewNftOwner, puzzles::NftInfo};
-use clvm_traits::ToClvm;
+use chia_sdk_types::{
+    conditions::{Condition, NewNftOwner},
+    puzzles::NftInfo,
+};
+use clvm_traits::{clvm_quote, ToClvm};
 use clvmr::NodePtr;
 
-use crate::{Conditions, Launcher, SpendContext, SpendError};
+use crate::{
+    did_puzzle_assertion, nft_spend, Conditions, Launcher, Spend, SpendContext, SpendError,
+};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct StandardMint<M> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Mint<M> {
     pub metadata: M,
     pub royalty_puzzle_hash: Bytes32,
     pub royalty_percentage: u16,
-    pub synthetic_key: PublicKey,
-    pub owner_puzzle_hash: Bytes32,
-    pub owner_did: Option<OwnerDid>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct OwnerDid {
-    pub did_id: Bytes32,
-    pub did_inner_puzzle_hash: Bytes32,
+    pub puzzle_hash: Bytes32,
+    pub owner: Option<NewNftOwner>,
 }
 
 pub trait MintNft {
     fn mint_eve_nft<M>(
         self,
         ctx: &mut SpendContext<'_>,
-        inner_puzzle_hash: Bytes32,
+        p2_puzzle_hash: Bytes32,
         metadata: M,
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
@@ -39,18 +36,27 @@ pub trait MintNft {
     where
         M: ToClvm<NodePtr>;
 
-    fn mint_standard_nft<M>(
+    fn mint_nft<M>(
         self,
         ctx: &mut SpendContext<'_>,
-        mint: StandardMint<M>,
+        mint: Mint<M>,
     ) -> Result<(Conditions, NftInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr> + Clone,
         Self: Sized,
     {
-        let inner_puzzle_hash = StandardArgs::curry_tree_hash(mint.synthetic_key).into();
+        let mut conditions =
+            Conditions::new().create_hinted_coin(mint.puzzle_hash, 1, mint.puzzle_hash);
 
-        let (mint_nft, nft_info) = self.mint_eve_nft(
+        if let Some(new_nft_owner) = mint.owner.clone() {
+            conditions = conditions.condition(Condition::Other(ctx.alloc(&new_nft_owner)?));
+        }
+
+        let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
+        let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
+        let inner_spend = Spend::new(inner_puzzle, NodePtr::NIL);
+
+        let (mint_eve_nft, eve_nft_info) = self.mint_eve_nft(
             ctx,
             inner_puzzle_hash,
             mint.metadata,
@@ -58,21 +64,60 @@ pub trait MintNft {
             mint.royalty_percentage,
         )?;
 
-        let (spend_eve, nft_info) = ctx.spend_standard_nft(
-            &nft_info,
-            mint.synthetic_key,
-            mint.owner_puzzle_hash,
-            mint.owner_did.map(|owner_did| {
-                NewNftOwner::new(
-                    Some(owner_did.did_id),
-                    Vec::new(),
-                    Some(owner_did.did_inner_puzzle_hash),
-                )
-            }),
-            Conditions::new(),
-        )?;
+        let eve_spend = nft_spend(ctx, &eve_nft_info, inner_spend)?;
+        ctx.insert_coin_spend(eve_spend);
 
-        Ok((mint_nft.extend(spend_eve), nft_info))
+        let mut did_conditions = Conditions::new();
+
+        if let Some(new_nft_owner) = &mint.owner {
+            did_conditions = did_conditions.assert_raw_puzzle_announcement(did_puzzle_assertion(
+                eve_nft_info.coin.puzzle_hash,
+                new_nft_owner,
+            ));
+        }
+
+        let metadata_ptr = ctx.alloc(&eve_nft_info.metadata)?;
+
+        let transfer_program = NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
+            eve_nft_info.launcher_id,
+            eve_nft_info.royalty_puzzle_hash,
+            eve_nft_info.royalty_percentage,
+        );
+
+        let owner = mint.owner.and_then(|owner| owner.new_owner);
+
+        let ownership_layer = NftOwnershipLayerArgs::curry_tree_hash(
+            owner,
+            transfer_program,
+            mint.puzzle_hash.into(),
+        );
+
+        let state_layer =
+            NftStateLayerArgs::curry_tree_hash(ctx.tree_hash(metadata_ptr), ownership_layer);
+
+        let singleton_puzzle_hash =
+            SingletonArgs::curry_tree_hash(eve_nft_info.launcher_id, state_layer);
+
+        let mut nft_info = eve_nft_info.clone();
+
+        nft_info.current_owner = owner;
+
+        nft_info.proof = Proof::Lineage(LineageProof {
+            parent_parent_coin_id: eve_nft_info.coin.parent_coin_info,
+            parent_inner_puzzle_hash: eve_nft_info.nft_inner_puzzle_hash,
+            parent_amount: eve_nft_info.coin.amount,
+        });
+
+        nft_info.coin = Coin::new(
+            eve_nft_info.coin.coin_id(),
+            singleton_puzzle_hash.into(),
+            eve_nft_info.coin.amount,
+        );
+
+        nft_info.nft_inner_puzzle_hash = state_layer.into();
+        nft_info.p2_puzzle_hash = mint.puzzle_hash;
+
+        Ok((mint_eve_nft.extend(did_conditions), nft_info))
     }
 }
 
@@ -104,10 +149,7 @@ impl MintNft for Launcher {
             NftStateLayerArgs::curry_tree_hash(metadata_hash, ownership_layer).into();
 
         let launcher_coin = self.coin();
-        let (mut chained_spend, eve_coin) = self.spend(ctx, nft_inner_puzzle_hash, ())?;
-
-        chained_spend =
-            chained_spend.create_puzzle_announcement(launcher_coin.coin_id().to_vec().into());
+        let (launch_singleton, eve_coin) = self.spend(ctx, nft_inner_puzzle_hash, ())?;
 
         let proof = Proof::Eve(EveProof {
             parent_coin_info: launcher_coin.parent_coin_info,
@@ -126,7 +168,10 @@ impl MintNft for Launcher {
             royalty_percentage,
         };
 
-        Ok((chained_spend, nft_info))
+        Ok((
+            launch_singleton.create_puzzle_announcement(launcher_coin.coin_id().to_vec().into()),
+            nft_info,
+        ))
     }
 }
 
@@ -147,15 +192,12 @@ mod tests {
         solution_generator::solution_generator,
     };
     use chia_protocol::Coin;
-    use chia_puzzles::nft::NftMetadata;
+    use chia_puzzles::{nft::NftMetadata, standard::StandardArgs};
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
     use clvmr::Allocator;
 
-    pub fn nft_mint(
-        synthetic_key: PublicKey,
-        owner_did: Option<OwnerDid>,
-    ) -> StandardMint<NftMetadata> {
-        StandardMint {
+    pub fn nft_mint(puzzle_hash: Bytes32, owner: Option<NewNftOwner>) -> Mint<NftMetadata> {
+        Mint {
             metadata: NftMetadata {
                 edition_number: 1,
                 edition_total: 1,
@@ -168,9 +210,8 @@ mod tests {
             },
             royalty_puzzle_hash: Bytes32::new([4; 32]),
             royalty_percentage: 300,
-            owner_puzzle_hash: StandardArgs::curry_tree_hash(synthetic_key).into(),
-            owner_did,
-            synthetic_key,
+            puzzle_hash,
+            owner,
         }
     }
 
@@ -195,7 +236,7 @@ mod tests {
         let coin = Coin::new(Bytes32::new([1; 32]), puzzle_hash, 1);
         let (mint_nft, _nft_info) = IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
             .create(ctx)?
-            .mint_standard_nft(ctx, nft_mint(pk, None))?;
+            .mint_nft(ctx, nft_mint(puzzle_hash, None))?;
         let _did_info = ctx.spend_standard_did(
             &did_info,
             pk,
@@ -222,7 +263,7 @@ mod tests {
             0,
         )?;
 
-        assert_eq!(conds.cost, 127_780_546);
+        assert_eq!(conds.cost, 122_646_589);
 
         Ok(())
     }
@@ -246,26 +287,26 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
-        let mint = StandardMint {
+        let mint = Mint {
             metadata: (),
             royalty_puzzle_hash: puzzle_hash,
             royalty_percentage: 100,
-            owner_puzzle_hash: puzzle_hash,
-            synthetic_key: pk,
-            owner_did: Some(OwnerDid {
-                did_id: did_info.launcher_id,
-                did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+            puzzle_hash,
+            owner: Some(NewNftOwner {
+                new_owner: Some(did_info.launcher_id),
+                trade_prices_list: Vec::new(),
+                new_did_p2_puzzle_hash: Some(did_info.did_inner_puzzle_hash),
             }),
         };
 
         let mint_1 = IntermediateLauncher::new(did_info.coin.coin_id(), 0, 2)
             .create(ctx)?
-            .mint_standard_nft(ctx, mint.clone())?
+            .mint_nft(ctx, mint.clone())?
             .0;
 
         let mint_2 = IntermediateLauncher::new(did_info.coin.coin_id(), 1, 2)
             .create(ctx)?
-            .mint_standard_nft(ctx, mint.clone())?
+            .mint_nft(ctx, mint.clone())?
             .0;
 
         let _did_info = ctx.spend_standard_did(
@@ -308,19 +349,19 @@ mod tests {
 
         let (create_launcher, launcher) = Launcher::create_early(intermediate_coin.coin_id(), 1);
 
-        let mint = StandardMint {
+        let mint = Mint {
             metadata: (),
             royalty_puzzle_hash: puzzle_hash,
             royalty_percentage: 100,
-            owner_puzzle_hash: puzzle_hash,
-            synthetic_key: pk,
-            owner_did: Some(OwnerDid {
-                did_id: did_info.launcher_id,
-                did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+            puzzle_hash,
+            owner: Some(NewNftOwner {
+                new_owner: Some(did_info.launcher_id),
+                trade_prices_list: Vec::new(),
+                new_did_p2_puzzle_hash: Some(did_info.did_inner_puzzle_hash),
             }),
         };
 
-        let (mint_nft, _nft_info) = launcher.mint_standard_nft(ctx, mint)?;
+        let (mint_nft, _nft_info) = launcher.mint_nft(ctx, mint)?;
         let _did_info =
             ctx.spend_standard_did(&did_info, pk, mint_nft.create_coin(puzzle_hash, 0))?;
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
@@ -359,19 +400,19 @@ mod tests {
 
         let (create_launcher, launcher) = Launcher::create_early(intermediate_coin.coin_id(), 1);
 
-        let mint = StandardMint {
+        let mint = Mint {
             metadata: (),
             royalty_puzzle_hash: puzzle_hash,
             royalty_percentage: 100,
-            owner_puzzle_hash: puzzle_hash,
-            synthetic_key: pk,
-            owner_did: Some(OwnerDid {
-                did_id: did_info.launcher_id,
-                did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+            puzzle_hash,
+            owner: Some(NewNftOwner {
+                new_owner: Some(did_info.launcher_id),
+                trade_prices_list: Vec::new(),
+                new_did_p2_puzzle_hash: Some(did_info.did_inner_puzzle_hash),
             }),
         };
 
-        let (mint_nft, _nft_info) = launcher.mint_standard_nft(ctx, mint)?;
+        let (mint_nft, _nft_info) = launcher.mint_nft(ctx, mint)?;
 
         let did_info =
             ctx.spend_standard_did(&did_info, pk, Conditions::new().create_coin(puzzle_hash, 0))?;
