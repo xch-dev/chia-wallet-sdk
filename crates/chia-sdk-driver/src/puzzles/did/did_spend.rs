@@ -71,7 +71,7 @@ mod tests {
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
     use clvmr::Allocator;
 
-    use crate::puzzles::{CreateDid, Launcher};
+    use crate::Launcher;
 
     use super::*;
 

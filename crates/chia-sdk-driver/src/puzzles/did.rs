@@ -1,14 +1,11 @@
 mod create_did;
 mod did_spend;
 
-pub use create_did::*;
 pub use did_spend::*;
 
 #[cfg(test)]
 mod tests {
     use crate::{Launcher, SpendContext};
-
-    use super::*;
 
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{secret_key, test_transaction, Simulator};

@@ -191,11 +191,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        nft_mint,
-        puzzles::{CreateDid, IntermediateLauncher, Launcher},
-        MintNft,
-    };
+    use crate::{nft_mint, IntermediateLauncher, Launcher};
 
     use super::*;
 

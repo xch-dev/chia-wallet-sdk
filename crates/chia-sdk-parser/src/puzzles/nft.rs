@@ -184,7 +184,7 @@ mod tests {
     use chia_bls::PublicKey;
     use chia_protocol::{Bytes32, Coin};
     use chia_puzzles::{singleton::SingletonSolution, standard::StandardArgs};
-    use chia_sdk_driver::{CreateDid, Launcher, Mint, MintNft, SpendContext};
+    use chia_sdk_driver::{Launcher, NftMint, SpendContext};
     use clvm_traits::ToNodePtr;
 
     #[test]
@@ -201,7 +201,7 @@ mod tests {
 
         let (mint_nft, nft_info) = Launcher::new(did_info.coin.coin_id(), 1).mint_nft(
             ctx,
-            Mint {
+            NftMint {
                 metadata: (),
                 royalty_percentage: 300,
                 royalty_puzzle_hash: Bytes32::new([1; 32]),

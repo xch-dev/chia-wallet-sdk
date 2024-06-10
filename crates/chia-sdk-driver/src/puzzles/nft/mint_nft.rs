@@ -16,7 +16,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Mint<M> {
+pub struct NftMint<M> {
     pub metadata: M,
     pub royalty_puzzle_hash: Bytes32,
     pub royalty_percentage: u16,
@@ -24,8 +24,8 @@ pub struct Mint<M> {
     pub owner: Option<NewNftOwner>,
 }
 
-pub trait MintNft {
-    fn mint_eve_nft<M>(
+impl Launcher {
+    pub fn mint_eve_nft<M>(
         self,
         ctx: &mut SpendContext<'_>,
         p2_puzzle_hash: Bytes32,
@@ -34,12 +34,53 @@ pub trait MintNft {
         royalty_percentage: u16,
     ) -> Result<(Conditions, NftInfo<M>), SpendError>
     where
-        M: ToClvm<NodePtr>;
+        M: ToClvm<NodePtr>,
+    {
+        let metadata_ptr = ctx.alloc(&metadata)?;
+        let metadata_hash = ctx.tree_hash(metadata_ptr);
 
-    fn mint_nft<M>(
+        let transfer_program = NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
+            self.coin().coin_id(),
+            royalty_puzzle_hash,
+            royalty_percentage,
+        );
+
+        let ownership_layer =
+            NftOwnershipLayerArgs::curry_tree_hash(None, transfer_program, p2_puzzle_hash.into());
+
+        let nft_inner_puzzle_hash =
+            NftStateLayerArgs::curry_tree_hash(metadata_hash, ownership_layer).into();
+
+        let launcher_coin = self.coin();
+        let (launch_singleton, eve_coin) = self.spend(ctx, nft_inner_puzzle_hash, ())?;
+
+        let proof = Proof::Eve(EveProof {
+            parent_coin_info: launcher_coin.parent_coin_info,
+            amount: launcher_coin.amount,
+        });
+
+        let nft_info = NftInfo {
+            launcher_id: launcher_coin.coin_id(),
+            coin: eve_coin,
+            nft_inner_puzzle_hash,
+            p2_puzzle_hash,
+            proof,
+            metadata,
+            current_owner: None,
+            royalty_puzzle_hash,
+            royalty_percentage,
+        };
+
+        Ok((
+            launch_singleton.create_puzzle_announcement(launcher_coin.coin_id().to_vec().into()),
+            nft_info,
+        ))
+    }
+
+    pub fn mint_nft<M>(
         self,
         ctx: &mut SpendContext<'_>,
-        mint: Mint<M>,
+        mint: NftMint<M>,
     ) -> Result<(Conditions, NftInfo<M>), SpendError>
     where
         M: ToClvm<NodePtr> + Clone,
@@ -121,69 +162,12 @@ pub trait MintNft {
     }
 }
 
-impl MintNft for Launcher {
-    fn mint_eve_nft<M>(
-        self,
-        ctx: &mut SpendContext<'_>,
-        p2_puzzle_hash: Bytes32,
-        metadata: M,
-        royalty_puzzle_hash: Bytes32,
-        royalty_percentage: u16,
-    ) -> Result<(Conditions, NftInfo<M>), SpendError>
-    where
-        M: ToClvm<NodePtr>,
-    {
-        let metadata_ptr = ctx.alloc(&metadata)?;
-        let metadata_hash = ctx.tree_hash(metadata_ptr);
-
-        let transfer_program = NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
-            self.coin().coin_id(),
-            royalty_puzzle_hash,
-            royalty_percentage,
-        );
-
-        let ownership_layer =
-            NftOwnershipLayerArgs::curry_tree_hash(None, transfer_program, p2_puzzle_hash.into());
-
-        let nft_inner_puzzle_hash =
-            NftStateLayerArgs::curry_tree_hash(metadata_hash, ownership_layer).into();
-
-        let launcher_coin = self.coin();
-        let (launch_singleton, eve_coin) = self.spend(ctx, nft_inner_puzzle_hash, ())?;
-
-        let proof = Proof::Eve(EveProof {
-            parent_coin_info: launcher_coin.parent_coin_info,
-            amount: launcher_coin.amount,
-        });
-
-        let nft_info = NftInfo {
-            launcher_id: launcher_coin.coin_id(),
-            coin: eve_coin,
-            nft_inner_puzzle_hash,
-            p2_puzzle_hash,
-            proof,
-            metadata,
-            current_owner: None,
-            royalty_puzzle_hash,
-            royalty_percentage,
-        };
-
-        Ok((
-            launch_singleton.create_puzzle_announcement(launcher_coin.coin_id().to_vec().into()),
-            nft_info,
-        ))
-    }
-}
-
 #[cfg(test)]
 pub use tests::nft_mint;
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        puzzles::{IntermediateLauncher, Launcher},
-        CreateDid,
-    };
+    use crate::{IntermediateLauncher, Launcher};
 
     use super::*;
 
@@ -197,8 +181,8 @@ mod tests {
     use chia_sdk_types::puzzles::DidInfo;
     use clvmr::Allocator;
 
-    pub fn nft_mint(puzzle_hash: Bytes32, did: Option<&DidInfo<()>>) -> Mint<NftMetadata> {
-        Mint {
+    pub fn nft_mint(puzzle_hash: Bytes32, did: Option<&DidInfo<()>>) -> NftMint<NftMetadata> {
+        NftMint {
             metadata: NftMetadata {
                 edition_number: 1,
                 edition_total: 1,
