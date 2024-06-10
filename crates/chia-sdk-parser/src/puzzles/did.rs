@@ -129,7 +129,7 @@ mod tests {
     use chia_bls::PublicKey;
     use chia_protocol::Coin;
     use chia_puzzles::{singleton::SingletonSolution, standard::StandardArgs};
-    use chia_sdk_driver::{CreateDid, Launcher, SpendContext};
+    use chia_sdk_driver::{Launcher, SpendContext};
     use clvm_traits::ToNodePtr;
 
     #[test]
@@ -141,9 +141,8 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
 
-        let (create_did, did_info) = Launcher::new(parent.coin_id(), 1)
-            .create()
-            .create_standard_did(ctx, pk)?;
+        let (create_did, did_info) =
+            Launcher::new(parent.coin_id(), 1).create_standard_did(ctx, pk)?;
 
         ctx.spend_p2_coin(parent, pk, create_did)?;
 

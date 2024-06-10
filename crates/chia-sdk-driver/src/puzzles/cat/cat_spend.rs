@@ -115,7 +115,7 @@ impl CatSpend {
 #[cfg(test)]
 mod tests {
     use chia_puzzles::{cat::EverythingWithSignatureTailArgs, standard::StandardArgs};
-    use chia_sdk_test::{test_transaction, Simulator};
+    use chia_sdk_test::{secret_key, test_transaction, Simulator};
     use chia_sdk_types::conditions::{Condition, RunTail};
     use clvmr::Allocator;
 
@@ -128,7 +128,7 @@ mod tests {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
 
-        let sk = sim.secret_key().await?;
+        let sk = secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
@@ -195,7 +195,7 @@ mod tests {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
 
-        let sk = sim.secret_key().await?;
+        let sk = secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
@@ -204,12 +204,8 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (issue_cat, issuance) = issue_cat_from_coin(
-            ctx,
-            coin.coin_id(),
-            1,
-            Conditions::new().create_hinted_coin(puzzle_hash, 1, puzzle_hash),
-        )?;
+        let conditions = Conditions::new().create_hinted_coin(puzzle_hash, 1, puzzle_hash);
+        let (issue_cat, issuance) = issue_cat_from_coin(ctx, coin.coin_id(), 1, conditions)?;
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
@@ -244,7 +240,7 @@ mod tests {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
 
-        let sk = sim.secret_key().await?;
+        let sk = secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
@@ -253,13 +249,8 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (issue_cat, issuance) = issue_cat_from_key(
-            ctx,
-            coin.coin_id(),
-            pk,
-            10000,
-            Conditions::new().create_hinted_coin(puzzle_hash, 10000, puzzle_hash),
-        )?;
+        let conditions = Conditions::new().create_hinted_coin(puzzle_hash, 10000, puzzle_hash);
+        let (issue_cat, issuance) = issue_cat_from_key(ctx, coin.coin_id(), pk, 10000, conditions)?;
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 

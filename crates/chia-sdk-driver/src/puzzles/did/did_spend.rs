@@ -68,10 +68,10 @@ where
 #[cfg(test)]
 mod tests {
     use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::{test_transaction, Simulator};
+    use chia_sdk_test::{secret_key, test_transaction, Simulator};
     use clvmr::Allocator;
 
-    use crate::puzzles::{CreateDid, Launcher};
+    use crate::Launcher;
 
     use super::*;
 
@@ -80,7 +80,7 @@ mod tests {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
 
-        let sk = sim.secret_key().await?;
+        let sk = secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
@@ -89,9 +89,8 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (create_did, mut did_info) = Launcher::new(coin.coin_id(), 1)
-            .create()
-            .create_standard_did(ctx, pk)?;
+        let (create_did, mut did_info) =
+            Launcher::new(coin.coin_id(), 1).create_standard_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 

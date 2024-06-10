@@ -2,6 +2,7 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::Proof;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[must_use]
 pub struct NftInfo<M> {
     pub launcher_id: Bytes32,
     pub coin: Coin,

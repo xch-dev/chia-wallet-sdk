@@ -71,7 +71,7 @@ pub enum Condition<T = NodePtr> {
 pub fn parse_conditions(
     allocator: &mut Allocator,
     conditions: NodePtr,
-) -> Result<Vec<Condition<NodePtr>>, ConditionError> {
+) -> Result<Vec<Condition>, ConditionError> {
     Vec::<NodePtr>::from_clvm(allocator, conditions)?
         .into_iter()
         .map(|condition| Ok(Condition::from_clvm(allocator, condition)?))
@@ -97,7 +97,7 @@ pub fn puzzle_conditions(
     allocator: &mut Allocator,
     puzzle: NodePtr,
     solution: NodePtr,
-) -> Result<Vec<Condition<NodePtr>>, ConditionError> {
+) -> Result<Vec<Condition>, ConditionError> {
     let output = run_puzzle(allocator, puzzle, solution)?;
     parse_conditions(allocator, output)
 }

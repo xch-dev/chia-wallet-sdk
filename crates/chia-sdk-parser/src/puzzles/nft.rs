@@ -184,7 +184,7 @@ mod tests {
     use chia_bls::PublicKey;
     use chia_protocol::{Bytes32, Coin};
     use chia_puzzles::{singleton::SingletonSolution, standard::StandardArgs};
-    use chia_sdk_driver::{CreateDid, Launcher, MintNft, OwnerDid, SpendContext, StandardMint};
+    use chia_sdk_driver::{Launcher, NftMint, SpendContext};
     use clvm_traits::ToNodePtr;
 
     #[test]
@@ -196,26 +196,23 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 2);
 
-        let (create_did, did_info) = Launcher::new(parent.coin_id(), 1)
-            .create()
-            .create_standard_did(ctx, pk)?;
+        let (create_did, did_info) =
+            Launcher::new(parent.coin_id(), 1).create_standard_did(ctx, pk)?;
 
-        let (mint_nft, nft_info) = Launcher::new(did_info.coin.coin_id(), 1)
-            .create()
-            .mint_standard_nft(
-                ctx,
-                StandardMint {
-                    metadata: (),
-                    royalty_percentage: 300,
-                    royalty_puzzle_hash: Bytes32::new([1; 32]),
-                    owner_puzzle_hash: puzzle_hash,
-                    synthetic_key: pk,
-                    owner_did: Some(OwnerDid {
-                        did_id: did_info.launcher_id,
-                        did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
-                    }),
-                },
-            )?;
+        let (mint_nft, nft_info) = Launcher::new(did_info.coin.coin_id(), 1).mint_nft(
+            ctx,
+            NftMint {
+                metadata: (),
+                royalty_percentage: 300,
+                royalty_puzzle_hash: Bytes32::new([1; 32]),
+                puzzle_hash,
+                owner: Some(NewNftOwner {
+                    new_owner: Some(did_info.launcher_id),
+                    trade_prices_list: Vec::new(),
+                    new_did_p2_puzzle_hash: Some(did_info.did_inner_puzzle_hash),
+                }),
+            },
+        )?;
 
         ctx.spend_p2_coin(parent, pk, create_did.extend(mint_nft))?;
 

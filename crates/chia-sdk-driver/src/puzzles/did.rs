@@ -1,17 +1,14 @@
 mod create_did;
 mod did_spend;
 
-pub use create_did::*;
 pub use did_spend::*;
 
 #[cfg(test)]
 mod tests {
     use crate::{Launcher, SpendContext};
 
-    use super::*;
-
     use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::{test_transaction, Simulator};
+    use chia_sdk_test::{secret_key, test_transaction, Simulator};
     use clvmr::Allocator;
 
     #[tokio::test]
@@ -19,7 +16,7 @@ mod tests {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
 
-        let sk = sim.secret_key().await?;
+        let sk = secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
@@ -28,9 +25,8 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (launch_singleton, did_info) = Launcher::new(coin.coin_id(), 1)
-            .create()
-            .create_standard_did(ctx, pk)?;
+        let (launch_singleton, did_info) =
+            Launcher::new(coin.coin_id(), 1).create_standard_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, launch_singleton)?;
 
