@@ -131,14 +131,41 @@ impl MintNft for SpendableLauncher {
 }
 
 #[cfg(test)]
+pub use tests::nft_mint;
+
+#[cfg(test)]
 mod tests {
     use crate::puzzles::{CreateDid, IntermediateLauncher, Launcher};
 
     use super::*;
 
     use chia_protocol::Coin;
+    use chia_puzzles::nft::NftMetadata;
     use chia_sdk_test::{test_transaction, Simulator};
     use clvmr::Allocator;
+
+    pub fn nft_mint(
+        synthetic_key: PublicKey,
+        owner_did: Option<OwnerDid>,
+    ) -> StandardMint<NftMetadata> {
+        StandardMint {
+            metadata: NftMetadata {
+                edition_number: 1,
+                edition_total: 1,
+                data_uris: vec!["https://example.com/data".to_string()],
+                data_hash: Some(Bytes32::new([1; 32])),
+                metadata_uris: vec!["https://example.com/metadata".to_string()],
+                metadata_hash: Some(Bytes32::new([2; 32])),
+                license_uris: vec!["https://example.com/license".to_string()],
+                license_hash: Some(Bytes32::new([3; 32])),
+            },
+            royalty_puzzle_hash: Bytes32::new([4; 32]),
+            royalty_percentage: 300,
+            owner_puzzle_hash: StandardArgs::curry_tree_hash(synthetic_key).into(),
+            owner_did,
+            synthetic_key,
+        }
+    }
 
     #[tokio::test]
     async fn test_bulk_mint() -> anyhow::Result<()> {
@@ -237,7 +264,8 @@ mod tests {
         };
 
         let (mint_nft, _nft_info) = launcher.mint_standard_nft(ctx, mint)?;
-        ctx.spend_standard_did(&did_info, pk, mint_nft.create_coin(puzzle_hash, 0))?;
+        let _did_info =
+            ctx.spend_standard_did(&did_info, pk, mint_nft.create_coin(puzzle_hash, 0))?;
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
         test_transaction(
@@ -292,7 +320,7 @@ mod tests {
 
         let did_info =
             ctx.spend_standard_did(&did_info, pk, Conditions::new().create_coin(puzzle_hash, 0))?;
-        ctx.spend_standard_did(&did_info, pk, mint_nft)?;
+        let _did_info = ctx.spend_standard_did(&did_info, pk, mint_nft)?;
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
         test_transaction(

@@ -180,15 +180,70 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::puzzles::{
-        CreateDid, IntermediateLauncher, Launcher, MintNft, OwnerDid, StandardMint,
+    use crate::{
+        nft_mint,
+        puzzles::{CreateDid, IntermediateLauncher, Launcher, MintNft, OwnerDid, StandardMint},
     };
 
     use super::*;
 
+    use chia_bls::DerivableKey;
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{test_transaction, Simulator};
     use clvmr::Allocator;
+
+    #[tokio::test]
+    async fn test_nft_transfer() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let sk = sim.secret_key().await?;
+        let pk = sk.public_key();
+
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = sim.mint_coin(puzzle_hash, 2).await;
+
+        let mut allocator = Allocator::new();
+        let ctx = &mut SpendContext::new(&mut allocator);
+
+        let (create_did, did_info) = Launcher::new(coin.coin_id(), 1)
+            .create()
+            .create_standard_did(ctx, pk)?;
+
+        ctx.spend_p2_coin(coin, pk, create_did)?;
+
+        let (mint_nft, nft_info) = IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
+            .create(ctx)?
+            .mint_standard_nft(
+                ctx,
+                nft_mint(
+                    pk,
+                    Some(OwnerDid {
+                        did_id: did_info.launcher_id,
+                        did_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+                    }),
+                ),
+            )?;
+
+        let did_info = ctx.spend_standard_did(&did_info, pk, mint_nft)?;
+
+        let other_puzzle_hash = StandardArgs::curry_tree_hash(pk.derive_unhardened(0)).into();
+
+        let (parent_conditions, _nft_info) =
+            ctx.spend_standard_nft(&nft_info, pk, other_puzzle_hash, None, Conditions::new())?;
+
+        let _did_info = ctx.spend_standard_did(&did_info, pk, parent_conditions)?;
+
+        test_transaction(
+            &peer,
+            ctx.take_spends(),
+            &[sk],
+            sim.config().genesis_challenge,
+        )
+        .await;
+
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_nft_lineage() -> anyhow::Result<()> {
