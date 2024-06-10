@@ -3,7 +3,7 @@ use chia_protocol::Bytes32;
 use chia_puzzles::{
     did::{DidArgs, DID_INNER_PUZZLE_HASH},
     singleton::SingletonStruct,
-    standard::{StandardArgs, STANDARD_PUZZLE_HASH},
+    standard::StandardArgs,
     EveProof, Proof,
 };
 use chia_sdk_types::puzzles::DidInfo;
@@ -37,12 +37,7 @@ pub trait CreateDid {
         M: ToClvm<NodePtr> + Clone,
         Self: Sized,
     {
-        let inner_puzzle_hash = CurriedProgram {
-            program: STANDARD_PUZZLE_HASH,
-            args: StandardArgs::new(synthetic_key),
-        }
-        .tree_hash()
-        .into();
+        let inner_puzzle_hash = StandardArgs::curry_tree_hash(synthetic_key).into();
 
         let (create_did, did_info) = self.create_eve_did(
             ctx,
