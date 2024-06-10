@@ -7,7 +7,7 @@ use chia_sdk_types::conditions::CreateCoin;
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
-use crate::{spend_builder::InnerSpend, SpendContext, SpendError};
+use crate::{Spend, SpendContext, SpendError};
 
 #[derive(Debug, Default)]
 #[must_use]
@@ -19,7 +19,7 @@ pub struct CatSpend {
 #[derive(Debug)]
 struct CatSpendItem {
     coin: Coin,
-    inner_spend: InnerSpend,
+    inner_spend: Spend,
     lineage_proof: LineageProof,
     extra_delta: i64,
 }
@@ -35,7 +35,7 @@ impl CatSpend {
     pub fn spend(
         mut self,
         coin: Coin,
-        inner_spend: InnerSpend,
+        inner_spend: Spend,
         lineage_proof: LineageProof,
         extra_delta: i64,
     ) -> Self {
@@ -105,7 +105,7 @@ impl CatSpend {
                 extra_delta: *extra_delta,
             })?;
 
-            ctx.spend(CoinSpend::new(*coin, puzzle_reveal, solution));
+            ctx.insert_coin_spend(CoinSpend::new(*coin, puzzle_reveal, solution));
         }
 
         Ok(())
@@ -114,14 +114,12 @@ impl CatSpend {
 
 #[cfg(test)]
 mod tests {
-    use chia_puzzles::standard::StandardArgs;
+    use chia_puzzles::{cat::EverythingWithSignatureTailArgs, standard::StandardArgs};
     use chia_sdk_test::{test_transaction, Simulator};
+    use chia_sdk_types::conditions::{Condition, RunTail};
     use clvmr::Allocator;
 
-    use crate::{
-        puzzles::{IssueCat, StandardSpend},
-        spend_builder::P2Spend,
-    };
+    use crate::{issue_cat_from_coin, issue_cat_from_key, Conditions};
 
     use super::*;
 
@@ -139,15 +137,17 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (issue_cat, issuance) = IssueCat::new(coin.coin_id())
-            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
-            .create_hinted_coin(ctx, puzzle_hash, 2, puzzle_hash)?
-            .create_hinted_coin(ctx, puzzle_hash, 3, puzzle_hash)?
-            .single_issuance(ctx, 6)?;
+        let (issue_cat, issuance) = issue_cat_from_coin(
+            ctx,
+            coin.coin_id(),
+            6,
+            Conditions::new()
+                .create_hinted_coin(puzzle_hash, 1, puzzle_hash)
+                .create_hinted_coin(puzzle_hash, 2, puzzle_hash)
+                .create_hinted_coin(puzzle_hash, 3, puzzle_hash),
+        )?;
 
-        StandardSpend::new()
-            .chain(issue_cat)
-            .finish(ctx, coin, pk)?;
+        ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
         let cat_puzzle_hash =
             CatArgs::curry_tree_hash(issuance.asset_id, puzzle_hash.into()).into();
@@ -155,25 +155,25 @@ mod tests {
         CatSpend::new(issuance.asset_id)
             .spend(
                 Coin::new(issuance.eve_coin.coin_id(), cat_puzzle_hash, 1),
-                StandardSpend::new()
-                    .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
-                    .inner_spend(ctx, pk)?,
+                Conditions::new()
+                    .create_hinted_coin(puzzle_hash, 1, puzzle_hash)
+                    .p2_spend(ctx, pk)?,
                 issuance.lineage_proof,
                 0,
             )
             .spend(
                 Coin::new(issuance.eve_coin.coin_id(), cat_puzzle_hash, 2),
-                StandardSpend::new()
-                    .create_hinted_coin(ctx, puzzle_hash, 2, puzzle_hash)?
-                    .inner_spend(ctx, pk)?,
+                Conditions::new()
+                    .create_hinted_coin(puzzle_hash, 2, puzzle_hash)
+                    .p2_spend(ctx, pk)?,
                 issuance.lineage_proof,
                 0,
             )
             .spend(
                 Coin::new(issuance.eve_coin.coin_id(), cat_puzzle_hash, 3),
-                StandardSpend::new()
-                    .create_hinted_coin(ctx, puzzle_hash, 3, puzzle_hash)?
-                    .inner_spend(ctx, pk)?,
+                Conditions::new()
+                    .create_hinted_coin(puzzle_hash, 3, puzzle_hash)
+                    .p2_spend(ctx, pk)?,
                 issuance.lineage_proof,
                 0,
             )
@@ -204,24 +204,28 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (issue_cat, issuance) = IssueCat::new(coin.coin_id())
-            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
-            .single_issuance(ctx, 1)?;
+        let (issue_cat, issuance) = issue_cat_from_coin(
+            ctx,
+            coin.coin_id(),
+            1,
+            Conditions::new().create_hinted_coin(puzzle_hash, 1, puzzle_hash),
+        )?;
 
-        StandardSpend::new()
-            .chain(issue_cat)
-            .finish(ctx, coin, pk)?;
-
-        let inner_spend = StandardSpend::new()
-            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
-            .inner_spend(ctx, pk)?;
+        ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
         let cat_puzzle_hash =
             CatArgs::curry_tree_hash(issuance.asset_id, puzzle_hash.into()).into();
         let cat_coin = Coin::new(issuance.eve_coin.coin_id(), cat_puzzle_hash, 1);
 
         CatSpend::new(issuance.asset_id)
-            .spend(cat_coin, inner_spend, issuance.lineage_proof, 0)
+            .spend(
+                cat_coin,
+                Conditions::new()
+                    .create_hinted_coin(puzzle_hash, 1, puzzle_hash)
+                    .p2_spend(ctx, pk)?,
+                issuance.lineage_proof,
+                0,
+            )
             .finish(ctx)?;
 
         test_transaction(
@@ -249,18 +253,27 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (issue_cat, issuance) = IssueCat::new(coin.coin_id())
-            .create_hinted_coin(ctx, puzzle_hash, 10000, puzzle_hash)?
-            .multi_issuance(ctx, pk, 10000)?;
+        let (issue_cat, issuance) = issue_cat_from_key(
+            ctx,
+            coin.coin_id(),
+            pk,
+            10000,
+            Conditions::new().create_hinted_coin(puzzle_hash, 10000, puzzle_hash),
+        )?;
 
-        StandardSpend::new()
-            .chain(issue_cat)
-            .finish(ctx, coin, pk)?;
+        ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
-        let inner_spend = StandardSpend::new()
-            .create_hinted_coin(ctx, puzzle_hash, 7000, puzzle_hash)?
-            .run_multi_issuance_tail(ctx, pk)?
-            .inner_spend(ctx, pk)?;
+        let tail = ctx.everything_with_signature_tail_puzzle()?;
+        let tail_program = ctx.alloc(&CurriedProgram {
+            program: tail,
+            args: EverythingWithSignatureTailArgs::new(pk),
+        })?;
+        let run_tail = Condition::Other(ctx.alloc(&RunTail::new(tail_program, ()))?);
+
+        let inner_spend = Conditions::new()
+            .create_hinted_coin(puzzle_hash, 7000, puzzle_hash)
+            .condition(run_tail)
+            .p2_spend(ctx, pk)?;
 
         let cat_puzzle_hash =
             CatArgs::curry_tree_hash(issuance.asset_id, puzzle_hash.into()).into();

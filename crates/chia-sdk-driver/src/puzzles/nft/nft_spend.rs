@@ -1,4 +1,3 @@
-use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
     nft::{
@@ -9,7 +8,7 @@ use chia_puzzles::{
     LineageProof, Proof,
 };
 use chia_sdk_types::{
-    conditions::{AssertPuzzleAnnouncement, NewNftOwner},
+    conditions::{Condition, NewNftOwner},
     puzzles::NftInfo,
 };
 use clvm_traits::{clvm_list, ToClvm};
@@ -19,183 +18,92 @@ use clvmr::{
     NodePtr,
 };
 
-use crate::{
-    puzzles::{spend_singleton, StandardSpend},
-    spend_builder::{InnerSpend, P2Spend, SpendConditions},
-    SpendContext, SpendError,
-};
-
-#[derive(Debug, Clone, Copy)]
-pub struct NoNftOutput;
-
-#[derive(Debug, Clone, Copy)]
-pub enum NftOutput {
-    SamePuzzleHash,
-    NewPuzzleHash { puzzle_hash: Bytes32 },
-}
+use crate::{spend_singleton, Conditions, Spend, SpendContext, SpendError};
 
 #[derive(Debug, Clone)]
-#[must_use]
-pub struct StandardNftSpend<T> {
-    standard_spend: StandardSpend,
-    output: T,
+pub struct TransferNft<M> {
+    pub did_conditions: Conditions,
+    pub p2_conditions: Conditions,
+    pub output: NftInfo<M>,
+}
+
+pub fn transfer_nft<M>(
+    ctx: &mut SpendContext<'_>,
+    mut nft_info: NftInfo<M>,
+    p2_puzzle_hash: Bytes32,
     new_owner: Option<NewNftOwner>,
+) -> Result<TransferNft<M>, SpendError>
+where
+    M: ToClvm<NodePtr>,
+{
+    let mut did_conditions = Conditions::new();
+    let mut p2_conditions =
+        Conditions::new().create_hinted_coin(p2_puzzle_hash, nft_info.coin.amount, p2_puzzle_hash);
+
+    if let Some(new_owner) = &new_owner {
+        let new_nft_owner_args = ctx.alloc(&clvm_list!(
+            new_owner.new_owner,
+            new_owner.trade_prices_list.clone(),
+            new_owner.new_did_p2_puzzle_hash
+        ))?;
+
+        let mut hasher = Sha256::new();
+        hasher.update(nft_info.coin.puzzle_hash);
+        hasher.update([0xad, 0x4c]);
+        hasher.update(ctx.tree_hash(new_nft_owner_args));
+        let announcement_id = Bytes32::new(hasher.finalize().into());
+
+        did_conditions = did_conditions.assert_raw_puzzle_announcement(announcement_id);
+        p2_conditions = p2_conditions.condition(Condition::Other(ctx.alloc(new_owner)?));
+    }
+
+    nft_info.current_owner = new_owner.map_or(nft_info.current_owner, |value| value.new_owner);
+
+    let metadata_ptr = ctx.alloc(&nft_info.metadata)?;
+
+    let transfer_program = NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
+        nft_info.launcher_id,
+        nft_info.royalty_puzzle_hash,
+        nft_info.royalty_percentage,
+    );
+
+    let ownership_layer = NftOwnershipLayerArgs::curry_tree_hash(
+        nft_info.current_owner,
+        transfer_program,
+        p2_puzzle_hash.into(),
+    );
+
+    let state_layer =
+        NftStateLayerArgs::curry_tree_hash(ctx.tree_hash(metadata_ptr), ownership_layer);
+
+    let singleton_puzzle_hash = SingletonArgs::curry_tree_hash(nft_info.launcher_id, state_layer);
+
+    nft_info.proof = Proof::Lineage(LineageProof {
+        parent_parent_coin_id: nft_info.coin.parent_coin_info,
+        parent_inner_puzzle_hash: nft_info.nft_inner_puzzle_hash,
+        parent_amount: nft_info.coin.amount,
+    });
+
+    nft_info.coin = Coin::new(
+        nft_info.coin.coin_id(),
+        singleton_puzzle_hash.into(),
+        nft_info.coin.amount,
+    );
+
+    nft_info.nft_inner_puzzle_hash = state_layer.into();
+    nft_info.p2_puzzle_hash = p2_puzzle_hash;
+
+    Ok(TransferNft {
+        did_conditions,
+        p2_conditions,
+        output: nft_info,
+    })
 }
 
-impl Default for StandardNftSpend<NoNftOutput> {
-    fn default() -> Self {
-        Self {
-            output: NoNftOutput,
-            standard_spend: StandardSpend::new(),
-            new_owner: None,
-        }
-    }
-}
-
-impl StandardNftSpend<NoNftOutput> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn update(self) -> StandardNftSpend<NftOutput> {
-        StandardNftSpend {
-            standard_spend: self.standard_spend,
-            output: NftOutput::SamePuzzleHash,
-            new_owner: self.new_owner,
-        }
-    }
-
-    pub fn transfer(self, puzzle_hash: Bytes32) -> StandardNftSpend<NftOutput> {
-        StandardNftSpend {
-            standard_spend: self.standard_spend,
-            output: NftOutput::NewPuzzleHash { puzzle_hash },
-            new_owner: self.new_owner,
-        }
-    }
-}
-
-impl<T> StandardNftSpend<T> {
-    pub fn new_owner(mut self, did_id: Bytes32, did_inner_puzzle_hash: Bytes32) -> Self {
-        self.new_owner = Some(NewNftOwner {
-            new_owner: Some(did_id),
-            trade_prices_list: Vec::new(),
-            new_did_p2_puzzle_hash: Some(did_inner_puzzle_hash),
-        });
-        self
-    }
-
-    pub fn reset_owner(mut self) -> Self {
-        self.new_owner = Some(NewNftOwner {
-            new_owner: None,
-            trade_prices_list: Vec::new(),
-            new_did_p2_puzzle_hash: None,
-        });
-        self
-    }
-
-    pub fn chain(mut self, chained: SpendConditions) -> Self {
-        self.standard_spend = self.standard_spend.chain(chained);
-        self
-    }
-}
-
-impl<T> P2Spend for StandardNftSpend<T> {
-    fn raw_condition(mut self, condition: NodePtr) -> Self {
-        self.standard_spend = self.standard_spend.raw_condition(condition);
-        self
-    }
-}
-
-impl StandardNftSpend<NftOutput> {
-    pub fn finish<M>(
-        mut self,
-        ctx: &mut SpendContext<'_>,
-        synthetic_key: PublicKey,
-        mut nft_info: NftInfo<M>,
-    ) -> Result<(SpendConditions, NftInfo<M>), SpendError>
-    where
-        M: ToClvm<NodePtr>,
-    {
-        let mut parent = SpendConditions::default();
-
-        let p2_puzzle_hash = match self.output {
-            NftOutput::SamePuzzleHash => nft_info.p2_puzzle_hash,
-            NftOutput::NewPuzzleHash { puzzle_hash } => puzzle_hash,
-        };
-
-        if let Some(new_owner) = &self.new_owner {
-            self.standard_spend = self.standard_spend.raw_condition(ctx.alloc(new_owner)?);
-
-            let new_nft_owner_args = ctx.alloc(&clvm_list!(
-                new_owner.new_owner,
-                new_owner.trade_prices_list.clone(),
-                new_owner.new_did_p2_puzzle_hash
-            ))?;
-
-            let mut announcement_id = Sha256::new();
-            announcement_id.update(nft_info.coin.puzzle_hash);
-            announcement_id.update([0xad, 0x4c]);
-            announcement_id.update(ctx.tree_hash(new_nft_owner_args));
-
-            parent = parent.raw_condition(ctx.alloc(&AssertPuzzleAnnouncement {
-                announcement_id: Bytes32::new(announcement_id.finalize().into()),
-            })?);
-        }
-
-        let inner_spend = self
-            .standard_spend
-            .create_hinted_coin(ctx, p2_puzzle_hash, nft_info.coin.amount, p2_puzzle_hash)?
-            .inner_spend(ctx, synthetic_key)?;
-
-        let nft_spend = raw_nft_spend(ctx, &nft_info, inner_spend)?;
-        ctx.spend(nft_spend);
-
-        nft_info.current_owner = self
-            .new_owner
-            .map_or(nft_info.current_owner, |value| value.new_owner);
-
-        let metadata_ptr = ctx.alloc(&nft_info.metadata)?;
-
-        let transfer_program = NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
-            nft_info.launcher_id,
-            nft_info.royalty_puzzle_hash,
-            nft_info.royalty_percentage,
-        );
-
-        let ownership_layer = NftOwnershipLayerArgs::curry_tree_hash(
-            nft_info.current_owner,
-            transfer_program,
-            p2_puzzle_hash.into(),
-        );
-
-        let state_layer =
-            NftStateLayerArgs::curry_tree_hash(ctx.tree_hash(metadata_ptr), ownership_layer);
-
-        let singleton_puzzle_hash =
-            SingletonArgs::curry_tree_hash(nft_info.launcher_id, state_layer);
-
-        nft_info.proof = Proof::Lineage(LineageProof {
-            parent_parent_coin_id: nft_info.coin.parent_coin_info,
-            parent_inner_puzzle_hash: nft_info.nft_inner_puzzle_hash,
-            parent_amount: nft_info.coin.amount,
-        });
-
-        nft_info.coin = Coin::new(
-            nft_info.coin.coin_id(),
-            singleton_puzzle_hash.into(),
-            nft_info.coin.amount,
-        );
-
-        nft_info.nft_inner_puzzle_hash = state_layer.into();
-
-        Ok((parent, nft_info))
-    }
-}
-
-pub fn raw_nft_spend<M>(
+pub fn nft_spend<M>(
     ctx: &mut SpendContext<'_>,
     nft_info: &NftInfo<M>,
-    inner_spend: InnerSpend,
+    inner_spend: Spend,
 ) -> Result<CoinSpend, SpendError>
 where
     M: ToClvm<NodePtr>,
@@ -228,8 +136,8 @@ where
 pub fn spend_nft_state_layer<M>(
     ctx: &mut SpendContext<'_>,
     metadata: M,
-    inner_spend: InnerSpend,
-) -> Result<InnerSpend, SpendError>
+    inner_spend: Spend,
+) -> Result<Spend, SpendError>
 where
     M: ToClvm<NodePtr>,
 {
@@ -244,15 +152,15 @@ where
         inner_solution: inner_spend.solution(),
     })?;
 
-    Ok(InnerSpend::new(puzzle, solution))
+    Ok(Spend::new(puzzle, solution))
 }
 
 pub fn spend_nft_ownership_layer<P>(
     ctx: &mut SpendContext<'_>,
     current_owner: Option<Bytes32>,
     transfer_program: P,
-    inner_spend: InnerSpend,
-) -> Result<InnerSpend, SpendError>
+    inner_spend: Spend,
+) -> Result<Spend, SpendError>
 where
     P: ToClvm<NodePtr>,
 {
@@ -267,14 +175,13 @@ where
         inner_solution: inner_spend.solution(),
     })?;
 
-    Ok(InnerSpend::new(puzzle, solution))
+    Ok(Spend::new(puzzle, solution))
 }
 
 #[cfg(test)]
 mod tests {
     use crate::puzzles::{
-        CreateDid, IntermediateLauncher, Launcher, MintNft, OwnerDid, StandardDidSpend,
-        StandardMint,
+        CreateDid, IntermediateLauncher, Launcher, MintNft, OwnerDid, StandardMint,
     };
 
     use super::*;
@@ -298,12 +205,10 @@ mod tests {
         let ctx = &mut SpendContext::new(&mut allocator);
 
         let (create_did, did_info) = Launcher::new(coin.coin_id(), 1)
-            .create(ctx)?
+            .create()
             .create_standard_did(ctx, pk)?;
 
-        StandardSpend::new()
-            .chain(create_did)
-            .finish(ctx, coin, pk)?;
+        ctx.spend_p2_coin(coin, pk, create_did)?;
 
         let (mint_nft, mut nft_info) = IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
             .create(ctx)?
@@ -322,25 +227,26 @@ mod tests {
                 },
             )?;
 
-        let mut did_info = StandardDidSpend::new()
-            .chain(mint_nft)
-            .recreate()
-            .finish(ctx, pk, did_info)?;
+        let mut did_info = ctx.spend_standard_did(&did_info, pk, mint_nft)?;
 
         for i in 0..5 {
-            let mut spend = StandardNftSpend::new().update();
-
-            if i % 2 == 0 {
-                spend = spend.new_owner(did_info.launcher_id, did_info.did_inner_puzzle_hash);
-            }
-
-            let (nft_spend, new_nft_info) = spend.finish(ctx, pk, nft_info)?;
+            let (spend_nft, new_nft_info) = ctx.spend_standard_nft(
+                &nft_info,
+                pk,
+                nft_info.p2_puzzle_hash,
+                if i % 2 == 0 {
+                    Some(NewNftOwner::new(
+                        Some(did_info.launcher_id),
+                        Vec::new(),
+                        Some(did_info.did_inner_puzzle_hash),
+                    ))
+                } else {
+                    None
+                },
+                Conditions::new(),
+            )?;
             nft_info = new_nft_info;
-
-            did_info = StandardDidSpend::new()
-                .chain(nft_spend)
-                .recreate()
-                .finish(ctx, pk, did_info)?;
+            did_info = ctx.spend_standard_did(&did_info, pk, spend_nft)?;
         }
 
         test_transaction(

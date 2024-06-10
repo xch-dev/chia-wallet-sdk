@@ -4,13 +4,13 @@ use chia_puzzles::{
     LineageProof,
 };
 use chia_sdk_types::{
-    conditions::{Condition, CreateCoin},
+    conditions::{puzzle_conditions, Condition, CreateCoin},
     puzzles::CatInfo,
 };
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{puzzle_conditions, ParseError, Puzzle};
+use crate::{ParseError, Puzzle};
 
 #[derive(Debug, Clone, Copy)]
 pub struct CatPuzzle {
@@ -101,7 +101,7 @@ mod tests {
     use chia_bls::PublicKey;
     use chia_protocol::Coin;
     use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_driver::{IssueCat, P2Spend, SpendContext, StandardSpend};
+    use chia_sdk_driver::{issue_cat_from_key, Conditions, SpendContext};
     use clvm_traits::ToNodePtr;
 
     use super::*;
@@ -115,9 +115,13 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
 
-        let (issue_cat, issuance_info) = IssueCat::new(parent.coin_id())
-            .create_hinted_coin(ctx, puzzle_hash, 1, puzzle_hash)?
-            .multi_issuance(ctx, pk, 1)?;
+        let (issue_cat, issuance_info) = issue_cat_from_key(
+            ctx,
+            parent.coin_id(),
+            pk,
+            1,
+            Conditions::new().create_hinted_coin(puzzle_hash, 1, puzzle_hash),
+        )?;
 
         let cat_puzzle_hash = CatArgs::curry_tree_hash(issuance_info.asset_id, puzzle_hash.into());
 
@@ -128,9 +132,7 @@ mod tests {
             lineage_proof: issuance_info.lineage_proof,
         };
 
-        StandardSpend::new()
-            .chain(issue_cat)
-            .finish(ctx, parent, pk)?;
+        ctx.spend_p2_coin(parent, pk, issue_cat)?;
 
         let coin_spends = ctx.take_spends();
 

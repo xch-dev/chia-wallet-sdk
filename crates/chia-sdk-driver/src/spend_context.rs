@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use chia_protocol::{CoinSpend, Program};
+use chia_bls::PublicKey;
+use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzles::{
     cat::{
         CAT_PUZZLE, CAT_PUZZLE_HASH, EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE,
@@ -20,11 +21,17 @@ use chia_puzzles::{
     },
     standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
 };
-use clvm_traits::{FromNodePtr, ToNodePtr};
+use chia_sdk_types::{
+    conditions::NewNftOwner,
+    puzzles::{DidInfo, NftInfo},
+};
+use clvm_traits::{FromNodePtr, ToClvm, ToNodePtr};
 use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
 
-use crate::spend_error::SpendError;
+use crate::{
+    did_spend, nft_spend, recreate_did, spend_error::SpendError, transfer_nft, Conditions, Spend,
+};
 
 /// A wrapper around `Allocator` that caches puzzles and simplifies coin spending.
 #[derive(Debug)]
@@ -65,8 +72,16 @@ impl<'a> SpendContext<'a> {
     }
 
     /// Add a [`CoinSpend`] to the list.
-    pub fn spend(&mut self, coin_spend: CoinSpend) {
+    pub fn insert_coin_spend(&mut self, coin_spend: CoinSpend) {
         self.coin_spends.push(coin_spend);
+    }
+
+    /// Serializes a [`Spend`] and adds it to the list of coin spends.
+    pub fn spend(&mut self, coin: Coin, spend: Spend) -> Result<(), SpendError> {
+        let puzzle_reveal = self.serialize(&spend.puzzle())?;
+        let solution = self.serialize(&spend.solution())?;
+        self.insert_coin_spend(CoinSpend::new(coin, puzzle_reveal, solution));
+        Ok(())
     }
 
     /// Allocate a new node and return its pointer.
@@ -206,5 +221,57 @@ impl<'a> SpendContext<'a> {
             self.puzzles.insert(puzzle_hash, puzzle);
             Ok(puzzle)
         }
+    }
+
+    /// Spend a standard p2 coin.
+    pub fn spend_p2_coin(
+        &mut self,
+        coin: Coin,
+        synthetic_key: PublicKey,
+        conditions: Conditions,
+    ) -> Result<(), SpendError> {
+        let p2_spend = conditions.p2_spend(self, synthetic_key)?;
+        self.spend(coin, p2_spend)
+    }
+
+    /// Spend a DID coin with a standard p2 inner puzzle.
+    pub fn spend_standard_did<M>(
+        &mut self,
+        did_info: &DidInfo<M>,
+        synthetic_key: PublicKey,
+        extra_conditions: Conditions,
+    ) -> Result<DidInfo<M>, SpendError>
+    where
+        M: ToClvm<NodePtr> + Clone,
+    {
+        let (conditions, new_did_info) = recreate_did(did_info.clone());
+        let p2_spend = conditions
+            .extend(extra_conditions)
+            .p2_spend(self, synthetic_key)?;
+        let did_spend = did_spend(self, did_info, p2_spend)?;
+        self.insert_coin_spend(did_spend);
+        Ok(new_did_info)
+    }
+
+    /// Spend an NFT coin with a standard p2 inner puzzle.
+    pub fn spend_standard_nft<M>(
+        &mut self,
+        nft_info: &NftInfo<M>,
+        synthetic_key: PublicKey,
+        p2_puzzle_hash: Bytes32,
+        new_owner: Option<NewNftOwner>,
+        extra_conditions: Conditions,
+    ) -> Result<(Conditions, NftInfo<M>), SpendError>
+    where
+        M: ToClvm<NodePtr> + Clone,
+    {
+        let transfer = transfer_nft(self, nft_info.clone(), p2_puzzle_hash, new_owner)?;
+        let p2_spend = transfer
+            .p2_conditions
+            .extend(extra_conditions)
+            .p2_spend(self, synthetic_key)?;
+        let nft_spend = nft_spend(self, nft_info, p2_spend)?;
+        self.insert_coin_spend(nft_spend);
+        Ok((transfer.did_conditions, transfer.output))
     }
 }

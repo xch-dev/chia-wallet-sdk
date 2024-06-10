@@ -23,9 +23,9 @@ clvm-utils = { workspace = true }
 clvmr = { workspace = true }
 thiserror = { workspace = true }
 chia-sdk-types = { workspace = true }
-chia-sdk-test = { workspace = true }
 
 [dev-dependencies]
+chia-sdk-test = { workspace = true }
 anyhow = { workspace = true }
 chia-consensus = { workspace = true }
 hex = { workspace = true }

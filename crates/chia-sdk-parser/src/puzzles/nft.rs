@@ -10,14 +10,14 @@ use chia_puzzles::{
     Proof,
 };
 use chia_sdk_types::{
-    conditions::{Condition, CreateCoin, NewNftOwner},
+    conditions::{puzzle_conditions, Condition, CreateCoin, NewNftOwner},
     puzzles::NftInfo,
 };
 use clvm_traits::FromClvm;
 use clvm_utils::tree_hash;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{puzzle_conditions, ParseError, Puzzle, SingletonPuzzle};
+use crate::{ParseError, Puzzle, SingletonPuzzle};
 
 #[derive(Debug, Clone, Copy)]
 pub struct NftPuzzle {
@@ -184,9 +184,7 @@ mod tests {
     use chia_bls::PublicKey;
     use chia_protocol::{Bytes32, Coin};
     use chia_puzzles::{singleton::SingletonSolution, standard::StandardArgs};
-    use chia_sdk_driver::{
-        CreateDid, Launcher, MintNft, OwnerDid, SpendContext, StandardMint, StandardSpend,
-    };
+    use chia_sdk_driver::{CreateDid, Launcher, MintNft, OwnerDid, SpendContext, StandardMint};
     use clvm_traits::ToNodePtr;
 
     #[test]
@@ -199,11 +197,11 @@ mod tests {
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 2);
 
         let (create_did, did_info) = Launcher::new(parent.coin_id(), 1)
-            .create(ctx)?
+            .create()
             .create_standard_did(ctx, pk)?;
 
         let (mint_nft, nft_info) = Launcher::new(did_info.coin.coin_id(), 1)
-            .create(ctx)?
+            .create()
             .mint_standard_nft(
                 ctx,
                 StandardMint {
@@ -219,10 +217,7 @@ mod tests {
                 },
             )?;
 
-        StandardSpend::new()
-            .chain(create_did)
-            .chain(mint_nft)
-            .finish(ctx, parent, pk)?;
+        ctx.spend_p2_coin(parent, pk, create_did.extend(mint_nft))?;
 
         let coin_spends = ctx.take_spends();
 

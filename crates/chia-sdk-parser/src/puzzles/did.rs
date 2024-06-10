@@ -5,14 +5,14 @@ use chia_puzzles::{
     Proof,
 };
 use chia_sdk_types::{
-    conditions::{Condition, CreateCoin},
+    conditions::{puzzle_conditions, Condition, CreateCoin},
     puzzles::DidInfo,
 };
 use clvm_traits::FromClvm;
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{puzzle_conditions, ParseError, Puzzle, SingletonPuzzle};
+use crate::{ParseError, Puzzle, SingletonPuzzle};
 
 #[derive(Debug, Clone, Copy)]
 pub struct DidPuzzle {
@@ -129,7 +129,7 @@ mod tests {
     use chia_bls::PublicKey;
     use chia_protocol::Coin;
     use chia_puzzles::{singleton::SingletonSolution, standard::StandardArgs};
-    use chia_sdk_driver::{CreateDid, Launcher, SpendContext, StandardSpend};
+    use chia_sdk_driver::{CreateDid, Launcher, SpendContext};
     use clvm_traits::ToNodePtr;
 
     #[test]
@@ -142,12 +142,10 @@ mod tests {
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
 
         let (create_did, did_info) = Launcher::new(parent.coin_id(), 1)
-            .create(ctx)?
+            .create()
             .create_standard_did(ctx, pk)?;
 
-        StandardSpend::new()
-            .chain(create_did)
-            .finish(ctx, parent, pk)?;
+        ctx.spend_p2_coin(parent, pk, create_did)?;
 
         let coin_spends = ctx.take_spends();
 
