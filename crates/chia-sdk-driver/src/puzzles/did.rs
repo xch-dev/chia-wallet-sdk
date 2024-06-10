@@ -28,9 +28,8 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (launch_singleton, did_info) = Launcher::new(coin.coin_id(), 1)
-            .create()
-            .create_standard_did(ctx, pk)?;
+        let (launch_singleton, did_info) =
+            Launcher::new(coin.coin_id(), 1).create_standard_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, launch_singleton)?;
 

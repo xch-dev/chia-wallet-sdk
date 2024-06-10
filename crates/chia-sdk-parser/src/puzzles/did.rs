@@ -141,9 +141,8 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
 
-        let (create_did, did_info) = Launcher::new(parent.coin_id(), 1)
-            .create()
-            .create_standard_did(ctx, pk)?;
+        let (create_did, did_info) =
+            Launcher::new(parent.coin_id(), 1).create_standard_did(ctx, pk)?;
 
         ctx.spend_p2_coin(parent, pk, create_did)?;
 

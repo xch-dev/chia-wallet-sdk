@@ -9,7 +9,7 @@ use chia_sdk_types::{conditions::NewNftOwner, puzzles::NftInfo};
 use clvm_traits::ToClvm;
 use clvmr::NodePtr;
 
-use crate::{puzzles::SpendableLauncher, Conditions, SpendContext, SpendError};
+use crate::{Conditions, Launcher, SpendContext, SpendError};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StandardMint<M> {
@@ -76,7 +76,7 @@ pub trait MintNft {
     }
 }
 
-impl MintNft for SpendableLauncher {
+impl MintNft for Launcher {
     fn mint_eve_nft<M>(
         self,
         ctx: &mut SpendContext<'_>,
@@ -135,7 +135,10 @@ pub use tests::nft_mint;
 
 #[cfg(test)]
 mod tests {
-    use crate::puzzles::{CreateDid, IntermediateLauncher, Launcher};
+    use crate::{
+        puzzles::{IntermediateLauncher, Launcher},
+        CreateDid,
+    };
 
     use super::*;
 
@@ -181,9 +184,8 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (create_did, did_info) = Launcher::new(coin.coin_id(), 1)
-            .create()
-            .create_standard_did(ctx, pk)?;
+        let (create_did, did_info) =
+            Launcher::new(coin.coin_id(), 1).create_standard_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
@@ -240,16 +242,14 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (create_did, did_info) = Launcher::new(coin.coin_id(), 1)
-            .create()
-            .create_standard_did(ctx, pk)?;
+        let (create_did, did_info) =
+            Launcher::new(coin.coin_id(), 1).create_standard_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
         let intermediate_coin = Coin::new(did_info.coin.coin_id(), puzzle_hash, 0);
 
-        let (create_launcher, launcher) =
-            Launcher::new(intermediate_coin.coin_id(), 1).create_now();
+        let (create_launcher, launcher) = Launcher::create_early(intermediate_coin.coin_id(), 1);
 
         let mint = StandardMint {
             metadata: (),
@@ -293,16 +293,14 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (create_did, did_info) = Launcher::new(coin.coin_id(), 1)
-            .create()
-            .create_standard_did(ctx, pk)?;
+        let (create_did, did_info) =
+            Launcher::new(coin.coin_id(), 1).create_standard_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
         let intermediate_coin = Coin::new(did_info.coin.coin_id(), puzzle_hash, 0);
 
-        let (create_launcher, launcher) =
-            Launcher::new(intermediate_coin.coin_id(), 1).create_now();
+        let (create_launcher, launcher) = Launcher::create_early(intermediate_coin.coin_id(), 1);
 
         let mint = StandardMint {
             metadata: (),

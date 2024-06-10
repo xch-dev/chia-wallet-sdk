@@ -8,9 +8,7 @@ use clvmr::{
     Allocator,
 };
 
-use crate::{Conditions, SpendContext, SpendError};
-
-use super::SpendableLauncher;
+use crate::{Conditions, Launcher, SpendContext, SpendError};
 
 /// An intermediate launcher is a coin that is created prior to the actual launcher coin.
 /// In this case, it automatically creates the launcher coin upon being spent.
@@ -59,7 +57,7 @@ impl IntermediateLauncher {
     }
 
     /// Spends the intermediate coin to create the launcher coin.
-    pub fn create(self, ctx: &mut SpendContext<'_>) -> Result<SpendableLauncher, SpendError> {
+    pub fn create(self, ctx: &mut SpendContext<'_>) -> Result<Launcher, SpendError> {
         let mut parent = Conditions::new();
 
         let intermediate_puzzle = ctx.nft_intermediate_launcher()?;
@@ -84,7 +82,7 @@ impl IntermediateLauncher {
         index_message.update(usize_to_bytes(self.mint_number));
         index_message.update(usize_to_bytes(self.mint_total));
 
-        Ok(SpendableLauncher::with_parent_conditions(
+        Ok(Launcher::from_coin(
             self.launcher_coin,
             parent.assert_coin_announcement(
                 self.intermediate_coin.coin_id(),

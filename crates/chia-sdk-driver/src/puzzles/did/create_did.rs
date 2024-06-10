@@ -11,7 +11,7 @@ use clvm_traits::ToClvm;
 use clvm_utils::{tree_hash_atom, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
-use crate::{Conditions, SpendContext, SpendError, SpendableLauncher};
+use crate::{Conditions, Launcher, SpendContext, SpendError};
 
 pub trait CreateDid {
     fn create_eve_did<M>(
@@ -69,7 +69,7 @@ pub trait CreateDid {
     }
 }
 
-impl CreateDid for SpendableLauncher {
+impl CreateDid for Launcher {
     fn create_eve_did<M>(
         self,
         ctx: &mut SpendContext<'_>,
