@@ -30,8 +30,7 @@ use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
 
 use crate::{
-    did_spend, nft_spend, p2_spend, recreate_did, spend_error::SpendError, transfer_nft,
-    Conditions, Spend,
+    did_spend, nft_spend, recreate_did, spend_error::SpendError, transfer_nft, Conditions, Spend,
 };
 
 /// A wrapper around `Allocator` that caches puzzles and simplifies coin spending.
@@ -231,7 +230,7 @@ impl<'a> SpendContext<'a> {
         synthetic_key: PublicKey,
         conditions: Conditions,
     ) -> Result<(), SpendError> {
-        let p2_spend = p2_spend(self, synthetic_key, conditions)?;
+        let p2_spend = conditions.p2_spend(self, synthetic_key)?;
         self.spend(coin, p2_spend)
     }
 
@@ -246,7 +245,9 @@ impl<'a> SpendContext<'a> {
         M: ToClvm<NodePtr> + Clone,
     {
         let (conditions, new_did_info) = recreate_did(did_info.clone());
-        let p2_spend = p2_spend(self, synthetic_key, conditions.extend(extra_conditions))?;
+        let p2_spend = conditions
+            .extend(extra_conditions)
+            .p2_spend(self, synthetic_key)?;
         let did_spend = did_spend(self, did_info, p2_spend)?;
         self.insert_coin_spend(did_spend);
         Ok(new_did_info)
@@ -265,11 +266,10 @@ impl<'a> SpendContext<'a> {
         M: ToClvm<NodePtr> + Clone,
     {
         let transfer = transfer_nft(self, nft_info.clone(), p2_puzzle_hash, new_owner)?;
-        let p2_spend = p2_spend(
-            self,
-            synthetic_key,
-            transfer.p2_conditions.extend(extra_conditions),
-        )?;
+        let p2_spend = transfer
+            .p2_conditions
+            .extend(extra_conditions)
+            .p2_spend(self, synthetic_key)?;
         let nft_spend = nft_spend(self, nft_info, p2_spend)?;
         self.insert_coin_spend(nft_spend);
         Ok((transfer.did_conditions, transfer.output))
