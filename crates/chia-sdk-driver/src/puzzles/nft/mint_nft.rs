@@ -142,6 +142,10 @@ mod tests {
 
     use super::*;
 
+    use chia_consensus::gen::{
+        conditions::EmptyVisitor, run_block_generator::run_block_generator,
+        solution_generator::solution_generator,
+    };
     use chia_protocol::Coin;
     use chia_puzzles::nft::NftMetadata;
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
@@ -168,6 +172,59 @@ mod tests {
             owner_did,
             synthetic_key,
         }
+    }
+
+    #[test]
+    fn test_nft_mint_cost() -> anyhow::Result<()> {
+        let sk = secret_key()?;
+        let pk = sk.public_key();
+
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = Coin::new(Bytes32::new([0; 32]), puzzle_hash, 1);
+
+        let mut allocator = Allocator::new();
+        let ctx = &mut SpendContext::new(&mut allocator);
+
+        let (create_did, did_info) =
+            Launcher::new(coin.coin_id(), 1).create_standard_did(ctx, pk)?;
+        ctx.spend_p2_coin(coin, pk, create_did)?;
+
+        // We don't want to count the DID creation.
+        ctx.take_spends();
+
+        let coin = Coin::new(Bytes32::new([1; 32]), puzzle_hash, 1);
+        let (mint_nft, _nft_info) = IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
+            .create(ctx)?
+            .mint_standard_nft(ctx, nft_mint(pk, None))?;
+        let _did_info = ctx.spend_standard_did(
+            &did_info,
+            pk,
+            mint_nft.create_coin_announcement(b"$".to_vec().into()),
+        )?;
+        ctx.spend_p2_coin(
+            coin,
+            pk,
+            Conditions::new().assert_coin_announcement(did_info.coin.coin_id(), "$"),
+        )?;
+
+        let coin_spends = ctx.take_spends();
+
+        let generator = solution_generator(
+            coin_spends
+                .iter()
+                .map(|cs| (cs.coin, cs.puzzle_reveal.clone(), cs.solution.clone())),
+        )?;
+        let conds = run_block_generator::<Vec<u8>, EmptyVisitor>(
+            &mut allocator,
+            &generator,
+            &[],
+            11_000_000_000,
+            0,
+        )?;
+
+        assert_eq!(conds.cost, 127_780_546);
+
+        Ok(())
     }
 
     #[tokio::test]
