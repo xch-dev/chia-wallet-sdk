@@ -194,7 +194,7 @@ mod tests {
     use crate::{
         nft_mint,
         puzzles::{CreateDid, IntermediateLauncher, Launcher},
-        Mint, MintNft,
+        MintNft,
     };
 
     use super::*;
@@ -225,17 +225,7 @@ mod tests {
 
         let (mint_nft, nft_info) = IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
             .create(ctx)?
-            .mint_nft(
-                ctx,
-                nft_mint(
-                    puzzle_hash,
-                    Some(NewNftOwner {
-                        new_owner: Some(did_info.launcher_id),
-                        trade_prices_list: Vec::new(),
-                        new_did_p2_puzzle_hash: Some(did_info.did_inner_puzzle_hash),
-                    }),
-                ),
-            )?;
+            .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
 
         let did_info = ctx.spend_standard_did(&did_info, pk, mint_nft)?;
 
@@ -278,20 +268,7 @@ mod tests {
 
         let (mint_nft, mut nft_info) = IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
             .create(ctx)?
-            .mint_nft(
-                ctx,
-                Mint {
-                    metadata: (),
-                    royalty_puzzle_hash: puzzle_hash,
-                    royalty_percentage: 300,
-                    puzzle_hash,
-                    owner: Some(NewNftOwner {
-                        new_owner: Some(did_info.launcher_id),
-                        trade_prices_list: Vec::new(),
-                        new_did_p2_puzzle_hash: Some(did_info.did_inner_puzzle_hash),
-                    }),
-                },
-            )?;
+            .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
 
         let mut did_info = ctx.spend_standard_did(&did_info, pk, mint_nft)?;
 

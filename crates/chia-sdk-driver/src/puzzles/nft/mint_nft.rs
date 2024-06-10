@@ -194,9 +194,10 @@ mod tests {
     use chia_protocol::Coin;
     use chia_puzzles::{nft::NftMetadata, standard::StandardArgs};
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
+    use chia_sdk_types::puzzles::DidInfo;
     use clvmr::Allocator;
 
-    pub fn nft_mint(puzzle_hash: Bytes32, owner: Option<NewNftOwner>) -> Mint<NftMetadata> {
+    pub fn nft_mint(puzzle_hash: Bytes32, did: Option<&DidInfo<()>>) -> Mint<NftMetadata> {
         Mint {
             metadata: NftMetadata {
                 edition_number: 1,
@@ -211,7 +212,11 @@ mod tests {
             royalty_puzzle_hash: Bytes32::new([4; 32]),
             royalty_percentage: 300,
             puzzle_hash,
-            owner,
+            owner: did.map(|did| NewNftOwner {
+                new_owner: Some(did.launcher_id),
+                trade_prices_list: Vec::new(),
+                new_did_p2_puzzle_hash: Some(did.did_inner_puzzle_hash),
+            }),
         }
     }
 
@@ -287,26 +292,14 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
-        let mint = Mint {
-            metadata: (),
-            royalty_puzzle_hash: puzzle_hash,
-            royalty_percentage: 100,
-            puzzle_hash,
-            owner: Some(NewNftOwner {
-                new_owner: Some(did_info.launcher_id),
-                trade_prices_list: Vec::new(),
-                new_did_p2_puzzle_hash: Some(did_info.did_inner_puzzle_hash),
-            }),
-        };
-
         let mint_1 = IntermediateLauncher::new(did_info.coin.coin_id(), 0, 2)
             .create(ctx)?
-            .mint_nft(ctx, mint.clone())?
+            .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?
             .0;
 
         let mint_2 = IntermediateLauncher::new(did_info.coin.coin_id(), 1, 2)
             .create(ctx)?
-            .mint_nft(ctx, mint.clone())?
+            .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?
             .0;
 
         let _did_info = ctx.spend_standard_did(
@@ -349,21 +342,12 @@ mod tests {
 
         let (create_launcher, launcher) = Launcher::create_early(intermediate_coin.coin_id(), 1);
 
-        let mint = Mint {
-            metadata: (),
-            royalty_puzzle_hash: puzzle_hash,
-            royalty_percentage: 100,
-            puzzle_hash,
-            owner: Some(NewNftOwner {
-                new_owner: Some(did_info.launcher_id),
-                trade_prices_list: Vec::new(),
-                new_did_p2_puzzle_hash: Some(did_info.did_inner_puzzle_hash),
-            }),
-        };
+        let (mint_nft, _nft_info) =
+            launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
 
-        let (mint_nft, _nft_info) = launcher.mint_nft(ctx, mint)?;
         let _did_info =
             ctx.spend_standard_did(&did_info, pk, mint_nft.create_coin(puzzle_hash, 0))?;
+
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
         test_transaction(
@@ -400,19 +384,8 @@ mod tests {
 
         let (create_launcher, launcher) = Launcher::create_early(intermediate_coin.coin_id(), 1);
 
-        let mint = Mint {
-            metadata: (),
-            royalty_puzzle_hash: puzzle_hash,
-            royalty_percentage: 100,
-            puzzle_hash,
-            owner: Some(NewNftOwner {
-                new_owner: Some(did_info.launcher_id),
-                trade_prices_list: Vec::new(),
-                new_did_p2_puzzle_hash: Some(did_info.did_inner_puzzle_hash),
-            }),
-        };
-
-        let (mint_nft, _nft_info) = launcher.mint_nft(ctx, mint)?;
+        let (mint_nft, _nft_info) =
+            launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
 
         let did_info =
             ctx.spend_standard_did(&did_info, pk, Conditions::new().create_coin(puzzle_hash, 0))?;
