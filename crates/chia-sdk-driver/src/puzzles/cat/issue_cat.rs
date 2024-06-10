@@ -151,12 +151,8 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (issue_cat, _cat_info) = issue_cat_from_coin(
-            ctx,
-            coin.coin_id(),
-            1,
-            Conditions::new().create_hinted_coin(puzzle_hash, 1, puzzle_hash),
-        )?;
+        let conditions = Conditions::new().create_hinted_coin(puzzle_hash, 1, puzzle_hash);
+        let (issue_cat, _cat_info) = issue_cat_from_coin(ctx, coin.coin_id(), 1, conditions)?;
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
@@ -185,13 +181,8 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (issue_cat, _cat_info) = issue_cat_from_key(
-            ctx,
-            coin.coin_id(),
-            pk,
-            1,
-            Conditions::new().create_hinted_coin(puzzle_hash, 1, puzzle_hash),
-        )?;
+        let conditions = Conditions::new().create_hinted_coin(puzzle_hash, 1, puzzle_hash);
+        let (issue_cat, _cat_info) = issue_cat_from_key(ctx, coin.coin_id(), pk, 1, conditions)?;
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
