@@ -1,18 +1,14 @@
-use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_puzzles::{
-    nft::{
-        NftOwnershipLayerArgs, NftOwnershipLayerSolution, NftRoyaltyTransferPuzzleArgs,
-        NftStateLayerArgs, NftStateLayerSolution,
-    },
-    singleton::SingletonArgs,
-    LineageProof, Proof,
+use chia_protocol::{Bytes32, CoinSpend};
+use chia_puzzles::nft::{
+    NftOwnershipLayerArgs, NftOwnershipLayerSolution, NftRoyaltyTransferPuzzleArgs,
+    NftStateLayerArgs, NftStateLayerSolution,
 };
 use chia_sdk_types::{
     conditions::{Condition, NewNftOwner},
     puzzles::NftInfo,
 };
 use clvm_traits::{clvm_list, ToClvm, ToNodePtr};
-use clvm_utils::{tree_hash, CurriedProgram};
+use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash};
 use clvmr::{
     sha2::{Digest, Sha256},
     Allocator, NodePtr,
@@ -29,65 +25,32 @@ pub struct TransferNft<M> {
 
 pub fn transfer_nft<M>(
     ctx: &mut SpendContext<'_>,
-    mut nft_info: NftInfo<M>,
+    nft_info: NftInfo<M>,
     p2_puzzle_hash: Bytes32,
     new_nft_owner: Option<NewNftOwner>,
 ) -> Result<TransferNft<M>, SpendError>
 where
-    M: ToClvm<NodePtr>,
+    M: ToClvm<NodePtr> + ToTreeHash,
 {
     let mut did_conditions = Conditions::new();
     let mut p2_conditions =
         Conditions::new().create_hinted_coin(p2_puzzle_hash, nft_info.coin.amount, p2_puzzle_hash);
 
-    if let Some(new_nft_owner) = &new_nft_owner {
+    let new_owner = if let Some(new_nft_owner) = new_nft_owner {
         did_conditions = did_conditions.assert_raw_puzzle_announcement(did_puzzle_assertion(
             nft_info.coin.puzzle_hash,
-            new_nft_owner,
+            &new_nft_owner,
         ));
-        p2_conditions = p2_conditions.condition(Condition::Other(ctx.alloc(new_nft_owner)?));
-    }
-
-    nft_info.current_owner = new_nft_owner.map_or(nft_info.current_owner, |value| value.new_owner);
-
-    let metadata_ptr = ctx.alloc(&nft_info.metadata)?;
-
-    let transfer_program = NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
-        nft_info.launcher_id,
-        nft_info.royalty_puzzle_hash,
-        nft_info.royalty_percentage,
-    );
-
-    let ownership_layer = NftOwnershipLayerArgs::curry_tree_hash(
-        nft_info.current_owner,
-        transfer_program,
-        p2_puzzle_hash.into(),
-    );
-
-    let state_layer =
-        NftStateLayerArgs::curry_tree_hash(ctx.tree_hash(metadata_ptr), ownership_layer);
-
-    let singleton_puzzle_hash = SingletonArgs::curry_tree_hash(nft_info.launcher_id, state_layer);
-
-    nft_info.proof = Proof::Lineage(LineageProof {
-        parent_parent_coin_id: nft_info.coin.parent_coin_info,
-        parent_inner_puzzle_hash: nft_info.nft_inner_puzzle_hash,
-        parent_amount: nft_info.coin.amount,
-    });
-
-    nft_info.coin = Coin::new(
-        nft_info.coin.coin_id(),
-        singleton_puzzle_hash.into(),
-        nft_info.coin.amount,
-    );
-
-    nft_info.nft_inner_puzzle_hash = state_layer.into();
-    nft_info.p2_puzzle_hash = p2_puzzle_hash;
+        p2_conditions = p2_conditions.condition(Condition::Other(ctx.alloc(&new_nft_owner)?));
+        new_nft_owner.new_owner
+    } else {
+        nft_info.current_owner
+    };
 
     Ok(TransferNft {
         did_conditions,
         p2_conditions,
-        output: nft_info,
+        output: nft_info.child(p2_puzzle_hash, new_owner),
     })
 }
 
