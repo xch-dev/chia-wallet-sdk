@@ -1,14 +1,14 @@
-use chia_protocol::{Bytes32, Coin};
+use chia_protocol::Bytes32;
 use chia_puzzles::{
     nft::{NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs},
-    singleton::SingletonArgs,
-    EveProof, LineageProof, Proof,
+    EveProof, Proof,
 };
 use chia_sdk_types::{
     conditions::{Condition, NewNftOwner},
     puzzles::NftInfo,
 };
 use clvm_traits::{clvm_quote, ToClvm};
+use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 
 use crate::{
@@ -83,7 +83,7 @@ impl Launcher {
         mint: NftMint<M>,
     ) -> Result<(Conditions, NftInfo<M>), SpendError>
     where
-        M: ToClvm<NodePtr> + Clone,
+        M: ToClvm<NodePtr> + ToTreeHash + Clone,
         Self: Sized,
     {
         let mut conditions =
@@ -117,48 +117,12 @@ impl Launcher {
             ));
         }
 
-        let metadata_ptr = ctx.alloc(&eve_nft_info.metadata)?;
-
-        let transfer_program = NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
-            eve_nft_info.launcher_id,
-            eve_nft_info.royalty_puzzle_hash,
-            eve_nft_info.royalty_percentage,
-        );
-
         let owner = mint.owner.and_then(|owner| owner.new_owner);
 
-        let ownership_layer = NftOwnershipLayerArgs::curry_tree_hash(
-            owner,
-            transfer_program,
-            mint.puzzle_hash.into(),
-        );
-
-        let state_layer =
-            NftStateLayerArgs::curry_tree_hash(ctx.tree_hash(metadata_ptr), ownership_layer);
-
-        let singleton_puzzle_hash =
-            SingletonArgs::curry_tree_hash(eve_nft_info.launcher_id, state_layer);
-
-        let mut nft_info = eve_nft_info.clone();
-
-        nft_info.current_owner = owner;
-
-        nft_info.proof = Proof::Lineage(LineageProof {
-            parent_parent_coin_id: eve_nft_info.coin.parent_coin_info,
-            parent_inner_puzzle_hash: eve_nft_info.nft_inner_puzzle_hash,
-            parent_amount: eve_nft_info.coin.amount,
-        });
-
-        nft_info.coin = Coin::new(
-            eve_nft_info.coin.coin_id(),
-            singleton_puzzle_hash.into(),
-            eve_nft_info.coin.amount,
-        );
-
-        nft_info.nft_inner_puzzle_hash = state_layer.into();
-        nft_info.p2_puzzle_hash = mint.puzzle_hash;
-
-        Ok((mint_eve_nft.extend(did_conditions), nft_info))
+        Ok((
+            mint_eve_nft.extend(did_conditions),
+            eve_nft_info.child(mint.puzzle_hash, owner),
+        ))
     }
 }
 
