@@ -42,7 +42,7 @@ impl Launcher {
         .into();
 
         let launcher_coin = self.coin();
-        let (chained_spend, eve_coin) = self.spend(ctx, did_inner_puzzle_hash, ())?;
+        let (launch_singleton, eve_coin) = self.spend(ctx, did_inner_puzzle_hash, ())?;
 
         let proof = Proof::Eve(EveProof {
             parent_coin_info: launcher_coin.parent_coin_info,
@@ -60,10 +60,10 @@ impl Launcher {
             metadata,
         };
 
-        Ok((chained_spend, did_info))
+        Ok((launch_singleton, did_info))
     }
 
-    pub fn create_custom_standard_did<M>(
+    pub fn create_did<M>(
         self,
         ctx: &mut SpendContext<'_>,
         recovery_did_list_hash: Bytes32,
@@ -90,7 +90,7 @@ impl Launcher {
         Ok((create_did, did_info))
     }
 
-    pub fn create_standard_did(
+    pub fn create_simple_did(
         self,
         ctx: &mut SpendContext<'_>,
         synthetic_key: PublicKey,
@@ -98,6 +98,6 @@ impl Launcher {
     where
         Self: Sized,
     {
-        self.create_custom_standard_did(ctx, tree_hash_atom(&[]).into(), 1, (), synthetic_key)
+        self.create_did(ctx, tree_hash_atom(&[]).into(), 1, (), synthetic_key)
     }
 }

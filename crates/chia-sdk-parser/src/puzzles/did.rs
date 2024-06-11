@@ -142,7 +142,7 @@ mod tests {
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
 
         let (create_did, did_info) =
-            Launcher::new(parent.coin_id(), 1).create_standard_did(ctx, pk)?;
+            Launcher::new(parent.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(parent, pk, create_did)?;
 

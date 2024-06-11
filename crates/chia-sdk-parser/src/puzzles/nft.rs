@@ -197,7 +197,7 @@ mod tests {
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 2);
 
         let (create_did, did_info) =
-            Launcher::new(parent.coin_id(), 1).create_standard_did(ctx, pk)?;
+            Launcher::new(parent.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         let (mint_nft, nft_info) = Launcher::new(did_info.coin.coin_id(), 1).mint_nft(
             ctx,

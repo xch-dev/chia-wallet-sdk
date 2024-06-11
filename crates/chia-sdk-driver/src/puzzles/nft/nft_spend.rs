@@ -214,8 +214,7 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (create_did, did_info) =
-            Launcher::new(coin.coin_id(), 1).create_standard_did(ctx, pk)?;
+        let (create_did, did_info) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
@@ -257,8 +256,7 @@ mod tests {
         let mut allocator = Allocator::new();
         let ctx = &mut SpendContext::new(&mut allocator);
 
-        let (create_did, did_info) =
-            Launcher::new(coin.coin_id(), 1).create_standard_did(ctx, pk)?;
+        let (create_did, did_info) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
