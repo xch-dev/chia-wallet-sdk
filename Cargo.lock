@@ -488,8 +488,10 @@ dependencies = [
 name = "chia-wallet-sdk"
 version = "0.10.3"
 dependencies = [
+ "anyhow",
  "bech32",
  "chia-protocol",
+ "chia-puzzles",
  "chia-sdk-client",
  "chia-sdk-driver",
  "chia-sdk-offers",

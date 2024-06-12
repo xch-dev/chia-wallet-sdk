@@ -68,7 +68,7 @@ impl OfferBuilder {
 
     pub fn request_standard_payments(
         self,
-        ctx: &mut SpendContext<'_>,
+        ctx: &mut SpendContext,
         payments: Vec<Payment>,
     ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError> {
         let puzzle = ctx.settlement_payments_puzzle()?;
@@ -77,7 +77,7 @@ impl OfferBuilder {
 
     pub fn request_cat_payments(
         self,
-        ctx: &mut SpendContext<'_>,
+        ctx: &mut SpendContext,
         asset_id: Bytes32,
         payments: Vec<Payment>,
     ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError> {
@@ -94,7 +94,7 @@ impl OfferBuilder {
 
     pub fn request_nft_payments<M>(
         self,
-        ctx: &mut SpendContext<'_>,
+        ctx: &mut SpendContext,
         payment_info: NftPaymentInfo<M>,
         payments: Vec<Payment>,
     ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError>
@@ -140,7 +140,7 @@ impl OfferBuilder {
 
     pub fn request_raw_payments<P>(
         mut self,
-        ctx: &mut SpendContext<'_>,
+        ctx: &mut SpendContext,
         puzzle: &P,
         payments: Vec<Payment>,
     ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError>
@@ -206,7 +206,6 @@ mod tests {
     };
     use chia_sdk_driver::Conditions;
     use chia_sdk_test::{secret_key, sign_transaction, Simulator};
-    use clvmr::Allocator;
 
     use crate::SettlementSpend;
 
@@ -216,6 +215,7 @@ mod tests {
     async fn test_simple_offer() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
+        let ctx = &mut SpendContext::new();
 
         let a_secret_key = secret_key()?.derive_unhardened(0);
         let a_public_key = a_secret_key.public_key();
@@ -227,9 +227,6 @@ mod tests {
 
         let a = sim.mint_coin(a_puzzle_hash, 1000).await;
         let b = sim.mint_coin(b_puzzle_hash, 3000).await;
-
-        let mut allocator = Allocator::new();
-        let ctx = &mut SpendContext::new(&mut allocator);
 
         let (announcement, partial_offer) = OfferBuilder::new(vec![a.coin_id()])
             .request_standard_payments(

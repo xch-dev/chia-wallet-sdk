@@ -110,7 +110,7 @@ impl Launcher {
     /// Includes an optional metadata value that is traditionally a list of key value pairs.
     pub fn spend<T>(
         self,
-        ctx: &mut SpendContext<'_>,
+        ctx: &mut SpendContext,
         singleton_inner_puzzle_hash: Bytes32,
         key_value_list: T,
     ) -> Result<(Conditions, Coin), SpendError>

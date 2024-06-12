@@ -16,7 +16,7 @@ use crate::{Conditions, Launcher, SpendContext, SpendError};
 impl Launcher {
     pub fn create_eve_did<M>(
         self,
-        ctx: &mut SpendContext<'_>,
+        ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,
@@ -66,7 +66,7 @@ impl Launcher {
 
     pub fn create_did<M>(
         self,
-        ctx: &mut SpendContext<'_>,
+        ctx: &mut SpendContext,
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
@@ -93,7 +93,7 @@ impl Launcher {
 
     pub fn create_simple_did(
         self,
-        ctx: &mut SpendContext<'_>,
+        ctx: &mut SpendContext,
         synthetic_key: PublicKey,
     ) -> Result<(Conditions, DidInfo<()>), SpendError>
     where

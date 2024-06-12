@@ -191,18 +191,17 @@ mod tests {
 
     #[test]
     fn test_parse_nft() -> anyhow::Result<()> {
-        let mut allocator = Allocator::new();
-        let ctx = &mut SpendContext::new(&mut allocator);
+        let mut ctx = SpendContext::new();
 
         let pk = PublicKey::default();
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 2);
 
         let (create_did, did_info) =
-            Launcher::new(parent.coin_id(), 1).create_simple_did(ctx, pk)?;
+            Launcher::new(parent.coin_id(), 1).create_simple_did(&mut ctx, pk)?;
 
         let (mint_nft, nft_info) = Launcher::new(did_info.coin.coin_id(), 1).mint_nft(
-            ctx,
+            &mut ctx,
             NftMint {
                 metadata: (),
                 royalty_percentage: 300,
@@ -224,6 +223,8 @@ mod tests {
             .into_iter()
             .find(|cs| cs.coin.coin_id() == nft_info.coin.parent_coin_info)
             .unwrap();
+
+        let mut allocator = ctx.into();
 
         let puzzle_ptr = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
         let solution_ptr = coin_spend.solution.to_node_ptr(&mut allocator)?;

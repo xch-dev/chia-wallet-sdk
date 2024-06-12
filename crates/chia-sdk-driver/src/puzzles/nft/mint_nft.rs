@@ -26,7 +26,7 @@ pub struct NftMint<M> {
 impl Launcher {
     pub fn mint_eve_nft<M>(
         self,
-        ctx: &mut SpendContext<'_>,
+        ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
         metadata: M,
         royalty_puzzle_hash: Bytes32,
@@ -79,7 +79,7 @@ impl Launcher {
 
     pub fn mint_nft<M>(
         self,
-        ctx: &mut SpendContext<'_>,
+        ctx: &mut SpendContext,
         mint: NftMint<M>,
     ) -> Result<(Conditions, NftInfo<M>), SpendError>
     where
@@ -141,7 +141,6 @@ mod tests {
     use chia_puzzles::{nft::NftMetadata, standard::StandardArgs};
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
     use chia_sdk_types::puzzles::DidInfo;
-    use clvmr::Allocator;
 
     pub fn nft_mint(puzzle_hash: Bytes32, did: Option<&DidInfo<()>>) -> NftMint<NftMetadata> {
         NftMint {
@@ -170,12 +169,11 @@ mod tests {
     fn test_nft_mint_cost() -> anyhow::Result<()> {
         let sk = secret_key()?;
         let pk = sk.public_key();
+        let mut owned_ctx = SpendContext::new();
+        let ctx = &mut owned_ctx;
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = Coin::new(Bytes32::new([0; 32]), puzzle_hash, 1);
-
-        let mut allocator = Allocator::new();
-        let ctx = &mut SpendContext::new(&mut allocator);
 
         let (create_did, did_info) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
         ctx.spend_p2_coin(coin, pk, create_did)?;
@@ -206,7 +204,7 @@ mod tests {
                 .map(|cs| (cs.coin, cs.puzzle_reveal.clone(), cs.solution.clone())),
         )?;
         let conds = run_block_generator::<Vec<u8>, EmptyVisitor>(
-            &mut allocator,
+            &mut owned_ctx.into(),
             &generator,
             &[],
             11_000_000_000,
@@ -222,15 +220,13 @@ mod tests {
     async fn test_bulk_mint() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
+        let ctx = &mut SpendContext::new();
 
         let sk = secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 3).await;
-
-        let mut allocator = Allocator::new();
-        let ctx = &mut SpendContext::new(&mut allocator);
 
         let (create_did, did_info) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
@@ -267,15 +263,13 @@ mod tests {
     async fn test_nonstandard_intermediate_mint() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
+        let ctx = &mut SpendContext::new();
 
         let sk = secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 3).await;
-
-        let mut allocator = Allocator::new();
-        let ctx = &mut SpendContext::new(&mut allocator);
 
         let (create_did, did_info) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
@@ -308,15 +302,13 @@ mod tests {
     async fn test_nonstandard_intermediate_mint_recreated_did() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
+        let ctx = &mut SpendContext::new();
 
         let sk = secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 3).await;
-
-        let mut allocator = Allocator::new();
-        let ctx = &mut SpendContext::new(&mut allocator);
 
         let (create_did, did_info) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 

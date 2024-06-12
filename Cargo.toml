@@ -60,7 +60,6 @@ hex = { workspace = true }
 bech32 = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
-hex-literal = { workspace = true }
 indexmap = { workspace = true }
 chia-sdk-client = { workspace = true }
 chia-sdk-driver = { workspace = true }
@@ -69,6 +68,11 @@ chia-sdk-parser = { workspace = true }
 chia-sdk-signer = { workspace = true }
 chia-sdk-test = { workspace = true }
 chia-sdk-types = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+hex-literal = { workspace = true }
+chia-puzzles = { workspace = true }
 
 [workspace.dependencies]
 chia-sdk-client = { version = "0.10.3", path = "./crates/chia-sdk-client" }
