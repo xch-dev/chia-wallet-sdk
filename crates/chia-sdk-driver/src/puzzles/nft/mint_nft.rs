@@ -21,7 +21,7 @@ pub struct NftMint<M> {
     pub royalty_puzzle_hash: Bytes32,
     pub royalty_percentage: u16,
     pub puzzle_hash: Bytes32,
-    pub owner: Option<NewNftOwner>,
+    pub owner: NewNftOwner,
 }
 
 impl Launcher {
@@ -89,8 +89,8 @@ impl Launcher {
         let mut conditions =
             Conditions::new().create_hinted_coin(mint.puzzle_hash, 1, mint.puzzle_hash);
 
-        if let Some(new_nft_owner) = mint.owner.clone() {
-            conditions = conditions.condition(Condition::Other(ctx.alloc(&new_nft_owner)?));
+        if mint.owner != NewNftOwner::default() {
+            conditions = conditions.condition(Condition::Other(ctx.alloc(&mint.owner)?));
         }
 
         let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
@@ -110,18 +110,16 @@ impl Launcher {
 
         let mut did_conditions = Conditions::new();
 
-        if let Some(new_nft_owner) = &mint.owner {
+        if mint.owner != NewNftOwner::default() {
             did_conditions = did_conditions.assert_raw_puzzle_announcement(did_puzzle_assertion(
                 eve_nft_info.coin.puzzle_hash,
-                new_nft_owner,
+                &mint.owner,
             ));
         }
 
-        let owner = mint.owner.and_then(|owner| owner.new_owner);
-
         Ok((
             mint_eve_nft.extend(did_conditions),
-            eve_nft_info.child(mint.puzzle_hash, owner),
+            eve_nft_info.child(mint.puzzle_hash, mint.owner.did_id),
         ))
     }
 }
@@ -160,11 +158,11 @@ mod tests {
             royalty_puzzle_hash: Bytes32::new([4; 32]),
             royalty_percentage: 300,
             puzzle_hash,
-            owner: did.map(|did| NewNftOwner {
-                new_owner: Some(did.launcher_id),
-                trade_prices_list: Vec::new(),
-                new_did_p2_puzzle_hash: Some(did.did_inner_puzzle_hash),
-            }),
+            owner: NewNftOwner {
+                did_id: did.map(|did| did.launcher_id),
+                trade_prices: Vec::new(),
+                did_inner_puzzle_hash: did.map(|did| did.did_inner_puzzle_hash),
+            },
         }
     }
 

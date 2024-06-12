@@ -137,7 +137,7 @@ impl NftPuzzle {
         let create_coin = create_coin.ok_or(ParseError::MissingChild)?;
 
         let current_owner = if let Some(condition) = new_owner {
-            condition.new_owner
+            condition.did_id
         } else {
             self.current_owner
         };
@@ -206,11 +206,11 @@ mod tests {
                 royalty_percentage: 300,
                 royalty_puzzle_hash: Bytes32::new([1; 32]),
                 puzzle_hash,
-                owner: Some(NewNftOwner {
-                    new_owner: Some(did_info.launcher_id),
-                    trade_prices_list: Vec::new(),
-                    new_did_p2_puzzle_hash: Some(did_info.did_inner_puzzle_hash),
-                }),
+                owner: NewNftOwner {
+                    did_id: Some(did_info.launcher_id),
+                    trade_prices: Vec::new(),
+                    did_inner_puzzle_hash: Some(did_info.did_inner_puzzle_hash),
+                },
             },
         )?;
 

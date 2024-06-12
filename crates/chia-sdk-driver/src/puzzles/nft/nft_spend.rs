@@ -42,7 +42,7 @@ where
             &new_nft_owner,
         ));
         p2_conditions = p2_conditions.condition(Condition::Other(ctx.alloc(&new_nft_owner)?));
-        new_nft_owner.new_owner
+        new_nft_owner.did_id
     } else {
         nft_info.current_owner
     };
@@ -59,9 +59,9 @@ pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &NewNf
     let mut allocator = Allocator::new();
 
     let new_nft_owner_args = clvm_list!(
-        new_nft_owner.new_owner,
-        new_nft_owner.trade_prices_list.clone(),
-        new_nft_owner.new_did_p2_puzzle_hash
+        new_nft_owner.did_id,
+        &new_nft_owner.trade_prices,
+        new_nft_owner.did_inner_puzzle_hash
     )
     .to_node_ptr(&mut allocator)
     .unwrap();
