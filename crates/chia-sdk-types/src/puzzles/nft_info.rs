@@ -22,7 +22,10 @@ pub struct NftInfo<M> {
 }
 
 impl<M> NftInfo<M> {
-    pub fn child(self, p2_puzzle_hash: Bytes32, new_owner: Option<Bytes32>) -> Self {
+    pub fn child(&self, p2_puzzle_hash: Bytes32, new_owner: Option<Bytes32>) -> Self
+    where
+        M: Clone,
+    {
         let transfer_program = NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
             self.launcher_id,
             self.royalty_puzzle_hash,
@@ -49,7 +52,7 @@ impl<M> NftInfo<M> {
                 parent_inner_puzzle_hash: self.inner_puzzle_hash,
                 parent_amount: self.coin.amount,
             }),
-            metadata: self.metadata,
+            metadata: self.metadata.clone(),
             metadata_hash: self.metadata_hash,
             current_owner: new_owner,
             royalty_puzzle_hash: self.royalty_puzzle_hash,

@@ -269,7 +269,7 @@ impl<'a> SpendContext<'a> {
     where
         M: ToClvm<NodePtr> + Clone,
     {
-        let transfer = transfer_nft(self, nft_info.clone(), p2_puzzle_hash, new_nft_owner)?;
+        let transfer = transfer_nft(self, nft_info, p2_puzzle_hash, new_nft_owner)?;
         let p2_spend = transfer
             .p2_conditions
             .extend(extra_conditions)

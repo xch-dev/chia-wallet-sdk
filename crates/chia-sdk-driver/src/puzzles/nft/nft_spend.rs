@@ -25,12 +25,12 @@ pub struct TransferNft<M> {
 
 pub fn transfer_nft<M>(
     ctx: &mut SpendContext<'_>,
-    nft_info: NftInfo<M>,
+    nft_info: &NftInfo<M>,
     p2_puzzle_hash: Bytes32,
     new_nft_owner: Option<NewNftOwner>,
 ) -> Result<TransferNft<M>, SpendError>
 where
-    M: ToClvm<NodePtr>,
+    M: ToClvm<NodePtr> + Clone,
 {
     let mut did_conditions = Conditions::new();
     let mut p2_conditions =
