@@ -490,6 +490,7 @@ version = "0.10.3"
 dependencies = [
  "anyhow",
  "bech32",
+ "chia-bls 0.9.0",
  "chia-protocol",
  "chia-puzzles",
  "chia-sdk-client",
@@ -499,6 +500,9 @@ dependencies = [
  "chia-sdk-signer",
  "chia-sdk-test",
  "chia-sdk-types",
+ "clvm-traits",
+ "clvm-utils",
+ "clvmr",
  "hex",
  "hex-literal",
  "indexmap",

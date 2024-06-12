@@ -17,7 +17,7 @@ use clvmr::{
 
 use crate::{Spend, SpendContext, SpendError};
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 #[must_use]
 pub struct Conditions {
     conditions: Vec<Condition>,
