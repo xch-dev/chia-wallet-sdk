@@ -17,12 +17,10 @@ pub struct DidInfo<M> {
     pub recovery_did_list_hash: Bytes32,
     pub num_verifications_required: u64,
     pub metadata: M,
+    pub metadata_hash: TreeHash,
 }
 
-impl<M> DidInfo<M>
-where
-    M: ToTreeHash,
-{
+impl<M> DidInfo<M> {
     pub fn child(self, p2_puzzle_hash: Bytes32) -> Self {
         let inner_puzzle_hash = CurriedProgram {
             program: DID_INNER_PUZZLE_HASH,
@@ -31,7 +29,7 @@ where
                 recovery_did_list_hash: self.recovery_did_list_hash,
                 num_verifications_required: self.num_verifications_required,
                 singleton_struct: SingletonStruct::new(self.launcher_id),
-                metadata: self.metadata.tree_hash(),
+                metadata: self.metadata_hash,
             },
         }
         .tree_hash();
@@ -49,14 +47,13 @@ where
                 parent_amount: self.coin.amount,
             }),
             metadata: self.metadata,
+            metadata_hash: self.metadata_hash,
             recovery_did_list_hash: self.recovery_did_list_hash,
             num_verifications_required: self.num_verifications_required,
         }
     }
-}
 
-impl<M> DidInfo<M> {
-    pub fn with_metadata<N>(self, metadata: N) -> DidInfo<N> {
+    pub fn with_metadata<N>(self, metadata: N, metadata_hash: TreeHash) -> DidInfo<N> {
         DidInfo {
             launcher_id: self.launcher_id,
             coin: self.coin,
@@ -66,6 +63,7 @@ impl<M> DidInfo<M> {
             recovery_did_list_hash: self.recovery_did_list_hash,
             num_verifications_required: self.num_verifications_required,
             metadata,
+            metadata_hash,
         }
     }
 }

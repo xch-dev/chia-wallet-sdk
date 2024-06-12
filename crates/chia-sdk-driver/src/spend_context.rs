@@ -26,7 +26,7 @@ use chia_sdk_types::{
     puzzles::{DidInfo, NftInfo},
 };
 use clvm_traits::{FromNodePtr, ToClvm, ToNodePtr};
-use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
+use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
 
 use crate::{did_spend, nft_spend, spend_error::SpendError, transfer_nft, Conditions, Spend};
@@ -240,7 +240,7 @@ impl<'a> SpendContext<'a> {
         extra_conditions: Conditions,
     ) -> Result<DidInfo<M>, SpendError>
     where
-        M: ToClvm<NodePtr> + ToTreeHash + Clone,
+        M: ToClvm<NodePtr> + Clone,
     {
         let p2_spend = extra_conditions
             .create_hinted_coin(
@@ -267,7 +267,7 @@ impl<'a> SpendContext<'a> {
         extra_conditions: Conditions,
     ) -> Result<(Conditions, NftInfo<M>), SpendError>
     where
-        M: ToClvm<NodePtr> + ToTreeHash + Clone,
+        M: ToClvm<NodePtr> + Clone,
     {
         let transfer = transfer_nft(self, nft_info.clone(), p2_puzzle_hash, new_nft_owner)?;
         let p2_spend = transfer

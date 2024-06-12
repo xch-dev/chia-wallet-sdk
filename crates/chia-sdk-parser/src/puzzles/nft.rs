@@ -172,6 +172,7 @@ impl NftPuzzle {
             royalty_puzzle_hash: self.royalty_puzzle_hash,
             current_owner,
             metadata: self.metadata,
+            metadata_hash: tree_hash(allocator, self.metadata),
             proof: Proof::Lineage(singleton.lineage_proof(parent_coin)),
         })
     }
@@ -186,6 +187,7 @@ mod tests {
     use chia_puzzles::{singleton::SingletonSolution, standard::StandardArgs};
     use chia_sdk_driver::{Launcher, NftMint, SpendContext};
     use clvm_traits::ToNodePtr;
+    use clvm_utils::ToTreeHash;
 
     #[test]
     fn test_parse_nft() -> anyhow::Result<()> {
@@ -243,7 +245,10 @@ mod tests {
             singleton_solution.inner_solution,
         )?;
 
-        assert_eq!(parsed_nft_info, nft_info.with_metadata(NodePtr::NIL));
+        assert_eq!(
+            parsed_nft_info,
+            nft_info.with_metadata(NodePtr::NIL, ().tree_hash())
+        );
 
         Ok(())
     }

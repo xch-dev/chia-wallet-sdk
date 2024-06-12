@@ -8,7 +8,6 @@ use chia_sdk_types::{
     puzzles::NftInfo,
 };
 use clvm_traits::{clvm_quote, ToClvm};
-use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 
 use crate::{
@@ -66,6 +65,7 @@ impl Launcher {
             p2_puzzle_hash,
             proof,
             metadata,
+            metadata_hash,
             current_owner: None,
             royalty_puzzle_hash,
             royalty_percentage,
@@ -83,7 +83,7 @@ impl Launcher {
         mint: NftMint<M>,
     ) -> Result<(Conditions, NftInfo<M>), SpendError>
     where
-        M: ToClvm<NodePtr> + ToTreeHash + Clone,
+        M: ToClvm<NodePtr> + Clone,
         Self: Sized,
     {
         let mut conditions =

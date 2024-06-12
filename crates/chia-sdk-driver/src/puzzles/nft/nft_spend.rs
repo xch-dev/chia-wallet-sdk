@@ -8,7 +8,7 @@ use chia_sdk_types::{
     puzzles::NftInfo,
 };
 use clvm_traits::{clvm_list, ToClvm, ToNodePtr};
-use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash};
+use clvm_utils::{tree_hash, CurriedProgram};
 use clvmr::{
     sha2::{Digest, Sha256},
     Allocator, NodePtr,
@@ -30,7 +30,7 @@ pub fn transfer_nft<M>(
     new_nft_owner: Option<NewNftOwner>,
 ) -> Result<TransferNft<M>, SpendError>
 where
-    M: ToClvm<NodePtr> + ToTreeHash,
+    M: ToClvm<NodePtr>,
 {
     let mut did_conditions = Conditions::new();
     let mut p2_conditions =

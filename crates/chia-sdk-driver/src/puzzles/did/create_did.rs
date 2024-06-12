@@ -58,6 +58,7 @@ impl Launcher {
             recovery_did_list_hash,
             num_verifications_required,
             metadata,
+            metadata_hash,
         };
 
         Ok((launch_singleton, did_info))
@@ -72,7 +73,7 @@ impl Launcher {
         synthetic_key: PublicKey,
     ) -> Result<(Conditions, DidInfo<M>), SpendError>
     where
-        M: ToClvm<NodePtr> + ToTreeHash + Clone,
+        M: ToClvm<NodePtr> + Clone,
         Self: Sized,
     {
         let inner_puzzle_hash = StandardArgs::curry_tree_hash(synthetic_key).into();

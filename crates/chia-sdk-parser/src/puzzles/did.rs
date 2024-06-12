@@ -117,6 +117,7 @@ impl DidPuzzle {
             recovery_did_list_hash: self.recovery_did_list_hash,
             num_verifications_required: self.num_verifications_required,
             metadata: self.metadata,
+            metadata_hash: tree_hash(allocator, self.metadata),
             proof: Proof::Lineage(singleton.lineage_proof(parent_coin)),
         })
     }
@@ -173,7 +174,10 @@ mod tests {
             singleton_solution.inner_solution,
         )?;
 
-        assert_eq!(parsed_did_info, did_info.with_metadata(NodePtr::NIL));
+        assert_eq!(
+            parsed_did_info,
+            did_info.with_metadata(NodePtr::NIL, ().tree_hash())
+        );
 
         Ok(())
     }

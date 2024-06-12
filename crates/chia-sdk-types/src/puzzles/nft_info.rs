@@ -4,7 +4,7 @@ use chia_puzzles::{
     singleton::SingletonArgs,
     LineageProof, Proof,
 };
-use clvm_utils::ToTreeHash;
+use clvm_utils::TreeHash;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[must_use]
@@ -15,15 +15,13 @@ pub struct NftInfo<M> {
     pub p2_puzzle_hash: Bytes32,
     pub proof: Proof,
     pub metadata: M,
+    pub metadata_hash: TreeHash,
     pub current_owner: Option<Bytes32>,
     pub royalty_puzzle_hash: Bytes32,
     pub royalty_percentage: u16,
 }
 
-impl<M> NftInfo<M>
-where
-    M: ToTreeHash,
-{
+impl<M> NftInfo<M> {
     pub fn child(self, p2_puzzle_hash: Bytes32, new_owner: Option<Bytes32>) -> Self {
         let transfer_program = NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
             self.launcher_id,
@@ -37,8 +35,7 @@ where
             p2_puzzle_hash.into(),
         );
 
-        let state_layer =
-            NftStateLayerArgs::curry_tree_hash(self.metadata.tree_hash(), ownership_layer);
+        let state_layer = NftStateLayerArgs::curry_tree_hash(self.metadata_hash, ownership_layer);
 
         let puzzle_hash = SingletonArgs::curry_tree_hash(self.launcher_id, state_layer);
 
@@ -53,15 +50,14 @@ where
                 parent_amount: self.coin.amount,
             }),
             metadata: self.metadata,
+            metadata_hash: self.metadata_hash,
             current_owner: new_owner,
             royalty_puzzle_hash: self.royalty_puzzle_hash,
             royalty_percentage: self.royalty_percentage,
         }
     }
-}
 
-impl<M> NftInfo<M> {
-    pub fn with_metadata<N>(self, metadata: N) -> NftInfo<N> {
+    pub fn with_metadata<N>(self, metadata: N, metadata_hash: TreeHash) -> NftInfo<N> {
         NftInfo {
             launcher_id: self.launcher_id,
             coin: self.coin,
@@ -69,6 +65,7 @@ impl<M> NftInfo<M> {
             p2_puzzle_hash: self.p2_puzzle_hash,
             proof: self.proof,
             metadata,
+            metadata_hash,
             current_owner: self.current_owner,
             royalty_puzzle_hash: self.royalty_puzzle_hash,
             royalty_percentage: self.royalty_percentage,
