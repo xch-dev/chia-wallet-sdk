@@ -6,7 +6,7 @@ use chia_puzzles::Proof;
 pub struct DidInfo<M> {
     pub launcher_id: Bytes32,
     pub coin: Coin,
-    pub did_inner_puzzle_hash: Bytes32,
+    pub inner_puzzle_hash: Bytes32,
     pub p2_puzzle_hash: Bytes32,
     pub proof: Proof,
     pub recovery_did_list_hash: Bytes32,
@@ -19,7 +19,7 @@ impl<M> DidInfo<M> {
         DidInfo {
             launcher_id: self.launcher_id,
             coin: self.coin,
-            did_inner_puzzle_hash: self.did_inner_puzzle_hash,
+            inner_puzzle_hash: self.inner_puzzle_hash,
             p2_puzzle_hash: self.p2_puzzle_hash,
             proof: self.proof,
             recovery_did_list_hash: self.recovery_did_list_hash,

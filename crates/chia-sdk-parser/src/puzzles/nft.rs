@@ -167,7 +167,7 @@ impl NftPuzzle {
             launcher_id: singleton.launcher_id,
             coin: child_coin,
             p2_puzzle_hash: create_coin.puzzle_hash,
-            nft_inner_puzzle_hash: state.into(),
+            inner_puzzle_hash: state.into(),
             royalty_percentage: self.royalty_percentage,
             royalty_puzzle_hash: self.royalty_puzzle_hash,
             current_owner,
@@ -209,7 +209,7 @@ mod tests {
                 owner: NewNftOwner {
                     did_id: Some(did_info.launcher_id),
                     trade_prices: Vec::new(),
-                    did_inner_puzzle_hash: Some(did_info.did_inner_puzzle_hash),
+                    did_inner_puzzle_hash: Some(did_info.inner_puzzle_hash),
                 },
             },
         )?;

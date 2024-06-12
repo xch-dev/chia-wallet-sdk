@@ -13,14 +13,14 @@ use crate::{puzzles::spend_singleton, Conditions, Spend, SpendContext, SpendErro
 
 pub fn recreate_did<M>(mut did_info: DidInfo<M>) -> (Conditions, DidInfo<M>) {
     let conditions = Conditions::new().create_hinted_coin(
-        did_info.did_inner_puzzle_hash,
+        did_info.inner_puzzle_hash,
         did_info.coin.amount,
         did_info.p2_puzzle_hash,
     );
 
     did_info.proof = Proof::Lineage(LineageProof {
         parent_parent_coin_id: did_info.coin.parent_coin_info,
-        parent_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
+        parent_inner_puzzle_hash: did_info.inner_puzzle_hash,
         parent_amount: did_info.coin.amount,
     });
 

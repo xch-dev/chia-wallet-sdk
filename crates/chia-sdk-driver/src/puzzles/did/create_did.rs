@@ -28,7 +28,7 @@ impl Launcher {
         let metadata_ptr = ctx.alloc(&metadata)?;
         let metadata_hash = ctx.tree_hash(metadata_ptr);
 
-        let did_inner_puzzle_hash = CurriedProgram {
+        let inner_puzzle_hash = CurriedProgram {
             program: DID_INNER_PUZZLE_HASH,
             args: DidArgs {
                 inner_puzzle: TreeHash::from(p2_puzzle_hash),
@@ -42,7 +42,7 @@ impl Launcher {
         .into();
 
         let launcher_coin = self.coin();
-        let (launch_singleton, eve_coin) = self.spend(ctx, did_inner_puzzle_hash, ())?;
+        let (launch_singleton, eve_coin) = self.spend(ctx, inner_puzzle_hash, ())?;
 
         let proof = Proof::Eve(EveProof {
             parent_coin_info: launcher_coin.parent_coin_info,
@@ -52,7 +52,7 @@ impl Launcher {
         let did_info = DidInfo {
             launcher_id: launcher_coin.coin_id(),
             coin: eve_coin,
-            did_inner_puzzle_hash,
+            inner_puzzle_hash,
             p2_puzzle_hash,
             proof,
             recovery_did_list_hash,

@@ -238,7 +238,7 @@ mod tests {
                     Some(NewNftOwner::new(
                         Some(did_info.launcher_id),
                         Vec::new(),
-                        Some(did_info.did_inner_puzzle_hash),
+                        Some(did_info.inner_puzzle_hash),
                     ))
                 } else {
                     None

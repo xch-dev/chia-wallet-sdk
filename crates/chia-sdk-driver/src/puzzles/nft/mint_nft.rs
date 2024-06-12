@@ -48,11 +48,11 @@ impl Launcher {
         let ownership_layer =
             NftOwnershipLayerArgs::curry_tree_hash(None, transfer_program, p2_puzzle_hash.into());
 
-        let nft_inner_puzzle_hash =
+        let inner_puzzle_hash =
             NftStateLayerArgs::curry_tree_hash(metadata_hash, ownership_layer).into();
 
         let launcher_coin = self.coin();
-        let (launch_singleton, eve_coin) = self.spend(ctx, nft_inner_puzzle_hash, ())?;
+        let (launch_singleton, eve_coin) = self.spend(ctx, inner_puzzle_hash, ())?;
 
         let proof = Proof::Eve(EveProof {
             parent_coin_info: launcher_coin.parent_coin_info,
@@ -62,7 +62,7 @@ impl Launcher {
         let nft_info = NftInfo {
             launcher_id: launcher_coin.coin_id(),
             coin: eve_coin,
-            nft_inner_puzzle_hash,
+            inner_puzzle_hash,
             p2_puzzle_hash,
             proof,
             metadata,
@@ -161,7 +161,7 @@ mod tests {
             owner: NewNftOwner {
                 did_id: did.map(|did| did.launcher_id),
                 trade_prices: Vec::new(),
-                did_inner_puzzle_hash: did.map(|did| did.did_inner_puzzle_hash),
+                did_inner_puzzle_hash: did.map(|did| did.inner_puzzle_hash),
             },
         }
     }

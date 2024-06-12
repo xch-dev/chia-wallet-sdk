@@ -11,7 +11,7 @@ use clvm_utils::ToTreeHash;
 pub struct NftInfo<M> {
     pub launcher_id: Bytes32,
     pub coin: Coin,
-    pub nft_inner_puzzle_hash: Bytes32,
+    pub inner_puzzle_hash: Bytes32,
     pub p2_puzzle_hash: Bytes32,
     pub proof: Proof,
     pub metadata: M,
@@ -45,11 +45,11 @@ where
         Self {
             launcher_id: self.launcher_id,
             coin: Coin::new(self.coin.coin_id(), puzzle_hash.into(), self.coin.amount),
-            nft_inner_puzzle_hash: state_layer.into(),
+            inner_puzzle_hash: state_layer.into(),
             p2_puzzle_hash,
             proof: Proof::Lineage(LineageProof {
                 parent_parent_coin_id: self.coin.parent_coin_info,
-                parent_inner_puzzle_hash: self.nft_inner_puzzle_hash,
+                parent_inner_puzzle_hash: self.inner_puzzle_hash,
                 parent_amount: self.coin.amount,
             }),
             metadata: self.metadata,
@@ -65,7 +65,7 @@ impl<M> NftInfo<M> {
         NftInfo {
             launcher_id: self.launcher_id,
             coin: self.coin,
-            nft_inner_puzzle_hash: self.nft_inner_puzzle_hash,
+            inner_puzzle_hash: self.inner_puzzle_hash,
             p2_puzzle_hash: self.p2_puzzle_hash,
             proof: self.proof,
             metadata,

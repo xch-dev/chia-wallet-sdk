@@ -90,7 +90,7 @@ impl DidPuzzle {
 
         let p2_puzzle_hash = hint.try_into().map_err(|_| ParseError::MissingHint)?;
 
-        let did_inner_puzzle_hash = CurriedProgram {
+        let inner_puzzle_hash = CurriedProgram {
             program: DID_INNER_PUZZLE_HASH,
             args: DidArgs {
                 inner_puzzle: TreeHash::from(p2_puzzle_hash),
@@ -103,7 +103,7 @@ impl DidPuzzle {
         .tree_hash();
 
         let singleton_puzzle_hash =
-            SingletonArgs::curry_tree_hash(singleton.launcher_id, did_inner_puzzle_hash);
+            SingletonArgs::curry_tree_hash(singleton.launcher_id, inner_puzzle_hash);
 
         if singleton_puzzle_hash != child_coin.puzzle_hash.into() {
             return Err(ParseError::MismatchedOutput);
@@ -113,7 +113,7 @@ impl DidPuzzle {
             launcher_id: singleton.launcher_id,
             coin: child_coin,
             p2_puzzle_hash,
-            did_inner_puzzle_hash: did_inner_puzzle_hash.into(),
+            inner_puzzle_hash: inner_puzzle_hash.into(),
             recovery_did_list_hash: self.recovery_did_list_hash,
             num_verifications_required: self.num_verifications_required,
             metadata: self.metadata,
