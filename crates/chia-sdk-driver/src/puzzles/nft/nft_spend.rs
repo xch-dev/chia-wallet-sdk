@@ -185,14 +185,14 @@ mod tests {
             .create(ctx)?
             .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
 
-        let did_info = ctx.spend_standard_did(&did_info, pk, mint_nft)?;
+        let did_info = ctx.spend_standard_did(did_info, pk, mint_nft)?;
 
         let other_puzzle_hash = StandardArgs::curry_tree_hash(pk.derive_unhardened(0)).into();
 
         let (parent_conditions, _nft_info) =
             ctx.spend_standard_nft(&nft_info, pk, other_puzzle_hash, None, Conditions::new())?;
 
-        let _did_info = ctx.spend_standard_did(&did_info, pk, parent_conditions)?;
+        let _did_info = ctx.spend_standard_did(did_info, pk, parent_conditions)?;
 
         test_transaction(
             &peer,
@@ -227,7 +227,7 @@ mod tests {
             .create(ctx)?
             .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
 
-        let mut did_info = ctx.spend_standard_did(&did_info, pk, mint_nft)?;
+        let mut did_info = ctx.spend_standard_did(did_info, pk, mint_nft)?;
 
         for i in 0..5 {
             let (spend_nft, new_nft_info) = ctx.spend_standard_nft(
@@ -246,7 +246,7 @@ mod tests {
                 Conditions::new(),
             )?;
             nft_info = new_nft_info;
-            did_info = ctx.spend_standard_did(&did_info, pk, spend_nft)?;
+            did_info = ctx.spend_standard_did(did_info, pk, spend_nft)?;
         }
 
         test_transaction(

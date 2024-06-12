@@ -1,37 +1,14 @@
-use chia_protocol::{Coin, CoinSpend};
+use chia_protocol::CoinSpend;
 use chia_puzzles::{
     did::{DidArgs, DidSolution},
     singleton::SingletonStruct,
-    LineageProof, Proof,
 };
 use chia_sdk_types::puzzles::DidInfo;
 use clvm_traits::ToClvm;
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
-use crate::{puzzles::spend_singleton, Conditions, Spend, SpendContext, SpendError};
-
-pub fn recreate_did<M>(mut did_info: DidInfo<M>) -> (Conditions, DidInfo<M>) {
-    let conditions = Conditions::new().create_hinted_coin(
-        did_info.inner_puzzle_hash,
-        did_info.coin.amount,
-        did_info.p2_puzzle_hash,
-    );
-
-    did_info.proof = Proof::Lineage(LineageProof {
-        parent_parent_coin_id: did_info.coin.parent_coin_info,
-        parent_inner_puzzle_hash: did_info.inner_puzzle_hash,
-        parent_amount: did_info.coin.amount,
-    });
-
-    did_info.coin = Coin::new(
-        did_info.coin.coin_id(),
-        did_info.coin.puzzle_hash,
-        did_info.coin.amount,
-    );
-
-    (conditions, did_info)
-}
+use crate::{puzzles::spend_singleton, Spend, SpendContext, SpendError};
 
 pub fn did_spend<M>(
     ctx: &mut SpendContext<'_>,
@@ -71,7 +48,7 @@ mod tests {
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
     use clvmr::Allocator;
 
-    use crate::Launcher;
+    use crate::{Conditions, Launcher};
 
     use super::*;
 
@@ -95,7 +72,7 @@ mod tests {
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
         for _ in 0..10 {
-            did_info = ctx.spend_standard_did(&did_info, pk, Conditions::new())?;
+            did_info = ctx.spend_standard_did(did_info, pk, Conditions::new())?;
         }
 
         test_transaction(

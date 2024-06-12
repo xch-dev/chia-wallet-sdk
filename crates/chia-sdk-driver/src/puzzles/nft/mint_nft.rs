@@ -188,7 +188,7 @@ mod tests {
             .create(ctx)?
             .mint_nft(ctx, nft_mint(puzzle_hash, None))?;
         let _did_info = ctx.spend_standard_did(
-            &did_info,
+            did_info,
             pk,
             mint_nft.create_coin_announcement(b"$".to_vec().into()),
         )?;
@@ -247,7 +247,7 @@ mod tests {
             .0;
 
         let _did_info = ctx.spend_standard_did(
-            &did_info,
+            did_info,
             pk,
             Conditions::new().extend(mint_1).extend(mint_2),
         )?;
@@ -289,7 +289,7 @@ mod tests {
             launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
 
         let _did_info =
-            ctx.spend_standard_did(&did_info, pk, mint_nft.create_coin(puzzle_hash, 0))?;
+            ctx.spend_standard_did(did_info, pk, mint_nft.create_coin(puzzle_hash, 0))?;
 
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
@@ -330,8 +330,8 @@ mod tests {
             launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
 
         let did_info =
-            ctx.spend_standard_did(&did_info, pk, Conditions::new().create_coin(puzzle_hash, 0))?;
-        let _did_info = ctx.spend_standard_did(&did_info, pk, mint_nft)?;
+            ctx.spend_standard_did(did_info, pk, Conditions::new().create_coin(puzzle_hash, 0))?;
+        let _did_info = ctx.spend_standard_did(did_info, pk, mint_nft)?;
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
         test_transaction(

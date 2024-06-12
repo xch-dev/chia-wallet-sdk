@@ -72,7 +72,7 @@ impl Launcher {
         synthetic_key: PublicKey,
     ) -> Result<(Conditions, DidInfo<M>), SpendError>
     where
-        M: ToClvm<NodePtr> + Clone,
+        M: ToClvm<NodePtr> + ToTreeHash + Clone,
         Self: Sized,
     {
         let inner_puzzle_hash = StandardArgs::curry_tree_hash(synthetic_key).into();
@@ -85,7 +85,7 @@ impl Launcher {
             metadata,
         )?;
 
-        let did_info = ctx.spend_standard_did(&did_info, synthetic_key, Conditions::new())?;
+        let did_info = ctx.spend_standard_did(did_info, synthetic_key, Conditions::new())?;
 
         Ok((create_did, did_info))
     }

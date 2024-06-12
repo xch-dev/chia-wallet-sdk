@@ -29,9 +29,7 @@ use clvm_traits::{FromNodePtr, ToClvm, ToNodePtr};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
 
-use crate::{
-    did_spend, nft_spend, recreate_did, spend_error::SpendError, transfer_nft, Conditions, Spend,
-};
+use crate::{did_spend, nft_spend, spend_error::SpendError, transfer_nft, Conditions, Spend};
 
 /// A wrapper around `Allocator` that caches puzzles and simplifies coin spending.
 #[derive(Debug)]
@@ -237,20 +235,26 @@ impl<'a> SpendContext<'a> {
     /// Spend a DID coin with a standard p2 inner puzzle.
     pub fn spend_standard_did<M>(
         &mut self,
-        did_info: &DidInfo<M>,
+        did_info: DidInfo<M>,
         synthetic_key: PublicKey,
         extra_conditions: Conditions,
     ) -> Result<DidInfo<M>, SpendError>
     where
-        M: ToClvm<NodePtr> + Clone,
+        M: ToClvm<NodePtr> + ToTreeHash + Clone,
     {
-        let (conditions, new_did_info) = recreate_did(did_info.clone());
-        let p2_spend = conditions
-            .extend(extra_conditions)
+        let p2_spend = extra_conditions
+            .create_hinted_coin(
+                did_info.inner_puzzle_hash,
+                did_info.coin.amount,
+                did_info.p2_puzzle_hash,
+            )
             .p2_spend(self, synthetic_key)?;
-        let did_spend = did_spend(self, did_info, p2_spend)?;
+
+        let did_spend = did_spend(self, &did_info, p2_spend)?;
         self.insert_coin_spend(did_spend);
-        Ok(new_did_info)
+
+        let p2_puzzle_hash = did_info.p2_puzzle_hash;
+        Ok(did_info.child(p2_puzzle_hash))
     }
 
     /// Spend an NFT coin with a standard p2 inner puzzle.
