@@ -73,6 +73,7 @@ chia-sdk-types = { workspace = true }
 anyhow = { workspace = true }
 hex-literal = { workspace = true }
 chia-puzzles = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
 
 [workspace.dependencies]
 chia-sdk-client = { version = "0.10.3", path = "./crates/chia-sdk-client" }
