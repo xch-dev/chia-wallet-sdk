@@ -4,7 +4,7 @@ use chia_sdk_driver::{SpendContext, SpendError};
 use clvm_traits::ToNodePtr;
 
 pub fn parse_payments(
-    ctx: &mut SpendContext<'_>,
+    ctx: &mut SpendContext,
     coin_spend: &CoinSpend,
 ) -> Result<Option<Vec<NotarizedPayment>>, SpendError> {
     if coin_spend.coin.parent_coin_info != Bytes32::default() {
@@ -28,7 +28,7 @@ pub fn parse_payments(
 }
 
 pub fn payment_coin_spend<P>(
-    ctx: &mut SpendContext<'_>,
+    ctx: &mut SpendContext,
     puzzle: &P,
     notarized_payments: Vec<NotarizedPayment>,
 ) -> Result<CoinSpend, SpendError>

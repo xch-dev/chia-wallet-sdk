@@ -1,40 +1,17 @@
-use chia_protocol::{Coin, CoinSpend};
+use chia_protocol::CoinSpend;
 use chia_puzzles::{
     did::{DidArgs, DidSolution},
     singleton::SingletonStruct,
-    LineageProof, Proof,
 };
 use chia_sdk_types::puzzles::DidInfo;
 use clvm_traits::ToClvm;
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
-use crate::{puzzles::spend_singleton, Conditions, Spend, SpendContext, SpendError};
-
-pub fn recreate_did<M>(mut did_info: DidInfo<M>) -> (Conditions, DidInfo<M>) {
-    let conditions = Conditions::new().create_hinted_coin(
-        did_info.did_inner_puzzle_hash,
-        did_info.coin.amount,
-        did_info.p2_puzzle_hash,
-    );
-
-    did_info.proof = Proof::Lineage(LineageProof {
-        parent_parent_coin_id: did_info.coin.parent_coin_info,
-        parent_inner_puzzle_hash: did_info.did_inner_puzzle_hash,
-        parent_amount: did_info.coin.amount,
-    });
-
-    did_info.coin = Coin::new(
-        did_info.coin.coin_id(),
-        did_info.coin.puzzle_hash,
-        did_info.coin.amount,
-    );
-
-    (conditions, did_info)
-}
+use crate::{puzzles::spend_singleton, Spend, SpendContext, SpendError};
 
 pub fn did_spend<M>(
-    ctx: &mut SpendContext<'_>,
+    ctx: &mut SpendContext,
     did_info: &DidInfo<M>,
     inner_spend: Spend,
 ) -> Result<CoinSpend, SpendError>
@@ -69,9 +46,8 @@ where
 mod tests {
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
-    use clvmr::Allocator;
 
-    use crate::Launcher;
+    use crate::{Conditions, Launcher};
 
     use super::*;
 
@@ -79,6 +55,7 @@ mod tests {
     async fn test_did_recreation() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
+        let ctx = &mut SpendContext::new();
 
         let sk = secret_key()?;
         let pk = sk.public_key();
@@ -86,16 +63,13 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 1).await;
 
-        let mut allocator = Allocator::new();
-        let ctx = &mut SpendContext::new(&mut allocator);
-
         let (create_did, mut did_info) =
-            Launcher::new(coin.coin_id(), 1).create_standard_did(ctx, pk)?;
+            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
         for _ in 0..10 {
-            did_info = ctx.spend_standard_did(&did_info, pk, Conditions::new())?;
+            did_info = ctx.spend_standard_did(did_info, pk, Conditions::new())?;
         }
 
         test_transaction(

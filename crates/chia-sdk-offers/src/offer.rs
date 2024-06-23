@@ -27,7 +27,7 @@ impl Offer {
     }
 
     pub fn from_spend_bundle(
-        ctx: &mut SpendContext<'_>,
+        ctx: &mut SpendContext,
         spend_bundle: SpendBundle,
     ) -> Result<Self, SpendError> {
         let mut requested_payments = IndexMap::<Program, Vec<NotarizedPayment>>::new();
@@ -52,7 +52,7 @@ impl Offer {
         })
     }
 
-    pub fn into_spend_bundle(self, ctx: &mut SpendContext<'_>) -> Result<SpendBundle, SpendError> {
+    pub fn into_spend_bundle(self, ctx: &mut SpendContext) -> Result<SpendBundle, SpendError> {
         let mut coin_spends = self.offered_coin_spends;
 
         for (puzzle_reveal, notarized_payments) in self.requested_payments {

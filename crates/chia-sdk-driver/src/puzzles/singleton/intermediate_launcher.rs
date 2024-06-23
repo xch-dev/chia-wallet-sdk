@@ -57,7 +57,7 @@ impl IntermediateLauncher {
     }
 
     /// Spends the intermediate coin to create the launcher coin.
-    pub fn create(self, ctx: &mut SpendContext<'_>) -> Result<Launcher, SpendError> {
+    pub fn create(self, ctx: &mut SpendContext) -> Result<Launcher, SpendError> {
         let mut parent = Conditions::new();
 
         let intermediate_puzzle = ctx.nft_intermediate_launcher()?;

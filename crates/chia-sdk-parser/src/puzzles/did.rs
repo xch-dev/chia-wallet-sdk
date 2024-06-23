@@ -90,7 +90,7 @@ impl DidPuzzle {
 
         let p2_puzzle_hash = hint.try_into().map_err(|_| ParseError::MissingHint)?;
 
-        let did_inner_puzzle_hash = CurriedProgram {
+        let inner_puzzle_hash = CurriedProgram {
             program: DID_INNER_PUZZLE_HASH,
             args: DidArgs {
                 inner_puzzle: TreeHash::from(p2_puzzle_hash),
@@ -103,7 +103,7 @@ impl DidPuzzle {
         .tree_hash();
 
         let singleton_puzzle_hash =
-            SingletonArgs::curry_tree_hash(singleton.launcher_id, did_inner_puzzle_hash);
+            SingletonArgs::curry_tree_hash(singleton.launcher_id, inner_puzzle_hash);
 
         if singleton_puzzle_hash != child_coin.puzzle_hash.into() {
             return Err(ParseError::MismatchedOutput);
@@ -113,10 +113,11 @@ impl DidPuzzle {
             launcher_id: singleton.launcher_id,
             coin: child_coin,
             p2_puzzle_hash,
-            did_inner_puzzle_hash: did_inner_puzzle_hash.into(),
+            inner_puzzle_hash: inner_puzzle_hash.into(),
             recovery_did_list_hash: self.recovery_did_list_hash,
             num_verifications_required: self.num_verifications_required,
             metadata: self.metadata,
+            metadata_hash: tree_hash(allocator, self.metadata),
             proof: Proof::Lineage(singleton.lineage_proof(parent_coin)),
         })
     }
@@ -134,15 +135,14 @@ mod tests {
 
     #[test]
     fn test_parse_did() -> anyhow::Result<()> {
-        let mut allocator = Allocator::new();
-        let ctx = &mut SpendContext::new(&mut allocator);
+        let mut ctx = SpendContext::new();
 
         let pk = PublicKey::default();
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
 
         let (create_did, did_info) =
-            Launcher::new(parent.coin_id(), 1).create_standard_did(ctx, pk)?;
+            Launcher::new(parent.coin_id(), 1).create_simple_did(&mut ctx, pk)?;
 
         ctx.spend_p2_coin(parent, pk, create_did)?;
 
@@ -152,6 +152,8 @@ mod tests {
             .into_iter()
             .find(|cs| cs.coin.coin_id() == did_info.coin.parent_coin_info)
             .unwrap();
+
+        let mut allocator = ctx.into();
 
         let puzzle_ptr = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
         let solution_ptr = coin_spend.solution.to_node_ptr(&mut allocator)?;
@@ -173,7 +175,10 @@ mod tests {
             singleton_solution.inner_solution,
         )?;
 
-        assert_eq!(parsed_did_info, did_info.with_metadata(NodePtr::NIL));
+        assert_eq!(
+            parsed_did_info,
+            did_info.with_metadata(NodePtr::NIL, ().tree_hash())
+        );
 
         Ok(())
     }

@@ -108,20 +108,15 @@ mod tests {
 
     #[test]
     fn test_parse_cat() -> anyhow::Result<()> {
-        let mut allocator = Allocator::new();
-        let ctx = &mut SpendContext::new(&mut allocator);
+        let mut ctx = SpendContext::new();
 
         let pk = PublicKey::default();
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
 
-        let (issue_cat, issuance_info) = issue_cat_from_key(
-            ctx,
-            parent.coin_id(),
-            pk,
-            1,
-            Conditions::new().create_hinted_coin(puzzle_hash, 1, puzzle_hash),
-        )?;
+        let conditions = Conditions::new().create_hinted_coin(puzzle_hash, 1, puzzle_hash);
+        let (issue_cat, issuance_info) =
+            issue_cat_from_key(&mut ctx, parent.coin_id(), pk, 1, conditions)?;
 
         let cat_puzzle_hash = CatArgs::curry_tree_hash(issuance_info.asset_id, puzzle_hash.into());
 
@@ -140,6 +135,8 @@ mod tests {
             .into_iter()
             .find(|cs| cs.coin.coin_id() == issuance_info.eve_coin.coin_id())
             .unwrap();
+
+        let mut allocator = ctx.into();
 
         let puzzle_ptr = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
         let solution_ptr = coin_spend.solution.to_node_ptr(&mut allocator)?;

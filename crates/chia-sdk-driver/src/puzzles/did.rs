@@ -9,12 +9,12 @@ mod tests {
 
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
-    use clvmr::Allocator;
 
     #[tokio::test]
     async fn test_create_did() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
+        let ctx = &mut SpendContext::new();
 
         let sk = secret_key()?;
         let pk = sk.public_key();
@@ -22,11 +22,8 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 1).await;
 
-        let mut allocator = Allocator::new();
-        let ctx = &mut SpendContext::new(&mut allocator);
-
         let (launch_singleton, did_info) =
-            Launcher::new(coin.coin_id(), 1).create_standard_did(ctx, pk)?;
+            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, launch_singleton)?;
 

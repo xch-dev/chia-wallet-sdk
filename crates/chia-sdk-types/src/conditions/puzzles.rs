@@ -84,21 +84,21 @@ impl MeltSingleton {
 pub struct NewNftOwner {
     #[clvm(constant = -10)]
     pub opcode: i8,
-    pub new_owner: Option<Bytes32>,
-    pub trade_prices_list: Vec<NftTradePrice>,
-    pub new_did_p2_puzzle_hash: Option<Bytes32>,
+    pub did_id: Option<Bytes32>,
+    pub trade_prices: Vec<NftTradePrice>,
+    pub did_inner_puzzle_hash: Option<Bytes32>,
 }
 
 impl NewNftOwner {
     pub fn new(
-        new_owner: Option<Bytes32>,
-        trade_prices_list: Vec<NftTradePrice>,
-        new_did_p2_puzzle_hash: Option<Bytes32>,
+        did_id: Option<Bytes32>,
+        trade_prices: Vec<NftTradePrice>,
+        did_inner_puzzle_hash: Option<Bytes32>,
     ) -> Self {
         Self {
-            new_owner,
-            trade_prices_list,
-            new_did_p2_puzzle_hash,
+            did_id,
+            trade_prices,
+            did_inner_puzzle_hash,
         }
     }
 }

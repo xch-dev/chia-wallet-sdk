@@ -16,7 +16,7 @@ use crate::{Conditions, Launcher, SpendContext, SpendError};
 impl Launcher {
     pub fn create_eve_did<M>(
         self,
-        ctx: &mut SpendContext<'_>,
+        ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,
@@ -28,7 +28,7 @@ impl Launcher {
         let metadata_ptr = ctx.alloc(&metadata)?;
         let metadata_hash = ctx.tree_hash(metadata_ptr);
 
-        let did_inner_puzzle_hash = CurriedProgram {
+        let inner_puzzle_hash = CurriedProgram {
             program: DID_INNER_PUZZLE_HASH,
             args: DidArgs {
                 inner_puzzle: TreeHash::from(p2_puzzle_hash),
@@ -42,7 +42,7 @@ impl Launcher {
         .into();
 
         let launcher_coin = self.coin();
-        let (chained_spend, eve_coin) = self.spend(ctx, did_inner_puzzle_hash, ())?;
+        let (launch_singleton, eve_coin) = self.spend(ctx, inner_puzzle_hash, ())?;
 
         let proof = Proof::Eve(EveProof {
             parent_coin_info: launcher_coin.parent_coin_info,
@@ -52,20 +52,21 @@ impl Launcher {
         let did_info = DidInfo {
             launcher_id: launcher_coin.coin_id(),
             coin: eve_coin,
-            did_inner_puzzle_hash,
+            inner_puzzle_hash,
             p2_puzzle_hash,
             proof,
             recovery_did_list_hash,
             num_verifications_required,
             metadata,
+            metadata_hash,
         };
 
-        Ok((chained_spend, did_info))
+        Ok((launch_singleton, did_info))
     }
 
-    pub fn create_custom_standard_did<M>(
+    pub fn create_did<M>(
         self,
-        ctx: &mut SpendContext<'_>,
+        ctx: &mut SpendContext,
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
@@ -85,19 +86,19 @@ impl Launcher {
             metadata,
         )?;
 
-        let did_info = ctx.spend_standard_did(&did_info, synthetic_key, Conditions::new())?;
+        let did_info = ctx.spend_standard_did(did_info, synthetic_key, Conditions::new())?;
 
         Ok((create_did, did_info))
     }
 
-    pub fn create_standard_did(
+    pub fn create_simple_did(
         self,
-        ctx: &mut SpendContext<'_>,
+        ctx: &mut SpendContext,
         synthetic_key: PublicKey,
     ) -> Result<(Conditions, DidInfo<()>), SpendError>
     where
         Self: Sized,
     {
-        self.create_custom_standard_did(ctx, tree_hash_atom(&[]).into(), 1, (), synthetic_key)
+        self.create_did(ctx, tree_hash_atom(&[]).into(), 1, (), synthetic_key)
     }
 }

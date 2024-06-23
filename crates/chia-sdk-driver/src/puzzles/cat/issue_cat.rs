@@ -22,7 +22,7 @@ pub struct IssueCat {
 }
 
 pub fn issue_cat_from_coin(
-    ctx: &mut SpendContext<'_>,
+    ctx: &mut SpendContext,
     parent_coin_id: Bytes32,
     amount: u64,
     extra_conditions: Conditions,
@@ -45,7 +45,7 @@ pub fn issue_cat_from_coin(
 }
 
 pub fn issue_cat_from_key(
-    ctx: &mut SpendContext<'_>,
+    ctx: &mut SpendContext,
     parent_coin_id: Bytes32,
     public_key: PublicKey,
     amount: u64,
@@ -69,7 +69,7 @@ pub fn issue_cat_from_key(
 }
 
 pub fn issue_cat<P, S>(
-    ctx: &mut SpendContext<'_>,
+    ctx: &mut SpendContext,
     parent_coin_id: Bytes32,
     asset_id: Bytes32,
     amount: u64,
@@ -133,7 +133,6 @@ where
 mod tests {
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
-    use clvmr::Allocator;
 
     use super::*;
 
@@ -141,15 +140,13 @@ mod tests {
     async fn test_single_issuance_cat() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
+        let ctx = &mut SpendContext::new();
 
         let sk = secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 1).await;
-
-        let mut allocator = Allocator::new();
-        let ctx = &mut SpendContext::new(&mut allocator);
 
         let conditions = Conditions::new().create_hinted_coin(puzzle_hash, 1, puzzle_hash);
         let (issue_cat, _cat_info) = issue_cat_from_coin(ctx, coin.coin_id(), 1, conditions)?;
@@ -171,15 +168,13 @@ mod tests {
     async fn test_multi_issuance_cat() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
+        let ctx = &mut SpendContext::new();
 
         let sk = secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 1).await;
-
-        let mut allocator = Allocator::new();
-        let ctx = &mut SpendContext::new(&mut allocator);
 
         let conditions = Conditions::new().create_hinted_coin(puzzle_hash, 1, puzzle_hash);
         let (issue_cat, _cat_info) = issue_cat_from_key(ctx, coin.coin_id(), pk, 1, conditions)?;

@@ -29,36 +29,30 @@ use clvm_traits::{FromNodePtr, ToClvm, ToNodePtr};
 use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
 
-use crate::{
-    did_spend, nft_spend, recreate_did, spend_error::SpendError, transfer_nft, Conditions, Spend,
-};
+use crate::{did_spend, nft_spend, spend_error::SpendError, transfer_nft, Conditions, Spend};
 
 /// A wrapper around `Allocator` that caches puzzles and simplifies coin spending.
-#[derive(Debug)]
-pub struct SpendContext<'a> {
-    allocator: &'a mut Allocator,
+#[derive(Debug, Default)]
+pub struct SpendContext {
+    allocator: Allocator,
     puzzles: HashMap<TreeHash, NodePtr>,
     coin_spends: Vec<CoinSpend>,
 }
 
-impl<'a> SpendContext<'a> {
+impl SpendContext {
     /// Create a new `SpendContext` from an `Allocator` reference.
-    pub fn new(allocator: &'a mut Allocator) -> Self {
-        Self {
-            allocator,
-            puzzles: HashMap::new(),
-            coin_spends: Vec::new(),
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Get a reference to the [`Allocator`].
     pub fn allocator(&self) -> &Allocator {
-        self.allocator
+        &self.allocator
     }
 
     /// Get a mutable reference to the [`Allocator`].
     pub fn allocator_mut(&mut self) -> &mut Allocator {
-        self.allocator
+        &mut self.allocator
     }
 
     /// Get a reference to the list of coin spends.
@@ -89,7 +83,7 @@ impl<'a> SpendContext<'a> {
     where
         T: ToNodePtr,
     {
-        Ok(value.to_node_ptr(self.allocator)?)
+        Ok(value.to_node_ptr(&mut self.allocator)?)
     }
 
     /// Extract a value from a node pointer.
@@ -97,18 +91,18 @@ impl<'a> SpendContext<'a> {
     where
         T: FromNodePtr,
     {
-        Ok(T::from_node_ptr(self.allocator, ptr)?)
+        Ok(T::from_node_ptr(&self.allocator, ptr)?)
     }
 
     /// Compute the tree hash of a node pointer.
     pub fn tree_hash(&self, ptr: NodePtr) -> TreeHash {
-        tree_hash(self.allocator, ptr)
+        tree_hash(&self.allocator, ptr)
     }
 
     /// Run a puzzle with a solution and return the result.
     pub fn run(&mut self, puzzle: NodePtr, solution: NodePtr) -> Result<NodePtr, SpendError> {
         let result = run_program(
-            self.allocator,
+            &mut self.allocator,
             &ChiaDialect::new(0),
             puzzle,
             solution,
@@ -122,8 +116,8 @@ impl<'a> SpendContext<'a> {
     where
         T: ToNodePtr,
     {
-        let ptr = value.to_node_ptr(self.allocator)?;
-        Ok(Program::from_node_ptr(self.allocator, ptr)?)
+        let ptr = value.to_node_ptr(&mut self.allocator)?;
+        Ok(Program::from_node_ptr(&self.allocator, ptr)?)
     }
 
     /// Allocate the standard puzzle and return its pointer.
@@ -217,7 +211,7 @@ impl<'a> SpendContext<'a> {
         if let Some(puzzle) = self.puzzles.get(&puzzle_hash) {
             Ok(*puzzle)
         } else {
-            let puzzle = node_from_bytes(self.allocator, puzzle_bytes)?;
+            let puzzle = node_from_bytes(&mut self.allocator, puzzle_bytes)?;
             self.puzzles.insert(puzzle_hash, puzzle);
             Ok(puzzle)
         }
@@ -237,20 +231,26 @@ impl<'a> SpendContext<'a> {
     /// Spend a DID coin with a standard p2 inner puzzle.
     pub fn spend_standard_did<M>(
         &mut self,
-        did_info: &DidInfo<M>,
+        did_info: DidInfo<M>,
         synthetic_key: PublicKey,
         extra_conditions: Conditions,
     ) -> Result<DidInfo<M>, SpendError>
     where
         M: ToClvm<NodePtr> + Clone,
     {
-        let (conditions, new_did_info) = recreate_did(did_info.clone());
-        let p2_spend = conditions
-            .extend(extra_conditions)
+        let p2_spend = extra_conditions
+            .create_hinted_coin(
+                did_info.inner_puzzle_hash,
+                did_info.coin.amount,
+                did_info.p2_puzzle_hash,
+            )
             .p2_spend(self, synthetic_key)?;
-        let did_spend = did_spend(self, did_info, p2_spend)?;
+
+        let did_spend = did_spend(self, &did_info, p2_spend)?;
         self.insert_coin_spend(did_spend);
-        Ok(new_did_info)
+
+        let p2_puzzle_hash = did_info.p2_puzzle_hash;
+        Ok(did_info.child(p2_puzzle_hash))
     }
 
     /// Spend an NFT coin with a standard p2 inner puzzle.
@@ -265,7 +265,7 @@ impl<'a> SpendContext<'a> {
     where
         M: ToClvm<NodePtr> + Clone,
     {
-        let transfer = transfer_nft(self, nft_info.clone(), p2_puzzle_hash, new_nft_owner)?;
+        let transfer = transfer_nft(self, nft_info, p2_puzzle_hash, new_nft_owner)?;
         let p2_spend = transfer
             .p2_conditions
             .extend(extra_conditions)
@@ -273,5 +273,21 @@ impl<'a> SpendContext<'a> {
         let nft_spend = nft_spend(self, nft_info, p2_spend)?;
         self.insert_coin_spend(nft_spend);
         Ok((transfer.did_conditions, transfer.output))
+    }
+}
+
+impl From<Allocator> for SpendContext {
+    fn from(allocator: Allocator) -> Self {
+        Self {
+            allocator,
+            puzzles: HashMap::new(),
+            coin_spends: Vec::new(),
+        }
+    }
+}
+
+impl From<SpendContext> for Allocator {
+    fn from(ctx: SpendContext) -> Self {
+        ctx.allocator
     }
 }

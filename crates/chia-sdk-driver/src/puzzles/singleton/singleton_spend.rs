@@ -8,7 +8,7 @@ use clvm_utils::CurriedProgram;
 use crate::{Spend, SpendContext, SpendError};
 
 pub fn spend_singleton(
-    ctx: &mut SpendContext<'_>,
+    ctx: &mut SpendContext,
     coin: Coin,
     launcher_id: Bytes32,
     lineage_proof: Proof,
