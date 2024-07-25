@@ -35,4 +35,7 @@ pub enum ParseError {
 
     #[error("mismatched singleton output (maybe no spend revealed the new singleton state)")]
     MismatchedOutput,
+
+    #[error("mismatched layers (e.g., you tried to parse a singleton as a CAT)")]
+    LayerMismatch,
 }

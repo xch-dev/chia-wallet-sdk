@@ -1,13 +1,24 @@
-use std::string::ParseError;
+use chia_protocol::{Coin, CoinSpend};
+use clvmr::{Allocator, NodePtr};
 
-use chia_protocol::CoinSpend;
-use clvmr::Allocator;
+use crate::ParseError;
 
-// given a spend, will return info about the coin being spent
-pub trait FromSpend<R, A> {
+// given a spend, will return info about the coin being created
+pub trait FromSpend<A = ()>
+where
+    Self: Sized,
+{
     fn from_spend(
+        allocator: &mut Allocator,
+        coin: Coin,
+        puzzle: NodePtr,
+        solution: NodePtr,
+        additional_info: A,
+    ) -> Result<Self, ParseError>;
+
+    fn from_coin_spend(
         allocator: &mut Allocator,
         cs: &CoinSpend,
         additional_info: A,
-    ) -> Result<R, ParseError>;
+    ) -> Result<Self, ParseError>;
 }
