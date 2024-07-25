@@ -1,20 +1,28 @@
-use crate::{ParseError, Puzzle};
 use chia_puzzles::nft::NftStateLayerArgs;
 use chia_puzzles::nft::NFT_STATE_LAYER_PUZZLE_HASH;
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 
+use crate::FromSpend;
+
 #[derive(Debug, Clone, Copy)]
-pub struct NftStatePuzzle<I = NodePtr, M = NodePtr> {
+pub struct NftStateLayerInfo<I = NodePtr, M = NodePtr> {
     pub inner_puzzle: I,
     pub metadata: M,
 }
 
-impl<I, M> NftStatePuzzle<I, M>
+impl<I, M> FromSpend<()> NftStateLayerInfo<I, M>
 where
     I: FromClvm<NodePtr>,
     M: FromClvm<NodePtr>,
 {
+    fn from_spend(
+        allocator: &mut Allocator,
+        cs: &CoinSpend,
+        prev_state_info: N,
+    ) -> Result<(), FromSpendError> {
+        
+    }
     pub fn parse(allocator: &Allocator, puzzle: &Puzzle) -> Result<Option<Self>, ParseError> {
         let Some(puzzle) = puzzle.as_curried() else {
             return Ok(None);

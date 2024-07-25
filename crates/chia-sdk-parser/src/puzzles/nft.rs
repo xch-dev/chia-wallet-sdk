@@ -19,8 +19,6 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{ParseError, Puzzle, SingletonPuzzle};
 
-use super::NftStatePuzzle;
-
 #[derive(Debug, Clone, Copy)]
 pub struct NftPuzzle<I = NodePtr, M = NodePtr> {
     pub inner_puzzle: I,
@@ -40,8 +38,8 @@ where
         launcher_id: Bytes32,
         puzzle: &Puzzle,
     ) -> Result<Option<Self>, ParseError> {
-        let parsed = NftStatePuzzle::<NodePtr, M>::parse(allocator, puzzle)?;
-        let Some(state_puzzle) = puzzle.as_curried() else {
+        // let parsed = NftStatePuzzle::<NodePtr, M>::parse(allocator, puzzle)?;
+        let Some(puzzle) = puzzle.as_curried() else {
             return Ok(None);
         };
 
