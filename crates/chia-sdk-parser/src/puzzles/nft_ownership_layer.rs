@@ -9,7 +9,7 @@ use clvmr::{Allocator, NodePtr};
 use crate::{ParseError, Puzzle};
 
 #[derive(Debug, Clone, Copy)]
-pub struct NftOwnershipPuzzle<I = Puzzle> {
+pub struct NftOwnershipPuzzle<I = NodePtr> {
     pub inner_puzzle: I,
     pub current_owner: Option<Bytes32>,
     pub royalty_puzzle_hash: Bytes32,
