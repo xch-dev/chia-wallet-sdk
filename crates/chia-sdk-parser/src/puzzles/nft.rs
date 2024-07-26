@@ -19,29 +19,22 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{ParseError, Puzzle, SingletonPuzzle};
 
-use super::NftStatePuzzle;
-
 #[derive(Debug, Clone, Copy)]
-pub struct NftPuzzle<I = NodePtr, M = NodePtr> {
-    pub inner_puzzle: I,
-    pub metadata: M,
+pub struct NftPuzzle {
+    pub p2_puzzle: Puzzle,
+    pub metadata: NodePtr,
     pub current_owner: Option<Bytes32>,
     pub royalty_puzzle_hash: Bytes32,
     pub royalty_percentage: u16,
 }
 
-impl<I, M> NftPuzzle<I, M>
-where
-    I: FromClvm<NodePtr>,
-    M: FromClvm<NodePtr>,
-{
+impl NftPuzzle {
     pub fn parse(
         allocator: &Allocator,
         launcher_id: Bytes32,
         puzzle: &Puzzle,
     ) -> Result<Option<Self>, ParseError> {
-        let parsed = NftStatePuzzle::<NodePtr, M>::parse(allocator, puzzle)?;
-        let Some(state_puzzle) = puzzle.as_curried() else {
+        let Some(puzzle) = puzzle.as_curried() else {
             return Ok(None);
         };
 
@@ -59,7 +52,6 @@ where
             return Err(ParseError::NonStandardLayer);
         }
 
-        // NftOwnershipLayerArgs<I, NodePtr>
         let Some(inner_puzzle) = Puzzle::parse(allocator, state_args.inner_puzzle).as_curried()
         else {
             return Err(ParseError::NonStandardLayer);

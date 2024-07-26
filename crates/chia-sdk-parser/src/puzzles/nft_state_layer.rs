@@ -5,7 +5,7 @@ use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 
 #[derive(Debug, Clone, Copy)]
-pub struct NftStatePuzzle<I = NodePtr, M = NodePtr> {
+pub struct NftStatePuzzle<I = Puzzle, M = NodePtr> {
     pub inner_puzzle: I,
     pub metadata: M,
 }
@@ -24,7 +24,7 @@ where
             return Ok(None);
         }
 
-        let state_args = NftStateLayerArgs::from_clvm(allocator, puzzle.args)?;
+        let state_args = NftStateLayerArgs::<I, M>::from_clvm(allocator, puzzle.args)?;
 
         if state_args.mod_hash != NFT_STATE_LAYER_PUZZLE_HASH.into() {
             return Err(ParseError::InvalidModHash);
