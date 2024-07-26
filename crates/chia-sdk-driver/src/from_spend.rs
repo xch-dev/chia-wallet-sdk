@@ -1,13 +1,17 @@
-use std::string::ParseError;
-
 use chia_protocol::CoinSpend;
 use clvmr::Allocator;
+use thiserror::Error;
 
-// given a spend, will return info about the coin being spent
-pub trait FromSpend<R, A> {
+#[derive(Debug, Error, Clone, Copy)]
+pub enum FromSpendError {
+    #[error("placeholder error")]
+    Placeholder,
+}
+
+pub trait FromSpend<N> {
     fn from_spend(
         allocator: &mut Allocator,
         cs: &CoinSpend,
-        additional_info: A,
-    ) -> Result<R, ParseError>;
+        prev_state_info: N,
+    ) -> Result<(), FromSpendError>;
 }
