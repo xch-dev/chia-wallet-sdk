@@ -11,36 +11,36 @@ pub struct NftStateLayerInfo<I = NodePtr, M = NodePtr> {
     pub metadata: M,
 }
 
-// impl<I, M> FromSpend<()> NftStateLayerInfo<I, M>
-// where
-//     I: FromClvm<NodePtr>,
-//     M: FromClvm<NodePtr>,
-// {
-//     fn from_spend(
-//         allocator: &mut Allocator,
-//         cs: &CoinSpend,
-//         prev_state_info: N,
-//     ) -> Result<(), FromSpendError> {
+impl<I, M> FromSpend<()> NftStateLayerInfo<I, M>
+where
+    I: FromClvm<NodePtr>,
+    M: FromClvm<NodePtr>,
+{
+    fn from_spend(
+        allocator: &mut Allocator,
+        cs: &CoinSpend,
+        prev_state_info: N,
+    ) -> Result<(), FromSpendError> {
+        
+    }
+    pub fn parse(allocator: &Allocator, puzzle: &Puzzle) -> Result<Option<Self>, ParseError> {
+        let Some(puzzle) = puzzle.as_curried() else {
+            return Ok(None);
+        };
 
-//     }
-//     pub fn parse(allocator: &Allocator, puzzle: &Puzzle) -> Result<Option<Self>, ParseError> {
-//         let Some(puzzle) = puzzle.as_curried() else {
-//             return Ok(None);
-//         };
+        if puzzle.mod_hash != NFT_STATE_LAYER_PUZZLE_HASH {
+            return Ok(None);
+        }
 
-//         if puzzle.mod_hash != NFT_STATE_LAYER_PUZZLE_HASH {
-//             return Ok(None);
-//         }
+        let state_args = NftStateLayerArgs::from_clvm(allocator, puzzle.args)?;
 
-//         let state_args = NftStateLayerArgs::from_clvm(allocator, puzzle.args)?;
+        if state_args.mod_hash != NFT_STATE_LAYER_PUZZLE_HASH.into() {
+            return Err(ParseError::InvalidModHash);
+        }
 
-//         if state_args.mod_hash != NFT_STATE_LAYER_PUZZLE_HASH.into() {
-//             return Err(ParseError::InvalidModHash);
-//         }
-
-//         Ok(Some(Self {
-//             inner_puzzle: state_args.inner_puzzle,
-//             metadata: state_args.metadata,
-//         }))
-//     }
-// }
+        Ok(Some(Self {
+            inner_puzzle: state_args.inner_puzzle,
+            metadata: state_args.metadata,
+        }))
+    }
+}
