@@ -1,8 +1,10 @@
-use crate::{ParseError, Puzzle};
-use chia_puzzles::nft::NftStateLayerArgs;
+use chia_protocol::Bytes32;
 use chia_puzzles::nft::NFT_STATE_LAYER_PUZZLE_HASH;
-use clvm_traits::FromClvm;
+use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
+
+use crate::{ParseError, Puzzle};
 
 #[derive(Debug, Clone, Copy)]
 pub struct NftStatePuzzle<I = Puzzle, M = NodePtr> {
@@ -35,4 +37,51 @@ where
             metadata: state_args.metadata,
         }))
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[clvm(curry)]
+pub struct NftStateLayerArgs<I, M> {
+    pub mod_hash: Bytes32,
+    pub metadata: M,
+    pub metadata_updater_puzzle_hash: Bytes32,
+    pub inner_puzzle: I,
+}
+
+impl<I, M> NftStateLayerArgs<I, M> {
+    pub fn new(metadata: M, inner_puzzle: I, metadata_updater_puzzle_hash: Bytes32) -> Self {
+        Self {
+            mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+            metadata,
+            metadata_updater_puzzle_hash,
+            inner_puzzle,
+        }
+    }
+}
+
+impl NftStateLayerArgs<TreeHash, TreeHash> {
+    pub fn curry_tree_hash(
+        metadata: TreeHash,
+        inner_puzzle: TreeHash,
+        metadata_updater_puzzle_hash: Bytes32,
+    ) -> TreeHash {
+        CurriedProgram {
+            program: NFT_STATE_LAYER_PUZZLE_HASH,
+            args: NftStateLayerArgs {
+                mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                metadata,
+                metadata_updater_puzzle_hash,
+                inner_puzzle,
+            },
+        }
+        .tree_hash()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[clvm(list)]
+pub struct NftStateLayerSolution<I> {
+    pub inner_solution: I,
 }
