@@ -1,5 +1,7 @@
 mod conditions;
 mod layers;
+mod parse_error;
+mod puzzle;
 mod puzzle_layer;
 mod puzzles;
 mod spend;
@@ -8,6 +10,8 @@ mod spend_error;
 
 pub use conditions::*;
 pub use layers::*;
+pub use parse_error::*;
+pub use puzzle::*;
 pub use puzzle_layer::*;
 pub use puzzles::*;
 pub use spend::*;
