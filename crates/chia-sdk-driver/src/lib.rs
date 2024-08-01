@@ -1,4 +1,5 @@
 mod conditions;
+mod layers;
 mod puzzle_layer;
 mod puzzles;
 mod spend;
@@ -6,6 +7,7 @@ mod spend_context;
 mod spend_error;
 
 pub use conditions::*;
+pub use layers::*;
 pub use puzzle_layer::*;
 pub use puzzles::*;
 pub use spend::*;

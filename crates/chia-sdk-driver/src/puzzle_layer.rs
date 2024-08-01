@@ -1,7 +1,9 @@
+use std::string::ParseError;
+
 use chia_protocol::{Coin, CoinSpend};
 use clvmr::{Allocator, NodePtr};
 
-pub trait PuzzleLayer<P, S>
+pub trait PuzzleLayer<S>
 where
     Self: Sized,
 {
@@ -9,8 +11,11 @@ where
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
         layer_solution: NodePtr,
-    ) -> Option<Self>;
-    fn from_puzzle(allocator: &mut Allocator, layer_puzzle: NodePtr) -> Option<Self>;
+    ) -> Result<Option<Self>, ParseError>;
+    fn from_puzzle(
+        allocator: &mut Allocator,
+        layer_puzzle: NodePtr,
+    ) -> Result<Option<Self>, ParseError>;
     fn construct_puzzle(&self, allocator: &mut Allocator) -> NodePtr;
     fn solve(&self, allocator: &mut Allocator, coin: Coin, solution: S) -> CoinSpend;
 }
