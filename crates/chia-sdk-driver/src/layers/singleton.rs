@@ -6,13 +6,13 @@ use chia_puzzles::{
         SingletonArgs, SingletonSolution, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH,
         SINGLETON_TOP_LAYER_PUZZLE_HASH,
     },
-    Proof,
+    LineageProof, Proof,
 };
 use clvm_traits::{FromClvm, FromNodePtr, ToNodePtr};
-use clvm_utils::CurriedProgram;
+use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{CurriedPuzzle, OuterPuzzleLayer, ParseError, Puzzle, PuzzleLayer, SpendContext};
+use crate::{OuterPuzzleLayer, ParseError, Puzzle, PuzzleLayer, SpendContext};
 
 #[derive(Debug)]
 pub struct SingletonLayer<IP, IS>
@@ -64,16 +64,14 @@ where
         let solution = SingletonSolution::<NodePtr>::from_clvm(allocator, layer_solution)
             .map_err(|err| ParseError::FromClvm(err))?;
 
-        Ok(Some(SingletonLayer::<IP, IS> {
-            launcher_id: parent_args.singleton_struct.launcher_id,
-            inner_puzzle: IP::from_parent_spend(
-                allocator,
-                parent_args.inner_puzzle,
-                solution.inner_solution,
-            )?
-            .ok_or(ParseError::MismatchedInnerPuzzle)?,
-            _marker: PhantomData,
-        }))
+        match IP::from_parent_spend(allocator, parent_args.inner_puzzle, solution.inner_solution)? {
+            None => return Ok(None),
+            Some(inner_puzzle) => Ok(Some(SingletonLayer::<IP, IS> {
+                launcher_id: parent_args.singleton_struct.launcher_id,
+                inner_puzzle,
+                _marker: PhantomData,
+            })),
+        }
     }
 
     fn from_puzzle(
@@ -99,12 +97,14 @@ where
             return Err(ParseError::InvalidSingletonStruct);
         }
 
-        Ok(Some(SingletonLayer::<IP, IS> {
-            launcher_id: args.singleton_struct.launcher_id,
-            inner_puzzle: IP::from_puzzle(allocator, args.inner_puzzle)?
-                .ok_or(ParseError::MismatchedInnerPuzzle)?,
-            _marker: PhantomData,
-        }))
+        match IP::from_puzzle(allocator, args.inner_puzzle)? {
+            None => return Ok(None),
+            Some(inner_puzzle) => Ok(Some(SingletonLayer::<IP, IS> {
+                launcher_id: args.singleton_struct.launcher_id,
+                inner_puzzle,
+                _marker: PhantomData,
+            })),
+        }
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, ParseError> {
@@ -165,5 +165,72 @@ where
             puzzle_reveal,
             solution: solution_reveal,
         })
+    }
+}
+
+impl<IP, IS> ToTreeHash for SingletonLayer<IP, IS>
+where
+    IP: PuzzleLayer<IS>,
+    IP: ToTreeHash,
+{
+    fn tree_hash(&self) -> TreeHash {
+        CurriedProgram {
+            program: SINGLETON_TOP_LAYER_PUZZLE_HASH,
+            args: SingletonArgs {
+                singleton_struct: SingletonStruct {
+                    mod_hash: SINGLETON_TOP_LAYER_PUZZLE_HASH.into(),
+                    launcher_puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
+                    launcher_id: self.launcher_id,
+                },
+                inner_puzzle: self.inner_puzzle.tree_hash(),
+            },
+        }
+        .tree_hash()
+    }
+}
+
+impl<IP, IS> SingletonLayer<IP, IS>
+where
+    IP: PuzzleLayer<IS>,
+    IP: ToTreeHash,
+{
+    pub fn lineage_proof_for_child(&self, my_parent_coin: Coin) -> LineageProof {
+        LineageProof {
+            parent_parent_coin_id: my_parent_coin.parent_coin_info,
+            parent_inner_puzzle_hash: self.inner_puzzle.tree_hash().into(),
+            parent_amount: my_parent_coin.amount,
+        }
+    }
+
+    pub fn lineage_proof_from_parent_spend(
+        allocator: &Allocator,
+        parent_coin: Coin,
+        parent_puzzle: NodePtr,
+    ) -> Result<Option<LineageProof>, ParseError> {
+        let parent_puzzle = Puzzle::parse(allocator, parent_puzzle);
+
+        let Some(parent_puzzle) = parent_puzzle.as_curried() else {
+            return Ok(None);
+        };
+
+        if parent_puzzle.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH {
+            return Ok(None);
+        }
+
+        let parent_args = SingletonArgs::<NodePtr>::from_clvm(allocator, parent_puzzle.args)
+            .map_err(|err| ParseError::FromClvm(err))?;
+
+        if parent_args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
+            || parent_args.singleton_struct.launcher_puzzle_hash
+                != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
+        {
+            return Err(ParseError::InvalidSingletonStruct);
+        }
+
+        Ok(Some(LineageProof {
+            parent_parent_coin_id: parent_coin.parent_coin_info,
+            parent_inner_puzzle_hash: tree_hash(&allocator, parent_args.inner_puzzle).into(),
+            parent_amount: parent_coin.amount,
+        }))
     }
 }
