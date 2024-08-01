@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzles::{
     singleton::{
@@ -8,33 +6,33 @@ use chia_puzzles::{
     },
     LineageProof, Proof,
 };
-use clvm_traits::{FromClvm, FromNodePtr, ToNodePtr};
+use clvm_traits::{FromClvm, FromNodePtr, ToClvm, ToNodePtr};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{OuterPuzzleLayer, ParseError, Puzzle, PuzzleLayer, SpendContext};
 
 #[derive(Debug)]
-pub struct SingletonLayer<IP, IS>
-where
-    IP: PuzzleLayer<IS>,
-{
+pub struct SingletonLayer<IP> {
     pub launcher_id: Bytes32,
     pub inner_puzzle: IP,
-    _marker: PhantomData<IS>,
 }
 
-#[derive(Debug)]
-
-pub struct SingletonLayerSolution<I> {
+#[derive(Debug, ToClvm, FromClvm)]
+#[clvm(list)]
+pub struct SingletonLayerSolution<I>
+where
+    I: ToClvm<NodePtr> + FromClvm<NodePtr>,
+{
     pub lineage_proof: Proof,
     pub amount: u64,
     pub inner_solution: I,
 }
 
-impl<IP, IS> PuzzleLayer<SingletonLayerSolution<IS>> for SingletonLayer<IP, IS>
+impl<IP, IS> PuzzleLayer<SingletonLayerSolution<IS>> for SingletonLayer<IP>
 where
     IP: PuzzleLayer<IS>,
+    IS: FromClvm<NodePtr> + ToClvm<NodePtr>,
 {
     fn from_parent_spend(
         allocator: &mut Allocator,
@@ -66,10 +64,9 @@ where
 
         match IP::from_parent_spend(allocator, parent_args.inner_puzzle, solution.inner_solution)? {
             None => return Ok(None),
-            Some(inner_puzzle) => Ok(Some(SingletonLayer::<IP, IS> {
+            Some(inner_puzzle) => Ok(Some(SingletonLayer::<IP> {
                 launcher_id: parent_args.singleton_struct.launcher_id,
                 inner_puzzle,
-                _marker: PhantomData,
             })),
         }
     }
@@ -99,10 +96,9 @@ where
 
         match IP::from_puzzle(allocator, args.inner_puzzle)? {
             None => return Ok(None),
-            Some(inner_puzzle) => Ok(Some(SingletonLayer::<IP, IS> {
+            Some(inner_puzzle) => Ok(Some(SingletonLayer::<IP> {
                 launcher_id: args.singleton_struct.launcher_id,
                 inner_puzzle,
-                _marker: PhantomData,
             })),
         }
     }
@@ -142,9 +138,10 @@ where
     }
 }
 
-impl<IP, IS> OuterPuzzleLayer<SingletonLayerSolution<IS>> for SingletonLayer<IP, IS>
+impl<IP, IS> OuterPuzzleLayer<SingletonLayerSolution<IS>> for SingletonLayer<IP>
 where
     IP: PuzzleLayer<IS>,
+    IS: FromClvm<NodePtr> + ToClvm<NodePtr>,
 {
     fn solve(
         &self,
@@ -168,9 +165,8 @@ where
     }
 }
 
-impl<IP, IS> ToTreeHash for SingletonLayer<IP, IS>
+impl<IP> ToTreeHash for SingletonLayer<IP>
 where
-    IP: PuzzleLayer<IS>,
     IP: ToTreeHash,
 {
     fn tree_hash(&self) -> TreeHash {
@@ -189,9 +185,8 @@ where
     }
 }
 
-impl<IP, IS> SingletonLayer<IP, IS>
+impl<IP> SingletonLayer<IP>
 where
-    IP: PuzzleLayer<IS>,
     IP: ToTreeHash,
 {
     pub fn lineage_proof_for_child(&self, my_parent_coin: Coin) -> LineageProof {
