@@ -53,28 +53,16 @@ where
             return Err(ParseError::InvalidModHash);
         }
 
-        let new_metadata_cond = NFTStateLayer::<M, IP>::find_new_metadata_condition(
-            allocator,
-            layer_puzzle,
-            layer_solution,
-        )?;
-
-        let (metadata, metadata_updater_puzzle_hash) = match new_metadata_cond {
-            None => (
+        let (metadata, metadata_updater_puzzle_hash) =
+            NFTStateLayer::<M, IP>::new_metadata_and_updater_from_conditions(
+                allocator,
+                layer_puzzle,
+                layer_solution,
+            )?
+            .unwrap_or((
                 parent_args.metadata,
                 parent_args.metadata_updater_puzzle_hash,
-            ),
-            Some(new_metadata_cond) => (
-                new_metadata_cond
-                    .metadata_updater_solution
-                    .metadata_part
-                    .new_metadata,
-                new_metadata_cond
-                    .metadata_updater_solution
-                    .metadata_part
-                    .new_metadata_updater_ph,
-            ),
-        };
+            ));
 
         let parent_sol = NftStateLayerSolution::<NodePtr>::from_clvm(allocator, layer_solution)
             .map_err(|err| ParseError::FromClvm(err))?;
@@ -179,40 +167,40 @@ where
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct DefaultMetadataSolutionMetadataList<M = NodePtr> {
-    pub new_metadata: M,
-    pub new_metadata_updater_ph: Bytes32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct DefaultMetadataSolution<M = NodePtr, C = NodePtr> {
-    pub metadata_part: DefaultMetadataSolutionMetadataList<M>,
-    pub conditions: C, // usually ()
-}
-
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
-pub struct NewMetadataCondition<P = NodePtr, M = NodePtr, C = NodePtr> {
+pub struct NewMetadataCondition<P = NodePtr, S = NodePtr> {
     #[clvm(constant = -24)]
     pub opcode: i32,
     pub metadata_updater_reveal: P,
-    pub metadata_updater_solution: DefaultMetadataSolution<M, C>,
+    pub metadata_updater_solution: S,
+}
+
+#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
+#[clvm(list)]
+pub struct NewMetadataInfo<M> {
+    pub new_metadata: M,
+    pub new_metadata_updater_puzhash: Bytes32,
+}
+
+#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
+#[clvm(list)]
+pub struct NewMetadataOutput<M, C> {
+    pub metadata_part: NewMetadataInfo<M>,
+    pub conditions: C,
 }
 
 impl<M, IP> NFTStateLayer<M, IP>
 where
     M: FromClvm<NodePtr>,
 {
-    pub fn find_new_metadata_condition(
+    pub fn new_metadata_and_updater_from_conditions(
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
         layer_solution: NodePtr,
-    ) -> Result<Option<NewMetadataCondition<NodePtr, M, NodePtr>>, ParseError> {
+    ) -> Result<Option<(M, Bytes32)>, ParseError> {
         let output = run_puzzle(allocator, layer_puzzle, layer_solution)
             .map_err(|err| ParseError::Eval(err))?;
 
@@ -221,10 +209,23 @@ where
 
         for condition in conditions {
             let condition =
-                NewMetadataCondition::<NodePtr, M, NodePtr>::from_clvm(allocator, condition);
+                NewMetadataCondition::<NodePtr, NodePtr>::from_clvm(allocator, condition);
 
             if let Ok(condition) = condition {
-                return Ok(Some(condition));
+                let output = run_puzzle(
+                    allocator,
+                    condition.metadata_updater_reveal,
+                    condition.metadata_updater_solution,
+                )
+                .map_err(|err| ParseError::Eval(err))?;
+
+                let output = NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)
+                    .map_err(|err| ParseError::FromClvm(err))?;
+
+                return Ok(Some((
+                    output.metadata_part.new_metadata,
+                    output.metadata_part.new_metadata_updater_puzhash,
+                )));
             }
         }
 
