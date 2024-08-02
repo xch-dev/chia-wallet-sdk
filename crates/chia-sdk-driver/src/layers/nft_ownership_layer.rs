@@ -1,14 +1,13 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{
     nft::{
-        NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs,
+        NftOwnershipLayerArgs, NftOwnershipLayerSolution, NftRoyaltyTransferPuzzleArgs,
         NFT_OWNERSHIP_LAYER_PUZZLE_HASH, NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
-        NFT_STATE_LAYER_PUZZLE_HASH,
     },
     singleton::SingletonStruct,
 };
-use chia_sdk_types::conditions::run_puzzle;
-use clvm_traits::{apply_constants, FromClvm, ToClvm, ToNodePtr};
+use chia_sdk_types::conditions::{run_puzzle, NewNftOwner};
+use clvm_traits::{FromClvm, ToClvm, ToNodePtr};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -62,45 +61,42 @@ where
             return Err(ParseError::InvalidModHash);
         }
 
-        // let new_metadata_cond = NFTStateLayer::<M, IP>::find_new_metadata_condition(
-        //     allocator,
-        //     layer_puzzle,
-        //     layer_solution,
-        // )?;
+        let Some(parent_transfer_puzzle) =
+            Puzzle::parse(allocator, parent_args.transfer_program).as_curried()
+        else {
+            return Err(ParseError::NonStandardLayer);
+        };
 
-        // let (metadata, metadata_updater_puzzle_hash) = match new_metadata_cond {
-        //     None => (
-        //         parent_args.metadata,
-        //         parent_args.metadata_updater_puzzle_hash,
-        //     ),
-        //     Some(new_metadata_cond) => (
-        //         new_metadata_cond
-        //             .metadata_updater_solution
-        //             .metadata_part
-        //             .new_metadata,
-        //         new_metadata_cond
-        //             .metadata_updater_solution
-        //             .metadata_part
-        //             .new_metadata_updater_ph,
-        //     ),
-        // };
+        if parent_transfer_puzzle.mod_hash != NFT_ROYALTY_TRANSFER_PUZZLE_HASH {
+            return Err(ParseError::NonStandardLayer);
+        }
 
-        // let parent_sol = NftStateLayerSolution::<NodePtr>::from_clvm(allocator, layer_solution)
-        //     .map_err(|err| ParseError::FromClvm(err))?;
+        let parent_transfer_args =
+            NftRoyaltyTransferPuzzleArgs::from_clvm(allocator, parent_transfer_puzzle.args)?;
 
-        // match IP::from_parent_spend(
-        //     allocator,
-        //     parent_args.inner_puzzle,
-        //     parent_sol.inner_solution,
-        // )? {
-        //     None => return Ok(None),
-        //     Some(inner_puzzle) => Ok(Some(NFTStateLayer::<M, IP> {
-        //         metadata,
-        //         metadata_updater_puzzle_hash,
-        //         inner_puzzle,
-        //     })),
-        // }
-        todo!("parse conds and figure out transfer")
+        let new_owner_maybe = NFTOwnershipLayer::<IP>::new_owner_from_conditions(
+            allocator,
+            layer_puzzle,
+            layer_solution,
+        )?;
+
+        let parent_sol = NftOwnershipLayerSolution::<NodePtr>::from_clvm(allocator, layer_solution)
+            .map_err(|err| ParseError::FromClvm(err))?;
+
+        match IP::from_parent_spend(
+            allocator,
+            parent_args.inner_puzzle,
+            parent_sol.inner_solution,
+        )? {
+            None => return Ok(None),
+            Some(inner_puzzle) => Ok(Some(NFTOwnershipLayer::<IP> {
+                launcher_id: parent_transfer_args.singleton_struct.launcher_id,
+                current_owner: new_owner_maybe.unwrap_or(parent_args.current_owner),
+                royalty_puzzle_hash: parent_transfer_args.royalty_puzzle_hash,
+                royalty_percentage: parent_transfer_args.trade_price_percentage,
+                inner_puzzle,
+            })),
+        }
     }
 
     fn from_puzzle(
@@ -209,15 +205,12 @@ where
     }
 }
 
-impl<M, IP> NFTStateLayer<M, IP>
-where
-    M: FromClvm<NodePtr>,
-{
-    pub fn find_new_metadata_condition(
+impl<IP> NFTOwnershipLayer<IP> {
+    pub fn new_owner_from_conditions(
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
         layer_solution: NodePtr,
-    ) -> Result<Option<NewMetadataCondition<NodePtr, M, NodePtr>>, ParseError> {
+    ) -> Result<Option<Option<Bytes32>>, ParseError> {
         let output = run_puzzle(allocator, layer_puzzle, layer_solution)
             .map_err(|err| ParseError::Eval(err))?;
 
@@ -225,11 +218,10 @@ where
             .map_err(|err| ParseError::FromClvm(err))?;
 
         for condition in conditions {
-            let condition =
-                NewMetadataCondition::<NodePtr, M, NodePtr>::from_clvm(allocator, condition);
+            let condition = NewNftOwner::from_clvm(allocator, condition);
 
             if let Ok(condition) = condition {
-                return Ok(Some(condition));
+                return Ok(Some(condition.did_id));
             }
         }
 
