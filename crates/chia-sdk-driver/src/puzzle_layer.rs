@@ -12,11 +12,14 @@ where
         layer_puzzle: NodePtr,
         layer_solution: NodePtr,
     ) -> Result<Option<Self>, ParseError>;
+
     fn from_puzzle(
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
     ) -> Result<Option<Self>, ParseError>;
+
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, ParseError>;
+
     fn construct_solution(
         &self,
         ctx: &mut SpendContext,

@@ -20,10 +20,7 @@ pub struct SingletonLayer<IP> {
 
 #[derive(Debug, ToClvm, FromClvm)]
 #[clvm(list)]
-pub struct SingletonLayerSolution<I>
-where
-    I: ToClvm<NodePtr> + FromClvm<NodePtr>,
-{
+pub struct SingletonLayerSolution<I> {
     pub lineage_proof: Proof,
     pub amount: u64,
     pub inner_solution: I,
@@ -32,7 +29,6 @@ where
 impl<IP, IS> PuzzleLayer<SingletonLayerSolution<IS>> for SingletonLayer<IP>
 where
     IP: PuzzleLayer<IS>,
-    IS: FromClvm<NodePtr> + ToClvm<NodePtr>,
 {
     fn from_parent_spend(
         allocator: &mut Allocator,

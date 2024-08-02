@@ -26,17 +26,13 @@ pub struct NFTOwnershipLayer<IP> {
 #[derive(Debug, ToClvm, FromClvm)]
 #[clvm(list)]
 
-pub struct NFTOwnershipLayerSolution<I>
-where
-    I: ToClvm<NodePtr> + FromClvm<NodePtr>,
-{
+pub struct NFTOwnershipLayerSolution<I> {
     pub inner_solution: I,
 }
 
 impl<IP, IS> PuzzleLayer<NFTOwnershipLayerSolution<IS>> for NFTOwnershipLayer<IP>
 where
     IP: PuzzleLayer<IS> + ToClvm<NodePtr> + FromClvm<NodePtr>,
-    IS: ToClvm<NodePtr> + FromClvm<NodePtr>,
 {
     fn from_parent_spend(
         allocator: &mut Allocator,

@@ -1,6 +1,7 @@
 mod conditions;
 mod layers;
 mod parse_error;
+mod primitives;
 mod puzzle;
 mod puzzle_layer;
 mod puzzles;
@@ -11,6 +12,7 @@ mod spend_error;
 pub use conditions::*;
 pub use layers::*;
 pub use parse_error::*;
+pub use primitives::*;
 pub use puzzle::*;
 pub use puzzle_layer::*;
 pub use puzzles::*;

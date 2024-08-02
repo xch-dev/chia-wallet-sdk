@@ -18,10 +18,7 @@ pub struct NFTStateLayer<M, IP> {
 #[derive(Debug, ToClvm, FromClvm)]
 #[clvm(list)]
 
-pub struct NFTStateLayerSolution<I>
-where
-    I: ToClvm<NodePtr> + FromClvm<NodePtr>,
-{
+pub struct NFTStateLayerSolution<I> {
     pub inner_solution: I,
 }
 
@@ -29,7 +26,6 @@ impl<M, IP, IS> PuzzleLayer<NFTStateLayerSolution<IS>> for NFTStateLayer<M, IP>
 where
     IP: PuzzleLayer<IS> + ToClvm<NodePtr> + FromClvm<NodePtr>,
     M: ToClvm<NodePtr> + FromClvm<NodePtr>,
-    IS: ToClvm<NodePtr> + FromClvm<NodePtr>,
 {
     fn from_parent_spend(
         allocator: &mut Allocator,
