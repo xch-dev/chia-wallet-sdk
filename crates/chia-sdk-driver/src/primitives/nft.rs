@@ -98,4 +98,29 @@ where
             })),
         }
     }
+
+    pub fn from_puzzle(
+        allocator: &mut Allocator,
+        coin: Coin,
+        puzzle: NodePtr,
+    ) -> Result<Option<Self>, ParseError> {
+        let res =
+            SingletonLayer::<NFTStateLayer<M, NFTOwnershipLayer<StandardLayer>>>::from_puzzle(
+                allocator, puzzle,
+            )?;
+
+        match res {
+            None => Ok(None),
+            Some(res) => Ok(Some(NFT {
+                coin,
+                launcher_id: res.launcher_id,
+                metadata: res.inner_puzzle.metadata,
+                current_owner: res.inner_puzzle.inner_puzzle.current_owner,
+                royalty_puzzle_hash: res.inner_puzzle.inner_puzzle.royalty_puzzle_hash,
+                royalty_percentage: res.inner_puzzle.inner_puzzle.royalty_percentage,
+                owner_puzzle_hash: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle_hash,
+                owner_synthetic_key: res.inner_puzzle.inner_puzzle.inner_puzzle.synthetic_key,
+            })),
+        }
+    }
 }
