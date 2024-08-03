@@ -1,15 +1,18 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzles::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, Proof};
-use chia_sdk_types::conditions::Condition;
-use clvm_traits::{FromClvm, FromNodePtr, ToClvm, ToNodePtr};
-use clvm_utils::TreeHash;
-use clvmr::{Allocator, NodePtr};
+use chia_sdk_types::conditions::{Condition, CreateCoin, NewNftOwner};
+use clvm_traits::{clvm_list, FromClvm, FromNodePtr, ToClvm, ToNodePtr};
+use clvm_utils::{tree_hash, TreeHash};
+use clvmr::{
+    sha2::{Digest, Sha256},
+    Allocator, NodePtr,
+};
 
 use crate::{
-    NFTOwnershipLayer, NFTOwnershipLayerSolution, NFTStateLayer, NFTStateLayerSolution, ParseError,
-    PuzzleLayer, SingletonLayer, SingletonLayerSolution, SpendContext, SpendError, StandardLayer,
-    StandardLayerSolution,
+    Conditions, NFTOwnershipLayer, NFTOwnershipLayerSolution, NFTStateLayer, NFTStateLayerSolution,
+    ParseError, PuzzleLayer, SingletonLayer, SingletonLayerSolution, SpendContext, SpendError,
+    StandardLayer, StandardLayerSolution,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -181,4 +184,71 @@ where
             solution,
         })
     }
+
+    pub fn transfer(
+        &self,
+        ctx: &mut SpendContext,
+        lineage_proof: Proof,
+        new_owner_puzzle_hash: Bytes32,
+    ) -> Result<CoinSpend, ParseError>
+    where
+        M: Clone,
+    {
+        let p2_conditions = vec![Condition::CreateCoin(CreateCoin::with_hint(
+            new_owner_puzzle_hash,
+            self.coin.amount,
+            new_owner_puzzle_hash,
+        ))];
+        self.spend(ctx, lineage_proof, p2_conditions)
+    }
+
+    pub fn transfer_to_did(
+        &self,
+        ctx: &mut SpendContext,
+        lineage_proof: Proof,
+        new_owner_puzzle_hash: Bytes32,
+        new_did_owner: NewNftOwner,
+    ) -> Result<(CoinSpend, Conditions), ParseError>
+    // (spend, did conditions)
+    where
+        M: Clone,
+    {
+        let p2_conditions = vec![
+            Condition::CreateCoin(CreateCoin::with_hint(
+                new_owner_puzzle_hash,
+                self.coin.amount,
+                new_owner_puzzle_hash,
+            )),
+            Condition::Other(ctx.alloc(&new_did_owner)?),
+        ];
+
+        let did_conditions = Conditions::new().assert_raw_puzzle_announcement(
+            did_puzzle_assertion(self.coin.puzzle_hash, &new_did_owner),
+        );
+
+        Ok((
+            self.spend(ctx, lineage_proof, p2_conditions)?,
+            did_conditions,
+        ))
+    }
+}
+
+#[allow(clippy::missing_panics_doc)]
+pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &NewNftOwner) -> Bytes32 {
+    let mut allocator = Allocator::new();
+
+    let new_nft_owner_args = clvm_list!(
+        new_nft_owner.did_id,
+        &new_nft_owner.trade_prices,
+        new_nft_owner.did_inner_puzzle_hash
+    )
+    .to_node_ptr(&mut allocator)
+    .unwrap();
+
+    let mut hasher = Sha256::new();
+    hasher.update(nft_full_puzzle_hash);
+    hasher.update([0xad, 0x4c]);
+    hasher.update(tree_hash(&allocator, new_nft_owner_args));
+
+    Bytes32::new(hasher.finalize().into())
 }

@@ -10,9 +10,7 @@ use chia_sdk_types::{
 use clvm_traits::{clvm_quote, ToClvm};
 use clvmr::NodePtr;
 
-use crate::{
-    did_puzzle_assertion, nft_spend, Conditions, Launcher, Spend, SpendContext, SpendError,
-};
+use crate::{did_puzzle_assertion, Conditions, Launcher, Spend, SpendContext, SpendError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NftMint<M> {
