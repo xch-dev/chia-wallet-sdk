@@ -1,12 +1,15 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes32, Coin, CoinSpend};
-use clvm_traits::{FromClvm, ToClvm, ToNodePtr};
+use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
+use chia_puzzles::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, Proof};
+use chia_sdk_types::conditions::Condition;
+use clvm_traits::{FromClvm, FromNodePtr, ToClvm, ToNodePtr};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
     NFTOwnershipLayer, NFTOwnershipLayerSolution, NFTStateLayer, NFTStateLayerSolution, ParseError,
-    PuzzleLayer, SingletonLayer, SingletonLayerSolution, StandardLayer, StandardLayerSolution,
+    PuzzleLayer, SingletonLayer, SingletonLayerSolution, SpendContext, SpendError, StandardLayer,
+    StandardLayerSolution,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -122,5 +125,60 @@ where
                 owner_synthetic_key: res.inner_puzzle.inner_puzzle.inner_puzzle.synthetic_key,
             })),
         }
+    }
+
+    pub fn spend(
+        &self,
+        ctx: &mut SpendContext,
+        lineage_proof: Proof,
+        innermost_conditions: Vec<Condition<NodePtr>>,
+    ) -> Result<CoinSpend, ParseError>
+    where
+        M: Clone,
+    {
+        let thing = SingletonLayer::<NFTStateLayer<M, NFTOwnershipLayer<StandardLayer>>> {
+            launcher_id: self.launcher_id,
+            inner_puzzle: NFTStateLayer {
+                metadata: self.metadata.clone(),
+                metadata_updater_puzzle_hash: DEFAULT_HIDDEN_PUZZLE_HASH.into(),
+                inner_puzzle: NFTOwnershipLayer {
+                    launcher_id: self.launcher_id,
+                    current_owner: self.current_owner,
+                    royalty_puzzle_hash: self.royalty_puzzle_hash,
+                    royalty_percentage: self.royalty_percentage,
+                    inner_puzzle: StandardLayer {
+                        puzzle_hash: self.owner_puzzle_hash,
+                        synthetic_key: self.owner_synthetic_key,
+                    },
+                },
+            },
+        };
+
+        let puzzle_ptr = thing.construct_puzzle(ctx)?;
+        let puzzle = Program::from_node_ptr(ctx.allocator(), puzzle_ptr)
+            .map_err(|err| ParseError::FromClvm(err))?;
+
+        let solution_ptr = thing.construct_solution(
+            ctx,
+            SingletonLayerSolution {
+                lineage_proof: lineage_proof,
+                amount: self.coin.amount,
+                inner_solution: NFTStateLayerSolution {
+                    inner_solution: NFTOwnershipLayerSolution {
+                        inner_solution: StandardLayerSolution {
+                            conditions: innermost_conditions,
+                        },
+                    },
+                },
+            },
+        )?;
+        let solution = Program::from_node_ptr(ctx.allocator(), solution_ptr)
+            .map_err(|err| ParseError::FromClvm(err))?;
+
+        Ok(CoinSpend {
+            coin: self.coin,
+            puzzle_reveal: puzzle,
+            solution,
+        })
     }
 }
