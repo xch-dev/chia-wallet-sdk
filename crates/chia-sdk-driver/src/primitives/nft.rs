@@ -11,8 +11,8 @@ use clvmr::{
 
 use crate::{
     Conditions, NFTOwnershipLayer, NFTOwnershipLayerSolution, NFTStateLayer, NFTStateLayerSolution,
-    ParseError, PuzzleLayer, SingletonLayer, SingletonLayerSolution, SpendContext, SpendError,
-    StandardLayer, StandardLayerSolution,
+    ParseError, PuzzleLayer, SingletonLayer, SingletonLayerSolution, Spend, SpendContext,
+    TransparentLayer,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -32,16 +32,13 @@ pub struct NFT<M = NodePtr> {
 
     // innermost (owner) layer
     pub owner_puzzle_hash: TreeHash,
-    pub owner_synthetic_key: Option<PublicKey>,
 }
 
 impl<M> NFT<M>
 where
     M: ToClvm<NodePtr> + FromClvm<NodePtr>,
-    SingletonLayer<NFTStateLayer<M, NFTOwnershipLayer<StandardLayer>>>: PuzzleLayer<
-        SingletonLayerSolution<
-            NFTStateLayerSolution<NFTOwnershipLayerSolution<StandardLayerSolution<NodePtr>>>,
-        >,
+    SingletonLayer<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>: PuzzleLayer<
+        SingletonLayerSolution<NFTStateLayerSolution<NFTOwnershipLayerSolution<NodePtr>>>,
     >,
 {
     pub fn new(
@@ -52,7 +49,6 @@ where
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
         owner_puzzle_hash: TreeHash,
-        owner_synthetic_key: Option<PublicKey>,
     ) -> Self {
         NFT {
             coin,
@@ -62,13 +58,7 @@ where
             royalty_puzzle_hash,
             royalty_percentage,
             owner_puzzle_hash,
-            owner_synthetic_key,
         }
-    }
-
-    pub fn with_owner_synthetic_key(mut self, owner_synthetic_key: PublicKey) -> Self {
-        self.owner_synthetic_key = Some(owner_synthetic_key);
-        self
     }
 
     pub fn from_parent_spend(
@@ -84,7 +74,7 @@ where
             .to_node_ptr(allocator)
             .map_err(|err| ParseError::ToClvm(err))?;
 
-        let res = SingletonLayer::<NFTStateLayer<M, NFTOwnershipLayer<StandardLayer>>>::from_parent_spend(
+        let res = SingletonLayer::<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>::from_parent_spend(
             allocator,
             puzzle_ptr,
             solution_ptr,
@@ -100,7 +90,6 @@ where
                 royalty_puzzle_hash: res.inner_puzzle.inner_puzzle.royalty_puzzle_hash,
                 royalty_percentage: res.inner_puzzle.inner_puzzle.royalty_percentage,
                 owner_puzzle_hash: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle_hash,
-                owner_synthetic_key: res.inner_puzzle.inner_puzzle.inner_puzzle.synthetic_key,
             })),
         }
     }
@@ -111,7 +100,7 @@ where
         puzzle: NodePtr,
     ) -> Result<Option<Self>, ParseError> {
         let res =
-            SingletonLayer::<NFTStateLayer<M, NFTOwnershipLayer<StandardLayer>>>::from_puzzle(
+            SingletonLayer::<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>::from_puzzle(
                 allocator, puzzle,
             )?;
 
@@ -125,7 +114,6 @@ where
                 royalty_puzzle_hash: res.inner_puzzle.inner_puzzle.royalty_puzzle_hash,
                 royalty_percentage: res.inner_puzzle.inner_puzzle.royalty_percentage,
                 owner_puzzle_hash: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle_hash,
-                owner_synthetic_key: res.inner_puzzle.inner_puzzle.inner_puzzle.synthetic_key,
             })),
         }
     }
@@ -134,12 +122,12 @@ where
         &self,
         ctx: &mut SpendContext,
         lineage_proof: Proof,
-        innermost_conditions: Vec<Condition<NodePtr>>,
+        inner_spend: Spend,
     ) -> Result<CoinSpend, ParseError>
     where
         M: Clone,
     {
-        let thing = SingletonLayer::<NFTStateLayer<M, NFTOwnershipLayer<StandardLayer>>> {
+        let thing = SingletonLayer::<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>> {
             launcher_id: self.launcher_id,
             inner_puzzle: NFTStateLayer {
                 metadata: self.metadata.clone(),
@@ -149,10 +137,10 @@ where
                     current_owner: self.current_owner,
                     royalty_puzzle_hash: self.royalty_puzzle_hash,
                     royalty_percentage: self.royalty_percentage,
-                    inner_puzzle: StandardLayer {
-                        puzzle_hash: self.owner_puzzle_hash,
-                        synthetic_key: self.owner_synthetic_key,
-                    },
+                    inner_puzzle: TransparentLayer::from_puzzle(
+                        ctx.allocator(),
+                        inner_spend.solution(),
+                    ),
                 },
             },
         };
@@ -168,9 +156,7 @@ where
                 amount: self.coin.amount,
                 inner_solution: NFTStateLayerSolution {
                     inner_solution: NFTOwnershipLayerSolution {
-                        inner_solution: StandardLayerSolution {
-                            conditions: innermost_conditions,
-                        },
+                        inner_solution: inner_spend.solution(),
                     },
                 },
             },
@@ -189,23 +175,30 @@ where
         &self,
         ctx: &mut SpendContext,
         lineage_proof: Proof,
+        owner_synthetic_key: PublicKey,
         new_owner_puzzle_hash: Bytes32,
     ) -> Result<CoinSpend, ParseError>
     where
         M: Clone,
     {
-        let p2_conditions = vec![Condition::CreateCoin(CreateCoin::with_hint(
-            new_owner_puzzle_hash,
-            self.coin.amount,
-            new_owner_puzzle_hash,
-        ))];
-        self.spend(ctx, lineage_proof, p2_conditions)
+        let p2_conditions =
+            Conditions::new().condition(Condition::CreateCoin(CreateCoin::with_hint(
+                new_owner_puzzle_hash,
+                self.coin.amount,
+                new_owner_puzzle_hash,
+            )));
+        let inner_spend = p2_conditions
+            .p2_spend(ctx, owner_synthetic_key)
+            .map_err(|err| ParseError::Spend(err))?;
+
+        self.spend(ctx, lineage_proof, inner_spend)
     }
 
     pub fn transfer_to_did(
         &self,
         ctx: &mut SpendContext,
         lineage_proof: Proof,
+        owner_synthetic_key: PublicKey,
         new_owner_puzzle_hash: Bytes32,
         new_did_owner: NewNftOwner,
     ) -> Result<(CoinSpend, Conditions), ParseError>
@@ -213,23 +206,23 @@ where
     where
         M: Clone,
     {
-        let p2_conditions = vec![
+        let p2_conditions = Conditions::new().conditions(&vec![
             Condition::CreateCoin(CreateCoin::with_hint(
                 new_owner_puzzle_hash,
                 self.coin.amount,
                 new_owner_puzzle_hash,
             )),
             Condition::Other(ctx.alloc(&new_did_owner)?),
-        ];
+        ]);
+        let inner_spend = p2_conditions
+            .p2_spend(ctx, owner_synthetic_key)
+            .map_err(|err| ParseError::Spend(err))?;
 
         let did_conditions = Conditions::new().assert_raw_puzzle_announcement(
             did_puzzle_assertion(self.coin.puzzle_hash, &new_did_owner),
         );
 
-        Ok((
-            self.spend(ctx, lineage_proof, p2_conditions)?,
-            did_conditions,
-        ))
+        Ok((self.spend(ctx, lineage_proof, inner_spend)?, did_conditions))
     }
 }
 
@@ -255,7 +248,7 @@ pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &NewNf
 
 #[cfg(test)]
 mod tests {
-    use crate::{nft_mint, IntermediateLauncher, Launcher};
+    use crate::{IntermediateLauncher, Launcher};
 
     use super::*;
 
