@@ -22,11 +22,13 @@ pub struct NFTStateLayerSolution<I> {
     pub inner_solution: I,
 }
 
-impl<M, IP, IS> PuzzleLayer<NFTStateLayerSolution<IS>> for NFTStateLayer<M, IP>
+impl<M, IP> PuzzleLayer for NFTStateLayer<M, IP>
 where
-    IP: PuzzleLayer<IS> + ToClvm<NodePtr> + FromClvm<NodePtr>,
-    M: ToClvm<NodePtr> + FromClvm<NodePtr>,
+    IP: PuzzleLayer,
+    M: FromClvm<NodePtr> + ToClvm<NodePtr>,
 {
+    type Solution = NFTStateLayerSolution<IP::Solution>;
+
     fn from_parent_spend(
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
@@ -132,7 +134,7 @@ where
     fn construct_solution(
         &self,
         ctx: &mut SpendContext,
-        solution: NFTStateLayerSolution<IS>,
+        solution: Self::Solution,
     ) -> Result<NodePtr, ParseError> {
         NFTStateLayerSolution {
             inner_solution: self

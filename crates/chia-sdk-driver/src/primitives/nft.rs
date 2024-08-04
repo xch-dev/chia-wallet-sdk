@@ -37,9 +37,6 @@ pub struct NFT<M = NodePtr> {
 impl<M> NFT<M>
 where
     M: ToClvm<NodePtr> + FromClvm<NodePtr>,
-    SingletonLayer<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>: PuzzleLayer<
-        SingletonLayerSolution<NFTStateLayerSolution<NFTOwnershipLayerSolution<NodePtr>>>,
-    >,
 {
     pub fn new(
         coin: Coin,
@@ -262,11 +259,7 @@ pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &NewNf
 
 impl<M> NFT<M>
 where
-    M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone,
-    SingletonLayer<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>: PuzzleLayer<
-        SingletonLayerSolution<NFTStateLayerSolution<NFTOwnershipLayerSolution<NodePtr>>>,
-    >,
-    NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>: ToTreeHash,
+    M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
 {
     pub fn singleton_inner_puzzle_hash(&self) -> TreeHash {
         self.get_layered_object().inner_puzzle_hash()
@@ -354,7 +347,7 @@ mod tests {
             let (spend_nft, new_nft_info) = ctx.spend_standard_nft(
                 &nft_info,
                 pk,
-                nft_info.p2_puzzle_hash,
+                nft_info.p2_puzzle_hash.into(),
                 if i % 2 == 0 {
                     Some(NewNftOwner::new(
                         Some(did_info.launcher_id),

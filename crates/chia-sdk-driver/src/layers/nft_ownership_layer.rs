@@ -30,10 +30,12 @@ pub struct NFTOwnershipLayerSolution<I> {
     pub inner_solution: I,
 }
 
-impl<IP, IS> PuzzleLayer<NFTOwnershipLayerSolution<IS>> for NFTOwnershipLayer<IP>
+impl<IP> PuzzleLayer for NFTOwnershipLayer<IP>
 where
-    IP: PuzzleLayer<IS> + ToClvm<NodePtr> + FromClvm<NodePtr>,
+    IP: PuzzleLayer,
 {
+    type Solution = NFTOwnershipLayerSolution<IP::Solution>;
+
     fn from_parent_spend(
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
@@ -172,7 +174,7 @@ where
     fn construct_solution(
         &self,
         ctx: &mut SpendContext,
-        solution: NFTOwnershipLayerSolution<IS>,
+        solution: Self::Solution,
     ) -> Result<NodePtr, ParseError> {
         NFTOwnershipLayerSolution {
             inner_solution: self

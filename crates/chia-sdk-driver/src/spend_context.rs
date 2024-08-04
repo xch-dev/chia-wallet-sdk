@@ -29,7 +29,7 @@ use clvm_traits::{FromNodePtr, ToClvm, ToNodePtr};
 use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
 
-use crate::{did_spend, spend_error::SpendError, Conditions, Spend};
+use crate::{did_spend, spend_error::SpendError, Conditions, Spend, NFT};
 
 /// A wrapper around `Allocator` that caches puzzles and simplifies coin spending.
 #[derive(Debug, Default)]
@@ -256,15 +256,16 @@ impl SpendContext {
     /// Spend an NFT coin with a standard p2 inner puzzle.
     pub fn spend_standard_nft<M>(
         &mut self,
-        nft_info: &NftInfo<M>,
+        nft: &NFT<M>,
         synthetic_key: PublicKey,
         p2_puzzle_hash: Bytes32,
         new_nft_owner: Option<NewNftOwner>,
         extra_conditions: Conditions,
-    ) -> Result<(Conditions, NftInfo<M>), SpendError>
+    ) -> Result<(Conditions, NFT<M>), SpendError>
     where
         M: ToClvm<NodePtr> + Clone,
     {
+        let transger = nft.tr
         let transfer = transfer_nft(self, nft_info, p2_puzzle_hash, new_nft_owner)?;
         let p2_spend = transfer
             .p2_conditions

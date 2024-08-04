@@ -26,10 +26,12 @@ pub struct SingletonLayerSolution<I> {
     pub inner_solution: I,
 }
 
-impl<IP, IS> PuzzleLayer<SingletonLayerSolution<IS>> for SingletonLayer<IP>
+impl<IP> PuzzleLayer for SingletonLayer<IP>
 where
-    IP: PuzzleLayer<IS>,
+    IP: PuzzleLayer,
 {
+    type Solution = SingletonLayerSolution<IP::Solution>;
+
     fn from_parent_spend(
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
@@ -120,7 +122,7 @@ where
     fn construct_solution(
         &self,
         ctx: &mut SpendContext,
-        solution: SingletonLayerSolution<IS>,
+        solution: Self::Solution,
     ) -> Result<NodePtr, ParseError> {
         SingletonSolution {
             lineage_proof: solution.lineage_proof,
@@ -134,16 +136,17 @@ where
     }
 }
 
-impl<IP, IS> OuterPuzzleLayer<SingletonLayerSolution<IS>> for SingletonLayer<IP>
+impl<IP> OuterPuzzleLayer for SingletonLayer<IP>
 where
-    IP: PuzzleLayer<IS>,
-    IS: FromClvm<NodePtr> + ToClvm<NodePtr>,
+    IP: PuzzleLayer,
 {
+    type Solution = SingletonLayerSolution<IP::Solution>;
+
     fn solve(
         &self,
         ctx: &mut SpendContext,
         coin: Coin,
-        solution: SingletonLayerSolution<IS>,
+        solution: Self::Solution,
     ) -> Result<CoinSpend, ParseError> {
         let puzzle_ptr = self.construct_puzzle(ctx)?;
         let puzzle_reveal = Program::from_node_ptr(ctx.allocator(), puzzle_ptr)

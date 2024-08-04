@@ -36,7 +36,9 @@ impl TransparentLayer {
     }
 }
 
-impl PuzzleLayer<NodePtr> for TransparentLayer {
+impl PuzzleLayer for TransparentLayer {
+    type Solution = NodePtr;
+
     fn from_parent_spend(
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
