@@ -20,7 +20,7 @@ use chia_puzzles::{
         SINGLETON_TOP_LAYER_PUZZLE_HASH,
     },
     standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
-    LineageProof, Proof,
+    Proof,
 };
 use chia_sdk_types::{conditions::NewNftOwner, puzzles::DidInfo};
 use clvm_traits::{FromClvm, FromNodePtr, ToClvm, ToNodePtr};
@@ -260,7 +260,7 @@ impl SpendContext {
         p2_puzzle_hash: Bytes32,
         new_nft_owner: Option<NewNftOwner>,
         extra_conditions: Conditions,
-    ) -> Result<(Conditions, NFT<M>, LineageProof), ParseError>
+    ) -> Result<(Conditions, NFT<M>, Proof), ParseError>
     where
         M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
     {

@@ -38,6 +38,7 @@ impl Launcher {
             current_owner: None,
             royalty_puzzle_hash,
             royalty_percentage,
+            p2_puzzle: None,
         };
 
         let (launch_singleton, eve_coin) = self
@@ -60,7 +61,7 @@ impl Launcher {
         self,
         ctx: &mut SpendContext,
         mint: NftMint<M>,
-    ) -> Result<(Conditions, NFT<M>), ParseError>
+    ) -> Result<(Conditions, NFT<M>, Proof), ParseError>
     where
         M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
     {
@@ -83,7 +84,7 @@ impl Launcher {
             mint.royalty_percentage,
         )?;
 
-        let (eve_spend, _, _) = eve_nft.spend(ctx, eve_proof, inner_spend)?;
+        let (eve_spend, _, lineage_proof) = eve_nft.spend(ctx, eve_proof, inner_spend)?;
         ctx.insert_coin_spend(eve_spend.clone());
 
         let mut did_conditions = Conditions::new();
@@ -99,6 +100,7 @@ impl Launcher {
             mint_eve_nft.extend(did_conditions),
             NFT::from_parent_spend(ctx.allocator_mut(), eve_spend)?
                 .ok_or(ParseError::MissingChild)?,
+            lineage_proof,
         ))
     }
 }
@@ -166,7 +168,7 @@ mod tests {
         ctx.take_spends();
 
         let coin = Coin::new(Bytes32::new([1; 32]), puzzle_hash, 1);
-        let (mint_nft, _nft_info) = IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
+        let (mint_nft, _nft, _) = IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
             .create(ctx)?
             .mint_nft(ctx, nft_mint(puzzle_hash, None))?;
         let _did_info = ctx.spend_standard_did(
@@ -263,7 +265,7 @@ mod tests {
 
         let (create_launcher, launcher) = Launcher::create_early(intermediate_coin.coin_id(), 1);
 
-        let (mint_nft, _nft_info) =
+        let (mint_nft, _nft_info, _) =
             launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
 
         let _did_info =
@@ -302,7 +304,7 @@ mod tests {
 
         let (create_launcher, launcher) = Launcher::create_early(intermediate_coin.coin_id(), 1);
 
-        let (mint_nft, _nft_info) =
+        let (mint_nft, _nft_info, _) =
             launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
 
         let did_info =

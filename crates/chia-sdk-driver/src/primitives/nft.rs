@@ -32,6 +32,7 @@ pub struct NFT<M = NodePtr> {
 
     // innermost (owner) layer
     pub p2_puzzle_hash: TreeHash,
+    pub p2_puzzle: Option<NodePtr>,
 }
 
 impl<M> NFT<M>
@@ -46,6 +47,7 @@ where
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
         p2_puzzle_hash: TreeHash,
+        p2_puzzle: Option<NodePtr>,
     ) -> Self {
         NFT {
             coin,
@@ -55,11 +57,17 @@ where
             royalty_puzzle_hash,
             royalty_percentage,
             p2_puzzle_hash,
+            p2_puzzle,
         }
     }
 
     pub fn with_coin(mut self, coin: Coin) -> Self {
         self.coin = coin;
+        self
+    }
+
+    pub fn with_p2_puzzle(mut self, p2_puzzle: NodePtr) -> Self {
+        self.p2_puzzle = Some(p2_puzzle);
         self
     }
 
@@ -92,6 +100,7 @@ where
                 royalty_puzzle_hash: res.inner_puzzle.inner_puzzle.royalty_puzzle_hash,
                 royalty_percentage: res.inner_puzzle.inner_puzzle.royalty_percentage,
                 p2_puzzle_hash: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle_hash,
+                p2_puzzle: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle,
             })),
         }
     }
@@ -116,12 +125,14 @@ where
                 royalty_puzzle_hash: res.inner_puzzle.inner_puzzle.royalty_puzzle_hash,
                 royalty_percentage: res.inner_puzzle.inner_puzzle.royalty_percentage,
                 p2_puzzle_hash: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle_hash,
+                p2_puzzle: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle,
             })),
         }
     }
 
     pub fn get_layered_object(
         &self,
+        p2_puzzle: Option<NodePtr>,
     ) -> SingletonLayer<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>
     where
         M: Clone,
@@ -138,7 +149,10 @@ where
                     royalty_percentage: self.royalty_percentage,
                     inner_puzzle: TransparentLayer {
                         puzzle_hash: self.p2_puzzle_hash,
-                        puzzle: None,
+                        puzzle: match self.p2_puzzle {
+                            Some(p2_puzzle) => Some(p2_puzzle),
+                            None => p2_puzzle,
+                        },
                     },
                 },
             },
@@ -150,11 +164,11 @@ where
         ctx: &mut SpendContext,
         lineage_proof: Proof,
         inner_spend: Spend,
-    ) -> Result<(CoinSpend, NFT<M>, LineageProof), ParseError>
+    ) -> Result<(CoinSpend, NFT<M>, Proof), ParseError>
     where
         M: Clone + ToTreeHash,
     {
-        let thing = self.get_layered_object();
+        let thing = self.get_layered_object(Some(inner_spend.puzzle()));
 
         let puzzle_ptr = thing.construct_puzzle(ctx)?;
         let puzzle = Program::from_node_ptr(ctx.allocator(), puzzle_ptr)
@@ -184,7 +198,7 @@ where
         Ok((
             cs.clone(),
             NFT::from_parent_spend(ctx.allocator_mut(), cs)?.ok_or(ParseError::MissingChild)?,
-            lineage_proof,
+            Proof::Lineage(lineage_proof),
         ))
     }
 
@@ -195,7 +209,7 @@ where
         owner_synthetic_key: PublicKey,
         new_owner_puzzle_hash: Bytes32,
         extra_conditions: Conditions,
-    ) -> Result<(CoinSpend, NFT<M>, LineageProof), ParseError>
+    ) -> Result<(CoinSpend, NFT<M>, Proof), ParseError>
     where
         M: Clone + ToTreeHash,
     {
@@ -221,7 +235,7 @@ where
         new_owner_puzzle_hash: Bytes32,
         new_did_owner: NewNftOwner,
         extra_conditions: Conditions,
-    ) -> Result<(CoinSpend, Conditions, NFT<M>, LineageProof), ParseError>
+    ) -> Result<(CoinSpend, Conditions, NFT<M>, Proof), ParseError>
     // (spend, did conditions)
     where
         M: Clone + ToTreeHash,
@@ -274,11 +288,11 @@ where
     M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
 {
     pub fn singleton_inner_puzzle_hash(&self) -> TreeHash {
-        self.get_layered_object().inner_puzzle_hash()
+        self.get_layered_object(None).inner_puzzle_hash()
     }
 
     pub fn lineage_proof_for_child(&self, parent_coin: Coin) -> LineageProof {
-        self.get_layered_object()
+        self.get_layered_object(None)
             .lineage_proof_for_child(parent_coin)
     }
 }
@@ -309,16 +323,23 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
-        let (mint_nft, nft_info) = IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
-            .create(ctx)?
-            .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
+        let (mint_nft, nft, lineage_proof) =
+            IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
+                .create(ctx)?
+                .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
 
         let did_info = ctx.spend_standard_did(did_info, pk, mint_nft)?;
 
         let other_puzzle_hash = StandardArgs::curry_tree_hash(pk.derive_unhardened(0)).into();
 
-        let (parent_conditions, _nft_info) =
-            ctx.spend_standard_nft(&nft_info, pk, other_puzzle_hash, None, Conditions::new())?;
+        let (parent_conditions, _, _) = ctx.spend_standard_nft(
+            &nft,
+            lineage_proof,
+            pk,
+            other_puzzle_hash,
+            None,
+            Conditions::new(),
+        )?;
 
         let _did_info = ctx.spend_standard_did(did_info, pk, parent_conditions)?;
 
@@ -349,17 +370,19 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
-        let (mint_nft, mut nft_info) = IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
-            .create(ctx)?
-            .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
+        let (mint_nft, mut nft, mut lineage_proof) =
+            IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
+                .create(ctx)?
+                .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
 
         let mut did_info = ctx.spend_standard_did(did_info, pk, mint_nft)?;
 
         for i in 0..5 {
-            let (spend_nft, new_nft_info) = ctx.spend_standard_nft(
-                &nft_info,
+            let (spend_nft, new_nft, new_lineage_proof) = ctx.spend_standard_nft(
+                &nft,
+                lineage_proof,
                 pk,
-                nft_info.p2_puzzle_hash.into(),
+                nft.p2_puzzle_hash.into(),
                 if i % 2 == 0 {
                     Some(NewNftOwner::new(
                         Some(did_info.launcher_id),
@@ -371,7 +394,8 @@ mod tests {
                 },
                 Conditions::new(),
             )?;
-            nft_info = new_nft_info;
+            nft = new_nft;
+            lineage_proof = new_lineage_proof;
             did_info = ctx.spend_standard_did(did_info, pk, spend_nft)?;
         }
 
@@ -390,10 +414,10 @@ mod tests {
         assert_eq!(coin_state.coin, did_info.coin);
 
         let coin_state = sim
-            .coin_state(nft_info.coin.coin_id())
+            .coin_state(nft.coin.coin_id())
             .await
             .expect("expected nft coin");
-        assert_eq!(coin_state.coin, nft_info.coin);
+        assert_eq!(coin_state.coin, nft.coin);
 
         Ok(())
     }
