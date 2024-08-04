@@ -1,9 +1,9 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
-use chia_puzzles::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, Proof};
+use chia_puzzles::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, LineageProof, Proof};
 use chia_sdk_types::conditions::{Condition, CreateCoin, NewNftOwner};
 use clvm_traits::{clvm_list, FromClvm, FromNodePtr, ToClvm, ToNodePtr};
-use clvm_utils::{tree_hash, TreeHash};
+use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{
     sha2::{Digest, Sha256},
     Allocator, NodePtr,
@@ -31,7 +31,7 @@ pub struct NFT<M = NodePtr> {
     pub royalty_percentage: u16,
 
     // innermost (owner) layer
-    pub owner_puzzle_hash: TreeHash,
+    pub p2_puzzle_hash: TreeHash,
 }
 
 impl<M> NFT<M>
@@ -48,7 +48,7 @@ where
         current_owner: Option<Bytes32>,
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
-        owner_puzzle_hash: TreeHash,
+        p2_puzzle_hash: TreeHash,
     ) -> Self {
         NFT {
             coin,
@@ -57,8 +57,13 @@ where
             current_owner,
             royalty_puzzle_hash,
             royalty_percentage,
-            owner_puzzle_hash,
+            p2_puzzle_hash,
         }
+    }
+
+    pub fn with_coin(mut self, coin: Coin) -> Self {
+        self.coin = coin;
+        self
     }
 
     pub fn from_parent_spend(
@@ -89,7 +94,7 @@ where
                 current_owner: res.inner_puzzle.inner_puzzle.current_owner,
                 royalty_puzzle_hash: res.inner_puzzle.inner_puzzle.royalty_puzzle_hash,
                 royalty_percentage: res.inner_puzzle.inner_puzzle.royalty_percentage,
-                owner_puzzle_hash: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle_hash,
+                p2_puzzle_hash: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle_hash,
             })),
         }
     }
@@ -113,8 +118,33 @@ where
                 current_owner: res.inner_puzzle.inner_puzzle.current_owner,
                 royalty_puzzle_hash: res.inner_puzzle.inner_puzzle.royalty_puzzle_hash,
                 royalty_percentage: res.inner_puzzle.inner_puzzle.royalty_percentage,
-                owner_puzzle_hash: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle_hash,
+                p2_puzzle_hash: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle_hash,
             })),
+        }
+    }
+
+    pub fn get_layered_object(
+        &self,
+    ) -> SingletonLayer<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>
+    where
+        M: Clone,
+    {
+        SingletonLayer {
+            launcher_id: self.launcher_id,
+            inner_puzzle: NFTStateLayer {
+                metadata: self.metadata.clone(),
+                metadata_updater_puzzle_hash: DEFAULT_HIDDEN_PUZZLE_HASH.into(),
+                inner_puzzle: NFTOwnershipLayer {
+                    launcher_id: self.launcher_id,
+                    current_owner: self.current_owner,
+                    royalty_puzzle_hash: self.royalty_puzzle_hash,
+                    royalty_percentage: self.royalty_percentage,
+                    inner_puzzle: TransparentLayer {
+                        puzzle_hash: self.p2_puzzle_hash,
+                        puzzle: None,
+                    },
+                },
+            },
         }
     }
 
@@ -127,23 +157,7 @@ where
     where
         M: Clone,
     {
-        let thing = SingletonLayer::<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>> {
-            launcher_id: self.launcher_id,
-            inner_puzzle: NFTStateLayer {
-                metadata: self.metadata.clone(),
-                metadata_updater_puzzle_hash: DEFAULT_HIDDEN_PUZZLE_HASH.into(),
-                inner_puzzle: NFTOwnershipLayer {
-                    launcher_id: self.launcher_id,
-                    current_owner: self.current_owner,
-                    royalty_puzzle_hash: self.royalty_puzzle_hash,
-                    royalty_percentage: self.royalty_percentage,
-                    inner_puzzle: TransparentLayer::from_puzzle(
-                        ctx.allocator(),
-                        inner_spend.solution(),
-                    ),
-                },
-            },
-        };
+        let thing = self.get_layered_object();
 
         let puzzle_ptr = thing.construct_puzzle(ctx)?;
         let puzzle = Program::from_node_ptr(ctx.allocator(), puzzle_ptr)
@@ -244,6 +258,24 @@ pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &NewNf
     hasher.update(tree_hash(&allocator, new_nft_owner_args));
 
     Bytes32::new(hasher.finalize().into())
+}
+
+impl<M> NFT<M>
+where
+    M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone,
+    SingletonLayer<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>: PuzzleLayer<
+        SingletonLayerSolution<NFTStateLayerSolution<NFTOwnershipLayerSolution<NodePtr>>>,
+    >,
+    NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>: ToTreeHash,
+{
+    pub fn singleton_inner_puzzle_hash(&self) -> TreeHash {
+        self.get_layered_object().inner_puzzle_hash()
+    }
+
+    pub fn lineage_proof_for_child(&self, parent_coin: Coin) -> LineageProof {
+        self.get_layered_object()
+            .lineage_proof_for_child(parent_coin)
+    }
 }
 
 #[cfg(test)]

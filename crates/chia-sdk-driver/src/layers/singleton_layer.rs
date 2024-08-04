@@ -185,10 +185,14 @@ impl<IP> SingletonLayer<IP>
 where
     IP: ToTreeHash,
 {
+    pub fn inner_puzzle_hash(&self) -> TreeHash {
+        self.inner_puzzle.tree_hash()
+    }
+
     pub fn lineage_proof_for_child(&self, my_parent_coin: Coin) -> LineageProof {
         LineageProof {
             parent_parent_coin_id: my_parent_coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.inner_puzzle.tree_hash().into(),
+            parent_inner_puzzle_hash: self.inner_puzzle_hash().into(),
             parent_amount: my_parent_coin.amount,
         }
     }

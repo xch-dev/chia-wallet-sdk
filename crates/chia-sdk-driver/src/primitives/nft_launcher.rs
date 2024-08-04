@@ -1,16 +1,15 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::{
-    nft::{NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs},
-    EveProof, Proof,
-};
-use chia_sdk_types::{
-    conditions::{Condition, NewNftOwner},
-    puzzles::NftInfo,
-};
-use clvm_traits::{clvm_quote, ToClvm};
+use chia_puzzles::{EveProof, Proof};
+use chia_sdk_types::conditions::{Condition, NewNftOwner};
+use clvm_traits::{clvm_quote, FromClvm, ToClvm};
+use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 
-use crate::{did_puzzle_assertion, Conditions, Launcher, Spend, SpendContext, SpendError};
+use crate::{
+    did_puzzle_assertion, Conditions, Launcher, NFTOwnershipLayer, NFTOwnershipLayerSolution,
+    NFTStateLayer, NFTStateLayerSolution, ParseError, PuzzleLayer, SingletonLayer,
+    SingletonLayerSolution, Spend, SpendContext, TransparentLayer,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NftMint<M> {
@@ -29,49 +28,39 @@ impl Launcher {
         metadata: M,
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
-    ) -> Result<(Conditions, NftInfo<M>), SpendError>
+    ) -> Result<(Conditions, NFT<M>, Proof), ParseError>
     where
-        M: ToClvm<NodePtr>,
+        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone,
+        SingletonLayer<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>: PuzzleLayer<
+            SingletonLayerSolution<NFTStateLayerSolution<NFTOwnershipLayerSolution<NodePtr>>>,
+        >,
+        NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>: ToTreeHash,
     {
-        let metadata_ptr = ctx.alloc(&metadata)?;
-        let metadata_hash = ctx.tree_hash(metadata_ptr);
+        let launcher_coin = self.coin();
 
-        let transfer_program = NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
-            self.coin().coin_id(),
+        let nft = NFT {
+            launcher_id: launcher_coin.coin_id(),
+            coin: launcher_coin,
+            p2_puzzle_hash: p2_puzzle_hash.into(),
+            metadata,
+            current_owner: None,
             royalty_puzzle_hash,
             royalty_percentage,
-        );
+        };
 
-        let ownership_layer =
-            NftOwnershipLayerArgs::curry_tree_hash(None, transfer_program, p2_puzzle_hash.into());
-
-        let inner_puzzle_hash =
-            NftStateLayerArgs::curry_tree_hash(metadata_hash, ownership_layer).into();
-
-        let launcher_coin = self.coin();
-        let (launch_singleton, eve_coin) = self.spend(ctx, inner_puzzle_hash, ())?;
+        let (launch_singleton, eve_coin) = self
+            .spend(ctx, nft.singleton_inner_puzzle_hash().into(), ())
+            .map_err(|err| ParseError::Spend(err))?;
 
         let proof = Proof::Eve(EveProof {
             parent_coin_info: launcher_coin.parent_coin_info,
             amount: launcher_coin.amount,
         });
 
-        let nft_info = NftInfo {
-            launcher_id: launcher_coin.coin_id(),
-            coin: eve_coin,
-            inner_puzzle_hash,
-            p2_puzzle_hash,
-            proof,
-            metadata,
-            metadata_hash,
-            current_owner: None,
-            royalty_puzzle_hash,
-            royalty_percentage,
-        };
-
         Ok((
             launch_singleton.create_puzzle_announcement(launcher_coin.coin_id().to_vec().into()),
-            nft_info,
+            nft.with_coin(eve_coin),
+            proof,
         ))
     }
 
@@ -79,9 +68,13 @@ impl Launcher {
         self,
         ctx: &mut SpendContext,
         mint: NftMint<M>,
-    ) -> Result<(Conditions, NftInfo<M>), SpendError>
+    ) -> Result<(Conditions, NFT<M>), ParseError>
     where
-        M: ToClvm<NodePtr> + Clone,
+        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone,
+        SingletonLayer<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>: PuzzleLayer<
+            SingletonLayerSolution<NFTStateLayerSolution<NFTOwnershipLayerSolution<NodePtr>>>,
+        >,
+        NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>: ToTreeHash,
         Self: Sized,
     {
         let mut conditions =
@@ -95,7 +88,7 @@ impl Launcher {
         let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
         let inner_spend = Spend::new(inner_puzzle, NodePtr::NIL);
 
-        let (mint_eve_nft, eve_nft_info) = self.mint_eve_nft(
+        let (mint_eve_nft, eve_nft, eve_proof) = self.mint_eve_nft(
             ctx,
             inner_puzzle_hash,
             mint.metadata,
@@ -103,27 +96,30 @@ impl Launcher {
             mint.royalty_percentage,
         )?;
 
-        let eve_spend = nft_spend(ctx, &eve_nft_info, inner_spend)?;
-        ctx.insert_coin_spend(eve_spend);
+        let eve_spend = eve_nft.spend(ctx, eve_proof, inner_spend)?;
+        ctx.insert_coin_spend(eve_spend.clone());
 
         let mut did_conditions = Conditions::new();
 
         if mint.owner != NewNftOwner::default() {
             did_conditions = did_conditions.assert_raw_puzzle_announcement(did_puzzle_assertion(
-                eve_nft_info.coin.puzzle_hash,
+                eve_nft.coin.puzzle_hash,
                 &mint.owner,
             ));
         }
 
         Ok((
             mint_eve_nft.extend(did_conditions),
-            eve_nft_info.child(mint.puzzle_hash, mint.owner.did_id),
+            NFT::from_parent_spend(ctx.allocator_mut(), eve_spend)?
+                .ok_or(ParseError::MissingChild)?,
         ))
     }
 }
 
 #[cfg(test)]
 pub use tests::nft_mint;
+
+use super::NFT;
 
 #[cfg(test)]
 mod tests {
@@ -164,7 +160,11 @@ mod tests {
     }
 
     #[test]
-    fn test_nft_mint_cost() -> anyhow::Result<()> {
+    fn test_nft_mint_cost() -> anyhow::Result<()>
+    where
+        NftMetadata: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone,
+        NFTStateLayer<NftMetadata, NFTOwnershipLayer<TransparentLayer>>: ToTreeHash,
+    {
         let sk = secret_key()?;
         let pk = sk.public_key();
         let mut owned_ctx = SpendContext::new();
