@@ -5,11 +5,7 @@ use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 
-use crate::{
-    did_puzzle_assertion, Conditions, Launcher, NFTOwnershipLayer, NFTOwnershipLayerSolution,
-    NFTStateLayer, NFTStateLayerSolution, ParseError, PuzzleLayer, SingletonLayer,
-    SingletonLayerSolution, Spend, SpendContext, TransparentLayer,
-};
+use crate::{did_puzzle_assertion, Conditions, Launcher, ParseError, Spend, SpendContext};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NftMint<M> {
@@ -30,11 +26,7 @@ impl Launcher {
         royalty_percentage: u16,
     ) -> Result<(Conditions, NFT<M>, Proof), ParseError>
     where
-        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone,
-        SingletonLayer<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>: PuzzleLayer<
-            SingletonLayerSolution<NFTStateLayerSolution<NFTOwnershipLayerSolution<NodePtr>>>,
-        >,
-        NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>: ToTreeHash,
+        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
     {
         let launcher_coin = self.coin();
 
@@ -70,12 +62,7 @@ impl Launcher {
         mint: NftMint<M>,
     ) -> Result<(Conditions, NFT<M>), ParseError>
     where
-        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone,
-        SingletonLayer<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>: PuzzleLayer<
-            SingletonLayerSolution<NFTStateLayerSolution<NFTOwnershipLayerSolution<NodePtr>>>,
-        >,
-        NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>: ToTreeHash,
-        Self: Sized,
+        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
     {
         let mut conditions =
             Conditions::new().create_hinted_coin(mint.puzzle_hash, 1, mint.puzzle_hash);
@@ -162,8 +149,7 @@ mod tests {
     #[test]
     fn test_nft_mint_cost() -> anyhow::Result<()>
     where
-        NftMetadata: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone,
-        NFTStateLayer<NftMetadata, NFTOwnershipLayer<TransparentLayer>>: ToTreeHash,
+        NftMetadata: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
     {
         let sk = secret_key()?;
         let pk = sk.public_key();

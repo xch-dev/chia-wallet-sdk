@@ -273,7 +273,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{IntermediateLauncher, Launcher};
+    use crate::{nft_mint, IntermediateLauncher, Launcher};
 
     use super::*;
 
