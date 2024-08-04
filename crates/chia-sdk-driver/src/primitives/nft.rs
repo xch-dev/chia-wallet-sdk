@@ -150,9 +150,9 @@ where
         ctx: &mut SpendContext,
         lineage_proof: Proof,
         inner_spend: Spend,
-    ) -> Result<CoinSpend, ParseError>
+    ) -> Result<(CoinSpend, NFT<M>, LineageProof), ParseError>
     where
-        M: Clone,
+        M: Clone + ToTreeHash,
     {
         let thing = self.get_layered_object();
 
@@ -175,11 +175,17 @@ where
         let solution = Program::from_node_ptr(ctx.allocator(), solution_ptr)
             .map_err(|err| ParseError::FromClvm(err))?;
 
-        Ok(CoinSpend {
+        let cs = CoinSpend {
             coin: self.coin,
             puzzle_reveal: puzzle,
             solution,
-        })
+        };
+        let lineage_proof = self.lineage_proof_for_child(cs.coin);
+        Ok((
+            cs.clone(),
+            NFT::from_parent_spend(ctx.allocator_mut(), cs)?.ok_or(ParseError::MissingChild)?,
+            lineage_proof,
+        ))
     }
 
     pub fn transfer(
@@ -188,16 +194,18 @@ where
         lineage_proof: Proof,
         owner_synthetic_key: PublicKey,
         new_owner_puzzle_hash: Bytes32,
-    ) -> Result<CoinSpend, ParseError>
+        extra_conditions: Conditions,
+    ) -> Result<(CoinSpend, NFT<M>, LineageProof), ParseError>
     where
-        M: Clone,
+        M: Clone + ToTreeHash,
     {
-        let p2_conditions =
-            Conditions::new().condition(Condition::CreateCoin(CreateCoin::with_hint(
+        let p2_conditions = Conditions::new()
+            .condition(Condition::CreateCoin(CreateCoin::with_hint(
                 new_owner_puzzle_hash,
                 self.coin.amount,
                 new_owner_puzzle_hash,
-            )));
+            )))
+            .extend(extra_conditions);
         let inner_spend = p2_conditions
             .p2_spend(ctx, owner_synthetic_key)
             .map_err(|err| ParseError::Spend(err))?;
@@ -212,19 +220,22 @@ where
         owner_synthetic_key: PublicKey,
         new_owner_puzzle_hash: Bytes32,
         new_did_owner: NewNftOwner,
-    ) -> Result<(CoinSpend, Conditions), ParseError>
+        extra_conditions: Conditions,
+    ) -> Result<(CoinSpend, Conditions, NFT<M>, LineageProof), ParseError>
     // (spend, did conditions)
     where
-        M: Clone,
+        M: Clone + ToTreeHash,
     {
-        let p2_conditions = Conditions::new().conditions(&vec![
-            Condition::CreateCoin(CreateCoin::with_hint(
-                new_owner_puzzle_hash,
-                self.coin.amount,
-                new_owner_puzzle_hash,
-            )),
-            Condition::Other(ctx.alloc(&new_did_owner)?),
-        ]);
+        let p2_conditions = Conditions::new()
+            .conditions(&vec![
+                Condition::CreateCoin(CreateCoin::with_hint(
+                    new_owner_puzzle_hash,
+                    self.coin.amount,
+                    new_owner_puzzle_hash,
+                )),
+                Condition::Other(ctx.alloc(&new_did_owner)?),
+            ])
+            .extend(extra_conditions);
         let inner_spend = p2_conditions
             .p2_spend(ctx, owner_synthetic_key)
             .map_err(|err| ParseError::Spend(err))?;
@@ -233,7 +244,8 @@ where
             did_puzzle_assertion(self.coin.puzzle_hash, &new_did_owner),
         );
 
-        Ok((self.spend(ctx, lineage_proof, inner_spend)?, did_conditions))
+        let (cs, new_nft, lineage_proof) = self.spend(ctx, lineage_proof, inner_spend)?;
+        Ok((cs, did_conditions, new_nft, lineage_proof))
     }
 }
 

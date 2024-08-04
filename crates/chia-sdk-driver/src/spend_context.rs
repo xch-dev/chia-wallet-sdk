@@ -20,16 +20,14 @@ use chia_puzzles::{
         SINGLETON_TOP_LAYER_PUZZLE_HASH,
     },
     standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
+    LineageProof, Proof,
 };
-use chia_sdk_types::{
-    conditions::NewNftOwner,
-    puzzles::{DidInfo, NftInfo},
-};
-use clvm_traits::{FromNodePtr, ToClvm, ToNodePtr};
-use clvm_utils::{tree_hash, TreeHash};
+use chia_sdk_types::{conditions::NewNftOwner, puzzles::DidInfo};
+use clvm_traits::{FromClvm, FromNodePtr, ToClvm, ToNodePtr};
+use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
 
-use crate::{did_spend, spend_error::SpendError, Conditions, Spend, NFT};
+use crate::{did_spend, spend_error::SpendError, Conditions, ParseError, Spend, NFT};
 
 /// A wrapper around `Allocator` that caches puzzles and simplifies coin spending.
 #[derive(Debug, Default)]
@@ -257,23 +255,42 @@ impl SpendContext {
     pub fn spend_standard_nft<M>(
         &mut self,
         nft: &NFT<M>,
+        lineage_proof: Proof,
         synthetic_key: PublicKey,
         p2_puzzle_hash: Bytes32,
         new_nft_owner: Option<NewNftOwner>,
         extra_conditions: Conditions,
-    ) -> Result<(Conditions, NFT<M>), SpendError>
+    ) -> Result<(Conditions, NFT<M>, LineageProof), ParseError>
     where
-        M: ToClvm<NodePtr> + Clone,
+        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
     {
-        let transger = nft.tr
-        let transfer = transfer_nft(self, nft_info, p2_puzzle_hash, new_nft_owner)?;
-        let p2_spend = transfer
-            .p2_conditions
-            .extend(extra_conditions)
-            .p2_spend(self, synthetic_key)?;
-        let nft_spend = nft_spend(self, nft_info, p2_spend)?;
-        self.insert_coin_spend(nft_spend);
-        Ok((transfer.did_conditions, transfer.output))
+        match new_nft_owner {
+            Some(new_nft_owner) => {
+                let (cs, conds, new_nft, lp) = nft.transfer_to_did(
+                    self,
+                    lineage_proof,
+                    synthetic_key,
+                    p2_puzzle_hash,
+                    new_nft_owner,
+                    extra_conditions,
+                )?;
+
+                self.insert_coin_spend(cs);
+                Ok((conds, new_nft, lp))
+            }
+            None => {
+                let (cs, new_nft, lp) = nft.transfer(
+                    self,
+                    lineage_proof,
+                    synthetic_key,
+                    p2_puzzle_hash,
+                    extra_conditions,
+                )?;
+
+                self.insert_coin_spend(cs);
+                Ok((Conditions::new(), new_nft, lp))
+            }
+        }
     }
 }
 

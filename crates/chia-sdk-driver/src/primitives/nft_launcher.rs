@@ -83,7 +83,7 @@ impl Launcher {
             mint.royalty_percentage,
         )?;
 
-        let eve_spend = eve_nft.spend(ctx, eve_proof, inner_spend)?;
+        let (eve_spend, _, _) = eve_nft.spend(ctx, eve_proof, inner_spend)?;
         ctx.insert_coin_spend(eve_spend.clone());
 
         let mut did_conditions = Conditions::new();
