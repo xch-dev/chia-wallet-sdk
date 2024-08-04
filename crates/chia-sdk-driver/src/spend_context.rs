@@ -29,7 +29,7 @@ use clvm_traits::{FromNodePtr, ToClvm, ToNodePtr};
 use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
 
-use crate::{did_spend, nft_spend, spend_error::SpendError, transfer_nft, Conditions, Spend};
+use crate::{did_spend, spend_error::SpendError, Conditions, Spend};
 
 /// A wrapper around `Allocator` that caches puzzles and simplifies coin spending.
 #[derive(Debug, Default)]

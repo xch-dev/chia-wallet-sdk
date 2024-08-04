@@ -41,6 +41,8 @@ pub enum ParseError {
     #[error("mismatched singleton output (maybe no spend revealed the new singleton state)")]
     MismatchedOutput,
 
-    #[error("missing synthetic key (required to build innermost puzzle)")]
-    MissingSyntheticKey,
+    #[error(
+        "missing puzzle (required to build innermost puzzle - usually fixed by using .with_puzzle)"
+    )]
+    MissingPuzzle,
 }
