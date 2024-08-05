@@ -1,15 +1,15 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzles::cat::{CatArgs, CatSolution, CAT_PUZZLE_HASH};
-use clvm_traits::{FromClvm, ToNodePtr};
+use clvm_traits::{FromClvm, FromNodePtr, ToNodePtr};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{ParseError, Puzzle, PuzzleLayer, SpendContext};
+use crate::{OuterPuzzleLayer, ParseError, Puzzle, PuzzleLayer, SpendContext};
 
 #[derive(Debug)]
 
 pub struct CATLayer<IP> {
-    pub tail_hash: Bytes32,
+    pub asset_id: Bytes32,
     pub inner_puzzle: IP,
 }
 
@@ -49,7 +49,7 @@ where
         )? {
             None => return Ok(None),
             Some(inner_puzzle) => Ok(Some(CATLayer::<IP> {
-                tail_hash: parent_args.asset_id,
+                asset_id: parent_args.asset_id,
                 inner_puzzle,
             })),
         }
@@ -78,7 +78,7 @@ where
         match IP::from_puzzle(allocator, args.inner_puzzle)? {
             None => return Ok(None),
             Some(inner_puzzle) => Ok(Some(CATLayer::<IP> {
-                tail_hash: args.asset_id,
+                asset_id: args.asset_id,
                 inner_puzzle,
             })),
         }
@@ -89,7 +89,7 @@ where
             program: ctx.cat_puzzle().map_err(|err| ParseError::Spend(err))?,
             args: CatArgs {
                 mod_hash: CAT_PUZZLE_HASH.into(),
-                asset_id: self.tail_hash,
+                asset_id: self.asset_id,
                 inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
             },
         }
@@ -123,6 +123,34 @@ where
     IP: ToTreeHash,
 {
     fn tree_hash(&self) -> TreeHash {
-        CatArgs::curry_tree_hash(self.tail_hash, self.inner_puzzle.tree_hash())
+        CatArgs::curry_tree_hash(self.asset_id, self.inner_puzzle.tree_hash())
+    }
+}
+
+impl<IP> OuterPuzzleLayer for CATLayer<IP>
+where
+    IP: PuzzleLayer,
+{
+    type Solution = CatSolution<IP::Solution>;
+
+    fn solve(
+        &self,
+        ctx: &mut SpendContext,
+        coin: Coin,
+        solution: Self::Solution,
+    ) -> Result<CoinSpend, ParseError> {
+        let puzzle_ptr = self.construct_puzzle(ctx)?;
+        let puzzle_reveal = Program::from_node_ptr(ctx.allocator(), puzzle_ptr)
+            .map_err(|err| ParseError::FromClvm(err))?;
+
+        let solution_ptr = self.construct_solution(ctx, solution)?;
+        let solution_reveal = Program::from_node_ptr(ctx.allocator(), solution_ptr)
+            .map_err(|err| ParseError::FromClvm(err))?;
+
+        Ok(CoinSpend {
+            coin,
+            puzzle_reveal,
+            solution: solution_reveal,
+        })
     }
 }
