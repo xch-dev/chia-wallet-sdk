@@ -1,7 +1,11 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
-use chia_puzzles::{cat::CatSolution, Proof};
-use clvm_traits::{FromNodePtr, ToNodePtr};
-use clvm_utils::{ToTreeHash, TreeHash};
+use chia_puzzles::{
+    cat::{CatSolution, CoinProof},
+    LineageProof, Proof,
+};
+use chia_sdk_types::conditions::{run_puzzle, Condition};
+use clvm_traits::{FromClvm, FromNodePtr, ToNodePtr};
+use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{CATLayer, DriverError, PuzzleLayer, Spend, SpendContext, TransparentLayer};
@@ -58,10 +62,28 @@ impl CAT {
         let res =
             CATLayer::<TransparentLayer>::from_parent_spend(allocator, puzzle_ptr, solution_ptr)?;
 
+        let output = run_puzzle(allocator, puzzle_ptr, solution_ptr)
+            .map_err(|err| DriverError::Eval(err))?;
+        let conditions = Vec::<Condition>::from_clvm(allocator, output)
+            .map_err(|err| DriverError::FromClvm(err))?;
+
+        let create_coin = conditions
+            .into_iter()
+            .find(|cond| match cond {
+                Condition::CreateCoin(_) => true,
+                _ => false,
+            })
+            .ok_or(DriverError::MissingParentCreateCoin)?;
+        let (amount, puzzle_hash) = if let Condition::CreateCoin(create_coin) = create_coin {
+            (create_coin.amount, create_coin.puzzle_hash)
+        } else {
+            unreachable!()
+        };
+
         match res {
             None => Ok(None),
             Some(res) => Ok(Some(CAT {
-                coin: Coin::new(cs.coin.coin_id(), res.tree_hash().into(), todo),
+                coin: Coin::new(cs.coin.coin_id(), puzzle_hash, amount),
                 asset_id: res.asset_id,
                 p2_puzzle_hash: res.inner_puzzle.puzzle_hash,
                 p2_puzzle: res.inner_puzzle.puzzle,
@@ -103,7 +125,12 @@ impl CAT {
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
-        lineage_proof: Proof,
+        lineage_proof: Option<LineageProof>,
+        prev_coin_id: Bytes32,
+        this_coin_info: Coin,
+        next_coin_proof: CoinProof,
+        prev_subtotal: i64,
+        extra_delta: i64,
         inner_spend: Spend,
     ) -> Result<(CoinSpend, CAT, Proof), DriverError> {
         let thing = self.get_layered_object(Some(inner_spend.puzzle()));
@@ -116,8 +143,12 @@ impl CAT {
             ctx,
             CatSolution {
                 lineage_proof,
+                prev_coin_id,
+                this_coin_info,
+                next_coin_proof,
+                prev_subtotal,
+                extra_delta,
                 inner_puzzle_solution: inner_spend.solution(),
-                prev_coin_id: self.coin.coin_id(),
             },
         )?;
         let solution = Program::from_node_ptr(ctx.allocator(), solution_ptr)
@@ -128,11 +159,14 @@ impl CAT {
             puzzle_reveal: puzzle,
             solution,
         };
-        let lineage_proof = thing.lineage_proof_for_child(self.coin.parent_coin_info, 1);
         Ok((
             cs.clone(),
             CAT::from_parent_spend(ctx.allocator_mut(), cs)?.ok_or(DriverError::MissingChild)?,
-            Proof::Lineage(lineage_proof),
+            Proof::Lineage(LineageProof {
+                parent_parent_coin_id: self.coin.parent_coin_info,
+                parent_inner_puzzle_hash: self.p2_puzzle_hash.into(),
+                parent_amount: self.coin.amount,
+            }),
         ))
     }
 }
