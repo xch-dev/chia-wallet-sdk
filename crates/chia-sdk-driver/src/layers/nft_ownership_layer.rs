@@ -59,6 +59,15 @@ where
             return Err(ParseError::InvalidModHash);
         }
 
+        let parent_sol = NftOwnershipLayerSolution::<NodePtr>::from_clvm(allocator, layer_solution)
+            .map_err(|err| ParseError::FromClvm(err))?;
+
+        let new_owner_maybe = NFTOwnershipLayer::<IP>::new_owner_from_conditions(
+            allocator,
+            parent_args.inner_puzzle,
+            parent_sol.inner_solution,
+        )?;
+
         let Some(parent_transfer_puzzle) =
             Puzzle::parse(allocator, parent_args.transfer_program).as_curried()
         else {
@@ -71,15 +80,6 @@ where
 
         let parent_transfer_args =
             NftRoyaltyTransferPuzzleArgs::from_clvm(allocator, parent_transfer_puzzle.args)?;
-
-        let new_owner_maybe = NFTOwnershipLayer::<IP>::new_owner_from_conditions(
-            allocator,
-            layer_puzzle,
-            layer_solution,
-        )?;
-
-        let parent_sol = NftOwnershipLayerSolution::<NodePtr>::from_clvm(allocator, layer_solution)
-            .map_err(|err| ParseError::FromClvm(err))?;
 
         match IP::from_parent_spend(
             allocator,
@@ -206,10 +206,10 @@ where
 impl<IP> NFTOwnershipLayer<IP> {
     pub fn new_owner_from_conditions(
         allocator: &mut Allocator,
-        layer_puzzle: NodePtr,
-        layer_solution: NodePtr,
+        inner_layer_puzzle: NodePtr,
+        inner_layer_solution: NodePtr,
     ) -> Result<Option<Option<Bytes32>>, ParseError> {
-        let output = run_puzzle(allocator, layer_puzzle, layer_solution)
+        let output = run_puzzle(allocator, inner_layer_puzzle, inner_layer_solution)
             .map_err(|err| ParseError::Eval(err))?;
 
         let conditions = Vec::<NodePtr>::from_clvm(allocator, output)

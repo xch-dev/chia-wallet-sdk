@@ -192,11 +192,15 @@ where
         self.inner_puzzle.tree_hash()
     }
 
-    pub fn lineage_proof_for_child(&self, my_parent_coin: Coin) -> LineageProof {
+    pub fn lineage_proof_for_child(
+        &self,
+        my_parent_name: Bytes32,
+        my_parent_amount: u64,
+    ) -> LineageProof {
         LineageProof {
-            parent_parent_coin_id: my_parent_coin.parent_coin_info,
+            parent_parent_coin_id: my_parent_name,
             parent_inner_puzzle_hash: self.inner_puzzle_hash().into(),
-            parent_amount: my_parent_coin.amount,
+            parent_amount: my_parent_amount,
         }
     }
 

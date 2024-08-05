@@ -74,7 +74,10 @@ where
     pub fn from_parent_spend(
         allocator: &mut Allocator,
         cs: CoinSpend,
-    ) -> Result<Option<Self>, ParseError> {
+    ) -> Result<Option<Self>, ParseError>
+    where
+        M: ToTreeHash,
+    {
         let puzzle_ptr = cs
             .puzzle_reveal
             .to_node_ptr(allocator)
@@ -93,7 +96,7 @@ where
         match res {
             None => Ok(None),
             Some(res) => Ok(Some(NFT {
-                coin: cs.coin,
+                coin: Coin::new(cs.coin.coin_id(), res.tree_hash().into(), 1),
                 launcher_id: res.launcher_id,
                 metadata: res.inner_puzzle.metadata,
                 current_owner: res.inner_puzzle.inner_puzzle.current_owner,
@@ -194,7 +197,7 @@ where
             puzzle_reveal: puzzle,
             solution,
         };
-        let lineage_proof = self.lineage_proof_for_child(cs.coin);
+        let lineage_proof = thing.lineage_proof_for_child(self.coin.parent_coin_info, 1);
         Ok((
             cs.clone(),
             NFT::from_parent_spend(ctx.allocator_mut(), cs)?.ok_or(ParseError::MissingChild)?,
@@ -291,19 +294,23 @@ where
         self.get_layered_object(None).inner_puzzle_hash()
     }
 
-    pub fn lineage_proof_for_child(&self, parent_coin: Coin) -> LineageProof {
+    pub fn lineage_proof_for_child(
+        &self,
+        my_parent_name: Bytes32,
+        my_parent_amount: u64,
+    ) -> LineageProof {
         self.get_layered_object(None)
-            .lineage_proof_for_child(parent_coin)
+            .lineage_proof_for_child(my_parent_name, my_parent_amount)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{nft_mint, IntermediateLauncher, Launcher};
+    use crate::{nft_mint, print_spend_bundle, IntermediateLauncher, Launcher};
 
     use super::*;
 
-    use chia_bls::DerivableKey;
+    use chia_bls::{DerivableKey, Signature};
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
 
@@ -343,13 +350,10 @@ mod tests {
 
         let _did_info = ctx.spend_standard_did(did_info, pk, parent_conditions)?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        let spends = ctx.take_spends();
+        print_spend_bundle(spends.clone(), Signature::default());
+
+        test_transaction(&peer, spends, &[sk], sim.config().genesis_challenge).await;
 
         Ok(())
     }
