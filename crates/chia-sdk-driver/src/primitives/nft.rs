@@ -10,9 +10,9 @@ use clvmr::{
 };
 
 use crate::{
-    Conditions, NFTOwnershipLayer, NFTOwnershipLayerSolution, NFTStateLayer, NFTStateLayerSolution,
-    ParseError, PuzzleLayer, SingletonLayer, SingletonLayerSolution, Spend, SpendContext,
-    TransparentLayer,
+    Conditions, DriverError, NFTOwnershipLayer, NFTOwnershipLayerSolution, NFTStateLayer,
+    NFTStateLayerSolution, PuzzleLayer, SingletonLayer, SingletonLayerSolution, Spend,
+    SpendContext, TransparentLayer,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -74,18 +74,18 @@ where
     pub fn from_parent_spend(
         allocator: &mut Allocator,
         cs: CoinSpend,
-    ) -> Result<Option<Self>, ParseError>
+    ) -> Result<Option<Self>, DriverError>
     where
         M: ToTreeHash,
     {
         let puzzle_ptr = cs
             .puzzle_reveal
             .to_node_ptr(allocator)
-            .map_err(|err| ParseError::ToClvm(err))?;
+            .map_err(|err| DriverError::ToClvm(err))?;
         let solution_ptr = cs
             .solution
             .to_node_ptr(allocator)
-            .map_err(|err| ParseError::ToClvm(err))?;
+            .map_err(|err| DriverError::ToClvm(err))?;
 
         let res = SingletonLayer::<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>::from_parent_spend(
             allocator,
@@ -112,7 +112,7 @@ where
         allocator: &mut Allocator,
         coin: Coin,
         puzzle: NodePtr,
-    ) -> Result<Option<Self>, ParseError> {
+    ) -> Result<Option<Self>, DriverError> {
         let res =
             SingletonLayer::<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>::from_puzzle(
                 allocator, puzzle,
@@ -167,7 +167,7 @@ where
         ctx: &mut SpendContext,
         lineage_proof: Proof,
         inner_spend: Spend,
-    ) -> Result<(CoinSpend, NFT<M>, Proof), ParseError>
+    ) -> Result<(CoinSpend, NFT<M>, Proof), DriverError>
     where
         M: Clone + ToTreeHash,
     {
@@ -175,7 +175,7 @@ where
 
         let puzzle_ptr = thing.construct_puzzle(ctx)?;
         let puzzle = Program::from_node_ptr(ctx.allocator(), puzzle_ptr)
-            .map_err(|err| ParseError::FromClvm(err))?;
+            .map_err(|err| DriverError::FromClvm(err))?;
 
         let solution_ptr = thing.construct_solution(
             ctx,
@@ -190,7 +190,7 @@ where
             },
         )?;
         let solution = Program::from_node_ptr(ctx.allocator(), solution_ptr)
-            .map_err(|err| ParseError::FromClvm(err))?;
+            .map_err(|err| DriverError::FromClvm(err))?;
 
         let cs = CoinSpend {
             coin: self.coin,
@@ -200,7 +200,7 @@ where
         let lineage_proof = thing.lineage_proof_for_child(self.coin.parent_coin_info, 1);
         Ok((
             cs.clone(),
-            NFT::from_parent_spend(ctx.allocator_mut(), cs)?.ok_or(ParseError::MissingChild)?,
+            NFT::from_parent_spend(ctx.allocator_mut(), cs)?.ok_or(DriverError::MissingChild)?,
             Proof::Lineage(lineage_proof),
         ))
     }
@@ -212,7 +212,7 @@ where
         owner_synthetic_key: PublicKey,
         new_owner_puzzle_hash: Bytes32,
         extra_conditions: Conditions,
-    ) -> Result<(CoinSpend, NFT<M>, Proof), ParseError>
+    ) -> Result<(CoinSpend, NFT<M>, Proof), DriverError>
     where
         M: Clone + ToTreeHash,
     {
@@ -225,7 +225,7 @@ where
             .extend(extra_conditions);
         let inner_spend = p2_conditions
             .p2_spend(ctx, owner_synthetic_key)
-            .map_err(|err| ParseError::Spend(err))?;
+            .map_err(|err| DriverError::Spend(err))?;
 
         self.spend(ctx, lineage_proof, inner_spend)
     }
@@ -238,7 +238,7 @@ where
         new_owner_puzzle_hash: Bytes32,
         new_did_owner: NewNftOwner,
         extra_conditions: Conditions,
-    ) -> Result<(CoinSpend, Conditions, NFT<M>, Proof), ParseError>
+    ) -> Result<(CoinSpend, Conditions, NFT<M>, Proof), DriverError>
     // (spend, did conditions)
     where
         M: Clone + ToTreeHash,
@@ -255,7 +255,7 @@ where
             .extend(extra_conditions);
         let inner_spend = p2_conditions
             .p2_spend(ctx, owner_synthetic_key)
-            .map_err(|err| ParseError::Spend(err))?;
+            .map_err(|err| DriverError::Spend(err))?;
 
         let did_conditions = Conditions::new().assert_raw_puzzle_announcement(
             did_puzzle_assertion(self.coin.puzzle_hash, &new_did_owner),

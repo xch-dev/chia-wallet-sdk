@@ -4,7 +4,7 @@ use clvm_traits::{FromClvm, FromNodePtr, ToNodePtr};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{OuterPuzzleLayer, ParseError, Puzzle, PuzzleLayer, SpendContext};
+use crate::{DriverError, OuterPuzzleLayer, Puzzle, PuzzleLayer, SpendContext};
 
 #[derive(Debug)]
 
@@ -23,7 +23,7 @@ where
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
         layer_solution: NodePtr,
-    ) -> Result<Option<Self>, ParseError> {
+    ) -> Result<Option<Self>, DriverError> {
         let parent_puzzle = Puzzle::parse(allocator, layer_puzzle);
 
         let Some(parent_puzzle) = parent_puzzle.as_curried() else {
@@ -37,7 +37,7 @@ where
         let parent_args = CatArgs::<NodePtr>::from_clvm(allocator, parent_puzzle.args)?;
 
         if parent_args.mod_hash != CAT_PUZZLE_HASH.into() {
-            return Err(ParseError::InvalidModHash);
+            return Err(DriverError::InvalidModHash);
         }
 
         let parent_sol = CatSolution::<NodePtr>::from_clvm(allocator, layer_solution)?;
@@ -58,7 +58,7 @@ where
     fn from_puzzle(
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
-    ) -> Result<Option<Self>, ParseError> {
+    ) -> Result<Option<Self>, DriverError> {
         let puzzle = Puzzle::parse(allocator, layer_puzzle);
 
         let Some(puzzle) = puzzle.as_curried() else {
@@ -72,7 +72,7 @@ where
         let args = CatArgs::<NodePtr>::from_clvm(allocator, puzzle.args)?;
 
         if args.mod_hash != CAT_PUZZLE_HASH.into() {
-            return Err(ParseError::InvalidModHash);
+            return Err(DriverError::InvalidModHash);
         }
 
         match IP::from_puzzle(allocator, args.inner_puzzle)? {
@@ -84,9 +84,9 @@ where
         }
     }
 
-    fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, ParseError> {
+    fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         CurriedProgram {
-            program: ctx.cat_puzzle().map_err(|err| ParseError::Spend(err))?,
+            program: ctx.cat_puzzle().map_err(|err| DriverError::Spend(err))?,
             args: CatArgs {
                 mod_hash: CAT_PUZZLE_HASH.into(),
                 asset_id: self.asset_id,
@@ -94,14 +94,14 @@ where
             },
         }
         .to_node_ptr(ctx.allocator_mut())
-        .map_err(|err| ParseError::ToClvm(err))
+        .map_err(|err| DriverError::ToClvm(err))
     }
 
     fn construct_solution(
         &self,
         ctx: &mut SpendContext,
         solution: Self::Solution,
-    ) -> Result<NodePtr, ParseError> {
+    ) -> Result<NodePtr, DriverError> {
         CatSolution {
             inner_puzzle_solution: self
                 .inner_puzzle
@@ -114,7 +114,7 @@ where
             extra_delta: solution.extra_delta,
         }
         .to_node_ptr(ctx.allocator_mut())
-        .map_err(|err| ParseError::ToClvm(err))
+        .map_err(|err| DriverError::ToClvm(err))
     }
 }
 
@@ -138,14 +138,14 @@ where
         ctx: &mut SpendContext,
         coin: Coin,
         solution: Self::Solution,
-    ) -> Result<CoinSpend, ParseError> {
+    ) -> Result<CoinSpend, DriverError> {
         let puzzle_ptr = self.construct_puzzle(ctx)?;
         let puzzle_reveal = Program::from_node_ptr(ctx.allocator(), puzzle_ptr)
-            .map_err(|err| ParseError::FromClvm(err))?;
+            .map_err(|err| DriverError::FromClvm(err))?;
 
         let solution_ptr = self.construct_solution(ctx, solution)?;
         let solution_reveal = Program::from_node_ptr(ctx.allocator(), solution_ptr)
-            .map_err(|err| ParseError::FromClvm(err))?;
+            .map_err(|err| DriverError::FromClvm(err))?;
 
         Ok(CoinSpend {
             coin,

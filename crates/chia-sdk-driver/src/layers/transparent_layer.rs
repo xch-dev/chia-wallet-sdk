@@ -4,7 +4,7 @@ use clvm_traits::FromClvm;
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{ParseError, PuzzleLayer, SpendContext};
+use crate::{DriverError, PuzzleLayer, SpendContext};
 
 // this is the innermost puzzle for most things
 
@@ -43,11 +43,11 @@ impl PuzzleLayer for TransparentLayer {
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
         layer_solution: NodePtr,
-    ) -> Result<Option<Self>, ParseError> {
+    ) -> Result<Option<Self>, DriverError> {
         let output = run_puzzle(allocator, layer_puzzle, layer_solution)
-            .map_err(|err| ParseError::Eval(err))?;
+            .map_err(|err| DriverError::Eval(err))?;
         let conditions = Vec::<NodePtr>::from_clvm(allocator, output)
-            .map_err(|err| ParseError::FromClvm(err))?;
+            .map_err(|err| DriverError::FromClvm(err))?;
 
         // if there's only one output, we can predict this layer's puzzle hash
         let mut new_puzzle_hash: Option<Bytes32> = None;
@@ -84,22 +84,22 @@ impl PuzzleLayer for TransparentLayer {
     fn from_puzzle(
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
-    ) -> Result<Option<Self>, ParseError> {
+    ) -> Result<Option<Self>, DriverError> {
         Ok(Some(TransparentLayer {
             puzzle_hash: tree_hash(&allocator, layer_puzzle),
             puzzle: Some(layer_puzzle),
         }))
     }
 
-    fn construct_puzzle(&self, _: &mut SpendContext) -> Result<NodePtr, ParseError> {
-        self.puzzle.ok_or(ParseError::MissingPuzzle)
+    fn construct_puzzle(&self, _: &mut SpendContext) -> Result<NodePtr, DriverError> {
+        self.puzzle.ok_or(DriverError::MissingPuzzle)
     }
 
     fn construct_solution(
         &self,
         _: &mut SpendContext,
         solution: NodePtr,
-    ) -> Result<NodePtr, ParseError> {
+    ) -> Result<NodePtr, DriverError> {
         Ok(solution)
     }
 }

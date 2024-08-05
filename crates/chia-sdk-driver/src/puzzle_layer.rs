@@ -1,7 +1,7 @@
 use chia_protocol::{Coin, CoinSpend};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{ParseError, SpendContext};
+use crate::{DriverError, SpendContext};
 
 pub trait PuzzleLayer {
     type Solution;
@@ -10,24 +10,24 @@ pub trait PuzzleLayer {
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
         layer_solution: NodePtr,
-    ) -> Result<Option<Self>, ParseError>
+    ) -> Result<Option<Self>, DriverError>
     where
         Self: Sized;
 
     fn from_puzzle(
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
-    ) -> Result<Option<Self>, ParseError>
+    ) -> Result<Option<Self>, DriverError>
     where
         Self: Sized;
 
-    fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, ParseError>;
+    fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError>;
 
     fn construct_solution(
         &self,
         ctx: &mut SpendContext,
         solution: Self::Solution,
-    ) -> Result<NodePtr, ParseError>;
+    ) -> Result<NodePtr, DriverError>;
 }
 
 pub trait OuterPuzzleLayer {
@@ -38,5 +38,5 @@ pub trait OuterPuzzleLayer {
         ctx: &mut SpendContext,
         coin: Coin,
         solution: Self::Solution,
-    ) -> Result<CoinSpend, ParseError>;
+    ) -> Result<CoinSpend, DriverError>;
 }

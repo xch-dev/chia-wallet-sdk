@@ -1,6 +1,6 @@
 mod conditions;
+mod driver_error;
 mod layers;
-mod parse_error;
 mod primitives;
 mod puzzle;
 mod puzzle_layer;
@@ -10,8 +10,8 @@ mod spend_context;
 mod spend_error;
 
 pub use conditions::*;
+pub use driver_error::*;
 pub use layers::*;
-pub use parse_error::*;
 pub use primitives::*;
 pub use puzzle::*;
 pub use puzzle_layer::*;

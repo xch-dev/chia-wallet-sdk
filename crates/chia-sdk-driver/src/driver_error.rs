@@ -5,9 +5,8 @@ use thiserror::Error;
 
 use crate::SpendError;
 
-// todo
 #[derive(Debug, Error)]
-pub enum ParseError {
+pub enum DriverError {
     #[error("failed to serialize clvm value: {0}")]
     ToClvm(#[from] ToClvmError),
 
@@ -22,6 +21,9 @@ pub enum ParseError {
 
     #[error("clvm eval error: {0}")]
     Eval(#[from] EvalErr),
+
+    #[error("custom driver error: {0}")]
+    Custom(String),
 
     #[error("invalid mod hash")]
     InvalidModHash,

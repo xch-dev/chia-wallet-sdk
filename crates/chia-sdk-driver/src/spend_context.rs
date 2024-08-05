@@ -27,7 +27,7 @@ use clvm_traits::{FromClvm, FromNodePtr, ToClvm, ToNodePtr};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
 
-use crate::{did_spend, spend_error::SpendError, Conditions, ParseError, Spend, NFT};
+use crate::{did_spend, spend_error::SpendError, Conditions, DriverError, Spend, NFT};
 
 /// A wrapper around `Allocator` that caches puzzles and simplifies coin spending.
 #[derive(Debug, Default)]
@@ -260,7 +260,7 @@ impl SpendContext {
         p2_puzzle_hash: Bytes32,
         new_nft_owner: Option<NewNftOwner>,
         extra_conditions: Conditions,
-    ) -> Result<(Conditions, NFT<M>, Proof), ParseError>
+    ) -> Result<(Conditions, NFT<M>, Proof), DriverError>
     where
         M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
     {

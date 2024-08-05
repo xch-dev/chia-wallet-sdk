@@ -5,7 +5,7 @@ use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 
-use crate::{did_puzzle_assertion, Conditions, Launcher, ParseError, Spend, SpendContext};
+use crate::{did_puzzle_assertion, Conditions, DriverError, Launcher, Spend, SpendContext};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NftMint<M> {
@@ -24,7 +24,7 @@ impl Launcher {
         metadata: M,
         royalty_puzzle_hash: Bytes32,
         royalty_percentage: u16,
-    ) -> Result<(Conditions, NFT<M>, Proof), ParseError>
+    ) -> Result<(Conditions, NFT<M>, Proof), DriverError>
     where
         M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
     {
@@ -43,7 +43,7 @@ impl Launcher {
 
         let (launch_singleton, eve_coin) = self
             .spend(ctx, nft.singleton_inner_puzzle_hash().into(), ())
-            .map_err(|err| ParseError::Spend(err))?;
+            .map_err(|err| DriverError::Spend(err))?;
 
         let proof = Proof::Eve(EveProof {
             parent_coin_info: launcher_coin.parent_coin_info,
@@ -61,7 +61,7 @@ impl Launcher {
         self,
         ctx: &mut SpendContext,
         mint: NftMint<M>,
-    ) -> Result<(Conditions, NFT<M>, Proof), ParseError>
+    ) -> Result<(Conditions, NFT<M>, Proof), DriverError>
     where
         M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
     {
@@ -99,7 +99,7 @@ impl Launcher {
         Ok((
             mint_eve_nft.extend(did_conditions),
             NFT::from_parent_spend(ctx.allocator_mut(), eve_spend)?
-                .ok_or(ParseError::MissingChild)?,
+                .ok_or(DriverError::MissingChild)?,
             lineage_proof,
         ))
     }

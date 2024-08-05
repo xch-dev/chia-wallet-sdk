@@ -3,7 +3,7 @@ use clvm_traits::ToNodePtr;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{CATLayer, ParseError, PuzzleLayer, TransparentLayer};
+use crate::{CATLayer, DriverError, PuzzleLayer, TransparentLayer};
 
 #[derive(Debug, Clone, Copy)]
 pub struct CAT {
@@ -44,15 +44,15 @@ impl CAT {
     pub fn from_parent_spend(
         allocator: &mut Allocator,
         cs: CoinSpend,
-    ) -> Result<Option<Self>, ParseError> {
+    ) -> Result<Option<Self>, DriverError> {
         let puzzle_ptr = cs
             .puzzle_reveal
             .to_node_ptr(allocator)
-            .map_err(|err| ParseError::ToClvm(err))?;
+            .map_err(|err| DriverError::ToClvm(err))?;
         let solution_ptr = cs
             .solution
             .to_node_ptr(allocator)
-            .map_err(|err| ParseError::ToClvm(err))?;
+            .map_err(|err| DriverError::ToClvm(err))?;
 
         let res =
             CATLayer::<TransparentLayer>::from_parent_spend(allocator, puzzle_ptr, solution_ptr)?;
@@ -72,7 +72,7 @@ impl CAT {
         allocator: &mut Allocator,
         coin: Coin,
         puzzle: NodePtr,
-    ) -> Result<Option<Self>, ParseError> {
+    ) -> Result<Option<Self>, DriverError> {
         let res = CATLayer::<TransparentLayer>::from_puzzle(allocator, puzzle)?;
 
         match res {
@@ -104,7 +104,7 @@ impl CAT {
     //     ctx: &mut SpendContext,
     //     lineage_proof: Proof,
     //     inner_spend: Spend,
-    // ) -> Result<(CoinSpend, NFT<M>, Proof), ParseError>
+    // ) -> Result<(CoinSpend, NFT<M>, Proof), DriverError>
     // where
     //     M: Clone + ToTreeHash,
     // {
@@ -112,7 +112,7 @@ impl CAT {
 
     //     let puzzle_ptr = thing.construct_puzzle(ctx)?;
     //     let puzzle = Program::from_node_ptr(ctx.allocator(), puzzle_ptr)
-    //         .map_err(|err| ParseError::FromClvm(err))?;
+    //         .map_err(|err| DriverError::FromClvm(err))?;
 
     //     let solution_ptr = thing.construct_solution(
     //         ctx,
@@ -127,7 +127,7 @@ impl CAT {
     //         },
     //     )?;
     //     let solution = Program::from_node_ptr(ctx.allocator(), solution_ptr)
-    //         .map_err(|err| ParseError::FromClvm(err))?;
+    //         .map_err(|err| DriverError::FromClvm(err))?;
 
     //     let cs = CoinSpend {
     //         coin: self.coin,
@@ -137,7 +137,7 @@ impl CAT {
     //     let lineage_proof = thing.lineage_proof_for_child(self.coin.parent_coin_info, 1);
     //     Ok((
     //         cs.clone(),
-    //         NFT::from_parent_spend(ctx.allocator_mut(), cs)?.ok_or(ParseError::MissingChild)?,
+    //         NFT::from_parent_spend(ctx.allocator_mut(), cs)?.ok_or(DriverError::MissingChild)?,
     //         Proof::Lineage(lineage_proof),
     //     ))
     // }
