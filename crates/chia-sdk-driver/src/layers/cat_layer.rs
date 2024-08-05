@@ -7,7 +7,6 @@ use clvmr::{Allocator, NodePtr};
 use crate::{DriverError, OuterPuzzleLayer, Puzzle, PuzzleLayer, SpendContext};
 
 #[derive(Debug)]
-
 pub struct CATLayer<IP> {
     pub asset_id: Bytes32,
     pub inner_puzzle: IP,
