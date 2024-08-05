@@ -51,19 +51,19 @@ where
             return Err(ParseError::InvalidModHash);
         }
 
+        let parent_sol = NftStateLayerSolution::<NodePtr>::from_clvm(allocator, layer_solution)
+            .map_err(|err| ParseError::FromClvm(err))?;
+
         let (metadata, metadata_updater_puzzle_hash) =
             NFTStateLayer::<M, IP>::new_metadata_and_updater_from_conditions(
                 allocator,
-                layer_puzzle,
-                layer_solution,
+                parent_args.inner_puzzle,
+                parent_sol.inner_solution,
             )?
             .unwrap_or((
                 parent_args.metadata,
                 parent_args.metadata_updater_puzzle_hash,
             ));
-
-        let parent_sol = NftStateLayerSolution::<NodePtr>::from_clvm(allocator, layer_solution)
-            .map_err(|err| ParseError::FromClvm(err))?;
 
         match IP::from_parent_spend(
             allocator,
@@ -196,10 +196,10 @@ where
 {
     pub fn new_metadata_and_updater_from_conditions(
         allocator: &mut Allocator,
-        layer_puzzle: NodePtr,
-        layer_solution: NodePtr,
+        inner_layer_puzzle: NodePtr,
+        inner_layer_solution: NodePtr,
     ) -> Result<Option<(M, Bytes32)>, ParseError> {
-        let output = run_puzzle(allocator, layer_puzzle, layer_solution)
+        let output = run_puzzle(allocator, inner_layer_puzzle, inner_layer_solution)
             .map_err(|err| ParseError::Eval(err))?;
 
         let conditions = Vec::<NodePtr>::from_clvm(allocator, output)
