@@ -306,11 +306,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{nft_mint, print_spend_bundle, IntermediateLauncher, Launcher};
+    use crate::{nft_mint, IntermediateLauncher, Launcher};
 
     use super::*;
 
-    use chia_bls::{DerivableKey, Signature};
+    use chia_bls::DerivableKey;
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
 
@@ -350,10 +350,13 @@ mod tests {
 
         let _did_info = ctx.spend_standard_did(did_info, pk, parent_conditions)?;
 
-        let spends = ctx.take_spends();
-        print_spend_bundle(spends.clone(), Signature::default());
-
-        test_transaction(&peer, spends, &[sk], sim.config().genesis_challenge).await;
+        test_transaction(
+            &peer,
+            ctx.take_spends(),
+            &[sk],
+            sim.config().genesis_challenge,
+        )
+        .await;
 
         Ok(())
     }
