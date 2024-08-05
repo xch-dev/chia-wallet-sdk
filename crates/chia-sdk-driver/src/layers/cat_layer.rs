@@ -24,7 +24,35 @@ where
         layer_puzzle: NodePtr,
         layer_solution: NodePtr,
     ) -> Result<Option<Self>, ParseError> {
-        todo!("todo");
+        let parent_puzzle = Puzzle::parse(allocator, layer_puzzle);
+
+        let Some(parent_puzzle) = parent_puzzle.as_curried() else {
+            return Ok(None);
+        };
+
+        if parent_puzzle.mod_hash != CAT_PUZZLE_HASH {
+            return Ok(None);
+        }
+
+        let parent_args = CatArgs::<NodePtr>::from_clvm(allocator, parent_puzzle.args)?;
+
+        if parent_args.mod_hash != CAT_PUZZLE_HASH.into() {
+            return Err(ParseError::InvalidModHash);
+        }
+
+        let parent_sol = CatSolution::<NodePtr>::from_clvm(allocator, layer_solution)?;
+
+        match IP::from_parent_spend(
+            allocator,
+            parent_args.inner_puzzle,
+            parent_sol.inner_puzzle_solution,
+        )? {
+            None => return Ok(None),
+            Some(inner_puzzle) => Ok(Some(CATLayer::<IP> {
+                tail_hash: parent_args.asset_id,
+                inner_puzzle,
+            })),
+        }
     }
 
     fn from_puzzle(
