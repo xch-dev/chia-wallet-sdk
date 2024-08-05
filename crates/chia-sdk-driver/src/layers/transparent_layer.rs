@@ -9,7 +9,6 @@ use crate::{DriverError, PuzzleLayer, SpendContext};
 // this is the innermost puzzle for most things
 
 #[derive(Debug, Copy, Clone)]
-
 pub struct TransparentLayer {
     pub puzzle_hash: TreeHash,
     pub puzzle: Option<NodePtr>,

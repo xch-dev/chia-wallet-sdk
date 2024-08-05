@@ -8,7 +8,6 @@ use clvmr::{Allocator, NodePtr};
 use crate::{DriverError, Puzzle, PuzzleLayer, SpendContext};
 
 #[derive(Debug)]
-
 pub struct NFTStateLayer<M, IP> {
     pub metadata: M,
     pub metadata_updater_puzzle_hash: Bytes32,
@@ -17,7 +16,6 @@ pub struct NFTStateLayer<M, IP> {
 
 #[derive(Debug, ToClvm, FromClvm)]
 #[clvm(list)]
-
 pub struct NFTStateLayerSolution<I> {
     pub inner_solution: I,
 }

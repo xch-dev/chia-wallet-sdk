@@ -14,7 +14,6 @@ use clvmr::{Allocator, NodePtr};
 use crate::{DriverError, Puzzle, PuzzleLayer, SpendContext};
 
 #[derive(Debug)]
-
 pub struct NFTOwnershipLayer<IP> {
     pub current_owner: Option<Bytes32>,
     pub launcher_id: Bytes32,
@@ -25,7 +24,6 @@ pub struct NFTOwnershipLayer<IP> {
 
 #[derive(Debug, ToClvm, FromClvm)]
 #[clvm(list)]
-
 pub struct NFTOwnershipLayerSolution<I> {
     pub inner_solution: I,
 }
