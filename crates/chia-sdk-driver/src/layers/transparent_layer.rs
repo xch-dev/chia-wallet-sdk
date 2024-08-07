@@ -60,6 +60,10 @@ impl<const HINT_OVERRIDE: bool> PuzzleLayer for TransparentLayer<HINT_OVERRIDE> 
                         return Ok(None);
                     }
 
+                    if HINT_OVERRIDE && cc.amount == 0 {
+                        // e.g., DID created NFT
+                        continue;
+                    }
                     new_puzzle_hash = Some(
                         if HINT_OVERRIDE && cc.memos.len() > 0 && cc.memos[0].len() == 32 {
                             // standard puzzle will hint the inner puzzle hash
