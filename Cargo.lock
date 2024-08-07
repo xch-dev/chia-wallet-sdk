@@ -374,22 +374,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chia-sdk-parser"
-version = "0.11.0"
-dependencies = [
- "anyhow",
- "chia-bls 0.9.0",
- "chia-protocol",
- "chia-puzzles",
- "chia-sdk-driver",
- "chia-sdk-types",
- "clvm-traits",
- "clvm-utils",
- "clvmr",
- "thiserror",
-]
-
-[[package]]
 name = "chia-sdk-signer"
 version = "0.11.0"
 dependencies = [
@@ -498,7 +482,6 @@ dependencies = [
  "chia-sdk-client",
  "chia-sdk-driver",
  "chia-sdk-offers",
- "chia-sdk-parser",
  "chia-sdk-signer",
  "chia-sdk-test",
  "chia-sdk-types",

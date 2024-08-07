@@ -64,7 +64,6 @@ indexmap = { workspace = true }
 chia-sdk-client = { workspace = true }
 chia-sdk-driver = { workspace = true }
 chia-sdk-offers = { workspace = true }
-chia-sdk-parser = { workspace = true }
 chia-sdk-signer = { workspace = true }
 chia-sdk-test = { workspace = true }
 chia-sdk-types = { workspace = true }
