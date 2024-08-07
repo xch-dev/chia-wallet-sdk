@@ -306,7 +306,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{nft_mint, IntermediateLauncher, Launcher};
+    use crate::{nft_mint, IntermediateLauncher, Launcher, NftMint};
 
     use super::*;
 
@@ -426,6 +426,77 @@ mod tests {
             .await
             .expect("expected nft coin");
         assert_eq!(coin_state.coin, nft.coin);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_nft() -> anyhow::Result<()> {
+        let mut ctx = SpendContext::new();
+
+        let pk = PublicKey::default();
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let parent = Coin::new(Bytes32::default(), puzzle_hash, 2);
+
+        let (create_did, did, _did_proof) =
+            Launcher::new(parent.coin_id(), 1).create_simple_did(&mut ctx, pk)?;
+
+        let (mint_nft, nft, _) = Launcher::new(did.coin.coin_id(), 1).mint_nft(
+            &mut ctx,
+            NftMint {
+                metadata: (),
+                royalty_percentage: 300,
+                royalty_puzzle_hash: Bytes32::new([1; 32]),
+                puzzle_hash,
+                owner: NewNftOwner {
+                    did_id: Some(did.launcher_id),
+                    trade_prices: Vec::new(),
+                    did_inner_puzzle_hash: Some(did.singleton_inner_puzzle_hash().into()),
+                },
+            },
+        )?;
+
+        ctx.spend_p2_coin(parent, pk, create_did.extend(mint_nft))?;
+
+        let coin_spends = ctx.take_spends();
+
+        let coin_spend = coin_spends
+            .into_iter()
+            .find(|cs| cs.coin.coin_id() == nft.coin.parent_coin_info)
+            .unwrap();
+
+        let mut allocator = ctx.into();
+
+        let puzzle_ptr = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
+        let solution_ptr = coin_spend.solution.to_node_ptr(&mut allocator)?;
+
+        let parsed_nft = SingletonLayer::<
+            NFTStateLayer<(), NFTOwnershipLayer<TransparentLayer>>,
+        >::from_parent_spend(&mut allocator, puzzle_ptr, solution_ptr)?
+        .expect("could not parse spend :(");
+
+        assert_eq!(parsed_nft.launcher_id, nft.launcher_id);
+        assert_eq!(parsed_nft.inner_puzzle.metadata, nft.metadata);
+        assert_eq!(
+            parsed_nft.inner_puzzle.inner_puzzle.current_owner,
+            nft.current_owner
+        );
+        assert_eq!(
+            parsed_nft.inner_puzzle.inner_puzzle.royalty_puzzle_hash,
+            nft.royalty_puzzle_hash
+        );
+        assert_eq!(
+            parsed_nft.inner_puzzle.inner_puzzle.royalty_percentage,
+            nft.royalty_percentage
+        );
+        assert_eq!(
+            parsed_nft
+                .inner_puzzle
+                .inner_puzzle
+                .inner_puzzle
+                .puzzle_hash,
+            nft.p2_puzzle_hash
+        );
 
         Ok(())
     }
