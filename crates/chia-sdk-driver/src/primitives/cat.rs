@@ -8,10 +8,10 @@ use clvm_traits::{FromClvm, FromNodePtr, ToNodePtr};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{CATLayer, DriverError, PuzzleLayer, Spend, SpendContext, TransparentLayer};
+use crate::{CatLayer, DriverError, PuzzleLayer, Spend, SpendContext, TransparentLayer};
 
 #[derive(Debug, Clone, Copy)]
-pub struct CAT {
+pub struct Cat {
     pub coin: Coin,
 
     pub asset_id: Bytes32,
@@ -21,14 +21,14 @@ pub struct CAT {
     pub p2_puzzle: Option<NodePtr>,
 }
 
-impl CAT {
+impl Cat {
     pub fn new(
         coin: Coin,
         asset_id: Bytes32,
         p2_puzzle_hash: TreeHash,
         p2_puzzle: Option<NodePtr>,
     ) -> Self {
-        CAT {
+        Cat {
             coin,
             asset_id,
             p2_puzzle_hash,
@@ -60,7 +60,7 @@ impl CAT {
             .map_err(|err| DriverError::ToClvm(err))?;
 
         let res =
-            CATLayer::<TransparentLayer>::from_parent_spend(allocator, puzzle_ptr, solution_ptr)?;
+            CatLayer::<TransparentLayer>::from_parent_spend(allocator, puzzle_ptr, solution_ptr)?;
 
         let output = run_puzzle(allocator, puzzle_ptr, solution_ptr)
             .map_err(|err| DriverError::Eval(err))?;
@@ -82,7 +82,7 @@ impl CAT {
 
         match res {
             None => Ok(None),
-            Some(res) => Ok(Some(CAT {
+            Some(res) => Ok(Some(Cat {
                 coin: Coin::new(cs.coin.coin_id(), puzzle_hash, amount),
                 asset_id: res.asset_id,
                 p2_puzzle_hash: res.inner_puzzle.puzzle_hash,
@@ -96,11 +96,11 @@ impl CAT {
         coin: Coin,
         puzzle: NodePtr,
     ) -> Result<Option<Self>, DriverError> {
-        let res = CATLayer::<TransparentLayer>::from_puzzle(allocator, puzzle)?;
+        let res = CatLayer::<TransparentLayer>::from_puzzle(allocator, puzzle)?;
 
         match res {
             None => Ok(None),
-            Some(res) => Ok(Some(CAT {
+            Some(res) => Ok(Some(Cat {
                 coin,
                 asset_id: res.asset_id,
                 p2_puzzle_hash: res.inner_puzzle.puzzle_hash,
@@ -109,8 +109,8 @@ impl CAT {
         }
     }
 
-    pub fn get_layered_object(&self, p2_puzzle: Option<NodePtr>) -> CATLayer<TransparentLayer> {
-        CATLayer {
+    pub fn get_layered_object(&self, p2_puzzle: Option<NodePtr>) -> CatLayer<TransparentLayer> {
+        CatLayer {
             asset_id: self.asset_id,
             inner_puzzle: TransparentLayer {
                 puzzle_hash: self.p2_puzzle_hash,
@@ -132,7 +132,7 @@ impl CAT {
         prev_subtotal: i64,
         extra_delta: i64,
         inner_spend: Spend,
-    ) -> Result<(CoinSpend, CAT, Proof), DriverError> {
+    ) -> Result<(CoinSpend, Cat, Proof), DriverError> {
         let thing = self.get_layered_object(Some(inner_spend.puzzle()));
 
         let puzzle_ptr = thing.construct_puzzle(ctx)?;
@@ -161,7 +161,7 @@ impl CAT {
         };
         Ok((
             cs.clone(),
-            CAT::from_parent_spend(ctx.allocator_mut(), cs)?.ok_or(DriverError::MissingChild)?,
+            Cat::from_parent_spend(ctx.allocator_mut(), cs)?.ok_or(DriverError::MissingChild)?,
             Proof::Lineage(LineageProof {
                 parent_parent_coin_id: self.coin.parent_coin_info,
                 parent_inner_puzzle_hash: self.p2_puzzle_hash.into(),

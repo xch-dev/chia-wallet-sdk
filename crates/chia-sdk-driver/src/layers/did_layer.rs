@@ -3,14 +3,15 @@ use chia_puzzles::{
     did::{DidArgs, DidSolution, DID_INNER_PUZZLE_HASH},
     singleton::SingletonStruct,
 };
-use clvm_traits::{FromClvm, ToClvm, ToNodePtr};
+use clvm_traits::ToNodePtr;
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Puzzle, PuzzleLayer, SpendContext};
 
 #[derive(Debug)]
-pub struct DIDLayer<M, IP> {
+pub struct DidLayer<M, IP> {
     pub launcher_id: Bytes32,
     pub recovery_did_list_hash: Bytes32,
     pub num_verifications_required: u64,
@@ -20,16 +21,16 @@ pub struct DIDLayer<M, IP> {
 
 #[derive(Debug, ToClvm, FromClvm)]
 #[clvm(list)]
-pub struct DIDLayerSolution<I> {
+pub struct DidLayerSolution<I> {
     pub inner_solution: I,
 }
 
-impl<M, IP> PuzzleLayer for DIDLayer<M, IP>
+impl<M, IP> PuzzleLayer for DidLayer<M, IP>
 where
     IP: PuzzleLayer,
     M: FromClvm<NodePtr> + ToClvm<NodePtr>,
 {
-    type Solution = DIDLayerSolution<IP::Solution>;
+    type Solution = DidLayerSolution<IP::Solution>;
 
     fn from_parent_spend(
         allocator: &mut Allocator,
@@ -57,7 +58,7 @@ where
 
         match IP::from_parent_spend(allocator, parent_args.inner_puzzle, parent_inner_sol)? {
             None => return Ok(None),
-            Some(inner_puzzle) => Ok(Some(DIDLayer::<M, IP> {
+            Some(inner_puzzle) => Ok(Some(DidLayer::<M, IP> {
                 launcher_id: parent_args.singleton_struct.launcher_id,
                 recovery_did_list_hash: parent_args.recovery_did_list_hash,
                 num_verifications_required: parent_args.num_verifications_required,
@@ -86,7 +87,7 @@ where
 
         match IP::from_puzzle(allocator, args.inner_puzzle)? {
             None => return Ok(None),
-            Some(inner_puzzle) => Ok(Some(DIDLayer::<M, IP> {
+            Some(inner_puzzle) => Ok(Some(DidLayer::<M, IP> {
                 launcher_id: args.singleton_struct.launcher_id,
                 recovery_did_list_hash: args.recovery_did_list_hash,
                 num_verifications_required: args.num_verifications_required,
@@ -132,7 +133,7 @@ where
     }
 }
 
-impl<M, IP> ToTreeHash for DIDLayer<M, IP>
+impl<M, IP> ToTreeHash for DidLayer<M, IP>
 where
     IP: ToTreeHash,
     M: ToTreeHash,
@@ -152,7 +153,7 @@ where
     }
 }
 
-impl<M, IP> DIDLayer<M, IP> {
+impl<M, IP> DidLayer<M, IP> {
     pub fn wrap_inner_puzzle_hash(
         launcher_id: Bytes32,
         recovery_did_list_hash: Bytes32,

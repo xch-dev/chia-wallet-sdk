@@ -5,7 +5,7 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    DIDLayer, DIDLayerSolution, DriverError, PuzzleLayer, SingletonLayer, SingletonLayerSolution,
+    DidLayer, DidLayerSolution, DriverError, PuzzleLayer, SingletonLayer, SingletonLayerSolution,
     Spend, SpendContext, TransparentLayer,
 };
 
@@ -76,7 +76,7 @@ where
             .to_node_ptr(allocator)
             .map_err(|err| DriverError::ToClvm(err))?;
 
-        let res = SingletonLayer::<DIDLayer<M, TransparentLayer<true>>>::from_parent_spend(
+        let res = SingletonLayer::<DidLayer<M, TransparentLayer<true>>>::from_parent_spend(
             allocator,
             puzzle_ptr,
             solution_ptr,
@@ -102,7 +102,7 @@ where
         puzzle: NodePtr,
     ) -> Result<Option<Self>, DriverError> {
         let res =
-            SingletonLayer::<DIDLayer<M, TransparentLayer<true>>>::from_puzzle(allocator, puzzle)?;
+            SingletonLayer::<DidLayer<M, TransparentLayer<true>>>::from_puzzle(allocator, puzzle)?;
 
         match res {
             None => Ok(None),
@@ -121,13 +121,13 @@ where
     pub fn get_layered_object(
         &self,
         p2_puzzle: Option<NodePtr>,
-    ) -> SingletonLayer<DIDLayer<M, TransparentLayer<true>>>
+    ) -> SingletonLayer<DidLayer<M, TransparentLayer<true>>>
     where
         M: Clone,
     {
         SingletonLayer {
             launcher_id: self.launcher_id,
-            inner_puzzle: DIDLayer {
+            inner_puzzle: DidLayer {
                 launcher_id: self.launcher_id,
                 recovery_did_list_hash: self.recovery_did_list_hash,
                 num_verifications_required: self.num_verifications_required,
@@ -163,7 +163,7 @@ where
             SingletonLayerSolution {
                 lineage_proof: lineage_proof,
                 amount: self.coin.amount,
-                inner_solution: DIDLayerSolution {
+                inner_solution: DidLayerSolution {
                     inner_solution: inner_spend.solution(),
                 },
             },
@@ -209,7 +209,7 @@ where
     M: ToTreeHash,
 {
     pub fn compute_new_did_layer_puzzle_hash(&self, new_inner_puzzle_hash: TreeHash) -> TreeHash {
-        DIDLayer::<M, ()>::wrap_inner_puzzle_hash(
+        DidLayer::<M, ()>::wrap_inner_puzzle_hash(
             self.launcher_id,
             self.recovery_did_list_hash,
             self.num_verifications_required,

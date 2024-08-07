@@ -8,24 +8,18 @@ use clvmr::{Allocator, NodePtr};
 use crate::{DriverError, Puzzle, PuzzleLayer, SpendContext};
 
 #[derive(Debug)]
-pub struct NFTStateLayer<M, IP> {
+pub struct NftStateLayer<M, IP> {
     pub metadata: M,
     pub metadata_updater_puzzle_hash: Bytes32,
     pub inner_puzzle: IP,
 }
 
-#[derive(Debug, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct NFTStateLayerSolution<I> {
-    pub inner_solution: I,
-}
-
-impl<M, IP> PuzzleLayer for NFTStateLayer<M, IP>
+impl<M, IP> PuzzleLayer for NftStateLayer<M, IP>
 where
     IP: PuzzleLayer,
     M: FromClvm<NodePtr> + ToClvm<NodePtr>,
 {
-    type Solution = NFTStateLayerSolution<IP::Solution>;
+    type Solution = NftStateLayerSolution<IP::Solution>;
 
     fn from_parent_spend(
         allocator: &mut Allocator,
@@ -53,7 +47,7 @@ where
             .map_err(|err| DriverError::FromClvm(err))?;
 
         let (metadata, metadata_updater_puzzle_hash) =
-            NFTStateLayer::<M, IP>::new_metadata_and_updater_from_conditions(
+            NftStateLayer::<M, IP>::new_metadata_and_updater_from_conditions(
                 allocator,
                 parent_args.inner_puzzle,
                 parent_sol.inner_solution,
@@ -69,7 +63,7 @@ where
             parent_sol.inner_solution,
         )? {
             None => return Ok(None),
-            Some(inner_puzzle) => Ok(Some(NFTStateLayer::<M, IP> {
+            Some(inner_puzzle) => Ok(Some(NftStateLayer::<M, IP> {
                 metadata,
                 metadata_updater_puzzle_hash,
                 inner_puzzle,
@@ -100,7 +94,7 @@ where
 
         match IP::from_puzzle(allocator, args.inner_puzzle)? {
             None => return Ok(None),
-            Some(inner_puzzle) => Ok(Some(NFTStateLayer::<M, IP> {
+            Some(inner_puzzle) => Ok(Some(NftStateLayer::<M, IP> {
                 metadata: args.metadata,
                 metadata_updater_puzzle_hash: args.metadata_updater_puzzle_hash,
                 inner_puzzle,
@@ -134,7 +128,7 @@ where
         ctx: &mut SpendContext,
         solution: Self::Solution,
     ) -> Result<NodePtr, DriverError> {
-        NFTStateLayerSolution {
+        NftStateLayerSolution {
             inner_solution: self
                 .inner_puzzle
                 .construct_solution(ctx, solution.inner_solution)?,
@@ -144,7 +138,7 @@ where
     }
 }
 
-impl<M, IP> ToTreeHash for NFTStateLayer<M, IP>
+impl<M, IP> ToTreeHash for NftStateLayer<M, IP>
 where
     IP: ToTreeHash,
     M: ToTreeHash,
@@ -188,7 +182,7 @@ pub struct NewMetadataOutput<M, C> {
     pub conditions: C,
 }
 
-impl<M, IP> NFTStateLayer<M, IP>
+impl<M, IP> NftStateLayer<M, IP>
 where
     M: FromClvm<NodePtr>,
 {

@@ -7,12 +7,12 @@ use clvmr::{Allocator, NodePtr};
 use crate::{DriverError, OuterPuzzleLayer, Puzzle, PuzzleLayer, SpendContext};
 
 #[derive(Debug)]
-pub struct CATLayer<IP> {
+pub struct CatLayer<IP> {
     pub asset_id: Bytes32,
     pub inner_puzzle: IP,
 }
 
-impl<IP> PuzzleLayer for CATLayer<IP>
+impl<IP> PuzzleLayer for CatLayer<IP>
 where
     IP: PuzzleLayer,
 {
@@ -47,7 +47,7 @@ where
             parent_sol.inner_puzzle_solution,
         )? {
             None => return Ok(None),
-            Some(inner_puzzle) => Ok(Some(CATLayer::<IP> {
+            Some(inner_puzzle) => Ok(Some(CatLayer::<IP> {
                 asset_id: parent_args.asset_id,
                 inner_puzzle,
             })),
@@ -76,7 +76,7 @@ where
 
         match IP::from_puzzle(allocator, args.inner_puzzle)? {
             None => return Ok(None),
-            Some(inner_puzzle) => Ok(Some(CATLayer::<IP> {
+            Some(inner_puzzle) => Ok(Some(CatLayer::<IP> {
                 asset_id: args.asset_id,
                 inner_puzzle,
             })),
@@ -117,7 +117,7 @@ where
     }
 }
 
-impl<IP> ToTreeHash for CATLayer<IP>
+impl<IP> ToTreeHash for CatLayer<IP>
 where
     IP: ToTreeHash,
 {
@@ -126,7 +126,7 @@ where
     }
 }
 
-impl<IP> OuterPuzzleLayer for CATLayer<IP>
+impl<IP> OuterPuzzleLayer for CatLayer<IP>
 where
     IP: PuzzleLayer,
 {

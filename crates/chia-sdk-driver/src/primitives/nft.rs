@@ -1,6 +1,10 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
-use chia_puzzles::{standard::DEFAULT_HIDDEN_PUZZLE_HASH, LineageProof, Proof};
+use chia_puzzles::{
+    nft::{NftOwnershipLayerSolution, NftStateLayerSolution},
+    standard::DEFAULT_HIDDEN_PUZZLE_HASH,
+    LineageProof, Proof,
+};
 use chia_sdk_types::conditions::{Condition, CreateCoin, NewNftOwner};
 use clvm_traits::{clvm_list, FromClvm, FromNodePtr, ToClvm, ToNodePtr};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
@@ -10,9 +14,8 @@ use clvmr::{
 };
 
 use crate::{
-    Conditions, DriverError, NFTOwnershipLayer, NFTOwnershipLayerSolution, NFTStateLayer,
-    NFTStateLayerSolution, PuzzleLayer, SingletonLayer, SingletonLayerSolution, Spend,
-    SpendContext, TransparentLayer,
+    Conditions, DriverError, NftOwnershipLayer, NftStateLayer, PuzzleLayer, SingletonLayer,
+    SingletonLayerSolution, Spend, SpendContext, TransparentLayer,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -87,7 +90,7 @@ where
             .to_node_ptr(allocator)
             .map_err(|err| DriverError::ToClvm(err))?;
 
-        let res = SingletonLayer::<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>::from_parent_spend(
+        let res = SingletonLayer::<NftStateLayer<M, NftOwnershipLayer<TransparentLayer>>>::from_parent_spend(
             allocator,
             puzzle_ptr,
             solution_ptr,
@@ -114,7 +117,7 @@ where
         puzzle: NodePtr,
     ) -> Result<Option<Self>, DriverError> {
         let res =
-            SingletonLayer::<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>::from_puzzle(
+            SingletonLayer::<NftStateLayer<M, NftOwnershipLayer<TransparentLayer>>>::from_puzzle(
                 allocator, puzzle,
             )?;
 
@@ -136,16 +139,16 @@ where
     pub fn get_layered_object(
         &self,
         p2_puzzle: Option<NodePtr>,
-    ) -> SingletonLayer<NFTStateLayer<M, NFTOwnershipLayer<TransparentLayer>>>
+    ) -> SingletonLayer<NftStateLayer<M, NftOwnershipLayer<TransparentLayer>>>
     where
         M: Clone,
     {
         SingletonLayer {
             launcher_id: self.launcher_id,
-            inner_puzzle: NFTStateLayer {
+            inner_puzzle: NftStateLayer {
                 metadata: self.metadata.clone(),
                 metadata_updater_puzzle_hash: DEFAULT_HIDDEN_PUZZLE_HASH.into(),
-                inner_puzzle: NFTOwnershipLayer {
+                inner_puzzle: NftOwnershipLayer {
                     launcher_id: self.launcher_id,
                     current_owner: self.current_owner,
                     royalty_puzzle_hash: self.royalty_puzzle_hash,
@@ -182,8 +185,8 @@ where
             SingletonLayerSolution {
                 lineage_proof: lineage_proof,
                 amount: self.coin.amount,
-                inner_solution: NFTStateLayerSolution {
-                    inner_solution: NFTOwnershipLayerSolution {
+                inner_solution: NftStateLayerSolution {
+                    inner_solution: NftOwnershipLayerSolution {
                         inner_solution: inner_spend.solution(),
                     },
                 },
@@ -471,7 +474,7 @@ mod tests {
         let solution_ptr = coin_spend.solution.to_node_ptr(&mut allocator)?;
 
         let parsed_nft = SingletonLayer::<
-            NFTStateLayer<(), NFTOwnershipLayer<TransparentLayer>>,
+            NftStateLayer<(), NftOwnershipLayer<TransparentLayer>>,
         >::from_parent_spend(&mut allocator, puzzle_ptr, solution_ptr)?
         .expect("could not parse spend :(");
 

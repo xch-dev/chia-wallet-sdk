@@ -7,14 +7,14 @@ use chia_puzzles::{
     singleton::SingletonStruct,
 };
 use chia_sdk_types::conditions::{run_puzzle, NewNftOwner};
-use clvm_traits::{FromClvm, ToClvm, ToNodePtr};
+use clvm_traits::{FromClvm, ToNodePtr};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Puzzle, PuzzleLayer, SpendContext};
 
 #[derive(Debug)]
-pub struct NFTOwnershipLayer<IP> {
+pub struct NftOwnershipLayer<IP> {
     pub current_owner: Option<Bytes32>,
     pub launcher_id: Bytes32,
     pub royalty_puzzle_hash: Bytes32,
@@ -22,17 +22,11 @@ pub struct NFTOwnershipLayer<IP> {
     pub inner_puzzle: IP,
 }
 
-#[derive(Debug, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct NFTOwnershipLayerSolution<I> {
-    pub inner_solution: I,
-}
-
-impl<IP> PuzzleLayer for NFTOwnershipLayer<IP>
+impl<IP> PuzzleLayer for NftOwnershipLayer<IP>
 where
     IP: PuzzleLayer,
 {
-    type Solution = NFTOwnershipLayerSolution<IP::Solution>;
+    type Solution = NftOwnershipLayerSolution<IP::Solution>;
 
     fn from_parent_spend(
         allocator: &mut Allocator,
@@ -60,7 +54,7 @@ where
         let parent_sol = NftOwnershipLayerSolution::<NodePtr>::from_clvm(allocator, layer_solution)
             .map_err(|err| DriverError::FromClvm(err))?;
 
-        let new_owner_maybe = NFTOwnershipLayer::<IP>::new_owner_from_conditions(
+        let new_owner_maybe = NftOwnershipLayer::<IP>::new_owner_from_conditions(
             allocator,
             parent_args.inner_puzzle,
             parent_sol.inner_solution,
@@ -85,7 +79,7 @@ where
             parent_sol.inner_solution,
         )? {
             None => return Ok(None),
-            Some(inner_puzzle) => Ok(Some(NFTOwnershipLayer::<IP> {
+            Some(inner_puzzle) => Ok(Some(NftOwnershipLayer::<IP> {
                 launcher_id: parent_transfer_args.singleton_struct.launcher_id,
                 current_owner: new_owner_maybe.unwrap_or(parent_args.current_owner),
                 royalty_puzzle_hash: parent_transfer_args.royalty_puzzle_hash,
@@ -130,7 +124,7 @@ where
 
         match IP::from_puzzle(allocator, args.inner_puzzle)? {
             None => return Ok(None),
-            Some(inner_puzzle) => Ok(Some(NFTOwnershipLayer::<IP> {
+            Some(inner_puzzle) => Ok(Some(NftOwnershipLayer::<IP> {
                 current_owner: args.current_owner,
                 launcher_id: transfer_args.singleton_struct.launcher_id,
                 royalty_puzzle_hash: transfer_args.royalty_puzzle_hash,
@@ -174,7 +168,7 @@ where
         ctx: &mut SpendContext,
         solution: Self::Solution,
     ) -> Result<NodePtr, DriverError> {
-        NFTOwnershipLayerSolution {
+        NftOwnershipLayerSolution {
             inner_solution: self
                 .inner_puzzle
                 .construct_solution(ctx, solution.inner_solution)?,
@@ -184,7 +178,7 @@ where
     }
 }
 
-impl<IP> ToTreeHash for NFTOwnershipLayer<IP>
+impl<IP> ToTreeHash for NftOwnershipLayer<IP>
 where
     IP: ToTreeHash,
 {
@@ -201,7 +195,7 @@ where
     }
 }
 
-impl<IP> NFTOwnershipLayer<IP> {
+impl<IP> NftOwnershipLayer<IP> {
     pub fn new_owner_from_conditions(
         allocator: &mut Allocator,
         inner_layer_puzzle: NodePtr,
