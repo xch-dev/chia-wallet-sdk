@@ -76,7 +76,7 @@ where
             .to_node_ptr(allocator)
             .map_err(|err| DriverError::ToClvm(err))?;
 
-        let res = SingletonLayer::<DIDLayer<M, TransparentLayer>>::from_parent_spend(
+        let res = SingletonLayer::<DIDLayer<M, TransparentLayer<true>>>::from_parent_spend(
             allocator,
             puzzle_ptr,
             solution_ptr,
@@ -101,7 +101,8 @@ where
         coin: Coin,
         puzzle: NodePtr,
     ) -> Result<Option<Self>, DriverError> {
-        let res = SingletonLayer::<DIDLayer<M, TransparentLayer>>::from_puzzle(allocator, puzzle)?;
+        let res =
+            SingletonLayer::<DIDLayer<M, TransparentLayer<true>>>::from_puzzle(allocator, puzzle)?;
 
         match res {
             None => Ok(None),
@@ -120,7 +121,7 @@ where
     pub fn get_layered_object(
         &self,
         p2_puzzle: Option<NodePtr>,
-    ) -> SingletonLayer<DIDLayer<M, TransparentLayer>>
+    ) -> SingletonLayer<DIDLayer<M, TransparentLayer<true>>>
     where
         M: Clone,
     {

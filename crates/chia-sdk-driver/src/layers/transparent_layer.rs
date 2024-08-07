@@ -8,13 +8,16 @@ use crate::{DriverError, PuzzleLayer, SpendContext};
 
 // this is the innermost puzzle for most things
 
+// HINT_OVERRIDE: if true, the puzzle hash will be the hint, not the actual puzzle hash
+//  of the found CREATE_COIN condition
+// typically, you'd only set this to true if the upper layer doesn't wrap CREATE_COINs
 #[derive(Debug, Copy, Clone)]
-pub struct TransparentLayer {
+pub struct TransparentLayer<const HINT_OVERRIDE: bool = false> {
     pub puzzle_hash: TreeHash,
     pub puzzle: Option<NodePtr>,
 }
 
-impl TransparentLayer {
+impl<const HINT_OVERRIDE: bool> TransparentLayer<HINT_OVERRIDE> {
     pub fn new(puzzle_hash: TreeHash, puzzle: Option<NodePtr>) -> Self {
         TransparentLayer {
             puzzle_hash,
@@ -35,7 +38,7 @@ impl TransparentLayer {
     }
 }
 
-impl PuzzleLayer for TransparentLayer {
+impl<const HINT_OVERRIDE: bool> PuzzleLayer for TransparentLayer<HINT_OVERRIDE> {
     type Solution = NodePtr;
 
     fn from_parent_spend(
@@ -57,13 +60,15 @@ impl PuzzleLayer for TransparentLayer {
                         return Ok(None);
                     }
 
-                    new_puzzle_hash = Some(if cc.memos.len() > 0 && cc.memos[0].len() == 32 {
-                        // standard puzzle will hint the inner puzzle hash
-                        // this is useful e.g., when re-creatign a DID (created puz hash != actual transparent layer puz hash)
-                        Bytes32::new(cc.memos[0].to_vec().try_into().unwrap())
-                    } else {
-                        cc.puzzle_hash
-                    });
+                    new_puzzle_hash = Some(
+                        if HINT_OVERRIDE && cc.memos.len() > 0 && cc.memos[0].len() == 32 {
+                            // standard puzzle will hint the inner puzzle hash
+                            // this is useful e.g., when re-creatign a DID (created puz hash != actual transparent layer puz hash)
+                            Bytes32::new(cc.memos[0].to_vec().try_into().unwrap())
+                        } else {
+                            cc.puzzle_hash
+                        },
+                    );
                 }
                 _ => {}
             }
@@ -109,7 +114,7 @@ impl PuzzleLayer for TransparentLayer {
     }
 }
 
-impl ToTreeHash for TransparentLayer {
+impl<const HINT_OVERRIDE: bool> ToTreeHash for TransparentLayer<HINT_OVERRIDE> {
     fn tree_hash(&self) -> TreeHash {
         self.puzzle_hash
     }
