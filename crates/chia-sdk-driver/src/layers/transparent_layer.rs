@@ -57,7 +57,13 @@ impl PuzzleLayer for TransparentLayer {
                         return Ok(None);
                     }
 
-                    new_puzzle_hash = Some(cc.puzzle_hash);
+                    new_puzzle_hash = Some(if cc.memos.len() > 0 && cc.memos[0].len() == 32 {
+                        // standard puzzle will hint the inner puzzle hash
+                        // this is useful e.g., when re-creatign a DID (created puz hash != actual transparent layer puz hash)
+                        Bytes32::new(cc.memos[0].to_vec().try_into().unwrap())
+                    } else {
+                        cc.puzzle_hash
+                    });
                 }
                 _ => {}
             }

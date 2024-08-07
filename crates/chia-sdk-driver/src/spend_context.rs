@@ -22,7 +22,7 @@ use chia_puzzles::{
     standard::{StandardArgs, STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
     Proof,
 };
-use chia_sdk_types::{conditions::NewNftOwner, puzzles::DidInfo};
+use chia_sdk_types::conditions::NewNftOwner;
 use clvm_traits::{FromClvm, FromNodePtr, ToClvm, ToNodePtr};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
