@@ -239,13 +239,14 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 1).await;
 
-        let (create_did, mut did_info) =
+        let (create_did, mut did_info, mut did_proof) =
             Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
         for _ in 0..10 {
-            did_info = ctx.spend_standard_did(did_info, pk, Conditions::new())?;
+            (did_info, did_proof) =
+                ctx.spend_standard_did(did_info, did_proof, pk, Conditions::new())?;
         }
 
         test_transaction(
