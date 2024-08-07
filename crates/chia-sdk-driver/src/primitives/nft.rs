@@ -326,16 +326,16 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 2).await;
 
-        let (create_did, did_info) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did, did_proof) =
+            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
-        let (mint_nft, nft, lineage_proof) =
-            IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
-                .create(ctx)?
-                .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
+        let (mint_nft, nft, lineage_proof) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
+            .create(ctx)?
+            .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
-        let did_info = ctx.spend_standard_did(did_info, pk, mint_nft)?;
+        let (did, did_proof) = ctx.spend_standard_did(did, did_proof, pk, mint_nft)?;
 
         let other_puzzle_hash = StandardArgs::curry_tree_hash(pk.derive_unhardened(0)).into();
 
@@ -348,7 +348,7 @@ mod tests {
             Conditions::new(),
         )?;
 
-        let _did_info = ctx.spend_standard_did(did_info, pk, parent_conditions)?;
+        let _did_info = ctx.spend_standard_did(did, did_proof, pk, parent_conditions)?;
 
         test_transaction(
             &peer,
@@ -373,16 +373,17 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 2).await;
 
-        let (create_did, did_info) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did, did_proof) =
+            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
         let (mint_nft, mut nft, mut lineage_proof) =
-            IntermediateLauncher::new(did_info.coin.coin_id(), 0, 1)
+            IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
                 .create(ctx)?
-                .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did_info)))?;
+                .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
-        let mut did_info = ctx.spend_standard_did(did_info, pk, mint_nft)?;
+        let (mut did, mut did_proof) = ctx.spend_standard_did(did, did_proof, pk, mint_nft)?;
 
         for i in 0..5 {
             let (spend_nft, new_nft, new_lineage_proof) = ctx.spend_standard_nft(
@@ -392,9 +393,9 @@ mod tests {
                 nft.p2_puzzle_hash.into(),
                 if i % 2 == 0 {
                     Some(NewNftOwner::new(
-                        Some(did_info.launcher_id),
+                        Some(did.launcher_id),
                         Vec::new(),
-                        Some(did_info.inner_puzzle_hash),
+                        Some(did.singleton_inner_puzzle_hash().into()),
                     ))
                 } else {
                     None
@@ -403,7 +404,7 @@ mod tests {
             )?;
             nft = new_nft;
             lineage_proof = new_lineage_proof;
-            did_info = ctx.spend_standard_did(did_info, pk, spend_nft)?;
+            (did, did_proof) = ctx.spend_standard_did(did, did_proof, pk, spend_nft)?;
         }
 
         test_transaction(
@@ -415,10 +416,10 @@ mod tests {
         .await;
 
         let coin_state = sim
-            .coin_state(did_info.coin.coin_id())
+            .coin_state(did.coin.coin_id())
             .await
             .expect("expected did coin");
-        assert_eq!(coin_state.coin, did_info.coin);
+        assert_eq!(coin_state.coin, did.coin);
 
         let coin_state = sim
             .coin_state(nft.coin.coin_id())

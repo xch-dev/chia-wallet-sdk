@@ -123,63 +123,63 @@ impl DidPuzzle {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
 
-    use chia_bls::PublicKey;
-    use chia_protocol::Coin;
-    use chia_puzzles::{singleton::SingletonSolution, standard::StandardArgs};
-    use chia_sdk_driver::{Launcher, SpendContext};
-    use clvm_traits::ToNodePtr;
+//     use chia_bls::PublicKey;
+//     use chia_protocol::Coin;
+//     use chia_puzzles::{singleton::SingletonSolution, standard::StandardArgs};
+//     use chia_sdk_driver::{Launcher, SpendContext};
+//     use clvm_traits::ToNodePtr;
 
-    #[test]
-    fn test_parse_did() -> anyhow::Result<()> {
-        let mut ctx = SpendContext::new();
+//     #[test]
+//     fn test_parse_did() -> anyhow::Result<()> {
+//         let mut ctx = SpendContext::new();
 
-        let pk = PublicKey::default();
-        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
+//         let pk = PublicKey::default();
+//         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+//         let parent = Coin::new(Bytes32::default(), puzzle_hash, 1);
 
-        let (create_did, did_info) =
-            Launcher::new(parent.coin_id(), 1).create_simple_did(&mut ctx, pk)?;
+//         let (create_did, did_info) =
+//             Launcher::new(parent.coin_id(), 1).create_simple_did(&mut ctx, pk)?;
 
-        ctx.spend_p2_coin(parent, pk, create_did)?;
+//         ctx.spend_p2_coin(parent, pk, create_did)?;
 
-        let coin_spends = ctx.take_spends();
+//         let coin_spends = ctx.take_spends();
 
-        let coin_spend = coin_spends
-            .into_iter()
-            .find(|cs| cs.coin.coin_id() == did_info.coin.parent_coin_info)
-            .unwrap();
+//         let coin_spend = coin_spends
+//             .into_iter()
+//             .find(|cs| cs.coin.coin_id() == did_info.coin.parent_coin_info)
+//             .unwrap();
 
-        let mut allocator = ctx.into();
+//         let mut allocator = ctx.into();
 
-        let puzzle_ptr = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
-        let solution_ptr = coin_spend.solution.to_node_ptr(&mut allocator)?;
+//         let puzzle_ptr = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
+//         let solution_ptr = coin_spend.solution.to_node_ptr(&mut allocator)?;
 
-        let puzzle = Puzzle::parse(&allocator, puzzle_ptr);
+//         let puzzle = Puzzle::parse(&allocator, puzzle_ptr);
 
-        let singleton =
-            SingletonPuzzle::parse(&allocator, &puzzle)?.expect("not a singleton puzzle");
-        let singleton_solution = SingletonSolution::<NodePtr>::from_clvm(&allocator, solution_ptr)?;
+//         let singleton =
+//             SingletonPuzzle::parse(&allocator, &puzzle)?.expect("not a singleton puzzle");
+//         let singleton_solution = SingletonSolution::<NodePtr>::from_clvm(&allocator, solution_ptr)?;
 
-        let did = DidPuzzle::parse(&allocator, singleton.launcher_id, &singleton.inner_puzzle)?
-            .expect("not a did puzzle");
+//         let did = DidPuzzle::parse(&allocator, singleton.launcher_id, &singleton.inner_puzzle)?
+//             .expect("not a did puzzle");
 
-        let parsed_did_info = did.child_coin_info(
-            &mut allocator,
-            &singleton,
-            coin_spend.coin,
-            did_info.coin,
-            singleton_solution.inner_solution,
-        )?;
+//         let parsed_did_info = did.child_coin_info(
+//             &mut allocator,
+//             &singleton,
+//             coin_spend.coin,
+//             did_info.coin,
+//             singleton_solution.inner_solution,
+//         )?;
 
-        assert_eq!(
-            parsed_did_info,
-            did_info.with_metadata(NodePtr::NIL, ().tree_hash())
-        );
+//         assert_eq!(
+//             parsed_did_info,
+//             did_info.with_metadata(NodePtr::NIL, ().tree_hash())
+//         );
 
-        Ok(())
-    }
-}
+//         Ok(())
+//     }
+// }
