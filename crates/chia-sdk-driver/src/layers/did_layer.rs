@@ -151,3 +151,25 @@ where
         .tree_hash()
     }
 }
+
+impl<M, IP> DIDLayer<M, IP> {
+    pub fn wrap_inner_puzzle_hash(
+        launcher_id: Bytes32,
+        recovery_did_list_hash: Bytes32,
+        num_verifications_required: u64,
+        metadata_hash: TreeHash,
+        inner_puzzle_hash: TreeHash,
+    ) -> TreeHash {
+        CurriedProgram {
+            program: DID_INNER_PUZZLE_HASH,
+            args: DidArgs {
+                recovery_did_list_hash,
+                num_verifications_required,
+                singleton_struct: SingletonStruct::new(launcher_id),
+                metadata: metadata_hash,
+                inner_puzzle: inner_puzzle_hash,
+            },
+        }
+        .tree_hash()
+    }
+}

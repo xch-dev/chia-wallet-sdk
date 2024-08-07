@@ -1,6 +1,7 @@
 mod cat;
 mod debug;
 mod did;
+mod did_launcher;
 mod nft;
 mod nft_launcher;
 

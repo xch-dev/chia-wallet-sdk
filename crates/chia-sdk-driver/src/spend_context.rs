@@ -19,7 +19,7 @@ use chia_puzzles::{
         SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE,
         SINGLETON_TOP_LAYER_PUZZLE_HASH,
     },
-    standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
+    standard::{StandardArgs, STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
     Proof,
 };
 use chia_sdk_types::{conditions::NewNftOwner, puzzles::DidInfo};
@@ -27,7 +27,7 @@ use clvm_traits::{FromClvm, FromNodePtr, ToClvm, ToNodePtr};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
 
-use crate::{did_spend, spend_error::SpendError, Conditions, DriverError, Spend, NFT};
+use crate::{spend_error::SpendError, Conditions, DriverError, Spend, DID, NFT};
 
 /// A wrapper around `Allocator` that caches puzzles and simplifies coin spending.
 #[derive(Debug, Default)]
@@ -229,26 +229,28 @@ impl SpendContext {
     /// Spend a DID coin with a standard p2 inner puzzle.
     pub fn spend_standard_did<M>(
         &mut self,
-        did_info: DidInfo<M>,
+        did: DID<M>,
+        lineage_proof: Proof,
         synthetic_key: PublicKey,
         extra_conditions: Conditions,
-    ) -> Result<DidInfo<M>, SpendError>
+    ) -> Result<(DID<M>, Proof), DriverError>
     where
-        M: ToClvm<NodePtr> + Clone,
+        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
     {
         let p2_spend = extra_conditions
             .create_hinted_coin(
-                did_info.inner_puzzle_hash,
-                did_info.coin.amount,
-                did_info.p2_puzzle_hash,
+                // DID layer does not automatically wrap CREATE_COINs
+                did.compute_new_did_layer_puzzle_hash(StandardArgs::curry_tree_hash(synthetic_key))
+                    .into(),
+                did.coin.amount,
+                did.p2_puzzle_hash.into(),
             )
             .p2_spend(self, synthetic_key)?;
 
-        let did_spend = did_spend(self, &did_info, p2_spend)?;
+        let (did_spend, new_did, new_proof) = did.spend(self, lineage_proof, p2_spend)?;
         self.insert_coin_spend(did_spend);
 
-        let p2_puzzle_hash = did_info.p2_puzzle_hash;
-        Ok(did_info.child(p2_puzzle_hash))
+        Ok((new_did, new_proof))
     }
 
     /// Spend an NFT coin with a standard p2 inner puzzle.
