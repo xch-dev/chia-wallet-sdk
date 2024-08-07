@@ -8,7 +8,9 @@ use clvmr::{
     Allocator,
 };
 
-use crate::{Conditions, Launcher, SpendContext, SpendError};
+use crate::{Conditions, SpendContext, SpendError};
+
+use super::Launcher;
 
 /// An intermediate launcher is a coin that is created prior to the actual launcher coin.
 /// In this case, it automatically creates the launcher coin upon being spent.
