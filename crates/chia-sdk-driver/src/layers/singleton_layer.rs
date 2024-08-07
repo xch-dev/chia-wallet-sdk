@@ -48,7 +48,7 @@ where
         }
 
         let parent_args = SingletonArgs::<NodePtr>::from_clvm(allocator, parent_puzzle.args)
-            .map_err(|err| DriverError::FromClvm(err))?;
+            .map_err(DriverError::FromClvm)?;
 
         if parent_args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
             || parent_args.singleton_struct.launcher_puzzle_hash
@@ -58,10 +58,10 @@ where
         }
 
         let solution = SingletonSolution::<NodePtr>::from_clvm(allocator, layer_solution)
-            .map_err(|err| DriverError::FromClvm(err))?;
+            .map_err(DriverError::FromClvm)?;
 
         match IP::from_parent_spend(allocator, parent_args.inner_puzzle, solution.inner_solution)? {
-            None => return Ok(None),
+            None => Ok(None),
             Some(inner_puzzle) => Ok(Some(SingletonLayer::<IP> {
                 launcher_id: parent_args.singleton_struct.launcher_id,
                 inner_puzzle,
@@ -84,7 +84,7 @@ where
         }
 
         let args = SingletonArgs::<NodePtr>::from_clvm(allocator, puzzle.args)
-            .map_err(|err| DriverError::FromClvm(err))?;
+            .map_err(DriverError::FromClvm)?;
 
         if args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
             || args.singleton_struct.launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
@@ -93,7 +93,7 @@ where
         }
 
         match IP::from_puzzle(allocator, args.inner_puzzle)? {
-            None => return Ok(None),
+            None => Ok(None),
             Some(inner_puzzle) => Ok(Some(SingletonLayer::<IP> {
                 launcher_id: args.singleton_struct.launcher_id,
                 inner_puzzle,
@@ -103,9 +103,7 @@ where
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         CurriedProgram {
-            program: ctx
-                .singleton_top_layer()
-                .map_err(|err| DriverError::Spend(err))?,
+            program: ctx.singleton_top_layer().map_err(DriverError::Spend)?,
             args: SingletonArgs {
                 singleton_struct: SingletonStruct {
                     mod_hash: SINGLETON_TOP_LAYER_PUZZLE_HASH.into(),
@@ -116,7 +114,7 @@ where
             },
         }
         .to_node_ptr(ctx.allocator_mut())
-        .map_err(|err| DriverError::ToClvm(err))
+        .map_err(DriverError::ToClvm)
     }
 
     fn construct_solution(
@@ -132,7 +130,7 @@ where
                 .construct_solution(ctx, solution.inner_solution)?,
         }
         .to_node_ptr(ctx.allocator_mut())
-        .map_err(|err| DriverError::ToClvm(err))
+        .map_err(DriverError::ToClvm)
     }
 }
 
@@ -149,12 +147,12 @@ where
         solution: Self::Solution,
     ) -> Result<CoinSpend, DriverError> {
         let puzzle_ptr = self.construct_puzzle(ctx)?;
-        let puzzle_reveal = Program::from_node_ptr(ctx.allocator(), puzzle_ptr)
-            .map_err(|err| DriverError::FromClvm(err))?;
+        let puzzle_reveal =
+            Program::from_node_ptr(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
 
         let solution_ptr = self.construct_solution(ctx, solution)?;
-        let solution_reveal = Program::from_node_ptr(ctx.allocator(), solution_ptr)
-            .map_err(|err| DriverError::FromClvm(err))?;
+        let solution_reveal =
+            Program::from_node_ptr(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
 
         Ok(CoinSpend {
             coin,
@@ -220,7 +218,7 @@ where
         }
 
         let parent_args = SingletonArgs::<NodePtr>::from_clvm(allocator, parent_puzzle.args)
-            .map_err(|err| DriverError::FromClvm(err))?;
+            .map_err(DriverError::FromClvm)?;
 
         if parent_args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
             || parent_args.singleton_struct.launcher_puzzle_hash
@@ -231,7 +229,7 @@ where
 
         Ok(Some(LineageProof {
             parent_parent_coin_id: parent_coin.parent_coin_info,
-            parent_inner_puzzle_hash: tree_hash(&allocator, parent_args.inner_puzzle).into(),
+            parent_inner_puzzle_hash: tree_hash(allocator, parent_args.inner_puzzle).into(),
             parent_amount: parent_coin.amount,
         }))
     }

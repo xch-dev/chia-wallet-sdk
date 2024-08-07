@@ -19,7 +19,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct NFT<M = NodePtr> {
+pub struct Nft<M = NodePtr> {
     pub coin: Coin,
 
     // singleton layer
@@ -38,10 +38,11 @@ pub struct NFT<M = NodePtr> {
     pub p2_puzzle: Option<NodePtr>,
 }
 
-impl<M> NFT<M>
+impl<M> Nft<M>
 where
     M: ToClvm<NodePtr> + FromClvm<NodePtr>,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         coin: Coin,
         launcher_id: Bytes32,
@@ -52,7 +53,7 @@ where
         p2_puzzle_hash: TreeHash,
         p2_puzzle: Option<NodePtr>,
     ) -> Self {
-        NFT {
+        Nft {
             coin,
             launcher_id,
             metadata,
@@ -64,11 +65,13 @@ where
         }
     }
 
+    #[must_use]
     pub fn with_coin(mut self, coin: Coin) -> Self {
         self.coin = coin;
         self
     }
 
+    #[must_use]
     pub fn with_p2_puzzle(mut self, p2_puzzle: NodePtr) -> Self {
         self.p2_puzzle = Some(p2_puzzle);
         self
@@ -76,7 +79,7 @@ where
 
     pub fn from_parent_spend(
         allocator: &mut Allocator,
-        cs: CoinSpend,
+        cs: &CoinSpend,
     ) -> Result<Option<Self>, DriverError>
     where
         M: ToTreeHash,
@@ -84,11 +87,11 @@ where
         let puzzle_ptr = cs
             .puzzle_reveal
             .to_node_ptr(allocator)
-            .map_err(|err| DriverError::ToClvm(err))?;
+            .map_err(DriverError::ToClvm)?;
         let solution_ptr = cs
             .solution
             .to_node_ptr(allocator)
-            .map_err(|err| DriverError::ToClvm(err))?;
+            .map_err(DriverError::ToClvm)?;
 
         let res = SingletonLayer::<NftStateLayer<M, NftOwnershipLayer<TransparentLayer>>>::from_parent_spend(
             allocator,
@@ -98,7 +101,7 @@ where
 
         match res {
             None => Ok(None),
-            Some(res) => Ok(Some(NFT {
+            Some(res) => Ok(Some(Nft {
                 coin: Coin::new(cs.coin.coin_id(), res.tree_hash().into(), 1),
                 launcher_id: res.launcher_id,
                 metadata: res.inner_puzzle.metadata,
@@ -123,7 +126,7 @@ where
 
         match res {
             None => Ok(None),
-            Some(res) => Ok(Some(NFT {
+            Some(res) => Ok(Some(Nft {
                 coin,
                 launcher_id: res.launcher_id,
                 metadata: res.inner_puzzle.metadata,
@@ -170,20 +173,20 @@ where
         ctx: &mut SpendContext,
         lineage_proof: Proof,
         inner_spend: Spend,
-    ) -> Result<(CoinSpend, NFT<M>, Proof), DriverError>
+    ) -> Result<(CoinSpend, Nft<M>, Proof), DriverError>
     where
         M: Clone + ToTreeHash,
     {
         let thing = self.get_layered_object(Some(inner_spend.puzzle()));
 
         let puzzle_ptr = thing.construct_puzzle(ctx)?;
-        let puzzle = Program::from_node_ptr(ctx.allocator(), puzzle_ptr)
-            .map_err(|err| DriverError::FromClvm(err))?;
+        let puzzle =
+            Program::from_node_ptr(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
 
         let solution_ptr = thing.construct_solution(
             ctx,
             SingletonLayerSolution {
-                lineage_proof: lineage_proof,
+                lineage_proof,
                 amount: self.coin.amount,
                 inner_solution: NftStateLayerSolution {
                     inner_solution: NftOwnershipLayerSolution {
@@ -192,8 +195,8 @@ where
                 },
             },
         )?;
-        let solution = Program::from_node_ptr(ctx.allocator(), solution_ptr)
-            .map_err(|err| DriverError::FromClvm(err))?;
+        let solution =
+            Program::from_node_ptr(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
 
         let cs = CoinSpend {
             coin: self.coin,
@@ -203,7 +206,7 @@ where
         let lineage_proof = thing.lineage_proof_for_child(self.coin.parent_coin_info, 1);
         Ok((
             cs.clone(),
-            NFT::from_parent_spend(ctx.allocator_mut(), cs)?.ok_or(DriverError::MissingChild)?,
+            Nft::from_parent_spend(ctx.allocator_mut(), &cs)?.ok_or(DriverError::MissingChild)?,
             Proof::Lineage(lineage_proof),
         ))
     }
@@ -215,7 +218,7 @@ where
         owner_synthetic_key: PublicKey,
         new_owner_puzzle_hash: Bytes32,
         extra_conditions: Conditions,
-    ) -> Result<(CoinSpend, NFT<M>, Proof), DriverError>
+    ) -> Result<(CoinSpend, Nft<M>, Proof), DriverError>
     where
         M: Clone + ToTreeHash,
     {
@@ -228,7 +231,7 @@ where
             .extend(extra_conditions);
         let inner_spend = p2_conditions
             .p2_spend(ctx, owner_synthetic_key)
-            .map_err(|err| DriverError::Spend(err))?;
+            .map_err(DriverError::Spend)?;
 
         self.spend(ctx, lineage_proof, inner_spend)
     }
@@ -239,9 +242,9 @@ where
         lineage_proof: Proof,
         owner_synthetic_key: PublicKey,
         new_owner_puzzle_hash: Bytes32,
-        new_did_owner: NewNftOwner,
+        new_did_owner: &NewNftOwner,
         extra_conditions: Conditions,
-    ) -> Result<(CoinSpend, Conditions, NFT<M>, Proof), DriverError>
+    ) -> Result<(CoinSpend, Conditions, Nft<M>, Proof), DriverError>
     // (spend, did conditions)
     where
         M: Clone + ToTreeHash,
@@ -258,10 +261,10 @@ where
             .extend(extra_conditions);
         let inner_spend = p2_conditions
             .p2_spend(ctx, owner_synthetic_key)
-            .map_err(|err| DriverError::Spend(err))?;
+            .map_err(DriverError::Spend)?;
 
         let did_conditions = Conditions::new().assert_raw_puzzle_announcement(
-            did_puzzle_assertion(self.coin.puzzle_hash, &new_did_owner),
+            did_puzzle_assertion(self.coin.puzzle_hash, new_did_owner),
         );
 
         let (cs, new_nft, lineage_proof) = self.spend(ctx, lineage_proof, inner_spend)?;
@@ -289,7 +292,7 @@ pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &NewNf
     Bytes32::new(hasher.finalize().into())
 }
 
-impl<M> NFT<M>
+impl<M> Nft<M>
 where
     M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
 {
@@ -338,7 +341,7 @@ mod tests {
             .create(ctx)?
             .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
-        let (did, did_proof) = ctx.spend_standard_did(did, did_proof, pk, mint_nft)?;
+        let (did, did_proof) = ctx.spend_standard_did(&did, did_proof, pk, mint_nft)?;
 
         let other_puzzle_hash = StandardArgs::curry_tree_hash(pk.derive_unhardened(0)).into();
 
@@ -351,7 +354,7 @@ mod tests {
             Conditions::new(),
         )?;
 
-        let _did_info = ctx.spend_standard_did(did, did_proof, pk, parent_conditions)?;
+        let _did_info = ctx.spend_standard_did(&did, did_proof, pk, parent_conditions)?;
 
         test_transaction(
             &peer,
@@ -386,7 +389,7 @@ mod tests {
                 .create(ctx)?
                 .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
-        let (mut did, mut did_proof) = ctx.spend_standard_did(did, did_proof, pk, mint_nft)?;
+        let (mut did, mut did_proof) = ctx.spend_standard_did(&did, did_proof, pk, mint_nft)?;
 
         for i in 0..5 {
             let (spend_nft, new_nft, new_lineage_proof) = ctx.spend_standard_nft(
@@ -407,7 +410,7 @@ mod tests {
             )?;
             nft = new_nft;
             lineage_proof = new_lineage_proof;
-            (did, did_proof) = ctx.spend_standard_did(did, did_proof, pk, spend_nft)?;
+            (did, did_proof) = ctx.spend_standard_did(&did, did_proof, pk, spend_nft)?;
         }
 
         test_transaction(
@@ -479,7 +482,7 @@ mod tests {
         .expect("could not parse spend :(");
 
         assert_eq!(parsed_nft.launcher_id, nft.launcher_id);
-        assert_eq!(parsed_nft.inner_puzzle.metadata, nft.metadata);
+        // assert_eq!(parsed_nft.inner_puzzle.metadata, nft.metadata); // always ()
         assert_eq!(
             parsed_nft.inner_puzzle.inner_puzzle.current_owner,
             nft.current_owner

@@ -48,16 +48,14 @@ where
         }
 
         let parent_args = DidArgs::<NodePtr, M>::from_clvm(allocator, parent_puzzle.args)
-            .map_err(|err| DriverError::FromClvm(err))?;
+            .map_err(DriverError::FromClvm)?;
 
-        let parent_inner_sol = match DidSolution::<NodePtr>::from_clvm(allocator, layer_solution)
-            .map_err(|err| DriverError::FromClvm(err))?
-        {
-            DidSolution::InnerSpend(inner_solution) => inner_solution,
-        };
+        let DidSolution::InnerSpend(parent_inner_sol) =
+            DidSolution::<NodePtr>::from_clvm(allocator, layer_solution)
+                .map_err(DriverError::FromClvm)?;
 
         match IP::from_parent_spend(allocator, parent_args.inner_puzzle, parent_inner_sol)? {
-            None => return Ok(None),
+            None => Ok(None),
             Some(inner_puzzle) => Ok(Some(DidLayer::<M, IP> {
                 launcher_id: parent_args.singleton_struct.launcher_id,
                 recovery_did_list_hash: parent_args.recovery_did_list_hash,
@@ -83,10 +81,10 @@ where
         }
 
         let args = DidArgs::<NodePtr, M>::from_clvm(allocator, puzzle.args)
-            .map_err(|err| DriverError::FromClvm(err))?;
+            .map_err(DriverError::FromClvm)?;
 
         match IP::from_puzzle(allocator, args.inner_puzzle)? {
-            None => return Ok(None),
+            None => Ok(None),
             Some(inner_puzzle) => Ok(Some(DidLayer::<M, IP> {
                 launcher_id: args.singleton_struct.launcher_id,
                 recovery_did_list_hash: args.recovery_did_list_hash,
@@ -101,12 +99,10 @@ where
         let metadata_ptr = self
             .metadata
             .to_node_ptr(ctx.allocator_mut())
-            .map_err(|err| DriverError::ToClvm(err))?;
+            .map_err(DriverError::ToClvm)?;
 
         CurriedProgram {
-            program: ctx
-                .did_inner_puzzle()
-                .map_err(|err| DriverError::Spend(err))?,
+            program: ctx.did_inner_puzzle().map_err(DriverError::Spend)?,
             args: DidArgs {
                 recovery_did_list_hash: self.recovery_did_list_hash,
                 num_verifications_required: self.num_verifications_required,
@@ -116,7 +112,7 @@ where
             },
         }
         .to_node_ptr(ctx.allocator_mut())
-        .map_err(|err| DriverError::ToClvm(err))
+        .map_err(DriverError::ToClvm)
     }
 
     fn construct_solution(
@@ -129,7 +125,7 @@ where
                 .construct_solution(ctx, solution.inner_solution)?,
         )
         .to_node_ptr(ctx.allocator_mut())
-        .map_err(|err| DriverError::ToClvm(err))
+        .map_err(DriverError::ToClvm)
     }
 }
 

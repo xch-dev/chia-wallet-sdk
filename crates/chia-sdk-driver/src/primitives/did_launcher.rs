@@ -7,7 +7,7 @@ use clvmr::NodePtr;
 
 use crate::{Conditions, DriverError, Launcher, SpendContext, SpendError};
 
-use super::DID;
+use super::Did;
 
 impl Launcher {
     pub fn create_eve_did<M>(
@@ -18,12 +18,12 @@ impl Launcher {
         recovery_did_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
-    ) -> Result<(Conditions, DID<M>, Proof), SpendError>
+    ) -> Result<(Conditions, Did<M>, Proof), SpendError>
     where
         M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
     {
         let launcher_coin = self.coin();
-        let did = DID::new(
+        let did = Did::new(
             self.coin(), // fake coin to get inner ph
             launcher_coin.coin_id(),
             recovery_did_list_hash,
@@ -52,7 +52,7 @@ impl Launcher {
         num_verifications_required: u64,
         metadata: M,
         synthetic_key: PublicKey,
-    ) -> Result<(Conditions, DID<M>, Proof), DriverError>
+    ) -> Result<(Conditions, Did<M>, Proof), DriverError>
     where
         M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
         Self: Sized,
@@ -64,7 +64,7 @@ impl Launcher {
         .to_node_ptr(ctx.allocator_mut())?;
         let inner_puzzle_hash = StandardArgs::curry_tree_hash(synthetic_key).into();
 
-        let (create_did, did_info, eve_proof) = self.create_eve_did(
+        let (create_did, did, eve_proof) = self.create_eve_did(
             ctx,
             inner_puzzle_hash,
             Some(inner_puzzle),
@@ -74,7 +74,7 @@ impl Launcher {
         )?;
 
         let (new_did, new_proof) =
-            ctx.spend_standard_did(did_info, eve_proof, synthetic_key, Conditions::new())?;
+            ctx.spend_standard_did(&did, eve_proof, synthetic_key, Conditions::new())?;
 
         Ok((create_did, new_did, new_proof))
     }
@@ -83,7 +83,7 @@ impl Launcher {
         self,
         ctx: &mut SpendContext,
         synthetic_key: PublicKey,
-    ) -> Result<(Conditions, DID<()>, Proof), DriverError>
+    ) -> Result<(Conditions, Did<()>, Proof), DriverError>
     where
         Self: Sized,
     {

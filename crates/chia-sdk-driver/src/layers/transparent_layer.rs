@@ -27,11 +27,12 @@ impl<const HINT_OVERRIDE: bool> TransparentLayer<HINT_OVERRIDE> {
 
     pub fn from_puzzle(allocator: &Allocator, puzzle: NodePtr) -> Self {
         TransparentLayer {
-            puzzle_hash: tree_hash(&allocator, puzzle),
+            puzzle_hash: tree_hash(allocator, puzzle),
             puzzle: Some(puzzle),
         }
     }
 
+    #[must_use]
     pub fn with_puzzle(mut self, puzzle: NodePtr) -> Self {
         self.puzzle = Some(puzzle);
         self
@@ -46,35 +47,32 @@ impl<const HINT_OVERRIDE: bool> PuzzleLayer for TransparentLayer<HINT_OVERRIDE> 
         layer_puzzle: NodePtr,
         layer_solution: NodePtr,
     ) -> Result<Option<Self>, DriverError> {
-        let output = run_puzzle(allocator, layer_puzzle, layer_solution)
-            .map_err(|err| DriverError::Eval(err))?;
-        let conditions = Vec::<NodePtr>::from_clvm(allocator, output)
-            .map_err(|err| DriverError::FromClvm(err))?;
+        let output =
+            run_puzzle(allocator, layer_puzzle, layer_solution).map_err(DriverError::Eval)?;
+        let conditions =
+            Vec::<NodePtr>::from_clvm(allocator, output).map_err(DriverError::FromClvm)?;
 
         // if there's only one output, we can predict this layer's puzzle hash
         let mut new_puzzle_hash: Option<Bytes32> = None;
         for condition in conditions {
-            match CreateCoin::from_clvm(allocator, condition) {
-                Ok(cc) => {
-                    if new_puzzle_hash.is_some() {
-                        return Ok(None);
-                    }
-
-                    if HINT_OVERRIDE && cc.amount == 0 {
-                        // e.g., DID created NFT
-                        continue;
-                    }
-                    new_puzzle_hash = Some(
-                        if HINT_OVERRIDE && cc.memos.len() > 0 && cc.memos[0].len() == 32 {
-                            // standard puzzle will hint the inner puzzle hash
-                            // this is useful e.g., when re-creatign a DID (created puz hash != actual transparent layer puz hash)
-                            Bytes32::new(cc.memos[0].to_vec().try_into().unwrap())
-                        } else {
-                            cc.puzzle_hash
-                        },
-                    );
+            if let Ok(cc) = CreateCoin::from_clvm(allocator, condition) {
+                if new_puzzle_hash.is_some() {
+                    return Ok(None);
                 }
-                _ => {}
+
+                if HINT_OVERRIDE && cc.amount == 0 {
+                    // e.g., DID created NFT
+                    continue;
+                }
+                new_puzzle_hash = Some(
+                    if HINT_OVERRIDE && !cc.memos.is_empty() && cc.memos[0].len() == 32 {
+                        // standard puzzle will hint the inner puzzle hash
+                        // this is useful e.g., when re-creatign a DID (created puz hash != actual transparent layer puz hash)
+                        Bytes32::new(cc.memos[0].to_vec().try_into().unwrap())
+                    } else {
+                        cc.puzzle_hash
+                    },
+                );
             }
         }
 
@@ -82,7 +80,7 @@ impl<const HINT_OVERRIDE: bool> PuzzleLayer for TransparentLayer<HINT_OVERRIDE> 
             return Ok(None);
         };
 
-        if tree_hash(&allocator, layer_puzzle) == new_puzzle_hash.into() {
+        if tree_hash(allocator, layer_puzzle) == new_puzzle_hash.into() {
             return Ok(Some(TransparentLayer {
                 puzzle_hash: new_puzzle_hash.into(),
                 puzzle: Some(layer_puzzle),
@@ -100,7 +98,7 @@ impl<const HINT_OVERRIDE: bool> PuzzleLayer for TransparentLayer<HINT_OVERRIDE> 
         layer_puzzle: NodePtr,
     ) -> Result<Option<Self>, DriverError> {
         Ok(Some(TransparentLayer {
-            puzzle_hash: tree_hash(&allocator, layer_puzzle),
+            puzzle_hash: tree_hash(allocator, layer_puzzle),
             puzzle: Some(layer_puzzle),
         }))
     }

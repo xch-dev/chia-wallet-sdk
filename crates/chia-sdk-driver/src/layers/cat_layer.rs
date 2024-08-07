@@ -46,7 +46,7 @@ where
             parent_args.inner_puzzle,
             parent_sol.inner_puzzle_solution,
         )? {
-            None => return Ok(None),
+            None => Ok(None),
             Some(inner_puzzle) => Ok(Some(CatLayer::<IP> {
                 asset_id: parent_args.asset_id,
                 inner_puzzle,
@@ -75,7 +75,7 @@ where
         }
 
         match IP::from_puzzle(allocator, args.inner_puzzle)? {
-            None => return Ok(None),
+            None => Ok(None),
             Some(inner_puzzle) => Ok(Some(CatLayer::<IP> {
                 asset_id: args.asset_id,
                 inner_puzzle,
@@ -85,7 +85,7 @@ where
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         CurriedProgram {
-            program: ctx.cat_puzzle().map_err(|err| DriverError::Spend(err))?,
+            program: ctx.cat_puzzle().map_err(DriverError::Spend)?,
             args: CatArgs {
                 mod_hash: CAT_PUZZLE_HASH.into(),
                 asset_id: self.asset_id,
@@ -93,7 +93,7 @@ where
             },
         }
         .to_node_ptr(ctx.allocator_mut())
-        .map_err(|err| DriverError::ToClvm(err))
+        .map_err(DriverError::ToClvm)
     }
 
     fn construct_solution(
@@ -113,7 +113,7 @@ where
             extra_delta: solution.extra_delta,
         }
         .to_node_ptr(ctx.allocator_mut())
-        .map_err(|err| DriverError::ToClvm(err))
+        .map_err(DriverError::ToClvm)
     }
 }
 
@@ -139,12 +139,12 @@ where
         solution: Self::Solution,
     ) -> Result<CoinSpend, DriverError> {
         let puzzle_ptr = self.construct_puzzle(ctx)?;
-        let puzzle_reveal = Program::from_node_ptr(ctx.allocator(), puzzle_ptr)
-            .map_err(|err| DriverError::FromClvm(err))?;
+        let puzzle_reveal =
+            Program::from_node_ptr(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
 
         let solution_ptr = self.construct_solution(ctx, solution)?;
-        let solution_reveal = Program::from_node_ptr(ctx.allocator(), solution_ptr)
-            .map_err(|err| DriverError::FromClvm(err))?;
+        let solution_reveal =
+            Program::from_node_ptr(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
 
         Ok(CoinSpend {
             coin,

@@ -6,7 +6,7 @@ use chia_puzzles::{
     offer::{NotarizedPayment, Payment},
     singleton::SingletonArgs,
 };
-use chia_sdk_driver::{SpendContext, SpendError, NFT};
+use chia_sdk_driver::{Nft, SpendContext, SpendError};
 
 use chia_sdk_types::conditions::{announcement_id, AssertPuzzleAnnouncement};
 use clvm_traits::{ToClvm, ToNodePtr};
@@ -29,7 +29,7 @@ impl<M> NftPaymentInfo<M>
 where
     M: Clone,
 {
-    pub fn from_nft_info(nft_info: &NFT<M>) -> Self {
+    pub fn from_nft_info(nft_info: &Nft<M>) -> Self {
         Self {
             launcher_id: nft_info.launcher_id,
             royalty_puzzle_hash: nft_info.royalty_puzzle_hash,

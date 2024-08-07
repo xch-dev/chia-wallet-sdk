@@ -28,8 +28,8 @@ struct SerializableSpendBundle {
 impl From<&Coin> for SerializableCoin {
     fn from(coin: &Coin) -> Self {
         SerializableCoin {
-            parent_coin_info: format!("0x{}", encode(&coin.parent_coin_info)),
-            puzzle_hash: format!("0x{}", encode(&coin.puzzle_hash)),
+            parent_coin_info: format!("0x{}", encode(coin.parent_coin_info)),
+            puzzle_hash: format!("0x{}", encode(coin.puzzle_hash)),
             amount: coin.amount,
         }
     }
@@ -64,6 +64,7 @@ impl From<&SpendBundle> for SerializableSpendBundle {
     }
 }
 
+#[allow(clippy::missing_panics_doc)]
 pub fn get_spend_bundle_json(spends: Vec<CoinSpend>, agg_sig: G2Element) -> String {
     let spend_bundle = SpendBundle {
         coin_spends: spends,
@@ -78,10 +79,11 @@ pub fn print_spend_bundle(spends: Vec<CoinSpend>, agg_sig: G2Element) {
     println!("{}", get_spend_bundle_json(spends, agg_sig));
 }
 
+#[allow(clippy::missing_panics_doc)]
 pub fn print_spend_bundle_to_file(spends: Vec<CoinSpend>, agg_sig: G2Element, file_path: &str) {
     let json_string = get_spend_bundle_json(spends, agg_sig);
     let path = Path::new(file_path);
-    let mut file = File::create(&path).expect("Unable to create file");
+    let mut file = File::create(path).expect("Unable to create file");
     file.write_all(json_string.as_bytes())
         .expect("Unable to write data");
 }

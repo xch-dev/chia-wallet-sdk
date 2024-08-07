@@ -10,7 +10,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct DID<M = NodePtr> {
+pub struct Did<M = NodePtr> {
     pub coin: Coin,
 
     // singleton layer
@@ -26,7 +26,7 @@ pub struct DID<M = NodePtr> {
     pub p2_puzzle: Option<NodePtr>,
 }
 
-impl<M> DID<M>
+impl<M> Did<M>
 where
     M: ToClvm<NodePtr> + FromClvm<NodePtr>,
 {
@@ -39,7 +39,7 @@ where
         p2_puzzle_hash: TreeHash,
         p2_puzzle: Option<NodePtr>,
     ) -> Self {
-        DID {
+        Did {
             coin,
             launcher_id,
             recovery_did_list_hash,
@@ -50,11 +50,13 @@ where
         }
     }
 
+    #[must_use]
     pub fn with_coin(mut self, coin: Coin) -> Self {
         self.coin = coin;
         self
     }
 
+    #[must_use]
     pub fn with_p2_puzzle(mut self, p2_puzzle: NodePtr) -> Self {
         self.p2_puzzle = Some(p2_puzzle);
         self
@@ -62,7 +64,7 @@ where
 
     pub fn from_parent_spend(
         allocator: &mut Allocator,
-        cs: CoinSpend,
+        cs: &CoinSpend,
     ) -> Result<Option<Self>, DriverError>
     where
         M: ToTreeHash,
@@ -70,11 +72,11 @@ where
         let puzzle_ptr = cs
             .puzzle_reveal
             .to_node_ptr(allocator)
-            .map_err(|err| DriverError::ToClvm(err))?;
+            .map_err(DriverError::ToClvm)?;
         let solution_ptr = cs
             .solution
             .to_node_ptr(allocator)
-            .map_err(|err| DriverError::ToClvm(err))?;
+            .map_err(DriverError::ToClvm)?;
 
         let res = SingletonLayer::<DidLayer<M, TransparentLayer<true>>>::from_parent_spend(
             allocator,
@@ -84,7 +86,7 @@ where
 
         match res {
             None => Ok(None),
-            Some(res) => Ok(Some(DID {
+            Some(res) => Ok(Some(Did {
                 coin: Coin::new(cs.coin.coin_id(), res.tree_hash().into(), 1),
                 launcher_id: res.launcher_id,
                 recovery_did_list_hash: res.inner_puzzle.recovery_did_list_hash,
@@ -106,7 +108,7 @@ where
 
         match res {
             None => Ok(None),
-            Some(res) => Ok(Some(DID {
+            Some(res) => Ok(Some(Did {
                 coin,
                 launcher_id: res.launcher_id,
                 recovery_did_list_hash: res.inner_puzzle.recovery_did_list_hash,
@@ -148,28 +150,28 @@ where
         ctx: &mut SpendContext,
         lineage_proof: Proof,
         inner_spend: Spend,
-    ) -> Result<(CoinSpend, DID<M>, Proof), DriverError>
+    ) -> Result<(CoinSpend, Did<M>, Proof), DriverError>
     where
         M: Clone + ToTreeHash,
     {
         let thing = self.get_layered_object(Some(inner_spend.puzzle()));
 
         let puzzle_ptr = thing.construct_puzzle(ctx)?;
-        let puzzle = Program::from_node_ptr(ctx.allocator(), puzzle_ptr)
-            .map_err(|err| DriverError::FromClvm(err))?;
+        let puzzle =
+            Program::from_node_ptr(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
 
         let solution_ptr = thing.construct_solution(
             ctx,
             SingletonLayerSolution {
-                lineage_proof: lineage_proof,
+                lineage_proof,
                 amount: self.coin.amount,
                 inner_solution: DidLayerSolution {
                     inner_solution: inner_spend.solution(),
                 },
             },
         )?;
-        let solution = Program::from_node_ptr(ctx.allocator(), solution_ptr)
-            .map_err(|err| DriverError::FromClvm(err))?;
+        let solution =
+            Program::from_node_ptr(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
 
         let cs = CoinSpend {
             coin: self.coin,
@@ -180,13 +182,13 @@ where
 
         Ok((
             cs.clone(),
-            DID::from_parent_spend(ctx.allocator_mut(), cs)?.ok_or(DriverError::MissingChild)?,
+            Did::from_parent_spend(ctx.allocator_mut(), &cs)?.ok_or(DriverError::MissingChild)?,
             Proof::Lineage(lineage_proof),
         ))
     }
 }
 
-impl<M> DID<M>
+impl<M> Did<M>
 where
     M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
 {
@@ -204,7 +206,7 @@ where
     }
 }
 
-impl<M> DID<M>
+impl<M> Did<M>
 where
     M: ToTreeHash,
 {
@@ -240,14 +242,13 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 1).await;
 
-        let (create_did, mut did_info, mut did_proof) =
+        let (create_did, mut did, mut did_proof) =
             Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
         for _ in 0..10 {
-            (did_info, did_proof) =
-                ctx.spend_standard_did(did_info, did_proof, pk, Conditions::new())?;
+            (did, did_proof) = ctx.spend_standard_did(&did, did_proof, pk, Conditions::new())?;
         }
 
         test_transaction(
@@ -259,10 +260,10 @@ mod tests {
         .await;
 
         let coin_state = sim
-            .coin_state(did_info.coin.coin_id())
+            .coin_state(did.coin.coin_id())
             .await
             .expect("expected did coin");
-        assert_eq!(coin_state.coin, did_info.coin);
+        assert_eq!(coin_state.coin, did.coin);
 
         Ok(())
     }

@@ -37,14 +37,14 @@ where
         }
 
         let parent_args = NftStateLayerArgs::<NodePtr, M>::from_clvm(allocator, parent_puzzle.args)
-            .map_err(|err| DriverError::FromClvm(err))?;
+            .map_err(DriverError::FromClvm)?;
 
         if parent_args.mod_hash != NFT_STATE_LAYER_PUZZLE_HASH.into() {
             return Err(DriverError::InvalidModHash);
         }
 
         let parent_sol = NftStateLayerSolution::<NodePtr>::from_clvm(allocator, layer_solution)
-            .map_err(|err| DriverError::FromClvm(err))?;
+            .map_err(DriverError::FromClvm)?;
 
         let (metadata, metadata_updater_puzzle_hash) =
             NftStateLayer::<M, IP>::new_metadata_and_updater_from_conditions(
@@ -62,7 +62,7 @@ where
             parent_args.inner_puzzle,
             parent_sol.inner_solution,
         )? {
-            None => return Ok(None),
+            None => Ok(None),
             Some(inner_puzzle) => Ok(Some(NftStateLayer::<M, IP> {
                 metadata,
                 metadata_updater_puzzle_hash,
@@ -86,14 +86,14 @@ where
         }
 
         let args = NftStateLayerArgs::<NodePtr, M>::from_clvm(allocator, puzzle.args)
-            .map_err(|err| DriverError::FromClvm(err))?;
+            .map_err(DriverError::FromClvm)?;
 
         if args.mod_hash != NFT_STATE_LAYER_PUZZLE_HASH.into() {
             return Err(DriverError::InvalidModHash);
         }
 
         match IP::from_puzzle(allocator, args.inner_puzzle)? {
-            None => return Ok(None),
+            None => Ok(None),
             Some(inner_puzzle) => Ok(Some(NftStateLayer::<M, IP> {
                 metadata: args.metadata,
                 metadata_updater_puzzle_hash: args.metadata_updater_puzzle_hash,
@@ -106,12 +106,10 @@ where
         let metadata_ptr = self
             .metadata
             .to_node_ptr(ctx.allocator_mut())
-            .map_err(|err| DriverError::ToClvm(err))?;
+            .map_err(DriverError::ToClvm)?;
 
         CurriedProgram {
-            program: ctx
-                .nft_state_layer()
-                .map_err(|err| DriverError::Spend(err))?,
+            program: ctx.nft_state_layer().map_err(DriverError::Spend)?,
             args: NftStateLayerArgs {
                 mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
                 metadata: metadata_ptr,
@@ -120,7 +118,7 @@ where
             },
         }
         .to_node_ptr(ctx.allocator_mut())
-        .map_err(|err| DriverError::ToClvm(err))
+        .map_err(DriverError::ToClvm)
     }
 
     fn construct_solution(
@@ -134,7 +132,7 @@ where
                 .construct_solution(ctx, solution.inner_solution)?,
         }
         .to_node_ptr(ctx.allocator_mut())
-        .map_err(|err| DriverError::ToClvm(err))
+        .map_err(DriverError::ToClvm)
     }
 }
 
@@ -192,10 +190,10 @@ where
         inner_layer_solution: NodePtr,
     ) -> Result<Option<(M, Bytes32)>, DriverError> {
         let output = run_puzzle(allocator, inner_layer_puzzle, inner_layer_solution)
-            .map_err(|err| DriverError::Eval(err))?;
+            .map_err(DriverError::Eval)?;
 
-        let conditions = Vec::<NodePtr>::from_clvm(allocator, output)
-            .map_err(|err| DriverError::FromClvm(err))?;
+        let conditions =
+            Vec::<NodePtr>::from_clvm(allocator, output).map_err(DriverError::FromClvm)?;
 
         for condition in conditions {
             let condition =
@@ -207,10 +205,10 @@ where
                     condition.metadata_updater_reveal,
                     condition.metadata_updater_solution,
                 )
-                .map_err(|err| DriverError::Eval(err))?;
+                .map_err(DriverError::Eval)?;
 
                 let output = NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)
-                    .map_err(|err| DriverError::FromClvm(err))?;
+                    .map_err(DriverError::FromClvm)?;
 
                 return Ok(Some((
                     output.metadata_part.new_metadata,

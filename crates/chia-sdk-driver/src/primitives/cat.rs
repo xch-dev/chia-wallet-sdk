@@ -36,11 +36,13 @@ impl Cat {
         }
     }
 
+    #[must_use]
     pub fn with_coin(mut self, coin: Coin) -> Self {
         self.coin = coin;
         self
     }
 
+    #[must_use]
     pub fn with_p2_puzzle(mut self, p2_puzzle: NodePtr) -> Self {
         self.p2_puzzle = Some(p2_puzzle);
         self
@@ -48,31 +50,27 @@ impl Cat {
 
     pub fn from_parent_spend(
         allocator: &mut Allocator,
-        cs: CoinSpend,
+        cs: &CoinSpend,
     ) -> Result<Option<Self>, DriverError> {
         let puzzle_ptr = cs
             .puzzle_reveal
             .to_node_ptr(allocator)
-            .map_err(|err| DriverError::ToClvm(err))?;
+            .map_err(DriverError::ToClvm)?;
         let solution_ptr = cs
             .solution
             .to_node_ptr(allocator)
-            .map_err(|err| DriverError::ToClvm(err))?;
+            .map_err(DriverError::ToClvm)?;
 
         let res =
             CatLayer::<TransparentLayer>::from_parent_spend(allocator, puzzle_ptr, solution_ptr)?;
 
-        let output = run_puzzle(allocator, puzzle_ptr, solution_ptr)
-            .map_err(|err| DriverError::Eval(err))?;
-        let conditions = Vec::<Condition>::from_clvm(allocator, output)
-            .map_err(|err| DriverError::FromClvm(err))?;
+        let output = run_puzzle(allocator, puzzle_ptr, solution_ptr).map_err(DriverError::Eval)?;
+        let conditions =
+            Vec::<Condition>::from_clvm(allocator, output).map_err(DriverError::FromClvm)?;
 
         let create_coin = conditions
             .into_iter()
-            .find(|cond| match cond {
-                Condition::CreateCoin(_) => true,
-                _ => false,
-            })
+            .find(|cond| matches!(cond, Condition::CreateCoin(_)))
             .ok_or(DriverError::MissingParentCreateCoin)?;
         let (amount, puzzle_hash) = if let Condition::CreateCoin(create_coin) = create_coin {
             (create_coin.amount, create_coin.puzzle_hash)
@@ -122,6 +120,7 @@ impl Cat {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
@@ -136,8 +135,8 @@ impl Cat {
         let thing = self.get_layered_object(Some(inner_spend.puzzle()));
 
         let puzzle_ptr = thing.construct_puzzle(ctx)?;
-        let puzzle = Program::from_node_ptr(ctx.allocator(), puzzle_ptr)
-            .map_err(|err| DriverError::FromClvm(err))?;
+        let puzzle =
+            Program::from_node_ptr(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
 
         let solution_ptr = thing.construct_solution(
             ctx,
@@ -151,8 +150,8 @@ impl Cat {
                 inner_puzzle_solution: inner_spend.solution(),
             },
         )?;
-        let solution = Program::from_node_ptr(ctx.allocator(), solution_ptr)
-            .map_err(|err| DriverError::FromClvm(err))?;
+        let solution =
+            Program::from_node_ptr(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
 
         let cs = CoinSpend {
             coin: self.coin,
@@ -161,7 +160,7 @@ impl Cat {
         };
         Ok((
             cs.clone(),
-            Cat::from_parent_spend(ctx.allocator_mut(), cs)?.ok_or(DriverError::MissingChild)?,
+            Cat::from_parent_spend(ctx.allocator_mut(), &cs)?.ok_or(DriverError::MissingChild)?,
             Proof::Lineage(LineageProof {
                 parent_parent_coin_id: self.coin.parent_coin_info,
                 parent_inner_puzzle_hash: self.p2_puzzle_hash.into(),
