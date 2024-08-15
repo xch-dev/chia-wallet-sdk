@@ -2,15 +2,15 @@ use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
     cat::{
-        CatArgs, CatSolution, CoinProof, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs,
+        CatArgs, CatSolution, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs,
         CAT_PUZZLE_HASH,
     },
-    LineageProof,
+    CoinProof, LineageProof,
 };
 use chia_sdk_types::conditions::RunTail;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::CurriedProgram;
-use clvmr::NodePtr;
+use clvmr::Allocator;
 
 use crate::{Conditions, SpendContext, SpendError};
 
@@ -119,7 +119,7 @@ where
     let issuance_info = IssueCat {
         asset_id,
         lineage_proof: LineageProof {
-            parent_parent_coin_id: eve_coin.parent_coin_info,
+            parent_parent_coin_info: eve_coin.parent_coin_info,
             parent_inner_puzzle_hash: inner_puzzle_hash,
             parent_amount: eve_coin.amount,
         },
