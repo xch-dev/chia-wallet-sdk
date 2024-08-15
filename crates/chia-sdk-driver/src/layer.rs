@@ -1,9 +1,8 @@
-use chia_protocol::{Coin, CoinSpend};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, SpendContext};
 
-pub trait PuzzleLayer {
+pub trait Layer {
     type Solution;
 
     fn from_parent_spend(
@@ -28,15 +27,4 @@ pub trait PuzzleLayer {
         ctx: &mut SpendContext,
         solution: Self::Solution,
     ) -> Result<NodePtr, DriverError>;
-}
-
-pub trait OuterPuzzleLayer {
-    type Solution;
-
-    fn solve(
-        &self,
-        ctx: &mut SpendContext,
-        coin: Coin,
-        solution: Self::Solution,
-    ) -> Result<CoinSpend, DriverError>;
 }

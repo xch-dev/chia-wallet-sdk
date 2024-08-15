@@ -4,7 +4,7 @@ use clvm_traits::FromClvm;
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, PuzzleLayer, SpendContext};
+use crate::{DriverError, Layer, SpendContext};
 
 // this is the innermost puzzle for most things
 
@@ -39,7 +39,7 @@ impl<const HINT_OVERRIDE: bool> TransparentLayer<HINT_OVERRIDE> {
     }
 }
 
-impl<const HINT_OVERRIDE: bool> PuzzleLayer for TransparentLayer<HINT_OVERRIDE> {
+impl<const HINT_OVERRIDE: bool> Layer for TransparentLayer<HINT_OVERRIDE> {
     type Solution = NodePtr;
 
     fn from_parent_spend(

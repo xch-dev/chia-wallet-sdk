@@ -1,10 +1,10 @@
-use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
+use chia_protocol::Bytes32;
 use chia_puzzles::cat::{CatArgs, CatSolution, CAT_PUZZLE_HASH};
-use clvm_traits::{FromClvm, FromNodePtr, ToNodePtr};
+use clvm_traits::{FromClvm, ToNodePtr};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, OuterPuzzleLayer, Puzzle, PuzzleLayer, SpendContext};
+use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug)]
 pub struct CatLayer<IP> {
@@ -12,9 +12,9 @@ pub struct CatLayer<IP> {
     pub inner_puzzle: IP,
 }
 
-impl<IP> PuzzleLayer for CatLayer<IP>
+impl<IP> Layer for CatLayer<IP>
 where
-    IP: PuzzleLayer,
+    IP: Layer,
 {
     type Solution = CatSolution<IP::Solution>;
 
@@ -123,33 +123,5 @@ where
 {
     fn tree_hash(&self) -> TreeHash {
         CatArgs::curry_tree_hash(self.asset_id, self.inner_puzzle.tree_hash())
-    }
-}
-
-impl<IP> OuterPuzzleLayer for CatLayer<IP>
-where
-    IP: PuzzleLayer,
-{
-    type Solution = CatSolution<IP::Solution>;
-
-    fn solve(
-        &self,
-        ctx: &mut SpendContext,
-        coin: Coin,
-        solution: Self::Solution,
-    ) -> Result<CoinSpend, DriverError> {
-        let puzzle_ptr = self.construct_puzzle(ctx)?;
-        let puzzle_reveal =
-            Program::from_node_ptr(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
-
-        let solution_ptr = self.construct_solution(ctx, solution)?;
-        let solution_reveal =
-            Program::from_node_ptr(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
-
-        Ok(CoinSpend {
-            coin,
-            puzzle_reveal,
-            solution: solution_reveal,
-        })
     }
 }

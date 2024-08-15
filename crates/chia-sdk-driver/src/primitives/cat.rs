@@ -8,7 +8,7 @@ use clvm_traits::{FromClvm, FromNodePtr, ToNodePtr};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{CatLayer, DriverError, PuzzleLayer, Spend, SpendContext, TransparentLayer};
+use crate::{CatLayer, DriverError, Layer, Spend, SpendContext, TransparentLayer};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Cat {

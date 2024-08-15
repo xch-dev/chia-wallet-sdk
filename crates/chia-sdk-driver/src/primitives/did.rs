@@ -5,8 +5,8 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    DidLayer, DidLayerSolution, DriverError, PuzzleLayer, SingletonLayer, SingletonLayerSolution,
-    Spend, SpendContext, TransparentLayer,
+    DidLayer, DidLayerSolution, DriverError, Layer, SingletonLayer, SingletonLayerSolution, Spend,
+    SpendContext, TransparentLayer,
 };
 
 #[derive(Debug, Clone, Copy)]

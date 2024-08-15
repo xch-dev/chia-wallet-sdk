@@ -8,7 +8,7 @@
 //!
 //! ## Layers
 //!
-//! A [`PuzzleLayer`] is a subset of the logic that makes up a smart coin in Chia.
+//! A [`Layer`] is a subset of the logic that makes up a smart coin in Chia.
 //! They are also referred to as "inner puzzles", and the solution can be broken
 //! up into "inner solutions" as well.
 //!
@@ -38,10 +38,10 @@
 
 mod conditions;
 mod driver_error;
+mod layer;
 mod layers;
 mod primitives;
 mod puzzle;
-mod puzzle_layer;
 mod puzzles;
 mod spend;
 mod spend_context;
@@ -49,10 +49,10 @@ mod spend_error;
 
 pub use conditions::*;
 pub use driver_error::*;
+pub use layer::*;
 pub use layers::*;
 pub use primitives::*;
 pub use puzzle::*;
-pub use puzzle_layer::*;
 pub use puzzles::*;
 pub use spend::*;
 pub use spend_context::*;

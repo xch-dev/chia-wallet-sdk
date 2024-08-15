@@ -11,7 +11,7 @@ use clvm_traits::{FromClvm, ToNodePtr};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, Puzzle, PuzzleLayer, SpendContext};
+use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug)]
 pub struct NftOwnershipLayer<IP> {
@@ -22,9 +22,9 @@ pub struct NftOwnershipLayer<IP> {
     pub inner_puzzle: IP,
 }
 
-impl<IP> PuzzleLayer for NftOwnershipLayer<IP>
+impl<IP> Layer for NftOwnershipLayer<IP>
 where
-    IP: PuzzleLayer,
+    IP: Layer,
 {
     type Solution = NftOwnershipLayerSolution<IP::Solution>;
 

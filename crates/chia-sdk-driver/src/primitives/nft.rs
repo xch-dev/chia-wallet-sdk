@@ -14,7 +14,7 @@ use clvmr::{
 };
 
 use crate::{
-    Conditions, DriverError, NftOwnershipLayer, NftStateLayer, PuzzleLayer, SingletonLayer,
+    Conditions, DriverError, Layer, NftOwnershipLayer, NftStateLayer, SingletonLayer,
     SingletonLayerSolution, Spend, SpendContext, TransparentLayer,
 };
 

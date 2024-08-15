@@ -1,4 +1,4 @@
-use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::{
     singleton::{
         SingletonArgs, SingletonSolution, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH,
@@ -6,11 +6,11 @@ use chia_puzzles::{
     },
     LineageProof, Proof,
 };
-use clvm_traits::{FromClvm, FromNodePtr, ToClvm, ToNodePtr};
+use clvm_traits::{FromClvm, ToClvm, ToNodePtr};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, OuterPuzzleLayer, Puzzle, PuzzleLayer, SpendContext};
+use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug)]
 pub struct SingletonLayer<IP> {
@@ -26,9 +26,9 @@ pub struct SingletonLayerSolution<I> {
     pub inner_solution: I,
 }
 
-impl<IP> PuzzleLayer for SingletonLayer<IP>
+impl<IP> Layer for SingletonLayer<IP>
 where
-    IP: PuzzleLayer,
+    IP: Layer,
 {
     type Solution = SingletonLayerSolution<IP::Solution>;
 
@@ -131,34 +131,6 @@ where
         }
         .to_node_ptr(ctx.allocator_mut())
         .map_err(DriverError::ToClvm)
-    }
-}
-
-impl<IP> OuterPuzzleLayer for SingletonLayer<IP>
-where
-    IP: PuzzleLayer,
-{
-    type Solution = SingletonLayerSolution<IP::Solution>;
-
-    fn solve(
-        &self,
-        ctx: &mut SpendContext,
-        coin: Coin,
-        solution: Self::Solution,
-    ) -> Result<CoinSpend, DriverError> {
-        let puzzle_ptr = self.construct_puzzle(ctx)?;
-        let puzzle_reveal =
-            Program::from_node_ptr(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
-
-        let solution_ptr = self.construct_solution(ctx, solution)?;
-        let solution_reveal =
-            Program::from_node_ptr(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
-
-        Ok(CoinSpend {
-            coin,
-            puzzle_reveal,
-            solution: solution_reveal,
-        })
     }
 }
 

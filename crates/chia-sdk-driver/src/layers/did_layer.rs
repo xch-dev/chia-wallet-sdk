@@ -8,7 +8,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, Puzzle, PuzzleLayer, SpendContext};
+use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug)]
 pub struct DidLayer<M, IP> {
@@ -25,9 +25,9 @@ pub struct DidLayerSolution<I> {
     pub inner_solution: I,
 }
 
-impl<M, IP> PuzzleLayer for DidLayer<M, IP>
+impl<M, IP> Layer for DidLayer<M, IP>
 where
-    IP: PuzzleLayer,
+    IP: Layer,
     M: FromClvm<NodePtr> + ToClvm<NodePtr>,
 {
     type Solution = DidLayerSolution<IP::Solution>;
