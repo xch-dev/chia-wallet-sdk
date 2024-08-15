@@ -33,3 +33,30 @@ pub trait Layer {
         solution: Self::Solution,
     ) -> Result<NodePtr, DriverError>;
 }
+
+impl Layer for NodePtr {
+    type Solution = NodePtr;
+
+    fn parse_puzzle(_allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
+        Ok(Some(puzzle.ptr()))
+    }
+
+    fn parse_solution(
+        _allocator: &Allocator,
+        solution: NodePtr,
+    ) -> Result<Self::Solution, DriverError> {
+        Ok(solution)
+    }
+
+    fn construct_puzzle(&self, _ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
+        Ok(*self)
+    }
+
+    fn construct_solution(
+        &self,
+        _ctx: &mut SpendContext,
+        solution: Self::Solution,
+    ) -> Result<NodePtr, DriverError> {
+        Ok(solution)
+    }
+}

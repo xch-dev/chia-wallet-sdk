@@ -12,6 +12,15 @@ pub struct CatLayer<I> {
     pub inner_puzzle: I,
 }
 
+impl<I> CatLayer<I> {
+    pub fn new(asset_id: Bytes32, inner_puzzle: I) -> Self {
+        Self {
+            asset_id,
+            inner_puzzle,
+        }
+    }
+}
+
 impl<I> Layer for CatLayer<I>
 where
     I: Layer,

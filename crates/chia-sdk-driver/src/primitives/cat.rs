@@ -1,23 +1,85 @@
-use chia_protocol::{Bytes32, Coin};
-use chia_puzzles::cat::CatArgs;
+use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_puzzles::{
+    cat::{CatArgs, CatSolution},
+    CoinProof, LineageProof,
+};
 use chia_sdk_types::conditions::{run_puzzle, Condition};
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{CatLayer, DriverError, Layer, Primitive, Puzzle};
+use crate::{CatLayer, DriverError, Layer, Primitive, Puzzle, Spend, SpendContext};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Cat {
     pub coin: Coin,
+    pub lineage_proof: Option<LineageProof>,
     pub asset_id: Bytes32,
     pub p2_puzzle_hash: Bytes32,
 }
 
 impl Cat {
-    pub fn new(coin: Coin, asset_id: Bytes32, p2_puzzle_hash: Bytes32) -> Self {
+    pub fn new(
+        coin: Coin,
+        lineage_proof: Option<LineageProof>,
+        asset_id: Bytes32,
+        p2_puzzle_hash: Bytes32,
+    ) -> Self {
         Self {
             coin,
+            lineage_proof,
             asset_id,
+            p2_puzzle_hash,
+        }
+    }
+
+    /// Creates a coin spend for this CAT.
+    #[must_use]
+    pub fn spend(
+        &self,
+        ctx: &mut SpendContext,
+        prev_coin_id: Bytes32,
+        this_coin_info: Coin,
+        next_coin_proof: CoinProof,
+        prev_subtotal: i64,
+        extra_delta: i64,
+        inner_spend: Spend,
+    ) -> Result<CoinSpend, DriverError> {
+        let cat_layer = CatLayer::new(self.asset_id, inner_spend.puzzle);
+        let puzzle_ptr = cat_layer.construct_puzzle(ctx)?;
+        let solution_ptr = cat_layer.construct_solution(
+            ctx,
+            CatSolution {
+                lineage_proof: self.lineage_proof,
+                prev_coin_id,
+                this_coin_info,
+                next_coin_proof,
+                prev_subtotal,
+                extra_delta,
+                inner_puzzle_solution: inner_spend.solution,
+            },
+        )?;
+
+        let puzzle = ctx.serialize(&puzzle_ptr)?;
+        let solution = ctx.serialize(&solution_ptr)?;
+        Ok(CoinSpend::new(self.coin, puzzle, solution))
+    }
+
+    /// Returns the lineage proof that would be used by each child.
+    pub fn child_lineage_proof(&self) -> LineageProof {
+        LineageProof {
+            parent_parent_coin_info: self.coin.parent_coin_info,
+            parent_inner_puzzle_hash: self.p2_puzzle_hash.into(),
+            parent_amount: self.coin.amount,
+        }
+    }
+
+    /// Creates a wrapped spendable CAT for a given output.
+    pub fn wrapped_child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
+        let puzzle_hash = CatArgs::curry_tree_hash(self.asset_id, p2_puzzle_hash.into());
+        Self {
+            coin: Coin::new(self.coin.coin_id(), puzzle_hash.into(), amount),
+            lineage_proof: Some(self.child_lineage_proof()),
+            asset_id: self.asset_id,
             p2_puzzle_hash,
         }
     }
@@ -26,7 +88,7 @@ impl Cat {
 impl Primitive for Cat {
     fn from_parent_spend(
         allocator: &mut Allocator,
-        _parent_coin: Coin,
+        parent_coin: Coin,
         parent_puzzle: Puzzle,
         parent_solution: NodePtr,
         coin: Coin,
@@ -75,60 +137,13 @@ impl Primitive for Cat {
 
         Ok(Some(Self {
             coin,
+            lineage_proof: Some(LineageProof {
+                parent_parent_coin_info: parent_coin.parent_coin_info,
+                parent_inner_puzzle_hash: parent_layer.inner_puzzle.curried_puzzle_hash().into(),
+                parent_amount: parent_coin.amount,
+            }),
             asset_id: parent_layer.asset_id,
             p2_puzzle_hash,
         }))
     }
 }
-
-/*
-#[allow(clippy::too_many_arguments)]
-pub fn spend(
-    &self,
-    ctx: &mut SpendContext,
-    lineage_proof: Option<LineageProof>,
-    prev_coin_id: Bytes32,
-    this_coin_info: Coin,
-    next_coin_proof: CoinProof,
-    prev_subtotal: i64,
-    extra_delta: i64,
-    inner_spend: Spend,
-) -> Result<(CoinSpend, Cat, Proof), DriverError> {
-    let thing = self.get_layered_object(Some(inner_spend.puzzle()));
-
-    let puzzle_ptr = thing.construct_puzzle(ctx)?;
-    let puzzle =
-        Program::from_clvm(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
-
-    let solution_ptr = thing.construct_solution(
-        ctx,
-        CatSolution {
-            lineage_proof,
-            prev_coin_id,
-            this_coin_info,
-            next_coin_proof,
-            prev_subtotal,
-            extra_delta,
-            inner_puzzle_solution: inner_spend.solution(),
-        },
-    )?;
-    let solution =
-        Program::from_clvm(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
-
-    let cs = CoinSpend {
-        coin: self.coin,
-        puzzle_reveal: puzzle,
-        solution,
-    };
-    Ok((
-        cs.clone(),
-        Cat::from_parent_spend(ctx.allocator_mut(), &cs)?.ok_or(DriverError::MissingChild)?,
-        Proof::Lineage(LineageProof {
-            parent_parent_coin_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.p2_puzzle_hash.into(),
-            parent_amount: self.coin.amount,
-        }),
-    ))
-}
-
- */
