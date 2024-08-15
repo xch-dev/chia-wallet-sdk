@@ -5,62 +5,89 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    DidLayer, DidLayerSolution, DriverError, Layer, SingletonLayer, SingletonLayerSolution, Spend,
-    SpendContext, TransparentLayer,
+    DidLayer, DidLayerSolution, DriverError, Layer, Primitive, Puzzle, SingletonLayer,
+    SingletonLayerSolution, Spend, SpendContext, TransparentLayer,
 };
 
+use super::DidInfo;
+
 #[derive(Debug, Clone, Copy)]
-pub struct Did<M = NodePtr> {
+pub struct Did<M> {
+    pub info: DidInfo<M>,
     pub coin: Coin,
-
-    // singleton layer
-    pub launcher_id: Bytes32,
-
-    // DID layer
-    pub recovery_list_hash: Bytes32,
-    pub num_verifications_required: u64,
-    pub metadata: M,
-
-    // innermost (owner) layer
-    pub p2_puzzle_hash: TreeHash,
-    pub p2_puzzle: Option<NodePtr>,
+    pub proof: Proof,
 }
 
-impl<M> Did<M>
-where
-    M: ToClvm<Allocator> + FromClvm<Allocator>,
-{
-    pub fn new(
+impl<M> Primitive for Did<M> {
+    fn from_parent_spend(
+        allocator: &mut Allocator,
+        parent_coin: Coin,
+        parent_puzzle: NodePtr,
+        parent_solution: NodePtr,
         coin: Coin,
-        launcher_id: Bytes32,
-        recovery_list_hash: Bytes32,
-        num_verifications_required: u64,
-        metadata: M,
-        p2_puzzle_hash: TreeHash,
-        p2_puzzle: Option<NodePtr>,
-    ) -> Self {
-        Did {
-            coin,
-            launcher_id,
-            recovery_list_hash,
-            num_verifications_required,
-            metadata,
-            p2_puzzle_hash,
-            p2_puzzle,
+    ) -> Result<Option<Self>, DriverError>
+    where
+        Self: Sized,
+    {
+        let res = SingletonLayer::<DidLayer<M, TransparentLayer<true>>>::from_parent_spend(
+            allocator,
+            parent_puzzle,
+            parent_solution,
+        )?;
+
+        match res {
+            None => Ok(None),
+            Some(res) => Ok(Some(Did {
+                coin: Coin::new(cs.coin.coin_id(), res.tree_hash().into(), 1),
+                launcher_id: res.launcher_id,
+                recovery_list_hash: res.inner_puzzle.recovery_list_hash,
+                num_verifications_required: res.inner_puzzle.num_verifications_required,
+                metadata: res.inner_puzzle.metadata,
+                p2_puzzle_hash: res.inner_puzzle.inner_puzzle.puzzle_hash,
+                p2_puzzle: res.inner_puzzle.inner_puzzle.puzzle,
+            })),
         }
     }
+}
 
-    #[must_use]
-    pub fn with_coin(mut self, coin: Coin) -> Self {
-        self.coin = coin;
-        self
-    }
+/*
+  /*
+     fn from_parent_spend(
+        allocator: &mut Allocator,
+        layer_puzzle: NodePtr,
+        layer_solution: NodePtr,
+    ) -> Result<Option<Self>, DriverError> {
+        let parent_puzzle = Puzzle::parse(allocator, layer_puzzle);
 
-    #[must_use]
-    pub fn with_p2_puzzle(mut self, p2_puzzle: NodePtr) -> Self {
-        self.p2_puzzle = Some(p2_puzzle);
-        self
-    }
+        let Some(parent_puzzle) = parent_puzzle.as_curried() else {
+            return Ok(None);
+        };
+
+        if parent_puzzle.mod_hash != DID_INNER_PUZZLE_HASH {
+            return Ok(None);
+        }
+
+        let parent_args = DidArgs::<NodePtr, M>::from_clvm(allocator, parent_puzzle.args)
+            .map_err(DriverError::FromClvm)?;
+
+        let parent_inner_solution =
+            match DidSolution::<NodePtr>::from_clvm(allocator, layer_solution)
+                .map_err(DriverError::FromClvm)?
+            {
+                DidSolution::Spend(inner_solution) => inner_solution,
+            };
+
+        match IP::from_parent_spend(allocator, parent_args.inner_puzzle, parent_inner_sol)? {
+            None => Ok(None),
+            Some(inner_puzzle) => Ok(Some(DidLayer::<M, IP> {
+                launcher_id: parent_args.singleton_struct.launcher_id,
+                recovery_list_hash: parent_args.recovery_list_hash,
+                num_verifications_required: parent_args.num_verifications_required,
+                metadata: parent_args.metadata,
+                inner_puzzle,
+            })),
+        }
+    } */
 
     pub fn from_parent_spend(
         allocator: &mut Allocator,
@@ -186,9 +213,9 @@ where
             Proof::Lineage(lineage_proof),
         ))
     }
-}
 
-impl<M> Did<M>
+
+impl<M> DidInfo<M>
 where
     M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
 {
@@ -206,7 +233,7 @@ where
     }
 }
 
-impl<M> Did<M>
+impl<M> DidInfo<M>
 where
     M: ToTreeHash,
 {
@@ -219,7 +246,7 @@ where
             new_inner_puzzle_hash,
         )
     }
-}
+}*/
 
 #[cfg(test)]
 mod tests {

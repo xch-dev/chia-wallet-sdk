@@ -120,20 +120,6 @@ where
         .to_clvm(ctx.allocator_mut())
         .map_err(DriverError::ToClvm)
     }
-
-    fn construct_solution(
-        &self,
-        ctx: &mut SpendContext,
-        solution: Self::Solution,
-    ) -> Result<NodePtr, DriverError> {
-        NftStateLayerSolution {
-            inner_solution: self
-                .inner_puzzle
-                .construct_solution(ctx, solution.inner_solution)?,
-        }
-        .to_clvm(ctx.allocator_mut())
-        .map_err(DriverError::ToClvm)
-    }
 }
 
 impl<M, IP> ToTreeHash for NftStateLayer<M, IP>

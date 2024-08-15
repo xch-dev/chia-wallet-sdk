@@ -31,43 +31,6 @@ where
 {
     type Solution = DidLayerSolution<IP::Solution>;
 
-    fn from_parent_spend(
-        allocator: &mut Allocator,
-        layer_puzzle: NodePtr,
-        layer_solution: NodePtr,
-    ) -> Result<Option<Self>, DriverError> {
-        let parent_puzzle = Puzzle::parse(allocator, layer_puzzle);
-
-        let Some(parent_puzzle) = parent_puzzle.as_curried() else {
-            return Ok(None);
-        };
-
-        if parent_puzzle.mod_hash != DID_INNER_PUZZLE_HASH {
-            return Ok(None);
-        }
-
-        let parent_args = DidArgs::<NodePtr, M>::from_clvm(allocator, parent_puzzle.args)
-            .map_err(DriverError::FromClvm)?;
-
-        let parent_inner_solution =
-            match DidSolution::<NodePtr>::from_clvm(allocator, layer_solution)
-                .map_err(DriverError::FromClvm)?
-            {
-                DidSolution::Spend(inner_solution) => inner_solution,
-            };
-
-        match IP::from_parent_spend(allocator, parent_args.inner_puzzle, parent_inner_sol)? {
-            None => Ok(None),
-            Some(inner_puzzle) => Ok(Some(DidLayer::<M, IP> {
-                launcher_id: parent_args.singleton_struct.launcher_id,
-                recovery_list_hash: parent_args.recovery_list_hash,
-                num_verifications_required: parent_args.num_verifications_required,
-                metadata: parent_args.metadata,
-                inner_puzzle,
-            })),
-        }
-    }
-
     fn from_puzzle(
         allocator: &mut Allocator,
         layer_puzzle: NodePtr,
@@ -113,19 +76,6 @@ where
                 inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
             },
         }
-        .to_clvm(ctx.allocator_mut())
-        .map_err(DriverError::ToClvm)
-    }
-
-    fn construct_solution(
-        &self,
-        ctx: &mut SpendContext,
-        solution: Self::Solution,
-    ) -> Result<NodePtr, DriverError> {
-        DidSolution::Spend(
-            self.inner_puzzle
-                .construct_solution(ctx, solution.inner_solution)?,
-        )
         .to_clvm(ctx.allocator_mut())
         .map_err(DriverError::ToClvm)
     }

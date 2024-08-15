@@ -11,8 +11,10 @@ use crate::{DriverError, Layer, SpendContext};
 // HINT_OVERRIDE: if true, the puzzle hash will be the hint, not the actual puzzle hash
 //  of the found CREATE_COIN condition
 // typically, you'd only set this to true if the upper layer doesn't wrap CREATE_COINs
+
+/// A transparent layer makes
 #[derive(Debug, Copy, Clone)]
-pub struct TransparentLayer<const HINT_OVERRIDE: bool = false> {
+pub struct TransparentLayer<const USE_HINT: bool = false> {
     pub puzzle_hash: TreeHash,
     pub puzzle: Option<NodePtr>,
 }
@@ -105,14 +107,6 @@ impl<const HINT_OVERRIDE: bool> Layer for TransparentLayer<HINT_OVERRIDE> {
 
     fn construct_puzzle(&self, _: &mut SpendContext) -> Result<NodePtr, DriverError> {
         self.puzzle.ok_or(DriverError::MissingPuzzle)
-    }
-
-    fn construct_solution(
-        &self,
-        _: &mut SpendContext,
-        solution: NodePtr,
-    ) -> Result<NodePtr, DriverError> {
-        Ok(solution)
     }
 }
 
