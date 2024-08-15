@@ -96,7 +96,7 @@ impl OfferBuilder {
         payments: Vec<Payment>,
     ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError>
     where
-        M: ToClvm<NodePtr>,
+        M: ToClvm<Allocator>,
     {
         let settlement_payments_puzzle = ctx.settlement_payments_puzzle()?;
         let transfer_program = ctx.nft_royalty_transfer()?;

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use chia_protocol::{Coin, CoinSpend};
-use clvm_traits::{FromClvm, FromClvmError, ToClvm, ToClvmError, ToNodePtr};
+use clvm_traits::{FromClvm, FromClvmError, ToClvm, ToClvmError};
 use clvmr::{
     reduction::{EvalErr, Reduction},
     Allocator, NodePtr,
@@ -107,8 +107,8 @@ pub fn non_ephemeral_coins(coin_spends: &[CoinSpend]) -> Result<Vec<Coin>, Condi
     let mut created_coins = HashSet::new();
 
     for coin_spend in coin_spends {
-        let puzzle = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
-        let solution = coin_spend.solution.to_node_ptr(&mut allocator)?;
+        let puzzle = coin_spend.puzzle_reveal.to_clvm(&mut allocator)?;
+        let solution = coin_spend.solution.to_clvm(&mut allocator)?;
         let conditions = puzzle_conditions(&mut allocator, puzzle, solution)?;
 
         for condition in conditions {
@@ -136,7 +136,7 @@ mod tests {
     use super::*;
 
     use chia_protocol::{Bytes32, Program};
-    use clvm_traits::{FromNodePtr, ToClvm};
+    use clvm_traits::{FromClvm, ToClvm};
 
     #[test]
     fn test_non_ephemeral_coins() -> anyhow::Result<()> {
@@ -147,8 +147,8 @@ mod tests {
             .collect();
 
         let puzzle = 1.to_clvm(&mut allocator)?;
-        let puzzle_reveal = Program::from_node_ptr(&allocator, puzzle)?;
-        let identity_solution = Program::from_node_ptr(&allocator, NodePtr::NIL)?;
+        let puzzle_reveal = Program::from_clvm(&allocator, puzzle)?;
+        let identity_solution = Program::from_clvm(&allocator, NodePtr::NIL)?;
 
         let mut coin_spends = Vec::new();
 
@@ -169,7 +169,7 @@ mod tests {
             coin_spends.push(CoinSpend::new(
                 coins[i as usize],
                 puzzle_reveal.clone(),
-                Program::from_node_ptr(&allocator, solution)?,
+                Program::from_clvm(&allocator, solution)?,
             ));
         }
 

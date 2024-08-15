@@ -1,9 +1,9 @@
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
 use chia_puzzles::{standard::StandardArgs, EveProof, Proof};
-use clvm_traits::{FromClvm, ToClvm, ToNodePtr};
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash_atom, CurriedProgram, ToTreeHash};
-use clvmr::NodePtr;
+use clvmr::{Allocator, NodePtr};
 
 use crate::{Conditions, DriverError, Launcher, SpendContext, SpendError};
 
@@ -20,7 +20,7 @@ impl Launcher {
         metadata: M,
     ) -> Result<(Conditions, Did<M>, Proof), SpendError>
     where
-        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
         let launcher_coin = self.coin();
         let did = Did::new(
@@ -38,8 +38,8 @@ impl Launcher {
         let (launch_singleton, eve_coin) = self.spend(ctx, inner_puzzle_hash, ())?;
 
         let proof = Proof::Eve(EveProof {
-            parent_coin_info: launcher_coin.parent_coin_info,
-            amount: launcher_coin.amount,
+            parent_parent_coin_info: launcher_coin.parent_coin_info,
+            parent_amount: launcher_coin.amount,
         });
 
         Ok((launch_singleton, did.with_coin(eve_coin), proof))
@@ -54,14 +54,14 @@ impl Launcher {
         synthetic_key: PublicKey,
     ) -> Result<(Conditions, Did<M>, Proof), DriverError>
     where
-        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
         Self: Sized,
     {
         let inner_puzzle = CurriedProgram {
             program: ctx.standard_puzzle()?,
             args: StandardArgs { synthetic_key },
         }
-        .to_node_ptr(ctx.allocator_mut())?;
+        .to_clvm(ctx.allocator_mut())?;
         let inner_puzzle_hash = StandardArgs::curry_tree_hash(synthetic_key).into();
 
         let (create_did, did, eve_proof) = self.create_eve_did(

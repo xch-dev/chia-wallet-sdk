@@ -77,8 +77,8 @@ pub fn issue_cat<P, S>(
     extra_conditions: Conditions,
 ) -> Result<(Conditions, IssueCat), SpendError>
 where
-    P: ToClvm<NodePtr>,
-    S: ToClvm<NodePtr>,
+    P: ToClvm<Allocator>,
+    S: ToClvm<Allocator>,
 {
     let cat_puzzle_ptr = ctx.cat_puzzle()?;
 

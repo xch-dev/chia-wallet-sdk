@@ -3,10 +3,7 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{nft::NftIntermediateLauncherArgs, singleton::SINGLETON_LAUNCHER_PUZZLE_HASH};
 use clvm_utils::CurriedProgram;
-use clvmr::{
-    sha2::{Digest, Sha256},
-    Allocator,
-};
+use clvmr::{sha2::Sha256, Allocator};
 
 use crate::{Conditions, SpendContext, SpendError};
 

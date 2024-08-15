@@ -3,7 +3,6 @@ use chia_puzzles::{
     did::{DidArgs, DidSolution, DID_INNER_PUZZLE_HASH},
     singleton::SingletonStruct,
 };
-use clvm_traits::ToNodePtr;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -13,7 +12,7 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 #[derive(Debug)]
 pub struct DidLayer<M, IP> {
     pub launcher_id: Bytes32,
-    pub recovery_did_list_hash: Bytes32,
+    pub recovery_list_hash: Bytes32,
     pub num_verifications_required: u64,
     pub metadata: M,
     pub inner_puzzle: IP,
@@ -28,7 +27,7 @@ pub struct DidLayerSolution<I> {
 impl<M, IP> Layer for DidLayer<M, IP>
 where
     IP: Layer,
-    M: FromClvm<NodePtr> + ToClvm<NodePtr>,
+    M: FromClvm<Allocator> + ToClvm<Allocator>,
 {
     type Solution = DidLayerSolution<IP::Solution>;
 
@@ -50,15 +49,18 @@ where
         let parent_args = DidArgs::<NodePtr, M>::from_clvm(allocator, parent_puzzle.args)
             .map_err(DriverError::FromClvm)?;
 
-        let DidSolution::InnerSpend(parent_inner_sol) =
-            DidSolution::<NodePtr>::from_clvm(allocator, layer_solution)
-                .map_err(DriverError::FromClvm)?;
+        let parent_inner_solution =
+            match DidSolution::<NodePtr>::from_clvm(allocator, layer_solution)
+                .map_err(DriverError::FromClvm)?
+            {
+                DidSolution::Spend(inner_solution) => inner_solution,
+            };
 
         match IP::from_parent_spend(allocator, parent_args.inner_puzzle, parent_inner_sol)? {
             None => Ok(None),
             Some(inner_puzzle) => Ok(Some(DidLayer::<M, IP> {
                 launcher_id: parent_args.singleton_struct.launcher_id,
-                recovery_did_list_hash: parent_args.recovery_did_list_hash,
+                recovery_list_hash: parent_args.recovery_list_hash,
                 num_verifications_required: parent_args.num_verifications_required,
                 metadata: parent_args.metadata,
                 inner_puzzle,
@@ -87,7 +89,7 @@ where
             None => Ok(None),
             Some(inner_puzzle) => Ok(Some(DidLayer::<M, IP> {
                 launcher_id: args.singleton_struct.launcher_id,
-                recovery_did_list_hash: args.recovery_did_list_hash,
+                recovery_list_hash: args.recovery_list_hash,
                 num_verifications_required: args.num_verifications_required,
                 metadata: args.metadata,
                 inner_puzzle,
@@ -98,20 +100,20 @@ where
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let metadata_ptr = self
             .metadata
-            .to_node_ptr(ctx.allocator_mut())
+            .to_clvm(ctx.allocator_mut())
             .map_err(DriverError::ToClvm)?;
 
         CurriedProgram {
             program: ctx.did_inner_puzzle().map_err(DriverError::Spend)?,
             args: DidArgs {
-                recovery_did_list_hash: self.recovery_did_list_hash,
+                recovery_list_hash: self.recovery_list_hash,
                 num_verifications_required: self.num_verifications_required,
                 singleton_struct: SingletonStruct::new(self.launcher_id),
                 metadata: metadata_ptr,
                 inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
             },
         }
-        .to_node_ptr(ctx.allocator_mut())
+        .to_clvm(ctx.allocator_mut())
         .map_err(DriverError::ToClvm)
     }
 
@@ -120,11 +122,11 @@ where
         ctx: &mut SpendContext,
         solution: Self::Solution,
     ) -> Result<NodePtr, DriverError> {
-        DidSolution::InnerSpend(
+        DidSolution::Spend(
             self.inner_puzzle
                 .construct_solution(ctx, solution.inner_solution)?,
         )
-        .to_node_ptr(ctx.allocator_mut())
+        .to_clvm(ctx.allocator_mut())
         .map_err(DriverError::ToClvm)
     }
 }
@@ -138,7 +140,7 @@ where
         CurriedProgram {
             program: DID_INNER_PUZZLE_HASH,
             args: DidArgs {
-                recovery_did_list_hash: self.recovery_did_list_hash,
+                recovery_list_hash: self.recovery_list_hash,
                 num_verifications_required: self.num_verifications_required,
                 singleton_struct: SingletonStruct::new(self.launcher_id),
                 metadata: self.metadata.tree_hash(),
@@ -152,7 +154,7 @@ where
 impl<M, IP> DidLayer<M, IP> {
     pub fn wrap_inner_puzzle_hash(
         launcher_id: Bytes32,
-        recovery_did_list_hash: Bytes32,
+        recovery_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata_hash: TreeHash,
         inner_puzzle_hash: TreeHash,
@@ -160,7 +162,7 @@ impl<M, IP> DidLayer<M, IP> {
         CurriedProgram {
             program: DID_INNER_PUZZLE_HASH,
             args: DidArgs {
-                recovery_did_list_hash,
+                recovery_list_hash,
                 num_verifications_required,
                 singleton_struct: SingletonStruct::new(launcher_id),
                 metadata: metadata_hash,

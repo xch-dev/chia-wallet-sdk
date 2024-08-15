@@ -6,12 +6,9 @@ use chia_puzzles::{
     LineageProof, Proof,
 };
 use chia_sdk_types::conditions::{Condition, CreateCoin, NewNftOwner};
-use clvm_traits::{clvm_list, FromClvm, FromNodePtr, ToClvm, ToNodePtr};
+use clvm_traits::{clvm_list, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
-use clvmr::{
-    sha2::{Digest, Sha256},
-    Allocator, NodePtr,
-};
+use clvmr::{sha2::Sha256, Allocator, NodePtr};
 
 use crate::{
     Conditions, DriverError, Layer, NftOwnershipLayer, NftStateLayer, SingletonLayer,
@@ -31,7 +28,7 @@ pub struct Nft<M = NodePtr> {
     // ownership layer
     pub current_owner: Option<Bytes32>,
     pub royalty_puzzle_hash: Bytes32,
-    pub royalty_percentage: u16,
+    pub royalty_ten_thousandths: u16,
 
     // innermost (owner) layer
     pub p2_puzzle_hash: TreeHash,
@@ -40,7 +37,7 @@ pub struct Nft<M = NodePtr> {
 
 impl<M> Nft<M>
 where
-    M: ToClvm<NodePtr> + FromClvm<NodePtr>,
+    M: ToClvm<Allocator> + FromClvm<Allocator>,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -49,7 +46,7 @@ where
         metadata: M,
         current_owner: Option<Bytes32>,
         royalty_puzzle_hash: Bytes32,
-        royalty_percentage: u16,
+        royalty_ten_thousandths: u16,
         p2_puzzle_hash: TreeHash,
         p2_puzzle: Option<NodePtr>,
     ) -> Self {
@@ -59,7 +56,7 @@ where
             metadata,
             current_owner,
             royalty_puzzle_hash,
-            royalty_percentage,
+            royalty_ten_thousandths,
             p2_puzzle_hash,
             p2_puzzle,
         }
@@ -86,11 +83,11 @@ where
     {
         let puzzle_ptr = cs
             .puzzle_reveal
-            .to_node_ptr(allocator)
+            .to_clvm(allocator)
             .map_err(DriverError::ToClvm)?;
         let solution_ptr = cs
             .solution
-            .to_node_ptr(allocator)
+            .to_clvm(allocator)
             .map_err(DriverError::ToClvm)?;
 
         let res = SingletonLayer::<NftStateLayer<M, NftOwnershipLayer<TransparentLayer>>>::from_parent_spend(
@@ -107,7 +104,7 @@ where
                 metadata: res.inner_puzzle.metadata,
                 current_owner: res.inner_puzzle.inner_puzzle.current_owner,
                 royalty_puzzle_hash: res.inner_puzzle.inner_puzzle.royalty_puzzle_hash,
-                royalty_percentage: res.inner_puzzle.inner_puzzle.royalty_percentage,
+                royalty_ten_thousandths: res.inner_puzzle.inner_puzzle.royalty_ten_thousandths,
                 p2_puzzle_hash: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle_hash,
                 p2_puzzle: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle,
             })),
@@ -132,7 +129,7 @@ where
                 metadata: res.inner_puzzle.metadata,
                 current_owner: res.inner_puzzle.inner_puzzle.current_owner,
                 royalty_puzzle_hash: res.inner_puzzle.inner_puzzle.royalty_puzzle_hash,
-                royalty_percentage: res.inner_puzzle.inner_puzzle.royalty_percentage,
+                royalty_ten_thousandths: res.inner_puzzle.inner_puzzle.royalty_ten_thousandths,
                 p2_puzzle_hash: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle_hash,
                 p2_puzzle: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle,
             })),
@@ -155,7 +152,7 @@ where
                     launcher_id: self.launcher_id,
                     current_owner: self.current_owner,
                     royalty_puzzle_hash: self.royalty_puzzle_hash,
-                    royalty_percentage: self.royalty_percentage,
+                    royalty_ten_thousandths: self.royalty_ten_thousandths,
                     inner_puzzle: TransparentLayer {
                         puzzle_hash: self.p2_puzzle_hash,
                         puzzle: match self.p2_puzzle {
@@ -181,7 +178,7 @@ where
 
         let puzzle_ptr = thing.construct_puzzle(ctx)?;
         let puzzle =
-            Program::from_node_ptr(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
+            Program::from_clvm(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
 
         let solution_ptr = thing.construct_solution(
             ctx,
@@ -196,7 +193,7 @@ where
             },
         )?;
         let solution =
-            Program::from_node_ptr(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
+            Program::from_clvm(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
 
         let cs = CoinSpend {
             coin: self.coin,
@@ -281,7 +278,7 @@ pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &NewNf
         &new_nft_owner.trade_prices,
         new_nft_owner.did_inner_puzzle_hash
     )
-    .to_node_ptr(&mut allocator)
+    .to_clvm(&mut allocator)
     .unwrap();
 
     let mut hasher = Sha256::new();
@@ -294,7 +291,7 @@ pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &NewNf
 
 impl<M> Nft<M>
 where
-    M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
+    M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
 {
     pub fn singleton_inner_puzzle_hash(&self) -> TreeHash {
         self.get_layered_object(None).inner_puzzle_hash()
@@ -473,8 +470,8 @@ mod tests {
 
         let mut allocator = ctx.into();
 
-        let puzzle_ptr = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
-        let solution_ptr = coin_spend.solution.to_node_ptr(&mut allocator)?;
+        let puzzle_ptr = coin_spend.puzzle_reveal.to_clvm(&mut allocator)?;
+        let solution_ptr = coin_spend.solution.to_clvm(&mut allocator)?;
 
         let parsed_nft = SingletonLayer::<
             NftStateLayer<(), NftOwnershipLayer<TransparentLayer>>,

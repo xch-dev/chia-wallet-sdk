@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::nft::{NftStateLayerArgs, NftStateLayerSolution, NFT_STATE_LAYER_PUZZLE_HASH};
 use chia_sdk_types::conditions::run_puzzle;
-use clvm_traits::{apply_constants, FromClvm, ToClvm, ToNodePtr};
+use clvm_traits::{apply_constants, FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -17,7 +17,7 @@ pub struct NftStateLayer<M, IP> {
 impl<M, IP> Layer for NftStateLayer<M, IP>
 where
     IP: Layer,
-    M: FromClvm<NodePtr> + ToClvm<NodePtr>,
+    M: FromClvm<Allocator> + ToClvm<Allocator>,
 {
     type Solution = NftStateLayerSolution<IP::Solution>;
 
@@ -105,7 +105,7 @@ where
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let metadata_ptr = self
             .metadata
-            .to_node_ptr(ctx.allocator_mut())
+            .to_clvm(ctx.allocator_mut())
             .map_err(DriverError::ToClvm)?;
 
         CurriedProgram {
@@ -117,7 +117,7 @@ where
                 inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
             },
         }
-        .to_node_ptr(ctx.allocator_mut())
+        .to_clvm(ctx.allocator_mut())
         .map_err(DriverError::ToClvm)
     }
 
@@ -131,7 +131,7 @@ where
                 .inner_puzzle
                 .construct_solution(ctx, solution.inner_solution)?,
         }
-        .to_node_ptr(ctx.allocator_mut())
+        .to_clvm(ctx.allocator_mut())
         .map_err(DriverError::ToClvm)
     }
 }
@@ -182,7 +182,7 @@ pub struct NewMetadataOutput<M, C> {
 
 impl<M, IP> NftStateLayer<M, IP>
 where
-    M: FromClvm<NodePtr>,
+    M: FromClvm<Allocator>,
 {
     pub fn new_metadata_and_updater_from_conditions(
         allocator: &mut Allocator,

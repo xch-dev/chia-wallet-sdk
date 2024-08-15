@@ -3,7 +3,7 @@ use chia_puzzles::{EveProof, Proof};
 use chia_sdk_types::conditions::{Condition, NewNftOwner};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
-use clvmr::NodePtr;
+use clvmr::{Allocator, NodePtr};
 
 use crate::{did_puzzle_assertion, Conditions, DriverError, Launcher, Spend, SpendContext};
 
@@ -23,10 +23,10 @@ impl Launcher {
         p2_puzzle_hash: Bytes32,
         metadata: M,
         royalty_puzzle_hash: Bytes32,
-        royalty_percentage: u16,
+        royalty_ten_thousandths: u16,
     ) -> Result<(Conditions, Nft<M>, Proof), DriverError>
     where
-        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
         let launcher_coin = self.coin();
 
@@ -37,7 +37,7 @@ impl Launcher {
             metadata,
             current_owner: None,
             royalty_puzzle_hash,
-            royalty_percentage,
+            royalty_ten_thousandths,
             p2_puzzle: None,
         };
 
@@ -46,8 +46,8 @@ impl Launcher {
             .map_err(DriverError::Spend)?;
 
         let proof = Proof::Eve(EveProof {
-            parent_coin_info: launcher_coin.parent_coin_info,
-            amount: launcher_coin.amount,
+            parent_parent_coin_info: launcher_coin.parent_coin_info,
+            parent_amount: launcher_coin.amount,
         });
 
         Ok((
@@ -63,7 +63,7 @@ impl Launcher {
         mint: NftMint<M>,
     ) -> Result<(Conditions, Nft<M>, Proof), DriverError>
     where
-        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
         let mut conditions =
             Conditions::new().create_hinted_coin(mint.puzzle_hash, 1, mint.puzzle_hash);
@@ -150,7 +150,7 @@ mod tests {
     #[test]
     fn test_nft_mint_cost() -> anyhow::Result<()>
     where
-        NftMetadata: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
+        NftMetadata: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
         let sk = secret_key()?;
         let pk = sk.public_key();

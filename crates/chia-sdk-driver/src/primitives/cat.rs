@@ -1,10 +1,7 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
-use chia_puzzles::{
-    cat::{CatSolution, CoinProof},
-    LineageProof, Proof,
-};
+use chia_puzzles::{cat::CatSolution, CoinProof, LineageProof, Proof};
 use chia_sdk_types::conditions::{run_puzzle, Condition};
-use clvm_traits::{FromClvm, FromNodePtr, ToNodePtr};
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
@@ -54,11 +51,11 @@ impl Cat {
     ) -> Result<Option<Self>, DriverError> {
         let puzzle_ptr = cs
             .puzzle_reveal
-            .to_node_ptr(allocator)
+            .to_clvm(allocator)
             .map_err(DriverError::ToClvm)?;
         let solution_ptr = cs
             .solution
-            .to_node_ptr(allocator)
+            .to_clvm(allocator)
             .map_err(DriverError::ToClvm)?;
 
         let res =
@@ -136,7 +133,7 @@ impl Cat {
 
         let puzzle_ptr = thing.construct_puzzle(ctx)?;
         let puzzle =
-            Program::from_node_ptr(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
+            Program::from_clvm(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
 
         let solution_ptr = thing.construct_solution(
             ctx,
@@ -151,7 +148,7 @@ impl Cat {
             },
         )?;
         let solution =
-            Program::from_node_ptr(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
+            Program::from_clvm(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
 
         let cs = CoinSpend {
             coin: self.coin,
@@ -162,7 +159,7 @@ impl Cat {
             cs.clone(),
             Cat::from_parent_spend(ctx.allocator_mut(), &cs)?.ok_or(DriverError::MissingChild)?,
             Proof::Lineage(LineageProof {
-                parent_parent_coin_id: self.coin.parent_coin_info,
+                parent_parent_coin_info: self.coin.parent_coin_info,
                 parent_inner_puzzle_hash: self.p2_puzzle_hash.into(),
                 parent_amount: self.coin.amount,
             }),

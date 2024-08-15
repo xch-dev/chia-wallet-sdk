@@ -10,10 +10,7 @@ use chia_sdk_types::conditions::{
 
 use clvm_traits::{ClvmEncoder, ToClvm, ToClvmError};
 use clvm_utils::CurriedProgram;
-use clvmr::{
-    sha2::{Digest, Sha256},
-    NodePtr,
-};
+use clvmr::{sha2::Sha256, NodePtr};
 
 use crate::{Spend, SpendContext, SpendError};
 
@@ -182,11 +179,11 @@ impl IntoIterator for Conditions {
     }
 }
 
-impl ToClvm<NodePtr> for Conditions {
-    fn to_clvm(
-        &self,
-        encoder: &mut impl ClvmEncoder<Node = NodePtr>,
-    ) -> Result<NodePtr, ToClvmError> {
+impl<E> ToClvm<E> for Conditions
+where
+    E: ClvmEncoder<Node = NodePtr>,
+{
+    fn to_clvm(&self, encoder: &mut E) -> Result<NodePtr, ToClvmError> {
         self.conditions.to_clvm(encoder)
     }
 }

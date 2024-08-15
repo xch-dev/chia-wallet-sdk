@@ -1,11 +1,8 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_sdk_types::conditions::{puzzle_conditions, AggSig, AggSigKind, Condition};
-use clvm_traits::ToNodePtr;
-use clvmr::{
-    sha2::{Digest, Sha256},
-    Allocator,
-};
+use clvm_traits::ToClvm;
+use clvmr::{sha2::Sha256, Allocator};
 
 use crate::SignerError;
 
@@ -75,7 +72,7 @@ impl RequiredSignature {
             public_key,
             raw_message: message,
             appended_info,
-            domain_string: Some(Bytes32::new(hasher.finalize().into())),
+            domain_string: Some(Bytes32::new(hasher.finalize())),
         }
     }
 
@@ -87,8 +84,8 @@ impl RequiredSignature {
         coin_spend: &CoinSpend,
         agg_sig_me: Bytes32,
     ) -> Result<Vec<Self>, SignerError> {
-        let puzzle = coin_spend.puzzle_reveal.to_node_ptr(allocator)?;
-        let solution = coin_spend.solution.to_node_ptr(allocator)?;
+        let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
+        let solution = coin_spend.solution.to_clvm(allocator)?;
         let conditions = puzzle_conditions(allocator, puzzle, solution)?;
 
         let mut result = Vec::new();
@@ -164,7 +161,7 @@ fn u64_to_bytes(value: u64) -> Vec<u8> {
 mod tests {
     use super::*;
 
-    use chia_bls::{derive_keys::master_to_wallet_unhardened, SecretKey};
+    use chia_bls::{master_to_wallet_unhardened, SecretKey};
     use chia_protocol::Bytes32;
     use chia_puzzles::DeriveSynthetic;
     use hex_literal::hex;

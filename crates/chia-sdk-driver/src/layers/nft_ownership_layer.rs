@@ -7,7 +7,7 @@ use chia_puzzles::{
     singleton::SingletonStruct,
 };
 use chia_sdk_types::conditions::{run_puzzle, NewNftOwner};
-use clvm_traits::{FromClvm, ToNodePtr};
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -18,7 +18,7 @@ pub struct NftOwnershipLayer<IP> {
     pub current_owner: Option<Bytes32>,
     pub launcher_id: Bytes32,
     pub royalty_puzzle_hash: Bytes32,
-    pub royalty_percentage: u16,
+    pub royalty_ten_thousandths: u16,
     pub inner_puzzle: IP,
 }
 
@@ -83,7 +83,7 @@ where
                 launcher_id: parent_transfer_args.singleton_struct.launcher_id,
                 current_owner: new_owner_maybe.unwrap_or(parent_args.current_owner),
                 royalty_puzzle_hash: parent_transfer_args.royalty_puzzle_hash,
-                royalty_percentage: parent_transfer_args.trade_price_percentage,
+                royalty_ten_thousandths: parent_transfer_args.royalty_ten_thousandths,
                 inner_puzzle,
             })),
         }
@@ -128,7 +128,7 @@ where
                 current_owner: args.current_owner,
                 launcher_id: transfer_args.singleton_struct.launcher_id,
                 royalty_puzzle_hash: transfer_args.royalty_puzzle_hash,
-                royalty_percentage: transfer_args.trade_price_percentage,
+                royalty_ten_thousandths: transfer_args.royalty_ten_thousandths,
                 inner_puzzle,
             })),
         }
@@ -140,10 +140,10 @@ where
             args: NftRoyaltyTransferPuzzleArgs {
                 singleton_struct: SingletonStruct::new(self.launcher_id),
                 royalty_puzzle_hash: self.royalty_puzzle_hash,
-                trade_price_percentage: self.royalty_percentage,
+                royalty_ten_thousandths: self.royalty_ten_thousandths,
             },
         }
-        .to_node_ptr(ctx.allocator_mut())
+        .to_clvm(ctx.allocator_mut())
         .map_err(DriverError::ToClvm)?;
 
         CurriedProgram {
@@ -155,7 +155,7 @@ where
                 inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
             },
         }
-        .to_node_ptr(ctx.allocator_mut())
+        .to_clvm(ctx.allocator_mut())
         .map_err(DriverError::ToClvm)
     }
 
@@ -169,7 +169,7 @@ where
                 .inner_puzzle
                 .construct_solution(ctx, solution.inner_solution)?,
         }
-        .to_node_ptr(ctx.allocator_mut())
+        .to_clvm(ctx.allocator_mut())
         .map_err(DriverError::ToClvm)
     }
 }
@@ -184,7 +184,7 @@ where
             NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
                 self.launcher_id,
                 self.royalty_puzzle_hash,
-                self.royalty_percentage,
+                self.royalty_ten_thousandths,
             ),
             self.inner_puzzle.tree_hash(),
         )

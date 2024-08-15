@@ -6,7 +6,7 @@ use chia_puzzles::{
     },
     LineageProof, Proof,
 };
-use clvm_traits::{FromClvm, ToClvm, ToNodePtr};
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -113,7 +113,7 @@ where
                 inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
             },
         }
-        .to_node_ptr(ctx.allocator_mut())
+        .to_clvm(ctx.allocator_mut())
         .map_err(DriverError::ToClvm)
     }
 
@@ -129,7 +129,7 @@ where
                 .inner_puzzle
                 .construct_solution(ctx, solution.inner_solution)?,
         }
-        .to_node_ptr(ctx.allocator_mut())
+        .to_clvm(ctx.allocator_mut())
         .map_err(DriverError::ToClvm)
     }
 }
@@ -168,7 +168,7 @@ where
         my_parent_amount: u64,
     ) -> LineageProof {
         LineageProof {
-            parent_parent_coin_id: my_parent_name,
+            parent_parent_coin_info: my_parent_name,
             parent_inner_puzzle_hash: self.inner_puzzle_hash().into(),
             parent_amount: my_parent_amount,
         }
@@ -200,7 +200,7 @@ where
         }
 
         Ok(Some(LineageProof {
-            parent_parent_coin_id: parent_coin.parent_coin_info,
+            parent_parent_coin_info: parent_coin.parent_coin_info,
             parent_inner_puzzle_hash: tree_hash(allocator, parent_args.inner_puzzle).into(),
             parent_amount: parent_coin.amount,
         }))

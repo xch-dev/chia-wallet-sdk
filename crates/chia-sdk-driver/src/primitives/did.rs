@@ -1,6 +1,6 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzles::{LineageProof, Proof};
-use clvm_traits::{FromClvm, FromNodePtr, ToClvm, ToNodePtr};
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -17,7 +17,7 @@ pub struct Did<M = NodePtr> {
     pub launcher_id: Bytes32,
 
     // DID layer
-    pub recovery_did_list_hash: Bytes32,
+    pub recovery_list_hash: Bytes32,
     pub num_verifications_required: u64,
     pub metadata: M,
 
@@ -28,12 +28,12 @@ pub struct Did<M = NodePtr> {
 
 impl<M> Did<M>
 where
-    M: ToClvm<NodePtr> + FromClvm<NodePtr>,
+    M: ToClvm<Allocator> + FromClvm<Allocator>,
 {
     pub fn new(
         coin: Coin,
         launcher_id: Bytes32,
-        recovery_did_list_hash: Bytes32,
+        recovery_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
         p2_puzzle_hash: TreeHash,
@@ -42,7 +42,7 @@ where
         Did {
             coin,
             launcher_id,
-            recovery_did_list_hash,
+            recovery_list_hash,
             num_verifications_required,
             metadata,
             p2_puzzle_hash,
@@ -71,11 +71,11 @@ where
     {
         let puzzle_ptr = cs
             .puzzle_reveal
-            .to_node_ptr(allocator)
+            .to_clvm(allocator)
             .map_err(DriverError::ToClvm)?;
         let solution_ptr = cs
             .solution
-            .to_node_ptr(allocator)
+            .to_clvm(allocator)
             .map_err(DriverError::ToClvm)?;
 
         let res = SingletonLayer::<DidLayer<M, TransparentLayer<true>>>::from_parent_spend(
@@ -89,7 +89,7 @@ where
             Some(res) => Ok(Some(Did {
                 coin: Coin::new(cs.coin.coin_id(), res.tree_hash().into(), 1),
                 launcher_id: res.launcher_id,
-                recovery_did_list_hash: res.inner_puzzle.recovery_did_list_hash,
+                recovery_list_hash: res.inner_puzzle.recovery_list_hash,
                 num_verifications_required: res.inner_puzzle.num_verifications_required,
                 metadata: res.inner_puzzle.metadata,
                 p2_puzzle_hash: res.inner_puzzle.inner_puzzle.puzzle_hash,
@@ -111,7 +111,7 @@ where
             Some(res) => Ok(Some(Did {
                 coin,
                 launcher_id: res.launcher_id,
-                recovery_did_list_hash: res.inner_puzzle.recovery_did_list_hash,
+                recovery_list_hash: res.inner_puzzle.recovery_list_hash,
                 num_verifications_required: res.inner_puzzle.num_verifications_required,
                 metadata: res.inner_puzzle.metadata,
                 p2_puzzle_hash: res.inner_puzzle.inner_puzzle.puzzle_hash,
@@ -131,7 +131,7 @@ where
             launcher_id: self.launcher_id,
             inner_puzzle: DidLayer {
                 launcher_id: self.launcher_id,
-                recovery_did_list_hash: self.recovery_did_list_hash,
+                recovery_list_hash: self.recovery_list_hash,
                 num_verifications_required: self.num_verifications_required,
                 metadata: self.metadata.clone(),
                 inner_puzzle: TransparentLayer {
@@ -158,7 +158,7 @@ where
 
         let puzzle_ptr = thing.construct_puzzle(ctx)?;
         let puzzle =
-            Program::from_node_ptr(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
+            Program::from_clvm(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
 
         let solution_ptr = thing.construct_solution(
             ctx,
@@ -171,7 +171,7 @@ where
             },
         )?;
         let solution =
-            Program::from_node_ptr(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
+            Program::from_clvm(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
 
         let cs = CoinSpend {
             coin: self.coin,
@@ -190,7 +190,7 @@ where
 
 impl<M> Did<M>
 where
-    M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
+    M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
 {
     pub fn singleton_inner_puzzle_hash(&self) -> TreeHash {
         self.get_layered_object(None).inner_puzzle_hash()
@@ -213,7 +213,7 @@ where
     pub fn compute_new_did_layer_puzzle_hash(&self, new_inner_puzzle_hash: TreeHash) -> TreeHash {
         DidLayer::<M, ()>::wrap_inner_puzzle_hash(
             self.launcher_id,
-            self.recovery_did_list_hash,
+            self.recovery_list_hash,
             self.num_verifications_required,
             self.metadata.tree_hash(),
             new_inner_puzzle_hash,

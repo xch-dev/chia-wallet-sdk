@@ -1,6 +1,6 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::cat::{CatArgs, CatSolution, CAT_PUZZLE_HASH};
-use clvm_traits::{FromClvm, ToNodePtr};
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -92,7 +92,7 @@ where
                 inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
             },
         }
-        .to_node_ptr(ctx.allocator_mut())
+        .to_clvm(ctx.allocator_mut())
         .map_err(DriverError::ToClvm)
     }
 
@@ -112,7 +112,7 @@ where
             prev_subtotal: solution.prev_subtotal,
             extra_delta: solution.extra_delta,
         }
-        .to_node_ptr(ctx.allocator_mut())
+        .to_clvm(ctx.allocator_mut())
         .map_err(DriverError::ToClvm)
     }
 }

@@ -23,7 +23,7 @@ use chia_puzzles::{
     Proof,
 };
 use chia_sdk_types::conditions::NewNftOwner;
-use clvm_traits::{FromClvm, FromNodePtr, ToClvm, ToNodePtr};
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
 
@@ -79,17 +79,17 @@ impl SpendContext {
     /// Allocate a new node and return its pointer.
     pub fn alloc<T>(&mut self, value: &T) -> Result<NodePtr, SpendError>
     where
-        T: ToNodePtr,
+        T: ToClvm<Allocator>,
     {
-        Ok(value.to_node_ptr(&mut self.allocator)?)
+        Ok(value.to_clvm(&mut self.allocator)?)
     }
 
     /// Extract a value from a node pointer.
     pub fn extract<T>(&self, ptr: NodePtr) -> Result<T, SpendError>
     where
-        T: FromNodePtr,
+        T: FromClvm<Allocator>,
     {
-        Ok(T::from_node_ptr(&self.allocator, ptr)?)
+        Ok(T::from_clvm(&self.allocator, ptr)?)
     }
 
     /// Compute the tree hash of a node pointer.
@@ -112,10 +112,10 @@ impl SpendContext {
     /// Serialize a value and return a `Program`.
     pub fn serialize<T>(&mut self, value: &T) -> Result<Program, SpendError>
     where
-        T: ToNodePtr,
+        T: ToClvm<Allocator>,
     {
-        let ptr = value.to_node_ptr(&mut self.allocator)?;
-        Ok(Program::from_node_ptr(&self.allocator, ptr)?)
+        let ptr = value.to_clvm(&mut self.allocator)?;
+        Ok(Program::from_clvm(&self.allocator, ptr)?)
     }
 
     /// Allocate the standard puzzle and return its pointer.
@@ -235,7 +235,7 @@ impl SpendContext {
         extra_conditions: Conditions,
     ) -> Result<(Did<M>, Proof), DriverError>
     where
-        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
         let p2_spend = extra_conditions
             .create_hinted_coin(
@@ -264,7 +264,7 @@ impl SpendContext {
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Nft<M>, Proof), DriverError>
     where
-        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
         if let Some(new_nft_owner) = new_nft_owner {
             let (cs, conds, new_nft, lp) = nft.transfer_to_did(
