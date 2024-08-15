@@ -68,6 +68,65 @@ pub enum Condition<T = NodePtr> {
     Other(T),
 }
 
+macro_rules! into {
+    ( $name:ident -> $condition:ident ) => {
+        pub fn $name(self) -> Option<$condition> {
+            match self {
+                Condition::$condition(remark) => Some(remark),
+                _ => None,
+            }
+        }
+    };
+}
+
+impl<T> Condition<T> {
+    pub fn into_remark(self) -> Option<Remark<T>> {
+        match self {
+            Condition::Remark(remark) => Some(remark),
+            _ => None,
+        }
+    }
+
+    into!(into_agg_sig -> AggSig);
+    into!(into_create_coin -> CreateCoin);
+    into!(into_reserve_fee -> ReserveFee);
+    into!(into_create_coin_announcement -> CreateCoinAnnouncement);
+    into!(into_assert_coin_announcement -> AssertCoinAnnouncement);
+    into!(into_create_puzzle_announcement -> CreatePuzzleAnnouncement);
+    into!(into_assert_puzzle_announcement -> AssertPuzzleAnnouncement);
+    into!(into_assert_concurrent_spend -> AssertConcurrentSpend);
+    into!(into_assert_concurrent_puzzle -> AssertConcurrentPuzzle);
+    into!(into_assert_my_coin_id -> AssertMyCoinId);
+    into!(into_assert_my_parent_id -> AssertMyParentId);
+    into!(into_assert_my_puzzle_hash -> AssertMyPuzzleHash);
+    into!(into_assert_my_amount -> AssertMyAmount);
+    into!(into_assert_my_birth_seconds -> AssertMyBirthSeconds);
+    into!(into_assert_my_birth_height -> AssertMyBirthHeight);
+    into!(into_assert_ephemeral -> AssertEphemeral);
+    into!(into_assert_seconds_relative -> AssertSecondsRelative);
+    into!(into_assert_seconds_absolute -> AssertSecondsAbsolute);
+    into!(into_assert_height_relative -> AssertHeightRelative);
+    into!(into_assert_height_absolute -> AssertHeightAbsolute);
+    into!(into_assert_before_seconds_relative -> AssertBeforeSecondsRelative);
+    into!(into_assert_before_seconds_absolute -> AssertBeforeSecondsAbsolute);
+    into!(into_assert_before_height_relative -> AssertBeforeHeightRelative);
+    into!(into_assert_before_height_absolute -> AssertBeforeHeightAbsolute);
+
+    pub fn into_softfork(self) -> Option<Softfork<T>> {
+        match self {
+            Condition::Softfork(remark) => Some(remark),
+            _ => None,
+        }
+    }
+
+    pub fn into_other(self) -> Option<T> {
+        match self {
+            Condition::Other(other) => Some(other),
+            _ => None,
+        }
+    }
+}
+
 pub fn parse_conditions(
     allocator: &mut Allocator,
     conditions: NodePtr,
