@@ -19,7 +19,7 @@ use chia_puzzles::{
         SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE,
         SINGLETON_TOP_LAYER_PUZZLE_HASH,
     },
-    standard::{StandardArgs, STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
+    standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
     Proof,
 };
 use chia_sdk_types::conditions::NewNftOwner;
@@ -230,27 +230,25 @@ impl SpendContext {
     pub fn spend_standard_did<M>(
         &mut self,
         did: &Did<M>,
-        lineage_proof: Proof,
         synthetic_key: PublicKey,
         extra_conditions: Conditions,
-    ) -> Result<(Did<M>, Proof), DriverError>
+    ) -> Result<Did<M>, DriverError>
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
         let p2_spend = extra_conditions
             .create_hinted_coin(
-                // DID layer does not automatically wrap CREATE_COINs
-                did.compute_new_did_layer_puzzle_hash(StandardArgs::curry_tree_hash(synthetic_key))
-                    .into(),
+                // DID layer does not automatically wrap create coin conditions.
+                did.info.inner_puzzle_hash().into(),
                 did.coin.amount,
-                did.p2_puzzle_hash.into(),
+                did.info.p2_puzzle_hash.into(),
             )
             .p2_spend(self, synthetic_key)?;
 
-        let (did_spend, new_did, new_proof) = did.spend(self, lineage_proof, p2_spend)?;
-        self.insert_coin_spend(did_spend);
+        let coin_spend = did.spend(self, p2_spend)?;
+        self.insert_coin_spend(coin_spend);
 
-        Ok((new_did, new_proof))
+        Ok(did.recreate_self())
     }
 
     /// Spend an NFT coin with a standard p2 inner puzzle.

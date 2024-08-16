@@ -48,7 +48,7 @@ impl Launcher {
         num_verifications_required: u64,
         metadata: M,
         synthetic_key: PublicKey,
-    ) -> Result<(Conditions, Did<M>, Proof), DriverError>
+    ) -> Result<(Conditions, Did<M>), DriverError>
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
         Self: Sized,
@@ -63,17 +63,16 @@ impl Launcher {
             metadata,
         )?;
 
-        let (new_did, new_proof) =
-            ctx.spend_standard_did(&did, did.proof, synthetic_key, Conditions::new())?;
+        let new_did = ctx.spend_standard_did(&did, synthetic_key, Conditions::new())?;
 
-        Ok((create_did, new_did, new_proof))
+        Ok((create_did, new_did))
     }
 
     pub fn create_simple_did(
         self,
         ctx: &mut SpendContext,
         synthetic_key: PublicKey,
-    ) -> Result<(Conditions, Did<()>, Proof), DriverError>
+    ) -> Result<(Conditions, Did<()>), DriverError>
     where
         Self: Sized,
     {
