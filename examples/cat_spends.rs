@@ -21,13 +21,16 @@ fn main() -> anyhow::Result<()> {
     println!("Created CAT coin with id {}", cat_coin.coin_id());
 
     // Spend the CAT coin.
-    let inner_spend = Conditions::new()
-        .create_hinted_coin(puzzle_hash, coin.amount, puzzle_hash)
-        .p2_spend(ctx, pk)?;
+    let cat_spends = [CatSpend::new(
+        Cat::new(cat_coin, Some(cat.lineage_proof), cat.asset_id, puzzle_hash),
+        Conditions::new()
+            .create_hinted_coin(puzzle_hash, coin.amount, puzzle_hash)
+            .p2_spend(ctx, pk)?,
+    )];
 
-    CatSpend::new(cat.asset_id)
-        .spend(cat_coin, inner_spend, cat.lineage_proof, 0)
-        .finish(ctx)?;
+    for coin_spend in Cat::spend_all(ctx, &cat_spends)? {
+        ctx.insert_coin_spend(coin_spend);
+    }
 
     let new_coin = Coin::new(cat_coin.coin_id(), cat_puzzle_hash, coin.amount);
 
