@@ -9,7 +9,7 @@ use crate::{DidLayer, DriverError, Layer, Primitive, Puzzle, SingletonLayer, Spe
 
 use super::DidInfo;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Did<M> {
     pub coin: Coin,
     pub proof: Proof,

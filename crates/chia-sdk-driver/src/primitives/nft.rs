@@ -20,7 +20,7 @@ use crate::{
 use super::NftInfo;
 
 /// Everything that is required to spend an NFT coin.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Nft<M> {
     /// The coin that holds this NFT.
     pub coin: Coin,

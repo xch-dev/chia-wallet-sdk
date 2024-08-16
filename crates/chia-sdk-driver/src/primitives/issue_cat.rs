@@ -14,7 +14,7 @@ use clvmr::Allocator;
 
 use crate::{Conditions, SpendContext, SpendError};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IssueCat {
     pub asset_id: Bytes32,
     pub lineage_proof: LineageProof,

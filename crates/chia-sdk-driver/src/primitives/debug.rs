@@ -5,21 +5,21 @@ use chia_protocol::{Coin, CoinSpend, SpendBundle};
 use hex::encode;
 use serde::Serialize;
 
-#[derive(Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 struct SerializableCoin {
     parent_coin_info: String,
     puzzle_hash: String,
     amount: u64,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 struct SerializableCoinSpend {
     coin: SerializableCoin,
     puzzle_reveal: String,
     solution: String,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 struct SerializableSpendBundle {
     coin_spends: Vec<SerializableCoinSpend>,
     aggregated_signature: String,

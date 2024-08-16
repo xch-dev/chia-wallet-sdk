@@ -7,7 +7,7 @@ use crate::{DidLayer, SingletonLayer};
 pub type StandardDidLayers<M, I> = SingletonLayer<DidLayer<M, I>>;
 
 #[must_use]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DidInfo<M> {
     pub launcher_id: Bytes32,
     pub recovery_list_hash: Bytes32,

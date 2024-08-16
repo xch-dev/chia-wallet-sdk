@@ -12,7 +12,7 @@ use crate::{CatLayer, DriverError, Layer, Primitive, Puzzle, SpendContext};
 
 use super::{CatSpend, RawCatSpend};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Cat {
     pub coin: Coin,
     pub lineage_proof: Option<LineageProof>,
