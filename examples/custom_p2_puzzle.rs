@@ -74,8 +74,8 @@ impl CustomExt for SpendContext {
         conditions: Conditions,
     ) -> Result<(), SpendError> {
         let spend = conditions.custom_spend(self, public_key)?;
-        let puzzle_reveal = self.serialize(&spend.puzzle())?;
-        let solution = self.serialize(&spend.solution())?;
+        let puzzle_reveal = self.serialize(&spend.puzzle)?;
+        let solution = self.serialize(&spend.solution)?;
         self.insert_coin_spend(CoinSpend::new(coin, puzzle_reveal, solution));
         Ok(())
     }

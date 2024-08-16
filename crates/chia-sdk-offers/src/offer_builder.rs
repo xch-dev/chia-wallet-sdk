@@ -11,6 +11,7 @@ use chia_sdk_driver::{Nft, SpendContext, SpendError};
 use chia_sdk_types::{announcement_id, AssertPuzzleAnnouncement};
 use clvm_traits::ToClvm;
 use clvm_utils::{CurriedProgram, ToTreeHash};
+use clvmr::Allocator;
 use indexmap::IndexMap;
 
 use crate::Offer;
@@ -28,13 +29,13 @@ impl<M> NftPaymentInfo<M>
 where
     M: Clone,
 {
-    pub fn from_nft_info(nft_info: &Nft<M>) -> Self {
+    pub fn from_nft(nft: &Nft<M>) -> Self {
         Self {
-            launcher_id: nft_info.launcher_id,
-            royalty_puzzle_hash: nft_info.royalty_puzzle_hash,
-            royalty_percentage: nft_info.royalty_percentage,
+            launcher_id: nft.info.singleton_struct.launcher_id,
+            royalty_puzzle_hash: nft.info.royalty_puzzle_hash,
+            royalty_percentage: nft.info.royalty_ten_thousandths,
             current_owner: None,
-            metadata: nft_info.metadata.clone(),
+            metadata: nft.info.metadata.clone(),
         }
     }
 }
@@ -141,7 +142,7 @@ impl OfferBuilder {
         payments: Vec<Payment>,
     ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError>
     where
-        P: ToClvm,
+        P: ToClvm<Allocator>,
     {
         let puzzle_ptr = ctx.alloc(puzzle)?;
         let puzzle_hash = ctx.tree_hash(puzzle_ptr).into();
@@ -196,10 +197,7 @@ pub fn calculate_nonce(mut coin_ids: Vec<Bytes32>) -> Bytes32 {
 mod tests {
     use chia_bls::DerivableKey;
     use chia_protocol::{Coin, SpendBundle};
-    use chia_puzzles::{
-        offer::{PaymentWithoutMemos, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
-        standard::StandardArgs,
-    };
+    use chia_puzzles::{offer::SETTLEMENT_PAYMENTS_PUZZLE_HASH, standard::StandardArgs};
     use chia_sdk_driver::Conditions;
     use chia_sdk_test::{secret_key, sign_transaction, Simulator};
 
@@ -225,13 +223,7 @@ mod tests {
         let b = sim.mint_coin(b_puzzle_hash, 3000).await;
 
         let (announcement, partial_offer) = OfferBuilder::new(vec![a.coin_id()])
-            .request_standard_payments(
-                ctx,
-                vec![Payment::WithoutMemos(PaymentWithoutMemos {
-                    puzzle_hash: a_puzzle_hash,
-                    amount: b.amount,
-                })],
-            )?;
+            .request_standard_payments(ctx, vec![Payment::new(a_puzzle_hash, b.amount)])?;
 
         ctx.spend_p2_coin(
             a,
@@ -248,13 +240,7 @@ mod tests {
             .finish(coin_spends, signature)?;
 
         let (announcement, partial_offer) = OfferBuilder::new(vec![b.coin_id()])
-            .request_standard_payments(
-                ctx,
-                vec![Payment::WithoutMemos(PaymentWithoutMemos {
-                    puzzle_hash: b_puzzle_hash,
-                    amount: a.amount,
-                })],
-            )?;
+            .request_standard_payments(ctx, vec![Payment::new(b_puzzle_hash, a.amount)])?;
 
         ctx.spend_p2_coin(
             b,
