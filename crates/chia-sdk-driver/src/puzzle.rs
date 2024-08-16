@@ -1,4 +1,4 @@
-use clvm_traits::{ClvmEncoder, FromClvm, ToClvm, ToClvmError};
+use clvm_traits::FromClvm;
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -100,12 +100,9 @@ pub struct RawPuzzle {
     pub ptr: NodePtr,
 }
 
-impl<E> ToClvm<E> for Puzzle
-where
-    E: ClvmEncoder<Node = TreeHash>,
-{
-    fn to_clvm(&self, _encoder: &mut E) -> Result<TreeHash, ToClvmError> {
-        Ok(self.curried_puzzle_hash())
+impl ToTreeHash for Puzzle {
+    fn tree_hash(&self) -> TreeHash {
+        self.curried_puzzle_hash()
     }
 }
 

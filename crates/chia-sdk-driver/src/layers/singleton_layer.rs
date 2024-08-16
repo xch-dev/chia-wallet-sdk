@@ -2,7 +2,7 @@ use chia_puzzles::singleton::{
     SingletonArgs, SingletonSolution, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH,
     SINGLETON_TOP_LAYER_PUZZLE_HASH,
 };
-use clvm_traits::{ClvmEncoder, FromClvm, ToClvm, ToClvmError};
+use clvm_traits::FromClvm;
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -98,18 +98,16 @@ where
     }
 }
 
-impl<E, I> ToClvm<E> for SingletonLayer<I>
+impl<I> ToTreeHash for SingletonLayer<I>
 where
-    I: ToClvm<E>,
-    TreeHash: ToClvm<E>,
-    E: ClvmEncoder<Node = TreeHash>,
+    I: ToTreeHash,
 {
-    fn to_clvm(&self, encoder: &mut E) -> Result<TreeHash, ToClvmError> {
-        let inner_puzzle = self.inner_puzzle.to_clvm(encoder)?;
-        Ok(SingletonArgs {
+    fn tree_hash(&self) -> TreeHash {
+        let inner_puzzle = self.inner_puzzle.tree_hash();
+        SingletonArgs {
             singleton_struct: self.singleton_struct,
             inner_puzzle,
         }
-        .tree_hash())
+        .tree_hash()
     }
 }
