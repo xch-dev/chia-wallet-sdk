@@ -47,7 +47,7 @@ where
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
-        let layers = self.info.clone().to_layers(inner_spend.puzzle);
+        let layers = self.info.clone().into_layers(inner_spend.puzzle);
 
         let puzzle_ptr = layers.construct_puzzle(ctx)?;
         let solution_ptr = layers.construct_solution(

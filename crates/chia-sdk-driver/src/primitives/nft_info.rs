@@ -10,9 +10,10 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 
 use crate::{NftOwnershipLayer, NftStateLayer, RoyaltyTransferLayer, SingletonLayer};
 
-pub type NftLayers<M, I> =
+pub type StandardNftLayers<M, I> =
     SingletonLayer<NftStateLayer<M, NftOwnershipLayer<RoyaltyTransferLayer, I>>>;
 
+#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NftInfo<M> {
     pub launcher_id: Bytes32,
@@ -45,8 +46,7 @@ impl<M> NftInfo<M> {
         }
     }
 
-    /// Converts the raw puzzle layers into NFT info.
-    pub fn from_layers<I>(layers: NftLayers<M, I>) -> Self
+    pub fn from_layers<I>(layers: StandardNftLayers<M, I>) -> Self
     where
         I: ToTreeHash,
     {
@@ -74,9 +74,8 @@ impl<M> NftInfo<M> {
         }
     }
 
-    /// Converts the NFT into a layered puzzle.
     #[must_use]
-    pub fn to_layers<I>(self, p2_puzzle: I) -> NftLayers<M, I> {
+    pub fn into_layers<I>(self, p2_puzzle: I) -> StandardNftLayers<M, I> {
         SingletonLayer::new(
             self.launcher_id,
             NftStateLayer::new(
