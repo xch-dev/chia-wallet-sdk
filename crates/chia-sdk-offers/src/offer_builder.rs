@@ -9,7 +9,7 @@ use chia_puzzles::{
 use chia_sdk_driver::{Nft, SpendContext, SpendError};
 
 use chia_sdk_types::conditions::{announcement_id, AssertPuzzleAnnouncement};
-use clvm_traits::{ToClvm, ToNodePtr};
+use clvm_traits::ToClvm;
 use clvm_utils::{CurriedProgram, ToTreeHash};
 use clvmr::NodePtr;
 use indexmap::IndexMap;
@@ -142,7 +142,7 @@ impl OfferBuilder {
         payments: Vec<Payment>,
     ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError>
     where
-        P: ToNodePtr,
+        P: ToClvm,
     {
         let puzzle_ptr = ctx.alloc(puzzle)?;
         let puzzle_hash = ctx.tree_hash(puzzle_ptr).into();

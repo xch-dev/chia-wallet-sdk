@@ -1,4 +1,6 @@
 use chia_protocol::Bytes32;
+use chia_puzzles::{did::DidArgs, singleton::SingletonStruct};
+use clvm_utils::{ToTreeHash, TreeHash};
 
 #[derive(Debug, Clone, Copy)]
 pub struct DidInfo<M> {
@@ -24,5 +26,18 @@ impl<M> DidInfo<M> {
             metadata,
             p2_puzzle_hash,
         }
+    }
+
+    pub fn inner_puzzle_hash(&self) -> TreeHash
+    where
+        M: ToTreeHash,
+    {
+        DidArgs::curry_tree_hash(
+            self.p2_puzzle_hash.into(),
+            self.recovery_list_hash,
+            self.num_verifications_required,
+            SingletonStruct::new(self.launcher_id),
+            self.metadata.tree_hash(),
+        )
     }
 }

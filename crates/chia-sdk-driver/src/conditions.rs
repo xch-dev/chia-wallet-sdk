@@ -182,6 +182,7 @@ impl IntoIterator for Conditions {
 impl<E> ToClvm<E> for Conditions
 where
     E: ClvmEncoder<Node = NodePtr>,
+    NodePtr: ToClvm<E>,
 {
     fn to_clvm(&self, encoder: &mut E) -> Result<NodePtr, ToClvmError> {
         self.conditions.to_clvm(encoder)

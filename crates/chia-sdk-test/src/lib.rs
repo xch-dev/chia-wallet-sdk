@@ -11,9 +11,9 @@ pub use simulator::*;
 pub use transaction::*;
 
 use chia_protocol::{Bytes32, Program};
-use clvm_traits::{FromNodePtr, ToClvm};
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::tree_hash;
-use clvmr::{Allocator, NodePtr};
+use clvmr::Allocator;
 
 pub fn to_program(value: impl ToClvm<Allocator>) -> anyhow::Result<Program> {
     let mut allocator = Allocator::new();

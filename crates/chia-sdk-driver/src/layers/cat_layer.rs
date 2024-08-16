@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::cat::{CatArgs, CatSolution, CAT_PUZZLE_HASH};
-use clvm_traits::FromClvm;
-use clvm_utils::CurriedProgram;
+use clvm_traits::{ClvmEncoder, FromClvm, ToClvm, ToClvmError};
+use clvm_utils::{CurriedProgram, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
@@ -96,5 +96,20 @@ where
             prev_subtotal: solution.prev_subtotal,
             extra_delta: solution.extra_delta,
         })?)
+    }
+}
+
+impl<E, I> ToClvm<E> for CatLayer<I>
+where
+    I: ToClvm<E>,
+    TreeHash: ToClvm<E>,
+    E: ClvmEncoder<Node = TreeHash>,
+{
+    fn to_clvm(&self, encoder: &mut E) -> Result<TreeHash, ToClvmError> {
+        CurriedProgram {
+            program: CAT_PUZZLE_HASH,
+            args: CatArgs::new(self.asset_id, &self.inner_puzzle),
+        }
+        .to_clvm(encoder)
     }
 }

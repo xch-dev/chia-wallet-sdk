@@ -18,19 +18,11 @@ pub struct SingletonLayer<IP> {
     pub inner_puzzle: IP,
 }
 
-#[derive(Debug, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct SingletonLayerSolution<I> {
-    pub lineage_proof: Proof,
-    pub amount: u64,
-    pub inner_solution: I,
-}
-
 impl<IP> Layer for SingletonLayer<IP>
 where
     IP: Layer,
 {
-    type Solution = SingletonLayerSolution<IP::Solution>;
+    type Solution = SingletonSolution<IP::Solution>;
 
     fn from_parent_spend(
         allocator: &mut Allocator,

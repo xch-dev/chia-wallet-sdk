@@ -34,9 +34,6 @@ pub enum DriverError {
     #[error("missing child")]
     MissingChild,
 
-    #[error("missing CREATE_COIN condition in parent spend")]
-    MissingParentCreateCoin,
-
     #[error("missing hint")]
     MissingHint,
 

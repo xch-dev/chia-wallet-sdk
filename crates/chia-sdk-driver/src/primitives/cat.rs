@@ -45,6 +45,7 @@ impl Cat {
         inner_spend: Spend,
     ) -> Result<CoinSpend, DriverError> {
         let cat_layer = CatLayer::new(self.asset_id, inner_spend.puzzle);
+
         let puzzle_ptr = cat_layer.construct_puzzle(ctx)?;
         let solution_ptr = cat_layer.construct_solution(
             ctx,
@@ -61,6 +62,7 @@ impl Cat {
 
         let puzzle = ctx.serialize(&puzzle_ptr)?;
         let solution = ctx.serialize(&solution_ptr)?;
+
         Ok(CoinSpend::new(self.coin, puzzle, solution))
     }
 

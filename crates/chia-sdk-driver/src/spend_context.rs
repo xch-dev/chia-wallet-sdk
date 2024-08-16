@@ -70,8 +70,8 @@ impl SpendContext {
 
     /// Serializes a [`Spend`] and adds it to the list of coin spends.
     pub fn spend(&mut self, coin: Coin, spend: Spend) -> Result<(), SpendError> {
-        let puzzle_reveal = self.serialize(&spend.puzzle())?;
-        let solution = self.serialize(&spend.solution())?;
+        let puzzle_reveal = self.serialize(&spend.puzzle)?;
+        let solution = self.serialize(&spend.solution)?;
         self.insert_coin_spend(CoinSpend::new(coin, puzzle_reveal, solution));
         Ok(())
     }

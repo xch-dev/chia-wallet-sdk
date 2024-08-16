@@ -3,7 +3,7 @@ use chia_sdk_types::conditions::{
     announcement_id, AssertCoinAnnouncement, AssertPuzzleAnnouncement, CreateCoinAnnouncement,
     CreatePuzzleAnnouncement,
 };
-use clvm_traits::{FromClvm, ToNodePtr};
+use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{reduction::Reduction, run_program, Allocator, ChiaDialect, NodePtr};
 
 #[derive(Debug, Default, Clone)]
