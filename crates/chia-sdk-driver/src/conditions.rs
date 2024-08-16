@@ -1,7 +1,7 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
 use chia_puzzles::standard::{StandardArgs, StandardSolution};
-use chia_sdk_types::conditions::{
+use chia_sdk_types::{
     AssertBeforeHeightAbsolute, AssertBeforeHeightRelative, AssertBeforeSecondsAbsolute,
     AssertBeforeSecondsRelative, AssertCoinAnnouncement, AssertHeightAbsolute,
     AssertHeightRelative, AssertPuzzleAnnouncement, AssertSecondsAbsolute, AssertSecondsRelative,
@@ -10,10 +10,7 @@ use chia_sdk_types::conditions::{
 
 use clvm_traits::{ClvmEncoder, ToClvm, ToClvmError};
 use clvm_utils::CurriedProgram;
-use clvmr::{
-    sha2::{Digest, Sha256},
-    NodePtr,
-};
+use clvmr::{sha2::Sha256, NodePtr};
 
 use crate::{Spend, SpendContext, SpendError};
 
@@ -75,7 +72,7 @@ impl Conditions {
         let mut announcement_id = Sha256::new();
         announcement_id.update(coin_id);
         announcement_id.update(message);
-        self.assert_raw_coin_announcement(Bytes32::new(announcement_id.finalize().into()))
+        self.assert_raw_coin_announcement(Bytes32::new(announcement_id.finalize()))
     }
 
     pub fn create_puzzle_announcement(self, message: Bytes) -> Self {
@@ -98,7 +95,7 @@ impl Conditions {
         let mut announcement_id = Sha256::new();
         announcement_id.update(puzzle_hash);
         announcement_id.update(message);
-        self.assert_raw_puzzle_announcement(Bytes32::new(announcement_id.finalize().into()))
+        self.assert_raw_puzzle_announcement(Bytes32::new(announcement_id.finalize()))
     }
 
     pub fn assert_before_seconds_relative(self, seconds: u64) -> Self {
@@ -182,11 +179,12 @@ impl IntoIterator for Conditions {
     }
 }
 
-impl ToClvm<NodePtr> for Conditions {
-    fn to_clvm(
-        &self,
-        encoder: &mut impl ClvmEncoder<Node = NodePtr>,
-    ) -> Result<NodePtr, ToClvmError> {
+impl<E> ToClvm<E> for Conditions
+where
+    E: ClvmEncoder<Node = NodePtr>,
+    NodePtr: ToClvm<E>,
+{
+    fn to_clvm(&self, encoder: &mut E) -> Result<NodePtr, ToClvmError> {
         self.conditions.to_clvm(encoder)
     }
 }
@@ -211,13 +209,7 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, Conditions::new().create_coin(puzzle_hash, 1))?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }

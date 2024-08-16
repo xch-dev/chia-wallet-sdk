@@ -2,6 +2,8 @@ use clvm_traits::FromClvm;
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
+use crate::{DriverError, Layer, SpendContext};
+
 #[derive(Debug, Clone, Copy)]
 pub enum Puzzle {
     Curried(CurriedPuzzle),
@@ -96,4 +98,40 @@ impl CurriedPuzzle {
 pub struct RawPuzzle {
     pub puzzle_hash: TreeHash,
     pub ptr: NodePtr,
+}
+
+impl ToTreeHash for Puzzle {
+    fn tree_hash(&self) -> TreeHash {
+        self.curried_puzzle_hash()
+    }
+}
+
+impl Layer for Puzzle {
+    type Solution = NodePtr;
+
+    fn parse_puzzle(_allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError>
+    where
+        Self: Sized,
+    {
+        Ok(Some(puzzle))
+    }
+
+    fn parse_solution(
+        _allocator: &Allocator,
+        solution: NodePtr,
+    ) -> Result<Self::Solution, DriverError> {
+        Ok(solution)
+    }
+
+    fn construct_puzzle(&self, _ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
+        Ok(self.ptr())
+    }
+
+    fn construct_solution(
+        &self,
+        _ctx: &mut SpendContext,
+        solution: Self::Solution,
+    ) -> Result<NodePtr, DriverError> {
+        Ok(solution)
+    }
 }

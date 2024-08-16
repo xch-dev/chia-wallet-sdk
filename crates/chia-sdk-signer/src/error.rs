@@ -1,4 +1,4 @@
-use chia_sdk_types::conditions::ConditionError;
+use chia_sdk_types::ConditionError;
 use clvm_traits::ToClvmError;
 use thiserror::Error;
 

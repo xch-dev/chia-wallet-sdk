@@ -21,15 +21,12 @@ use chia_puzzles::{
     },
     standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
 };
-use chia_sdk_types::{
-    conditions::NewNftOwner,
-    puzzles::{DidInfo, NftInfo},
-};
-use clvm_traits::{FromNodePtr, ToClvm, ToNodePtr};
-use clvm_utils::{tree_hash, TreeHash};
+use chia_sdk_types::NewNftOwner;
+use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
 
-use crate::{did_spend, nft_spend, spend_error::SpendError, transfer_nft, Conditions, Spend};
+use crate::{spend_error::SpendError, Conditions, Did, DriverError, Nft, Spend};
 
 /// A wrapper around `Allocator` that caches puzzles and simplifies coin spending.
 #[derive(Debug, Default)]
@@ -72,8 +69,8 @@ impl SpendContext {
 
     /// Serializes a [`Spend`] and adds it to the list of coin spends.
     pub fn spend(&mut self, coin: Coin, spend: Spend) -> Result<(), SpendError> {
-        let puzzle_reveal = self.serialize(&spend.puzzle())?;
-        let solution = self.serialize(&spend.solution())?;
+        let puzzle_reveal = self.serialize(&spend.puzzle)?;
+        let solution = self.serialize(&spend.solution)?;
         self.insert_coin_spend(CoinSpend::new(coin, puzzle_reveal, solution));
         Ok(())
     }
@@ -81,17 +78,17 @@ impl SpendContext {
     /// Allocate a new node and return its pointer.
     pub fn alloc<T>(&mut self, value: &T) -> Result<NodePtr, SpendError>
     where
-        T: ToNodePtr,
+        T: ToClvm<Allocator>,
     {
-        Ok(value.to_node_ptr(&mut self.allocator)?)
+        Ok(value.to_clvm(&mut self.allocator)?)
     }
 
     /// Extract a value from a node pointer.
     pub fn extract<T>(&self, ptr: NodePtr) -> Result<T, SpendError>
     where
-        T: FromNodePtr,
+        T: FromClvm<Allocator>,
     {
-        Ok(T::from_node_ptr(&self.allocator, ptr)?)
+        Ok(T::from_clvm(&self.allocator, ptr)?)
     }
 
     /// Compute the tree hash of a node pointer.
@@ -114,10 +111,10 @@ impl SpendContext {
     /// Serialize a value and return a `Program`.
     pub fn serialize<T>(&mut self, value: &T) -> Result<Program, SpendError>
     where
-        T: ToNodePtr,
+        T: ToClvm<Allocator>,
     {
-        let ptr = value.to_node_ptr(&mut self.allocator)?;
-        Ok(Program::from_node_ptr(&self.allocator, ptr)?)
+        let ptr = value.to_clvm(&mut self.allocator)?;
+        Ok(Program::from_clvm(&self.allocator, ptr)?)
     }
 
     /// Allocate the standard puzzle and return its pointer.
@@ -231,48 +228,56 @@ impl SpendContext {
     /// Spend a DID coin with a standard p2 inner puzzle.
     pub fn spend_standard_did<M>(
         &mut self,
-        did_info: DidInfo<M>,
+        did: &Did<M>,
         synthetic_key: PublicKey,
         extra_conditions: Conditions,
-    ) -> Result<DidInfo<M>, SpendError>
+    ) -> Result<Did<M>, DriverError>
     where
-        M: ToClvm<NodePtr> + Clone,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
         let p2_spend = extra_conditions
             .create_hinted_coin(
-                did_info.inner_puzzle_hash,
-                did_info.coin.amount,
-                did_info.p2_puzzle_hash,
+                did.info.inner_puzzle_hash().into(),
+                did.coin.amount,
+                did.info.p2_puzzle_hash,
             )
             .p2_spend(self, synthetic_key)?;
 
-        let did_spend = did_spend(self, &did_info, p2_spend)?;
-        self.insert_coin_spend(did_spend);
+        let coin_spend = did.spend(self, p2_spend)?;
+        self.insert_coin_spend(coin_spend);
 
-        let p2_puzzle_hash = did_info.p2_puzzle_hash;
-        Ok(did_info.child(p2_puzzle_hash))
+        Ok(did.recreate_self())
     }
 
     /// Spend an NFT coin with a standard p2 inner puzzle.
     pub fn spend_standard_nft<M>(
         &mut self,
-        nft_info: &NftInfo<M>,
+        nft: &Nft<M>,
         synthetic_key: PublicKey,
         p2_puzzle_hash: Bytes32,
         new_nft_owner: Option<NewNftOwner>,
         extra_conditions: Conditions,
-    ) -> Result<(Conditions, NftInfo<M>), SpendError>
+    ) -> Result<(Conditions, Nft<M>), DriverError>
     where
-        M: ToClvm<NodePtr> + Clone,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
-        let transfer = transfer_nft(self, nft_info, p2_puzzle_hash, new_nft_owner)?;
-        let p2_spend = transfer
-            .p2_conditions
-            .extend(extra_conditions)
-            .p2_spend(self, synthetic_key)?;
-        let nft_spend = nft_spend(self, nft_info, p2_spend)?;
-        self.insert_coin_spend(nft_spend);
-        Ok((transfer.did_conditions, transfer.output))
+        if let Some(new_nft_owner) = new_nft_owner {
+            let (cs, conds, new_nft) = nft.transfer_to_did(
+                self,
+                synthetic_key,
+                p2_puzzle_hash,
+                &new_nft_owner,
+                extra_conditions,
+            )?;
+
+            self.insert_coin_spend(cs);
+            return Ok((conds, new_nft));
+        }
+
+        let (cs, new_nft) = nft.transfer(self, synthetic_key, p2_puzzle_hash, extra_conditions)?;
+
+        self.insert_coin_spend(cs);
+        Ok((Conditions::new(), new_nft))
     }
 }
 

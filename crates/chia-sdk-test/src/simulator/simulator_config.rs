@@ -1,9 +1,9 @@
-use chia_protocol::Bytes32;
-use hex_literal::hex;
+use chia_consensus::consensus_constants::ConsensusConstants;
+use chia_sdk_types::MAINNET_CONSTANTS;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatorConfig {
-    pub genesis_challenge: Bytes32,
+    pub constants: ConsensusConstants,
     pub max_subscriptions: usize,
     pub max_response_coins: usize,
     pub puzzle_state_batch_size: usize,
@@ -12,9 +12,7 @@ pub struct SimulatorConfig {
 impl Default for SimulatorConfig {
     fn default() -> Self {
         Self {
-            genesis_challenge: Bytes32::new(hex!(
-                "ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb"
-            )),
+            constants: MAINNET_CONSTANTS.clone(),
             max_subscriptions: 200_000,
             max_response_coins: 100_000,
             puzzle_state_batch_size: 30_000,

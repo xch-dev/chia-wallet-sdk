@@ -1,7 +1,8 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::offer::{NotarizedPayment, SettlementPaymentsSolution};
 use chia_sdk_driver::{SpendContext, SpendError};
-use clvm_traits::ToNodePtr;
+use clvm_traits::ToClvm;
+use clvmr::Allocator;
 
 pub fn parse_payments(
     ctx: &mut SpendContext,
@@ -33,7 +34,7 @@ pub fn payment_coin_spend<P>(
     notarized_payments: Vec<NotarizedPayment>,
 ) -> Result<CoinSpend, SpendError>
 where
-    P: ToNodePtr,
+    P: ToClvm<Allocator>,
 {
     let puzzle = ctx.alloc(puzzle)?;
     let puzzle_hash = ctx.tree_hash(puzzle).into();

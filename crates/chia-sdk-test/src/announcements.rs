@@ -1,9 +1,9 @@
 use chia_protocol::{Bytes, Bytes32, CoinSpend};
-use chia_sdk_types::conditions::{
+use chia_sdk_types::{
     announcement_id, AssertCoinAnnouncement, AssertPuzzleAnnouncement, CreateCoinAnnouncement,
     CreatePuzzleAnnouncement,
 };
-use clvm_traits::{FromClvm, ToNodePtr};
+use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{reduction::Reduction, run_program, Allocator, ChiaDialect, NodePtr};
 
 #[derive(Debug, Default, Clone)]
@@ -74,8 +74,8 @@ pub fn announcements_for_spend(coin_spend: &CoinSpend) -> anyhow::Result<Announc
     let mut announcements = Announcements::default();
 
     let allocator = &mut Allocator::new();
-    let puzzle = coin_spend.puzzle_reveal.to_node_ptr(allocator)?;
-    let solution = coin_spend.solution.to_node_ptr(allocator)?;
+    let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
+    let solution = coin_spend.solution.to_clvm(allocator)?;
 
     let Reduction(_cost, output) = run_program(
         allocator,

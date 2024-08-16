@@ -303,7 +303,8 @@ fn request_coin_state(
 ) -> Result<Bytes, SimulatorError> {
     if (request.previous_height.is_some()
         && request.header_hash != data.header_hash(request.previous_height.unwrap()))
-        || (request.previous_height.is_none() && request.header_hash != config.genesis_challenge)
+        || (request.previous_height.is_none()
+            && request.header_hash != config.constants.genesis_challenge)
     {
         return Ok(RejectCoinState::new(RejectStateReason::Reorg)
             .to_bytes()?
@@ -353,7 +354,8 @@ fn request_puzzle_state(
 ) -> Result<Bytes, SimulatorError> {
     if (request.previous_height.is_some()
         && request.header_hash != data.header_hash(request.previous_height.unwrap()))
-        || (request.previous_height.is_none() && request.header_hash != config.genesis_challenge)
+        || (request.previous_height.is_none()
+            && request.header_hash != config.constants.genesis_challenge)
     {
         return Ok(RejectPuzzleState::new(RejectStateReason::Reorg)
             .to_bytes()?

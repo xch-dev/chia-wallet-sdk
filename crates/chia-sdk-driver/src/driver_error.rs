@@ -1,11 +1,12 @@
-use chia_sdk_types::conditions::ConditionError;
+use chia_sdk_types::ConditionError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
 use thiserror::Error;
 
-// todo
+use crate::SpendError;
+
 #[derive(Debug, Error)]
-pub enum ParseError {
+pub enum DriverError {
     #[error("failed to serialize clvm value: {0}")]
     ToClvm(#[from] ToClvmError),
 
@@ -15,8 +16,14 @@ pub enum ParseError {
     #[error("failed to parse conditions: {0}")]
     Conditions(#[from] ConditionError),
 
+    #[error("spend error: {0}")]
+    Spend(#[from] SpendError),
+
     #[error("clvm eval error: {0}")]
     Eval(#[from] EvalErr),
+
+    #[error("custom driver error: {0}")]
+    Custom(String),
 
     #[error("invalid mod hash")]
     InvalidModHash,
@@ -35,4 +42,9 @@ pub enum ParseError {
 
     #[error("mismatched singleton output (maybe no spend revealed the new singleton state)")]
     MismatchedOutput,
+
+    #[error(
+        "missing puzzle (required to build innermost puzzle - usually fixed by using .with_puzzle)"
+    )]
+    MissingPuzzle,
 }
