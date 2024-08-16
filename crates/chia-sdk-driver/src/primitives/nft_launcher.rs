@@ -11,8 +11,8 @@ use crate::{did_puzzle_assertion, Conditions, DriverError, Launcher, Spend, Spen
 pub struct NftMint<M> {
     pub metadata: M,
     pub royalty_puzzle_hash: Bytes32,
-    pub royalty_percentage: u16,
-    pub puzzle_hash: Bytes32,
+    pub royalty_ten_thousandths: u16,
+    pub p2_puzzle_hash: Bytes32,
     pub owner: NewNftOwner,
 }
 
@@ -62,22 +62,22 @@ impl Launcher {
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
         let mut conditions =
-            Conditions::new().create_hinted_coin(mint.puzzle_hash, 1, mint.puzzle_hash);
+            Conditions::new().create_hinted_coin(mint.p2_puzzle_hash, 1, mint.p2_puzzle_hash);
 
         if mint.owner != NewNftOwner::default() {
             conditions = conditions.condition(Condition::Other(ctx.alloc(&mint.owner)?));
         }
 
         let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
-        let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
+        let p2_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
         let inner_spend = Spend::new(inner_puzzle, NodePtr::NIL);
 
         let (mint_eve_nft, eve_nft) = self.mint_eve_nft(
             ctx,
-            inner_puzzle_hash,
+            p2_puzzle_hash,
             mint.metadata,
             mint.royalty_puzzle_hash,
-            mint.royalty_percentage,
+            mint.royalty_ten_thousandths,
         )?;
 
         let eve_spend = eve_nft.spend(ctx, inner_spend)?;
@@ -94,7 +94,7 @@ impl Launcher {
 
         Ok((
             mint_eve_nft.extend(did_conditions),
-            eve_nft.create_child(mint.puzzle_hash, Some(mint.owner.did_id)),
+            eve_nft.create_child(mint.p2_puzzle_hash, Some(mint.owner.did_id)),
         ))
     }
 }
@@ -119,7 +119,7 @@ mod tests {
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
     use chia_sdk_types::MAINNET_CONSTANTS;
 
-    pub fn nft_mint(puzzle_hash: Bytes32, did: Option<&Did<()>>) -> NftMint<NftMetadata> {
+    pub fn nft_mint(p2_puzzle_hash: Bytes32, did: Option<&Did<()>>) -> NftMint<NftMetadata> {
         NftMint {
             metadata: NftMetadata {
                 edition_number: 1,
@@ -132,8 +132,8 @@ mod tests {
                 license_hash: Some(Bytes32::new([3; 32])),
             },
             royalty_puzzle_hash: Bytes32::new([4; 32]),
-            royalty_percentage: 300,
-            puzzle_hash,
+            royalty_ten_thousandths: 300,
+            p2_puzzle_hash,
             owner: NewNftOwner {
                 did_id: did.map(|did| did.info.singleton_struct.launcher_id),
                 trade_prices: Vec::new(),

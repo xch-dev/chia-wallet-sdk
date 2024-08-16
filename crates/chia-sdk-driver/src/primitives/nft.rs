@@ -2,12 +2,12 @@ use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
     nft::{NftOwnershipLayerSolution, NftStateLayerSolution},
-    singleton::SingletonSolution,
+    singleton::{SingletonArgs, SingletonSolution},
     LineageProof, Proof,
 };
 use chia_sdk_types::{run_puzzle, Condition, CreateCoin, NewNftOwner};
 use clvm_traits::{clvm_list, FromClvm, ToClvm};
-use clvm_utils::{tree_hash, ToTreeHash, TreeHasher};
+use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash, TreeHasher};
 use clvmr::{sha2::Sha256, Allocator, NodePtr};
 
 use crate::{
@@ -90,10 +90,13 @@ where
     }
 
     /// Returns the lineage proof that would be used by the child.
-    pub fn child_lineage_proof(&self) -> LineageProof {
+    pub fn child_lineage_proof(&self) -> LineageProof
+    where
+        M: ToTreeHash,
+    {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.info.p2_puzzle_hash,
+            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
             parent_amount: self.coin.amount,
         }
     }
@@ -177,7 +180,15 @@ where
         Self {
             coin: Coin::new(
                 self.coin.coin_id(),
-                info.inner_puzzle_hash().into(),
+                CurriedProgram {
+                    program: TreeHash::from(info.singleton_struct.mod_hash),
+                    args: SingletonArgs {
+                        singleton_struct: info.singleton_struct,
+                        inner_puzzle: info.inner_puzzle_hash(),
+                    },
+                }
+                .tree_hash()
+                .into(),
                 self.coin.amount,
             ),
             proof: Proof::Lineage(self.child_lineage_proof()),

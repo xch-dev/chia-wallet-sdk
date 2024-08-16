@@ -67,10 +67,13 @@ impl<M> Did<M> {
     }
 
     /// Returns the lineage proof that would be used by the child.
-    pub fn child_lineage_proof(&self) -> LineageProof {
+    pub fn child_lineage_proof(&self) -> LineageProof
+    where
+        M: ToTreeHash,
+    {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.info.p2_puzzle_hash,
+            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
             parent_amount: self.coin.amount,
         }
     }
@@ -79,7 +82,7 @@ impl<M> Did<M> {
     #[must_use]
     pub fn recreate_self(&self) -> Self
     where
-        M: Clone,
+        M: ToTreeHash + Clone,
     {
         Self {
             coin: Coin::new(self.coin.coin_id(), self.coin.puzzle_hash, self.coin.amount),

@@ -44,7 +44,7 @@ impl Launcher {
     pub fn create_did<M>(
         self,
         ctx: &mut SpendContext,
-        recovery_did_list_hash: Bytes32,
+        recovery_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
         synthetic_key: PublicKey,
@@ -53,12 +53,12 @@ impl Launcher {
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
         Self: Sized,
     {
-        let inner_puzzle_hash = StandardArgs::curry_tree_hash(synthetic_key).into();
+        let p2_puzzle_hash = StandardArgs::curry_tree_hash(synthetic_key).into();
 
         let (create_did, did) = self.create_eve_did(
             ctx,
-            inner_puzzle_hash,
-            recovery_did_list_hash,
+            p2_puzzle_hash,
+            recovery_list_hash,
             num_verifications_required,
             metadata,
         )?;

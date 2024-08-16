@@ -237,7 +237,6 @@ impl SpendContext {
     {
         let p2_spend = extra_conditions
             .create_hinted_coin(
-                // DID layer does not automatically wrap create coin conditions.
                 did.info.inner_puzzle_hash().into(),
                 did.coin.amount,
                 did.info.p2_puzzle_hash,
