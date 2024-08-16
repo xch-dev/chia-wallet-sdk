@@ -21,12 +21,12 @@ keywords = ["chia", "wallet", "blockchain", "crypto"]
 categories = ["cryptography::cryptocurrencies", "development-tools"]
 
 [workspace.lints.rust]
+rust_2018_idioms = { level = "deny", priority = -1 }
+rust_2021_compatibility = { level = "deny", priority = -1 }
+future_incompatible = { level = "deny", priority = -1 }
+nonstandard_style = { level = "deny", priority = -1 }
 unsafe_code = "deny"
-rust_2018_idioms = "deny"
-rust_2021_compatibility = "deny"
-future_incompatible = "deny"
 non_ascii_idents = "deny"
-nonstandard_style = "deny"
 unused_extern_crates = "deny"
 trivial_casts = "deny"
 trivial_numeric_casts = "deny"
@@ -44,7 +44,7 @@ all = { level = "deny", priority = -1 }
 missing_crate_level_docs = "allow"
 
 [workspace.lints.clippy]
-all = "deny"
+all = { level = "deny", priority = -1 }
 cargo = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 too_many_lines = "allow"
