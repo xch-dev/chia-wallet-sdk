@@ -1,3 +1,5 @@
+use std::num::TryFromIntError;
+
 use chia_sdk_types::ConditionError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
@@ -40,11 +42,6 @@ pub enum DriverError {
     #[error("invalid singleton struct")]
     InvalidSingletonStruct,
 
-    #[error("mismatched singleton output (maybe no spend revealed the new singleton state)")]
-    MismatchedOutput,
-
-    #[error(
-        "missing puzzle (required to build innermost puzzle - usually fixed by using .with_puzzle)"
-    )]
-    MissingPuzzle,
+    #[error("try from int error")]
+    TryFromInt(#[from] TryFromIntError),
 }

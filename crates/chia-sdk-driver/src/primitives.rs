@@ -1,19 +1,23 @@
 mod cat;
+mod cat_spend;
 mod debug;
 mod did;
 mod did_info;
 mod did_launcher;
 mod intermediate_launcher;
+mod issue_cat;
 mod launcher;
 mod nft;
 mod nft_info;
 mod nft_launcher;
 
 pub use cat::*;
+pub use cat_spend::*;
 pub use debug::*;
 pub use did::*;
 pub use did_info::*;
 pub use intermediate_launcher::*;
+pub use issue_cat::*;
 pub use launcher::*;
 pub use nft::*;
 pub use nft_info::*;
