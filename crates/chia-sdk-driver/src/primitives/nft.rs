@@ -443,46 +443,33 @@ mod tests {
         let mut allocator = ctx.into();
 
         let puzzle_ptr = coin_spend.puzzle_reveal.to_clvm(&mut allocator)?;
-        coin_spend.solution.to_clvm(&mut allocator)?;
+        let solution_ptr = coin_spend.solution.to_clvm(&mut allocator)?;
 
-        let parsed_nft = SingletonLayer::<
-            NftStateLayer<NftMetadata, NftOwnershipLayer<RoyaltyTransferLayer, Puzzle>>,
-        >::parse_puzzle(&allocator, Puzzle::parse(&allocator, puzzle_ptr))?
+        let puzzle = Puzzle::parse(&allocator, puzzle_ptr);
+        let parsed_nft = Nft::<NftMetadata>::from_parent_spend(
+            &mut allocator,
+            parent,
+            puzzle,
+            solution_ptr,
+            nft.coin,
+        )?
         .unwrap();
 
         assert_eq!(
-            parsed_nft.singleton_struct.launcher_id,
+            parsed_nft.info.singleton_struct.launcher_id,
             nft.info.singleton_struct.launcher_id
         );
-        assert_eq!(parsed_nft.inner_puzzle.metadata, nft.info.metadata);
+        assert_eq!(parsed_nft.info.metadata, nft.info.metadata);
+        assert_eq!(parsed_nft.info.current_owner, nft.info.current_owner);
         assert_eq!(
-            parsed_nft.inner_puzzle.inner_puzzle.current_owner,
-            nft.info.current_owner
-        );
-        assert_eq!(
-            parsed_nft
-                .inner_puzzle
-                .inner_puzzle
-                .transfer_layer
-                .royalty_puzzle_hash,
+            parsed_nft.info.royalty_puzzle_hash,
             nft.info.royalty_puzzle_hash
         );
         assert_eq!(
-            parsed_nft
-                .inner_puzzle
-                .inner_puzzle
-                .transfer_layer
-                .royalty_ten_thousandths,
+            parsed_nft.info.royalty_ten_thousandths,
             nft.info.royalty_ten_thousandths
         );
-        assert_eq!(
-            parsed_nft
-                .inner_puzzle
-                .inner_puzzle
-                .inner_puzzle
-                .curried_puzzle_hash(),
-            nft.info.p2_puzzle_hash.into()
-        );
+        assert_eq!(parsed_nft.info.p2_puzzle_hash, nft.info.p2_puzzle_hash);
 
         Ok(())
     }
