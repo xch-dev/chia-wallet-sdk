@@ -11,7 +11,6 @@ use chia_sdk_driver::{Nft, SpendContext, SpendError};
 use chia_sdk_types::{announcement_id, AssertPuzzleAnnouncement};
 use clvm_traits::ToClvm;
 use clvm_utils::{CurriedProgram, ToTreeHash};
-use clvmr::NodePtr;
 use indexmap::IndexMap;
 
 use crate::Offer;

@@ -27,7 +27,7 @@ impl Launcher {
             recovery_list_hash,
             num_verifications_required,
             metadata,
-            p2_puzzle_hash.into(),
+            p2_puzzle_hash,
         );
 
         let (launch_singleton, eve_coin) =

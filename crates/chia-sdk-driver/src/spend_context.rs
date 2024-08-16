@@ -20,7 +20,6 @@ use chia_puzzles::{
         SINGLETON_TOP_LAYER_PUZZLE_HASH,
     },
     standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
-    Proof,
 };
 use chia_sdk_types::NewNftOwner;
 use clvm_traits::{FromClvm, ToClvm};
@@ -241,7 +240,7 @@ impl SpendContext {
                 // DID layer does not automatically wrap create coin conditions.
                 did.info.inner_puzzle_hash().into(),
                 did.coin.amount,
-                did.info.p2_puzzle_hash.into(),
+                did.info.p2_puzzle_hash,
             )
             .p2_spend(self, synthetic_key)?;
 
@@ -255,19 +254,17 @@ impl SpendContext {
     pub fn spend_standard_nft<M>(
         &mut self,
         nft: &Nft<M>,
-        lineage_proof: Proof,
         synthetic_key: PublicKey,
         p2_puzzle_hash: Bytes32,
         new_nft_owner: Option<NewNftOwner>,
         extra_conditions: Conditions,
-    ) -> Result<(Conditions, Nft<M>, Proof), DriverError>
+    ) -> Result<(Conditions, Nft<M>), DriverError>
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
         if let Some(new_nft_owner) = new_nft_owner {
-            let (cs, conds, new_nft, lp) = nft.transfer_to_did(
+            let (cs, conds, new_nft) = nft.transfer_to_did(
                 self,
-                lineage_proof,
                 synthetic_key,
                 p2_puzzle_hash,
                 &new_nft_owner,
@@ -275,19 +272,13 @@ impl SpendContext {
             )?;
 
             self.insert_coin_spend(cs);
-            return Ok((conds, new_nft, lp));
+            return Ok((conds, new_nft));
         }
 
-        let (cs, new_nft, lp) = nft.transfer(
-            self,
-            lineage_proof,
-            synthetic_key,
-            p2_puzzle_hash,
-            extra_conditions,
-        )?;
+        let (cs, new_nft) = nft.transfer(self, synthetic_key, p2_puzzle_hash, extra_conditions)?;
 
         self.insert_coin_spend(cs);
-        Ok((Conditions::new(), new_nft, lp))
+        Ok((Conditions::new(), new_nft))
     }
 }
 

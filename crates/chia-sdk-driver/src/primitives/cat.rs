@@ -33,7 +33,7 @@ impl Cat {
     }
 
     /// Creates a coin spend for this CAT.
-    #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
@@ -70,12 +70,13 @@ impl Cat {
     pub fn child_lineage_proof(&self) -> LineageProof {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.p2_puzzle_hash.into(),
+            parent_inner_puzzle_hash: self.p2_puzzle_hash,
             parent_amount: self.coin.amount,
         }
     }
 
     /// Creates a wrapped spendable CAT for a given output.
+    #[must_use]
     pub fn wrapped_child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
         let puzzle_hash = CatArgs::curry_tree_hash(self.asset_id, p2_puzzle_hash.into());
         Self {

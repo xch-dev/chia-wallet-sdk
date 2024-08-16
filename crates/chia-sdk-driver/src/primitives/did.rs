@@ -40,7 +40,6 @@ impl<M> Did<M> {
     }
 
     /// Creates a coin spend for this DID.
-    #[must_use]
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
@@ -71,12 +70,13 @@ impl<M> Did<M> {
     pub fn child_lineage_proof(&self) -> LineageProof {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.info.p2_puzzle_hash.into(),
+            parent_inner_puzzle_hash: self.info.p2_puzzle_hash,
             parent_amount: self.coin.amount,
         }
     }
 
     /// Creates a new spendable DID for the child, with no modifications.
+    #[must_use]
     pub fn recreate_self(&self) -> Self
     where
         M: Clone,
@@ -140,8 +140,7 @@ where
         let Some(hint) = create_coin
             .memos
             .into_iter()
-            .filter_map(|memo| memo.try_into().ok())
-            .next()
+            .find_map(|memo| memo.try_into().ok())
         else {
             return Err(DriverError::MissingHint);
         };

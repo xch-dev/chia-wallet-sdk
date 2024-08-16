@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::{EveProof, Proof};
+use chia_puzzles::{singleton::SingletonStruct, EveProof, Proof};
 use chia_sdk_types::{Condition, NewNftOwner};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
@@ -24,25 +24,22 @@ impl Launcher {
         metadata: M,
         royalty_puzzle_hash: Bytes32,
         royalty_ten_thousandths: u16,
-    ) -> Result<(Conditions, Nft<M>, Proof), DriverError>
+    ) -> Result<(Conditions, Nft<M>), DriverError>
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
         let launcher_coin = self.coin();
-
-        let nft = Nft {
-            launcher_id: launcher_coin.coin_id(),
-            coin: launcher_coin,
-            p2_puzzle_hash: p2_puzzle_hash.into(),
+        let nft_info = NftInfo::new(
+            SingletonStruct::new(launcher_coin.coin_id()),
             metadata,
-            current_owner: None,
+            None,
             royalty_puzzle_hash,
             royalty_ten_thousandths,
-            p2_puzzle: None,
-        };
+            p2_puzzle_hash,
+        );
 
         let (launch_singleton, eve_coin) = self
-            .spend(ctx, nft.singleton_inner_puzzle_hash().into(), ())
+            .spend(ctx, nft_info.inner_puzzle_hash().into(), ())
             .map_err(DriverError::Spend)?;
 
         let proof = Proof::Eve(EveProof {
@@ -52,8 +49,7 @@ impl Launcher {
 
         Ok((
             launch_singleton.create_puzzle_announcement(launcher_coin.coin_id().to_vec().into()),
-            nft.with_coin(eve_coin),
-            proof,
+            Nft::new(eve_coin, proof, nft_info),
         ))
     }
 
@@ -61,7 +57,7 @@ impl Launcher {
         self,
         ctx: &mut SpendContext,
         mint: NftMint<M>,
-    ) -> Result<(Conditions, Nft<M>, Proof), DriverError>
+    ) -> Result<(Conditions, Nft<M>), DriverError>
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
@@ -76,7 +72,7 @@ impl Launcher {
         let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
         let inner_spend = Spend::new(inner_puzzle, NodePtr::NIL);
 
-        let (mint_eve_nft, eve_nft, eve_proof) = self.mint_eve_nft(
+        let (mint_eve_nft, eve_nft) = self.mint_eve_nft(
             ctx,
             inner_puzzle_hash,
             mint.metadata,
@@ -84,7 +80,7 @@ impl Launcher {
             mint.royalty_percentage,
         )?;
 
-        let (eve_spend, _, lineage_proof) = eve_nft.spend(ctx, eve_proof, inner_spend)?;
+        let eve_spend = eve_nft.spend(ctx, inner_spend)?;
         ctx.insert_coin_spend(eve_spend.clone());
 
         let mut did_conditions = Conditions::new();
@@ -98,9 +94,7 @@ impl Launcher {
 
         Ok((
             mint_eve_nft.extend(did_conditions),
-            Nft::from_parent_spend(ctx.allocator_mut(), &eve_spend)?
-                .ok_or(DriverError::MissingChild)?,
-            lineage_proof,
+            eve_nft.create_child(mint.puzzle_hash, Some(mint.owner.did_id)),
         ))
     }
 }
@@ -108,7 +102,7 @@ impl Launcher {
 #[cfg(test)]
 pub use tests::nft_mint;
 
-use super::Nft;
+use super::{Nft, NftInfo};
 
 #[cfg(test)]
 mod tests {
@@ -168,7 +162,7 @@ mod tests {
         ctx.take_spends();
 
         let coin = Coin::new(Bytes32::new([1; 32]), puzzle_hash, 1);
-        let (mint_nft, _nft, _) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
+        let (mint_nft, _nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
             .create(ctx)?
             .mint_nft(ctx, nft_mint(puzzle_hash, None))?;
         let _did = ctx.spend_standard_did(
@@ -257,7 +251,7 @@ mod tests {
 
         let (create_launcher, launcher) = Launcher::create_early(intermediate_coin.coin_id(), 1);
 
-        let (mint_nft, _nft, _) = launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
+        let (mint_nft, _nft) = launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
         let _did_info = ctx.spend_standard_did(&did, pk, mint_nft.create_coin(puzzle_hash, 0))?;
 
@@ -288,7 +282,7 @@ mod tests {
 
         let (create_launcher, launcher) = Launcher::create_early(intermediate_coin.coin_id(), 1);
 
-        let (mint_nft, _nft_info, _) = launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
+        let (mint_nft, _nft_info) = launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
         let did =
             ctx.spend_standard_did(&did, pk, Conditions::new().create_coin(puzzle_hash, 0))?;
