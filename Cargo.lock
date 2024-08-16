@@ -385,7 +385,6 @@ dependencies = [
  "clvmr",
  "futures-channel",
  "futures-util",
- "hex-literal",
  "indexmap",
  "itertools",
  "log",
