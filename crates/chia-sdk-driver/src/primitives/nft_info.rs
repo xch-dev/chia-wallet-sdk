@@ -1,11 +1,19 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::nft::{
-    NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs,
-    NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
+use chia_puzzles::{
+    nft::{
+        NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs,
+        NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
+    },
+    singleton::SingletonStruct,
 };
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 
-#[derive(Debug, Clone, Copy)]
+use crate::{NftOwnershipLayer, NftStateLayer, RoyaltyTransferLayer, SingletonLayer};
+
+pub type NftLayers<M, I> =
+    SingletonLayer<NftStateLayer<M, NftOwnershipLayer<RoyaltyTransferLayer, I>>>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NftInfo<M> {
     pub launcher_id: Bytes32,
     pub metadata: M,
@@ -35,6 +43,56 @@ impl<M> NftInfo<M> {
             royalty_ten_thousandths,
             p2_puzzle_hash,
         }
+    }
+
+    /// Converts the raw puzzle layers into NFT info.
+    pub fn from_layers<I>(layers: NftLayers<M, I>) -> Self
+    where
+        I: ToTreeHash,
+    {
+        Self {
+            launcher_id: layers.launcher_id,
+            metadata: layers.inner_puzzle.metadata,
+            metadata_updater_puzzle_hash: layers.inner_puzzle.metadata_updater_puzzle_hash,
+            current_owner: layers.inner_puzzle.inner_puzzle.current_owner,
+            royalty_puzzle_hash: layers
+                .inner_puzzle
+                .inner_puzzle
+                .transfer_layer
+                .royalty_puzzle_hash,
+            royalty_ten_thousandths: layers
+                .inner_puzzle
+                .inner_puzzle
+                .transfer_layer
+                .royalty_ten_thousandths,
+            p2_puzzle_hash: layers
+                .inner_puzzle
+                .inner_puzzle
+                .inner_puzzle
+                .tree_hash()
+                .into(),
+        }
+    }
+
+    /// Converts the NFT into a layered puzzle.
+    #[must_use]
+    pub fn to_layers<I>(self, p2_puzzle: I) -> NftLayers<M, I> {
+        SingletonLayer::new(
+            self.launcher_id,
+            NftStateLayer::new(
+                self.metadata,
+                self.metadata_updater_puzzle_hash,
+                NftOwnershipLayer::new(
+                    self.current_owner,
+                    RoyaltyTransferLayer::new(
+                        SingletonStruct::new(self.launcher_id),
+                        self.royalty_puzzle_hash,
+                        self.royalty_ten_thousandths,
+                    ),
+                    p2_puzzle,
+                ),
+            ),
+        )
     }
 
     pub fn inner_puzzle_hash(&self) -> TreeHash

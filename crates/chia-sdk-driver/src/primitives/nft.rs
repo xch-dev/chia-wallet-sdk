@@ -2,7 +2,7 @@ use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
     nft::{NftOwnershipLayerSolution, NftStateLayerSolution},
-    singleton::{SingletonArgs, SingletonSolution, SingletonStruct},
+    singleton::{SingletonArgs, SingletonSolution},
     LineageProof, Proof,
 };
 use chia_sdk_types::{
@@ -19,10 +19,14 @@ use crate::{
 
 use super::NftInfo;
 
+/// Everything that is required to spend an NFT coin.
 #[derive(Debug, Clone, Copy)]
 pub struct Nft<M> {
+    /// The coin that holds this NFT.
     pub coin: Coin,
+    /// The lineage proof for the singleton.
     pub proof: Proof,
+    /// The info associated with the NFT, including the metadata.
     pub info: NftInfo<M>,
 }
 
@@ -34,33 +38,6 @@ where
         Nft { coin, proof, info }
     }
 
-    /// Converts the NFT into a layered puzzle.
-    #[must_use]
-    pub fn to_layers<I>(
-        &self,
-        p2_puzzle: I,
-    ) -> SingletonLayer<NftStateLayer<M, NftOwnershipLayer<RoyaltyTransferLayer, I>>>
-    where
-        M: Clone,
-    {
-        SingletonLayer::new(
-            self.info.launcher_id,
-            NftStateLayer::new(
-                self.info.metadata.clone(),
-                self.info.metadata_updater_puzzle_hash,
-                NftOwnershipLayer::new(
-                    self.info.current_owner,
-                    RoyaltyTransferLayer::new(
-                        SingletonStruct::new(self.info.launcher_id),
-                        self.info.royalty_puzzle_hash,
-                        self.info.royalty_ten_thousandths,
-                    ),
-                    p2_puzzle,
-                ),
-            ),
-        )
-    }
-
     /// Creates a coin spend for this NFT.
     pub fn spend(
         &self,
@@ -70,7 +47,7 @@ where
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
-        let layers = self.to_layers(inner_spend.puzzle);
+        let layers = self.info.clone().to_layers(inner_spend.puzzle);
 
         let puzzle_ptr = layers.construct_puzzle(ctx)?;
         let solution_ptr = layers.construct_solution(
@@ -257,25 +234,27 @@ where
             return Err(DriverError::MissingChild);
         };
 
-        let (metadata, metadata_updater_puzzle_hash) = if let Some(new_metadata) = new_metadata {
+        let mut layers = SingletonLayer::new(singleton_layer.launcher_id, inner_layers);
+
+        if let Some(new_owner) = new_owner {
+            layers.inner_puzzle.inner_puzzle.current_owner = new_owner.did_id;
+        }
+
+        if let Some(new_metadata) = new_metadata {
             let output = run_puzzle(
                 allocator,
                 new_metadata.metadata_updater_reveal,
                 new_metadata.metadata_updater_solution,
             )?;
 
-            let output = NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)?;
+            let output =
+                NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)?.metadata_part;
+            layers.inner_puzzle.metadata = output.new_metadata;
+            layers.inner_puzzle.metadata_updater_puzzle_hash = output.new_metadata_updater_puzhash;
+        }
 
-            (
-                output.metadata_part.new_metadata,
-                output.metadata_part.new_metadata_updater_puzhash,
-            )
-        } else {
-            (
-                inner_layers.metadata,
-                inner_layers.metadata_updater_puzzle_hash,
-            )
-        };
+        let mut info = NftInfo::from_layers(layers);
+        info.p2_puzzle_hash = create_coin.puzzle_hash;
 
         Ok(Some(Self {
             coin,
@@ -284,20 +263,7 @@ where
                 parent_inner_puzzle_hash: singleton_layer.inner_puzzle.curried_puzzle_hash().into(),
                 parent_amount: parent_coin.amount,
             }),
-            info: NftInfo::new(
-                singleton_layer.launcher_id,
-                metadata,
-                metadata_updater_puzzle_hash,
-                new_owner.map_or(inner_layers.inner_puzzle.current_owner, |new_owner| {
-                    new_owner.did_id
-                }),
-                inner_layers.inner_puzzle.transfer_layer.royalty_puzzle_hash,
-                inner_layers
-                    .inner_puzzle
-                    .transfer_layer
-                    .royalty_ten_thousandths,
-                create_coin.puzzle_hash,
-            ),
+            info,
         }))
     }
 }
