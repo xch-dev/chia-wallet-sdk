@@ -8,34 +8,48 @@ use chia_sdk_types::{
     Condition, CreateCoin, CreateCoinAnnouncement, CreatePuzzleAnnouncement, ReserveFee,
 };
 
-use clvm_traits::{ClvmEncoder, ToClvm, ToClvmError};
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::CurriedProgram;
-use clvmr::{sha2::Sha256, NodePtr};
+use clvmr::{sha2::Sha256, Allocator, NodePtr};
 
 use crate::{Spend, SpendContext, SpendError};
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
 #[must_use]
-pub struct Conditions {
-    conditions: Vec<Condition>,
+#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
+#[clvm(transparent)]
+pub struct Conditions<T = NodePtr> {
+    conditions: Vec<Condition<T>>,
 }
 
-impl Conditions {
+impl<T> Default for Conditions<T> {
+    fn default() -> Self {
+        Self {
+            conditions: Vec::new(),
+        }
+    }
+}
+
+impl Conditions<NodePtr> {
     pub fn new() -> Self {
         Self::default()
     }
+}
 
-    pub fn condition(mut self, condition: Condition) -> Self {
+impl<T> Conditions<T> {
+    pub fn condition(mut self, condition: Condition<T>) -> Self {
         self.conditions.push(condition);
         self
     }
 
-    pub fn conditions(mut self, conditions: &[Condition]) -> Self {
+    pub fn conditions(mut self, conditions: &[Condition<T>]) -> Self
+    where
+        T: Clone,
+    {
         self.conditions.extend_from_slice(conditions);
         self
     }
 
-    pub fn extend(mut self, conditions: impl IntoIterator<Item = Condition>) -> Self {
+    pub fn extend(mut self, conditions: impl IntoIterator<Item = Condition<T>>) -> Self {
         self.conditions.extend(conditions);
         self
     }
@@ -150,7 +164,10 @@ impl Conditions {
         self,
         ctx: &mut SpendContext,
         synthetic_key: PublicKey,
-    ) -> Result<Spend, SpendError> {
+    ) -> Result<Spend, SpendError>
+    where
+        T: ToClvm<Allocator>,
+    {
         let standard_puzzle = ctx.standard_puzzle()?;
 
         let puzzle = ctx.alloc(&CurriedProgram {
@@ -164,28 +181,18 @@ impl Conditions {
     }
 }
 
-impl AsRef<[Condition]> for Conditions {
-    fn as_ref(&self) -> &[Condition] {
+impl<T> AsRef<[Condition<T>]> for Conditions<T> {
+    fn as_ref(&self) -> &[Condition<T>] {
         &self.conditions
     }
 }
 
-impl IntoIterator for Conditions {
-    type Item = Condition;
-    type IntoIter = std::vec::IntoIter<Condition>;
+impl<T> IntoIterator for Conditions<T> {
+    type Item = Condition<T>;
+    type IntoIter = std::vec::IntoIter<Condition<T>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.conditions.into_iter()
-    }
-}
-
-impl<E> ToClvm<E> for Conditions
-where
-    E: ClvmEncoder<Node = NodePtr>,
-    NodePtr: ToClvm<E>,
-{
-    fn to_clvm(&self, encoder: &mut E) -> Result<NodePtr, ToClvmError> {
-        self.conditions.to_clvm(encoder)
     }
 }
 
