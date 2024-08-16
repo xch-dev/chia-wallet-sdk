@@ -5,7 +5,9 @@ use chia_puzzles::{
     singleton::{SingletonArgs, SingletonSolution, SingletonStruct},
     LineageProof, Proof,
 };
-use chia_sdk_types::{run_puzzle, Condition, CreateCoin, NewNftOwner};
+use chia_sdk_types::{
+    run_puzzle, Condition, CreateCoin, NewMetadataCondition, NewMetadataOutput, NewNftOwner,
+};
 use clvm_traits::{clvm_list, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::{sha2::Sha256, Allocator, NodePtr};
@@ -231,6 +233,7 @@ where
 
         let mut create_coin = None;
         let mut new_owner = None;
+        let mut new_metadata = None;
 
         for condition in conditions {
             match condition {
@@ -238,10 +241,13 @@ where
                     create_coin = Some(condition);
                 }
                 Condition::Other(condition) => {
-                    let Ok(condition) = NewNftOwner::from_clvm(allocator, condition) else {
-                        continue;
-                    };
-                    new_owner = Some(condition);
+                    if let Ok(condition) = NewNftOwner::from_clvm(allocator, condition) {
+                        new_owner = Some(condition);
+                    } else if let Ok(condition) =
+                        NewMetadataCondition::<NodePtr, NodePtr>::from_clvm(allocator, condition)
+                    {
+                        new_metadata = Some(condition);
+                    }
                 }
                 _ => {}
             }
@@ -249,6 +255,26 @@ where
 
         let Some(create_coin) = create_coin else {
             return Err(DriverError::MissingChild);
+        };
+
+        let (metadata, metadata_updater_puzzle_hash) = if let Some(new_metadata) = new_metadata {
+            let output = run_puzzle(
+                allocator,
+                new_metadata.metadata_updater_reveal,
+                new_metadata.metadata_updater_solution,
+            )?;
+
+            let output = NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)?;
+
+            (
+                output.metadata_part.new_metadata,
+                output.metadata_part.new_metadata_updater_puzhash,
+            )
+        } else {
+            (
+                inner_layers.metadata,
+                inner_layers.metadata_updater_puzzle_hash,
+            )
         };
 
         Ok(Some(Self {
@@ -260,8 +286,8 @@ where
             }),
             info: NftInfo::new(
                 singleton_layer.launcher_id,
-                inner_layers.metadata,
-                inner_layers.metadata_updater_puzzle_hash,
+                metadata,
+                metadata_updater_puzzle_hash,
                 new_owner.map_or(inner_layers.inner_puzzle.current_owner, |new_owner| {
                     new_owner.did_id
                 }),

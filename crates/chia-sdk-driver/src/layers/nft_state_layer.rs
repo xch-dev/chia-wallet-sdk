@@ -1,6 +1,5 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::nft::{NftStateLayerArgs, NftStateLayerSolution, NFT_STATE_LAYER_PUZZLE_HASH};
-use chia_sdk_types::{run_puzzle, NewMetadataCondition, NewMetadataOutput};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -9,8 +8,12 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug)]
 pub struct NftStateLayer<M, I> {
+    /// The NFT metadata. The standard metadata type is [`NftMetadata`](chia_puzzles::nft::NftMetadata).
     pub metadata: M,
+    /// The tree hash of the metadata updater puzzle.
     pub metadata_updater_puzzle_hash: Bytes32,
+    /// The inner puzzle layer. Typically, this is the [`NftOwnershipLayer`](crate::NftOwnershipLayer).
+    /// However, for the NFT0 standard this can be the p2 layer itself.
     pub inner_puzzle: I,
 }
 
@@ -112,42 +115,5 @@ where
             },
         }
         .tree_hash()
-    }
-}
-
-impl<M, IP> NftStateLayer<M, IP>
-where
-    M: FromClvm<Allocator>,
-{
-    pub fn new_metadata_and_updater_from_conditions(
-        allocator: &mut Allocator,
-        inner_layer_puzzle: NodePtr,
-        inner_layer_solution: NodePtr,
-    ) -> Result<Option<(M, Bytes32)>, DriverError> {
-        let output = run_puzzle(allocator, inner_layer_puzzle, inner_layer_solution)?;
-
-        let conditions = Vec::<NodePtr>::from_clvm(allocator, output)?;
-
-        for condition in conditions {
-            let condition =
-                NewMetadataCondition::<NodePtr, NodePtr>::from_clvm(allocator, condition);
-
-            if let Ok(condition) = condition {
-                let output = run_puzzle(
-                    allocator,
-                    condition.metadata_updater_reveal,
-                    condition.metadata_updater_solution,
-                )?;
-
-                let output = NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)?;
-
-                return Ok(Some((
-                    output.metadata_part.new_metadata,
-                    output.metadata_part.new_metadata_updater_puzhash,
-                )));
-            }
-        }
-
-        Ok(None)
     }
 }

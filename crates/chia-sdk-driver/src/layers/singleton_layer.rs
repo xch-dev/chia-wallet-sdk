@@ -11,7 +11,9 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug)]
 pub struct SingletonLayer<I> {
+    /// The unique launcher id for the singleton. Also referred to as the singleton id.
     pub launcher_id: Bytes32,
+    /// The inner puzzle layer. For singletons, this determines the actual behavior of the coin.
     pub inner_puzzle: I,
 }
 

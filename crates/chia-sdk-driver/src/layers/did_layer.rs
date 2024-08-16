@@ -9,22 +9,18 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
-/// The DID `Layer` keeps track of metadata and handles recovery capabilities.
-/// It's typically an inner layer of the [`SingletonLayer`].
-///
-/// [`SingletonLayer`]: crate::SingletonLayer
+/// The DID [`Layer`] keeps track of metadata and handles recovery capabilities.
+/// It's typically an inner layer of the [`SingletonLayer`](crate::SingletonLayer).
 #[derive(Debug)]
 pub struct DidLayer<M, I> {
-    /// The unique launcher id for the DID.
-    /// Also referred to as the DID id.
+    /// The unique launcher id for the DID. Also referred to as the DID id.
     pub launcher_id: Bytes32,
     /// The tree hash of a list of recovery DIDs.
     /// Note that this is currently *not* optional, but will be in the future.
     pub recovery_list_hash: Bytes32,
     /// The number of verifications required to recover the DID.
     pub num_verifications_required: u64,
-    /// Metadata associated with the DID.
-    /// This is often just `()` for DIDs without metadata.
+    /// Metadata associated with the DID. This is often just `()` for DIDs without metadata.
     pub metadata: M,
     /// The inner puzzle layer, commonly used for determining ownership.
     pub inner_puzzle: I,
