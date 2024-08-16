@@ -12,6 +12,7 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 pub struct NftInfo<M> {
     pub singleton_struct: SingletonStruct,
     pub metadata: M,
+    pub metadata_updater_puzzle_hash: Bytes32,
     pub current_owner: Option<Bytes32>,
     pub royalty_puzzle_hash: Bytes32,
     pub royalty_ten_thousandths: u16,
@@ -22,6 +23,7 @@ impl<M> NftInfo<M> {
     pub fn new(
         singleton_struct: SingletonStruct,
         metadata: M,
+        metadata_updater_puzzle_hash: Bytes32,
         current_owner: Option<Bytes32>,
         royalty_puzzle_hash: Bytes32,
         royalty_ten_thousandths: u16,
@@ -30,6 +32,7 @@ impl<M> NftInfo<M> {
         Self {
             singleton_struct,
             metadata,
+            metadata_updater_puzzle_hash,
             current_owner,
             royalty_puzzle_hash,
             royalty_ten_thousandths,

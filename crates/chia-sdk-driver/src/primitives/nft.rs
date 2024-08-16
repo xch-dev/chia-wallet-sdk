@@ -45,6 +45,7 @@ where
             self.info.singleton_struct,
             NftStateLayer::new(
                 self.info.metadata.clone(),
+                self.info.metadata_updater_puzzle_hash,
                 NftOwnershipLayer::new(
                     self.info.current_owner,
                     RoyaltyTransferLayer::new(
@@ -268,6 +269,7 @@ where
             info: NftInfo::new(
                 singleton_layer.singleton_struct,
                 inner_layers.metadata,
+                inner_layers.metadata_updater_puzzle_hash,
                 new_owner.map_or(inner_layers.inner_puzzle.current_owner, |new_owner| {
                     new_owner.did_id
                 }),
@@ -309,7 +311,10 @@ mod tests {
     use super::*;
 
     use chia_bls::DerivableKey;
-    use chia_puzzles::{nft::NftMetadata, standard::StandardArgs};
+    use chia_puzzles::{
+        nft::{NftMetadata, NFT_METADATA_UPDATER_PUZZLE_HASH},
+        standard::StandardArgs,
+    };
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
 
     #[tokio::test]
@@ -420,6 +425,7 @@ mod tests {
             &mut ctx,
             NftMint {
                 metadata: NftMetadata::default(),
+                metadata_updater_puzzle_hash: NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
                 royalty_ten_thousandths: 300,
                 royalty_puzzle_hash: Bytes32::new([1; 32]),
                 p2_puzzle_hash: puzzle_hash,

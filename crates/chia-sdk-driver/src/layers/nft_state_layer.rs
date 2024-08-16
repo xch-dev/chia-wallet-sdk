@@ -10,13 +10,15 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 #[derive(Debug)]
 pub struct NftStateLayer<M, I> {
     pub metadata: M,
+    pub metadata_updater_puzzle_hash: Bytes32,
     pub inner_puzzle: I,
 }
 
 impl<M, I> NftStateLayer<M, I> {
-    pub fn new(metadata: M, inner_puzzle: I) -> Self {
+    pub fn new(metadata: M, metadata_updater_puzzle_hash: Bytes32, inner_puzzle: I) -> Self {
         Self {
             metadata,
+            metadata_updater_puzzle_hash,
             inner_puzzle,
         }
     }
@@ -52,6 +54,7 @@ where
 
         Ok(Some(Self {
             metadata: args.metadata,
+            metadata_updater_puzzle_hash: args.metadata_updater_puzzle_hash,
             inner_puzzle,
         }))
     }
@@ -69,7 +72,12 @@ where
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let curried = CurriedProgram {
             program: ctx.nft_state_layer()?,
-            args: NftStateLayerArgs::new(&self.metadata, self.inner_puzzle.construct_puzzle(ctx)?),
+            args: NftStateLayerArgs {
+                mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                metadata: &self.metadata,
+                metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+                inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
+            },
         };
         Ok(ctx.alloc(&curried)?)
     }
@@ -94,7 +102,16 @@ where
     fn tree_hash(&self) -> TreeHash {
         let metadata_hash = self.metadata.tree_hash();
         let inner_puzzle_hash = self.inner_puzzle.tree_hash();
-        NftStateLayerArgs::curry_tree_hash(metadata_hash, inner_puzzle_hash)
+        CurriedProgram {
+            program: NFT_STATE_LAYER_PUZZLE_HASH,
+            args: NftStateLayerArgs {
+                mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                metadata: metadata_hash,
+                metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+                inner_puzzle: inner_puzzle_hash,
+            },
+        }
+        .tree_hash()
     }
 }
 

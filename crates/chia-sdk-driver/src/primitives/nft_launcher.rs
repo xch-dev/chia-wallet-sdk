@@ -10,6 +10,7 @@ use crate::{did_puzzle_assertion, Conditions, DriverError, Launcher, Spend, Spen
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NftMint<M> {
     pub metadata: M,
+    pub metadata_updater_puzzle_hash: Bytes32,
     pub royalty_puzzle_hash: Bytes32,
     pub royalty_ten_thousandths: u16,
     pub p2_puzzle_hash: Bytes32,
@@ -22,6 +23,7 @@ impl Launcher {
         ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
         metadata: M,
+        metadata_updater_puzzle_hash: Bytes32,
         royalty_puzzle_hash: Bytes32,
         royalty_ten_thousandths: u16,
     ) -> Result<(Conditions, Nft<M>), DriverError>
@@ -32,6 +34,7 @@ impl Launcher {
         let nft_info = NftInfo::new(
             SingletonStruct::new(launcher_coin.coin_id()),
             metadata,
+            metadata_updater_puzzle_hash,
             None,
             royalty_puzzle_hash,
             royalty_ten_thousandths,
@@ -76,6 +79,7 @@ impl Launcher {
             ctx,
             p2_puzzle_hash,
             mint.metadata,
+            mint.metadata_updater_puzzle_hash,
             mint.royalty_puzzle_hash,
             mint.royalty_ten_thousandths,
         )?;
@@ -115,7 +119,10 @@ mod tests {
         solution_generator::solution_generator,
     };
     use chia_protocol::Coin;
-    use chia_puzzles::{nft::NftMetadata, standard::StandardArgs};
+    use chia_puzzles::{
+        nft::{NftMetadata, NFT_METADATA_UPDATER_PUZZLE_HASH},
+        standard::StandardArgs,
+    };
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
     use chia_sdk_types::MAINNET_CONSTANTS;
 
@@ -131,6 +138,7 @@ mod tests {
                 license_uris: vec!["https://example.com/license".to_string()],
                 license_hash: Some(Bytes32::new([3; 32])),
             },
+            metadata_updater_puzzle_hash: NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
             royalty_puzzle_hash: Bytes32::new([4; 32]),
             royalty_ten_thousandths: 300,
             p2_puzzle_hash,
