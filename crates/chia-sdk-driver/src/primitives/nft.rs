@@ -489,3 +489,65 @@ mod tests {
         Ok(())
     }
 }
+
+/*
+fn from_parent_spend(
+        allocator: &mut Allocator,
+        layer_puzzle: NodePtr,
+        layer_solution: NodePtr,
+    ) -> Result<Option<Self>, DriverError> {
+        let parent_puzzle = Puzzle::parse(allocator, layer_puzzle);
+
+        let Some(parent_puzzle) = parent_puzzle.as_curried() else {
+            return Ok(None);
+        };
+
+        if parent_puzzle.mod_hash != NFT_OWNERSHIP_LAYER_PUZZLE_HASH {
+            return Ok(None);
+        }
+
+        let parent_args =
+            NftOwnershipLayerArgs::<NodePtr, NodePtr>::from_clvm(allocator, parent_puzzle.args)
+                .map_err(DriverError::FromClvm)?;
+
+        if parent_args.mod_hash != NFT_OWNERSHIP_LAYER_PUZZLE_HASH.into() {
+            return Err(DriverError::InvalidModHash);
+        }
+
+        let parent_sol = NftOwnershipLayerSolution::<NodePtr>::from_clvm(allocator, layer_solution)
+            .map_err(DriverError::FromClvm)?;
+
+        let new_owner_maybe = NftOwnershipLayer::<IP>::new_owner_from_conditions(
+            allocator,
+            parent_args.inner_puzzle,
+            parent_sol.inner_solution,
+        )?;
+
+        let Some(parent_transfer_puzzle) =
+            Puzzle::parse(allocator, parent_args.transfer_program).as_curried()
+        else {
+            return Err(DriverError::NonStandardLayer);
+        };
+
+        if parent_transfer_puzzle.mod_hash != NFT_ROYALTY_TRANSFER_PUZZLE_HASH {
+            return Err(DriverError::NonStandardLayer);
+        }
+
+        let parent_transfer_args =
+            NftRoyaltyTransferPuzzleArgs::from_clvm(allocator, parent_transfer_puzzle.args)?;
+
+        match IP::from_parent_spend(
+            allocator,
+            parent_args.inner_puzzle,
+            parent_sol.inner_solution,
+        )? {
+            None => Ok(None),
+            Some(inner_puzzle) => Ok(Some(NftOwnershipLayer::<IP> {
+                launcher_id: parent_transfer_args.singleton_struct.launcher_id,
+                current_owner: new_owner_maybe.unwrap_or(parent_args.current_owner),
+                royalty_puzzle_hash: parent_transfer_args.royalty_puzzle_hash,
+                royalty_ten_thousandths: parent_transfer_args.royalty_ten_thousandths,
+                inner_puzzle,
+            })),
+        }
+    } */

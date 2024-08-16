@@ -1,10 +1,10 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{
     did::{DidArgs, DidSolution, DID_INNER_PUZZLE_HASH},
-    singleton::SingletonStruct,
+    singleton::{SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
 };
-use clvm_traits::{ClvmEncoder, FromClvm, ToClvm, ToClvmError};
-use clvm_utils::{CurriedProgram, TreeHash};
+use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
@@ -53,6 +53,12 @@ where
         }
 
         let args = DidArgs::<NodePtr, M>::from_clvm(allocator, puzzle.args)?;
+
+        if args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
+            || args.singleton_struct.launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
+        {
+            return Err(DriverError::InvalidSingletonStruct);
+        }
 
         let Some(inner_puzzle) =
             I::parse_puzzle(allocator, Puzzle::parse(allocator, args.inner_puzzle))?
@@ -113,24 +119,20 @@ where
     }
 }
 
-impl<E, M, I> ToClvm<E> for DidLayer<M, I>
+impl<M, I> ToTreeHash for DidLayer<M, I>
 where
-    M: ToClvm<E>,
-    I: ToClvm<E>,
-    TreeHash: ToClvm<E>,
-    E: ClvmEncoder<Node = TreeHash>,
+    M: ToTreeHash,
+    I: ToTreeHash,
 {
-    fn to_clvm(&self, encoder: &mut E) -> Result<TreeHash, ToClvmError> {
-        CurriedProgram {
-            program: DID_INNER_PUZZLE_HASH,
-            args: DidArgs::new(
-                &self.inner_puzzle,
-                self.recovery_list_hash,
-                self.num_verifications_required,
-                SingletonStruct::new(self.launcher_id),
-                &self.metadata,
-            ),
-        }
-        .to_clvm(encoder)
+    fn tree_hash(&self) -> TreeHash {
+        let inner_puzzle_hash = self.inner_puzzle.tree_hash();
+        let metadata_hash = self.metadata.tree_hash();
+        DidArgs::curry_tree_hash(
+            inner_puzzle_hash,
+            self.recovery_list_hash,
+            self.num_verifications_required,
+            SingletonStruct::new(self.launcher_id),
+            metadata_hash,
+        )
     }
 }

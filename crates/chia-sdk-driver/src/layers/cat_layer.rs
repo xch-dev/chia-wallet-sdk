@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::cat::{CatArgs, CatSolution, CAT_PUZZLE_HASH};
-use clvm_traits::{ClvmEncoder, FromClvm, ToClvm, ToClvmError};
-use clvm_utils::{CurriedProgram, TreeHash};
+use clvm_traits::FromClvm;
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
@@ -99,17 +99,12 @@ where
     }
 }
 
-impl<E, I> ToClvm<E> for CatLayer<I>
+impl<I> ToTreeHash for CatLayer<I>
 where
-    I: ToClvm<E>,
-    TreeHash: ToClvm<E>,
-    E: ClvmEncoder<Node = TreeHash>,
+    I: ToTreeHash,
 {
-    fn to_clvm(&self, encoder: &mut E) -> Result<TreeHash, ToClvmError> {
-        CurriedProgram {
-            program: CAT_PUZZLE_HASH,
-            args: CatArgs::new(self.asset_id, &self.inner_puzzle),
-        }
-        .to_clvm(encoder)
+    fn tree_hash(&self) -> TreeHash {
+        let inner_puzzle_hash = self.inner_puzzle.tree_hash();
+        CatArgs::curry_tree_hash(self.asset_id, inner_puzzle_hash)
     }
 }
