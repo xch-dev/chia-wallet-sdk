@@ -1,7 +1,7 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
 use chia_puzzles::standard::{StandardArgs, StandardSolution};
-use chia_sdk_types::conditions::{
+use chia_sdk_types::{
     AssertBeforeHeightAbsolute, AssertBeforeHeightRelative, AssertBeforeSecondsAbsolute,
     AssertBeforeSecondsRelative, AssertCoinAnnouncement, AssertHeightAbsolute,
     AssertHeightRelative, AssertPuzzleAnnouncement, AssertSecondsAbsolute, AssertSecondsRelative,
@@ -209,13 +209,7 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, Conditions::new().create_coin(puzzle_hash, 1))?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }

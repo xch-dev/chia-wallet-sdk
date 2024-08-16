@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes, Bytes32, CoinSpend};
-use chia_sdk_types::conditions::{
+use chia_sdk_types::{
     announcement_id, AssertCoinAnnouncement, AssertPuzzleAnnouncement, CreateCoinAnnouncement,
     CreatePuzzleAnnouncement,
 };

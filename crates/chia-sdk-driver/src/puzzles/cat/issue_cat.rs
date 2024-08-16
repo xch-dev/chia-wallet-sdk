@@ -7,7 +7,7 @@ use chia_puzzles::{
     },
     CoinProof, LineageProof,
 };
-use chia_sdk_types::conditions::RunTail;
+use chia_sdk_types::RunTail;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::CurriedProgram;
 use clvmr::Allocator;
@@ -153,13 +153,7 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -181,13 +175,7 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }

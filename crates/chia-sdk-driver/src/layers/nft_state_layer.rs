@@ -1,6 +1,6 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::nft::{NftStateLayerArgs, NftStateLayerSolution, NFT_STATE_LAYER_PUZZLE_HASH};
-use chia_sdk_types::conditions::run_puzzle;
+use chia_sdk_types::run_puzzle;
 use clvm_traits::{apply_constants, FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};

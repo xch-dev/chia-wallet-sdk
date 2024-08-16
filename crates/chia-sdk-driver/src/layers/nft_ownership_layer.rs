@@ -6,7 +6,7 @@ use chia_puzzles::{
     },
     singleton::SingletonStruct,
 };
-use chia_sdk_types::conditions::{run_puzzle, NewNftOwner};
+use chia_sdk_types::{run_puzzle, NewNftOwner};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};

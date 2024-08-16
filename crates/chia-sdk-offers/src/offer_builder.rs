@@ -8,7 +8,7 @@ use chia_puzzles::{
 };
 use chia_sdk_driver::{Nft, SpendContext, SpendError};
 
-use chia_sdk_types::conditions::{announcement_id, AssertPuzzleAnnouncement};
+use chia_sdk_types::{announcement_id, AssertPuzzleAnnouncement};
 use clvm_traits::ToClvm;
 use clvm_utils::{CurriedProgram, ToTreeHash};
 use clvmr::NodePtr;
@@ -243,11 +243,7 @@ mod tests {
         )?;
 
         let coin_spends = ctx.take_spends();
-        let signature = sign_transaction(
-            &coin_spends,
-            &[a_secret_key],
-            sim.config().genesis_challenge,
-        )?;
+        let signature = sign_transaction(&coin_spends, &[a_secret_key], &sim.config().constants)?;
         let a_offer = partial_offer
             .make_payments()
             .finish(coin_spends, signature)?;
@@ -270,11 +266,7 @@ mod tests {
         )?;
 
         let coin_spends = ctx.take_spends();
-        let signature = sign_transaction(
-            &coin_spends,
-            &[b_secret_key],
-            sim.config().genesis_challenge,
-        )?;
+        let signature = sign_transaction(&coin_spends, &[b_secret_key], &sim.config().constants)?;
         let b_offer = partial_offer
             .make_payments()
             .finish(coin_spends, signature)?;

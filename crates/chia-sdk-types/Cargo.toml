@@ -17,11 +17,13 @@ workspace = true
 [dependencies]
 chia-bls = { workspace = true }
 chia-protocol = { workspace = true }
+chia-consensus = { workspace = true }
 clvm-traits = { workspace = true }
 clvmr = { workspace = true }
 thiserror = { workspace = true }
+hex-literal = { workspace = true }
+once_cell = { workspace = true }
 
 [dev-dependencies]
 hex = { workspace = true }
-hex-literal = { workspace = true }
 anyhow = { workspace = true }

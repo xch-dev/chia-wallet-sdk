@@ -3,7 +3,7 @@ use chia_puzzles::{
     cat::{CatArgs, CatSolution},
     CoinProof, LineageProof,
 };
-use chia_sdk_types::conditions::{run_puzzle, Condition};
+use chia_sdk_types::{run_puzzle, Condition};
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 

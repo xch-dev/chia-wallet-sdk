@@ -5,15 +5,12 @@ use chia_puzzles::{
     standard::DEFAULT_HIDDEN_PUZZLE_HASH,
     LineageProof, Proof,
 };
-use chia_sdk_types::conditions::{Condition, CreateCoin, NewNftOwner};
+use chia_sdk_types::{Condition, CreateCoin, NewNftOwner};
 use clvm_traits::{clvm_list, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{sha2::Sha256, Allocator, NodePtr};
 
-use crate::{
-    Conditions, DriverError, Layer, NftOwnershipLayer, NftStateLayer, SingletonLayer,
-    SingletonLayerSolution, Spend, SpendContext, TransparentLayer,
-};
+use crate::{Conditions, DriverError, NftOwnershipLayer, NftStateLayer, SingletonLayer, Spend};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Nft<M = NodePtr> {
@@ -353,13 +350,7 @@ mod tests {
 
         let _did_info = ctx.spend_standard_did(&did, did_proof, pk, parent_conditions)?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -410,13 +401,7 @@ mod tests {
             (did, did_proof) = ctx.spend_standard_did(&did, did_proof, pk, spend_nft)?;
         }
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         let coin_state = sim
             .coin_state(did.coin.coin_id())

@@ -1,6 +1,6 @@
 use chia_protocol::{Coin, CoinSpend};
 use chia_puzzles::{did::DidSolution, LineageProof, Proof};
-use chia_sdk_types::conditions::{run_puzzle, Condition};
+use chia_sdk_types::{run_puzzle, Condition};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHasher};
 use clvmr::{Allocator, NodePtr};
@@ -167,22 +167,15 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 1).await;
 
-        let (create_did, mut did, mut did_proof) =
-            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, mut did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
         for _ in 0..10 {
-            (did, did_proof) = ctx.spend_standard_did(&did, did_proof, pk, Conditions::new())?;
+            did = ctx.spend_standard_did(&did, pk, Conditions::new())?;
         }
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         let coin_state = sim
             .coin_state(did.coin.coin_id())

@@ -1,72 +1,27 @@
-use chia_protocol::{Bytes32, Coin};
-use chia_puzzles::{
-    singleton::{
-        SingletonArgs, SingletonSolution, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH,
-        SINGLETON_TOP_LAYER_PUZZLE_HASH,
-    },
-    LineageProof, Proof,
+use chia_protocol::Bytes32;
+use chia_puzzles::singleton::{
+    SingletonArgs, SingletonSolution, SINGLETON_LAUNCHER_PUZZLE_HASH,
+    SINGLETON_TOP_LAYER_PUZZLE_HASH,
 };
-use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
+use clvm_traits::{ClvmEncoder, FromClvm, ToClvm, ToClvmError};
+use clvm_utils::{CurriedProgram, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug)]
-pub struct SingletonLayer<IP> {
+pub struct SingletonLayer<I> {
     pub launcher_id: Bytes32,
-    pub inner_puzzle: IP,
+    pub inner_puzzle: I,
 }
 
-impl<IP> Layer for SingletonLayer<IP>
+impl<I> Layer for SingletonLayer<I>
 where
-    IP: Layer,
+    I: Layer,
 {
-    type Solution = SingletonSolution<IP::Solution>;
+    type Solution = SingletonSolution<I::Solution>;
 
-    fn from_parent_spend(
-        allocator: &mut Allocator,
-        layer_puzzle: NodePtr,
-        layer_solution: NodePtr,
-    ) -> Result<Option<Self>, DriverError> {
-        let parent_puzzle = Puzzle::parse(allocator, layer_puzzle);
-
-        let Some(parent_puzzle) = parent_puzzle.as_curried() else {
-            return Ok(None);
-        };
-
-        if parent_puzzle.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH {
-            return Ok(None);
-        }
-
-        let parent_args = SingletonArgs::<NodePtr>::from_clvm(allocator, parent_puzzle.args)
-            .map_err(DriverError::FromClvm)?;
-
-        if parent_args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
-            || parent_args.singleton_struct.launcher_puzzle_hash
-                != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
-        {
-            return Err(DriverError::InvalidSingletonStruct);
-        }
-
-        let solution = SingletonSolution::<NodePtr>::from_clvm(allocator, layer_solution)
-            .map_err(DriverError::FromClvm)?;
-
-        match IP::from_parent_spend(allocator, parent_args.inner_puzzle, solution.inner_solution)? {
-            None => Ok(None),
-            Some(inner_puzzle) => Ok(Some(SingletonLayer::<IP> {
-                launcher_id: parent_args.singleton_struct.launcher_id,
-                inner_puzzle,
-            })),
-        }
-    }
-
-    fn from_puzzle(
-        allocator: &mut Allocator,
-        layer_puzzle: NodePtr,
-    ) -> Result<Option<Self>, DriverError> {
-        let puzzle = Puzzle::parse(allocator, layer_puzzle);
-
+    fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
         let Some(puzzle) = puzzle.as_curried() else {
             return Ok(None);
         };
@@ -75,8 +30,7 @@ where
             return Ok(None);
         }
 
-        let args = SingletonArgs::<NodePtr>::from_clvm(allocator, puzzle.args)
-            .map_err(DriverError::FromClvm)?;
+        let args = SingletonArgs::<NodePtr>::from_clvm(allocator, puzzle.args)?;
 
         if args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
             || args.singleton_struct.launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
@@ -84,101 +38,66 @@ where
             return Err(DriverError::InvalidSingletonStruct);
         }
 
-        match IP::from_puzzle(allocator, args.inner_puzzle)? {
-            None => Ok(None),
-            Some(inner_puzzle) => Ok(Some(SingletonLayer::<IP> {
-                launcher_id: args.singleton_struct.launcher_id,
-                inner_puzzle,
-            })),
-        }
-    }
-
-    fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        CurriedProgram {
-            program: ctx.singleton_top_layer().map_err(DriverError::Spend)?,
-            args: SingletonArgs {
-                singleton_struct: SingletonStruct {
-                    mod_hash: SINGLETON_TOP_LAYER_PUZZLE_HASH.into(),
-                    launcher_puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-                    launcher_id: self.launcher_id,
-                },
-                inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
-            },
-        }
-        .to_clvm(ctx.allocator_mut())
-        .map_err(DriverError::ToClvm)
-    }
-}
-
-impl<IP> ToTreeHash for SingletonLayer<IP>
-where
-    IP: ToTreeHash,
-{
-    fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: SINGLETON_TOP_LAYER_PUZZLE_HASH,
-            args: SingletonArgs {
-                singleton_struct: SingletonStruct {
-                    mod_hash: SINGLETON_TOP_LAYER_PUZZLE_HASH.into(),
-                    launcher_puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-                    launcher_id: self.launcher_id,
-                },
-                inner_puzzle: self.inner_puzzle.tree_hash(),
-            },
-        }
-        .tree_hash()
-    }
-}
-
-impl<IP> SingletonLayer<IP>
-where
-    IP: ToTreeHash,
-{
-    pub fn inner_puzzle_hash(&self) -> TreeHash {
-        self.inner_puzzle.tree_hash()
-    }
-
-    pub fn lineage_proof_for_child(
-        &self,
-        my_parent_name: Bytes32,
-        my_parent_amount: u64,
-    ) -> LineageProof {
-        LineageProof {
-            parent_parent_coin_info: my_parent_name,
-            parent_inner_puzzle_hash: self.inner_puzzle_hash().into(),
-            parent_amount: my_parent_amount,
-        }
-    }
-
-    pub fn lineage_proof_from_parent_spend(
-        allocator: &Allocator,
-        parent_coin: Coin,
-        parent_puzzle: NodePtr,
-    ) -> Result<Option<LineageProof>, DriverError> {
-        let parent_puzzle = Puzzle::parse(allocator, parent_puzzle);
-
-        let Some(parent_puzzle) = parent_puzzle.as_curried() else {
+        let Some(inner_puzzle) =
+            I::parse_puzzle(allocator, Puzzle::parse(allocator, args.inner_puzzle))?
+        else {
             return Ok(None);
         };
 
-        if parent_puzzle.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH {
-            return Ok(None);
-        }
-
-        let parent_args = SingletonArgs::<NodePtr>::from_clvm(allocator, parent_puzzle.args)
-            .map_err(DriverError::FromClvm)?;
-
-        if parent_args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
-            || parent_args.singleton_struct.launcher_puzzle_hash
-                != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
-        {
-            return Err(DriverError::InvalidSingletonStruct);
-        }
-
-        Ok(Some(LineageProof {
-            parent_parent_coin_info: parent_coin.parent_coin_info,
-            parent_inner_puzzle_hash: tree_hash(allocator, parent_args.inner_puzzle).into(),
-            parent_amount: parent_coin.amount,
+        Ok(Some(Self {
+            launcher_id: args.singleton_struct.launcher_id,
+            inner_puzzle,
         }))
+    }
+
+    fn parse_solution(
+        allocator: &Allocator,
+        solution: NodePtr,
+    ) -> Result<Self::Solution, DriverError> {
+        let solution = SingletonSolution::<NodePtr>::from_clvm(allocator, solution)?;
+        let inner_solution = I::parse_solution(allocator, solution.inner_solution)?;
+        Ok(SingletonSolution {
+            lineage_proof: solution.lineage_proof,
+            amount: solution.amount,
+            inner_solution,
+        })
+    }
+
+    fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
+        let curried = CurriedProgram {
+            program: ctx.singleton_top_layer()?,
+            args: SingletonArgs::new(self.launcher_id, self.inner_puzzle.construct_puzzle(ctx)?),
+        };
+        Ok(ctx.alloc(&curried)?)
+    }
+
+    fn construct_solution(
+        &self,
+        ctx: &mut SpendContext,
+        solution: Self::Solution,
+    ) -> Result<NodePtr, DriverError> {
+        let inner_solution = self
+            .inner_puzzle
+            .construct_solution(ctx, solution.inner_solution)?;
+        Ok(ctx.alloc(&SingletonSolution {
+            lineage_proof: solution.lineage_proof,
+            amount: solution.amount,
+            inner_solution,
+        })?)
+    }
+}
+
+impl<E, I> ToClvm<E> for SingletonLayer<I>
+where
+    I: ToClvm<E>,
+    TreeHash: ToClvm<E>,
+    E: ClvmEncoder<Node = TreeHash>,
+{
+    fn to_clvm(&self, encoder: &mut E) -> Result<TreeHash, ToClvmError> {
+        let inner_puzzle = self.inner_puzzle.to_clvm(encoder)?;
+        Ok(SingletonArgs::curry_tree_hash(
+            self.launcher_id,
+            inner_puzzle,
+        ))
     }
 }

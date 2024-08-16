@@ -1,8 +1,9 @@
 use chia_bls::PublicKey;
+use chia_consensus::consensus_constants::ConsensusConstants;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
-use chia_sdk_types::conditions::{puzzle_conditions, AggSig, AggSigKind, Condition};
+use chia_sdk_types::{puzzle_conditions, AggSig, AggSigKind, Condition};
 use clvm_traits::ToClvm;
-use clvmr::{sha2::Sha256, Allocator};
+use clvmr::Allocator;
 
 use crate::SignerError;
 
@@ -16,38 +17,37 @@ pub struct RequiredSignature {
 
 impl RequiredSignature {
     /// Converts a known [`AggSig`] condition to a `RequiredSignature` if possible.
-    pub fn from_condition(coin: &Coin, condition: AggSig, agg_sig_me: Bytes32) -> Self {
-        let mut hasher = Sha256::new();
-        hasher.update(agg_sig_me);
+    pub fn from_condition(coin: &Coin, condition: AggSig, constants: &ConsensusConstants) -> Self {
+        let domain_string;
 
         let public_key = condition.public_key;
         let message = condition.message;
 
         let appended_info = match condition.kind {
             AggSigKind::Parent => {
-                hasher.update([43]);
+                domain_string = constants.agg_sig_parent_additional_data;
                 coin.parent_coin_info.to_vec()
             }
             AggSigKind::Puzzle => {
-                hasher.update([44]);
+                domain_string = constants.agg_sig_puzzle_additional_data;
                 coin.puzzle_hash.to_vec()
             }
             AggSigKind::Amount => {
-                hasher.update([45]);
+                domain_string = constants.agg_sig_amount_additional_data;
                 u64_to_bytes(coin.amount)
             }
             AggSigKind::PuzzleAmount => {
-                hasher.update([46]);
+                domain_string = constants.agg_sig_puzzle_amount_additional_data;
                 let puzzle = coin.puzzle_hash;
                 [puzzle.to_vec(), u64_to_bytes(coin.amount)].concat()
             }
             AggSigKind::ParentAmount => {
-                hasher.update([47]);
+                domain_string = constants.agg_sig_parent_amount_additional_data;
                 let parent = coin.parent_coin_info;
                 [parent.to_vec(), u64_to_bytes(coin.amount)].concat()
             }
             AggSigKind::ParentPuzzle => {
-                hasher.update([48]);
+                domain_string = constants.agg_sig_parent_puzzle_additional_data;
                 [coin.parent_coin_info.to_vec(), coin.puzzle_hash.to_vec()].concat()
             }
             AggSigKind::Unsafe => {
@@ -59,12 +59,8 @@ impl RequiredSignature {
                 }
             }
             AggSigKind::Me => {
-                return Self {
-                    public_key,
-                    raw_message: message,
-                    appended_info: coin.coin_id().into(),
-                    domain_string: Some(agg_sig_me),
-                };
+                domain_string = constants.agg_sig_me_additional_data;
+                coin.coin_id().to_vec()
             }
         };
 
@@ -72,7 +68,7 @@ impl RequiredSignature {
             public_key,
             raw_message: message,
             appended_info,
-            domain_string: Some(Bytes32::new(hasher.finalize())),
+            domain_string: Some(domain_string),
         }
     }
 
@@ -82,7 +78,7 @@ impl RequiredSignature {
     pub fn from_coin_spend(
         allocator: &mut Allocator,
         coin_spend: &CoinSpend,
-        agg_sig_me: Bytes32,
+        constants: &ConsensusConstants,
     ) -> Result<Vec<Self>, SignerError> {
         let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
         let solution = coin_spend.solution.to_clvm(allocator)?;
@@ -99,7 +95,7 @@ impl RequiredSignature {
                 return Err(SignerError::InfinityPublicKey);
             }
 
-            result.push(Self::from_condition(&coin_spend.coin, agg_sig, agg_sig_me));
+            result.push(Self::from_condition(&coin_spend.coin, agg_sig, constants));
         }
 
         Ok(result)
@@ -111,11 +107,11 @@ impl RequiredSignature {
     pub fn from_coin_spends(
         allocator: &mut Allocator,
         coin_spends: &[CoinSpend],
-        agg_sig_me: Bytes32,
+        constants: &ConsensusConstants,
     ) -> Result<Vec<Self>, SignerError> {
         let mut required_signatures = Vec::new();
         for coin_spend in coin_spends {
-            required_signatures.extend(Self::from_coin_spend(allocator, coin_spend, agg_sig_me)?);
+            required_signatures.extend(Self::from_coin_spend(allocator, coin_spend, constants)?);
         }
         Ok(required_signatures)
     }
@@ -164,6 +160,7 @@ mod tests {
     use chia_bls::{master_to_wallet_unhardened, SecretKey};
     use chia_protocol::Bytes32;
     use chia_puzzles::DeriveSynthetic;
+    use chia_sdk_types::MAINNET_CONSTANTS;
     use hex_literal::hex;
 
     #[test]
@@ -243,7 +240,7 @@ mod tests {
         ];
 
         for (condition, appended_info, domain_string) in cases {
-            let required = RequiredSignature::from_condition(&coin, condition, agg_sig_data);
+            let required = RequiredSignature::from_condition(&coin, condition, &MAINNET_CONSTANTS);
 
             assert_eq!(required.public_key(), public_key);
             assert_eq!(required.raw_message(), message.as_ref());

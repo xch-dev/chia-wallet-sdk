@@ -3,7 +3,7 @@ use chia_puzzles::{
     cat::{CatArgs, CatSolution, CAT_PUZZLE_HASH},
     CoinProof, LineageProof,
 };
-use chia_sdk_types::conditions::CreateCoin;
+use chia_sdk_types::CreateCoin;
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
@@ -116,7 +116,7 @@ impl CatSpend {
 mod tests {
     use chia_puzzles::{cat::EverythingWithSignatureTailArgs, standard::StandardArgs};
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
-    use chia_sdk_types::conditions::{Condition, RunTail};
+    use chia_sdk_types::{Condition, RunTail};
 
     use crate::{issue_cat_from_coin, issue_cat_from_key, Conditions};
 
@@ -176,13 +176,7 @@ mod tests {
             )
             .finish(ctx)?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -219,13 +213,7 @@ mod tests {
             )
             .finish(ctx)?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -267,13 +255,7 @@ mod tests {
             .spend(cat_coin, inner_spend, issuance.lineage_proof, -3000)
             .finish(ctx)?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }

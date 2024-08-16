@@ -356,6 +356,7 @@ name = "chia-sdk-signer"
 version = "0.11.0"
 dependencies = [
  "chia-bls 0.11.0",
+ "chia-consensus",
  "chia-protocol",
  "chia-puzzles",
  "chia-sdk-types",
@@ -401,11 +402,13 @@ version = "0.11.0"
 dependencies = [
  "anyhow",
  "chia-bls 0.11.0",
+ "chia-consensus",
  "chia-protocol",
  "clvm-traits",
  "clvmr",
  "hex",
  "hex-literal",
+ "once_cell",
  "thiserror",
 ]
 
