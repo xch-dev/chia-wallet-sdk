@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{
     did::{DidArgs, DidSolution, DID_INNER_PUZZLE_HASH},
-    singleton::SingletonStruct,
+    singleton::{SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
@@ -61,6 +61,12 @@ where
         }
 
         let args = DidArgs::<NodePtr, M>::from_clvm(allocator, puzzle.args)?;
+
+        if args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
+            || args.singleton_struct.launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
+        {
+            return Err(DriverError::InvalidSingletonStruct);
+        }
 
         let Some(inner_puzzle) =
             I::parse_puzzle(allocator, Puzzle::parse(allocator, args.inner_puzzle))?

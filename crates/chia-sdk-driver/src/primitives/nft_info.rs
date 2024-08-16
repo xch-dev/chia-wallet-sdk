@@ -1,10 +1,7 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::{
-    nft::{
-        NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs,
-        NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
-    },
-    singleton::SingletonStruct,
+use chia_puzzles::nft::{
+    NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs,
+    NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
 };
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 
@@ -84,7 +81,7 @@ impl<M> NftInfo<M> {
                 NftOwnershipLayer::new(
                     self.current_owner,
                     RoyaltyTransferLayer::new(
-                        SingletonStruct::new(self.launcher_id),
+                        self.launcher_id,
                         self.royalty_puzzle_hash,
                         self.royalty_ten_thousandths,
                     ),
