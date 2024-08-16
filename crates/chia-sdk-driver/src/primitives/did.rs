@@ -1,5 +1,5 @@
 use chia_protocol::{Coin, CoinSpend};
-use chia_puzzles::{did::DidSolution, LineageProof, Proof};
+use chia_puzzles::{did::DidSolution, singleton::SingletonSolution, LineageProof, Proof};
 use chia_sdk_types::{run_puzzle, Condition};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHasher};
@@ -21,6 +21,24 @@ impl<M> Did<M> {
         Self { coin, proof, info }
     }
 
+    /// Converts the DID into a layered puzzle.
+    #[must_use]
+    pub fn to_layers<I>(&self, p2_puzzle: I) -> SingletonLayer<DidLayer<M, I>>
+    where
+        M: Clone,
+    {
+        SingletonLayer::new(
+            self.info.singleton_struct,
+            DidLayer::new(
+                self.info.singleton_struct,
+                self.info.recovery_list_hash,
+                self.info.num_verifications_required,
+                self.info.metadata.clone(),
+                p2_puzzle,
+            ),
+        )
+    }
+
     /// Creates a coin spend for this DID.
     #[must_use]
     pub fn spend(
@@ -29,19 +47,19 @@ impl<M> Did<M> {
         inner_spend: Spend,
     ) -> Result<CoinSpend, DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator>,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
-        let did_layer = DidLayer::new(
-            self.info.singleton_struct,
-            self.info.recovery_list_hash,
-            self.info.num_verifications_required,
-            ctx.alloc(&self.info.metadata)?,
-            inner_spend.puzzle,
-        );
+        let layers = self.to_layers(inner_spend.puzzle);
 
-        let puzzle_ptr = did_layer.construct_puzzle(ctx)?;
-        let solution_ptr =
-            did_layer.construct_solution(ctx, DidSolution::Spend(inner_spend.solution))?;
+        let puzzle_ptr = layers.construct_puzzle(ctx)?;
+        let solution_ptr = layers.construct_solution(
+            ctx,
+            SingletonSolution {
+                lineage_proof: self.proof,
+                amount: self.coin.amount,
+                inner_solution: DidSolution::Spend(inner_spend.solution),
+            },
+        )?;
 
         let puzzle = ctx.serialize(&puzzle_ptr)?;
         let solution = ctx.serialize(&solution_ptr)?;

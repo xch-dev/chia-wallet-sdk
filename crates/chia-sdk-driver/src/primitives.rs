@@ -6,6 +6,7 @@ mod did_launcher;
 mod intermediate_launcher;
 mod launcher;
 mod nft;
+mod nft_info;
 mod nft_launcher;
 
 pub use cat::*;
@@ -15,4 +16,5 @@ pub use did_info::*;
 pub use intermediate_launcher::*;
 pub use launcher::*;
 pub use nft::*;
+pub use nft_info::*;
 pub use nft_launcher::*;

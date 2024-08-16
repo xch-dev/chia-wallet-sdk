@@ -14,6 +14,15 @@ pub struct SingletonLayer<I> {
     pub inner_puzzle: I,
 }
 
+impl<I> SingletonLayer<I> {
+    pub fn new(singleton_struct: SingletonStruct, inner_puzzle: I) -> Self {
+        Self {
+            singleton_struct,
+            inner_puzzle,
+        }
+    }
+}
+
 impl<I> Layer for SingletonLayer<I>
 where
     I: Layer,

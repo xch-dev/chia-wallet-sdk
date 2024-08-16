@@ -15,6 +15,16 @@ pub struct NftOwnershipLayer<T, I> {
     pub inner_puzzle: I,
 }
 
+impl<T, I> NftOwnershipLayer<T, I> {
+    pub fn new(current_owner: Option<Bytes32>, transfer_layer: T, inner_puzzle: I) -> Self {
+        Self {
+            current_owner,
+            transfer_layer,
+            inner_puzzle,
+        }
+    }
+}
+
 impl<T, I> Layer for NftOwnershipLayer<T, I>
 where
     T: Layer,

@@ -18,6 +18,20 @@ pub struct RoyaltyTransferLayer {
     pub royalty_ten_thousandths: u16,
 }
 
+impl RoyaltyTransferLayer {
+    pub fn new(
+        singleton_struct: SingletonStruct,
+        royalty_puzzle_hash: Bytes32,
+        royalty_ten_thousandths: u16,
+    ) -> Self {
+        Self {
+            singleton_struct,
+            royalty_puzzle_hash,
+            royalty_ten_thousandths,
+        }
+    }
+}
+
 impl Layer for RoyaltyTransferLayer {
     type Solution = Infallible;
 

@@ -13,6 +13,15 @@ pub struct NftStateLayer<M, I> {
     pub inner_puzzle: I,
 }
 
+impl<M, I> NftStateLayer<M, I> {
+    pub fn new(metadata: M, inner_puzzle: I) -> Self {
+        Self {
+            metadata,
+            inner_puzzle,
+        }
+    }
+}
+
 impl<M, I> Layer for NftStateLayer<M, I>
 where
     M: ToClvm<Allocator> + FromClvm<Allocator>,
