@@ -69,10 +69,10 @@ pub enum Condition<T = NodePtr> {
 }
 
 macro_rules! into {
-    ( $name:ident -> $condition:ident ) => {
-        pub fn $name(self) -> Option<$condition> {
+    ( $name:ident -> $condition:ident $( < $generic:ident > )? ) => {
+        pub fn $name(self) -> Option<$condition $( <$generic> )? > {
             match self {
-                Condition::$condition(remark) => Some(remark),
+                Condition::$condition(condition) => Some(condition),
                 _ => None,
             }
         }
@@ -80,13 +80,7 @@ macro_rules! into {
 }
 
 impl<T> Condition<T> {
-    pub fn into_remark(self) -> Option<Remark<T>> {
-        match self {
-            Condition::Remark(remark) => Some(remark),
-            _ => None,
-        }
-    }
-
+    into!(into_remark -> Remark<T>);
     into!(into_agg_sig -> AggSig);
     into!(into_create_coin -> CreateCoin);
     into!(into_reserve_fee -> ReserveFee);
@@ -111,17 +105,11 @@ impl<T> Condition<T> {
     into!(into_assert_before_seconds_absolute -> AssertBeforeSecondsAbsolute);
     into!(into_assert_before_height_relative -> AssertBeforeHeightRelative);
     into!(into_assert_before_height_absolute -> AssertBeforeHeightAbsolute);
-
-    pub fn into_softfork(self) -> Option<Softfork<T>> {
-        match self {
-            Condition::Softfork(remark) => Some(remark),
-            _ => None,
-        }
-    }
+    into!(into_softfork -> Softfork<T>);
 
     pub fn into_other(self) -> Option<T> {
         match self {
-            Condition::Other(other) => Some(other),
+            Condition::Other(ptr) => Some(ptr),
             _ => None,
         }
     }
