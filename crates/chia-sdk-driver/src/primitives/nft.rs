@@ -445,18 +445,7 @@ mod tests {
         )?
         .unwrap();
 
-        assert_eq!(parsed_nft.info.launcher_id, nft.info.launcher_id);
-        assert_eq!(parsed_nft.info.metadata, nft.info.metadata);
-        assert_eq!(parsed_nft.info.current_owner, nft.info.current_owner);
-        assert_eq!(
-            parsed_nft.info.royalty_puzzle_hash,
-            nft.info.royalty_puzzle_hash
-        );
-        assert_eq!(
-            parsed_nft.info.royalty_ten_thousandths,
-            nft.info.royalty_ten_thousandths
-        );
-        assert_eq!(parsed_nft.info.p2_puzzle_hash, nft.info.p2_puzzle_hash);
+        assert_eq!(parsed_nft.info, nft.info);
 
         Ok(())
     }
