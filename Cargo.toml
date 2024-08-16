@@ -85,16 +85,16 @@ chia-sdk-offers = { version = "0.11.0", path = "./crates/chia-sdk-offers" }
 chia-sdk-signer = { version = "0.11.0", path = "./crates/chia-sdk-signer" }
 chia-sdk-test = { version = "0.11.0", path = "./crates/chia-sdk-test" }
 chia-sdk-types = { version = "0.11.0", path = "./crates/chia-sdk-types" }
-chia-ssl = "0.7.0"
-chia-protocol = "0.9.0"
-chia-consensus = "0.9.0"
-chia-client = "0.9.0"
-chia-traits = "0.9.0"
-chia-bls = "0.9.0"
-chia-puzzles = "0.9.0"
-clvm-traits = "0.9.0"
-clvm-utils = "0.9.0"
-clvmr = "0.7.0"
+chia-ssl = "0.11.0"
+chia-protocol = "0.11.0"
+chia-consensus = "0.12.0"
+chia-client = "0.11.0"
+chia-traits = "0.11.0"
+chia-bls = "0.11.0"
+chia-puzzles = "0.11.0"
+clvm-traits = "0.11.0"
+clvm-utils = "0.11.0"
+clvmr = "0.8.0"
 thiserror = "1.0.61"
 hex = "0.4.3"
 bech32 = "0.9.1"
@@ -112,3 +112,4 @@ tokio-tungstenite = { version = "0.21.0", features = ["native-tls"] }
 native-tls = "0.2.11"
 log = "0.4.21"
 flate2 = { version = "1.0.30", features = ["zlib"] }
+once_cell = "1.19.0"

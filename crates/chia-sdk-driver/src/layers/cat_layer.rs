@@ -1,65 +1,33 @@
-use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
+use chia_protocol::Bytes32;
 use chia_puzzles::cat::{CatArgs, CatSolution, CAT_PUZZLE_HASH};
-use clvm_traits::{FromClvm, FromNodePtr, ToNodePtr};
+use clvm_traits::FromClvm;
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, OuterPuzzleLayer, Puzzle, PuzzleLayer, SpendContext};
+use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug)]
-pub struct CatLayer<IP> {
+pub struct CatLayer<I> {
     pub asset_id: Bytes32,
-    pub inner_puzzle: IP,
+    pub inner_puzzle: I,
 }
 
-impl<IP> PuzzleLayer for CatLayer<IP>
-where
-    IP: PuzzleLayer,
-{
-    type Solution = CatSolution<IP::Solution>;
-
-    fn from_parent_spend(
-        allocator: &mut Allocator,
-        layer_puzzle: NodePtr,
-        layer_solution: NodePtr,
-    ) -> Result<Option<Self>, DriverError> {
-        let parent_puzzle = Puzzle::parse(allocator, layer_puzzle);
-
-        let Some(parent_puzzle) = parent_puzzle.as_curried() else {
-            return Ok(None);
-        };
-
-        if parent_puzzle.mod_hash != CAT_PUZZLE_HASH {
-            return Ok(None);
-        }
-
-        let parent_args = CatArgs::<NodePtr>::from_clvm(allocator, parent_puzzle.args)?;
-
-        if parent_args.mod_hash != CAT_PUZZLE_HASH.into() {
-            return Err(DriverError::InvalidModHash);
-        }
-
-        let parent_sol = CatSolution::<NodePtr>::from_clvm(allocator, layer_solution)?;
-
-        match IP::from_parent_spend(
-            allocator,
-            parent_args.inner_puzzle,
-            parent_sol.inner_puzzle_solution,
-        )? {
-            None => Ok(None),
-            Some(inner_puzzle) => Ok(Some(CatLayer::<IP> {
-                asset_id: parent_args.asset_id,
-                inner_puzzle,
-            })),
+impl<I> CatLayer<I> {
+    pub fn new(asset_id: Bytes32, inner_puzzle: I) -> Self {
+        Self {
+            asset_id,
+            inner_puzzle,
         }
     }
+}
 
-    fn from_puzzle(
-        allocator: &mut Allocator,
-        layer_puzzle: NodePtr,
-    ) -> Result<Option<Self>, DriverError> {
-        let puzzle = Puzzle::parse(allocator, layer_puzzle);
+impl<I> Layer for CatLayer<I>
+where
+    I: Layer,
+{
+    type Solution = CatSolution<I::Solution>;
 
+    fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
         let Some(puzzle) = puzzle.as_curried() else {
             return Ok(None);
         };
@@ -74,26 +42,41 @@ where
             return Err(DriverError::InvalidModHash);
         }
 
-        match IP::from_puzzle(allocator, args.inner_puzzle)? {
-            None => Ok(None),
-            Some(inner_puzzle) => Ok(Some(CatLayer::<IP> {
-                asset_id: args.asset_id,
-                inner_puzzle,
-            })),
-        }
+        let Some(inner_puzzle) =
+            I::parse_puzzle(allocator, Puzzle::parse(allocator, args.inner_puzzle))?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(Self {
+            asset_id: args.asset_id,
+            inner_puzzle,
+        }))
+    }
+
+    fn parse_solution(
+        allocator: &Allocator,
+        solution: NodePtr,
+    ) -> Result<Self::Solution, DriverError> {
+        let solution = CatSolution::<NodePtr>::from_clvm(allocator, solution)?;
+        let inner_solution = I::parse_solution(allocator, solution.inner_puzzle_solution)?;
+        Ok(CatSolution {
+            inner_puzzle_solution: inner_solution,
+            lineage_proof: solution.lineage_proof,
+            prev_coin_id: solution.prev_coin_id,
+            this_coin_info: solution.this_coin_info,
+            next_coin_proof: solution.next_coin_proof,
+            prev_subtotal: solution.prev_subtotal,
+            extra_delta: solution.extra_delta,
+        })
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        CurriedProgram {
-            program: ctx.cat_puzzle().map_err(DriverError::Spend)?,
-            args: CatArgs {
-                mod_hash: CAT_PUZZLE_HASH.into(),
-                asset_id: self.asset_id,
-                inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
-            },
-        }
-        .to_node_ptr(ctx.allocator_mut())
-        .map_err(DriverError::ToClvm)
+        let curried = CurriedProgram {
+            program: ctx.cat_puzzle()?,
+            args: CatArgs::new(self.asset_id, self.inner_puzzle.construct_puzzle(ctx)?),
+        };
+        Ok(ctx.alloc(&curried)?)
     }
 
     fn construct_solution(
@@ -101,55 +84,27 @@ where
         ctx: &mut SpendContext,
         solution: Self::Solution,
     ) -> Result<NodePtr, DriverError> {
-        CatSolution {
-            inner_puzzle_solution: self
-                .inner_puzzle
-                .construct_solution(ctx, solution.inner_puzzle_solution)?,
+        let inner_solution = self
+            .inner_puzzle
+            .construct_solution(ctx, solution.inner_puzzle_solution)?;
+        Ok(ctx.alloc(&CatSolution {
+            inner_puzzle_solution: inner_solution,
             lineage_proof: solution.lineage_proof,
             prev_coin_id: solution.prev_coin_id,
             this_coin_info: solution.this_coin_info,
             next_coin_proof: solution.next_coin_proof,
             prev_subtotal: solution.prev_subtotal,
             extra_delta: solution.extra_delta,
-        }
-        .to_node_ptr(ctx.allocator_mut())
-        .map_err(DriverError::ToClvm)
+        })?)
     }
 }
 
-impl<IP> ToTreeHash for CatLayer<IP>
+impl<I> ToTreeHash for CatLayer<I>
 where
-    IP: ToTreeHash,
+    I: ToTreeHash,
 {
     fn tree_hash(&self) -> TreeHash {
-        CatArgs::curry_tree_hash(self.asset_id, self.inner_puzzle.tree_hash())
-    }
-}
-
-impl<IP> OuterPuzzleLayer for CatLayer<IP>
-where
-    IP: PuzzleLayer,
-{
-    type Solution = CatSolution<IP::Solution>;
-
-    fn solve(
-        &self,
-        ctx: &mut SpendContext,
-        coin: Coin,
-        solution: Self::Solution,
-    ) -> Result<CoinSpend, DriverError> {
-        let puzzle_ptr = self.construct_puzzle(ctx)?;
-        let puzzle_reveal =
-            Program::from_node_ptr(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
-
-        let solution_ptr = self.construct_solution(ctx, solution)?;
-        let solution_reveal =
-            Program::from_node_ptr(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
-
-        Ok(CoinSpend {
-            coin,
-            puzzle_reveal,
-            solution: solution_reveal,
-        })
+        let inner_puzzle_hash = self.inner_puzzle.tree_hash();
+        CatArgs::curry_tree_hash(self.asset_id, inner_puzzle_hash)
     }
 }

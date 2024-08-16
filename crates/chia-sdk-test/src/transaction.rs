@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use chia_bls::{sign, PublicKey, SecretKey, Signature};
 use chia_client::Peer;
-use chia_protocol::{Bytes32, CoinSpend, SpendBundle, TransactionAck};
+use chia_consensus::consensus_constants::ConsensusConstants;
+use chia_protocol::{CoinSpend, SpendBundle, TransactionAck};
 use chia_sdk_signer::RequiredSignature;
 use clvmr::Allocator;
 use thiserror::Error;
@@ -14,12 +15,12 @@ pub struct KeyError;
 pub fn sign_transaction(
     coin_spends: &[CoinSpend],
     secret_keys: &[SecretKey],
-    agg_sig_me: Bytes32,
+    constants: &ConsensusConstants,
 ) -> anyhow::Result<Signature> {
     let mut allocator = Allocator::new();
 
     let required_signatures =
-        RequiredSignature::from_coin_spends(&mut allocator, coin_spends, agg_sig_me)?;
+        RequiredSignature::from_coin_spends(&mut allocator, coin_spends, constants)?;
 
     let key_pairs = secret_keys
         .iter()
@@ -40,9 +41,9 @@ pub async fn test_transaction_raw(
     peer: &Peer,
     coin_spends: Vec<CoinSpend>,
     secret_keys: &[SecretKey],
-    agg_sig_me: Bytes32,
+    constants: &ConsensusConstants,
 ) -> anyhow::Result<TransactionAck> {
-    let aggregated_signature = sign_transaction(&coin_spends, secret_keys, agg_sig_me)?;
+    let aggregated_signature = sign_transaction(&coin_spends, secret_keys, constants)?;
 
     Ok(peer
         .send_transaction(SpendBundle::new(coin_spends, aggregated_signature))
@@ -57,9 +58,9 @@ pub async fn test_transaction(
     peer: &Peer,
     coin_spends: Vec<CoinSpend>,
     secret_keys: &[SecretKey],
-    agg_sig_me: Bytes32,
+    constants: &ConsensusConstants,
 ) {
-    let ack = test_transaction_raw(peer, coin_spends, secret_keys, agg_sig_me)
+    let ack = test_transaction_raw(peer, coin_spends, secret_keys, constants)
         .await
         .expect("could not submit transaction");
 

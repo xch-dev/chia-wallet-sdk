@@ -3,75 +3,47 @@ use chia_puzzles::{
     did::{DidArgs, DidSolution, DID_INNER_PUZZLE_HASH},
     singleton::SingletonStruct,
 };
-use clvm_traits::ToNodePtr;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, Puzzle, PuzzleLayer, SpendContext};
+use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug)]
-pub struct DidLayer<M, IP> {
-    pub launcher_id: Bytes32,
-    pub recovery_did_list_hash: Bytes32,
+pub struct DidLayer<M, I> {
+    pub singleton_struct: SingletonStruct,
+    pub recovery_list_hash: Bytes32,
     pub num_verifications_required: u64,
     pub metadata: M,
-    pub inner_puzzle: IP,
+    pub inner_puzzle: I,
 }
 
-#[derive(Debug, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct DidLayerSolution<I> {
-    pub inner_solution: I,
-}
-
-impl<M, IP> PuzzleLayer for DidLayer<M, IP>
-where
-    IP: PuzzleLayer,
-    M: FromClvm<NodePtr> + ToClvm<NodePtr>,
-{
-    type Solution = DidLayerSolution<IP::Solution>;
-
-    fn from_parent_spend(
-        allocator: &mut Allocator,
-        layer_puzzle: NodePtr,
-        layer_solution: NodePtr,
-    ) -> Result<Option<Self>, DriverError> {
-        let parent_puzzle = Puzzle::parse(allocator, layer_puzzle);
-
-        let Some(parent_puzzle) = parent_puzzle.as_curried() else {
-            return Ok(None);
-        };
-
-        if parent_puzzle.mod_hash != DID_INNER_PUZZLE_HASH {
-            return Ok(None);
-        }
-
-        let parent_args = DidArgs::<NodePtr, M>::from_clvm(allocator, parent_puzzle.args)
-            .map_err(DriverError::FromClvm)?;
-
-        let DidSolution::InnerSpend(parent_inner_sol) =
-            DidSolution::<NodePtr>::from_clvm(allocator, layer_solution)
-                .map_err(DriverError::FromClvm)?;
-
-        match IP::from_parent_spend(allocator, parent_args.inner_puzzle, parent_inner_sol)? {
-            None => Ok(None),
-            Some(inner_puzzle) => Ok(Some(DidLayer::<M, IP> {
-                launcher_id: parent_args.singleton_struct.launcher_id,
-                recovery_did_list_hash: parent_args.recovery_did_list_hash,
-                num_verifications_required: parent_args.num_verifications_required,
-                metadata: parent_args.metadata,
-                inner_puzzle,
-            })),
+impl<M, I> DidLayer<M, I> {
+    pub fn new(
+        singleton_struct: SingletonStruct,
+        recovery_list_hash: Bytes32,
+        num_verifications_required: u64,
+        metadata: M,
+        inner_puzzle: I,
+    ) -> Self {
+        Self {
+            singleton_struct,
+            recovery_list_hash,
+            num_verifications_required,
+            metadata,
+            inner_puzzle,
         }
     }
+}
 
-    fn from_puzzle(
-        allocator: &mut Allocator,
-        layer_puzzle: NodePtr,
-    ) -> Result<Option<Self>, DriverError> {
-        let puzzle = Puzzle::parse(allocator, layer_puzzle);
+impl<M, I> Layer for DidLayer<M, I>
+where
+    I: Layer,
+    M: ToClvm<Allocator> + FromClvm<Allocator>,
+{
+    type Solution = DidSolution<I::Solution>;
 
+    fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
         let Some(puzzle) = puzzle.as_curried() else {
             return Ok(None);
         };
@@ -80,39 +52,48 @@ where
             return Ok(None);
         }
 
-        let args = DidArgs::<NodePtr, M>::from_clvm(allocator, puzzle.args)
-            .map_err(DriverError::FromClvm)?;
+        let args = DidArgs::<NodePtr, M>::from_clvm(allocator, puzzle.args)?;
 
-        match IP::from_puzzle(allocator, args.inner_puzzle)? {
-            None => Ok(None),
-            Some(inner_puzzle) => Ok(Some(DidLayer::<M, IP> {
-                launcher_id: args.singleton_struct.launcher_id,
-                recovery_did_list_hash: args.recovery_did_list_hash,
-                num_verifications_required: args.num_verifications_required,
-                metadata: args.metadata,
-                inner_puzzle,
-            })),
+        let Some(inner_puzzle) =
+            I::parse_puzzle(allocator, Puzzle::parse(allocator, args.inner_puzzle))?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(Self {
+            singleton_struct: args.singleton_struct,
+            recovery_list_hash: args.recovery_list_hash,
+            num_verifications_required: args.num_verifications_required,
+            metadata: args.metadata,
+            inner_puzzle,
+        }))
+    }
+
+    fn parse_solution(
+        allocator: &Allocator,
+        solution: NodePtr,
+    ) -> Result<Self::Solution, DriverError> {
+        match DidSolution::<NodePtr>::from_clvm(allocator, solution)? {
+            DidSolution::Spend(inner_solution) => {
+                let inner_solution = I::parse_solution(allocator, inner_solution)?;
+                Ok(DidSolution::Spend(inner_solution))
+            }
+            DidSolution::Recover(recovery) => Ok(DidSolution::Recover(recovery)),
         }
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        let metadata_ptr = self
-            .metadata
-            .to_node_ptr(ctx.allocator_mut())
-            .map_err(DriverError::ToClvm)?;
-
-        CurriedProgram {
-            program: ctx.did_inner_puzzle().map_err(DriverError::Spend)?,
-            args: DidArgs {
-                recovery_did_list_hash: self.recovery_did_list_hash,
-                num_verifications_required: self.num_verifications_required,
-                singleton_struct: SingletonStruct::new(self.launcher_id),
-                metadata: metadata_ptr,
-                inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
-            },
-        }
-        .to_node_ptr(ctx.allocator_mut())
-        .map_err(DriverError::ToClvm)
+        let curried = CurriedProgram {
+            program: ctx.did_inner_puzzle()?,
+            args: DidArgs::new(
+                self.inner_puzzle.construct_puzzle(ctx)?,
+                self.recovery_list_hash,
+                self.num_verifications_required,
+                self.singleton_struct,
+                &self.metadata,
+            ),
+        };
+        Ok(ctx.alloc(&curried)?)
     }
 
     fn construct_solution(
@@ -120,53 +101,32 @@ where
         ctx: &mut SpendContext,
         solution: Self::Solution,
     ) -> Result<NodePtr, DriverError> {
-        DidSolution::InnerSpend(
-            self.inner_puzzle
-                .construct_solution(ctx, solution.inner_solution)?,
-        )
-        .to_node_ptr(ctx.allocator_mut())
-        .map_err(DriverError::ToClvm)
+        match solution {
+            DidSolution::Spend(inner_solution) => {
+                let inner_solution = self.inner_puzzle.construct_solution(ctx, inner_solution)?;
+                Ok(ctx.alloc(&DidSolution::Spend(inner_solution))?)
+            }
+            DidSolution::Recover(recovery) => {
+                Ok(ctx.alloc(&DidSolution::<NodePtr>::Recover(recovery))?)
+            }
+        }
     }
 }
 
-impl<M, IP> ToTreeHash for DidLayer<M, IP>
+impl<M, I> ToTreeHash for DidLayer<M, I>
 where
-    IP: ToTreeHash,
     M: ToTreeHash,
+    I: ToTreeHash,
 {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: DID_INNER_PUZZLE_HASH,
-            args: DidArgs {
-                recovery_did_list_hash: self.recovery_did_list_hash,
-                num_verifications_required: self.num_verifications_required,
-                singleton_struct: SingletonStruct::new(self.launcher_id),
-                metadata: self.metadata.tree_hash(),
-                inner_puzzle: self.inner_puzzle.tree_hash(),
-            },
-        }
-        .tree_hash()
-    }
-}
-
-impl<M, IP> DidLayer<M, IP> {
-    pub fn wrap_inner_puzzle_hash(
-        launcher_id: Bytes32,
-        recovery_did_list_hash: Bytes32,
-        num_verifications_required: u64,
-        metadata_hash: TreeHash,
-        inner_puzzle_hash: TreeHash,
-    ) -> TreeHash {
-        CurriedProgram {
-            program: DID_INNER_PUZZLE_HASH,
-            args: DidArgs {
-                recovery_did_list_hash,
-                num_verifications_required,
-                singleton_struct: SingletonStruct::new(launcher_id),
-                metadata: metadata_hash,
-                inner_puzzle: inner_puzzle_hash,
-            },
-        }
-        .tree_hash()
+        let inner_puzzle_hash = self.inner_puzzle.tree_hash();
+        let metadata_hash = self.metadata.tree_hash();
+        DidArgs::curry_tree_hash(
+            inner_puzzle_hash,
+            self.recovery_list_hash,
+            self.num_verifications_required,
+            self.singleton_struct,
+            metadata_hash,
+        )
     }
 }

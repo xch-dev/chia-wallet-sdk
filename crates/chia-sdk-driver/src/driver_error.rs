@@ -1,4 +1,4 @@
-use chia_sdk_types::conditions::ConditionError;
+use chia_sdk_types::ConditionError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
 use thiserror::Error;
@@ -33,9 +33,6 @@ pub enum DriverError {
 
     #[error("missing child")]
     MissingChild,
-
-    #[error("missing CREATE_COIN condition in parent spend")]
-    MissingParentCreateCoin,
 
     #[error("missing hint")]
     MissingHint,

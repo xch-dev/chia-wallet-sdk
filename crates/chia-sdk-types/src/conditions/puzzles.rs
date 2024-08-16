@@ -118,3 +118,28 @@ impl NftTradePrice {
         }
     }
 }
+
+#[derive(ToClvm, FromClvm)]
+#[apply_constants]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[clvm(list)]
+pub struct NewMetadataCondition<P, S> {
+    #[clvm(constant = -24)]
+    pub opcode: i32,
+    pub metadata_updater_reveal: P,
+    pub metadata_updater_solution: S,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
+#[clvm(list)]
+pub struct NewMetadataInfo<M> {
+    pub new_metadata: M,
+    pub new_metadata_updater_puzhash: Bytes32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
+#[clvm(list)]
+pub struct NewMetadataOutput<M, C> {
+    pub metadata_part: NewMetadataInfo<M>,
+    pub conditions: C,
+}

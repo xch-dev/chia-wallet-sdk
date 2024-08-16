@@ -2,15 +2,15 @@ use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
     cat::{
-        CatArgs, CatSolution, CoinProof, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs,
+        CatArgs, CatSolution, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs,
         CAT_PUZZLE_HASH,
     },
-    LineageProof,
+    CoinProof, LineageProof,
 };
-use chia_sdk_types::conditions::RunTail;
+use chia_sdk_types::RunTail;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::CurriedProgram;
-use clvmr::NodePtr;
+use clvmr::Allocator;
 
 use crate::{Conditions, SpendContext, SpendError};
 
@@ -77,8 +77,8 @@ pub fn issue_cat<P, S>(
     extra_conditions: Conditions,
 ) -> Result<(Conditions, IssueCat), SpendError>
 where
-    P: ToClvm<NodePtr>,
-    S: ToClvm<NodePtr>,
+    P: ToClvm<Allocator>,
+    S: ToClvm<Allocator>,
 {
     let cat_puzzle_ptr = ctx.cat_puzzle()?;
 
@@ -119,7 +119,7 @@ where
     let issuance_info = IssueCat {
         asset_id,
         lineage_proof: LineageProof {
-            parent_parent_coin_id: eve_coin.parent_coin_info,
+            parent_parent_coin_info: eve_coin.parent_coin_info,
             parent_inner_puzzle_hash: inner_puzzle_hash,
             parent_amount: eve_coin.amount,
         },
@@ -153,13 +153,7 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -181,13 +175,7 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }

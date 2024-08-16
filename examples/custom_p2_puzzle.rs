@@ -74,8 +74,8 @@ impl CustomExt for SpendContext {
         conditions: Conditions,
     ) -> Result<(), SpendError> {
         let spend = conditions.custom_spend(self, public_key)?;
-        let puzzle_reveal = self.serialize(&spend.puzzle())?;
-        let solution = self.serialize(&spend.solution())?;
+        let puzzle_reveal = self.serialize(&spend.puzzle)?;
+        let solution = self.serialize(&spend.solution)?;
         self.insert_coin_spend(CoinSpend::new(coin, puzzle_reveal, solution));
         Ok(())
     }
@@ -139,7 +139,7 @@ async fn main() -> anyhow::Result<()> {
     // Sign and submit the transaction to the simulator.
     // This will produce an error if the transaction is not successful.
     let coin_spends = ctx.take_spends();
-    test_transaction(&peer, coin_spends, &[sk], sim.config().genesis_challenge).await;
+    test_transaction(&peer, coin_spends, &[sk], &sim.config().constants).await;
 
     println!("Transaction was successful.");
 

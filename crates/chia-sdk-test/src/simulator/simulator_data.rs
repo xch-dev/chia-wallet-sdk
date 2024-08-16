@@ -11,10 +11,7 @@ use chia_consensus::gen::{
 };
 use chia_protocol::{Bytes32, Coin, CoinState, PuzzleSolutionResponse, SpendBundle};
 use chia_sdk_signer::RequiredSignature;
-use clvmr::{
-    sha2::{Digest, Sha256},
-    Allocator, NodePtr,
-};
+use clvmr::{sha2::Sha256, Allocator, NodePtr};
 use indexmap::{IndexMap, IndexSet};
 use tokio::sync::MutexGuard;
 
@@ -46,7 +43,7 @@ impl SimulatorData {
     pub(crate) fn header_hash(&self, height: u32) -> Bytes32 {
         let mut hasher = Sha256::new();
         hasher.update(height.to_be_bytes());
-        Bytes32::new(hasher.finalize().into())
+        Bytes32::new(hasher.finalize())
     }
 
     pub(crate) fn height(&self) -> u32 {
@@ -152,15 +149,16 @@ pub(crate) fn new_transaction(
             .map(|spend| (spend.coin, spend.puzzle_reveal, spend.solution)),
     )?;
 
-    let conds = run_block_generator::<&[u8], EmptyVisitor>(
+    let conds = run_block_generator::<&[u8], EmptyVisitor, _>(
         &mut allocator,
         &generator,
-        &[],
+        [],
         max_cost,
         MEMPOOL_MODE,
+        &config.constants,
     )?;
 
-    let conds = OwnedSpendBundleConditions::from(&allocator, conds)?;
+    let conds = OwnedSpendBundleConditions::from(&allocator, conds);
 
     let puzzle_hashes: HashSet<Bytes32> =
         conds.spends.iter().map(|spend| spend.puzzle_hash).collect();
@@ -181,7 +179,7 @@ pub(crate) fn new_transaction(
     let required_signatures = RequiredSignature::from_coin_spends(
         &mut allocator,
         &spend_bundle.coin_spends,
-        config.genesis_challenge,
+        &config.constants,
     )?;
 
     if !aggregate_verify(

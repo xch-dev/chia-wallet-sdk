@@ -17,6 +17,7 @@ workspace = true
 [dependencies]
 chia-bls = { workspace = true }
 chia-protocol = { workspace = true }
+chia-consensus = { workspace = true }
 clvm-traits = { workspace = true }
 clvmr = { workspace = true }
 thiserror = { workspace = true }

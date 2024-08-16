@@ -1,89 +1,78 @@
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
-use chia_puzzles::{standard::StandardArgs, EveProof, Proof};
-use clvm_traits::{FromClvm, ToClvm, ToNodePtr};
-use clvm_utils::{tree_hash_atom, CurriedProgram, ToTreeHash};
-use clvmr::NodePtr;
+use chia_puzzles::{singleton::SingletonStruct, standard::StandardArgs, EveProof, Proof};
+use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{tree_hash_atom, ToTreeHash};
+use clvmr::Allocator;
 
 use crate::{Conditions, DriverError, Launcher, SpendContext, SpendError};
 
-use super::Did;
+use super::{Did, DidInfo};
 
 impl Launcher {
     pub fn create_eve_did<M>(
         self,
         ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
-        p2_puzzle: Option<NodePtr>,
-        recovery_did_list_hash: Bytes32,
+        recovery_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
-    ) -> Result<(Conditions, Did<M>, Proof), SpendError>
+    ) -> Result<(Conditions, Did<M>), SpendError>
     where
-        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
     {
         let launcher_coin = self.coin();
-        let did = Did::new(
-            self.coin(), // fake coin to get inner ph
-            launcher_coin.coin_id(),
-            recovery_did_list_hash,
+        let did_info = DidInfo::new(
+            SingletonStruct::new(launcher_coin.coin_id()),
+            recovery_list_hash,
             num_verifications_required,
             metadata,
-            p2_puzzle_hash.into(),
-            p2_puzzle,
+            p2_puzzle_hash,
         );
 
-        let inner_puzzle_hash = did.singleton_inner_puzzle_hash().into();
-
-        let (launch_singleton, eve_coin) = self.spend(ctx, inner_puzzle_hash, ())?;
+        let (launch_singleton, eve_coin) =
+            self.spend(ctx, did_info.inner_puzzle_hash().into(), ())?;
 
         let proof = Proof::Eve(EveProof {
-            parent_coin_info: launcher_coin.parent_coin_info,
-            amount: launcher_coin.amount,
+            parent_parent_coin_info: launcher_coin.parent_coin_info,
+            parent_amount: launcher_coin.amount,
         });
 
-        Ok((launch_singleton, did.with_coin(eve_coin), proof))
+        Ok((launch_singleton, Did::new(eve_coin, proof, did_info)))
     }
 
     pub fn create_did<M>(
         self,
         ctx: &mut SpendContext,
-        recovery_did_list_hash: Bytes32,
+        recovery_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
         synthetic_key: PublicKey,
-    ) -> Result<(Conditions, Did<M>, Proof), DriverError>
+    ) -> Result<(Conditions, Did<M>), DriverError>
     where
-        M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
         Self: Sized,
     {
-        let inner_puzzle = CurriedProgram {
-            program: ctx.standard_puzzle()?,
-            args: StandardArgs { synthetic_key },
-        }
-        .to_node_ptr(ctx.allocator_mut())?;
-        let inner_puzzle_hash = StandardArgs::curry_tree_hash(synthetic_key).into();
+        let p2_puzzle_hash = StandardArgs::curry_tree_hash(synthetic_key).into();
 
-        let (create_did, did, eve_proof) = self.create_eve_did(
+        let (create_did, did) = self.create_eve_did(
             ctx,
-            inner_puzzle_hash,
-            Some(inner_puzzle),
-            recovery_did_list_hash,
+            p2_puzzle_hash,
+            recovery_list_hash,
             num_verifications_required,
             metadata,
         )?;
 
-        let (new_did, new_proof) =
-            ctx.spend_standard_did(&did, eve_proof, synthetic_key, Conditions::new())?;
+        let new_did = ctx.spend_standard_did(&did, synthetic_key, Conditions::new())?;
 
-        Ok((create_did, new_did, new_proof))
+        Ok((create_did, new_did))
     }
 
     pub fn create_simple_did(
         self,
         ctx: &mut SpendContext,
         synthetic_key: PublicKey,
-    ) -> Result<(Conditions, Did<()>, Proof), DriverError>
+    ) -> Result<(Conditions, Did<()>), DriverError>
     where
         Self: Sized,
     {
@@ -110,18 +99,12 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 1).await;
 
-        let (launch_singleton, did, _) =
+        let (launch_singleton, did) =
             Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, launch_singleton)?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         // Make sure the DID was created.
         let coin_state = sim

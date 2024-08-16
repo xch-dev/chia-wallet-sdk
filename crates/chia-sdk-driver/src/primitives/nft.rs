@@ -1,264 +1,156 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
+use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
     nft::{NftOwnershipLayerSolution, NftStateLayerSolution},
-    standard::DEFAULT_HIDDEN_PUZZLE_HASH,
+    singleton::{SingletonArgs, SingletonSolution},
     LineageProof, Proof,
 };
-use chia_sdk_types::conditions::{Condition, CreateCoin, NewNftOwner};
-use clvm_traits::{clvm_list, FromClvm, FromNodePtr, ToClvm, ToNodePtr};
-use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
-use clvmr::{
-    sha2::{Digest, Sha256},
-    Allocator, NodePtr,
-};
+use chia_sdk_types::{run_puzzle, Condition, CreateCoin, NewNftOwner};
+use clvm_traits::{clvm_list, FromClvm, ToClvm};
+use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
+use clvmr::{sha2::Sha256, Allocator, NodePtr};
 
 use crate::{
-    Conditions, DriverError, NftOwnershipLayer, NftStateLayer, PuzzleLayer, SingletonLayer,
-    SingletonLayerSolution, Spend, SpendContext, TransparentLayer,
+    Conditions, DriverError, Layer, NftOwnershipLayer, NftStateLayer, Primitive, Puzzle,
+    RoyaltyTransferLayer, SingletonLayer, Spend, SpendContext,
 };
 
+use super::NftInfo;
+
 #[derive(Debug, Clone, Copy)]
-pub struct Nft<M = NodePtr> {
+pub struct Nft<M> {
     pub coin: Coin,
-
-    // singleton layer
-    pub launcher_id: Bytes32,
-
-    // state layer
-    pub metadata: M,
-
-    // ownership layer
-    pub current_owner: Option<Bytes32>,
-    pub royalty_puzzle_hash: Bytes32,
-    pub royalty_percentage: u16,
-
-    // innermost (owner) layer
-    pub p2_puzzle_hash: TreeHash,
-    pub p2_puzzle: Option<NodePtr>,
+    pub proof: Proof,
+    pub info: NftInfo<M>,
 }
 
 impl<M> Nft<M>
 where
-    M: ToClvm<NodePtr> + FromClvm<NodePtr>,
+    M: ToClvm<Allocator> + FromClvm<Allocator>,
 {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        coin: Coin,
-        launcher_id: Bytes32,
-        metadata: M,
-        current_owner: Option<Bytes32>,
-        royalty_puzzle_hash: Bytes32,
-        royalty_percentage: u16,
-        p2_puzzle_hash: TreeHash,
-        p2_puzzle: Option<NodePtr>,
-    ) -> Self {
-        Nft {
-            coin,
-            launcher_id,
-            metadata,
-            current_owner,
-            royalty_puzzle_hash,
-            royalty_percentage,
-            p2_puzzle_hash,
-            p2_puzzle,
-        }
+    pub fn new(coin: Coin, proof: Proof, info: NftInfo<M>) -> Self {
+        Nft { coin, proof, info }
     }
 
+    /// Converts the NFT into a layered puzzle.
     #[must_use]
-    pub fn with_coin(mut self, coin: Coin) -> Self {
-        self.coin = coin;
-        self
-    }
-
-    #[must_use]
-    pub fn with_p2_puzzle(mut self, p2_puzzle: NodePtr) -> Self {
-        self.p2_puzzle = Some(p2_puzzle);
-        self
-    }
-
-    pub fn from_parent_spend(
-        allocator: &mut Allocator,
-        cs: &CoinSpend,
-    ) -> Result<Option<Self>, DriverError>
-    where
-        M: ToTreeHash,
-    {
-        let puzzle_ptr = cs
-            .puzzle_reveal
-            .to_node_ptr(allocator)
-            .map_err(DriverError::ToClvm)?;
-        let solution_ptr = cs
-            .solution
-            .to_node_ptr(allocator)
-            .map_err(DriverError::ToClvm)?;
-
-        let res = SingletonLayer::<NftStateLayer<M, NftOwnershipLayer<TransparentLayer>>>::from_parent_spend(
-            allocator,
-            puzzle_ptr,
-            solution_ptr,
-        )?;
-
-        match res {
-            None => Ok(None),
-            Some(res) => Ok(Some(Nft {
-                coin: Coin::new(cs.coin.coin_id(), res.tree_hash().into(), 1),
-                launcher_id: res.launcher_id,
-                metadata: res.inner_puzzle.metadata,
-                current_owner: res.inner_puzzle.inner_puzzle.current_owner,
-                royalty_puzzle_hash: res.inner_puzzle.inner_puzzle.royalty_puzzle_hash,
-                royalty_percentage: res.inner_puzzle.inner_puzzle.royalty_percentage,
-                p2_puzzle_hash: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle_hash,
-                p2_puzzle: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle,
-            })),
-        }
-    }
-
-    pub fn from_puzzle(
-        allocator: &mut Allocator,
-        coin: Coin,
-        puzzle: NodePtr,
-    ) -> Result<Option<Self>, DriverError> {
-        let res =
-            SingletonLayer::<NftStateLayer<M, NftOwnershipLayer<TransparentLayer>>>::from_puzzle(
-                allocator, puzzle,
-            )?;
-
-        match res {
-            None => Ok(None),
-            Some(res) => Ok(Some(Nft {
-                coin,
-                launcher_id: res.launcher_id,
-                metadata: res.inner_puzzle.metadata,
-                current_owner: res.inner_puzzle.inner_puzzle.current_owner,
-                royalty_puzzle_hash: res.inner_puzzle.inner_puzzle.royalty_puzzle_hash,
-                royalty_percentage: res.inner_puzzle.inner_puzzle.royalty_percentage,
-                p2_puzzle_hash: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle_hash,
-                p2_puzzle: res.inner_puzzle.inner_puzzle.inner_puzzle.puzzle,
-            })),
-        }
-    }
-
-    pub fn get_layered_object(
+    pub fn to_layers<I>(
         &self,
-        p2_puzzle: Option<NodePtr>,
-    ) -> SingletonLayer<NftStateLayer<M, NftOwnershipLayer<TransparentLayer>>>
+        p2_puzzle: I,
+    ) -> SingletonLayer<NftStateLayer<M, NftOwnershipLayer<RoyaltyTransferLayer, I>>>
     where
         M: Clone,
     {
-        SingletonLayer {
-            launcher_id: self.launcher_id,
-            inner_puzzle: NftStateLayer {
-                metadata: self.metadata.clone(),
-                metadata_updater_puzzle_hash: DEFAULT_HIDDEN_PUZZLE_HASH.into(),
-                inner_puzzle: NftOwnershipLayer {
-                    launcher_id: self.launcher_id,
-                    current_owner: self.current_owner,
-                    royalty_puzzle_hash: self.royalty_puzzle_hash,
-                    royalty_percentage: self.royalty_percentage,
-                    inner_puzzle: TransparentLayer {
-                        puzzle_hash: self.p2_puzzle_hash,
-                        puzzle: match self.p2_puzzle {
-                            Some(p2_puzzle) => Some(p2_puzzle),
-                            None => p2_puzzle,
-                        },
-                    },
-                },
-            },
-        }
+        SingletonLayer::new(
+            self.info.singleton_struct,
+            NftStateLayer::new(
+                self.info.metadata.clone(),
+                self.info.metadata_updater_puzzle_hash,
+                NftOwnershipLayer::new(
+                    self.info.current_owner,
+                    RoyaltyTransferLayer::new(
+                        self.info.singleton_struct,
+                        self.info.royalty_puzzle_hash,
+                        self.info.royalty_ten_thousandths,
+                    ),
+                    p2_puzzle,
+                ),
+            ),
+        )
     }
 
+    /// Creates a coin spend for this NFT.
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
-        lineage_proof: Proof,
         inner_spend: Spend,
-    ) -> Result<(CoinSpend, Nft<M>, Proof), DriverError>
+    ) -> Result<CoinSpend, DriverError>
     where
-        M: Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
-        let thing = self.get_layered_object(Some(inner_spend.puzzle()));
+        let layers = self.to_layers(inner_spend.puzzle);
 
-        let puzzle_ptr = thing.construct_puzzle(ctx)?;
-        let puzzle =
-            Program::from_node_ptr(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
-
-        let solution_ptr = thing.construct_solution(
+        let puzzle_ptr = layers.construct_puzzle(ctx)?;
+        let solution_ptr = layers.construct_solution(
             ctx,
-            SingletonLayerSolution {
-                lineage_proof,
+            SingletonSolution {
+                lineage_proof: self.proof,
                 amount: self.coin.amount,
                 inner_solution: NftStateLayerSolution {
                     inner_solution: NftOwnershipLayerSolution {
-                        inner_solution: inner_spend.solution(),
+                        inner_solution: inner_spend.solution,
                     },
                 },
             },
         )?;
-        let solution =
-            Program::from_node_ptr(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
 
-        let cs = CoinSpend {
-            coin: self.coin,
-            puzzle_reveal: puzzle,
-            solution,
-        };
-        let lineage_proof = thing.lineage_proof_for_child(self.coin.parent_coin_info, 1);
-        Ok((
-            cs.clone(),
-            Nft::from_parent_spend(ctx.allocator_mut(), &cs)?.ok_or(DriverError::MissingChild)?,
-            Proof::Lineage(lineage_proof),
-        ))
+        let puzzle = ctx.serialize(&puzzle_ptr)?;
+        let solution = ctx.serialize(&solution_ptr)?;
+
+        Ok(CoinSpend::new(self.coin, puzzle, solution))
+    }
+
+    /// Returns the lineage proof that would be used by the child.
+    pub fn child_lineage_proof(&self) -> LineageProof
+    where
+        M: ToTreeHash,
+    {
+        LineageProof {
+            parent_parent_coin_info: self.coin.parent_coin_info,
+            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
+            parent_amount: self.coin.amount,
+        }
     }
 
     pub fn transfer(
         &self,
         ctx: &mut SpendContext,
-        lineage_proof: Proof,
         owner_synthetic_key: PublicKey,
-        new_owner_puzzle_hash: Bytes32,
+        p2_puzzle_hash: Bytes32,
         extra_conditions: Conditions,
-    ) -> Result<(CoinSpend, Nft<M>, Proof), DriverError>
+    ) -> Result<(CoinSpend, Nft<M>), DriverError>
     where
         M: Clone + ToTreeHash,
     {
         let p2_conditions = Conditions::new()
             .condition(Condition::CreateCoin(CreateCoin::with_hint(
-                new_owner_puzzle_hash,
+                p2_puzzle_hash,
                 self.coin.amount,
-                new_owner_puzzle_hash,
+                p2_puzzle_hash,
             )))
             .extend(extra_conditions);
+
         let inner_spend = p2_conditions
             .p2_spend(ctx, owner_synthetic_key)
             .map_err(DriverError::Spend)?;
 
-        self.spend(ctx, lineage_proof, inner_spend)
+        let coin_spend = self.spend(ctx, inner_spend)?;
+        let child = self.create_child(p2_puzzle_hash, None);
+        Ok((coin_spend, child))
     }
 
     pub fn transfer_to_did(
         &self,
         ctx: &mut SpendContext,
-        lineage_proof: Proof,
         owner_synthetic_key: PublicKey,
-        new_owner_puzzle_hash: Bytes32,
+        p2_puzzle_hash: Bytes32,
         new_did_owner: &NewNftOwner,
         extra_conditions: Conditions,
-    ) -> Result<(CoinSpend, Conditions, Nft<M>, Proof), DriverError>
-    // (spend, did conditions)
+    ) -> Result<(CoinSpend, Conditions, Nft<M>), DriverError>
     where
         M: Clone + ToTreeHash,
     {
         let p2_conditions = Conditions::new()
             .conditions(&vec![
                 Condition::CreateCoin(CreateCoin::with_hint(
-                    new_owner_puzzle_hash,
+                    p2_puzzle_hash,
                     self.coin.amount,
-                    new_owner_puzzle_hash,
+                    p2_puzzle_hash,
                 )),
                 Condition::Other(ctx.alloc(&new_did_owner)?),
             ])
             .extend(extra_conditions);
+
         let inner_spend = p2_conditions
             .p2_spend(ctx, owner_synthetic_key)
             .map_err(DriverError::Spend)?;
@@ -267,8 +159,128 @@ where
             did_puzzle_assertion(self.coin.puzzle_hash, new_did_owner),
         );
 
-        let (cs, new_nft, lineage_proof) = self.spend(ctx, lineage_proof, inner_spend)?;
-        Ok((cs, did_conditions, new_nft, lineage_proof))
+        let coin_spend = self.spend(ctx, inner_spend)?;
+        let child = self.create_child(p2_puzzle_hash, Some(new_did_owner.did_id));
+        Ok((coin_spend, did_conditions, child))
+    }
+
+    /// Creates a new spendable NFT for the child.
+    #[must_use]
+    pub fn create_child(&self, p2_puzzle_hash: Bytes32, new_owner: Option<Option<Bytes32>>) -> Self
+    where
+        M: ToTreeHash + Clone,
+    {
+        let mut info = self.info.clone();
+
+        info.p2_puzzle_hash = p2_puzzle_hash;
+
+        if let Some(new_owner) = new_owner {
+            info.current_owner = new_owner;
+        }
+
+        Self {
+            coin: Coin::new(
+                self.coin.coin_id(),
+                CurriedProgram {
+                    program: TreeHash::from(info.singleton_struct.mod_hash),
+                    args: SingletonArgs {
+                        singleton_struct: info.singleton_struct,
+                        inner_puzzle: info.inner_puzzle_hash(),
+                    },
+                }
+                .tree_hash()
+                .into(),
+                self.coin.amount,
+            ),
+            proof: Proof::Lineage(self.child_lineage_proof()),
+            info,
+        }
+    }
+}
+
+impl<M> Primitive for Nft<M>
+where
+    M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
+{
+    fn from_parent_spend(
+        allocator: &mut Allocator,
+        parent_coin: Coin,
+        parent_puzzle: Puzzle,
+        parent_solution: NodePtr,
+        coin: Coin,
+    ) -> Result<Option<Self>, DriverError>
+    where
+        Self: Sized,
+    {
+        let Some(singleton_layer) =
+            SingletonLayer::<Puzzle>::parse_puzzle(allocator, parent_puzzle)?
+        else {
+            return Ok(None);
+        };
+
+        let Some(inner_layers) =
+            NftStateLayer::<M, NftOwnershipLayer<RoyaltyTransferLayer, Puzzle>>::parse_puzzle(
+                allocator,
+                singleton_layer.inner_puzzle,
+            )?
+        else {
+            return Ok(None);
+        };
+
+        let parent_solution = SingletonLayer::<
+            NftStateLayer<M, NftOwnershipLayer<RoyaltyTransferLayer, Puzzle>>,
+        >::parse_solution(allocator, parent_solution)?;
+
+        let inner_puzzle = inner_layers.inner_puzzle.inner_puzzle;
+        let inner_solution = parent_solution.inner_solution.inner_solution.inner_solution;
+
+        let output = run_puzzle(allocator, inner_puzzle.ptr(), inner_solution)?;
+        let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
+
+        let mut create_coin = None;
+        let mut new_owner = None;
+
+        for condition in conditions {
+            match condition {
+                Condition::CreateCoin(condition) if condition.amount % 2 == 1 => {
+                    create_coin = Some(condition);
+                }
+                Condition::Other(condition) => {
+                    let Ok(condition) = NewNftOwner::from_clvm(allocator, condition) else {
+                        continue;
+                    };
+                    new_owner = Some(condition);
+                }
+                _ => {}
+            }
+        }
+
+        let Some(create_coin) = create_coin else {
+            return Err(DriverError::MissingChild);
+        };
+
+        Ok(Some(Self {
+            coin,
+            proof: Proof::Lineage(LineageProof {
+                parent_parent_coin_info: parent_coin.parent_coin_info,
+                parent_inner_puzzle_hash: singleton_layer.inner_puzzle.curried_puzzle_hash().into(),
+                parent_amount: parent_coin.amount,
+            }),
+            info: NftInfo::new(
+                singleton_layer.singleton_struct,
+                inner_layers.metadata,
+                inner_layers.metadata_updater_puzzle_hash,
+                new_owner.map_or(inner_layers.inner_puzzle.current_owner, |new_owner| {
+                    new_owner.did_id
+                }),
+                inner_layers.inner_puzzle.transfer_layer.royalty_puzzle_hash,
+                inner_layers
+                    .inner_puzzle
+                    .transfer_layer
+                    .royalty_ten_thousandths,
+                create_coin.puzzle_hash,
+            ),
+        }))
     }
 }
 
@@ -281,7 +293,7 @@ pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &NewNf
         &new_nft_owner.trade_prices,
         new_nft_owner.did_inner_puzzle_hash
     )
-    .to_node_ptr(&mut allocator)
+    .to_clvm(&mut allocator)
     .unwrap();
 
     let mut hasher = Sha256::new();
@@ -289,25 +301,7 @@ pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &NewNf
     hasher.update([0xad, 0x4c]);
     hasher.update(tree_hash(&allocator, new_nft_owner_args));
 
-    Bytes32::new(hasher.finalize().into())
-}
-
-impl<M> Nft<M>
-where
-    M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
-{
-    pub fn singleton_inner_puzzle_hash(&self) -> TreeHash {
-        self.get_layered_object(None).inner_puzzle_hash()
-    }
-
-    pub fn lineage_proof_for_child(
-        &self,
-        my_parent_name: Bytes32,
-        my_parent_amount: u64,
-    ) -> LineageProof {
-        self.get_layered_object(None)
-            .lineage_proof_for_child(my_parent_name, my_parent_amount)
-    }
+    Bytes32::new(hasher.finalize())
 }
 
 #[cfg(test)]
@@ -317,7 +311,10 @@ mod tests {
     use super::*;
 
     use chia_bls::DerivableKey;
-    use chia_puzzles::standard::StandardArgs;
+    use chia_puzzles::{
+        nft::{NftMetadata, NFT_METADATA_UPDATER_PUZZLE_HASH},
+        standard::StandardArgs,
+    };
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
 
     #[tokio::test]
@@ -332,37 +329,24 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 2).await;
 
-        let (create_did, did, did_proof) =
-            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
-        let (mint_nft, nft, lineage_proof) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
+        let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
             .create(ctx)?
             .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
-        let (did, did_proof) = ctx.spend_standard_did(&did, did_proof, pk, mint_nft)?;
+        let did = ctx.spend_standard_did(&did, pk, mint_nft)?;
 
         let other_puzzle_hash = StandardArgs::curry_tree_hash(pk.derive_unhardened(0)).into();
 
-        let (parent_conditions, _, _) = ctx.spend_standard_nft(
-            &nft,
-            lineage_proof,
-            pk,
-            other_puzzle_hash,
-            None,
-            Conditions::new(),
-        )?;
+        let (parent_conditions, _) =
+            ctx.spend_standard_nft(&nft, pk, other_puzzle_hash, None, Conditions::new())?;
 
-        let _did_info = ctx.spend_standard_did(&did, did_proof, pk, parent_conditions)?;
+        let _did_info = ctx.spend_standard_did(&did, pk, parent_conditions)?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -379,29 +363,26 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 2).await;
 
-        let (create_did, did, did_proof) =
-            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
-        let (mint_nft, mut nft, mut lineage_proof) =
-            IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
-                .create(ctx)?
-                .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
+        let (mint_nft, mut nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
+            .create(ctx)?
+            .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
-        let (mut did, mut did_proof) = ctx.spend_standard_did(&did, did_proof, pk, mint_nft)?;
+        let mut did = ctx.spend_standard_did(&did, pk, mint_nft)?;
 
         for i in 0..5 {
-            let (spend_nft, new_nft, new_lineage_proof) = ctx.spend_standard_nft(
+            let (spend_nft, new_nft) = ctx.spend_standard_nft(
                 &nft,
-                lineage_proof,
                 pk,
-                nft.p2_puzzle_hash.into(),
+                nft.info.p2_puzzle_hash,
                 if i % 2 == 0 {
                     Some(NewNftOwner::new(
-                        Some(did.launcher_id),
+                        Some(did.info.singleton_struct.launcher_id),
                         Vec::new(),
-                        Some(did.singleton_inner_puzzle_hash().into()),
+                        Some(did.info.inner_puzzle_hash().into()),
                     ))
                 } else {
                     None
@@ -409,17 +390,10 @@ mod tests {
                 Conditions::new(),
             )?;
             nft = new_nft;
-            lineage_proof = new_lineage_proof;
-            (did, did_proof) = ctx.spend_standard_did(&did, did_proof, pk, spend_nft)?;
+            did = ctx.spend_standard_did(&did, pk, spend_nft)?;
         }
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         let coin_state = sim
             .coin_state(did.coin.coin_id())
@@ -444,20 +418,21 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 2);
 
-        let (create_did, did, _did_proof) =
+        let (create_did, did) =
             Launcher::new(parent.coin_id(), 1).create_simple_did(&mut ctx, pk)?;
 
-        let (mint_nft, nft, _) = Launcher::new(did.coin.coin_id(), 1).mint_nft(
+        let (mint_nft, nft) = Launcher::new(did.coin.coin_id(), 1).mint_nft(
             &mut ctx,
             NftMint {
-                metadata: (),
-                royalty_percentage: 300,
+                metadata: NftMetadata::default(),
+                metadata_updater_puzzle_hash: NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
+                royalty_ten_thousandths: 300,
                 royalty_puzzle_hash: Bytes32::new([1; 32]),
-                puzzle_hash,
+                p2_puzzle_hash: puzzle_hash,
                 owner: NewNftOwner {
-                    did_id: Some(did.launcher_id),
+                    did_id: Some(did.info.singleton_struct.launcher_id),
                     trade_prices: Vec::new(),
-                    did_inner_puzzle_hash: Some(did.singleton_inner_puzzle_hash().into()),
+                    did_inner_puzzle_hash: Some(did.info.inner_puzzle_hash().into()),
                 },
             },
         )?;
@@ -473,36 +448,34 @@ mod tests {
 
         let mut allocator = ctx.into();
 
-        let puzzle_ptr = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
-        let solution_ptr = coin_spend.solution.to_node_ptr(&mut allocator)?;
+        let puzzle_ptr = coin_spend.puzzle_reveal.to_clvm(&mut allocator)?;
+        let solution_ptr = coin_spend.solution.to_clvm(&mut allocator)?;
 
-        let parsed_nft = SingletonLayer::<
-            NftStateLayer<(), NftOwnershipLayer<TransparentLayer>>,
-        >::from_parent_spend(&mut allocator, puzzle_ptr, solution_ptr)?
-        .expect("could not parse spend :(");
+        let puzzle = Puzzle::parse(&allocator, puzzle_ptr);
+        let parsed_nft = Nft::<NftMetadata>::from_parent_spend(
+            &mut allocator,
+            parent,
+            puzzle,
+            solution_ptr,
+            nft.coin,
+        )?
+        .unwrap();
 
-        assert_eq!(parsed_nft.launcher_id, nft.launcher_id);
-        // assert_eq!(parsed_nft.inner_puzzle.metadata, nft.metadata); // always ()
         assert_eq!(
-            parsed_nft.inner_puzzle.inner_puzzle.current_owner,
-            nft.current_owner
+            parsed_nft.info.singleton_struct.launcher_id,
+            nft.info.singleton_struct.launcher_id
+        );
+        assert_eq!(parsed_nft.info.metadata, nft.info.metadata);
+        assert_eq!(parsed_nft.info.current_owner, nft.info.current_owner);
+        assert_eq!(
+            parsed_nft.info.royalty_puzzle_hash,
+            nft.info.royalty_puzzle_hash
         );
         assert_eq!(
-            parsed_nft.inner_puzzle.inner_puzzle.royalty_puzzle_hash,
-            nft.royalty_puzzle_hash
+            parsed_nft.info.royalty_ten_thousandths,
+            nft.info.royalty_ten_thousandths
         );
-        assert_eq!(
-            parsed_nft.inner_puzzle.inner_puzzle.royalty_percentage,
-            nft.royalty_percentage
-        );
-        assert_eq!(
-            parsed_nft
-                .inner_puzzle
-                .inner_puzzle
-                .inner_puzzle
-                .puzzle_hash,
-            nft.p2_puzzle_hash
-        );
+        assert_eq!(parsed_nft.info.p2_puzzle_hash, nft.info.p2_puzzle_hash);
 
         Ok(())
     }

@@ -23,8 +23,8 @@ impl SettlementSpend {
 
     pub fn finish(self, ctx: &mut SpendContext, coin: Coin) -> Result<(), SpendError> {
         let inner_spend = self.inner_spend(ctx)?;
-        let puzzle_reveal = ctx.serialize(&inner_spend.puzzle())?;
-        let solution = ctx.serialize(&inner_spend.solution())?;
+        let puzzle_reveal = ctx.serialize(&inner_spend.puzzle)?;
+        let solution = ctx.serialize(&inner_spend.solution)?;
         ctx.insert_coin_spend(CoinSpend::new(coin, puzzle_reveal, solution));
         Ok(())
     }

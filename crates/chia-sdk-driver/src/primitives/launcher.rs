@@ -5,7 +5,7 @@ use chia_puzzles::singleton::{
     LauncherSolution, SingletonArgs, SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH,
 };
 use clvm_traits::ToClvm;
-use clvmr::NodePtr;
+use clvmr::Allocator;
 
 use crate::{Conditions, SpendContext, SpendError};
 
@@ -115,7 +115,7 @@ impl Launcher {
         key_value_list: T,
     ) -> Result<(Conditions, Coin), SpendError>
     where
-        T: ToClvm<NodePtr>,
+        T: ToClvm<Allocator>,
     {
         let singleton_puzzle_hash =
             SingletonArgs::curry_tree_hash(self.coin.coin_id(), singleton_inner_puzzle_hash.into())

@@ -1,9 +1,9 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
-    cat::{CatArgs, CatSolution, CoinProof, CAT_PUZZLE_HASH},
-    LineageProof,
+    cat::{CatArgs, CatSolution, CAT_PUZZLE_HASH},
+    CoinProof, LineageProof,
 };
-use chia_sdk_types::conditions::CreateCoin;
+use chia_sdk_types::CreateCoin;
 use clvm_utils::CurriedProgram;
 use clvmr::NodePtr;
 
@@ -63,7 +63,7 @@ impl CatSpend {
             } = item;
 
             // Calculate the delta and add it to the subtotal.
-            let output = ctx.run(inner_spend.puzzle(), inner_spend.solution())?;
+            let output = ctx.run(inner_spend.puzzle, inner_spend.solution)?;
             let conditions: Vec<NodePtr> = ctx.extract(output)?;
 
             let create_coins = conditions
@@ -87,18 +87,18 @@ impl CatSpend {
                 args: CatArgs {
                     mod_hash: CAT_PUZZLE_HASH.into(),
                     asset_id: self.asset_id,
-                    inner_puzzle: inner_spend.puzzle(),
+                    inner_puzzle: inner_spend.puzzle,
                 },
             })?;
 
             let solution = ctx.serialize(&CatSolution {
-                inner_puzzle_solution: inner_spend.solution(),
+                inner_puzzle_solution: inner_spend.solution,
                 lineage_proof: Some(*lineage_proof),
                 prev_coin_id: prev_cat.coin.coin_id(),
                 this_coin_info: *coin,
                 next_coin_proof: CoinProof {
                     parent_coin_info: next_cat.coin.parent_coin_info,
-                    inner_puzzle_hash: ctx.tree_hash(inner_spend.puzzle()).into(),
+                    inner_puzzle_hash: ctx.tree_hash(inner_spend.puzzle).into(),
                     amount: next_cat.coin.amount,
                 },
                 prev_subtotal: prev_subtotal.try_into()?,
@@ -116,7 +116,7 @@ impl CatSpend {
 mod tests {
     use chia_puzzles::{cat::EverythingWithSignatureTailArgs, standard::StandardArgs};
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
-    use chia_sdk_types::conditions::{Condition, RunTail};
+    use chia_sdk_types::{Condition, RunTail};
 
     use crate::{issue_cat_from_coin, issue_cat_from_key, Conditions};
 
@@ -176,13 +176,7 @@ mod tests {
             )
             .finish(ctx)?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -219,13 +213,7 @@ mod tests {
             )
             .finish(ctx)?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -267,13 +255,7 @@ mod tests {
             .spend(cat_coin, inner_spend, issuance.lineage_proof, -3000)
             .finish(ctx)?;
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use chia_protocol::{Coin, CoinSpend};
-use clvm_traits::{FromClvm, FromClvmError, ToClvm, ToClvmError, ToNodePtr};
+use clvm_traits::{FromClvm, FromClvmError, ToClvm, ToClvmError};
 use clvmr::{
     reduction::{EvalErr, Reduction},
     Allocator, NodePtr,
@@ -68,6 +68,53 @@ pub enum Condition<T = NodePtr> {
     Other(T),
 }
 
+macro_rules! into {
+    ( $name:ident -> $condition:ident $( < $generic:ident > )? ) => {
+        pub fn $name(self) -> Option<$condition $( <$generic> )? > {
+            match self {
+                Condition::$condition(condition) => Some(condition),
+                _ => None,
+            }
+        }
+    };
+}
+
+impl<T> Condition<T> {
+    into!(into_remark -> Remark<T>);
+    into!(into_agg_sig -> AggSig);
+    into!(into_create_coin -> CreateCoin);
+    into!(into_reserve_fee -> ReserveFee);
+    into!(into_create_coin_announcement -> CreateCoinAnnouncement);
+    into!(into_assert_coin_announcement -> AssertCoinAnnouncement);
+    into!(into_create_puzzle_announcement -> CreatePuzzleAnnouncement);
+    into!(into_assert_puzzle_announcement -> AssertPuzzleAnnouncement);
+    into!(into_assert_concurrent_spend -> AssertConcurrentSpend);
+    into!(into_assert_concurrent_puzzle -> AssertConcurrentPuzzle);
+    into!(into_assert_my_coin_id -> AssertMyCoinId);
+    into!(into_assert_my_parent_id -> AssertMyParentId);
+    into!(into_assert_my_puzzle_hash -> AssertMyPuzzleHash);
+    into!(into_assert_my_amount -> AssertMyAmount);
+    into!(into_assert_my_birth_seconds -> AssertMyBirthSeconds);
+    into!(into_assert_my_birth_height -> AssertMyBirthHeight);
+    into!(into_assert_ephemeral -> AssertEphemeral);
+    into!(into_assert_seconds_relative -> AssertSecondsRelative);
+    into!(into_assert_seconds_absolute -> AssertSecondsAbsolute);
+    into!(into_assert_height_relative -> AssertHeightRelative);
+    into!(into_assert_height_absolute -> AssertHeightAbsolute);
+    into!(into_assert_before_seconds_relative -> AssertBeforeSecondsRelative);
+    into!(into_assert_before_seconds_absolute -> AssertBeforeSecondsAbsolute);
+    into!(into_assert_before_height_relative -> AssertBeforeHeightRelative);
+    into!(into_assert_before_height_absolute -> AssertBeforeHeightAbsolute);
+    into!(into_softfork -> Softfork<T>);
+
+    pub fn into_other(self) -> Option<T> {
+        match self {
+            Condition::Other(ptr) => Some(ptr),
+            _ => None,
+        }
+    }
+}
+
 pub fn parse_conditions(
     allocator: &mut Allocator,
     conditions: NodePtr,
@@ -107,8 +154,8 @@ pub fn non_ephemeral_coins(coin_spends: &[CoinSpend]) -> Result<Vec<Coin>, Condi
     let mut created_coins = HashSet::new();
 
     for coin_spend in coin_spends {
-        let puzzle = coin_spend.puzzle_reveal.to_node_ptr(&mut allocator)?;
-        let solution = coin_spend.solution.to_node_ptr(&mut allocator)?;
+        let puzzle = coin_spend.puzzle_reveal.to_clvm(&mut allocator)?;
+        let solution = coin_spend.solution.to_clvm(&mut allocator)?;
         let conditions = puzzle_conditions(&mut allocator, puzzle, solution)?;
 
         for condition in conditions {
@@ -136,7 +183,7 @@ mod tests {
     use super::*;
 
     use chia_protocol::{Bytes32, Program};
-    use clvm_traits::{FromNodePtr, ToClvm};
+    use clvm_traits::{FromClvm, ToClvm};
 
     #[test]
     fn test_non_ephemeral_coins() -> anyhow::Result<()> {
@@ -147,8 +194,8 @@ mod tests {
             .collect();
 
         let puzzle = 1.to_clvm(&mut allocator)?;
-        let puzzle_reveal = Program::from_node_ptr(&allocator, puzzle)?;
-        let identity_solution = Program::from_node_ptr(&allocator, NodePtr::NIL)?;
+        let puzzle_reveal = Program::from_clvm(&allocator, puzzle)?;
+        let identity_solution = Program::from_clvm(&allocator, NodePtr::NIL)?;
 
         let mut coin_spends = Vec::new();
 
@@ -169,7 +216,7 @@ mod tests {
             coin_spends.push(CoinSpend::new(
                 coins[i as usize],
                 puzzle_reveal.clone(),
-                Program::from_node_ptr(&allocator, solution)?,
+                Program::from_clvm(&allocator, solution)?,
             ));
         }
 

@@ -144,7 +144,7 @@ mod tests {
         Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, RejectCoinState, RejectPuzzleState,
         RequestCoinState, RequestPuzzleState, RespondCoinState, RespondPuzzleState, SpendBundle,
     };
-    use chia_sdk_types::conditions::{AggSigMe, CreateCoin, Remark};
+    use chia_sdk_types::{AggSigMe, CreateCoin, Remark};
 
     use crate::{coin_state_updates, secret_key, test_transaction, to_program, to_puzzle};
 
@@ -290,7 +290,7 @@ mod tests {
                 to_program([AggSigMe::new(pk, b"Hello, world!".to_vec().into())])?,
             )],
             &[sk],
-            sim.config.genesis_challenge,
+            &sim.config.constants,
         )
         .await;
 
@@ -323,7 +323,7 @@ mod tests {
                 ])?,
             )],
             &[sk1, sk2],
-            sim.config.genesis_challenge,
+            &sim.config.constants,
         )
         .await;
 
@@ -755,7 +755,7 @@ mod tests {
             .request_or_reject::<RespondCoinState, RejectCoinState, _>(RequestCoinState::new(
                 vec![coin.coin_id()],
                 None,
-                sim.config().genesis_challenge,
+                sim.config().constants.genesis_challenge,
                 false,
             ))
             .await?;
@@ -778,7 +778,7 @@ mod tests {
             .request_or_reject::<RespondCoinState, RejectCoinState, _>(RequestCoinState::new(
                 vec![coin.coin_id()],
                 None,
-                sim.config().genesis_challenge,
+                sim.config().constants.genesis_challenge,
                 false,
             ))
             .await?;
@@ -807,7 +807,7 @@ mod tests {
             .request_or_reject::<RespondPuzzleState, RejectPuzzleState, _>(RequestPuzzleState::new(
                 vec![puzzle_hash],
                 None,
-                sim.config().genesis_challenge,
+                sim.config().constants.genesis_challenge,
                 CoinStateFilters::new(true, true, true, 0),
                 false,
             ))
@@ -837,7 +837,7 @@ mod tests {
             .request_or_reject::<RespondPuzzleState, RejectPuzzleState, _>(RequestPuzzleState::new(
                 vec![puzzle_hash],
                 None,
-                sim.config().genesis_challenge,
+                sim.config().constants.genesis_challenge,
                 CoinStateFilters::new(true, true, true, 0),
                 false,
             ))

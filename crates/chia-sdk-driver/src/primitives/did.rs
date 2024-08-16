@@ -1,223 +1,168 @@
-use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
-use chia_puzzles::{LineageProof, Proof};
-use clvm_traits::{FromClvm, FromNodePtr, ToClvm, ToNodePtr};
-use clvm_utils::{ToTreeHash, TreeHash};
+use chia_protocol::{Coin, CoinSpend};
+use chia_puzzles::{did::DidSolution, singleton::SingletonSolution, LineageProof, Proof};
+use chia_sdk_types::{run_puzzle, Condition};
+use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{
-    DidLayer, DidLayerSolution, DriverError, PuzzleLayer, SingletonLayer, SingletonLayerSolution,
-    Spend, SpendContext, TransparentLayer,
-};
+use crate::{DidLayer, DriverError, Layer, Primitive, Puzzle, SingletonLayer, Spend, SpendContext};
+
+use super::DidInfo;
 
 #[derive(Debug, Clone, Copy)]
-pub struct Did<M = NodePtr> {
+pub struct Did<M> {
     pub coin: Coin,
-
-    // singleton layer
-    pub launcher_id: Bytes32,
-
-    // DID layer
-    pub recovery_did_list_hash: Bytes32,
-    pub num_verifications_required: u64,
-    pub metadata: M,
-
-    // innermost (owner) layer
-    pub p2_puzzle_hash: TreeHash,
-    pub p2_puzzle: Option<NodePtr>,
+    pub proof: Proof,
+    pub info: DidInfo<M>,
 }
 
-impl<M> Did<M>
-where
-    M: ToClvm<NodePtr> + FromClvm<NodePtr>,
-{
-    pub fn new(
-        coin: Coin,
-        launcher_id: Bytes32,
-        recovery_did_list_hash: Bytes32,
-        num_verifications_required: u64,
-        metadata: M,
-        p2_puzzle_hash: TreeHash,
-        p2_puzzle: Option<NodePtr>,
-    ) -> Self {
-        Did {
-            coin,
-            launcher_id,
-            recovery_did_list_hash,
-            num_verifications_required,
-            metadata,
-            p2_puzzle_hash,
-            p2_puzzle,
-        }
+impl<M> Did<M> {
+    pub fn new(coin: Coin, proof: Proof, info: DidInfo<M>) -> Self {
+        Self { coin, proof, info }
     }
 
+    /// Converts the DID into a layered puzzle.
     #[must_use]
-    pub fn with_coin(mut self, coin: Coin) -> Self {
-        self.coin = coin;
-        self
-    }
-
-    #[must_use]
-    pub fn with_p2_puzzle(mut self, p2_puzzle: NodePtr) -> Self {
-        self.p2_puzzle = Some(p2_puzzle);
-        self
-    }
-
-    pub fn from_parent_spend(
-        allocator: &mut Allocator,
-        cs: &CoinSpend,
-    ) -> Result<Option<Self>, DriverError>
-    where
-        M: ToTreeHash,
-    {
-        let puzzle_ptr = cs
-            .puzzle_reveal
-            .to_node_ptr(allocator)
-            .map_err(DriverError::ToClvm)?;
-        let solution_ptr = cs
-            .solution
-            .to_node_ptr(allocator)
-            .map_err(DriverError::ToClvm)?;
-
-        let res = SingletonLayer::<DidLayer<M, TransparentLayer<true>>>::from_parent_spend(
-            allocator,
-            puzzle_ptr,
-            solution_ptr,
-        )?;
-
-        match res {
-            None => Ok(None),
-            Some(res) => Ok(Some(Did {
-                coin: Coin::new(cs.coin.coin_id(), res.tree_hash().into(), 1),
-                launcher_id: res.launcher_id,
-                recovery_did_list_hash: res.inner_puzzle.recovery_did_list_hash,
-                num_verifications_required: res.inner_puzzle.num_verifications_required,
-                metadata: res.inner_puzzle.metadata,
-                p2_puzzle_hash: res.inner_puzzle.inner_puzzle.puzzle_hash,
-                p2_puzzle: res.inner_puzzle.inner_puzzle.puzzle,
-            })),
-        }
-    }
-
-    pub fn from_puzzle(
-        allocator: &mut Allocator,
-        coin: Coin,
-        puzzle: NodePtr,
-    ) -> Result<Option<Self>, DriverError> {
-        let res =
-            SingletonLayer::<DidLayer<M, TransparentLayer<true>>>::from_puzzle(allocator, puzzle)?;
-
-        match res {
-            None => Ok(None),
-            Some(res) => Ok(Some(Did {
-                coin,
-                launcher_id: res.launcher_id,
-                recovery_did_list_hash: res.inner_puzzle.recovery_did_list_hash,
-                num_verifications_required: res.inner_puzzle.num_verifications_required,
-                metadata: res.inner_puzzle.metadata,
-                p2_puzzle_hash: res.inner_puzzle.inner_puzzle.puzzle_hash,
-                p2_puzzle: res.inner_puzzle.inner_puzzle.puzzle,
-            })),
-        }
-    }
-
-    pub fn get_layered_object(
-        &self,
-        p2_puzzle: Option<NodePtr>,
-    ) -> SingletonLayer<DidLayer<M, TransparentLayer<true>>>
+    pub fn to_layers<I>(&self, p2_puzzle: I) -> SingletonLayer<DidLayer<M, I>>
     where
         M: Clone,
     {
-        SingletonLayer {
-            launcher_id: self.launcher_id,
-            inner_puzzle: DidLayer {
-                launcher_id: self.launcher_id,
-                recovery_did_list_hash: self.recovery_did_list_hash,
-                num_verifications_required: self.num_verifications_required,
-                metadata: self.metadata.clone(),
-                inner_puzzle: TransparentLayer {
-                    puzzle_hash: self.p2_puzzle_hash,
-                    puzzle: match self.p2_puzzle {
-                        Some(p2_puzzle) => Some(p2_puzzle),
-                        None => p2_puzzle,
-                    },
-                },
-            },
-        }
+        SingletonLayer::new(
+            self.info.singleton_struct,
+            DidLayer::new(
+                self.info.singleton_struct,
+                self.info.recovery_list_hash,
+                self.info.num_verifications_required,
+                self.info.metadata.clone(),
+                p2_puzzle,
+            ),
+        )
     }
 
+    /// Creates a coin spend for this DID.
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
-        lineage_proof: Proof,
         inner_spend: Spend,
-    ) -> Result<(CoinSpend, Did<M>, Proof), DriverError>
+    ) -> Result<CoinSpend, DriverError>
     where
-        M: Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
-        let thing = self.get_layered_object(Some(inner_spend.puzzle()));
+        let layers = self.to_layers(inner_spend.puzzle);
 
-        let puzzle_ptr = thing.construct_puzzle(ctx)?;
-        let puzzle =
-            Program::from_node_ptr(ctx.allocator(), puzzle_ptr).map_err(DriverError::FromClvm)?;
-
-        let solution_ptr = thing.construct_solution(
+        let puzzle_ptr = layers.construct_puzzle(ctx)?;
+        let solution_ptr = layers.construct_solution(
             ctx,
-            SingletonLayerSolution {
-                lineage_proof,
+            SingletonSolution {
+                lineage_proof: self.proof,
                 amount: self.coin.amount,
-                inner_solution: DidLayerSolution {
-                    inner_solution: inner_spend.solution(),
-                },
+                inner_solution: DidSolution::Spend(inner_spend.solution),
             },
         )?;
-        let solution =
-            Program::from_node_ptr(ctx.allocator(), solution_ptr).map_err(DriverError::FromClvm)?;
 
-        let cs = CoinSpend {
-            coin: self.coin,
-            puzzle_reveal: puzzle,
-            solution,
+        let puzzle = ctx.serialize(&puzzle_ptr)?;
+        let solution = ctx.serialize(&solution_ptr)?;
+
+        Ok(CoinSpend::new(self.coin, puzzle, solution))
+    }
+
+    /// Returns the lineage proof that would be used by the child.
+    pub fn child_lineage_proof(&self) -> LineageProof
+    where
+        M: ToTreeHash,
+    {
+        LineageProof {
+            parent_parent_coin_info: self.coin.parent_coin_info,
+            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
+            parent_amount: self.coin.amount,
+        }
+    }
+
+    /// Creates a new spendable DID for the child, with no modifications.
+    #[must_use]
+    pub fn recreate_self(&self) -> Self
+    where
+        M: ToTreeHash + Clone,
+    {
+        Self {
+            coin: Coin::new(self.coin.coin_id(), self.coin.puzzle_hash, self.coin.amount),
+            proof: Proof::Lineage(self.child_lineage_proof()),
+            info: self.info.clone(),
+        }
+    }
+}
+
+impl<M> Primitive for Did<M>
+where
+    M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
+{
+    fn from_parent_spend(
+        allocator: &mut Allocator,
+        parent_coin: Coin,
+        parent_puzzle: Puzzle,
+        parent_solution: NodePtr,
+        coin: Coin,
+    ) -> Result<Option<Self>, DriverError>
+    where
+        Self: Sized,
+    {
+        let Some(singleton_layer) =
+            SingletonLayer::<Puzzle>::parse_puzzle(allocator, parent_puzzle)?
+        else {
+            return Ok(None);
         };
-        let lineage_proof = thing.lineage_proof_for_child(self.coin.parent_coin_info, 1);
 
-        Ok((
-            cs.clone(),
-            Did::from_parent_spend(ctx.allocator_mut(), &cs)?.ok_or(DriverError::MissingChild)?,
-            Proof::Lineage(lineage_proof),
-        ))
-    }
-}
+        let Some(did_layer) =
+            DidLayer::<M, Puzzle>::parse_puzzle(allocator, singleton_layer.inner_puzzle)?
+        else {
+            return Ok(None);
+        };
 
-impl<M> Did<M>
-where
-    M: ToClvm<NodePtr> + FromClvm<NodePtr> + Clone + ToTreeHash,
-{
-    pub fn singleton_inner_puzzle_hash(&self) -> TreeHash {
-        self.get_layered_object(None).inner_puzzle_hash()
-    }
+        if singleton_layer.singleton_struct != did_layer.singleton_struct {
+            return Err(DriverError::InvalidSingletonStruct);
+        }
 
-    pub fn lineage_proof_for_child(
-        &self,
-        my_parent_name: Bytes32,
-        my_parent_amount: u64,
-    ) -> LineageProof {
-        self.get_layered_object(None)
-            .lineage_proof_for_child(my_parent_name, my_parent_amount)
-    }
-}
+        let singleton_solution =
+            SingletonLayer::<NodePtr>::parse_solution(allocator, parent_solution)?;
 
-impl<M> Did<M>
-where
-    M: ToTreeHash,
-{
-    pub fn compute_new_did_layer_puzzle_hash(&self, new_inner_puzzle_hash: TreeHash) -> TreeHash {
-        DidLayer::<M, ()>::wrap_inner_puzzle_hash(
-            self.launcher_id,
-            self.recovery_did_list_hash,
-            self.num_verifications_required,
-            self.metadata.tree_hash(),
-            new_inner_puzzle_hash,
-        )
+        let output = run_puzzle(
+            allocator,
+            singleton_layer.inner_puzzle.ptr(),
+            singleton_solution.inner_solution,
+        )?;
+        let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
+
+        let Some(create_coin) = conditions
+            .into_iter()
+            .filter_map(Condition::into_create_coin)
+            .find(|create_coin| create_coin.amount % 2 == 1)
+        else {
+            return Err(DriverError::MissingChild);
+        };
+
+        let Some(hint) = create_coin
+            .memos
+            .into_iter()
+            .find_map(|memo| memo.try_into().ok())
+        else {
+            return Err(DriverError::MissingHint);
+        };
+
+        Ok(Some(Self {
+            coin,
+            proof: Proof::Lineage(LineageProof {
+                parent_parent_coin_info: parent_coin.parent_coin_info,
+                parent_inner_puzzle_hash: did_layer.tree_hash().into(),
+                parent_amount: parent_coin.amount,
+            }),
+            info: DidInfo::new(
+                did_layer.singleton_struct,
+                did_layer.recovery_list_hash,
+                did_layer.num_verifications_required,
+                did_layer.metadata,
+                hint,
+            ),
+        }))
     }
 }
 
@@ -242,22 +187,15 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 1).await;
 
-        let (create_did, mut did, mut did_proof) =
-            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, mut did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
         for _ in 0..10 {
-            (did, did_proof) = ctx.spend_standard_did(&did, did_proof, pk, Conditions::new())?;
+            did = ctx.spend_standard_did(&did, pk, Conditions::new())?;
         }
 
-        test_transaction(
-            &peer,
-            ctx.take_spends(),
-            &[sk],
-            sim.config().genesis_challenge,
-        )
-        .await;
+        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
         let coin_state = sim
             .coin_state(did.coin.coin_id())

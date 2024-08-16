@@ -33,7 +33,6 @@ rand = { workspace = true }
 rand_chacha = { workspace = true }
 bip39 = { workspace = true }
 anyhow = { workspace = true }
-hex-literal = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-tungstenite = { workspace = true }
 chia-sdk-types = { workspace = true }
