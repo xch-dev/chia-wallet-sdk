@@ -4,7 +4,7 @@ use clvm_utils::{ToTreeHash, TreeHash};
 
 #[derive(Debug, Clone, Copy)]
 pub struct DidInfo<M> {
-    pub launcher_id: Bytes32,
+    pub singleton_struct: SingletonStruct,
     pub recovery_list_hash: Bytes32,
     pub num_verifications_required: u64,
     pub metadata: M,
@@ -13,14 +13,14 @@ pub struct DidInfo<M> {
 
 impl<M> DidInfo<M> {
     pub fn new(
-        launcher_id: Bytes32,
+        singleton_struct: SingletonStruct,
         recovery_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
         p2_puzzle_hash: Bytes32,
     ) -> Self {
         Self {
-            launcher_id,
+            singleton_struct,
             recovery_list_hash,
             num_verifications_required,
             metadata,
@@ -36,7 +36,7 @@ impl<M> DidInfo<M> {
             self.p2_puzzle_hash.into(),
             self.recovery_list_hash,
             self.num_verifications_required,
-            SingletonStruct::new(self.launcher_id),
+            self.singleton_struct,
             self.metadata.tree_hash(),
         )
     }

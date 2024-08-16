@@ -1,17 +1,16 @@
-use chia_protocol::Bytes32;
 use chia_puzzles::singleton::{
-    SingletonArgs, SingletonSolution, SINGLETON_LAUNCHER_PUZZLE_HASH,
+    SingletonArgs, SingletonSolution, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH,
     SINGLETON_TOP_LAYER_PUZZLE_HASH,
 };
 use clvm_traits::{ClvmEncoder, FromClvm, ToClvm, ToClvmError};
-use clvm_utils::{CurriedProgram, TreeHash};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug)]
 pub struct SingletonLayer<I> {
-    pub launcher_id: Bytes32,
+    pub singleton_struct: SingletonStruct,
     pub inner_puzzle: I,
 }
 
@@ -45,7 +44,7 @@ where
         };
 
         Ok(Some(Self {
-            launcher_id: args.singleton_struct.launcher_id,
+            singleton_struct: args.singleton_struct,
             inner_puzzle,
         }))
     }
@@ -66,7 +65,10 @@ where
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let curried = CurriedProgram {
             program: ctx.singleton_top_layer()?,
-            args: SingletonArgs::new(self.launcher_id, self.inner_puzzle.construct_puzzle(ctx)?),
+            args: SingletonArgs {
+                singleton_struct: self.singleton_struct,
+                inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
+            },
         };
         Ok(ctx.alloc(&curried)?)
     }
@@ -95,9 +97,10 @@ where
 {
     fn to_clvm(&self, encoder: &mut E) -> Result<TreeHash, ToClvmError> {
         let inner_puzzle = self.inner_puzzle.to_clvm(encoder)?;
-        Ok(SingletonArgs::curry_tree_hash(
-            self.launcher_id,
+        Ok(SingletonArgs {
+            singleton_struct: self.singleton_struct,
             inner_puzzle,
-        ))
+        }
+        .tree_hash())
     }
 }

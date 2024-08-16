@@ -123,6 +123,7 @@ mod tests {
     use chia_protocol::Coin;
     use chia_puzzles::{nft::NftMetadata, standard::StandardArgs};
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
+    use chia_sdk_types::MAINNET_CONSTANTS;
 
     pub fn nft_mint(puzzle_hash: Bytes32, did: Option<&Did<()>>) -> NftMint<NftMetadata> {
         NftMint {
@@ -140,9 +141,9 @@ mod tests {
             royalty_percentage: 300,
             puzzle_hash,
             owner: NewNftOwner {
-                did_id: did.map(|did| did.launcher_id),
+                did_id: did.map(|did| did.info.singleton_struct.launcher_id),
                 trade_prices: Vec::new(),
-                did_inner_puzzle_hash: did.map(|did| did.singleton_inner_puzzle_hash().into()),
+                did_inner_puzzle_hash: did.map(|did| did.info.inner_puzzle_hash().into()),
             },
         }
     }
@@ -160,8 +161,7 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = Coin::new(Bytes32::new([0; 32]), puzzle_hash, 1);
 
-        let (create_did, did, did_proof) =
-            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
         // We don't want to count the DID creation.
@@ -171,9 +171,8 @@ mod tests {
         let (mint_nft, _nft, _) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
             .create(ctx)?
             .mint_nft(ctx, nft_mint(puzzle_hash, None))?;
-        let (_did, _did_proof) = ctx.spend_standard_did(
+        let _did = ctx.spend_standard_did(
             &did,
-            did_proof,
             pk,
             mint_nft.create_coin_announcement(b"$".to_vec().into()),
         )?;
@@ -190,12 +189,13 @@ mod tests {
                 .iter()
                 .map(|cs| (cs.coin, cs.puzzle_reveal.clone(), cs.solution.clone())),
         )?;
-        let conds = run_block_generator::<Vec<u8>, EmptyVisitor>(
+        let conds = run_block_generator::<Vec<u8>, EmptyVisitor, _>(
             &mut owned_ctx.into(),
             &generator,
-            &[],
+            [],
             11_000_000_000,
             0,
+            &MAINNET_CONSTANTS,
         )?;
 
         assert_eq!(conds.cost, 122_646_589);
@@ -215,8 +215,7 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 3).await;
 
-        let (create_did, did, did_proof) =
-            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
@@ -230,12 +229,8 @@ mod tests {
             .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?
             .0;
 
-        let _did = ctx.spend_standard_did(
-            &did,
-            did_proof,
-            pk,
-            Conditions::new().extend(mint_1).extend(mint_2),
-        )?;
+        let _did =
+            ctx.spend_standard_did(&did, pk, Conditions::new().extend(mint_1).extend(mint_2))?;
 
         test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
 
@@ -254,8 +249,7 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 3).await;
 
-        let (create_did, did, did_proof) =
-            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
@@ -265,8 +259,7 @@ mod tests {
 
         let (mint_nft, _nft, _) = launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
-        let _did_info =
-            ctx.spend_standard_did(&did, did_proof, pk, mint_nft.create_coin(puzzle_hash, 0))?;
+        let _did_info = ctx.spend_standard_did(&did, pk, mint_nft.create_coin(puzzle_hash, 0))?;
 
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
@@ -287,8 +280,7 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 3).await;
 
-        let (create_did, did, did_proof) =
-            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
@@ -298,13 +290,9 @@ mod tests {
 
         let (mint_nft, _nft_info, _) = launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
-        let (did, did_proof) = ctx.spend_standard_did(
-            &did,
-            did_proof,
-            pk,
-            Conditions::new().create_coin(puzzle_hash, 0),
-        )?;
-        let (_did, _did_proof) = ctx.spend_standard_did(&did, did_proof, pk, mint_nft)?;
+        let did =
+            ctx.spend_standard_did(&did, pk, Conditions::new().create_coin(puzzle_hash, 0))?;
+        let _did = ctx.spend_standard_did(&did, pk, mint_nft)?;
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
         test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;

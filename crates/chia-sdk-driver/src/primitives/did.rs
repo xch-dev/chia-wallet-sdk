@@ -32,7 +32,7 @@ impl<M> Did<M> {
         M: ToClvm<Allocator> + FromClvm<Allocator>,
     {
         let did_layer = DidLayer::new(
-            self.info.launcher_id,
+            self.info.singleton_struct,
             self.info.recovery_list_hash,
             self.info.num_verifications_required,
             ctx.alloc(&self.info.metadata)?,
@@ -97,7 +97,7 @@ where
             return Ok(None);
         };
 
-        if singleton_layer.launcher_id != did_layer.launcher_id {
+        if singleton_layer.singleton_struct != did_layer.singleton_struct {
             return Err(DriverError::InvalidSingletonStruct);
         }
 
@@ -136,7 +136,7 @@ where
                 parent_amount: parent_coin.amount,
             }),
             info: DidInfo::new(
-                did_layer.launcher_id,
+                did_layer.singleton_struct,
                 did_layer.recovery_list_hash,
                 did_layer.num_verifications_required,
                 did_layer.metadata,

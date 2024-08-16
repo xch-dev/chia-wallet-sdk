@@ -550,4 +550,63 @@ fn from_parent_spend(
                 inner_puzzle,
             })),
         }
-    } */
+    }
+
+
+
+
+
+    STATE
+
+
+
+     fn from_parent_spend(
+        allocator: &mut Allocator,
+        layer_puzzle: NodePtr,
+        layer_solution: NodePtr,
+    ) -> Result<Option<Self>, DriverError> {
+        let parent_puzzle = Puzzle::parse(allocator, layer_puzzle);
+
+        let Some(parent_puzzle) = parent_puzzle.as_curried() else {
+            return Ok(None);
+        };
+
+        if parent_puzzle.mod_hash != NFT_STATE_LAYER_PUZZLE_HASH {
+            return Ok(None);
+        }
+
+        let parent_args = NftStateLayerArgs::<NodePtr, M>::from_clvm(allocator, parent_puzzle.args)
+            .map_err(DriverError::FromClvm)?;
+
+        if parent_args.mod_hash != NFT_STATE_LAYER_PUZZLE_HASH.into() {
+            return Err(DriverError::InvalidModHash);
+        }
+
+        let parent_sol = NftStateLayerSolution::<NodePtr>::from_clvm(allocator, layer_solution)
+            .map_err(DriverError::FromClvm)?;
+
+        let (metadata, metadata_updater_puzzle_hash) =
+            NftStateLayer::<M, IP>::new_metadata_and_updater_from_conditions(
+                allocator,
+                parent_args.inner_puzzle,
+                parent_sol.inner_solution,
+            )?
+            .unwrap_or((
+                parent_args.metadata,
+                parent_args.metadata_updater_puzzle_hash,
+            ));
+
+        match IP::from_parent_spend(
+            allocator,
+            parent_args.inner_puzzle,
+            parent_sol.inner_solution,
+        )? {
+            None => Ok(None),
+            Some(inner_puzzle) => Ok(Some(NftStateLayer::<M, IP> {
+                metadata,
+                metadata_updater_puzzle_hash,
+                inner_puzzle,
+            })),
+        }
+    }
+    */
