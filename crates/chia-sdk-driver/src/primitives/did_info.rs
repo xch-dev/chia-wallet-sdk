@@ -2,9 +2,14 @@ use chia_protocol::Bytes32;
 use chia_puzzles::{did::DidArgs, singleton::SingletonStruct};
 use clvm_utils::{ToTreeHash, TreeHash};
 
-#[derive(Debug, Clone, Copy)]
+use crate::{DidLayer, SingletonLayer};
+
+pub type StandardDidLayers<M, I> = SingletonLayer<DidLayer<M, I>>;
+
+#[must_use]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DidInfo<M> {
-    pub singleton_struct: SingletonStruct,
+    pub launcher_id: Bytes32,
     pub recovery_list_hash: Bytes32,
     pub num_verifications_required: u64,
     pub metadata: M,
@@ -13,19 +18,46 @@ pub struct DidInfo<M> {
 
 impl<M> DidInfo<M> {
     pub fn new(
-        singleton_struct: SingletonStruct,
+        launcher_id: Bytes32,
         recovery_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
         p2_puzzle_hash: Bytes32,
     ) -> Self {
         Self {
-            singleton_struct,
+            launcher_id,
             recovery_list_hash,
             num_verifications_required,
             metadata,
             p2_puzzle_hash,
         }
+    }
+
+    pub fn from_layers<I>(layers: StandardDidLayers<M, I>) -> Self
+    where
+        I: ToTreeHash,
+    {
+        Self {
+            launcher_id: layers.launcher_id,
+            recovery_list_hash: layers.inner_puzzle.recovery_list_hash,
+            num_verifications_required: layers.inner_puzzle.num_verifications_required,
+            metadata: layers.inner_puzzle.metadata,
+            p2_puzzle_hash: layers.inner_puzzle.inner_puzzle.tree_hash().into(),
+        }
+    }
+
+    #[must_use]
+    pub fn into_layers<I>(self, p2_puzzle: I) -> StandardDidLayers<M, I> {
+        SingletonLayer::new(
+            self.launcher_id,
+            DidLayer::new(
+                self.launcher_id,
+                self.recovery_list_hash,
+                self.num_verifications_required,
+                self.metadata,
+                p2_puzzle,
+            ),
+        )
     }
 
     pub fn inner_puzzle_hash(&self) -> TreeHash
@@ -36,7 +68,7 @@ impl<M> DidInfo<M> {
             self.p2_puzzle_hash.into(),
             self.recovery_list_hash,
             self.num_verifications_required,
-            self.singleton_struct,
+            SingletonStruct::new(self.launcher_id),
             self.metadata.tree_hash(),
         )
     }

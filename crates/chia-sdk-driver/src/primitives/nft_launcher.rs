@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::{singleton::SingletonStruct, EveProof, Proof};
+use chia_puzzles::{EveProof, Proof};
 use chia_sdk_types::{Condition, NewNftOwner};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
@@ -32,7 +32,7 @@ impl Launcher {
     {
         let launcher_coin = self.coin();
         let nft_info = NftInfo::new(
-            SingletonStruct::new(launcher_coin.coin_id()),
+            launcher_coin.coin_id(),
             metadata,
             metadata_updater_puzzle_hash,
             None,
@@ -143,7 +143,7 @@ mod tests {
             royalty_ten_thousandths: 300,
             p2_puzzle_hash,
             owner: NewNftOwner {
-                did_id: did.map(|did| did.info.singleton_struct.launcher_id),
+                did_id: did.map(|did| did.info.launcher_id),
                 trade_prices: Vec::new(),
                 did_inner_puzzle_hash: did.map(|did| did.info.inner_puzzle_hash().into()),
             },

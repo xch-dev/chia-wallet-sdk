@@ -1,6 +1,6 @@
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
-use chia_puzzles::{singleton::SingletonStruct, standard::StandardArgs, EveProof, Proof};
+use chia_puzzles::{standard::StandardArgs, EveProof, Proof};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash_atom, ToTreeHash};
 use clvmr::Allocator;
@@ -23,7 +23,7 @@ impl Launcher {
     {
         let launcher_coin = self.coin();
         let did_info = DidInfo::new(
-            SingletonStruct::new(launcher_coin.coin_id()),
+            launcher_coin.coin_id(),
             recovery_list_hash,
             num_verifications_required,
             metadata,

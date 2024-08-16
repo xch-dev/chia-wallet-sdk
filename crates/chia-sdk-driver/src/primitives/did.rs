@@ -9,7 +9,7 @@ use crate::{DidLayer, DriverError, Layer, Primitive, Puzzle, SingletonLayer, Spe
 
 use super::DidInfo;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Did<M> {
     pub coin: Coin,
     pub proof: Proof,
@@ -21,24 +21,6 @@ impl<M> Did<M> {
         Self { coin, proof, info }
     }
 
-    /// Converts the DID into a layered puzzle.
-    #[must_use]
-    pub fn to_layers<I>(&self, p2_puzzle: I) -> SingletonLayer<DidLayer<M, I>>
-    where
-        M: Clone,
-    {
-        SingletonLayer::new(
-            self.info.singleton_struct,
-            DidLayer::new(
-                self.info.singleton_struct,
-                self.info.recovery_list_hash,
-                self.info.num_verifications_required,
-                self.info.metadata.clone(),
-                p2_puzzle,
-            ),
-        )
-    }
-
     /// Creates a coin spend for this DID.
     pub fn spend(
         &self,
@@ -48,7 +30,7 @@ impl<M> Did<M> {
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
-        let layers = self.to_layers(inner_spend.puzzle);
+        let layers = self.info.clone().into_layers(inner_spend.puzzle);
 
         let puzzle_ptr = layers.construct_puzzle(ctx)?;
         let solution_ptr = layers.construct_solution(
@@ -118,7 +100,7 @@ where
             return Ok(None);
         };
 
-        if singleton_layer.singleton_struct != did_layer.singleton_struct {
+        if singleton_layer.launcher_id != did_layer.launcher_id {
             return Err(DriverError::InvalidSingletonStruct);
         }
 
@@ -148,20 +130,20 @@ where
             return Err(DriverError::MissingHint);
         };
 
+        let parent_inner_puzzle_hash = did_layer.tree_hash().into();
+        let layers = SingletonLayer::new(singleton_layer.launcher_id, did_layer);
+
+        let mut info = DidInfo::from_layers(layers);
+        info.p2_puzzle_hash = hint;
+
         Ok(Some(Self {
             coin,
             proof: Proof::Lineage(LineageProof {
                 parent_parent_coin_info: parent_coin.parent_coin_info,
-                parent_inner_puzzle_hash: did_layer.tree_hash().into(),
+                parent_inner_puzzle_hash,
                 parent_amount: parent_coin.amount,
             }),
-            info: DidInfo::new(
-                did_layer.singleton_struct,
-                did_layer.recovery_list_hash,
-                did_layer.num_verifications_required,
-                did_layer.metadata,
-                hint,
-            ),
+            info,
         }))
     }
 }

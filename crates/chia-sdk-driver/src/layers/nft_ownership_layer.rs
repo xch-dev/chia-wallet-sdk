@@ -10,8 +10,11 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug)]
 pub struct NftOwnershipLayer<T, I> {
+    /// The DID owner of this NFT, if it's currently assigned to one.
     pub current_owner: Option<Bytes32>,
+    /// The transfer layer, which is used to transfer ownership of the NFT.
     pub transfer_layer: T,
+    /// The inner puzzle layer, commonly used for determining ownership.
     pub inner_puzzle: I,
 }
 

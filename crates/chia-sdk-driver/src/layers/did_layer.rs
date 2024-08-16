@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{
     did::{DidArgs, DidSolution, DID_INNER_PUZZLE_HASH},
-    singleton::SingletonStruct,
+    singleton::{SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
@@ -9,25 +9,33 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
+/// The DID [`Layer`] keeps track of metadata and handles recovery capabilities.
+/// It's typically an inner layer of the [`SingletonLayer`](crate::SingletonLayer).
 #[derive(Debug)]
 pub struct DidLayer<M, I> {
-    pub singleton_struct: SingletonStruct,
+    /// The unique launcher id for the DID. Also referred to as the DID id.
+    pub launcher_id: Bytes32,
+    /// The tree hash of a list of recovery DIDs.
+    /// Note that this is currently *not* optional, but will be in the future.
     pub recovery_list_hash: Bytes32,
+    /// The number of verifications required to recover the DID.
     pub num_verifications_required: u64,
+    /// Metadata associated with the DID. This is often just `()` for DIDs without metadata.
     pub metadata: M,
+    /// The inner puzzle layer, commonly used for determining ownership.
     pub inner_puzzle: I,
 }
 
 impl<M, I> DidLayer<M, I> {
     pub fn new(
-        singleton_struct: SingletonStruct,
+        launcher_id: Bytes32,
         recovery_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
         inner_puzzle: I,
     ) -> Self {
         Self {
-            singleton_struct,
+            launcher_id,
             recovery_list_hash,
             num_verifications_required,
             metadata,
@@ -54,6 +62,12 @@ where
 
         let args = DidArgs::<NodePtr, M>::from_clvm(allocator, puzzle.args)?;
 
+        if args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
+            || args.singleton_struct.launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
+        {
+            return Err(DriverError::InvalidSingletonStruct);
+        }
+
         let Some(inner_puzzle) =
             I::parse_puzzle(allocator, Puzzle::parse(allocator, args.inner_puzzle))?
         else {
@@ -61,7 +75,7 @@ where
         };
 
         Ok(Some(Self {
-            singleton_struct: args.singleton_struct,
+            launcher_id: args.singleton_struct.launcher_id,
             recovery_list_hash: args.recovery_list_hash,
             num_verifications_required: args.num_verifications_required,
             metadata: args.metadata,
@@ -89,7 +103,7 @@ where
                 self.inner_puzzle.construct_puzzle(ctx)?,
                 self.recovery_list_hash,
                 self.num_verifications_required,
-                self.singleton_struct,
+                SingletonStruct::new(self.launcher_id),
                 &self.metadata,
             ),
         };
@@ -125,7 +139,7 @@ where
             inner_puzzle_hash,
             self.recovery_list_hash,
             self.num_verifications_required,
-            self.singleton_struct,
+            SingletonStruct::new(self.launcher_id),
             metadata_hash,
         )
     }

@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use chia_protocol::Bytes32;
 use chia_puzzles::{
     nft::{NftRoyaltyTransferPuzzleArgs, NFT_ROYALTY_TRANSFER_PUZZLE_HASH},
-    singleton::SingletonStruct,
+    singleton::{SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
 };
 use clvm_traits::FromClvm;
 use clvm_utils::CurriedProgram;
@@ -13,19 +13,23 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RoyaltyTransferLayer {
-    pub singleton_struct: SingletonStruct,
+    /// The launcher id of the NFT this transfer program belongs to.
+    pub launcher_id: Bytes32,
+    /// The puzzle hash that receives royalties paid when transferring this NFT.
     pub royalty_puzzle_hash: Bytes32,
+    /// The percentage of the transfer amount that is paid as royalties.
+    /// This is represented in ten thousandths, so a value of 300 means 3%.
     pub royalty_ten_thousandths: u16,
 }
 
 impl RoyaltyTransferLayer {
     pub fn new(
-        singleton_struct: SingletonStruct,
+        launcher_id: Bytes32,
         royalty_puzzle_hash: Bytes32,
         royalty_ten_thousandths: u16,
     ) -> Self {
         Self {
-            singleton_struct,
+            launcher_id,
             royalty_puzzle_hash,
             royalty_ten_thousandths,
         }
@@ -39,7 +43,7 @@ impl Layer for RoyaltyTransferLayer {
         let curried = CurriedProgram {
             program: ctx.nft_royalty_transfer()?,
             args: NftRoyaltyTransferPuzzleArgs {
-                singleton_struct: self.singleton_struct,
+                singleton_struct: SingletonStruct::new(self.launcher_id),
                 royalty_puzzle_hash: self.royalty_puzzle_hash,
                 royalty_ten_thousandths: self.royalty_ten_thousandths,
             },
@@ -58,8 +62,14 @@ impl Layer for RoyaltyTransferLayer {
 
         let args = NftRoyaltyTransferPuzzleArgs::from_clvm(allocator, puzzle.args)?;
 
+        if args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
+            || args.singleton_struct.launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
+        {
+            return Err(DriverError::InvalidSingletonStruct);
+        }
+
         Ok(Some(Self {
-            singleton_struct: args.singleton_struct,
+            launcher_id: args.singleton_struct.launcher_id,
             royalty_puzzle_hash: args.royalty_puzzle_hash,
             royalty_ten_thousandths: args.royalty_ten_thousandths,
         }))

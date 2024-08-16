@@ -31,7 +31,7 @@ where
 {
     pub fn from_nft(nft: &Nft<M>) -> Self {
         Self {
-            launcher_id: nft.info.singleton_struct.launcher_id,
+            launcher_id: nft.info.launcher_id,
             royalty_puzzle_hash: nft.info.royalty_puzzle_hash,
             royalty_percentage: nft.info.royalty_ten_thousandths,
             current_owner: None,

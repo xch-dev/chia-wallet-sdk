@@ -14,7 +14,7 @@ use super::Launcher;
 ///
 /// The purpose of this is to allow multiple launcher coins to be created from a single parent.
 /// Without an intermediate launcher, they would all have the same coin id.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[must_use]
 pub struct IntermediateLauncher {
     mint_number: usize,

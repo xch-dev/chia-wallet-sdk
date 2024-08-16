@@ -6,9 +6,13 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
-#[derive(Debug)]
+/// The CAT [`Layer`] enforces restrictions on the supply of a token.
+/// Specifically, unless the TAIL program is run, the supply cannot change.
+#[derive(Debug, Clone, Copy)]
 pub struct CatLayer<I> {
+    /// The asset id of the CAT token. This is the tree hash of the TAIL program.
     pub asset_id: Bytes32,
+    /// The inner puzzle layer, commonly used for determining ownership.
     pub inner_puzzle: I,
 }
 
