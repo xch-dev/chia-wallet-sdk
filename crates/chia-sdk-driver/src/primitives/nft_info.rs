@@ -1,16 +1,13 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::{
-    nft::{
-        NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs,
-        NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
-    },
-    singleton::SingletonStruct,
+use chia_puzzles::nft::{
+    NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs,
+    NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
 };
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 
 #[derive(Debug, Clone, Copy)]
 pub struct NftInfo<M> {
-    pub singleton_struct: SingletonStruct,
+    pub launcher_id: Bytes32,
     pub metadata: M,
     pub metadata_updater_puzzle_hash: Bytes32,
     pub current_owner: Option<Bytes32>,
@@ -21,7 +18,7 @@ pub struct NftInfo<M> {
 
 impl<M> NftInfo<M> {
     pub fn new(
-        singleton_struct: SingletonStruct,
+        launcher_id: Bytes32,
         metadata: M,
         metadata_updater_puzzle_hash: Bytes32,
         current_owner: Option<Bytes32>,
@@ -30,7 +27,7 @@ impl<M> NftInfo<M> {
         p2_puzzle_hash: Bytes32,
     ) -> Self {
         Self {
-            singleton_struct,
+            launcher_id,
             metadata,
             metadata_updater_puzzle_hash,
             current_owner,
@@ -50,11 +47,11 @@ impl<M> NftInfo<M> {
                 self.current_owner,
                 CurriedProgram {
                     program: NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
-                    args: NftRoyaltyTransferPuzzleArgs {
-                        singleton_struct: self.singleton_struct,
-                        royalty_puzzle_hash: self.royalty_puzzle_hash,
-                        royalty_ten_thousandths: self.royalty_ten_thousandths,
-                    },
+                    args: NftRoyaltyTransferPuzzleArgs::new(
+                        self.launcher_id,
+                        self.royalty_puzzle_hash,
+                        self.royalty_ten_thousandths,
+                    ),
                 }
                 .tree_hash(),
                 self.p2_puzzle_hash.into(),

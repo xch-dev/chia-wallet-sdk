@@ -2,12 +2,12 @@ use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
     nft::{NftOwnershipLayerSolution, NftStateLayerSolution},
-    singleton::{SingletonArgs, SingletonSolution},
+    singleton::{SingletonArgs, SingletonSolution, SingletonStruct},
     LineageProof, Proof,
 };
 use chia_sdk_types::{run_puzzle, Condition, CreateCoin, NewNftOwner};
 use clvm_traits::{clvm_list, FromClvm, ToClvm};
-use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::{sha2::Sha256, Allocator, NodePtr};
 
 use crate::{
@@ -42,14 +42,14 @@ where
         M: Clone,
     {
         SingletonLayer::new(
-            self.info.singleton_struct,
+            self.info.launcher_id,
             NftStateLayer::new(
                 self.info.metadata.clone(),
                 self.info.metadata_updater_puzzle_hash,
                 NftOwnershipLayer::new(
                     self.info.current_owner,
                     RoyaltyTransferLayer::new(
-                        self.info.singleton_struct,
+                        SingletonStruct::new(self.info.launcher_id),
                         self.info.royalty_puzzle_hash,
                         self.info.royalty_ten_thousandths,
                     ),
@@ -181,15 +181,7 @@ where
         Self {
             coin: Coin::new(
                 self.coin.coin_id(),
-                CurriedProgram {
-                    program: TreeHash::from(info.singleton_struct.mod_hash),
-                    args: SingletonArgs {
-                        singleton_struct: info.singleton_struct,
-                        inner_puzzle: info.inner_puzzle_hash(),
-                    },
-                }
-                .tree_hash()
-                .into(),
+                SingletonArgs::curry_tree_hash(info.launcher_id, info.inner_puzzle_hash()).into(),
                 self.coin.amount,
             ),
             proof: Proof::Lineage(self.child_lineage_proof()),
@@ -267,7 +259,7 @@ where
                 parent_amount: parent_coin.amount,
             }),
             info: NftInfo::new(
-                singleton_layer.singleton_struct,
+                singleton_layer.launcher_id,
                 inner_layers.metadata,
                 inner_layers.metadata_updater_puzzle_hash,
                 new_owner.map_or(inner_layers.inner_puzzle.current_owner, |new_owner| {
@@ -380,7 +372,7 @@ mod tests {
                 nft.info.p2_puzzle_hash,
                 if i % 2 == 0 {
                     Some(NewNftOwner::new(
-                        Some(did.info.singleton_struct.launcher_id),
+                        Some(did.info.launcher_id),
                         Vec::new(),
                         Some(did.info.inner_puzzle_hash().into()),
                     ))
@@ -430,7 +422,7 @@ mod tests {
                 royalty_puzzle_hash: Bytes32::new([1; 32]),
                 p2_puzzle_hash: puzzle_hash,
                 owner: NewNftOwner {
-                    did_id: Some(did.info.singleton_struct.launcher_id),
+                    did_id: Some(did.info.launcher_id),
                     trade_prices: Vec::new(),
                     did_inner_puzzle_hash: Some(did.info.inner_puzzle_hash().into()),
                 },
@@ -461,10 +453,7 @@ mod tests {
         )?
         .unwrap();
 
-        assert_eq!(
-            parsed_nft.info.singleton_struct.launcher_id,
-            nft.info.singleton_struct.launcher_id
-        );
+        assert_eq!(parsed_nft.info.launcher_id, nft.info.launcher_id);
         assert_eq!(parsed_nft.info.metadata, nft.info.metadata);
         assert_eq!(parsed_nft.info.current_owner, nft.info.current_owner);
         assert_eq!(

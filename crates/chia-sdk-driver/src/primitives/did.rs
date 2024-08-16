@@ -28,9 +28,9 @@ impl<M> Did<M> {
         M: Clone,
     {
         SingletonLayer::new(
-            self.info.singleton_struct,
+            self.info.launcher_id,
             DidLayer::new(
-                self.info.singleton_struct,
+                self.info.launcher_id,
                 self.info.recovery_list_hash,
                 self.info.num_verifications_required,
                 self.info.metadata.clone(),
@@ -118,7 +118,7 @@ where
             return Ok(None);
         };
 
-        if singleton_layer.singleton_struct != did_layer.singleton_struct {
+        if singleton_layer.launcher_id != did_layer.launcher_id {
             return Err(DriverError::InvalidSingletonStruct);
         }
 
@@ -156,7 +156,7 @@ where
                 parent_amount: parent_coin.amount,
             }),
             info: DidInfo::new(
-                did_layer.singleton_struct,
+                did_layer.launcher_id,
                 did_layer.recovery_list_hash,
                 did_layer.num_verifications_required,
                 did_layer.metadata,

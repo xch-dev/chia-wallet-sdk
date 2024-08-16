@@ -1,3 +1,4 @@
+use chia_protocol::Bytes32;
 use chia_puzzles::singleton::{
     SingletonArgs, SingletonSolution, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH,
     SINGLETON_TOP_LAYER_PUZZLE_HASH,
@@ -10,14 +11,14 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug)]
 pub struct SingletonLayer<I> {
-    pub singleton_struct: SingletonStruct,
+    pub launcher_id: Bytes32,
     pub inner_puzzle: I,
 }
 
 impl<I> SingletonLayer<I> {
-    pub fn new(singleton_struct: SingletonStruct, inner_puzzle: I) -> Self {
+    pub fn new(launcher_id: Bytes32, inner_puzzle: I) -> Self {
         Self {
-            singleton_struct,
+            launcher_id,
             inner_puzzle,
         }
     }
@@ -53,7 +54,7 @@ where
         };
 
         Ok(Some(Self {
-            singleton_struct: args.singleton_struct,
+            launcher_id: args.singleton_struct.launcher_id,
             inner_puzzle,
         }))
     }
@@ -75,7 +76,7 @@ where
         let curried = CurriedProgram {
             program: ctx.singleton_top_layer()?,
             args: SingletonArgs {
-                singleton_struct: self.singleton_struct,
+                singleton_struct: SingletonStruct::new(self.launcher_id),
                 inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
             },
         };
@@ -105,7 +106,7 @@ where
     fn tree_hash(&self) -> TreeHash {
         let inner_puzzle = self.inner_puzzle.tree_hash();
         SingletonArgs {
-            singleton_struct: self.singleton_struct,
+            singleton_struct: SingletonStruct::new(self.launcher_id),
             inner_puzzle,
         }
         .tree_hash()
