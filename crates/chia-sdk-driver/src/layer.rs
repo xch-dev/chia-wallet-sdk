@@ -1,6 +1,8 @@
+use chia_protocol::{Coin, CoinSpend};
+use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, Puzzle, SpendContext};
+use crate::{DriverError, Puzzle, Spend, SpendContext};
 
 /// An individual layer in a puzzle's hierarchy.
 pub trait Layer {
@@ -32,13 +34,43 @@ pub trait Layer {
         ctx: &mut SpendContext,
         solution: Self::Solution,
     ) -> Result<NodePtr, DriverError>;
+
+    /// Creates a spend for this layer.
+    fn construct_spend(
+        &self,
+        ctx: &mut SpendContext,
+        solution: Self::Solution,
+    ) -> Result<Spend, DriverError> {
+        let solution = self.construct_solution(ctx, solution)?;
+        let puzzle = self.construct_puzzle(ctx)?;
+        Ok(Spend::new(puzzle, solution))
+    }
+
+    /// Creates a coin spend for this layer.
+    fn construct_coin_spend(
+        &self,
+        ctx: &mut SpendContext,
+        coin: Coin,
+        solution: Self::Solution,
+    ) -> Result<CoinSpend, DriverError> {
+        let solution = self.construct_solution(ctx, solution)?;
+        let puzzle = self.construct_puzzle(ctx)?;
+        Ok(CoinSpend::new(
+            coin,
+            ctx.serialize(&puzzle)?,
+            ctx.serialize(&solution)?,
+        ))
+    }
 }
 
-impl Layer for NodePtr {
+impl<T> Layer for T
+where
+    T: ToClvm<Allocator> + FromClvm<Allocator>,
+{
     type Solution = NodePtr;
 
-    fn parse_puzzle(_allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
-        Ok(Some(puzzle.ptr()))
+    fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
+        Ok(Some(T::from_clvm(allocator, puzzle.ptr())?))
     }
 
     fn parse_solution(
@@ -48,8 +80,8 @@ impl Layer for NodePtr {
         Ok(solution)
     }
 
-    fn construct_puzzle(&self, _ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        Ok(*self)
+    fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
+        Ok(ctx.alloc(self)?)
     }
 
     fn construct_solution(

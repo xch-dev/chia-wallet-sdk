@@ -126,19 +126,17 @@ mod tests {
         let mut ctx = SpendContext::new();
         let asset_id = Bytes32::new([1; 32]);
 
-        let inner_puzzle = ctx.alloc(&"Hello, world!")?;
-        let layer = CatLayer::new(asset_id, inner_puzzle);
+        let layer = CatLayer::new(asset_id, "Hello, world!".to_string());
 
         let ptr = layer.construct_puzzle(&mut ctx)?;
         let puzzle = Puzzle::parse(ctx.allocator(), ptr);
         let roundtrip =
-            CatLayer::<NodePtr>::parse_puzzle(ctx.allocator(), puzzle)?.expect("invalid CAT layer");
+            CatLayer::<String>::parse_puzzle(ctx.allocator(), puzzle)?.expect("invalid CAT layer");
 
-        let value: String = ctx.extract(roundtrip.inner_puzzle)?;
         assert_eq!(roundtrip.asset_id, layer.asset_id);
-        assert_eq!(value, "Hello, world!");
+        assert_eq!(roundtrip.inner_puzzle, layer.inner_puzzle);
 
-        let expected = CatArgs::curry_tree_hash(asset_id, ctx.tree_hash(inner_puzzle));
+        let expected = CatArgs::curry_tree_hash(asset_id, layer.inner_puzzle.tree_hash());
         assert_eq!(hex::encode(ctx.tree_hash(ptr)), hex::encode(expected));
 
         Ok(())
