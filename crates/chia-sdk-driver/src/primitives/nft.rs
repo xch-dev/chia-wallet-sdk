@@ -7,7 +7,7 @@ use chia_puzzles::{
 };
 use chia_sdk_types::{run_puzzle, Condition, CreateCoin, NewNftOwner};
 use clvm_traits::{clvm_list, FromClvm, ToClvm};
-use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash, TreeHasher};
+use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{sha2::Sha256, Allocator, NodePtr};
 
 use crate::{
@@ -200,7 +200,7 @@ where
 
 impl<M> Primitive for Nft<M>
 where
-    M: ToClvm<Allocator> + FromClvm<Allocator> + ToClvm<TreeHasher>,
+    M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
 {
     fn from_parent_spend(
         allocator: &mut Allocator,

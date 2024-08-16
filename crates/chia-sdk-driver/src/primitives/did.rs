@@ -2,7 +2,7 @@ use chia_protocol::{Coin, CoinSpend};
 use chia_puzzles::{did::DidSolution, singleton::SingletonSolution, LineageProof, Proof};
 use chia_sdk_types::{run_puzzle, Condition};
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{ToTreeHash, TreeHasher};
+use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DidLayer, DriverError, Layer, Primitive, Puzzle, SingletonLayer, Spend, SpendContext};
@@ -94,7 +94,7 @@ impl<M> Did<M> {
 
 impl<M> Primitive for Did<M>
 where
-    M: ToClvm<Allocator> + FromClvm<Allocator> + ToClvm<TreeHasher>,
+    M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
 {
     fn from_parent_spend(
         allocator: &mut Allocator,
