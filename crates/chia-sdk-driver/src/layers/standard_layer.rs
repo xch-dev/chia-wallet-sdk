@@ -1,7 +1,7 @@
 use chia_bls::PublicKey;
 use chia_puzzles::standard::{StandardArgs, StandardSolution, STANDARD_PUZZLE_HASH};
 use chia_sdk_types::Conditions;
-use clvm_traits::FromClvm;
+use clvm_traits::{clvm_quote, FromClvm};
 use clvm_utils::CurriedProgram;
 use clvmr::{Allocator, NodePtr};
 
@@ -24,7 +24,7 @@ impl StandardLayer {
         ctx: &mut SpendContext,
         conditions: Conditions,
     ) -> Result<Spend, DriverError> {
-        let delegated_puzzle = ctx.alloc(&conditions)?;
+        let delegated_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
         self.construct_spend(
             ctx,
             StandardSolution {
