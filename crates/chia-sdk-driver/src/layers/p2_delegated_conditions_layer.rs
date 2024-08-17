@@ -21,7 +21,7 @@ impl Layer for P2DelegatedConditionsLayer {
             program: ctx.p2_delegated_conditions_puzzle()?,
             args: P2DelegatedConditionsArgs::new(self.public_key),
         };
-        Ok(ctx.alloc(&curried)?)
+        ctx.alloc(&curried)
     }
 
     fn construct_solution(
@@ -29,7 +29,7 @@ impl Layer for P2DelegatedConditionsLayer {
         ctx: &mut SpendContext,
         solution: Self::Solution,
     ) -> Result<NodePtr, DriverError> {
-        Ok(ctx.alloc(&solution)?)
+        ctx.alloc(&solution)
     }
 
     fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {

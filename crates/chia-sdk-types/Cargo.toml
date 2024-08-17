@@ -24,6 +24,7 @@ clvmr = { workspace = true }
 thiserror = { workspace = true }
 hex-literal = { workspace = true }
 once_cell = { workspace = true }
+paste = { workspace = true }
 
 [dev-dependencies]
 hex = { workspace = true }

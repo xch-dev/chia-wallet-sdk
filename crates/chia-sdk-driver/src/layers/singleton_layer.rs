@@ -82,7 +82,7 @@ where
                 inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
             },
         };
-        Ok(ctx.alloc(&curried)?)
+        ctx.alloc(&curried)
     }
 
     fn construct_solution(
@@ -93,11 +93,11 @@ where
         let inner_solution = self
             .inner_puzzle
             .construct_solution(ctx, solution.inner_solution)?;
-        Ok(ctx.alloc(&SingletonSolution {
+        ctx.alloc(&SingletonSolution {
             lineage_proof: solution.lineage_proof,
             amount: solution.amount,
             inner_solution,
-        })?)
+        })
     }
 }
 

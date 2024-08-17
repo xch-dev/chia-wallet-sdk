@@ -152,8 +152,9 @@ where
 mod tests {
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
+    use chia_sdk_types::Conditions;
 
-    use crate::{Conditions, Launcher};
+    use crate::Launcher;
 
     use super::*;
 

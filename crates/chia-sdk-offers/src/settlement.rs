@@ -1,6 +1,6 @@
 use chia_protocol::{Coin, CoinSpend};
 use chia_puzzles::offer::{NotarizedPayment, SettlementPaymentsSolution};
-use chia_sdk_driver::{Spend, SpendContext, SpendError};
+use chia_sdk_driver::{Spend, SpendContext, DriverError};
 
 #[derive(Debug, Clone)]
 #[must_use]
@@ -13,7 +13,7 @@ impl SettlementSpend {
         Self { notarized_payments }
     }
 
-    pub fn inner_spend(self, ctx: &mut SpendContext) -> Result<Spend, SpendError> {
+    pub fn inner_spend(self, ctx: &mut SpendContext) -> Result<Spend, DriverError> {
         let puzzle = ctx.settlement_payments_puzzle()?;
         let solution = ctx.alloc(&SettlementPaymentsSolution {
             notarized_payments: self.notarized_payments,
@@ -21,7 +21,7 @@ impl SettlementSpend {
         Ok(Spend::new(puzzle, solution))
     }
 
-    pub fn finish(self, ctx: &mut SpendContext, coin: Coin) -> Result<(), SpendError> {
+    pub fn finish(self, ctx: &mut SpendContext, coin: Coin) -> Result<(), DriverError> {
         let inner_spend = self.inner_spend(ctx)?;
         let puzzle_reveal = ctx.serialize(&inner_spend.puzzle)?;
         let solution = ctx.serialize(&inner_spend.solution)?;

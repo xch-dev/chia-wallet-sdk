@@ -107,7 +107,7 @@ where
                 &self.metadata,
             ),
         };
-        Ok(ctx.alloc(&curried)?)
+        ctx.alloc(&curried)
     }
 
     fn construct_solution(

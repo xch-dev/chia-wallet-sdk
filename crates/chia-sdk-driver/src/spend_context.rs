@@ -22,13 +22,13 @@ use chia_puzzles::{
     standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
 };
 use chia_sdk_types::{
-    NewNftOwner, P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
+    Conditions, NewNftOwner, P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
 
-use crate::{spend_error::SpendError, Conditions, Did, DriverError, Nft, Spend};
+use crate::{Did, DriverError, Nft, Spend, StandardLayer};
 
 /// A wrapper around `Allocator` that caches puzzles and simplifies coin spending.
 #[derive(Debug, Default)]
@@ -70,7 +70,7 @@ impl SpendContext {
     }
 
     /// Serializes a [`Spend`] and adds it to the list of coin spends.
-    pub fn spend(&mut self, coin: Coin, spend: Spend) -> Result<(), SpendError> {
+    pub fn spend(&mut self, coin: Coin, spend: Spend) -> Result<(), DriverError> {
         let puzzle_reveal = self.serialize(&spend.puzzle)?;
         let solution = self.serialize(&spend.solution)?;
         self.insert_coin_spend(CoinSpend::new(coin, puzzle_reveal, solution));
@@ -78,7 +78,7 @@ impl SpendContext {
     }
 
     /// Allocate a new node and return its pointer.
-    pub fn alloc<T>(&mut self, value: &T) -> Result<NodePtr, SpendError>
+    pub fn alloc<T>(&mut self, value: &T) -> Result<NodePtr, DriverError>
     where
         T: ToClvm<Allocator>,
     {
@@ -86,7 +86,7 @@ impl SpendContext {
     }
 
     /// Extract a value from a node pointer.
-    pub fn extract<T>(&self, ptr: NodePtr) -> Result<T, SpendError>
+    pub fn extract<T>(&self, ptr: NodePtr) -> Result<T, DriverError>
     where
         T: FromClvm<Allocator>,
     {
@@ -99,7 +99,7 @@ impl SpendContext {
     }
 
     /// Run a puzzle with a solution and return the result.
-    pub fn run(&mut self, puzzle: NodePtr, solution: NodePtr) -> Result<NodePtr, SpendError> {
+    pub fn run(&mut self, puzzle: NodePtr, solution: NodePtr) -> Result<NodePtr, DriverError> {
         let result = run_program(
             &mut self.allocator,
             &ChiaDialect::new(0),
@@ -111,7 +111,7 @@ impl SpendContext {
     }
 
     /// Serialize a value and return a `Program`.
-    pub fn serialize<T>(&mut self, value: &T) -> Result<Program, SpendError>
+    pub fn serialize<T>(&mut self, value: &T) -> Result<Program, DriverError>
     where
         T: ToClvm<Allocator>,
     {
@@ -120,22 +120,22 @@ impl SpendContext {
     }
 
     /// Allocate the standard puzzle and return its pointer.
-    pub fn standard_puzzle(&mut self) -> Result<NodePtr, SpendError> {
+    pub fn standard_puzzle(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(STANDARD_PUZZLE_HASH, &STANDARD_PUZZLE)
     }
 
     /// Allocate the CAT puzzle and return its pointer.
-    pub fn cat_puzzle(&mut self) -> Result<NodePtr, SpendError> {
+    pub fn cat_puzzle(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(CAT_PUZZLE_HASH, &CAT_PUZZLE)
     }
 
     /// Allocate the DID inner puzzle and return its pointer.
-    pub fn did_inner_puzzle(&mut self) -> Result<NodePtr, SpendError> {
+    pub fn did_inner_puzzle(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(DID_INNER_PUZZLE_HASH, &DID_INNER_PUZZLE)
     }
 
     /// Allocate the NFT intermediate launcher puzzle and return its pointer.
-    pub fn nft_intermediate_launcher(&mut self) -> Result<NodePtr, SpendError> {
+    pub fn nft_intermediate_launcher(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(
             NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH,
             &NFT_INTERMEDIATE_LAUNCHER_PUZZLE,
@@ -143,7 +143,7 @@ impl SpendContext {
     }
 
     /// Allocate the NFT royalty transfer puzzle and return its pointer.
-    pub fn nft_royalty_transfer(&mut self) -> Result<NodePtr, SpendError> {
+    pub fn nft_royalty_transfer(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(
             NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
             &NFT_ROYALTY_TRANSFER_PUZZLE,
@@ -151,27 +151,27 @@ impl SpendContext {
     }
 
     /// Allocate the NFT ownership layer puzzle and return its pointer.
-    pub fn nft_ownership_layer(&mut self) -> Result<NodePtr, SpendError> {
+    pub fn nft_ownership_layer(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(NFT_OWNERSHIP_LAYER_PUZZLE_HASH, &NFT_OWNERSHIP_LAYER_PUZZLE)
     }
 
     /// Allocate the NFT state layer puzzle and return its pointer.
-    pub fn nft_state_layer(&mut self) -> Result<NodePtr, SpendError> {
+    pub fn nft_state_layer(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(NFT_STATE_LAYER_PUZZLE_HASH, &NFT_STATE_LAYER_PUZZLE)
     }
 
     /// Allocate the singleton top layer puzzle and return its pointer.
-    pub fn singleton_top_layer(&mut self) -> Result<NodePtr, SpendError> {
+    pub fn singleton_top_layer(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(SINGLETON_TOP_LAYER_PUZZLE_HASH, &SINGLETON_TOP_LAYER_PUZZLE)
     }
 
     /// Allocate the singleton launcher puzzle and return its pointer.
-    pub fn singleton_launcher(&mut self) -> Result<NodePtr, SpendError> {
+    pub fn singleton_launcher(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(SINGLETON_LAUNCHER_PUZZLE_HASH, &SINGLETON_LAUNCHER_PUZZLE)
     }
 
     /// Allocate the multi-issuance TAIL puzzle and return its pointer.
-    pub fn everything_with_signature_tail_puzzle(&mut self) -> Result<NodePtr, SpendError> {
+    pub fn everything_with_signature_tail_puzzle(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(
             EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE_HASH,
             &EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE,
@@ -179,7 +179,7 @@ impl SpendContext {
     }
 
     /// Allocate the single-issuance TAIL puzzle and return its pointer.
-    pub fn genesis_by_coin_id_tail_puzzle(&mut self) -> Result<NodePtr, SpendError> {
+    pub fn genesis_by_coin_id_tail_puzzle(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(
             GENESIS_BY_COIN_ID_TAIL_PUZZLE_HASH,
             &GENESIS_BY_COIN_ID_TAIL_PUZZLE,
@@ -187,12 +187,12 @@ impl SpendContext {
     }
 
     /// Allocate the settlement payments puzzle and return its pointer.
-    pub fn settlement_payments_puzzle(&mut self) -> Result<NodePtr, SpendError> {
+    pub fn settlement_payments_puzzle(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(SETTLEMENT_PAYMENTS_PUZZLE_HASH, &SETTLEMENT_PAYMENTS_PUZZLE)
     }
 
     /// Allocate the p2 delegated conditions puzzle and return its pointer.
-    pub fn p2_delegated_conditions_puzzle(&mut self) -> Result<NodePtr, SpendError> {
+    pub fn p2_delegated_conditions_puzzle(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(
             P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
             &P2_DELEGATED_CONDITIONS_PUZZLE,
@@ -214,7 +214,7 @@ impl SpendContext {
         &mut self,
         puzzle_hash: TreeHash,
         puzzle_bytes: &[u8],
-    ) -> Result<NodePtr, SpendError> {
+    ) -> Result<NodePtr, DriverError> {
         if let Some(puzzle) = self.puzzles.get(&puzzle_hash) {
             Ok(*puzzle)
         } else {
@@ -230,8 +230,8 @@ impl SpendContext {
         coin: Coin,
         synthetic_key: PublicKey,
         conditions: Conditions,
-    ) -> Result<(), SpendError> {
-        let p2_spend = conditions.p2_spend(self, synthetic_key)?;
+    ) -> Result<(), DriverError> {
+        let p2_spend = StandardLayer::new(synthetic_key).spend(self, conditions)?;
         self.spend(coin, p2_spend)
     }
 
@@ -245,13 +245,14 @@ impl SpendContext {
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
-        let p2_spend = extra_conditions
-            .create_hinted_coin(
+        let p2_spend = StandardLayer::new(synthetic_key).spend(
+            self,
+            extra_conditions.create_coin(
                 did.info.inner_puzzle_hash().into(),
                 did.coin.amount,
-                did.info.p2_puzzle_hash,
-            )
-            .p2_spend(self, synthetic_key)?;
+                vec![did.info.p2_puzzle_hash.into()],
+            ),
+        )?;
 
         let coin_spend = did.spend(self, p2_spend)?;
         self.insert_coin_spend(coin_spend);

@@ -20,7 +20,7 @@ async fn main() -> anyhow::Result<()> {
     let ctx = &mut SpendContext::new();
 
     let conditions = Conditions::new()
-        .create_coin(puzzle_hash, 900)
+        .create_coin(puzzle_hash, 900, Vec::new())
         .reserve_fee(100);
 
     ctx.spend_p2_coin(coin, pk, conditions)?;

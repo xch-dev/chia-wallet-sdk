@@ -81,7 +81,7 @@ where
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        Ok(ctx.alloc(self)?)
+        ctx.alloc(self)
     }
 
     fn construct_solution(

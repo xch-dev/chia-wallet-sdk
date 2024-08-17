@@ -1,11 +1,11 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{EveProof, Proof};
-use chia_sdk_types::{Condition, NewNftOwner};
+use chia_sdk_types::{Condition, Conditions, NewNftOwner};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{did_puzzle_assertion, Conditions, DriverError, Launcher, Spend, SpendContext};
+use crate::{did_puzzle_assertion, DriverError, Launcher, Spend, SpendContext};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NftMint<M> {
@@ -41,9 +41,8 @@ impl Launcher {
             p2_puzzle_hash,
         );
 
-        let (launch_singleton, eve_coin) = self
-            .spend(ctx, nft_info.inner_puzzle_hash().into(), ())
-            .map_err(DriverError::Spend)?;
+        let (launch_singleton, eve_coin) =
+            self.spend(ctx, nft_info.inner_puzzle_hash().into(), ())?;
 
         let proof = Proof::Eve(EveProof {
             parent_parent_coin_info: launcher_coin.parent_coin_info,
@@ -65,10 +64,10 @@ impl Launcher {
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
     {
         let mut conditions =
-            Conditions::new().create_hinted_coin(mint.p2_puzzle_hash, 1, mint.p2_puzzle_hash);
+            Conditions::new().create_coin(mint.p2_puzzle_hash, 1, vec![mint.p2_puzzle_hash.into()]);
 
         if mint.owner != NewNftOwner::default() {
-            conditions = conditions.condition(Condition::Other(ctx.alloc(&mint.owner)?));
+            conditions = conditions.with(Condition::Other(ctx.alloc(&mint.owner)?));
         }
 
         let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
@@ -90,7 +89,7 @@ impl Launcher {
         let mut did_conditions = Conditions::new();
 
         if mint.owner != NewNftOwner::default() {
-            did_conditions = did_conditions.assert_raw_puzzle_announcement(did_puzzle_assertion(
+            did_conditions = did_conditions.assert_puzzle_announcement(did_puzzle_assertion(
                 eve_nft.coin.puzzle_hash,
                 &mint.owner,
             ));
@@ -124,7 +123,7 @@ mod tests {
         standard::StandardArgs,
     };
     use chia_sdk_test::{secret_key, test_transaction, Simulator};
-    use chia_sdk_types::MAINNET_CONSTANTS;
+    use chia_sdk_types::{announcement_id, MAINNET_CONSTANTS};
 
     pub fn nft_mint(p2_puzzle_hash: Bytes32, did: Option<&Did<()>>) -> NftMint<NftMetadata> {
         NftMint {
@@ -181,7 +180,7 @@ mod tests {
         ctx.spend_p2_coin(
             coin,
             pk,
-            Conditions::new().assert_coin_announcement(did.coin.coin_id(), "$"),
+            Conditions::new().assert_coin_announcement(announcement_id(did.coin.coin_id(), "$")),
         )?;
 
         let coin_spends = ctx.take_spends();
@@ -261,7 +260,8 @@ mod tests {
 
         let (mint_nft, _nft) = launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
-        let _did_info = ctx.spend_standard_did(&did, pk, mint_nft.create_coin(puzzle_hash, 0))?;
+        let _did_info =
+            ctx.spend_standard_did(&did, pk, mint_nft.create_coin(puzzle_hash, 0, Vec::new()))?;
 
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
@@ -292,8 +292,11 @@ mod tests {
 
         let (mint_nft, _nft_info) = launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
-        let did =
-            ctx.spend_standard_did(&did, pk, Conditions::new().create_coin(puzzle_hash, 0))?;
+        let did = ctx.spend_standard_did(
+            &did,
+            pk,
+            Conditions::new().create_coin(puzzle_hash, 0, Vec::new()),
+        )?;
         let _did = ctx.spend_standard_did(&did, pk, mint_nft)?;
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
