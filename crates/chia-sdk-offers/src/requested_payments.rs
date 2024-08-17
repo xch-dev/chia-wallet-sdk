@@ -1,13 +1,13 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::offer::{NotarizedPayment, SettlementPaymentsSolution};
-use chia_sdk_driver::{SpendContext, SpendError};
+use chia_sdk_driver::{DriverError, SpendContext};
 use clvm_traits::ToClvm;
 use clvmr::Allocator;
 
 pub fn parse_payments(
     ctx: &mut SpendContext,
     coin_spend: &CoinSpend,
-) -> Result<Option<Vec<NotarizedPayment>>, SpendError> {
+) -> Result<Option<Vec<NotarizedPayment>>, DriverError> {
     if coin_spend.coin.parent_coin_info != Bytes32::default() {
         return Ok(None);
     }
@@ -32,7 +32,7 @@ pub fn payment_coin_spend<P>(
     ctx: &mut SpendContext,
     puzzle: &P,
     notarized_payments: Vec<NotarizedPayment>,
-) -> Result<CoinSpend, SpendError>
+) -> Result<CoinSpend, DriverError>
 where
     P: ToClvm<Allocator>,
 {

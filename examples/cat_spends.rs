@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
 
     // Issue the CAT using the single issuance (genesis by coin id) TAIL.
     let conditions =
-        Conditions::new().create_hinted_coin(p2_puzzle_hash, coin.amount, p2_puzzle_hash);
+        Conditions::new().create_coin(p2_puzzle_hash, coin.amount, vec![p2_puzzle_hash.into()]);
     let (issue_cat, cat) = Cat::single_issuance_eve(ctx, coin.coin_id(), coin.amount, conditions)?;
     ctx.spend_p2_coin(coin, pk, issue_cat)?;
     println!("Issued test CAT with asset id {}", cat.asset_id);
@@ -20,9 +20,10 @@ fn main() -> anyhow::Result<()> {
     let new_cat = cat.wrapped_child(p2_puzzle_hash, 1000);
     let cat_spends = [CatSpend::new(
         new_cat,
-        Conditions::new()
-            .create_hinted_coin(p2_puzzle_hash, coin.amount, p2_puzzle_hash)
-            .p2_spend(ctx, pk)?,
+        StandardLayer::new(pk).spend(
+            ctx,
+            Conditions::new().create_coin(p2_puzzle_hash, coin.amount, vec![p2_puzzle_hash.into()]),
+        )?,
     )];
 
     for coin_spend in Cat::spend_all(ctx, &cat_spends)? {

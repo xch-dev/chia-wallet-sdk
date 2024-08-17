@@ -5,8 +5,6 @@ use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
 use thiserror::Error;
 
-use crate::SpendError;
-
 #[derive(Debug, Error)]
 pub enum DriverError {
     #[error("failed to serialize clvm value: {0}")]
@@ -17,9 +15,6 @@ pub enum DriverError {
 
     #[error("failed to parse conditions: {0}")]
     Conditions(#[from] ConditionError),
-
-    #[error("spend error: {0}")]
-    Spend(#[from] SpendError),
 
     #[error("clvm eval error: {0}")]
     Eval(#[from] EvalErr),
@@ -44,4 +39,8 @@ pub enum DriverError {
 
     #[error("try from int error")]
     TryFromInt(#[from] TryFromIntError),
+
+    /// An error occurred while reading or writing data.
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
 }

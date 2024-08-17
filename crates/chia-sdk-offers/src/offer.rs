@@ -1,7 +1,7 @@
 use chia_bls::Signature;
 use chia_protocol::{CoinSpend, Program, SpendBundle};
 use chia_puzzles::offer::NotarizedPayment;
-use chia_sdk_driver::{SpendContext, SpendError};
+use chia_sdk_driver::{DriverError, SpendContext};
 use indexmap::IndexMap;
 
 use crate::{parse_payments, payment_coin_spend};
@@ -29,7 +29,7 @@ impl Offer {
     pub fn from_spend_bundle(
         ctx: &mut SpendContext,
         spend_bundle: SpendBundle,
-    ) -> Result<Self, SpendError> {
+    ) -> Result<Self, DriverError> {
         let mut requested_payments = IndexMap::<Program, Vec<NotarizedPayment>>::new();
         let mut offered_coin_spends = Vec::new();
 
@@ -52,7 +52,7 @@ impl Offer {
         })
     }
 
-    pub fn into_spend_bundle(self, ctx: &mut SpendContext) -> Result<SpendBundle, SpendError> {
+    pub fn into_spend_bundle(self, ctx: &mut SpendContext) -> Result<SpendBundle, DriverError> {
         let mut coin_spends = self.offered_coin_spends;
 
         for (puzzle_reveal, notarized_payments) in self.requested_payments {

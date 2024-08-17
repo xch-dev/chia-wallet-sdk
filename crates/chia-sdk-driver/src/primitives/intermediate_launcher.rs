@@ -2,10 +2,11 @@
 
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{nft::NftIntermediateLauncherArgs, singleton::SINGLETON_LAUNCHER_PUZZLE_HASH};
+use chia_sdk_types::{announcement_id, Conditions};
 use clvm_utils::CurriedProgram;
 use clvmr::{sha2::Sha256, Allocator};
 
-use crate::{Conditions, SpendContext, SpendError};
+use crate::{DriverError, SpendContext};
 
 use super::Launcher;
 
@@ -56,7 +57,7 @@ impl IntermediateLauncher {
     }
 
     /// Spends the intermediate coin to create the launcher coin.
-    pub fn create(self, ctx: &mut SpendContext) -> Result<Launcher, SpendError> {
+    pub fn create(self, ctx: &mut SpendContext) -> Result<Launcher, DriverError> {
         let mut parent = Conditions::new();
 
         let intermediate_puzzle = ctx.nft_intermediate_launcher()?;
@@ -66,7 +67,7 @@ impl IntermediateLauncher {
             args: NftIntermediateLauncherArgs::new(self.mint_number, self.mint_total),
         })?;
 
-        parent = parent.create_coin(self.intermediate_coin.puzzle_hash, 0);
+        parent = parent.create_coin(self.intermediate_coin.puzzle_hash, 0, Vec::new());
 
         let puzzle_reveal = ctx.serialize(&puzzle)?;
         let solution = ctx.serialize(&())?;
@@ -83,10 +84,10 @@ impl IntermediateLauncher {
 
         Ok(Launcher::from_coin(
             self.launcher_coin,
-            parent.assert_coin_announcement(
+            parent.assert_coin_announcement(announcement_id(
                 self.intermediate_coin.coin_id(),
                 index_message.finalize(),
-            ),
+            )),
         ))
     }
 }

@@ -1,11 +1,12 @@
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
 use chia_puzzles::{standard::StandardArgs, EveProof, Proof};
+use chia_sdk_types::Conditions;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash_atom, ToTreeHash};
 use clvmr::Allocator;
 
-use crate::{Conditions, DriverError, Launcher, SpendContext, SpendError};
+use crate::{DriverError, Launcher, SpendContext};
 
 use super::{Did, DidInfo};
 
@@ -17,7 +18,7 @@ impl Launcher {
         recovery_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
-    ) -> Result<(Conditions, Did<M>), SpendError>
+    ) -> Result<(Conditions, Did<M>), DriverError>
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
     {

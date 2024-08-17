@@ -6,7 +6,7 @@ use chia_puzzles::{
     offer::{NotarizedPayment, Payment},
     singleton::SingletonArgs,
 };
-use chia_sdk_driver::{Nft, SpendContext, SpendError};
+use chia_sdk_driver::{DriverError, Nft, SpendContext};
 
 use chia_sdk_types::{announcement_id, AssertPuzzleAnnouncement};
 use clvm_traits::ToClvm;
@@ -67,7 +67,7 @@ impl OfferBuilder {
         self,
         ctx: &mut SpendContext,
         payments: Vec<Payment>,
-    ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError> {
+    ) -> Result<(AssertPuzzleAnnouncement, Self), DriverError> {
         let puzzle = ctx.settlement_payments_puzzle()?;
         self.request_raw_payments(ctx, &puzzle, payments)
     }
@@ -77,7 +77,7 @@ impl OfferBuilder {
         ctx: &mut SpendContext,
         asset_id: Bytes32,
         payments: Vec<Payment>,
-    ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError> {
+    ) -> Result<(AssertPuzzleAnnouncement, Self), DriverError> {
         let settlement_payments_puzzle = ctx.settlement_payments_puzzle()?;
         let cat_puzzle = ctx.cat_puzzle()?;
 
@@ -94,7 +94,7 @@ impl OfferBuilder {
         ctx: &mut SpendContext,
         payment_info: NftPaymentInfo<M>,
         payments: Vec<Payment>,
-    ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError>
+    ) -> Result<(AssertPuzzleAnnouncement, Self), DriverError>
     where
         M: ToClvm<Allocator>,
     {
@@ -140,7 +140,7 @@ impl OfferBuilder {
         ctx: &mut SpendContext,
         puzzle: &P,
         payments: Vec<Payment>,
-    ) -> Result<(AssertPuzzleAnnouncement, Self), SpendError>
+    ) -> Result<(AssertPuzzleAnnouncement, Self), DriverError>
     where
         P: ToClvm<Allocator>,
     {
@@ -179,7 +179,7 @@ impl OfferBuilder {
         self,
         offered_coin_spends: Vec<CoinSpend>,
         aggregated_signature: Signature,
-    ) -> Result<Offer, SpendError> {
+    ) -> Result<Offer, DriverError> {
         Ok(Offer::new(
             self.requested_payments,
             offered_coin_spends,
@@ -198,8 +198,8 @@ mod tests {
     use chia_bls::DerivableKey;
     use chia_protocol::{Coin, SpendBundle};
     use chia_puzzles::{offer::SETTLEMENT_PAYMENTS_PUZZLE_HASH, standard::StandardArgs};
-    use chia_sdk_driver::Conditions;
     use chia_sdk_test::{secret_key, sign_transaction, Simulator};
+    use chia_sdk_types::Conditions;
 
     use crate::SettlementSpend;
 
@@ -229,8 +229,8 @@ mod tests {
             a,
             a_public_key,
             Conditions::new()
-                .assert_raw_puzzle_announcement(announcement.announcement_id)
-                .create_coin(SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), a.amount),
+                .assert_puzzle_announcement(announcement.announcement_id)
+                .create_coin(SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), a.amount, Vec::new()),
         )?;
 
         let coin_spends = ctx.take_spends();
@@ -246,8 +246,8 @@ mod tests {
             b,
             b_public_key,
             Conditions::new()
-                .assert_raw_puzzle_announcement(announcement.announcement_id)
-                .create_coin(SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), b.amount),
+                .assert_puzzle_announcement(announcement.announcement_id)
+                .create_coin(SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), b.amount, Vec::new()),
         )?;
 
         let coin_spends = ctx.take_spends();

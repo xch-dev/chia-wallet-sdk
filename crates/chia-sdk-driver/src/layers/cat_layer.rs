@@ -80,7 +80,7 @@ where
             program: ctx.cat_puzzle()?,
             args: CatArgs::new(self.asset_id, self.inner_puzzle.construct_puzzle(ctx)?),
         };
-        Ok(ctx.alloc(&curried)?)
+        ctx.alloc(&curried)
     }
 
     fn construct_solution(
@@ -91,7 +91,7 @@ where
         let inner_solution = self
             .inner_puzzle
             .construct_solution(ctx, solution.inner_puzzle_solution)?;
-        Ok(ctx.alloc(&CatSolution {
+        ctx.alloc(&CatSolution {
             inner_puzzle_solution: inner_solution,
             lineage_proof: solution.lineage_proof,
             prev_coin_id: solution.prev_coin_id,
@@ -99,7 +99,7 @@ where
             next_coin_proof: solution.next_coin_proof,
             prev_subtotal: solution.prev_subtotal,
             extra_delta: solution.extra_delta,
-        })?)
+        })
     }
 }
 

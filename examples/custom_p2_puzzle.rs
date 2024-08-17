@@ -53,17 +53,17 @@ pub struct CustomSolution<T> {
 
 // For convenience, we can add a way to allocate our puzzle on the `SpendContext`.
 pub trait CustomExt {
-    fn custom_puzzle(&mut self) -> Result<NodePtr, SpendError>;
+    fn custom_puzzle(&mut self) -> Result<NodePtr, DriverError>;
     fn spend_custom_coin(
         &mut self,
         coin: Coin,
         public_key: PublicKey,
         conditions: Conditions,
-    ) -> Result<(), SpendError>;
+    ) -> Result<(), DriverError>;
 }
 
 impl CustomExt for SpendContext {
-    fn custom_puzzle(&mut self) -> Result<NodePtr, SpendError> {
+    fn custom_puzzle(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(CUSTOM_P2_PUZZLE_HASH, &CUSTOM_P2_PUZZLE)
     }
 
@@ -72,7 +72,7 @@ impl CustomExt for SpendContext {
         coin: Coin,
         public_key: PublicKey,
         conditions: Conditions,
-    ) -> Result<(), SpendError> {
+    ) -> Result<(), DriverError> {
         let spend = conditions.custom_spend(self, public_key)?;
         let puzzle_reveal = self.serialize(&spend.puzzle)?;
         let solution = self.serialize(&spend.solution)?;
@@ -87,7 +87,7 @@ pub trait CustomSpend {
         self,
         ctx: &mut SpendContext,
         public_key: PublicKey,
-    ) -> Result<Spend, SpendError>;
+    ) -> Result<Spend, DriverError>;
 }
 
 impl CustomSpend for Conditions {
@@ -95,7 +95,7 @@ impl CustomSpend for Conditions {
         self,
         ctx: &mut SpendContext,
         public_key: PublicKey,
-    ) -> Result<Spend, SpendError> {
+    ) -> Result<Spend, DriverError> {
         let custom_puzzle = ctx.custom_puzzle()?;
 
         let puzzle = ctx.alloc(&CurriedProgram {
@@ -127,7 +127,7 @@ async fn main() -> anyhow::Result<()> {
     let ctx = &mut SpendContext::new();
 
     let conditions = Conditions::new()
-        .create_coin(puzzle_hash, 900)
+        .create_coin(puzzle_hash, 900, Vec::new())
         .reserve_fee(100);
 
     ctx.spend_custom_coin(coin, pk, conditions)?;

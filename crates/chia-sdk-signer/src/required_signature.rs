@@ -1,8 +1,8 @@
 use chia_bls::PublicKey;
 use chia_consensus::consensus_constants::ConsensusConstants;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
-use chia_sdk_types::{puzzle_conditions, AggSig, AggSigKind, Condition};
-use clvm_traits::ToClvm;
+use chia_sdk_types::{run_puzzle, AggSig, AggSigKind, Condition};
+use clvm_traits::{FromClvm, ToClvm};
 use clvmr::Allocator;
 
 use crate::SignerError;
@@ -82,7 +82,8 @@ impl RequiredSignature {
     ) -> Result<Vec<Self>, SignerError> {
         let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
         let solution = coin_spend.solution.to_clvm(allocator)?;
-        let conditions = puzzle_conditions(allocator, puzzle, solution)?;
+        let output = run_puzzle(allocator, puzzle, solution)?;
+        let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
         let mut result = Vec::new();
 

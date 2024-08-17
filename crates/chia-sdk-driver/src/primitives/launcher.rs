@@ -4,10 +4,11 @@ use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzles::singleton::{
     LauncherSolution, SingletonArgs, SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH,
 };
+use chia_sdk_types::{announcement_id, Conditions};
 use clvm_traits::ToClvm;
 use clvmr::Allocator;
 
-use crate::{Conditions, SpendContext, SpendError};
+use crate::{DriverError, SpendContext};
 
 /// A singleton launcher is a coin that is spent within the same block to create a singleton.
 /// The first coin that is created is known as an "eve" singleton.
@@ -34,7 +35,11 @@ impl Launcher {
                 SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
                 amount,
             ),
-            Conditions::new().create_coin(SINGLETON_LAUNCHER_PUZZLE_HASH.into(), amount),
+            Conditions::new().create_coin(
+                SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
+                amount,
+                Vec::new(),
+            ),
         )
     }
 
@@ -47,10 +52,10 @@ impl Launcher {
                 SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
                 amount,
             ),
-            Conditions::new().create_hinted_coin(
+            Conditions::new().create_coin(
                 SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
                 amount,
-                hint,
+                vec![hint.into()],
             ),
         )
     }
@@ -62,7 +67,11 @@ impl Launcher {
     /// For example, this is useful for minting NFTs from intermediate coins created with an earlier instance of a DID.
     pub fn create_early(parent_coin_id: Bytes32, amount: u64) -> (Conditions, Self) {
         (
-            Conditions::new().create_coin(SINGLETON_LAUNCHER_PUZZLE_HASH.into(), amount),
+            Conditions::new().create_coin(
+                SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
+                amount,
+                Vec::new(),
+            ),
             Self::from_coin(
                 Coin::new(
                     parent_coin_id,
@@ -85,10 +94,10 @@ impl Launcher {
         hint: Bytes32,
     ) -> (Conditions, Self) {
         (
-            Conditions::new().create_hinted_coin(
+            Conditions::new().create_coin(
                 SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
                 amount,
-                hint,
+                vec![hint.into()],
             ),
             Self::from_coin(
                 Coin::new(
@@ -113,7 +122,7 @@ impl Launcher {
         ctx: &mut SpendContext,
         singleton_inner_puzzle_hash: Bytes32,
         key_value_list: T,
-    ) -> Result<(Conditions, Coin), SpendError>
+    ) -> Result<(Conditions, Coin), DriverError>
     where
         T: ToClvm<Allocator>,
     {
@@ -139,8 +148,10 @@ impl Launcher {
             Coin::new(self.coin.coin_id(), singleton_puzzle_hash, self.coin.amount);
 
         Ok((
-            self.conditions
-                .assert_coin_announcement(self.coin.coin_id(), ctx.tree_hash(solution_ptr)),
+            self.conditions.assert_coin_announcement(announcement_id(
+                self.coin.coin_id(),
+                ctx.tree_hash(solution_ptr),
+            )),
             singleton_coin,
         ))
     }

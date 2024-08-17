@@ -29,7 +29,13 @@ pub struct AssertCoinAnnouncement {
 }
 
 impl AssertCoinAnnouncement {
-    pub fn new(announcement_id: Bytes32) -> Self {
+    pub fn new(coin_id: Bytes32, message: impl AsRef<[u8]>) -> Self {
+        Self {
+            announcement_id: announcement_id(coin_id, message),
+        }
+    }
+
+    pub fn from_id(announcement_id: Bytes32) -> Self {
         Self { announcement_id }
     }
 }
@@ -61,7 +67,13 @@ pub struct AssertPuzzleAnnouncement {
 }
 
 impl AssertPuzzleAnnouncement {
-    pub fn new(announcement_id: Bytes32) -> Self {
+    pub fn new(puzzle_hash: Bytes32, message: impl AsRef<[u8]>) -> Self {
+        Self {
+            announcement_id: announcement_id(puzzle_hash, message),
+        }
+    }
+
+    pub fn from_id(announcement_id: Bytes32) -> Self {
         Self { announcement_id }
     }
 }

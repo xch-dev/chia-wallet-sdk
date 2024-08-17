@@ -8,7 +8,7 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NftOwnershipLayer<T, I> {
     /// The DID owner of this NFT, if it's currently assigned to one.
     pub current_owner: Option<Bytes32>,
@@ -88,7 +88,7 @@ where
                 self.inner_puzzle.construct_puzzle(ctx)?,
             ),
         };
-        Ok(ctx.alloc(&curried)?)
+        ctx.alloc(&curried)
     }
 
     fn construct_solution(
@@ -99,7 +99,7 @@ where
         let inner_solution = self
             .inner_puzzle
             .construct_solution(ctx, solution.inner_solution)?;
-        Ok(ctx.alloc(&NftOwnershipLayerSolution { inner_solution })?)
+        ctx.alloc(&NftOwnershipLayerSolution { inner_solution })
     }
 }
 

@@ -6,15 +6,15 @@ use chia_puzzles::{
     LineageProof, Proof,
 };
 use chia_sdk_types::{
-    run_puzzle, Condition, CreateCoin, NewMetadataCondition, NewMetadataOutput, NewNftOwner,
+    run_puzzle, Condition, Conditions, NewMetadataCondition, NewMetadataOutput, NewNftOwner,
 };
 use clvm_traits::{clvm_list, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::{sha2::Sha256, Allocator, NodePtr};
 
 use crate::{
-    Conditions, DriverError, Layer, NftOwnershipLayer, NftStateLayer, Primitive, Puzzle,
-    RoyaltyTransferLayer, SingletonLayer, Spend, SpendContext,
+    DriverError, Layer, NftOwnershipLayer, NftStateLayer, Primitive, Puzzle, RoyaltyTransferLayer,
+    SingletonLayer, Spend, SpendContext, StandardLayer,
 };
 
 use super::NftInfo;
@@ -91,17 +91,14 @@ where
     where
         M: Clone + ToTreeHash,
     {
-        let p2_conditions = Conditions::new()
-            .condition(Condition::CreateCoin(CreateCoin::with_hint(
+        let inner_spend = StandardLayer::new(owner_synthetic_key).spend(
+            ctx,
+            extra_conditions.create_coin(
                 p2_puzzle_hash,
                 self.coin.amount,
-                p2_puzzle_hash,
-            )))
-            .extend(extra_conditions);
-
-        let inner_spend = p2_conditions
-            .p2_spend(ctx, owner_synthetic_key)
-            .map_err(DriverError::Spend)?;
+                vec![p2_puzzle_hash.into()],
+            ),
+        )?;
 
         let coin_spend = self.spend(ctx, inner_spend)?;
         let child = self.create_child(p2_puzzle_hash, None);
@@ -119,24 +116,21 @@ where
     where
         M: Clone + ToTreeHash,
     {
-        let p2_conditions = Conditions::new()
-            .conditions(&vec![
-                Condition::CreateCoin(CreateCoin::with_hint(
+        let new_did_owner_ptr = Condition::Other(ctx.alloc(&new_did_owner)?);
+
+        let inner_spend = StandardLayer::new(owner_synthetic_key).spend(
+            ctx,
+            extra_conditions
+                .create_coin(
                     p2_puzzle_hash,
                     self.coin.amount,
-                    p2_puzzle_hash,
-                )),
-                Condition::Other(ctx.alloc(&new_did_owner)?),
-            ])
-            .extend(extra_conditions);
+                    vec![p2_puzzle_hash.into()],
+                )
+                .with(new_did_owner_ptr),
+        )?;
 
-        let inner_spend = p2_conditions
-            .p2_spend(ctx, owner_synthetic_key)
-            .map_err(DriverError::Spend)?;
-
-        let did_conditions = Conditions::new().assert_raw_puzzle_announcement(
-            did_puzzle_assertion(self.coin.puzzle_hash, new_did_owner),
-        );
+        let did_conditions = Conditions::new()
+            .assert_puzzle_announcement(did_puzzle_assertion(self.coin.puzzle_hash, new_did_owner));
 
         let coin_spend = self.spend(ctx, inner_spend)?;
         let child = self.create_child(p2_puzzle_hash, Some(new_did_owner.did_id));

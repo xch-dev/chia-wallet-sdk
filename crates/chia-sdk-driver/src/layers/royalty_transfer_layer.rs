@@ -48,7 +48,7 @@ impl Layer for RoyaltyTransferLayer {
                 royalty_ten_thousandths: self.royalty_ten_thousandths,
             },
         };
-        Ok(ctx.alloc(&curried)?)
+        ctx.alloc(&curried)
     }
 
     fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
