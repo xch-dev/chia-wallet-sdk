@@ -6,7 +6,7 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NftStateLayer<M, I> {
     /// The NFT metadata. The standard metadata type is [`NftMetadata`](chia_puzzles::nft::NftMetadata).
     pub metadata: M,

@@ -404,6 +404,7 @@ dependencies = [
  "chia-consensus",
  "chia-protocol",
  "clvm-traits",
+ "clvm-utils",
  "clvmr",
  "hex",
  "hex-literal",

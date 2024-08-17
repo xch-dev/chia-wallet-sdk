@@ -8,7 +8,7 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NftOwnershipLayer<T, I> {
     /// The DID owner of this NFT, if it's currently assigned to one.
     pub current_owner: Option<Bytes32>,

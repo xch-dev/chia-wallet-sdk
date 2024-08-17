@@ -11,7 +11,7 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 /// The DID [`Layer`] keeps track of metadata and handles recovery capabilities.
 /// It's typically an inner layer of the [`SingletonLayer`](crate::SingletonLayer).
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DidLayer<M, I> {
     /// The unique launcher id for the DID. Also referred to as the DID id.
     pub launcher_id: Bytes32,

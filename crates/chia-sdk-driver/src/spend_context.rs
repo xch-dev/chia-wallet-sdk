@@ -21,7 +21,9 @@ use chia_puzzles::{
     },
     standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
 };
-use chia_sdk_types::NewNftOwner;
+use chia_sdk_types::{
+    NewNftOwner, P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
+};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
@@ -187,6 +189,14 @@ impl SpendContext {
     /// Allocate the settlement payments puzzle and return its pointer.
     pub fn settlement_payments_puzzle(&mut self) -> Result<NodePtr, SpendError> {
         self.puzzle(SETTLEMENT_PAYMENTS_PUZZLE_HASH, &SETTLEMENT_PAYMENTS_PUZZLE)
+    }
+
+    /// Allocate the p2 delegated conditions puzzle and return its pointer.
+    pub fn p2_delegated_conditions_puzzle(&mut self) -> Result<NodePtr, SpendError> {
+        self.puzzle(
+            P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
+            &P2_DELEGATED_CONDITIONS_PUZZLE,
+        )
     }
 
     /// Preload a puzzle into the cache.

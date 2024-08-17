@@ -9,7 +9,7 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SingletonLayer<I> {
     /// The unique launcher id for the singleton. Also referred to as the singleton id.
     pub launcher_id: Bytes32,
