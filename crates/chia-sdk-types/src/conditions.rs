@@ -1,12 +1,11 @@
 use std::collections::HashSet;
 
 use chia_protocol::{Coin, CoinSpend};
-use clvm_traits::{FromClvm, FromClvmError, ToClvm, ToClvmError};
+use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{
     reduction::{EvalErr, Reduction},
     Allocator, NodePtr,
 };
-use thiserror::Error;
 
 mod agg_sig;
 mod announcements;
@@ -24,17 +23,7 @@ pub use output::*;
 pub use puzzles::*;
 pub use time::*;
 
-#[derive(Debug, Error)]
-pub enum ConditionError {
-    #[error("eval error: {0}")]
-    Eval(#[from] EvalErr),
-
-    #[error("to clvm error: {0}")]
-    ToClvm(#[from] ToClvmError),
-
-    #[error("from clvm error: {0}")]
-    FromClvm(#[from] FromClvmError),
-}
+use crate::ConditionError;
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(transparent)]
@@ -115,16 +104,6 @@ impl<T> Condition<T> {
     }
 }
 
-pub fn parse_conditions(
-    allocator: &mut Allocator,
-    conditions: NodePtr,
-) -> Result<Vec<Condition>, ConditionError> {
-    Vec::<NodePtr>::from_clvm(allocator, conditions)?
-        .into_iter()
-        .map(|condition| Ok(Condition::from_clvm(allocator, condition)?))
-        .collect()
-}
-
 pub fn run_puzzle(
     allocator: &mut Allocator,
     puzzle: NodePtr,
@@ -140,15 +119,6 @@ pub fn run_puzzle(
     Ok(output)
 }
 
-pub fn puzzle_conditions(
-    allocator: &mut Allocator,
-    puzzle: NodePtr,
-    solution: NodePtr,
-) -> Result<Vec<Condition>, ConditionError> {
-    let output = run_puzzle(allocator, puzzle, solution)?;
-    parse_conditions(allocator, output)
-}
-
 pub fn non_ephemeral_coins(coin_spends: &[CoinSpend]) -> Result<Vec<Coin>, ConditionError> {
     let mut allocator = Allocator::new();
     let mut created_coins = HashSet::new();
@@ -156,7 +126,8 @@ pub fn non_ephemeral_coins(coin_spends: &[CoinSpend]) -> Result<Vec<Coin>, Condi
     for coin_spend in coin_spends {
         let puzzle = coin_spend.puzzle_reveal.to_clvm(&mut allocator)?;
         let solution = coin_spend.solution.to_clvm(&mut allocator)?;
-        let conditions = puzzle_conditions(&mut allocator, puzzle, solution)?;
+        let output = run_puzzle(&mut allocator, puzzle, solution)?;
+        let conditions = Vec::<Condition>::from_clvm(&allocator, output)?;
 
         for condition in conditions {
             if let Condition::CreateCoin(create_coin) = condition {
