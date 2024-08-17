@@ -1,6 +1,6 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::offer::{NotarizedPayment, SettlementPaymentsSolution};
-use chia_sdk_driver::{SpendContext, DriverError};
+use chia_sdk_driver::{DriverError, SpendContext};
 use clvm_traits::ToClvm;
 use clvmr::Allocator;
 
