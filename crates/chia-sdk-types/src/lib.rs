@@ -1,9 +1,11 @@
 mod condition;
 mod condition_error;
 mod constants;
+mod non_ephemeral_coins;
 mod puzzles;
 
 pub use condition::*;
 pub use condition_error::*;
 pub use constants::*;
+pub use non_ephemeral_coins::*;
 pub use puzzles::*;
