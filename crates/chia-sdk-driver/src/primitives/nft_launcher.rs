@@ -84,7 +84,7 @@ impl Launcher {
         )?;
 
         let eve_spend = eve_nft.spend(ctx, inner_spend)?;
-        ctx.insert_coin_spend(eve_spend.clone());
+        ctx.insert(eve_spend.clone());
 
         let mut did_conditions = Conditions::new();
 
@@ -166,7 +166,7 @@ mod tests {
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
         // We don't want to count the DID creation.
-        ctx.take_spends();
+        ctx.take();
 
         let coin = Coin::new(Bytes32::new([1; 32]), puzzle_hash, 1);
         let (mint_nft, _nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
@@ -183,7 +183,7 @@ mod tests {
             Conditions::new().assert_coin_announcement(announcement_id(did.coin.coin_id(), "$")),
         )?;
 
-        let coin_spends = ctx.take_spends();
+        let coin_spends = ctx.take();
 
         let generator = solution_generator(
             coin_spends
@@ -191,7 +191,7 @@ mod tests {
                 .map(|cs| (cs.coin, cs.puzzle_reveal.clone(), cs.solution.clone())),
         )?;
         let conds = run_block_generator::<Vec<u8>, EmptyVisitor, _>(
-            &mut owned_ctx.into(),
+            &mut owned_ctx.allocator,
             &generator,
             [],
             11_000_000_000,
@@ -233,7 +233,7 @@ mod tests {
         let _did =
             ctx.spend_standard_did(&did, pk, Conditions::new().extend(mint_1).extend(mint_2))?;
 
-        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
+        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -265,7 +265,7 @@ mod tests {
 
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
-        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
+        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -300,7 +300,7 @@ mod tests {
         let _did = ctx.spend_standard_did(&did, pk, mint_nft)?;
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
-        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
+        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }

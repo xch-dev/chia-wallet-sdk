@@ -1,45 +1,3 @@
-use chia_bls::Signature;
-use chia_protocol::{Bytes32, CoinSpend, Program};
-use chia_puzzles::{
-    cat::CatArgs,
-    nft::{NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs},
-    offer::{NotarizedPayment, Payment},
-    singleton::SingletonArgs,
-};
-use chia_sdk_driver::{DriverError, Nft, SpendContext};
-
-use chia_sdk_types::{announcement_id, AssertPuzzleAnnouncement};
-use clvm_traits::ToClvm;
-use clvm_utils::{CurriedProgram, ToTreeHash};
-use clvmr::Allocator;
-use indexmap::IndexMap;
-
-use crate::Offer;
-
-#[derive(Debug, Clone, Copy)]
-pub struct NftPaymentInfo<M> {
-    pub launcher_id: Bytes32,
-    pub royalty_puzzle_hash: Bytes32,
-    pub royalty_percentage: u16,
-    pub current_owner: Option<Bytes32>,
-    pub metadata: M,
-}
-
-impl<M> NftPaymentInfo<M>
-where
-    M: Clone,
-{
-    pub fn from_nft(nft: &Nft<M>) -> Self {
-        Self {
-            launcher_id: nft.info.launcher_id,
-            royalty_puzzle_hash: nft.info.royalty_puzzle_hash,
-            royalty_percentage: nft.info.royalty_ten_thousandths,
-            current_owner: None,
-            metadata: nft.info.metadata.clone(),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct OfferBuilder {
@@ -57,82 +15,6 @@ impl OfferBuilder {
             nonce,
             requested_payments: IndexMap::new(),
         }
-    }
-
-    pub fn nonce(&self) -> Bytes32 {
-        self.nonce
-    }
-
-    pub fn request_standard_payments(
-        self,
-        ctx: &mut SpendContext,
-        payments: Vec<Payment>,
-    ) -> Result<(AssertPuzzleAnnouncement, Self), DriverError> {
-        let puzzle = ctx.settlement_payments_puzzle()?;
-        self.request_raw_payments(ctx, &puzzle, payments)
-    }
-
-    pub fn request_cat_payments(
-        self,
-        ctx: &mut SpendContext,
-        asset_id: Bytes32,
-        payments: Vec<Payment>,
-    ) -> Result<(AssertPuzzleAnnouncement, Self), DriverError> {
-        let settlement_payments_puzzle = ctx.settlement_payments_puzzle()?;
-        let cat_puzzle = ctx.cat_puzzle()?;
-
-        let puzzle = ctx.alloc(&CurriedProgram {
-            program: cat_puzzle,
-            args: CatArgs::new(asset_id, settlement_payments_puzzle),
-        })?;
-
-        self.request_raw_payments(ctx, &puzzle, payments)
-    }
-
-    pub fn request_nft_payments<M>(
-        self,
-        ctx: &mut SpendContext,
-        payment_info: NftPaymentInfo<M>,
-        payments: Vec<Payment>,
-    ) -> Result<(AssertPuzzleAnnouncement, Self), DriverError>
-    where
-        M: ToClvm<Allocator>,
-    {
-        let settlement_payments_puzzle = ctx.settlement_payments_puzzle()?;
-        let transfer_program = ctx.nft_royalty_transfer()?;
-        let ownership_layer_puzzle = ctx.nft_ownership_layer()?;
-        let state_layer_puzzle = ctx.nft_state_layer()?;
-        let singleton_puzzle = ctx.singleton_top_layer()?;
-
-        let transfer = CurriedProgram {
-            program: transfer_program,
-            args: NftRoyaltyTransferPuzzleArgs::new(
-                payment_info.launcher_id,
-                payment_info.royalty_puzzle_hash,
-                payment_info.royalty_percentage,
-            ),
-        };
-
-        let ownership = CurriedProgram {
-            program: ownership_layer_puzzle,
-            args: NftOwnershipLayerArgs::new(
-                payment_info.current_owner,
-                transfer,
-                settlement_payments_puzzle,
-            ),
-        };
-
-        let state = CurriedProgram {
-            program: state_layer_puzzle,
-            args: NftStateLayerArgs::new(payment_info.metadata, ownership),
-        };
-
-        let puzzle = ctx.alloc(&CurriedProgram {
-            program: singleton_puzzle,
-            args: SingletonArgs::new(payment_info.launcher_id, state),
-        })?;
-
-        self.request_raw_payments(ctx, &puzzle, payments)
     }
 
     pub fn request_raw_payments<P>(
@@ -233,7 +115,7 @@ mod tests {
                 .create_coin(SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), a.amount, Vec::new()),
         )?;
 
-        let coin_spends = ctx.take_spends();
+        let coin_spends = ctx.take();
         let signature = sign_transaction(&coin_spends, &[a_secret_key], &sim.config().constants)?;
         let a_offer = partial_offer
             .make_payments()
@@ -250,7 +132,7 @@ mod tests {
                 .create_coin(SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), b.amount, Vec::new()),
         )?;
 
-        let coin_spends = ctx.take_spends();
+        let coin_spends = ctx.take();
         let signature = sign_transaction(&coin_spends, &[b_secret_key], &sim.config().constants)?;
         let b_offer = partial_offer
             .make_payments()
@@ -294,7 +176,7 @@ mod tests {
             [
                 a_offer.offered_coin_spends().to_vec(),
                 b_offer.offered_coin_spends().to_vec(),
-                ctx.take_spends(),
+                ctx.take(),
             ]
             .concat(),
             a_offer.aggregated_signature() + b_offer.aggregated_signature(),

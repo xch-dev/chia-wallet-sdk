@@ -126,7 +126,7 @@ impl Cat {
             },
         )?;
 
-        ctx.insert_coin_spend(coin_spend);
+        ctx.insert(coin_spend);
 
         Ok((
             Conditions::new().create_coin(puzzle_hash, amount, Vec::new()),
@@ -342,7 +342,7 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
-        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
+        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -365,7 +365,7 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
-        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
+        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -418,10 +418,10 @@ mod tests {
             ),
         ];
         for coin_spend in Cat::spend_all(ctx, &cat_spends)? {
-            ctx.insert_coin_spend(coin_spend);
+            ctx.insert(coin_spend);
         }
 
-        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
+        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -453,10 +453,10 @@ mod tests {
         )];
 
         for coin_spend in Cat::spend_all(ctx, &cat_spends)? {
-            ctx.insert_coin_spend(coin_spend);
+            ctx.insert(coin_spend);
         }
 
-        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
+        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -498,10 +498,10 @@ mod tests {
         );
 
         for coin_spend in Cat::spend_all(ctx, &[cat_spend])? {
-            ctx.insert_coin_spend(coin_spend);
+            ctx.insert(coin_spend);
         }
 
-        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
+        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }

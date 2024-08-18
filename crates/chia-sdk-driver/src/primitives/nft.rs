@@ -324,7 +324,7 @@ mod tests {
 
         let _did_info = ctx.spend_standard_did(&did, pk, parent_conditions)?;
 
-        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
+        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
         Ok(())
     }
@@ -371,7 +371,7 @@ mod tests {
             did = ctx.spend_standard_did(&did, pk, spend_nft)?;
         }
 
-        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
+        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
         let coin_state = sim
             .coin_state(did.coin.coin_id())
@@ -417,21 +417,19 @@ mod tests {
 
         ctx.spend_p2_coin(parent, pk, create_did.extend(mint_nft))?;
 
-        let coin_spends = ctx.take_spends();
+        let coin_spends = ctx.take();
 
         let coin_spend = coin_spends
             .into_iter()
             .find(|cs| cs.coin.coin_id() == nft.coin.parent_coin_info)
             .unwrap();
 
-        let mut allocator = ctx.into();
+        let puzzle_ptr = coin_spend.puzzle_reveal.to_clvm(&mut ctx.allocator)?;
+        let solution_ptr = coin_spend.solution.to_clvm(&mut ctx.allocator)?;
 
-        let puzzle_ptr = coin_spend.puzzle_reveal.to_clvm(&mut allocator)?;
-        let solution_ptr = coin_spend.solution.to_clvm(&mut allocator)?;
-
-        let puzzle = Puzzle::parse(&allocator, puzzle_ptr);
+        let puzzle = Puzzle::parse(&ctx.allocator, puzzle_ptr);
         let parsed_nft = Nft::<NftMetadata>::from_parent_spend(
-            &mut allocator,
+            &mut ctx.allocator,
             parent,
             puzzle,
             solution_ptr,

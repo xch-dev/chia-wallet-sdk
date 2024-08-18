@@ -105,7 +105,7 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, launch_singleton)?;
 
-        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
+        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
         // Make sure the DID was created.
         let coin_state = sim
