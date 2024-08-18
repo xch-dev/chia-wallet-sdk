@@ -30,8 +30,9 @@ impl<T> Conditions<T> {
         self
     }
 
-    pub fn extend(mut self, conditions: impl IntoIterator<Item = Condition<T>>) -> Self {
-        self.conditions.extend(conditions);
+    pub fn extend(mut self, conditions: impl IntoIterator<Item = impl Into<Condition<T>>>) -> Self {
+        self.conditions
+            .extend(conditions.into_iter().map(Into::into));
         self
     }
 
