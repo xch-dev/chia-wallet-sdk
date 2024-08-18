@@ -1,10 +1,15 @@
 use chia_protocol::{Bytes32, SpendBundle};
+use chia_puzzles::offer::SettlementPaymentsSolution;
+use chia_sdk_driver::Puzzle;
 use chia_traits::Streamable;
-use clvm_utils::ToTreeHash;
+use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{tree_hash, ToTreeHash};
+use clvmr::Allocator;
+use indexmap::IndexMap;
 
 use crate::{
     compress_offer_bytes, decode_offer_data, decompress_offer_bytes, encode_offer_data, Make,
-    OfferBuilder, OfferError, Take,
+    OfferBuilder, OfferError, ParsedOffer, Take,
 };
 
 #[derive(Debug, Clone)]
@@ -23,11 +28,6 @@ impl Offer {
 
     pub fn build_with_nonce(nonce: Bytes32) -> OfferBuilder<Make> {
         OfferBuilder::new(nonce)
-    }
-
-    pub fn take(self) -> OfferBuilder<Take> {
-        // OfferBuilder::from(self)
-        todo!()
     }
 
     pub fn nonce(mut coin_ids: Vec<Bytes32>) -> Bytes32 {
@@ -57,6 +57,51 @@ impl Offer {
 
     pub fn decode(text: &str) -> Result<Self, OfferError> {
         Self::decompress(&decode_offer_data(text)?)
+    }
+
+    pub fn take(self, allocator: &mut Allocator) -> Result<OfferBuilder<Take>, OfferError> {
+        Ok(self.parse(allocator)?.take())
+    }
+
+    pub fn parse(&self, allocator: &mut Allocator) -> Result<ParsedOffer, OfferError> {
+        let mut parsed = ParsedOffer {
+            aggregated_signature: self.spend_bundle.aggregated_signature.clone(),
+            coin_spends: Vec::new(),
+            requested_payments: IndexMap::new(),
+        };
+
+        for coin_spend in &self.spend_bundle.coin_spends {
+            if coin_spend.coin.parent_coin_info != Bytes32::default() {
+                parsed.coin_spends.push(coin_spend.clone());
+                continue;
+            }
+
+            if coin_spend.coin.amount != 0 {
+                parsed.coin_spends.push(coin_spend.clone());
+                continue;
+            }
+
+            let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
+            let puzzle_hash = tree_hash(allocator, puzzle).into();
+
+            if puzzle_hash != coin_spend.coin.puzzle_hash {
+                return Err(OfferError::PuzzleMismatch);
+            }
+
+            let solution = coin_spend.solution.to_clvm(allocator)?;
+            let settlement_solution = SettlementPaymentsSolution::from_clvm(allocator, solution)?;
+
+            let puzzle = Puzzle::parse(allocator, puzzle);
+
+            parsed
+                .requested_payments
+                .entry(puzzle_hash)
+                .or_insert_with(|| (puzzle, Vec::new()))
+                .1
+                .extend(settlement_solution.notarized_payments);
+        }
+
+        Ok(parsed)
     }
 }
 

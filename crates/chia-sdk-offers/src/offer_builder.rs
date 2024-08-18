@@ -1,12 +1,12 @@
-use chia_protocol::{Bytes32, CoinSpend, SpendBundle};
-use chia_puzzles::offer::{NotarizedPayment, Payment};
+use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
+use chia_puzzles::offer::{NotarizedPayment, Payment, SettlementPaymentsSolution};
 use chia_sdk_driver::{DriverError, Puzzle, SpendContext};
 use chia_sdk_types::AssertPuzzleAnnouncement;
 use clvm_traits::ToClvm;
 use clvmr::Allocator;
 use indexmap::IndexMap;
 
-use crate::Offer;
+use crate::{Offer, ParsedOffer};
 
 #[derive(Debug, Clone)]
 pub struct OfferBuilder<T> {
@@ -27,8 +27,7 @@ pub struct Partial {
 
 #[derive(Debug, Clone)]
 pub struct Take {
-    partial_spend_bundle: SpendBundle,
-    requested_payments: IndexMap<Bytes32, (Puzzle, Vec<NotarizedPayment>)>,
+    parsed_offer: ParsedOffer,
 }
 
 impl OfferBuilder<Make> {
@@ -92,37 +91,70 @@ impl OfferBuilder<Make> {
 }
 
 impl OfferBuilder<Partial> {
-    pub fn bundle(self) -> Offer {
-        // Offer::new(spend_bundle)
-        todo!()
+    pub fn bundle(
+        self,
+        ctx: &mut SpendContext,
+        partial_spend_bundle: SpendBundle,
+    ) -> Result<Offer, DriverError> {
+        let mut spend_bundle = partial_spend_bundle;
+
+        for (puzzle_hash, (puzzle, notarized_payments)) in self.data.requested_payments {
+            let puzzle_reveal = ctx.serialize(&puzzle.ptr())?;
+            let solution = ctx.serialize(&SettlementPaymentsSolution { notarized_payments })?;
+
+            spend_bundle.coin_spends.push(CoinSpend {
+                coin: Coin::new(Bytes32::default(), puzzle_hash, 0),
+                puzzle_reveal,
+                solution,
+            });
+        }
+
+        Ok(spend_bundle.into())
     }
 
     /// This will use the partial spend bundle to create a new [`OfferBuilder`] for taking.
     pub fn take(self, partial_spend_bundle: SpendBundle) -> OfferBuilder<Take> {
         OfferBuilder {
             data: Take {
-                partial_spend_bundle,
-                requested_payments: self.data.requested_payments,
+                parsed_offer: ParsedOffer {
+                    coin_spends: partial_spend_bundle.coin_spends,
+                    aggregated_signature: partial_spend_bundle.aggregated_signature,
+                    requested_payments: self.data.requested_payments,
+                },
             },
         }
     }
 }
 
 impl OfferBuilder<Take> {
-    pub fn from(offer: Offer) -> Self {
-        todo!()
+    pub fn from_parsed_offer(parsed_offer: ParsedOffer) -> Self {
+        Self {
+            data: Take { parsed_offer },
+        }
     }
 
     pub fn coin_spends(&self) -> &[CoinSpend] {
-        &self.data.partial_spend_bundle.coin_spends
+        &self.data.parsed_offer.coin_spends
     }
 
     pub fn fulfill(&mut self) -> Option<(Puzzle, Vec<NotarizedPayment>)> {
-        Some(self.data.requested_payments.shift_remove_index(0)?.1)
+        Some(
+            self.data
+                .parsed_offer
+                .requested_payments
+                .shift_remove_index(0)?
+                .1,
+        )
     }
 
     pub fn bundle(self, other_spend_bundle: SpendBundle) -> SpendBundle {
-        SpendBundle::aggregate(&[self.data.partial_spend_bundle, other_spend_bundle])
+        SpendBundle::aggregate(&[
+            SpendBundle::new(
+                self.data.parsed_offer.coin_spends,
+                self.data.parsed_offer.aggregated_signature,
+            ),
+            other_spend_bundle,
+        ])
     }
 }
 

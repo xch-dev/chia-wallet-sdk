@@ -1,5 +1,6 @@
 use std::{array::TryFromSliceError, io, num::TryFromIntError};
 
+use clvm_traits::{FromClvmError, ToClvmError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -36,4 +37,13 @@ pub enum OfferError {
 
     #[error("Error when decoding address: {0}")]
     Decode(#[from] bech32::Error),
+
+    #[error("To CLVM error: {0}")]
+    ToClvm(#[from] ToClvmError),
+
+    #[error("From CLVM error: {0}")]
+    FromClvm(#[from] FromClvmError),
+
+    #[error("Requested payment puzzle mismatch")]
+    PuzzleMismatch,
 }
