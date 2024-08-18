@@ -33,7 +33,6 @@ macro_rules! define_compression_versions {
         }
 
         /// Returns the required compression version for the given puzzle reveals.
-
         pub fn required_compression_version(puzzles: Vec<Vec<u8>>) -> u16 {
             let mut required_version = MIN_VERSION;
             $( {
@@ -54,10 +53,10 @@ define_compression_versions!(
          NFT_ROYALTY_TRANSFER_PUZZLE;
     4 => CAT_PUZZLE;
     5 => SETTLEMENT_PAYMENTS_PUZZLE;
-    6 => [0; 0]; // Purposefully break backwards compatibility.
+    // Purposefully break backwards compatibility.
+    6 => [0; 0];
 );
 
-/// Compresses an offer spend bundle.
 pub fn compress_offer(spend_bundle: SpendBundle) -> Result<Vec<u8>, CompressionError> {
     let bytes = spend_bundle.to_bytes()?;
     let version = required_compression_version(
@@ -70,7 +69,6 @@ pub fn compress_offer(spend_bundle: SpendBundle) -> Result<Vec<u8>, CompressionE
     compress_offer_bytes(&bytes, version)
 }
 
-/// Compresses an offer spend bundle from bytes.
 pub fn compress_offer_bytes(bytes: &[u8], version: u16) -> Result<Vec<u8>, CompressionError> {
     let mut output = version.to_be_bytes().to_vec();
     let zdict = zdict_for_version(version);
@@ -87,13 +85,11 @@ fn compress(input: &[u8], zdict: &[u8]) -> std::io::Result<Vec<u8>> {
     Ok(output)
 }
 
-/// Decompresses an offer spend bundle.
 pub fn decompress_offer(bytes: &[u8]) -> Result<SpendBundle, CompressionError> {
     let decompressed_bytes = decompress_offer_bytes(bytes)?;
     Ok(SpendBundle::from_bytes(&decompressed_bytes)?)
 }
 
-/// Decompresses an offer spend bundle into bytes.
 pub fn decompress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, CompressionError> {
     let version_bytes: [u8; 2] = bytes
         .get(0..2)
