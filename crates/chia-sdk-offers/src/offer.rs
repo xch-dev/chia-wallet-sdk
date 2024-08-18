@@ -1,77 +1,53 @@
-use chia_bls::Signature;
-use chia_protocol::{CoinSpend, Program, SpendBundle};
-use chia_puzzles::offer::NotarizedPayment;
-use chia_sdk_driver::{DriverError, SpendContext};
-use indexmap::IndexMap;
+use chia_protocol::SpendBundle;
+use chia_traits::Streamable;
 
-use crate::{parse_payments, payment_coin_spend};
+use crate::{
+    compress_offer_bytes, decode_offer_data, decompress_offer_bytes, encode_offer_data, OfferError,
+};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Offer {
-    requested_payments: IndexMap<Program, Vec<NotarizedPayment>>,
-    offered_coin_spends: Vec<CoinSpend>,
-    aggregated_signature: Signature,
+    spend_bundle: SpendBundle,
 }
 
 impl Offer {
-    pub fn new(
-        requested_payments: IndexMap<Program, Vec<NotarizedPayment>>,
-        offered_coin_spends: Vec<CoinSpend>,
-        aggregated_signature: Signature,
-    ) -> Self {
-        Self {
-            requested_payments,
-            offered_coin_spends,
-            aggregated_signature,
-        }
+    pub fn new(spend_bundle: SpendBundle) -> Self {
+        Self { spend_bundle }
     }
 
-    pub fn from_spend_bundle(
-        ctx: &mut SpendContext,
-        spend_bundle: SpendBundle,
-    ) -> Result<Self, DriverError> {
-        let mut requested_payments = IndexMap::<Program, Vec<NotarizedPayment>>::new();
-        let mut offered_coin_spends = Vec::new();
-
-        for coin_spend in spend_bundle.coin_spends {
-            let Some(notarized_payments) = parse_payments(ctx, &coin_spend)? else {
-                offered_coin_spends.push(coin_spend);
-                continue;
-            };
-
-            requested_payments
-                .entry(coin_spend.puzzle_reveal)
-                .or_default()
-                .extend(notarized_payments);
-        }
-
-        Ok(Self {
-            requested_payments,
-            offered_coin_spends,
-            aggregated_signature: spend_bundle.aggregated_signature,
-        })
+    pub fn to_bytes(&self) -> Result<Vec<u8>, OfferError> {
+        Ok(self.spend_bundle.to_bytes()?)
     }
 
-    pub fn into_spend_bundle(self, ctx: &mut SpendContext) -> Result<SpendBundle, DriverError> {
-        let mut coin_spends = self.offered_coin_spends;
-
-        for (puzzle_reveal, notarized_payments) in self.requested_payments {
-            let coin_spend = payment_coin_spend(ctx, &puzzle_reveal, notarized_payments)?;
-            coin_spends.push(coin_spend);
-        }
-
-        Ok(SpendBundle::new(coin_spends, self.aggregated_signature))
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, OfferError> {
+        Ok(SpendBundle::from_bytes(bytes)?.into())
     }
 
-    pub fn requested_payments(&self) -> &IndexMap<Program, Vec<NotarizedPayment>> {
-        &self.requested_payments
+    pub fn compress(&self) -> Result<Vec<u8>, OfferError> {
+        compress_offer_bytes(&self.to_bytes()?)
     }
 
-    pub fn offered_coin_spends(&self) -> &[CoinSpend] {
-        &self.offered_coin_spends
+    pub fn decompress(bytes: &[u8]) -> Result<Self, OfferError> {
+        Self::from_bytes(&decompress_offer_bytes(bytes)?)
     }
 
-    pub fn aggregated_signature(&self) -> &Signature {
-        &self.aggregated_signature
+    pub fn encode(&self) -> Result<String, OfferError> {
+        encode_offer_data(&self.compress()?)
+    }
+
+    pub fn decode(text: &str) -> Result<Self, OfferError> {
+        Self::decompress(&decode_offer_data(text)?)
+    }
+}
+
+impl From<SpendBundle> for Offer {
+    fn from(spend_bundle: SpendBundle) -> Self {
+        Self::new(spend_bundle)
+    }
+}
+
+impl From<Offer> for SpendBundle {
+    fn from(offer: Offer) -> Self {
+        offer.spend_bundle
     }
 }

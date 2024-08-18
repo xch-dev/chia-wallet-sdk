@@ -347,6 +347,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "indexmap",
+ "once_cell",
  "thiserror",
  "tokio",
 ]
