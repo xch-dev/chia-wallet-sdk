@@ -8,6 +8,9 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
+/// The NFT ownership [`Layer`] keeps track of the current DID that owns the NFT.
+/// It also contains a transfer layer, which is used to transfer ownership of the NFT.
+/// The inner puzzle layer is commonly used for determining ownership (in the key sense, not DID).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NftOwnershipLayer<T, I> {
     /// The DID owner of this NFT, if it's currently assigned to one.

@@ -4,6 +4,7 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
+/// The settlement [`Layer`] is used to spend coins that are part of an offer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SettlementLayer;
 
