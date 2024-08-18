@@ -1,8 +1,4 @@
-use std::{
-    array::TryFromSliceError,
-    io::{self, Read},
-    num::TryFromIntError,
-};
+use std::io::Read;
 
 use chia_protocol::SpendBundle;
 use chia_puzzles::{
@@ -20,52 +16,8 @@ use flate2::{
     read::{ZlibDecoder, ZlibEncoder},
     Compress, Compression, Decompress, FlushDecompress,
 };
-use thiserror::Error;
 
-#[derive(Debug, Error)]
-pub enum CompressionError {
-    #[error("io error: {0}")]
-    Io(#[from] io::Error),
-
-    #[error("streamable error: {0}")]
-    Streamable(#[from] chia_traits::Error),
-}
-
-/// An error than can occur while decompressing an offer.
-#[derive(Debug, Error)]
-pub enum DecompressionError {
-    /// An io error.
-    #[error("io error: {0}")]
-    Io(#[from] io::Error),
-
-    /// An error that occurred while trying to convert a slice to an array.
-    #[error("{0}")]
-    TryFromSlice(#[from] TryFromSliceError),
-
-    /// The input is missing the version prefix.
-    #[error("missing version prefix")]
-    MissingVersionPrefix,
-
-    /// The version is unsupported.
-    #[error("unsupported version")]
-    UnsupportedVersion,
-
-    /// A streamable error.
-    #[error("streamable error: {0}")]
-    Streamable(#[from] chia_traits::Error),
-
-    /// The input is not compressed.
-    #[error("cannot decompress uncompressed input")]
-    NotCompressed,
-
-    /// Flate2 error.
-    #[error("flate2 error: {0}")]
-    Flate2(#[from] flate2::DecompressError),
-
-    /// Cast error.
-    #[error("cast error: {0}")]
-    Cast(#[from] TryFromIntError),
-}
+use crate::CompressionError;
 
 const MIN_VERSION: u16 = 6;
 const MAX_VERSION: u16 = 6;
@@ -126,7 +78,7 @@ pub fn compress_offer_bytes(bytes: &[u8], version: u16) -> Result<Vec<u8>, Compr
     Ok(output)
 }
 
-fn compress(input: &[u8], zdict: &[u8]) -> io::Result<Vec<u8>> {
+fn compress(input: &[u8], zdict: &[u8]) -> std::io::Result<Vec<u8>> {
     let mut compress = Compress::new(Compression::new(6), true);
     compress.set_dictionary(zdict)?;
     let mut encoder = ZlibEncoder::new_with_compress(input, compress);
@@ -136,22 +88,22 @@ fn compress(input: &[u8], zdict: &[u8]) -> io::Result<Vec<u8>> {
 }
 
 /// Decompresses an offer spend bundle.
-pub fn decompress_offer(bytes: &[u8]) -> Result<SpendBundle, DecompressionError> {
+pub fn decompress_offer(bytes: &[u8]) -> Result<SpendBundle, CompressionError> {
     let decompressed_bytes = decompress_offer_bytes(bytes)?;
     Ok(SpendBundle::from_bytes(&decompressed_bytes)?)
 }
 
 /// Decompresses an offer spend bundle into bytes.
-pub fn decompress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DecompressionError> {
+pub fn decompress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, CompressionError> {
     let version_bytes: [u8; 2] = bytes
         .get(0..2)
-        .ok_or(DecompressionError::MissingVersionPrefix)?
+        .ok_or(CompressionError::MissingVersionPrefix)?
         .try_into()?;
 
     let version = u16::from_be_bytes(version_bytes);
 
     if version > MAX_VERSION {
-        return Err(DecompressionError::UnsupportedVersion);
+        return Err(CompressionError::UnsupportedVersion);
     }
 
     let zdict = zdict_for_version(version);
@@ -159,14 +111,14 @@ pub fn decompress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DecompressionErro
     decompress(&bytes[2..], &zdict)
 }
 
-fn decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DecompressionError> {
+fn decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, CompressionError> {
     let mut decompress = Decompress::new(true);
 
     if decompress
         .decompress(input, &mut [], FlushDecompress::Finish)
         .is_ok()
     {
-        return Err(DecompressionError::NotCompressed);
+        return Err(CompressionError::NotCompressed);
     }
 
     decompress.set_dictionary(zdict)?;
