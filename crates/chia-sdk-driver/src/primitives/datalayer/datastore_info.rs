@@ -1,14 +1,10 @@
 use crate::{
-    DelegationLayer, MerkleTree, NftStateLayer, SingletonLayer, WriterLayerArgs,
-    DL_METADATA_UPDATER_PUZZLE_HASH,
+    DelegationLayer, DriverError, Layer, MerkleTree, NftStateLayer, OracleLayer, SingletonLayer,
+    SpendContext, WriterLayerArgs, DL_METADATA_UPDATER_PUZZLE_HASH,
 };
-use chia_protocol::{Bytes, Bytes32};
-use chia_sdk_types::{CreateCoin, CreatePuzzleAnnouncement};
-use clvm_traits::{
-    clvm_quote, ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError,
-};
-use clvm_utils::ToTreeHash;
-use clvmr::{Allocator, NodePtr};
+use chia_protocol::Bytes32;
+use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
+use clvm_utils::{tree_hash, ToTreeHash};
 
 pub type StandardDataStoreLayers<M = DataStoreMetadata, I = DelegationLayer> =
     SingletonLayer<NftStateLayer<M, I>>;
@@ -125,9 +121,11 @@ impl<M> DataStoreInfo<M> {
         }
     }
 
-    #[must_use]
-    pub fn into_layers_with_delegation_layer(self) -> StandardDataStoreLayers<M, DelegationLayer> {
-        SingletonLayer::new(
+    pub fn into_layers_with_delegation_layer(
+        self,
+        ctx: &mut SpendContext,
+    ) -> Result<StandardDataStoreLayers<M, DelegationLayer>, DriverError> {
+        Ok(SingletonLayer::new(
             self.launcher_id,
             NftStateLayer::new(
                 self.metadata,
@@ -135,54 +133,53 @@ impl<M> DataStoreInfo<M> {
                 DelegationLayer::new(
                     self.launcher_id,
                     self.owner_puzzle_hash,
-                    self.delegated_puzzles
-                        .map(|dp| get_merkle_tree(dp).root_hash)
-                        .unwrap_or(Bytes32::default()),
+                    match self.delegated_puzzles {
+                        None => Bytes32::default(),
+                        Some(dp) => get_merkle_tree(ctx, dp)?.get_root(),
+                    },
                 ),
             ),
-        )
+        ))
     }
 
-    pub fn inner_puzzle_hash(&self) -> TreeHash
-    where
-        M: ToTreeHash,
-    {
-        NftStateLayerArgs::curry_tree_hash(
-            self.metadata.tree_hash(),
-            NftOwnershipLayerArgs::curry_tree_hash(
-                self.current_owner,
-                CurriedProgram {
-                    program: NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
-                    args: NftRoyaltyTransferPuzzleArgs::new(
-                        self.launcher_id,
-                        self.royalty_puzzle_hash,
-                        self.royalty_ten_thousandths,
-                    ),
-                }
-                .tree_hash(),
-                self.p2_puzzle_hash.into(),
+    #[must_use]
+    pub fn into_layers_without_delegation_layer<I>(
+        self,
+        innermost_layer: I,
+    ) -> StandardDataStoreLayers<M, I> {
+        SingletonLayer::new(
+            self.launcher_id,
+            NftStateLayer::new(
+                self.metadata,
+                DL_METADATA_UPDATER_PUZZLE_HASH.into(),
+                innermost_layer,
             ),
         )
     }
 }
 
-pub fn get_merkle_tree(delegated_puzzles: Vec<DelegatedPuzzle>) -> MerkleTree {
+pub fn get_merkle_tree(
+    ctx: &mut SpendContext,
+    delegated_puzzles: Vec<DelegatedPuzzle>,
+) -> Result<MerkleTree, DriverError> {
     let mut leaves = Vec::<Bytes32>::with_capacity(delegated_puzzles.len());
 
     for dp in delegated_puzzles {
         match dp {
             DelegatedPuzzle::Admin(puzzle_hash) => {
-                leaves.push(puzzle_hash.into());
+                leaves.push(puzzle_hash);
             }
             DelegatedPuzzle::Writer(inner_puzzle_hash) => {
                 leaves.push(WriterLayerArgs::curry_tree_hash(inner_puzzle_hash.into()).into());
             }
-            DelegatedPuzzle::Oracle(oracle_fee_puzzle_hash, fee_amount) => {
-                tree.push(oracle_fee_puzzle_hash.into());
-                tree.push(fee_amount.into());
+            DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee) => {
+                let oracle_full_puzzle_ptr =
+                    OracleLayer::new(oracle_puzzle_hash, oracle_fee).construct_puzzle(ctx)?;
+
+                leaves.push(tree_hash(ctx.allocator(), oracle_full_puzzle_ptr).into());
             }
         }
     }
 
-    MerkleTree::new(&leaves)
+    Ok(MerkleTree::new(&leaves))
 }

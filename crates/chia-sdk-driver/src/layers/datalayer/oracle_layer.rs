@@ -1,9 +1,7 @@
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::{Condition, CreateCoin, CreatePuzzleAnnouncement};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr, SExp};
-use hex_literal::hex;
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
@@ -38,11 +36,7 @@ impl Layer for OracleLayer {
         let SExp::Pair(one_ptr, condition_list_ptr) = quote_pair else {
             return Ok(None);
         };
-        if !allocator
-            .small_number(one_ptr)
-            .map(|one| one == 1)
-            .unwrap_or(false)
-        {
+        if !allocator.small_number(one_ptr).is_some_and(|one| one == 1) {
             return Ok(None);
         }
 
@@ -85,44 +79,8 @@ impl Layer for OracleLayer {
     fn construct_solution(
         &self,
         _: &mut SpendContext,
-        _: Self::Solution,
+        (): Self::Solution,
     ) -> Result<NodePtr, DriverError> {
         Ok(NodePtr::NIL)
-    }
-}
-
-pub const WRITER_FILTER_PUZZLE: [u8; 110] = hex!(
-    "
-    ff02ffff01ff02ff02ffff04ff02ffff04ffff02ff05ff0b80ff80808080ffff04ffff01ff02ffff
-    03ff05ffff01ff02ffff03ffff09ff11ffff0181f380ffff01ff0880ffff01ff04ff09ffff02ff02
-    ffff04ff02ffff04ff0dff808080808080ff0180ff8080ff0180ff018080
-    "
-);
-
-pub const WRITER_FILTER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
-    "
-    407f70ea751c25052708219ae148b45db2f61af2287da53d600b2486f12b3ca6
-    "
-));
-
-#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
-#[clvm(curry)]
-pub struct WriterLayerArgs<I> {
-    pub inner_puzzle: I,
-}
-
-impl<I> WriterLayerArgs<I> {
-    pub fn new(inner_puzzle: I) -> Self {
-        Self { inner_puzzle }
-    }
-}
-
-impl WriterLayerArgs<TreeHash> {
-    pub fn curry_tree_hash(inner_puzzle: TreeHash) -> TreeHash {
-        CurriedProgram {
-            program: WRITER_FILTER_PUZZLE_HASH,
-            args: WriterLayerArgs { inner_puzzle },
-        }
-        .tree_hash()
     }
 }
