@@ -1,14 +1,16 @@
-use crate::{DelegationLayer, NftStateLayer, SingletonLayer};
+use crate::{DelegationLayer, NftStateLayer, SingletonLayer, DL_METADATA_UPDATER_PUZZLE_HASH};
 use chia_protocol::Bytes32;
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
+use clvm_utils::ToTreeHash;
 
-pub type StandardDataStoreLayers =
-    SingletonLayer<NftStateLayer<DataStoreMetadata, DelegationLayer>>;
+pub type StandardDataStoreLayers<M = DataStoreMetadata, I = DelegationLayer> =
+    SingletonLayer<NftStateLayer<M, I>>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum DelegatedPuzzle {
-    Admin(Bytes32),  // puzzle hash
-    Writer(Bytes32), // inner puzzle hash
+    Admin(Bytes32),       // puzzle hash
+    Writer(Bytes32),      // inner puzzle hash
+    Oracle(Bytes32, u64), // oracle fee puzzle hash, fee amount
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -68,106 +70,91 @@ impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for DataStoreMetadata {
     }
 }
 
-// #[must_use]
-// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// pub struct NftInfo<M> {
-//     pub launcher_id: Bytes32,
-//     pub metadata: M,
-//     pub metadata_updater_puzzle_hash: Bytes32,
-//     pub current_owner: Option<Bytes32>,
-//     pub royalty_puzzle_hash: Bytes32,
-//     pub royalty_ten_thousandths: u16,
-//     pub p2_puzzle_hash: Bytes32,
-// }
+#[must_use]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataStoreInfo<M = DataStoreMetadata> {
+    pub launcher_id: Bytes32,
+    pub metadata: M,
+    pub owner_puzzle_hash: Bytes32,
+    pub delegated_puzzles: Option<Vec<DelegatedPuzzle>>,
+}
 
-// impl<M> NftInfo<M> {
-//     pub fn new(
-//         launcher_id: Bytes32,
-//         metadata: M,
-//         metadata_updater_puzzle_hash: Bytes32,
-//         current_owner: Option<Bytes32>,
-//         royalty_puzzle_hash: Bytes32,
-//         royalty_ten_thousandths: u16,
-//         p2_puzzle_hash: Bytes32,
-//     ) -> Self {
-//         Self {
-//             launcher_id,
-//             metadata,
-//             metadata_updater_puzzle_hash,
-//             current_owner,
-//             royalty_puzzle_hash,
-//             royalty_ten_thousandths,
-//             p2_puzzle_hash,
-//         }
-//     }
+impl<M> DataStoreInfo<M> {
+    pub fn new(
+        launcher_id: Bytes32,
+        metadata: M,
+        owner_puzzle_hash: Bytes32,
+        delegated_puzzles: Option<Vec<DelegatedPuzzle>>,
+    ) -> Self {
+        Self {
+            launcher_id,
+            metadata,
+            owner_puzzle_hash,
+            delegated_puzzles,
+        }
+    }
 
-//     pub fn from_layers<I>(layers: StandardNftLayers<M, I>) -> Self
-//     where
-//         I: ToTreeHash,
-//     {
-//         Self {
-//             launcher_id: layers.launcher_id,
-//             metadata: layers.inner_puzzle.metadata,
-//             metadata_updater_puzzle_hash: layers.inner_puzzle.metadata_updater_puzzle_hash,
-//             current_owner: layers.inner_puzzle.inner_puzzle.current_owner,
-//             royalty_puzzle_hash: layers
-//                 .inner_puzzle
-//                 .inner_puzzle
-//                 .transfer_layer
-//                 .royalty_puzzle_hash,
-//             royalty_ten_thousandths: layers
-//                 .inner_puzzle
-//                 .inner_puzzle
-//                 .transfer_layer
-//                 .royalty_ten_thousandths,
-//             p2_puzzle_hash: layers
-//                 .inner_puzzle
-//                 .inner_puzzle
-//                 .inner_puzzle
-//                 .tree_hash()
-//                 .into(),
-//         }
-//     }
+    pub fn from_layers_with_delegation_layer(
+        layers: StandardDataStoreLayers<M, DelegationLayer>,
+        delegated_puzzles: Vec<DelegatedPuzzle>,
+    ) -> Self {
+        Self {
+            launcher_id: layers.launcher_id,
+            metadata: layers.inner_puzzle.metadata,
+            owner_puzzle_hash: layers.inner_puzzle.inner_puzzle.owner_puzzle_hash,
+            delegated_puzzles: Some(delegated_puzzles),
+        }
+    }
 
-//     #[must_use]
-//     pub fn into_layers<I>(self, p2_puzzle: I) -> StandardNftLayers<M, I> {
-//         SingletonLayer::new(
-//             self.launcher_id,
-//             NftStateLayer::new(
-//                 self.metadata,
-//                 self.metadata_updater_puzzle_hash,
-//                 NftOwnershipLayer::new(
-//                     self.current_owner,
-//                     RoyaltyTransferLayer::new(
-//                         self.launcher_id,
-//                         self.royalty_puzzle_hash,
-//                         self.royalty_ten_thousandths,
-//                     ),
-//                     p2_puzzle,
-//                 ),
-//             ),
-//         )
-//     }
+    pub fn from_layers_without_delegation_layer<I>(layers: StandardDataStoreLayers<M, I>) -> Self
+    where
+        I: ToTreeHash,
+    {
+        Self {
+            launcher_id: layers.launcher_id,
+            metadata: layers.inner_puzzle.metadata,
+            owner_puzzle_hash: layers.inner_puzzle.inner_puzzle.tree_hash().into(),
+            delegated_puzzles: None,
+        }
+    }
 
-//     pub fn inner_puzzle_hash(&self) -> TreeHash
-//     where
-//         M: ToTreeHash,
-//     {
-//         NftStateLayerArgs::curry_tree_hash(
-//             self.metadata.tree_hash(),
-//             NftOwnershipLayerArgs::curry_tree_hash(
-//                 self.current_owner,
-//                 CurriedProgram {
-//                     program: NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
-//                     args: NftRoyaltyTransferPuzzleArgs::new(
-//                         self.launcher_id,
-//                         self.royalty_puzzle_hash,
-//                         self.royalty_ten_thousandths,
-//                     ),
-//                 }
-//                 .tree_hash(),
-//                 self.p2_puzzle_hash.into(),
-//             ),
-//         )
-//     }
-// }
+    #[must_use]
+    pub fn into_layers_with_delegation_layer(self) -> StandardDataStoreLayers<M, DelegationLayer> {
+        SingletonLayer::new(
+            self.launcher_id,
+            NftStateLayer::new(
+                self.metadata,
+                DL_METADATA_UPDATER_PUZZLE_HASH.into(),
+                DelegationLayer::new(
+                    self.launcher_id,
+                    self.owner_puzzle_hash,
+                    self.delegated_puzzles
+                        .map(|dp| dp.get_merkle_root())
+                        .unwrap_or(Bytes32::default()),
+                ),
+            ),
+        )
+    }
+
+    pub fn inner_puzzle_hash(&self) -> TreeHash
+    where
+        M: ToTreeHash,
+    {
+        NftStateLayerArgs::curry_tree_hash(
+            self.metadata.tree_hash(),
+            NftOwnershipLayerArgs::curry_tree_hash(
+                self.current_owner,
+                CurriedProgram {
+                    program: NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
+                    args: NftRoyaltyTransferPuzzleArgs::new(
+                        self.launcher_id,
+                        self.royalty_puzzle_hash,
+                        self.royalty_ten_thousandths,
+                    ),
+                }
+                .tree_hash(),
+                self.p2_puzzle_hash.into(),
+            ),
+        )
+    }
+}
