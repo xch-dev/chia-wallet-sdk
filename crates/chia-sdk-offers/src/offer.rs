@@ -63,21 +63,21 @@ impl Offer {
         Ok(self.parse(allocator)?.take())
     }
 
-    pub fn parse(&self, allocator: &mut Allocator) -> Result<ParsedOffer, OfferError> {
+    pub fn parse(self, allocator: &mut Allocator) -> Result<ParsedOffer, OfferError> {
         let mut parsed = ParsedOffer {
-            aggregated_signature: self.spend_bundle.aggregated_signature.clone(),
+            aggregated_signature: self.spend_bundle.aggregated_signature,
             coin_spends: Vec::new(),
             requested_payments: IndexMap::new(),
         };
 
-        for coin_spend in &self.spend_bundle.coin_spends {
+        for coin_spend in self.spend_bundle.coin_spends {
             if coin_spend.coin.parent_coin_info != Bytes32::default() {
-                parsed.coin_spends.push(coin_spend.clone());
+                parsed.coin_spends.push(coin_spend);
                 continue;
             }
 
             if coin_spend.coin.amount != 0 {
-                parsed.coin_spends.push(coin_spend.clone());
+                parsed.coin_spends.push(coin_spend);
                 continue;
             }
 
