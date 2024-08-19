@@ -57,7 +57,7 @@ mod tests {
     #[case::one_item_list(hex!("ff01ff0180").to_vec())] // run -d '(mod () (list 1)))'
     #[case::multiple_item_list(hex!("ff01ff01ff02ff0380").to_vec())] // run -d '(mod () (list 1 2 3)))'
     #[case::lists_within_list(hex!("ff01ff01ffff02ff0380ffff04ff0580ffff060780").to_vec())] // run -d '(mod () (list 1 (list 2 3) (list 4 5) (c 6 7))))'
-    fn test_dl_metadata_updater_puzzle(#[case] third_arg: Vec<u8>) -> Result<(), ()> {
+    fn test_dl_metadata_updater_puzzle(#[case] third_arg: Vec<u8>) {
         let mut ctx = SpendContext::new();
 
         let third_arg_ptr = node_from_bytes(ctx.allocator_mut(), &third_arg).unwrap();
@@ -72,7 +72,5 @@ mod tests {
             tree_hash(ctx.allocator(), output),
             tree_hash(ctx.allocator(), third_arg_ptr),
         );
-
-        Ok(())
     }
 }
