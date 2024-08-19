@@ -1,4 +1,5 @@
 mod cat_layer;
+mod datalayer;
 mod did_layer;
 mod nft_ownership_layer;
 mod nft_state_layer;
@@ -8,6 +9,7 @@ mod singleton_layer;
 mod standard_layer;
 
 pub use cat_layer::*;
+pub use datalayer::*;
 pub use did_layer::*;
 pub use nft_ownership_layer::*;
 pub use nft_state_layer::*;
