@@ -1,7 +1,14 @@
-use crate::{DelegationLayer, NftStateLayer, SingletonLayer, DL_METADATA_UPDATER_PUZZLE_HASH};
-use chia_protocol::Bytes32;
-use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
+use crate::{
+    DelegationLayer, MerkleTree, NftStateLayer, SingletonLayer, WriterLayerArgs,
+    DL_METADATA_UPDATER_PUZZLE_HASH,
+};
+use chia_protocol::{Bytes, Bytes32};
+use chia_sdk_types::{CreateCoin, CreatePuzzleAnnouncement};
+use clvm_traits::{
+    clvm_quote, ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError,
+};
 use clvm_utils::ToTreeHash;
+use clvmr::{Allocator, NodePtr};
 
 pub type StandardDataStoreLayers<M = DataStoreMetadata, I = DelegationLayer> =
     SingletonLayer<NftStateLayer<M, I>>;
@@ -129,7 +136,7 @@ impl<M> DataStoreInfo<M> {
                     self.launcher_id,
                     self.owner_puzzle_hash,
                     self.delegated_puzzles
-                        .map(|dp| dp.get_merkle_root())
+                        .map(|dp| get_merkle_tree(dp).root_hash)
                         .unwrap_or(Bytes32::default()),
                 ),
             ),
@@ -157,4 +164,25 @@ impl<M> DataStoreInfo<M> {
             ),
         )
     }
+}
+
+pub fn get_merkle_tree(delegated_puzzles: Vec<DelegatedPuzzle>) -> MerkleTree {
+    let mut leaves = Vec::<Bytes32>::with_capacity(delegated_puzzles.len());
+
+    for dp in delegated_puzzles {
+        match dp {
+            DelegatedPuzzle::Admin(puzzle_hash) => {
+                leaves.push(puzzle_hash.into());
+            }
+            DelegatedPuzzle::Writer(inner_puzzle_hash) => {
+                leaves.push(WriterLayerArgs::curry_tree_hash(inner_puzzle_hash.into()).into());
+            }
+            DelegatedPuzzle::Oracle(oracle_fee_puzzle_hash, fee_amount) => {
+                tree.push(oracle_fee_puzzle_hash.into());
+                tree.push(fee_amount.into());
+            }
+        }
+    }
+
+    MerkleTree::new(&leaves)
 }

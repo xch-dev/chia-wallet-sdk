@@ -1,10 +1,12 @@
 mod delegation_layer;
+mod oracle_layer;
 mod writer_layer;
 
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
 pub use delegation_layer::*;
+pub use oracle_layer::*;
 pub use writer_layer::*;
 
 // bytes(ACS_MU).hex()
