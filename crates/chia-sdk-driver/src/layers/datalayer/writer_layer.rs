@@ -57,7 +57,7 @@ where
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let curried = CurriedProgram {
-            program: ctx.did_inner_puzzle()?,
+            program: ctx.delegated_writer_filter()?,
             args: WriterLayerArgs::new(self.inner_puzzle.construct_puzzle(ctx)?),
         };
         ctx.alloc(&curried)
@@ -125,4 +125,10 @@ impl WriterLayerArgs<TreeHash> {
 #[clvm(list)]
 pub struct WriterLayerSolution<I> {
     pub inner_solution: I,
+}
+
+impl SpendContext {
+    pub fn delegated_writer_filter(&mut self) -> Result<NodePtr, DriverError> {
+        self.puzzle(WRITER_FILTER_PUZZLE_HASH, &WRITER_FILTER_PUZZLE)
+    }
 }

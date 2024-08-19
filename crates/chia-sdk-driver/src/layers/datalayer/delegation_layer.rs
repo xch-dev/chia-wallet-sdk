@@ -60,7 +60,7 @@ impl Layer for DelegationLayer {
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let curried = CurriedProgram {
-            program: ctx.did_inner_puzzle()?,
+            program: ctx.delegation_layer_puzzle()?,
             args: DelegationLayerArgs::new(
                 self.launcher_id,
                 self.owner_puzzle_hash,
@@ -173,4 +173,10 @@ pub struct NewMerkleRootCondition<M = Bytes32> {
     pub new_merkle_root: Bytes32,
     #[clvm(rest)]
     pub memos: Vec<M>,
+}
+
+impl SpendContext {
+    pub fn delegation_layer_puzzle(&mut self) -> Result<NodePtr, DriverError> {
+        self.puzzle(DELEGATION_LAYER_PUZZLE_HASH, &DELEGATION_LAYER_PUZZLE)
+    }
 }
