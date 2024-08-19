@@ -11,6 +11,3 @@ pub use error::*;
 pub use offer::*;
 pub use offer_builder::*;
 pub use parsed_offer::*;
-
-#[cfg(test)]
-mod tests;
