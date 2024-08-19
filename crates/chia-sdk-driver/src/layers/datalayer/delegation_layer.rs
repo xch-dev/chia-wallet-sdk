@@ -1,4 +1,6 @@
-use clvm_utils::TreeHash;
+use chia_protocol::Bytes32;
+use clvm_traits::{apply_constants, FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use hex_literal::hex;
 
 pub const DELEGATION_LAYER_PUZZLE: [u8; 1027] = hex!(
@@ -37,3 +39,62 @@ pub const DELEGATION_LAYER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     c3b249466cb15c51e5abb5c54ef5077c1624ae2e6a0f8f7a3fa197a943a5d62e
     "
 ));
+
+#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
+#[clvm(curry)]
+pub struct DelegationLayerArgs {
+    pub mod_hash: Bytes32,
+    pub launcher_id: Bytes32,
+    pub inner_puzzle_hash: Bytes32,
+    pub merkle_root: Bytes32,
+}
+
+impl DelegationLayerArgs {
+    pub fn new(launcher_id: Bytes32, inner_puzzle_hash: Bytes32, merkle_root: Bytes32) -> Self {
+        Self {
+            mod_hash: DELEGATION_LAYER_PUZZLE_HASH.into(),
+            launcher_id,
+            inner_puzzle_hash,
+            merkle_root,
+        }
+    }
+}
+
+impl DelegationLayerArgs {
+    pub fn curry_tree_hash(
+        launcher_id: Bytes32,
+        inner_puzzle_hash: Bytes32,
+        merkle_root: Bytes32,
+    ) -> TreeHash {
+        CurriedProgram {
+            program: DELEGATION_LAYER_PUZZLE_HASH,
+            args: DelegationLayerArgs {
+                mod_hash: DELEGATION_LAYER_PUZZLE_HASH.into(),
+                launcher_id,
+                inner_puzzle_hash,
+                merkle_root,
+            },
+        }
+        .tree_hash()
+    }
+}
+
+#[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
+#[clvm(list)]
+pub struct DelegationLayerSolution<P, S> {
+    pub merkle_proof: Option<(u32, Vec<chia_protocol::Bytes32>)>,
+    pub puzzle_reveal: P,
+    pub puzzle_solution: S,
+}
+
+#[derive(ToClvm)]
+#[apply_constants]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[clvm(list)]
+pub struct NewMerkleRootCondition<M = Bytes32> {
+    #[clvm(constant = -13)]
+    pub opcode: i32,
+    pub new_merkle_root: Bytes32,
+    #[clvm(rest)]
+    pub memos: Vec<M>,
+}
