@@ -42,6 +42,16 @@ impl<M, I> DidLayer<M, I> {
             inner_puzzle,
         }
     }
+
+    pub fn with_metadata<N>(self, metadata: N) -> DidLayer<N, I> {
+        DidLayer {
+            launcher_id: self.launcher_id,
+            recovery_list_hash: self.recovery_list_hash,
+            num_verifications_required: self.num_verifications_required,
+            metadata,
+            inner_puzzle: self.inner_puzzle,
+        }
+    }
 }
 
 impl<M, I> Layer for DidLayer<M, I>

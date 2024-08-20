@@ -1,8 +1,10 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{did::DidArgs, singleton::SingletonStruct};
-use clvm_utils::{ToTreeHash, TreeHash};
+use clvm_traits::ToClvm;
+use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
+use clvmr::Allocator;
 
-use crate::{DidLayer, SingletonLayer};
+use crate::{DidLayer, DriverError, SingletonLayer};
 
 pub type StandardDidLayers<M, I> = SingletonLayer<DidLayer<M, I>>;
 
@@ -71,5 +73,33 @@ impl<M> DidInfo<M> {
             SingletonStruct::new(self.launcher_id),
             self.metadata.tree_hash(),
         )
+    }
+
+    pub fn with_metadata<N>(self, metadata: N) -> DidInfo<N> {
+        DidInfo {
+            launcher_id: self.launcher_id,
+            recovery_list_hash: self.recovery_list_hash,
+            num_verifications_required: self.num_verifications_required,
+            metadata,
+            p2_puzzle_hash: self.p2_puzzle_hash,
+        }
+    }
+
+    pub fn with_hashed_metadata(
+        &self,
+        allocator: &mut Allocator,
+    ) -> Result<DidInfo<TreeHash>, DriverError>
+    where
+        M: ToClvm<Allocator>,
+    {
+        let metadata_ptr = self.metadata.to_clvm(allocator)?;
+        let metadata_hash = tree_hash(allocator, metadata_ptr);
+        Ok(DidInfo {
+            launcher_id: self.launcher_id,
+            recovery_list_hash: self.recovery_list_hash,
+            num_verifications_required: self.num_verifications_required,
+            metadata: metadata_hash,
+            p2_puzzle_hash: self.p2_puzzle_hash,
+        })
     }
 }

@@ -64,7 +64,7 @@ impl Launcher {
             metadata,
         )?;
 
-        let new_did = ctx.spend_standard_did(&did, synthetic_key, Conditions::new())?;
+        let new_did = ctx.spend_standard_did(did, synthetic_key, Conditions::new())?;
 
         Ok((create_did, new_did))
     }

@@ -27,6 +27,14 @@ impl<M, I> NftStateLayer<M, I> {
             inner_puzzle,
         }
     }
+
+    pub fn with_metadata<N>(self, metadata: N) -> NftStateLayer<N, I> {
+        NftStateLayer {
+            metadata,
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+            inner_puzzle: self.inner_puzzle,
+        }
+    }
 }
 
 impl<M, I> Layer for NftStateLayer<M, I>

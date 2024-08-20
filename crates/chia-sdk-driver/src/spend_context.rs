@@ -221,7 +221,7 @@ impl SpendContext {
     /// Spend a DID coin with a standard p2 inner puzzle.
     pub fn spend_standard_did<M>(
         &mut self,
-        did: &Did<M>,
+        did: Did<M>,
         synthetic_key: PublicKey,
         extra_conditions: Conditions,
     ) -> Result<Did<M>, DriverError>
@@ -246,7 +246,7 @@ impl SpendContext {
     /// Spend an NFT coin with a standard p2 inner puzzle.
     pub fn spend_standard_nft<M>(
         &mut self,
-        nft: &Nft<M>,
+        nft: Nft<M>,
         synthetic_key: PublicKey,
         p2_puzzle_hash: Bytes32,
         new_nft_owner: Option<NewNftOwner>,

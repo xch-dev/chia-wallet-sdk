@@ -173,7 +173,7 @@ mod tests {
             .create(ctx)?
             .mint_nft(ctx, nft_mint(puzzle_hash, None))?;
         let _did = ctx.spend_standard_did(
-            &did,
+            did,
             pk,
             mint_nft.create_coin_announcement(b"$".to_vec().into()),
         )?;
@@ -231,7 +231,7 @@ mod tests {
             .0;
 
         let _did =
-            ctx.spend_standard_did(&did, pk, Conditions::new().extend(mint_1).extend(mint_2))?;
+            ctx.spend_standard_did(did, pk, Conditions::new().extend(mint_1).extend(mint_2))?;
 
         test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
@@ -261,7 +261,7 @@ mod tests {
         let (mint_nft, _nft) = launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
         let _did_info =
-            ctx.spend_standard_did(&did, pk, mint_nft.create_coin(puzzle_hash, 0, Vec::new()))?;
+            ctx.spend_standard_did(did, pk, mint_nft.create_coin(puzzle_hash, 0, Vec::new()))?;
 
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
@@ -293,11 +293,11 @@ mod tests {
         let (mint_nft, _nft_info) = launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
         let did = ctx.spend_standard_did(
-            &did,
+            did,
             pk,
             Conditions::new().create_coin(puzzle_hash, 0, Vec::new()),
         )?;
-        let _did = ctx.spend_standard_did(&did, pk, mint_nft)?;
+        let _did = ctx.spend_standard_did(did, pk, mint_nft)?;
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
         test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
