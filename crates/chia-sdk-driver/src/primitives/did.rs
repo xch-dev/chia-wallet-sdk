@@ -178,7 +178,7 @@ mod tests {
             did = ctx.spend_standard_did(&did, pk, Conditions::new())?;
         }
 
-        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
+        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
         let coin_state = sim
             .coin_state(did.coin.coin_id())

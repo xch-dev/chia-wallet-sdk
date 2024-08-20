@@ -1,15 +1,13 @@
-mod compression;
-mod encoding;
+mod compress;
+mod encode;
 mod error;
 mod offer;
 mod offer_builder;
-mod requested_payments;
-mod settlement;
+mod parsed_offer;
 
-pub use compression::*;
-pub use encoding::*;
+pub use compress::*;
+pub use encode::*;
 pub use error::*;
 pub use offer::*;
 pub use offer_builder::*;
-pub use requested_payments::*;
-pub use settlement::*;
+pub use parsed_offer::*;

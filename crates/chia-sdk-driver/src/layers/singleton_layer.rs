@@ -9,6 +9,15 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
+/// The singleton [`Layer`] enforces uniqueness on a coin, which is identified by the launcher id.
+/// It contains an inner puzzle layer, which determines the actual behavior of the coin.
+/// Only one singleton can be created when the coin is spent, preserving the lineage of the asset.
+///
+/// Examples of singletons include:
+/// * [`DidLayer`](crate::DidLayer) for Decentralized Identifiers (DIDs).
+/// * [`NftStateLayer`](crate::NftStateLayer) for Non-Fungible Tokens (NFTs).
+///
+/// However, assets like CATs (Chia Asset Tokens) are not singletons, as they are fungible.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SingletonLayer<I> {
     /// The unique launcher id for the singleton. Also referred to as the singleton id.

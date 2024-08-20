@@ -7,6 +7,14 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 
+/// The standard [`Layer`] is used for most coins on the Chia blockchain. It allows a single key
+/// to spend the coin by providing a delegated puzzle (for example to output [`Conditions`]).
+///
+/// There is also additional hidden puzzle functionality which can be encoded in the key.
+/// To do this, you calculate a "synthetic key" from the original key and the hidden puzzle hash.
+/// When spending the coin, you can reveal this hidden puzzle and provide the original key.
+/// This functionality is seldom used in Chia, and usually the "default hidden puzzle" is used instead.
+/// The default hidden puzzle is not spendable, so you can only spend XCH coins by signing with your key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StandardLayer {
     pub synthetic_key: PublicKey,

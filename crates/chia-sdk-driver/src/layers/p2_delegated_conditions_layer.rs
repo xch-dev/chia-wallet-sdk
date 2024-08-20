@@ -8,8 +8,12 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
+/// The p2 delegated conditions [`Layer`] allows a certain key to spend the coin.
+/// To do so, a list of additional conditions is signed and passed in the solution.
+/// Typically, the [`StandardLayer`](crate::StandardLayer) is used instead, since it adds more flexibility.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct P2DelegatedConditionsLayer {
+    /// The public key that has the ability to spend the coin.
     pub public_key: PublicKey,
 }
 
