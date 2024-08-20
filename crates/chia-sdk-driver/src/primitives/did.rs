@@ -196,7 +196,11 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 1).await;
 
-        let (create_did, mut did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+
+        // Make sure that bounds are relaxed enough to do this.
+        let metadata_ptr = ctx.alloc(&did.info.metadata)?;
+        let mut did = did.with_metadata(metadata_ptr);
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 

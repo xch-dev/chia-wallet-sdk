@@ -340,6 +340,10 @@ mod tests {
             .create(ctx)?
             .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
+        // Make sure that bounds are relaxed enough to do this.
+        let metadata_ptr = ctx.alloc(&nft.info.metadata)?;
+        let nft = nft.with_metadata(metadata_ptr);
+
         let did = ctx.spend_standard_did(did, pk, mint_nft)?;
 
         let other_puzzle_hash = StandardArgs::curry_tree_hash(pk.derive_unhardened(0)).into();
