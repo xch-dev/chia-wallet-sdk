@@ -3,7 +3,7 @@ use chia_protocol::Bytes32;
 use chia_puzzles::{standard::StandardArgs, EveProof, Proof};
 use chia_sdk_types::Conditions;
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{tree_hash_atom, ToTreeHash};
+use clvm_utils::tree_hash_atom;
 use clvmr::Allocator;
 
 use crate::{DriverError, Launcher, SpendContext};
@@ -20,14 +20,16 @@ impl Launcher {
         metadata: M,
     ) -> Result<(Conditions, Did<M>), DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator>,
     {
         let launcher_coin = self.coin();
+        let metadata_ptr = ctx.alloc(&metadata)?;
+
         let did_info = DidInfo::new(
             launcher_coin.coin_id(),
             recovery_list_hash,
             num_verifications_required,
-            metadata,
+            ctx.tree_hash(metadata_ptr),
             p2_puzzle_hash,
         );
 
@@ -39,7 +41,10 @@ impl Launcher {
             parent_amount: launcher_coin.amount,
         });
 
-        Ok((launch_singleton, Did::new(eve_coin, proof, did_info)))
+        Ok((
+            launch_singleton,
+            Did::new(eve_coin, proof, did_info.with_metadata(metadata)),
+        ))
     }
 
     pub fn create_did<M>(
@@ -51,7 +56,7 @@ impl Launcher {
         synthetic_key: PublicKey,
     ) -> Result<(Conditions, Did<M>), DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
         Self: Sized,
     {
         let p2_puzzle_hash = StandardArgs::curry_tree_hash(synthetic_key).into();
