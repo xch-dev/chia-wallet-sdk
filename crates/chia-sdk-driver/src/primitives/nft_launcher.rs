@@ -2,7 +2,6 @@ use chia_protocol::Bytes32;
 use chia_puzzles::{EveProof, Proof};
 use chia_sdk_types::{Condition, Conditions, NewNftOwner};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
-use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{did_puzzle_assertion, DriverError, Launcher, Spend, SpendContext};
@@ -28,12 +27,14 @@ impl Launcher {
         royalty_ten_thousandths: u16,
     ) -> Result<(Conditions, Nft<M>), DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
         let launcher_coin = self.coin();
+        let metadata_ptr = ctx.alloc(&metadata)?;
+
         let nft_info = NftInfo::new(
             launcher_coin.coin_id(),
-            metadata,
+            ctx.tree_hash(metadata_ptr),
             metadata_updater_puzzle_hash,
             None,
             royalty_puzzle_hash,
@@ -51,7 +52,7 @@ impl Launcher {
 
         Ok((
             launch_singleton.create_puzzle_announcement(launcher_coin.coin_id().to_vec().into()),
-            Nft::new(eve_coin, proof, nft_info),
+            Nft::new(eve_coin, proof, nft_info.with_metadata(metadata)),
         ))
     }
 
@@ -61,7 +62,7 @@ impl Launcher {
         mint: NftMint<M>,
     ) -> Result<(Conditions, Nft<M>), DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
         let mut conditions =
             Conditions::new().create_coin(mint.p2_puzzle_hash, 1, vec![mint.p2_puzzle_hash.into()]);
@@ -95,9 +96,12 @@ impl Launcher {
             ));
         }
 
+        let hashed_eve = eve_nft.with_hashed_metadata(&mut ctx.allocator)?;
+        let child = hashed_eve.create_child(mint.p2_puzzle_hash, Some(mint.owner.did_id));
+
         Ok((
             mint_eve_nft.extend(did_conditions),
-            eve_nft.create_child(mint.p2_puzzle_hash, Some(mint.owner.did_id)),
+            child.with_metadata(eve_nft.info.metadata),
         ))
     }
 }
@@ -150,10 +154,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nft_mint_cost() -> anyhow::Result<()>
-    where
-        NftMetadata: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
-    {
+    fn test_nft_mint_cost() -> anyhow::Result<()> {
         let sk = secret_key()?;
         let pk = sk.public_key();
         let mut owned_ctx = SpendContext::new();
@@ -173,7 +174,7 @@ mod tests {
             .create(ctx)?
             .mint_nft(ctx, nft_mint(puzzle_hash, None))?;
         let _did = ctx.spend_standard_did(
-            &did,
+            did,
             pk,
             mint_nft.create_coin_announcement(b"$".to_vec().into()),
         )?;
@@ -231,7 +232,7 @@ mod tests {
             .0;
 
         let _did =
-            ctx.spend_standard_did(&did, pk, Conditions::new().extend(mint_1).extend(mint_2))?;
+            ctx.spend_standard_did(did, pk, Conditions::new().extend(mint_1).extend(mint_2))?;
 
         test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
@@ -261,7 +262,7 @@ mod tests {
         let (mint_nft, _nft) = launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
         let _did_info =
-            ctx.spend_standard_did(&did, pk, mint_nft.create_coin(puzzle_hash, 0, Vec::new()))?;
+            ctx.spend_standard_did(did, pk, mint_nft.create_coin(puzzle_hash, 0, Vec::new()))?;
 
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
@@ -293,11 +294,11 @@ mod tests {
         let (mint_nft, _nft_info) = launcher.mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
 
         let did = ctx.spend_standard_did(
-            &did,
+            did,
             pk,
             Conditions::new().create_coin(puzzle_hash, 0, Vec::new()),
         )?;
-        let _did = ctx.spend_standard_did(&did, pk, mint_nft)?;
+        let _did = ctx.spend_standard_did(did, pk, mint_nft)?;
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
         test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;

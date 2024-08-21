@@ -26,7 +26,7 @@ use chia_sdk_types::{
     P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
 };
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
+use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
 use crate::{Did, DriverError, Nft, Spend, StandardLayer};
@@ -221,17 +221,20 @@ impl SpendContext {
     /// Spend a DID coin with a standard p2 inner puzzle.
     pub fn spend_standard_did<M>(
         &mut self,
-        did: &Did<M>,
+        did: Did<M>,
         synthetic_key: PublicKey,
         extra_conditions: Conditions,
     ) -> Result<Did<M>, DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
+        let hashed = did.with_hashed_metadata(&mut self.allocator)?;
+        let inner_puzzle_hash = hashed.info.inner_puzzle_hash();
+
         let p2_spend = StandardLayer::new(synthetic_key).spend(
             self,
             extra_conditions.create_coin(
-                did.info.inner_puzzle_hash().into(),
+                inner_puzzle_hash.into(),
                 did.coin.amount,
                 vec![did.info.p2_puzzle_hash.into()],
             ),
@@ -240,20 +243,20 @@ impl SpendContext {
         let coin_spend = did.spend(self, p2_spend)?;
         self.insert(coin_spend);
 
-        Ok(did.recreate_self())
+        Ok(hashed.recreate_self().with_metadata(did.info.metadata))
     }
 
     /// Spend an NFT coin with a standard p2 inner puzzle.
     pub fn spend_standard_nft<M>(
         &mut self,
-        nft: &Nft<M>,
+        nft: Nft<M>,
         synthetic_key: PublicKey,
         p2_puzzle_hash: Bytes32,
         new_nft_owner: Option<NewNftOwner>,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Nft<M>), DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
         if let Some(new_nft_owner) = new_nft_owner {
             let (cs, conds, new_nft) = nft.transfer_to_did(
