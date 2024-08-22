@@ -1,14 +1,10 @@
 use chia_protocol::{Coin, CoinSpend};
 use chia_puzzles::{nft::NftStateLayerSolution, singleton::SingletonSolution, LineageProof, Proof};
-use chia_sdk_types::{run_puzzle, Condition, NewMetadataCondition};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
-use clvmr::{Allocator, NodePtr};
+use clvmr::Allocator;
 
-use crate::{
-    DelegationLayerSolution, DriverError, Layer, NftStateLayer, Primitive, Puzzle, SingletonLayer,
-    Spend, SpendContext,
-};
+use crate::{DelegationLayerSolution, DriverError, Layer, Spend, SpendContext};
 
 use super::{get_merkle_tree, DataStoreInfo, DataStoreMetadata};
 
@@ -32,16 +28,12 @@ where
     }
 
     /// Creates a coin spend for this ``DataStore``.
-    pub fn spend(
-        &self,
-        ctx: &mut SpendContext,
-        inner_spend: Spend,
-    ) -> Result<CoinSpend, DriverError>
+    pub fn spend(self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<CoinSpend, DriverError>
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
-        let (puzzle_ptr, solution_ptr) = match self.info.delegated_puzzles {
-            Some(delegated_puzzles) => {
+        let (puzzle_ptr, solution_ptr) =
+            if let Some(delegated_puzzles) = self.info.delegated_puzzles.clone() {
                 let layers = self.info.clone().into_layers_with_delegation_layer(ctx)?;
 
                 let puzzle_ptr = layers.construct_puzzle(ctx)?;
@@ -64,12 +56,11 @@ where
                     },
                 )?;
                 (puzzle_ptr, solution_ptr)
-            }
-            None => {
+            } else {
                 let layers = self
                     .info
                     .clone()
-                    .into_layers_without_delegation_layer(inner_spend);
+                    .into_layers_without_delegation_layer(inner_spend.puzzle);
 
                 let solution_ptr = layers.construct_solution(
                     ctx,
@@ -83,8 +74,7 @@ where
                 )?;
 
                 (layers.construct_puzzle(ctx)?, solution_ptr)
-            }
-        };
+            };
 
         let puzzle = ctx.serialize(&puzzle_ptr)?;
         let solution = ctx.serialize(&solution_ptr)?;
@@ -105,115 +95,95 @@ where
     }
 }
 
-impl<M> Primitive for DataStore<M>
-where
-    M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
-{
-    fn from_parent_spend(
-        allocator: &mut Allocator,
-        parent_coin: Coin,
-        parent_puzzle: Puzzle,
-        parent_solution: NodePtr,
-        coin: Coin,
-    ) -> Result<Option<Self>, DriverError>
-    where
-        Self: Sized,
-    {
-        let Some(singleton_layer) =
-            SingletonLayer::<Puzzle>::parse_puzzle(allocator, parent_puzzle)?
-        else {
-            return Ok(None);
-        };
+// impl<M> Primitive for DataStore<M>
+// where
+//     M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
+// {
+//     fn from_parent_spend(
+//         allocator: &mut Allocator,
+//         parent_coin: Coin,
+//         parent_puzzle: Puzzle,
+//         parent_solution: NodePtr,
+//         coin: Coin,
+//     ) -> Result<Option<Self>, DriverError>
+//     where
+//         Self: Sized,
+//     {
+//         let Some(singleton_layer) =
+//             SingletonLayer::<Puzzle>::parse_puzzle(allocator, parent_puzzle)?
+//         else {
+//             return Ok(None);
+//         };
 
-        let Some(state_layer) =
-            NftStateLayer::<M, Puzzle>::parse_puzzle(allocator, singleton_layer.inner_puzzle)?
-        else {
-            return Ok(None);
-        };
+//         let Some(state_layer) =
+//             NftStateLayer::<M, Puzzle>::parse_puzzle(allocator, singleton_layer.inner_puzzle)?
+//         else {
+//             return Ok(None);
+//         };
 
-        let parent_solution =
-            SingletonLayer::<NftStateLayer<M, Puzzle>>::parse_solution(allocator, parent_solution)?;
+//         let parent_solution =
+//             SingletonLayer::<NftStateLayer<M, Puzzle>>::parse_solution(allocator, parent_solution)?;
 
-        // At this point, inner puzzle might be either a delegation layer or just an ownership layer.
-        let inner_puzzle = state_layer.inner_puzzle.ptr();
-        let inner_solution = parent_solution.inner_solution.inner_solution;
+//         // At this point, inner puzzle might be either a delegation layer or just an ownership layer.
+//         let inner_puzzle = state_layer.inner_puzzle.ptr();
+//         let inner_solution = parent_solution.inner_solution.inner_solution;
 
-        let output = run_puzzle(allocator, inner_puzzle, inner_solution)?;
-        let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
+//         let output = run_puzzle(allocator, inner_puzzle, inner_solution)?;
+//         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
-        let mut create_coin = None;
-        let mut new_metadata = None;
+//         let mut create_coin = None;
+//         let mut new_metadata = None;
 
-        for condition in conditions {
-            match condition {
-                Condition::CreateCoin(condition) if condition.amount % 2 == 1 => {
-                    create_coin = Some(condition);
-                }
-                Condition::Other(condition) => {
-                    if let Ok(condition) =
-                        NewMetadataCondition::<NodePtr, NodePtr>::from_clvm(allocator, condition)
-                    {
-                        new_metadata = Some(condition);
-                    }
-                }
-                _ => {}
-            }
-        }
+//         for condition in conditions {
+//             match condition {
+//                 Condition::CreateCoin(condition) if condition.amount % 2 == 1 => {
+//                     create_coin = Some(condition);
+//                 }
+//                 Condition::Other(condition) => {
+//                     if let Ok(condition) =
+//                         NewMetadataCondition::<NodePtr, NodePtr>::from_clvm(allocator, condition)
+//                     {
+//                         new_metadata = Some(condition);
+//                     }
+//                 }
+//                 _ => {}
+//             }
+//         }
 
-        let Some(create_coin) = create_coin else {
-            return Err(DriverError::MissingChild);
-        };
+//         let Some(create_coin) = create_coin else {
+//             return Err(DriverError::MissingChild);
+//         };
 
-        let mut layers = SingletonLayer::new(singleton_layer.launcher_id, inner_layers);
+//         let mut layers = SingletonLayer::new(singleton_layer.launcher_id, inner_layers);
 
-        if let Some(new_owner) = new_owner {
-            layers.inner_puzzle.inner_puzzle.current_owner = new_owner.did_id;
-        }
+//         if let Some(new_owner) = new_owner {
+//             layers.inner_puzzle.inner_puzzle.current_owner = new_owner.did_id;
+//         }
 
-        if let Some(new_metadata) = new_metadata {
-            let output = run_puzzle(
-                allocator,
-                new_metadata.metadata_updater_reveal,
-                new_metadata.metadata_updater_solution,
-            )?;
+//         if let Some(new_metadata) = new_metadata {
+//             let output = run_puzzle(
+//                 allocator,
+//                 new_metadata.metadata_updater_reveal,
+//                 new_metadata.metadata_updater_solution,
+//             )?;
 
-            let output =
-                NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)?.metadata_part;
-            layers.inner_puzzle.metadata = output.new_metadata;
-            layers.inner_puzzle.metadata_updater_puzzle_hash = output.new_metadata_updater_puzhash;
-        }
+//             let output =
+//                 NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)?.metadata_part;
+//             layers.inner_puzzle.metadata = output.new_metadata;
+//             layers.inner_puzzle.metadata_updater_puzzle_hash = output.new_metadata_updater_puzhash;
+//         }
 
-        let mut info = NftInfo::from_layers(layers);
-        info.p2_puzzle_hash = create_coin.puzzle_hash;
+//         let mut info = NftInfo::from_layers(layers);
+//         info.p2_puzzle_hash = create_coin.puzzle_hash;
 
-        Ok(Some(Self {
-            coin,
-            proof: Proof::Lineage(LineageProof {
-                parent_parent_coin_info: parent_coin.parent_coin_info,
-                parent_inner_puzzle_hash: singleton_layer.inner_puzzle.curried_puzzle_hash().into(),
-                parent_amount: parent_coin.amount,
-            }),
-            info,
-        }))
-    }
-}
-
-#[allow(clippy::missing_panics_doc)]
-pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &NewNftOwner) -> Bytes32 {
-    let mut allocator = Allocator::new();
-
-    let new_nft_owner_args = clvm_list!(
-        new_nft_owner.did_id,
-        &new_nft_owner.trade_prices,
-        new_nft_owner.did_inner_puzzle_hash
-    )
-    .to_clvm(&mut allocator)
-    .unwrap();
-
-    let mut hasher = Sha256::new();
-    hasher.update(nft_full_puzzle_hash);
-    hasher.update([0xad, 0x4c]);
-    hasher.update(tree_hash(&allocator, new_nft_owner_args));
-
-    Bytes32::new(hasher.finalize())
-}
+//         Ok(Some(Self {
+//             coin,
+//             proof: Proof::Lineage(LineageProof {
+//                 parent_parent_coin_info: parent_coin.parent_coin_info,
+//                 parent_inner_puzzle_hash: singleton_layer.inner_puzzle.curried_puzzle_hash().into(),
+//                 parent_amount: parent_coin.amount,
+//             }),
+//             info,
+//         }))
+//     }
+// }

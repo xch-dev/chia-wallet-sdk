@@ -41,14 +41,17 @@ impl DelegatedPuzzle {
             return Err(DriverError::MissingMemo);
         }
 
-        let puzzle_type: u8 = BigInt::from_signed_bytes_be(
-            &remaining_memos
-                .drain(0..1)
-                .next()
-                .ok_or(DriverError::InvalidMemo)?,
+        let puzzle_type: u8 = u8::try_from(
+            BigInt::from_signed_bytes_be(
+                &remaining_memos
+                    .drain(0..1)
+                    .next()
+                    .ok_or(DriverError::InvalidMemo)?,
+            )
+            .to_u32_digits()
+            .1[0],
         )
-        .to_u32_digits()
-        .1[0] as u8;
+        .map_err(|_| DriverError::InvalidMemo)?;
 
         // under current specs, first value will always be a puzzle hash
         let puzzle_hash: Bytes32 = Bytes32::new(
@@ -69,7 +72,7 @@ impl DelegatedPuzzle {
                 Ok(DelegatedPuzzle::Writer(puzzle_hash))
             }
             _ if puzzle_type == HintType::OraclePuzzle.value() => {
-                if remaining_memos.len() < 1 {
+                if remaining_memos.is_empty() {
                     return Err(DriverError::MissingMemo);
                 }
 
