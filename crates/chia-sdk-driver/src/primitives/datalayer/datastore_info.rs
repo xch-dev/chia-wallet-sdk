@@ -1,10 +1,12 @@
 use crate::{
-    DelegationLayer, DriverError, Layer, MerkleTree, NftStateLayer, OracleLayer, SingletonLayer,
-    SpendContext, WriterLayerArgs, DL_METADATA_UPDATER_PUZZLE_HASH,
+    DelegationLayer, DelegationLayerArgs, DriverError, Layer, MerkleTree, NftStateLayer,
+    OracleLayer, SingletonLayer, SpendContext, WriterLayerArgs, DELEGATION_LAYER_PUZZLE_HASH,
+    DL_METADATA_UPDATER_PUZZLE_HASH,
 };
 use chia_protocol::Bytes32;
+use chia_puzzles::nft::{NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs};
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
-use clvm_utils::{tree_hash, ToTreeHash};
+use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 
 pub type StandardDataStoreLayers<M = DataStoreMetadata, I = DelegationLayer> =
     SingletonLayer<NftStateLayer<M, I>>;
@@ -155,6 +157,33 @@ impl<M> DataStoreInfo<M> {
                 innermost_layer,
             ),
         )
+    }
+
+    pub fn inner_puzzle_hash(&self, ctx: &mut SpendContext) -> Result<TreeHash, DriverError>
+    where
+        M: ToTreeHash,
+    {
+        if let Some(delegated_puzzles) = &self.delegated_puzzles {
+            return Ok(NftStateLayerArgs::curry_tree_hash(
+                self.metadata.tree_hash(),
+                CurriedProgram {
+                    program: DELEGATION_LAYER_PUZZLE_HASH,
+                    args: DelegationLayerArgs {
+                        mod_hash: DELEGATION_LAYER_PUZZLE_HASH.into(),
+                        launcher_id: self.launcher_id,
+                        owner_puzzle_hash: self.owner_puzzle_hash,
+                        merkle_root: get_merkle_tree(ctx, delegated_puzzles.clone())?.get_root(),
+                    },
+                }
+                .tree_hash(),
+            ));
+        }
+
+        let inner_ph_hash: TreeHash = self.owner_puzzle_hash.into();
+        Ok(NftStateLayerArgs::curry_tree_hash(
+            self.metadata.tree_hash(),
+            inner_ph_hash,
+        ))
     }
 }
 

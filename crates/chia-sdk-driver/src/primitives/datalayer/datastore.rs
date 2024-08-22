@@ -2,9 +2,12 @@ use chia_protocol::{Coin, CoinSpend};
 use chia_puzzles::{nft::NftStateLayerSolution, singleton::SingletonSolution, LineageProof, Proof};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
-use clvmr::Allocator;
+use clvmr::{Allocator, NodePtr};
 
-use crate::{DelegationLayerSolution, DriverError, Primitive, Spend, SpendContext};
+use crate::{
+    DelegationLayerSolution, DriverError, Layer, Primitive, Puzzle, SingletonLayer, Spend,
+    SpendContext,
+};
 
 use super::{get_merkle_tree, DataStoreInfo, DataStoreMetadata};
 
@@ -36,8 +39,6 @@ where
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
-        let layers = self.info.clone().into_layers(inner_spend.puzzle);
-
         let (puzzle_ptr, solution_ptr) = match self.info.delegated_puzzles {
             Some(delegated_puzzles) => {
                 let layers = self.info.clone().into_layers_with_delegation_layer(ctx)?;
@@ -48,7 +49,7 @@ where
                 let tree = get_merkle_tree(ctx, delegated_puzzles)?;
 
                 let inner_solution = DelegationLayerSolution {
-                    merkle_proof: tree.generate_proof(puzzle_reveal_hash),
+                    merkle_proof: tree.generate_proof(puzzle_reveal_hash.into()),
                     puzzle_reveal: inner_spend.puzzle,
                     puzzle_solution: inner_spend.solution,
                 };
@@ -91,15 +92,15 @@ where
     }
 
     /// Returns the lineage proof that would be used by the child.
-    pub fn child_lineage_proof(&self) -> LineageProof
+    pub fn child_lineage_proof(&self, ctx: &mut SpendContext) -> Result<LineageProof, DriverError>
     where
         M: ToTreeHash,
     {
-        LineageProof {
+        Ok(LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
+            parent_inner_puzzle_hash: self.info.inner_puzzle_hash(ctx)?.into(),
             parent_amount: self.coin.amount,
-        }
+        })
     }
 }
 
