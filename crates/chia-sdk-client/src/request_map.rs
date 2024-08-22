@@ -39,9 +39,12 @@ impl RequestMap {
 
         let mut items = self.items.lock().await;
 
-        let index = (0..=u16::MAX).find(|i| !items.contains_key(i) || items[i].sender.is_closed());
+        items.retain(|_, v| !v.sender.is_closed());
 
-        let index = index.expect("exceeded expected number of requests");
+        let index = (0..=u16::MAX)
+            .find(|i| !items.contains_key(i))
+            .expect("exceeded expected number of requests");
+
         items.insert(
             index,
             Request {
