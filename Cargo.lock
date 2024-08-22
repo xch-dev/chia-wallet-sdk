@@ -319,6 +319,7 @@ dependencies = [
 name = "chia-sdk-client"
 version = "0.12.0"
 dependencies = [
+ "anyhow",
  "chia-protocol",
  "chia-ssl",
  "chia-traits 0.11.0",

@@ -6,7 +6,7 @@ mod coin_selection;
 pub use address::*;
 pub use coin_selection::*;
 
-pub use chia_sdk_client as client;
+pub use chia_sdk_client::*;
 pub use chia_sdk_driver::*;
 pub use chia_sdk_offers::*;
 pub use chia_sdk_signer::*;

@@ -1,11 +1,12 @@
 use std::fs;
 
-use crate::Result;
 use chia_ssl::ChiaCertificate;
 use native_tls::{Identity, TlsConnector};
 
+use crate::ClientError;
+
 /// Loads an SSL certificate, or creates it if it doesn't exist already.
-pub fn load_ssl_cert(cert_path: &str, key_path: &str) -> Result<ChiaCertificate> {
+pub fn load_ssl_cert(cert_path: &str, key_path: &str) -> Result<ChiaCertificate, ClientError> {
     fs::read_to_string(cert_path)
         .and_then(|cert| {
             fs::read_to_string(key_path).map(|key| ChiaCertificate {
@@ -22,7 +23,7 @@ pub fn load_ssl_cert(cert_path: &str, key_path: &str) -> Result<ChiaCertificate>
 }
 
 /// Creates a TLS connector from a certificate.
-pub fn create_tls_connector(cert: &ChiaCertificate) -> Result<TlsConnector> {
+pub fn create_tls_connector(cert: &ChiaCertificate) -> Result<TlsConnector, ClientError> {
     let identity = Identity::from_pkcs8(cert.cert_pem.as_bytes(), cert.key_pem.as_bytes())?;
     let tls_connector = TlsConnector::builder()
         .identity(identity)

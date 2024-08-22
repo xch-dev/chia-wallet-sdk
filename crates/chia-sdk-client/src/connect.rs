@@ -6,14 +6,14 @@ use native_tls::TlsConnector;
 use tokio::sync::mpsc;
 use tracing::instrument;
 
-use crate::{Error, Peer, Result};
+use crate::{ClientError, Peer};
 
 #[instrument(skip(tls_connector))]
 pub async fn connect_peer(
     network_id: String,
     tls_connector: TlsConnector,
     socket_addr: SocketAddr,
-) -> Result<(Peer, mpsc::Receiver<Message>)> {
+) -> Result<(Peer, mpsc::Receiver<Message>), ClientError> {
     let (peer, mut receiver) = Peer::connect(socket_addr, tls_connector).await?;
 
     peer.send(Handshake {
@@ -31,11 +31,11 @@ pub async fn connect_peer(
     .await?;
 
     let Some(message) = receiver.recv().await else {
-        return Err(Error::MissingHandshake);
+        return Err(ClientError::MissingHandshake);
     };
 
     if message.msg_type != ProtocolMessageTypes::Handshake {
-        return Err(Error::InvalidResponse(
+        return Err(ClientError::InvalidResponse(
             vec![ProtocolMessageTypes::Handshake],
             message.msg_type,
         ));
@@ -44,14 +44,14 @@ pub async fn connect_peer(
     let handshake = Handshake::from_bytes(&message.data)?;
 
     if handshake.node_type != NodeType::FullNode {
-        return Err(Error::WrongNodeType(
+        return Err(ClientError::WrongNodeType(
             NodeType::FullNode,
             handshake.node_type,
         ));
     }
 
     if handshake.network_id != network_id {
-        return Err(Error::WrongNetwork(network_id, handshake.network_id));
+        return Err(ClientError::WrongNetwork(network_id, handshake.network_id));
     }
 
     Ok((peer, receiver))

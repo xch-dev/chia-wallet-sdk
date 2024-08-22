@@ -3,7 +3,7 @@ use thiserror::Error;
 use tokio::sync::oneshot::error::RecvError;
 
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum ClientError {
     #[error("SSL error: {0}")]
     Ssl(#[from] chia_ssl::Error),
 
@@ -43,5 +43,3 @@ pub enum Error {
     #[error("Expected network {0}, but found {1}")]
     WrongNetwork(String, String),
 }
-
-pub type Result<T> = std::result::Result<T, Error>;

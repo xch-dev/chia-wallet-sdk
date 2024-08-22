@@ -30,3 +30,7 @@ futures-util = { workspace = true }
 sha2 = { workspace = true }
 tokio-tungstenite = { workspace = true }
 hex = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["sync", "macros", "rt"] }
+anyhow = { workspace = true }
