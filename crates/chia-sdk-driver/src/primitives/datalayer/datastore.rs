@@ -1,12 +1,13 @@
 use chia_protocol::{Coin, CoinSpend};
 use chia_puzzles::{nft::NftStateLayerSolution, singleton::SingletonSolution, LineageProof, Proof};
+use chia_sdk_types::{run_puzzle, Condition, NewMetadataCondition};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    DelegationLayerSolution, DriverError, Layer, Primitive, Puzzle, SingletonLayer, Spend,
-    SpendContext,
+    DelegationLayerSolution, DriverError, Layer, NftStateLayer, Primitive, Puzzle, SingletonLayer,
+    Spend, SpendContext,
 };
 
 use super::{get_merkle_tree, DataStoreInfo, DataStoreMetadata};
@@ -104,8 +105,6 @@ where
     }
 }
 
-// todo: -----------------------------------\/--------------------------------------
-
 impl<M> Primitive for DataStore<M>
 where
     M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
@@ -126,27 +125,23 @@ where
             return Ok(None);
         };
 
-        let Some(inner_layers) =
-            NftStateLayer::<M, NftOwnershipLayer<RoyaltyTransferLayer, Puzzle>>::parse_puzzle(
-                allocator,
-                singleton_layer.inner_puzzle,
-            )?
+        let Some(state_layer) =
+            NftStateLayer::<M, Puzzle>::parse_puzzle(allocator, singleton_layer.inner_puzzle)?
         else {
             return Ok(None);
         };
 
-        let parent_solution = SingletonLayer::<
-            NftStateLayer<M, NftOwnershipLayer<RoyaltyTransferLayer, Puzzle>>,
-        >::parse_solution(allocator, parent_solution)?;
+        let parent_solution =
+            SingletonLayer::<NftStateLayer<M, Puzzle>>::parse_solution(allocator, parent_solution)?;
 
-        let inner_puzzle = inner_layers.inner_puzzle.inner_puzzle;
-        let inner_solution = parent_solution.inner_solution.inner_solution.inner_solution;
+        // At this point, inner puzzle might be either a delegation layer or just an ownership layer.
+        let inner_puzzle = state_layer.inner_puzzle.ptr();
+        let inner_solution = parent_solution.inner_solution.inner_solution;
 
-        let output = run_puzzle(allocator, inner_puzzle.ptr(), inner_solution)?;
+        let output = run_puzzle(allocator, inner_puzzle, inner_solution)?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
         let mut create_coin = None;
-        let mut new_owner = None;
         let mut new_metadata = None;
 
         for condition in conditions {
@@ -155,9 +150,7 @@ where
                     create_coin = Some(condition);
                 }
                 Condition::Other(condition) => {
-                    if let Ok(condition) = NewNftOwner::from_clvm(allocator, condition) {
-                        new_owner = Some(condition);
-                    } else if let Ok(condition) =
+                    if let Ok(condition) =
                         NewMetadataCondition::<NodePtr, NodePtr>::from_clvm(allocator, condition)
                     {
                         new_metadata = Some(condition);

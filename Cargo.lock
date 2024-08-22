@@ -330,6 +330,7 @@ dependencies = [
  "clvmr",
  "hex",
  "hex-literal",
+ "num-bigint",
  "rstest",
  "serde",
  "serde_json",

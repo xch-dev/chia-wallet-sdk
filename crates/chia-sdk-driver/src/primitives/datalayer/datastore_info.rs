@@ -3,19 +3,91 @@ use crate::{
     OracleLayer, SingletonLayer, SpendContext, WriterLayerArgs, DELEGATION_LAYER_PUZZLE_HASH,
     DL_METADATA_UPDATER_PUZZLE_HASH,
 };
-use chia_protocol::Bytes32;
-use chia_puzzles::nft::{NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs};
+use chia_protocol::{Bytes, Bytes32};
+use chia_puzzles::nft::NftStateLayerArgs;
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
+use num_bigint::BigInt;
 
 pub type StandardDataStoreLayers<M = DataStoreMetadata, I = DelegationLayer> =
     SingletonLayer<NftStateLayer<M, I>>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
+#[repr(u8)]
+#[clvm(atom)]
+pub enum HintType {
+    // 0 skipped to prevent confusion with () which is also none (end of list)
+    AdminPuzzle = 1,
+    WriterPuzzle = 2,
+    OraclePuzzle = 3,
+}
+
+impl HintType {
+    pub fn value(&self) -> u8 {
+        *self as u8
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum DelegatedPuzzle {
     Admin(Bytes32),       // puzzle hash
     Writer(Bytes32),      // inner puzzle hash
     Oracle(Bytes32, u64), // oracle fee puzzle hash, fee amount
+}
+
+impl DelegatedPuzzle {
+    pub fn from_memos(remaining_memos: &mut Vec<Bytes>) -> Result<Self, DriverError> {
+        if remaining_memos.len() < 2 {
+            return Err(DriverError::MissingMemo);
+        }
+
+        let puzzle_type: u8 = BigInt::from_signed_bytes_be(
+            &remaining_memos
+                .drain(0..1)
+                .next()
+                .ok_or(DriverError::InvalidMemo)?,
+        )
+        .to_u32_digits()
+        .1[0] as u8;
+
+        // under current specs, first value will always be a puzzle hash
+        let puzzle_hash: Bytes32 = Bytes32::new(
+            remaining_memos
+                .drain(0..1)
+                .next()
+                .ok_or(DriverError::MissingMemo)?
+                .to_vec()
+                .try_into()
+                .map_err(|_| DriverError::InvalidMemo)?,
+        );
+
+        match puzzle_type {
+            _ if puzzle_type == HintType::AdminPuzzle.value() => {
+                Ok(DelegatedPuzzle::Admin(puzzle_hash))
+            }
+            _ if puzzle_type == HintType::WriterPuzzle.value() => {
+                Ok(DelegatedPuzzle::Writer(puzzle_hash))
+            }
+            _ if puzzle_type == HintType::OraclePuzzle.value() => {
+                if remaining_memos.len() < 1 {
+                    return Err(DriverError::MissingMemo);
+                }
+
+                // puzzle hash bech32m_decode(oracle_address), not puzzle hash of the whole oracle puzze!
+                let oracle_fee: u64 = BigInt::from_signed_bytes_be(
+                    &remaining_memos
+                        .drain(0..1)
+                        .next()
+                        .ok_or(DriverError::MissingMemo)?,
+                )
+                .to_u64_digits()
+                .1[0];
+
+                Ok(DelegatedPuzzle::Oracle(puzzle_hash, oracle_fee))
+            }
+            _ => Err(DriverError::MissingMemo),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

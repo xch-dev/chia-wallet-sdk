@@ -34,6 +34,12 @@ pub enum DriverError {
     #[error("missing hint")]
     MissingHint,
 
+    #[error("missing memo")]
+    MissingMemo,
+
+    #[error("invalid memo")]
+    InvalidMemo,
+
     #[error("invalid singleton struct")]
     InvalidSingletonStruct,
 
