@@ -156,7 +156,7 @@ pub struct DataStoreInfo<M = DataStoreMetadata> {
     pub launcher_id: Bytes32,
     pub metadata: M,
     pub owner_puzzle_hash: Bytes32,
-    pub delegated_puzzles: Option<Vec<DelegatedPuzzle>>,
+    pub delegated_puzzles: Vec<DelegatedPuzzle>,
 }
 
 impl<M> DataStoreInfo<M> {
@@ -164,7 +164,7 @@ impl<M> DataStoreInfo<M> {
         launcher_id: Bytes32,
         metadata: M,
         owner_puzzle_hash: Bytes32,
-        delegated_puzzles: Option<Vec<DelegatedPuzzle>>,
+        delegated_puzzles: Vec<DelegatedPuzzle>,
     ) -> Self {
         Self {
             launcher_id,
@@ -182,7 +182,7 @@ impl<M> DataStoreInfo<M> {
             launcher_id: layers.launcher_id,
             metadata: layers.inner_puzzle.metadata,
             owner_puzzle_hash: layers.inner_puzzle.inner_puzzle.owner_puzzle_hash,
-            delegated_puzzles: Some(delegated_puzzles),
+            delegated_puzzles,
         }
     }
 
@@ -194,7 +194,7 @@ impl<M> DataStoreInfo<M> {
             launcher_id: layers.launcher_id,
             metadata: layers.inner_puzzle.metadata,
             owner_puzzle_hash: layers.inner_puzzle.inner_puzzle.tree_hash().into(),
-            delegated_puzzles: None,
+            delegated_puzzles: vec![],
         }
     }
 
@@ -210,10 +210,7 @@ impl<M> DataStoreInfo<M> {
                 DelegationLayer::new(
                     self.launcher_id,
                     self.owner_puzzle_hash,
-                    match self.delegated_puzzles {
-                        None => Bytes32::default(),
-                        Some(dp) => get_merkle_tree(ctx, dp)?.get_root(),
-                    },
+                    get_merkle_tree(ctx, self.delegated_puzzles)?.get_root(),
                 ),
             ),
         ))
@@ -238,7 +235,7 @@ impl<M> DataStoreInfo<M> {
     where
         M: ToTreeHash,
     {
-        if let Some(delegated_puzzles) = &self.delegated_puzzles {
+        if !self.delegated_puzzles.is_empty() {
             return Ok(NftStateLayerArgs::curry_tree_hash(
                 self.metadata.tree_hash(),
                 CurriedProgram {
@@ -247,7 +244,8 @@ impl<M> DataStoreInfo<M> {
                         mod_hash: DELEGATION_LAYER_PUZZLE_HASH.into(),
                         launcher_id: self.launcher_id,
                         owner_puzzle_hash: self.owner_puzzle_hash,
-                        merkle_root: get_merkle_tree(ctx, delegated_puzzles.clone())?.get_root(),
+                        merkle_root: get_merkle_tree(ctx, self.delegated_puzzles.clone())?
+                            .get_root(),
                     },
                 }
                 .tree_hash(),
