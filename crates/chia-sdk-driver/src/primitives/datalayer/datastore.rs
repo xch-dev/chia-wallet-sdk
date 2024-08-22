@@ -4,7 +4,7 @@ use chia_puzzles::{
     singleton::{LauncherSolution, SingletonSolution, SINGLETON_LAUNCHER_PUZZLE_HASH},
     EveProof, LineageProof, Proof,
 };
-use clvm_traits::{FromClvm, ToClvm};
+use clvm_traits::{FromClvm, FromClvmError, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -119,14 +119,32 @@ pub struct OldDLLauncherKVList<T = NodePtr> {
     pub memos: Vec<T>,
 }
 
+pub trait MetadataWithRootHash {
+    fn root_hash(&self) -> Bytes32;
+    fn root_hash_only(root_hash: Bytes32) -> Self;
+}
+
+impl MetadataWithRootHash for DataStoreMetadata {
+    fn root_hash(&self) -> Bytes32 {
+        self.root_hash
+    }
+
+    fn root_hash_only(root_hash: Bytes32) -> Self {
+        super::DataStoreMetadata::root_hash_only(root_hash)
+    }
+}
+
 // does not Primitive because it needs extra info :(
-impl DataStore<DataStoreMetadata> {
-    pub fn build_datastore_info(
+impl<M> DataStore<M>
+where
+    M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash + MetadataWithRootHash,
+{
+    pub fn build_datastore(
         allocator: &mut Allocator,
         coin: Coin,
         launcher_id: Bytes32,
         proof: Proof,
-        metadata: DataStoreMetadata,
+        metadata: M,
         fallback_owner_ph: Bytes32,
         memos: Vec<Bytes>,
     ) -> Result<Self, DriverError> {
@@ -148,7 +166,7 @@ impl DataStore<DataStoreMetadata> {
             return Err(DriverError::InvalidMemo);
         }
 
-        if memos.len() == 2 && memos[0] == metadata.root_hash.into() {
+        if memos.len() == 2 && memos[0] == metadata.root_hash().into() {
             // vanilla store using old memo format
             return Ok(DataStore {
                 coin,
@@ -216,11 +234,10 @@ impl DataStore<DataStoreMetadata> {
                 parent_amount: cs.coin.amount,
             });
 
-            let solution =
-                LauncherSolution::<DLLauncherKVList<DataStoreMetadata, Bytes>>::from_clvm(
-                    allocator,
-                    solution_node_ptr,
-                );
+            let solution = LauncherSolution::<DLLauncherKVList<M, Bytes>>::from_clvm(
+                allocator,
+                solution_node_ptr,
+            );
 
             return match solution {
                 Ok(solution) => {
@@ -235,21 +252,19 @@ impl DataStore<DataStoreMetadata> {
                     let mut memos: Vec<Bytes> = vec![launcher_id.into()];
                     memos.extend(solution.key_value_list.memos);
 
-                    Self::build_datastore(
+                    Ok(Some(Self::build_datastore(
                         allocator,
                         new_coin,
                         launcher_id,
                         proof,
                         metadata,
                         solution.key_value_list.state_layer_inner_puzzle_hash,
-                        &memos,
-                    )?
+                        memos,
+                    )?))
                 }
                 Err(err) => match err {
                     FromClvmError::ExpectedPair => {
-                        debug_log!(
-              "expected pair error; datastore might've been launched using old memo format"
-            ); // todo: debug
+                        // datastore launched using old memo format
                         let solution = LauncherSolution::<OldDLLauncherKVList<Bytes>>::from_clvm(
                             allocator,
                             solution_node_ptr,
@@ -261,20 +276,26 @@ impl DataStore<DataStoreMetadata> {
                             amount: solution.amount,
                         };
 
-                        Ok(DataStoreInfo::build_datastore_info(
+                        Ok(Some(Self::build_datastore(
                             allocator,
                             coin,
                             launcher_id,
                             proof,
-                            DataStoreMetadata::root_hash_only(solution.key_value_list.root_hash),
+                            M::root_hash_only(solution.key_value_list.root_hash),
                             solution.key_value_list.state_layer_inner_puzzle_hash,
-                            &solution.key_value_list.memos,
-                        )?)
+                            solution.key_value_list.memos,
+                        )?))
                     }
-                    _ => Err(ParseError::FromClvm(err)),
+                    _ => Err(DriverError::FromClvm(err)),
                 },
             };
         }
+
+        let parent_puzzle_ptr = cs
+            .puzzle_reveal
+            .to_clvm(allocator)
+            .map_err(DriverError::ToClvm)?;
+        let parent_puzzle = Puzzle::parse(&allocator, parent_puzzle_ptr);
 
         let Some(singleton_layer) =
             SingletonLayer::<Puzzle>::parse_puzzle(allocator, parent_puzzle)?
