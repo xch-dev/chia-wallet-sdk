@@ -17,6 +17,7 @@ workspace = true
 [dependencies]
 chia-protocol = { workspace = true }
 chia-traits = { workspace = true }
+chia-ssl = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 tungstenite = { workspace = true }

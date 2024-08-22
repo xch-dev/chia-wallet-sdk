@@ -4,6 +4,9 @@ use tokio::sync::oneshot::error::RecvError;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("SSL error: {0}")]
+    Ssl(#[from] chia_ssl::Error),
+
     #[error("Peer is missing certificate")]
     MissingCertificate,
 
