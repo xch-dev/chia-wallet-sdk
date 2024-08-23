@@ -9,6 +9,8 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
+/// The NFT state [`Layer`] keeps track of the current metadata of the NFT and how to change it.
+/// It's typically an inner layer of the [`SingletonLayer`](crate::SingletonLayer).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NftStateLayer<M, I> {
     /// The NFT metadata. The standard metadata type is [`NftMetadata`](chia_puzzles::nft::NftMetadata).
@@ -26,6 +28,14 @@ impl<M, I> NftStateLayer<M, I> {
             metadata,
             metadata_updater_puzzle_hash,
             inner_puzzle,
+        }
+    }
+
+    pub fn with_metadata<N>(self, metadata: N) -> NftStateLayer<N, I> {
+        NftStateLayer {
+            metadata,
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+            inner_puzzle: self.inner_puzzle,
         }
     }
 }

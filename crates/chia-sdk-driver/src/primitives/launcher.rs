@@ -138,7 +138,7 @@ impl Launcher {
 
         let solution = ctx.serialize(&solution_ptr)?;
 
-        ctx.insert_coin_spend(CoinSpend::new(
+        ctx.insert(CoinSpend::new(
             self.coin,
             Program::from(SINGLETON_LAUNCHER_PUZZLE.to_vec()),
             solution,

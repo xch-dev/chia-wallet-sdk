@@ -3,9 +3,11 @@ use chia_puzzles::nft::{
     NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs,
     NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
 };
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_traits::ToClvm;
+use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
+use clvmr::Allocator;
 
-use crate::{NftOwnershipLayer, NftStateLayer, RoyaltyTransferLayer, SingletonLayer};
+use crate::{DriverError, NftOwnershipLayer, NftStateLayer, RoyaltyTransferLayer, SingletonLayer};
 
 pub type StandardNftLayers<M, I> =
     SingletonLayer<NftStateLayer<M, NftOwnershipLayer<RoyaltyTransferLayer, I>>>;
@@ -111,5 +113,37 @@ impl<M> NftInfo<M> {
                 self.p2_puzzle_hash.into(),
             ),
         )
+    }
+
+    pub fn with_metadata<N>(self, metadata: N) -> NftInfo<N> {
+        NftInfo {
+            launcher_id: self.launcher_id,
+            metadata,
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+            current_owner: self.current_owner,
+            royalty_puzzle_hash: self.royalty_puzzle_hash,
+            royalty_ten_thousandths: self.royalty_ten_thousandths,
+            p2_puzzle_hash: self.p2_puzzle_hash,
+        }
+    }
+
+    pub fn with_hashed_metadata(
+        &self,
+        allocator: &mut Allocator,
+    ) -> Result<NftInfo<TreeHash>, DriverError>
+    where
+        M: ToClvm<Allocator>,
+    {
+        let metadata_ptr = self.metadata.to_clvm(allocator)?;
+        let metadata_hash = tree_hash(allocator, metadata_ptr);
+        Ok(NftInfo {
+            launcher_id: self.launcher_id,
+            metadata: metadata_hash,
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+            current_owner: self.current_owner,
+            royalty_puzzle_hash: self.royalty_puzzle_hash,
+            royalty_ten_thousandths: self.royalty_ten_thousandths,
+            p2_puzzle_hash: self.p2_puzzle_hash,
+        })
     }
 }

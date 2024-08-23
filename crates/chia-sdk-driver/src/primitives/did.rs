@@ -2,7 +2,7 @@ use chia_protocol::{Coin, CoinSpend};
 use chia_puzzles::{did::DidSolution, singleton::SingletonSolution, LineageProof, Proof};
 use chia_sdk_types::{run_puzzle, Condition};
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::ToTreeHash;
+use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DidLayer, DriverError, Layer, Primitive, Puzzle, SingletonLayer, Spend, SpendContext};
@@ -62,21 +62,43 @@ impl<M> Did<M> {
 
     /// Creates a new spendable DID for the child, with no modifications.
     #[must_use]
-    pub fn recreate_self(&self) -> Self
+    pub fn recreate_self(self) -> Self
     where
-        M: ToTreeHash + Clone,
+        M: ToTreeHash,
     {
         Self {
             coin: Coin::new(self.coin.coin_id(), self.coin.puzzle_hash, self.coin.amount),
             proof: Proof::Lineage(self.child_lineage_proof()),
-            info: self.info.clone(),
+            info: self.info,
         }
+    }
+
+    pub fn with_metadata<N>(self, metadata: N) -> Did<N> {
+        Did {
+            coin: self.coin,
+            proof: self.proof,
+            info: self.info.with_metadata(metadata),
+        }
+    }
+
+    pub fn with_hashed_metadata(
+        &self,
+        allocator: &mut Allocator,
+    ) -> Result<Did<TreeHash>, DriverError>
+    where
+        M: ToClvm<Allocator>,
+    {
+        Ok(Did {
+            coin: self.coin,
+            proof: self.proof,
+            info: self.info.with_hashed_metadata(allocator)?,
+        })
     }
 }
 
 impl<M> Primitive for Did<M>
 where
-    M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
+    M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
 {
     fn from_parent_spend(
         allocator: &mut Allocator,
@@ -130,7 +152,11 @@ where
             return Err(DriverError::MissingHint);
         };
 
-        let parent_inner_puzzle_hash = did_layer.tree_hash().into();
+        let metadata_ptr = did_layer.metadata.to_clvm(allocator)?;
+        let metadata_hash = tree_hash(allocator, metadata_ptr);
+        let did_layer_hashed = did_layer.clone().with_metadata(metadata_hash);
+
+        let parent_inner_puzzle_hash = did_layer_hashed.tree_hash().into();
         let layers = SingletonLayer::new(singleton_layer.launcher_id, did_layer);
 
         let mut info = DidInfo::from_layers(layers);
@@ -170,15 +196,19 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.mint_coin(puzzle_hash, 1).await;
 
-        let (create_did, mut did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+
+        // Make sure that bounds are relaxed enough to do this.
+        let metadata_ptr = ctx.alloc(&did.info.metadata)?;
+        let mut did = did.with_metadata(metadata_ptr);
 
         ctx.spend_p2_coin(coin, pk, create_did)?;
 
         for _ in 0..10 {
-            did = ctx.spend_standard_did(&did, pk, Conditions::new())?;
+            did = ctx.spend_standard_did(did, pk, Conditions::new())?;
         }
 
-        test_transaction(&peer, ctx.take_spends(), &[sk], &sim.config().constants).await;
+        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
 
         let coin_state = sim
             .coin_state(did.coin.coin_id())

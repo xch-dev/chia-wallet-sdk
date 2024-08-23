@@ -72,7 +72,7 @@ impl IntermediateLauncher {
         let puzzle_reveal = ctx.serialize(&puzzle)?;
         let solution = ctx.serialize(&())?;
 
-        ctx.insert_coin_spend(CoinSpend::new(
+        ctx.insert(CoinSpend::new(
             self.intermediate_coin,
             puzzle_reveal,
             solution,

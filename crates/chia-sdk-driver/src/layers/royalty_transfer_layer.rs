@@ -11,6 +11,9 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
+/// The royalty transfer [`Layer`] is used to transfer NFTs with royalties.
+/// When an NFT is transferred, a percentage of the transfer amount is paid to an address.
+/// This address can for example be the creator, or a royalty split puzzle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RoyaltyTransferLayer {
     /// The launcher id of the NFT this transfer program belongs to.

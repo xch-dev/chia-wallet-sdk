@@ -28,6 +28,7 @@ flate2 = { workspace = true }
 indexmap = { workspace = true }
 chia-sdk-driver = { workspace = true }
 chia-sdk-types = { workspace = true }
+once_cell = { workspace = true }
 
 [dev-dependencies]
 hex-literal = { workspace = true }

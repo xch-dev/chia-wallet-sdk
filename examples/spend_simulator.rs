@@ -31,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Sign and submit the transaction to the simulator.
     // This will produce an error if the transaction is not successful.
-    let coin_spends = ctx.take_spends();
+    let coin_spends = ctx.take();
     test_transaction(&peer, coin_spends, &[sk], &sim.config().constants).await;
 
     println!("Transaction was successful.");

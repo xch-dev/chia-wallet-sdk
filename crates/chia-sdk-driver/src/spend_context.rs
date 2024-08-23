@@ -22,58 +22,48 @@ use chia_puzzles::{
     standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
 };
 use chia_sdk_types::{
-    Conditions, NewNftOwner, P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
+    run_puzzle, Conditions, NewNftOwner, P2_DELEGATED_CONDITIONS_PUZZLE,
+    P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
 };
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
-use clvmr::{run_program, serde::node_from_bytes, Allocator, ChiaDialect, NodePtr};
+use clvm_utils::{tree_hash, TreeHash};
+use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
 use crate::{Did, DriverError, Nft, Spend, StandardLayer};
 
-/// A wrapper around `Allocator` that caches puzzles and simplifies coin spending.
+/// A wrapper around [`Allocator`] that caches puzzles and keeps track of a list of [`CoinSpend`].
+/// It's used to construct spend bundles in an easy and efficient way.
 #[derive(Debug, Default)]
 pub struct SpendContext {
-    allocator: Allocator,
+    pub allocator: Allocator,
     puzzles: HashMap<TreeHash, NodePtr>,
     coin_spends: Vec<CoinSpend>,
 }
 
 impl SpendContext {
-    /// Create a new `SpendContext` from an `Allocator` reference.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Get a reference to the [`Allocator`].
-    pub fn allocator(&self) -> &Allocator {
-        &self.allocator
+    pub fn iter(&self) -> impl Iterator<Item = &CoinSpend> {
+        self.coin_spends.iter()
     }
 
-    /// Get a mutable reference to the [`Allocator`].
-    pub fn allocator_mut(&mut self) -> &mut Allocator {
-        &mut self.allocator
-    }
-
-    /// Get a reference to the list of coin spends.
-    pub fn spends(&self) -> &[CoinSpend] {
-        &self.coin_spends
-    }
-
-    /// Take the coin spends out of the [`SpendContext`].
-    pub fn take_spends(&mut self) -> Vec<CoinSpend> {
+    /// Remove all of the [`CoinSpend`] that have been collected so far.
+    pub fn take(&mut self) -> Vec<CoinSpend> {
         std::mem::take(&mut self.coin_spends)
     }
 
-    /// Add a [`CoinSpend`] to the list.
-    pub fn insert_coin_spend(&mut self, coin_spend: CoinSpend) {
+    /// Adds a [`CoinSpend`] to the collection.
+    pub fn insert(&mut self, coin_spend: CoinSpend) {
         self.coin_spends.push(coin_spend);
     }
 
-    /// Serializes a [`Spend`] and adds it to the list of coin spends.
+    /// Serializes a [`Spend`] and adds it to the list of [`CoinSpend`].
     pub fn spend(&mut self, coin: Coin, spend: Spend) -> Result<(), DriverError> {
         let puzzle_reveal = self.serialize(&spend.puzzle)?;
         let solution = self.serialize(&spend.solution)?;
-        self.insert_coin_spend(CoinSpend::new(coin, puzzle_reveal, solution));
+        self.insert(CoinSpend::new(coin, puzzle_reveal, solution));
         Ok(())
     }
 
@@ -100,14 +90,7 @@ impl SpendContext {
 
     /// Run a puzzle with a solution and return the result.
     pub fn run(&mut self, puzzle: NodePtr, solution: NodePtr) -> Result<NodePtr, DriverError> {
-        let result = run_program(
-            &mut self.allocator,
-            &ChiaDialect::new(0),
-            puzzle,
-            solution,
-            u64::MAX,
-        )?;
-        Ok(result.1)
+        Ok(run_puzzle(&mut self.allocator, puzzle, solution)?)
     }
 
     /// Serialize a value and return a `Program`.
@@ -238,39 +221,42 @@ impl SpendContext {
     /// Spend a DID coin with a standard p2 inner puzzle.
     pub fn spend_standard_did<M>(
         &mut self,
-        did: &Did<M>,
+        did: Did<M>,
         synthetic_key: PublicKey,
         extra_conditions: Conditions,
     ) -> Result<Did<M>, DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
+        let hashed = did.with_hashed_metadata(&mut self.allocator)?;
+        let inner_puzzle_hash = hashed.info.inner_puzzle_hash();
+
         let p2_spend = StandardLayer::new(synthetic_key).spend(
             self,
             extra_conditions.create_coin(
-                did.info.inner_puzzle_hash().into(),
+                inner_puzzle_hash.into(),
                 did.coin.amount,
                 vec![did.info.p2_puzzle_hash.into()],
             ),
         )?;
 
         let coin_spend = did.spend(self, p2_spend)?;
-        self.insert_coin_spend(coin_spend);
+        self.insert(coin_spend);
 
-        Ok(did.recreate_self())
+        Ok(hashed.recreate_self().with_metadata(did.info.metadata))
     }
 
     /// Spend an NFT coin with a standard p2 inner puzzle.
     pub fn spend_standard_nft<M>(
         &mut self,
-        nft: &Nft<M>,
+        nft: Nft<M>,
         synthetic_key: PublicKey,
         p2_puzzle_hash: Bytes32,
         new_nft_owner: Option<NewNftOwner>,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Nft<M>), DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
         if let Some(new_nft_owner) = new_nft_owner {
             let (cs, conds, new_nft) = nft.transfer_to_did(
@@ -281,14 +267,23 @@ impl SpendContext {
                 extra_conditions,
             )?;
 
-            self.insert_coin_spend(cs);
+            self.insert(cs);
             return Ok((conds, new_nft));
         }
 
         let (cs, new_nft) = nft.transfer(self, synthetic_key, p2_puzzle_hash, extra_conditions)?;
 
-        self.insert_coin_spend(cs);
+        self.insert(cs);
         Ok((Conditions::new(), new_nft))
+    }
+}
+
+impl IntoIterator for SpendContext {
+    type Item = CoinSpend;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.coin_spends.into_iter()
     }
 }
 
@@ -299,11 +294,5 @@ impl From<Allocator> for SpendContext {
             puzzles: HashMap::new(),
             coin_spends: Vec::new(),
         }
-    }
-}
-
-impl From<SpendContext> for Allocator {
-    fn from(ctx: SpendContext) -> Self {
-        ctx.allocator
     }
 }
