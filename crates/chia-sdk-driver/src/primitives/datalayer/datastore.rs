@@ -571,6 +571,7 @@ impl<M> DataStore<M> {
 }
 
 #[allow(unused_imports)]
+#[cfg(test)]
 mod tests {
     use chia_bls::SecretKey;
     use chia_puzzles::standard::StandardArgs;
