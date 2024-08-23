@@ -317,7 +317,7 @@ impl Primitive for Cat {
 #[cfg(test)]
 mod tests {
     use chia_puzzles::{cat::EverythingWithSignatureTailArgs, standard::StandardArgs};
-    use chia_sdk_test::{secret_key, test_transaction, Simulator};
+    use chia_sdk_test::{test_secret_key, test_transaction, Simulator};
     use chia_sdk_types::{Condition, RunTail};
 
     use crate::StandardLayer;
@@ -330,7 +330,7 @@ mod tests {
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 
-        let sk = secret_key()?;
+        let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let p2_puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
@@ -353,7 +353,7 @@ mod tests {
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 
-        let sk = secret_key()?;
+        let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let p2_puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
@@ -376,7 +376,7 @@ mod tests {
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 
-        let sk = secret_key()?;
+        let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let p2_puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
@@ -432,7 +432,7 @@ mod tests {
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 
-        let sk = secret_key()?;
+        let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let p2_puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
@@ -467,7 +467,7 @@ mod tests {
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 
-        let sk = secret_key()?;
+        let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let p2_puzzle_hash = StandardArgs::curry_tree_hash(pk).into();

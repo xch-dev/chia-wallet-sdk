@@ -91,7 +91,7 @@ mod tests {
     use crate::{Launcher, SpendContext};
 
     use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::{secret_key, test_transaction, Simulator};
+    use chia_sdk_test::{test_secret_key, test_transaction, Simulator};
 
     #[tokio::test]
     async fn test_create_did() -> anyhow::Result<()> {
@@ -99,7 +99,7 @@ mod tests {
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 
-        let sk = secret_key()?;
+        let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
