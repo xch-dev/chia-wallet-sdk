@@ -598,9 +598,10 @@ impl<M> DataStore<M> {
 #[cfg(test)]
 mod tests {
     use chia_bls::SecretKey;
-    use chia_puzzles::standard::StandardArgs;
+    use chia_puzzles::standard::{StandardArgs, StandardSolution};
     use chia_sdk_test::{test_secret_keys, test_transaction, Simulator};
     use chia_sdk_types::Conditions;
+    use clvm_traits::clvm_quote;
     use clvmr::sha2::Sha256;
 
     use crate::{Launcher, NewMerkleRootCondition, OracleLayer, StandardLayer, WriterLayer};
@@ -803,20 +804,31 @@ mod tests {
             bytes: ByteSize::SOME.value(),
         };
 
-        let new_metadata_condition = DataStore::new_metadata_condition(ctx, new_metadata)?;
+        let new_metadata_condition = DataStore::new_metadata_condition(ctx, new_metadata.clone())?;
         let new_metadata_inner_spend = StandardLayer::new(writer_pk)
             .spend(ctx, Conditions::new().with(new_metadata_condition))?;
 
         let writer_layer = WriterLayer::new(StandardLayer::new(writer_pk));
-        let new_spend = datastore.spend(
+
+        let dp = ctx.alloc(&clvm_quote!(new_metadata_inner_spend.solution))?;
+        let writer_layer_solution = writer_layer.construct_solution(
+            ctx,
+            StandardSolution {
+                original_public_key: None,
+                delegated_puzzle: dp,
+                solution: NodePtr::NIL,
+            },
+        )?;
+        let writer_layer_puzzle = writer_layer.construct_puzzle(ctx)?;
+        let new_spend = datastore.clone().spend(
             ctx,
             Spend {
-                puzzle: writer_layer.construct_puzzle(ctx)?,
-                solution: writer_layer.construct_solution(ctx, new_metadata_inner_spend)?,
+                puzzle: writer_layer_puzzle,
+                solution: writer_layer_solution,
             },
         )?;
 
-        let datastore = DataStore::from_spend(
+        let datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
             &new_spend,
             datastore.info.delegated_puzzles.clone(),
@@ -833,10 +845,10 @@ mod tests {
 
         let new_merkle_root_condition = NewMerkleRootCondition {
             new_merkle_root,
-            memos: DataStore::get_recreation_memos(
+            memos: DataStore::<DataStoreMetadata>::get_recreation_memos(
                 datastore.info.launcher_id,
                 owner_puzzle_hash.into(),
-                delegated_puzzles,
+                delegated_puzzles.clone(),
             ),
         }
         .to_clvm(&mut ctx.allocator)?;
@@ -845,12 +857,12 @@ mod tests {
             ctx,
             Conditions::new().with(Condition::Other(new_merkle_root_condition)),
         )?;
-        let new_spend = datastore.spend(ctx, inner_spend)?;
+        let new_spend = datastore.clone().spend(ctx, inner_spend)?;
 
-        let datastore = DataStore::from_spend(
+        let datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
             &new_spend,
-            datastore.info.delegated_puzzles,
+            datastore.info.delegated_puzzles.clone(),
         )?
         .unwrap();
         ctx.insert(new_spend);
@@ -863,9 +875,9 @@ mod tests {
         let oracle_layer = OracleLayer::new(oracle_puzzle_hash, oracle_fee);
         let inner_datastore_spend = oracle_layer.construct_spend(ctx, ())?;
 
-        let new_spend = datastore.spend(ctx, inner_datastore_spend)?;
+        let new_spend = datastore.clone().spend(ctx, inner_datastore_spend)?;
 
-        let new_datastore = DataStore::from_spend(
+        let new_datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
             &new_spend,
             datastore.info.delegated_puzzles.clone(),
@@ -891,19 +903,22 @@ mod tests {
 
         // finally, remove delegation layer altogether
         let owner_layer = StandardLayer::new(owner_pk);
-        let datastore_remove_delegation_layer_inner_spend = owner_layer.spend(
+        let output_condition = DataStore::<DataStoreMetadata>::owner_create_coin_condition(
             ctx,
-            Conditions::new().with(DataStore::owner_create_coin_condition(
-                ctx,
-                datastore.info.launcher_id,
-                owner_puzzle_hash,
-                vec![],
-                true,
-            )?),
+            datastore.info.launcher_id,
+            owner_puzzle_hash,
+            vec![],
+            true,
         )?;
-        let new_spend = datastore.spend(ctx, datastore_remove_delegation_layer_inner_spend)?;
+        let datastore_remove_delegation_layer_inner_spend =
+            owner_layer.spend(ctx, Conditions::new().with(output_condition))?;
+        let new_spend = datastore
+            .clone()
+            .spend(ctx, datastore_remove_delegation_layer_inner_spend)?;
 
-        let new_datastore = DataStore::from_spend(&mut ctx.allocator, &new_spend, vec![])?.unwrap();
+        let new_datastore =
+            DataStore::<DataStoreMetadata>::from_spend(&mut ctx.allocator, &new_spend, vec![])?
+                .unwrap();
         ctx.insert(new_spend);
 
         assert!(new_datastore.info.delegated_puzzles.is_empty());
