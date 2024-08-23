@@ -1,5 +1,8 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::nft::{NftStateLayerArgs, NftStateLayerSolution, NFT_STATE_LAYER_PUZZLE_HASH};
+use chia_sdk_types::run_puzzle;
+use chia_sdk_types::NewMetadataCondition;
+use chia_sdk_types::NewMetadataOutput;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -115,5 +118,25 @@ where
             },
         }
         .tree_hash()
+    }
+}
+
+impl<M, I> NftStateLayer<M, I> {
+    pub fn get_next_metadata(
+        allocator: &mut Allocator,
+        condition: NewMetadataCondition<NodePtr, NodePtr>,
+    ) -> Result<M, DriverError>
+    where
+        M: FromClvm<Allocator>,
+    {
+        let output = run_puzzle(
+            allocator,
+            condition.metadata_updater_reveal,
+            condition.metadata_updater_solution,
+        )?;
+
+        let parsed = NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)?;
+
+        Ok(parsed.metadata_part.new_metadata)
     }
 }

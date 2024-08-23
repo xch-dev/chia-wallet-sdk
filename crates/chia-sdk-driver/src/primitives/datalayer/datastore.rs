@@ -1,16 +1,20 @@
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
-    nft::NftStateLayerSolution,
-    singleton::{LauncherSolution, SingletonSolution, SINGLETON_LAUNCHER_PUZZLE_HASH},
+    nft::{NftStateLayerArgs, NftStateLayerSolution, NFT_STATE_LAYER_PUZZLE_HASH},
+    singleton::{
+        self, LauncherSolution, SingletonArgs, SingletonSolution, SINGLETON_LAUNCHER_PUZZLE_HASH,
+    },
     EveProof, LineageProof, Proof,
 };
+use chia_sdk_types::run_puzzle;
+use chia_sdk_types::{Condition, NewMetadataCondition};
 use clvm_traits::{FromClvm, FromClvmError, ToClvm};
-use clvm_utils::{tree_hash, ToTreeHash};
+use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    DelegationLayerSolution, DriverError, Layer, NftStateLayer, Puzzle, SingletonLayer, Spend,
-    SpendContext,
+    DelegationLayerArgs, DelegationLayerSolution, DriverError, Layer, NftStateLayer, Puzzle,
+    SingletonLayer, Spend, SpendContext, DELEGATION_LAYER_PUZZLE_HASH,
 };
 
 use super::{get_merkle_tree, DataStoreInfo, DataStoreMetadata, DelegatedPuzzle};
@@ -213,7 +217,7 @@ where
     pub fn from_spend(
         allocator: &mut Allocator,
         cs: &CoinSpend,
-        parent_delegated_puzzles: Option<Vec<DelegatedPuzzle>>,
+        parent_delegated_puzzles: Vec<DelegatedPuzzle>,
     ) -> Result<Option<Self>, DriverError>
     where
         Self: Sized,
@@ -309,69 +313,170 @@ where
             return Ok(None);
         };
 
-        let parent_solution =
-            SingletonLayer::<NftStateLayer<M, Puzzle>>::parse_solution(allocator, parent_solution)?;
+        let parent_solution_ptr = cs.solution.to_clvm(allocator)?;
+        let parent_solution = SingletonLayer::<NftStateLayer<M, Puzzle>>::parse_solution(
+            allocator,
+            parent_solution_ptr,
+        )?;
 
         // At this point, inner puzzle might be either a delegation layer or just an ownership layer.
         let inner_puzzle = state_layer.inner_puzzle.ptr();
         let inner_solution = parent_solution.inner_solution.inner_solution;
 
-        let output = run_puzzle(allocator, inner_puzzle, inner_solution)?;
-        let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
+        let inner_output = run_puzzle(allocator, inner_puzzle, inner_solution)?;
+        let inner_conditions = Vec::<Condition>::from_clvm(allocator, inner_output)?;
 
-        let mut create_coin = None;
-        let mut new_metadata = None;
+        let mut inner_create_coin_condition = None;
+        let mut inner_new_metadata_condition = None;
 
-        for condition in conditions {
+        for condition in inner_conditions {
             match condition {
                 Condition::CreateCoin(condition) if condition.amount % 2 == 1 => {
-                    create_coin = Some(condition);
+                    inner_create_coin_condition = Some(condition);
                 }
                 Condition::Other(condition) => {
                     if let Ok(condition) =
                         NewMetadataCondition::<NodePtr, NodePtr>::from_clvm(allocator, condition)
                     {
-                        new_metadata = Some(condition);
+                        inner_new_metadata_condition = Some(condition);
                     }
                 }
                 _ => {}
             }
         }
 
-        let Some(create_coin) = create_coin else {
+        let Some(inner_create_coin_condition) = inner_create_coin_condition else {
             return Err(DriverError::MissingChild);
         };
 
-        let mut layers = SingletonLayer::new(singleton_layer.launcher_id, inner_layers);
+        let new_metadata = if let Some(inner_new_metadata_condition) = inner_new_metadata_condition
+        {
+            NftStateLayer::<M, ()>::get_next_metadata(allocator, inner_new_metadata_condition)?
+        } else {
+            state_layer.metadata
+        };
 
-        if let Some(new_owner) = new_owner {
-            layers.inner_puzzle.inner_puzzle.current_owner = new_owner.did_id;
+        // first, just compute new coin info - will be used in any case
+
+        let new_puzzle_hash = SingletonArgs::curry_tree_hash(
+            singleton_layer.launcher_id,
+            CurriedProgram {
+                program: NFT_STATE_LAYER_PUZZLE_HASH,
+                args: NftStateLayerArgs::<TreeHash, TreeHash> {
+                    mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                    metadata: new_metadata.tree_hash(),
+                    metadata_updater_puzzle_hash: state_layer.metadata_updater_puzzle_hash,
+                    inner_puzzle: inner_create_coin_condition.puzzle_hash.into(),
+                },
+            }
+            .tree_hash(),
+        );
+
+        let new_coin = Coin {
+            parent_coin_info: cs.coin.coin_id(),
+            puzzle_hash: new_puzzle_hash.into(),
+            amount: inner_create_coin_condition.amount,
+        };
+
+        // if the coin was re-created with memos, there is a delegation layer
+        // and delegated puzzles have been updated (we can rebuild the list from memos)
+        if inner_create_coin_condition.memos.len() > 1 {
+            // keep in mind that there's always the launcher id memo being added
+            return Ok(Some(Self::build_datastore(
+                allocator,
+                new_coin,
+                singleton_layer.launcher_id,
+                Proof::Lineage(singleton_layer.construct_lineage_proof(cs.coin.amount)),
+                new_metadata,
+                state_layer.inner_puzzle.tree_hash().into(),
+                inner_create_coin_condition.memos,
+            )?));
         }
 
-        if let Some(new_metadata) = new_metadata {
+        let mut owner_puzzle_hash: Bytes32 = state_layer.inner_puzzle.tree_hash().into();
+
+        // does the coin currently have a delegation layer?
+        let delegation_layer_maybe = state_layer.inner_puzzle;
+        if delegation_layer_maybe.is_curried()
+            && delegation_layer_maybe.mod_hash() == DELEGATION_LAYER_PUZZLE_HASH
+        {
+            let deleg_puzzle_args = DelegationLayerArgs::from_clvm(
+                allocator,
+                delegation_layer_maybe.as_curried().unwrap().args,
+            )
+            .unwrap();
+            owner_puzzle_hash = deleg_puzzle_args.owner_puzzle_hash;
+
+            let delegation_layer_solution =
+                DelegationLayerSolution::<NodePtr, NodePtr>::from_clvm(allocator, inner_solution)?;
+
+            // to get more info, we'll need to run the delegated puzzle (delegation layer's "inner" puzzle)
             let output = run_puzzle(
                 allocator,
-                new_metadata.metadata_updater_reveal,
-                new_metadata.metadata_updater_solution,
+                delegation_layer_solution.puzzle_reveal,
+                delegation_layer_solution.puzzle_solution,
             )?;
 
-            let output =
-                NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)?.metadata_part;
-            layers.inner_puzzle.metadata = output.new_metadata;
-            layers.inner_puzzle.metadata_updater_puzzle_hash = output.new_metadata_updater_puzhash;
+            let odd_create_coin = Vec::<NodePtr>::from_clvm(allocator, output)?
+                .iter()
+                .map(|cond| Condition::<NodePtr>::from_clvm(allocator, *cond))
+                .find(|cond| match cond {
+                    Ok(Condition::CreateCoin(create_coin)) => create_coin.amount % 2 == 1,
+                    _ => false,
+                });
+
+            let Some(odd_create_coin) = odd_create_coin else {
+                // no CREATE_COIN was created by the innermost puzzle
+                // delegation layer therefore added one (assuming the spend is valid)
+                return Ok(Some(DataStore {
+                    coin: new_coin,
+                    proof: Proof::Lineage(singleton_layer.lineage_proof(cs.coin)),
+                    info: DataStoreInfo {
+                        launcher_id: singleton_layer.launcher_id,
+                        metadata: new_metadata,
+                        owner_puzzle_hash,
+                        delegated_puzzles: parent_delegated_puzzles,
+                    },
+                }));
+            };
+
+            let odd_create_coin = odd_create_coin?;
+
+            // if there were any memos, the if above would have caught it since it processes
+            // output conditions of the state layer inner puzzle (i.e., it runs the delegation layer)
+            // therefore, this spend is either 'exiting' the delegation layer or re-creatign it
+            if let Condition::CreateCoin(create_coin) = odd_create_coin {
+                let prev_deleg_layer_ph = delegation_layer_maybe.tree_hash();
+
+                if create_coin.puzzle_hash == prev_deleg_layer_ph.into() {
+                    // owner is re-creating the delegation layer with the same options
+                    return Ok(Some(DataStore {
+                        coin: new_coin,
+                        proof: Proof::Lineage(singleton_layer.lineage_proof(cs.coin)),
+                        info: DataStoreInfo {
+                            launcher_id: singleton_layer.launcher_id,
+                            metadata: new_metadata,
+                            owner_puzzle_hash, // owner puzzle was ran
+                            delegated_puzzles: parent_delegated_puzzles,
+                        },
+                    }));
+                }
+
+                // owner is exiting the delegation layer
+                owner_puzzle_hash = create_coin.puzzle_hash;
+            }
         }
 
-        let mut info = NftInfo::from_layers(layers);
-        info.p2_puzzle_hash = create_coin.puzzle_hash;
-
-        Ok(Some(Self {
-            coin,
-            proof: Proof::Lineage(LineageProof {
-                parent_parent_coin_info: parent_coin.parent_coin_info,
-                parent_inner_puzzle_hash: singleton_layer.inner_puzzle.curried_puzzle_hash().into(),
-                parent_amount: parent_coin.amount,
-            }),
-            info,
+        // all methods exhausted; this coin doesn't seem to have a delegation layer
+        Ok(Some(DataStore {
+            coin: new_coin,
+            proof: Proof::Lineage(singleton_layer.lineage_proof(cs.coin)),
+            info: DataStoreInfo {
+                launcher_id: singleton_layer.launcher_id,
+                metadata: new_metadata,
+                owner_puzzle_hash,
+                delegated_puzzles: vec![],
+            },
         }))
     }
 }

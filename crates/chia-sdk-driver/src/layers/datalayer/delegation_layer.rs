@@ -163,7 +163,7 @@ pub struct DelegationLayerSolution<P, S> {
     pub puzzle_solution: S,
 }
 
-#[derive(ToClvm)]
+#[derive(ToClvm, FromClvm)]
 #[apply_constants]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
