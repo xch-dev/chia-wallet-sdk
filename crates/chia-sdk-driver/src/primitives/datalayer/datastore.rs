@@ -6,7 +6,7 @@ use chia_puzzles::{
     },
     EveProof, LineageProof, Proof,
 };
-use chia_sdk_types::{run_puzzle, CreateCoin};
+use chia_sdk_types::{run_puzzle, CreateCoin, NewMetadataInfo, NewMetadataOutput};
 use chia_sdk_types::{Condition, NewMetadataCondition};
 use clvm_traits::{FromClvm, FromClvmError, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
@@ -16,6 +16,7 @@ use num_bigint::BigInt;
 use crate::{
     DelegationLayerArgs, DelegationLayerSolution, DriverError, Layer, NftStateLayer, Puzzle,
     SingletonLayer, Spend, SpendContext, DELEGATION_LAYER_PUZZLE_HASH,
+    DL_METADATA_UPDATER_PUZZLE_HASH,
 };
 
 use super::{get_merkle_tree, DataStoreInfo, DataStoreMetadata, DelegatedPuzzle, HintType};
@@ -568,6 +569,29 @@ impl<M> DataStore<M> {
             },
         }))
     }
+
+    pub fn new_metadata_condition(
+        ctx: &mut SpendContext,
+        new_metadata: M,
+    ) -> Result<Condition, DriverError>
+    where
+        M: ToClvm<Allocator>,
+    {
+        let new_metadata_condition = NewMetadataCondition::<i32, NewMetadataOutput<M, ()>> {
+            metadata_updater_reveal: 11,
+            // metadata updater will just return solution, so we can set the solution to NewMetadataOutput :)
+            metadata_updater_solution: NewMetadataOutput {
+                metadata_part: NewMetadataInfo::<M> {
+                    new_metadata,
+                    new_metadata_updater_puzhash: DL_METADATA_UPDATER_PUZZLE_HASH.into(),
+                },
+                conditions: (),
+            },
+        }
+        .to_clvm(&mut ctx.allocator)?;
+
+        Ok(Condition::Other(new_metadata_condition))
+    }
 }
 
 #[allow(unused_imports)]
@@ -577,8 +601,9 @@ mod tests {
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{test_secret_keys, test_transaction, Simulator};
     use chia_sdk_types::Conditions;
+    use clvmr::sha2::Sha256;
 
-    use crate::{Launcher, StandardLayer};
+    use crate::{Launcher, NewMerkleRootCondition, OracleLayer, StandardLayer, WriterLayer};
 
     use super::*;
 
@@ -777,170 +802,127 @@ mod tests {
             description: Description::SOME.value(),
             bytes: ByteSize::SOME.value(),
         };
-        // TODO from here
-        // might be helpful to have function that generates and returns Condition::Other(serialize(NewMetadataCondition)) for datastores
-        let new_metadata_condition = NewMetadataCondition::<i32, DataStoreMetadata, Bytes32, i32> {
-            metadata_updater_reveal: 11,
-            metadata_updater_solution: DefaultMetadataSolution {
-                metadata_part: DefaultMetadataSolutionMetadataList {
-                    new_metadata: new_metadata,
-                    new_metadata_updater_ph: DL_METADATA_UPDATER_PUZZLE_HASH.into(),
-                },
-                conditions: 0,
+
+        let new_metadata_condition = DataStore::new_metadata_condition(ctx, new_metadata)?;
+        let new_metadata_inner_spend = StandardLayer::new(writer_pk)
+            .spend(ctx, Conditions::new().with(new_metadata_condition))?;
+
+        let writer_layer = WriterLayer::new(StandardLayer::new(writer_pk));
+        let new_spend = datastore.spend(
+            ctx,
+            Spend {
+                puzzle: writer_layer.construct_puzzle(ctx)?,
+                solution: writer_layer.construct_solution(ctx, new_metadata_inner_spend)?,
             },
-        }
-        .to_clvm(ctx.allocator_mut())
-        .unwrap();
+        )?;
 
-        let new_metadata_inner_spend = Conditions::new()
-            .condition(Condition::Other(new_metadata_condition))
-            .p2_spend(ctx, writer_pk)?;
-
-        // delegated puzzle info + inner puzzle reveal + solution
-        let inner_datastore_spend = DatastoreInnerSpend::DelegatedPuzzleSpend(
-            writer_delegated_puzzle,
-            Spend::new(writer_puzzle, new_metadata_inner_spend.solution()),
-        );
-        let new_spend = datastore_spend(ctx, &datastore_info, inner_datastore_spend)?;
-        {
-            let mut stats = TEST_STATS.lock().unwrap();
-            stats.add_normal_spend_tx(&new_spend);
-        }
-        ctx.insert_coin_spend(new_spend.clone());
-
-        let datastore_info = DataStoreInfo::from_spend(
-            ctx.allocator_mut(),
+        let datastore = DataStore::from_spend(
+            &mut ctx.allocator,
             &new_spend,
-            &datastore_info.delegated_puzzles,
-        )
+            datastore.info.delegated_puzzles.clone(),
+        )?
         .unwrap();
-        assert_eq!(
-            encode(datastore_info.metadata.root_hash),
-            "0101010101010101010101010101010101010101010101010101010101010101" // serializing to bytes prepends a0 = len
-        );
-        assert_eq!(datastore_info.metadata.label, Label::SOME.value());
-        assert_eq!(
-            datastore_info.metadata.description,
-            Description::SOME.value()
-        );
+        ctx.insert(new_spend);
+
+        assert_eq!(datastore.info.metadata, new_metadata);
 
         // admin: remove writer from delegated puzzles
         let delegated_puzzles = vec![admin_delegated_puzzle, oracle_delegated_puzzle];
-        let new_merkle_root = merkle_root_for_delegated_puzzles(&delegated_puzzles);
+        let new_merkle_tree = get_merkle_tree(ctx, delegated_puzzles.clone())?;
+        let new_merkle_root = new_merkle_tree.get_root();
 
         let new_merkle_root_condition = NewMerkleRootCondition {
             new_merkle_root,
-            memos: get_memos(
-                datastore_info.launcher_id,
+            memos: DataStore::get_recreation_memos(
+                datastore.info.launcher_id,
                 owner_puzzle_hash.into(),
                 delegated_puzzles,
             ),
         }
-        .to_clvm(ctx.allocator_mut())
-        .unwrap();
+        .to_clvm(&mut ctx.allocator)?;
 
-        let inner_spend = Conditions::new()
-            .condition(Condition::Other(new_merkle_root_condition))
-            .p2_spend(ctx, writer_pk)?;
+        let inner_spend = StandardLayer::new(admin_pk).spend(
+            ctx,
+            Conditions::new().with(Condition::Other(new_merkle_root_condition)),
+        )?;
+        let new_spend = datastore.spend(ctx, inner_spend)?;
 
-        // delegated puzzle info + inner puzzle reveal + solution
-        let inner_datastore_spend = DatastoreInnerSpend::DelegatedPuzzleSpend(
-            admin_delegated_puzzle,
-            Spend::new(admin_puzzle, inner_spend.solution()),
-        );
-        let new_spend = datastore_spend(ctx, &datastore_info, inner_datastore_spend)?;
-        {
-            let mut stats = TEST_STATS.lock().unwrap();
-            stats.add_normal_spend_tx(&new_spend);
-        }
-        ctx.insert_coin_spend(new_spend.clone());
-
-        let datastore_info = DataStoreInfo::from_spend(
-            ctx.allocator_mut(),
+        let datastore = DataStore::from_spend(
+            &mut ctx.allocator,
             &new_spend,
-            &datastore_info.delegated_puzzles,
-        )
+            datastore.info.delegated_puzzles,
+        )?
         .unwrap();
-        assert!(datastore_info.delegated_puzzles.len() > 0);
+        ctx.insert(new_spend);
 
-        let dep_puzzs = datastore_info.clone().delegated_puzzles;
-        assert!(dep_puzzs.len() == 2);
-        assert_eq!(dep_puzzs[0].puzzle_hash, admin_delegated_puzzle.puzzle_hash);
-        assert_eq!(
-            dep_puzzs[1].puzzle_hash,
-            oracle_delegated_puzzle.puzzle_hash
-        );
+        assert!(datastore.info.delegated_puzzles.len() > 0);
+        assert_eq!(datastore.info.delegated_puzzles, delegated_puzzles);
 
         // oracle: just spend :)
-        // delegated puzzle info + inner puzzle reveal + solution
 
-        let inner_datastore_spend = DatastoreInnerSpend::DelegatedPuzzleSpend(
-            oracle_delegated_puzzle,
-            Spend::new(
-                DelegatedPuzzle::oracle_layer_full_puzzle(
-                    ctx.allocator_mut(),
-                    oracle_puzzle_hash,
-                    oracle_fee,
-                )
-                .unwrap(),
-                ctx.allocator().nil(),
-            ),
-        );
-        let new_spend = datastore_spend(ctx, &datastore_info, inner_datastore_spend)?;
-        ctx.insert_coin_spend(new_spend.clone());
+        let oracle_layer = OracleLayer::new(oracle_puzzle_hash, oracle_fee);
+        let inner_datastore_spend = oracle_layer.construct_spend(ctx, ())?;
 
-        let new_datastore_info = DataStoreInfo::from_spend(
-            ctx.allocator_mut(),
+        let new_spend = datastore.spend(ctx, inner_datastore_spend)?;
+
+        let new_datastore = DataStore::from_spend(
+            &mut ctx.allocator,
             &new_spend,
-            &datastore_info.delegated_puzzles,
-        )
+            datastore.info.delegated_puzzles.clone(),
+        )?
         .unwrap();
-        assert_datastore_info_eq(ctx, &datastore_info, &new_datastore_info, false);
-        let datastore_info = new_datastore_info;
+        ctx.insert(new_spend);
+
+        assert_eq!(new_datastore.info, new_datastore.info);
+        let datastore = new_datastore;
 
         // mint a coin that asserts the announcement and has enough value
         let new_coin = sim.mint_coin(owner_puzzle_hash, oracle_fee).await;
+
+        let mut hasher = Sha256::new();
+        hasher.update(datastore.coin.puzzle_hash);
+        hasher.update(Bytes::new("$".into()).to_vec());
+
         ctx.spend_p2_coin(
             new_coin,
             owner_pk,
-            Conditions::new().assert_puzzle_announcement(
-                datastore_info.coin.puzzle_hash,
-                &OgBytes::new("$".into()),
-            ),
+            Conditions::new().assert_puzzle_announcement(Bytes32::new(hasher.finalize())),
         )?;
 
         // finally, remove delegation layer altogether
-        let datastore_remove_delegation_layer_inner_spend = Conditions::new()
-            .create_coin(owner_puzzle_hash, 1)
-            .p2_spend(ctx, owner_pk)?;
-        let inner_datastore_spend =
-            DatastoreInnerSpend::OwnerPuzzleSpend(datastore_remove_delegation_layer_inner_spend);
-        let new_spend = datastore_spend(ctx, &datastore_info, inner_datastore_spend)?;
-        {
-            let mut stats = TEST_STATS.lock().unwrap();
-            stats.add_normal_spend_tx(&new_spend);
-        }
-        ctx.insert_coin_spend(new_spend.clone());
+        let owner_layer = StandardLayer::new(owner_pk);
+        let datastore_remove_delegation_layer_inner_spend = owner_layer.spend(
+            ctx,
+            Conditions::new().with(DataStore::owner_create_coin_condition(
+                ctx,
+                datastore.info.launcher_id,
+                owner_puzzle_hash,
+                vec![],
+                true,
+            )?),
+        )?;
+        let new_spend = datastore.spend(ctx, datastore_remove_delegation_layer_inner_spend)?;
 
-        let new_datastore_info =
-            DataStoreInfo::from_spend(ctx.allocator_mut(), &new_spend, &vec![]).unwrap();
-        assert_eq!(new_datastore_info.delegated_puzzles.len(), 0);
-        assert_eq!(new_datastore_info.owner_puzzle_hash, owner_puzzle_hash);
+        let new_datastore = DataStore::from_spend(&mut ctx.allocator, &new_spend, vec![])?.unwrap();
+        ctx.insert(new_spend);
+
+        assert!(new_datastore.info.delegated_puzzles.is_empty());
+        assert_eq!(new_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
         test_transaction(
             &peer,
-            ctx.take_spends(),
+            ctx.take(),
             &[owner_sk, admin_sk, writer_sk],
-            sim.config().genesis_challenge,
+            &sim.config().constants,
         )
         .await;
 
         // Make sure the datastore was created.
         let coin_state = sim
-            .coin_state(datastore_info.coin.coin_id())
+            .coin_state(new_datastore.coin.parent_coin_info)
             .await
             .expect("expected datastore coin");
-        assert_eq!(coin_state.coin, datastore_info.coin);
+        assert_eq!(coin_state.coin, datastore.coin);
         assert!(coin_state.spent_height.is_some());
 
         Ok(())
