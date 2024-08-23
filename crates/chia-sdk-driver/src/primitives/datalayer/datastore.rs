@@ -551,7 +551,7 @@ impl<M> DataStore<M> {
             )
             .into()
         } else {
-            new_inner_puzzle_hash.clone()
+            new_inner_puzzle_hash
         };
 
         Ok(Condition::CreateCoin(CreateCoin {
@@ -560,7 +560,7 @@ impl<M> DataStore<M> {
             memos: if hint_delegated_puzzles {
                 Self::get_recreation_memos(
                     launcher_id,
-                    new_inner_puzzle_hash.clone().into(),
+                    new_inner_puzzle_hash.into(),
                     new_delegated_puzzles,
                 )
             } else {
