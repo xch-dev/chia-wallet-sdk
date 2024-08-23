@@ -43,7 +43,25 @@ where
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
-        let (puzzle_ptr, solution_ptr) = if !self.info.delegated_puzzles.is_empty() {
+        let (puzzle_ptr, solution_ptr) = if self.info.delegated_puzzles.is_empty() {
+            let layers = self
+                .info
+                .clone()
+                .into_layers_without_delegation_layer(inner_spend.puzzle);
+
+            let solution_ptr = layers.construct_solution(
+                ctx,
+                SingletonSolution {
+                    lineage_proof: self.proof,
+                    amount: self.coin.amount,
+                    inner_solution: NftStateLayerSolution {
+                        inner_solution: inner_spend.solution,
+                    },
+                },
+            )?;
+
+            (layers.construct_puzzle(ctx)?, solution_ptr)
+        } else {
             let layers = self.info.clone().into_layers_with_delegation_layer(ctx)?;
 
             let puzzle_ptr = layers.construct_puzzle(ctx)?;
@@ -66,24 +84,6 @@ where
                 },
             )?;
             (puzzle_ptr, solution_ptr)
-        } else {
-            let layers = self
-                .info
-                .clone()
-                .into_layers_without_delegation_layer(inner_spend.puzzle);
-
-            let solution_ptr = layers.construct_solution(
-                ctx,
-                SingletonSolution {
-                    lineage_proof: self.proof,
-                    amount: self.coin.amount,
-                    inner_solution: NftStateLayerSolution {
-                        inner_solution: inner_spend.solution,
-                    },
-                },
-            )?;
-
-            (layers.construct_puzzle(ctx)?, solution_ptr)
         };
 
         let puzzle = ctx.serialize(&puzzle_ptr)?;
@@ -144,7 +144,6 @@ where
     M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash + MetadataWithRootHash,
 {
     pub fn build_datastore(
-        allocator: &mut Allocator,
         coin: Coin,
         launcher_id: Bytes32,
         proof: Proof,
@@ -154,7 +153,7 @@ where
     ) -> Result<Self, DriverError> {
         let mut memos = memos;
 
-        if memos.len() == 0 {
+        if memos.is_empty() {
             // no hints; owner puzzle hash is the inner puzzle hash
             return Ok(DataStore {
                 coin,
@@ -234,7 +233,7 @@ where
         let solution_node_ptr = cs
             .solution
             .to_clvm(allocator)
-            .map_err(|err| DriverError::ToClvm(err))?;
+            .map_err(DriverError::ToClvm)?;
 
         if cs.coin.puzzle_hash == SINGLETON_LAUNCHER_PUZZLE_HASH.into() {
             // we're just launching this singleton :)
@@ -266,7 +265,6 @@ where
                     memos.extend(solution.key_value_list.memos);
 
                     Ok(Some(Self::build_datastore(
-                        allocator,
                         new_coin,
                         launcher_id,
                         proof,
@@ -290,7 +288,6 @@ where
                         };
 
                         Ok(Some(Self::build_datastore(
-                            allocator,
                             coin,
                             launcher_id,
                             proof,
@@ -308,7 +305,7 @@ where
             .puzzle_reveal
             .to_clvm(allocator)
             .map_err(DriverError::ToClvm)?;
-        let parent_puzzle = Puzzle::parse(&allocator, parent_puzzle_ptr);
+        let parent_puzzle = Puzzle::parse(allocator, parent_puzzle_ptr);
 
         let Some(singleton_layer) =
             SingletonLayer::<Puzzle>::parse_puzzle(allocator, parent_puzzle)?
@@ -392,7 +389,6 @@ where
         if inner_create_coin_condition.memos.len() > 1 {
             // keep in mind that there's always the launcher id memo being added
             return Ok(Some(Self::build_datastore(
-                allocator,
                 new_coin,
                 singleton_layer.launcher_id,
                 Proof::Lineage(singleton_layer.lineage_proof(cs.coin)),
@@ -411,9 +407,12 @@ where
         {
             let deleg_puzzle_args = DelegationLayerArgs::from_clvm(
                 allocator,
-                delegation_layer_maybe.as_curried().unwrap().args,
+                delegation_layer_maybe
+                    .as_curried()
+                    .ok_or(DriverError::NonStandardLayer)?
+                    .args,
             )
-            .unwrap();
+            .map_err(DriverError::FromClvm)?;
             owner_puzzle_hash = deleg_puzzle_args.owner_puzzle_hash;
 
             let delegation_layer_solution =
