@@ -569,3 +569,70 @@ impl<M> DataStore<M> {
         }))
     }
 }
+
+#[allow(unused_imports)]
+mod tests {
+    use chia_bls::SecretKey;
+    use chia_puzzles::standard::StandardArgs;
+    use chia_sdk_test::{test_secret_keys, test_transaction, Simulator};
+    use chia_sdk_types::Conditions;
+
+    use crate::{Launcher, StandardLayer};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_simple_datastore() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let [sk]: [SecretKey; 1] = test_secret_keys(1).unwrap().try_into().unwrap();
+        let pk = sk.public_key();
+
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = sim.mint_coin(puzzle_hash, 1).await;
+
+        let ctx = &mut SpendContext::new();
+
+        let (launch_singleton, datastore) = Launcher::new(coin.coin_id(), 1).mint_datastore(
+            ctx,
+            DataStoreMetadata::root_hash_only(Bytes32::default()),
+            puzzle_hash.into(),
+            vec![],
+        )?;
+
+        ctx.spend_p2_coin(coin, pk, launch_singleton)?;
+
+        let spends = ctx.take();
+        for spend in spends {
+            if spend.coin.coin_id() == datastore.info.launcher_id {
+                let new_datastore =
+                    DataStore::from_spend(&mut ctx.allocator, &spend, vec![])?.unwrap();
+
+                assert_eq!(datastore, new_datastore);
+            }
+
+            ctx.insert(spend);
+        }
+
+        let datastore_inner_spend = StandardLayer::new(pk)
+            .spend(ctx, Conditions::new().create_coin(puzzle_hash, 1, vec![]))?;
+
+        let old_datastore_coin = datastore.coin;
+        let new_spend = datastore.spend(ctx, datastore_inner_spend)?;
+
+        ctx.insert(new_spend);
+
+        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
+
+        // Make sure the datastore was created.
+        let coin_state = sim
+            .coin_state(old_datastore_coin.coin_id())
+            .await
+            .expect("expected datastore coin");
+        assert_eq!(coin_state.coin, old_datastore_coin);
+        assert!(coin_state.spent_height.is_some());
+
+        Ok(())
+    }
+}
