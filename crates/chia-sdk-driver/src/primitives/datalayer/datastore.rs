@@ -582,6 +582,72 @@ mod tests {
 
     use super::*;
 
+    #[derive(PartialEq)]
+    pub enum Label {
+        NONE,
+        SOME,
+        NEW,
+    }
+
+    impl Label {
+        pub fn value(&self) -> Option<String> {
+            match self {
+                Label::NONE => None,
+                Label::SOME => Some(String::from("label")),
+                Label::NEW => Some(String::from("new_label")),
+            }
+        }
+    }
+
+    #[derive(PartialEq)]
+    pub enum Description {
+        NONE,
+        SOME,
+        NEW,
+    }
+
+    impl Description {
+        pub fn value(&self) -> Option<String> {
+            match self {
+                Description::NONE => None,
+                Description::SOME => Some(String::from("description")),
+                Description::NEW => Some(String::from("new_description")),
+            }
+        }
+    }
+
+    #[derive(PartialEq)]
+    pub enum RootHash {
+        ZERO,
+        SOME,
+    }
+
+    impl RootHash {
+        pub fn value(&self) -> Bytes32 {
+            match self {
+                RootHash::ZERO => Bytes32::from([0; 32]),
+                RootHash::SOME => Bytes32::from([1; 32]),
+            }
+        }
+    }
+
+    #[derive(PartialEq)]
+    pub enum ByteSize {
+        NONE,
+        SOME,
+        NEW,
+    }
+
+    impl ByteSize {
+        pub fn value(&self) -> Option<u64> {
+            match self {
+                ByteSize::NONE => None,
+                ByteSize::SOME => Some(1337),
+                ByteSize::NEW => Some(42),
+            }
+        }
+    }
+
     #[tokio::test]
     async fn test_simple_datastore() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
@@ -597,7 +663,7 @@ mod tests {
 
         let (launch_singleton, datastore) = Launcher::new(coin.coin_id(), 1).mint_datastore(
             ctx,
-            DataStoreMetadata::root_hash_only(Bytes32::default()),
+            DataStoreMetadata::root_hash_only(RootHash::ZERO.value()),
             puzzle_hash.into(),
             vec![],
         )?;
@@ -632,6 +698,249 @@ mod tests {
             .await
             .expect("expected datastore coin");
         assert_eq!(coin_state.coin, old_datastore_coin);
+        assert!(coin_state.spent_height.is_some());
+
+        Ok(())
+    }
+
+    #[allow(clippy::similar_names)]
+    #[tokio::test]
+    async fn test_datastore_with_delegation_layer() -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
+            test_secret_keys(3).unwrap().try_into().unwrap();
+
+        let owner_pk = owner_sk.public_key();
+        let admin_pk = admin_sk.public_key();
+        let writer_pk = writer_sk.public_key();
+
+        let oracle_puzzle_hash: Bytes32 = [1; 32].into();
+        let oracle_fee = 1000;
+
+        let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
+        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+
+        let ctx = &mut SpendContext::new();
+
+        let admin_puzzle: NodePtr = CurriedProgram {
+            program: ctx.standard_puzzle()?,
+            args: StandardArgs::new(admin_pk),
+        }
+        .to_clvm(&mut ctx.allocator)?;
+        let admin_puzzle_hash = tree_hash(&mut ctx.allocator, admin_puzzle);
+
+        let writer_inner_puzzle: NodePtr = CurriedProgram {
+            program: ctx.standard_puzzle()?,
+            args: StandardArgs::new(writer_pk),
+        }
+        .to_clvm(&mut ctx.allocator)?;
+        let writer_inner_puzzle_hash = tree_hash(&mut ctx.allocator, writer_inner_puzzle);
+
+        let admin_delegated_puzzle = DelegatedPuzzle::Admin(admin_puzzle_hash.into());
+        let writer_delegated_puzzle = DelegatedPuzzle::Writer(writer_inner_puzzle_hash.into());
+
+        let oracle_delegated_puzzle = DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee);
+
+        let (launch_singleton, datastore) = Launcher::new(coin.coin_id(), 1).mint_datastore(
+            ctx,
+            DataStoreMetadata::default(),
+            owner_puzzle_hash.into(),
+            vec![
+                admin_delegated_puzzle,
+                writer_delegated_puzzle,
+                oracle_delegated_puzzle,
+            ],
+        )?;
+
+        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+
+        let spends = ctx.take();
+        for spend in spends {
+            if spend.coin.coin_id() == datastore.info.launcher_id {
+                let new_datastore =
+                    DataStore::from_spend(&mut ctx.allocator, &spend, vec![])?.unwrap();
+
+                assert_eq!(datastore, new_datastore);
+            }
+
+            ctx.insert(spend);
+        }
+
+        assert_eq!(datastore.info.metadata.root_hash, RootHash::ZERO.value());
+
+        // writer: update metadata
+        let new_metadata = DataStoreMetadata {
+            root_hash: RootHash::SOME.value(),
+            label: Label::SOME.value(),
+            description: Description::SOME.value(),
+            bytes: ByteSize::SOME.value(),
+        };
+        // TODO from here
+        // might be helpful to have function that generates and returns Condition::Other(serialize(NewMetadataCondition)) for datastores
+        let new_metadata_condition = NewMetadataCondition::<i32, DataStoreMetadata, Bytes32, i32> {
+            metadata_updater_reveal: 11,
+            metadata_updater_solution: DefaultMetadataSolution {
+                metadata_part: DefaultMetadataSolutionMetadataList {
+                    new_metadata: new_metadata,
+                    new_metadata_updater_ph: DL_METADATA_UPDATER_PUZZLE_HASH.into(),
+                },
+                conditions: 0,
+            },
+        }
+        .to_clvm(ctx.allocator_mut())
+        .unwrap();
+
+        let new_metadata_inner_spend = Conditions::new()
+            .condition(Condition::Other(new_metadata_condition))
+            .p2_spend(ctx, writer_pk)?;
+
+        // delegated puzzle info + inner puzzle reveal + solution
+        let inner_datastore_spend = DatastoreInnerSpend::DelegatedPuzzleSpend(
+            writer_delegated_puzzle,
+            Spend::new(writer_puzzle, new_metadata_inner_spend.solution()),
+        );
+        let new_spend = datastore_spend(ctx, &datastore_info, inner_datastore_spend)?;
+        {
+            let mut stats = TEST_STATS.lock().unwrap();
+            stats.add_normal_spend_tx(&new_spend);
+        }
+        ctx.insert_coin_spend(new_spend.clone());
+
+        let datastore_info = DataStoreInfo::from_spend(
+            ctx.allocator_mut(),
+            &new_spend,
+            &datastore_info.delegated_puzzles,
+        )
+        .unwrap();
+        assert_eq!(
+            encode(datastore_info.metadata.root_hash),
+            "0101010101010101010101010101010101010101010101010101010101010101" // serializing to bytes prepends a0 = len
+        );
+        assert_eq!(datastore_info.metadata.label, Label::SOME.value());
+        assert_eq!(
+            datastore_info.metadata.description,
+            Description::SOME.value()
+        );
+
+        // admin: remove writer from delegated puzzles
+        let delegated_puzzles = vec![admin_delegated_puzzle, oracle_delegated_puzzle];
+        let new_merkle_root = merkle_root_for_delegated_puzzles(&delegated_puzzles);
+
+        let new_merkle_root_condition = NewMerkleRootCondition {
+            new_merkle_root,
+            memos: get_memos(
+                datastore_info.launcher_id,
+                owner_puzzle_hash.into(),
+                delegated_puzzles,
+            ),
+        }
+        .to_clvm(ctx.allocator_mut())
+        .unwrap();
+
+        let inner_spend = Conditions::new()
+            .condition(Condition::Other(new_merkle_root_condition))
+            .p2_spend(ctx, writer_pk)?;
+
+        // delegated puzzle info + inner puzzle reveal + solution
+        let inner_datastore_spend = DatastoreInnerSpend::DelegatedPuzzleSpend(
+            admin_delegated_puzzle,
+            Spend::new(admin_puzzle, inner_spend.solution()),
+        );
+        let new_spend = datastore_spend(ctx, &datastore_info, inner_datastore_spend)?;
+        {
+            let mut stats = TEST_STATS.lock().unwrap();
+            stats.add_normal_spend_tx(&new_spend);
+        }
+        ctx.insert_coin_spend(new_spend.clone());
+
+        let datastore_info = DataStoreInfo::from_spend(
+            ctx.allocator_mut(),
+            &new_spend,
+            &datastore_info.delegated_puzzles,
+        )
+        .unwrap();
+        assert!(datastore_info.delegated_puzzles.len() > 0);
+
+        let dep_puzzs = datastore_info.clone().delegated_puzzles;
+        assert!(dep_puzzs.len() == 2);
+        assert_eq!(dep_puzzs[0].puzzle_hash, admin_delegated_puzzle.puzzle_hash);
+        assert_eq!(
+            dep_puzzs[1].puzzle_hash,
+            oracle_delegated_puzzle.puzzle_hash
+        );
+
+        // oracle: just spend :)
+        // delegated puzzle info + inner puzzle reveal + solution
+
+        let inner_datastore_spend = DatastoreInnerSpend::DelegatedPuzzleSpend(
+            oracle_delegated_puzzle,
+            Spend::new(
+                DelegatedPuzzle::oracle_layer_full_puzzle(
+                    ctx.allocator_mut(),
+                    oracle_puzzle_hash,
+                    oracle_fee,
+                )
+                .unwrap(),
+                ctx.allocator().nil(),
+            ),
+        );
+        let new_spend = datastore_spend(ctx, &datastore_info, inner_datastore_spend)?;
+        ctx.insert_coin_spend(new_spend.clone());
+
+        let new_datastore_info = DataStoreInfo::from_spend(
+            ctx.allocator_mut(),
+            &new_spend,
+            &datastore_info.delegated_puzzles,
+        )
+        .unwrap();
+        assert_datastore_info_eq(ctx, &datastore_info, &new_datastore_info, false);
+        let datastore_info = new_datastore_info;
+
+        // mint a coin that asserts the announcement and has enough value
+        let new_coin = sim.mint_coin(owner_puzzle_hash, oracle_fee).await;
+        ctx.spend_p2_coin(
+            new_coin,
+            owner_pk,
+            Conditions::new().assert_puzzle_announcement(
+                datastore_info.coin.puzzle_hash,
+                &OgBytes::new("$".into()),
+            ),
+        )?;
+
+        // finally, remove delegation layer altogether
+        let datastore_remove_delegation_layer_inner_spend = Conditions::new()
+            .create_coin(owner_puzzle_hash, 1)
+            .p2_spend(ctx, owner_pk)?;
+        let inner_datastore_spend =
+            DatastoreInnerSpend::OwnerPuzzleSpend(datastore_remove_delegation_layer_inner_spend);
+        let new_spend = datastore_spend(ctx, &datastore_info, inner_datastore_spend)?;
+        {
+            let mut stats = TEST_STATS.lock().unwrap();
+            stats.add_normal_spend_tx(&new_spend);
+        }
+        ctx.insert_coin_spend(new_spend.clone());
+
+        let new_datastore_info =
+            DataStoreInfo::from_spend(ctx.allocator_mut(), &new_spend, &vec![]).unwrap();
+        assert_eq!(new_datastore_info.delegated_puzzles.len(), 0);
+        assert_eq!(new_datastore_info.owner_puzzle_hash, owner_puzzle_hash);
+
+        test_transaction(
+            &peer,
+            ctx.take_spends(),
+            &[owner_sk, admin_sk, writer_sk],
+            sim.config().genesis_challenge,
+        )
+        .await;
+
+        // Make sure the datastore was created.
+        let coin_state = sim
+            .coin_state(datastore_info.coin.coin_id())
+            .await
+            .expect("expected datastore coin");
+        assert_eq!(coin_state.coin, datastore_info.coin);
         assert!(coin_state.spent_height.is_some());
 
         Ok(())
