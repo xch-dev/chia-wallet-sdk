@@ -609,67 +609,67 @@ mod tests {
     use super::*;
 
     #[derive(PartialEq)]
-    pub enum Label {
-        NONE,
-        SOME,
-        NEW,
+    pub(crate) enum Label {
+        None,
+        Some,
+        New,
     }
 
     impl Label {
-        pub fn value(&self) -> Option<String> {
+        pub(crate) fn value(&self) -> Option<String> {
             match self {
-                Label::NONE => None,
-                Label::SOME => Some(String::from("label")),
-                Label::NEW => Some(String::from("new_label")),
+                Label::None => None,
+                Label::Some => Some(String::from("label")),
+                Label::New => Some(String::from("new_label")),
             }
         }
     }
 
     #[derive(PartialEq)]
-    pub enum Description {
-        NONE,
-        SOME,
-        NEW,
+    pub(crate) enum Description {
+        None,
+        Some,
+        New,
     }
 
     impl Description {
-        pub fn value(&self) -> Option<String> {
+        pub(crate) fn value(&self) -> Option<String> {
             match self {
-                Description::NONE => None,
-                Description::SOME => Some(String::from("description")),
-                Description::NEW => Some(String::from("new_description")),
+                Description::None => None,
+                Description::Some => Some(String::from("description")),
+                Description::New => Some(String::from("new_description")),
             }
         }
     }
 
     #[derive(PartialEq)]
-    pub enum RootHash {
-        ZERO,
-        SOME,
+    pub(crate) enum RootHash {
+        Zero,
+        Some,
     }
 
     impl RootHash {
-        pub fn value(&self) -> Bytes32 {
+        pub(crate) fn value(&self) -> Bytes32 {
             match self {
-                RootHash::ZERO => Bytes32::from([0; 32]),
-                RootHash::SOME => Bytes32::from([1; 32]),
+                RootHash::Zero => Bytes32::from([0; 32]),
+                RootHash::Some => Bytes32::from([1; 32]),
             }
         }
     }
 
     #[derive(PartialEq)]
-    pub enum ByteSize {
-        NONE,
-        SOME,
-        NEW,
+    pub(crate) enum ByteSize {
+        None,
+        Some,
+        New,
     }
 
     impl ByteSize {
-        pub fn value(&self) -> Option<u64> {
+        pub(crate) fn value(&self) -> Option<u64> {
             match self {
-                ByteSize::NONE => None,
-                ByteSize::SOME => Some(1337),
-                ByteSize::NEW => Some(42),
+                ByteSize::None => None,
+                ByteSize::Some => Some(1337),
+                ByteSize::New => Some(42),
             }
         }
     }
@@ -689,7 +689,7 @@ mod tests {
 
         let (launch_singleton, datastore) = Launcher::new(coin.coin_id(), 1).mint_datastore(
             ctx,
-            DataStoreMetadata::root_hash_only(RootHash::ZERO.value()),
+            DataStoreMetadata::root_hash_only(RootHash::Zero.value()),
             puzzle_hash.into(),
             vec![],
         )?;
@@ -755,14 +755,14 @@ mod tests {
             args: StandardArgs::new(admin_pk),
         }
         .to_clvm(&mut ctx.allocator)?;
-        let admin_puzzle_hash = tree_hash(&mut ctx.allocator, admin_puzzle);
+        let admin_puzzle_hash = tree_hash(&ctx.allocator, admin_puzzle);
 
         let writer_inner_puzzle: NodePtr = CurriedProgram {
             program: ctx.standard_puzzle()?,
             args: StandardArgs::new(writer_pk),
         }
         .to_clvm(&mut ctx.allocator)?;
-        let writer_inner_puzzle_hash = tree_hash(&mut ctx.allocator, writer_inner_puzzle);
+        let writer_inner_puzzle_hash = tree_hash(&ctx.allocator, writer_inner_puzzle);
 
         let admin_delegated_puzzle = DelegatedPuzzle::Admin(admin_puzzle_hash.into());
         let writer_delegated_puzzle = DelegatedPuzzle::Writer(writer_inner_puzzle_hash.into());
@@ -794,14 +794,14 @@ mod tests {
             ctx.insert(spend);
         }
 
-        assert_eq!(datastore.info.metadata.root_hash, RootHash::ZERO.value());
+        assert_eq!(datastore.info.metadata.root_hash, RootHash::Zero.value());
 
         // writer: update metadata
         let new_metadata = DataStoreMetadata {
-            root_hash: RootHash::SOME.value(),
-            label: Label::SOME.value(),
-            description: Description::SOME.value(),
-            bytes: ByteSize::SOME.value(),
+            root_hash: RootHash::Some.value(),
+            label: Label::Some.value(),
+            description: Description::Some.value(),
+            bytes: ByteSize::Some.value(),
         };
 
         let new_metadata_condition = DataStore::new_metadata_condition(ctx, new_metadata.clone())?;
@@ -867,7 +867,7 @@ mod tests {
         .unwrap();
         ctx.insert(new_spend);
 
-        assert!(datastore.info.delegated_puzzles.len() > 0);
+        assert!(!datastore.info.delegated_puzzles.is_empty());
         assert_eq!(datastore.info.delegated_puzzles, delegated_puzzles);
 
         // oracle: just spend :)
