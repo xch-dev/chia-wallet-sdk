@@ -1,7 +1,10 @@
-use chia_protocol::Bytes32;
-use chia_puzzles::singleton::{
-    SingletonArgs, SingletonSolution, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH,
-    SINGLETON_TOP_LAYER_PUZZLE_HASH,
+use chia_protocol::{Bytes32, Coin};
+use chia_puzzles::{
+    singleton::{
+        SingletonArgs, SingletonSolution, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH,
+        SINGLETON_TOP_LAYER_PUZZLE_HASH,
+    },
+    LineageProof,
 };
 use clvm_traits::FromClvm;
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
@@ -112,5 +115,19 @@ where
             inner_puzzle,
         }
         .tree_hash()
+    }
+}
+
+impl<I> SingletonLayer<I>
+where
+    I: ToTreeHash,
+{
+    /// Returns the [`LineageProof`] for this singleton's child.
+    pub fn lineage_proof(&self, this_coin: Coin) -> LineageProof {
+        LineageProof {
+            parent_parent_coin_info: this_coin.parent_coin_info,
+            parent_inner_puzzle_hash: self.inner_puzzle.tree_hash().into(),
+            parent_amount: this_coin.amount,
+        }
     }
 }

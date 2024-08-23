@@ -2,7 +2,7 @@ use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_puzzles::{
     nft::{NftStateLayerArgs, NftStateLayerSolution, NFT_STATE_LAYER_PUZZLE_HASH},
     singleton::{
-        self, LauncherSolution, SingletonArgs, SingletonSolution, SINGLETON_LAUNCHER_PUZZLE_HASH,
+        LauncherSolution, SingletonArgs, SingletonSolution, SINGLETON_LAUNCHER_PUZZLE_HASH,
     },
     EveProof, LineageProof, Proof,
 };
@@ -152,6 +152,8 @@ where
         fallback_owner_ph: Bytes32,
         memos: Vec<Bytes>,
     ) -> Result<Self, DriverError> {
+        let mut memos = memos;
+
         if memos.len() == 0 {
             // no hints; owner puzzle hash is the inner puzzle hash
             return Ok(DataStore {
@@ -172,15 +174,20 @@ where
 
         if memos.len() == 2 && memos[0] == metadata.root_hash().into() {
             // vanilla store using old memo format
+            let owner_puzzle_hash = Bytes32::new(
+                memos[1]
+                    .to_vec()
+                    .try_into()
+                    .map_err(|_| DriverError::InvalidMemo)?,
+            );
             return Ok(DataStore {
                 coin,
                 proof,
                 info: DataStoreInfo {
                     launcher_id,
                     metadata,
-                    owner_puzzle_hash: Bytes32::from_bytes(&memos[1])
-                        .map_err(|_| ParseError::MissingHint)?,
-                    delegated_puzzles: None,
+                    owner_puzzle_hash,
+                    delegated_puzzles: vec![],
                 },
             });
         }
@@ -188,19 +195,21 @@ where
         let owner_puzzle_hash: Bytes32 = if memos.is_empty() {
             fallback_owner_ph
         } else {
-            Bytes32::from_bytes(&memos.drain(0..1).next().unwrap())
-                .map_err(|_| ParseError::MissingHint)?
+            Bytes32::new(
+                memos
+                    .drain(0..1)
+                    .next()
+                    .ok_or(DriverError::MissingMemo)?
+                    .to_vec()
+                    .try_into()
+                    .map_err(|_| DriverError::InvalidMemo)?,
+            )
         };
 
-        let delegated_puzzles = {
-            let mut d_puzz: Vec<DelegatedPuzzle> = vec![];
-
-            while memos.len() > 1 {
-                d_puzz.push(DelegatedPuzzle::from_memos(&mut memos)?);
-            }
-
-            Ok(d_puzz)
-        }?;
+        let mut delegated_puzzles = vec![];
+        while memos.len() > 1 {
+            delegated_puzzles.push(DelegatedPuzzle::from_memos(&mut memos)?);
+        }
 
         Ok(DataStore {
             coin,
@@ -386,7 +395,7 @@ where
                 allocator,
                 new_coin,
                 singleton_layer.launcher_id,
-                Proof::Lineage(singleton_layer.construct_lineage_proof(cs.coin.amount)),
+                Proof::Lineage(singleton_layer.lineage_proof(cs.coin)),
                 new_metadata,
                 state_layer.inner_puzzle.tree_hash().into(),
                 inner_create_coin_condition.memos,
