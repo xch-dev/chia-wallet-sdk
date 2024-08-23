@@ -6,18 +6,19 @@ use chia_puzzles::{
     },
     EveProof, LineageProof, Proof,
 };
-use chia_sdk_types::run_puzzle;
+use chia_sdk_types::{run_puzzle, CreateCoin};
 use chia_sdk_types::{Condition, NewMetadataCondition};
 use clvm_traits::{FromClvm, FromClvmError, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
+use num_bigint::BigInt;
 
 use crate::{
     DelegationLayerArgs, DelegationLayerSolution, DriverError, Layer, NftStateLayer, Puzzle,
     SingletonLayer, Spend, SpendContext, DELEGATION_LAYER_PUZZLE_HASH,
 };
 
-use super::{get_merkle_tree, DataStoreInfo, DataStoreMetadata, DelegatedPuzzle};
+use super::{get_merkle_tree, DataStoreInfo, DataStoreMetadata, DelegatedPuzzle, HintType};
 
 /// Everything that is required to spend a ``DataStore`` coin.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -484,6 +485,86 @@ where
                 metadata: new_metadata,
                 owner_puzzle_hash,
                 delegated_puzzles: vec![],
+            },
+        }))
+    }
+}
+
+impl<M> DataStore<M> {
+    pub fn get_recreation_memos(
+        launcher_id: Bytes32,
+        owner_puzzle_hash: TreeHash,
+        delegated_puzzles: Vec<DelegatedPuzzle>,
+    ) -> Vec<Bytes> {
+        let owner_puzzle_hash: Bytes32 = owner_puzzle_hash.into();
+        let mut memos: Vec<Bytes> = vec![launcher_id.into(), owner_puzzle_hash.into()];
+
+        for delegated_puzzle in delegated_puzzles {
+            match delegated_puzzle {
+                DelegatedPuzzle::Admin(inner_puzzle_hash) => {
+                    memos.push(Bytes::new([HintType::AdminPuzzle.value()].into()));
+                    memos.push(inner_puzzle_hash.into());
+                }
+                DelegatedPuzzle::Writer(inner_puzzle_hash) => {
+                    memos.push(Bytes::new([HintType::WriterPuzzle.value()].into()));
+                    memos.push(inner_puzzle_hash.into());
+                }
+                DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee) => {
+                    memos.push(Bytes::new([HintType::OraclePuzzle.value()].into()));
+                    memos.push(oracle_puzzle_hash.into());
+
+                    let fee_bytes = BigInt::from(oracle_fee).to_signed_bytes_be();
+                    let mut fee_bytes = fee_bytes.as_slice();
+
+                    // https://github.com/Chia-Network/clvm_rs/blob/66a17f9576d26011321bb4c8c16eb1c63b169f1f/src/allocator.rs#L295
+                    while (!fee_bytes.is_empty()) && (fee_bytes[0] == 0) {
+                        if fee_bytes.len() > 1 && (fee_bytes[1] & 0x80 == 0x80) {
+                            break;
+                        }
+                        fee_bytes = &fee_bytes[1..];
+                    }
+
+                    memos.push(fee_bytes.into());
+                }
+            }
+        }
+
+        memos
+    }
+
+    // As an owner use CREATE_COIN to:
+    //  - just re-create store (no hints needed)
+    //  - change delegated puzzles (hints needed)
+    pub fn owner_create_coin_condition(
+        ctx: &mut SpendContext,
+        launcher_id: Bytes32,
+        new_inner_puzzle_hash: Bytes32,
+        new_delegated_puzzles: Vec<DelegatedPuzzle>,
+        hint_delegated_puzzles: bool,
+    ) -> Result<Condition, DriverError> {
+        let new_puzzle_hash = if new_delegated_puzzles.is_empty() {
+            let new_merkle_root = get_merkle_tree(ctx, new_delegated_puzzles.clone())?.get_root();
+            DelegationLayerArgs::curry_tree_hash(
+                launcher_id,
+                new_inner_puzzle_hash,
+                new_merkle_root,
+            )
+            .into()
+        } else {
+            new_inner_puzzle_hash.clone()
+        };
+
+        Ok(Condition::CreateCoin(CreateCoin {
+            amount: 1,
+            puzzle_hash: new_puzzle_hash,
+            memos: if hint_delegated_puzzles {
+                Self::get_recreation_memos(
+                    launcher_id,
+                    new_inner_puzzle_hash.clone().into(),
+                    new_delegated_puzzles,
+                )
+            } else {
+                vec![launcher_id.into()]
             },
         }))
     }
