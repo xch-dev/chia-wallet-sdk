@@ -278,7 +278,7 @@ pub fn get_merkle_tree(
                 let oracle_full_puzzle_ptr =
                     OracleLayer::new(oracle_puzzle_hash, oracle_fee).construct_puzzle(ctx)?;
 
-                leaves.push(tree_hash(ctx.allocator(), oracle_full_puzzle_ptr).into());
+                leaves.push(tree_hash(&ctx.allocator, oracle_full_puzzle_ptr).into());
             }
         }
     }

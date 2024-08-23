@@ -62,17 +62,17 @@ mod tests {
     fn test_dl_metadata_updater_puzzle(#[case] third_arg: Vec<u8>) {
         let mut ctx = SpendContext::new();
 
-        let third_arg_ptr = node_from_bytes(ctx.allocator_mut(), &third_arg).unwrap();
-        let solution_ptr = vec![ctx.allocator().nil(), ctx.allocator().nil(), third_arg_ptr]
-            .to_clvm(ctx.allocator_mut())
+        let third_arg_ptr = node_from_bytes(&mut ctx.allocator, &third_arg).unwrap();
+        let solution_ptr = vec![ctx.allocator.nil(), ctx.allocator.nil(), third_arg_ptr]
+            .to_clvm(&mut ctx.allocator)
             .unwrap();
 
-        let puzzle_ptr = node_from_bytes(ctx.allocator_mut(), &DL_METADATA_UPDATER_PUZZLE).unwrap();
+        let puzzle_ptr = node_from_bytes(&mut ctx.allocator, &DL_METADATA_UPDATER_PUZZLE).unwrap();
         let output = ctx.run(puzzle_ptr, solution_ptr).unwrap();
 
         assert_eq!(
-            tree_hash(ctx.allocator(), output),
-            tree_hash(ctx.allocator(), third_arg_ptr),
+            tree_hash(&ctx.allocator, output),
+            tree_hash(&ctx.allocator, third_arg_ptr),
         );
     }
 }

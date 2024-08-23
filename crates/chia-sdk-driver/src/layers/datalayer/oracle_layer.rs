@@ -72,7 +72,7 @@ impl Layer for OracleLayer {
         ];
 
         clvm_quote!(conditions)
-            .to_clvm(ctx.allocator_mut())
+            .to_clvm(&mut ctx.allocator)
             .map_err(DriverError::ToClvm)
     }
 

@@ -66,7 +66,7 @@ where
             let layers = self.info.clone().into_layers_with_delegation_layer(ctx)?;
 
             let puzzle_ptr = layers.construct_puzzle(ctx)?;
-            let puzzle_reveal_hash = tree_hash(ctx.allocator(), puzzle_ptr);
+            let puzzle_reveal_hash = tree_hash(&ctx.allocator, puzzle_ptr);
 
             let tree = get_merkle_tree(ctx, self.info.delegated_puzzles)?;
 
