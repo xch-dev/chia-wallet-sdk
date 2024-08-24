@@ -618,7 +618,7 @@ pub mod tests {
 
     use super::*;
 
-    #[derive(PartialEq)]
+    #[derive(Debug, PartialEq, Copy, Clone)]
     pub enum Label {
         None,
         Some,
@@ -635,7 +635,7 @@ pub mod tests {
         }
     }
 
-    #[derive(PartialEq)]
+    #[derive(Debug, PartialEq, Copy, Clone)]
     pub enum Description {
         None,
         Some,
@@ -652,7 +652,7 @@ pub mod tests {
         }
     }
 
-    #[derive(PartialEq)]
+    #[derive(Debug, PartialEq, Copy, Clone)]
     pub enum RootHash {
         Zero,
         Some,
@@ -667,7 +667,7 @@ pub mod tests {
         }
     }
 
-    #[derive(PartialEq)]
+    #[derive(Debug, PartialEq, Copy, Clone)]
     pub enum ByteSize {
         None,
         Some,
