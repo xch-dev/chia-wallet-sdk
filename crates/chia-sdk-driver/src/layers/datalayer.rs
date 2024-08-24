@@ -22,7 +22,7 @@ pub const DL_METADATA_UPDATER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
 ));
 
-#[allow(unused_imports)]
+#[cfg(test)]
 mod tests {
     use clvm_traits::ToClvm;
     use clvm_utils::tree_hash;

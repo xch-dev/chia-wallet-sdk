@@ -89,7 +89,6 @@ impl Launcher {
     }
 }
 
-#[allow(unused_imports)]
 #[cfg(test)]
 mod tests {
     use chia_bls::SecretKey;

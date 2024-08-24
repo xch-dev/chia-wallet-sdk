@@ -601,27 +601,20 @@ impl<M> DataStore<M> {
 }
 
 #[allow(clippy::type_complexity)]
-#[allow(unused_imports)]
 #[allow(clippy::too_many_arguments)]
 #[cfg(test)]
 pub mod tests {
     use core::panic;
 
     use chia_bls::{PublicKey, SecretKey};
-    use chia_protocol::Program;
-    use chia_puzzles::standard::{StandardArgs, StandardSolution};
+    use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{test_secret_keys, test_transaction, Simulator};
     use chia_sdk_types::{Conditions, MeltSingleton};
-    use clvm_traits::clvm_quote;
-    use clvmr::{
-        serde::{node_from_bytes, node_to_bytes},
-        sha2::Sha256,
-    };
+    use clvmr::sha2::Sha256;
     use rstest::rstest;
 
     use crate::{
-        spend, DelegationLayer, Launcher, NewMerkleRootCondition, OracleLayer, StandardLayer,
-        WriterLayer,
+        DelegationLayer, Launcher, NewMerkleRootCondition, OracleLayer, StandardLayer, WriterLayer,
     };
 
     use super::*;
