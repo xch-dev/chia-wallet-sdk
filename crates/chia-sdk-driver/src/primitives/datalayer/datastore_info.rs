@@ -7,6 +7,7 @@ use chia_protocol::{Bytes, Bytes32};
 use chia_puzzles::nft::NftStateLayerArgs;
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
+use clvmr::Allocator;
 use num_bigint::BigInt;
 
 pub type StandardDataStoreLayers<M = DataStoreMetadata, I = DelegationLayer> =
@@ -234,11 +235,13 @@ impl<M> DataStoreInfo<M> {
 
     pub fn inner_puzzle_hash(&self, ctx: &mut SpendContext) -> Result<TreeHash, DriverError>
     where
-        M: ToTreeHash,
+        M: ToClvm<Allocator>,
     {
+        let metadata_ptr = ctx.alloc(&self.metadata)?;
+
         if !self.delegated_puzzles.is_empty() {
             return Ok(NftStateLayerArgs::curry_tree_hash(
-                self.metadata.tree_hash(),
+                ctx.tree_hash(metadata_ptr),
                 CurriedProgram {
                     program: DELEGATION_LAYER_PUZZLE_HASH,
                     args: DelegationLayerArgs {
@@ -254,7 +257,7 @@ impl<M> DataStoreInfo<M> {
 
         let inner_ph_hash: TreeHash = self.owner_puzzle_hash.into();
         Ok(NftStateLayerArgs::curry_tree_hash(
-            self.metadata.tree_hash(),
+            ctx.tree_hash(metadata_ptr),
             inner_ph_hash,
         ))
     }

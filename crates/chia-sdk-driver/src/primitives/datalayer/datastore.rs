@@ -21,14 +21,14 @@ use crate::{
 
 use super::{get_merkle_tree, DataStoreInfo, DataStoreMetadata, DelegatedPuzzle, HintType};
 
-/// Everything that is required to spend a ``DataStore`` coin.
+/// Everything that is required to spend a [`DataStore`] coin.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataStore<M = DataStoreMetadata> {
-    /// The coin that holds this ``DataStore``.
+    /// The coin that holds this [`DataStore`].
     pub coin: Coin,
     /// The lineage proof for the singletonlayer.
     pub proof: Proof,
-    /// The info associated with the ``DataStore``, including the metadata.
+    /// The info associated with the [`DataStore`], including the metadata.
     pub info: DataStoreInfo<M>,
 }
 
@@ -40,10 +40,10 @@ where
         DataStore { coin, proof, info }
     }
 
-    /// Creates a coin spend for this ``DataStore``.
+    /// Creates a coin spend for this [`DataStore`].
     pub fn spend(self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<CoinSpend, DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
+        M: Clone,
     {
         let (puzzle_ptr, solution_ptr) = if self.info.delegated_puzzles.is_empty() {
             let layers = self
@@ -96,10 +96,7 @@ where
     }
 
     /// Returns the lineage proof that would be used by the child.
-    pub fn child_lineage_proof(&self, ctx: &mut SpendContext) -> Result<LineageProof, DriverError>
-    where
-        M: ToTreeHash,
-    {
+    pub fn child_lineage_proof(&self, ctx: &mut SpendContext) -> Result<LineageProof, DriverError> {
         Ok(LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
             parent_inner_puzzle_hash: self.info.inner_puzzle_hash(ctx)?.into(),
@@ -110,7 +107,7 @@ where
 
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
-pub struct DLLauncherKVList<M = DataStoreMetadata, T = NodePtr> {
+pub struct DlLauncherKvList<M = DataStoreMetadata, T = NodePtr> {
     pub metadata: M,
     pub state_layer_inner_puzzle_hash: Bytes32,
     #[clvm(rest)]
@@ -119,7 +116,7 @@ pub struct DLLauncherKVList<M = DataStoreMetadata, T = NodePtr> {
 
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
-pub struct OldDLLauncherKVList<T = NodePtr> {
+pub struct OldDlLauncherKvList<T = NodePtr> {
     pub root_hash: Bytes32,
     pub state_layer_inner_puzzle_hash: Bytes32,
     #[clvm(rest)]
@@ -249,7 +246,7 @@ where
                 parent_amount: cs.coin.amount,
             });
 
-            let solution = LauncherSolution::<DLLauncherKVList<M, Bytes>>::from_clvm(
+            let solution = LauncherSolution::<DlLauncherKvList<M, Bytes>>::from_clvm(
                 allocator,
                 solution_node_ptr,
             );
@@ -279,7 +276,7 @@ where
                 Err(err) => match err {
                     FromClvmError::ExpectedPair => {
                         // datastore launched using old memo format
-                        let solution = LauncherSolution::<OldDLLauncherKVList<Bytes>>::from_clvm(
+                        let solution = LauncherSolution::<OldDlLauncherKvList<Bytes>>::from_clvm(
                             allocator,
                             solution_node_ptr,
                         )?;

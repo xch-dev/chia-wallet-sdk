@@ -12,7 +12,7 @@ use crate::{
     DelegationLayerArgs, DriverError, Launcher, SpendContext, DL_METADATA_UPDATER_PUZZLE_HASH,
 };
 
-use super::{get_merkle_tree, DLLauncherKVList, DataStore, DataStoreInfo, DelegatedPuzzle};
+use super::{get_merkle_tree, DataStore, DataStoreInfo, DelegatedPuzzle, DlLauncherKvList};
 
 impl Launcher {
     pub fn mint_datastore<M>(
@@ -23,7 +23,7 @@ impl Launcher {
         delegated_puzzles: Vec<DelegatedPuzzle>,
     ) -> Result<(Conditions, DataStore<M>), DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone + ToTreeHash,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
         let launcher_coin = self.coin();
         let launcher_id = launcher_coin.coin_id();
@@ -38,7 +38,8 @@ impl Launcher {
             )
         };
 
-        let metadata_hash = metadata.tree_hash();
+        let metadata_ptr = ctx.alloc(&metadata)?;
+        let metadata_hash = ctx.tree_hash(metadata_ptr);
         let state_layer_hash = CurriedProgram {
             program: NFT_STATE_LAYER_PUZZLE_HASH,
             args: NftStateLayerArgs::<TreeHash, TreeHash> {
@@ -61,7 +62,7 @@ impl Launcher {
         if delegated_puzzles.is_empty() {
             memos = vec![];
         }
-        let kv_list = DLLauncherKVList {
+        let kv_list = DlLauncherKvList {
             metadata: metadata.clone(),
             state_layer_inner_puzzle_hash: inner_puzzle_hash.into(),
             memos,
