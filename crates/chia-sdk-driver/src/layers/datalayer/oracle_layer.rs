@@ -56,10 +56,9 @@ impl Layer for OracleLayer {
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        assert!(self.oracle_fee % 2 == 0, "oracle fee must be even");
-
-        // first condition: (list CREATE_COIN oracle_puzzle_hash oracle_fee)
-        // second condition: (list CREATE_PUZZLE_ANNOUNCEMENT '$')
+        if self.oracle_fee % 2 == 1 {
+            return Err(DriverError::Custom("oracle fee must be even".to_string()));
+        }
 
         let conditions: Vec<Condition<NodePtr>> = vec![
             Condition::CreateCoin(CreateCoin {
