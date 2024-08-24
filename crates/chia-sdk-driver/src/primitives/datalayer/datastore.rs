@@ -408,11 +408,12 @@ where
 
         let mut owner_puzzle_hash: Bytes32 = state_layer.inner_puzzle.tree_hash().into();
 
-        // does the coin currently have a delegation layer?
+        // does the parent coin currently have a delegation layer?
         let delegation_layer_maybe = state_layer.inner_puzzle;
         if delegation_layer_maybe.is_curried()
             && delegation_layer_maybe.mod_hash() == DELEGATION_LAYER_PUZZLE_HASH
         {
+            println!("parent recognized as having delegation layer"); // todo: debug
             let deleg_puzzle_args = DelegationLayerArgs::from_clvm(
                 allocator,
                 delegation_layer_maybe
@@ -444,6 +445,7 @@ where
             let Some(odd_create_coin) = odd_create_coin else {
                 // no CREATE_COIN was created by the innermost puzzle
                 // delegation layer therefore added one (assuming the spend is valid)
+                println!("No CREATE_COIN found in parent coin, so adding one"); // todo: debug
                 return Ok(Some(DataStore {
                     coin: new_coin,
                     proof: Proof::Lineage(singleton_layer.lineage_proof(cs.coin)),
@@ -457,13 +459,17 @@ where
             };
 
             let odd_create_coin = odd_create_coin?;
+            println!("odd_create_coin: {:?}", odd_create_coin); // todo: debug
 
             // if there were any memos, the if above would have caught it since it processes
             // output conditions of the state layer inner puzzle (i.e., it runs the delegation layer)
             // therefore, this spend is either 'exiting' the delegation layer or re-creatign it
             if let Condition::CreateCoin(create_coin) = odd_create_coin {
+                println!("in the if that decide exit/recreate"); // todo: debug
                 let prev_deleg_layer_ph = delegation_layer_maybe.tree_hash();
 
+                println!("prev_deleg_layer_ph: {:?}", prev_deleg_layer_ph); // todo: debug
+                println!("create_coin.puzzle_hash: {:?}", create_coin.puzzle_hash); // todo: debug
                 if create_coin.puzzle_hash == prev_deleg_layer_ph.into() {
                     // owner is re-creating the delegation layer with the same options
                     return Ok(Some(DataStore {
@@ -483,7 +489,8 @@ where
             }
         }
 
-        // all methods exhausted; this coin doesn't seem to have a delegation layer
+        println!("all methods exchausted for some reason"); // todo: debug
+                                                            // all methods exhausted; this coin doesn't seem to have a delegation layer
         Ok(Some(DataStore {
             coin: new_coin,
             proof: Proof::Lineage(singleton_layer.lineage_proof(cs.coin)),
@@ -550,6 +557,8 @@ impl<M> DataStore<M> {
         hint_delegated_puzzles: bool,
     ) -> Result<Condition, DriverError> {
         let new_puzzle_hash = if new_delegated_puzzles.is_empty() {
+            new_inner_puzzle_hash
+        } else {
             let new_merkle_root = get_merkle_tree(ctx, new_delegated_puzzles.clone())?.root;
             DelegationLayerArgs::curry_tree_hash(
                 launcher_id,
@@ -557,8 +566,6 @@ impl<M> DataStore<M> {
                 new_merkle_root,
             )
             .into()
-        } else {
-            new_inner_puzzle_hash
         };
 
         Ok(Condition::CreateCoin(CreateCoin {
@@ -1294,6 +1301,11 @@ pub mod tests {
             }
         }
 
+        println!("Owner output conditions: {:?}", owner_output_conds); // todo: debug
+        println!(
+            "hint_new_delegated_puzzles: {:?}",
+            hint_new_delegated_puzzles
+        ); // todo: debug
         owner_output_conds =
             owner_output_conds.with(DataStore::<DataStoreMetadata>::owner_create_coin_condition(
                 ctx,
@@ -1323,6 +1335,10 @@ pub mod tests {
         let inner_datastore_spend = StandardLayer::new(owner_pk).spend(ctx, owner_output_conds)?;
         let new_spend = src_datastore.clone().spend(ctx, inner_datastore_spend)?;
 
+        println!(
+            "Src datastore dps: {:?}",
+            src_datastore.info.delegated_puzzles.clone()
+        ); // todo: debug
         let dst_datastore = DataStore::from_spend(
             &mut ctx.allocator,
             &new_spend,
