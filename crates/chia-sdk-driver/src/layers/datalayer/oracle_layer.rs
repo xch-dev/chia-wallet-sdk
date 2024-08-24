@@ -1,9 +1,11 @@
+use core::panic;
+
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::{Condition, CreateCoin, CreatePuzzleAnnouncement};
 use clvm_traits::{clvm_quote, match_quote, FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, Layer, Puzzle, SpendContext};
+use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 
 /// The Oracle [`Layer`] enables anyone to spend a coin provided they pay an XCH fee to an address.
 /// It's typically used with [`DelegationLayer`](crate::DelegationLayer).
@@ -16,7 +18,10 @@ pub struct OracleLayer {
 }
 
 impl OracleLayer {
+    #[allow(clippy::missing_panics_doc)]
     pub fn new(oracle_puzzle_hash: Bytes32, oracle_fee: u64) -> Self {
+        assert!(oracle_fee % 2 == 0, "oracle fee must be even");
+
         Self {
             oracle_puzzle_hash,
             oracle_fee,
@@ -49,7 +54,10 @@ impl Layer for OracleLayer {
         Ok(())
     }
 
+    #[allow(clippy::missing_panics_doc)]
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
+        assert!(self.oracle_fee % 2 == 0, "oracle fee must be even");
+
         // first condition: (list CREATE_COIN oracle_puzzle_hash oracle_fee)
         // second condition: (list CREATE_PUZZLE_ANNOUNCEMENT '$')
 
@@ -75,5 +83,14 @@ impl Layer for OracleLayer {
         (): Self::Solution,
     ) -> Result<NodePtr, DriverError> {
         Ok(NodePtr::NIL)
+    }
+}
+
+impl OracleLayer {
+    pub fn spend(self, ctx: &mut SpendContext) -> Result<Spend, DriverError> {
+        let puzzle = self.construct_puzzle(ctx)?;
+        let solution = self.construct_solution(ctx, ())?;
+
+        Ok(Spend { puzzle, solution })
     }
 }

@@ -1521,4 +1521,199 @@ pub mod tests {
 
         Ok(())
     }
+
+    #[rstest(
+    with_admin_layer => [true, false],
+    with_writer_layer => [true, false],
+    meta => [
+      (RootHash::Zero, Label::None, Description::None, ByteSize::None),
+      (RootHash::Zero, Label::None, Description::None, ByteSize::Some),
+      (RootHash::Zero, Label::None, Description::Some, ByteSize::Some),
+      (RootHash::Zero, Label::Some, Description::Some, ByteSize::Some),
+    ],
+  )]
+    #[tokio::test]
+    async fn test_datastore_oracle_transition(
+        with_admin_layer: bool,
+        with_writer_layer: bool,
+        meta: (RootHash, Label, Description, ByteSize),
+    ) -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let [owner_sk, admin_sk, writer_sk, dude_sk]: [SecretKey; 4] =
+            test_secret_keys(4).unwrap().try_into().unwrap();
+
+        let owner_pk = owner_sk.public_key();
+        let admin_pk = admin_sk.public_key();
+        let writer_pk = writer_sk.public_key();
+        let dude_pk = dude_sk.public_key();
+
+        let oracle_puzzle_hash: Bytes32 = [7; 32].into();
+        let oracle_fee = 1000;
+
+        let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
+        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+
+        let dude_puzzle_hash = StandardArgs::curry_tree_hash(dude_pk).into();
+
+        let ctx = &mut SpendContext::new();
+
+        let admin_delegated_puzzle =
+            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk).into());
+        let writer_delegated_puzzle =
+            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk).into());
+        let oracle_delegated_puzzle = DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee);
+
+        let mut delegated_puzzles: Vec<DelegatedPuzzle> = vec![];
+        delegated_puzzles.push(oracle_delegated_puzzle);
+
+        if with_admin_layer {
+            delegated_puzzles.push(admin_delegated_puzzle);
+        }
+        if with_writer_layer {
+            delegated_puzzles.push(writer_delegated_puzzle);
+        }
+
+        let (launch_singleton, src_datastore) = Launcher::new(coin.coin_id(), 1).mint_datastore(
+            ctx,
+            metadata_from_tuple(meta),
+            owner_puzzle_hash.into(),
+            delegated_puzzles.clone(),
+        )?;
+
+        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+
+        // 'dude' spends oracle
+        let inner_datastore_spend = OracleLayer::new(oracle_puzzle_hash, oracle_fee).spend(ctx)?;
+        let new_spend = src_datastore.spend(ctx, inner_datastore_spend)?;
+
+        let dst_datastore = DataStore::from_spend(
+            &mut ctx.allocator,
+            &new_spend,
+            src_datastore.info.delegated_puzzles.clone(),
+        )?
+        .unwrap();
+        ctx.insert(new_spend);
+
+        assert_eq!(src_datastore.info, dst_datastore.info);
+
+        // mint a coin that asserts the announcement and has enough value
+        let hasher = Sha256::new();
+        hasher.update(src_datastore.info.coin.puzzle_hash);
+        hasher.update(Bytes::new("$".into()).to_vec());
+
+        let new_coin = sim.mint_coin(dude_puzzle_hash, oracle_fee).await;
+        ctx.spend_p2_coin(
+            new_coin,
+            dude_pk,
+            Conditions::new().assert_puzzle_announcement(hasher.finalize()),
+        )?;
+
+        // asserts
+
+        assert_eq!(dst_datastore_info.delegated_puzzles, delegated_puzzles);
+        assert_eq!(src_datastore_info.owner_puzzle_hash, owner_puzzle_hash);
+
+        assert_eq!(src_datastore_info.metadata.root_hash, meta.0.value());
+        assert_eq!(src_datastore_info.metadata.label, meta.1.value());
+        assert_eq!(src_datastore_info.metadata.description, meta.2.value());
+
+        let admin_found = src_datastore_info
+            .delegated_puzzles
+            .clone()
+            .into_iter()
+            .any(|dp| dp.puzzle_hash == admin_delegated_puzzle.puzzle_hash);
+        if with_admin_layer {
+            assert!(admin_found);
+        } else {
+            assert!(!admin_found);
+        }
+
+        let writer_found = src_datastore_info
+            .delegated_puzzles
+            .clone()
+            .into_iter()
+            .any(|dp| dp.puzzle_hash == writer_delegated_puzzle.puzzle_hash);
+        if with_writer_layer {
+            assert!(writer_found);
+        } else {
+            assert!(!writer_found);
+        }
+
+        let oracle_found = src_datastore_info
+            .delegated_puzzles
+            .clone()
+            .into_iter()
+            .any(|dp| dp.puzzle_hash == oracle_delegated_puzzle.puzzle_hash);
+        assert!(oracle_found);
+
+        assert_eq!(dst_datastore_info.owner_puzzle_hash, owner_puzzle_hash);
+        assert_eq!(dst_datastore_info.delegated_puzzles, delegated_puzzles);
+
+        assert_eq!(dst_datastore_info.metadata.root_hash, meta.0.value());
+        assert_eq!(dst_datastore_info.metadata.label, meta.1.value());
+        assert_eq!(dst_datastore_info.metadata.description, meta.2.value());
+
+        let admin_found = dst_datastore_info
+            .delegated_puzzles
+            .clone()
+            .into_iter()
+            .any(|dp| dp.puzzle_hash == admin_delegated_puzzle.puzzle_hash);
+        if with_admin_layer {
+            assert!(admin_found);
+        } else {
+            assert!(!admin_found);
+        }
+
+        let writer_found = dst_datastore_info
+            .delegated_puzzles
+            .clone()
+            .into_iter()
+            .any(|dp| dp.puzzle_hash == writer_delegated_puzzle.puzzle_hash);
+        if with_writer_layer {
+            assert!(writer_found);
+        } else {
+            assert!(!writer_found);
+        }
+
+        let oracle_found = dst_datastore_info
+            .delegated_puzzles
+            .clone()
+            .into_iter()
+            .any(|dp| dp.puzzle_hash == oracle_delegated_puzzle.puzzle_hash);
+        assert!(oracle_found);
+
+        test_transaction(
+            &peer,
+            ctx.take_spends(),
+            &[owner_sk, dude_sk],
+            sim.config().genesis_challenge,
+        )
+        .await;
+
+        let src_datastore_coin_id = src_datastore_info.coin.coin_id();
+        let src_coin_state = sim
+            .coin_state(src_datastore_coin_id)
+            .await
+            .expect("expected src datastore coin");
+        assert_eq!(src_coin_state.coin, src_datastore_info.coin);
+        assert!(src_coin_state.spent_height.is_some());
+        let dst_coin_state = sim
+            .coin_state(dst_datastore_info.coin.coin_id())
+            .await
+            .expect("expected dst datastore coin");
+        assert_eq!(dst_coin_state.coin, dst_datastore_info.coin);
+        assert!(dst_coin_state.created_height.is_some());
+
+        let oracle_coin = Coin::new(src_datastore_coin_id, oracle_puzzle_hash, oracle_fee);
+        let oracle_coin_state = sim
+            .coin_state(oracle_coin.coin_id())
+            .await
+            .expect("expected oracle coin");
+        assert_eq!(oracle_coin_state.coin, oracle_coin);
+        assert!(oracle_coin_state.created_height.is_some());
+
+        Ok(())
+    }
 }
