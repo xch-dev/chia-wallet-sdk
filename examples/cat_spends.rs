@@ -4,7 +4,7 @@ use chia_wallet_sdk::*;
 
 fn main() -> anyhow::Result<()> {
     let ctx = &mut SpendContext::new();
-    let sk = secret_key()?;
+    let sk = test_secret_key()?;
     let pk = sk.public_key();
     let p2_puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
     let coin = Coin::new(Bytes32::default(), p2_puzzle_hash, 1_000);
