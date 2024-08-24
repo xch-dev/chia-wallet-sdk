@@ -1,9 +1,11 @@
-use clvm_traits::{FromClvm, ToClvm};
+use chia_puzzles::standard::StandardSolution;
+use chia_sdk_types::Conditions;
+use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
-use crate::{DriverError, Layer, Puzzle, SpendContext};
+use crate::{DriverError, Layer, Puzzle, Spend, SpendContext, StandardLayer};
 
 /// The Writer [`Layer`] removes an authorized puzzle's ability to change the list of authorized puzzles.
 /// It's typically used with [`DelegationLayer`](crate::DelegationLayer).
@@ -82,6 +84,27 @@ where
         let inner_puzzle_hash = self.inner_puzzle.tree_hash();
 
         WriterLayerArgs::curry_tree_hash(inner_puzzle_hash)
+    }
+}
+
+impl WriterLayer<StandardLayer> {
+    pub fn spend(
+        self,
+        ctx: &mut SpendContext,
+        output_conditions: Conditions,
+    ) -> Result<Spend, DriverError> {
+        let dp = ctx.alloc(&clvm_quote!(output_conditions))?;
+        let solution = self.construct_solution(
+            ctx,
+            StandardSolution {
+                original_public_key: None,
+                delegated_puzzle: dp,
+                solution: NodePtr::NIL,
+            },
+        )?;
+        let puzzle = self.construct_puzzle(ctx)?;
+
+        Ok(Spend { puzzle, solution })
     }
 }
 

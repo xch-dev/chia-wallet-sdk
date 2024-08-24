@@ -828,22 +828,8 @@ pub mod tests {
 
         let new_metadata_condition = DataStore::new_metadata_condition(ctx, new_metadata.clone())?;
 
-        let writer_layer = WriterLayer::new(StandardLayer::new(writer_pk));
-
-        let dp = ctx.alloc(&clvm_quote!(Conditions::new().with(new_metadata_condition)))?;
-        let writer_layer_solution = writer_layer.construct_solution(
-            ctx,
-            StandardSolution {
-                original_public_key: None,
-                delegated_puzzle: dp,
-                solution: NodePtr::NIL,
-            },
-        )?;
-        let writer_layer_puzzle = writer_layer.construct_puzzle(ctx)?;
-        let inner_spend = Spend {
-            puzzle: writer_layer_puzzle,
-            solution: writer_layer_solution,
-        };
+        let inner_spend = WriterLayer::new(StandardLayer::new(writer_pk))
+            .spend(ctx, Conditions::new().with(new_metadata_condition))?;
         let new_spend = datastore.clone().spend(ctx, inner_spend)?;
 
         let datastore = DataStore::<DataStoreMetadata>::from_spend(
@@ -1469,22 +1455,8 @@ pub mod tests {
         let new_metadata = metadata_from_tuple(meta_transition.1);
         let new_metadata_condition = DataStore::new_metadata_condition(ctx, new_metadata)?;
 
-        let writer_layer = WriterLayer::new(StandardLayer::new(writer_pk));
-
-        let dp = ctx.alloc(&clvm_quote!(Conditions::new().with(new_metadata_condition)))?;
-        let writer_layer_solution = writer_layer.construct_solution(
-            ctx,
-            StandardSolution {
-                original_public_key: None,
-                delegated_puzzle: dp,
-                solution: NodePtr::NIL,
-            },
-        )?;
-        let writer_layer_puzzle = writer_layer.construct_puzzle(ctx)?;
-        let inner_spend = Spend {
-            puzzle: writer_layer_puzzle,
-            solution: writer_layer_solution,
-        };
+        let inner_spend = WriterLayer::new(StandardLayer::new(writer_pk))
+            .spend(ctx, Conditions::new().with(new_metadata_condition))?;
 
         let new_spend = src_datastore.clone().spend(ctx, inner_spend)?;
 
