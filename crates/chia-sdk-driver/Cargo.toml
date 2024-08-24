@@ -26,12 +26,9 @@ clvm-utils = { workspace = true }
 clvmr = { workspace = true }
 thiserror = { workspace = true }
 chia-sdk-types = { workspace = true }
-serde_json = "1.0.122"
-serde = { version = "1.0.203", features = ["derive"] }
-hex = "0.4.3"
 hex-literal = { workspace = true }
-rstest = "0.22.0"
-num-bigint = { workspace = true }
+num-bigint = { workspace = true}
+hex = { workspace = true }
 
 [dev-dependencies]
 chia-sdk-test = { workspace = true }
@@ -40,3 +37,4 @@ chia-consensus = { workspace = true }
 hex = { workspace = true }
 hex-literal = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
+rstest = { workspace = true }
