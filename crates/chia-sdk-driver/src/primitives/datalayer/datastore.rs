@@ -1463,13 +1463,11 @@ pub mod tests {
             delegated_puzzles.clone(),
         )?;
 
-        println!("yak 1"); // todo: debug
         ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
 
         // transition from src to dst using writer (update metadata)
         let new_metadata = metadata_from_tuple(meta_transition.1);
         let new_metadata_condition = DataStore::new_metadata_condition(ctx, new_metadata)?;
-        println!("yak 2"); // todo: debug
 
         let writer_layer = WriterLayer::new(StandardLayer::new(writer_pk));
 
@@ -1489,8 +1487,6 @@ pub mod tests {
         };
 
         let new_spend = src_datastore.clone().spend(ctx, inner_spend)?;
-        println!("yak 3"); // todo: debug
-        println!("spend: {:?}", new_spend); // todo: debug
 
         let dst_datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
@@ -1499,7 +1495,6 @@ pub mod tests {
         )?
         .unwrap();
         ctx.insert(new_spend.clone());
-        println!("yak 4"); // todo: debug
 
         assert_eq!(src_datastore.info.delegated_puzzles, delegated_puzzles);
         assert_eq!(src_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
