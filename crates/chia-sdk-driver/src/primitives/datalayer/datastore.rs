@@ -2095,7 +2095,7 @@ pub mod tests {
 
         // launch using old memos scheme
         let launcher = Launcher::new(coin.coin_id(), 1);
-        let inner_puzzle_hash: TreeHash = owner_puzzle_hash.clone();
+        let inner_puzzle_hash: TreeHash = owner_puzzle_hash;
 
         let first_root_hash: RootHash = transition.0;
         let metadata_ptr = ctx.alloc(&vec![first_root_hash.value()])?;
@@ -2160,7 +2160,7 @@ pub mod tests {
                 );
                 assert_eq!(proof.parent_amount, launcher_coin.amount);
             }
-            _ => panic!("expected eve proof for info_from_launcher"),
+            Proof::Lineage(_) => panic!("expected eve (not lineage) proof for info_from_launcher"),
         }
 
         // now spend the signleton using old memo format and check that info is parsed correctly
@@ -2186,7 +2186,7 @@ pub mod tests {
         // https://github.com/Chia-Network/chia-blockchain/blob/4ffb6dfa6f53f6cd1920bcc775e27377a771fbec/chia/data_layer/data_layer_wallet.py#L526
         // memos are (launcher_id root_hash inner_puzzle_hash)
         inner_spend_conditions = inner_spend_conditions.with(Condition::CreateCoin(CreateCoin {
-            puzzle_hash: new_inner_ph.clone(),
+            puzzle_hash: new_inner_ph,
             amount: 1,
             memos: vec![
                 launcher_coin.coin_id().into(),
@@ -2196,9 +2196,9 @@ pub mod tests {
         }));
 
         let inner_spend = StandardLayer::new(owner_pk).spend(ctx, inner_spend_conditions)?;
-        let spend = datastore_from_launcher.spend(ctx, inner_spend)?;
+        let spend = datastore_from_launcher.clone().spend(ctx, inner_spend)?;
 
-        let new_datastore = DataStore::from_spend(
+        let new_datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
             &spend,
             datastore_from_launcher.info.delegated_puzzles,
@@ -2257,7 +2257,7 @@ pub mod tests {
                     .into()
                 );
             }
-            _ => panic!("expected lineage proof for new_info"),
+            Proof::Eve(_) => panic!("expected lineage (not eve) proof for new_info"),
         }
 
         ctx.insert(spend);
