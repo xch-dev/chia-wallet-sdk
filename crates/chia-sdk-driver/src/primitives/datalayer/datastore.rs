@@ -605,7 +605,9 @@ impl<M> DataStore<M> {
 #[allow(clippy::too_many_arguments)]
 #[cfg(test)]
 pub mod tests {
-    use chia_bls::SecretKey;
+    use core::panic;
+
+    use chia_bls::{PublicKey, SecretKey};
     use chia_protocol::Program;
     use chia_puzzles::standard::{StandardArgs, StandardSolution};
     use chia_sdk_test::{test_secret_keys, test_transaction, Simulator};
@@ -1777,6 +1779,25 @@ pub mod tests {
         Writer,
     }
 
+    impl AttackerPuzzle {
+        fn get_spend(
+            &self,
+            ctx: &mut SpendContext,
+            attacker_pk: PublicKey,
+            output_conds: Conditions,
+        ) -> Result<Spend, DriverError> {
+            Ok(match self {
+                AttackerPuzzle::Admin => {
+                    StandardLayer::new(attacker_pk).spend(ctx, output_conds)?
+                }
+
+                AttackerPuzzle::Writer => {
+                    WriterLayer::new(StandardLayer::new(attacker_pk)).spend(ctx, output_conds)?
+                }
+            })
+        }
+    }
+
     #[rstest(
     puzzle => [AttackerPuzzle::Admin, AttackerPuzzle::Writer],
   )]
@@ -1784,11 +1805,11 @@ pub mod tests {
     async fn test_create_coin_filer(puzzle: AttackerPuzzle) -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
 
-        let [owner_sk, puzzle_sk]: [SecretKey; 2] =
+        let [owner_sk, attacker_sk]: [SecretKey; 2] =
             test_secret_keys(2).unwrap().try_into().unwrap();
 
         let owner_pk = owner_sk.public_key();
-        let attacker_pk = puzzle_sk.public_key();
+        let attacker_pk = attacker_sk.public_key();
 
         let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
         let attacker_puzzle_hash = StandardArgs::curry_tree_hash(attacker_pk).into();
@@ -1811,19 +1832,15 @@ pub mod tests {
         ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
 
         // delegated puzzle tries to steal the coin
-        let output_conds = Conditions::new().with(Condition::CreateCoin(CreateCoin {
-            puzzle_hash: attacker_puzzle_hash,
-            amount: 1,
-            memos: vec![],
-        }));
-
-        let inner_datastore_spend = match puzzle {
-            AttackerPuzzle::Admin => StandardLayer::new(attacker_pk).spend(ctx, output_conds)?,
-
-            AttackerPuzzle::Writer => {
-                WriterLayer::new(StandardLayer::new(attacker_pk)).spend(ctx, output_conds)?
-            }
-        };
+        let inner_datastore_spend = puzzle.get_spend(
+            ctx,
+            attacker_pk,
+            Conditions::new().with(Condition::CreateCoin(CreateCoin {
+                puzzle_hash: attacker_puzzle_hash,
+                amount: 1,
+                memos: vec![],
+            })),
+        )?;
 
         let new_spend = src_datastore.spend(ctx, inner_datastore_spend)?;
 
@@ -1849,11 +1866,11 @@ pub mod tests {
     async fn test_melt_filter(puzzle: AttackerPuzzle) -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
 
-        let [owner_sk, puzzle_sk]: [SecretKey; 2] =
+        let [owner_sk, attacker_sk]: [SecretKey; 2] =
             test_secret_keys(2).unwrap().try_into().unwrap();
 
         let owner_pk = owner_sk.public_key();
-        let attacker_pk = puzzle_sk.public_key();
+        let attacker_pk = attacker_sk.public_key();
 
         let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
         let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
@@ -1877,17 +1894,10 @@ pub mod tests {
         ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
 
         // attacker tries to melt the coin via delegated puzzle
-        let output_conds = Conditions::new().with(Condition::Other(
+        let conds = Conditions::new().with(Condition::Other(
             MeltSingleton {}.to_clvm(&mut ctx.allocator)?,
         ));
-
-        let inner_datastore_spend = match puzzle {
-            AttackerPuzzle::Admin => StandardLayer::new(attacker_pk).spend(ctx, output_conds)?,
-
-            AttackerPuzzle::Writer => {
-                WriterLayer::new(StandardLayer::new(attacker_pk)).spend(ctx, output_conds)?
-            }
-        };
+        let inner_datastore_spend = puzzle.get_spend(ctx, attacker_pk, conds)?;
 
         let new_spend = src_datastore.spend(ctx, inner_datastore_spend)?;
 
@@ -1901,6 +1911,51 @@ pub mod tests {
                     Ok(())
                 }
                 _ => panic!("expected 'clvm raise' error"),
+            },
+        }
+    }
+
+    #[rstest(
+        test_puzzle => [AttackerPuzzle::Admin, AttackerPuzzle::Writer],
+        new_merkle_root => [RootHash::Zero, RootHash::Some],
+        memos => [vec![], vec![RootHash::Zero], vec![RootHash::Some]],
+    )]
+    fn test_new_merkle_root_filter(
+        test_puzzle: AttackerPuzzle,
+        new_merkle_root: RootHash,
+        memos: Vec<RootHash>,
+    ) -> anyhow::Result<()> {
+        let [attacker_sk]: [SecretKey; 1] = test_secret_keys(1).unwrap().try_into().unwrap();
+
+        let attacker_pk = attacker_sk.public_key();
+
+        let ctx = &mut SpendContext::new();
+
+        let condition_output = Conditions::new().with(Condition::Other(
+            NewMerkleRootCondition::<Bytes32> {
+                new_merkle_root: new_merkle_root.value(),
+                memos: memos.into_iter().map(|m| m.value()).collect(),
+            }
+            .to_clvm(&mut ctx.allocator)
+            .unwrap(),
+        ));
+
+        let spend = test_puzzle.get_spend(ctx, attacker_pk, condition_output)?;
+
+        match ctx.run(spend.puzzle, spend.solution) {
+            Ok(_) => match test_puzzle {
+                AttackerPuzzle::Admin => Ok(()),
+                AttackerPuzzle::Writer => panic!("expected error from writer puzzle"),
+            },
+            Err(err) => match err {
+                DriverError::Eval(eval_err) => match test_puzzle {
+                    AttackerPuzzle::Admin => panic!("expected admin puzzle to run normally"),
+                    AttackerPuzzle::Writer => {
+                        assert_eq!(eval_err.1, "clvm raise");
+                        Ok(())
+                    }
+                },
+                _ => panic!("other error encountered"),
             },
         }
     }
