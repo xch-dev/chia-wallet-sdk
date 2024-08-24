@@ -1841,4 +1841,67 @@ pub mod tests {
 
         Ok(())
     }
+
+    #[rstest(
+    puzzle => [AttackerPuzzle::Admin, AttackerPuzzle::Writer],
+  )]
+    #[tokio::test]
+    async fn test_melt_filter(puzzle: AttackerPuzzle) -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+
+        let [owner_sk, puzzle_sk]: [SecretKey; 2] =
+            test_secret_keys(2).unwrap().try_into().unwrap();
+
+        let owner_pk = owner_sk.public_key();
+        let attacker_pk = puzzle_sk.public_key();
+
+        let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
+        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+
+        let attacker_puzzle_hash = StandardArgs::curry_tree_hash(attacker_pk);
+
+        let ctx = &mut SpendContext::new();
+
+        let delegated_puzzle = match puzzle {
+            AttackerPuzzle::Admin => DelegatedPuzzle::Admin(attacker_puzzle_hash.into()),
+            AttackerPuzzle::Writer => DelegatedPuzzle::Writer(attacker_puzzle_hash.into()),
+        };
+
+        let (launch_singleton, src_datastore) = Launcher::new(coin.coin_id(), 1).mint_datastore(
+            ctx,
+            DataStoreMetadata::default(),
+            owner_puzzle_hash.into(),
+            vec![delegated_puzzle],
+        )?;
+
+        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+
+        // attacker tries to melt the coin via delegated puzzle
+        let output_conds = Conditions::new().with(Condition::Other(
+            MeltSingleton {}.to_clvm(&mut ctx.allocator)?,
+        ));
+
+        let inner_datastore_spend = match puzzle {
+            AttackerPuzzle::Admin => StandardLayer::new(attacker_pk).spend(ctx, output_conds)?,
+
+            AttackerPuzzle::Writer => {
+                WriterLayer::new(StandardLayer::new(attacker_pk)).spend(ctx, output_conds)?
+            }
+        };
+
+        let new_spend = src_datastore.spend(ctx, inner_datastore_spend)?;
+
+        let puzzle_reveal_ptr = ctx.alloc(&new_spend.puzzle_reveal).unwrap();
+        let solution_ptr = ctx.alloc(&new_spend.solution).unwrap();
+        match ctx.run(puzzle_reveal_ptr, solution_ptr) {
+            Ok(_) => panic!("expected error"),
+            Err(err) => match err {
+                DriverError::Eval(eval_err) => {
+                    assert_eq!(eval_err.1, "clvm raise");
+                    Ok(())
+                }
+                _ => panic!("expected 'clvm raise' error"),
+            },
+        }
+    }
 }
