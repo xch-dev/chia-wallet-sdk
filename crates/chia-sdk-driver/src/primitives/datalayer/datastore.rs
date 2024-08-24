@@ -957,6 +957,26 @@ pub mod tests {
         New,
     }
 
+    fn assert_metadata_like_tests(
+        meta: &DataStoreMetadata,
+        test_meta: (RootHash, Label, Description, ByteSize),
+    ) {
+        assert_eq!(meta.root_hash, test_meta.0.value());
+        assert_eq!(meta.label, test_meta.1.value());
+        assert_eq!(meta.description, test_meta.2.value());
+        assert_eq!(meta.bytes, test_meta.3.value());
+    }
+
+    fn assert_delegated_puzzles_contain(
+        dps: &[DelegatedPuzzle],
+        values: &[DelegatedPuzzle],
+        contained: &[bool],
+    ) {
+        for (i, value) in values.iter().enumerate() {
+            assert_eq!(dps.iter().any(|dp| dp == value), contained[i]);
+        }
+    }
+
     #[rstest(
     src_with_writer => [true, false],
     src_with_oracle => [true, false],
@@ -1112,104 +1132,38 @@ pub mod tests {
         assert_eq!(src_datastore.info.delegated_puzzles, src_delegated_puzzles);
         assert_eq!(src_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-        assert_eq!(src_datastore.info.metadata.root_hash, src_meta.0.value());
-        assert_eq!(src_datastore.info.metadata.label, src_meta.1.value());
-        assert_eq!(src_datastore.info.metadata.description, src_meta.2.value());
-        assert_eq!(src_datastore.info.metadata.bytes, src_meta.3.value());
-
-        assert!(!src_datastore
-            .info
-            .delegated_puzzles
-            .clone()
-            .into_iter()
-            .any(|dp| dp == admin2_delegated_puzzle));
-        assert!(src_datastore
-            .info
-            .delegated_puzzles
-            .clone()
-            .into_iter()
-            .any(|dp| dp == admin_delegated_puzzle));
-        let writer_found = src_datastore
-            .info
-            .delegated_puzzles
-            .clone()
-            .into_iter()
-            .any(|dp| dp == writer_delegated_puzzle);
-        if src_with_writer {
-            assert!(writer_found);
-        } else {
-            assert!(!writer_found);
-        }
-
-        let oracle_found = src_datastore
-            .info
-            .delegated_puzzles
-            .clone()
-            .into_iter()
-            .any(|dp| dp == oracle_delegated_puzzle);
-        if src_with_oracle {
-            assert!(oracle_found);
-        } else {
-            assert!(!oracle_found);
-        }
+        assert_metadata_like_tests(&src_datastore.info.metadata, src_meta);
+        assert_delegated_puzzles_contain(
+            &src_datastore.info.delegated_puzzles,
+            &[
+                admin2_delegated_puzzle,
+                admin_delegated_puzzle,
+                writer_delegated_puzzle,
+                oracle_delegated_puzzle,
+            ],
+            &[false, true, src_with_writer, src_with_oracle],
+        );
 
         assert_eq!(dst_datastore.info.delegated_puzzles, dst_delegated_puzzles);
         assert_eq!(dst_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-        assert_eq!(dst_datastore.info.metadata.root_hash, dst_meta.0.value());
-        assert_eq!(dst_datastore.info.metadata.label, dst_meta.1.value());
-        assert_eq!(dst_datastore.info.metadata.description, dst_meta.2.value());
-        assert_eq!(dst_datastore.info.metadata.bytes, dst_meta.3.value());
+        assert_metadata_like_tests(&dst_datastore.info.metadata, dst_meta);
 
-        let admin_found = dst_datastore
-            .info
-            .delegated_puzzles
-            .clone()
-            .into_iter()
-            .any(|dp| dp == admin_delegated_puzzle);
-        let admin2_found = dst_datastore
-            .info
-            .delegated_puzzles
-            .clone()
-            .into_iter()
-            .any(|dp| dp == admin2_delegated_puzzle);
-        match dst_admin {
-            DstAdminLayer::None => {
-                assert!(!admin_found && !admin2_found);
-            }
-            DstAdminLayer::Same => {
-                assert!(admin_found && !admin2_found);
-            }
-            DstAdminLayer::New => {
-                assert!(!admin_found && admin2_found);
-            }
-        };
-
-        // todo: debug
-        // extract this to function
-        let writer_found = dst_datastore
-            .info
-            .delegated_puzzles
-            .clone()
-            .into_iter()
-            .any(|dp| dp == writer_delegated_puzzle);
-        if dst_with_writer {
-            assert!(writer_found);
-        } else {
-            assert!(!writer_found);
-        }
-
-        let oracle_found = dst_datastore
-            .info
-            .delegated_puzzles
-            .clone()
-            .into_iter()
-            .any(|dp| dp == oracle_delegated_puzzle);
-        if dst_with_oracle {
-            assert!(oracle_found);
-        } else {
-            assert!(!oracle_found);
-        }
+        assert_delegated_puzzles_contain(
+            &dst_datastore.info.delegated_puzzles,
+            &[
+                admin2_delegated_puzzle,
+                admin_delegated_puzzle,
+                writer_delegated_puzzle,
+                oracle_delegated_puzzle,
+            ],
+            &[
+                dst_admin == DstAdminLayer::New,
+                dst_admin == DstAdminLayer::Same,
+                dst_with_writer,
+                dst_with_oracle,
+            ],
+        );
 
         test_transaction(
             &peer,
