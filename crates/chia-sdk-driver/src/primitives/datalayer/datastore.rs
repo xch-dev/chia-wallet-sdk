@@ -874,7 +874,7 @@ pub mod tests {
 
         // oracle: just spend :)
 
-        let oracle_layer = OracleLayer::new(oracle_puzzle_hash, oracle_fee);
+        let oracle_layer = OracleLayer::new(oracle_puzzle_hash, oracle_fee).unwrap();
         let inner_datastore_spend = oracle_layer.construct_spend(ctx, ())?;
 
         let new_spend = datastore.clone().spend(ctx, inner_datastore_spend)?;
@@ -1579,7 +1579,9 @@ pub mod tests {
         ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
 
         // 'dude' spends oracle
-        let inner_datastore_spend = OracleLayer::new(oracle_puzzle_hash, oracle_fee).spend(ctx)?;
+        let inner_datastore_spend = OracleLayer::new(oracle_puzzle_hash, oracle_fee)
+            .unwrap()
+            .spend(ctx)?;
         let new_spend = src_datastore.clone().spend(ctx, inner_datastore_spend)?;
 
         let dst_datastore = DataStore::from_spend(

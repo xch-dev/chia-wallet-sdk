@@ -16,14 +16,17 @@ pub struct OracleLayer {
 }
 
 impl OracleLayer {
-    #[allow(clippy::missing_panics_doc)]
-    pub fn new(oracle_puzzle_hash: Bytes32, oracle_fee: u64) -> Self {
-        assert!(oracle_fee % 2 == 0, "oracle fee must be even");
+    /// Creates a new [`OracleLayer`] if the fee is even.
+    /// Returns `None` if the fee is odd, which would make the puzzle invalid.
+    pub fn new(oracle_puzzle_hash: Bytes32, oracle_fee: u64) -> Option<Self> {
+        if oracle_fee % 2 != 0 {
+            return None;
+        }
 
-        Self {
+        Some(Self {
             oracle_puzzle_hash,
             oracle_fee,
-        }
+        })
     }
 }
 
@@ -42,7 +45,7 @@ impl Layer for OracleLayer {
         }
 
         if let Some(Condition::CreateCoin(create_coin)) = conditions.first() {
-            Ok(Some(Self::new(create_coin.puzzle_hash, create_coin.amount)))
+            Ok(Self::new(create_coin.puzzle_hash, create_coin.amount))
         } else {
             Ok(None)
         }
@@ -52,7 +55,6 @@ impl Layer for OracleLayer {
         Ok(())
     }
 
-    #[allow(clippy::missing_panics_doc)]
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         assert!(self.oracle_fee % 2 == 0, "oracle fee must be even");
 
