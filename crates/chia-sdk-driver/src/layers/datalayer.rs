@@ -24,7 +24,7 @@ pub const DL_METADATA_UPDATER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 
 #[cfg(test)]
 mod tests {
-    use clvm_traits::ToClvm;
+    use clvm_traits::{clvm_list, ToClvm};
     use clvm_utils::tree_hash;
     use clvmr::serde::node_from_bytes;
     use rstest::rstest;
@@ -63,7 +63,7 @@ mod tests {
         let mut ctx = SpendContext::new();
 
         let third_arg_ptr = node_from_bytes(&mut ctx.allocator, third_arg).unwrap();
-        let solution_ptr = vec![ctx.allocator.nil(), ctx.allocator.nil(), third_arg_ptr]
+        let solution_ptr = clvm_list![(), (), third_arg_ptr]
             .to_clvm(&mut ctx.allocator)
             .unwrap();
 
