@@ -1408,6 +1408,10 @@ pub mod tests {
         (RootHash::Zero, Label::None, Description::None, ByteSize::None),
         (RootHash::Zero, Label::None, Description::None, ByteSize::Some),
       ),
+      (
+        (RootHash::Zero, Label::None, Description::None, ByteSize::None),
+        (RootHash::Zero, Label::None, Description::Some, ByteSize::Some),
+      ),
     ],
   )]
     #[tokio::test]
@@ -1459,16 +1463,34 @@ pub mod tests {
             delegated_puzzles.clone(),
         )?;
 
+        println!("yak 1"); // todo: debug
         ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
 
         // transition from src to dst using writer (update metadata)
         let new_metadata = metadata_from_tuple(meta_transition.1);
         let new_metadata_condition = DataStore::new_metadata_condition(ctx, new_metadata)?;
+        println!("yak 2"); // todo: debug
 
-        let inner_datastore_spend = StandardLayer::new(writer_pk)
-            .spend(ctx, Conditions::new().with(new_metadata_condition))?;
-        let src_datastore_coin = src_datastore.coin;
-        let new_spend = src_datastore.clone().spend(ctx, inner_datastore_spend)?;
+        let writer_layer = WriterLayer::new(StandardLayer::new(writer_pk));
+
+        let dp = ctx.alloc(&clvm_quote!(Conditions::new().with(new_metadata_condition)))?;
+        let writer_layer_solution = writer_layer.construct_solution(
+            ctx,
+            StandardSolution {
+                original_public_key: None,
+                delegated_puzzle: dp,
+                solution: NodePtr::NIL,
+            },
+        )?;
+        let writer_layer_puzzle = writer_layer.construct_puzzle(ctx)?;
+        let inner_spend = Spend {
+            puzzle: writer_layer_puzzle,
+            solution: writer_layer_solution,
+        };
+
+        let new_spend = src_datastore.clone().spend(ctx, inner_spend)?;
+        println!("yak 3"); // todo: debug
+        println!("spend: {:?}", new_spend); // todo: debug
 
         let dst_datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
@@ -1477,6 +1499,7 @@ pub mod tests {
         )?
         .unwrap();
         ctx.insert(new_spend.clone());
+        println!("yak 4"); // todo: debug
 
         assert_eq!(src_datastore.info.delegated_puzzles, delegated_puzzles);
         assert_eq!(src_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
@@ -1517,10 +1540,10 @@ pub mod tests {
         .await;
 
         let src_coin_state = sim
-            .coin_state(src_datastore_coin.coin_id())
+            .coin_state(src_datastore.coin.coin_id())
             .await
             .expect("expected src datastore coin");
-        assert_eq!(src_coin_state.coin, src_datastore_coin);
+        assert_eq!(src_coin_state.coin, src_datastore.coin);
         assert!(src_coin_state.spent_height.is_some());
         let dst_coin_state = sim
             .coin_state(dst_datastore.coin.coin_id())
