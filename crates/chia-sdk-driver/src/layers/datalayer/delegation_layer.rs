@@ -54,8 +54,9 @@ impl Layer for DelegationLayer {
         allocator: &Allocator,
         solution: NodePtr,
     ) -> Result<Self::Solution, DriverError> {
-        DelegationLayerSolution::<NodePtr, NodePtr>::from_clvm(allocator, solution)
-            .map_err(DriverError::FromClvm)
+        Ok(DelegationLayerSolution::<NodePtr, NodePtr>::from_clvm(
+            allocator, solution,
+        )?)
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
@@ -158,7 +159,7 @@ impl DelegationLayerArgs {
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct DelegationLayerSolution<P, S> {
-    pub merkle_proof: Option<(u32, Vec<chia_protocol::Bytes32>)>,
+    pub merkle_proof: Option<(u32, Vec<Bytes32>)>,
     pub puzzle_reveal: P,
     pub puzzle_solution: S,
 }
