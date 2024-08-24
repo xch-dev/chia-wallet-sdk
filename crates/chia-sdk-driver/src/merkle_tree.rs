@@ -23,7 +23,10 @@ pub enum BinaryTree<T> {
 impl MerkleTree {
     pub fn new(leaves: &[Bytes32]) -> Self {
         if leaves.is_empty() {
-            return Self { root: Bytes32::default(), proofs: HashMap::new() };
+            return Self {
+                root: Bytes32::default(),
+                proofs: HashMap::new(),
+            };
         }
 
         let (root, proofs) = MerkleTree::build_merkle_tree(leaves);
@@ -101,9 +104,9 @@ impl MerkleTree {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use hex_literal::hex;
     use rstest::rstest;
-    use super::*;
 
     /*
     To generate cases, you can do:
@@ -112,22 +115,22 @@ mod tests {
     (<bytes32: 00f2e7e0bc3ee77f0b5aa330406f69bfbd5c2e3b8a4338dba49f64bb3f0247c4>, {<bytes32: 0101010101010101010101010101010101010101010101010101010101010101>: (0, [<bytes32: f1386fff8b06ac98d347997ff5d0abad3b977514b1b7cfe0689f45f3f1393497>]), <bytes32: 0202020202020202020202020202020202020202020202020202020202020202>: (1, [<bytes32: ce041765675ad4d93378e20bd3a7d0d97ddcf3385fb6341581b21d4bc9e3e69e>])})
     */
     #[rstest]
-    #[case::no_leaves(&[], 
-           Bytes32::default(), 
+    #[case::no_leaves(&[],
+           Bytes32::default(),
            vec![]
     )]
-    #[case::one_leaf(&[Bytes32::from([1; 32])], 
-           Bytes32::from(hex!("ce041765675ad4d93378e20bd3a7d0d97ddcf3385fb6341581b21d4bc9e3e69e")), 
+    #[case::one_leaf(&[Bytes32::from([1; 32])],
+           Bytes32::from(hex!("ce041765675ad4d93378e20bd3a7d0d97ddcf3385fb6341581b21d4bc9e3e69e")),
            vec![(Bytes32::from([1; 32]), 0, vec![])]
     )]
-    #[case::two_leaves(&[Bytes32::from([1; 32]), Bytes32::from([2; 32])], 
-           Bytes32::from(hex!("00f2e7e0bc3ee77f0b5aa330406f69bfbd5c2e3b8a4338dba49f64bb3f0247c4")), 
+    #[case::two_leaves(&[Bytes32::from([1; 32]), Bytes32::from([2; 32])],
+           Bytes32::from(hex!("00f2e7e0bc3ee77f0b5aa330406f69bfbd5c2e3b8a4338dba49f64bb3f0247c4")),
            vec![
                (Bytes32::from([1; 32]), 0, vec![hex!("f1386fff8b06ac98d347997ff5d0abad3b977514b1b7cfe0689f45f3f1393497").into()]),
                (Bytes32::from([2; 32]), 1, vec![hex!("ce041765675ad4d93378e20bd3a7d0d97ddcf3385fb6341581b21d4bc9e3e69e").into()])
            ]
     )]
-    #[case::three_leaves(&[Bytes32::from([1; 32]), Bytes32::from([2; 32]), Bytes32::from([3; 32])], 
+    #[case::three_leaves(&[Bytes32::from([1; 32]), Bytes32::from([2; 32]), Bytes32::from([3; 32])],
            Bytes32::from(hex!("adb439d3868b9273de8753e20a62a8e6d9ff6cfb43b189337a23df0690c7f55b")), 
            vec![
                (Bytes32::from([1; 32]), 0, vec![hex!("f1386fff8b06ac98d347997ff5d0abad3b977514b1b7cfe0689f45f3f1393497").into(), hex!("131c41585fc6b26c2cf8ea6fc61be03c3c4e3facb3f7e70ec69ea094b17dc3e1").into()]),
@@ -135,8 +138,8 @@ mod tests {
                (Bytes32::from([3; 32]), 1, vec![hex!("00f2e7e0bc3ee77f0b5aa330406f69bfbd5c2e3b8a4338dba49f64bb3f0247c4").into()])
            ]
     )]
-    #[case::seven_leaves(&[Bytes32::from([1; 32]), Bytes32::from([2; 32]), Bytes32::from([3; 32]), Bytes32::from([4; 32]), Bytes32::from([5; 32]), Bytes32::from([6; 32]), Bytes32::from([7; 32])], 
-           Bytes32::from(hex!("1c4b11429685dd0a516282981bb3e12c13596e846f67af1da080b9134cdea4c6")), 
+    #[case::seven_leaves(&[Bytes32::from([1; 32]), Bytes32::from([2; 32]), Bytes32::from([3; 32]), Bytes32::from([4; 32]), Bytes32::from([5; 32]), Bytes32::from([6; 32]), Bytes32::from([7; 32])],
+           Bytes32::from(hex!("1c4b11429685dd0a516282981bb3e12c13596e846f67af1da080b9134cdea4c6")),
            vec![
                (Bytes32::from([1; 32]), 0, vec![hex!("f1386fff8b06ac98d347997ff5d0abad3b977514b1b7cfe0689f45f3f1393497").into(), hex!("1d85c3d5d2a5f093b49c79b2686ff698fb58d3ef4959b939ed6925dc65325499").into(), hex!("c80c9f4f69abfa70474c4d27d076ab32e23ff9bd1215fe87c6a0e6899a126d10").into()]),
                (Bytes32::from([2; 32]), 1, vec![hex!("ce041765675ad4d93378e20bd3a7d0d97ddcf3385fb6341581b21d4bc9e3e69e").into(), hex!("1d85c3d5d2a5f093b49c79b2686ff698fb58d3ef4959b939ed6925dc65325499").into(), hex!("c80c9f4f69abfa70474c4d27d076ab32e23ff9bd1215fe87c6a0e6899a126d10").into()]),
@@ -147,8 +150,8 @@ mod tests {
                (Bytes32::from([7; 32]), 3, vec![hex!("3831644ba5da8ec5f16d32ef7c0a318cfec302245fac118321a5da9f43efbf94").into(), hex!("7eb919730e38f305365791a43adddeea0fc275371aac8c7b08983937beeb956f").into()])
            ]
     )]
-    #[case::eight_leaves(&[Bytes32::from([1; 32]), Bytes32::from([2; 32]), Bytes32::from([3; 32]), Bytes32::from([4; 32]), Bytes32::from([5; 32]), Bytes32::from([6; 32]), Bytes32::from([7; 32]), Bytes32::from([8; 32])], 
-           Bytes32::from(hex!("3023a77c57dd4c0f84fe2d9b42252e483a9974482b6d4d5fbf0e3d405a46f436")), 
+    #[case::eight_leaves(&[Bytes32::from([1; 32]), Bytes32::from([2; 32]), Bytes32::from([3; 32]), Bytes32::from([4; 32]), Bytes32::from([5; 32]), Bytes32::from([6; 32]), Bytes32::from([7; 32]), Bytes32::from([8; 32])],
+           Bytes32::from(hex!("3023a77c57dd4c0f84fe2d9b42252e483a9974482b6d4d5fbf0e3d405a46f436")),
            vec![
                (Bytes32::from([1; 32]), 0, vec![hex!("f1386fff8b06ac98d347997ff5d0abad3b977514b1b7cfe0689f45f3f1393497").into(), hex!("1d85c3d5d2a5f093b49c79b2686ff698fb58d3ef4959b939ed6925dc65325499").into(), hex!("eb06e593af742e80db1c2bef77f23c85ad87a8048bb1228037cd18d6b50f9042").into()]),
                (Bytes32::from([2; 32]), 1, vec![hex!("ce041765675ad4d93378e20bd3a7d0d97ddcf3385fb6341581b21d4bc9e3e69e").into(), hex!("1d85c3d5d2a5f093b49c79b2686ff698fb58d3ef4959b939ed6925dc65325499").into(), hex!("eb06e593af742e80db1c2bef77f23c85ad87a8048bb1228037cd18d6b50f9042").into()]),
@@ -161,22 +164,16 @@ mod tests {
            ]
     )]
     fn test_merkle_tree(
-      #[case] leaves: &[Bytes32],
-      #[case] expected_root: Bytes32,
-      #[case] expected_proofs: Vec<(Bytes32, u32, Vec<Bytes32>)>
+        #[case] leaves: &[Bytes32],
+        #[case] expected_root: Bytes32,
+        #[case] expected_proofs: Vec<(Bytes32, u32, Vec<Bytes32>)>,
     ) {
         let merkle_tree = MerkleTree::new(leaves);
 
-        assert_eq!(
-            merkle_tree.root,
-            expected_root
-        );
+        assert_eq!(merkle_tree.root, expected_root);
 
         for (leaf, path, proof) in expected_proofs {
-            assert_eq!(
-                merkle_tree.get_proof(leaf),
-                Some((path, proof))
-            );
+            assert_eq!(merkle_tree.get_proof(leaf), Some((path, proof)));
         }
     }
 }
