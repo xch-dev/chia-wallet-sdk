@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use chia_protocol::Bytes32;
-use sha2::{Digest, Sha256};
+use clvmr::sha2::Sha256;
 
 const HASH_TREE_PREFIX: &[u8] = &[2];
 const HASH_LEAF_PREFIX: &[u8] = &[1];
@@ -42,9 +42,7 @@ impl MerkleTree {
         let mut hasher = Sha256::new();
         args.iter().for_each(|arg| hasher.update(arg));
 
-        let result = hasher.finalize();
-        let result: [u8; 32] = result.into();
-        Bytes32::from(result)
+        Bytes32::from(hasher.finalize())
     }
 
     fn list_to_binary_tree<T: Clone + Debug + Default>(objects: &[T]) -> BinaryTree<T> {
@@ -108,12 +106,6 @@ mod tests {
     use hex_literal::hex;
     use rstest::rstest;
 
-    /*
-    To generate cases, you can do:
-    >>> from chia.wallet.util.merkle_utils import build_merkle_tree
-    >>> build_merkle_tree([b'\x01' * 32, b'\x02' * 32])
-    (<bytes32: 00f2e7e0bc3ee77f0b5aa330406f69bfbd5c2e3b8a4338dba49f64bb3f0247c4>, {<bytes32: 0101010101010101010101010101010101010101010101010101010101010101>: (0, [<bytes32: f1386fff8b06ac98d347997ff5d0abad3b977514b1b7cfe0689f45f3f1393497>]), <bytes32: 0202020202020202020202020202020202020202020202020202020202020202>: (1, [<bytes32: ce041765675ad4d93378e20bd3a7d0d97ddcf3385fb6341581b21d4bc9e3e69e>])})
-    */
     #[rstest]
     #[case::no_leaves(&[],
            Bytes32::default(),

@@ -23,8 +23,13 @@ pub enum HintType {
 }
 
 impl HintType {
-    pub fn value(&self) -> u8 {
-        *self as u8
+    pub fn from_value(value: u8) -> Option<Self> {
+        match value {
+            1 => Some(Self::AdminPuzzle),
+            2 => Some(Self::WriterPuzzle),
+            3 => Some(Self::OraclePuzzle),
+            _ => None,
+        }
     }
 }
 
@@ -64,14 +69,10 @@ impl DelegatedPuzzle {
                 .map_err(|_| DriverError::InvalidMemo)?,
         );
 
-        match puzzle_type {
-            _ if puzzle_type == HintType::AdminPuzzle.value() => {
-                Ok(DelegatedPuzzle::Admin(puzzle_hash))
-            }
-            _ if puzzle_type == HintType::WriterPuzzle.value() => {
-                Ok(DelegatedPuzzle::Writer(puzzle_hash))
-            }
-            _ if puzzle_type == HintType::OraclePuzzle.value() => {
+        match HintType::from_value(puzzle_type) {
+            Some(HintType::AdminPuzzle) => Ok(DelegatedPuzzle::Admin(puzzle_hash)),
+            Some(HintType::WriterPuzzle) => Ok(DelegatedPuzzle::Writer(puzzle_hash)),
+            Some(HintType::OraclePuzzle) => {
                 if remaining_memos.is_empty() {
                     return Err(DriverError::MissingMemo);
                 }
@@ -88,7 +89,7 @@ impl DelegatedPuzzle {
 
                 Ok(DelegatedPuzzle::Oracle(puzzle_hash.into(), oracle_fee))
             }
-            _ => Err(DriverError::MissingMemo),
+            None => Err(DriverError::MissingMemo),
         }
     }
 }
@@ -146,7 +147,7 @@ impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for DataStoreMetadata {
             items.push(("b", Raw(bytes.to_clvm(encoder)?)));
         }
 
-        (Raw(self.root_hash.to_clvm(encoder)?), items).to_clvm(encoder)
+        (self.root_hash, items).to_clvm(encoder)
     }
 }
 

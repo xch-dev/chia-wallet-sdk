@@ -509,15 +509,15 @@ impl<M> DataStore<M> {
         for delegated_puzzle in delegated_puzzles {
             match delegated_puzzle {
                 DelegatedPuzzle::Admin(inner_puzzle_hash) => {
-                    memos.push(Bytes::new([HintType::AdminPuzzle.value()].into()));
+                    memos.push(Bytes::new([HintType::AdminPuzzle as u8].into()));
                     memos.push(Bytes32::from(inner_puzzle_hash).into());
                 }
                 DelegatedPuzzle::Writer(inner_puzzle_hash) => {
-                    memos.push(Bytes::new([HintType::WriterPuzzle.value()].into()));
+                    memos.push(Bytes::new([HintType::WriterPuzzle as u8].into()));
                     memos.push(Bytes32::from(inner_puzzle_hash).into());
                 }
                 DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee) => {
-                    memos.push(Bytes::new([HintType::OraclePuzzle.value()].into()));
+                    memos.push(Bytes::new([HintType::OraclePuzzle as u8].into()));
                     memos.push(oracle_puzzle_hash.into());
 
                     let fee_bytes = BigInt::from(oracle_fee).to_signed_bytes_be();
