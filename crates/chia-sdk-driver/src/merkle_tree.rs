@@ -8,8 +8,8 @@ const HASH_LEAF_PREFIX: &[u8] = &[1];
 
 #[derive(Debug, Clone)]
 pub struct MerkleTree {
-    root: Bytes32,
-    proofs: HashMap<Bytes32, (u32, Vec<Bytes32>)>,
+    pub root: Bytes32,
+    pub proofs: HashMap<Bytes32, (u32, Vec<Bytes32>)>,
 }
 
 use std::fmt::Debug;
@@ -94,11 +94,7 @@ impl MerkleTree {
         }
     }
 
-    pub fn get_root(&self) -> Bytes32 {
-        self.root
-    }
-
-    pub fn generate_proof(&self, leaf: Bytes32) -> Option<(u32, Vec<Bytes32>)> {
+    pub fn get_proof(&self, leaf: Bytes32) -> Option<(u32, Vec<Bytes32>)> {
         self.proofs.get(&leaf).cloned()
     }
 }
@@ -172,13 +168,13 @@ mod tests {
         let merkle_tree = MerkleTree::new(leaves);
 
         assert_eq!(
-            merkle_tree.get_root(),
+            merkle_tree.root,
             expected_root
         );
 
         for (leaf, path, proof) in expected_proofs {
             assert_eq!(
-                merkle_tree.generate_proof(leaf),
+                merkle_tree.get_proof(leaf),
                 Some((path, proof))
             );
         }

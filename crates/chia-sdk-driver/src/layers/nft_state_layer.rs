@@ -134,15 +134,24 @@ where
 impl<M, I> NftStateLayer<M, I> {
     pub fn get_next_metadata(
         allocator: &mut Allocator,
+        current_metadata: &M,
+        curent_metadata_updater_puzzle_hash: Bytes32,
         condition: NewMetadataCondition<NodePtr, NodePtr>,
     ) -> Result<M, DriverError>
     where
-        M: FromClvm<Allocator>,
+        M: ToClvm<Allocator> + FromClvm<Allocator>,
     {
+        let real_metadata_updater_solution: Vec<NodePtr> = vec![
+            current_metadata.to_clvm(allocator)?,
+            curent_metadata_updater_puzzle_hash.to_clvm(allocator)?,
+            condition.metadata_updater_solution,
+        ];
+        let real_metadata_updater_solution = real_metadata_updater_solution.to_clvm(allocator)?;
+
         let output = run_puzzle(
             allocator,
             condition.metadata_updater_reveal,
-            condition.metadata_updater_solution,
+            real_metadata_updater_solution,
         )?;
 
         let parsed = NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)?;

@@ -65,14 +65,15 @@ where
             (layers.construct_puzzle(ctx)?, solution_ptr)
         } else {
             let layers = self.info.clone().into_layers_with_delegation_layer(ctx)?;
-
             let puzzle_ptr = layers.construct_puzzle(ctx)?;
-            let puzzle_reveal_hash = tree_hash(&ctx.allocator, puzzle_ptr);
+
+            let delegated_puzzle_hash = tree_hash(&ctx.allocator, inner_spend.puzzle);
 
             let tree = get_merkle_tree(ctx, self.info.delegated_puzzles)?;
 
             let inner_solution = DelegationLayerSolution {
-                merkle_proof: tree.generate_proof(puzzle_reveal_hash.into()),
+                // if running owner puzzle, the line below will return 'None', thus ensuring correct puzzle behavior
+                merkle_proof: tree.get_proof(delegated_puzzle_hash.into()),
                 puzzle_reveal: inner_spend.puzzle,
                 puzzle_solution: inner_spend.solution,
             };
@@ -236,11 +237,13 @@ where
             .solution
             .to_clvm(allocator)
             .map_err(DriverError::ToClvm)?;
+        println!("yak 2.4.2"); // todo: debug
 
         if cs.coin.puzzle_hash == SINGLETON_LAUNCHER_PUZZLE_HASH.into() {
-            // we're just launching this singleton :)
-            // solution is (singleton_full_puzzle_hash amount key_value_list)
-            // kv_list is (metadata state_layer_hash)
+            println!("yak 2.4.100000000 -----------------"); // todo: debug
+                                                             // we're just launching this singleton :)
+                                                             // solution is (singleton_full_puzzle_hash amount key_value_list)
+                                                             // kv_list is (metadata state_layer_hash)
             let launcher_id = cs.coin.coin_id();
 
             let proof = Proof::Eve(EveProof {
@@ -308,12 +311,14 @@ where
             .to_clvm(allocator)
             .map_err(DriverError::ToClvm)?;
         let parent_puzzle = Puzzle::parse(allocator, parent_puzzle_ptr);
+        println!("yak 2.4.3"); // todo: debug
 
         let Some(singleton_layer) =
             SingletonLayer::<Puzzle>::parse_puzzle(allocator, parent_puzzle)?
         else {
             return Ok(None);
         };
+        println!("yak 2.4.4"); // todo: debug
 
         let Some(state_layer) =
             NftStateLayer::<M, Puzzle>::parse_puzzle(allocator, singleton_layer.inner_puzzle)?
@@ -326,6 +331,7 @@ where
             allocator,
             parent_solution_ptr,
         )?;
+        println!("yak 2.4.5"); // todo: debug
 
         // At this point, inner puzzle might be either a delegation layer or just an ownership layer.
         let inner_puzzle = state_layer.inner_puzzle.ptr();
@@ -333,6 +339,7 @@ where
 
         let inner_output = run_puzzle(allocator, inner_puzzle, inner_solution)?;
         let inner_conditions = Vec::<Condition>::from_clvm(allocator, inner_output)?;
+        println!("yak 2.4.6"); // todo: debug
 
         let mut inner_create_coin_condition = None;
         let mut inner_new_metadata_condition = None;
@@ -352,6 +359,7 @@ where
                 _ => {}
             }
         }
+        println!("yak 2.4.7"); // todo: debug
 
         let Some(inner_create_coin_condition) = inner_create_coin_condition else {
             return Err(DriverError::MissingChild);
@@ -359,10 +367,16 @@ where
 
         let new_metadata = if let Some(inner_new_metadata_condition) = inner_new_metadata_condition
         {
-            NftStateLayer::<M, ()>::get_next_metadata(allocator, inner_new_metadata_condition)?
+            NftStateLayer::<M, NodePtr>::get_next_metadata(
+                allocator,
+                &state_layer.metadata,
+                state_layer.metadata_updater_puzzle_hash,
+                inner_new_metadata_condition,
+            )?
         } else {
             state_layer.metadata
         };
+        println!("yak 2.4.8"); // todo: debug
 
         // first, just compute new coin info - will be used in any case
 
@@ -385,6 +399,7 @@ where
             puzzle_hash: new_puzzle_hash.into(),
             amount: inner_create_coin_condition.amount,
         };
+        println!("yak 2.4.9"); // todo: debug
 
         // if the coin was re-created with memos, there is a delegation layer
         // and delegated puzzles have been updated (we can rebuild the list from memos)
@@ -544,7 +559,7 @@ impl<M> DataStore<M> {
         hint_delegated_puzzles: bool,
     ) -> Result<Condition, DriverError> {
         let new_puzzle_hash = if new_delegated_puzzles.is_empty() {
-            let new_merkle_root = get_merkle_tree(ctx, new_delegated_puzzles.clone())?.get_root();
+            let new_merkle_root = get_merkle_tree(ctx, new_delegated_puzzles.clone())?.root;
             DelegationLayerArgs::curry_tree_hash(
                 launcher_id,
                 new_inner_puzzle_hash,
@@ -598,16 +613,21 @@ impl<M> DataStore<M> {
 #[cfg(test)]
 mod tests {
     use chia_bls::SecretKey;
+    use chia_protocol::Program;
     use chia_puzzles::standard::{StandardArgs, StandardSolution};
     use chia_sdk_test::{test_secret_keys, test_transaction, Simulator};
     use chia_sdk_types::Conditions;
     use clvm_traits::clvm_quote;
-    use clvmr::sha2::Sha256;
+    use clvmr::{
+        serde::{node_from_bytes, node_to_bytes},
+        sha2::Sha256,
+    };
 
     use crate::{Launcher, NewMerkleRootCondition, OracleLayer, StandardLayer, WriterLayer};
 
     use super::*;
 
+    #[allow(dead_code)]
     #[derive(PartialEq)]
     pub(crate) enum Label {
         None,
@@ -625,6 +645,7 @@ mod tests {
         }
     }
 
+    #[allow(dead_code)]
     #[derive(PartialEq)]
     pub(crate) enum Description {
         None,
@@ -642,6 +663,7 @@ mod tests {
         }
     }
 
+    #[allow(dead_code)]
     #[derive(PartialEq)]
     pub(crate) enum RootHash {
         Zero,
@@ -657,6 +679,7 @@ mod tests {
         }
     }
 
+    #[allow(dead_code)]
     #[derive(PartialEq)]
     pub(crate) enum ByteSize {
         None,
@@ -805,12 +828,10 @@ mod tests {
         };
 
         let new_metadata_condition = DataStore::new_metadata_condition(ctx, new_metadata.clone())?;
-        let new_metadata_inner_spend = StandardLayer::new(writer_pk)
-            .spend(ctx, Conditions::new().with(new_metadata_condition))?;
 
         let writer_layer = WriterLayer::new(StandardLayer::new(writer_pk));
 
-        let dp = ctx.alloc(&clvm_quote!(new_metadata_inner_spend.solution))?;
+        let dp = ctx.alloc(&clvm_quote!(Conditions::new().with(new_metadata_condition)))?;
         let writer_layer_solution = writer_layer.construct_solution(
             ctx,
             StandardSolution {
@@ -820,13 +841,13 @@ mod tests {
             },
         )?;
         let writer_layer_puzzle = writer_layer.construct_puzzle(ctx)?;
-        let new_spend = datastore.clone().spend(
-            ctx,
-            Spend {
-                puzzle: writer_layer_puzzle,
-                solution: writer_layer_solution,
-            },
-        )?;
+        let inner_spend = Spend {
+            puzzle: writer_layer_puzzle,
+            solution: writer_layer_solution,
+        };
+        let new_spend = datastore.clone().spend(ctx, inner_spend)?;
+        println!("yak 2.4"); // todo: debug
+                             // println!("spend: {:?}", new_spend.clone());
 
         let datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
@@ -834,14 +855,17 @@ mod tests {
             datastore.info.delegated_puzzles.clone(),
         )?
         .unwrap();
+        println!("yak 2.5"); // todo: debug
         ctx.insert(new_spend);
+
+        println!("yak 3"); // todo: debug
 
         assert_eq!(datastore.info.metadata, new_metadata);
 
         // admin: remove writer from delegated puzzles
         let delegated_puzzles = vec![admin_delegated_puzzle, oracle_delegated_puzzle];
         let new_merkle_tree = get_merkle_tree(ctx, delegated_puzzles.clone())?;
-        let new_merkle_root = new_merkle_tree.get_root();
+        let new_merkle_root = new_merkle_tree.root;
 
         let new_merkle_root_condition = NewMerkleRootCondition {
             new_merkle_root,
