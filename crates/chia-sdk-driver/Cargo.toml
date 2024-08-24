@@ -31,7 +31,7 @@ serde = { version = "1.0.203", features = ["derive"] }
 hex = "0.4.3"
 hex-literal = { workspace = true }
 rstest = "0.22.0"
-num-bigint = { workspace = true}
+num-bigint = { workspace = true }
 
 [dev-dependencies]
 chia-sdk-test = { workspace = true }

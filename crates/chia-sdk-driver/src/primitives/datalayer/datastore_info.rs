@@ -47,30 +47,22 @@ impl DelegatedPuzzle {
             return Err(DriverError::MissingMemo);
         }
 
-        let puzzle_type: u8 = u8::try_from(
-            BigInt::from_signed_bytes_be(
-                &remaining_memos
-                    .drain(0..1)
-                    .next()
-                    .ok_or(DriverError::InvalidMemo)?,
-            )
-            .to_u32_digits()
-            .1[0],
-        )
-        .map_err(|_| DriverError::InvalidMemo)?;
+        let first_memo = remaining_memos.remove(0);
+        if first_memo.len() != 1 {
+            return Err(DriverError::InvalidMemo);
+        }
+        let puzzle_type = HintType::from_value(first_memo[0]);
 
         // under current specs, first value will always be a puzzle hash
         let puzzle_hash: TreeHash = TreeHash::new(
             remaining_memos
-                .drain(0..1)
-                .next()
-                .ok_or(DriverError::MissingMemo)?
+                .remove(0)
                 .to_vec()
                 .try_into()
                 .map_err(|_| DriverError::InvalidMemo)?,
         );
 
-        match HintType::from_value(puzzle_type) {
+        match puzzle_type {
             Some(HintType::AdminPuzzle) => Ok(DelegatedPuzzle::Admin(puzzle_hash)),
             Some(HintType::WriterPuzzle) => Ok(DelegatedPuzzle::Writer(puzzle_hash)),
             Some(HintType::OraclePuzzle) => {
@@ -79,14 +71,9 @@ impl DelegatedPuzzle {
                 }
 
                 // puzzle hash bech32m_decode(oracle_address), not puzzle hash of the whole oracle puzze!
-                let oracle_fee: u64 = BigInt::from_signed_bytes_be(
-                    &remaining_memos
-                        .drain(0..1)
-                        .next()
-                        .ok_or(DriverError::MissingMemo)?,
-                )
-                .to_u64_digits()
-                .1[0];
+                let oracle_fee: u64 = BigInt::from_signed_bytes_be(&remaining_memos.remove(0))
+                    .to_u64_digits()
+                    .1[0];
 
                 Ok(DelegatedPuzzle::Oracle(puzzle_hash.into(), oracle_fee))
             }

@@ -9,7 +9,6 @@ pub use delegation_layer::*;
 pub use oracle_layer::*;
 pub use writer_layer::*;
 
-// bytes(ACS_MU).hex()
 pub const DL_METADATA_UPDATER_PUZZLE: [u8; 1] = hex!(
     "
     0b
@@ -33,8 +32,6 @@ mod tests {
 
     use super::*;
 
-    // not exported, so I had to copy-paste
-    // use chia_puzzles::assert_puzzle_hash;
     #[macro_export]
     macro_rules! assert_puzzle_hash {
         ($puzzle:ident => $puzzle_hash:ident) => {
