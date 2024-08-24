@@ -601,6 +601,7 @@ impl<M> DataStore<M> {
 }
 
 #[allow(unused_imports)]
+#[allow(clippy::too_many_arguments)]
 #[cfg(test)]
 pub mod tests {
     use chia_bls::SecretKey;
@@ -1109,11 +1110,9 @@ pub mod tests {
                 description: dst_meta.2.value(),
                 bytes: dst_meta.3.value(),
             };
-            let new_metadata_condition = DataStore::new_metadata_condition(ctx, new_metadata)?
-                .to_clvm(&mut ctx.allocator)
-                .unwrap();
 
-            admin_inner_output = admin_inner_output.with(Condition::Other(new_metadata_condition));
+            admin_inner_output =
+                admin_inner_output.with(DataStore::new_metadata_condition(ctx, new_metadata)?);
         }
 
         // delegated puzzle info + inner puzzle reveal + solution
@@ -1189,300 +1188,209 @@ pub mod tests {
         Ok(())
     }
 
-    //     #[rstest(
-    //     src_with_admin => [true, false],
-    //     src_with_writer => [true, false],
-    //     src_with_oracle => [true, false],
-    //     dst_with_admin => [true, false],
-    //     dst_with_writer => [true, false],
-    //     dst_with_oracle => [true, false],
-    //     src_meta => [
-    //       (Hash::ZERO, Label::NONE, Description::NONE, Bytes::NONE),
-    //       (Hash::SOME, Label::SOME, Description::SOME, Bytes::SOME),
-    //     ],
-    //     dst_meta => [
-    //       (Hash::ZERO, Label::NONE, Description::NONE, Bytes::NONE),
-    //       (Hash::ZERO, Label::SOME, Description::SOME, Bytes::SOME),
-    //       (Hash::ZERO, Label::NEW, Description::NEW, Bytes::NEW),
-    //     ],
-    //     also_change_owner => [true, false],
-    //   )]
-    //     #[tokio::test]
-    //     async fn test_datastore_owner_transition(
-    //         src_meta: (Hash, Label, Description, Bytes),
-    //         src_with_admin: bool,
-    //         src_with_writer: bool,
-    //         src_with_oracle: bool,
-    //         dst_with_admin: bool,
-    //         dst_with_writer: bool,
-    //         dst_with_oracle: bool,
-    //         dst_meta: (Hash, Label, Description, Bytes),
-    //         also_change_owner: bool,
-    //     ) -> anyhow::Result<()> {
-    //         let sim = Simulator::new().await?;
-    //         let peer = sim.connect().await?;
+    #[rstest(
+        src_with_admin => [true, false],
+        src_with_writer => [true, false],
+        src_with_oracle => [true, false],
+        dst_with_admin => [true, false],
+        dst_with_writer => [true, false],
+        dst_with_oracle => [true, false],
+        src_meta => [
+          (RootHash::Zero, Label::None, Description::None, ByteSize::None),
+          (RootHash::Some, Label::Some, Description::Some, ByteSize::Some),
+        ],
+        dst_meta => [
+          (RootHash::Zero, Label::None, Description::None, ByteSize::None),
+          (RootHash::Some, Label::Some, Description::Some, ByteSize::Some),
+          (RootHash::Some, Label::New, Description::New, ByteSize::New),
+        ],
+        change_owner => [true, false],
+      )]
+    #[tokio::test]
+    async fn test_datastore_owner_transition(
+        src_meta: (RootHash, Label, Description, ByteSize),
+        src_with_admin: bool,
+        src_with_writer: bool,
+        src_with_oracle: bool,
+        dst_with_admin: bool,
+        dst_with_writer: bool,
+        dst_with_oracle: bool,
+        dst_meta: (RootHash, Label, Description, ByteSize),
+        change_owner: bool,
+    ) -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
 
-    //         let [owner_sk, owner2_sk, admin_sk, writer_sk]: [SecretKey; 4] =
-    //             secret_keys(4).unwrap().try_into().unwrap();
+        let [owner_sk, owner2_sk, admin_sk, writer_sk]: [SecretKey; 4] =
+            test_secret_keys(4).unwrap().try_into().unwrap();
 
-    //         let owner_pk = owner_sk.public_key();
-    //         let owner2_pk = owner2_sk.public_key();
-    //         let admin_pk = admin_sk.public_key();
-    //         let writer_pk = writer_sk.public_key();
+        let owner_pk = owner_sk.public_key();
+        let owner2_pk = owner2_sk.public_key();
+        let admin_pk = admin_sk.public_key();
+        let writer_pk = writer_sk.public_key();
 
-    //         let oracle_puzzle_hash: Bytes32 = [7; 32].into();
-    //         let oracle_fee = 1000;
+        let oracle_puzzle_hash: Bytes32 = [7; 32].into();
+        let oracle_fee = 1000;
 
-    //         let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
-    //         let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+        let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
+        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
 
-    //         let owner2_puzzle_hash = StandardArgs::curry_tree_hash(owner2_pk).into();
-    //         assert_ne!(owner_puzzle_hash, owner2_puzzle_hash);
+        let owner2_puzzle_hash = StandardArgs::curry_tree_hash(owner2_pk).into();
+        assert_ne!(owner_puzzle_hash, owner2_puzzle_hash);
 
-    //         let ctx = &mut SpendContext::new();
+        let ctx = &mut SpendContext::new();
 
-    //         let (admin_delegated_puzzle, _) = DelegatedPuzzle::from_admin_pk(ctx, admin_pk).unwrap();
+        let admin_delegated_puzzle =
+            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk).into());
+        let writer_delegated_puzzle =
+            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk).into());
+        let oracle_delegated_puzzle = DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee);
 
-    //         let (writer_delegated_puzzle, _) = DelegatedPuzzle::from_writer_pk(ctx, writer_pk).unwrap();
+        let mut src_delegated_puzzles: Vec<DelegatedPuzzle> = vec![];
+        if src_with_admin {
+            src_delegated_puzzles.push(admin_delegated_puzzle);
+        }
+        if src_with_writer {
+            src_delegated_puzzles.push(writer_delegated_puzzle);
+        }
+        if src_with_oracle {
+            src_delegated_puzzles.push(oracle_delegated_puzzle);
+        }
 
-    //         let oracle_delegated_puzzle =
-    //             DelegatedPuzzle::new_oracle(ctx.allocator_mut(), oracle_puzzle_hash, oracle_fee)
-    //                 .unwrap();
+        let (launch_singleton, src_datastore) = Launcher::new(coin.coin_id(), 1).mint_datastore(
+            ctx,
+            DataStoreMetadata {
+                root_hash: src_meta.0.value(),
+                label: src_meta.1.value(),
+                description: src_meta.2.value(),
+                bytes: src_meta.3.value(),
+            },
+            owner_puzzle_hash.into(),
+            src_delegated_puzzles.clone(),
+        )?;
+        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
 
-    //         let mut src_delegated_puzzles: Vec<DelegatedPuzzle> = vec![];
-    //         if src_with_admin {
-    //             src_delegated_puzzles.push(admin_delegated_puzzle);
-    //         }
-    //         if src_with_writer {
-    //             src_delegated_puzzles.push(writer_delegated_puzzle);
-    //         }
-    //         if src_with_oracle {
-    //             src_delegated_puzzles.push(oracle_delegated_puzzle);
-    //         }
+        // transition from src to dst using owner puzzle
+        let mut owner_output_conds = Conditions::new();
 
-    //         let (launch_singleton, src_datastore_info) = Launcher::new(coin.coin_id(), 1)
-    //             .mint_datastore(
-    //                 ctx,
-    //                 DataStoreMintInfo {
-    //                     metadata: DataStoreMetadata {
-    //                         root_hash: src_meta.0.value(),
-    //                         label: src_meta.1.value(),
-    //                         description: src_meta.2.value(),
-    //                         bytes: src_meta.3.value(),
-    //                     },
-    //                     owner_puzzle_hash: owner_puzzle_hash.into(),
-    //                     delegated_puzzles: src_delegated_puzzles.clone(),
-    //                 },
-    //             )?;
-    //         ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+        let mut dst_delegated_puzzles: Vec<DelegatedPuzzle> = src_delegated_puzzles.clone();
+        let mut hint_new_delegated_puzzles = change_owner;
+        if src_with_admin != dst_with_admin
+            || src_with_writer != dst_with_writer
+            || src_with_oracle != dst_with_oracle
+            || dst_delegated_puzzles.is_empty()
+        {
+            dst_delegated_puzzles.clear();
+            hint_new_delegated_puzzles = true;
 
-    //         let spends = ctx.take_spends();
-    //         for spend in spends.clone() {
-    //             if spend.coin.coin_id() == src_datastore_info.launcher_id {
-    //                 {
-    //                     let mut stats = TEST_STATS.lock().unwrap();
-    //                     stats.add_launcher_tx(&spend);
-    //                 }
-    //             }
+            if dst_with_admin {
+                dst_delegated_puzzles.push(admin_delegated_puzzle);
+            }
+            if dst_with_writer {
+                dst_delegated_puzzles.push(writer_delegated_puzzle);
+            }
+            if dst_with_oracle {
+                dst_delegated_puzzles.push(oracle_delegated_puzzle);
+            }
+        }
 
-    //             ctx.insert_coin_spend(spend);
-    //         }
+        owner_output_conds =
+            owner_output_conds.with(DataStore::<DataStoreMetadata>::owner_create_coin_condition(
+                ctx,
+                src_datastore.info.launcher_id,
+                if change_owner {
+                    owner2_puzzle_hash
+                } else {
+                    owner_puzzle_hash
+                },
+                dst_delegated_puzzles.clone(),
+                hint_new_delegated_puzzles,
+            )?);
 
-    //         // transition from src to dst using owner puzzle
-    //         let mut owner_output_conds = Conditions::new();
+        if src_meta != dst_meta {
+            let new_metadata = DataStoreMetadata {
+                root_hash: dst_meta.0.value(),
+                label: dst_meta.1.value(),
+                description: dst_meta.2.value(),
+                bytes: dst_meta.3.value(),
+            };
 
-    //         let mut dst_delegated_puzzles: Vec<DelegatedPuzzle> = src_delegated_puzzles.clone();
-    //         let mut hint_new_delegated_puzzles = false;
-    //         if src_with_admin != dst_with_admin
-    //             || src_with_writer != dst_with_writer
-    //             || src_with_oracle != dst_with_oracle
-    //             || dst_delegated_puzzles.len() == 0
-    //             || also_change_owner
-    //         {
-    //             dst_delegated_puzzles.clear();
-    //             hint_new_delegated_puzzles = true;
+            owner_output_conds =
+                owner_output_conds.with(DataStore::new_metadata_condition(ctx, new_metadata)?);
+        }
 
-    //             if dst_with_admin {
-    //                 dst_delegated_puzzles.push(admin_delegated_puzzle);
-    //             }
-    //             if dst_with_writer {
-    //                 dst_delegated_puzzles.push(writer_delegated_puzzle);
-    //             }
-    //             if dst_with_oracle {
-    //                 dst_delegated_puzzles.push(oracle_delegated_puzzle);
-    //             }
-    //         }
+        // delegated puzzle info + inner puzzle reveal + solution
+        let inner_datastore_spend = StandardLayer::new(owner_pk).spend(ctx, owner_output_conds)?;
+        let new_spend = src_datastore.clone().spend(ctx, inner_datastore_spend)?;
 
-    //         owner_output_conds = owner_output_conds.condition(get_owner_create_coin_condition(
-    //             src_datastore_info.launcher_id,
-    //             if also_change_owner {
-    //                 &owner2_puzzle_hash
-    //             } else {
-    //                 &owner_puzzle_hash
-    //             },
-    //             &dst_delegated_puzzles,
-    //             hint_new_delegated_puzzles,
-    //         ));
-    //         debug_log!("owner_output_conds: {:?}", owner_output_conds); // todo: debug
+        let dst_datastore = DataStore::from_spend(
+            &mut ctx.allocator,
+            &new_spend,
+            src_datastore.info.delegated_puzzles.clone(),
+        )?
+        .unwrap();
 
-    //         if src_meta.0 != dst_meta.0 || src_meta.1 != dst_meta.1 || src_meta.2 != dst_meta.2 {
-    //             let new_metadata = DataStoreMetadata {
-    //                 root_hash: dst_meta.0.value(),
-    //                 label: dst_meta.1.value(),
-    //                 description: dst_meta.2.value(),
-    //                 bytes: dst_meta.3.value(),
-    //             };
-    //             let new_metadata_condition =
-    //                 NewMetadataCondition::<i32, DataStoreMetadata, Bytes32, i32> {
-    //                     metadata_updater_reveal: 11,
-    //                     metadata_updater_solution: DefaultMetadataSolution {
-    //                         metadata_part: DefaultMetadataSolutionMetadataList {
-    //                             new_metadata: new_metadata,
-    //                             new_metadata_updater_ph: DL_METADATA_UPDATER_PUZZLE_HASH.into(),
-    //                         },
-    //                         conditions: 0,
-    //                     },
-    //                 }
-    //                 .to_clvm(ctx.allocator_mut())
-    //                 .unwrap();
+        ctx.insert(new_spend);
 
-    //             owner_output_conds =
-    //                 owner_output_conds.condition(Condition::Other(new_metadata_condition));
-    //         }
+        assert_eq!(src_datastore.info.delegated_puzzles, src_delegated_puzzles);
+        assert_eq!(src_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-    //         // delegated puzzle info + inner puzzle reveal + solution
-    //         let inner_datastore_spend =
-    //             DatastoreInnerSpend::OwnerPuzzleSpend(owner_output_conds.p2_spend(ctx, owner_pk)?);
-    //         let new_spend = datastore_spend(ctx, &src_datastore_info, inner_datastore_spend)?;
+        assert_metadata_like_tests(&src_datastore.info.metadata, src_meta);
 
-    //         {
-    //             let mut stats = TEST_STATS.lock().unwrap();
-    //             stats.add_normal_spend_tx(&new_spend);
-    //         }
-    //         ctx.insert_coin_spend(new_spend.clone());
+        assert_delegated_puzzles_contain(
+            &src_datastore.info.delegated_puzzles,
+            &[
+                admin_delegated_puzzle,
+                writer_delegated_puzzle,
+                oracle_delegated_puzzle,
+            ],
+            &[src_with_admin, src_with_writer, src_with_oracle],
+        );
 
-    //         // print_spend_bundle(vec![new_spend.clone()], Signature::default()); // todo: debug
+        assert_eq!(dst_datastore.info.delegated_puzzles, dst_delegated_puzzles);
+        assert_eq!(
+            dst_datastore.info.owner_puzzle_hash,
+            if change_owner {
+                owner2_puzzle_hash
+            } else {
+                owner_puzzle_hash
+            }
+        );
 
-    //         let dst_datastore_info = DataStoreInfo::from_spend(
-    //             ctx.allocator_mut(),
-    //             &new_spend,
-    //             &src_datastore_info.delegated_puzzles,
-    //         )
-    //         .unwrap();
+        assert_metadata_like_tests(&dst_datastore.info.metadata, dst_meta);
 
-    //         if src_datastore_info.delegated_puzzles.len() > 0 {
-    //             assert_eq!(src_datastore_info.delegated_puzzles, src_delegated_puzzles);
-    //         } else {
-    //             assert_eq!(src_datastore_info.delegated_puzzles.len(), 0);
-    //         }
-    //         assert_eq!(src_datastore_info.owner_puzzle_hash, owner_puzzle_hash);
+        assert_delegated_puzzles_contain(
+            &dst_datastore.info.delegated_puzzles,
+            &[
+                admin_delegated_puzzle,
+                writer_delegated_puzzle,
+                oracle_delegated_puzzle,
+            ],
+            &[dst_with_admin, dst_with_writer, dst_with_oracle],
+        );
 
-    //         assert_eq!(src_datastore_info.metadata.root_hash, src_meta.0.value());
-    //         assert_eq!(src_datastore_info.metadata.label, src_meta.1.value());
-    //         assert_eq!(src_datastore_info.metadata.description, src_meta.2.value());
+        test_transaction(
+            &peer,
+            ctx.take(),
+            &[owner_sk, admin_sk, writer_sk],
+            &sim.config().constants,
+        )
+        .await;
 
-    //         let admin_found = src_datastore_info
-    //             .delegated_puzzles
-    //             .clone()
-    //             .into_iter()
-    //             .any(|dp| dp.puzzle_hash == admin_delegated_puzzle.puzzle_hash);
-    //         if src_with_admin {
-    //             assert!(admin_found);
-    //         } else {
-    //             assert!(!admin_found);
-    //         }
+        let src_coin_state = sim
+            .coin_state(src_datastore.coin.coin_id())
+            .await
+            .expect("expected src datastore coin");
+        assert_eq!(src_coin_state.coin, src_datastore.coin);
+        assert!(src_coin_state.spent_height.is_some());
 
-    //         let writer_found = src_datastore_info
-    //             .delegated_puzzles
-    //             .clone()
-    //             .into_iter()
-    //             .any(|dp| dp.puzzle_hash == writer_delegated_puzzle.puzzle_hash);
-    //         if src_with_writer {
-    //             assert!(writer_found);
-    //         } else {
-    //             assert!(!writer_found);
-    //         }
+        let dst_coin_state = sim
+            .coin_state(dst_datastore.coin.coin_id())
+            .await
+            .expect("expected dst datastore coin");
+        assert_eq!(dst_coin_state.coin, dst_datastore.coin);
+        assert!(dst_coin_state.created_height.is_some());
 
-    //         let oracle_found = src_datastore_info
-    //             .delegated_puzzles
-    //             .clone()
-    //             .into_iter()
-    //             .any(|dp| dp.puzzle_hash == oracle_delegated_puzzle.puzzle_hash);
-    //         if src_with_oracle {
-    //             assert!(oracle_found);
-    //         } else {
-    //             assert!(!oracle_found);
-    //         }
-
-    //         if dst_datastore_info.delegated_puzzles.len() > 0 {
-    //             assert_eq!(dst_datastore_info.delegated_puzzles, dst_delegated_puzzles);
-    //         } else {
-    //             assert_eq!(dst_datastore_info.delegated_puzzles.len(), 0);
-    //         }
-    //         if also_change_owner {
-    //             assert_eq!(dst_datastore_info.owner_puzzle_hash, owner2_puzzle_hash);
-    //         } else {
-    //             assert_eq!(dst_datastore_info.owner_puzzle_hash, owner_puzzle_hash);
-    //         }
-
-    //         assert_eq!(dst_datastore_info.metadata.root_hash, dst_meta.0.value());
-    //         assert_eq!(dst_datastore_info.metadata.label, dst_meta.1.value());
-    //         assert_eq!(dst_datastore_info.metadata.description, dst_meta.2.value());
-
-    //         let admin_found = dst_datastore_info
-    //             .delegated_puzzles
-    //             .clone()
-    //             .into_iter()
-    //             .any(|dp| dp.puzzle_hash == admin_delegated_puzzle.puzzle_hash);
-    //         if dst_with_admin {
-    //             assert!(admin_found);
-    //         } else {
-    //             assert!(!admin_found);
-    //         }
-
-    //         let writer_found = dst_datastore_info
-    //             .delegated_puzzles
-    //             .clone()
-    //             .into_iter()
-    //             .any(|dp| dp.puzzle_hash == writer_delegated_puzzle.puzzle_hash);
-    //         if dst_with_writer {
-    //             assert!(writer_found);
-    //         } else {
-    //             assert!(!writer_found);
-    //         }
-
-    //         let oracle_found = dst_datastore_info
-    //             .delegated_puzzles
-    //             .clone()
-    //             .into_iter()
-    //             .any(|dp| dp.puzzle_hash == oracle_delegated_puzzle.puzzle_hash);
-    //         if dst_with_oracle {
-    //             assert!(oracle_found);
-    //         } else {
-    //             assert!(!oracle_found);
-    //         }
-
-    //         test_transaction(
-    //             &peer,
-    //             ctx.take_spends(),
-    //             &[owner_sk, admin_sk, writer_sk],
-    //             sim.config().genesis_challenge,
-    //         )
-    //         .await;
-
-    //         let src_coin_state = sim
-    //             .coin_state(src_datastore_info.coin.coin_id())
-    //             .await
-    //             .expect("expected datastore coin");
-    //         assert_eq!(src_coin_state.coin, src_datastore_info.coin);
-    //         assert!(src_coin_state.spent_height.is_some());
-    //         let dst_coin_state = sim
-    //             .coin_state(dst_datastore_info.coin.coin_id())
-    //             .await
-    //             .expect("expected datastore coin");
-    //         assert_eq!(dst_coin_state.coin, dst_datastore_info.coin);
-    //         assert!(dst_coin_state.created_height.is_some());
-
-    //         Ok(())
-    //     }
+        Ok(())
+    }
 }
