@@ -34,7 +34,7 @@ impl MerkleTree {
     }
 
     fn build_merkle_tree(leaves: &[Bytes32]) -> (Bytes32, HashMap<Bytes32, (u32, Vec<Bytes32>)>) {
-        let binary_tree = MerkleTree::list_to_binary_tree(leaves).unwrap();
+        let binary_tree = MerkleTree::list_to_binary_tree(leaves);
         MerkleTree::build_merkle_tree_from_binary_tree(&binary_tree)
     }
 
@@ -47,20 +47,20 @@ impl MerkleTree {
         Bytes32::from(result)
     }
 
-    fn list_to_binary_tree<T: Clone + Debug>(objects: &[T]) -> Result<BinaryTree<T>, &'static str> {
+    fn list_to_binary_tree<T: Clone + Debug + Default>(objects: &[T]) -> BinaryTree<T> {
         let size = objects.len();
         if size == 0 {
-            return Err("Cannot build a tree out of 0 objects");
+            return BinaryTree::Leaf(T::default());
         }
         if size == 1 {
-            return Ok(BinaryTree::Leaf(objects[0].clone()));
+            return BinaryTree::Leaf(objects[0].clone());
         }
         let midpoint = (size + 1) >> 1;
         let first_half = &objects[..midpoint];
         let last_half = &objects[midpoint..];
-        let left_tree = MerkleTree::list_to_binary_tree(first_half)?;
-        let right_tree = MerkleTree::list_to_binary_tree(last_half)?;
-        Ok(BinaryTree::Node(Box::new(left_tree), Box::new(right_tree)))
+        let left_tree = MerkleTree::list_to_binary_tree(first_half);
+        let right_tree = MerkleTree::list_to_binary_tree(last_half);
+        BinaryTree::Node(Box::new(left_tree), Box::new(right_tree))
     }
 
     fn build_merkle_tree_from_binary_tree(
