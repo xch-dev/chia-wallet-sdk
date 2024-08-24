@@ -602,7 +602,7 @@ impl<M> DataStore<M> {
 
 #[allow(unused_imports)]
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use chia_bls::SecretKey;
     use chia_protocol::Program;
     use chia_puzzles::standard::{StandardArgs, StandardSolution};
@@ -618,16 +618,15 @@ mod tests {
 
     use super::*;
 
-    #[allow(dead_code)]
     #[derive(PartialEq)]
-    pub(crate) enum Label {
+    pub enum Label {
         None,
         Some,
         New,
     }
 
     impl Label {
-        pub(crate) fn value(&self) -> Option<String> {
+        pub fn value(&self) -> Option<String> {
             match self {
                 Label::None => None,
                 Label::Some => Some(String::from("label")),
@@ -636,16 +635,15 @@ mod tests {
         }
     }
 
-    #[allow(dead_code)]
     #[derive(PartialEq)]
-    pub(crate) enum Description {
+    pub enum Description {
         None,
         Some,
         New,
     }
 
     impl Description {
-        pub(crate) fn value(&self) -> Option<String> {
+        pub fn value(&self) -> Option<String> {
             match self {
                 Description::None => None,
                 Description::Some => Some(String::from("description")),
@@ -654,15 +652,14 @@ mod tests {
         }
     }
 
-    #[allow(dead_code)]
     #[derive(PartialEq)]
-    pub(crate) enum RootHash {
+    pub enum RootHash {
         Zero,
         Some,
     }
 
     impl RootHash {
-        pub(crate) fn value(&self) -> Bytes32 {
+        pub fn value(&self) -> Bytes32 {
             match self {
                 RootHash::Zero => Bytes32::from([0; 32]),
                 RootHash::Some => Bytes32::from([1; 32]),
@@ -670,16 +667,15 @@ mod tests {
         }
     }
 
-    #[allow(dead_code)]
     #[derive(PartialEq)]
-    pub(crate) enum ByteSize {
+    pub enum ByteSize {
         None,
         Some,
         New,
     }
 
     impl ByteSize {
-        pub(crate) fn value(&self) -> Option<u64> {
+        pub fn value(&self) -> Option<u64> {
             match self {
                 ByteSize::None => None,
                 ByteSize::Some => Some(1337),

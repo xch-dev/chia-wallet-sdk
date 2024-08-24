@@ -88,3 +88,121 @@ impl Launcher {
         Ok((chained_spend, data_store))
     }
 }
+
+#[allow(unused_imports)]
+#[cfg(test)]
+mod tests {
+    use chia_bls::SecretKey;
+    use chia_puzzles::standard::StandardArgs;
+    use chia_sdk_test::{test_secret_keys, test_transaction, Simulator};
+    use rstest::rstest;
+
+    use crate::{
+        tests::{ByteSize, Description, Label, RootHash},
+        DataStoreMetadata,
+    };
+
+    use super::*;
+
+    #[rstest]
+    #[tokio::test]
+    async fn test_datastore_launch(
+        #[values(true, false)] use_label: bool,
+        #[values(true, false)] use_description: bool,
+        #[values(true, false)] use_byte_size: bool,
+        #[values(true, false)] with_writer: bool,
+        #[values(true, false)] with_admin: bool,
+        #[values(true, false)] with_oracle: bool,
+    ) -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
+            test_secret_keys(3).unwrap().try_into().unwrap();
+
+        let owner_pk = owner_sk.public_key();
+        let admin_pk = admin_sk.public_key();
+        let writer_pk = writer_sk.public_key();
+
+        let oracle_puzzle_hash: Bytes32 = [7; 32].into();
+        let oracle_fee = 1000;
+
+        let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
+        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+
+        let ctx = &mut SpendContext::new();
+
+        let admin_delegated_puzzle =
+            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk).into());
+        let writer_delegated_puzzle =
+            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk).into());
+        let oracle_delegated_puzzle = DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee);
+
+        let mut delegated_puzzles: Vec<DelegatedPuzzle> = vec![];
+        if with_admin {
+            delegated_puzzles.push(admin_delegated_puzzle);
+        }
+        if with_writer {
+            delegated_puzzles.push(writer_delegated_puzzle);
+        }
+        if with_oracle {
+            delegated_puzzles.push(oracle_delegated_puzzle);
+        }
+
+        let metadata = DataStoreMetadata {
+            root_hash: RootHash::Zero.value(),
+            label: if use_label { Label::Some.value() } else { None },
+            description: if use_description {
+                Description::Some.value()
+            } else {
+                None
+            },
+            bytes: if use_byte_size {
+                ByteSize::Some.value()
+            } else {
+                None
+            },
+        };
+
+        let (launch_singleton, datastore) = Launcher::new(coin.coin_id(), 1).mint_datastore(
+            ctx,
+            metadata.clone(),
+            owner_puzzle_hash.into(),
+            delegated_puzzles,
+        )?;
+
+        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+
+        let spends = ctx.take();
+        for spend in spends.clone() {
+            if spend.coin.coin_id() == datastore.info.launcher_id {
+                let new_datastore =
+                    DataStore::from_spend(&mut ctx.allocator, &spend, vec![])?.unwrap();
+
+                assert_eq!(datastore, new_datastore);
+            }
+
+            ctx.insert(spend);
+        }
+
+        assert_eq!(datastore.info.metadata, metadata);
+
+        test_transaction(
+            &peer,
+            spends,
+            &[owner_sk, admin_sk, writer_sk],
+            &sim.config().constants,
+        )
+        .await;
+
+        // Make sure the datastore was created.
+        let coin_state = sim
+            .coin_state(datastore.coin.coin_id())
+            .await
+            .expect("expected datastore coin");
+        assert_eq!(coin_state.coin, datastore.coin);
+        assert!(coin_state.created_height.is_some());
+
+        Ok(())
+    }
+}
