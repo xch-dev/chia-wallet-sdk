@@ -1586,7 +1586,7 @@ pub mod tests {
 
         // 'dude' spends oracle
         let inner_datastore_spend = OracleLayer::new(oracle_puzzle_hash, oracle_fee).spend(ctx)?;
-        let new_spend = src_datastore.spend(ctx, inner_datastore_spend)?;
+        let new_spend = src_datastore.clone().spend(ctx, inner_datastore_spend)?;
 
         let dst_datastore = DataStore::from_spend(
             &mut ctx.allocator,
@@ -1599,111 +1599,69 @@ pub mod tests {
         assert_eq!(src_datastore.info, dst_datastore.info);
 
         // mint a coin that asserts the announcement and has enough value
-        let hasher = Sha256::new();
-        hasher.update(src_datastore.info.coin.puzzle_hash);
+        let mut hasher = Sha256::new();
+        hasher.update(src_datastore.coin.puzzle_hash);
         hasher.update(Bytes::new("$".into()).to_vec());
 
         let new_coin = sim.mint_coin(dude_puzzle_hash, oracle_fee).await;
         ctx.spend_p2_coin(
             new_coin,
             dude_pk,
-            Conditions::new().assert_puzzle_announcement(hasher.finalize()),
+            Conditions::new().assert_puzzle_announcement(Bytes32::new(hasher.finalize())),
         )?;
 
         // asserts
 
-        assert_eq!(dst_datastore_info.delegated_puzzles, delegated_puzzles);
-        assert_eq!(src_datastore_info.owner_puzzle_hash, owner_puzzle_hash);
+        assert_eq!(src_datastore.info.delegated_puzzles, delegated_puzzles);
+        assert_eq!(src_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-        assert_eq!(src_datastore_info.metadata.root_hash, meta.0.value());
-        assert_eq!(src_datastore_info.metadata.label, meta.1.value());
-        assert_eq!(src_datastore_info.metadata.description, meta.2.value());
+        assert_metadata_like_tests(&src_datastore.info.metadata, meta);
 
-        let admin_found = src_datastore_info
-            .delegated_puzzles
-            .clone()
-            .into_iter()
-            .any(|dp| dp.puzzle_hash == admin_delegated_puzzle.puzzle_hash);
-        if with_admin_layer {
-            assert!(admin_found);
-        } else {
-            assert!(!admin_found);
-        }
+        assert_delegated_puzzles_contain(
+            &src_datastore.info.delegated_puzzles,
+            &[
+                admin_delegated_puzzle,
+                writer_delegated_puzzle,
+                oracle_delegated_puzzle,
+            ],
+            &[with_admin_layer, with_writer_layer, true],
+        );
 
-        let writer_found = src_datastore_info
-            .delegated_puzzles
-            .clone()
-            .into_iter()
-            .any(|dp| dp.puzzle_hash == writer_delegated_puzzle.puzzle_hash);
-        if with_writer_layer {
-            assert!(writer_found);
-        } else {
-            assert!(!writer_found);
-        }
+        assert_eq!(dst_datastore.info.delegated_puzzles, delegated_puzzles);
+        assert_eq!(dst_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-        let oracle_found = src_datastore_info
-            .delegated_puzzles
-            .clone()
-            .into_iter()
-            .any(|dp| dp.puzzle_hash == oracle_delegated_puzzle.puzzle_hash);
-        assert!(oracle_found);
+        assert_metadata_like_tests(&dst_datastore.info.metadata, meta);
 
-        assert_eq!(dst_datastore_info.owner_puzzle_hash, owner_puzzle_hash);
-        assert_eq!(dst_datastore_info.delegated_puzzles, delegated_puzzles);
-
-        assert_eq!(dst_datastore_info.metadata.root_hash, meta.0.value());
-        assert_eq!(dst_datastore_info.metadata.label, meta.1.value());
-        assert_eq!(dst_datastore_info.metadata.description, meta.2.value());
-
-        let admin_found = dst_datastore_info
-            .delegated_puzzles
-            .clone()
-            .into_iter()
-            .any(|dp| dp.puzzle_hash == admin_delegated_puzzle.puzzle_hash);
-        if with_admin_layer {
-            assert!(admin_found);
-        } else {
-            assert!(!admin_found);
-        }
-
-        let writer_found = dst_datastore_info
-            .delegated_puzzles
-            .clone()
-            .into_iter()
-            .any(|dp| dp.puzzle_hash == writer_delegated_puzzle.puzzle_hash);
-        if with_writer_layer {
-            assert!(writer_found);
-        } else {
-            assert!(!writer_found);
-        }
-
-        let oracle_found = dst_datastore_info
-            .delegated_puzzles
-            .clone()
-            .into_iter()
-            .any(|dp| dp.puzzle_hash == oracle_delegated_puzzle.puzzle_hash);
-        assert!(oracle_found);
+        assert_delegated_puzzles_contain(
+            &dst_datastore.info.delegated_puzzles,
+            &[
+                admin_delegated_puzzle,
+                writer_delegated_puzzle,
+                oracle_delegated_puzzle,
+            ],
+            &[with_admin_layer, with_writer_layer, true],
+        );
 
         test_transaction(
             &peer,
-            ctx.take_spends(),
+            ctx.take(),
             &[owner_sk, dude_sk],
-            sim.config().genesis_challenge,
+            &sim.config().constants,
         )
         .await;
 
-        let src_datastore_coin_id = src_datastore_info.coin.coin_id();
+        let src_datastore_coin_id = src_datastore.coin.coin_id();
         let src_coin_state = sim
             .coin_state(src_datastore_coin_id)
             .await
             .expect("expected src datastore coin");
-        assert_eq!(src_coin_state.coin, src_datastore_info.coin);
+        assert_eq!(src_coin_state.coin, src_datastore.coin);
         assert!(src_coin_state.spent_height.is_some());
         let dst_coin_state = sim
-            .coin_state(dst_datastore_info.coin.coin_id())
+            .coin_state(dst_datastore.coin.coin_id())
             .await
             .expect("expected dst datastore coin");
-        assert_eq!(dst_coin_state.coin, dst_datastore_info.coin);
+        assert_eq!(dst_coin_state.coin, dst_datastore.coin);
         assert!(dst_coin_state.created_height.is_some());
 
         let oracle_coin = Coin::new(src_datastore_coin_id, oracle_puzzle_hash, oracle_fee);

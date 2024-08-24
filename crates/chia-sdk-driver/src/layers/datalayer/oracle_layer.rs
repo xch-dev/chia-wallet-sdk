@@ -1,5 +1,3 @@
-use core::panic;
-
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::{Condition, CreateCoin, CreatePuzzleAnnouncement};
 use clvm_traits::{clvm_quote, match_quote, FromClvm, ToClvm};
