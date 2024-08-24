@@ -39,3 +39,6 @@ chia-consensus = { workspace = true }
 hex = { workspace = true }
 hex-literal = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
+
+[features]
+chip-0035 = []
