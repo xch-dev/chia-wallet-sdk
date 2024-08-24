@@ -237,13 +237,11 @@ where
             .solution
             .to_clvm(allocator)
             .map_err(DriverError::ToClvm)?;
-        println!("yak 2.4.2"); // todo: debug
 
         if cs.coin.puzzle_hash == SINGLETON_LAUNCHER_PUZZLE_HASH.into() {
-            println!("yak 2.4.100000000 -----------------"); // todo: debug
-                                                             // we're just launching this singleton :)
-                                                             // solution is (singleton_full_puzzle_hash amount key_value_list)
-                                                             // kv_list is (metadata state_layer_hash)
+            // we're just launching this singleton :)
+            // solution is (singleton_full_puzzle_hash amount key_value_list)
+            // kv_list is (metadata state_layer_hash)
             let launcher_id = cs.coin.coin_id();
 
             let proof = Proof::Eve(EveProof {
@@ -311,14 +309,12 @@ where
             .to_clvm(allocator)
             .map_err(DriverError::ToClvm)?;
         let parent_puzzle = Puzzle::parse(allocator, parent_puzzle_ptr);
-        println!("yak 2.4.3"); // todo: debug
 
         let Some(singleton_layer) =
             SingletonLayer::<Puzzle>::parse_puzzle(allocator, parent_puzzle)?
         else {
             return Ok(None);
         };
-        println!("yak 2.4.4"); // todo: debug
 
         let Some(state_layer) =
             NftStateLayer::<M, Puzzle>::parse_puzzle(allocator, singleton_layer.inner_puzzle)?
@@ -331,7 +327,6 @@ where
             allocator,
             parent_solution_ptr,
         )?;
-        println!("yak 2.4.5"); // todo: debug
 
         // At this point, inner puzzle might be either a delegation layer or just an ownership layer.
         let inner_puzzle = state_layer.inner_puzzle.ptr();
@@ -339,7 +334,6 @@ where
 
         let inner_output = run_puzzle(allocator, inner_puzzle, inner_solution)?;
         let inner_conditions = Vec::<Condition>::from_clvm(allocator, inner_output)?;
-        println!("yak 2.4.6"); // todo: debug
 
         let mut inner_create_coin_condition = None;
         let mut inner_new_metadata_condition = None;
@@ -359,7 +353,6 @@ where
                 _ => {}
             }
         }
-        println!("yak 2.4.7"); // todo: debug
 
         let Some(inner_create_coin_condition) = inner_create_coin_condition else {
             return Err(DriverError::MissingChild);
@@ -376,7 +369,6 @@ where
         } else {
             state_layer.metadata
         };
-        println!("yak 2.4.8"); // todo: debug
 
         // first, just compute new coin info - will be used in any case
 
@@ -399,7 +391,6 @@ where
             puzzle_hash: new_puzzle_hash.into(),
             amount: inner_create_coin_condition.amount,
         };
-        println!("yak 2.4.9"); // todo: debug
 
         // if the coin was re-created with memos, there is a delegation layer
         // and delegated puzzles have been updated (we can rebuild the list from memos)
@@ -846,8 +837,6 @@ mod tests {
             solution: writer_layer_solution,
         };
         let new_spend = datastore.clone().spend(ctx, inner_spend)?;
-        println!("yak 2.4"); // todo: debug
-                             // println!("spend: {:?}", new_spend.clone());
 
         let datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
@@ -855,10 +844,7 @@ mod tests {
             datastore.info.delegated_puzzles.clone(),
         )?
         .unwrap();
-        println!("yak 2.5"); // todo: debug
         ctx.insert(new_spend);
-
-        println!("yak 3"); // todo: debug
 
         assert_eq!(datastore.info.metadata, new_metadata);
 
