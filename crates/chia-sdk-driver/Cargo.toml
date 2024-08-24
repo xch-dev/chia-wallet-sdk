@@ -32,7 +32,6 @@ hex = "0.4.3"
 hex-literal = { workspace = true }
 rstest = "0.22.0"
 num-bigint = { workspace = true}
-tokio = { workspace = true, features = ["full"] }
 
 [dev-dependencies]
 chia-sdk-test = { workspace = true }

@@ -141,7 +141,7 @@ impl MetadataWithRootHash for DataStoreMetadata {
 // does not Primitive because it needs extra info :(
 impl<M> DataStore<M>
 where
-    M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash + MetadataWithRootHash,
+    M: ToClvm<Allocator> + FromClvm<Allocator> + MetadataWithRootHash,
 {
     pub fn build_datastore(
         coin: Coin,
@@ -369,13 +369,14 @@ where
 
         // first, just compute new coin info - will be used in any case
 
+        let new_metadata_ptr = new_metadata.to_clvm(allocator)?;
         let new_puzzle_hash = SingletonArgs::curry_tree_hash(
             singleton_layer.launcher_id,
             CurriedProgram {
                 program: NFT_STATE_LAYER_PUZZLE_HASH,
                 args: NftStateLayerArgs::<TreeHash, TreeHash> {
                     mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
-                    metadata: new_metadata.tree_hash(),
+                    metadata: tree_hash(allocator, new_metadata_ptr),
                     metadata_updater_puzzle_hash: state_layer.metadata_updater_puzzle_hash,
                     inner_puzzle: inner_create_coin_condition.puzzle_hash.into(),
                 },
