@@ -1,7 +1,7 @@
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::{Condition, CreateCoin, CreatePuzzleAnnouncement};
-use clvm_traits::{clvm_quote, FromClvm, ToClvm};
-use clvmr::{Allocator, NodePtr, SExp};
+use clvm_traits::{clvm_quote, match_quote, FromClvm, ToClvm};
+use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
@@ -32,15 +32,8 @@ impl Layer for OracleLayer {
             return Ok(None);
         };
 
-        let quote_pair = allocator.sexp(puzzle.ptr);
-        let SExp::Pair(one_ptr, condition_list_ptr) = quote_pair else {
-            return Ok(None);
-        };
-        if !allocator.small_number(one_ptr).is_some_and(|one| one == 1) {
-            return Ok(None);
-        }
-
-        let conditions = Vec::<Condition<NodePtr>>::from_clvm(allocator, condition_list_ptr)?;
+        let (_q, conditions) =
+            <match_quote!(Vec<Condition<NodePtr>>)>::from_clvm(allocator, puzzle.ptr)?;
         if conditions.len() != 2 {
             return Ok(None);
         }
