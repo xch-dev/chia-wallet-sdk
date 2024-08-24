@@ -959,16 +959,6 @@ pub mod tests {
         New,
     }
 
-    fn assert_metadata_like_tests(
-        meta: &DataStoreMetadata,
-        test_meta: (RootHash, Label, Description, ByteSize),
-    ) {
-        assert_eq!(meta.root_hash, test_meta.0.value());
-        assert_eq!(meta.label, test_meta.1.value());
-        assert_eq!(meta.description, test_meta.2.value());
-        assert_eq!(meta.bytes, test_meta.3.value());
-    }
-
     fn assert_delegated_puzzles_contain(
         dps: &[DelegatedPuzzle],
         values: &[DelegatedPuzzle],
@@ -1122,7 +1112,8 @@ pub mod tests {
         assert_eq!(src_datastore.info.delegated_puzzles, src_delegated_puzzles);
         assert_eq!(src_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-        assert_metadata_like_tests(&src_datastore.info.metadata, src_meta);
+        assert_eq!(src_datastore.info.metadata, metadata_from_tuple(src_meta));
+
         assert_delegated_puzzles_contain(
             &src_datastore.info.delegated_puzzles,
             &[
@@ -1137,7 +1128,7 @@ pub mod tests {
         assert_eq!(dst_datastore.info.delegated_puzzles, dst_delegated_puzzles);
         assert_eq!(dst_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-        assert_metadata_like_tests(&dst_datastore.info.metadata, dst_meta);
+        assert_eq!(dst_datastore.info.metadata, metadata_from_tuple(dst_meta));
 
         assert_delegated_puzzles_contain(
             &dst_datastore.info.delegated_puzzles,
@@ -1304,7 +1295,7 @@ pub mod tests {
         let inner_datastore_spend = StandardLayer::new(owner_pk).spend(ctx, owner_output_conds)?;
         let new_spend = src_datastore.clone().spend(ctx, inner_datastore_spend)?;
 
-        let dst_datastore = DataStore::from_spend(
+        let dst_datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
             &new_spend,
             src_datastore.info.delegated_puzzles.clone(),
@@ -1316,7 +1307,7 @@ pub mod tests {
         assert_eq!(src_datastore.info.delegated_puzzles, src_delegated_puzzles);
         assert_eq!(src_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-        assert_metadata_like_tests(&src_datastore.info.metadata, src_meta);
+        assert_eq!(src_datastore.info.metadata, metadata_from_tuple(src_meta));
 
         assert_delegated_puzzles_contain(
             &src_datastore.info.delegated_puzzles,
@@ -1338,7 +1329,7 @@ pub mod tests {
             }
         );
 
-        assert_metadata_like_tests(&dst_datastore.info.metadata, dst_meta);
+        assert_eq!(dst_datastore.info.metadata, metadata_from_tuple(dst_meta));
 
         assert_delegated_puzzles_contain(
             &dst_datastore.info.delegated_puzzles,
@@ -1476,7 +1467,10 @@ pub mod tests {
         assert_eq!(src_datastore.info.delegated_puzzles, delegated_puzzles);
         assert_eq!(src_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-        assert_metadata_like_tests(&src_datastore.info.metadata, meta_transition.0);
+        assert_eq!(
+            src_datastore.info.metadata,
+            metadata_from_tuple(meta_transition.0)
+        );
 
         assert_delegated_puzzles_contain(
             &src_datastore.info.delegated_puzzles,
@@ -1491,7 +1485,10 @@ pub mod tests {
         assert_eq!(dst_datastore.info.delegated_puzzles, delegated_puzzles);
         assert_eq!(dst_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-        assert_metadata_like_tests(&dst_datastore.info.metadata, meta_transition.1);
+        assert_eq!(
+            dst_datastore.info.metadata,
+            metadata_from_tuple(meta_transition.1)
+        );
 
         assert_delegated_puzzles_contain(
             &dst_datastore.info.delegated_puzzles,
@@ -1620,7 +1617,7 @@ pub mod tests {
         assert_eq!(src_datastore.info.delegated_puzzles, delegated_puzzles);
         assert_eq!(src_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-        assert_metadata_like_tests(&src_datastore.info.metadata, meta);
+        assert_eq!(src_datastore.info.metadata, metadata_from_tuple(meta));
 
         assert_delegated_puzzles_contain(
             &src_datastore.info.delegated_puzzles,
@@ -1635,7 +1632,7 @@ pub mod tests {
         assert_eq!(dst_datastore.info.delegated_puzzles, delegated_puzzles);
         assert_eq!(dst_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-        assert_metadata_like_tests(&dst_datastore.info.metadata, meta);
+        assert_eq!(dst_datastore.info.metadata, metadata_from_tuple(meta));
 
         assert_delegated_puzzles_contain(
             &dst_datastore.info.delegated_puzzles,
@@ -1753,7 +1750,7 @@ pub mod tests {
 
         assert_eq!(src_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-        assert_metadata_like_tests(&src_datastore.info.metadata, meta);
+        assert_eq!(src_datastore.info.metadata, metadata_from_tuple(meta));
 
         assert_delegated_puzzles_contain(
             &src_datastore.info.delegated_puzzles,
