@@ -39,17 +39,19 @@ mod tests {
     macro_rules! assert_puzzle_hash {
         ($puzzle:ident => $puzzle_hash:ident) => {
             let mut a = clvmr::Allocator::new();
-            let ptr = clvmr::serde::node_from_bytes(&mut a, &$puzzle).unwrap();
+            let ptr = clvmr::serde::node_from_bytes(&mut a, &$puzzle)?;
             let hash = clvm_utils::tree_hash(&mut a, ptr);
             assert_eq!($puzzle_hash, hash);
         };
     }
 
     #[test]
-    fn test_puzzle_hashes() {
+    fn test_puzzle_hashes() -> anyhow::Result<()> {
         assert_puzzle_hash!(DELEGATION_LAYER_PUZZLE => DELEGATION_LAYER_PUZZLE_HASH);
         assert_puzzle_hash!(WRITER_FILTER_PUZZLE => WRITER_FILTER_PUZZLE_HASH);
         assert_puzzle_hash!(DL_METADATA_UPDATER_PUZZLE => DL_METADATA_UPDATER_PUZZLE_HASH);
+
+        Ok(())
     }
 
     // tests that DL metadata updater indeed returns the third argument
@@ -59,20 +61,20 @@ mod tests {
     #[case::one_item_list(&hex!("ff01ff0180"))] // run -d '(mod () (list 1)))'
     #[case::multiple_item_list(&hex!("ff01ff01ff02ff0380"))] // run -d '(mod () (list 1 2 3)))'
     #[case::lists_within_list(&hex!("ff01ff01ffff02ff0380ffff04ff0580ffff060780"))] // run -d '(mod () (list 1 (list 2 3) (list 4 5) (c 6 7))))'
-    fn test_dl_metadata_updater_puzzle(#[case] third_arg: &'static [u8]) {
+    fn test_dl_metadata_updater_puzzle(#[case] third_arg: &'static [u8]) -> anyhow::Result<()> {
         let mut ctx = SpendContext::new();
 
-        let third_arg_ptr = node_from_bytes(&mut ctx.allocator, third_arg).unwrap();
-        let solution_ptr = clvm_list![(), (), third_arg_ptr]
-            .to_clvm(&mut ctx.allocator)
-            .unwrap();
+        let third_arg_ptr = node_from_bytes(&mut ctx.allocator, third_arg)?;
+        let solution_ptr = clvm_list![(), (), third_arg_ptr].to_clvm(&mut ctx.allocator)?;
 
-        let puzzle_ptr = node_from_bytes(&mut ctx.allocator, &DL_METADATA_UPDATER_PUZZLE).unwrap();
-        let output = ctx.run(puzzle_ptr, solution_ptr).unwrap();
+        let puzzle_ptr = node_from_bytes(&mut ctx.allocator, &DL_METADATA_UPDATER_PUZZLE)?;
+        let output = ctx.run(puzzle_ptr, solution_ptr)?;
 
         assert_eq!(
             tree_hash(&ctx.allocator, output),
             tree_hash(&ctx.allocator, third_arg_ptr),
         );
+
+        Ok(())
     }
 }

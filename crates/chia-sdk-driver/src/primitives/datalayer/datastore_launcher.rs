@@ -117,7 +117,7 @@ mod tests {
         let peer = sim.connect().await?;
 
         let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
-            test_secret_keys(3).unwrap().try_into().unwrap();
+            test_secret_keys(3)?.try_into().unwrap();
 
         let owner_pk = owner_sk.public_key();
         let admin_pk = admin_sk.public_key();

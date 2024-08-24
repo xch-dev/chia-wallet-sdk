@@ -699,7 +699,7 @@ pub mod tests {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
 
-        let [sk]: [SecretKey; 1] = test_secret_keys(1).unwrap().try_into().unwrap();
+        let [sk]: [SecretKey; 1] = test_secret_keys(1)?.try_into().unwrap();
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
@@ -756,7 +756,7 @@ pub mod tests {
         let peer = sim.connect().await?;
 
         let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
-            test_secret_keys(3).unwrap().try_into().unwrap();
+            test_secret_keys(3)?.try_into().unwrap();
 
         let owner_pk = owner_sk.public_key();
         let admin_pk = admin_sk.public_key();
@@ -997,7 +997,7 @@ pub mod tests {
         let peer = sim.connect().await?;
 
         let [owner_sk, admin_sk, admin2_sk, writer_sk]: [SecretKey; 4] =
-            test_secret_keys(4).unwrap().try_into().unwrap();
+            test_secret_keys(4)?.try_into().unwrap();
 
         let owner_pk = owner_sk.public_key();
         let admin_pk = admin_sk.public_key();
@@ -1075,8 +1075,7 @@ pub mod tests {
                     dst_delegated_puzzles.clone(),
                 ),
             }
-            .to_clvm(&mut ctx.allocator)
-            .unwrap();
+            .to_clvm(&mut ctx.allocator)?;
 
             admin_inner_output =
                 admin_inner_output.with(Condition::Other(new_merkle_root_condition));
@@ -1197,7 +1196,7 @@ pub mod tests {
         let peer = sim.connect().await?;
 
         let [owner_sk, owner2_sk, admin_sk, writer_sk]: [SecretKey; 4] =
-            test_secret_keys(4).unwrap().try_into().unwrap();
+            test_secret_keys(4)?.try_into().unwrap();
 
         let owner_pk = owner_sk.public_key();
         let owner2_pk = owner2_sk.public_key();
@@ -1402,7 +1401,7 @@ pub mod tests {
         let peer = sim.connect().await?;
 
         let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
-            test_secret_keys(3).unwrap().try_into().unwrap();
+            test_secret_keys(3)?.try_into().unwrap();
 
         let owner_pk = owner_sk.public_key();
         let admin_pk = admin_sk.public_key();
@@ -1537,7 +1536,7 @@ pub mod tests {
         let peer = sim.connect().await?;
 
         let [owner_sk, admin_sk, writer_sk, dude_sk]: [SecretKey; 4] =
-            test_secret_keys(4).unwrap().try_into().unwrap();
+            test_secret_keys(4)?.try_into().unwrap();
 
         let owner_pk = owner_sk.public_key();
         let admin_pk = admin_sk.public_key();
@@ -1690,7 +1689,7 @@ pub mod tests {
         let peer = sim.connect().await?;
 
         let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
-            test_secret_keys(3).unwrap().try_into().unwrap();
+            test_secret_keys(3)?.try_into().unwrap();
 
         let owner_pk = owner_sk.public_key();
         let admin_pk = admin_sk.public_key();
@@ -1798,8 +1797,7 @@ pub mod tests {
     async fn test_create_coin_filer(puzzle: AttackerPuzzle) -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
 
-        let [owner_sk, attacker_sk]: [SecretKey; 2] =
-            test_secret_keys(2).unwrap().try_into().unwrap();
+        let [owner_sk, attacker_sk]: [SecretKey; 2] = test_secret_keys(2)?.try_into().unwrap();
 
         let owner_pk = owner_sk.public_key();
         let attacker_pk = attacker_sk.public_key();
@@ -1837,8 +1835,8 @@ pub mod tests {
 
         let new_spend = src_datastore.spend(ctx, inner_datastore_spend)?;
 
-        let puzzle_reveal_ptr = ctx.alloc(&new_spend.puzzle_reveal).unwrap();
-        let solution_ptr = ctx.alloc(&new_spend.solution).unwrap();
+        let puzzle_reveal_ptr = ctx.alloc(&new_spend.puzzle_reveal)?;
+        let solution_ptr = ctx.alloc(&new_spend.solution)?;
         match ctx.run(puzzle_reveal_ptr, solution_ptr) {
             Ok(_) => panic!("expected error"),
             Err(err) => match err {
@@ -1859,8 +1857,7 @@ pub mod tests {
     async fn test_melt_filter(puzzle: AttackerPuzzle) -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
 
-        let [owner_sk, attacker_sk]: [SecretKey; 2] =
-            test_secret_keys(2).unwrap().try_into().unwrap();
+        let [owner_sk, attacker_sk]: [SecretKey; 2] = test_secret_keys(2)?.try_into().unwrap();
 
         let owner_pk = owner_sk.public_key();
         let attacker_pk = attacker_sk.public_key();
@@ -1894,8 +1891,8 @@ pub mod tests {
 
         let new_spend = src_datastore.spend(ctx, inner_datastore_spend)?;
 
-        let puzzle_reveal_ptr = ctx.alloc(&new_spend.puzzle_reveal).unwrap();
-        let solution_ptr = ctx.alloc(&new_spend.solution).unwrap();
+        let puzzle_reveal_ptr = ctx.alloc(&new_spend.puzzle_reveal)?;
+        let solution_ptr = ctx.alloc(&new_spend.solution)?;
         match ctx.run(puzzle_reveal_ptr, solution_ptr) {
             Ok(_) => panic!("expected error"),
             Err(err) => match err {
@@ -1918,7 +1915,7 @@ pub mod tests {
         new_merkle_root: RootHash,
         memos: Vec<RootHash>,
     ) -> anyhow::Result<()> {
-        let [attacker_sk]: [SecretKey; 1] = test_secret_keys(1).unwrap().try_into().unwrap();
+        let [attacker_sk]: [SecretKey; 1] = test_secret_keys(1)?.try_into().unwrap();
 
         let attacker_pk = attacker_sk.public_key();
 
@@ -1929,8 +1926,7 @@ pub mod tests {
                 new_merkle_root: new_merkle_root.value(),
                 memos: memos.into_iter().map(|m| m.value()).collect(),
             }
-            .to_clvm(&mut ctx.allocator)
-            .unwrap(),
+            .to_clvm(&mut ctx.allocator)?,
         ));
 
         let spend = test_puzzle.get_spend(ctx, attacker_pk, condition_output)?;
@@ -1968,7 +1964,7 @@ pub mod tests {
         let should_error_out =
             output_conditions || new_updater_ph != DL_METADATA_UPDATER_PUZZLE_HASH;
 
-        let [attacker_sk]: [SecretKey; 1] = test_secret_keys(1).unwrap().try_into().unwrap();
+        let [attacker_sk]: [SecretKey; 1] = test_secret_keys(1)?.try_into().unwrap();
 
         let attacker_pk = attacker_sk.public_key();
 
@@ -2070,8 +2066,7 @@ pub mod tests {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
 
-        let [owner_sk, owner2_sk]: [SecretKey; 2] =
-            test_secret_keys(2).unwrap().try_into().unwrap();
+        let [owner_sk, owner2_sk]: [SecretKey; 2] = test_secret_keys(2)?.try_into().unwrap();
 
         let owner_pk = owner_sk.public_key();
         let owner2_pk = owner2_sk.public_key();
