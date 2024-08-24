@@ -133,9 +133,9 @@ mod tests {
         let ctx = &mut SpendContext::new();
 
         let admin_delegated_puzzle =
-            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk).into());
+            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk));
         let writer_delegated_puzzle =
-            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk).into());
+            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk));
         let oracle_delegated_puzzle = DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee);
 
         let mut delegated_puzzles: Vec<DelegatedPuzzle> = vec![];

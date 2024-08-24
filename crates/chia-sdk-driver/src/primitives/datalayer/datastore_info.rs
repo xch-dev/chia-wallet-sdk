@@ -30,8 +30,8 @@ impl HintType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum DelegatedPuzzle {
-    Admin(Bytes32),       // puzzle hash
-    Writer(Bytes32),      // inner puzzle hash
+    Admin(TreeHash),      // puzzle hash
+    Writer(TreeHash),     // inner puzzle hash
     Oracle(Bytes32, u64), // oracle fee puzzle hash, fee amount
 }
 
@@ -54,7 +54,7 @@ impl DelegatedPuzzle {
         .map_err(|_| DriverError::InvalidMemo)?;
 
         // under current specs, first value will always be a puzzle hash
-        let puzzle_hash: Bytes32 = Bytes32::new(
+        let puzzle_hash: TreeHash = TreeHash::new(
             remaining_memos
                 .drain(0..1)
                 .next()
@@ -86,7 +86,7 @@ impl DelegatedPuzzle {
                 .to_u64_digits()
                 .1[0];
 
-                Ok(DelegatedPuzzle::Oracle(puzzle_hash, oracle_fee))
+                Ok(DelegatedPuzzle::Oracle(puzzle_hash.into(), oracle_fee))
             }
             _ => Err(DriverError::MissingMemo),
         }
@@ -268,10 +268,10 @@ pub fn get_merkle_tree(
     for dp in delegated_puzzles {
         match dp {
             DelegatedPuzzle::Admin(puzzle_hash) => {
-                leaves.push(puzzle_hash);
+                leaves.push(puzzle_hash.into());
             }
             DelegatedPuzzle::Writer(inner_puzzle_hash) => {
-                leaves.push(WriterLayerArgs::curry_tree_hash(inner_puzzle_hash.into()).into());
+                leaves.push(WriterLayerArgs::curry_tree_hash(inner_puzzle_hash).into());
             }
             DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee) => {
                 let oracle_full_puzzle_ptr =

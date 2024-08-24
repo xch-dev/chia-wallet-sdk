@@ -510,11 +510,11 @@ impl<M> DataStore<M> {
             match delegated_puzzle {
                 DelegatedPuzzle::Admin(inner_puzzle_hash) => {
                     memos.push(Bytes::new([HintType::AdminPuzzle.value()].into()));
-                    memos.push(inner_puzzle_hash.into());
+                    memos.push(Bytes32::from(inner_puzzle_hash).into());
                 }
                 DelegatedPuzzle::Writer(inner_puzzle_hash) => {
                     memos.push(Bytes::new([HintType::WriterPuzzle.value()].into()));
-                    memos.push(inner_puzzle_hash.into());
+                    memos.push(Bytes32::from(inner_puzzle_hash).into());
                 }
                 DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee) => {
                     memos.push(Bytes::new([HintType::OraclePuzzle.value()].into()));
@@ -791,8 +791,8 @@ pub mod tests {
         .to_clvm(&mut ctx.allocator)?;
         let writer_inner_puzzle_hash = tree_hash(&ctx.allocator, writer_inner_puzzle);
 
-        let admin_delegated_puzzle = DelegatedPuzzle::Admin(admin_puzzle_hash.into());
-        let writer_delegated_puzzle = DelegatedPuzzle::Writer(writer_inner_puzzle_hash.into());
+        let admin_delegated_puzzle = DelegatedPuzzle::Admin(admin_puzzle_hash);
+        let writer_delegated_puzzle = DelegatedPuzzle::Writer(writer_inner_puzzle_hash);
 
         let oracle_delegated_puzzle = DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee);
 
@@ -1030,11 +1030,11 @@ pub mod tests {
         let ctx = &mut SpendContext::new();
 
         let admin_delegated_puzzle =
-            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk).into());
+            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk));
         let admin2_delegated_puzzle =
-            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin2_pk).into());
+            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin2_pk));
         let writer_delegated_puzzle =
-            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk).into());
+            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk));
         let oracle_delegated_puzzle = DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee);
 
         let mut src_delegated_puzzles: Vec<DelegatedPuzzle> = vec![];
@@ -1232,9 +1232,9 @@ pub mod tests {
         let ctx = &mut SpendContext::new();
 
         let admin_delegated_puzzle =
-            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk).into());
+            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk));
         let writer_delegated_puzzle =
-            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk).into());
+            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk));
         let oracle_delegated_puzzle = DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee);
 
         let mut src_delegated_puzzles: Vec<DelegatedPuzzle> = vec![];
@@ -1433,9 +1433,9 @@ pub mod tests {
         let ctx = &mut SpendContext::new();
 
         let admin_delegated_puzzle =
-            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk).into());
+            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk));
         let writer_delegated_puzzle =
-            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk).into());
+            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk));
         let oracle_delegated_puzzle = DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee);
 
         let mut delegated_puzzles: Vec<DelegatedPuzzle> = vec![];
@@ -1565,9 +1565,9 @@ pub mod tests {
         let ctx = &mut SpendContext::new();
 
         let admin_delegated_puzzle =
-            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk).into());
+            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk));
         let writer_delegated_puzzle =
-            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk).into());
+            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk));
         let oracle_delegated_puzzle = DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee);
 
         let mut delegated_puzzles: Vec<DelegatedPuzzle> = vec![];
@@ -1715,9 +1715,9 @@ pub mod tests {
         let ctx = &mut SpendContext::new();
 
         let admin_delegated_puzzle =
-            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk).into());
+            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk));
         let writer_delegated_puzzle =
-            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk).into());
+            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk));
         let oracle_delegated_puzzle = DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee);
 
         let mut delegated_puzzles: Vec<DelegatedPuzzle> = vec![];
@@ -1815,7 +1815,7 @@ pub mod tests {
         let attacker_pk = attacker_sk.public_key();
 
         let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
-        let attacker_puzzle_hash = StandardArgs::curry_tree_hash(attacker_pk).into();
+        let attacker_puzzle_hash = StandardArgs::curry_tree_hash(attacker_pk);
         let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
 
         let ctx = &mut SpendContext::new();
@@ -1839,7 +1839,7 @@ pub mod tests {
             ctx,
             attacker_pk,
             Conditions::new().with(Condition::CreateCoin(CreateCoin {
-                puzzle_hash: attacker_puzzle_hash,
+                puzzle_hash: attacker_puzzle_hash.into(),
                 amount: 1,
                 memos: vec![],
             })),
@@ -1883,8 +1883,8 @@ pub mod tests {
         let ctx = &mut SpendContext::new();
 
         let delegated_puzzle = match puzzle {
-            AttackerPuzzle::Admin => DelegatedPuzzle::Admin(attacker_puzzle_hash.into()),
-            AttackerPuzzle::Writer => DelegatedPuzzle::Writer(attacker_puzzle_hash.into()),
+            AttackerPuzzle::Admin => DelegatedPuzzle::Admin(attacker_puzzle_hash),
+            AttackerPuzzle::Writer => DelegatedPuzzle::Writer(attacker_puzzle_hash),
         };
 
         let (launch_singleton, src_datastore) = Launcher::new(coin.coin_id(), 1).mint_datastore(
@@ -2014,13 +2014,13 @@ pub mod tests {
 
         let delegated_puzzles = match puzzle {
             AttackerPuzzle::Admin => {
-                vec![DelegatedPuzzle::Admin(
-                    StandardArgs::curry_tree_hash(attacker_pk).into(),
-                )]
+                vec![DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(
+                    attacker_pk,
+                ))]
             }
-            AttackerPuzzle::Writer => vec![DelegatedPuzzle::Writer(
-                StandardArgs::curry_tree_hash(attacker_pk).into(),
-            )],
+            AttackerPuzzle::Writer => vec![DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(
+                attacker_pk,
+            ))],
         };
         let merkle_tree = get_merkle_tree(ctx, delegated_puzzles.clone())?;
 
