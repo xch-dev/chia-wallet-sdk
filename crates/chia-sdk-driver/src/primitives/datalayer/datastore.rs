@@ -609,7 +609,7 @@ pub mod tests {
     use chia_protocol::Program;
     use chia_puzzles::standard::{StandardArgs, StandardSolution};
     use chia_sdk_test::{test_secret_keys, test_transaction, Simulator};
-    use chia_sdk_types::Conditions;
+    use chia_sdk_types::{Conditions, MeltSingleton};
     use clvm_traits::clvm_quote;
     use clvmr::{
         serde::{node_from_bytes, node_to_bytes},
@@ -1671,6 +1671,103 @@ pub mod tests {
             .expect("expected oracle coin");
         assert_eq!(oracle_coin_state.coin, oracle_coin);
         assert!(oracle_coin_state.created_height.is_some());
+
+        Ok(())
+    }
+
+    #[rstest(
+    with_admin_layer => [true, false],
+    with_writer_layer => [true, false],
+    with_oracle_layer => [true, false],
+    meta => [
+      (RootHash::Zero, Label::None, Description::None, ByteSize::None),
+      (RootHash::Zero, Label::Some, Description::Some, ByteSize::Some),
+    ],
+  )]
+    #[tokio::test]
+    async fn test_melt(
+        with_admin_layer: bool,
+        with_writer_layer: bool,
+        with_oracle_layer: bool,
+        meta: (RootHash, Label, Description, ByteSize),
+    ) -> anyhow::Result<()> {
+        let sim = Simulator::new().await?;
+        let peer = sim.connect().await?;
+
+        let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
+            test_secret_keys(3).unwrap().try_into().unwrap();
+
+        let owner_pk = owner_sk.public_key();
+        let admin_pk = admin_sk.public_key();
+        let writer_pk = writer_sk.public_key();
+
+        let oracle_puzzle_hash: Bytes32 = [7; 32].into();
+        let oracle_fee = 1000;
+
+        let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
+        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+
+        let ctx = &mut SpendContext::new();
+
+        let admin_delegated_puzzle =
+            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk).into());
+        let writer_delegated_puzzle =
+            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk).into());
+        let oracle_delegated_puzzle = DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee);
+
+        let mut delegated_puzzles: Vec<DelegatedPuzzle> = vec![];
+        if with_admin_layer {
+            delegated_puzzles.push(admin_delegated_puzzle);
+        }
+        if with_writer_layer {
+            delegated_puzzles.push(writer_delegated_puzzle);
+        }
+        if with_oracle_layer {
+            delegated_puzzles.push(oracle_delegated_puzzle);
+        }
+
+        let (launch_singleton, src_datastore) = Launcher::new(coin.coin_id(), 1).mint_datastore(
+            ctx,
+            metadata_from_tuple(meta),
+            owner_puzzle_hash.into(),
+            delegated_puzzles.clone(),
+        )?;
+
+        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+
+        // owner melts
+        let output_conds = Conditions::new().with(Condition::Other(
+            MeltSingleton {}.to_clvm(&mut ctx.allocator)?,
+        ));
+        let inner_datastore_spend = StandardLayer::new(owner_pk).spend(ctx, output_conds)?;
+
+        let new_spend = src_datastore.clone().spend(ctx, inner_datastore_spend)?;
+        ctx.insert(new_spend);
+
+        // asserts
+
+        assert_eq!(src_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
+
+        assert_metadata_like_tests(&src_datastore.info.metadata, meta);
+
+        assert_delegated_puzzles_contain(
+            &src_datastore.info.delegated_puzzles,
+            &[
+                admin_delegated_puzzle,
+                writer_delegated_puzzle,
+                oracle_delegated_puzzle,
+            ],
+            &[with_admin_layer, with_writer_layer, with_oracle_layer],
+        );
+
+        test_transaction(&peer, ctx.take(), &[owner_sk], &sim.config().constants).await;
+
+        let src_coin_state = sim
+            .coin_state(src_datastore.coin.coin_id())
+            .await
+            .expect("expected src datastore coin");
+        assert_eq!(src_coin_state.coin, src_datastore.coin);
+        assert!(src_coin_state.spent_height.is_some()); // tx happened
 
         Ok(())
     }
