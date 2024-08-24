@@ -619,7 +619,9 @@ pub mod tests {
     };
     use rstest::rstest;
 
-    use crate::{Launcher, NewMerkleRootCondition, OracleLayer, StandardLayer, WriterLayer};
+    use crate::{
+        DelegationLayer, Launcher, NewMerkleRootCondition, OracleLayer, StandardLayer, WriterLayer,
+    };
 
     use super::*;
 
@@ -1956,6 +1958,108 @@ pub mod tests {
                     }
                 },
                 _ => panic!("other error encountered"),
+            },
+        }
+    }
+
+    #[rstest(
+    puzzle => [AttackerPuzzle::Admin, AttackerPuzzle::Writer],
+    new_root_hash => [RootHash::Zero, RootHash::Some],
+    new_updater_ph => [RootHash::Zero.value().into(), DL_METADATA_UPDATER_PUZZLE_HASH],
+    output_conditions => [false, true],
+  )]
+    fn test_metadata_filter(
+        puzzle: AttackerPuzzle,
+        new_root_hash: RootHash,
+        new_updater_ph: TreeHash,
+        output_conditions: bool,
+    ) -> anyhow::Result<()> {
+        let should_error_out =
+            output_conditions || new_updater_ph != DL_METADATA_UPDATER_PUZZLE_HASH;
+
+        let [attacker_sk]: [SecretKey; 1] = test_secret_keys(1).unwrap().try_into().unwrap();
+
+        let attacker_pk = attacker_sk.public_key();
+
+        let ctx = &mut SpendContext::new();
+
+        let new_metadata_condition = Condition::Other(
+            NewMetadataCondition {
+                metadata_updater_reveal: 11,
+                metadata_updater_solution: NewMetadataOutput {
+                    metadata_part: NewMetadataInfo {
+                        new_metadata: DataStoreMetadata::root_hash_only(new_root_hash.value()),
+                        new_metadata_updater_puzhash: new_updater_ph.into(),
+                    },
+                    conditions: if output_conditions {
+                        vec![CreateCoin {
+                            puzzle_hash: [0; 32].into(),
+                            amount: 1,
+                            memos: vec![],
+                        }]
+                    } else {
+                        vec![]
+                    },
+                },
+            }
+            .to_clvm(&mut ctx.allocator)?,
+        );
+
+        let inner_spend = puzzle.get_spend(
+            ctx,
+            attacker_pk,
+            Conditions::new().with(new_metadata_condition),
+        )?;
+
+        let delegated_puzzles = match puzzle {
+            AttackerPuzzle::Admin => {
+                vec![DelegatedPuzzle::Admin(
+                    StandardArgs::curry_tree_hash(attacker_pk).into(),
+                )]
+            }
+            AttackerPuzzle::Writer => vec![DelegatedPuzzle::Writer(
+                StandardArgs::curry_tree_hash(attacker_pk).into(),
+            )],
+        };
+        let merkle_tree = get_merkle_tree(ctx, delegated_puzzles.clone())?;
+
+        let delegation_layer =
+            DelegationLayer::new(Bytes32::default(), Bytes32::default(), merkle_tree.root);
+
+        let puzzle_ptr = delegation_layer.construct_puzzle(ctx)?;
+
+        let delegated_puzzle_hash = ctx.tree_hash(inner_spend.puzzle);
+        let solution_ptr = delegation_layer.construct_solution(
+            ctx,
+            DelegationLayerSolution {
+                merkle_proof: merkle_tree.get_proof(delegated_puzzle_hash.into()),
+                puzzle_reveal: inner_spend.puzzle,
+                puzzle_solution: inner_spend.solution,
+            },
+        )?;
+
+        match ctx.run(puzzle_ptr, solution_ptr) {
+            Ok(_) => {
+                if should_error_out {
+                    panic!("expected puzzle to error out");
+                } else {
+                    Ok(())
+                }
+            }
+            Err(err) => match err {
+                DriverError::Eval(eval_err) => {
+                    if should_error_out {
+                        if output_conditions {
+                            assert_eq!(eval_err.1, "= on list");
+                        } else {
+                            assert_eq!(eval_err.1, "clvm raise");
+                        }
+                        Ok(())
+                    } else {
+                        panic!("expected puzzle to not error out");
+                    }
+                }
+                _ => panic!("unexpected error while evaluating puzzle"),
             },
         }
     }
