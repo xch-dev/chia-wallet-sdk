@@ -1,18 +1,22 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use chia_consensus::gen::validation_error::{ErrorCode, ValidationErr};
+use chia_consensus::{
+    consensus_constants::ConsensusConstants,
+    gen::validation_error::{ErrorCode, ValidationErr},
+};
 use chia_protocol::{
     Bytes, Bytes32, CoinState, CoinStateUpdate, Message, NewPeakWallet, ProtocolMessageTypes,
-    RegisterForCoinUpdates, RegisterForPhUpdates, RejectCoinState, RejectPuzzleSolution,
-    RejectPuzzleState, RejectStateReason, RequestChildren, RequestCoinState, RequestPuzzleSolution,
-    RequestPuzzleState, RespondChildren, RespondCoinState, RespondPuzzleSolution,
-    RespondPuzzleState, RespondToCoinUpdates, RespondToPhUpdates, SendTransaction, TransactionAck,
+    PuzzleSolutionResponse, RegisterForCoinUpdates, RegisterForPhUpdates, RejectCoinState,
+    RejectPuzzleSolution, RejectPuzzleState, RejectStateReason, RequestChildren, RequestCoinState,
+    RequestPuzzleSolution, RequestPuzzleState, RespondChildren, RespondCoinState,
+    RespondPuzzleSolution, RespondPuzzleState, RespondToCoinUpdates, RespondToPhUpdates,
+    SendTransaction, SpendBundle, TransactionAck,
 };
 use chia_traits::Streamable;
 use clvmr::NodePtr;
 use futures_channel::mpsc;
 use futures_util::{SinkExt, StreamExt};
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use tokio::{
     net::TcpStream,
@@ -20,12 +24,11 @@ use tokio::{
 };
 use tokio_tungstenite::{tungstenite::Message as WsMessage, WebSocketStream};
 
+use crate::{Simulator, SimulatorError};
+
 use super::{
-    error::PeerSimulatorError,
-    peer_map::Ws,
-    simulator_config::SimulatorConfig,
-    simulator_data::{new_transaction, SimulatorData},
-    PeerMap,
+    error::PeerSimulatorError, peer_map::Ws, simulator_config::SimulatorConfig,
+    subscriptions::Subscriptions, PeerMap,
 };
 
 pub(crate) async fn ws_connection(
@@ -33,7 +36,8 @@ pub(crate) async fn ws_connection(
     ws: WebSocketStream<TcpStream>,
     addr: SocketAddr,
     config: Arc<SimulatorConfig>,
-    data: Arc<Mutex<SimulatorData>>,
+    simulator: Arc<Mutex<Simulator>>,
+    subscriptions: Arc<Mutex<Subscriptions>>,
 ) {
     let (tx, mut rx) = mpsc::unbounded();
     peer_map.insert(addr, tx.clone()).await;
@@ -58,8 +62,16 @@ pub(crate) async fn ws_connection(
             }
         };
 
-        if let Err(error) =
-            handle_message(peer_map.clone(), &config, &data, message, addr, tx.clone()).await
+        if let Err(error) = handle_message(
+            peer_map.clone(),
+            &config,
+            &simulator,
+            &subscriptions,
+            message,
+            addr,
+            tx.clone(),
+        )
+        .await
         {
             log::error!("error handling message: {}", error);
             break;
@@ -72,48 +84,55 @@ pub(crate) async fn ws_connection(
 async fn handle_message(
     peer_map: PeerMap,
     config: &SimulatorConfig,
-    data: &Mutex<SimulatorData>,
+    simulator: &Mutex<Simulator>,
+    subscriptions: &Mutex<Subscriptions>,
     message: WsMessage,
     addr: SocketAddr,
     mut ws: Ws,
 ) -> Result<(), PeerSimulatorError> {
     let request = Message::from_bytes(&message.into_data())?;
-    let data = data.lock().await;
+    let simulator = simulator.lock().await;
 
     let (response_type, response_data) = match request.msg_type {
         ProtocolMessageTypes::SendTransaction => {
             let request = SendTransaction::from_bytes(&request.data)?;
-            let response = send_transaction(peer_map, request, config, data).await?;
+            let subscriptions = subscriptions.lock().await;
+            let response =
+                send_transaction(peer_map, request, config, simulator, subscriptions).await?;
             (ProtocolMessageTypes::TransactionAck, response)
         }
         ProtocolMessageTypes::RegisterForCoinUpdates => {
             let request = RegisterForCoinUpdates::from_bytes(&request.data)?;
-            let response = register_for_coin_updates(addr, request, data)?;
+            let subscriptions = subscriptions.lock().await;
+            let response = register_for_coin_updates(addr, request, &simulator, subscriptions)?;
             (ProtocolMessageTypes::RespondToCoinUpdates, response)
         }
         ProtocolMessageTypes::RegisterForPhUpdates => {
             let request = RegisterForPhUpdates::from_bytes(&request.data)?;
-            let response = register_for_ph_updates(addr, request, data)?;
+            let subscriptions = subscriptions.lock().await;
+            let response = register_for_ph_updates(addr, request, &simulator, subscriptions)?;
             (ProtocolMessageTypes::RespondToPhUpdates, response)
         }
         ProtocolMessageTypes::RequestPuzzleSolution => {
             let request = RequestPuzzleSolution::from_bytes(&request.data)?;
-            let response = request_puzzle_solution(&request, &data)?;
+            let response = request_puzzle_solution(&request, &simulator)?;
             (ProtocolMessageTypes::RespondPuzzleSolution, response)
         }
         ProtocolMessageTypes::RequestChildren => {
             let request = RequestChildren::from_bytes(&request.data)?;
-            let response = request_children(&request, &data)?;
+            let response = request_children(&request, &simulator)?;
             (ProtocolMessageTypes::RespondChildren, response)
         }
         ProtocolMessageTypes::RequestCoinState => {
             let request = RequestCoinState::from_bytes(&request.data)?;
-            let response = request_coin_state(addr, request, config, data)?;
+            let subscriptions = subscriptions.lock().await;
+            let response = request_coin_state(addr, request, config, &simulator, subscriptions)?;
             (ProtocolMessageTypes::RespondCoinState, response)
         }
         ProtocolMessageTypes::RequestPuzzleState => {
             let request = RequestPuzzleState::from_bytes(&request.data)?;
-            let response = request_puzzle_state(addr, request, config, data)?;
+            let subscriptions = subscriptions.lock().await;
+            let response = request_puzzle_state(addr, request, config, &simulator, subscriptions)?;
             (ProtocolMessageTypes::RespondPuzzleState, response)
         }
         message_type => {
@@ -133,40 +152,103 @@ async fn handle_message(
     Ok(())
 }
 
+fn new_transaction(
+    simulator: &mut MutexGuard<'_, Simulator>,
+    subscriptions: &mut MutexGuard<'_, Subscriptions>,
+    spend_bundle: SpendBundle,
+    constants: &ConsensusConstants,
+) -> Result<IndexMap<SocketAddr, IndexSet<CoinState>>, PeerSimulatorError> {
+    let updates = simulator.new_transaction(spend_bundle, constants)?;
+    let peers = subscriptions.peers();
+
+    let mut peer_updates = IndexMap::new();
+
+    // Send updates to peers.
+    for peer in peers {
+        let mut coin_states = IndexSet::new();
+
+        let coin_subscriptions = subscriptions
+            .coin_subscriptions(peer)
+            .cloned()
+            .unwrap_or_default();
+
+        let puzzle_subscriptions = subscriptions
+            .puzzle_subscriptions(peer)
+            .cloned()
+            .unwrap_or_default();
+
+        for &coin_id in updates.keys() {
+            let Some(coin_state) = simulator.coin_state(coin_id) else {
+                continue;
+            };
+
+            if coin_subscriptions.contains(&coin_id)
+                || puzzle_subscriptions.contains(&coin_state.coin.puzzle_hash)
+            {
+                coin_states.insert(coin_state);
+            }
+        }
+
+        for &hint in &puzzle_subscriptions {
+            let coin_ids = simulator.hinted_coins(hint);
+
+            for coin_id in coin_ids {
+                if updates.contains_key(&coin_id) {
+                    coin_states.extend(simulator.coin_state(coin_id));
+                }
+            }
+        }
+
+        if coin_states.is_empty() {
+            continue;
+        };
+
+        peer_updates.insert(peer, coin_states);
+    }
+
+    Ok(peer_updates)
+}
+
 async fn send_transaction(
     peer_map: PeerMap,
     request: SendTransaction,
     config: &SimulatorConfig,
-    mut data: MutexGuard<'_, SimulatorData>,
+    mut simulator: MutexGuard<'_, Simulator>,
+    mut subscriptions: MutexGuard<'_, Subscriptions>,
 ) -> Result<Bytes, PeerSimulatorError> {
     let transaction_id = request.transaction.name();
 
-    let updates = match new_transaction(config, &mut data, request.transaction, 6_600_000_000) {
+    let updates = match new_transaction(
+        &mut simulator,
+        &mut subscriptions,
+        request.transaction,
+        &config.constants,
+    ) {
         Ok(updates) => updates,
         Err(error) => {
             log::error!("error processing transaction: {:?}", &error);
 
-            let validation_error = match error {
-                PeerSimulatorError::Validation(validation_error) => validation_error,
-                _ => ValidationErr(NodePtr::NIL, ErrorCode::Unknown),
+            let error_code = match error {
+                PeerSimulatorError::Simulator(SimulatorError::Validation(error_code)) => error_code,
+                _ => ErrorCode::Unknown,
             };
 
             return Ok(TransactionAck::new(
                 transaction_id,
                 3,
-                Some(format!("{validation_error:?}")),
+                Some(format!("{:?}", ValidationErr(NodePtr::NIL, error_code))),
             )
             .to_bytes()?
             .into());
         }
     };
 
-    let header_hash = data.header_hash(data.height());
+    let header_hash = simulator.header_hash();
 
     let new_peak = Message {
         msg_type: ProtocolMessageTypes::NewPeakWallet,
         id: None,
-        data: NewPeakWallet::new(header_hash, data.height(), 0, data.height())
+        data: NewPeakWallet::new(header_hash, simulator.height(), 0, simulator.height())
             .to_bytes()
             .unwrap()
             .into(),
@@ -185,8 +267,8 @@ async fn send_transaction(
             msg_type: ProtocolMessageTypes::CoinStateUpdate,
             id: None,
             data: CoinStateUpdate::new(
-                data.height(),
-                data.height(),
+                simulator.height(),
+                simulator.height(),
                 header_hash,
                 peer_updates.into_iter().collect(),
             )
@@ -207,11 +289,12 @@ async fn send_transaction(
 fn register_for_coin_updates(
     peer: SocketAddr,
     request: RegisterForCoinUpdates,
-    mut data: MutexGuard<'_, SimulatorData>,
+    simulator: &MutexGuard<'_, Simulator>,
+    mut subscriptions: MutexGuard<'_, Subscriptions>,
 ) -> Result<Bytes, PeerSimulatorError> {
     let coin_ids: IndexSet<Bytes32> = request.coin_ids.iter().copied().collect();
 
-    let coin_states: Vec<CoinState> = data
+    let coin_states: Vec<CoinState> = simulator
         .lookup_coin_ids(&coin_ids)
         .into_iter()
         .filter(|cs| {
@@ -222,7 +305,7 @@ fn register_for_coin_updates(
         })
         .collect();
 
-    data.add_coin_subscriptions(peer, coin_ids);
+    subscriptions.add_coin_subscriptions(peer, coin_ids);
 
     Ok(RespondToCoinUpdates {
         coin_ids: request.coin_ids,
@@ -236,11 +319,12 @@ fn register_for_coin_updates(
 fn register_for_ph_updates(
     peer: SocketAddr,
     request: RegisterForPhUpdates,
-    mut data: MutexGuard<'_, SimulatorData>,
+    simulator: &MutexGuard<'_, Simulator>,
+    mut subscriptions: MutexGuard<'_, Subscriptions>,
 ) -> Result<Bytes, PeerSimulatorError> {
     let puzzle_hashes: IndexSet<Bytes32> = request.puzzle_hashes.iter().copied().collect();
 
-    let coin_states: Vec<CoinState> = data
+    let coin_states: Vec<CoinState> = simulator
         .lookup_puzzle_hashes(puzzle_hashes.clone(), true)
         .into_iter()
         .filter(|cs| {
@@ -251,7 +335,7 @@ fn register_for_ph_updates(
         })
         .collect();
 
-    data.add_puzzle_subscriptions(peer, puzzle_hashes);
+    subscriptions.add_puzzle_subscriptions(peer, puzzle_hashes);
 
     Ok(RespondToPhUpdates {
         puzzle_hashes: request.puzzle_hashes,
@@ -264,7 +348,7 @@ fn register_for_ph_updates(
 
 fn request_puzzle_solution(
     request: &RequestPuzzleSolution,
-    data: &MutexGuard<'_, SimulatorData>,
+    simulator: &MutexGuard<'_, Simulator>,
 ) -> Result<Bytes, PeerSimulatorError> {
     let reject = RejectPuzzleSolution {
         coin_name: request.coin_name,
@@ -273,24 +357,37 @@ fn request_puzzle_solution(
     .to_bytes()?
     .into();
 
-    let Some(puzzle_solution) = data.puzzle_and_solution(request.coin_name) else {
+    let Some(coin_state) = simulator.coin_state(request.coin_name) else {
         return Ok(reject);
     };
 
-    if puzzle_solution.height != request.height {
+    if coin_state.spent_height != Some(request.height) {
         return Ok(reject);
     }
 
-    Ok(RespondPuzzleSolution::new(puzzle_solution)
-        .to_bytes()?
-        .into())
+    let Some(puzzle_reveal) = simulator.puzzle_reveal(request.coin_name) else {
+        return Ok(reject);
+    };
+
+    let Some(solution) = simulator.solution(request.coin_name) else {
+        return Ok(reject);
+    };
+
+    Ok(RespondPuzzleSolution::new(PuzzleSolutionResponse::new(
+        request.coin_name,
+        request.height,
+        puzzle_reveal,
+        solution,
+    ))
+    .to_bytes()?
+    .into())
 }
 
 fn request_children(
     request: &RequestChildren,
-    data: &MutexGuard<'_, SimulatorData>,
+    simulator: &MutexGuard<'_, Simulator>,
 ) -> Result<Bytes, PeerSimulatorError> {
-    Ok(RespondChildren::new(data.children(request.coin_name))
+    Ok(RespondChildren::new(simulator.children(request.coin_name))
         .to_bytes()?
         .into())
 }
@@ -299,13 +396,16 @@ fn request_coin_state(
     peer: SocketAddr,
     request: RequestCoinState,
     config: &SimulatorConfig,
-    mut data: MutexGuard<'_, SimulatorData>,
+    simulator: &MutexGuard<'_, Simulator>,
+    mut subscriptions: MutexGuard<'_, Subscriptions>,
 ) -> Result<Bytes, PeerSimulatorError> {
-    if (request.previous_height.is_some()
-        && request.header_hash != data.header_hash(request.previous_height.unwrap()))
-        || (request.previous_height.is_none()
-            && request.header_hash != config.constants.genesis_challenge)
-    {
+    if let Some(previous_height) = request.previous_height {
+        if Some(request.header_hash) != simulator.header_hash_of(previous_height) {
+            return Ok(RejectCoinState::new(RejectStateReason::Reorg)
+                .to_bytes()?
+                .into());
+        }
+    } else if request.header_hash != config.constants.genesis_challenge {
         return Ok(RejectCoinState::new(RejectStateReason::Reorg)
             .to_bytes()?
             .into());
@@ -313,7 +413,7 @@ fn request_coin_state(
 
     let coin_ids: IndexSet<Bytes32> = request.coin_ids.iter().copied().collect();
     let min_height = request.previous_height.map_or(0, |height| height + 1);
-    let subscription_count = data.subscription_count(peer);
+    let subscription_count = subscriptions.subscription_count(peer);
 
     if subscription_count + coin_ids.len() > config.max_subscriptions && request.subscribe {
         return Ok(
@@ -323,7 +423,7 @@ fn request_coin_state(
         );
     }
 
-    let coin_states: Vec<CoinState> = data
+    let coin_states: Vec<CoinState> = simulator
         .lookup_coin_ids(&coin_ids)
         .into_iter()
         .filter(|cs| {
@@ -335,7 +435,7 @@ fn request_coin_state(
         .collect();
 
     if request.subscribe {
-        data.add_coin_subscriptions(peer, coin_ids);
+        subscriptions.add_coin_subscriptions(peer, coin_ids);
     }
 
     Ok(RespondCoinState {
@@ -350,21 +450,24 @@ fn request_puzzle_state(
     peer: SocketAddr,
     request: RequestPuzzleState,
     config: &SimulatorConfig,
-    mut data: MutexGuard<'_, SimulatorData>,
+    simulator: &MutexGuard<'_, Simulator>,
+    mut subscriptions: MutexGuard<'_, Subscriptions>,
 ) -> Result<Bytes, PeerSimulatorError> {
-    if (request.previous_height.is_some()
-        && request.header_hash != data.header_hash(request.previous_height.unwrap()))
-        || (request.previous_height.is_none()
-            && request.header_hash != config.constants.genesis_challenge)
-    {
-        return Ok(RejectPuzzleState::new(RejectStateReason::Reorg)
+    if let Some(previous_height) = request.previous_height {
+        if Some(request.header_hash) != simulator.header_hash_of(previous_height) {
+            return Ok(RejectCoinState::new(RejectStateReason::Reorg)
+                .to_bytes()?
+                .into());
+        }
+    } else if request.header_hash != config.constants.genesis_challenge {
+        return Ok(RejectCoinState::new(RejectStateReason::Reorg)
             .to_bytes()?
             .into());
     }
 
     let puzzle_hashes: IndexSet<Bytes32> = request.puzzle_hashes.iter().copied().collect();
     let min_height = request.previous_height.map_or(0, |height| height + 1);
-    let subscription_count = data.subscription_count(peer);
+    let subscription_count = subscriptions.subscription_count(peer);
 
     if subscription_count + puzzle_hashes.len() > config.max_subscriptions
         && request.subscribe_when_finished
@@ -378,7 +481,7 @@ fn request_puzzle_state(
 
     let puzzle_hashes: IndexSet<Bytes32> = request.puzzle_hashes.iter().copied().collect();
 
-    let mut coin_states: Vec<CoinState> = data
+    let mut coin_states: Vec<CoinState> = simulator
         .lookup_puzzle_hashes(puzzle_hashes.clone(), request.filters.include_hinted)
         .into_iter()
         .filter(|cs| {
@@ -416,14 +519,14 @@ fn request_puzzle_state(
     }
 
     if request.subscribe_when_finished && next_height.is_none() {
-        data.add_puzzle_subscriptions(peer, puzzle_hashes);
+        subscriptions.add_puzzle_subscriptions(peer, puzzle_hashes);
     }
 
-    let height = next_height.unwrap_or(data.height());
+    let height = next_height.unwrap_or(simulator.height());
 
     Ok(RespondPuzzleState {
         height,
-        header_hash: data.header_hash(height),
+        header_hash: simulator.header_hash_of(height).unwrap(),
         puzzle_hashes: request.puzzle_hashes,
         coin_states,
         is_finished: next_height.is_none(),

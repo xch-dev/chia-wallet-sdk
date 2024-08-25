@@ -15,6 +15,7 @@ use crate::{sign_transaction, SimulatorError};
 pub struct Simulator {
     rng: Rng,
     height: u32,
+    header_hashes: Vec<Bytes32>,
     coin_states: IndexMap<Bytes32, CoinState>,
     hinted_coins: IndexMap<Bytes32, IndexSet<Bytes32>>,
     puzzle_and_solutions: IndexMap<Bytes32, (Program, Program)>,
@@ -32,9 +33,14 @@ impl Simulator {
     }
 
     pub fn with_seed(seed: u64) -> Self {
+        let mut rng = Rng::with_seed(seed);
+        let mut header_hash = [0; 32];
+        rng.fill(&mut header_hash);
+
         Self {
-            rng: Rng::with_seed(seed),
+            rng,
             height: 0,
+            header_hashes: vec![header_hash.into()],
             coin_states: IndexMap::new(),
             hinted_coins: IndexMap::new(),
             puzzle_and_solutions: IndexMap::new(),
@@ -43,6 +49,14 @@ impl Simulator {
 
     pub fn height(&self) -> u32 {
         self.height
+    }
+
+    pub fn header_hash(&self) -> Bytes32 {
+        self.header_hashes.last().copied().unwrap()
+    }
+
+    pub fn header_hash_of(&self, height: u32) -> Option<Bytes32> {
+        self.header_hashes.get(height as usize).copied()
     }
 
     pub fn insert_coin(&mut self, coin: Coin) {
@@ -56,6 +70,10 @@ impl Simulator {
         let coin = Coin::new(parent_coin_info.into(), puzzle_hash, amount);
         self.insert_coin(coin);
         coin
+    }
+
+    pub(crate) fn hint_coin(&mut self, coin_id: Bytes32, hint: Bytes32) {
+        self.hinted_coins.entry(hint).or_default().insert(coin_id);
     }
 
     pub fn coin_state(&self, coin_id: Bytes32) -> Option<CoinState> {
@@ -194,11 +212,51 @@ impl Simulator {
         // Update the coin data.
         let mut updates = added_coins.clone();
         updates.extend(removed_coins);
-        self.height += 1;
+        self.create_block();
         self.coin_states.extend(updates.clone());
         self.hinted_coins.extend(added_hints.clone());
         self.puzzle_and_solutions.extend(puzzle_solutions);
 
         Ok(updates)
+    }
+
+    pub fn lookup_coin_ids(&self, coin_ids: &IndexSet<Bytes32>) -> Vec<CoinState> {
+        coin_ids
+            .iter()
+            .filter_map(|coin_id| self.coin_states.get(coin_id).copied())
+            .collect()
+    }
+
+    pub fn lookup_puzzle_hashes(
+        &self,
+        puzzle_hashes: IndexSet<Bytes32>,
+        include_hints: bool,
+    ) -> Vec<CoinState> {
+        let mut coin_states = IndexMap::new();
+
+        for (coin_id, coin_state) in &self.coin_states {
+            if puzzle_hashes.contains(&coin_state.coin.puzzle_hash) {
+                coin_states.insert(*coin_id, self.coin_states[coin_id]);
+            }
+        }
+
+        if include_hints {
+            for puzzle_hash in puzzle_hashes {
+                if let Some(hinted_coins) = self.hinted_coins.get(&puzzle_hash) {
+                    for coin_id in hinted_coins {
+                        coin_states.insert(*coin_id, self.coin_states[coin_id]);
+                    }
+                }
+            }
+        }
+
+        coin_states.into_values().collect()
+    }
+
+    fn create_block(&mut self) {
+        let mut header_hash = [0; 32];
+        self.rng.fill(&mut header_hash);
+        self.header_hashes.push(header_hash.into());
+        self.height += 1;
     }
 }

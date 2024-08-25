@@ -4,10 +4,8 @@ use chia_protocol::{Bytes32, Coin, CoinState, Message};
 use chia_sdk_client::Peer;
 use error::PeerSimulatorError;
 use peer_map::PeerMap;
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaCha8Rng;
 use simulator_config::SimulatorConfig;
-use simulator_data::SimulatorData;
+use subscriptions::Subscriptions;
 use tokio::{
     net::TcpListener,
     sync::{mpsc, Mutex},
@@ -16,18 +14,20 @@ use tokio::{
 use tokio_tungstenite::connect_async;
 use ws_connection::ws_connection;
 
+use crate::Simulator;
+
 mod error;
 mod peer_map;
 mod simulator_config;
-mod simulator_data;
+mod subscriptions;
 mod ws_connection;
 
 #[derive(Debug)]
 pub struct PeerSimulator {
     config: Arc<SimulatorConfig>,
-    rng: Mutex<ChaCha8Rng>,
     addr: SocketAddr,
-    data: Arc<Mutex<SimulatorData>>,
+    simulator: Arc<Mutex<Simulator>>,
+    subscriptions: Arc<Mutex<Subscriptions>>,
     join_handle: JoinHandle<()>,
 }
 
@@ -43,14 +43,17 @@ impl PeerSimulator {
         let peer_map = PeerMap::default();
         let listener = TcpListener::bind(addr).await?;
         let addr = listener.local_addr()?;
-        let data = Arc::new(Mutex::new(SimulatorData::default()));
+        let simulator = Arc::new(Mutex::new(Simulator::default()));
+        let subscriptions = Arc::new(Mutex::new(Subscriptions::default()));
         let config = Arc::new(config);
 
-        let data_clone = data.clone();
+        let simulator_clone = simulator.clone();
+        let subscriptions_clone = subscriptions.clone();
         let config_clone = config.clone();
 
         let join_handle = tokio::spawn(async move {
-            let data = data_clone;
+            let simulator = simulator_clone;
+            let subscriptions = subscriptions_clone;
             let config = config_clone;
 
             while let Ok((stream, addr)) = listener.accept().await {
@@ -66,17 +69,18 @@ impl PeerSimulator {
                     stream,
                     addr,
                     config.clone(),
-                    data.clone(),
+                    simulator.clone(),
+                    subscriptions.clone(),
                 ));
             }
         });
 
         Ok(Self {
             config,
-            rng: Mutex::new(ChaCha8Rng::seed_from_u64(0)),
             addr,
+            simulator,
+            subscriptions,
             join_handle,
-            data,
         })
     }
 
@@ -105,47 +109,33 @@ impl PeerSimulator {
     }
 
     pub async fn reset(&self) -> Result<(), PeerSimulatorError> {
-        let mut data = self.data.lock().await;
-        *data = SimulatorData::default();
+        *self.simulator.lock().await = Simulator::default();
+        *self.subscriptions.lock().await = Subscriptions::default();
         Ok(())
     }
 
     pub async fn mint_coin(&self, puzzle_hash: Bytes32, amount: u64) -> Coin {
-        let mut data = self.data.lock().await;
-
-        let coin = Coin::new(
-            Bytes32::new(self.rng.lock().await.gen()),
-            puzzle_hash,
-            amount,
-        );
-
-        data.create_coin(coin);
-        coin
+        self.simulator.lock().await.new_coin(puzzle_hash, amount)
     }
 
     pub async fn add_hint(&self, coin_id: Bytes32, hint: Bytes32) {
-        let mut data = self.data.lock().await;
-        data.add_hint(coin_id, hint);
+        self.simulator.lock().await.hint_coin(coin_id, hint);
     }
 
     pub async fn coin_state(&self, coin_id: Bytes32) -> Option<CoinState> {
-        let data = self.data.lock().await;
-        data.coin_state(coin_id)
+        self.simulator.lock().await.coin_state(coin_id)
     }
 
     pub async fn height(&self) -> u32 {
-        let data = self.data.lock().await;
-        data.height()
+        self.simulator.lock().await.height()
     }
 
     pub async fn header_hash(&self, height: u32) -> Bytes32 {
-        let data = self.data.lock().await;
-        data.header_hash(height)
+        self.simulator.lock().await.header_hash_of(height).unwrap()
     }
 
     pub async fn peak_hash(&self) -> Bytes32 {
-        let data = self.data.lock().await;
-        data.header_hash(data.height())
+        self.simulator.lock().await.header_hash()
     }
 }
 

@@ -1,12 +1,13 @@
 use std::io;
 
-use chia_consensus::gen::validation_error::ValidationErr;
 use chia_protocol::ProtocolMessageTypes;
 use chia_sdk_client::ClientError;
 use chia_sdk_signer::SignerError;
 use futures_channel::mpsc::SendError;
 use thiserror::Error;
 use tokio_tungstenite::tungstenite;
+
+use crate::SimulatorError;
 
 #[derive(Debug, Error)]
 pub enum PeerSimulatorError {
@@ -28,8 +29,8 @@ pub enum PeerSimulatorError {
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 
-    #[error("validation error: {0}")]
-    Validation(#[from] ValidationErr),
+    #[error("simulator error: {0}")]
+    Simulator(#[from] SimulatorError),
 
     #[error("send message error: {0}")]
     SendMessage(#[from] SendError),
