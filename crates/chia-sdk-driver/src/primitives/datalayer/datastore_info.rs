@@ -82,16 +82,17 @@ impl DelegatedPuzzle {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct DataStoreMetadata {
-    pub root_hash: Bytes32,
-    pub label: Option<String>,
-    pub description: Option<String>,
-    pub bytes: Option<u64>,
+pub trait MetadataWithRootHash {
+    fn root_hash(&self) -> Bytes32;
+    fn root_hash_only(root_hash: Bytes32) -> Self;
 }
 
-impl DataStoreMetadata {
-    pub fn root_hash_only(root_hash: Bytes32) -> Self {
+impl MetadataWithRootHash for DataStoreMetadata {
+    fn root_hash(&self) -> Bytes32 {
+        self.root_hash
+    }
+
+    fn root_hash_only(root_hash: Bytes32) -> Self {
         Self {
             root_hash,
             label: None,
@@ -99,6 +100,14 @@ impl DataStoreMetadata {
             bytes: None,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DataStoreMetadata {
+    pub root_hash: Bytes32,
+    pub label: Option<String>,
+    pub description: Option<String>,
+    pub bytes: Option<u64>,
 }
 
 impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for DataStoreMetadata {

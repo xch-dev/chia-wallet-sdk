@@ -19,7 +19,10 @@ use crate::{
     DL_METADATA_UPDATER_PUZZLE_HASH,
 };
 
-use super::{get_merkle_tree, DataStoreInfo, DataStoreMetadata, DelegatedPuzzle, HintType};
+use super::{
+    get_merkle_tree, DataStoreInfo, DataStoreMetadata, DelegatedPuzzle, HintType,
+    MetadataWithRootHash,
+};
 
 /// Everything that is required to spend a [`DataStore`] coin.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,21 +124,6 @@ pub struct OldDlLauncherKvList<T = NodePtr> {
     pub state_layer_inner_puzzle_hash: Bytes32,
     #[clvm(rest)]
     pub memos: Vec<T>,
-}
-
-pub trait MetadataWithRootHash {
-    fn root_hash(&self) -> Bytes32;
-    fn root_hash_only(root_hash: Bytes32) -> Self;
-}
-
-impl MetadataWithRootHash for DataStoreMetadata {
-    fn root_hash(&self) -> Bytes32 {
-        self.root_hash
-    }
-
-    fn root_hash_only(root_hash: Bytes32) -> Self {
-        super::DataStoreMetadata::root_hash_only(root_hash)
-    }
 }
 
 // does not Primitive because it needs extra info :(
