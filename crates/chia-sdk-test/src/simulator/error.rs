@@ -2,6 +2,7 @@ use std::io;
 
 use chia_consensus::gen::validation_error::ValidationErr;
 use chia_protocol::ProtocolMessageTypes;
+use chia_sdk_client::ClientError;
 use chia_sdk_signer::SignerError;
 use futures_channel::mpsc::SendError;
 use thiserror::Error;
@@ -14,6 +15,9 @@ pub enum SimulatorError {
 
     #[error("websocket error: {0}")]
     WebSocket(#[from] tungstenite::Error),
+
+    #[error("client error: {0}")]
+    Client(#[from] ClientError),
 
     #[error("message parser error: {0}")]
     Streamable(#[from] chia_traits::Error),

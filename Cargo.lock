@@ -260,21 +260,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chia-client"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8c759008594127494101816947c2f2e2fb843d472f8831fdc7fbfa0f3989f45"
-dependencies = [
- "chia-protocol",
- "chia-traits 0.11.0",
- "futures-util",
- "thiserror",
- "tokio",
- "tokio-tungstenite",
- "tungstenite",
-]
-
-[[package]]
 name = "chia-consensus"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -337,7 +322,6 @@ dependencies = [
  "native-tls",
  "serde",
  "serde_with",
- "sha2",
  "thiserror",
  "tokio",
  "tokio-tungstenite",
@@ -415,9 +399,9 @@ dependencies = [
  "anyhow",
  "bip39",
  "chia-bls 0.11.0",
- "chia-client",
  "chia-consensus",
  "chia-protocol",
+ "chia-sdk-client",
  "chia-sdk-signer",
  "chia-sdk-types",
  "chia-traits 0.11.0",

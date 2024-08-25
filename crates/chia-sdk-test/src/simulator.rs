@@ -1,14 +1,18 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use chia_client::Peer;
-use chia_protocol::{Bytes32, Coin, CoinState};
+use chia_protocol::{Bytes32, Coin, CoinState, Message};
+use chia_sdk_client::Peer;
 use error::SimulatorError;
 use peer_map::PeerMap;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use simulator_config::SimulatorConfig;
 use simulator_data::SimulatorData;
-use tokio::{net::TcpListener, sync::Mutex, task::JoinHandle};
+use tokio::{
+    net::TcpListener,
+    sync::{mpsc, Mutex},
+    task::JoinHandle,
+};
 use tokio_tungstenite::connect_async;
 use ws_connection::ws_connection;
 
@@ -80,10 +84,22 @@ impl Simulator {
         &self.config
     }
 
-    pub async fn connect(&self) -> Result<Peer, SimulatorError> {
+    pub async fn connect_split(&self) -> Result<(Peer, mpsc::Receiver<Message>), SimulatorError> {
         log::info!("connecting new peer to simulator");
         let (ws, _) = connect_async(format!("ws://{}", self.addr)).await?;
-        Ok(Peer::new(ws))
+        Ok(Peer::from_websocket(ws)?)
+    }
+
+    pub async fn connect(&self) -> Result<Peer, SimulatorError> {
+        let (peer, mut receiver) = self.connect_split().await?;
+
+        tokio::spawn(async move {
+            while let Some(message) = receiver.recv().await {
+                log::debug!("received message: {message:?}");
+            }
+        });
+
+        Ok(peer)
     }
 
     pub async fn reset(&self) -> Result<(), SimulatorError> {
@@ -141,8 +157,8 @@ impl Drop for Simulator {
 mod tests {
     use chia_bls::{DerivableKey, PublicKey, Signature};
     use chia_protocol::{
-        Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, RejectCoinState, RejectPuzzleState,
-        RequestCoinState, RequestPuzzleState, RespondCoinState, RespondPuzzleState, SpendBundle,
+        Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, RespondCoinState, RespondPuzzleState,
+        SpendBundle,
     };
     use chia_sdk_types::{AggSigMe, CreateCoin, Remark};
 
@@ -388,7 +404,7 @@ mod tests {
         let peer = sim.connect().await?;
 
         let children = peer.request_children(Bytes32::default()).await?;
-        assert!(children.is_empty());
+        assert!(children.coin_states.is_empty());
 
         Ok(())
     }
@@ -411,7 +427,7 @@ mod tests {
         assert_eq!(ack.status, 1);
 
         let children = peer.request_children(coin.coin_id()).await?;
-        assert!(children.is_empty());
+        assert!(children.coin_states.is_empty());
 
         Ok(())
     }
@@ -441,10 +457,18 @@ mod tests {
         assert_eq!(ack.status, 1);
 
         let children = peer.request_children(coin.coin_id()).await?;
-        assert_eq!(children.len(), 2);
+        assert_eq!(children.coin_states.len(), 2);
 
-        let found_1 = children.iter().find(|cs| cs.coin.amount == 1).copied();
-        let found_2 = children.iter().find(|cs| cs.coin.amount == 2).copied();
+        let found_1 = children
+            .coin_states
+            .iter()
+            .find(|cs| cs.coin.amount == 1)
+            .copied();
+        let found_2 = children
+            .coin_states
+            .iter()
+            .find(|cs| cs.coin.amount == 2)
+            .copied();
 
         let expected_1 = CoinState::new(Coin::new(coin.coin_id(), puzzle_hash, 1), None, Some(0));
         let expected_2 = CoinState::new(Coin::new(coin.coin_id(), puzzle_hash, 2), None, Some(0));
@@ -477,7 +501,10 @@ mod tests {
         let ack = peer.send_transaction(spend_bundle).await?;
         assert_eq!(ack.status, 1);
 
-        let response = peer.request_puzzle_and_solution(coin.coin_id(), 0).await?;
+        let response = peer
+            .request_puzzle_and_solution(coin.coin_id(), 0)
+            .await?
+            .unwrap();
         assert_eq!(response.coin_name, coin.coin_id());
         assert_eq!(response.puzzle, puzzle_reveal);
         assert_eq!(response.solution, solution);
@@ -489,8 +516,7 @@ mod tests {
     #[tokio::test]
     async fn test_spent_coin_subscription() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
-        let peer = sim.connect().await?;
-        let mut receiver = peer.receiver().resubscribe();
+        let (peer, mut receiver) = sim.connect_split().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
@@ -502,7 +528,8 @@ mod tests {
 
         let coin_states = peer
             .register_for_coin_updates(vec![coin.coin_id()], 0)
-            .await?;
+            .await?
+            .coin_states;
         assert_eq!(coin_states.len(), 1);
         assert_eq!(coin_states[0], coin_state);
 
@@ -530,8 +557,7 @@ mod tests {
     #[tokio::test]
     async fn test_created_coin_subscription() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
-        let peer = sim.connect().await?;
-        let mut receiver = peer.receiver().resubscribe();
+        let (peer, mut receiver) = sim.connect_split().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
@@ -540,7 +566,8 @@ mod tests {
 
         let coin_states = peer
             .register_for_coin_updates(vec![child_coin.coin_id()], 0)
-            .await?;
+            .await?
+            .coin_states;
         assert_eq!(coin_states.len(), 0);
 
         let spend_bundle = SpendBundle::new(
@@ -571,8 +598,7 @@ mod tests {
     #[tokio::test]
     async fn test_spent_puzzle_subscription() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
-        let peer = sim.connect().await?;
-        let mut receiver = peer.receiver().resubscribe();
+        let (peer, mut receiver) = sim.connect_split().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
@@ -584,7 +610,8 @@ mod tests {
 
         let coin_states = peer
             .register_for_ph_updates(vec![coin.puzzle_hash], 0)
-            .await?;
+            .await?
+            .coin_states;
         assert_eq!(coin_states.len(), 1);
         assert_eq!(coin_states[0], coin_state);
 
@@ -612,8 +639,7 @@ mod tests {
     #[tokio::test]
     async fn test_created_puzzle_subscription() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
-        let peer = sim.connect().await?;
-        let mut receiver = peer.receiver().resubscribe();
+        let (peer, mut receiver) = sim.connect_split().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
@@ -622,7 +648,8 @@ mod tests {
 
         let coin_states = peer
             .register_for_ph_updates(vec![child_coin.puzzle_hash], 0)
-            .await?;
+            .await?
+            .coin_states;
         assert_eq!(coin_states.len(), 0);
 
         let spend_bundle = SpendBundle::new(
@@ -653,8 +680,7 @@ mod tests {
     #[tokio::test]
     async fn test_spent_hint_subscription() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
-        let peer = sim.connect().await?;
-        let mut receiver = peer.receiver().resubscribe();
+        let (peer, mut receiver) = sim.connect_split().await?;
 
         let hint = Bytes32::new([42; 32]);
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -667,7 +693,10 @@ mod tests {
             .await
             .expect("missing coin state");
 
-        let coin_states = peer.register_for_ph_updates(vec![hint], 0).await?;
+        let coin_states = peer
+            .register_for_ph_updates(vec![hint], 0)
+            .await?
+            .coin_states;
         assert_eq!(coin_states.len(), 1);
         assert_eq!(coin_states[0], coin_state);
 
@@ -695,15 +724,17 @@ mod tests {
     #[tokio::test]
     async fn test_created_hint_subscription() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
-        let peer = sim.connect().await?;
-        let mut receiver = peer.receiver().resubscribe();
+        let (peer, mut receiver) = sim.connect_split().await?;
 
         let hint = Bytes32::new([42; 32]);
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
         let coin = sim.mint_coin(puzzle_hash, 0).await;
 
-        let coin_states = peer.register_for_ph_updates(vec![hint], 0).await?;
+        let coin_states = peer
+            .register_for_ph_updates(vec![hint], 0)
+            .await?
+            .coin_states;
         assert_eq!(coin_states.len(), 0);
 
         let spend_bundle = SpendBundle::new(
@@ -752,13 +783,14 @@ mod tests {
             .expect("missing coin state");
 
         let response = peer
-            .request_or_reject::<RespondCoinState, RejectCoinState, _>(RequestCoinState::new(
+            .request_coin_state(
                 vec![coin.coin_id()],
                 None,
                 sim.config().constants.genesis_challenge,
                 false,
-            ))
-            .await?;
+            )
+            .await?
+            .unwrap();
         assert_eq!(
             response,
             RespondCoinState::new(vec![coin.coin_id()], vec![coin_state])
@@ -775,13 +807,14 @@ mod tests {
         coin_state.spent_height = Some(0);
 
         let response = peer
-            .request_or_reject::<RespondCoinState, RejectCoinState, _>(RequestCoinState::new(
+            .request_coin_state(
                 vec![coin.coin_id()],
                 None,
                 sim.config().constants.genesis_challenge,
                 false,
-            ))
-            .await?;
+            )
+            .await?
+            .unwrap();
         assert_eq!(
             response,
             RespondCoinState::new(vec![coin.coin_id()], vec![coin_state])
@@ -804,14 +837,15 @@ mod tests {
             .expect("missing coin state");
 
         let response = peer
-            .request_or_reject::<RespondPuzzleState, RejectPuzzleState, _>(RequestPuzzleState::new(
+            .request_puzzle_state(
                 vec![puzzle_hash],
                 None,
                 sim.config().constants.genesis_challenge,
                 CoinStateFilters::new(true, true, true, 0),
                 false,
-            ))
-            .await?;
+            )
+            .await?
+            .unwrap();
         assert_eq!(
             response,
             RespondPuzzleState::new(
@@ -834,14 +868,15 @@ mod tests {
         coin_state.spent_height = Some(0);
 
         let response = peer
-            .request_or_reject::<RespondPuzzleState, RejectPuzzleState, _>(RequestPuzzleState::new(
+            .request_puzzle_state(
                 vec![puzzle_hash],
                 None,
                 sim.config().constants.genesis_challenge,
                 CoinStateFilters::new(true, true, true, 0),
                 false,
-            ))
-            .await?;
+            )
+            .await?
+            .unwrap();
         assert_eq!(
             response,
             RespondPuzzleState::new(

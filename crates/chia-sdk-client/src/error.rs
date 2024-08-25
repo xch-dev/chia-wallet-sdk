@@ -7,8 +7,8 @@ pub enum ClientError {
     #[error("SSL error: {0}")]
     Ssl(#[from] chia_ssl::Error),
 
-    #[error("Peer is missing certificate")]
-    MissingCertificate,
+    #[error("Rustls is not supported")]
+    RustlsNotSupported,
 
     #[error("Streamable error: {0}")]
     Streamable(#[from] chia_traits::Error),

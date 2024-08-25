@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use chia_bls::{sign, PublicKey, SecretKey, Signature};
-use chia_client::Peer;
 use chia_consensus::consensus_constants::ConsensusConstants;
 use chia_protocol::{CoinSpend, SpendBundle, TransactionAck};
+use chia_sdk_client::Peer;
 use chia_sdk_signer::RequiredSignature;
 use clvmr::Allocator;
 use thiserror::Error;

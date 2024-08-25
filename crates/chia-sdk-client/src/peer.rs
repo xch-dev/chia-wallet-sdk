@@ -1,4 +1,4 @@
-use std::{fmt, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 
 use chia_protocol::{
     Bytes32, ChiaProtocolMessage, CoinStateFilters, Message, PuzzleSolutionResponse,
@@ -16,7 +16,6 @@ use futures_util::{
     SinkExt, StreamExt,
 };
 use native_tls::TlsConnector;
-use sha2::{digest::FixedOutput, Digest, Sha256};
 use tokio::{
     net::TcpStream,
     sync::{mpsc, oneshot, Mutex},
@@ -31,21 +30,6 @@ type Sink = SplitSink<WebSocket, tungstenite::Message>;
 type Stream = SplitStream<WebSocket>;
 type Response<T, E> = std::result::Result<T, E>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PeerId([u8; 32]);
-
-impl PeerId {
-    pub fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-}
-
-impl fmt::Display for PeerId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Peer(Arc<PeerInner>);
 
@@ -54,7 +38,6 @@ struct PeerInner {
     sink: Mutex<Sink>,
     inbound_handle: JoinHandle<()>,
     requests: Arc<RequestMap>,
-    peer_id: PeerId,
     socket_addr: SocketAddr,
 }
 
@@ -86,23 +69,16 @@ impl Peer {
     /// Creates a peer from an existing websocket connection.
     /// The connection must be secured with TLS, so that the certificate can be hashed in a peer id.
     pub fn from_websocket(ws: WebSocket) -> Result<(Self, mpsc::Receiver<Message>), ClientError> {
-        let (socket_addr, cert) = match ws.get_ref() {
+        let socket_addr = match ws.get_ref() {
             MaybeTlsStream::NativeTls(tls) => {
                 let tls_stream = tls.get_ref();
                 let tcp_stream = tls_stream.get_ref().get_ref();
-                (tcp_stream.peer_addr()?, tls_stream.peer_certificate()?)
+                tcp_stream.peer_addr()?
             }
-            _ => return Err(ClientError::MissingCertificate),
+            MaybeTlsStream::Plain(plain) => plain.peer_addr()?,
+            _ => return Err(ClientError::RustlsNotSupported),
         };
 
-        let Some(cert) = cert else {
-            return Err(ClientError::MissingCertificate);
-        };
-
-        let mut hasher = Sha256::new();
-        hasher.update(cert.to_der()?);
-
-        let peer_id = PeerId(hasher.finalize_fixed().into());
         let (sink, stream) = ws.split();
         let (sender, receiver) = mpsc::channel(32);
 
@@ -119,16 +95,10 @@ impl Peer {
             sink: Mutex::new(sink),
             inbound_handle,
             requests,
-            peer_id,
             socket_addr,
         }));
 
         Ok((peer, receiver))
-    }
-
-    /// The hash of the TLS certificate used by the peer.
-    pub fn peer_id(&self) -> PeerId {
-        self.0.peer_id
     }
 
     /// The IP address and port of the peer connection.
