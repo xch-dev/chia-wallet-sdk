@@ -1,13 +1,13 @@
 mod announcements;
 mod events;
 mod keys;
-mod simulator;
+mod peer_simulator;
 mod transaction;
 
 pub use announcements::*;
 pub use events::*;
 pub use keys::*;
-pub use simulator::*;
+pub use peer_simulator::*;
 pub use transaction::*;
 
 use chia_protocol::{Bytes32, Program};
