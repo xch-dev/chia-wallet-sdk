@@ -10,11 +10,11 @@ use chia_protocol::Message;
 use native_tls::TlsConnector;
 use tokio::sync::{mpsc, Mutex};
 
-use crate::{connect_peer, ClientError, Network, Peer};
+use crate::{connect_peer, ClientError, Network, NetworkId, Peer};
 
 #[derive(Debug, Clone)]
 pub struct Client {
-    network_id: String,
+    network_id: NetworkId,
     network: Network,
     tls_connector: TlsConnector,
     state: Arc<Mutex<ClientState>>,
@@ -36,7 +36,7 @@ pub struct ClientState {
 }
 
 impl Client {
-    pub fn new(network_id: String, network: Network, tls_connector: TlsConnector) -> Self {
+    pub fn new(network_id: NetworkId, network: Network, tls_connector: TlsConnector) -> Self {
         Self {
             network_id,
             network,
@@ -45,7 +45,7 @@ impl Client {
         }
     }
 
-    pub fn network_id(&self) -> &str {
+    pub fn network_id(&self) -> &NetworkId {
         &self.network_id
     }
 

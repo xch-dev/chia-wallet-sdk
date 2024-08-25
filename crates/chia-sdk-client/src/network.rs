@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, time::Duration};
+use std::{fmt, net::SocketAddr, time::Duration};
 
 use chia_protocol::Bytes32;
 use chia_sdk_types::MAINNET_CONSTANTS;
@@ -9,6 +9,25 @@ use serde_with::{hex::Hex, serde_as};
 use tracing::{error, info, instrument};
 
 use crate::ClientError;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum NetworkId {
+    Mainnet,
+    Testnet11,
+    Simulator0,
+    Custom(String),
+}
+
+impl fmt::Display for NetworkId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NetworkId::Mainnet => write!(f, "mainnet"),
+            NetworkId::Testnet11 => write!(f, "testnet11"),
+            NetworkId::Simulator0 => write!(f, "simulator0"),
+            NetworkId::Custom(name) => write!(f, "{name}"),
+        }
+    }
+}
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
