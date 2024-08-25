@@ -112,14 +112,14 @@ pub struct DataStoreMetadata {
 
 impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for DataStoreMetadata {
     fn from_clvm(decoder: &D, node: N) -> Result<Self, FromClvmError> {
-        let items: (Raw<N>, Vec<(String, Raw<N>)>) = FromClvm::from_clvm(decoder, node)?;
-        let mut metadata = Self::root_hash_only(FromClvm::from_clvm(decoder, items.0 .0)?);
+        let (root_hash, items) = <(Bytes32, Vec<(String, Raw<N>)>)>::from_clvm(decoder, node)?;
+        let mut metadata = Self::root_hash_only(root_hash);
 
-        for (key, value_ptr) in items.1 {
+        for (key, Raw(ptr)) in items {
             match key.as_str() {
-                "l" => metadata.label = Some(FromClvm::from_clvm(decoder, value_ptr.0)?),
-                "d" => metadata.description = Some(FromClvm::from_clvm(decoder, value_ptr.0)?),
-                "b" => metadata.bytes = Some(FromClvm::from_clvm(decoder, value_ptr.0)?),
+                "l" => metadata.label = Some(String::from_clvm(decoder, ptr)?),
+                "d" => metadata.description = Some(String::from_clvm(decoder, ptr)?),
+                "b" => metadata.bytes = Some(u64::from_clvm(decoder, ptr)?),
                 _ => (),
             }
         }
@@ -132,12 +132,12 @@ impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for DataStoreMetadata {
     fn to_clvm(&self, encoder: &mut E) -> Result<N, ToClvmError> {
         let mut items: Vec<(&str, Raw<N>)> = Vec::new();
 
-        if self.label.is_some() {
-            items.push(("l", Raw(self.label.to_clvm(encoder)?)));
+        if let Some(label) = &self.label {
+            items.push(("l", Raw(label.to_clvm(encoder)?)));
         }
 
-        if self.description.is_some() {
-            items.push(("d", Raw(self.description.to_clvm(encoder)?)));
+        if let Some(description) = &self.description {
+            items.push(("d", Raw(description.to_clvm(encoder)?)));
         }
 
         if let Some(bytes) = self.bytes {
