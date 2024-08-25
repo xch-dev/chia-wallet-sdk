@@ -357,7 +357,6 @@ dependencies = [
  "num-bigint",
  "rstest",
  "thiserror",
- "tokio",
 ]
 
 [[package]]
@@ -382,7 +381,6 @@ dependencies = [
  "indexmap 2.4.0",
  "once_cell",
  "thiserror",
- "tokio",
 ]
 
 [[package]]
