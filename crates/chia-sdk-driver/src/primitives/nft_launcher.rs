@@ -126,7 +126,7 @@ mod tests {
         nft::{NftMetadata, NFT_METADATA_UPDATER_PUZZLE_HASH},
         standard::StandardArgs,
     };
-    use chia_sdk_test::{test_secret_key, test_transaction, PeerSimulator};
+    use chia_sdk_test::{test_secret_key, Simulator};
     use chia_sdk_types::{announcement_id, MAINNET_CONSTANTS};
 
     pub fn nft_mint(p2_puzzle_hash: Bytes32, did: Option<&Did<()>>) -> NftMint<NftMetadata> {
@@ -205,17 +205,16 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_bulk_mint() -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
-        let peer = sim.connect().await?;
+    #[test]
+    fn test_bulk_mint() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
         let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.mint_coin(puzzle_hash, 3).await;
+        let coin = sim.new_coin(puzzle_hash, 3);
 
         let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
@@ -234,22 +233,21 @@ mod tests {
         let _did =
             ctx.spend_standard_did(did, pk, Conditions::new().extend(mint_1).extend(mint_2))?;
 
-        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
+        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
 
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_nonstandard_intermediate_mint() -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
-        let peer = sim.connect().await?;
+    #[test]
+    fn test_nonstandard_intermediate_mint() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
         let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.mint_coin(puzzle_hash, 3).await;
+        let coin = sim.new_coin(puzzle_hash, 3);
 
         let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
@@ -266,22 +264,21 @@ mod tests {
 
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
-        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
+        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
 
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_nonstandard_intermediate_mint_recreated_did() -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
-        let peer = sim.connect().await?;
+    #[test]
+    fn test_nonstandard_intermediate_mint_recreated_did() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
         let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.mint_coin(puzzle_hash, 3).await;
+        let coin = sim.new_coin(puzzle_hash, 3);
 
         let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
@@ -301,7 +298,7 @@ mod tests {
         let _did = ctx.spend_standard_did(did, pk, mint_nft)?;
         ctx.spend_p2_coin(intermediate_coin, pk, create_launcher)?;
 
-        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
+        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
 
         Ok(())
     }

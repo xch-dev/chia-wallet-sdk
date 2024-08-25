@@ -312,19 +312,19 @@ mod tests {
         nft::{NftMetadata, NFT_METADATA_UPDATER_PUZZLE_HASH},
         standard::StandardArgs,
     };
-    use chia_sdk_test::{test_secret_key, test_transaction, PeerSimulator};
+    use chia_sdk_test::{test_secret_key, Simulator};
+    use chia_sdk_types::MAINNET_CONSTANTS;
 
-    #[tokio::test]
-    async fn test_nft_transfer() -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
-        let peer = sim.connect().await?;
+    #[test]
+    fn test_nft_transfer() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
         let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.mint_coin(puzzle_hash, 2).await;
+        let coin = sim.new_coin(puzzle_hash, 2);
 
         let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
@@ -347,22 +347,21 @@ mod tests {
 
         let _did_info = ctx.spend_standard_did(did, pk, parent_conditions)?;
 
-        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
+        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
 
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_nft_lineage() -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
-        let peer = sim.connect().await?;
+    #[test]
+    fn test_nft_lineage() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
         let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let p2_puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.mint_coin(p2_puzzle_hash, 2).await;
+        let coin = sim.new_coin(p2_puzzle_hash, 2);
 
         let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
@@ -394,17 +393,15 @@ mod tests {
             did = ctx.spend_standard_did(did, pk, spend_nft)?;
         }
 
-        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
+        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
 
         let coin_state = sim
             .coin_state(did.coin.coin_id())
-            .await
             .expect("expected did coin");
         assert_eq!(coin_state.coin, did.coin);
 
         let coin_state = sim
             .coin_state(nft.coin.coin_id())
-            .await
             .expect("expected nft coin");
         assert_eq!(coin_state.coin, nft.coin);
 

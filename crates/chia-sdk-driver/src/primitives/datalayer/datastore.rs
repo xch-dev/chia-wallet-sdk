@@ -590,8 +590,8 @@ pub mod tests {
 
     use chia_bls::{PublicKey, SecretKey};
     use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::{test_secret_keys, test_transaction, PeerSimulator};
-    use chia_sdk_types::{Conditions, MeltSingleton, UpdateDataStoreMerkleRoot};
+    use chia_sdk_test::{test_secret_keys, Simulator};
+    use chia_sdk_types::{Conditions, MeltSingleton, UpdateDataStoreMerkleRoot, MAINNET_CONSTANTS};
     use clvmr::sha2::Sha256;
     use rstest::rstest;
 
@@ -674,16 +674,15 @@ pub mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_simple_datastore() -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
-        let peer = sim.connect().await?;
+    #[test]
+    fn test_simple_datastore() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
 
         let [sk]: [SecretKey; 1] = test_secret_keys(1)?.try_into().unwrap();
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.mint_coin(puzzle_hash, 1).await;
+        let coin = sim.new_coin(puzzle_hash, 1);
 
         let ctx = &mut SpendContext::new();
 
@@ -716,12 +715,11 @@ pub mod tests {
 
         ctx.insert(new_spend);
 
-        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
+        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
 
         // Make sure the datastore was created.
         let coin_state = sim
             .coin_state(old_datastore_coin.coin_id())
-            .await
             .expect("expected datastore coin");
         assert_eq!(coin_state.coin, old_datastore_coin);
         assert!(coin_state.spent_height.is_some());
@@ -730,10 +728,9 @@ pub mod tests {
     }
 
     #[allow(clippy::similar_names)]
-    #[tokio::test]
-    async fn test_datastore_with_delegation_layer() -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
-        let peer = sim.connect().await?;
+    #[test]
+    fn test_datastore_with_delegation_layer() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
 
         let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
             test_secret_keys(3)?.try_into().unwrap();
@@ -746,7 +743,7 @@ pub mod tests {
         let oracle_fee = 1000;
 
         let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
-        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+        let coin = sim.new_coin(owner_puzzle_hash, 1);
 
         let ctx = &mut SpendContext::new();
 
@@ -871,7 +868,7 @@ pub mod tests {
         let datastore = new_datastore;
 
         // mint a coin that asserts the announcement and has enough value
-        let new_coin = sim.mint_coin(owner_puzzle_hash, oracle_fee).await;
+        let new_coin = sim.new_coin(owner_puzzle_hash, oracle_fee);
 
         let mut hasher = Sha256::new();
         hasher.update(datastore.coin.puzzle_hash);
@@ -906,18 +903,15 @@ pub mod tests {
         assert!(new_datastore.info.delegated_puzzles.is_empty());
         assert_eq!(new_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-        test_transaction(
-            &peer,
+        sim.spend_coins(
             ctx.take(),
             &[owner_sk, admin_sk, writer_sk],
-            &sim.config().constants,
-        )
-        .await;
+            &MAINNET_CONSTANTS,
+        )?;
 
         // Make sure the datastore was created.
         let coin_state = sim
             .coin_state(new_datastore.coin.parent_coin_info)
-            .await
             .expect("expected datastore coin");
         assert_eq!(coin_state.coin, datastore.coin);
         assert!(coin_state.spent_height.is_some());
@@ -962,8 +956,8 @@ pub mod tests {
       DstAdminLayer::New,
     ]
   )]
-    #[tokio::test]
-    async fn test_datastore_admin_transition(
+    #[test]
+    fn test_datastore_admin_transition(
         src_meta: (RootHash, Label, Description, ByteSize),
         src_with_writer: bool,
         // src must have admin layer in this scenario
@@ -973,8 +967,7 @@ pub mod tests {
         dst_admin: DstAdminLayer,
         dst_meta: (RootHash, Label, Description, ByteSize),
     ) -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
-        let peer = sim.connect().await?;
+        let mut sim = Simulator::new();
 
         let [owner_sk, admin_sk, admin2_sk, writer_sk]: [SecretKey; 4] =
             test_secret_keys(4)?.try_into().unwrap();
@@ -988,7 +981,7 @@ pub mod tests {
         let oracle_fee = 1000;
 
         let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
-        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+        let coin = sim.new_coin(owner_puzzle_hash, 1);
 
         let ctx = &mut SpendContext::new();
 
@@ -1118,23 +1111,19 @@ pub mod tests {
             ],
         );
 
-        test_transaction(
-            &peer,
+        sim.spend_coins(
             ctx.take(),
             &[owner_sk, admin_sk, writer_sk],
-            &sim.config().constants,
-        )
-        .await;
+            &MAINNET_CONSTANTS,
+        )?;
 
         let src_coin_state = sim
             .coin_state(src_datastore_coin.coin_id())
-            .await
             .expect("expected src datastore coin");
         assert_eq!(src_coin_state.coin, src_datastore_coin);
         assert!(src_coin_state.spent_height.is_some());
         let dst_coin_state = sim
             .coin_state(dst_datastore.coin.coin_id())
-            .await
             .expect("expected dst datastore coin");
         assert_eq!(dst_coin_state.coin, dst_datastore.coin);
         assert!(dst_coin_state.created_height.is_some());
@@ -1160,8 +1149,8 @@ pub mod tests {
         ],
         change_owner => [true, false],
       )]
-    #[tokio::test]
-    async fn test_datastore_owner_transition(
+    #[test]
+    fn test_datastore_owner_transition(
         src_meta: (RootHash, Label, Description, ByteSize),
         src_with_admin: bool,
         src_with_writer: bool,
@@ -1172,8 +1161,7 @@ pub mod tests {
         dst_meta: (RootHash, Label, Description, ByteSize),
         change_owner: bool,
     ) -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
-        let peer = sim.connect().await?;
+        let mut sim = Simulator::new();
 
         let [owner_sk, owner2_sk, admin_sk, writer_sk]: [SecretKey; 4] =
             test_secret_keys(4)?.try_into().unwrap();
@@ -1187,7 +1175,7 @@ pub mod tests {
         let oracle_fee = 1000;
 
         let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
-        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+        let coin = sim.new_coin(owner_puzzle_hash, 1);
 
         let owner2_puzzle_hash = StandardArgs::curry_tree_hash(owner2_pk).into();
         assert_ne!(owner_puzzle_hash, owner2_puzzle_hash);
@@ -1313,24 +1301,20 @@ pub mod tests {
             &[dst_with_admin, dst_with_writer, dst_with_oracle],
         );
 
-        test_transaction(
-            &peer,
+        sim.spend_coins(
             ctx.take(),
             &[owner_sk, admin_sk, writer_sk],
-            &sim.config().constants,
-        )
-        .await;
+            &MAINNET_CONSTANTS,
+        )?;
 
         let src_coin_state = sim
             .coin_state(src_datastore.coin.coin_id())
-            .await
             .expect("expected src datastore coin");
         assert_eq!(src_coin_state.coin, src_datastore.coin);
         assert!(src_coin_state.spent_height.is_some());
 
         let dst_coin_state = sim
             .coin_state(dst_datastore.coin.coin_id())
-            .await
             .expect("expected dst datastore coin");
         assert_eq!(dst_coin_state.coin, dst_datastore.coin);
         assert!(dst_coin_state.created_height.is_some());
@@ -1368,8 +1352,8 @@ pub mod tests {
       ),
     ],
   )]
-    #[tokio::test]
-    async fn test_datastore_writer_transition(
+    #[test]
+    fn test_datastore_writer_transition(
         with_admin_layer: bool,
         with_oracle_layer: bool,
         meta_transition: (
@@ -1377,8 +1361,7 @@ pub mod tests {
             (RootHash, Label, Description, ByteSize),
         ),
     ) -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
-        let peer = sim.connect().await?;
+        let mut sim = Simulator::new();
 
         let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
             test_secret_keys(3)?.try_into().unwrap();
@@ -1391,7 +1374,7 @@ pub mod tests {
         let oracle_fee = 1000;
 
         let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
-        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+        let coin = sim.new_coin(owner_puzzle_hash, 1);
 
         let ctx = &mut SpendContext::new();
 
@@ -1472,23 +1455,19 @@ pub mod tests {
             &[with_admin_layer, true, with_oracle_layer],
         );
 
-        test_transaction(
-            &peer,
+        sim.spend_coins(
             ctx.take(),
             &[owner_sk, admin_sk, writer_sk],
-            &sim.config().constants,
-        )
-        .await;
+            &MAINNET_CONSTANTS,
+        )?;
 
         let src_coin_state = sim
             .coin_state(src_datastore.coin.coin_id())
-            .await
             .expect("expected src datastore coin");
         assert_eq!(src_coin_state.coin, src_datastore.coin);
         assert!(src_coin_state.spent_height.is_some());
         let dst_coin_state = sim
             .coin_state(dst_datastore.coin.coin_id())
-            .await
             .expect("expected dst datastore coin");
         assert_eq!(dst_coin_state.coin, dst_datastore.coin);
         assert!(dst_coin_state.created_height.is_some());
@@ -1506,14 +1485,13 @@ pub mod tests {
       (RootHash::Zero, Label::Some, Description::Some, ByteSize::Some),
     ],
   )]
-    #[tokio::test]
-    async fn test_datastore_oracle_transition(
+    #[test]
+    fn test_datastore_oracle_transition(
         with_admin_layer: bool,
         with_writer_layer: bool,
         meta: (RootHash, Label, Description, ByteSize),
     ) -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
-        let peer = sim.connect().await?;
+        let mut sim = Simulator::new();
 
         let [owner_sk, admin_sk, writer_sk, dude_sk]: [SecretKey; 4] =
             test_secret_keys(4)?.try_into().unwrap();
@@ -1527,7 +1505,7 @@ pub mod tests {
         let oracle_fee = 1000;
 
         let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
-        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+        let coin = sim.new_coin(owner_puzzle_hash, 1);
 
         let dude_puzzle_hash = StandardArgs::curry_tree_hash(dude_pk).into();
 
@@ -1579,7 +1557,7 @@ pub mod tests {
         hasher.update(src_datastore.coin.puzzle_hash);
         hasher.update(Bytes::new("$".into()).to_vec());
 
-        let new_coin = sim.mint_coin(dude_puzzle_hash, oracle_fee).await;
+        let new_coin = sim.new_coin(dude_puzzle_hash, oracle_fee);
         ctx.spend_p2_coin(
             new_coin,
             dude_pk,
@@ -1618,24 +1596,16 @@ pub mod tests {
             &[with_admin_layer, with_writer_layer, true],
         );
 
-        test_transaction(
-            &peer,
-            ctx.take(),
-            &[owner_sk, dude_sk],
-            &sim.config().constants,
-        )
-        .await;
+        sim.spend_coins(ctx.take(), &[owner_sk, dude_sk], &MAINNET_CONSTANTS)?;
 
         let src_datastore_coin_id = src_datastore.coin.coin_id();
         let src_coin_state = sim
             .coin_state(src_datastore_coin_id)
-            .await
             .expect("expected src datastore coin");
         assert_eq!(src_coin_state.coin, src_datastore.coin);
         assert!(src_coin_state.spent_height.is_some());
         let dst_coin_state = sim
             .coin_state(dst_datastore.coin.coin_id())
-            .await
             .expect("expected dst datastore coin");
         assert_eq!(dst_coin_state.coin, dst_datastore.coin);
         assert!(dst_coin_state.created_height.is_some());
@@ -1643,7 +1613,6 @@ pub mod tests {
         let oracle_coin = Coin::new(src_datastore_coin_id, oracle_puzzle_hash, oracle_fee);
         let oracle_coin_state = sim
             .coin_state(oracle_coin.coin_id())
-            .await
             .expect("expected oracle coin");
         assert_eq!(oracle_coin_state.coin, oracle_coin);
         assert!(oracle_coin_state.created_height.is_some());
@@ -1660,15 +1629,14 @@ pub mod tests {
       (RootHash::Zero, Label::Some, Description::Some, ByteSize::Some),
     ],
   )]
-    #[tokio::test]
-    async fn test_melt(
+    #[test]
+    fn test_melt(
         with_admin_layer: bool,
         with_writer_layer: bool,
         with_oracle_layer: bool,
         meta: (RootHash, Label, Description, ByteSize),
     ) -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
-        let peer = sim.connect().await?;
+        let mut sim = Simulator::new();
 
         let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
             test_secret_keys(3)?.try_into().unwrap();
@@ -1681,7 +1649,7 @@ pub mod tests {
         let oracle_fee = 1000;
 
         let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
-        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+        let coin = sim.new_coin(owner_puzzle_hash, 1);
 
         let ctx = &mut SpendContext::new();
 
@@ -1736,11 +1704,10 @@ pub mod tests {
             &[with_admin_layer, with_writer_layer, with_oracle_layer],
         );
 
-        test_transaction(&peer, ctx.take(), &[owner_sk], &sim.config().constants).await;
+        sim.spend_coins(ctx.take(), &[owner_sk], &MAINNET_CONSTANTS)?;
 
         let src_coin_state = sim
             .coin_state(src_datastore.coin.coin_id())
-            .await
             .expect("expected src datastore coin");
         assert_eq!(src_coin_state.coin, src_datastore.coin);
         assert!(src_coin_state.spent_height.is_some()); // tx happened
@@ -1775,9 +1742,9 @@ pub mod tests {
     #[rstest(
     puzzle => [AttackerPuzzle::Admin, AttackerPuzzle::Writer],
   )]
-    #[tokio::test]
-    async fn test_create_coin_filer(puzzle: AttackerPuzzle) -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
+    #[test]
+    fn test_create_coin_filer(puzzle: AttackerPuzzle) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
 
         let [owner_sk, attacker_sk]: [SecretKey; 2] = test_secret_keys(2)?.try_into().unwrap();
 
@@ -1786,7 +1753,7 @@ pub mod tests {
 
         let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
         let attacker_puzzle_hash = StandardArgs::curry_tree_hash(attacker_pk);
-        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+        let coin = sim.new_coin(owner_puzzle_hash, 1);
 
         let ctx = &mut SpendContext::new();
 
@@ -1835,9 +1802,9 @@ pub mod tests {
     #[rstest(
     puzzle => [AttackerPuzzle::Admin, AttackerPuzzle::Writer],
   )]
-    #[tokio::test]
-    async fn test_melt_filter(puzzle: AttackerPuzzle) -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
+    #[test]
+    fn test_melt_filter(puzzle: AttackerPuzzle) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
 
         let [owner_sk, attacker_sk]: [SecretKey; 2] = test_secret_keys(2)?.try_into().unwrap();
 
@@ -1845,7 +1812,7 @@ pub mod tests {
         let attacker_pk = attacker_sk.public_key();
 
         let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
-        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+        let coin = sim.new_coin(owner_puzzle_hash, 1);
 
         let attacker_puzzle_hash = StandardArgs::curry_tree_hash(attacker_pk);
 
@@ -2043,10 +2010,9 @@ pub mod tests {
       (RootHash::Some, RootHash::Some, true),
     ]
   )]
-    #[tokio::test]
-    async fn test_old_memo_format(transition: (RootHash, RootHash, bool)) -> anyhow::Result<()> {
-        let sim = PeerSimulator::new().await?;
-        let peer = sim.connect().await?;
+    #[test]
+    fn test_old_memo_format(transition: (RootHash, RootHash, bool)) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
 
         let [owner_sk, owner2_sk]: [SecretKey; 2] = test_secret_keys(2)?.try_into().unwrap();
 
@@ -2054,7 +2020,7 @@ pub mod tests {
         let owner2_pk = owner2_sk.public_key();
 
         let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk);
-        let coin = sim.mint_coin(owner_puzzle_hash.into(), 1).await;
+        let coin = sim.new_coin(owner_puzzle_hash.into(), 1);
 
         let owner2_puzzle_hash = StandardArgs::curry_tree_hash(owner2_pk);
 
@@ -2229,17 +2195,10 @@ pub mod tests {
 
         ctx.insert(spend);
 
-        test_transaction(
-            &peer,
-            ctx.take(),
-            &[owner_sk, owner2_sk],
-            &sim.config().constants,
-        )
-        .await;
+        sim.spend_coins(ctx.take(), &[owner_sk, owner2_sk], &MAINNET_CONSTANTS)?;
 
         let eve_coin_state = sim
             .coin_state(eve_coin.coin_id())
-            .await
             .expect("expected eve coin");
         assert!(eve_coin_state.created_height.is_some());
 
