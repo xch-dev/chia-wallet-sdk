@@ -11,11 +11,11 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 /// For more information, see CHIP-0035.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DelegationLayer {
-    // Launcher ID of the singleton outer layer - used as default hint when re-creating layer
+    /// Launcher ID of the singleton outer layer. Used as the default hint when recreating this layer.
     pub launcher_id: Bytes32,
-    // Puzzle hash of the 'owner' puzzle (usually a standard puzzle)
+    /// Puzzle hash of the owner (usually a p2 puzzle like the standard puzzle).
     pub owner_puzzle_hash: Bytes32,
-    // Merkle root corresponding to the tree of delegated puzzles
+    /// Merkle root corresponding to the tree of delegated puzzles.
     pub merkle_root: Bytes32,
 }
 
