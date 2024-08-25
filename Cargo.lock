@@ -319,7 +319,6 @@ dependencies = [
  "chia-traits 0.11.0",
  "futures-util",
  "hex",
- "hex-literal",
  "native-tls",
  "serde",
  "serde_with",

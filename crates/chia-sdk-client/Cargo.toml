@@ -24,7 +24,6 @@ tokio = { workspace = true, features = ["sync"] }
 tungstenite = { workspace = true }
 native-tls = { workspace = true }
 tracing = { workspace = true }
-hex-literal = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_with = { workspace = true, features = ["hex"] }
 futures-util = { workspace = true }
