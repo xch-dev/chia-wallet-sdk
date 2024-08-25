@@ -2,8 +2,7 @@ use chia_protocol::Coin;
 use chia_puzzles::standard::StandardArgs;
 use chia_wallet_sdk::*;
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     // Create the simulator server and connect the peer client.
     let mut sim = Simulator::new();
 

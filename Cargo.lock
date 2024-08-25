@@ -506,7 +506,6 @@ dependencies = [
  "rand",
  "rand_chacha",
  "thiserror",
- "tokio",
 ]
 
 [[package]]
