@@ -15,8 +15,18 @@ categories = { workspace = true }
 workspace = true
 
 [dependencies]
-chia-client = { workspace = true }
+chia-protocol = { workspace = true }
+chia-traits = { workspace = true }
 chia-ssl = { workspace = true }
-tokio-tungstenite = { workspace = true }
-native-tls = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
+tungstenite = { workspace = true }
+native-tls = { workspace = true }
+tracing = { workspace = true }
+hex-literal = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_with = { workspace = true, features = ["hex"] }
+futures-util = { workspace = true }
+sha2 = { workspace = true }
+tokio-tungstenite = { workspace = true }
+hex = { workspace = true }

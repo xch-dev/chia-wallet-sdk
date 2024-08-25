@@ -287,7 +287,6 @@ where
     }
 }
 
-#[allow(clippy::missing_panics_doc)]
 pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &NewNftOwner) -> Bytes32 {
     let mut allocator = Allocator::new();
 
