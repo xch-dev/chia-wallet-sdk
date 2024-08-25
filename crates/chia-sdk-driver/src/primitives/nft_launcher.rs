@@ -126,7 +126,7 @@ mod tests {
         nft::{NftMetadata, NFT_METADATA_UPDATER_PUZZLE_HASH},
         standard::StandardArgs,
     };
-    use chia_sdk_test::{secret_key, test_transaction, Simulator};
+    use chia_sdk_test::{test_secret_key, test_transaction, Simulator};
     use chia_sdk_types::{announcement_id, MAINNET_CONSTANTS};
 
     pub fn nft_mint(p2_puzzle_hash: Bytes32, did: Option<&Did<()>>) -> NftMint<NftMetadata> {
@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_nft_mint_cost() -> anyhow::Result<()> {
-        let sk = secret_key()?;
+        let sk = test_secret_key()?;
         let pk = sk.public_key();
         let mut owned_ctx = SpendContext::new();
         let ctx = &mut owned_ctx;
@@ -211,7 +211,7 @@ mod tests {
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 
-        let sk = secret_key()?;
+        let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
@@ -245,7 +245,7 @@ mod tests {
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 
-        let sk = secret_key()?;
+        let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
@@ -277,7 +277,7 @@ mod tests {
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 
-        let sk = secret_key()?;
+        let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();

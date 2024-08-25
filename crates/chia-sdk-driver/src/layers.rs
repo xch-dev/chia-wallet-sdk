@@ -17,3 +17,9 @@ pub use royalty_transfer_layer::*;
 pub use settlement_layer::*;
 pub use singleton_layer::*;
 pub use standard_layer::*;
+
+#[cfg(feature = "chip-0035")]
+mod datalayer;
+
+#[cfg(feature = "chip-0035")]
+pub use datalayer::*;

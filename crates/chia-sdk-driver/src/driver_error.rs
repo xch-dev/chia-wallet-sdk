@@ -7,6 +7,12 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum DriverError {
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("try from int error")]
+    TryFromInt(#[from] TryFromIntError),
+
     #[error("failed to serialize clvm value: {0}")]
     ToClvm(#[from] ToClvmError),
 
@@ -18,9 +24,6 @@ pub enum DriverError {
 
     #[error("clvm eval error: {0}")]
     Eval(#[from] EvalErr),
-
-    #[error("custom driver error: {0}")]
-    Custom(String),
 
     #[error("invalid mod hash")]
     InvalidModHash,
@@ -34,13 +37,18 @@ pub enum DriverError {
     #[error("missing hint")]
     MissingHint,
 
+    #[error("missing memo")]
+    MissingMemo,
+
+    #[error("invalid memo")]
+    InvalidMemo,
+
     #[error("invalid singleton struct")]
     InvalidSingletonStruct,
 
-    #[error("try from int error")]
-    TryFromInt(#[from] TryFromIntError),
+    #[error("expected even oracle fee, but it was odd")]
+    OddOracleFee,
 
-    /// An error occurred while reading or writing data.
-    #[error("io error: {0}")]
-    Io(#[from] std::io::Error),
+    #[error("custom driver error: {0}")]
+    Custom(String),
 }

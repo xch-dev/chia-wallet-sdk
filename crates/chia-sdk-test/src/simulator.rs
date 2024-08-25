@@ -146,7 +146,7 @@ mod tests {
     };
     use chia_sdk_types::{AggSigMe, CreateCoin, Remark};
 
-    use crate::{coin_state_updates, secret_key, test_transaction, to_program, to_puzzle};
+    use crate::{coin_state_updates, test_secret_key, test_transaction, to_program, to_puzzle};
 
     use super::*;
 
@@ -226,7 +226,7 @@ mod tests {
     async fn test_bad_signature() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
-        let public_key = secret_key()?.public_key();
+        let public_key = test_secret_key()?.public_key();
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
@@ -275,7 +275,7 @@ mod tests {
     async fn test_valid_signature() -> anyhow::Result<()> {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
-        let sk = secret_key()?;
+        let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -302,10 +302,10 @@ mod tests {
         let sim = Simulator::new().await?;
         let peer = sim.connect().await?;
 
-        let sk1 = secret_key()?.derive_unhardened(0);
+        let sk1 = test_secret_key()?.derive_unhardened(0);
         let pk1 = sk1.public_key();
 
-        let sk2 = secret_key()?.derive_unhardened(1);
+        let sk2 = test_secret_key()?.derive_unhardened(1);
         let pk2 = sk2.public_key();
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;

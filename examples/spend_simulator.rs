@@ -9,7 +9,7 @@ async fn main() -> anyhow::Result<()> {
     let peer = sim.connect().await?;
 
     // Setup the key, puzzle hash, and mint a coin.
-    let sk = secret_key()?;
+    let sk = test_secret_key()?;
     let pk = sk.public_key();
     let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
     let coin = sim.mint_coin(puzzle_hash, 1_000).await;

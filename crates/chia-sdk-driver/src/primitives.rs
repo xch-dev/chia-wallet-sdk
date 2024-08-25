@@ -1,6 +1,5 @@
 mod cat;
 mod cat_spend;
-mod debug;
 mod did;
 mod did_info;
 mod did_launcher;
@@ -12,7 +11,6 @@ mod nft_launcher;
 
 pub use cat::*;
 pub use cat_spend::*;
-pub use debug::*;
 pub use did::*;
 pub use did_info::*;
 pub use intermediate_launcher::*;
@@ -20,3 +18,9 @@ pub use launcher::*;
 pub use nft::*;
 pub use nft_info::*;
 pub use nft_launcher::*;
+
+#[cfg(feature = "chip-0035")]
+mod datalayer;
+
+#[cfg(feature = "chip-0035")]
+pub use datalayer::*;
