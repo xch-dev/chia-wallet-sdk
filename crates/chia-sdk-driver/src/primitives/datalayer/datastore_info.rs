@@ -82,16 +82,17 @@ impl DelegatedPuzzle {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct DataStoreMetadata {
-    pub root_hash: Bytes32,
-    pub label: Option<String>,
-    pub description: Option<String>,
-    pub bytes: Option<u64>,
+pub trait MetadataWithRootHash {
+    fn root_hash(&self) -> Bytes32;
+    fn root_hash_only(root_hash: Bytes32) -> Self;
 }
 
-impl DataStoreMetadata {
-    pub fn root_hash_only(root_hash: Bytes32) -> Self {
+impl MetadataWithRootHash for DataStoreMetadata {
+    fn root_hash(&self) -> Bytes32 {
+        self.root_hash
+    }
+
+    fn root_hash_only(root_hash: Bytes32) -> Self {
         Self {
             root_hash,
             label: None,
@@ -101,16 +102,24 @@ impl DataStoreMetadata {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DataStoreMetadata {
+    pub root_hash: Bytes32,
+    pub label: Option<String>,
+    pub description: Option<String>,
+    pub bytes: Option<u64>,
+}
+
 impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for DataStoreMetadata {
     fn from_clvm(decoder: &D, node: N) -> Result<Self, FromClvmError> {
-        let items: (Raw<N>, Vec<(String, Raw<N>)>) = FromClvm::from_clvm(decoder, node)?;
-        let mut metadata = Self::root_hash_only(FromClvm::from_clvm(decoder, items.0 .0)?);
+        let (root_hash, items) = <(Bytes32, Vec<(String, Raw<N>)>)>::from_clvm(decoder, node)?;
+        let mut metadata = Self::root_hash_only(root_hash);
 
-        for (key, value_ptr) in items.1 {
+        for (key, Raw(ptr)) in items {
             match key.as_str() {
-                "l" => metadata.label = Some(FromClvm::from_clvm(decoder, value_ptr.0)?),
-                "d" => metadata.description = Some(FromClvm::from_clvm(decoder, value_ptr.0)?),
-                "b" => metadata.bytes = Some(FromClvm::from_clvm(decoder, value_ptr.0)?),
+                "l" => metadata.label = Some(String::from_clvm(decoder, ptr)?),
+                "d" => metadata.description = Some(String::from_clvm(decoder, ptr)?),
+                "b" => metadata.bytes = Some(u64::from_clvm(decoder, ptr)?),
                 _ => (),
             }
         }
@@ -123,12 +132,12 @@ impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for DataStoreMetadata {
     fn to_clvm(&self, encoder: &mut E) -> Result<N, ToClvmError> {
         let mut items: Vec<(&str, Raw<N>)> = Vec::new();
 
-        if self.label.is_some() {
-            items.push(("l", Raw(self.label.to_clvm(encoder)?)));
+        if let Some(label) = &self.label {
+            items.push(("l", Raw(label.to_clvm(encoder)?)));
         }
 
-        if self.description.is_some() {
-            items.push(("d", Raw(self.description.to_clvm(encoder)?)));
+        if let Some(description) = &self.description {
+            items.push(("d", Raw(description.to_clvm(encoder)?)));
         }
 
         if let Some(bytes) = self.bytes {
@@ -266,7 +275,7 @@ pub fn get_merkle_tree(
             }
             DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee) => {
                 let oracle_full_puzzle_ptr = OracleLayer::new(oracle_puzzle_hash, oracle_fee)
-                    .ok_or(DriverError::Custom("oracle fee must be even".to_string()))?
+                    .ok_or(DriverError::OddOracleFee)?
                     .construct_puzzle(ctx)?;
 
                 leaves.push(tree_hash(&ctx.allocator, oracle_full_puzzle_ptr).into());

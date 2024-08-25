@@ -115,7 +115,6 @@ where
 
 #[cfg(test)]
 mod tests {
-
     use chia_protocol::Coin;
     use chia_puzzles::CoinProof;
 
