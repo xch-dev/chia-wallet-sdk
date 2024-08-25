@@ -317,7 +317,7 @@ impl Primitive for Cat {
 #[cfg(test)]
 mod tests {
     use chia_puzzles::{cat::EverythingWithSignatureTailArgs, standard::StandardArgs};
-    use chia_sdk_test::{test_secret_key, test_transaction, Simulator};
+    use chia_sdk_test::{test_secret_key, test_transaction, PeerSimulator};
     use chia_sdk_types::Condition;
 
     use crate::StandardLayer;
@@ -326,7 +326,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_single_issuance_cat() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 
@@ -349,7 +349,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_multi_issuance_cat() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 
@@ -372,7 +372,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cat_spend_multi() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 
@@ -428,7 +428,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cat_spend() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 
@@ -463,7 +463,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cat_melt() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 

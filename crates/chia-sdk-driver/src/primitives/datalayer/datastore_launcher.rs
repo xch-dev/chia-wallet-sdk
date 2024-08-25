@@ -94,7 +94,8 @@ impl Launcher {
 mod tests {
     use chia_bls::SecretKey;
     use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::{test_secret_keys, test_transaction, Simulator};
+    use chia_sdk_test::{test_secret_keys, Simulator};
+    use chia_sdk_types::MAINNET_CONSTANTS;
     use rstest::rstest;
 
     use crate::{
@@ -105,8 +106,7 @@ mod tests {
     use super::*;
 
     #[rstest]
-    #[tokio::test]
-    async fn test_datastore_launch(
+    fn test_datastore_launch(
         #[values(true, false)] use_label: bool,
         #[values(true, false)] use_description: bool,
         #[values(true, false)] use_byte_size: bool,
@@ -114,8 +114,7 @@ mod tests {
         #[values(true, false)] with_admin: bool,
         #[values(true, false)] with_oracle: bool,
     ) -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
-        let peer = sim.connect().await?;
+        let mut sim = Simulator::new();
 
         let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
             test_secret_keys(3)?.try_into().unwrap();
@@ -128,7 +127,7 @@ mod tests {
         let oracle_fee = 1000;
 
         let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
-        let coin = sim.mint_coin(owner_puzzle_hash, 1).await;
+        let coin = sim.new_coin(owner_puzzle_hash, 1);
 
         let ctx = &mut SpendContext::new();
 
@@ -187,18 +186,11 @@ mod tests {
 
         assert_eq!(datastore.info.metadata, metadata);
 
-        test_transaction(
-            &peer,
-            spends,
-            &[owner_sk, admin_sk, writer_sk],
-            &sim.config().constants,
-        )
-        .await;
+        sim.spend_coins(spends, &[owner_sk, admin_sk, writer_sk], &MAINNET_CONSTANTS)?;
 
         // Make sure the datastore was created.
         let coin_state = sim
             .coin_state(datastore.coin.coin_id())
-            .await
             .expect("expected datastore coin");
         assert_eq!(coin_state.coin, datastore.coin);
         assert!(coin_state.created_height.is_some());

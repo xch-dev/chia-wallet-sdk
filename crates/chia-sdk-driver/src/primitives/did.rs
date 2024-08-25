@@ -177,7 +177,7 @@ where
 #[cfg(test)]
 mod tests {
     use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::{test_secret_key, test_transaction, Simulator};
+    use chia_sdk_test::{test_secret_key, test_transaction, PeerSimulator};
     use chia_sdk_types::Conditions;
 
     use crate::Launcher;
@@ -186,7 +186,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_did_recreation() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 

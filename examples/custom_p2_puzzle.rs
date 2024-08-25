@@ -112,7 +112,7 @@ impl CustomSpend for Conditions {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Create the simulator server and connect the peer client.
-    let sim = Simulator::new().await?;
+    let sim = PeerSimulator::new().await?;
     let peer = sim.connect().await?;
 
     // Setup the key, puzzle hash, and mint a coin.

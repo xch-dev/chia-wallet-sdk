@@ -1,14 +1,15 @@
 use std::collections::HashSet;
 
+use chia_bls::SecretKey;
 use chia_consensus::{
     consensus_constants::ConsensusConstants, gen::validation_error::ErrorCode,
     spendbundle_validation::validate_clvm_and_signature,
 };
-use chia_protocol::{Bytes32, Coin, CoinState, Program, SpendBundle};
+use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
 use fastrand::Rng;
 use indexmap::{IndexMap, IndexSet};
 
-use crate::SimulatorError;
+use crate::{sign_transaction, SimulatorError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Simulator {
@@ -21,12 +22,16 @@ pub struct Simulator {
 
 impl Default for Simulator {
     fn default() -> Self {
-        Self::new(1337)
+        Self::new()
     }
 }
 
 impl Simulator {
-    pub fn new(seed: u64) -> Self {
+    pub fn new() -> Self {
+        Self::with_seed(1337)
+    }
+
+    pub fn with_seed(seed: u64) -> Self {
         Self {
             rng: Rng::with_seed(seed),
             height: 0,
@@ -86,19 +91,29 @@ impl Simulator {
             .map(|(_, s)| s.clone())
     }
 
+    pub fn spend_coins(
+        &mut self,
+        coin_spends: Vec<CoinSpend>,
+        secret_keys: &[SecretKey],
+        constants: &ConsensusConstants,
+    ) -> Result<IndexMap<Bytes32, CoinState>, SimulatorError> {
+        let signature = sign_transaction(&coin_spends, secret_keys, constants)?;
+        self.new_transaction(SpendBundle::new(coin_spends, signature), constants)
+    }
+
     /// Processes a spend bunndle and returns the updated coin states.
     pub fn new_transaction(
         &mut self,
         spend_bundle: SpendBundle,
-        max_cost: u64,
         constants: &ConsensusConstants,
     ) -> Result<IndexMap<Bytes32, CoinState>, SimulatorError> {
         if spend_bundle.coin_spends.is_empty() {
             return Err(SimulatorError::Validation(ErrorCode::InvalidSpendBundle));
         }
 
+        // TODO: Fix cost
         let (conds, _pairings, _duration) =
-            validate_clvm_and_signature(&spend_bundle, max_cost, constants, self.height)
+            validate_clvm_and_signature(&spend_bundle, 7_700_000_000, constants, self.height)
                 .map_err(SimulatorError::Validation)?;
 
         let puzzle_hashes: HashSet<Bytes32> =

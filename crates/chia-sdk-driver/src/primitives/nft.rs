@@ -312,11 +312,11 @@ mod tests {
         nft::{NftMetadata, NFT_METADATA_UPDATER_PUZZLE_HASH},
         standard::StandardArgs,
     };
-    use chia_sdk_test::{test_secret_key, test_transaction, Simulator};
+    use chia_sdk_test::{test_secret_key, test_transaction, PeerSimulator};
 
     #[tokio::test]
     async fn test_nft_transfer() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 
@@ -354,7 +354,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_nft_lineage() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
         let ctx = &mut SpendContext::new();
 

@@ -590,7 +590,7 @@ pub mod tests {
 
     use chia_bls::{PublicKey, SecretKey};
     use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::{test_secret_keys, test_transaction, Simulator};
+    use chia_sdk_test::{test_secret_keys, test_transaction, PeerSimulator};
     use chia_sdk_types::{Conditions, MeltSingleton, UpdateDataStoreMerkleRoot};
     use clvmr::sha2::Sha256;
     use rstest::rstest;
@@ -676,7 +676,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_simple_datastore() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let [sk]: [SecretKey; 1] = test_secret_keys(1)?.try_into().unwrap();
@@ -732,7 +732,7 @@ pub mod tests {
     #[allow(clippy::similar_names)]
     #[tokio::test]
     async fn test_datastore_with_delegation_layer() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
@@ -973,7 +973,7 @@ pub mod tests {
         dst_admin: DstAdminLayer,
         dst_meta: (RootHash, Label, Description, ByteSize),
     ) -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let [owner_sk, admin_sk, admin2_sk, writer_sk]: [SecretKey; 4] =
@@ -1172,7 +1172,7 @@ pub mod tests {
         dst_meta: (RootHash, Label, Description, ByteSize),
         change_owner: bool,
     ) -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let [owner_sk, owner2_sk, admin_sk, writer_sk]: [SecretKey; 4] =
@@ -1377,7 +1377,7 @@ pub mod tests {
             (RootHash, Label, Description, ByteSize),
         ),
     ) -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
@@ -1512,7 +1512,7 @@ pub mod tests {
         with_writer_layer: bool,
         meta: (RootHash, Label, Description, ByteSize),
     ) -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let [owner_sk, admin_sk, writer_sk, dude_sk]: [SecretKey; 4] =
@@ -1667,7 +1667,7 @@ pub mod tests {
         with_oracle_layer: bool,
         meta: (RootHash, Label, Description, ByteSize),
     ) -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
@@ -1777,7 +1777,7 @@ pub mod tests {
   )]
     #[tokio::test]
     async fn test_create_coin_filer(puzzle: AttackerPuzzle) -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
 
         let [owner_sk, attacker_sk]: [SecretKey; 2] = test_secret_keys(2)?.try_into().unwrap();
 
@@ -1837,7 +1837,7 @@ pub mod tests {
   )]
     #[tokio::test]
     async fn test_melt_filter(puzzle: AttackerPuzzle) -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
 
         let [owner_sk, attacker_sk]: [SecretKey; 2] = test_secret_keys(2)?.try_into().unwrap();
 
@@ -2045,7 +2045,7 @@ pub mod tests {
   )]
     #[tokio::test]
     async fn test_old_memo_format(transition: (RootHash, RootHash, bool)) -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let [owner_sk, owner2_sk]: [SecretKey; 2] = test_secret_keys(2)?.try_into().unwrap();
