@@ -19,7 +19,6 @@ pub fn test_secret_keys(no_keys: usize) -> Result<Vec<SecretKey>, bip39::Error> 
     Ok(keys)
 }
 
-#[allow(clippy::missing_panics_doc)]
 pub fn test_secret_key() -> Result<SecretKey, bip39::Error> {
     Ok(test_secret_keys(1)?
         .pop()

@@ -1,13 +1,14 @@
-use chia_client::PeerEvent;
-use chia_protocol::CoinStateUpdate;
-use tokio::sync::broadcast;
+use chia_protocol::{CoinStateUpdate, Message, ProtocolMessageTypes};
+use chia_traits::Streamable;
+use tokio::sync::mpsc;
 
-pub fn coin_state_updates(receiver: &mut broadcast::Receiver<PeerEvent>) -> Vec<CoinStateUpdate> {
+pub fn coin_state_updates(receiver: &mut mpsc::Receiver<Message>) -> Vec<CoinStateUpdate> {
     let mut items = Vec::new();
-    while let Ok(event) = receiver.try_recv() {
-        if let PeerEvent::CoinStateUpdate(event) = event {
-            items.push(event);
+    while let Ok(message) = receiver.try_recv() {
+        if message.msg_type != ProtocolMessageTypes::CoinStateUpdate {
+            continue;
         }
+        items.push(CoinStateUpdate::from_bytes(&message.data).unwrap());
     }
     items
 }
