@@ -23,7 +23,7 @@ mod simulator_data;
 mod ws_connection;
 
 #[derive(Debug)]
-pub struct Simulator {
+pub struct PeerSimulator {
     config: Arc<SimulatorConfig>,
     rng: Mutex<ChaCha8Rng>,
     addr: SocketAddr,
@@ -31,7 +31,7 @@ pub struct Simulator {
     join_handle: JoinHandle<()>,
 }
 
-impl Simulator {
+impl PeerSimulator {
     pub async fn new() -> Result<Self, SimulatorError> {
         Self::with_config(SimulatorConfig::default()).await
     }
@@ -147,7 +147,7 @@ impl Simulator {
     }
 }
 
-impl Drop for Simulator {
+impl Drop for PeerSimulator {
     fn drop(&mut self) {
         self.join_handle.abort();
     }
@@ -168,7 +168,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_coin_state() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
 
         let coin = sim.mint_coin(Bytes32::default(), 1000).await;
         let coin_state = sim
@@ -185,7 +185,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_empty_transaction() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let empty_bundle = SpendBundle::new(Vec::new(), Signature::default());
@@ -200,7 +200,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple_transaction() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -220,7 +220,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_unknown_coin() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -240,7 +240,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_bad_signature() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
         let public_key = test_secret_key()?.public_key();
 
@@ -265,7 +265,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_infinity_signature() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -289,7 +289,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_valid_signature() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
         let sk = test_secret_key()?;
         let pk = sk.public_key();
@@ -315,7 +315,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_aggregated_signature() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let sk1 = test_secret_key()?.derive_unhardened(0);
@@ -348,7 +348,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_excessive_output() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -372,7 +372,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_lineage() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -400,7 +400,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_request_children_unknown() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let children = peer.request_children(Bytes32::default()).await?;
@@ -411,7 +411,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_request_empty_children() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -434,7 +434,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_request_children() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -481,7 +481,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_puzzle_solution() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -515,7 +515,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_spent_coin_subscription() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let (peer, mut receiver) = sim.connect_split().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -556,7 +556,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_created_coin_subscription() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let (peer, mut receiver) = sim.connect_split().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -597,7 +597,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_spent_puzzle_subscription() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let (peer, mut receiver) = sim.connect_split().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -638,7 +638,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_created_puzzle_subscription() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let (peer, mut receiver) = sim.connect_split().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -679,7 +679,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_spent_hint_subscription() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let (peer, mut receiver) = sim.connect_split().await?;
 
         let hint = Bytes32::new([42; 32]);
@@ -723,7 +723,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_created_hint_subscription() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let (peer, mut receiver) = sim.connect_split().await?;
 
         let hint = Bytes32::new([42; 32]);
@@ -771,7 +771,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_request_coin_state() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
@@ -825,7 +825,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_request_puzzle_state() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
+        let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
