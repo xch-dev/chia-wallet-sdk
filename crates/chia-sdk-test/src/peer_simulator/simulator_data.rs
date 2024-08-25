@@ -15,7 +15,7 @@ use clvmr::{sha2::Sha256, Allocator, NodePtr};
 use indexmap::{IndexMap, IndexSet};
 use tokio::sync::MutexGuard;
 
-use super::{error::SimulatorError, simulator_config::SimulatorConfig};
+use super::{error::PeerSimulatorError, simulator_config::SimulatorConfig};
 
 #[derive(Debug, Default, Clone)]
 pub(crate) struct SimulatorData {
@@ -131,9 +131,9 @@ pub(crate) fn new_transaction(
     data: &mut MutexGuard<'_, SimulatorData>,
     spend_bundle: SpendBundle,
     max_cost: u64,
-) -> Result<IndexMap<SocketAddr, IndexSet<CoinState>>, SimulatorError> {
+) -> Result<IndexMap<SocketAddr, IndexSet<CoinState>>, PeerSimulatorError> {
     if spend_bundle.coin_spends.is_empty() {
-        return Err(SimulatorError::Validation(ValidationErr(
+        return Err(PeerSimulatorError::Validation(ValidationErr(
             NodePtr::NIL,
             ErrorCode::InvalidSpendBundle,
         )));
@@ -170,7 +170,7 @@ pub(crate) fn new_transaction(
         .collect();
 
     if puzzle_hashes != bundle_puzzle_hashes {
-        return Err(SimulatorError::Validation(ValidationErr(
+        return Err(PeerSimulatorError::Validation(ValidationErr(
             NodePtr::NIL,
             ErrorCode::InvalidSpendBundle,
         )));
@@ -189,7 +189,7 @@ pub(crate) fn new_transaction(
             .map(|required| (required.public_key(), required.final_message()))
             .collect::<Vec<(PublicKey, Vec<u8>)>>(),
     ) {
-        return Err(SimulatorError::Validation(ValidationErr(
+        return Err(PeerSimulatorError::Validation(ValidationErr(
             NodePtr::NIL,
             ErrorCode::BadAggregateSignature,
         )));
@@ -252,14 +252,14 @@ pub(crate) fn new_transaction(
         let height = data.height;
 
         if !data.coin_states.contains_key(coin_id) && !added_coins.contains_key(coin_id) {
-            return Err(SimulatorError::Validation(ValidationErr(
+            return Err(PeerSimulatorError::Validation(ValidationErr(
                 NodePtr::NIL,
                 ErrorCode::UnknownUnspent,
             )));
         }
 
         if coin_state.spent_height.is_some() {
-            return Err(SimulatorError::Validation(ValidationErr(
+            return Err(PeerSimulatorError::Validation(ValidationErr(
                 NodePtr::NIL,
                 ErrorCode::DoubleSpend,
             )));

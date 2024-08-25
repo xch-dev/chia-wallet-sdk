@@ -21,7 +21,7 @@ use tokio::{
 use tokio_tungstenite::{tungstenite::Message as WsMessage, WebSocketStream};
 
 use super::{
-    error::SimulatorError,
+    error::PeerSimulatorError,
     peer_map::Ws,
     simulator_config::SimulatorConfig,
     simulator_data::{new_transaction, SimulatorData},
@@ -76,7 +76,7 @@ async fn handle_message(
     message: WsMessage,
     addr: SocketAddr,
     mut ws: Ws,
-) -> Result<(), SimulatorError> {
+) -> Result<(), PeerSimulatorError> {
     let request = Message::from_bytes(&message.into_data())?;
     let data = data.lock().await;
 
@@ -117,7 +117,7 @@ async fn handle_message(
             (ProtocolMessageTypes::RespondPuzzleState, response)
         }
         message_type => {
-            return Err(SimulatorError::UnsupportedMessage(message_type));
+            return Err(PeerSimulatorError::UnsupportedMessage(message_type));
         }
     };
 
@@ -138,7 +138,7 @@ async fn send_transaction(
     request: SendTransaction,
     config: &SimulatorConfig,
     mut data: MutexGuard<'_, SimulatorData>,
-) -> Result<Bytes, SimulatorError> {
+) -> Result<Bytes, PeerSimulatorError> {
     let transaction_id = request.transaction.name();
 
     let updates = match new_transaction(config, &mut data, request.transaction, 6_600_000_000) {
@@ -147,7 +147,7 @@ async fn send_transaction(
             log::error!("error processing transaction: {:?}", &error);
 
             let validation_error = match error {
-                SimulatorError::Validation(validation_error) => validation_error,
+                PeerSimulatorError::Validation(validation_error) => validation_error,
                 _ => ValidationErr(NodePtr::NIL, ErrorCode::Unknown),
             };
 
@@ -208,7 +208,7 @@ fn register_for_coin_updates(
     peer: SocketAddr,
     request: RegisterForCoinUpdates,
     mut data: MutexGuard<'_, SimulatorData>,
-) -> Result<Bytes, SimulatorError> {
+) -> Result<Bytes, PeerSimulatorError> {
     let coin_ids: IndexSet<Bytes32> = request.coin_ids.iter().copied().collect();
 
     let coin_states: Vec<CoinState> = data
@@ -237,7 +237,7 @@ fn register_for_ph_updates(
     peer: SocketAddr,
     request: RegisterForPhUpdates,
     mut data: MutexGuard<'_, SimulatorData>,
-) -> Result<Bytes, SimulatorError> {
+) -> Result<Bytes, PeerSimulatorError> {
     let puzzle_hashes: IndexSet<Bytes32> = request.puzzle_hashes.iter().copied().collect();
 
     let coin_states: Vec<CoinState> = data
@@ -265,7 +265,7 @@ fn register_for_ph_updates(
 fn request_puzzle_solution(
     request: &RequestPuzzleSolution,
     data: &MutexGuard<'_, SimulatorData>,
-) -> Result<Bytes, SimulatorError> {
+) -> Result<Bytes, PeerSimulatorError> {
     let reject = RejectPuzzleSolution {
         coin_name: request.coin_name,
         height: request.height,
@@ -289,7 +289,7 @@ fn request_puzzle_solution(
 fn request_children(
     request: &RequestChildren,
     data: &MutexGuard<'_, SimulatorData>,
-) -> Result<Bytes, SimulatorError> {
+) -> Result<Bytes, PeerSimulatorError> {
     Ok(RespondChildren::new(data.children(request.coin_name))
         .to_bytes()?
         .into())
@@ -300,7 +300,7 @@ fn request_coin_state(
     request: RequestCoinState,
     config: &SimulatorConfig,
     mut data: MutexGuard<'_, SimulatorData>,
-) -> Result<Bytes, SimulatorError> {
+) -> Result<Bytes, PeerSimulatorError> {
     if (request.previous_height.is_some()
         && request.header_hash != data.header_hash(request.previous_height.unwrap()))
         || (request.previous_height.is_none()
@@ -351,7 +351,7 @@ fn request_puzzle_state(
     request: RequestPuzzleState,
     config: &SimulatorConfig,
     mut data: MutexGuard<'_, SimulatorData>,
-) -> Result<Bytes, SimulatorError> {
+) -> Result<Bytes, PeerSimulatorError> {
     if (request.previous_height.is_some()
         && request.header_hash != data.header_hash(request.previous_height.unwrap()))
         || (request.previous_height.is_none()

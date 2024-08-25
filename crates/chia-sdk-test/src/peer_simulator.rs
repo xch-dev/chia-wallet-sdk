@@ -2,7 +2,7 @@ use std::{net::SocketAddr, sync::Arc};
 
 use chia_protocol::{Bytes32, Coin, CoinState, Message};
 use chia_sdk_client::Peer;
-use error::SimulatorError;
+use error::PeerSimulatorError;
 use peer_map::PeerMap;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
@@ -32,11 +32,11 @@ pub struct PeerSimulator {
 }
 
 impl PeerSimulator {
-    pub async fn new() -> Result<Self, SimulatorError> {
+    pub async fn new() -> Result<Self, PeerSimulatorError> {
         Self::with_config(SimulatorConfig::default()).await
     }
 
-    pub async fn with_config(config: SimulatorConfig) -> Result<Self, SimulatorError> {
+    pub async fn with_config(config: SimulatorConfig) -> Result<Self, PeerSimulatorError> {
         log::info!("starting simulator");
 
         let addr = "127.0.0.1:0";
@@ -84,13 +84,15 @@ impl PeerSimulator {
         &self.config
     }
 
-    pub async fn connect_split(&self) -> Result<(Peer, mpsc::Receiver<Message>), SimulatorError> {
+    pub async fn connect_split(
+        &self,
+    ) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
         log::info!("connecting new peer to simulator");
         let (ws, _) = connect_async(format!("ws://{}", self.addr)).await?;
         Ok(Peer::from_websocket(ws)?)
     }
 
-    pub async fn connect(&self) -> Result<Peer, SimulatorError> {
+    pub async fn connect(&self) -> Result<Peer, PeerSimulatorError> {
         let (peer, mut receiver) = self.connect_split().await?;
 
         tokio::spawn(async move {
@@ -102,7 +104,7 @@ impl PeerSimulator {
         Ok(peer)
     }
 
-    pub async fn reset(&self) -> Result<(), SimulatorError> {
+    pub async fn reset(&self) -> Result<(), PeerSimulatorError> {
         let mut data = self.data.lock().await;
         *data = SimulatorData::default();
         Ok(())

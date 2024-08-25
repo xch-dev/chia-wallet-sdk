@@ -9,7 +9,7 @@ use thiserror::Error;
 use tokio_tungstenite::tungstenite;
 
 #[derive(Debug, Error)]
-pub enum SimulatorError {
+pub enum PeerSimulatorError {
     #[error("io error: {0}")]
     Io(#[from] io::Error),
 
