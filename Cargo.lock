@@ -314,6 +314,7 @@ name = "chia-sdk-client"
 version = "0.12.0"
 dependencies = [
  "chia-protocol",
+ "chia-sdk-types",
  "chia-ssl",
  "chia-traits 0.11.0",
  "futures-util",

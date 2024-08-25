@@ -15,6 +15,7 @@ categories = { workspace = true }
 workspace = true
 
 [dependencies]
+chia-sdk-types = { workspace = true }
 chia-protocol = { workspace = true }
 chia-traits = { workspace = true }
 chia-ssl = { workspace = true }

@@ -1,6 +1,7 @@
 use std::{net::SocketAddr, time::Duration};
 
 use chia_protocol::Bytes32;
+use chia_sdk_types::MAINNET_CONSTANTS;
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use hex_literal::hex;
 use serde::{Deserialize, Serialize};
@@ -24,9 +25,7 @@ impl Network {
     pub fn default_mainnet() -> Self {
         Self {
             default_port: 8444,
-            genesis_challenge: Bytes32::new(hex!(
-                "ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb"
-            )),
+            genesis_challenge: MAINNET_CONSTANTS.genesis_challenge,
             agg_sig_me: None,
             dns_introducers: vec![
                 "dns-introducer.chia.net".to_string(),
