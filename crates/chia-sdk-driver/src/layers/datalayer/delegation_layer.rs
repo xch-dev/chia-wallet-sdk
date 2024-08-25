@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use clvm_traits::{apply_constants, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
@@ -162,18 +162,6 @@ pub struct DelegationLayerSolution<P, S> {
     pub merkle_proof: Option<(u32, Vec<Bytes32>)>,
     pub puzzle_reveal: P,
     pub puzzle_solution: S,
-}
-
-#[derive(ToClvm, FromClvm)]
-#[apply_constants]
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[clvm(list)]
-pub struct NewMerkleRootCondition<M = Bytes32> {
-    #[clvm(constant = -13)]
-    pub opcode: i32,
-    pub new_merkle_root: Bytes32,
-    #[clvm(rest)]
-    pub memos: Vec<M>,
 }
 
 impl SpendContext {

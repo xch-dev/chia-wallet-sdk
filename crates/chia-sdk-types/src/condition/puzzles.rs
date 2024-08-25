@@ -143,3 +143,15 @@ pub struct NewMetadataOutput<M, C> {
     pub metadata_part: NewMetadataInfo<M>,
     pub conditions: C,
 }
+
+#[derive(ToClvm, FromClvm)]
+#[apply_constants]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[clvm(list)]
+pub struct NewMerkleRootCondition<M = Bytes32> {
+    #[clvm(constant = -13)]
+    pub opcode: i32,
+    pub new_merkle_root: Bytes32,
+    #[clvm(rest)]
+    pub memos: Vec<M>,
+}

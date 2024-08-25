@@ -595,13 +595,11 @@ pub mod tests {
     use chia_bls::{PublicKey, SecretKey};
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{test_secret_keys, test_transaction, Simulator};
-    use chia_sdk_types::{Conditions, MeltSingleton};
+    use chia_sdk_types::{Conditions, MeltSingleton, NewMerkleRootCondition};
     use clvmr::sha2::Sha256;
     use rstest::rstest;
 
-    use crate::{
-        DelegationLayer, Launcher, NewMerkleRootCondition, OracleLayer, StandardLayer, WriterLayer,
-    };
+    use crate::{DelegationLayer, Launcher, OracleLayer, StandardLayer, WriterLayer};
 
     use super::*;
 
