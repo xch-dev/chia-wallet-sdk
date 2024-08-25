@@ -1,9 +1,8 @@
 use std::{fmt, net::SocketAddr, time::Duration};
 
 use chia_protocol::Bytes32;
-use chia_sdk_types::MAINNET_CONSTANTS;
+use chia_sdk_types::{MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use futures_util::{stream::FuturesUnordered, StreamExt};
-use hex_literal::hex;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
 use tracing::{error, info, instrument};
@@ -58,9 +57,7 @@ impl Network {
     pub fn default_testnet11() -> Self {
         Self {
             default_port: 58444,
-            genesis_challenge: Bytes32::new(hex!(
-                "37a90eb5185a9c4439a91ddc98bbadce7b4feba060d50116a067de66bf236615"
-            )),
+            genesis_challenge: TESTNET11_CONSTANTS.genesis_challenge,
             agg_sig_me: None,
             dns_introducers: vec!["dns-introducer-testnet11.chia.net".to_string()],
         }
