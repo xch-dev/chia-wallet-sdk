@@ -275,7 +275,7 @@ pub fn get_merkle_tree(
             }
             DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee) => {
                 let oracle_full_puzzle_ptr = OracleLayer::new(oracle_puzzle_hash, oracle_fee)
-                    .ok_or(DriverError::Custom("oracle fee must be even".to_string()))?
+                    .ok_or(DriverError::OddOracleFee)?
                     .construct_puzzle(ctx)?;
 
                 leaves.push(tree_hash(&ctx.allocator, oracle_full_puzzle_ptr).into());
