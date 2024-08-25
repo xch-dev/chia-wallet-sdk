@@ -126,7 +126,7 @@ pub struct OldDlLauncherKvList<T = NodePtr> {
     pub memos: Vec<T>,
 }
 
-// does not Primitive because it needs extra info :(
+// Does not implement Primitive because it needs extra info.
 impl<M> DataStore<M>
 where
     M: ToClvm<Allocator> + FromClvm<Allocator> + MetadataWithRootHash,

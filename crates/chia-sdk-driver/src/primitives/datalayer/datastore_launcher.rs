@@ -70,7 +70,7 @@ impl Launcher {
 
         let (chained_spend, eve_coin) = self.spend(ctx, state_layer_hash.into(), kv_list)?;
 
-        let proof: Proof = Proof::Eve(EveProof {
+        let proof = Proof::Eve(EveProof {
             parent_parent_coin_info: launcher_coin.parent_coin_info,
             parent_amount: launcher_coin.amount,
         });
