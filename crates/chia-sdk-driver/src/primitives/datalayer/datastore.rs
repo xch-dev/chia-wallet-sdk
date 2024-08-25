@@ -213,7 +213,7 @@ where
     pub fn from_spend(
         allocator: &mut Allocator,
         cs: &CoinSpend,
-        parent_delegated_puzzles: Vec<DelegatedPuzzle>,
+        parent_delegated_puzzles: &[DelegatedPuzzle],
     ) -> Result<Option<Self>, DriverError>
     where
         Self: Sized,
@@ -437,7 +437,7 @@ where
                         launcher_id: singleton_layer.launcher_id,
                         metadata: new_metadata,
                         owner_puzzle_hash,
-                        delegated_puzzles: parent_delegated_puzzles,
+                        delegated_puzzles: parent_delegated_puzzles.to_vec(),
                     },
                 }));
             };
@@ -459,7 +459,7 @@ where
                             launcher_id: singleton_layer.launcher_id,
                             metadata: new_metadata,
                             owner_puzzle_hash, // owner puzzle was ran
-                            delegated_puzzles: parent_delegated_puzzles,
+                            delegated_puzzles: parent_delegated_puzzles.to_vec(),
                         },
                     }));
                 }
@@ -706,7 +706,7 @@ pub mod tests {
         for spend in spends {
             if spend.coin.coin_id() == datastore.info.launcher_id {
                 let new_datastore =
-                    DataStore::from_spend(&mut ctx.allocator, &spend, vec![])?.unwrap();
+                    DataStore::from_spend(&mut ctx.allocator, &spend, &[])?.unwrap();
 
                 assert_eq!(datastore, new_datastore);
             }
@@ -792,7 +792,7 @@ pub mod tests {
         for spend in spends {
             if spend.coin.coin_id() == datastore.info.launcher_id {
                 let new_datastore =
-                    DataStore::from_spend(&mut ctx.allocator, &spend, vec![])?.unwrap();
+                    DataStore::from_spend(&mut ctx.allocator, &spend, &[])?.unwrap();
 
                 assert_eq!(datastore, new_datastore);
             }
@@ -819,7 +819,7 @@ pub mod tests {
         let datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
             &new_spend,
-            datastore.info.delegated_puzzles.clone(),
+            &datastore.info.delegated_puzzles,
         )?
         .unwrap();
         ctx.insert(new_spend);
@@ -850,7 +850,7 @@ pub mod tests {
         let datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
             &new_spend,
-            datastore.info.delegated_puzzles.clone(),
+            &datastore.info.delegated_puzzles,
         )?
         .unwrap();
         ctx.insert(new_spend);
@@ -868,7 +868,7 @@ pub mod tests {
         let new_datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
             &new_spend,
-            datastore.info.delegated_puzzles.clone(),
+            &datastore.info.delegated_puzzles,
         )?
         .unwrap();
         ctx.insert(new_spend);
@@ -905,7 +905,7 @@ pub mod tests {
             .spend(ctx, datastore_remove_delegation_layer_inner_spend)?;
 
         let new_datastore =
-            DataStore::<DataStoreMetadata>::from_spend(&mut ctx.allocator, &new_spend, vec![])?
+            DataStore::<DataStoreMetadata>::from_spend(&mut ctx.allocator, &new_spend, &[])?
                 .unwrap();
         ctx.insert(new_spend);
 
@@ -1082,7 +1082,7 @@ pub mod tests {
         let dst_datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
             &new_spend,
-            src_datastore.info.delegated_puzzles.clone(),
+            &src_datastore.info.delegated_puzzles,
         )?
         .unwrap();
         ctx.insert(new_spend);
@@ -1276,7 +1276,7 @@ pub mod tests {
         let dst_datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
             &new_spend,
-            src_datastore.info.delegated_puzzles.clone(),
+            &src_datastore.info.delegated_puzzles,
         )?
         .unwrap();
 
@@ -1437,7 +1437,7 @@ pub mod tests {
         let dst_datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
             &new_spend,
-            src_datastore.info.delegated_puzzles.clone(),
+            &src_datastore.info.delegated_puzzles,
         )?
         .unwrap();
         ctx.insert(new_spend.clone());
@@ -1573,7 +1573,7 @@ pub mod tests {
         let dst_datastore = DataStore::from_spend(
             &mut ctx.allocator,
             &new_spend,
-            src_datastore.info.delegated_puzzles.clone(),
+            &src_datastore.info.delegated_puzzles,
         )?
         .unwrap();
         ctx.insert(new_spend);
@@ -2103,7 +2103,7 @@ pub mod tests {
             .into_iter()
             .find(|spend| spend.coin.coin_id() == eve_coin.parent_coin_info)
             .map(|spend| {
-                DataStore::from_spend(&mut ctx.allocator, &spend, vec![])
+                DataStore::from_spend(&mut ctx.allocator, &spend, &[])
                     .unwrap()
                     .unwrap()
             })
@@ -2174,7 +2174,7 @@ pub mod tests {
         let new_datastore = DataStore::<DataStoreMetadata>::from_spend(
             &mut ctx.allocator,
             &spend,
-            datastore_from_launcher.info.delegated_puzzles,
+            &datastore_from_launcher.info.delegated_puzzles,
         )?
         .unwrap();
 
