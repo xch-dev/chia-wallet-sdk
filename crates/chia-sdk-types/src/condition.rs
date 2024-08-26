@@ -159,7 +159,7 @@ conditions! {
             trade_prices: Vec<(u16, Bytes32)>,
             did_inner_puzzle_hash: Option<Bytes32>,
         },
-        RevealCatTail<P, S> as Copy {
+        RunCatTail<P, S> as Copy {
             opcode: u8 if 51,
             puzzle_hash: () if (),
             magic_amount: i8 if -113,
