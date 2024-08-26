@@ -18,6 +18,6 @@ workspace = true
 proc-macro = true
 
 [dependencies]
-syn = { workspace = true, features = ["visit-mut"] }
+syn = { workspace = true, features = ["visit-mut", "extra-traits"] }
 quote = { workspace = true }
 convert_case = { workspace = true }
