@@ -5,9 +5,7 @@ use chia_puzzles::{
     singleton::{SingletonArgs, SingletonSolution},
     LineageProof, Proof,
 };
-use chia_sdk_types::{
-    run_puzzle, Condition, Conditions, NewMetadataOutput, TransferNft, UpdateNftMetadata,
-};
+use chia_sdk_types::{run_puzzle, Condition, Conditions, NewMetadataOutput, TransferNft};
 use clvm_traits::{clvm_list, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{sha2::Sha256, Allocator, NodePtr};
@@ -236,14 +234,11 @@ where
                 Condition::CreateCoin(condition) if condition.amount % 2 == 1 => {
                     create_coin = Some(condition);
                 }
-                Condition::Other(condition) => {
-                    if let Ok(condition) = TransferNft::from_clvm(allocator, condition) {
-                        new_owner = Some(condition);
-                    } else if let Ok(condition) =
-                        UpdateNftMetadata::<NodePtr, NodePtr>::from_clvm(allocator, condition)
-                    {
-                        new_metadata = Some(condition);
-                    }
+                Condition::TransferNft(condition) => {
+                    new_owner = Some(condition);
+                }
+                Condition::UpdateNftMetadata(condition) => {
+                    new_metadata = Some(condition);
                 }
                 _ => {}
             }

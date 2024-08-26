@@ -328,12 +328,8 @@ where
                 Condition::CreateCoin(condition) if condition.amount % 2 == 1 => {
                     inner_create_coin_condition = Some(condition);
                 }
-                Condition::Other(condition) => {
-                    if let Ok(condition) =
-                        UpdateNftMetadata::<NodePtr, NodePtr>::from_clvm(allocator, condition)
-                    {
-                        inner_new_metadata_condition = Some(condition);
-                    }
+                Condition::UpdateNftMetadata(condition) => {
+                    inner_new_metadata_condition = Some(condition);
                 }
                 _ => {}
             }
