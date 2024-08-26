@@ -20,7 +20,7 @@ chia-protocol = { workspace = true }
 chia-traits = { workspace = true }
 chia-ssl = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["sync"] }
+tokio = { workspace = true, features = ["sync", "time", "rt"] }
 tungstenite = { workspace = true }
 native-tls = { workspace = true }
 tracing = { workspace = true }
