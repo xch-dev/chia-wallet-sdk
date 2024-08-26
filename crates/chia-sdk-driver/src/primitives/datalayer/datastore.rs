@@ -7,7 +7,7 @@ use chia_puzzles::{
     EveProof, LineageProof, Proof,
 };
 use chia_sdk_types::{run_puzzle, CreateCoin, NewMetadataInfo, NewMetadataOutput};
-use chia_sdk_types::{Condition, NewMetadataCondition};
+use chia_sdk_types::{Condition, UpdateNftMetadata};
 use clvm_traits::{FromClvm, FromClvmError, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -330,7 +330,7 @@ where
                 }
                 Condition::Other(condition) => {
                     if let Ok(condition) =
-                        NewMetadataCondition::<NodePtr, NodePtr>::from_clvm(allocator, condition)
+                        UpdateNftMetadata::<NodePtr, NodePtr>::from_clvm(allocator, condition)
                     {
                         inner_new_metadata_condition = Some(condition);
                     }
@@ -569,13 +569,13 @@ impl<M> DataStore<M> {
     where
         M: ToClvm<Allocator>,
     {
-        let new_metadata_condition = NewMetadataCondition::<i32, NewMetadataOutput<M, ()>> {
-            metadata_updater_reveal: 11,
+        let new_metadata_condition = UpdateNftMetadata::<i32, NewMetadataOutput<M, ()>> {
+            updater_puzzle_reveal: 11,
             // metadata updater will just return solution, so we can set the solution to NewMetadataOutput :)
-            metadata_updater_solution: NewMetadataOutput {
-                metadata_part: NewMetadataInfo::<M> {
+            updater_solution: NewMetadataOutput {
+                metadata_info: NewMetadataInfo::<M> {
                     new_metadata,
-                    new_metadata_updater_puzhash: DL_METADATA_UPDATER_PUZZLE_HASH.into(),
+                    new_updater_puzzle_hash: DL_METADATA_UPDATER_PUZZLE_HASH.into(),
                 },
                 conditions: (),
             },
@@ -595,7 +595,7 @@ pub mod tests {
     use chia_bls::{PublicKey, SecretKey};
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{test_secret_keys, test_transaction, Simulator};
-    use chia_sdk_types::{Conditions, MeltSingleton, NewMerkleRootCondition};
+    use chia_sdk_types::{Conditions, MeltSingleton, UpdateDataStoreMerkleRoot};
     use clvmr::sha2::Sha256;
     use rstest::rstest;
 
@@ -829,7 +829,7 @@ pub mod tests {
         let new_merkle_tree = get_merkle_tree(ctx, delegated_puzzles.clone())?;
         let new_merkle_root = new_merkle_tree.root;
 
-        let new_merkle_root_condition = NewMerkleRootCondition {
+        let new_merkle_root_condition = UpdateDataStoreMerkleRoot {
             new_merkle_root,
             memos: DataStore::<DataStoreMetadata>::get_recreation_memos(
                 datastore.info.launcher_id,
@@ -1051,7 +1051,7 @@ pub mod tests {
 
             let new_merkle_tree = get_merkle_tree(ctx, dst_delegated_puzzles.clone())?;
 
-            let new_merkle_root_condition = NewMerkleRootCondition {
+            let new_merkle_root_condition = UpdateDataStoreMerkleRoot {
                 new_merkle_root: new_merkle_tree.root,
                 memos: DataStore::<DataStoreMetadata>::get_recreation_memos(
                     src_datastore.info.launcher_id,
@@ -1908,9 +1908,9 @@ pub mod tests {
         let ctx = &mut SpendContext::new();
 
         let condition_output = Conditions::new().with(Condition::Other(
-            NewMerkleRootCondition::<Bytes32> {
+            UpdateDataStoreMerkleRoot {
                 new_merkle_root: new_merkle_root.value(),
-                memos: memos.into_iter().map(|m| m.value()).collect(),
+                memos: memos.into_iter().map(|m| m.value().into()).collect(),
             }
             .to_clvm(&mut ctx.allocator)?,
         ));
@@ -1957,12 +1957,12 @@ pub mod tests {
         let ctx = &mut SpendContext::new();
 
         let new_metadata_condition = Condition::Other(
-            NewMetadataCondition {
-                metadata_updater_reveal: 11,
-                metadata_updater_solution: NewMetadataOutput {
-                    metadata_part: NewMetadataInfo {
+            UpdateNftMetadata {
+                updater_puzzle_reveal: 11,
+                updater_solution: NewMetadataOutput {
+                    metadata_info: NewMetadataInfo {
                         new_metadata: DataStoreMetadata::root_hash_only(new_root_hash.value()),
-                        new_metadata_updater_puzhash: new_updater_ph.into(),
+                        new_updater_puzzle_hash: new_updater_ph.into(),
                     },
                     conditions: if output_conditions {
                         vec![CreateCoin {

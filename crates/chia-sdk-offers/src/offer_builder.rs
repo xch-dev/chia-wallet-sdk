@@ -1,7 +1,7 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzles::offer::{NotarizedPayment, Payment, SettlementPaymentsSolution};
 use chia_sdk_driver::{DriverError, Puzzle, SpendContext};
-use chia_sdk_types::AssertPuzzleAnnouncement;
+use chia_sdk_types::{announcement_id, AssertPuzzleAnnouncement};
 use clvm_traits::ToClvm;
 use clvmr::Allocator;
 use indexmap::IndexMap;
@@ -70,10 +70,12 @@ impl OfferBuilder<Make> {
             .1
             .push(notarized_payment);
 
-        self.data.announcements.push(AssertPuzzleAnnouncement::new(
-            puzzle_hash,
-            notarized_payment_hash,
-        ));
+        self.data
+            .announcements
+            .push(AssertPuzzleAnnouncement::new(announcement_id(
+                puzzle_hash,
+                notarized_payment_hash,
+            )));
 
         Ok(self)
     }

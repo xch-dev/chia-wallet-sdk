@@ -84,6 +84,7 @@ tokio = { workspace = true, features = ["full"] }
 
 [workspace.dependencies]
 chia-sdk-client = { version = "0.12.0", path = "./crates/chia-sdk-client" }
+chia-sdk-derive = { version = "0.12.0", path = "./crates/chia-sdk-derive" }
 chia-sdk-driver = { version = "0.12.0", path = "./crates/chia-sdk-driver" }
 chia-sdk-offers = { version = "0.12.0", path = "./crates/chia-sdk-offers" }
 chia-sdk-signer = { version = "0.12.0", path = "./crates/chia-sdk-signer" }
@@ -123,3 +124,6 @@ rstest = "0.22.0"
 serde = "1.0.209"
 serde_with = "3.9.0"
 tracing = "0.1.40"
+syn = "2.0.76"
+quote = "1.0.37"
+convert_case = "0.6.0"

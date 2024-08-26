@@ -88,7 +88,7 @@ impl RequiredSignature {
         let mut result = Vec::new();
 
         for condition in conditions {
-            let Condition::AggSig(agg_sig) = condition else {
+            let Some(agg_sig) = condition.into_agg_sig() else {
                 continue;
             };
 
