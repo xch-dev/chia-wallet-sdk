@@ -317,47 +317,44 @@ impl Primitive for Cat {
 #[cfg(test)]
 mod tests {
     use chia_puzzles::{cat::EverythingWithSignatureTailArgs, standard::StandardArgs};
-    use chia_sdk_test::{test_secret_key, test_transaction, Simulator};
-    use chia_sdk_types::Condition;
+    use chia_sdk_test::{test_secret_key, Simulator};
+    use chia_sdk_types::{Condition, RunCatTail, MAINNET_CONSTANTS};
 
     use crate::StandardLayer;
 
     use super::*;
 
-    #[tokio::test]
-    async fn test_single_issuance_cat() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
-        let peer = sim.connect().await?;
+    #[test]
+    fn test_single_issuance_cat() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
         let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let p2_puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.mint_coin(p2_puzzle_hash, 1).await;
+        let coin = sim.new_coin(p2_puzzle_hash, 1);
 
         let conditions =
             Conditions::new().create_coin(p2_puzzle_hash, 1, vec![p2_puzzle_hash.into()]);
         let (issue_cat, _cat) = Cat::single_issuance_eve(ctx, coin.coin_id(), 1, conditions)?;
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
-
-        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
+        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
 
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_multi_issuance_cat() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
-        let peer = sim.connect().await?;
+    #[test]
+    fn test_multi_issuance_cat() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
         let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let p2_puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.mint_coin(p2_puzzle_hash, 1).await;
+        let coin = sim.new_coin(p2_puzzle_hash, 1);
 
         let conditions =
             Conditions::new().create_coin(p2_puzzle_hash, 1, vec![p2_puzzle_hash.into()]);
@@ -365,22 +362,21 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
-        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
+        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
 
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_cat_spend_multi() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
-        let peer = sim.connect().await?;
+    #[test]
+    fn test_cat_spend_multi() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
         let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let p2_puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.mint_coin(p2_puzzle_hash, 6).await;
+        let coin = sim.new_coin(p2_puzzle_hash, 6);
 
         let (issue_cat, cat) = Cat::single_issuance_eve(
             ctx,
@@ -421,22 +417,21 @@ mod tests {
             ctx.insert(coin_spend);
         }
 
-        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
+        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
 
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_cat_spend() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
-        let peer = sim.connect().await?;
+    #[test]
+    fn test_cat_spend() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
         let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let p2_puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.mint_coin(p2_puzzle_hash, 1).await;
+        let coin = sim.new_coin(p2_puzzle_hash, 1);
 
         let conditions =
             Conditions::new().create_coin(p2_puzzle_hash, 1, vec![p2_puzzle_hash.into()]);
@@ -456,22 +451,21 @@ mod tests {
             ctx.insert(coin_spend);
         }
 
-        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
+        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
 
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_cat_melt() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
-        let peer = sim.connect().await?;
+    #[test]
+    fn test_cat_melt() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
         let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let p2_puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.mint_coin(p2_puzzle_hash, 10000).await;
+        let coin = sim.new_coin(p2_puzzle_hash, 10000);
 
         let conditions =
             Conditions::new().create_coin(p2_puzzle_hash, 10000, vec![p2_puzzle_hash.into()]);
@@ -501,7 +495,7 @@ mod tests {
             ctx.insert(coin_spend);
         }
 
-        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
+        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
 
         Ok(())
     }

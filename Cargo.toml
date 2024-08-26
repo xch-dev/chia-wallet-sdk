@@ -80,7 +80,6 @@ chia-bls = { workspace = true  }
 clvm-utils = { workspace = true }
 clvm-traits = { workspace = true, features = ["derive"] }
 clvmr = { workspace = true }
-tokio = { workspace = true, features = ["full"] }
 
 [workspace.dependencies]
 chia-sdk-client = { version = "0.12.0", path = "./crates/chia-sdk-client" }
@@ -126,3 +125,4 @@ tracing = "0.1.40"
 syn = "2.0.76"
 quote = "1.0.37"
 convert_case = "0.6.0"
+fastrand = "2.1.1"

@@ -6,17 +6,14 @@ use chia_protocol::{CoinSpend, SpendBundle, TransactionAck};
 use chia_sdk_client::Peer;
 use chia_sdk_signer::RequiredSignature;
 use clvmr::Allocator;
-use thiserror::Error;
 
-#[derive(Debug, Clone, Copy, Error)]
-#[error("missing key")]
-pub struct KeyError;
+use crate::SimulatorError;
 
 pub fn sign_transaction(
     coin_spends: &[CoinSpend],
     secret_keys: &[SecretKey],
     constants: &ConsensusConstants,
-) -> anyhow::Result<Signature> {
+) -> Result<Signature, SimulatorError> {
     let mut allocator = Allocator::new();
 
     let required_signatures =
@@ -30,7 +27,8 @@ pub fn sign_transaction(
     let mut aggregated_signature = Signature::default();
 
     for required in required_signatures {
-        let sk = key_pairs.get(&required.public_key()).ok_or(KeyError)?;
+        let pk = required.public_key();
+        let sk = key_pairs.get(&pk).ok_or(SimulatorError::MissingKey)?;
         aggregated_signature += &sign(sk, required.final_message());
     }
 

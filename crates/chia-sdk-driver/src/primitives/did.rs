@@ -177,24 +177,23 @@ where
 #[cfg(test)]
 mod tests {
     use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::{test_secret_key, test_transaction, Simulator};
-    use chia_sdk_types::Conditions;
+    use chia_sdk_test::{test_secret_key, Simulator};
+    use chia_sdk_types::{Conditions, MAINNET_CONSTANTS};
 
     use crate::Launcher;
 
     use super::*;
 
-    #[tokio::test]
-    async fn test_did_recreation() -> anyhow::Result<()> {
-        let sim = Simulator::new().await?;
-        let peer = sim.connect().await?;
+    #[test]
+    fn test_did_recreation() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
         let sk = test_secret_key()?;
         let pk = sk.public_key();
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.mint_coin(puzzle_hash, 1).await;
+        let coin = sim.new_coin(puzzle_hash, 1);
 
         let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
@@ -208,11 +207,10 @@ mod tests {
             did = ctx.spend_standard_did(did, pk, Conditions::new())?;
         }
 
-        test_transaction(&peer, ctx.take(), &[sk], &sim.config().constants).await;
+        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
 
         let coin_state = sim
             .coin_state(did.coin.coin_id())
-            .await
             .expect("expected did coin");
         assert_eq!(coin_state.coin, did.coin);
 

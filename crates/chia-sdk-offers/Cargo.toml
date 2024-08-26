@@ -33,6 +33,5 @@ once_cell = { workspace = true }
 [dev-dependencies]
 hex-literal = { workspace = true }
 hex = { workspace = true }
-tokio = { workspace = true, features = ["full"] }
 anyhow = { workspace = true }
 chia-sdk-test = { path = "../chia-sdk-test" }
