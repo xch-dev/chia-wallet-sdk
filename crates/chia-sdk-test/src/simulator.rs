@@ -359,7 +359,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::new(puzzle_hash, 1)])?,
+                to_program([CreateCoin::new(puzzle_hash, 1, Vec::new())])?,
             )],
             Signature::default(),
         );
@@ -384,7 +384,7 @@ mod tests {
                 vec![CoinSpend::new(
                     coin,
                     puzzle_reveal.clone(),
-                    to_program([CreateCoin::new(puzzle_hash, coin.amount - 1)])?,
+                    to_program([CreateCoin::new(puzzle_hash, coin.amount - 1, Vec::new())])?,
                 )],
                 Signature::default(),
             );
@@ -446,8 +446,8 @@ mod tests {
                 coin,
                 puzzle_reveal,
                 to_program([
-                    CreateCoin::new(puzzle_hash, 1),
-                    CreateCoin::new(puzzle_hash, 2),
+                    CreateCoin::new(puzzle_hash, 1, Vec::new()),
+                    CreateCoin::new(puzzle_hash, 2, Vec::new()),
                 ])?,
             )],
             Signature::default(),
@@ -574,7 +574,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::new(puzzle_hash, 1)])?,
+                to_program([CreateCoin::new(puzzle_hash, 1, Vec::new())])?,
             )],
             Signature::default(),
         );
@@ -656,7 +656,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::new(child_coin.puzzle_hash, 1)])?,
+                to_program([CreateCoin::new(child_coin.puzzle_hash, 1, Vec::new())])?,
             )],
             Signature::default(),
         );
@@ -741,7 +741,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::with_hint(puzzle_hash, 0, hint)])?,
+                to_program([CreateCoin::new(puzzle_hash, 0, vec![hint.into()])])?,
             )],
             Signature::default(),
         );

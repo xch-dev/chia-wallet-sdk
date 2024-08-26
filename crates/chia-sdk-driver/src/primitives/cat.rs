@@ -4,7 +4,7 @@ use chia_puzzles::{
     cat::{CatArgs, CatSolution, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs},
     CoinProof, LineageProof,
 };
-use chia_sdk_types::{run_puzzle, Condition, Conditions, CreateCoin, RunTail};
+use chia_sdk_types::{run_puzzle, Condition, Conditions, CreateCoin, RunCatTail};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::CurriedProgram;
 use clvmr::{Allocator, NodePtr};
@@ -54,7 +54,7 @@ impl Cat {
             parent_coin_id,
             asset_id,
             amount,
-            &RunTail::new(tail, ()),
+            &RunCatTail::new(tail, ()),
             extra_conditions,
         )
     }
@@ -78,7 +78,7 @@ impl Cat {
             parent_coin_id,
             asset_id,
             amount,
-            &RunTail::new(tail, ()),
+            &RunCatTail::new(tail, ()),
             extra_conditions,
         )
     }
@@ -88,7 +88,7 @@ impl Cat {
         parent_coin_id: Bytes32,
         asset_id: Bytes32,
         amount: u64,
-        run_tail: &RunTail<P, S>,
+        run_tail: &RunCatTail<P, S>,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Cat), DriverError>
     where
@@ -318,7 +318,7 @@ impl Primitive for Cat {
 mod tests {
     use chia_puzzles::{cat::EverythingWithSignatureTailArgs, standard::StandardArgs};
     use chia_sdk_test::{test_secret_key, test_transaction, Simulator};
-    use chia_sdk_types::{Condition, RunTail};
+    use chia_sdk_types::Condition;
 
     use crate::StandardLayer;
 
@@ -484,7 +484,7 @@ mod tests {
             program: tail,
             args: EverythingWithSignatureTailArgs::new(pk),
         })?;
-        let run_tail = Condition::Other(ctx.alloc(&RunTail::new(tail_program, ()))?);
+        let run_tail = Condition::Other(ctx.alloc(&RunCatTail::new(tail_program, ()))?);
 
         let cat_spend = CatSpend::with_extra_delta(
             cat.wrapped_child(p2_puzzle_hash, 10000),

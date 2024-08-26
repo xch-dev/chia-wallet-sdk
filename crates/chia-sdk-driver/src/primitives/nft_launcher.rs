@@ -1,6 +1,6 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{EveProof, Proof};
-use chia_sdk_types::{Condition, Conditions, NewNftOwner};
+use chia_sdk_types::{Condition, Conditions, TransferNft};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};
 
@@ -13,7 +13,7 @@ pub struct NftMint<M> {
     pub royalty_puzzle_hash: Bytes32,
     pub royalty_ten_thousandths: u16,
     pub p2_puzzle_hash: Bytes32,
-    pub owner: NewNftOwner,
+    pub owner: TransferNft,
 }
 
 impl Launcher {
@@ -67,7 +67,7 @@ impl Launcher {
         let mut conditions =
             Conditions::new().create_coin(mint.p2_puzzle_hash, 1, vec![mint.p2_puzzle_hash.into()]);
 
-        if mint.owner != NewNftOwner::default() {
+        if mint.owner != TransferNft::default() {
             conditions = conditions.with(Condition::Other(ctx.alloc(&mint.owner)?));
         }
 
@@ -89,7 +89,7 @@ impl Launcher {
 
         let mut did_conditions = Conditions::new();
 
-        if mint.owner != NewNftOwner::default() {
+        if mint.owner != TransferNft::default() {
             did_conditions = did_conditions.assert_puzzle_announcement(did_puzzle_assertion(
                 eve_nft.coin.puzzle_hash,
                 &mint.owner,
@@ -145,7 +145,7 @@ mod tests {
             royalty_puzzle_hash: Bytes32::new([4; 32]),
             royalty_ten_thousandths: 300,
             p2_puzzle_hash,
-            owner: NewNftOwner {
+            owner: TransferNft {
                 did_id: did.map(|did| did.info.launcher_id),
                 trade_prices: Vec::new(),
                 did_inner_puzzle_hash: did.map(|did| did.info.inner_puzzle_hash().into()),

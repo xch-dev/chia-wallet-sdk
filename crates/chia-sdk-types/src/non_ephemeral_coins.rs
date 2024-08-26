@@ -61,7 +61,7 @@ mod tests {
         let mut coin_spends = Vec::new();
 
         for i in 0..3 {
-            let create_coin = CreateCoin::new(Bytes32::new([i; 32]), u64::from(i));
+            let create_coin = CreateCoin::new(Bytes32::new([i; 32]), u64::from(i), Vec::new());
             let solution = [&create_coin].to_clvm(&mut allocator)?;
 
             coin_spends.push(CoinSpend::new(

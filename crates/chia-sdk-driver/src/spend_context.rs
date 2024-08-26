@@ -22,7 +22,7 @@ use chia_puzzles::{
     standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
 };
 use chia_sdk_types::{
-    run_puzzle, Conditions, NewNftOwner, P2_DELEGATED_CONDITIONS_PUZZLE,
+    run_puzzle, Conditions, TransferNft, P2_DELEGATED_CONDITIONS_PUZZLE,
     P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
 };
 use clvm_traits::{FromClvm, ToClvm};
@@ -252,7 +252,7 @@ impl SpendContext {
         nft: Nft<M>,
         synthetic_key: PublicKey,
         p2_puzzle_hash: Bytes32,
-        new_nft_owner: Option<NewNftOwner>,
+        new_nft_owner: Option<TransferNft>,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Nft<M>), DriverError>
     where

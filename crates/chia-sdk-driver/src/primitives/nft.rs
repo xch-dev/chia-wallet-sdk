@@ -5,9 +5,7 @@ use chia_puzzles::{
     singleton::{SingletonArgs, SingletonSolution},
     LineageProof, Proof,
 };
-use chia_sdk_types::{
-    run_puzzle, Condition, Conditions, NewMetadataCondition, NewMetadataOutput, NewNftOwner,
-};
+use chia_sdk_types::{run_puzzle, Condition, Conditions, NewMetadataOutput, TransferNft};
 use clvm_traits::{clvm_list, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{sha2::Sha256, Allocator, NodePtr};
@@ -156,7 +154,7 @@ where
         ctx: &mut SpendContext,
         owner_synthetic_key: PublicKey,
         p2_puzzle_hash: Bytes32,
-        new_did_owner: &NewNftOwner,
+        new_did_owner: &TransferNft,
         extra_conditions: Conditions,
     ) -> Result<(CoinSpend, Conditions, Nft<M>), DriverError> {
         let new_did_owner_ptr = Condition::Other(ctx.alloc(&new_did_owner)?);
@@ -236,14 +234,11 @@ where
                 Condition::CreateCoin(condition) if condition.amount % 2 == 1 => {
                     create_coin = Some(condition);
                 }
-                Condition::Other(condition) => {
-                    if let Ok(condition) = NewNftOwner::from_clvm(allocator, condition) {
-                        new_owner = Some(condition);
-                    } else if let Ok(condition) =
-                        NewMetadataCondition::<NodePtr, NodePtr>::from_clvm(allocator, condition)
-                    {
-                        new_metadata = Some(condition);
-                    }
+                Condition::TransferNft(condition) => {
+                    new_owner = Some(condition);
+                }
+                Condition::UpdateNftMetadata(condition) => {
+                    new_metadata = Some(condition);
                 }
                 _ => {}
             }
@@ -262,14 +257,14 @@ where
         if let Some(new_metadata) = new_metadata {
             let output = run_puzzle(
                 allocator,
-                new_metadata.metadata_updater_reveal,
-                new_metadata.metadata_updater_solution,
+                new_metadata.updater_puzzle_reveal,
+                new_metadata.updater_solution,
             )?;
 
             let output =
-                NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)?.metadata_part;
+                NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)?.metadata_info;
             layers.inner_puzzle.metadata = output.new_metadata;
-            layers.inner_puzzle.metadata_updater_puzzle_hash = output.new_metadata_updater_puzhash;
+            layers.inner_puzzle.metadata_updater_puzzle_hash = output.new_updater_puzzle_hash;
         }
 
         let mut info = NftInfo::from_layers(layers);
@@ -287,7 +282,7 @@ where
     }
 }
 
-pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &NewNftOwner) -> Bytes32 {
+pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &TransferNft) -> Bytes32 {
     let mut allocator = Allocator::new();
 
     let new_nft_owner_args = clvm_list!(
@@ -385,7 +380,7 @@ mod tests {
                 pk,
                 p2_puzzle_hash,
                 if i % 2 == 0 {
-                    Some(NewNftOwner::new(
+                    Some(TransferNft::new(
                         Some(did.info.launcher_id),
                         Vec::new(),
                         Some(did.info.inner_puzzle_hash().into()),
@@ -435,7 +430,7 @@ mod tests {
                 royalty_ten_thousandths: 300,
                 royalty_puzzle_hash: Bytes32::new([1; 32]),
                 p2_puzzle_hash: puzzle_hash,
-                owner: NewNftOwner {
+                owner: TransferNft {
                     did_id: Some(did.info.launcher_id),
                     trade_prices: Vec::new(),
                     did_inner_puzzle_hash: Some(did.info.inner_puzzle_hash().into()),
