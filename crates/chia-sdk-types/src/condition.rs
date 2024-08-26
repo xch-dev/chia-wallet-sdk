@@ -84,6 +84,18 @@ conditions! {
             opcode: i8 if 65,
             puzzle_hash: Bytes32,
         },
+        SendMessage<T> {
+            opcode: i8 if 66,
+            mode: u8,
+            message: Bytes,
+            ...data: Vec<T>,
+        },
+        ReceiveMessage<T> {
+            opcode: i8 if 67,
+            mode: u8,
+            message: Bytes,
+            ...data: Vec<T>,
+        },
         AssertMyCoinId as Copy {
             opcode: i8 if 70,
             coin_id: Bytes32,
