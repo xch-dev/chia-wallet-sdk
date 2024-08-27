@@ -7,7 +7,10 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DidLayer, DriverError, Layer, Primitive, Puzzle, SingletonLayer, Spend, SpendContext};
 
-use super::DidInfo;
+mod did_info;
+mod did_launcher;
+
+pub use did_info::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Did<M> {
