@@ -166,7 +166,7 @@ impl Cat {
                     prev_coin_id: prev.cat.coin.coin_id(),
                     next_coin_proof: CoinProof {
                         parent_coin_info: next.cat.coin.parent_coin_info,
-                        inner_puzzle_hash: ctx.tree_hash(inner_spend.puzzle).into(),
+                        inner_puzzle_hash: ctx.tree_hash(next.inner_spend.puzzle).into(),
                         amount: next.cat.coin.amount,
                     },
                     prev_subtotal: prev_subtotal.try_into()?,
@@ -455,6 +455,55 @@ mod tests {
                 .map(|cat| cat.wrapped_child(puzzle_hash, cat.coin.amount))
                 .collect();
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_different_cat_p2_puzzles() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+        let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
+
+        // This will just return the solution verbatim.
+        let custom_p2 = ctx.alloc(&1)?;
+        let custom_p2_puzzle_hash = ctx.tree_hash(custom_p2).into();
+
+        let (issue_cat, cat) = Cat::single_issuance_eve(
+            ctx,
+            coin.coin_id(),
+            2,
+            Conditions::new()
+                .create_coin(puzzle_hash, 1, vec![puzzle_hash.into()])
+                .create_coin(custom_p2_puzzle_hash, 1, vec![custom_p2_puzzle_hash.into()]),
+        )?;
+
+        ctx.spend_standard_coin(coin, pk, issue_cat)?;
+        sim.spend_coins(ctx.take(), &[sk.clone()])?;
+
+        let spends = [
+            CatSpend::new(
+                cat.wrapped_child(puzzle_hash, 1),
+                StandardLayer::new(pk).spend(
+                    ctx,
+                    Conditions::new().create_coin(puzzle_hash, 1, vec![puzzle_hash.into()]),
+                )?,
+            ),
+            CatSpend::new(
+                cat.wrapped_child(custom_p2_puzzle_hash, 1),
+                Spend::new(
+                    custom_p2,
+                    ctx.alloc(&[CreateCoin::new(
+                        custom_p2_puzzle_hash,
+                        1,
+                        vec![custom_p2_puzzle_hash.into()],
+                    )])?,
+                ),
+            ),
+        ];
+
+        Cat::spend_all(ctx, &spends)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
 
         Ok(())
     }
