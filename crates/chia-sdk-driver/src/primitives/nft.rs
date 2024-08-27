@@ -154,10 +154,10 @@ where
         ctx: &mut SpendContext,
         owner_synthetic_key: PublicKey,
         p2_puzzle_hash: Bytes32,
-        new_did_owner: &TransferNft,
+        new_owner: &TransferNft,
         extra_conditions: Conditions,
     ) -> Result<(CoinSpend, Conditions, Nft<M>), DriverError> {
-        let new_did_owner_ptr = Condition::Other(ctx.alloc(&new_did_owner)?);
+        let did_id = new_owner.did_id;
 
         let inner_spend = StandardLayer::new(owner_synthetic_key).spend(
             ctx,
@@ -167,16 +167,16 @@ where
                     self.coin.amount,
                     vec![p2_puzzle_hash.into()],
                 )
-                .with(new_did_owner_ptr),
+                .with(Condition::TransferNft(new_owner.clone())),
         )?;
 
         let did_conditions = Conditions::new()
-            .assert_puzzle_announcement(did_puzzle_assertion(self.coin.puzzle_hash, new_did_owner));
+            .assert_puzzle_announcement(did_puzzle_assertion(self.coin.puzzle_hash, new_owner));
 
         let coin_spend = self.spend(ctx, inner_spend)?;
         let child = self
             .with_hashed_metadata(&mut ctx.allocator)?
-            .create_child(p2_puzzle_hash, Some(new_did_owner.did_id));
+            .create_child(p2_puzzle_hash, Some(did_id));
 
         Ok((
             coin_spend,
@@ -313,7 +313,6 @@ mod tests {
         standard::StandardArgs,
     };
     use chia_sdk_test::{test_secret_key, Simulator};
-    use chia_sdk_types::MAINNET_CONSTANTS;
 
     #[test]
     fn test_nft_transfer() -> anyhow::Result<()> {
@@ -328,7 +327,7 @@ mod tests {
 
         let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
-        ctx.spend_p2_coin(coin, pk, create_did)?;
+        ctx.spend_standard_coin(coin, pk, create_did)?;
 
         let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
             .create(ctx)?
@@ -347,7 +346,7 @@ mod tests {
 
         let _did_info = ctx.spend_standard_did(did, pk, parent_conditions)?;
 
-        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
 
         Ok(())
     }
@@ -365,7 +364,7 @@ mod tests {
 
         let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
-        ctx.spend_p2_coin(coin, pk, create_did)?;
+        ctx.spend_standard_coin(coin, pk, create_did)?;
 
         let (mint_nft, mut nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
             .create(ctx)?
@@ -393,7 +392,7 @@ mod tests {
             did = ctx.spend_standard_did(did, pk, spend_nft)?;
         }
 
-        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
 
         let coin_state = sim
             .coin_state(did.coin.coin_id())
@@ -435,7 +434,7 @@ mod tests {
             },
         )?;
 
-        ctx.spend_p2_coin(parent, pk, create_did.extend(mint_nft))?;
+        ctx.spend_standard_coin(parent, pk, create_did.extend(mint_nft))?;
 
         let coin_spends = ctx.take();
 

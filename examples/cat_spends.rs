@@ -13,7 +13,7 @@ fn main() -> anyhow::Result<()> {
     let conditions =
         Conditions::new().create_coin(p2_puzzle_hash, coin.amount, vec![p2_puzzle_hash.into()]);
     let (issue_cat, cat) = Cat::single_issuance_eve(ctx, coin.coin_id(), coin.amount, conditions)?;
-    ctx.spend_p2_coin(coin, pk, issue_cat)?;
+    ctx.spend_standard_coin(coin, pk, issue_cat)?;
     println!("Issued test CAT with asset id {}", cat.asset_id);
 
     // Spend the CAT coin.
@@ -26,9 +26,7 @@ fn main() -> anyhow::Result<()> {
         )?,
     )];
 
-    for coin_spend in Cat::spend_all(ctx, &cat_spends)? {
-        ctx.insert(coin_spend);
-    }
+    Cat::spend_all(ctx, &cat_spends)?;
 
     let new_coin = new_cat.wrapped_child(p2_puzzle_hash, 1000).coin;
 

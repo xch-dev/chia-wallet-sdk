@@ -1,15 +1,17 @@
 use std::collections::HashSet;
 
-use chia_bls::SecretKey;
+use chia_bls::{PublicKey, SecretKey};
 use chia_consensus::{
     consensus_constants::ConsensusConstants, gen::validation_error::ErrorCode,
     spendbundle_validation::validate_clvm_and_signature,
 };
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
+use chia_puzzles::standard::StandardArgs;
+use chia_sdk_types::TESTNET11_CONSTANTS;
 use fastrand::Rng;
 use indexmap::{IndexMap, IndexSet};
 
-use crate::{sign_transaction, SimulatorError};
+use crate::{sign_transaction, test_secret_key, SimulatorError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Simulator {
@@ -72,6 +74,17 @@ impl Simulator {
         coin
     }
 
+    pub fn new_p2(
+        &mut self,
+        amount: u64,
+    ) -> Result<(SecretKey, PublicKey, Bytes32, Coin), bip39::Error> {
+        let sk = test_secret_key()?;
+        let pk = sk.public_key();
+        let p2 = StandardArgs::curry_tree_hash(pk).into();
+        let coin = self.new_coin(p2, amount);
+        Ok((sk, pk, p2, coin))
+    }
+
     pub(crate) fn hint_coin(&mut self, coin_id: Bytes32, hint: Bytes32) {
         self.hinted_coins.entry(hint).or_default().insert(coin_id);
     }
@@ -113,10 +126,12 @@ impl Simulator {
         &mut self,
         coin_spends: Vec<CoinSpend>,
         secret_keys: &[SecretKey],
-        constants: &ConsensusConstants,
     ) -> Result<IndexMap<Bytes32, CoinState>, SimulatorError> {
-        let signature = sign_transaction(&coin_spends, secret_keys, constants)?;
-        self.new_transaction(SpendBundle::new(coin_spends, signature), constants)
+        let signature = sign_transaction(&coin_spends, secret_keys, &TESTNET11_CONSTANTS)?;
+        self.new_transaction(
+            SpendBundle::new(coin_spends, signature),
+            &TESTNET11_CONSTANTS,
+        )
     }
 
     /// Processes a spend bunndle and returns the updated coin states.

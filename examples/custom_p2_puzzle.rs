@@ -137,7 +137,7 @@ fn main() -> anyhow::Result<()> {
     // Sign and submit the transaction to the simulator.
     // This will produce an error if the transaction is not successful.
     let coin_spends = ctx.take();
-    sim.spend_coins(coin_spends, &[sk], &MAINNET_CONSTANTS)?;
+    sim.spend_coins(coin_spends, &[sk])?;
 
     println!("Transaction was successful.");
 

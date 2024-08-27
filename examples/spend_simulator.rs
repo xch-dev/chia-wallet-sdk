@@ -21,7 +21,7 @@ fn main() -> anyhow::Result<()> {
         .create_coin(puzzle_hash, 900, Vec::new())
         .reserve_fee(100);
 
-    ctx.spend_p2_coin(coin, pk, conditions)?;
+    ctx.spend_standard_coin(coin, pk, conditions)?;
 
     let new_coin = Coin::new(coin.coin_id(), puzzle_hash, 900);
 
@@ -30,7 +30,7 @@ fn main() -> anyhow::Result<()> {
     // Sign and submit the transaction to the simulator.
     // This will produce an error if the transaction is not successful.
     let coin_spends = ctx.take();
-    sim.spend_coins(coin_spends, &[sk], &MAINNET_CONSTANTS)?;
+    sim.spend_coins(coin_spends, &[sk])?;
 
     println!("Transaction was successful.");
 

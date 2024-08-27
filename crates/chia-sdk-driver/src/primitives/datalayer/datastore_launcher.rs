@@ -95,7 +95,6 @@ mod tests {
     use chia_bls::SecretKey;
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{test_secret_keys, Simulator};
-    use chia_sdk_types::MAINNET_CONSTANTS;
     use rstest::rstest;
 
     use crate::{
@@ -170,7 +169,7 @@ mod tests {
             delegated_puzzles,
         )?;
 
-        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
 
         let spends = ctx.take();
         for spend in spends.clone() {
@@ -186,7 +185,7 @@ mod tests {
 
         assert_eq!(datastore.info.metadata, metadata);
 
-        sim.spend_coins(spends, &[owner_sk, admin_sk, writer_sk], &MAINNET_CONSTANTS)?;
+        sim.spend_coins(spends, &[owner_sk, admin_sk, writer_sk])?;
 
         // Make sure the datastore was created.
         let coin_state = sim

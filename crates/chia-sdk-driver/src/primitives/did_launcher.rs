@@ -92,7 +92,6 @@ mod tests {
 
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{test_secret_key, Simulator};
-    use chia_sdk_types::MAINNET_CONSTANTS;
 
     #[test]
     fn test_create_did() -> anyhow::Result<()> {
@@ -108,8 +107,8 @@ mod tests {
         let (launch_singleton, did) =
             Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
-        ctx.spend_p2_coin(coin, pk, launch_singleton)?;
-        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
+        ctx.spend_standard_coin(coin, pk, launch_singleton)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
 
         // Make sure the DID was created.
         let coin_state = sim
