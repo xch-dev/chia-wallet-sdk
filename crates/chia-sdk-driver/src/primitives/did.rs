@@ -82,7 +82,7 @@ where
             ),
         )?;
 
-        Ok(hashed.recreate_self().with_metadata(self.info.metadata))
+        Ok(hashed.wrapped_child().with_metadata(self.info.metadata))
     }
 }
 
@@ -103,9 +103,9 @@ impl<M> Did<M> {
         }
     }
 
-    /// Creates a new spendable DID for the child, with no modifications.
+    /// Creates a wrapped spendable DID for the child.
     #[must_use]
-    pub fn recreate_self(self) -> Self
+    pub fn wrapped_child(self) -> Self
     where
         M: ToTreeHash,
     {
