@@ -106,17 +106,11 @@ impl Cat {
 
         eve.spend(
             ctx,
-            RawCatSpend {
-                prev_coin_id: eve.coin.coin_id(),
-                next_coin_proof: CoinProof {
-                    parent_coin_info: parent_coin_id,
-                    inner_puzzle_hash,
-                    amount,
-                },
-                prev_subtotal: 0,
-                extra_delta: 0,
-                inner_spend: Spend::new(inner_puzzle, NodePtr::NIL),
-            },
+            RawCatSpend::eve(
+                eve.coin,
+                inner_puzzle_hash,
+                Spend::new(inner_puzzle, NodePtr::NIL),
+            ),
         )?;
 
         Ok((
