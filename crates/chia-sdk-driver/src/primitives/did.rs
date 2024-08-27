@@ -219,44 +219,66 @@ where
 
 #[cfg(test)]
 mod tests {
-    use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::{test_secret_key, Simulator};
-    use chia_sdk_types::Conditions;
+    use std::fmt;
+
+    use chia_protocol::Bytes32;
+    use chia_sdk_test::Simulator;
+    use clvm_traits::clvm_list;
+    use clvm_utils::tree_hash_atom;
+    use rstest::rstest;
 
     use crate::{Launcher, StandardLayer};
 
     use super::*;
 
     #[test]
-    fn test_did_recreation() -> anyhow::Result<()> {
+    fn test_create_and_update_simple_did() -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
+        let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
 
-        let sk = test_secret_key()?;
-        let pk = sk.public_key();
-
-        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.new_coin(puzzle_hash, 1);
-
-        let (create_did, did) =
-            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &StandardLayer::new(pk))?;
-
-        // Make sure that bounds are relaxed enough to do this.
-        let metadata_ptr = ctx.alloc(&did.info.metadata)?;
-        let mut did = did.with_metadata(metadata_ptr);
-
+        let launcher = Launcher::new(coin.coin_id(), 1);
+        let (create_did, did) = launcher.create_simple_did(ctx, &StandardLayer::new(pk))?;
         ctx.spend_standard_coin(coin, pk, create_did)?;
-
-        for _ in 0..10 {
-            did = did.update_with(ctx, &StandardLayer::new(pk), Conditions::new())?;
-        }
-
         sim.spend_coins(ctx.take(), &[sk])?;
 
-        let coin_state = sim
-            .coin_state(did.coin.coin_id())
-            .expect("expected did coin");
-        assert_eq!(coin_state.coin, did.coin);
+        assert_eq!(did.info.recovery_list_hash, tree_hash_atom(&[]).into());
+        assert_eq!(did.info.num_verifications_required, 1);
+        assert_eq!(did.info.p2_puzzle_hash, puzzle_hash);
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_create_and_update_did(
+        #[values(().tree_hash().into(), [Bytes32::default()].tree_hash().into())]
+        recovery_list_hash: Bytes32,
+        #[values(0, 1, 3)] num_verifications_required: u64,
+        #[values((), "Atom".to_string(), clvm_list!("Complex".to_string(), 42), 100)]
+        metadata: impl ToClvm<Allocator> + FromClvm<Allocator> + Clone + PartialEq + fmt::Debug,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+        let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
+
+        let launcher = Launcher::new(coin.coin_id(), 1);
+        let (create_did, did) = launcher.create_did(
+            ctx,
+            recovery_list_hash,
+            num_verifications_required,
+            metadata.clone(),
+            &StandardLayer::new(pk),
+        )?;
+        ctx.spend_standard_coin(coin, pk, create_did)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
+
+        assert_eq!(did.info.recovery_list_hash, recovery_list_hash);
+        assert_eq!(
+            did.info.num_verifications_required,
+            num_verifications_required
+        );
+        assert_eq!(did.info.metadata, metadata);
+        assert_eq!(did.info.p2_puzzle_hash, puzzle_hash);
 
         Ok(())
     }
