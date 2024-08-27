@@ -15,11 +15,14 @@ use crate::{
     SingletonLayer, Spend, SpendContext, StandardLayer,
 };
 
+mod did_owner;
 mod nft_info;
 mod nft_launcher;
+mod nft_mint;
 
+pub use did_owner::*;
 pub use nft_info::*;
-pub use nft_launcher::*;
+pub use nft_mint::*;
 
 /// Everything that is required to spend an NFT coin.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -307,15 +310,12 @@ pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &Trans
 
 #[cfg(test)]
 mod tests {
-    use crate::{nft_mint, IntermediateLauncher, Launcher, NftMint};
+    use crate::{IntermediateLauncher, Launcher, NftMint};
 
     use super::*;
 
     use chia_bls::DerivableKey;
-    use chia_puzzles::{
-        nft::{NftMetadata, NFT_METADATA_UPDATER_PUZZLE_HASH},
-        standard::StandardArgs,
-    };
+    use chia_puzzles::{nft::NftMetadata, standard::StandardArgs};
     use chia_sdk_test::{test_secret_key, Simulator};
 
     #[test]
@@ -333,9 +333,16 @@ mod tests {
 
         ctx.spend_standard_coin(coin, pk, create_did)?;
 
+        let mint = NftMint::new(
+            NftMetadata::default(),
+            puzzle_hash,
+            300,
+            Some(DidOwner::from_did_info(&did.info)),
+        );
+
         let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
             .create(ctx)?
-            .mint_nft(ctx, nft_mint(puzzle_hash, Some(&did)))?;
+            .mint_nft(ctx, mint)?;
 
         // Make sure that bounds are relaxed enough to do this.
         let metadata_ptr = ctx.alloc(&nft.info.metadata)?;
@@ -363,16 +370,23 @@ mod tests {
         let sk = test_secret_key()?;
         let pk = sk.public_key();
 
-        let p2_puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.new_coin(p2_puzzle_hash, 2);
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = sim.new_coin(puzzle_hash, 2);
 
         let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
 
         ctx.spend_standard_coin(coin, pk, create_did)?;
 
+        let mint = NftMint::new(
+            NftMetadata::default(),
+            puzzle_hash,
+            300,
+            Some(DidOwner::from_did_info(&did.info)),
+        );
+
         let (mint_nft, mut nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
             .create(ctx)?
-            .mint_nft(ctx, nft_mint(p2_puzzle_hash, Some(&did)))?;
+            .mint_nft(ctx, mint)?;
 
         let mut did = ctx.spend_standard_did(did, pk, mint_nft)?;
 
@@ -380,7 +394,7 @@ mod tests {
             let (spend_nft, new_nft) = ctx.spend_standard_nft(
                 nft,
                 pk,
-                p2_puzzle_hash,
+                puzzle_hash,
                 if i % 2 == 0 {
                     Some(TransferNft::new(
                         Some(did.info.launcher_id),
@@ -422,21 +436,15 @@ mod tests {
         let (create_did, did) =
             Launcher::new(parent.coin_id(), 1).create_simple_did(&mut ctx, pk)?;
 
-        let (mint_nft, nft) = Launcher::new(did.coin.coin_id(), 1).mint_nft(
-            &mut ctx,
-            NftMint {
-                metadata: NftMetadata::default(),
-                metadata_updater_puzzle_hash: NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
-                royalty_ten_thousandths: 300,
-                royalty_puzzle_hash: Bytes32::new([1; 32]),
-                p2_puzzle_hash: puzzle_hash,
-                owner: TransferNft {
-                    did_id: Some(did.info.launcher_id),
-                    trade_prices: Vec::new(),
-                    did_inner_puzzle_hash: Some(did.info.inner_puzzle_hash().into()),
-                },
-            },
-        )?;
+        let mint = NftMint::new(
+            NftMetadata::default(),
+            puzzle_hash,
+            300,
+            Some(DidOwner::from_did_info(&did.info)),
+        )
+        .with_royalty_puzzle_hash(Bytes32::new([1; 32]));
+
+        let (mint_nft, nft) = Launcher::new(did.coin.coin_id(), 1).mint_nft(&mut ctx, mint)?;
 
         ctx.spend_standard_coin(parent, pk, create_did.extend(mint_nft))?;
 
