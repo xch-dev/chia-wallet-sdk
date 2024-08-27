@@ -408,6 +408,7 @@ dependencies = [
  "chia-bls 0.11.0",
  "chia-consensus",
  "chia-protocol",
+ "chia-puzzles",
  "chia-sdk-client",
  "chia-sdk-signer",
  "chia-sdk-types",

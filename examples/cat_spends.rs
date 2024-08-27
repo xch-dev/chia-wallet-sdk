@@ -26,9 +26,7 @@ fn main() -> anyhow::Result<()> {
         )?,
     )];
 
-    for coin_spend in Cat::spend_all(ctx, &cat_spends)? {
-        ctx.insert(coin_spend);
-    }
+    Cat::spend_all(ctx, &cat_spends)?;
 
     let new_coin = new_cat.wrapped_child(p2_puzzle_hash, 1000).coin;
 
