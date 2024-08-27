@@ -175,7 +175,7 @@ conditions! {
             did_inner_puzzle_hash: Option<Bytes32>,
         },
         RunCatTail<P, S> as Copy {
-            opcode: u8 if 51,
+            opcode: i8 if 51,
             puzzle_hash: () if (),
             magic_amount: i8 if -113,
             program: P,
