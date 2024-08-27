@@ -1,5 +1,4 @@
 mod cat;
-mod cat_spend;
 mod did;
 mod did_info;
 mod did_launcher;
@@ -10,7 +9,6 @@ mod nft_info;
 mod nft_launcher;
 
 pub use cat::*;
-pub use cat_spend::*;
 pub use did::*;
 pub use did_info::*;
 pub use intermediate_launcher::*;
