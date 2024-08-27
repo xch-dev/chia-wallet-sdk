@@ -154,10 +154,10 @@ where
         ctx: &mut SpendContext,
         owner_synthetic_key: PublicKey,
         p2_puzzle_hash: Bytes32,
-        new_did_owner: &TransferNft,
+        new_owner: &TransferNft,
         extra_conditions: Conditions,
     ) -> Result<(CoinSpend, Conditions, Nft<M>), DriverError> {
-        let new_did_owner_ptr = Condition::Other(ctx.alloc(&new_did_owner)?);
+        let did_id = new_owner.did_id;
 
         let inner_spend = StandardLayer::new(owner_synthetic_key).spend(
             ctx,
@@ -167,16 +167,16 @@ where
                     self.coin.amount,
                     vec![p2_puzzle_hash.into()],
                 )
-                .with(new_did_owner_ptr),
+                .with(Condition::TransferNft(new_owner.clone())),
         )?;
 
         let did_conditions = Conditions::new()
-            .assert_puzzle_announcement(did_puzzle_assertion(self.coin.puzzle_hash, new_did_owner));
+            .assert_puzzle_announcement(did_puzzle_assertion(self.coin.puzzle_hash, new_owner));
 
         let coin_spend = self.spend(ctx, inner_spend)?;
         let child = self
             .with_hashed_metadata(&mut ctx.allocator)?
-            .create_child(p2_puzzle_hash, Some(new_did_owner.did_id));
+            .create_child(p2_puzzle_hash, Some(did_id));
 
         Ok((
             coin_spend,

@@ -68,7 +68,7 @@ impl Launcher {
             Conditions::new().create_coin(mint.p2_puzzle_hash, 1, vec![mint.p2_puzzle_hash.into()]);
 
         if mint.owner != TransferNft::default() {
-            conditions = conditions.with(Condition::Other(ctx.alloc(&mint.owner)?));
+            conditions = conditions.with(Condition::TransferNft(mint.owner.clone()));
         }
 
         let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;

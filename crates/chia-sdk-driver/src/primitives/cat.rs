@@ -4,8 +4,8 @@ use chia_puzzles::{
     cat::{CatArgs, CatSolution, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs},
     CoinProof, LineageProof,
 };
-use chia_sdk_types::{run_puzzle, Condition, Conditions, CreateCoin, RunCatTail};
-use clvm_traits::{clvm_quote, FromClvm, ToClvm};
+use chia_sdk_types::{run_puzzle, Condition, Conditions, CreateCoin};
+use clvm_traits::{clvm_quote, FromClvm};
 use clvm_utils::CurriedProgram;
 use clvmr::{Allocator, NodePtr};
 
@@ -42,20 +42,19 @@ impl Cat {
         amount: u64,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Cat), DriverError> {
-        let tail_puzzle_ptr = ctx.genesis_by_coin_id_tail_puzzle()?;
+        let genesis_by_coin_id_ptr = ctx.genesis_by_coin_id_tail_puzzle()?;
+
         let tail = ctx.alloc(&CurriedProgram {
-            program: tail_puzzle_ptr,
+            program: genesis_by_coin_id_ptr,
             args: GenesisByCoinIdTailArgs::new(parent_coin_id),
         })?;
-        let asset_id = ctx.tree_hash(tail).into();
 
-        Self::custom_eve(
+        Self::create_and_spend_eve(
             ctx,
             parent_coin_id,
-            asset_id,
+            ctx.tree_hash(tail).into(),
             amount,
-            &RunCatTail::new(tail, ()),
-            extra_conditions,
+            extra_conditions.run_cat_tail(tail, NodePtr::NIL),
         )
     }
 
@@ -66,39 +65,33 @@ impl Cat {
         amount: u64,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Cat), DriverError> {
-        let tail_puzzle_ptr = ctx.everything_with_signature_tail_puzzle()?;
+        let everything_with_signature_ptr = ctx.everything_with_signature_tail_puzzle()?;
+
         let tail = ctx.alloc(&CurriedProgram {
-            program: tail_puzzle_ptr,
+            program: everything_with_signature_ptr,
             args: EverythingWithSignatureTailArgs::new(public_key),
         })?;
-        let asset_id = ctx.tree_hash(tail).into();
 
-        Self::custom_eve(
+        Self::create_and_spend_eve(
             ctx,
             parent_coin_id,
-            asset_id,
+            ctx.tree_hash(tail).into(),
             amount,
-            &RunCatTail::new(tail, ()),
-            extra_conditions,
+            extra_conditions.run_cat_tail(tail, NodePtr::NIL),
         )
     }
 
-    pub fn custom_eve<P, S>(
+    /// Creates and spends an eve CAT with the provided conditions.
+    /// To issue the CAT, you will need to reveal the TAIL puzzle and solution.
+    /// This can be done with the [`RunCatTail`] condition.
+    pub fn create_and_spend_eve(
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
         asset_id: Bytes32,
         amount: u64,
-        run_tail: &RunCatTail<P, S>,
-        extra_conditions: Conditions,
-    ) -> Result<(Conditions, Cat), DriverError>
-    where
-        P: ToClvm<Allocator>,
-        S: ToClvm<Allocator>,
-    {
-        let run_tail = ctx.alloc(run_tail)?;
-        let inner_puzzle = ctx.alloc(&clvm_quote!(
-            extra_conditions.with(Condition::Other(run_tail))
-        ))?;
+        conditions: Conditions,
+    ) -> Result<(Conditions, Cat), DriverError> {
+        let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
         let eve_layer = CatLayer::new(asset_id, inner_puzzle);
         let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
         let puzzle_ptr = eve_layer.construct_puzzle(ctx)?;
@@ -318,7 +311,7 @@ impl Primitive for Cat {
 mod tests {
     use chia_puzzles::{cat::EverythingWithSignatureTailArgs, standard::StandardArgs};
     use chia_sdk_test::{test_secret_key, Simulator};
-    use chia_sdk_types::{Condition, RunCatTail, MAINNET_CONSTANTS};
+    use chia_sdk_types::MAINNET_CONSTANTS;
 
     use crate::StandardLayer;
 
@@ -473,12 +466,12 @@ mod tests {
 
         ctx.spend_p2_coin(coin, pk, issue_cat)?;
 
-        let tail = ctx.everything_with_signature_tail_puzzle()?;
-        let tail_program = ctx.alloc(&CurriedProgram {
-            program: tail,
+        let everything_with_signature_ptr = ctx.everything_with_signature_tail_puzzle()?;
+
+        let tail = ctx.alloc(&CurriedProgram {
+            program: everything_with_signature_ptr,
             args: EverythingWithSignatureTailArgs::new(pk),
         })?;
-        let run_tail = Condition::Other(ctx.alloc(&RunCatTail::new(tail_program, ()))?);
 
         let cat_spend = CatSpend::with_extra_delta(
             cat.wrapped_child(p2_puzzle_hash, 10000),
@@ -486,7 +479,7 @@ mod tests {
                 ctx,
                 Conditions::new()
                     .create_coin(p2_puzzle_hash, 7000, vec![p2_puzzle_hash.into()])
-                    .with(run_tail),
+                    .run_cat_tail(tail, NodePtr::NIL),
             )?,
             -3000,
         );
