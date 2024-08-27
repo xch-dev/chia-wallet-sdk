@@ -318,6 +318,14 @@ mod tests {
         ctx.spend_standard_coin(coin, pk, issue_cat)?;
         sim.spend_coins(ctx.take(), &[sk])?;
 
+        let cat = cat.wrapped_child(puzzle_hash, 1);
+        assert_eq!(cat.p2_puzzle_hash, puzzle_hash);
+        assert_eq!(
+            cat.asset_id,
+            GenesisByCoinIdTailArgs::curry_tree_hash(coin.coin_id()).into()
+        );
+        assert!(sim.coin_state(cat.coin.coin_id()).is_some());
+
         Ok(())
     }
 
@@ -327,7 +335,7 @@ mod tests {
         let ctx = &mut SpendContext::new();
         let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
 
-        let (issue_cat, _cat) = Cat::multi_issuance_eve(
+        let (issue_cat, cat) = Cat::multi_issuance_eve(
             ctx,
             coin.coin_id(),
             pk,
@@ -336,8 +344,15 @@ mod tests {
         )?;
 
         ctx.spend_standard_coin(coin, pk, issue_cat)?;
-
         sim.spend_coins(ctx.take(), &[sk])?;
+
+        let cat = cat.wrapped_child(puzzle_hash, 1);
+        assert_eq!(cat.p2_puzzle_hash, puzzle_hash);
+        assert_eq!(
+            cat.asset_id,
+            EverythingWithSignatureTailArgs::curry_tree_hash(pk).into()
+        );
+        assert!(sim.coin_state(cat.coin.coin_id()).is_some());
 
         Ok(())
     }
