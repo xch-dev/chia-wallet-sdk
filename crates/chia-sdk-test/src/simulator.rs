@@ -7,6 +7,7 @@ use chia_consensus::{
 };
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
 use chia_puzzles::standard::StandardArgs;
+use chia_sdk_types::TESTNET11_CONSTANTS;
 use fastrand::Rng;
 use indexmap::{IndexMap, IndexSet};
 
@@ -125,10 +126,12 @@ impl Simulator {
         &mut self,
         coin_spends: Vec<CoinSpend>,
         secret_keys: &[SecretKey],
-        constants: &ConsensusConstants,
     ) -> Result<IndexMap<Bytes32, CoinState>, SimulatorError> {
-        let signature = sign_transaction(&coin_spends, secret_keys, constants)?;
-        self.new_transaction(SpendBundle::new(coin_spends, signature), constants)
+        let signature = sign_transaction(&coin_spends, secret_keys, &TESTNET11_CONSTANTS)?;
+        self.new_transaction(
+            SpendBundle::new(coin_spends, signature),
+            &TESTNET11_CONSTANTS,
+        )
     }
 
     /// Processes a spend bunndle and returns the updated coin states.

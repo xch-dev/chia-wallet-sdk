@@ -591,7 +591,7 @@ pub mod tests {
     use chia_bls::{PublicKey, SecretKey};
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{test_secret_keys, Simulator};
-    use chia_sdk_types::{Conditions, MeltSingleton, UpdateDataStoreMerkleRoot, MAINNET_CONSTANTS};
+    use chia_sdk_types::{Conditions, MeltSingleton, UpdateDataStoreMerkleRoot};
     use clvmr::sha2::Sha256;
     use rstest::rstest;
 
@@ -693,7 +693,7 @@ pub mod tests {
             vec![],
         )?;
 
-        ctx.spend_p2_coin(coin, pk, launch_singleton)?;
+        ctx.spend_standard_coin(coin, pk, launch_singleton)?;
 
         let spends = ctx.take();
         for spend in spends {
@@ -715,7 +715,7 @@ pub mod tests {
 
         ctx.insert(new_spend);
 
-        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
 
         // Make sure the datastore was created.
         let coin_state = sim
@@ -777,7 +777,7 @@ pub mod tests {
             ],
         )?;
 
-        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
 
         let spends = ctx.take();
         for spend in spends {
@@ -874,7 +874,7 @@ pub mod tests {
         hasher.update(datastore.coin.puzzle_hash);
         hasher.update(Bytes::new("$".into()).to_vec());
 
-        ctx.spend_p2_coin(
+        ctx.spend_standard_coin(
             new_coin,
             owner_pk,
             Conditions::new().assert_puzzle_announcement(Bytes32::new(hasher.finalize())),
@@ -903,11 +903,7 @@ pub mod tests {
         assert!(new_datastore.info.delegated_puzzles.is_empty());
         assert_eq!(new_datastore.info.owner_puzzle_hash, owner_puzzle_hash);
 
-        sim.spend_coins(
-            ctx.take(),
-            &[owner_sk, admin_sk, writer_sk],
-            &MAINNET_CONSTANTS,
-        )?;
+        sim.spend_coins(ctx.take(), &[owner_sk, admin_sk, writer_sk])?;
 
         // Make sure the datastore was created.
         let coin_state = sim
@@ -1009,7 +1005,7 @@ pub mod tests {
             src_delegated_puzzles.clone(),
         )?;
 
-        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
 
         // transition from src to dst
         let mut admin_inner_output = Conditions::new();
@@ -1111,11 +1107,7 @@ pub mod tests {
             ],
         );
 
-        sim.spend_coins(
-            ctx.take(),
-            &[owner_sk, admin_sk, writer_sk],
-            &MAINNET_CONSTANTS,
-        )?;
+        sim.spend_coins(ctx.take(), &[owner_sk, admin_sk, writer_sk])?;
 
         let src_coin_state = sim
             .coin_state(src_datastore_coin.coin_id())
@@ -1205,7 +1197,7 @@ pub mod tests {
             owner_puzzle_hash.into(),
             src_delegated_puzzles.clone(),
         )?;
-        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
 
         // transition from src to dst using owner puzzle
         let mut owner_output_conds = Conditions::new();
@@ -1301,11 +1293,7 @@ pub mod tests {
             &[dst_with_admin, dst_with_writer, dst_with_oracle],
         );
 
-        sim.spend_coins(
-            ctx.take(),
-            &[owner_sk, admin_sk, writer_sk],
-            &MAINNET_CONSTANTS,
-        )?;
+        sim.spend_coins(ctx.take(), &[owner_sk, admin_sk, writer_sk])?;
 
         let src_coin_state = sim
             .coin_state(src_datastore.coin.coin_id())
@@ -1400,7 +1388,7 @@ pub mod tests {
             delegated_puzzles.clone(),
         )?;
 
-        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
 
         // transition from src to dst using writer (update metadata)
         let new_metadata = metadata_from_tuple(meta_transition.1);
@@ -1455,11 +1443,7 @@ pub mod tests {
             &[with_admin_layer, true, with_oracle_layer],
         );
 
-        sim.spend_coins(
-            ctx.take(),
-            &[owner_sk, admin_sk, writer_sk],
-            &MAINNET_CONSTANTS,
-        )?;
+        sim.spend_coins(ctx.take(), &[owner_sk, admin_sk, writer_sk])?;
 
         let src_coin_state = sim
             .coin_state(src_datastore.coin.coin_id())
@@ -1534,7 +1518,7 @@ pub mod tests {
             delegated_puzzles.clone(),
         )?;
 
-        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
 
         // 'dude' spends oracle
         let inner_datastore_spend = OracleLayer::new(oracle_puzzle_hash, oracle_fee)
@@ -1558,7 +1542,7 @@ pub mod tests {
         hasher.update(Bytes::new("$".into()).to_vec());
 
         let new_coin = sim.new_coin(dude_puzzle_hash, oracle_fee);
-        ctx.spend_p2_coin(
+        ctx.spend_standard_coin(
             new_coin,
             dude_pk,
             Conditions::new().assert_puzzle_announcement(Bytes32::new(hasher.finalize())),
@@ -1596,7 +1580,7 @@ pub mod tests {
             &[with_admin_layer, with_writer_layer, true],
         );
 
-        sim.spend_coins(ctx.take(), &[owner_sk, dude_sk], &MAINNET_CONSTANTS)?;
+        sim.spend_coins(ctx.take(), &[owner_sk, dude_sk])?;
 
         let src_datastore_coin_id = src_datastore.coin.coin_id();
         let src_coin_state = sim
@@ -1677,7 +1661,7 @@ pub mod tests {
             delegated_puzzles.clone(),
         )?;
 
-        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
 
         // owner melts
         let output_conds = Conditions::new().with(Condition::Other(
@@ -1704,7 +1688,7 @@ pub mod tests {
             &[with_admin_layer, with_writer_layer, with_oracle_layer],
         );
 
-        sim.spend_coins(ctx.take(), &[owner_sk], &MAINNET_CONSTANTS)?;
+        sim.spend_coins(ctx.take(), &[owner_sk])?;
 
         let src_coin_state = sim
             .coin_state(src_datastore.coin.coin_id())
@@ -1769,7 +1753,7 @@ pub mod tests {
             vec![delegated_puzzle],
         )?;
 
-        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
 
         // delegated puzzle tries to steal the coin
         let inner_datastore_spend = puzzle.get_spend(
@@ -1830,7 +1814,7 @@ pub mod tests {
             vec![delegated_puzzle],
         )?;
 
-        ctx.spend_p2_coin(coin, owner_pk, launch_singleton)?;
+        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
 
         // attacker tries to melt the coin via delegated puzzle
         let conds = Conditions::new().with(Condition::Other(
@@ -2051,7 +2035,7 @@ pub mod tests {
         let launcher_coin = launcher.coin();
         let (launcher_conds, eve_coin) = launcher.spend(ctx, state_layer_hash.into(), kv_list)?;
 
-        ctx.spend_p2_coin(coin, owner_pk, launcher_conds)?;
+        ctx.spend_standard_coin(coin, owner_pk, launcher_conds)?;
 
         let spends = ctx.take();
         spends
@@ -2195,7 +2179,7 @@ pub mod tests {
 
         ctx.insert(spend);
 
-        sim.spend_coins(ctx.take(), &[owner_sk, owner2_sk], &MAINNET_CONSTANTS)?;
+        sim.spend_coins(ctx.take(), &[owner_sk, owner2_sk])?;
 
         let eve_coin_state = sim
             .coin_state(eve_coin.coin_id())

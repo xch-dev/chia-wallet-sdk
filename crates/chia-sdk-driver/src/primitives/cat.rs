@@ -297,7 +297,6 @@ impl Primitive for Cat {
 mod tests {
     use chia_puzzles::cat::EverythingWithSignatureTailArgs;
     use chia_sdk_test::Simulator;
-    use chia_sdk_types::MAINNET_CONSTANTS;
 
     use crate::StandardLayer;
 
@@ -309,11 +308,15 @@ mod tests {
         let ctx = &mut SpendContext::new();
         let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
 
-        let conditions = Conditions::new().create_coin(puzzle_hash, 1, vec![puzzle_hash.into()]);
-        let (issue_cat, _cat) = Cat::single_issuance_eve(ctx, coin.coin_id(), 1, conditions)?;
+        let (issue_cat, cat) = Cat::single_issuance_eve(
+            ctx,
+            coin.coin_id(),
+            1,
+            Conditions::new().create_coin(puzzle_hash, 1, vec![puzzle_hash.into()]),
+        )?;
 
-        ctx.spend_p2_coin(coin, pk, issue_cat)?;
-        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
+        ctx.spend_standard_coin(coin, pk, issue_cat)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
 
         Ok(())
     }
@@ -324,12 +327,17 @@ mod tests {
         let ctx = &mut SpendContext::new();
         let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
 
-        let conditions = Conditions::new().create_coin(puzzle_hash, 1, vec![puzzle_hash.into()]);
-        let (issue_cat, _cat) = Cat::multi_issuance_eve(ctx, coin.coin_id(), pk, 1, conditions)?;
+        let (issue_cat, _cat) = Cat::multi_issuance_eve(
+            ctx,
+            coin.coin_id(),
+            pk,
+            1,
+            Conditions::new().create_coin(puzzle_hash, 1, vec![puzzle_hash.into()]),
+        )?;
 
-        ctx.spend_p2_coin(coin, pk, issue_cat)?;
+        ctx.spend_standard_coin(coin, pk, issue_cat)?;
 
-        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
 
         Ok(())
     }
@@ -350,7 +358,7 @@ mod tests {
                 .create_coin(puzzle_hash, 3, vec![puzzle_hash.into()]),
         )?;
 
-        ctx.spend_p2_coin(coin, pk, issue_cat)?;
+        ctx.spend_standard_coin(coin, pk, issue_cat)?;
 
         let cat_spends = [
             CatSpend::new(
@@ -378,7 +386,7 @@ mod tests {
 
         Cat::spend_all(ctx, &cat_spends)?;
 
-        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
 
         Ok(())
     }
@@ -392,7 +400,7 @@ mod tests {
         let conditions = Conditions::new().create_coin(puzzle_hash, 1, vec![puzzle_hash.into()]);
         let (issue_cat, cat) = Cat::single_issuance_eve(ctx, coin.coin_id(), 1, conditions)?;
 
-        ctx.spend_p2_coin(coin, pk, issue_cat)?;
+        ctx.spend_standard_coin(coin, pk, issue_cat)?;
 
         let cat_spends = [CatSpend::new(
             cat.wrapped_child(puzzle_hash, 1),
@@ -404,7 +412,7 @@ mod tests {
 
         Cat::spend_all(ctx, &cat_spends)?;
 
-        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
 
         Ok(())
     }
@@ -419,7 +427,7 @@ mod tests {
             Conditions::new().create_coin(puzzle_hash, 10000, vec![puzzle_hash.into()]);
         let (issue_cat, cat) = Cat::multi_issuance_eve(ctx, coin.coin_id(), pk, 10000, conditions)?;
 
-        ctx.spend_p2_coin(coin, pk, issue_cat)?;
+        ctx.spend_standard_coin(coin, pk, issue_cat)?;
 
         let everything_with_signature_ptr = ctx.everything_with_signature_tail_puzzle()?;
 
@@ -441,7 +449,7 @@ mod tests {
 
         Cat::spend_all(ctx, &[cat_spend])?;
 
-        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
 
         Ok(())
     }

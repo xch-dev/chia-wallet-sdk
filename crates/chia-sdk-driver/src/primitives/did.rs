@@ -178,7 +178,7 @@ where
 mod tests {
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{test_secret_key, Simulator};
-    use chia_sdk_types::{Conditions, MAINNET_CONSTANTS};
+    use chia_sdk_types::Conditions;
 
     use crate::Launcher;
 
@@ -201,13 +201,13 @@ mod tests {
         let metadata_ptr = ctx.alloc(&did.info.metadata)?;
         let mut did = did.with_metadata(metadata_ptr);
 
-        ctx.spend_p2_coin(coin, pk, create_did)?;
+        ctx.spend_standard_coin(coin, pk, create_did)?;
 
         for _ in 0..10 {
             did = ctx.spend_standard_did(did, pk, Conditions::new())?;
         }
 
-        sim.spend_coins(ctx.take(), &[sk], &MAINNET_CONSTANTS)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
 
         let coin_state = sim
             .coin_state(did.coin.coin_id())

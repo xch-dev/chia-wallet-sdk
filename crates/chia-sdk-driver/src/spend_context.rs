@@ -208,7 +208,7 @@ impl SpendContext {
     }
 
     /// Spend a standard p2 coin.
-    pub fn spend_p2_coin(
+    pub fn spend_standard_coin(
         &mut self,
         coin: Coin,
         synthetic_key: PublicKey,
