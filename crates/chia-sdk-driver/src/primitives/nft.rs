@@ -15,7 +15,11 @@ use crate::{
     SingletonLayer, Spend, SpendContext, StandardLayer,
 };
 
-use super::NftInfo;
+mod nft_info;
+mod nft_launcher;
+
+pub use nft_info::*;
+pub use nft_launcher::*;
 
 /// Everything that is required to spend an NFT coin.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
