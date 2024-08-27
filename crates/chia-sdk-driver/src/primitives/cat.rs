@@ -298,6 +298,7 @@ mod tests {
     use chia_consensus::gen::validation_error::ErrorCode;
     use chia_puzzles::cat::EverythingWithSignatureTailArgs;
     use chia_sdk_test::{Simulator, SimulatorError};
+    use rstest::rstest;
 
     use crate::StandardLayer;
 
@@ -398,77 +399,71 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_cat_spend_multi() -> anyhow::Result<()> {
+    #[rstest]
+    #[case(1)]
+    #[case(2)]
+    #[case(3)]
+    #[case(10)]
+    fn test_cat_spends(#[case] coins: usize) -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
-        let (sk, pk, puzzle_hash, coin) = sim.new_p2(6)?;
 
-        let (issue_cat, cat) = Cat::single_issuance_eve(
-            ctx,
-            coin.coin_id(),
-            6,
-            Conditions::new()
-                .create_coin(puzzle_hash, 1, vec![puzzle_hash.into()])
-                .create_coin(puzzle_hash, 2, vec![puzzle_hash.into()])
-                .create_coin(puzzle_hash, 3, vec![puzzle_hash.into()]),
-        )?;
+        // All of the amounts are different to prevent coin id collisions.
+        let mut amounts = Vec::with_capacity(coins);
 
-        ctx.spend_standard_coin(coin, pk, issue_cat)?;
+        for amount in 0..coins {
+            amounts.push(amount as u64);
+        }
 
-        let cat_spends = [
-            CatSpend::new(
-                cat.wrapped_child(puzzle_hash, 1),
-                StandardLayer::new(pk).spend(
-                    ctx,
-                    Conditions::new().create_coin(puzzle_hash, 1, vec![puzzle_hash.into()]),
-                )?,
-            ),
-            CatSpend::new(
-                cat.wrapped_child(puzzle_hash, 2),
-                StandardLayer::new(pk).spend(
-                    ctx,
-                    Conditions::new().create_coin(puzzle_hash, 2, vec![puzzle_hash.into()]),
-                )?,
-            ),
-            CatSpend::new(
-                cat.wrapped_child(puzzle_hash, 3),
-                StandardLayer::new(pk).spend(
-                    ctx,
-                    Conditions::new().create_coin(puzzle_hash, 3, vec![puzzle_hash.into()]),
-                )?,
-            ),
-        ];
+        // Create the coin with the sum of all the amounts we need to issue.
+        let sum = amounts.iter().sum::<u64>();
+        let (sk, pk, puzzle_hash, coin) = sim.new_p2(sum)?;
 
-        Cat::spend_all(ctx, &cat_spends)?;
+        // Issue the CAT coins with those amounts.
+        let mut conditions = Conditions::new();
 
-        sim.spend_coins(ctx.take(), &[sk])?;
+        for &amount in &amounts {
+            conditions = conditions.create_coin(puzzle_hash, amount, vec![puzzle_hash.into()]);
+        }
 
-        Ok(())
-    }
-
-    #[test]
-    fn test_cat_spend() -> anyhow::Result<()> {
-        let mut sim = Simulator::new();
-        let ctx = &mut SpendContext::new();
-        let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
-
-        let conditions = Conditions::new().create_coin(puzzle_hash, 1, vec![puzzle_hash.into()]);
-        let (issue_cat, cat) = Cat::single_issuance_eve(ctx, coin.coin_id(), 1, conditions)?;
+        let (issue_cat, cat) = Cat::single_issuance_eve(ctx, coin.coin_id(), sum, conditions)?;
 
         ctx.spend_standard_coin(coin, pk, issue_cat)?;
+        sim.spend_coins(ctx.take(), &[sk.clone()])?;
 
-        let cat_spends = [CatSpend::new(
-            cat.wrapped_child(puzzle_hash, 1),
-            StandardLayer::new(pk).spend(
-                ctx,
-                Conditions::new().create_coin(puzzle_hash, 1, vec![puzzle_hash.into()]),
-            )?,
-        )];
+        let mut cats: Vec<Cat> = amounts
+            .into_iter()
+            .map(|amount| cat.wrapped_child(puzzle_hash, amount))
+            .collect();
 
-        Cat::spend_all(ctx, &cat_spends)?;
+        // Spend the CAT coins a few times.
+        for _ in 0..3 {
+            let cat_spends: Vec<CatSpend> = cats
+                .iter()
+                .map(|cat| {
+                    Ok(CatSpend::new(
+                        *cat,
+                        StandardLayer::new(pk).spend(
+                            ctx,
+                            Conditions::new().create_coin(
+                                puzzle_hash,
+                                cat.coin.amount,
+                                vec![puzzle_hash.into()],
+                            ),
+                        )?,
+                    ))
+                })
+                .collect::<anyhow::Result<_>>()?;
 
-        sim.spend_coins(ctx.take(), &[sk])?;
+            Cat::spend_all(ctx, &cat_spends)?;
+            sim.spend_coins(ctx.take(), &[sk.clone()])?;
+
+            // Update the cats to the children.
+            cats = cats
+                .into_iter()
+                .map(|cat| cat.wrapped_child(puzzle_hash, cat.coin.amount))
+                .collect();
+        }
 
         Ok(())
     }
