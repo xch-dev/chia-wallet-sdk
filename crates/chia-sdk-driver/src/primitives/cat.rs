@@ -295,8 +295,9 @@ impl Primitive for Cat {
 
 #[cfg(test)]
 mod tests {
+    use chia_consensus::gen::validation_error::ErrorCode;
     use chia_puzzles::cat::EverythingWithSignatureTailArgs;
-    use chia_sdk_test::Simulator;
+    use chia_sdk_test::{Simulator, SimulatorError};
 
     use crate::StandardLayer;
 
@@ -353,6 +354,46 @@ mod tests {
             EverythingWithSignatureTailArgs::curry_tree_hash(pk).into()
         );
         assert!(sim.coin_state(cat.coin.coin_id()).is_some());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_missing_cat_issuance_output() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+        let (sk, pk, _puzzle_hash, coin) = sim.new_p2(1)?;
+
+        let (issue_cat, _cat) =
+            Cat::single_issuance_eve(ctx, coin.coin_id(), 1, Conditions::new())?;
+
+        ctx.spend_standard_coin(coin, pk, issue_cat)?;
+        assert!(matches!(
+            sim.spend_coins(ctx.take(), &[sk]).unwrap_err(),
+            SimulatorError::Validation(ErrorCode::AssertCoinAnnouncementFailed)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_exceeded_cat_issuance_output() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+        let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
+
+        let (issue_cat, _cat) = Cat::single_issuance_eve(
+            ctx,
+            coin.coin_id(),
+            1,
+            Conditions::new().create_coin(puzzle_hash, 2, vec![puzzle_hash.into()]),
+        )?;
+
+        ctx.spend_standard_coin(coin, pk, issue_cat)?;
+        assert!(matches!(
+            sim.spend_coins(ctx.take(), &[sk]).unwrap_err(),
+            SimulatorError::Validation(ErrorCode::AssertCoinAnnouncementFailed)
+        ));
 
         Ok(())
     }
