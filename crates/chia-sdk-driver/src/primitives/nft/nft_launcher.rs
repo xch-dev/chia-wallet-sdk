@@ -108,7 +108,7 @@ impl Launcher {
 
 #[cfg(test)]
 mod tests {
-    use crate::{DidOwner, IntermediateLauncher, Launcher};
+    use crate::{DidOwner, IntermediateLauncher, Launcher, StandardLayer};
 
     use super::*;
 
@@ -131,7 +131,8 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = Coin::new(Bytes32::new([0; 32]), puzzle_hash, 1);
 
-        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) =
+            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &StandardLayer::new(pk))?;
         ctx.spend_standard_coin(coin, pk, create_did)?;
 
         // We don't want to count the DID creation.
@@ -145,11 +146,12 @@ mod tests {
                 NftMint::new(NftMetadata::default(), puzzle_hash, 300, None),
             )?;
 
-        let _did = ctx.spend_standard_did(
-            did,
-            pk,
+        let _ = did.update_with(
+            ctx,
+            &StandardLayer::new(pk),
             mint_nft.create_coin_announcement(b"$".to_vec().into()),
         )?;
+
         ctx.spend_standard_coin(
             coin,
             pk,
@@ -188,7 +190,8 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.new_coin(puzzle_hash, 3);
 
-        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) =
+            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &StandardLayer::new(pk))?;
 
         ctx.spend_standard_coin(coin, pk, create_did)?;
 
@@ -209,8 +212,7 @@ mod tests {
             .mint_nft(ctx, mint)?
             .0;
 
-        let _did =
-            ctx.spend_standard_did(did, pk, Conditions::new().extend(mint_1).extend(mint_2))?;
+        let _ = did.update_with(ctx, &StandardLayer::new(pk), mint_1.extend(mint_2))?;
 
         sim.spend_coins(ctx.take(), &[sk])?;
 
@@ -228,7 +230,8 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.new_coin(puzzle_hash, 3);
 
-        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) =
+            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &StandardLayer::new(pk))?;
 
         ctx.spend_standard_coin(coin, pk, create_did)?;
 
@@ -245,8 +248,11 @@ mod tests {
 
         let (mint_nft, _nft) = launcher.mint_nft(ctx, mint)?;
 
-        let _did_info =
-            ctx.spend_standard_did(did, pk, mint_nft.create_coin(puzzle_hash, 0, Vec::new()))?;
+        let _ = did.update_with(
+            ctx,
+            &StandardLayer::new(pk),
+            mint_nft.create_coin(puzzle_hash, 0, Vec::new()),
+        )?;
 
         ctx.spend_standard_coin(intermediate_coin, pk, create_launcher)?;
 
@@ -266,7 +272,8 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.new_coin(puzzle_hash, 3);
 
-        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) =
+            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &StandardLayer::new(pk))?;
 
         ctx.spend_standard_coin(coin, pk, create_did)?;
 
@@ -283,14 +290,15 @@ mod tests {
 
         let (mint_nft, _nft_info) = launcher.mint_nft(ctx, mint)?;
 
-        let did = ctx.spend_standard_did(
-            did,
-            pk,
+        let did = did.update_with(
+            ctx,
+            &StandardLayer::new(pk),
             Conditions::new().create_coin(puzzle_hash, 0, Vec::new()),
         )?;
-        let _did = ctx.spend_standard_did(did, pk, mint_nft)?;
-        ctx.spend_standard_coin(intermediate_coin, pk, create_launcher)?;
 
+        let _ = did.update_with(ctx, &StandardLayer::new(pk), mint_nft)?;
+
+        ctx.spend_standard_coin(intermediate_coin, pk, create_launcher)?;
         sim.spend_coins(ctx.take(), &[sk])?;
 
         Ok(())

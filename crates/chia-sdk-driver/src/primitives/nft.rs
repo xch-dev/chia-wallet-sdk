@@ -329,7 +329,8 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.new_coin(puzzle_hash, 2);
 
-        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) =
+            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &StandardLayer::new(pk))?;
 
         ctx.spend_standard_coin(coin, pk, create_did)?;
 
@@ -348,14 +349,14 @@ mod tests {
         let metadata_ptr = ctx.alloc(&nft.info.metadata)?;
         let nft = nft.with_metadata(metadata_ptr);
 
-        let did = ctx.spend_standard_did(did, pk, mint_nft)?;
+        let did = did.update_with(ctx, &StandardLayer::new(pk), mint_nft)?;
 
         let other_puzzle_hash = StandardArgs::curry_tree_hash(pk.derive_unhardened(0)).into();
 
         let (parent_conditions, _) =
             ctx.spend_standard_nft(nft, pk, other_puzzle_hash, None, Conditions::new())?;
 
-        let _did_info = ctx.spend_standard_did(did, pk, parent_conditions)?;
+        let _ = did.update_with(ctx, &StandardLayer::new(pk), parent_conditions)?;
 
         sim.spend_coins(ctx.take(), &[sk])?;
 
@@ -373,7 +374,8 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.new_coin(puzzle_hash, 2);
 
-        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) =
+            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &StandardLayer::new(pk))?;
 
         ctx.spend_standard_coin(coin, pk, create_did)?;
 
@@ -388,7 +390,7 @@ mod tests {
             .create(ctx)?
             .mint_nft(ctx, mint)?;
 
-        let mut did = ctx.spend_standard_did(did, pk, mint_nft)?;
+        let mut did = did.update_with(ctx, &StandardLayer::new(pk), mint_nft)?;
 
         for i in 0..5 {
             let (spend_nft, new_nft) = ctx.spend_standard_nft(
@@ -407,7 +409,7 @@ mod tests {
                 Conditions::new(),
             )?;
             nft = new_nft;
-            did = ctx.spend_standard_did(did, pk, spend_nft)?;
+            did = did.update_with(ctx, &StandardLayer::new(pk), spend_nft)?;
         }
 
         sim.spend_coins(ctx.take(), &[sk])?;
@@ -433,8 +435,8 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let parent = Coin::new(Bytes32::default(), puzzle_hash, 2);
 
-        let (create_did, did) =
-            Launcher::new(parent.coin_id(), 1).create_simple_did(&mut ctx, pk)?;
+        let (create_did, did) = Launcher::new(parent.coin_id(), 1)
+            .create_simple_did(&mut ctx, &StandardLayer::new(pk))?;
 
         let mint = NftMint::new(
             NftMetadata::default(),

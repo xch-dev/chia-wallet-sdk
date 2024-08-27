@@ -29,7 +29,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
-use crate::{Did, DriverError, Nft, Spend, StandardLayer};
+use crate::{DriverError, Nft, Spend, StandardLayer};
 
 /// A wrapper around [`Allocator`] that caches puzzles and keeps track of a list of [`CoinSpend`].
 /// It's used to construct spend bundles in an easy and efficient way.
@@ -216,34 +216,6 @@ impl SpendContext {
     ) -> Result<(), DriverError> {
         let p2_spend = StandardLayer::new(synthetic_key).spend(self, conditions)?;
         self.spend(coin, p2_spend)
-    }
-
-    /// Spend a DID coin with a standard p2 inner puzzle.
-    pub fn spend_standard_did<M>(
-        &mut self,
-        did: Did<M>,
-        synthetic_key: PublicKey,
-        extra_conditions: Conditions,
-    ) -> Result<Did<M>, DriverError>
-    where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
-    {
-        let hashed = did.with_hashed_metadata(&mut self.allocator)?;
-        let inner_puzzle_hash = hashed.info.inner_puzzle_hash();
-
-        let p2_spend = StandardLayer::new(synthetic_key).spend(
-            self,
-            extra_conditions.create_coin(
-                inner_puzzle_hash.into(),
-                did.coin.amount,
-                vec![did.info.p2_puzzle_hash.into()],
-            ),
-        )?;
-
-        let coin_spend = did.spend(self, p2_spend)?;
-        self.insert(coin_spend);
-
-        Ok(hashed.recreate_self().with_metadata(did.info.metadata))
     }
 
     /// Spend an NFT coin with a standard p2 inner puzzle.

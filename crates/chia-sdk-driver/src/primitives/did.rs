@@ -1,11 +1,14 @@
-use chia_protocol::{Coin, CoinSpend};
+use chia_protocol::Coin;
 use chia_puzzles::{did::DidSolution, singleton::SingletonSolution, LineageProof, Proof};
-use chia_sdk_types::{run_puzzle, Condition};
+use chia_sdk_types::{run_puzzle, Condition, Conditions};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DidLayer, DriverError, Layer, Primitive, Puzzle, SingletonLayer, Spend, SpendContext};
+use crate::{
+    DidLayer, DriverError, Layer, Primitive, Puzzle, SingletonLayer, Spend, SpendContext,
+    SpendWithConditions,
+};
 
 mod did_info;
 mod did_launcher;
@@ -19,24 +22,16 @@ pub struct Did<M> {
     pub info: DidInfo<M>,
 }
 
-impl<M> Did<M> {
-    pub fn new(coin: Coin, proof: Proof, info: DidInfo<M>) -> Self {
-        Self { coin, proof, info }
-    }
-
+impl<M> Did<M>
+where
+    M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
+{
     /// Creates a coin spend for this DID.
-    pub fn spend(
-        &self,
-        ctx: &mut SpendContext,
-        inner_spend: Spend,
-    ) -> Result<CoinSpend, DriverError>
-    where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
-    {
+    pub fn spend(&self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<(), DriverError> {
         let layers = self.info.clone().into_layers(inner_spend.puzzle);
 
-        let puzzle_ptr = layers.construct_puzzle(ctx)?;
-        let solution_ptr = layers.construct_solution(
+        let puzzle = layers.construct_puzzle(ctx)?;
+        let solution = layers.construct_solution(
             ctx,
             SingletonSolution {
                 lineage_proof: self.proof,
@@ -45,10 +40,55 @@ impl<M> Did<M> {
             },
         )?;
 
-        let puzzle = ctx.serialize(&puzzle_ptr)?;
-        let solution = ctx.serialize(&solution_ptr)?;
+        ctx.spend(self.coin, Spend::new(puzzle, solution))?;
 
-        Ok(CoinSpend::new(self.coin, puzzle, solution))
+        Ok(())
+    }
+
+    /// Spends this DID with an inner puzzle that supports being spent with conditions.
+    pub fn spend_with<I>(
+        &self,
+        ctx: &mut SpendContext,
+        inner: &I,
+        conditions: Conditions,
+    ) -> Result<(), DriverError>
+    where
+        I: SpendWithConditions,
+    {
+        let inner_spend = inner.spend_with_conditions(ctx, conditions)?;
+        self.spend(ctx, inner_spend)
+    }
+
+    /// Recreates this DID and outputs additional conditions via the inner puzzle.
+    pub fn update_with<I>(
+        self,
+        ctx: &mut SpendContext,
+        inner: &I,
+        extra_conditions: Conditions,
+    ) -> Result<Did<M>, DriverError>
+    where
+        I: SpendWithConditions,
+    {
+        let hashed = self.with_hashed_metadata(&mut ctx.allocator)?;
+        let inner_puzzle_hash = hashed.info.inner_puzzle_hash();
+
+        self.spend_with(
+            ctx,
+            inner,
+            extra_conditions.create_coin(
+                inner_puzzle_hash.into(),
+                self.coin.amount,
+                vec![self.info.p2_puzzle_hash.into()],
+            ),
+        )?;
+
+        Ok(hashed.recreate_self().with_metadata(self.info.metadata))
+    }
+}
+
+impl<M> Did<M> {
+    pub fn new(coin: Coin, proof: Proof, info: DidInfo<M>) -> Self {
+        Self { coin, proof, info }
     }
 
     /// Returns the lineage proof that would be used by the child.
@@ -183,7 +223,7 @@ mod tests {
     use chia_sdk_test::{test_secret_key, Simulator};
     use chia_sdk_types::Conditions;
 
-    use crate::Launcher;
+    use crate::{Launcher, StandardLayer};
 
     use super::*;
 
@@ -198,7 +238,8 @@ mod tests {
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.new_coin(puzzle_hash, 1);
 
-        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+        let (create_did, did) =
+            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &StandardLayer::new(pk))?;
 
         // Make sure that bounds are relaxed enough to do this.
         let metadata_ptr = ctx.alloc(&did.info.metadata)?;
@@ -207,7 +248,7 @@ mod tests {
         ctx.spend_standard_coin(coin, pk, create_did)?;
 
         for _ in 0..10 {
-            did = ctx.spend_standard_did(did, pk, Conditions::new())?;
+            did = did.update_with(ctx, &StandardLayer::new(pk), Conditions::new())?;
         }
 
         sim.spend_coins(ctx.take(), &[sk])?;

@@ -1,12 +1,11 @@
-use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
-use chia_puzzles::{standard::StandardArgs, EveProof, Proof};
+use chia_puzzles::{EveProof, Proof};
 use chia_sdk_types::Conditions;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::tree_hash_atom;
 use clvmr::Allocator;
 
-use crate::{DriverError, Launcher, SpendContext};
+use crate::{DriverError, Launcher, SpendContext, SpendWithConditions};
 
 use super::{Did, DidInfo};
 
@@ -47,48 +46,48 @@ impl Launcher {
         ))
     }
 
-    pub fn create_did<M>(
+    pub fn create_did<M, I>(
         self,
         ctx: &mut SpendContext,
         recovery_list_hash: Bytes32,
         num_verifications_required: u64,
         metadata: M,
-        synthetic_key: PublicKey,
+        inner: &I,
     ) -> Result<(Conditions, Did<M>), DriverError>
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
+        I: SpendWithConditions,
         Self: Sized,
     {
-        let p2_puzzle_hash = StandardArgs::curry_tree_hash(synthetic_key).into();
-
-        let (create_did, did) = self.create_eve_did(
+        let (create_eve, eve) = self.create_eve_did(
             ctx,
-            p2_puzzle_hash,
+            inner.puzzle_hash().into(),
             recovery_list_hash,
             num_verifications_required,
             metadata,
         )?;
 
-        let new_did = ctx.spend_standard_did(did, synthetic_key, Conditions::new())?;
+        let did = eve.update_with(ctx, inner, Conditions::new())?;
 
-        Ok((create_did, new_did))
+        Ok((create_eve, did))
     }
 
-    pub fn create_simple_did(
+    pub fn create_simple_did<I>(
         self,
         ctx: &mut SpendContext,
-        synthetic_key: PublicKey,
+        inner: &I,
     ) -> Result<(Conditions, Did<()>), DriverError>
     where
+        I: SpendWithConditions,
         Self: Sized,
     {
-        self.create_did(ctx, tree_hash_atom(&[]).into(), 1, (), synthetic_key)
+        self.create_did(ctx, tree_hash_atom(&[]).into(), 1, (), inner)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Launcher, SpendContext};
+    use crate::{Launcher, SpendContext, StandardLayer};
 
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{test_secret_key, Simulator};
@@ -105,7 +104,7 @@ mod tests {
         let coin = sim.new_coin(puzzle_hash, 1);
 
         let (launch_singleton, did) =
-            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, pk)?;
+            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &StandardLayer::new(pk))?;
 
         ctx.spend_standard_coin(coin, pk, launch_singleton)?;
         sim.spend_coins(ctx.take(), &[sk])?;
