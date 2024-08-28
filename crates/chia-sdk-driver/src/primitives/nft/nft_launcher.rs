@@ -22,11 +22,10 @@ impl Launcher {
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
         let launcher_coin = self.coin();
-        let metadata_ptr = ctx.alloc(&metadata)?;
 
         let nft_info = NftInfo::new(
             launcher_coin.coin_id(),
-            ctx.tree_hash(metadata_ptr),
+            metadata,
             metadata_updater_puzzle_hash,
             None,
             royalty_puzzle_hash,
@@ -34,8 +33,8 @@ impl Launcher {
             p2_puzzle_hash,
         );
 
-        let (launch_singleton, eve_coin) =
-            self.spend(ctx, nft_info.inner_puzzle_hash().into(), ())?;
+        let inner_puzzle_hash = nft_info.inner_puzzle_hash(&mut ctx.allocator)?;
+        let (launch_singleton, eve_coin) = self.spend(ctx, inner_puzzle_hash.into(), ())?;
 
         let proof = Proof::Eve(EveProof {
             parent_parent_coin_info: launcher_coin.parent_coin_info,
@@ -44,7 +43,7 @@ impl Launcher {
 
         Ok((
             launch_singleton.create_puzzle_announcement(launcher_coin.coin_id().to_vec().into()),
-            Nft::new(eve_coin, proof, nft_info.with_metadata(metadata)),
+            Nft::new(eve_coin, proof, nft_info),
         ))
     }
 
@@ -81,8 +80,7 @@ impl Launcher {
             mint.royalty_ten_thousandths,
         )?;
 
-        let eve_spend = eve_nft.spend(ctx, inner_spend)?;
-        ctx.insert(eve_spend.clone());
+        eve_nft.spend(ctx, inner_spend)?;
 
         let mut did_conditions = Conditions::new();
 
@@ -93,16 +91,16 @@ impl Launcher {
             ));
         }
 
-        let hashed_eve = eve_nft.with_hashed_metadata(&mut ctx.allocator)?;
-        let child = hashed_eve.create_child(
-            mint.p2_puzzle_hash,
-            Some(mint.owner.map(|owner| owner.did_id)),
-        );
+        let metadata = eve_nft.info.metadata.clone();
 
-        Ok((
-            mint_eve_nft.extend(did_conditions),
-            child.with_metadata(eve_nft.info.metadata),
-        ))
+        let child = eve_nft.wrapped_child(
+            &mut ctx.allocator,
+            mint.p2_puzzle_hash,
+            mint.owner.map(|owner| owner.did_id),
+            metadata,
+        )?;
+
+        Ok((mint_eve_nft.extend(did_conditions), child))
     }
 }
 

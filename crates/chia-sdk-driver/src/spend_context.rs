@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
+use chia_protocol::{Coin, CoinSpend, Program};
 use chia_puzzles::{
     cat::{
         CAT_PUZZLE, CAT_PUZZLE_HASH, EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE,
@@ -22,14 +22,13 @@ use chia_puzzles::{
     standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
 };
 use chia_sdk_types::{
-    run_puzzle, Conditions, TransferNft, P2_DELEGATED_CONDITIONS_PUZZLE,
-    P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
+    run_puzzle, Conditions, P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
-use crate::{DriverError, Nft, Spend, StandardLayer};
+use crate::{DriverError, Spend, StandardLayer};
 
 /// A wrapper around [`Allocator`] that caches puzzles and keeps track of a list of [`CoinSpend`].
 /// It's used to construct spend bundles in an easy and efficient way.
@@ -216,37 +215,6 @@ impl SpendContext {
     ) -> Result<(), DriverError> {
         let p2_spend = StandardLayer::new(synthetic_key).spend(self, conditions)?;
         self.spend(coin, p2_spend)
-    }
-
-    /// Spend an NFT coin with a standard p2 inner puzzle.
-    pub fn spend_standard_nft<M>(
-        &mut self,
-        nft: Nft<M>,
-        synthetic_key: PublicKey,
-        p2_puzzle_hash: Bytes32,
-        new_nft_owner: Option<TransferNft>,
-        extra_conditions: Conditions,
-    ) -> Result<(Conditions, Nft<M>), DriverError>
-    where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
-    {
-        if let Some(new_nft_owner) = new_nft_owner {
-            let (cs, conds, new_nft) = nft.transfer_to_did(
-                self,
-                synthetic_key,
-                p2_puzzle_hash,
-                &new_nft_owner,
-                extra_conditions,
-            )?;
-
-            self.insert(cs);
-            return Ok((conds, new_nft));
-        }
-
-        let (cs, new_nft) = nft.transfer(self, synthetic_key, p2_puzzle_hash, extra_conditions)?;
-
-        self.insert(cs);
-        Ok((Conditions::new(), new_nft))
     }
 }
 
