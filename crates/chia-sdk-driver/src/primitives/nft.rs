@@ -15,11 +15,13 @@ use crate::{
 };
 
 mod did_owner;
+mod metadata_update;
 mod nft_info;
 mod nft_launcher;
 mod nft_mint;
 
 pub use did_owner::*;
+pub use metadata_update::*;
 pub use nft_info::*;
 pub use nft_mint::*;
 
