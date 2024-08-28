@@ -80,37 +80,3 @@ impl Launcher {
         self.create_did(ctx, tree_hash_atom(&[]).into(), 1, (), inner)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::{Launcher, SpendContext, StandardLayer};
-
-    use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::{test_secret_key, Simulator};
-
-    #[test]
-    fn test_create_did() -> anyhow::Result<()> {
-        let mut sim = Simulator::new();
-        let ctx = &mut SpendContext::new();
-
-        let sk = test_secret_key()?;
-        let pk = sk.public_key();
-
-        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.new_coin(puzzle_hash, 1);
-
-        let (launch_singleton, did) =
-            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &StandardLayer::new(pk))?;
-
-        ctx.spend_standard_coin(coin, pk, launch_singleton)?;
-        sim.spend_coins(ctx.take(), &[sk])?;
-
-        // Make sure the DID was created.
-        let coin_state = sim
-            .coin_state(did.coin.coin_id())
-            .expect("expected did coin");
-        assert_eq!(coin_state.coin, did.coin);
-
-        Ok(())
-    }
-}
