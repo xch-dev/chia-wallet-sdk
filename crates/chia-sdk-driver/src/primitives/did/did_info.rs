@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{did::DidArgs, singleton::SingletonStruct};
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::Allocator;
 
 use crate::{DidLayer, DriverError, Layer, Puzzle, SingletonLayer};
@@ -89,18 +89,16 @@ impl<M> DidInfo<M> {
         }
     }
 
-    pub fn inner_puzzle_hash(&self, allocator: &mut Allocator) -> Result<TreeHash, DriverError>
+    pub fn inner_puzzle_hash(&self) -> TreeHash
     where
-        M: ToClvm<Allocator>,
+        M: ToTreeHash,
     {
-        let metadata_ptr = self.metadata.to_clvm(allocator)?;
-
-        Ok(DidArgs::curry_tree_hash(
+        DidArgs::curry_tree_hash(
             self.p2_puzzle_hash.into(),
             self.recovery_list_hash,
             self.num_verifications_required,
             SingletonStruct::new(self.launcher_id),
-            tree_hash(allocator, metadata_ptr),
-        ))
+            self.metadata.tree_hash(),
+        )
     }
 }

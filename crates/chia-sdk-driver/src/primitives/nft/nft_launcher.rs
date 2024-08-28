@@ -2,6 +2,7 @@ use chia_protocol::Bytes32;
 use chia_puzzles::{EveProof, Proof};
 use chia_sdk_types::{Conditions, TransferNft};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
+use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{did_puzzle_assertion, DriverError, Launcher, Spend, SpendContext};
@@ -19,7 +20,7 @@ impl Launcher {
         royalty_ten_thousandths: u16,
     ) -> Result<(Conditions, Nft<M>), DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash + Clone,
     {
         let launcher_coin = self.coin();
 
@@ -33,7 +34,7 @@ impl Launcher {
             p2_puzzle_hash,
         );
 
-        let inner_puzzle_hash = nft_info.inner_puzzle_hash(&mut ctx.allocator)?;
+        let inner_puzzle_hash = nft_info.inner_puzzle_hash();
         let (launch_singleton, eve_coin) = self.spend(ctx, inner_puzzle_hash.into(), ())?;
 
         let proof = Proof::Eve(EveProof {
@@ -53,7 +54,7 @@ impl Launcher {
         mint: NftMint<M>,
     ) -> Result<(Conditions, Nft<M>), DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash + Clone,
     {
         let transfer_condition = mint.owner.map(|owner| {
             TransferNft::new(
@@ -94,11 +95,10 @@ impl Launcher {
         let metadata = eve_nft.info.metadata.clone();
 
         let child = eve_nft.wrapped_child(
-            &mut ctx.allocator,
             mint.p2_puzzle_hash,
             mint.owner.map(|owner| owner.did_id),
             metadata,
-        )?;
+        );
 
         Ok((mint_eve_nft.extend(did_conditions), child))
     }
@@ -197,7 +197,7 @@ mod tests {
             NftMetadata::default(),
             puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&mut ctx.allocator, &did.info)?),
+            Some(DidOwner::from_did_info(&did.info)),
         );
 
         let mint_1 = IntermediateLauncher::new(did.coin.coin_id(), 0, 2)
@@ -241,7 +241,7 @@ mod tests {
             NftMetadata::default(),
             puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&mut ctx.allocator, &did.info)?),
+            Some(DidOwner::from_did_info(&did.info)),
         );
 
         let (mint_nft, _nft) = launcher.mint_nft(ctx, mint)?;
@@ -283,7 +283,7 @@ mod tests {
             NftMetadata::default(),
             puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&mut ctx.allocator, &did.info)?),
+            Some(DidOwner::from_did_info(&did.info)),
         );
 
         let (mint_nft, _nft_info) = launcher.mint_nft(ctx, mint)?;

@@ -19,7 +19,7 @@ impl Launcher {
         metadata: M,
     ) -> Result<(Conditions, Did<M>), DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator>,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
     {
         let launcher_coin = self.coin();
 
@@ -31,7 +31,7 @@ impl Launcher {
             p2_puzzle_hash,
         );
 
-        let inner_puzzle_hash = did_info.inner_puzzle_hash(&mut ctx.allocator)?;
+        let inner_puzzle_hash = did_info.inner_puzzle_hash();
         let (launch_singleton, eve_coin) = self.spend(ctx, inner_puzzle_hash.into(), ())?;
 
         let proof = Proof::Eve(EveProof {
@@ -51,7 +51,7 @@ impl Launcher {
         inner: &I,
     ) -> Result<(Conditions, Did<M>), DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
+        M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash + Clone,
         I: SpendWithConditions + ToTreeHash,
         Self: Sized,
     {

@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::nft::{NftOwnershipLayerArgs, NftStateLayerArgs};
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::Allocator;
 
 use crate::{
@@ -122,14 +122,12 @@ impl<M> NftInfo<M> {
         }
     }
 
-    pub fn inner_puzzle_hash(&self, allocator: &mut Allocator) -> Result<TreeHash, DriverError>
+    pub fn inner_puzzle_hash(&self) -> TreeHash
     where
-        M: ToClvm<Allocator>,
+        M: ToTreeHash,
     {
-        let metadata_ptr = self.metadata.to_clvm(allocator)?;
-
-        Ok(NftStateLayerArgs::curry_tree_hash(
-            tree_hash(allocator, metadata_ptr),
+        NftStateLayerArgs::curry_tree_hash(
+            self.metadata.tree_hash(),
             NftOwnershipLayerArgs::curry_tree_hash(
                 self.current_owner,
                 RoyaltyTransferLayer::new(
@@ -140,6 +138,6 @@ impl<M> NftInfo<M> {
                 .tree_hash(),
                 self.p2_puzzle_hash.into(),
             ),
-        ))
+        )
     }
 }
