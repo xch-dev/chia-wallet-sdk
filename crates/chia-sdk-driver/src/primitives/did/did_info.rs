@@ -1,10 +1,10 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{did::DidArgs, singleton::SingletonStruct};
-use clvm_traits::ToClvm;
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::Allocator;
 
-use crate::{DidLayer, DriverError, SingletonLayer};
+use crate::{DidLayer, DriverError, Layer, Puzzle, SingletonLayer};
 
 pub type StandardDidLayers<M, I> = SingletonLayer<DidLayer<M, I>>;
 
@@ -33,6 +33,23 @@ impl<M> DidInfo<M> {
             metadata,
             p2_puzzle_hash,
         }
+    }
+
+    /// Parses the DID info and p2 puzzle that corresponds to the p2 puzzle hash.
+    pub fn parse(
+        allocator: &Allocator,
+        puzzle: Puzzle,
+    ) -> Result<Option<(Self, Puzzle)>, DriverError>
+    where
+        M: ToClvm<Allocator> + FromClvm<Allocator>,
+    {
+        let Some(layers) = StandardDidLayers::<M, Puzzle>::parse_puzzle(allocator, puzzle)? else {
+            return Ok(None);
+        };
+
+        let p2_puzzle = layers.inner_puzzle.inner_puzzle;
+
+        Ok(Some((Self::from_layers(layers), p2_puzzle)))
     }
 
     pub fn from_layers<I>(layers: StandardDidLayers<M, I>) -> Self
