@@ -2,7 +2,7 @@ use chia_bls::PublicKey;
 use chia_puzzles::standard::{StandardArgs, StandardSolution, STANDARD_PUZZLE_HASH};
 use chia_sdk_types::Conditions;
 use clvm_traits::{clvm_quote, FromClvm};
-use clvm_utils::{CurriedProgram, TreeHash};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext, SpendWithConditions};
@@ -88,15 +88,17 @@ impl Layer for StandardLayer {
 }
 
 impl SpendWithConditions for StandardLayer {
-    fn puzzle_hash(&self) -> TreeHash {
-        StandardArgs::curry_tree_hash(self.synthetic_key)
-    }
-
     fn spend_with_conditions(
         &self,
         ctx: &mut SpendContext,
         conditions: Conditions,
     ) -> Result<Spend, DriverError> {
         self.spend(ctx, conditions)
+    }
+}
+
+impl ToTreeHash for StandardLayer {
+    fn tree_hash(&self) -> TreeHash {
+        StandardArgs::curry_tree_hash(self.synthetic_key)
     }
 }

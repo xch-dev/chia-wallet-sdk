@@ -2,7 +2,7 @@ use chia_protocol::Bytes32;
 use chia_puzzles::{EveProof, Proof};
 use chia_sdk_types::Conditions;
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::tree_hash_atom;
+use clvm_utils::{tree_hash_atom, ToTreeHash};
 use clvmr::Allocator;
 
 use crate::{DriverError, Launcher, SpendContext, SpendWithConditions};
@@ -52,12 +52,12 @@ impl Launcher {
     ) -> Result<(Conditions, Did<M>), DriverError>
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
-        I: SpendWithConditions,
+        I: SpendWithConditions + ToTreeHash,
         Self: Sized,
     {
         let (create_eve, eve) = self.create_eve_did(
             ctx,
-            inner.puzzle_hash().into(),
+            inner.tree_hash().into(),
             recovery_list_hash,
             num_verifications_required,
             metadata,
@@ -74,7 +74,7 @@ impl Launcher {
         inner: &I,
     ) -> Result<(Conditions, Did<()>), DriverError>
     where
-        I: SpendWithConditions,
+        I: SpendWithConditions + ToTreeHash,
         Self: Sized,
     {
         self.create_did(ctx, tree_hash_atom(&[]).into(), 1, (), inner)
