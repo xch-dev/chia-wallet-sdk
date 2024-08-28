@@ -11,7 +11,11 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{CatLayer, DriverError, Layer, Primitive, Puzzle, Spend, SpendContext};
 
-use super::{CatSpend, RawCatSpend};
+mod cat_spend;
+mod single_cat_spend;
+
+pub use cat_spend::*;
+pub use single_cat_spend::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Cat {
@@ -106,7 +110,7 @@ impl Cat {
 
         eve.spend(
             ctx,
-            RawCatSpend::eve(
+            SingleCatSpend::eve(
                 eve.coin,
                 inner_puzzle_hash,
                 Spend::new(inner_puzzle, NodePtr::NIL),
@@ -124,7 +128,6 @@ impl Cat {
     ///
     /// Each item is a CAT and the inner spend for that CAT.
     pub fn spend_all(ctx: &mut SpendContext, cat_spends: &[CatSpend]) -> Result<(), DriverError> {
-        let cat_puzzle_ptr = ctx.cat_puzzle()?;
         let len = cat_spends.len();
 
         let mut total_delta = 0;
@@ -156,33 +159,27 @@ impl Cat {
             let prev = &cat_spends[if index == 0 { len - 1 } else { index - 1 }];
             let next = &cat_spends[if index == len - 1 { 0 } else { index + 1 }];
 
-            let puzzle = ctx.alloc(&CurriedProgram {
-                program: cat_puzzle_ptr,
-                args: CatArgs::new(cat.asset_id, cat_spend.inner_spend.puzzle),
-            })?;
-
-            let solution = ctx.alloc(&CatSolution {
-                inner_puzzle_solution: inner_spend.solution,
-                lineage_proof: cat.lineage_proof,
-                prev_coin_id: prev.cat.coin.coin_id(),
-                this_coin_info: cat.coin,
-                next_coin_proof: CoinProof {
-                    parent_coin_info: next.cat.coin.parent_coin_info,
-                    inner_puzzle_hash: ctx.tree_hash(inner_spend.puzzle).into(),
-                    amount: next.cat.coin.amount,
+            cat.spend(
+                ctx,
+                SingleCatSpend {
+                    inner_spend: *inner_spend,
+                    prev_coin_id: prev.cat.coin.coin_id(),
+                    next_coin_proof: CoinProof {
+                        parent_coin_info: next.cat.coin.parent_coin_info,
+                        inner_puzzle_hash: ctx.tree_hash(next.inner_spend.puzzle).into(),
+                        amount: next.cat.coin.amount,
+                    },
+                    prev_subtotal: prev_subtotal.try_into()?,
+                    extra_delta: *extra_delta,
                 },
-                prev_subtotal: prev_subtotal.try_into()?,
-                extra_delta: *extra_delta,
-            })?;
-
-            ctx.spend(cat.coin, Spend::new(puzzle, solution))?;
+            )?;
         }
 
         Ok(())
     }
 
     /// Creates a coin spend for this CAT.
-    pub fn spend(&self, ctx: &mut SpendContext, spend: RawCatSpend) -> Result<(), DriverError> {
+    pub fn spend(&self, ctx: &mut SpendContext, spend: SingleCatSpend) -> Result<(), DriverError> {
         let cat_layer = CatLayer::new(self.asset_id, spend.inner_spend.puzzle);
 
         let puzzle = cat_layer.construct_puzzle(ctx)?;
@@ -458,6 +455,55 @@ mod tests {
                 .map(|cat| cat.wrapped_child(puzzle_hash, cat.coin.amount))
                 .collect();
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_different_cat_p2_puzzles() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+        let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
+
+        // This will just return the solution verbatim.
+        let custom_p2 = ctx.alloc(&1)?;
+        let custom_p2_puzzle_hash = ctx.tree_hash(custom_p2).into();
+
+        let (issue_cat, cat) = Cat::single_issuance_eve(
+            ctx,
+            coin.coin_id(),
+            2,
+            Conditions::new()
+                .create_coin(puzzle_hash, 1, vec![puzzle_hash.into()])
+                .create_coin(custom_p2_puzzle_hash, 1, vec![custom_p2_puzzle_hash.into()]),
+        )?;
+
+        ctx.spend_standard_coin(coin, pk, issue_cat)?;
+        sim.spend_coins(ctx.take(), &[sk.clone()])?;
+
+        let spends = [
+            CatSpend::new(
+                cat.wrapped_child(puzzle_hash, 1),
+                StandardLayer::new(pk).spend(
+                    ctx,
+                    Conditions::new().create_coin(puzzle_hash, 1, vec![puzzle_hash.into()]),
+                )?,
+            ),
+            CatSpend::new(
+                cat.wrapped_child(custom_p2_puzzle_hash, 1),
+                Spend::new(
+                    custom_p2,
+                    ctx.alloc(&[CreateCoin::new(
+                        custom_p2_puzzle_hash,
+                        1,
+                        vec![custom_p2_puzzle_hash.into()],
+                    )])?,
+                ),
+            ),
+        ];
+
+        Cat::spend_all(ctx, &spends)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
 
         Ok(())
     }

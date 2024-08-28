@@ -1,13 +1,13 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::nft::{
-    NftOwnershipLayerArgs, NftRoyaltyTransferPuzzleArgs, NftStateLayerArgs,
-    NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
-};
-use clvm_traits::ToClvm;
-use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
+use chia_puzzles::nft::{NftOwnershipLayerArgs, NftStateLayerArgs};
+use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::Allocator;
 
-use crate::{DriverError, NftOwnershipLayer, NftStateLayer, RoyaltyTransferLayer, SingletonLayer};
+use crate::{
+    DriverError, Layer, NftOwnershipLayer, NftStateLayer, Puzzle, RoyaltyTransferLayer,
+    SingletonLayer,
+};
 
 pub type StandardNftLayers<M, I> =
     SingletonLayer<NftStateLayer<M, NftOwnershipLayer<RoyaltyTransferLayer, I>>>;
@@ -43,6 +43,23 @@ impl<M> NftInfo<M> {
             royalty_ten_thousandths,
             p2_puzzle_hash,
         }
+    }
+
+    /// Parses the NFT info and p2 puzzle that corresponds to the p2 puzzle hash.
+    pub fn parse(
+        allocator: &Allocator,
+        puzzle: Puzzle,
+    ) -> Result<Option<(Self, Puzzle)>, DriverError>
+    where
+        M: ToClvm<Allocator> + FromClvm<Allocator>,
+    {
+        let Some(layers) = StandardNftLayers::<M, Puzzle>::parse_puzzle(allocator, puzzle)? else {
+            return Ok(None);
+        };
+
+        let p2_puzzle = layers.inner_puzzle.inner_puzzle.inner_puzzle;
+
+        Ok(Some((Self::from_layers(layers), p2_puzzle)))
     }
 
     pub fn from_layers<I>(layers: StandardNftLayers<M, I>) -> Self
@@ -93,28 +110,6 @@ impl<M> NftInfo<M> {
         )
     }
 
-    pub fn inner_puzzle_hash(&self) -> TreeHash
-    where
-        M: ToTreeHash,
-    {
-        NftStateLayerArgs::curry_tree_hash(
-            self.metadata.tree_hash(),
-            NftOwnershipLayerArgs::curry_tree_hash(
-                self.current_owner,
-                CurriedProgram {
-                    program: NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
-                    args: NftRoyaltyTransferPuzzleArgs::new(
-                        self.launcher_id,
-                        self.royalty_puzzle_hash,
-                        self.royalty_ten_thousandths,
-                    ),
-                }
-                .tree_hash(),
-                self.p2_puzzle_hash.into(),
-            ),
-        )
-    }
-
     pub fn with_metadata<N>(self, metadata: N) -> NftInfo<N> {
         NftInfo {
             launcher_id: self.launcher_id,
@@ -127,23 +122,24 @@ impl<M> NftInfo<M> {
         }
     }
 
-    pub fn with_hashed_metadata(
-        &self,
-        allocator: &mut Allocator,
-    ) -> Result<NftInfo<TreeHash>, DriverError>
+    pub fn inner_puzzle_hash(&self, allocator: &mut Allocator) -> Result<TreeHash, DriverError>
     where
         M: ToClvm<Allocator>,
     {
         let metadata_ptr = self.metadata.to_clvm(allocator)?;
-        let metadata_hash = tree_hash(allocator, metadata_ptr);
-        Ok(NftInfo {
-            launcher_id: self.launcher_id,
-            metadata: metadata_hash,
-            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
-            current_owner: self.current_owner,
-            royalty_puzzle_hash: self.royalty_puzzle_hash,
-            royalty_ten_thousandths: self.royalty_ten_thousandths,
-            p2_puzzle_hash: self.p2_puzzle_hash,
-        })
+
+        Ok(NftStateLayerArgs::curry_tree_hash(
+            tree_hash(allocator, metadata_ptr),
+            NftOwnershipLayerArgs::curry_tree_hash(
+                self.current_owner,
+                RoyaltyTransferLayer::new(
+                    self.launcher_id,
+                    self.royalty_puzzle_hash,
+                    self.royalty_ten_thousandths,
+                )
+                .tree_hash(),
+                self.p2_puzzle_hash.into(),
+            ),
+        ))
     }
 }

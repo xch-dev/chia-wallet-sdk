@@ -1,10 +1,10 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{did::DidArgs, singleton::SingletonStruct};
-use clvm_traits::ToClvm;
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
 use clvmr::Allocator;
 
-use crate::{DidLayer, DriverError, SingletonLayer};
+use crate::{DidLayer, DriverError, Layer, Puzzle, SingletonLayer};
 
 pub type StandardDidLayers<M, I> = SingletonLayer<DidLayer<M, I>>;
 
@@ -35,6 +35,23 @@ impl<M> DidInfo<M> {
         }
     }
 
+    /// Parses the DID info and p2 puzzle that corresponds to the p2 puzzle hash.
+    pub fn parse(
+        allocator: &Allocator,
+        puzzle: Puzzle,
+    ) -> Result<Option<(Self, Puzzle)>, DriverError>
+    where
+        M: ToClvm<Allocator> + FromClvm<Allocator>,
+    {
+        let Some(layers) = StandardDidLayers::<M, Puzzle>::parse_puzzle(allocator, puzzle)? else {
+            return Ok(None);
+        };
+
+        let p2_puzzle = layers.inner_puzzle.inner_puzzle;
+
+        Ok(Some((Self::from_layers(layers), p2_puzzle)))
+    }
+
     pub fn from_layers<I>(layers: StandardDidLayers<M, I>) -> Self
     where
         I: ToTreeHash,
@@ -62,19 +79,6 @@ impl<M> DidInfo<M> {
         )
     }
 
-    pub fn inner_puzzle_hash(&self) -> TreeHash
-    where
-        M: ToTreeHash,
-    {
-        DidArgs::curry_tree_hash(
-            self.p2_puzzle_hash.into(),
-            self.recovery_list_hash,
-            self.num_verifications_required,
-            SingletonStruct::new(self.launcher_id),
-            self.metadata.tree_hash(),
-        )
-    }
-
     pub fn with_metadata<N>(self, metadata: N) -> DidInfo<N> {
         DidInfo {
             launcher_id: self.launcher_id,
@@ -85,21 +89,18 @@ impl<M> DidInfo<M> {
         }
     }
 
-    pub fn with_hashed_metadata(
-        &self,
-        allocator: &mut Allocator,
-    ) -> Result<DidInfo<TreeHash>, DriverError>
+    pub fn inner_puzzle_hash(&self, allocator: &mut Allocator) -> Result<TreeHash, DriverError>
     where
         M: ToClvm<Allocator>,
     {
         let metadata_ptr = self.metadata.to_clvm(allocator)?;
-        let metadata_hash = tree_hash(allocator, metadata_ptr);
-        Ok(DidInfo {
-            launcher_id: self.launcher_id,
-            recovery_list_hash: self.recovery_list_hash,
-            num_verifications_required: self.num_verifications_required,
-            metadata: metadata_hash,
-            p2_puzzle_hash: self.p2_puzzle_hash,
-        })
+
+        Ok(DidArgs::curry_tree_hash(
+            self.p2_puzzle_hash.into(),
+            self.recovery_list_hash,
+            self.num_verifications_required,
+            SingletonStruct::new(self.launcher_id),
+            tree_hash(allocator, metadata_ptr),
+        ))
     }
 }

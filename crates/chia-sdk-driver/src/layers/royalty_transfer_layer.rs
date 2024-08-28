@@ -6,7 +6,7 @@ use chia_puzzles::{
     singleton::{SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
 };
 use clvm_traits::FromClvm;
-use clvm_utils::CurriedProgram;
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
@@ -91,5 +91,15 @@ impl Layer for RoyaltyTransferLayer {
         _solution: NodePtr,
     ) -> Result<Self::Solution, DriverError> {
         panic!("RoyaltyTransferLayer does not have a solution");
+    }
+}
+
+impl ToTreeHash for RoyaltyTransferLayer {
+    fn tree_hash(&self) -> TreeHash {
+        NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
+            self.launcher_id,
+            self.royalty_puzzle_hash,
+            self.royalty_ten_thousandths,
+        )
     }
 }

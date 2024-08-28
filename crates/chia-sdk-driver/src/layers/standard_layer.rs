@@ -2,10 +2,10 @@ use chia_bls::PublicKey;
 use chia_puzzles::standard::{StandardArgs, StandardSolution, STANDARD_PUZZLE_HASH};
 use chia_sdk_types::Conditions;
 use clvm_traits::{clvm_quote, FromClvm};
-use clvm_utils::CurriedProgram;
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
+use crate::{DriverError, Layer, Puzzle, Spend, SpendContext, SpendWithConditions};
 
 /// The standard [`Layer`] is used for most coins on the Chia blockchain. It allows a single key
 /// to spend the coin by providing a delegated puzzle (for example to output [`Conditions`]).
@@ -84,5 +84,21 @@ impl Layer for StandardLayer {
         solution: NodePtr,
     ) -> Result<Self::Solution, DriverError> {
         Ok(StandardSolution::from_clvm(allocator, solution)?)
+    }
+}
+
+impl SpendWithConditions for StandardLayer {
+    fn spend_with_conditions(
+        &self,
+        ctx: &mut SpendContext,
+        conditions: Conditions,
+    ) -> Result<Spend, DriverError> {
+        self.spend(ctx, conditions)
+    }
+}
+
+impl ToTreeHash for StandardLayer {
+    fn tree_hash(&self) -> TreeHash {
+        StandardArgs::curry_tree_hash(self.synthetic_key)
     }
 }
