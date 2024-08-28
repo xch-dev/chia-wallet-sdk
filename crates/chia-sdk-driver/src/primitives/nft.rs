@@ -6,7 +6,7 @@ use chia_puzzles::{
 };
 use chia_sdk_types::{run_puzzle, Condition, Conditions, NewMetadataOutput, TransferNft};
 use clvm_traits::{clvm_list, FromClvm, ToClvm};
-use clvm_utils::tree_hash;
+use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::{sha2::Sha256, Allocator, NodePtr};
 
 use crate::{
@@ -53,47 +53,43 @@ impl<M> Nft<M> {
 
 impl<M> Nft<M>
 where
-    M: ToClvm<Allocator>,
+    M: ToTreeHash,
 {
     /// Returns the lineage proof that would be used by the child.
-    pub fn child_lineage_proof(
-        &self,
-        allocator: &mut Allocator,
-    ) -> Result<LineageProof, DriverError> {
-        Ok(LineageProof {
+    pub fn child_lineage_proof(&self) -> LineageProof {
+        LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.info.inner_puzzle_hash(allocator)?.into(),
+            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
             parent_amount: self.coin.amount,
-        })
+        }
     }
 
     /// Creates a new spendable NFT for the child.
     pub fn wrapped_child<N>(
         &self,
-        allocator: &mut Allocator,
         p2_puzzle_hash: Bytes32,
         owner: Option<Bytes32>,
         metadata: N,
-    ) -> Result<Nft<N>, DriverError>
+    ) -> Nft<N>
     where
         M: Clone,
-        N: ToClvm<Allocator>,
+        N: ToTreeHash,
     {
         let mut info = self.info.clone().with_metadata(metadata);
         info.p2_puzzle_hash = p2_puzzle_hash;
         info.current_owner = owner;
 
-        let inner_puzzle_hash = info.inner_puzzle_hash(allocator)?;
+        let inner_puzzle_hash = info.inner_puzzle_hash();
 
-        Ok(Nft {
+        Nft {
             coin: Coin::new(
                 self.coin.coin_id(),
                 SingletonArgs::curry_tree_hash(info.launcher_id, inner_puzzle_hash).into(),
                 self.coin.amount,
             ),
-            proof: Proof::Lineage(self.child_lineage_proof(allocator)?),
+            proof: Proof::Lineage(self.child_lineage_proof()),
             info,
-        })
+        }
     }
 }
 
@@ -149,7 +145,8 @@ where
     ) -> Result<Nft<N>, DriverError>
     where
         I: SpendWithConditions,
-        N: ToClvm<Allocator> + FromClvm<Allocator>,
+        N: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
+        M: ToTreeHash,
     {
         self.spend_with(
             ctx,
@@ -170,12 +167,11 @@ where
         )?;
         let output = ctx.extract::<NewMetadataOutput<N, NodePtr>>(ptr)?;
 
-        self.wrapped_child(
-            &mut ctx.allocator,
+        Ok(self.wrapped_child(
             p2_puzzle_hash,
             self.info.current_owner,
             output.metadata_info.new_metadata,
-        )
+        ))
     }
 
     /// Transfers this NFT to a new p2 puzzle hash.
@@ -192,6 +188,7 @@ where
         extra_conditions: Conditions,
     ) -> Result<Nft<M>, DriverError>
     where
+        M: ToTreeHash,
         I: SpendWithConditions,
     {
         self.spend_with(
@@ -206,12 +203,7 @@ where
 
         let metadata = self.info.metadata.clone();
 
-        self.wrapped_child(
-            &mut ctx.allocator,
-            p2_puzzle_hash,
-            self.info.current_owner,
-            metadata,
-        )
+        Ok(self.wrapped_child(p2_puzzle_hash, self.info.current_owner, metadata))
     }
 
     /// Transfers this NFT to a new p2 puzzle hash and updates the DID owner.
@@ -230,6 +222,7 @@ where
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Nft<M>), DriverError>
     where
+        M: ToTreeHash,
         I: SpendWithConditions,
     {
         let transfer_condition = TransferNft::new(
@@ -253,11 +246,10 @@ where
         let metadata = self.info.metadata.clone();
 
         let child = self.wrapped_child(
-            &mut ctx.allocator,
             p2_puzzle_hash,
             new_owner.map(|owner| owner.did_id),
             metadata,
-        )?;
+        );
 
         let did_conditions = Conditions::new().assert_puzzle_announcement(did_puzzle_assertion(
             self.coin.puzzle_hash,
@@ -385,7 +377,7 @@ pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &Trans
 
 #[cfg(test)]
 mod tests {
-    use crate::{IntermediateLauncher, Launcher, NftMint, StandardLayer};
+    use crate::{HashedPtr, IntermediateLauncher, Launcher, NftMint, StandardLayer};
 
     use super::*;
 
@@ -413,7 +405,7 @@ mod tests {
             NftMetadata::default(),
             puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&mut ctx.allocator, &did.info)?),
+            Some(DidOwner::from_did_info(&did.info)),
         );
 
         let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
@@ -422,7 +414,7 @@ mod tests {
 
         // Make sure that bounds are relaxed enough to do this.
         let metadata_ptr = ctx.alloc(&nft.info.metadata)?;
-        let nft = nft.with_metadata(metadata_ptr);
+        let nft = nft.with_metadata(HashedPtr::from_ptr(&ctx.allocator, metadata_ptr));
 
         let _did = did.update(ctx, &StandardLayer::new(pk), mint_nft)?;
 
@@ -460,7 +452,7 @@ mod tests {
             NftMetadata::default(),
             puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&mut ctx.allocator, &did.info)?),
+            Some(DidOwner::from_did_info(&did.info)),
         );
 
         let (mint_nft, mut nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
@@ -470,7 +462,7 @@ mod tests {
         let mut did = did.update(ctx, &StandardLayer::new(pk), mint_nft)?;
 
         for i in 0..5 {
-            let did_owner = DidOwner::from_did_info(&mut ctx.allocator, &did.info)?;
+            let did_owner = DidOwner::from_did_info(&did.info);
 
             let (spend_nft, new_nft) = nft.transfer_to_did(
                 ctx,
@@ -514,7 +506,7 @@ mod tests {
             NftMetadata::default(),
             puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&mut ctx.allocator, &did.info)?),
+            Some(DidOwner::from_did_info(&did.info)),
         )
         .with_royalty_puzzle_hash(Bytes32::new([1; 32]));
 

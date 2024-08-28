@@ -1,8 +1,7 @@
 use chia_protocol::Bytes32;
-use clvm_traits::ToClvm;
-use clvmr::Allocator;
+use clvm_utils::ToTreeHash;
 
-use crate::{DidInfo, DriverError};
+use crate::DidInfo;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DidOwner {
@@ -18,16 +17,13 @@ impl DidOwner {
         }
     }
 
-    pub fn from_did_info<M>(
-        allocator: &mut Allocator,
-        did_info: &DidInfo<M>,
-    ) -> Result<Self, DriverError>
+    pub fn from_did_info<M>(did_info: &DidInfo<M>) -> Self
     where
-        M: ToClvm<Allocator>,
+        M: ToTreeHash,
     {
-        Ok(Self {
+        Self {
             did_id: did_info.launcher_id,
-            inner_puzzle_hash: did_info.inner_puzzle_hash(allocator)?.into(),
-        })
+            inner_puzzle_hash: did_info.inner_puzzle_hash().into(),
+        }
     }
 }

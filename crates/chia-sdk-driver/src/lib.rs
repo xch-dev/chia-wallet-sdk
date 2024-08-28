@@ -1,6 +1,7 @@
 #![doc = include_str!("../docs.md")]
 
 mod driver_error;
+mod hashed_ptr;
 mod layer;
 mod layers;
 mod merkle_tree;
@@ -12,6 +13,7 @@ mod spend_context;
 mod spend_with_conditions;
 
 pub use driver_error::*;
+pub use hashed_ptr::*;
 pub use layer::*;
 pub use layers::*;
 pub use merkle_tree::*;

@@ -15,6 +15,7 @@ mod did_launcher;
 
 pub use did_info::*;
 
+#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Did<M> {
     pub coin: Coin,
@@ -38,27 +39,24 @@ impl<M> Did<M> {
 
 impl<M> Did<M>
 where
-    M: ToClvm<Allocator>,
+    M: ToTreeHash,
 {
     /// Returns the lineage proof that would be used by the child.
-    pub fn child_lineage_proof(
-        &self,
-        allocator: &mut Allocator,
-    ) -> Result<LineageProof, DriverError> {
-        Ok(LineageProof {
+    pub fn child_lineage_proof(&self) -> LineageProof {
+        LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.info.inner_puzzle_hash(allocator)?.into(),
+            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
             parent_amount: self.coin.amount,
-        })
+        }
     }
 
     /// Creates a wrapped spendable DID for the child.
-    pub fn wrapped_child(self, allocator: &mut Allocator) -> Result<Self, DriverError> {
-        Ok(Self {
+    pub fn wrapped_child(self) -> Self {
+        Self {
             coin: Coin::new(self.coin.coin_id(), self.coin.puzzle_hash, self.coin.amount),
-            proof: Proof::Lineage(self.child_lineage_proof(allocator)?),
+            proof: Proof::Lineage(self.child_lineage_proof()),
             info: self.info,
-        })
+        }
     }
 }
 
@@ -109,13 +107,14 @@ where
     ) -> Result<Did<N>, DriverError>
     where
         I: SpendWithConditions,
-        N: ToClvm<Allocator> + Clone,
+        M: ToTreeHash,
+        N: ToClvm<Allocator> + ToTreeHash + Clone,
     {
         let new_inner_puzzle_hash = self
             .info
             .clone()
             .with_metadata(metadata.clone())
-            .inner_puzzle_hash(&mut ctx.allocator)?;
+            .inner_puzzle_hash();
 
         self.spend_with(
             ctx,
@@ -127,9 +126,7 @@ where
             ),
         )?;
 
-        Ok(self
-            .wrapped_child(&mut ctx.allocator)?
-            .with_metadata(metadata))
+        Ok(self.wrapped_child().with_metadata(metadata))
     }
 
     /// Creates a new DID coin with the given metadata.
@@ -140,6 +137,7 @@ where
         extra_conditions: Conditions,
     ) -> Result<Did<M>, DriverError>
     where
+        M: ToTreeHash,
         I: SpendWithConditions,
     {
         let metadata = self.info.metadata.clone();
@@ -235,7 +233,7 @@ mod tests {
     use clvm_utils::tree_hash_atom;
     use rstest::rstest;
 
-    use crate::{Launcher, StandardLayer};
+    use crate::{HashedPtr, Launcher, StandardLayer};
 
     use super::*;
 
@@ -263,7 +261,12 @@ mod tests {
         recovery_list_hash: Bytes32,
         #[values(0, 1, 3)] num_verifications_required: u64,
         #[values((), "Atom".to_string(), clvm_list!("Complex".to_string(), 42), 100)]
-        metadata: impl ToClvm<Allocator> + FromClvm<Allocator> + Clone + PartialEq + fmt::Debug,
+        metadata: impl ToClvm<Allocator>
+            + FromClvm<Allocator>
+            + ToTreeHash
+            + Clone
+            + PartialEq
+            + fmt::Debug,
     ) -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
@@ -326,13 +329,13 @@ mod tests {
             ctx,
             Bytes32::default(),
             1,
-            NodePtr::NIL,
+            HashedPtr::NIL,
             &StandardLayer::new(pk),
         )?;
         ctx.spend_standard_coin(coin, pk, create_did)?;
         sim.spend_coins(ctx.take(), &[sk])?;
 
-        let new_metadata = ctx.alloc(&1)?;
+        let new_metadata = HashedPtr::from_ptr(&ctx.allocator, ctx.allocator.one());
         let updated_did = did.update_with_metadata(
             ctx,
             &StandardLayer::new(pk),
@@ -340,10 +343,7 @@ mod tests {
             Conditions::default(),
         )?;
 
-        assert_eq!(
-            ctx.tree_hash(updated_did.info.metadata),
-            ctx.tree_hash(new_metadata)
-        );
+        assert_eq!(updated_did.info.metadata, new_metadata);
 
         Ok(())
     }
