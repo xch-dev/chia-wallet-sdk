@@ -146,7 +146,7 @@ mod tests {
                 NftMint::new(NftMetadata::default(), puzzle_hash, 300, None),
             )?;
 
-        let _ = did.update_with(
+        let _ = did.update(
             ctx,
             &StandardLayer::new(pk),
             mint_nft.create_coin_announcement(b"$".to_vec().into()),
@@ -199,7 +199,7 @@ mod tests {
             NftMetadata::default(),
             puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&did.info)),
+            Some(DidOwner::from_did_info(&mut ctx.allocator, &did.info)?),
         );
 
         let mint_1 = IntermediateLauncher::new(did.coin.coin_id(), 0, 2)
@@ -212,7 +212,7 @@ mod tests {
             .mint_nft(ctx, mint)?
             .0;
 
-        let _ = did.update_with(ctx, &StandardLayer::new(pk), mint_1.extend(mint_2))?;
+        let _ = did.update(ctx, &StandardLayer::new(pk), mint_1.extend(mint_2))?;
 
         sim.spend_coins(ctx.take(), &[sk])?;
 
@@ -243,12 +243,12 @@ mod tests {
             NftMetadata::default(),
             puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&did.info)),
+            Some(DidOwner::from_did_info(&mut ctx.allocator, &did.info)?),
         );
 
         let (mint_nft, _nft) = launcher.mint_nft(ctx, mint)?;
 
-        let _ = did.update_with(
+        let _ = did.update(
             ctx,
             &StandardLayer::new(pk),
             mint_nft.create_coin(puzzle_hash, 0, Vec::new()),
@@ -285,18 +285,18 @@ mod tests {
             NftMetadata::default(),
             puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&did.info)),
+            Some(DidOwner::from_did_info(&mut ctx.allocator, &did.info)?),
         );
 
         let (mint_nft, _nft_info) = launcher.mint_nft(ctx, mint)?;
 
-        let did = did.update_with(
+        let did = did.update(
             ctx,
             &StandardLayer::new(pk),
             Conditions::new().create_coin(puzzle_hash, 0, Vec::new()),
         )?;
 
-        let _ = did.update_with(ctx, &StandardLayer::new(pk), mint_nft)?;
+        let _ = did.update(ctx, &StandardLayer::new(pk), mint_nft)?;
 
         ctx.spend_standard_coin(intermediate_coin, pk, create_launcher)?;
         sim.spend_coins(ctx.take(), &[sk])?;

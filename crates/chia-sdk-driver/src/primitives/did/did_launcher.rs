@@ -22,28 +22,24 @@ impl Launcher {
         M: ToClvm<Allocator> + FromClvm<Allocator>,
     {
         let launcher_coin = self.coin();
-        let metadata_ptr = ctx.alloc(&metadata)?;
 
         let did_info = DidInfo::new(
             launcher_coin.coin_id(),
             recovery_list_hash,
             num_verifications_required,
-            ctx.tree_hash(metadata_ptr),
+            metadata,
             p2_puzzle_hash,
         );
 
-        let (launch_singleton, eve_coin) =
-            self.spend(ctx, did_info.inner_puzzle_hash().into(), ())?;
+        let inner_puzzle_hash = did_info.inner_puzzle_hash(&mut ctx.allocator)?;
+        let (launch_singleton, eve_coin) = self.spend(ctx, inner_puzzle_hash.into(), ())?;
 
         let proof = Proof::Eve(EveProof {
             parent_parent_coin_info: launcher_coin.parent_coin_info,
             parent_amount: launcher_coin.amount,
         });
 
-        Ok((
-            launch_singleton,
-            Did::new(eve_coin, proof, did_info.with_metadata(metadata)),
-        ))
+        Ok((launch_singleton, Did::new(eve_coin, proof, did_info)))
     }
 
     pub fn create_did<M, I>(
@@ -67,7 +63,7 @@ impl Launcher {
             metadata,
         )?;
 
-        let did = eve.update_with(ctx, inner, Conditions::new())?;
+        let did = eve.update(ctx, inner, Conditions::new())?;
 
         Ok((create_eve, did))
     }

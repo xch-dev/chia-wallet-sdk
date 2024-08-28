@@ -338,7 +338,7 @@ mod tests {
             NftMetadata::default(),
             puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&did.info)),
+            Some(DidOwner::from_did_info(&mut ctx.allocator, &did.info)?),
         );
 
         let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
@@ -349,14 +349,14 @@ mod tests {
         let metadata_ptr = ctx.alloc(&nft.info.metadata)?;
         let nft = nft.with_metadata(metadata_ptr);
 
-        let did = did.update_with(ctx, &StandardLayer::new(pk), mint_nft)?;
+        let did = did.update(ctx, &StandardLayer::new(pk), mint_nft)?;
 
         let other_puzzle_hash = StandardArgs::curry_tree_hash(pk.derive_unhardened(0)).into();
 
         let (parent_conditions, _) =
             ctx.spend_standard_nft(nft, pk, other_puzzle_hash, None, Conditions::new())?;
 
-        let _ = did.update_with(ctx, &StandardLayer::new(pk), parent_conditions)?;
+        let _ = did.update(ctx, &StandardLayer::new(pk), parent_conditions)?;
 
         sim.spend_coins(ctx.take(), &[sk])?;
 
@@ -383,16 +383,18 @@ mod tests {
             NftMetadata::default(),
             puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&did.info)),
+            Some(DidOwner::from_did_info(&mut ctx.allocator, &did.info)?),
         );
 
         let (mint_nft, mut nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
             .create(ctx)?
             .mint_nft(ctx, mint)?;
 
-        let mut did = did.update_with(ctx, &StandardLayer::new(pk), mint_nft)?;
+        let mut did = did.update(ctx, &StandardLayer::new(pk), mint_nft)?;
 
         for i in 0..5 {
+            let did_inner_puzzle_hash = did.info.inner_puzzle_hash(&mut ctx.allocator)?;
+
             let (spend_nft, new_nft) = ctx.spend_standard_nft(
                 nft,
                 pk,
@@ -401,7 +403,7 @@ mod tests {
                     Some(TransferNft::new(
                         Some(did.info.launcher_id),
                         Vec::new(),
-                        Some(did.info.inner_puzzle_hash().into()),
+                        Some(did_inner_puzzle_hash.into()),
                     ))
                 } else {
                     None
@@ -409,7 +411,7 @@ mod tests {
                 Conditions::new(),
             )?;
             nft = new_nft;
-            did = did.update_with(ctx, &StandardLayer::new(pk), spend_nft)?;
+            did = did.update(ctx, &StandardLayer::new(pk), spend_nft)?;
         }
 
         sim.spend_coins(ctx.take(), &[sk])?;
@@ -442,7 +444,7 @@ mod tests {
             NftMetadata::default(),
             puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&did.info)),
+            Some(DidOwner::from_did_info(&mut ctx.allocator, &did.info)?),
         )
         .with_royalty_puzzle_hash(Bytes32::new([1; 32]));
 

@@ -62,19 +62,6 @@ impl<M> DidInfo<M> {
         )
     }
 
-    pub fn inner_puzzle_hash(&self) -> TreeHash
-    where
-        M: ToTreeHash,
-    {
-        DidArgs::curry_tree_hash(
-            self.p2_puzzle_hash.into(),
-            self.recovery_list_hash,
-            self.num_verifications_required,
-            SingletonStruct::new(self.launcher_id),
-            self.metadata.tree_hash(),
-        )
-    }
-
     pub fn with_metadata<N>(self, metadata: N) -> DidInfo<N> {
         DidInfo {
             launcher_id: self.launcher_id,
@@ -85,21 +72,18 @@ impl<M> DidInfo<M> {
         }
     }
 
-    pub fn with_hashed_metadata(
-        &self,
-        allocator: &mut Allocator,
-    ) -> Result<DidInfo<TreeHash>, DriverError>
+    pub fn inner_puzzle_hash(&self, allocator: &mut Allocator) -> Result<TreeHash, DriverError>
     where
         M: ToClvm<Allocator>,
     {
         let metadata_ptr = self.metadata.to_clvm(allocator)?;
-        let metadata_hash = tree_hash(allocator, metadata_ptr);
-        Ok(DidInfo {
-            launcher_id: self.launcher_id,
-            recovery_list_hash: self.recovery_list_hash,
-            num_verifications_required: self.num_verifications_required,
-            metadata: metadata_hash,
-            p2_puzzle_hash: self.p2_puzzle_hash,
-        })
+
+        Ok(DidArgs::curry_tree_hash(
+            self.p2_puzzle_hash.into(),
+            self.recovery_list_hash,
+            self.num_verifications_required,
+            SingletonStruct::new(self.launcher_id),
+            tree_hash(allocator, metadata_ptr),
+        ))
     }
 }

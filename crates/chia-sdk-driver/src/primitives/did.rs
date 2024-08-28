@@ -2,7 +2,7 @@ use chia_protocol::Coin;
 use chia_puzzles::{did::DidSolution, singleton::SingletonSolution, LineageProof, Proof};
 use chia_sdk_types::{run_puzzle, Condition, Conditions};
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
+use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
@@ -20,6 +20,46 @@ pub struct Did<M> {
     pub coin: Coin,
     pub proof: Proof,
     pub info: DidInfo<M>,
+}
+
+impl<M> Did<M> {
+    pub fn new(coin: Coin, proof: Proof, info: DidInfo<M>) -> Self {
+        Self { coin, proof, info }
+    }
+
+    pub fn with_metadata<N>(self, metadata: N) -> Did<N> {
+        Did {
+            coin: self.coin,
+            proof: self.proof,
+            info: self.info.with_metadata(metadata),
+        }
+    }
+}
+
+impl<M> Did<M>
+where
+    M: ToClvm<Allocator>,
+{
+    /// Returns the lineage proof that would be used by the child.
+    pub fn child_lineage_proof(
+        &self,
+        allocator: &mut Allocator,
+    ) -> Result<LineageProof, DriverError> {
+        Ok(LineageProof {
+            parent_parent_coin_info: self.coin.parent_coin_info,
+            parent_inner_puzzle_hash: self.info.inner_puzzle_hash(allocator)?.into(),
+            parent_amount: self.coin.amount,
+        })
+    }
+
+    /// Creates a wrapped spendable DID for the child.
+    pub fn wrapped_child(self, allocator: &mut Allocator) -> Result<Self, DriverError> {
+        Ok(Self {
+            coin: Coin::new(self.coin.coin_id(), self.coin.puzzle_hash, self.coin.amount),
+            proof: Proof::Lineage(self.child_lineage_proof(allocator)?),
+            info: self.info,
+        })
+    }
 }
 
 impl<M> Did<M>
@@ -60,7 +100,40 @@ where
     }
 
     /// Recreates this DID and outputs additional conditions via the inner puzzle.
-    pub fn update_with<I>(
+    pub fn update_with_metadata<I, N>(
+        self,
+        ctx: &mut SpendContext,
+        inner: &I,
+        metadata: N,
+        extra_conditions: Conditions,
+    ) -> Result<Did<N>, DriverError>
+    where
+        I: SpendWithConditions,
+        N: ToClvm<Allocator> + Clone,
+    {
+        let new_inner_puzzle_hash = self
+            .info
+            .clone()
+            .with_metadata(metadata.clone())
+            .inner_puzzle_hash(&mut ctx.allocator)?;
+
+        self.spend_with(
+            ctx,
+            inner,
+            extra_conditions.create_coin(
+                new_inner_puzzle_hash.into(),
+                self.coin.amount,
+                vec![self.info.p2_puzzle_hash.into()],
+            ),
+        )?;
+
+        Ok(self
+            .wrapped_child(&mut ctx.allocator)?
+            .with_metadata(metadata))
+    }
+
+    /// Creates a new DID coin with the given metadata.
+    pub fn update<I>(
         self,
         ctx: &mut SpendContext,
         inner: &I,
@@ -69,73 +142,8 @@ where
     where
         I: SpendWithConditions,
     {
-        let hashed = self.with_hashed_metadata(&mut ctx.allocator)?;
-        let inner_puzzle_hash = hashed.info.inner_puzzle_hash();
-
-        self.spend_with(
-            ctx,
-            inner,
-            extra_conditions.create_coin(
-                inner_puzzle_hash.into(),
-                self.coin.amount,
-                vec![self.info.p2_puzzle_hash.into()],
-            ),
-        )?;
-
-        Ok(hashed.wrapped_child().with_metadata(self.info.metadata))
-    }
-}
-
-impl<M> Did<M> {
-    pub fn new(coin: Coin, proof: Proof, info: DidInfo<M>) -> Self {
-        Self { coin, proof, info }
-    }
-
-    /// Returns the lineage proof that would be used by the child.
-    pub fn child_lineage_proof(&self) -> LineageProof
-    where
-        M: ToTreeHash,
-    {
-        LineageProof {
-            parent_parent_coin_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
-            parent_amount: self.coin.amount,
-        }
-    }
-
-    /// Creates a wrapped spendable DID for the child.
-    #[must_use]
-    pub fn wrapped_child(self) -> Self
-    where
-        M: ToTreeHash,
-    {
-        Self {
-            coin: Coin::new(self.coin.coin_id(), self.coin.puzzle_hash, self.coin.amount),
-            proof: Proof::Lineage(self.child_lineage_proof()),
-            info: self.info,
-        }
-    }
-
-    pub fn with_metadata<N>(self, metadata: N) -> Did<N> {
-        Did {
-            coin: self.coin,
-            proof: self.proof,
-            info: self.info.with_metadata(metadata),
-        }
-    }
-
-    pub fn with_hashed_metadata(
-        &self,
-        allocator: &mut Allocator,
-    ) -> Result<Did<TreeHash>, DriverError>
-    where
-        M: ToClvm<Allocator>,
-    {
-        Ok(Did {
-            coin: self.coin,
-            proof: self.proof,
-            info: self.info.with_hashed_metadata(allocator)?,
-        })
+        let metadata = self.info.metadata.clone();
+        self.update_with_metadata(ctx, inner, metadata, extra_conditions)
     }
 }
 
@@ -279,6 +287,29 @@ mod tests {
         );
         assert_eq!(did.info.metadata, metadata);
         assert_eq!(did.info.p2_puzzle_hash, puzzle_hash);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_update_did_metadata() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+        let (sk, pk, _puzzle_hash, coin) = sim.new_p2(1)?;
+
+        let launcher = Launcher::new(coin.coin_id(), 1);
+        let (create_did, did) = launcher.create_simple_did(ctx, &StandardLayer::new(pk))?;
+        ctx.spend_standard_coin(coin, pk, create_did)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
+
+        let new_metadata = "New Metadata".to_string();
+        let updated_did = did.update_with_metadata(
+            ctx,
+            &StandardLayer::new(pk),
+            new_metadata.clone(),
+            Conditions::default(),
+        )?;
+        assert_eq!(updated_did.info.metadata, new_metadata);
 
         Ok(())
     }
