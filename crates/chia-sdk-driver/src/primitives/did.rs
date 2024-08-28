@@ -309,7 +309,41 @@ mod tests {
             new_metadata.clone(),
             Conditions::default(),
         )?;
+
         assert_eq!(updated_did.info.metadata, new_metadata);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_nodeptr_metadata() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+        let (sk, pk, _puzzle_hash, coin) = sim.new_p2(1)?;
+
+        let launcher = Launcher::new(coin.coin_id(), 1);
+        let (create_did, did) = launcher.create_did(
+            ctx,
+            Bytes32::default(),
+            1,
+            NodePtr::NIL,
+            &StandardLayer::new(pk),
+        )?;
+        ctx.spend_standard_coin(coin, pk, create_did)?;
+        sim.spend_coins(ctx.take(), &[sk])?;
+
+        let new_metadata = ctx.alloc(&1)?;
+        let updated_did = did.update_with_metadata(
+            ctx,
+            &StandardLayer::new(pk),
+            new_metadata,
+            Conditions::default(),
+        )?;
+
+        assert_eq!(
+            ctx.tree_hash(updated_did.info.metadata),
+            ctx.tree_hash(new_metadata)
+        );
 
         Ok(())
     }
