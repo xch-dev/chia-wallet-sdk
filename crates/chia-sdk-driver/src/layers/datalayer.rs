@@ -28,26 +28,15 @@ mod tests {
     use clvmr::serde::node_from_bytes;
     use rstest::rstest;
 
-    use crate::SpendContext;
+    use crate::{assert_puzzle_hash, SpendContext};
 
     use super::*;
-
-    #[macro_export]
-    macro_rules! assert_puzzle_hash {
-        ($puzzle:ident => $puzzle_hash:ident) => {
-            let mut a = clvmr::Allocator::new();
-            let ptr = clvmr::serde::node_from_bytes(&mut a, &$puzzle)?;
-            let hash = clvm_utils::tree_hash(&mut a, ptr);
-            assert_eq!($puzzle_hash, hash);
-        };
-    }
 
     #[test]
     fn test_puzzle_hashes() -> anyhow::Result<()> {
         assert_puzzle_hash!(DELEGATION_LAYER_PUZZLE => DELEGATION_LAYER_PUZZLE_HASH);
         assert_puzzle_hash!(WRITER_FILTER_PUZZLE => WRITER_FILTER_PUZZLE_HASH);
         assert_puzzle_hash!(DL_METADATA_UPDATER_PUZZLE => DL_METADATA_UPDATER_PUZZLE_HASH);
-
         Ok(())
     }
 

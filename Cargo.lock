@@ -439,7 +439,6 @@ dependencies = [
  "chia-protocol",
  "chia-sdk-derive",
  "clvm-traits",
- "clvm-utils",
  "clvmr",
  "hex",
  "hex-literal",

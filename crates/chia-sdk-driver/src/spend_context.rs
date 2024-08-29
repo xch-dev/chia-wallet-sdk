@@ -21,14 +21,15 @@ use chia_puzzles::{
     },
     standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
 };
-use chia_sdk_types::{
-    run_puzzle, P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
-};
+use chia_sdk_types::run_puzzle;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
-use crate::{DriverError, Spend};
+use crate::{
+    DriverError, Spend, P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
+    P2_ONE_OF_MANY_PUZZLE, P2_ONE_OF_MANY_PUZZLE_HASH,
+};
 
 /// A wrapper around [`Allocator`] that caches puzzles and keeps track of a list of [`CoinSpend`].
 /// It's used to construct spend bundles in an easy and efficient way.
@@ -187,6 +188,11 @@ impl SpendContext {
             P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
             &P2_DELEGATED_CONDITIONS_PUZZLE,
         )
+    }
+
+    /// Allocate the p2 one of many puzzle and return its pointer.
+    pub fn p2_one_of_many_puzzle(&mut self) -> Result<NodePtr, DriverError> {
+        self.puzzle(P2_ONE_OF_MANY_PUZZLE_HASH, &P2_ONE_OF_MANY_PUZZLE)
     }
 
     /// Preload a puzzle into the cache.
