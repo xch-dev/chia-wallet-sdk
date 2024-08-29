@@ -242,10 +242,11 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
         let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
+        let p2 = StandardLayer::new(pk);
 
         let launcher = Launcher::new(coin.coin_id(), 1);
-        let (create_did, did) = launcher.create_simple_did(ctx, &StandardLayer::new(pk))?;
-        ctx.spend_standard_coin(coin, pk, create_did)?;
+        let (create_did, did) = launcher.create_simple_did(ctx, &p2)?;
+        p2.spend(ctx, coin, create_did)?;
         sim.spend_coins(ctx.take(), &[sk])?;
 
         assert_eq!(did.info.recovery_list_hash, tree_hash_atom(&[]).into());
@@ -271,6 +272,7 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
         let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
+        let p2 = StandardLayer::new(pk);
 
         let launcher = Launcher::new(coin.coin_id(), 1);
         let (create_did, did) = launcher.create_did(
@@ -278,9 +280,9 @@ mod tests {
             recovery_list_hash,
             num_verifications_required,
             metadata.clone(),
-            &StandardLayer::new(pk),
+            &p2,
         )?;
-        ctx.spend_standard_coin(coin, pk, create_did)?;
+        p2.spend(ctx, coin, create_did)?;
         sim.spend_coins(ctx.take(), &[sk])?;
 
         assert_eq!(did.info.recovery_list_hash, recovery_list_hash);
@@ -299,19 +301,16 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
         let (sk, pk, _puzzle_hash, coin) = sim.new_p2(1)?;
+        let p2 = StandardLayer::new(pk);
 
         let launcher = Launcher::new(coin.coin_id(), 1);
-        let (create_did, did) = launcher.create_simple_did(ctx, &StandardLayer::new(pk))?;
-        ctx.spend_standard_coin(coin, pk, create_did)?;
+        let (create_did, did) = launcher.create_simple_did(ctx, &p2)?;
+        p2.spend(ctx, coin, create_did)?;
         sim.spend_coins(ctx.take(), &[sk])?;
 
         let new_metadata = "New Metadata".to_string();
-        let updated_did = did.update_with_metadata(
-            ctx,
-            &StandardLayer::new(pk),
-            new_metadata.clone(),
-            Conditions::default(),
-        )?;
+        let updated_did =
+            did.update_with_metadata(ctx, &p2, new_metadata.clone(), Conditions::default())?;
 
         assert_eq!(updated_did.info.metadata, new_metadata);
 
@@ -323,25 +322,17 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
         let (sk, pk, _puzzle_hash, coin) = sim.new_p2(1)?;
+        let p2 = StandardLayer::new(pk);
 
         let launcher = Launcher::new(coin.coin_id(), 1);
-        let (create_did, did) = launcher.create_did(
-            ctx,
-            Bytes32::default(),
-            1,
-            HashedPtr::NIL,
-            &StandardLayer::new(pk),
-        )?;
-        ctx.spend_standard_coin(coin, pk, create_did)?;
+        let (create_did, did) =
+            launcher.create_did(ctx, Bytes32::default(), 1, HashedPtr::NIL, &p2)?;
+        p2.spend(ctx, coin, create_did)?;
         sim.spend_coins(ctx.take(), &[sk])?;
 
         let new_metadata = HashedPtr::from_ptr(&ctx.allocator, ctx.allocator.one());
-        let updated_did = did.update_with_metadata(
-            ctx,
-            &StandardLayer::new(pk),
-            new_metadata,
-            Conditions::default(),
-        )?;
+        let updated_did =
+            did.update_with_metadata(ctx, &p2, new_metadata, Conditions::default())?;
 
         assert_eq!(updated_did.info.metadata, new_metadata);
 

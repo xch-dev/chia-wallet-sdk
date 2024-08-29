@@ -291,7 +291,7 @@ mod tests {
     use chia_sdk_test::{Simulator, SimulatorError};
     use rstest::rstest;
 
-    use crate::StandardLayer;
+    use crate::{SpendWithConditions, StandardLayer};
 
     use super::*;
 
@@ -300,6 +300,7 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
         let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
+        let p2 = StandardLayer::new(pk);
 
         let (issue_cat, cat) = Cat::single_issuance_eve(
             ctx,
@@ -307,8 +308,8 @@ mod tests {
             1,
             Conditions::new().create_coin(puzzle_hash, 1, vec![puzzle_hash.into()]),
         )?;
+        p2.spend(ctx, coin, issue_cat)?;
 
-        ctx.spend_standard_coin(coin, pk, issue_cat)?;
         sim.spend_coins(ctx.take(), &[sk])?;
 
         let cat = cat.wrapped_child(puzzle_hash, 1);
@@ -327,6 +328,7 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
         let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
+        let p2 = StandardLayer::new(pk);
 
         let (issue_cat, cat) = Cat::multi_issuance_eve(
             ctx,
@@ -335,8 +337,7 @@ mod tests {
             1,
             Conditions::new().create_coin(puzzle_hash, 1, vec![puzzle_hash.into()]),
         )?;
-
-        ctx.spend_standard_coin(coin, pk, issue_cat)?;
+        p2.spend(ctx, coin, issue_cat)?;
         sim.spend_coins(ctx.take(), &[sk])?;
 
         let cat = cat.wrapped_child(puzzle_hash, 1);
@@ -355,11 +356,12 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
         let (sk, pk, _puzzle_hash, coin) = sim.new_p2(1)?;
+        let p2 = StandardLayer::new(pk);
 
         let (issue_cat, _cat) =
             Cat::single_issuance_eve(ctx, coin.coin_id(), 1, Conditions::new())?;
+        p2.spend(ctx, coin, issue_cat)?;
 
-        ctx.spend_standard_coin(coin, pk, issue_cat)?;
         assert!(matches!(
             sim.spend_coins(ctx.take(), &[sk]).unwrap_err(),
             SimulatorError::Validation(ErrorCode::AssertCoinAnnouncementFailed)
@@ -373,6 +375,7 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
         let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
+        let p2 = StandardLayer::new(pk);
 
         let (issue_cat, _cat) = Cat::single_issuance_eve(
             ctx,
@@ -380,8 +383,8 @@ mod tests {
             1,
             Conditions::new().create_coin(puzzle_hash, 2, vec![puzzle_hash.into()]),
         )?;
+        p2.spend(ctx, coin, issue_cat)?;
 
-        ctx.spend_standard_coin(coin, pk, issue_cat)?;
         assert!(matches!(
             sim.spend_coins(ctx.take(), &[sk]).unwrap_err(),
             SimulatorError::Validation(ErrorCode::AssertCoinAnnouncementFailed)
@@ -409,6 +412,7 @@ mod tests {
         // Create the coin with the sum of all the amounts we need to issue.
         let sum = amounts.iter().sum::<u64>();
         let (sk, pk, puzzle_hash, coin) = sim.new_p2(sum)?;
+        let p2 = StandardLayer::new(pk);
 
         // Issue the CAT coins with those amounts.
         let mut conditions = Conditions::new();
@@ -418,8 +422,8 @@ mod tests {
         }
 
         let (issue_cat, cat) = Cat::single_issuance_eve(ctx, coin.coin_id(), sum, conditions)?;
+        p2.spend(ctx, coin, issue_cat)?;
 
-        ctx.spend_standard_coin(coin, pk, issue_cat)?;
         sim.spend_coins(ctx.take(), &[sk.clone()])?;
 
         let mut cats: Vec<Cat> = amounts
@@ -434,7 +438,7 @@ mod tests {
                 .map(|cat| {
                     Ok(CatSpend::new(
                         *cat,
-                        StandardLayer::new(pk).spend(
+                        p2.spend_with_conditions(
                             ctx,
                             Conditions::new().create_coin(
                                 puzzle_hash,
@@ -464,6 +468,7 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
         let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
+        let p2 = StandardLayer::new(pk);
 
         // This will just return the solution verbatim.
         let custom_p2 = ctx.alloc(&1)?;
@@ -477,14 +482,13 @@ mod tests {
                 .create_coin(puzzle_hash, 1, vec![puzzle_hash.into()])
                 .create_coin(custom_p2_puzzle_hash, 1, vec![custom_p2_puzzle_hash.into()]),
         )?;
-
-        ctx.spend_standard_coin(coin, pk, issue_cat)?;
+        p2.spend(ctx, coin, issue_cat)?;
         sim.spend_coins(ctx.take(), &[sk.clone()])?;
 
         let spends = [
             CatSpend::new(
                 cat.wrapped_child(puzzle_hash, 1),
-                StandardLayer::new(pk).spend(
+                p2.spend_with_conditions(
                     ctx,
                     Conditions::new().create_coin(puzzle_hash, 1, vec![puzzle_hash.into()]),
                 )?,
@@ -513,12 +517,12 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
         let (sk, pk, puzzle_hash, coin) = sim.new_p2(10000)?;
+        let p2 = StandardLayer::new(pk);
 
         let conditions =
             Conditions::new().create_coin(puzzle_hash, 10000, vec![puzzle_hash.into()]);
         let (issue_cat, cat) = Cat::multi_issuance_eve(ctx, coin.coin_id(), pk, 10000, conditions)?;
-
-        ctx.spend_standard_coin(coin, pk, issue_cat)?;
+        p2.spend(ctx, coin, issue_cat)?;
 
         let everything_with_signature_ptr = ctx.everything_with_signature_tail_puzzle()?;
 
@@ -529,7 +533,7 @@ mod tests {
 
         let cat_spend = CatSpend::with_extra_delta(
             cat.wrapped_child(puzzle_hash, 10000),
-            StandardLayer::new(pk).spend(
+            p2.spend_with_conditions(
                 ctx,
                 Conditions::new()
                     .create_coin(puzzle_hash, 7000, vec![puzzle_hash.into()])

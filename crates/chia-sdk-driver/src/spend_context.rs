@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use chia_bls::PublicKey;
 use chia_protocol::{Coin, CoinSpend, Program};
 use chia_puzzles::{
     cat::{
@@ -23,13 +22,13 @@ use chia_puzzles::{
     standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
 };
 use chia_sdk_types::{
-    run_puzzle, Conditions, P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
+    run_puzzle, P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
-use crate::{DriverError, Spend, StandardLayer};
+use crate::{DriverError, Spend};
 
 /// A wrapper around [`Allocator`] that caches puzzles and keeps track of a list of [`CoinSpend`].
 /// It's used to construct spend bundles in an easy and efficient way.
@@ -213,17 +212,6 @@ impl SpendContext {
             self.puzzles.insert(puzzle_hash, puzzle);
             Ok(puzzle)
         }
-    }
-
-    /// Spend a standard p2 coin.
-    pub fn spend_standard_coin(
-        &mut self,
-        coin: Coin,
-        synthetic_key: PublicKey,
-        conditions: Conditions,
-    ) -> Result<(), DriverError> {
-        let p2_spend = StandardLayer::new(synthetic_key).spend(self, conditions)?;
-        self.spend(coin, p2_spend)
     }
 }
 

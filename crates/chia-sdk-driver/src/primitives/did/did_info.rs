@@ -102,3 +102,33 @@ impl<M> DidInfo<M> {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use chia_protocol::Coin;
+    use chia_puzzles::standard::StandardArgs;
+    use chia_sdk_test::test_secret_key;
+
+    use crate::{Launcher, SpendContext, StandardLayer};
+
+    use super::*;
+
+    #[test]
+    fn test_parse_did() -> anyhow::Result<()> {
+        let pk = test_secret_key()?.public_key();
+        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
+        let coin = Coin::new(Bytes32::default(), puzzle_hash, 1);
+        let ctx = &mut SpendContext::new();
+
+        let custom_metadata = vec!["Metadata".to_string(), "Example".to_string()];
+        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_did(
+            ctx,
+            Bytes32::default(),
+            1,
+            custom_metadata,
+            &StandardLayer::new(pk),
+        )?;
+
+        Ok(())
+    }
+}

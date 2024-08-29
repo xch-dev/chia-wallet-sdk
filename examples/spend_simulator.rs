@@ -9,6 +9,8 @@ fn main() -> anyhow::Result<()> {
     // Setup the key, puzzle hash, and mint a coin.
     let sk = test_secret_key()?;
     let pk = sk.public_key();
+    let p2 = StandardLayer::new(pk);
+
     let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
     let coin = sim.new_coin(puzzle_hash, 1_000);
 
@@ -21,7 +23,7 @@ fn main() -> anyhow::Result<()> {
         .create_coin(puzzle_hash, 900, Vec::new())
         .reserve_fee(100);
 
-    ctx.spend_standard_coin(coin, pk, conditions)?;
+    p2.spend(ctx, coin, conditions)?;
 
     let new_coin = Coin::new(coin.coin_id(), puzzle_hash, 900);
 
