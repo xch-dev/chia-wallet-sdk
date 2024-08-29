@@ -105,29 +105,48 @@ impl<M> DidInfo<M> {
 
 #[cfg(test)]
 mod tests {
-    use chia_protocol::Coin;
-    use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::test_secret_key;
+    use chia_sdk_test::Simulator;
+    use chia_sdk_types::Conditions;
 
     use crate::{Launcher, SpendContext, StandardLayer};
 
     use super::*;
 
     #[test]
-    fn test_parse_did() -> anyhow::Result<()> {
-        let pk = test_secret_key()?.public_key();
-        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = Coin::new(Bytes32::default(), puzzle_hash, 1);
+    fn test_parse_did_info() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
-        let custom_metadata = vec!["Metadata".to_string(), "Example".to_string()];
+        let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
+        let p2 = StandardLayer::new(pk);
+
+        let custom_metadata = ["Metadata".to_string(), "Example".to_string()];
         let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_did(
             ctx,
             Bytes32::default(),
             1,
             custom_metadata,
-            &StandardLayer::new(pk),
+            &p2,
         )?;
+        p2.spend(ctx, coin, create_did)?;
+
+        let original_did = did.clone();
+        let _did = did.update(ctx, &p2, Conditions::new())?;
+
+        sim.spend_coins(ctx.take(), &[sk])?;
+
+        let puzzle_reveal = sim
+            .puzzle_reveal(original_did.coin.coin_id())
+            .expect("missing did puzzle");
+
+        let mut allocator = Allocator::new();
+        let ptr = puzzle_reveal.to_clvm(&mut allocator)?;
+        let puzzle = Puzzle::parse(&allocator, ptr);
+        let (did_info, p2_puzzle) =
+            DidInfo::<[String; 2]>::parse(&allocator, puzzle)?.expect("not a did");
+
+        assert_eq!(did_info, original_did.info);
+        assert_eq!(p2_puzzle.curried_puzzle_hash(), puzzle_hash.into());
 
         Ok(())
     }
