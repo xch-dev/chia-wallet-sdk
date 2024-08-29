@@ -22,7 +22,6 @@ chia-consensus = { workspace = true }
 clvm-traits = { workspace = true }
 clvm-utils = { workspace = true }
 clvmr = { workspace = true }
-thiserror = { workspace = true }
 hex-literal = { workspace = true }
 once_cell = { workspace = true }
 
