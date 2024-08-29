@@ -338,4 +338,51 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_parse_did() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let (sk, pk, _puzzle_hash, coin) = sim.new_p2(1)?;
+        let p2 = StandardLayer::new(pk);
+
+        let (create_did, expected_did) =
+            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &p2)?;
+        p2.spend(ctx, coin, create_did)?;
+
+        sim.spend_coins(ctx.take(), &[sk])?;
+
+        let mut allocator = Allocator::new();
+
+        let puzzle_reveal = sim
+            .puzzle_reveal(expected_did.coin.parent_coin_info)
+            .expect("missing puzzle")
+            .to_clvm(&mut allocator)?;
+
+        let solution = sim
+            .solution(expected_did.coin.parent_coin_info)
+            .expect("missing solution")
+            .to_clvm(&mut allocator)?;
+
+        let parent_coin = sim
+            .coin_state(expected_did.coin.parent_coin_info)
+            .expect("missing parent coin state")
+            .coin;
+
+        let puzzle = Puzzle::parse(&allocator, puzzle_reveal);
+
+        let did = Did::<()>::from_parent_spend(
+            &mut allocator,
+            parent_coin,
+            puzzle,
+            solution,
+            expected_did.coin,
+        )?
+        .expect("could not parse did");
+
+        assert_eq!(did, expected_did);
+
+        Ok(())
+    }
 }
