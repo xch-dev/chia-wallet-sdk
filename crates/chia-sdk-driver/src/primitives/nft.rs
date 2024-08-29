@@ -381,21 +381,17 @@ mod tests {
 
     use super::*;
 
-    use chia_bls::{DerivableKey, PublicKey};
+    use chia_bls::DerivableKey;
     use chia_puzzles::{nft::NftMetadata, standard::StandardArgs};
-    use chia_sdk_test::{test_secret_key, Simulator};
+    use chia_sdk_test::Simulator;
 
     #[test]
     fn test_nft_transfer() -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
-        let sk = test_secret_key()?;
-        let pk = sk.public_key();
+        let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
         let p2 = StandardLayer::new(pk);
-
-        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.new_coin(puzzle_hash, 2);
 
         let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &p2)?;
         p2.spend(ctx, coin, create_did)?;
@@ -431,12 +427,8 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
-        let sk = test_secret_key()?;
-        let pk = sk.public_key();
+        let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
         let p2 = StandardLayer::new(pk);
-
-        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let coin = sim.new_coin(puzzle_hash, 2);
 
         let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &p2)?;
         p2.spend(ctx, coin, create_did)?;
@@ -486,16 +478,13 @@ mod tests {
 
     #[test]
     fn test_parse_nft() -> anyhow::Result<()> {
-        let mut ctx = SpendContext::new();
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
 
-        let pk = PublicKey::default();
+        let (_sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
         let p2 = StandardLayer::new(pk);
 
-        let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
-        let parent = Coin::new(Bytes32::default(), puzzle_hash, 2);
-
-        let (create_did, did) =
-            Launcher::new(parent.coin_id(), 1).create_simple_did(&mut ctx, &p2)?;
+        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &p2)?;
 
         let mint = NftMint::new(
             NftMetadata::default(),
@@ -505,8 +494,8 @@ mod tests {
         )
         .with_royalty_puzzle_hash(Bytes32::new([1; 32]));
 
-        let (mint_nft, nft) = Launcher::new(did.coin.coin_id(), 1).mint_nft(&mut ctx, mint)?;
-        p2.spend(&mut ctx, parent, create_did.extend(mint_nft))?;
+        let (mint_nft, nft) = Launcher::new(did.coin.coin_id(), 1).mint_nft(ctx, mint)?;
+        p2.spend(ctx, coin, create_did.extend(mint_nft))?;
 
         let coin_spends = ctx.take();
 
@@ -521,7 +510,7 @@ mod tests {
         let puzzle = Puzzle::parse(&ctx.allocator, puzzle_ptr);
         let parsed_nft = Nft::<NftMetadata>::from_parent_spend(
             &mut ctx.allocator,
-            parent,
+            coin,
             puzzle,
             solution_ptr,
             nft.coin,
