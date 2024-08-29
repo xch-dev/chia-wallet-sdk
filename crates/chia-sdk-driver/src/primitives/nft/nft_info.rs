@@ -141,3 +141,62 @@ impl<M> NftInfo<M> {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use chia_puzzles::nft::NftMetadata;
+    use chia_sdk_test::Simulator;
+    use chia_sdk_types::Conditions;
+
+    use crate::{DidOwner, IntermediateLauncher, Launcher, NftMint, SpendContext, StandardLayer};
+
+    use super::*;
+
+    #[test]
+    fn test_parse_nft_info() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
+        let p2 = StandardLayer::new(pk);
+
+        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &p2)?;
+        p2.spend(ctx, coin, create_did)?;
+
+        let mut metadata = NftMetadata::default();
+        metadata.data_uris.push("example.com".to_string());
+
+        let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
+            .create(ctx)?
+            .mint_nft(
+                ctx,
+                NftMint::new(
+                    metadata,
+                    puzzle_hash,
+                    300,
+                    Some(DidOwner::from_did_info(&did.info)),
+                ),
+            )?;
+
+        let _did = did.update(ctx, &p2, mint_nft)?;
+        let original_nft = nft.clone();
+        let _nft = nft.transfer(ctx, &p2, puzzle_hash, Conditions::new())?;
+
+        sim.spend_coins(ctx.take(), &[sk])?;
+
+        let puzzle_reveal = sim
+            .puzzle_reveal(original_nft.coin.coin_id())
+            .expect("missing nft puzzle");
+
+        let mut allocator = Allocator::new();
+        let ptr = puzzle_reveal.to_clvm(&mut allocator)?;
+        let puzzle = Puzzle::parse(&allocator, ptr);
+        let (nft_info, p2_puzzle) =
+            NftInfo::<NftMetadata>::parse(&allocator, puzzle)?.expect("not an nft");
+
+        assert_eq!(nft_info, original_nft.info);
+        assert_eq!(p2_puzzle.curried_puzzle_hash(), puzzle_hash.into());
+
+        Ok(())
+    }
+}

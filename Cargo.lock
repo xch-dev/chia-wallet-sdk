@@ -444,7 +444,6 @@ dependencies = [
  "hex",
  "hex-literal",
  "once_cell",
- "thiserror",
 ]
 
 [[package]]

@@ -99,7 +99,7 @@ mod tests {
 
     use crate::{
         tests::{ByteSize, Description, Label, RootHash},
-        DataStoreMetadata,
+        DataStoreMetadata, StandardLayer,
     };
 
     use super::*;
@@ -168,8 +168,7 @@ mod tests {
             owner_puzzle_hash.into(),
             delegated_puzzles,
         )?;
-
-        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
+        StandardLayer::new(owner_pk).spend(ctx, coin, launch_singleton)?;
 
         let spends = ctx.take();
         for spend in spends.clone() {

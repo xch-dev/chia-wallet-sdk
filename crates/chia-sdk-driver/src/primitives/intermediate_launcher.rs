@@ -1,5 +1,3 @@
-#![allow(clippy::missing_const_for_fn)]
-
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{nft::NftIntermediateLauncherArgs, singleton::SINGLETON_LAUNCHER_PUZZLE_HASH};
 use chia_sdk_types::{announcement_id, Conditions};

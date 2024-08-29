@@ -1,4 +1,5 @@
 use chia_bls::PublicKey;
+use chia_protocol::Coin;
 use chia_puzzles::standard::{StandardArgs, StandardSolution, STANDARD_PUZZLE_HASH};
 use chia_sdk_types::Conditions;
 use clvm_traits::{clvm_quote, FromClvm};
@@ -25,22 +26,14 @@ impl StandardLayer {
         Self { synthetic_key }
     }
 
-    // This lint is ignored since semantically we want spends to consume Conditions.
-    #[allow(clippy::needless_pass_by_value)]
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
+        coin: Coin,
         conditions: Conditions,
-    ) -> Result<Spend, DriverError> {
-        let delegated_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
-        self.construct_spend(
-            ctx,
-            StandardSolution {
-                original_public_key: None,
-                delegated_puzzle,
-                solution: NodePtr::NIL,
-            },
-        )
+    ) -> Result<(), DriverError> {
+        let spend = self.spend_with_conditions(ctx, conditions)?;
+        ctx.spend(coin, spend)
     }
 }
 
@@ -93,7 +86,15 @@ impl SpendWithConditions for StandardLayer {
         ctx: &mut SpendContext,
         conditions: Conditions,
     ) -> Result<Spend, DriverError> {
-        self.spend(ctx, conditions)
+        let delegated_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
+        self.construct_spend(
+            ctx,
+            StandardSolution {
+                original_public_key: None,
+                delegated_puzzle,
+                solution: NodePtr::NIL,
+            },
+        )
     }
 }
 

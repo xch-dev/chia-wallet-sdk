@@ -595,7 +595,9 @@ pub mod tests {
     use clvmr::sha2::Sha256;
     use rstest::rstest;
 
-    use crate::{DelegationLayer, Launcher, OracleLayer, StandardLayer, WriterLayer};
+    use crate::{
+        DelegationLayer, Launcher, OracleLayer, SpendWithConditions, StandardLayer, WriterLayer,
+    };
 
     use super::*;
 
@@ -680,6 +682,7 @@ pub mod tests {
 
         let [sk]: [SecretKey; 1] = test_secret_keys(1)?.try_into().unwrap();
         let pk = sk.public_key();
+        let p2 = StandardLayer::new(pk);
 
         let puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
         let coin = sim.new_coin(puzzle_hash, 1);
@@ -692,8 +695,7 @@ pub mod tests {
             puzzle_hash.into(),
             vec![],
         )?;
-
-        ctx.spend_standard_coin(coin, pk, launch_singleton)?;
+        p2.spend(ctx, coin, launch_singleton)?;
 
         let spends = ctx.take();
         for spend in spends {
@@ -708,7 +710,7 @@ pub mod tests {
         }
 
         let datastore_inner_spend = StandardLayer::new(pk)
-            .spend(ctx, Conditions::new().create_coin(puzzle_hash, 1, vec![]))?;
+            .spend_with_conditions(ctx, Conditions::new().create_coin(puzzle_hash, 1, vec![]))?;
 
         let old_datastore_coin = datastore.coin;
         let new_spend = datastore.spend(ctx, datastore_inner_spend)?;
@@ -776,8 +778,7 @@ pub mod tests {
                 oracle_delegated_puzzle,
             ],
         )?;
-
-        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
+        StandardLayer::new(owner_pk).spend(ctx, coin, launch_singleton)?;
 
         let spends = ctx.take();
         for spend in spends {
@@ -832,7 +833,7 @@ pub mod tests {
         }
         .to_clvm(&mut ctx.allocator)?;
 
-        let inner_spend = StandardLayer::new(admin_pk).spend(
+        let inner_spend = StandardLayer::new(admin_pk).spend_with_conditions(
             ctx,
             Conditions::new().with(Condition::Other(new_merkle_root_condition)),
         )?;
@@ -874,9 +875,9 @@ pub mod tests {
         hasher.update(datastore.coin.puzzle_hash);
         hasher.update(Bytes::new("$".into()).to_vec());
 
-        ctx.spend_standard_coin(
+        StandardLayer::new(owner_pk).spend(
+            ctx,
             new_coin,
-            owner_pk,
             Conditions::new().assert_puzzle_announcement(Bytes32::new(hasher.finalize())),
         )?;
 
@@ -890,7 +891,7 @@ pub mod tests {
             true,
         )?;
         let datastore_remove_delegation_layer_inner_spend =
-            owner_layer.spend(ctx, Conditions::new().with(output_condition))?;
+            owner_layer.spend_with_conditions(ctx, Conditions::new().with(output_condition))?;
         let new_spend = datastore
             .clone()
             .spend(ctx, datastore_remove_delegation_layer_inner_spend)?;
@@ -1005,7 +1006,7 @@ pub mod tests {
             src_delegated_puzzles.clone(),
         )?;
 
-        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
+        StandardLayer::new(owner_pk).spend(ctx, coin, launch_singleton)?;
 
         // transition from src to dst
         let mut admin_inner_output = Conditions::new();
@@ -1058,7 +1059,8 @@ pub mod tests {
         }
 
         // delegated puzzle info + inner puzzle reveal + solution
-        let inner_datastore_spend = StandardLayer::new(admin_pk).spend(ctx, admin_inner_output)?;
+        let inner_datastore_spend =
+            StandardLayer::new(admin_pk).spend_with_conditions(ctx, admin_inner_output)?;
         let src_datastore_coin = src_datastore.coin;
         let new_spend = src_datastore.clone().spend(ctx, inner_datastore_spend)?;
 
@@ -1197,7 +1199,7 @@ pub mod tests {
             owner_puzzle_hash.into(),
             src_delegated_puzzles.clone(),
         )?;
-        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
+        StandardLayer::new(owner_pk).spend(ctx, coin, launch_singleton)?;
 
         // transition from src to dst using owner puzzle
         let mut owner_output_conds = Conditions::new();
@@ -1244,7 +1246,8 @@ pub mod tests {
         }
 
         // delegated puzzle info + inner puzzle reveal + solution
-        let inner_datastore_spend = StandardLayer::new(owner_pk).spend(ctx, owner_output_conds)?;
+        let inner_datastore_spend =
+            StandardLayer::new(owner_pk).spend_with_conditions(ctx, owner_output_conds)?;
         let new_spend = src_datastore.clone().spend(ctx, inner_datastore_spend)?;
 
         let dst_datastore = DataStore::<DataStoreMetadata>::from_spend(
@@ -1388,7 +1391,7 @@ pub mod tests {
             delegated_puzzles.clone(),
         )?;
 
-        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
+        StandardLayer::new(owner_pk).spend(ctx, coin, launch_singleton)?;
 
         // transition from src to dst using writer (update metadata)
         let new_metadata = metadata_from_tuple(meta_transition.1);
@@ -1518,7 +1521,7 @@ pub mod tests {
             delegated_puzzles.clone(),
         )?;
 
-        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
+        StandardLayer::new(owner_pk).spend(ctx, coin, launch_singleton)?;
 
         // 'dude' spends oracle
         let inner_datastore_spend = OracleLayer::new(oracle_puzzle_hash, oracle_fee)
@@ -1542,9 +1545,9 @@ pub mod tests {
         hasher.update(Bytes::new("$".into()).to_vec());
 
         let new_coin = sim.new_coin(dude_puzzle_hash, oracle_fee);
-        ctx.spend_standard_coin(
+        StandardLayer::new(dude_pk).spend(
+            ctx,
             new_coin,
-            dude_pk,
             Conditions::new().assert_puzzle_announcement(Bytes32::new(hasher.finalize())),
         )?;
 
@@ -1661,13 +1664,14 @@ pub mod tests {
             delegated_puzzles.clone(),
         )?;
 
-        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
+        StandardLayer::new(owner_pk).spend(ctx, coin, launch_singleton)?;
 
         // owner melts
         let output_conds = Conditions::new().with(Condition::Other(
             MeltSingleton {}.to_clvm(&mut ctx.allocator)?,
         ));
-        let inner_datastore_spend = StandardLayer::new(owner_pk).spend(ctx, output_conds)?;
+        let inner_datastore_spend =
+            StandardLayer::new(owner_pk).spend_with_conditions(ctx, output_conds)?;
 
         let new_spend = src_datastore.clone().spend(ctx, inner_datastore_spend)?;
         ctx.insert(new_spend);
@@ -1713,7 +1717,7 @@ pub mod tests {
         ) -> Result<Spend, DriverError> {
             Ok(match self {
                 AttackerPuzzle::Admin => {
-                    StandardLayer::new(attacker_pk).spend(ctx, output_conds)?
+                    StandardLayer::new(attacker_pk).spend_with_conditions(ctx, output_conds)?
                 }
 
                 AttackerPuzzle::Writer => {
@@ -1753,7 +1757,7 @@ pub mod tests {
             vec![delegated_puzzle],
         )?;
 
-        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
+        StandardLayer::new(owner_pk).spend(ctx, coin, launch_singleton)?;
 
         // delegated puzzle tries to steal the coin
         let inner_datastore_spend = puzzle.get_spend(
@@ -1814,7 +1818,7 @@ pub mod tests {
             vec![delegated_puzzle],
         )?;
 
-        ctx.spend_standard_coin(coin, owner_pk, launch_singleton)?;
+        StandardLayer::new(owner_pk).spend(ctx, coin, launch_singleton)?;
 
         // attacker tries to melt the coin via delegated puzzle
         let conds = Conditions::new().with(Condition::Other(
@@ -2035,7 +2039,7 @@ pub mod tests {
         let launcher_coin = launcher.coin();
         let (launcher_conds, eve_coin) = launcher.spend(ctx, state_layer_hash.into(), kv_list)?;
 
-        ctx.spend_standard_coin(coin, owner_pk, launcher_conds)?;
+        StandardLayer::new(owner_pk).spend(ctx, coin, launcher_conds)?;
 
         let spends = ctx.take();
         spends
@@ -2112,7 +2116,8 @@ pub mod tests {
             ],
         }));
 
-        let inner_spend = StandardLayer::new(owner_pk).spend(ctx, inner_spend_conditions)?;
+        let inner_spend =
+            StandardLayer::new(owner_pk).spend_with_conditions(ctx, inner_spend_conditions)?;
         let spend = datastore_from_launcher.clone().spend(ctx, inner_spend)?;
 
         let new_datastore = DataStore::<DataStoreMetadata>::from_spend(
