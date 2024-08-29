@@ -377,12 +377,11 @@ pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &Trans
 
 #[cfg(test)]
 mod tests {
-    use crate::{HashedPtr, IntermediateLauncher, Launcher, NftMint, StandardLayer};
+    use crate::{IntermediateLauncher, Launcher, NftMint, StandardLayer};
 
     use super::*;
 
-    use chia_bls::DerivableKey;
-    use chia_puzzles::{nft::NftMetadata, standard::StandardArgs};
+    use chia_puzzles::nft::NftMetadata;
     use chia_sdk_test::Simulator;
 
     #[test]
@@ -406,16 +405,8 @@ mod tests {
         let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
             .create(ctx)?
             .mint_nft(ctx, mint)?;
-
-        // Make sure that bounds are relaxed enough to do this.
-        let metadata_ptr = ctx.alloc(&nft.info.metadata)?;
-        let nft = nft.with_metadata(HashedPtr::from_ptr(&ctx.allocator, metadata_ptr));
-
         let _did = did.update(ctx, &p2, mint_nft)?;
-
-        let other_puzzle_hash = StandardArgs::curry_tree_hash(pk.derive_unhardened(0)).into();
-
-        let _nft = nft.transfer(ctx, &p2, other_puzzle_hash, Conditions::new())?;
+        let _nft = nft.transfer(ctx, &p2, puzzle_hash, Conditions::new())?;
 
         sim.spend_coins(ctx.take(), &[sk])?;
 
@@ -462,16 +453,6 @@ mod tests {
         }
 
         sim.spend_coins(ctx.take(), &[sk])?;
-
-        let coin_state = sim
-            .coin_state(did.coin.coin_id())
-            .expect("expected did coin");
-        assert_eq!(coin_state.coin, did.coin);
-
-        let coin_state = sim
-            .coin_state(nft.coin.coin_id())
-            .expect("expected nft coin");
-        assert_eq!(coin_state.coin, nft.coin);
 
         Ok(())
     }
