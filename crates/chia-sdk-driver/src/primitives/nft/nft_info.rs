@@ -166,7 +166,7 @@ mod tests {
         let mut metadata = NftMetadata::default();
         metadata.data_uris.push("example.com".to_string());
 
-        let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 1, 1)
+        let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
             .create(ctx)?
             .mint_nft(
                 ctx,

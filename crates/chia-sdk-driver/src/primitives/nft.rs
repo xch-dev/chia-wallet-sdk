@@ -481,43 +481,57 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
-        let (_sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
+        let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
         let p2 = StandardLayer::new(pk);
 
         let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &p2)?;
+        p2.spend(ctx, coin, create_did)?;
 
-        let mint = NftMint::new(
-            NftMetadata::default(),
-            puzzle_hash,
-            300,
-            Some(DidOwner::from_did_info(&did.info)),
-        )
-        .with_royalty_puzzle_hash(Bytes32::new([1; 32]));
+        let mut metadata = NftMetadata::default();
+        metadata.data_uris.push("example.com".to_string());
 
-        let (mint_nft, nft) = Launcher::new(did.coin.coin_id(), 1).mint_nft(ctx, mint)?;
-        p2.spend(ctx, coin, create_did.extend(mint_nft))?;
+        let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
+            .create(ctx)?
+            .mint_nft(
+                ctx,
+                NftMint::new(
+                    metadata,
+                    puzzle_hash,
+                    300,
+                    Some(DidOwner::from_did_info(&did.info)),
+                ),
+            )?;
+        let _did = did.update(ctx, &p2, mint_nft)?;
 
-        let coin_spends = ctx.take();
+        let parent_coin = nft.coin;
+        let expected_nft = nft.transfer(ctx, &p2, puzzle_hash, Conditions::new())?;
 
-        let coin_spend = coin_spends
-            .into_iter()
-            .find(|cs| cs.coin.coin_id() == nft.coin.parent_coin_info)
-            .unwrap();
+        sim.spend_coins(ctx.take(), &[sk])?;
 
-        let puzzle_ptr = coin_spend.puzzle_reveal.to_clvm(&mut ctx.allocator)?;
-        let solution_ptr = coin_spend.solution.to_clvm(&mut ctx.allocator)?;
+        let mut allocator = Allocator::new();
 
-        let puzzle = Puzzle::parse(&ctx.allocator, puzzle_ptr);
-        let parsed_nft = Nft::<NftMetadata>::from_parent_spend(
-            &mut ctx.allocator,
-            coin,
+        let puzzle_reveal = sim
+            .puzzle_reveal(parent_coin.coin_id())
+            .expect("missing puzzle")
+            .to_clvm(&mut allocator)?;
+
+        let solution = sim
+            .solution(parent_coin.coin_id())
+            .expect("missing solution")
+            .to_clvm(&mut allocator)?;
+
+        let puzzle = Puzzle::parse(&allocator, puzzle_reveal);
+
+        let nft = Nft::<NftMetadata>::from_parent_spend(
+            &mut allocator,
+            parent_coin,
             puzzle,
-            solution_ptr,
-            nft.coin,
+            solution,
+            expected_nft.coin,
         )?
-        .unwrap();
+        .expect("could not parse nft");
 
-        assert_eq!(parsed_nft.info, nft.info);
+        assert_eq!(nft, expected_nft);
 
         Ok(())
     }
