@@ -8,6 +8,9 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext, SpendWithConditions};
 
+/// This is the actual puzzle name for the [`StandardLayer`].
+pub type P2DelegatedOrHiddenLayer = StandardLayer;
+
 /// The standard [`Layer`] is used for most coins on the Chia blockchain. It allows a single key
 /// to spend the coin by providing a delegated puzzle (for example to output [`Conditions`]).
 ///
