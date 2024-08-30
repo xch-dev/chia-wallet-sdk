@@ -15,9 +15,8 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 pub struct DidLayer<M, I> {
     /// The unique launcher id for the DID. Also referred to as the DID id.
     pub launcher_id: Bytes32,
-    /// The tree hash of a list of recovery DIDs.
-    /// Note that this is currently *not* optional, but will be in the future.
-    pub recovery_list_hash: Bytes32,
+    /// The tree hash of an optional list of recovery DIDs.
+    pub recovery_list_hash: Option<Bytes32>,
     /// The number of verifications required to recover the DID.
     pub num_verifications_required: u64,
     /// Metadata associated with the DID. This is often just `()` for DIDs without metadata.
@@ -29,7 +28,7 @@ pub struct DidLayer<M, I> {
 impl<M, I> DidLayer<M, I> {
     pub fn new(
         launcher_id: Bytes32,
-        recovery_list_hash: Bytes32,
+        recovery_list_hash: Option<Bytes32>,
         num_verifications_required: u64,
         metadata: M,
         inner_puzzle: I,

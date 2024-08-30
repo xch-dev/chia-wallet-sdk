@@ -244,9 +244,9 @@ dependencies = [
 
 [[package]]
 name = "chia-bls"
-version = "0.11.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d8e74e25653f9c8b9437e26bc9e0e989ee2ba978a8634a64dab9824e413bb69"
+checksum = "281de3426c8abee22bb0aac614ced4ca143f148071dfe10c11f78b5da918ed0b"
 dependencies = [
  "anyhow",
  "blst",
@@ -261,11 +261,11 @@ dependencies = [
 
 [[package]]
 name = "chia-consensus"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21337fe65bc27e4003c6ff987d8d50c633edbb49623b1dac799719fa06172825"
+checksum = "ddc7b4621512c9d00d9199b42431eface49efbbf9b0f7d576c771a359c5684ec"
 dependencies = [
- "chia-bls 0.11.0",
+ "chia-bls 0.13.0",
  "chia-protocol",
  "chia-puzzles",
  "chia-traits 0.11.0",
@@ -281,11 +281,11 @@ dependencies = [
 
 [[package]]
 name = "chia-protocol"
-version = "0.11.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea9eb79d3b0571924625ce8ed626a79cbfc6a0f8e5dd94e51aa44bb9fdf7ca85"
+checksum = "88e5dd3701f0655b50d14b9a85012d29bc35398ec017e54721c8ac13255ad65a"
 dependencies = [
- "chia-bls 0.11.0",
+ "chia-bls 0.13.0",
  "chia-traits 0.11.0",
  "chia_streamable_macro 0.11.0",
  "clvm-traits",
@@ -296,11 +296,11 @@ dependencies = [
 
 [[package]]
 name = "chia-puzzles"
-version = "0.11.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b28823c4436ace210ce9065d4fbe2a9297b47d1187764d7bcba36a6487d4066"
+checksum = "3237073f8bd068bc0ea78399725bb09ac198b25664baf9e6a93a3858108a3ff3"
 dependencies = [
- "chia-bls 0.11.0",
+ "chia-bls 0.13.0",
  "chia-protocol",
  "clvm-traits",
  "clvm-utils",
@@ -343,7 +343,7 @@ name = "chia-sdk-driver"
 version = "0.13.0"
 dependencies = [
  "anyhow",
- "chia-bls 0.11.0",
+ "chia-bls 0.13.0",
  "chia-consensus",
  "chia-protocol",
  "chia-puzzles",
@@ -365,7 +365,7 @@ version = "0.13.0"
 dependencies = [
  "anyhow",
  "bech32",
- "chia-bls 0.11.0",
+ "chia-bls 0.13.0",
  "chia-protocol",
  "chia-puzzles",
  "chia-sdk-driver",
@@ -387,7 +387,7 @@ dependencies = [
 name = "chia-sdk-signer"
 version = "0.13.0"
 dependencies = [
- "chia-bls 0.11.0",
+ "chia-bls 0.13.0",
  "chia-consensus",
  "chia-protocol",
  "chia-puzzles",
@@ -405,7 +405,7 @@ version = "0.13.0"
 dependencies = [
  "anyhow",
  "bip39",
- "chia-bls 0.11.0",
+ "chia-bls 0.13.0",
  "chia-consensus",
  "chia-protocol",
  "chia-puzzles",
@@ -434,7 +434,7 @@ name = "chia-sdk-types"
 version = "0.13.0"
 dependencies = [
  "anyhow",
- "chia-bls 0.11.0",
+ "chia-bls 0.13.0",
  "chia-consensus",
  "chia-protocol",
  "chia-sdk-derive",
@@ -487,7 +487,7 @@ version = "0.13.0"
 dependencies = [
  "anyhow",
  "bech32",
- "chia-bls 0.11.0",
+ "chia-bls 0.13.0",
  "chia-protocol",
  "chia-puzzles",
  "chia-sdk-client",
@@ -547,9 +547,9 @@ dependencies = [
 
 [[package]]
 name = "clvm-derive"
-version = "0.11.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e6549eba5f6b3229024cb2bf9a0f9a1c73c6169f4f60947d19a42b1f70d2db2"
+checksum = "67bf4a5d8f6991d385c78c2371ea603de5c2dbf9aebf4e6e801d0dece0e8485d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -558,11 +558,11 @@ dependencies = [
 
 [[package]]
 name = "clvm-traits"
-version = "0.11.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cf0046574652d7db02909ad9bd94ec1b7e1559b6df063e11a601f4064b61f8d"
+checksum = "8e46a5ec963484ea2cb2a450691b80cf7db1d3fca4192120a2606026a261e73e"
 dependencies = [
- "chia-bls 0.11.0",
+ "chia-bls 0.13.0",
  "clvm-derive",
  "clvmr",
  "num-bigint",
@@ -571,9 +571,9 @@ dependencies = [
 
 [[package]]
 name = "clvm-utils"
-version = "0.11.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0558159466adbce120099b9ddaf006ef23d31fa71efbbdec42123eb9835abdc8"
+checksum = "6dfb6b76affa69bdf036fef6da3dbefb4feedc2db37cc6341b02c935c94c0d0a"
 dependencies = [
  "clvm-traits",
  "clvmr",

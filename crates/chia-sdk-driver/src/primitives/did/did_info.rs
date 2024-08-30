@@ -12,7 +12,7 @@ pub type StandardDidLayers<M, I> = SingletonLayer<DidLayer<M, I>>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DidInfo<M> {
     pub launcher_id: Bytes32,
-    pub recovery_list_hash: Bytes32,
+    pub recovery_list_hash: Option<Bytes32>,
     pub num_verifications_required: u64,
     pub metadata: M,
     pub p2_puzzle_hash: Bytes32,
@@ -21,7 +21,7 @@ pub struct DidInfo<M> {
 impl<M> DidInfo<M> {
     pub fn new(
         launcher_id: Bytes32,
-        recovery_list_hash: Bytes32,
+        recovery_list_hash: Option<Bytes32>,
         num_verifications_required: u64,
         metadata: M,
         p2_puzzle_hash: Bytes32,
@@ -121,13 +121,8 @@ mod tests {
         let p2 = StandardLayer::new(pk);
 
         let custom_metadata = ["Metadata".to_string(), "Example".to_string()];
-        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_did(
-            ctx,
-            Bytes32::default(),
-            1,
-            custom_metadata,
-            &p2,
-        )?;
+        let (create_did, did) =
+            Launcher::new(coin.coin_id(), 1).create_did(ctx, None, 1, custom_metadata, &p2)?;
         p2.spend(ctx, coin, create_did)?;
 
         let original_did = did.clone();
