@@ -230,7 +230,6 @@ mod tests {
     use chia_protocol::Bytes32;
     use chia_sdk_test::Simulator;
     use clvm_traits::clvm_list;
-    use clvm_utils::tree_hash_atom;
     use rstest::rstest;
 
     use crate::{HashedPtr, Launcher, StandardLayer};
@@ -249,7 +248,7 @@ mod tests {
         p2.spend(ctx, coin, create_did)?;
         sim.spend_coins(ctx.take(), &[sk])?;
 
-        assert_eq!(did.info.recovery_list_hash, tree_hash_atom(&[]).into());
+        assert_eq!(did.info.recovery_list_hash, None);
         assert_eq!(did.info.num_verifications_required, 1);
         assert_eq!(did.info.p2_puzzle_hash, puzzle_hash);
 
@@ -258,8 +257,7 @@ mod tests {
 
     #[rstest]
     fn test_create_and_update_did(
-        #[values(().tree_hash().into(), [Bytes32::default()].tree_hash().into())]
-        recovery_list_hash: Bytes32,
+        #[values(None, Some(Bytes32::default()))] recovery_list_hash: Option<Bytes32>,
         #[values(0, 1, 3)] num_verifications_required: u64,
         #[values((), "Atom".to_string(), clvm_list!("Complex".to_string(), 42), 100)]
         metadata: impl ToClvm<Allocator>
@@ -325,8 +323,7 @@ mod tests {
         let p2 = StandardLayer::new(pk);
 
         let launcher = Launcher::new(coin.coin_id(), 1);
-        let (create_did, did) =
-            launcher.create_did(ctx, Bytes32::default(), 1, HashedPtr::NIL, &p2)?;
+        let (create_did, did) = launcher.create_did(ctx, None, 1, HashedPtr::NIL, &p2)?;
         p2.spend(ctx, coin, create_did)?;
         sim.spend_coins(ctx.take(), &[sk])?;
 

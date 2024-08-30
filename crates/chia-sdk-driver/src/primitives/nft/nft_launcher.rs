@@ -172,7 +172,7 @@ mod tests {
             &TESTNET11_CONSTANTS,
         )?;
 
-        assert_eq!(conds.cost, 119_997_509);
+        assert_eq!(conds.cost, 119_613_445);
 
         Ok(())
     }

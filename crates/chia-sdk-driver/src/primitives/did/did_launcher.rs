@@ -2,7 +2,7 @@ use chia_protocol::Bytes32;
 use chia_puzzles::{EveProof, Proof};
 use chia_sdk_types::Conditions;
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{tree_hash_atom, ToTreeHash};
+use clvm_utils::ToTreeHash;
 use clvmr::Allocator;
 
 use crate::{DriverError, Launcher, SpendContext, SpendWithConditions};
@@ -14,7 +14,7 @@ impl Launcher {
         self,
         ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
-        recovery_list_hash: Bytes32,
+        recovery_list_hash: Option<Bytes32>,
         num_verifications_required: u64,
         metadata: M,
     ) -> Result<(Conditions, Did<M>), DriverError>
@@ -45,7 +45,7 @@ impl Launcher {
     pub fn create_did<M, I>(
         self,
         ctx: &mut SpendContext,
-        recovery_list_hash: Bytes32,
+        recovery_list_hash: Option<Bytes32>,
         num_verifications_required: u64,
         metadata: M,
         inner: &I,
@@ -77,6 +77,6 @@ impl Launcher {
         I: SpendWithConditions + ToTreeHash,
         Self: Sized,
     {
-        self.create_did(ctx, tree_hash_atom(&[]).into(), 1, (), inner)
+        self.create_did(ctx, None, 1, (), inner)
     }
 }
