@@ -5,7 +5,7 @@ use chia_sdk_types::{MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
-use tracing::{error, info, instrument};
+use tracing::{info, instrument, warn};
 
 use crate::ClientError;
 
@@ -75,11 +75,11 @@ impl Network {
                     match tokio::time::timeout(timeout, self.lookup_host(dns_introducer)).await {
                         Ok(Ok(addrs)) => addrs,
                         Ok(Err(error)) => {
-                            error!("Failed to lookup DNS introducer {dns_introducer}: {error}");
+                            warn!("Failed to lookup DNS introducer {dns_introducer}: {error}");
                             Vec::new()
                         }
                         Err(_timeout) => {
-                            error!("Timeout looking up DNS introducer {dns_introducer}");
+                            warn!("Timeout looking up DNS introducer {dns_introducer}");
                             Vec::new()
                         }
                     }

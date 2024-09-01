@@ -21,7 +21,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::{request_map::RequestMap, ClientError};
 
@@ -94,7 +94,7 @@ impl Peer {
 
         let inbound_handle = tokio::spawn(async move {
             if let Err(error) = handle_inbound_messages(stream, sender, requests_clone).await {
-                tracing::error!("Error handling message: {error}");
+                debug!("Error handling message: {error}");
             }
         });
 
