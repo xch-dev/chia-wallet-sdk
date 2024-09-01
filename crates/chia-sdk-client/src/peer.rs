@@ -23,10 +23,10 @@ use tokio::{
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tracing::warn;
 
+use crate::{request_map::RequestMap, ClientError};
+
 #[cfg(any(feature = "native-tls", feature = "rustls"))]
 use tokio_tungstenite::Connector;
-
-use crate::{request_map::RequestMap, ClientError};
 
 type WebSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 type Sink = SplitSink<WebSocket, tungstenite::Message>;
