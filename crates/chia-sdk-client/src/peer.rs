@@ -83,7 +83,7 @@ impl Peer {
                 tcp_stream.peer_addr()?
             }
             MaybeTlsStream::Plain(plain) => plain.peer_addr()?,
-            _ => return Err(ClientError::RustlsNotSupported),
+            _ => return Err(ClientError::UnsupportedTls),
         };
 
         let (sink, stream) = ws.split();

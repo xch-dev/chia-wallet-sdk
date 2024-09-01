@@ -7,8 +7,8 @@ pub enum ClientError {
     #[error("SSL error: {0}")]
     Ssl(#[from] chia_ssl::Error),
 
-    #[error("Rustls is not supported")]
-    RustlsNotSupported,
+    #[error("TLS method is not supported")]
+    UnsupportedTls,
 
     #[error("Streamable error: {0}")]
     Streamable(#[from] chia_traits::Error),
