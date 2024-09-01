@@ -21,10 +21,10 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use tracing::warn;
 
 #[cfg(any(feature = "native-tls", feature = "rustls"))]
 use tokio_tungstenite::Connector;
-use tracing::warn;
 
 use crate::{request_map::RequestMap, ClientError};
 
