@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt,
     net::{IpAddr, SocketAddr},
     ops::Deref,
     sync::Arc,
@@ -7,17 +8,27 @@ use std::{
 };
 
 use chia_protocol::Message;
-use native_tls::TlsConnector;
 use tokio::sync::{mpsc, Mutex};
+use tokio_tungstenite::Connector;
 
 use crate::{connect_peer, ClientError, Network, NetworkId, Peer};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Client {
     network_id: NetworkId,
     network: Network,
-    tls_connector: TlsConnector,
+    connector: Connector,
     state: Arc<Mutex<ClientState>>,
+}
+
+#[allow(clippy::missing_fields_in_debug)]
+impl fmt::Debug for Client {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Client")
+            .field("network_id", &self.network_id)
+            .field("network", &self.network)
+            .finish()
+    }
 }
 
 impl Deref for Client {
@@ -36,11 +47,11 @@ pub struct ClientState {
 }
 
 impl Client {
-    pub fn new(network_id: NetworkId, network: Network, tls_connector: TlsConnector) -> Self {
+    pub fn new(network_id: NetworkId, network: Network, connector: Connector) -> Self {
         Self {
             network_id,
             network,
-            tls_connector,
+            connector,
             state: Arc::new(Mutex::new(ClientState::default())),
         }
     }
@@ -57,12 +68,8 @@ impl Client {
         &self,
         socket_addr: SocketAddr,
     ) -> Result<mpsc::Receiver<Message>, ClientError> {
-        let (peer, receiver) = connect_peer(
-            self.network_id.clone(),
-            self.tls_connector.clone(),
-            socket_addr,
-        )
-        .await?;
+        let (peer, receiver) =
+            connect_peer(self.network_id.clone(), self.connector.clone(), socket_addr).await?;
 
         let mut state = self.state.lock().await;
         let ip_addr = peer.socket_addr().ip();

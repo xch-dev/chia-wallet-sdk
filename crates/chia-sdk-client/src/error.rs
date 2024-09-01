@@ -16,17 +16,27 @@ pub enum ClientError {
     #[error("WebSocket error: {0}")]
     WebSocket(#[from] tungstenite::Error),
 
-    #[error("TLS error: {0}")]
-    Tls(#[from] native_tls::Error),
+    #[cfg(feature = "native-tls")]
+    #[error("Native TLS error: {0}")]
+    NativeTls(#[from] native_tls::Error),
+
+    #[cfg(feature = "rustls")]
+    #[error("Rustls error: {0}")]
+    Rustls(#[from] rustls::Error),
+
+    #[cfg(feature = "rustls")]
+    #[error("Missing pkcs8 private key")]
+    MissingPkcs8Key,
+
+    #[cfg(feature = "rustls")]
+    #[error("Missing CA cert")]
+    MissingCa,
 
     #[error("Unexpected message received with type {0:?}")]
     UnexpectedMessage(ProtocolMessageTypes),
 
     #[error("Expected response with type {0:?}, found {1:?}")]
     InvalidResponse(Vec<ProtocolMessageTypes>, ProtocolMessageTypes),
-
-    #[error("Failed to send event")]
-    EventNotSent,
 
     #[error("Failed to receive message")]
     Recv(#[from] RecvError),

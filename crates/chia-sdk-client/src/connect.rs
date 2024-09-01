@@ -2,19 +2,19 @@ use std::net::SocketAddr;
 
 use chia_protocol::{Handshake, Message, NodeType, ProtocolMessageTypes};
 use chia_traits::Streamable;
-use native_tls::TlsConnector;
 use tokio::sync::mpsc;
+use tokio_tungstenite::Connector;
 use tracing::instrument;
 
 use crate::{ClientError, NetworkId, Peer};
 
-#[instrument(skip(tls_connector))]
+#[instrument(skip(connector))]
 pub async fn connect_peer(
     network_id: NetworkId,
-    tls_connector: TlsConnector,
+    connector: Connector,
     socket_addr: SocketAddr,
 ) -> Result<(Peer, mpsc::Receiver<Message>), ClientError> {
-    let (peer, mut receiver) = Peer::connect(socket_addr, tls_connector).await?;
+    let (peer, mut receiver) = Peer::connect(socket_addr, connector).await?;
 
     peer.send(Handshake {
         network_id: network_id.to_string(),

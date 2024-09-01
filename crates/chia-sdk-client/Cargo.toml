@@ -14,6 +14,10 @@ categories = { workspace = true }
 [lints]
 workspace = true
 
+[features]
+native-tls = ["dep:native-tls", "tokio-tungstenite/native-tls"]
+rustls = ["dep:rustls", "dep:rustls-pemfile", "dep:webpki", "tokio-tungstenite/rustls-tls-webpki-roots"]
+
 [dependencies]
 chia-sdk-types = { workspace = true }
 chia-protocol = { workspace = true }
@@ -22,7 +26,10 @@ chia-ssl = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync", "time", "rt"] }
 tungstenite = { workspace = true }
-native-tls = { workspace = true }
+native-tls = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true, features = ["aws_lc_rs"] }
+rustls-pemfile = { workspace = true, optional = true }
+webpki = { workspace = true, optional = true }
 tracing = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_with = { workspace = true, features = ["hex"] }

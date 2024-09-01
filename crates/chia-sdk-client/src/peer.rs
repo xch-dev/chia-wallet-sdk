@@ -15,13 +15,16 @@ use futures_util::{
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
-use native_tls::TlsConnector;
 use tokio::{
     net::TcpStream,
     sync::{mpsc, oneshot, Mutex},
     task::JoinHandle,
 };
-use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+
+#[cfg(any(feature = "native-tls", feature = "rustls"))]
+use tokio_tungstenite::Connector;
+use tracing::warn;
 
 use crate::{request_map::RequestMap, ClientError};
 
@@ -43,26 +46,24 @@ struct PeerInner {
 
 impl Peer {
     /// Connects to a peer using its IP address and port.
+    #[cfg(any(feature = "native-tls", feature = "rustls"))]
     pub async fn connect(
         socket_addr: SocketAddr,
-        tls_connector: TlsConnector,
+        connector: Connector,
     ) -> Result<(Self, mpsc::Receiver<Message>), ClientError> {
-        Self::connect_full_uri(&format!("wss://{socket_addr}/ws"), tls_connector).await
+        Self::connect_full_uri(&format!("wss://{socket_addr}/ws"), connector).await
     }
 
     /// Connects to a peer using its full websocket URI.
     /// For example, `wss://127.0.0.1:8444/ws`.
+    #[cfg(any(feature = "native-tls", feature = "rustls"))]
     pub async fn connect_full_uri(
         uri: &str,
-        tls_connector: TlsConnector,
+        connector: Connector,
     ) -> Result<(Self, mpsc::Receiver<Message>), ClientError> {
-        let (ws, _) = tokio_tungstenite::connect_async_tls_with_config(
-            uri,
-            None,
-            false,
-            Some(Connector::NativeTls(tls_connector)),
-        )
-        .await?;
+        let (ws, _) =
+            tokio_tungstenite::connect_async_tls_with_config(uri, None, false, Some(connector))
+                .await?;
         Self::from_websocket(ws)
     }
 
@@ -70,9 +71,15 @@ impl Peer {
     /// The connection must be secured with TLS, so that the certificate can be hashed in a peer id.
     pub fn from_websocket(ws: WebSocket) -> Result<(Self, mpsc::Receiver<Message>), ClientError> {
         let socket_addr = match ws.get_ref() {
+            #[cfg(feature = "native-tls")]
             MaybeTlsStream::NativeTls(tls) => {
                 let tls_stream = tls.get_ref();
                 let tcp_stream = tls_stream.get_ref().get_ref();
+                tcp_stream.peer_addr()?
+            }
+            #[cfg(feature = "rustls")]
+            MaybeTlsStream::Rustls(tls) => {
+                let (tcp_stream, _) = tls.get_ref();
                 tcp_stream.peer_addr()?
             }
             MaybeTlsStream::Plain(plain) => plain.peer_addr()?,
@@ -302,28 +309,22 @@ async fn handle_inbound_messages(
         let message = message?;
 
         match message {
+            Frame(..) => unreachable!(),
+            Close(..) => break,
+            Ping(..) | Pong(..) => {}
             Text(text) => {
-                tracing::warn!("Received unexpected text message: {text}");
+                warn!("Received unexpected text message: {text}");
             }
-            Close(close) => {
-                tracing::warn!("Received close: {close:?}");
-                break;
-            }
-            Ping(_ping) => {}
-            Pong(_pong) => {}
             Binary(binary) => {
                 let message = Message::from_bytes(&binary)?;
 
                 let Some(id) = message.id else {
-                    sender.send(message).await.map_err(|error| {
-                        tracing::warn!("Failed to send peer message event: {error}");
-                        ClientError::EventNotSent
-                    })?;
+                    sender.send(message).await.ok();
                     continue;
                 };
 
                 let Some(request) = requests.remove(id).await else {
-                    tracing::warn!(
+                    warn!(
                         "Received {:?} message with untracked id {id}",
                         message.msg_type
                     );
@@ -331,9 +332,6 @@ async fn handle_inbound_messages(
                 };
 
                 request.send(message);
-            }
-            Frame(frame) => {
-                tracing::warn!("Received frame: {frame}");
             }
         }
     }
