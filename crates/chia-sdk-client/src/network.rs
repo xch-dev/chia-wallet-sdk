@@ -3,8 +3,6 @@ use std::{fmt, net::SocketAddr, time::Duration};
 use chia_protocol::Bytes32;
 use chia_sdk_types::{MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use futures_util::{stream::FuturesUnordered, StreamExt};
-use serde::{Deserialize, Serialize};
-use serde_with::{hex::Hex, serde_as};
 use tracing::{info, instrument, warn};
 
 use crate::ClientError;
@@ -28,13 +26,10 @@ impl fmt::Display for NetworkId {
     }
 }
 
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Network {
     pub default_port: u16,
-    #[serde_as(as = "Hex")]
     pub genesis_challenge: Bytes32,
-    #[serde_as(as = "Option<Hex>")]
     pub agg_sig_me: Option<Bytes32>,
     pub dns_introducers: Vec<String>,
 }

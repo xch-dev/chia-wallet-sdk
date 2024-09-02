@@ -30,8 +30,6 @@ native-tls = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true, features = ["aws_lc_rs"] }
 rustls-pemfile = { workspace = true, optional = true }
 tracing = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-serde_with = { workspace = true, features = ["hex"] }
 futures-util = { workspace = true }
 tokio-tungstenite = { workspace = true }
 hex = { workspace = true }
