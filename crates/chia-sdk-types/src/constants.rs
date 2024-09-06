@@ -12,7 +12,7 @@ const TESTNET11_GENESIS_CHALLENGE: Bytes32 = Bytes32::new(hex!(
     "37a90eb5185a9c4439a91ddc98bbadce7b4feba060d50116a067de66bf236615"
 ));
 
-pub fn default_constants(genesis_challenge: Bytes32) -> ConsensusConstants {
+pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> ConsensusConstants {
     ConsensusConstants {
         slot_blocks_target: 32,
         min_blocks_per_challenge_block: 16,
@@ -34,13 +34,13 @@ pub fn default_constants(genesis_challenge: Bytes32) -> ConsensusConstants {
         max_future_time2: 120,
         number_of_timestamps: 11,
         genesis_challenge,
-        agg_sig_me_additional_data: genesis_challenge,
-        agg_sig_parent_additional_data: hash(genesis_challenge, 43),
-        agg_sig_puzzle_additional_data: hash(genesis_challenge, 44),
-        agg_sig_amount_additional_data: hash(genesis_challenge, 45),
-        agg_sig_puzzle_amount_additional_data: hash(genesis_challenge, 46),
-        agg_sig_parent_amount_additional_data: hash(genesis_challenge, 47),
-        agg_sig_parent_puzzle_additional_data: hash(genesis_challenge, 48),
+        agg_sig_me_additional_data: agg_sig_me,
+        agg_sig_parent_additional_data: hash(agg_sig_me, 43),
+        agg_sig_puzzle_additional_data: hash(agg_sig_me, 44),
+        agg_sig_amount_additional_data: hash(agg_sig_me, 45),
+        agg_sig_puzzle_amount_additional_data: hash(agg_sig_me, 46),
+        agg_sig_parent_amount_additional_data: hash(agg_sig_me, 47),
+        agg_sig_parent_puzzle_additional_data: hash(agg_sig_me, 48),
         genesis_pre_farm_pool_puzzle_hash: Bytes32::new(hex!(
             "d23da14695a188ae5708dd152263c4db883eb27edeb936178d4d988b8f3ce5fc"
         )),
@@ -68,7 +68,7 @@ pub fn default_constants(genesis_challenge: Bytes32) -> ConsensusConstants {
 }
 
 pub static MAINNET_CONSTANTS: Lazy<ConsensusConstants> =
-    Lazy::new(|| default_constants(MAINNET_GENESIS_CHALLENGE));
+    Lazy::new(|| default_constants(MAINNET_GENESIS_CHALLENGE, MAINNET_GENESIS_CHALLENGE));
 
 pub static TESTNET11_CONSTANTS: Lazy<ConsensusConstants> = Lazy::new(|| ConsensusConstants {
     sub_slot_iters_starting: 2u64.pow(26),
@@ -87,7 +87,7 @@ pub static TESTNET11_CONSTANTS: Lazy<ConsensusConstants> = Lazy::new(|| Consensu
     plot_filter_128_height: 6_029_568,
     plot_filter_64_height: 11_075_328,
     plot_filter_32_height: 16_121_088,
-    ..default_constants(TESTNET11_GENESIS_CHALLENGE)
+    ..default_constants(TESTNET11_GENESIS_CHALLENGE, TESTNET11_GENESIS_CHALLENGE)
 });
 
 fn hash(agg_sig_data: Bytes32, byte: u8) -> Bytes32 {
