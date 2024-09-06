@@ -127,7 +127,8 @@ impl Simulator {
         coin_spends: Vec<CoinSpend>,
         secret_keys: &[SecretKey],
     ) -> Result<IndexMap<Bytes32, CoinState>, SimulatorError> {
-        let signature = sign_transaction(&coin_spends, secret_keys, &TESTNET11_CONSTANTS)?;
+        let signature =
+            sign_transaction(&coin_spends, secret_keys, &(&*TESTNET11_CONSTANTS).into())?;
         self.new_transaction(
             SpendBundle::new(coin_spends, signature),
             &TESTNET11_CONSTANTS,

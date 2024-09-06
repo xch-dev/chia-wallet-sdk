@@ -1,11 +1,10 @@
 use chia_bls::PublicKey;
-use chia_consensus::consensus_constants::ConsensusConstants;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_sdk_types::{run_puzzle, AggSig, AggSigKind, Condition};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::Allocator;
 
-use crate::SignerError;
+use crate::{AggSigConstants, SignerError};
 
 #[derive(Debug, Clone)]
 pub struct RequiredSignature {
@@ -17,7 +16,7 @@ pub struct RequiredSignature {
 
 impl RequiredSignature {
     /// Converts a known [`AggSig`] condition to a `RequiredSignature` if possible.
-    pub fn from_condition(coin: &Coin, condition: AggSig, constants: &ConsensusConstants) -> Self {
+    pub fn from_condition(coin: &Coin, condition: AggSig, constants: &AggSigConstants) -> Self {
         let domain_string;
 
         let public_key = condition.public_key;
@@ -25,29 +24,29 @@ impl RequiredSignature {
 
         let appended_info = match condition.kind {
             AggSigKind::Parent => {
-                domain_string = constants.agg_sig_parent_additional_data;
+                domain_string = constants.parent();
                 coin.parent_coin_info.to_vec()
             }
             AggSigKind::Puzzle => {
-                domain_string = constants.agg_sig_puzzle_additional_data;
+                domain_string = constants.puzzle();
                 coin.puzzle_hash.to_vec()
             }
             AggSigKind::Amount => {
-                domain_string = constants.agg_sig_amount_additional_data;
+                domain_string = constants.amount();
                 u64_to_bytes(coin.amount)
             }
             AggSigKind::PuzzleAmount => {
-                domain_string = constants.agg_sig_puzzle_amount_additional_data;
+                domain_string = constants.puzzle_amount();
                 let puzzle = coin.puzzle_hash;
                 [puzzle.to_vec(), u64_to_bytes(coin.amount)].concat()
             }
             AggSigKind::ParentAmount => {
-                domain_string = constants.agg_sig_parent_amount_additional_data;
+                domain_string = constants.parent_amount();
                 let parent = coin.parent_coin_info;
                 [parent.to_vec(), u64_to_bytes(coin.amount)].concat()
             }
             AggSigKind::ParentPuzzle => {
-                domain_string = constants.agg_sig_parent_puzzle_additional_data;
+                domain_string = constants.parent_puzzle();
                 [coin.parent_coin_info.to_vec(), coin.puzzle_hash.to_vec()].concat()
             }
             AggSigKind::Unsafe => {
@@ -59,7 +58,7 @@ impl RequiredSignature {
                 }
             }
             AggSigKind::Me => {
-                domain_string = constants.agg_sig_me_additional_data;
+                domain_string = constants.me();
                 coin.coin_id().to_vec()
             }
         };
@@ -78,7 +77,7 @@ impl RequiredSignature {
     pub fn from_coin_spend(
         allocator: &mut Allocator,
         coin_spend: &CoinSpend,
-        constants: &ConsensusConstants,
+        constants: &AggSigConstants,
     ) -> Result<Vec<Self>, SignerError> {
         let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
         let solution = coin_spend.solution.to_clvm(allocator)?;
@@ -108,7 +107,7 @@ impl RequiredSignature {
     pub fn from_coin_spends(
         allocator: &mut Allocator,
         coin_spends: &[CoinSpend],
-        constants: &ConsensusConstants,
+        constants: &AggSigConstants,
     ) -> Result<Vec<Self>, SignerError> {
         let mut required_signatures = Vec::new();
         for coin_spend in coin_spends {
@@ -239,8 +238,10 @@ mod tests {
             ),
         ];
 
+        let constants = AggSigConstants::from(&*MAINNET_CONSTANTS);
+
         for (condition, appended_info, domain_string) in cases {
-            let required = RequiredSignature::from_condition(&coin, condition, &MAINNET_CONSTANTS);
+            let required = RequiredSignature::from_condition(&coin, condition, &constants);
 
             assert_eq!(required.public_key(), public_key);
             assert_eq!(required.raw_message(), message.as_ref());

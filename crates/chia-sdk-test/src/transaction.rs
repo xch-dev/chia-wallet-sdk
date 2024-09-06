@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
 use chia_bls::{sign, PublicKey, SecretKey, Signature};
-use chia_consensus::consensus_constants::ConsensusConstants;
 use chia_protocol::{CoinSpend, SpendBundle, TransactionAck};
 use chia_sdk_client::Peer;
-use chia_sdk_signer::RequiredSignature;
+use chia_sdk_signer::{AggSigConstants, RequiredSignature};
 use clvmr::Allocator;
 
 use crate::SimulatorError;
@@ -12,7 +11,7 @@ use crate::SimulatorError;
 pub fn sign_transaction(
     coin_spends: &[CoinSpend],
     secret_keys: &[SecretKey],
-    constants: &ConsensusConstants,
+    constants: &AggSigConstants,
 ) -> Result<Signature, SimulatorError> {
     let mut allocator = Allocator::new();
 
@@ -39,7 +38,7 @@ pub async fn test_transaction_raw(
     peer: &Peer,
     coin_spends: Vec<CoinSpend>,
     secret_keys: &[SecretKey],
-    constants: &ConsensusConstants,
+    constants: &AggSigConstants,
 ) -> anyhow::Result<TransactionAck> {
     let aggregated_signature = sign_transaction(&coin_spends, secret_keys, constants)?;
 
@@ -56,7 +55,7 @@ pub async fn test_transaction(
     peer: &Peer,
     coin_spends: Vec<CoinSpend>,
     secret_keys: &[SecretKey],
-    constants: &ConsensusConstants,
+    constants: &AggSigConstants,
 ) {
     let ack = test_transaction_raw(peer, coin_spends, secret_keys, constants)
         .await
