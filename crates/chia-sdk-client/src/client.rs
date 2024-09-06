@@ -11,11 +11,11 @@ use chia_protocol::Message;
 use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::Connector;
 
-use crate::{connect_peer, ClientError, Network, NetworkId, Peer};
+use crate::{connect_peer, ClientError, Network, Peer};
 
 #[derive(Clone)]
 pub struct Client {
-    network_id: NetworkId,
+    network_id: String,
     network: Network,
     connector: Connector,
     state: Arc<Mutex<ClientState>>,
@@ -47,7 +47,7 @@ pub struct ClientState {
 }
 
 impl Client {
-    pub fn new(network_id: NetworkId, network: Network, connector: Connector) -> Self {
+    pub fn new(network_id: String, network: Network, connector: Connector) -> Self {
         Self {
             network_id,
             network,
@@ -56,7 +56,7 @@ impl Client {
         }
     }
 
-    pub fn network_id(&self) -> &NetworkId {
+    pub fn network_id(&self) -> &str {
         &self.network_id
     }
 
