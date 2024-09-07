@@ -18,12 +18,17 @@ use crate::{DriverError, SpendContext};
 pub struct Launcher {
     coin: Coin,
     conditions: Conditions,
+    singleton_amount: u64,
 }
 
 impl Launcher {
     /// Creates a new [`Launcher`] with the specified launcher coin and parent spend conditions.
     pub fn from_coin(coin: Coin, conditions: Conditions) -> Self {
-        Self { coin, conditions }
+        Self {
+            coin,
+            conditions,
+            singleton_amount: coin.amount,
+        }
     }
 
     /// The parent coin specified when constructing the [`Launcher`] will create the launcher coin.
@@ -110,6 +115,13 @@ impl Launcher {
         )
     }
 
+    /// Changes the singleton amount to differ from the launcher amount.
+    /// This is useful in situations where the launcher amount is 0 and the singleton amount is 1, for example.
+    pub fn with_singleton_amount(mut self, singleton_amount: u64) -> Self {
+        self.singleton_amount = singleton_amount;
+        self
+    }
+
     /// The singleton launcher coin that will be created when the parent is spent.
     pub fn coin(&self) -> Coin {
         self.coin
@@ -126,30 +138,13 @@ impl Launcher {
     where
         T: ToClvm<Allocator>,
     {
-        let amount = self.coin.amount;
-        self.spend_with_amount(ctx, singleton_inner_puzzle_hash, amount, key_value_list)
-    }
-
-    /// Spends the launcher coin to create the eve singleton with a custom amount.
-    /// This amount should be the same as the launcher's amount in most cases.
-    /// Includes an optional metadata value that is traditionally a list of key value pairs.
-    pub fn spend_with_amount<T>(
-        self,
-        ctx: &mut SpendContext,
-        singleton_inner_puzzle_hash: Bytes32,
-        singleton_amount: u64,
-        key_value_list: T,
-    ) -> Result<(Conditions, Coin), DriverError>
-    where
-        T: ToClvm<Allocator>,
-    {
         let singleton_puzzle_hash =
             SingletonArgs::curry_tree_hash(self.coin.coin_id(), singleton_inner_puzzle_hash.into())
                 .into();
 
         let solution_ptr = ctx.alloc(&LauncherSolution {
             singleton_puzzle_hash,
-            amount: singleton_amount,
+            amount: self.singleton_amount,
             key_value_list,
         })?;
 
@@ -161,8 +156,11 @@ impl Launcher {
             solution,
         ));
 
-        let singleton_coin =
-            Coin::new(self.coin.coin_id(), singleton_puzzle_hash, singleton_amount);
+        let singleton_coin = Coin::new(
+            self.coin.coin_id(),
+            singleton_puzzle_hash,
+            self.singleton_amount,
+        );
 
         Ok((
             self.conditions.assert_coin_announcement(announcement_id(
@@ -209,7 +207,10 @@ mod tests {
         let launcher = Launcher::new(coin.coin_id(), 0);
         assert_eq!(launcher.coin.amount, 0);
 
-        let (conditions, singleton) = launcher.spend_with_amount(ctx, Bytes32::default(), 1, ())?;
+        let (conditions, singleton) =
+            launcher
+                .with_singleton_amount(1)
+                .spend(ctx, Bytes32::default(), ())?;
         StandardLayer::new(pk).spend(ctx, coin, conditions)?;
         assert_eq!(singleton.amount, 1);
 
