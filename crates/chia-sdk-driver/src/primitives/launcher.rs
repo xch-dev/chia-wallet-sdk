@@ -18,12 +18,17 @@ use crate::{DriverError, SpendContext};
 pub struct Launcher {
     coin: Coin,
     conditions: Conditions,
+    singleton_amount: u64,
 }
 
 impl Launcher {
     /// Creates a new [`Launcher`] with the specified launcher coin and parent spend conditions.
     pub fn from_coin(coin: Coin, conditions: Conditions) -> Self {
-        Self { coin, conditions }
+        Self {
+            coin,
+            conditions,
+            singleton_amount: coin.amount,
+        }
     }
 
     /// The parent coin specified when constructing the [`Launcher`] will create the launcher coin.
@@ -110,6 +115,13 @@ impl Launcher {
         )
     }
 
+    /// Changes the singleton amount to differ from the launcher amount.
+    /// This is useful in situations where the launcher amount is 0 and the singleton amount is 1, for example.
+    pub fn with_singleton_amount(mut self, singleton_amount: u64) -> Self {
+        self.singleton_amount = singleton_amount;
+        self
+    }
+
     /// The singleton launcher coin that will be created when the parent is spent.
     pub fn coin(&self) -> Coin {
         self.coin
@@ -132,7 +144,7 @@ impl Launcher {
 
         let solution_ptr = ctx.alloc(&LauncherSolution {
             singleton_puzzle_hash,
-            amount: self.coin.amount,
+            amount: self.singleton_amount,
             key_value_list,
         })?;
 
@@ -144,8 +156,11 @@ impl Launcher {
             solution,
         ));
 
-        let singleton_coin =
-            Coin::new(self.coin.coin_id(), singleton_puzzle_hash, self.coin.amount);
+        let singleton_coin = Coin::new(
+            self.coin.coin_id(),
+            singleton_puzzle_hash,
+            self.singleton_amount,
+        );
 
         Ok((
             self.conditions.assert_coin_announcement(announcement_id(
@@ -154,5 +169,53 @@ impl Launcher {
             )),
             singleton_coin,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::StandardLayer;
+
+    use super::*;
+
+    use chia_sdk_test::Simulator;
+
+    #[test]
+    fn test_singleton_launcher() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let (sk, pk, _puzzle_hash, coin) = sim.new_p2(1)?;
+
+        let ctx = &mut SpendContext::new();
+        let launcher = Launcher::new(coin.coin_id(), 1);
+        assert_eq!(launcher.coin.amount, 1);
+
+        let (conditions, singleton) = launcher.spend(ctx, Bytes32::default(), ())?;
+        StandardLayer::new(pk).spend(ctx, coin, conditions)?;
+        assert_eq!(singleton.amount, 1);
+
+        sim.spend_coins(ctx.take(), &[sk])?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_singleton_launcher_custom_amount() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let (sk, pk, _puzzle_hash, coin) = sim.new_p2(1)?;
+
+        let ctx = &mut SpendContext::new();
+        let launcher = Launcher::new(coin.coin_id(), 0);
+        assert_eq!(launcher.coin.amount, 0);
+
+        let (conditions, singleton) =
+            launcher
+                .with_singleton_amount(1)
+                .spend(ctx, Bytes32::default(), ())?;
+        StandardLayer::new(pk).spend(ctx, coin, conditions)?;
+        assert_eq!(singleton.amount, 1);
+
+        sim.spend_coins(ctx.take(), &[sk])?;
+
+        Ok(())
     }
 }
