@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::nft::{NftOwnershipLayerArgs, NftStateLayerArgs};
+use chia_puzzles::nft::{NftOwnershipLayerArgs, NftStateLayerArgs, NFT_STATE_LAYER_PUZZLE_HASH};
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{ToTreeHash, TreeHash};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::Allocator;
 
 use crate::{
@@ -126,19 +126,25 @@ impl<M> NftInfo<M> {
     where
         M: ToTreeHash,
     {
-        NftStateLayerArgs::curry_tree_hash(
-            self.metadata.tree_hash(),
-            NftOwnershipLayerArgs::curry_tree_hash(
-                self.current_owner,
-                RoyaltyTransferLayer::new(
-                    self.launcher_id,
-                    self.royalty_puzzle_hash,
-                    self.royalty_ten_thousandths,
-                )
-                .tree_hash(),
-                self.p2_puzzle_hash.into(),
-            ),
-        )
+        CurriedProgram {
+            program: NFT_STATE_LAYER_PUZZLE_HASH,
+            args: NftStateLayerArgs {
+                mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                metadata: self.metadata.tree_hash(),
+                metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+                inner_puzzle: NftOwnershipLayerArgs::curry_tree_hash(
+                    self.current_owner,
+                    RoyaltyTransferLayer::new(
+                        self.launcher_id,
+                        self.royalty_puzzle_hash,
+                        self.royalty_ten_thousandths,
+                    )
+                    .tree_hash(),
+                    self.p2_puzzle_hash.into(),
+                ),
+            },
+        }
+        .tree_hash()
     }
 }
 
