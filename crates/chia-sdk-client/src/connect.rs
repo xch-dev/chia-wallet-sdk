@@ -6,18 +6,18 @@ use tokio::sync::mpsc;
 use tokio_tungstenite::Connector;
 use tracing::instrument;
 
-use crate::{ClientError, NetworkId, Peer};
+use crate::{ClientError, Peer};
 
 #[instrument(skip(connector))]
 pub async fn connect_peer(
-    network_id: NetworkId,
+    network_id: String,
     connector: Connector,
     socket_addr: SocketAddr,
 ) -> Result<(Peer, mpsc::Receiver<Message>), ClientError> {
     let (peer, mut receiver) = Peer::connect(socket_addr, connector).await?;
 
     peer.send(Handshake {
-        network_id: network_id.to_string(),
+        network_id: network_id.clone(),
         protocol_version: "0.0.37".to_string(),
         software_version: "0.0.0".to_string(),
         server_port: 0,
@@ -50,7 +50,7 @@ pub async fn connect_peer(
         ));
     }
 
-    if handshake.network_id != network_id.to_string() {
+    if handshake.network_id != network_id {
         return Err(ClientError::WrongNetwork(
             network_id.to_string(),
             handshake.network_id,

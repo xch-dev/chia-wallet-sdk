@@ -1,41 +1,16 @@
-use std::{fmt, net::SocketAddr, time::Duration};
+use std::{net::SocketAddr, time::Duration};
 
 use chia_protocol::Bytes32;
 use chia_sdk_types::{MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use futures_util::{stream::FuturesUnordered, StreamExt};
-use serde::{Deserialize, Serialize};
-use serde_with::{hex::Hex, serde_as};
 use tracing::{info, instrument, warn};
 
 use crate::ClientError;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum NetworkId {
-    Mainnet,
-    Testnet11,
-    Simulator0,
-    Custom(String),
-}
-
-impl fmt::Display for NetworkId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            NetworkId::Mainnet => write!(f, "mainnet"),
-            NetworkId::Testnet11 => write!(f, "testnet11"),
-            NetworkId::Simulator0 => write!(f, "simulator0"),
-            NetworkId::Custom(name) => write!(f, "{name}"),
-        }
-    }
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Network {
     pub default_port: u16,
-    #[serde_as(as = "Hex")]
     pub genesis_challenge: Bytes32,
-    #[serde_as(as = "Option<Hex>")]
-    pub agg_sig_me: Option<Bytes32>,
     pub dns_introducers: Vec<String>,
 }
 
@@ -44,7 +19,6 @@ impl Network {
         Self {
             default_port: 8444,
             genesis_challenge: MAINNET_CONSTANTS.genesis_challenge,
-            agg_sig_me: None,
             dns_introducers: vec![
                 "dns-introducer.chia.net".to_string(),
                 "chia.ctrlaltdel.ch".to_string(),
@@ -58,7 +32,6 @@ impl Network {
         Self {
             default_port: 58444,
             genesis_challenge: TESTNET11_CONSTANTS.genesis_challenge,
-            agg_sig_me: None,
             dns_introducers: vec!["dns-introducer-testnet11.chia.net".to_string()],
         }
     }
