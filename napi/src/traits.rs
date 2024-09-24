@@ -1,4 +1,7 @@
-use chia::protocol::{BytesImpl, Program};
+use chia::{
+    bls::PublicKey,
+    protocol::{BytesImpl, Program},
+};
 use napi::bindgen_prelude::*;
 
 pub(crate) trait IntoJs<T> {
@@ -37,6 +40,36 @@ impl<const N: usize> FromJs<Uint8Array> for BytesImpl<N> {
                 Error::from_reason(format!("Expected length {N}, found {}", bytes.len()))
             },
         )?))
+    }
+}
+
+impl<const N: usize> IntoJs<Uint8Array> for [u8; N] {
+    fn into_js(self) -> Result<Uint8Array> {
+        Ok(Uint8Array::new(self.to_vec()))
+    }
+}
+
+impl<const N: usize> FromJs<Uint8Array> for [u8; N] {
+    fn from_js(js_value: Uint8Array) -> Result<Self> {
+        js_value.to_vec().try_into().map_err(|bytes: Vec<u8>| {
+            Error::from_reason(format!("Expected length {N}, found {}", bytes.len()))
+        })
+    }
+}
+
+impl IntoJs<Uint8Array> for PublicKey {
+    fn into_js(self) -> Result<Uint8Array> {
+        Ok(Uint8Array::new(self.to_bytes().to_vec()))
+    }
+}
+
+impl FromJs<Uint8Array> for PublicKey {
+    fn from_js(js_value: Uint8Array) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        PublicKey::from_bytes(&js_value.into_rust()?)
+            .map_err(|error| Error::from_reason(error.to_string()))
     }
 }
 

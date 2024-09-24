@@ -1,5 +1,5 @@
 use chia::puzzles::nft;
-use chia_wallet_sdk::{self as sdk, Primitive};
+use chia_wallet_sdk::{self as sdk, Primitive, SpendContext};
 use clvmr::{
     serde::{node_from_bytes, node_to_bytes},
     Allocator,
@@ -8,7 +8,7 @@ use napi::bindgen_prelude::*;
 
 use crate::{
     traits::{FromJs, IntoJs, IntoRust},
-    Coin, LineageProof,
+    Coin, CoinSpend, LineageProof, Spend,
 };
 
 #[napi(object)]
@@ -24,6 +24,16 @@ impl IntoJs<Nft> for sdk::Nft<nft::NftMetadata> {
             coin: self.coin.into_js()?,
             lineage_proof: self.proof.into_js()?,
             info: self.info.into_js()?,
+        })
+    }
+}
+
+impl FromJs<Nft> for sdk::Nft<nft::NftMetadata> {
+    fn from_js(nft: Nft) -> Result<Self> {
+        Ok(sdk::Nft {
+            coin: nft.coin.into_rust()?,
+            proof: nft.lineage_proof.into_rust()?,
+            info: nft.info.into_rust()?,
         })
     }
 }
@@ -49,6 +59,20 @@ impl IntoJs<NftInfo> for sdk::NftInfo<nft::NftMetadata> {
             royalty_puzzle_hash: self.royalty_puzzle_hash.into_js()?,
             royalty_ten_thousandths: self.royalty_ten_thousandths,
             p2_puzzle_hash: self.p2_puzzle_hash.into_js()?,
+        })
+    }
+}
+
+impl FromJs<NftInfo> for sdk::NftInfo<nft::NftMetadata> {
+    fn from_js(info: NftInfo) -> Result<Self> {
+        Ok(sdk::NftInfo {
+            launcher_id: info.launcher_id.into_rust()?,
+            metadata: info.metadata.into_rust()?,
+            metadata_updater_puzzle_hash: info.metadata_updater_puzzle_hash.into_rust()?,
+            current_owner: info.current_owner.map(IntoRust::into_rust).transpose()?,
+            royalty_puzzle_hash: info.royalty_puzzle_hash.into_rust()?,
+            royalty_ten_thousandths: info.royalty_ten_thousandths,
+            p2_puzzle_hash: info.p2_puzzle_hash.into_rust()?,
         })
     }
 }
@@ -148,4 +172,18 @@ pub fn parse_unspent_nft(
     };
 
     Ok(Some(nft.into_js()?))
+}
+
+#[napi]
+pub fn spend_nft(nft: Nft, inner_spend: Spend) -> Result<Vec<CoinSpend>> {
+    let mut ctx = SpendContext::new();
+
+    let nft = sdk::Nft::<nft::NftMetadata>::from_js(nft)?;
+    let puzzle = node_from_bytes(&mut ctx.allocator, &inner_spend.puzzle)?;
+    let solution = node_from_bytes(&mut ctx.allocator, &inner_spend.solution)?;
+
+    nft.spend(&mut ctx, sdk::Spend { puzzle, solution })
+        .map_err(|error| Error::from_reason(error.to_string()))?;
+
+    ctx.take().into_iter().map(IntoJs::into_js).collect()
 }

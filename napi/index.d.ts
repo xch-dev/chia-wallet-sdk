@@ -49,6 +49,7 @@ export interface ParsedNft {
 }
 export declare function parseNftInfo(puzzleReveal: Uint8Array): ParsedNft | null
 export declare function parseUnspentNft(parentCoin: Coin, parentPuzzleReveal: Uint8Array, parentSolution: Uint8Array, coin: Coin): Nft | null
+export declare function spendNft(nft: Nft, innerSpend: Spend): Array<CoinSpend>
 export interface NftMint {
   metadata: NftMetadata
   p2PuzzleHash: Uint8Array
@@ -61,3 +62,9 @@ export interface MintedNfts {
   parentConditions: Array<Uint8Array>
 }
 export declare function mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
+export interface Spend {
+  puzzle: Uint8Array
+  solution: Uint8Array
+}
+export declare function spendP2Standard(syntheticKey: Uint8Array, conditions: Array<Uint8Array>): Spend
+export declare function spendP2Singleton(launcherId: Uint8Array, coinId: Uint8Array, singletonInnerPuzzleHash: Uint8Array): Spend
