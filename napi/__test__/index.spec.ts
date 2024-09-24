@@ -14,6 +14,7 @@ test("calculate coin id", (t) => {
     ),
     amount: 100n,
   });
+
   t.true(
     Buffer.from(coinId).equals(
       Buffer.from(
