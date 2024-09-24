@@ -7,7 +7,7 @@ use clvmr::{
 use napi::bindgen_prelude::*;
 
 use crate::{
-    traits::{IntoJs, IntoRust},
+    traits::{FromJs, IntoJs, IntoRust},
     Coin, LineageProof,
 };
 
@@ -76,6 +76,24 @@ impl IntoJs<NftMetadata> for nft::NftMetadata {
             metadata_hash: self.metadata_hash.map(IntoJs::into_js).transpose()?,
             license_uris: self.license_uris,
             license_hash: self.license_hash.map(IntoJs::into_js).transpose()?,
+        })
+    }
+}
+
+impl FromJs<NftMetadata> for nft::NftMetadata {
+    fn from_js(metadata: NftMetadata) -> Result<Self> {
+        Ok(nft::NftMetadata {
+            edition_number: metadata.edition_number.into_rust()?,
+            edition_total: metadata.edition_total.into_rust()?,
+            data_uris: metadata.data_uris,
+            data_hash: metadata.data_hash.map(IntoRust::into_rust).transpose()?,
+            metadata_uris: metadata.metadata_uris,
+            metadata_hash: metadata
+                .metadata_hash
+                .map(IntoRust::into_rust)
+                .transpose()?,
+            license_uris: metadata.license_uris,
+            license_hash: metadata.license_hash.map(IntoRust::into_rust).transpose()?,
         })
     }
 }

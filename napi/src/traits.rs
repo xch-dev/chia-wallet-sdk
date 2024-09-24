@@ -1,4 +1,4 @@
-use chia::protocol::BytesImpl;
+use chia::protocol::{BytesImpl, Program};
 use napi::bindgen_prelude::*;
 
 pub(crate) trait IntoJs<T> {
@@ -37,6 +37,12 @@ impl<const N: usize> FromJs<Uint8Array> for BytesImpl<N> {
                 Error::from_reason(format!("Expected length {N}, found {}", bytes.len()))
             },
         )?))
+    }
+}
+
+impl IntoJs<Uint8Array> for Program {
+    fn into_js(self) -> Result<Uint8Array> {
+        Ok(Uint8Array::new(self.to_vec()))
     }
 }
 

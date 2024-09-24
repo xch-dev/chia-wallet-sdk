@@ -9,9 +9,11 @@ mod coin;
 mod coin_spend;
 mod lineage_proof;
 mod nft;
+mod nft_mint;
 mod traits;
 
 pub use coin::*;
 pub use coin_spend::*;
 pub use lineage_proof::*;
 pub use nft::*;
+pub use nft_mint::*;
