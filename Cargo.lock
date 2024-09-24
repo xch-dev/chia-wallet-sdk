@@ -268,6 +268,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "chia"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b730bab32685f98520fff23181dd17965ef62eb37b2cf4ec749614d2e5a10be4"
+dependencies = [
+ "chia-bls 0.13.0",
+ "chia-client",
+ "chia-consensus",
+ "chia-protocol",
+ "chia-puzzles",
+ "chia-ssl",
+ "chia-traits 0.11.0",
+ "clvm-traits",
+ "clvm-utils",
+ "clvmr",
+]
+
+[[package]]
 name = "chia-bls"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -298,6 +316,21 @@ dependencies = [
  "lru",
  "sha2",
  "thiserror",
+]
+
+[[package]]
+name = "chia-client"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f5234e4b1d3c34a00a2764f7779279ef3c362c0610be8fda708b1903065f6c6"
+dependencies = [
+ "chia-protocol",
+ "chia-traits 0.11.0",
+ "futures-util",
+ "thiserror",
+ "tokio",
+ "tokio-tungstenite",
+ "tungstenite",
 ]
 
 [[package]]
@@ -552,6 +585,7 @@ dependencies = [
 name = "chia-wallet-sdk-napi"
 version = "0.0.0"
 dependencies = [
+ "chia",
  "chia-wallet-sdk",
  "napi",
  "napi-build",
@@ -2257,9 +2291,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.39.2"
+version = "1.40.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daa4fb1bc778bd6f04cbfc4bb2d06a7396a8f299dc33ea1900cedaa316f467b1"
+checksum = "e2b070231665d27ad9ec9b8df639893f46727666c6767db40317fbe920a5d998"
 dependencies = [
  "backtrace",
  "bytes",

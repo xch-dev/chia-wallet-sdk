@@ -310,6 +310,6 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { sum } = nativeBinding
+const { toCoinId } = nativeBinding
 
-module.exports.sum = sum
+module.exports.toCoinId = toCoinId

@@ -1,9 +1,11 @@
-#![deny(clippy::all)]
+#![allow(missing_debug_implementations)]
 
 #[macro_use]
 extern crate napi_derive;
 
-#[napi]
-pub fn sum(a: i32, b: i32) -> i32 {
-  a + b
-}
+mod coin;
+mod coin_spend;
+mod traits;
+
+pub use coin::*;
+pub use coin_spend::*;
