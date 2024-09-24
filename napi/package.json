@@ -28,9 +28,17 @@
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.4",
-    "ava": "^6.0.1"
+    "@types/node": "^22.6.1",
+    "ava": "^6.0.1",
+    "ts-node": "^10.9.2"
   },
   "ava": {
-    "timeout": "3m"
+    "timeout": "3m",
+    "extensions": [
+      "ts"
+    ],
+    "require": [
+      "ts-node/register"
+    ]
   }
 }
