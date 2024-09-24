@@ -32,4 +32,3 @@ rustls-pemfile = { workspace = true, optional = true }
 tracing = { workspace = true }
 futures-util = { workspace = true }
 tokio-tungstenite = { workspace = true }
-hex = { workspace = true }
