@@ -310,6 +310,8 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { toCoinId } = nativeBinding
+const { toCoinId, parseNftInfo, parseUnspentNft } = nativeBinding
 
 module.exports.toCoinId = toCoinId
+module.exports.parseNftInfo = parseNftInfo
+module.exports.parseUnspentNft = parseUnspentNft

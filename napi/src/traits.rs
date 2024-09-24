@@ -15,8 +15,6 @@ pub(crate) trait IntoRust<T> {
     fn into_rust(self) -> Result<T>;
 }
 
-// Implement ToRust for every type that implements FromJs
-
 impl<T, U> IntoRust<U> for T
 where
     U: FromJs<T>,
