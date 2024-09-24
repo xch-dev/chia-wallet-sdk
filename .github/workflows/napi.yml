@@ -219,7 +219,7 @@ jobs:
         shell: bash
 
       - name: Test bindings
-        run: docker run --rm -v $(pwd):/build -w /build node:${{ matrix.node }}-slim pnpm test
+        run: docker run --rm -v $(pwd):/build -w /build/napi node:${{ matrix.node }}-slim pnpm test
 
   universal-macOS:
     name: Build universal macOS binary
