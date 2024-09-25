@@ -25,6 +25,7 @@ chia-wallet-sdk = { workspace = true }
 chia = { workspace = true }
 clvmr = { workspace = true }
 num-bigint = { workspace = true }
+hex = { workspace = true }
 
 [build-dependencies]
 napi-build = "2.0.1"

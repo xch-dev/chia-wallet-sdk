@@ -310,7 +310,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { ClvmAllocator, ClvmPtr, toCoinId, parseNftInfo, parseUnspentNft, spendNft, mintNfts, spendP2Standard, spendP2Singleton, testRoundtrip } = nativeBinding
+const { ClvmAllocator, ClvmPtr, toCoinId, parseNftInfo, parseUnspentNft, spendNft, mintNfts, spendP2Standard, spendP2Singleton, compareBytes, sha256, fromHexRaw, fromHex, toHex } = nativeBinding
 
 module.exports.ClvmAllocator = ClvmAllocator
 module.exports.ClvmPtr = ClvmPtr
@@ -321,4 +321,8 @@ module.exports.spendNft = spendNft
 module.exports.mintNfts = mintNfts
 module.exports.spendP2Standard = spendP2Standard
 module.exports.spendP2Singleton = spendP2Singleton
-module.exports.testRoundtrip = testRoundtrip
+module.exports.compareBytes = compareBytes
+module.exports.sha256 = sha256
+module.exports.fromHexRaw = fromHexRaw
+module.exports.fromHex = fromHex
+module.exports.toHex = toHex

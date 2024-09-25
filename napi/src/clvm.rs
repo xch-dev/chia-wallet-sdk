@@ -165,7 +165,14 @@ impl ClvmAllocator {
     }
 
     #[napi]
-    pub fn new_u32(&mut self, value: u32) -> Result<ClvmPtr> {
+    pub fn new_small_number(&mut self, value: u32) -> Result<ClvmPtr> {
+        // TODO: Upstream a better check to clvmr?
+        if value > 67_108_863 {
+            return Err(Error::from_reason(
+                "Value is too large to fit in a small number".to_string(),
+            ));
+        }
+
         let ptr = self
             .0
             .new_small_number(value)
@@ -221,8 +228,11 @@ impl ClvmAllocator {
     }
 
     #[napi]
-    pub fn u32(&self, ptr: &ClvmPtr) -> Option<u32> {
-        self.0.small_number(ptr.0)
+    pub fn small_number(&self, ptr: &ClvmPtr) -> Option<u32> {
+        match self.0.sexp(ptr.0) {
+            SExp::Atom => self.0.small_number(ptr.0),
+            SExp::Pair(..) => None,
+        }
     }
 
     #[napi]

@@ -587,6 +587,7 @@ dependencies = [
  "chia",
  "chia-wallet-sdk",
  "clvmr",
+ "hex",
  "napi",
  "napi-build",
  "napi-derive",
