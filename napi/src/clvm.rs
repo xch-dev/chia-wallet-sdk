@@ -2,7 +2,8 @@ use std::mem;
 
 use chia::{
     clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, ToClvm},
-    clvm_utils::{tree_hash, CurriedProgram},
+    clvm_utils::{self, tree_hash, CurriedProgram, TreeHash},
+    protocol::Bytes32,
 };
 use chia_wallet_sdk::SpendContext;
 use clvmr::{
@@ -298,4 +299,16 @@ pub struct Output {
 pub struct Curry {
     pub program: ClassInstance<ClvmPtr>,
     pub args: Vec<ClassInstance<ClvmPtr>>,
+}
+
+#[napi]
+pub fn curry_tree_hash(tree_hash: Uint8Array, args: Vec<Uint8Array>) -> Result<Uint8Array> {
+    let tree_hash: Bytes32 = tree_hash.into_rust()?;
+    let args: Vec<TreeHash> = args
+        .into_iter()
+        .map(|arg| Ok(TreeHash::new(arg.into_rust()?)))
+        .collect::<Result<Vec<_>>>()?;
+    clvm_utils::curry_tree_hash(tree_hash.into(), &args)
+        .to_bytes()
+        .into_js()
 }

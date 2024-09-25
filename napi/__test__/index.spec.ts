@@ -4,6 +4,7 @@ import {
   ClvmAllocator,
   ClvmPtr,
   compareBytes,
+  curryTreeHash,
   fromHex,
   toCoinId,
   toHex,
@@ -175,3 +176,18 @@ test("clvm serialization", (t) => {
     t.is(hex as string, toHex(serialized));
   }
 });
+
+test('curry tree hash', (t) => {
+  const clvm = new ClvmAllocator();
+
+  const items = Array.from({ length: 10 }, (_, i) => i);
+  const ptr = clvm.curry(
+    ClvmPtr.nil(),
+    items.map((i) => clvm.newSmallNumber(i))
+  );
+
+  const treeHash = curryTreeHash(clvm.treeHash(ClvmPtr.nil()), items.map((i) => clvm.treeHash(clvm.newSmallNumber(i))));
+  const expected = clvm.treeHash(ptr);
+
+  t.true(compareBytes(treeHash, expected));
+})

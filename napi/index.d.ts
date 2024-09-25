@@ -15,6 +15,7 @@ export interface Curry {
   program: ClvmPtr
   args: Array<ClvmPtr>
 }
+export declare function curryTreeHash(treeHash: Uint8Array, args: Array<Uint8Array>): Uint8Array
 export interface Coin {
   parentCoinInfo: Uint8Array
   puzzleHash: Uint8Array
