@@ -57,6 +57,18 @@ impl<const N: usize> FromJs<Uint8Array> for [u8; N] {
     }
 }
 
+impl IntoJs<Uint8Array> for Vec<u8> {
+    fn into_js(self) -> Result<Uint8Array> {
+        Ok(Uint8Array::new(self))
+    }
+}
+
+impl FromJs<Uint8Array> for Vec<u8> {
+    fn from_js(js_value: Uint8Array) -> Result<Self> {
+        Ok(js_value.to_vec())
+    }
+}
+
 impl IntoJs<Uint8Array> for PublicKey {
     fn into_js(self) -> Result<Uint8Array> {
         Ok(Uint8Array::new(self.to_bytes().to_vec()))
@@ -64,10 +76,7 @@ impl IntoJs<Uint8Array> for PublicKey {
 }
 
 impl FromJs<Uint8Array> for PublicKey {
-    fn from_js(js_value: Uint8Array) -> Result<Self>
-    where
-        Self: Sized,
-    {
+    fn from_js(js_value: Uint8Array) -> Result<Self> {
         PublicKey::from_bytes(&js_value.into_rust()?)
             .map_err(|error| Error::from_reason(error.to_string()))
     }
@@ -95,4 +104,71 @@ impl FromJs<BigInt> for u64 {
 
         Ok(value)
     }
+}
+
+impl FromJs<BigInt> for num_bigint::BigInt {
+    fn from_js(num: BigInt) -> Result<Self> {
+        if num.words.is_empty() {
+            return Ok(num_bigint::BigInt::ZERO);
+        }
+
+        // Convert u64 words into a big-endian byte array
+        let bytes = words_to_bytes(&num.words);
+
+        // Create the BigInt from the bytes
+        let bigint = num_bigint::BigInt::from_bytes_be(
+            if num.sign_bit {
+                num_bigint::Sign::Minus
+            } else {
+                num_bigint::Sign::Plus
+            },
+            &bytes,
+        );
+
+        Ok(bigint)
+    }
+}
+
+impl IntoJs<BigInt> for num_bigint::BigInt {
+    fn into_js(self) -> Result<BigInt> {
+        let (sign, bytes) = self.to_bytes_be();
+
+        // Convert the byte array into u64 words
+        let words = bytes_to_words(&bytes);
+
+        Ok(BigInt {
+            sign_bit: sign == num_bigint::Sign::Minus,
+            words,
+        })
+    }
+}
+
+/// Helper function to convert Vec<u64> (words) into Vec<u8> (byte array)
+fn words_to_bytes(words: &[u64]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(words.len() * 8);
+    for word in words {
+        bytes.extend_from_slice(&word.to_be_bytes());
+    }
+
+    // Remove leading zeros from the byte array
+    while let Some(0) = bytes.first() {
+        bytes.remove(0);
+    }
+
+    bytes
+}
+
+/// Helper function to convert Vec<u8> (byte array) into Vec<u64> (words)
+fn bytes_to_words(bytes: &[u8]) -> Vec<u64> {
+    let mut padded_bytes = vec![0u8; (8 - bytes.len() % 8) % 8];
+    padded_bytes.extend_from_slice(bytes);
+
+    let mut words = Vec::with_capacity(padded_bytes.len() / 8);
+
+    for chunk in padded_bytes.chunks(8) {
+        let word = u64::from_be_bytes(chunk.try_into().unwrap());
+        words.push(word);
+    }
+
+    words
 }

@@ -590,6 +590,7 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
+ "num-bigint",
 ]
 
 [[package]]
