@@ -98,12 +98,14 @@ export declare class ClvmAllocator {
   newList(values: Array<ClvmPtr>): ClvmPtr
   newPair(first: ClvmPtr, rest: ClvmPtr): ClvmPtr
   newAtom(value: Uint8Array): ClvmPtr
+  newString(value: string): ClvmPtr
   newSmallNumber(value: number): ClvmPtr
   newBigInt(value: bigint): ClvmPtr
   list(ptr: ClvmPtr): Array<ClvmPtr>
   pair(ptr: ClvmPtr): Pair | null
   atom(ptr: ClvmPtr): Uint8Array | null
   atomLength(ptr: ClvmPtr): number | null
+  string(ptr: ClvmPtr): string | null
   smallNumber(ptr: ClvmPtr): number | null
   bigInt(ptr: ClvmPtr): bigint | null
 }

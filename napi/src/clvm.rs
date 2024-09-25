@@ -165,6 +165,15 @@ impl ClvmAllocator {
     }
 
     #[napi]
+    pub fn new_string(&mut self, value: String) -> Result<ClvmPtr> {
+        let ptr = self
+            .0
+            .new_atom(value.as_bytes())
+            .map_err(|error| Error::from_reason(error.to_string()))?;
+        Ok(ClvmPtr(ptr))
+    }
+
+    #[napi]
     pub fn new_small_number(&mut self, value: u32) -> Result<ClvmPtr> {
         // TODO: Upstream a better check to clvmr?
         if value > 67_108_863 {
@@ -223,6 +232,14 @@ impl ClvmAllocator {
     pub fn atom_length(&self, ptr: &ClvmPtr) -> Option<u32> {
         match self.0.sexp(ptr.0) {
             SExp::Atom => self.0.atom_len(ptr.0).try_into().ok(),
+            SExp::Pair(..) => None,
+        }
+    }
+
+    #[napi]
+    pub fn string(&self, ptr: &ClvmPtr) -> Option<String> {
+        match self.0.sexp(ptr.0) {
+            SExp::Atom => String::from_utf8(self.0.atom(ptr.0).as_ref().to_vec()).ok(),
             SExp::Pair(..) => None,
         }
     }

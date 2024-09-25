@@ -55,6 +55,14 @@ test("atom roundtrip", (t) => {
   t.true(compareBytes(clvm.atom(atom), expected));
 });
 
+test("string roundtrip", (t) => {
+  const clvm = new ClvmAllocator();
+
+  const expected = "hello world";
+  const atom = clvm.newString(expected);
+  t.is(clvm.string(atom), expected);
+});
+
 test("small number roundtrip", (t) => {
   const clvm = new ClvmAllocator();
 
