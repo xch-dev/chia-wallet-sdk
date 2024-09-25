@@ -38,6 +38,21 @@ impl StandardLayer {
         let spend = self.spend_with_conditions(ctx, conditions)?;
         ctx.spend(coin, spend)
     }
+
+    pub fn delegated_inner_spend(
+        &self,
+        ctx: &mut SpendContext,
+        spend: Spend,
+    ) -> Result<Spend, DriverError> {
+        self.construct_spend(
+            ctx,
+            StandardSolution {
+                original_public_key: None,
+                delegated_puzzle: spend.puzzle,
+                solution: spend.solution,
+            },
+        )
+    }
 }
 
 impl Layer for StandardLayer {

@@ -79,8 +79,9 @@ export interface Spend {
   puzzle: ClvmPtr
   solution: ClvmPtr
 }
-export declare function spendP2Standard(clvm: ClvmAllocator, syntheticKey: Uint8Array, conditions: Array<ClvmPtr>): Spend
-export declare function spendP2Singleton(clvm: ClvmAllocator, launcherId: Uint8Array, coinId: Uint8Array, singletonInnerPuzzleHash: Uint8Array): Spend
+export declare function delegatedSpendForConditions(clvm: ClvmAllocator, conditions: Array<ClvmPtr>): Spend
+export declare function spendP2Standard(clvm: ClvmAllocator, syntheticKey: Uint8Array, delegatedSpend: Spend): Spend
+export declare function spendP2DelegatedSingleton(clvm: ClvmAllocator, launcherId: Uint8Array, coinId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend): Spend
 export declare function compareBytes(a: Uint8Array, b: Uint8Array): boolean
 export declare function sha256(bytes: Uint8Array): Uint8Array
 export declare function fromHexRaw(hex: string): Uint8Array
