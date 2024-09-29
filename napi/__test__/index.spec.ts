@@ -2,10 +2,10 @@ import test from "ava";
 
 import {
   ClvmAllocator,
-  ClvmPtr,
   compareBytes,
   curryTreeHash,
   fromHex,
+  Simulator,
   toCoinId,
   toHex,
 } from "../index.js";
@@ -53,7 +53,7 @@ test("atom roundtrip", (t) => {
   const expected = Uint8Array.from([1, 2, 3]);
   const atom = clvm.newAtom(expected);
 
-  t.true(compareBytes(clvm.atom(atom), expected));
+  t.true(compareBytes(atom.toAtom()!, expected));
 });
 
 test("string roundtrip", (t) => {
@@ -61,7 +61,7 @@ test("string roundtrip", (t) => {
 
   const expected = "hello world";
   const atom = clvm.newString(expected);
-  t.is(clvm.string(atom), expected);
+  t.is(atom.toString(), expected);
 });
 
 test("small number roundtrip", (t) => {
@@ -69,7 +69,7 @@ test("small number roundtrip", (t) => {
 
   for (const expected of [0, 1, 420, 67108863]) {
     const num = clvm.newSmallNumber(expected);
-    t.is(clvm.smallNumber(num), expected);
+    t.is(num.toSmallNumber(), expected);
   }
 });
 
@@ -95,7 +95,7 @@ test("bigint roundtrip", (t) => {
     4384723984791283749823764732649187498237483927482n,
   ]) {
     const num = clvm.newBigInt(expected);
-    t.is(clvm.bigInt(num), expected);
+    t.is(num.toBigInt(), expected);
   }
 });
 
@@ -105,10 +105,10 @@ test("pair roundtrip", (t) => {
   const b = clvm.newBigInt(100n);
 
   const ptr = clvm.newPair(a, b);
-  const { first, rest } = clvm.pair(ptr);
+  const [first, rest] = ptr.toPair()!;
 
-  t.is(clvm.smallNumber(first), 1);
-  t.is(clvm.bigInt(rest), 100n);
+  t.is(first.toSmallNumber(), 1);
+  t.is(rest.toBigInt(), 100n);
 });
 
 test("list roundtrip", (t) => {
@@ -116,7 +116,7 @@ test("list roundtrip", (t) => {
 
   const items = Array.from({ length: 10 }, (_, i) => i);
   const ptr = clvm.newList(items.map((i) => clvm.newSmallNumber(i)));
-  const list = clvm.list(ptr).map((ptr) => clvm.smallNumber(ptr));
+  const list = ptr.toList().map((ptr) => ptr.toSmallNumber());
 
   t.deepEqual(list, items);
 });
@@ -133,7 +133,7 @@ test("curry add function", (t) => {
     true
   );
 
-  t.is(clvm.smallNumber(result.value), 15);
+  t.is(result.value.toSmallNumber(), 15);
   t.is(result.cost, 1082n);
 });
 
@@ -142,14 +142,14 @@ test("curry roundtrip", (t) => {
 
   const items = Array.from({ length: 10 }, (_, i) => i);
   const ptr = clvm.curry(
-    ClvmPtr.nil(),
+    clvm.nil(),
     items.map((i) => clvm.newSmallNumber(i))
   );
-  const uncurry = clvm.uncurry(ptr);
-  const args = uncurry.args.map((ptr) => clvm.smallNumber(ptr));
+  const uncurry = ptr.uncurry()!;
+  const args = uncurry.args.map((ptr) => ptr.toSmallNumber());
 
   t.true(
-    compareBytes(clvm.treeHash(ClvmPtr.nil()), clvm.treeHash(uncurry.program))
+    compareBytes(clvm.treeHash(clvm.nil()), clvm.treeHash(uncurry.program))
   );
   t.deepEqual(args, items);
 });
@@ -169,7 +169,7 @@ test("clvm serialization", (t) => {
       "ff8301020364",
     ],
   ] as const) {
-    const serialized = clvm.serialize(ptr);
+    const serialized = ptr.serialize();
     const deserialized = clvm.deserialize(serialized);
 
     t.true(compareBytes(clvm.treeHash(ptr), clvm.treeHash(deserialized)));
@@ -177,17 +177,75 @@ test("clvm serialization", (t) => {
   }
 });
 
-test('curry tree hash', (t) => {
+test("curry tree hash", (t) => {
   const clvm = new ClvmAllocator();
 
   const items = Array.from({ length: 10 }, (_, i) => i);
   const ptr = clvm.curry(
-    ClvmPtr.nil(),
+    clvm.nil(),
     items.map((i) => clvm.newSmallNumber(i))
   );
 
-  const treeHash = curryTreeHash(clvm.treeHash(ClvmPtr.nil()), items.map((i) => clvm.treeHash(clvm.newSmallNumber(i))));
+  const treeHash = curryTreeHash(
+    clvm.treeHash(clvm.nil()),
+    items.map((i) => clvm.treeHash(clvm.newSmallNumber(i)))
+  );
   const expected = clvm.treeHash(ptr);
 
   t.true(compareBytes(treeHash, expected));
-})
+});
+
+test("mint and spend nft", (t) => {
+  const clvm = new ClvmAllocator();
+  const simulator = new Simulator();
+  const p2 = simulator.newP2(1n);
+
+  const result = clvm.mintNfts(toCoinId(p2.coin), [
+    {
+      metadata: {
+        dataUris: ["https://example.com"],
+        metadataUris: ["https://example.com"],
+        licenseUris: ["https://example.com"],
+        editionNumber: 1n,
+        editionTotal: 1n,
+      },
+      p2PuzzleHash: p2.puzzleHash,
+      royaltyPuzzleHash: p2.puzzleHash,
+      royaltyTenThousandths: 300,
+    },
+  ]);
+
+  const spend = clvm.spendP2Standard(
+    p2.publicKey,
+    clvm.delegatedSpendForConditions(result.parentConditions)
+  );
+
+  simulator.spend(
+    result.coinSpends.concat([
+      {
+        coin: p2.coin,
+        puzzleReveal: spend.puzzle.serialize(),
+        solution: spend.solution.serialize(),
+      },
+    ]),
+    [p2.secretKey]
+  );
+
+  const innerSpend = clvm.spendP2Standard(
+    p2.publicKey,
+    clvm.delegatedSpendForConditions([
+      clvm.newList([
+        clvm.newSmallNumber(51),
+        clvm.newAtom(p2.puzzleHash),
+        clvm.newSmallNumber(1),
+        clvm.newList([clvm.newAtom(p2.puzzleHash)]),
+      ]),
+    ])
+  );
+
+  const coinSpends = clvm.spendNft(result.nfts[0], innerSpend);
+
+  simulator.spend(coinSpends, [p2.secretKey]);
+
+  t.pass();
+});

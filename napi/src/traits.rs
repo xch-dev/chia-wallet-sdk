@@ -88,6 +88,12 @@ impl IntoJs<Uint8Array> for Program {
     }
 }
 
+impl FromJs<Uint8Array> for Program {
+    fn from_js(js_value: Uint8Array) -> Result<Self> {
+        Ok(Program::from(js_value.to_vec()))
+    }
+}
+
 impl IntoJs<BigInt> for u64 {
     fn into_js(self) -> Result<BigInt> {
         Ok(BigInt::from(self))

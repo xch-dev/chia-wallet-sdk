@@ -4,7 +4,7 @@ use napi::bindgen_prelude::*;
 
 use crate::{
     traits::{FromJs, IntoJs, IntoRust},
-    ClvmAllocator, ClvmPtr, Coin, CoinSpend, LineageProof, Spend,
+    ClvmAllocator, Coin, CoinSpend, LineageProof, Program, Spend,
 };
 
 #[napi(object)]
@@ -120,41 +120,48 @@ impl FromJs<NftMetadata> for nft::NftMetadata {
 
 #[napi(object)]
 pub struct ParsedNft {
-    pub nft_info: NftInfo,
-    pub inner_puzzle: ClassInstance<ClvmPtr>,
+    pub info: NftInfo,
+    pub inner_puzzle: ClassInstance<Program>,
 }
 
-#[napi]
-pub fn parse_nft_info(env: Env, clvm: &ClvmAllocator, ptr: &ClvmPtr) -> Result<Option<ParsedNft>> {
-    let puzzle = sdk::Puzzle::parse(&clvm.0, ptr.0);
+pub fn parse_nft_info(
+    env: Env,
+    clvm: Reference<ClvmAllocator>,
+    puzzle: &Program,
+) -> Result<Option<ParsedNft>> {
+    let puzzle = sdk::Puzzle::parse(&clvm.0.allocator, puzzle.ptr);
 
-    let Some((nft_info, inner_puzzle)) = sdk::NftInfo::<nft::NftMetadata>::parse(&clvm.0, puzzle)
-        .map_err(|error| Error::from_reason(error.to_string()))?
+    let Some((nft_info, inner_puzzle)) =
+        sdk::NftInfo::<nft::NftMetadata>::parse(&clvm.0.allocator, puzzle)
+            .map_err(|error| Error::from_reason(error.to_string()))?
     else {
         return Ok(None);
     };
 
     Ok(Some(ParsedNft {
-        nft_info: nft_info.into_js()?,
-        inner_puzzle: ClvmPtr(inner_puzzle.ptr()).into_instance(env)?,
+        info: nft_info.into_js()?,
+        inner_puzzle: Program {
+            ctx: clvm,
+            ptr: inner_puzzle.ptr(),
+        }
+        .into_instance(env)?,
     }))
 }
 
-#[napi]
 pub fn parse_unspent_nft(
     clvm: &mut ClvmAllocator,
     parent_coin: Coin,
-    parent_puzzle_reveal: &ClvmPtr,
-    parent_solution: &ClvmPtr,
+    parent_puzzle: &Program,
+    parent_solution: &Program,
     coin: Coin,
 ) -> Result<Option<Nft>> {
-    let parent_puzzle = sdk::Puzzle::parse(&clvm.0, parent_puzzle_reveal.0);
+    let parent_puzzle = sdk::Puzzle::parse(&clvm.0.allocator, parent_puzzle.ptr);
 
     let Some(nft) = sdk::Nft::<nft::NftMetadata>::from_parent_spend(
-        &mut clvm.0,
+        &mut clvm.0.allocator,
         parent_coin.into_rust()?,
         parent_puzzle,
-        parent_solution.0,
+        parent_solution.ptr,
         coin.into_rust()?,
     )
     .map_err(|error| Error::from_reason(error.to_string()))?
@@ -165,20 +172,18 @@ pub fn parse_unspent_nft(
     Ok(Some(nft.into_js()?))
 }
 
-#[napi]
 pub fn spend_nft(clvm: &mut ClvmAllocator, nft: Nft, inner_spend: Spend) -> Result<Vec<CoinSpend>> {
-    clvm.with_context(|ctx| {
-        let nft = sdk::Nft::<nft::NftMetadata>::from_js(nft)?;
+    let ctx = &mut clvm.0;
+    let nft = sdk::Nft::<nft::NftMetadata>::from_js(nft)?;
 
-        nft.spend(
-            ctx,
-            sdk::Spend {
-                puzzle: inner_spend.puzzle.0,
-                solution: inner_spend.solution.0,
-            },
-        )
-        .map_err(|error| Error::from_reason(error.to_string()))?;
+    nft.spend(
+        ctx,
+        sdk::Spend {
+            puzzle: inner_spend.puzzle.ptr,
+            solution: inner_spend.solution.ptr,
+        },
+    )
+    .map_err(|error| Error::from_reason(error.to_string()))?;
 
-        ctx.take().into_iter().map(IntoJs::into_js).collect()
-    })
+    ctx.take().into_iter().map(IntoJs::into_js).collect()
 }

@@ -1,6 +1,5 @@
 use chia::{
-    clvm_traits::{FromClvm, ToClvm},
-    protocol::Program,
+    clvm_traits::ToClvm,
     puzzles::nft::{self, NFT_METADATA_UPDATER_PUZZLE_HASH},
 };
 use chia_wallet_sdk as sdk;
@@ -8,7 +7,7 @@ use napi::bindgen_prelude::*;
 
 use crate::{
     traits::{IntoJs, IntoRust},
-    CoinSpend, Nft, NftMetadata,
+    ClvmAllocator, CoinSpend, Nft, NftMetadata, Program,
 };
 
 #[napi(object)]
@@ -23,14 +22,17 @@ pub struct NftMint {
 pub struct MintedNfts {
     pub nfts: Vec<Nft>,
     pub coin_spends: Vec<CoinSpend>,
-    pub parent_conditions: Vec<Uint8Array>,
+    pub parent_conditions: Vec<ClassInstance<Program>>,
 }
 
-#[napi]
-pub fn mint_nfts(parent_coin_id: Uint8Array, nft_mints: Vec<NftMint>) -> Result<MintedNfts> {
+pub fn mint_nfts(
+    env: Env,
+    mut clvm: Reference<ClvmAllocator>,
+    parent_coin_id: Uint8Array,
+    nft_mints: Vec<NftMint>,
+) -> Result<MintedNfts> {
     let parent_coin_id = parent_coin_id.into_rust()?;
 
-    let mut ctx = sdk::SpendContext::new();
     let mut result = MintedNfts {
         nfts: Vec::new(),
         coin_spends: Vec::new(),
@@ -41,10 +43,10 @@ pub fn mint_nfts(parent_coin_id: Uint8Array, nft_mints: Vec<NftMint>) -> Result<
 
     for (i, nft_mint) in nft_mints.into_iter().enumerate() {
         let (conditions, nft) = sdk::IntermediateLauncher::new(parent_coin_id, i, len)
-            .create(&mut ctx)
+            .create(&mut clvm.0)
             .map_err(|error| Error::from_reason(error.to_string()))?
             .mint_nft(
-                &mut ctx,
+                &mut clvm.0,
                 sdk::NftMint::<nft::NftMetadata> {
                     metadata: nft_mint.metadata.into_rust()?,
                     p2_puzzle_hash: nft_mint.p2_puzzle_hash.into_rust()?,
@@ -60,20 +62,22 @@ pub fn mint_nfts(parent_coin_id: Uint8Array, nft_mints: Vec<NftMint>) -> Result<
 
         for condition in conditions {
             let condition = condition
-                .to_clvm(&mut ctx.allocator)
+                .to_clvm(&mut clvm.0.allocator)
                 .map_err(|error| Error::from_reason(error.to_string()))?;
 
-            let bytes = Program::from_clvm(&ctx.allocator, condition)
-                .map_err(|error| Error::from_reason(error.to_string()))?;
-
-            result
-                .parent_conditions
-                .push(Uint8Array::new(bytes.to_vec()));
+            result.parent_conditions.push(
+                Program {
+                    ctx: clvm.clone(env)?,
+                    ptr: condition,
+                }
+                .into_instance(env)?,
+            );
         }
     }
 
     result.coin_spends.extend(
-        ctx.take()
+        clvm.0
+            .take()
             .into_iter()
             .map(IntoJs::into_js)
             .collect::<Result<Vec<_>>>()?,
