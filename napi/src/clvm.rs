@@ -1,5 +1,5 @@
 use chia::{
-    clvm_traits::ClvmEncoder,
+    clvm_traits::{ClvmEncoder, ToClvm},
     clvm_utils::{self, CurriedProgram, TreeHash},
     protocol::Bytes32,
 };
@@ -173,20 +173,8 @@ impl ClvmAllocator {
     }
 
     #[napi(ts_args_type = "value: number")]
-    pub fn new_small_number(&mut self, this: This<Clvm>, value: u32) -> Result<Program> {
-        // TODO: Upstream a better check to clvmr?
-        if value > 67_108_863 {
-            return Err(Error::from_reason(
-                "Value is too large to fit in a small number".to_string(),
-            ));
-        }
-
-        let ptr = self
-            .0
-            .allocator
-            .new_small_number(value)
-            .map_err(|error| Error::from_reason(error.to_string()))?;
-
+    pub fn new_number(&mut self, this: This<Clvm>, value: f64) -> Result<Program> {
+        let ptr = allocate_f64(&mut self.0.allocator, value)?;
         Ok(Program { ctx: this, ptr })
     }
 
@@ -198,6 +186,22 @@ impl ClvmAllocator {
             .allocator
             .new_number(value)
             .map_err(|error| Error::from_reason(error.to_string()))?;
+        Ok(Program { ctx: this, ptr })
+    }
+
+    #[napi(ts_args_type = "value: boolean")]
+    pub fn new_boolean(&mut self, this: This<Clvm>, value: bool) -> Result<Program> {
+        let ptr = self
+            .0
+            .allocator
+            .new_small_number(u32::from(value))
+            .map_err(|error| Error::from_reason(error.to_string()))?;
+        Ok(Program { ctx: this, ptr })
+    }
+
+    #[napi(ts_args_type = "value: ClvmValue")]
+    pub fn alloc(&mut self, this: This<Clvm>, value: ClvmValue) -> Result<Program> {
+        let ptr = allocate_any(&mut self.0.allocator, value)?;
         Ok(Program { ctx: this, ptr })
     }
 
@@ -298,4 +302,89 @@ pub fn curry_tree_hash(tree_hash: Uint8Array, args: Vec<Uint8Array>) -> Result<U
     clvm_utils::curry_tree_hash(tree_hash.into(), &args)
         .to_bytes()
         .into_js()
+}
+
+type ClvmValue = Either7<f64, BigInt, String, bool, ClassInstance<Program>, Uint8Array, Array>;
+
+fn allocate_any(allocator: &mut clvmr::Allocator, value: ClvmValue) -> Result<NodePtr> {
+    match value {
+        Either7::A(value) => allocate_f64(allocator, value),
+        Either7::B(value) => {
+            let value = value.into_rust()?;
+            allocator
+                .new_number(value)
+                .map_err(|error| Error::from_reason(error.to_string()))
+        }
+        Either7::C(value) => allocator
+            .new_atom(value.as_bytes())
+            .map_err(|error| Error::from_reason(error.to_string())),
+        Either7::D(value) => {
+            let value = u32::from(value);
+            allocator
+                .new_small_number(value)
+                .map_err(|error| Error::from_reason(error.to_string()))
+        }
+        Either7::E(value) => Ok(value.ptr),
+        Either7::F(value) => {
+            let value: Vec<u8> = value.into_rust()?;
+            allocator
+                .new_atom(&value)
+                .map_err(|error| Error::from_reason(error.to_string()))
+        }
+        Either7::G(value) => {
+            let mut items = Vec::with_capacity(value.len() as usize);
+
+            for i in 0..value.len() {
+                let Some(item) = value.get::<ClvmValue>(i)? else {
+                    return Err(Error::from_reason(format!("Item at index {i} is missing")));
+                };
+
+                items.push(allocate_any(allocator, item)?);
+            }
+
+            items
+                .to_clvm(allocator)
+                .map_err(|error| Error::from_reason(error.to_string()))
+        }
+    }
+}
+
+fn allocate_f64(allocator: &mut clvmr::Allocator, value: f64) -> Result<NodePtr> {
+    if value.is_infinite() {
+        return Err(Error::from_reason("Value is infinite".to_string()));
+    }
+
+    if value.is_nan() {
+        return Err(Error::from_reason("Value is NaN".to_string()));
+    }
+
+    if value.fract() != 0.0 {
+        return Err(Error::from_reason(
+            "Value has a fractional part".to_string(),
+        ));
+    }
+
+    if value > 9_007_199_254_740_991.0 {
+        return Err(Error::from_reason(
+            "Value is larger than MAX_SAFE_INTEGER".to_string(),
+        ));
+    }
+
+    if value < -9_007_199_254_740_991.0 {
+        return Err(Error::from_reason(
+            "Value is smaller than MIN_SAFE_INTEGER".to_string(),
+        ));
+    }
+
+    let value = value as i64;
+
+    if (0..=67_108_863).contains(&value) {
+        allocator
+            .new_small_number(value as u32)
+            .map_err(|error| Error::from_reason(error.to_string()))
+    } else {
+        allocator
+            .new_number(value.into())
+            .map_err(|error| Error::from_reason(error.to_string()))
+    }
 }

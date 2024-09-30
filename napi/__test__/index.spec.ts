@@ -64,20 +64,33 @@ test("string roundtrip", (t) => {
   t.is(atom.toString(), expected);
 });
 
-test("small number roundtrip", (t) => {
+test("number roundtrip", (t) => {
   const clvm = new ClvmAllocator();
 
-  for (const expected of [0, 1, 420, 67108863]) {
-    const num = clvm.newSmallNumber(expected);
-    t.is(num.toSmallNumber(), expected);
+  for (const expected of [
+    Number.MIN_SAFE_INTEGER,
+    -1000,
+    0,
+    34,
+    1000,
+    Number.MAX_SAFE_INTEGER,
+  ]) {
+    const num = clvm.newNumber(expected);
+    t.is(num.toBigInt(), BigInt(expected));
   }
 });
 
-test("small number overflow", (t) => {
+test("invalid number", (t) => {
   const clvm = new ClvmAllocator();
 
-  for (const expected of [67108864, 2 ** 32 - 1, Number.MAX_SAFE_INTEGER]) {
-    t.throws(() => clvm.newSmallNumber(expected));
+  for (const expected of [
+    Number.MIN_SAFE_INTEGER - 1,
+    Number.MAX_SAFE_INTEGER + 1,
+    Infinity,
+    -Infinity,
+    NaN,
+  ]) {
+    t.throws(() => clvm.newNumber(expected));
   }
 });
 
@@ -101,7 +114,7 @@ test("bigint roundtrip", (t) => {
 
 test("pair roundtrip", (t) => {
   const clvm = new ClvmAllocator();
-  const a = clvm.newSmallNumber(1);
+  const a = clvm.newNumber(1);
   const b = clvm.newBigInt(100n);
 
   const ptr = clvm.newPair(a, b);
@@ -115,20 +128,48 @@ test("list roundtrip", (t) => {
   const clvm = new ClvmAllocator();
 
   const items = Array.from({ length: 10 }, (_, i) => i);
-  const ptr = clvm.newList(items.map((i) => clvm.newSmallNumber(i)));
+  const ptr = clvm.newList(items.map((i) => clvm.newNumber(i)));
   const list = ptr.toList().map((ptr) => ptr.toSmallNumber());
 
   t.deepEqual(list, items);
+});
+
+test("clvm value allocation", (t) => {
+  const clvm = new ClvmAllocator();
+
+  const shared = clvm.newNumber(42);
+
+  const manual = clvm.newList([
+    clvm.newNumber(42),
+    clvm.newString("Hello, world!"),
+    clvm.newBoolean(true),
+    clvm.newAtom(Uint8Array.from([1, 2, 3])),
+    clvm.newList([clvm.newNumber(34)]),
+    clvm.newBigInt(100n),
+    shared,
+  ]);
+
+  const auto = clvm.alloc([
+    42,
+    "Hello, world!",
+    true,
+    Uint8Array.from([1, 2, 3]),
+    [34],
+    100n,
+    shared,
+  ]);
+
+  t.true(compareBytes(clvm.treeHash(manual), clvm.treeHash(auto)));
 });
 
 test("curry add function", (t) => {
   const clvm = new ClvmAllocator();
 
   const addMod = clvm.deserialize(fromHex("ff10ff02ff0580"));
-  const addToTen = clvm.curry(addMod, [clvm.newSmallNumber(10)]);
+  const addToTen = clvm.curry(addMod, [clvm.newNumber(10)]);
   const result = clvm.run(
     addToTen,
-    clvm.newList([clvm.newSmallNumber(5)]),
+    clvm.newList([clvm.newNumber(5)]),
     10000000n,
     true
   );
@@ -143,7 +184,7 @@ test("curry roundtrip", (t) => {
   const items = Array.from({ length: 10 }, (_, i) => i);
   const ptr = clvm.curry(
     clvm.nil(),
-    items.map((i) => clvm.newSmallNumber(i))
+    items.map((i) => clvm.newNumber(i))
   );
   const uncurry = ptr.uncurry()!;
   const args = uncurry.args.map((ptr) => ptr.toSmallNumber());
@@ -159,7 +200,7 @@ test("clvm serialization", (t) => {
 
   for (const [ptr, hex] of [
     [clvm.newAtom(Uint8Array.from([1, 2, 3])), "83010203"],
-    [clvm.newSmallNumber(420), "8201a4"],
+    [clvm.newNumber(420), "8201a4"],
     [clvm.newBigInt(100n), "64"],
     [
       clvm.newPair(
@@ -183,12 +224,12 @@ test("curry tree hash", (t) => {
   const items = Array.from({ length: 10 }, (_, i) => i);
   const ptr = clvm.curry(
     clvm.nil(),
-    items.map((i) => clvm.newSmallNumber(i))
+    items.map((i) => clvm.newNumber(i))
   );
 
   const treeHash = curryTreeHash(
     clvm.treeHash(clvm.nil()),
-    items.map((i) => clvm.treeHash(clvm.newSmallNumber(i)))
+    items.map((i) => clvm.treeHash(clvm.newNumber(i)))
   );
   const expected = clvm.treeHash(ptr);
 
@@ -235,9 +276,9 @@ test("mint and spend nft", (t) => {
     p2.publicKey,
     clvm.delegatedSpendForConditions([
       clvm.newList([
-        clvm.newSmallNumber(51),
+        clvm.newNumber(51),
         clvm.newAtom(p2.puzzleHash),
-        clvm.newSmallNumber(1),
+        clvm.newNumber(1),
         clvm.newList([clvm.newAtom(p2.puzzleHash)]),
       ]),
     ])

@@ -4,18 +4,19 @@
   "license": "MIT",
   "main": "index.js",
   "types": "index.d.ts",
-  "packageManager": "pnpm@9.9.0",
+  "packageManager": "pnpm@9.11.0",
   "engines": {
     "node": ">= 14"
   },
   "scripts": {
     "artifacts": "napi artifacts",
-    "build": "napi build --platform --release",
-    "build:debug": "napi build --platform",
+    "build": "napi build --platform --release && pnpm run update-declarations",
+    "build:debug": "napi build --platform && pnpm run update-declarations",
     "prepublishOnly": "napi prepublish -t npm",
     "test": "ava",
     "universal": "napi universal",
-    "version": "napi version"
+    "version": "napi version",
+    "update-declarations": "node scripts/update-declarations.js"
   },
   "napi": {
     "name": "chia-wallet-sdk",

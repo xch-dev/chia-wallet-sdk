@@ -2,6 +2,8 @@
 #![allow(missing_copy_implementations)]
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::new_without_default)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_sign_loss)]
 
 #[macro_use]
 extern crate napi_derive;
