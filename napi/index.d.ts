@@ -83,6 +83,22 @@ export declare function fromHexRaw(hex: string): Uint8Array
 export declare function fromHex(hex: string): Uint8Array
 export declare function toHex(bytes: Uint8Array): string
 export declare class ClvmAllocator {
+  constructor()
+  nil(): Program
+  deserialize(value: Uint8Array): Program
+  deserializeWithBackrefs(value: Uint8Array): Program
+  treeHash(program: Program): Uint8Array
+  run(puzzle: Program, solution: Program, maxCost: bigint, mempoolMode: boolean): Output
+  curry(program: Program, args: Array<Program>): Program
+  pair(first: Program, rest: Program): Program
+  alloc(value: ClvmValue): Program
+  delegatedSpendForConditions(conditions: Array<Program>): Spend
+  spendP2Standard(syntheticKey: Uint8Array, delegatedSpend: Spend): Spend
+  spendP2DelegatedSingleton(launcherId: Uint8Array, coinId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend): Spend
+  mintNfts(parent_coin_id: Uint8Array, nft_mints: Array<NftMint>): MintedNfts
+  parseNftInfo(puzzle: Program): ParsedNft | null
+  parseUnspentNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program, coin: Coin): Nft | null
+  spendNft(nft: Nft, innerSpend: Spend): Array<CoinSpend>
   remark(value: Program): Program
   aggSigParent(publicKey: Uint8Array, message: Uint8Array): Program
   aggSigPuzzle(publicKey: Uint8Array, message: Uint8Array): Program
@@ -118,22 +134,6 @@ export declare class ClvmAllocator {
   sendMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
   receiveMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
   softfork(cost: bigint, value: Program): Program
-  constructor()
-  nil(): Program
-  deserialize(value: Uint8Array): Program
-  deserializeWithBackrefs(value: Uint8Array): Program
-  treeHash(program: Program): Uint8Array
-  run(puzzle: Program, solution: Program, maxCost: bigint, mempoolMode: boolean): Output
-  curry(program: Program, args: Array<Program>): Program
-  pair(first: Program, rest: Program): Program
-  alloc(value: ClvmValue): Program
-  delegatedSpendForConditions(conditions: Array<Program>): Spend
-  spendP2Standard(syntheticKey: Uint8Array, delegatedSpend: Spend): Spend
-  spendP2DelegatedSingleton(launcherId: Uint8Array, coinId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend): Spend
-  mintNfts(parent_coin_id: Uint8Array, nft_mints: Array<NftMint>): MintedNfts
-  parseNftInfo(puzzle: Program): ParsedNft | null
-  parseUnspentNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program, coin: Coin): Nft | null
-  spendNft(nft: Nft, innerSpend: Spend): Array<CoinSpend>
 }
 export declare class Program {
   isAtom(): boolean

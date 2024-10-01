@@ -34,166 +34,6 @@ type Clvm = Reference<ClvmAllocator>;
 #[napi]
 pub struct ClvmAllocator(pub(crate) SpendContext);
 
-macro_rules! conditions {
-    ( $( $condition:ident { $hint:literal $function:ident( $( $name:ident: $ty:ty $( => $remap:ty )? ),* ) }, )* ) => {
-        $( #[napi]
-        impl ClvmAllocator {
-            #[napi(ts_args_type = $hint)]
-            pub fn $function( &mut self, this: This<Clvm>, $( $name: $ty ),* ) -> Result<Program> {
-                $( let $name $( : $remap )? = FromJs::from_js($name)?; )*
-                let ptr = $condition::new( $( $name ),* )
-                .to_clvm(&mut self.0.allocator)
-                .map_err(|error| Error::from_reason(error.to_string()))?;
-
-                Ok(Program { ctx: this, ptr })
-            }
-        } )*
-    };
-}
-
-conditions!(
-    Remark {
-        "value: Program"
-        remark(value: ClassInstance<Program> => NodePtr)
-    },
-    AggSigParent {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_parent(public_key: Uint8Array, message: Uint8Array)
-    },
-    AggSigPuzzle {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_puzzle(public_key: Uint8Array, message: Uint8Array)
-    },
-    AggSigAmount {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_amount(public_key: Uint8Array, message: Uint8Array)
-    },
-    AggSigPuzzleAmount {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_puzzle_amount(public_key: Uint8Array, message: Uint8Array)
-    },
-    AggSigParentAmount {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_parent_amount(public_key: Uint8Array, message: Uint8Array)
-    },
-    AggSigParentPuzzle {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_parent_puzzle(public_key: Uint8Array, message: Uint8Array)
-    },
-    AggSigUnsafe {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_unsafe(public_key: Uint8Array, message: Uint8Array)
-    },
-    AggSigMe {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_me(public_key: Uint8Array, message: Uint8Array)
-    },
-    CreateCoin {
-        "puzzleHash: Uint8Array, amount: bigint, memos: Array<Uint8Array>"
-        create_coin(puzzle_hash: Uint8Array, amount: BigInt, memos: Vec<Uint8Array>)
-    },
-    ReserveFee {
-        "fee: bigint"
-        reserve_fee(fee: BigInt)
-    },
-    CreateCoinAnnouncement {
-        "message: Uint8Array"
-        create_coin_announcement(message: Uint8Array)
-    },
-    CreatePuzzleAnnouncement {
-        "message: Uint8Array"
-        create_puzzle_announcement(message: Uint8Array)
-    },
-    AssertCoinAnnouncement {
-        "announcementId: Uint8Array"
-        assert_coin_announcement(announcement_id: Uint8Array)
-    },
-    AssertPuzzleAnnouncement {
-        "announcementId: Uint8Array"
-        assert_puzzle_announcement(announcement_id: Uint8Array)
-    },
-    AssertConcurrentSpend {
-        "coinId: Uint8Array"
-        assert_concurrent_spend(coin_id: Uint8Array)
-    },
-    AssertConcurrentPuzzle {
-        "puzzleHash: Uint8Array"
-        assert_concurrent_puzzle(puzzle_hash: Uint8Array)
-    },
-    AssertSecondsRelative {
-        "seconds: bigint"
-        assert_seconds_relative(seconds: BigInt)
-    },
-    AssertSecondsAbsolute {
-        "seconds: bigint"
-        assert_seconds_absolute(seconds: BigInt)
-    },
-    AssertHeightRelative {
-        "height: number"
-        assert_height_relative(height: u32)
-    },
-    AssertHeightAbsolute {
-        "height: number"
-        assert_height_absolute(height: u32)
-    },
-    AssertBeforeSecondsRelative {
-        "seconds: bigint"
-        assert_before_seconds_relative(seconds: BigInt)
-    },
-    AssertBeforeSecondsAbsolute {
-        "seconds: bigint"
-        assert_before_seconds_absolute(seconds: BigInt)
-    },
-    AssertBeforeHeightRelative {
-        "height: number"
-        assert_before_height_relative(height: u32)
-    },
-    AssertBeforeHeightAbsolute {
-        "height: number"
-        assert_before_height_absolute(height: u32)
-    },
-    AssertMyCoinId {
-        "coinId: Uint8Array"
-        assert_my_coin_id(coin_id: Uint8Array)
-    },
-    AssertMyParentId {
-        "parentId: Uint8Array"
-        assert_my_parent_id(parent_id: Uint8Array)
-    },
-    AssertMyPuzzleHash {
-        "puzzleHash: Uint8Array"
-        assert_my_puzzle_hash(puzzle_hash: Uint8Array)
-    },
-    AssertMyAmount {
-        "amount: bigint"
-        assert_my_amount(amount: BigInt)
-    },
-    AssertMyBirthSeconds {
-        "seconds: bigint"
-        assert_my_birth_seconds(seconds: BigInt)
-    },
-    AssertMyBirthHeight {
-        "height: number"
-        assert_my_birth_height(height: u32)
-    },
-    AssertEphemeral {
-        ""
-        assert_ephemeral()
-    },
-    SendMessage {
-        "mode: number, message: Uint8Array, data: Array<Program>"
-        send_message(mode: u8, message: Uint8Array, data: Vec<ClassInstance<Program>> => Vec<NodePtr>)
-    },
-    ReceiveMessage {
-        "mode: number, message: Uint8Array, data: Array<Program>"
-        receive_message(mode: u8, message: Uint8Array, data: Vec<ClassInstance<Program>> => Vec<NodePtr>)
-    },
-    Softfork {
-        "cost: bigint, value: Program"
-        softfork(cost: BigInt, value: ClassInstance<Program> => NodePtr)
-    },
-);
-
 #[napi]
 impl ClvmAllocator {
     #[napi(constructor)]
@@ -562,3 +402,163 @@ pub fn curry_tree_hash(tree_hash: Uint8Array, args: Vec<Uint8Array>) -> Result<U
         .to_bytes()
         .into_js()
 }
+
+macro_rules! conditions {
+    ( $( $condition:ident { $hint:literal $function:ident( $( $name:ident: $ty:ty $( => $remap:ty )? ),* ) }, )* ) => {
+        $( #[napi]
+        impl ClvmAllocator {
+            #[napi(ts_args_type = $hint)]
+            pub fn $function( &mut self, this: This<Clvm>, $( $name: $ty ),* ) -> Result<Program> {
+                $( let $name $( : $remap )? = FromJs::from_js($name)?; )*
+                let ptr = $condition::new( $( $name ),* )
+                .to_clvm(&mut self.0.allocator)
+                .map_err(|error| Error::from_reason(error.to_string()))?;
+
+                Ok(Program { ctx: this, ptr })
+            }
+        } )*
+    };
+}
+
+conditions!(
+    Remark {
+        "value: Program"
+        remark(value: ClassInstance<Program> => NodePtr)
+    },
+    AggSigParent {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_parent(public_key: Uint8Array, message: Uint8Array)
+    },
+    AggSigPuzzle {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_puzzle(public_key: Uint8Array, message: Uint8Array)
+    },
+    AggSigAmount {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_amount(public_key: Uint8Array, message: Uint8Array)
+    },
+    AggSigPuzzleAmount {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_puzzle_amount(public_key: Uint8Array, message: Uint8Array)
+    },
+    AggSigParentAmount {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_parent_amount(public_key: Uint8Array, message: Uint8Array)
+    },
+    AggSigParentPuzzle {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_parent_puzzle(public_key: Uint8Array, message: Uint8Array)
+    },
+    AggSigUnsafe {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_unsafe(public_key: Uint8Array, message: Uint8Array)
+    },
+    AggSigMe {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_me(public_key: Uint8Array, message: Uint8Array)
+    },
+    CreateCoin {
+        "puzzleHash: Uint8Array, amount: bigint, memos: Array<Uint8Array>"
+        create_coin(puzzle_hash: Uint8Array, amount: BigInt, memos: Vec<Uint8Array>)
+    },
+    ReserveFee {
+        "fee: bigint"
+        reserve_fee(fee: BigInt)
+    },
+    CreateCoinAnnouncement {
+        "message: Uint8Array"
+        create_coin_announcement(message: Uint8Array)
+    },
+    CreatePuzzleAnnouncement {
+        "message: Uint8Array"
+        create_puzzle_announcement(message: Uint8Array)
+    },
+    AssertCoinAnnouncement {
+        "announcementId: Uint8Array"
+        assert_coin_announcement(announcement_id: Uint8Array)
+    },
+    AssertPuzzleAnnouncement {
+        "announcementId: Uint8Array"
+        assert_puzzle_announcement(announcement_id: Uint8Array)
+    },
+    AssertConcurrentSpend {
+        "coinId: Uint8Array"
+        assert_concurrent_spend(coin_id: Uint8Array)
+    },
+    AssertConcurrentPuzzle {
+        "puzzleHash: Uint8Array"
+        assert_concurrent_puzzle(puzzle_hash: Uint8Array)
+    },
+    AssertSecondsRelative {
+        "seconds: bigint"
+        assert_seconds_relative(seconds: BigInt)
+    },
+    AssertSecondsAbsolute {
+        "seconds: bigint"
+        assert_seconds_absolute(seconds: BigInt)
+    },
+    AssertHeightRelative {
+        "height: number"
+        assert_height_relative(height: u32)
+    },
+    AssertHeightAbsolute {
+        "height: number"
+        assert_height_absolute(height: u32)
+    },
+    AssertBeforeSecondsRelative {
+        "seconds: bigint"
+        assert_before_seconds_relative(seconds: BigInt)
+    },
+    AssertBeforeSecondsAbsolute {
+        "seconds: bigint"
+        assert_before_seconds_absolute(seconds: BigInt)
+    },
+    AssertBeforeHeightRelative {
+        "height: number"
+        assert_before_height_relative(height: u32)
+    },
+    AssertBeforeHeightAbsolute {
+        "height: number"
+        assert_before_height_absolute(height: u32)
+    },
+    AssertMyCoinId {
+        "coinId: Uint8Array"
+        assert_my_coin_id(coin_id: Uint8Array)
+    },
+    AssertMyParentId {
+        "parentId: Uint8Array"
+        assert_my_parent_id(parent_id: Uint8Array)
+    },
+    AssertMyPuzzleHash {
+        "puzzleHash: Uint8Array"
+        assert_my_puzzle_hash(puzzle_hash: Uint8Array)
+    },
+    AssertMyAmount {
+        "amount: bigint"
+        assert_my_amount(amount: BigInt)
+    },
+    AssertMyBirthSeconds {
+        "seconds: bigint"
+        assert_my_birth_seconds(seconds: BigInt)
+    },
+    AssertMyBirthHeight {
+        "height: number"
+        assert_my_birth_height(height: u32)
+    },
+    AssertEphemeral {
+        ""
+        assert_ephemeral()
+    },
+    SendMessage {
+        "mode: number, message: Uint8Array, data: Array<Program>"
+        send_message(mode: u8, message: Uint8Array, data: Vec<ClassInstance<Program>> => Vec<NodePtr>)
+    },
+    ReceiveMessage {
+        "mode: number, message: Uint8Array, data: Array<Program>"
+        receive_message(mode: u8, message: Uint8Array, data: Vec<ClassInstance<Program>> => Vec<NodePtr>)
+    },
+    Softfork {
+        "cost: bigint, value: Program"
+        softfork(cost: BigInt, value: ClassInstance<Program> => NodePtr)
+    },
+);
