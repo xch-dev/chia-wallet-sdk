@@ -2,8 +2,9 @@ use chia::{
     clvm_traits::{ClvmEncoder, ToClvm},
     clvm_utils::{self, CurriedProgram, TreeHash},
     protocol::Bytes32,
+    puzzles::nft::{self, NFT_METADATA_UPDATER_PUZZLE_HASH},
 };
-use chia_wallet_sdk::SpendContext;
+use chia_wallet_sdk::{self as sdk, Primitive, SpendContext};
 use clvmr::{
     run_program,
     serde::{node_from_bytes, node_from_bytes_backrefs},
@@ -12,9 +13,8 @@ use clvmr::{
 use napi::bindgen_prelude::*;
 
 use crate::{
-    delegated_spend_for_conditions, mint_nfts, parse_nft_info, parse_unspent_nft, spend_nft,
-    spend_p2_delegated_singleton, spend_p2_standard,
-    traits::{IntoJs, IntoRust},
+    delegated_spend_for_conditions, spend_p2_delegated_singleton, spend_p2_standard,
+    traits::{FromJs, IntoJs, IntoRust},
     Coin, CoinSpend, MintedNfts, Nft, NftMint, ParsedNft, Program, Spend,
 };
 
@@ -256,7 +256,59 @@ impl ClvmAllocator {
         parent_coin_id: Uint8Array,
         nft_mints: Vec<NftMint>,
     ) -> Result<MintedNfts> {
-        mint_nfts(env, this, parent_coin_id, nft_mints)
+        let parent_coin_id = parent_coin_id.into_rust()?;
+
+        let mut result = MintedNfts {
+            nfts: Vec::new(),
+            coin_spends: Vec::new(),
+            parent_conditions: Vec::new(),
+        };
+
+        let len = nft_mints.len();
+
+        for (i, nft_mint) in nft_mints.into_iter().enumerate() {
+            let (conditions, nft) = sdk::IntermediateLauncher::new(parent_coin_id, i, len)
+                .create(&mut self.0)
+                .map_err(|error| Error::from_reason(error.to_string()))?
+                .mint_nft(
+                    &mut self.0,
+                    sdk::NftMint::<nft::NftMetadata> {
+                        metadata: nft_mint.metadata.into_rust()?,
+                        p2_puzzle_hash: nft_mint.p2_puzzle_hash.into_rust()?,
+                        royalty_puzzle_hash: nft_mint.royalty_puzzle_hash.into_rust()?,
+                        royalty_ten_thousandths: nft_mint.royalty_ten_thousandths,
+                        metadata_updater_puzzle_hash: NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
+                        owner: None,
+                    },
+                )
+                .map_err(|error| Error::from_reason(error.to_string()))?;
+
+            result.nfts.push(nft.into_js()?);
+
+            for condition in conditions {
+                let condition = condition
+                    .to_clvm(&mut self.0.allocator)
+                    .map_err(|error| Error::from_reason(error.to_string()))?;
+
+                result.parent_conditions.push(
+                    Program {
+                        ctx: this.clone(env)?,
+                        ptr: condition,
+                    }
+                    .into_instance(env)?,
+                );
+            }
+        }
+
+        result.coin_spends.extend(
+            self.0
+                .take()
+                .into_iter()
+                .map(IntoJs::into_js)
+                .collect::<Result<Vec<_>>>()?,
+        );
+
+        Ok(result)
     }
 
     #[napi(ts_args_type = "puzzle: Program")]
@@ -266,7 +318,23 @@ impl ClvmAllocator {
         this: This<Clvm>,
         puzzle: &Program,
     ) -> Result<Option<ParsedNft>> {
-        parse_nft_info(env, this, puzzle)
+        let puzzle = sdk::Puzzle::parse(&self.0.allocator, puzzle.ptr);
+
+        let Some((nft_info, inner_puzzle)) =
+            sdk::NftInfo::<nft::NftMetadata>::parse(&self.0.allocator, puzzle)
+                .map_err(|error| Error::from_reason(error.to_string()))?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(ParsedNft {
+            info: nft_info.into_js()?,
+            inner_puzzle: Program {
+                ctx: this,
+                ptr: inner_puzzle.ptr(),
+            }
+            .into_instance(env)?,
+        }))
     }
 
     #[napi]
@@ -277,12 +345,38 @@ impl ClvmAllocator {
         parent_solution: &Program,
         coin: Coin,
     ) -> Result<Option<Nft>> {
-        parse_unspent_nft(self, parent_coin, parent_puzzle, parent_solution, coin)
+        let parent_puzzle = sdk::Puzzle::parse(&self.0.allocator, parent_puzzle.ptr);
+
+        let Some(nft) = sdk::Nft::<nft::NftMetadata>::from_parent_spend(
+            &mut self.0.allocator,
+            parent_coin.into_rust()?,
+            parent_puzzle,
+            parent_solution.ptr,
+            coin.into_rust()?,
+        )
+        .map_err(|error| Error::from_reason(error.to_string()))?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(nft.into_js()?))
     }
 
     #[napi]
     pub fn spend_nft(&mut self, nft: Nft, inner_spend: Spend) -> Result<Vec<CoinSpend>> {
-        spend_nft(self, nft, inner_spend)
+        let ctx = &mut self.0;
+        let nft = sdk::Nft::<nft::NftMetadata>::from_js(nft)?;
+
+        nft.spend(
+            ctx,
+            sdk::Spend {
+                puzzle: inner_spend.puzzle.ptr,
+                solution: inner_spend.solution.ptr,
+            },
+        )
+        .map_err(|error| Error::from_reason(error.to_string()))?;
+
+        ctx.take().into_iter().map(IntoJs::into_js).collect()
     }
 }
 
