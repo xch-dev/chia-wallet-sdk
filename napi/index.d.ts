@@ -19,6 +19,10 @@ export interface CoinSpend {
   puzzleReveal: Uint8Array
   solution: Uint8Array
 }
+export interface Spend {
+  puzzle: Program
+  solution: Program
+}
 export interface LineageProof {
   parentParentCoinInfo: Uint8Array
   parentInnerPuzzleHash?: Uint8Array
@@ -72,10 +76,6 @@ export interface P2Coin {
   puzzleHash: Uint8Array
   publicKey: Uint8Array
   secretKey: Uint8Array
-}
-export interface Spend {
-  puzzle: Program
-  solution: Program
 }
 export declare function compareBytes(a: Uint8Array, b: Uint8Array): boolean
 export declare function sha256(bytes: Uint8Array): Uint8Array
