@@ -43,16 +43,13 @@ impl ClvmAllocator {
 
     #[napi(ts_args_type = "")]
     pub fn nil(&mut self, this: This<Clvm>) -> Result<Program> {
-        Ok(Program {
-            ctx: this,
-            ptr: NodePtr::NIL,
-        })
+        Ok(Program::new(this, NodePtr::NIL))
     }
 
     #[napi(ts_args_type = "value: Uint8Array")]
     pub fn deserialize(&mut self, this: This<Clvm>, value: Uint8Array) -> Result<Program> {
         let ptr = node_from_bytes(&mut self.0.allocator, &value)?;
-        Ok(Program { ctx: this, ptr })
+        Ok(Program::new(this, ptr))
     }
 
     #[napi(ts_args_type = "value: Uint8Array")]
@@ -62,7 +59,7 @@ impl ClvmAllocator {
         value: Uint8Array,
     ) -> Result<Program> {
         let ptr = node_from_bytes_backrefs(&mut self.0.allocator, &value)?;
-        Ok(Program { ctx: this, ptr })
+        Ok(Program::new(this, ptr))
     }
 
     #[napi]
@@ -98,11 +95,7 @@ impl ClvmAllocator {
         .map_err(|error| Error::from_reason(error.to_string()))?;
 
         Ok(Output {
-            value: Program {
-                ctx: this,
-                ptr: result.1,
-            }
-            .into_instance(env)?,
+            value: Program::new(this, result.1).into_instance(env)?,
             cost: result.0.into_js()?,
         })
     }
@@ -130,7 +123,7 @@ impl ClvmAllocator {
                 args: args_ptr,
             })
             .map_err(|error| Error::from_reason(error.to_string()))
-            .map(|ptr| Program { ctx: this, ptr })
+            .map(|ptr| Program::new(this, ptr))
     }
 
     #[napi(ts_args_type = "first: Program, rest: Program")]
@@ -140,13 +133,13 @@ impl ClvmAllocator {
             .allocator
             .new_pair(first.ptr, rest.ptr)
             .map_err(|error| Error::from_reason(error.to_string()))?;
-        Ok(Program { ctx: this, ptr })
+        Ok(Program::new(this, ptr))
     }
 
     #[napi(ts_args_type = "value: ClvmValue")]
     pub fn alloc(&mut self, this: This<Clvm>, value: ClvmValue) -> Result<Program> {
         let ptr = value.allocate(&mut self.0.allocator)?;
-        Ok(Program { ctx: this, ptr })
+        Ok(Program::new(this, ptr))
     }
 
     #[napi(ts_args_type = "conditions: Array<Program>")]
@@ -164,16 +157,8 @@ impl ClvmAllocator {
             .map_err(|error| Error::from_reason(error.to_string()))?;
 
         Ok(Spend {
-            puzzle: Program {
-                ctx: this.clone(env)?,
-                ptr: delegated_puzzle,
-            }
-            .into_instance(env)?,
-            solution: Program {
-                ctx: this,
-                ptr: NodePtr::NIL,
-            }
-            .into_instance(env)?,
+            puzzle: Program::new(this.clone(env)?, delegated_puzzle).into_instance(env)?,
+            solution: Program::new(this, NodePtr::NIL).into_instance(env)?,
         })
     }
 
@@ -192,24 +177,13 @@ impl ClvmAllocator {
         let spend = p2
             .delegated_inner_spend(
                 ctx,
-                sdk::Spend {
-                    puzzle: delegated_spend.puzzle.ptr,
-                    solution: delegated_spend.solution.ptr,
-                },
+                sdk::Spend::new(delegated_spend.puzzle.ptr, delegated_spend.solution.ptr),
             )
             .map_err(|error| Error::from_reason(error.to_string()))?;
 
         Ok(Spend {
-            puzzle: Program {
-                ctx: this.clone(env)?,
-                ptr: spend.puzzle,
-            }
-            .into_instance(env)?,
-            solution: Program {
-                ctx: this,
-                ptr: spend.solution,
-            }
-            .into_instance(env)?,
+            puzzle: Program::new(this.clone(env)?, spend.puzzle).into_instance(env)?,
+            solution: Program::new(this, spend.solution).into_instance(env)?,
         })
     }
 
@@ -240,16 +214,8 @@ impl ClvmAllocator {
             .map_err(|error| Error::from_reason(error.to_string()))?;
 
         Ok(Spend {
-            puzzle: Program {
-                ctx: this.clone(env)?,
-                ptr: spend.puzzle,
-            }
-            .into_instance(env)?,
-            solution: Program {
-                ctx: this,
-                ptr: spend.solution,
-            }
-            .into_instance(env)?,
+            puzzle: Program::new(this.clone(env)?, spend.puzzle).into_instance(env)?,
+            solution: Program::new(this, spend.solution).into_instance(env)?,
         })
     }
 
@@ -295,13 +261,9 @@ impl ClvmAllocator {
                     .to_clvm(&mut self.0.allocator)
                     .map_err(|error| Error::from_reason(error.to_string()))?;
 
-                result.parent_conditions.push(
-                    Program {
-                        ctx: this.clone(env)?,
-                        ptr: condition,
-                    }
-                    .into_instance(env)?,
-                );
+                result
+                    .parent_conditions
+                    .push(Program::new(this.clone(env)?, condition).into_instance(env)?);
             }
         }
 
@@ -334,11 +296,7 @@ impl ClvmAllocator {
 
         Ok(Some(ParsedNft {
             info: nft_info.into_js()?,
-            inner_puzzle: Program {
-                ctx: this,
-                ptr: inner_puzzle.ptr(),
-            }
-            .into_instance(env)?,
+            inner_puzzle: Program::new(this, inner_puzzle.ptr()).into_instance(env)?,
         }))
     }
 
@@ -374,10 +332,7 @@ impl ClvmAllocator {
 
         nft.spend(
             ctx,
-            sdk::Spend {
-                puzzle: inner_spend.puzzle.ptr,
-                solution: inner_spend.solution.ptr,
-            },
+            sdk::Spend::new(inner_spend.puzzle.ptr, inner_spend.solution.ptr),
         )
         .map_err(|error| Error::from_reason(error.to_string()))?;
 
@@ -414,7 +369,7 @@ macro_rules! conditions {
                 .to_clvm(&mut self.0.allocator)
                 .map_err(|error| Error::from_reason(error.to_string()))?;
 
-                Ok(Program { ctx: this, ptr })
+                Ok(Program::new(this, ptr))
             }
         } )*
     };

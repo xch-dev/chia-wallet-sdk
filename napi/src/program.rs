@@ -19,6 +19,10 @@ pub struct Program {
 }
 
 impl Program {
+    pub(crate) fn new(ctx: Reference<ClvmAllocator>, ptr: NodePtr) -> Self {
+        Self { ctx, ptr }
+    }
+
     fn alloc(&self) -> &Allocator {
         &self.ctx.0.allocator
     }
@@ -83,20 +87,12 @@ impl Program {
 
         array.set(
             0,
-            Program {
-                ctx: self.ctx.clone(env)?,
-                ptr: first,
-            }
-            .into_instance(env)?,
+            Program::new(self.ctx.clone(env)?, first).into_instance(env)?,
         )?;
 
         array.set(
             1,
-            Program {
-                ctx: self.ctx.clone(env)?,
-                ptr: rest,
-            }
-            .into_instance(env)?,
+            Program::new(self.ctx.clone(env)?, rest).into_instance(env)?,
         )?;
 
         Ok(Some(array))
@@ -107,11 +103,7 @@ impl Program {
         let SExp::Pair(first, _rest) = self.alloc().sexp(self.ptr) else {
             return Err(Error::from_reason("Cannot call first on an atom"));
         };
-
-        Ok(Program {
-            ctx: self.ctx.clone(env)?,
-            ptr: first,
-        })
+        Ok(Program::new(self.ctx.clone(env)?, first))
     }
 
     #[napi(getter)]
@@ -119,26 +111,15 @@ impl Program {
         let SExp::Pair(_first, rest) = self.alloc().sexp(self.ptr) else {
             return Err(Error::from_reason("Cannot call rest on an atom"));
         };
-
-        Ok(Program {
-            ctx: self.ctx.clone(env)?,
-            ptr: rest,
-        })
+        Ok(Program::new(self.ctx.clone(env)?, rest))
     }
 
     #[napi]
     pub fn to_list(&self, env: Env) -> Result<Vec<ClassInstance<Program>>> {
-        let items = Vec::<NodePtr>::from_clvm(self.alloc(), self.ptr)
-            .map_err(|error| Error::from_reason(error.to_string()))?;
-        items
+        Vec::<NodePtr>::from_clvm(self.alloc(), self.ptr)
+            .map_err(|error| Error::from_reason(error.to_string()))?
             .into_iter()
-            .map(|ptr| {
-                Program {
-                    ctx: self.ctx.clone(env)?,
-                    ptr,
-                }
-                .into_instance(env)
-            })
+            .map(|ptr| Program::new(self.ctx.clone(env)?, ptr).into_instance(env))
             .collect()
     }
 
@@ -153,13 +134,7 @@ impl Program {
         let mut args_ptr = value.args;
 
         while let Ok((first, rest)) = self.alloc().decode_curried_arg(&args_ptr) {
-            args.push(
-                Program {
-                    ctx: self.ctx.clone(env)?,
-                    ptr: first,
-                }
-                .into_instance(env)?,
-            );
+            args.push(Program::new(self.ctx.clone(env)?, first).into_instance(env)?);
             args_ptr = rest;
         }
 
@@ -168,11 +143,7 @@ impl Program {
         }
 
         Ok(Some(Curry {
-            program: Program {
-                ctx: self.ctx.clone(env)?,
-                ptr: value.program,
-            }
-            .into_instance(env)?,
+            program: Program::new(self.ctx.clone(env)?, value.program).into_instance(env)?,
             args,
         }))
     }
