@@ -15,7 +15,6 @@ mod lineage_proof;
 mod nft;
 mod program;
 mod simulator;
-mod spend;
 mod traits;
 mod utils;
 
@@ -25,5 +24,4 @@ pub use coin_spend::*;
 pub use lineage_proof::*;
 pub use nft::*;
 pub use program::*;
-pub use spend::*;
 pub use utils::*;

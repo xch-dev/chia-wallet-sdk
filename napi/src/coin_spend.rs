@@ -3,7 +3,7 @@ use napi::bindgen_prelude::*;
 
 use crate::{
     traits::{FromJs, IntoJs, IntoRust},
-    Coin,
+    Coin, Program,
 };
 
 #[napi(object)]
@@ -31,4 +31,10 @@ impl FromJs<CoinSpend> for protocol::CoinSpend {
             solution: coin_spend.solution.into_rust()?,
         })
     }
+}
+
+#[napi(object)]
+pub struct Spend {
+    pub puzzle: ClassInstance<Program>,
+    pub solution: ClassInstance<Program>,
 }
