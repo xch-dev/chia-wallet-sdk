@@ -1,7 +1,8 @@
 use chia::{
     bls::PublicKey,
-    protocol::{BytesImpl, Program},
+    protocol::{Bytes, BytesImpl, Program},
 };
+use clvmr::NodePtr;
 use napi::bindgen_prelude::*;
 
 pub(crate) trait IntoJs<T> {
@@ -24,6 +25,48 @@ where
 {
     fn into_rust(self) -> Result<U> {
         U::from_js(self)
+    }
+}
+
+macro_rules! impl_primitive {
+    ( $( $ty:ty ),* ) => {
+        $( impl FromJs<$ty> for $ty {
+            fn from_js(value: $ty) -> Result<Self> {
+                Ok(value)
+            }
+        }
+
+        impl IntoJs<$ty> for $ty {
+            fn into_js(self) -> Result<Self> {
+                Ok(self)
+            }
+        } )*
+    };
+}
+
+impl_primitive!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, f32, f64);
+
+impl<F, T> FromJs<Vec<F>> for Vec<T>
+where
+    T: FromJs<F>,
+{
+    fn from_js(js_value: Vec<F>) -> Result<Self> {
+        js_value.into_iter().map(FromJs::from_js).collect()
+    }
+}
+
+impl<F, T> IntoJs<Vec<T>> for Vec<F>
+where
+    F: IntoJs<T>,
+{
+    fn into_js(self) -> Result<Vec<T>> {
+        self.into_iter().map(IntoJs::into_js).collect()
+    }
+}
+
+impl FromJs<ClassInstance<crate::Program>> for NodePtr {
+    fn from_js(program: ClassInstance<crate::Program>) -> Result<Self> {
+        Ok(program.ptr)
     }
 }
 
@@ -66,6 +109,18 @@ impl IntoJs<Uint8Array> for Vec<u8> {
 impl FromJs<Uint8Array> for Vec<u8> {
     fn from_js(js_value: Uint8Array) -> Result<Self> {
         Ok(js_value.to_vec())
+    }
+}
+
+impl IntoJs<Uint8Array> for Bytes {
+    fn into_js(self) -> Result<Uint8Array> {
+        Ok(Uint8Array::new(self.to_vec()))
+    }
+}
+
+impl FromJs<Uint8Array> for Bytes {
+    fn from_js(js_value: Uint8Array) -> Result<Self> {
+        Ok(Bytes::from(js_value.to_vec()))
     }
 }
 

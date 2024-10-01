@@ -83,6 +83,41 @@ export declare function fromHexRaw(hex: string): Uint8Array
 export declare function fromHex(hex: string): Uint8Array
 export declare function toHex(bytes: Uint8Array): string
 export declare class ClvmAllocator {
+  remark(value: Program): Program
+  aggSigParent(publicKey: Uint8Array, message: Uint8Array): Program
+  aggSigPuzzle(publicKey: Uint8Array, message: Uint8Array): Program
+  aggSigAmount(publicKey: Uint8Array, message: Uint8Array): Program
+  aggSigPuzzleAmount(publicKey: Uint8Array, message: Uint8Array): Program
+  aggSigParentAmount(publicKey: Uint8Array, message: Uint8Array): Program
+  aggSigParentPuzzle(publicKey: Uint8Array, message: Uint8Array): Program
+  aggSigUnsafe(publicKey: Uint8Array, message: Uint8Array): Program
+  aggSigMe(publicKey: Uint8Array, message: Uint8Array): Program
+  createCoin(puzzleHash: Uint8Array, amount: bigint, memos: Array<Uint8Array>): Program
+  reserveFee(fee: bigint): Program
+  createCoinAnnouncement(message: Uint8Array): Program
+  createPuzzleAnnouncement(message: Uint8Array): Program
+  assertCoinAnnouncement(announcementId: Uint8Array): Program
+  assertPuzzleAnnouncement(announcementId: Uint8Array): Program
+  assertConcurrentSpend(coinId: Uint8Array): Program
+  assertConcurrentPuzzle(puzzleHash: Uint8Array): Program
+  assertSecondsRelative(seconds: bigint): Program
+  assertSecondsAbsolute(seconds: bigint): Program
+  assertHeightRelative(height: number): Program
+  assertHeightAbsolute(height: number): Program
+  assertBeforeSecondsRelative(seconds: bigint): Program
+  assertBeforeSecondsAbsolute(seconds: bigint): Program
+  assertBeforeHeightRelative(height: number): Program
+  assertBeforeHeightAbsolute(height: number): Program
+  assertMyCoinId(coinId: Uint8Array): Program
+  assertMyParentId(parentId: Uint8Array): Program
+  assertMyPuzzleHash(puzzleHash: Uint8Array): Program
+  assertMyAmount(amount: bigint): Program
+  assertMyBirthSeconds(seconds: bigint): Program
+  assertMyBirthHeight(height: number): Program
+  assertEphemeral(): Program
+  sendMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
+  receiveMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
+  softfork(cost: bigint, value: Program): Program
   constructor()
   nil(): Program
   deserialize(value: Uint8Array): Program
@@ -90,13 +125,7 @@ export declare class ClvmAllocator {
   treeHash(program: Program): Uint8Array
   run(puzzle: Program, solution: Program, maxCost: bigint, mempoolMode: boolean): Output
   curry(program: Program, args: Array<Program>): Program
-  newList(values: Array<Program>): Program
-  newPair(first: Program, rest: Program): Program
-  newAtom(value: Uint8Array): Program
-  newString(value: string): Program
-  newNumber(value: number): Program
-  newBigInt(value: bigint): Program
-  newBoolean(value: boolean): Program
+  pair(first: Program, rest: Program): Program
   alloc(value: ClvmValue): Program
   delegatedSpendForConditions(conditions: Array<Program>): Spend
   spendP2Standard(syntheticKey: Uint8Array, delegatedSpend: Spend): Spend

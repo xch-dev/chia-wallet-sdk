@@ -5,7 +5,17 @@ use chia::{
     protocol::Bytes32,
     puzzles::nft::{self, NFT_METADATA_UPDATER_PUZZLE_HASH},
 };
-use chia_wallet_sdk::{self as sdk, Primitive, SpendContext};
+use chia_wallet_sdk::{
+    self as sdk, AggSigAmount, AggSigMe, AggSigParent, AggSigParentAmount, AggSigParentPuzzle,
+    AggSigPuzzle, AggSigPuzzleAmount, AggSigUnsafe, AssertBeforeHeightAbsolute,
+    AssertBeforeHeightRelative, AssertBeforeSecondsAbsolute, AssertBeforeSecondsRelative,
+    AssertCoinAnnouncement, AssertConcurrentPuzzle, AssertConcurrentSpend, AssertEphemeral,
+    AssertHeightAbsolute, AssertHeightRelative, AssertMyAmount, AssertMyBirthHeight,
+    AssertMyBirthSeconds, AssertMyCoinId, AssertMyParentId, AssertMyPuzzleHash,
+    AssertPuzzleAnnouncement, AssertSecondsAbsolute, AssertSecondsRelative, CreateCoin,
+    CreateCoinAnnouncement, CreatePuzzleAnnouncement, Primitive, ReceiveMessage, Remark,
+    ReserveFee, SendMessage, Softfork, SpendContext,
+};
 use clvmr::{
     run_program,
     serde::{node_from_bytes, node_from_bytes_backrefs},
@@ -14,6 +24,7 @@ use clvmr::{
 use napi::bindgen_prelude::*;
 
 use crate::{
+    clvm_value::{Allocate, ClvmValue},
     traits::{FromJs, IntoJs, IntoRust},
     Coin, CoinSpend, MintedNfts, Nft, NftMint, ParsedNft, Program, Spend,
 };
@@ -22,6 +33,166 @@ type Clvm = Reference<ClvmAllocator>;
 
 #[napi]
 pub struct ClvmAllocator(pub(crate) SpendContext);
+
+macro_rules! conditions {
+    ( $( $condition:ident { $hint:literal $function:ident( $( $name:ident: $ty:ty $( => $remap:ty )? ),* ) }, )* ) => {
+        $( #[napi]
+        impl ClvmAllocator {
+            #[napi(ts_args_type = $hint)]
+            pub fn $function( &mut self, this: This<Clvm>, $( $name: $ty ),* ) -> Result<Program> {
+                $( let $name $( : $remap )? = FromJs::from_js($name)?; )*
+                let ptr = $condition::new( $( $name ),* )
+                .to_clvm(&mut self.0.allocator)
+                .map_err(|error| Error::from_reason(error.to_string()))?;
+
+                Ok(Program { ctx: this, ptr })
+            }
+        } )*
+    };
+}
+
+conditions!(
+    Remark {
+        "value: Program"
+        remark(value: ClassInstance<Program> => NodePtr)
+    },
+    AggSigParent {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_parent(public_key: Uint8Array, message: Uint8Array)
+    },
+    AggSigPuzzle {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_puzzle(public_key: Uint8Array, message: Uint8Array)
+    },
+    AggSigAmount {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_amount(public_key: Uint8Array, message: Uint8Array)
+    },
+    AggSigPuzzleAmount {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_puzzle_amount(public_key: Uint8Array, message: Uint8Array)
+    },
+    AggSigParentAmount {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_parent_amount(public_key: Uint8Array, message: Uint8Array)
+    },
+    AggSigParentPuzzle {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_parent_puzzle(public_key: Uint8Array, message: Uint8Array)
+    },
+    AggSigUnsafe {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_unsafe(public_key: Uint8Array, message: Uint8Array)
+    },
+    AggSigMe {
+        "publicKey: Uint8Array, message: Uint8Array"
+        agg_sig_me(public_key: Uint8Array, message: Uint8Array)
+    },
+    CreateCoin {
+        "puzzleHash: Uint8Array, amount: bigint, memos: Array<Uint8Array>"
+        create_coin(puzzle_hash: Uint8Array, amount: BigInt, memos: Vec<Uint8Array>)
+    },
+    ReserveFee {
+        "fee: bigint"
+        reserve_fee(fee: BigInt)
+    },
+    CreateCoinAnnouncement {
+        "message: Uint8Array"
+        create_coin_announcement(message: Uint8Array)
+    },
+    CreatePuzzleAnnouncement {
+        "message: Uint8Array"
+        create_puzzle_announcement(message: Uint8Array)
+    },
+    AssertCoinAnnouncement {
+        "announcementId: Uint8Array"
+        assert_coin_announcement(announcement_id: Uint8Array)
+    },
+    AssertPuzzleAnnouncement {
+        "announcementId: Uint8Array"
+        assert_puzzle_announcement(announcement_id: Uint8Array)
+    },
+    AssertConcurrentSpend {
+        "coinId: Uint8Array"
+        assert_concurrent_spend(coin_id: Uint8Array)
+    },
+    AssertConcurrentPuzzle {
+        "puzzleHash: Uint8Array"
+        assert_concurrent_puzzle(puzzle_hash: Uint8Array)
+    },
+    AssertSecondsRelative {
+        "seconds: bigint"
+        assert_seconds_relative(seconds: BigInt)
+    },
+    AssertSecondsAbsolute {
+        "seconds: bigint"
+        assert_seconds_absolute(seconds: BigInt)
+    },
+    AssertHeightRelative {
+        "height: number"
+        assert_height_relative(height: u32)
+    },
+    AssertHeightAbsolute {
+        "height: number"
+        assert_height_absolute(height: u32)
+    },
+    AssertBeforeSecondsRelative {
+        "seconds: bigint"
+        assert_before_seconds_relative(seconds: BigInt)
+    },
+    AssertBeforeSecondsAbsolute {
+        "seconds: bigint"
+        assert_before_seconds_absolute(seconds: BigInt)
+    },
+    AssertBeforeHeightRelative {
+        "height: number"
+        assert_before_height_relative(height: u32)
+    },
+    AssertBeforeHeightAbsolute {
+        "height: number"
+        assert_before_height_absolute(height: u32)
+    },
+    AssertMyCoinId {
+        "coinId: Uint8Array"
+        assert_my_coin_id(coin_id: Uint8Array)
+    },
+    AssertMyParentId {
+        "parentId: Uint8Array"
+        assert_my_parent_id(parent_id: Uint8Array)
+    },
+    AssertMyPuzzleHash {
+        "puzzleHash: Uint8Array"
+        assert_my_puzzle_hash(puzzle_hash: Uint8Array)
+    },
+    AssertMyAmount {
+        "amount: bigint"
+        assert_my_amount(amount: BigInt)
+    },
+    AssertMyBirthSeconds {
+        "seconds: bigint"
+        assert_my_birth_seconds(seconds: BigInt)
+    },
+    AssertMyBirthHeight {
+        "height: number"
+        assert_my_birth_height(height: u32)
+    },
+    AssertEphemeral {
+        ""
+        assert_ephemeral()
+    },
+    SendMessage {
+        "mode: number, message: Uint8Array, data: Array<Program>"
+        send_message(mode: u8, message: Uint8Array, data: Vec<ClassInstance<Program>> => Vec<NodePtr>)
+    },
+    ReceiveMessage {
+        "mode: number, message: Uint8Array, data: Array<Program>"
+        receive_message(mode: u8, message: Uint8Array, data: Vec<ClassInstance<Program>> => Vec<NodePtr>)
+    },
+    Softfork {
+        "cost: bigint, value: Program"
+        softfork(cost: BigInt, value: ClassInstance<Program> => NodePtr)
+    },
+);
 
 #[napi]
 impl ClvmAllocator {
@@ -122,27 +293,8 @@ impl ClvmAllocator {
             .map(|ptr| Program { ctx: this, ptr })
     }
 
-    #[napi(ts_args_type = "values: Array<Program>")]
-    pub fn new_list(
-        &mut self,
-        this: This<Clvm>,
-        values: Vec<ClassInstance<Program>>,
-    ) -> Result<Program> {
-        let items: Vec<NodePtr> = values.into_iter().map(|program| program.ptr).collect();
-        let ptr = self
-            .0
-            .alloc(&items)
-            .map_err(|error| Error::from_reason(error.to_string()))?;
-        Ok(Program { ctx: this, ptr })
-    }
-
     #[napi(ts_args_type = "first: Program, rest: Program")]
-    pub fn new_pair(
-        &mut self,
-        this: This<Clvm>,
-        first: &Program,
-        rest: &Program,
-    ) -> Result<Program> {
+    pub fn pair(&mut self, this: This<Clvm>, first: &Program, rest: &Program) -> Result<Program> {
         let ptr = self
             .0
             .allocator
@@ -151,57 +303,9 @@ impl ClvmAllocator {
         Ok(Program { ctx: this, ptr })
     }
 
-    #[napi(ts_args_type = "value: Uint8Array")]
-    pub fn new_atom(&mut self, this: This<Clvm>, value: Uint8Array) -> Result<Program> {
-        let value: Vec<u8> = value.into_rust()?;
-        let ptr = self
-            .0
-            .allocator
-            .new_atom(&value)
-            .map_err(|error| Error::from_reason(error.to_string()))?;
-        Ok(Program { ctx: this, ptr })
-    }
-
-    #[napi(ts_args_type = "value: string")]
-    pub fn new_string(&mut self, this: This<Clvm>, value: String) -> Result<Program> {
-        let ptr = self
-            .0
-            .allocator
-            .new_atom(value.as_bytes())
-            .map_err(|error| Error::from_reason(error.to_string()))?;
-        Ok(Program { ctx: this, ptr })
-    }
-
-    #[napi(ts_args_type = "value: number")]
-    pub fn new_number(&mut self, this: This<Clvm>, value: f64) -> Result<Program> {
-        let ptr = allocate_f64(&mut self.0.allocator, value)?;
-        Ok(Program { ctx: this, ptr })
-    }
-
-    #[napi(ts_args_type = "value: bigint")]
-    pub fn new_big_int(&mut self, this: This<Clvm>, value: BigInt) -> Result<Program> {
-        let value = value.into_rust()?;
-        let ptr = self
-            .0
-            .allocator
-            .new_number(value)
-            .map_err(|error| Error::from_reason(error.to_string()))?;
-        Ok(Program { ctx: this, ptr })
-    }
-
-    #[napi(ts_args_type = "value: boolean")]
-    pub fn new_boolean(&mut self, this: This<Clvm>, value: bool) -> Result<Program> {
-        let ptr = self
-            .0
-            .allocator
-            .new_small_number(u32::from(value))
-            .map_err(|error| Error::from_reason(error.to_string()))?;
-        Ok(Program { ctx: this, ptr })
-    }
-
     #[napi(ts_args_type = "value: ClvmValue")]
     pub fn alloc(&mut self, this: This<Clvm>, value: ClvmValue) -> Result<Program> {
-        let ptr = allocate_any(&mut self.0.allocator, value)?;
+        let ptr = value.allocate(&mut self.0.allocator)?;
         Ok(Program { ctx: this, ptr })
     }
 
@@ -457,89 +561,4 @@ pub fn curry_tree_hash(tree_hash: Uint8Array, args: Vec<Uint8Array>) -> Result<U
     clvm_utils::curry_tree_hash(tree_hash.into(), &args)
         .to_bytes()
         .into_js()
-}
-
-type ClvmValue = Either7<f64, BigInt, String, bool, ClassInstance<Program>, Uint8Array, Array>;
-
-fn allocate_any(allocator: &mut clvmr::Allocator, value: ClvmValue) -> Result<NodePtr> {
-    match value {
-        Either7::A(value) => allocate_f64(allocator, value),
-        Either7::B(value) => {
-            let value = value.into_rust()?;
-            allocator
-                .new_number(value)
-                .map_err(|error| Error::from_reason(error.to_string()))
-        }
-        Either7::C(value) => allocator
-            .new_atom(value.as_bytes())
-            .map_err(|error| Error::from_reason(error.to_string())),
-        Either7::D(value) => {
-            let value = u32::from(value);
-            allocator
-                .new_small_number(value)
-                .map_err(|error| Error::from_reason(error.to_string()))
-        }
-        Either7::E(value) => Ok(value.ptr),
-        Either7::F(value) => {
-            let value: Vec<u8> = value.into_rust()?;
-            allocator
-                .new_atom(&value)
-                .map_err(|error| Error::from_reason(error.to_string()))
-        }
-        Either7::G(value) => {
-            let mut items = Vec::with_capacity(value.len() as usize);
-
-            for i in 0..value.len() {
-                let Some(item) = value.get::<ClvmValue>(i)? else {
-                    return Err(Error::from_reason(format!("Item at index {i} is missing")));
-                };
-
-                items.push(allocate_any(allocator, item)?);
-            }
-
-            items
-                .to_clvm(allocator)
-                .map_err(|error| Error::from_reason(error.to_string()))
-        }
-    }
-}
-
-fn allocate_f64(allocator: &mut clvmr::Allocator, value: f64) -> Result<NodePtr> {
-    if value.is_infinite() {
-        return Err(Error::from_reason("Value is infinite".to_string()));
-    }
-
-    if value.is_nan() {
-        return Err(Error::from_reason("Value is NaN".to_string()));
-    }
-
-    if value.fract() != 0.0 {
-        return Err(Error::from_reason(
-            "Value has a fractional part".to_string(),
-        ));
-    }
-
-    if value > 9_007_199_254_740_991.0 {
-        return Err(Error::from_reason(
-            "Value is larger than MAX_SAFE_INTEGER".to_string(),
-        ));
-    }
-
-    if value < -9_007_199_254_740_991.0 {
-        return Err(Error::from_reason(
-            "Value is smaller than MIN_SAFE_INTEGER".to_string(),
-        ));
-    }
-
-    let value = value as i64;
-
-    if (0..=67_108_863).contains(&value) {
-        allocator
-            .new_small_number(value as u32)
-            .map_err(|error| Error::from_reason(error.to_string()))
-    } else {
-        allocator
-            .new_number(value.into())
-            .map_err(|error| Error::from_reason(error.to_string()))
-    }
 }

@@ -9,6 +9,7 @@
 extern crate napi_derive;
 
 mod clvm;
+mod clvm_value;
 mod coin;
 mod coin_spend;
 mod lineage_proof;
