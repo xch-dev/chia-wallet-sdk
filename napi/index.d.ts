@@ -90,7 +90,7 @@ export declare class ClvmAllocator {
   treeHash(program: Program): Uint8Array
   run(puzzle: Program, solution: Program, maxCost: bigint, mempoolMode: boolean): Output
   curry(program: Program, args: Array<Program>): Program
-  pair(first: Program, rest: Program): Program
+  pair(first: ClvmValue, rest: ClvmValue): Program
   alloc(value: ClvmValue): Program
   delegatedSpendForConditions(conditions: Array<Program>): Spend
   spendP2Standard(syntheticKey: Uint8Array, delegatedSpend: Spend): Spend

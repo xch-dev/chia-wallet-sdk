@@ -126,12 +126,14 @@ impl ClvmAllocator {
             .map(|ptr| Program::new(this, ptr))
     }
 
-    #[napi(ts_args_type = "first: Program, rest: Program")]
-    pub fn pair(&mut self, this: This<Clvm>, first: &Program, rest: &Program) -> Result<Program> {
+    #[napi(ts_args_type = "first: ClvmValue, rest: ClvmValue")]
+    pub fn pair(&mut self, this: This<Clvm>, first: ClvmValue, rest: ClvmValue) -> Result<Program> {
+        let first = first.allocate(&mut self.0.allocator)?;
+        let rest = rest.allocate(&mut self.0.allocator)?;
         let ptr = self
             .0
             .allocator
-            .new_pair(first.ptr, rest.ptr)
+            .new_pair(first, rest)
             .map_err(|error| Error::from_reason(error.to_string()))?;
         Ok(Program::new(this, ptr))
     }

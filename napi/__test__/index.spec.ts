@@ -51,7 +51,7 @@ test("atom roundtrip", (t) => {
   const clvm = new ClvmAllocator();
 
   const expected = Uint8Array.from([1, 2, 3]);
-  const atom = clvm.newAtom(expected);
+  const atom = clvm.alloc(expected);
 
   t.true(compareBytes(atom.toAtom()!, expected));
 });
@@ -60,7 +60,7 @@ test("string roundtrip", (t) => {
   const clvm = new ClvmAllocator();
 
   const expected = "hello world";
-  const atom = clvm.newString(expected);
+  const atom = clvm.alloc(expected);
   t.is(atom.toString(), expected);
 });
 
@@ -75,7 +75,7 @@ test("number roundtrip", (t) => {
     1000,
     Number.MAX_SAFE_INTEGER,
   ]) {
-    const num = clvm.newNumber(expected);
+    const num = clvm.alloc(expected);
     t.is(num.toBigInt(), BigInt(expected));
   }
 });
@@ -90,7 +90,7 @@ test("invalid number", (t) => {
     -Infinity,
     NaN,
   ]) {
-    t.throws(() => clvm.newNumber(expected));
+    t.throws(() => clvm.alloc(expected));
   }
 });
 
@@ -107,17 +107,15 @@ test("bigint roundtrip", (t) => {
     -421489719874198729487129847n,
     4384723984791283749823764732649187498237483927482n,
   ]) {
-    const num = clvm.newBigInt(expected);
+    const num = clvm.alloc(expected);
     t.is(num.toBigInt(), expected);
   }
 });
 
 test("pair roundtrip", (t) => {
   const clvm = new ClvmAllocator();
-  const a = clvm.newNumber(1);
-  const b = clvm.newBigInt(100n);
 
-  const ptr = clvm.newPair(a, b);
+  const ptr = clvm.pair(1, 100n);
   const [first, rest] = ptr.toPair()!;
 
   t.is(first.toSmallNumber(), 1);
@@ -128,7 +126,7 @@ test("list roundtrip", (t) => {
   const clvm = new ClvmAllocator();
 
   const items = Array.from({ length: 10 }, (_, i) => i);
-  const ptr = clvm.newList(items.map((i) => clvm.newNumber(i)));
+  const ptr = clvm.alloc(items);
   const list = ptr.toList().map((ptr) => ptr.toSmallNumber());
 
   t.deepEqual(list, items);
@@ -137,15 +135,15 @@ test("list roundtrip", (t) => {
 test("clvm value allocation", (t) => {
   const clvm = new ClvmAllocator();
 
-  const shared = clvm.newNumber(42);
+  const shared = clvm.alloc(42);
 
-  const manual = clvm.newList([
-    clvm.newNumber(42),
-    clvm.newString("Hello, world!"),
-    clvm.newBoolean(true),
-    clvm.newAtom(Uint8Array.from([1, 2, 3])),
-    clvm.newList([clvm.newNumber(34)]),
-    clvm.newBigInt(100n),
+  const manual = clvm.alloc([
+    clvm.alloc(42),
+    clvm.alloc("Hello, world!"),
+    clvm.alloc(true),
+    clvm.alloc(Uint8Array.from([1, 2, 3])),
+    clvm.alloc([clvm.alloc(34)]),
+    clvm.alloc(100n),
     shared,
   ]);
 
@@ -166,13 +164,8 @@ test("curry add function", (t) => {
   const clvm = new ClvmAllocator();
 
   const addMod = clvm.deserialize(fromHex("ff10ff02ff0580"));
-  const addToTen = clvm.curry(addMod, [clvm.newNumber(10)]);
-  const result = clvm.run(
-    addToTen,
-    clvm.newList([clvm.newNumber(5)]),
-    10000000n,
-    true
-  );
+  const addToTen = clvm.curry(addMod, [clvm.alloc(10)]);
+  const result = clvm.run(addToTen, clvm.alloc([5]), 10000000n, true);
 
   t.is(result.value.toSmallNumber(), 15);
   t.is(result.cost, 1082n);
@@ -184,7 +177,7 @@ test("curry roundtrip", (t) => {
   const items = Array.from({ length: 10 }, (_, i) => i);
   const ptr = clvm.curry(
     clvm.nil(),
-    items.map((i) => clvm.newNumber(i))
+    items.map((i) => clvm.alloc(i))
   );
   const uncurry = ptr.uncurry()!;
   const args = uncurry.args.map((ptr) => ptr.toSmallNumber());
@@ -199,16 +192,10 @@ test("clvm serialization", (t) => {
   const clvm = new ClvmAllocator();
 
   for (const [ptr, hex] of [
-    [clvm.newAtom(Uint8Array.from([1, 2, 3])), "83010203"],
-    [clvm.newNumber(420), "8201a4"],
-    [clvm.newBigInt(100n), "64"],
-    [
-      clvm.newPair(
-        clvm.newAtom(Uint8Array.from([1, 2, 3])),
-        clvm.newBigInt(100n)
-      ),
-      "ff8301020364",
-    ],
+    [clvm.alloc(Uint8Array.from([1, 2, 3])), "83010203"],
+    [clvm.alloc(420), "8201a4"],
+    [clvm.alloc(100n), "64"],
+    [clvm.pair(Uint8Array.from([1, 2, 3]), 100n), "ff8301020364"],
   ] as const) {
     const serialized = ptr.serialize();
     const deserialized = clvm.deserialize(serialized);
@@ -224,12 +211,12 @@ test("curry tree hash", (t) => {
   const items = Array.from({ length: 10 }, (_, i) => i);
   const ptr = clvm.curry(
     clvm.nil(),
-    items.map((i) => clvm.newNumber(i))
+    items.map((i) => clvm.alloc(i))
   );
 
   const treeHash = curryTreeHash(
     clvm.treeHash(clvm.nil()),
-    items.map((i) => clvm.treeHash(clvm.newNumber(i)))
+    items.map((i) => clvm.treeHash(clvm.alloc(i)))
   );
   const expected = clvm.treeHash(ptr);
 
@@ -275,12 +262,7 @@ test("mint and spend nft", (t) => {
   const innerSpend = clvm.spendP2Standard(
     p2.publicKey,
     clvm.delegatedSpendForConditions([
-      clvm.newList([
-        clvm.newNumber(51),
-        clvm.newAtom(p2.puzzleHash),
-        clvm.newNumber(1),
-        clvm.newList([clvm.newAtom(p2.puzzleHash)]),
-      ]),
+      clvm.createCoin(p2.puzzleHash, 1n, [p2.puzzleHash]),
     ])
   );
 
