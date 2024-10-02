@@ -237,12 +237,8 @@ impl ClvmAllocator {
             parent_conditions: Vec::new(),
         };
 
-        let len = nft_mints.len();
-
         for (i, nft_mint) in nft_mints.into_iter().enumerate() {
-            let (conditions, nft) = sdk::IntermediateLauncher::new(parent_coin_id, i, len)
-                .create(&mut self.0)
-                .map_err(|error| Error::from_reason(error.to_string()))?
+            let (conditions, nft) = sdk::Launcher::new(parent_coin_id, i as u64 * 2 + 1)
                 .mint_nft(
                     &mut self.0,
                     sdk::NftMint::<nft::NftMetadata> {
