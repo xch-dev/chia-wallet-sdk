@@ -97,7 +97,7 @@ export declare class ClvmAllocator {
   spendP2DelegatedSingleton(launcherId: Uint8Array, coinId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend): Spend
   mintNfts(parent_coin_id: Uint8Array, nft_mints: Array<NftMint>): MintedNfts
   parseNftInfo(puzzle: Program): ParsedNft | null
-  parseUnspentNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program, coin: Coin): Nft | null
+  parseChildNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Nft | null
   spendNft(nft: Nft, innerSpend: Spend): Array<CoinSpend>
   remark(value: Program): Program
   aggSigParent(publicKey: Uint8Array, message: Uint8Array): Program

@@ -6,8 +6,7 @@ use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    DidLayer, DriverError, Layer, Primitive, Puzzle, SingletonLayer, Spend, SpendContext,
-    SpendWithConditions,
+    DidLayer, DriverError, Layer, Puzzle, SingletonLayer, Spend, SpendContext, SpendWithConditions,
 };
 
 mod did_info;
@@ -145,11 +144,11 @@ where
     }
 }
 
-impl<M> Primitive for Did<M>
+impl<M> Did<M>
 where
     M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
 {
-    fn from_parent_spend(
+    pub fn parse_child(
         allocator: &mut Allocator,
         parent_coin: Coin,
         parent_puzzle: Puzzle,
@@ -369,7 +368,7 @@ mod tests {
 
         let puzzle = Puzzle::parse(&allocator, puzzle_reveal);
 
-        let did = Did::<()>::from_parent_spend(
+        let did = Did::<()>::parse_child(
             &mut allocator,
             parent_coin,
             puzzle,

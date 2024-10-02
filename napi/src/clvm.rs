@@ -13,8 +13,8 @@ use chia_wallet_sdk::{
     AssertHeightAbsolute, AssertHeightRelative, AssertMyAmount, AssertMyBirthHeight,
     AssertMyBirthSeconds, AssertMyCoinId, AssertMyParentId, AssertMyPuzzleHash,
     AssertPuzzleAnnouncement, AssertSecondsAbsolute, AssertSecondsRelative, CreateCoin,
-    CreateCoinAnnouncement, CreatePuzzleAnnouncement, Primitive, ReceiveMessage, Remark,
-    ReserveFee, SendMessage, Softfork, SpendContext,
+    CreateCoinAnnouncement, CreatePuzzleAnnouncement, ReceiveMessage, Remark, ReserveFee,
+    SendMessage, Softfork, SpendContext,
 };
 use clvmr::{
     run_program,
@@ -299,21 +299,19 @@ impl ClvmAllocator {
     }
 
     #[napi]
-    pub fn parse_unspent_nft(
+    pub fn parse_child_nft(
         &mut self,
         parent_coin: Coin,
         parent_puzzle: &Program,
         parent_solution: &Program,
-        coin: Coin,
     ) -> Result<Option<Nft>> {
         let parent_puzzle = sdk::Puzzle::parse(&self.0.allocator, parent_puzzle.ptr);
 
-        let Some(nft) = sdk::Nft::<nft::NftMetadata>::from_parent_spend(
+        let Some(nft) = sdk::Nft::<nft::NftMetadata>::parse_child(
             &mut self.0.allocator,
             parent_coin.into_rust()?,
             parent_puzzle,
             parent_solution.ptr,
-            coin.into_rust()?,
         )
         .map_err(|error| Error::from_reason(error.to_string()))?
         else {
