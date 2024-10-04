@@ -160,10 +160,16 @@ where
                 .update_nft_metadata(metadata_update.puzzle, metadata_update.solution),
         )?;
 
+        let metadata_updater_solution = clvm_list!(
+            self.info.metadata.clone(),
+            self.info.metadata_updater_puzzle_hash,
+            metadata_update.solution
+        )
+        .to_clvm(&mut ctx.allocator)?;
         let ptr = run_puzzle(
             &mut ctx.allocator,
             metadata_update.puzzle,
-            metadata_update.solution,
+            metadata_updater_solution,
         )?;
         let output = ctx.extract::<NewMetadataOutput<N, NodePtr>>(ptr)?;
 
