@@ -8,6 +8,8 @@ export interface Output {
   cost: bigint
 }
 export declare function curryTreeHash(treeHash: Uint8Array, args: Array<Uint8Array>): Uint8Array
+export declare function intToSignedBytes(bigInt: bigint): Uint8Array
+export declare function signedBytesToInt(bytes: Uint8Array): bigint
 export interface Coin {
   parentCoinInfo: Uint8Array
   puzzleHash: Uint8Array
@@ -35,7 +37,7 @@ export interface Nft {
 }
 export interface NftInfo {
   launcherId: Uint8Array
-  metadata: NftMetadata
+  metadata: Uint8Array
   metadataUpdaterPuzzleHash: Uint8Array
   currentOwner?: Uint8Array
   royaltyPuzzleHash: Uint8Array
@@ -92,6 +94,8 @@ export declare class ClvmAllocator {
   curry(program: Program, args: Array<Program>): Program
   pair(first: ClvmValue, rest: ClvmValue): Program
   alloc(value: ClvmValue): Program
+  nftMetadata(value: NftMetadata): Program
+  parseNftMetadata(value: Program): NftMetadata
   delegatedSpendForConditions(conditions: Array<Program>): Spend
   spendP2Standard(syntheticKey: Uint8Array, delegatedSpend: Spend): Spend
   spendP2DelegatedSingleton(launcherId: Uint8Array, coinId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend): Spend

@@ -1,3 +1,4 @@
+use chia::protocol;
 use chia::puzzles::nft;
 use chia_wallet_sdk as sdk;
 use napi::bindgen_prelude::*;
@@ -14,7 +15,7 @@ pub struct Nft {
     pub info: NftInfo,
 }
 
-impl IntoJs<Nft> for sdk::Nft<nft::NftMetadata> {
+impl IntoJs<Nft> for sdk::Nft<protocol::Program> {
     fn into_js(self) -> Result<Nft> {
         Ok(Nft {
             coin: self.coin.into_js()?,
@@ -24,7 +25,7 @@ impl IntoJs<Nft> for sdk::Nft<nft::NftMetadata> {
     }
 }
 
-impl FromJs<Nft> for sdk::Nft<nft::NftMetadata> {
+impl FromJs<Nft> for sdk::Nft<protocol::Program> {
     fn from_js(nft: Nft) -> Result<Self> {
         Ok(sdk::Nft {
             coin: nft.coin.into_rust()?,
@@ -37,7 +38,7 @@ impl FromJs<Nft> for sdk::Nft<nft::NftMetadata> {
 #[napi(object)]
 pub struct NftInfo {
     pub launcher_id: Uint8Array,
-    pub metadata: NftMetadata,
+    pub metadata: Uint8Array,
     pub metadata_updater_puzzle_hash: Uint8Array,
     pub current_owner: Option<Uint8Array>,
     pub royalty_puzzle_hash: Uint8Array,
@@ -45,7 +46,7 @@ pub struct NftInfo {
     pub p2_puzzle_hash: Uint8Array,
 }
 
-impl IntoJs<NftInfo> for sdk::NftInfo<nft::NftMetadata> {
+impl IntoJs<NftInfo> for sdk::NftInfo<protocol::Program> {
     fn into_js(self) -> Result<NftInfo> {
         Ok(NftInfo {
             launcher_id: self.launcher_id.into_js()?,
@@ -59,7 +60,7 @@ impl IntoJs<NftInfo> for sdk::NftInfo<nft::NftMetadata> {
     }
 }
 
-impl FromJs<NftInfo> for sdk::NftInfo<nft::NftMetadata> {
+impl FromJs<NftInfo> for sdk::NftInfo<protocol::Program> {
     fn from_js(info: NftInfo) -> Result<Self> {
         Ok(sdk::NftInfo {
             launcher_id: info.launcher_id.into_rust()?,

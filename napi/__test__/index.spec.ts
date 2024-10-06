@@ -270,5 +270,14 @@ test("mint and spend nft", (t) => {
 
   simulator.spend(coinSpends, [p2.secretKey]);
 
-  t.pass();
+  t.true(
+    compareBytes(
+      clvm
+        .nftMetadata(
+          clvm.parseNftMetadata(clvm.deserialize(result.nfts[0].info.metadata))
+        )
+        .serialize(),
+      result.nfts[0].info.metadata
+    )
+  );
 });

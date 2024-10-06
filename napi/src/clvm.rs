@@ -1,8 +1,8 @@
 use chia::{
     bls::PublicKey,
-    clvm_traits::{clvm_quote, ClvmEncoder, ToClvm},
+    clvm_traits::{clvm_quote, ClvmEncoder, FromClvm, ToClvm},
     clvm_utils::{self, CurriedProgram, TreeHash},
-    protocol::Bytes32,
+    protocol::{self, Bytes32},
     puzzles::nft::{self, NFT_METADATA_UPDATER_PUZZLE_HASH},
 };
 use chia_wallet_sdk::{
@@ -13,8 +13,8 @@ use chia_wallet_sdk::{
     AssertHeightAbsolute, AssertHeightRelative, AssertMyAmount, AssertMyBirthHeight,
     AssertMyBirthSeconds, AssertMyCoinId, AssertMyParentId, AssertMyPuzzleHash,
     AssertPuzzleAnnouncement, AssertSecondsAbsolute, AssertSecondsRelative, CreateCoin,
-    CreateCoinAnnouncement, CreatePuzzleAnnouncement, ReceiveMessage, Remark, ReserveFee,
-    SendMessage, Softfork, SpendContext,
+    CreateCoinAnnouncement, CreatePuzzleAnnouncement, HashedPtr, ReceiveMessage, Remark,
+    ReserveFee, SendMessage, Softfork, SpendContext,
 };
 use clvmr::{
     run_program,
@@ -26,7 +26,7 @@ use napi::bindgen_prelude::*;
 use crate::{
     clvm_value::{Allocate, ClvmValue},
     traits::{FromJs, IntoJs, IntoRust},
-    Coin, CoinSpend, MintedNfts, Nft, NftMint, ParsedNft, Program, Spend,
+    Coin, CoinSpend, MintedNfts, Nft, NftMetadata, NftMint, ParsedNft, Program, Spend,
 };
 
 type Clvm = Reference<ClvmAllocator>;
@@ -144,6 +144,25 @@ impl ClvmAllocator {
         Ok(Program::new(this, ptr))
     }
 
+    #[napi(ts_args_type = "value: NftMetadata")]
+    pub fn nft_metadata(&mut self, this: This<Clvm>, value: NftMetadata) -> Result<Program> {
+        let metadata = nft::NftMetadata::from_js(value)?;
+
+        let ptr = metadata
+            .to_clvm(&mut self.0.allocator)
+            .map_err(|error| Error::from_reason(error.to_string()))?;
+
+        Ok(Program::new(this, ptr))
+    }
+
+    #[napi(ts_args_type = "value: Program")]
+    pub fn parse_nft_metadata(&mut self, value: &Program) -> Result<NftMetadata> {
+        let metadata = nft::NftMetadata::from_clvm(&self.0.allocator, value.ptr)
+            .map_err(|error| Error::from_reason(error.to_string()))?;
+
+        metadata.into_js()
+    }
+
     #[napi(ts_args_type = "conditions: Array<Program>")]
     pub fn delegated_spend_for_conditions(
         &mut self,
@@ -252,7 +271,14 @@ impl ClvmAllocator {
                 )
                 .map_err(|error| Error::from_reason(error.to_string()))?;
 
-            result.nfts.push(nft.into_js()?);
+            let serialized_metadata = self
+                .0
+                .serialize(&nft.info.metadata)
+                .map_err(|error| Error::from_reason(error.to_string()))?;
+
+            result
+                .nfts
+                .push(nft.with_metadata(serialized_metadata).into_js()?);
 
             for condition in conditions {
                 let condition = condition
@@ -286,7 +312,7 @@ impl ClvmAllocator {
         let puzzle = sdk::Puzzle::parse(&self.0.allocator, puzzle.ptr);
 
         let Some((nft_info, inner_puzzle)) =
-            sdk::NftInfo::<nft::NftMetadata>::parse(&self.0.allocator, puzzle)
+            sdk::NftInfo::<protocol::Program>::parse(&self.0.allocator, puzzle)
                 .map_err(|error| Error::from_reason(error.to_string()))?
         else {
             return Ok(None);
@@ -307,7 +333,7 @@ impl ClvmAllocator {
     ) -> Result<Option<Nft>> {
         let parent_puzzle = sdk::Puzzle::parse(&self.0.allocator, parent_puzzle.ptr);
 
-        let Some(nft) = sdk::Nft::<nft::NftMetadata>::parse_child(
+        let Some(nft) = sdk::Nft::<HashedPtr>::parse_child(
             &mut self.0.allocator,
             parent_coin.into_rust()?,
             parent_puzzle,
@@ -318,13 +344,18 @@ impl ClvmAllocator {
             return Ok(None);
         };
 
-        Ok(Some(nft.into_js()?))
+        let serialized_metadata = self
+            .0
+            .serialize(&nft.info.metadata)
+            .map_err(|error| Error::from_reason(error.to_string()))?;
+
+        Ok(Some(nft.with_metadata(serialized_metadata).into_js()?))
     }
 
     #[napi]
     pub fn spend_nft(&mut self, nft: Nft, inner_spend: Spend) -> Result<Vec<CoinSpend>> {
         let ctx = &mut self.0;
-        let nft = sdk::Nft::<nft::NftMetadata>::from_js(nft)?;
+        let nft = sdk::Nft::<protocol::Program>::from_js(nft)?;
 
         nft.spend(
             ctx,
@@ -352,6 +383,19 @@ pub fn curry_tree_hash(tree_hash: Uint8Array, args: Vec<Uint8Array>) -> Result<U
     clvm_utils::curry_tree_hash(tree_hash.into(), &args)
         .to_bytes()
         .into_js()
+}
+
+#[napi]
+pub fn int_to_signed_bytes(big_int: BigInt) -> Result<Uint8Array> {
+    let number: num_bigint::BigInt = big_int.into_rust()?;
+    number.to_signed_bytes_be().into_js()
+}
+
+#[napi]
+pub fn signed_bytes_to_int(bytes: Uint8Array) -> Result<BigInt> {
+    let bytes: Vec<u8> = bytes.into_rust()?;
+    let number = num_bigint::BigInt::from_signed_bytes_be(&bytes);
+    number.into_js()
 }
 
 macro_rules! conditions {

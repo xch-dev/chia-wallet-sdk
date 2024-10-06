@@ -310,10 +310,12 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { ClvmAllocator, curryTreeHash, toCoinId, Program, Simulator, compareBytes, sha256, fromHexRaw, fromHex, toHex } = nativeBinding
+const { ClvmAllocator, curryTreeHash, intToSignedBytes, signedBytesToInt, toCoinId, Program, Simulator, compareBytes, sha256, fromHexRaw, fromHex, toHex } = nativeBinding
 
 module.exports.ClvmAllocator = ClvmAllocator
 module.exports.curryTreeHash = curryTreeHash
+module.exports.intToSignedBytes = intToSignedBytes
+module.exports.signedBytesToInt = signedBytesToInt
 module.exports.toCoinId = toCoinId
 module.exports.Program = Program
 module.exports.Simulator = Simulator
