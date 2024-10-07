@@ -2,7 +2,10 @@
   "name": "chia-wallet-sdk",
   "version": "0.15.0",
   "license": "MIT",
-  "repository": "https://github.com/xch-dev/chia-wallet-sdk",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xch-dev/chia-wallet-sdk"
+  },
   "main": "index.js",
   "types": "index.d.ts",
   "packageManager": "pnpm@9.11.0",
