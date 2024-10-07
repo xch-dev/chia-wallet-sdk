@@ -5,7 +5,7 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
-use crate::{DriverError, Layer, Puzzle, SpendContext};
+use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 
 /// The p2 singleton [`Layer`] allows for requiring that a
 /// singleton be spent alongside this coin to authorize it.
@@ -20,6 +20,23 @@ impl P2Singleton {
     }
 
     pub fn spend(
+        &self,
+        ctx: &mut SpendContext,
+        coin_id: Bytes32,
+        singleton_inner_puzzle_hash: Bytes32,
+    ) -> Result<Spend, DriverError> {
+        let puzzle = self.construct_puzzle(ctx)?;
+        let solution = self.construct_solution(
+            ctx,
+            P2SingletonSolution {
+                singleton_inner_puzzle_hash,
+                my_id: coin_id,
+            },
+        )?;
+        Ok(Spend { puzzle, solution })
+    }
+
+    pub fn spend_coin(
         &self,
         ctx: &mut SpendContext,
         coin: Coin,
@@ -187,7 +204,7 @@ mod tests {
         )?;
 
         let p2_coin = Coin::new(coin.coin_id(), p2_singleton_hash, 1);
-        p2_singleton.spend(ctx, p2_coin, puzzle_hash)?;
+        p2_singleton.spend_coin(ctx, p2_coin, puzzle_hash)?;
 
         let inner_solution = p2
             .spend_with_conditions(

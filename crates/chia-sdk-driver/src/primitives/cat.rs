@@ -9,7 +9,7 @@ use clvm_traits::{clvm_quote, FromClvm};
 use clvm_utils::CurriedProgram;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{CatLayer, DriverError, Layer, Primitive, Puzzle, Spend, SpendContext};
+use crate::{CatLayer, DriverError, Layer, Puzzle, Spend, SpendContext};
 
 mod cat_spend;
 mod single_cat_spend;
@@ -221,14 +221,13 @@ impl Cat {
     }
 }
 
-impl Primitive for Cat {
-    fn from_parent_spend(
+impl Cat {
+    pub fn parse_children(
         allocator: &mut Allocator,
         parent_coin: Coin,
         parent_puzzle: Puzzle,
         parent_solution: NodePtr,
-        coin: Coin,
-    ) -> Result<Option<Self>, DriverError>
+    ) -> Result<Option<Vec<Self>>, DriverError>
     where
         Self: Sized,
     {
@@ -244,43 +243,36 @@ impl Primitive for Cat {
         )?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
-        let p2_puzzle_hash = conditions
+        let outputs = conditions
             .into_iter()
             .filter_map(Condition::into_create_coin)
-            .find_map(|create_coin| {
-                // This is an optimization to skip calculating the hash.
-                if create_coin.amount != coin.amount {
-                    return None;
-                }
-
+            .map(|create_coin| {
                 // Calculate what the wrapped puzzle hash would be for the created coin.
                 // This is because we're running the inner layer.
                 let wrapped_puzzle_hash =
                     CatArgs::curry_tree_hash(parent_layer.asset_id, create_coin.puzzle_hash.into());
 
-                // If the puzzle hash doesn't match the coin, this isn't the correct puzzle_hash puzzle hash.
-                if wrapped_puzzle_hash != coin.puzzle_hash.into() {
-                    return None;
+                Self {
+                    coin: Coin::new(
+                        parent_coin.coin_id(),
+                        wrapped_puzzle_hash.into(),
+                        create_coin.amount,
+                    ),
+                    lineage_proof: Some(LineageProof {
+                        parent_parent_coin_info: parent_coin.parent_coin_info,
+                        parent_inner_puzzle_hash: parent_layer
+                            .inner_puzzle
+                            .curried_puzzle_hash()
+                            .into(),
+                        parent_amount: parent_coin.amount,
+                    }),
+                    asset_id: parent_layer.asset_id,
+                    p2_puzzle_hash: create_coin.puzzle_hash,
                 }
+            })
+            .collect();
 
-                // We've found the puzzle_hash puzzle hash of the coin we're looking for.
-                Some(create_coin.puzzle_hash)
-            });
-
-        let Some(p2_puzzle_hash) = p2_puzzle_hash else {
-            return Err(DriverError::MissingChild);
-        };
-
-        Ok(Some(Self {
-            coin,
-            lineage_proof: Some(LineageProof {
-                parent_parent_coin_info: parent_coin.parent_coin_info,
-                parent_inner_puzzle_hash: parent_layer.inner_puzzle.curried_puzzle_hash().into(),
-                parent_amount: parent_coin.amount,
-            }),
-            asset_id: parent_layer.asset_id,
-            p2_puzzle_hash,
-        }))
+        Ok(Some(outputs))
     }
 }
 

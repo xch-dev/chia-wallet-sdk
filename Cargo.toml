@@ -16,7 +16,7 @@ all-features = true
 
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = ["crates/*", "napi"]
 
 [workspace.package]
 readme = "README.md"
@@ -87,6 +87,7 @@ clvm-traits = { workspace = true, features = ["derive"] }
 clvmr = { workspace = true }
 
 [workspace.dependencies]
+chia-wallet-sdk = { version = "0.14.0", path = "." }
 chia-sdk-client = { version = "0.14.0", path = "./crates/chia-sdk-client" }
 chia-sdk-derive = { version = "0.14.0", path = "./crates/chia-sdk-derive" }
 chia-sdk-driver = { version = "0.14.0", path = "./crates/chia-sdk-driver" }
@@ -94,6 +95,7 @@ chia-sdk-offers = { version = "0.14.0", path = "./crates/chia-sdk-offers" }
 chia-sdk-signer = { version = "0.14.0", path = "./crates/chia-sdk-signer" }
 chia-sdk-test = { version = "0.14.0", path = "./crates/chia-sdk-test" }
 chia-sdk-types = { version = "0.14.0", path = "./crates/chia-sdk-types" }
+chia = "0.13.0"
 chia-ssl = "0.11.0"
 chia-protocol = "0.13.0"
 chia-consensus = "0.13.0"
@@ -131,3 +133,9 @@ syn = "2.0.76"
 quote = "1.0.37"
 convert_case = "0.6.0"
 fastrand = "2.1.1"
+napi-derive = "2.12.2"
+napi = { version = "2.12.2", default-features = false }
+
+[profile.release]
+lto = true
+strip = "symbols"

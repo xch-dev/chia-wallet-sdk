@@ -10,7 +10,7 @@ use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::{sha2::Sha256, Allocator, NodePtr};
 
 use crate::{
-    DriverError, Layer, NftOwnershipLayer, NftStateLayer, Primitive, Puzzle, RoyaltyTransferLayer,
+    DriverError, Layer, NftOwnershipLayer, NftStateLayer, Puzzle, RoyaltyTransferLayer,
     SingletonLayer, Spend, SpendContext, SpendWithConditions,
 };
 
@@ -260,16 +260,15 @@ where
     }
 }
 
-impl<M> Primitive for Nft<M>
+impl<M> Nft<M>
 where
-    M: ToClvm<Allocator> + FromClvm<Allocator>,
+    M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
 {
-    fn from_parent_spend(
+    pub fn parse_child(
         allocator: &mut Allocator,
         parent_coin: Coin,
         parent_puzzle: Puzzle,
         parent_solution: NodePtr,
-        coin: Coin,
     ) -> Result<Option<Self>, DriverError>
     where
         Self: Sized,
@@ -345,7 +344,11 @@ where
         info.p2_puzzle_hash = create_coin.puzzle_hash;
 
         Ok(Some(Self {
-            coin,
+            coin: Coin::new(
+                parent_coin.coin_id(),
+                SingletonArgs::curry_tree_hash(info.launcher_id, info.inner_puzzle_hash()).into(),
+                create_coin.amount,
+            ),
             proof: Proof::Lineage(LineageProof {
                 parent_parent_coin_info: parent_coin.parent_coin_info,
                 parent_inner_puzzle_hash: singleton_layer.inner_puzzle.curried_puzzle_hash().into(),
@@ -503,14 +506,8 @@ mod tests {
 
         let puzzle = Puzzle::parse(&allocator, puzzle_reveal);
 
-        let nft = Nft::<NftMetadata>::from_parent_spend(
-            &mut allocator,
-            parent_coin,
-            puzzle,
-            solution,
-            expected_nft.coin,
-        )?
-        .expect("could not parse nft");
+        let nft = Nft::<NftMetadata>::parse_child(&mut allocator, parent_coin, puzzle, solution)?
+            .expect("could not parse nft");
 
         assert_eq!(nft, expected_nft);
 

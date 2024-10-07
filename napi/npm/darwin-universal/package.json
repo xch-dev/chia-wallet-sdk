@@ -1,0 +1,15 @@
+{
+  "name": "chia-wallet-sdk-darwin-universal",
+  "version": "0.0.0",
+  "os": [
+    "darwin"
+  ],
+  "main": "chia-wallet-sdk.darwin-universal.node",
+  "files": [
+    "chia-wallet-sdk.darwin-universal.node"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">= 10"
+  }
+}

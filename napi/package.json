@@ -1,0 +1,49 @@
+{
+  "name": "chia-wallet-sdk",
+  "version": "0.0.0",
+  "license": "MIT",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "packageManager": "pnpm@9.11.0",
+  "engines": {
+    "node": ">= 14"
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "build": "napi build --platform --release && pnpm run update-declarations",
+    "build:debug": "napi build --platform && pnpm run update-declarations",
+    "build:macos-arm64": "napi build --platform --release --target aarch64-apple-darwin && pnpm run update-declarations",
+    "build:macos-x64": "napi build --platform --release --target x86_64-apple-darwin && pnpm run update-declarations",
+    "build:windows-x64": "napi build --platform --release --target x86_64-pc-windows-msvc && pnpm run update-declarations",
+    "build:linux-x64": "napi build --platform --release --target x86_64-unknown-linux-gnu && pnpm run update-declarations",
+    "prepublishOnly": "napi prepublish -t npm",
+    "test": "ava",
+    "universal": "napi universal",
+    "version": "napi version",
+    "update-declarations": "node scripts/update-declarations.js"
+  },
+  "napi": {
+    "name": "chia-wallet-sdk",
+    "triples": {
+      "additional": [
+        "aarch64-apple-darwin",
+        "universal-apple-darwin"
+      ]
+    }
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.4",
+    "@types/node": "^22.6.1",
+    "ava": "^6.0.1",
+    "ts-node": "^10.9.2"
+  },
+  "ava": {
+    "timeout": "3m",
+    "extensions": [
+      "ts"
+    ],
+    "require": [
+      "ts-node/register"
+    ]
+  }
+}

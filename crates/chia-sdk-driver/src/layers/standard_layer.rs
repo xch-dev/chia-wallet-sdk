@@ -38,6 +38,21 @@ impl StandardLayer {
         let spend = self.spend_with_conditions(ctx, conditions)?;
         ctx.spend(coin, spend)
     }
+
+    pub fn delegated_inner_spend(
+        &self,
+        ctx: &mut SpendContext,
+        spend: Spend,
+    ) -> Result<Spend, DriverError> {
+        self.construct_spend(
+            ctx,
+            StandardSolution {
+                original_public_key: None,
+                delegated_puzzle: spend.puzzle,
+                solution: spend.solution,
+            },
+        )
+    }
 }
 
 impl Layer for StandardLayer {
@@ -104,5 +119,36 @@ impl SpendWithConditions for StandardLayer {
 impl ToTreeHash for StandardLayer {
     fn tree_hash(&self) -> TreeHash {
         StandardArgs::curry_tree_hash(self.synthetic_key)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_sdk_test::Simulator;
+
+    use super::*;
+
+    #[test]
+    fn test_flash_loan() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+        let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
+        let p2 = StandardLayer::new(pk);
+
+        p2.spend(
+            ctx,
+            coin,
+            Conditions::new().create_coin(puzzle_hash, u64::MAX, Vec::new()),
+        )?;
+
+        p2.spend(
+            ctx,
+            Coin::new(coin.coin_id(), puzzle_hash, u64::MAX),
+            Conditions::new().create_coin(puzzle_hash, 1, Vec::new()),
+        )?;
+
+        sim.spend_coins(ctx.take(), &[sk])?;
+
+        Ok(())
     }
 }
