@@ -1,6 +1,7 @@
 {
   "name": "chia-wallet-sdk-darwin-universal",
   "version": "0.15.0",
+  "repository": "https://github.com/xch-dev/chia-wallet-sdk",
   "os": [
     "darwin"
   ],
