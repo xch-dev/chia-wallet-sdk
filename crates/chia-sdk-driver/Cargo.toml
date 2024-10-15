@@ -1,0 +1,42 @@
+[package]
+name = "chia-sdk-driver"
+version = "0.16.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Driver code for interacting with standard puzzles on the Chia blockchain."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/Rigidity/chia-wallet-sdk"
+repository = "https://github.com/Rigidity/chia-wallet-sdk"
+readme = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true
+
+[features]
+chip-0035 = []
+
+[dependencies]
+chia-bls = { workspace = true }
+chia-protocol = { workspace = true }
+chia-puzzles = { workspace = true }
+clvm-traits = { workspace = true }
+clvm-utils = { workspace = true }
+clvmr = { workspace = true }
+thiserror = { workspace = true }
+chia-sdk-types = { workspace = true }
+hex-literal = { workspace = true }
+num-bigint = { workspace = true}
+hex = { workspace = true }
+
+[dev-dependencies]
+chia-sdk-test = { workspace = true }
+anyhow = { workspace = true }
+chia-consensus = { workspace = true }
+hex = { workspace = true }
+hex-literal = { workspace = true }
+rstest = { workspace = true }

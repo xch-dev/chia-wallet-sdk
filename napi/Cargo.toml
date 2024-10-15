@@ -1,0 +1,31 @@
+[package]
+publish = false
+name = "chia-wallet-sdk-napi"
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Node.js bindings for the Chia Wallet SDK."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/Rigidity/chia-wallet-sdk"
+repository = "https://github.com/Rigidity/chia-wallet-sdk"
+readme = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { workspace = true, features = ["napi6"] }
+napi-derive = { workspace = true }
+chia-wallet-sdk = { workspace = true }
+chia = { workspace = true }
+clvmr = { workspace = true }
+num-bigint = { workspace = true }
+hex = { workspace = true }
+
+[build-dependencies]
+napi-build = "2.0.1"

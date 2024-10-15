@@ -1,0 +1,34 @@
+[package]
+name = "chia-sdk-client"
+version = "0.16.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Utilities for connecting to Chia full node peers via the light wallet protocol."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/Rigidity/chia-wallet-sdk"
+repository = "https://github.com/Rigidity/chia-wallet-sdk"
+readme = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+native-tls = ["dep:native-tls", "tokio-tungstenite/native-tls"]
+rustls = ["dep:rustls", "dep:rustls-pemfile", "tokio-tungstenite/rustls-tls-webpki-roots"]
+
+[dependencies]
+chia-sdk-types = { workspace = true }
+chia-protocol = { workspace = true }
+chia-traits = { workspace = true }
+chia-ssl = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync", "time", "rt"] }
+tungstenite = { workspace = true }
+native-tls = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true, features = ["aws_lc_rs"] }
+rustls-pemfile = { workspace = true, optional = true }
+tracing = { workspace = true }
+futures-util = { workspace = true }
+tokio-tungstenite = { workspace = true }

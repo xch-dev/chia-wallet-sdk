@@ -1,1 +1,4 @@
+/.vscode
 /target
+*.DS_Store
+cobertura.xml

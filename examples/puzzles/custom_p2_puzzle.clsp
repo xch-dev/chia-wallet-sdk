@@ -1,0 +1,17 @@
+(mod (PUBLIC_KEY conditions)
+    ;; https://docs.chia.net/conditions
+    (defconstant AGG_SIG_ME 50)
+
+    ;; This is used to calculate a tree hash of a value (for example a puzzle hash).
+    (defun sha256tree (value)
+        (if (l value)
+            (sha256 2 (sha256tree (f value)) (sha256tree (r value)))
+            (sha256 1 value)
+        )
+    )
+
+    (c
+        (list AGG_SIG_ME PUBLIC_KEY (sha256tree conditions))
+        conditions
+    )
+)

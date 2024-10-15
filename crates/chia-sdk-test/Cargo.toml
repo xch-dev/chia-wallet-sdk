@@ -1,0 +1,41 @@
+[package]
+name = "chia-sdk-test"
+version = "0.16.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "A wallet simulator and related tooling for testing Chia wallet code."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/Rigidity/chia-wallet-sdk"
+repository = "https://github.com/Rigidity/chia-wallet-sdk"
+readme = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[lints]
+workspace = true
+
+[dependencies]
+chia-bls = { workspace = true }
+chia-consensus = { workspace = true }
+chia-protocol = { workspace = true }
+chia-traits = { workspace = true }
+chia-puzzles = { workspace = true }
+clvm-utils = { workspace = true }
+clvm-traits = { workspace = true }
+clvmr = { workspace = true }
+futures-channel = { workspace = true, features = ["sink"] }
+futures-util = { workspace = true }
+indexmap = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
+itertools = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+fastrand = { workspace = true }
+bip39 = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tokio-tungstenite = { workspace = true }
+chia-sdk-types = { workspace = true }
+chia-sdk-signer = { workspace = true }
+chia-sdk-client = { workspace = true }
