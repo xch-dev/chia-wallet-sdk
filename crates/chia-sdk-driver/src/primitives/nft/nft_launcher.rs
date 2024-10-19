@@ -110,13 +110,11 @@ mod tests {
 
     use super::*;
 
-    use chia_consensus::gen::{
-        conditions::EmptyVisitor, run_block_generator::run_block_generator,
-        solution_generator::solution_generator,
-    };
-    use chia_protocol::Coin;
+    use chia_consensus::spendbundle_conditions::get_conditions_from_spendbundle;
+    use chia_protocol::{Coin, SpendBundle};
     use chia_puzzles::{nft::NftMetadata, standard::StandardArgs};
-    use chia_sdk_test::{test_secret_key, Simulator};
+    use chia_sdk_signer::AggSigConstants;
+    use chia_sdk_test::{sign_transaction, test_secret_key, Simulator};
     use chia_sdk_types::{announcement_id, TESTNET11_CONSTANTS};
 
     #[test]
@@ -157,22 +155,22 @@ mod tests {
         )?;
 
         let coin_spends = ctx.take();
-
-        let generator = solution_generator(
-            coin_spends
-                .iter()
-                .map(|cs| (cs.coin, cs.puzzle_reveal.clone(), cs.solution.clone())),
+        let signature = sign_transaction(
+            &coin_spends,
+            &[sk],
+            &AggSigConstants::new(TESTNET11_CONSTANTS.agg_sig_me_additional_data),
         )?;
-        let conds = run_block_generator::<Vec<u8>, EmptyVisitor, _>(
+        let spend_bundle = SpendBundle::new(coin_spends, signature);
+
+        let conds = get_conditions_from_spendbundle(
             &mut ctx.allocator,
-            &generator,
-            [],
-            11_000_000_000,
-            0,
+            &spend_bundle,
+            u64::MAX,
+            100_000_000,
             &TESTNET11_CONSTANTS,
         )?;
 
-        assert_eq!(conds.cost, 119_613_445);
+        assert_eq!(conds.cost, 109_517_025);
 
         Ok(())
     }
