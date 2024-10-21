@@ -35,6 +35,7 @@ hex = { workspace = true }
 
 [dev-dependencies]
 chia-sdk-test = { workspace = true }
+chia-sdk-signer = { workspace = true }
 anyhow = { workspace = true }
 chia-consensus = { workspace = true }
 hex = { workspace = true }
