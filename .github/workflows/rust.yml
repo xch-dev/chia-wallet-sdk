@@ -31,7 +31,7 @@ jobs:
         run: cargo binstall cargo-tarpaulin --locked -y
 
       - name: Run tests
-        run: cargo tarpaulin --release --workspace --exclude chia-wallet-sdk-napi --all-features --out xml
+        run: cargo tarpaulin --release --workspace --exclude cni-wallet-sdk-napi --all-features --out xml
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.0.1

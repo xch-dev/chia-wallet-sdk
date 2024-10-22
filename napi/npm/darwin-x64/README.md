@@ -1,3 +1,3 @@
-# `chia-wallet-sdk-darwin-x64`
+# `cni-wallet-sdk-darwin-x64`
 
-This is the **x86_64-apple-darwin** binary for `chia-wallet-sdk`
+This is the **x86_64-apple-darwin** binary for `cni-wallet-sdk`
