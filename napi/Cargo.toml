@@ -1,13 +1,13 @@
 [package]
 publish = false
-name = "chia-wallet-sdk-napi"
+name = "cni-wallet-sdk-napi"
 version = "0.0.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Node.js bindings for the Chia Wallet SDK."
 authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
-homepage = "https://github.com/Rigidity/chia-wallet-sdk"
-repository = "https://github.com/Rigidity/chia-wallet-sdk"
+homepage = "https://github.com/Chia-Network/cni-wallet-sdk"
+repository = "https://github.com/Chia-Network/cni-wallet-sdk"
 readme = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }

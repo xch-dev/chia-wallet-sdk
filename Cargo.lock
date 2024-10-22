@@ -593,20 +593,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chia-wallet-sdk-napi"
-version = "0.0.0"
-dependencies = [
- "chia",
- "chia-wallet-sdk",
- "clvmr",
- "hex",
- "napi",
- "napi-build",
- "napi-derive",
- "num-bigint",
-]
-
-[[package]]
 name = "chia_streamable_macro"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -701,6 +687,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb1e43aa7fd152b1f968787f7dbcdeb306d1867ff373c69955211876c053f91a"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "cni-wallet-sdk-napi"
+version = "0.0.0"
+dependencies = [
+ "chia",
+ "chia-wallet-sdk",
+ "clvmr",
+ "hex",
+ "napi",
+ "napi-build",
+ "napi-derive",
+ "num-bigint",
 ]
 
 [[package]]
