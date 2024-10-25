@@ -1,10 +1,10 @@
 use chia_protocol::{Bytes32, SpendBundle};
 use chia_puzzles::offer::SettlementPaymentsSolution;
-use chia_sdk_driver::Puzzle;
+use chia_sdk_driver::{CatLayer, Layer, NftInfo, Puzzle};
 use chia_traits::Streamable;
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{tree_hash, ToTreeHash};
-use clvmr::Allocator;
+use clvm_utils::ToTreeHash;
+use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
 use crate::{
@@ -81,21 +81,24 @@ impl Offer {
                 continue;
             }
 
-            let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
-            let puzzle_hash = tree_hash(allocator, puzzle).into();
-
-            if puzzle_hash != coin_spend.coin.puzzle_hash {
-                return Err(OfferError::PuzzleMismatch);
-            }
-
             let solution = coin_spend.solution.to_clvm(allocator)?;
             let settlement_solution = SettlementPaymentsSolution::from_clvm(allocator, solution)?;
 
+            let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
+
             let puzzle = Puzzle::parse(allocator, puzzle);
+
+            let mut asset_id = Bytes32::default();
+
+            if let Ok(Some(cat_layer)) = CatLayer::<NodePtr>::parse_puzzle(allocator, puzzle) {
+                asset_id = cat_layer.asset_id;
+            } else if let Ok(Some(nft)) = NftInfo::<NodePtr>::parse(allocator, puzzle) {
+                asset_id = nft.0.launcher_id;
+            }
 
             parsed
                 .requested_payments
-                .entry(puzzle_hash)
+                .entry(asset_id)
                 .or_insert_with(|| (puzzle, Vec::new()))
                 .1
                 .extend(settlement_solution.notarized_payments);
