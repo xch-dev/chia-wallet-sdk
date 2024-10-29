@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use chia_bls::{PublicKey, SecretKey};
+use chia_bls::{DerivableKey, PublicKey, SecretKey};
 use chia_consensus::{
     consensus_constants::ConsensusConstants, gen::validation_error::ErrorCode,
     spendbundle_validation::validate_clvm_and_signature,
@@ -79,6 +79,18 @@ impl Simulator {
         amount: u64,
     ) -> Result<(SecretKey, PublicKey, Bytes32, Coin), bip39::Error> {
         let sk = test_secret_key()?;
+        let pk = sk.public_key();
+        let p2 = StandardArgs::curry_tree_hash(pk).into();
+        let coin = self.new_coin(p2, amount);
+        Ok((sk, pk, p2, coin))
+    }
+
+    pub fn child_p2(
+        &mut self,
+        amount: u64,
+        child: u32,
+    ) -> Result<(SecretKey, PublicKey, Bytes32, Coin), bip39::Error> {
+        let sk = test_secret_key()?.derive_unhardened(child);
         let pk = sk.public_key();
         let p2 = StandardArgs::curry_tree_hash(pk).into();
         let coin = self.new_coin(p2, amount);

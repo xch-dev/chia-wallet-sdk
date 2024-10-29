@@ -122,6 +122,20 @@ impl<M> NftInfo<M> {
         }
     }
 
+    pub fn with_p2_puzzle_hash(self, p2_puzzle_hash: Bytes32) -> Self {
+        Self {
+            p2_puzzle_hash,
+            ..self
+        }
+    }
+
+    pub fn with_owner(self, owner: Option<Bytes32>) -> Self {
+        Self {
+            current_owner: owner,
+            ..self
+        }
+    }
+
     pub fn inner_puzzle_hash(&self) -> TreeHash
     where
         M: ToTreeHash,

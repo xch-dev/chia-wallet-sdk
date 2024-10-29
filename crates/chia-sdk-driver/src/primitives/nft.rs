@@ -75,9 +75,12 @@ where
         M: Clone,
         N: ToTreeHash,
     {
-        let mut info = self.info.clone().with_metadata(metadata);
-        info.p2_puzzle_hash = p2_puzzle_hash;
-        info.current_owner = owner;
+        let info = self
+            .info
+            .clone()
+            .with_p2_puzzle_hash(p2_puzzle_hash)
+            .with_owner(owner)
+            .with_metadata(metadata);
 
         let inner_puzzle_hash = info.inner_puzzle_hash();
 
