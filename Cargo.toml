@@ -1,6 +1,6 @@
 [package]
 name = "chia-wallet-sdk"
-version = "0.16.0"
+version = "0.17.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "An unofficial SDK for building Chia wallets."
@@ -87,14 +87,14 @@ clvm-traits = { workspace = true, features = ["derive"] }
 clvmr = { workspace = true }
 
 [workspace.dependencies]
-chia-wallet-sdk = { version = "0.16.0", path = "." }
-chia-sdk-client = { version = "0.16.0", path = "./crates/chia-sdk-client" }
-chia-sdk-derive = { version = "0.16.0", path = "./crates/chia-sdk-derive" }
-chia-sdk-driver = { version = "0.16.0", path = "./crates/chia-sdk-driver" }
-chia-sdk-offers = { version = "0.16.0", path = "./crates/chia-sdk-offers" }
-chia-sdk-signer = { version = "0.16.0", path = "./crates/chia-sdk-signer" }
-chia-sdk-test = { version = "0.16.0", path = "./crates/chia-sdk-test" }
-chia-sdk-types = { version = "0.16.0", path = "./crates/chia-sdk-types" }
+chia-wallet-sdk = { version = "0.17.0", path = "." }
+chia-sdk-client = { version = "0.17.0", path = "./crates/chia-sdk-client" }
+chia-sdk-derive = { version = "0.17.0", path = "./crates/chia-sdk-derive" }
+chia-sdk-driver = { version = "0.17.0", path = "./crates/chia-sdk-driver" }
+chia-sdk-offers = { version = "0.17.0", path = "./crates/chia-sdk-offers" }
+chia-sdk-signer = { version = "0.17.0", path = "./crates/chia-sdk-signer" }
+chia-sdk-test = { version = "0.17.0", path = "./crates/chia-sdk-test" }
+chia-sdk-types = { version = "0.17.0", path = "./crates/chia-sdk-types" }
 chia = "0.15.0"
 chia-ssl = "0.11.0"
 chia-protocol = "0.15.0"

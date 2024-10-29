@@ -387,7 +387,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-client"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "chia-protocol",
  "chia-sdk-types",
@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-derive"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "convert_case",
  "quote",
@@ -415,7 +415,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-driver"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "anyhow",
  "chia-bls 0.15.0",
@@ -437,7 +437,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-offers"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "anyhow",
  "bech32",
@@ -461,7 +461,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-signer"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "chia-bls 0.15.0",
  "chia-consensus",
@@ -477,7 +477,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-test"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "anyhow",
  "bip39",
@@ -507,7 +507,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-types"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "anyhow",
  "chia-bls 0.15.0",
@@ -568,7 +568,7 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "anyhow",
  "bech32",
