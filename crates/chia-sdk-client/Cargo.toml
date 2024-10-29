@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-client"
-version = "0.16.0"
+version = "0.17.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Utilities for connecting to Chia full node peers via the light wallet protocol."
