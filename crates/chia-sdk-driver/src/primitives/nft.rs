@@ -470,6 +470,53 @@ mod tests {
     }
 
     #[test]
+    fn test_nft_metadata_update() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
+        let p2 = StandardLayer::new(pk);
+
+        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &p2)?;
+        p2.spend(ctx, coin, create_did)?;
+
+        let mint = NftMint::new(
+            NftMetadata {
+                data_uris: vec!["example.com".to_string()],
+                data_hash: Some(Bytes32::default()),
+                ..Default::default()
+            },
+            puzzle_hash,
+            300,
+            Some(DidOwner::from_did_info(&did.info)),
+        );
+
+        let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
+            .create(ctx)?
+            .mint_nft(ctx, mint)?;
+        let _did = did.update(ctx, &p2, mint_nft)?;
+
+        let metadata_update = MetadataUpdate::NewDataUri("another.com".to_string()).spend(ctx)?;
+        let nft: Nft<NftMetadata> =
+            nft.transfer_with_metadata(ctx, &p2, puzzle_hash, metadata_update, Conditions::new())?;
+
+        assert_eq!(
+            nft.info.metadata,
+            NftMetadata {
+                data_uris: vec!["another.com".to_string(), "example.com".to_string()],
+                data_hash: Some(Bytes32::default()),
+                ..Default::default()
+            }
+        );
+
+        let _nft = nft.transfer(ctx, &p2, puzzle_hash, Conditions::new())?;
+
+        sim.spend_coins(ctx.take(), &[sk])?;
+
+        Ok(())
+    }
+
+    #[test]
     fn test_parse_nft() -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
