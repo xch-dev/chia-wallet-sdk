@@ -89,6 +89,16 @@ impl<M> DidInfo<M> {
         }
     }
 
+    pub fn with_p2_puzzle_hash(self, p2_puzzle_hash: Bytes32) -> Self {
+        Self {
+            launcher_id: self.launcher_id,
+            recovery_list_hash: self.recovery_list_hash,
+            num_verifications_required: self.num_verifications_required,
+            metadata: self.metadata,
+            p2_puzzle_hash,
+        }
+    }
+
     pub fn inner_puzzle_hash(&self) -> TreeHash
     where
         M: ToTreeHash,

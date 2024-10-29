@@ -1,5 +1,9 @@
-use chia_protocol::Coin;
-use chia_puzzles::{did::DidSolution, singleton::SingletonSolution, LineageProof, Proof};
+use chia_protocol::{Bytes32, Coin};
+use chia_puzzles::{
+    did::DidSolution,
+    singleton::{SingletonArgs, SingletonSolution},
+    LineageProof, Proof,
+};
 use chia_sdk_types::{run_puzzle, Condition, Conditions};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
@@ -50,11 +54,27 @@ where
     }
 
     /// Creates a wrapped spendable DID for the child.
-    pub fn wrapped_child(self) -> Self {
-        Self {
-            coin: Coin::new(self.coin.coin_id(), self.coin.puzzle_hash, self.coin.amount),
+    pub fn wrapped_child<N>(&self, p2_puzzle_hash: Bytes32, metadata: N) -> Did<N>
+    where
+        M: Clone,
+        N: ToTreeHash,
+    {
+        let info = self
+            .info
+            .clone()
+            .with_p2_puzzle_hash(p2_puzzle_hash)
+            .with_metadata(metadata);
+
+        let inner_puzzle_hash = info.inner_puzzle_hash();
+
+        Did {
+            coin: Coin::new(
+                self.coin.coin_id(),
+                SingletonArgs::curry_tree_hash(info.launcher_id, inner_puzzle_hash).into(),
+                self.coin.amount,
+            ),
             proof: Proof::Lineage(self.child_lineage_proof()),
-            info: self.info,
+            info,
         }
     }
 }
@@ -96,6 +116,41 @@ where
         self.spend(ctx, inner_spend)
     }
 
+    /// Transfers this DID to a new p2 puzzle hash.
+    ///
+    /// Note: This does not update the metadata. You need to do an update spend to change the metadata.
+    pub fn transfer<I>(
+        self,
+        ctx: &mut SpendContext,
+        inner: &I,
+        p2_puzzle_hash: Bytes32,
+        extra_conditions: Conditions,
+    ) -> Result<Did<M>, DriverError>
+    where
+        M: ToTreeHash,
+        I: SpendWithConditions,
+    {
+        let new_inner_puzzle_hash = self
+            .info
+            .clone()
+            .with_p2_puzzle_hash(p2_puzzle_hash)
+            .inner_puzzle_hash();
+
+        self.spend_with(
+            ctx,
+            inner,
+            extra_conditions.create_coin(
+                new_inner_puzzle_hash.into(),
+                self.coin.amount,
+                vec![p2_puzzle_hash.into()],
+            ),
+        )?;
+
+        let metadata = self.info.metadata.clone();
+
+        Ok(self.wrapped_child(p2_puzzle_hash, metadata))
+    }
+
     /// Recreates this DID and outputs additional conditions via the inner puzzle.
     pub fn update_with_metadata<I, N>(
         self,
@@ -125,7 +180,7 @@ where
             ),
         )?;
 
-        Ok(self.wrapped_child().with_metadata(metadata))
+        Ok(self.wrapped_child(self.info.p2_puzzle_hash, metadata))
     }
 
     /// Creates a new DID coin with the given metadata.
@@ -289,6 +344,31 @@ mod tests {
         );
         assert_eq!(did.info.metadata, metadata);
         assert_eq!(did.info.p2_puzzle_hash, puzzle_hash);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_transfer_did() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+        let (sk, pk, bob_puzzle_hash, coin) = sim.child_p2(1, 0)?;
+        let bob = StandardLayer::new(pk);
+
+        let (create_did, bob_did) =
+            Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &bob)?;
+        bob.spend(ctx, coin, create_did)?;
+
+        let (sk2, pk2, alice_puzzle_hash, _) = sim.child_p2(0, 1)?;
+        let alice = StandardLayer::new(pk2);
+
+        let alice_did = bob_did.transfer(ctx, &bob, alice_puzzle_hash, Conditions::new())?;
+        let did = alice_did.update(ctx, &alice, Conditions::new())?;
+
+        assert_eq!(did.info.p2_puzzle_hash, alice_puzzle_hash);
+        assert_ne!(bob_puzzle_hash, alice_puzzle_hash);
+
+        sim.spend_coins(ctx.take(), &[sk, sk2])?;
 
         Ok(())
     }
