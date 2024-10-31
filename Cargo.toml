@@ -139,3 +139,6 @@ paste = "1.0.15"
 [profile.release]
 lto = true
 strip = "symbols"
+
+[patch.crates-io]
+clvmr = { git = "https://github.com/Chia-Network/clvm_rs", rev = "2f413e72fcf1bcafa4a3117f2c2a0a3a0e7e1c6b" }
