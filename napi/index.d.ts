@@ -10,6 +10,126 @@ export interface Output {
 export declare function curryTreeHash(treeHash: Uint8Array, args: Array<Uint8Array>): Uint8Array
 export declare function intToSignedBytes(bigInt: bigint): Uint8Array
 export declare function signedBytesToInt(bytes: Uint8Array): bigint
+export interface Remark {
+  rest: Program
+}
+export interface AggSigParent {
+  publicKey: Uint8Array
+  message: Uint8Array
+}
+export interface AggSigPuzzle {
+  publicKey: Uint8Array
+  message: Uint8Array
+}
+export interface AggSigAmount {
+  publicKey: Uint8Array
+  message: Uint8Array
+}
+export interface AggSigPuzzleAmount {
+  publicKey: Uint8Array
+  message: Uint8Array
+}
+export interface AggSigParentAmount {
+  publicKey: Uint8Array
+  message: Uint8Array
+}
+export interface AggSigParentPuzzle {
+  publicKey: Uint8Array
+  message: Uint8Array
+}
+export interface AggSigUnsafe {
+  publicKey: Uint8Array
+  message: Uint8Array
+}
+export interface AggSigMe {
+  publicKey: Uint8Array
+  message: Uint8Array
+}
+export interface CreateCoin {
+  puzzleHash: Uint8Array
+  amount: bigint
+  memos: Array<Uint8Array>
+}
+export interface ReserveFee {
+  amount: bigint
+}
+export interface CreateCoinAnnouncement {
+  message: Uint8Array
+}
+export interface CreatePuzzleAnnouncement {
+  message: Uint8Array
+}
+export interface AssertCoinAnnouncement {
+  announcementId: Uint8Array
+}
+export interface AssertPuzzleAnnouncement {
+  announcementId: Uint8Array
+}
+export interface AssertConcurrentSpend {
+  coinId: Uint8Array
+}
+export interface AssertConcurrentPuzzle {
+  puzzleHash: Uint8Array
+}
+export interface AssertSecondsRelative {
+  seconds: bigint
+}
+export interface AssertSecondsAbsolute {
+  seconds: bigint
+}
+export interface AssertHeightRelative {
+  height: number
+}
+export interface AssertHeightAbsolute {
+  height: number
+}
+export interface AssertBeforeSecondsRelative {
+  seconds: bigint
+}
+export interface AssertBeforeSecondsAbsolute {
+  seconds: bigint
+}
+export interface AssertBeforeHeightRelative {
+  height: number
+}
+export interface AssertBeforeHeightAbsolute {
+  height: number
+}
+export interface AssertMyCoinId {
+  coinId: Uint8Array
+}
+export interface AssertMyParentId {
+  parentId: Uint8Array
+}
+export interface AssertMyPuzzleHash {
+  puzzleHash: Uint8Array
+}
+export interface AssertMyAmount {
+  amount: bigint
+}
+export interface AssertMyBirthSeconds {
+  seconds: bigint
+}
+export interface AssertMyBirthHeight {
+  height: number
+}
+export interface AssertEphemeral {
+  
+}
+export interface SendMessage {
+  mode: number
+  message: Uint8Array
+  data: Array<Program>
+}
+export interface ReceiveMessage {
+  mode: number
+  message: Uint8Array
+  data: Array<Program>
+}
+export interface Softfork {
+  cost: bigint
+  rest: Program
+}
 export interface Coin {
   parentCoinInfo: Uint8Array
   puzzleHash: Uint8Array
@@ -103,41 +223,76 @@ export declare class ClvmAllocator {
   parseNftInfo(puzzle: Program): ParsedNft | null
   parseChildNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Nft | null
   spendNft(nft: Nft, innerSpend: Spend): Array<CoinSpend>
-  remark(value: Program): Program
+  remark(rest: Program): Program
+  parseRemark(program: Program): Remark | null
   aggSigParent(publicKey: Uint8Array, message: Uint8Array): Program
+  parseAggSigParent(program: Program): AggSigParent | null
   aggSigPuzzle(publicKey: Uint8Array, message: Uint8Array): Program
+  parseAggSigPuzzle(program: Program): AggSigPuzzle | null
   aggSigAmount(publicKey: Uint8Array, message: Uint8Array): Program
+  parseAggSigAmount(program: Program): AggSigAmount | null
   aggSigPuzzleAmount(publicKey: Uint8Array, message: Uint8Array): Program
+  parseAggSigPuzzleAmount(program: Program): AggSigPuzzleAmount | null
   aggSigParentAmount(publicKey: Uint8Array, message: Uint8Array): Program
+  parseAggSigParentAmount(program: Program): AggSigParentAmount | null
   aggSigParentPuzzle(publicKey: Uint8Array, message: Uint8Array): Program
+  parseAggSigParentPuzzle(program: Program): AggSigParentPuzzle | null
   aggSigUnsafe(publicKey: Uint8Array, message: Uint8Array): Program
+  parseAggSigUnsafe(program: Program): AggSigUnsafe | null
   aggSigMe(publicKey: Uint8Array, message: Uint8Array): Program
+  parseAggSigMe(program: Program): AggSigMe | null
   createCoin(puzzleHash: Uint8Array, amount: bigint, memos: Array<Uint8Array>): Program
-  reserveFee(fee: bigint): Program
+  parseCreateCoin(program: Program): CreateCoin | null
+  reserveFee(amount: bigint): Program
+  parseReserveFee(program: Program): ReserveFee | null
   createCoinAnnouncement(message: Uint8Array): Program
+  parseCreateCoinAnnouncement(program: Program): CreateCoinAnnouncement | null
   createPuzzleAnnouncement(message: Uint8Array): Program
+  parseCreatePuzzleAnnouncement(program: Program): CreatePuzzleAnnouncement | null
   assertCoinAnnouncement(announcementId: Uint8Array): Program
+  parseAssertCoinAnnouncement(program: Program): AssertCoinAnnouncement | null
   assertPuzzleAnnouncement(announcementId: Uint8Array): Program
+  parseAssertPuzzleAnnouncement(program: Program): AssertPuzzleAnnouncement | null
   assertConcurrentSpend(coinId: Uint8Array): Program
+  parseAssertConcurrentSpend(program: Program): AssertConcurrentSpend | null
   assertConcurrentPuzzle(puzzleHash: Uint8Array): Program
+  parseAssertConcurrentPuzzle(program: Program): AssertConcurrentPuzzle | null
   assertSecondsRelative(seconds: bigint): Program
+  parseAssertSecondsRelative(program: Program): AssertSecondsRelative | null
   assertSecondsAbsolute(seconds: bigint): Program
+  parseAssertSecondsAbsolute(program: Program): AssertSecondsAbsolute | null
   assertHeightRelative(height: number): Program
+  parseAssertHeightRelative(program: Program): AssertHeightRelative | null
   assertHeightAbsolute(height: number): Program
+  parseAssertHeightAbsolute(program: Program): AssertHeightAbsolute | null
   assertBeforeSecondsRelative(seconds: bigint): Program
+  parseAssertBeforeSecondsRelative(program: Program): AssertBeforeSecondsRelative | null
   assertBeforeSecondsAbsolute(seconds: bigint): Program
+  parseAssertBeforeSecondsAbsolute(program: Program): AssertBeforeSecondsAbsolute | null
   assertBeforeHeightRelative(height: number): Program
+  parseAssertBeforeHeightRelative(program: Program): AssertBeforeHeightRelative | null
   assertBeforeHeightAbsolute(height: number): Program
+  parseAssertBeforeHeightAbsolute(program: Program): AssertBeforeHeightAbsolute | null
   assertMyCoinId(coinId: Uint8Array): Program
+  parseAssertMyCoinId(program: Program): AssertMyCoinId | null
   assertMyParentId(parentId: Uint8Array): Program
+  parseAssertMyParentId(program: Program): AssertMyParentId | null
   assertMyPuzzleHash(puzzleHash: Uint8Array): Program
+  parseAssertMyPuzzleHash(program: Program): AssertMyPuzzleHash | null
   assertMyAmount(amount: bigint): Program
+  parseAssertMyAmount(program: Program): AssertMyAmount | null
   assertMyBirthSeconds(seconds: bigint): Program
+  parseAssertMyBirthSeconds(program: Program): AssertMyBirthSeconds | null
   assertMyBirthHeight(height: number): Program
+  parseAssertMyBirthHeight(program: Program): AssertMyBirthHeight | null
   assertEphemeral(): Program
+  parseAssertEphemeral(program: Program): AssertEphemeral | null
   sendMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
+  parseSendMessage(program: Program): SendMessage | null
   receiveMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
-  softfork(cost: bigint, value: Program): Program
+  parseReceiveMessage(program: Program): ReceiveMessage | null
+  softfork(cost: bigint, rest: Program): Program
+  parseSoftfork(program: Program): Softfork | null
 }
 export declare class Program {
   isAtom(): boolean
