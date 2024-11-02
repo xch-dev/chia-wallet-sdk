@@ -19,14 +19,15 @@ workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = { workspace = true, features = ["napi6"] }
+napi = { workspace = true, features = ["napi6", "async"] }
 napi-derive = { workspace = true }
-chia-wallet-sdk = { workspace = true }
+chia-wallet-sdk = { workspace = true, features = ["native-tls"] }
 chia = { workspace = true }
 clvmr = { workspace = true }
 num-bigint = { workspace = true }
 hex = { workspace = true }
 paste = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
 
 [build-dependencies]
 napi-build = "2.0.1"

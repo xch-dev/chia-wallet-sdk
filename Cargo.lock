@@ -605,6 +605,7 @@ dependencies = [
  "napi-derive",
  "num-bigint",
  "paste",
+ "tokio",
 ]
 
 [[package]]
@@ -1383,6 +1384,7 @@ dependencies = [
  "napi-derive",
  "napi-sys",
  "once_cell",
+ "tokio",
 ]
 
 [[package]]
