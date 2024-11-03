@@ -522,6 +522,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "chia-sdk-utils"
+version = "0.17.1"
+dependencies = [
+ "bech32",
+ "chia-protocol",
+ "hex",
+ "hex-literal",
+ "indexmap",
+ "rand",
+ "rand_chacha",
+ "thiserror",
+]
+
+[[package]]
 name = "chia-sha2"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -571,7 +585,6 @@ name = "chia-wallet-sdk"
 version = "0.17.1"
 dependencies = [
  "anyhow",
- "bech32",
  "chia-bls 0.15.0",
  "chia-protocol",
  "chia-puzzles",
@@ -581,15 +594,11 @@ dependencies = [
  "chia-sdk-signer",
  "chia-sdk-test",
  "chia-sdk-types",
+ "chia-sdk-utils",
  "clvm-traits",
  "clvm-utils",
  "clvmr",
- "hex",
  "hex-literal",
- "indexmap",
- "rand",
- "rand_chacha",
- "thiserror",
 ]
 
 [[package]]

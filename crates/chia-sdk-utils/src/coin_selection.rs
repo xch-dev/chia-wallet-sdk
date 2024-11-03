@@ -7,7 +7,7 @@ use rand_chacha::ChaCha8Rng;
 use thiserror::Error;
 
 /// An error that occurs when selecting coins.
-#[derive(Debug, Clone, Error, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Error, PartialEq, Eq)]
 pub enum CoinSelectionError {
     /// There were no spendable coins to select from.
     #[error("no spendable coins")]
@@ -47,7 +47,7 @@ pub fn select_coins(
     spendable_coins.sort_unstable_by_key(|coin| Reverse(coin.amount));
 
     // Exact coin match.
-    for coin in spendable_coins.iter() {
+    for coin in &spendable_coins {
         if coin.amount as u128 == amount {
             return Ok(vec![*coin]);
         }
@@ -56,7 +56,7 @@ pub fn select_coins(
     let mut smaller_coins = IndexSet::new();
     let mut smaller_sum = 0;
 
-    for coin in spendable_coins.iter() {
+    for coin in &spendable_coins {
         let coin_amount = coin.amount as u128;
 
         if coin_amount < amount {
@@ -92,9 +92,9 @@ pub fn select_coins(
 
         if summed_coins.len() <= max_coins {
             return Ok(summed_coins.into_iter().collect());
-        } else {
-            return Err(CoinSelectionError::ExceededMaxCoins);
         }
+
+        return Err(CoinSelectionError::ExceededMaxCoins);
     }
 
     // Try to find a large coin to select.
@@ -218,13 +218,13 @@ mod tests {
 
     #[test]
     fn test_insufficient_balance() {
-        let coins = coin_list![50, 250, 100000];
+        let coins = coin_list![50, 250, 100_000];
 
         // Select an amount that is too high.
-        let selected = select_coins(coins, 9999999);
+        let selected = select_coins(coins, 9_999_999);
         assert_eq!(
             selected,
-            Err(CoinSelectionError::InsufficientBalance(100300))
+            Err(CoinSelectionError::InsufficientBalance(100_300))
         );
     }
 

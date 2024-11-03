@@ -1,6 +1,8 @@
 use chia_protocol::Coin;
 use chia_puzzles::standard::StandardArgs;
-use chia_wallet_sdk::*;
+use chia_sdk_driver::{SpendContext, StandardLayer};
+use chia_sdk_test::{test_secret_key, Simulator};
+use chia_sdk_types::Conditions;
 
 fn main() -> anyhow::Result<()> {
     // Create the simulator server and connect the peer client.

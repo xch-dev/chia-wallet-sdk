@@ -1,6 +1,8 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Coin, CoinSpend};
-use chia_wallet_sdk::*;
+use chia_sdk_driver::{DriverError, Spend, SpendContext};
+use chia_sdk_test::{test_secret_key, Simulator};
+use chia_sdk_types::Conditions;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
