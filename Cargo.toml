@@ -57,29 +57,27 @@ module_name_repetitions = "allow"
 multiple_crate_versions = "allow"
 must_use_candidate = "allow"
 
+[lints]
+workspace = true
+
 [features]
 chip-0035 = ["chia-sdk-driver/chip-0035"]
 native-tls = ["chia-sdk-client/native-tls"]
 rustls = ["chia-sdk-client/rustls"]
 
 [dependencies]
-thiserror = { workspace = true }
-chia-protocol = { workspace = true }
-hex = { workspace = true }
-bech32 = { workspace = true }
-rand = { workspace = true }
-rand_chacha = { workspace = true }
-indexmap = { workspace = true }
 chia-sdk-client = { workspace = true }
 chia-sdk-driver = { workspace = true }
 chia-sdk-offers = { workspace = true }
 chia-sdk-signer = { workspace = true }
 chia-sdk-test = { workspace = true }
 chia-sdk-types = { workspace = true }
+chia-sdk-utils = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
 hex-literal = { workspace = true }
+chia-protocol = { workspace = true }
 chia-puzzles = { workspace = true }
 chia-bls = { workspace = true  }
 clvm-utils = { workspace = true }
@@ -95,6 +93,7 @@ chia-sdk-offers = { version = "0.17.1", path = "./crates/chia-sdk-offers" }
 chia-sdk-signer = { version = "0.17.1", path = "./crates/chia-sdk-signer" }
 chia-sdk-test = { version = "0.17.1", path = "./crates/chia-sdk-test" }
 chia-sdk-types = { version = "0.17.1", path = "./crates/chia-sdk-types" }
+chia-sdk-utils = { version = "0.17.1", path = "./crates/chia-sdk-utils" }
 chia = "0.15.0"
 chia-ssl = "0.11.0"
 chia-protocol = "0.15.0"

@@ -1,0 +1,27 @@
+[package]
+name = "chia-sdk-utils"
+version = "0.17.1"
+edition = "2021"
+license = "Apache-2.0"
+description = "General utilities for the chia-wallet-sdk."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/Rigidity/chia-wallet-sdk"
+repository = "https://github.com/Rigidity/chia-wallet-sdk"
+readme = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+chia-protocol = { workspace = true }
+hex = { workspace = true }
+bech32 = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+indexmap = { workspace = true }
+
+[dev-dependencies]
+hex-literal = { workspace = true }
