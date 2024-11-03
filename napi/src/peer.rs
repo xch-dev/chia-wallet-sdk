@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use chia_wallet_sdk::{
-    self as sdk, connect_peer, create_rustls_connector, load_ssl_cert, Connector,
+    self as sdk, connect_peer, create_native_tls_connector, load_ssl_cert, Connector,
 };
 use napi::bindgen_prelude::*;
 
@@ -19,7 +19,7 @@ impl Tls {
     pub fn new(cert_path: String, key_path: String) -> Result<Self> {
         let cert = load_ssl_cert(&cert_path, &key_path)
             .map_err(|error| Error::from_reason(error.to_string()))?;
-        let tls = create_rustls_connector(&cert)
+        let tls = create_native_tls_connector(&cert)
             .map_err(|error| Error::from_reason(error.to_string()))?;
         Ok(Self(tls))
     }
