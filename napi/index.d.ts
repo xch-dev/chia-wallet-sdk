@@ -145,6 +145,11 @@ export interface Spend {
   puzzle: Program
   solution: Program
 }
+export interface CoinState {
+  coin: Coin
+  spentHeight?: number
+  createdHeight?: number
+}
 export interface LineageProof {
   parentParentCoinInfo: Uint8Array
   parentInnerPuzzleHash?: Uint8Array
@@ -293,6 +298,14 @@ export declare class ClvmAllocator {
   parseReceiveMessage(program: Program): ReceiveMessage | null
   softfork(cost: bigint, rest: Program): Program
   parseSoftfork(program: Program): Softfork | null
+}
+export declare class Tls {
+  constructor(certPath: string, keyPath: string)
+}
+export declare class Peer {
+  static connect(uri: string, tls: Tls, networkId: string): Promise<Peer>
+  requestChildren(coinId: Uint8Array): Promise<Array<CoinState>>
+  close(): Promise<void>
 }
 export declare class Program {
   isAtom(): boolean
