@@ -1,9 +1,11 @@
 use chia::{
     bls::PublicKey,
-    protocol::{Bytes, BytesImpl, Program},
+    protocol::{Bytes, BytesImpl},
 };
 use clvmr::NodePtr;
 use napi::bindgen_prelude::*;
+
+use crate::{ClvmAllocator, Program};
 
 pub(crate) trait IntoJs<T> {
     fn into_js(self) -> Result<T>;
@@ -19,12 +21,51 @@ pub(crate) trait IntoRust<T> {
     fn into_rust(self) -> Result<T>;
 }
 
+pub(crate) trait IntoProgramOrJs<T> {
+    fn into_program_or_js(self, env: Env, this: Reference<ClvmAllocator>) -> Result<T>;
+}
+
 impl<T, U> IntoRust<U> for T
 where
     U: FromJs<T>,
 {
     fn into_rust(self) -> Result<U> {
         U::from_js(self)
+    }
+}
+
+impl<T, U> IntoProgramOrJs<T> for U
+where
+    U: IntoJs<T>,
+{
+    fn into_program_or_js(self, _env: Env, _this: Reference<ClvmAllocator>) -> Result<T> {
+        self.into_js()
+    }
+}
+
+impl IntoProgramOrJs<ClassInstance<Program>> for NodePtr {
+    fn into_program_or_js(
+        self,
+        env: Env,
+        this: Reference<ClvmAllocator>,
+    ) -> Result<ClassInstance<Program>> {
+        Program::new(this, self).into_instance(env)
+    }
+}
+
+impl IntoProgramOrJs<Vec<ClassInstance<Program>>> for Vec<NodePtr> {
+    fn into_program_or_js(
+        self,
+        env: Env,
+        this: Reference<ClvmAllocator>,
+    ) -> Result<Vec<ClassInstance<Program>>> {
+        let mut result = Vec::with_capacity(self.len());
+
+        for ptr in self {
+            result.push(Program::new(this.clone(env)?, ptr).into_instance(env)?);
+        }
+
+        Ok(result)
     }
 }
 
@@ -137,15 +178,15 @@ impl FromJs<Uint8Array> for PublicKey {
     }
 }
 
-impl IntoJs<Uint8Array> for Program {
+impl IntoJs<Uint8Array> for chia::protocol::Program {
     fn into_js(self) -> Result<Uint8Array> {
         Ok(Uint8Array::new(self.to_vec()))
     }
 }
 
-impl FromJs<Uint8Array> for Program {
+impl FromJs<Uint8Array> for chia::protocol::Program {
     fn from_js(js_value: Uint8Array) -> Result<Self> {
-        Ok(Program::from(js_value.to_vec()))
+        Ok(chia::protocol::Program::from(js_value.to_vec()))
     }
 }
 

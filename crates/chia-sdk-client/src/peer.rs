@@ -290,6 +290,11 @@ impl Peer {
         self.0.sink.lock().await.send(message).await?;
         Ok(receiver.await?)
     }
+
+    pub async fn close(&self) -> Result<(), ClientError> {
+        self.0.sink.lock().await.close().await?;
+        Ok(())
+    }
 }
 
 impl Drop for PeerInner {

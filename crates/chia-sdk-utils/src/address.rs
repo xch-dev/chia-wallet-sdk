@@ -3,7 +3,7 @@ use hex::FromHexError;
 use thiserror::Error;
 
 /// Errors you can get while trying to decode an address.
-#[derive(Error, Debug, Clone, PartialEq, Eq)]
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddressError {
     /// The address was encoded as bech32, rather than bech32m.
     #[error("encoding is not bech32m")]
@@ -19,7 +19,7 @@ pub enum AddressError {
 }
 
 /// Errors you can get while trying to decode a puzzle hash.
-#[derive(Error, Debug, Clone, PartialEq)]
+#[derive(Error, Debug, Clone, Copy, PartialEq)]
 pub enum PuzzleHashError {
     /// The buffer was not 32 bytes in length.
     #[error("wrong length, expected 32 bytes but found {0}")]

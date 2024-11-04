@@ -5,27 +5,18 @@ use chia::{
     protocol::{self, Bytes32},
     puzzles::nft::{self, NFT_METADATA_UPDATER_PUZZLE_HASH},
 };
-use chia_wallet_sdk::{
-    self as sdk, AggSigAmount, AggSigMe, AggSigParent, AggSigParentAmount, AggSigParentPuzzle,
-    AggSigPuzzle, AggSigPuzzleAmount, AggSigUnsafe, AssertBeforeHeightAbsolute,
-    AssertBeforeHeightRelative, AssertBeforeSecondsAbsolute, AssertBeforeSecondsRelative,
-    AssertCoinAnnouncement, AssertConcurrentPuzzle, AssertConcurrentSpend, AssertEphemeral,
-    AssertHeightAbsolute, AssertHeightRelative, AssertMyAmount, AssertMyBirthHeight,
-    AssertMyBirthSeconds, AssertMyCoinId, AssertMyParentId, AssertMyPuzzleHash,
-    AssertPuzzleAnnouncement, AssertSecondsAbsolute, AssertSecondsRelative, CreateCoin,
-    CreateCoinAnnouncement, CreatePuzzleAnnouncement, HashedPtr, ReceiveMessage, Remark,
-    ReserveFee, SendMessage, Softfork, SpendContext,
-};
+use chia_wallet_sdk::{self as sdk, HashedPtr, SpendContext};
 use clvmr::{
     run_program,
     serde::{node_from_bytes, node_from_bytes_backrefs},
     ChiaDialect, NodePtr, MEMPOOL_MODE,
 };
 use napi::bindgen_prelude::*;
+use paste::paste;
 
 use crate::{
     clvm_value::{Allocate, ClvmValue},
-    traits::{FromJs, IntoJs, IntoRust},
+    traits::{FromJs, IntoJs, IntoProgramOrJs, IntoRust},
     Coin, CoinSpend, MintedNfts, Nft, NftMetadata, NftMint, ParsedNft, Program, Spend,
 };
 
@@ -399,26 +390,45 @@ pub fn signed_bytes_to_int(bytes: Uint8Array) -> Result<BigInt> {
 }
 
 macro_rules! conditions {
-    ( $( $condition:ident { $hint:literal $function:ident( $( $name:ident: $ty:ty $( => $remap:ty )? ),* ) }, )* ) => {
-        $( #[napi]
-        impl ClvmAllocator {
-            #[napi(ts_args_type = $hint)]
-            pub fn $function( &mut self, this: This<Clvm>, $( $name: $ty ),* ) -> Result<Program> {
-                $( let $name $( : $remap )? = FromJs::from_js($name)?; )*
-                let ptr = $condition::new( $( $name ),* )
-                .to_clvm(&mut self.0.allocator)
-                .map_err(|error| Error::from_reason(error.to_string()))?;
+    ( $( $condition:ident $( < $( $generic:ty ),* > )? { $hint:literal $function:ident( $( $name:ident: $ty:ty $( => $remap:ty )? ),* ) }, )* ) => {
+        $( #[napi(object)]
+        pub struct $condition {
+            $( pub $name: $ty, )*
+        } )*
 
-                Ok(Program::new(this, ptr))
+        $( paste! {
+            #[napi]
+            impl ClvmAllocator {
+                #[napi(ts_args_type = $hint)]
+                pub fn $function( &mut self, this: This<Clvm>, $( $name: $ty ),* ) -> Result<Program> {
+                    $( let $name $( : $remap )? = FromJs::from_js($name)?; )*
+                    let ptr = sdk::$condition::new( $( $name ),* )
+                    .to_clvm(&mut self.0.allocator)
+                    .map_err(|error| Error::from_reason(error.to_string()))?;
+
+                    Ok(Program::new(this, ptr))
+                }
+
+                #[napi(ts_args_type = "program: Program")]
+                #[allow(unused)]
+                pub fn [< parse_ $function >]( &mut self, env: Env, this: This<Clvm>, program: Reference<Program> ) -> Result<Option<$condition>> {
+                    let Some(condition) = sdk::$condition $( ::< $( $generic ),* > )? ::from_clvm(&self.0.allocator, program.ptr).ok() else {
+                        return Ok(None);
+                    };
+
+                    Ok(Some($condition {
+                        $( $name: condition.$name.into_program_or_js(env, this.clone(env)?)?, )*
+                    }))
+                }
             }
         } )*
     };
 }
 
 conditions!(
-    Remark {
-        "value: Program"
-        remark(value: ClassInstance<Program> => NodePtr)
+    Remark<NodePtr> {
+        "rest: Program"
+        remark(rest: ClassInstance<Program> => NodePtr)
     },
     AggSigParent {
         "publicKey: Uint8Array, message: Uint8Array"
@@ -457,8 +467,8 @@ conditions!(
         create_coin(puzzle_hash: Uint8Array, amount: BigInt, memos: Vec<Uint8Array>)
     },
     ReserveFee {
-        "fee: bigint"
-        reserve_fee(fee: BigInt)
+        "amount: bigint"
+        reserve_fee(amount: BigInt)
     },
     CreateCoinAnnouncement {
         "message: Uint8Array"
@@ -544,16 +554,16 @@ conditions!(
         ""
         assert_ephemeral()
     },
-    SendMessage {
+    SendMessage<NodePtr> {
         "mode: number, message: Uint8Array, data: Array<Program>"
         send_message(mode: u8, message: Uint8Array, data: Vec<ClassInstance<Program>> => Vec<NodePtr>)
     },
-    ReceiveMessage {
+    ReceiveMessage<NodePtr> {
         "mode: number, message: Uint8Array, data: Array<Program>"
         receive_message(mode: u8, message: Uint8Array, data: Vec<ClassInstance<Program>> => Vec<NodePtr>)
     },
-    Softfork {
-        "cost: bigint, value: Program"
-        softfork(cost: BigInt, value: ClassInstance<Program> => NodePtr)
+    Softfork<NodePtr> {
+        "cost: bigint, rest: Program"
+        softfork(cost: BigInt, rest: ClassInstance<Program> => NodePtr)
     },
 );
