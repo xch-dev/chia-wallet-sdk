@@ -1,9 +1,9 @@
 {
-  "name": "chia-wallet-sdk-win32-x64-msvc",
+  "name": "cni-wallet-sdk-win32-x64-msvc",
   "version": "0.16.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/xch-dev/chia-wallet-sdk"
+    "url": "https://github.com/Chia-Network/cni-wallet-sdk"
   },
   "os": [
     "win32"
@@ -11,9 +11,9 @@
   "cpu": [
     "x64"
   ],
-  "main": "chia-wallet-sdk.win32-x64-msvc.node",
+  "main": "cni-wallet-sdk.win32-x64-msvc.node",
   "files": [
-    "chia-wallet-sdk.win32-x64-msvc.node"
+    "cni-wallet-sdk.win32-x64-msvc.node"
   ],
   "license": "MIT",
   "engines": {

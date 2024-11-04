@@ -1,9 +1,9 @@
 {
-  "name": "chia-wallet-sdk-linux-x64-gnu",
+  "name": "cni-wallet-sdk-linux-x64-gnu",
   "version": "0.16.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/xch-dev/chia-wallet-sdk"
+    "url": "https://github.com/Chia-Network/cni-wallet-sdk"
   },
   "os": [
     "linux"
@@ -11,9 +11,9 @@
   "cpu": [
     "x64"
   ],
-  "main": "chia-wallet-sdk.linux-x64-gnu.node",
+  "main": "cni-wallet-sdk.linux-x64-gnu.node",
   "files": [
-    "chia-wallet-sdk.linux-x64-gnu.node"
+    "cni-wallet-sdk.linux-x64-gnu.node"
   ],
   "license": "MIT",
   "engines": {

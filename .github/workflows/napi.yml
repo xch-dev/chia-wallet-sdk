@@ -12,7 +12,7 @@ on:
 
 env:
   DEBUG: napi:*
-  APP_NAME: chia-wallet-sdk
+  APP_NAME: cni-wallet-sdk
   MACOSX_DEPLOYMENT_TARGET: "10.13"
 
 permissions:
