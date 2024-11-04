@@ -1,9 +1,9 @@
 [package]
-name = "chia-sdk-types"
+name = "chia-sdk-utils"
 version = "0.17.1"
 edition = "2021"
 license = "Apache-2.0"
-description = "Standard Chia types for things such as puzzle info and conditions."
+description = "General utilities for the chia-wallet-sdk."
 authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
 homepage = "https://github.com/Rigidity/chia-wallet-sdk"
 repository = "https://github.com/Rigidity/chia-wallet-sdk"
@@ -15,15 +15,13 @@ categories = { workspace = true }
 workspace = true
 
 [dependencies]
-chia-sdk-derive = { workspace = true }
-chia-bls = { workspace = true }
+thiserror = { workspace = true }
 chia-protocol = { workspace = true }
-chia-consensus = { workspace = true }
-clvm-traits = { workspace = true }
-clvmr = { workspace = true }
-hex-literal = { workspace = true }
-once_cell = { workspace = true }
+hex = { workspace = true }
+bech32 = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+indexmap = { workspace = true }
 
 [dev-dependencies]
-hex = { workspace = true }
-anyhow = { workspace = true }
+hex-literal = { workspace = true }

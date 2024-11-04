@@ -1,4 +1,4 @@
-use chia_wallet_sdk::*;
+use chia_sdk_utils::{decode_address, decode_puzzle_hash, encode_address, encode_puzzle_hash};
 use hex_literal::hex;
 
 fn main() -> anyhow::Result<()> {
@@ -7,8 +7,8 @@ fn main() -> anyhow::Result<()> {
 
     let address = encode_address(puzzle_hash, "xch")?;
 
-    println!("Puzzle hash: {}", encoded_puzzle_hash);
-    println!("XCH address: {}", address);
+    println!("Puzzle hash: {encoded_puzzle_hash}");
+    println!("XCH address: {address}");
 
     let roundtrip = decode_address(&address)?;
     println!(

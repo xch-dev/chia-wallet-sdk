@@ -387,7 +387,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-client"
-version = "0.16.0"
+version = "0.17.1"
 dependencies = [
  "chia-protocol",
  "chia-sdk-types",
@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-derive"
-version = "0.16.0"
+version = "0.17.1"
 dependencies = [
  "convert_case",
  "quote",
@@ -415,7 +415,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-driver"
-version = "0.16.0"
+version = "0.17.1"
 dependencies = [
  "anyhow",
  "chia-bls 0.15.0",
@@ -437,7 +437,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-offers"
-version = "0.16.0"
+version = "0.17.1"
 dependencies = [
  "anyhow",
  "bech32",
@@ -461,7 +461,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-signer"
-version = "0.16.0"
+version = "0.17.1"
 dependencies = [
  "chia-bls 0.15.0",
  "chia-consensus",
@@ -477,7 +477,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-test"
-version = "0.16.0"
+version = "0.17.1"
 dependencies = [
  "anyhow",
  "bip39",
@@ -507,7 +507,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-types"
-version = "0.16.0"
+version = "0.17.1"
 dependencies = [
  "anyhow",
  "chia-bls 0.15.0",
@@ -519,6 +519,20 @@ dependencies = [
  "hex",
  "hex-literal",
  "once_cell",
+]
+
+[[package]]
+name = "chia-sdk-utils"
+version = "0.17.1"
+dependencies = [
+ "bech32",
+ "chia-protocol",
+ "hex",
+ "hex-literal",
+ "indexmap",
+ "rand",
+ "rand_chacha",
+ "thiserror",
 ]
 
 [[package]]
@@ -568,10 +582,9 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk"
-version = "0.16.0"
+version = "0.17.1"
 dependencies = [
  "anyhow",
- "bech32",
  "chia-bls 0.15.0",
  "chia-protocol",
  "chia-puzzles",
@@ -581,15 +594,11 @@ dependencies = [
  "chia-sdk-signer",
  "chia-sdk-test",
  "chia-sdk-types",
+ "chia-sdk-utils",
  "clvm-traits",
  "clvm-utils",
  "clvmr",
- "hex",
  "hex-literal",
- "indexmap",
- "rand",
- "rand_chacha",
- "thiserror",
 ]
 
 [[package]]
@@ -604,6 +613,10 @@ dependencies = [
  "napi-build",
  "napi-derive",
  "num-bigint",
+ "openssl",
+ "openssl-sys",
+ "paste",
+ "tokio",
 ]
 
 [[package]]
@@ -1382,6 +1395,7 @@ dependencies = [
  "napi-derive",
  "napi-sys",
  "once_cell",
+ "tokio",
 ]
 
 [[package]]
@@ -1585,6 +1599,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
+name = "openssl-src"
+version = "300.4.0+3.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a709e02f2b4aca747929cca5ed248880847c650233cf8b8cdc48f40aaf4898a6"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "openssl-sys"
 version = "0.9.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1592,6 +1615,7 @@ checksum = "7f9e8deee91df40a943c71b917e5874b951d32a802526c85721ce3b776c929d6"
 dependencies = [
  "cc",
  "libc",
+ "openssl-src",
  "pkg-config",
  "vcpkg",
 ]

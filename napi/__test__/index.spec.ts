@@ -281,3 +281,18 @@ test("mint and spend nft", (t) => {
     )
   );
 });
+
+test("create and parse condition", (t) => {
+  const clvm = new ClvmAllocator();
+
+  const puzzleHash = fromHex("ff".repeat(32));
+
+  const condition = clvm.createCoin(puzzleHash, 1n, [puzzleHash]);
+  const parsed = clvm.parseCreateCoin(condition);
+
+  t.deepEqual(parsed, {
+    puzzleHash,
+    amount: 1n,
+    memos: [puzzleHash],
+  });
+});

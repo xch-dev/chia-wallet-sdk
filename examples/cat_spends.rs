@@ -1,6 +1,8 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::standard::StandardArgs;
-use chia_wallet_sdk::*;
+use chia_sdk_driver::{Cat, CatSpend, SpendContext, SpendWithConditions, StandardLayer};
+use chia_sdk_test::test_secret_key;
+use chia_sdk_types::Conditions;
 
 fn main() -> anyhow::Result<()> {
     let ctx = &mut SpendContext::new();
