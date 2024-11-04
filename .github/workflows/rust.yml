@@ -39,8 +39,11 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup target
+        run: rustup target add ${{ matrix.target }}
+
       - name: Run tests
-        run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --all-features
+        run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --all-features --target ${{ matrix.target }}
 
   test:
     runs-on: ubuntu-latest
