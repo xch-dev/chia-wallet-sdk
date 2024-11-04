@@ -1,16 +1,16 @@
 {
-  "name": "chia-wallet-sdk-darwin-universal",
+  "name": "cni-wallet-sdk-darwin-universal",
   "version": "0.16.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/xch-dev/chia-wallet-sdk"
+    "url": "https://github.com/Chia-Network/cni-wallet-sdk"
   },
   "os": [
     "darwin"
   ],
-  "main": "chia-wallet-sdk.darwin-universal.node",
+  "main": "cni-wallet-sdk.darwin-universal.node",
   "files": [
-    "chia-wallet-sdk.darwin-universal.node"
+    "cni-wallet-sdk.darwin-universal.node"
   ],
   "license": "MIT",
   "engines": {

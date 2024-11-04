@@ -1,9 +1,9 @@
 {
-  "name": "chia-wallet-sdk-darwin-x64",
+  "name": "cni-wallet-sdk-darwin-x64",
   "version": "0.16.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/xch-dev/chia-wallet-sdk"
+    "url": "https://github.com/Chia-Network/cni-wallet-sdk"
   },
   "os": [
     "darwin"
@@ -11,9 +11,9 @@
   "cpu": [
     "x64"
   ],
-  "main": "chia-wallet-sdk.darwin-x64.node",
+  "main": "cni-wallet-sdk.darwin-x64.node",
   "files": [
-    "chia-wallet-sdk.darwin-x64.node"
+    "cni-wallet-sdk.darwin-x64.node"
   ],
   "license": "MIT",
   "engines": {

@@ -1,10 +1,10 @@
 {
-  "name": "chia-wallet-sdk",
+  "name": "cni-wallet-sdk",
   "version": "0.16.0",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/xch-dev/chia-wallet-sdk"
+    "url": "https://github.com/Chia-Network/cni-wallet-sdk"
   },
   "main": "index.js",
   "types": "index.d.ts",
@@ -27,7 +27,7 @@
     "update-declarations": "node scripts/update-declarations.js"
   },
   "napi": {
-    "name": "chia-wallet-sdk",
+    "name": "cni-wallet-sdk",
     "triples": {
       "additional": [
         "aarch64-apple-darwin",
