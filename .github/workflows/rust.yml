@@ -49,6 +49,12 @@ jobs:
         if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
         run: sudo apt-get install -y gcc-aarch64-linux-gnu libssl-dev
 
+      - name: Install nasm
+        if: matrix.platform == 'windows-latest'
+        run: |
+          choco install nasm
+          echo "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Run tests
         run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --all-features --target ${{ matrix.settings.target }}
 
