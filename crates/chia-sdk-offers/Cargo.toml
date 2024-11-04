@@ -24,7 +24,7 @@ chia-bls = { workspace = true }
 clvm-traits = { workspace = true }
 clvm-utils = { workspace = true }
 clvmr = { workspace = true }
-flate2 = { workspace = true, features = ["zlib-ng-compat"] }
+flate2 = { workspace = true, features = ["zlib-ng"] }
 indexmap = { workspace = true }
 chia-sdk-driver = { workspace = true }
 chia-sdk-types = { workspace = true }
