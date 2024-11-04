@@ -53,7 +53,7 @@ jobs:
         run: sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Install nasm
-        if: matrix.settings.platform == 'windows-latest'
+        if: matrix.settings.os == 'windows-latest'
         run: |
           choco install nasm
           echo "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
