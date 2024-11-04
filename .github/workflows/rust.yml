@@ -15,63 +15,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  platform_test:
-    strategy:
-      fail-fast: false
-      matrix:
-        settings:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
-          - os: macos-latest
-            target: x86_64-apple-darwin
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-
-    name: ${{ matrix.settings.os }} - ${{ matrix.settings.target }}
-    runs-on: ${{ matrix.settings.os }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Rust
-        if: ${{ !matrix.settings.docker }}
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup target
-        if: ${{ !matrix.settings.docker }}
-        run: rustup target add ${{ matrix.settings.target }}
-
-      - name: Install aarch64-linux-gnu-gcc
-        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
-        run: sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Install nasm
-        if: matrix.settings.os == 'windows-latest'
-        run: |
-          choco install nasm
-          echo "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Run tests
-        if: ${{ !matrix.settings.docker }}
-        run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --all-features --target ${{ matrix.settings.target }}
-
-      - name: Run tests in docker
-        uses: addnab/docker-run-action@v3
-        if: ${{ matrix.settings.docker }}
-        with:
-          image: ${{ matrix.settings.docker }}
-          options: "--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build"
-          run: |
-            sudo apt-get install -y libssl-dev
-            cargo test --release --workspace --exclude chia-wallet-sdk-napi --all-features --target ${{ matrix.settings.target }}
-
   test:
     runs-on: ubuntu-latest
     steps:

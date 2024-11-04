@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 native-tls = ["dep:native-tls", "tokio-tungstenite/native-tls"]
-rustls = ["dep:rustls", "dep:rustls-pemfile", "tokio-tungstenite/rustls-tls-webpki-roots"]
+rustls = ["dep:rustls", "dep:rustls-pemfile", "dep:aws-lc-rs", "tokio-tungstenite/rustls-tls-webpki-roots"]
 
 [dependencies]
 chia-sdk-types = { workspace = true }
@@ -32,3 +32,7 @@ rustls-pemfile = { workspace = true, optional = true }
 tracing = { workspace = true }
 futures-util = { workspace = true }
 tokio-tungstenite = { workspace = true }
+
+# This is to ensure that the bindgen feature is enabled for the aws-lc-rs crate.
+# https://aws.github.io/aws-lc-rs/platform_support.html#tested-platforms
+aws-lc-rs = { version = "1", features = ["bindgen"], optional = true }
