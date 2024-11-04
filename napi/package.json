@@ -20,6 +20,7 @@
     "build:macos-x64": "napi build --platform --release --target x86_64-apple-darwin && pnpm run update-declarations",
     "build:windows-x64": "napi build --platform --release --target x86_64-pc-windows-msvc && pnpm run update-declarations",
     "build:linux-x64": "napi build --platform --release --target x86_64-unknown-linux-gnu && pnpm run update-declarations",
+    "build:linux-arm64": "napi build --platform --release --target aarch64-unknown-linux-gnu && pnpm run update-declarations",
     "prepublishOnly": "napi prepublish -t npm --skip-gh-release",
     "test": "ava",
     "universal": "napi universal",
@@ -31,7 +32,8 @@
     "triples": {
       "additional": [
         "aarch64-apple-darwin",
-        "universal-apple-darwin"
+        "universal-apple-darwin",
+        "aarch64-unknown-linux-gnu"
       ]
     }
   },
