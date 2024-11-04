@@ -32,7 +32,8 @@
     "triples": {
       "additional": [
         "aarch64-apple-darwin",
-        "universal-apple-darwin"
+        "universal-apple-darwin",
+        "aarch64-unknown-linux-gnu"
       ]
     }
   },
