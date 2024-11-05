@@ -1,3 +1,3 @@
-# `chia-wallet-sdk-linux-arm64-gnu`
+# `cni-wallet-sdk-linux-arm64-gnu`
 
-This is the **aarch64-unknown-linux-gnu** binary for `chia-wallet-sdk`
+This is the **aarch64-unknown-linux-gnu** binary for `cni-wallet-sdk`
