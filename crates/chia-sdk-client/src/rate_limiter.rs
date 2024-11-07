@@ -74,10 +74,12 @@ impl RateLimiter {
                 new_non_tx_size += size;
 
                 if new_non_tx_count > self.rate_limits.non_tx_frequency * self.limit_factor {
+                    println!("A");
                     break 'checker false;
                 }
 
                 if new_non_tx_size > self.rate_limits.non_tx_max_total_size * self.limit_factor {
+                    println!("B");
                     break 'checker false;
                 }
             }
@@ -87,14 +89,17 @@ impl RateLimiter {
                 .unwrap_or(limits.frequency * limits.max_size);
 
             if new_message_count > limits.frequency * self.limit_factor {
+                println!("C");
                 break 'checker false;
             }
 
             if size > limits.max_size {
+                println!("D");
                 break 'checker false;
             }
 
             if new_cumulative_size > max_total_size * self.limit_factor {
+                println!("E");
                 break 'checker false;
             }
 

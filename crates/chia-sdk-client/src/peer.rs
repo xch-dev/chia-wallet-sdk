@@ -35,7 +35,7 @@ type Response<T, E> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PeerOptions {
-    rate_limit_factor: f64,
+    pub rate_limit_factor: f64,
 }
 
 impl Default for PeerOptions {
