@@ -6,8 +6,8 @@ use once_cell::sync::Lazy;
 #[derive(Debug, Clone)]
 pub struct RateLimits {
     pub default_settings: RateLimit,
-    pub non_tx_frequency: u32,
-    pub non_tx_max_total_size: u32,
+    pub non_tx_frequency: f64,
+    pub non_tx_max_total_size: f64,
     pub tx: HashMap<ProtocolMessageTypes, RateLimit>,
     pub other: HashMap<ProtocolMessageTypes, RateLimit>,
 }
@@ -24,13 +24,13 @@ impl RateLimits {
 
 #[derive(Debug, Clone, Copy)]
 pub struct RateLimit {
-    pub frequency: u32,
-    pub max_size: u32,
-    pub max_total_size: Option<u32>,
+    pub frequency: f64,
+    pub max_size: f64,
+    pub max_total_size: Option<f64>,
 }
 
 impl RateLimit {
-    pub fn new(frequency: u32, max_size: u32, max_total_size: Option<u32>) -> Self {
+    pub fn new(frequency: f64, max_size: f64, max_total_size: Option<f64>) -> Self {
         Self {
             frequency,
             max_size,
@@ -50,9 +50,9 @@ macro_rules! settings {
                 settings.insert(
                     ProtocolMessageTypes::$message,
                     RateLimit::new(
-                        $frequency,
-                        $max_size,
-                        max_total_size,
+                        $frequency.into(),
+                        $max_size.into(),
+                        max_total_size.map(|num: u32| num.into()),
                     )
                 );
             )*
@@ -63,9 +63,9 @@ macro_rules! settings {
 
 // TODO: Fix commented out rate limits.
 pub static V1_RATE_LIMITS: Lazy<RateLimits> = Lazy::new(|| RateLimits {
-    default_settings: RateLimit::new(100, 1024 * 1024, Some(100 * 1024 * 1024)),
-    non_tx_frequency: 1000,
-    non_tx_max_total_size: 100 * 1024 * 1024,
+    default_settings: RateLimit::new(100.0, 1024.0 * 1024.0, Some(100.0 * 1024.0 * 1024.0)),
+    non_tx_frequency: 1000.0,
+    non_tx_max_total_size: 100.0 * 1024.0 * 1024.0,
     tx: settings! {
         NewTransaction => 5000, 100, 5000 * 100;
         RequestTransaction => 5000, 100, 5000 * 100;
@@ -174,9 +174,9 @@ pub static V1_RATE_LIMITS: Lazy<RateLimits> = Lazy::new(|| RateLimits {
 // TODO: Fix commented out rate limits.
 // Also, why are these in tx?
 static V2_RATE_LIMIT_CHANGES: Lazy<RateLimits> = Lazy::new(|| RateLimits {
-    default_settings: RateLimit::new(100, 1024 * 1024, Some(100 * 1024 * 1024)),
-    non_tx_frequency: 1000,
-    non_tx_max_total_size: 100 * 1024 * 1024,
+    default_settings: RateLimit::new(100.0, 1024.0 * 1024.0, Some(100.0 * 1024.0 * 1024.0)),
+    non_tx_frequency: 1000.0,
+    non_tx_max_total_size: 100.0 * 1024.0 * 1024.0,
     tx: settings! {
         RequestBlockHeader => 500, 100;
         RespondBlockHeader => 500, 500 * 1024;

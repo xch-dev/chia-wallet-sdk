@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use chia_protocol::{Bytes32, Coin, CoinState, Message};
-use chia_sdk_client::Peer;
+use chia_sdk_client::{Peer, PeerOptions};
 use error::PeerSimulatorError;
 use peer_map::PeerMap;
 use simulator_config::SimulatorConfig;
@@ -93,7 +93,7 @@ impl PeerSimulator {
     ) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
         log::info!("connecting new peer to simulator");
         let (ws, _) = connect_async(format!("ws://{}", self.addr)).await?;
-        Ok(Peer::from_websocket(ws)?)
+        Ok(Peer::from_websocket(ws, PeerOptions::default())?)
     }
 
     pub async fn connect(&self) -> Result<Peer, PeerSimulatorError> {
