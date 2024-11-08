@@ -281,6 +281,7 @@ where
     ) -> Result<Option<Self>, DriverError>
     where
         Self: Sized,
+        M: Clone,
     {
         let Some(singleton_layer) =
             SingletonLayer::<Puzzle>::parse_puzzle(allocator, parent_puzzle)?
@@ -337,10 +338,17 @@ where
         }
 
         if let Some(new_metadata) = new_metadata {
+            let metadata_updater_solution = clvm_list!(
+                layers.inner_puzzle.metadata.clone(),
+                layers.inner_puzzle.metadata_updater_puzzle_hash,
+                new_metadata.updater_solution
+            )
+            .to_clvm(allocator)?;
+
             let output = run_puzzle(
                 allocator,
                 new_metadata.updater_puzzle_reveal,
-                new_metadata.updater_solution,
+                metadata_updater_solution,
             )?;
 
             let output =
@@ -497,6 +505,7 @@ mod tests {
         let _did = did.update(ctx, &p2, mint_nft)?;
 
         let metadata_update = MetadataUpdate::NewDataUri("another.com".to_string()).spend(ctx)?;
+        let parent_nft = nft.clone();
         let nft: Nft<NftMetadata> =
             nft.transfer_with_metadata(ctx, &p2, puzzle_hash, metadata_update, Conditions::new())?;
 
@@ -509,9 +518,33 @@ mod tests {
             }
         );
 
+        let child_nft = nft.clone();
         let _nft = nft.transfer(ctx, &p2, puzzle_hash, Conditions::new())?;
 
         sim.spend_coins(ctx.take(), &[sk])?;
+
+        // Ensure that the metadata update can be parsed.
+        let parent_puzzle = sim
+            .puzzle_reveal(parent_nft.coin.coin_id())
+            .expect("missing puzzle");
+
+        let parent_solution = sim
+            .solution(parent_nft.coin.coin_id())
+            .expect("missing solution");
+
+        let parent_puzzle = parent_puzzle.to_clvm(&mut ctx.allocator)?;
+        let parent_puzzle = Puzzle::parse(&ctx.allocator, parent_puzzle);
+        let parent_solution = parent_solution.to_clvm(&mut ctx.allocator)?;
+
+        let new_child_nft = Nft::<NftMetadata>::parse_child(
+            &mut ctx.allocator,
+            parent_nft.coin,
+            parent_puzzle,
+            parent_solution,
+        )?
+        .expect("child is not an NFT");
+
+        assert_eq!(new_child_nft, child_nft);
 
         Ok(())
     }
