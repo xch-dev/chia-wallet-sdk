@@ -412,6 +412,7 @@ dependencies = [
  "chia-traits 0.15.0",
  "futures-util",
  "native-tls",
+ "once_cell",
  "rustls",
  "rustls-pemfile",
  "thiserror",

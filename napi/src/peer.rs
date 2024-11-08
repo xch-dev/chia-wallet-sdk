@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use chia_wallet_sdk::{
-    self as sdk, connect_peer, create_native_tls_connector, load_ssl_cert, Connector,
+    self as sdk, connect_peer, create_native_tls_connector, load_ssl_cert, Connector, PeerOptions,
 };
 use napi::bindgen_prelude::*;
 
@@ -37,6 +37,7 @@ impl Peer {
             tls.0.clone(),
             uri.parse::<SocketAddr>()
                 .map_err(|error| Error::from_reason(error.to_string()))?,
+            PeerOptions::default(),
         )
         .await
         .map_err(|error| Error::from_reason(error.to_string()))?;

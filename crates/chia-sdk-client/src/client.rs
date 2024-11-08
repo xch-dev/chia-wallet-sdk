@@ -11,7 +11,7 @@ use chia_protocol::Message;
 use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::Connector;
 
-use crate::{connect_peer, ClientError, Network, Peer};
+use crate::{connect_peer, ClientError, Network, Peer, PeerOptions};
 
 #[derive(Clone)]
 pub struct Client {
@@ -67,9 +67,15 @@ impl Client {
     pub async fn connect(
         &self,
         socket_addr: SocketAddr,
+        options: PeerOptions,
     ) -> Result<mpsc::Receiver<Message>, ClientError> {
-        let (peer, receiver) =
-            connect_peer(self.network_id.clone(), self.connector.clone(), socket_addr).await?;
+        let (peer, receiver) = connect_peer(
+            self.network_id.clone(),
+            self.connector.clone(),
+            socket_addr,
+            options,
+        )
+        .await?;
 
         let mut state = self.state.lock().await;
         let ip_addr = peer.socket_addr().ip();

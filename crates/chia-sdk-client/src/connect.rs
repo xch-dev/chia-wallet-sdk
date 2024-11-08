@@ -6,15 +6,16 @@ use tokio::sync::mpsc;
 use tokio_tungstenite::Connector;
 use tracing::instrument;
 
-use crate::{ClientError, Peer};
+use crate::{ClientError, Peer, PeerOptions};
 
 #[instrument(skip(connector))]
 pub async fn connect_peer(
     network_id: String,
     connector: Connector,
     socket_addr: SocketAddr,
+    options: PeerOptions,
 ) -> Result<(Peer, mpsc::Receiver<Message>), ClientError> {
-    let (peer, mut receiver) = Peer::connect(socket_addr, connector).await?;
+    let (peer, mut receiver) = Peer::connect(socket_addr, connector, options).await?;
 
     peer.send(Handshake {
         network_id: network_id.clone(),
