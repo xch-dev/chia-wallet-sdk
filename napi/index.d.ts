@@ -212,6 +212,8 @@ export interface P2Coin {
 }
 export declare function compareBytes(a: Uint8Array, b: Uint8Array): boolean
 export declare function sha256(bytes: Uint8Array): Uint8Array
+export declare function treeHashAtom(bytes: Uint8Array): Uint8Array
+export declare function treeHashPair(first: Uint8Array, rest: Uint8Array): Uint8Array
 export declare function fromHexRaw(hex: string): Uint8Array
 export declare function fromHex(hex: string): Uint8Array
 export declare function toHex(bytes: Uint8Array): string
