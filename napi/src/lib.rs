@@ -4,10 +4,12 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_sign_loss)]
+#![allow(clippy::return_self_not_must_use)]
 
 #[macro_use]
 extern crate napi_derive;
 
+mod bls;
 mod clvm;
 mod clvm_value;
 mod coin;
@@ -21,6 +23,7 @@ mod simulator;
 mod traits;
 mod utils;
 
+pub use bls::*;
 pub use clvm::*;
 pub use coin::*;
 pub use coin_spend::*;

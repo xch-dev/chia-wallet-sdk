@@ -209,6 +209,46 @@ export declare function sha256(bytes: Uint8Array): Uint8Array
 export declare function fromHexRaw(hex: string): Uint8Array
 export declare function fromHex(hex: string): Uint8Array
 export declare function toHex(bytes: Uint8Array): string
+export declare class SecretKey {
+  static fromSeed(seed: Uint8Array): SecretKey
+  static fromBytes(bytes: Uint8Array): SecretKey
+  toBytes(): Uint8Array
+  publicKey(): PublicKey
+  sign(message: Uint8Array): Signature
+  deriveUnhardened(index: number): SecretKey
+  deriveHardened(index: number): SecretKey
+  deriveUnhardenedPath(path: Array<number>): SecretKey
+  deriveHardenedPath(path: Array<number>): SecretKey
+  deriveUnhardenedWalletIntermediate(): SecretKey
+  deriveHardenedWalletIntermediate(): SecretKey
+  deriveUnhardenedWallet(index: number): SecretKey
+  deriveHardenedWallet(index: number): SecretKey
+  deriveSynthetic(): SecretKey
+  deriveSyntheticWithHiddenPuzzle(hiddenPuzzleHash: Uint8Array): SecretKey
+}
+export declare class PublicKey {
+  static fromBytes(bytes: Uint8Array): PublicKey
+  toBytes(): Uint8Array
+  static empty(): PublicKey
+  static aggregate(publicKeys: Array<PublicKey>): PublicKey
+  fingerprint(): number
+  isInfinity(): boolean
+  isValid(): boolean
+  verify(message: Uint8Array, signature: Signature): boolean
+  deriveUnhardened(index: number): PublicKey
+  deriveUnhardenedPath(path: Array<number>): PublicKey
+  deriveUnhardenedWalletIntermediate(): PublicKey
+  deriveUnhardenedWallet(index: number): PublicKey
+  deriveSynthetic(): PublicKey
+  deriveSyntheticWithHiddenPuzzle(hiddenPuzzleHash: Uint8Array): PublicKey
+}
+export declare class Signature {
+  static fromBytes(bytes: Uint8Array): Signature
+  toBytes(): Uint8Array
+  static empty(): Signature
+  static aggregate(signatures: Array<Signature>): Signature
+  isValid(): boolean
+}
 export declare class ClvmAllocator {
   constructor()
   nil(): Program
