@@ -16,7 +16,7 @@ use rand_chacha::ChaCha20Rng;
 use crate::traits::{IntoJs, IntoRust};
 
 #[napi]
-pub struct SecretKey(bls::SecretKey);
+pub struct SecretKey(pub(crate) bls::SecretKey);
 
 #[napi]
 impl SecretKey {

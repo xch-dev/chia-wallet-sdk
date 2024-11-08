@@ -1,10 +1,9 @@
-use chia::bls::SecretKey;
 use chia_wallet_sdk as sdk;
 use napi::bindgen_prelude::*;
 
 use crate::{
     traits::{FromJs, IntoJs, IntoRust},
-    Coin, CoinSpend,
+    Coin, CoinSpend, SecretKey,
 };
 
 #[napi]
@@ -43,7 +42,7 @@ impl Simulator {
     pub fn spend(
         &mut self,
         coin_spends: Vec<CoinSpend>,
-        secret_keys: Vec<Uint8Array>,
+        secret_keys: Vec<Reference<SecretKey>>,
     ) -> Result<()> {
         self.0
             .spend_coins(
@@ -53,11 +52,8 @@ impl Simulator {
                     .collect::<Result<Vec<_>>>()?,
                 &secret_keys
                     .into_iter()
-                    .map(|sk| {
-                        SecretKey::from_bytes(&sk.into_rust()?)
-                            .map_err(|error| Error::from_reason(error.to_string()))
-                    })
-                    .collect::<Result<Vec<_>>>()?,
+                    .map(|sk| sk.0.clone())
+                    .collect::<Vec<_>>(),
             )
             .map_err(|error| Error::from_reason(error.to_string()))?;
         Ok(())
