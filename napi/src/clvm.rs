@@ -1,5 +1,5 @@
 use chia::{
-    bls::PublicKey,
+    bls,
     clvm_traits::{clvm_quote, ClvmEncoder, FromClvm, ToClvm},
     clvm_utils::{self, CurriedProgram, TreeHash},
     protocol::{self, Bytes32},
@@ -16,8 +16,8 @@ use paste::paste;
 
 use crate::{
     clvm_value::{Allocate, ClvmValue},
-    traits::{FromJs, IntoJs, IntoProgramOrJs, IntoRust},
-    Coin, CoinSpend, MintedNfts, Nft, NftMetadata, NftMint, ParsedNft, Program, Spend,
+    traits::{FromJs, IntoJs, IntoJsContextual, IntoRust},
+    Coin, CoinSpend, MintedNfts, Nft, NftMetadata, NftMint, ParsedNft, Program, PublicKey, Spend,
 };
 
 type Clvm = Reference<ClvmAllocator>;
@@ -174,16 +174,16 @@ impl ClvmAllocator {
         })
     }
 
-    #[napi(ts_args_type = "syntheticKey: Uint8Array, delegatedSpend: Spend")]
+    #[napi(ts_args_type = "syntheticKey: PublicKey, delegatedSpend: Spend")]
     pub fn spend_p2_standard(
         &mut self,
         env: Env,
         this: This<Clvm>,
-        synthetic_key: Uint8Array,
+        synthetic_key: Reference<PublicKey>,
         delegated_spend: Spend,
     ) -> Result<Spend> {
         let ctx = &mut self.0;
-        let synthetic_key = PublicKey::from_js(synthetic_key)?;
+        let synthetic_key = synthetic_key.0;
         let p2 = sdk::StandardLayer::new(synthetic_key);
 
         let spend = p2
@@ -417,7 +417,7 @@ macro_rules! conditions {
                     };
 
                     Ok(Some($condition {
-                        $( $name: condition.$name.into_program_or_js(env, this.clone(env)?)?, )*
+                        $( $name: condition.$name.into_js_contextual(env, this.clone(env)?)?, )*
                     }))
                 }
             }
@@ -431,36 +431,36 @@ conditions!(
         remark(rest: ClassInstance<Program> => NodePtr)
     },
     AggSigParent {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_parent(public_key: Uint8Array, message: Uint8Array)
+        "publicKey: PublicKey, message: Uint8Array"
+        agg_sig_parent(public_key: ClassInstance<PublicKey> => bls::PublicKey, message: Uint8Array)
     },
     AggSigPuzzle {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_puzzle(public_key: Uint8Array, message: Uint8Array)
+        "publicKey: PublicKey, message: Uint8Array"
+        agg_sig_puzzle(public_key: ClassInstance<PublicKey> => bls::PublicKey, message: Uint8Array)
     },
     AggSigAmount {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_amount(public_key: Uint8Array, message: Uint8Array)
+        "publicKey: PublicKey, message: Uint8Array"
+        agg_sig_amount(public_key: ClassInstance<PublicKey> => bls::PublicKey, message: Uint8Array)
     },
     AggSigPuzzleAmount {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_puzzle_amount(public_key: Uint8Array, message: Uint8Array)
+        "publicKey: PublicKey, message: Uint8Array"
+        agg_sig_puzzle_amount(public_key: ClassInstance<PublicKey> => bls::PublicKey, message: Uint8Array)
     },
     AggSigParentAmount {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_parent_amount(public_key: Uint8Array, message: Uint8Array)
+        "publicKey: PublicKey, message: Uint8Array"
+        agg_sig_parent_amount(public_key: ClassInstance<PublicKey> => bls::PublicKey, message: Uint8Array)
     },
     AggSigParentPuzzle {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_parent_puzzle(public_key: Uint8Array, message: Uint8Array)
+        "publicKey: PublicKey, message: Uint8Array"
+        agg_sig_parent_puzzle(public_key: ClassInstance<PublicKey> => bls::PublicKey, message: Uint8Array)
     },
     AggSigUnsafe {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_unsafe(public_key: Uint8Array, message: Uint8Array)
+        "publicKey: PublicKey, message: Uint8Array"
+        agg_sig_unsafe(public_key: ClassInstance<PublicKey> => bls::PublicKey, message: Uint8Array)
     },
     AggSigMe {
-        "publicKey: Uint8Array, message: Uint8Array"
-        agg_sig_me(public_key: Uint8Array, message: Uint8Array)
+        "publicKey: PublicKey, message: Uint8Array"
+        agg_sig_me(public_key: ClassInstance<PublicKey> => bls::PublicKey, message: Uint8Array)
     },
     CreateCoin {
         "puzzleHash: Uint8Array, amount: bigint, memos: Array<Uint8Array>"

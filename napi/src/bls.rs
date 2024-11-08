@@ -115,7 +115,7 @@ impl SecretKey {
 }
 
 #[napi]
-pub struct PublicKey(bls::PublicKey);
+pub struct PublicKey(pub(crate) bls::PublicKey);
 
 #[napi]
 impl PublicKey {
@@ -208,7 +208,7 @@ impl PublicKey {
 }
 
 #[napi]
-pub struct Signature(bls::Signature);
+pub struct Signature(pub(crate) bls::Signature);
 
 #[napi]
 impl Signature {

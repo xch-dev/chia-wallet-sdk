@@ -2,8 +2,8 @@ use chia_wallet_sdk as sdk;
 use napi::bindgen_prelude::*;
 
 use crate::{
-    traits::{FromJs, IntoJs, IntoRust},
-    Coin, CoinSpend, SecretKey,
+    traits::{FromJs, FromRust, IntoJs, IntoRust},
+    Coin, CoinSpend, PublicKey, SecretKey,
 };
 
 #[napi]
@@ -24,7 +24,7 @@ impl Simulator {
     }
 
     #[napi]
-    pub fn new_p2(&mut self, amount: BigInt) -> Result<P2Coin> {
+    pub fn new_p2(&mut self, env: Env, amount: BigInt) -> Result<P2Coin> {
         let (secret_key, public_key, puzzle_hash, coin) = self
             .0
             .new_p2(amount.into_rust()?)
@@ -33,8 +33,8 @@ impl Simulator {
         Ok(P2Coin {
             coin: coin.into_js()?,
             puzzle_hash: puzzle_hash.into_js()?,
-            public_key: public_key.to_bytes().into_js()?,
-            secret_key: secret_key.to_bytes().into_js()?,
+            public_key: PublicKey::from_rust(public_key)?.into_instance(env)?,
+            secret_key: SecretKey::from_rust(secret_key)?.into_instance(env)?,
         })
     }
 
@@ -64,6 +64,6 @@ impl Simulator {
 pub struct P2Coin {
     pub coin: Coin,
     pub puzzle_hash: Uint8Array,
-    pub public_key: Uint8Array,
-    pub secret_key: Uint8Array,
+    pub public_key: ClassInstance<PublicKey>,
+    pub secret_key: ClassInstance<SecretKey>,
 }
