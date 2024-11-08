@@ -1,3 +1,6 @@
+use std::str::FromStr;
+
+use bip39::Mnemonic;
 use chia::{
     bls::{
         self, master_to_wallet_hardened, master_to_wallet_hardened_intermediate,
@@ -7,8 +10,10 @@ use chia::{
     puzzles::DeriveSynthetic,
 };
 use napi::bindgen_prelude::*;
+use rand::{Rng, RngCore, SeedableRng};
+use rand_chacha::ChaCha20Rng;
 
-use crate::traits::IntoRust;
+use crate::traits::{IntoJs, IntoRust};
 
 #[napi]
 pub struct SecretKey(bls::SecretKey);
@@ -238,4 +243,54 @@ impl Signature {
     pub fn is_valid(&self) -> bool {
         self.0.is_valid()
     }
+}
+
+#[napi]
+pub fn mnemonic_from_entropy(entropy: Uint8Array) -> Result<String> {
+    Ok(Mnemonic::from_entropy(&entropy)
+        .map_err(|error| Error::from_reason(error.to_string()))?
+        .to_string())
+}
+
+#[napi]
+pub fn mnemonic_to_entropy(mnemonic: String) -> Result<Uint8Array> {
+    Ok(Mnemonic::from_str(&mnemonic)
+        .map_err(|error| Error::from_reason(error.to_string()))?
+        .to_entropy()
+        .into())
+}
+
+#[napi]
+pub fn verify_mnemonic(mnemonic: String) -> bool {
+    Mnemonic::from_str(&mnemonic).is_ok()
+}
+
+#[napi]
+pub fn random_bytes(bytes: u32) -> Uint8Array {
+    let mut rng = ChaCha20Rng::from_entropy();
+    let mut buffer = vec![0; bytes as usize];
+    rng.fill_bytes(&mut buffer);
+    Uint8Array::new(buffer)
+}
+
+#[napi]
+pub fn generate_mnemonic(use_24: bool) -> Result<String> {
+    let mut rng = ChaCha20Rng::from_entropy();
+
+    let mnemonic = if use_24 {
+        let entropy: [u8; 32] = rng.gen();
+        Mnemonic::from_entropy(&entropy).map_err(|error| Error::from_reason(error.to_string()))?
+    } else {
+        let entropy: [u8; 16] = rng.gen();
+        Mnemonic::from_entropy(&entropy).map_err(|error| Error::from_reason(error.to_string()))?
+    };
+
+    Ok(mnemonic.to_string())
+}
+
+#[napi]
+pub fn mnemonic_to_seed(mnemonic: String, password: String) -> Result<Uint8Array> {
+    let mnemonic =
+        Mnemonic::from_str(&mnemonic).map_err(|error| Error::from_reason(error.to_string()))?;
+    mnemonic.to_seed(password).into_js()
 }

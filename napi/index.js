@@ -310,11 +310,17 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { SecretKey, PublicKey, Signature, ClvmAllocator, curryTreeHash, intToSignedBytes, signedBytesToInt, toCoinId, Tls, Peer, Program, Simulator, compareBytes, sha256, fromHexRaw, fromHex, toHex } = nativeBinding
+const { SecretKey, PublicKey, Signature, mnemonicFromEntropy, mnemonicToEntropy, verifyMnemonic, randomBytes, generateMnemonic, mnemonicToSeed, ClvmAllocator, curryTreeHash, intToSignedBytes, signedBytesToInt, toCoinId, Tls, Peer, Program, Simulator, compareBytes, sha256, fromHexRaw, fromHex, toHex } = nativeBinding
 
 module.exports.SecretKey = SecretKey
 module.exports.PublicKey = PublicKey
 module.exports.Signature = Signature
+module.exports.mnemonicFromEntropy = mnemonicFromEntropy
+module.exports.mnemonicToEntropy = mnemonicToEntropy
+module.exports.verifyMnemonic = verifyMnemonic
+module.exports.randomBytes = randomBytes
+module.exports.generateMnemonic = generateMnemonic
+module.exports.mnemonicToSeed = mnemonicToSeed
 module.exports.ClvmAllocator = ClvmAllocator
 module.exports.curryTreeHash = curryTreeHash
 module.exports.intToSignedBytes = intToSignedBytes
