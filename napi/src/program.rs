@@ -1,6 +1,7 @@
 use std::{num::TryFromIntError, string::FromUtf8Error};
 
 use chia::{
+    bls,
     clvm_traits::{ClvmDecoder, FromClvm},
     clvm_utils::{tree_hash, CurriedProgram},
 };
@@ -10,7 +11,7 @@ use clvmr::{
 };
 use napi::bindgen_prelude::*;
 
-use crate::{traits::IntoJs, ClvmAllocator};
+use crate::{traits::IntoJs, ClvmAllocator, PublicKey, Signature};
 
 #[napi]
 pub struct Program {
@@ -171,6 +172,44 @@ impl Program {
     pub fn to_big_int(&self) -> Result<Option<BigInt>> {
         match self.alloc().sexp(self.ptr) {
             SExp::Atom => Ok(Some(self.alloc().number(self.ptr).into_js()?)),
+            SExp::Pair(..) => Ok(None),
+        }
+    }
+
+    #[napi]
+    pub fn to_public_key(&self) -> Result<Option<PublicKey>> {
+        match self.alloc().sexp(self.ptr) {
+            SExp::Atom => {
+                let atom = self.alloc().atom(self.ptr);
+                Ok(Some(PublicKey(
+                    bls::PublicKey::from_bytes(
+                        &atom
+                            .as_ref()
+                            .try_into()
+                            .map_err(|_| Error::from_reason("Invalid public key"))?,
+                    )
+                    .map_err(|error| Error::from_reason(error.to_string()))?,
+                )))
+            }
+            SExp::Pair(..) => Ok(None),
+        }
+    }
+
+    #[napi]
+    pub fn to_signature(&self) -> Result<Option<Signature>> {
+        match self.alloc().sexp(self.ptr) {
+            SExp::Atom => {
+                let atom = self.alloc().atom(self.ptr);
+                Ok(Some(Signature(
+                    bls::Signature::from_bytes(
+                        &atom
+                            .as_ref()
+                            .try_into()
+                            .map_err(|_| Error::from_reason("Invalid signature"))?,
+                    )
+                    .map_err(|error| Error::from_reason(error.to_string()))?,
+                )))
+            }
             SExp::Pair(..) => Ok(None),
         }
     }
