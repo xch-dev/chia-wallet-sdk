@@ -44,9 +44,24 @@ impl OfferBuilder<Make> {
     /// Adds a list of requested payments for a given puzzle.
     /// It will use the nonce to create a new [`NotarizedPayment`] and add it to the requested payments.
     pub fn request<P>(
+        self,
+        ctx: &mut SpendContext,
+        puzzle: &P,
+        payments: Vec<Payment>,
+    ) -> Result<Self, DriverError>
+    where
+        P: ToClvm<Allocator>,
+    {
+        let nonce = self.data.nonce;
+        self.request_with_nonce(ctx, puzzle, nonce, payments)
+    }
+
+    /// Adds a list of payments in a [`NotarizedPayment`] for a given puzzle and nonce.
+    pub fn request_with_nonce<P>(
         mut self,
         ctx: &mut SpendContext,
         puzzle: &P,
+        nonce: Bytes32,
         payments: Vec<Payment>,
     ) -> Result<Self, DriverError>
     where
@@ -56,10 +71,7 @@ impl OfferBuilder<Make> {
         let puzzle_hash = ctx.tree_hash(puzzle_ptr).into();
         let puzzle = Puzzle::parse(&ctx.allocator, puzzle_ptr);
 
-        let notarized_payment = NotarizedPayment {
-            nonce: self.data.nonce,
-            payments,
-        };
+        let notarized_payment = NotarizedPayment { nonce, payments };
         let notarized_payment_ptr = ctx.alloc(&notarized_payment)?;
         let notarized_payment_hash = ctx.tree_hash(notarized_payment_ptr);
 
