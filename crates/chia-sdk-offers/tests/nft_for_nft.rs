@@ -8,8 +8,6 @@ use chia_sdk_offers::{payment_assertion, Offer, OfferBuilder};
 use chia_sdk_test::{sign_transaction, Simulator};
 use chia_sdk_types::Conditions;
 
-mod common;
-
 #[test]
 fn test_nft_for_nft() -> anyhow::Result<()> {
     let mut sim = Simulator::new();

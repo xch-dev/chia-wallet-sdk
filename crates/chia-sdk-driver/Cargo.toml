@@ -32,6 +32,7 @@ chia-sdk-types = { workspace = true }
 hex-literal = { workspace = true }
 num-bigint = { workspace = true}
 hex = { workspace = true }
+bigdecimal = { workspace = true }
 
 [dev-dependencies]
 chia-sdk-test = { workspace = true }

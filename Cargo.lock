@@ -179,6 +179,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
 
 [[package]]
+name = "bigdecimal"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f850665a0385e070b64c38d2354e6c104c8479c59868d1e48a0c13ee2c7a1c1"
+dependencies = [
+ "autocfg",
+ "libm",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.69.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -436,6 +449,7 @@ name = "chia-sdk-driver"
 version = "0.18.0"
 dependencies = [
  "anyhow",
+ "bigdecimal",
  "chia-bls 0.15.0",
  "chia-consensus",
  "chia-protocol",
@@ -513,6 +527,7 @@ dependencies = [
  "fastrand",
  "futures-channel",
  "futures-util",
+ "hex",
  "indexmap",
  "itertools 0.13.0",
  "log",

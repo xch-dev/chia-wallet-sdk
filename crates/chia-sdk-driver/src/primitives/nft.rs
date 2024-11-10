@@ -1,3 +1,4 @@
+use bigdecimal::{BigDecimal, RoundingMode, ToPrimitive};
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::{
     nft::{NftOwnershipLayerSolution, NftStateLayerSolution},
@@ -5,7 +6,9 @@ use chia_puzzles::{
     singleton::{SingletonArgs, SingletonSolution},
     LineageProof, Proof,
 };
-use chia_sdk_types::{run_puzzle, Condition, Conditions, NewMetadataOutput, TransferNft};
+use chia_sdk_types::{
+    run_puzzle, Condition, Conditions, NewMetadataOutput, TradePrice, TransferNft,
+};
 use clvm_traits::{clvm_list, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::{sha2::Sha256, Allocator, NodePtr};
@@ -221,7 +224,7 @@ where
         self,
         ctx: &mut SpendContext,
         inner: &I,
-        trade_prices: Vec<(u64, Bytes32)>,
+        trade_prices: Vec<TradePrice>,
         extra_conditions: Conditions,
     ) -> Result<Nft<M>, DriverError>
     where
@@ -476,6 +479,26 @@ pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &Trans
     hasher.update(tree_hash(&allocator, new_nft_owner_args));
 
     Bytes32::new(hasher.finalize())
+}
+
+pub fn calculate_nft_royalty(
+    amount: u64,
+    royalty_percentage: u16,
+    nft_count: usize,
+) -> Option<u64> {
+    let amount = BigDecimal::from(amount);
+    let nft_count = BigDecimal::from(nft_count as u64);
+    let royalty_percentage = BigDecimal::from(royalty_percentage);
+
+    let adjusted_amount = floor(amount / nft_count);
+    let percent = royalty_percentage / BigDecimal::from(10_000);
+
+    floor(adjusted_amount * percent).to_u64()
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn floor(amount: BigDecimal) -> BigDecimal {
+    amount.with_scale_round(0, RoundingMode::Floor)
 }
 
 #[cfg(test)]
