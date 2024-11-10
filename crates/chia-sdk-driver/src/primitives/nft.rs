@@ -481,19 +481,17 @@ pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &Trans
     Bytes32::new(hasher.finalize())
 }
 
-pub fn calculate_nft_royalty(
-    amount: u64,
-    royalty_percentage: u16,
-    nft_count: usize,
-) -> Option<u64> {
+pub fn calculate_nft_trace_price(amount: u64, nft_count: usize) -> Option<u64> {
     let amount = BigDecimal::from(amount);
     let nft_count = BigDecimal::from(nft_count as u64);
+    floor(amount / nft_count).to_u64()
+}
+
+pub fn calculate_nft_royalty(trade_price: u64, royalty_percentage: u16) -> Option<u64> {
+    let trade_price = BigDecimal::from(trade_price);
     let royalty_percentage = BigDecimal::from(royalty_percentage);
-
-    let adjusted_amount = floor(amount / nft_count);
     let percent = royalty_percentage / BigDecimal::from(10_000);
-
-    floor(adjusted_amount * percent).to_u64()
+    floor(trade_price * percent).to_u64()
 }
 
 #[allow(clippy::needless_pass_by_value)]

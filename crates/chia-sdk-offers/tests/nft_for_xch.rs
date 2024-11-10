@@ -6,7 +6,8 @@ use chia_puzzles::{
     },
 };
 use chia_sdk_driver::{
-    calculate_nft_royalty, Launcher, Layer, NftMint, SettlementLayer, SpendContext, StandardLayer,
+    calculate_nft_royalty, calculate_nft_trace_price, Launcher, Layer, NftMint, SettlementLayer,
+    SpendContext, StandardLayer,
 };
 use chia_sdk_offers::{payment_assertion, Offer, OfferBuilder};
 use chia_sdk_test::{sign_transaction, Simulator};
@@ -41,7 +42,10 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
         .into_layers(settlement)
         .construct_puzzle(&mut ctx)?;
 
-    let royalty = calculate_nft_royalty(500_000_000_000, nft.info.royalty_ten_thousandths, 1)
+    let nft_trade_price =
+        calculate_nft_trace_price(500_000_000_000, 1).expect("failed to calculate trade price");
+
+    let nft_royalty = calculate_nft_royalty(nft_trade_price, nft.info.royalty_ten_thousandths)
         .expect("failed to calculate royalty");
 
     let (assertions, builder) = OfferBuilder::new(nonce)
@@ -56,7 +60,7 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
             launcher_id,
             vec![Payment::with_memos(
                 alice_puzzle_hash,
-                royalty,
+                nft_royalty,
                 vec![alice_puzzle_hash.into()],
             )],
         )?
@@ -66,7 +70,7 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
         &mut ctx,
         &StandardLayer::new(alice_pk),
         vec![TradePrice {
-            amount: 500_000_000_000,
+            amount: nft_trade_price,
             puzzle_hash: SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
         }],
         Conditions::new().extend(assertions),
@@ -94,7 +98,7 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
                 nonce: launcher_id,
                 payments: vec![Payment::with_memos(
                     alice_puzzle_hash,
-                    royalty,
+                    nft_royalty,
                     vec![alice_puzzle_hash.into()]
                 )],
             }
@@ -111,7 +115,7 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
         )],
     };
 
-    let total_amount = 500_000_000_000 + royalty;
+    let total_amount = 500_000_000_000 + nft_royalty;
 
     let hash = ctx.tree_hash(nft_puzzle).into();
 
