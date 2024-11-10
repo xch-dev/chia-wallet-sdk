@@ -1,13 +1,24 @@
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    time::{Duration, Instant},
+};
 
-use chia_bls::{DerivableKey, PublicKey, SecretKey};
+use chia_bls::{aggregate_verify_gt, hash_to_g2, DerivableKey, PublicKey, SecretKey};
 use chia_consensus::{
-    consensus_constants::ConsensusConstants, gen::validation_error::ErrorCode,
-    spendbundle_validation::validate_clvm_and_signature,
+    allocator::make_allocator,
+    consensus_constants::ConsensusConstants,
+    gen::{owned_conditions::OwnedSpendBundleConditions, validation_error::ErrorCode},
+    spendbundle_conditions::run_spendbundle,
+    spendbundle_validation::ValidationPair,
 };
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
 use chia_puzzles::standard::StandardArgs;
 use chia_sdk_types::TESTNET11_CONSTANTS;
+use clvmr::{
+    chia_dialect::{ENABLE_KECCAK, ENABLE_KECCAK_OPS_OUTSIDE_GUARD},
+    sha2::Sha256,
+    LIMIT_HEAP,
+};
 use fastrand::Rng;
 use indexmap::{IndexMap, IndexSet};
 
@@ -287,4 +298,55 @@ impl Simulator {
         self.header_hashes.push(header_hash.into());
         self.height += 1;
     }
+}
+
+// currently in mempool_manager.py
+// called in threads from pre_validate_spend_bundle()
+// pybinding returns (error, cached_results, new_cache_entries, duration)
+fn validate_clvm_and_signature(
+    spend_bundle: &SpendBundle,
+    max_cost: u64,
+    constants: &ConsensusConstants,
+    height: u32,
+) -> Result<(OwnedSpendBundleConditions, Vec<ValidationPair>, Duration), ErrorCode> {
+    let start_time = Instant::now();
+    let mut a = make_allocator(LIMIT_HEAP);
+    let (sbc, pkm_pairs) = run_spendbundle(
+        &mut a,
+        spend_bundle,
+        max_cost,
+        height,
+        ENABLE_KECCAK | ENABLE_KECCAK_OPS_OUTSIDE_GUARD,
+        constants,
+    )
+    .map_err(|e| e.1)?;
+    let conditions = OwnedSpendBundleConditions::from(&a, sbc);
+
+    // Collect all pairs in a single vector to avoid multiple iterations
+    let mut pairs = Vec::new();
+
+    let mut aug_msg = Vec::<u8>::new();
+
+    for (pk, msg) in pkm_pairs {
+        aug_msg.clear();
+        aug_msg.extend_from_slice(&pk.to_bytes());
+        aug_msg.extend(&*msg);
+        let aug_hash = hash_to_g2(&aug_msg);
+        let pairing = aug_hash.pair(&pk);
+
+        let mut key = Sha256::new();
+        key.update(&aug_msg);
+        pairs.push((key.finalize(), pairing));
+    }
+    // Verify aggregated signature
+    let result = aggregate_verify_gt(
+        &spend_bundle.aggregated_signature,
+        pairs.iter().map(|tuple| &tuple.1),
+    );
+    if !result {
+        return Err(ErrorCode::BadAggregateSignature);
+    }
+
+    // Collect results
+    Ok((conditions, pairs, start_time.elapsed()))
 }
