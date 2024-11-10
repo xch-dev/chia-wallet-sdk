@@ -303,7 +303,6 @@ mod tests {
                 to_program([AggSigMe::new(pk, b"Hello, world!".to_vec().into())])?,
             )],
             &[sk],
-            &(&sim.config.constants).into(),
         )
         .await;
 
@@ -336,7 +335,6 @@ mod tests {
                 ])?,
             )],
             &[sk1, sk2],
-            &(&sim.config.constants).into(),
         )
         .await;
 

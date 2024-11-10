@@ -4,6 +4,7 @@ use chia_bls::{sign, PublicKey, SecretKey, Signature};
 use chia_protocol::{CoinSpend, SpendBundle, TransactionAck};
 use chia_sdk_client::Peer;
 use chia_sdk_signer::{AggSigConstants, RequiredSignature};
+use chia_sdk_types::TESTNET11_CONSTANTS;
 use clvmr::Allocator;
 
 use crate::SimulatorError;
@@ -11,12 +12,14 @@ use crate::SimulatorError;
 pub fn sign_transaction(
     coin_spends: &[CoinSpend],
     secret_keys: &[SecretKey],
-    constants: &AggSigConstants,
 ) -> Result<Signature, SimulatorError> {
     let mut allocator = Allocator::new();
 
-    let required_signatures =
-        RequiredSignature::from_coin_spends(&mut allocator, coin_spends, constants)?;
+    let required_signatures = RequiredSignature::from_coin_spends(
+        &mut allocator,
+        coin_spends,
+        &AggSigConstants::new(TESTNET11_CONSTANTS.agg_sig_me_additional_data),
+    )?;
 
     let key_pairs = secret_keys
         .iter()
@@ -38,9 +41,8 @@ pub async fn test_transaction_raw(
     peer: &Peer,
     coin_spends: Vec<CoinSpend>,
     secret_keys: &[SecretKey],
-    constants: &AggSigConstants,
 ) -> anyhow::Result<TransactionAck> {
-    let aggregated_signature = sign_transaction(&coin_spends, secret_keys, constants)?;
+    let aggregated_signature = sign_transaction(&coin_spends, secret_keys)?;
 
     Ok(peer
         .send_transaction(SpendBundle::new(coin_spends, aggregated_signature))
@@ -51,13 +53,8 @@ pub async fn test_transaction_raw(
 ///
 /// # Panics
 /// Will panic if the transaction could not be submitted or was not successful.
-pub async fn test_transaction(
-    peer: &Peer,
-    coin_spends: Vec<CoinSpend>,
-    secret_keys: &[SecretKey],
-    constants: &AggSigConstants,
-) {
-    let ack = test_transaction_raw(peer, coin_spends, secret_keys, constants)
+pub async fn test_transaction(peer: &Peer, coin_spends: Vec<CoinSpend>, secret_keys: &[SecretKey]) {
+    let ack = test_transaction_raw(peer, coin_spends, secret_keys)
         .await
         .expect("could not submit transaction");
 

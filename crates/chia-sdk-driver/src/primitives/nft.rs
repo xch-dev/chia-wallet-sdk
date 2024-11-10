@@ -1,6 +1,7 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::{
     nft::{NftOwnershipLayerSolution, NftStateLayerSolution},
+    offer::{NotarizedPayment, SettlementPaymentsSolution, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
     singleton::{SingletonArgs, SingletonSolution},
     LineageProof, Proof,
 };
@@ -11,7 +12,7 @@ use clvmr::{sha2::Sha256, Allocator, NodePtr};
 
 use crate::{
     DriverError, Layer, NftOwnershipLayer, NftStateLayer, Puzzle, RoyaltyTransferLayer,
-    SingletonLayer, Spend, SpendContext, SpendWithConditions,
+    SettlementLayer, SingletonLayer, Spend, SpendContext, SpendWithConditions,
 };
 
 mod did_owner;
@@ -215,6 +216,63 @@ where
         Ok(self.wrapped_child(p2_puzzle_hash, self.info.current_owner, metadata))
     }
 
+    /// Transfers this NFT to the settlement payments puzzle and includes a list of trade prices.
+    pub fn lock_settlement<I>(
+        self,
+        ctx: &mut SpendContext,
+        inner: &I,
+        trade_prices: Vec<(u64, Bytes32)>,
+        extra_conditions: Conditions,
+    ) -> Result<Nft<M>, DriverError>
+    where
+        M: ToTreeHash,
+        I: SpendWithConditions,
+    {
+        let transfer_condition = TransferNft::new(None, trade_prices, None);
+
+        let (conditions, nft) = self.transfer_with_condition(
+            ctx,
+            inner,
+            SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
+            transfer_condition,
+            extra_conditions,
+        )?;
+
+        assert_eq!(conditions.len(), 0);
+
+        Ok(nft)
+    }
+
+    pub fn unlock_settlement(
+        self,
+        ctx: &mut SpendContext,
+        notarized_payments: Vec<NotarizedPayment>,
+    ) -> Result<Nft<M>, DriverError>
+    where
+        M: ToTreeHash,
+    {
+        let outputs: Vec<Bytes32> = notarized_payments
+            .iter()
+            .flat_map(|item| &item.payments)
+            .filter_map(|payment| {
+                if payment.amount % 2 == 1 {
+                    Some(payment.puzzle_hash)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        assert_eq!(outputs.len(), 1);
+
+        let inner_spend = SettlementLayer
+            .construct_spend(ctx, SettlementPaymentsSolution { notarized_payments })?;
+
+        self.spend(ctx, inner_spend)?;
+
+        Ok(self.wrapped_child(outputs[0], None, self.info.metadata.clone()))
+    }
+
     /// Transfers this NFT to a new p2 puzzle hash and updates the DID owner.
     /// Returns a list of conditions to be used in the DID spend.
     ///
@@ -240,6 +298,40 @@ where
             new_owner.map(|owner| owner.inner_puzzle_hash),
         );
 
+        self.transfer_with_condition(
+            ctx,
+            inner,
+            p2_puzzle_hash,
+            transfer_condition,
+            extra_conditions,
+        )
+    }
+
+    /// Transfers this NFT to a new p2 puzzle hash and runs the transfer program with a condition.
+    /// Returns a list of conditions to be used in the DID spend.
+    pub fn transfer_with_condition<I>(
+        self,
+        ctx: &mut SpendContext,
+        inner: &I,
+        p2_puzzle_hash: Bytes32,
+        transfer_condition: TransferNft,
+        extra_conditions: Conditions,
+    ) -> Result<(Conditions, Nft<M>), DriverError>
+    where
+        M: ToTreeHash,
+        I: SpendWithConditions,
+    {
+        let did_id = transfer_condition.did_id;
+
+        let did_conditions = if did_id.is_some() {
+            Conditions::new().assert_puzzle_announcement(did_puzzle_assertion(
+                self.coin.puzzle_hash,
+                &transfer_condition,
+            ))
+        } else {
+            Conditions::new()
+        };
+
         self.spend_with(
             ctx,
             inner,
@@ -249,21 +341,12 @@ where
                     self.coin.amount,
                     vec![p2_puzzle_hash.into()],
                 )
-                .with(transfer_condition.clone()),
+                .with(transfer_condition),
         )?;
 
         let metadata = self.info.metadata.clone();
 
-        let child = self.wrapped_child(
-            p2_puzzle_hash,
-            new_owner.map(|owner| owner.did_id),
-            metadata,
-        );
-
-        let did_conditions = Conditions::new().assert_puzzle_announcement(did_puzzle_assertion(
-            self.coin.puzzle_hash,
-            &transfer_condition,
-        ));
+        let child = self.wrapped_child(p2_puzzle_hash, did_id, metadata);
 
         Ok((did_conditions, child))
     }
