@@ -39,3 +39,4 @@ tokio-tungstenite = { workspace = true }
 chia-sdk-types = { workspace = true }
 chia-sdk-signer = { workspace = true }
 chia-sdk-client = { workspace = true }
+hex = { workspace = true }

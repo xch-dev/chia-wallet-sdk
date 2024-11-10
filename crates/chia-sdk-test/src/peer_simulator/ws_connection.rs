@@ -1,9 +1,6 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use chia_consensus::{
-    consensus_constants::ConsensusConstants,
-    gen::validation_error::{ErrorCode, ValidationErr},
-};
+use chia_consensus::gen::validation_error::{ErrorCode, ValidationErr};
 use chia_protocol::{
     Bytes, Bytes32, CoinState, CoinStateUpdate, Message, NewPeakWallet, ProtocolMessageTypes,
     PuzzleSolutionResponse, RegisterForCoinUpdates, RegisterForPhUpdates, RejectCoinState,
@@ -97,8 +94,7 @@ async fn handle_message(
         ProtocolMessageTypes::SendTransaction => {
             let request = SendTransaction::from_bytes(&request.data)?;
             let subscriptions = subscriptions.lock().await;
-            let response =
-                send_transaction(peer_map, request, config, simulator, subscriptions).await?;
+            let response = send_transaction(peer_map, request, simulator, subscriptions).await?;
             (ProtocolMessageTypes::TransactionAck, response)
         }
         ProtocolMessageTypes::RegisterForCoinUpdates => {
@@ -156,9 +152,8 @@ fn new_transaction(
     simulator: &mut MutexGuard<'_, Simulator>,
     subscriptions: &mut MutexGuard<'_, Subscriptions>,
     spend_bundle: SpendBundle,
-    constants: &ConsensusConstants,
 ) -> Result<IndexMap<SocketAddr, IndexSet<CoinState>>, PeerSimulatorError> {
-    let updates = simulator.new_transaction(spend_bundle, constants)?;
+    let updates = simulator.new_transaction(spend_bundle)?;
     let peers = subscriptions.peers();
 
     let mut peer_updates = IndexMap::new();
@@ -212,18 +207,12 @@ fn new_transaction(
 async fn send_transaction(
     peer_map: PeerMap,
     request: SendTransaction,
-    config: &SimulatorConfig,
     mut simulator: MutexGuard<'_, Simulator>,
     mut subscriptions: MutexGuard<'_, Subscriptions>,
 ) -> Result<Bytes, PeerSimulatorError> {
     let transaction_id = request.transaction.name();
 
-    let updates = match new_transaction(
-        &mut simulator,
-        &mut subscriptions,
-        request.transaction,
-        &config.constants,
-    ) {
+    let updates = match new_transaction(&mut simulator, &mut subscriptions, request.transaction) {
         Ok(updates) => updates,
         Err(error) => {
             log::error!("error processing transaction: {:?}", &error);
