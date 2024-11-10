@@ -19,13 +19,13 @@ fn test_nft_for_nft() -> anyhow::Result<()> {
     let (bob_secret_key, bob_pk, bob_puzzle_hash, bob_coin) = sim.child_p2(1, 2)?;
 
     // Mint NFTs
-    let (conditions, nft_a) = Launcher::new(alice_coin.coin_id(), 1).mint_nft(
+    let (conditions, nft_alice) = Launcher::new(alice_coin.coin_id(), 1).mint_nft(
         &mut ctx,
         NftMint::new(NftMetadata::default(), alice_puzzle_hash, 0, None),
     )?;
     StandardLayer::new(alice_pk).spend(&mut ctx, alice_coin, conditions)?;
 
-    let (conditions, nft_b) = Launcher::new(bob_coin.coin_id(), 1).mint_nft(
+    let (conditions, nft_bob) = Launcher::new(bob_coin.coin_id(), 1).mint_nft(
         &mut ctx,
         NftMint::new(NftMetadata::default(), bob_puzzle_hash, 0, None),
     )?;
@@ -39,26 +39,24 @@ fn test_nft_for_nft() -> anyhow::Result<()> {
 
     // Create offer
     let settlement = ctx.settlement_payments_puzzle()?;
-    let nonce = Offer::nonce(vec![nft_a.coin.coin_id()]);
+    let nonce = Offer::nonce(vec![nft_alice.coin.coin_id()]);
 
-    let puzzle_b = nft_b
+    let puzzle_alice = nft_alice
         .info
         .clone()
         .into_layers(settlement)
         .construct_puzzle(&mut ctx)?;
 
-    let puzzle_a = nft_a
+    let puzzle_bob = nft_bob
         .info
         .clone()
         .into_layers(settlement)
         .construct_puzzle(&mut ctx)?;
-
-    let puzzle_a_hash = ctx.tree_hash(puzzle_a);
 
     let (assertions, builder) = OfferBuilder::new(nonce)
         .request(
             &mut ctx,
-            &puzzle_b,
+            &puzzle_bob,
             vec![Payment::with_memos(
                 alice_puzzle_hash,
                 1,
@@ -67,7 +65,7 @@ fn test_nft_for_nft() -> anyhow::Result<()> {
         )?
         .finish();
 
-    let settlement_nft_a = nft_a.lock_settlement(
+    let settlement_nft_alice = nft_alice.lock_settlement(
         &mut ctx,
         &StandardLayer::new(alice_pk),
         Vec::new(),
@@ -83,7 +81,7 @@ fn test_nft_for_nft() -> anyhow::Result<()> {
     let (fulfill_puzzle, payments) = builder.fulfill().expect("cannot fulfill offer");
     assert_eq!(
         fulfill_puzzle.curried_puzzle_hash(),
-        ctx.tree_hash(puzzle_b)
+        ctx.tree_hash(puzzle_bob)
     );
     assert_eq!(
         payments,
@@ -97,7 +95,7 @@ fn test_nft_for_nft() -> anyhow::Result<()> {
         }]
     );
 
-    let receive_nonce = Offer::nonce(vec![nft_b.coin.coin_id()]);
+    let receive_nonce = Offer::nonce(vec![nft_bob.coin.coin_id()]);
     let receive_payment = NotarizedPayment {
         nonce: receive_nonce,
         payments: vec![Payment::with_memos(
@@ -107,15 +105,17 @@ fn test_nft_for_nft() -> anyhow::Result<()> {
         )],
     };
 
-    let settlement_nft_b = nft_b.lock_settlement(
+    let hash = ctx.tree_hash(puzzle_alice).into();
+    let settlement_nft_bob = nft_bob.lock_settlement(
         &mut ctx,
         &StandardLayer::new(bob_pk),
         Vec::new(),
-        Conditions::new().with(payment_assertion(puzzle_a_hash.into(), &receive_payment)),
+        Conditions::new().with(payment_assertion(hash, &receive_payment)),
     )?;
 
-    let new_nft_b = settlement_nft_b.unlock_settlement(&mut ctx, payments)?;
-    let new_nft_a = settlement_nft_a.unlock_settlement(&mut ctx, vec![receive_payment])?;
+    let swapped_nft_alice = settlement_nft_bob.unlock_settlement(&mut ctx, payments)?;
+    let swapped_nft_bob =
+        settlement_nft_alice.unlock_settlement(&mut ctx, vec![receive_payment])?;
 
     let coin_spends = ctx.take();
     let signature = sign_transaction(&coin_spends, &[bob_secret_key])?;
@@ -123,8 +123,8 @@ fn test_nft_for_nft() -> anyhow::Result<()> {
     let spend_bundle = builder.bundle(SpendBundle::new(coin_spends, signature));
     sim.new_transaction(spend_bundle)?;
 
-    assert_eq!(new_nft_a.info.p2_puzzle_hash, bob_puzzle_hash);
-    assert_eq!(new_nft_b.info.p2_puzzle_hash, alice_puzzle_hash);
+    assert_eq!(swapped_nft_alice.info.p2_puzzle_hash, alice_puzzle_hash);
+    assert_eq!(swapped_nft_bob.info.p2_puzzle_hash, bob_puzzle_hash);
 
     Ok(())
 }
