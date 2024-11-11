@@ -7,7 +7,7 @@ pub fn encode_offer_data(offer: &[u8]) -> Result<String, OfferError> {
         .into_iter()
         .map(u5::try_from_u8)
         .collect::<Result<Vec<_>, bech32::Error>>()?;
-    Ok(bech32::encode("offer1", data, Variant::Bech32m)?)
+    Ok(bech32::encode("offer", data, Variant::Bech32m)?)
 }
 
 pub fn decode_offer_data(offer: &str) -> Result<Vec<u8>, OfferError> {
@@ -22,4 +22,17 @@ pub fn decode_offer_data(offer: &str) -> Result<Vec<u8>, OfferError> {
     }
 
     Ok(bech32::convert_bits(&data, 5, 8, false)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encode_decode_offer_data() {
+        let offer = b"hello world";
+        let encoded = encode_offer_data(offer).unwrap();
+        let decoded = decode_offer_data(&encoded).unwrap();
+        assert_eq!(offer, decoded.as_slice());
+    }
 }
