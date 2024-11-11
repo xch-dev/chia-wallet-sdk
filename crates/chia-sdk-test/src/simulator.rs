@@ -150,28 +150,27 @@ impl Simulator {
         coin_spends: Vec<CoinSpend>,
         secret_keys: &[SecretKey],
     ) -> Result<IndexMap<Bytes32, CoinState>, SimulatorError> {
-        let signature =
-            sign_transaction(&coin_spends, secret_keys, &(&*TESTNET11_CONSTANTS).into())?;
-        self.new_transaction(
-            SpendBundle::new(coin_spends, signature),
-            &TESTNET11_CONSTANTS,
-        )
+        let signature = sign_transaction(&coin_spends, secret_keys)?;
+        self.new_transaction(SpendBundle::new(coin_spends, signature))
     }
 
     /// Processes a spend bunndle and returns the updated coin states.
     pub fn new_transaction(
         &mut self,
         spend_bundle: SpendBundle,
-        constants: &ConsensusConstants,
     ) -> Result<IndexMap<Bytes32, CoinState>, SimulatorError> {
         if spend_bundle.coin_spends.is_empty() {
             return Err(SimulatorError::Validation(ErrorCode::InvalidSpendBundle));
         }
 
         // TODO: Fix cost
-        let (conds, _pairings, _duration) =
-            validate_clvm_and_signature(&spend_bundle, 7_700_000_000, constants, self.height)
-                .map_err(SimulatorError::Validation)?;
+        let (conds, _pairings, _duration) = validate_clvm_and_signature(
+            &spend_bundle,
+            7_700_000_000,
+            &TESTNET11_CONSTANTS,
+            self.height,
+        )
+        .map_err(SimulatorError::Validation)?;
 
         let puzzle_hashes: HashSet<Bytes32> =
             conds.spends.iter().map(|spend| spend.puzzle_hash).collect();

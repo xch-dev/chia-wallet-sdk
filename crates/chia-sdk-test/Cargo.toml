@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-test"
-version = "0.17.2"
+version = "0.18.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "A wallet simulator and related tooling for testing Chia wallet code."
@@ -39,3 +39,4 @@ tokio-tungstenite = { workspace = true }
 chia-sdk-types = { workspace = true }
 chia-sdk-signer = { workspace = true }
 chia-sdk-client = { workspace = true }
+hex = { workspace = true }

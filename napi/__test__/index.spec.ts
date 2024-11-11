@@ -5,6 +5,7 @@ import {
   compareBytes,
   curryTreeHash,
   fromHex,
+  PublicKey,
   Simulator,
   toCoinId,
   toHex,
@@ -158,6 +159,15 @@ test("clvm value allocation", (t) => {
   ]);
 
   t.true(compareBytes(clvm.treeHash(manual), clvm.treeHash(auto)));
+});
+
+test("public key roundtrip", (t) => {
+  const clvm = new ClvmAllocator();
+
+  const ptr = clvm.alloc(PublicKey.empty());
+  const pk = ptr.toPublicKey()!;
+
+  t.true(compareBytes(PublicKey.empty().toBytes(), pk.toBytes()));
 });
 
 test("curry add function", (t) => {

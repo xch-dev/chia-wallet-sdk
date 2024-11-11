@@ -171,7 +171,7 @@ conditions! {
         TransferNft as Default {
             opcode: i8 if -10,
             did_id: Option<Bytes32>,
-            trade_prices: Vec<(u16, Bytes32)>,
+            trade_prices: Vec<TradePrice>,
             did_inner_puzzle_hash: Option<Bytes32>,
         },
         RunCatTail<P, S> as Copy {
@@ -206,4 +206,11 @@ pub struct NewMetadataInfo<M> {
 pub struct NewMetadataOutput<M, C> {
     pub metadata_info: NewMetadataInfo<M>,
     pub conditions: C,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
+#[clvm(list)]
+pub struct TradePrice {
+    pub amount: u64,
+    pub puzzle_hash: Bytes32,
 }

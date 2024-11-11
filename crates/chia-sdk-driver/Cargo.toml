@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-driver"
-version = "0.17.2"
+version = "0.18.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Driver code for interacting with standard puzzles on the Chia blockchain."
@@ -32,6 +32,7 @@ chia-sdk-types = { workspace = true }
 hex-literal = { workspace = true }
 num-bigint = { workspace = true}
 hex = { workspace = true }
+bigdecimal = { workspace = true }
 ethers = { workspace = true }
 
 [dev-dependencies]

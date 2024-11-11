@@ -67,6 +67,14 @@ impl Puzzle {
     }
 }
 
+impl PartialEq for Puzzle {
+    fn eq(&self, other: &Self) -> bool {
+        self.curried_puzzle_hash() == other.curried_puzzle_hash()
+    }
+}
+
+impl Eq for Puzzle {}
+
 #[derive(Debug, Clone, Copy)]
 pub struct CurriedPuzzle {
     pub curried_puzzle_hash: TreeHash,
