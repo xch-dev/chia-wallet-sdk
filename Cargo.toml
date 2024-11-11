@@ -135,6 +135,7 @@ fastrand = "2.1.1"
 napi-derive = "2.12.2"
 napi = { version = "2.12.2", default-features = false }
 paste = "1.0.15"
+ethers = "2.0.14"
 
 [profile.release]
 lto = true
