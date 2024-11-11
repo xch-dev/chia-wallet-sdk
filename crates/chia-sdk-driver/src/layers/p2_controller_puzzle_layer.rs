@@ -9,7 +9,7 @@ use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 pub const P2_CONTROLLER_PUZZLE_PUZZLE: [u8; 151] = hex!("ff02ffff01ff04ffff04ff04ffff04ffff0117ffff04ffff02ff06ffff04ff02ffff04ff0bff80808080ffff04ff05ff8080808080ffff02ff0bff178080ffff04ffff01ff43ff02ffff03ffff07ff0580ffff01ff0bffff0102ffff02ff06ffff04ff02ffff04ff09ff80808080ffff02ff06ffff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff018080");
 pub const P2_CONTROLLER_PUZZLE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    2ab2c793ce0d8fd43131509f8763b0ff07402034a352c5fd4d2b1a06ba3ba010
+    d5415713619e318bfa7820e06e2b163beef32d82294a5a7fcf9c3c69b0949c88
     "
 ));
 
