@@ -88,9 +88,7 @@ impl PeerSimulator {
         &self.config
     }
 
-    pub async fn connect_split(
-        &self,
-    ) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
+    pub async fn connect_raw(&self) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
         log::info!("connecting new peer to simulator");
         let (ws, _) = connect_async(format!("ws://{}", self.addr)).await?;
         Ok(Peer::from_websocket(
@@ -99,6 +97,17 @@ impl PeerSimulator {
                 rate_limit_factor: 0.6,
             },
         )?)
+    }
+
+    pub async fn connect_split(
+        &self,
+    ) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
+        let (peer, mut receiver) = self.connect_raw().await?;
+        receiver
+            .recv()
+            .await
+            .expect("expected NewPeakWallet message");
+        Ok((peer, receiver))
     }
 
     pub async fn connect(&self) -> Result<Peer, PeerSimulatorError> {

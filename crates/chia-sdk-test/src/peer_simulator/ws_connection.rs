@@ -11,7 +11,7 @@ use chia_protocol::{
 };
 use chia_traits::Streamable;
 use clvmr::NodePtr;
-use futures_channel::mpsc;
+use futures_channel::mpsc::{self, UnboundedSender};
 use futures_util::{SinkExt, StreamExt};
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
@@ -19,7 +19,10 @@ use tokio::{
     net::TcpStream,
     sync::{Mutex, MutexGuard},
 };
-use tokio_tungstenite::{tungstenite::Message as WsMessage, WebSocketStream};
+use tokio_tungstenite::{
+    tungstenite::{self, Message as WsMessage},
+    WebSocketStream,
+};
 
 use crate::{Simulator, SimulatorError};
 
@@ -36,7 +39,13 @@ pub(crate) async fn ws_connection(
     simulator: Arc<Mutex<Simulator>>,
     subscriptions: Arc<Mutex<Subscriptions>>,
 ) {
-    let (tx, mut rx) = mpsc::unbounded();
+    let (mut tx, mut rx) = mpsc::unbounded();
+
+    if let Err(error) = handle_initial_peak(&mut tx, &simulator).await {
+        log::error!("error sending initial peak: {}", error);
+        return;
+    }
+
     peer_map.insert(addr, tx.clone()).await;
 
     let (mut sink, mut stream) = ws.split();
@@ -76,6 +85,32 @@ pub(crate) async fn ws_connection(
     }
 
     peer_map.remove(addr).await;
+}
+
+async fn handle_initial_peak(
+    tx: &mut UnboundedSender<tungstenite::Message>,
+    sim: &Mutex<Simulator>,
+) -> Result<(), PeerSimulatorError> {
+    let (header_hash, height) = {
+        let sim = sim.lock().await;
+        (sim.header_hash(), sim.height())
+    };
+
+    tx.send(
+        Message {
+            msg_type: ProtocolMessageTypes::NewPeakWallet,
+            id: None,
+            data: NewPeakWallet::new(header_hash, height, 0, height)
+                .to_bytes()
+                .unwrap()
+                .into(),
+        }
+        .to_bytes()?
+        .into(),
+    )
+    .await?;
+
+    Ok(())
 }
 
 async fn handle_message(
