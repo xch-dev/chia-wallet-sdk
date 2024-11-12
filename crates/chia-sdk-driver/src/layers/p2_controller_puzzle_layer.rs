@@ -107,7 +107,6 @@ mod tests {
     use chia_sdk_test::Simulator;
     use chia_sdk_types::Conditions;
     use clvm_traits::clvm_quote;
-    use clvmr::serde::node_from_bytes;
 
     #[test]
     fn test_puzzle_hash() -> anyhow::Result<()> {
@@ -121,7 +120,7 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
-        let controller_puzzle = node_from_bytes(&mut ctx.allocator, &hex!("01"))?;
+        let controller_puzzle = ctx.allocator.one();
         let controller_puzzle_hash = ctx.tree_hash(controller_puzzle);
 
         let layer = P2ControllerPuzzleLayer::new(controller_puzzle_hash.into());

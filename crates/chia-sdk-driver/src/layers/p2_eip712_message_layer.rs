@@ -1,4 +1,4 @@
-use chia_protocol::{Bytes, Bytes32};
+use chia_protocol::{Bytes32, BytesImpl};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -14,8 +14,8 @@ pub const P2_EIP712_MESSAGE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
 ));
 
-type EthPubkeyBytes = [u8; 33];
-type EthSignatureBytes = [u8; 64];
+type EthPubkeyBytes = BytesImpl<33>;
+type EthSignatureBytes = BytesImpl<64>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct P2Eip712MessageLayer {
@@ -23,12 +23,12 @@ pub struct P2Eip712MessageLayer {
     pub pubkey: EthPubkeyBytes,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct P2Eip712MessageArgs {
-    pub prefix_and_domain_separator: Bytes,
+    pub prefix_and_domain_separator: BytesImpl<34>,
     pub type_hash: Bytes32,
-    pub pubkey: Bytes,
+    pub pubkey: EthPubkeyBytes,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
@@ -36,7 +36,7 @@ pub struct P2Eip712MessageArgs {
 pub struct P2Eip712MessageSolution<P, S> {
     pub my_id: Bytes32,
     pub signed_hash: Bytes32,
-    pub signature: Bytes,
+    pub signature: EthSignatureBytes,
     pub delegated_puzzle: P,
     pub delegated_solution: S,
 }
@@ -61,7 +61,7 @@ impl P2Eip712MessageLayer {
             P2Eip712MessageSolution {
                 my_id,
                 signed_hash: self.hash_to_sign(my_id, ctx.tree_hash(delegated_spend.puzzle).into()),
-                signature: Bytes::new(signature.to_vec()),
+                signature,
                 delegated_puzzle: delegated_spend.puzzle,
                 delegated_solution: delegated_spend.solution,
             },
@@ -80,12 +80,12 @@ impl P2Eip712MessageLayer {
         .into()
     }
 
-    pub fn prefix_and_domain_separator(&self) -> [u8; 34] {
+    pub fn prefix_and_domain_separator(&self) -> BytesImpl<34> {
         let mut pads = [0u8; 34];
         pads[0] = 0x19;
         pads[1] = 0x01;
         pads[2..].copy_from_slice(&self.domain_separator());
-        pads
+        pads.into()
     }
 
     pub fn type_hash() -> Bytes32 {
@@ -122,9 +122,9 @@ impl Layer for P2Eip712MessageLayer {
         let curried = CurriedProgram {
             program: ctx.p2_eip712_message_puzzle()?,
             args: P2Eip712MessageArgs {
-                prefix_and_domain_separator: self.prefix_and_domain_separator().to_vec().into(),
+                prefix_and_domain_separator: self.prefix_and_domain_separator(),
                 type_hash: P2Eip712MessageLayer::type_hash(),
-                pubkey: self.pubkey.to_vec().into(),
+                pubkey: self.pubkey,
             },
         };
         ctx.alloc(&curried)
@@ -180,16 +180,17 @@ mod tests {
     #[test]
     fn test_softfork_cost() -> anyhow::Result<()> {
         let ctx = &mut SpendContext::new();
+        // code running inside softfork
+        // run -d '(mod (PREFIX_AND_DOMAIN_SEPARATOR TYPE_HASH my_id delegated_puzzle_hash signed_hash) (if (= (keccak256 PREFIX_AND_DOMAIN_SEPARATOR (keccak256 TYPE_HASH my_id delegated_puzzle_hash)) signed_hash) () (x)))'
         let puzzle_bytes =
             hex!("ff02ffff03ffff09ffff3eff02ffff3eff05ff0bff178080ff2f80ff80ffff01ff088080ff0180");
 
         let puzzle_ptr = node_from_bytes(&mut ctx.allocator, puzzle_bytes.as_slice())?;
         let solution_ptr = vec![
-            // warning: old domain separator w/o version; do NOT use!
             Bytes::new(
                 hex!("1901098ccd7d09a29365582c3f7590712bc2c2eb8503586f8a4c628c61c73ffbe4aa")
                     .to_vec(),
-            ), // PREFIX_AND_DOMAIN_SEPARATOR
+            ), // PREFIX_AND_DOMAIN_SEPARATOR (different than those used on testnet11/mainnet)
             Bytes::new(
                 hex!("72930978f119c79f9de7a13bd50c9b3261132d7b4819bdf0d3ca4d4c37ade070").to_vec(),
             ), // TYPE_HASH
@@ -261,7 +262,7 @@ mod tests {
             P2Eip712MessageSolution {
                 my_id: coin.coin_id(),
                 signed_hash: hash_to_sign,
-                signature: signature.to_vec().into(),
+                signature,
                 delegated_puzzle: delegated_puzzle_ptr,
                 delegated_solution: delegated_solution_ptr,
             },
