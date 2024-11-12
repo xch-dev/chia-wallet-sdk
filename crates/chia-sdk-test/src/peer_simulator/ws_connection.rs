@@ -5,9 +5,10 @@ use chia_protocol::{
     Bytes, Bytes32, CoinState, CoinStateUpdate, Message, NewPeakWallet, ProtocolMessageTypes,
     PuzzleSolutionResponse, RegisterForCoinUpdates, RegisterForPhUpdates, RejectCoinState,
     RejectPuzzleSolution, RejectPuzzleState, RejectStateReason, RequestChildren, RequestCoinState,
-    RequestPuzzleSolution, RequestPuzzleState, RespondChildren, RespondCoinState,
-    RespondPuzzleSolution, RespondPuzzleState, RespondToCoinUpdates, RespondToPhUpdates,
-    SendTransaction, SpendBundle, TransactionAck,
+    RequestPuzzleSolution, RequestPuzzleState, RequestRemoveCoinSubscriptions,
+    RequestRemovePuzzleSubscriptions, RespondChildren, RespondCoinState, RespondPuzzleSolution,
+    RespondPuzzleState, RespondRemoveCoinSubscriptions, RespondRemovePuzzleSubscriptions,
+    RespondToCoinUpdates, RespondToPhUpdates, SendTransaction, SpendBundle, TransactionAck,
 };
 use chia_traits::Streamable;
 use clvmr::NodePtr;
@@ -42,7 +43,7 @@ pub(crate) async fn ws_connection(
     let (mut tx, mut rx) = mpsc::unbounded();
 
     if let Err(error) = handle_initial_peak(&mut tx, &simulator).await {
-        log::error!("error sending initial peak: {}", error);
+        tracing::error!("error sending initial peak: {}", error);
         return;
     }
 
@@ -53,7 +54,7 @@ pub(crate) async fn ws_connection(
     tokio::spawn(async move {
         while let Some(message) = rx.next().await {
             if let Err(error) = sink.send(message).await {
-                log::error!("error sending message to peer: {}", error);
+                tracing::error!("error sending message to peer: {}", error);
                 continue;
             }
         }
@@ -63,7 +64,7 @@ pub(crate) async fn ws_connection(
         let message = match message {
             Ok(message) => message,
             Err(error) => {
-                log::info!("received error from stream: {:?}", error);
+                tracing::info!("received error from stream: {:?}", error);
                 break;
             }
         };
@@ -79,7 +80,7 @@ pub(crate) async fn ws_connection(
         )
         .await
         {
-            log::error!("error handling message: {}", error);
+            tracing::error!("error handling message: {}", error);
             break;
         }
     }
@@ -166,6 +167,24 @@ async fn handle_message(
             let response = request_puzzle_state(addr, request, config, &simulator, subscriptions)?;
             (ProtocolMessageTypes::RespondPuzzleState, response)
         }
+        ProtocolMessageTypes::RequestRemoveCoinSubscriptions => {
+            let request = RequestRemoveCoinSubscriptions::from_bytes(&request.data)?;
+            let mut subscriptions = subscriptions.lock().await;
+            let response = request_remove_coin_subscriptions(addr, request, &mut subscriptions)?;
+            (
+                ProtocolMessageTypes::RespondRemoveCoinSubscriptions,
+                response,
+            )
+        }
+        ProtocolMessageTypes::RequestRemovePuzzleSubscriptions => {
+            let request = RequestRemovePuzzleSubscriptions::from_bytes(&request.data)?;
+            let mut subscriptions = subscriptions.lock().await;
+            let response = request_remove_puzzle_subscriptions(addr, request, &mut subscriptions)?;
+            (
+                ProtocolMessageTypes::RespondRemovePuzzleSubscriptions,
+                response,
+            )
+        }
         message_type => {
             return Err(PeerSimulatorError::UnsupportedMessage(message_type));
         }
@@ -250,7 +269,7 @@ async fn send_transaction(
     let updates = match new_transaction(&mut simulator, &mut subscriptions, request.transaction) {
         Ok(updates) => updates,
         Err(error) => {
-            log::error!("error processing transaction: {:?}", &error);
+            tracing::error!("error processing transaction: {:?}", &error);
 
             let error_code = match error {
                 PeerSimulatorError::Simulator(SimulatorError::Validation(error_code)) => error_code,
@@ -281,7 +300,7 @@ async fn send_transaction(
 
     // Send updates to peers.
     for (addr, mut peer) in peer_map.peers().await {
-        peer.send(new_peak.clone().into()).await.unwrap();
+        peer.send(new_peak.clone().into()).await?;
 
         let Some(peer_updates) = updates.get(&addr).cloned() else {
             continue;
@@ -557,4 +576,36 @@ fn request_puzzle_state(
     }
     .to_bytes()?
     .into())
+}
+
+fn request_remove_coin_subscriptions(
+    peer: SocketAddr,
+    request: RequestRemoveCoinSubscriptions,
+    subscriptions: &mut MutexGuard<'_, Subscriptions>,
+) -> Result<Bytes, PeerSimulatorError> {
+    let coin_ids = if let Some(coin_ids) = request.coin_ids {
+        subscriptions.remove_coin_subscriptions(peer, &coin_ids)
+    } else {
+        subscriptions.remove_all_coin_subscriptions(peer)
+    };
+
+    Ok(RespondRemoveCoinSubscriptions { coin_ids }
+        .to_bytes()?
+        .into())
+}
+
+fn request_remove_puzzle_subscriptions(
+    peer: SocketAddr,
+    request: RequestRemovePuzzleSubscriptions,
+    subscriptions: &mut MutexGuard<'_, Subscriptions>,
+) -> Result<Bytes, PeerSimulatorError> {
+    let puzzle_hashes = if let Some(puzzle_hashes) = request.puzzle_hashes {
+        subscriptions.remove_puzzle_subscriptions(peer, &puzzle_hashes)
+    } else {
+        subscriptions.remove_all_puzzle_subscriptions(peer)
+    };
+
+    Ok(RespondRemovePuzzleSubscriptions { puzzle_hashes }
+        .to_bytes()?
+        .into())
 }

@@ -37,7 +37,7 @@ impl PeerSimulator {
     }
 
     pub async fn with_config(config: SimulatorConfig) -> Result<Self, PeerSimulatorError> {
-        log::info!("starting simulator");
+        tracing::info!("starting simulator");
 
         let addr = "127.0.0.1:0";
         let peer_map = PeerMap::default();
@@ -60,7 +60,7 @@ impl PeerSimulator {
                 let stream = match tokio_tungstenite::accept_async(stream).await {
                     Ok(stream) => stream,
                     Err(error) => {
-                        log::error!("error accepting websocket connection: {}", error);
+                        tracing::error!("error accepting websocket connection: {}", error);
                         continue;
                     }
                 };
@@ -89,7 +89,7 @@ impl PeerSimulator {
     }
 
     pub async fn connect_raw(&self) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
-        log::info!("connecting new peer to simulator");
+        tracing::info!("connecting new peer to simulator");
         let (ws, _) = connect_async(format!("ws://{}", self.addr)).await?;
         Ok(Peer::from_websocket(
             ws,
@@ -115,7 +115,7 @@ impl PeerSimulator {
 
         tokio::spawn(async move {
             while let Some(message) = receiver.recv().await {
-                log::debug!("received message: {message:?}");
+                tracing::debug!("received message: {message:?}");
             }
         });
 

@@ -530,12 +530,12 @@ dependencies = [
  "hex",
  "indexmap",
  "itertools 0.13.0",
- "log",
  "rand",
  "rand_chacha",
  "thiserror",
  "tokio",
  "tokio-tungstenite",
+ "tracing",
 ]
 
 [[package]]
