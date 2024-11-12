@@ -479,12 +479,12 @@ fn request_puzzle_state(
 ) -> Result<Bytes, PeerSimulatorError> {
     if let Some(previous_height) = request.previous_height {
         if Some(request.header_hash) != simulator.header_hash_of(previous_height) {
-            return Ok(RejectCoinState::new(RejectStateReason::Reorg)
+            return Ok(RejectPuzzleState::new(RejectStateReason::Reorg)
                 .to_bytes()?
                 .into());
         }
     } else if request.header_hash != config.constants.genesis_challenge {
-        return Ok(RejectCoinState::new(RejectStateReason::Reorg)
+        return Ok(RejectPuzzleState::new(RejectStateReason::Reorg)
             .to_bytes()?
             .into());
     }
