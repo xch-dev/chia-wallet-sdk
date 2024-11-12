@@ -37,7 +37,7 @@ impl PeerSimulator {
     }
 
     pub async fn with_config(config: SimulatorConfig) -> Result<Self, PeerSimulatorError> {
-        log::info!("starting simulator");
+        tracing::info!("starting simulator");
 
         let addr = "127.0.0.1:0";
         let peer_map = PeerMap::default();
@@ -60,7 +60,7 @@ impl PeerSimulator {
                 let stream = match tokio_tungstenite::accept_async(stream).await {
                     Ok(stream) => stream,
                     Err(error) => {
-                        log::error!("error accepting websocket connection: {}", error);
+                        tracing::error!("error accepting websocket connection: {}", error);
                         continue;
                     }
                 };
@@ -88,10 +88,8 @@ impl PeerSimulator {
         &self.config
     }
 
-    pub async fn connect_split(
-        &self,
-    ) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
-        log::info!("connecting new peer to simulator");
+    pub async fn connect_raw(&self) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
+        tracing::info!("connecting new peer to simulator");
         let (ws, _) = connect_async(format!("ws://{}", self.addr)).await?;
         Ok(Peer::from_websocket(
             ws,
@@ -101,12 +99,23 @@ impl PeerSimulator {
         )?)
     }
 
+    pub async fn connect_split(
+        &self,
+    ) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
+        let (peer, mut receiver) = self.connect_raw().await?;
+        receiver
+            .recv()
+            .await
+            .expect("expected NewPeakWallet message");
+        Ok((peer, receiver))
+    }
+
     pub async fn connect(&self) -> Result<Peer, PeerSimulatorError> {
         let (peer, mut receiver) = self.connect_split().await?;
 
         tokio::spawn(async move {
             while let Some(message) = receiver.recv().await {
-                log::debug!("received message: {message:?}");
+                tracing::debug!("received message: {message:?}");
             }
         });
 
