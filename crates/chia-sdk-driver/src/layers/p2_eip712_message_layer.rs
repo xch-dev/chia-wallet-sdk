@@ -1,4 +1,5 @@
 use chia_protocol::{Bytes32, BytesImpl};
+use chia_sdk_types::{MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -19,7 +20,7 @@ type EthSignatureBytes = BytesImpl<64>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct P2Eip712MessageLayer {
-    pub genesis_challenge: Bytes32,
+    pub prefix_and_domain_separator: BytesImpl<34>,
     pub pubkey: EthPubkeyBytes,
 }
 
@@ -42,9 +43,22 @@ pub struct P2Eip712MessageSolution<P, S> {
 }
 
 impl P2Eip712MessageLayer {
-    pub fn new(genesis_challenge: Bytes32, pubkey: EthPubkeyBytes) -> Self {
+    pub fn new(pubkey: EthPubkeyBytes, testnet: bool) -> Self {
+        Self::new_with_genesis_challenge(
+            pubkey,
+            if testnet {
+                TESTNET11_CONSTANTS.genesis_challenge
+            } else {
+                MAINNET_CONSTANTS.genesis_challenge
+            },
+        )
+    }
+
+    pub fn new_with_genesis_challenge(pubkey: EthPubkeyBytes, genesis_challenge: Bytes32) -> Self {
         Self {
-            genesis_challenge,
+            prefix_and_domain_separator: P2Eip712MessageLayer::prefix_and_domain_separator(
+                genesis_challenge,
+            ),
             pubkey,
         }
     }
@@ -68,23 +82,23 @@ impl P2Eip712MessageLayer {
         )
     }
 
-    pub fn domain_separator(&self) -> Bytes32 {
+    pub fn domain_separator(genesis_challenge: Bytes32) -> Bytes32 {
         let type_hash = keccak256(b"EIP712Domain(string name,string version,bytes32 salt)");
 
         keccak256(ethers::abi::encode(&[
             ethers::abi::Token::FixedBytes(type_hash.to_vec()),
             ethers::abi::Token::FixedBytes(keccak256("Chia Coin Spend").to_vec()),
             ethers::abi::Token::FixedBytes(keccak256("1").to_vec()),
-            ethers::abi::Token::FixedBytes(self.genesis_challenge.to_vec()),
+            ethers::abi::Token::FixedBytes(genesis_challenge.to_vec()),
         ]))
         .into()
     }
 
-    pub fn prefix_and_domain_separator(&self) -> BytesImpl<34> {
+    pub fn prefix_and_domain_separator(genesis_challenge: Bytes32) -> BytesImpl<34> {
         let mut pads = [0u8; 34];
         pads[0] = 0x19;
         pads[1] = 0x01;
-        pads[2..].copy_from_slice(&self.domain_separator());
+        pads[2..].copy_from_slice(&Self::domain_separator(genesis_challenge));
         pads.into()
     }
 
@@ -108,7 +122,7 @@ impl P2Eip712MessageLayer {
         let message_hash = keccak256(&to_hash);
 
         let mut to_hash = Vec::new();
-        to_hash.extend_from_slice(&self.prefix_and_domain_separator());
+        to_hash.extend_from_slice(&self.prefix_and_domain_separator);
         to_hash.extend_from_slice(&message_hash);
 
         keccak256(&to_hash).into()
@@ -122,7 +136,7 @@ impl Layer for P2Eip712MessageLayer {
         let curried = CurriedProgram {
             program: ctx.p2_eip712_message_puzzle()?,
             args: P2Eip712MessageArgs {
-                prefix_and_domain_separator: self.prefix_and_domain_separator(),
+                prefix_and_domain_separator: self.prefix_and_domain_separator,
                 type_hash: P2Eip712MessageLayer::type_hash(),
                 pubkey: self.pubkey,
             },
@@ -230,8 +244,10 @@ mod tests {
         let mut sim = Simulator::new();
 
         let pubkey = wallet.signer().verifying_key().to_sec1_bytes().to_vec();
-        let layer =
-            P2Eip712MessageLayer::new(TEST_CONSTANTS.genesis_challenge, pubkey.try_into().unwrap());
+        let layer = P2Eip712MessageLayer::new_with_genesis_challenge(
+            pubkey.try_into().unwrap(),
+            TEST_CONSTANTS.genesis_challenge,
+        );
         let coin_puzzle_reveal = layer.construct_puzzle(ctx)?;
         let coin_puzzle_hash = ctx.tree_hash(coin_puzzle_reveal);
 
