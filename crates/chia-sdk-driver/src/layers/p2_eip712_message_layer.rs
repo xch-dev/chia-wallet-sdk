@@ -1,4 +1,3 @@
-use alloy_dyn_abi::Eip712Domain;
 use chia_protocol::{Bytes32, BytesImpl};
 use chia_sdk_types::{MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use clvm_traits::{FromClvm, ToClvm};
@@ -83,18 +82,30 @@ impl P2Eip712MessageLayer {
         )
     }
 
+    // pub fn domain_separator(genesis_challenge: Bytes32) -> Bytes32 {
+    //     Bytes32::new(
+    //         Eip712Domain::new(
+    //             Some("Chia Coin Spend".into()),
+    //             Some("1".into()),
+    //             None,
+    //             None,
+    //             Some(genesis_challenge.to_bytes().into()),
+    //         )
+    //         .separator()
+    //         .into(),
+    //     )
+    // }
+
     pub fn domain_separator(genesis_challenge: Bytes32) -> Bytes32 {
-        Bytes32::new(
-            Eip712Domain::new(
-                Some("Chia Coin Spend".into()),
-                Some("1".into()),
-                None,
-                None,
-                Some(genesis_challenge.to_bytes().into()),
-            )
-            .separator()
-            .into(),
-        )
+        let type_hash = Keccak256::digest(b"EIP712Domain(string name,string version,bytes32 salt)");
+
+        let mut to_hash = Vec::new();
+        to_hash.extend_from_slice(&type_hash);
+        to_hash.extend_from_slice(&Keccak256::digest("Chia Coin Spend"));
+        to_hash.extend_from_slice(&Keccak256::digest("1"));
+        to_hash.extend_from_slice(&genesis_challenge);
+
+        Bytes32::new(Keccak256::digest(&to_hash).into())
     }
 
     pub fn prefix_and_domain_separator(genesis_challenge: Bytes32) -> BytesImpl<34> {
@@ -223,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn test_domain_hash() {
+    fn test_domain_separator() {
         assert_eq!(
             P2Eip712MessageLayer::domain_separator(TEST_CONSTANTS.genesis_challenge),
             Bytes32::new(hex!(

@@ -33,7 +33,6 @@ hex-literal = { workspace = true }
 num-bigint = { workspace = true}
 hex = { workspace = true }
 bigdecimal = { workspace = true }
-alloy-dyn-abi = { workspace = true }
 k256 = { workspace = true }
 sha3 = { workspace = true }
 
