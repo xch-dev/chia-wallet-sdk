@@ -152,8 +152,25 @@ impl Layer for P2Eip712MessageLayer {
         ctx.alloc(&solution)
     }
 
-    fn parse_puzzle(_allocator: &Allocator, _puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
-        Ok(None)
+    fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
+        let Some(puzzle) = puzzle.as_curried() else {
+            return Ok(None);
+        };
+
+        if puzzle.mod_hash != P2_EIP712_MESSAGE_PUZZLE_HASH {
+            return Ok(None);
+        }
+
+        let args = P2Eip712MessageArgs::from_clvm(allocator, puzzle.args)?;
+
+        if args.type_hash != Self::type_hash() {
+            return Ok(None);
+        }
+
+        Ok(Some(Self {
+            prefix_and_domain_separator: args.prefix_and_domain_separator,
+            pubkey: args.pubkey,
+        }))
     }
 
     fn parse_solution(
