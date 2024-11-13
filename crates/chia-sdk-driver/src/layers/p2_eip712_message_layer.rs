@@ -16,21 +16,22 @@ pub const P2_EIP712_MESSAGE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
 ));
 
-type EthPubkeyBytes = BytesImpl<33>;
-type EthSignatureBytes = BytesImpl<64>;
+pub type EthPubkeyBytes = BytesImpl<33>;
+pub type EthSignatureBytes = BytesImpl<64>;
+pub type Eip712PrefixAndDomainSeparator = BytesImpl<34>;
 
 /// The p2 EIP-712 [`Layer`] allows an Ethereum wallet to control coins by signing an
 /// EIP-712 message containing a delegated puzzle (for example to output [`Conditions`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct P2Eip712MessageLayer {
-    pub prefix_and_domain_separator: BytesImpl<34>,
+    pub prefix_and_domain_separator: Eip712PrefixAndDomainSeparator,
     pub pubkey: EthPubkeyBytes,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct P2Eip712MessageArgs {
-    pub prefix_and_domain_separator: BytesImpl<34>,
+    pub prefix_and_domain_separator: Eip712PrefixAndDomainSeparator,
     pub type_hash: Bytes32,
     pub pubkey: EthPubkeyBytes,
 }
@@ -97,7 +98,9 @@ impl P2Eip712MessageLayer {
         Bytes32::new(Keccak256::digest(&to_hash).into())
     }
 
-    pub fn prefix_and_domain_separator(genesis_challenge: Bytes32) -> BytesImpl<34> {
+    pub fn prefix_and_domain_separator(
+        genesis_challenge: Bytes32,
+    ) -> Eip712PrefixAndDomainSeparator {
         let mut pads = [0u8; 34];
         pads[0] = 0x19;
         pads[1] = 0x01;
