@@ -136,7 +136,9 @@ napi-derive = "2.12.2"
 napi = { version = "2.12.2", default-features = false }
 paste = "1.0.15"
 bigdecimal = "0.4.6"
-ethers = "2.0.14"
+alloy = { version = "0.6", features = ["full"] }
+k256 = "0.13.4"
+sha3 = "0.10.8"
 
 [profile.release]
 lto = true

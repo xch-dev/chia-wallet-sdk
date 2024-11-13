@@ -1,10 +1,11 @@
+use alloy::dyn_abi::Eip712Domain;
 use chia_protocol::{Bytes32, BytesImpl};
 use chia_sdk_types::{MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, TreeHash};
 use clvmr::{Allocator, NodePtr};
-use ethers::utils::keccak256;
 use hex_literal::hex;
+use sha3::{Digest, Keccak256};
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 
@@ -83,15 +84,19 @@ impl P2Eip712MessageLayer {
     }
 
     pub fn domain_separator(genesis_challenge: Bytes32) -> Bytes32 {
-        let type_hash = keccak256(b"EIP712Domain(string name,string version,bytes32 salt)");
-
-        keccak256(ethers::abi::encode(&[
-            ethers::abi::Token::FixedBytes(type_hash.to_vec()),
-            ethers::abi::Token::FixedBytes(keccak256("Chia Coin Spend").to_vec()),
-            ethers::abi::Token::FixedBytes(keccak256("1").to_vec()),
-            ethers::abi::Token::FixedBytes(genesis_challenge.to_vec()),
-        ]))
-        .into()
+        Bytes32::new(
+            Eip712Domain::new(
+                Some("Chia Coin Spend".into()),
+                Some("1".into()),
+                None,
+                None,
+                Some(alloy::primitives::FixedBytes::from(
+                    genesis_challenge.to_bytes(),
+                )),
+            )
+            .separator()
+            .into(),
+        )
     }
 
     pub fn prefix_and_domain_separator(genesis_challenge: Bytes32) -> BytesImpl<34> {
@@ -103,7 +108,10 @@ impl P2Eip712MessageLayer {
     }
 
     pub fn type_hash() -> Bytes32 {
-        keccak256(b"ChiaCoinSpend(bytes32 coin_id,bytes32 delegated_puzzle_hash)").into()
+        Bytes32::new(
+            Keccak256::digest(b"ChiaCoinSpend(bytes32 coin_id,bytes32 delegated_puzzle_hash)")
+                .into(),
+        )
     }
 
     pub fn hash_to_sign(&self, coin_id: Bytes32, delegated_puzzle_hash: Bytes32) -> Bytes32 {
@@ -183,6 +191,8 @@ impl Layer for P2Eip712MessageLayer {
 
 #[cfg(test)]
 mod tests {
+    use std::default;
+
     use crate::assert_puzzle_hash;
 
     use super::*;
@@ -214,6 +224,16 @@ mod tests {
             P2Eip712MessageLayer::type_hash(),
             Bytes32::new(hex!(
                 "72930978f119c79f9de7a13bd50c9b3261132d7b4819bdf0d3ca4d4c37ade070"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_domain_hash() {
+        assert_eq!(
+            P2Eip712MessageLayer::domain_separator(TEST_CONSTANTS.genesis_challenge),
+            Bytes32::new(hex!(
+                "acfd7ee1b3beb56b11d29d9e48debee9edf2f457d1dbdc19b63e58a6884501af"
             ))
         );
     }
