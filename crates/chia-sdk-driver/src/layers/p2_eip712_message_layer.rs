@@ -205,6 +205,7 @@ mod tests {
     use clvmr::serde::node_from_bytes;
     use k256::ecdsa::signature::hazmat::PrehashVerifier;
     use k256::ecdsa::{Signature as K1Signature, SigningKey, VerifyingKey as K1VerifyingKey};
+    use k256::elliptic_curve::rand_core::OsRng;
     use rstest::rstest;
 
     #[test]
@@ -278,14 +279,13 @@ mod tests {
     #[case::successful_spend(true)]
     #[case::incorrect_signed_hash(false)]
     fn test_p2_eip712_message(#[case] correct_signed_hash: bool) -> anyhow::Result<()> {
-        let signing_key = SigningKey::random(&mut thread_rng());
-        let wallet: LocalWallet = signing_key.into();
+        let signing_key = SigningKey::random(&mut OsRng);
 
         // actual test
         let ctx = &mut SpendContext::new();
         let mut sim = Simulator::new();
 
-        let pubkey = wallet.signer().verifying_key().to_sec1_bytes().to_vec();
+        let pubkey = signing_key.verifying_key().to_sec1_bytes().to_vec();
         let layer = P2Eip712MessageLayer::new_with_genesis_challenge(
             pubkey.try_into().unwrap(),
             TEST_CONSTANTS.genesis_challenge,
@@ -308,8 +308,7 @@ mod tests {
                 .into()
         };
 
-        let signature_og: K1Signature = wallet
-            .signer()
+        let signature_og: K1Signature = signing_key
             .sign_prehash_recoverable(&hash_to_sign.to_vec())?
             .0;
         let signature: EthSignatureBytes = signature_og.to_vec().try_into().unwrap();
@@ -329,8 +328,8 @@ mod tests {
         ctx.insert(coin_spend);
 
         let verifier =
-            K1VerifyingKey::from_sec1_bytes(&wallet.signer().verifying_key().to_sec1_bytes())?;
-        assert_eq!(verifier, *wallet.signer().verifying_key());
+            K1VerifyingKey::from_sec1_bytes(&signing_key.verifying_key().to_sec1_bytes())?;
+        assert_eq!(verifier, *signing_key.verifying_key());
         let msg = hash_to_sign.to_vec();
         let sig = K1Signature::from_slice(&signature)?;
         assert_eq!(sig, K1Signature::from_slice(&signature_og.to_vec())?);
