@@ -127,13 +127,13 @@ impl P2Eip712MessageLayer {
         to_hash.extend_from_slice(&coin_id);
         to_hash.extend_from_slice(&delegated_puzzle_hash);
 
-        let message_hash = keccak256(&to_hash);
+        let message_hash = Keccak256::digest(&to_hash);
 
         let mut to_hash = Vec::new();
         to_hash.extend_from_slice(&self.prefix_and_domain_separator);
         to_hash.extend_from_slice(&message_hash);
 
-        keccak256(&to_hash).into()
+        Bytes32::new(Keccak256::digest(&to_hash).into())
     }
 }
 
@@ -191,8 +191,6 @@ impl Layer for P2Eip712MessageLayer {
 
 #[cfg(test)]
 mod tests {
-    use std::default;
-
     use crate::assert_puzzle_hash;
 
     use super::*;
@@ -205,9 +203,6 @@ mod tests {
     use clvmr::chia_dialect::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
     use clvmr::reduction::Reduction;
     use clvmr::serde::node_from_bytes;
-    use ethers::core::rand::thread_rng;
-    use ethers::prelude::*;
-    use ethers::signers::LocalWallet;
     use k256::ecdsa::signature::hazmat::PrehashVerifier;
     use k256::ecdsa::{Signature as K1Signature, SigningKey, VerifyingKey as K1VerifyingKey};
     use rstest::rstest;
