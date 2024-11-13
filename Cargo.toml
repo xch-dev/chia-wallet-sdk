@@ -136,7 +136,7 @@ napi-derive = "2.12.2"
 napi = { version = "2.12.2", default-features = false }
 paste = "1.0.15"
 bigdecimal = "0.4.6"
-alloy = { version = "0.6", features = ["full"] }
+alloy-dyn-abi = "0.8.12"
 k256 = "0.13.4"
 sha3 = "0.10.8"
 

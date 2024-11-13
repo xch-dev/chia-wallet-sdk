@@ -1,4 +1,4 @@
-use alloy::dyn_abi::Eip712Domain;
+use alloy_dyn_abi::Eip712Domain;
 use chia_protocol::{Bytes32, BytesImpl};
 use chia_sdk_types::{MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use clvm_traits::{FromClvm, ToClvm};
@@ -90,9 +90,7 @@ impl P2Eip712MessageLayer {
                 Some("1".into()),
                 None,
                 None,
-                Some(alloy::primitives::FixedBytes::from(
-                    genesis_challenge.to_bytes(),
-                )),
+                Some(genesis_challenge.to_bytes().into()),
             )
             .separator()
             .into(),
