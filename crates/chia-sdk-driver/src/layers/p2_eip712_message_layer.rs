@@ -1,5 +1,4 @@
 use chia_protocol::{Bytes32, BytesImpl};
-use chia_sdk_types::{MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -47,18 +46,17 @@ pub struct P2Eip712MessageSolution<P, S> {
 }
 
 impl P2Eip712MessageLayer {
-    pub fn new(pubkey: EthPubkeyBytes, testnet: bool) -> Self {
-        Self::new_with_genesis_challenge(
+    pub fn new(
+        pubkey: EthPubkeyBytes,
+        prefix_and_domain_separator: Eip712PrefixAndDomainSeparator,
+    ) -> Self {
+        Self {
+            prefix_and_domain_separator,
             pubkey,
-            if testnet {
-                TESTNET11_CONSTANTS.genesis_challenge
-            } else {
-                MAINNET_CONSTANTS.genesis_challenge
-            },
-        )
+        }
     }
 
-    pub fn new_with_genesis_challenge(pubkey: EthPubkeyBytes, genesis_challenge: Bytes32) -> Self {
+    pub fn from_genesis_challenge(pubkey: EthPubkeyBytes, genesis_challenge: Bytes32) -> Self {
         Self {
             prefix_and_domain_separator: P2Eip712MessageLayer::prefix_and_domain_separator(
                 genesis_challenge,
@@ -287,7 +285,7 @@ mod tests {
         let mut sim = Simulator::new();
 
         let pubkey = signing_key.verifying_key().to_sec1_bytes().to_vec();
-        let layer = P2Eip712MessageLayer::new_with_genesis_challenge(
+        let layer = P2Eip712MessageLayer::from_genesis_challenge(
             pubkey.try_into().unwrap(),
             TEST_CONSTANTS.genesis_challenge,
         );
