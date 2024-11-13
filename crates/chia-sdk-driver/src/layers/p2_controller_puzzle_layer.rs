@@ -6,6 +6,7 @@ use hex_literal::hex;
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 
+// https://github.com/Yakuhito/hermes/blob/master/clsp/p2_controller_puzzle.clsp
 pub const P2_CONTROLLER_PUZZLE_PUZZLE: [u8; 151] = hex!("ff02ffff01ff04ffff04ff04ffff04ffff0117ffff04ffff02ff06ffff04ff02ffff04ff0bff80808080ffff04ff05ff8080808080ffff02ff0bff178080ffff04ffff01ff43ff02ffff03ffff07ff0580ffff01ff0bffff0102ffff02ff06ffff04ff02ffff04ff09ff80808080ffff02ff06ffff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff018080");
 pub const P2_CONTROLLER_PUZZLE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
@@ -13,6 +14,13 @@ pub const P2_CONTROLLER_PUZZLE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
 ));
 
+/// The p2 controller puzzle [`Layer`] allows a coin to be 'owned' by another puzzle,
+/// which sends a message containing a delegated puzzle for the controlled coin to run.
+///
+/// This is useful since it enables wallets to only ask for one signature instead of
+/// one signature/coin when using standard-like puzzles. Specifically, this puzzle
+/// was created to avoid having to sign multiple EIP-712 messages when using the
+/// p2 EIP-712 message puzzle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct P2ControllerPuzzleLayer {
     pub controller_puzzle_hash: Bytes32,

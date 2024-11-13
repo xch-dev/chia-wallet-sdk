@@ -8,6 +8,7 @@ use sha3::{Digest, Keccak256};
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 
+// https://github.com/Yakuhito/hermes/blob/master/clsp/p2_eip712_message.clsp
 pub const P2_EIP712_MESSAGE_PUZZLE: [u8; 276] = hex!("ff02ffff01ff02ffff03ffff22ffff20ffff8413d61f00ff17ff5fff81bf8080ffff20ffff24ffff01820ab9ffff0101ffff01ff02ffff03ffff09ffff3eff02ffff3eff05ff0bff178080ff2f80ff80ffff01ff088080ff0180ffff04ff05ffff04ff0bffff04ff2fffff04ffff02ff06ffff04ff02ffff04ff82017fff80808080ffff04ff5fff808080808080808080ffff01ff04ffff04ff04ffff04ff2fff808080ffff02ff82017fff8202ff8080ffff01ff088080ff0180ffff04ffff01ff46ff02ffff03ffff07ff0580ffff01ff0bffff0102ffff02ff06ffff04ff02ffff04ff09ff80808080ffff02ff06ffff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff018080");
 pub const P2_EIP712_MESSAGE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
@@ -18,6 +19,8 @@ pub const P2_EIP712_MESSAGE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 type EthPubkeyBytes = BytesImpl<33>;
 type EthSignatureBytes = BytesImpl<64>;
 
+/// The p2 EIP-712 [`Layer`] allows an Ethereum wallet to control coins by signing an
+/// EIP-712 message containing a delegated puzzle (for example to output [`Conditions`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct P2Eip712MessageLayer {
     pub prefix_and_domain_separator: BytesImpl<34>,
@@ -81,20 +84,6 @@ impl P2Eip712MessageLayer {
             },
         )
     }
-
-    // pub fn domain_separator(genesis_challenge: Bytes32) -> Bytes32 {
-    //     Bytes32::new(
-    //         Eip712Domain::new(
-    //             Some("Chia Coin Spend".into()),
-    //             Some("1".into()),
-    //             None,
-    //             None,
-    //             Some(genesis_challenge.to_bytes().into()),
-    //         )
-    //         .separator()
-    //         .into(),
-    //     )
-    // }
 
     pub fn domain_separator(genesis_challenge: Bytes32) -> Bytes32 {
         let type_hash = Keccak256::digest(b"EIP712Domain(string name,string version,bytes32 salt)");
