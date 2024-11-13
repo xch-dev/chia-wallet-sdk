@@ -209,6 +209,16 @@ mod tests {
     }
 
     #[test]
+    fn test_type_hash() {
+        assert_eq!(
+            P2Eip712MessageLayer::type_hash(),
+            Bytes32::new(hex!(
+                "72930978f119c79f9de7a13bd50c9b3261132d7b4819bdf0d3ca4d4c37ade070"
+            ))
+        );
+    }
+
+    #[test]
     fn test_softfork_cost() -> anyhow::Result<()> {
         let ctx = &mut SpendContext::new();
         // code running inside softfork
