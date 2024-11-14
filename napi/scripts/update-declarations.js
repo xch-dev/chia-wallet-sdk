@@ -15,7 +15,7 @@ const lines = [
   "",
   header,
   "",
-  "export type ClvmValue = number | bigint | string | boolean | Program | Uint8Array | ClvmValue[];",
+  "export type ClvmValue = number | bigint | string | boolean | Program | Uint8Array | PublicKey | Signature | ClvmValue[];",
   "",
 ];
 

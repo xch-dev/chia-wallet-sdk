@@ -113,7 +113,6 @@ mod tests {
     use chia_consensus::spendbundle_conditions::get_conditions_from_spendbundle;
     use chia_protocol::{Coin, SpendBundle};
     use chia_puzzles::{nft::NftMetadata, standard::StandardArgs};
-    use chia_sdk_signer::AggSigConstants;
     use chia_sdk_test::{sign_transaction, test_secret_key, Simulator};
     use chia_sdk_types::{announcement_id, TESTNET11_CONSTANTS};
 
@@ -155,11 +154,7 @@ mod tests {
         )?;
 
         let coin_spends = ctx.take();
-        let signature = sign_transaction(
-            &coin_spends,
-            &[sk],
-            &AggSigConstants::new(TESTNET11_CONSTANTS.agg_sig_me_additional_data),
-        )?;
+        let signature = sign_transaction(&coin_spends, &[sk])?;
         let spend_bundle = SpendBundle::new(coin_spends, signature);
 
         let conds = get_conditions_from_spendbundle(

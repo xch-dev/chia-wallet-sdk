@@ -25,6 +25,14 @@ impl Conditions<NodePtr> {
 }
 
 impl<T> Conditions<T> {
+    pub fn len(&self) -> usize {
+        self.conditions.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.conditions.is_empty()
+    }
+
     pub fn with(mut self, condition: impl Into<Condition<T>>) -> Self {
         self.conditions.push(condition.into());
         self

@@ -3,6 +3,7 @@ use chia_puzzles::offer::{NotarizedPayment, Payment, SettlementPaymentsSolution}
 use chia_sdk_driver::{DriverError, Puzzle, SpendContext};
 use chia_sdk_types::{announcement_id, AssertPuzzleAnnouncement};
 use clvm_traits::ToClvm;
+use clvm_utils::tree_hash;
 use clvmr::Allocator;
 use indexmap::IndexMap;
 
@@ -44,9 +45,24 @@ impl OfferBuilder<Make> {
     /// Adds a list of requested payments for a given puzzle.
     /// It will use the nonce to create a new [`NotarizedPayment`] and add it to the requested payments.
     pub fn request<P>(
+        self,
+        ctx: &mut SpendContext,
+        puzzle: &P,
+        payments: Vec<Payment>,
+    ) -> Result<Self, DriverError>
+    where
+        P: ToClvm<Allocator>,
+    {
+        let nonce = self.data.nonce;
+        self.request_with_nonce(ctx, puzzle, nonce, payments)
+    }
+
+    /// Adds a list of payments in a [`NotarizedPayment`] for a given puzzle and nonce.
+    pub fn request_with_nonce<P>(
         mut self,
         ctx: &mut SpendContext,
         puzzle: &P,
+        nonce: Bytes32,
         payments: Vec<Payment>,
     ) -> Result<Self, DriverError>
     where
@@ -56,12 +72,8 @@ impl OfferBuilder<Make> {
         let puzzle_hash = ctx.tree_hash(puzzle_ptr).into();
         let puzzle = Puzzle::parse(&ctx.allocator, puzzle_ptr);
 
-        let notarized_payment = NotarizedPayment {
-            nonce: self.data.nonce,
-            payments,
-        };
-        let notarized_payment_ptr = ctx.alloc(&notarized_payment)?;
-        let notarized_payment_hash = ctx.tree_hash(notarized_payment_ptr);
+        let notarized_payment = NotarizedPayment { nonce, payments };
+        let assertion = payment_assertion(puzzle_hash, &notarized_payment);
 
         self.data
             .requested_payments
@@ -70,12 +82,7 @@ impl OfferBuilder<Make> {
             .1
             .push(notarized_payment);
 
-        self.data
-            .announcements
-            .push(AssertPuzzleAnnouncement::new(announcement_id(
-                puzzle_hash,
-                notarized_payment_hash,
-            )));
+        self.data.announcements.push(assertion);
 
         Ok(self)
     }
@@ -145,7 +152,11 @@ impl OfferBuilder<Take> {
         )
     }
 
+    /// Must be called after [`Self::fulfill`] has been exhausted.
+    /// Creates a new [`SpendBundle`] with the completed offer.
     pub fn bundle(self, other_spend_bundle: SpendBundle) -> SpendBundle {
+        assert_eq!(self.data.parsed_offer.requested_payments.len(), 0);
+
         SpendBundle::aggregate(&[
             SpendBundle::new(
                 self.data.parsed_offer.coin_spends,
@@ -154,4 +165,14 @@ impl OfferBuilder<Take> {
             other_spend_bundle,
         ])
     }
+}
+
+pub fn payment_assertion(
+    puzzle_hash: Bytes32,
+    notarized_payment: &NotarizedPayment,
+) -> AssertPuzzleAnnouncement {
+    let mut allocator = Allocator::new();
+    let notarized_payment_ptr = notarized_payment.to_clvm(&mut allocator).unwrap();
+    let notarized_payment_hash = tree_hash(&allocator, notarized_payment_ptr);
+    AssertPuzzleAnnouncement::new(announcement_id(puzzle_hash, notarized_payment_hash))
 }

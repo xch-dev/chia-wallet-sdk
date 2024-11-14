@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use chia_protocol::{
     Bytes32, ChiaProtocolMessage, CoinStateFilters, Message, PuzzleSolutionResponse,
@@ -23,7 +23,7 @@ use tokio::{
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tracing::{debug, warn};
 
-use crate::{request_map::RequestMap, ClientError};
+use crate::{request_map::RequestMap, ClientError, RateLimiter, V2_RATE_LIMITS};
 
 #[cfg(any(feature = "native-tls", feature = "rustls"))]
 use tokio_tungstenite::Connector;
@@ -32,6 +32,19 @@ type WebSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 type Sink = SplitSink<WebSocket, tungstenite::Message>;
 type Stream = SplitStream<WebSocket>;
 type Response<T, E> = std::result::Result<T, E>;
+
+#[derive(Debug, Clone, Copy)]
+pub struct PeerOptions {
+    pub rate_limit_factor: f64,
+}
+
+impl Default for PeerOptions {
+    fn default() -> Self {
+        Self {
+            rate_limit_factor: 0.6,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Peer(Arc<PeerInner>);
@@ -42,6 +55,7 @@ struct PeerInner {
     inbound_handle: JoinHandle<()>,
     requests: Arc<RequestMap>,
     socket_addr: SocketAddr,
+    outbound_rate_limiter: Mutex<RateLimiter>,
 }
 
 impl Peer {
@@ -50,8 +64,9 @@ impl Peer {
     pub async fn connect(
         socket_addr: SocketAddr,
         connector: Connector,
+        options: PeerOptions,
     ) -> Result<(Self, mpsc::Receiver<Message>), ClientError> {
-        Self::connect_full_uri(&format!("wss://{socket_addr}/ws"), connector).await
+        Self::connect_full_uri(&format!("wss://{socket_addr}/ws"), connector, options).await
     }
 
     /// Connects to a peer using its full websocket URI.
@@ -60,16 +75,20 @@ impl Peer {
     pub async fn connect_full_uri(
         uri: &str,
         connector: Connector,
+        options: PeerOptions,
     ) -> Result<(Self, mpsc::Receiver<Message>), ClientError> {
         let (ws, _) =
             tokio_tungstenite::connect_async_tls_with_config(uri, None, false, Some(connector))
                 .await?;
-        Self::from_websocket(ws)
+        Self::from_websocket(ws, options)
     }
 
     /// Creates a peer from an existing websocket connection.
     /// The connection must be secured with TLS, so that the certificate can be hashed in a peer id.
-    pub fn from_websocket(ws: WebSocket) -> Result<(Self, mpsc::Receiver<Message>), ClientError> {
+    pub fn from_websocket(
+        ws: WebSocket,
+        options: PeerOptions,
+    ) -> Result<(Self, mpsc::Receiver<Message>), ClientError> {
         let socket_addr = match ws.get_ref() {
             #[cfg(feature = "native-tls")]
             MaybeTlsStream::NativeTls(tls) => {
@@ -103,6 +122,12 @@ impl Peer {
             inbound_handle,
             requests,
             socket_addr,
+            outbound_rate_limiter: Mutex::new(RateLimiter::new(
+                false,
+                60,
+                options.rate_limit_factor,
+                V2_RATE_LIMITS.clone(),
+            )),
         }));
 
         Ok((peer, receiver))
@@ -226,11 +251,12 @@ impl Peer {
     where
         T: Streamable + ChiaProtocolMessage,
     {
-        let message = Message::new(T::msg_type(), None, body.to_bytes()?.into())
-            .to_bytes()?
-            .into();
-
-        self.0.sink.lock().await.send(message).await?;
+        self.send_raw(Message {
+            msg_type: T::msg_type(),
+            id: None,
+            data: body.to_bytes()?.into(),
+        })
+        .await?;
 
         Ok(())
     }
@@ -279,16 +305,38 @@ impl Peer {
     {
         let (sender, receiver) = oneshot::channel();
 
-        let message = Message {
+        self.send_raw(Message {
             msg_type: T::msg_type(),
             id: Some(self.0.requests.insert(sender).await),
             data: body.to_bytes()?.into(),
-        }
-        .to_bytes()?
-        .into();
+        })
+        .await?;
 
-        self.0.sink.lock().await.send(message).await?;
         Ok(receiver.await?)
+    }
+
+    async fn send_raw(&self, message: Message) -> Result<(), ClientError> {
+        loop {
+            if !self
+                .0
+                .outbound_rate_limiter
+                .lock()
+                .await
+                .handle_message(&message)
+            {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                continue;
+            }
+
+            self.0
+                .sink
+                .lock()
+                .await
+                .send(message.to_bytes()?.into())
+                .await?;
+
+            return Ok(());
+        }
     }
 
     pub async fn close(&self) -> Result<(), ClientError> {

@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use chia_protocol::{Bytes32, Coin, CoinState, Message};
-use chia_sdk_client::Peer;
+use chia_sdk_client::{Peer, PeerOptions};
 use error::PeerSimulatorError;
 use peer_map::PeerMap;
 use simulator_config::SimulatorConfig;
@@ -37,7 +37,7 @@ impl PeerSimulator {
     }
 
     pub async fn with_config(config: SimulatorConfig) -> Result<Self, PeerSimulatorError> {
-        log::info!("starting simulator");
+        tracing::info!("starting simulator");
 
         let addr = "127.0.0.1:0";
         let peer_map = PeerMap::default();
@@ -60,7 +60,7 @@ impl PeerSimulator {
                 let stream = match tokio_tungstenite::accept_async(stream).await {
                     Ok(stream) => stream,
                     Err(error) => {
-                        log::error!("error accepting websocket connection: {}", error);
+                        tracing::error!("error accepting websocket connection: {}", error);
                         continue;
                     }
                 };
@@ -88,12 +88,26 @@ impl PeerSimulator {
         &self.config
     }
 
+    pub async fn connect_raw(&self) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
+        tracing::info!("connecting new peer to simulator");
+        let (ws, _) = connect_async(format!("ws://{}", self.addr)).await?;
+        Ok(Peer::from_websocket(
+            ws,
+            PeerOptions {
+                rate_limit_factor: 0.6,
+            },
+        )?)
+    }
+
     pub async fn connect_split(
         &self,
     ) -> Result<(Peer, mpsc::Receiver<Message>), PeerSimulatorError> {
-        log::info!("connecting new peer to simulator");
-        let (ws, _) = connect_async(format!("ws://{}", self.addr)).await?;
-        Ok(Peer::from_websocket(ws)?)
+        let (peer, mut receiver) = self.connect_raw().await?;
+        receiver
+            .recv()
+            .await
+            .expect("expected NewPeakWallet message");
+        Ok((peer, receiver))
     }
 
     pub async fn connect(&self) -> Result<Peer, PeerSimulatorError> {
@@ -101,7 +115,7 @@ impl PeerSimulator {
 
         tokio::spawn(async move {
             while let Some(message) = receiver.recv().await {
-                log::debug!("received message: {message:?}");
+                tracing::debug!("received message: {message:?}");
             }
         });
 
@@ -298,7 +312,6 @@ mod tests {
                 to_program([AggSigMe::new(pk, b"Hello, world!".to_vec().into())])?,
             )],
             &[sk],
-            &(&sim.config.constants).into(),
         )
         .await;
 
@@ -331,7 +344,6 @@ mod tests {
                 ])?,
             )],
             &[sk1, sk2],
-            &(&sim.config.constants).into(),
         )
         .await;
 
