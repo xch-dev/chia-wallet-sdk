@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-test"
-version = "0.17.2"
+version = "0.19.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "A wallet simulator and related tooling for testing Chia wallet code."
@@ -27,7 +27,7 @@ futures-channel = { workspace = true, features = ["sink"] }
 futures-util = { workspace = true }
 indexmap = { workspace = true }
 thiserror = { workspace = true }
-log = { workspace = true }
+tracing = { workspace = true }
 itertools = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
@@ -39,3 +39,4 @@ tokio-tungstenite = { workspace = true }
 chia-sdk-types = { workspace = true }
 chia-sdk-signer = { workspace = true }
 chia-sdk-client = { workspace = true }
+hex = { workspace = true }

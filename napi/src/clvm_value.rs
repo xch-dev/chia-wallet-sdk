@@ -2,10 +2,19 @@ use chia::clvm_traits::ToClvm;
 use clvmr::{Allocator, NodePtr};
 use napi::bindgen_prelude::*;
 
-use crate::{traits::IntoRust, Program};
+use crate::{traits::IntoRust, Program, PublicKey, Signature};
 
-pub(crate) type ClvmValue =
-    Either7<f64, BigInt, String, bool, ClassInstance<Program>, Uint8Array, Array>;
+pub(crate) type ClvmValue = Either9<
+    f64,
+    BigInt,
+    String,
+    bool,
+    ClassInstance<Program>,
+    Uint8Array,
+    ClassInstance<PublicKey>,
+    ClassInstance<Signature>,
+    Array,
+>;
 
 pub(crate) trait Allocate {
     fn allocate(self, allocator: &mut Allocator) -> Result<NodePtr>;
@@ -14,13 +23,15 @@ pub(crate) trait Allocate {
 impl Allocate for ClvmValue {
     fn allocate(self, allocator: &mut Allocator) -> Result<NodePtr> {
         match self {
-            Either7::A(value) => value.allocate(allocator),
-            Either7::B(value) => value.allocate(allocator),
-            Either7::C(value) => value.allocate(allocator),
-            Either7::D(value) => value.allocate(allocator),
-            Either7::E(value) => value.allocate(allocator),
-            Either7::F(value) => value.allocate(allocator),
-            Either7::G(value) => value.allocate(allocator),
+            Either9::A(value) => value.allocate(allocator),
+            Either9::B(value) => value.allocate(allocator),
+            Either9::C(value) => value.allocate(allocator),
+            Either9::D(value) => value.allocate(allocator),
+            Either9::E(value) => value.allocate(allocator),
+            Either9::F(value) => value.allocate(allocator),
+            Either9::G(value) => value.allocate(allocator),
+            Either9::H(value) => value.allocate(allocator),
+            Either9::I(value) => value.allocate(allocator),
         }
     }
 }
@@ -122,5 +133,21 @@ impl Allocate for Array {
 impl Allocate for ClassInstance<Program> {
     fn allocate(self, _allocator: &mut Allocator) -> Result<NodePtr> {
         Ok(self.ptr)
+    }
+}
+
+impl Allocate for ClassInstance<PublicKey> {
+    fn allocate(self, allocator: &mut Allocator) -> Result<NodePtr> {
+        self.0
+            .to_clvm(allocator)
+            .map_err(|error| Error::from_reason(error.to_string()))
+    }
+}
+
+impl Allocate for ClassInstance<Signature> {
+    fn allocate(self, allocator: &mut Allocator) -> Result<NodePtr> {
+        self.0
+            .to_clvm(allocator)
+            .map_err(|error| Error::from_reason(error.to_string()))
     }
 }

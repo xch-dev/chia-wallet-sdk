@@ -1,11 +1,11 @@
 use chia::{
-    bls::PublicKey,
+    bls,
     protocol::{Bytes, BytesImpl},
 };
 use clvmr::NodePtr;
 use napi::bindgen_prelude::*;
 
-use crate::{ClvmAllocator, Program};
+use crate::{ClvmAllocator, Program, PublicKey, SecretKey};
 
 pub(crate) trait IntoJs<T> {
     fn into_js(self) -> Result<T>;
@@ -21,8 +21,14 @@ pub(crate) trait IntoRust<T> {
     fn into_rust(self) -> Result<T>;
 }
 
-pub(crate) trait IntoProgramOrJs<T> {
-    fn into_program_or_js(self, env: Env, this: Reference<ClvmAllocator>) -> Result<T>;
+pub(crate) trait FromRust<T> {
+    fn from_rust(rust_value: T) -> Result<Self>
+    where
+        Self: Sized;
+}
+
+pub(crate) trait IntoJsContextual<T> {
+    fn into_js_contextual(self, env: Env, this: Reference<ClvmAllocator>) -> Result<T>;
 }
 
 impl<T, U> IntoRust<U> for T
@@ -34,17 +40,26 @@ where
     }
 }
 
-impl<T, U> IntoProgramOrJs<T> for U
+impl<T, U> FromRust<U> for T
 where
     U: IntoJs<T>,
 {
-    fn into_program_or_js(self, _env: Env, _this: Reference<ClvmAllocator>) -> Result<T> {
+    fn from_rust(rust_value: U) -> Result<T> {
+        rust_value.into_js()
+    }
+}
+
+impl<T, U> IntoJsContextual<T> for U
+where
+    U: IntoJs<T>,
+{
+    fn into_js_contextual(self, _env: Env, _this: Reference<ClvmAllocator>) -> Result<T> {
         self.into_js()
     }
 }
 
-impl IntoProgramOrJs<ClassInstance<Program>> for NodePtr {
-    fn into_program_or_js(
+impl IntoJsContextual<ClassInstance<Program>> for NodePtr {
+    fn into_js_contextual(
         self,
         env: Env,
         this: Reference<ClvmAllocator>,
@@ -53,8 +68,8 @@ impl IntoProgramOrJs<ClassInstance<Program>> for NodePtr {
     }
 }
 
-impl IntoProgramOrJs<Vec<ClassInstance<Program>>> for Vec<NodePtr> {
-    fn into_program_or_js(
+impl IntoJsContextual<Vec<ClassInstance<Program>>> for Vec<NodePtr> {
+    fn into_js_contextual(
         self,
         env: Env,
         this: Reference<ClvmAllocator>,
@@ -66,6 +81,16 @@ impl IntoProgramOrJs<Vec<ClassInstance<Program>>> for Vec<NodePtr> {
         }
 
         Ok(result)
+    }
+}
+
+impl IntoJsContextual<ClassInstance<PublicKey>> for bls::PublicKey {
+    fn into_js_contextual(
+        self,
+        env: Env,
+        _this: Reference<ClvmAllocator>,
+    ) -> Result<ClassInstance<PublicKey>> {
+        PublicKey(self).into_instance(env)
     }
 }
 
@@ -105,9 +130,15 @@ where
     }
 }
 
-impl FromJs<ClassInstance<crate::Program>> for NodePtr {
-    fn from_js(program: ClassInstance<crate::Program>) -> Result<Self> {
+impl FromJs<ClassInstance<Program>> for NodePtr {
+    fn from_js(program: ClassInstance<Program>) -> Result<Self> {
         Ok(program.ptr)
+    }
+}
+
+impl FromJs<ClassInstance<PublicKey>> for bls::PublicKey {
+    fn from_js(program: ClassInstance<PublicKey>) -> Result<Self> {
+        Ok(program.0)
     }
 }
 
@@ -165,15 +196,15 @@ impl FromJs<Uint8Array> for Bytes {
     }
 }
 
-impl IntoJs<Uint8Array> for PublicKey {
+impl IntoJs<Uint8Array> for bls::PublicKey {
     fn into_js(self) -> Result<Uint8Array> {
         Ok(Uint8Array::new(self.to_bytes().to_vec()))
     }
 }
 
-impl FromJs<Uint8Array> for PublicKey {
+impl FromJs<Uint8Array> for bls::PublicKey {
     fn from_js(js_value: Uint8Array) -> Result<Self> {
-        PublicKey::from_bytes(&js_value.into_rust()?)
+        bls::PublicKey::from_bytes(&js_value.into_rust()?)
             .map_err(|error| Error::from_reason(error.to_string()))
     }
 }
@@ -273,4 +304,28 @@ fn bytes_to_words(bytes: &[u8]) -> Vec<u64> {
     }
 
     words
+}
+
+impl IntoJs<PublicKey> for bls::PublicKey {
+    fn into_js(self) -> Result<PublicKey> {
+        Ok(PublicKey(self))
+    }
+}
+
+impl FromJs<PublicKey> for bls::PublicKey {
+    fn from_js(js_value: PublicKey) -> Result<Self> {
+        Ok(js_value.0)
+    }
+}
+
+impl IntoJs<SecretKey> for bls::SecretKey {
+    fn into_js(self) -> Result<SecretKey> {
+        Ok(SecretKey(self))
+    }
+}
+
+impl FromJs<SecretKey> for bls::SecretKey {
+    fn from_js(js_value: SecretKey) -> Result<Self> {
+        Ok(js_value.0)
+    }
 }

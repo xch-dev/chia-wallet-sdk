@@ -310,8 +310,17 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { ClvmAllocator, curryTreeHash, intToSignedBytes, signedBytesToInt, toCoinId, Tls, Peer, Program, Simulator, compareBytes, sha256, fromHexRaw, fromHex, toHex } = nativeBinding
+const { SecretKey, PublicKey, Signature, mnemonicFromEntropy, mnemonicToEntropy, verifyMnemonic, randomBytes, generateMnemonic, mnemonicToSeed, ClvmAllocator, curryTreeHash, intToSignedBytes, signedBytesToInt, toCoinId, Tls, Peer, Program, Simulator, compareBytes, sha256, treeHashAtom, treeHashPair, fromHexRaw, fromHex, toHex } = nativeBinding
 
+module.exports.SecretKey = SecretKey
+module.exports.PublicKey = PublicKey
+module.exports.Signature = Signature
+module.exports.mnemonicFromEntropy = mnemonicFromEntropy
+module.exports.mnemonicToEntropy = mnemonicToEntropy
+module.exports.verifyMnemonic = verifyMnemonic
+module.exports.randomBytes = randomBytes
+module.exports.generateMnemonic = generateMnemonic
+module.exports.mnemonicToSeed = mnemonicToSeed
 module.exports.ClvmAllocator = ClvmAllocator
 module.exports.curryTreeHash = curryTreeHash
 module.exports.intToSignedBytes = intToSignedBytes
@@ -323,6 +332,8 @@ module.exports.Program = Program
 module.exports.Simulator = Simulator
 module.exports.compareBytes = compareBytes
 module.exports.sha256 = sha256
+module.exports.treeHashAtom = treeHashAtom
+module.exports.treeHashPair = treeHashPair
 module.exports.fromHexRaw = fromHexRaw
 module.exports.fromHex = fromHex
 module.exports.toHex = toHex

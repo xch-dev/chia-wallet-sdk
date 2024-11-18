@@ -28,6 +28,9 @@ num-bigint = { workspace = true }
 hex = { workspace = true }
 paste = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
+bip39 = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
 
 [build-dependencies]
 napi-build = "2.0.1"

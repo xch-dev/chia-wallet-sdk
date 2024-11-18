@@ -36,13 +36,17 @@ pub fn debug_announcements(coin_spends: &[CoinSpend]) {
                     asserted_coin == announcement_id(coin_spends[i].coin.coin_id(), message.clone())
                 })
             }) else {
-                println!("spend at index {i} asserted unknown coin announcement");
+                println!(
+                    "spend {i} asserted unknown coin announcement {}",
+                    hex::encode(&asserted_coin[0..4])
+                );
                 should_panic = true;
                 continue;
             };
 
             println!(
-                "spend at index {i} asserted coin announcement created by spend at index {created_index}"
+                "spend {i} asserted coin announcement created by spend {created_index}: {}",
+                hex::encode(&asserted_coin[0..4])
             );
         }
 
@@ -53,14 +57,50 @@ pub fn debug_announcements(coin_spends: &[CoinSpend]) {
                         == announcement_id(coin_spends[i].coin.puzzle_hash, message.clone())
                 })
             }) else {
-                println!("spend at index {i} asserted unknown puzzle announcement");
+                println!(
+                    "spend {i} asserted unknown puzzle announcement {}",
+                    hex::encode(&asserted_puzzle[0..4])
+                );
                 should_panic = true;
                 continue;
             };
 
             println!(
-                "spend at index {i} asserted puzzle announcement created by spend at index {created_index}"
+                "spend {i} asserted puzzle announcement created by spend {created_index}: {}",
+                hex::encode(&asserted_puzzle[0..4])
             );
+        }
+
+        for created_coin in &announcements.created_coin {
+            let asserted = all_announcements.iter().enumerate().any(|(i, a)| {
+                a.asserted_coin.iter().any(|&id| {
+                    id == announcement_id(coin_spends[i].coin.coin_id(), created_coin.clone())
+                })
+            });
+
+            if !asserted {
+                println!(
+                    "spend {i} created coin announcement {} but it was not asserted",
+                    hex::encode(&created_coin[0..4])
+                );
+                should_panic = true;
+            }
+        }
+
+        for created_puzzle in &announcements.created_puzzle {
+            let asserted = all_announcements.iter().enumerate().any(|(i, a)| {
+                a.asserted_puzzle.iter().any(|&id| {
+                    id == announcement_id(coin_spends[i].coin.puzzle_hash, created_puzzle.clone())
+                })
+            });
+
+            if !asserted {
+                println!(
+                    "spend {i} created puzzle announcement {} but it was not asserted",
+                    hex::encode(&created_puzzle[0..4])
+                );
+                should_panic = true;
+            }
         }
     }
 
