@@ -27,9 +27,11 @@ use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
 use crate::{
-    DriverError, Spend, P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
-    P2_DELEGATED_SINGLETON_PUZZLE, P2_DELEGATED_SINGLETON_PUZZLE_HASH, P2_ONE_OF_MANY_PUZZLE,
-    P2_ONE_OF_MANY_PUZZLE_HASH, P2_SINGLETON_PUZZLE, P2_SINGLETON_PUZZLE_HASH,
+    DriverError, Spend, P2_CONTROLLER_PUZZLE_PUZZLE, P2_CONTROLLER_PUZZLE_PUZZLE_HASH,
+    P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
+    P2_DELEGATED_SINGLETON_PUZZLE, P2_DELEGATED_SINGLETON_PUZZLE_HASH, P2_EIP712_MESSAGE_PUZZLE,
+    P2_EIP712_MESSAGE_PUZZLE_HASH, P2_ONE_OF_MANY_PUZZLE, P2_ONE_OF_MANY_PUZZLE_HASH,
+    P2_SINGLETON_PUZZLE, P2_SINGLETON_PUZZLE_HASH,
 };
 
 /// A wrapper around [`Allocator`] that caches puzzles and keeps track of a list of [`CoinSpend`].
@@ -206,6 +208,19 @@ impl SpendContext {
         self.puzzle(
             P2_DELEGATED_SINGLETON_PUZZLE_HASH,
             &P2_DELEGATED_SINGLETON_PUZZLE,
+        )
+    }
+
+    /// Allocate the p2 EIP-712 message puzzle and return its pointer.
+    pub fn p2_eip712_message_puzzle(&mut self) -> Result<NodePtr, DriverError> {
+        self.puzzle(P2_EIP712_MESSAGE_PUZZLE_HASH, &P2_EIP712_MESSAGE_PUZZLE)
+    }
+
+    /// Allocate the p2 controllr puzzle puzzle and return its pointer.
+    pub fn p2_controller_puzzle_puzzle(&mut self) -> Result<NodePtr, DriverError> {
+        self.puzzle(
+            P2_CONTROLLER_PUZZLE_PUZZLE_HASH,
+            &P2_CONTROLLER_PUZZLE_PUZZLE,
         )
     }
 

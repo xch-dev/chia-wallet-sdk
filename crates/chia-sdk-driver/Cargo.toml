@@ -33,6 +33,8 @@ hex-literal = { workspace = true }
 num-bigint = { workspace = true}
 hex = { workspace = true }
 bigdecimal = { workspace = true }
+k256 = { workspace = true }
+sha3 = { workspace = true }
 
 [dev-dependencies]
 chia-sdk-test = { workspace = true }

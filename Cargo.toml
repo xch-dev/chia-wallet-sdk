@@ -135,7 +135,12 @@ napi-derive = "2.12.2"
 napi = { version = "2.12.2", default-features = false }
 paste = "1.0.15"
 bigdecimal = "0.4.6"
+k256 = "0.13.4"
+sha3 = "0.10.8"
 
 [profile.release]
 lto = true
 strip = "symbols"
+
+[patch.crates-io]
+clvmr = { git = "https://github.com/Chia-Network/clvm_rs", rev = "2f413e72fcf1bcafa4a3117f2c2a0a3a0e7e1c6b" }
