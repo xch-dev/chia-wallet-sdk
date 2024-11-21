@@ -59,7 +59,7 @@ pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> Con
         max_generator_size: 1_000_000,
         max_generator_ref_list_size: 512,
         pool_sub_slot_iters: 37_600_000_000,
-        soft_fork5_height: 5_940_000,
+        soft_fork6_height: 999_999_999,
         hard_fork_height: 5_496_000,
         plot_filter_128_height: 10_542_000,
         plot_filter_64_height: 15_592_000,
@@ -82,7 +82,7 @@ pub static TESTNET11_CONSTANTS: Lazy<ConsensusConstants> = Lazy::new(|| Consensu
     genesis_pre_farm_farmer_puzzle_hash: Bytes32::new(hex!(
         "08296fc227decd043aee855741444538e4cc9a31772c4d1a9e6242d1e777e42a"
     )),
-    soft_fork5_height: 1_340_000,
+    soft_fork6_height: 999_999_999,
     hard_fork_height: 0,
     plot_filter_128_height: 6_029_568,
     plot_filter_64_height: 11_075_328,
