@@ -2,7 +2,8 @@ use chia_protocol::{Coin, SpendBundle};
 use chia_puzzles::{
     nft::NftMetadata,
     offer::{
-        NotarizedPayment, Payment, SettlementPaymentsSolution, SETTLEMENT_PAYMENTS_PUZZLE_HASH,
+        Memos, NotarizedPayment, Payment, SettlementPaymentsSolution,
+        SETTLEMENT_PAYMENTS_PUZZLE_HASH,
     },
 };
 use chia_sdk_driver::{
@@ -61,7 +62,7 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
             vec![Payment::with_memos(
                 alice_puzzle_hash,
                 nft_royalty,
-                vec![alice_puzzle_hash.into()],
+                Memos(vec![alice_puzzle_hash.into()]),
             )],
         )?
         .finish();
@@ -99,7 +100,7 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
                 payments: vec![Payment::with_memos(
                     alice_puzzle_hash,
                     nft_royalty,
-                    vec![alice_puzzle_hash.into()]
+                    Memos(vec![alice_puzzle_hash.into()])
                 )],
             }
         ]
@@ -111,7 +112,7 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
         payments: vec![Payment::with_memos(
             bob_puzzle_hash,
             1,
-            vec![bob_puzzle_hash.into()],
+            Memos(vec![bob_puzzle_hash.into()]),
         )],
     };
 
