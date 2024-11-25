@@ -1,13 +1,12 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzles::offer::{NotarizedPayment, Payment, SettlementPaymentsSolution};
-use chia_sdk_driver::{DriverError, Puzzle, SpendContext};
 use chia_sdk_types::{announcement_id, AssertPuzzleAnnouncement};
 use clvm_traits::ToClvm;
 use clvm_utils::tree_hash;
 use clvmr::Allocator;
 use indexmap::IndexMap;
 
-use crate::{Offer, ParsedOffer};
+use crate::{DriverError, Offer, ParsedOffer, Puzzle, SpendContext};
 
 #[derive(Debug, Clone)]
 pub struct OfferBuilder<T> {

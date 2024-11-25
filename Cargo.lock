@@ -449,34 +449,13 @@ name = "chia-sdk-driver"
 version = "0.19.1"
 dependencies = [
  "anyhow",
+ "bech32",
  "bigdecimal",
  "chia-bls 0.15.0",
  "chia-consensus",
  "chia-protocol",
  "chia-puzzles",
  "chia-sdk-signer",
- "chia-sdk-test",
- "chia-sdk-types",
- "clvm-traits",
- "clvm-utils",
- "clvmr",
- "hex",
- "hex-literal",
- "num-bigint",
- "rstest",
- "thiserror",
-]
-
-[[package]]
-name = "chia-sdk-offers"
-version = "0.19.1"
-dependencies = [
- "anyhow",
- "bech32",
- "chia-bls 0.15.0",
- "chia-protocol",
- "chia-puzzles",
- "chia-sdk-driver",
  "chia-sdk-test",
  "chia-sdk-types",
  "chia-traits 0.15.0",
@@ -487,7 +466,9 @@ dependencies = [
  "hex",
  "hex-literal",
  "indexmap",
+ "num-bigint",
  "once_cell",
+ "rstest",
  "thiserror",
 ]
 
@@ -623,7 +604,6 @@ dependencies = [
  "chia-puzzles",
  "chia-sdk-client",
  "chia-sdk-driver",
- "chia-sdk-offers",
  "chia-sdk-signer",
  "chia-sdk-test",
  "chia-sdk-types",

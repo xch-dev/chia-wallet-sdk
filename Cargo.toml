@@ -62,13 +62,13 @@ workspace = true
 
 [features]
 chip-0035 = ["chia-sdk-driver/chip-0035"]
+offers = ["chia-sdk-driver/offers"]
 native-tls = ["chia-sdk-client/native-tls"]
 rustls = ["chia-sdk-client/rustls"]
 
 [dependencies]
 chia-sdk-client = { workspace = true }
 chia-sdk-driver = { workspace = true }
-chia-sdk-offers = { workspace = true }
 chia-sdk-signer = { workspace = true }
 chia-sdk-test = { workspace = true }
 chia-sdk-types = { workspace = true }
@@ -89,7 +89,6 @@ chia-wallet-sdk = { version = "0.19.1", path = "." }
 chia-sdk-client = { version = "0.19.1", path = "./crates/chia-sdk-client" }
 chia-sdk-derive = { version = "0.19.1", path = "./crates/chia-sdk-derive" }
 chia-sdk-driver = { version = "0.19.1", path = "./crates/chia-sdk-driver" }
-chia-sdk-offers = { version = "0.19.1", path = "./crates/chia-sdk-offers" }
 chia-sdk-signer = { version = "0.19.1", path = "./crates/chia-sdk-signer" }
 chia-sdk-test = { version = "0.19.1", path = "./crates/chia-sdk-test" }
 chia-sdk-types = { version = "0.19.1", path = "./crates/chia-sdk-types" }
