@@ -27,7 +27,8 @@ use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
 use crate::{
-    DriverError, Spend, P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
+    DriverError, Spend, P2_CONDITIONS_OPTIONS_PUZZLE, P2_CONDITIONS_OPTIONS_PUZZLE_HASH,
+    P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
     P2_DELEGATED_SINGLETON_PUZZLE, P2_DELEGATED_SINGLETON_PUZZLE_HASH, P2_ONE_OF_MANY_PUZZLE,
     P2_ONE_OF_MANY_PUZZLE_HASH, P2_SINGLETON_PUZZLE, P2_SINGLETON_PUZZLE_HASH,
 };
@@ -188,6 +189,14 @@ impl SpendContext {
         self.puzzle(
             P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
             &P2_DELEGATED_CONDITIONS_PUZZLE,
+        )
+    }
+
+    /// Allocate the p2 conditions options puzzle and return its pointer.
+    pub fn p2_conditions_options_puzzle(&mut self) -> Result<NodePtr, DriverError> {
+        self.puzzle(
+            P2_CONDITIONS_OPTIONS_PUZZLE_HASH,
+            &P2_CONDITIONS_OPTIONS_PUZZLE,
         )
     }
 
