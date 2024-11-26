@@ -32,7 +32,7 @@ impl Launcher {
             DelegationLayerArgs::curry_tree_hash(
                 launcher_id,
                 owner_puzzle_hash.into(),
-                get_merkle_tree(ctx, delegated_puzzles.clone())?.root,
+                get_merkle_tree(ctx, delegated_puzzles.clone())?.root(),
             )
         };
 

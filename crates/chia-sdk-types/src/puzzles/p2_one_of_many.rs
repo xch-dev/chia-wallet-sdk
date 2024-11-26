@@ -3,7 +3,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
-use crate::Mod;
+use crate::{MerkleProof, Mod};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
@@ -11,17 +11,33 @@ pub struct P2OneOfManyArgs {
     pub merkle_root: Bytes32,
 }
 
+impl P2OneOfManyArgs {
+    pub fn new(merkle_root: Bytes32) -> Self {
+        Self { merkle_root }
+    }
+}
+
 impl Mod for P2OneOfManyArgs {
     const MOD_REVEAL: &[u8] = &P2_ONE_OF_MANY_PUZZLE;
     const MOD_HASH: TreeHash = P2_ONE_OF_MANY_PUZZLE_HASH;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
+#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct P2OneOfManySolution<P, S> {
-    pub merkle_proof: Bytes32,
+    pub merkle_proof: MerkleProof,
     pub puzzle: P,
     pub solution: S,
+}
+
+impl<P, S> P2OneOfManySolution<P, S> {
+    pub fn new(merkle_proof: MerkleProof, puzzle: P, solution: S) -> Self {
+        Self {
+            merkle_proof,
+            puzzle,
+            solution,
+        }
+    }
 }
 
 pub const P2_ONE_OF_MANY_PUZZLE: [u8; 280] = hex!(

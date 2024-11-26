@@ -32,3 +32,4 @@ once_cell = { workspace = true }
 [dev-dependencies]
 hex = { workspace = true }
 anyhow = { workspace = true }
+rstest = { workspace = true }

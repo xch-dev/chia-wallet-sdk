@@ -3,7 +3,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use hex_literal::hex;
 
-use crate::Mod;
+use crate::{MerkleProof, Mod};
 
 pub const DELEGATION_LAYER_PUZZLE: [u8; 1027] = hex!(
     "
@@ -84,7 +84,7 @@ impl DelegationLayerArgs {
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct DelegationLayerSolution<P, S> {
-    pub merkle_proof: Option<(u32, Vec<Bytes32>)>,
+    pub merkle_proof: Option<MerkleProof>,
     pub puzzle_reveal: P,
     pub puzzle_solution: S,
 }
