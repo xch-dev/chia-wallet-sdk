@@ -9,7 +9,7 @@ This is an unofficial wallet SDK for the [Chia blockchain](https://chia.net), en
 
 ![image](https://github.com/Rigidity/chia-wallet-sdk/assets/35380458/06dd1f97-1f0e-4f6d-98cb-cbcb2b47ee70)
 
-## Why do you need an SDK?
+## Why do you need an SDK
 
 If you intend on writing an application that uses the Chia blockchain, be it a dApp, a wallet, or even just tooling on top of it, you will most likely need some code to interact with a Chia wallet. The worst case scenario is that you need to write an entire wallet and all of its driver code from scratch every time. This is very challenging to do, takes a lot of time, and can be error prone if anything is done wrong.
 
