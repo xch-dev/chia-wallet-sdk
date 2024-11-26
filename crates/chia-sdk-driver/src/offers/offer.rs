@@ -1,6 +1,5 @@
 use chia_protocol::{Bytes32, SpendBundle};
 use chia_puzzles::offer::SettlementPaymentsSolution;
-use chia_sdk_driver::Puzzle;
 use chia_traits::Streamable;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
@@ -9,7 +8,7 @@ use indexmap::IndexMap;
 
 use crate::{
     compress_offer_bytes, decode_offer_data, decompress_offer_bytes, encode_offer_data, Make,
-    OfferBuilder, OfferError, ParsedOffer, Take,
+    OfferBuilder, OfferError, ParsedOffer, Puzzle, Take,
 };
 
 #[derive(Debug, Clone)]

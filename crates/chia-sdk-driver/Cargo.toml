@@ -19,6 +19,7 @@ workspace = true
 
 [features]
 chip-0035 = []
+offers = ["dep:bech32", "dep:chia-traits", "dep:flate2", "dep:indexmap", "dep:once_cell"]
 
 [dependencies]
 chia-bls = { workspace = true }
@@ -33,6 +34,11 @@ hex-literal = { workspace = true }
 num-bigint = { workspace = true}
 hex = { workspace = true }
 bigdecimal = { workspace = true }
+bech32 = { workspace = true, optional = true }
+chia-traits = { workspace = true, optional = true }
+flate2 = { workspace = true, features = ["zlib-ng-compat"], optional = true }
+indexmap = { workspace = true, optional = true }
+once_cell = { workspace = true, optional = true }
 
 [dev-dependencies]
 chia-sdk-test = { workspace = true }
