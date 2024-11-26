@@ -130,7 +130,7 @@ mod tests {
         let bob = StandardLayer::new(bob_pk);
 
         let clawback = Clawback {
-            timelock: NonZeroU64::MAX,
+            timelock: NonZeroU64::MIN,
             sender_puzzle_hash: alice_puzzle_hash,
             recipient_puzzle_hash: bob_puzzle_hash,
         };
