@@ -4,7 +4,7 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
-use crate::{DriverError, Layer, Puzzle, SpendContext};
+use crate::{DriverError, Layer, MerkleProof, Puzzle, SpendContext};
 
 #[allow(clippy::doc_markdown)]
 /// The Delegation [`Layer`] is used to enable DataLayer delegation capabilities
@@ -159,7 +159,7 @@ impl DelegationLayerArgs {
 #[derive(ToClvm, FromClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct DelegationLayerSolution<P, S> {
-    pub merkle_proof: Option<(u32, Vec<Bytes32>)>,
+    pub merkle_proof: Option<MerkleProof>,
     pub puzzle_reveal: P,
     pub puzzle_solution: S,
 }

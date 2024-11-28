@@ -1,4 +1,4 @@
-use clvm_traits::FromClvm;
+use clvm_traits::{FromClvm, FromClvmError};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -74,6 +74,12 @@ impl PartialEq for Puzzle {
 }
 
 impl Eq for Puzzle {}
+
+impl FromClvm<Allocator> for Puzzle {
+    fn from_clvm(allocator: &Allocator, puzzle: NodePtr) -> Result<Self, FromClvmError> {
+        Ok(Self::parse(allocator, puzzle))
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct CurriedPuzzle {
