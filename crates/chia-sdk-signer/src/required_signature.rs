@@ -1,10 +1,10 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
-use chia_sdk_types::{run_puzzle, AggSig, AggSigKind, Condition};
+use chia_sdk_types::{AggSig, AggSigKind, Condition};
 use clvm_traits::{FromClvm, ToClvm};
-use clvmr::Allocator;
+use clvmr::{run_program, Allocator, ChiaDialect};
 
-use crate::{AggSigConstants, SignerError};
+use crate::{AggSigConstants, SecpDialect, SignerError};
 
 #[derive(Debug, Clone)]
 pub struct RequiredSignature {
@@ -81,7 +81,8 @@ impl RequiredSignature {
     ) -> Result<Vec<Self>, SignerError> {
         let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
         let solution = coin_spend.solution.to_clvm(allocator)?;
-        let output = run_puzzle(allocator, puzzle, solution)?;
+        let dialect = SecpDialect::new(ChiaDialect::new(0));
+        let output = run_program(allocator, &dialect, puzzle, solution, 11_000_000_000)?.1;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
         let mut result = Vec::new();
