@@ -1,8 +1,6 @@
 use std::collections::HashMap;
-use std::fmt::Debug;
 
 use chia_protocol::Bytes32;
-use clvm_traits::{FromClvm, ToClvm};
 use clvmr::sha2::Sha256;
 
 const HASH_TREE_PREFIX: &[u8] = &[2];
@@ -10,23 +8,11 @@ const HASH_LEAF_PREFIX: &[u8] = &[1];
 
 #[derive(Debug, Clone)]
 pub struct MerkleTree {
-    root: Bytes32,
-    proofs: HashMap<Bytes32, MerkleProof>,
+    pub root: Bytes32,
+    pub proofs: HashMap<Bytes32, (u32, Vec<Bytes32>)>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct MerkleProof {
-    pub path: u32,
-    #[clvm(rest)]
-    pub proof: Vec<Bytes32>,
-}
-
-impl MerkleProof {
-    pub fn new(path: u32, proof: Vec<Bytes32>) -> Self {
-        Self { path, proof }
-    }
-}
+use std::fmt::Debug;
 
 #[derive(Debug, Clone)]
 pub enum BinaryTree<T> {
@@ -47,15 +33,7 @@ impl MerkleTree {
         Self { root, proofs }
     }
 
-    pub fn proof(&self, leaf: Bytes32) -> Option<MerkleProof> {
-        self.proofs.get(&leaf).cloned()
-    }
-
-    pub fn root(&self) -> Bytes32 {
-        self.root
-    }
-
-    fn build_merkle_tree(leaves: &[Bytes32]) -> (Bytes32, HashMap<Bytes32, MerkleProof>) {
+    fn build_merkle_tree(leaves: &[Bytes32]) -> (Bytes32, HashMap<Bytes32, (u32, Vec<Bytes32>)>) {
         let binary_tree = MerkleTree::list_to_binary_tree(leaves);
         MerkleTree::build_merkle_tree_from_binary_tree(&binary_tree)
     }
@@ -85,12 +63,12 @@ impl MerkleTree {
 
     fn build_merkle_tree_from_binary_tree(
         tuples: &BinaryTree<Bytes32>,
-    ) -> (Bytes32, HashMap<Bytes32, MerkleProof>) {
+    ) -> (Bytes32, HashMap<Bytes32, (u32, Vec<Bytes32>)>) {
         match tuples {
             BinaryTree::Leaf(t) => {
                 let hash = MerkleTree::sha256(&[HASH_LEAF_PREFIX, t]);
                 let mut proof = HashMap::new();
-                proof.insert(*t, MerkleProof::new(0, vec![]));
+                proof.insert(*t, (0, vec![]));
                 (hash, proof)
             }
             BinaryTree::Node(left, right) => {
@@ -101,20 +79,24 @@ impl MerkleTree {
                 let new_root = MerkleTree::sha256(&[HASH_TREE_PREFIX, &left_root, &right_root]);
                 let mut new_proofs = HashMap::new();
 
-                for (name, MerkleProof { path, mut proof }) in left_proofs {
+                for (name, (path, mut proof)) in left_proofs {
                     proof.push(right_root);
-                    new_proofs.insert(name, MerkleProof::new(path, proof));
+                    new_proofs.insert(name, (path, proof));
                 }
 
-                for (name, MerkleProof { path, mut proof }) in right_proofs {
+                for (name, (path, mut proof)) in right_proofs {
                     let path = path | (1 << proof.len());
                     proof.push(left_root);
-                    new_proofs.insert(name, MerkleProof::new(path, proof));
+                    new_proofs.insert(name, (path, proof));
                 }
 
                 (new_root, new_proofs)
             }
         }
+    }
+
+    pub fn get_proof(&self, leaf: Bytes32) -> Option<(u32, Vec<Bytes32>)> {
+        self.proofs.get(&leaf).cloned()
     }
 }
 
@@ -180,10 +162,10 @@ mod tests {
     ) {
         let merkle_tree = MerkleTree::new(leaves);
 
-        assert_eq!(merkle_tree.root(), expected_root);
+        assert_eq!(merkle_tree.root, expected_root);
 
         for (leaf, path, proof) in expected_proofs {
-            assert_eq!(merkle_tree.proof(leaf), Some(MerkleProof::new(path, proof)));
+            assert_eq!(merkle_tree.get_proof(leaf), Some((path, proof)));
         }
     }
 }

@@ -1,25 +1,19 @@
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{CurriedProgram, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
-use crate::{DriverError, Layer, MerkleProof, Puzzle, SpendContext};
+use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 /// The p2 1 of n [`Layer`] allows for picking from several delegated puzzles at runtime without revealing up front.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct P2OneOfManyLayer {
+pub struct P2OneOfMany {
     /// The merkle root used to lookup the delegated puzzle as part of the solution.
     pub merkle_root: Bytes32,
 }
 
-impl P2OneOfManyLayer {
-    pub fn new(merkle_root: Bytes32) -> Self {
-        Self { merkle_root }
-    }
-}
-
-impl Layer for P2OneOfManyLayer {
+impl Layer for P2OneOfMany {
     type Solution = P2OneOfManySolution<NodePtr, NodePtr>;
 
     fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
@@ -66,44 +60,18 @@ impl Layer for P2OneOfManyLayer {
     }
 }
 
-impl ToTreeHash for P2OneOfManyLayer {
-    fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: P2_ONE_OF_MANY_PUZZLE_HASH,
-            args: P2OneOfManyArgs::new(self.merkle_root),
-        }
-        .tree_hash()
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct P2OneOfManyArgs {
     pub merkle_root: Bytes32,
 }
 
-impl P2OneOfManyArgs {
-    pub fn new(merkle_root: Bytes32) -> Self {
-        Self { merkle_root }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct P2OneOfManySolution<P, S> {
-    pub merkle_proof: MerkleProof,
+    pub merkle_proof: Bytes32,
     pub puzzle: P,
     pub solution: S,
-}
-
-impl<P, S> P2OneOfManySolution<P, S> {
-    pub fn new(merkle_proof: MerkleProof, puzzle: P, solution: S) -> Self {
-        Self {
-            merkle_proof,
-            puzzle,
-            solution,
-        }
-    }
 }
 
 pub const P2_ONE_OF_MANY_PUZZLE: [u8; 280] = hex!(

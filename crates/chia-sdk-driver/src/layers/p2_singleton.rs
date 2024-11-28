@@ -10,11 +10,11 @@ use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 /// The p2 singleton [`Layer`] allows for requiring that a
 /// singleton be spent alongside this coin to authorize it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct P2SingletonLayer {
+pub struct P2Singleton {
     pub launcher_id: Bytes32,
 }
 
-impl P2SingletonLayer {
+impl P2Singleton {
     pub fn new(launcher_id: Bytes32) -> Self {
         Self { launcher_id }
     }
@@ -55,7 +55,7 @@ impl P2SingletonLayer {
     }
 }
 
-impl Layer for P2SingletonLayer {
+impl Layer for P2Singleton {
     type Solution = P2SingletonSolution;
 
     fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
@@ -104,7 +104,7 @@ impl Layer for P2SingletonLayer {
     }
 }
 
-impl ToTreeHash for P2SingletonLayer {
+impl ToTreeHash for P2Singleton {
     fn tree_hash(&self) -> TreeHash {
         P2SingletonArgs::curry_tree_hash(self.launcher_id)
     }
@@ -194,7 +194,7 @@ mod tests {
         let launcher_id = launcher.coin().coin_id();
         let (create_singleton, singleton) = launcher.spend(ctx, puzzle_hash, ())?;
 
-        let p2_singleton = P2SingletonLayer::new(launcher_id);
+        let p2_singleton = P2Singleton::new(launcher_id);
         let p2_singleton_hash = p2_singleton.tree_hash().into();
 
         p2.spend(

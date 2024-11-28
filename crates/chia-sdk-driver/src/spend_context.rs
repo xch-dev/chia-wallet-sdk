@@ -27,11 +27,9 @@ use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
 use crate::{
-    DriverError, Spend, AUGMENTED_CONDITION_PUZZLE, AUGMENTED_CONDITION_PUZZLE_HASH,
-    P2_CURRIED_PUZZLE, P2_CURRIED_PUZZLE_HASH, P2_DELEGATED_CONDITIONS_PUZZLE,
-    P2_DELEGATED_CONDITIONS_PUZZLE_HASH, P2_DELEGATED_SINGLETON_PUZZLE,
-    P2_DELEGATED_SINGLETON_PUZZLE_HASH, P2_ONE_OF_MANY_PUZZLE, P2_ONE_OF_MANY_PUZZLE_HASH,
-    P2_SINGLETON_PUZZLE, P2_SINGLETON_PUZZLE_HASH,
+    DriverError, Spend, P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
+    P2_DELEGATED_SINGLETON_PUZZLE, P2_DELEGATED_SINGLETON_PUZZLE_HASH, P2_ONE_OF_MANY_PUZZLE,
+    P2_ONE_OF_MANY_PUZZLE_HASH, P2_SINGLETON_PUZZLE, P2_SINGLETON_PUZZLE_HASH,
 };
 
 /// A wrapper around [`Allocator`] that caches puzzles and keeps track of a list of [`CoinSpend`].
@@ -209,16 +207,6 @@ impl SpendContext {
             P2_DELEGATED_SINGLETON_PUZZLE_HASH,
             &P2_DELEGATED_SINGLETON_PUZZLE,
         )
-    }
-
-    /// Allocate the augmented condition puzzle and return its pointer.
-    pub fn augmented_condition_puzzle(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(AUGMENTED_CONDITION_PUZZLE_HASH, &AUGMENTED_CONDITION_PUZZLE)
-    }
-
-    /// Allocate the p2 curried puzzle and return its pointer.
-    pub fn p2_curried_puzzle(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(P2_CURRIED_PUZZLE_HASH, &P2_CURRIED_PUZZLE)
     }
 
     /// Preload a puzzle into the cache.

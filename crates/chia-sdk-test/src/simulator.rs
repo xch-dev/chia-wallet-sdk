@@ -178,36 +178,6 @@ impl Simulator {
         let mut added_hints = IndexMap::new();
         let mut puzzle_solutions = IndexMap::new();
 
-        if self.height < conds.height_absolute {
-            return Err(SimulatorError::Validation(
-                ErrorCode::AssertHeightAbsoluteFailed,
-            ));
-        }
-
-        // TODO: Tick time differently?
-        if u64::from(self.height) < conds.seconds_absolute {
-            return Err(SimulatorError::Validation(
-                ErrorCode::AssertSecondsAbsoluteFailed,
-            ));
-        }
-
-        if let Some(height) = conds.before_height_absolute {
-            if height < self.height {
-                return Err(SimulatorError::Validation(
-                    ErrorCode::AssertBeforeHeightAbsoluteFailed,
-                ));
-            }
-        }
-
-        // TODO: Tick time differently?
-        if let Some(seconds) = conds.before_seconds_absolute {
-            if seconds < self.height.into() {
-                return Err(SimulatorError::Validation(
-                    ErrorCode::AssertBeforeSecondsAbsoluteFailed,
-                ));
-            }
-        }
-
         for coin_spend in spend_bundle.coin_spends {
             puzzle_solutions.insert(
                 coin_spend.coin.coin_id(),
@@ -246,64 +216,6 @@ impl Simulator {
                 .get(&spend.coin_id)
                 .copied()
                 .unwrap_or(CoinState::new(coin, None, Some(self.height)));
-
-            if let Some(relative_height) = spend.height_relative {
-                let Some(created_height) = coin_state.created_height else {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::EphemeralRelativeCondition,
-                    ));
-                };
-
-                if self.height < created_height + relative_height {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::AssertHeightRelativeFailed,
-                    ));
-                }
-            }
-
-            // TODO: Tick time differently?
-            if let Some(relative_seconds) = spend.seconds_relative {
-                let Some(created_height) = coin_state.created_height else {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::EphemeralRelativeCondition,
-                    ));
-                };
-
-                if u64::from(self.height) < u64::from(created_height) + relative_seconds {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::AssertSecondsRelativeFailed,
-                    ));
-                }
-            }
-
-            if let Some(relative_height) = spend.before_height_relative {
-                let Some(created_height) = coin_state.created_height else {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::EphemeralRelativeCondition,
-                    ));
-                };
-
-                if created_height + relative_height < self.height {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::AssertBeforeHeightRelativeFailed,
-                    ));
-                }
-            }
-
-            // TODO: Tick time differently?
-            if let Some(relative_seconds) = spend.before_seconds_relative {
-                let Some(created_height) = coin_state.created_height else {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::EphemeralRelativeCondition,
-                    ));
-                };
-
-                if u64::from(created_height) + relative_seconds < u64::from(self.height) {
-                    return Err(SimulatorError::Validation(
-                        ErrorCode::AssertBeforeSecondsRelativeFailed,
-                    ));
-                }
-            }
 
             removed_coins.insert(spend.coin_id, coin_state);
         }
