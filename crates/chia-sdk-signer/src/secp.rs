@@ -1,7 +1,9 @@
+mod secp_dialect;
 mod secp_public_key;
 mod secp_secret_key;
 mod secp_signature;
 
+pub use secp_dialect::*;
 pub use secp_public_key::*;
 pub use secp_secret_key::*;
 pub use secp_signature::*;
