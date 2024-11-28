@@ -15,4 +15,7 @@ pub enum SignerError {
 
     #[error("Infinity public key")]
     InfinityPublicKey,
+
+    #[error("Invalid secp key")]
+    InvalidSecpKey(#[from] k256::ecdsa::Error),
 }

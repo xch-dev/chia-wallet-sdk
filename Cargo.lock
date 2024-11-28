@@ -476,6 +476,7 @@ dependencies = [
 name = "chia-sdk-signer"
 version = "0.19.1"
 dependencies = [
+ "anyhow",
  "chia-bls 0.15.0",
  "chia-consensus",
  "chia-protocol",
@@ -485,6 +486,9 @@ dependencies = [
  "clvmr",
  "hex",
  "hex-literal",
+ "k256",
+ "rand",
+ "rand_chacha",
  "thiserror",
 ]
 
