@@ -13,8 +13,11 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Clawback {
+    /// The number of seconds until this clawback can be claimed by the recipient.
     pub timelock: NonZeroU64,
+    /// The original sender of the coin, who can claw it back until claimed.
     pub sender_puzzle_hash: Bytes32,
+    /// The intended recipient who can claim after the timelock period is up.
     pub recipient_puzzle_hash: Bytes32,
 }
 
