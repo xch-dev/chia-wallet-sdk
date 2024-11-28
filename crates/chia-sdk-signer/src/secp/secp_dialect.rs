@@ -10,42 +10,12 @@ use clvmr::{
     Allocator, NodePtr,
 };
 
-use super::SecpPublicKey;
+use crate::SecpOp;
+
+use super::{RequiredSecpSignature, SecpPublicKey};
 
 const SECP256R1_VERIFY_COST: Cost = 1850000;
 const SECP256K1_VERIFY_COST: Cost = 1300000;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SecpOp {
-    K1,
-    R1,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct RequiredSecpSignature {
-    op: SecpOp,
-    public_key: SecpPublicKey,
-    message_hash: [u8; 32],
-    placeholder_ptr: NodePtr,
-}
-
-impl RequiredSecpSignature {
-    pub fn op(&self) -> SecpOp {
-        self.op
-    }
-
-    pub fn public_key(&self) -> SecpPublicKey {
-        self.public_key
-    }
-
-    pub fn message_hash(&self) -> [u8; 32] {
-        self.message_hash
-    }
-
-    pub fn placeholder_ptr(&self) -> NodePtr {
-        self.placeholder_ptr
-    }
-}
 
 #[derive(Debug, Default, Clone)]
 pub struct SecpDialect<T> {
@@ -170,16 +140,15 @@ mod tests {
         let dialect = SecpDialect::new(ChiaDialect::new(0));
 
         let reduction = run_program(&mut a, &dialect, program, NodePtr::NIL, u64::MAX).unwrap();
-        let collected = dialect.collect();
+        let mut collected = dialect.collect();
 
         assert!(a.atom(reduction.1).is_empty());
         assert_eq!(collected.len(), 1);
 
-        let collected = collected[0];
-        assert_eq!(collected.op(), SecpOp::K1);
-
-        assert_eq!(collected.public_key(), public_key);
-        assert_eq!(collected.placeholder_ptr(), fake_sig);
+        let item = collected.remove(0);
+        assert_eq!(item.op, SecpOp::K1);
+        assert_eq!(item.public_key, public_key);
+        assert_eq!(item.placeholder_ptr, fake_sig);
 
         Ok(())
     }
