@@ -79,7 +79,7 @@ anyhow = { workspace = true }
 hex-literal = { workspace = true }
 chia-protocol = { workspace = true }
 chia-puzzles = { workspace = true }
-chia-bls = { workspace = true  }
+chia-bls = { workspace = true }
 clvm-utils = { workspace = true }
 clvm-traits = { workspace = true, features = ["derive"] }
 clvmr = { workspace = true }
@@ -134,6 +134,7 @@ napi-derive = "2.12.2"
 napi = { version = "2.12.2", default-features = false }
 paste = "1.0.15"
 bigdecimal = "0.4.6"
+k256 = "0.13.4"
 
 [profile.release]
 lto = true
