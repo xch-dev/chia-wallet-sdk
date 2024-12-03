@@ -7,7 +7,7 @@ use chia_puzzles::{
     LineageProof,
 };
 use clvm_traits::FromClvm;
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
@@ -87,14 +87,11 @@ where
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        let curried = CurriedProgram {
-            program: ctx.singleton_top_layer()?,
-            args: SingletonArgs {
-                singleton_struct: SingletonStruct::new(self.launcher_id),
-                inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
-            },
-        };
-        ctx.alloc(&curried)
+        let inner_puzzle = self.inner_puzzle.construct_puzzle(ctx)?;
+        ctx.curry(SingletonArgs {
+            singleton_struct: SingletonStruct::new(self.launcher_id),
+            inner_puzzle,
+        })
     }
 
     fn construct_solution(

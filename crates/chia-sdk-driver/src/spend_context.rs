@@ -2,35 +2,16 @@ use std::collections::HashMap;
 
 use chia_protocol::{Coin, CoinSpend, Program};
 use chia_puzzles::{
-    cat::{
-        CAT_PUZZLE, CAT_PUZZLE_HASH, EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE,
-        EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE_HASH, GENESIS_BY_COIN_ID_TAIL_PUZZLE,
-        GENESIS_BY_COIN_ID_TAIL_PUZZLE_HASH,
-    },
-    did::{DID_INNER_PUZZLE, DID_INNER_PUZZLE_HASH},
-    nft::{
-        NFT_INTERMEDIATE_LAUNCHER_PUZZLE, NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH,
-        NFT_METADATA_UPDATER_PUZZLE, NFT_METADATA_UPDATER_PUZZLE_HASH, NFT_OWNERSHIP_LAYER_PUZZLE,
-        NFT_OWNERSHIP_LAYER_PUZZLE_HASH, NFT_ROYALTY_TRANSFER_PUZZLE,
-        NFT_ROYALTY_TRANSFER_PUZZLE_HASH, NFT_STATE_LAYER_PUZZLE, NFT_STATE_LAYER_PUZZLE_HASH,
-    },
+    nft::{NFT_METADATA_UPDATER_PUZZLE, NFT_METADATA_UPDATER_PUZZLE_HASH},
     offer::{SETTLEMENT_PAYMENTS_PUZZLE, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
-    singleton::{
-        SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE,
-        SINGLETON_TOP_LAYER_PUZZLE_HASH,
-    },
-    standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
+    singleton::{SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH},
 };
-use chia_sdk_types::run_puzzle;
+use chia_sdk_types::{run_puzzle, Mod};
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{tree_hash, TreeHash};
+use clvm_utils::{tree_hash, CurriedProgram, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
-use crate::{
-    DriverError, Spend, P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
-    P2_DELEGATED_SINGLETON_PUZZLE, P2_DELEGATED_SINGLETON_PUZZLE_HASH, P2_ONE_OF_MANY_PUZZLE,
-    P2_ONE_OF_MANY_PUZZLE_HASH, P2_SINGLETON_PUZZLE, P2_SINGLETON_PUZZLE_HASH,
-};
+use crate::{DriverError, Spend};
 
 /// A wrapper around [`Allocator`] that caches puzzles and keeps track of a list of [`CoinSpend`].
 /// It's used to construct spend bundles in an easy and efficient way.
@@ -103,38 +84,24 @@ impl SpendContext {
         Ok(Program::from_clvm(&self.allocator, ptr)?)
     }
 
-    /// Allocate the standard puzzle and return its pointer.
-    pub fn standard_puzzle(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(STANDARD_PUZZLE_HASH, &STANDARD_PUZZLE)
+    pub fn alloc_mod<T>(&mut self) -> Result<NodePtr, DriverError>
+    where
+        T: Mod,
+    {
+        self.puzzle(T::HASH, T::REVEAL)
     }
 
-    /// Allocate the CAT puzzle and return its pointer.
-    pub fn cat_puzzle(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(CAT_PUZZLE_HASH, &CAT_PUZZLE)
+    pub fn curry<T>(&mut self, args: T) -> Result<NodePtr, DriverError>
+    where
+        T: Mod + ToClvm<Allocator>,
+    {
+        let mod_ptr = self.alloc_mod::<T>()?;
+        self.alloc(&CurriedProgram {
+            program: mod_ptr,
+            args,
+        })
     }
 
-    /// Allocate the DID inner puzzle and return its pointer.
-    pub fn did_inner_puzzle(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(DID_INNER_PUZZLE_HASH, &DID_INNER_PUZZLE)
-    }
-
-    /// Allocate the NFT intermediate launcher puzzle and return its pointer.
-    pub fn nft_intermediate_launcher(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(
-            NFT_INTERMEDIATE_LAUNCHER_PUZZLE_HASH,
-            &NFT_INTERMEDIATE_LAUNCHER_PUZZLE,
-        )
-    }
-
-    /// Allocate the NFT royalty transfer puzzle and return its pointer.
-    pub fn nft_royalty_transfer(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(
-            NFT_ROYALTY_TRANSFER_PUZZLE_HASH,
-            &NFT_ROYALTY_TRANSFER_PUZZLE,
-        )
-    }
-
-    /// Allocate the NFT metadata updater puzzle and return its pointer.
     pub fn nft_metadata_updater(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(
             NFT_METADATA_UPDATER_PUZZLE_HASH,
@@ -142,71 +109,12 @@ impl SpendContext {
         )
     }
 
-    /// Allocate the NFT ownership layer puzzle and return its pointer.
-    pub fn nft_ownership_layer(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(NFT_OWNERSHIP_LAYER_PUZZLE_HASH, &NFT_OWNERSHIP_LAYER_PUZZLE)
-    }
-
-    /// Allocate the NFT state layer puzzle and return its pointer.
-    pub fn nft_state_layer(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(NFT_STATE_LAYER_PUZZLE_HASH, &NFT_STATE_LAYER_PUZZLE)
-    }
-
-    /// Allocate the singleton top layer puzzle and return its pointer.
-    pub fn singleton_top_layer(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(SINGLETON_TOP_LAYER_PUZZLE_HASH, &SINGLETON_TOP_LAYER_PUZZLE)
-    }
-
-    /// Allocate the singleton launcher puzzle and return its pointer.
     pub fn singleton_launcher(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(SINGLETON_LAUNCHER_PUZZLE_HASH, &SINGLETON_LAUNCHER_PUZZLE)
     }
 
-    /// Allocate the multi-issuance TAIL puzzle and return its pointer.
-    pub fn everything_with_signature_tail_puzzle(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(
-            EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE_HASH,
-            &EVERYTHING_WITH_SIGNATURE_TAIL_PUZZLE,
-        )
-    }
-
-    /// Allocate the single-issuance TAIL puzzle and return its pointer.
-    pub fn genesis_by_coin_id_tail_puzzle(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(
-            GENESIS_BY_COIN_ID_TAIL_PUZZLE_HASH,
-            &GENESIS_BY_COIN_ID_TAIL_PUZZLE,
-        )
-    }
-
-    /// Allocate the settlement payments puzzle and return its pointer.
     pub fn settlement_payments_puzzle(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(SETTLEMENT_PAYMENTS_PUZZLE_HASH, &SETTLEMENT_PAYMENTS_PUZZLE)
-    }
-
-    /// Allocate the p2 delegated conditions puzzle and return its pointer.
-    pub fn p2_delegated_conditions_puzzle(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(
-            P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
-            &P2_DELEGATED_CONDITIONS_PUZZLE,
-        )
-    }
-
-    /// Allocate the p2 one of many puzzle and return its pointer.
-    pub fn p2_one_of_many_puzzle(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(P2_ONE_OF_MANY_PUZZLE_HASH, &P2_ONE_OF_MANY_PUZZLE)
-    }
-
-    /// Allocate the p2 singleton puzzle and return its pointer.
-    pub fn p2_singleton_puzzle(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(P2_SINGLETON_PUZZLE_HASH, &P2_SINGLETON_PUZZLE)
-    }
-
-    /// Allocate the p2 delegated singleton puzzle and return its pointer.
-    pub fn p2_delegated_singleton_puzzle(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(
-            P2_DELEGATED_SINGLETON_PUZZLE_HASH,
-            &P2_DELEGATED_SINGLETON_PUZZLE,
-        )
     }
 
     /// Preload a puzzle into the cache.
