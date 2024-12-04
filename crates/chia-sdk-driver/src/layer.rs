@@ -1,4 +1,5 @@
 use chia_protocol::{Coin, CoinSpend};
+use chia_sdk_types::Mod;
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};
 
@@ -65,12 +66,54 @@ pub trait Layer {
 
 impl<T> Layer for T
 where
+    T: Sized + Mod + ToClvm<Allocator> + FromClvm<Allocator>,
+    T::Solution: ToClvm<Allocator> + FromClvm<Allocator>,
+{
+    type Solution = T::Solution;
+
+    fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
+        let Some(curried) = puzzle.as_curried() else {
+            return Ok(None);
+        };
+
+        if curried.mod_hash != T::MOD_HASH {
+            return Ok(None);
+        }
+
+        Ok(Some(Self::from_clvm(allocator, curried.args)?))
+    }
+
+    fn parse_solution(
+        allocator: &Allocator,
+        solution: NodePtr,
+    ) -> Result<Self::Solution, DriverError> {
+        Ok(Self::Solution::from_clvm(allocator, solution)?)
+    }
+
+    fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
+        ctx.curry(self)
+    }
+
+    fn construct_solution(
+        &self,
+        ctx: &mut SpendContext,
+        solution: Self::Solution,
+    ) -> Result<NodePtr, DriverError> {
+        ctx.alloc(&solution)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ValueLayer<T>(pub T);
+
+impl<T> Layer for ValueLayer<T>
+where
     T: ToClvm<Allocator> + FromClvm<Allocator>,
 {
     type Solution = NodePtr;
 
     fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
-        Ok(Some(T::from_clvm(allocator, puzzle.ptr())?))
+        Ok(Some(Self(T::from_clvm(allocator, puzzle.ptr())?)))
     }
 
     fn parse_solution(
@@ -81,7 +124,7 @@ where
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        ctx.alloc(self)
+        ctx.alloc(&self.0)
     }
 
     fn construct_solution(

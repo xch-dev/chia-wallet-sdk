@@ -1,6 +1,7 @@
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
+use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::Mod;
@@ -20,6 +21,7 @@ impl<T> VaultNofNArgs<T> {
 impl<T> Mod for VaultNofNArgs<T> {
     const MOD_REVEAL: &[u8] = &VAULT_N_OF_N_PUZZLE;
     const MOD_HASH: TreeHash = VAULT_N_OF_N_PUZZLE_HASH;
+    type Solution = VaultNofNSolution<NodePtr>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]

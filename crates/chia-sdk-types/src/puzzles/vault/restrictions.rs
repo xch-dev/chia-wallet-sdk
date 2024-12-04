@@ -1,6 +1,7 @@
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
+use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::Mod;
@@ -30,6 +31,7 @@ impl<MV, DV, I> RestrictionsArgs<MV, DV, I> {
 impl<MV, DV, I> Mod for RestrictionsArgs<MV, DV, I> {
     const MOD_REVEAL: &[u8] = &RESTRICTIONS_PUZZLE;
     const MOD_HASH: TreeHash = RESTRICTIONS_PUZZLE_HASH;
+    type Solution = RestrictionsSolution<NodePtr, NodePtr, NodePtr>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
