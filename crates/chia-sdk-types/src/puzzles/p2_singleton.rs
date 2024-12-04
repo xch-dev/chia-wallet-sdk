@@ -15,8 +15,8 @@ pub struct P2SingletonArgs {
 }
 
 impl Mod for P2SingletonArgs {
-    const REVEAL: &[u8] = &P2_SINGLETON_PUZZLE;
-    const HASH: TreeHash = P2_SINGLETON_PUZZLE_HASH;
+    const MOD_REVEAL: &[u8] = &P2_SINGLETON_PUZZLE;
+    const MOD_HASH: TreeHash = P2_SINGLETON_PUZZLE_HASH;
 }
 
 impl P2SingletonArgs {

@@ -19,8 +19,8 @@ impl P2DelegatedConditionsArgs {
 }
 
 impl Mod for P2DelegatedConditionsArgs {
-    const REVEAL: &[u8] = &P2_DELEGATED_CONDITIONS_PUZZLE;
-    const HASH: TreeHash = P2_DELEGATED_CONDITIONS_PUZZLE_HASH;
+    const MOD_REVEAL: &[u8] = &P2_DELEGATED_CONDITIONS_PUZZLE;
+    const MOD_HASH: TreeHash = P2_DELEGATED_CONDITIONS_PUZZLE_HASH;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]

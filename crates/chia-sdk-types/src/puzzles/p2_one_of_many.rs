@@ -12,8 +12,8 @@ pub struct P2OneOfManyArgs {
 }
 
 impl Mod for P2OneOfManyArgs {
-    const REVEAL: &[u8] = &P2_ONE_OF_MANY_PUZZLE;
-    const HASH: TreeHash = P2_ONE_OF_MANY_PUZZLE_HASH;
+    const MOD_REVEAL: &[u8] = &P2_ONE_OF_MANY_PUZZLE;
+    const MOD_HASH: TreeHash = P2_ONE_OF_MANY_PUZZLE_HASH;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]

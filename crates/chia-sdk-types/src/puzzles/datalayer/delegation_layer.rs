@@ -90,6 +90,6 @@ pub struct DelegationLayerSolution<P, S> {
 }
 
 impl Mod for DelegationLayerArgs {
-    const REVEAL: &[u8] = &DELEGATION_LAYER_PUZZLE;
-    const HASH: TreeHash = DELEGATION_LAYER_PUZZLE_HASH;
+    const MOD_REVEAL: &[u8] = &DELEGATION_LAYER_PUZZLE;
+    const MOD_HASH: TreeHash = DELEGATION_LAYER_PUZZLE_HASH;
 }

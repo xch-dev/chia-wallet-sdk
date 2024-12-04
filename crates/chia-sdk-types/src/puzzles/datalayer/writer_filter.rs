@@ -47,6 +47,6 @@ pub struct WriterLayerSolution<I> {
 }
 
 impl<I> Mod for WriterLayerArgs<I> {
-    const REVEAL: &[u8] = &WRITER_LAYER_PUZZLE;
-    const HASH: TreeHash = WRITER_LAYER_PUZZLE_HASH;
+    const MOD_REVEAL: &[u8] = &WRITER_LAYER_PUZZLE;
+    const MOD_HASH: TreeHash = WRITER_LAYER_PUZZLE_HASH;
 }

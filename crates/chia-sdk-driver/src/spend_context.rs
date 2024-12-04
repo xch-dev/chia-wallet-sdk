@@ -88,7 +88,7 @@ impl SpendContext {
     where
         T: Mod,
     {
-        self.puzzle(T::HASH, T::REVEAL)
+        self.puzzle(T::MOD_HASH, T::MOD_REVEAL)
     }
 
     pub fn curry<T>(&mut self, args: T) -> Result<NodePtr, DriverError>
