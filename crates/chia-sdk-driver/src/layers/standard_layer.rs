@@ -3,7 +3,7 @@ use chia_protocol::Coin;
 use chia_puzzles::standard::{StandardArgs, StandardSolution, STANDARD_PUZZLE_HASH};
 use chia_sdk_types::Conditions;
 use clvm_traits::{clvm_quote, FromClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext, SpendWithConditions};
@@ -59,11 +59,7 @@ impl Layer for StandardLayer {
     type Solution = StandardSolution<NodePtr, NodePtr>;
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        let curried = CurriedProgram {
-            program: ctx.standard_puzzle()?,
-            args: StandardArgs::new(self.synthetic_key),
-        };
-        ctx.alloc(&curried)
+        ctx.curry(StandardArgs::new(self.synthetic_key))
     }
 
     fn construct_solution(

@@ -18,8 +18,14 @@ all-features = true
 workspace = true
 
 [features]
-chip-0035 = []
-offers = ["dep:bech32", "dep:chia-traits", "dep:flate2", "dep:indexmap", "dep:once_cell"]
+chip-0035 = ["chia-sdk-types/chip-0035"]
+offers = [
+    "dep:bech32",
+    "dep:chia-traits",
+    "dep:flate2",
+    "dep:indexmap",
+    "dep:once_cell",
+]
 
 [dependencies]
 chia-bls = { workspace = true }
@@ -31,7 +37,7 @@ clvmr = { workspace = true }
 thiserror = { workspace = true }
 chia-sdk-types = { workspace = true }
 hex-literal = { workspace = true }
-num-bigint = { workspace = true}
+num-bigint = { workspace = true }
 hex = { workspace = true }
 bigdecimal = { workspace = true }
 bech32 = { workspace = true, optional = true }

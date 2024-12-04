@@ -4,7 +4,7 @@ use chia_puzzles::{
     singleton::{SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
 };
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
@@ -106,17 +106,14 @@ where
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        let curried = CurriedProgram {
-            program: ctx.did_inner_puzzle()?,
-            args: DidArgs::new(
-                self.inner_puzzle.construct_puzzle(ctx)?,
-                self.recovery_list_hash,
-                self.num_verifications_required,
-                SingletonStruct::new(self.launcher_id),
-                &self.metadata,
-            ),
-        };
-        ctx.alloc(&curried)
+        let inner_puzzle = self.inner_puzzle.construct_puzzle(ctx)?;
+        ctx.curry(DidArgs::new(
+            inner_puzzle,
+            self.recovery_list_hash,
+            self.num_verifications_required,
+            SingletonStruct::new(self.launcher_id),
+            &self.metadata,
+        ))
     }
 
     fn construct_solution(

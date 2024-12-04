@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::cat::{CatArgs, CatSolution, CAT_PUZZLE_HASH};
 use clvm_traits::FromClvm;
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
@@ -76,11 +76,8 @@ where
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        let curried = CurriedProgram {
-            program: ctx.cat_puzzle()?,
-            args: CatArgs::new(self.asset_id, self.inner_puzzle.construct_puzzle(ctx)?),
-        };
-        ctx.alloc(&curried)
+        let inner_puzzle = self.inner_puzzle.construct_puzzle(ctx)?;
+        ctx.curry(CatArgs::new(self.asset_id, inner_puzzle))
     }
 
     fn construct_solution(

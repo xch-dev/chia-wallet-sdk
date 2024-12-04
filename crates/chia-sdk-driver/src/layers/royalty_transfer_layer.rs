@@ -6,7 +6,7 @@ use chia_puzzles::{
     singleton::{SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
 };
 use clvm_traits::FromClvm;
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
@@ -43,15 +43,11 @@ impl Layer for RoyaltyTransferLayer {
     type Solution = Infallible;
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        let curried = CurriedProgram {
-            program: ctx.nft_royalty_transfer()?,
-            args: NftRoyaltyTransferPuzzleArgs {
-                singleton_struct: SingletonStruct::new(self.launcher_id),
-                royalty_puzzle_hash: self.royalty_puzzle_hash,
-                royalty_ten_thousandths: self.royalty_ten_thousandths,
-            },
-        };
-        ctx.alloc(&curried)
+        ctx.curry(NftRoyaltyTransferPuzzleArgs {
+            singleton_struct: SingletonStruct::new(self.launcher_id),
+            royalty_puzzle_hash: self.royalty_puzzle_hash,
+            royalty_ten_thousandths: self.royalty_ten_thousandths,
+        })
     }
 
     fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
