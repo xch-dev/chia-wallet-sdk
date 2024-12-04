@@ -3,7 +3,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
-use crate::MerkleProof;
+use crate::{MerkleProof, Mod};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
@@ -15,6 +15,11 @@ impl Vault1ofNArgs {
     pub fn new(merkle_root: Bytes32) -> Self {
         Self { merkle_root }
     }
+}
+
+impl Mod for Vault1ofNArgs {
+    const MOD_REVEAL: &[u8] = &VAULT_1_OF_N_PUZZLE;
+    const MOD_HASH: TreeHash = VAULT_1_OF_N_PUZZLE_HASH;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]

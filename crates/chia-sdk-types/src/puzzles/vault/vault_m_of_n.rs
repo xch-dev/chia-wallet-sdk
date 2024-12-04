@@ -3,6 +3,8 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
+use crate::Mod;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct VaultMofNArgs {
@@ -17,6 +19,11 @@ impl VaultMofNArgs {
             merkle_root,
         }
     }
+}
+
+impl Mod for VaultMofNArgs {
+    const MOD_REVEAL: &[u8] = &VAULT_M_OF_N_PUZZLE;
+    const MOD_HASH: TreeHash = VAULT_M_OF_N_PUZZLE_HASH;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
