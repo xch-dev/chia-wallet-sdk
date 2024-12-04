@@ -14,6 +14,9 @@ categories = { workspace = true }
 [lints]
 workspace = true
 
+[features]
+chip-0035 = []
+
 [dependencies]
 chia-sdk-derive = { workspace = true }
 chia-bls = { workspace = true }

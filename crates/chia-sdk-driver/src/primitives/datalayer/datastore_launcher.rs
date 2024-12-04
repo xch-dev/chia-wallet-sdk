@@ -3,14 +3,12 @@ use chia_puzzles::{
     nft::{NftStateLayerArgs, NFT_STATE_LAYER_PUZZLE_HASH},
     EveProof, Proof,
 };
-use chia_sdk_types::Conditions;
+use chia_sdk_types::{Conditions, DelegationLayerArgs, DL_METADATA_UPDATER_PUZZLE_HASH};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::Allocator;
 
-use crate::{
-    DelegationLayerArgs, DriverError, Launcher, SpendContext, DL_METADATA_UPDATER_PUZZLE_HASH,
-};
+use crate::{DriverError, Launcher, SpendContext};
 
 use super::{get_merkle_tree, DataStore, DataStoreInfo, DelegatedPuzzle, DlLauncherKvList};
 

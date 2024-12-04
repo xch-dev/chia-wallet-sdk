@@ -8,6 +8,12 @@ pub use p2_delegated_singleton::*;
 pub use p2_one_of_many::*;
 pub use p2_singleton::*;
 
+#[cfg(feature = "chip-0035")]
+mod datalayer;
+
+#[cfg(feature = "chip-0035")]
+pub use datalayer::*;
+
 #[cfg(test)]
 mod tests {
     #[macro_export]

@@ -1,10 +1,13 @@
 use crate::{
-    DelegationLayer, DelegationLayerArgs, DriverError, Layer, MerkleTree, NftStateLayer,
-    OracleLayer, SingletonLayer, SpendContext, WriterLayerArgs, DELEGATION_LAYER_PUZZLE_HASH,
-    DL_METADATA_UPDATER_PUZZLE_HASH,
+    DelegationLayer, DriverError, Layer, MerkleTree, NftStateLayer, OracleLayer, SingletonLayer,
+    SpendContext,
 };
 use chia_protocol::{Bytes, Bytes32};
 use chia_puzzles::nft::NftStateLayerArgs;
+use chia_sdk_types::{
+    DelegationLayerArgs, WriterLayerArgs, DELEGATION_LAYER_PUZZLE_HASH,
+    DL_METADATA_UPDATER_PUZZLE_HASH,
+};
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::Allocator;

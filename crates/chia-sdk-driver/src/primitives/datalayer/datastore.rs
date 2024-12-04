@@ -6,18 +6,17 @@ use chia_puzzles::{
     },
     EveProof, LineageProof, Proof,
 };
-use chia_sdk_types::{run_puzzle, CreateCoin, NewMetadataInfo, NewMetadataOutput};
+use chia_sdk_types::{
+    run_puzzle, CreateCoin, DelegationLayerArgs, DelegationLayerSolution, NewMetadataInfo,
+    NewMetadataOutput, DELEGATION_LAYER_PUZZLE_HASH, DL_METADATA_UPDATER_PUZZLE_HASH,
+};
 use chia_sdk_types::{Condition, UpdateNftMetadata};
 use clvm_traits::{FromClvm, FromClvmError, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use num_bigint::BigInt;
 
-use crate::{
-    DelegationLayerArgs, DelegationLayerSolution, DriverError, Layer, NftStateLayer, Puzzle,
-    SingletonLayer, Spend, SpendContext, DELEGATION_LAYER_PUZZLE_HASH,
-    DL_METADATA_UPDATER_PUZZLE_HASH,
-};
+use crate::{DriverError, Layer, NftStateLayer, Puzzle, SingletonLayer, Spend, SpendContext};
 
 use super::{
     get_merkle_tree, DataStoreInfo, DataStoreMetadata, DelegatedPuzzle, HintType,
@@ -749,18 +748,10 @@ pub mod tests {
 
         let ctx = &mut SpendContext::new();
 
-        let admin_puzzle: NodePtr = CurriedProgram {
-            program: ctx.standard_puzzle()?,
-            args: StandardArgs::new(admin_pk),
-        }
-        .to_clvm(&mut ctx.allocator)?;
+        let admin_puzzle = ctx.curry(StandardArgs::new(admin_pk))?;
         let admin_puzzle_hash = tree_hash(&ctx.allocator, admin_puzzle);
 
-        let writer_inner_puzzle: NodePtr = CurriedProgram {
-            program: ctx.standard_puzzle()?,
-            args: StandardArgs::new(writer_pk),
-        }
-        .to_clvm(&mut ctx.allocator)?;
+        let writer_inner_puzzle = ctx.curry(StandardArgs::new(writer_pk))?;
         let writer_inner_puzzle_hash = tree_hash(&ctx.allocator, writer_inner_puzzle);
 
         let admin_delegated_puzzle = DelegatedPuzzle::Admin(admin_puzzle_hash);
