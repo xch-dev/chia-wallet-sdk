@@ -1,10 +1,9 @@
 use chia_bls::Signature;
 use chia_protocol::{Bytes32, CoinSpend};
 use chia_puzzles::offer::NotarizedPayment;
-use chia_sdk_driver::Puzzle;
 use indexmap::IndexMap;
 
-use crate::{OfferBuilder, Take};
+use crate::{OfferBuilder, Puzzle, Take};
 
 #[derive(Debug, Default, Clone)]
 pub struct ParsedOffer {

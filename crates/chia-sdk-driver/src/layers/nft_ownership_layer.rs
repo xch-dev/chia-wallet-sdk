@@ -3,7 +3,7 @@ use chia_puzzles::nft::{
     NftOwnershipLayerArgs, NftOwnershipLayerSolution, NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
 };
 use clvm_traits::FromClvm;
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
@@ -83,15 +83,13 @@ where
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        let curried = CurriedProgram {
-            program: ctx.nft_ownership_layer()?,
-            args: NftOwnershipLayerArgs::new(
-                self.current_owner,
-                self.transfer_layer.construct_puzzle(ctx)?,
-                self.inner_puzzle.construct_puzzle(ctx)?,
-            ),
-        };
-        ctx.alloc(&curried)
+        let transfer_program = self.transfer_layer.construct_puzzle(ctx)?;
+        let inner_puzzle = self.inner_puzzle.construct_puzzle(ctx)?;
+        ctx.curry(NftOwnershipLayerArgs::new(
+            self.current_owner,
+            transfer_program,
+            inner_puzzle,
+        ))
     }
 
     fn construct_solution(

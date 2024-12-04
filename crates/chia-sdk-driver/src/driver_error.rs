@@ -47,4 +47,7 @@ pub enum DriverError {
 
     #[error("custom driver error: {0}")]
     Custom(String),
+
+    #[error("invalid merkle proof")]
+    InvalidMerkleProof,
 }

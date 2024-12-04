@@ -2,43 +2,20 @@ mod delegation_layer;
 mod oracle_layer;
 mod writer_layer;
 
-use clvm_utils::TreeHash;
-use hex_literal::hex;
-
 pub use delegation_layer::*;
 pub use oracle_layer::*;
 pub use writer_layer::*;
 
-pub const DL_METADATA_UPDATER_PUZZLE: [u8; 1] = hex!(
-    "
-    0b
-    "
-);
-
-pub const DL_METADATA_UPDATER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
-    "
-    57bfd1cb0adda3d94315053fda723f2028320faa8338225d99f629e3d46d43a9
-    "
-));
-
 #[cfg(test)]
 mod tests {
+    use chia_sdk_types::DL_METADATA_UPDATER_PUZZLE;
     use clvm_traits::{clvm_list, ToClvm};
     use clvm_utils::tree_hash;
     use clvmr::serde::node_from_bytes;
+    use hex_literal::hex;
     use rstest::rstest;
 
-    use crate::{assert_puzzle_hash, SpendContext};
-
-    use super::*;
-
-    #[test]
-    fn test_puzzle_hashes() -> anyhow::Result<()> {
-        assert_puzzle_hash!(DELEGATION_LAYER_PUZZLE => DELEGATION_LAYER_PUZZLE_HASH);
-        assert_puzzle_hash!(WRITER_FILTER_PUZZLE => WRITER_FILTER_PUZZLE_HASH);
-        assert_puzzle_hash!(DL_METADATA_UPDATER_PUZZLE => DL_METADATA_UPDATER_PUZZLE_HASH);
-        Ok(())
-    }
+    use crate::SpendContext;
 
     // tests that DL metadata updater indeed returns the third argument
     #[rstest]

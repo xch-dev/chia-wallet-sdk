@@ -108,6 +108,6 @@ mod tests {
         SpendBundle::from_bytes(&decompressed_offer).unwrap();
     }
 
-    const COMPRESSED_OFFER: &str = include_str!("../test_data/compressed.offer");
-    const DECOMPRESSED_OFFER: &str = include_str!("../test_data/decompressed.offer");
+    const COMPRESSED_OFFER: &str = include_str!("./test_data/compressed.offer");
+    const DECOMPRESSED_OFFER: &str = include_str!("./test_data/decompressed.offer");
 }

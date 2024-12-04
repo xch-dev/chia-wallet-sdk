@@ -15,6 +15,6 @@ pub enum SimulatorError {
     #[error("Signer error: {0}")]
     Signer(#[from] SignerError),
 
-    #[error("Missing key ")]
+    #[error("Missing key")]
     MissingKey,
 }
