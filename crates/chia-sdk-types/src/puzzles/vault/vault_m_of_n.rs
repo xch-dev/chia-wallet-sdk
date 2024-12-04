@@ -21,9 +21,18 @@ impl VaultMofNArgs {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(solution)]
-pub struct VaultMofNSolution {
+pub struct VaultMofNSolution<P> {
     pub delegated_puzzle_hash: Bytes32,
-    // TODO: proof
+    pub proof: P,
+}
+
+impl<P> VaultMofNSolution<P> {
+    pub fn new(delegated_puzzle_hash: Bytes32, proof: P) -> Self {
+        Self {
+            delegated_puzzle_hash,
+            proof,
+        }
+    }
 }
 
 pub const VAULT_M_OF_N_PUZZLE: [u8; 622] = hex!(
