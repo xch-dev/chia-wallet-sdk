@@ -8,7 +8,7 @@ use chia_sdk_types::{run_puzzle, Condition, Conditions, CreateCoin};
 use clvm_traits::{clvm_quote, FromClvm};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{CatLayer, DriverError, Layer, Puzzle, Spend, SpendContext};
+use crate::{CatLayer, DriverError, Layer, Puzzle, Spend, SpendContext, ValueLayer};
 
 mod cat_spend;
 mod single_cat_spend;
@@ -85,7 +85,7 @@ impl Cat {
         conditions: Conditions,
     ) -> Result<(Conditions, Cat), DriverError> {
         let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
-        let eve_layer = CatLayer::new(asset_id, inner_puzzle);
+        let eve_layer = CatLayer::new(asset_id, ValueLayer(inner_puzzle));
         let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
         let puzzle_ptr = eve_layer.construct_puzzle(ctx)?;
         let puzzle_hash = ctx.tree_hash(puzzle_ptr).into();
@@ -169,7 +169,7 @@ impl Cat {
 
     /// Creates a coin spend for this CAT.
     pub fn spend(&self, ctx: &mut SpendContext, spend: SingleCatSpend) -> Result<(), DriverError> {
-        let cat_layer = CatLayer::new(self.asset_id, spend.inner_spend.puzzle);
+        let cat_layer = CatLayer::new(self.asset_id, ValueLayer(spend.inner_spend.puzzle));
 
         let puzzle = cat_layer.construct_puzzle(ctx)?;
         let solution = cat_layer.construct_solution(

@@ -11,6 +11,7 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{
     DidLayer, DriverError, Layer, Puzzle, SingletonLayer, Spend, SpendContext, SpendWithConditions,
+    ValueLayer,
 };
 
 mod did_info;
@@ -85,7 +86,10 @@ where
 {
     /// Creates a coin spend for this DID.
     pub fn spend(&self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<(), DriverError> {
-        let layers = self.info.clone().into_layers(inner_spend.puzzle);
+        let layers = self
+            .info
+            .clone()
+            .into_layers(ValueLayer(inner_spend.puzzle));
 
         let puzzle = layers.construct_puzzle(ctx)?;
         let solution = layers.construct_solution(
@@ -230,7 +234,7 @@ where
         }
 
         let singleton_solution =
-            SingletonLayer::<NodePtr>::parse_solution(allocator, parent_solution)?;
+            SingletonLayer::<Puzzle>::parse_solution(allocator, parent_solution)?;
 
         let output = run_puzzle(
             allocator,

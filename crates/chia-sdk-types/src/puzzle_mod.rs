@@ -42,6 +42,15 @@ pub trait Mod {
     }
 }
 
+impl<T> Mod for &T
+where
+    T: Mod,
+{
+    const MOD_REVEAL: &'static [u8] = T::MOD_REVEAL;
+    const MOD_HASH: TreeHash = T::MOD_HASH;
+    type Solution = T::Solution;
+}
+
 impl Mod for StandardArgs {
     const MOD_REVEAL: &[u8] = &STANDARD_PUZZLE;
     const MOD_HASH: TreeHash = STANDARD_PUZZLE_HASH;
