@@ -158,15 +158,13 @@ where
         N: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
         M: ToTreeHash,
     {
+        let memos = ctx.hint(p2_puzzle_hash)?;
+
         self.spend_with(
             ctx,
             inner,
             extra_conditions
-                .create_coin(
-                    p2_puzzle_hash,
-                    self.coin.amount,
-                    vec![p2_puzzle_hash.into()],
-                )
+                .create_coin(p2_puzzle_hash, self.coin.amount, Some(memos))
                 .update_nft_metadata(metadata_update.puzzle, metadata_update.solution),
         )?;
 
@@ -207,14 +205,12 @@ where
         M: ToTreeHash,
         I: SpendWithConditions,
     {
+        let memos = ctx.hint(p2_puzzle_hash)?;
+
         self.spend_with(
             ctx,
             inner,
-            extra_conditions.create_coin(
-                p2_puzzle_hash,
-                self.coin.amount,
-                vec![p2_puzzle_hash.into()],
-            ),
+            extra_conditions.create_coin(p2_puzzle_hash, self.coin.amount, Some(memos)),
         )?;
 
         let metadata = self.info.metadata.clone();
@@ -340,15 +336,13 @@ where
             Conditions::new()
         };
 
+        let memos = ctx.hint(p2_puzzle_hash)?;
+
         self.spend_with(
             ctx,
             inner,
             extra_conditions
-                .create_coin(
-                    p2_puzzle_hash,
-                    self.coin.amount,
-                    vec![p2_puzzle_hash.into()],
-                )
+                .create_coin(p2_puzzle_hash, self.coin.amount, Some(memos))
                 .with(transfer_condition),
         )?;
 
