@@ -1,6 +1,7 @@
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
+use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::{MerkleProof, Mod};
@@ -20,6 +21,7 @@ impl P2OneOfManyArgs {
 impl Mod for P2OneOfManyArgs {
     const MOD_REVEAL: &[u8] = &P2_ONE_OF_MANY_PUZZLE;
     const MOD_HASH: TreeHash = P2_ONE_OF_MANY_PUZZLE_HASH;
+    type Solution = P2OneOfManySolution<NodePtr, NodePtr>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]

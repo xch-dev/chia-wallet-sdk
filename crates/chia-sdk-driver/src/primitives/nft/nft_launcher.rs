@@ -64,8 +64,9 @@ impl Launcher {
             )
         });
 
+        let memos = ctx.hint(mint.p2_puzzle_hash)?;
         let conditions = Conditions::new()
-            .create_coin(mint.p2_puzzle_hash, 1, vec![mint.p2_puzzle_hash.into()])
+            .create_coin(mint.p2_puzzle_hash, 1, Some(memos))
             .extend(transfer_condition.clone());
 
         let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
@@ -237,7 +238,7 @@ mod tests {
 
         let (mint_nft, _nft) = launcher.mint_nft(ctx, mint)?;
 
-        let _ = did.update(ctx, &p2, mint_nft.create_coin(puzzle_hash, 0, Vec::new()))?;
+        let _ = did.update(ctx, &p2, mint_nft.create_coin(puzzle_hash, 0, None))?;
         p2.spend(ctx, intermediate_coin, create_launcher)?;
 
         sim.spend_coins(ctx.take(), &[sk])?;
@@ -277,7 +278,7 @@ mod tests {
         let did = did.update(
             ctx,
             &p2,
-            Conditions::new().create_coin(puzzle_hash, 0, Vec::new()),
+            Conditions::new().create_coin(puzzle_hash, 0, None),
         )?;
 
         let _ = did.update(ctx, &p2, mint_nft)?;

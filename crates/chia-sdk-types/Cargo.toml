@@ -16,6 +16,7 @@ workspace = true
 
 [features]
 chip-0035 = []
+vault = []
 
 [dependencies]
 chia-sdk-derive = { workspace = true }

@@ -1,11 +1,12 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_derive::conditions;
-use clvm_traits::{FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm, ToClvmError};
 
 mod agg_sig;
 
 pub use agg_sig::*;
+use clvmr::{Allocator, NodePtr};
 
 conditions! {
     pub enum Condition<T> {
@@ -53,11 +54,11 @@ conditions! {
             public_key: PublicKey,
             message: Bytes,
         },
-        CreateCoin {
+        CreateCoin<T> as Copy {
             opcode: i8 if 51,
             puzzle_hash: Bytes32,
             amount: u64,
-            memos?: Vec<Bytes>,
+            ...memos: Option<Memos<T>>,
         },
         ReserveFee as Copy {
             opcode: i8 if 52,
@@ -191,6 +192,30 @@ conditions! {
             new_merkle_root: Bytes32,
             ...memos: Vec<Bytes>,
         },
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
+#[clvm(list)]
+pub struct Memos<T> {
+    pub value: T,
+}
+
+impl<T> Memos<T> {
+    pub fn new(value: T) -> Self {
+        Self { value }
+    }
+
+    pub fn some(value: T) -> Option<Self> {
+        Some(Self { value })
+    }
+}
+
+impl Memos<NodePtr> {
+    pub fn hint(allocator: &mut Allocator, hint: Bytes32) -> Result<Self, ToClvmError> {
+        Ok(Self {
+            value: [hint].to_clvm(allocator)?,
+        })
     }
 }
 

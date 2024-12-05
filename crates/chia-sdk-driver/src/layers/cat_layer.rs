@@ -115,6 +115,8 @@ mod tests {
     use chia_protocol::Coin;
     use chia_puzzles::CoinProof;
 
+    use crate::ValueLayer;
+
     use super::*;
 
     #[test]
@@ -122,17 +124,17 @@ mod tests {
         let mut ctx = SpendContext::new();
         let asset_id = Bytes32::new([1; 32]);
 
-        let layer = CatLayer::new(asset_id, "Hello, world!".to_string());
+        let layer = CatLayer::new(asset_id, ValueLayer("Hello, world!".to_string()));
 
         let ptr = layer.construct_puzzle(&mut ctx)?;
         let puzzle = Puzzle::parse(&ctx.allocator, ptr);
-        let roundtrip =
-            CatLayer::<String>::parse_puzzle(&ctx.allocator, puzzle)?.expect("invalid CAT layer");
+        let roundtrip = CatLayer::<ValueLayer<String>>::parse_puzzle(&ctx.allocator, puzzle)?
+            .expect("invalid CAT layer");
 
         assert_eq!(roundtrip.asset_id, layer.asset_id);
         assert_eq!(roundtrip.inner_puzzle, layer.inner_puzzle);
 
-        let expected = CatArgs::curry_tree_hash(asset_id, layer.inner_puzzle.tree_hash());
+        let expected = CatArgs::curry_tree_hash(asset_id, layer.inner_puzzle.0.tree_hash());
         assert_eq!(hex::encode(ctx.tree_hash(ptr)), hex::encode(expected));
 
         Ok(())
@@ -142,7 +144,7 @@ mod tests {
     fn test_cat_solution() -> anyhow::Result<()> {
         let mut ctx = SpendContext::new();
 
-        let layer = CatLayer::new(Bytes32::default(), NodePtr::NIL);
+        let layer = CatLayer::new(Bytes32::default(), ValueLayer(NodePtr::NIL));
 
         let solution = CatSolution {
             inner_puzzle_solution: NodePtr::NIL,
@@ -165,7 +167,8 @@ mod tests {
 
         assert_eq!(hex::encode(actual_hash), hex::encode(expected_hash));
 
-        let roundtrip = CatLayer::<NodePtr>::parse_solution(&ctx.allocator, actual_ptr)?;
+        let roundtrip =
+            CatLayer::<ValueLayer<NodePtr>>::parse_solution(&ctx.allocator, actual_ptr)?;
         assert_eq!(roundtrip, solution);
 
         Ok(())

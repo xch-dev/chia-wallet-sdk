@@ -134,13 +134,13 @@ mod tests {
         p2.spend(
             ctx,
             coin,
-            Conditions::new().create_coin(puzzle_hash, u64::MAX, Vec::new()),
+            Conditions::new().create_coin(puzzle_hash, u64::MAX, None),
         )?;
 
         p2.spend(
             ctx,
             Coin::new(coin.coin_id(), puzzle_hash, u64::MAX),
-            Conditions::new().create_coin(puzzle_hash, 1, Vec::new()),
+            Conditions::new().create_coin(puzzle_hash, 1, None),
         )?;
 
         sim.spend_coins(ctx.take(), &[sk])?;

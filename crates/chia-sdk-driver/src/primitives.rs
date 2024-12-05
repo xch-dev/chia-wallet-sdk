@@ -17,3 +17,9 @@ mod datalayer;
 
 #[cfg(feature = "chip-0035")]
 pub use datalayer::*;
+
+#[cfg(feature = "vault")]
+mod vault;
+
+#[cfg(feature = "vault")]
+pub use vault::*;

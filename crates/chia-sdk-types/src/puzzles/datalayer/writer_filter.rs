@@ -1,5 +1,6 @@
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::Mod;
@@ -49,4 +50,5 @@ pub struct WriterLayerSolution<I> {
 impl<I> Mod for WriterLayerArgs<I> {
     const MOD_REVEAL: &[u8] = &WRITER_LAYER_PUZZLE;
     const MOD_HASH: TreeHash = WRITER_LAYER_PUZZLE_HASH;
+    type Solution = WriterLayerSolution<NodePtr>;
 }

@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use chia_protocol::{Coin, CoinSpend, Program};
+use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzles::{
     nft::{NFT_METADATA_UPDATER_PUZZLE, NFT_METADATA_UPDATER_PUZZLE_HASH},
     offer::{SETTLEMENT_PAYMENTS_PUZZLE, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
     singleton::{SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH},
 };
-use chia_sdk_types::{run_puzzle, Mod};
+use chia_sdk_types::{run_puzzle, Memos, Mod};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
@@ -82,6 +82,17 @@ impl SpendContext {
     {
         let ptr = value.to_clvm(&mut self.allocator)?;
         Ok(Program::from_clvm(&self.allocator, ptr)?)
+    }
+
+    pub fn memos<T>(&mut self, value: &T) -> Result<Memos<NodePtr>, DriverError>
+    where
+        T: ToClvm<Allocator>,
+    {
+        Ok(Memos::new(self.alloc(value)?))
+    }
+
+    pub fn hint(&mut self, hint: Bytes32) -> Result<Memos<NodePtr>, DriverError> {
+        Ok(Memos::hint(&mut self.allocator, hint)?)
     }
 
     pub fn alloc_mod<T>(&mut self) -> Result<NodePtr, DriverError>

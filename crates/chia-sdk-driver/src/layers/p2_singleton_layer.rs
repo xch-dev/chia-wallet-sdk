@@ -115,7 +115,7 @@ mod tests {
 
     use super::*;
 
-    use crate::{Launcher, SingletonLayer, SpendWithConditions, StandardLayer};
+    use crate::{Launcher, SingletonLayer, SpendWithConditions, StandardLayer, ValueLayer};
 
     #[test]
     fn test_p2_singleton_layer() -> anyhow::Result<()> {
@@ -132,36 +132,39 @@ mod tests {
         let p2_singleton = P2SingletonLayer::new(launcher_id);
         let p2_singleton_hash = p2_singleton.tree_hash().into();
 
+        let memos = ctx.hint(launcher_id)?;
         p2.spend(
             ctx,
             coin,
-            create_singleton.create_coin(p2_singleton_hash, 1, vec![launcher_id.into()]),
+            create_singleton.create_coin(p2_singleton_hash, 1, Some(memos)),
         )?;
 
         let p2_coin = Coin::new(coin.coin_id(), p2_singleton_hash, 1);
         p2_singleton.spend_coin(ctx, p2_coin, puzzle_hash)?;
 
+        let memos = ctx.hint(launcher_id)?;
         let inner_solution = p2
             .spend_with_conditions(
                 ctx,
                 Conditions::new()
-                    .create_coin(puzzle_hash, 1, vec![launcher_id.into()])
+                    .create_coin(puzzle_hash, 1, Some(memos))
                     .create_puzzle_announcement(p2_coin.coin_id().into()),
             )?
             .solution;
-        let singleton_spend = SingletonLayer::new(launcher_id, p2.construct_puzzle(ctx)?)
-            .construct_coin_spend(
-                ctx,
-                singleton,
-                SingletonSolution {
-                    lineage_proof: Proof::Eve(EveProof {
-                        parent_parent_coin_info: coin.coin_id(),
-                        parent_amount: 1,
-                    }),
-                    amount: singleton.amount,
-                    inner_solution,
-                },
-            )?;
+        let singleton_spend =
+            SingletonLayer::new(launcher_id, ValueLayer(p2.construct_puzzle(ctx)?))
+                .construct_coin_spend(
+                    ctx,
+                    singleton,
+                    SingletonSolution {
+                        lineage_proof: Proof::Eve(EveProof {
+                            parent_parent_coin_info: coin.coin_id(),
+                            parent_amount: 1,
+                        }),
+                        amount: singleton.amount,
+                        inner_solution,
+                    },
+                )?;
         ctx.insert(singleton_spend);
 
         sim.spend_coins(ctx.take(), &[sk])?;

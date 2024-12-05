@@ -15,7 +15,7 @@ use clvmr::{sha2::Sha256, Allocator, NodePtr};
 
 use crate::{
     DriverError, Layer, NftOwnershipLayer, NftStateLayer, Puzzle, RoyaltyTransferLayer,
-    SettlementLayer, SingletonLayer, Spend, SpendContext, SpendWithConditions,
+    SettlementLayer, SingletonLayer, Spend, SpendContext, SpendWithConditions, ValueLayer,
 };
 
 mod did_owner;
@@ -106,7 +106,10 @@ where
 {
     /// Creates a coin spend for this NFT.
     pub fn spend(&self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<(), DriverError> {
-        let layers = self.info.clone().into_layers(inner_spend.puzzle);
+        let layers = self
+            .info
+            .clone()
+            .into_layers(ValueLayer(inner_spend.puzzle));
 
         let puzzle = layers.construct_puzzle(ctx)?;
         let solution = layers.construct_solution(
@@ -155,15 +158,13 @@ where
         N: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
         M: ToTreeHash,
     {
+        let memos = ctx.hint(p2_puzzle_hash)?;
+
         self.spend_with(
             ctx,
             inner,
             extra_conditions
-                .create_coin(
-                    p2_puzzle_hash,
-                    self.coin.amount,
-                    vec![p2_puzzle_hash.into()],
-                )
+                .create_coin(p2_puzzle_hash, self.coin.amount, Some(memos))
                 .update_nft_metadata(metadata_update.puzzle, metadata_update.solution),
         )?;
 
@@ -204,14 +205,12 @@ where
         M: ToTreeHash,
         I: SpendWithConditions,
     {
+        let memos = ctx.hint(p2_puzzle_hash)?;
+
         self.spend_with(
             ctx,
             inner,
-            extra_conditions.create_coin(
-                p2_puzzle_hash,
-                self.coin.amount,
-                vec![p2_puzzle_hash.into()],
-            ),
+            extra_conditions.create_coin(p2_puzzle_hash, self.coin.amount, Some(memos)),
         )?;
 
         let metadata = self.info.metadata.clone();
@@ -337,15 +336,13 @@ where
             Conditions::new()
         };
 
+        let memos = ctx.hint(p2_puzzle_hash)?;
+
         self.spend_with(
             ctx,
             inner,
             extra_conditions
-                .create_coin(
-                    p2_puzzle_hash,
-                    self.coin.amount,
-                    vec![p2_puzzle_hash.into()],
-                )
+                .create_coin(p2_puzzle_hash, self.coin.amount, Some(memos))
                 .with(transfer_condition),
         )?;
 

@@ -132,7 +132,7 @@ mod tests {
         alice.spend(
             ctx,
             alice_coin,
-            Conditions::new().create_coin(clawback_puzzle_hash, 1, Vec::new()),
+            Conditions::new().create_coin(clawback_puzzle_hash, 1, None),
         )?;
         let clawback_coin = Coin::new(alice_coin.coin_id(), clawback_puzzle_hash, 1);
 
@@ -166,7 +166,7 @@ mod tests {
         p2.spend(
             ctx,
             coin,
-            Conditions::new().create_coin(clawback_puzzle_hash, 1, Vec::new()),
+            Conditions::new().create_coin(clawback_puzzle_hash, 1, None),
         )?;
         let clawback_coin = Coin::new(coin.coin_id(), clawback_puzzle_hash, 1);
 
