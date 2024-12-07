@@ -16,9 +16,7 @@ use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use num_bigint::BigInt;
 
-use crate::{
-    DriverError, Layer, NftStateLayer, Puzzle, SingletonLayer, Spend, SpendContext, ValueLayer,
-};
+use crate::{DriverError, Layer, NftStateLayer, Puzzle, SingletonLayer, Spend, SpendContext};
 
 use super::{
     get_merkle_tree, DataStoreInfo, DataStoreMetadata, DelegatedPuzzle, HintType,
@@ -53,7 +51,7 @@ where
             let layers = self
                 .info
                 .clone()
-                .into_layers_without_delegation_layer(ValueLayer(inner_spend.puzzle));
+                .into_layers_without_delegation_layer(inner_spend.puzzle);
 
             let solution_ptr = layers.construct_solution(
                 ctx,

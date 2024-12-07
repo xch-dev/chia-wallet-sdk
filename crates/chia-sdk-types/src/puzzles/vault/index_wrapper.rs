@@ -1,6 +1,5 @@
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
-use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::Mod;
@@ -24,7 +23,6 @@ impl<I> IndexWrapperArgs<I> {
 impl<I> Mod for IndexWrapperArgs<I> {
     const MOD_REVEAL: &[u8] = &INDEX_WRAPPER;
     const MOD_HASH: TreeHash = INDEX_WRAPPER_HASH;
-    type Solution = NodePtr;
 }
 
 pub const INDEX_WRAPPER: [u8; 7] = hex!("ff02ff05ff0780");

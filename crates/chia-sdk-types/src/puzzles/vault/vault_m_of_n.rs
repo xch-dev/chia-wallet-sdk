@@ -1,7 +1,6 @@
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
-use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::Mod;
@@ -9,14 +8,14 @@ use crate::Mod;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct VaultMofNArgs {
-    pub required_puzzles: usize,
+    pub required: usize,
     pub merkle_root: Bytes32,
 }
 
 impl VaultMofNArgs {
-    pub fn new(required_puzzles: usize, merkle_root: Bytes32) -> Self {
+    pub fn new(required: usize, merkle_root: Bytes32) -> Self {
         Self {
-            required_puzzles,
+            required,
             merkle_root,
         }
     }
@@ -25,7 +24,6 @@ impl VaultMofNArgs {
 impl Mod for VaultMofNArgs {
     const MOD_REVEAL: &[u8] = &VAULT_M_OF_N_PUZZLE;
     const MOD_HASH: TreeHash = VAULT_M_OF_N_PUZZLE_HASH;
-    type Solution = VaultMofNSolution<NodePtr>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]

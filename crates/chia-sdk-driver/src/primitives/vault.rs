@@ -1,6 +1,10 @@
+mod m_of_n;
+mod restriction;
 mod vault_info;
 mod vault_memos;
 
+pub use m_of_n::*;
+pub use restriction::*;
 pub use vault_info::*;
 pub use vault_memos::*;
 

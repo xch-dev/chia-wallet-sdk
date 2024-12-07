@@ -1,6 +1,5 @@
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
-use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::Mod;
@@ -20,7 +19,6 @@ impl<I> DelegatedFeederArgs<I> {
 impl<I> Mod for DelegatedFeederArgs<I> {
     const MOD_REVEAL: &[u8] = &DELEGATED_FEEDER_PUZZLE;
     const MOD_HASH: TreeHash = DELEGATED_FEEDER_PUZZLE_HASH;
-    type Solution = DelegatedFeederSolution<NodePtr, NodePtr, NodePtr>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]

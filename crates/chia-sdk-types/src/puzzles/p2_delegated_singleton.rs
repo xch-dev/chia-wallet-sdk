@@ -2,7 +2,6 @@ use chia_protocol::Bytes32;
 use chia_puzzles::singleton::{SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
-use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::Mod;
@@ -18,7 +17,6 @@ pub struct P2DelegatedSingletonArgs {
 impl Mod for P2DelegatedSingletonArgs {
     const MOD_REVEAL: &[u8] = &P2_DELEGATED_SINGLETON_PUZZLE;
     const MOD_HASH: TreeHash = P2_DELEGATED_SINGLETON_PUZZLE_HASH;
-    type Solution = P2DelegatedSingletonSolution<NodePtr, NodePtr>;
 }
 
 impl P2DelegatedSingletonArgs {

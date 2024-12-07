@@ -15,7 +15,7 @@ use clvmr::{sha2::Sha256, Allocator, NodePtr};
 
 use crate::{
     DriverError, Layer, NftOwnershipLayer, NftStateLayer, Puzzle, RoyaltyTransferLayer,
-    SettlementLayer, SingletonLayer, Spend, SpendContext, SpendWithConditions, ValueLayer,
+    SettlementLayer, SingletonLayer, Spend, SpendContext, SpendWithConditions,
 };
 
 mod did_owner;
@@ -106,10 +106,7 @@ where
 {
     /// Creates a coin spend for this NFT.
     pub fn spend(&self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<(), DriverError> {
-        let layers = self
-            .info
-            .clone()
-            .into_layers(ValueLayer(inner_spend.puzzle));
+        let layers = self.info.clone().into_layers(inner_spend.puzzle);
 
         let puzzle = layers.construct_puzzle(ctx)?;
         let solution = layers.construct_solution(

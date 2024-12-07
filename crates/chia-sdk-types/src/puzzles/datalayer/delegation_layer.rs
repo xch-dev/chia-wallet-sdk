@@ -1,7 +1,6 @@
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
-use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::{MerkleProof, Mod};
@@ -93,5 +92,4 @@ pub struct DelegationLayerSolution<P, S> {
 impl Mod for DelegationLayerArgs {
     const MOD_REVEAL: &[u8] = &DELEGATION_LAYER_PUZZLE;
     const MOD_HASH: TreeHash = DELEGATION_LAYER_PUZZLE_HASH;
-    type Solution = DelegationLayerSolution<NodePtr, NodePtr>;
 }

@@ -1,7 +1,6 @@
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
-use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::Mod;
@@ -21,7 +20,6 @@ impl P2CurriedArgs {
 impl Mod for P2CurriedArgs {
     const MOD_REVEAL: &[u8] = &P2_CURRIED_PUZZLE;
     const MOD_HASH: TreeHash = P2_CURRIED_PUZZLE_HASH;
-    type Solution = P2CurriedSolution<NodePtr, NodePtr>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]

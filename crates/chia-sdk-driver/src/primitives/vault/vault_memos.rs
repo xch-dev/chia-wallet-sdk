@@ -1,17 +1,40 @@
-use chia_protocol::Bytes32;
-use clvm_traits::{FromClvm, ToClvm};
+use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
-pub struct VaultMemos<R, P> {
-    pub nonce: usize,
-    pub restriction_hints: Vec<RestrictionHint<R>>,
-    pub puzzle_hint: P,
+use chia_protocol::Bytes32;
+use chia_sdk_types::Memos;
+use clvm_traits::{FromClvm, ToClvm};
+use clvmr::{Allocator, NodePtr};
+
+use crate::DriverError;
+
+#[derive(ToClvm, FromClvm)]
+#[clvm(list)]
+struct InnerPuzzleMemos<I, R> {
+    namespace: (),
+    nonce: usize,
+    restrictions: Vec<RestrictionMemos<R>>,
+    has_children: bool,
+    inner_memos: I,
 }
 
-#[derive(Debug, Clone, Copy, ToClvm, FromClvm)]
+#[derive(ToClvm, FromClvm)]
 #[clvm(list)]
-pub struct RestrictionHint<T> {
-    pub member_not_delegated_puzzle: bool,
-    pub puzzle_hash: Bytes32,
-    pub memo: T,
+struct RestrictionMemos<M> {
+    is_morpher: bool,
+    puzzle_hash: Bytes32,
+    memo: M,
+}
+
+#[derive(ToClvm, FromClvm)]
+#[clvm(list)]
+struct MemberMemos<M> {
+    puzzle_hash: Bytes32,
+    memo: M,
+}
+
+#[derive(ToClvm, FromClvm)]
+#[clvm(list)]
+struct MofNMemos<M> {
+    m: usize,
+    members: Vec<MemberMemos<M>>,
 }

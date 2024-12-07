@@ -1,6 +1,5 @@
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
-use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::{Condition, Mod};
@@ -24,7 +23,6 @@ impl<T, I> AugmentedConditionArgs<T, I> {
 impl<T, I> Mod for AugmentedConditionArgs<T, I> {
     const MOD_REVEAL: &[u8] = &AUGMENTED_CONDITION_PUZZLE;
     const MOD_HASH: TreeHash = AUGMENTED_CONDITION_PUZZLE_HASH;
-    type Solution = AugmentedConditionSolution<NodePtr>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
