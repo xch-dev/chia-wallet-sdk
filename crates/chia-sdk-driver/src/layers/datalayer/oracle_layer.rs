@@ -61,7 +61,7 @@ impl Layer for OracleLayer {
         }
 
         let conditions: Vec<Condition<NodePtr>> = vec![
-            Condition::create_coin(self.oracle_puzzle_hash, self.oracle_fee, vec![]),
+            Condition::create_coin(self.oracle_puzzle_hash, self.oracle_fee, None),
             Condition::create_puzzle_announcement(Bytes::new("$".into())),
         ];
 

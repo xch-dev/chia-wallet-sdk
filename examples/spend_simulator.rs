@@ -22,7 +22,7 @@ fn main() -> anyhow::Result<()> {
     let ctx = &mut SpendContext::new();
 
     let conditions = Conditions::new()
-        .create_coin(puzzle_hash, 900, Vec::new())
+        .create_coin(puzzle_hash, 900, None)
         .reserve_fee(100);
 
     p2.spend(ctx, coin, conditions)?;
