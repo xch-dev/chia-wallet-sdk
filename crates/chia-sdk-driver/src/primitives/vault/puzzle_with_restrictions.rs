@@ -1,8 +1,11 @@
-use chia_sdk_types::{DelegatedFeederArgs, IndexWrapperArgs, Mod, RestrictionsArgs};
+use chia_sdk_types::{
+    DelegatedFeederArgs, DelegatedFeederSolution, IndexWrapperArgs, Mod, RestrictionsArgs,
+    RestrictionsSolution,
+};
 use clvm_utils::TreeHash;
 use clvmr::NodePtr;
 
-use crate::{DriverError, SpendContext};
+use crate::{DriverError, Spend, SpendContext};
 
 use super::{KnownPuzzles, Restriction, VaultLayer};
 
@@ -31,6 +34,35 @@ impl<T> PuzzleWithRestrictions<T> {
             puzzle,
             has_delegated_feeder: false,
         }
+    }
+
+    pub fn solve(
+        &self,
+        ctx: &mut SpendContext,
+        member_validator_solutions: Vec<NodePtr>,
+        delegated_puzzle_validator_solutions: Vec<NodePtr>,
+        inner_solution: NodePtr,
+        delegated_spend: Option<Spend>,
+    ) -> Result<NodePtr, DriverError> {
+        let mut solution = inner_solution;
+
+        if !self.restrictions.is_empty() {
+            solution = ctx.alloc(&RestrictionsSolution::new(
+                member_validator_solutions,
+                delegated_puzzle_validator_solutions,
+                solution,
+            ))?;
+        }
+
+        if let Some(delegated_spend) = delegated_spend {
+            solution = ctx.alloc(&DelegatedFeederSolution::new(
+                delegated_spend.puzzle,
+                delegated_spend.solution,
+                solution,
+            ))?;
+        }
+
+        Ok(solution)
     }
 }
 

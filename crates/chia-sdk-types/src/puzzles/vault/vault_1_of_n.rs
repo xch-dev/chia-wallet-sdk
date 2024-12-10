@@ -25,21 +25,14 @@ impl Mod for Vault1ofNArgs {
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(solution)]
 pub struct Vault1ofNSolution<P, S> {
-    pub delegated_puzzle_hash: Bytes32,
     pub merkle_proof: MerkleProof,
     pub member_puzzle: P,
     pub member_solution: S,
 }
 
 impl<P, S> Vault1ofNSolution<P, S> {
-    pub fn new(
-        delegated_puzzle_hash: Bytes32,
-        merkle_proof: MerkleProof,
-        member_puzzle: P,
-        member_solution: S,
-    ) -> Self {
+    pub fn new(merkle_proof: MerkleProof, member_puzzle: P, member_solution: S) -> Self {
         Self {
-            delegated_puzzle_hash,
             merkle_proof,
             member_puzzle,
             member_solution,

@@ -48,10 +48,12 @@ impl VaultLayer for Vault {
 mod tests {
     use std::collections::HashMap;
 
+    use chia_puzzles::{singleton::SingletonSolution, EveProof, Proof};
     use chia_sdk_test::Simulator;
-    use chia_sdk_types::BlsMember;
+    use chia_sdk_types::{BlsMember, Conditions};
+    use clvm_traits::clvm_quote;
 
-    use crate::{Launcher, MemberKind, SpendContext, StandardLayer};
+    use crate::{Launcher, MemberKind, Spend, SpendContext, StandardLayer};
 
     use super::*;
 
@@ -72,17 +74,46 @@ mod tests {
         );
         let (mint_vault, vault) = Launcher::new(coin.coin_id(), 1).mint_vault(ctx, custody, ())?;
         p2.spend(ctx, coin, mint_vault)?;
-        sim.spend_coins(ctx.take(), &[sk])?;
+        sim.spend_coins(ctx.take(), &[sk.clone()])?;
 
         let mut known_members = HashMap::new();
         known_members.insert(
             hidden_member.curry_tree_hash(),
             MemberKind::Bls(hidden_member),
         );
-        let _vault = vault.replace(&KnownPuzzles {
+        let vault = vault.replace(&KnownPuzzles {
             members: known_members,
             ..Default::default()
         });
+
+        let delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
+            vault.custody.puzzle_hash().into(),
+            vault.coin.amount,
+            None
+        )))?;
+
+        let puzzle = vault.puzzle(ctx)?;
+        let inner_solution = vault.custody.solve(
+            ctx,
+            Vec::new(),
+            Vec::new(),
+            NodePtr::NIL,
+            Some(Spend {
+                puzzle: delegated_puzzle,
+                solution: NodePtr::NIL,
+            }),
+        )?;
+        let solution = ctx.alloc(&SingletonSolution {
+            lineage_proof: Proof::Eve(EveProof {
+                parent_parent_coin_info: coin.coin_id(),
+                parent_amount: 1,
+            }),
+            amount: 1,
+            inner_solution,
+        })?;
+
+        ctx.spend(vault.coin, Spend::new(puzzle, solution))?;
+        sim.spend_coins(ctx.take(), &[sk])?;
 
         Ok(())
     }

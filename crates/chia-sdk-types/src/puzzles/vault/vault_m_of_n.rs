@@ -29,16 +29,12 @@ impl Mod for VaultMofNArgs {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(solution)]
 pub struct VaultMofNSolution<P> {
-    pub delegated_puzzle_hash: Bytes32,
     pub proofs: P,
 }
 
 impl<P> VaultMofNSolution<P> {
-    pub fn new(delegated_puzzle_hash: Bytes32, proofs: P) -> Self {
-        Self {
-            delegated_puzzle_hash,
-            proofs,
-        }
+    pub fn new(proofs: P) -> Self {
+        Self { proofs }
     }
 }
 

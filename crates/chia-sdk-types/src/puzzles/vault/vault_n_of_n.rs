@@ -1,4 +1,3 @@
-use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
@@ -25,16 +24,12 @@ impl<T> Mod for VaultNofNArgs<T> {
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(solution)]
 pub struct VaultNofNSolution<T> {
-    pub delegated_puzzle_hash: Bytes32,
     pub member_solutions: Vec<T>,
 }
 
 impl<T> VaultNofNSolution<T> {
-    pub fn new(delegated_puzzle_hash: Bytes32, member_solutions: Vec<T>) -> Self {
-        Self {
-            delegated_puzzle_hash,
-            member_solutions,
-        }
+    pub fn new(member_solutions: Vec<T>) -> Self {
+        Self { member_solutions }
     }
 }
 

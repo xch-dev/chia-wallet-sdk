@@ -53,4 +53,10 @@ pub enum DriverError {
 
     #[error("unknown puzzle")]
     UnknownPuzzle,
+
+    #[error("wrong number of spends")]
+    WrongSpendCount,
+
+    #[error("missing member spend")]
+    MissingMemberSpend,
 }

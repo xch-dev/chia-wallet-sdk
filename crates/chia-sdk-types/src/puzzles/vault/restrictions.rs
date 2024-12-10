@@ -2,7 +2,6 @@ mod timelock;
 
 pub use timelock::*;
 
-use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
@@ -39,7 +38,6 @@ impl<MV, DV, I> Mod for RestrictionsArgs<MV, DV, I> {
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(solution)]
 pub struct RestrictionsSolution<MV, DV, I> {
-    pub delegated_puzzle_hash: Bytes32,
     pub member_validator_solutions: Vec<MV>,
     pub delegated_puzzle_validator_solutions: Vec<DV>,
     pub inner_solution: I,
@@ -47,13 +45,11 @@ pub struct RestrictionsSolution<MV, DV, I> {
 
 impl<MV, DV, I> RestrictionsSolution<MV, DV, I> {
     pub fn new(
-        delegated_puzzle_hash: Bytes32,
         member_validator_solutions: Vec<MV>,
         delegated_puzzle_validator_solutions: Vec<DV>,
         inner_solution: I,
     ) -> Self {
         Self {
-            delegated_puzzle_hash,
             member_validator_solutions,
             delegated_puzzle_validator_solutions,
             inner_solution,
