@@ -50,4 +50,7 @@ pub enum DriverError {
 
     #[error("invalid merkle proof")]
     InvalidMerkleProof,
+
+    #[error("unknown puzzle")]
+    UnknownPuzzle,
 }

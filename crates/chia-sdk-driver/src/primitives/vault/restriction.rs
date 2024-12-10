@@ -1,5 +1,8 @@
 use chia_sdk_types::Timelock;
 use clvm_utils::TreeHash;
+use clvmr::NodePtr;
+
+use crate::{DriverError, SpendContext};
 
 use super::{KnownPuzzles, VaultLayer};
 
@@ -41,6 +44,13 @@ impl Restriction {
 impl VaultLayer for Restriction {
     fn puzzle_hash(&self) -> TreeHash {
         self.puzzle_hash
+    }
+
+    fn puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
+        match &self.kind {
+            RestrictionKind::Timelock(timelock) => ctx.curry(timelock),
+            RestrictionKind::Unknown => Err(DriverError::UnknownPuzzle),
+        }
     }
 
     fn replace(self, known_puzzles: &KnownPuzzles) -> Self {

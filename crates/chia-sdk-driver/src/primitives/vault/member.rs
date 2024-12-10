@@ -1,6 +1,9 @@
 use chia_bls::PublicKey;
 use chia_sdk_types::{BlsMember, Mod};
 use clvm_utils::TreeHash;
+use clvmr::NodePtr;
+
+use crate::{DriverError, SpendContext};
 
 use super::{KnownPuzzles, MofN, VaultLayer};
 
@@ -48,6 +51,14 @@ impl Member {
 impl VaultLayer for Member {
     fn puzzle_hash(&self) -> TreeHash {
         self.puzzle_hash
+    }
+
+    fn puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
+        match &self.kind {
+            MemberKind::Bls(bls) => ctx.curry(bls),
+            MemberKind::MofN(m_of_n) => m_of_n.puzzle(ctx),
+            MemberKind::Unknown => Err(DriverError::UnknownPuzzle),
+        }
     }
 
     fn replace(self, known_puzzles: &KnownPuzzles) -> Self {

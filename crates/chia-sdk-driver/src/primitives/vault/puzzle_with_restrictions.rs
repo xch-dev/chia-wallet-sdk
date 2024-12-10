@@ -1,5 +1,8 @@
 use chia_sdk_types::{DelegatedFeederArgs, IndexWrapperArgs, Mod, RestrictionsArgs};
 use clvm_utils::TreeHash;
+use clvmr::NodePtr;
+
+use crate::{DriverError, SpendContext};
 
 use super::{KnownPuzzles, Restriction, VaultLayer};
 
@@ -60,6 +63,35 @@ where
         }
 
         IndexWrapperArgs::new(self.nonce, puzzle_hash).curry_tree_hash()
+    }
+
+    fn puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
+        let mut puzzle = self.puzzle.puzzle(ctx)?;
+
+        if !self.restrictions.is_empty() {
+            let mut member_validators = Vec::new();
+            let mut delegated_puzzle_validators = Vec::new();
+
+            for restriction in &self.restrictions {
+                if restriction.is_member_condition_validator() {
+                    member_validators.push(restriction.puzzle(ctx)?);
+                } else {
+                    delegated_puzzle_validators.push(restriction.puzzle(ctx)?);
+                }
+            }
+
+            puzzle = ctx.curry(RestrictionsArgs::new(
+                member_validators,
+                delegated_puzzle_validators,
+                puzzle,
+            ))?;
+        }
+
+        if self.has_delegated_feeder {
+            puzzle = ctx.curry(DelegatedFeederArgs::new(puzzle))?;
+        }
+
+        ctx.curry(IndexWrapperArgs::new(self.nonce, puzzle))
     }
 
     fn replace(mut self, known_puzzles: &KnownPuzzles) -> Self {
