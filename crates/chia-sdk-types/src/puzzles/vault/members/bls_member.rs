@@ -3,10 +3,23 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
+use crate::Mod;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct BlsMember {
     pub public_key: PublicKey,
+}
+
+impl BlsMember {
+    pub fn new(public_key: PublicKey) -> Self {
+        Self { public_key }
+    }
+}
+
+impl Mod for BlsMember {
+    const MOD_REVEAL: &[u8] = &BLS_MEMBER;
+    const MOD_HASH: TreeHash = BLS_MEMBER_HASH;
 }
 
 pub const BLS_MEMBER: [u8; 41] = hex!(

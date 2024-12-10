@@ -1,35 +1,70 @@
 use chia_bls::PublicKey;
-use chia_protocol::Bytes32;
-use chia_sdk_types::BlsMember;
-use clvm_traits::{FromClvm, ToClvm};
-use clvmr::{Allocator, NodePtr};
+use chia_sdk_types::{BlsMember, Mod};
+use clvm_utils::TreeHash;
 
-use crate::DriverError;
+use super::{KnownPuzzles, MofN, VaultLayer};
 
-use super::MofN;
-
-#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct MemberMemo<T> {
-    pub curried_puzzle_hash: Bytes32,
-    pub member: T,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct BlsMemberMemo {
-    pub public_key: PublicKey,
+#[derive(Debug, Clone)]
+pub struct Member {
+    puzzle_hash: TreeHash,
+    kind: MemberKind,
 }
 
 #[derive(Debug, Clone)]
-pub enum Member {
+pub enum MemberKind {
     Bls(BlsMember),
-    // do this last
     MofN(MofN),
+    Unknown,
 }
 
 impl Member {
-    pub fn from_memo(allocator: &Allocator, memo: NodePtr) -> Result<Self, DriverError> {
-        todo!()
+    pub fn bls(public_key: PublicKey) -> Self {
+        let member = BlsMember::new(public_key);
+        Self {
+            puzzle_hash: member.curry_tree_hash(),
+            kind: MemberKind::Bls(member),
+        }
+    }
+
+    pub fn m_of_n(m_of_n: MofN) -> Self {
+        Self {
+            puzzle_hash: m_of_n.puzzle_hash(),
+            kind: MemberKind::MofN(m_of_n),
+        }
+    }
+
+    pub fn unknown(puzzle_hash: TreeHash) -> Self {
+        Self {
+            puzzle_hash,
+            kind: MemberKind::Unknown,
+        }
+    }
+
+    pub fn kind(&self) -> &MemberKind {
+        &self.kind
+    }
+}
+
+impl VaultLayer for Member {
+    fn puzzle_hash(&self) -> TreeHash {
+        self.puzzle_hash
+    }
+
+    fn replace(self, known_puzzles: &KnownPuzzles) -> Self {
+        let kind = known_puzzles
+            .members
+            .get(&self.puzzle_hash)
+            .cloned()
+            .unwrap_or(self.kind);
+
+        let kind = match kind {
+            MemberKind::Bls(..) | MemberKind::Unknown => kind,
+            MemberKind::MofN(m_of_n) => MemberKind::MofN(m_of_n.replace(known_puzzles)),
+        };
+
+        Self {
+            puzzle_hash: self.puzzle_hash,
+            kind,
+        }
     }
 }

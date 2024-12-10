@@ -2,6 +2,8 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
+use crate::Mod;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct Timelock {
@@ -12,6 +14,11 @@ impl Timelock {
     pub fn new(seconds: u64) -> Self {
         Self { seconds }
     }
+}
+
+impl Mod for Timelock {
+    const MOD_REVEAL: &[u8] = &TIMELOCK_PUZZLE;
+    const MOD_HASH: TreeHash = TIMELOCK_PUZZLE_HASH;
 }
 
 pub const TIMELOCK_PUZZLE: [u8; 137] = hex!(

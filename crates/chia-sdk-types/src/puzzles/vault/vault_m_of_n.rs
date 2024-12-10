@@ -30,14 +30,14 @@ impl Mod for VaultMofNArgs {
 #[clvm(solution)]
 pub struct VaultMofNSolution<P> {
     pub delegated_puzzle_hash: Bytes32,
-    pub proof: P,
+    pub proofs: P,
 }
 
 impl<P> VaultMofNSolution<P> {
-    pub fn new(delegated_puzzle_hash: Bytes32, proof: P) -> Self {
+    pub fn new(delegated_puzzle_hash: Bytes32, proofs: P) -> Self {
         Self {
             delegated_puzzle_hash,
-            proof,
+            proofs,
         }
     }
 }

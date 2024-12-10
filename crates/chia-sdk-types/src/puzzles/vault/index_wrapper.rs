@@ -7,12 +7,12 @@ use crate::Mod;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct IndexWrapperArgs<I> {
-    pub index: u32,
+    pub index: usize,
     pub inner_puzzle: I,
 }
 
 impl<I> IndexWrapperArgs<I> {
-    pub fn new(index: u32, inner_puzzle: I) -> Self {
+    pub fn new(index: usize, inner_puzzle: I) -> Self {
         Self {
             index,
             inner_puzzle,
