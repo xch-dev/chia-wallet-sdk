@@ -5,7 +5,7 @@ use clvmr::NodePtr;
 
 use crate::{DriverError, SpendContext};
 
-use super::{KnownPuzzles, MofN, VaultLayer};
+use super::{KnownPuzzles, MofN, PuzzleWithRestrictions, VaultLayer};
 
 #[derive(Debug, Clone)]
 pub struct Member {
@@ -29,7 +29,8 @@ impl Member {
         }
     }
 
-    pub fn m_of_n(m_of_n: MofN) -> Self {
+    pub fn m_of_n(required: usize, members: Vec<PuzzleWithRestrictions<Member>>) -> Self {
+        let m_of_n = MofN::new(required, members).expect("invalid m_of_n");
         Self {
             puzzle_hash: m_of_n.puzzle_hash(),
             kind: MemberKind::MofN(m_of_n),

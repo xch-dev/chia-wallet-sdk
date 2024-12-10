@@ -36,6 +36,18 @@ impl<T> PuzzleWithRestrictions<T> {
         }
     }
 
+    pub fn nonce(&self) -> usize {
+        self.nonce
+    }
+
+    pub fn restrictions(&self) -> &[Restriction] {
+        &self.restrictions
+    }
+
+    pub fn inner_puzzle(&self) -> &T {
+        &self.puzzle
+    }
+
     pub fn solve(
         &self,
         ctx: &mut SpendContext,
