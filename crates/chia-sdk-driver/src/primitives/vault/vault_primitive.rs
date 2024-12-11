@@ -41,7 +41,7 @@ mod tests {
     use std::collections::HashMap;
 
     use chia_bls::DerivableKey;
-    use chia_puzzles::{singleton::SingletonSolution, EveProof, Proof};
+    use chia_puzzles::singleton::SingletonSolution;
     use chia_sdk_test::Simulator;
     use chia_sdk_types::{BlsMember, Conditions};
     use clvm_traits::clvm_quote;
@@ -97,11 +97,8 @@ mod tests {
             }),
         )?;
         let solution = ctx.alloc(&SingletonSolution {
-            lineage_proof: Proof::Eve(EveProof {
-                parent_parent_coin_info: coin.coin_id(),
-                parent_amount: 1,
-            }),
-            amount: 1,
+            lineage_proof: vault.proof,
+            amount: vault.coin.amount,
             inner_solution,
         })?;
 
@@ -172,11 +169,8 @@ mod tests {
         )?;
 
         let solution = ctx.alloc(&SingletonSolution {
-            lineage_proof: Proof::Eve(EveProof {
-                parent_parent_coin_info: coin.coin_id(),
-                parent_amount: 1,
-            }),
-            amount: 1,
+            lineage_proof: vault.proof,
+            amount: vault.coin.amount,
             inner_solution,
         })?;
 
