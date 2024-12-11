@@ -1,3 +1,4 @@
+use chia_puzzles::{EveProof, Proof};
 use chia_sdk_types::Conditions;
 use clvm_traits::ToClvm;
 use clvmr::Allocator;
@@ -16,10 +17,18 @@ impl Launcher {
     where
         M: ToClvm<Allocator>,
     {
-        let launcher_id = self.coin().coin_id();
+        let launcher_coin = self.coin();
         let custody_hash = custody.puzzle_hash();
         let (conditions, coin) = self.spend(ctx, custody_hash.into(), memos)?;
-        let vault = Vault::new(coin, launcher_id, custody);
+        let vault = Vault {
+            coin,
+            launcher_id: launcher_coin.coin_id(),
+            proof: Proof::Eve(EveProof {
+                parent_parent_coin_info: launcher_coin.parent_coin_info,
+                parent_amount: launcher_coin.amount,
+            }),
+            custody,
+        };
         Ok((conditions, vault))
     }
 }

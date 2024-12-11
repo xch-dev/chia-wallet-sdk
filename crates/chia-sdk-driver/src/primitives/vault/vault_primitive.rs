@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzles::singleton::SingletonArgs;
+use chia_puzzles::{singleton::SingletonArgs, Proof};
 use chia_sdk_types::Mod;
 use clvm_utils::TreeHash;
 use clvmr::NodePtr;
@@ -12,17 +12,8 @@ use super::{KnownPuzzles, Member, PuzzleWithRestrictions, VaultLayer};
 pub struct Vault {
     pub coin: Coin,
     pub launcher_id: Bytes32,
+    pub proof: Proof,
     pub custody: PuzzleWithRestrictions<Member>,
-}
-
-impl Vault {
-    pub fn new(coin: Coin, launcher_id: Bytes32, custody: PuzzleWithRestrictions<Member>) -> Self {
-        Self {
-            coin,
-            launcher_id,
-            custody,
-        }
-    }
 }
 
 impl VaultLayer for Vault {
@@ -39,6 +30,7 @@ impl VaultLayer for Vault {
         Self {
             coin: self.coin,
             launcher_id: self.launcher_id,
+            proof: self.proof,
             custody: self.custody.replace(known_puzzles),
         }
     }
