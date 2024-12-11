@@ -5,28 +5,28 @@ use k256::ecdsa::VerifyingKey;
 
 use crate::SignerError;
 
-use super::SecpSignature;
+use super::Secp256k1Signature;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SecpPublicKey(pub(crate) VerifyingKey);
+pub struct Secp256k1PublicKey(pub(crate) VerifyingKey);
 
-impl SecpPublicKey {
+impl Secp256k1PublicKey {
     pub const SIZE: usize = 33;
 
     pub fn to_bytes(&self) -> [u8; Self::SIZE] {
-        self.0.to_sec1_bytes().as_ref().try_into().unwrap()
+        self.0.to_encoded_point(true).as_ref().try_into().unwrap()
     }
 
     pub fn from_bytes(bytes: [u8; Self::SIZE]) -> Result<Self, SignerError> {
         Ok(Self(VerifyingKey::from_sec1_bytes(&bytes)?))
     }
 
-    pub fn verify_prehashed(&self, message_hash: [u8; 32], signature: SecpSignature) -> bool {
+    pub fn verify_prehashed(&self, message_hash: [u8; 32], signature: Secp256k1Signature) -> bool {
         self.0.verify_prehash(&message_hash, &signature.0).is_ok()
     }
 }
 
-impl<E> ToClvm<E> for SecpPublicKey
+impl<E> ToClvm<E> for Secp256k1PublicKey
 where
     E: ClvmEncoder,
 {
@@ -35,7 +35,7 @@ where
     }
 }
 
-impl<D> FromClvm<D> for SecpPublicKey
+impl<D> FromClvm<D> for Secp256k1PublicKey
 where
     D: ClvmDecoder,
 {

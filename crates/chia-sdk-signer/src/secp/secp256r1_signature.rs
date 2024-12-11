@@ -1,13 +1,13 @@
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, ToClvm, ToClvmError};
 use clvmr::Atom;
-use k256::ecdsa::Signature;
+use p256::ecdsa::Signature;
 
 use crate::SignerError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SecpSignature(pub(crate) Signature);
+pub struct Secp256r1Signature(pub(crate) Signature);
 
-impl SecpSignature {
+impl Secp256r1Signature {
     pub const SIZE: usize = 64;
 
     pub fn to_bytes(&self) -> [u8; Self::SIZE] {
@@ -19,7 +19,7 @@ impl SecpSignature {
     }
 }
 
-impl<E> ToClvm<E> for SecpSignature
+impl<E> ToClvm<E> for Secp256r1Signature
 where
     E: ClvmEncoder,
 {
@@ -28,7 +28,7 @@ where
     }
 }
 
-impl<D> FromClvm<D> for SecpSignature
+impl<D> FromClvm<D> for Secp256r1Signature
 where
     D: ClvmDecoder,
 {

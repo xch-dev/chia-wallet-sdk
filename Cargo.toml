@@ -135,6 +135,7 @@ napi = { version = "2.12.2", default-features = false }
 paste = "1.0.15"
 bigdecimal = "0.4.6"
 k256 = "0.13.4"
+p256 = "0.13.2"
 
 [profile.release]
 lto = true

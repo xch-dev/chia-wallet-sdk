@@ -487,6 +487,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "k256",
+ "p256",
  "rand",
  "rand_chacha",
  "thiserror",

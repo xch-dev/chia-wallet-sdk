@@ -10,12 +10,10 @@ use clvmr::{
     Allocator, NodePtr,
 };
 
-use crate::SecpOp;
+use super::{RequiredSecpSignature, Secp256k1PublicKey, Secp256r1PublicKey, SecpPublicKey};
 
-use super::{RequiredSecpSignature, SecpPublicKey};
-
-const SECP256R1_VERIFY_COST: Cost = 1850000;
-const SECP256K1_VERIFY_COST: Cost = 1300000;
+const SECP256R1_VERIFY_COST: Cost = 1_850_000;
+const SECP256K1_VERIFY_COST: Cost = 1_300_000;
 
 #[derive(Debug, Default, Clone)]
 pub struct SecpDialect<T> {
@@ -78,18 +76,22 @@ where
         let atom = allocator.atom(op);
         let opcode = u32::from_be_bytes(atom.as_ref().try_into().unwrap());
 
-        let (op, name, cost) = match opcode {
+        let (r1, name, cost) = match opcode {
             // We special case these opcodes and allow the response to pass through otherwise.
             // If new operators are added to the main dialect, they likely shouldn't be included here.
             // We're using the same cost to ensure that softfork conditions behave the same.
-            0x13d61f00 => (SecpOp::K1, "secp256k1_verify", SECP256K1_VERIFY_COST),
-            0x1c3a8f00 => (SecpOp::R1, "secp256r1_verify", SECP256R1_VERIFY_COST),
+            0x13d6_1f00 => (false, "secp256k1_verify", SECP256K1_VERIFY_COST),
+            0x1c3a_8f00 => (true, "secp256r1_verify", SECP256R1_VERIFY_COST),
             _ => return response,
         };
 
         let [pubkey, msg, sig] = get_args::<3>(allocator, args, name)?;
 
-        let Ok(public_key) = SecpPublicKey::from_clvm(allocator, pubkey) else {
+        let Ok(public_key) = (if r1 {
+            Secp256r1PublicKey::from_clvm(allocator, pubkey).map(SecpPublicKey::R1)
+        } else {
+            Secp256k1PublicKey::from_clvm(allocator, pubkey).map(SecpPublicKey::K1)
+        }) else {
             return response;
         };
 
@@ -98,7 +100,6 @@ where
         };
 
         self.collected_ops.borrow_mut().push(RequiredSecpSignature {
-            op,
             public_key,
             message_hash: message_hash.to_bytes(),
             placeholder_ptr: sig,
@@ -116,7 +117,7 @@ mod tests {
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha8Rng;
 
-    use crate::SecpSecretKey;
+    use crate::Secp256k1SecretKey;
 
     use super::*;
 
@@ -126,7 +127,7 @@ mod tests {
         let mut rng = ChaCha8Rng::seed_from_u64(1337);
 
         let op = Bytes::from(vec![0x13, 0xd6, 0x1f, 0x00]);
-        let public_key = SecpSecretKey::from_bytes(rng.gen())?.public_key();
+        let public_key = Secp256k1SecretKey::from_bytes(rng.gen())?.public_key();
         let fake_sig = a.new_atom(&[1, 2, 3])?;
         let message = a.new_atom(&[42; 32])?;
         let program = clvm_list!(
@@ -146,8 +147,7 @@ mod tests {
         assert_eq!(collected.len(), 1);
 
         let item = collected.remove(0);
-        assert_eq!(item.op, SecpOp::K1);
-        assert_eq!(item.public_key, public_key);
+        assert_eq!(item.public_key, SecpPublicKey::K1(public_key));
         assert_eq!(item.placeholder_ptr, fake_sig);
 
         Ok(())
