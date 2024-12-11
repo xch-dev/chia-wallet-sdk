@@ -1,34 +1,39 @@
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, ToClvm, ToClvmError};
 use clvmr::Atom;
-use k256::ecdsa::Signature;
+use k256::ecdsa::signature::hazmat::PrehashVerifier;
+use k256::ecdsa::{Error, VerifyingKey};
 
-use crate::SignerError;
+use super::Secp256k1Signature;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Secp256k1Signature(pub(crate) Signature);
+pub struct Secp256k1PublicKey(pub(crate) VerifyingKey);
 
-impl Secp256k1Signature {
-    pub const SIZE: usize = 64;
+impl Secp256k1PublicKey {
+    pub const SIZE: usize = 33;
 
     pub fn to_bytes(&self) -> [u8; Self::SIZE] {
-        self.0.to_bytes().into()
+        self.0.to_encoded_point(true).as_ref().try_into().unwrap()
     }
 
-    pub fn from_bytes(bytes: [u8; Self::SIZE]) -> Result<Self, SignerError> {
-        Ok(Self(Signature::from_slice(&bytes)?))
+    pub fn from_bytes(bytes: [u8; Self::SIZE]) -> Result<Self, Error> {
+        Ok(Self(VerifyingKey::from_sec1_bytes(&bytes)?))
+    }
+
+    pub fn verify_prehashed(&self, message_hash: [u8; 32], signature: Secp256k1Signature) -> bool {
+        self.0.verify_prehash(&message_hash, &signature.0).is_ok()
     }
 }
 
-impl<E> ToClvm<E> for Secp256k1Signature
+impl<E> ToClvm<E> for Secp256k1PublicKey
 where
     E: ClvmEncoder,
 {
     fn to_clvm(&self, encoder: &mut E) -> Result<E::Node, ToClvmError> {
-        encoder.encode_atom(Atom::Borrowed(&self.0.to_vec()))
+        encoder.encode_atom(Atom::Borrowed(&self.to_bytes()))
     }
 }
 
-impl<D> FromClvm<D> for Secp256k1Signature
+impl<D> FromClvm<D> for Secp256k1PublicKey
 where
     D: ClvmDecoder,
 {

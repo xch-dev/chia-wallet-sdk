@@ -1,6 +1,4 @@
-use k256::ecdsa::SigningKey;
-
-use crate::SignerError;
+use k256::ecdsa::{Error, SigningKey};
 
 use super::{Secp256k1PublicKey, Secp256k1Signature};
 
@@ -12,7 +10,7 @@ impl Secp256k1SecretKey {
         self.0.to_bytes().into()
     }
 
-    pub fn from_bytes(bytes: [u8; 32]) -> Result<Self, SignerError> {
+    pub fn from_bytes(bytes: [u8; 32]) -> Result<Self, Error> {
         Ok(Self(SigningKey::from_bytes((&bytes).into())?))
     }
 
@@ -20,10 +18,7 @@ impl Secp256k1SecretKey {
         Secp256k1PublicKey(*self.0.verifying_key())
     }
 
-    pub fn sign_prehashed(
-        &self,
-        message_hash: [u8; 32],
-    ) -> Result<Secp256k1Signature, SignerError> {
+    pub fn sign_prehashed(&self, message_hash: [u8; 32]) -> Result<Secp256k1Signature, Error> {
         Ok(Secp256k1Signature(
             self.0.sign_prehash_recoverable(&message_hash)?.0,
         ))

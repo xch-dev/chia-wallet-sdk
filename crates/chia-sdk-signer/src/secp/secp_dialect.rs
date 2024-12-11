@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 
 use chia_protocol::Bytes32;
+use chia_sdk_types::{Secp256k1PublicKey, Secp256r1PublicKey};
 use clvm_traits::FromClvm;
 use clvmr::{
     cost::Cost,
@@ -10,7 +11,7 @@ use clvmr::{
     Allocator, NodePtr,
 };
 
-use super::{RequiredSecpSignature, Secp256k1PublicKey, Secp256r1PublicKey, SecpPublicKey};
+use super::{RequiredSecpSignature, SecpPublicKey};
 
 const SECP256R1_VERIFY_COST: Cost = 1_850_000;
 const SECP256K1_VERIFY_COST: Cost = 1_300_000;
@@ -112,12 +113,11 @@ where
 #[cfg(test)]
 mod tests {
     use chia_protocol::Bytes;
+    use chia_sdk_types::Secp256k1SecretKey;
     use clvm_traits::{clvm_list, clvm_quote, ToClvm};
     use clvmr::{run_program, ChiaDialect};
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha8Rng;
-
-    use crate::Secp256k1SecretKey;
 
     use super::*;
 
