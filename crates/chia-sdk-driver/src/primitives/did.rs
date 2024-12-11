@@ -136,13 +136,15 @@ where
             .with_p2_puzzle_hash(p2_puzzle_hash)
             .inner_puzzle_hash();
 
+        let memos = ctx.hint(p2_puzzle_hash)?;
+
         self.spend_with(
             ctx,
             inner,
             extra_conditions.create_coin(
                 new_inner_puzzle_hash.into(),
                 self.coin.amount,
-                vec![p2_puzzle_hash.into()],
+                Some(memos),
             ),
         )?;
 
@@ -170,13 +172,15 @@ where
             .with_metadata(metadata.clone())
             .inner_puzzle_hash();
 
+        let memos = ctx.hint(self.info.p2_puzzle_hash)?;
+
         self.spend_with(
             ctx,
             inner,
             extra_conditions.create_coin(
                 new_inner_puzzle_hash.into(),
                 self.coin.amount,
-                vec![self.info.p2_puzzle_hash.into()],
+                Some(memos),
             ),
         )?;
 
@@ -230,7 +234,7 @@ where
         }
 
         let singleton_solution =
-            SingletonLayer::<NodePtr>::parse_solution(allocator, parent_solution)?;
+            SingletonLayer::<Puzzle>::parse_solution(allocator, parent_solution)?;
 
         let output = run_puzzle(
             allocator,
@@ -247,13 +251,11 @@ where
             return Err(DriverError::MissingChild);
         };
 
-        let Some(hint) = create_coin
-            .memos
-            .into_iter()
-            .find_map(|memo| memo.try_into().ok())
-        else {
+        let Some(memos) = create_coin.memos else {
             return Err(DriverError::MissingHint);
         };
+
+        let (hint, _) = <(Bytes32, NodePtr)>::from_clvm(allocator, memos.value)?;
 
         let metadata_ptr = did_layer.metadata.to_clvm(allocator)?;
         let metadata_hash = tree_hash(allocator, metadata_ptr);

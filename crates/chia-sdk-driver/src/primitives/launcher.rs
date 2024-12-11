@@ -4,9 +4,9 @@ use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzles::singleton::{
     LauncherSolution, SingletonArgs, SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH,
 };
-use chia_sdk_types::{announcement_id, Conditions};
+use chia_sdk_types::{announcement_id, Conditions, Memos};
 use clvm_traits::ToClvm;
-use clvmr::Allocator;
+use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, SpendContext};
 
@@ -40,17 +40,13 @@ impl Launcher {
                 SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
                 amount,
             ),
-            Conditions::new().create_coin(
-                SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-                amount,
-                Vec::new(),
-            ),
+            Conditions::new().create_coin(SINGLETON_LAUNCHER_PUZZLE_HASH.into(), amount, None),
         )
     }
 
     /// The parent coin specified when constructing the [`Launcher`] will create the launcher coin.
     /// The created launcher coin will be hinted to make identifying it easier later.
-    pub fn hinted(parent_coin_id: Bytes32, amount: u64, hint: Bytes32) -> Self {
+    pub fn with_memos(parent_coin_id: Bytes32, amount: u64, memos: Memos<NodePtr>) -> Self {
         Self::from_coin(
             Coin::new(
                 parent_coin_id,
@@ -60,7 +56,7 @@ impl Launcher {
             Conditions::new().create_coin(
                 SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
                 amount,
-                vec![hint.into()],
+                Some(memos),
             ),
         )
     }
@@ -72,11 +68,7 @@ impl Launcher {
     /// For example, this is useful for minting NFTs from intermediate coins created with an earlier instance of a DID.
     pub fn create_early(parent_coin_id: Bytes32, amount: u64) -> (Conditions, Self) {
         (
-            Conditions::new().create_coin(
-                SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
-                amount,
-                Vec::new(),
-            ),
+            Conditions::new().create_coin(SINGLETON_LAUNCHER_PUZZLE_HASH.into(), amount, None),
             Self::from_coin(
                 Coin::new(
                     parent_coin_id,
@@ -93,16 +85,16 @@ impl Launcher {
     ///
     /// This method is used to create the launcher coin immediately from the parent, then spend it later attached to any coin spend.
     /// For example, this is useful for minting NFTs from intermediate coins created with an earlier instance of a DID.
-    pub fn create_early_hinted(
+    pub fn create_early_with_memos(
         parent_coin_id: Bytes32,
         amount: u64,
-        hint: Bytes32,
+        memos: Memos<NodePtr>,
     ) -> (Conditions, Self) {
         (
             Conditions::new().create_coin(
                 SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
                 amount,
-                vec![hint.into()],
+                Some(memos),
             ),
             Self::from_coin(
                 Coin::new(

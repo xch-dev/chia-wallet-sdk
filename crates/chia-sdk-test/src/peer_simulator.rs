@@ -166,7 +166,8 @@ mod tests {
         Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, RespondCoinState, RespondPuzzleState,
         SpendBundle,
     };
-    use chia_sdk_types::{AggSigMe, CreateCoin, Remark};
+    use chia_sdk_types::{AggSigMe, CreateCoin, Memos, Remark};
+    use clvmr::NodePtr;
 
     use crate::{coin_state_updates, test_secret_key, test_transaction, to_program, to_puzzle};
 
@@ -363,7 +364,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::new(puzzle_hash, 1, Vec::new())])?,
+                to_program([CreateCoin::<NodePtr>::new(puzzle_hash, 1, None)])?,
             )],
             Signature::default(),
         );
@@ -388,7 +389,11 @@ mod tests {
                 vec![CoinSpend::new(
                     coin,
                     puzzle_reveal.clone(),
-                    to_program([CreateCoin::new(puzzle_hash, coin.amount - 1, Vec::new())])?,
+                    to_program([CreateCoin::<NodePtr>::new(
+                        puzzle_hash,
+                        coin.amount - 1,
+                        None,
+                    )])?,
                 )],
                 Signature::default(),
             );
@@ -450,8 +455,8 @@ mod tests {
                 coin,
                 puzzle_reveal,
                 to_program([
-                    CreateCoin::new(puzzle_hash, 1, Vec::new()),
-                    CreateCoin::new(puzzle_hash, 2, Vec::new()),
+                    CreateCoin::<NodePtr>::new(puzzle_hash, 1, None),
+                    CreateCoin::<NodePtr>::new(puzzle_hash, 2, None),
                 ])?,
             )],
             Signature::default(),
@@ -578,7 +583,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::new(puzzle_hash, 1, Vec::new())])?,
+                to_program([CreateCoin::<NodePtr>::new(puzzle_hash, 1, None)])?,
             )],
             Signature::default(),
         );
@@ -660,7 +665,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::new(child_coin.puzzle_hash, 1, Vec::new())])?,
+                to_program([CreateCoin::<NodePtr>::new(child_coin.puzzle_hash, 1, None)])?,
             )],
             Signature::default(),
         );
@@ -745,7 +750,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::new(puzzle_hash, 0, vec![hint.into()])])?,
+                to_program([CreateCoin::new(puzzle_hash, 0, Some(Memos::new([hint])))])?,
             )],
             Signature::default(),
         );
