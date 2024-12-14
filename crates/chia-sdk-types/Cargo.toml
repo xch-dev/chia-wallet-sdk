@@ -29,8 +29,6 @@ clvm-utils = { workspace = true }
 clvmr = { workspace = true }
 hex-literal = { workspace = true }
 once_cell = { workspace = true }
-k256 = { workspace = true }
-p256 = { workspace = true }
 
 [dev-dependencies]
 hex = { workspace = true }
