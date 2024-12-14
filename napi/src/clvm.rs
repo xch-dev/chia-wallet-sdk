@@ -5,7 +5,7 @@ use chia::{
     protocol::{self, Bytes32},
     puzzles::nft::{self, NFT_METADATA_UPDATER_PUZZLE_HASH},
 };
-use chia_wallet_sdk::{self as sdk, HashedPtr, SpendContext};
+use chia_wallet_sdk::{self as sdk, HashedPtr, Memos, SpendContext};
 use clvmr::{
     run_program,
     serde::{node_from_bytes, node_from_bytes_backrefs},
@@ -417,7 +417,7 @@ macro_rules! conditions {
                     };
 
                     Ok(Some($condition {
-                        $( $name: condition.$name.into_js_contextual(env, this.clone(env)?)?, )*
+                        $( $name: condition.$name.into_js_contextual(env, this.clone(env)?, self)?, )*
                     }))
                 }
             }
@@ -463,8 +463,8 @@ conditions!(
         agg_sig_me(public_key: ClassInstance<PublicKey> => bls::PublicKey, message: Uint8Array)
     },
     CreateCoin {
-        "puzzleHash: Uint8Array, amount: bigint, memos: Array<Uint8Array>"
-        create_coin(puzzle_hash: Uint8Array, amount: BigInt, memos: Vec<Uint8Array>)
+        "puzzleHash: Uint8Array, amount: bigint, memos: Program | null"
+        create_coin(puzzle_hash: Uint8Array, amount: BigInt, memos: Option<ClassInstance<Program>> => Option<Memos<NodePtr>>)
     },
     ReserveFee {
         "amount: bigint"

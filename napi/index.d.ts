@@ -54,7 +54,7 @@ export interface AggSigMe {
 export interface CreateCoin {
   puzzleHash: Uint8Array
   amount: bigint
-  memos: Array<Uint8Array>
+  memos?: Program
 }
 export interface ReserveFee {
   amount: bigint
@@ -294,7 +294,7 @@ export declare class ClvmAllocator {
   parseAggSigUnsafe(program: Program): AggSigUnsafe | null
   aggSigMe(publicKey: PublicKey, message: Uint8Array): Program
   parseAggSigMe(program: Program): AggSigMe | null
-  createCoin(puzzleHash: Uint8Array, amount: bigint, memos: Array<Uint8Array>): Program
+  createCoin(puzzleHash: Uint8Array, amount: bigint, memos: Program | null): Program
   parseCreateCoin(program: Program): CreateCoin | null
   reserveFee(amount: bigint): Program
   parseReserveFee(program: Program): ReserveFee | null

@@ -16,6 +16,7 @@ workspace = true
 
 [features]
 chip-0035 = []
+vault = []
 
 [dependencies]
 chia-sdk-derive = { workspace = true }
@@ -28,8 +29,12 @@ clvm-utils = { workspace = true }
 clvmr = { workspace = true }
 hex-literal = { workspace = true }
 once_cell = { workspace = true }
+k256 = { workspace = true }
+p256 = { workspace = true }
 
 [dev-dependencies]
 hex = { workspace = true }
 anyhow = { workspace = true }
 rstest = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }

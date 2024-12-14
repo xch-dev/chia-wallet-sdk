@@ -2,6 +2,7 @@ use chia::{
     bls,
     protocol::{Bytes, BytesImpl},
 };
+use chia_wallet_sdk::Memos;
 use clvmr::NodePtr;
 use napi::bindgen_prelude::*;
 
@@ -28,7 +29,12 @@ pub(crate) trait FromRust<T> {
 }
 
 pub(crate) trait IntoJsContextual<T> {
-    fn into_js_contextual(self, env: Env, this: Reference<ClvmAllocator>) -> Result<T>;
+    fn into_js_contextual(
+        self,
+        env: Env,
+        this: Reference<ClvmAllocator>,
+        clvm_allocator: &mut ClvmAllocator,
+    ) -> Result<T>;
 }
 
 impl<T, U> IntoRust<U> for T
@@ -53,7 +59,12 @@ impl<T, U> IntoJsContextual<T> for U
 where
     U: IntoJs<T>,
 {
-    fn into_js_contextual(self, _env: Env, _this: Reference<ClvmAllocator>) -> Result<T> {
+    fn into_js_contextual(
+        self,
+        _env: Env,
+        _this: Reference<ClvmAllocator>,
+        _clvm_allocator: &mut ClvmAllocator,
+    ) -> Result<T> {
         self.into_js()
     }
 }
@@ -63,6 +74,7 @@ impl IntoJsContextual<ClassInstance<Program>> for NodePtr {
         self,
         env: Env,
         this: Reference<ClvmAllocator>,
+        _clvm_allocator: &mut ClvmAllocator,
     ) -> Result<ClassInstance<Program>> {
         Program::new(this, self).into_instance(env)
     }
@@ -73,6 +85,7 @@ impl IntoJsContextual<Vec<ClassInstance<Program>>> for Vec<NodePtr> {
         self,
         env: Env,
         this: Reference<ClvmAllocator>,
+        _clvm_allocator: &mut ClvmAllocator,
     ) -> Result<Vec<ClassInstance<Program>>> {
         let mut result = Vec::with_capacity(self.len());
 
@@ -84,11 +97,32 @@ impl IntoJsContextual<Vec<ClassInstance<Program>>> for Vec<NodePtr> {
     }
 }
 
+impl IntoJsContextual<Option<ClassInstance<Program>>> for Option<Memos<NodePtr>> {
+    fn into_js_contextual(
+        self,
+        env: Env,
+        this: Reference<ClvmAllocator>,
+        clvm_allocator: &mut ClvmAllocator,
+    ) -> Result<Option<ClassInstance<Program>>> {
+        let Some(memos) = self else {
+            return Ok(None);
+        };
+
+        let ptr = clvm_allocator
+            .0
+            .alloc(&memos.value)
+            .map_err(|error| Error::from_reason(format!("Failed to allocate CLVM: {error}")))?;
+
+        Ok(Some(Program::new(this, ptr).into_instance(env)?))
+    }
+}
+
 impl IntoJsContextual<ClassInstance<PublicKey>> for bls::PublicKey {
     fn into_js_contextual(
         self,
         env: Env,
         _this: Reference<ClvmAllocator>,
+        _clvm_allocator: &mut ClvmAllocator,
     ) -> Result<ClassInstance<PublicKey>> {
         PublicKey(self).into_instance(env)
     }
@@ -273,6 +307,33 @@ impl IntoJs<BigInt> for num_bigint::BigInt {
             sign_bit: sign == num_bigint::Sign::Minus,
             words,
         })
+    }
+}
+
+impl<T> FromJs<Option<T>> for Option<T>
+where
+    T: FromJs<T>,
+{
+    fn from_js(js_value: Option<T>) -> Result<Self> {
+        js_value.map(FromJs::from_js).transpose()
+    }
+}
+
+impl FromJs<Program> for NodePtr {
+    fn from_js(program: Program) -> Result<Self> {
+        Ok(program.ptr)
+    }
+}
+
+impl FromJs<Option<ClassInstance<Program>>> for Option<Memos<NodePtr>> {
+    fn from_js(js_value: Option<ClassInstance<Program>>) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let Some(program) = js_value else {
+            return Ok(None);
+        };
+        Ok(Some(Memos::new(program.ptr)))
     }
 }
 

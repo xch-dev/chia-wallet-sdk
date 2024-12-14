@@ -375,7 +375,13 @@ where
 
         // if the coin was re-created with memos, there is a delegation layer
         // and delegated puzzles have been updated (we can rebuild the list from memos)
-        if inner_create_coin_condition.memos.len() > 1 {
+
+        let inner_memos = Vec::<Bytes>::from_clvm(
+            allocator,
+            inner_create_coin_condition.memos.unwrap_or_default().value,
+        )?;
+
+        if inner_memos.len() > 1 {
             // keep in mind that there's always the launcher id memo being added
             return Ok(Some(Self::build_datastore(
                 new_coin,
@@ -383,7 +389,7 @@ where
                 Proof::Lineage(singleton_layer.lineage_proof(cs.coin)),
                 new_metadata,
                 state_layer.inner_puzzle.tree_hash().into(),
-                inner_create_coin_condition.memos,
+                inner_memos,
             )?));
         }
 
@@ -545,7 +551,7 @@ impl<M> DataStore<M> {
         Ok(Condition::CreateCoin(CreateCoin {
             amount: 1,
             puzzle_hash: new_puzzle_hash,
-            memos: if hint_delegated_puzzles {
+            memos: Some(ctx.memos(&if hint_delegated_puzzles {
                 Self::get_recreation_memos(
                     launcher_id,
                     new_inner_puzzle_hash.into(),
@@ -553,7 +559,7 @@ impl<M> DataStore<M> {
                 )
             } else {
                 vec![launcher_id.into()]
-            },
+            })?),
         }))
     }
 
@@ -590,7 +596,7 @@ pub mod tests {
     use chia_bls::{PublicKey, SecretKey};
     use chia_puzzles::standard::StandardArgs;
     use chia_sdk_test::{test_secret_keys, Simulator};
-    use chia_sdk_types::{Conditions, MeltSingleton, UpdateDataStoreMerkleRoot};
+    use chia_sdk_types::{Conditions, MeltSingleton, Memos, UpdateDataStoreMerkleRoot};
     use clvmr::sha2::Sha256;
     use rstest::rstest;
 
@@ -709,7 +715,7 @@ pub mod tests {
         }
 
         let datastore_inner_spend = StandardLayer::new(pk)
-            .spend_with_conditions(ctx, Conditions::new().create_coin(puzzle_hash, 1, vec![]))?;
+            .spend_with_conditions(ctx, Conditions::new().create_coin(puzzle_hash, 1, None))?;
 
         let old_datastore_coin = datastore.coin;
         let new_spend = datastore.spend(ctx, datastore_inner_spend)?;
@@ -1757,7 +1763,7 @@ pub mod tests {
             Conditions::new().with(Condition::CreateCoin(CreateCoin {
                 puzzle_hash: attacker_puzzle_hash.into(),
                 amount: 1,
-                memos: vec![],
+                memos: None,
             })),
         )?;
 
@@ -1907,10 +1913,10 @@ pub mod tests {
                         new_updater_puzzle_hash: new_updater_ph.into(),
                     },
                     conditions: if output_conditions {
-                        vec![CreateCoin {
+                        vec![CreateCoin::<NodePtr> {
                             puzzle_hash: [0; 32].into(),
                             amount: 1,
-                            memos: vec![],
+                            memos: None,
                         }]
                     } else {
                         vec![]
@@ -2100,11 +2106,11 @@ pub mod tests {
         inner_spend_conditions = inner_spend_conditions.with(Condition::CreateCoin(CreateCoin {
             puzzle_hash: new_inner_ph,
             amount: 1,
-            memos: vec![
-                launcher_coin.coin_id().into(),
-                second_root_hash.value().into(),
-                new_inner_ph.into(),
-            ],
+            memos: Memos::some(ctx.alloc(&[
+                launcher_coin.coin_id(),
+                second_root_hash.value(),
+                new_inner_ph,
+            ])?),
         }));
 
         let inner_spend =

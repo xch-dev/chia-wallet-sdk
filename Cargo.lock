@@ -538,7 +538,11 @@ dependencies = [
  "clvmr",
  "hex",
  "hex-literal",
+ "k256",
  "once_cell",
+ "p256",
+ "rand",
+ "rand_chacha",
  "rstest",
 ]
 

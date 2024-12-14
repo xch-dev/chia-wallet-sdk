@@ -62,6 +62,7 @@ workspace = true
 
 [features]
 chip-0035 = ["chia-sdk-driver/chip-0035", "chia-sdk-types/chip-0035"]
+vault = ["chia-sdk-driver/vault", "chia-sdk-types/vault"]
 offers = ["chia-sdk-driver/offers"]
 native-tls = ["chia-sdk-client/native-tls"]
 rustls = ["chia-sdk-client/rustls"]
@@ -135,6 +136,7 @@ napi = { version = "2.12.2", default-features = false }
 paste = "1.0.15"
 bigdecimal = "0.4.6"
 k256 = "0.13.4"
+p256 = "0.13.2"
 
 [profile.release]
 lto = true
