@@ -110,7 +110,7 @@ impl IntoJsContextual<Option<ClassInstance<Program>>> for Option<Memos<NodePtr>>
 
         let ptr = clvm_allocator
             .0
-            .alloc(&memos)
+            .alloc(&memos.value)
             .map_err(|error| Error::from_reason(format!("Failed to allocate CLVM: {error}")))?;
 
         Ok(Some(Program::new(this, ptr).into_instance(env)?))
