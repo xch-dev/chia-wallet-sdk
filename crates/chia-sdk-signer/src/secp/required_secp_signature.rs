@@ -1,10 +1,10 @@
-use chia_sdk_types::{Secp256k1PublicKey, Secp256r1PublicKey};
+use chia_secp::{K1PublicKey, R1PublicKey};
 use clvmr::NodePtr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SecpPublicKey {
-    K1(Secp256k1PublicKey),
-    R1(Secp256r1PublicKey),
+    K1(K1PublicKey),
+    R1(R1PublicKey),
 }
 
 #[derive(Debug, Clone, Copy)]

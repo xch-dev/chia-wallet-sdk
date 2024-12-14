@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use chia_protocol::Bytes32;
-use chia_sdk_types::{Secp256k1PublicKey, Secp256r1PublicKey};
+use chia_secp::{K1PublicKey, R1PublicKey};
 use clvm_traits::FromClvm;
 use clvmr::{
     cost::Cost,
@@ -89,9 +89,9 @@ where
         let [pubkey, msg, sig] = get_args::<3>(allocator, args, name)?;
 
         let Ok(public_key) = (if r1 {
-            Secp256r1PublicKey::from_clvm(allocator, pubkey).map(SecpPublicKey::R1)
+            R1PublicKey::from_clvm(allocator, pubkey).map(SecpPublicKey::R1)
         } else {
-            Secp256k1PublicKey::from_clvm(allocator, pubkey).map(SecpPublicKey::K1)
+            K1PublicKey::from_clvm(allocator, pubkey).map(SecpPublicKey::K1)
         }) else {
             return response;
         };
@@ -113,7 +113,7 @@ where
 #[cfg(test)]
 mod tests {
     use chia_protocol::Bytes;
-    use chia_sdk_types::Secp256k1SecretKey;
+    use chia_secp::K1SecretKey;
     use clvm_traits::{clvm_list, clvm_quote, ToClvm};
     use clvmr::{run_program, ChiaDialect};
     use rand::{Rng, SeedableRng};
@@ -127,7 +127,7 @@ mod tests {
         let mut rng = ChaCha8Rng::seed_from_u64(1337);
 
         let op = Bytes::from(vec![0x13, 0xd6, 0x1f, 0x00]);
-        let public_key = Secp256k1SecretKey::from_bytes(rng.gen())?.public_key();
+        let public_key = K1SecretKey::from_bytes(&rng.gen())?.public_key();
         let fake_sig = a.new_atom(&[1, 2, 3])?;
         let message = a.new_atom(&[42; 32])?;
         let program = clvm_list!(
