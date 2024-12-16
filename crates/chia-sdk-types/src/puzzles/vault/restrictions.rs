@@ -1,5 +1,11 @@
+mod force_1_of_2_restricted_variable;
+mod force_assert_coin_announcement;
+mod force_coin_message;
 mod timelock;
 
+pub use force_1_of_2_restricted_variable::*;
+pub use force_assert_coin_announcement::*;
+pub use force_coin_message::*;
 pub use timelock::*;
 
 use clvm_traits::{FromClvm, ToClvm};

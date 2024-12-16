@@ -1,4 +1,4 @@
-use chia_sdk_types::Timelock;
+use chia_sdk_types::{Force1of2RestrictedVariable, Timelock};
 use clvm_utils::TreeHash;
 use clvmr::NodePtr;
 
@@ -16,6 +16,9 @@ pub struct Restriction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RestrictionKind {
     Timelock(Timelock),
+    ForceCoinMessage,
+    ForceAssertCoinAnnouncement,
+    Force1of2RestrictedVariable(Force1of2RestrictedVariable),
     Unknown,
 }
 
@@ -49,6 +52,11 @@ impl VaultLayer for Restriction {
     fn puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         match &self.kind {
             RestrictionKind::Timelock(timelock) => ctx.curry(timelock),
+            RestrictionKind::ForceCoinMessage => ctx.force_coin_message_puzzle(),
+            RestrictionKind::ForceAssertCoinAnnouncement => {
+                ctx.force_assert_coin_announcement_puzzle()
+            }
+            RestrictionKind::Force1of2RestrictedVariable(restriction) => ctx.curry(restriction),
             RestrictionKind::Unknown => Err(DriverError::UnknownPuzzle),
         }
     }

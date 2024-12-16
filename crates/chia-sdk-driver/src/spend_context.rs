@@ -11,6 +11,12 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
+#[cfg(feature = "experimental-vaults")]
+use chia_sdk_types::{
+    FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE, FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE_HASH,
+    FORCE_COIN_MESSAGE_PUZZLE, FORCE_COIN_MESSAGE_PUZZLE_HASH,
+};
+
 use crate::{DriverError, Spend};
 
 /// A wrapper around [`Allocator`] that caches puzzles and keeps track of a list of [`CoinSpend`].
@@ -126,6 +132,19 @@ impl SpendContext {
 
     pub fn settlement_payments_puzzle(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(SETTLEMENT_PAYMENTS_PUZZLE_HASH, &SETTLEMENT_PAYMENTS_PUZZLE)
+    }
+
+    #[cfg(feature = "experimental-vaults")]
+    pub fn force_coin_message_puzzle(&mut self) -> Result<NodePtr, DriverError> {
+        self.puzzle(FORCE_COIN_MESSAGE_PUZZLE_HASH, &FORCE_COIN_MESSAGE_PUZZLE)
+    }
+
+    #[cfg(feature = "experimental-vaults")]
+    pub fn force_assert_coin_announcement_puzzle(&mut self) -> Result<NodePtr, DriverError> {
+        self.puzzle(
+            FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE_HASH,
+            &FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE,
+        )
     }
 
     /// Preload a puzzle into the cache.
