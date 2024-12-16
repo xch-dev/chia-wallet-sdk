@@ -30,6 +30,7 @@ offers = [
 
 [dependencies]
 chia-bls = { workspace = true }
+chia-secp = { workspace = true }
 chia-protocol = { workspace = true }
 chia-puzzles = { workspace = true }
 clvm-traits = { workspace = true }
