@@ -6,14 +6,16 @@ use chia_puzzles::{
     offer::{SETTLEMENT_PAYMENTS_PUZZLE, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
     singleton::{SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH},
 };
-use chia_sdk_types::{
-    run_puzzle, Memos, Mod, FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE,
-    FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE_HASH, FORCE_COIN_MESSAGE_PUZZLE,
-    FORCE_COIN_MESSAGE_PUZZLE_HASH,
-};
+use chia_sdk_types::{run_puzzle, Memos, Mod};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
+
+#[cfg(feature = "experimental-vaults")]
+use chia_sdk_types::{
+    FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE, FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE_HASH,
+    FORCE_COIN_MESSAGE_PUZZLE, FORCE_COIN_MESSAGE_PUZZLE_HASH,
+};
 
 use crate::{DriverError, Spend};
 
@@ -132,10 +134,12 @@ impl SpendContext {
         self.puzzle(SETTLEMENT_PAYMENTS_PUZZLE_HASH, &SETTLEMENT_PAYMENTS_PUZZLE)
     }
 
+    #[cfg(feature = "experimental-vaults")]
     pub fn force_coin_message_puzzle(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(FORCE_COIN_MESSAGE_PUZZLE_HASH, &FORCE_COIN_MESSAGE_PUZZLE)
     }
 
+    #[cfg(feature = "experimental-vaults")]
     pub fn force_assert_coin_announcement_puzzle(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(
             FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE_HASH,
