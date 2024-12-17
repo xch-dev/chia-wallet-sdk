@@ -41,6 +41,10 @@ impl OfferBuilder<Make> {
         }
     }
 
+    pub fn nonce(&self) -> Bytes32 {
+        self.data.nonce
+    }
+
     /// Adds a list of requested payments for a given puzzle.
     /// It will use the nonce to create a new [`NotarizedPayment`] and add it to the requested payments.
     pub fn request<P>(
