@@ -24,9 +24,17 @@ impl<T> P2ConditionsOptionsLayer<T> {
     where
         T: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     {
+        let spend = self.inner_spend(ctx, option)?;
+        ctx.spend(coin, spend)
+    }
+
+    pub fn inner_spend(&self, ctx: &mut SpendContext, option: u16) -> Result<Spend, DriverError>
+    where
+        T: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
+    {
         let puzzle = self.construct_puzzle(ctx)?;
         let solution = self.construct_solution(ctx, P2ConditionsOptionsSolution { option })?;
-        ctx.spend(coin, Spend { puzzle, solution })
+        Ok(Spend { puzzle, solution })
     }
 }
 
