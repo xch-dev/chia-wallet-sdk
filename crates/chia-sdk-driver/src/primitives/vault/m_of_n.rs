@@ -80,11 +80,12 @@ impl MofN {
             let mut member_spends = HashMap::with_capacity(self.required);
 
             for &item in &self.items {
+                puzzle_hashes.push(item.into());
+
                 let Some(member) = spend.members.get(&item) else {
                     continue;
                 };
 
-                puzzle_hashes.push(item.into());
                 member_spends.insert(item, member.spend(ctx, spend, false)?);
             }
 
