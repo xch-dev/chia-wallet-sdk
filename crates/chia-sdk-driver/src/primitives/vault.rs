@@ -168,10 +168,17 @@ mod tests {
     }
 
     #[rstest]
-    fn test_m_of_n_vault(
-        #[values(1, 2)] required: usize,
-        #[values(2, 3, 4)] key_count: usize,
-    ) -> anyhow::Result<()> {
+    #[case::vault_1_of_1(1, 1)]
+    #[case::vault_1_of_2(1, 2)]
+    #[case::vault_1_of_3(1, 3)]
+    #[case::vault_1_of_4(1, 4)]
+    #[case::vault_2_of_2(2, 2)]
+    #[case::vault_2_of_3(2, 3)]
+    #[case::vault_2_of_4(2, 4)]
+    #[case::vault_3_of_3(3, 3)]
+    #[case::vault_3_of_4(3, 4)]
+    #[case::vault_4_of_4(4, 4)]
+    fn test_m_of_n_vault(#[case] required: usize, #[case] key_count: usize) -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
