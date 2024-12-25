@@ -43,6 +43,20 @@ impl Mod for Force1of2RestrictedVariable {
     const MOD_HASH: TreeHash = FORCE_1_OF_2_RESTRICTED_VARIABLE_PUZZLE_HASH;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
+#[clvm(solution)]
+pub struct Force1of2RestrictedVariableSolution {
+    pub new_right_side_member_hash: Bytes32,
+}
+
+impl Force1of2RestrictedVariableSolution {
+    pub fn new(new_right_side_member_hash: Bytes32) -> Self {
+        Self {
+            new_right_side_member_hash,
+        }
+    }
+}
+
 pub const FORCE_1_OF_2_RESTRICTED_VARIABLE_PUZZLE: [u8; 650] = hex!(
     "
     ff02ffff01ff02ffff03ffff02ff12ffff04ff02ffff04ff8205ffffff04ffff

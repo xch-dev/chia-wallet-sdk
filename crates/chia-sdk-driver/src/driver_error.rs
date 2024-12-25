@@ -54,9 +54,9 @@ pub enum DriverError {
     #[error("unknown puzzle")]
     UnknownPuzzle,
 
-    #[error("wrong number of spends")]
-    WrongSpendCount,
+    #[error("invalid spend count for vault subpath")]
+    InvalidSubpathSpendCount,
 
-    #[error("missing member spend")]
-    MissingMemberSpend,
+    #[error("missing spend for vault subpath")]
+    MissingSubpathSpend,
 }

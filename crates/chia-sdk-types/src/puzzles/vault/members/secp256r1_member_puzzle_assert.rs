@@ -30,6 +30,15 @@ pub struct Secp256r1MemberPuzzleAssertSolution {
     pub signature: R1Signature,
 }
 
+impl Secp256r1MemberPuzzleAssertSolution {
+    pub fn new(puzzle_hash: Bytes32, signature: R1Signature) -> Self {
+        Self {
+            puzzle_hash,
+            signature,
+        }
+    }
+}
+
 pub const SECP256R1_MEMBER_PUZZLE_ASSERT: [u8; 53] = hex!(
     "
     ff02ffff01ff04ffff04ff02ffff04ff17ff808080ffff841c3a8f00ff05ffff

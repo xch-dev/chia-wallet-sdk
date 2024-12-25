@@ -141,6 +141,7 @@ paste = "1.0.15"
 bigdecimal = "0.4.6"
 k256 = "0.13.4"
 p256 = "0.13.2"
+signature = "2.2.0"
 
 [profile.release]
 lto = true

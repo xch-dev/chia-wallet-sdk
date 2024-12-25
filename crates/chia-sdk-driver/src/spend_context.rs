@@ -6,8 +6,8 @@ use chia_puzzles::{
     offer::{SETTLEMENT_PAYMENTS_PUZZLE, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
     singleton::{SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH},
 };
-use chia_sdk_types::{run_puzzle, Memos, Mod};
-use clvm_traits::{FromClvm, ToClvm};
+use chia_sdk_types::{run_puzzle, Conditions, Memos, Mod};
+use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
@@ -170,6 +170,11 @@ impl SpendContext {
             self.puzzles.insert(puzzle_hash, puzzle);
             Ok(puzzle)
         }
+    }
+
+    pub fn delegated_spend(&mut self, conditions: Conditions) -> Result<Spend, DriverError> {
+        let puzzle = self.alloc(&clvm_quote!(conditions))?;
+        Ok(Spend::new(puzzle, NodePtr::NIL))
     }
 }
 
