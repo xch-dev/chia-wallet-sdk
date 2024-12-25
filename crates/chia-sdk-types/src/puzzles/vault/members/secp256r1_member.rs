@@ -30,6 +30,12 @@ pub struct Secp256r1MemberSolution {
     pub signature: R1Signature,
 }
 
+impl Secp256r1MemberSolution {
+    pub fn new(coin_id: Bytes32, signature: R1Signature) -> Self {
+        Self { coin_id, signature }
+    }
+}
+
 pub const SECP256R1_MEMBER: [u8; 53] = hex!(
     "
     ff02ffff01ff04ffff04ff02ffff04ff17ff808080ffff841c3a8f00ff05ffff

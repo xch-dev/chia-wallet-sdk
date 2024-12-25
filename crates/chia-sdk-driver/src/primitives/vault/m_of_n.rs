@@ -11,157 +11,99 @@ use clvmr::NodePtr;
 
 use crate::{DriverError, Spend, SpendContext};
 
-use super::{KnownPuzzles, Member, PuzzleWithRestrictions, VaultLayer};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MofNOptimization {
-    One,
-    All,
-}
+use super::vault_spend::VaultSpend;
 
 #[derive(Debug, Clone)]
 pub struct MofN {
-    required: usize,
-    members: Vec<PuzzleWithRestrictions<Member>>,
+    pub required: usize,
+    pub items: Vec<TreeHash>,
 }
 
 impl MofN {
-    pub fn new(required: usize, members: Vec<PuzzleWithRestrictions<Member>>) -> Option<Self> {
-        if members.len() < required {
-            return None;
-        }
-        Some(Self { required, members })
+    pub fn new(required: usize, items: Vec<TreeHash>) -> Self {
+        Self { required, items }
     }
 
-    pub fn required(&self) -> usize {
-        self.required
-    }
-
-    pub fn members(&self) -> &[PuzzleWithRestrictions<Member>] {
-        &self.members
-    }
-
-    pub fn solve(
-        &self,
-        ctx: &mut SpendContext,
-        member_spends: HashMap<TreeHash, Spend>,
-    ) -> Result<NodePtr, DriverError> {
-        if member_spends.len() != self.required {
-            return Err(DriverError::WrongSpendCount);
-        }
-
-        match self.optimization() {
-            Some(MofNOptimization::One) => {
-                let (member_puzzle_hash, member_spend) = member_spends
-                    .into_iter()
-                    .next()
-                    .expect("missing single spend");
-
-                let merkle_tree = self.merkle_tree();
-                let merkle_proof = merkle_tree
-                    .proof(member_puzzle_hash.into())
-                    .ok_or(DriverError::InvalidMerkleProof)?;
-
-                ctx.alloc(&Vault1ofNSolution::new(
-                    merkle_proof,
-                    member_spend.puzzle,
-                    member_spend.solution,
-                ))
-            }
-            Some(MofNOptimization::All) => {
-                let mut member_solutions = Vec::with_capacity(self.required);
-
-                for member in &self.members {
-                    let spend = member_spends
-                        .get(&member.puzzle_hash())
-                        .ok_or(DriverError::MissingMemberSpend)?;
-
-                    member_solutions.push(spend.solution);
-                }
-
-                ctx.alloc(&VaultNofNSolution::new(member_solutions))
-            }
-            None => {
-                let puzzle_hashes: Vec<Bytes32> = self
-                    .members
-                    .iter()
-                    .map(|member| member.puzzle_hash().into())
-                    .collect();
-
-                let proof = m_of_n_proof(ctx, &puzzle_hashes, &member_spends)?;
-
-                ctx.alloc(&VaultMofNSolution::new(proof))
-            }
-        }
-    }
-
-    fn optimization(&self) -> Option<MofNOptimization> {
+    pub fn inner_puzzle_hash(&self) -> TreeHash {
         if self.required == 1 {
-            Some(MofNOptimization::One)
-        } else if self.required == self.members.len() {
-            Some(MofNOptimization::All)
+            let merkle_tree = self.merkle_tree();
+            Vault1ofNArgs::new(merkle_tree.root()).curry_tree_hash()
+        } else if self.required == self.items.len() {
+            VaultNofNArgs::new(self.items.clone()).curry_tree_hash()
         } else {
-            None
+            let merkle_tree = self.merkle_tree();
+            VaultMofNArgs::new(self.required, merkle_tree.root()).curry_tree_hash()
+        }
+    }
+
+    pub fn spend(&self, ctx: &mut SpendContext, spend: &VaultSpend) -> Result<Spend, DriverError> {
+        if self.required == 1 {
+            let member_spend = spend
+                .members
+                .get(&self.items[0])
+                .ok_or(DriverError::MissingSubpathSpend)?
+                .spend(ctx, spend, false)?;
+
+            let merkle_tree = self.merkle_tree();
+            let merkle_proof = merkle_tree
+                .proof(self.items[0].into())
+                .ok_or(DriverError::InvalidMerkleProof)?;
+
+            let puzzle = ctx.curry(Vault1ofNArgs::new(merkle_tree.root()))?;
+            let solution = ctx.alloc(&Vault1ofNSolution::new(
+                merkle_proof,
+                member_spend.puzzle,
+                member_spend.solution,
+            ))?;
+            Ok(Spend::new(puzzle, solution))
+        } else if self.required == self.items.len() {
+            let mut puzzles = Vec::with_capacity(self.items.len());
+            let mut solutions = Vec::with_capacity(self.items.len());
+
+            for item in &self.items {
+                let member = spend
+                    .members
+                    .get(item)
+                    .ok_or(DriverError::MissingSubpathSpend)?;
+
+                let member_spend = member.spend(ctx, spend, false)?;
+
+                puzzles.push(member_spend.puzzle);
+                solutions.push(member_spend.solution);
+            }
+
+            let puzzle = ctx.curry(VaultNofNArgs::new(puzzles))?;
+            let solution = ctx.alloc(&VaultNofNSolution::new(solutions))?;
+            Ok(Spend::new(puzzle, solution))
+        } else {
+            let mut puzzle_hashes = Vec::with_capacity(self.required);
+            let mut member_spends = HashMap::with_capacity(self.required);
+
+            for &item in &self.items {
+                let Some(member) = spend.members.get(&item) else {
+                    continue;
+                };
+
+                puzzle_hashes.push(item.into());
+                member_spends.insert(item, member.spend(ctx, spend, false)?);
+            }
+
+            if member_spends.len() < self.required {
+                return Err(DriverError::InvalidSubpathSpendCount);
+            }
+
+            let merkle_tree = self.merkle_tree();
+            let proof = m_of_n_proof(ctx, &puzzle_hashes, &member_spends)?;
+
+            let puzzle = ctx.curry(VaultMofNArgs::new(self.required, merkle_tree.root()))?;
+            let solution = ctx.alloc(&VaultMofNSolution::new(proof))?;
+            Ok(Spend::new(puzzle, solution))
         }
     }
 
     fn merkle_tree(&self) -> MerkleTree {
-        let leaves: Vec<Bytes32> = self
-            .members
-            .iter()
-            .map(|member| member.puzzle_hash().into())
-            .collect();
+        let leaves: Vec<Bytes32> = self.items.iter().map(|&member| member.into()).collect();
         MerkleTree::new(&leaves)
-    }
-}
-
-impl VaultLayer for MofN {
-    fn puzzle_hash(&self) -> TreeHash {
-        match self.optimization() {
-            Some(MofNOptimization::One) => {
-                let merkle_tree = self.merkle_tree();
-                Vault1ofNArgs::new(merkle_tree.root()).curry_tree_hash()
-            }
-            Some(MofNOptimization::All) => {
-                let members = self.members.iter().map(VaultLayer::puzzle_hash).collect();
-                VaultNofNArgs::new(members).curry_tree_hash()
-            }
-            None => {
-                let merkle_tree = self.merkle_tree();
-                VaultMofNArgs::new(self.required, merkle_tree.root()).curry_tree_hash()
-            }
-        }
-    }
-
-    fn puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        match self.optimization() {
-            Some(MofNOptimization::One) => {
-                let merkle_tree = self.merkle_tree();
-                ctx.curry(Vault1ofNArgs::new(merkle_tree.root()))
-            }
-            Some(MofNOptimization::All) => {
-                let members = self
-                    .members
-                    .iter()
-                    .map(|member| member.puzzle(ctx))
-                    .collect::<Result<_, _>>()?;
-                ctx.curry(VaultNofNArgs::new(members))
-            }
-            None => {
-                let merkle_tree = self.merkle_tree();
-                ctx.curry(VaultMofNArgs::new(self.required, merkle_tree.root()))
-            }
-        }
-    }
-
-    fn replace(self, known_puzzles: &KnownPuzzles) -> Self {
-        let required = self.required;
-        let members = self
-            .members
-            .into_iter()
-            .map(|member| member.replace(known_puzzles))
-            .collect();
-        Self { required, members }
     }
 }
 

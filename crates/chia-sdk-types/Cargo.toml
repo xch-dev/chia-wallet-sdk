@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 chip-0035 = []
-experimental-vaults = []
+experimental-vaults = ["clvm-traits/chia-secp"]
 
 [dependencies]
 chia-sdk-derive = { workspace = true }

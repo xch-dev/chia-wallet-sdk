@@ -56,3 +56,5 @@ chia-consensus = { workspace = true }
 hex = { workspace = true }
 hex-literal = { workspace = true }
 rstest = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
