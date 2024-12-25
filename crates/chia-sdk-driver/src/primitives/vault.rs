@@ -68,7 +68,7 @@ impl Vault {
         }
     }
 
-    pub fn spend_with_new_custody(
+    pub fn spend(
         self,
         ctx: &mut SpendContext,
         spend: &VaultSpend,
@@ -91,47 +91,63 @@ impl Vault {
 
         Ok(self.child(new_custody_hash))
     }
-
-    pub fn spend(self, ctx: &mut SpendContext, spend: &VaultSpend) -> Result<Self, DriverError> {
-        self.spend_with_new_custody(ctx, spend, self.custody_hash)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use chia_sdk_test::{test_k1_key, Simulator};
     use chia_sdk_types::{Conditions, Mod, Secp256k1Member, Secp256k1MemberSolution};
+    use chia_secp::{K1SecretKey, K1Signature};
     use clvmr::sha2::Sha256;
 
     use crate::{Launcher, StandardLayer};
 
     use super::*;
 
-    #[test]
-    fn test_simple_vault() -> anyhow::Result<()> {
-        let mut sim = Simulator::new();
-        let ctx = &mut SpendContext::new();
+    fn mint_vault(
+        sim: &mut Simulator,
+        ctx: &mut SpendContext,
+        custody_hash: TreeHash,
+    ) -> anyhow::Result<Vault> {
         let (sk, pk, _puzzle_hash, coin) = sim.new_p2(1)?;
         let p2 = StandardLayer::new(pk);
-
-        let k1 = test_k1_key()?;
-        let custody = Secp256k1Member::new(k1.public_key());
-        let custody_hash = Vault::custody_hash(0, Vec::new(), custody.curry_tree_hash());
 
         let (mint_vault, vault) =
             Launcher::new(coin.coin_id(), 1).mint_vault(ctx, custody_hash, ())?;
         p2.spend(ctx, coin, mint_vault)?;
 
-        let mut spend = VaultSpend::with_conditions(
-            ctx,
-            Conditions::new().create_coin(vault.custody_hash.into(), 1, None),
-        )?;
+        sim.spend_coins(ctx.take(), &[sk])?;
 
+        Ok(vault)
+    }
+
+    fn k1_sign(
+        ctx: &SpendContext,
+        vault: &Vault,
+        spend: &VaultSpend,
+        k1: &K1SecretKey,
+    ) -> anyhow::Result<K1Signature> {
         let mut hasher = Sha256::new();
         hasher.update(ctx.tree_hash(spend.delegated.puzzle));
         hasher.update(vault.coin.coin_id());
-        let signature = k1.sign_prehashed(&hasher.finalize())?;
+        Ok(k1.sign_prehashed(&hasher.finalize())?)
+    }
 
+    #[test]
+    fn test_simple_vault() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let k1 = test_k1_key()?;
+        let custody = Secp256k1Member::new(k1.public_key());
+        let custody_hash = Vault::custody_hash(0, Vec::new(), custody.curry_tree_hash());
+
+        let vault = mint_vault(&mut sim, ctx, custody_hash)?;
+
+        let conditions = Conditions::new().create_coin(vault.custody_hash.into(), 1, None);
+        let mut spend = VaultSpend::new(ctx.delegated_spend(conditions)?);
+
+        let signature = k1_sign(&ctx, &vault, &spend, &k1)?;
         let k1_puzzle = ctx.curry(custody)?;
         let k1_solution = ctx.alloc(&Secp256k1MemberSolution::new(
             vault.coin.coin_id(),
@@ -143,9 +159,9 @@ mod tests {
             MemberSpend::new(0, Vec::new(), Spend::new(k1_puzzle, k1_solution)),
         );
 
-        let _vault = vault.spend(ctx, &spend)?;
+        let _vault = vault.spend(ctx, &spend, vault.custody_hash)?;
 
-        sim.spend_coins(ctx.take(), &[sk])?;
+        sim.spend_coins(ctx.take(), &[])?;
 
         Ok(())
     }
