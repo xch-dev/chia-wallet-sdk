@@ -335,6 +335,45 @@ mod tests {
     }
 
     #[test]
+    fn test_zero_cat_issuance() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+        let (sk, pk, puzzle_hash, coin) = sim.new_p2(0)?;
+        let p2 = StandardLayer::new(pk);
+
+        let memos = ctx.hint(puzzle_hash)?;
+        let (issue_cat, cat) = Cat::single_issuance_eve(
+            ctx,
+            coin.coin_id(),
+            0,
+            Conditions::new().create_coin(puzzle_hash, 0, Some(memos)),
+        )?;
+        p2.spend(ctx, coin, issue_cat)?;
+
+        sim.spend_coins(ctx.take(), &[sk.clone()])?;
+
+        let cat = cat.wrapped_child(puzzle_hash, 0);
+        assert_eq!(cat.p2_puzzle_hash, puzzle_hash);
+        assert_eq!(
+            cat.asset_id,
+            GenesisByCoinIdTailArgs::curry_tree_hash(coin.coin_id()).into()
+        );
+        assert!(sim.coin_state(cat.coin.coin_id()).is_some());
+
+        let cat_spend = CatSpend::new(
+            cat,
+            p2.spend_with_conditions(
+                ctx,
+                Conditions::new().create_coin(puzzle_hash, 0, Some(memos)),
+            )?,
+        );
+        Cat::spend_all(ctx, &[cat_spend])?;
+        sim.spend_coins(ctx.take(), &[sk])?;
+
+        Ok(())
+    }
+
+    #[test]
     fn test_missing_cat_issuance_output() -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
