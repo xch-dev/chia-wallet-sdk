@@ -11,7 +11,10 @@ use clvmr::{
 };
 use napi::bindgen_prelude::*;
 
-use crate::{traits::IntoJs, ClvmAllocator, PublicKey, Signature};
+use crate::{
+    traits::{js_err, IntoJs},
+    ClvmAllocator, PublicKey, Signature,
+};
 
 #[napi]
 pub struct Program {
@@ -118,7 +121,7 @@ impl Program {
     #[napi]
     pub fn to_list(&self, env: Env) -> Result<Vec<ClassInstance<Program>>> {
         Vec::<NodePtr>::from_clvm(self.alloc(), self.ptr)
-            .map_err(|error| Error::from_reason(error.to_string()))?
+            .map_err(js_err)?
             .into_iter()
             .map(|ptr| Program::new(self.ctx.clone(env)?, ptr).into_instance(env))
             .collect()
@@ -188,7 +191,7 @@ impl Program {
                             .try_into()
                             .map_err(|_| Error::from_reason("Invalid public key"))?,
                     )
-                    .map_err(|error| Error::from_reason(error.to_string()))?,
+                    .map_err(js_err)?,
                 )))
             }
             SExp::Pair(..) => Ok(None),
@@ -207,7 +210,7 @@ impl Program {
                             .try_into()
                             .map_err(|_| Error::from_reason("Invalid signature"))?,
                     )
-                    .map_err(|error| Error::from_reason(error.to_string()))?,
+                    .map_err(js_err)?,
                 )))
             }
             SExp::Pair(..) => Ok(None),

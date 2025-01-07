@@ -38,15 +38,17 @@ impl MofN {
 
     pub fn spend(&self, ctx: &mut SpendContext, spend: &VaultSpend) -> Result<Spend, DriverError> {
         if self.required == 1 {
-            let member_spend = spend
-                .members
-                .get(&self.items[0])
-                .ok_or(DriverError::MissingSubpathSpend)?
-                .spend(ctx, spend, false)?;
+            let (member_hash, member_spend) = self
+                .items
+                .iter()
+                .find_map(|item| Some((*item, spend.members.get(item)?)))
+                .ok_or(DriverError::MissingSubpathSpend)?;
+
+            let member_spend = member_spend.spend(ctx, spend, false)?;
 
             let merkle_tree = self.merkle_tree();
             let merkle_proof = merkle_tree
-                .proof(self.items[0].into())
+                .proof(member_hash.into())
                 .ok_or(DriverError::InvalidMerkleProof)?;
 
             let puzzle = ctx.curry(Vault1ofNArgs::new(merkle_tree.root()))?;

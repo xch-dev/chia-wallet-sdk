@@ -21,7 +21,7 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { workspace = true, features = ["napi6", "async"] }
 napi-derive = { workspace = true }
-chia-wallet-sdk = { workspace = true, features = ["native-tls"] }
+chia-wallet-sdk = { workspace = true, features = ["native-tls", "experimental-vaults"] }
 chia = { workspace = true }
 clvmr = { workspace = true }
 num-bigint = { workspace = true }

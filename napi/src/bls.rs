@@ -13,7 +13,7 @@ use napi::bindgen_prelude::*;
 use rand::{Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
-use crate::traits::{IntoJs, IntoRust};
+use crate::traits::{js_err, IntoJs, IntoRust};
 
 #[napi]
 pub struct SecretKey(pub(crate) bls::SecretKey);
@@ -29,8 +29,7 @@ impl SecretKey {
     #[napi(factory)]
     pub fn from_bytes(bytes: Uint8Array) -> Result<Self> {
         Ok(Self(
-            bls::SecretKey::from_bytes(&bytes.into_rust()?)
-                .map_err(|error| Error::from_reason(error.to_string()))?,
+            bls::SecretKey::from_bytes(&bytes.into_rust()?).map_err(js_err)?,
         ))
     }
 
@@ -122,8 +121,7 @@ impl PublicKey {
     #[napi(factory)]
     pub fn from_bytes(bytes: Uint8Array) -> Result<Self> {
         Ok(Self(
-            bls::PublicKey::from_bytes(&bytes.into_rust()?)
-                .map_err(|error| Error::from_reason(error.to_string()))?,
+            bls::PublicKey::from_bytes(&bytes.into_rust()?).map_err(js_err)?,
         ))
     }
 
@@ -215,8 +213,7 @@ impl Signature {
     #[napi(factory)]
     pub fn from_bytes(bytes: Uint8Array) -> Result<Self> {
         Ok(Self(
-            bls::Signature::from_bytes(&bytes.into_rust()?)
-                .map_err(|error| Error::from_reason(error.to_string()))?,
+            bls::Signature::from_bytes(&bytes.into_rust()?).map_err(js_err)?,
         ))
     }
 
@@ -248,14 +245,14 @@ impl Signature {
 #[napi]
 pub fn mnemonic_from_entropy(entropy: Uint8Array) -> Result<String> {
     Ok(Mnemonic::from_entropy(&entropy)
-        .map_err(|error| Error::from_reason(error.to_string()))?
+        .map_err(js_err)?
         .to_string())
 }
 
 #[napi]
 pub fn mnemonic_to_entropy(mnemonic: String) -> Result<Uint8Array> {
     Ok(Mnemonic::from_str(&mnemonic)
-        .map_err(|error| Error::from_reason(error.to_string()))?
+        .map_err(js_err)?
         .to_entropy()
         .into())
 }
@@ -279,10 +276,10 @@ pub fn generate_mnemonic(use_24: bool) -> Result<String> {
 
     let mnemonic = if use_24 {
         let entropy: [u8; 32] = rng.gen();
-        Mnemonic::from_entropy(&entropy).map_err(|error| Error::from_reason(error.to_string()))?
+        Mnemonic::from_entropy(&entropy).map_err(js_err)?
     } else {
         let entropy: [u8; 16] = rng.gen();
-        Mnemonic::from_entropy(&entropy).map_err(|error| Error::from_reason(error.to_string()))?
+        Mnemonic::from_entropy(&entropy).map_err(js_err)?
     };
 
     Ok(mnemonic.to_string())
@@ -290,7 +287,6 @@ pub fn generate_mnemonic(use_24: bool) -> Result<String> {
 
 #[napi]
 pub fn mnemonic_to_seed(mnemonic: String, password: String) -> Result<Uint8Array> {
-    let mnemonic =
-        Mnemonic::from_str(&mnemonic).map_err(|error| Error::from_reason(error.to_string()))?;
+    let mnemonic = Mnemonic::from_str(&mnemonic).map_err(js_err)?;
     mnemonic.to_seed(password).into_js()
 }

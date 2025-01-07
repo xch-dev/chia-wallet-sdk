@@ -5,7 +5,7 @@ use napi::bindgen_prelude::*;
 
 use crate::{
     traits::{FromJs, IntoJs, IntoRust},
-    Coin, CoinSpend, LineageProof, Program,
+    Coin, LineageProof, Program,
 };
 
 #[napi(object)]
@@ -136,6 +136,5 @@ pub struct NftMint {
 #[napi(object)]
 pub struct MintedNfts {
     pub nfts: Vec<Nft>,
-    pub coin_spends: Vec<CoinSpend>,
     pub parent_conditions: Vec<ClassInstance<Program>>,
 }

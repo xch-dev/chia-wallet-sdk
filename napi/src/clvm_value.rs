@@ -2,7 +2,10 @@ use chia::clvm_traits::ToClvm;
 use clvmr::{Allocator, NodePtr};
 use napi::bindgen_prelude::*;
 
-use crate::{traits::IntoRust, Program, PublicKey, Signature};
+use crate::{
+    traits::{js_err, IntoRust},
+    Program, PublicKey, Signature,
+};
 
 pub(crate) type ClvmValue = Either9<
     f64,
@@ -67,13 +70,9 @@ impl Allocate for f64 {
         let value = self as i64;
 
         if (0..=67_108_863).contains(&value) {
-            allocator
-                .new_small_number(value as u32)
-                .map_err(|error| Error::from_reason(error.to_string()))
+            allocator.new_small_number(value as u32).map_err(js_err)
         } else {
-            allocator
-                .new_number(value.into())
-                .map_err(|error| Error::from_reason(error.to_string()))
+            allocator.new_number(value.into()).map_err(js_err)
         }
     }
 }
@@ -81,34 +80,26 @@ impl Allocate for f64 {
 impl Allocate for BigInt {
     fn allocate(self, allocator: &mut Allocator) -> Result<NodePtr> {
         let value = self.into_rust()?;
-        allocator
-            .new_number(value)
-            .map_err(|error| Error::from_reason(error.to_string()))
+        allocator.new_number(value).map_err(js_err)
     }
 }
 
 impl Allocate for String {
     fn allocate(self, allocator: &mut Allocator) -> Result<NodePtr> {
-        allocator
-            .new_atom(self.as_bytes())
-            .map_err(|error| Error::from_reason(error.to_string()))
+        allocator.new_atom(self.as_bytes()).map_err(js_err)
     }
 }
 
 impl Allocate for bool {
     fn allocate(self, allocator: &mut Allocator) -> Result<NodePtr> {
-        allocator
-            .new_small_number(u32::from(self))
-            .map_err(|error| Error::from_reason(error.to_string()))
+        allocator.new_small_number(u32::from(self)).map_err(js_err)
     }
 }
 
 impl Allocate for Uint8Array {
     fn allocate(self, allocator: &mut Allocator) -> Result<NodePtr> {
         let value: Vec<u8> = self.into_rust()?;
-        allocator
-            .new_atom(&value)
-            .map_err(|error| Error::from_reason(error.to_string()))
+        allocator.new_atom(&value).map_err(js_err)
     }
 }
 
@@ -124,9 +115,7 @@ impl Allocate for Array {
             items.push(item.allocate(allocator)?);
         }
 
-        items
-            .to_clvm(allocator)
-            .map_err(|error| Error::from_reason(error.to_string()))
+        items.to_clvm(allocator).map_err(js_err)
     }
 }
 
@@ -138,16 +127,12 @@ impl Allocate for ClassInstance<Program> {
 
 impl Allocate for ClassInstance<PublicKey> {
     fn allocate(self, allocator: &mut Allocator) -> Result<NodePtr> {
-        self.0
-            .to_clvm(allocator)
-            .map_err(|error| Error::from_reason(error.to_string()))
+        self.0.to_clvm(allocator).map_err(js_err)
     }
 }
 
 impl Allocate for ClassInstance<Signature> {
     fn allocate(self, allocator: &mut Allocator) -> Result<NodePtr> {
-        self.0
-            .to_clvm(allocator)
-            .map_err(|error| Error::from_reason(error.to_string()))
+        self.0.to_clvm(allocator).map_err(js_err)
     }
 }

@@ -68,12 +68,7 @@ impl Vault {
         }
     }
 
-    pub fn spend(
-        self,
-        ctx: &mut SpendContext,
-        spend: &VaultSpend,
-        new_custody_hash: TreeHash,
-    ) -> Result<Self, DriverError> {
+    pub fn spend(&self, ctx: &mut SpendContext, spend: &VaultSpend) -> Result<(), DriverError> {
         let custody_spend = spend
             .members
             .get(&self.custody_hash)
@@ -89,7 +84,7 @@ impl Vault {
 
         ctx.spend(self.coin, Spend::new(puzzle, solution))?;
 
-        Ok(self.child(new_custody_hash))
+        Ok(())
     }
 }
 
@@ -160,7 +155,7 @@ mod tests {
             MemberSpend::new(0, Vec::new(), Spend::new(k1_puzzle, k1_solution)),
         );
 
-        let _vault = vault.spend(ctx, &spend, vault.custody_hash)?;
+        vault.spend(ctx, &spend)?;
 
         sim.spend_coins(ctx.take(), &[])?;
 
@@ -197,34 +192,45 @@ mod tests {
         let custody = MofN::new(required, hashes.clone());
         let custody_hash = Vault::custody_hash(0, Vec::new(), custody.inner_puzzle_hash());
 
-        let vault = mint_vault(&mut sim, ctx, custody_hash)?;
+        let mut vault = mint_vault(&mut sim, ctx, custody_hash)?;
 
-        let conditions = Conditions::new().create_coin(vault.custody_hash.into(), 1, None);
-        let mut spend = VaultSpend::new(ctx.delegated_spend(conditions)?);
-
-        spend.members.insert(
-            custody_hash,
-            MemberSpend::m_of_n(0, Vec::new(), custody.required, custody.items),
-        );
-
-        for i in 0..required {
-            let signature = k1_sign(ctx, &vault, &spend, &keys[i])?;
-
-            let k1_puzzle = ctx.curry(members[i])?;
-            let k1_solution = ctx.alloc(&Secp256k1MemberSolution::new(
-                vault.coin.coin_id(),
-                signature,
-            ))?;
+        for start in 0..key_count {
+            let conditions = Conditions::new().create_coin(vault.custody_hash.into(), 1, None);
+            let mut spend = VaultSpend::new(ctx.delegated_spend(conditions)?);
 
             spend.members.insert(
-                hashes[i],
-                MemberSpend::new(0, Vec::new(), Spend::new(k1_puzzle, k1_solution)),
+                custody_hash,
+                MemberSpend::m_of_n(0, Vec::new(), custody.required, custody.items.clone()),
             );
+
+            let mut i = start;
+
+            for _ in 0..required {
+                let signature = k1_sign(ctx, &vault, &spend, &keys[i])?;
+
+                let k1_puzzle = ctx.curry(members[i])?;
+                let k1_solution = ctx.alloc(&Secp256k1MemberSolution::new(
+                    vault.coin.coin_id(),
+                    signature,
+                ))?;
+
+                spend.members.insert(
+                    hashes[i],
+                    MemberSpend::new(0, Vec::new(), Spend::new(k1_puzzle, k1_solution)),
+                );
+
+                i += 1;
+
+                if i >= key_count {
+                    i = 0;
+                }
+            }
+
+            vault.spend(ctx, &spend)?;
+            vault = vault.child(vault.custody_hash);
+
+            sim.spend_coins(ctx.take(), &[])?;
         }
-
-        let _vault = vault.spend(ctx, &spend, vault.custody_hash)?;
-
-        sim.spend_coins(ctx.take(), &[])?;
 
         Ok(())
     }
