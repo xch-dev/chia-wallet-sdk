@@ -1,9 +1,9 @@
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::TreeHash;
+use clvm_utils::{tree_hash_atom, TreeHash};
 use hex_literal::hex;
 
-use crate::{Mod, DELEGATED_FEEDER_PUZZLE_HASH, VAULT_1_OF_N_PUZZLE_HASH};
+use crate::{Mod, DELEGATED_FEEDER_PUZZLE_HASH, INDEX_WRAPPER_HASH, VAULT_1_OF_N_PUZZLE_HASH};
 
 use super::RESTRICTIONS_PUZZLE_HASH;
 
@@ -12,7 +12,8 @@ use super::RESTRICTIONS_PUZZLE_HASH;
 pub struct Force1of2RestrictedVariable {
     pub delegated_puzzle_feeder_mod_hash: Bytes32,
     pub one_of_n_mod_hash: Bytes32,
-    pub left_side_subtree_hash: Bytes32,
+    pub left_side_subtree_hash_hash: Bytes32,
+    pub index_wrapper_mod_hash: Bytes32,
     pub nonce: usize,
     pub restriction_mod_hash: Bytes32,
     pub member_validator_list_hash: Bytes32,
@@ -29,7 +30,8 @@ impl Force1of2RestrictedVariable {
         Self {
             delegated_puzzle_feeder_mod_hash: DELEGATED_FEEDER_PUZZLE_HASH.into(),
             one_of_n_mod_hash: VAULT_1_OF_N_PUZZLE_HASH.into(),
-            left_side_subtree_hash,
+            left_side_subtree_hash_hash: tree_hash_atom(&left_side_subtree_hash).into(),
+            index_wrapper_mod_hash: INDEX_WRAPPER_HASH.into(),
             nonce,
             restriction_mod_hash: RESTRICTIONS_PUZZLE_HASH.into(),
             member_validator_list_hash,

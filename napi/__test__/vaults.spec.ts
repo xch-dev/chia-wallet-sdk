@@ -1,7 +1,9 @@
 import test from "ava";
 
 import {
+  childVault,
   ClvmAllocator,
+  force1Of2RestrictedVariable,
   k1MemberHash,
   K1SecretKey,
   K1Signature,
@@ -290,7 +292,7 @@ test("fast forward paths vault", (t) => {
     bobFastForwardHash,
   ]);
 
-  const vault = mintVault(
+  let vault = mintVault(
     sim,
     clvm,
     mOfNHash({ ...config, topLevel: true }, 1, [
@@ -299,7 +301,7 @@ test("fast forward paths vault", (t) => {
     ])
   );
 
-  for (const fastForward of [true]) {
+  for (const fastForward of [false, true, false, true]) {
     const delegatedSpend = clvm.delegatedSpendForConditions([
       clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
     ]);
@@ -334,7 +336,68 @@ test("fast forward paths vault", (t) => {
     clvm.spendVault(vault, vaultSpend);
 
     sim.spend(clvm.coinSpends(), []);
+
+    vault = childVault(vault, vault.custodyHash);
   }
+
+  t.true(true);
+});
+
+test("single signer recovery vault", (t) => {
+  const sim = new Simulator();
+  const clvm = new ClvmAllocator();
+
+  const k1 = sim.k1Pair(1);
+  const recovery = sim.k1Pair(2);
+
+  const config: MemberConfig = {
+    topLevel: false,
+    nonce: 0,
+    restrictions: [],
+  };
+
+  const recoveryPathHash = k1MemberHash(config, recovery.publicKey, false);
+  const memberHash = k1MemberHash(config, k1.publicKey, false);
+
+  const topLevelConfig: MemberConfig = {
+    topLevel: true,
+    nonce: 0,
+    restrictions: [
+      force1Of2RestrictedVariable(
+        recoveryPathHash,
+        0,
+        clvm.nil().treeHash(),
+        clvm.nil().treeHash()
+      ),
+    ],
+  };
+
+  const vault = mintVault(
+    sim,
+    clvm,
+    mOfNHash(topLevelConfig, 1, [recoveryPathHash, memberHash])
+  );
+
+  const delegatedSpend = clvm.delegatedSpendForConditions([
+    clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
+  ]);
+
+  const signature = signK1(clvm, k1.secretKey, vault, delegatedSpend, false);
+
+  const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  vaultSpend.spendForce1Of2RestrictedVariable(
+    clvm,
+    recoveryPathHash,
+    0,
+    clvm.nil().treeHash(),
+    clvm.nil().treeHash(),
+    memberHash
+  );
+  vaultSpend.spendMOfN(topLevelConfig, 1, [recoveryPathHash, memberHash]);
+  vaultSpend.spendK1(clvm, config, k1.publicKey, signature, false);
+  clvm.spendVault(vault, vaultSpend);
+
+  sim.spend(clvm.coinSpends(), []);
 
   t.true(true);
 });

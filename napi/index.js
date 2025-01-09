@@ -310,7 +310,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { SecretKey, PublicKey, Signature, mnemonicFromEntropy, mnemonicToEntropy, verifyMnemonic, randomBytes, generateMnemonic, mnemonicToSeed, ClvmAllocator, curryTreeHash, intToSignedBytes, signedBytesToInt, toCoinId, Tls, Peer, Program, K1SecretKey, K1PublicKey, K1Signature, R1SecretKey, R1PublicKey, R1Signature, Simulator, compareBytes, sha256, treeHashAtom, treeHashPair, fromHexRaw, fromHex, toHex, VaultSpend, mOfNHash, k1MemberHash, r1MemberHash, singletonMemberHash } = nativeBinding
+const { SecretKey, PublicKey, Signature, mnemonicFromEntropy, mnemonicToEntropy, verifyMnemonic, randomBytes, generateMnemonic, mnemonicToSeed, ClvmAllocator, curryTreeHash, intToSignedBytes, signedBytesToInt, toCoinId, Tls, Peer, Program, K1SecretKey, K1PublicKey, K1Signature, R1SecretKey, R1PublicKey, R1Signature, Simulator, compareBytes, sha256, treeHashAtom, treeHashPair, fromHexRaw, fromHex, toHex, childVault, VaultSpend, mOfNHash, k1MemberHash, r1MemberHash, singletonMemberHash, force1Of2RestrictedVariable } = nativeBinding
 
 module.exports.SecretKey = SecretKey
 module.exports.PublicKey = PublicKey
@@ -343,8 +343,10 @@ module.exports.treeHashPair = treeHashPair
 module.exports.fromHexRaw = fromHexRaw
 module.exports.fromHex = fromHex
 module.exports.toHex = toHex
+module.exports.childVault = childVault
 module.exports.VaultSpend = VaultSpend
 module.exports.mOfNHash = mOfNHash
 module.exports.k1MemberHash = k1MemberHash
 module.exports.r1MemberHash = r1MemberHash
 module.exports.singletonMemberHash = singletonMemberHash
+module.exports.force1Of2RestrictedVariable = force1Of2RestrictedVariable

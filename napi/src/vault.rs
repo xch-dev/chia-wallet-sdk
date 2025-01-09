@@ -1,6 +1,7 @@
 use chia::{clvm_utils::TreeHash, protocol};
 use chia_wallet_sdk::{
-    self as sdk, member_puzzle_hash, MemberSpend, Mod, MofN, Secp256k1Member,
+    self as sdk, member_puzzle_hash, Force1of2RestrictedVariable,
+    Force1of2RestrictedVariableSolution, MemberSpend, Mod, MofN, Secp256k1Member,
     Secp256k1MemberPuzzleAssert, Secp256k1MemberPuzzleAssertSolution, Secp256k1MemberSolution,
     Secp256r1Member, Secp256r1MemberPuzzleAssert, Secp256r1MemberPuzzleAssertSolution,
     Secp256r1MemberSolution, SingletonMember, SingletonMemberSolution,
@@ -19,6 +20,12 @@ pub struct Vault {
     pub launcher_id: Uint8Array,
     pub proof: LineageProof,
     pub custody_hash: Uint8Array,
+}
+
+#[napi]
+pub fn child_vault(vault: Vault, custody_hash: Uint8Array) -> Result<Vault> {
+    let vault: sdk::Vault = vault.into_rust()?;
+    vault.child(custody_hash.into_rust()?).into_js()
 }
 
 impl IntoJs<Vault> for sdk::Vault {
@@ -248,6 +255,40 @@ impl VaultSpend {
 
         Ok(())
     }
+
+    #[napi]
+    pub fn spend_force_1_of_2_restricted_variable(
+        &mut self,
+        clvm: &mut ClvmAllocator,
+        left_side_subtree_hash: Uint8Array,
+        nonce: u32,
+        member_validator_list_hash: Uint8Array,
+        delegated_puzzle_validator_list_hash: Uint8Array,
+        new_right_side_member_hash: Uint8Array,
+    ) -> Result<()> {
+        let restriction = Force1of2RestrictedVariable::new(
+            left_side_subtree_hash.into_rust()?,
+            nonce.try_into().unwrap(),
+            member_validator_list_hash.into_rust()?,
+            delegated_puzzle_validator_list_hash.into_rust()?,
+        );
+
+        let puzzle = clvm.0.curry(restriction).map_err(js_err)?;
+
+        let solution = clvm
+            .0
+            .alloc(&Force1of2RestrictedVariableSolution::new(
+                new_right_side_member_hash.into_rust()?,
+            ))
+            .map_err(js_err)?;
+
+        self.spend.restrictions.insert(
+            restriction.curry_tree_hash(),
+            sdk::Spend::new(puzzle, solution),
+        );
+
+        Ok(())
+    }
 }
 
 #[napi(object)]
@@ -355,4 +396,24 @@ pub fn singleton_member_hash(config: MemberConfig, launcher_id: Uint8Array) -> R
         config,
         SingletonMember::new(launcher_id.into_rust()?).curry_tree_hash(),
     )
+}
+
+#[napi]
+pub fn force_1_of_2_restricted_variable(
+    left_side_subtree_hash: Uint8Array,
+    nonce: u32,
+    member_validator_list_hash: Uint8Array,
+    delegated_puzzle_validator_list_hash: Uint8Array,
+) -> Result<Restriction> {
+    Ok(Restriction {
+        is_member_condition_validator: true,
+        puzzle_hash: Force1of2RestrictedVariable::new(
+            left_side_subtree_hash.into_rust()?,
+            nonce.try_into().unwrap(),
+            member_validator_list_hash.into_rust()?,
+            delegated_puzzle_validator_list_hash.into_rust()?,
+        )
+        .curry_tree_hash()
+        .into_js()?,
+    })
 }
