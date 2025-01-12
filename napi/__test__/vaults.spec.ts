@@ -3,15 +3,17 @@ import test from "ava";
 import {
   childVault,
   ClvmAllocator,
-  force1Of2RestrictedVariable,
+  customMemberHash,
   k1MemberHash,
   K1SecretKey,
   K1Signature,
   MemberConfig,
   mOfNHash,
+  recoveryRestriction,
   sha256,
   Simulator,
   Spend,
+  timelockRestriction,
   toCoinId,
   Vault,
   VaultSpend,
@@ -347,54 +349,147 @@ test("single signer recovery vault", (t) => {
   const sim = new Simulator();
   const clvm = new ClvmAllocator();
 
-  const k1 = sim.k1Pair(1);
-  const recovery = sim.k1Pair(2);
+  const custodyKey = sim.k1Pair(1);
+  const recoveryKey = sim.k1Pair(2);
 
+  // Initial vault
   const config: MemberConfig = {
     topLevel: false,
     nonce: 0,
     restrictions: [],
   };
 
-  const recoveryPathHash = k1MemberHash(config, recovery.publicKey, false);
-  const memberHash = k1MemberHash(config, k1.publicKey, false);
+  const memberHash = k1MemberHash(config, custodyKey.publicKey, false);
 
-  const topLevelConfig: MemberConfig = {
-    topLevel: true,
-    nonce: 0,
-    restrictions: [
-      force1Of2RestrictedVariable(
-        recoveryPathHash,
-        0,
-        clvm.nil().treeHash(),
-        clvm.nil().treeHash()
-      ),
-    ],
-  };
-
-  const vault = mintVault(
-    sim,
-    clvm,
-    mOfNHash(topLevelConfig, 1, [recoveryPathHash, memberHash])
+  const timelock = timelockRestriction(1n);
+  const recovery = recoveryRestriction(
+    memberHash,
+    0,
+    clvm.alloc([timelock.puzzleHash]).treeHash(),
+    clvm.nil().treeHash()
+  );
+  const initialRecoveryHash = k1MemberHash(
+    {
+      ...config,
+      restrictions: [recovery],
+    },
+    recoveryKey.publicKey,
+    false
   );
 
-  const delegatedSpend = clvm.delegatedSpendForConditions([
+  let vault = mintVault(
+    sim,
+    clvm,
+    mOfNHash({ ...config, topLevel: true }, 1, [
+      memberHash,
+      initialRecoveryHash,
+    ])
+  );
+
+  let delegatedSpend = clvm.delegatedSpendForConditions([
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
 
-  const signature = signK1(clvm, k1.secretKey, vault, delegatedSpend, false);
-
-  const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
-  vaultSpend.spendForce1Of2RestrictedVariable(
+  let vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [
+    memberHash,
+    initialRecoveryHash,
+  ]);
+  vaultSpend.spendK1(
     clvm,
-    recoveryPathHash,
-    0,
-    clvm.nil().treeHash(),
-    clvm.nil().treeHash(),
-    memberHash
+    config,
+    custodyKey.publicKey,
+    signK1(clvm, custodyKey.secretKey, vault, delegatedSpend, false),
+    false
   );
-  vaultSpend.spendMOfN(topLevelConfig, 1, [recoveryPathHash, memberHash]);
-  vaultSpend.spendK1(clvm, config, k1.publicKey, signature, false);
+  clvm.spendVault(vault, vaultSpend);
+
+  sim.spend(clvm.coinSpends(), []);
+
+  // Initiate recovery
+  const oldCustodyHash = vault.custodyHash;
+  const recoveryDelegatedSpend: Spend = {
+    puzzle: clvm.nil(),
+    solution: clvm.nil(),
+  };
+
+  const recoveryFinishMemberSpend = clvm.delegatedSpendForConditions([
+    clvm.createCoin(oldCustodyHash, vault.coin.amount, null),
+    clvm.assertSecondsRelative(1n),
+  ]);
+  const recoveryFinishMemberHash = customMemberHash(
+    { ...config, restrictions: [timelock] },
+    recoveryFinishMemberSpend.puzzle.treeHash()
+  );
+
+  const custodyHash = mOfNHash({ ...config, topLevel: true }, 1, [
+    memberHash,
+    recoveryFinishMemberHash,
+  ]);
+
+  delegatedSpend = clvm.delegatedSpendForConditions([
+    clvm.createCoin(custodyHash, vault.coin.amount, null),
+  ]);
+
+  vault = childVault(vault, vault.custodyHash);
+  vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  vaultSpend.spendRecoveryRestriction(
+    clvm,
+    memberHash,
+    0,
+    clvm.alloc([timelock.puzzleHash]).treeHash(),
+    clvm.nil().treeHash(),
+    recoveryFinishMemberHash
+  );
+  vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [
+    memberHash,
+    initialRecoveryHash,
+  ]);
+  vaultSpend.spendK1(
+    clvm,
+    { ...config, restrictions: [recovery] },
+    recoveryKey.publicKey,
+    signK1(clvm, recoveryKey.secretKey, vault, delegatedSpend, false),
+    false
+  );
+  clvm.spendVault(vault, vaultSpend);
+
+  sim.spend(clvm.coinSpends(), []);
+
+  // Finish recovery
+  vault = childVault(vault, custodyHash);
+  vaultSpend = new VaultSpend(recoveryDelegatedSpend, vault.coin);
+  vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [
+    memberHash,
+    recoveryFinishMemberHash,
+  ]);
+  vaultSpend.spendCustomMember(
+    clvm,
+    { ...config, restrictions: [timelock] },
+    recoveryFinishMemberSpend
+  );
+  vaultSpend.spendTimelockRestriction(clvm, 1n);
+  clvm.spendVault(vault, vaultSpend);
+
+  sim.spend(clvm.coinSpends(), []);
+
+  // Make sure the vault is spendable after recovery
+  vault = childVault(vault, oldCustodyHash);
+  delegatedSpend = clvm.delegatedSpendForConditions([
+    clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
+  ]);
+  vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [
+    memberHash,
+    initialRecoveryHash,
+  ]);
+  vaultSpend.spendK1(
+    clvm,
+    config,
+    custodyKey.publicKey,
+    signK1(clvm, custodyKey.secretKey, vault, delegatedSpend, false),
+    false
+  );
   clvm.spendVault(vault, vaultSpend);
 
   sim.spend(clvm.coinSpends(), []);

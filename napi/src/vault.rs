@@ -1,11 +1,12 @@
 use chia::{clvm_utils::TreeHash, protocol};
 use chia_wallet_sdk::{
-    self as sdk, member_puzzle_hash, Force1of2RestrictedVariable,
-    Force1of2RestrictedVariableSolution, MemberSpend, Mod, MofN, Secp256k1Member,
-    Secp256k1MemberPuzzleAssert, Secp256k1MemberPuzzleAssertSolution, Secp256k1MemberSolution,
-    Secp256r1Member, Secp256r1MemberPuzzleAssert, Secp256r1MemberPuzzleAssertSolution,
-    Secp256r1MemberSolution, SingletonMember, SingletonMemberSolution,
+    self as sdk, member_puzzle_hash, FixedPuzzleMember, MemberSpend, Mod, MofN, Recovery,
+    RecoverySolution, Secp256k1Member, Secp256k1MemberPuzzleAssert,
+    Secp256k1MemberPuzzleAssertSolution, Secp256k1MemberSolution, Secp256r1Member,
+    Secp256r1MemberPuzzleAssert, Secp256r1MemberPuzzleAssertSolution, Secp256r1MemberSolution,
+    SingletonMember, SingletonMemberSolution, Timelock,
 };
+use clvmr::NodePtr;
 use napi::bindgen_prelude::*;
 
 use crate::{
@@ -257,7 +258,65 @@ impl VaultSpend {
     }
 
     #[napi]
-    pub fn spend_force_1_of_2_restricted_variable(
+    pub fn spend_fixed_puzzle(
+        &mut self,
+        clvm: &mut ClvmAllocator,
+        config: MemberConfig,
+        fixed_puzzle_hash: Uint8Array,
+    ) -> Result<()> {
+        let nonce = config.nonce.try_into().unwrap();
+        let restrictions = convert_restrictions(config.restrictions)?;
+
+        let member = FixedPuzzleMember::new(fixed_puzzle_hash.into_rust()?);
+
+        let member_hash = member_puzzle_hash(
+            nonce,
+            restrictions.clone(),
+            member.curry_tree_hash(),
+            config.top_level,
+        );
+
+        let member_puzzle = clvm.0.curry(member).map_err(js_err)?;
+
+        self.spend.members.insert(
+            member_hash,
+            MemberSpend::new(
+                nonce,
+                restrictions,
+                sdk::Spend::new(member_puzzle, NodePtr::NIL),
+            ),
+        );
+
+        Ok(())
+    }
+
+    #[napi]
+    pub fn spend_custom_member(
+        &mut self,
+        clvm: &mut ClvmAllocator,
+        config: MemberConfig,
+        spend: Spend,
+    ) -> Result<()> {
+        let nonce = config.nonce.try_into().unwrap();
+        let restrictions = convert_restrictions(config.restrictions)?;
+
+        let member_hash = member_puzzle_hash(
+            nonce,
+            restrictions.clone(),
+            clvm.0.tree_hash(spend.puzzle.ptr),
+            config.top_level,
+        );
+
+        self.spend.members.insert(
+            member_hash,
+            MemberSpend::new(nonce, restrictions, spend.into_rust()?),
+        );
+
+        Ok(())
+    }
+
+    #[napi]
+    pub fn spend_recovery_restriction(
         &mut self,
         clvm: &mut ClvmAllocator,
         left_side_subtree_hash: Uint8Array,
@@ -266,7 +325,7 @@ impl VaultSpend {
         delegated_puzzle_validator_list_hash: Uint8Array,
         new_right_side_member_hash: Uint8Array,
     ) -> Result<()> {
-        let restriction = Force1of2RestrictedVariable::new(
+        let restriction = Recovery::new(
             left_side_subtree_hash.into_rust()?,
             nonce.try_into().unwrap(),
             member_validator_list_hash.into_rust()?,
@@ -277,7 +336,7 @@ impl VaultSpend {
 
         let solution = clvm
             .0
-            .alloc(&Force1of2RestrictedVariableSolution::new(
+            .alloc(&RecoverySolution::new(
                 new_right_side_member_hash.into_rust()?,
             ))
             .map_err(js_err)?;
@@ -287,6 +346,21 @@ impl VaultSpend {
             sdk::Spend::new(puzzle, solution),
         );
 
+        Ok(())
+    }
+
+    #[napi]
+    pub fn spend_timelock_restriction(
+        &mut self,
+        clvm: &mut ClvmAllocator,
+        timelock: BigInt,
+    ) -> Result<()> {
+        let restriction = Timelock::new(timelock.into_rust()?);
+        let puzzle = clvm.0.curry(restriction).map_err(js_err)?;
+        self.spend.restrictions.insert(
+            restriction.curry_tree_hash(),
+            sdk::Spend::new(puzzle, NodePtr::NIL),
+        );
         Ok(())
     }
 }
@@ -399,7 +473,23 @@ pub fn singleton_member_hash(config: MemberConfig, launcher_id: Uint8Array) -> R
 }
 
 #[napi]
-pub fn force_1_of_2_restricted_variable(
+pub fn fixed_member_hash(
+    config: MemberConfig,
+    fixed_puzzle_hash: Uint8Array,
+) -> Result<Uint8Array> {
+    member_hash(
+        config,
+        FixedPuzzleMember::new(fixed_puzzle_hash.into_rust()?).curry_tree_hash(),
+    )
+}
+
+#[napi]
+pub fn custom_member_hash(config: MemberConfig, inner_hash: Uint8Array) -> Result<Uint8Array> {
+    member_hash(config, inner_hash.into_rust()?)
+}
+
+#[napi]
+pub fn recovery_restriction(
     left_side_subtree_hash: Uint8Array,
     nonce: u32,
     member_validator_list_hash: Uint8Array,
@@ -407,7 +497,7 @@ pub fn force_1_of_2_restricted_variable(
 ) -> Result<Restriction> {
     Ok(Restriction {
         is_member_condition_validator: true,
-        puzzle_hash: Force1of2RestrictedVariable::new(
+        puzzle_hash: Recovery::new(
             left_side_subtree_hash.into_rust()?,
             nonce.try_into().unwrap(),
             member_validator_list_hash.into_rust()?,
@@ -415,5 +505,15 @@ pub fn force_1_of_2_restricted_variable(
         )
         .curry_tree_hash()
         .into_js()?,
+    })
+}
+
+#[napi]
+pub fn timelock_restriction(timelock: BigInt) -> Result<Restriction> {
+    Ok(Restriction {
+        is_member_condition_validator: true,
+        puzzle_hash: Timelock::new(timelock.into_rust()?)
+            .curry_tree_hash()
+            .into_js()?,
     })
 }
