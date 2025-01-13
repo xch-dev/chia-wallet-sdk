@@ -42,6 +42,7 @@ jobs:
             target: aarch64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
             build: pnpm build:linux-arm64
+            platform: linux/arm64
           - host: macos-latest
             target: aarch64-apple-darwin
             build: pnpm build:macos-arm64
@@ -114,6 +115,7 @@ jobs:
           image: ${{ matrix.settings.docker }}
           options: "--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build/napi"
           run: ${{ matrix.settings.build }}
+          platform: ${{ matrix.settings.platform }}
 
       - name: Build
         run: ${{ matrix.settings.build }}
