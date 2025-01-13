@@ -30,7 +30,7 @@ pub fn sign_transaction(
 
     for required in required_signatures {
         let RequiredSignature::Bls(required) = required else {
-            panic!("secp is not supported by sign_transaction");
+            continue;
         };
         let pk = required.public_key;
         let sk = key_pairs.get(&pk).ok_or(SimulatorError::MissingKey)?;

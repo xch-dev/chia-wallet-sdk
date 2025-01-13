@@ -1,194 +1,141 @@
-use chia_bls::PublicKey;
-use chia_protocol::Bytes32;
 use chia_sdk_types::{
-    BlsMember, BlsTaprootMember, FixedPuzzleMember, Mod, PasskeyMember, PasskeyMemberPuzzleAssert,
-    Secp256k1Member, Secp256k1MemberPuzzleAssert, Secp256r1Member, Secp256r1MemberPuzzleAssert,
-    SingletonMember,
+    DelegatedFeederArgs, DelegatedFeederSolution, IndexWrapperArgs, Mod, RestrictionsArgs,
+    RestrictionsSolution,
 };
-use chia_secp::{K1PublicKey, R1PublicKey};
 use clvm_utils::TreeHash;
-use clvmr::NodePtr;
 
-use crate::{DriverError, SpendContext};
+use crate::{DriverError, Spend, SpendContext};
 
-use super::{KnownPuzzles, MofN, PuzzleWithRestrictions, VaultLayer};
-
-#[derive(Debug, Clone)]
-pub struct Member {
-    puzzle_hash: TreeHash,
-    kind: MemberKind,
-}
+use super::{MemberSpendKind, MofN, Restriction, VaultSpend};
 
 #[derive(Debug, Clone)]
-pub enum MemberKind {
-    Bls(BlsMember),
-    BlsTaproot(BlsTaprootMember),
-    FixedPuzzle(FixedPuzzleMember),
-    Passkey(PasskeyMember),
-    PasskeyPuzzleAssert(PasskeyMemberPuzzleAssert),
-    Secp256k1(Secp256k1Member),
-    Secp256k1PuzzleAssert(Secp256k1MemberPuzzleAssert),
-    Secp256r1(Secp256r1Member),
-    Secp256r1PuzzleAssert(Secp256r1MemberPuzzleAssert),
-    Singleton(SingletonMember),
-    MofN(MofN),
-    Unknown,
+pub struct MemberSpend {
+    pub nonce: usize,
+    pub restrictions: Vec<Restriction>,
+    pub kind: MemberSpendKind,
 }
 
-impl Member {
-    pub fn bls(public_key: PublicKey) -> Self {
-        let member = BlsMember::new(public_key);
+impl MemberSpend {
+    pub fn new(nonce: usize, restrictions: Vec<Restriction>, spend: Spend) -> Self {
         Self {
-            puzzle_hash: member.curry_tree_hash(),
-            kind: MemberKind::Bls(member),
+            nonce,
+            restrictions,
+            kind: MemberSpendKind::Leaf(spend),
         }
     }
 
-    pub fn bls_taproot(synthetic_key: PublicKey) -> Self {
-        let member = BlsTaprootMember::new(synthetic_key);
+    pub fn m_of_n(
+        nonce: usize,
+        restrictions: Vec<Restriction>,
+        required: usize,
+        items: Vec<TreeHash>,
+    ) -> Self {
         Self {
-            puzzle_hash: member.curry_tree_hash(),
-            kind: MemberKind::BlsTaproot(member),
+            nonce,
+            restrictions,
+            kind: MemberSpendKind::MofN(MofN::new(required, items)),
         }
     }
 
-    pub fn fixed_puzzle(fixed_puzzle_hash: Bytes32) -> Self {
-        let member = FixedPuzzleMember::new(fixed_puzzle_hash);
-        Self {
-            puzzle_hash: member.curry_tree_hash(),
-            kind: MemberKind::FixedPuzzle(member),
-        }
-    }
+    pub fn spend(
+        &self,
+        ctx: &mut SpendContext,
+        spend: &VaultSpend,
+        delegated_spend: bool,
+    ) -> Result<Spend, DriverError> {
+        let mut result = self.kind.spend(ctx, spend)?;
 
-    pub fn passkey(genesis_challenge: Bytes32, public_key: R1PublicKey) -> Self {
-        let member = PasskeyMember::new(genesis_challenge, public_key);
-        Self {
-            puzzle_hash: member.curry_tree_hash(),
-            kind: MemberKind::Passkey(member),
-        }
-    }
+        if !self.restrictions.is_empty() {
+            let mut member_validators = Vec::new();
+            let mut delegated_puzzle_validators = Vec::new();
 
-    pub fn passkey_puzzle_assert(genesis_challenge: Bytes32, public_key: R1PublicKey) -> Self {
-        let member = PasskeyMemberPuzzleAssert::new(genesis_challenge, public_key);
-        Self {
-            puzzle_hash: member.curry_tree_hash(),
-            kind: MemberKind::PasskeyPuzzleAssert(member),
-        }
-    }
+            for restriction in &self.restrictions {
+                let restriction_spend = spend
+                    .restrictions
+                    .get(&restriction.puzzle_hash)
+                    .ok_or(DriverError::MissingSubpathSpend)?;
 
-    pub fn secp256k1(public_key: K1PublicKey) -> Self {
-        let member = Secp256k1Member::new(public_key);
-        Self {
-            puzzle_hash: member.curry_tree_hash(),
-            kind: MemberKind::Secp256k1(member),
-        }
-    }
+                if restriction.is_member_condition_validator {
+                    member_validators.push(restriction_spend.puzzle);
+                } else {
+                    delegated_puzzle_validators.push(restriction_spend.puzzle);
+                }
+            }
 
-    pub fn secp256k1_puzzle_assert(public_key: K1PublicKey) -> Self {
-        let member = Secp256k1MemberPuzzleAssert::new(public_key);
-        Self {
-            puzzle_hash: member.curry_tree_hash(),
-            kind: MemberKind::Secp256k1PuzzleAssert(member),
-        }
-    }
+            let mut member_validator_solutions = Vec::new();
+            let mut delegated_puzzle_validator_solutions = Vec::new();
 
-    pub fn secp256r1(public_key: R1PublicKey) -> Self {
-        let member = Secp256r1Member::new(public_key);
-        Self {
-            puzzle_hash: member.curry_tree_hash(),
-            kind: MemberKind::Secp256r1(member),
-        }
-    }
+            for restriction in &self.restrictions {
+                let restriction_spend = spend
+                    .restrictions
+                    .get(&restriction.puzzle_hash)
+                    .ok_or(DriverError::MissingSubpathSpend)?;
 
-    pub fn secp256r1_puzzle_assert(public_key: R1PublicKey) -> Self {
-        let member = Secp256r1MemberPuzzleAssert::new(public_key);
-        Self {
-            puzzle_hash: member.curry_tree_hash(),
-            kind: MemberKind::Secp256r1PuzzleAssert(member),
-        }
-    }
+                if restriction.is_member_condition_validator {
+                    member_validator_solutions.push(restriction_spend.solution);
+                } else {
+                    delegated_puzzle_validator_solutions.push(restriction_spend.solution);
+                }
+            }
 
-    pub fn singleton(launcher_id: Bytes32) -> Self {
-        let member = SingletonMember::new(launcher_id);
-        Self {
-            puzzle_hash: member.curry_tree_hash(),
-            kind: MemberKind::Singleton(member),
-        }
-    }
+            result.puzzle = ctx.curry(RestrictionsArgs::new(
+                member_validators,
+                delegated_puzzle_validators,
+                result.puzzle,
+            ))?;
 
-    pub fn m_of_n(required: usize, members: Vec<PuzzleWithRestrictions<Member>>) -> Self {
-        let m_of_n = MofN::new(required, members).expect("invalid m_of_n");
-        Self {
-            puzzle_hash: m_of_n.puzzle_hash(),
-            kind: MemberKind::MofN(m_of_n),
+            result.solution = ctx.alloc(&RestrictionsSolution::new(
+                member_validator_solutions,
+                delegated_puzzle_validator_solutions,
+                result.solution,
+            ))?;
         }
-    }
 
-    pub fn unknown(puzzle_hash: TreeHash) -> Self {
-        Self {
-            puzzle_hash,
-            kind: MemberKind::Unknown,
+        if delegated_spend {
+            result.puzzle = ctx.curry(DelegatedFeederArgs::new(result.puzzle))?;
+
+            result.solution = ctx.alloc(&DelegatedFeederSolution::new(
+                spend.delegated.puzzle,
+                spend.delegated.solution,
+                result.solution,
+            ))?;
         }
-    }
 
-    pub fn kind(&self) -> &MemberKind {
-        &self.kind
+        Ok(Spend::new(
+            ctx.curry(IndexWrapperArgs::new(self.nonce, result.puzzle))?,
+            result.solution,
+        ))
     }
 }
 
-impl VaultLayer for Member {
-    fn puzzle_hash(&self) -> TreeHash {
-        self.puzzle_hash
-    }
+pub fn member_puzzle_hash(
+    nonce: usize,
+    restrictions: Vec<Restriction>,
+    inner_puzzle_hash: TreeHash,
+    top_level: bool,
+) -> TreeHash {
+    let mut puzzle_hash = inner_puzzle_hash;
 
-    fn puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        match &self.kind {
-            MemberKind::Bls(bls) => ctx.curry(bls),
-            MemberKind::BlsTaproot(bls_taproot) => ctx.curry(bls_taproot),
-            MemberKind::FixedPuzzle(fixed_puzzle) => ctx.curry(fixed_puzzle),
-            MemberKind::Passkey(passkey) => ctx.curry(passkey),
-            MemberKind::PasskeyPuzzleAssert(passkey_puzzle_assert) => {
-                ctx.curry(passkey_puzzle_assert)
+    if !restrictions.is_empty() {
+        let mut member_validators = Vec::new();
+        let mut delegated_puzzle_validators = Vec::new();
+
+        for restriction in restrictions {
+            if restriction.is_member_condition_validator {
+                member_validators.push(restriction.puzzle_hash);
+            } else {
+                delegated_puzzle_validators.push(restriction.puzzle_hash);
             }
-            MemberKind::Secp256k1(secp256k1) => ctx.curry(secp256k1),
-            MemberKind::Secp256k1PuzzleAssert(secp256k1_puzzle_assert) => {
-                ctx.curry(secp256k1_puzzle_assert)
-            }
-            MemberKind::Secp256r1(secp256r1) => ctx.curry(secp256r1),
-            MemberKind::Secp256r1PuzzleAssert(secp256r1_puzzle_assert) => {
-                ctx.curry(secp256r1_puzzle_assert)
-            }
-            MemberKind::Singleton(singleton) => ctx.curry(singleton),
-            MemberKind::MofN(m_of_n) => m_of_n.puzzle(ctx),
-            MemberKind::Unknown => Err(DriverError::UnknownPuzzle),
         }
+
+        puzzle_hash =
+            RestrictionsArgs::new(member_validators, delegated_puzzle_validators, puzzle_hash)
+                .curry_tree_hash();
     }
 
-    fn replace(self, known_puzzles: &KnownPuzzles) -> Self {
-        let kind = known_puzzles
-            .members
-            .get(&self.puzzle_hash)
-            .cloned()
-            .unwrap_or(self.kind);
-
-        let kind = match kind {
-            MemberKind::Bls(..)
-            | MemberKind::BlsTaproot(..)
-            | MemberKind::FixedPuzzle(..)
-            | MemberKind::Passkey(..)
-            | MemberKind::PasskeyPuzzleAssert(..)
-            | MemberKind::Secp256k1(..)
-            | MemberKind::Secp256k1PuzzleAssert(..)
-            | MemberKind::Secp256r1(..)
-            | MemberKind::Secp256r1PuzzleAssert(..)
-            | MemberKind::Singleton(..)
-            | MemberKind::Unknown => kind,
-            MemberKind::MofN(m_of_n) => MemberKind::MofN(m_of_n.replace(known_puzzles)),
-        };
-
-        Self {
-            puzzle_hash: self.puzzle_hash,
-            kind,
-        }
+    if top_level {
+        puzzle_hash = DelegatedFeederArgs::new(puzzle_hash).curry_tree_hash();
     }
+
+    IndexWrapperArgs::new(nonce, puzzle_hash).curry_tree_hash()
 }

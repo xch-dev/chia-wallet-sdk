@@ -2,7 +2,7 @@ use chia::clvm_utils::TreeHash;
 use clvmr::sha2::Sha256;
 use napi::bindgen_prelude::*;
 
-use crate::traits::{IntoJs, IntoRust};
+use crate::traits::{js_err, IntoJs, IntoRust};
 
 #[napi]
 pub fn compare_bytes(a: Uint8Array, b: Uint8Array) -> bool {
@@ -35,7 +35,7 @@ pub fn tree_hash_pair(first: Uint8Array, rest: Uint8Array) -> Result<Uint8Array>
 
 #[napi]
 pub fn from_hex_raw(hex: String) -> Result<Uint8Array> {
-    let bytes = hex::decode(hex).map_err(|error| Error::from_reason(error.to_string()))?;
+    let bytes = hex::decode(hex).map_err(js_err)?;
     bytes.into_js()
 }
 
@@ -47,7 +47,7 @@ pub fn from_hex(hex: String) -> Result<Uint8Array> {
         hex = stripped;
     }
 
-    let bytes = hex::decode(hex).map_err(|error| Error::from_reason(error.to_string()))?;
+    let bytes = hex::decode(hex).map_err(js_err)?;
     bytes.into_js()
 }
 

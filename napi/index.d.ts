@@ -197,7 +197,6 @@ export interface NftMint {
 }
 export interface MintedNfts {
   nfts: Array<Nft>
-  coinSpends: Array<CoinSpend>
   parentConditions: Array<Program>
 }
 export interface Curry {
@@ -210,6 +209,14 @@ export interface P2Coin {
   publicKey: PublicKey
   secretKey: SecretKey
 }
+export interface K1KeyPair {
+  publicKey: K1PublicKey
+  secretKey: K1SecretKey
+}
+export interface R1KeyPair {
+  publicKey: R1PublicKey
+  secretKey: R1SecretKey
+}
 export declare function compareBytes(a: Uint8Array, b: Uint8Array): boolean
 export declare function sha256(bytes: Uint8Array): Uint8Array
 export declare function treeHashAtom(bytes: Uint8Array): Uint8Array
@@ -217,6 +224,36 @@ export declare function treeHashPair(first: Uint8Array, rest: Uint8Array): Uint8
 export declare function fromHexRaw(hex: string): Uint8Array
 export declare function fromHex(hex: string): Uint8Array
 export declare function toHex(bytes: Uint8Array): string
+export interface Vault {
+  coin: Coin
+  launcherId: Uint8Array
+  proof: LineageProof
+  custodyHash: Uint8Array
+}
+export declare function childVault(vault: Vault, custodyHash: Uint8Array): Vault
+export interface VaultMint {
+  parentConditions: Array<Program>
+  vault: Vault
+}
+export interface Restriction {
+  isMemberConditionValidator: boolean
+  puzzleHash: Uint8Array
+}
+export interface MemberConfig {
+  topLevel: boolean
+  nonce: number
+  restrictions: Array<Restriction>
+}
+export declare function mOfNHash(config: MemberConfig, required: number, items: Array<Uint8Array>): Uint8Array
+export declare function k1MemberHash(config: MemberConfig, publicKey: K1PublicKey, fastForward: boolean): Uint8Array
+export declare function r1MemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Uint8Array
+export declare function blsMemberHash(config: MemberConfig, publicKey: PublicKey): Uint8Array
+export declare function passkeyMemberHash(config: MemberConfig, genesisChallenge: Uint8Array, publicKey: R1PublicKey, fastForward: boolean): Uint8Array
+export declare function singletonMemberHash(config: MemberConfig, launcherId: Uint8Array): Uint8Array
+export declare function fixedMemberHash(config: MemberConfig, fixedPuzzleHash: Uint8Array): Uint8Array
+export declare function customMemberHash(config: MemberConfig, innerHash: Uint8Array): Uint8Array
+export declare function recoveryRestriction(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): Restriction
+export declare function timelockRestriction(timelock: bigint): Restriction
 export declare class SecretKey {
   static fromSeed(seed: Uint8Array): SecretKey
   static fromBytes(bytes: Uint8Array): SecretKey
@@ -267,6 +304,7 @@ export declare class ClvmAllocator {
   curry(program: Program, args: Array<Program>): Program
   pair(first: ClvmValue, rest: ClvmValue): Program
   alloc(value: ClvmValue): Program
+  coinSpends(): Array<CoinSpend>
   nftMetadata(value: NftMetadata): Program
   parseNftMetadata(value: Program): NftMetadata
   delegatedSpendForConditions(conditions: Array<Program>): Spend
@@ -275,7 +313,9 @@ export declare class ClvmAllocator {
   mintNfts(parent_coin_id: Uint8Array, nft_mints: Array<NftMint>): MintedNfts
   parseNftInfo(puzzle: Program): ParsedNft | null
   parseChildNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Nft | null
-  spendNft(nft: Nft, innerSpend: Spend): Array<CoinSpend>
+  spendNft(nft: Nft, innerSpend: Spend): void
+  mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
+  spendVault(vault: Vault, spend: VaultSpend): void
   remark(rest: Program): Program
   parseRemark(program: Program): Remark | null
   aggSigParent(publicKey: PublicKey, message: Uint8Array): Program
@@ -374,11 +414,54 @@ export declare class Program {
   toPublicKey(): PublicKey | null
   toSignature(): Signature | null
 }
+export declare class K1SecretKey {
+  static fromBytes(bytes: Uint8Array): K1SecretKey
+  toBytes(): Uint8Array
+  publicKey(): K1PublicKey
+  signPrehashed(prehashed: Uint8Array): K1Signature
+}
+export declare class K1PublicKey {
+  static fromBytes(bytes: Uint8Array): K1PublicKey
+  toBytes(): Uint8Array
+}
+export declare class K1Signature {
+  static fromBytes(bytes: Uint8Array): K1Signature
+  toBytes(): Uint8Array
+}
+export declare class R1SecretKey {
+  static fromBytes(bytes: Uint8Array): R1SecretKey
+  toBytes(): Uint8Array
+  publicKey(): R1PublicKey
+  signPrehashed(prehashed: Uint8Array): R1Signature
+}
+export declare class R1PublicKey {
+  static fromBytes(bytes: Uint8Array): R1PublicKey
+  toBytes(): Uint8Array
+}
+export declare class R1Signature {
+  static fromBytes(bytes: Uint8Array): R1Signature
+  toBytes(): Uint8Array
+}
 export declare class Simulator {
   constructor()
   newCoin(puzzleHash: Uint8Array, amount: bigint): Coin
   newP2(amount: bigint): P2Coin
   spend(coinSpends: Array<CoinSpend>, secretKeys: Array<SecretKey>): void
+  k1Pair(seed: number): K1KeyPair
+  r1Pair(seed: number): R1KeyPair
+}
+export declare class VaultSpend {
+  constructor(delegatedSpend: Spend, coin: Coin)
+  spendMOfN(config: MemberConfig, required: number, items: Array<Uint8Array>): void
+  spendK1(clvm: ClvmAllocator, config: MemberConfig, publicKey: K1PublicKey, signature: K1Signature, fastForward: boolean): void
+  spendR1(clvm: ClvmAllocator, config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, fastForward: boolean): void
+  spendBls(clvm: ClvmAllocator, config: MemberConfig, publicKey: PublicKey): void
+  spendPasskey(clvm: ClvmAllocator, config: MemberConfig, genesisChallenge: Uint8Array, publicKey: R1PublicKey, signature: R1Signature, authenticatorData: Uint8Array, clientDataJson: Uint8Array, challengeIndex: number, fastForward: boolean): void
+  spendSingleton(clvm: ClvmAllocator, config: MemberConfig, launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, singletonAmount: bigint): void
+  spendFixedPuzzle(clvm: ClvmAllocator, config: MemberConfig, fixedPuzzleHash: Uint8Array): void
+  spendCustomMember(clvm: ClvmAllocator, config: MemberConfig, spend: Spend): void
+  spendRecoveryRestriction(clvm: ClvmAllocator, leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array, newRightSideMemberHash: Uint8Array): void
+  spendTimelockRestriction(clvm: ClvmAllocator, timelock: bigint): void
 }
 
 /* auto-generated by `pnpm run update-declarations` */

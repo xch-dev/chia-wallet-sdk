@@ -16,8 +16,9 @@ use paste::paste;
 
 use crate::{
     clvm_value::{Allocate, ClvmValue},
-    traits::{FromJs, IntoJs, IntoJsContextual, IntoRust},
+    traits::{js_err, FromJs, IntoJs, IntoJsContextual, IntoRust},
     Coin, CoinSpend, MintedNfts, Nft, NftMetadata, NftMint, ParsedNft, Program, PublicKey, Spend,
+    Vault, VaultMint, VaultSpend,
 };
 
 type Clvm = Reference<ClvmAllocator>;
@@ -83,7 +84,7 @@ impl ClvmAllocator {
             solution.ptr,
             max_cost.into_rust()?,
         )
-        .map_err(|error| Error::from_reason(error.to_string()))?;
+        .map_err(js_err)?;
 
         Ok(Output {
             value: Program::new(this, result.1).into_instance(env)?,
@@ -105,7 +106,7 @@ impl ClvmAllocator {
                 .0
                 .allocator
                 .encode_curried_arg(arg.ptr, args_ptr)
-                .map_err(|error| Error::from_reason(error.to_string()))?;
+                .map_err(js_err)?;
         }
 
         self.0
@@ -113,7 +114,7 @@ impl ClvmAllocator {
                 program: program.ptr,
                 args: args_ptr,
             })
-            .map_err(|error| Error::from_reason(error.to_string()))
+            .map_err(js_err)
             .map(|ptr| Program::new(this, ptr))
     }
 
@@ -121,11 +122,7 @@ impl ClvmAllocator {
     pub fn pair(&mut self, this: This<Clvm>, first: ClvmValue, rest: ClvmValue) -> Result<Program> {
         let first = first.allocate(&mut self.0.allocator)?;
         let rest = rest.allocate(&mut self.0.allocator)?;
-        let ptr = self
-            .0
-            .allocator
-            .new_pair(first, rest)
-            .map_err(|error| Error::from_reason(error.to_string()))?;
+        let ptr = self.0.allocator.new_pair(first, rest).map_err(js_err)?;
         Ok(Program::new(this, ptr))
     }
 
@@ -135,21 +132,23 @@ impl ClvmAllocator {
         Ok(Program::new(this, ptr))
     }
 
+    #[napi]
+    pub fn coin_spends(&mut self) -> Result<Vec<CoinSpend>> {
+        self.0.take().into_iter().map(IntoJs::into_js).collect()
+    }
+
     #[napi(ts_args_type = "value: NftMetadata")]
     pub fn nft_metadata(&mut self, this: This<Clvm>, value: NftMetadata) -> Result<Program> {
         let metadata = nft::NftMetadata::from_js(value)?;
 
-        let ptr = metadata
-            .to_clvm(&mut self.0.allocator)
-            .map_err(|error| Error::from_reason(error.to_string()))?;
+        let ptr = metadata.to_clvm(&mut self.0.allocator).map_err(js_err)?;
 
         Ok(Program::new(this, ptr))
     }
 
     #[napi(ts_args_type = "value: Program")]
     pub fn parse_nft_metadata(&mut self, value: &Program) -> Result<NftMetadata> {
-        let metadata = nft::NftMetadata::from_clvm(&self.0.allocator, value.ptr)
-            .map_err(|error| Error::from_reason(error.to_string()))?;
+        let metadata = nft::NftMetadata::from_clvm(&self.0.allocator, value.ptr).map_err(js_err)?;
 
         metadata.into_js()
     }
@@ -163,10 +162,7 @@ impl ClvmAllocator {
     ) -> Result<Spend> {
         let conditions: Vec<NodePtr> = conditions.into_iter().map(|program| program.ptr).collect();
 
-        let delegated_puzzle = self
-            .0
-            .alloc(&clvm_quote!(conditions))
-            .map_err(|error| Error::from_reason(error.to_string()))?;
+        let delegated_puzzle = self.0.alloc(&clvm_quote!(conditions)).map_err(js_err)?;
 
         Ok(Spend {
             puzzle: Program::new(this.clone(env)?, delegated_puzzle).into_instance(env)?,
@@ -191,7 +187,7 @@ impl ClvmAllocator {
                 ctx,
                 sdk::Spend::new(delegated_spend.puzzle.ptr, delegated_spend.solution.ptr),
             )
-            .map_err(|error| Error::from_reason(error.to_string()))?;
+            .map_err(js_err)?;
 
         Ok(Spend {
             puzzle: Program::new(this.clone(env)?, spend.puzzle).into_instance(env)?,
@@ -223,7 +219,7 @@ impl ClvmAllocator {
                     solution: delegated_spend.solution.ptr,
                 },
             )
-            .map_err(|error| Error::from_reason(error.to_string()))?;
+            .map_err(js_err)?;
 
         Ok(Spend {
             puzzle: Program::new(this.clone(env)?, spend.puzzle).into_instance(env)?,
@@ -243,7 +239,6 @@ impl ClvmAllocator {
 
         let mut result = MintedNfts {
             nfts: Vec::new(),
-            coin_spends: Vec::new(),
             parent_conditions: Vec::new(),
         };
 
@@ -260,35 +255,22 @@ impl ClvmAllocator {
                         owner: None,
                     },
                 )
-                .map_err(|error| Error::from_reason(error.to_string()))?;
+                .map_err(js_err)?;
 
-            let serialized_metadata = self
-                .0
-                .serialize(&nft.info.metadata)
-                .map_err(|error| Error::from_reason(error.to_string()))?;
+            let serialized_metadata = self.0.serialize(&nft.info.metadata).map_err(js_err)?;
 
             result
                 .nfts
                 .push(nft.with_metadata(serialized_metadata).into_js()?);
 
             for condition in conditions {
-                let condition = condition
-                    .to_clvm(&mut self.0.allocator)
-                    .map_err(|error| Error::from_reason(error.to_string()))?;
+                let condition = condition.to_clvm(&mut self.0.allocator).map_err(js_err)?;
 
                 result
                     .parent_conditions
                     .push(Program::new(this.clone(env)?, condition).into_instance(env)?);
             }
         }
-
-        result.coin_spends.extend(
-            self.0
-                .take()
-                .into_iter()
-                .map(IntoJs::into_js)
-                .collect::<Result<Vec<_>>>()?,
-        );
 
         Ok(result)
     }
@@ -303,8 +285,7 @@ impl ClvmAllocator {
         let puzzle = sdk::Puzzle::parse(&self.0.allocator, puzzle.ptr);
 
         let Some((nft_info, inner_puzzle)) =
-            sdk::NftInfo::<protocol::Program>::parse(&self.0.allocator, puzzle)
-                .map_err(|error| Error::from_reason(error.to_string()))?
+            sdk::NftInfo::<protocol::Program>::parse(&self.0.allocator, puzzle).map_err(js_err)?
         else {
             return Ok(None);
         };
@@ -330,21 +311,18 @@ impl ClvmAllocator {
             parent_puzzle,
             parent_solution.ptr,
         )
-        .map_err(|error| Error::from_reason(error.to_string()))?
+        .map_err(js_err)?
         else {
             return Ok(None);
         };
 
-        let serialized_metadata = self
-            .0
-            .serialize(&nft.info.metadata)
-            .map_err(|error| Error::from_reason(error.to_string()))?;
+        let serialized_metadata = self.0.serialize(&nft.info.metadata).map_err(js_err)?;
 
         Ok(Some(nft.with_metadata(serialized_metadata).into_js()?))
     }
 
     #[napi]
-    pub fn spend_nft(&mut self, nft: Nft, inner_spend: Spend) -> Result<Vec<CoinSpend>> {
+    pub fn spend_nft(&mut self, nft: Nft, inner_spend: Spend) -> Result<()> {
         let ctx = &mut self.0;
         let nft = sdk::Nft::<protocol::Program>::from_js(nft)?;
 
@@ -352,9 +330,46 @@ impl ClvmAllocator {
             ctx,
             sdk::Spend::new(inner_spend.puzzle.ptr, inner_spend.solution.ptr),
         )
-        .map_err(|error| Error::from_reason(error.to_string()))?;
+        .map_err(js_err)?;
 
-        ctx.take().into_iter().map(IntoJs::into_js).collect()
+        Ok(())
+    }
+
+    #[napi(ts_args_type = "parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program")]
+    pub fn mint_vault(
+        &mut self,
+        env: Env,
+        this: This<Clvm>,
+        parent_coin_id: Uint8Array,
+        custody_hash: Uint8Array,
+        memos: &Program,
+    ) -> Result<VaultMint> {
+        let (parent_conditions, vault) = sdk::Launcher::new(parent_coin_id.into_rust()?, 1)
+            .mint_vault(&mut self.0, custody_hash.into_rust()?, memos.ptr)
+            .map_err(js_err)?;
+
+        let parent_conditions: Vec<ClassInstance<Program>> = parent_conditions
+            .into_iter()
+            .map(|program| {
+                Program::new(
+                    this.clone(env)?,
+                    program.to_clvm(&mut self.0.allocator).map_err(js_err)?,
+                )
+                .into_instance(env)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(VaultMint {
+            parent_conditions,
+            vault: vault.into_js()?,
+        })
+    }
+
+    #[napi]
+    pub fn spend_vault(&mut self, vault: Vault, spend: &VaultSpend) -> Result<()> {
+        let rust: sdk::Vault = vault.into_rust()?;
+        rust.spend(&mut self.0, &spend.spend).map_err(js_err)?;
+        Ok(())
     }
 }
 
@@ -404,7 +419,7 @@ macro_rules! conditions {
                     $( let $name $( : $remap )? = FromJs::from_js($name)?; )*
                     let ptr = sdk::$condition::new( $( $name ),* )
                     .to_clvm(&mut self.0.allocator)
-                    .map_err(|error| Error::from_reason(error.to_string()))?;
+                    .map_err(js_err)?;
 
                     Ok(Program::new(this, ptr))
                 }

@@ -32,6 +32,15 @@ pub struct SingletonMemberSolution {
     pub singleton_amount: u64,
 }
 
+impl SingletonMemberSolution {
+    pub fn new(singleton_inner_puzzle_hash: Bytes32, singleton_amount: u64) -> Self {
+        Self {
+            singleton_inner_puzzle_hash,
+            singleton_amount,
+        }
+    }
+}
+
 pub const SINGLETON_MEMBER: [u8; 361] = hex!(
     "
     ff02ffff01ff04ffff04ff12ffff04ffff0117ffff04ff0bffff04ffff02ff2e

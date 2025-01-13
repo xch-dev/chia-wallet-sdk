@@ -14,10 +14,10 @@ import {
 test("calculate coin id", (t) => {
   const coinId = toCoinId({
     parentCoinInfo: fromHex(
-      "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a",
+      "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a"
     ),
     puzzleHash: fromHex(
-      "dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986",
+      "dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986"
     ),
     amount: 100n,
   });
@@ -26,9 +26,9 @@ test("calculate coin id", (t) => {
     compareBytes(
       coinId,
       fromHex(
-        "fd3e669c27be9d634fe79f1f7d7d8aaacc3597b855cffea1d708f4642f1d542a",
-      ),
-    ),
+        "fd3e669c27be9d634fe79f1f7d7d8aaacc3597b855cffea1d708f4642f1d542a"
+      )
+    )
   );
 });
 
@@ -187,13 +187,13 @@ test("curry roundtrip", (t) => {
   const items = Array.from({ length: 10 }, (_, i) => i);
   const ptr = clvm.curry(
     clvm.nil(),
-    items.map((i) => clvm.alloc(i)),
+    items.map((i) => clvm.alloc(i))
   );
   const uncurry = ptr.uncurry()!;
   const args = uncurry.args.map((ptr) => ptr.toSmallNumber());
 
   t.true(
-    compareBytes(clvm.treeHash(clvm.nil()), clvm.treeHash(uncurry.program)),
+    compareBytes(clvm.treeHash(clvm.nil()), clvm.treeHash(uncurry.program))
   );
   t.deepEqual(args, items);
 });
@@ -221,12 +221,12 @@ test("curry tree hash", (t) => {
   const items = Array.from({ length: 10 }, (_, i) => i);
   const ptr = clvm.curry(
     clvm.nil(),
-    items.map((i) => clvm.alloc(i)),
+    items.map((i) => clvm.alloc(i))
   );
 
   const treeHash = curryTreeHash(
     clvm.treeHash(clvm.nil()),
-    items.map((i) => clvm.treeHash(clvm.alloc(i))),
+    items.map((i) => clvm.treeHash(clvm.alloc(i)))
   );
   const expected = clvm.treeHash(ptr);
 
@@ -255,40 +255,40 @@ test("mint and spend nft", (t) => {
 
   const spend = clvm.spendP2Standard(
     p2.publicKey,
-    clvm.delegatedSpendForConditions(result.parentConditions),
+    clvm.delegatedSpendForConditions(result.parentConditions)
   );
 
   simulator.spend(
-    result.coinSpends.concat([
+    clvm.coinSpends().concat([
       {
         coin: p2.coin,
         puzzleReveal: spend.puzzle.serialize(),
         solution: spend.solution.serialize(),
       },
     ]),
-    [p2.secretKey],
+    [p2.secretKey]
   );
 
   const innerSpend = clvm.spendP2Standard(
     p2.publicKey,
     clvm.delegatedSpendForConditions([
       clvm.createCoin(p2.puzzleHash, 1n, clvm.alloc([p2.puzzleHash])),
-    ]),
+    ])
   );
 
-  const coinSpends = clvm.spendNft(result.nfts[0], innerSpend);
+  clvm.spendNft(result.nfts[0], innerSpend);
 
-  simulator.spend(coinSpends, [p2.secretKey]);
+  simulator.spend(clvm.coinSpends(), [p2.secretKey]);
 
   t.true(
     compareBytes(
       clvm
         .nftMetadata(
-          clvm.parseNftMetadata(clvm.deserialize(result.nfts[0].info.metadata)),
+          clvm.parseNftMetadata(clvm.deserialize(result.nfts[0].info.metadata))
         )
         .serialize(),
-      result.nfts[0].info.metadata,
-    ),
+      result.nfts[0].info.metadata
+    )
   );
 });
 
@@ -308,6 +308,6 @@ test("create and parse condition", (t) => {
       ?.toList()
       .map((memo) => memo.toAtom())
       .filter((memo) => memo !== null),
-    [puzzleHash],
+    [puzzleHash]
   );
 });

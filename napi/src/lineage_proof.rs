@@ -4,6 +4,7 @@ use napi::bindgen_prelude::*;
 use crate::traits::{FromJs, IntoJs, IntoRust};
 
 #[napi(object)]
+#[derive(Clone)]
 pub struct LineageProof {
     pub parent_parent_coin_info: Uint8Array,
     pub parent_inner_puzzle_hash: Option<Uint8Array>,
