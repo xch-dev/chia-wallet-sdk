@@ -37,7 +37,7 @@ pub fn select_coins(
     // Checks to ensure the balance is sufficient before continuing.
     let spendable_amount = spendable_coins
         .iter()
-        .fold(0u128, |acc, coin| acc + coin.amount as u128);
+        .fold(0u128, |acc, coin| acc + u128::from(coin.amount));
 
     if spendable_amount < amount {
         return Err(CoinSelectionError::InsufficientBalance(spendable_amount));
@@ -48,7 +48,7 @@ pub fn select_coins(
 
     // Exact coin match.
     for coin in &spendable_coins {
-        if coin.amount as u128 == amount {
+        if u128::from(coin.amount) == amount {
             return Ok(vec![*coin]);
         }
     }
@@ -57,7 +57,7 @@ pub fn select_coins(
     let mut smaller_sum = 0;
 
     for coin in &spendable_coins {
-        let coin_amount = coin.amount as u128;
+        let coin_amount = u128::from(coin.amount);
 
         if coin_amount < amount {
             smaller_coins.insert(*coin);
@@ -110,7 +110,7 @@ fn sum_largest_coins(coins: &[Coin], amount: u128) -> IndexSet<Coin> {
     let mut selected_coins = IndexSet::new();
     let mut selected_sum = 0;
     for coin in coins {
-        selected_sum += coin.amount as u128;
+        selected_sum += u128::from(coin.amount);
         selected_coins.insert(*coin);
 
         if selected_sum >= amount {
@@ -121,11 +121,11 @@ fn sum_largest_coins(coins: &[Coin], amount: u128) -> IndexSet<Coin> {
 }
 
 fn smallest_coin_above(coins: &[Coin], amount: u128) -> Option<Coin> {
-    if (coins[0].amount as u128) < amount {
+    if u128::from(coins[0].amount) < amount {
         return None;
     }
     for coin in coins.iter().rev() {
-        if (coin.amount as u128) >= amount {
+        if u128::from(coin.amount) >= amount {
             return Some(*coin);
         }
     }
@@ -165,7 +165,7 @@ pub fn knapsack_coin_algorithm(
                     break;
                 }
 
-                selected_sum += coin.amount as u128;
+                selected_sum += u128::from(coin.amount);
                 selected_coins.insert(*coin);
 
                 if selected_sum == amount {
@@ -179,7 +179,7 @@ pub fn knapsack_coin_algorithm(
                         best_sum = selected_sum;
                         best_coins = Some(selected_coins.clone());
 
-                        selected_sum -= coin.amount as u128;
+                        selected_sum -= u128::from(coin.amount);
                         selected_coins.shift_remove(coin);
                     }
                 }

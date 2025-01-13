@@ -4,6 +4,7 @@ use napi::bindgen_prelude::*;
 use crate::traits::{FromJs, IntoJs, IntoRust};
 
 #[napi(object)]
+#[derive(Clone)]
 pub struct Coin {
     pub parent_coin_info: Uint8Array,
     pub puzzle_hash: Uint8Array,

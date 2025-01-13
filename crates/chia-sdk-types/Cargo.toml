@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-types"
-version = "0.19.1"
+version = "0.20.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Standard Chia types for things such as puzzle info and conditions."
@@ -16,10 +16,12 @@ workspace = true
 
 [features]
 chip-0035 = []
+experimental-vaults = ["clvm-traits/chia-secp"]
 
 [dependencies]
 chia-sdk-derive = { workspace = true }
 chia-bls = { workspace = true }
+chia-secp = { workspace = true }
 chia-protocol = { workspace = true }
 chia-consensus = { workspace = true }
 chia-puzzles = { workspace = true }
@@ -33,3 +35,5 @@ once_cell = { workspace = true }
 hex = { workspace = true }
 anyhow = { workspace = true }
 rstest = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }

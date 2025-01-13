@@ -554,7 +554,7 @@ fn request_puzzle_state(
     };
 
     if let Some(next_height) = next_height {
-        while coin_states.last().map_or(false, |cs| {
+        while coin_states.last().is_some_and(|cs| {
             u32::max(cs.created_height.unwrap_or(0), cs.spent_height.unwrap_or(0)) == next_height
         }) {
             coin_states.pop();

@@ -50,4 +50,13 @@ pub enum DriverError {
 
     #[error("invalid merkle proof")]
     InvalidMerkleProof,
+
+    #[error("unknown puzzle")]
+    UnknownPuzzle,
+
+    #[error("invalid spend count for vault subpath")]
+    InvalidSubpathSpendCount,
+
+    #[error("missing spend for vault subpath")]
+    MissingSubpathSpend,
 }

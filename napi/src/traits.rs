@@ -1,11 +1,19 @@
+use std::fmt::Display;
+
 use chia::{
     bls,
+    clvm_utils::TreeHash,
     protocol::{Bytes, BytesImpl},
+    secp,
 };
+use chia_wallet_sdk::Memos;
 use clvmr::NodePtr;
 use napi::bindgen_prelude::*;
 
-use crate::{ClvmAllocator, Program, PublicKey, SecretKey};
+use crate::{
+    ClvmAllocator, K1PublicKey, K1SecretKey, K1Signature, Program, PublicKey, R1PublicKey,
+    R1SecretKey, R1Signature, SecretKey,
+};
 
 pub(crate) trait IntoJs<T> {
     fn into_js(self) -> Result<T>;
@@ -28,7 +36,12 @@ pub(crate) trait FromRust<T> {
 }
 
 pub(crate) trait IntoJsContextual<T> {
-    fn into_js_contextual(self, env: Env, this: Reference<ClvmAllocator>) -> Result<T>;
+    fn into_js_contextual(
+        self,
+        env: Env,
+        this: Reference<ClvmAllocator>,
+        clvm_allocator: &mut ClvmAllocator,
+    ) -> Result<T>;
 }
 
 impl<T, U> IntoRust<U> for T
@@ -53,7 +66,12 @@ impl<T, U> IntoJsContextual<T> for U
 where
     U: IntoJs<T>,
 {
-    fn into_js_contextual(self, _env: Env, _this: Reference<ClvmAllocator>) -> Result<T> {
+    fn into_js_contextual(
+        self,
+        _env: Env,
+        _this: Reference<ClvmAllocator>,
+        _clvm_allocator: &mut ClvmAllocator,
+    ) -> Result<T> {
         self.into_js()
     }
 }
@@ -63,6 +81,7 @@ impl IntoJsContextual<ClassInstance<Program>> for NodePtr {
         self,
         env: Env,
         this: Reference<ClvmAllocator>,
+        _clvm_allocator: &mut ClvmAllocator,
     ) -> Result<ClassInstance<Program>> {
         Program::new(this, self).into_instance(env)
     }
@@ -73,6 +92,7 @@ impl IntoJsContextual<Vec<ClassInstance<Program>>> for Vec<NodePtr> {
         self,
         env: Env,
         this: Reference<ClvmAllocator>,
+        _clvm_allocator: &mut ClvmAllocator,
     ) -> Result<Vec<ClassInstance<Program>>> {
         let mut result = Vec::with_capacity(self.len());
 
@@ -84,11 +104,29 @@ impl IntoJsContextual<Vec<ClassInstance<Program>>> for Vec<NodePtr> {
     }
 }
 
+impl IntoJsContextual<Option<ClassInstance<Program>>> for Option<Memos<NodePtr>> {
+    fn into_js_contextual(
+        self,
+        env: Env,
+        this: Reference<ClvmAllocator>,
+        clvm_allocator: &mut ClvmAllocator,
+    ) -> Result<Option<ClassInstance<Program>>> {
+        let Some(memos) = self else {
+            return Ok(None);
+        };
+
+        let ptr = clvm_allocator.0.alloc(&memos.value).map_err(js_err)?;
+
+        Ok(Some(Program::new(this, ptr).into_instance(env)?))
+    }
+}
+
 impl IntoJsContextual<ClassInstance<PublicKey>> for bls::PublicKey {
     fn into_js_contextual(
         self,
         env: Env,
         _this: Reference<ClvmAllocator>,
+        _clvm_allocator: &mut ClvmAllocator,
     ) -> Result<ClassInstance<PublicKey>> {
         PublicKey(self).into_instance(env)
     }
@@ -139,6 +177,22 @@ impl FromJs<ClassInstance<Program>> for NodePtr {
 impl FromJs<ClassInstance<PublicKey>> for bls::PublicKey {
     fn from_js(program: ClassInstance<PublicKey>) -> Result<Self> {
         Ok(program.0)
+    }
+}
+
+impl IntoJs<Uint8Array> for TreeHash {
+    fn into_js(self) -> Result<Uint8Array> {
+        Ok(Uint8Array::new(self.to_vec()))
+    }
+}
+
+impl FromJs<Uint8Array> for TreeHash {
+    fn from_js(js_value: Uint8Array) -> Result<Self> {
+        Ok(Self::new(js_value.to_vec().try_into().map_err(
+            |bytes: Vec<u8>| {
+                Error::from_reason(format!("Expected length 32, found {}", bytes.len()))
+            },
+        )?))
     }
 }
 
@@ -204,8 +258,55 @@ impl IntoJs<Uint8Array> for bls::PublicKey {
 
 impl FromJs<Uint8Array> for bls::PublicKey {
     fn from_js(js_value: Uint8Array) -> Result<Self> {
-        bls::PublicKey::from_bytes(&js_value.into_rust()?)
-            .map_err(|error| Error::from_reason(error.to_string()))
+        bls::PublicKey::from_bytes(&js_value.into_rust()?).map_err(js_err)
+    }
+}
+
+impl IntoJs<Uint8Array> for secp::K1PublicKey {
+    fn into_js(self) -> Result<Uint8Array> {
+        Ok(Uint8Array::new(self.to_bytes().to_vec()))
+    }
+}
+
+impl FromJs<Uint8Array> for secp::K1PublicKey {
+    fn from_js(js_value: Uint8Array) -> Result<Self> {
+        secp::K1PublicKey::from_bytes(&js_value.into_rust()?).map_err(js_err)
+    }
+}
+
+impl IntoJs<Uint8Array> for secp::R1PublicKey {
+    fn into_js(self) -> Result<Uint8Array> {
+        Ok(Uint8Array::new(self.to_bytes().to_vec()))
+    }
+}
+
+impl FromJs<Uint8Array> for secp::R1PublicKey {
+    fn from_js(js_value: Uint8Array) -> Result<Self> {
+        secp::R1PublicKey::from_bytes(&js_value.into_rust()?).map_err(js_err)
+    }
+}
+
+impl IntoJs<Uint8Array> for secp::K1Signature {
+    fn into_js(self) -> Result<Uint8Array> {
+        Ok(Uint8Array::new(self.to_bytes().to_vec()))
+    }
+}
+
+impl FromJs<Uint8Array> for secp::K1Signature {
+    fn from_js(js_value: Uint8Array) -> Result<Self> {
+        secp::K1Signature::from_bytes(&js_value.into_rust()?).map_err(js_err)
+    }
+}
+
+impl IntoJs<Uint8Array> for secp::R1Signature {
+    fn into_js(self) -> Result<Uint8Array> {
+        Ok(Uint8Array::new(self.to_bytes().to_vec()))
+    }
+}
+
+impl FromJs<Uint8Array> for secp::R1Signature {
+    fn from_js(js_value: Uint8Array) -> Result<Self> {
+        secp::R1Signature::from_bytes(&js_value.into_rust()?).map_err(js_err)
     }
 }
 
@@ -276,6 +377,33 @@ impl IntoJs<BigInt> for num_bigint::BigInt {
     }
 }
 
+impl<T> FromJs<Option<T>> for Option<T>
+where
+    T: FromJs<T>,
+{
+    fn from_js(js_value: Option<T>) -> Result<Self> {
+        js_value.map(FromJs::from_js).transpose()
+    }
+}
+
+impl FromJs<Program> for NodePtr {
+    fn from_js(program: Program) -> Result<Self> {
+        Ok(program.ptr)
+    }
+}
+
+impl FromJs<Option<ClassInstance<Program>>> for Option<Memos<NodePtr>> {
+    fn from_js(js_value: Option<ClassInstance<Program>>) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let Some(program) = js_value else {
+            return Ok(None);
+        };
+        Ok(Some(Memos::new(program.ptr)))
+    }
+}
+
 /// Helper function to convert Vec<u64> (words) into Vec<u8> (byte array)
 fn words_to_bytes(words: &[u64]) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(words.len() * 8);
@@ -328,4 +456,80 @@ impl FromJs<SecretKey> for bls::SecretKey {
     fn from_js(js_value: SecretKey) -> Result<Self> {
         Ok(js_value.0)
     }
+}
+
+impl IntoJs<K1SecretKey> for secp::K1SecretKey {
+    fn into_js(self) -> Result<K1SecretKey> {
+        Ok(K1SecretKey(self))
+    }
+}
+
+impl FromJs<K1SecretKey> for secp::K1SecretKey {
+    fn from_js(js_value: K1SecretKey) -> Result<Self> {
+        Ok(js_value.0)
+    }
+}
+
+impl IntoJs<R1SecretKey> for secp::R1SecretKey {
+    fn into_js(self) -> Result<R1SecretKey> {
+        Ok(R1SecretKey(self))
+    }
+}
+
+impl FromJs<R1SecretKey> for secp::R1SecretKey {
+    fn from_js(js_value: R1SecretKey) -> Result<Self> {
+        Ok(js_value.0)
+    }
+}
+
+impl IntoJs<K1PublicKey> for secp::K1PublicKey {
+    fn into_js(self) -> Result<K1PublicKey> {
+        Ok(K1PublicKey(self))
+    }
+}
+
+impl FromJs<K1PublicKey> for secp::K1PublicKey {
+    fn from_js(js_value: K1PublicKey) -> Result<Self> {
+        Ok(js_value.0)
+    }
+}
+
+impl IntoJs<R1PublicKey> for secp::R1PublicKey {
+    fn into_js(self) -> Result<R1PublicKey> {
+        Ok(R1PublicKey(self))
+    }
+}
+
+impl FromJs<R1PublicKey> for secp::R1PublicKey {
+    fn from_js(js_value: R1PublicKey) -> Result<Self> {
+        Ok(js_value.0)
+    }
+}
+
+impl IntoJs<K1Signature> for secp::K1Signature {
+    fn into_js(self) -> Result<K1Signature> {
+        Ok(K1Signature(self))
+    }
+}
+
+impl FromJs<K1Signature> for secp::K1Signature {
+    fn from_js(js_value: K1Signature) -> Result<Self> {
+        Ok(js_value.0)
+    }
+}
+
+impl IntoJs<R1Signature> for secp::R1Signature {
+    fn into_js(self) -> Result<R1Signature> {
+        Ok(R1Signature(self))
+    }
+}
+
+impl FromJs<R1Signature> for secp::R1Signature {
+    fn from_js(js_value: R1Signature) -> Result<Self> {
+        Ok(js_value.0)
+    }
+}
+
+pub(crate) fn js_err(err: impl Display) -> Error {
+    Error::from_reason(err.to_string())
 }

@@ -5,13 +5,13 @@ use chia_puzzles::{
         NotarizedPayment, Payment, SettlementPaymentsSolution, SETTLEMENT_PAYMENTS_PUZZLE_HASH,
     },
 };
-use chia_sdk_driver::{
-    calculate_nft_royalty, calculate_nft_trace_price, Launcher, Layer, NftMint, SettlementLayer,
-    SpendContext, StandardLayer,
-};
-use chia_sdk_offers::{payment_assertion, Offer, OfferBuilder};
 use chia_sdk_test::{sign_transaction, Simulator};
 use chia_sdk_types::{Conditions, TradePrice};
+
+use crate::{
+    calculate_nft_royalty, calculate_nft_trace_price, payment_assertion, Launcher, Layer, NftMint,
+    Offer, OfferBuilder, SettlementLayer, SpendContext, StandardLayer,
+};
 
 #[test]
 fn test_nft_for_xch() -> anyhow::Result<()> {
@@ -123,11 +123,7 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
         &mut ctx,
         bob_coin,
         Conditions::new()
-            .create_coin(
-                SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
-                total_amount,
-                Vec::new(),
-            )
+            .create_coin(SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), total_amount, None)
             .with(payment_assertion(hash, &receive_payment)),
     )?;
 

@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-driver"
-version = "0.19.1"
+version = "0.20.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Driver code for interacting with standard puzzles on the Chia blockchain."
@@ -19,6 +19,7 @@ workspace = true
 
 [features]
 chip-0035 = ["chia-sdk-types/chip-0035"]
+experimental-vaults = ["chia-sdk-types/experimental-vaults"]
 offers = [
     "dep:bech32",
     "dep:chia-traits",
@@ -29,6 +30,7 @@ offers = [
 
 [dependencies]
 chia-bls = { workspace = true }
+chia-secp = { workspace = true }
 chia-protocol = { workspace = true }
 chia-puzzles = { workspace = true }
 clvm-traits = { workspace = true }
@@ -54,3 +56,5 @@ chia-consensus = { workspace = true }
 hex = { workspace = true }
 hex-literal = { workspace = true }
 rstest = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }

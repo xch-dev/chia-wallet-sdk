@@ -6,7 +6,7 @@ use chia_wallet_sdk::{
 use napi::bindgen_prelude::*;
 
 use crate::{
-    traits::{IntoJs, IntoRust},
+    traits::{js_err, IntoJs, IntoRust},
     CoinState,
 };
 
@@ -17,10 +17,8 @@ pub struct Tls(Connector);
 impl Tls {
     #[napi(constructor)]
     pub fn new(cert_path: String, key_path: String) -> Result<Self> {
-        let cert = load_ssl_cert(&cert_path, &key_path)
-            .map_err(|error| Error::from_reason(error.to_string()))?;
-        let tls = create_native_tls_connector(&cert)
-            .map_err(|error| Error::from_reason(error.to_string()))?;
+        let cert = load_ssl_cert(&cert_path, &key_path).map_err(js_err)?;
+        let tls = create_native_tls_connector(&cert).map_err(js_err)?;
         Ok(Self(tls))
     }
 }
@@ -35,12 +33,11 @@ impl Peer {
         let (peer, mut receiver) = connect_peer(
             network_id,
             tls.0.clone(),
-            uri.parse::<SocketAddr>()
-                .map_err(|error| Error::from_reason(error.to_string()))?,
+            uri.parse::<SocketAddr>().map_err(js_err)?,
             PeerOptions::default(),
         )
         .await
-        .map_err(|error| Error::from_reason(error.to_string()))?;
+        .map_err(js_err)?;
 
         tokio::spawn(async move { while let Some(_message) = receiver.recv().await {} });
 
@@ -52,7 +49,7 @@ impl Peer {
         self.0
             .request_children(coin_id.into_rust()?)
             .await
-            .map_err(|error| Error::from_reason(error.to_string()))?
+            .map_err(js_err)?
             .coin_states
             .into_iter()
             .map(IntoJs::into_js)
@@ -61,10 +58,7 @@ impl Peer {
 
     #[napi]
     pub async fn close(&self) -> Result<()> {
-        self.0
-            .close()
-            .await
-            .map_err(|error| Error::from_reason(error.to_string()))?;
+        self.0.close().await.map_err(js_err)?;
         Ok(())
     }
 }

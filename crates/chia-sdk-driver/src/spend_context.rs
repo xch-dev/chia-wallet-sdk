@@ -1,15 +1,21 @@
 use std::collections::HashMap;
 
-use chia_protocol::{Coin, CoinSpend, Program};
+use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzles::{
     nft::{NFT_METADATA_UPDATER_PUZZLE, NFT_METADATA_UPDATER_PUZZLE_HASH},
     offer::{SETTLEMENT_PAYMENTS_PUZZLE, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
     singleton::{SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH},
 };
-use chia_sdk_types::{run_puzzle, Mod};
-use clvm_traits::{FromClvm, ToClvm};
+use chia_sdk_types::{run_puzzle, Conditions, Memos, Mod};
+use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
+
+#[cfg(feature = "experimental-vaults")]
+use chia_sdk_types::{
+    FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE, FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE_HASH,
+    FORCE_COIN_MESSAGE_PUZZLE, FORCE_COIN_MESSAGE_PUZZLE_HASH,
+};
 
 use crate::{DriverError, Spend};
 
@@ -84,6 +90,17 @@ impl SpendContext {
         Ok(Program::from_clvm(&self.allocator, ptr)?)
     }
 
+    pub fn memos<T>(&mut self, value: &T) -> Result<Memos<NodePtr>, DriverError>
+    where
+        T: ToClvm<Allocator>,
+    {
+        Ok(Memos::new(self.alloc(value)?))
+    }
+
+    pub fn hint(&mut self, hint: Bytes32) -> Result<Memos<NodePtr>, DriverError> {
+        Ok(Memos::hint(&mut self.allocator, hint)?)
+    }
+
     pub fn alloc_mod<T>(&mut self) -> Result<NodePtr, DriverError>
     where
         T: Mod,
@@ -117,6 +134,19 @@ impl SpendContext {
         self.puzzle(SETTLEMENT_PAYMENTS_PUZZLE_HASH, &SETTLEMENT_PAYMENTS_PUZZLE)
     }
 
+    #[cfg(feature = "experimental-vaults")]
+    pub fn force_coin_message_puzzle(&mut self) -> Result<NodePtr, DriverError> {
+        self.puzzle(FORCE_COIN_MESSAGE_PUZZLE_HASH, &FORCE_COIN_MESSAGE_PUZZLE)
+    }
+
+    #[cfg(feature = "experimental-vaults")]
+    pub fn force_assert_coin_announcement_puzzle(&mut self) -> Result<NodePtr, DriverError> {
+        self.puzzle(
+            FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE_HASH,
+            &FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE,
+        )
+    }
+
     /// Preload a puzzle into the cache.
     pub fn preload(&mut self, puzzle_hash: TreeHash, ptr: NodePtr) {
         self.puzzles.insert(puzzle_hash, ptr);
@@ -140,6 +170,11 @@ impl SpendContext {
             self.puzzles.insert(puzzle_hash, puzzle);
             Ok(puzzle)
         }
+    }
+
+    pub fn delegated_spend(&mut self, conditions: Conditions) -> Result<Spend, DriverError> {
+        let puzzle = self.alloc(&clvm_quote!(conditions))?;
+        Ok(Spend::new(puzzle, NodePtr::NIL))
     }
 }
 
