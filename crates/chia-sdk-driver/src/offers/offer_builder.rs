@@ -12,7 +12,7 @@ use crate::{DriverError, Offer, ParsedOffer, Puzzle, SpendContext};
 pub struct OfferBuilder<T> {
     data: T,
 }
-
+//
 #[derive(Debug, Clone)]
 pub struct Make {
     nonce: Bytes32,
