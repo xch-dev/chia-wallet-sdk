@@ -327,10 +327,12 @@ where
         let did_id = transfer_condition.did_id;
 
         let did_conditions = if did_id.is_some() {
-            Conditions::new().assert_puzzle_announcement(did_puzzle_assertion(
-                self.coin.puzzle_hash,
-                &transfer_condition,
-            ))
+            Conditions::new()
+                .assert_puzzle_announcement(did_puzzle_assertion(
+                    self.coin.puzzle_hash,
+                    &transfer_condition,
+                ))
+                .create_puzzle_announcement(self.info.launcher_id.into())
         } else {
             Conditions::new()
         };
@@ -560,6 +562,8 @@ mod tests {
             .mint_nft(ctx, mint)?;
 
         let mut did = did.update(ctx, &p2, mint_nft)?;
+
+        sim.spend_coins(ctx.take(), &[sk.clone()])?;
 
         for i in 0..5 {
             let did_owner = DidOwner::from_did_info(&did.info);

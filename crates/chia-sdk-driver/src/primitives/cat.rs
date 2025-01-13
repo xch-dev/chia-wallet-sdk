@@ -6,7 +6,6 @@ use chia_puzzles::{
 };
 use chia_sdk_types::{run_puzzle, Condition, Conditions, CreateCoin};
 use clvm_traits::{clvm_quote, FromClvm};
-use clvm_utils::CurriedProgram;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{CatLayer, DriverError, Layer, Puzzle, Spend, SpendContext};
@@ -46,12 +45,7 @@ impl Cat {
         amount: u64,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Cat), DriverError> {
-        let genesis_by_coin_id_ptr = ctx.genesis_by_coin_id_tail_puzzle()?;
-
-        let tail = ctx.alloc(&CurriedProgram {
-            program: genesis_by_coin_id_ptr,
-            args: GenesisByCoinIdTailArgs::new(parent_coin_id),
-        })?;
+        let tail = ctx.curry(GenesisByCoinIdTailArgs::new(parent_coin_id))?;
 
         Self::create_and_spend_eve(
             ctx,
@@ -69,12 +63,7 @@ impl Cat {
         amount: u64,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Cat), DriverError> {
-        let everything_with_signature_ptr = ctx.everything_with_signature_tail_puzzle()?;
-
-        let tail = ctx.alloc(&CurriedProgram {
-            program: everything_with_signature_ptr,
-            args: EverythingWithSignatureTailArgs::new(public_key),
-        })?;
+        let tail = ctx.curry(EverythingWithSignatureTailArgs::new(public_key))?;
 
         Self::create_and_spend_eve(
             ctx,
@@ -516,12 +505,7 @@ mod tests {
         let (issue_cat, cat) = Cat::multi_issuance_eve(ctx, coin.coin_id(), pk, 10000, conditions)?;
         p2.spend(ctx, coin, issue_cat)?;
 
-        let everything_with_signature_ptr = ctx.everything_with_signature_tail_puzzle()?;
-
-        let tail = ctx.alloc(&CurriedProgram {
-            program: everything_with_signature_ptr,
-            args: EverythingWithSignatureTailArgs::new(pk),
-        })?;
+        let tail = ctx.curry(EverythingWithSignatureTailArgs::new(pk))?;
 
         let cat_spend = CatSpend::with_extra_delta(
             cat.wrapped_child(puzzle_hash, 10000),

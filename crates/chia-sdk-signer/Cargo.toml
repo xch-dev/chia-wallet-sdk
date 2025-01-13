@@ -22,8 +22,12 @@ clvm-traits = { workspace = true }
 clvmr = { workspace = true }
 thiserror = { workspace = true }
 chia-sdk-types = { workspace = true }
+k256 = { workspace = true }
 
 [dev-dependencies]
 chia-puzzles = { workspace = true }
 hex = { workspace = true }
 hex-literal = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+anyhow = { workspace = true }

@@ -84,16 +84,13 @@ where
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        let curried = CurriedProgram {
-            program: ctx.nft_state_layer()?,
-            args: NftStateLayerArgs {
-                mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
-                metadata: &self.metadata,
-                metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
-                inner_puzzle: self.inner_puzzle.construct_puzzle(ctx)?,
-            },
-        };
-        ctx.alloc(&curried)
+        let inner_puzzle = self.inner_puzzle.construct_puzzle(ctx)?;
+        ctx.curry(NftStateLayerArgs {
+            mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+            metadata: &self.metadata,
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+            inner_puzzle,
+        })
     }
 
     fn construct_solution(

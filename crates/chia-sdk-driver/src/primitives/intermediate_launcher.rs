@@ -1,7 +1,6 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{nft::NftIntermediateLauncherArgs, singleton::SINGLETON_LAUNCHER_PUZZLE_HASH};
 use chia_sdk_types::{announcement_id, Conditions};
-use clvm_utils::CurriedProgram;
 use clvmr::{sha2::Sha256, Allocator};
 
 use crate::{DriverError, SpendContext};
@@ -58,12 +57,10 @@ impl IntermediateLauncher {
     pub fn create(self, ctx: &mut SpendContext) -> Result<Launcher, DriverError> {
         let mut parent = Conditions::new();
 
-        let intermediate_puzzle = ctx.nft_intermediate_launcher()?;
-
-        let puzzle = ctx.alloc(&CurriedProgram {
-            program: intermediate_puzzle,
-            args: NftIntermediateLauncherArgs::new(self.mint_number, self.mint_total),
-        })?;
+        let puzzle = ctx.curry(NftIntermediateLauncherArgs::new(
+            self.mint_number,
+            self.mint_total,
+        ))?;
 
         parent = parent.create_coin(self.intermediate_coin.puzzle_hash, 0, Vec::new());
 

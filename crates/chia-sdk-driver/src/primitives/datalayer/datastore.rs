@@ -6,18 +6,17 @@ use chia_puzzles::{
     },
     EveProof, LineageProof, Proof,
 };
-use chia_sdk_types::{run_puzzle, CreateCoin, NewMetadataInfo, NewMetadataOutput};
+use chia_sdk_types::{
+    run_puzzle, CreateCoin, DelegationLayerArgs, DelegationLayerSolution, NewMetadataInfo,
+    NewMetadataOutput, DELEGATION_LAYER_PUZZLE_HASH, DL_METADATA_UPDATER_PUZZLE_HASH,
+};
 use chia_sdk_types::{Condition, UpdateNftMetadata};
 use clvm_traits::{FromClvm, FromClvmError, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use num_bigint::BigInt;
 
-use crate::{
-    DelegationLayerArgs, DelegationLayerSolution, DriverError, Layer, NftStateLayer, Puzzle,
-    SingletonLayer, Spend, SpendContext, DELEGATION_LAYER_PUZZLE_HASH,
-    DL_METADATA_UPDATER_PUZZLE_HASH,
-};
+use crate::{DriverError, Layer, NftStateLayer, Puzzle, SingletonLayer, Spend, SpendContext};
 
 use super::{
     get_merkle_tree, DataStoreInfo, DataStoreMetadata, DelegatedPuzzle, HintType,
@@ -76,7 +75,7 @@ where
 
             let inner_solution = DelegationLayerSolution {
                 // if running owner puzzle, the line below will return 'None', thus ensuring correct puzzle behavior
-                merkle_proof: tree.get_proof(delegated_puzzle_hash.into()),
+                merkle_proof: tree.proof(delegated_puzzle_hash.into()),
                 puzzle_reveal: inner_spend.puzzle,
                 puzzle_solution: inner_spend.solution,
             };
@@ -534,7 +533,7 @@ impl<M> DataStore<M> {
         let new_puzzle_hash = if new_delegated_puzzles.is_empty() {
             new_inner_puzzle_hash
         } else {
-            let new_merkle_root = get_merkle_tree(ctx, new_delegated_puzzles.clone())?.root;
+            let new_merkle_root = get_merkle_tree(ctx, new_delegated_puzzles.clone())?.root();
             DelegationLayerArgs::curry_tree_hash(
                 launcher_id,
                 new_inner_puzzle_hash,
@@ -749,18 +748,10 @@ pub mod tests {
 
         let ctx = &mut SpendContext::new();
 
-        let admin_puzzle: NodePtr = CurriedProgram {
-            program: ctx.standard_puzzle()?,
-            args: StandardArgs::new(admin_pk),
-        }
-        .to_clvm(&mut ctx.allocator)?;
+        let admin_puzzle = ctx.curry(StandardArgs::new(admin_pk))?;
         let admin_puzzle_hash = tree_hash(&ctx.allocator, admin_puzzle);
 
-        let writer_inner_puzzle: NodePtr = CurriedProgram {
-            program: ctx.standard_puzzle()?,
-            args: StandardArgs::new(writer_pk),
-        }
-        .to_clvm(&mut ctx.allocator)?;
+        let writer_inner_puzzle = ctx.curry(StandardArgs::new(writer_pk))?;
         let writer_inner_puzzle_hash = tree_hash(&ctx.allocator, writer_inner_puzzle);
 
         let admin_delegated_puzzle = DelegatedPuzzle::Admin(admin_puzzle_hash);
@@ -821,7 +812,7 @@ pub mod tests {
         // admin: remove writer from delegated puzzles
         let delegated_puzzles = vec![admin_delegated_puzzle, oracle_delegated_puzzle];
         let new_merkle_tree = get_merkle_tree(ctx, delegated_puzzles.clone())?;
-        let new_merkle_root = new_merkle_tree.root;
+        let new_merkle_root = new_merkle_tree.root();
 
         let new_merkle_root_condition = UpdateDataStoreMerkleRoot {
             new_merkle_root,
@@ -1038,7 +1029,7 @@ pub mod tests {
             let new_merkle_tree = get_merkle_tree(ctx, dst_delegated_puzzles.clone())?;
 
             let new_merkle_root_condition = UpdateDataStoreMerkleRoot {
-                new_merkle_root: new_merkle_tree.root,
+                new_merkle_root: new_merkle_tree.root(),
                 memos: DataStore::<DataStoreMetadata>::get_recreation_memos(
                     src_datastore.info.launcher_id,
                     owner_puzzle_hash.into(),
@@ -1948,7 +1939,7 @@ pub mod tests {
         let merkle_tree = get_merkle_tree(ctx, delegated_puzzles.clone())?;
 
         let delegation_layer =
-            DelegationLayer::new(Bytes32::default(), Bytes32::default(), merkle_tree.root);
+            DelegationLayer::new(Bytes32::default(), Bytes32::default(), merkle_tree.root());
 
         let puzzle_ptr = delegation_layer.construct_puzzle(ctx)?;
 
@@ -1956,7 +1947,7 @@ pub mod tests {
         let solution_ptr = delegation_layer.construct_solution(
             ctx,
             DelegationLayerSolution {
-                merkle_proof: merkle_tree.get_proof(delegated_puzzle_hash.into()),
+                merkle_proof: merkle_tree.proof(delegated_puzzle_hash.into()),
                 puzzle_reveal: inner_spend.puzzle,
                 puzzle_solution: inner_spend.solution,
             },

@@ -1,10 +1,12 @@
 use crate::{
-    DelegationLayer, DelegationLayerArgs, DriverError, Layer, MerkleTree, NftStateLayer,
-    OracleLayer, SingletonLayer, SpendContext, WriterLayerArgs, DELEGATION_LAYER_PUZZLE_HASH,
-    DL_METADATA_UPDATER_PUZZLE_HASH,
+    DelegationLayer, DriverError, Layer, NftStateLayer, OracleLayer, SingletonLayer, SpendContext,
 };
 use chia_protocol::{Bytes, Bytes32};
 use chia_puzzles::nft::NftStateLayerArgs;
+use chia_sdk_types::{
+    DelegationLayerArgs, MerkleTree, WriterLayerArgs, DELEGATION_LAYER_PUZZLE_HASH,
+    DL_METADATA_UPDATER_PUZZLE_HASH,
+};
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::Allocator;
@@ -208,7 +210,7 @@ impl<M> DataStoreInfo<M> {
                 DelegationLayer::new(
                     self.launcher_id,
                     self.owner_puzzle_hash,
-                    get_merkle_tree(ctx, self.delegated_puzzles)?.root,
+                    get_merkle_tree(ctx, self.delegated_puzzles)?.root(),
                 ),
             ),
         ))
@@ -244,7 +246,7 @@ impl<M> DataStoreInfo<M> {
                         mod_hash: DELEGATION_LAYER_PUZZLE_HASH.into(),
                         launcher_id: self.launcher_id,
                         owner_puzzle_hash: self.owner_puzzle_hash,
-                        merkle_root: get_merkle_tree(ctx, self.delegated_puzzles.clone())?.root,
+                        merkle_root: get_merkle_tree(ctx, self.delegated_puzzles.clone())?.root(),
                     },
                 }
                 .tree_hash(),

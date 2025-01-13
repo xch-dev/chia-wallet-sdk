@@ -29,9 +29,12 @@ pub fn sign_transaction(
     let mut aggregated_signature = Signature::default();
 
     for required in required_signatures {
-        let pk = required.public_key();
+        let RequiredSignature::Bls(required) = required else {
+            panic!("secp is not supported by sign_transaction");
+        };
+        let pk = required.public_key;
         let sk = key_pairs.get(&pk).ok_or(SimulatorError::MissingKey)?;
-        aggregated_signature += &sign(sk, required.final_message());
+        aggregated_signature += &sign(sk, required.message());
     }
 
     Ok(aggregated_signature)
