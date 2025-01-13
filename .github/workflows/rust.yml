@@ -28,7 +28,7 @@ jobs:
         run: cargo binstall cargo-workspaces --locked -y
 
       - name: Install cargo-tarpaulin
-        run: cargo binstall cargo-tarpaulin --locked -y
+        run: cargo install cargo-tarpaulin --locked
 
       - name: Test thing
         run: ldd --version
