@@ -4,12 +4,14 @@ import {
   blsMemberHash,
   childVault,
   ClvmAllocator,
+  Coin,
   customMemberHash,
   k1MemberHash,
   K1SecretKey,
   K1Signature,
   MemberConfig,
   mOfNHash,
+  p2SingletonMessagePuzzleHash,
   recoveryRestriction,
   sha256,
   Simulator,
@@ -32,17 +34,45 @@ test("bls key vault", (t) => {
     restrictions: [],
   };
 
-  const vault = mintVault(sim, clvm, blsMemberHash(config, alice.publicKey));
+  const [vault, coin] = mintVaultWithCoin(
+    sim,
+    clvm,
+    blsMemberHash(config, alice.publicKey),
+    1n
+  );
+
+  const coinDelegatedSpend = clvm.delegatedSpendForConditions([
+    clvm.reserveFee(1n),
+  ]);
 
   const delegatedSpend = clvm.delegatedSpendForConditions([
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
+    clvm.sendMessage(23, coinDelegatedSpend.puzzle.treeHash(), [
+      clvm.alloc(toCoinId(coin)),
+    ]),
   ]);
 
   const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
   vaultSpend.spendBls(clvm, config, alice.publicKey);
   clvm.spendVault(vault, vaultSpend);
 
-  sim.spend(clvm.coinSpends(), [alice.secretKey]);
+  const coinSpend = clvm.spendP2SingletonMessage(
+    vault.launcherId,
+    vault.custodyHash,
+    coinDelegatedSpend
+  );
+
+  sim.spend(
+    [
+      ...clvm.coinSpends(),
+      {
+        coin,
+        puzzleReveal: coinSpend.puzzle.serialize(),
+        solution: coinSpend.solution.serialize(),
+      },
+    ],
+    [alice.secretKey]
+  );
 
   t.true(true);
 });
@@ -556,6 +586,54 @@ function mintVault(
   );
 
   return vault;
+}
+
+function mintVaultWithCoin(
+  sim: Simulator,
+  clvm: ClvmAllocator,
+  custodyHash: Uint8Array,
+  amount: bigint
+): [Vault, Coin] {
+  const p2 = sim.newP2(amount + 1n);
+
+  const { vault, parentConditions } = clvm.mintVault(
+    toCoinId(p2.coin),
+    custodyHash,
+    clvm.nil()
+  );
+
+  const spend = clvm.spendP2Standard(
+    p2.publicKey,
+    clvm.delegatedSpendForConditions([
+      ...parentConditions,
+      clvm.createCoin(
+        p2SingletonMessagePuzzleHash(vault.launcherId),
+        amount,
+        clvm.alloc([vault.launcherId])
+      ),
+    ])
+  );
+
+  sim.spend(
+    [
+      {
+        coin: p2.coin,
+        puzzleReveal: spend.puzzle.serialize(),
+        solution: spend.solution.serialize(),
+      },
+      ...clvm.coinSpends(),
+    ],
+    [p2.secretKey]
+  );
+
+  return [
+    vault,
+    {
+      parentCoinInfo: toCoinId(p2.coin),
+      puzzleHash: p2SingletonMessagePuzzleHash(vault.launcherId),
+      amount,
+    },
+  ];
 }
 
 function signK1(

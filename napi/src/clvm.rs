@@ -227,6 +227,37 @@ impl ClvmAllocator {
         })
     }
 
+    #[napi(
+        ts_args_type = "launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend"
+    )]
+    pub fn spend_p2_singleton_message(
+        &mut self,
+        env: Env,
+        this: This<Clvm>,
+        launcher_id: Uint8Array,
+        singleton_inner_puzzle_hash: Uint8Array,
+        delegated_spend: Spend,
+    ) -> Result<Spend> {
+        let puzzle = self
+            .0
+            .curry(sdk::P2SingletonMessageArgs::new(launcher_id.into_rust()?))
+            .map_err(js_err)?;
+
+        let solution = self
+            .0
+            .alloc(&sdk::P2SingletonMessageSolution::new(
+                singleton_inner_puzzle_hash.into_rust()?,
+                delegated_spend.puzzle.ptr,
+                delegated_spend.solution.ptr,
+            ))
+            .map_err(js_err)?;
+
+        Ok(Spend {
+            puzzle: Program::new(this.clone(env)?, puzzle).into_instance(env)?,
+            solution: Program::new(this, solution).into_instance(env)?,
+        })
+    }
+
     #[napi(ts_args_type = "parent_coin_id: Uint8Array, nft_mints: Array<NftMint>")]
     pub fn mint_nfts(
         &mut self,

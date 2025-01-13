@@ -254,6 +254,7 @@ export declare function fixedMemberHash(config: MemberConfig, fixedPuzzleHash: U
 export declare function customMemberHash(config: MemberConfig, innerHash: Uint8Array): Uint8Array
 export declare function recoveryRestriction(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): Restriction
 export declare function timelockRestriction(timelock: bigint): Restriction
+export declare function p2SingletonMessagePuzzleHash(launcherId: Uint8Array): Uint8Array
 export declare class SecretKey {
   static fromSeed(seed: Uint8Array): SecretKey
   static fromBytes(bytes: Uint8Array): SecretKey
@@ -310,6 +311,7 @@ export declare class ClvmAllocator {
   delegatedSpendForConditions(conditions: Array<Program>): Spend
   spendP2Standard(syntheticKey: PublicKey, delegatedSpend: Spend): Spend
   spendP2DelegatedSingleton(launcherId: Uint8Array, coinId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend): Spend
+  spendP2SingletonMessage(launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend): Spend
   mintNfts(parent_coin_id: Uint8Array, nft_mints: Array<NftMint>): MintedNfts
   parseNftInfo(puzzle: Program): ParsedNft | null
   parseChildNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Nft | null
