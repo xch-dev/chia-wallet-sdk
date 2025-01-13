@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,6 +29,9 @@ jobs:
 
       - name: Install cargo-tarpaulin
         run: cargo binstall cargo-tarpaulin --locked -y
+
+      - name: Test thing
+        run: ldd --version
 
       - name: Run tests
         run: cargo tarpaulin --release --workspace --exclude chia-wallet-sdk-napi --all-features --out xml
