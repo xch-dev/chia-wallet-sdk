@@ -1,11 +1,12 @@
 use chia::{clvm_utils::TreeHash, protocol};
 use chia_wallet_sdk::{
     self as sdk, member_puzzle_hash, BlsMember, FixedPuzzleMember, MemberSpend, Mod, MofN,
-    PasskeyMember, PasskeyMemberPuzzleAssert, PasskeyMemberPuzzleAssertSolution,
-    PasskeyMemberSolution, Recovery, RecoverySolution, Secp256k1Member,
-    Secp256k1MemberPuzzleAssert, Secp256k1MemberPuzzleAssertSolution, Secp256k1MemberSolution,
-    Secp256r1Member, Secp256r1MemberPuzzleAssert, Secp256r1MemberPuzzleAssertSolution,
-    Secp256r1MemberSolution, SingletonMember, SingletonMemberSolution, Timelock,
+    P2SingletonMessageArgs, PasskeyMember, PasskeyMemberPuzzleAssert,
+    PasskeyMemberPuzzleAssertSolution, PasskeyMemberSolution, Recovery, RecoverySolution,
+    Secp256k1Member, Secp256k1MemberPuzzleAssert, Secp256k1MemberPuzzleAssertSolution,
+    Secp256k1MemberSolution, Secp256r1Member, Secp256r1MemberPuzzleAssert,
+    Secp256r1MemberPuzzleAssertSolution, Secp256r1MemberSolution, SingletonMember,
+    SingletonMemberSolution, Timelock,
 };
 use clvmr::NodePtr;
 use napi::bindgen_prelude::*;
@@ -638,4 +639,11 @@ pub fn timelock_restriction(timelock: BigInt) -> Result<Restriction> {
             .curry_tree_hash()
             .into_js()?,
     })
+}
+
+#[napi]
+pub fn p2_singleton_message_puzzle_hash(launcher_id: Uint8Array) -> Result<Uint8Array> {
+    P2SingletonMessageArgs::new(launcher_id.into_rust()?)
+        .curry_tree_hash()
+        .into_js()
 }

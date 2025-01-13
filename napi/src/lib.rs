@@ -1,5 +1,6 @@
 #![allow(missing_debug_implementations)]
 #![allow(missing_copy_implementations)]
+#![allow(unexpected_cfgs)]
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::cast_possible_truncation)]

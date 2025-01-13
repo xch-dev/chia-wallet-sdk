@@ -310,7 +310,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { SecretKey, PublicKey, Signature, mnemonicFromEntropy, mnemonicToEntropy, verifyMnemonic, randomBytes, generateMnemonic, mnemonicToSeed, ClvmAllocator, curryTreeHash, intToSignedBytes, signedBytesToInt, toCoinId, Tls, Peer, Program, K1SecretKey, K1PublicKey, K1Signature, R1SecretKey, R1PublicKey, R1Signature, Simulator, compareBytes, sha256, treeHashAtom, treeHashPair, fromHexRaw, fromHex, toHex, childVault, VaultSpend, mOfNHash, k1MemberHash, r1MemberHash, blsMemberHash, passkeyMemberHash, singletonMemberHash, fixedMemberHash, customMemberHash, recoveryRestriction, timelockRestriction } = nativeBinding
+const { SecretKey, PublicKey, Signature, mnemonicFromEntropy, mnemonicToEntropy, verifyMnemonic, randomBytes, generateMnemonic, mnemonicToSeed, ClvmAllocator, curryTreeHash, intToSignedBytes, signedBytesToInt, toCoinId, Tls, Peer, Program, K1SecretKey, K1PublicKey, K1Signature, R1SecretKey, R1PublicKey, R1Signature, Simulator, compareBytes, sha256, treeHashAtom, treeHashPair, fromHexRaw, fromHex, toHex, childVault, VaultSpend, mOfNHash, k1MemberHash, r1MemberHash, blsMemberHash, passkeyMemberHash, singletonMemberHash, fixedMemberHash, customMemberHash, recoveryRestriction, timelockRestriction, p2SingletonMessagePuzzleHash } = nativeBinding
 
 module.exports.SecretKey = SecretKey
 module.exports.PublicKey = PublicKey
@@ -355,3 +355,4 @@ module.exports.fixedMemberHash = fixedMemberHash
 module.exports.customMemberHash = customMemberHash
 module.exports.recoveryRestriction = recoveryRestriction
 module.exports.timelockRestriction = timelockRestriction
+module.exports.p2SingletonMessagePuzzleHash = p2SingletonMessagePuzzleHash
