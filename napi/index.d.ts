@@ -247,6 +247,8 @@ export interface MemberConfig {
 export declare function mOfNHash(config: MemberConfig, required: number, items: Array<Uint8Array>): Uint8Array
 export declare function k1MemberHash(config: MemberConfig, publicKey: K1PublicKey, fastForward: boolean): Uint8Array
 export declare function r1MemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Uint8Array
+export declare function blsMemberHash(config: MemberConfig, publicKey: PublicKey): Uint8Array
+export declare function passkeyMemberHash(config: MemberConfig, genesisChallenge: Uint8Array, publicKey: R1PublicKey, fastForward: boolean): Uint8Array
 export declare function singletonMemberHash(config: MemberConfig, launcherId: Uint8Array): Uint8Array
 export declare function fixedMemberHash(config: MemberConfig, fixedPuzzleHash: Uint8Array): Uint8Array
 export declare function customMemberHash(config: MemberConfig, innerHash: Uint8Array): Uint8Array
@@ -453,6 +455,8 @@ export declare class VaultSpend {
   spendMOfN(config: MemberConfig, required: number, items: Array<Uint8Array>): void
   spendK1(clvm: ClvmAllocator, config: MemberConfig, publicKey: K1PublicKey, signature: K1Signature, fastForward: boolean): void
   spendR1(clvm: ClvmAllocator, config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, fastForward: boolean): void
+  spendBls(clvm: ClvmAllocator, config: MemberConfig, publicKey: PublicKey): void
+  spendPasskey(clvm: ClvmAllocator, config: MemberConfig, genesisChallenge: Uint8Array, publicKey: R1PublicKey, signature: R1Signature, authenticatorData: Uint8Array, clientDataJson: Uint8Array, challengeIndex: number, fastForward: boolean): void
   spendSingleton(clvm: ClvmAllocator, config: MemberConfig, launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, singletonAmount: bigint): void
   spendFixedPuzzle(clvm: ClvmAllocator, config: MemberConfig, fixedPuzzleHash: Uint8Array): void
   spendCustomMember(clvm: ClvmAllocator, config: MemberConfig, spend: Spend): void

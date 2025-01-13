@@ -1,6 +1,7 @@
 import test from "ava";
 
 import {
+  blsMemberHash,
   childVault,
   ClvmAllocator,
   customMemberHash,
@@ -18,6 +19,33 @@ import {
   Vault,
   VaultSpend,
 } from "../index.js";
+
+test("bls key vault", (t) => {
+  const sim = new Simulator();
+  const clvm = new ClvmAllocator();
+
+  const alice = sim.newP2(0n);
+
+  const config: MemberConfig = {
+    topLevel: true,
+    nonce: 0,
+    restrictions: [],
+  };
+
+  const vault = mintVault(sim, clvm, blsMemberHash(config, alice.publicKey));
+
+  const delegatedSpend = clvm.delegatedSpendForConditions([
+    clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
+  ]);
+
+  const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  vaultSpend.spendBls(clvm, config, alice.publicKey);
+  clvm.spendVault(vault, vaultSpend);
+
+  sim.spend(clvm.coinSpends(), [alice.secretKey]);
+
+  t.true(true);
+});
 
 test("single signer vault", (t) => {
   const sim = new Simulator();

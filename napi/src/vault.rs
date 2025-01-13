@@ -1,18 +1,19 @@
 use chia::{clvm_utils::TreeHash, protocol};
 use chia_wallet_sdk::{
-    self as sdk, member_puzzle_hash, FixedPuzzleMember, MemberSpend, Mod, MofN, Recovery,
-    RecoverySolution, Secp256k1Member, Secp256k1MemberPuzzleAssert,
-    Secp256k1MemberPuzzleAssertSolution, Secp256k1MemberSolution, Secp256r1Member,
-    Secp256r1MemberPuzzleAssert, Secp256r1MemberPuzzleAssertSolution, Secp256r1MemberSolution,
-    SingletonMember, SingletonMemberSolution, Timelock,
+    self as sdk, member_puzzle_hash, BlsMember, FixedPuzzleMember, MemberSpend, Mod, MofN,
+    PasskeyMember, PasskeyMemberPuzzleAssert, PasskeyMemberPuzzleAssertSolution,
+    PasskeyMemberSolution, Recovery, RecoverySolution, Secp256k1Member,
+    Secp256k1MemberPuzzleAssert, Secp256k1MemberPuzzleAssertSolution, Secp256k1MemberSolution,
+    Secp256r1Member, Secp256r1MemberPuzzleAssert, Secp256r1MemberPuzzleAssertSolution,
+    Secp256r1MemberSolution, SingletonMember, SingletonMemberSolution, Timelock,
 };
 use clvmr::NodePtr;
 use napi::bindgen_prelude::*;
 
 use crate::{
     traits::{js_err, FromJs, IntoJs, IntoRust},
-    ClvmAllocator, Coin, K1PublicKey, K1Signature, LineageProof, Program, R1PublicKey, R1Signature,
-    Spend,
+    ClvmAllocator, Coin, K1PublicKey, K1Signature, LineageProof, Program, PublicKey, R1PublicKey,
+    R1Signature, Spend,
 };
 
 #[napi(object)]
@@ -199,6 +200,101 @@ impl VaultSpend {
                     self.coin.coin_id(),
                     signature.0,
                 ))
+                .map_err(js_err)?
+        };
+
+        self.spend.members.insert(
+            member_hash,
+            MemberSpend::new(
+                nonce,
+                restrictions,
+                sdk::Spend::new(member_puzzle, member_solution),
+            ),
+        );
+
+        Ok(())
+    }
+
+    #[napi]
+    pub fn spend_bls(
+        &mut self,
+        clvm: &mut ClvmAllocator,
+        config: MemberConfig,
+        public_key: ClassInstance<PublicKey>,
+    ) -> Result<()> {
+        let nonce = config.nonce.try_into().unwrap();
+        let restrictions = convert_restrictions(config.restrictions)?;
+
+        let member = BlsMember::new(public_key.0);
+        let member_hash = member.curry_tree_hash();
+        let member_hash =
+            member_puzzle_hash(nonce, restrictions.clone(), member_hash, config.top_level);
+
+        let member_puzzle = clvm.0.curry(member).map_err(js_err)?;
+        let member_solution = clvm.0.alloc(&NodePtr::NIL).map_err(js_err)?;
+
+        self.spend.members.insert(
+            member_hash,
+            MemberSpend::new(
+                nonce,
+                restrictions,
+                sdk::Spend::new(member_puzzle, member_solution),
+            ),
+        );
+
+        Ok(())
+    }
+
+    #[napi]
+    #[allow(clippy::too_many_arguments)]
+    pub fn spend_passkey(
+        &mut self,
+        clvm: &mut ClvmAllocator,
+        config: MemberConfig,
+        genesis_challenge: Uint8Array,
+        public_key: ClassInstance<R1PublicKey>,
+        signature: ClassInstance<R1Signature>,
+        authenticator_data: Uint8Array,
+        client_data_json: Uint8Array,
+        challenge_index: u32,
+        fast_forward: bool,
+    ) -> Result<()> {
+        let nonce = config.nonce.try_into().unwrap();
+        let restrictions = convert_restrictions(config.restrictions)?;
+
+        let (member_hash, member_puzzle) = if fast_forward {
+            let member =
+                PasskeyMemberPuzzleAssert::new(genesis_challenge.into_rust()?, public_key.0);
+            let tree_hash = member.curry_tree_hash();
+            (tree_hash, clvm.0.curry(member).map_err(js_err)?)
+        } else {
+            let member = PasskeyMember::new(genesis_challenge.into_rust()?, public_key.0);
+            let tree_hash = member.curry_tree_hash();
+            (tree_hash, clvm.0.curry(member).map_err(js_err)?)
+        };
+
+        let member_hash =
+            member_puzzle_hash(nonce, restrictions.clone(), member_hash, config.top_level);
+
+        let member_solution = if fast_forward {
+            clvm.0
+                .alloc(&PasskeyMemberPuzzleAssertSolution {
+                    authenticator_data: authenticator_data.into_rust()?,
+                    client_data_json: client_data_json.into_rust()?,
+                    challenge_index: challenge_index.try_into().unwrap(),
+                    signature: signature.0,
+                    puzzle_hash: self.coin.puzzle_hash,
+                })
+                .map_err(js_err)?
+        } else {
+            clvm.0
+                .alloc(&PasskeyMemberSolution {
+                    authenticator_data: authenticator_data.into_rust()?,
+                    client_data_json: client_data_json.into_rust()?,
+                    challenge_index: challenge_index.try_into().unwrap(),
+                    signature: signature.0,
+                    coin_id: self.coin.coin_id(),
+                })
                 .map_err(js_err)?
         };
 
@@ -460,6 +556,32 @@ pub fn r1_member_hash(
             Secp256r1MemberPuzzleAssert::new(public_key.0).curry_tree_hash()
         } else {
             Secp256r1Member::new(public_key.0).curry_tree_hash()
+        },
+    )
+}
+
+#[napi]
+pub fn bls_member_hash(
+    config: MemberConfig,
+    public_key: ClassInstance<PublicKey>,
+) -> Result<Uint8Array> {
+    member_hash(config, BlsMember::new(public_key.0).curry_tree_hash())
+}
+
+#[napi]
+pub fn passkey_member_hash(
+    config: MemberConfig,
+    genesis_challenge: Uint8Array,
+    public_key: ClassInstance<R1PublicKey>,
+    fast_forward: bool,
+) -> Result<Uint8Array> {
+    member_hash(
+        config,
+        if fast_forward {
+            PasskeyMemberPuzzleAssert::new(genesis_challenge.into_rust()?, public_key.0)
+                .curry_tree_hash()
+        } else {
+            PasskeyMember::new(genesis_challenge.into_rust()?, public_key.0).curry_tree_hash()
         },
     )
 }
