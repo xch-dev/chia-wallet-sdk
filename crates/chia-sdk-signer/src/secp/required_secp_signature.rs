@@ -1,16 +1,14 @@
+use chia_secp::{K1PublicKey, R1PublicKey};
 use clvmr::NodePtr;
 
-use super::SecpPublicKey;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SecpOp {
-    K1,
-    R1,
+pub enum SecpPublicKey {
+    K1(K1PublicKey),
+    R1(R1PublicKey),
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct RequiredSecpSignature {
-    pub op: SecpOp,
     pub public_key: SecpPublicKey,
     pub message_hash: [u8; 32],
     pub placeholder_ptr: NodePtr,

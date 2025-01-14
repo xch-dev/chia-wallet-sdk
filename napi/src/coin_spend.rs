@@ -1,9 +1,10 @@
 use chia::protocol;
+use chia_wallet_sdk as sdk;
 use napi::bindgen_prelude::*;
 
 use crate::{
-    traits::{FromJs, IntoJs, IntoRust},
-    Coin, Program,
+    traits::{FromJs, IntoJs, IntoJsContextual, IntoRust},
+    ClvmAllocator, Coin, Program,
 };
 
 #[napi(object)]
@@ -37,4 +38,31 @@ impl FromJs<CoinSpend> for protocol::CoinSpend {
 pub struct Spend {
     pub puzzle: ClassInstance<Program>,
     pub solution: ClassInstance<Program>,
+}
+
+impl IntoJsContextual<Spend> for sdk::Spend {
+    fn into_js_contextual(
+        self,
+        env: Env,
+        this: Reference<ClvmAllocator>,
+        clvm_allocator: &mut ClvmAllocator,
+    ) -> Result<Spend> {
+        Ok(Spend {
+            puzzle: self
+                .puzzle
+                .into_js_contextual(env, this.clone(env)?, clvm_allocator)?,
+            solution: self
+                .solution
+                .into_js_contextual(env, this, clvm_allocator)?,
+        })
+    }
+}
+
+impl FromJs<Spend> for sdk::Spend {
+    fn from_js(spend: Spend) -> Result<Self> {
+        Ok(sdk::Spend {
+            puzzle: spend.puzzle.into_rust()?,
+            solution: spend.solution.into_rust()?,
+        })
+    }
 }

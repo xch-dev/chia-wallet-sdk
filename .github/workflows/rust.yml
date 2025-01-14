@@ -24,14 +24,14 @@ jobs:
       - name: Cargo binstall
         run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
-      - name: Instal cargo-workspaces
+      - name: Install cargo-workspaces
         run: cargo binstall cargo-workspaces --locked -y
 
       - name: Install cargo-tarpaulin
-        run: cargo binstall cargo-tarpaulin --locked -y
+        run: cargo install cargo-tarpaulin --locked
 
       - name: Run tests
-        run: cargo tarpaulin --release --workspace --exclude chia-wallet-sdk-napi --all-features --out xml
+        run: cargo tarpaulin --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --all-features --out xml
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.0.1

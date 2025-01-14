@@ -1,5 +1,6 @@
 #![allow(missing_debug_implementations)]
 #![allow(missing_copy_implementations)]
+#![allow(unexpected_cfgs)]
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::cast_possible_truncation)]
@@ -19,9 +20,11 @@ mod lineage_proof;
 mod nft;
 mod peer;
 mod program;
+mod secp;
 mod simulator;
 mod traits;
 mod utils;
+mod vault;
 
 pub use bls::*;
 pub use clvm::*;
@@ -32,4 +35,7 @@ pub use lineage_proof::*;
 pub use nft::*;
 pub use peer::*;
 pub use program::*;
+pub use secp::*;
+pub use simulator::*;
 pub use utils::*;
+pub use vault::*;

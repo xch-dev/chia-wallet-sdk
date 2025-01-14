@@ -18,6 +18,12 @@ mod datalayer;
 #[cfg(feature = "chip-0035")]
 pub use datalayer::*;
 
+#[cfg(feature = "experimental-vaults")]
+mod vault;
+
+#[cfg(feature = "experimental-vaults")]
+pub use vault::*;
+
 #[cfg(test)]
 mod tests {
     #[macro_export]

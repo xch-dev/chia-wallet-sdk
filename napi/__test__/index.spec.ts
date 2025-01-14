@@ -259,7 +259,7 @@ test("mint and spend nft", (t) => {
   );
 
   simulator.spend(
-    result.coinSpends.concat([
+    clvm.coinSpends().concat([
       {
         coin: p2.coin,
         puzzleReveal: spend.puzzle.serialize(),
@@ -272,13 +272,13 @@ test("mint and spend nft", (t) => {
   const innerSpend = clvm.spendP2Standard(
     p2.publicKey,
     clvm.delegatedSpendForConditions([
-      clvm.createCoin(p2.puzzleHash, 1n, [p2.puzzleHash]),
+      clvm.createCoin(p2.puzzleHash, 1n, clvm.alloc([p2.puzzleHash])),
     ])
   );
 
-  const coinSpends = clvm.spendNft(result.nfts[0], innerSpend);
+  clvm.spendNft(result.nfts[0], innerSpend);
 
-  simulator.spend(coinSpends, [p2.secretKey]);
+  simulator.spend(clvm.coinSpends(), [p2.secretKey]);
 
   t.true(
     compareBytes(
@@ -297,12 +297,17 @@ test("create and parse condition", (t) => {
 
   const puzzleHash = fromHex("ff".repeat(32));
 
-  const condition = clvm.createCoin(puzzleHash, 1n, [puzzleHash]);
+  const condition = clvm.createCoin(puzzleHash, 1n, clvm.alloc([puzzleHash]));
   const parsed = clvm.parseCreateCoin(condition);
 
-  t.deepEqual(parsed, {
-    puzzleHash,
-    amount: 1n,
-    memos: [puzzleHash],
-  });
+  t.true(parsed !== null && compareBytes(parsed.puzzleHash, puzzleHash));
+  t.true(parsed !== null && parsed.amount === 1n);
+
+  t.deepEqual(
+    parsed?.memos
+      ?.toList()
+      .map((memo) => memo.toAtom())
+      .filter((memo) => memo !== null),
+    [puzzleHash]
+  );
 });

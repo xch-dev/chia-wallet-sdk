@@ -14,9 +14,10 @@ fn main() -> anyhow::Result<()> {
     let p2_puzzle_hash = StandardArgs::curry_tree_hash(pk).into();
     let coin = Coin::new(Bytes32::default(), p2_puzzle_hash, 1_000);
 
+    let memos = ctx.hint(p2_puzzle_hash)?;
+
     // Issue the CAT using the single issuance (genesis by coin id) TAIL.
-    let conditions =
-        Conditions::new().create_coin(p2_puzzle_hash, coin.amount, vec![p2_puzzle_hash.into()]);
+    let conditions = Conditions::new().create_coin(p2_puzzle_hash, coin.amount, Some(memos));
     let (issue_cat, cat) = Cat::single_issuance_eve(ctx, coin.coin_id(), coin.amount, conditions)?;
     p2.spend(ctx, coin, issue_cat)?;
     println!("Issued test CAT with asset id {}", cat.asset_id);
@@ -27,7 +28,7 @@ fn main() -> anyhow::Result<()> {
         new_cat,
         p2.spend_with_conditions(
             ctx,
-            Conditions::new().create_coin(p2_puzzle_hash, coin.amount, vec![p2_puzzle_hash.into()]),
+            Conditions::new().create_coin(p2_puzzle_hash, coin.amount, Some(memos)),
         )?,
     )];
 

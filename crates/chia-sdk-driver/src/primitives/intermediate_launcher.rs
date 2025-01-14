@@ -62,7 +62,7 @@ impl IntermediateLauncher {
             self.mint_total,
         ))?;
 
-        parent = parent.create_coin(self.intermediate_coin.puzzle_hash, 0, Vec::new());
+        parent = parent.create_coin(self.intermediate_coin.puzzle_hash, 0, None);
 
         let puzzle_reveal = ctx.serialize(&puzzle)?;
         let solution = ctx.serialize(&())?;
