@@ -16,8 +16,10 @@ use crate::{sign_transaction, test_secret_key, SimulatorError};
 pub struct Simulator {
     rng: Rng,
     height: u32,
+    next_timestamp: u64,
     header_hashes: Vec<Bytes32>,
     coin_states: IndexMap<Bytes32, CoinState>,
+    block_timestamps: IndexMap<u32, u64>,
     hinted_coins: IndexMap<Bytes32, IndexSet<Bytes32>>,
     puzzle_and_solutions: IndexMap<Bytes32, (Program, Program)>,
 }
@@ -41,8 +43,10 @@ impl Simulator {
         Self {
             rng,
             height: 0,
+            next_timestamp: 0,
             header_hashes: vec![header_hash.into()],
             coin_states: IndexMap::new(),
+            block_timestamps: IndexMap::new(),
             hinted_coins: IndexMap::new(),
             puzzle_and_solutions: IndexMap::new(),
         }
@@ -50,6 +54,10 @@ impl Simulator {
 
     pub fn height(&self) -> u32 {
         self.height
+    }
+
+    pub fn next_timestamp(&self) -> u64 {
+        self.next_timestamp
     }
 
     pub fn header_hash(&self) -> Bytes32 {
@@ -82,6 +90,23 @@ impl Simulator {
         let p2 = StandardArgs::curry_tree_hash(pk).into();
         let coin = self.new_coin(p2, amount);
         Ok((sk, pk, p2, coin))
+    }
+
+    pub fn set_next_timestamp(&mut self, time: u64) -> Result<(), SimulatorError> {
+        if self.height > 0 {
+            if let Some(last_block_timestamp) = self.block_timestamps.get(&(self.height - 1)) {
+                if time < *last_block_timestamp {
+                    return Err(SimulatorError::Validation(ErrorCode::TimestampTooFarInPast));
+                }
+            }
+        }
+        self.next_timestamp = time;
+
+        Ok(())
+    }
+
+    pub fn pass_time(&mut self, time: u64) {
+        self.next_timestamp += time;
     }
 
     pub fn child_p2(
@@ -184,8 +209,7 @@ impl Simulator {
             ));
         }
 
-        // TODO: Tick time differently?
-        if u64::from(self.height) < conds.seconds_absolute {
+        if self.next_timestamp < conds.seconds_absolute {
             return Err(SimulatorError::Validation(
                 ErrorCode::AssertSecondsAbsoluteFailed,
             ));
@@ -199,9 +223,8 @@ impl Simulator {
             }
         }
 
-        // TODO: Tick time differently?
         if let Some(seconds) = conds.before_seconds_absolute {
-            if seconds < self.height.into() {
+            if seconds < self.next_timestamp {
                 return Err(SimulatorError::Validation(
                     ErrorCode::AssertBeforeSecondsAbsoluteFailed,
                 ));
@@ -261,15 +284,19 @@ impl Simulator {
                 }
             }
 
-            // TODO: Tick time differently?
             if let Some(relative_seconds) = spend.seconds_relative {
                 let Some(created_height) = coin_state.created_height else {
                     return Err(SimulatorError::Validation(
                         ErrorCode::EphemeralRelativeCondition,
                     ));
                 };
+                let Some(created_timestamp) = self.block_timestamps.get(&created_height) else {
+                    return Err(SimulatorError::Validation(
+                        ErrorCode::EphemeralRelativeCondition,
+                    ));
+                };
 
-                if u64::from(self.height) < u64::from(created_height) + relative_seconds {
+                if self.next_timestamp < created_timestamp + relative_seconds {
                     return Err(SimulatorError::Validation(
                         ErrorCode::AssertSecondsRelativeFailed,
                     ));
@@ -290,15 +317,19 @@ impl Simulator {
                 }
             }
 
-            // TODO: Tick time differently?
             if let Some(relative_seconds) = spend.before_seconds_relative {
                 let Some(created_height) = coin_state.created_height else {
                     return Err(SimulatorError::Validation(
                         ErrorCode::EphemeralRelativeCondition,
                     ));
                 };
+                let Some(created_timestamp) = self.block_timestamps.get(&created_height) else {
+                    return Err(SimulatorError::Validation(
+                        ErrorCode::EphemeralRelativeCondition,
+                    ));
+                };
 
-                if u64::from(created_height) + relative_seconds < u64::from(self.height) {
+                if created_timestamp + relative_seconds < self.next_timestamp {
                     return Err(SimulatorError::Validation(
                         ErrorCode::AssertBeforeSecondsRelativeFailed,
                     ));
@@ -371,6 +402,10 @@ impl Simulator {
         let mut header_hash = [0; 32];
         self.rng.fill(&mut header_hash);
         self.header_hashes.push(header_hash.into());
+        self.block_timestamps
+            .insert(self.height, self.next_timestamp);
+
         self.height += 1;
+        self.next_timestamp += 1;
     }
 }
