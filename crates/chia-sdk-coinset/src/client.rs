@@ -476,14 +476,14 @@ mod tests {
                 Bytes32::new(hex_literal::hex!(
                     "11cd056d9ec93f4612919b445e1ad9afeb7ef7739708c2d16cec4fd2d3cd5e63"
                 )),
-                10019626640
+                10_019_626_640
             )
         );
         assert!(!addition.coinbase);
-        assert_eq!(addition.confirmed_block_index, 5910291);
+        assert_eq!(addition.confirmed_block_index, 5_910_291);
         assert!(!addition.spent);
         assert_eq!(addition.spent_block_index, 0);
-        assert_eq!(addition.timestamp, 1725991066);
+        assert_eq!(addition.timestamp, 1_725_991_066);
 
         // Check removals
         let removals = response.removals.unwrap();
@@ -502,10 +502,10 @@ mod tests {
             )
         );
         assert!(!removal.coinbase);
-        assert_eq!(removal.confirmed_block_index, 5612341);
+        assert_eq!(removal.confirmed_block_index, 5_612_341);
         assert!(removal.spent);
-        assert_eq!(removal.spent_block_index, 5910291);
-        assert_eq!(removal.timestamp, 1720407964);
+        assert_eq!(removal.spent_block_index, 5_910_291);
+        assert_eq!(removal.timestamp, 1_720_407_964);
     }
 
     #[tokio::test]
@@ -690,9 +690,9 @@ mod tests {
         assert!(response.error.is_none());
 
         let block = response.block.unwrap();
-        assert_eq!(block.height(), 5910291);
-        assert_eq!(block.weight(), 27802025488);
-        assert_eq!(block.total_iters(), 45503147198204);
+        assert_eq!(block.height(), 5_910_291);
+        assert_eq!(block.weight(), 27_802_025_488);
+        assert_eq!(block.total_iters(), 45_503_147_198_204);
 
         assert!(block.transactions_info.is_some());
         assert!(
@@ -792,9 +792,9 @@ mod tests {
         assert!(response.error.is_none());
 
         let block_record = response.block_record.unwrap();
-        assert_eq!(block_record.height, 5910291);
-        assert_eq!(block_record.weight, 27802025488);
-        assert_eq!(block_record.total_iters, 45503147198204);
+        assert_eq!(block_record.height, 5_910_291);
+        assert_eq!(block_record.weight, 27_802_025_488);
+        assert_eq!(block_record.total_iters, 45_503_147_198_204);
         assert_eq!(block_record.reward_claims_incorporated.unwrap().len(), 6);
     }
 

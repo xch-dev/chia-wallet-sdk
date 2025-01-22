@@ -25,6 +25,7 @@ impl MockChiaClient {
         self.requests.lock().unwrap().clone()
     }
 
+    #[allow(clippy::unused_async)]
     pub async fn post(&self, url: &str, json: Value) -> Result<String, Box<dyn Error>> {
         self.requests.lock().unwrap().push((url.to_string(), json));
 
