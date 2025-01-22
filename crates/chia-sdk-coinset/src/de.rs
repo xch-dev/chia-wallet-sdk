@@ -119,7 +119,7 @@ pub mod hex_string_to_bytes32_list_maybe {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub struct DeserializableCoin {
     pub amount: u64,
     #[serde(with = "hex_string_to_bytes32")]
@@ -184,7 +184,7 @@ pub mod deserialize_coins_maybe {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct DeserializableVDFProof {
     pub witness_type: u8,
     #[serde(with = "hex_string_to_bytes")]
@@ -230,7 +230,7 @@ pub mod deserialize_vdf_proof_maybe {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub struct DeserializableClassgroupElement {
     #[serde(with = "hex_string_to_bytes100")]
     data: Bytes100,
@@ -266,7 +266,7 @@ pub mod deserialize_classgroup_element_maybe {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub struct DeserializableVDFInfo {
     #[serde(with = "hex_string_to_bytes32")]
     challenge: Bytes32,
@@ -313,7 +313,7 @@ pub mod deserialize_vdf_info_maybe {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DeserializableChallengeChainSubSlot {
     #[serde(with = "deserialize_vdf_info")]
     challenge_chain_end_of_slot_vdf: VDFInfo,
@@ -346,7 +346,7 @@ pub mod deserialize_challenge_chain_sub_slot {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DeserializableInfusedChallengeChainSubSlot {
     #[serde(with = "deserialize_vdf_info")]
     infused_challenge_chain_end_of_slot_vdf: VDFInfo,
@@ -372,7 +372,7 @@ pub mod deserialize_infused_challenge_chain_sub_slot_maybe {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DeserializableRewardChainSubSlot {
     #[serde(with = "deserialize_vdf_info")]
     end_of_slot_vdf: VDFInfo,
@@ -403,7 +403,7 @@ pub mod deserialize_reward_chain_sub_slot {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct DeserializableSubSlotProofs {
     #[serde(with = "deserialize_vdf_proof")]
     challenge_chain_slot_proof: VDFProof,
@@ -432,7 +432,7 @@ pub mod deserialize_sub_slot_proofs {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct DeserializableEndOfSubSlotBundle {
     #[serde(with = "deserialize_challenge_chain_sub_slot")]
     pub challenge_chain: ChallengeChainSubSlot,
@@ -504,7 +504,7 @@ pub mod deserialize_to_g1element_maybe {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct DeserializableProofOfSpace {
     #[serde(with = "hex_string_to_bytes32")]
     challenge: Bytes32,
@@ -578,7 +578,7 @@ pub mod deserialize_g2element_maybe {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DeserializableRewardChainBlock {
     weight: u128,
     height: u32,
@@ -635,7 +635,7 @@ pub mod deserialize_reward_chain_block {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub struct DeserializablePoolTarget {
     #[serde(with = "hex_string_to_bytes32")]
     puzzle_hash: Bytes32,
@@ -660,7 +660,7 @@ pub mod deserialize_pool_target {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DeserializableFoliageBlockData {
     #[serde(with = "hex_string_to_bytes32")]
     unfinished_reward_block_hash: Bytes32,
@@ -695,7 +695,7 @@ pub mod deserialize_foliage_block_data {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DeserializableFoliage {
     #[serde(with = "hex_string_to_bytes32")]
     prev_block_hash: Bytes32,
@@ -733,7 +733,7 @@ pub mod deserialize_foliage {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub struct DeserializableFoliageTransactionBlock {
     #[serde(with = "hex_string_to_bytes32")]
     prev_transaction_block_hash: Bytes32,
@@ -770,7 +770,7 @@ pub mod deserialize_foliage_transaction_block_maybe {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct DeserializableTransactionsInfo {
     #[serde(with = "hex_string_to_bytes32")]
     generator_root: Bytes32,
@@ -806,7 +806,7 @@ pub mod deserialize_transactions_info_maybe {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct DeserializableFullBlock {
     #[serde(with = "deserialize_end_of_sub_slot_bundles")]
     finished_sub_slots: Vec<EndOfSubSlotBundle>,
@@ -834,10 +834,10 @@ pub struct DeserializableFullBlock {
 }
 
 pub mod deserialize_full_block_maybe {
-    use super::*;
-
     use chia::protocol::{FullBlock, Program};
     use serde::{self, Deserialize, Deserializer};
+
+    use super::DeserializableFullBlock;
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<FullBlock>, D::Error>
     where
@@ -893,7 +893,7 @@ pub mod deserialize_full_blocks_maybe {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub struct DeserializableSubEpochSummary {
     #[serde(with = "hex_string_to_bytes32")]
     prev_subepoch_summary_hash: Bytes32,
@@ -925,7 +925,7 @@ pub mod deserialize_sub_epoch_summary_maybe {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DeserializableBlockRecord {
     #[serde(with = "hex_string_to_bytes32")]
     header_hash: Bytes32,
@@ -1096,7 +1096,7 @@ pub mod deserialize_block_records_maybe {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DeserializableCoinSpend {
     #[serde(with = "deserialize_coin")]
     coin: Coin,
@@ -1170,7 +1170,7 @@ pub mod deserialize_coin_spends {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub struct CoinRecord {
     #[serde(with = "deserialize_coin")]
     pub coin: Coin,
@@ -1181,7 +1181,7 @@ pub struct CoinRecord {
     pub timestamp: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct DeserializableSpendBundle {
     #[serde(with = "deserialize_g2element")]
     pub aggregated_signature: G2Element,
@@ -1209,7 +1209,7 @@ pub mod deserialize_spend_bundle {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct DeserializableMempoolItem {
     #[serde(with = "deserialize_spend_bundle")]
     pub spend_bundle: SpendBundle,

@@ -37,12 +37,12 @@ pub struct BlockchainState {
     pub sync: Sync,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub struct MempoolMinFees {
     pub cost_5000000: u64,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 pub struct Sync {
     pub sync_mode: bool,
     pub sync_progress_height: u32,
@@ -139,14 +139,14 @@ pub struct GetNetworkInfoResponse {
     pub success: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct GetMempoolItemResponse {
     pub mempool_item: Option<DeserializableMempoolItem>,
     pub error: Option<String>,
     pub success: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct GetMempoolItemsResponse {
     pub mempool_items: Option<Vec<DeserializableMempoolItem>>,
     pub error: Option<String>,

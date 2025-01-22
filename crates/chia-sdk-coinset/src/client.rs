@@ -389,7 +389,7 @@ mod tests {
         assert_eq!(state.mempool_size, 2);
 
         let peak = state.peak;
-        assert_eq!(peak.height, 6515821);
+        assert_eq!(peak.height, 6_515_821);
         assert_eq!(peak.deficit, 15);
         assert!(!peak.overflow);
     }
