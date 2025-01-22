@@ -454,25 +454,12 @@ version = "0.20.0"
 dependencies = [
  "aws-lc-rs",
  "chia",
- "chia-protocol",
- "chia-sdk-types",
- "chia-ssl",
- "chia-traits 0.17.0",
- "futures-util",
  "hex",
  "hex-literal",
- "native-tls",
- "once_cell",
  "reqwest",
- "rustls 0.22.4",
- "rustls-pemfile",
  "serde",
  "serde_json",
- "thiserror",
  "tokio",
- "tokio-tungstenite 0.21.0",
- "tracing",
- "tungstenite 0.21.0",
 ]
 
 [[package]]
