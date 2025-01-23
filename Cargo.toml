@@ -77,6 +77,7 @@ chia-sdk-signer = { workspace = true }
 chia-sdk-test = { workspace = true }
 chia-sdk-types = { workspace = true }
 chia-sdk-utils = { workspace = true }
+chia-sdk-coinset = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
@@ -97,6 +98,7 @@ chia-sdk-signer = { version = "0.20.0", path = "./crates/chia-sdk-signer" }
 chia-sdk-test = { version = "0.20.0", path = "./crates/chia-sdk-test" }
 chia-sdk-types = { version = "0.20.0", path = "./crates/chia-sdk-types" }
 chia-sdk-utils = { version = "0.20.0", path = "./crates/chia-sdk-utils" }
+chia-sdk-coinset = { version = "0.20.0", path = "./crates/chia-sdk-coinset" }
 chia = "0.17.0"
 chia-ssl = "0.17.0"
 chia-protocol = "0.17.0"
@@ -142,6 +144,9 @@ bigdecimal = "0.4.6"
 k256 = "0.13.4"
 p256 = "0.13.2"
 signature = "2.2.0"
+serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.117"
+reqwest = { version = "0.12.12", features = ["json"] }
 
 [profile.release]
 lto = true
