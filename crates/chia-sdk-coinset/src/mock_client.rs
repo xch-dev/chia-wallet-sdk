@@ -1,15 +1,19 @@
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Mutex;
 
+use crate::ChiaRpcClient;
+
 #[derive(Debug)]
-pub struct MockChiaClient {
+pub struct MockRpcClient {
     requests: Mutex<Vec<(String, Value)>>,
     responses: HashMap<String, String>,
 }
 
-impl MockChiaClient {
+impl MockRpcClient {
     pub fn new() -> Self {
         Self {
             requests: Mutex::new(Vec::new()),
@@ -25,8 +29,7 @@ impl MockChiaClient {
         self.requests.lock().unwrap().clone()
     }
 
-    #[allow(clippy::unused_async)]
-    pub async fn post(&self, url: &str, json: Value) -> Result<String, Box<dyn Error>> {
+    pub fn post(&self, url: &str, json: Value) -> Result<String, Box<dyn Error>> {
         self.requests.lock().unwrap().push((url.to_string(), json));
 
         match self.responses.get(url) {
@@ -36,8 +39,27 @@ impl MockChiaClient {
     }
 }
 
-impl Default for MockChiaClient {
+impl Default for MockRpcClient {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl ChiaRpcClient for MockRpcClient {
+    type Error = Box<dyn Error>;
+
+    fn base_url(&self) -> &'static str {
+        "http://api.example.com"
+    }
+
+    async fn make_post_request<R, B>(&self, endpoint: &str, body: B) -> Result<R, Self::Error>
+    where
+        B: Serialize,
+        R: DeserializeOwned,
+    {
+        let url = format!("{}/{}", self.base_url(), endpoint);
+        let body = serde_json::to_value(body)?;
+        let response = self.post(&url, body)?;
+        Ok(serde_json::from_str::<R>(&response)?)
     }
 }

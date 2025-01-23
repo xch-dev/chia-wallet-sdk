@@ -1,7 +1,6 @@
 #![allow(clippy::doc_markdown)]
 #![doc = include_str!("../README.md")]
 
-#[allow(ambiguous_glob_reexports)]
 pub use chia_sdk_client::*;
 pub use chia_sdk_coinset::*;
 pub use chia_sdk_driver::*;
