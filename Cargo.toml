@@ -138,7 +138,7 @@ quote = "1.0.37"
 convert_case = "0.6.0"
 fastrand = "2.1.1"
 napi-derive = "2.12.2"
-napi = { version = "2.12.2", default-features = false }
+napi = { version = "2.16.13", default-features = false }
 paste = "1.0.15"
 bigdecimal = "0.4.6"
 k256 = "0.13.4"
