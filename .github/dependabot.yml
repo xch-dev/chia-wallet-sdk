@@ -9,7 +9,7 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
-groups:
-  actions-deps:
-    patterns:
-      - "*"
+    groups:
+      actions-deps:
+        patterns:
+          - "*"
