@@ -8,18 +8,18 @@ use crate::Mod;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
-pub struct P2DelegatedSingletonArgs {
+pub struct P2DelegatedSingletonMessageArgs {
     pub singleton_mod_hash: Bytes32,
     pub launcher_id: Bytes32,
     pub launcher_puzzle_hash: Bytes32,
 }
 
-impl Mod for P2DelegatedSingletonArgs {
+impl Mod for P2DelegatedSingletonMessageArgs {
     const MOD_REVEAL: &[u8] = &P2_DELEGATED_SINGLETON_PUZZLE;
     const MOD_HASH: TreeHash = P2_DELEGATED_SINGLETON_PUZZLE_HASH;
 }
 
-impl P2DelegatedSingletonArgs {
+impl P2DelegatedSingletonMessageArgs {
     pub fn new(launcher_id: Bytes32) -> Self {
         Self {
             singleton_mod_hash: SINGLETON_TOP_LAYER_PUZZLE_HASH.into(),
