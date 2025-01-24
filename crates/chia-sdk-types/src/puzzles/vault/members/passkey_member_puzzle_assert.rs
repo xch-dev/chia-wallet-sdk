@@ -9,16 +9,12 @@ use crate::Mod;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct PasskeyMemberPuzzleAssert {
-    pub genesis_challenge: Bytes32,
     pub public_key: R1PublicKey,
 }
 
 impl PasskeyMemberPuzzleAssert {
-    pub fn new(genesis_challenge: Bytes32, public_key: R1PublicKey) -> Self {
-        Self {
-            genesis_challenge,
-            public_key,
-        }
+    pub fn new(public_key: R1PublicKey) -> Self {
+        Self { public_key }
     }
 }
 

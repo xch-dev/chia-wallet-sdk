@@ -248,13 +248,13 @@ export declare function mOfNHash(config: MemberConfig, required: number, items: 
 export declare function k1MemberHash(config: MemberConfig, publicKey: K1PublicKey, fastForward: boolean): Uint8Array
 export declare function r1MemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Uint8Array
 export declare function blsMemberHash(config: MemberConfig, publicKey: PublicKey): Uint8Array
-export declare function passkeyMemberHash(config: MemberConfig, genesisChallenge: Uint8Array, publicKey: R1PublicKey, fastForward: boolean): Uint8Array
+export declare function passkeyMemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Uint8Array
 export declare function singletonMemberHash(config: MemberConfig, launcherId: Uint8Array): Uint8Array
 export declare function fixedMemberHash(config: MemberConfig, fixedPuzzleHash: Uint8Array): Uint8Array
 export declare function customMemberHash(config: MemberConfig, innerHash: Uint8Array): Uint8Array
 export declare function recoveryRestriction(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): Restriction
 export declare function timelockRestriction(timelock: bigint): Restriction
-export declare function p2SingletonMessagePuzzleHash(launcherId: Uint8Array): Uint8Array
+export declare function p2DelegatedSingletonMessagePuzzleHash(launcherId: Uint8Array, nonce: number): Uint8Array
 export declare class SecretKey {
   static fromSeed(seed: Uint8Array): SecretKey
   static fromBytes(bytes: Uint8Array): SecretKey
@@ -310,8 +310,7 @@ export declare class ClvmAllocator {
   parseNftMetadata(value: Program): NftMetadata
   delegatedSpendForConditions(conditions: Array<Program>): Spend
   spendP2Standard(syntheticKey: PublicKey, delegatedSpend: Spend): Spend
-  spendP2DelegatedSingleton(launcherId: Uint8Array, coinId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend): Spend
-  spendP2SingletonMessage(launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend): Spend
+  spendP2DelegatedSingletonMessage(launcherId: Uint8Array, nonce: number, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend): Spend
   mintNfts(parent_coin_id: Uint8Array, nft_mints: Array<NftMint>): MintedNfts
   parseNftInfo(puzzle: Program): ParsedNft | null
   parseChildNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Nft | null
@@ -458,7 +457,7 @@ export declare class VaultSpend {
   spendK1(clvm: ClvmAllocator, config: MemberConfig, publicKey: K1PublicKey, signature: K1Signature, fastForward: boolean): void
   spendR1(clvm: ClvmAllocator, config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, fastForward: boolean): void
   spendBls(clvm: ClvmAllocator, config: MemberConfig, publicKey: PublicKey): void
-  spendPasskey(clvm: ClvmAllocator, config: MemberConfig, genesisChallenge: Uint8Array, publicKey: R1PublicKey, signature: R1Signature, authenticatorData: Uint8Array, clientDataJson: Uint8Array, challengeIndex: number, fastForward: boolean): void
+  spendPasskey(clvm: ClvmAllocator, config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, authenticatorData: Uint8Array, clientDataJson: Uint8Array, challengeIndex: number, fastForward: boolean): void
   spendSingleton(clvm: ClvmAllocator, config: MemberConfig, launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, singletonAmount: bigint): void
   spendFixedPuzzle(clvm: ClvmAllocator, config: MemberConfig, fixedPuzzleHash: Uint8Array): void
   spendCustomMember(clvm: ClvmAllocator, config: MemberConfig, spend: Spend): void
