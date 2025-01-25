@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, fmt};
 
 use clvm_traits::{FromClvm, FromClvmError, ToClvm, ToClvmError};
-use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
+use clvm_utils::{tree_hash, TreeHash, TreeHasher};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
@@ -78,14 +78,16 @@ impl FromClvm<Allocator> for HashedPtr {
     }
 }
 
-impl ToTreeHash for HashedPtr {
-    fn tree_hash(&self) -> TreeHash {
-        self.tree_hash
+impl ToClvm<TreeHasher> for HashedPtr {
+    fn to_clvm(&self, _encoder: &mut TreeHasher) -> Result<TreeHash, ToClvmError> {
+        Ok(self.tree_hash)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use clvm_utils::ToTreeHash;
+
     use super::*;
 
     #[test]
