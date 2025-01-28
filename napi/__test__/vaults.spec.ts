@@ -11,7 +11,7 @@ import {
   K1Signature,
   MemberConfig,
   mOfNHash,
-  p2SingletonMessagePuzzleHash,
+  p2DelegatedSingletonMessagePuzzleHash,
   passkeyMemberHash,
   R1SecretKey,
   R1Signature,
@@ -59,8 +59,9 @@ test("bls key vault", (t) => {
   vaultSpend.spendBls(clvm, config, alice.publicKey);
   clvm.spendVault(vault, vaultSpend);
 
-  const coinSpend = clvm.spendP2SingletonMessage(
+  const coinSpend = clvm.spendP2DelegatedSingletonMessage(
     vault.launcherId,
+    0,
     vault.custodyHash,
     coinDelegatedSpend
   );
@@ -121,17 +122,12 @@ test("passkey member vault", (t) => {
     restrictions: [],
   };
 
-  const genesisChallenge = Buffer.from(
-    "ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb",
-    "hex"
-  );
-
   const fastForward = false;
 
   const vault = mintVault(
     sim,
     clvm,
-    passkeyMemberHash(config, genesisChallenge, r1.publicKey, fastForward)
+    passkeyMemberHash(config, r1.publicKey, fastForward)
   );
 
   const delegatedSpend = clvm.delegatedSpendForConditions([
@@ -144,7 +140,6 @@ test("passkey member vault", (t) => {
       Buffer.concat([
         Buffer.from(delegatedSpend.puzzle.treeHash()),
         fastForward ? vault.coin.puzzleHash : toCoinId(vault.coin),
-        genesisChallenge,
       ])
     )
   );
@@ -170,7 +165,6 @@ test("passkey member vault", (t) => {
   vaultSpend.spendPasskey(
     clvm,
     config,
-    genesisChallenge,
     r1.publicKey,
     signature,
     authenticatorData,
@@ -681,15 +675,16 @@ function mintVaultWithCoin(
     clvm.nil()
   );
 
+  const p2PuzzleHash = p2DelegatedSingletonMessagePuzzleHash(
+    vault.launcherId,
+    0
+  );
+
   const spend = clvm.spendP2Standard(
     p2.publicKey,
     clvm.delegatedSpendForConditions([
       ...parentConditions,
-      clvm.createCoin(
-        p2SingletonMessagePuzzleHash(vault.launcherId),
-        amount,
-        clvm.alloc([vault.launcherId])
-      ),
+      clvm.createCoin(p2PuzzleHash, amount, clvm.alloc([vault.launcherId])),
     ])
   );
 
@@ -709,7 +704,7 @@ function mintVaultWithCoin(
     vault,
     {
       parentCoinInfo: toCoinId(p2.coin),
-      puzzleHash: p2SingletonMessagePuzzleHash(vault.launcherId),
+      puzzleHash: p2PuzzleHash,
       amount,
     },
   ];

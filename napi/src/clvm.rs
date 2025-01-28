@@ -5,7 +5,10 @@ use chia::{
     protocol::{self, Bytes32},
     puzzles::nft::{self, NFT_METADATA_UPDATER_PUZZLE_HASH},
 };
-use chia_wallet_sdk::{self as sdk, HashedPtr, Memos, SpendContext};
+use chia_wallet_sdk::{
+    self as sdk, HashedPtr, Memos, P2DelegatedSingletonMessageArgs,
+    P2DelegatedSingletonMessageSolution, SpendContext,
+};
 use clvmr::{
     run_program,
     serde::{node_from_bytes, node_from_bytes_backrefs},
@@ -196,56 +199,28 @@ impl ClvmAllocator {
     }
 
     #[napi(
-        ts_args_type = "launcherId: Uint8Array, coinId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend"
+        ts_args_type = "launcherId: Uint8Array, nonce: number, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend"
     )]
-    pub fn spend_p2_delegated_singleton(
+    pub fn spend_p2_delegated_singleton_message(
         &mut self,
         env: Env,
         this: This<Clvm>,
         launcher_id: Uint8Array,
-        coin_id: Uint8Array,
-        singleton_inner_puzzle_hash: Uint8Array,
-        delegated_spend: Spend,
-    ) -> Result<Spend> {
-        let p2 = sdk::P2DelegatedSingletonLayer::new(launcher_id.into_rust()?);
-
-        let spend = p2
-            .spend(
-                &mut self.0,
-                coin_id.into_rust()?,
-                singleton_inner_puzzle_hash.into_rust()?,
-                sdk::Spend {
-                    puzzle: delegated_spend.puzzle.ptr,
-                    solution: delegated_spend.solution.ptr,
-                },
-            )
-            .map_err(js_err)?;
-
-        Ok(Spend {
-            puzzle: Program::new(this.clone(env)?, spend.puzzle).into_instance(env)?,
-            solution: Program::new(this, spend.solution).into_instance(env)?,
-        })
-    }
-
-    #[napi(
-        ts_args_type = "launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend"
-    )]
-    pub fn spend_p2_singleton_message(
-        &mut self,
-        env: Env,
-        this: This<Clvm>,
-        launcher_id: Uint8Array,
+        nonce: u32,
         singleton_inner_puzzle_hash: Uint8Array,
         delegated_spend: Spend,
     ) -> Result<Spend> {
         let puzzle = self
             .0
-            .curry(sdk::P2SingletonMessageArgs::new(launcher_id.into_rust()?))
+            .curry(P2DelegatedSingletonMessageArgs::new(
+                launcher_id.into_rust()?,
+                nonce.try_into().unwrap(),
+            ))
             .map_err(js_err)?;
 
         let solution = self
             .0
-            .alloc(&sdk::P2SingletonMessageSolution::new(
+            .alloc(&P2DelegatedSingletonMessageSolution::new(
                 singleton_inner_puzzle_hash.into_rust()?,
                 delegated_spend.puzzle.ptr,
                 delegated_spend.solution.ptr,
