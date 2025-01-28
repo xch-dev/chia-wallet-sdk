@@ -1,7 +1,7 @@
 use chia::{clvm_utils::TreeHash, protocol};
 use chia_wallet_sdk::{
     self as sdk, member_puzzle_hash, BlsMember, FixedPuzzleMember, MemberSpend, Mod, MofN,
-    P2SingletonMessageArgs, PasskeyMember, PasskeyMemberPuzzleAssert,
+    P2DelegatedSingletonMessageArgs, PasskeyMember, PasskeyMemberPuzzleAssert,
     PasskeyMemberPuzzleAssertSolution, PasskeyMemberSolution, Recovery, RecoverySolution,
     Secp256k1Member, Secp256k1MemberPuzzleAssert, Secp256k1MemberPuzzleAssertSolution,
     Secp256k1MemberSolution, Secp256r1Member, Secp256r1MemberPuzzleAssert,
@@ -252,7 +252,6 @@ impl VaultSpend {
         &mut self,
         clvm: &mut ClvmAllocator,
         config: MemberConfig,
-        genesis_challenge: Uint8Array,
         public_key: ClassInstance<R1PublicKey>,
         signature: ClassInstance<R1Signature>,
         authenticator_data: Uint8Array,
@@ -264,12 +263,11 @@ impl VaultSpend {
         let restrictions = convert_restrictions(config.restrictions)?;
 
         let (member_hash, member_puzzle) = if fast_forward {
-            let member =
-                PasskeyMemberPuzzleAssert::new(genesis_challenge.into_rust()?, public_key.0);
+            let member = PasskeyMemberPuzzleAssert::new(public_key.0);
             let tree_hash = member.curry_tree_hash();
             (tree_hash, clvm.0.curry(member).map_err(js_err)?)
         } else {
-            let member = PasskeyMember::new(genesis_challenge.into_rust()?, public_key.0);
+            let member = PasskeyMember::new(public_key.0);
             let tree_hash = member.curry_tree_hash();
             (tree_hash, clvm.0.curry(member).map_err(js_err)?)
         };
@@ -572,17 +570,15 @@ pub fn bls_member_hash(
 #[napi]
 pub fn passkey_member_hash(
     config: MemberConfig,
-    genesis_challenge: Uint8Array,
     public_key: ClassInstance<R1PublicKey>,
     fast_forward: bool,
 ) -> Result<Uint8Array> {
     member_hash(
         config,
         if fast_forward {
-            PasskeyMemberPuzzleAssert::new(genesis_challenge.into_rust()?, public_key.0)
-                .curry_tree_hash()
+            PasskeyMemberPuzzleAssert::new(public_key.0).curry_tree_hash()
         } else {
-            PasskeyMember::new(genesis_challenge.into_rust()?, public_key.0).curry_tree_hash()
+            PasskeyMember::new(public_key.0).curry_tree_hash()
         },
     )
 }
@@ -642,8 +638,11 @@ pub fn timelock_restriction(timelock: BigInt) -> Result<Restriction> {
 }
 
 #[napi]
-pub fn p2_singleton_message_puzzle_hash(launcher_id: Uint8Array) -> Result<Uint8Array> {
-    P2SingletonMessageArgs::new(launcher_id.into_rust()?)
+pub fn p2_delegated_singleton_message_puzzle_hash(
+    launcher_id: Uint8Array,
+    nonce: u32,
+) -> Result<Uint8Array> {
+    P2DelegatedSingletonMessageArgs::new(launcher_id.into_rust()?, nonce.try_into().unwrap())
         .curry_tree_hash()
         .into_js()
 }

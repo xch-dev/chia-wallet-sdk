@@ -59,7 +59,7 @@ impl RecoverySolution {
     }
 }
 
-pub const RECOVERY_PUZZLE: [u8; 706] = hex!(
+pub const RECOVERY_PUZZLE: [u8; 684] = hex!(
     "
     ff02ffff01ff02ffff03ffff02ff3affff04ff02ffff04ff8205ffffff04ffff
     02ff2effff04ff02ffff04ff2fffff04ffff0bff2cff5f80ffff04ffff02ff2e
@@ -71,22 +71,21 @@ pub const RECOVERY_PUZZLE: [u8; 706] = hex!(
     8205ffffff01ff088080ff0180ffff04ffff01ffffff333cff3eff0142ffff02
     ffff02ffff03ff05ffff01ff0bff76ffff02ff3effff04ff02ffff04ff09ffff
     04ffff02ff2affff04ff02ffff04ff0dff80808080ff808080808080ffff0166
-    80ff0180ff02ffff03ff05ffff01ff02ffff03ffff20ffff21ffff09ff11ff3c
-    80ffff09ff11ff1480ffff09ff11ff18808080ffff01ff02ffff03ffff02ffff
-    03ffff09ff11ff1080ffff01ff02ffff03ffff20ffff09ff29ff0b8080ffff01
-    ff0101ff8080ff0180ff8080ff0180ffff01ff0880ffff01ff02ff3affff04ff
-    02ffff04ff0dffff04ff0bff808080808080ff0180ffff01ff088080ff0180ff
-    ff01ff010180ff0180ffffffa04bf5122f344554c53bde2ebb8cd2b7e3d1600a
-    d631c385a5d7cce23c7785459aa09dcf97a184f32623d11a73124ceb99a5709b
-    083721e878a16d78f596718ba7b2ffa102a12871fee210fb8619291eaea19458
-    1cbd2531e4b23759d225f6806923f63222a102a8d5dd63fba471ebcb1f3e8f7c
-    1e1879b7152a6e7298a91ce119a63400ade7c5ffff0bff56ffff02ff3effff04
-    ff02ffff04ff05ffff04ffff02ff2affff04ff02ffff04ff07ff80808080ff80
-    8080808080ff0bff12ffff0bff12ff66ff0580ffff0bff12ff0bff468080ff01
-    8080
+    80ff0180ff02ffff03ff05ffff01ff02ffff03ffff21ffff09ff11ff3c80ffff
+    09ff11ff1480ffff09ff11ff1880ffff02ffff03ffff09ff11ff1080ffff01ff
+    02ffff03ffff20ffff09ff29ff0b8080ffff01ff0101ff8080ff0180ff8080ff
+    018080ffff01ff0880ffff01ff02ff3affff04ff02ffff04ff0dffff04ff0bff
+    808080808080ff0180ffff01ff010180ff0180ffffffa04bf5122f344554c53b
+    de2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459aa09dcf97a184f32623
+    d11a73124ceb99a5709b083721e878a16d78f596718ba7b2ffa102a12871fee2
+    10fb8619291eaea194581cbd2531e4b23759d225f6806923f63222a102a8d5dd
+    63fba471ebcb1f3e8f7c1e1879b7152a6e7298a91ce119a63400ade7c5ffff0b
+    ff56ffff02ff3effff04ff02ffff04ff05ffff04ffff02ff2affff04ff02ffff
+    04ff07ff80808080ff808080808080ff0bff12ffff0bff12ff66ff0580ffff0b
+    ff12ff0bff468080ff018080
     "
 );
 
 pub const RECOVERY_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
-    "c570d1c054e7907c00aa2e9a004298af040baf8ac9f2aa1fbdc7840f6e134848"
+    "8b71805f8e559ab8df3342691d5be28a6e57c541778753598fc88d7591699bd1"
 ));
