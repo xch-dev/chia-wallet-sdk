@@ -1,0 +1,31 @@
+[package]
+name = "chia-sdk-coinset"
+version = "0.20.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Utilities for connecting to Chia full node peers via the light wallet protocol."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/Rigidity/chia-wallet-sdk"
+repository = "https://github.com/Rigidity/chia-wallet-sdk"
+readme = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[lints]
+workspace = true
+
+[dependencies]
+tokio = { workspace = true, features = ["sync", "time", "rt", "macros"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+chia = { workspace = true }
+hex = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+hex-literal = { workspace = true }
+
+# This is to ensure that the bindgen feature is enabled for the aws-lc-rs crate.
+# https://aws.github.io/aws-lc-rs/platform_support.html#tested-platforms
+aws-lc-rs = { version = "1", features = ["bindgen"], optional = true }
+
+[package.metadata.cargo-machete]
+ignored = ["aws-lc-rs"]

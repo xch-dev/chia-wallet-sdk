@@ -11,7 +11,10 @@ import {
   K1Signature,
   MemberConfig,
   mOfNHash,
-  p2SingletonMessagePuzzleHash,
+  p2DelegatedSingletonMessagePuzzleHash,
+  passkeyMemberHash,
+  R1SecretKey,
+  R1Signature,
   recoveryRestriction,
   sha256,
   Simulator,
@@ -56,8 +59,9 @@ test("bls key vault", (t) => {
   vaultSpend.spendBls(clvm, config, alice.publicKey);
   clvm.spendVault(vault, vaultSpend);
 
-  const coinSpend = clvm.spendP2SingletonMessage(
+  const coinSpend = clvm.spendP2DelegatedSingletonMessage(
     vault.launcherId,
+    0,
     vault.custodyHash,
     coinDelegatedSpend
   );
@@ -99,6 +103,75 @@ test("single signer vault", (t) => {
 
   const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
   vaultSpend.spendK1(clvm, config, k1.publicKey, signature, false);
+  clvm.spendVault(vault, vaultSpend);
+
+  sim.spend(clvm.coinSpends(), []);
+
+  t.true(true);
+});
+
+test("passkey member vault", (t) => {
+  const sim = new Simulator();
+  const clvm = new ClvmAllocator();
+
+  const r1 = sim.r1Pair(1);
+
+  const config: MemberConfig = {
+    topLevel: true,
+    nonce: 0,
+    restrictions: [],
+  };
+
+  const fastForward = false;
+
+  const vault = mintVault(
+    sim,
+    clvm,
+    passkeyMemberHash(config, r1.publicKey, fastForward)
+  );
+
+  const delegatedSpend = clvm.delegatedSpendForConditions([
+    clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
+  ]);
+
+  const challengeIndex = 23;
+  const originalMessage = Buffer.from(
+    sha256(
+      Buffer.concat([
+        Buffer.from(delegatedSpend.puzzle.treeHash()),
+        fastForward ? vault.coin.puzzleHash : toCoinId(vault.coin),
+      ])
+    )
+  );
+
+  const authenticatorData = Buffer.from(
+    "49960de5880e8c687434170f6476605b8fe4aeb9a28632c7995cf3ba831d97630500000009",
+    "hex"
+  );
+  const clientDataJSON = Buffer.from(
+    `{"type":"webauthn.get","challenge":"${originalMessage.toString(
+      "base64url"
+    )}","origin":"http://localhost:3000","crossOrigin":false}`,
+    "utf-8"
+  );
+  // Reproduce web browser passkey behavior
+  const message = sha256(
+    Buffer.concat([authenticatorData, sha256(clientDataJSON)])
+  );
+
+  const signature = r1.secretKey.signPrehashed(message);
+
+  const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  vaultSpend.spendPasskey(
+    clvm,
+    config,
+    r1.publicKey,
+    signature,
+    authenticatorData,
+    clientDataJSON,
+    challengeIndex,
+    fastForward
+  );
   clvm.spendVault(vault, vaultSpend);
 
   sim.spend(clvm.coinSpends(), []);
@@ -602,15 +675,16 @@ function mintVaultWithCoin(
     clvm.nil()
   );
 
+  const p2PuzzleHash = p2DelegatedSingletonMessagePuzzleHash(
+    vault.launcherId,
+    0
+  );
+
   const spend = clvm.spendP2Standard(
     p2.publicKey,
     clvm.delegatedSpendForConditions([
       ...parentConditions,
-      clvm.createCoin(
-        p2SingletonMessagePuzzleHash(vault.launcherId),
-        amount,
-        clvm.alloc([vault.launcherId])
-      ),
+      clvm.createCoin(p2PuzzleHash, amount, clvm.alloc([vault.launcherId])),
     ])
   );
 
@@ -630,7 +704,7 @@ function mintVaultWithCoin(
     vault,
     {
       parentCoinInfo: toCoinId(p2.coin),
-      puzzleHash: p2SingletonMessagePuzzleHash(vault.launcherId),
+      puzzleHash: p2PuzzleHash,
       amount,
     },
   ];
@@ -643,6 +717,23 @@ function signK1(
   delegatedSpend: Spend,
   fastForward: boolean
 ): K1Signature {
+  return sk.signPrehashed(
+    sha256(
+      Uint8Array.from([
+        ...clvm.treeHash(delegatedSpend.puzzle),
+        ...(fastForward ? vault.coin.puzzleHash : toCoinId(vault.coin)),
+      ])
+    )
+  );
+}
+
+function signR1(
+  clvm: ClvmAllocator,
+  sk: R1SecretKey,
+  vault: Vault,
+  delegatedSpend: Spend,
+  fastForward: boolean
+): R1Signature {
   return sk.signPrehashed(
     sha256(
       Uint8Array.from([
