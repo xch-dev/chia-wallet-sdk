@@ -56,7 +56,10 @@ jobs:
 
       # Workaround for https://github.com/pnpm/pnpm/issues/9029
       - name: Install corepack
-        run: pnpm i -g corepack@latest
+        run: |
+          pnpm i -g corepack@latest
+          corepack enable
+          pnpm --version
 
       - name: Setup node
         uses: actions/setup-node@v4
