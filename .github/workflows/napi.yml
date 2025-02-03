@@ -54,6 +54,10 @@ jobs:
         with:
           version: 9
 
+      # Workaround for https://github.com/pnpm/pnpm/issues/9029
+      - name: Install corepack
+        run: pnpm i -g corepack@latest
+
       - name: Setup node
         uses: actions/setup-node@v4
         if: ${{ !matrix.settings.docker }}
