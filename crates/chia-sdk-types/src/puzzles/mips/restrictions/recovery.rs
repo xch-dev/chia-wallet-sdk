@@ -3,7 +3,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash_atom, TreeHash};
 use hex_literal::hex;
 
-use crate::{Mod, DELEGATED_FEEDER_PUZZLE_HASH, INDEX_WRAPPER_HASH, VAULT_1_OF_N_PUZZLE_HASH};
+use crate::{Mod, DELEGATED_FEEDER_PUZZLE_HASH, INDEX_WRAPPER_HASH, ONE_OF_N_PUZZLE_HASH};
 
 use super::RESTRICTIONS_PUZZLE_HASH;
 
@@ -29,7 +29,7 @@ impl Recovery {
     ) -> Self {
         Self {
             delegated_puzzle_feeder_mod_hash: DELEGATED_FEEDER_PUZZLE_HASH.into(),
-            one_of_n_mod_hash: VAULT_1_OF_N_PUZZLE_HASH.into(),
+            one_of_n_mod_hash: ONE_OF_N_PUZZLE_HASH.into(),
             left_side_subtree_hash_hash: tree_hash_atom(&left_side_subtree_hash).into(),
             index_wrapper_mod_hash: INDEX_WRAPPER_HASH.into(),
             nonce,

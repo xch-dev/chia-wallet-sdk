@@ -10,6 +10,7 @@ import {
   K1SecretKey,
   K1Signature,
   MemberConfig,
+  MipsSpend,
   mOfNHash,
   p2DelegatedSingletonMessagePuzzleHash,
   passkeyMemberHash,
@@ -22,7 +23,6 @@ import {
   timelockRestriction,
   toCoinId,
   Vault,
-  VaultSpend,
 } from "../index.js";
 
 test("bls key vault", (t) => {
@@ -55,7 +55,7 @@ test("bls key vault", (t) => {
     ]),
   ]);
 
-  const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendBls(clvm, config, alice.publicKey);
   clvm.spendVault(vault, vaultSpend);
 
@@ -101,7 +101,7 @@ test("single signer vault", (t) => {
 
   const signature = signK1(clvm, k1.secretKey, vault, delegatedSpend, false);
 
-  const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendK1(clvm, config, k1.publicKey, signature, false);
   clvm.spendVault(vault, vaultSpend);
 
@@ -161,7 +161,7 @@ test("passkey member vault", (t) => {
 
   const signature = r1.secretKey.signPrehashed(message);
 
-  const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendPasskey(
     clvm,
     config,
@@ -199,7 +199,7 @@ test("single signer fast forward vault", (t) => {
 
   const signature = signK1(clvm, k1.secretKey, vault, delegatedSpend, true);
 
-  const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendK1(clvm, config, k1.publicKey, signature, true);
   clvm.spendVault(vault, vaultSpend);
 
@@ -236,7 +236,7 @@ test("1 of 2 vault (path 1)", (t) => {
 
   const signature = signK1(clvm, alice.secretKey, vault, delegatedSpend, false);
 
-  const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [aliceHash, bobHash]);
   vaultSpend.spendK1(clvm, config, alice.publicKey, signature, false);
   clvm.spendVault(vault, vaultSpend);
@@ -274,7 +274,7 @@ test("1 of 2 vault (path 2)", (t) => {
 
   const signature = signK1(clvm, bob.secretKey, vault, delegatedSpend, false);
 
-  const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [aliceHash, bobHash]);
   vaultSpend.spendK1(clvm, config, bob.publicKey, signature, false);
   clvm.spendVault(vault, vaultSpend);
@@ -325,7 +325,7 @@ test("2 of 2 vault", (t) => {
     false
   );
 
-  const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendMOfN({ ...config, topLevel: true }, 2, [aliceHash, bobHash]);
   vaultSpend.spendK1(clvm, config, alice.publicKey, aliceSignature, false);
   vaultSpend.spendK1(clvm, config, bob.publicKey, bobSignature, false);
@@ -383,7 +383,7 @@ test("2 of 3 vault", (t) => {
     false
   );
 
-  const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendMOfN({ ...config, topLevel: true }, 2, [
     aliceHash,
     bobHash,
@@ -447,7 +447,7 @@ test("fast forward paths vault", (t) => {
       fastForward
     );
 
-    const vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+    const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
     vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [
       regularPathHash,
       fastForwardPathHash,
@@ -521,7 +521,7 @@ test("single signer recovery vault", (t) => {
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
 
-  let vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  let vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [
     memberHash,
     initialRecoveryHash,
@@ -563,7 +563,7 @@ test("single signer recovery vault", (t) => {
   ]);
 
   vault = childVault(vault, vault.custodyHash);
-  vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendRecoveryRestriction(
     clvm,
     memberHash,
@@ -589,7 +589,7 @@ test("single signer recovery vault", (t) => {
 
   // Finish recovery
   vault = childVault(vault, custodyHash);
-  vaultSpend = new VaultSpend(recoveryDelegatedSpend, vault.coin);
+  vaultSpend = new MipsSpend(recoveryDelegatedSpend, vault.coin);
   vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [
     memberHash,
     recoveryFinishMemberHash,
@@ -609,7 +609,7 @@ test("single signer recovery vault", (t) => {
   delegatedSpend = clvm.delegatedSpendForConditions([
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
-  vaultSpend = new VaultSpend(delegatedSpend, vault.coin);
+  vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [
     memberHash,
     initialRecoveryHash,

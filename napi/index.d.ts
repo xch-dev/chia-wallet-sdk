@@ -316,7 +316,7 @@ export declare class ClvmAllocator {
   parseChildNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Nft | null
   spendNft(nft: Nft, innerSpend: Spend): void
   mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
-  spendVault(vault: Vault, spend: VaultSpend): void
+  spendVault(vault: Vault, spend: MipsSpend): void
   remark(rest: Program): Program
   parseRemark(program: Program): Remark | null
   aggSigParent(publicKey: PublicKey, message: Uint8Array): Program
@@ -451,8 +451,9 @@ export declare class Simulator {
   k1Pair(seed: number): K1KeyPair
   r1Pair(seed: number): R1KeyPair
 }
-export declare class VaultSpend {
+export declare class MipsSpend {
   constructor(delegatedSpend: Spend, coin: Coin)
+  spend(clvm: ClvmAllocator, custody_hash: Uint8Array): Spend
   spendMOfN(config: MemberConfig, required: number, items: Array<Uint8Array>): void
   spendK1(clvm: ClvmAllocator, config: MemberConfig, publicKey: K1PublicKey, signature: K1Signature, fastForward: boolean): void
   spendR1(clvm: ClvmAllocator, config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, fastForward: boolean): void

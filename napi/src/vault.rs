@@ -12,9 +12,9 @@ use clvmr::NodePtr;
 use napi::bindgen_prelude::*;
 
 use crate::{
-    traits::{js_err, FromJs, IntoJs, IntoRust},
-    ClvmAllocator, Coin, K1PublicKey, K1Signature, LineageProof, Program, PublicKey, R1PublicKey,
-    R1Signature, Spend,
+    traits::{js_err, FromJs, IntoJs, IntoJsContextual, IntoRust},
+    Clvm, ClvmAllocator, Coin, K1PublicKey, K1Signature, LineageProof, Program, PublicKey,
+    R1PublicKey, R1Signature, Spend,
 };
 
 #[napi(object)]
@@ -60,19 +60,33 @@ pub struct VaultMint {
 }
 
 #[napi]
-pub struct VaultSpend {
-    pub(crate) spend: sdk::VaultSpend,
+pub struct MipsSpend {
+    pub(crate) spend: sdk::MipsSpend,
     pub(crate) coin: protocol::Coin,
 }
 
 #[napi]
-impl VaultSpend {
+impl MipsSpend {
     #[napi(constructor)]
     pub fn new(delegated_spend: Spend, coin: Coin) -> Result<Self> {
         Ok(Self {
-            spend: sdk::VaultSpend::new(delegated_spend.into_rust()?),
+            spend: sdk::MipsSpend::new(delegated_spend.into_rust()?),
             coin: coin.into_rust()?,
         })
+    }
+
+    #[napi(ts_args_type = "clvm: ClvmAllocator, custody_hash: Uint8Array")]
+    pub fn spend(
+        &mut self,
+        env: Env,
+        this: This<Clvm>,
+        clvm: &mut ClvmAllocator,
+        custody_hash: Uint8Array,
+    ) -> Result<Spend> {
+        match self.spend.spend(&mut clvm.0, custody_hash.into_rust()?) {
+            Ok(spend) => spend.into_js_contextual(env, this, clvm),
+            Err(error) => Err(js_err(error)),
+        }
     }
 
     #[napi]

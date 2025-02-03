@@ -2,23 +2,34 @@ use std::collections::HashMap;
 
 use clvm_utils::TreeHash;
 
-use crate::Spend;
+use crate::{DriverError, Spend, SpendContext};
 
-use super::MemberSpend;
+use super::member::MemberSpend;
 
 #[derive(Debug, Clone)]
-pub struct VaultSpend {
+pub struct MipsSpend {
     pub delegated: Spend,
     pub members: HashMap<TreeHash, MemberSpend>,
     pub restrictions: HashMap<TreeHash, Spend>,
 }
 
-impl VaultSpend {
+impl MipsSpend {
     pub fn new(delegated_spend: Spend) -> Self {
         Self {
             delegated: delegated_spend,
             members: HashMap::new(),
             restrictions: HashMap::new(),
         }
+    }
+
+    pub fn spend(
+        &self,
+        ctx: &mut SpendContext,
+        custody_hash: TreeHash,
+    ) -> Result<Spend, DriverError> {
+        self.members
+            .get(&custody_hash)
+            .ok_or(DriverError::MissingSubpathSpend)?
+            .spend(ctx, self, true)
     }
 }

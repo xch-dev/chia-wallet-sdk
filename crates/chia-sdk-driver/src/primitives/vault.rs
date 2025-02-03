@@ -1,15 +1,4 @@
-mod m_of_n;
-mod member;
-mod member_kind;
-mod restriction;
 mod vault_launcher;
-mod vault_spend;
-
-pub use m_of_n::*;
-pub use member::*;
-pub use member_kind::*;
-pub use restriction::*;
-pub use vault_spend::*;
 
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::{
@@ -19,6 +8,8 @@ use chia_puzzles::{
 use clvm_utils::TreeHash;
 
 use crate::{DriverError, Spend, SpendContext};
+
+use super::{member_puzzle_hash, MipsSpend, Restriction};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Vault {
@@ -68,12 +59,8 @@ impl Vault {
         }
     }
 
-    pub fn spend(&self, ctx: &mut SpendContext, spend: &VaultSpend) -> Result<(), DriverError> {
-        let custody_spend = spend
-            .members
-            .get(&self.custody_hash)
-            .ok_or(DriverError::MissingSubpathSpend)?
-            .spend(ctx, spend, true)?;
+    pub fn spend(&self, ctx: &mut SpendContext, spend: &MipsSpend) -> Result<(), DriverError> {
+        let custody_spend = spend.spend(ctx, self.custody_hash)?;
 
         let puzzle = ctx.curry(SingletonArgs::new(self.launcher_id, custody_spend.puzzle))?;
         let solution = ctx.alloc(&SingletonSolution {
@@ -96,7 +83,7 @@ mod tests {
     use clvmr::sha2::Sha256;
     use rstest::rstest;
 
-    use crate::{Launcher, StandardLayer};
+    use crate::{Launcher, MemberSpend, MofN, StandardLayer};
 
     use super::*;
 
@@ -120,7 +107,7 @@ mod tests {
     fn k1_sign(
         ctx: &SpendContext,
         vault: &Vault,
-        spend: &VaultSpend,
+        spend: &MipsSpend,
         k1: &K1SecretKey,
     ) -> anyhow::Result<K1Signature> {
         let mut hasher = Sha256::new();
@@ -141,7 +128,7 @@ mod tests {
         let vault = mint_vault(&mut sim, ctx, custody_hash)?;
 
         let conditions = Conditions::new().create_coin(vault.custody_hash.into(), 1, None);
-        let mut spend = VaultSpend::new(ctx.delegated_spend(conditions)?);
+        let mut spend = MipsSpend::new(ctx.delegated_spend(conditions)?);
 
         let signature = k1_sign(ctx, &vault, &spend, &k1)?;
         let k1_puzzle = ctx.curry(custody)?;
@@ -196,7 +183,7 @@ mod tests {
 
         for start in 0..key_count {
             let conditions = Conditions::new().create_coin(vault.custody_hash.into(), 1, None);
-            let mut spend = VaultSpend::new(ctx.delegated_spend(conditions)?);
+            let mut spend = MipsSpend::new(ctx.delegated_spend(conditions)?);
 
             spend.members.insert(
                 custody_hash,
