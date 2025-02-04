@@ -13,8 +13,8 @@ use napi::bindgen_prelude::*;
 
 use crate::{
     traits::{js_err, FromJs, IntoJs, IntoJsContextual, IntoRust},
-    Clvm, ClvmAllocator, Coin, K1PublicKey, K1Signature, LineageProof, Program, PublicKey,
-    R1PublicKey, R1Signature, Spend,
+    ClvmAllocator, Coin, K1PublicKey, K1Signature, LineageProof, Program, PublicKey, R1PublicKey,
+    R1Signature, Spend,
 };
 
 #[napi(object)]
@@ -79,12 +79,11 @@ impl MipsSpend {
     pub fn spend(
         &mut self,
         env: Env,
-        this: This<Clvm>,
-        clvm: &mut ClvmAllocator,
+        mut clvm: Reference<ClvmAllocator>,
         custody_hash: Uint8Array,
     ) -> Result<Spend> {
         match self.spend.spend(&mut clvm.0, custody_hash.into_rust()?) {
-            Ok(spend) => spend.into_js_contextual(env, this, clvm),
+            Ok(spend) => spend.into_js_contextual(env, clvm.clone(env)?, &mut clvm),
             Err(error) => Err(js_err(error)),
         }
     }

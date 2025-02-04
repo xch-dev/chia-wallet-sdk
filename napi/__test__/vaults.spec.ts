@@ -661,6 +661,60 @@ function mintVault(
   return vault;
 }
 
+test("non-vault MIPS spend", (t) => {
+  const sim = new Simulator();
+  const clvm = new ClvmAllocator();
+
+  const p2 = sim.newP2(1n);
+
+  const config: MemberConfig = {
+    topLevel: true,
+    nonce: 0,
+    restrictions: [],
+  };
+  const puzzleHash = blsMemberHash(config, p2.publicKey);
+
+  const spend1 = clvm.spendP2Standard(
+    p2.publicKey,
+    clvm.delegatedSpendForConditions([clvm.createCoin(puzzleHash, 1n, null)])
+  );
+
+  const coin: Coin = {
+    parentCoinInfo: toCoinId(p2.coin),
+    puzzleHash,
+    amount: 1n,
+  };
+
+  const mipsSpend = new MipsSpend(
+    clvm.delegatedSpendForConditions([
+      clvm.createCoin(p2.puzzleHash, 1n, null),
+    ]),
+    coin
+  );
+
+  mipsSpend.spendBls(clvm, config, p2.publicKey);
+  const spend2 = mipsSpend.spend(clvm, puzzleHash);
+
+  sim.spend(
+    [
+      ...clvm.coinSpends(),
+      {
+        coin: p2.coin,
+        puzzleReveal: spend1.puzzle.serialize(),
+        solution: spend1.solution.serialize(),
+      },
+      {
+        coin,
+        puzzleReveal: spend2.puzzle.serialize(),
+        solution: spend2.solution.serialize(),
+      },
+    ],
+    [p2.secretKey]
+  );
+
+  t.true(true);
+});
+
 function mintVaultWithCoin(
   sim: Simulator,
   clvm: ClvmAllocator,
