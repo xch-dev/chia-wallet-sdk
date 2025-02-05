@@ -62,6 +62,14 @@ jobs:
           cache: pnpm
           cache-dependency-path: napi/pnpm-lock.yaml
 
+      - name: Use Latest Corepack
+        run: |
+          echo "Before: corepack version => $(corepack --version || echo 'not installed')"
+          npm install -g corepack@latest
+          echo "After : corepack version => $(corepack --version)"
+          corepack enable
+          pnpm --version
+
       - name: Install
         uses: dtolnay/rust-toolchain@stable
         if: ${{ !matrix.settings.docker }}
@@ -257,14 +265,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
-
-      - name: Use Latest Corepack
-        run: |
-          echo "Before: corepack version => $(corepack --version || echo 'not installed')"
-          npm install -g corepack@latest
-          echo "After : corepack version => $(corepack --version)"
-          corepack enable
-          pnpm --version
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
