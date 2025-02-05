@@ -6,8 +6,9 @@ use chia::{
     puzzles::nft::{self, NFT_METADATA_UPDATER_PUZZLE_HASH},
 };
 use chia_wallet_sdk::{
-    self as sdk, HashedPtr, Memos, P2DelegatedSingletonMessageArgs,
-    P2DelegatedSingletonMessageSolution, SpendContext,
+    self as sdk, AddDelegatedPuzzleWrapper, AddDelegatedPuzzleWrapperSolution,
+    Force1of2RestrictedVariable, Force1of2RestrictedVariableSolution, HashedPtr, Memos,
+    PreventConditionOpcode, SpendContext,
 };
 use clvmr::{
     run_program,
@@ -198,41 +199,6 @@ impl ClvmAllocator {
         })
     }
 
-    #[napi(
-        ts_args_type = "launcherId: Uint8Array, nonce: number, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend"
-    )]
-    pub fn spend_p2_delegated_singleton_message(
-        &mut self,
-        env: Env,
-        this: This<Clvm>,
-        launcher_id: Uint8Array,
-        nonce: u32,
-        singleton_inner_puzzle_hash: Uint8Array,
-        delegated_spend: Spend,
-    ) -> Result<Spend> {
-        let puzzle = self
-            .0
-            .curry(P2DelegatedSingletonMessageArgs::new(
-                launcher_id.into_rust()?,
-                nonce.try_into().unwrap(),
-            ))
-            .map_err(js_err)?;
-
-        let solution = self
-            .0
-            .alloc(&P2DelegatedSingletonMessageSolution::new(
-                singleton_inner_puzzle_hash.into_rust()?,
-                delegated_spend.puzzle.ptr,
-                delegated_spend.solution.ptr,
-            ))
-            .map_err(js_err)?;
-
-        Ok(Spend {
-            puzzle: Program::new(this.clone(env)?, puzzle).into_instance(env)?,
-            solution: Program::new(this, solution).into_instance(env)?,
-        })
-    }
-
     #[napi(ts_args_type = "parent_coin_id: Uint8Array, nft_mints: Array<NftMint>")]
     pub fn mint_nfts(
         &mut self,
@@ -376,6 +342,119 @@ impl ClvmAllocator {
         let rust: sdk::Vault = vault.into_rust()?;
         rust.spend(&mut self.0, &spend.spend).map_err(js_err)?;
         Ok(())
+    }
+
+    #[napi(
+        ts_args_type = "spend: Spend, leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array, newRightSideMemberHash: Uint8Array"
+    )]
+    pub fn wrap_with_force_1_of_2(
+        &mut self,
+        env: Env,
+        this: This<Clvm>,
+        spend: Spend,
+        left_side_subtree_hash: Uint8Array,
+        nonce: u32,
+        member_validator_list_hash: Uint8Array,
+        delegated_puzzle_validator_list_hash: Uint8Array,
+        new_right_side_member_hash: Uint8Array,
+    ) -> Result<Spend> {
+        let wrapper = Force1of2RestrictedVariable::new(
+            left_side_subtree_hash.into_rust()?,
+            nonce.try_into().unwrap(),
+            member_validator_list_hash.into_rust()?,
+            delegated_puzzle_validator_list_hash.into_rust()?,
+        );
+
+        let puzzle = self.0.curry(wrapper).map_err(js_err)?;
+
+        let solution = self
+            .0
+            .alloc(&Force1of2RestrictedVariableSolution::new(
+                new_right_side_member_hash.into_rust()?,
+            ))
+            .map_err(js_err)?;
+
+        let puzzle = self
+            .0
+            .curry(AddDelegatedPuzzleWrapper::new(puzzle, spend.puzzle.ptr))
+            .map_err(js_err)?;
+
+        let solution = self
+            .0
+            .alloc(&AddDelegatedPuzzleWrapperSolution::new(
+                solution,
+                spend.solution.ptr,
+            ))
+            .map_err(js_err)?;
+
+        Ok(Spend {
+            puzzle: Program::new(this.clone(env)?, puzzle).into_instance(env)?,
+            solution: Program::new(this, solution).into_instance(env)?,
+        })
+    }
+
+    #[napi(ts_args_type = "spend: Spend, conditionOpcode: number")]
+    pub fn wrap_with_prevent_condition_opcode(
+        &mut self,
+        env: Env,
+        this: This<Clvm>,
+        spend: Spend,
+        condition_opcode: u16,
+    ) -> Result<Spend> {
+        let wrapper = PreventConditionOpcode::new(condition_opcode);
+
+        let puzzle = self.0.curry(wrapper).map_err(js_err)?;
+        let solution = NodePtr::NIL;
+
+        let puzzle = self
+            .0
+            .curry(AddDelegatedPuzzleWrapper::new(puzzle, spend.puzzle.ptr))
+            .map_err(js_err)?;
+
+        let solution = self
+            .0
+            .alloc(&AddDelegatedPuzzleWrapperSolution::new(
+                solution,
+                spend.solution.ptr,
+            ))
+            .map_err(js_err)?;
+
+        Ok(Spend {
+            puzzle: Program::new(this.clone(env)?, puzzle).into_instance(env)?,
+            solution: Program::new(this, solution).into_instance(env)?,
+        })
+    }
+
+    #[napi(ts_args_type = "spend: Spend")]
+    pub fn wrap_with_prevent_multiple_create_coins(
+        &mut self,
+        env: Env,
+        this: This<Clvm>,
+        spend: Spend,
+    ) -> Result<Spend> {
+        let puzzle = self
+            .0
+            .prevent_multiple_create_coins_puzzle()
+            .map_err(js_err)?;
+        let solution = NodePtr::NIL;
+
+        let puzzle = self
+            .0
+            .curry(AddDelegatedPuzzleWrapper::new(puzzle, spend.puzzle.ptr))
+            .map_err(js_err)?;
+
+        let solution = self
+            .0
+            .alloc(&AddDelegatedPuzzleWrapperSolution::new(
+                solution,
+                spend.solution.ptr,
+            ))
+            .map_err(js_err)?;
+
+        Ok(Spend {
+            puzzle: Program::new(this.clone(env)?, puzzle).into_instance(env)?,
+            solution: Program::new(this, solution).into_instance(env)?,
+        })
     }
 }
 

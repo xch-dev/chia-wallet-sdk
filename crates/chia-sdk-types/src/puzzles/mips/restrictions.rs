@@ -1,11 +1,15 @@
+mod force_1_of_2_restricted_variable;
 mod force_assert_coin_announcement;
 mod force_coin_message;
-mod recovery;
+mod prevent_condition_opcode;
+mod prevent_multiple_create_coins;
 mod timelock;
 
+pub use force_1_of_2_restricted_variable::*;
 pub use force_assert_coin_announcement::*;
 pub use force_coin_message::*;
-pub use recovery::*;
+pub use prevent_condition_opcode::*;
+pub use prevent_multiple_create_coins::*;
 pub use timelock::*;
 
 use clvm_traits::{FromClvm, ToClvm};
@@ -17,17 +21,13 @@ use crate::Mod;
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
 pub struct RestrictionsArgs<MV, DV, I> {
-    pub member_validators: Vec<MV>,
-    pub delegated_puzzle_validators: Vec<DV>,
+    pub member_validators: MV,
+    pub delegated_puzzle_validators: DV,
     pub inner_puzzle: I,
 }
 
 impl<MV, DV, I> RestrictionsArgs<MV, DV, I> {
-    pub fn new(
-        member_validators: Vec<MV>,
-        delegated_puzzle_validators: Vec<DV>,
-        inner_puzzle: I,
-    ) -> Self {
+    pub fn new(member_validators: MV, delegated_puzzle_validators: DV, inner_puzzle: I) -> Self {
         Self {
             member_validators,
             delegated_puzzle_validators,
