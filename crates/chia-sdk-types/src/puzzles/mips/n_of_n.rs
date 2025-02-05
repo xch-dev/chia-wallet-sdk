@@ -6,34 +6,34 @@ use crate::Mod;
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
-pub struct VaultNofNArgs<T> {
+pub struct NofNArgs<T> {
     pub members: Vec<T>,
 }
 
-impl<T> VaultNofNArgs<T> {
+impl<T> NofNArgs<T> {
     pub fn new(members: Vec<T>) -> Self {
         Self { members }
     }
 }
 
-impl<T> Mod for VaultNofNArgs<T> {
-    const MOD_REVEAL: &[u8] = &VAULT_N_OF_N_PUZZLE;
-    const MOD_HASH: TreeHash = VAULT_N_OF_N_PUZZLE_HASH;
+impl<T> Mod for NofNArgs<T> {
+    const MOD_REVEAL: &[u8] = &N_OF_N_PUZZLE;
+    const MOD_HASH: TreeHash = N_OF_N_PUZZLE_HASH;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(solution)]
-pub struct VaultNofNSolution<T> {
+pub struct NofNSolution<T> {
     pub member_solutions: Vec<T>,
 }
 
-impl<T> VaultNofNSolution<T> {
+impl<T> NofNSolution<T> {
     pub fn new(member_solutions: Vec<T>) -> Self {
         Self { member_solutions }
     }
 }
 
-pub const VAULT_N_OF_N_PUZZLE: [u8; 243] = hex!(
+pub const N_OF_N_PUZZLE: [u8; 243] = hex!(
     "
     ff02ffff01ff02ff04ffff04ff02ffff04ff05ffff04ff17ffff04ff0bff8080
     80808080ffff04ffff01ffff02ffff03ff0dffff01ff02ff0affff04ff02ffff
@@ -46,6 +46,6 @@ pub const VAULT_N_OF_N_PUZZLE: [u8; 243] = hex!(
     "
 );
 
-pub const VAULT_N_OF_N_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
+pub const N_OF_N_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "d4394f50cb1d6ef130788db2e69ab0087ef79b0737179f201c1d1d2a52df1e59"
 ));

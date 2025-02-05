@@ -6,7 +6,9 @@ use clvm_utils::TreeHash;
 
 use crate::{DriverError, Spend, SpendContext};
 
-use super::{MemberSpendKind, MofN, Restriction, VaultSpend};
+use super::{
+    m_of_n::MofN, member_kind::MemberSpendKind, mips_spend::MipsSpend, restriction::Restriction,
+};
 
 #[derive(Debug, Clone)]
 pub struct MemberSpend {
@@ -40,7 +42,7 @@ impl MemberSpend {
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
-        spend: &VaultSpend,
+        spend: &MipsSpend,
         delegated_spend: bool,
     ) -> Result<Spend, DriverError> {
         let mut result = self.kind.spend(ctx, spend)?;

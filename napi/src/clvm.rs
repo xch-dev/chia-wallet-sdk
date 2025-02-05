@@ -20,11 +20,11 @@ use paste::paste;
 use crate::{
     clvm_value::{Allocate, ClvmValue},
     traits::{js_err, FromJs, IntoJs, IntoJsContextual, IntoRust},
-    Coin, CoinSpend, MintedNfts, Nft, NftMetadata, NftMint, ParsedNft, Program, PublicKey, Spend,
-    Vault, VaultMint, VaultSpend,
+    Coin, CoinSpend, MintedNfts, MipsSpend, Nft, NftMetadata, NftMint, ParsedNft, Program,
+    PublicKey, Spend, Vault, VaultMint,
 };
 
-type Clvm = Reference<ClvmAllocator>;
+pub type Clvm = Reference<ClvmAllocator>;
 
 #[napi]
 pub struct ClvmAllocator(pub(crate) SpendContext);
@@ -372,7 +372,7 @@ impl ClvmAllocator {
     }
 
     #[napi]
-    pub fn spend_vault(&mut self, vault: Vault, spend: &VaultSpend) -> Result<()> {
+    pub fn spend_vault(&mut self, vault: Vault, spend: &MipsSpend) -> Result<()> {
         let rust: sdk::Vault = vault.into_rust()?;
         rust.spend(&mut self.0, &spend.spend).map_err(js_err)?;
         Ok(())

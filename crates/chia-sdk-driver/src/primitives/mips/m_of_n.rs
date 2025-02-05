@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
-    MerkleTree, Mod, Vault1ofNArgs, Vault1ofNSolution, VaultMofNArgs, VaultMofNSolution,
-    VaultNofNArgs, VaultNofNSolution,
+    MerkleTree, Mod, MofNArgs, MofNSolution, NofNArgs, NofNSolution, OneOfNArgs, OneOfNSolution,
 };
 use clvm_traits::clvm_tuple;
 use clvm_utils::{tree_hash_atom, tree_hash_pair, TreeHash};
@@ -11,7 +10,7 @@ use clvmr::NodePtr;
 
 use crate::{DriverError, Spend, SpendContext};
 
-use super::vault_spend::VaultSpend;
+use super::mips_spend::MipsSpend;
 
 #[derive(Debug, Clone)]
 pub struct MofN {
@@ -27,16 +26,16 @@ impl MofN {
     pub fn inner_puzzle_hash(&self) -> TreeHash {
         if self.required == 1 {
             let merkle_tree = self.merkle_tree();
-            Vault1ofNArgs::new(merkle_tree.root()).curry_tree_hash()
+            OneOfNArgs::new(merkle_tree.root()).curry_tree_hash()
         } else if self.required == self.items.len() {
-            VaultNofNArgs::new(self.items.clone()).curry_tree_hash()
+            NofNArgs::new(self.items.clone()).curry_tree_hash()
         } else {
             let merkle_tree = self.merkle_tree();
-            VaultMofNArgs::new(self.required, merkle_tree.root()).curry_tree_hash()
+            MofNArgs::new(self.required, merkle_tree.root()).curry_tree_hash()
         }
     }
 
-    pub fn spend(&self, ctx: &mut SpendContext, spend: &VaultSpend) -> Result<Spend, DriverError> {
+    pub fn spend(&self, ctx: &mut SpendContext, spend: &MipsSpend) -> Result<Spend, DriverError> {
         if self.required == 1 {
             let (member_hash, member_spend) = self
                 .items
@@ -51,8 +50,8 @@ impl MofN {
                 .proof(member_hash.into())
                 .ok_or(DriverError::InvalidMerkleProof)?;
 
-            let puzzle = ctx.curry(Vault1ofNArgs::new(merkle_tree.root()))?;
-            let solution = ctx.alloc(&Vault1ofNSolution::new(
+            let puzzle = ctx.curry(OneOfNArgs::new(merkle_tree.root()))?;
+            let solution = ctx.alloc(&OneOfNSolution::new(
                 merkle_proof,
                 member_spend.puzzle,
                 member_spend.solution,
@@ -74,8 +73,8 @@ impl MofN {
                 solutions.push(member_spend.solution);
             }
 
-            let puzzle = ctx.curry(VaultNofNArgs::new(puzzles))?;
-            let solution = ctx.alloc(&VaultNofNSolution::new(solutions))?;
+            let puzzle = ctx.curry(NofNArgs::new(puzzles))?;
+            let solution = ctx.alloc(&NofNSolution::new(solutions))?;
             Ok(Spend::new(puzzle, solution))
         } else {
             let mut puzzle_hashes = Vec::with_capacity(self.required);
@@ -98,8 +97,8 @@ impl MofN {
             let merkle_tree = self.merkle_tree();
             let proof = m_of_n_proof(ctx, &puzzle_hashes, &member_spends)?;
 
-            let puzzle = ctx.curry(VaultMofNArgs::new(self.required, merkle_tree.root()))?;
-            let solution = ctx.alloc(&VaultMofNSolution::new(proof))?;
+            let puzzle = ctx.curry(MofNArgs::new(self.required, merkle_tree.root()))?;
+            let solution = ctx.alloc(&MofNSolution::new(proof))?;
             Ok(Spend::new(puzzle, solution))
         }
     }
