@@ -41,13 +41,7 @@ jobs:
           - host: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
-            build: |
-              echo "Before: corepack version => $(corepack --version || echo 'not installed')"
-              npm install -g corepack@latest
-              echo "After : corepack version => $(corepack --version)"
-              corepack enable
-              pnpm --version
-              pnpm build:linux-arm64
+            build: pnpm build:linux-arm64
           - host: macos-latest
             target: aarch64-apple-darwin
             build: pnpm build:macos-arm64
@@ -67,14 +61,6 @@ jobs:
           node-version: 20
           cache: pnpm
           cache-dependency-path: napi/pnpm-lock.yaml
-
-      - name: Use Latest Corepack
-        run: |
-          echo "Before: corepack version => $(corepack --version || echo 'not installed')"
-          npm install -g corepack@latest
-          echo "After : corepack version => $(corepack --version)"
-          corepack enable
-          pnpm --version
 
       - name: Install
         uses: dtolnay/rust-toolchain@stable
@@ -127,7 +113,13 @@ jobs:
         with:
           image: ${{ matrix.settings.docker }}
           options: "--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build/napi"
-          run: ${{ matrix.settings.build }}
+          run: |
+            echo "Before: corepack version => $(corepack --version || echo 'not installed')"
+            npm install -g corepack@latest
+            echo "After : corepack version => $(corepack --version)"
+            corepack enable
+            pnpm --version
+            ${{ matrix.settings.build }}
 
       - name: Build
         run: ${{ matrix.settings.build }}
