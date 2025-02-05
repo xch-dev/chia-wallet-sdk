@@ -41,7 +41,13 @@ jobs:
           - host: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
-            build: pnpm build:linux-arm64
+            build: |
+              echo "Before: corepack version => $(corepack --version || echo 'not installed')"
+              npm install -g corepack@latest
+              echo "After : corepack version => $(corepack --version)"
+              corepack enable
+              pnpm --version
+              pnpm build:linux-arm64
           - host: macos-latest
             target: aarch64-apple-darwin
             build: pnpm build:macos-arm64
