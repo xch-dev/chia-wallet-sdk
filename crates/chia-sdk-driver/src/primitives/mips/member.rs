@@ -85,7 +85,6 @@ impl MemberSpend {
                 }
             }
 
-            // TODO: Order?
             for (i, &wrapper) in local_delegated_puzzle_wrappers.iter().enumerate() {
                 if i >= delegated_puzzle_wrappers.len() {
                     delegated_puzzle_wrappers.push(wrapper);
@@ -95,11 +94,6 @@ impl MemberSpend {
             }
 
             if !local_delegated_puzzle_wrappers.is_empty() {
-                println!(
-                    "local_delegated_puzzle_wrappers: {:?}",
-                    local_delegated_puzzle_wrappers
-                );
-
                 delegated_puzzle_validators.push(ctx.curry(
                     EnforceDelegatedPuzzleWrappers::new(&local_delegated_puzzle_wrappers),
                 )?);
@@ -132,8 +126,6 @@ impl MemberSpend {
             let mut delegated_spend = spend.delegated;
 
             for wrapper in delegated_puzzle_wrappers.into_iter().rev() {
-                println!("{:?}", wrapper);
-
                 let spend = spend
                     .restrictions
                     .get(&wrapper)
@@ -193,8 +185,6 @@ pub fn member_puzzle_hash(
         }
 
         if !delegated_puzzle_wrappers.is_empty() {
-            println!("delegated_puzzle_wrappers: {:?}", delegated_puzzle_wrappers);
-
             delegated_puzzle_validators.push(
                 EnforceDelegatedPuzzleWrappers::new(&delegated_puzzle_wrappers).curry_tree_hash(),
             );

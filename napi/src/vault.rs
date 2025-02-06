@@ -1,9 +1,9 @@
 use chia::{clvm_utils::TreeHash, protocol};
 use chia_wallet_sdk::{
-    self as sdk, member_puzzle_hash, BlsMember, FixedPuzzleMember, Force1of2RestrictedVariable,
-    Force1of2RestrictedVariableSolution, MemberSpend, Mod, MofN, PasskeyMember,
-    PasskeyMemberPuzzleAssert, PasskeyMemberPuzzleAssertSolution, PasskeyMemberSolution,
-    PreventConditionOpcode, Secp256k1Member, Secp256k1MemberPuzzleAssert,
+    self as sdk, member_puzzle_hash, AddDelegatedPuzzleWrapper, BlsMember, FixedPuzzleMember,
+    Force1of2RestrictedVariable, Force1of2RestrictedVariableSolution, MemberSpend, Mod, MofN,
+    PasskeyMember, PasskeyMemberPuzzleAssert, PasskeyMemberPuzzleAssertSolution,
+    PasskeyMemberSolution, PreventConditionOpcode, Secp256k1Member, Secp256k1MemberPuzzleAssert,
     Secp256k1MemberPuzzleAssertSolution, Secp256k1MemberSolution, Secp256r1Member,
     Secp256r1MemberPuzzleAssert, Secp256r1MemberPuzzleAssertSolution, Secp256r1MemberSolution,
     SingletonMember, SingletonMemberSolution, Timelock, PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH,
@@ -561,6 +561,26 @@ pub struct MemberConfig {
     pub top_level: bool,
     pub nonce: u32,
     pub restrictions: Vec<Restriction>,
+}
+
+#[napi]
+pub fn wrapped_delegated_puzzle_hash(
+    restrictions: Vec<Restriction>,
+    delegated_puzzle_hash: Uint8Array,
+) -> Result<Uint8Array> {
+    let mut delegated_puzzle_hash: TreeHash = delegated_puzzle_hash.into_rust()?;
+
+    for restriction in restrictions.into_iter().rev() {
+        if !matches!(restriction.kind, RestrictionKind::DelegatedPuzzleWrapper) {
+            continue;
+        }
+
+        let wrapper: TreeHash = restriction.puzzle_hash.into_rust()?;
+        delegated_puzzle_hash =
+            AddDelegatedPuzzleWrapper::new(wrapper, delegated_puzzle_hash).curry_tree_hash();
+    }
+
+    delegated_puzzle_hash.into_js()
 }
 
 fn member_hash(config: MemberConfig, inner_hash: TreeHash) -> Result<Uint8Array> {

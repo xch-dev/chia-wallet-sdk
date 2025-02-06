@@ -24,6 +24,7 @@ import {
   toCoinId,
   treeHashPair,
   Vault,
+  wrappedDelegatedPuzzleHash,
 } from "../index.js";
 
 test("bls key vault", (t) => {
@@ -104,7 +105,12 @@ test("single signer vault", (t) => {
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
 
-  const signature = signK1(clvm, k1.secretKey, vault, delegatedSpend, false);
+  const signature = signK1(
+    k1.secretKey,
+    vault,
+    delegatedSpend.puzzle.treeHash(),
+    false
+  );
 
   const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendK1(clvm, config, k1.publicKey, signature, false);
@@ -202,7 +208,12 @@ test("single signer fast forward vault", (t) => {
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
 
-  const signature = signK1(clvm, k1.secretKey, vault, delegatedSpend, true);
+  const signature = signK1(
+    k1.secretKey,
+    vault,
+    delegatedSpend.puzzle.treeHash(),
+    true
+  );
 
   const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendK1(clvm, config, k1.publicKey, signature, true);
@@ -239,7 +250,12 @@ test("1 of 2 vault (path 1)", (t) => {
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
 
-  const signature = signK1(clvm, alice.secretKey, vault, delegatedSpend, false);
+  const signature = signK1(
+    alice.secretKey,
+    vault,
+    delegatedSpend.puzzle.treeHash(),
+    false
+  );
 
   const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [aliceHash, bobHash]);
@@ -277,7 +293,12 @@ test("1 of 2 vault (path 2)", (t) => {
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
 
-  const signature = signK1(clvm, bob.secretKey, vault, delegatedSpend, false);
+  const signature = signK1(
+    bob.secretKey,
+    vault,
+    delegatedSpend.puzzle.treeHash(),
+    false
+  );
 
   const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
   vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [aliceHash, bobHash]);
@@ -316,17 +337,15 @@ test("2 of 2 vault", (t) => {
   ]);
 
   const aliceSignature = signK1(
-    clvm,
     alice.secretKey,
     vault,
-    delegatedSpend,
+    delegatedSpend.puzzle.treeHash(),
     false
   );
   const bobSignature = signK1(
-    clvm,
     bob.secretKey,
     vault,
-    delegatedSpend,
+    delegatedSpend.puzzle.treeHash(),
     false
   );
 
@@ -374,17 +393,15 @@ test("2 of 3 vault", (t) => {
   ]);
 
   const aliceSignature = signK1(
-    clvm,
     alice.secretKey,
     vault,
-    delegatedSpend,
+    delegatedSpend.puzzle.treeHash(),
     false
   );
   const bobSignature = signK1(
-    clvm,
     bob.secretKey,
     vault,
-    delegatedSpend,
+    delegatedSpend.puzzle.treeHash(),
     false
   );
 
@@ -445,10 +462,9 @@ test("fast forward paths vault", (t) => {
     ]);
 
     const aliceSignature = signK1(
-      clvm,
       alice.secretKey,
       vault,
-      delegatedSpend,
+      delegatedSpend.puzzle.treeHash(),
       fastForward
     );
 
@@ -540,7 +556,12 @@ test("single signer recovery vault", (t) => {
     clvm,
     config,
     custodyKey.publicKey,
-    signK1(clvm, custodyKey.secretKey, vault, delegatedSpend, false),
+    signK1(
+      custodyKey.secretKey,
+      vault,
+      delegatedSpend.puzzle.treeHash(),
+      false
+    ),
     false
   );
   clvm.spendVault(vault, vaultSpend);
@@ -584,7 +605,15 @@ test("single signer recovery vault", (t) => {
     clvm,
     { ...config, restrictions: recoveryRestrictions },
     recoveryKey.publicKey,
-    signK1(clvm, recoveryKey.secretKey, vault, delegatedSpend, false),
+    signK1(
+      recoveryKey.secretKey,
+      vault,
+      wrappedDelegatedPuzzleHash(
+        recoveryRestrictions,
+        delegatedSpend.puzzle.treeHash()
+      ),
+      false
+    ),
     false
   );
 
@@ -638,7 +667,12 @@ test("single signer recovery vault", (t) => {
     clvm,
     config,
     custodyKey.publicKey,
-    signK1(clvm, custodyKey.secretKey, vault, delegatedSpend, false),
+    signK1(
+      custodyKey.secretKey,
+      vault,
+      delegatedSpend.puzzle.treeHash(),
+      false
+    ),
     false
   );
   clvm.spendVault(vault, vaultSpend);
@@ -785,25 +819,17 @@ function mintVaultWithCoin(
 }
 
 function signK1(
-  clvm: ClvmAllocator,
   sk: K1SecretKey,
   vault: Vault,
-  delegatedSpend: Spend,
+  delegatedPuzzleHash: Uint8Array,
   fastForward: boolean
 ): K1Signature {
   return sk.signPrehashed(
     sha256(
       Uint8Array.from([
-        ...clvm.treeHash(delegatedSpend.puzzle),
+        ...delegatedPuzzleHash,
         ...(fastForward ? vault.coin.puzzleHash : toCoinId(vault.coin)),
       ])
     )
-  );
-}
-
-function p2SingletonHash(launcherId: Uint8Array, nonce: number) {
-  return singletonMemberHash(
-    { topLevel: true, restrictions: [], nonce },
-    launcherId
   );
 }

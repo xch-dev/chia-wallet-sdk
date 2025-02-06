@@ -249,6 +249,7 @@ export interface MemberConfig {
   nonce: number
   restrictions: Array<Restriction>
 }
+export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restriction>, delegatedPuzzleHash: Uint8Array): Uint8Array
 export declare function mOfNHash(config: MemberConfig, required: number, items: Array<Uint8Array>): Uint8Array
 export declare function k1MemberHash(config: MemberConfig, publicKey: K1PublicKey, fastForward: boolean): Uint8Array
 export declare function r1MemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Uint8Array
