@@ -30,6 +30,6 @@ impl MipsSpend {
         self.members
             .get(&custody_hash)
             .ok_or(DriverError::MissingSubpathSpend)?
-            .spend(ctx, self, true)
+            .spend(ctx, self, &mut Vec::new(), true)
     }
 }
