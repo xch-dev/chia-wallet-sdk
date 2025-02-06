@@ -472,7 +472,7 @@ impl MipsSpend {
     }
 
     #[napi]
-    pub fn spend_prevent_condition_opcode(
+    pub fn spend_prevent_condition_opcode_restriction(
         &mut self,
         clvm: &mut ClvmAllocator,
         condition_opcode: u16,
@@ -490,7 +490,10 @@ impl MipsSpend {
     }
 
     #[napi]
-    pub fn spend_prevent_multiple_create_coins(&mut self, clvm: &mut ClvmAllocator) -> Result<()> {
+    pub fn spend_prevent_multiple_create_coins_restriction(
+        &mut self,
+        clvm: &mut ClvmAllocator,
+    ) -> Result<()> {
         let puzzle = clvm
             .0
             .prevent_multiple_create_coins_puzzle()
@@ -502,6 +505,19 @@ impl MipsSpend {
             sdk::Spend::new(puzzle, solution),
         );
 
+        Ok(())
+    }
+
+    #[napi]
+    pub fn spend_prevent_side_effects_restriction(
+        &mut self,
+        clvm: &mut ClvmAllocator,
+    ) -> Result<()> {
+        self.spend_prevent_condition_opcode_restriction(clvm, 60)?;
+        self.spend_prevent_condition_opcode_restriction(clvm, 62)?;
+        self.spend_prevent_condition_opcode_restriction(clvm, 66)?;
+        self.spend_prevent_condition_opcode_restriction(clvm, 67)?;
+        self.spend_prevent_multiple_create_coins_restriction(clvm)?;
         Ok(())
     }
 }
@@ -738,4 +754,15 @@ pub fn prevent_multiple_create_coins_restriction() -> Result<Restriction> {
         kind: RestrictionKind::DelegatedPuzzleWrapper,
         puzzle_hash: PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH.into_js()?,
     })
+}
+
+#[napi]
+pub fn prevent_side_effects_restriction() -> Result<Vec<Restriction>> {
+    Ok(vec![
+        prevent_condition_opcode_restriction(60)?,
+        prevent_condition_opcode_restriction(62)?,
+        prevent_condition_opcode_restriction(66)?,
+        prevent_condition_opcode_restriction(67)?,
+        prevent_multiple_create_coins_restriction()?,
+    ])
 }

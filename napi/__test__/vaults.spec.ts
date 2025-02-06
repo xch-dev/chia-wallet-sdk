@@ -14,8 +14,7 @@ import {
   MipsSpend,
   mOfNHash,
   passkeyMemberHash,
-  preventConditionOpcodeRestriction,
-  preventMultipleCreateCoinsRestriction,
+  preventSideEffectsRestriction,
   sha256,
   Simulator,
   singletonMemberHash,
@@ -514,7 +513,6 @@ test("single signer recovery vault", (t) => {
   const memberHash = k1MemberHash(config, custodyKey.publicKey, false);
 
   const timelock = timelockRestriction(1n);
-  const preventedConditions = [60, 62, 66, 67];
   const recoveryRestrictions = [
     force1Of2Restriction(
       memberHash,
@@ -522,8 +520,7 @@ test("single signer recovery vault", (t) => {
       treeHashPair(timelock.puzzleHash, clvm.nil().treeHash()),
       clvm.nil().treeHash()
     ),
-    ...preventedConditions.map(preventConditionOpcodeRestriction),
-    preventMultipleCreateCoinsRestriction(),
+    ...preventSideEffectsRestriction(),
   ];
   const initialRecoveryHash = k1MemberHash(
     {
@@ -617,11 +614,7 @@ test("single signer recovery vault", (t) => {
     false
   );
 
-  vaultSpend.spendPreventMultipleCreateCoins(clvm);
-
-  for (const condition of preventedConditions.reverse()) {
-    vaultSpend.spendPreventConditionOpcode(clvm, condition);
-  }
+  vaultSpend.spendPreventSideEffectsRestriction(clvm);
 
   vaultSpend.spendForce1Of2Restriction(
     clvm,
