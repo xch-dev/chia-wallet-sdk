@@ -35,7 +35,12 @@ impl MofN {
         }
     }
 
-    pub fn spend(&self, ctx: &mut SpendContext, spend: &MipsSpend) -> Result<Spend, DriverError> {
+    pub fn spend(
+        &self,
+        ctx: &mut SpendContext,
+        spend: &MipsSpend,
+        delegated_puzzle_wrappers: &mut Vec<TreeHash>,
+    ) -> Result<Spend, DriverError> {
         if self.required == 1 {
             let (member_hash, member_spend) = self
                 .items
@@ -43,7 +48,7 @@ impl MofN {
                 .find_map(|item| Some((*item, spend.members.get(item)?)))
                 .ok_or(DriverError::MissingSubpathSpend)?;
 
-            let member_spend = member_spend.spend(ctx, spend, false)?;
+            let member_spend = member_spend.spend(ctx, spend, delegated_puzzle_wrappers, false)?;
 
             let merkle_tree = self.merkle_tree();
             let merkle_proof = merkle_tree
@@ -67,7 +72,7 @@ impl MofN {
                     .get(item)
                     .ok_or(DriverError::MissingSubpathSpend)?;
 
-                let member_spend = member.spend(ctx, spend, false)?;
+                let member_spend = member.spend(ctx, spend, delegated_puzzle_wrappers, false)?;
 
                 puzzles.push(member_spend.puzzle);
                 solutions.push(member_spend.solution);
@@ -87,7 +92,10 @@ impl MofN {
                     continue;
                 };
 
-                member_spends.insert(item, member.spend(ctx, spend, false)?);
+                member_spends.insert(
+                    item,
+                    member.spend(ctx, spend, delegated_puzzle_wrappers, false)?,
+                );
             }
 
             if member_spends.len() < self.required {

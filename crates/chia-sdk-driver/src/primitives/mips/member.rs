@@ -1,5 +1,7 @@
 use chia_sdk_types::{
-    DelegatedFeederArgs, DelegatedFeederSolution, IndexWrapperArgs, Mod, RestrictionsArgs,
+    AddDelegatedPuzzleWrapper, AddDelegatedPuzzleWrapperSolution, DelegatedFeederArgs,
+    DelegatedFeederSolution, EnforceDelegatedPuzzleWrappers,
+    EnforceDelegatedPuzzleWrappersSolution, IndexWrapperArgs, Mod, RestrictionsArgs,
     RestrictionsSolution,
 };
 use clvm_utils::TreeHash;
@@ -8,6 +10,7 @@ use crate::{DriverError, Spend, SpendContext};
 
 use super::{
     m_of_n::MofN, member_kind::MemberSpendKind, mips_spend::MipsSpend, restriction::Restriction,
+    RestrictionKind,
 };
 
 #[derive(Debug, Clone)]
@@ -43,41 +46,63 @@ impl MemberSpend {
         &self,
         ctx: &mut SpendContext,
         spend: &MipsSpend,
+        delegated_puzzle_wrappers: &mut Vec<TreeHash>,
         delegated_spend: bool,
     ) -> Result<Spend, DriverError> {
-        let mut result = self.kind.spend(ctx, spend)?;
+        let mut result = self.kind.spend(ctx, spend, delegated_puzzle_wrappers)?;
 
         if !self.restrictions.is_empty() {
             let mut member_validators = Vec::new();
             let mut delegated_puzzle_validators = Vec::new();
-
-            for restriction in &self.restrictions {
-                let restriction_spend = spend
-                    .restrictions
-                    .get(&restriction.puzzle_hash)
-                    .ok_or(DriverError::MissingSubpathSpend)?;
-
-                if restriction.is_member_condition_validator {
-                    member_validators.push(restriction_spend.puzzle);
-                } else {
-                    delegated_puzzle_validators.push(restriction_spend.puzzle);
-                }
-            }
+            let mut local_delegated_puzzle_wrappers = Vec::new();
 
             let mut member_validator_solutions = Vec::new();
             let mut delegated_puzzle_validator_solutions = Vec::new();
 
             for restriction in &self.restrictions {
-                let restriction_spend = spend
-                    .restrictions
-                    .get(&restriction.puzzle_hash)
-                    .ok_or(DriverError::MissingSubpathSpend)?;
+                match restriction.kind {
+                    RestrictionKind::MemberCondition => {
+                        let restriction_spend = spend
+                            .restrictions
+                            .get(&restriction.puzzle_hash)
+                            .ok_or(DriverError::MissingSubpathSpend)?;
 
-                if restriction.is_member_condition_validator {
-                    member_validator_solutions.push(restriction_spend.solution);
-                } else {
-                    delegated_puzzle_validator_solutions.push(restriction_spend.solution);
+                        member_validators.push(restriction_spend.puzzle);
+                        member_validator_solutions.push(restriction_spend.solution);
+                    }
+                    RestrictionKind::DelegatedPuzzleHash => {
+                        let restriction_spend = spend
+                            .restrictions
+                            .get(&restriction.puzzle_hash)
+                            .ok_or(DriverError::MissingSubpathSpend)?;
+
+                        delegated_puzzle_validators.push(restriction_spend.puzzle);
+                        delegated_puzzle_validator_solutions.push(restriction_spend.solution);
+                    }
+                    RestrictionKind::DelegatedPuzzleWrapper => {
+                        local_delegated_puzzle_wrappers.push(restriction.puzzle_hash);
+                    }
                 }
+            }
+
+            for (i, &wrapper) in local_delegated_puzzle_wrappers.iter().enumerate() {
+                if i >= delegated_puzzle_wrappers.len() {
+                    delegated_puzzle_wrappers.push(wrapper);
+                } else if delegated_puzzle_wrappers[i] != wrapper {
+                    return Err(DriverError::DelegatedPuzzleWrapperConflict);
+                }
+            }
+
+            if !local_delegated_puzzle_wrappers.is_empty() {
+                delegated_puzzle_validators.push(ctx.curry(
+                    EnforceDelegatedPuzzleWrappers::new(&local_delegated_puzzle_wrappers),
+                )?);
+
+                delegated_puzzle_validator_solutions.push(ctx.alloc(
+                    &EnforceDelegatedPuzzleWrappersSolution::new(
+                        ctx.tree_hash(spend.delegated.puzzle).into(),
+                    ),
+                )?);
             }
 
             result.puzzle = ctx.curry(RestrictionsArgs::new(
@@ -96,9 +121,31 @@ impl MemberSpend {
         if delegated_spend {
             result.puzzle = ctx.curry(DelegatedFeederArgs::new(result.puzzle))?;
 
+            let delegated_puzzle_wrappers = delegated_puzzle_wrappers.clone();
+
+            let mut delegated_spend = spend.delegated;
+
+            for wrapper in delegated_puzzle_wrappers.into_iter().rev() {
+                let spend = spend
+                    .restrictions
+                    .get(&wrapper)
+                    .ok_or(DriverError::MissingSubpathSpend)?;
+
+                let puzzle = ctx.curry(AddDelegatedPuzzleWrapper::new(
+                    spend.puzzle,
+                    delegated_spend.puzzle,
+                ))?;
+                let solution = ctx.alloc(&AddDelegatedPuzzleWrapperSolution::new(
+                    spend.solution,
+                    delegated_spend.solution,
+                ))?;
+
+                delegated_spend = Spend::new(puzzle, solution);
+            }
+
             result.solution = ctx.alloc(&DelegatedFeederSolution::new(
-                spend.delegated.puzzle,
-                spend.delegated.solution,
+                delegated_spend.puzzle,
+                delegated_spend.solution,
                 result.solution,
             ))?;
         }
@@ -121,13 +168,26 @@ pub fn member_puzzle_hash(
     if !restrictions.is_empty() {
         let mut member_validators = Vec::new();
         let mut delegated_puzzle_validators = Vec::new();
+        let mut delegated_puzzle_wrappers = Vec::new();
 
         for restriction in restrictions {
-            if restriction.is_member_condition_validator {
-                member_validators.push(restriction.puzzle_hash);
-            } else {
-                delegated_puzzle_validators.push(restriction.puzzle_hash);
+            match restriction.kind {
+                RestrictionKind::MemberCondition => {
+                    member_validators.push(restriction.puzzle_hash);
+                }
+                RestrictionKind::DelegatedPuzzleHash => {
+                    delegated_puzzle_validators.push(restriction.puzzle_hash);
+                }
+                RestrictionKind::DelegatedPuzzleWrapper => {
+                    delegated_puzzle_wrappers.push(restriction.puzzle_hash);
+                }
             }
+        }
+
+        if !delegated_puzzle_wrappers.is_empty() {
+            delegated_puzzle_validators.push(
+                EnforceDelegatedPuzzleWrappers::new(&delegated_puzzle_wrappers).curry_tree_hash(),
+            );
         }
 
         puzzle_hash =
