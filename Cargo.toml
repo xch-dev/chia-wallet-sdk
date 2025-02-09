@@ -68,8 +68,8 @@ experimental-vaults = [
     "chia-sdk-types/experimental-vaults",
 ]
 offers = ["chia-sdk-driver/offers"]
-native-tls = ["chia-sdk-client/native-tls"]
-rustls = ["chia-sdk-client/rustls"]
+native-tls = ["chia-sdk-client/native-tls", "chia-sdk-coinset/native-tls"]
+rustls = ["chia-sdk-client/rustls", "chia-sdk-coinset/rustls"]
 peer-simulator = ["chia-sdk-test/peer-simulator"]
 
 [dependencies]
