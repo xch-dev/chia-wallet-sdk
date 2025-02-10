@@ -1,14 +1,12 @@
 mod augmented_condition;
 mod p2_curried;
 mod p2_delegated_conditions;
-mod p2_delegated_singleton_message;
 mod p2_one_of_many;
 mod p2_singleton;
 
 pub use augmented_condition::*;
 pub use p2_curried::*;
 pub use p2_delegated_conditions::*;
-pub use p2_delegated_singleton_message::*;
 pub use p2_one_of_many::*;
 pub use p2_singleton::*;
 
@@ -19,10 +17,10 @@ mod datalayer;
 pub use datalayer::*;
 
 #[cfg(feature = "experimental-vaults")]
-mod vault;
+mod mips;
 
 #[cfg(feature = "experimental-vaults")]
-pub use vault::*;
+pub use mips::*;
 
 #[cfg(test)]
 mod tests {

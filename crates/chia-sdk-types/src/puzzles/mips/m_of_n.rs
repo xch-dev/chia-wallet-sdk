@@ -7,12 +7,12 @@ use crate::Mod;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
-pub struct VaultMofNArgs {
+pub struct MofNArgs {
     pub required: usize,
     pub merkle_root: Bytes32,
 }
 
-impl VaultMofNArgs {
+impl MofNArgs {
     pub fn new(required: usize, merkle_root: Bytes32) -> Self {
         Self {
             required,
@@ -21,24 +21,24 @@ impl VaultMofNArgs {
     }
 }
 
-impl Mod for VaultMofNArgs {
-    const MOD_REVEAL: &[u8] = &VAULT_M_OF_N_PUZZLE;
-    const MOD_HASH: TreeHash = VAULT_M_OF_N_PUZZLE_HASH;
+impl Mod for MofNArgs {
+    const MOD_REVEAL: &[u8] = &M_OF_N_PUZZLE;
+    const MOD_HASH: TreeHash = M_OF_N_PUZZLE_HASH;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(solution)]
-pub struct VaultMofNSolution<P> {
+pub struct MofNSolution<P> {
     pub proofs: P,
 }
 
-impl<P> VaultMofNSolution<P> {
+impl<P> MofNSolution<P> {
     pub fn new(proofs: P) -> Self {
         Self { proofs }
     }
 }
 
-pub const VAULT_M_OF_N_PUZZLE: [u8; 622] = hex!(
+pub const M_OF_N_PUZZLE: [u8; 622] = hex!(
     "
     ff02ffff01ff02ff16ffff04ff02ffff04ff05ffff04ff0bffff04ffff02ff0c
     ffff04ff02ffff04ff2fffff04ff17ff8080808080ff808080808080ffff04ff
@@ -63,6 +63,6 @@ pub const VAULT_M_OF_N_PUZZLE: [u8; 622] = hex!(
     "
 );
 
-pub const VAULT_M_OF_N_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
+pub const M_OF_N_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "de27deb2ebc7f1e1b77e1d38cc2f9d90fbd54d4b13dd4e6fa1f659177e36ed4f"
 ));

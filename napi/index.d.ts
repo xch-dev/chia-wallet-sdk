@@ -236,14 +236,20 @@ export interface VaultMint {
   vault: Vault
 }
 export interface Restriction {
-  isMemberConditionValidator: boolean
+  kind: RestrictionKind
   puzzleHash: Uint8Array
+}
+export const enum RestrictionKind {
+  MemberCondition = 0,
+  DelegatedPuzzleHash = 1,
+  DelegatedPuzzleWrapper = 2
 }
 export interface MemberConfig {
   topLevel: boolean
   nonce: number
   restrictions: Array<Restriction>
 }
+export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restriction>, delegatedPuzzleHash: Uint8Array): Uint8Array
 export declare function mOfNHash(config: MemberConfig, required: number, items: Array<Uint8Array>): Uint8Array
 export declare function k1MemberHash(config: MemberConfig, publicKey: K1PublicKey, fastForward: boolean): Uint8Array
 export declare function r1MemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Uint8Array
@@ -252,9 +258,11 @@ export declare function passkeyMemberHash(config: MemberConfig, publicKey: R1Pub
 export declare function singletonMemberHash(config: MemberConfig, launcherId: Uint8Array): Uint8Array
 export declare function fixedMemberHash(config: MemberConfig, fixedPuzzleHash: Uint8Array): Uint8Array
 export declare function customMemberHash(config: MemberConfig, innerHash: Uint8Array): Uint8Array
-export declare function recoveryRestriction(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): Restriction
 export declare function timelockRestriction(timelock: bigint): Restriction
-export declare function p2DelegatedSingletonMessagePuzzleHash(launcherId: Uint8Array, nonce: number): Uint8Array
+export declare function force1Of2Restriction(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): Restriction
+export declare function preventConditionOpcodeRestriction(conditionOpcode: number): Restriction
+export declare function preventMultipleCreateCoinsRestriction(): Restriction
+export declare function preventSideEffectsRestriction(): Array<Restriction>
 export declare class SecretKey {
   static fromSeed(seed: Uint8Array): SecretKey
   static fromBytes(bytes: Uint8Array): SecretKey
@@ -310,13 +318,12 @@ export declare class ClvmAllocator {
   parseNftMetadata(value: Program): NftMetadata
   delegatedSpendForConditions(conditions: Array<Program>): Spend
   spendP2Standard(syntheticKey: PublicKey, delegatedSpend: Spend): Spend
-  spendP2DelegatedSingletonMessage(launcherId: Uint8Array, nonce: number, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend): Spend
   mintNfts(parent_coin_id: Uint8Array, nft_mints: Array<NftMint>): MintedNfts
   parseNftInfo(puzzle: Program): ParsedNft | null
   parseChildNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Nft | null
   spendNft(nft: Nft, innerSpend: Spend): void
   mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
-  spendVault(vault: Vault, spend: VaultSpend): void
+  spendVault(vault: Vault, spend: MipsSpend): void
   remark(rest: Program): Program
   parseRemark(program: Program): Remark | null
   aggSigParent(publicKey: PublicKey, message: Uint8Array): Program
@@ -451,8 +458,9 @@ export declare class Simulator {
   k1Pair(seed: number): K1KeyPair
   r1Pair(seed: number): R1KeyPair
 }
-export declare class VaultSpend {
+export declare class MipsSpend {
   constructor(delegatedSpend: Spend, coin: Coin)
+  spend(clvm: ClvmAllocator, custody_hash: Uint8Array): Spend
   spendMOfN(config: MemberConfig, required: number, items: Array<Uint8Array>): void
   spendK1(clvm: ClvmAllocator, config: MemberConfig, publicKey: K1PublicKey, signature: K1Signature, fastForward: boolean): void
   spendR1(clvm: ClvmAllocator, config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, fastForward: boolean): void
@@ -461,8 +469,11 @@ export declare class VaultSpend {
   spendSingleton(clvm: ClvmAllocator, config: MemberConfig, launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, singletonAmount: bigint): void
   spendFixedPuzzle(clvm: ClvmAllocator, config: MemberConfig, fixedPuzzleHash: Uint8Array): void
   spendCustomMember(clvm: ClvmAllocator, config: MemberConfig, spend: Spend): void
-  spendRecoveryRestriction(clvm: ClvmAllocator, leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array, newRightSideMemberHash: Uint8Array): void
   spendTimelockRestriction(clvm: ClvmAllocator, timelock: bigint): void
+  spendForce1Of2Restriction(clvm: ClvmAllocator, leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array, newRightSideMemberHash: Uint8Array): void
+  spendPreventConditionOpcodeRestriction(clvm: ClvmAllocator, conditionOpcode: number): void
+  spendPreventMultipleCreateCoinsRestriction(clvm: ClvmAllocator): void
+  spendPreventSideEffectsRestriction(clvm: ClvmAllocator): void
 }
 
 /* auto-generated by `pnpm run update-declarations` */

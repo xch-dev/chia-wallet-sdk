@@ -15,6 +15,7 @@ use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 use chia_sdk_types::{
     FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE, FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE_HASH,
     FORCE_COIN_MESSAGE_PUZZLE, FORCE_COIN_MESSAGE_PUZZLE_HASH,
+    PREVENT_MULTIPLE_CREATE_COINS_PUZZLE, PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH,
 };
 
 use crate::{DriverError, Spend};
@@ -144,6 +145,14 @@ impl SpendContext {
         self.puzzle(
             FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE_HASH,
             &FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE,
+        )
+    }
+
+    #[cfg(feature = "experimental-vaults")]
+    pub fn prevent_multiple_create_coins_puzzle(&mut self) -> Result<NodePtr, DriverError> {
+        self.puzzle(
+            PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH,
+            &PREVENT_MULTIPLE_CREATE_COINS_PUZZLE,
         )
     }
 
