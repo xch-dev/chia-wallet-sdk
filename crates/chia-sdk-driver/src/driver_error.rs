@@ -59,4 +59,7 @@ pub enum DriverError {
 
     #[error("missing spend for vault subpath")]
     MissingSubpathSpend,
+
+    #[error("delegated puzzle wrapper conflict")]
+    DelegatedPuzzleWrapperConflict,
 }

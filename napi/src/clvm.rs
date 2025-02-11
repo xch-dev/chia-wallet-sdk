@@ -5,10 +5,7 @@ use chia::{
     protocol::{self, Bytes32},
     puzzles::nft::{self, NFT_METADATA_UPDATER_PUZZLE_HASH},
 };
-use chia_wallet_sdk::{
-    self as sdk, HashedPtr, Memos, P2DelegatedSingletonMessageArgs,
-    P2DelegatedSingletonMessageSolution, SpendContext,
-};
+use chia_wallet_sdk::{self as sdk, HashedPtr, Memos, SpendContext};
 use clvmr::{
     run_program,
     serde::{node_from_bytes, node_from_bytes_backrefs},
@@ -20,11 +17,11 @@ use paste::paste;
 use crate::{
     clvm_value::{Allocate, ClvmValue},
     traits::{js_err, FromJs, IntoJs, IntoJsContextual, IntoRust},
-    Coin, CoinSpend, MintedNfts, Nft, NftMetadata, NftMint, ParsedNft, Program, PublicKey, Spend,
-    Vault, VaultMint, VaultSpend,
+    Coin, CoinSpend, MintedNfts, MipsSpend, Nft, NftMetadata, NftMint, ParsedNft, Program,
+    PublicKey, Spend, Vault, VaultMint,
 };
 
-type Clvm = Reference<ClvmAllocator>;
+pub type Clvm = Reference<ClvmAllocator>;
 
 #[napi]
 pub struct ClvmAllocator(pub(crate) SpendContext);
@@ -198,41 +195,6 @@ impl ClvmAllocator {
         })
     }
 
-    #[napi(
-        ts_args_type = "launcherId: Uint8Array, nonce: number, singletonInnerPuzzleHash: Uint8Array, delegatedSpend: Spend"
-    )]
-    pub fn spend_p2_delegated_singleton_message(
-        &mut self,
-        env: Env,
-        this: This<Clvm>,
-        launcher_id: Uint8Array,
-        nonce: u32,
-        singleton_inner_puzzle_hash: Uint8Array,
-        delegated_spend: Spend,
-    ) -> Result<Spend> {
-        let puzzle = self
-            .0
-            .curry(P2DelegatedSingletonMessageArgs::new(
-                launcher_id.into_rust()?,
-                nonce.try_into().unwrap(),
-            ))
-            .map_err(js_err)?;
-
-        let solution = self
-            .0
-            .alloc(&P2DelegatedSingletonMessageSolution::new(
-                singleton_inner_puzzle_hash.into_rust()?,
-                delegated_spend.puzzle.ptr,
-                delegated_spend.solution.ptr,
-            ))
-            .map_err(js_err)?;
-
-        Ok(Spend {
-            puzzle: Program::new(this.clone(env)?, puzzle).into_instance(env)?,
-            solution: Program::new(this, solution).into_instance(env)?,
-        })
-    }
-
     #[napi(ts_args_type = "parent_coin_id: Uint8Array, nft_mints: Array<NftMint>")]
     pub fn mint_nfts(
         &mut self,
@@ -372,7 +334,7 @@ impl ClvmAllocator {
     }
 
     #[napi]
-    pub fn spend_vault(&mut self, vault: Vault, spend: &VaultSpend) -> Result<()> {
+    pub fn spend_vault(&mut self, vault: Vault, spend: &MipsSpend) -> Result<()> {
         let rust: sdk::Vault = vault.into_rust()?;
         rust.spend(&mut self.0, &spend.spend).map_err(js_err)?;
         Ok(())
