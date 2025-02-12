@@ -20,6 +20,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 napi = { workspace = true, features = ["napi6", "async"] }
+napi-derive = { workspace = true }
 chia-sdk-bindings = { workspace = true }
 
 [build-dependencies]

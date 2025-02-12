@@ -1,6 +1,7 @@
 #![allow(unexpected_cfgs)]
-#![allow(clippy::wildcard_imports)]
 #![allow(dead_code)]
+#![allow(unsafe_code)]
+#![allow(clippy::wildcard_imports)]
 
 mod binding;
 mod utils;
