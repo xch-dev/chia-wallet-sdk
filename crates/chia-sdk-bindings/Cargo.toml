@@ -1,0 +1,25 @@
+[package]
+name = "chia-sdk-bindings"
+version = "0.20.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Underlying implementation of chia-wallet-sdk bindings."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/Rigidity/chia-wallet-sdk"
+repository = "https://github.com/Rigidity/chia-wallet-sdk"
+readme = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[lints]
+workspace = true
+
+[dependencies]
+napi = { workspace = true, features = ["napi6", "async"] }
+napi-derive = { workspace = true }
+chia-sdk-bindings-derive = { workspace = true }
+thiserror = { workspace = true }
+bech32 = { workspace = true }
+chia-protocol = { workspace = true }
+chia-sdk-utils = { workspace = true }
+inventory = { workspace = true }

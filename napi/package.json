@@ -14,6 +14,7 @@
   },
   "scripts": {
     "artifacts": "napi artifacts",
+    "build-wip": "napi build --platform && cargo run -p chia-sdk-bindings",
     "build": "napi build --platform --release && pnpm run update-declarations",
     "build:debug": "napi build --platform && pnpm run update-declarations",
     "build:macos-arm64": "napi build --platform --release --target aarch64-apple-darwin && pnpm run update-declarations",

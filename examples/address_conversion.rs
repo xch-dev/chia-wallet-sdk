@@ -2,7 +2,8 @@ use chia_sdk_utils::{decode_address, decode_puzzle_hash, encode_address, encode_
 use hex_literal::hex;
 
 fn main() -> anyhow::Result<()> {
-    let puzzle_hash = hex!("aca490e9f3ebcafa3d5342d347db2703b31029511f5b40c11441af1c961f6585");
+    let puzzle_hash =
+        hex!("aca490e9f3ebcafa3d5342d347db2703b31029511f5b40c11441af1c961f6585").into();
     let encoded_puzzle_hash = encode_puzzle_hash(puzzle_hash, true);
 
     let address = encode_address(puzzle_hash, "xch")?;

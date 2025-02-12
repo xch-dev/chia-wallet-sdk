@@ -1,4 +1,5 @@
 use bech32::{u5, Variant};
+use chia_protocol::Bytes32;
 use hex::FromHexError;
 use thiserror::Error;
 
@@ -31,7 +32,7 @@ pub enum PuzzleHashError {
 }
 
 /// Decodes a puzzle hash from hex, with or without a prefix.
-pub fn decode_puzzle_hash(puzzle_hash: &str) -> Result<[u8; 32], PuzzleHashError> {
+pub fn decode_puzzle_hash(puzzle_hash: &str) -> Result<Bytes32, PuzzleHashError> {
     let data = hex::decode(strip_prefix(puzzle_hash))?;
     let length = data.len();
     data.try_into()
@@ -39,7 +40,7 @@ pub fn decode_puzzle_hash(puzzle_hash: &str) -> Result<[u8; 32], PuzzleHashError
 }
 
 /// Encodes a puzzle hash into hex, with or without a prefix.
-pub fn encode_puzzle_hash(puzzle_hash: [u8; 32], include_0x: bool) -> String {
+pub fn encode_puzzle_hash(puzzle_hash: Bytes32, include_0x: bool) -> String {
     if include_0x {
         format!("0x{}", hex::encode(puzzle_hash))
     } else {
@@ -48,7 +49,7 @@ pub fn encode_puzzle_hash(puzzle_hash: [u8; 32], include_0x: bool) -> String {
 }
 
 /// Decodes an address into a puzzle hash and HRP prefix.
-pub fn decode_address(address: &str) -> Result<([u8; 32], String), AddressError> {
+pub fn decode_address(address: &str) -> Result<(Bytes32, String), AddressError> {
     let (hrp, data, variant) = bech32::decode(address)?;
 
     if variant != Variant::Bech32m {
@@ -65,7 +66,7 @@ pub fn decode_address(address: &str) -> Result<([u8; 32], String), AddressError>
 }
 
 /// Encodes an address with a given HRP prefix.
-pub fn encode_address(puzzle_hash: [u8; 32], prefix: &str) -> Result<String, bech32::Error> {
+pub fn encode_address(puzzle_hash: Bytes32, prefix: &str) -> Result<String, bech32::Error> {
     let data = bech32::convert_bits(&puzzle_hash, 8, 5, true)
         .unwrap()
         .into_iter()
