@@ -5,6 +5,9 @@ pub enum Error {
 
     #[error("Address error: {0}")]
     Bech32(#[from] bech32::Error),
+
+    #[error("Hex error: {0}")]
+    Hex(#[from] hex::FromHexError),
 }
 
 impl From<Error> for napi::Error {
@@ -13,4 +16,4 @@ impl From<Error> for napi::Error {
     }
 }
 
-pub(crate) type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, Error>;

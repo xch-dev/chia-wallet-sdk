@@ -17,9 +17,8 @@ workspace = true
 [dependencies]
 napi = { workspace = true, features = ["napi6", "async"] }
 napi-derive = { workspace = true }
-chia-sdk-bindings-derive = { workspace = true }
 thiserror = { workspace = true }
 bech32 = { workspace = true }
+hex = { workspace = true }
 chia-protocol = { workspace = true }
 chia-sdk-utils = { workspace = true }
-inventory = { workspace = true }

@@ -447,20 +447,22 @@ version = "0.20.0"
 dependencies = [
  "bech32",
  "chia-protocol",
- "chia-sdk-bindings-derive",
  "chia-sdk-utils",
- "inventory",
+ "hex",
  "napi",
  "napi-derive",
  "thiserror",
 ]
 
 [[package]]
-name = "chia-sdk-bindings-derive"
+name = "chia-sdk-bindings-macro"
 version = "0.20.0"
 dependencies = [
  "convert_case 0.6.0",
+ "proc-macro2",
  "quote",
+ "serde",
+ "serde_json",
  "syn",
 ]
 
@@ -712,11 +714,21 @@ name = "chia-wallet-sdk-napi"
 version = "0.0.0"
 dependencies = [
  "chia-sdk-bindings",
+ "chia-sdk-bindings-macro",
  "napi",
  "napi-build",
  "napi-derive",
  "openssl",
  "openssl-sys",
+]
+
+[[package]]
+name = "chia-wallet-sdk-wasm"
+version = "0.0.0"
+dependencies = [
+ "chia-sdk-bindings",
+ "chia-sdk-bindings-macro",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1460,15 +1472,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "inventory"
-version = "0.3.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54b12ebb6799019b044deaf431eadfe23245b259bba5a2c0796acec3943a3cdb"
-dependencies = [
- "rustversion",
-]
-
-[[package]]
 name = "ipnet"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1716,6 +1719,7 @@ dependencies = [
  "convert_case 0.7.1",
  "proc-macro2",
  "quote",
+ "semver",
  "syn",
 ]
 

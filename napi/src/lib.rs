@@ -1,10 +1,6 @@
 #![allow(unsafe_code)]
 
-use napi_derive::napi;
+use chia_sdk_bindings::prelude::*;
+use chia_sdk_bindings_macro::include_napi_bindings;
 
-pub use chia_sdk_bindings::*;
-
-#[napi]
-pub fn hello_world() -> String {
-    "Hello, world!".to_string()
-}
+include_napi_bindings!("bindings");

@@ -1,0 +1,21 @@
+[package]
+publish = false
+name = "chia-wallet-sdk-wasm"
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "WASM bindings for the Chia Wallet SDK."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/Rigidity/chia-wallet-sdk"
+repository = "https://github.com/Rigidity/chia-wallet-sdk"
+readme = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[lints]
+workspace = true
+
+[dependencies]
+chia-sdk-bindings = { workspace = true }
+chia-sdk-bindings-macro = { workspace = true }
+wasm-bindgen = { workspace = true }

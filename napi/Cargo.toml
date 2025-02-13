@@ -22,6 +22,7 @@ crate-type = ["cdylib"]
 napi = { workspace = true, features = ["napi6", "async"] }
 napi-derive = { workspace = true }
 chia-sdk-bindings = { workspace = true }
+chia-sdk-bindings-macro = { workspace = true }
 
 [build-dependencies]
 napi-build = { workspace = true }

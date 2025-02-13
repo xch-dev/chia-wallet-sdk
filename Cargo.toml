@@ -16,7 +16,7 @@ all-features = true
 
 [workspace]
 resolver = "2"
-members = ["crates/*", "crates/chia-sdk-bindings/derive", "napi"]
+members = ["crates/*", "crates/chia-sdk-bindings/macro", "napi", "wasm"]
 
 [workspace.package]
 readme = "README.md"
@@ -100,7 +100,7 @@ chia-sdk-types = { version = "0.20.0", path = "./crates/chia-sdk-types" }
 chia-sdk-utils = { version = "0.20.0", path = "./crates/chia-sdk-utils" }
 chia-sdk-coinset = { version = "0.20.0", path = "./crates/chia-sdk-coinset" }
 chia-sdk-bindings = { version = "0.20.0", path = "./crates/chia-sdk-bindings" }
-chia-sdk-bindings-derive = { version = "0.20.0", path = "./crates/chia-sdk-bindings/derive" }
+chia-sdk-bindings-macro = { version = "0.20.0", path = "./crates/chia-sdk-bindings/macro" }
 chia = "0.17.0"
 chia-ssl = "0.17.0"
 chia-protocol = "0.17.0"
@@ -140,7 +140,7 @@ quote = "1.0.38"
 convert_case = "0.6.0"
 fastrand = "2.3.0"
 napi = { version = "3.0.0-alpha.28", default-features = false }
-napi-derive = { version = "3.0.0-alpha.26", default-features = false }
+napi-derive = { version = "3.0.0-alpha.26" }
 napi-build = "2.1.4"
 paste = "1.0.15"
 bigdecimal = "0.4.7"
@@ -151,7 +151,7 @@ serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.117"
 reqwest = { version = "0.12.12", features = ["json"] }
 proc-macro2 = "1.0.93"
-inventory = "0.3.19"
+wasm-bindgen = "0.2.100"
 
 [profile.release]
 lto = true
