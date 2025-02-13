@@ -1,5 +1,4 @@
 use chia_protocol::Bytes;
-use napi::bindgen_prelude::Uint8Array;
 
 use super::Result;
 
@@ -13,8 +12,16 @@ impl Bind<String> for String {
     }
 }
 
-impl Bind<Uint8Array> for Bytes {
-    fn bind(self) -> Result<Uint8Array> {
-        Ok(Uint8Array::from(self.as_ref()))
+#[cfg(feature = "napi")]
+impl Bind<napi::bindgen_prelude::Uint8Array> for Bytes {
+    fn bind(self) -> Result<napi::bindgen_prelude::Uint8Array> {
+        Ok(napi::bindgen_prelude::Uint8Array::from(self.as_ref()))
+    }
+}
+
+#[cfg(feature = "wasm")]
+impl Bind<Vec<u8>> for Bytes {
+    fn bind(self) -> Result<Vec<u8>> {
+        Ok(self.into_inner())
     }
 }

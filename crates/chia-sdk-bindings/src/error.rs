@@ -10,6 +10,7 @@ pub enum Error {
     Hex(#[from] hex::FromHexError),
 }
 
+#[cfg(feature = "napi")]
 impl From<Error> for napi::Error {
     fn from(error: Error) -> Self {
         napi::Error::new(napi::Status::GenericFailure, error.to_string())

@@ -15,7 +15,11 @@ categories = { workspace = true }
 [lints]
 workspace = true
 
+[lib]
+crate-type = ["cdylib"]
+
 [dependencies]
-chia-sdk-bindings = { workspace = true }
+chia-sdk-bindings = { workspace = true, features = ["wasm"] }
 chia-sdk-bindings-macro = { workspace = true }
 wasm-bindgen = { workspace = true }
+getrandom = { workspace = true, features = ["js"] }

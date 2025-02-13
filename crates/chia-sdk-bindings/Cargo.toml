@@ -14,9 +14,14 @@ categories = { workspace = true }
 [lints]
 workspace = true
 
+[features]
+napi = ["dep:napi", "dep:napi-derive"]
+wasm = ["dep:wasm-bindgen"]
+
 [dependencies]
-napi = { workspace = true, features = ["napi6", "async"] }
-napi-derive = { workspace = true }
+napi = { workspace = true, features = ["napi6", "async"], optional = true }
+napi-derive = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
 thiserror = { workspace = true }
 bech32 = { workspace = true }
 hex = { workspace = true }
