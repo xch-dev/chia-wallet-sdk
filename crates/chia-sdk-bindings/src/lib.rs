@@ -1,14 +1,14 @@
 #![allow(clippy::needless_pass_by_value)]
 
 mod bind;
+mod bindings;
 mod error;
 mod unbind;
-mod utils;
 
 pub use bind::*;
+pub use bindings::*;
 pub use error::*;
 pub use unbind::*;
-pub use utils::*;
 
 #[cfg(all(feature = "napi", not(feature = "wasm")))]
 mod napi;
