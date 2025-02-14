@@ -27,6 +27,21 @@ fn shared() -> proc_macro2::TokenStream {
             }
         }
 
+        impl Bind<u32> for u32 {
+            fn bind(self) -> Result<u32> {
+                Ok(self)
+            }
+        }
+
+        impl<B, R> Bind<Vec<B>> for Vec<R>
+        where
+            R: Bind<B>,
+        {
+            fn bind(self) -> Result<Vec<B>> {
+                self.into_iter().map(Bind::bind).collect::<Result<Vec<_>>>()
+            }
+        }
+
         pub trait Unbind: Sized {
             type Bound;
 
@@ -48,6 +63,25 @@ fn shared() -> proc_macro2::TokenStream {
                 Ok(value)
             }
         }
+
+        impl Unbind for u32 {
+            type Bound = u32;
+
+            fn unbind(value: Self::Bound) -> Result<Self> {
+                Ok(value)
+            }
+        }
+
+        impl<B, R> Unbind for Vec<R>
+        where
+            R: Unbind<Bound = B>,
+        {
+            type Bound = Vec<B>;
+
+            fn unbind(value: Self::Bound) -> Result<Self> {
+                value.into_iter().map(Unbind::unbind).collect::<Result<Vec<_>>>()
+            }
+        }
     }
 }
 
@@ -56,11 +90,15 @@ fn napi_type(ty: &str) -> String {
         return ty.to_string();
     }
 
+    if let Some(ty) = ty.strip_prefix("Vec<") {
+        return format!("{}[]", napi_type(ty.strip_suffix(">").unwrap()));
+    }
+
     match ty {
         "String" => "string".to_string(),
-        "Bytes" | "Bytes32" => "Uint8Array".to_string(),
+        "Bytes" | "Bytes32" | "Bytes48" | "Bytes96" => "Uint8Array".to_string(),
         "bool" => "boolean".to_string(),
-        "usize" => "number".to_string(),
+        "usize" | "u32" => "number".to_string(),
         _ => panic!("Unsupported type for NAPI typings: {ty}"),
     }
 }

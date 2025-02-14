@@ -449,6 +449,7 @@ dependencies = [
  "bip39",
  "chia-bls 0.17.0",
  "chia-protocol",
+ "chia-puzzles",
  "chia-sdk-utils",
  "clvm-utils",
  "hex",

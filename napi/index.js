@@ -364,7 +364,9 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
+module.exports.PublicKey = nativeBinding.PublicKey
 module.exports.SecretKey = nativeBinding.SecretKey
+module.exports.Signature = nativeBinding.Signature
 module.exports.bytesEqual = nativeBinding.bytesEqual
 module.exports.decodeAddress = nativeBinding.decodeAddress
 module.exports.encodeAddress = nativeBinding.encodeAddress
