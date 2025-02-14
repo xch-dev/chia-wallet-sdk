@@ -38,6 +38,10 @@ fn shared() -> proc_macro2::TokenStream {
 }
 
 fn napi_type(ty: &str) -> String {
+    if let Some(ty) = ty.strip_prefix("rust::") {
+        return ty.to_string();
+    }
+
     match ty {
         "String" => "string".to_string(),
         "Bytes" | "Bytes32" => "Uint8Array".to_string(),
@@ -54,7 +58,15 @@ pub fn include_napi_bindings(input: TokenStream) -> TokenStream {
     let mut tokens = quote! {
         #shared
 
+        use napi::bindgen_prelude::Uint8Array;
+
         impl Bind<Uint8Array> for Bytes {
+            fn bind(self) -> Result<Uint8Array> {
+                Ok(Uint8Array::from(self.as_ref()))
+            }
+        }
+
+        impl<const N: usize> Bind<Uint8Array> for BytesImpl<N> {
             fn bind(self) -> Result<Uint8Array> {
                 Ok(Uint8Array::from(self.as_ref()))
             }
@@ -89,34 +101,89 @@ pub fn include_napi_bindings(input: TokenStream) -> TokenStream {
     for binding in bindings {
         let name = Ident::new(&binding.name, Span::mixed_site());
 
-        let BindingType::Function { args, returns } = binding.kind else {
-            panic!("Expected a function binding, but got a struct binding");
-        };
+        match binding.kind {
+            BindingType::Function { args, returns } => {
+                let param_names = args
+                    .iter()
+                    .map(|arg| Ident::new(arg.0, Span::mixed_site()))
+                    .collect::<Vec<_>>();
 
-        let param_names = args
-            .iter()
-            .map(|arg| Ident::new(arg.0, Span::mixed_site()))
-            .collect::<Vec<_>>();
+                let param_types = args
+                    .iter()
+                    .map(|arg| parse_str::<Type>(arg.1).unwrap())
+                    .collect::<Vec<_>>();
 
-        let param_types = args
-            .iter()
-            .map(|arg| parse_str::<Type>(arg.1).unwrap())
-            .collect::<Vec<_>>();
+                let napi_types = args.iter().map(|arg| napi_type(arg.1)).collect::<Vec<_>>();
 
-        let napi_types = args.iter().map(|arg| napi_type(arg.1)).collect::<Vec<_>>();
+                let napi_returns = napi_type(&returns);
+                let returns = parse_str::<Type>(&returns).unwrap();
 
-        let napi_returns = napi_type(&returns);
-        let returns = parse_str::<Type>(&returns).unwrap();
+                let napi_fn = quote! {
+                    #[napi_derive::napi(ts_return_type = #napi_returns)]
+                    pub fn #name( #( #[napi(ts_arg_type = #napi_types)] #param_names: <#param_types as Unbind>::Bound),* ) -> napi::Result< <#returns as Unbind>::Bound > {
+                        #(let #param_names = <#param_types as Unbind>::unbind(#param_names)?;)*
+                        Ok(Bind::bind(chia_sdk_bindings::#name(#(#param_names),*)?)?)
+                    }
+                };
 
-        let napi_fn = quote! {
-            #[napi_derive::napi(ts_return_type = #napi_returns)]
-            pub fn #name( #( #[napi(ts_arg_type = #napi_types)] #param_names: <#param_types as Unbind>::Bound),* ) -> napi::Result< <#returns as Unbind>::Bound > {
-                #(let #param_names = <#param_types as Unbind>::unbind(#param_names)?;)*
-                Ok(Bind::bind(chia_sdk_bindings::#name(#(#param_names),*)?)?)
+                tokens.extend(napi_fn);
             }
-        };
+            BindingType::Struct { fields } => {
+                let field_names = fields
+                    .iter()
+                    .map(|arg| Ident::new(arg.0, Span::mixed_site()))
+                    .collect::<Vec<_>>();
 
-        tokens.extend(napi_fn);
+                let field_types = fields
+                    .iter()
+                    .map(|arg| parse_str::<Type>(arg.1).unwrap())
+                    .collect::<Vec<_>>();
+
+                let napi_field_names = fields
+                    .iter()
+                    .map(|arg| arg.0.to_case(Case::Camel))
+                    .collect::<Vec<_>>();
+
+                let napi_field_types = fields
+                    .iter()
+                    .map(|arg| napi_type(arg.1))
+                    .collect::<Vec<_>>();
+
+                let napi_struct = quote! {
+                    #[napi_derive::napi(object)]
+                    pub struct #name {
+                        #(
+                            #[napi(js_name = #napi_field_names, ts_type = #napi_field_types)]
+                            pub #field_names: <#field_types as Unbind>::Bound
+                        ),*
+                    }
+
+                    impl Unbind for chia_sdk_bindings::#name {
+                        type Bound = #name;
+
+                        fn unbind(value: Self::Bound) -> Result<Self> {
+                            Ok(Self {
+                                #(
+                                    #field_names: <#field_types as Unbind>::unbind(value.#field_names)?,
+                                )*
+                            })
+                        }
+                    }
+
+                    impl Bind<#name> for chia_sdk_bindings::#name {
+                        fn bind(self) -> Result<#name> {
+                            Ok(#name {
+                                #(
+                                    #field_names: Bind::bind(self.#field_names)?,
+                                )*
+                            })
+                        }
+                    }
+                };
+
+                tokens.extend(napi_struct);
+            }
+        }
     }
 
     tokens.into()

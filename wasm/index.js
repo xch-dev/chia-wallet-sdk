@@ -1,3 +1,3 @@
-import { fromHex } from "./pkg";
+import { decodeAddress, encodeAddress } from "./pkg";
 
-alert(fromHex("1234"));
+console.log(decodeAddress(encodeAddress(new Uint8Array(32), "txch")).prefix);
