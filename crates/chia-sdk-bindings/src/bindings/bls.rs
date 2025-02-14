@@ -80,6 +80,20 @@ impl PublicKey {
         Ok(Self(PublicKeyRs::default()))
     }
 
+    pub fn aggregate(public_keys: Vec<Self>) -> Result<Self> {
+        if public_keys.is_empty() {
+            return Self::infinity();
+        }
+
+        let mut result = public_keys[0].0;
+
+        for pk in public_keys.into_iter().skip(1) {
+            result += &pk.0;
+        }
+
+        Ok(Self(result))
+    }
+
     pub fn from_bytes(bytes: Bytes48) -> Result<Self> {
         Ok(Self(PublicKeyRs::from_bytes(&bytes.to_bytes())?))
     }

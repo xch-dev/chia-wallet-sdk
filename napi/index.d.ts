@@ -8,6 +8,7 @@ export declare class PublicKey {
   isInfinity(): boolean
   isValid(): boolean
   deriveUnhardened(index: number): PublicKey
+  deriveUnhardenedPath(path: number[]): PublicKey
   deriveSynthetic(): PublicKey
   deriveSyntheticHidden(hiddenPuzzleHash: Uint8Array): PublicKey
 }
