@@ -448,9 +448,11 @@ dependencies = [
  "bech32",
  "chia-protocol",
  "chia-sdk-utils",
+ "clvm-utils",
  "hex",
  "napi",
  "napi-derive",
+ "sha2",
  "thiserror",
  "wasm-bindgen",
 ]

@@ -5,10 +5,18 @@ export interface AddressInfo {
   prefix: string
 }
 
+export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
+
 export declare function decodeAddress(address: string): AddressInfo
 
 export declare function encodeAddress(puzzleHash: Uint8Array, prefix: string): string
 
 export declare function fromHex(value: string): Uint8Array
 
+export declare function sha256(value: Uint8Array): Uint8Array
+
 export declare function toHex(value: Uint8Array): string
+
+export declare function treeHashAtom(atom: Uint8Array): Uint8Array
+
+export declare function treeHashPair(first: Uint8Array, rest: Uint8Array): Uint8Array

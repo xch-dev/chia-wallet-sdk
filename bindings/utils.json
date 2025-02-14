@@ -14,5 +14,39 @@
       "value": "Bytes"
     },
     "returns": "String"
+  },
+  {
+    "name": "tree_hash_atom",
+    "type": "function",
+    "args": {
+      "atom": "Bytes32"
+    },
+    "returns": "Bytes32"
+  },
+  {
+    "name": "tree_hash_pair",
+    "type": "function",
+    "args": {
+      "first": "Bytes32",
+      "rest": "Bytes32"
+    },
+    "returns": "Bytes32"
+  },
+  {
+    "name": "sha256",
+    "type": "function",
+    "args": {
+      "value": "Bytes"
+    },
+    "returns": "Bytes32"
+  },
+  {
+    "name": "bytes_equal",
+    "type": "function",
+    "args": {
+      "lhs": "Bytes",
+      "rhs": "Bytes"
+    },
+    "returns": "bool"
   }
 ]

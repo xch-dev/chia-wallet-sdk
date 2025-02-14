@@ -364,7 +364,11 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
+module.exports.bytesEqual = nativeBinding.bytesEqual
 module.exports.decodeAddress = nativeBinding.decodeAddress
 module.exports.encodeAddress = nativeBinding.encodeAddress
 module.exports.fromHex = nativeBinding.fromHex
+module.exports.sha256 = nativeBinding.sha256
 module.exports.toHex = nativeBinding.toHex
+module.exports.treeHashAtom = nativeBinding.treeHashAtom
+module.exports.treeHashPair = nativeBinding.treeHashPair

@@ -26,4 +26,6 @@ thiserror = { workspace = true }
 bech32 = { workspace = true }
 hex = { workspace = true }
 chia-protocol = { workspace = true }
+clvm-utils = { workspace = true }
 chia-sdk-utils = { workspace = true }
+sha2 = { workspace = true }

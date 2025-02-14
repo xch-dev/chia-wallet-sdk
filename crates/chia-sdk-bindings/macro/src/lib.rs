@@ -21,6 +21,12 @@ fn shared() -> proc_macro2::TokenStream {
             }
         }
 
+        impl Bind<bool> for bool {
+            fn bind(self) -> Result<bool> {
+                Ok(self)
+            }
+        }
+
         pub trait Unbind: Sized {
             type Bound;
 
@@ -29,6 +35,14 @@ fn shared() -> proc_macro2::TokenStream {
 
         impl Unbind for String {
             type Bound = String;
+
+            fn unbind(value: Self::Bound) -> Result<Self> {
+                Ok(value)
+            }
+        }
+
+        impl Unbind for bool {
+            type Bound = bool;
 
             fn unbind(value: Self::Bound) -> Result<Self> {
                 Ok(value)
@@ -45,6 +59,7 @@ fn napi_type(ty: &str) -> String {
     match ty {
         "String" => "string".to_string(),
         "Bytes" | "Bytes32" => "Uint8Array".to_string(),
+        "bool" => "boolean".to_string(),
         _ => panic!("Unsupported type for NAPI typings: {ty}"),
     }
 }

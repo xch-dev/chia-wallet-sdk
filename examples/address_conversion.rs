@@ -1,4 +1,4 @@
-use chia_sdk_utils::{decode_address, encode_address};
+use chia_sdk_utils::{decode_address, encode_address, AddressInfo};
 use hex_literal::hex;
 
 fn main() -> anyhow::Result<()> {
@@ -12,7 +12,11 @@ fn main() -> anyhow::Result<()> {
     let roundtrip = decode_address(&address)?;
     println!(
         "Address matches puzzle hash: {}",
-        roundtrip == (puzzle_hash, "xch".to_string())
+        roundtrip
+            == AddressInfo {
+                puzzle_hash,
+                prefix: "xch".to_string()
+            }
     );
 
     Ok(())
