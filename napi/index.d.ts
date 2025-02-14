@@ -13,6 +13,16 @@ export declare function encodeAddress(puzzleHash: Uint8Array, prefix: string): s
 
 export declare function fromHex(value: string): Uint8Array
 
+export declare function generateBytes(length: number): Uint8Array
+
+export declare function generateMnemonic(use24Words: boolean): string
+
+export declare function mnemonicFromEntropy(entropy: Uint8Array): string
+
+export declare function mnemonicToEntropy(mnemonic: string): Uint8Array
+
+export declare function mnemonicToSeed(mnemonic: string, password: string): Uint8Array
+
 export declare function sha256(value: Uint8Array): Uint8Array
 
 export declare function toHex(value: Uint8Array): string
@@ -20,3 +30,5 @@ export declare function toHex(value: Uint8Array): string
 export declare function treeHashAtom(atom: Uint8Array): Uint8Array
 
 export declare function treeHashPair(first: Uint8Array, rest: Uint8Array): Uint8Array
+
+export declare function verifyMnemonic(mnemonic: string): boolean

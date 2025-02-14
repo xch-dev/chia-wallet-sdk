@@ -1,0 +1,51 @@
+[
+  {
+    "name": "generate_mnemonic",
+    "type": "function",
+    "args": {
+      "use_24_words": "bool"
+    },
+    "returns": "String"
+  },
+  {
+    "name": "verify_mnemonic",
+    "type": "function",
+    "args": {
+      "mnemonic": "String"
+    },
+    "returns": "bool"
+  },
+  {
+    "name": "mnemonic_to_entropy",
+    "type": "function",
+    "args": {
+      "mnemonic": "String"
+    },
+    "returns": "Bytes"
+  },
+  {
+    "name": "mnemonic_from_entropy",
+    "type": "function",
+    "args": {
+      "entropy": "Bytes"
+    },
+    "returns": "String"
+  },
+  {
+    "name": "mnemonic_to_seed",
+    "type": "function",
+    "args": {
+      "mnemonic": "String",
+      "password": "String"
+    },
+    "returns": "Bytes"
+  },
+  {
+    "name": "generate_bytes",
+    "type": "function",
+    "args": {
+      "length": "usize"
+    },
+    "returns": "Bytes"
+  }
+]

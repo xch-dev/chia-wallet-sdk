@@ -8,6 +8,9 @@ pub enum Error {
     #[error("Bech32m encoding error: {0}")]
     Bech32(#[from] bech32::Error),
 
+    #[error("Bip39 error: {0}")]
+    Bip39(#[from] bip39::Error),
+
     #[error("Address error: {0}")]
     Address(#[from] AddressError),
 

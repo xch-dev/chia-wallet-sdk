@@ -24,8 +24,11 @@ napi-derive = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 thiserror = { workspace = true }
 bech32 = { workspace = true }
+bip39 = { workspace = true }
 hex = { workspace = true }
 chia-protocol = { workspace = true }
 clvm-utils = { workspace = true }
 chia-sdk-utils = { workspace = true }
 sha2 = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }

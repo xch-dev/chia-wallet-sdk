@@ -60,6 +60,7 @@ fn napi_type(ty: &str) -> String {
         "String" => "string".to_string(),
         "Bytes" | "Bytes32" => "Uint8Array".to_string(),
         "bool" => "boolean".to_string(),
+        "usize" => "number".to_string(),
         _ => panic!("Unsupported type for NAPI typings: {ty}"),
     }
 }
@@ -87,6 +88,12 @@ pub fn include_napi_bindings(input: TokenStream) -> TokenStream {
             }
         }
 
+        impl Bind<i64> for usize {
+            fn bind(self) -> Result<i64> {
+                Ok(self as i64)
+            }
+        }
+
         impl Unbind for Bytes {
             type Bound = Uint8Array;
 
@@ -109,6 +116,14 @@ pub fn include_napi_bindings(input: TokenStream) -> TokenStream {
                 }
 
                 Ok(BytesImpl::new(bytes.try_into().unwrap()))
+            }
+        }
+
+        impl Unbind for usize {
+            type Bound = i64;
+
+            fn unbind(value: Self::Bound) -> Result<Self> {
+                Ok(value as usize)
             }
         }
     };
@@ -225,6 +240,12 @@ pub fn include_wasm_bindings(input: TokenStream) -> TokenStream {
             }
         }
 
+        impl Bind<usize> for usize {
+            fn bind(self) -> Result<usize> {
+                Ok(self)
+            }
+        }
+
         impl Unbind for Bytes {
             type Bound = Vec<u8>;
 
@@ -245,6 +266,14 @@ pub fn include_wasm_bindings(input: TokenStream) -> TokenStream {
                 }
 
                 Ok(BytesImpl::new(value.try_into().unwrap()))
+            }
+        }
+
+        impl Unbind for usize {
+            type Bound = usize;
+
+            fn unbind(value: Self::Bound) -> Result<Self> {
+                Ok(value)
             }
         }
     };
