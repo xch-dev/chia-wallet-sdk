@@ -1,6 +1,6 @@
 use chia_sdk_utils::AddressError;
 
-#[derive(Debug, Clone, Copy, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum Error {
     #[error("Expected {expected} bytes, but instead found {found}")]
     WrongLength { expected: usize, found: usize },
@@ -16,6 +16,9 @@ pub enum Error {
 
     #[error("Hex error: {0}")]
     Hex(#[from] hex::FromHexError),
+
+    #[error("Bls error: {0}")]
+    Bls(#[from] chia_bls::Error),
 }
 
 #[cfg(feature = "napi")]

@@ -20,6 +20,26 @@ pub(crate) enum BindingType {
     Struct {
         fields: IndexMap<String, String>,
     },
+    Class {
+        methods: IndexMap<String, Method>,
+    },
+}
+
+#[derive(Deserialize)]
+pub(crate) struct Method {
+    #[serde(rename = "type", default)]
+    pub kind: MethodKind,
+    #[serde(default)]
+    pub args: IndexMap<String, String>,
+    pub returns: String,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum MethodKind {
+    #[default]
+    Normal,
+    Static,
 }
 
 pub(crate) fn bindings(root: &str) -> Vec<Binding> {

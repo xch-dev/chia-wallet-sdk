@@ -447,6 +447,7 @@ version = "0.20.0"
 dependencies = [
  "bech32",
  "bip39",
+ "chia-bls 0.17.0",
  "chia-protocol",
  "chia-sdk-utils",
  "clvm-utils",

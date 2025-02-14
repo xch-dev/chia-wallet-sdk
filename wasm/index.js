@@ -1,3 +1,13 @@
-import { decodeAddress, encodeAddress } from "./pkg";
+import {
+  encodeAddress,
+  generateMnemonic,
+  mnemonicToSeed,
+  SecretKey,
+} from "./pkg";
 
-console.log(decodeAddress(encodeAddress(new Uint8Array(32), "txch")).prefix);
+console.log(
+  encodeAddress(
+    SecretKey.fromSeed(mnemonicToSeed(generateMnemonic(true), "")).toBytes(),
+    "billybob"
+  )
+);

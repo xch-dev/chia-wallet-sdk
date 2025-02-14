@@ -1,0 +1,25 @@
+[
+  {
+    "name": "SecretKey",
+    "type": "class",
+    "methods": {
+      "from_seed": {
+        "type": "static",
+        "args": {
+          "seed": "Bytes"
+        },
+        "returns": "rust::SecretKey"
+      },
+      "from_bytes": {
+        "type": "static",
+        "args": {
+          "bytes": "Bytes32"
+        },
+        "returns": "rust::SecretKey"
+      },
+      "to_bytes": {
+        "returns": "Bytes32"
+      }
+    }
+  }
+]

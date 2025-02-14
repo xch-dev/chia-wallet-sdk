@@ -1,6 +1,6 @@
 mod binding;
 
-use binding::{bindings, BindingType};
+use binding::{bindings, BindingType, MethodKind};
 use convert_case::{Case, Casing};
 use proc_macro::TokenStream;
 use proc_macro2::Span;
@@ -213,6 +213,83 @@ pub fn include_napi_bindings(input: TokenStream) -> TokenStream {
 
                 tokens.extend(napi_struct);
             }
+            BindingType::Class { methods } => {
+                let class_name = Ident::new(&binding.name, Span::mixed_site());
+
+                let mut method_bindings = Vec::new();
+
+                for (name_string, method) in methods {
+                    let name = Ident::new(&name_string, Span::mixed_site());
+
+                    let param_names = method
+                        .args
+                        .iter()
+                        .map(|arg| Ident::new(arg.0, Span::mixed_site()))
+                        .collect::<Vec<_>>();
+
+                    let param_types = method
+                        .args
+                        .iter()
+                        .map(|arg| parse_str::<Type>(arg.1).unwrap())
+                        .collect::<Vec<_>>();
+
+                    let napi_types = method
+                        .args
+                        .iter()
+                        .map(|arg| napi_type(arg.1))
+                        .collect::<Vec<_>>();
+
+                    let napi_returns = napi_type(&method.returns);
+                    let returns = parse_str::<Type>(&method.returns).unwrap();
+
+                    match method.kind {
+                        MethodKind::Normal => {
+                            method_bindings.push(quote! {
+                                #[napi(ts_return_type = #napi_returns)]
+                                pub fn #name( &self, #( #[napi(ts_arg_type = #napi_types)] #param_names: <#param_types as Unbind>::Bound),* ) -> napi::Result< <#returns as Unbind>::Bound > {
+                                    #(let #param_names = <#param_types as Unbind>::unbind(#param_names)?;)*
+                                    Ok(Bind::bind(chia_sdk_bindings::#class_name::#name(&self.0, #(#param_names),*)?)?)
+                                }
+                            });
+                        }
+                        MethodKind::Static => {
+                            method_bindings.push(quote! {
+                                #[napi(ts_return_type = #napi_returns)]
+                                pub fn #name( #( #[napi(ts_arg_type = #napi_types)] #param_names: <#param_types as Unbind>::Bound),* ) -> napi::Result< <#returns as Unbind>::Bound > {
+                                    #(let #param_names = <#param_types as Unbind>::unbind(#param_names)?;)*
+                                    Ok(Bind::bind(chia_sdk_bindings::#class_name::#name(#(#param_names),*)?)?)
+                                }
+                            });
+                        }
+                    }
+                }
+
+                let wasm_class = quote! {
+                    #[napi_derive::napi]
+                    pub struct #name(chia_sdk_bindings::#name);
+
+                    #[napi_derive::napi]
+                    impl #name {
+                        #( #method_bindings )*
+                    }
+
+                    impl Unbind for chia_sdk_bindings::#name {
+                        type Bound = #name;
+
+                        fn unbind(value: Self::Bound) -> Result<Self> {
+                            Ok(value.0)
+                        }
+                    }
+
+                    impl Bind<#name> for chia_sdk_bindings::#name {
+                        fn bind(self) -> Result<#name> {
+                            Ok(#name(self))
+                        }
+                    }
+                };
+
+                tokens.extend(wasm_class);
+            }
         }
     }
 
@@ -371,6 +448,85 @@ pub fn include_wasm_bindings(input: TokenStream) -> TokenStream {
                 };
 
                 tokens.extend(wasm_struct);
+            }
+            BindingType::Class { methods } => {
+                let name_string = binding.name;
+                let class_name = Ident::new(&name_string, Span::mixed_site());
+
+                let mut method_bindings = Vec::new();
+
+                for (name_string, method) in methods {
+                    let name = Ident::new(&name_string, Span::mixed_site());
+
+                    let camel_name = name_string.to_case(Case::Camel);
+
+                    let param_names = method
+                        .args
+                        .iter()
+                        .map(|arg| Ident::new(arg.0, Span::mixed_site()))
+                        .collect::<Vec<_>>();
+
+                    let param_types = method
+                        .args
+                        .iter()
+                        .map(|arg| parse_str::<Type>(arg.1).unwrap())
+                        .collect::<Vec<_>>();
+
+                    let wasm_param_names = method
+                        .args
+                        .iter()
+                        .map(|arg| arg.0.to_case(Case::Camel))
+                        .collect::<Vec<_>>();
+
+                    let returns = parse_str::<Type>(&method.returns).unwrap();
+
+                    match method.kind {
+                        MethodKind::Normal => {
+                            method_bindings.push(quote! {
+                                #[wasm_bindgen::prelude::wasm_bindgen(js_name = #camel_name)]
+                                pub fn #name( &self, #( #[wasm_bindgen(js_name = #wasm_param_names)] #param_names: <#param_types as Unbind>::Bound),* ) -> std::result::Result< <#returns as Unbind>::Bound, wasm_bindgen::JsError > {
+                                    #(let #param_names = <#param_types as Unbind>::unbind(#param_names)?;)*
+                                    Ok(Bind::bind(chia_sdk_bindings::#class_name::#name(&self.0, #(#param_names),*)?)?)
+                                }
+                            });
+                        }
+                        MethodKind::Static => {
+                            method_bindings.push(quote! {
+                                #[wasm_bindgen::prelude::wasm_bindgen(js_name = #camel_name)]
+                                pub fn #name( #( #[wasm_bindgen(js_name = #wasm_param_names)] #param_names: <#param_types as Unbind>::Bound),* ) -> std::result::Result< <#returns as Unbind>::Bound, wasm_bindgen::JsError > {
+                                    #(let #param_names = <#param_types as Unbind>::unbind(#param_names)?;)*
+                                    Ok(Bind::bind(chia_sdk_bindings::#class_name::#name(#(#param_names),*)?)?)
+                                }
+                            });
+                        }
+                    }
+                }
+
+                let wasm_class = quote! {
+                    #[wasm_bindgen::prelude::wasm_bindgen(js_name = #name_string)]
+                    pub struct #name(chia_sdk_bindings::#name);
+
+                    #[wasm_bindgen::prelude::wasm_bindgen]
+                    impl #name {
+                        #( #method_bindings )*
+                    }
+
+                    impl Unbind for chia_sdk_bindings::#name {
+                        type Bound = #name;
+
+                        fn unbind(value: Self::Bound) -> Result<Self> {
+                            Ok(value.0)
+                        }
+                    }
+
+                    impl Bind<#name> for chia_sdk_bindings::#name {
+                        fn bind(self) -> Result<#name> {
+                            Ok(#name(self))
+                        }
+                    }
+                };
+
+                tokens.extend(wasm_class);
             }
         }
     }

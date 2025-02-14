@@ -12,6 +12,7 @@ pub mod prelude {
     pub use chia_protocol::{Bytes, Bytes32, BytesImpl};
 
     pub mod rust {
+        pub use crate::SecretKey;
         pub use chia_sdk_utils::AddressInfo;
     }
 }
