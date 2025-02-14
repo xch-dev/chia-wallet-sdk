@@ -2,24 +2,25 @@ use bech32::{u5, Variant};
 use chia_protocol::Bytes32;
 use thiserror::Error;
 
-/// Errors you can get while trying to decode an address.
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddressError {
-    /// The address was encoded as bech32, rather than bech32m.
     #[error("encoding is not bech32m")]
     InvalidFormat,
 
-    /// The data was not 32 bytes in length.
     #[error("wrong length, expected 32 bytes but found {0}")]
     WrongLength(usize),
 
-    /// An error occured while trying to decode the address.
     #[error("error when decoding address: {0}")]
     Decode(#[from] bech32::Error),
 }
 
-/// Decodes an address into a puzzle hash and HRP prefix.
-pub fn decode_address(address: &str) -> Result<(Bytes32, String), AddressError> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddressInfo {
+    pub puzzle_hash: Bytes32,
+    pub prefix: String,
+}
+
+pub fn decode_address(address: &str) -> Result<AddressInfo, AddressError> {
     let (hrp, data, variant) = bech32::decode(address)?;
 
     if variant != Variant::Bech32m {
@@ -32,10 +33,12 @@ pub fn decode_address(address: &str) -> Result<(Bytes32, String), AddressError> 
         .try_into()
         .map_err(|_| AddressError::WrongLength(length))?;
 
-    Ok((puzzle_hash, hrp))
+    Ok(AddressInfo {
+        puzzle_hash,
+        prefix: hrp,
+    })
 }
 
-/// Encodes an address with a given HRP prefix.
 pub fn encode_address(puzzle_hash: Bytes32, prefix: &str) -> Result<String, bech32::Error> {
     let data = bech32::convert_bits(&puzzle_hash, 8, 5, true)
         .unwrap()
@@ -50,8 +53,8 @@ mod tests {
     use super::*;
 
     fn check_addr(expected: &str) {
-        let (puzzle_hash, prefix) = decode_address(expected).unwrap();
-        let actual = encode_address(puzzle_hash, &prefix).unwrap();
+        let info = decode_address(expected).unwrap();
+        let actual = encode_address(info.puzzle_hash, &info.prefix).unwrap();
         assert_eq!(actual, expected);
     }
 

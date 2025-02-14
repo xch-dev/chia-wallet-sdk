@@ -2,38 +2,17 @@
   {
     "name": "from_hex",
     "type": "function",
-    "args": [
-      {
-        "name": "value",
-        "type": "String"
-      }
-    ],
+    "args": {
+      "value": "String"
+    },
     "returns": "Bytes"
   },
   {
     "name": "to_hex",
     "type": "function",
-    "args": [
-      {
-        "name": "value",
-        "type": "Bytes"
-      }
-    ],
-    "returns": "String"
-  },
-  {
-    "name": "encode_address",
-    "type": "function",
-    "args": [
-      {
-        "name": "puzzle_hash",
-        "type": "Bytes32"
-      },
-      {
-        "name": "prefix",
-        "type": "String"
-      }
-    ],
+    "args": {
+      "value": "Bytes"
+    },
     "returns": "String"
   }
 ]

@@ -1,5 +1,6 @@
 use std::fs;
 
+use indexmap::IndexMap;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -13,16 +14,12 @@ pub(crate) struct Binding {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub(crate) enum BindingType {
     Function {
-        args: Vec<FunctionArg>,
+        args: IndexMap<String, String>,
         returns: String,
     },
-}
-
-#[derive(Deserialize)]
-pub(crate) struct FunctionArg {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub ty: String,
+    Struct {
+        fields: IndexMap<String, String>,
+    },
 }
 
 pub(crate) fn bindings(root: &str) -> Vec<Binding> {

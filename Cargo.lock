@@ -460,6 +460,7 @@ name = "chia-sdk-bindings-macro"
 version = "0.20.0"
 dependencies = [
  "convert_case 0.6.0",
+ "indexmap",
  "proc-macro2",
  "quote",
  "serde",
@@ -1473,6 +1474,7 @@ checksum = "8c9c992b02b5b4c94ea26e32fe5bccb7aa7d9f390ab5c1221ff895bc7ea8b652"
 dependencies = [
  "equivalent",
  "hashbrown 0.15.2",
+ "serde",
 ]
 
 [[package]]

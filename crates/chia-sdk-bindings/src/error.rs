@@ -1,10 +1,15 @@
+use chia_sdk_utils::AddressError;
+
 #[derive(Debug, Clone, Copy, thiserror::Error)]
 pub enum Error {
     #[error("Expected {expected} bytes, but instead found {found}")]
     WrongLength { expected: usize, found: usize },
 
-    #[error("Address error: {0}")]
+    #[error("Bech32m encoding error: {0}")]
     Bech32(#[from] bech32::Error),
+
+    #[error("Address error: {0}")]
+    Address(#[from] AddressError),
 
     #[error("Hex error: {0}")]
     Hex(#[from] hex::FromHexError),
