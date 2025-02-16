@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 napi = ["dep:napi", "dep:napi-derive"]
-wasm = ["dep:wasm-bindgen"]
+wasm = ["dep:wasm-bindgen", "dep:js-sys"]
 pyo3 = ["dep:pyo3"]
 
 [dependencies]
@@ -42,3 +42,4 @@ rand = { workspace = true }
 rand_chacha = { workspace = true }
 signature = { workspace = true }
 num-bigint = { workspace = true }
+js-sys = { workspace = true, optional = true }

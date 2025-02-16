@@ -66,6 +66,10 @@ pub enum Error {
 
     #[error("From CLVM error: {0}")]
     FromClvm(#[from] FromClvmError),
+
+    #[cfg(feature = "wasm")]
+    #[error("Range error: {0:?}")]
+    Range(js_sys::RangeError),
 }
 
 #[cfg(feature = "napi")]

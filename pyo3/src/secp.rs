@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::traits::{IntoJs, IntoRust};
+use crate::traits::{IntoPy, IntoRust};
 
 #[pyclass]
 pub struct K1SecretKey(chia_sdk_bindings::K1SecretKey);
@@ -15,7 +15,7 @@ impl K1SecretKey {
     }
 
     pub fn to_bytes(&self) -> PyResult<Vec<u8>> {
-        Ok(self.0.to_bytes()?.js()?)
+        Ok(self.0.to_bytes()?.py()?)
     }
 
     pub fn public_key(&self) -> PyResult<K1PublicKey> {
@@ -41,7 +41,7 @@ impl K1PublicKey {
     }
 
     pub fn to_bytes(&self) -> PyResult<Vec<u8>> {
-        Ok(self.0.to_bytes()?.js()?)
+        Ok(self.0.to_bytes()?.py()?)
     }
 }
 
@@ -59,7 +59,7 @@ impl K1Signature {
     }
 
     pub fn to_bytes(&self) -> PyResult<Vec<u8>> {
-        Ok(self.0.to_bytes()?.js()?)
+        Ok(self.0.to_bytes()?.py()?)
     }
 }
 
@@ -76,7 +76,7 @@ impl R1SecretKey {
     }
 
     pub fn to_bytes(&self) -> PyResult<Vec<u8>> {
-        Ok(self.0.to_bytes()?.js()?)
+        Ok(self.0.to_bytes()?.py()?)
     }
 
     pub fn public_key(&self) -> PyResult<R1PublicKey> {
@@ -102,7 +102,7 @@ impl R1PublicKey {
     }
 
     pub fn to_bytes(&self) -> PyResult<Vec<u8>> {
-        Ok(self.0.to_bytes()?.js()?)
+        Ok(self.0.to_bytes()?.py()?)
     }
 }
 
@@ -120,6 +120,6 @@ impl R1Signature {
     }
 
     pub fn to_bytes(&self) -> PyResult<Vec<u8>> {
-        Ok(self.0.to_bytes()?.js()?)
+        Ok(self.0.to_bytes()?.py()?)
     }
 }

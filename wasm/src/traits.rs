@@ -1,4 +1,4 @@
-use chia_sdk_bindings::{AddressInfo, Bytes, BytesImpl, Error, Result};
+use chia_sdk_bindings::{AddressInfo, Bytes, BytesImpl, Error, Program, Result};
 
 pub trait IntoRust<T> {
     fn rust(self) -> Result<T>;
@@ -37,6 +37,20 @@ impl IntoRust<Bytes> for Vec<u8> {
 }
 
 impl IntoJs for Bytes {
+    type Js = Vec<u8>;
+
+    fn js(self) -> Result<Self::Js> {
+        Ok(self.into())
+    }
+}
+
+impl IntoRust<Program> for Vec<u8> {
+    fn rust(self) -> Result<Program> {
+        Ok(Program::from(self))
+    }
+}
+
+impl IntoJs for Program {
     type Js = Vec<u8>;
 
     fn js(self) -> Result<Self::Js> {

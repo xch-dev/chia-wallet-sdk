@@ -4,10 +4,10 @@ pub trait IntoRust<T> {
     fn rust(self) -> Result<T>;
 }
 
-pub trait IntoJs {
-    type Js;
+pub trait IntoPy {
+    type Py;
 
-    fn js(self) -> Result<Self::Js>;
+    fn py(self) -> Result<Self::Py>;
 }
 
 impl<const N: usize> IntoRust<BytesImpl<N>> for Vec<u8> {
@@ -22,10 +22,10 @@ impl<const N: usize> IntoRust<BytesImpl<N>> for Vec<u8> {
     }
 }
 
-impl<const N: usize> IntoJs for BytesImpl<N> {
-    type Js = Vec<u8>;
+impl<const N: usize> IntoPy for BytesImpl<N> {
+    type Py = Vec<u8>;
 
-    fn js(self) -> Result<Self::Js> {
+    fn py(self) -> Result<Self::Py> {
         Ok(self.into())
     }
 }
@@ -36,10 +36,10 @@ impl IntoRust<Bytes> for Vec<u8> {
     }
 }
 
-impl IntoJs for Bytes {
-    type Js = Vec<u8>;
+impl IntoPy for Bytes {
+    type Py = Vec<u8>;
 
-    fn js(self) -> Result<Self::Js> {
+    fn py(self) -> Result<Self::Py> {
         Ok(self.into())
     }
 }
@@ -53,12 +53,12 @@ impl IntoRust<AddressInfo> for crate::AddressInfo {
     }
 }
 
-impl IntoJs for AddressInfo {
-    type Js = crate::AddressInfo;
+impl IntoPy for AddressInfo {
+    type Py = crate::AddressInfo;
 
-    fn js(self) -> Result<Self::Js> {
-        Ok(Self::Js {
-            puzzle_hash: self.puzzle_hash.js()?,
+    fn py(self) -> Result<Self::Py> {
+        Ok(Self::Py {
+            puzzle_hash: self.puzzle_hash.py()?,
             prefix: self.prefix,
         })
     }

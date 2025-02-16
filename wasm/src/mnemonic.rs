@@ -23,7 +23,9 @@ pub fn generate_bytes(bytes: i64) -> Result<Vec<u8>, JsError> {
 }
 
 #[wasm_bindgen(js_name = "generateMnemonic")]
-pub fn generate_mnemonic(use_24: bool) -> Result<String, JsError> {
+pub fn generate_mnemonic(
+    #[wasm_bindgen(js_name = "use24")] use_24: bool,
+) -> Result<String, JsError> {
     Ok(chia_sdk_bindings::generate_mnemonic(use_24)?)
 }
 

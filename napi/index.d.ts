@@ -44,13 +44,13 @@ export declare class Program {
   serialize(): Uint8Array
   serializeWithBackrefs(): Uint8Array
   treeHash(): Uint8Array
-  asNumber(): number | null
-  asBigInt(): bigint | null
-  asString(): string | null
-  asBool(): boolean | null
-  asAtom(): Uint8Array | null
-  asPair(): Pair | null
-  asList(): Array<Program> | null
+  toNumber(): number | null
+  toBigInt(): bigint | null
+  toString(): string | null
+  toBool(): boolean | null
+  toAtom(): Uint8Array | null
+  toPair(): Pair | null
+  toList(): Array<Program> | null
   uncurry(): CurriedProgram | null
 }
 

@@ -117,12 +117,12 @@ impl Program {
     }
 
     #[napi]
-    pub fn as_number(&self) -> Result<Option<f64>> {
+    pub fn to_number(&self) -> Result<Option<f64>> {
         Ok(self.clvm.0.as_f64(self.node_ptr)?)
     }
 
     #[napi]
-    pub fn as_big_int(&self) -> Result<Option<BigInt>> {
+    pub fn to_big_int(&self) -> Result<Option<BigInt>> {
         Ok(self
             .clvm
             .0
@@ -132,17 +132,17 @@ impl Program {
     }
 
     #[napi]
-    pub fn as_string(&self) -> Result<Option<String>> {
+    pub fn to_string(&self) -> Result<Option<String>> {
         Ok(self.clvm.0.as_string(self.node_ptr)?)
     }
 
     #[napi]
-    pub fn as_bool(&self) -> Result<Option<bool>> {
+    pub fn to_bool(&self) -> Result<Option<bool>> {
         Ok(self.clvm.0.as_bool(self.node_ptr)?)
     }
 
     #[napi]
-    pub fn as_atom(&self) -> Result<Option<Uint8Array>> {
+    pub fn to_atom(&self) -> Result<Option<Uint8Array>> {
         Ok(self
             .clvm
             .0
@@ -152,7 +152,7 @@ impl Program {
     }
 
     #[napi]
-    pub fn as_pair(&self, env: Env) -> Result<Option<Pair>> {
+    pub fn to_pair(&self, env: Env) -> Result<Option<Pair>> {
         let Some(pair) = self.clvm.0.as_pair(self.node_ptr)? else {
             return Ok(None);
         };
@@ -172,7 +172,7 @@ impl Program {
     }
 
     #[napi]
-    pub fn as_list(&self, env: Env) -> Result<Option<Vec<Program>>> {
+    pub fn to_list(&self, env: Env) -> Result<Option<Vec<Program>>> {
         let Some(list) = self.clvm.0.as_list(self.node_ptr)? else {
             return Ok(None);
         };

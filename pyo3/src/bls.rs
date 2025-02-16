@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::traits::{IntoJs, IntoRust};
+use crate::traits::{IntoPy, IntoRust};
 
 #[pyclass]
 pub struct SecretKey(chia_sdk_bindings::SecretKey);
@@ -20,7 +20,7 @@ impl SecretKey {
     }
 
     pub fn to_bytes(&self) -> PyResult<Vec<u8>> {
-        Ok(self.0.to_bytes()?.js()?)
+        Ok(self.0.to_bytes()?.py()?)
     }
 
     pub fn public_key(&self) -> PyResult<PublicKey> {
@@ -84,7 +84,7 @@ impl PublicKey {
     }
 
     pub fn to_bytes(&self) -> PyResult<Vec<u8>> {
-        Ok(self.0.to_bytes()?.js()?)
+        Ok(self.0.to_bytes()?.py()?)
     }
 
     pub fn fingerprint(&self) -> PyResult<u32> {
@@ -144,7 +144,7 @@ impl Signature {
     }
 
     pub fn to_bytes(&self) -> PyResult<Vec<u8>> {
-        Ok(self.0.to_bytes()?.js()?)
+        Ok(self.0.to_bytes()?.py()?)
     }
 
     pub fn is_infinity(&self) -> PyResult<bool> {

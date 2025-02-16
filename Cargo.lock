@@ -457,6 +457,7 @@ dependencies = [
  "clvm-utils",
  "clvmr",
  "hex",
+ "js-sys",
  "napi",
  "napi-derive",
  "num-bigint",
@@ -739,7 +740,10 @@ name = "chia-wallet-sdk-wasm"
 version = "0.0.0"
 dependencies = [
  "chia-sdk-bindings",
+ "clvmr",
  "getrandom",
+ "js-sys",
+ "num-bigint",
  "wasm-bindgen",
 ]
 

@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::traits::{IntoJs, IntoRust};
+use crate::traits::{IntoPy, IntoRust};
 
 #[pyfunction]
 pub fn mnemonic_from_entropy(entropy: Vec<u8>) -> PyResult<String> {
@@ -9,7 +9,7 @@ pub fn mnemonic_from_entropy(entropy: Vec<u8>) -> PyResult<String> {
 
 #[pyfunction]
 pub fn mnemonic_to_entropy(mnemonic: String) -> PyResult<Vec<u8>> {
-    Ok(chia_sdk_bindings::mnemonic_to_entropy(mnemonic)?.js()?)
+    Ok(chia_sdk_bindings::mnemonic_to_entropy(mnemonic)?.py()?)
 }
 
 #[pyfunction]
@@ -19,7 +19,7 @@ pub fn verify_mnemonic(mnemonic: String) -> PyResult<bool> {
 
 #[pyfunction]
 pub fn generate_bytes(bytes: i64) -> PyResult<Vec<u8>> {
-    Ok(chia_sdk_bindings::generate_bytes(bytes.try_into().unwrap())?.js()?)
+    Ok(chia_sdk_bindings::generate_bytes(bytes.try_into().unwrap())?.py()?)
 }
 
 #[pyfunction]
@@ -29,5 +29,5 @@ pub fn generate_mnemonic(use_24: bool) -> PyResult<String> {
 
 #[pyfunction]
 pub fn mnemonic_to_seed(mnemonic: String, password: String) -> PyResult<Vec<u8>> {
-    Ok(chia_sdk_bindings::mnemonic_to_seed(mnemonic, password)?.js()?)
+    Ok(chia_sdk_bindings::mnemonic_to_seed(mnemonic, password)?.py()?)
 }

@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::traits::{IntoJs, IntoRust};
+use crate::traits::{IntoPy, IntoRust};
 
 #[pyclass(frozen, get_all)]
 pub struct AddressInfo {
@@ -29,5 +29,5 @@ pub fn encode_address(puzzle_hash: Vec<u8>, prefix: String) -> PyResult<String> 
 
 #[pyfunction]
 pub fn decode_address(address: String) -> PyResult<AddressInfo> {
-    Ok(chia_sdk_bindings::decode_address(address)?.js()?)
+    Ok(chia_sdk_bindings::decode_address(address)?.py()?)
 }

@@ -60,7 +60,10 @@ impl SecretKey {
     }
 
     #[wasm_bindgen(js_name = "deriveSyntheticHidden")]
-    pub fn derive_synthetic_hidden(&self, hidden_puzzle_hash: Vec<u8>) -> Result<Self, JsError> {
+    pub fn derive_synthetic_hidden(
+        &self,
+        #[wasm_bindgen(js_name = "hiddenPuzzleHash")] hidden_puzzle_hash: Vec<u8>,
+    ) -> Result<Self, JsError> {
         Ok(Self(
             self.0.derive_synthetic_hidden(hidden_puzzle_hash.rust()?)?,
         ))
@@ -78,7 +81,9 @@ impl PublicKey {
     }
 
     #[wasm_bindgen]
-    pub fn aggregate(public_keys: Vec<PublicKey>) -> Result<Self, JsError> {
+    pub fn aggregate(
+        #[wasm_bindgen(js_name = "publicKeys")] public_keys: Vec<PublicKey>,
+    ) -> Result<Self, JsError> {
         Ok(Self(chia_sdk_bindings::PublicKey::aggregate(
             public_keys.into_iter().map(|pk| pk.0).collect(),
         )?))
@@ -127,7 +132,10 @@ impl PublicKey {
     }
 
     #[wasm_bindgen(js_name = "deriveSyntheticHidden")]
-    pub fn derive_synthetic_hidden(&self, hidden_puzzle_hash: Vec<u8>) -> Result<Self, JsError> {
+    pub fn derive_synthetic_hidden(
+        &self,
+        #[wasm_bindgen(js_name = "hiddenPuzzleHash")] hidden_puzzle_hash: Vec<u8>,
+    ) -> Result<Self, JsError> {
         Ok(Self(
             self.0.derive_synthetic_hidden(hidden_puzzle_hash.rust()?)?,
         ))
