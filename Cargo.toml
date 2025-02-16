@@ -16,7 +16,7 @@ all-features = true
 
 [workspace]
 resolver = "2"
-members = ["crates/*", "napi", "wasm"]
+members = ["crates/*", "napi", "wasm", "pyo3"]
 
 [workspace.package]
 readme = "README.md"
@@ -56,6 +56,7 @@ missing_panics_doc = "allow"
 module_name_repetitions = "allow"
 multiple_crate_versions = "allow"
 must_use_candidate = "allow"
+cargo_common_metadata = "allow"
 
 [lints]
 workspace = true
@@ -154,6 +155,7 @@ proc-macro2 = "1.0.93"
 wasm-bindgen = "0.2.100"
 getrandom = "0.2.15"
 sha2 = "0.10.8"
+pyo3 = "0.23.3"
 
 [profile.release]
 lto = true

@@ -17,11 +17,13 @@ workspace = true
 [features]
 napi = ["dep:napi", "dep:napi-derive"]
 wasm = ["dep:wasm-bindgen"]
+pyo3 = ["dep:pyo3"]
 
 [dependencies]
 napi = { workspace = true, features = ["napi6", "async"], optional = true }
 napi-derive = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
+pyo3 = { workspace = true, optional = true }
 thiserror = { workspace = true }
 bech32 = { workspace = true }
 bip39 = { workspace = true }

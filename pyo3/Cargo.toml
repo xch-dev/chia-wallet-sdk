@@ -1,0 +1,12 @@
+[package]
+name = "chia-wallet-sdk-py"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "chia_wallet_sdk_py"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { workspace = true }
+chia-sdk-bindings = { workspace = true, features = ["pyo3"] }

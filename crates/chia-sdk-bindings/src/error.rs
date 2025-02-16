@@ -28,4 +28,11 @@ impl From<Error> for napi::Error {
     }
 }
 
+#[cfg(feature = "pyo3")]
+impl From<Error> for pyo3::PyErr {
+    fn from(error: Error) -> Self {
+        pyo3::exceptions::PyValueError::new_err(error.to_string())
+    }
+}
+
 pub type Result<T> = std::result::Result<T, Error>;
