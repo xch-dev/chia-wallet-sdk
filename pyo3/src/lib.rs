@@ -1,5 +1,6 @@
 mod address;
 mod bls;
+mod clvm;
 mod coin;
 mod mnemonic;
 mod secp;
@@ -10,6 +11,7 @@ pub(crate) use address::AddressInfo;
 
 use address::*;
 use bls::*;
+use clvm::*;
 use coin::*;
 use mnemonic::*;
 use secp::*;
@@ -29,6 +31,11 @@ fn chia_wallet_sdk_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SecretKey>()?;
     m.add_class::<PublicKey>()?;
     m.add_class::<Signature>()?;
+
+    // CLVM
+    m.add_class::<Clvm>()?;
+    m.add_class::<Program>()?;
+    m.add_class::<CurriedProgram>()?;
 
     // Coin
     m.add_class::<Coin>()?;

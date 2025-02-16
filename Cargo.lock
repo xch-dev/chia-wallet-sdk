@@ -732,6 +732,9 @@ name = "chia-wallet-sdk-py"
 version = "0.1.0"
 dependencies = [
  "chia-sdk-bindings",
+ "clvmr",
+ "num-bigint",
+ "parking_lot",
  "pyo3",
 ]
 
@@ -2132,6 +2135,7 @@ dependencies = [
  "indoc",
  "libc",
  "memoffset",
+ "num-bigint",
  "once_cell",
  "portable-atomic",
  "pyo3-build-config",
