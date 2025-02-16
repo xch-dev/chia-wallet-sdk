@@ -451,6 +451,7 @@ dependencies = [
  "chia-protocol",
  "chia-puzzles",
  "chia-sdk-utils",
+ "chia-secp",
  "clvm-utils",
  "hex",
  "napi",
@@ -459,6 +460,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "sha2",
+ "signature",
  "thiserror",
  "wasm-bindgen",
 ]

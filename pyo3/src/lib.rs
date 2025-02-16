@@ -2,6 +2,7 @@ mod address;
 mod bls;
 mod coin;
 mod mnemonic;
+mod secp;
 mod traits;
 mod utils;
 
@@ -11,6 +12,7 @@ use address::*;
 use bls::*;
 use coin::*;
 use mnemonic::*;
+use secp::*;
 use utils::*;
 
 use pyo3::prelude::*;
@@ -40,6 +42,14 @@ fn chia_wallet_sdk_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(generate_bytes, m)?)?;
     m.add_function(wrap_pyfunction!(generate_mnemonic, m)?)?;
     m.add_function(wrap_pyfunction!(mnemonic_to_seed, m)?)?;
+
+    // SECP
+    m.add_class::<K1SecretKey>()?;
+    m.add_class::<K1PublicKey>()?;
+    m.add_class::<K1Signature>()?;
+    m.add_class::<R1SecretKey>()?;
+    m.add_class::<R1PublicKey>()?;
+    m.add_class::<R1Signature>()?;
 
     // Utils
     m.add_function(wrap_pyfunction!(from_hex, m)?)?;

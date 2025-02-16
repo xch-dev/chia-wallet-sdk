@@ -8,6 +8,7 @@ mod address;
 mod bls;
 mod coin;
 mod mnemonic;
+mod secp;
 mod traits;
 mod utils;
 
@@ -15,6 +16,7 @@ pub use address::*;
 pub use bls::*;
 pub use coin::*;
 pub use mnemonic::*;
+pub use secp::*;
 pub use utils::*;
 
 pub(crate) use traits::*;
