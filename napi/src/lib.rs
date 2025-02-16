@@ -6,12 +6,14 @@
 
 mod address;
 mod bls;
+mod coin;
 mod mnemonic;
 mod traits;
 mod utils;
 
 pub use address::*;
 pub use bls::*;
+pub use coin::*;
 pub use mnemonic::*;
 pub use utils::*;
 

@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 
 use crate::traits::{IntoJs, IntoRust};
 
-#[pyclass]
+#[pyclass(frozen, get_all)]
 pub struct AddressInfo {
     pub puzzle_hash: Vec<u8>,
     pub prefix: String,

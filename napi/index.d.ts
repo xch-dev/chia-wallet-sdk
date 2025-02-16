@@ -44,6 +44,24 @@ export declare class Signature {
 
 export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
 
+export interface Coin {
+  parentCoinInfo: Uint8Array
+  puzzleHash: Uint8Array
+  amount: bigint
+}
+
+export interface CoinSpend {
+  coin: Coin
+  puzzleReveal: Uint8Array
+  solution: Uint8Array
+}
+
+export interface CoinState {
+  coin: Coin
+  spentHeight?: number
+  createdHeight?: number
+}
+
 export declare function decodeAddress(address: string): AddressInfo
 
 export declare function encodeAddress(puzzleHash: Uint8Array, prefix: string): string

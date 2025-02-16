@@ -1,5 +1,6 @@
 mod address;
 mod bls;
+mod coin;
 mod mnemonic;
 mod traits;
 mod utils;
@@ -8,6 +9,7 @@ pub(crate) use address::AddressInfo;
 
 use address::*;
 use bls::*;
+use coin::*;
 use mnemonic::*;
 use utils::*;
 
@@ -25,6 +27,11 @@ fn chia_wallet_sdk_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SecretKey>()?;
     m.add_class::<PublicKey>()?;
     m.add_class::<Signature>()?;
+
+    // Coin
+    m.add_class::<Coin>()?;
+    m.add_class::<CoinState>()?;
+    m.add_class::<CoinSpend>()?;
 
     // Mnemonic
     m.add_function(wrap_pyfunction!(mnemonic_from_entropy, m)?)?;
