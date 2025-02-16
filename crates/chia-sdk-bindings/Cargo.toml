@@ -34,7 +34,11 @@ chia-secp = { workspace = true }
 clvm-utils = { workspace = true }
 chia-puzzles = { workspace = true }
 chia-sdk-utils = { workspace = true }
+chia-sdk-driver = { workspace = true }
+clvmr = { workspace = true }
+clvm-traits = { workspace = true }
 sha2 = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 signature = { workspace = true }
+num-bigint = { workspace = true }

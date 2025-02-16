@@ -3,7 +3,7 @@ use napi_derive::napi;
 
 use crate::{IntoJs, IntoRust};
 
-#[napi]
+#[napi(object)]
 pub struct AddressInfo {
     pub puzzle_hash: Uint8Array,
     pub prefix: String,

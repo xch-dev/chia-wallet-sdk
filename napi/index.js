@@ -364,10 +364,13 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-module.exports.AddressInfo = nativeBinding.AddressInfo
+module.exports.Clvm = nativeBinding.Clvm
+module.exports.CurriedProgram = nativeBinding.CurriedProgram
 module.exports.K1PublicKey = nativeBinding.K1PublicKey
 module.exports.K1SecretKey = nativeBinding.K1SecretKey
 module.exports.K1Signature = nativeBinding.K1Signature
+module.exports.Pair = nativeBinding.Pair
+module.exports.Program = nativeBinding.Program
 module.exports.PublicKey = nativeBinding.PublicKey
 module.exports.R1PublicKey = nativeBinding.R1PublicKey
 module.exports.R1SecretKey = nativeBinding.R1SecretKey

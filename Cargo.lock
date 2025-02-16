@@ -450,12 +450,16 @@ dependencies = [
  "chia-bls 0.17.0",
  "chia-protocol",
  "chia-puzzles",
+ "chia-sdk-driver",
  "chia-sdk-utils",
  "chia-secp",
+ "clvm-traits",
  "clvm-utils",
+ "clvmr",
  "hex",
  "napi",
  "napi-derive",
+ "num-bigint",
  "pyo3",
  "rand",
  "rand_chacha",
@@ -713,9 +717,11 @@ name = "chia-wallet-sdk-napi"
 version = "0.0.0"
 dependencies = [
  "chia-sdk-bindings",
+ "clvmr",
  "napi",
  "napi-build",
  "napi-derive",
+ "num-bigint",
  "openssl",
  "openssl-sys",
 ]

@@ -1,5 +1,5 @@
-use chia_sdk_bindings::{AddressInfo, Bytes, BytesImpl, Error, Result};
-use napi::bindgen_prelude::Uint8Array;
+use chia_sdk_bindings::{AddressInfo, Bytes, BytesImpl, Error, Program, Result};
+use napi::bindgen_prelude::{BigInt, Uint8Array};
 
 pub trait IntoRust<T> {
     fn rust(self) -> Result<T>;
@@ -45,6 +45,20 @@ impl IntoJs for Bytes {
     }
 }
 
+impl IntoRust<Program> for Uint8Array {
+    fn rust(self) -> Result<Program> {
+        Ok(Program::new(self.to_vec().into()))
+    }
+}
+
+impl IntoJs for Program {
+    type Js = Uint8Array;
+
+    fn js(self) -> Result<Self::Js> {
+        Ok(self.into())
+    }
+}
+
 impl IntoRust<AddressInfo> for crate::AddressInfo {
     fn rust(self) -> Result<AddressInfo> {
         Ok(AddressInfo {
@@ -63,4 +77,70 @@ impl IntoJs for AddressInfo {
             prefix: self.prefix,
         })
     }
+}
+
+impl IntoRust<num_bigint::BigInt> for BigInt {
+    fn rust(self) -> Result<num_bigint::BigInt> {
+        if self.words.is_empty() {
+            return Ok(num_bigint::BigInt::ZERO);
+        }
+
+        // Convert u64 words into a big-endian byte array
+        let bytes = words_to_bytes(&self.words);
+
+        // Create the BigInt from the bytes
+        let bigint = num_bigint::BigInt::from_bytes_be(
+            if self.sign_bit {
+                num_bigint::Sign::Minus
+            } else {
+                num_bigint::Sign::Plus
+            },
+            &bytes,
+        );
+
+        Ok(bigint)
+    }
+}
+
+impl IntoJs for num_bigint::BigInt {
+    type Js = BigInt;
+
+    fn js(self) -> Result<BigInt> {
+        let (sign, bytes) = self.to_bytes_be();
+
+        // Convert the byte array into u64 words
+        let words = bytes_to_words(&bytes);
+
+        Ok(BigInt {
+            sign_bit: sign == num_bigint::Sign::Minus,
+            words,
+        })
+    }
+}
+
+fn words_to_bytes(words: &[u64]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(words.len() * 8);
+    for word in words {
+        bytes.extend_from_slice(&word.to_be_bytes());
+    }
+
+    while let Some(0) = bytes.first() {
+        bytes.remove(0);
+    }
+
+    bytes
+}
+
+fn bytes_to_words(bytes: &[u8]) -> Vec<u64> {
+    let mut padded_bytes = vec![0u8; (8 - bytes.len() % 8) % 8];
+    padded_bytes.extend_from_slice(bytes);
+
+    let mut words = Vec::with_capacity(padded_bytes.len() / 8);
+
+    for chunk in padded_bytes.chunks(8) {
+        let word = u64::from_be_bytes(chunk.try_into().unwrap());
+        words.push(word);
+    }
+
+    words
 }
