@@ -80,14 +80,14 @@ impl PublicKey {
         Ok(Self(PublicKeyRs::default()))
     }
 
-    pub fn aggregate(public_keys: Vec<Self>) -> Result<Self> {
+    pub fn aggregate(mut public_keys: Vec<Self>) -> Result<Self> {
         if public_keys.is_empty() {
             return Self::infinity();
         }
 
-        let mut result = public_keys[0].0;
+        let mut result = public_keys.remove(0).0;
 
-        for pk in public_keys.into_iter().skip(1) {
+        for pk in public_keys {
             result += &pk.0;
         }
 
@@ -140,13 +140,26 @@ impl PublicKey {
     }
 }
 
-#[derive(Debug)]
-#[allow(dead_code)]
+#[derive(Clone)]
 pub struct Signature(SignatureRs);
 
 impl Signature {
     pub fn infinity() -> Result<Self> {
         Ok(Self(SignatureRs::default()))
+    }
+
+    pub fn aggregate(mut signatures: Vec<Self>) -> Result<Self> {
+        if signatures.is_empty() {
+            return Self::infinity();
+        }
+
+        let mut result = signatures.remove(0).0;
+
+        for sig in signatures {
+            result += &sig.0;
+        }
+
+        Ok(Self(result))
     }
 
     pub fn from_bytes(bytes: Bytes96) -> Result<Self> {

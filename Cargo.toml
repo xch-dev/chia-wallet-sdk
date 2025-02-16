@@ -16,7 +16,7 @@ all-features = true
 
 [workspace]
 resolver = "2"
-members = ["crates/*", "crates/chia-sdk-bindings/macro", "napi", "wasm"]
+members = ["crates/*", "napi", "wasm"]
 
 [workspace.package]
 readme = "README.md"

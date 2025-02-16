@@ -1,3 +1,17 @@
-use chia_sdk_bindings_macro::include_wasm_bindings;
+#![allow(missing_debug_implementations)]
+#![allow(missing_copy_implementations)]
+#![allow(unreachable_pub)]
+#![allow(clippy::wildcard_imports)]
 
-include_wasm_bindings!("bindings");
+mod address;
+mod bls;
+mod mnemonic;
+mod traits;
+mod utils;
+
+pub use address::*;
+pub use bls::*;
+pub use mnemonic::*;
+pub use utils::*;
+
+pub(crate) use traits::*;
