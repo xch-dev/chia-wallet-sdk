@@ -9,6 +9,17 @@ pub struct AddressInfo {
 }
 
 #[wasm_bindgen]
+impl AddressInfo {
+    #[wasm_bindgen(constructor)]
+    pub fn new(puzzle_hash: Vec<u8>, prefix: String) -> Self {
+        Self {
+            puzzle_hash,
+            prefix,
+        }
+    }
+}
+
+#[wasm_bindgen]
 pub fn encode_address(puzzle_hash: Vec<u8>, prefix: String) -> Result<String, JsError> {
     Ok(chia_sdk_bindings::encode_address(
         puzzle_hash.rust()?,
