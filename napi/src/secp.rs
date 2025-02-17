@@ -1,138 +1,132 @@
-use chia::{protocol::Bytes32, secp};
 use napi::bindgen_prelude::*;
+use napi_derive::napi;
 
-use crate::traits::{js_err, IntoRust};
+use crate::{IntoJs, IntoRust};
 
 #[napi]
-pub struct K1SecretKey(pub(crate) secp::K1SecretKey);
+pub struct K1SecretKey(pub(crate) chia_sdk_bindings::K1SecretKey);
 
 #[napi]
 impl K1SecretKey {
-    #[napi(factory)]
+    #[napi]
     pub fn from_bytes(bytes: Uint8Array) -> Result<Self> {
-        Ok(Self(
-            secp::K1SecretKey::from_bytes(&bytes.into_rust()?).map_err(js_err)?,
-        ))
+        Ok(Self(chia_sdk_bindings::K1SecretKey::from_bytes(
+            bytes.rust()?,
+        )?))
     }
 
     #[napi]
-    pub fn to_bytes(&self) -> Uint8Array {
-        Uint8Array::new(self.0.to_bytes().to_vec())
+    pub fn to_bytes(&self) -> Result<Uint8Array> {
+        Ok(self.0.to_bytes()?.js()?)
     }
 
     #[napi]
-    pub fn public_key(&self) -> K1PublicKey {
-        K1PublicKey(self.0.public_key())
+    pub fn public_key(&self) -> Result<K1PublicKey> {
+        Ok(K1PublicKey(self.0.public_key()?))
     }
 
     #[napi]
     pub fn sign_prehashed(&self, prehashed: Uint8Array) -> Result<K1Signature> {
-        let value: Bytes32 = prehashed.into_rust()?;
-        Ok(K1Signature(
-            self.0.sign_prehashed(&value.to_bytes()).map_err(js_err)?,
-        ))
+        Ok(K1Signature(self.0.sign_prehashed(prehashed.rust()?)?))
     }
 }
 
 #[napi]
-pub struct K1PublicKey(pub(crate) secp::K1PublicKey);
+pub struct K1PublicKey(pub(crate) chia_sdk_bindings::K1PublicKey);
 
 #[napi]
 impl K1PublicKey {
-    #[napi(factory)]
+    #[napi]
     pub fn from_bytes(bytes: Uint8Array) -> Result<Self> {
-        Ok(Self(
-            secp::K1PublicKey::from_bytes(&bytes.into_rust()?).map_err(js_err)?,
-        ))
+        Ok(Self(chia_sdk_bindings::K1PublicKey::from_bytes(
+            bytes.rust()?,
+        )?))
     }
 
     #[napi]
-    pub fn to_bytes(&self) -> Uint8Array {
-        Uint8Array::new(self.0.to_bytes().to_vec())
+    pub fn to_bytes(&self) -> Result<Uint8Array> {
+        Ok(self.0.to_bytes()?.js()?)
     }
 }
 
 #[napi]
-pub struct K1Signature(pub(crate) secp::K1Signature);
+pub struct K1Signature(pub(crate) chia_sdk_bindings::K1Signature);
 
 #[napi]
 impl K1Signature {
-    #[napi(factory)]
+    #[napi]
     pub fn from_bytes(bytes: Uint8Array) -> Result<Self> {
-        Ok(Self(
-            secp::K1Signature::from_bytes(&bytes.into_rust()?).map_err(js_err)?,
-        ))
+        Ok(Self(chia_sdk_bindings::K1Signature::from_bytes(
+            bytes.rust()?,
+        )?))
     }
 
     #[napi]
-    pub fn to_bytes(&self) -> Uint8Array {
-        Uint8Array::new(self.0.to_bytes().to_vec())
+    pub fn to_bytes(&self) -> Result<Uint8Array> {
+        Ok(self.0.to_bytes()?.js()?)
     }
 }
 
 #[napi]
-pub struct R1SecretKey(pub(crate) secp::R1SecretKey);
+pub struct R1SecretKey(pub(crate) chia_sdk_bindings::R1SecretKey);
 
 #[napi]
 impl R1SecretKey {
-    #[napi(factory)]
+    #[napi]
     pub fn from_bytes(bytes: Uint8Array) -> Result<Self> {
-        Ok(Self(
-            secp::R1SecretKey::from_bytes(&bytes.into_rust()?).map_err(js_err)?,
-        ))
+        Ok(Self(chia_sdk_bindings::R1SecretKey::from_bytes(
+            bytes.rust()?,
+        )?))
     }
 
     #[napi]
-    pub fn to_bytes(&self) -> Uint8Array {
-        Uint8Array::new(self.0.to_bytes().to_vec())
+    pub fn to_bytes(&self) -> Result<Uint8Array> {
+        Ok(self.0.to_bytes()?.js()?)
     }
 
     #[napi]
-    pub fn public_key(&self) -> R1PublicKey {
-        R1PublicKey(self.0.public_key())
+    pub fn public_key(&self) -> Result<R1PublicKey> {
+        Ok(R1PublicKey(self.0.public_key()?))
     }
 
     #[napi]
     pub fn sign_prehashed(&self, prehashed: Uint8Array) -> Result<R1Signature> {
-        let value: Bytes32 = prehashed.into_rust()?;
-        Ok(R1Signature(
-            self.0.sign_prehashed(&value.to_bytes()).map_err(js_err)?,
-        ))
+        Ok(R1Signature(self.0.sign_prehashed(prehashed.rust()?)?))
     }
 }
 
 #[napi]
-pub struct R1PublicKey(pub(crate) secp::R1PublicKey);
+pub struct R1PublicKey(pub(crate) chia_sdk_bindings::R1PublicKey);
 
 #[napi]
 impl R1PublicKey {
-    #[napi(factory)]
+    #[napi]
     pub fn from_bytes(bytes: Uint8Array) -> Result<Self> {
-        Ok(Self(
-            secp::R1PublicKey::from_bytes(&bytes.into_rust()?).map_err(js_err)?,
-        ))
+        Ok(Self(chia_sdk_bindings::R1PublicKey::from_bytes(
+            bytes.rust()?,
+        )?))
     }
 
     #[napi]
-    pub fn to_bytes(&self) -> Uint8Array {
-        Uint8Array::new(self.0.to_bytes().to_vec())
+    pub fn to_bytes(&self) -> Result<Uint8Array> {
+        Ok(self.0.to_bytes()?.js()?)
     }
 }
 
 #[napi]
-pub struct R1Signature(pub(crate) secp::R1Signature);
+pub struct R1Signature(pub(crate) chia_sdk_bindings::R1Signature);
 
 #[napi]
 impl R1Signature {
-    #[napi(factory)]
+    #[napi]
     pub fn from_bytes(bytes: Uint8Array) -> Result<Self> {
-        Ok(Self(
-            secp::R1Signature::from_bytes(&bytes.into_rust()?).map_err(js_err)?,
-        ))
+        Ok(Self(chia_sdk_bindings::R1Signature::from_bytes(
+            bytes.rust()?,
+        )?))
     }
 
     #[napi]
-    pub fn to_bytes(&self) -> Uint8Array {
-        Uint8Array::new(self.0.to_bytes().to_vec())
+    pub fn to_bytes(&self) -> Result<Uint8Array> {
+        Ok(self.0.to_bytes()?.js()?)
     }
 }
