@@ -145,6 +145,8 @@ export interface CoinState {
   createdHeight?: number
 }
 
+export declare function curryTreeHash(program: Uint8Array, args: Array<Uint8Array>): Uint8Array
+
 export declare function decodeAddress(address: string): AddressInfo
 
 export declare function encodeAddress(puzzleHash: Uint8Array, prefix: string): string

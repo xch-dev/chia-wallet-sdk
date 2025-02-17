@@ -31,3 +31,14 @@ pub fn tree_hash_pair(first: Vec<u8>, rest: Vec<u8>) -> PyResult<Vec<u8>> {
 pub fn sha256(value: Vec<u8>) -> PyResult<Vec<u8>> {
     Ok(chia_sdk_bindings::sha256(value.rust()?).py()?)
 }
+
+#[pyfunction]
+pub fn curry_tree_hash(program: Vec<u8>, args: Vec<Vec<u8>>) -> PyResult<Vec<u8>> {
+    Ok(chia_sdk_bindings::curry_tree_hash(
+        program.rust()?,
+        args.into_iter()
+            .map(IntoRust::rust)
+            .collect::<chia_sdk_bindings::Result<Vec<_>>>()?,
+    )
+    .py()?)
+}

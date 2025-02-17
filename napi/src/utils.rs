@@ -32,3 +32,14 @@ pub fn tree_hash_pair(first: Uint8Array, rest: Uint8Array) -> Result<Uint8Array>
 pub fn sha256(value: Uint8Array) -> Result<Uint8Array> {
     Ok(chia_sdk_bindings::sha256(value.rust()?).js()?)
 }
+
+#[napi]
+pub fn curry_tree_hash(program: Uint8Array, args: Vec<Uint8Array>) -> Result<Uint8Array> {
+    Ok(chia_sdk_bindings::curry_tree_hash(
+        program.rust()?,
+        args.into_iter()
+            .map(IntoRust::rust)
+            .collect::<chia_sdk_bindings::Result<Vec<_>>>()?,
+    )
+    .js()?)
+}

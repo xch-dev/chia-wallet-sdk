@@ -68,6 +68,7 @@ fn chia_wallet_sdk_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(tree_hash_atom, m)?)?;
     m.add_function(wrap_pyfunction!(tree_hash_pair, m)?)?;
     m.add_function(wrap_pyfunction!(sha256, m)?)?;
+    m.add_function(wrap_pyfunction!(curry_tree_hash, m)?)?;
 
     Ok(())
 }

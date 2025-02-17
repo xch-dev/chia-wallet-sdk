@@ -379,6 +379,7 @@ module.exports.SecretKey = nativeBinding.SecretKey
 module.exports.Signature = nativeBinding.Signature
 module.exports.Spend = nativeBinding.Spend
 module.exports.bytesEqual = nativeBinding.bytesEqual
+module.exports.curryTreeHash = nativeBinding.curryTreeHash
 module.exports.decodeAddress = nativeBinding.decodeAddress
 module.exports.encodeAddress = nativeBinding.encodeAddress
 module.exports.fromHex = nativeBinding.fromHex
