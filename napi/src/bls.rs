@@ -4,7 +4,7 @@ use napi_derive::napi;
 use crate::{IntoJs, IntoRust};
 
 #[napi]
-pub struct SecretKey(chia_sdk_bindings::SecretKey);
+pub struct SecretKey(pub(crate) chia_sdk_bindings::SecretKey);
 
 #[napi]
 impl SecretKey {
@@ -69,7 +69,7 @@ impl SecretKey {
 }
 
 #[napi]
-pub struct PublicKey(chia_sdk_bindings::PublicKey);
+pub struct PublicKey(pub(crate) chia_sdk_bindings::PublicKey);
 
 #[napi]
 impl PublicKey {
@@ -136,7 +136,7 @@ impl PublicKey {
 }
 
 #[napi]
-pub struct Signature(chia_sdk_bindings::Signature);
+pub struct Signature(pub(crate) chia_sdk_bindings::Signature);
 
 #[napi]
 impl Signature {

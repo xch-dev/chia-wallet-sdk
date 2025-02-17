@@ -1,4 +1,4 @@
-use chia_sdk_bindings::{AddressInfo, Bytes, BytesImpl, Error, Program, Result};
+use chia_sdk_bindings::{AddressInfo, Bytes, BytesImpl, Coin, CoinSpend, Error, Program, Result};
 use napi::bindgen_prelude::{BigInt, Uint8Array};
 
 pub trait IntoRust<T> {
@@ -79,6 +79,52 @@ impl IntoJs for AddressInfo {
     }
 }
 
+impl IntoRust<CoinSpend> for crate::CoinSpend {
+    fn rust(self) -> Result<CoinSpend> {
+        Ok(CoinSpend {
+            coin: self.coin.rust()?,
+            puzzle_reveal: self.puzzle_reveal.rust()?,
+            solution: self.solution.rust()?,
+        })
+    }
+}
+
+impl IntoJs for CoinSpend {
+    type Js = crate::CoinSpend;
+
+    fn js(self) -> Result<Self::Js> {
+        Ok(Self::Js {
+            coin: self.coin.js()?,
+            puzzle_reveal: self.puzzle_reveal.js()?,
+            solution: self.solution.js()?,
+        })
+    }
+}
+
+impl IntoRust<Coin> for crate::Coin {
+    fn rust(self) -> Result<Coin> {
+        Ok(Coin {
+            parent_coin_info: self.parent_coin_info.rust()?,
+            puzzle_hash: self.puzzle_hash.rust()?,
+            amount: self.amount.rust()?,
+        })
+    }
+}
+
+impl IntoJs for Coin {
+    type Js = crate::Coin;
+
+    fn js(self) -> Result<Self::Js> {
+        let amount: num_bigint::BigInt = self.amount.into();
+
+        Ok(Self::Js {
+            parent_coin_info: self.parent_coin_info.js()?,
+            puzzle_hash: self.puzzle_hash.js()?,
+            amount: amount.js()?,
+        })
+    }
+}
+
 impl IntoRust<num_bigint::BigInt> for BigInt {
     fn rust(self) -> Result<num_bigint::BigInt> {
         if self.words.is_empty() {
@@ -115,6 +161,21 @@ impl IntoJs for num_bigint::BigInt {
             sign_bit: sign == num_bigint::Sign::Minus,
             words,
         })
+    }
+}
+
+impl IntoRust<u64> for BigInt {
+    fn rust(self) -> Result<u64> {
+        let bigint: num_bigint::BigInt = self.rust()?;
+        Ok(bigint.try_into()?)
+    }
+}
+
+impl IntoJs for u64 {
+    type Js = BigInt;
+
+    fn js(self) -> Result<BigInt> {
+        Ok(self.into())
     }
 }
 

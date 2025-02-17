@@ -1,6 +1,8 @@
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
+use crate::Signature;
+
 #[napi(object)]
 pub struct Coin {
     pub parent_coin_info: Uint8Array,
@@ -20,4 +22,10 @@ pub struct CoinSpend {
     pub coin: Coin,
     pub puzzle_reveal: Uint8Array,
     pub solution: Uint8Array,
+}
+
+#[napi(object)]
+pub struct SpendBundle {
+    pub coin_spends: Vec<CoinSpend>,
+    pub aggregated_signature: Reference<Signature>,
 }

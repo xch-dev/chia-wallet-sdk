@@ -4,7 +4,7 @@ use napi_derive::napi;
 use crate::{IntoJs, IntoRust};
 
 #[napi]
-pub struct K1SecretKey(chia_sdk_bindings::K1SecretKey);
+pub struct K1SecretKey(pub(crate) chia_sdk_bindings::K1SecretKey);
 
 #[napi]
 impl K1SecretKey {
@@ -32,7 +32,7 @@ impl K1SecretKey {
 }
 
 #[napi]
-pub struct K1PublicKey(chia_sdk_bindings::K1PublicKey);
+pub struct K1PublicKey(pub(crate) chia_sdk_bindings::K1PublicKey);
 
 #[napi]
 impl K1PublicKey {
@@ -50,7 +50,7 @@ impl K1PublicKey {
 }
 
 #[napi]
-pub struct K1Signature(chia_sdk_bindings::K1Signature);
+pub struct K1Signature(pub(crate) chia_sdk_bindings::K1Signature);
 
 #[napi]
 impl K1Signature {
@@ -68,7 +68,7 @@ impl K1Signature {
 }
 
 #[napi]
-pub struct R1SecretKey(chia_sdk_bindings::R1SecretKey);
+pub struct R1SecretKey(pub(crate) chia_sdk_bindings::R1SecretKey);
 
 #[napi]
 impl R1SecretKey {
@@ -96,7 +96,7 @@ impl R1SecretKey {
 }
 
 #[napi]
-pub struct R1PublicKey(chia_sdk_bindings::R1PublicKey);
+pub struct R1PublicKey(pub(crate) chia_sdk_bindings::R1PublicKey);
 
 #[napi]
 impl R1PublicKey {
@@ -114,7 +114,7 @@ impl R1PublicKey {
 }
 
 #[napi]
-pub struct R1Signature(chia_sdk_bindings::R1Signature);
+pub struct R1Signature(pub(crate) chia_sdk_bindings::R1Signature);
 
 #[napi]
 impl R1Signature {

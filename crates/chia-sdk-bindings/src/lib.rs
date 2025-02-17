@@ -7,4 +7,5 @@ mod error;
 pub use bindings::*;
 pub use error::*;
 
-pub use chia_protocol::{Bytes, Bytes32, BytesImpl, Program};
+pub use chia_protocol::{Bytes, Bytes32, BytesImpl, Coin, CoinSpend, CoinState, Program};
+pub use chia_sdk_driver::Spend;

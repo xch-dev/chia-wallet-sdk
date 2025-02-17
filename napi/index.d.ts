@@ -4,6 +4,11 @@ export declare class Clvm {
   alloc(value: any): Program
   deserialize(value: Uint8Array): Program
   deserializeWithBackrefs(value: Uint8Array): Program
+  insertCoinSpend(coinSpend: CoinSpend): void
+  coinSpends(): Array<CoinSpend>
+  spendCoin(coin: Coin, spend: Spend): void
+  delegatedSpend(conditions: Array<Program>): Spend
+  standardSpend(syntheticKey: PublicKey, delegatedSpend: Spend): Spend
 }
 
 export declare class CurriedProgram {
@@ -52,6 +57,7 @@ export declare class Program {
   toPair(): Pair | null
   toList(): Array<Program> | null
   uncurry(): CurriedProgram | null
+  run(solution: Program, maxCost: bigint, mempoolMode: boolean): Output
 }
 
 export declare class PublicKey {
@@ -108,6 +114,12 @@ export declare class Signature {
   isValid(): boolean
 }
 
+export declare class Spend {
+  constructor(puzzle: Program, solution: Program)
+  get puzzle(): Program
+  get solution(): Program
+}
+
 export interface AddressInfo {
   puzzleHash: Uint8Array
   prefix: string
@@ -149,7 +161,17 @@ export declare function mnemonicToEntropy(mnemonic: string): Uint8Array
 
 export declare function mnemonicToSeed(mnemonic: string, password: string): Uint8Array
 
+export interface Output {
+  value: Program
+  cost: bigint
+}
+
 export declare function sha256(value: Uint8Array): Uint8Array
+
+export interface SpendBundle {
+  coinSpends: Array<CoinSpend>
+  aggregatedSignature: Signature
+}
 
 export declare function toHex(value: Uint8Array): string
 

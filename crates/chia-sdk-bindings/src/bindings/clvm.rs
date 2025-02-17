@@ -1,14 +1,18 @@
-use chia_protocol::{Bytes, Program};
-use chia_sdk_driver::SpendContext;
-use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm};
+use chia_protocol::{Bytes, CoinSpend, Program};
+use chia_sdk_driver::{Spend, SpendContext, StandardLayer};
+use clvm_traits::{clvm_quote, ClvmDecoder, ClvmEncoder, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram};
 use clvmr::{
+    reduction::Reduction,
+    run_program,
     serde::{node_from_bytes, node_from_bytes_backrefs, node_to_bytes, node_to_bytes_backrefs},
-    NodePtr, SExp,
+    Allocator, ChiaDialect, NodePtr, SExp, MEMPOOL_MODE,
 };
 use num_bigint::BigInt;
 
 use crate::{Error, Result};
+
+use super::PublicKey;
 
 #[derive(Default)]
 pub struct Clvm(SpendContext);
@@ -16,6 +20,22 @@ pub struct Clvm(SpendContext);
 impl Clvm {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn insert_coin_spend(&mut self, coin_spend: CoinSpend) {
+        self.0.insert(coin_spend);
+    }
+
+    pub fn take_coin_spends(&mut self) -> Vec<CoinSpend> {
+        self.0.take()
+    }
+
+    pub fn delegated_spend(&mut self, conditions: Vec<NodePtr>) -> Result<Spend> {
+        let delegated_puzzle = self.0.alloc(&clvm_quote!(conditions))?;
+        Ok(Spend {
+            puzzle: delegated_puzzle,
+            solution: NodePtr::NIL,
+        })
     }
 
     pub fn serialize(&self, value: NodePtr) -> Result<Program> {
@@ -206,6 +226,36 @@ impl Clvm {
         Ok(self.0.allocator.new_pair(first, second)?)
     }
 
+    pub fn encode(&mut self, value: impl ToClvm<Allocator>) -> Result<NodePtr> {
+        Ok(value.to_clvm(&mut self.0.allocator)?)
+    }
+
+    pub fn decode<T: FromClvm<Allocator>>(&self, value: NodePtr) -> Result<T> {
+        Ok(T::from_clvm(&self.0.allocator, value)?)
+    }
+
+    pub fn run(
+        &mut self,
+        puzzle: NodePtr,
+        solution: NodePtr,
+        max_cost: u64,
+        mempool_mode: bool,
+    ) -> Result<Reduction> {
+        let mut flags = 0;
+
+        if mempool_mode {
+            flags |= MEMPOOL_MODE;
+        }
+
+        Ok(run_program(
+            &mut self.0.allocator,
+            &ChiaDialect::new(flags),
+            puzzle,
+            solution,
+            max_cost,
+        )?)
+    }
+
     pub fn curry(&mut self, program: NodePtr, args: Vec<NodePtr>) -> Result<NodePtr> {
         let mut args_ptr = self.0.allocator.one();
 
@@ -238,5 +288,9 @@ impl Clvm {
         }
 
         Ok(Some((value.program, args)))
+    }
+
+    pub fn standard_spend(&mut self, synthetic_key: PublicKey, spend: Spend) -> Result<Spend> {
+        Ok(StandardLayer::new(synthetic_key.0).delegated_inner_spend(&mut self.0, spend)?)
     }
 }

@@ -4,6 +4,7 @@ use chia_sdk_driver::DriverError;
 use chia_sdk_utils::AddressError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
+use num_bigint::{BigInt, TryFromBigIntError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -70,6 +71,9 @@ pub enum Error {
     #[cfg(feature = "wasm")]
     #[error("Range error: {0:?}")]
     Range(js_sys::RangeError),
+
+    #[error("BigInt error: {0}")]
+    BigInt(#[from] TryFromBigIntError<BigInt>),
 }
 
 #[cfg(feature = "napi")]

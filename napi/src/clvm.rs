@@ -1,9 +1,20 @@
+mod curried_program;
+mod output;
+mod pair;
+mod spend;
+
+pub use curried_program::*;
+pub use output::*;
+pub use pair::*;
+pub use spend::*;
+
 use clvmr::NodePtr;
 use napi::{bindgen_prelude::*, NapiRaw};
 use napi_derive::napi;
 
 use crate::{
-    IntoJs, IntoRust, K1PublicKey, K1Signature, PublicKey, R1PublicKey, R1Signature, Signature,
+    Coin, CoinSpend, IntoJs, IntoRust, K1PublicKey, K1Signature, PublicKey, R1PublicKey,
+    R1Signature, Signature,
 };
 
 pub type Value<'a> = Either16<
@@ -54,6 +65,74 @@ impl Clvm {
         let clvm = clvm(env, this)?;
         let node_ptr = self.0.deserialize_with_backrefs(value.rust()?)?;
         Ok(Program { clvm, node_ptr })
+    }
+
+    #[napi]
+    pub fn insert_coin_spend(&mut self, coin_spend: CoinSpend) -> Result<()> {
+        self.0.insert_coin_spend(coin_spend.rust()?);
+        Ok(())
+    }
+
+    #[napi]
+    pub fn coin_spends(&mut self) -> Result<Vec<CoinSpend>> {
+        Ok(self
+            .0
+            .take_coin_spends()
+            .into_iter()
+            .map(IntoJs::js)
+            .collect::<chia_sdk_bindings::Result<Vec<_>>>()?)
+    }
+
+    #[napi]
+    pub fn spend_coin(&mut self, coin: Coin, spend: &Spend) -> Result<()> {
+        let puzzle_reveal = self.0.serialize(spend.puzzle.node_ptr)?;
+        let solution = self.0.serialize(spend.solution.node_ptr)?;
+        self.0.insert_coin_spend(chia_sdk_bindings::CoinSpend::new(
+            coin.rust()?,
+            puzzle_reveal,
+            solution,
+        ));
+        Ok(())
+    }
+
+    #[napi]
+    pub fn delegated_spend(
+        &mut self,
+        env: Env,
+        this: This<'_>,
+        conditions: Vec<ClassInstance<'_, Program>>,
+    ) -> Result<Spend> {
+        let clvm = clvm(env, this)?;
+
+        let conditions: Vec<NodePtr> = conditions
+            .into_iter()
+            .map(|program| program.node_ptr)
+            .collect();
+
+        let spend = self.0.delegated_spend(conditions)?;
+
+        spend_to_js(env, clvm, spend)
+    }
+
+    #[napi]
+    pub fn standard_spend(
+        &mut self,
+        env: Env,
+        this: This<'_>,
+        synthetic_key: &PublicKey,
+        delegated_spend: &Spend,
+    ) -> Result<Spend> {
+        let clvm = clvm(env, this)?;
+
+        let spend = self.0.standard_spend(
+            synthetic_key.0,
+            chia_sdk_bindings::Spend {
+                puzzle: delegated_spend.puzzle.node_ptr,
+                solution: delegated_spend.solution.node_ptr,
+            },
+        )?;
+
+        spend_to_js(env, clvm, spend)
     }
 }
 
@@ -213,56 +292,30 @@ impl Program {
                 .collect::<Result<Vec<_>>>()?,
         }))
     }
-}
 
-#[napi]
-pub struct Pair {
-    first: Reference<Program>,
-    second: Reference<Program>,
-}
+    #[napi]
+    pub fn run(
+        &mut self,
+        env: Env,
+        solution: &Program,
+        max_cost: BigInt,
+        mempool_mode: bool,
+    ) -> Result<Output> {
+        let reduction = self.clvm.0.run(
+            self.node_ptr,
+            solution.node_ptr,
+            max_cost.rust()?,
+            mempool_mode,
+        )?;
 
-#[napi]
-impl Pair {
-    #[napi(constructor)]
-    pub fn new(first: Reference<Program>, second: Reference<Program>) -> Self {
-        Self { first, second }
-    }
-
-    #[napi(getter)]
-    pub fn first(&self, env: Env) -> Result<Reference<Program>> {
-        self.first.clone(env)
-    }
-
-    #[napi(getter)]
-    pub fn second(&self, env: Env) -> Result<Reference<Program>> {
-        self.second.clone(env)
-    }
-}
-
-#[napi]
-pub struct CurriedProgram {
-    program: Reference<Program>,
-    args: Vec<Reference<Program>>,
-}
-
-#[napi]
-impl CurriedProgram {
-    #[napi(constructor)]
-    pub fn new(program: Reference<Program>, args: Vec<Reference<Program>>) -> Self {
-        Self { program, args }
-    }
-
-    #[napi(getter)]
-    pub fn program(&self, env: Env) -> Result<Reference<Program>> {
-        self.program.clone(env)
-    }
-
-    #[napi(getter)]
-    pub fn args(&self, env: Env) -> Result<Vec<Reference<Program>>> {
-        self.args
-            .iter()
-            .map(|arg| arg.clone(env))
-            .collect::<Result<Vec<_>>>()
+        Ok(Output {
+            value: Program {
+                clvm: self.clvm.clone(env)?,
+                node_ptr: reduction.1,
+            }
+            .into_reference(env)?,
+            cost: reduction.0.js()?,
+        })
     }
 }
 
@@ -308,4 +361,19 @@ fn alloc<'a>(env: Env, mut clvm: Reference<Clvm>, value: Value<'a>) -> Result<No
         }
         Value::P(_) => Ok(NodePtr::NIL),
     }
+}
+
+fn spend_to_js(env: Env, clvm: Reference<Clvm>, spend: chia_sdk_bindings::Spend) -> Result<Spend> {
+    Ok(Spend {
+        puzzle: Program {
+            clvm: clvm.clone(env)?,
+            node_ptr: spend.puzzle,
+        }
+        .into_reference(env)?,
+        solution: Program {
+            clvm: clvm.clone(env)?,
+            node_ptr: spend.solution,
+        }
+        .into_reference(env)?,
+    })
 }

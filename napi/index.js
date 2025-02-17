@@ -377,6 +377,7 @@ module.exports.R1SecretKey = nativeBinding.R1SecretKey
 module.exports.R1Signature = nativeBinding.R1Signature
 module.exports.SecretKey = nativeBinding.SecretKey
 module.exports.Signature = nativeBinding.Signature
+module.exports.Spend = nativeBinding.Spend
 module.exports.bytesEqual = nativeBinding.bytesEqual
 module.exports.decodeAddress = nativeBinding.decodeAddress
 module.exports.encodeAddress = nativeBinding.encodeAddress

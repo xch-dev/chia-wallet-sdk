@@ -6,7 +6,7 @@ use chia_secp::{
 
 use crate::Result;
 
-pub struct K1SecretKey(K1SecretKeyRs);
+pub struct K1SecretKey(pub(crate) K1SecretKeyRs);
 
 impl K1SecretKey {
     pub fn from_bytes(bytes: Bytes32) -> Result<Self> {
@@ -27,7 +27,7 @@ impl K1SecretKey {
 }
 
 #[derive(Clone, Copy)]
-pub struct K1PublicKey(K1PublicKeyRs);
+pub struct K1PublicKey(pub(crate) K1PublicKeyRs);
 
 impl K1PublicKey {
     pub fn from_bytes(bytes: BytesImpl<33>) -> Result<Self> {
@@ -40,7 +40,7 @@ impl K1PublicKey {
 }
 
 #[derive(Clone, Copy)]
-pub struct K1Signature(K1SignatureRs);
+pub struct K1Signature(pub(crate) K1SignatureRs);
 
 impl K1Signature {
     pub fn from_bytes(bytes: BytesImpl<64>) -> Result<Self> {
@@ -52,7 +52,7 @@ impl K1Signature {
     }
 }
 
-pub struct R1SecretKey(R1SecretKeyRs);
+pub struct R1SecretKey(pub(crate) R1SecretKeyRs);
 
 impl R1SecretKey {
     pub fn from_bytes(bytes: Bytes32) -> Result<Self> {
@@ -73,7 +73,7 @@ impl R1SecretKey {
 }
 
 #[derive(Clone, Copy)]
-pub struct R1PublicKey(R1PublicKeyRs);
+pub struct R1PublicKey(pub(crate) R1PublicKeyRs);
 
 impl R1PublicKey {
     pub fn from_bytes(bytes: BytesImpl<33>) -> Result<Self> {
@@ -86,7 +86,7 @@ impl R1PublicKey {
 }
 
 #[derive(Clone, Copy)]
-pub struct R1Signature(R1SignatureRs);
+pub struct R1Signature(pub(crate) R1SignatureRs);
 
 impl R1Signature {
     pub fn from_bytes(bytes: BytesImpl<64>) -> Result<Self> {
