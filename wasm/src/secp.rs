@@ -3,7 +3,7 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 use crate::{IntoJs, IntoRust};
 
 #[wasm_bindgen]
-pub struct K1SecretKey(chia_sdk_bindings::K1SecretKey);
+pub struct K1SecretKey(pub(crate) chia_sdk_bindings::K1SecretKey);
 
 #[wasm_bindgen]
 impl K1SecretKey {
@@ -31,7 +31,7 @@ impl K1SecretKey {
 }
 
 #[wasm_bindgen]
-pub struct K1PublicKey(chia_sdk_bindings::K1PublicKey);
+pub struct K1PublicKey(pub(crate) chia_sdk_bindings::K1PublicKey);
 
 #[wasm_bindgen]
 impl K1PublicKey {
@@ -49,7 +49,7 @@ impl K1PublicKey {
 }
 
 #[wasm_bindgen]
-pub struct K1Signature(chia_sdk_bindings::K1Signature);
+pub struct K1Signature(pub(crate) chia_sdk_bindings::K1Signature);
 
 #[wasm_bindgen]
 impl K1Signature {
@@ -67,7 +67,7 @@ impl K1Signature {
 }
 
 #[wasm_bindgen]
-pub struct R1SecretKey(chia_sdk_bindings::R1SecretKey);
+pub struct R1SecretKey(pub(crate) chia_sdk_bindings::R1SecretKey);
 
 #[wasm_bindgen]
 impl R1SecretKey {
@@ -95,7 +95,7 @@ impl R1SecretKey {
 }
 
 #[wasm_bindgen]
-pub struct R1PublicKey(chia_sdk_bindings::R1PublicKey);
+pub struct R1PublicKey(pub(crate) chia_sdk_bindings::R1PublicKey);
 
 #[wasm_bindgen]
 impl R1PublicKey {
@@ -113,7 +113,7 @@ impl R1PublicKey {
 }
 
 #[wasm_bindgen]
-pub struct R1Signature(chia_sdk_bindings::R1Signature);
+pub struct R1Signature(pub(crate) chia_sdk_bindings::R1Signature);
 
 #[wasm_bindgen]
 impl R1Signature {

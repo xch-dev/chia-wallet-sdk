@@ -1,4 +1,4 @@
-use chia_sdk_bindings::{AddressInfo, Bytes, BytesImpl, Error, Program, Result};
+use chia_sdk_bindings::{AddressInfo, Bytes, BytesImpl, Coin, CoinSpend, Error, Program, Result};
 
 pub trait IntoRust<T> {
     fn rust(self) -> Result<T>;
@@ -74,6 +74,50 @@ impl IntoJs for AddressInfo {
         Ok(Self::Js {
             puzzle_hash: self.puzzle_hash.js()?,
             prefix: self.prefix,
+        })
+    }
+}
+
+impl IntoRust<CoinSpend> for crate::CoinSpend {
+    fn rust(self) -> Result<CoinSpend> {
+        Ok(CoinSpend {
+            coin: self.coin.rust()?,
+            puzzle_reveal: self.puzzle_reveal.rust()?,
+            solution: self.solution.rust()?,
+        })
+    }
+}
+
+impl IntoJs for CoinSpend {
+    type Js = crate::CoinSpend;
+
+    fn js(self) -> Result<Self::Js> {
+        Ok(Self::Js {
+            coin: self.coin.js()?,
+            puzzle_reveal: self.puzzle_reveal.js()?,
+            solution: self.solution.js()?,
+        })
+    }
+}
+
+impl IntoRust<Coin> for crate::Coin {
+    fn rust(self) -> Result<Coin> {
+        Ok(Coin {
+            parent_coin_info: self.parent_coin_info.rust()?,
+            puzzle_hash: self.puzzle_hash.rust()?,
+            amount: self.amount,
+        })
+    }
+}
+
+impl IntoJs for Coin {
+    type Js = crate::Coin;
+
+    fn js(self) -> Result<Self::Js> {
+        Ok(Self::Js {
+            parent_coin_info: self.parent_coin_info.js()?,
+            puzzle_hash: self.puzzle_hash.js()?,
+            amount: self.amount,
         })
     }
 }

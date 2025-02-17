@@ -1,9 +1,20 @@
+mod curried_program;
+mod output;
+mod pair;
+mod program;
+mod spend;
+
+pub use curried_program::*;
+pub use output::*;
+pub use pair::*;
+pub use program::*;
+pub use spend::*;
+
 use chia_sdk_bindings::Error;
-use clvmr::NodePtr;
 use js_sys::BigInt;
 use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
 
-use crate::{IntoJs, IntoRust};
+use crate::{Coin, CoinSpend, IntoJs, IntoRust, PublicKey};
 
 #[wasm_bindgen]
 #[derive(Default)]
@@ -14,6 +25,34 @@ impl Clvm {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    #[wasm_bindgen(js_name = "insertCoinSpend")]
+    pub fn insert_coin_spend(
+        &mut self,
+        #[wasm_bindgen(js_name = "coinSpend")] coin_spend: CoinSpend,
+    ) -> Result<(), JsError> {
+        self.0.insert_coin_spend(coin_spend.rust()?);
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = "coinSpends")]
+    pub fn coin_spends(&mut self) -> Result<Vec<CoinSpend>, JsError> {
+        Ok(self
+            .0
+            .take_coin_spends()
+            .into_iter()
+            .map(IntoJs::js)
+            .collect::<Result<Vec<_>, _>>()?)
+    }
+
+    #[wasm_bindgen(js_name = "spendCoin")]
+    pub fn spend_coin(&mut self, coin: Coin, spend: Spend) -> Result<(), JsError> {
+        let puzzle_reveal = self.0.serialize(spend.puzzle.0)?;
+        let solution = self.0.serialize(spend.solution.0)?;
+        let coin_spend = chia_sdk_bindings::CoinSpend::new(coin.rust()?, puzzle_reveal, solution);
+        self.0.insert_coin_spend(coin_spend);
+        Ok(())
     }
 
     #[wasm_bindgen]
@@ -34,6 +73,22 @@ impl Clvm {
     #[wasm_bindgen(js_name = "deserializeWithBackrefs")]
     pub fn deserialize_with_backrefs(&mut self, value: Vec<u8>) -> Result<Program, JsError> {
         Ok(Program(self.0.deserialize_with_backrefs(value.rust()?)?))
+    }
+
+    #[wasm_bindgen]
+    pub fn run(
+        &mut self,
+        puzzle: Program,
+        solution: Program,
+        #[wasm_bindgen(js_name = "maxCost")] max_cost: u64,
+        #[wasm_bindgen(js_name = "mempoolMode")] mempool_mode: bool,
+    ) -> Result<Output, JsError> {
+        let output = self.0.run(puzzle.0, solution.0, max_cost, mempool_mode)?;
+
+        Ok(Output {
+            value: Program(output.1),
+            cost: output.0,
+        })
     }
 
     #[wasm_bindgen(js_name = "treeHash")]
@@ -164,59 +219,33 @@ impl Clvm {
     pub fn rest(&mut self, value: Program) -> Result<Program, JsError> {
         Ok(Program(self.0.rest(value.0)?))
     }
-}
 
-#[wasm_bindgen]
-#[derive(Clone, Copy)]
-pub struct Program(NodePtr);
+    #[wasm_bindgen(js_name = "delegatedSpend")]
+    pub fn delegated_spend(&mut self, conditions: Vec<Program>) -> Result<Spend, JsError> {
+        let spend = self
+            .0
+            .delegated_spend(conditions.into_iter().map(|p| p.0).collect())?;
 
-#[wasm_bindgen]
-impl Program {
-    #[wasm_bindgen(getter, js_name = "isAtom")]
-    pub fn is_atom(&self) -> bool {
-        self.0.is_atom()
+        Ok(Spend {
+            puzzle: Program(spend.puzzle),
+            solution: Program(spend.solution),
+        })
     }
 
-    #[wasm_bindgen(getter, js_name = "isPair")]
-    pub fn is_pair(&self) -> bool {
-        self.0.is_pair()
-    }
-}
+    #[wasm_bindgen(js_name = "standardSpend")]
+    pub fn standard_spend(
+        &mut self,
+        #[wasm_bindgen(js_name = "syntheticKey")] synthetic_key: PublicKey,
+        #[wasm_bindgen(js_name = "delegatedSpend")] delegated_spend: Spend,
+    ) -> Result<Spend, JsError> {
+        let spend = self.0.standard_spend(
+            synthetic_key.0,
+            chia_sdk_bindings::Spend::new(delegated_spend.puzzle.0, delegated_spend.solution.0),
+        )?;
 
-#[wasm_bindgen]
-pub struct Pair {
-    first: Program,
-    second: Program,
-}
-
-#[wasm_bindgen]
-impl Pair {
-    #[wasm_bindgen(getter)]
-    pub fn first(&self) -> Program {
-        self.first
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn second(&self) -> Program {
-        self.second
-    }
-}
-
-#[wasm_bindgen]
-pub struct CurriedProgram {
-    program: Program,
-    args: Vec<Program>,
-}
-
-#[wasm_bindgen]
-impl CurriedProgram {
-    #[wasm_bindgen(getter)]
-    pub fn program(&self) -> Program {
-        self.program
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn args(&self) -> Vec<Program> {
-        self.args.clone()
+        Ok(Spend {
+            puzzle: Program(spend.puzzle),
+            solution: Program(spend.solution),
+        })
     }
 }

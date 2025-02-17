@@ -3,7 +3,7 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 use crate::{IntoJs, IntoRust};
 
 #[wasm_bindgen]
-pub struct SecretKey(chia_sdk_bindings::SecretKey);
+pub struct SecretKey(pub(crate) chia_sdk_bindings::SecretKey);
 
 #[wasm_bindgen]
 impl SecretKey {
@@ -71,7 +71,7 @@ impl SecretKey {
 }
 
 #[wasm_bindgen]
-pub struct PublicKey(chia_sdk_bindings::PublicKey);
+pub struct PublicKey(pub(crate) chia_sdk_bindings::PublicKey);
 
 #[wasm_bindgen]
 impl PublicKey {
@@ -143,7 +143,8 @@ impl PublicKey {
 }
 
 #[wasm_bindgen]
-pub struct Signature(chia_sdk_bindings::Signature);
+#[derive(Clone)]
+pub struct Signature(pub(crate) chia_sdk_bindings::Signature);
 
 #[wasm_bindgen]
 impl Signature {
