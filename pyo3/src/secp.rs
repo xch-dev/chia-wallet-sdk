@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 use crate::traits::{IntoPy, IntoRust};
 
 #[pyclass]
-pub struct K1SecretKey(chia_sdk_bindings::K1SecretKey);
+pub struct K1SecretKey(pub(crate) chia_sdk_bindings::K1SecretKey);
 
 #[pymethods]
 impl K1SecretKey {
@@ -29,7 +29,7 @@ impl K1SecretKey {
 
 #[pyclass]
 #[derive(Clone)]
-pub struct K1PublicKey(chia_sdk_bindings::K1PublicKey);
+pub struct K1PublicKey(pub(crate) chia_sdk_bindings::K1PublicKey);
 
 #[pymethods]
 impl K1PublicKey {
@@ -47,7 +47,7 @@ impl K1PublicKey {
 
 #[pyclass]
 #[derive(Clone)]
-pub struct K1Signature(chia_sdk_bindings::K1Signature);
+pub struct K1Signature(pub(crate) chia_sdk_bindings::K1Signature);
 
 #[pymethods]
 impl K1Signature {
@@ -64,7 +64,7 @@ impl K1Signature {
 }
 
 #[pyclass]
-pub struct R1SecretKey(chia_sdk_bindings::R1SecretKey);
+pub struct R1SecretKey(pub(crate) chia_sdk_bindings::R1SecretKey);
 
 #[pymethods]
 impl R1SecretKey {
@@ -90,7 +90,7 @@ impl R1SecretKey {
 
 #[pyclass]
 #[derive(Clone)]
-pub struct R1PublicKey(chia_sdk_bindings::R1PublicKey);
+pub struct R1PublicKey(pub(crate) chia_sdk_bindings::R1PublicKey);
 
 #[pymethods]
 impl R1PublicKey {
@@ -108,7 +108,7 @@ impl R1PublicKey {
 
 #[pyclass]
 #[derive(Clone)]
-pub struct R1Signature(chia_sdk_bindings::R1Signature);
+pub struct R1Signature(pub(crate) chia_sdk_bindings::R1Signature);
 
 #[pymethods]
 impl R1Signature {

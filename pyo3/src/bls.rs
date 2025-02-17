@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 use crate::traits::{IntoPy, IntoRust};
 
 #[pyclass]
-pub struct SecretKey(chia_sdk_bindings::SecretKey);
+pub struct SecretKey(pub(crate) chia_sdk_bindings::SecretKey);
 
 #[pymethods]
 impl SecretKey {
@@ -60,7 +60,7 @@ impl SecretKey {
 
 #[pyclass]
 #[derive(Clone)]
-pub struct PublicKey(chia_sdk_bindings::PublicKey);
+pub struct PublicKey(pub(crate) chia_sdk_bindings::PublicKey);
 
 #[pymethods]
 impl PublicKey {
@@ -120,7 +120,7 @@ impl PublicKey {
 
 #[pyclass]
 #[derive(Clone)]
-pub struct Signature(chia_sdk_bindings::Signature);
+pub struct Signature(pub(crate) chia_sdk_bindings::Signature);
 
 #[pymethods]
 impl Signature {

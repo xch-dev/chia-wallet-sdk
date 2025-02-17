@@ -2,6 +2,8 @@
 
 use pyo3::prelude::*;
 
+use crate::bls::Signature;
+
 #[pyclass(frozen, get_all)]
 #[derive(Clone)]
 pub struct Coin {
@@ -42,6 +44,7 @@ impl CoinState {
 }
 
 #[pyclass(frozen, get_all)]
+#[derive(Clone)]
 pub struct CoinSpend {
     pub coin: Coin,
     pub puzzle_reveal: Vec<u8>,
@@ -56,6 +59,24 @@ impl CoinSpend {
             coin,
             puzzle_reveal,
             solution,
+        }
+    }
+}
+
+#[pyclass(frozen, get_all)]
+#[derive(Clone)]
+pub struct SpendBundle {
+    pub coin_spends: Vec<CoinSpend>,
+    pub aggregated_signature: Signature,
+}
+
+#[pymethods]
+impl SpendBundle {
+    #[new]
+    pub fn new(coin_spends: Vec<CoinSpend>, aggregated_signature: Signature) -> Self {
+        Self {
+            coin_spends,
+            aggregated_signature,
         }
     }
 }

@@ -36,11 +36,14 @@ fn chia_wallet_sdk_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Clvm>()?;
     m.add_class::<Program>()?;
     m.add_class::<CurriedProgram>()?;
+    m.add_class::<Output>()?;
+    m.add_class::<Spend>()?;
 
     // Coin
     m.add_class::<Coin>()?;
     m.add_class::<CoinState>()?;
     m.add_class::<CoinSpend>()?;
+    m.add_class::<SpendBundle>()?;
 
     // Mnemonic
     m.add_function(wrap_pyfunction!(mnemonic_from_entropy, m)?)?;

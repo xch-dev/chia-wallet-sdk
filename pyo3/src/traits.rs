@@ -1,4 +1,4 @@
-use chia_sdk_bindings::{AddressInfo, Bytes, BytesImpl, Error, Result};
+use chia_sdk_bindings::{AddressInfo, Bytes, BytesImpl, Coin, CoinSpend, Error, Program, Result};
 
 pub trait IntoRust<T> {
     fn rust(self) -> Result<T>;
@@ -44,6 +44,20 @@ impl IntoPy for Bytes {
     }
 }
 
+impl IntoRust<Program> for Vec<u8> {
+    fn rust(self) -> Result<Program> {
+        Ok(Program::from(self))
+    }
+}
+
+impl IntoPy for Program {
+    type Py = Vec<u8>;
+
+    fn py(self) -> Result<Self::Py> {
+        Ok(self.into())
+    }
+}
+
 impl IntoRust<AddressInfo> for crate::AddressInfo {
     fn rust(self) -> Result<AddressInfo> {
         Ok(AddressInfo {
@@ -60,6 +74,50 @@ impl IntoPy for AddressInfo {
         Ok(Self::Py {
             puzzle_hash: self.puzzle_hash.py()?,
             prefix: self.prefix,
+        })
+    }
+}
+
+impl IntoRust<CoinSpend> for crate::CoinSpend {
+    fn rust(self) -> Result<CoinSpend> {
+        Ok(CoinSpend {
+            coin: self.coin.rust()?,
+            puzzle_reveal: self.puzzle_reveal.rust()?,
+            solution: self.solution.rust()?,
+        })
+    }
+}
+
+impl IntoPy for CoinSpend {
+    type Py = crate::CoinSpend;
+
+    fn py(self) -> Result<Self::Py> {
+        Ok(Self::Py {
+            coin: self.coin.py()?,
+            puzzle_reveal: self.puzzle_reveal.py()?,
+            solution: self.solution.py()?,
+        })
+    }
+}
+
+impl IntoRust<Coin> for crate::Coin {
+    fn rust(self) -> Result<Coin> {
+        Ok(Coin {
+            parent_coin_info: self.parent_coin_info.rust()?,
+            puzzle_hash: self.puzzle_hash.rust()?,
+            amount: self.amount,
+        })
+    }
+}
+
+impl IntoPy for Coin {
+    type Py = crate::Coin;
+
+    fn py(self) -> Result<Self::Py> {
+        Ok(Self::Py {
+            parent_coin_info: self.parent_coin_info.py()?,
+            puzzle_hash: self.puzzle_hash.py()?,
+            amount: self.amount,
         })
     }
 }

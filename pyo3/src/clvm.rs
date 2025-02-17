@@ -1,3 +1,13 @@
+mod curried_program;
+mod output;
+mod program;
+mod spend;
+
+pub use curried_program::*;
+pub use output::*;
+pub use program::*;
+pub use spend::*;
+
 use std::sync::Arc;
 
 use clvmr::NodePtr;
@@ -11,7 +21,9 @@ use pyo3::{
 
 use crate::{
     bls::{PublicKey, Signature},
+    coin::{Coin, CoinSpend},
     secp::{K1PublicKey, K1Signature, R1PublicKey, R1Signature},
+    traits::{IntoPy, IntoRust},
 };
 
 #[pyclass]
@@ -51,148 +63,70 @@ impl Clvm {
             node_ptr,
         })
     }
-}
 
-#[pyclass]
-#[derive(Clone)]
-pub struct Program {
-    clvm: Arc<RwLock<chia_sdk_bindings::Clvm>>,
-    node_ptr: NodePtr,
-}
-
-#[pymethods]
-impl Program {
-    #[getter]
-    pub fn is_atom(&self) -> bool {
-        self.node_ptr.is_atom()
+    pub fn insert_coin_spend(&mut self, coin_spend: &CoinSpend) -> PyResult<()> {
+        let mut clvm = self.0.write();
+        clvm.insert_coin_spend(coin_spend.clone().rust()?);
+        Ok(())
     }
 
-    #[getter]
-    pub fn is_pair(&self) -> bool {
-        self.node_ptr.is_pair()
+    pub fn coin_spends(&mut self) -> PyResult<Vec<CoinSpend>> {
+        let mut clvm = self.0.write();
+        Ok(clvm
+            .take_coin_spends()
+            .into_iter()
+            .map(|cs| cs.py())
+            .collect::<Result<Vec<_>, _>>()?)
     }
 
-    pub fn __len__(&self) -> PyResult<usize> {
-        Ok(self.clvm.read().length(self.node_ptr)?)
+    pub fn spend_coin(&mut self, coin: &Coin, spend: &Spend) -> PyResult<()> {
+        let mut clvm = self.0.write();
+        let puzzle_reveal = clvm.serialize(spend.puzzle.node_ptr)?;
+        let solution = clvm.serialize(spend.solution.node_ptr)?;
+        let coin_spend =
+            chia_sdk_bindings::CoinSpend::new(coin.clone().rust()?, puzzle_reveal, solution);
+        clvm.insert_coin_spend(coin_spend);
+        Ok(())
     }
 
-    #[getter]
-    pub fn first(&self) -> PyResult<Program> {
-        Ok(Program {
-            clvm: self.clvm.clone(),
-            node_ptr: self.clvm.read().first(self.node_ptr)?,
+    pub fn delegated_spend(&mut self, conditions: Vec<Program>) -> PyResult<Spend> {
+        let mut clvm = self.0.write();
+        let spend = clvm.delegated_spend(conditions.into_iter().map(|p| p.node_ptr).collect())?;
+        Ok(Spend {
+            puzzle: Program {
+                clvm: self.0.clone(),
+                node_ptr: spend.puzzle,
+            },
+            solution: Program {
+                clvm: self.0.clone(),
+                node_ptr: spend.solution,
+            },
         })
     }
 
-    #[getter]
-    pub fn rest(&self) -> PyResult<Program> {
-        Ok(Program {
-            clvm: self.clvm.clone(),
-            node_ptr: self.clvm.read().rest(self.node_ptr)?,
+    pub fn standard_spend(
+        &mut self,
+        synthetic_key: &PublicKey,
+        delegated_spend: &Spend,
+    ) -> PyResult<Spend> {
+        let mut clvm = self.0.write();
+        let spend = clvm.standard_spend(
+            synthetic_key.0,
+            chia_sdk_bindings::Spend::new(
+                delegated_spend.puzzle.node_ptr,
+                delegated_spend.solution.node_ptr,
+            ),
+        )?;
+        Ok(Spend {
+            puzzle: Program {
+                clvm: self.0.clone(),
+                node_ptr: spend.puzzle,
+            },
+            solution: Program {
+                clvm: self.0.clone(),
+                node_ptr: spend.solution,
+            },
         })
-    }
-
-    pub fn serialize(&self) -> PyResult<Vec<u8>> {
-        Ok(self.clvm.read().serialize(self.node_ptr)?.into_bytes())
-    }
-
-    pub fn serialize_with_backrefs(&self) -> PyResult<Vec<u8>> {
-        Ok(self
-            .clvm
-            .read()
-            .serialize_with_backrefs(self.node_ptr)?
-            .into_bytes())
-    }
-
-    pub fn tree_hash(&self) -> PyResult<Vec<u8>> {
-        Ok(self.clvm.read().tree_hash(self.node_ptr)?.to_vec())
-    }
-
-    pub fn to_int(&self) -> PyResult<Option<BigInt>> {
-        Ok(self.clvm.read().as_bigint(self.node_ptr)?)
-    }
-
-    pub fn to_string(&self) -> PyResult<Option<String>> {
-        Ok(self.clvm.read().as_string(self.node_ptr)?)
-    }
-
-    pub fn to_bool(&self) -> PyResult<Option<bool>> {
-        Ok(self.clvm.read().as_bool(self.node_ptr)?)
-    }
-
-    pub fn to_atom(&self) -> PyResult<Option<Vec<u8>>> {
-        Ok(self
-            .clvm
-            .read()
-            .as_atom(self.node_ptr)?
-            .map(|bytes| bytes.into_inner()))
-    }
-
-    pub fn to_pair(&self) -> PyResult<Option<(Program, Program)>> {
-        let Some((first, rest)) = self.clvm.read().as_pair(self.node_ptr)? else {
-            return Ok(None);
-        };
-
-        Ok(Some((
-            Program {
-                clvm: self.clvm.clone(),
-                node_ptr: first,
-            },
-            Program {
-                clvm: self.clvm.clone(),
-                node_ptr: rest,
-            },
-        )))
-    }
-
-    pub fn to_list(&self) -> PyResult<Option<Vec<Program>>> {
-        let Some(list) = self.clvm.read().as_list(self.node_ptr)? else {
-            return Ok(None);
-        };
-
-        Ok(Some(
-            list.iter()
-                .map(|&node_ptr| Program {
-                    clvm: self.clvm.clone(),
-                    node_ptr,
-                })
-                .collect(),
-        ))
-    }
-
-    pub fn uncurry(&self) -> PyResult<Option<CurriedProgram>> {
-        let Some((program, args)) = self.clvm.read().uncurry(self.node_ptr)? else {
-            return Ok(None);
-        };
-
-        Ok(Some(CurriedProgram {
-            program: Program {
-                clvm: self.clvm.clone(),
-                node_ptr: program,
-            },
-            args: args
-                .iter()
-                .map(|&node_ptr| Program {
-                    clvm: self.clvm.clone(),
-                    node_ptr,
-                })
-                .collect(),
-        }))
-    }
-}
-
-#[pyclass(frozen, get_all)]
-#[derive(Clone)]
-pub struct CurriedProgram {
-    pub program: Program,
-    pub args: Vec<Program>,
-}
-
-#[pymethods]
-impl CurriedProgram {
-    #[new]
-    pub fn new(program: Program, args: Vec<Program>) -> Self {
-        Self { program, args }
     }
 }
 
