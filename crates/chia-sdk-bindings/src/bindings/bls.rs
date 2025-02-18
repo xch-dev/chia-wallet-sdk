@@ -7,6 +7,7 @@ use chia_puzzles::DeriveSynthetic;
 
 use crate::Result;
 
+#[derive(Clone)]
 pub struct SecretKey(pub SecretKeyRs);
 
 impl SecretKey {

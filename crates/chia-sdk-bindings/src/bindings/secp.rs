@@ -6,6 +6,7 @@ use chia_secp::{
 
 use crate::Result;
 
+#[derive(Clone)]
 pub struct K1SecretKey(pub K1SecretKeyRs);
 
 impl K1SecretKey {
@@ -60,6 +61,7 @@ impl K1Signature {
     }
 }
 
+#[derive(Clone)]
 pub struct R1SecretKey(pub R1SecretKeyRs);
 
 impl R1SecretKey {

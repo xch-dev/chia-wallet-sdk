@@ -5,6 +5,7 @@ mod coin;
 mod mnemonic;
 mod puzzles;
 mod secp;
+mod simulator;
 mod traits;
 mod utils;
 
@@ -17,6 +18,7 @@ use coin::*;
 use mnemonic::*;
 use puzzles::*;
 use secp::*;
+use simulator::*;
 use utils::*;
 
 use pyo3::prelude::*;
@@ -66,6 +68,13 @@ fn chia_wallet_sdk_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<R1SecretKey>()?;
     m.add_class::<R1PublicKey>()?;
     m.add_class::<R1Signature>()?;
+
+    // Simulator
+    m.add_class::<Simulator>()?;
+    m.add_class::<BlsPair>()?;
+    m.add_class::<BlsPairWithCoin>()?;
+    m.add_class::<K1Pair>()?;
+    m.add_class::<R1Pair>()?;
 
     // Utils
     m.add_function(wrap_pyfunction!(from_hex, m)?)?;

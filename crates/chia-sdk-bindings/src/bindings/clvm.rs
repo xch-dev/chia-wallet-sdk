@@ -307,8 +307,8 @@ impl Clvm {
         Ok(())
     }
 
-    pub fn spend_cat_coins(&mut self, cats: Vec<CatSpend>) -> Result<()> {
-        Cat::spend_all(&mut self.0, &cats)?;
+    pub fn spend_cat_coins(&mut self, cat_spends: Vec<CatSpend>) -> Result<()> {
+        Cat::spend_all(&mut self.0, &cat_spends)?;
         Ok(())
     }
 }

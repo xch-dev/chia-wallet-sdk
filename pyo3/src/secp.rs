@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 use crate::traits::{IntoPy, IntoRust};
 
 #[pyclass]
+#[derive(Clone)]
 pub struct K1SecretKey(pub(crate) chia_sdk_bindings::K1SecretKey);
 
 #[pymethods]
@@ -72,6 +73,7 @@ impl K1Signature {
 }
 
 #[pyclass]
+#[derive(Clone)]
 pub struct R1SecretKey(pub(crate) chia_sdk_bindings::R1SecretKey);
 
 #[pymethods]

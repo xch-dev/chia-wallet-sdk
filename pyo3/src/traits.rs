@@ -1,4 +1,6 @@
-use chia_sdk_bindings::{AddressInfo, Bytes, BytesImpl, Coin, CoinSpend, Error, Program, Result};
+use chia_sdk_bindings::{
+    AddressInfo, Bytes, BytesImpl, Cat, Coin, CoinSpend, Error, LineageProof, Program, Result,
+};
 
 pub trait IntoRust<T> {
     fn rust(self) -> Result<T>;
@@ -119,5 +121,74 @@ impl IntoPy for Coin {
             puzzle_hash: self.puzzle_hash.py()?,
             amount: self.amount,
         })
+    }
+}
+
+impl IntoRust<Cat> for crate::Cat {
+    fn rust(self) -> Result<Cat> {
+        Ok(Cat {
+            coin: self.coin.rust()?,
+            lineage_proof: self.lineage_proof.rust()?,
+            asset_id: self.asset_id.rust()?,
+            p2_puzzle_hash: self.p2_puzzle_hash.rust()?,
+        })
+    }
+}
+
+impl IntoPy for Cat {
+    type Py = crate::Cat;
+
+    fn py(self) -> Result<Self::Py> {
+        Ok(Self::Py {
+            coin: self.coin.py()?,
+            lineage_proof: self.lineage_proof.py()?,
+            asset_id: self.asset_id.py()?,
+            p2_puzzle_hash: self.p2_puzzle_hash.py()?,
+        })
+    }
+}
+
+impl IntoRust<LineageProof> for crate::LineageProof {
+    fn rust(self) -> Result<LineageProof> {
+        Ok(LineageProof {
+            parent_parent_coin_info: self.parent_parent_coin_info.rust()?,
+            parent_inner_puzzle_hash: self
+                .parent_inner_puzzle_hash
+                .ok_or(chia_sdk_bindings::Error::MissingParentInnerPuzzleHash)?
+                .rust()?,
+            parent_amount: self.parent_amount,
+        })
+    }
+}
+
+impl IntoPy for LineageProof {
+    type Py = crate::LineageProof;
+
+    fn py(self) -> Result<Self::Py> {
+        Ok(Self::Py {
+            parent_parent_coin_info: self.parent_parent_coin_info.py()?,
+            parent_inner_puzzle_hash: Some(self.parent_inner_puzzle_hash.py()?),
+            parent_amount: self.parent_amount,
+        })
+    }
+}
+
+impl<T, R> IntoRust<Option<R>> for Option<T>
+where
+    T: IntoRust<R>,
+{
+    fn rust(self) -> Result<Option<R>> {
+        self.map(IntoRust::rust).transpose()
+    }
+}
+
+impl<T, R> IntoPy for Option<R>
+where
+    R: IntoPy<Py = T>,
+{
+    type Py = Option<T>;
+
+    fn py(self) -> Result<Self::Py> {
+        self.map(IntoPy::py).transpose()
     }
 }

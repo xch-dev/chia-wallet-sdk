@@ -80,3 +80,28 @@ impl SpendBundle {
         }
     }
 }
+
+#[pyclass(frozen, get_all)]
+#[derive(Clone)]
+pub struct LineageProof {
+    pub parent_parent_coin_info: Vec<u8>,
+    pub parent_inner_puzzle_hash: Option<Vec<u8>>,
+    pub parent_amount: u64,
+}
+
+#[pymethods]
+impl LineageProof {
+    #[new]
+    #[pyo3(signature = (parent_parent_coin_info, parent_inner_puzzle_hash, parent_amount))]
+    pub fn new(
+        parent_parent_coin_info: Vec<u8>,
+        parent_inner_puzzle_hash: Option<Vec<u8>>,
+        parent_amount: u64,
+    ) -> Self {
+        Self {
+            parent_parent_coin_info,
+            parent_inner_puzzle_hash,
+            parent_amount,
+        }
+    }
+}

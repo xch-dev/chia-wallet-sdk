@@ -22,6 +22,7 @@ use pyo3::{
 use crate::{
     bls::{PublicKey, Signature},
     coin::{Coin, CoinSpend},
+    puzzles::CatSpend,
     secp::{K1PublicKey, K1Signature, R1PublicKey, R1Signature},
     traits::{IntoPy, IntoRust},
 };
@@ -127,6 +128,43 @@ impl Clvm {
                 node_ptr: spend.solution,
             },
         })
+    }
+
+    pub fn spend_standard_coin(
+        &mut self,
+        coin: &Coin,
+        synthetic_key: &PublicKey,
+        spend: &Spend,
+    ) -> PyResult<()> {
+        let mut clvm = self.0.write();
+        clvm.spend_standard_coin(
+            coin.clone().rust()?,
+            synthetic_key.0,
+            chia_sdk_bindings::Spend::new(spend.puzzle.node_ptr, spend.solution.node_ptr),
+        )?;
+        Ok(())
+    }
+
+    pub fn spend_cat_coins(&mut self, cat_spends: Vec<Bound<'_, CatSpend>>) -> PyResult<()> {
+        let mut clvm = self.0.write();
+
+        clvm.spend_cat_coins(
+            cat_spends
+                .into_iter()
+                .map(|item| {
+                    let item = item.borrow();
+                    chia_sdk_bindings::Result::Ok(chia_sdk_bindings::CatSpend::new(
+                        item.cat.clone().rust()?,
+                        chia_sdk_bindings::Spend::new(
+                            item.spend.puzzle.node_ptr,
+                            item.spend.solution.node_ptr,
+                        ),
+                    ))
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        )?;
+
+        Ok(())
     }
 }
 

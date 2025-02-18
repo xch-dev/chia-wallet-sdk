@@ -2,8 +2,25 @@ use pyo3::prelude::*;
 
 use crate::{
     bls::PublicKey,
+    clvm::Spend,
+    coin::{Coin, LineageProof},
     traits::{IntoPy, IntoRust},
 };
+
+#[pyclass(get_all, frozen)]
+#[derive(Clone)]
+pub struct Cat {
+    pub coin: Coin,
+    pub lineage_proof: Option<LineageProof>,
+    pub asset_id: Vec<u8>,
+    pub p2_puzzle_hash: Vec<u8>,
+}
+
+#[pyclass(get_all, frozen)]
+pub struct CatSpend {
+    pub cat: Cat,
+    pub spend: Spend,
+}
 
 #[pyfunction]
 pub fn standard_puzzle_hash(synthetic_key: &PublicKey) -> PyResult<Vec<u8>> {
