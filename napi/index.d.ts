@@ -27,12 +27,6 @@ export declare class Clvm {
   spendCatCoins(cats: Array<CatSpend>): void
 }
 
-export declare class CurriedProgram {
-  constructor(program: Program, args: Array<Program>)
-  get program(): Program
-  get args(): Array<Program>
-}
-
 export declare class K1Pair {
   constructor(seed: bigint)
   get sk(): K1SecretKey
@@ -80,6 +74,7 @@ export declare class Program {
   toBytes(): Uint8Array | null
   toPair(): Pair | null
   toList(): Array<Program> | null
+  curry(args: Array<Program>): Program
   uncurry(): CurriedProgram | null
   run(solution: Program, maxCost: bigint, mempoolMode: boolean): Output
 }
@@ -190,6 +185,11 @@ export interface CoinState {
   coin: Coin
   spentHeight?: number
   createdHeight?: number
+}
+
+export interface CurriedProgram {
+  program: Program
+  args: Array<Program>
 }
 
 export declare function curryTreeHash(program: Uint8Array, args: Array<Uint8Array>): Uint8Array

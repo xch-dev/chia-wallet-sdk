@@ -367,7 +367,6 @@ if (!nativeBinding) {
 module.exports.BlsPair = nativeBinding.BlsPair
 module.exports.BlsPairWithCoin = nativeBinding.BlsPairWithCoin
 module.exports.Clvm = nativeBinding.Clvm
-module.exports.CurriedProgram = nativeBinding.CurriedProgram
 module.exports.K1Pair = nativeBinding.K1Pair
 module.exports.K1PublicKey = nativeBinding.K1PublicKey
 module.exports.K1SecretKey = nativeBinding.K1SecretKey
