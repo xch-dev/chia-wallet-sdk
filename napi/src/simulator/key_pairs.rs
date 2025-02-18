@@ -13,7 +13,7 @@ pub struct BlsPair {
 
 #[napi]
 impl BlsPair {
-    #[napi]
+    #[napi(constructor)]
     pub fn new(env: Env, seed: BigInt) -> Result<Self> {
         let pair = chia_sdk_bindings::BlsPair::new(seed.rust()?);
         Ok(Self {
@@ -76,7 +76,7 @@ pub struct K1Pair {
 
 #[napi]
 impl K1Pair {
-    #[napi]
+    #[napi(constructor)]
     pub fn new(env: Env, seed: BigInt) -> Result<Self> {
         let pair = chia_sdk_bindings::K1Pair::new(seed.rust()?);
         Ok(Self {
@@ -104,7 +104,7 @@ pub struct R1Pair {
 
 #[napi]
 impl R1Pair {
-    #[napi]
+    #[napi(constructor)]
     pub fn new(env: Env, seed: BigInt) -> Result<Self> {
         let pair = chia_sdk_bindings::R1Pair::new(seed.rust()?);
         Ok(Self {

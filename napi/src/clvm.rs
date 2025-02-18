@@ -19,10 +19,16 @@ use value::{alloc, clvm, spend_to_js, Value};
 use crate::{CatSpend, Coin, CoinSpend, IntoJs, IntoRust, PublicKey};
 
 #[napi]
+#[derive(Default)]
 pub struct Clvm(chia_sdk_bindings::Clvm);
 
 #[napi]
 impl Clvm {
+    #[napi(constructor)]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     #[napi]
     pub fn alloc<'a>(&mut self, env: Env, this: This<'a>, value: Value<'a>) -> Result<Program> {
         let clvm = clvm(env, this)?;
