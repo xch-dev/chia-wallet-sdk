@@ -91,7 +91,7 @@ impl Program {
     }
 
     #[napi]
-    pub fn to_atom(&self) -> Result<Option<Uint8Array>> {
+    pub fn to_bytes(&self) -> Result<Option<Uint8Array>> {
         Ok(self
             .clvm
             .0

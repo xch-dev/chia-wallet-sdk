@@ -168,7 +168,7 @@ impl Clvm {
     }
 
     #[wasm_bindgen(js_name = "toAtom")]
-    pub fn to_atom(&mut self, value: Program) -> Result<Option<Vec<u8>>, JsError> {
+    pub fn to_bytes(&mut self, value: Program) -> Result<Option<Vec<u8>>, JsError> {
         Ok(self.0.as_atom(value.0)?.map(IntoJs::js).transpose()?)
     }
 

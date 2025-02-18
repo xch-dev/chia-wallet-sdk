@@ -74,7 +74,7 @@ impl Program {
         Ok(self.clvm.read().as_bool(self.node_ptr)?)
     }
 
-    pub fn to_atom(&self) -> PyResult<Option<Vec<u8>>> {
+    pub fn to_bytes(&self) -> PyResult<Option<Vec<u8>>> {
         Ok(self
             .clvm
             .read()

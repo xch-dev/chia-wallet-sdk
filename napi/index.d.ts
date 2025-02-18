@@ -77,7 +77,7 @@ export declare class Program {
   toBigInt(): bigint | null
   toString(): string | null
   toBool(): boolean | null
-  toAtom(): Uint8Array | null
+  toBytes(): Uint8Array | null
   toPair(): Pair | null
   toList(): Array<Program> | null
   uncurry(): CurriedProgram | null
