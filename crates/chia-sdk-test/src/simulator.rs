@@ -104,7 +104,7 @@ impl Simulator {
         self.next_timestamp += time;
     }
 
-    pub(crate) fn hint_coin(&mut self, coin_id: Bytes32, hint: Bytes32) {
+    pub fn hint_coin(&mut self, coin_id: Bytes32, hint: Bytes32) {
         self.hinted_coins.entry(hint).or_default().insert(coin_id);
     }
 

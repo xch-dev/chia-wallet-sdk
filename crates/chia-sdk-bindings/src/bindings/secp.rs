@@ -6,7 +6,7 @@ use chia_secp::{
 
 use crate::Result;
 
-pub struct K1SecretKey(pub(crate) K1SecretKeyRs);
+pub struct K1SecretKey(pub K1SecretKeyRs);
 
 impl K1SecretKey {
     pub fn from_bytes(bytes: Bytes32) -> Result<Self> {
@@ -27,20 +27,28 @@ impl K1SecretKey {
 }
 
 #[derive(Clone, Copy)]
-pub struct K1PublicKey(pub(crate) K1PublicKeyRs);
+pub struct K1PublicKey(pub K1PublicKeyRs);
 
 impl K1PublicKey {
     pub fn from_bytes(bytes: BytesImpl<33>) -> Result<Self> {
         Ok(Self(K1PublicKeyRs::from_bytes(&bytes.to_bytes())?))
     }
 
-    pub fn to_bytes(&self) -> Result<BytesImpl<33>> {
-        Ok(BytesImpl::new(self.0.to_bytes()))
+    pub fn to_bytes(&self) -> BytesImpl<33> {
+        BytesImpl::new(self.0.to_bytes())
+    }
+
+    pub fn fingerprint(&self) -> u32 {
+        self.0.fingerprint()
+    }
+
+    pub fn verify_prehashed(&self, prehashed: Bytes32, signature: K1Signature) -> bool {
+        self.0.verify_prehashed(&prehashed.to_bytes(), &signature.0)
     }
 }
 
 #[derive(Clone, Copy)]
-pub struct K1Signature(pub(crate) K1SignatureRs);
+pub struct K1Signature(pub K1SignatureRs);
 
 impl K1Signature {
     pub fn from_bytes(bytes: BytesImpl<64>) -> Result<Self> {
@@ -52,7 +60,7 @@ impl K1Signature {
     }
 }
 
-pub struct R1SecretKey(pub(crate) R1SecretKeyRs);
+pub struct R1SecretKey(pub R1SecretKeyRs);
 
 impl R1SecretKey {
     pub fn from_bytes(bytes: Bytes32) -> Result<Self> {
@@ -73,7 +81,7 @@ impl R1SecretKey {
 }
 
 #[derive(Clone, Copy)]
-pub struct R1PublicKey(pub(crate) R1PublicKeyRs);
+pub struct R1PublicKey(pub R1PublicKeyRs);
 
 impl R1PublicKey {
     pub fn from_bytes(bytes: BytesImpl<33>) -> Result<Self> {
@@ -83,10 +91,18 @@ impl R1PublicKey {
     pub fn to_bytes(&self) -> Result<BytesImpl<33>> {
         Ok(BytesImpl::new(self.0.to_bytes()))
     }
+
+    pub fn fingerprint(&self) -> u32 {
+        self.0.fingerprint()
+    }
+
+    pub fn verify_prehashed(&self, prehashed: Bytes32, signature: R1Signature) -> bool {
+        self.0.verify_prehashed(&prehashed.to_bytes(), &signature.0)
+    }
 }
 
 #[derive(Clone, Copy)]
-pub struct R1Signature(pub(crate) R1SignatureRs);
+pub struct R1Signature(pub R1SignatureRs);
 
 impl R1Signature {
     pub fn from_bytes(bytes: BytesImpl<64>) -> Result<Self> {

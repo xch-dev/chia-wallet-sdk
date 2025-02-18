@@ -7,7 +7,7 @@ use chia_puzzles::DeriveSynthetic;
 
 use crate::Result;
 
-pub struct SecretKey(pub(crate) SecretKeyRs);
+pub struct SecretKey(pub SecretKeyRs);
 
 impl SecretKey {
     pub fn from_seed(seed: Bytes) -> Result<Self> {
@@ -72,7 +72,7 @@ impl SecretKey {
 
 #[derive(Clone, Copy)]
 #[allow(dead_code)]
-pub struct PublicKey(pub(crate) PublicKeyRs);
+pub struct PublicKey(pub PublicKeyRs);
 
 impl PublicKey {
     pub fn infinity() -> Result<Self> {

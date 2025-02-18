@@ -161,17 +161,50 @@ impl Drop for PeerSimulator {
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::{PublicKey, Signature};
+    use chia_bls::{PublicKey, SecretKey, Signature};
     use chia_protocol::{
-        Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, RespondCoinState, RespondPuzzleState,
-        SpendBundle,
+        Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, ProtocolMessageTypes,
+        RespondCoinState, RespondPuzzleState, SpendBundle, TransactionAck,
     };
     use chia_sdk_types::{AggSigMe, CreateCoin, Memos, Remark};
+    use chia_traits::Streamable;
     use clvmr::NodePtr;
 
-    use crate::{coin_state_updates, test_transaction, to_program, to_puzzle, BlsPair};
+    use crate::{sign_transaction, to_program, to_puzzle, BlsPair};
 
     use super::*;
+
+    fn coin_state_updates(receiver: &mut mpsc::Receiver<Message>) -> Vec<CoinStateUpdate> {
+        let mut items = Vec::new();
+        while let Ok(message) = receiver.try_recv() {
+            if message.msg_type != ProtocolMessageTypes::CoinStateUpdate {
+                continue;
+            }
+            items.push(CoinStateUpdate::from_bytes(&message.data).unwrap());
+        }
+        items
+    }
+
+    async fn test_transaction_raw(
+        peer: &Peer,
+        coin_spends: Vec<CoinSpend>,
+        secret_keys: &[SecretKey],
+    ) -> anyhow::Result<TransactionAck> {
+        let aggregated_signature = sign_transaction(&coin_spends, secret_keys)?;
+
+        Ok(peer
+            .send_transaction(SpendBundle::new(coin_spends, aggregated_signature))
+            .await?)
+    }
+
+    async fn test_transaction(peer: &Peer, coin_spends: Vec<CoinSpend>, secret_keys: &[SecretKey]) {
+        let ack = test_transaction_raw(peer, coin_spends, secret_keys)
+            .await
+            .expect("could not submit transaction");
+
+        assert_eq!(ack.error, None);
+        assert_eq!(ack.status, 1);
+    }
 
     #[tokio::test]
     async fn test_coin_state() -> anyhow::Result<()> {

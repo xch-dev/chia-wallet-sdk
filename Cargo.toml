@@ -70,6 +70,7 @@ experimental-vaults = [
 offers = ["chia-sdk-driver/offers"]
 native-tls = ["chia-sdk-client/native-tls"]
 rustls = ["chia-sdk-client/rustls"]
+peer-simulator = ["chia-sdk-test/peer-simulator"]
 
 [dependencies]
 chia-sdk-client = { workspace = true }

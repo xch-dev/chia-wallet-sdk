@@ -1,6 +1,7 @@
 use std::string::FromUtf8Error;
 
 use chia_sdk_driver::DriverError;
+use chia_sdk_test::SimulatorError;
 use chia_sdk_utils::AddressError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
@@ -77,6 +78,9 @@ pub enum Error {
 
     #[error("Missing parent inner puzzle hash")]
     MissingParentInnerPuzzleHash,
+
+    #[error("Simulator error: {0}")]
+    Simulator(#[from] SimulatorError),
 }
 
 #[cfg(feature = "napi")]

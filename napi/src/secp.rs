@@ -45,7 +45,17 @@ impl K1PublicKey {
 
     #[napi]
     pub fn to_bytes(&self) -> Result<Uint8Array> {
-        Ok(self.0.to_bytes()?.js()?)
+        Ok(self.0.to_bytes().js()?)
+    }
+
+    #[napi]
+    pub fn fingerprint(&self) -> u32 {
+        self.0.fingerprint()
+    }
+
+    #[napi]
+    pub fn verify_prehashed(&self, prehashed: Uint8Array, signature: &K1Signature) -> Result<bool> {
+        Ok(self.0.verify_prehashed(prehashed.rust()?, signature.0))
     }
 }
 
@@ -110,6 +120,16 @@ impl R1PublicKey {
     #[napi]
     pub fn to_bytes(&self) -> Result<Uint8Array> {
         Ok(self.0.to_bytes()?.js()?)
+    }
+
+    #[napi]
+    pub fn fingerprint(&self) -> u32 {
+        self.0.fingerprint()
+    }
+
+    #[napi]
+    pub fn verify_prehashed(&self, prehashed: Uint8Array, signature: &R1Signature) -> Result<bool> {
+        Ok(self.0.verify_prehashed(prehashed.rust()?, signature.0))
     }
 }
 

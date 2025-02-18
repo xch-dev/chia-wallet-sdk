@@ -364,21 +364,26 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
+module.exports.BlsPair = nativeBinding.BlsPair
+module.exports.BlsPairWithCoin = nativeBinding.BlsPairWithCoin
 module.exports.Clvm = nativeBinding.Clvm
 module.exports.CurriedProgram = nativeBinding.CurriedProgram
+module.exports.K1Pair = nativeBinding.K1Pair
 module.exports.K1PublicKey = nativeBinding.K1PublicKey
 module.exports.K1SecretKey = nativeBinding.K1SecretKey
 module.exports.K1Signature = nativeBinding.K1Signature
 module.exports.Pair = nativeBinding.Pair
 module.exports.Program = nativeBinding.Program
 module.exports.PublicKey = nativeBinding.PublicKey
+module.exports.R1Pair = nativeBinding.R1Pair
 module.exports.R1PublicKey = nativeBinding.R1PublicKey
 module.exports.R1SecretKey = nativeBinding.R1SecretKey
 module.exports.R1Signature = nativeBinding.R1Signature
 module.exports.SecretKey = nativeBinding.SecretKey
 module.exports.Signature = nativeBinding.Signature
-module.exports.Spend = nativeBinding.Spend
+module.exports.Simulator = nativeBinding.Simulator
 module.exports.bytesEqual = nativeBinding.bytesEqual
+module.exports.catPuzzleHash = nativeBinding.catPuzzleHash
 module.exports.curryTreeHash = nativeBinding.curryTreeHash
 module.exports.decodeAddress = nativeBinding.decodeAddress
 module.exports.encodeAddress = nativeBinding.encodeAddress
@@ -389,6 +394,7 @@ module.exports.mnemonicFromEntropy = nativeBinding.mnemonicFromEntropy
 module.exports.mnemonicToEntropy = nativeBinding.mnemonicToEntropy
 module.exports.mnemonicToSeed = nativeBinding.mnemonicToSeed
 module.exports.sha256 = nativeBinding.sha256
+module.exports.standardPuzzleHash = nativeBinding.standardPuzzleHash
 module.exports.toHex = nativeBinding.toHex
 module.exports.treeHashAtom = nativeBinding.treeHashAtom
 module.exports.treeHashPair = nativeBinding.treeHashPair
