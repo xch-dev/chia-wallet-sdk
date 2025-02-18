@@ -509,15 +509,16 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
-        let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
-        let p2 = StandardLayer::new(pk);
+        let alice = sim.bls(2);
+        let alice_p2 = StandardLayer::new(alice.pk);
 
-        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &p2)?;
-        p2.spend(ctx, coin, create_did)?;
+        let (create_did, did) =
+            Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
 
         let mint = NftMint::new(
             NftMetadata::default(),
-            puzzle_hash,
+            alice.puzzle_hash,
             300,
             Some(DidOwner::from_did_info(&did.info)),
         );
@@ -525,10 +526,10 @@ mod tests {
         let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
             .create(ctx)?
             .mint_nft(ctx, mint)?;
-        let _did = did.update(ctx, &p2, mint_nft)?;
-        let _nft = nft.transfer(ctx, &p2, puzzle_hash, Conditions::new())?;
+        let _did = did.update(ctx, &alice_p2, mint_nft)?;
+        let _nft = nft.transfer(ctx, &alice_p2, alice.puzzle_hash, Conditions::new())?;
 
-        sim.spend_coins(ctx.take(), &[sk])?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         Ok(())
     }
@@ -538,15 +539,16 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
-        let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
-        let p2 = StandardLayer::new(pk);
+        let alice = sim.bls(2);
+        let alice_p2 = StandardLayer::new(alice.pk);
 
-        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &p2)?;
-        p2.spend(ctx, coin, create_did)?;
+        let (create_did, did) =
+            Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
 
         let mint = NftMint::new(
             NftMetadata::default(),
-            puzzle_hash,
+            alice.puzzle_hash,
             300,
             Some(DidOwner::from_did_info(&did.info)),
         );
@@ -555,26 +557,26 @@ mod tests {
             .create(ctx)?
             .mint_nft(ctx, mint)?;
 
-        let mut did = did.update(ctx, &p2, mint_nft)?;
+        let mut did = did.update(ctx, &alice_p2, mint_nft)?;
 
-        sim.spend_coins(ctx.take(), &[sk.clone()])?;
+        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
 
         for i in 0..5 {
             let did_owner = DidOwner::from_did_info(&did.info);
 
             let (spend_nft, new_nft) = nft.transfer_to_did(
                 ctx,
-                &p2,
-                puzzle_hash,
+                &alice_p2,
+                alice.puzzle_hash,
                 if i % 2 == 0 { Some(did_owner) } else { None },
                 Conditions::new(),
             )?;
 
             nft = new_nft;
-            did = did.update(ctx, &p2, spend_nft)?;
+            did = did.update(ctx, &alice_p2, spend_nft)?;
         }
 
-        sim.spend_coins(ctx.take(), &[sk])?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         Ok(())
     }
@@ -584,11 +586,12 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
-        let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
-        let p2 = StandardLayer::new(pk);
+        let alice = sim.bls(2);
+        let alice_p2 = StandardLayer::new(alice.pk);
 
-        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &p2)?;
-        p2.spend(ctx, coin, create_did)?;
+        let (create_did, did) =
+            Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
 
         let mint = NftMint::new(
             NftMetadata {
@@ -596,7 +599,7 @@ mod tests {
                 data_hash: Some(Bytes32::default()),
                 ..Default::default()
             },
-            puzzle_hash,
+            alice.puzzle_hash,
             300,
             Some(DidOwner::from_did_info(&did.info)),
         );
@@ -604,12 +607,17 @@ mod tests {
         let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
             .create(ctx)?
             .mint_nft(ctx, mint)?;
-        let _did = did.update(ctx, &p2, mint_nft)?;
+        let _did = did.update(ctx, &alice_p2, mint_nft)?;
 
         let metadata_update = MetadataUpdate::NewDataUri("another.com".to_string()).spend(ctx)?;
         let parent_nft = nft.clone();
-        let nft: Nft<NftMetadata> =
-            nft.transfer_with_metadata(ctx, &p2, puzzle_hash, metadata_update, Conditions::new())?;
+        let nft: Nft<NftMetadata> = nft.transfer_with_metadata(
+            ctx,
+            &alice_p2,
+            alice.puzzle_hash,
+            metadata_update,
+            Conditions::new(),
+        )?;
 
         assert_eq!(
             nft.info.metadata,
@@ -621,9 +629,9 @@ mod tests {
         );
 
         let child_nft = nft.clone();
-        let _nft = nft.transfer(ctx, &p2, puzzle_hash, Conditions::new())?;
+        let _nft = nft.transfer(ctx, &alice_p2, alice.puzzle_hash, Conditions::new())?;
 
-        sim.spend_coins(ctx.take(), &[sk])?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         // Ensure that the metadata update can be parsed.
         let parent_puzzle = sim
@@ -656,11 +664,12 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
-        let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
-        let p2 = StandardLayer::new(pk);
+        let alice = sim.bls(2);
+        let alice_p2 = StandardLayer::new(alice.pk);
 
-        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &p2)?;
-        p2.spend(ctx, coin, create_did)?;
+        let (create_did, did) =
+            Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
 
         let mut metadata = NftMetadata::default();
         metadata.data_uris.push("example.com".to_string());
@@ -671,17 +680,17 @@ mod tests {
                 ctx,
                 NftMint::new(
                     metadata,
-                    puzzle_hash,
+                    alice.puzzle_hash,
                     300,
                     Some(DidOwner::from_did_info(&did.info)),
                 ),
             )?;
-        let _did = did.update(ctx, &p2, mint_nft)?;
+        let _did = did.update(ctx, &alice_p2, mint_nft)?;
 
         let parent_coin = nft.coin;
-        let expected_nft = nft.transfer(ctx, &p2, puzzle_hash, Conditions::new())?;
+        let expected_nft = nft.transfer(ctx, &alice_p2, alice.puzzle_hash, Conditions::new())?;
 
-        sim.spend_coins(ctx.take(), &[sk])?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         let mut allocator = Allocator::new();
 

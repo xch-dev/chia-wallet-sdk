@@ -1,5 +1,5 @@
-use chia_protocol::{Bytes, CoinSpend, Program};
-use chia_sdk_driver::{Spend, SpendContext, StandardLayer};
+use chia_protocol::{Bytes, Coin, CoinSpend, Program};
+use chia_sdk_driver::{Cat, CatSpend, Spend, SpendContext, StandardLayer};
 use clvm_traits::{clvm_quote, ClvmDecoder, ClvmEncoder, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram};
 use clvmr::{
@@ -292,5 +292,23 @@ impl Clvm {
 
     pub fn standard_spend(&mut self, synthetic_key: PublicKey, spend: Spend) -> Result<Spend> {
         Ok(StandardLayer::new(synthetic_key.0).delegated_inner_spend(&mut self.0, spend)?)
+    }
+
+    pub fn spend_standard_coin(
+        &mut self,
+        coin: Coin,
+        synthetic_key: PublicKey,
+        spend: Spend,
+    ) -> Result<()> {
+        let spend = self.standard_spend(synthetic_key, spend)?;
+        let puzzle_reveal = self.serialize(spend.puzzle)?;
+        let solution = self.serialize(spend.solution)?;
+        self.insert_coin_spend(CoinSpend::new(coin, puzzle_reveal, solution));
+        Ok(())
+    }
+
+    pub fn spend_cat_coins(&mut self, cats: Vec<CatSpend>) -> Result<()> {
+        Cat::spend_all(&mut self.0, &cats)?;
+        Ok(())
     }
 }

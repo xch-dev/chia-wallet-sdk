@@ -161,7 +161,7 @@ impl Drop for PeerSimulator {
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::{DerivableKey, PublicKey, Signature};
+    use chia_bls::{PublicKey, Signature};
     use chia_protocol::{
         Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, RespondCoinState, RespondPuzzleState,
         SpendBundle,
@@ -169,7 +169,7 @@ mod tests {
     use chia_sdk_types::{AggSigMe, CreateCoin, Memos, Remark};
     use clvmr::NodePtr;
 
-    use crate::{coin_state_updates, test_secret_key, test_transaction, to_program, to_puzzle};
+    use crate::{coin_state_updates, test_transaction, to_program, to_puzzle, BlsPair};
 
     use super::*;
 
@@ -249,7 +249,7 @@ mod tests {
     async fn test_bad_signature() -> anyhow::Result<()> {
         let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
-        let public_key = test_secret_key()?.public_key();
+        let public_key = BlsPair::new(0).pk;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
@@ -298,8 +298,7 @@ mod tests {
     async fn test_valid_signature() -> anyhow::Result<()> {
         let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
-        let sk = test_secret_key()?;
-        let pk = sk.public_key();
+        let pair = BlsPair::new(0);
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
@@ -310,9 +309,9 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([AggSigMe::new(pk, b"Hello, world!".to_vec().into())])?,
+                to_program([AggSigMe::new(pair.pk, b"Hello, world!".to_vec().into())])?,
             )],
-            &[sk],
+            &[pair.sk],
         )
         .await;
 
@@ -324,11 +323,8 @@ mod tests {
         let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
-        let sk1 = test_secret_key()?.derive_unhardened(0);
-        let pk1 = sk1.public_key();
-
-        let sk2 = test_secret_key()?.derive_unhardened(1);
-        let pk2 = sk2.public_key();
+        let alice = BlsPair::new(0);
+        let bob = BlsPair::new(1);
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
@@ -340,11 +336,11 @@ mod tests {
                 coin,
                 puzzle_reveal,
                 to_program([
-                    AggSigMe::new(pk1, b"Hello, world!".to_vec().into()),
-                    AggSigMe::new(pk2, b"Goodbye, world!".to_vec().into()),
+                    AggSigMe::new(alice.pk, b"Hello, world!".to_vec().into()),
+                    AggSigMe::new(bob.pk, b"Goodbye, world!".to_vec().into()),
                 ])?,
             )],
-            &[sk1, sk2],
+            &[alice.sk, bob.sk],
         )
         .await;
 

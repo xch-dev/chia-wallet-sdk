@@ -119,15 +119,15 @@ mod tests {
 
     #[test]
     fn test_p2_singleton_layer() -> anyhow::Result<()> {
-        let mut sim = Simulator::new();
+        let mut sim = Simulator::default();
         let ctx = &mut SpendContext::new();
 
-        let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
-        let p2 = StandardLayer::new(pk);
+        let alice = sim.bls(2);
+        let p2 = StandardLayer::new(alice.pk);
 
-        let launcher = Launcher::new(coin.coin_id(), 1);
+        let launcher = Launcher::new(alice.coin.coin_id(), 1);
         let launcher_id = launcher.coin().coin_id();
-        let (create_singleton, singleton) = launcher.spend(ctx, puzzle_hash, ())?;
+        let (create_singleton, singleton) = launcher.spend(ctx, alice.puzzle_hash, ())?;
 
         let p2_singleton = P2SingletonLayer::new(launcher_id);
         let p2_singleton_hash = p2_singleton.tree_hash().into();
@@ -135,19 +135,19 @@ mod tests {
         let memos = ctx.hint(launcher_id)?;
         p2.spend(
             ctx,
-            coin,
+            alice.coin,
             create_singleton.create_coin(p2_singleton_hash, 1, Some(memos)),
         )?;
 
-        let p2_coin = Coin::new(coin.coin_id(), p2_singleton_hash, 1);
-        p2_singleton.spend_coin(ctx, p2_coin, puzzle_hash)?;
+        let p2_coin = Coin::new(alice.coin.coin_id(), p2_singleton_hash, 1);
+        p2_singleton.spend_coin(ctx, p2_coin, alice.puzzle_hash)?;
 
         let memos = ctx.hint(launcher_id)?;
         let inner_solution = p2
             .spend_with_conditions(
                 ctx,
                 Conditions::new()
-                    .create_coin(puzzle_hash, 1, Some(memos))
+                    .create_coin(alice.puzzle_hash, 1, Some(memos))
                     .create_puzzle_announcement(p2_coin.coin_id().into()),
             )?
             .solution;
@@ -157,7 +157,7 @@ mod tests {
                 singleton,
                 SingletonSolution {
                     lineage_proof: Proof::Eve(EveProof {
-                        parent_parent_coin_info: coin.coin_id(),
+                        parent_parent_coin_info: alice.coin.coin_id(),
                         parent_amount: 1,
                     }),
                     amount: singleton.amount,
@@ -166,7 +166,7 @@ mod tests {
             )?;
         ctx.insert(singleton_spend);
 
-        sim.spend_coins(ctx.take(), &[sk])?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         Ok(())
     }

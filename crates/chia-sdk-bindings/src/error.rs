@@ -74,6 +74,9 @@ pub enum Error {
 
     #[error("BigInt error: {0}")]
     BigInt(#[from] TryFromBigIntError<BigInt>),
+
+    #[error("Missing parent inner puzzle hash")]
+    MissingParentInnerPuzzleHash,
 }
 
 #[cfg(feature = "napi")]

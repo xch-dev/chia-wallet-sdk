@@ -175,17 +175,19 @@ mod tests {
     #[test]
     fn test_singleton_launcher() -> anyhow::Result<()> {
         let mut sim = Simulator::new();
-        let (sk, pk, _puzzle_hash, coin) = sim.new_p2(1)?;
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
 
         let ctx = &mut SpendContext::new();
-        let launcher = Launcher::new(coin.coin_id(), 1);
+        let launcher = Launcher::new(alice.coin.coin_id(), 1);
         assert_eq!(launcher.coin.amount, 1);
 
         let (conditions, singleton) = launcher.spend(ctx, Bytes32::default(), ())?;
-        StandardLayer::new(pk).spend(ctx, coin, conditions)?;
+        alice_p2.spend(ctx, alice.coin, conditions)?;
         assert_eq!(singleton.amount, 1);
 
-        sim.spend_coins(ctx.take(), &[sk])?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         Ok(())
     }
@@ -193,20 +195,22 @@ mod tests {
     #[test]
     fn test_singleton_launcher_custom_amount() -> anyhow::Result<()> {
         let mut sim = Simulator::new();
-        let (sk, pk, _puzzle_hash, coin) = sim.new_p2(1)?;
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
 
         let ctx = &mut SpendContext::new();
-        let launcher = Launcher::new(coin.coin_id(), 0);
+        let launcher = Launcher::new(alice.coin.coin_id(), 0);
         assert_eq!(launcher.coin.amount, 0);
 
         let (conditions, singleton) =
             launcher
                 .with_singleton_amount(1)
                 .spend(ctx, Bytes32::default(), ())?;
-        StandardLayer::new(pk).spend(ctx, coin, conditions)?;
+        alice_p2.spend(ctx, alice.coin, conditions)?;
         assert_eq!(singleton.amount, 1);
 
-        sim.spend_coins(ctx.take(), &[sk])?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         Ok(())
     }

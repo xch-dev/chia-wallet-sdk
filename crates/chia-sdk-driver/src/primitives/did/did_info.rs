@@ -127,18 +127,23 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
-        let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
-        let p2 = StandardLayer::new(pk);
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
 
         let custom_metadata = ["Metadata".to_string(), "Example".to_string()];
-        let (create_did, did) =
-            Launcher::new(coin.coin_id(), 1).create_did(ctx, None, 1, custom_metadata, &p2)?;
-        p2.spend(ctx, coin, create_did)?;
+        let (create_did, did) = Launcher::new(alice.coin.coin_id(), 1).create_did(
+            ctx,
+            None,
+            1,
+            custom_metadata,
+            &alice_p2,
+        )?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
 
         let original_did = did.clone();
-        let _did = did.update(ctx, &p2, Conditions::new())?;
+        let _did = did.update(ctx, &alice_p2, Conditions::new())?;
 
-        sim.spend_coins(ctx.take(), &[sk])?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         let puzzle_reveal = sim
             .puzzle_reveal(original_did.coin.coin_id())
@@ -151,7 +156,7 @@ mod tests {
             DidInfo::<[String; 2]>::parse(&allocator, puzzle)?.expect("not a did");
 
         assert_eq!(did_info, original_did.info);
-        assert_eq!(p2_puzzle.curried_puzzle_hash(), puzzle_hash.into());
+        assert_eq!(p2_puzzle.curried_puzzle_hash(), alice.puzzle_hash.into());
 
         Ok(())
     }

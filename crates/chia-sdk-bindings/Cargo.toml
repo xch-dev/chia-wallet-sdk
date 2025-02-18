@@ -35,6 +35,7 @@ clvm-utils = { workspace = true }
 chia-puzzles = { workspace = true }
 chia-sdk-utils = { workspace = true }
 chia-sdk-driver = { workspace = true }
+chia-sdk-test = { workspace = true }
 clvmr = { workspace = true }
 clvm-traits = { workspace = true }
 sha2 = { workspace = true }

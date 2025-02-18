@@ -116,33 +116,33 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
-        let (alice_sk, alice_pk, alice_puzzle_hash, alice_coin) = sim.child_p2(1, 0)?;
-        let alice = StandardLayer::new(alice_pk);
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
 
-        let (bob_sk, bob_pk, bob_puzzle_hash, _) = sim.child_p2(1, 1)?;
-        let bob = StandardLayer::new(bob_pk);
+        let bob = sim.bls(1);
+        let bob_p2 = StandardLayer::new(bob.pk);
 
         let clawback = Clawback {
             timelock: NonZeroU64::MIN,
-            sender_puzzle_hash: alice_puzzle_hash,
-            recipient_puzzle_hash: bob_puzzle_hash,
+            sender_puzzle_hash: alice.puzzle_hash,
+            recipient_puzzle_hash: bob.puzzle_hash,
         };
         let clawback_puzzle_hash = clawback.to_layer().tree_hash().into();
 
-        alice.spend(
+        alice_p2.spend(
             ctx,
-            alice_coin,
+            alice.coin,
             Conditions::new().create_coin(clawback_puzzle_hash, 1, None),
         )?;
-        let clawback_coin = Coin::new(alice_coin.coin_id(), clawback_puzzle_hash, 1);
+        let clawback_coin = Coin::new(alice.coin.coin_id(), clawback_puzzle_hash, 1);
 
-        sim.spend_coins(ctx.take(), &[alice_sk])?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
 
-        let bob_inner = bob.spend_with_conditions(ctx, Conditions::new().reserve_fee(1))?;
+        let bob_inner = bob_p2.spend_with_conditions(ctx, Conditions::new().reserve_fee(1))?;
         let claim_spend = clawback.claim_spend(ctx, bob_inner)?;
         ctx.spend(clawback_coin, claim_spend)?;
 
-        sim.spend_coins(ctx.take(), &[bob_sk])?;
+        sim.spend_coins(ctx.take(), &[bob.sk])?;
 
         Ok(())
     }
@@ -153,30 +153,30 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
-        let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
-        let p2 = StandardLayer::new(pk);
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
 
         let clawback = Clawback {
             timelock: NonZeroU64::MAX,
-            sender_puzzle_hash: puzzle_hash,
+            sender_puzzle_hash: alice.puzzle_hash,
             recipient_puzzle_hash: Bytes32::default(),
         };
         let clawback_puzzle_hash = clawback.to_layer().tree_hash().into();
 
-        p2.spend(
+        alice_p2.spend(
             ctx,
-            coin,
+            alice.coin,
             Conditions::new().create_coin(clawback_puzzle_hash, 1, None),
         )?;
-        let clawback_coin = Coin::new(coin.coin_id(), clawback_puzzle_hash, 1);
+        let clawback_coin = Coin::new(alice.coin.coin_id(), clawback_puzzle_hash, 1);
 
-        sim.spend_coins(ctx.take(), &[sk.clone()])?;
+        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
 
-        let inner = p2.spend_with_conditions(ctx, Conditions::new().reserve_fee(1))?;
+        let inner = alice_p2.spend_with_conditions(ctx, Conditions::new().reserve_fee(1))?;
         let clawback_spend = clawback.clawback_spend(ctx, inner)?;
         ctx.spend(clawback_coin, clawback_spend)?;
 
-        sim.spend_coins(ctx.take(), &[sk])?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         Ok(())
     }

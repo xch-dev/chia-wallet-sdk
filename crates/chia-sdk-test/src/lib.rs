@@ -1,7 +1,7 @@
 mod announcements;
 mod error;
 mod events;
-mod keys;
+mod key_pairs;
 mod peer_simulator;
 mod simulator;
 mod transaction;
@@ -9,7 +9,7 @@ mod transaction;
 pub use announcements::*;
 pub use error::*;
 pub use events::*;
-pub use keys::*;
+pub use key_pairs::*;
 pub use peer_simulator::*;
 pub use simulator::*;
 pub use transaction::*;

@@ -3,6 +3,7 @@ mod output;
 mod pair;
 mod program;
 mod spend;
+mod value;
 
 pub use curried_program::*;
 pub use output::*;
@@ -11,32 +12,11 @@ pub use program::*;
 pub use spend::*;
 
 use clvmr::NodePtr;
-use napi::{bindgen_prelude::*, NapiRaw};
+use napi::bindgen_prelude::*;
 use napi_derive::napi;
+use value::{alloc, clvm, spend_to_js, Value};
 
-use crate::{
-    Coin, CoinSpend, IntoJs, IntoRust, K1PublicKey, K1Signature, PublicKey, R1PublicKey,
-    R1Signature, Signature,
-};
-
-pub type Value<'a> = Either16<
-    f64,
-    BigInt,
-    bool,
-    String,
-    Uint8Array,
-    ClassInstance<'a, Program>,
-    ClassInstance<'a, PublicKey>,
-    ClassInstance<'a, Signature>,
-    ClassInstance<'a, K1PublicKey>,
-    ClassInstance<'a, K1Signature>,
-    ClassInstance<'a, R1PublicKey>,
-    ClassInstance<'a, R1Signature>,
-    ClassInstance<'a, Pair>,
-    ClassInstance<'a, CurriedProgram>,
-    Array,
-    Null,
->;
+use crate::{CatSpend, Coin, CoinSpend, IntoJs, IntoRust, PublicKey};
 
 #[napi]
 pub struct Clvm(chia_sdk_bindings::Clvm);
@@ -86,7 +66,7 @@ impl Clvm {
     }
 
     #[napi]
-    pub fn spend_coin(&mut self, coin: Coin, spend: &Spend) -> Result<()> {
+    pub fn spend_coin(&mut self, coin: Coin, spend: Spend) -> Result<()> {
         let puzzle_reveal = self.0.serialize(spend.puzzle.node_ptr)?;
         let solution = self.0.serialize(spend.solution.node_ptr)?;
         self.0.insert_coin_spend(chia_sdk_bindings::CoinSpend::new(
@@ -122,7 +102,7 @@ impl Clvm {
         env: Env,
         this: This<'_>,
         synthetic_key: &PublicKey,
-        delegated_spend: &Spend,
+        delegated_spend: Spend,
     ) -> Result<Spend> {
         let clvm = clvm(env, this)?;
 
@@ -136,63 +116,40 @@ impl Clvm {
 
         spend_to_js(env, clvm, spend)
     }
-}
 
-fn clvm(env: Env, this: This<'_>) -> Result<Reference<Clvm>> {
-    Ok(unsafe { Reference::from_napi_value(env.raw(), this.object.raw())? })
-}
-
-fn alloc<'a>(env: Env, mut clvm: Reference<Clvm>, value: Value<'a>) -> Result<NodePtr> {
-    match value {
-        Value::A(value) => Ok(clvm.0.new_f64(value)?),
-        Value::B(value) => Ok(clvm.0.new_bigint(value.rust()?)?),
-        Value::C(value) => Ok(clvm.0.new_bool(value)?),
-        Value::D(value) => Ok(clvm.0.new_string(value)?),
-        Value::E(value) => Ok(clvm.0.new_atom(value.to_vec().into())?),
-        Value::F(value) => Ok(value.node_ptr),
-        Value::G(value) => Ok(clvm.0.new_atom(value.to_bytes()?.to_vec().into())?),
-        Value::H(value) => Ok(clvm.0.new_atom(value.to_bytes()?.to_vec().into())?),
-        Value::I(value) => Ok(clvm.0.new_atom(value.to_bytes()?.to_vec().into())?),
-        Value::J(value) => Ok(clvm.0.new_atom(value.to_bytes()?.to_vec().into())?),
-        Value::K(value) => Ok(clvm.0.new_atom(value.to_bytes()?.to_vec().into())?),
-        Value::L(value) => Ok(clvm.0.new_atom(value.to_bytes()?.to_vec().into())?),
-        Value::M(value) => Ok(clvm
-            .0
-            .new_pair(value.first.node_ptr, value.second.node_ptr)?),
-        Value::N(value) => {
-            let mut args = Vec::new();
-
-            for arg in &value.args {
-                args.push(arg.node_ptr);
-            }
-
-            Ok(clvm.0.curry(value.program.node_ptr, args)?)
-        }
-        Value::O(value) => {
-            let mut list = Vec::new();
-
-            for index in 0..value.len() {
-                let item = value.get::<Value<'a>>(index)?.unwrap();
-                list.push(alloc(env, clvm.clone(env)?, item)?);
-            }
-
-            Ok(clvm.0.new_list(list)?)
-        }
-        Value::P(_) => Ok(NodePtr::NIL),
+    #[napi]
+    pub fn spend_standard_coin(
+        &mut self,
+        coin: Coin,
+        synthetic_key: &PublicKey,
+        delegated_spend: Spend,
+    ) -> Result<()> {
+        self.0.spend_standard_coin(
+            coin.rust()?,
+            synthetic_key.0,
+            chia_sdk_bindings::Spend {
+                puzzle: delegated_spend.puzzle.node_ptr,
+                solution: delegated_spend.solution.node_ptr,
+            },
+        )?;
+        Ok(())
     }
-}
 
-fn spend_to_js(env: Env, clvm: Reference<Clvm>, spend: chia_sdk_bindings::Spend) -> Result<Spend> {
-    Ok(Spend {
-        puzzle: Program {
-            clvm: clvm.clone(env)?,
-            node_ptr: spend.puzzle,
-        }
-        .into_reference(env)?,
-        solution: Program {
-            clvm: clvm.clone(env)?,
-            node_ptr: spend.solution,
-        }
-        .into_reference(env)?,
-    })
+    #[napi]
+    pub fn spend_cat_coins(&mut self, cats: Vec<CatSpend>) -> Result<()> {
+        self.0.spend_cat_coins(
+            cats.into_iter()
+                .map(|item| {
+                    Ok(chia_sdk_bindings::CatSpend::new(
+                        item.cat.rust()?,
+                        chia_sdk_bindings::Spend::new(
+                            item.spend.puzzle.node_ptr,
+                            item.spend.solution.node_ptr,
+                        ),
+                    ))
+                })
+                .collect::<chia_sdk_bindings::Result<Vec<_>>>()?,
+        )?;
+        Ok(())
+    }
 }

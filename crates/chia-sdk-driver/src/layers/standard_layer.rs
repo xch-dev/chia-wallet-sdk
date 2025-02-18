@@ -128,22 +128,22 @@ mod tests {
     fn test_flash_loan() -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
-        let (sk, pk, puzzle_hash, coin) = sim.new_p2(1)?;
-        let p2 = StandardLayer::new(pk);
+        let alice = sim.bls(1);
+        let p2 = StandardLayer::new(alice.pk);
 
         p2.spend(
             ctx,
-            coin,
-            Conditions::new().create_coin(puzzle_hash, u64::MAX, None),
+            alice.coin,
+            Conditions::new().create_coin(alice.puzzle_hash, u64::MAX, None),
         )?;
 
         p2.spend(
             ctx,
-            Coin::new(coin.coin_id(), puzzle_hash, u64::MAX),
-            Conditions::new().create_coin(puzzle_hash, 1, None),
+            Coin::new(alice.coin.coin_id(), alice.puzzle_hash, u64::MAX),
+            Conditions::new().create_coin(alice.puzzle_hash, 1, None),
         )?;
 
-        sim.spend_coins(ctx.take(), &[sk])?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         Ok(())
     }

@@ -29,3 +29,10 @@ pub struct SpendBundle {
     pub coin_spends: Vec<CoinSpend>,
     pub aggregated_signature: Reference<Signature>,
 }
+
+#[napi(object)]
+pub struct LineageProof {
+    pub parent_parent_coin_info: Uint8Array,
+    pub parent_inner_puzzle_hash: Option<Uint8Array>,
+    pub parent_amount: BigInt,
+}

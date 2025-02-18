@@ -1,20 +1,20 @@
 use std::collections::HashSet;
 
-use chia_bls::{DerivableKey, PublicKey, SecretKey};
+use chia_bls::SecretKey;
 use chia_consensus::{
     gen::validation_error::ErrorCode, spendbundle_validation::validate_clvm_and_signature,
 };
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
-use chia_puzzles::standard::StandardArgs;
 use chia_sdk_types::TESTNET11_CONSTANTS;
-use fastrand::Rng;
 use indexmap::{IndexMap, IndexSet};
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 
-use crate::{sign_transaction, test_secret_key, SimulatorError};
+use crate::{sign_transaction, BlsPair, BlsPairWithCoin, SimulatorError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Simulator {
-    rng: Rng,
+    rng: ChaCha8Rng,
     height: u32,
     next_timestamp: u64,
     header_hashes: Vec<Bytes32>,
@@ -36,7 +36,7 @@ impl Simulator {
     }
 
     pub fn with_seed(seed: u64) -> Self {
-        let mut rng = Rng::with_seed(seed);
+        let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let mut header_hash = [0; 32];
         rng.fill(&mut header_hash);
 
@@ -81,15 +81,10 @@ impl Simulator {
         coin
     }
 
-    pub fn new_p2(
-        &mut self,
-        amount: u64,
-    ) -> Result<(SecretKey, PublicKey, Bytes32, Coin), bip39::Error> {
-        let sk = test_secret_key()?;
-        let pk = sk.public_key();
-        let p2 = StandardArgs::curry_tree_hash(pk).into();
-        let coin = self.new_coin(p2, amount);
-        Ok((sk, pk, p2, coin))
+    pub fn bls(&mut self, amount: u64) -> BlsPairWithCoin {
+        let pair = BlsPair::new(self.rng.gen());
+        let coin = self.new_coin(pair.puzzle_hash, amount);
+        BlsPairWithCoin::new(pair, coin)
     }
 
     pub fn set_next_timestamp(&mut self, time: u64) -> Result<(), SimulatorError> {
@@ -107,18 +102,6 @@ impl Simulator {
 
     pub fn pass_time(&mut self, time: u64) {
         self.next_timestamp += time;
-    }
-
-    pub fn child_p2(
-        &mut self,
-        amount: u64,
-        child: u32,
-    ) -> Result<(SecretKey, PublicKey, Bytes32, Coin), bip39::Error> {
-        let sk = test_secret_key()?.derive_unhardened(child);
-        let pk = sk.public_key();
-        let p2 = StandardArgs::curry_tree_hash(pk).into();
-        let coin = self.new_coin(p2, amount);
-        Ok((sk, pk, p2, coin))
     }
 
     pub(crate) fn hint_coin(&mut self, coin_id: Bytes32, hint: Bytes32) {
