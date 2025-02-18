@@ -6,6 +6,7 @@ mod spend;
 
 use std::sync::{Arc, RwLock};
 
+use clvmr::NodePtr;
 pub use curried_program::*;
 pub use output::*;
 pub use pair::*;
@@ -124,6 +125,14 @@ impl Clvm {
         Ok(Program {
             clvm: self.0.clone(),
             node_ptr: self.0.write().unwrap().new_atom(value.rust()?)?,
+        })
+    }
+
+    #[wasm_bindgen]
+    pub fn nil(&self) -> Result<Program, JsError> {
+        Ok(Program {
+            clvm: self.0.clone(),
+            node_ptr: NodePtr::NIL,
         })
     }
 
