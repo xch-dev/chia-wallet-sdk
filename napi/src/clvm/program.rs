@@ -139,6 +139,20 @@ impl Program {
     }
 
     #[napi]
+    pub fn curry(&mut self, env: Env, args: Vec<Reference<Program>>) -> Result<Program> {
+        let mut arg_ptrs = Vec::new();
+
+        for arg in &args {
+            arg_ptrs.push(arg.node_ptr);
+        }
+
+        Ok(Program {
+            clvm: self.clvm.clone(env)?,
+            node_ptr: self.clvm.0.curry(self.node_ptr, arg_ptrs)?,
+        })
+    }
+
+    #[napi]
     pub fn uncurry(&self, env: Env) -> Result<Option<CurriedProgram>> {
         let Some((program, args)) = self.clvm.0.uncurry(self.node_ptr)? else {
             return Ok(None);

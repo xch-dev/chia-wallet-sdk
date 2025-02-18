@@ -6,6 +6,8 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
 
 use crate::{CurriedProgram, IntoJs, Pair};
 
+use super::Output;
+
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct Program {
@@ -110,6 +112,17 @@ impl Program {
     }
 
     #[wasm_bindgen]
+    pub fn curry(&self, args: Vec<Program>) -> Result<Program, JsError> {
+        Ok(Program {
+            clvm: self.clvm.clone(),
+            node_ptr: self.clvm.write().unwrap().curry(
+                self.node_ptr,
+                args.into_iter().map(|p| p.node_ptr).collect(),
+            )?,
+        })
+    }
+
+    #[wasm_bindgen]
     pub fn uncurry(&self, value: Program) -> Result<Option<CurriedProgram>, JsError> {
         let Some((program, args)) = self.clvm.read().unwrap().uncurry(value.node_ptr)? else {
             return Ok(None);
@@ -149,5 +162,33 @@ impl Program {
             clvm: self.clvm.clone(),
             node_ptr: self.clvm.read().unwrap().rest(value.node_ptr)?,
         })
+    }
+
+    #[wasm_bindgen]
+    pub fn run(
+        &self,
+        solution: Program,
+        #[wasm_bindgen(js_name = "maxCost")] max_cost: u64,
+        #[wasm_bindgen(js_name = "mempoolMode")] mempool_mode: bool,
+    ) -> Result<Output, JsError> {
+        let output = self.clvm.write().unwrap().run(
+            self.node_ptr,
+            solution.node_ptr,
+            max_cost,
+            mempool_mode,
+        )?;
+
+        Ok(Output {
+            value: Program {
+                clvm: self.clvm.clone(),
+                node_ptr: output.1,
+            },
+            cost: output.0,
+        })
+    }
+
+    #[wasm_bindgen(js_name = "treeHash")]
+    pub fn tree_hash(&self) -> Result<Vec<u8>, JsError> {
+        Ok(self.clvm.write().unwrap().tree_hash(self.node_ptr)?.js()?)
     }
 }

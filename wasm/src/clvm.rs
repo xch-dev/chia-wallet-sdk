@@ -84,35 +84,6 @@ impl Clvm {
     }
 
     #[wasm_bindgen]
-    pub fn run(
-        &self,
-        puzzle: Program,
-        solution: Program,
-        #[wasm_bindgen(js_name = "maxCost")] max_cost: u64,
-        #[wasm_bindgen(js_name = "mempoolMode")] mempool_mode: bool,
-    ) -> Result<Output, JsError> {
-        let output = self.0.write().unwrap().run(
-            puzzle.node_ptr,
-            solution.node_ptr,
-            max_cost,
-            mempool_mode,
-        )?;
-
-        Ok(Output {
-            value: Program {
-                clvm: self.0.clone(),
-                node_ptr: output.1,
-            },
-            cost: output.0,
-        })
-    }
-
-    #[wasm_bindgen(js_name = "treeHash")]
-    pub fn tree_hash(&self, value: Program) -> Result<Vec<u8>, JsError> {
-        Ok(self.0.write().unwrap().tree_hash(value.node_ptr)?.js()?)
-    }
-
-    #[wasm_bindgen]
     pub fn number(&self, value: f64) -> Result<Program, JsError> {
         Ok(Program {
             clvm: self.0.clone(),
@@ -177,17 +148,6 @@ impl Clvm {
                 .write()
                 .unwrap()
                 .new_list(items.into_iter().map(|p| p.node_ptr).collect())?,
-        })
-    }
-
-    #[wasm_bindgen]
-    pub fn curry(&self, program: Program, args: Vec<Program>) -> Result<Program, JsError> {
-        Ok(Program {
-            clvm: self.0.clone(),
-            node_ptr: self.0.write().unwrap().curry(
-                program.node_ptr,
-                args.into_iter().map(|p| p.node_ptr).collect(),
-            )?,
         })
     }
 

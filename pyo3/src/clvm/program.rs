@@ -114,6 +114,15 @@ impl Program {
         ))
     }
 
+    pub fn curry(&mut self, args: Vec<Program>) -> PyResult<Program> {
+        let mut clvm = self.clvm.write();
+        let node_ptr = clvm.curry(self.node_ptr, args.iter().map(|p| p.node_ptr).collect())?;
+        Ok(Program {
+            clvm: self.clvm.clone(),
+            node_ptr,
+        })
+    }
+
     pub fn uncurry(&self) -> PyResult<Option<CurriedProgram>> {
         let Some((program, args)) = self.clvm.read().uncurry(self.node_ptr)? else {
             return Ok(None);

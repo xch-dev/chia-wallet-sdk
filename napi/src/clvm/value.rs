@@ -3,9 +3,9 @@ use napi::{bindgen_prelude::*, NapiRaw};
 
 use crate::{IntoRust, K1PublicKey, K1Signature, PublicKey, R1PublicKey, R1Signature, Signature};
 
-use super::{Clvm, CurriedProgram, Pair, Program, Spend};
+use super::{Clvm, Pair, Program, Spend};
 
-pub type Value<'a> = Either16<
+pub type Value<'a> = Either15<
     f64,
     BigInt,
     bool,
@@ -19,7 +19,6 @@ pub type Value<'a> = Either16<
     ClassInstance<'a, R1PublicKey>,
     ClassInstance<'a, R1Signature>,
     ClassInstance<'a, Pair>,
-    ClassInstance<'a, CurriedProgram>,
     Array,
     Null,
 >;
@@ -46,15 +45,6 @@ pub fn alloc<'a>(env: Env, mut clvm: Reference<Clvm>, value: Value<'a>) -> Resul
             .0
             .new_pair(value.first.node_ptr, value.second.node_ptr)?),
         Value::N(value) => {
-            let mut args = Vec::new();
-
-            for arg in &value.args {
-                args.push(arg.node_ptr);
-            }
-
-            Ok(clvm.0.curry(value.program.node_ptr, args)?)
-        }
-        Value::O(value) => {
             let mut list = Vec::new();
 
             for index in 0..value.len() {
@@ -64,7 +54,7 @@ pub fn alloc<'a>(env: Env, mut clvm: Reference<Clvm>, value: Value<'a>) -> Resul
 
             Ok(clvm.0.new_list(list)?)
         }
-        Value::P(_) => Ok(NodePtr::NIL),
+        Value::O(_) => Ok(NodePtr::NIL),
     }
 }
 
