@@ -88,8 +88,8 @@ impl R1PublicKey {
         Ok(Self(R1PublicKeyRs::from_bytes(&bytes.to_bytes())?))
     }
 
-    pub fn to_bytes(&self) -> Result<BytesImpl<33>> {
-        Ok(BytesImpl::new(self.0.to_bytes()))
+    pub fn to_bytes(&self) -> BytesImpl<33> {
+        BytesImpl::new(self.0.to_bytes())
     }
 
     pub fn fingerprint(&self) -> u32 {

@@ -3,6 +3,7 @@ mod bls;
 mod clvm;
 mod coin;
 mod mnemonic;
+mod puzzles;
 mod secp;
 mod traits;
 mod utils;
@@ -14,6 +15,7 @@ use bls::*;
 use clvm::*;
 use coin::*;
 use mnemonic::*;
+use puzzles::*;
 use secp::*;
 use utils::*;
 
@@ -52,6 +54,10 @@ fn chia_wallet_sdk_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(generate_bytes, m)?)?;
     m.add_function(wrap_pyfunction!(generate_mnemonic, m)?)?;
     m.add_function(wrap_pyfunction!(mnemonic_to_seed, m)?)?;
+
+    // Puzzles
+    m.add_function(wrap_pyfunction!(standard_puzzle_hash, m)?)?;
+    m.add_function(wrap_pyfunction!(cat_puzzle_hash, m)?)?;
 
     // SECP
     m.add_class::<K1SecretKey>()?;

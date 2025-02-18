@@ -41,7 +41,15 @@ impl K1PublicKey {
     }
 
     pub fn to_bytes(&self) -> PyResult<Vec<u8>> {
-        Ok(self.0.to_bytes()?.py()?)
+        Ok(self.0.to_bytes().py()?)
+    }
+
+    pub fn fingerprint(&self) -> u32 {
+        self.0.fingerprint()
+    }
+
+    pub fn verify_prehashed(&self, prehashed: Vec<u8>, signature: &K1Signature) -> PyResult<bool> {
+        Ok(self.0.verify_prehashed(prehashed.rust()?, signature.0))
     }
 }
 
@@ -102,7 +110,15 @@ impl R1PublicKey {
     }
 
     pub fn to_bytes(&self) -> PyResult<Vec<u8>> {
-        Ok(self.0.to_bytes()?.py()?)
+        Ok(self.0.to_bytes().py()?)
+    }
+
+    pub fn fingerprint(&self) -> u32 {
+        self.0.fingerprint()
+    }
+
+    pub fn verify_prehashed(&self, prehashed: Vec<u8>, signature: &R1Signature) -> PyResult<bool> {
+        Ok(self.0.verify_prehashed(prehashed.rust()?, signature.0))
     }
 }
 

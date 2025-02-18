@@ -119,7 +119,7 @@ impl R1PublicKey {
 
     #[napi]
     pub fn to_bytes(&self) -> Result<Uint8Array> {
-        Ok(self.0.to_bytes()?.js()?)
+        Ok(self.0.to_bytes().js()?)
     }
 
     #[napi]
