@@ -9,7 +9,9 @@ mod bls;
 mod clvm;
 mod coin;
 mod mnemonic;
+mod puzzles;
 mod secp;
+mod simulator;
 mod traits;
 mod utils;
 
@@ -18,7 +20,9 @@ pub use bls::*;
 pub use clvm::*;
 pub use coin::*;
 pub use mnemonic::*;
+pub use puzzles::*;
 pub use secp::*;
+pub use simulator::*;
 pub use utils::*;
 
 pub(crate) use traits::*;

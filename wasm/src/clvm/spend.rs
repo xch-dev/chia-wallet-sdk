@@ -3,6 +3,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use super::Program;
 
 #[wasm_bindgen]
+#[derive(Clone)]
 pub struct Spend {
     pub(crate) puzzle: Program,
     pub(crate) solution: Program,
@@ -17,11 +18,11 @@ impl Spend {
 
     #[wasm_bindgen(getter)]
     pub fn puzzle(&self) -> Program {
-        self.puzzle
+        self.puzzle.clone()
     }
 
     #[wasm_bindgen(getter)]
     pub fn solution(&self) -> Program {
-        self.solution
+        self.solution.clone()
     }
 }

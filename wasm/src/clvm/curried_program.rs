@@ -17,7 +17,7 @@ impl CurriedProgram {
 
     #[wasm_bindgen(getter)]
     pub fn program(&self) -> Program {
-        self.program
+        self.program.clone()
     }
 
     #[wasm_bindgen(getter)]

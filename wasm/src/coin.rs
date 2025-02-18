@@ -99,3 +99,27 @@ impl SpendBundle {
         }
     }
 }
+
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Clone)]
+pub struct LineageProof {
+    pub parent_parent_coin_info: Vec<u8>,
+    pub parent_inner_puzzle_hash: Option<Vec<u8>>,
+    pub parent_amount: u64,
+}
+
+#[wasm_bindgen]
+impl LineageProof {
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        parent_parent_coin_info: Vec<u8>,
+        parent_inner_puzzle_hash: Option<Vec<u8>>,
+        parent_amount: u64,
+    ) -> Self {
+        Self {
+            parent_parent_coin_info,
+            parent_inner_puzzle_hash,
+            parent_amount,
+        }
+    }
+}

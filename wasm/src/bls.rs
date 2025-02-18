@@ -3,6 +3,7 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 use crate::{IntoJs, IntoRust};
 
 #[wasm_bindgen]
+#[derive(Clone)]
 pub struct SecretKey(pub(crate) chia_sdk_bindings::SecretKey);
 
 #[wasm_bindgen]
@@ -71,6 +72,7 @@ impl SecretKey {
 }
 
 #[wasm_bindgen]
+#[derive(Clone)]
 pub struct PublicKey(pub(crate) chia_sdk_bindings::PublicKey);
 
 #[wasm_bindgen]

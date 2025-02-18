@@ -17,11 +17,11 @@ impl Pair {
 
     #[wasm_bindgen(getter)]
     pub fn first(&self) -> Program {
-        self.first
+        self.first.clone()
     }
 
     #[wasm_bindgen(getter)]
     pub fn second(&self) -> Program {
-        self.second
+        self.second.clone()
     }
 }

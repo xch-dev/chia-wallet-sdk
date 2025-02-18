@@ -17,7 +17,7 @@ impl Output {
 
     #[wasm_bindgen(getter)]
     pub fn value(&self) -> Program {
-        self.value
+        self.value.clone()
     }
 
     #[wasm_bindgen(getter)]
