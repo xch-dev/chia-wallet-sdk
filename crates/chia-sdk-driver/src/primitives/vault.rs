@@ -1,7 +1,7 @@
 mod vault_launcher;
 
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzles::{
+use chia_puzzle_types::{
     singleton::{SingletonArgs, SingletonSolution},
     LineageProof, Proof,
 };
@@ -80,7 +80,7 @@ mod tests {
     use chia_sdk_test::{K1Pair, Simulator};
     use chia_sdk_types::{Conditions, Mod, Secp256k1Member, Secp256k1MemberSolution};
     use chia_secp::{K1SecretKey, K1Signature};
-    use clvmr::sha2::Sha256;
+    use chia_sha2::Sha256;
     use rstest::rstest;
 
     use crate::{Launcher, MemberSpend, MofN, StandardLayer};

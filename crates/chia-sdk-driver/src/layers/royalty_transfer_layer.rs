@@ -1,9 +1,10 @@
 use std::convert::Infallible;
 
 use chia_protocol::Bytes32;
+use chia_puzzle_types::{nft::NftRoyaltyTransferPuzzleArgs, singleton::SingletonStruct};
 use chia_puzzles::{
-    nft::{NftRoyaltyTransferPuzzleArgs, NFT_ROYALTY_TRANSFER_PUZZLE_HASH},
-    singleton::{SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
+    NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES_HASH, SINGLETON_LAUNCHER_HASH,
+    SINGLETON_TOP_LAYER_V1_1_HASH,
 };
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
@@ -55,14 +56,16 @@ impl Layer for RoyaltyTransferLayer {
             return Ok(None);
         };
 
-        if puzzle.mod_hash != NFT_ROYALTY_TRANSFER_PUZZLE_HASH {
+        if puzzle.mod_hash
+            != NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES_HASH.into()
+        {
             return Ok(None);
         }
 
         let args = NftRoyaltyTransferPuzzleArgs::from_clvm(allocator, puzzle.args)?;
 
-        if args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
-            || args.singleton_struct.launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
+        if args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_V1_1_HASH.into()
+            || args.singleton_struct.launcher_puzzle_hash != SINGLETON_LAUNCHER_HASH.into()
         {
             return Err(DriverError::InvalidSingletonStruct);
         }

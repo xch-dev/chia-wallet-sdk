@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::{cat::CatArgs, standard::StandardArgs};
+use chia_puzzle_types::{cat::CatArgs, standard::StandardArgs};
 
 use super::PublicKey;
 

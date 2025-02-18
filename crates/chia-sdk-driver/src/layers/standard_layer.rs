@@ -1,6 +1,7 @@
 use chia_bls::PublicKey;
 use chia_protocol::Coin;
-use chia_puzzles::standard::{StandardArgs, StandardSolution, STANDARD_PUZZLE_HASH};
+use chia_puzzle_types::standard::{StandardArgs, StandardSolution};
+use chia_puzzles::P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE_HASH;
 use chia_sdk_types::Conditions;
 use clvm_traits::{clvm_quote, FromClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
@@ -75,7 +76,7 @@ impl Layer for StandardLayer {
             return Ok(None);
         };
 
-        if puzzle.mod_hash != STANDARD_PUZZLE_HASH {
+        if puzzle.mod_hash != P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE_HASH.into() {
             return Ok(None);
         }
 

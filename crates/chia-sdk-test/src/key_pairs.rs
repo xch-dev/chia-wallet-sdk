@@ -1,7 +1,7 @@
 use bip39::Mnemonic;
 use chia_bls::{PublicKey, SecretKey};
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzles::standard::StandardArgs;
+use chia_puzzle_types::standard::StandardArgs;
 use chia_secp::{K1PublicKey, K1SecretKey, R1PublicKey, R1SecretKey};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;

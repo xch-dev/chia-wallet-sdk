@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzles::{
+use chia_puzzle_types::{
     did::DidSolution,
     singleton::{SingletonArgs, SingletonSolution},
     LineageProof, Proof,

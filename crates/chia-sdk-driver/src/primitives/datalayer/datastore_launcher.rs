@@ -1,8 +1,6 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::{
-    nft::{NftStateLayerArgs, NFT_STATE_LAYER_PUZZLE_HASH},
-    EveProof, Proof,
-};
+use chia_puzzle_types::{nft::NftStateLayerArgs, EveProof, Proof};
+use chia_puzzles::NFT_STATE_LAYER_HASH;
 use chia_sdk_types::{Conditions, DelegationLayerArgs, DL_METADATA_UPDATER_PUZZLE_HASH};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
@@ -39,9 +37,9 @@ impl Launcher {
         let metadata_ptr = ctx.alloc(&metadata)?;
         let metadata_hash = ctx.tree_hash(metadata_ptr);
         let state_layer_hash = CurriedProgram {
-            program: NFT_STATE_LAYER_PUZZLE_HASH,
+            program: TreeHash::new(NFT_STATE_LAYER_HASH),
             args: NftStateLayerArgs::<TreeHash, TreeHash> {
-                mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                mod_hash: NFT_STATE_LAYER_HASH.into(),
                 metadata: metadata_hash,
                 metadata_updater_puzzle_hash: DL_METADATA_UPDATER_PUZZLE_HASH.into(),
                 inner_puzzle: inner_puzzle_hash,
@@ -90,7 +88,7 @@ impl Launcher {
 
 #[cfg(test)]
 mod tests {
-    use chia_puzzles::standard::StandardArgs;
+    use chia_puzzle_types::standard::StandardArgs;
     use chia_sdk_test::{BlsPair, Simulator};
     use rstest::rstest;
 

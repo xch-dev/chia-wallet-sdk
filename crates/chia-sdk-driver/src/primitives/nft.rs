@@ -1,17 +1,19 @@
 use bigdecimal::{BigDecimal, RoundingMode, ToPrimitive};
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzles::{
+use chia_puzzle_types::{
     nft::{NftOwnershipLayerSolution, NftStateLayerSolution},
-    offer::{NotarizedPayment, SettlementPaymentsSolution, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
+    offer::{NotarizedPayment, SettlementPaymentsSolution},
     singleton::{SingletonArgs, SingletonSolution},
     LineageProof, Proof,
 };
+use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
     run_puzzle, Condition, Conditions, NewMetadataOutput, TradePrice, TransferNft,
 };
+use chia_sha2::Sha256;
 use clvm_traits::{clvm_list, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
-use clvmr::{sha2::Sha256, Allocator, NodePtr};
+use clvmr::{Allocator, NodePtr};
 
 use crate::{
     DriverError, Layer, NftOwnershipLayer, NftStateLayer, Puzzle, RoyaltyTransferLayer,
@@ -232,7 +234,7 @@ where
         let (conditions, nft) = self.transfer_with_condition(
             ctx,
             inner,
-            SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
+            SETTLEMENT_PAYMENT_HASH.into(),
             transfer_condition,
             extra_conditions,
         )?;
@@ -501,7 +503,7 @@ mod tests {
 
     use super::*;
 
-    use chia_puzzles::nft::NftMetadata;
+    use chia_puzzle_types::nft::NftMetadata;
     use chia_sdk_test::Simulator;
 
     #[test]

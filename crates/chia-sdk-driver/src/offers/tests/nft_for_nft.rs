@@ -1,5 +1,5 @@
 use chia_protocol::SpendBundle;
-use chia_puzzles::{
+use chia_puzzle_types::{
     nft::NftMetadata,
     offer::{NotarizedPayment, Payment},
 };

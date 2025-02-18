@@ -8,6 +8,6 @@ pub use bindings::*;
 pub use error::*;
 
 pub use chia_protocol::{Bytes, Bytes32, BytesImpl, Coin, CoinSpend, CoinState, Program};
-pub use chia_puzzles::LineageProof;
+pub use chia_puzzle_types::LineageProof;
 pub use chia_sdk_driver::{Cat, CatSpend, Did, DidInfo, Nft, NftInfo, Spend};
 pub use chia_sdk_test::{BlsPair, BlsPairWithCoin, K1Pair, R1Pair, Simulator};

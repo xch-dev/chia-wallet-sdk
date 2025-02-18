@@ -19,6 +19,7 @@ chia-bls = { workspace = true }
 chia-secp = { workspace = true }
 chia-protocol = { workspace = true }
 chia-consensus = { workspace = true }
+chia-sha2 = { workspace = true }
 clvm-traits = { workspace = true, features = ["chia-secp"] }
 clvmr = { workspace = true }
 thiserror = { workspace = true }
@@ -26,7 +27,7 @@ chia-sdk-types = { workspace = true }
 k256 = { workspace = true }
 
 [dev-dependencies]
-chia-puzzles = { workspace = true }
+chia-puzzle-types = { workspace = true }
 hex = { workspace = true }
 hex-literal = { workspace = true }
 rand = { workspace = true }

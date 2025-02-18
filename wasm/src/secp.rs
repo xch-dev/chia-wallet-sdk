@@ -44,7 +44,7 @@ impl K1PublicKey {
 
     #[wasm_bindgen(js_name = "toBytes")]
     pub fn to_bytes(&self) -> Result<Vec<u8>, JsError> {
-        Ok(self.0.to_bytes()?.js()?)
+        Ok(self.0.to_bytes().js()?)
     }
 }
 
@@ -108,7 +108,7 @@ impl R1PublicKey {
 
     #[wasm_bindgen(js_name = "toBytes")]
     pub fn to_bytes(&self) -> Result<Vec<u8>, JsError> {
-        Ok(self.0.to_bytes()?.js()?)
+        Ok(self.0.to_bytes().js()?)
     }
 }
 

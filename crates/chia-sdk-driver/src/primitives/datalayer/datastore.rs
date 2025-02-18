@@ -1,11 +1,10 @@
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
-use chia_puzzles::{
-    nft::{NftStateLayerArgs, NftStateLayerSolution, NFT_STATE_LAYER_PUZZLE_HASH},
-    singleton::{
-        LauncherSolution, SingletonArgs, SingletonSolution, SINGLETON_LAUNCHER_PUZZLE_HASH,
-    },
+use chia_puzzle_types::{
+    nft::{NftStateLayerArgs, NftStateLayerSolution},
+    singleton::{LauncherSolution, SingletonArgs, SingletonSolution},
     EveProof, LineageProof, Proof,
 };
+use chia_puzzles::{NFT_STATE_LAYER_HASH, SINGLETON_LAUNCHER_HASH};
 use chia_sdk_types::{
     run_puzzle, CreateCoin, DelegationLayerArgs, DelegationLayerSolution, NewMetadataInfo,
     NewMetadataOutput, DELEGATION_LAYER_PUZZLE_HASH, DL_METADATA_UPDATER_PUZZLE_HASH,
@@ -222,7 +221,7 @@ where
             .to_clvm(allocator)
             .map_err(DriverError::ToClvm)?;
 
-        if cs.coin.puzzle_hash == SINGLETON_LAUNCHER_PUZZLE_HASH.into() {
+        if cs.coin.puzzle_hash == SINGLETON_LAUNCHER_HASH.into() {
             // we're just launching this singleton :)
             // solution is (singleton_full_puzzle_hash amount key_value_list)
             // kv_list is (metadata state_layer_hash)
@@ -356,9 +355,9 @@ where
         let new_puzzle_hash = SingletonArgs::curry_tree_hash(
             singleton_layer.launcher_id,
             CurriedProgram {
-                program: NFT_STATE_LAYER_PUZZLE_HASH,
+                program: TreeHash::new(NFT_STATE_LAYER_HASH),
                 args: NftStateLayerArgs::<TreeHash, TreeHash> {
-                    mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                    mod_hash: NFT_STATE_LAYER_HASH.into(),
                     metadata: tree_hash(allocator, new_metadata_ptr),
                     metadata_updater_puzzle_hash: state_layer.metadata_updater_puzzle_hash,
                     inner_puzzle: inner_create_coin_condition.puzzle_hash.into(),
@@ -594,10 +593,10 @@ pub mod tests {
     use core::panic;
 
     use chia_bls::PublicKey;
-    use chia_puzzles::standard::StandardArgs;
+    use chia_puzzle_types::standard::StandardArgs;
     use chia_sdk_test::{BlsPair, Simulator};
     use chia_sdk_types::{Conditions, MeltSingleton, Memos, UpdateDataStoreMerkleRoot};
-    use clvmr::sha2::Sha256;
+    use chia_sha2::Sha256;
     use rstest::rstest;
 
     use crate::{
@@ -1974,9 +1973,9 @@ pub mod tests {
         let metadata_ptr = ctx.alloc(&vec![first_root_hash.value()])?;
         let metadata_hash = ctx.tree_hash(metadata_ptr);
         let state_layer_hash = CurriedProgram {
-            program: NFT_STATE_LAYER_PUZZLE_HASH,
+            program: TreeHash::new(NFT_STATE_LAYER_HASH),
             args: NftStateLayerArgs::<TreeHash, TreeHash> {
-                mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                mod_hash: NFT_STATE_LAYER_HASH.into(),
                 metadata: metadata_hash,
                 metadata_updater_puzzle_hash: DL_METADATA_UPDATER_PUZZLE_HASH.into(),
                 inner_puzzle: inner_puzzle_hash,
@@ -2098,9 +2097,9 @@ pub mod tests {
             SingletonArgs::curry_tree_hash(
                 datastore_from_launcher.info.launcher_id,
                 CurriedProgram {
-                    program: NFT_STATE_LAYER_PUZZLE_HASH,
+                    program: TreeHash::new(NFT_STATE_LAYER_HASH),
                     args: NftStateLayerArgs::<TreeHash, DataStoreMetadata> {
-                        mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                        mod_hash: NFT_STATE_LAYER_HASH.into(),
                         metadata: new_metadata,
                         metadata_updater_puzzle_hash: DL_METADATA_UPDATER_PUZZLE_HASH.into(),
                         inner_puzzle: new_inner_ph.into(),
@@ -2119,9 +2118,9 @@ pub mod tests {
                 assert_eq!(
                     proof.parent_inner_puzzle_hash,
                     CurriedProgram {
-                        program: NFT_STATE_LAYER_PUZZLE_HASH,
+                        program: TreeHash::new(NFT_STATE_LAYER_HASH),
                         args: NftStateLayerArgs::<TreeHash, DataStoreMetadata> {
-                            mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                            mod_hash: NFT_STATE_LAYER_HASH.into(),
                             metadata: datastore_from_launcher.info.metadata,
                             metadata_updater_puzzle_hash: DL_METADATA_UPDATER_PUZZLE_HASH.into(),
                             inner_puzzle: owner_puzzle_hash,

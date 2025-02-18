@@ -1,6 +1,6 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzles::{
+use chia_puzzle_types::{
     cat::{CatArgs, CatSolution, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs},
     CoinProof, LineageProof,
 };
@@ -268,7 +268,7 @@ impl Cat {
 #[cfg(test)]
 mod tests {
     use chia_consensus::gen::validation_error::ErrorCode;
-    use chia_puzzles::cat::EverythingWithSignatureTailArgs;
+    use chia_puzzle_types::cat::EverythingWithSignatureTailArgs;
     use chia_sdk_test::{Simulator, SimulatorError};
     use rstest::rstest;
 

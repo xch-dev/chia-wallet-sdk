@@ -1,7 +1,7 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
+use chia_sha2::Sha256;
 use clvm_traits::{FromClvm, ToClvm};
-use clvmr::sha2::Sha256;
 
 use super::Condition;
 

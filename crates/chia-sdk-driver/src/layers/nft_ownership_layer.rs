@@ -1,7 +1,6 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::nft::{
-    NftOwnershipLayerArgs, NftOwnershipLayerSolution, NFT_OWNERSHIP_LAYER_PUZZLE_HASH,
-};
+use chia_puzzle_types::nft::{NftOwnershipLayerArgs, NftOwnershipLayerSolution};
+use chia_puzzles::NFT_OWNERSHIP_LAYER_HASH;
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -43,13 +42,13 @@ where
             return Ok(None);
         };
 
-        if puzzle.mod_hash != NFT_OWNERSHIP_LAYER_PUZZLE_HASH {
+        if puzzle.mod_hash != NFT_OWNERSHIP_LAYER_HASH.into() {
             return Ok(None);
         }
 
         let args = NftOwnershipLayerArgs::<NodePtr, NodePtr>::from_clvm(allocator, puzzle.args)?;
 
-        if args.mod_hash != NFT_OWNERSHIP_LAYER_PUZZLE_HASH.into() {
+        if args.mod_hash != NFT_OWNERSHIP_LAYER_HASH.into() {
             return Err(DriverError::InvalidModHash);
         }
 

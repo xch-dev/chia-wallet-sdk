@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzles::singleton::{SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH};
+use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{P2SingletonArgs, P2SingletonSolution, P2_SINGLETON_PUZZLE_HASH};
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
@@ -69,8 +69,8 @@ impl Layer for P2SingletonLayer {
 
         let args = P2SingletonArgs::from_clvm(allocator, puzzle.args)?;
 
-        if args.singleton_mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
-            || args.launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
+        if args.singleton_mod_hash != SINGLETON_TOP_LAYER_V1_1_HASH.into()
+            || args.launcher_puzzle_hash != SINGLETON_LAUNCHER_HASH.into()
         {
             return Err(DriverError::InvalidSingletonStruct);
         }
@@ -109,7 +109,7 @@ impl ToTreeHash for P2SingletonLayer {
 #[cfg(test)]
 mod tests {
     use chia_protocol::Coin;
-    use chia_puzzles::{singleton::SingletonSolution, EveProof, Proof};
+    use chia_puzzle_types::{singleton::SingletonSolution, EveProof, Proof};
     use chia_sdk_test::Simulator;
     use chia_sdk_types::Conditions;
 

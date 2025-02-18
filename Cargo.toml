@@ -85,7 +85,7 @@ chia-sdk-coinset = { workspace = true }
 anyhow = { workspace = true }
 hex-literal = { workspace = true }
 chia-protocol = { workspace = true }
-chia-puzzles = { workspace = true }
+chia-puzzle-types = { workspace = true }
 chia-bls = { workspace = true }
 clvm-utils = { workspace = true }
 clvm-traits = { workspace = true, features = ["derive"] }
@@ -103,17 +103,19 @@ chia-sdk-utils = { version = "0.20.0", path = "./crates/chia-sdk-utils" }
 chia-sdk-coinset = { version = "0.20.0", path = "./crates/chia-sdk-coinset" }
 chia-sdk-bindings = { version = "0.20.0", path = "./crates/chia-sdk-bindings" }
 chia-sdk-bindings-macro = { version = "0.20.0", path = "./crates/chia-sdk-bindings/macro" }
-chia = "0.17.0"
-chia-ssl = "0.17.0"
-chia-protocol = "0.17.0"
-chia-consensus = "0.17.0"
-chia-traits = "0.17.0"
-chia-bls = "0.17.0"
-chia-secp = "0.17.0"
-chia-puzzles = "0.17.0"
-clvm-traits = "0.17.0"
-clvm-utils = "0.17.0"
-clvmr = "0.10.0"
+chia = "0.20.0"
+chia-ssl = "0.20.0"
+chia-protocol = "0.20.0"
+chia-consensus = "0.20.0"
+chia-traits = "0.20.0"
+chia-bls = "0.20.0"
+chia-secp = "0.20.0"
+chia-puzzles = "0.20.1"
+chia-puzzle-types = "0.20.0"
+clvm-traits = "0.20.0"
+clvm-utils = "0.20.0"
+chia-sha2 = "0.20.0"
+clvmr = "0.12.0"
 thiserror = "1.0.61"
 hex = "0.4.3"
 bech32 = "0.9.1"

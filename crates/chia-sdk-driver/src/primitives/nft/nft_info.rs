@@ -1,5 +1,6 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::nft::{NftOwnershipLayerArgs, NftStateLayerArgs, NFT_STATE_LAYER_PUZZLE_HASH};
+use chia_puzzle_types::nft::{NftOwnershipLayerArgs, NftStateLayerArgs};
+use chia_puzzles::NFT_STATE_LAYER_HASH;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::Allocator;
@@ -141,9 +142,9 @@ impl<M> NftInfo<M> {
         M: ToTreeHash,
     {
         CurriedProgram {
-            program: NFT_STATE_LAYER_PUZZLE_HASH,
+            program: TreeHash::new(NFT_STATE_LAYER_HASH),
             args: NftStateLayerArgs {
-                mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                mod_hash: NFT_STATE_LAYER_HASH.into(),
                 metadata: self.metadata.tree_hash(),
                 metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
                 inner_puzzle: NftOwnershipLayerArgs::curry_tree_hash(
@@ -164,7 +165,7 @@ impl<M> NftInfo<M> {
 
 #[cfg(test)]
 mod tests {
-    use chia_puzzles::nft::NftMetadata;
+    use chia_puzzle_types::nft::NftMetadata;
     use chia_sdk_test::Simulator;
     use chia_sdk_types::Conditions;
 

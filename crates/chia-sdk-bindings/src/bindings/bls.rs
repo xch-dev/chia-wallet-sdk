@@ -3,7 +3,7 @@ use chia_bls::{
     Signature as SignatureRs,
 };
 use chia_protocol::{Bytes, Bytes32, Bytes48, Bytes96};
-use chia_puzzles::DeriveSynthetic;
+use chia_puzzle_types::DeriveSynthetic;
 
 use crate::Result;
 

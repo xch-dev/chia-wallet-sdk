@@ -1,10 +1,9 @@
 use chia_protocol::{Coin, SpendBundle};
-use chia_puzzles::{
+use chia_puzzle_types::{
     nft::NftMetadata,
-    offer::{
-        NotarizedPayment, Payment, SettlementPaymentsSolution, SETTLEMENT_PAYMENTS_PUZZLE_HASH,
-    },
+    offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},
 };
+use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_test::{sign_transaction, Simulator};
 use chia_sdk_types::{Conditions, TradePrice};
 
@@ -71,7 +70,7 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
         &StandardLayer::new(alice.pk),
         vec![TradePrice {
             amount: nft_trade_price,
-            puzzle_hash: SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
+            puzzle_hash: SETTLEMENT_PAYMENT_HASH.into(),
         }],
         Conditions::new().extend(assertions),
     )?;
@@ -85,7 +84,7 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
     let (fulfill_puzzle, payments) = builder.fulfill().expect("cannot fulfill offer");
     assert_eq!(
         fulfill_puzzle.curried_puzzle_hash(),
-        SETTLEMENT_PAYMENTS_PUZZLE_HASH
+        SETTLEMENT_PAYMENT_HASH.into()
     );
     assert_eq!(
         payments,
@@ -123,13 +122,13 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
         &mut ctx,
         bob.coin,
         Conditions::new()
-            .create_coin(SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), total_amount, None)
+            .create_coin(SETTLEMENT_PAYMENT_HASH.into(), total_amount, None)
             .with(payment_assertion(hash, &receive_payment)),
     )?;
 
     let settlement_coin = Coin::new(
         bob.coin.coin_id(),
-        SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
+        SETTLEMENT_PAYMENT_HASH.into(),
         total_amount,
     );
 

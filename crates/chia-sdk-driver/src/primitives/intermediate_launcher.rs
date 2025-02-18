@@ -1,7 +1,9 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_puzzles::{nft::NftIntermediateLauncherArgs, singleton::SINGLETON_LAUNCHER_PUZZLE_HASH};
+use chia_puzzle_types::nft::NftIntermediateLauncherArgs;
+use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_types::{announcement_id, Conditions};
-use clvmr::{sha2::Sha256, Allocator};
+use chia_sha2::Sha256;
+use clvmr::Allocator;
 
 use crate::{DriverError, SpendContext};
 
@@ -31,7 +33,7 @@ impl IntermediateLauncher {
 
         let launcher_coin = Coin::new(
             intermediate_coin.coin_id(),
-            SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
+            SINGLETON_LAUNCHER_HASH.into(),
             1,
         );
 

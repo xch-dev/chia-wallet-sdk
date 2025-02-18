@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::{EveProof, Proof};
+use chia_puzzle_types::{EveProof, Proof};
 use chia_sdk_types::{Conditions, TransferNft};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
@@ -113,7 +113,7 @@ mod tests {
 
     use chia_consensus::spendbundle_conditions::get_conditions_from_spendbundle;
     use chia_protocol::{Coin, SpendBundle};
-    use chia_puzzles::{nft::NftMetadata, standard::StandardArgs};
+    use chia_puzzle_types::{nft::NftMetadata, standard::StandardArgs};
     use chia_sdk_test::{sign_transaction, BlsPair, Simulator};
     use chia_sdk_types::{announcement_id, TESTNET11_CONSTANTS};
 
