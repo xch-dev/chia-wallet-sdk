@@ -2,6 +2,7 @@ mod address;
 mod bls;
 mod clvm;
 mod coin;
+mod conditions;
 mod mnemonic;
 mod puzzles;
 mod secp;
@@ -15,6 +16,7 @@ use address::*;
 use bls::*;
 use clvm::*;
 use coin::*;
+use conditions::*;
 use mnemonic::*;
 use puzzles::*;
 use secp::*;
@@ -49,6 +51,9 @@ fn chia_wallet_sdk_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CoinSpend>()?;
     m.add_class::<SpendBundle>()?;
 
+    // Conditions
+    add_conditions_to_module(m)?;
+
     // Mnemonic
     m.add_function(wrap_pyfunction!(mnemonic_from_entropy, m)?)?;
     m.add_function(wrap_pyfunction!(mnemonic_to_entropy, m)?)?;
@@ -58,6 +63,8 @@ fn chia_wallet_sdk_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(mnemonic_to_seed, m)?)?;
 
     // Puzzles
+    m.add_class::<Cat>()?;
+    m.add_class::<CatSpend>()?;
     m.add_function(wrap_pyfunction!(standard_puzzle_hash, m)?)?;
     m.add_function(wrap_pyfunction!(cat_puzzle_hash, m)?)?;
 

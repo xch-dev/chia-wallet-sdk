@@ -788,10 +788,12 @@ dependencies = [
 name = "chia-wallet-sdk-py"
 version = "0.1.0"
 dependencies = [
+ "chia-bls 0.20.0",
  "chia-sdk-bindings",
  "clvmr",
  "num-bigint",
  "parking_lot",
+ "paste",
  "pyo3",
 ]
 
@@ -1572,6 +1574,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b248f5224d1d606005e02c97f5aa4e88eeb230488bcc03bc9ca4d7991399f2b5"
 
 [[package]]
+name = "inventory"
+version = "0.3.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54b12ebb6799019b044deaf431eadfe23245b259bba5a2c0796acec3943a3cdb"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2200,6 +2211,7 @@ checksum = "57fe09249128b3173d092de9523eaa75136bf7ba85e0d69eca241c7939c933cc"
 dependencies = [
  "cfg-if",
  "indoc",
+ "inventory",
  "libc",
  "memoffset",
  "num-bigint",

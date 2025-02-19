@@ -25,7 +25,7 @@ use crate::{
 
 #[pyclass]
 #[derive(Default)]
-pub struct Clvm(Arc<RwLock<chia_sdk_bindings::Clvm>>);
+pub struct Clvm(pub(crate) Arc<RwLock<chia_sdk_bindings::Clvm>>);
 
 #[pymethods]
 impl Clvm {

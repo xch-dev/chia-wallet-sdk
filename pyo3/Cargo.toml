@@ -8,8 +8,10 @@ name = "chia_wallet_sdk_py"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { workspace = true, features = ["num-bigint"] }
+pyo3 = { workspace = true, features = ["num-bigint", "multiple-pymethods"] }
 chia-sdk-bindings = { workspace = true, features = ["pyo3"] }
 clvmr = { workspace = true }
 parking_lot = { workspace = true }
 num-bigint = { workspace = true }
+paste = { workspace = true }
+chia-bls = { workspace = true }

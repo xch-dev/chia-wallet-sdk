@@ -1,6 +1,11 @@
+use std::sync::Arc;
+
 use chia_sdk_bindings::{
-    AddressInfo, Bytes, BytesImpl, Cat, Coin, CoinSpend, Error, LineageProof, Program, Result,
+    AddressInfo, Bytes, BytesImpl, Cat, Clvm, Coin, CoinSpend, Error, LineageProof, Memos, Program,
+    Result,
 };
+use clvmr::NodePtr;
+use parking_lot::RwLock;
 
 pub trait IntoRust<T> {
     fn rust(self) -> Result<T>;
@@ -190,5 +195,168 @@ where
 
     fn py(self) -> Result<Self::Py> {
         self.map(IntoPy::py).transpose()
+    }
+}
+
+impl<T, R> IntoRust<Vec<R>> for Vec<T>
+where
+    T: IntoRust<R>,
+{
+    fn rust(self) -> Result<Vec<R>> {
+        self.into_iter()
+            .map(IntoRust::rust)
+            .collect::<Result<Vec<_>>>()
+    }
+}
+
+impl<T, R> IntoPy for Vec<R>
+where
+    R: IntoPy<Py = T>,
+{
+    type Py = Vec<T>;
+
+    fn py(self) -> Result<Self::Py> {
+        self.into_iter().map(IntoPy::py).collect::<Result<Vec<_>>>()
+    }
+}
+
+impl IntoRust<chia_bls::PublicKey> for crate::PublicKey {
+    fn rust(self) -> Result<chia_bls::PublicKey> {
+        Ok(self.0 .0)
+    }
+}
+
+impl IntoRust<NodePtr> for crate::Program {
+    fn rust(self) -> Result<NodePtr> {
+        Ok(self.node_ptr)
+    }
+}
+
+impl IntoRust<u64> for u64 {
+    fn rust(self) -> Result<u64> {
+        Ok(self)
+    }
+}
+
+impl IntoPy for u64 {
+    type Py = u64;
+
+    fn py(self) -> Result<Self::Py> {
+        Ok(self)
+    }
+}
+
+impl IntoRust<u32> for u32 {
+    fn rust(self) -> Result<u32> {
+        Ok(self)
+    }
+}
+
+impl IntoPy for u32 {
+    type Py = u32;
+
+    fn py(self) -> Result<Self::Py> {
+        Ok(self)
+    }
+}
+
+impl IntoRust<u8> for u8 {
+    fn rust(self) -> Result<u8> {
+        Ok(self)
+    }
+}
+
+impl IntoPy for u8 {
+    type Py = u8;
+
+    fn py(self) -> Result<Self::Py> {
+        Ok(self)
+    }
+}
+
+pub trait IntoPyWithClvm {
+    type Py;
+
+    fn py_with_clvm(self, clvm: &Arc<RwLock<Clvm>>) -> Result<Self::Py>;
+}
+
+impl<T, R> IntoPyWithClvm for R
+where
+    R: IntoPy<Py = T>,
+{
+    type Py = T;
+
+    fn py_with_clvm(self, _clvm: &Arc<RwLock<Clvm>>) -> Result<Self::Py> {
+        self.py()
+    }
+}
+
+impl IntoPyWithClvm for NodePtr {
+    type Py = crate::Program;
+
+    fn py_with_clvm(self, clvm: &Arc<RwLock<Clvm>>) -> Result<Self::Py> {
+        Ok(crate::Program {
+            clvm: clvm.clone(),
+            node_ptr: self,
+        })
+    }
+}
+
+impl IntoPyWithClvm for chia_bls::PublicKey {
+    type Py = crate::PublicKey;
+
+    fn py_with_clvm(self, _clvm: &Arc<RwLock<Clvm>>) -> Result<Self::Py> {
+        Ok(crate::PublicKey(chia_sdk_bindings::PublicKey(self)))
+    }
+}
+
+impl IntoPyWithClvm for Vec<NodePtr> {
+    type Py = Vec<crate::Program>;
+
+    fn py_with_clvm(self, clvm: &Arc<RwLock<Clvm>>) -> Result<Self::Py> {
+        self.into_iter()
+            .map(|node_ptr| {
+                Ok(crate::Program {
+                    clvm: clvm.clone(),
+                    node_ptr,
+                })
+            })
+            .collect::<Result<Vec<_>>>()
+    }
+}
+
+impl IntoPyWithClvm for Option<NodePtr> {
+    type Py = Option<crate::Program>;
+
+    fn py_with_clvm(self, clvm: &Arc<RwLock<Clvm>>) -> Result<Self::Py> {
+        let Some(node_ptr) = self else {
+            return Ok(None);
+        };
+
+        Ok(Some(crate::Program {
+            clvm: clvm.clone(),
+            node_ptr,
+        }))
+    }
+}
+
+impl IntoPyWithClvm for Option<Memos<NodePtr>> {
+    type Py = Option<crate::Program>;
+
+    fn py_with_clvm(self, clvm: &Arc<RwLock<Clvm>>) -> Result<Self::Py> {
+        let Some(memos) = self else {
+            return Ok(None);
+        };
+
+        Ok(Some(crate::Program {
+            clvm: clvm.clone(),
+            node_ptr: memos.value,
+        }))
+    }
+}
+
+impl IntoRust<Memos<NodePtr>> for crate::Program {
+    fn rust(self) -> Result<Memos<NodePtr>> {
+        Ok(Memos::new(self.node_ptr))
     }
 }
