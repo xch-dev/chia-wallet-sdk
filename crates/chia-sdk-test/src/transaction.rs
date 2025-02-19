@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use chia_bls::{sign, PublicKey, SecretKey, Signature};
-use chia_protocol::{CoinSpend, SpendBundle, TransactionAck};
-use chia_sdk_client::Peer;
+use chia_protocol::CoinSpend;
 use chia_sdk_signer::{AggSigConstants, RequiredSignature};
 use chia_sdk_types::TESTNET11_CONSTANTS;
 use clvmr::Allocator;
@@ -38,29 +37,4 @@ pub fn sign_transaction(
     }
 
     Ok(aggregated_signature)
-}
-
-pub async fn test_transaction_raw(
-    peer: &Peer,
-    coin_spends: Vec<CoinSpend>,
-    secret_keys: &[SecretKey],
-) -> anyhow::Result<TransactionAck> {
-    let aggregated_signature = sign_transaction(&coin_spends, secret_keys)?;
-
-    Ok(peer
-        .send_transaction(SpendBundle::new(coin_spends, aggregated_signature))
-        .await?)
-}
-
-/// Signs and tests a transaction with the given coin spends and secret keys.
-///
-/// # Panics
-/// Will panic if the transaction could not be submitted or was not successful.
-pub async fn test_transaction(peer: &Peer, coin_spends: Vec<CoinSpend>, secret_keys: &[SecretKey]) {
-    let ack = test_transaction_raw(peer, coin_spends, secret_keys)
-        .await
-        .expect("could not submit transaction");
-
-    assert_eq!(ack.error, None);
-    assert_eq!(ack.status, 1);
 }

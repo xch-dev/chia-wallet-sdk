@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::singleton::SingletonStruct;
+use chia_puzzle_types::singleton::SingletonStruct;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;

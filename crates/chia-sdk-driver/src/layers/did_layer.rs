@@ -1,8 +1,9 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::{
-    did::{DidArgs, DidSolution, DID_INNER_PUZZLE_HASH},
-    singleton::{SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH},
+use chia_puzzle_types::{
+    did::{DidArgs, DidSolution},
+    singleton::SingletonStruct,
 };
+use chia_puzzles::{DID_INNERPUZ_HASH, SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -65,14 +66,14 @@ where
             return Ok(None);
         };
 
-        if puzzle.mod_hash != DID_INNER_PUZZLE_HASH {
+        if puzzle.mod_hash != DID_INNERPUZ_HASH.into() {
             return Ok(None);
         }
 
         let args = DidArgs::<NodePtr, M>::from_clvm(allocator, puzzle.args)?;
 
-        if args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
-            || args.singleton_struct.launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
+        if args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_V1_1_HASH.into()
+            || args.singleton_struct.launcher_puzzle_hash != SINGLETON_LAUNCHER_HASH.into()
         {
             return Err(DriverError::InvalidSingletonStruct);
         }

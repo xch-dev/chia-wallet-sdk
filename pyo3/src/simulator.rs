@@ -1,0 +1,66 @@
+mod key_pairs;
+
+pub use key_pairs::*;
+
+use pyo3::prelude::*;
+
+use crate::{
+    bls::{PublicKey, SecretKey},
+    coin::{Coin, CoinSpend},
+    traits::IntoRust,
+};
+
+#[pyclass]
+#[derive(Default)]
+pub struct Simulator(chia_sdk_bindings::Simulator);
+
+#[pymethods]
+impl Simulator {
+    #[new]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn new_coin(&mut self, puzzle_hash: Vec<u8>, amount: u64) -> PyResult<Coin> {
+        let coin = self.0.new_coin(puzzle_hash.rust()?, amount);
+        Ok(Coin {
+            parent_coin_info: coin.parent_coin_info.into(),
+            puzzle_hash: coin.puzzle_hash.into(),
+            amount: coin.amount,
+        })
+    }
+
+    pub fn bls(&mut self, amount: u64) -> BlsPairWithCoin {
+        let pair = self.0.bls(amount);
+        BlsPairWithCoin {
+            sk: SecretKey(chia_sdk_bindings::SecretKey(pair.sk)),
+            pk: PublicKey(chia_sdk_bindings::PublicKey(pair.pk)),
+            puzzle_hash: pair.puzzle_hash.into(),
+            coin: Coin {
+                parent_coin_info: pair.coin.parent_coin_info.into(),
+                puzzle_hash: pair.coin.puzzle_hash.into(),
+                amount: pair.coin.amount,
+            },
+        }
+    }
+
+    pub fn spend_coins(
+        &mut self,
+        coin_spends: Vec<CoinSpend>,
+        secret_keys: Vec<SecretKey>,
+    ) -> PyResult<()> {
+        self.0
+            .spend_coins(
+                coin_spends
+                    .into_iter()
+                    .map(IntoRust::rust)
+                    .collect::<std::result::Result<Vec<_>, _>>()?,
+                &secret_keys
+                    .into_iter()
+                    .map(|sk| sk.0 .0.clone())
+                    .collect::<Vec<_>>(),
+            )
+            .map_err(chia_sdk_bindings::Error::from)?;
+        Ok(())
+    }
+}

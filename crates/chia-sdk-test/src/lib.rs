@@ -1,18 +1,20 @@
 mod announcements;
 mod error;
-mod events;
-mod keys;
-mod peer_simulator;
+mod key_pairs;
 mod simulator;
 mod transaction;
 
 pub use announcements::*;
 pub use error::*;
-pub use events::*;
-pub use keys::*;
-pub use peer_simulator::*;
+pub use key_pairs::*;
 pub use simulator::*;
 pub use transaction::*;
+
+#[cfg(feature = "peer-simulator")]
+mod peer_simulator;
+
+#[cfg(feature = "peer-simulator")]
+pub use peer_simulator::*;
 
 use chia_protocol::{Bytes32, Program};
 use clvm_traits::{FromClvm, ToClvm};

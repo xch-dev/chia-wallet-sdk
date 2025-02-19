@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzles::{
-    nft::{NFT_METADATA_UPDATER_PUZZLE, NFT_METADATA_UPDATER_PUZZLE_HASH},
-    offer::{SETTLEMENT_PAYMENTS_PUZZLE, SETTLEMENT_PAYMENTS_PUZZLE_HASH},
-    singleton::{SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH},
+    NFT_METADATA_UPDATER_DEFAULT, NFT_METADATA_UPDATER_DEFAULT_HASH, SETTLEMENT_PAYMENT,
+    SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER, SINGLETON_LAUNCHER_HASH,
 };
 use chia_sdk_types::{run_puzzle, Conditions, Memos, Mod};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
@@ -122,17 +121,17 @@ impl SpendContext {
 
     pub fn nft_metadata_updater(&mut self) -> Result<NodePtr, DriverError> {
         self.puzzle(
-            NFT_METADATA_UPDATER_PUZZLE_HASH,
-            &NFT_METADATA_UPDATER_PUZZLE,
+            NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
+            &NFT_METADATA_UPDATER_DEFAULT,
         )
     }
 
     pub fn singleton_launcher(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(SINGLETON_LAUNCHER_PUZZLE_HASH, &SINGLETON_LAUNCHER_PUZZLE)
+        self.puzzle(SINGLETON_LAUNCHER_HASH.into(), &SINGLETON_LAUNCHER)
     }
 
     pub fn settlement_payments_puzzle(&mut self) -> Result<NodePtr, DriverError> {
-        self.puzzle(SETTLEMENT_PAYMENTS_PUZZLE_HASH, &SETTLEMENT_PAYMENTS_PUZZLE)
+        self.puzzle(SETTLEMENT_PAYMENT_HASH.into(), &SETTLEMENT_PAYMENT)
     }
 
     #[cfg(feature = "experimental-vaults")]

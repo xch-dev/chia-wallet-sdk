@@ -1,11 +1,9 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzles::{
-    singleton::{
-        SingletonArgs, SingletonSolution, SingletonStruct, SINGLETON_LAUNCHER_PUZZLE_HASH,
-        SINGLETON_TOP_LAYER_PUZZLE_HASH,
-    },
+use chia_puzzle_types::{
+    singleton::{SingletonArgs, SingletonSolution, SingletonStruct},
     LineageProof,
 };
+use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -49,14 +47,14 @@ where
             return Ok(None);
         };
 
-        if puzzle.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH {
+        if puzzle.mod_hash != SINGLETON_TOP_LAYER_V1_1_HASH.into() {
             return Ok(None);
         }
 
         let args = SingletonArgs::<NodePtr>::from_clvm(allocator, puzzle.args)?;
 
-        if args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_PUZZLE_HASH.into()
-            || args.singleton_struct.launcher_puzzle_hash != SINGLETON_LAUNCHER_PUZZLE_HASH.into()
+        if args.singleton_struct.mod_hash != SINGLETON_TOP_LAYER_V1_1_HASH.into()
+            || args.singleton_struct.launcher_puzzle_hash != SINGLETON_LAUNCHER_HASH.into()
         {
             return Err(DriverError::InvalidSingletonStruct);
         }

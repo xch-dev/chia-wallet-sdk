@@ -1,5 +1,6 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::cat::{CatArgs, CatSolution, CAT_PUZZLE_HASH};
+use chia_puzzle_types::cat::{CatArgs, CatSolution};
+use chia_puzzles::CAT_PUZZLE_HASH;
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -36,7 +37,7 @@ where
             return Ok(None);
         };
 
-        if puzzle.mod_hash != CAT_PUZZLE_HASH {
+        if puzzle.mod_hash != CAT_PUZZLE_HASH.into() {
             return Ok(None);
         }
 
@@ -113,7 +114,7 @@ where
 #[cfg(test)]
 mod tests {
     use chia_protocol::Coin;
-    use chia_puzzles::CoinProof;
+    use chia_puzzle_types::CoinProof;
 
     use super::*;
 

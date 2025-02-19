@@ -1,292 +1,176 @@
-use std::str::FromStr;
-
-use bip39::Mnemonic;
-use chia::{
-    bls::{
-        self, master_to_wallet_hardened, master_to_wallet_hardened_intermediate,
-        master_to_wallet_unhardened, master_to_wallet_unhardened_intermediate, sign, verify,
-        DerivableKey,
-    },
-    puzzles::DeriveSynthetic,
-};
 use napi::bindgen_prelude::*;
-use rand::{Rng, RngCore, SeedableRng};
-use rand_chacha::ChaCha20Rng;
+use napi_derive::napi;
 
-use crate::traits::{js_err, IntoJs, IntoRust};
+use crate::{IntoJs, IntoRust};
 
 #[napi]
-pub struct SecretKey(pub(crate) bls::SecretKey);
+pub struct SecretKey(pub(crate) chia_sdk_bindings::SecretKey);
 
 #[napi]
 impl SecretKey {
     #[napi(factory)]
     pub fn from_seed(seed: Uint8Array) -> Result<Self> {
-        let seed: Vec<u8> = seed.into_rust()?;
-        Ok(Self(bls::SecretKey::from_seed(&seed)))
+        Ok(Self(chia_sdk_bindings::SecretKey::from_seed(seed.rust()?)?))
     }
 
     #[napi(factory)]
     pub fn from_bytes(bytes: Uint8Array) -> Result<Self> {
+        Ok(Self(chia_sdk_bindings::SecretKey::from_bytes(
+            bytes.rust()?,
+        )?))
+    }
+
+    #[napi]
+    pub fn to_bytes(&self) -> Result<Uint8Array> {
+        Ok(self.0.to_bytes()?.js()?)
+    }
+
+    #[napi]
+    pub fn public_key(&self) -> Result<PublicKey> {
+        Ok(PublicKey(self.0.public_key()?))
+    }
+
+    #[napi]
+    pub fn sign(&self, message: Uint8Array) -> Result<Signature> {
+        Ok(Signature(self.0.sign(message.rust()?)?))
+    }
+
+    #[napi]
+    pub fn derive_unhardened(&self, index: u32) -> Result<Self> {
+        Ok(Self(self.0.derive_unhardened(index)?))
+    }
+
+    #[napi]
+    pub fn derive_hardened(&self, index: u32) -> Result<Self> {
+        Ok(Self(self.0.derive_hardened(index)?))
+    }
+
+    #[napi]
+    pub fn derive_unhardened_path(&self, path: Vec<u32>) -> Result<Self> {
+        Ok(Self(self.0.derive_unhardened_path(path)?))
+    }
+
+    #[napi]
+    pub fn derive_hardened_path(&self, path: Vec<u32>) -> Result<Self> {
+        Ok(Self(self.0.derive_hardened_path(path)?))
+    }
+
+    #[napi]
+    pub fn derive_synthetic(&self) -> Result<Self> {
+        Ok(Self(self.0.derive_synthetic()?))
+    }
+
+    #[napi]
+    pub fn derive_synthetic_hidden(&self, hidden_puzzle_hash: Uint8Array) -> Result<Self> {
         Ok(Self(
-            bls::SecretKey::from_bytes(&bytes.into_rust()?).map_err(js_err)?,
-        ))
-    }
-
-    #[napi]
-    pub fn to_bytes(&self) -> Uint8Array {
-        Uint8Array::new(self.0.to_bytes().to_vec())
-    }
-
-    #[napi]
-    pub fn public_key(&self) -> PublicKey {
-        PublicKey(self.0.public_key())
-    }
-
-    #[napi]
-    pub fn sign(&self, message: Uint8Array) -> Signature {
-        Signature(sign(&self.0, message))
-    }
-
-    #[napi]
-    pub fn derive_unhardened(&self, index: u32) -> Self {
-        Self(self.0.derive_unhardened(index))
-    }
-
-    #[napi]
-    pub fn derive_hardened(&self, index: u32) -> Self {
-        Self(self.0.derive_hardened(index))
-    }
-
-    #[napi]
-    pub fn derive_unhardened_path(&self, path: Vec<u32>) -> Self {
-        let mut result = self.0.clone();
-        for index in path {
-            result = result.derive_unhardened(index);
-        }
-        Self(result)
-    }
-
-    #[napi]
-    pub fn derive_hardened_path(&self, path: Vec<u32>) -> Self {
-        let mut result = self.0.clone();
-        for index in path {
-            result = result.derive_hardened(index);
-        }
-        Self(result)
-    }
-
-    #[napi]
-    pub fn derive_unhardened_wallet_intermediate(&self) -> Self {
-        Self(master_to_wallet_unhardened_intermediate(&self.0))
-    }
-
-    #[napi]
-    pub fn derive_hardened_wallet_intermediate(&self) -> Self {
-        Self(master_to_wallet_hardened_intermediate(&self.0))
-    }
-
-    #[napi]
-    pub fn derive_unhardened_wallet(&self, index: u32) -> Self {
-        Self(master_to_wallet_unhardened(&self.0, index))
-    }
-
-    #[napi]
-    pub fn derive_hardened_wallet(&self, index: u32) -> Self {
-        Self(master_to_wallet_hardened(&self.0, index))
-    }
-
-    #[napi]
-    pub fn derive_synthetic(&self) -> Self {
-        Self(self.0.derive_synthetic())
-    }
-
-    #[napi]
-    pub fn derive_synthetic_with_hidden_puzzle(
-        &self,
-        hidden_puzzle_hash: Uint8Array,
-    ) -> Result<Self> {
-        Ok(Self(
-            self.0
-                .derive_synthetic_hidden(&hidden_puzzle_hash.into_rust()?),
+            self.0.derive_synthetic_hidden(hidden_puzzle_hash.rust()?)?,
         ))
     }
 }
 
 #[napi]
-pub struct PublicKey(pub(crate) bls::PublicKey);
+pub struct PublicKey(pub(crate) chia_sdk_bindings::PublicKey);
 
 #[napi]
 impl PublicKey {
     #[napi(factory)]
+    pub fn infinity() -> Result<Self> {
+        Ok(Self(chia_sdk_bindings::PublicKey::infinity()?))
+    }
+
+    #[napi]
+    pub fn aggregate(public_keys: Vec<Reference<PublicKey>>) -> Result<Self> {
+        Ok(Self(chia_sdk_bindings::PublicKey::aggregate(
+            public_keys.into_iter().map(|pk| pk.0).collect(),
+        )?))
+    }
+
+    #[napi(factory)]
     pub fn from_bytes(bytes: Uint8Array) -> Result<Self> {
+        Ok(Self(chia_sdk_bindings::PublicKey::from_bytes(
+            bytes.rust()?,
+        )?))
+    }
+
+    #[napi]
+    pub fn to_bytes(&self) -> Result<Uint8Array> {
+        Ok(self.0.to_bytes()?.js()?)
+    }
+
+    #[napi]
+    pub fn fingerprint(&self) -> Result<u32> {
+        Ok(self.0.fingerprint()?)
+    }
+
+    #[napi]
+    pub fn is_infinity(&self) -> Result<bool> {
+        Ok(self.0.is_infinity()?)
+    }
+
+    #[napi]
+    pub fn is_valid(&self) -> Result<bool> {
+        Ok(self.0.is_valid()?)
+    }
+
+    #[napi]
+    pub fn derive_unhardened(&self, index: u32) -> Result<Self> {
+        Ok(Self(self.0.derive_unhardened(index)?))
+    }
+
+    #[napi]
+    pub fn derive_unhardened_path(&self, path: Vec<u32>) -> Result<Self> {
+        Ok(Self(self.0.derive_unhardened_path(path)?))
+    }
+
+    #[napi]
+    pub fn derive_synthetic(&self) -> Result<Self> {
+        Ok(Self(self.0.derive_synthetic()?))
+    }
+
+    #[napi]
+    pub fn derive_synthetic_hidden(&self, hidden_puzzle_hash: Uint8Array) -> Result<Self> {
         Ok(Self(
-            bls::PublicKey::from_bytes(&bytes.into_rust()?).map_err(js_err)?,
-        ))
-    }
-
-    #[napi]
-    pub fn to_bytes(&self) -> Uint8Array {
-        Uint8Array::new(self.0.to_bytes().to_vec())
-    }
-
-    #[napi(factory)]
-    pub fn empty() -> Self {
-        Self(bls::PublicKey::default())
-    }
-
-    #[napi(factory)]
-    pub fn aggregate(public_keys: Vec<Reference<PublicKey>>) -> Self {
-        let mut result = bls::PublicKey::default();
-        for pk in public_keys {
-            result += &pk.0;
-        }
-        Self(result)
-    }
-
-    #[napi]
-    pub fn fingerprint(&self) -> u32 {
-        self.0.get_fingerprint()
-    }
-
-    #[napi]
-    pub fn is_infinity(&self) -> bool {
-        self.0.is_inf()
-    }
-
-    #[napi]
-    pub fn is_valid(&self) -> bool {
-        self.0.is_valid()
-    }
-
-    #[napi]
-    pub fn verify(&self, message: Uint8Array, signature: Reference<Signature>) -> bool {
-        verify(&signature.0, &self.0, message)
-    }
-
-    #[napi]
-    pub fn derive_unhardened(&self, index: u32) -> Self {
-        Self(self.0.derive_unhardened(index))
-    }
-
-    #[napi]
-    pub fn derive_unhardened_path(&self, path: Vec<u32>) -> Self {
-        let mut result = self.0;
-        for index in path {
-            result = result.derive_unhardened(index);
-        }
-        Self(result)
-    }
-
-    #[napi]
-    pub fn derive_unhardened_wallet_intermediate(&self) -> Self {
-        Self(master_to_wallet_unhardened_intermediate(&self.0))
-    }
-
-    #[napi]
-    pub fn derive_unhardened_wallet(&self, index: u32) -> Self {
-        Self(master_to_wallet_unhardened(&self.0, index))
-    }
-
-    #[napi]
-    pub fn derive_synthetic(&self) -> Self {
-        Self(self.0.derive_synthetic())
-    }
-
-    #[napi]
-    pub fn derive_synthetic_with_hidden_puzzle(
-        &self,
-        hidden_puzzle_hash: Uint8Array,
-    ) -> Result<Self> {
-        Ok(Self(
-            self.0
-                .derive_synthetic_hidden(&hidden_puzzle_hash.into_rust()?),
+            self.0.derive_synthetic_hidden(hidden_puzzle_hash.rust()?)?,
         ))
     }
 }
 
 #[napi]
-pub struct Signature(pub(crate) bls::Signature);
+pub struct Signature(pub(crate) chia_sdk_bindings::Signature);
 
 #[napi]
 impl Signature {
     #[napi(factory)]
+    pub fn infinity() -> Result<Self> {
+        Ok(Self(chia_sdk_bindings::Signature::infinity()?))
+    }
+
+    #[napi]
+    pub fn aggregate(signatures: Vec<Reference<Signature>>) -> Result<Self> {
+        Ok(Self(chia_sdk_bindings::Signature::aggregate(
+            signatures.into_iter().map(|sig| sig.0.clone()).collect(),
+        )?))
+    }
+
+    #[napi(factory)]
     pub fn from_bytes(bytes: Uint8Array) -> Result<Self> {
-        Ok(Self(
-            bls::Signature::from_bytes(&bytes.into_rust()?).map_err(js_err)?,
-        ))
+        Ok(Self(chia_sdk_bindings::Signature::from_bytes(
+            bytes.rust()?,
+        )?))
     }
 
     #[napi]
-    pub fn to_bytes(&self) -> Uint8Array {
-        Uint8Array::new(self.0.to_bytes().to_vec())
-    }
-
-    #[napi(factory)]
-    pub fn empty() -> Self {
-        Self(bls::Signature::default())
-    }
-
-    #[napi(factory)]
-    pub fn aggregate(signatures: Vec<Reference<Signature>>) -> Self {
-        let mut result = bls::Signature::default();
-        for sig in signatures {
-            result += &sig.0;
-        }
-        Self(result)
+    pub fn to_bytes(&self) -> Result<Uint8Array> {
+        Ok(self.0.to_bytes()?.js()?)
     }
 
     #[napi]
-    pub fn is_valid(&self) -> bool {
-        self.0.is_valid()
+    pub fn is_infinity(&self) -> Result<bool> {
+        Ok(self.0.is_infinity()?)
     }
-}
 
-#[napi]
-pub fn mnemonic_from_entropy(entropy: Uint8Array) -> Result<String> {
-    Ok(Mnemonic::from_entropy(&entropy)
-        .map_err(js_err)?
-        .to_string())
-}
-
-#[napi]
-pub fn mnemonic_to_entropy(mnemonic: String) -> Result<Uint8Array> {
-    Ok(Mnemonic::from_str(&mnemonic)
-        .map_err(js_err)?
-        .to_entropy()
-        .into())
-}
-
-#[napi]
-pub fn verify_mnemonic(mnemonic: String) -> bool {
-    Mnemonic::from_str(&mnemonic).is_ok()
-}
-
-#[napi]
-pub fn random_bytes(bytes: u32) -> Uint8Array {
-    let mut rng = ChaCha20Rng::from_entropy();
-    let mut buffer = vec![0; bytes as usize];
-    rng.fill_bytes(&mut buffer);
-    Uint8Array::new(buffer)
-}
-
-#[napi]
-pub fn generate_mnemonic(use_24: bool) -> Result<String> {
-    let mut rng = ChaCha20Rng::from_entropy();
-
-    let mnemonic = if use_24 {
-        let entropy: [u8; 32] = rng.gen();
-        Mnemonic::from_entropy(&entropy).map_err(js_err)?
-    } else {
-        let entropy: [u8; 16] = rng.gen();
-        Mnemonic::from_entropy(&entropy).map_err(js_err)?
-    };
-
-    Ok(mnemonic.to_string())
-}
-
-#[napi]
-pub fn mnemonic_to_seed(mnemonic: String, password: String) -> Result<Uint8Array> {
-    let mnemonic = Mnemonic::from_str(&mnemonic).map_err(js_err)?;
-    mnemonic.to_seed(password).into_js()
+    #[napi]
+    pub fn is_valid(&self) -> Result<bool> {
+        Ok(self.0.is_valid()?)
+    }
 }

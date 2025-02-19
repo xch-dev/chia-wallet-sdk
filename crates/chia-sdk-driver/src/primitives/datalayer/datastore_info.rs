@@ -2,7 +2,7 @@ use crate::{
     DelegationLayer, DriverError, Layer, NftStateLayer, OracleLayer, SingletonLayer, SpendContext,
 };
 use chia_protocol::{Bytes, Bytes32};
-use chia_puzzles::nft::NftStateLayerArgs;
+use chia_puzzle_types::nft::NftStateLayerArgs;
 use chia_sdk_types::{
     DelegationLayerArgs, MerkleTree, WriterLayerArgs, DELEGATION_LAYER_PUZZLE_HASH,
     DL_METADATA_UPDATER_PUZZLE_HASH,

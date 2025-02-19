@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::nft::NFT_METADATA_UPDATER_PUZZLE_HASH;
+use chia_puzzles::NFT_METADATA_UPDATER_DEFAULT_HASH;
 
 use super::DidOwner;
 
@@ -22,7 +22,7 @@ impl<M> NftMint<M> {
     ) -> Self {
         Self {
             metadata,
-            metadata_updater_puzzle_hash: NFT_METADATA_UPDATER_PUZZLE_HASH.into(),
+            metadata_updater_puzzle_hash: NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
             royalty_puzzle_hash: p2_puzzle_hash,
             royalty_ten_thousandths,
             p2_puzzle_hash,

@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, SpendBundle};
-use chia_puzzles::offer::SettlementPaymentsSolution;
+use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_traits::Streamable;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash};

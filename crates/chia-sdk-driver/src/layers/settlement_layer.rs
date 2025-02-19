@@ -1,4 +1,5 @@
-use chia_puzzles::offer::{SettlementPaymentsSolution, SETTLEMENT_PAYMENTS_PUZZLE_HASH};
+use chia_puzzle_types::offer::SettlementPaymentsSolution;
+use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 
@@ -24,7 +25,7 @@ impl Layer for SettlementLayer {
     }
 
     fn parse_puzzle(_allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
-        if puzzle.curried_puzzle_hash() != SETTLEMENT_PAYMENTS_PUZZLE_HASH {
+        if puzzle.curried_puzzle_hash() != SETTLEMENT_PAYMENT_HASH.into() {
             return Ok(None);
         }
         Ok(Some(Self))

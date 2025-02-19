@@ -1,6 +1,6 @@
 use chia_consensus::consensus_constants::ConsensusConstants;
 use chia_protocol::Bytes32;
-use clvmr::sha2::Sha256;
+use chia_sha2::Sha256;
 use hex_literal::hex;
 use once_cell::sync::Lazy;
 

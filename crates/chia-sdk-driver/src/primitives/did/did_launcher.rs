@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::{EveProof, Proof};
+use chia_puzzle_types::{EveProof, Proof};
 use chia_sdk_types::Conditions;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;

@@ -1,108 +1,66 @@
-use chia::secp;
-use chia_wallet_sdk as sdk;
-use napi::bindgen_prelude::*;
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaCha8Rng;
+mod key_pairs;
 
-use crate::{
-    traits::{js_err, FromJs, FromRust, IntoJs, IntoRust},
-    Coin, CoinSpend, K1PublicKey, K1SecretKey, PublicKey, R1PublicKey, R1SecretKey, SecretKey,
-};
+pub use key_pairs::*;
+
+use napi::bindgen_prelude::*;
+use napi_derive::napi;
+
+use crate::{Coin, CoinSpend, IntoRust, PublicKey, SecretKey};
 
 #[napi]
-pub struct Simulator(sdk::Simulator);
+#[derive(Default)]
+pub struct Simulator(chia_sdk_bindings::Simulator);
 
 #[napi]
 impl Simulator {
     #[napi(constructor)]
     pub fn new() -> Self {
-        Self(sdk::Simulator::new())
+        Self::default()
     }
 
     #[napi]
     pub fn new_coin(&mut self, puzzle_hash: Uint8Array, amount: BigInt) -> Result<Coin> {
-        self.0
-            .new_coin(puzzle_hash.into_rust()?, amount.into_rust()?)
-            .into_js()
-    }
-
-    #[napi]
-    pub fn new_p2(&mut self, env: Env, amount: BigInt) -> Result<P2Coin> {
-        let (secret_key, public_key, puzzle_hash, coin) =
-            self.0.new_p2(amount.into_rust()?).map_err(js_err)?;
-
-        Ok(P2Coin {
-            coin: coin.into_js()?,
-            puzzle_hash: puzzle_hash.into_js()?,
-            public_key: PublicKey::from_rust(public_key)?.into_instance(env)?,
-            secret_key: SecretKey::from_rust(secret_key)?.into_instance(env)?,
+        let coin = self.0.new_coin(puzzle_hash.rust()?, amount.rust()?);
+        Ok(Coin {
+            parent_coin_info: coin.parent_coin_info.into(),
+            puzzle_hash: coin.puzzle_hash.into(),
+            amount: coin.amount.into(),
         })
     }
 
     #[napi]
-    pub fn spend(
+    pub fn bls(&mut self, env: Env, amount: BigInt) -> Result<BlsPairWithCoin> {
+        let pair = self.0.bls(amount.rust()?);
+        Ok(BlsPairWithCoin {
+            sk: SecretKey(chia_sdk_bindings::SecretKey(pair.sk)).into_reference(env)?,
+            pk: PublicKey(chia_sdk_bindings::PublicKey(pair.pk)).into_reference(env)?,
+            puzzle_hash: pair.puzzle_hash.into(),
+            coin: Coin {
+                parent_coin_info: pair.coin.parent_coin_info.into(),
+                puzzle_hash: pair.coin.puzzle_hash.into(),
+                amount: pair.coin.amount.into(),
+            },
+        })
+    }
+
+    #[napi]
+    pub fn spend_coins(
         &mut self,
         coin_spends: Vec<CoinSpend>,
-        secret_keys: Vec<Reference<SecretKey>>,
+        secret_keys: Vec<ClassInstance<'_, SecretKey>>,
     ) -> Result<()> {
         self.0
             .spend_coins(
                 coin_spends
                     .into_iter()
-                    .map(FromJs::from_js)
-                    .collect::<Result<Vec<_>>>()?,
+                    .map(IntoRust::rust)
+                    .collect::<std::result::Result<Vec<_>, _>>()?,
                 &secret_keys
                     .into_iter()
-                    .map(|sk| sk.0.clone())
+                    .map(|sk| sk.0 .0.clone())
                     .collect::<Vec<_>>(),
             )
-            .map_err(js_err)?;
+            .map_err(chia_sdk_bindings::Error::from)?;
         Ok(())
     }
-
-    #[napi]
-    pub fn k1_pair(&mut self, env: Env, seed: u32) -> Result<K1KeyPair> {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed.into());
-
-        let secret_key = secp::K1SecretKey::from_bytes(&rng.gen()).map_err(js_err)?;
-        let public_key = secret_key.public_key();
-
-        Ok(K1KeyPair {
-            public_key: K1PublicKey::from_rust(public_key)?.into_instance(env)?,
-            secret_key: K1SecretKey::from_rust(secret_key)?.into_instance(env)?,
-        })
-    }
-
-    #[napi]
-    pub fn r1_pair(&mut self, env: Env, seed: u32) -> Result<R1KeyPair> {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed.into());
-
-        let secret_key = secp::R1SecretKey::from_bytes(&rng.gen()).map_err(js_err)?;
-        let public_key = secret_key.public_key();
-
-        Ok(R1KeyPair {
-            public_key: R1PublicKey::from_rust(public_key)?.into_instance(env)?,
-            secret_key: R1SecretKey::from_rust(secret_key)?.into_instance(env)?,
-        })
-    }
-}
-
-#[napi(object)]
-pub struct P2Coin {
-    pub coin: Coin,
-    pub puzzle_hash: Uint8Array,
-    pub public_key: ClassInstance<PublicKey>,
-    pub secret_key: ClassInstance<SecretKey>,
-}
-
-#[napi(object)]
-pub struct K1KeyPair {
-    pub public_key: ClassInstance<K1PublicKey>,
-    pub secret_key: ClassInstance<K1SecretKey>,
-}
-
-#[napi(object)]
-pub struct R1KeyPair {
-    pub public_key: ClassInstance<R1PublicKey>,
-    pub secret_key: ClassInstance<R1SecretKey>,
 }

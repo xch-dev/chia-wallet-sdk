@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzles::CoinProof;
+use chia_puzzle_types::CoinProof;
 
 use crate::Spend;
 

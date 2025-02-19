@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
-use chia_puzzles::offer::{NotarizedPayment, Payment, SettlementPaymentsSolution};
+use chia_puzzle_types::offer::{NotarizedPayment, Payment, SettlementPaymentsSolution};
 use chia_sdk_types::{announcement_id, AssertPuzzleAnnouncement};
 use clvm_traits::ToClvm;
 use clvm_utils::tree_hash;
