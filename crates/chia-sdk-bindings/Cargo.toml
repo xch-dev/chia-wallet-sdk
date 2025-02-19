@@ -33,6 +33,7 @@ chia-bls = { workspace = true }
 chia-secp = { workspace = true }
 clvm-utils = { workspace = true }
 chia-puzzle-types = { workspace = true }
+chia-sdk-types = { workspace = true }
 chia-sdk-utils = { workspace = true }
 chia-sdk-driver = { workspace = true }
 chia-sdk-test = { workspace = true }

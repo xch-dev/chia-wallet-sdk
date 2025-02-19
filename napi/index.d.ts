@@ -25,6 +25,41 @@ export declare class Clvm {
   standardSpend(syntheticKey: PublicKey, delegatedSpend: Spend): Spend
   spendStandardCoin(coin: Coin, syntheticKey: PublicKey, delegatedSpend: Spend): void
   spendCatCoins(cats: Array<CatSpend>): void
+  remark(rest: Program): Program
+  aggSigParent(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigPuzzle(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigAmount(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigPuzzleAmount(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigParentAmount(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigParentPuzzle(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigUnsafe(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigMe(publicKey: PublicKey, message: Uint8Array): Program
+  createCoin(puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null): Program
+  reserveFee(amount: bigint): Program
+  createCoinAnnouncement(message: Uint8Array): Program
+  createPuzzleAnnouncement(message: Uint8Array): Program
+  assertCoinAnnouncement(announcementId: Uint8Array): Program
+  assertPuzzleAnnouncement(announcementId: Uint8Array): Program
+  assertConcurrentSpend(coinId: Uint8Array): Program
+  assertConcurrentPuzzle(puzzleHash: Uint8Array): Program
+  assertSecondsRelative(seconds: bigint): Program
+  assertSecondsAbsolute(seconds: bigint): Program
+  assertHeightRelative(height: number): Program
+  assertHeightAbsolute(height: number): Program
+  assertBeforeSecondsRelative(seconds: bigint): Program
+  assertBeforeSecondsAbsolute(seconds: bigint): Program
+  assertBeforeHeightRelative(height: number): Program
+  assertBeforeHeightAbsolute(height: number): Program
+  assertMyCoinId(coinId: Uint8Array): Program
+  assertMyParentId(parentId: Uint8Array): Program
+  assertMyPuzzleHash(puzzleHash: Uint8Array): Program
+  assertMyAmount(amount: bigint): Program
+  assertMyBirthSeconds(seconds: bigint): Program
+  assertMyBirthHeight(height: number): Program
+  assertEphemeral(): Program
+  sendMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
+  receiveMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
+  softfork(cost: bigint, rest: Program): Program
 }
 
 export declare class K1Pair {
@@ -77,6 +112,41 @@ export declare class Program {
   curry(args: Array<Program>): Program
   uncurry(): CurriedProgram | null
   run(solution: Program, maxCost: bigint, mempoolMode: boolean): Output
+  parseRemark(): Remark | null
+  parseAggSigParent(): AggSigParent | null
+  parseAggSigPuzzle(): AggSigPuzzle | null
+  parseAggSigAmount(): AggSigAmount | null
+  parseAggSigPuzzleAmount(): AggSigPuzzleAmount | null
+  parseAggSigParentAmount(): AggSigParentAmount | null
+  parseAggSigParentPuzzle(): AggSigParentPuzzle | null
+  parseAggSigUnsafe(): AggSigUnsafe | null
+  parseAggSigMe(): AggSigMe | null
+  parseCreateCoin(): CreateCoin | null
+  parseReserveFee(): ReserveFee | null
+  parseCreateCoinAnnouncement(): CreateCoinAnnouncement | null
+  parseCreatePuzzleAnnouncement(): CreatePuzzleAnnouncement | null
+  parseAssertCoinAnnouncement(): AssertCoinAnnouncement | null
+  parseAssertPuzzleAnnouncement(): AssertPuzzleAnnouncement | null
+  parseAssertConcurrentSpend(): AssertConcurrentSpend | null
+  parseAssertConcurrentPuzzle(): AssertConcurrentPuzzle | null
+  parseAssertSecondsRelative(): AssertSecondsRelative | null
+  parseAssertSecondsAbsolute(): AssertSecondsAbsolute | null
+  parseAssertHeightRelative(): AssertHeightRelative | null
+  parseAssertHeightAbsolute(): AssertHeightAbsolute | null
+  parseAssertBeforeSecondsRelative(): AssertBeforeSecondsRelative | null
+  parseAssertBeforeSecondsAbsolute(): AssertBeforeSecondsAbsolute | null
+  parseAssertBeforeHeightRelative(): AssertBeforeHeightRelative | null
+  parseAssertBeforeHeightAbsolute(): AssertBeforeHeightAbsolute | null
+  parseAssertMyCoinId(): AssertMyCoinId | null
+  parseAssertMyParentId(): AssertMyParentId | null
+  parseAssertMyPuzzleHash(): AssertMyPuzzleHash | null
+  parseAssertMyAmount(): AssertMyAmount | null
+  parseAssertMyBirthSeconds(): AssertMyBirthSeconds | null
+  parseAssertMyBirthHeight(): AssertMyBirthHeight | null
+  parseAssertEphemeral(): AssertEphemeral | null
+  parseSendMessage(): SendMessage | null
+  parseReceiveMessage(): ReceiveMessage | null
+  parseSoftfork(): Softfork | null
 }
 
 export declare class PublicKey {
@@ -153,6 +223,122 @@ export interface AddressInfo {
   prefix: string
 }
 
+export interface AggSigAmount {
+  publicKey: PublicKey
+  message: Uint8Array
+}
+
+export interface AggSigMe {
+  publicKey: PublicKey
+  message: Uint8Array
+}
+
+export interface AggSigParent {
+  publicKey: PublicKey
+  message: Uint8Array
+}
+
+export interface AggSigParentAmount {
+  publicKey: PublicKey
+  message: Uint8Array
+}
+
+export interface AggSigParentPuzzle {
+  publicKey: PublicKey
+  message: Uint8Array
+}
+
+export interface AggSigPuzzle {
+  publicKey: PublicKey
+  message: Uint8Array
+}
+
+export interface AggSigPuzzleAmount {
+  publicKey: PublicKey
+  message: Uint8Array
+}
+
+export interface AggSigUnsafe {
+  publicKey: PublicKey
+  message: Uint8Array
+}
+
+export interface AssertBeforeHeightAbsolute {
+  height: number
+}
+
+export interface AssertBeforeHeightRelative {
+  height: number
+}
+
+export interface AssertBeforeSecondsAbsolute {
+  seconds: bigint
+}
+
+export interface AssertBeforeSecondsRelative {
+  seconds: bigint
+}
+
+export interface AssertCoinAnnouncement {
+  announcementId: Uint8Array
+}
+
+export interface AssertConcurrentPuzzle {
+  puzzleHash: Uint8Array
+}
+
+export interface AssertConcurrentSpend {
+  coinId: Uint8Array
+}
+
+export interface AssertEphemeral {
+
+}
+
+export interface AssertHeightAbsolute {
+  height: number
+}
+
+export interface AssertHeightRelative {
+  height: number
+}
+
+export interface AssertMyAmount {
+  amount: bigint
+}
+
+export interface AssertMyBirthHeight {
+  height: number
+}
+
+export interface AssertMyBirthSeconds {
+  seconds: bigint
+}
+
+export interface AssertMyCoinId {
+  coinId: Uint8Array
+}
+
+export interface AssertMyParentId {
+  parentId: Uint8Array
+}
+
+export interface AssertMyPuzzleHash {
+  puzzleHash: Uint8Array
+}
+
+export interface AssertPuzzleAnnouncement {
+  announcementId: Uint8Array
+}
+
+export interface AssertSecondsAbsolute {
+  seconds: bigint
+}
+
+export interface AssertSecondsRelative {
+  seconds: bigint
+}
+
 export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
 
 export interface Cat {
@@ -185,6 +371,20 @@ export interface CoinState {
   coin: Coin
   spentHeight?: number
   createdHeight?: number
+}
+
+export interface CreateCoin {
+  puzzleHash: Uint8Array
+  amount: bigint
+  memos?: Program
+}
+
+export interface CreateCoinAnnouncement {
+  message: Uint8Array
+}
+
+export interface CreatePuzzleAnnouncement {
+  message: Uint8Array
 }
 
 export interface CurriedProgram {
@@ -221,7 +421,32 @@ export interface Output {
   cost: bigint
 }
 
+export interface ReceiveMessage {
+  mode: number
+  message: Uint8Array
+  data: Array<Program>
+}
+
+export interface Remark {
+  rest: Program
+}
+
+export interface ReserveFee {
+  amount: bigint
+}
+
+export interface SendMessage {
+  mode: number
+  message: Uint8Array
+  data: Array<Program>
+}
+
 export declare function sha256(value: Uint8Array): Uint8Array
+
+export interface Softfork {
+  cost: bigint
+  rest: Program
+}
 
 export interface Spend {
   puzzle: Program

@@ -21,7 +21,7 @@ use crate::{CatSpend, Coin, CoinSpend, IntoJs, IntoRust, PublicKey};
 
 #[wasm_bindgen]
 #[derive(Default)]
-pub struct Clvm(Arc<RwLock<chia_sdk_bindings::Clvm>>);
+pub struct Clvm(pub(crate) Arc<RwLock<chia_sdk_bindings::Clvm>>);
 
 #[wasm_bindgen]
 impl Clvm {
@@ -210,7 +210,7 @@ impl Clvm {
     pub fn spend_standard_coin(
         &self,
         coin: &Coin,
-        synthetic_key: &PublicKey,
+        #[wasm_bindgen(js_name = "syntheticKey")] synthetic_key: &PublicKey,
         spend: &Spend,
     ) -> Result<(), JsError> {
         let mut clvm = self.0.write().unwrap();
@@ -223,7 +223,10 @@ impl Clvm {
     }
 
     #[wasm_bindgen(js_name = "spendCatCoins")]
-    pub fn spend_cat_coins(&self, cat_spends: Vec<CatSpend>) -> Result<(), JsError> {
+    pub fn spend_cat_coins(
+        &self,
+        #[wasm_bindgen(js_name = "catSpends")] cat_spends: Vec<CatSpend>,
+    ) -> Result<(), JsError> {
         let mut clvm = self.0.write().unwrap();
 
         clvm.spend_cat_coins(

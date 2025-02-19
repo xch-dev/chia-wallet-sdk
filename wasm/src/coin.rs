@@ -103,8 +103,11 @@ impl SpendBundle {
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Clone)]
 pub struct LineageProof {
+    #[wasm_bindgen(js_name = "parentParentCoinInfo")]
     pub parent_parent_coin_info: Vec<u8>,
+    #[wasm_bindgen(js_name = "parentInnerPuzzleHash")]
     pub parent_inner_puzzle_hash: Option<Vec<u8>>,
+    #[wasm_bindgen(js_name = "parentAmount")]
     pub parent_amount: u64,
 }
 
@@ -112,9 +115,11 @@ pub struct LineageProof {
 impl LineageProof {
     #[wasm_bindgen(constructor)]
     pub fn new(
-        parent_parent_coin_info: Vec<u8>,
-        parent_inner_puzzle_hash: Option<Vec<u8>>,
-        parent_amount: u64,
+        #[wasm_bindgen(js_name = "parentParentCoinInfo")] parent_parent_coin_info: Vec<u8>,
+        #[wasm_bindgen(js_name = "parentInnerPuzzleHash")] parent_inner_puzzle_hash: Option<
+            Vec<u8>,
+        >,
+        #[wasm_bindgen(js_name = "parentAmount")] parent_amount: u64,
     ) -> Self {
         Self {
             parent_parent_coin_info,

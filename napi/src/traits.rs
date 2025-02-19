@@ -1,7 +1,12 @@
 use chia_sdk_bindings::{
-    AddressInfo, Bytes, BytesImpl, Cat, Coin, CoinSpend, Error, LineageProof, Program, Result,
+    AddressInfo, Bytes, BytesImpl, Cat, Coin, CoinSpend, Error, LineageProof, Memos, Program,
+    Result,
 };
-use napi::bindgen_prelude::{BigInt, Uint8Array};
+use clvmr::NodePtr;
+use napi::{
+    bindgen_prelude::{BigInt, JavaScriptClassExt, Reference, Uint8Array},
+    Env,
+};
 
 pub trait IntoRust<T> {
     fn rust(self) -> Result<T>;
@@ -274,5 +279,144 @@ where
 
     fn js(self) -> Result<Self::Js> {
         self.map(IntoJs::js).transpose()
+    }
+}
+
+impl<T, R> IntoRust<Vec<R>> for Vec<T>
+where
+    T: IntoRust<R>,
+{
+    fn rust(self) -> Result<Vec<R>> {
+        self.into_iter()
+            .map(IntoRust::rust)
+            .collect::<Result<Vec<_>>>()
+    }
+}
+
+impl<T, R> IntoJs for Vec<R>
+where
+    R: IntoJs<Js = T>,
+{
+    type Js = Vec<T>;
+
+    fn js(self) -> Result<Self::Js> {
+        self.into_iter().map(IntoJs::js).collect::<Result<Vec<_>>>()
+    }
+}
+
+impl IntoRust<chia_bls::PublicKey> for Reference<crate::PublicKey> {
+    fn rust(self) -> Result<chia_bls::PublicKey> {
+        Ok(self.0 .0)
+    }
+}
+
+impl IntoRust<NodePtr> for Reference<crate::Program> {
+    fn rust(self) -> Result<NodePtr> {
+        Ok(self.node_ptr)
+    }
+}
+
+impl IntoRust<Memos<NodePtr>> for Reference<crate::Program> {
+    fn rust(self) -> Result<Memos<NodePtr>> {
+        Ok(Memos::new(self.node_ptr))
+    }
+}
+
+impl IntoRust<u32> for u32 {
+    fn rust(self) -> Result<u32> {
+        Ok(self)
+    }
+}
+
+impl IntoJs for u32 {
+    type Js = u32;
+
+    fn js(self) -> Result<Self::Js> {
+        Ok(self)
+    }
+}
+
+impl IntoRust<u8> for u8 {
+    fn rust(self) -> Result<u8> {
+        Ok(self)
+    }
+}
+
+impl IntoJs for u8 {
+    type Js = u8;
+
+    fn js(self) -> Result<Self::Js> {
+        Ok(self)
+    }
+}
+
+pub trait IntoJsWithClvm {
+    type Js;
+
+    fn js_with_clvm(self, env: Env, clvm: &Reference<crate::Clvm>) -> Result<Self::Js>;
+}
+
+impl<T, R> IntoJsWithClvm for R
+where
+    R: IntoJs<Js = T>,
+{
+    type Js = T;
+
+    fn js_with_clvm(self, _env: Env, _clvm: &Reference<crate::Clvm>) -> Result<Self::Js> {
+        self.js()
+    }
+}
+
+impl IntoJsWithClvm for NodePtr {
+    type Js = Reference<crate::Program>;
+
+    fn js_with_clvm(self, env: Env, clvm: &Reference<crate::Clvm>) -> Result<Self::Js> {
+        Ok(crate::Program {
+            clvm: clvm.clone(env)?,
+            node_ptr: self,
+        }
+        .into_reference(env)?)
+    }
+}
+
+impl IntoJsWithClvm for Vec<NodePtr> {
+    type Js = Vec<Reference<crate::Program>>;
+
+    fn js_with_clvm(self, env: Env, clvm: &Reference<crate::Clvm>) -> Result<Self::Js> {
+        self.into_iter()
+            .map(|node_ptr| {
+                Ok(crate::Program {
+                    clvm: clvm.clone(env)?,
+                    node_ptr,
+                }
+                .into_reference(env)?)
+            })
+            .collect::<Result<Vec<_>>>()
+    }
+}
+
+impl IntoJsWithClvm for Option<Memos<NodePtr>> {
+    type Js = Option<Reference<crate::Program>>;
+
+    fn js_with_clvm(self, env: Env, clvm: &Reference<crate::Clvm>) -> Result<Self::Js> {
+        let Some(memos) = self else {
+            return Ok(None);
+        };
+
+        Ok(Some(
+            crate::Program {
+                clvm: clvm.clone(env)?,
+                node_ptr: memos.value,
+            }
+            .into_reference(env)?,
+        ))
+    }
+}
+
+impl IntoJsWithClvm for chia_bls::PublicKey {
+    type Js = Reference<crate::PublicKey>;
+
+    fn js_with_clvm(self, env: Env, _clvm: &Reference<crate::Clvm>) -> Result<Self::Js> {
+        Ok(crate::PublicKey(chia_sdk_bindings::PublicKey(self)).into_reference(env)?)
     }
 }

@@ -481,6 +481,7 @@ dependencies = [
  "chia-puzzle-types",
  "chia-sdk-driver",
  "chia-sdk-test",
+ "chia-sdk-types",
  "chia-sdk-utils",
  "chia-secp",
  "clvm-traits",
@@ -771,6 +772,7 @@ dependencies = [
 name = "chia-wallet-sdk-napi"
 version = "0.0.0"
 dependencies = [
+ "chia-bls 0.20.0",
  "chia-sdk-bindings",
  "clvmr",
  "napi",
@@ -779,6 +781,7 @@ dependencies = [
  "num-bigint",
  "openssl",
  "openssl-sys",
+ "paste",
 ]
 
 [[package]]
@@ -796,11 +799,13 @@ dependencies = [
 name = "chia-wallet-sdk-wasm"
 version = "0.0.0"
 dependencies = [
+ "chia-bls 0.20.0",
  "chia-sdk-bindings",
  "clvmr",
  "getrandom",
  "js-sys",
  "num-bigint",
+ "paste",
  "wasm-bindgen",
 ]
 

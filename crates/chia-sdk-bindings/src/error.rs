@@ -5,7 +5,7 @@ use chia_sdk_test::SimulatorError;
 use chia_sdk_utils::AddressError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
-use num_bigint::{BigInt, TryFromBigIntError};
+use num_bigint::{BigInt, ParseBigIntError, TryFromBigIntError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -81,6 +81,17 @@ pub enum Error {
 
     #[error("Simulator error: {0}")]
     Simulator(#[from] SimulatorError),
+
+    #[cfg(feature = "napi")]
+    #[error("NAPI error: {0}")]
+    Napi(#[from] napi::Error),
+
+    #[error("BigInt parse error: {0}")]
+    BigIntParse(#[from] ParseBigIntError),
+
+    #[cfg(feature = "wasm")]
+    #[error("Js error: {0:?}")]
+    Js(js_sys::Error),
 }
 
 #[cfg(feature = "napi")]
@@ -94,6 +105,13 @@ impl From<Error> for napi::Error {
 impl From<Error> for pyo3::PyErr {
     fn from(error: Error) -> Self {
         pyo3::exceptions::PyValueError::new_err(error.to_string())
+    }
+}
+
+#[cfg(feature = "wasm")]
+impl From<js_sys::Error> for Error {
+    fn from(error: js_sys::Error) -> Self {
+        Error::Js(error)
     }
 }
 

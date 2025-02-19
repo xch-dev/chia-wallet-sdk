@@ -21,7 +21,12 @@ impl Simulator {
         Self::default()
     }
 
-    pub fn new_coin(&mut self, puzzle_hash: Vec<u8>, amount: u64) -> Result<Coin, JsError> {
+    #[wasm_bindgen(js_name = "newCoin")]
+    pub fn new_coin(
+        &mut self,
+        #[wasm_bindgen(js_name = "puzzleHash")] puzzle_hash: Vec<u8>,
+        amount: u64,
+    ) -> Result<Coin, JsError> {
         let coin = self.0.new_coin(puzzle_hash.rust()?, amount);
         Ok(Coin {
             parent_coin_info: coin.parent_coin_info.into(),
@@ -44,10 +49,11 @@ impl Simulator {
         }
     }
 
+    #[wasm_bindgen(js_name = "spendCoins")]
     pub fn spend_coins(
         &mut self,
-        coin_spends: Vec<CoinSpend>,
-        secret_keys: Vec<SecretKey>,
+        #[wasm_bindgen(js_name = "coinSpends")] coin_spends: Vec<CoinSpend>,
+        #[wasm_bindgen(js_name = "secretKeys")] secret_keys: Vec<SecretKey>,
     ) -> Result<(), JsError> {
         self.0
             .spend_coins(

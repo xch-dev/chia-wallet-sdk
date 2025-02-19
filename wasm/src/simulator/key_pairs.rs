@@ -54,7 +54,7 @@ impl BlsPairWithCoin {
         self.pk.clone()
     }
 
-    #[wasm_bindgen(getter)]
+    #[wasm_bindgen(getter, js_name = "puzzleHash")]
     pub fn puzzle_hash(&self) -> Vec<u8> {
         self.puzzle_hash.clone()
     }

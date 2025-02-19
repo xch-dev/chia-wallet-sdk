@@ -14,13 +14,15 @@ pub use spend::*;
 use clvmr::NodePtr;
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use value::{alloc, clvm, spend_to_js, Value};
+use value::{alloc, spend_to_js, Value};
+
+pub(crate) use value::clvm;
 
 use crate::{CatSpend, Coin, CoinSpend, IntoJs, IntoRust, PublicKey};
 
 #[napi]
 #[derive(Default)]
-pub struct Clvm(chia_sdk_bindings::Clvm);
+pub struct Clvm(pub(crate) chia_sdk_bindings::Clvm);
 
 #[napi]
 impl Clvm {
