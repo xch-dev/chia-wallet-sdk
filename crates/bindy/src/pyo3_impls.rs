@@ -10,7 +10,6 @@ impl From<Error> for pyo3::PyErr {
 
 pub struct Pyo3Context;
 
-impl_self!(Vec<u8>);
 impl_self!(u64);
 impl_self!(i64);
 

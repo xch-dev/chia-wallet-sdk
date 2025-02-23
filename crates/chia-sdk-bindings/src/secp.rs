@@ -34,16 +34,16 @@ impl K1PublicKey {
         Ok(Self(K1PublicKeyRs::from_bytes(&bytes.to_bytes())?))
     }
 
-    pub fn to_bytes(&self) -> BytesImpl<33> {
-        BytesImpl::new(self.0.to_bytes())
+    pub fn to_bytes(&self) -> Result<BytesImpl<33>> {
+        Ok(BytesImpl::new(self.0.to_bytes()))
     }
 
-    pub fn fingerprint(&self) -> u32 {
-        self.0.fingerprint()
+    pub fn fingerprint(&self) -> Result<u32> {
+        Ok(self.0.fingerprint())
     }
 
-    pub fn verify_prehashed(&self, prehashed: Bytes32, signature: K1Signature) -> bool {
-        self.0.verify_prehashed(&prehashed.to_bytes(), &signature.0)
+    pub fn verify_prehashed(&self, prehashed: Bytes32, signature: K1Signature) -> Result<bool> {
+        Ok(self.0.verify_prehashed(&prehashed.to_bytes(), &signature.0))
     }
 }
 
@@ -89,16 +89,16 @@ impl R1PublicKey {
         Ok(Self(R1PublicKeyRs::from_bytes(&bytes.to_bytes())?))
     }
 
-    pub fn to_bytes(&self) -> BytesImpl<33> {
-        BytesImpl::new(self.0.to_bytes())
+    pub fn to_bytes(&self) -> Result<BytesImpl<33>> {
+        Ok(BytesImpl::new(self.0.to_bytes()))
     }
 
-    pub fn fingerprint(&self) -> u32 {
-        self.0.fingerprint()
+    pub fn fingerprint(&self) -> Result<u32> {
+        Ok(self.0.fingerprint())
     }
 
-    pub fn verify_prehashed(&self, prehashed: Bytes32, signature: R1Signature) -> bool {
-        self.0.verify_prehashed(&prehashed.to_bytes(), &signature.0)
+    pub fn verify_prehashed(&self, prehashed: Bytes32, signature: R1Signature) -> Result<bool> {
+        Ok(self.0.verify_prehashed(&prehashed.to_bytes(), &signature.0))
     }
 }
 

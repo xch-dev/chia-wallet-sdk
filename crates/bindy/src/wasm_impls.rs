@@ -3,11 +3,9 @@ use std::str::FromStr;
 use chia_protocol::{Bytes, BytesImpl};
 use num_bigint::BigInt;
 
-use crate::{impl_self, Error, FromRust, IntoRust, Result};
+use crate::{Error, FromRust, IntoRust, Result};
 
 pub struct WasmContext;
-
-impl_self!(Vec<u8>);
 
 impl<T> FromRust<BigInt, T> for js_sys::BigInt {
     fn from_rust(value: BigInt, _context: &T) -> Result<Self> {

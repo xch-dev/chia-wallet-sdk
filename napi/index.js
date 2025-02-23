@@ -366,8 +366,14 @@ if (!nativeBinding) {
 
 module.exports.AddressInfo = nativeBinding.AddressInfo
 module.exports.Coin = nativeBinding.Coin
+module.exports.K1PublicKey = nativeBinding.K1PublicKey
+module.exports.K1SecretKey = nativeBinding.K1SecretKey
+module.exports.K1Signature = nativeBinding.K1Signature
 module.exports.Mnemonic = nativeBinding.Mnemonic
 module.exports.PublicKey = nativeBinding.PublicKey
+module.exports.R1PublicKey = nativeBinding.R1PublicKey
+module.exports.R1SecretKey = nativeBinding.R1SecretKey
+module.exports.R1Signature = nativeBinding.R1Signature
 module.exports.SecretKey = nativeBinding.SecretKey
 module.exports.Signature = nativeBinding.Signature
 module.exports.generateBytes = nativeBinding.generateBytes

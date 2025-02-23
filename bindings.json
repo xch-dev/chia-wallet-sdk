@@ -33,7 +33,7 @@
         "from_entropy": {
           "type": "factory",
           "args": {
-            "entropy": "Vec<u8>"
+            "entropy": "Bytes"
           }
         },
         "generate": {
@@ -54,13 +54,13 @@
           "return": "String"
         },
         "to_entropy": {
-          "return": "Vec<u8>"
+          "return": "Bytes"
         },
         "to_seed": {
           "args": {
             "password": "String"
           },
-          "return": "Vec<u8>"
+          "return": "Bytes"
         }
       }
     },
@@ -69,7 +69,7 @@
       "args": {
         "bytes": "u32"
       },
-      "return": "Vec<u8>"
+      "return": "Bytes"
     },
     "Coin": {
       "type": "class",
@@ -228,24 +228,152 @@
           "return": "bool"
         }
       }
+    },
+    "K1SecretKey": {
+      "type": "class",
+      "methods": {
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "Bytes32"
+          }
+        },
+        "to_bytes": {
+          "return": "Bytes32"
+        },
+        "public_key": {
+          "return": "K1PublicKey"
+        },
+        "sign_prehashed": {
+          "args": {
+            "prehashed": "Bytes32"
+          },
+          "return": "K1Signature"
+        }
+      }
+    },
+    "K1PublicKey": {
+      "type": "class",
+      "methods": {
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "BytesImpl<33>"
+          }
+        },
+        "to_bytes": {
+          "return": "BytesImpl<33>"
+        },
+        "fingerprint": {
+          "return": "u32"
+        },
+        "verify_prehashed": {
+          "args": {
+            "prehashed": "Bytes32",
+            "signature": "K1Signature"
+          },
+          "return": "bool"
+        }
+      }
+    },
+    "K1Signature": {
+      "type": "class",
+      "methods": {
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "BytesImpl<64>"
+          }
+        },
+        "to_bytes": {
+          "return": "BytesImpl<64>"
+        }
+      }
+    },
+    "R1SecretKey": {
+      "type": "class",
+      "methods": {
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "Bytes32"
+          }
+        },
+        "to_bytes": {
+          "return": "Bytes32"
+        },
+        "public_key": {
+          "return": "R1PublicKey"
+        },
+        "sign_prehashed": {
+          "args": {
+            "prehashed": "Bytes32"
+          },
+          "return": "R1Signature"
+        }
+      }
+    },
+    "R1PublicKey": {
+      "type": "class",
+      "methods": {
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "BytesImpl<33>"
+          }
+        },
+        "to_bytes": {
+          "return": "BytesImpl<33>"
+        },
+        "fingerprint": {
+          "return": "u32"
+        },
+        "verify_prehashed": {
+          "args": {
+            "prehashed": "Bytes32",
+            "signature": "R1Signature"
+          },
+          "return": "bool"
+        }
+      }
+    },
+    "R1Signature": {
+      "type": "class",
+      "methods": {
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "BytesImpl<64>"
+          }
+        },
+        "to_bytes": {
+          "return": "BytesImpl<64>"
+        }
+      }
     }
   },
   "napi": {
     "Bytes32": "napi::bindgen_prelude::Uint8Array",
     "Bytes48": "napi::bindgen_prelude::Uint8Array",
     "Bytes96": "napi::bindgen_prelude::Uint8Array",
+    "BytesImpl<33>": "napi::bindgen_prelude::Uint8Array",
+    "BytesImpl<64>": "napi::bindgen_prelude::Uint8Array",
     "Bytes": "napi::bindgen_prelude::Uint8Array"
   },
   "wasm": {
     "Bytes32": "Vec<u8>",
     "Bytes48": "Vec<u8>",
     "Bytes96": "Vec<u8>",
+    "BytesImpl<33>": "Vec<u8>",
+    "BytesImpl<64>": "Vec<u8>",
     "Bytes": "Vec<u8>"
   },
   "pyo3": {
     "Bytes32": "Vec<u8>",
     "Bytes48": "Vec<u8>",
     "Bytes96": "Vec<u8>",
+    "BytesImpl<33>": "Vec<u8>",
+    "BytesImpl<64>": "Vec<u8>",
     "Bytes": "Vec<u8>"
   }
 }

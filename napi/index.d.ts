@@ -21,6 +21,25 @@ export declare class Coin {
   set amount(value: bigint)
 }
 
+export declare class K1PublicKey {
+  static fromBytes(bytes: Uint8Array): K1PublicKey
+  toBytes(): Uint8Array
+  fingerprint(): number
+  verifyPrehashed(prehashed: Uint8Array, signature: K1Signature): boolean
+}
+
+export declare class K1SecretKey {
+  static fromBytes(bytes: Uint8Array): K1SecretKey
+  toBytes(): Uint8Array
+  publicKey(): K1PublicKey
+  signPrehashed(prehashed: Uint8Array): K1Signature
+}
+
+export declare class K1Signature {
+  static fromBytes(bytes: Uint8Array): K1Signature
+  toBytes(): Uint8Array
+}
+
 export declare class Mnemonic {
   constructor(mnemonic: string)
   static fromEntropy(entropy: Uint8Array): Mnemonic
@@ -43,6 +62,25 @@ export declare class PublicKey {
   deriveUnhardenedPath(path: Array<number>): PublicKey
   deriveSynthetic(): PublicKey
   deriveSyntheticHidden(hiddenPuzzleHash: Uint8Array): PublicKey
+}
+
+export declare class R1PublicKey {
+  static fromBytes(bytes: Uint8Array): R1PublicKey
+  toBytes(): Uint8Array
+  fingerprint(): number
+  verifyPrehashed(prehashed: Uint8Array, signature: R1Signature): boolean
+}
+
+export declare class R1SecretKey {
+  static fromBytes(bytes: Uint8Array): R1SecretKey
+  toBytes(): Uint8Array
+  publicKey(): R1PublicKey
+  signPrehashed(prehashed: Uint8Array): R1Signature
+}
+
+export declare class R1Signature {
+  static fromBytes(bytes: Uint8Array): R1Signature
+  toBytes(): Uint8Array
 }
 
 export declare class SecretKey {

@@ -53,8 +53,8 @@ impl Mnemonic {
         Ok(Self(bip39::Mnemonic::from_str(&mnemonic)?))
     }
 
-    pub fn from_entropy(entropy: Vec<u8>) -> Result<Self> {
-        Ok(Self(bip39::Mnemonic::from_entropy(&entropy)?))
+    pub fn from_entropy(entropy: Bytes) -> Result<Self> {
+        Ok(Self(bip39::Mnemonic::from_entropy(&entropy.to_vec())?))
     }
 
     pub fn generate(use_24: bool) -> Result<Self> {
@@ -79,18 +79,18 @@ impl Mnemonic {
         Ok(self.0.to_string())
     }
 
-    pub fn to_entropy(&self) -> Result<Vec<u8>> {
-        Ok(self.0.to_entropy())
+    pub fn to_entropy(&self) -> Result<Bytes> {
+        Ok(Bytes::new(self.0.to_entropy().to_vec()))
     }
 
-    pub fn to_seed(&self, password: String) -> Result<Vec<u8>> {
-        Ok(self.0.to_seed(password).to_vec())
+    pub fn to_seed(&self, password: String) -> Result<Bytes> {
+        Ok(Bytes::new(self.0.to_seed(password).to_vec()))
     }
 }
 
-pub fn generate_bytes(bytes: u32) -> Result<Vec<u8>> {
+pub fn generate_bytes(bytes: u32) -> Result<Bytes> {
     let mut rng = ChaCha20Rng::from_entropy();
     let mut buffer = vec![0; bytes as usize];
     rng.fill_bytes(&mut buffer);
-    Ok(buffer)
+    Ok(Bytes::new(buffer))
 }
