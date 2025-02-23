@@ -65,6 +65,7 @@ export declare class Clvm {
   spendStandardCoin(coin: Coin, syntheticKey: PublicKey, spend: Spend): void
   spendCatCoins(catSpends: Array<CatSpend>): void
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
+  nftMetadata(value: NftMetadata): Program
   int(value: number): Program
   bigInt(value: bigint): Program
 }
@@ -265,6 +266,7 @@ export declare class Program {
   toList(): Array<Program> | null
   toPair(): Pair | null
   puzzle(): Puzzle
+  parseNftMetadata(): NftMetadata | null
   toInt(): number | null
   toBigInt(): bigint | null
 }

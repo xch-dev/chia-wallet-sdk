@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use bindy::{Error, Result};
 use chia_protocol::{Bytes, Bytes32, Program as SerializedProgram};
+use chia_puzzle_types::nft;
 use chia_sdk_driver::{HashedPtr, Launcher, SpendContext, StandardLayer};
 use clvm_traits::{clvm_quote, ToClvm};
 use clvmr::{
@@ -10,7 +11,9 @@ use clvmr::{
 };
 use num_bigint::BigInt;
 
-use crate::{CatSpend, Coin, CoinSpend, MintedNfts, NftMint, Program, PublicKey, Spend};
+use crate::{
+    CatSpend, Coin, CoinSpend, MintedNfts, NftMetadata, NftMint, Program, PublicKey, Spend,
+};
 
 #[derive(Default, Clone)]
 pub struct Clvm(Arc<RwLock<SpendContext>>);
@@ -237,5 +240,12 @@ impl Clvm {
         }
 
         Ok(Program(self.0.clone(), result))
+    }
+
+    pub fn nft_metadata(&self, value: NftMetadata) -> Result<Program> {
+        let mut ctx = self.0.write().unwrap();
+        let nft_metadata = nft::NftMetadata::from(value);
+        let ptr = ctx.alloc(&nft_metadata)?;
+        Ok(Program(self.0.clone(), ptr))
     }
 }

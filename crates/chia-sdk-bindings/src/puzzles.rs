@@ -1,8 +1,7 @@
 use bindy::{Error, Result};
 use chia_protocol::Bytes32;
-use chia_puzzle_types::{cat::CatArgs, standard::StandardArgs};
+use chia_puzzle_types::{cat::CatArgs, nft, standard::StandardArgs};
 use clvmr::NodePtr;
-use num_bigint::BigInt;
 
 use crate::{Coin, LineageProof, Program, Spend};
 
@@ -96,14 +95,44 @@ pub struct ParsedNft {
 
 #[derive(Clone)]
 pub struct NftMetadata {
-    pub edition_number: BigInt,
-    pub edition_total: BigInt,
+    pub edition_number: u64,
+    pub edition_total: u64,
     pub data_uris: Vec<String>,
     pub data_hash: Option<Bytes32>,
     pub metadata_uris: Vec<String>,
     pub metadata_hash: Option<Bytes32>,
     pub license_uris: Vec<String>,
     pub license_hash: Option<Bytes32>,
+}
+
+impl From<nft::NftMetadata> for NftMetadata {
+    fn from(value: nft::NftMetadata) -> Self {
+        Self {
+            edition_number: value.edition_number,
+            edition_total: value.edition_total,
+            data_uris: value.data_uris,
+            data_hash: value.data_hash,
+            metadata_uris: value.metadata_uris,
+            metadata_hash: value.metadata_hash,
+            license_uris: value.license_uris,
+            license_hash: value.license_hash,
+        }
+    }
+}
+
+impl From<NftMetadata> for nft::NftMetadata {
+    fn from(value: NftMetadata) -> Self {
+        nft::NftMetadata {
+            edition_number: value.edition_number,
+            edition_total: value.edition_total,
+            data_uris: value.data_uris,
+            data_hash: value.data_hash,
+            metadata_uris: value.metadata_uris,
+            metadata_hash: value.metadata_hash,
+            license_uris: value.license_uris,
+            license_hash: value.license_hash,
+        }
+    }
 }
 
 #[derive(Clone)]

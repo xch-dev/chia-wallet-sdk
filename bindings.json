@@ -81,6 +81,12 @@
             "nft_mints": "Vec<NftMint>"
           },
           "return": "MintedNfts"
+        },
+        "nft_metadata": {
+          "args": {
+            "value": "NftMetadata"
+          },
+          "return": "Program"
         }
       }
     },
@@ -141,6 +147,9 @@
         },
         "puzzle": {
           "return": "Puzzle"
+        },
+        "parse_nft_metadata": {
+          "return": "Option<NftMetadata>"
         }
       }
     },
@@ -731,8 +740,8 @@
       "type": "class",
       "new": true,
       "fields": {
-        "edition_number": "BigInt",
-        "edition_total": "BigInt",
+        "edition_number": "u64",
+        "edition_total": "u64",
         "data_uris": "Vec<String>",
         "data_hash": "Option<Bytes32>",
         "metadata_uris": "Vec<String>",
