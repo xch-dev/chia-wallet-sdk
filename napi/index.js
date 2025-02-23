@@ -364,4 +364,4 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-module.exports.encodeAddress = nativeBinding.encodeAddress
+module.exports.AddressInfo = nativeBinding.AddressInfo

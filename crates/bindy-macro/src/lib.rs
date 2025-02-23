@@ -10,6 +10,7 @@ use syn::{parse_str, Ident, LitStr, Type};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Bindy {
+    entrypoint: String,
     bindings: IndexMap<String, Binding>,
     #[serde(default)]
     napi: IndexMap<String, String>,
@@ -19,6 +20,11 @@ struct Bindy {
 #[serde(tag = "type", rename_all = "snake_case")]
 enum Binding {
     Class {
+        #[serde(default)]
+        new: bool,
+        #[serde(default)]
+        fields: IndexMap<String, String>,
+        #[serde(default)]
         methods: IndexMap<String, Method>,
     },
     Function {
@@ -43,6 +49,8 @@ struct Method {
 enum MethodKind {
     #[default]
     Normal,
+    Static,
+    Factory,
     Constructor,
 }
 
@@ -52,6 +60,8 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
     let source = fs::read_to_string(input).unwrap();
     let bindy: Bindy = serde_json::from_str(&source).unwrap();
 
+    let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
+
     let mut base_mappings = indexmap! {
         "()".to_string() => "napi::JsUndefined".to_string(),
         "Vec<u8>".to_string() => "napi::bindgen_prelude::Uint8Array".to_string(),
@@ -59,15 +69,14 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
     base_mappings.extend(bindy.napi);
 
     let mut param_mappings = base_mappings.clone();
-    let mut return_mappings = base_mappings.clone();
+    let return_mappings = base_mappings;
 
     for (name, binding) in &bindy.bindings {
         if matches!(binding, Binding::Class { .. }) {
             param_mappings.insert(
                 name.clone(),
-                format!("napi::bindgen_prelude::ClassInstance<'a, {name}Bound>"),
+                format!("napi::bindgen_prelude::ClassInstance<'a, {name}>"),
             );
-            return_mappings.insert(name.clone(), format!("{name}Bound"));
         }
     }
 
@@ -75,9 +84,13 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
 
     for (name, binding) in bindy.bindings {
         match binding {
-            Binding::Class { methods } => {
-                let ident = Ident::new(&name, Span::mixed_site());
-                let bound_name = Ident::new(&format!("{name}Bound"), Span::mixed_site());
+            Binding::Class {
+                new,
+                methods,
+                fields,
+            } => {
+                let bound_ident = Ident::new(&name, Span::mixed_site());
+                let rust_ident = quote!( #entrypoint::#bound_ident );
 
                 let mut method_tokens = quote!();
 
@@ -104,23 +117,30 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                     )
                     .unwrap();
 
+                    let napi_attr = match method.kind {
+                        MethodKind::Constructor => quote!(#[napi(constructor)]),
+                        MethodKind::Static => quote!(#[napi]),
+                        MethodKind::Factory => quote!(#[napi(factory)]),
+                        MethodKind::Normal => quote!(#[napi]),
+                    };
+
                     match method.kind {
-                        MethodKind::Constructor => {
+                        MethodKind::Constructor | MethodKind::Static | MethodKind::Factory => {
                             method_tokens.extend(quote! {
-                                #[napi(constructor)]
+                                #napi_attr
                                 pub fn #method_ident<'a>(
                                     env: Env,
                                     #( #arg_idents: #arg_types ),*
                                 ) -> napi::Result<Self> {
-                                    Ok(bindy::FromRust::from_rust(#ident::#method_ident(
-                                        #(#arg_idents.into_rust(&bindy::NapiParamContext)?),*
+                                    Ok(bindy::FromRust::from_rust(#rust_ident::#method_ident(
+                                        #( bindy::IntoRust::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
                                     )?, &bindy::NapiReturnContext(env))?)
                                 }
                             });
                         }
                         MethodKind::Normal => {
                             method_tokens.extend(quote! {
-                                #[napi]
+                                #napi_attr
                                 pub fn #method_ident<'a>(
                                     &self,
                                     env: Env,
@@ -135,24 +155,74 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                     }
                 }
 
+                let mut field_tokens = quote!();
+
+                for (name, ty) in &fields {
+                    let ident = Ident::new(name, Span::mixed_site());
+                    let get_ident = Ident::new(&format!("get_{name}"), Span::mixed_site());
+                    let set_ident = Ident::new(&format!("set_{name}"), Span::mixed_site());
+                    let ty =
+                        parse_str::<Type>(apply_mappings(ty, &return_mappings).as_str()).unwrap();
+
+                    field_tokens.extend(quote! {
+                        #[napi(getter)]
+                        pub fn #get_ident(&self, env: Env) -> napi::Result<#ty> {
+                            Ok(bindy::FromRust::from_rust(self.0.#ident.clone(), &bindy::NapiReturnContext(env))?)
+                        }
+
+                        #[napi(setter)]
+                        pub fn #set_ident(&mut self, env: Env, value: #ty) -> napi::Result<()> {
+                            self.0.#ident = bindy::IntoRust::into_rust(value, &bindy::NapiParamContext)?;
+                            Ok(())
+                        }
+                    });
+                }
+
+                if new {
+                    let arg_idents = fields
+                        .keys()
+                        .map(|k| Ident::new(k, Span::mixed_site()))
+                        .collect::<Vec<_>>();
+
+                    let arg_types = fields
+                        .values()
+                        .map(|v| {
+                            parse_str::<Type>(apply_mappings(v, &param_mappings).as_str()).unwrap()
+                        })
+                        .collect::<Vec<_>>();
+
+                    method_tokens.extend(quote! {
+                        #[napi(constructor)]
+                        pub fn new<'a>(
+                            env: Env,
+                            #( #arg_idents: #arg_types ),*
+                        ) -> napi::Result<Self> {
+                            Ok(bindy::FromRust::from_rust(#rust_ident {
+                                #(#arg_idents: bindy::IntoRust::into_rust(#arg_idents, &bindy::NapiParamContext)?),*
+                            }, &bindy::NapiReturnContext(env))?)
+                        }
+                    });
+                }
+
                 output.extend(quote! {
-                    #[napi_derive::napi(js_name = #name)]
+                    #[napi_derive::napi]
                     #[derive(Clone)]
-                    pub struct #bound_name(#ident);
+                    pub struct #bound_ident(#rust_ident);
 
                     #[napi_derive::napi]
-                    impl #bound_name {
+                    impl #bound_ident {
                         #method_tokens
+                        #field_tokens
                     }
 
-                    impl<T> bindy::FromRust<#ident, T> for #bound_name {
-                        fn from_rust(value: #ident, _context: &T) -> bindy::Result<Self> {
+                    impl<T> bindy::FromRust<#rust_ident, T> for #bound_ident {
+                        fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
                             Ok(Self(value))
                         }
                     }
 
-                    impl<T> bindy::IntoRust<#ident, T> for #bound_name {
-                        fn into_rust(self, _context: &T) -> bindy::Result<#ident> {
+                    impl<T> bindy::IntoRust<#rust_ident, T> for #bound_ident {
+                        fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
                             Ok(self.0)
                         }
                     }

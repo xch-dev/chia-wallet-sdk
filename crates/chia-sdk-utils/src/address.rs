@@ -20,32 +20,41 @@ pub struct AddressInfo {
     pub prefix: String,
 }
 
-pub fn decode_address(address: &str) -> Result<AddressInfo, AddressError> {
-    let (hrp, data, variant) = bech32::decode(address)?;
-
-    if variant != Variant::Bech32m {
-        return Err(AddressError::InvalidFormat);
+impl AddressInfo {
+    pub fn new(puzzle_hash: Bytes32, prefix: String) -> Self {
+        Self {
+            puzzle_hash,
+            prefix,
+        }
     }
 
-    let data = bech32::convert_bits(&data, 5, 8, false)?;
-    let length = data.len();
-    let puzzle_hash = data
-        .try_into()
-        .map_err(|_| AddressError::WrongLength(length))?;
+    pub fn decode(address: &str) -> Result<Self, AddressError> {
+        let (hrp, data, variant) = bech32::decode(address)?;
 
-    Ok(AddressInfo {
-        puzzle_hash,
-        prefix: hrp,
-    })
-}
+        if variant != Variant::Bech32m {
+            return Err(AddressError::InvalidFormat);
+        }
 
-pub fn encode_address(puzzle_hash: Bytes32, prefix: &str) -> Result<String, bech32::Error> {
-    let data = bech32::convert_bits(&puzzle_hash, 8, 5, true)
-        .unwrap()
-        .into_iter()
-        .map(u5::try_from_u8)
-        .collect::<Result<Vec<_>, bech32::Error>>()?;
-    bech32::encode(prefix, data, Variant::Bech32m)
+        let data = bech32::convert_bits(&data, 5, 8, false)?;
+        let length = data.len();
+        let puzzle_hash = data
+            .try_into()
+            .map_err(|_| AddressError::WrongLength(length))?;
+
+        Ok(Self {
+            puzzle_hash,
+            prefix: hrp,
+        })
+    }
+
+    pub fn encode(&self) -> Result<String, AddressError> {
+        let data = bech32::convert_bits(&self.puzzle_hash, 8, 5, true)
+            .unwrap()
+            .into_iter()
+            .map(u5::try_from_u8)
+            .collect::<Result<Vec<_>, bech32::Error>>()?;
+        Ok(bech32::encode(&self.prefix, data, Variant::Bech32m)?)
+    }
 }
 
 #[cfg(test)]
@@ -53,8 +62,8 @@ mod tests {
     use super::*;
 
     fn check_addr(expected: &str) {
-        let info = decode_address(expected).unwrap();
-        let actual = encode_address(info.puzzle_hash, &info.prefix).unwrap();
+        let info = AddressInfo::decode(expected).unwrap();
+        let actual = info.encode().unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -69,11 +78,11 @@ mod tests {
     #[test]
     fn test_invalid_addresses() {
         assert_eq!(
-            decode_address("hello there!"),
+            AddressInfo::decode("hello there!"),
             Err(AddressError::Decode(bech32::Error::MissingSeparator))
         );
         assert_eq!(
-            decode_address("bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"),
+            AddressInfo::decode("bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"),
             Err(AddressError::InvalidFormat)
         );
     }

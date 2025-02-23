@@ -68,7 +68,7 @@ dependencies = [
  "nom",
  "num-traits",
  "rusticata-macros",
- "thiserror 1.0.69",
+ "thiserror",
  "time",
 ]
 
@@ -249,7 +249,7 @@ dependencies = [
  "rand_chacha",
  "sha2",
  "signature",
- "thiserror 2.0.11",
+ "thiserror",
  "wasm-bindgen",
 ]
 
@@ -257,7 +257,7 @@ dependencies = [
 name = "bindy-macro"
 version = "0.20.0"
 dependencies = [
- "convert_case 0.7.1",
+ "convert_case 0.6.0",
  "indexmap",
  "proc-macro2",
  "quote",
@@ -410,7 +410,7 @@ dependencies = [
  "hkdf",
  "lru",
  "sha2",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -428,7 +428,7 @@ dependencies = [
  "linked-hash-map",
  "serde",
  "sha2",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -440,7 +440,7 @@ dependencies = [
  "chia-protocol",
  "chia-traits 0.20.0",
  "futures-util",
- "thiserror 1.0.69",
+ "thiserror",
  "tokio",
  "tokio-tungstenite",
  "tungstenite",
@@ -464,7 +464,7 @@ dependencies = [
  "clvmr",
  "hex",
  "hex-literal",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -539,7 +539,7 @@ dependencies = [
  "rand_chacha",
  "sha2",
  "signature",
- "thiserror 1.0.69",
+ "thiserror",
  "wasm-bindgen",
 ]
 
@@ -557,7 +557,7 @@ dependencies = [
  "once_cell",
  "rustls",
  "rustls-pemfile",
- "thiserror 1.0.69",
+ "thiserror",
  "tokio",
  "tokio-tungstenite",
  "tracing",
@@ -617,7 +617,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "rstest",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -639,7 +639,7 @@ dependencies = [
  "k256",
  "rand",
  "rand_chacha",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -669,7 +669,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "signature",
- "thiserror 1.0.69",
+ "thiserror",
  "tokio",
  "tokio-tungstenite",
  "tracing",
@@ -710,7 +710,7 @@ dependencies = [
  "indexmap",
  "rand",
  "rand_chacha",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -763,7 +763,7 @@ dependencies = [
  "rand",
  "rcgen",
  "rsa",
- "thiserror 1.0.69",
+ "thiserror",
  "time",
 ]
 
@@ -775,7 +775,7 @@ checksum = "e57bbde886b38a9a5df185e751d90e295d14e99659bf43df7fa701d52d4da1ea"
 dependencies = [
  "chia-sha2 0.15.0",
  "chia_streamable_macro 0.15.0",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -786,7 +786,7 @@ checksum = "5c5ed585473f3dd758ae9565230b5fe41245245f5511a488a82a00a9d166d5f2"
 dependencies = [
  "chia-sha2 0.20.0",
  "chia_streamable_macro 0.20.0",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -908,7 +908,7 @@ dependencies = [
  "clvm-derive",
  "clvmr",
  "num-bigint",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -1034,9 +1034,18 @@ dependencies = [
 
 [[package]]
 name = "ctor"
-version = "0.3.0"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f06b1425736ba96096116f063c9d10be2352a7cde0cbea829a717008e114aec9"
+checksum = "21d960ecacd0a1bf55e73144b72de745e7bf275c7952c50e36e8af0a0cb7ab1f"
+dependencies = [
+ "ctor-proc-macro",
+]
+
+[[package]]
+name = "ctor-proc-macro"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c426d2ba3e525b39c1f0a9ba41b9fe61878dee11fa4e4a76b6ab440f46c5db5d"
 
 [[package]]
 name = "data-encoding"
@@ -1841,9 +1850,9 @@ dependencies = [
 
 [[package]]
 name = "napi"
-version = "3.0.0-alpha.28"
+version = "3.0.0-alpha.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0dd957e2cc4bd62b730b10ff1f35775f8a81dac84a3bfac273b0ec4336f53ab8"
+checksum = "00c56a279ce53f72f7c16bf4284b9f082dd627914519c56a64736751612564d3"
 dependencies = [
  "bitflags",
  "ctor",
@@ -1860,9 +1869,9 @@ checksum = "db836caddef23662b94e16bf1f26c40eceb09d6aee5d5b06a7ac199320b69b19"
 
 [[package]]
 name = "napi-derive"
-version = "3.0.0-alpha.26"
+version = "3.0.0-alpha.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0f0b6f3f77925d8fd2030855af659ce428a7bb6e10e94852e226f509186ba7c"
+checksum = "c8097918a9af1976700eac6944b120b65ad17bf6d38906703d2b68e17ee89256"
 dependencies = [
  "convert_case 0.7.1",
  "napi-derive-backend",
@@ -1873,9 +1882,9 @@ dependencies = [
 
 [[package]]
 name = "napi-derive-backend"
-version = "2.0.0-alpha.26"
+version = "2.0.0-alpha.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c694bb49a2fa84dd9542d51eece39a57519f9cf1fc2deefa9d119ab8181e374d"
+checksum = "8e5adc92fcdec3aa09f591bd2b139d7c669399f34b8211fe653641b52d40d3b3"
 dependencies = [
  "convert_case 0.7.1",
  "proc-macro2",
@@ -2917,16 +2926,7 @@ version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
 dependencies = [
- "thiserror-impl 1.0.69",
-]
-
-[[package]]
-name = "thiserror"
-version = "2.0.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d452f284b73e6d76dd36758a0c8684b1d5be31f92b89d07fd5822175732206fc"
-dependencies = [
- "thiserror-impl 2.0.11",
+ "thiserror-impl",
 ]
 
 [[package]]
@@ -2934,17 +2934,6 @@ name = "thiserror-impl"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "thiserror-impl"
-version = "2.0.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26afc1baea8a989337eeb52b6e72a039780ce45c3edfcc9c5b9d112feeb173c2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3196,7 +3185,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "sha1",
- "thiserror 1.0.69",
+ "thiserror",
  "utf-8",
 ]
 
@@ -3541,7 +3530,7 @@ dependencies = [
  "oid-registry",
  "ring",
  "rusticata-macros",
- "thiserror 1.0.69",
+ "thiserror",
  "time",
 ]
 

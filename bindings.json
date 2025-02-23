@@ -1,12 +1,25 @@
 {
+  "entrypoint": "chia_sdk_bindings",
   "bindings": {
-    "encode_address": {
-      "type": "function",
-      "args": {
+    "AddressInfo": {
+      "type": "class",
+      "new": true,
+      "fields": {
         "puzzle_hash": "Bytes32",
         "prefix": "String"
       },
-      "return": "String"
+      "methods": {
+        "encode": {
+          "return": "String"
+        },
+        "decode": {
+          "type": "factory",
+          "args": {
+            "address": "String"
+          },
+          "return": "AddressInfo"
+        }
+      }
     }
   },
   "napi": {
