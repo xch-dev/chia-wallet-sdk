@@ -232,25 +232,17 @@ dependencies = [
  "bip39",
  "chia-bls 0.20.0",
  "chia-protocol",
- "chia-puzzle-types",
  "chia-sdk-driver",
  "chia-sdk-test",
- "chia-sdk-types",
  "chia-sdk-utils",
- "chia-secp",
  "clvm-traits",
- "clvm-utils",
  "clvmr",
  "hex",
  "napi",
  "num-bigint",
  "pyo3",
- "rand",
- "rand_chacha",
- "sha2",
  "signature",
  "thiserror",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -516,31 +508,22 @@ dependencies = [
 name = "chia-sdk-bindings"
 version = "0.20.0"
 dependencies = [
- "bech32",
  "bindy",
  "bip39",
  "chia-bls 0.20.0",
  "chia-protocol",
  "chia-puzzle-types",
  "chia-sdk-driver",
- "chia-sdk-test",
- "chia-sdk-types",
  "chia-sdk-utils",
  "chia-secp",
  "clvm-traits",
  "clvm-utils",
  "clvmr",
  "hex",
- "napi",
- "napi-derive",
  "num-bigint",
- "pyo3",
  "rand",
  "rand_chacha",
  "sha2",
- "signature",
- "thiserror",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -652,7 +635,6 @@ dependencies = [
  "chia-consensus",
  "chia-protocol",
  "chia-puzzle-types",
- "chia-puzzles",
  "chia-sdk-client",
  "chia-sdk-signer",
  "chia-sdk-types",
@@ -705,7 +687,6 @@ version = "0.20.0"
 dependencies = [
  "bech32",
  "chia-protocol",
- "hex",
  "hex-literal",
  "indexmap",
  "rand",

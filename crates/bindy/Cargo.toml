@@ -5,29 +5,22 @@ edition = "2021"
 
 [features]
 napi = ["dep:napi"]
-wasm = ["dep:wasm-bindgen"]
+wasm = []
+pyo3 = ["dep:pyo3"]
 
 [dependencies]
 thiserror = { workspace = true }
 napi = { workspace = true, default-features = false, optional = true }
 chia-protocol = { workspace = true }
-wasm-bindgen = { workspace = true, optional = true }
 pyo3 = { workspace = true, optional = true }
 bech32 = { workspace = true }
 bip39 = { workspace = true }
 hex = { workspace = true }
 chia-bls = { workspace = true }
-chia-secp = { workspace = true }
-clvm-utils = { workspace = true }
-chia-puzzle-types = { workspace = true }
-chia-sdk-types = { workspace = true }
 chia-sdk-utils = { workspace = true }
 chia-sdk-driver = { workspace = true }
 chia-sdk-test = { workspace = true }
 clvmr = { workspace = true }
 clvm-traits = { workspace = true }
-sha2 = { workspace = true }
-rand = { workspace = true }
-rand_chacha = { workspace = true }
 signature = { workspace = true }
 num-bigint = { workspace = true }

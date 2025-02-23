@@ -15,33 +15,24 @@ categories = { workspace = true }
 workspace = true
 
 [features]
-napi = ["dep:napi", "dep:napi-derive"]
-wasm = ["dep:wasm-bindgen"]
-pyo3 = ["dep:pyo3"]
+napi = []
+wasm = []
+pyo3 = []
 
 [dependencies]
-napi = { workspace = true, features = ["napi6", "async"], optional = true }
-napi-derive = { workspace = true, optional = true }
-wasm-bindgen = { workspace = true, optional = true }
-bindy = { workspace = true }
-pyo3 = { workspace = true, optional = true }
-thiserror = { workspace = true }
-bech32 = { workspace = true }
-bip39 = { workspace = true }
-hex = { workspace = true }
+chia-sdk-utils = { workspace = true }
+chia-sdk-driver = { workspace = true }
 chia-protocol = { workspace = true }
 chia-bls = { workspace = true }
 chia-secp = { workspace = true }
-clvm-utils = { workspace = true }
 chia-puzzle-types = { workspace = true }
-chia-sdk-types = { workspace = true }
-chia-sdk-utils = { workspace = true }
-chia-sdk-driver = { workspace = true }
-chia-sdk-test = { workspace = true }
-clvmr = { workspace = true }
+clvm-utils = { workspace = true }
 clvm-traits = { workspace = true }
+clvmr = { workspace = true }
+bindy = { workspace = true }
+bip39 = { workspace = true }
+hex = { workspace = true }
 sha2 = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
-signature = { workspace = true }
 num-bigint = { workspace = true }

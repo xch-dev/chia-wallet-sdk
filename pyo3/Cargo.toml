@@ -12,3 +12,6 @@ pyo3 = { workspace = true, features = ["num-bigint", "multiple-pymethods"] }
 chia-sdk-bindings = { workspace = true, features = ["pyo3"] }
 bindy = { workspace = true, features = ["pyo3"] }
 bindy-macro = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = ["bindy", "chia-sdk-bindings", "pyo3"]
