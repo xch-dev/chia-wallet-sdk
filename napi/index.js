@@ -365,3 +365,5 @@ if (!nativeBinding) {
 }
 
 module.exports.AddressInfo = nativeBinding.AddressInfo
+module.exports.Mnemonic = nativeBinding.Mnemonic
+module.exports.generateBytes = nativeBinding.generateBytes

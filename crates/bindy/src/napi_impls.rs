@@ -40,6 +40,18 @@ impl FromRust<(), NapiReturnContext> for napi::JsUndefined {
     }
 }
 
+impl<T> FromRust<Vec<u8>, T> for Uint8Array {
+    fn from_rust(value: Vec<u8>, _context: &T) -> Result<Self> {
+        Ok(value.into())
+    }
+}
+
+impl<T> IntoRust<Vec<u8>, T> for Uint8Array {
+    fn into_rust(self, _context: &T) -> Result<Vec<u8>> {
+        Ok(self.to_vec())
+    }
+}
+
 impl<T, const N: usize> FromRust<BytesImpl<N>, T> for Uint8Array {
     fn from_rust(value: BytesImpl<N>, _context: &T) -> Result<Self> {
         Ok(value.to_vec().into())

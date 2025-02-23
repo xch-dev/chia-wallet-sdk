@@ -49,6 +49,7 @@ struct Method {
 enum MethodKind {
     #[default]
     Normal,
+    ToString,
     Static,
     Factory,
     Constructor,
@@ -112,8 +113,20 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                         .collect::<Vec<_>>();
 
                     let ret = parse_str::<Type>(
-                        apply_mappings(method.ret.as_deref().unwrap_or("()"), &return_mappings)
-                            .as_str(),
+                        apply_mappings(
+                            method.ret.as_deref().unwrap_or(
+                                if matches!(
+                                    method.kind,
+                                    MethodKind::Constructor | MethodKind::Factory
+                                ) {
+                                    "Self"
+                                } else {
+                                    "()"
+                                },
+                            ),
+                            &return_mappings,
+                        )
+                        .as_str(),
                     )
                     .unwrap();
 
@@ -121,7 +134,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                         MethodKind::Constructor => quote!(#[napi(constructor)]),
                         MethodKind::Static => quote!(#[napi]),
                         MethodKind::Factory => quote!(#[napi(factory)]),
-                        MethodKind::Normal => quote!(#[napi]),
+                        MethodKind::Normal | MethodKind::ToString => quote!(#[napi]),
                     };
 
                     match method.kind {
@@ -131,14 +144,14 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                                 pub fn #method_ident<'a>(
                                     env: Env,
                                     #( #arg_idents: #arg_types ),*
-                                ) -> napi::Result<Self> {
+                                ) -> napi::Result<#ret> {
                                     Ok(bindy::FromRust::from_rust(#rust_ident::#method_ident(
                                         #( bindy::IntoRust::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
                                     )?, &bindy::NapiReturnContext(env))?)
                                 }
                             });
                         }
-                        MethodKind::Normal => {
+                        MethodKind::Normal | MethodKind::ToString => {
                             method_tokens.extend(quote! {
                                 #napi_attr
                                 pub fn #method_ident<'a>(
@@ -257,7 +270,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                         env: Env,
                         #( #arg_idents: #arg_types ),*
                     ) -> napi::Result<#ret> {
-                        Ok(bindy::FromRust::from_rust(#ident(
+                        Ok(bindy::FromRust::from_rust(#entrypoint::#ident(
                             #( bindy::IntoRust::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
                         )?, &bindy::NapiReturnContext(env))?)
                     }

@@ -9,3 +9,15 @@ export declare class AddressInfo {
   get prefix(): string
   set prefix(value: string)
 }
+
+export declare class Mnemonic {
+  constructor(mnemonic: string)
+  static fromEntropy(entropy: Uint8Array): Mnemonic
+  static generate(use24: boolean): Mnemonic
+  static verify(mnemonic: string): boolean
+  toString(): string
+  toEntropy(): Uint8Array
+  toSeed(password: string): Uint8Array
+}
+
+export declare function generateBytes(bytes: number): Uint8Array
