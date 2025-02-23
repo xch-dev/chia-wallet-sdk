@@ -23,6 +23,7 @@ pyo3 = []
 chia-sdk-utils = { workspace = true }
 chia-sdk-driver = { workspace = true }
 chia-sdk-test = { workspace = true }
+chia-sdk-types = { workspace = true }
 chia-protocol = { workspace = true }
 chia-bls = { workspace = true }
 chia-secp = { workspace = true }
@@ -37,3 +38,4 @@ sha2 = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 num-bigint = { workspace = true }
+paste = { workspace = true }

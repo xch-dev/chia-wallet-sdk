@@ -16,7 +16,7 @@ use crate::{
 };
 
 #[derive(Default, Clone)]
-pub struct Clvm(Arc<RwLock<SpendContext>>);
+pub struct Clvm(pub(crate) Arc<RwLock<SpendContext>>);
 
 impl Clvm {
     pub fn new() -> Result<Self> {
@@ -25,6 +25,18 @@ impl Clvm {
 
     pub fn add_coin_spend(&self, coin_spend: CoinSpend) -> Result<()> {
         self.0.write().unwrap().insert(coin_spend.into());
+        Ok(())
+    }
+
+    pub fn spend_coin(&self, coin: Coin, spend: Spend) -> Result<()> {
+        let mut ctx = self.0.write().unwrap();
+        let puzzle_reveal = ctx.serialize(&spend.puzzle.1)?;
+        let solution = ctx.serialize(&spend.solution.1)?;
+        ctx.insert(chia_protocol::CoinSpend::new(
+            coin.into(),
+            puzzle_reveal,
+            solution,
+        ));
         Ok(())
     }
 
@@ -37,18 +49,6 @@ impl Clvm {
             .into_iter()
             .map(CoinSpend::from)
             .collect())
-    }
-
-    pub fn deserialize(&self, value: SerializedProgram) -> Result<Program> {
-        let mut ctx = self.0.write().unwrap();
-        let ptr = node_from_bytes(&mut ctx.allocator, &value)?;
-        Ok(Program(self.0.clone(), ptr))
-    }
-
-    pub fn deserialize_with_backrefs(&self, value: SerializedProgram) -> Result<Program> {
-        let mut ctx = self.0.write().unwrap();
-        let ptr = node_from_bytes_backrefs(&mut ctx.allocator, &value)?;
-        Ok(Program(self.0.clone(), ptr))
     }
 
     pub fn delegated_spend(&self, conditions: Vec<Program>) -> Result<Spend> {
@@ -142,6 +142,18 @@ impl Clvm {
             nfts,
             parent_conditions,
         })
+    }
+
+    pub fn deserialize(&self, value: SerializedProgram) -> Result<Program> {
+        let mut ctx = self.0.write().unwrap();
+        let ptr = node_from_bytes(&mut ctx.allocator, &value)?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn deserialize_with_backrefs(&self, value: SerializedProgram) -> Result<Program> {
+        let mut ctx = self.0.write().unwrap();
+        let ptr = node_from_bytes_backrefs(&mut ctx.allocator, &value)?;
+        Ok(Program(self.0.clone(), ptr))
     }
 
     pub fn pair(&self, first: Program, second: Program) -> Result<Program> {

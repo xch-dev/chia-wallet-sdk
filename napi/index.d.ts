@@ -10,6 +10,182 @@ export declare class Address {
   set prefix(value: string)
 }
 
+export declare class AggSigAmount {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+
+export declare class AggSigMe {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+
+export declare class AggSigParent {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+
+export declare class AggSigParentAmount {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+
+export declare class AggSigParentPuzzle {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+
+export declare class AggSigPuzzle {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+
+export declare class AggSigPuzzleAmount {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+
+export declare class AggSigUnsafe {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+
+export declare class AssertBeforeHeightAbsolute {
+  constructor(height: number)
+  get height(): number
+  set height(value: number)
+}
+
+export declare class AssertBeforeHeightRelative {
+  constructor(height: number)
+  get height(): number
+  set height(value: number)
+}
+
+export declare class AssertBeforeSecondsAbsolute {
+  constructor(seconds: bigint)
+  get seconds(): bigint
+  set seconds(value: bigint)
+}
+
+export declare class AssertBeforeSecondsRelative {
+  constructor(seconds: bigint)
+  get seconds(): bigint
+  set seconds(value: bigint)
+}
+
+export declare class AssertCoinAnnouncement {
+  constructor(announcementId: Uint8Array)
+  get announcementId(): Uint8Array
+  set announcementId(value: Uint8Array)
+}
+
+export declare class AssertConcurrentPuzzle {
+  constructor(puzzleHash: Uint8Array)
+  get puzzleHash(): Uint8Array
+  set puzzleHash(value: Uint8Array)
+}
+
+export declare class AssertConcurrentSpend {
+  constructor(coinId: Uint8Array)
+  get coinId(): Uint8Array
+  set coinId(value: Uint8Array)
+}
+
+export declare class AssertEphemeral {
+  constructor()
+}
+
+export declare class AssertHeightAbsolute {
+  constructor(height: number)
+  get height(): number
+  set height(value: number)
+}
+
+export declare class AssertHeightRelative {
+  constructor(height: number)
+  get height(): number
+  set height(value: number)
+}
+
+export declare class AssertMyAmount {
+  constructor(amount: bigint)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+
+export declare class AssertMyBirthHeight {
+  constructor(height: number)
+  get height(): number
+  set height(value: number)
+}
+
+export declare class AssertMyBirthSeconds {
+  constructor(seconds: bigint)
+  get seconds(): bigint
+  set seconds(value: bigint)
+}
+
+export declare class AssertMyCoinId {
+  constructor(coinId: Uint8Array)
+  get coinId(): Uint8Array
+  set coinId(value: Uint8Array)
+}
+
+export declare class AssertMyParentId {
+  constructor(parentId: Uint8Array)
+  get parentId(): Uint8Array
+  set parentId(value: Uint8Array)
+}
+
+export declare class AssertMyPuzzleHash {
+  constructor(puzzleHash: Uint8Array)
+  get puzzleHash(): Uint8Array
+  set puzzleHash(value: Uint8Array)
+}
+
+export declare class AssertPuzzleAnnouncement {
+  constructor(announcementId: Uint8Array)
+  get announcementId(): Uint8Array
+  set announcementId(value: Uint8Array)
+}
+
+export declare class AssertSecondsAbsolute {
+  constructor(seconds: bigint)
+  get seconds(): bigint
+  set seconds(value: bigint)
+}
+
+export declare class AssertSecondsRelative {
+  constructor(seconds: bigint)
+  get seconds(): bigint
+  set seconds(value: bigint)
+}
+
 export declare class BlsPair {
   constructor(sk: SecretKey, pk: PublicKey)
   get sk(): SecretKey
@@ -53,6 +229,7 @@ export declare class CatSpend {
 export declare class Clvm {
   constructor()
   addCoinSpend(coinSpend: CoinSpend): void
+  spendCoin(coin: Coin, spend: Spend): void
   coinSpends(): Array<CoinSpend>
   pair(first: Program, rest: Program): Program
   nil(): Program
@@ -66,6 +243,41 @@ export declare class Clvm {
   spendCatCoins(catSpends: Array<CatSpend>): void
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
   nftMetadata(value: NftMetadata): Program
+  remark(rest: Program): Program
+  aggSigParent(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigPuzzle(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigAmount(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigPuzzleAmount(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigParentAmount(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigParentPuzzle(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigUnsafe(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigMe(publicKey: PublicKey, message: Uint8Array): Program
+  createCoin(puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null): Program
+  reserveFee(amount: bigint): Program
+  createCoinAnnouncement(message: Uint8Array): Program
+  createPuzzleAnnouncement(message: Uint8Array): Program
+  assertCoinAnnouncement(announcementId: Uint8Array): Program
+  assertPuzzleAnnouncement(announcementId: Uint8Array): Program
+  assertConcurrentSpend(coinId: Uint8Array): Program
+  assertConcurrentPuzzle(puzzleHash: Uint8Array): Program
+  assertSecondsRelative(seconds: bigint): Program
+  assertSecondsAbsolute(seconds: bigint): Program
+  assertHeightRelative(height: number): Program
+  assertHeightAbsolute(height: number): Program
+  assertBeforeSecondsRelative(seconds: bigint): Program
+  assertBeforeSecondsAbsolute(seconds: bigint): Program
+  assertBeforeHeightRelative(height: number): Program
+  assertBeforeHeightAbsolute(height: number): Program
+  assertMyCoinId(coinId: Uint8Array): Program
+  assertMyParentId(parentId: Uint8Array): Program
+  assertMyPuzzleHash(puzzleHash: Uint8Array): Program
+  assertMyAmount(amount: bigint): Program
+  assertMyBirthSeconds(seconds: bigint): Program
+  assertMyBirthHeight(height: number): Program
+  assertEphemeral(): Program
+  sendMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
+  receiveMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
+  softfork(cost: bigint, rest: Program): Program
   int(value: number): Program
   bigInt(value: bigint): Program
 }
@@ -89,6 +301,28 @@ export declare class CoinSpend {
   set puzzleReveal(value: Uint8Array)
   get solution(): Uint8Array
   set solution(value: Uint8Array)
+}
+
+export declare class CreateCoin {
+  constructor(puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null)
+  get puzzleHash(): Uint8Array
+  set puzzleHash(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+  get memos(): Program | null
+  set memos(value?: Program | undefined | null)
+}
+
+export declare class CreateCoinAnnouncement {
+  constructor(message: Uint8Array)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+
+export declare class CreatePuzzleAnnouncement {
+  constructor(message: Uint8Array)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
 }
 
 export declare class CurriedProgram {
@@ -267,6 +501,41 @@ export declare class Program {
   toPair(): Pair | null
   puzzle(): Puzzle
   parseNftMetadata(): NftMetadata | null
+  parseRemark(): Remark | null
+  parseAggSigParent(): AggSigParent | null
+  parseAggSigPuzzle(): AggSigPuzzle | null
+  parseAggSigAmount(): AggSigAmount | null
+  parseAggSigPuzzleAmount(): AggSigPuzzleAmount | null
+  parseAggSigParentAmount(): AggSigParentAmount | null
+  parseAggSigParentPuzzle(): AggSigParentPuzzle | null
+  parseAggSigUnsafe(): AggSigUnsafe | null
+  parseAggSigMe(): AggSigMe | null
+  parseCreateCoin(): CreateCoin | null
+  parseReserveFee(): ReserveFee | null
+  parseCreateCoinAnnouncement(): CreateCoinAnnouncement | null
+  parseCreatePuzzleAnnouncement(): CreatePuzzleAnnouncement | null
+  parseAssertCoinAnnouncement(): AssertCoinAnnouncement | null
+  parseAssertPuzzleAnnouncement(): AssertPuzzleAnnouncement | null
+  parseAssertConcurrentSpend(): AssertConcurrentSpend | null
+  parseAssertConcurrentPuzzle(): AssertConcurrentPuzzle | null
+  parseAssertSecondsRelative(): AssertSecondsRelative | null
+  parseAssertSecondsAbsolute(): AssertSecondsAbsolute | null
+  parseAssertHeightRelative(): AssertHeightRelative | null
+  parseAssertHeightAbsolute(): AssertHeightAbsolute | null
+  parseAssertBeforeSecondsRelative(): AssertBeforeSecondsRelative | null
+  parseAssertBeforeSecondsAbsolute(): AssertBeforeSecondsAbsolute | null
+  parseAssertBeforeHeightRelative(): AssertBeforeHeightRelative | null
+  parseAssertBeforeHeightAbsolute(): AssertBeforeHeightAbsolute | null
+  parseAssertMyCoinId(): AssertMyCoinId | null
+  parseAssertMyParentId(): AssertMyParentId | null
+  parseAssertMyPuzzleHash(): AssertMyPuzzleHash | null
+  parseAssertMyAmount(): AssertMyAmount | null
+  parseAssertMyBirthSeconds(): AssertMyBirthSeconds | null
+  parseAssertMyBirthHeight(): AssertMyBirthHeight | null
+  parseAssertEphemeral(): AssertEphemeral | null
+  parseSendMessage(): SendMessage | null
+  parseReceiveMessage(): ReceiveMessage | null
+  parseSoftfork(): Softfork | null
   toInt(): number | null
   toBigInt(): bigint | null
 }
@@ -325,6 +594,28 @@ export declare class R1Signature {
   toBytes(): Uint8Array
 }
 
+export declare class ReceiveMessage {
+  constructor(mode: number, message: Uint8Array, data: Array<Program>)
+  get mode(): number
+  set mode(value: number)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+  get data(): Array<Program>
+  set data(value: Array<Program>)
+}
+
+export declare class Remark {
+  constructor(rest: Program)
+  get rest(): Program
+  set rest(value: Program)
+}
+
+export declare class ReserveFee {
+  constructor(amount: bigint)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+
 export declare class SecretKey {
   static fromSeed(seed: Uint8Array): SecretKey
   static fromBytes(bytes: Uint8Array): SecretKey
@@ -337,6 +628,16 @@ export declare class SecretKey {
   deriveHardenedPath(path: Array<number>): SecretKey
   deriveSynthetic(): SecretKey
   deriveSyntheticHidden(hiddenPuzzleHash: Uint8Array): SecretKey
+}
+
+export declare class SendMessage {
+  constructor(mode: number, message: Uint8Array, data: Array<Program>)
+  get mode(): number
+  set mode(value: number)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+  get data(): Array<Program>
+  set data(value: Array<Program>)
 }
 
 export declare class Signature {
@@ -353,6 +654,14 @@ export declare class Simulator {
   newCoin(puzzleHash: Uint8Array, amount: bigint): Coin
   bls(amount: bigint): BlsPairWithCoin
   spendCoins(coinSpends: Array<CoinSpend>, secretKeys: Array<SecretKey>): void
+}
+
+export declare class Softfork {
+  constructor(cost: bigint, rest: Program)
+  get cost(): bigint
+  set cost(value: bigint)
+  get rest(): Program
+  set rest(value: Program)
 }
 
 export declare class Spend {
