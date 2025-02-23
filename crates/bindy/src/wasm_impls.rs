@@ -1,11 +1,14 @@
 use std::str::FromStr;
 
 use chia_protocol::{Bytes, Bytes32, BytesImpl, Program};
+use clvm_utils::TreeHash;
 use js_sys::wasm_bindgen::{JsCast, UnwrapThrowExt};
 use js_sys::Uint8Array;
 use num_bigint::BigInt;
 
-use crate::{Error, FromRust, IntoRust, Result};
+use crate::{impl_self, Error, FromRust, IntoRust, Result};
+
+impl_self!(());
 
 pub struct WasmContext;
 
@@ -39,6 +42,25 @@ impl<T, const N: usize> IntoRust<BytesImpl<N>, T> for Vec<u8> {
         }
 
         Ok(bytes.try_into().unwrap())
+    }
+}
+
+impl<T> FromRust<TreeHash, T> for Vec<u8> {
+    fn from_rust(value: TreeHash, _context: &T) -> Result<Self> {
+        Ok(value.to_vec())
+    }
+}
+
+impl<T> IntoRust<TreeHash, T> for Vec<u8> {
+    fn into_rust(self, _context: &T) -> Result<TreeHash> {
+        if self.len() != 32 {
+            return Err(Error::WrongLength {
+                expected: 32,
+                found: self.len(),
+            });
+        }
+
+        Ok(TreeHash::new(self.try_into().unwrap()))
     }
 }
 

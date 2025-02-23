@@ -7,7 +7,7 @@ use chia_protocol::{Bytes, Bytes32, Bytes48, Bytes96};
 use chia_puzzle_types::DeriveSynthetic;
 
 #[derive(Clone)]
-pub struct SecretKey(pub SecretKeyRs);
+pub struct SecretKey(pub(crate) SecretKeyRs);
 
 impl SecretKey {
     pub fn from_seed(seed: Bytes) -> Result<Self> {
@@ -72,7 +72,7 @@ impl SecretKey {
 
 #[derive(Clone, Copy)]
 #[allow(dead_code)]
-pub struct PublicKey(pub PublicKeyRs);
+pub struct PublicKey(pub(crate) PublicKeyRs);
 
 impl PublicKey {
     pub fn infinity() -> Result<Self> {
@@ -140,7 +140,7 @@ impl PublicKey {
 }
 
 #[derive(Clone)]
-pub struct Signature(SignatureRs);
+pub struct Signature(pub(crate) SignatureRs);
 
 impl Signature {
     pub fn infinity() -> Result<Self> {

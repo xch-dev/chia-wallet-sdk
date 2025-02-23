@@ -2,6 +2,109 @@
   "entrypoint": "chia_sdk_bindings",
   "pymodule": "chia_wallet_sdk_py",
   "bindings": {
+    "Clvm": {
+      "type": "class",
+      "methods": {
+        "new": {
+          "type": "constructor"
+        },
+        "add_coin_spend": {
+          "args": {
+            "coin_spend": "CoinSpend"
+          }
+        },
+        "coin_spends": {
+          "return": "Vec<CoinSpend>"
+        },
+        "delegated_spend": {
+          "args": {
+            "conditions": "Vec<Program>"
+          },
+          "return": "Spend"
+        }
+      }
+    },
+    "Program": {
+      "type": "class",
+      "methods": {
+        "serialize": {
+          "return": "SerializedProgram"
+        },
+        "serialize_with_backrefs": {
+          "return": "SerializedProgram"
+        },
+        "run": {
+          "args": {
+            "solution": "Program",
+            "max_cost": "u64",
+            "mempool_mode": "bool"
+          },
+          "return": "Output"
+        },
+        "curry": {
+          "args": {
+            "program": "Program",
+            "args": "Vec<Program>"
+          },
+          "return": "Program"
+        },
+        "uncurry": {
+          "return": "Option<CurriedProgram>"
+        },
+        "tree_hash": {
+          "return": "TreeHash"
+        },
+        "length": {
+          "return": "u32"
+        },
+        "first": {
+          "return": "Program"
+        },
+        "rest": {
+          "return": "Program"
+        },
+        "to_string": {
+          "type": "to_string",
+          "return": "Option<String>"
+        },
+        "to_bool": {
+          "return": "Option<bool>"
+        },
+        "to_atom": {
+          "return": "Option<Bytes>"
+        },
+        "to_list": {
+          "return": "Option<Vec<Program>>"
+        },
+        "to_pair": {
+          "return": "Option<Pair>"
+        }
+      }
+    },
+    "Output": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "value": "Program",
+        "cost": "u64"
+      }
+    },
+    "Pair": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "first": "Program",
+        "rest": "Program"
+      }
+    },
+    "CurriedProgram": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "program": "Program",
+        "args": "Vec<Program>"
+      }
+    },
     "Address": {
       "type": "class",
       "new": true,
@@ -83,8 +186,8 @@
       "new": true,
       "fields": {
         "coin": "Coin",
-        "puzzle_reveal": "Program",
-        "solution": "Program"
+        "puzzle_reveal": "SerializedProgram",
+        "solution": "SerializedProgram"
       }
     },
     "SpendBundle": {
@@ -93,6 +196,14 @@
       "fields": {
         "coin_spends": "Vec<CoinSpend>",
         "aggregated_signature": "Signature"
+      }
+    },
+    "Spend": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "puzzle": "Program",
+        "solution": "Program"
       }
     },
     "SecretKey": {
@@ -428,7 +539,8 @@
     "BytesImpl<33>": "napi::bindgen_prelude::Uint8Array",
     "BytesImpl<64>": "napi::bindgen_prelude::Uint8Array",
     "Bytes": "napi::bindgen_prelude::Uint8Array",
-    "Program": "napi::bindgen_prelude::Uint8Array"
+    "TreeHash": "napi::bindgen_prelude::Uint8Array",
+    "SerializedProgram": "napi::bindgen_prelude::Uint8Array"
   },
   "wasm": {
     "Bytes32": "Vec<u8>",
@@ -437,7 +549,8 @@
     "BytesImpl<33>": "Vec<u8>",
     "BytesImpl<64>": "Vec<u8>",
     "Bytes": "Vec<u8>",
-    "Program": "Vec<u8>",
+    "TreeHash": "Vec<u8>",
+    "SerializedProgram": "Vec<u8>",
     "Vec<Bytes32>": "js_sys::Array"
   },
   "pyo3": {
@@ -447,6 +560,7 @@
     "BytesImpl<33>": "Vec<u8>",
     "BytesImpl<64>": "Vec<u8>",
     "Bytes": "Vec<u8>",
-    "Program": "Vec<u8>"
+    "TreeHash": "Vec<u8>",
+    "SerializedProgram": "Vec<u8>"
   }
 }

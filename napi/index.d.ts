@@ -10,6 +10,13 @@ export declare class Address {
   set prefix(value: string)
 }
 
+export declare class Clvm {
+  constructor()
+  addCoinSpend(coinSpend: CoinSpend): void
+  coinSpends(): Array<CoinSpend>
+  delegatedSpend(conditions: Array<Program>): Spend
+}
+
 export declare class Coin {
   coinId(): Uint8Array
   constructor(parentCoinInfo: Uint8Array, puzzleHash: Uint8Array, amount: bigint)
@@ -29,6 +36,14 @@ export declare class CoinSpend {
   set puzzleReveal(value: Uint8Array)
   get solution(): Uint8Array
   set solution(value: Uint8Array)
+}
+
+export declare class CurriedProgram {
+  constructor(program: Program, args: Array<Program>)
+  get program(): Program
+  set program(value: Program)
+  get args(): Array<Program>
+  set args(value: Array<Program>)
 }
 
 export declare class K1PublicKey {
@@ -58,6 +73,41 @@ export declare class Mnemonic {
   toString(): string
   toEntropy(): Uint8Array
   toSeed(password: string): Uint8Array
+}
+
+export declare class Output {
+  constructor(value: Program, cost: bigint)
+  get value(): Program
+  set value(value: Program)
+  get cost(): bigint
+  set cost(value: bigint)
+}
+
+export declare class Pair {
+  constructor(first: Program, rest: Program)
+  get first(): Program
+  set first(value: Program)
+  get rest(): Program
+  set rest(value: Program)
+}
+
+export declare class Program {
+  serialize(): Uint8Array
+  serializeWithBackrefs(): Uint8Array
+  run(solution: Program, maxCost: bigint, mempoolMode: boolean): Output
+  curry(program: Program, args: Array<Program>): Program
+  uncurry(): CurriedProgram | null
+  treeHash(): Uint8Array
+  length(): number
+  first(): Program
+  rest(): Program
+  toString(): string | null
+  toBool(): boolean | null
+  toAtom(): Uint8Array | null
+  toList(): Array<Program> | null
+  toPair(): Pair | null
+  toInt(): number | null
+  toBigInt(): bigint | null
 }
 
 export declare class PublicKey {
@@ -114,6 +164,14 @@ export declare class Signature {
   toBytes(): Uint8Array
   isInfinity(): boolean
   isValid(): boolean
+}
+
+export declare class Spend {
+  constructor(puzzle: Program, solution: Program)
+  get puzzle(): Program
+  set puzzle(value: Program)
+  get solution(): Program
+  set solution(value: Program)
 }
 
 export declare class SpendBundle {

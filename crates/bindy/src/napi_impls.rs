@@ -1,4 +1,5 @@
 use chia_protocol::{Bytes, BytesImpl, Program};
+use clvm_utils::TreeHash;
 use napi::bindgen_prelude::*;
 
 use crate::{Error, FromRust, IntoRust, Result};
@@ -70,6 +71,27 @@ impl<T, const N: usize> IntoRust<BytesImpl<N>, T> for Uint8Array {
         }
 
         Ok(bytes.try_into().unwrap())
+    }
+}
+
+impl<T> FromRust<TreeHash, T> for Uint8Array {
+    fn from_rust(value: TreeHash, _context: &T) -> Result<Self> {
+        Ok(value.to_vec().into())
+    }
+}
+
+impl<T> IntoRust<TreeHash, T> for Uint8Array {
+    fn into_rust(self, _context: &T) -> Result<TreeHash> {
+        let bytes = self.to_vec();
+
+        if bytes.len() != 32 {
+            return Err(Error::WrongLength {
+                expected: 32,
+                found: bytes.len(),
+            });
+        }
+
+        Ok(TreeHash::new(bytes.try_into().unwrap()))
     }
 }
 

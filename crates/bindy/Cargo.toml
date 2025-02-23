@@ -23,5 +23,6 @@ chia-sdk-driver = { workspace = true }
 chia-sdk-test = { workspace = true }
 clvmr = { workspace = true }
 clvm-traits = { workspace = true }
+clvm-utils = { workspace = true }
 signature = { workspace = true }
 num-bigint = { workspace = true }

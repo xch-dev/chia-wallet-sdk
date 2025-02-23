@@ -1,6 +1,7 @@
-use chia_protocol::{Bytes, BytesImpl, Program};
-
 use crate::{impl_self, Error, FromRust, IntoRust, Result};
+use chia_protocol::{Bytes, BytesImpl, Program};
+use clvm_utils::TreeHash;
+use num_bigint::BigInt;
 
 impl From<Error> for pyo3::PyErr {
     fn from(error: Error) -> Self {
@@ -12,6 +13,8 @@ pub struct Pyo3Context;
 
 impl_self!(u64);
 impl_self!(i64);
+impl_self!(());
+impl_self!(BigInt);
 
 impl<T, const N: usize> FromRust<BytesImpl<N>, T> for Vec<u8> {
     fn from_rust(value: BytesImpl<N>, _context: &T) -> Result<Self> {
@@ -31,6 +34,25 @@ impl<T, const N: usize> IntoRust<BytesImpl<N>, T> for Vec<u8> {
         }
 
         Ok(bytes.try_into().unwrap())
+    }
+}
+
+impl<T> FromRust<TreeHash, T> for Vec<u8> {
+    fn from_rust(value: TreeHash, _context: &T) -> Result<Self> {
+        Ok(value.to_vec())
+    }
+}
+
+impl<T> IntoRust<TreeHash, T> for Vec<u8> {
+    fn into_rust(self, _context: &T) -> Result<TreeHash> {
+        if self.len() != 32 {
+            return Err(Error::WrongLength {
+                expected: 32,
+                found: self.len(),
+            });
+        }
+
+        Ok(TreeHash::new(self.try_into().unwrap()))
     }
 }
 

@@ -236,6 +236,7 @@ dependencies = [
  "chia-sdk-test",
  "chia-sdk-utils",
  "clvm-traits",
+ "clvm-utils",
  "clvmr",
  "hex",
  "js-sys",
@@ -813,6 +814,7 @@ dependencies = [
  "bindy",
  "bindy-macro",
  "chia-sdk-bindings",
+ "num-bigint",
  "pyo3",
 ]
 

@@ -168,3 +168,21 @@ where
             .collect()
     }
 }
+
+impl<R, B, C> IntoRust<Option<R>, C> for Option<B>
+where
+    B: IntoRust<R, C>,
+{
+    fn into_rust(self, context: &C) -> Result<Option<R>> {
+        self.map(|b| b.into_rust(context)).transpose()
+    }
+}
+
+impl<R, B, C> FromRust<Option<R>, C> for Option<B>
+where
+    B: FromRust<R, C>,
+{
+    fn from_rust(value: Option<R>, context: &C) -> Result<Self> {
+        value.map(|r| B::from_rust(r, context)).transpose()
+    }
+}
