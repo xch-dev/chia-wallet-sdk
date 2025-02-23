@@ -1,6 +1,8 @@
 use std::str::FromStr;
 
-use chia_protocol::{Bytes, BytesImpl};
+use chia_protocol::{Bytes, Bytes32, BytesImpl};
+use js_sys::wasm_bindgen::{JsCast, UnwrapThrowExt};
+use js_sys::Uint8Array;
 use num_bigint::BigInt;
 
 use crate::{Error, FromRust, IntoRust, Result};
@@ -62,5 +64,23 @@ impl<T> IntoRust<u64, T> for js_sys::BigInt {
 impl<T> FromRust<u64, T> for js_sys::BigInt {
     fn from_rust(value: u64, _context: &T) -> Result<Self> {
         Ok(value.into())
+    }
+}
+
+impl<T> IntoRust<Vec<Bytes32>, T> for js_sys::Array {
+    fn into_rust(self, context: &T) -> Result<Vec<Bytes32>> {
+        let bytes_array: Vec<Vec<u8>> = self
+            .values()
+            .into_iter()
+            .map(|item| item.unwrap_throw().unchecked_ref::<Uint8Array>().to_vec())
+            .collect();
+
+        let mut bytes32_array = Vec::with_capacity(bytes_array.len());
+
+        for bytes in bytes_array {
+            bytes32_array.push(bytes.into_rust(context)?);
+        }
+
+        Ok(bytes32_array)
     }
 }

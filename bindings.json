@@ -418,7 +418,8 @@
     "Bytes96": "Vec<u8>",
     "BytesImpl<33>": "Vec<u8>",
     "BytesImpl<64>": "Vec<u8>",
-    "Bytes": "Vec<u8>"
+    "Bytes": "Vec<u8>",
+    "Vec<Bytes32>": "js_sys::Array"
   },
   "pyo3": {
     "Bytes32": "Vec<u8>",
