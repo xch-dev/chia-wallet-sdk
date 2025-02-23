@@ -24,7 +24,7 @@ use chia_sdk_utils::AddressError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
 
-use num_bigint::ParseBigIntError;
+use num_bigint::{BigInt, ParseBigIntError, TryFromBigIntError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -101,6 +101,17 @@ pub enum Error {
 
     #[error("BigInt parse error: {0}")]
     BigIntParse(#[from] ParseBigIntError),
+
+    #[error("BigInt error: {0}")]
+    BigInt(#[from] TryFromBigIntError<BigInt>),
+
+    #[cfg(feature = "wasm")]
+    #[error("Js error: {0:?}")]
+    Js(js_sys::Error),
+
+    #[cfg(feature = "wasm")]
+    #[error("Range error: {0:?}")]
+    Range(js_sys::RangeError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

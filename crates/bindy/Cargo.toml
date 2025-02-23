@@ -5,14 +5,15 @@ edition = "2021"
 
 [features]
 napi = ["dep:napi"]
-wasm = []
+wasm = ["dep:js-sys"]
 pyo3 = ["dep:pyo3"]
 
 [dependencies]
 thiserror = { workspace = true }
 napi = { workspace = true, default-features = false, optional = true }
-chia-protocol = { workspace = true }
 pyo3 = { workspace = true, optional = true }
+js-sys = { workspace = true, optional = true }
+chia-protocol = { workspace = true }
 bech32 = { workspace = true }
 bip39 = { workspace = true }
 hex = { workspace = true }

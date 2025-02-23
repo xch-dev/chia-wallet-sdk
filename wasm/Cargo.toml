@@ -20,6 +20,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 wasm-bindgen = { workspace = true }
+js-sys = { workspace = true }
 chia-sdk-bindings = { workspace = true, features = ["wasm"] }
 bindy = { workspace = true, features = ["wasm"] }
 bindy-macro = { workspace = true }

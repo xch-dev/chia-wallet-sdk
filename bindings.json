@@ -70,6 +70,20 @@
         "bytes": "u32"
       },
       "return": "Vec<u8>"
+    },
+    "Coin": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "parent_coin_info": "Bytes32",
+        "puzzle_hash": "Bytes32",
+        "amount": "u64"
+      },
+      "methods": {
+        "coin_id": {
+          "return": "Bytes32"
+        }
+      }
     }
   },
   "napi": {

@@ -10,6 +10,17 @@ export declare class AddressInfo {
   set prefix(value: string)
 }
 
+export declare class Coin {
+  coinId(): Uint8Array
+  constructor(parentCoinInfo: Uint8Array, puzzleHash: Uint8Array, amount: bigint)
+  get parentCoinInfo(): Uint8Array
+  set parentCoinInfo(value: Uint8Array)
+  get puzzleHash(): Uint8Array
+  set puzzleHash(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+
 export declare class Mnemonic {
   constructor(mnemonic: string)
   static fromEntropy(entropy: Uint8Array): Mnemonic

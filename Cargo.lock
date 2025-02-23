@@ -238,6 +238,7 @@ dependencies = [
  "clvm-traits",
  "clvmr",
  "hex",
+ "js-sys",
  "napi",
  "num-bigint",
  "pyo3",
@@ -823,6 +824,7 @@ dependencies = [
  "bindy-macro",
  "chia-sdk-bindings",
  "getrandom",
+ "js-sys",
  "wasm-bindgen",
 ]
 

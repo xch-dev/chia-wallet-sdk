@@ -365,5 +365,6 @@ if (!nativeBinding) {
 }
 
 module.exports.AddressInfo = nativeBinding.AddressInfo
+module.exports.Coin = nativeBinding.Coin
 module.exports.Mnemonic = nativeBinding.Mnemonic
 module.exports.generateBytes = nativeBinding.generateBytes

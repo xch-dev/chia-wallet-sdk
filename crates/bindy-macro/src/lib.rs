@@ -71,6 +71,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
     let mut base_mappings = indexmap! {
         "()".to_string() => "napi::JsUndefined".to_string(),
         "Vec<u8>".to_string() => "napi::bindgen_prelude::Uint8Array".to_string(),
+        "u64".to_string() => "napi::bindgen_prelude::BigInt".to_string(),
     };
     base_mappings.extend(bindy.napi);
 
@@ -293,7 +294,10 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
-    let mappings = bindy.wasm;
+    let mut mappings = indexmap! {
+        "u64".to_string() => "js_sys::BigInt".to_string(),
+    };
+    mappings.extend(bindy.wasm);
 
     let mut output = quote!();
 
