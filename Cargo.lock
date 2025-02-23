@@ -68,7 +68,7 @@ dependencies = [
  "nom",
  "num-traits",
  "rusticata-macros",
- "thiserror",
+ "thiserror 1.0.69",
  "time",
 ]
 
@@ -225,6 +225,48 @@ dependencies = [
 ]
 
 [[package]]
+name = "bindy"
+version = "0.20.0"
+dependencies = [
+ "bech32",
+ "bip39",
+ "chia-bls 0.20.0",
+ "chia-protocol",
+ "chia-puzzle-types",
+ "chia-sdk-driver",
+ "chia-sdk-test",
+ "chia-sdk-types",
+ "chia-sdk-utils",
+ "chia-secp",
+ "clvm-traits",
+ "clvm-utils",
+ "clvmr",
+ "hex",
+ "napi",
+ "num-bigint",
+ "pyo3",
+ "rand",
+ "rand_chacha",
+ "sha2",
+ "signature",
+ "thiserror 2.0.11",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "bindy-macro"
+version = "0.20.0"
+dependencies = [
+ "convert_case 0.7.1",
+ "indexmap",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "syn",
+]
+
+[[package]]
 name = "bip39"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -368,7 +410,7 @@ dependencies = [
  "hkdf",
  "lru",
  "sha2",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -386,7 +428,7 @@ dependencies = [
  "linked-hash-map",
  "serde",
  "sha2",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -398,7 +440,7 @@ dependencies = [
  "chia-protocol",
  "chia-traits 0.20.0",
  "futures-util",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-tungstenite",
  "tungstenite",
@@ -422,7 +464,7 @@ dependencies = [
  "clvmr",
  "hex",
  "hex-literal",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -475,6 +517,7 @@ name = "chia-sdk-bindings"
 version = "0.20.0"
 dependencies = [
  "bech32",
+ "bindy",
  "bip39",
  "chia-bls 0.20.0",
  "chia-protocol",
@@ -488,7 +531,6 @@ dependencies = [
  "clvm-utils",
  "clvmr",
  "hex",
- "js-sys",
  "napi",
  "napi-derive",
  "num-bigint",
@@ -497,7 +539,7 @@ dependencies = [
  "rand_chacha",
  "sha2",
  "signature",
- "thiserror",
+ "thiserror 1.0.69",
  "wasm-bindgen",
 ]
 
@@ -515,7 +557,7 @@ dependencies = [
  "once_cell",
  "rustls",
  "rustls-pemfile",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-tungstenite",
  "tracing",
@@ -575,7 +617,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "rstest",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -597,7 +639,7 @@ dependencies = [
  "k256",
  "rand",
  "rand_chacha",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -627,7 +669,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "signature",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-tungstenite",
  "tracing",
@@ -668,7 +710,7 @@ dependencies = [
  "indexmap",
  "rand",
  "rand_chacha",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -721,7 +763,7 @@ dependencies = [
  "rand",
  "rcgen",
  "rsa",
- "thiserror",
+ "thiserror 1.0.69",
  "time",
 ]
 
@@ -733,7 +775,7 @@ checksum = "e57bbde886b38a9a5df185e751d90e295d14e99659bf43df7fa701d52d4da1ea"
 dependencies = [
  "chia-sha2 0.15.0",
  "chia_streamable_macro 0.15.0",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -744,7 +786,7 @@ checksum = "5c5ed585473f3dd758ae9565230b5fe41245245f5511a488a82a00a9d166d5f2"
 dependencies = [
  "chia-sha2 0.20.0",
  "chia_streamable_macro 0.20.0",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -772,16 +814,14 @@ dependencies = [
 name = "chia-wallet-sdk-napi"
 version = "0.0.0"
 dependencies = [
- "chia-bls 0.20.0",
+ "bindy",
+ "bindy-macro",
  "chia-sdk-bindings",
- "clvmr",
  "napi",
  "napi-build",
  "napi-derive",
- "num-bigint",
  "openssl",
  "openssl-sys",
- "paste",
 ]
 
 [[package]]
@@ -868,7 +908,7 @@ dependencies = [
  "clvm-derive",
  "clvmr",
  "num-bigint",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1565,6 +1605,7 @@ checksum = "8c9c992b02b5b4c94ea26e32fe5bccb7aa7d9f390ab5c1221ff895bc7ea8b652"
 dependencies = [
  "equivalent",
  "hashbrown 0.15.2",
+ "serde",
 ]
 
 [[package]]
@@ -2647,18 +2688,18 @@ checksum = "61697e0a1c7e512e84a621326239844a24d8207b4669b41bc18b32ea5cbf988b"
 
 [[package]]
 name = "serde"
-version = "1.0.217"
+version = "1.0.218"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02fc4265df13d6fa1d00ecff087228cc0a2b5f3c0e87e258d8b94a156e984c70"
+checksum = "e8dfc9d19bdbf6d17e22319da49161d5d0108e4188e8b680aef6299eed22df60"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.217"
+version = "1.0.218"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a9bf7cf98d04a2b28aead066b7496853d4779c9cc183c440dbac457641e19a0"
+checksum = "f09503e191f4e797cb8aac08e9a4a4695c5edf6a2e70e376d961ddd5c969f82b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2667,9 +2708,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.137"
+version = "1.0.139"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "930cfb6e6abf99298aaad7d29abbef7a9999a9a8806a40088f55f0dcec03146b"
+checksum = "44f86c3acccc9c65b153fe1b85a3be07fe5515274ec9f0653b4a0875731c72a6"
 dependencies = [
  "itoa",
  "memchr",
@@ -2795,9 +2836,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "syn"
-version = "2.0.96"
+version = "2.0.98"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5d0adab1ae378d7f53bdebc67a39f1f151407ef230f0ce2883572f5d8985c80"
+checksum = "36147f1a48ae0ec2b5b3bc5b537d267457555a10dc06f3dbc8cb11ba3006d3b1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2876,7 +2917,16 @@ version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d452f284b73e6d76dd36758a0c8684b1d5be31f92b89d07fd5822175732206fc"
+dependencies = [
+ "thiserror-impl 2.0.11",
 ]
 
 [[package]]
@@ -2884,6 +2934,17 @@ name = "thiserror-impl"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26afc1baea8a989337eeb52b6e72a039780ce45c3edfcc9c5b9d112feeb173c2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3135,7 +3196,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "sha1",
- "thiserror",
+ "thiserror 1.0.69",
  "utf-8",
 ]
 
@@ -3480,7 +3541,7 @@ dependencies = [
  "oid-registry",
  "ring",
  "rusticata-macros",
- "thiserror",
+ "thiserror 1.0.69",
  "time",
 ]
 

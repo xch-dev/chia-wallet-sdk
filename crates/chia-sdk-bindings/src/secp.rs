@@ -1,10 +1,9 @@
+use bindy::Result;
 use chia_protocol::{Bytes32, BytesImpl};
 use chia_secp::{
     K1PublicKey as K1PublicKeyRs, K1SecretKey as K1SecretKeyRs, K1Signature as K1SignatureRs,
     R1PublicKey as R1PublicKeyRs, R1SecretKey as R1SecretKeyRs, R1Signature as R1SignatureRs,
 };
-
-use crate::Result;
 
 #[derive(Clone)]
 pub struct K1SecretKey(pub K1SecretKeyRs);

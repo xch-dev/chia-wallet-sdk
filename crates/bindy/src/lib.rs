@@ -1,3 +1,6 @@
+#[cfg(feature = "napi")]
+mod napi_impls;
+
 use std::string::FromUtf8Error;
 
 use chia_sdk_driver::DriverError;
@@ -5,11 +8,19 @@ use chia_sdk_test::SimulatorError;
 use chia_sdk_utils::AddressError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
-use num_bigint::{BigInt, ParseBigIntError, TryFromBigIntError};
+#[cfg(feature = "napi")]
+pub use napi_impls::*;
 
-#[derive(Debug, thiserror::Error)]
+use num_bigint::ParseBigIntError;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
 pub enum Error {
-    #[error("Expected {expected} bytes, but instead found {found}")]
+    #[cfg(feature = "napi")]
+    #[error("NAPI error: {0}")]
+    Napi(#[from] napi::Error),
+
+    #[error("Wrong length, expected {expected} bytes, found {found}")]
     WrongLength { expected: usize, found: usize },
 
     #[error("Bech32m encoding error: {0}")]
@@ -69,50 +80,47 @@ pub enum Error {
     #[error("From CLVM error: {0}")]
     FromClvm(#[from] FromClvmError),
 
-    #[cfg(feature = "wasm")]
-    #[error("Range error: {0:?}")]
-    Range(js_sys::RangeError),
-
-    #[error("BigInt error: {0}")]
-    BigInt(#[from] TryFromBigIntError<BigInt>),
-
     #[error("Missing parent inner puzzle hash")]
     MissingParentInnerPuzzleHash,
 
     #[error("Simulator error: {0}")]
     Simulator(#[from] SimulatorError),
 
-    #[cfg(feature = "napi")]
-    #[error("NAPI error: {0}")]
-    Napi(#[from] napi::Error),
-
     #[error("BigInt parse error: {0}")]
     BigIntParse(#[from] ParseBigIntError),
-
-    #[cfg(feature = "wasm")]
-    #[error("Js error: {0:?}")]
-    Js(js_sys::Error),
-}
-
-#[cfg(feature = "napi")]
-impl From<Error> for napi::Error {
-    fn from(error: Error) -> Self {
-        napi::Error::new(napi::Status::GenericFailure, error.to_string())
-    }
-}
-
-#[cfg(feature = "pyo3")]
-impl From<Error> for pyo3::PyErr {
-    fn from(error: Error) -> Self {
-        pyo3::exceptions::PyValueError::new_err(error.to_string())
-    }
-}
-
-#[cfg(feature = "wasm")]
-impl From<js_sys::Error> for Error {
-    fn from(error: js_sys::Error) -> Self {
-        Error::Js(error)
-    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+pub trait IntoRust<T, C> {
+    fn into_rust(self, context: &C) -> Result<T>;
+}
+
+pub trait FromRust<T, C>: Sized {
+    fn from_rust(value: T, context: &C) -> Result<Self>;
+}
+
+macro_rules! impl_self {
+    ( $ty:ty ) => {
+        impl<T> FromRust<$ty, T> for $ty {
+            fn from_rust(value: $ty, _context: &T) -> Result<Self> {
+                Ok(value)
+            }
+        }
+
+        impl<T> IntoRust<$ty, T> for $ty {
+            fn into_rust(self, _context: &T) -> Result<$ty> {
+                Ok(self)
+            }
+        }
+    };
+}
+
+impl_self!(bool);
+impl_self!(u8);
+impl_self!(i8);
+impl_self!(u16);
+impl_self!(i16);
+impl_self!(u32);
+impl_self!(i32);
+impl_self!(String);

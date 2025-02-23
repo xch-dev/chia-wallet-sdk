@@ -1,11 +1,10 @@
+use bindy::Result;
 use chia_bls::{
     sign, DerivableKey, PublicKey as PublicKeyRs, SecretKey as SecretKeyRs,
     Signature as SignatureRs,
 };
 use chia_protocol::{Bytes, Bytes32, Bytes48, Bytes96};
 use chia_puzzle_types::DeriveSynthetic;
-
-use crate::Result;
 
 #[derive(Clone)]
 pub struct SecretKey(pub SecretKeyRs);

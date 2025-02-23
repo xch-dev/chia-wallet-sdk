@@ -1,0 +1,15 @@
+{
+  "bindings": {
+    "encode_address": {
+      "type": "function",
+      "args": {
+        "puzzle_hash": "Bytes32",
+        "prefix": "String"
+      },
+      "return": "String"
+    }
+  },
+  "napi": {
+    "Bytes32": "napi::bindgen_prelude::Uint8Array"
+  }
+}

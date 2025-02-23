@@ -102,7 +102,8 @@ chia-sdk-types = { version = "0.20.0", path = "./crates/chia-sdk-types" }
 chia-sdk-utils = { version = "0.20.0", path = "./crates/chia-sdk-utils" }
 chia-sdk-coinset = { version = "0.20.0", path = "./crates/chia-sdk-coinset" }
 chia-sdk-bindings = { version = "0.20.0", path = "./crates/chia-sdk-bindings" }
-chia-sdk-bindings-macro = { version = "0.20.0", path = "./crates/chia-sdk-bindings/macro" }
+bindy = { version = "0.20.0", path = "./crates/bindy" }
+bindy-macro = { version = "0.20.0", path = "./crates/bindy-macro" }
 chia = "0.20.0"
 chia-ssl = "0.20.0"
 chia-protocol = "0.20.0"

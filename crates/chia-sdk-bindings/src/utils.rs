@@ -1,7 +1,6 @@
+use bindy::Result;
 use chia_protocol::{Bytes, Bytes32};
 use sha2::{Digest, Sha256};
-
-use crate::Result;
 
 pub fn from_hex(value: String) -> Result<Bytes> {
     Ok(hex::decode(value)?.into())

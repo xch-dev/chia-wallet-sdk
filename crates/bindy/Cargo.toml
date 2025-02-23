@@ -1,35 +1,20 @@
 [package]
-name = "chia-sdk-bindings"
+name = "bindy"
 version = "0.20.0"
 edition = "2021"
-license = "Apache-2.0"
-description = "Underlying implementation of chia-wallet-sdk bindings."
-authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
-homepage = "https://github.com/Rigidity/chia-wallet-sdk"
-repository = "https://github.com/Rigidity/chia-wallet-sdk"
-readme = { workspace = true }
-keywords = { workspace = true }
-categories = { workspace = true }
-
-[lints]
-workspace = true
 
 [features]
-napi = ["dep:napi", "dep:napi-derive"]
-wasm = ["dep:wasm-bindgen"]
-pyo3 = ["dep:pyo3"]
+napi = ["dep:napi"]
 
 [dependencies]
-napi = { workspace = true, features = ["napi6", "async"], optional = true }
-napi-derive = { workspace = true, optional = true }
+thiserror = "2.0.11"
+napi = { version = "3.0.0-alpha.28", default-features = false, optional = true }
+chia-protocol = { workspace = true }
 wasm-bindgen = { workspace = true, optional = true }
-bindy = { workspace = true }
 pyo3 = { workspace = true, optional = true }
-thiserror = { workspace = true }
 bech32 = { workspace = true }
 bip39 = { workspace = true }
 hex = { workspace = true }
-chia-protocol = { workspace = true }
 chia-bls = { workspace = true }
 chia-secp = { workspace = true }
 clvm-utils = { workspace = true }

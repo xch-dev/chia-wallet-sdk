@@ -1,11 +1,10 @@
 use std::str::FromStr;
 
+use bindy::Result;
 use bip39::Mnemonic;
 use chia_protocol::Bytes;
 use rand::{Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
-
-use crate::Result;
 
 pub fn mnemonic_from_entropy(entropy: Bytes) -> Result<String> {
     Ok(Mnemonic::from_entropy(&entropy)?.to_string())
