@@ -1,4 +1,4 @@
-use chia_sdk_bindings::Address;
+use chia_sdk_utils::Address;
 use hex_literal::hex;
 
 fn main() -> anyhow::Result<()> {
