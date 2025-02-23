@@ -367,4 +367,7 @@ if (!nativeBinding) {
 module.exports.AddressInfo = nativeBinding.AddressInfo
 module.exports.Coin = nativeBinding.Coin
 module.exports.Mnemonic = nativeBinding.Mnemonic
+module.exports.PublicKey = nativeBinding.PublicKey
+module.exports.SecretKey = nativeBinding.SecretKey
+module.exports.Signature = nativeBinding.Signature
 module.exports.generateBytes = nativeBinding.generateBytes

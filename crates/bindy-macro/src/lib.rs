@@ -82,7 +82,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
         if matches!(binding, Binding::Class { .. }) {
             param_mappings.insert(
                 name.clone(),
-                format!("napi::bindgen_prelude::ClassInstance<'a, {name}>"),
+                format!("napi::bindgen_prelude::ClassInstance<'_, {name}>"),
             );
         }
     }
@@ -147,7 +147,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                         MethodKind::Constructor | MethodKind::Static | MethodKind::Factory => {
                             method_tokens.extend(quote! {
                                 #napi_attr
-                                pub fn #method_ident<'a>(
+                                pub fn #method_ident(
                                     env: Env,
                                     #( #arg_idents: #arg_types ),*
                                 ) -> napi::Result<#ret> {
@@ -160,7 +160,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                         MethodKind::Normal | MethodKind::ToString => {
                             method_tokens.extend(quote! {
                                 #napi_attr
-                                pub fn #method_ident<'a>(
+                                pub fn #method_ident(
                                     &self,
                                     env: Env,
                                     #( #arg_idents: #arg_types ),*
@@ -212,7 +212,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
 
                     method_tokens.extend(quote! {
                         #[napi(constructor)]
-                        pub fn new<'a>(
+                        pub fn new(
                             env: Env,
                             #( #arg_idents: #arg_types ),*
                         ) -> napi::Result<Self> {
@@ -270,7 +270,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
 
                 output.extend(quote! {
                     #[napi_derive::napi]
-                    pub fn #bound_ident<'a>(
+                    pub fn #bound_ident(
                         env: Env,
                         #( #arg_idents: #arg_types ),*
                     ) -> napi::Result<#ret> {

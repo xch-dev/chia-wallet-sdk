@@ -1,4 +1,4 @@
-use chia_protocol::BytesImpl;
+use chia_protocol::{Bytes, BytesImpl};
 use napi::bindgen_prelude::*;
 
 use crate::{Error, FromRust, IntoRust, Result};
@@ -70,6 +70,18 @@ impl<T, const N: usize> IntoRust<BytesImpl<N>, T> for Uint8Array {
         }
 
         Ok(bytes.try_into().unwrap())
+    }
+}
+
+impl<T> FromRust<Bytes, T> for Uint8Array {
+    fn from_rust(value: Bytes, _context: &T) -> Result<Self> {
+        Ok(value.to_vec().into())
+    }
+}
+
+impl<T> IntoRust<Bytes, T> for Uint8Array {
+    fn into_rust(self, _context: &T) -> Result<Bytes> {
+        Ok(self.to_vec().into())
     }
 }
 

@@ -142,10 +142,29 @@ macro_rules! impl_self {
 }
 
 impl_self!(bool);
-impl_self!(u8);
-impl_self!(i8);
 impl_self!(u16);
 impl_self!(i16);
 impl_self!(u32);
 impl_self!(i32);
 impl_self!(String);
+
+impl<R, B, C> IntoRust<Vec<R>, C> for Vec<B>
+where
+    B: IntoRust<R, C>,
+{
+    fn into_rust(self, context: &C) -> Result<Vec<R>> {
+        self.into_iter().map(|b| b.into_rust(context)).collect()
+    }
+}
+
+impl<R, B, C> FromRust<Vec<R>, C> for Vec<B>
+where
+    B: FromRust<R, C>,
+{
+    fn from_rust(value: Vec<R>, context: &C) -> Result<Self> {
+        value
+            .into_iter()
+            .map(|r| B::from_rust(r, context))
+            .collect()
+    }
+}

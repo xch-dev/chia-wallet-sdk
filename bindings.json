@@ -84,15 +84,168 @@
           "return": "Bytes32"
         }
       }
+    },
+    "SecretKey": {
+      "type": "class",
+      "methods": {
+        "from_seed": {
+          "type": "factory",
+          "args": {
+            "seed": "Bytes"
+          }
+        },
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "Bytes32"
+          }
+        },
+        "to_bytes": {
+          "return": "Bytes32"
+        },
+        "public_key": {
+          "return": "PublicKey"
+        },
+        "sign": {
+          "args": {
+            "message": "Bytes"
+          },
+          "return": "Signature"
+        },
+        "derive_unhardened": {
+          "args": {
+            "index": "u32"
+          },
+          "return": "SecretKey"
+        },
+        "derive_hardened": {
+          "args": {
+            "index": "u32"
+          },
+          "return": "SecretKey"
+        },
+        "derive_unhardened_path": {
+          "args": {
+            "path": "Vec<u32>"
+          },
+          "return": "SecretKey"
+        },
+        "derive_hardened_path": {
+          "args": {
+            "path": "Vec<u32>"
+          },
+          "return": "SecretKey"
+        },
+        "derive_synthetic": {
+          "return": "SecretKey"
+        },
+        "derive_synthetic_hidden": {
+          "args": {
+            "hidden_puzzle_hash": "Bytes32"
+          },
+          "return": "SecretKey"
+        }
+      }
+    },
+    "PublicKey": {
+      "type": "class",
+      "methods": {
+        "infinity": {
+          "type": "factory"
+        },
+        "aggregate": {
+          "type": "factory",
+          "args": {
+            "public_keys": "Vec<PublicKey>"
+          }
+        },
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "Bytes48"
+          }
+        },
+        "to_bytes": {
+          "return": "Bytes48"
+        },
+        "fingerprint": {
+          "return": "u32"
+        },
+        "is_infinity": {
+          "return": "bool"
+        },
+        "is_valid": {
+          "return": "bool"
+        },
+        "derive_unhardened": {
+          "args": {
+            "index": "u32"
+          },
+          "return": "PublicKey"
+        },
+        "derive_unhardened_path": {
+          "args": {
+            "path": "Vec<u32>"
+          },
+          "return": "PublicKey"
+        },
+        "derive_synthetic": {
+          "return": "PublicKey"
+        },
+        "derive_synthetic_hidden": {
+          "args": {
+            "hidden_puzzle_hash": "Bytes32"
+          },
+          "return": "PublicKey"
+        }
+      }
+    },
+    "Signature": {
+      "type": "class",
+      "methods": {
+        "infinity": {
+          "type": "factory"
+        },
+        "aggregate": {
+          "type": "factory",
+          "args": {
+            "signatures": "Vec<Signature>"
+          }
+        },
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "Bytes96"
+          }
+        },
+        "to_bytes": {
+          "return": "Bytes96"
+        },
+        "is_infinity": {
+          "return": "bool"
+        },
+        "is_valid": {
+          "return": "bool"
+        }
+      }
     }
   },
   "napi": {
-    "Bytes32": "napi::bindgen_prelude::Uint8Array"
+    "Bytes32": "napi::bindgen_prelude::Uint8Array",
+    "Bytes48": "napi::bindgen_prelude::Uint8Array",
+    "Bytes96": "napi::bindgen_prelude::Uint8Array",
+    "Bytes": "napi::bindgen_prelude::Uint8Array"
   },
   "wasm": {
-    "Bytes32": "Vec<u8>"
+    "Bytes32": "Vec<u8>",
+    "Bytes48": "Vec<u8>",
+    "Bytes96": "Vec<u8>",
+    "Bytes": "Vec<u8>"
   },
   "pyo3": {
-    "Bytes32": "Vec<u8>"
+    "Bytes32": "Vec<u8>",
+    "Bytes48": "Vec<u8>",
+    "Bytes96": "Vec<u8>",
+    "Bytes": "Vec<u8>"
   }
 }

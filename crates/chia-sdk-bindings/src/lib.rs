@@ -23,7 +23,7 @@ use bindy::Result;
 use rand::{Rng, RngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
-pub use chia_protocol::Bytes32;
+pub use chia_protocol::{Bytes, Bytes32};
 
 #[derive(Clone)]
 pub struct AddressInfo {

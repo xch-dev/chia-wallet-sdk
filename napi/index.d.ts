@@ -31,4 +31,41 @@ export declare class Mnemonic {
   toSeed(password: string): Uint8Array
 }
 
+export declare class PublicKey {
+  static infinity(): PublicKey
+  static aggregate(publicKeys: Array<PublicKey>): PublicKey
+  static fromBytes(bytes: Uint8Array): PublicKey
+  toBytes(): Uint8Array
+  fingerprint(): number
+  isInfinity(): boolean
+  isValid(): boolean
+  deriveUnhardened(index: number): PublicKey
+  deriveUnhardenedPath(path: Array<number>): PublicKey
+  deriveSynthetic(): PublicKey
+  deriveSyntheticHidden(hiddenPuzzleHash: Uint8Array): PublicKey
+}
+
+export declare class SecretKey {
+  static fromSeed(seed: Uint8Array): SecretKey
+  static fromBytes(bytes: Uint8Array): SecretKey
+  toBytes(): Uint8Array
+  publicKey(): PublicKey
+  sign(message: Uint8Array): Signature
+  deriveUnhardened(index: number): SecretKey
+  deriveHardened(index: number): SecretKey
+  deriveUnhardenedPath(path: Array<number>): SecretKey
+  deriveHardenedPath(path: Array<number>): SecretKey
+  deriveSynthetic(): SecretKey
+  deriveSyntheticHidden(hiddenPuzzleHash: Uint8Array): SecretKey
+}
+
+export declare class Signature {
+  static infinity(): Signature
+  static aggregate(signatures: Array<Signature>): Signature
+  static fromBytes(bytes: Uint8Array): Signature
+  toBytes(): Uint8Array
+  isInfinity(): boolean
+  isValid(): boolean
+}
+
 export declare function generateBytes(bytes: number): Uint8Array
