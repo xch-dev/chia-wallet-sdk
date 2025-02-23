@@ -11,11 +11,14 @@ use syn::{parse_str, Ident, LitStr, Type};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Bindy {
     entrypoint: String,
+    pymodule: String,
     bindings: IndexMap<String, Binding>,
     #[serde(default)]
     napi: IndexMap<String, String>,
     #[serde(default)]
     wasm: IndexMap<String, String>,
+    #[serde(default)]
+    pyo3: IndexMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -244,10 +247,8 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                 });
             }
             Binding::Function { args, ret } => {
-                let bound_ident = Ident::new(&format!("{name}_bound"), Span::mixed_site());
+                let bound_ident = Ident::new(&name, Span::mixed_site());
                 let ident = Ident::new(&name, Span::mixed_site());
-
-                let js_name = name.to_case(Case::Camel);
 
                 let arg_idents = args
                     .keys()
@@ -267,7 +268,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                 .unwrap();
 
                 output.extend(quote! {
-                    #[napi_derive::napi(js_name = #js_name)]
+                    #[napi_derive::napi]
                     pub fn #bound_ident<'a>(
                         env: Env,
                         #( #arg_idents: #arg_types ),*
@@ -464,7 +465,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                 });
             }
             Binding::Function { args, ret } => {
-                let bound_ident = Ident::new(&format!("{name}_bound"), Span::mixed_site());
+                let bound_ident = Ident::new(&name, Span::mixed_site());
                 let ident = Ident::new(&name, Span::mixed_site());
 
                 let js_name = name.to_case(Case::Camel);
@@ -505,6 +506,233 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
             }
         }
     }
+
+    output.into()
+}
+
+#[proc_macro]
+pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as LitStr).value();
+    let source = fs::read_to_string(input).unwrap();
+    let bindy: Bindy = serde_json::from_str(&source).unwrap();
+
+    let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
+
+    let mappings = bindy.pyo3;
+
+    let mut output = quote!();
+    let mut module = quote!();
+
+    for (name, binding) in bindy.bindings {
+        let bound_ident = Ident::new(&name, Span::mixed_site());
+
+        match &binding {
+            Binding::Class {
+                new,
+                methods,
+                fields,
+            } => {
+                let rust_ident = quote!( #entrypoint::#bound_ident );
+
+                let mut method_tokens = quote!();
+
+                for (name, method) in methods {
+                    let method_ident = Ident::new(name, Span::mixed_site());
+
+                    let arg_idents = method
+                        .args
+                        .keys()
+                        .map(|k| Ident::new(k, Span::mixed_site()))
+                        .collect::<Vec<_>>();
+
+                    let arg_types = method
+                        .args
+                        .values()
+                        .map(|v| parse_str::<Type>(apply_mappings(v, &mappings).as_str()).unwrap())
+                        .collect::<Vec<_>>();
+
+                    let ret = parse_str::<Type>(
+                        apply_mappings(
+                            method.ret.as_deref().unwrap_or(
+                                if matches!(
+                                    method.kind,
+                                    MethodKind::Constructor | MethodKind::Factory
+                                ) {
+                                    "Self"
+                                } else {
+                                    "()"
+                                },
+                            ),
+                            &mappings,
+                        )
+                        .as_str(),
+                    )
+                    .unwrap();
+
+                    let pyo3_attr = match method.kind {
+                        MethodKind::Constructor => quote!(#[new]),
+                        MethodKind::Static => quote!(#[staticmethod]),
+                        MethodKind::Factory => quote!(#[staticmethod]),
+                        _ => quote!(),
+                    };
+
+                    let remapped_method_ident = if matches!(method.kind, MethodKind::ToString) {
+                        Ident::new("__str__", Span::mixed_site())
+                    } else {
+                        method_ident.clone()
+                    };
+
+                    match method.kind {
+                        MethodKind::Constructor | MethodKind::Static | MethodKind::Factory => {
+                            method_tokens.extend(quote! {
+                                #pyo3_attr
+                                pub fn #remapped_method_ident(
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> pyo3::PyResult<#ret> {
+                                    Ok(bindy::FromRust::from_rust(#rust_ident::#method_ident(
+                                        #( bindy::IntoRust::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
+                                    )?, &bindy::Pyo3Context)?)
+                                }
+                            });
+                        }
+                        MethodKind::Normal | MethodKind::ToString => {
+                            method_tokens.extend(quote! {
+                                #pyo3_attr
+                                pub fn #remapped_method_ident(
+                                    &self,
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> pyo3::PyResult<#ret> {
+                                    Ok(bindy::FromRust::from_rust(self.0.#method_ident(
+                                        #( bindy::IntoRust::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
+                                    )?, &bindy::Pyo3Context)?)
+                                }
+                            });
+                        }
+                    }
+                }
+
+                let mut field_tokens = quote!();
+
+                for (name, ty) in fields {
+                    let ident = Ident::new(name, Span::mixed_site());
+                    let get_ident = Ident::new(&format!("get_{name}"), Span::mixed_site());
+                    let set_ident = Ident::new(&format!("set_{name}"), Span::mixed_site());
+                    let ty = parse_str::<Type>(apply_mappings(ty, &mappings).as_str()).unwrap();
+
+                    field_tokens.extend(quote! {
+                        #[getter]
+                        pub fn #get_ident(&self) -> pyo3::PyResult<#ty> {
+                            Ok(bindy::FromRust::from_rust(self.0.#ident.clone(), &bindy::Pyo3Context)?)
+                        }
+
+                        #[setter]
+                        pub fn #set_ident(&mut self, value: #ty) -> pyo3::PyResult<()> {
+                            self.0.#ident = bindy::IntoRust::into_rust(value, &bindy::Pyo3Context)?;
+                            Ok(())
+                        }
+                    });
+                }
+
+                if *new {
+                    let arg_idents = fields
+                        .keys()
+                        .map(|k| Ident::new(k, Span::mixed_site()))
+                        .collect::<Vec<_>>();
+
+                    let arg_types = fields
+                        .values()
+                        .map(|v| parse_str::<Type>(apply_mappings(v, &mappings).as_str()).unwrap())
+                        .collect::<Vec<_>>();
+
+                    method_tokens.extend(quote! {
+                        #[new]
+                        pub fn new(
+                            #( #arg_idents: #arg_types ),*
+                        ) -> pyo3::PyResult<Self> {
+                            Ok(bindy::FromRust::from_rust(#rust_ident {
+                                #(#arg_idents: bindy::IntoRust::into_rust(#arg_idents, &bindy::Pyo3Context)?),*
+                            }, &bindy::Pyo3Context)?)
+                        }
+                    });
+                }
+
+                output.extend(quote! {
+                    #[pyo3::pyclass]
+                    #[derive(Clone)]
+                    pub struct #bound_ident(#rust_ident);
+
+                    #[pyo3::pymethods]
+                    impl #bound_ident {
+                        #method_tokens
+                        #field_tokens
+                    }
+
+                    impl<T> bindy::FromRust<#rust_ident, T> for #bound_ident {
+                        fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
+                            Ok(Self(value))
+                        }
+                    }
+
+                    impl<T> bindy::IntoRust<#rust_ident, T> for #bound_ident {
+                        fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
+                            Ok(self.0)
+                        }
+                    }
+                });
+            }
+            Binding::Function { args, ret } => {
+                let arg_idents = args
+                    .keys()
+                    .map(|k| Ident::new(k, Span::mixed_site()))
+                    .collect::<Vec<_>>();
+
+                let arg_types = args
+                    .values()
+                    .map(|v| parse_str::<Type>(apply_mappings(v, &mappings).as_str()).unwrap())
+                    .collect::<Vec<_>>();
+
+                let ret = parse_str::<Type>(
+                    apply_mappings(ret.as_deref().unwrap_or("()"), &mappings).as_str(),
+                )
+                .unwrap();
+
+                output.extend(quote! {
+                    #[pyo3::pyfunction]
+                    pub fn #bound_ident(
+                        #( #arg_idents: #arg_types ),*
+                    ) -> pyo3::PyResult<#ret> {
+                        Ok(bindy::FromRust::from_rust(#entrypoint::#bound_ident(
+                            #( bindy::IntoRust::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
+                        )?, &bindy::Pyo3Context)?)
+                    }
+                });
+            }
+        }
+
+        match binding {
+            Binding::Class { .. } => {
+                module.extend(quote! {
+                    m.add_class::<#bound_ident>()?;
+                });
+            }
+            Binding::Function { .. } => {
+                module.extend(quote! {
+                    m.add_function(pyo3::wrap_pyfunction!(#bound_ident, m)?)?;
+                });
+            }
+        }
+    }
+
+    let pymodule = Ident::new(&bindy.pymodule, Span::mixed_site());
+
+    output.extend(quote! {
+        #[pyo3::pymodule]
+        fn #pymodule(m: &pyo3::Bound<'_, pyo3::prelude::PyModule>) -> pyo3::PyResult<()> {
+            use pyo3::types::PyModuleMethods;
+            #module
+            Ok(())
+        }
+    });
 
     output.into()
 }

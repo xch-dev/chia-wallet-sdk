@@ -4,11 +4,17 @@ mod napi_impls;
 #[cfg(feature = "wasm")]
 mod wasm_impls;
 
+#[cfg(feature = "pyo3")]
+mod pyo3_impls;
+
 #[cfg(feature = "napi")]
 pub use napi_impls::*;
 
 #[cfg(feature = "wasm")]
 pub use wasm_impls::*;
+
+#[cfg(feature = "pyo3")]
+pub use pyo3_impls::*;
 
 use std::string::FromUtf8Error;
 
