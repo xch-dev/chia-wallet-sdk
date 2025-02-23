@@ -1,5 +1,8 @@
-use chia_protocol::{Bytes, Coin, CoinSpend, Program};
-use chia_sdk_driver::{Cat, CatSpend, Spend, SpendContext, StandardLayer};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program};
+use chia_sdk_driver::{
+    Cat, CatSpend, CurriedPuzzle, HashedPtr, Launcher, Nft, NftInfo, NftMint, Puzzle as SdkPuzzle,
+    RawPuzzle, Spend, SpendContext, StandardLayer,
+};
 use clvm_traits::{clvm_quote, ClvmDecoder, ClvmEncoder, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram};
 use clvmr::{
@@ -310,5 +313,89 @@ impl Clvm {
     pub fn spend_cat_coins(&mut self, cat_spends: Vec<CatSpend>) -> Result<()> {
         Cat::spend_all(&mut self.0, &cat_spends)?;
         Ok(())
+    }
+
+    pub fn parse_puzzle(&self, value: NodePtr) -> Result<Puzzle> {
+        let puzzle = SdkPuzzle::parse(&self.0.allocator, value);
+        Ok(Puzzle::from(puzzle))
+    }
+
+    pub fn parse_nft(&self, puzzle: Puzzle) -> Result<Option<(NftInfo<NodePtr>, Puzzle)>> {
+        let puzzle = SdkPuzzle::from(puzzle);
+
+        let Some((nft_info, p2_puzzle)) = NftInfo::<NodePtr>::parse(&self.0.allocator, puzzle)?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some((nft_info, Puzzle::from(p2_puzzle))))
+    }
+
+    pub fn mint_nfts(
+        &mut self,
+        parent_coin_id: Bytes32,
+        nft_mints: Vec<NftMint<HashedPtr>>,
+    ) -> Result<(Vec<Nft<HashedPtr>>, Vec<NodePtr>)> {
+        let mut nfts = Vec::new();
+        let mut parent_conditions = Vec::new();
+
+        for (i, nft_mint) in nft_mints.into_iter().enumerate() {
+            let (conditions, nft) =
+                Launcher::new(parent_coin_id, i as u64 * 2 + 1).mint_nft(&mut self.0, nft_mint)?;
+
+            nfts.push(nft);
+
+            for condition in conditions {
+                let condition = condition.to_clvm(&mut self.0.allocator)?;
+                parent_conditions.push(condition);
+            }
+        }
+
+        Ok((nfts, parent_conditions))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Puzzle {
+    pub puzzle_hash: Bytes32,
+    pub ptr: NodePtr,
+    pub mod_hash: Bytes32,
+    pub args: Option<NodePtr>,
+}
+
+impl From<SdkPuzzle> for Puzzle {
+    fn from(value: SdkPuzzle) -> Self {
+        match value {
+            SdkPuzzle::Curried(curried) => Self {
+                puzzle_hash: curried.curried_puzzle_hash.into(),
+                ptr: curried.curried_ptr,
+                mod_hash: curried.mod_hash.into(),
+                args: Some(curried.args),
+            },
+            SdkPuzzle::Raw(raw) => Self {
+                puzzle_hash: raw.puzzle_hash.into(),
+                ptr: raw.ptr,
+                mod_hash: raw.puzzle_hash.into(),
+                args: None,
+            },
+        }
+    }
+}
+
+impl From<Puzzle> for SdkPuzzle {
+    fn from(value: Puzzle) -> Self {
+        if let Some(args) = value.args {
+            SdkPuzzle::Curried(CurriedPuzzle {
+                curried_puzzle_hash: value.puzzle_hash.into(),
+                curried_ptr: value.ptr,
+                mod_hash: value.mod_hash.into(),
+                args,
+            })
+        } else {
+            SdkPuzzle::Raw(RawPuzzle {
+                puzzle_hash: value.puzzle_hash.into(),
+                ptr: value.ptr,
+            })
+        }
     }
 }

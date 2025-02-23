@@ -2,14 +2,25 @@ use clvmr::NodePtr;
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
-use crate::{IntoJs, IntoRust};
+use crate::{IntoJs, IntoJsWithClvm, IntoRust};
 
-use super::{Clvm, CurriedProgram, Output, Pair};
+use super::{Clvm, CurriedProgram, Output, Pair, Puzzle};
 
 #[napi]
 pub struct Program {
     pub(crate) clvm: Reference<Clvm>,
     pub(crate) node_ptr: NodePtr,
+    pub(crate) tree_hash: Option<Uint8Array>,
+}
+
+impl Program {
+    pub fn new(clvm: Reference<Clvm>, node_ptr: NodePtr) -> Self {
+        Self {
+            clvm,
+            node_ptr,
+            tree_hash: None,
+        }
+    }
 }
 
 #[napi]
@@ -33,21 +44,13 @@ impl Program {
     #[napi(getter)]
     pub fn first(&self, env: Env) -> Result<Reference<Program>> {
         let first = self.clvm.0.first(self.node_ptr)?;
-        Program {
-            clvm: self.clvm.clone(env)?,
-            node_ptr: first,
-        }
-        .into_reference(env)
+        Program::new(self.clvm.clone(env)?, first).into_reference(env)
     }
 
     #[napi(getter)]
     pub fn rest(&self, env: Env) -> Result<Reference<Program>> {
         let rest = self.clvm.0.rest(self.node_ptr)?;
-        Program {
-            clvm: self.clvm.clone(env)?,
-            node_ptr: rest,
-        }
-        .into_reference(env)
+        Program::new(self.clvm.clone(env)?, rest).into_reference(env)
     }
 
     #[napi]
@@ -61,8 +64,13 @@ impl Program {
     }
 
     #[napi]
-    pub fn tree_hash(&self) -> Result<Uint8Array> {
-        Ok(self.clvm.0.tree_hash(self.node_ptr)?.js()?)
+    pub fn tree_hash(&mut self) -> Result<Uint8Array> {
+        if let Some(tree_hash) = &self.tree_hash {
+            return Ok(tree_hash.to_vec().into());
+        }
+        let tree_hash = self.clvm.0.tree_hash(self.node_ptr)?.js()?;
+        self.tree_hash = Some(tree_hash.to_vec().into());
+        Ok(tree_hash)
     }
 
     #[napi]
@@ -107,16 +115,8 @@ impl Program {
         };
 
         Ok(Some(Pair {
-            first: Program {
-                clvm: self.clvm.clone(env)?,
-                node_ptr: pair.0,
-            }
-            .into_reference(env)?,
-            second: Program {
-                clvm: self.clvm.clone(env)?,
-                node_ptr: pair.1,
-            }
-            .into_reference(env)?,
+            first: Program::new(self.clvm.clone(env)?, pair.0).into_reference(env)?,
+            rest: Program::new(self.clvm.clone(env)?, pair.1).into_reference(env)?,
         }))
     }
 
@@ -129,10 +129,7 @@ impl Program {
         let mut programs = Vec::new();
 
         for node_ptr in list {
-            programs.push(Program {
-                clvm: self.clvm.clone(env)?,
-                node_ptr,
-            });
+            programs.push(Program::new(self.clvm.clone(env)?, node_ptr));
         }
 
         Ok(Some(programs))
@@ -146,10 +143,10 @@ impl Program {
             arg_ptrs.push(arg.node_ptr);
         }
 
-        Ok(Program {
-            clvm: self.clvm.clone(env)?,
-            node_ptr: self.clvm.0.curry(self.node_ptr, arg_ptrs)?,
-        })
+        Ok(Program::new(
+            self.clvm.clone(env)?,
+            self.clvm.0.curry(self.node_ptr, arg_ptrs)?,
+        ))
     }
 
     #[napi]
@@ -159,20 +156,10 @@ impl Program {
         };
 
         Ok(Some(CurriedProgram {
-            program: Program {
-                clvm: self.clvm.clone(env)?,
-                node_ptr: program,
-            }
-            .into_reference(env)?,
+            program: Program::new(self.clvm.clone(env)?, program).into_reference(env)?,
             args: args
                 .iter()
-                .map(|&node_ptr| {
-                    Program {
-                        clvm: self.clvm.clone(env)?,
-                        node_ptr,
-                    }
-                    .into_reference(env)
-                })
+                .map(|&node_ptr| Program::new(self.clvm.clone(env)?, node_ptr).into_reference(env))
                 .collect::<Result<Vec<_>>>()?,
         }))
     }
@@ -193,12 +180,14 @@ impl Program {
         )?;
 
         Ok(Output {
-            value: Program {
-                clvm: self.clvm.clone(env)?,
-                node_ptr: reduction.1,
-            }
-            .into_reference(env)?,
+            value: Program::new(self.clvm.clone(env)?, reduction.1).into_reference(env)?,
             cost: reduction.0.js()?,
         })
+    }
+
+    #[napi]
+    pub fn puzzle(&self, env: Env) -> Result<Puzzle> {
+        let puzzle = self.clvm.0.parse_puzzle(self.node_ptr)?;
+        Ok(puzzle.js_with_clvm(env, &self.clvm)?)
     }
 }

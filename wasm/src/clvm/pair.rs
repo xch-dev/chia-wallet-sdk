@@ -5,14 +5,14 @@ use super::Program;
 #[wasm_bindgen]
 pub struct Pair {
     pub(crate) first: Program,
-    pub(crate) second: Program,
+    pub(crate) rest: Program,
 }
 
 #[wasm_bindgen]
 impl Pair {
     #[wasm_bindgen(constructor)]
-    pub fn new(first: Program, second: Program) -> Self {
-        Self { first, second }
+    pub fn new(first: Program, rest: Program) -> Self {
+        Self { first, rest }
     }
 
     #[wasm_bindgen(getter)]
@@ -21,7 +21,7 @@ impl Pair {
     }
 
     #[wasm_bindgen(getter)]
-    pub fn second(&self) -> Program {
-        self.second.clone()
+    pub fn rest(&self) -> Program {
+        self.rest.clone()
     }
 }

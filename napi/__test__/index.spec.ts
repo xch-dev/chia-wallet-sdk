@@ -1,8 +1,8 @@
 import test from "ava";
 
 import {
-  ClvmAllocator,
-  compareBytes,
+  bytesEqual,
+  Clvm,
   curryTreeHash,
   fromHex,
   PublicKey,
@@ -23,7 +23,7 @@ test("calculate coin id", (t) => {
   });
 
   t.true(
-    compareBytes(
+    bytesEqual(
       coinId,
       fromHex(
         "fd3e669c27be9d634fe79f1f7d7d8aaacc3597b855cffea1d708f4642f1d542a"
@@ -36,7 +36,7 @@ test("byte equality", (t) => {
   const a = Uint8Array.from([1, 2, 3]);
   const b = Uint8Array.from([1, 2, 3]);
 
-  t.true(compareBytes(a, b));
+  t.true(bytesEqual(a, b));
   t.true(Buffer.from(a).equals(b));
 });
 
@@ -44,21 +44,21 @@ test("byte inequality", (t) => {
   const a = Uint8Array.from([1, 2, 3]);
   const b = Uint8Array.from([1, 2, 4]);
 
-  t.true(!compareBytes(a, b));
+  t.true(!bytesEqual(a, b));
   t.true(!Buffer.from(a).equals(b));
 });
 
 test("atom roundtrip", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
   const expected = Uint8Array.from([1, 2, 3]);
   const atom = clvm.alloc(expected);
 
-  t.true(compareBytes(atom.toAtom()!, expected));
+  t.true(bytesEqual(atom.toBytes()!, expected));
 });
 
 test("string roundtrip", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
   const expected = "hello world";
   const atom = clvm.alloc(expected);
@@ -66,7 +66,7 @@ test("string roundtrip", (t) => {
 });
 
 test("number roundtrip", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
   for (const expected of [
     Number.MIN_SAFE_INTEGER,
@@ -82,7 +82,7 @@ test("number roundtrip", (t) => {
 });
 
 test("invalid number", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
   for (const expected of [
     Number.MIN_SAFE_INTEGER - 1,
@@ -96,7 +96,7 @@ test("invalid number", (t) => {
 });
 
 test("bigint roundtrip", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
   for (const expected of [
     0n,
@@ -114,27 +114,27 @@ test("bigint roundtrip", (t) => {
 });
 
 test("pair roundtrip", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
   const ptr = clvm.pair(1, 100n);
-  const [first, rest] = ptr.toPair()!;
+  const { first, rest } = ptr.toPair()!;
 
-  t.is(first.toSmallNumber(), 1);
+  t.is(first.toNumber(), 1);
   t.is(rest.toBigInt(), 100n);
 });
 
 test("list roundtrip", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
   const items = Array.from({ length: 10 }, (_, i) => i);
   const ptr = clvm.alloc(items);
-  const list = ptr.toList().map((ptr) => ptr.toSmallNumber());
+  const list = ptr.toList()?.map((ptr) => ptr.toNumber());
 
   t.deepEqual(list, items);
 });
 
 test("clvm value allocation", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
   const shared = clvm.alloc(42);
 
@@ -158,48 +158,43 @@ test("clvm value allocation", (t) => {
     shared,
   ]);
 
-  t.true(compareBytes(clvm.treeHash(manual), clvm.treeHash(auto)));
+  t.true(bytesEqual(manual.treeHash(), auto.treeHash()));
 });
 
 test("public key roundtrip", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
-  const ptr = clvm.alloc(PublicKey.empty());
-  const pk = ptr.toPublicKey()!;
+  const ptr = clvm.alloc(PublicKey.infinity());
+  const pk = PublicKey.fromBytes(ptr.toBytes()!);
 
-  t.true(compareBytes(PublicKey.empty().toBytes(), pk.toBytes()));
+  t.true(bytesEqual(PublicKey.infinity().toBytes(), pk.toBytes()));
 });
 
 test("curry add function", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
   const addMod = clvm.deserialize(fromHex("ff10ff02ff0580"));
-  const addToTen = clvm.curry(addMod, [clvm.alloc(10)]);
-  const result = clvm.run(addToTen, clvm.alloc([5]), 10000000n, true);
+  const addToTen = addMod.curry([clvm.alloc(10)]);
+  const result = addToTen.run(clvm.alloc([5]), 10000000n, true);
 
-  t.is(result.value.toSmallNumber(), 15);
+  t.is(result.value.toNumber(), 15);
   t.is(result.cost, 1082n);
 });
 
 test("curry roundtrip", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
   const items = Array.from({ length: 10 }, (_, i) => i);
-  const ptr = clvm.curry(
-    clvm.nil(),
-    items.map((i) => clvm.alloc(i))
-  );
+  const ptr = clvm.nil().curry(items.map((i) => clvm.alloc(i)));
   const uncurry = ptr.uncurry()!;
-  const args = uncurry.args.map((ptr) => ptr.toSmallNumber());
+  const args = uncurry.args?.map((ptr) => ptr.toNumber());
 
-  t.true(
-    compareBytes(clvm.treeHash(clvm.nil()), clvm.treeHash(uncurry.program))
-  );
+  t.true(bytesEqual(clvm.nil().treeHash(), uncurry.program.treeHash()));
   t.deepEqual(args, items);
 });
 
 test("clvm serialization", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
   for (const [ptr, hex] of [
     [clvm.alloc(Uint8Array.from([1, 2, 3])), "83010203"],
@@ -210,35 +205,32 @@ test("clvm serialization", (t) => {
     const serialized = ptr.serialize();
     const deserialized = clvm.deserialize(serialized);
 
-    t.true(compareBytes(clvm.treeHash(ptr), clvm.treeHash(deserialized)));
+    t.true(bytesEqual(ptr.treeHash(), deserialized.treeHash()));
     t.is(hex as string, toHex(serialized));
   }
 });
 
 test("curry tree hash", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
   const items = Array.from({ length: 10 }, (_, i) => i);
-  const ptr = clvm.curry(
-    clvm.nil(),
-    items.map((i) => clvm.alloc(i))
-  );
+  const ptr = clvm.nil().curry(items.map((i) => clvm.alloc(i)));
 
   const treeHash = curryTreeHash(
-    clvm.treeHash(clvm.nil()),
-    items.map((i) => clvm.treeHash(clvm.alloc(i)))
+    clvm.nil().treeHash(),
+    items.map((i) => clvm.alloc(i).treeHash())
   );
-  const expected = clvm.treeHash(ptr);
+  const expected = ptr.treeHash();
 
-  t.true(compareBytes(treeHash, expected));
+  t.true(bytesEqual(treeHash, expected));
 });
 
 test("mint and spend nft", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
   const simulator = new Simulator();
-  const p2 = simulator.newP2(1n);
+  const alice = simulator.bls(1n);
 
-  const result = clvm.mintNfts(toCoinId(p2.coin), [
+  const result = clvm.mintNfts(toCoinId(alice.coin), [
     {
       metadata: {
         dataUris: ["https://example.com"],
@@ -247,41 +239,41 @@ test("mint and spend nft", (t) => {
         editionNumber: 1n,
         editionTotal: 1n,
       },
-      p2PuzzleHash: p2.puzzleHash,
-      royaltyPuzzleHash: p2.puzzleHash,
+      p2PuzzleHash: alice.puzzleHash,
+      royaltyPuzzleHash: alice.puzzleHash,
       royaltyTenThousandths: 300,
     },
   ]);
 
-  const spend = clvm.spendP2Standard(
-    p2.publicKey,
-    clvm.delegatedSpendForConditions(result.parentConditions)
+  const spend = clvm.standardSpend(
+    alice.pk,
+    clvm.delegatedSpend(result.parentConditions)
   );
 
-  simulator.spend(
+  simulator.spendCoins(
     clvm.coinSpends().concat([
       {
-        coin: p2.coin,
+        coin: alice.coin,
         puzzleReveal: spend.puzzle.serialize(),
         solution: spend.solution.serialize(),
       },
     ]),
-    [p2.secretKey]
+    [alice.sk]
   );
 
-  const innerSpend = clvm.spendP2Standard(
-    p2.publicKey,
-    clvm.delegatedSpendForConditions([
-      clvm.createCoin(p2.puzzleHash, 1n, clvm.alloc([p2.puzzleHash])),
+  const innerSpend = clvm.standardSpend(
+    alice.pk,
+    clvm.delegatedSpend([
+      clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
     ])
   );
 
   clvm.spendNft(result.nfts[0], innerSpend);
 
-  simulator.spend(clvm.coinSpends(), [p2.secretKey]);
+  simulator.spendCoins(clvm.coinSpends(), [alice.sk]);
 
   t.true(
-    compareBytes(
+    bytesEqual(
       clvm
         .nftMetadata(
           clvm.parseNftMetadata(clvm.deserialize(result.nfts[0].info.metadata))
@@ -293,20 +285,20 @@ test("mint and spend nft", (t) => {
 });
 
 test("create and parse condition", (t) => {
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
   const puzzleHash = fromHex("ff".repeat(32));
 
   const condition = clvm.createCoin(puzzleHash, 1n, clvm.alloc([puzzleHash]));
-  const parsed = clvm.parseCreateCoin(condition);
+  const parsed = condition.parseCreateCoin();
 
-  t.true(parsed !== null && compareBytes(parsed.puzzleHash, puzzleHash));
+  t.true(parsed !== null && bytesEqual(parsed.puzzleHash, puzzleHash));
   t.true(parsed !== null && parsed.amount === 1n);
 
   t.deepEqual(
     parsed?.memos
       ?.toList()
-      .map((memo) => memo.toAtom())
+      ?.map((memo) => memo.toBytes())
       .filter((memo) => memo !== null),
     [puzzleHash]
   );

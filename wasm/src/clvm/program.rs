@@ -88,7 +88,7 @@ impl Program {
                 clvm: self.clvm.clone(),
                 node_ptr: pair.0,
             },
-            second: Program {
+            rest: Program {
                 clvm: self.clvm.clone(),
                 node_ptr: pair.1,
             },

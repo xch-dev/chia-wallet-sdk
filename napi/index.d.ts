@@ -16,6 +16,8 @@ export declare class BlsPairWithCoin {
 export declare class Clvm {
   constructor()
   alloc(value: any): Program
+  nil(): Program
+  pair(first: any, rest: any): Program
   deserialize(value: Uint8Array): Program
   deserializeWithBackrefs(value: Uint8Array): Program
   insertCoinSpend(coinSpend: CoinSpend): void
@@ -87,12 +89,6 @@ export declare class K1Signature {
   toBytes(): Uint8Array
 }
 
-export declare class Pair {
-  constructor(first: Program, second: Program)
-  get first(): Program
-  get second(): Program
-}
-
 export declare class Program {
   get isAtom(): boolean
   get isPair(): boolean
@@ -112,6 +108,7 @@ export declare class Program {
   curry(args: Array<Program>): Program
   uncurry(): CurriedProgram | null
   run(solution: Program, maxCost: bigint, mempoolMode: boolean): Output
+  puzzle(): Puzzle
   parseRemark(): Remark | null
   parseAggSigParent(): AggSigParent | null
   parseAggSigPuzzle(): AggSigPuzzle | null
@@ -161,6 +158,14 @@ export declare class PublicKey {
   deriveUnhardenedPath(path: Array<number>): PublicKey
   deriveSynthetic(): PublicKey
   deriveSyntheticHidden(hiddenPuzzleHash: Uint8Array): PublicKey
+}
+
+export declare class Puzzle {
+  get puzzleHash(): Uint8Array
+  get program(): Program
+  get modHash(): Uint8Array
+  get args(): Program | null
+  parseNft(): NftInfo | null
 }
 
 export declare class R1Pair {
@@ -416,9 +421,31 @@ export declare function mnemonicToEntropy(mnemonic: string): Uint8Array
 
 export declare function mnemonicToSeed(mnemonic: string, password: string): Uint8Array
 
+export interface Nft {
+  coin: Coin
+  lineageProof: LineageProof
+  info: NftInfo
+}
+
+export interface NftInfo {
+  launcherId: Uint8Array
+  metadata: Program
+  metadataUpdaterPuzzleHash: Uint8Array
+  currentOwner?: Uint8Array
+  royaltyPuzzleHash: Uint8Array
+  royaltyTenThousandths: number
+  p2PuzzleHash: Uint8Array
+  p2Puzzle?: Program
+}
+
 export interface Output {
   value: Program
   cost: bigint
+}
+
+export interface Pair {
+  first: Program
+  rest: Program
 }
 
 export interface ReceiveMessage {
@@ -459,6 +486,8 @@ export interface SpendBundle {
 }
 
 export declare function standardPuzzleHash(syntheticKey: PublicKey): Uint8Array
+
+export declare function toCoinId(coin: Coin): Uint8Array
 
 export declare function toHex(value: Uint8Array): string
 

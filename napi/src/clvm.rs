@@ -2,13 +2,16 @@ mod curried_program;
 mod output;
 mod pair;
 mod program;
+mod puzzle;
 mod spend;
 mod value;
 
+use chia_sdk_bindings::Bytes32;
 pub use curried_program::*;
 pub use output::*;
 pub use pair::*;
 pub use program::*;
+pub use puzzle::*;
 pub use spend::*;
 
 use clvmr::NodePtr;
@@ -18,7 +21,9 @@ use value::{alloc, spend_to_js, Value};
 
 pub(crate) use value::clvm;
 
-use crate::{CatSpend, Coin, CoinSpend, IntoJs, IntoRust, PublicKey};
+use crate::{
+    CatSpend, Coin, CoinSpend, IntoJs, IntoJsWithClvm, IntoRust, MintedNfts, NftMint, PublicKey,
+};
 
 #[napi]
 #[derive(Default)]
@@ -35,6 +40,30 @@ impl Clvm {
     pub fn alloc<'a>(&mut self, env: Env, this: This<'a>, value: Value<'a>) -> Result<Program> {
         let clvm = clvm(env, this)?;
         let node_ptr = alloc(env, clvm.clone(env)?, value)?;
+        Ok(Program { clvm, node_ptr })
+    }
+
+    #[napi]
+    pub fn nil(&mut self, env: Env, this: This<'_>) -> Result<Program> {
+        let clvm = clvm(env, this)?;
+        Ok(Program {
+            clvm,
+            node_ptr: NodePtr::NIL,
+        })
+    }
+
+    #[napi]
+    pub fn pair<'a>(
+        &mut self,
+        env: Env,
+        this: This<'a>,
+        first: Value<'a>,
+        rest: Value<'a>,
+    ) -> Result<Program> {
+        let mut clvm = clvm(env, this)?;
+        let first = alloc(env, clvm.clone(env)?, first)?;
+        let rest = alloc(env, clvm.clone(env)?, rest)?;
+        let node_ptr = clvm.0.new_pair(first, rest)?;
         Ok(Program { clvm, node_ptr })
     }
 
@@ -159,5 +188,34 @@ impl Clvm {
                 .collect::<chia_sdk_bindings::Result<Vec<_>>>()?,
         )?;
         Ok(())
+    }
+
+    pub fn mint_nfts(
+        &mut self,
+        env: Env,
+        this: This<'_>,
+        parent_coin_id: Uint8Array,
+        nft_mints: Vec<NftMint>,
+    ) -> Result<MintedNfts> {
+        let clvm = clvm(env, this)?;
+
+        let (nfts, parent_conditions) = self.0.mint_nfts(
+            parent_coin_id.rust()?,
+            nft_mints
+                .into_iter()
+                .map(|nft| nft.rust())
+                .collect::<chia_sdk_bindings::Result<Vec<_>>>()?,
+        )?;
+
+        Ok(MintedNfts {
+            nfts: nfts
+                .into_iter()
+                .map(|nft| nft.js_with_clvm(env, &clvm)?)
+                .collect(),
+            parent_conditions: parent_conditions
+                .into_iter()
+                .map(|condition| condition.js_with_clvm(env, &clvm)?)
+                .collect(),
+        })
     }
 }

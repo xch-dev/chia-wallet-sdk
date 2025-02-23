@@ -3,9 +3,9 @@ use napi::{bindgen_prelude::*, NapiRaw};
 
 use crate::{IntoRust, K1PublicKey, K1Signature, PublicKey, R1PublicKey, R1Signature, Signature};
 
-use super::{Clvm, Pair, Program, Spend};
+use super::{Clvm, Program, Spend};
 
-pub type Value<'a> = Either15<
+pub type Value<'a> = Either14<
     f64,
     BigInt,
     bool,
@@ -18,7 +18,6 @@ pub type Value<'a> = Either15<
     ClassInstance<'a, K1Signature>,
     ClassInstance<'a, R1PublicKey>,
     ClassInstance<'a, R1Signature>,
-    ClassInstance<'a, Pair>,
     Array,
     Null,
 >;
@@ -41,10 +40,7 @@ pub fn alloc<'a>(env: Env, mut clvm: Reference<Clvm>, value: Value<'a>) -> Resul
         Value::J(value) => Ok(clvm.0.new_atom(value.to_bytes()?.to_vec().into())?),
         Value::K(value) => Ok(clvm.0.new_atom(value.to_bytes()?.to_vec().into())?),
         Value::L(value) => Ok(clvm.0.new_atom(value.to_bytes()?.to_vec().into())?),
-        Value::M(value) => Ok(clvm
-            .0
-            .new_pair(value.first.node_ptr, value.second.node_ptr)?),
-        Value::N(value) => {
+        Value::M(value) => {
             let mut list = Vec::new();
 
             for index in 0..value.len() {
@@ -54,7 +50,7 @@ pub fn alloc<'a>(env: Env, mut clvm: Reference<Clvm>, value: Value<'a>) -> Resul
 
             Ok(clvm.0.new_list(list)?)
         }
-        Value::O(_) => Ok(NodePtr::NIL),
+        Value::N(_) => Ok(NodePtr::NIL),
     }
 }
 
@@ -64,15 +60,7 @@ pub fn spend_to_js(
     spend: chia_sdk_bindings::Spend,
 ) -> Result<Spend> {
     Ok(Spend {
-        puzzle: Program {
-            clvm: clvm.clone(env)?,
-            node_ptr: spend.puzzle,
-        }
-        .into_reference(env)?,
-        solution: Program {
-            clvm: clvm.clone(env)?,
-            node_ptr: spend.solution,
-        }
-        .into_reference(env)?,
+        puzzle: Program::new(clvm.clone(env)?, spend.puzzle).into_reference(env)?,
+        solution: Program::new(clvm.clone(env)?, spend.solution).into_reference(env)?,
     })
 }

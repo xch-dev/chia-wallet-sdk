@@ -25,7 +25,7 @@ macro_rules! conditions {
                     let ptr = self.0.encode(
                         chia_sdk_bindings::$condition::new( $( $name ),* )
                     )?;
-                    Ok(Program { clvm, node_ptr: ptr })
+                    Ok(Program::new(clvm, ptr))
                 }
             }
 

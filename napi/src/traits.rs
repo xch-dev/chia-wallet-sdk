@@ -1,6 +1,6 @@
 use chia_sdk_bindings::{
-    AddressInfo, Bytes, BytesImpl, Cat, Coin, CoinSpend, Error, LineageProof, Memos, Program,
-    Result,
+    AddressInfo, Bytes, BytesImpl, Cat, Coin, CoinSpend, DidOwner, Error, HashedPtr, LineageProof,
+    Memos, NftMetadata, NftMint, Program, Puzzle, Result,
 };
 use clvmr::NodePtr;
 use napi::{
@@ -371,11 +371,7 @@ impl IntoJsWithClvm for NodePtr {
     type Js = Reference<crate::Program>;
 
     fn js_with_clvm(self, env: Env, clvm: &Reference<crate::Clvm>) -> Result<Self::Js> {
-        Ok(crate::Program {
-            clvm: clvm.clone(env)?,
-            node_ptr: self,
-        }
-        .into_reference(env)?)
+        Ok(crate::Program::new(clvm.clone(env)?, self).into_reference(env)?)
     }
 }
 
@@ -384,13 +380,9 @@ impl IntoJsWithClvm for Vec<NodePtr> {
 
     fn js_with_clvm(self, env: Env, clvm: &Reference<crate::Clvm>) -> Result<Self::Js> {
         self.into_iter()
-            .map(|node_ptr| {
-                Ok(crate::Program {
-                    clvm: clvm.clone(env)?,
-                    node_ptr,
-                }
-                .into_reference(env)?)
-            })
+            .map(
+                |node_ptr| Ok(crate::Program::new(clvm.clone(env)?, node_ptr).into_reference(env)?),
+            )
             .collect::<Result<Vec<_>>>()
     }
 }
@@ -404,11 +396,7 @@ impl IntoJsWithClvm for Option<Memos<NodePtr>> {
         };
 
         Ok(Some(
-            crate::Program {
-                clvm: clvm.clone(env)?,
-                node_ptr: memos.value,
-            }
-            .into_reference(env)?,
+            crate::Program::new(clvm.clone(env)?, memos.value).into_reference(env)?,
         ))
     }
 }
@@ -418,5 +406,75 @@ impl IntoJsWithClvm for chia_bls::PublicKey {
 
     fn js_with_clvm(self, env: Env, _clvm: &Reference<crate::Clvm>) -> Result<Self::Js> {
         Ok(crate::PublicKey(chia_sdk_bindings::PublicKey(self)).into_reference(env)?)
+    }
+}
+
+impl IntoRust<Puzzle> for crate::Puzzle {
+    fn rust(self) -> Result<Puzzle> {
+        Ok(Puzzle {
+            puzzle_hash: self.puzzle_hash.rust()?,
+            ptr: self.program.node_ptr,
+            mod_hash: self.mod_hash.rust()?,
+            args: self.args.rust()?,
+        })
+    }
+}
+
+impl IntoJsWithClvm for Puzzle {
+    type Js = crate::Puzzle;
+
+    fn js_with_clvm(self, env: Env, clvm: &Reference<crate::Clvm>) -> Result<Self::Js> {
+        Ok(crate::Puzzle {
+            puzzle_hash: self.puzzle_hash.js()?,
+            program: self.ptr.js_with_clvm(env, clvm)?,
+            mod_hash: self.mod_hash.js()?,
+            args: self
+                .args
+                .map(|args| args.js_with_clvm(env, clvm))
+                .transpose()?,
+        })
+    }
+}
+
+impl IntoRust<NftMint<HashedPtr>> for crate::NftMint {
+    fn rust(self) -> Result<NftMint<HashedPtr>> {
+        Ok(NftMint {
+            metadata: self.metadata.rust()?,
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash.rust()?,
+            p2_puzzle_hash: self.p2_puzzle_hash.rust()?,
+            royalty_puzzle_hash: self.royalty_puzzle_hash.rust()?,
+            royalty_ten_thousandths: self.royalty_ten_thousandths,
+            owner: self.owner.rust()?,
+        })
+    }
+}
+
+impl IntoRust<DidOwner> for crate::DidOwner {
+    fn rust(self) -> Result<DidOwner> {
+        Ok(DidOwner {
+            did_id: self.did_id.rust()?,
+            inner_puzzle_hash: self.inner_puzzle_hash.rust()?,
+        })
+    }
+}
+
+impl IntoRust<NftMetadata> for crate::NftMetadata {
+    fn rust(self) -> Result<NftMetadata> {
+        Ok(NftMetadata {
+            edition_number: self.edition_number.rust()?,
+            edition_total: self.edition_total.rust()?,
+            data_uris: self.data_uris.rust()?,
+            data_hash: self.data_hash.rust()?,
+            metadata_uris: self.metadata_uris.rust()?,
+            metadata_hash: self.metadata_hash.rust()?,
+            license_uris: self.license_uris.rust()?,
+            license_hash: self.license_hash.rust()?,
+        })
+    }
+}
+
+impl IntoRust<String> for String {
+    fn rust(self) -> Result<String> {
+        Ok(self)
     }
 }

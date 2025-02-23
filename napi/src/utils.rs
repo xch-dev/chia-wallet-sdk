@@ -1,7 +1,7 @@
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
-use crate::{IntoJs, IntoRust};
+use crate::{Coin, IntoJs, IntoRust};
 
 #[napi]
 pub fn from_hex(value: String) -> Result<Uint8Array> {
@@ -42,4 +42,9 @@ pub fn curry_tree_hash(program: Uint8Array, args: Vec<Uint8Array>) -> Result<Uin
             .collect::<chia_sdk_bindings::Result<Vec<_>>>()?,
     )
     .js()?)
+}
+
+#[napi]
+pub fn to_coin_id(coin: Coin) -> Result<Uint8Array> {
+    Ok(coin.rust()?.coin_id().js()?)
 }
