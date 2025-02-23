@@ -23,6 +23,9 @@
           },
           "return": "Program"
         },
+        "nil": {
+          "return": "Program"
+        },
         "string": {
           "args": {
             "value": "String"
@@ -135,6 +138,24 @@
         },
         "to_pair": {
           "return": "Option<Pair>"
+        },
+        "puzzle": {
+          "return": "Puzzle"
+        }
+      }
+    },
+    "Puzzle": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "puzzle_hash": "Bytes32",
+        "program": "Program",
+        "mod_hash": "Bytes32",
+        "args": "Option<Program>"
+      },
+      "methods": {
+        "parse_nft": {
+          "return": "Option<ParsedNft>"
         }
       }
     },
@@ -635,6 +656,14 @@
         "royalty_puzzle_hash": "Bytes32",
         "royalty_ten_thousandths": "u16",
         "p2_puzzle_hash": "Bytes32"
+      }
+    },
+    "ParsedNft": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "info": "NftInfo",
+        "p2_puzzle": "Program"
       }
     },
     "NftMetadata": {

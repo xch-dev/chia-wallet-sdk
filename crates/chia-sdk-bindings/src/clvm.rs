@@ -147,6 +147,10 @@ impl Clvm {
         Ok(Program(self.0.clone(), ptr))
     }
 
+    pub fn nil(&self) -> Result<Program> {
+        Ok(Program(self.0.clone(), NodePtr::NIL))
+    }
+
     // This is called by the individual napi and wasm binding crates
     pub fn f64(&self, value: f64) -> Result<Program> {
         let mut ctx = self.0.write().unwrap();
@@ -234,65 +238,4 @@ impl Clvm {
 
         Ok(Program(self.0.clone(), result))
     }
-
-    // pub fn parse_puzzle(&self, value: NodePtr) -> Result<Puzzle> {
-    //     let puzzle = SdkPuzzle::parse(&self.0.allocator, value);
-    //     Ok(Puzzle::from(puzzle))
-    // }
-
-    // pub fn parse_nft(&self, puzzle: Puzzle) -> Result<Option<(NftInfo<NodePtr>, Puzzle)>> {
-    //     let puzzle = SdkPuzzle::from(puzzle);
-
-    //     let Some((nft_info, p2_puzzle)) = NftInfo::<NodePtr>::parse(&self.0.allocator, puzzle)?
-    //     else {
-    //         return Ok(None);
-    //     };
-
-    //     Ok(Some((nft_info, Puzzle::from(p2_puzzle))))
-    // }
 }
-
-// #[derive(Debug, Clone, Copy)]
-// pub struct Puzzle {
-//     pub puzzle_hash: Bytes32,
-//     pub ptr: NodePtr,
-//     pub mod_hash: Bytes32,
-//     pub args: Option<NodePtr>,
-// }
-
-// impl From<SdkPuzzle> for Puzzle {
-//     fn from(value: SdkPuzzle) -> Self {
-//         match value {
-//             SdkPuzzle::Curried(curried) => Self {
-//                 puzzle_hash: curried.curried_puzzle_hash.into(),
-//                 ptr: curried.curried_ptr,
-//                 mod_hash: curried.mod_hash.into(),
-//                 args: Some(curried.args),
-//             },
-//             SdkPuzzle::Raw(raw) => Self {
-//                 puzzle_hash: raw.puzzle_hash.into(),
-//                 ptr: raw.ptr,
-//                 mod_hash: raw.puzzle_hash.into(),
-//                 args: None,
-//             },
-//         }
-//     }
-// }
-
-// impl From<Puzzle> for SdkPuzzle {
-//     fn from(value: Puzzle) -> Self {
-//         if let Some(args) = value.args {
-//             SdkPuzzle::Curried(CurriedPuzzle {
-//                 curried_puzzle_hash: value.puzzle_hash.into(),
-//                 curried_ptr: value.ptr,
-//                 mod_hash: value.mod_hash.into(),
-//                 args,
-//             })
-//         } else {
-//             SdkPuzzle::Raw(RawPuzzle {
-//                 puzzle_hash: value.puzzle_hash.into(),
-//                 ptr: value.ptr,
-//             })
-//         }
-//     }
-// }

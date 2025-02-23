@@ -89,6 +89,12 @@ impl From<chia_sdk_driver::NftInfo<Program>> for NftInfo {
 }
 
 #[derive(Clone)]
+pub struct ParsedNft {
+    pub info: NftInfo,
+    pub p2_puzzle: Program,
+}
+
+#[derive(Clone)]
 pub struct NftMetadata {
     pub edition_number: BigInt,
     pub edition_total: BigInt,
@@ -137,6 +143,7 @@ impl From<DidOwner> for chia_sdk_driver::DidOwner {
         }
     }
 }
+
 #[derive(Clone)]
 pub struct MintedNfts {
     pub nfts: Vec<Nft>,

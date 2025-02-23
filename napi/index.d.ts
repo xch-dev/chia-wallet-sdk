@@ -35,6 +35,7 @@ export declare class Clvm {
   addCoinSpend(coinSpend: CoinSpend): void
   coinSpends(): Array<CoinSpend>
   pair(first: Program, rest: Program): Program
+  nil(): Program
   string(value: string): Program
   bool(value: boolean): Program
   atom(value: Uint8Array): Program
@@ -212,6 +213,14 @@ export declare class Pair {
   set rest(value: Program)
 }
 
+export declare class ParsedNft {
+  constructor(info: NftInfo, p2Puzzle: Program)
+  get info(): NftInfo
+  set info(value: NftInfo)
+  get p2Puzzle(): Program
+  set p2Puzzle(value: Program)
+}
+
 export declare class Program {
   serialize(): Uint8Array
   serializeWithBackrefs(): Uint8Array
@@ -227,6 +236,7 @@ export declare class Program {
   toAtom(): Uint8Array | null
   toList(): Array<Program> | null
   toPair(): Pair | null
+  puzzle(): Puzzle
   toInt(): number | null
   toBigInt(): bigint | null
 }
@@ -243,6 +253,19 @@ export declare class PublicKey {
   deriveUnhardenedPath(path: Array<number>): PublicKey
   deriveSynthetic(): PublicKey
   deriveSyntheticHidden(hiddenPuzzleHash: Uint8Array): PublicKey
+}
+
+export declare class Puzzle {
+  parseNft(): ParsedNft | null
+  constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
+  get puzzleHash(): Uint8Array
+  set puzzleHash(value: Uint8Array)
+  get program(): Program
+  set program(value: Program)
+  get modHash(): Uint8Array
+  set modHash(value: Uint8Array)
+  get args(): Program | null
+  set args(value?: Program | undefined | null)
 }
 
 export declare class R1PublicKey {

@@ -12,7 +12,7 @@ use clvmr::{
 };
 use num_bigint::BigInt;
 
-use crate::{CurriedProgram, Output, Pair};
+use crate::{CurriedProgram, Output, Pair, Puzzle};
 
 #[derive(Clone)]
 pub struct Program(pub(crate) Arc<RwLock<SpendContext>>, pub(crate) NodePtr);
@@ -233,5 +233,25 @@ impl Program {
             first: Program(self.0.clone(), first),
             rest: Program(self.0.clone(), rest),
         }))
+    }
+
+    pub fn puzzle(&self) -> Result<Puzzle> {
+        let ctx = self.0.read().unwrap();
+        let value = chia_sdk_driver::Puzzle::parse(&ctx.allocator, self.1);
+
+        Ok(match value {
+            chia_sdk_driver::Puzzle::Curried(curried) => Puzzle {
+                puzzle_hash: curried.curried_puzzle_hash.into(),
+                program: Program(self.0.clone(), curried.curried_ptr),
+                mod_hash: curried.mod_hash.into(),
+                args: Some(Program(self.0.clone(), curried.args)),
+            },
+            chia_sdk_driver::Puzzle::Raw(raw) => Puzzle {
+                puzzle_hash: raw.puzzle_hash.into(),
+                program: Program(self.0.clone(), raw.ptr),
+                mod_hash: raw.puzzle_hash.into(),
+                args: None,
+            },
+        })
     }
 }
