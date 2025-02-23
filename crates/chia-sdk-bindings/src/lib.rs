@@ -4,6 +4,7 @@
 #![allow(clippy::inherent_to_string)]
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_lossless)]
 
 mod address;
 mod bls;

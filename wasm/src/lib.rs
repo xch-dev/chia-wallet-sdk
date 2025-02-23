@@ -1,8 +1,24 @@
-use bindy::{FromRust, WasmContext};
+use bindy::{FromRust, IntoRust, WasmContext};
 use js_sys::BigInt;
 use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 
 bindy_macro::bindy_wasm!("bindings.json");
+
+#[wasm_bindgen]
+impl Clvm {
+    #[wasm_bindgen]
+    pub fn int(&self, value: f64) -> Result<Program, JsError> {
+        Ok(Program::from_rust(self.0.f64(value)?, &WasmContext)?)
+    }
+
+    #[wasm_bindgen(js_name = "bigInt")]
+    pub fn big_int(&self, value: BigInt) -> Result<Program, JsError> {
+        Ok(Program::from_rust(
+            self.0.big_int(value.into_rust(&WasmContext)?)?,
+            &WasmContext,
+        )?)
+    }
+}
 
 #[wasm_bindgen]
 impl Program {

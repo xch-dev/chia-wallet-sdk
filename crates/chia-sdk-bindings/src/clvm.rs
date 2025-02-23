@@ -1,15 +1,16 @@
 use std::sync::{Arc, RwLock};
 
-use bindy::Result;
-use chia_protocol::Program as SerializedProgram;
-use chia_sdk_driver::SpendContext;
+use bindy::{Error, Result};
+use chia_protocol::{Bytes, Program as SerializedProgram};
+use chia_sdk_driver::{SpendContext, StandardLayer};
 use clvm_traits::clvm_quote;
 use clvmr::{
     serde::{node_from_bytes, node_from_bytes_backrefs},
     NodePtr,
 };
+use num_bigint::BigInt;
 
-use crate::{CoinSpend, Program, Spend};
+use crate::{CatSpend, Coin, CoinSpend, Program, PublicKey, Spend};
 
 #[derive(Default, Clone)]
 pub struct Clvm(Arc<RwLock<SpendContext>>);
@@ -58,92 +59,141 @@ impl Clvm {
         })
     }
 
-    // pub fn new_f64(&mut self, value: f64) -> Result<NodePtr> {
-    //     if value.is_infinite() {
-    //         return Err(Error::Infinite);
-    //     }
+    pub fn standard_spend(&self, synthetic_key: PublicKey, spend: Spend) -> Result<Spend> {
+        let mut ctx = self.0.write().unwrap();
+        let spend =
+            StandardLayer::new(synthetic_key.0).delegated_inner_spend(&mut ctx, spend.into())?;
+        Ok(Spend {
+            puzzle: Program(self.0.clone(), spend.puzzle),
+            solution: Program(self.0.clone(), spend.solution),
+        })
+    }
 
-    //     if value.is_nan() {
-    //         return Err(Error::NaN);
-    //     }
+    pub fn spend_standard_coin(
+        &self,
+        coin: Coin,
+        synthetic_key: PublicKey,
+        spend: Spend,
+    ) -> Result<()> {
+        let mut ctx = self.0.write().unwrap();
+        let spend = self.standard_spend(synthetic_key, spend)?;
+        let puzzle_reveal = ctx.serialize(&spend.puzzle.1)?;
+        let solution = ctx.serialize(&spend.solution.1)?;
+        ctx.insert(chia_protocol::CoinSpend::new(
+            coin.into(),
+            puzzle_reveal,
+            solution,
+        ));
+        Ok(())
+    }
 
-    //     if value.fract() != 0.0 {
-    //         return Err(Error::Fractional);
-    //     }
+    pub fn spend_cat_coins(&self, cat_spends: Vec<CatSpend>) -> Result<()> {
+        let mut ctx = self.0.write().unwrap();
 
-    //     if value > 9_007_199_254_740_991.0 {
-    //         return Err(Error::TooLarge);
-    //     }
+        let mut rust_cat_spends = Vec::new();
 
-    //     if value < -9_007_199_254_740_991.0 {
-    //         return Err(Error::TooSmall);
-    //     }
+        for cat_spend in cat_spends {
+            rust_cat_spends.push(cat_spend.try_into()?);
+        }
 
-    //     #[allow(clippy::cast_possible_truncation)]
-    //     let value = value as i64;
+        chia_sdk_driver::Cat::spend_all(&mut ctx, &rust_cat_spends)?;
 
-    //     if (0..=67_108_863).contains(&value) {
-    //         Ok(self
-    //             .0
-    //             .allocator
-    //             .new_small_number(value.try_into().unwrap())?)
-    //     } else {
-    //         Ok(self.0.allocator.new_number(value.into())?)
-    //     }
-    // }
+        Ok(())
+    }
 
-    // pub fn new_bigint(&mut self, value: BigInt) -> Result<NodePtr> {
-    //     Ok(self.0.allocator.new_number(value)?)
-    // }
+    pub fn pair(&self, first: Program, second: Program) -> Result<Program> {
+        let mut ctx = self.0.write().unwrap();
+        let ptr = ctx.allocator.new_pair(first.1, second.1)?;
+        Ok(Program(self.0.clone(), ptr))
+    }
 
-    // pub fn new_string(&mut self, value: String) -> Result<NodePtr> {
-    //     Ok(self.0.allocator.new_atom(value.as_bytes())?)
-    // }
+    // This is called by the individual napi and wasm binding crates
+    pub fn f64(&self, value: f64) -> Result<Program> {
+        let mut ctx = self.0.write().unwrap();
 
-    // pub fn new_bool(&mut self, value: bool) -> Result<NodePtr> {
-    //     #[allow(clippy::cast_lossless)]
-    //     Ok(self.0.allocator.new_small_number(value as u32)?)
-    // }
+        if value.is_infinite() {
+            return Err(Error::Infinite);
+        }
 
-    // pub fn new_atom(&mut self, value: Bytes) -> Result<NodePtr> {
-    //     Ok(self.0.allocator.new_atom(&value)?)
-    // }
+        if value.is_nan() {
+            return Err(Error::NaN);
+        }
 
-    // pub fn new_list(&mut self, value: Vec<NodePtr>) -> Result<NodePtr> {
-    //     let mut result = NodePtr::NIL;
+        if value.fract() != 0.0 {
+            return Err(Error::Fractional);
+        }
 
-    //     for item in value.into_iter().rev() {
-    //         result = self.0.allocator.new_pair(item, result)?;
-    //     }
+        if value > 9_007_199_254_740_991.0 {
+            return Err(Error::TooLarge);
+        }
 
-    //     Ok(result)
-    // }
+        if value < -9_007_199_254_740_991.0 {
+            return Err(Error::TooSmall);
+        }
 
-    // pub fn new_pair(&mut self, first: NodePtr, second: NodePtr) -> Result<NodePtr> {
-    //     Ok(self.0.allocator.new_pair(first, second)?)
-    // }
+        #[allow(clippy::cast_possible_truncation)]
+        let value = value as i64;
 
-    // pub fn standard_spend(&mut self, synthetic_key: PublicKey, spend: Spend) -> Result<Spend> {
-    //     Ok(StandardLayer::new(synthetic_key.0).delegated_inner_spend(&mut self.0, spend)?)
-    // }
+        if (0..=67_108_863).contains(&value) {
+            Ok(Program(
+                self.0.clone(),
+                ctx.allocator.new_small_number(value.try_into().unwrap())?,
+            ))
+        } else {
+            Ok(Program(
+                self.0.clone(),
+                ctx.allocator.new_number(value.into())?,
+            ))
+        }
+    }
 
-    // pub fn spend_standard_coin(
-    //     &mut self,
-    //     coin: Coin,
-    //     synthetic_key: PublicKey,
-    //     spend: Spend,
-    // ) -> Result<()> {
-    //     let spend = self.standard_spend(synthetic_key, spend)?;
-    //     let puzzle_reveal = self.serialize(spend.puzzle)?;
-    //     let solution = self.serialize(spend.solution)?;
-    //     self.insert_coin_spend(CoinSpend::new(coin, puzzle_reveal, solution));
-    //     Ok(())
-    // }
+    /// This is called by the individual binding crates
+    pub fn big_int(&self, value: BigInt) -> Result<Program> {
+        Ok(Program(
+            self.0.clone(),
+            self.0.write().unwrap().allocator.new_number(value)?,
+        ))
+    }
 
-    // pub fn spend_cat_coins(&mut self, cat_spends: Vec<CatSpend>) -> Result<()> {
-    //     Cat::spend_all(&mut self.0, &cat_spends)?;
-    //     Ok(())
-    // }
+    pub fn string(&self, value: String) -> Result<Program> {
+        Ok(Program(
+            self.0.clone(),
+            self.0
+                .write()
+                .unwrap()
+                .allocator
+                .new_atom(value.as_bytes())?,
+        ))
+    }
+
+    pub fn bool(&self, value: bool) -> Result<Program> {
+        Ok(Program(
+            self.0.clone(),
+            self.0
+                .write()
+                .unwrap()
+                .allocator
+                .new_small_number(value as u32)?,
+        ))
+    }
+
+    pub fn atom(&self, value: Bytes) -> Result<Program> {
+        Ok(Program(
+            self.0.clone(),
+            self.0.write().unwrap().allocator.new_atom(&value)?,
+        ))
+    }
+
+    pub fn list(&self, value: Vec<Program>) -> Result<Program> {
+        let mut ctx = self.0.write().unwrap();
+        let mut result = NodePtr::NIL;
+
+        for item in value.into_iter().rev() {
+            result = ctx.allocator.new_pair(item.1, result)?;
+        }
+
+        Ok(Program(self.0.clone(), result))
+    }
 
     // pub fn parse_puzzle(&self, value: NodePtr) -> Result<Puzzle> {
     //     let puzzle = SdkPuzzle::parse(&self.0.allocator, value);

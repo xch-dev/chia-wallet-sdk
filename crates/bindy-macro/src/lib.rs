@@ -580,12 +580,19 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                     )
                     .unwrap();
 
-                    let pyo3_attr = match method.kind {
+                    let mut pyo3_attr = match method.kind {
                         MethodKind::Constructor => quote!(#[new]),
                         MethodKind::Static => quote!(#[staticmethod]),
                         MethodKind::Factory => quote!(#[staticmethod]),
                         _ => quote!(),
                     };
+
+                    if !matches!(method.kind, MethodKind::ToString) {
+                        pyo3_attr = quote! {
+                            #pyo3_attr
+                            #[pyo3(signature = (#(#arg_idents),*))]
+                        };
+                    }
 
                     let remapped_method_ident = if matches!(method.kind, MethodKind::ToString) {
                         Ident::new("__str__", Span::mixed_site())
@@ -631,12 +638,12 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                     let ty = parse_str::<Type>(apply_mappings(ty, &mappings).as_str()).unwrap();
 
                     field_tokens.extend(quote! {
-                        #[getter]
+                        #[getter(#ident)]
                         pub fn #get_ident(&self) -> pyo3::PyResult<#ty> {
                             Ok(bindy::FromRust::from_rust(self.0.#ident.clone(), &bindy::Pyo3Context)?)
                         }
 
-                        #[setter]
+                        #[setter(#ident)]
                         pub fn #set_ident(&mut self, value: #ty) -> pyo3::PyResult<()> {
                             self.0.#ident = bindy::IntoRust::into_rust(value, &bindy::Pyo3Context)?;
                             Ok(())
@@ -657,6 +664,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
 
                     method_tokens.extend(quote! {
                         #[new]
+                        #[pyo3(signature = (#(#arg_idents),*))]
                         pub fn new(
                             #( #arg_idents: #arg_types ),*
                         ) -> pyo3::PyResult<Self> {

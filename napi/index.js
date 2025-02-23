@@ -365,6 +365,8 @@ if (!nativeBinding) {
 }
 
 module.exports.Address = nativeBinding.Address
+module.exports.Cat = nativeBinding.Cat
+module.exports.CatSpend = nativeBinding.CatSpend
 module.exports.Clvm = nativeBinding.Clvm
 module.exports.Coin = nativeBinding.Coin
 module.exports.CoinSpend = nativeBinding.CoinSpend
@@ -372,6 +374,7 @@ module.exports.CurriedProgram = nativeBinding.CurriedProgram
 module.exports.K1PublicKey = nativeBinding.K1PublicKey
 module.exports.K1SecretKey = nativeBinding.K1SecretKey
 module.exports.K1Signature = nativeBinding.K1Signature
+module.exports.LineageProof = nativeBinding.LineageProof
 module.exports.Mnemonic = nativeBinding.Mnemonic
 module.exports.Output = nativeBinding.Output
 module.exports.Pair = nativeBinding.Pair
@@ -385,10 +388,12 @@ module.exports.Signature = nativeBinding.Signature
 module.exports.Spend = nativeBinding.Spend
 module.exports.SpendBundle = nativeBinding.SpendBundle
 module.exports.bytesEqual = nativeBinding.bytesEqual
+module.exports.catPuzzleHash = nativeBinding.catPuzzleHash
 module.exports.curryTreeHash = nativeBinding.curryTreeHash
 module.exports.fromHex = nativeBinding.fromHex
 module.exports.generateBytes = nativeBinding.generateBytes
 module.exports.sha256 = nativeBinding.sha256
+module.exports.standardPuzzleHash = nativeBinding.standardPuzzleHash
 module.exports.toHex = nativeBinding.toHex
 module.exports.treeHashAtom = nativeBinding.treeHashAtom
 module.exports.treeHashPair = nativeBinding.treeHashPair

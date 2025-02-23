@@ -10,11 +10,41 @@ export declare class Address {
   set prefix(value: string)
 }
 
+export declare class Cat {
+  constructor(coin: Coin, lineageProof: LineageProof | undefined | null, assetId: Uint8Array, p2PuzzleHash: Uint8Array)
+  get coin(): Coin
+  set coin(value: Coin)
+  get lineageProof(): LineageProof | null
+  set lineageProof(value?: LineageProof | undefined | null)
+  get assetId(): Uint8Array
+  set assetId(value: Uint8Array)
+  get p2PuzzleHash(): Uint8Array
+  set p2PuzzleHash(value: Uint8Array)
+}
+
+export declare class CatSpend {
+  constructor(cat: Cat, spend: Spend)
+  get cat(): Cat
+  set cat(value: Cat)
+  get spend(): Spend
+  set spend(value: Spend)
+}
+
 export declare class Clvm {
   constructor()
   addCoinSpend(coinSpend: CoinSpend): void
   coinSpends(): Array<CoinSpend>
+  pair(first: Program, rest: Program): Program
+  string(value: string): Program
+  bool(value: boolean): Program
+  atom(value: Uint8Array): Program
+  list(value: Array<Program>): Program
   delegatedSpend(conditions: Array<Program>): Spend
+  standardSpend(syntheticKey: PublicKey, spend: Spend): Spend
+  spendStandardCoin(coin: Coin, syntheticKey: PublicKey, spend: Spend): void
+  spendCatCoins(catSpends: Array<CatSpend>): void
+  int(value: number): Program
+  bigInt(value: bigint): Program
 }
 
 export declare class Coin {
@@ -63,6 +93,16 @@ export declare class K1SecretKey {
 export declare class K1Signature {
   static fromBytes(bytes: Uint8Array): K1Signature
   toBytes(): Uint8Array
+}
+
+export declare class LineageProof {
+  constructor(parentParentCoinInfo: Uint8Array, parentInnerPuzzleHash: Uint8Array | undefined | null, parentAmount: bigint)
+  get parentParentCoinInfo(): Uint8Array
+  set parentParentCoinInfo(value: Uint8Array)
+  get parentInnerPuzzleHash(): Uint8Array | null
+  set parentInnerPuzzleHash(value?: Uint8Array | undefined | null)
+  get parentAmount(): bigint
+  set parentAmount(value: bigint)
 }
 
 export declare class Mnemonic {
@@ -184,6 +224,8 @@ export declare class SpendBundle {
 
 export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
 
+export declare function catPuzzleHash(assetId: Uint8Array, innerPuzzleHash: Uint8Array): Uint8Array
+
 export declare function curryTreeHash(program: Uint8Array, args: Array<Uint8Array>): Uint8Array
 
 export declare function fromHex(value: string): Uint8Array
@@ -191,6 +233,8 @@ export declare function fromHex(value: string): Uint8Array
 export declare function generateBytes(bytes: number): Uint8Array
 
 export declare function sha256(value: Uint8Array): Uint8Array
+
+export declare function standardPuzzleHash(syntheticKey: PublicKey): Uint8Array
 
 export declare function toHex(value: Uint8Array): string
 
