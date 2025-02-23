@@ -22,6 +22,7 @@ pyo3 = []
 [dependencies]
 chia-sdk-utils = { workspace = true }
 chia-sdk-driver = { workspace = true }
+chia-sdk-test = { workspace = true }
 chia-protocol = { workspace = true }
 chia-bls = { workspace = true }
 chia-secp = { workspace = true }

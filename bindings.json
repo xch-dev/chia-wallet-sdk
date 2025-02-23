@@ -159,6 +159,33 @@
         }
       }
     },
+    "Simulator": {
+      "type": "class",
+      "methods": {
+        "new": {
+          "type": "constructor"
+        },
+        "new_coin": {
+          "args": {
+            "puzzle_hash": "Bytes32",
+            "amount": "u64"
+          },
+          "return": "Coin"
+        },
+        "bls": {
+          "args": {
+            "amount": "u64"
+          },
+          "return": "BlsPairWithCoin"
+        },
+        "spend_coins": {
+          "args": {
+            "coin_spends": "Vec<CoinSpend>",
+            "secret_keys": "Vec<SecretKey>"
+          }
+        }
+      }
+    },
     "Output": {
       "type": "class",
       "new": true,
@@ -548,6 +575,40 @@
         "to_bytes": {
           "return": "BytesImpl<64>"
         }
+      }
+    },
+    "BlsPair": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "sk": "SecretKey",
+        "pk": "PublicKey"
+      }
+    },
+    "BlsPairWithCoin": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "sk": "SecretKey",
+        "pk": "PublicKey",
+        "puzzle_hash": "Bytes32",
+        "coin": "Coin"
+      }
+    },
+    "K1Pair": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "sk": "K1SecretKey",
+        "pk": "K1PublicKey"
+      }
+    },
+    "R1Pair": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "sk": "R1SecretKey",
+        "pk": "R1PublicKey"
       }
     },
     "from_hex": {

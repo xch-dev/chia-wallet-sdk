@@ -11,11 +11,13 @@ mod bls;
 mod clvm;
 mod clvm_types;
 mod coin;
+mod key_pairs;
 mod mnemonic;
 mod program;
 mod puzzle;
 mod puzzles;
 mod secp;
+mod simulator;
 mod utils;
 
 pub use address::*;
@@ -23,11 +25,13 @@ pub use bls::*;
 pub use clvm::*;
 pub use clvm_types::*;
 pub use coin::*;
+pub use key_pairs::*;
 pub use mnemonic::*;
 pub use program::*;
 pub use puzzle::*;
 pub use puzzles::*;
 pub use secp::*;
+pub use simulator::*;
 pub use utils::*;
 
 pub use chia_protocol::{Bytes, Bytes32, Program as SerializedProgram};

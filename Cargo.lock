@@ -516,6 +516,7 @@ dependencies = [
  "chia-protocol",
  "chia-puzzle-types",
  "chia-sdk-driver",
+ "chia-sdk-test",
  "chia-sdk-utils",
  "chia-secp",
  "clvm-traits",

@@ -10,6 +10,26 @@ export declare class Address {
   set prefix(value: string)
 }
 
+export declare class BlsPair {
+  constructor(sk: SecretKey, pk: PublicKey)
+  get sk(): SecretKey
+  set sk(value: SecretKey)
+  get pk(): PublicKey
+  set pk(value: PublicKey)
+}
+
+export declare class BlsPairWithCoin {
+  constructor(sk: SecretKey, pk: PublicKey, puzzleHash: Uint8Array, coin: Coin)
+  get sk(): SecretKey
+  set sk(value: SecretKey)
+  get pk(): PublicKey
+  set pk(value: PublicKey)
+  get puzzleHash(): Uint8Array
+  set puzzleHash(value: Uint8Array)
+  get coin(): Coin
+  set coin(value: Coin)
+}
+
 export declare class Cat {
   constructor(coin: Coin, lineageProof: LineageProof | undefined | null, assetId: Uint8Array, p2PuzzleHash: Uint8Array)
   get coin(): Coin
@@ -84,6 +104,14 @@ export declare class DidOwner {
   set didId(value: Uint8Array)
   get innerPuzzleHash(): Uint8Array
   set innerPuzzleHash(value: Uint8Array)
+}
+
+export declare class K1Pair {
+  constructor(sk: K1SecretKey, pk: K1PublicKey)
+  get sk(): K1SecretKey
+  set sk(value: K1SecretKey)
+  get pk(): K1PublicKey
+  set pk(value: K1PublicKey)
 }
 
 export declare class K1PublicKey {
@@ -268,6 +296,14 @@ export declare class Puzzle {
   set args(value?: Program | undefined | null)
 }
 
+export declare class R1Pair {
+  constructor(sk: R1SecretKey, pk: R1PublicKey)
+  get sk(): R1SecretKey
+  set sk(value: R1SecretKey)
+  get pk(): R1PublicKey
+  set pk(value: R1PublicKey)
+}
+
 export declare class R1PublicKey {
   static fromBytes(bytes: Uint8Array): R1PublicKey
   toBytes(): Uint8Array
@@ -308,6 +344,13 @@ export declare class Signature {
   toBytes(): Uint8Array
   isInfinity(): boolean
   isValid(): boolean
+}
+
+export declare class Simulator {
+  constructor()
+  newCoin(puzzleHash: Uint8Array, amount: bigint): Coin
+  bls(amount: bigint): BlsPairWithCoin
+  spendCoins(coinSpends: Array<CoinSpend>, secretKeys: Array<SecretKey>): void
 }
 
 export declare class Spend {
