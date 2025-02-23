@@ -21,4 +21,4 @@ pub use puzzles::*;
 pub use secp::*;
 pub use utils::*;
 
-pub use chia_protocol::{Bytes, Bytes32};
+pub use chia_protocol::{Bytes, Bytes32, Program};

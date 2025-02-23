@@ -21,6 +21,16 @@ export declare class Coin {
   set amount(value: bigint)
 }
 
+export declare class CoinSpend {
+  constructor(coin: Coin, puzzleReveal: Uint8Array, solution: Uint8Array)
+  get coin(): Coin
+  set coin(value: Coin)
+  get puzzleReveal(): Uint8Array
+  set puzzleReveal(value: Uint8Array)
+  get solution(): Uint8Array
+  set solution(value: Uint8Array)
+}
+
 export declare class K1PublicKey {
   static fromBytes(bytes: Uint8Array): K1PublicKey
   toBytes(): Uint8Array

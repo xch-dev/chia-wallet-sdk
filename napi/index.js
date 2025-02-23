@@ -366,6 +366,7 @@ if (!nativeBinding) {
 
 module.exports.Address = nativeBinding.Address
 module.exports.Coin = nativeBinding.Coin
+module.exports.CoinSpend = nativeBinding.CoinSpend
 module.exports.K1PublicKey = nativeBinding.K1PublicKey
 module.exports.K1SecretKey = nativeBinding.K1SecretKey
 module.exports.K1Signature = nativeBinding.K1Signature

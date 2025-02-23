@@ -180,17 +180,19 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                     let ident = Ident::new(name, Span::mixed_site());
                     let get_ident = Ident::new(&format!("get_{name}"), Span::mixed_site());
                     let set_ident = Ident::new(&format!("set_{name}"), Span::mixed_site());
-                    let ty =
+                    let get_ty =
                         parse_str::<Type>(apply_mappings(ty, &return_mappings).as_str()).unwrap();
+                    let set_ty =
+                        parse_str::<Type>(apply_mappings(ty, &param_mappings).as_str()).unwrap();
 
                     field_tokens.extend(quote! {
                         #[napi(getter)]
-                        pub fn #get_ident(&self, env: Env) -> napi::Result<#ty> {
+                        pub fn #get_ident(&self, env: Env) -> napi::Result<#get_ty> {
                             Ok(bindy::FromRust::from_rust(self.0.#ident.clone(), &bindy::NapiReturnContext(env))?)
                         }
 
                         #[napi(setter)]
-                        pub fn #set_ident(&mut self, env: Env, value: #ty) -> napi::Result<()> {
+                        pub fn #set_ident(&mut self, env: Env, value: #set_ty) -> napi::Result<()> {
                             self.0.#ident = bindy::IntoRust::into_rust(value, &bindy::NapiParamContext)?;
                             Ok(())
                         }

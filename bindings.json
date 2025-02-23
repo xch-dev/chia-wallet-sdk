@@ -78,6 +78,15 @@
         }
       }
     },
+    "CoinSpend": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "coin": "Coin",
+        "puzzle_reveal": "Program",
+        "solution": "Program"
+      }
+    },
     "SecretKey": {
       "type": "class",
       "methods": {
@@ -410,7 +419,8 @@
     "Bytes96": "napi::bindgen_prelude::Uint8Array",
     "BytesImpl<33>": "napi::bindgen_prelude::Uint8Array",
     "BytesImpl<64>": "napi::bindgen_prelude::Uint8Array",
-    "Bytes": "napi::bindgen_prelude::Uint8Array"
+    "Bytes": "napi::bindgen_prelude::Uint8Array",
+    "Program": "napi::bindgen_prelude::Uint8Array"
   },
   "wasm": {
     "Bytes32": "Vec<u8>",
@@ -419,6 +429,7 @@
     "BytesImpl<33>": "Vec<u8>",
     "BytesImpl<64>": "Vec<u8>",
     "Bytes": "Vec<u8>",
+    "Program": "Vec<u8>",
     "Vec<Bytes32>": "js_sys::Array"
   },
   "pyo3": {
@@ -427,6 +438,7 @@
     "Bytes96": "Vec<u8>",
     "BytesImpl<33>": "Vec<u8>",
     "BytesImpl<64>": "Vec<u8>",
-    "Bytes": "Vec<u8>"
+    "Bytes": "Vec<u8>",
+    "Program": "Vec<u8>"
   }
 }

@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use chia_protocol::{Bytes, Bytes32, BytesImpl};
+use chia_protocol::{Bytes, Bytes32, BytesImpl, Program};
 use js_sys::wasm_bindgen::{JsCast, UnwrapThrowExt};
 use js_sys::Uint8Array;
 use num_bigint::BigInt;
@@ -50,6 +50,18 @@ impl<T> FromRust<Bytes, T> for Vec<u8> {
 
 impl<T> IntoRust<Bytes, T> for Vec<u8> {
     fn into_rust(self, _context: &T) -> Result<Bytes> {
+        Ok(self.to_vec().into())
+    }
+}
+
+impl<T> FromRust<Program, T> for Vec<u8> {
+    fn from_rust(value: Program, _context: &T) -> Result<Self> {
+        Ok(value.to_vec())
+    }
+}
+
+impl<T> IntoRust<Program, T> for Vec<u8> {
+    fn into_rust(self, _context: &T) -> Result<Program> {
         Ok(self.to_vec().into())
     }
 }

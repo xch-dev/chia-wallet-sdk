@@ -1,4 +1,4 @@
-use chia_protocol::{Bytes, BytesImpl};
+use chia_protocol::{Bytes, BytesImpl, Program};
 
 use crate::{impl_self, Error, FromRust, IntoRust, Result};
 
@@ -42,6 +42,18 @@ impl<T> FromRust<Bytes, T> for Vec<u8> {
 
 impl<T> IntoRust<Bytes, T> for Vec<u8> {
     fn into_rust(self, _context: &T) -> Result<Bytes> {
+        Ok(self.to_vec().into())
+    }
+}
+
+impl<T> FromRust<Program, T> for Vec<u8> {
+    fn from_rust(value: Program, _context: &T) -> Result<Self> {
+        Ok(value.to_vec())
+    }
+}
+
+impl<T> IntoRust<Program, T> for Vec<u8> {
+    fn into_rust(self, _context: &T) -> Result<Program> {
         Ok(self.to_vec().into())
     }
 }

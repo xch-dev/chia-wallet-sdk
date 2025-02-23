@@ -1,5 +1,5 @@
 use bindy::Result;
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Program};
 
 #[derive(Clone)]
 pub struct Coin {
@@ -15,4 +15,11 @@ impl Coin {
                 .coin_id(),
         )
     }
+}
+
+#[derive(Clone)]
+pub struct CoinSpend {
+    pub coin: Coin,
+    pub puzzle_reveal: Program,
+    pub solution: Program,
 }
