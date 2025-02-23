@@ -1,5 +1,6 @@
 use bindy::Error;
 use chia_protocol::Bytes32;
+use chia_puzzle_types::{EveProof, Proof};
 
 use crate::Program;
 
@@ -54,5 +55,39 @@ impl TryFrom<LineageProof> for chia_puzzle_types::LineageProof {
                 .ok_or(Error::MissingParentInnerPuzzleHash)?,
             parent_amount: value.parent_amount,
         })
+    }
+}
+
+impl From<LineageProof> for Proof {
+    fn from(value: LineageProof) -> Self {
+        if let Some(parent_inner_puzzle_hash) = value.parent_inner_puzzle_hash {
+            Self::Lineage(chia_puzzle_types::LineageProof {
+                parent_parent_coin_info: value.parent_parent_coin_info,
+                parent_inner_puzzle_hash,
+                parent_amount: value.parent_amount,
+            })
+        } else {
+            Self::Eve(EveProof {
+                parent_parent_coin_info: value.parent_parent_coin_info,
+                parent_amount: value.parent_amount,
+            })
+        }
+    }
+}
+
+impl From<Proof> for LineageProof {
+    fn from(value: Proof) -> Self {
+        match value {
+            Proof::Lineage(proof) => Self {
+                parent_parent_coin_info: proof.parent_parent_coin_info,
+                parent_inner_puzzle_hash: Some(proof.parent_inner_puzzle_hash),
+                parent_amount: proof.parent_amount,
+            },
+            Proof::Eve(proof) => Self {
+                parent_parent_coin_info: proof.parent_parent_coin_info,
+                parent_inner_puzzle_hash: None,
+                parent_amount: proof.parent_amount,
+            },
+        }
     }
 }

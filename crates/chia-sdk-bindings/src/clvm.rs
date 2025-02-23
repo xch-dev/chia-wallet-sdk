@@ -1,16 +1,16 @@
 use std::sync::{Arc, RwLock};
 
 use bindy::{Error, Result};
-use chia_protocol::{Bytes, Program as SerializedProgram};
-use chia_sdk_driver::{SpendContext, StandardLayer};
-use clvm_traits::clvm_quote;
+use chia_protocol::{Bytes, Bytes32, Program as SerializedProgram};
+use chia_sdk_driver::{HashedPtr, Launcher, SpendContext, StandardLayer};
+use clvm_traits::{clvm_quote, ToClvm};
 use clvmr::{
     serde::{node_from_bytes, node_from_bytes_backrefs},
     NodePtr,
 };
 use num_bigint::BigInt;
 
-use crate::{CatSpend, Coin, CoinSpend, Program, PublicKey, Spend};
+use crate::{CatSpend, Coin, CoinSpend, MintedNfts, NftMint, Program, PublicKey, Spend};
 
 #[derive(Default, Clone)]
 pub struct Clvm(Arc<RwLock<SpendContext>>);
@@ -99,6 +99,46 @@ impl Clvm {
         chia_sdk_driver::Cat::spend_all(&mut ctx, &rust_cat_spends)?;
 
         Ok(())
+    }
+
+    pub fn mint_nfts(
+        &self,
+        parent_coin_id: Bytes32,
+        nft_mints: Vec<NftMint>,
+    ) -> Result<MintedNfts> {
+        let mut ctx = self.0.write().unwrap();
+        let mut nfts = Vec::new();
+        let mut parent_conditions = Vec::new();
+
+        for (i, nft_mint) in nft_mints.into_iter().enumerate() {
+            let nft_mint: chia_sdk_driver::NftMint<NodePtr> = nft_mint.into();
+            let nft_mint = chia_sdk_driver::NftMint {
+                metadata: HashedPtr::from_ptr(&ctx.allocator, nft_mint.metadata),
+                metadata_updater_puzzle_hash: nft_mint.metadata_updater_puzzle_hash,
+                royalty_puzzle_hash: nft_mint.royalty_puzzle_hash,
+                royalty_ten_thousandths: nft_mint.royalty_ten_thousandths,
+                p2_puzzle_hash: nft_mint.p2_puzzle_hash,
+                owner: nft_mint.owner,
+            };
+
+            let (conditions, nft) =
+                Launcher::new(parent_coin_id, i as u64 * 2 + 1).mint_nft(&mut ctx, nft_mint)?;
+
+            nfts.push(
+                nft.with_metadata(Program(self.0.clone(), nft.info.metadata.ptr()))
+                    .into(),
+            );
+
+            for condition in conditions {
+                let condition = condition.to_clvm(&mut ctx.allocator)?;
+                parent_conditions.push(Program(self.0.clone(), condition));
+            }
+        }
+
+        Ok(MintedNfts {
+            nfts,
+            parent_conditions,
+        })
     }
 
     pub fn pair(&self, first: Program, second: Program) -> Result<Program> {
@@ -209,29 +249,6 @@ impl Clvm {
     //     };
 
     //     Ok(Some((nft_info, Puzzle::from(p2_puzzle))))
-    // }
-
-    // pub fn mint_nfts(
-    //     &mut self,
-    //     parent_coin_id: Bytes32,
-    //     nft_mints: Vec<NftMint<HashedPtr>>,
-    // ) -> Result<(Vec<Nft<HashedPtr>>, Vec<NodePtr>)> {
-    //     let mut nfts = Vec::new();
-    //     let mut parent_conditions = Vec::new();
-
-    //     for (i, nft_mint) in nft_mints.into_iter().enumerate() {
-    //         let (conditions, nft) =
-    //             Launcher::new(parent_coin_id, i as u64 * 2 + 1).mint_nft(&mut self.0, nft_mint)?;
-
-    //         nfts.push(nft);
-
-    //         for condition in conditions {
-    //             let condition = condition.to_clvm(&mut self.0.allocator)?;
-    //             parent_conditions.push(condition);
-    //         }
-    //     }
-
-    //     Ok((nfts, parent_conditions))
     // }
 }
 

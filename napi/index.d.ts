@@ -43,6 +43,7 @@ export declare class Clvm {
   standardSpend(syntheticKey: PublicKey, spend: Spend): Spend
   spendStandardCoin(coin: Coin, syntheticKey: PublicKey, spend: Spend): void
   spendCatCoins(catSpends: Array<CatSpend>): void
+  mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
   int(value: number): Program
   bigInt(value: bigint): Program
 }
@@ -76,6 +77,14 @@ export declare class CurriedProgram {
   set args(value: Array<Program>)
 }
 
+export declare class DidOwner {
+  constructor(didId: Uint8Array, innerPuzzleHash: Uint8Array)
+  get didId(): Uint8Array
+  set didId(value: Uint8Array)
+  get innerPuzzleHash(): Uint8Array
+  set innerPuzzleHash(value: Uint8Array)
+}
+
 export declare class K1PublicKey {
   static fromBytes(bytes: Uint8Array): K1PublicKey
   toBytes(): Uint8Array
@@ -105,6 +114,14 @@ export declare class LineageProof {
   set parentAmount(value: bigint)
 }
 
+export declare class MintedNfts {
+  constructor(nfts: Array<Nft>, parentConditions: Array<Program>)
+  get nfts(): Array<Nft>
+  set nfts(value: Array<Nft>)
+  get parentConditions(): Array<Program>
+  set parentConditions(value: Array<Program>)
+}
+
 export declare class Mnemonic {
   constructor(mnemonic: string)
   static fromEntropy(entropy: Uint8Array): Mnemonic
@@ -113,6 +130,70 @@ export declare class Mnemonic {
   toString(): string
   toEntropy(): Uint8Array
   toSeed(password: string): Uint8Array
+}
+
+export declare class Nft {
+  constructor(coin: Coin, lineageProof: LineageProof, info: NftInfo)
+  get coin(): Coin
+  set coin(value: Coin)
+  get lineageProof(): LineageProof
+  set lineageProof(value: LineageProof)
+  get info(): NftInfo
+  set info(value: NftInfo)
+}
+
+export declare class NftInfo {
+  constructor(launcherId: Uint8Array, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, currentOwner: Uint8Array | undefined | null, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, p2PuzzleHash: Uint8Array)
+  get launcherId(): Uint8Array
+  set launcherId(value: Uint8Array)
+  get metadata(): Program
+  set metadata(value: Program)
+  get metadataUpdaterPuzzleHash(): Uint8Array
+  set metadataUpdaterPuzzleHash(value: Uint8Array)
+  get currentOwner(): Uint8Array | null
+  set currentOwner(value?: Uint8Array | undefined | null)
+  get royaltyPuzzleHash(): Uint8Array
+  set royaltyPuzzleHash(value: Uint8Array)
+  get royaltyTenThousandths(): number
+  set royaltyTenThousandths(value: number)
+  get p2PuzzleHash(): Uint8Array
+  set p2PuzzleHash(value: Uint8Array)
+}
+
+export declare class NftMetadata {
+  constructor(editionNumber: bigint, editionTotal: bigint, dataUris: Array<string>, dataHash: Uint8Array | undefined | null, metadataUris: Array<string>, metadataHash: Uint8Array | undefined | null, licenseUris: Array<string>, licenseHash?: Uint8Array | undefined | null)
+  get editionNumber(): bigint
+  set editionNumber(value: bigint)
+  get editionTotal(): bigint
+  set editionTotal(value: bigint)
+  get dataUris(): Array<string>
+  set dataUris(value: Array<string>)
+  get dataHash(): Uint8Array | null
+  set dataHash(value?: Uint8Array | undefined | null)
+  get metadataUris(): Array<string>
+  set metadataUris(value: Array<string>)
+  get metadataHash(): Uint8Array | null
+  set metadataHash(value?: Uint8Array | undefined | null)
+  get licenseUris(): Array<string>
+  set licenseUris(value: Array<string>)
+  get licenseHash(): Uint8Array | null
+  set licenseHash(value?: Uint8Array | undefined | null)
+}
+
+export declare class NftMint {
+  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, owner?: DidOwner | undefined | null)
+  get metadata(): Program
+  set metadata(value: Program)
+  get metadataUpdaterPuzzleHash(): Uint8Array
+  set metadataUpdaterPuzzleHash(value: Uint8Array)
+  get p2PuzzleHash(): Uint8Array
+  set p2PuzzleHash(value: Uint8Array)
+  get royaltyPuzzleHash(): Uint8Array
+  set royaltyPuzzleHash(value: Uint8Array)
+  get royaltyTenThousandths(): number
+  set royaltyTenThousandths(value: number)
+  get owner(): DidOwner | null
+  set owner(value?: DidOwner | undefined | null)
 }
 
 export declare class Output {

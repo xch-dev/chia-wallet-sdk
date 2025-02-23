@@ -1,8 +1,10 @@
 use bindy::{Error, Result};
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{cat::CatArgs, standard::StandardArgs};
+use clvmr::NodePtr;
+use num_bigint::BigInt;
 
-use crate::{Coin, LineageProof, Spend};
+use crate::{Coin, LineageProof, Program, Spend};
 
 use super::PublicKey;
 
@@ -42,6 +44,103 @@ impl TryFrom<CatSpend> for chia_sdk_driver::CatSpend {
             value.spend.into(),
         ))
     }
+}
+
+#[derive(Clone)]
+pub struct Nft {
+    pub coin: Coin,
+    pub lineage_proof: LineageProof,
+    pub info: NftInfo,
+}
+
+impl From<chia_sdk_driver::Nft<Program>> for Nft {
+    fn from(value: chia_sdk_driver::Nft<Program>) -> Self {
+        Self {
+            coin: value.coin.into(),
+            lineage_proof: value.proof.into(),
+            info: value.info.into(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct NftInfo {
+    pub launcher_id: Bytes32,
+    pub metadata: Program,
+    pub metadata_updater_puzzle_hash: Bytes32,
+    pub current_owner: Option<Bytes32>,
+    pub royalty_puzzle_hash: Bytes32,
+    pub royalty_ten_thousandths: u16,
+    pub p2_puzzle_hash: Bytes32,
+}
+
+impl From<chia_sdk_driver::NftInfo<Program>> for NftInfo {
+    fn from(value: chia_sdk_driver::NftInfo<Program>) -> Self {
+        Self {
+            launcher_id: value.launcher_id,
+            metadata: value.metadata,
+            metadata_updater_puzzle_hash: value.metadata_updater_puzzle_hash,
+            current_owner: value.current_owner,
+            royalty_puzzle_hash: value.royalty_puzzle_hash,
+            royalty_ten_thousandths: value.royalty_ten_thousandths,
+            p2_puzzle_hash: value.p2_puzzle_hash,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct NftMetadata {
+    pub edition_number: BigInt,
+    pub edition_total: BigInt,
+    pub data_uris: Vec<String>,
+    pub data_hash: Option<Bytes32>,
+    pub metadata_uris: Vec<String>,
+    pub metadata_hash: Option<Bytes32>,
+    pub license_uris: Vec<String>,
+    pub license_hash: Option<Bytes32>,
+}
+
+#[derive(Clone)]
+pub struct NftMint {
+    pub metadata: Program,
+    pub metadata_updater_puzzle_hash: Bytes32,
+    pub p2_puzzle_hash: Bytes32,
+    pub royalty_puzzle_hash: Bytes32,
+    pub royalty_ten_thousandths: u16,
+    pub owner: Option<DidOwner>,
+}
+
+impl From<NftMint> for chia_sdk_driver::NftMint<NodePtr> {
+    fn from(value: NftMint) -> Self {
+        chia_sdk_driver::NftMint {
+            metadata: value.metadata.1,
+            metadata_updater_puzzle_hash: value.metadata_updater_puzzle_hash,
+            royalty_puzzle_hash: value.royalty_puzzle_hash,
+            royalty_ten_thousandths: value.royalty_ten_thousandths,
+            p2_puzzle_hash: value.p2_puzzle_hash,
+            owner: value.owner.map(Into::into),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct DidOwner {
+    pub did_id: Bytes32,
+    pub inner_puzzle_hash: Bytes32,
+}
+
+impl From<DidOwner> for chia_sdk_driver::DidOwner {
+    fn from(value: DidOwner) -> Self {
+        chia_sdk_driver::DidOwner {
+            did_id: value.did_id,
+            inner_puzzle_hash: value.inner_puzzle_hash,
+        }
+    }
+}
+#[derive(Clone)]
+pub struct MintedNfts {
+    pub nfts: Vec<Nft>,
+    pub parent_conditions: Vec<Program>,
 }
 
 pub fn standard_puzzle_hash(synthetic_key: PublicKey) -> Result<Bytes32> {
