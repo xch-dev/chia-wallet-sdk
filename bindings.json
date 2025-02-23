@@ -87,6 +87,14 @@
         "solution": "Program"
       }
     },
+    "SpendBundle": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "coin_spends": "Vec<CoinSpend>",
+        "aggregated_signature": "Signature"
+      }
+    },
     "SecretKey": {
       "type": "class",
       "methods": {

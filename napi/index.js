@@ -377,6 +377,7 @@ module.exports.R1SecretKey = nativeBinding.R1SecretKey
 module.exports.R1Signature = nativeBinding.R1Signature
 module.exports.SecretKey = nativeBinding.SecretKey
 module.exports.Signature = nativeBinding.Signature
+module.exports.SpendBundle = nativeBinding.SpendBundle
 module.exports.bytesEqual = nativeBinding.bytesEqual
 module.exports.curryTreeHash = nativeBinding.curryTreeHash
 module.exports.fromHex = nativeBinding.fromHex

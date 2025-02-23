@@ -116,6 +116,14 @@ export declare class Signature {
   isValid(): boolean
 }
 
+export declare class SpendBundle {
+  constructor(coinSpends: Array<CoinSpend>, aggregatedSignature: Signature)
+  get coinSpends(): Array<CoinSpend>
+  set coinSpends(value: Array<CoinSpend>)
+  get aggregatedSignature(): Signature
+  set aggregatedSignature(value: Signature)
+}
+
 export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
 
 export declare function curryTreeHash(program: Uint8Array, args: Array<Uint8Array>): Uint8Array

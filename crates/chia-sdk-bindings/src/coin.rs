@@ -1,6 +1,8 @@
 use bindy::Result;
 use chia_protocol::{Bytes32, Program};
 
+use crate::Signature;
+
 #[derive(Clone)]
 pub struct Coin {
     pub parent_coin_info: Bytes32,
@@ -22,4 +24,10 @@ pub struct CoinSpend {
     pub coin: Coin,
     pub puzzle_reveal: Program,
     pub solution: Program,
+}
+
+#[derive(Clone)]
+pub struct SpendBundle {
+    pub coin_spends: Vec<CoinSpend>,
+    pub aggregated_signature: Signature,
 }
