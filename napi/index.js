@@ -364,7 +364,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-module.exports.AddressInfo = nativeBinding.AddressInfo
+module.exports.Address = nativeBinding.Address
 module.exports.Coin = nativeBinding.Coin
 module.exports.K1PublicKey = nativeBinding.K1PublicKey
 module.exports.K1SecretKey = nativeBinding.K1SecretKey
@@ -376,4 +376,11 @@ module.exports.R1SecretKey = nativeBinding.R1SecretKey
 module.exports.R1Signature = nativeBinding.R1Signature
 module.exports.SecretKey = nativeBinding.SecretKey
 module.exports.Signature = nativeBinding.Signature
+module.exports.bytesEqual = nativeBinding.bytesEqual
+module.exports.curryTreeHash = nativeBinding.curryTreeHash
+module.exports.fromHex = nativeBinding.fromHex
 module.exports.generateBytes = nativeBinding.generateBytes
+module.exports.sha256 = nativeBinding.sha256
+module.exports.toHex = nativeBinding.toHex
+module.exports.treeHashAtom = nativeBinding.treeHashAtom
+module.exports.treeHashPair = nativeBinding.treeHashPair

@@ -2,7 +2,7 @@
   "entrypoint": "chia_sdk_bindings",
   "pymodule": "chia_wallet_sdk_py",
   "bindings": {
-    "AddressInfo": {
+    "Address": {
       "type": "class",
       "new": true,
       "fields": {
@@ -63,13 +63,6 @@
           "return": "Bytes"
         }
       }
-    },
-    "generate_bytes": {
-      "type": "function",
-      "args": {
-        "bytes": "u32"
-      },
-      "return": "Bytes"
     },
     "Coin": {
       "type": "class",
@@ -350,6 +343,65 @@
           "return": "BytesImpl<64>"
         }
       }
+    },
+    "from_hex": {
+      "type": "function",
+      "args": {
+        "value": "String"
+      },
+      "return": "Bytes"
+    },
+    "to_hex": {
+      "type": "function",
+      "args": {
+        "value": "Bytes"
+      },
+      "return": "String"
+    },
+    "bytes_equal": {
+      "type": "function",
+      "args": {
+        "lhs": "Bytes",
+        "rhs": "Bytes"
+      },
+      "return": "bool"
+    },
+    "tree_hash_atom": {
+      "type": "function",
+      "args": {
+        "atom": "Bytes32"
+      },
+      "return": "Bytes32"
+    },
+    "tree_hash_pair": {
+      "type": "function",
+      "args": {
+        "first": "Bytes32",
+        "rest": "Bytes32"
+      },
+      "return": "Bytes32"
+    },
+    "sha256": {
+      "type": "function",
+      "args": {
+        "value": "Bytes"
+      },
+      "return": "Bytes32"
+    },
+    "curry_tree_hash": {
+      "type": "function",
+      "args": {
+        "program": "Bytes32",
+        "args": "Vec<Bytes32>"
+      },
+      "return": "Bytes32"
+    },
+    "generate_bytes": {
+      "type": "function",
+      "args": {
+        "bytes": "u32"
+      },
+      "return": "Bytes"
     }
   },
   "napi": {

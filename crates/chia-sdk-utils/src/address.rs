@@ -15,12 +15,12 @@ pub enum AddressError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AddressInfo {
+pub struct Address {
     pub puzzle_hash: Bytes32,
     pub prefix: String,
 }
 
-impl AddressInfo {
+impl Address {
     pub fn new(puzzle_hash: Bytes32, prefix: String) -> Self {
         Self {
             puzzle_hash,
@@ -62,7 +62,7 @@ mod tests {
     use super::*;
 
     fn check_addr(expected: &str) {
-        let info = AddressInfo::decode(expected).unwrap();
+        let info = Address::decode(expected).unwrap();
         let actual = info.encode().unwrap();
         assert_eq!(actual, expected);
     }
@@ -78,11 +78,11 @@ mod tests {
     #[test]
     fn test_invalid_addresses() {
         assert_eq!(
-            AddressInfo::decode("hello there!"),
+            Address::decode("hello there!"),
             Err(AddressError::Decode(bech32::Error::MissingSeparator))
         );
         assert_eq!(
-            AddressInfo::decode("bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"),
+            Address::decode("bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"),
             Err(AddressError::InvalidFormat)
         );
     }

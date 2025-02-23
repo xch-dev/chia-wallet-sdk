@@ -1,19 +1,19 @@
-#[cfg(feature = "napi")]
+#[cfg(all(feature = "napi", not(feature = "wasm"), not(feature = "pyo3")))]
 mod napi_impls;
 
-#[cfg(feature = "wasm")]
+#[cfg(all(feature = "wasm", not(feature = "napi"), not(feature = "pyo3")))]
 mod wasm_impls;
 
-#[cfg(feature = "pyo3")]
+#[cfg(all(feature = "pyo3", not(feature = "napi"), not(feature = "wasm")))]
 mod pyo3_impls;
 
-#[cfg(feature = "napi")]
+#[cfg(all(feature = "napi", not(feature = "wasm"), not(feature = "pyo3")))]
 pub use napi_impls::*;
 
-#[cfg(feature = "wasm")]
+#[cfg(all(feature = "wasm", not(feature = "napi"), not(feature = "pyo3")))]
 pub use wasm_impls::*;
 
-#[cfg(feature = "pyo3")]
+#[cfg(all(feature = "pyo3", not(feature = "napi"), not(feature = "wasm")))]
 pub use pyo3_impls::*;
 
 use std::string::FromUtf8Error;
