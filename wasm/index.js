@@ -1,13 +1,8 @@
-import {
-  encodeAddress,
-  generateMnemonic,
-  mnemonicToSeed,
-  SecretKey,
-} from "./pkg";
+import { encodeAddress, Mnemonic, SecretKey } from "./pkg";
 
 console.log(
   encodeAddress(
-    SecretKey.fromSeed(mnemonicToSeed(generateMnemonic(true), "")).toBytes(),
+    SecretKey.fromSeed(Mnemonic.generate(true).toSeed("")).toBytes(),
     "billybob"
   )
 );

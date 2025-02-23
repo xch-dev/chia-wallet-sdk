@@ -841,13 +841,10 @@ dependencies = [
 name = "chia-wallet-sdk-wasm"
 version = "0.0.0"
 dependencies = [
- "chia-bls 0.20.0",
+ "bindy",
+ "bindy-macro",
  "chia-sdk-bindings",
- "clvmr",
  "getrandom",
- "js-sys",
- "num-bigint",
- "paste",
  "wasm-bindgen",
 ]
 

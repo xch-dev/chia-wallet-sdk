@@ -5,6 +5,7 @@ edition = "2021"
 
 [features]
 napi = ["dep:napi"]
+wasm = ["dep:wasm-bindgen"]
 
 [dependencies]
 thiserror = { workspace = true }

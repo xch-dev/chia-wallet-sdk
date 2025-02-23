@@ -1,6 +1,15 @@
 #[cfg(feature = "napi")]
 mod napi_impls;
 
+#[cfg(feature = "wasm")]
+mod wasm_impls;
+
+#[cfg(feature = "napi")]
+pub use napi_impls::*;
+
+#[cfg(feature = "wasm")]
+pub use wasm_impls::*;
+
 use std::string::FromUtf8Error;
 
 use chia_sdk_driver::DriverError;
@@ -8,8 +17,6 @@ use chia_sdk_test::SimulatorError;
 use chia_sdk_utils::AddressError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
-#[cfg(feature = "napi")]
-pub use napi_impls::*;
 
 use num_bigint::ParseBigIntError;
 use thiserror::Error;
@@ -100,16 +107,17 @@ pub trait FromRust<T, C>: Sized {
     fn from_rust(value: T, context: &C) -> Result<Self>;
 }
 
+#[macro_export]
 macro_rules! impl_self {
     ( $ty:ty ) => {
-        impl<T> FromRust<$ty, T> for $ty {
-            fn from_rust(value: $ty, _context: &T) -> Result<Self> {
+        impl<T> $crate::FromRust<$ty, T> for $ty {
+            fn from_rust(value: $ty, _context: &T) -> $crate::Result<Self> {
                 Ok(value)
             }
         }
 
-        impl<T> IntoRust<$ty, T> for $ty {
-            fn into_rust(self, _context: &T) -> Result<$ty> {
+        impl<T> $crate::IntoRust<$ty, T> for $ty {
+            fn into_rust(self, _context: &T) -> $crate::Result<$ty> {
                 Ok(self)
             }
         }

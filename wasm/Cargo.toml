@@ -19,11 +19,8 @@ workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
-chia-sdk-bindings = { workspace = true, features = ["wasm"] }
 wasm-bindgen = { workspace = true }
+chia-sdk-bindings = { workspace = true, features = ["wasm"] }
+bindy = { workspace = true, features = ["wasm"] }
+bindy-macro = { workspace = true }
 getrandom = { workspace = true, features = ["js"] }
-clvmr = { workspace = true }
-num-bigint = { workspace = true }
-js-sys = { workspace = true }
-paste = { workspace = true }
-chia-bls = { workspace = true }
