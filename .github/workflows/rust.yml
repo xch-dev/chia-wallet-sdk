@@ -11,7 +11,7 @@ on:
       - "**"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow_ref, github.event.pull_request.number) || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -24,8 +24,8 @@ jobs:
       - name: Cargo binstall
         run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
-      - name: Install nightly Rust
-        run: rustup toolchain install nightly
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-workspaces
         run: cargo binstall cargo-workspaces --locked -y
@@ -34,7 +34,7 @@ jobs:
         run: cargo install cargo-tarpaulin --locked
 
       - name: Run tests
-        run: cargo +nightly tarpaulin --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features --out xml
+        run: cargo tarpaulin --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features --out xml
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.0.1

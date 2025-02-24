@@ -1,7 +1,15 @@
 [package]
 name = "bindy"
-version = "0.21.0"
+version = "0.21.1"
 edition = "2021"
+license = "Apache-2.0"
+description = "Generator for chia-wallet-sdk bindings."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/Rigidity/chia-wallet-sdk"
+repository = "https://github.com/Rigidity/chia-wallet-sdk"
+readme = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [features]
 napi = ["dep:napi"]

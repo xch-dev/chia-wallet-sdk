@@ -3,7 +3,7 @@
 #
 #    maturin generate-ci github
 #
-name: CI
+name: Python
 
 on:
   push:
@@ -14,6 +14,10 @@ on:
       - "*"
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow_ref, github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -132,12 +136,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build sdist
-        uses: PyO3/maturin-action@v1
+      - uses: actions/setup-python@v5
         with:
-          command: sdist
-          args: --out dist
-          working-directory: pyo3
+          python-version: 3.x
+
+      - name: Build source distribution
+        run: |
+          pip install maturin
+          cd pyo3
+          maturin sdist --out dist
+          cd dist
+          dirname=`basename chia_wallet_sdk*.tar.gz .tar.gz`
+          echo $dirname
+          mkdir $dirname
+          cp -r ../../src/ $dirname/src/
+          gunzip chia_wallet_sdk*.tar.gz
+          tar rvf chia_wallet_sdk*.tar $dirname/src
+          gzip chia_wallet_sdk*.tar
+          rm -rf $dirname
+
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
