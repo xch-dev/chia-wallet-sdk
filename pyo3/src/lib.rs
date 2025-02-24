@@ -12,6 +12,10 @@ bindy_macro::bindy_pyo3!("bindings.json");
 
 #[pymethods]
 impl Clvm {
+    pub fn alloc(&self, value: Bound<'_, PyAny>) -> PyResult<Program> {
+        Ok(Program::from_rust(alloc(&self.0, value)?, &Pyo3Context)?)
+    }
+
     pub fn int(&self, value: BigInt) -> PyResult<Program> {
         Ok(Program::from_rust(
             self.0
