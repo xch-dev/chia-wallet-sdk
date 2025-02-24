@@ -1,6 +1,6 @@
 {
   "entrypoint": "chia_sdk_bindings",
-  "pymodule": "chia_wallet_sdk_py",
+  "pymodule": "chia_wallet_sdk",
   "bindings": {
     "Constants": {
       "type": "class",
