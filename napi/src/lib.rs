@@ -11,7 +11,7 @@ bindy_macro::bindy_napi!("bindings.json");
 #[napi]
 impl Clvm {
     #[napi]
-    pub fn alloc(&self, env: Env, value: Value<'_>) -> Result<Program> {
+    pub fn alloc(&self, env: Env, value: Value) -> Result<Program> {
         Ok(Program::from_rust(
             alloc(env, &self.0, value)?,
             &NapiReturnContext(env),
@@ -51,7 +51,7 @@ impl Program {
     }
 }
 
-pub type Value<'a> = Either26<
+pub type Value = Either26<
     f64,
     BigInt,
     bool,
@@ -59,62 +59,62 @@ pub type Value<'a> = Either26<
     Uint8Array,
     Array,
     Null,
-    ClassInstance<'a, Program>,
-    ClassInstance<'a, PublicKey>,
-    ClassInstance<'a, Signature>,
-    ClassInstance<'a, K1PublicKey>,
-    ClassInstance<'a, K1Signature>,
-    ClassInstance<'a, R1PublicKey>,
-    ClassInstance<'a, R1Signature>,
-    ClassInstance<'a, Remark>,
-    ClassInstance<'a, AggSigParent>,
-    ClassInstance<'a, AggSigPuzzle>,
-    ClassInstance<'a, AggSigAmount>,
-    ClassInstance<'a, AggSigPuzzleAmount>,
-    ClassInstance<'a, AggSigParentAmount>,
-    ClassInstance<'a, AggSigParentPuzzle>,
-    ClassInstance<'a, AggSigUnsafe>,
-    ClassInstance<'a, AggSigMe>,
-    ClassInstance<'a, CreateCoin>,
-    ClassInstance<'a, ReserveFee>,
-    Value2<'a>,
+    ClassInstance<Program>,
+    ClassInstance<PublicKey>,
+    ClassInstance<Signature>,
+    ClassInstance<K1PublicKey>,
+    ClassInstance<K1Signature>,
+    ClassInstance<R1PublicKey>,
+    ClassInstance<R1Signature>,
+    ClassInstance<Remark>,
+    ClassInstance<AggSigParent>,
+    ClassInstance<AggSigPuzzle>,
+    ClassInstance<AggSigAmount>,
+    ClassInstance<AggSigPuzzleAmount>,
+    ClassInstance<AggSigParentAmount>,
+    ClassInstance<AggSigParentPuzzle>,
+    ClassInstance<AggSigUnsafe>,
+    ClassInstance<AggSigMe>,
+    ClassInstance<CreateCoin>,
+    ClassInstance<ReserveFee>,
+    Value2,
 >;
 
-type Value2<'a> = Either26<
-    ClassInstance<'a, CreateCoinAnnouncement>,
-    ClassInstance<'a, CreatePuzzleAnnouncement>,
-    ClassInstance<'a, AssertCoinAnnouncement>,
-    ClassInstance<'a, AssertPuzzleAnnouncement>,
-    ClassInstance<'a, AssertConcurrentSpend>,
-    ClassInstance<'a, AssertConcurrentPuzzle>,
-    ClassInstance<'a, AssertSecondsRelative>,
-    ClassInstance<'a, AssertSecondsAbsolute>,
-    ClassInstance<'a, AssertHeightRelative>,
-    ClassInstance<'a, AssertHeightAbsolute>,
-    ClassInstance<'a, AssertBeforeSecondsRelative>,
-    ClassInstance<'a, AssertBeforeSecondsAbsolute>,
-    ClassInstance<'a, AssertBeforeHeightRelative>,
-    ClassInstance<'a, AssertBeforeHeightAbsolute>,
-    ClassInstance<'a, AssertMyCoinId>,
-    ClassInstance<'a, AssertMyParentId>,
-    ClassInstance<'a, AssertMyPuzzleHash>,
-    ClassInstance<'a, AssertMyAmount>,
-    ClassInstance<'a, AssertMyBirthSeconds>,
-    ClassInstance<'a, AssertMyBirthHeight>,
-    ClassInstance<'a, AssertEphemeral>,
-    ClassInstance<'a, SendMessage>,
-    ClassInstance<'a, ReceiveMessage>,
-    ClassInstance<'a, Softfork>,
-    ClassInstance<'a, Pair>,
-    Value3<'a>,
+type Value2 = Either26<
+    ClassInstance<CreateCoinAnnouncement>,
+    ClassInstance<CreatePuzzleAnnouncement>,
+    ClassInstance<AssertCoinAnnouncement>,
+    ClassInstance<AssertPuzzleAnnouncement>,
+    ClassInstance<AssertConcurrentSpend>,
+    ClassInstance<AssertConcurrentPuzzle>,
+    ClassInstance<AssertSecondsRelative>,
+    ClassInstance<AssertSecondsAbsolute>,
+    ClassInstance<AssertHeightRelative>,
+    ClassInstance<AssertHeightAbsolute>,
+    ClassInstance<AssertBeforeSecondsRelative>,
+    ClassInstance<AssertBeforeSecondsAbsolute>,
+    ClassInstance<AssertBeforeHeightRelative>,
+    ClassInstance<AssertBeforeHeightAbsolute>,
+    ClassInstance<AssertMyCoinId>,
+    ClassInstance<AssertMyParentId>,
+    ClassInstance<AssertMyPuzzleHash>,
+    ClassInstance<AssertMyAmount>,
+    ClassInstance<AssertMyBirthSeconds>,
+    ClassInstance<AssertMyBirthHeight>,
+    ClassInstance<AssertEphemeral>,
+    ClassInstance<SendMessage>,
+    ClassInstance<ReceiveMessage>,
+    ClassInstance<Softfork>,
+    ClassInstance<Pair>,
+    Value3,
 >;
 
-type Value3<'a> = Either<ClassInstance<'a, NftMetadata>, ClassInstance<'a, CurriedProgram>>;
+type Value3 = Either<ClassInstance<NftMetadata>, ClassInstance<CurriedProgram>>;
 
-fn alloc<'a>(
+fn alloc(
     env: Env,
     clvm: &chia_sdk_bindings::Clvm,
-    value: Value<'a>,
+    value: Value,
 ) -> bindy::Result<chia_sdk_bindings::Program> {
     match value {
         Value::A(value) => clvm.f64(value),
@@ -126,7 +126,7 @@ fn alloc<'a>(
             let mut list = Vec::new();
 
             for index in 0..value.len() {
-                let item = value.get::<Value<'a>>(index)?.unwrap();
+                let item = value.get::<Value>(index)?.unwrap();
                 list.push(alloc(env, clvm, item)?);
             }
 

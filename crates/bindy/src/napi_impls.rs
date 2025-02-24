@@ -18,17 +18,7 @@ pub struct NapiStructContext(pub Env);
 
 pub struct NapiReturnContext(pub Env);
 
-impl<T> FromRust<T, NapiStructContext, Napi> for Reference<T>
-where
-    T: JavaScriptClassExt,
-{
-    fn from_rust(value: T, context: &NapiStructContext) -> Result<Self> {
-        let env = context.0;
-        Ok(value.into_reference(env)?)
-    }
-}
-
-impl<T, U> IntoRust<T, NapiParamContext, Napi> for ClassInstance<'_, U>
+impl<T, U> IntoRust<T, NapiParamContext, Napi> for ClassInstance<U>
 where
     U: Clone + IntoRust<T, NapiParamContext, Napi>,
 {

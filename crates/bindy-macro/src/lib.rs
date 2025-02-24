@@ -87,7 +87,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
         if matches!(binding, Binding::Class { .. }) {
             param_mappings.insert(
                 name.clone(),
-                format!("napi::bindgen_prelude::ClassInstance<'_, {name}>"),
+                format!("napi::bindgen_prelude::ClassInstance<{name}>"),
             );
         }
     }
@@ -265,7 +265,6 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
 
                 output.extend(quote! {
                     #[napi_derive::napi]
-                    #[derive(Clone)]
                     pub enum #bound_ident {
                         #( #value_idents ),*
                     }
