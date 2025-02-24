@@ -1,0 +1,42 @@
+name: WASM
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+
+      - name: WASM build and pack
+        run: |
+          cd wasm
+          wasm-pack build
+          wasm-pack pack
+
+      - name: Upload NPM pkg artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-pkg
+          path: ./wasm/pkg/*-*.tgz
+
+      - name: Publish
+        if: startsWith(github.event.ref, 'refs/tags')
+        uses: JS-DevTools/npm-publish@v3
+        with:
+          token: ${{ secrets.NPM_TOKEN }}
+          package: wasm/pkg/package.json
