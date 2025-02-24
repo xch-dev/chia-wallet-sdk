@@ -106,8 +106,10 @@ type Value2<'a> = Either26<
     ClassInstance<'a, ReceiveMessage>,
     ClassInstance<'a, Softfork>,
     ClassInstance<'a, Pair>,
-    ClassInstance<'a, NftMetadata>,
+    Value3<'a>,
 >;
+
+type Value3<'a> = Either<ClassInstance<'a, NftMetadata>, ClassInstance<'a, CurriedProgram>>;
 
 fn alloc<'a>(
     env: Env,
@@ -181,7 +183,10 @@ fn alloc<'a>(
             }
             Value2::X(value) => clvm.softfork(value.0.cost, value.0.rest.clone()),
             Value2::Y(value) => clvm.pair(value.0.first.clone(), value.0.rest.clone()),
-            Value2::Z(value) => clvm.nft_metadata(value.0.clone()),
+            Value2::Z(value) => match value {
+                Value3::A(value) => clvm.nft_metadata(value.0.clone()),
+                Value3::B(value) => value.0.program.curry(value.0.args.clone()),
+            },
         },
     }
 }
