@@ -3,7 +3,7 @@
 #
 #    maturin generate-ci github
 #
-name: CI
+name: Python
 
 on:
   push:
@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 jobs:
-  wheel:
+  linux:
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       matrix:
