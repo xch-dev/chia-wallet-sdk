@@ -146,9 +146,9 @@ jobs:
           echo $dirname
           mkdir $dirname
           cp -r ../../src/ $dirname/src/
-          gunzip chia_rs*.tar.gz
-          tar rvf chia_rs*.tar $dirname/src
-          gzip chia_rs*.tar
+          gunzip chia_wallet_sdk*.tar.gz
+          tar rvf chia_wallet_sdk*.tar $dirname/src
+          gzip chia_wallet_sdk*.tar
           rm -rf $dirname
 
       - name: Upload sdist
