@@ -813,7 +813,7 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk-py"
-version = "0.1.0"
+version = "0.21.0"
 dependencies = [
  "bindy",
  "bindy-macro",
@@ -824,7 +824,7 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk-wasm"
-version = "0.0.0"
+version = "0.21.0"
 dependencies = [
  "bindy",
  "bindy-macro",
