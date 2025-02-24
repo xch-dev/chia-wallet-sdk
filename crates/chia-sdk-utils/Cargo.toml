@@ -17,7 +17,6 @@ workspace = true
 [dependencies]
 thiserror = { workspace = true }
 chia-protocol = { workspace = true }
-hex = { workspace = true }
 bech32 = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }

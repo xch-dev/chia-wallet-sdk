@@ -75,7 +75,7 @@ mod tests {
 
     use chia_bls::{master_to_wallet_unhardened, SecretKey};
     use chia_protocol::{Bytes, Bytes32, Coin};
-    use chia_puzzles::DeriveSynthetic;
+    use chia_puzzle_types::DeriveSynthetic;
     use chia_sdk_types::{AggSig, AggSigKind, MAINNET_CONSTANTS};
     use hex_literal::hex;
 

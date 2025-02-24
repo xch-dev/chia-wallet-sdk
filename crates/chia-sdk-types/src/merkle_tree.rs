@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 use chia_protocol::Bytes32;
+use chia_sha2::Sha256;
 use clvm_traits::{FromClvm, ToClvm};
-use clvmr::sha2::Sha256;
 
 const HASH_TREE_PREFIX: &[u8] = &[2];
 const HASH_LEAF_PREFIX: &[u8] = &[1];

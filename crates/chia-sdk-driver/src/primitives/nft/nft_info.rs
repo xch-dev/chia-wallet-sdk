@@ -1,5 +1,6 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::nft::{NftOwnershipLayerArgs, NftStateLayerArgs, NFT_STATE_LAYER_PUZZLE_HASH};
+use chia_puzzle_types::nft::{NftOwnershipLayerArgs, NftStateLayerArgs};
+use chia_puzzles::NFT_STATE_LAYER_HASH;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::Allocator;
@@ -141,9 +142,9 @@ impl<M> NftInfo<M> {
         M: ToTreeHash,
     {
         CurriedProgram {
-            program: NFT_STATE_LAYER_PUZZLE_HASH,
+            program: TreeHash::new(NFT_STATE_LAYER_HASH),
             args: NftStateLayerArgs {
-                mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                mod_hash: NFT_STATE_LAYER_HASH.into(),
                 metadata: self.metadata.tree_hash(),
                 metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
                 inner_puzzle: NftOwnershipLayerArgs::curry_tree_hash(
@@ -164,7 +165,7 @@ impl<M> NftInfo<M> {
 
 #[cfg(test)]
 mod tests {
-    use chia_puzzles::nft::NftMetadata;
+    use chia_puzzle_types::nft::NftMetadata;
     use chia_sdk_test::Simulator;
     use chia_sdk_types::Conditions;
 
@@ -177,11 +178,12 @@ mod tests {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
-        let (sk, pk, puzzle_hash, coin) = sim.new_p2(2)?;
-        let p2 = StandardLayer::new(pk);
+        let alice = sim.bls(2);
+        let alice_p2 = StandardLayer::new(alice.pk);
 
-        let (create_did, did) = Launcher::new(coin.coin_id(), 1).create_simple_did(ctx, &p2)?;
-        p2.spend(ctx, coin, create_did)?;
+        let (create_did, did) =
+            Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
+        alice_p2.spend(ctx, alice.coin, create_did)?;
 
         let mut metadata = NftMetadata::default();
         metadata.data_uris.push("example.com".to_string());
@@ -192,17 +194,17 @@ mod tests {
                 ctx,
                 NftMint::new(
                     metadata,
-                    puzzle_hash,
+                    alice.puzzle_hash,
                     300,
                     Some(DidOwner::from_did_info(&did.info)),
                 ),
             )?;
 
-        let _did = did.update(ctx, &p2, mint_nft)?;
+        let _did = did.update(ctx, &alice_p2, mint_nft)?;
         let original_nft = nft.clone();
-        let _nft = nft.transfer(ctx, &p2, puzzle_hash, Conditions::new())?;
+        let _nft = nft.transfer(ctx, &alice_p2, alice.puzzle_hash, Conditions::new())?;
 
-        sim.spend_coins(ctx.take(), &[sk])?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         let puzzle_reveal = sim
             .puzzle_reveal(original_nft.coin.coin_id())
@@ -215,7 +217,7 @@ mod tests {
             NftInfo::<NftMetadata>::parse(&allocator, puzzle)?.expect("not an nft");
 
         assert_eq!(nft_info, original_nft.info);
-        assert_eq!(p2_puzzle.curried_puzzle_hash(), puzzle_hash.into());
+        assert_eq!(p2_puzzle.curried_puzzle_hash(), alice.puzzle_hash.into());
 
         Ok(())
     }

@@ -1,10 +1,9 @@
 use chia_protocol::{Coin, SpendBundle};
-use chia_puzzles::{
+use chia_puzzle_types::{
     nft::NftMetadata,
-    offer::{
-        NotarizedPayment, Payment, SettlementPaymentsSolution, SETTLEMENT_PAYMENTS_PUZZLE_HASH,
-    },
+    offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},
 };
+use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_test::{sign_transaction, Simulator};
 use chia_sdk_types::{Conditions, TradePrice};
 
@@ -18,19 +17,19 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
-    let (alice_secret_key, alice_pk, alice_puzzle_hash, alice_coin) = sim.child_p2(1, 1)?;
-    let (bob_secret_key, bob_pk, bob_puzzle_hash, bob_coin) = sim.child_p2(1_000_000_000_000, 2)?;
+    let alice = sim.bls(1);
+    let bob = sim.bls(1_000_000_000_000);
 
     // Mint NFT on maker side
-    let (conditions, nft) = Launcher::new(alice_coin.coin_id(), 1).mint_nft(
+    let (conditions, nft) = Launcher::new(alice.coin.coin_id(), 1).mint_nft(
         &mut ctx,
-        NftMint::new(NftMetadata::default(), alice_puzzle_hash, 300, None),
+        NftMint::new(NftMetadata::default(), alice.puzzle_hash, 300, None),
     )?;
     let launcher_id = nft.info.launcher_id;
-    StandardLayer::new(alice_pk).spend(&mut ctx, alice_coin, conditions)?;
+    StandardLayer::new(alice.pk).spend(&mut ctx, alice.coin, conditions)?;
 
     let coin_spends = ctx.take();
-    sim.spend_coins(coin_spends, &[alice_secret_key.clone()])?;
+    sim.spend_coins(coin_spends, &[alice.sk.clone()])?;
 
     // Create offer
     let settlement = ctx.settlement_payments_puzzle()?;
@@ -52,32 +51,32 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
         .request(
             &mut ctx,
             &settlement,
-            vec![Payment::new(alice_puzzle_hash, 500_000_000_000)],
+            vec![Payment::new(alice.puzzle_hash, 500_000_000_000)],
         )?
         .request_with_nonce(
             &mut ctx,
             &settlement,
             launcher_id,
             vec![Payment::with_memos(
-                alice_puzzle_hash,
+                alice.puzzle_hash,
                 nft_royalty,
-                vec![alice_puzzle_hash.into()],
+                vec![alice.puzzle_hash.into()],
             )],
         )?
         .finish();
 
     let settlement_nft = nft.lock_settlement(
         &mut ctx,
-        &StandardLayer::new(alice_pk),
+        &StandardLayer::new(alice.pk),
         vec![TradePrice {
             amount: nft_trade_price,
-            puzzle_hash: SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
+            puzzle_hash: SETTLEMENT_PAYMENT_HASH.into(),
         }],
         Conditions::new().extend(assertions),
     )?;
 
     let coin_spends = ctx.take();
-    let signature = sign_transaction(&coin_spends, &[alice_secret_key])?;
+    let signature = sign_transaction(&coin_spends, &[alice.sk.clone()])?;
 
     // Fulfill offer
     let mut builder = builder.take(SpendBundle::new(coin_spends, signature));
@@ -85,33 +84,33 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
     let (fulfill_puzzle, payments) = builder.fulfill().expect("cannot fulfill offer");
     assert_eq!(
         fulfill_puzzle.curried_puzzle_hash(),
-        SETTLEMENT_PAYMENTS_PUZZLE_HASH
+        SETTLEMENT_PAYMENT_HASH.into()
     );
     assert_eq!(
         payments,
         [
             NotarizedPayment {
                 nonce,
-                payments: vec![Payment::new(alice_puzzle_hash, 500_000_000_000)],
+                payments: vec![Payment::new(alice.puzzle_hash, 500_000_000_000)],
             },
             NotarizedPayment {
                 nonce: launcher_id,
                 payments: vec![Payment::with_memos(
-                    alice_puzzle_hash,
+                    alice.puzzle_hash,
                     nft_royalty,
-                    vec![alice_puzzle_hash.into()]
+                    vec![alice.puzzle_hash.into()],
                 )],
             }
         ]
     );
 
-    let receive_nonce = Offer::nonce(vec![bob_coin.coin_id()]);
+    let receive_nonce = Offer::nonce(vec![bob.coin.coin_id()]);
     let receive_payment = NotarizedPayment {
         nonce: receive_nonce,
         payments: vec![Payment::with_memos(
-            bob_puzzle_hash,
+            bob.puzzle_hash,
             1,
-            vec![bob_puzzle_hash.into()],
+            vec![bob.puzzle_hash.into()],
         )],
     };
 
@@ -119,17 +118,17 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
 
     let hash = ctx.tree_hash(nft_puzzle).into();
 
-    StandardLayer::new(bob_pk).spend(
+    StandardLayer::new(bob.pk).spend(
         &mut ctx,
-        bob_coin,
+        bob.coin,
         Conditions::new()
-            .create_coin(SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(), total_amount, None)
+            .create_coin(SETTLEMENT_PAYMENT_HASH.into(), total_amount, None)
             .with(payment_assertion(hash, &receive_payment)),
     )?;
 
     let settlement_coin = Coin::new(
-        bob_coin.coin_id(),
-        SETTLEMENT_PAYMENTS_PUZZLE_HASH.into(),
+        bob.coin.coin_id(),
+        SETTLEMENT_PAYMENT_HASH.into(),
         total_amount,
     );
 
@@ -145,13 +144,13 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
     let swapped_nft = settlement_nft.unlock_settlement(&mut ctx, vec![receive_payment])?;
 
     let coin_spends = ctx.take();
-    let signature = sign_transaction(&coin_spends, &[bob_secret_key])?;
+    let signature = sign_transaction(&coin_spends, &[bob.sk])?;
 
     let spend_bundle = builder.bundle(SpendBundle::new(coin_spends, signature));
 
     sim.new_transaction(spend_bundle)?;
 
-    assert_eq!(swapped_nft.info.p2_puzzle_hash, bob_puzzle_hash);
+    assert_eq!(swapped_nft.info.p2_puzzle_hash, bob.puzzle_hash);
 
     Ok(())
 }

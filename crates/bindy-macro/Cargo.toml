@@ -1,0 +1,16 @@
+[package]
+name = "bindy-macro"
+version = "0.20.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+convert_case = { workspace = true }
+indexmap = { workspace = true, features = ["serde"] }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+syn = { workspace = true }

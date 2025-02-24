@@ -1,8 +1,6 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::{
-    nft::{NftStateLayerArgs, NFT_STATE_LAYER_PUZZLE_HASH},
-    EveProof, Proof,
-};
+use chia_puzzle_types::{nft::NftStateLayerArgs, EveProof, Proof};
+use chia_puzzles::NFT_STATE_LAYER_HASH;
 use chia_sdk_types::{Conditions, DelegationLayerArgs, DL_METADATA_UPDATER_PUZZLE_HASH};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
@@ -39,9 +37,9 @@ impl Launcher {
         let metadata_ptr = ctx.alloc(&metadata)?;
         let metadata_hash = ctx.tree_hash(metadata_ptr);
         let state_layer_hash = CurriedProgram {
-            program: NFT_STATE_LAYER_PUZZLE_HASH,
+            program: TreeHash::new(NFT_STATE_LAYER_HASH),
             args: NftStateLayerArgs::<TreeHash, TreeHash> {
-                mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                mod_hash: NFT_STATE_LAYER_HASH.into(),
                 metadata: metadata_hash,
                 metadata_updater_puzzle_hash: DL_METADATA_UPDATER_PUZZLE_HASH.into(),
                 inner_puzzle: inner_puzzle_hash,
@@ -90,9 +88,8 @@ impl Launcher {
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::SecretKey;
-    use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::{test_secret_keys, Simulator};
+    use chia_puzzle_types::standard::StandardArgs;
+    use chia_sdk_test::{BlsPair, Simulator};
     use rstest::rstest;
 
     use crate::{
@@ -113,25 +110,20 @@ mod tests {
     ) -> anyhow::Result<()> {
         let mut sim = Simulator::new();
 
-        let [owner_sk, admin_sk, writer_sk]: [SecretKey; 3] =
-            test_secret_keys(3)?.try_into().unwrap();
-
-        let owner_pk = owner_sk.public_key();
-        let admin_pk = admin_sk.public_key();
-        let writer_pk = writer_sk.public_key();
+        let [owner, admin, writer] = BlsPair::range();
 
         let oracle_puzzle_hash: Bytes32 = [7; 32].into();
         let oracle_fee = 1000;
 
-        let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner_pk).into();
+        let owner_puzzle_hash = StandardArgs::curry_tree_hash(owner.pk).into();
         let coin = sim.new_coin(owner_puzzle_hash, 1);
 
         let ctx = &mut SpendContext::new();
 
         let admin_delegated_puzzle =
-            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin_pk));
+            DelegatedPuzzle::Admin(StandardArgs::curry_tree_hash(admin.pk));
         let writer_delegated_puzzle =
-            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer_pk));
+            DelegatedPuzzle::Writer(StandardArgs::curry_tree_hash(writer.pk));
         let oracle_delegated_puzzle = DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee);
 
         let mut delegated_puzzles: Vec<DelegatedPuzzle> = vec![];
@@ -166,7 +158,7 @@ mod tests {
             owner_puzzle_hash.into(),
             delegated_puzzles,
         )?;
-        StandardLayer::new(owner_pk).spend(ctx, coin, launch_singleton)?;
+        StandardLayer::new(owner.pk).spend(ctx, coin, launch_singleton)?;
 
         let spends = ctx.take();
         for spend in spends.clone() {
@@ -182,7 +174,7 @@ mod tests {
 
         assert_eq!(datastore.info.metadata, metadata);
 
-        sim.spend_coins(spends, &[owner_sk, admin_sk, writer_sk])?;
+        sim.spend_coins(spends, &[owner.sk, admin.sk, writer.sk])?;
 
         // Make sure the datastore was created.
         let coin_state = sim

@@ -1,0 +1,1794 @@
+{
+  "entrypoint": "chia_sdk_bindings",
+  "pymodule": "chia_wallet_sdk",
+  "bindings": {
+    "Constants": {
+      "type": "class",
+      "methods": {
+        "default_metadata_updater_hash": {
+          "type": "static",
+          "return": "TreeHash"
+        }
+      }
+    },
+    "Clvm": {
+      "type": "class",
+      "methods": {
+        "new": {
+          "type": "constructor"
+        },
+        "add_coin_spend": {
+          "args": {
+            "coin_spend": "CoinSpend"
+          }
+        },
+        "spend_coin": {
+          "args": {
+            "coin": "Coin",
+            "spend": "Spend"
+          }
+        },
+        "coin_spends": {
+          "return": "Vec<CoinSpend>"
+        },
+        "deserialize": {
+          "args": {
+            "value": "SerializedProgram"
+          },
+          "return": "Program"
+        },
+        "deserialize_with_backrefs": {
+          "args": {
+            "value": "SerializedProgram"
+          },
+          "return": "Program"
+        },
+        "pair": {
+          "args": {
+            "first": "Program",
+            "rest": "Program"
+          },
+          "return": "Program"
+        },
+        "nil": {
+          "return": "Program"
+        },
+        "string": {
+          "args": {
+            "value": "String"
+          },
+          "return": "Program"
+        },
+        "bool": {
+          "args": {
+            "value": "bool"
+          },
+          "return": "Program"
+        },
+        "atom": {
+          "args": {
+            "value": "Bytes"
+          },
+          "return": "Program"
+        },
+        "list": {
+          "args": {
+            "value": "Vec<Program>"
+          },
+          "return": "Program"
+        },
+        "delegated_spend": {
+          "args": {
+            "conditions": "Vec<Program>"
+          },
+          "return": "Spend"
+        },
+        "standard_spend": {
+          "args": {
+            "synthetic_key": "PublicKey",
+            "spend": "Spend"
+          },
+          "return": "Spend"
+        },
+        "spend_standard_coin": {
+          "args": {
+            "coin": "Coin",
+            "synthetic_key": "PublicKey",
+            "spend": "Spend"
+          }
+        },
+        "spend_cat_coins": {
+          "args": {
+            "cat_spends": "Vec<CatSpend>"
+          }
+        },
+        "mint_nfts": {
+          "args": {
+            "parent_coin_id": "Bytes32",
+            "nft_mints": "Vec<NftMint>"
+          },
+          "return": "MintedNfts"
+        },
+        "spend_nft": {
+          "args": {
+            "nft": "Nft",
+            "inner_spend": "Spend"
+          }
+        },
+        "mint_vault": {
+          "args": {
+            "parent_coin_id": "Bytes32",
+            "custody_hash": "TreeHash",
+            "memos": "Program"
+          },
+          "return": "VaultMint"
+        },
+        "mips_spend": {
+          "args": {
+            "coin": "Coin",
+            "delegated_spend": "Spend"
+          },
+          "return": "MipsSpend"
+        },
+        "nft_metadata": {
+          "args": {
+            "value": "NftMetadata"
+          },
+          "return": "Program"
+        },
+        "remark": {
+          "args": {
+            "rest": "Program"
+          },
+          "return": "Program"
+        },
+        "agg_sig_parent": {
+          "args": {
+            "public_key": "PublicKey",
+            "message": "Bytes"
+          },
+          "return": "Program"
+        },
+        "agg_sig_puzzle": {
+          "args": {
+            "public_key": "PublicKey",
+            "message": "Bytes"
+          },
+          "return": "Program"
+        },
+        "agg_sig_amount": {
+          "args": {
+            "public_key": "PublicKey",
+            "message": "Bytes"
+          },
+          "return": "Program"
+        },
+        "agg_sig_puzzle_amount": {
+          "args": {
+            "public_key": "PublicKey",
+            "message": "Bytes"
+          },
+          "return": "Program"
+        },
+        "agg_sig_parent_amount": {
+          "args": {
+            "public_key": "PublicKey",
+            "message": "Bytes"
+          },
+          "return": "Program"
+        },
+        "agg_sig_parent_puzzle": {
+          "args": {
+            "public_key": "PublicKey",
+            "message": "Bytes"
+          },
+          "return": "Program"
+        },
+        "agg_sig_unsafe": {
+          "args": {
+            "public_key": "PublicKey",
+            "message": "Bytes"
+          },
+          "return": "Program"
+        },
+        "agg_sig_me": {
+          "args": {
+            "public_key": "PublicKey",
+            "message": "Bytes"
+          },
+          "return": "Program"
+        },
+        "create_coin": {
+          "args": {
+            "puzzle_hash": "Bytes32",
+            "amount": "u64",
+            "memos": "Option<Program>"
+          },
+          "return": "Program"
+        },
+        "reserve_fee": {
+          "args": {
+            "amount": "u64"
+          },
+          "return": "Program"
+        },
+        "create_coin_announcement": {
+          "args": {
+            "message": "Bytes"
+          },
+          "return": "Program"
+        },
+        "create_puzzle_announcement": {
+          "args": {
+            "message": "Bytes"
+          },
+          "return": "Program"
+        },
+        "assert_coin_announcement": {
+          "args": {
+            "announcement_id": "Bytes32"
+          },
+          "return": "Program"
+        },
+        "assert_puzzle_announcement": {
+          "args": {
+            "announcement_id": "Bytes32"
+          },
+          "return": "Program"
+        },
+        "assert_concurrent_spend": {
+          "args": {
+            "coin_id": "Bytes32"
+          },
+          "return": "Program"
+        },
+        "assert_concurrent_puzzle": {
+          "args": {
+            "puzzle_hash": "Bytes32"
+          },
+          "return": "Program"
+        },
+        "assert_seconds_relative": {
+          "args": {
+            "seconds": "u64"
+          },
+          "return": "Program"
+        },
+        "assert_seconds_absolute": {
+          "args": {
+            "seconds": "u64"
+          },
+          "return": "Program"
+        },
+        "assert_height_relative": {
+          "args": {
+            "height": "u32"
+          },
+          "return": "Program"
+        },
+        "assert_height_absolute": {
+          "args": {
+            "height": "u32"
+          },
+          "return": "Program"
+        },
+        "assert_before_seconds_relative": {
+          "args": {
+            "seconds": "u64"
+          },
+          "return": "Program"
+        },
+        "assert_before_seconds_absolute": {
+          "args": {
+            "seconds": "u64"
+          },
+          "return": "Program"
+        },
+        "assert_before_height_relative": {
+          "args": {
+            "height": "u32"
+          },
+          "return": "Program"
+        },
+        "assert_before_height_absolute": {
+          "args": {
+            "height": "u32"
+          },
+          "return": "Program"
+        },
+        "assert_my_coin_id": {
+          "args": {
+            "coin_id": "Bytes32"
+          },
+          "return": "Program"
+        },
+        "assert_my_parent_id": {
+          "args": {
+            "parent_id": "Bytes32"
+          },
+          "return": "Program"
+        },
+        "assert_my_puzzle_hash": {
+          "args": {
+            "puzzle_hash": "Bytes32"
+          },
+          "return": "Program"
+        },
+        "assert_my_amount": {
+          "args": {
+            "amount": "u64"
+          },
+          "return": "Program"
+        },
+        "assert_my_birth_seconds": {
+          "args": {
+            "seconds": "u64"
+          },
+          "return": "Program"
+        },
+        "assert_my_birth_height": {
+          "args": {
+            "height": "u32"
+          },
+          "return": "Program"
+        },
+        "assert_ephemeral": {
+          "return": "Program"
+        },
+        "send_message": {
+          "args": {
+            "mode": "u8",
+            "message": "Bytes",
+            "data": "Vec<Program>"
+          },
+          "return": "Program"
+        },
+        "receive_message": {
+          "args": {
+            "mode": "u8",
+            "message": "Bytes",
+            "data": "Vec<Program>"
+          },
+          "return": "Program"
+        },
+        "softfork": {
+          "args": {
+            "cost": "u64",
+            "rest": "Program"
+          },
+          "return": "Program"
+        }
+      }
+    },
+    "Program": {
+      "type": "class",
+      "methods": {
+        "serialize": {
+          "return": "SerializedProgram"
+        },
+        "serialize_with_backrefs": {
+          "return": "SerializedProgram"
+        },
+        "run": {
+          "args": {
+            "solution": "Program",
+            "max_cost": "u64",
+            "mempool_mode": "bool"
+          },
+          "return": "Output"
+        },
+        "curry": {
+          "args": {
+            "args": "Vec<Program>"
+          },
+          "return": "Program"
+        },
+        "uncurry": {
+          "return": "Option<CurriedProgram>"
+        },
+        "tree_hash": {
+          "return": "TreeHash"
+        },
+        "length": {
+          "return": "u32"
+        },
+        "first": {
+          "return": "Program"
+        },
+        "rest": {
+          "return": "Program"
+        },
+        "to_string": {
+          "type": "to_string",
+          "return": "Option<String>"
+        },
+        "to_bool": {
+          "return": "Option<bool>"
+        },
+        "to_atom": {
+          "return": "Option<Bytes>"
+        },
+        "to_list": {
+          "return": "Option<Vec<Program>>"
+        },
+        "to_pair": {
+          "return": "Option<Pair>"
+        },
+        "puzzle": {
+          "return": "Puzzle"
+        },
+        "parse_nft_metadata": {
+          "return": "Option<NftMetadata>"
+        },
+        "parse_remark": {
+          "return": "Option<Remark>"
+        },
+        "parse_agg_sig_parent": {
+          "return": "Option<AggSigParent>"
+        },
+        "parse_agg_sig_puzzle": {
+          "return": "Option<AggSigPuzzle>"
+        },
+        "parse_agg_sig_amount": {
+          "return": "Option<AggSigAmount>"
+        },
+        "parse_agg_sig_puzzle_amount": {
+          "return": "Option<AggSigPuzzleAmount>"
+        },
+        "parse_agg_sig_parent_amount": {
+          "return": "Option<AggSigParentAmount>"
+        },
+        "parse_agg_sig_parent_puzzle": {
+          "return": "Option<AggSigParentPuzzle>"
+        },
+        "parse_agg_sig_unsafe": {
+          "return": "Option<AggSigUnsafe>"
+        },
+        "parse_agg_sig_me": {
+          "return": "Option<AggSigMe>"
+        },
+        "parse_create_coin": {
+          "return": "Option<CreateCoin>"
+        },
+        "parse_reserve_fee": {
+          "return": "Option<ReserveFee>"
+        },
+        "parse_create_coin_announcement": {
+          "return": "Option<CreateCoinAnnouncement>"
+        },
+        "parse_create_puzzle_announcement": {
+          "return": "Option<CreatePuzzleAnnouncement>"
+        },
+        "parse_assert_coin_announcement": {
+          "return": "Option<AssertCoinAnnouncement>"
+        },
+        "parse_assert_puzzle_announcement": {
+          "return": "Option<AssertPuzzleAnnouncement>"
+        },
+        "parse_assert_concurrent_spend": {
+          "return": "Option<AssertConcurrentSpend>"
+        },
+        "parse_assert_concurrent_puzzle": {
+          "return": "Option<AssertConcurrentPuzzle>"
+        },
+        "parse_assert_seconds_relative": {
+          "return": "Option<AssertSecondsRelative>"
+        },
+        "parse_assert_seconds_absolute": {
+          "return": "Option<AssertSecondsAbsolute>"
+        },
+        "parse_assert_height_relative": {
+          "return": "Option<AssertHeightRelative>"
+        },
+        "parse_assert_height_absolute": {
+          "return": "Option<AssertHeightAbsolute>"
+        },
+        "parse_assert_before_seconds_relative": {
+          "return": "Option<AssertBeforeSecondsRelative>"
+        },
+        "parse_assert_before_seconds_absolute": {
+          "return": "Option<AssertBeforeSecondsAbsolute>"
+        },
+        "parse_assert_before_height_relative": {
+          "return": "Option<AssertBeforeHeightRelative>"
+        },
+        "parse_assert_before_height_absolute": {
+          "return": "Option<AssertBeforeHeightAbsolute>"
+        },
+        "parse_assert_my_coin_id": {
+          "return": "Option<AssertMyCoinId>"
+        },
+        "parse_assert_my_parent_id": {
+          "return": "Option<AssertMyParentId>"
+        },
+        "parse_assert_my_puzzle_hash": {
+          "return": "Option<AssertMyPuzzleHash>"
+        },
+        "parse_assert_my_amount": {
+          "return": "Option<AssertMyAmount>"
+        },
+        "parse_assert_my_birth_seconds": {
+          "return": "Option<AssertMyBirthSeconds>"
+        },
+        "parse_assert_my_birth_height": {
+          "return": "Option<AssertMyBirthHeight>"
+        },
+        "parse_assert_ephemeral": {
+          "return": "Option<AssertEphemeral>"
+        },
+        "parse_send_message": {
+          "return": "Option<SendMessage>"
+        },
+        "parse_receive_message": {
+          "return": "Option<ReceiveMessage>"
+        },
+        "parse_softfork": {
+          "return": "Option<Softfork>"
+        }
+      }
+    },
+    "Puzzle": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "puzzle_hash": "Bytes32",
+        "program": "Program",
+        "mod_hash": "Bytes32",
+        "args": "Option<Program>"
+      },
+      "methods": {
+        "parse_nft": {
+          "return": "Option<ParsedNft>"
+        },
+        "parse_child_nft": {
+          "args": {
+            "parent_coin": "Coin",
+            "parent_puzzle": "Program",
+            "parent_solution": "Program"
+          },
+          "return": "Option<Nft>"
+        }
+      }
+    },
+    "Simulator": {
+      "type": "class",
+      "methods": {
+        "new": {
+          "type": "constructor"
+        },
+        "new_coin": {
+          "args": {
+            "puzzle_hash": "Bytes32",
+            "amount": "u64"
+          },
+          "return": "Coin"
+        },
+        "bls": {
+          "args": {
+            "amount": "u64"
+          },
+          "return": "BlsPairWithCoin"
+        },
+        "spend_coins": {
+          "args": {
+            "coin_spends": "Vec<CoinSpend>",
+            "secret_keys": "Vec<SecretKey>"
+          }
+        }
+      }
+    },
+    "Output": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "value": "Program",
+        "cost": "u64"
+      }
+    },
+    "Pair": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "first": "Program",
+        "rest": "Program"
+      }
+    },
+    "CurriedProgram": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "program": "Program",
+        "args": "Vec<Program>"
+      }
+    },
+    "Address": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "puzzle_hash": "Bytes32",
+        "prefix": "String"
+      },
+      "methods": {
+        "encode": {
+          "return": "String"
+        },
+        "decode": {
+          "type": "factory",
+          "args": {
+            "address": "String"
+          }
+        }
+      }
+    },
+    "Mnemonic": {
+      "type": "class",
+      "methods": {
+        "new": {
+          "type": "constructor",
+          "args": {
+            "mnemonic": "String"
+          }
+        },
+        "from_entropy": {
+          "type": "factory",
+          "args": {
+            "entropy": "Bytes"
+          }
+        },
+        "generate": {
+          "type": "factory",
+          "args": {
+            "use_24": "bool"
+          }
+        },
+        "verify": {
+          "type": "static",
+          "args": {
+            "mnemonic": "String"
+          },
+          "return": "bool"
+        },
+        "to_string": {
+          "type": "to_string",
+          "return": "String"
+        },
+        "to_entropy": {
+          "return": "Bytes"
+        },
+        "to_seed": {
+          "args": {
+            "password": "String"
+          },
+          "return": "Bytes"
+        }
+      }
+    },
+    "Coin": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "parent_coin_info": "Bytes32",
+        "puzzle_hash": "Bytes32",
+        "amount": "u64"
+      },
+      "methods": {
+        "coin_id": {
+          "return": "Bytes32"
+        }
+      }
+    },
+    "CoinSpend": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "coin": "Coin",
+        "puzzle_reveal": "SerializedProgram",
+        "solution": "SerializedProgram"
+      }
+    },
+    "SpendBundle": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "coin_spends": "Vec<CoinSpend>",
+        "aggregated_signature": "Signature"
+      }
+    },
+    "Spend": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "puzzle": "Program",
+        "solution": "Program"
+      }
+    },
+    "SecretKey": {
+      "type": "class",
+      "methods": {
+        "from_seed": {
+          "type": "factory",
+          "args": {
+            "seed": "Bytes"
+          }
+        },
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "Bytes32"
+          }
+        },
+        "to_bytes": {
+          "return": "Bytes32"
+        },
+        "public_key": {
+          "return": "PublicKey"
+        },
+        "sign": {
+          "args": {
+            "message": "Bytes"
+          },
+          "return": "Signature"
+        },
+        "derive_unhardened": {
+          "args": {
+            "index": "u32"
+          },
+          "return": "SecretKey"
+        },
+        "derive_hardened": {
+          "args": {
+            "index": "u32"
+          },
+          "return": "SecretKey"
+        },
+        "derive_unhardened_path": {
+          "args": {
+            "path": "Vec<u32>"
+          },
+          "return": "SecretKey"
+        },
+        "derive_hardened_path": {
+          "args": {
+            "path": "Vec<u32>"
+          },
+          "return": "SecretKey"
+        },
+        "derive_synthetic": {
+          "return": "SecretKey"
+        },
+        "derive_synthetic_hidden": {
+          "args": {
+            "hidden_puzzle_hash": "Bytes32"
+          },
+          "return": "SecretKey"
+        }
+      }
+    },
+    "PublicKey": {
+      "type": "class",
+      "methods": {
+        "infinity": {
+          "type": "factory"
+        },
+        "aggregate": {
+          "type": "factory",
+          "args": {
+            "public_keys": "Vec<PublicKey>"
+          }
+        },
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "Bytes48"
+          }
+        },
+        "to_bytes": {
+          "return": "Bytes48"
+        },
+        "fingerprint": {
+          "return": "u32"
+        },
+        "is_infinity": {
+          "return": "bool"
+        },
+        "is_valid": {
+          "return": "bool"
+        },
+        "derive_unhardened": {
+          "args": {
+            "index": "u32"
+          },
+          "return": "PublicKey"
+        },
+        "derive_unhardened_path": {
+          "args": {
+            "path": "Vec<u32>"
+          },
+          "return": "PublicKey"
+        },
+        "derive_synthetic": {
+          "return": "PublicKey"
+        },
+        "derive_synthetic_hidden": {
+          "args": {
+            "hidden_puzzle_hash": "Bytes32"
+          },
+          "return": "PublicKey"
+        }
+      }
+    },
+    "Signature": {
+      "type": "class",
+      "methods": {
+        "infinity": {
+          "type": "factory"
+        },
+        "aggregate": {
+          "type": "factory",
+          "args": {
+            "signatures": "Vec<Signature>"
+          }
+        },
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "Bytes96"
+          }
+        },
+        "to_bytes": {
+          "return": "Bytes96"
+        },
+        "is_infinity": {
+          "return": "bool"
+        },
+        "is_valid": {
+          "return": "bool"
+        }
+      }
+    },
+    "K1SecretKey": {
+      "type": "class",
+      "methods": {
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "Bytes32"
+          }
+        },
+        "to_bytes": {
+          "return": "Bytes32"
+        },
+        "public_key": {
+          "return": "K1PublicKey"
+        },
+        "sign_prehashed": {
+          "args": {
+            "prehashed": "Bytes32"
+          },
+          "return": "K1Signature"
+        }
+      }
+    },
+    "K1PublicKey": {
+      "type": "class",
+      "methods": {
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "BytesImpl<33>"
+          }
+        },
+        "to_bytes": {
+          "return": "BytesImpl<33>"
+        },
+        "fingerprint": {
+          "return": "u32"
+        },
+        "verify_prehashed": {
+          "args": {
+            "prehashed": "Bytes32",
+            "signature": "K1Signature"
+          },
+          "return": "bool"
+        }
+      }
+    },
+    "K1Signature": {
+      "type": "class",
+      "methods": {
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "BytesImpl<64>"
+          }
+        },
+        "to_bytes": {
+          "return": "BytesImpl<64>"
+        }
+      }
+    },
+    "R1SecretKey": {
+      "type": "class",
+      "methods": {
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "Bytes32"
+          }
+        },
+        "to_bytes": {
+          "return": "Bytes32"
+        },
+        "public_key": {
+          "return": "R1PublicKey"
+        },
+        "sign_prehashed": {
+          "args": {
+            "prehashed": "Bytes32"
+          },
+          "return": "R1Signature"
+        }
+      }
+    },
+    "R1PublicKey": {
+      "type": "class",
+      "methods": {
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "BytesImpl<33>"
+          }
+        },
+        "to_bytes": {
+          "return": "BytesImpl<33>"
+        },
+        "fingerprint": {
+          "return": "u32"
+        },
+        "verify_prehashed": {
+          "args": {
+            "prehashed": "Bytes32",
+            "signature": "R1Signature"
+          },
+          "return": "bool"
+        }
+      }
+    },
+    "R1Signature": {
+      "type": "class",
+      "methods": {
+        "from_bytes": {
+          "type": "factory",
+          "args": {
+            "bytes": "BytesImpl<64>"
+          }
+        },
+        "to_bytes": {
+          "return": "BytesImpl<64>"
+        }
+      }
+    },
+    "BlsPair": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "sk": "SecretKey",
+        "pk": "PublicKey"
+      },
+      "methods": {
+        "from_seed": {
+          "type": "factory",
+          "args": {
+            "seed": "u64"
+          }
+        },
+        "many_from_seed": {
+          "type": "static",
+          "args": {
+            "seed": "u64",
+            "count": "u32"
+          },
+          "return": "Vec<BlsPair>"
+        }
+      }
+    },
+    "BlsPairWithCoin": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "sk": "SecretKey",
+        "pk": "PublicKey",
+        "puzzle_hash": "Bytes32",
+        "coin": "Coin"
+      }
+    },
+    "K1Pair": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "sk": "K1SecretKey",
+        "pk": "K1PublicKey"
+      },
+      "methods": {
+        "from_seed": {
+          "type": "factory",
+          "args": {
+            "seed": "u64"
+          }
+        },
+        "many_from_seed": {
+          "type": "static",
+          "args": {
+            "seed": "u64",
+            "count": "u32"
+          },
+          "return": "Vec<K1Pair>"
+        }
+      }
+    },
+    "R1Pair": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "sk": "R1SecretKey",
+        "pk": "R1PublicKey"
+      },
+      "methods": {
+        "from_seed": {
+          "type": "factory",
+          "args": {
+            "seed": "u64"
+          }
+        },
+        "many_from_seed": {
+          "type": "static",
+          "args": {
+            "seed": "u64",
+            "count": "u32"
+          },
+          "return": "Vec<R1Pair>"
+        }
+      }
+    },
+    "from_hex": {
+      "type": "function",
+      "args": {
+        "value": "String"
+      },
+      "return": "Bytes"
+    },
+    "to_hex": {
+      "type": "function",
+      "args": {
+        "value": "Bytes"
+      },
+      "return": "String"
+    },
+    "bytes_equal": {
+      "type": "function",
+      "args": {
+        "lhs": "Bytes",
+        "rhs": "Bytes"
+      },
+      "return": "bool"
+    },
+    "tree_hash_atom": {
+      "type": "function",
+      "args": {
+        "atom": "Bytes32"
+      },
+      "return": "Bytes32"
+    },
+    "tree_hash_pair": {
+      "type": "function",
+      "args": {
+        "first": "Bytes32",
+        "rest": "Bytes32"
+      },
+      "return": "Bytes32"
+    },
+    "sha256": {
+      "type": "function",
+      "args": {
+        "value": "Bytes"
+      },
+      "return": "Bytes32"
+    },
+    "curry_tree_hash": {
+      "type": "function",
+      "args": {
+        "program": "Bytes32",
+        "args": "Vec<Bytes32>"
+      },
+      "return": "Bytes32"
+    },
+    "generate_bytes": {
+      "type": "function",
+      "args": {
+        "bytes": "u32"
+      },
+      "return": "Bytes"
+    },
+    "LineageProof": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "parent_parent_coin_info": "Bytes32",
+        "parent_inner_puzzle_hash": "Option<Bytes32>",
+        "parent_amount": "u64"
+      }
+    },
+    "Cat": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "coin": "Coin",
+        "lineage_proof": "Option<LineageProof>",
+        "asset_id": "Bytes32",
+        "p2_puzzle_hash": "Bytes32"
+      }
+    },
+    "CatSpend": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "cat": "Cat",
+        "spend": "Spend"
+      }
+    },
+    "Nft": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "coin": "Coin",
+        "lineage_proof": "LineageProof",
+        "info": "NftInfo"
+      }
+    },
+    "NftInfo": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "launcher_id": "Bytes32",
+        "metadata": "Program",
+        "metadata_updater_puzzle_hash": "Bytes32",
+        "current_owner": "Option<Bytes32>",
+        "royalty_puzzle_hash": "Bytes32",
+        "royalty_ten_thousandths": "u16",
+        "p2_puzzle_hash": "Bytes32"
+      }
+    },
+    "ParsedNft": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "info": "NftInfo",
+        "p2_puzzle": "Program"
+      }
+    },
+    "NftMetadata": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "edition_number": "u64",
+        "edition_total": "u64",
+        "data_uris": "Vec<String>",
+        "data_hash": "Option<Bytes32>",
+        "metadata_uris": "Vec<String>",
+        "metadata_hash": "Option<Bytes32>",
+        "license_uris": "Vec<String>",
+        "license_hash": "Option<Bytes32>"
+      }
+    },
+    "NftMint": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "metadata": "Program",
+        "metadata_updater_puzzle_hash": "Bytes32",
+        "p2_puzzle_hash": "Bytes32",
+        "royalty_puzzle_hash": "Bytes32",
+        "royalty_ten_thousandths": "u16",
+        "owner": "Option<DidOwner>"
+      }
+    },
+    "DidOwner": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "did_id": "Bytes32",
+        "inner_puzzle_hash": "Bytes32"
+      }
+    },
+    "MintedNfts": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "nfts": "Vec<Nft>",
+        "parent_conditions": "Vec<Program>"
+      }
+    },
+    "standard_puzzle_hash": {
+      "type": "function",
+      "args": {
+        "synthetic_key": "PublicKey"
+      },
+      "return": "Bytes32"
+    },
+    "cat_puzzle_hash": {
+      "type": "function",
+      "args": {
+        "asset_id": "Bytes32",
+        "inner_puzzle_hash": "Bytes32"
+      },
+      "return": "Bytes32"
+    },
+    "Remark": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "rest": "Program"
+      }
+    },
+    "AggSigParent": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "public_key": "PublicKey",
+        "message": "Bytes"
+      }
+    },
+    "AggSigPuzzle": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "public_key": "PublicKey",
+        "message": "Bytes"
+      }
+    },
+    "AggSigAmount": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "public_key": "PublicKey",
+        "message": "Bytes"
+      }
+    },
+    "AggSigPuzzleAmount": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "public_key": "PublicKey",
+        "message": "Bytes"
+      }
+    },
+    "AggSigParentAmount": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "public_key": "PublicKey",
+        "message": "Bytes"
+      }
+    },
+    "AggSigParentPuzzle": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "public_key": "PublicKey",
+        "message": "Bytes"
+      }
+    },
+    "AggSigUnsafe": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "public_key": "PublicKey",
+        "message": "Bytes"
+      }
+    },
+    "AggSigMe": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "public_key": "PublicKey",
+        "message": "Bytes"
+      }
+    },
+    "CreateCoin": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "puzzle_hash": "Bytes32",
+        "amount": "u64",
+        "memos": "Option<Program>"
+      }
+    },
+    "ReserveFee": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "amount": "u64"
+      }
+    },
+    "CreateCoinAnnouncement": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "message": "Bytes"
+      }
+    },
+    "CreatePuzzleAnnouncement": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "message": "Bytes"
+      }
+    },
+    "AssertCoinAnnouncement": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "announcement_id": "Bytes32"
+      }
+    },
+    "AssertPuzzleAnnouncement": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "announcement_id": "Bytes32"
+      }
+    },
+    "AssertConcurrentSpend": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "coin_id": "Bytes32"
+      }
+    },
+    "AssertConcurrentPuzzle": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "puzzle_hash": "Bytes32"
+      }
+    },
+    "AssertSecondsRelative": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "seconds": "u64"
+      }
+    },
+    "AssertSecondsAbsolute": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "seconds": "u64"
+      }
+    },
+    "AssertHeightRelative": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "height": "u32"
+      }
+    },
+    "AssertHeightAbsolute": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "height": "u32"
+      }
+    },
+    "AssertBeforeSecondsRelative": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "seconds": "u64"
+      }
+    },
+    "AssertBeforeSecondsAbsolute": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "seconds": "u64"
+      }
+    },
+    "AssertBeforeHeightRelative": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "height": "u32"
+      }
+    },
+    "AssertBeforeHeightAbsolute": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "height": "u32"
+      }
+    },
+    "AssertMyCoinId": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "coin_id": "Bytes32"
+      }
+    },
+    "AssertMyParentId": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "parent_id": "Bytes32"
+      }
+    },
+    "AssertMyPuzzleHash": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "puzzle_hash": "Bytes32"
+      }
+    },
+    "AssertMyAmount": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "amount": "u64"
+      }
+    },
+    "AssertMyBirthSeconds": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "seconds": "u64"
+      }
+    },
+    "AssertMyBirthHeight": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "height": "u32"
+      }
+    },
+    "AssertEphemeral": {
+      "type": "class",
+      "new": true
+    },
+    "SendMessage": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "mode": "u8",
+        "message": "Bytes",
+        "data": "Vec<Program>"
+      }
+    },
+    "ReceiveMessage": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "mode": "u8",
+        "message": "Bytes",
+        "data": "Vec<Program>"
+      }
+    },
+    "Softfork": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "cost": "u64",
+        "rest": "Program"
+      }
+    },
+    "Vault": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "coin": "Coin",
+        "launcher_id": "Bytes32",
+        "proof": "LineageProof",
+        "custody_hash": "TreeHash"
+      },
+      "methods": {
+        "child": {
+          "args": {
+            "custody_hash": "TreeHash"
+          },
+          "return": "Vault"
+        }
+      }
+    },
+    "MemberConfig": {
+      "type": "class",
+      "fields": {
+        "top_level": "bool",
+        "nonce": "u32",
+        "restrictions": "Vec<Restriction>"
+      },
+      "methods": {
+        "new": {
+          "type": "constructor"
+        },
+        "with_top_level": {
+          "args": {
+            "top_level": "bool"
+          },
+          "return": "MemberConfig"
+        },
+        "with_nonce": {
+          "args": {
+            "nonce": "u32"
+          },
+          "return": "MemberConfig"
+        },
+        "with_restrictions": {
+          "args": {
+            "restrictions": "Vec<Restriction>"
+          },
+          "return": "MemberConfig"
+        }
+      }
+    },
+    "m_of_n_hash": {
+      "type": "function",
+      "args": {
+        "config": "MemberConfig",
+        "required": "u32",
+        "items": "Vec<TreeHash>"
+      },
+      "return": "TreeHash"
+    },
+    "k1_member_hash": {
+      "type": "function",
+      "args": {
+        "config": "MemberConfig",
+        "public_key": "K1PublicKey",
+        "fast_forward": "bool"
+      },
+      "return": "TreeHash"
+    },
+    "r1_member_hash": {
+      "type": "function",
+      "args": {
+        "config": "MemberConfig",
+        "public_key": "R1PublicKey",
+        "fast_forward": "bool"
+      },
+      "return": "TreeHash"
+    },
+    "bls_member_hash": {
+      "type": "function",
+      "args": {
+        "config": "MemberConfig",
+        "public_key": "PublicKey"
+      },
+      "return": "TreeHash"
+    },
+    "passkey_member_hash": {
+      "type": "function",
+      "args": {
+        "config": "MemberConfig",
+        "public_key": "R1PublicKey",
+        "fast_forward": "bool"
+      },
+      "return": "TreeHash"
+    },
+    "singleton_member_hash": {
+      "type": "function",
+      "args": {
+        "config": "MemberConfig",
+        "launcher_id": "Bytes32"
+      },
+      "return": "TreeHash"
+    },
+    "fixed_member_hash": {
+      "type": "function",
+      "args": {
+        "config": "MemberConfig",
+        "fixed_puzzle_hash": "Bytes32"
+      },
+      "return": "TreeHash"
+    },
+    "custom_member_hash": {
+      "type": "function",
+      "args": {
+        "config": "MemberConfig",
+        "inner_hash": "TreeHash"
+      },
+      "return": "TreeHash"
+    },
+    "Restriction": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "kind": "RestrictionKind",
+        "puzzle_hash": "TreeHash"
+      }
+    },
+    "RestrictionKind": {
+      "type": "enum",
+      "values": [
+        "MemberCondition",
+        "DelegatedPuzzleHash",
+        "DelegatedPuzzleWrapper"
+      ]
+    },
+    "timelock_restriction": {
+      "type": "function",
+      "args": {
+        "timelock": "u64"
+      },
+      "return": "Restriction"
+    },
+    "force_1_of_2_restriction": {
+      "type": "function",
+      "args": {
+        "left_side_subtree_hash": "Bytes32",
+        "nonce": "u32",
+        "member_validator_list_hash": "Bytes32",
+        "delegated_puzzle_validator_list_hash": "Bytes32"
+      },
+      "return": "Restriction"
+    },
+    "prevent_condition_opcode_restriction": {
+      "type": "function",
+      "args": {
+        "condition_opcode": "u16"
+      },
+      "return": "Restriction"
+    },
+    "prevent_multiple_create_coins_restriction": {
+      "type": "function",
+      "return": "Restriction"
+    },
+    "prevent_side_effects_restriction": {
+      "type": "function",
+      "return": "Vec<Restriction>"
+    },
+    "MipsSpend": {
+      "type": "class",
+      "methods": {
+        "spend": {
+          "args": {
+            "custody_hash": "TreeHash"
+          },
+          "return": "Spend"
+        },
+        "spend_vault": {
+          "args": {
+            "vault": "Vault"
+          }
+        },
+        "m_of_n": {
+          "args": {
+            "config": "MemberConfig",
+            "required": "u32",
+            "items": "Vec<TreeHash>"
+          }
+        },
+        "k1_member": {
+          "args": {
+            "config": "MemberConfig",
+            "public_key": "K1PublicKey",
+            "signature": "K1Signature",
+            "fast_forward": "bool"
+          }
+        },
+        "r1_member": {
+          "args": {
+            "config": "MemberConfig",
+            "public_key": "R1PublicKey",
+            "signature": "R1Signature",
+            "fast_forward": "bool"
+          }
+        },
+        "bls_member": {
+          "args": {
+            "config": "MemberConfig",
+            "public_key": "PublicKey"
+          }
+        },
+        "passkey_member": {
+          "args": {
+            "config": "MemberConfig",
+            "public_key": "R1PublicKey",
+            "signature": "R1Signature",
+            "authenticator_data": "Bytes",
+            "client_data_json": "Bytes",
+            "challenge_index": "u32",
+            "fast_forward": "bool"
+          }
+        },
+        "singleton_member": {
+          "args": {
+            "config": "MemberConfig",
+            "launcher_id": "Bytes32",
+            "singleton_inner_puzzle_hash": "Bytes32",
+            "singleton_amount": "u64"
+          }
+        },
+        "fixed_puzzle_member": {
+          "args": {
+            "config": "MemberConfig",
+            "fixed_puzzle_hash": "Bytes32"
+          }
+        },
+        "custom_member": {
+          "args": {
+            "config": "MemberConfig",
+            "spend": "Spend"
+          }
+        },
+        "timelock": {
+          "args": {
+            "timelock": "u64"
+          }
+        },
+        "force_1_of_2_restricted_variable": {
+          "args": {
+            "left_side_subtree_hash": "Bytes32",
+            "nonce": "u32",
+            "member_validator_list_hash": "Bytes32",
+            "delegated_puzzle_validator_list_hash": "Bytes32",
+            "new_right_side_member_hash": "Bytes32"
+          }
+        },
+        "prevent_condition_opcode": {
+          "args": {
+            "condition_opcode": "u16"
+          }
+        },
+        "prevent_multiple_create_coins": {},
+        "prevent_side_effects": {}
+      }
+    },
+    "VaultMint": {
+      "type": "class",
+      "new": true,
+      "fields": {
+        "vault": "Vault",
+        "parent_conditions": "Vec<Program>"
+      }
+    },
+    "wrapped_delegated_puzzle_hash": {
+      "type": "function",
+      "args": {
+        "restrictions": "Vec<Restriction>",
+        "delegated_puzzle_hash": "TreeHash"
+      },
+      "return": "TreeHash"
+    }
+  },
+  "napi": {
+    "Bytes32": "napi::bindgen_prelude::Uint8Array",
+    "Bytes48": "napi::bindgen_prelude::Uint8Array",
+    "Bytes96": "napi::bindgen_prelude::Uint8Array",
+    "BytesImpl<33>": "napi::bindgen_prelude::Uint8Array",
+    "BytesImpl<64>": "napi::bindgen_prelude::Uint8Array",
+    "Bytes": "napi::bindgen_prelude::Uint8Array",
+    "TreeHash": "napi::bindgen_prelude::Uint8Array",
+    "SerializedProgram": "napi::bindgen_prelude::Uint8Array"
+  },
+  "wasm": {
+    "Bytes32": "Vec<u8>",
+    "Bytes48": "Vec<u8>",
+    "Bytes96": "Vec<u8>",
+    "BytesImpl<33>": "Vec<u8>",
+    "BytesImpl<64>": "Vec<u8>",
+    "Bytes": "Vec<u8>",
+    "TreeHash": "Vec<u8>",
+    "SerializedProgram": "Vec<u8>",
+    "Vec<Bytes32>": "js_sys::Array",
+    "Vec<TreeHash>": "js_sys::Array"
+  },
+  "pyo3": {
+    "Bytes32": "Vec<u8>",
+    "Bytes48": "Vec<u8>",
+    "Bytes96": "Vec<u8>",
+    "BytesImpl<33>": "Vec<u8>",
+    "BytesImpl<64>": "Vec<u8>",
+    "Bytes": "Vec<u8>",
+    "TreeHash": "Vec<u8>",
+    "SerializedProgram": "Vec<u8>"
+  }
+}
