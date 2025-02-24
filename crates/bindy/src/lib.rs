@@ -1,19 +1,19 @@
-#[cfg(all(feature = "napi", not(feature = "wasm"), not(feature = "pyo3")))]
+#[cfg(feature = "napi")]
 mod napi_impls;
 
-#[cfg(all(feature = "wasm", not(feature = "napi"), not(feature = "pyo3")))]
+#[cfg(feature = "wasm")]
 mod wasm_impls;
 
-#[cfg(all(feature = "pyo3", not(feature = "napi"), not(feature = "wasm")))]
+#[cfg(feature = "pyo3")]
 mod pyo3_impls;
 
-#[cfg(all(feature = "napi", not(feature = "wasm"), not(feature = "pyo3")))]
+#[cfg(feature = "napi")]
 pub use napi_impls::*;
 
-#[cfg(all(feature = "wasm", not(feature = "napi"), not(feature = "pyo3")))]
+#[cfg(feature = "wasm")]
 pub use wasm_impls::*;
 
-#[cfg(all(feature = "pyo3", not(feature = "napi"), not(feature = "wasm")))]
+#[cfg(feature = "pyo3")]
 pub use pyo3_impls::*;
 
 use std::string::FromUtf8Error;
@@ -116,24 +116,24 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub trait IntoRust<T, C> {
+pub trait IntoRust<T, C, L> {
     fn into_rust(self, context: &C) -> Result<T>;
 }
 
-pub trait FromRust<T, C>: Sized {
+pub trait FromRust<T, C, L>: Sized {
     fn from_rust(value: T, context: &C) -> Result<Self>;
 }
 
 #[macro_export]
 macro_rules! impl_self {
     ( $ty:ty ) => {
-        impl<T> $crate::FromRust<$ty, T> for $ty {
+        impl<T, L> $crate::FromRust<$ty, T, L> for $ty {
             fn from_rust(value: $ty, _context: &T) -> $crate::Result<Self> {
                 Ok(value)
             }
         }
 
-        impl<T> $crate::IntoRust<$ty, T> for $ty {
+        impl<T, L> $crate::IntoRust<$ty, T, L> for $ty {
             fn into_rust(self, _context: &T) -> $crate::Result<$ty> {
                 Ok(self)
             }
@@ -150,18 +150,18 @@ impl_self!(u32);
 impl_self!(i32);
 impl_self!(String);
 
-impl<R, B, C> IntoRust<Vec<R>, C> for Vec<B>
+impl<R, B, C, L> IntoRust<Vec<R>, C, L> for Vec<B>
 where
-    B: IntoRust<R, C>,
+    B: IntoRust<R, C, L>,
 {
     fn into_rust(self, context: &C) -> Result<Vec<R>> {
         self.into_iter().map(|b| b.into_rust(context)).collect()
     }
 }
 
-impl<R, B, C> FromRust<Vec<R>, C> for Vec<B>
+impl<R, B, C, L> FromRust<Vec<R>, C, L> for Vec<B>
 where
-    B: FromRust<R, C>,
+    B: FromRust<R, C, L>,
 {
     fn from_rust(value: Vec<R>, context: &C) -> Result<Self> {
         value
@@ -171,18 +171,18 @@ where
     }
 }
 
-impl<R, B, C> IntoRust<Option<R>, C> for Option<B>
+impl<R, B, C, L> IntoRust<Option<R>, C, L> for Option<B>
 where
-    B: IntoRust<R, C>,
+    B: IntoRust<R, C, L>,
 {
     fn into_rust(self, context: &C) -> Result<Option<R>> {
         self.map(|b| b.into_rust(context)).transpose()
     }
 }
 
-impl<R, B, C> FromRust<Option<R>, C> for Option<B>
+impl<R, B, C, L> FromRust<Option<R>, C, L> for Option<B>
 where
-    B: FromRust<R, C>,
+    B: FromRust<R, C, L>,
 {
     fn from_rust(value: Option<R>, context: &C) -> Result<Self> {
         value.map(|r| B::from_rust(r, context)).transpose()

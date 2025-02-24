@@ -1,5 +1,6 @@
 #![allow(unsafe_code)]
 #![allow(clippy::wildcard_imports)]
+#![allow(clippy::too_many_arguments)]
 
 use bindy::{FromRust, IntoRust, NapiParamContext, NapiReturnContext};
 use napi::bindgen_prelude::*;
@@ -138,33 +139,25 @@ fn alloc<'a>(
         Value::M(value) => clvm.atom(value.to_bytes(env)?.to_vec().into()),
         Value::N(value) => clvm.atom(value.to_bytes(env)?.to_vec().into()),
         Value::O(value) => clvm.remark(value.0.rest.clone()),
-        Value::P(value) => clvm.agg_sig_parent(value.0.public_key.clone(), value.0.message.clone()),
-        Value::Q(value) => clvm.agg_sig_puzzle(value.0.public_key.clone(), value.0.message.clone()),
-        Value::R(value) => clvm.agg_sig_amount(value.0.public_key.clone(), value.0.message.clone()),
-        Value::S(value) => {
-            clvm.agg_sig_puzzle_amount(value.0.public_key.clone(), value.0.message.clone())
+        Value::P(value) => clvm.agg_sig_parent(value.0.public_key, value.0.message.clone()),
+        Value::Q(value) => clvm.agg_sig_puzzle(value.0.public_key, value.0.message.clone()),
+        Value::R(value) => clvm.agg_sig_amount(value.0.public_key, value.0.message.clone()),
+        Value::S(value) => clvm.agg_sig_puzzle_amount(value.0.public_key, value.0.message.clone()),
+        Value::T(value) => clvm.agg_sig_parent_amount(value.0.public_key, value.0.message.clone()),
+        Value::U(value) => clvm.agg_sig_parent_puzzle(value.0.public_key, value.0.message.clone()),
+        Value::V(value) => clvm.agg_sig_unsafe(value.0.public_key, value.0.message.clone()),
+        Value::W(value) => clvm.agg_sig_me(value.0.public_key, value.0.message.clone()),
+        Value::X(value) => {
+            clvm.create_coin(value.0.puzzle_hash, value.0.amount, value.0.memos.clone())
         }
-        Value::T(value) => {
-            clvm.agg_sig_parent_amount(value.0.public_key.clone(), value.0.message.clone())
-        }
-        Value::U(value) => {
-            clvm.agg_sig_parent_puzzle(value.0.public_key.clone(), value.0.message.clone())
-        }
-        Value::V(value) => clvm.agg_sig_unsafe(value.0.public_key.clone(), value.0.message.clone()),
-        Value::W(value) => clvm.agg_sig_me(value.0.public_key.clone(), value.0.message.clone()),
-        Value::X(value) => clvm.create_coin(
-            value.0.puzzle_hash.clone(),
-            value.0.amount,
-            value.0.memos.clone(),
-        ),
         Value::Y(value) => clvm.reserve_fee(value.0.amount),
         Value::Z(value) => match value {
             Value2::A(value) => clvm.create_coin_announcement(value.0.message.clone()),
             Value2::B(value) => clvm.create_puzzle_announcement(value.0.message.clone()),
-            Value2::C(value) => clvm.assert_coin_announcement(value.0.announcement_id.clone()),
-            Value2::D(value) => clvm.assert_puzzle_announcement(value.0.announcement_id.clone()),
-            Value2::E(value) => clvm.assert_concurrent_spend(value.0.coin_id.clone()),
-            Value2::F(value) => clvm.assert_concurrent_puzzle(value.0.puzzle_hash.clone()),
+            Value2::C(value) => clvm.assert_coin_announcement(value.0.announcement_id),
+            Value2::D(value) => clvm.assert_puzzle_announcement(value.0.announcement_id),
+            Value2::E(value) => clvm.assert_concurrent_spend(value.0.coin_id),
+            Value2::F(value) => clvm.assert_concurrent_puzzle(value.0.puzzle_hash),
             Value2::G(value) => clvm.assert_seconds_relative(value.0.seconds),
             Value2::H(value) => clvm.assert_seconds_absolute(value.0.seconds),
             Value2::I(value) => clvm.assert_height_relative(value.0.height),
@@ -173,9 +166,9 @@ fn alloc<'a>(
             Value2::L(value) => clvm.assert_before_seconds_absolute(value.0.seconds),
             Value2::M(value) => clvm.assert_before_height_relative(value.0.height),
             Value2::N(value) => clvm.assert_before_height_absolute(value.0.height),
-            Value2::O(value) => clvm.assert_my_coin_id(value.0.coin_id.clone()),
-            Value2::P(value) => clvm.assert_my_parent_id(value.0.parent_id.clone()),
-            Value2::Q(value) => clvm.assert_my_puzzle_hash(value.0.puzzle_hash.clone()),
+            Value2::O(value) => clvm.assert_my_coin_id(value.0.coin_id),
+            Value2::P(value) => clvm.assert_my_parent_id(value.0.parent_id),
+            Value2::Q(value) => clvm.assert_my_puzzle_hash(value.0.puzzle_hash),
             Value2::R(value) => clvm.assert_my_amount(value.0.amount),
             Value2::S(value) => clvm.assert_my_birth_seconds(value.0.seconds),
             Value2::T(value) => clvm.assert_my_birth_height(value.0.height),

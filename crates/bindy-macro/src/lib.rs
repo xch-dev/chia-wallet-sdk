@@ -156,8 +156,8 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                                     env: Env,
                                     #( #arg_idents: #arg_types ),*
                                 ) -> napi::Result<#ret> {
-                                    Ok(bindy::FromRust::from_rust(#rust_ident::#method_ident(
-                                        #( bindy::IntoRust::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
+                                    Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(#rust_ident::#method_ident(
+                                        #( bindy::IntoRust::<_, _, bindy::Napi>::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
                                     )?, &bindy::NapiReturnContext(env))?)
                                 }
                             });
@@ -170,8 +170,8 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                                     env: Env,
                                     #( #arg_idents: #arg_types ),*
                                 ) -> napi::Result<#ret> {
-                                    Ok(bindy::FromRust::from_rust(self.0.#method_ident(
-                                        #( bindy::IntoRust::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
+                                    Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(self.0.#method_ident(
+                                        #( bindy::IntoRust::<_, _, bindy::Napi>::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
                                     )?, &bindy::NapiReturnContext(env))?)
                                 }
                             });
@@ -193,12 +193,12 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                     field_tokens.extend(quote! {
                         #[napi(getter)]
                         pub fn #get_ident(&self, env: Env) -> napi::Result<#get_ty> {
-                            Ok(bindy::FromRust::from_rust(self.0.#ident.clone(), &bindy::NapiReturnContext(env))?)
+                            Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(self.0.#ident.clone(), &bindy::NapiReturnContext(env))?)
                         }
 
                         #[napi(setter)]
                         pub fn #set_ident(&mut self, env: Env, value: #set_ty) -> napi::Result<()> {
-                            self.0.#ident = bindy::IntoRust::into_rust(value, &bindy::NapiParamContext)?;
+                            self.0.#ident = bindy::IntoRust::<_, _, bindy::Napi>::into_rust(value, &bindy::NapiParamContext)?;
                             Ok(())
                         }
                     });
@@ -223,8 +223,8 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                             env: Env,
                             #( #arg_idents: #arg_types ),*
                         ) -> napi::Result<Self> {
-                            Ok(bindy::FromRust::from_rust(#rust_ident {
-                                #(#arg_idents: bindy::IntoRust::into_rust(#arg_idents, &bindy::NapiParamContext)?),*
+                            Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(#rust_ident {
+                                #(#arg_idents: bindy::IntoRust::<_, _, bindy::Napi>::into_rust(#arg_idents, &bindy::NapiParamContext)?),*
                             }, &bindy::NapiReturnContext(env))?)
                         }
                     });
@@ -241,13 +241,13 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                         #field_tokens
                     }
 
-                    impl<T> bindy::FromRust<#rust_ident, T> for #bound_ident {
+                    impl<T> bindy::FromRust<#rust_ident, T, bindy::Napi> for #bound_ident {
                         fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
                             Ok(Self(value))
                         }
                     }
 
-                    impl<T> bindy::IntoRust<#rust_ident, T> for #bound_ident {
+                    impl<T> bindy::IntoRust<#rust_ident, T, bindy::Napi> for #bound_ident {
                         fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
                             Ok(self.0)
                         }
@@ -270,7 +270,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                         #( #value_idents ),*
                     }
 
-                    impl<T> bindy::FromRust<#rust_ident, T> for #bound_ident {
+                    impl<T> bindy::FromRust<#rust_ident, T, bindy::Napi> for #bound_ident {
                         fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
                             Ok(match value {
                                 #( #rust_ident::#value_idents => Self::#value_idents ),*
@@ -278,7 +278,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                         }
                     }
 
-                    impl<T> bindy::IntoRust<#rust_ident, T> for #bound_ident {
+                    impl<T> bindy::IntoRust<#rust_ident, T, bindy::Napi> for #bound_ident {
                         fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
                             Ok(match self {
                                 #( Self::#value_idents => #rust_ident::#value_idents ),*
@@ -314,8 +314,8 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                         env: Env,
                         #( #arg_idents: #arg_types ),*
                     ) -> napi::Result<#ret> {
-                        Ok(bindy::FromRust::from_rust(#entrypoint::#ident(
-                            #( bindy::IntoRust::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
+                        Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(#entrypoint::#ident(
+                            #( bindy::IntoRust::<_, _, bindy::Napi>::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
                         )?, &bindy::NapiReturnContext(env))?)
                     }
                 });
@@ -409,8 +409,8 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                 pub fn #method_ident(
                                     #( #arg_attrs #arg_idents: #arg_types ),*
                                 ) -> Result<#ret, wasm_bindgen::JsError> {
-                                    Ok(bindy::FromRust::from_rust(#rust_ident::#method_ident(
-                                        #( bindy::IntoRust::into_rust(#arg_idents, &bindy::WasmContext)? ),*
+                                    Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#rust_ident::#method_ident(
+                                        #( bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)? ),*
                                     )?, &bindy::WasmContext)?)
                                 }
                             });
@@ -422,8 +422,8 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                     &self,
                                     #( #arg_attrs #arg_idents: #arg_types ),*
                                 ) -> Result<#ret, wasm_bindgen::JsError> {
-                                    Ok(bindy::FromRust::from_rust(self.0.#method_ident(
-                                        #( bindy::IntoRust::into_rust(#arg_idents, &bindy::WasmContext)? ),*
+                                    Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(self.0.#method_ident(
+                                        #( bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)? ),*
                                     )?, &bindy::WasmContext)?)
                                 }
                             });
@@ -443,12 +443,12 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                     field_tokens.extend(quote! {
                         #[wasm_bindgen(getter, js_name = #js_name)]
                         pub fn #get_ident(&self) -> Result<#ty, wasm_bindgen::JsError> {
-                            Ok(bindy::FromRust::from_rust(self.0.#ident.clone(), &bindy::WasmContext)?)
+                            Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(self.0.#ident.clone(), &bindy::WasmContext)?)
                         }
 
                         #[wasm_bindgen(setter, js_name = #js_name)]
                         pub fn #set_ident(&mut self, value: #ty) -> Result<(), wasm_bindgen::JsError> {
-                            self.0.#ident = bindy::IntoRust::into_rust(value, &bindy::WasmContext)?;
+                            self.0.#ident = bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(value, &bindy::WasmContext)?;
                             Ok(())
                         }
                     });
@@ -478,8 +478,8 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         pub fn new(
                             #( #arg_attrs #arg_idents: #arg_types ),*
                         ) -> Result<Self, wasm_bindgen::JsError> {
-                            Ok(bindy::FromRust::from_rust(#rust_ident {
-                                #(#arg_idents: bindy::IntoRust::into_rust(#arg_idents, &bindy::WasmContext)?),*
+                            Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#rust_ident {
+                                #(#arg_idents: bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)?),*
                             }, &bindy::WasmContext)?)
                         }
                     });
@@ -496,13 +496,13 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         #field_tokens
                     }
 
-                    impl<T> bindy::FromRust<#rust_ident, T> for #bound_ident {
+                    impl<T> bindy::FromRust<#rust_ident, T, bindy::Wasm> for #bound_ident {
                         fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
                             Ok(Self(value))
                         }
                     }
 
-                    impl<T> bindy::IntoRust<#rust_ident, T> for #bound_ident {
+                    impl<T> bindy::IntoRust<#rust_ident, T, bindy::Wasm> for #bound_ident {
                         fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
                             Ok(self.0)
                         }
@@ -525,7 +525,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         #( #value_idents ),*
                     }
 
-                    impl<T> bindy::FromRust<#rust_ident, T> for #bound_ident {
+                    impl<T> bindy::FromRust<#rust_ident, T, bindy::Wasm> for #bound_ident {
                         fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
                             Ok(match value {
                                 #( #rust_ident::#value_idents => Self::#value_idents ),*
@@ -533,7 +533,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         }
                     }
 
-                    impl<T> bindy::IntoRust<#rust_ident, T> for #bound_ident {
+                    impl<T> bindy::IntoRust<#rust_ident, T, bindy::Wasm> for #bound_ident {
                         fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
                             Ok(match self {
                                 #( Self::#value_idents => #rust_ident::#value_idents ),*
@@ -576,8 +576,8 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                     pub fn #bound_ident(
                         #( #arg_attrs #arg_idents: #arg_types ),*
                     ) -> Result<#ret, wasm_bindgen::JsError> {
-                        Ok(bindy::FromRust::from_rust(#entrypoint::#ident(
-                            #( bindy::IntoRust::into_rust(#arg_idents, &bindy::WasmContext)? ),*
+                        Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#entrypoint::#ident(
+                            #( bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)? ),*
                         )?, &bindy::WasmContext)?)
                     }
                 });
@@ -677,8 +677,8 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                                 pub fn #remapped_method_ident(
                                     #( #arg_idents: #arg_types ),*
                                 ) -> pyo3::PyResult<#ret> {
-                                    Ok(bindy::FromRust::from_rust(#rust_ident::#method_ident(
-                                        #( bindy::IntoRust::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
+                                    Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#rust_ident::#method_ident(
+                                        #( bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
                                     )?, &bindy::Pyo3Context)?)
                                 }
                             });
@@ -690,8 +690,8 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                                     &self,
                                     #( #arg_idents: #arg_types ),*
                                 ) -> pyo3::PyResult<#ret> {
-                                    Ok(bindy::FromRust::from_rust(self.0.#method_ident(
-                                        #( bindy::IntoRust::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
+                                    Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(self.0.#method_ident(
+                                        #( bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
                                     )?, &bindy::Pyo3Context)?)
                                 }
                             });
@@ -710,12 +710,12 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                     field_tokens.extend(quote! {
                         #[getter(#ident)]
                         pub fn #get_ident(&self) -> pyo3::PyResult<#ty> {
-                            Ok(bindy::FromRust::from_rust(self.0.#ident.clone(), &bindy::Pyo3Context)?)
+                            Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(self.0.#ident.clone(), &bindy::Pyo3Context)?)
                         }
 
                         #[setter(#ident)]
                         pub fn #set_ident(&mut self, value: #ty) -> pyo3::PyResult<()> {
-                            self.0.#ident = bindy::IntoRust::into_rust(value, &bindy::Pyo3Context)?;
+                            self.0.#ident = bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(value, &bindy::Pyo3Context)?;
                             Ok(())
                         }
                     });
@@ -738,8 +738,8 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                         pub fn new(
                             #( #arg_idents: #arg_types ),*
                         ) -> pyo3::PyResult<Self> {
-                            Ok(bindy::FromRust::from_rust(#rust_ident {
-                                #(#arg_idents: bindy::IntoRust::into_rust(#arg_idents, &bindy::Pyo3Context)?),*
+                            Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#rust_ident {
+                                #(#arg_idents: bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)?),*
                             }, &bindy::Pyo3Context)?)
                         }
                     });
@@ -756,13 +756,13 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                         #field_tokens
                     }
 
-                    impl<T> bindy::FromRust<#rust_ident, T> for #bound_ident {
+                    impl<T> bindy::FromRust<#rust_ident, T, bindy::Pyo3> for #bound_ident {
                         fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
                             Ok(Self(value))
                         }
                     }
 
-                    impl<T> bindy::IntoRust<#rust_ident, T> for #bound_ident {
+                    impl<T> bindy::IntoRust<#rust_ident, T, bindy::Pyo3> for #bound_ident {
                         fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
                             Ok(self.0)
                         }
@@ -785,7 +785,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                         #( #value_idents ),*
                     }
 
-                    impl<T> bindy::FromRust<#rust_ident, T> for #bound_ident {
+                    impl<T> bindy::FromRust<#rust_ident, T, bindy::Pyo3> for #bound_ident {
                         fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
                             Ok(match value {
                                 #( #rust_ident::#value_idents => Self::#value_idents ),*
@@ -793,7 +793,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                         }
                     }
 
-                    impl<T> bindy::IntoRust<#rust_ident, T> for #bound_ident {
+                    impl<T> bindy::IntoRust<#rust_ident, T, bindy::Pyo3> for #bound_ident {
                         fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
                             Ok(match self {
                                 #( Self::#value_idents => #rust_ident::#value_idents ),*
@@ -823,8 +823,8 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                     pub fn #bound_ident(
                         #( #arg_idents: #arg_types ),*
                     ) -> pyo3::PyResult<#ret> {
-                        Ok(bindy::FromRust::from_rust(#entrypoint::#bound_ident(
-                            #( bindy::IntoRust::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
+                        Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#entrypoint::#bound_ident(
+                            #( bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
                         )?, &bindy::Pyo3Context)?)
                     }
                 });

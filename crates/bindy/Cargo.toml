@@ -10,7 +10,7 @@ pyo3 = ["dep:pyo3"]
 
 [dependencies]
 thiserror = { workspace = true }
-napi = { workspace = true, default-features = false, optional = true }
+napi = { workspace = true, default-features = false, optional = true, features = ["napi6"] }
 pyo3 = { workspace = true, optional = true }
 js-sys = { workspace = true, optional = true }
 chia-protocol = { workspace = true }

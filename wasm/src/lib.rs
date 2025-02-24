@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use bindy::{FromRust, IntoRust, WasmContext};
 use js_sys::BigInt;
 use wasm_bindgen::{prelude::wasm_bindgen, JsError};

@@ -10,13 +10,15 @@ impl From<Error> for napi::Error {
     }
 }
 
+pub struct Napi;
+
 pub struct NapiParamContext;
 
 pub struct NapiStructContext(pub Env);
 
 pub struct NapiReturnContext(pub Env);
 
-impl<T> FromRust<T, NapiStructContext> for Reference<T>
+impl<T> FromRust<T, NapiStructContext, Napi> for Reference<T>
 where
     T: JavaScriptClassExt,
 {
@@ -26,40 +28,40 @@ where
     }
 }
 
-impl<T, U> IntoRust<T, NapiParamContext> for ClassInstance<'_, U>
+impl<T, U> IntoRust<T, NapiParamContext, Napi> for ClassInstance<'_, U>
 where
-    U: Clone + IntoRust<T, NapiParamContext>,
+    U: Clone + IntoRust<T, NapiParamContext, Napi>,
 {
     fn into_rust(self, context: &NapiParamContext) -> Result<T> {
         std::ops::Deref::deref(&self).clone().into_rust(context)
     }
 }
 
-impl FromRust<(), NapiReturnContext> for napi::JsUndefined {
+impl FromRust<(), NapiReturnContext, Napi> for napi::JsUndefined {
     fn from_rust(_value: (), context: &NapiReturnContext) -> Result<Self> {
         Ok(context.0.get_undefined()?)
     }
 }
 
-impl<T> FromRust<Vec<u8>, T> for Uint8Array {
+impl<T> FromRust<Vec<u8>, T, Napi> for Uint8Array {
     fn from_rust(value: Vec<u8>, _context: &T) -> Result<Self> {
         Ok(value.into())
     }
 }
 
-impl<T> IntoRust<Vec<u8>, T> for Uint8Array {
+impl<T> IntoRust<Vec<u8>, T, Napi> for Uint8Array {
     fn into_rust(self, _context: &T) -> Result<Vec<u8>> {
         Ok(self.to_vec())
     }
 }
 
-impl<T, const N: usize> FromRust<BytesImpl<N>, T> for Uint8Array {
+impl<T, const N: usize> FromRust<BytesImpl<N>, T, Napi> for Uint8Array {
     fn from_rust(value: BytesImpl<N>, _context: &T) -> Result<Self> {
         Ok(value.to_vec().into())
     }
 }
 
-impl<T, const N: usize> IntoRust<BytesImpl<N>, T> for Uint8Array {
+impl<T, const N: usize> IntoRust<BytesImpl<N>, T, Napi> for Uint8Array {
     fn into_rust(self, _context: &T) -> Result<BytesImpl<N>> {
         let bytes = self.to_vec();
 
@@ -74,13 +76,13 @@ impl<T, const N: usize> IntoRust<BytesImpl<N>, T> for Uint8Array {
     }
 }
 
-impl<T> FromRust<TreeHash, T> for Uint8Array {
+impl<T> FromRust<TreeHash, T, Napi> for Uint8Array {
     fn from_rust(value: TreeHash, _context: &T) -> Result<Self> {
         Ok(value.to_vec().into())
     }
 }
 
-impl<T> IntoRust<TreeHash, T> for Uint8Array {
+impl<T> IntoRust<TreeHash, T, Napi> for Uint8Array {
     fn into_rust(self, _context: &T) -> Result<TreeHash> {
         let bytes = self.to_vec();
 
@@ -95,31 +97,31 @@ impl<T> IntoRust<TreeHash, T> for Uint8Array {
     }
 }
 
-impl<T> FromRust<Bytes, T> for Uint8Array {
+impl<T> FromRust<Bytes, T, Napi> for Uint8Array {
     fn from_rust(value: Bytes, _context: &T) -> Result<Self> {
         Ok(value.to_vec().into())
     }
 }
 
-impl<T> IntoRust<Bytes, T> for Uint8Array {
+impl<T> IntoRust<Bytes, T, Napi> for Uint8Array {
     fn into_rust(self, _context: &T) -> Result<Bytes> {
         Ok(self.to_vec().into())
     }
 }
 
-impl<T> FromRust<Program, T> for Uint8Array {
+impl<T> FromRust<Program, T, Napi> for Uint8Array {
     fn from_rust(value: Program, _context: &T) -> Result<Self> {
         Ok(value.to_vec().into())
     }
 }
 
-impl<T> IntoRust<Program, T> for Uint8Array {
+impl<T> IntoRust<Program, T, Napi> for Uint8Array {
     fn into_rust(self, _context: &T) -> Result<Program> {
         Ok(self.to_vec().into())
     }
 }
 
-impl<T> IntoRust<num_bigint::BigInt, T> for BigInt {
+impl<T> IntoRust<num_bigint::BigInt, T, Napi> for BigInt {
     fn into_rust(self, _context: &T) -> Result<num_bigint::BigInt> {
         if self.words.is_empty() {
             return Ok(num_bigint::BigInt::ZERO);
@@ -142,7 +144,7 @@ impl<T> IntoRust<num_bigint::BigInt, T> for BigInt {
     }
 }
 
-impl<T> FromRust<num_bigint::BigInt, T> for BigInt {
+impl<T> FromRust<num_bigint::BigInt, T, Napi> for BigInt {
     fn from_rust(value: num_bigint::BigInt, _context: &T) -> Result<Self> {
         let (sign, bytes) = value.to_bytes_be();
 
@@ -156,14 +158,14 @@ impl<T> FromRust<num_bigint::BigInt, T> for BigInt {
     }
 }
 
-impl<T> IntoRust<u64, T> for BigInt {
+impl<T> IntoRust<u64, T, Napi> for BigInt {
     fn into_rust(self, _context: &T) -> Result<u64> {
         let bigint: num_bigint::BigInt = self.into_rust(_context)?;
         Ok(bigint.try_into()?)
     }
 }
 
-impl<T> FromRust<u64, T> for BigInt {
+impl<T> FromRust<u64, T, Napi> for BigInt {
     fn from_rust(value: u64, _context: &T) -> Result<Self> {
         Ok(value.into())
     }
