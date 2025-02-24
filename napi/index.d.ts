@@ -187,6 +187,8 @@ export declare class AssertSecondsRelative {
 }
 
 export declare class BlsPair {
+  static fromSeed(seed: bigint): BlsPair
+  static manyFromSeed(seed: bigint, count: number): Array<BlsPair>
   constructor(sk: SecretKey, pk: PublicKey)
   get sk(): SecretKey
   set sk(value: SecretKey)
@@ -245,6 +247,8 @@ export declare class Clvm {
   spendCatCoins(catSpends: Array<CatSpend>): void
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
   spendNft(nft: Nft, innerSpend: Spend): void
+  mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
+  mipsSpend(coin: Coin, delegatedSpend: Spend): MipsSpend
   nftMetadata(value: NftMetadata): Program
   remark(rest: Program): Program
   aggSigParent(publicKey: PublicKey, message: Uint8Array): Program
@@ -350,6 +354,8 @@ export declare class DidOwner {
 }
 
 export declare class K1Pair {
+  static fromSeed(seed: bigint): K1Pair
+  static manyFromSeed(seed: bigint, count: number): Array<K1Pair>
   constructor(sk: K1SecretKey, pk: K1PublicKey)
   get sk(): K1SecretKey
   set sk(value: K1SecretKey)
@@ -386,12 +392,43 @@ export declare class LineageProof {
   set parentAmount(value: bigint)
 }
 
+export declare class MemberConfig {
+  constructor()
+  withTopLevel(topLevel: boolean): MemberConfig
+  withNonce(nonce: number): MemberConfig
+  withRestrictions(restrictions: Array<Restriction>): MemberConfig
+  get topLevel(): boolean
+  set topLevel(value: boolean)
+  get nonce(): number
+  set nonce(value: number)
+  get restrictions(): Array<Restriction>
+  set restrictions(value: Array<Restriction>)
+}
+
 export declare class MintedNfts {
   constructor(nfts: Array<Nft>, parentConditions: Array<Program>)
   get nfts(): Array<Nft>
   set nfts(value: Array<Nft>)
   get parentConditions(): Array<Program>
   set parentConditions(value: Array<Program>)
+}
+
+export declare class MipsSpend {
+  spend(custodyHash: Uint8Array): Spend
+  spendVault(vault: Vault): void
+  mOfN(config: MemberConfig, required: number, items: Array<Uint8Array>): void
+  k1Member(config: MemberConfig, publicKey: K1PublicKey, signature: K1Signature, fastForward: boolean): void
+  r1Member(config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, fastForward: boolean): void
+  blsMember(config: MemberConfig, publicKey: PublicKey): void
+  passkeyMember(config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, authenticatorData: Uint8Array, clientDataJson: Uint8Array, challengeIndex: number, fastForward: boolean): void
+  singletonMember(config: MemberConfig, launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, singletonAmount: bigint): void
+  fixedPuzzleMember(config: MemberConfig, fixedPuzzleHash: Uint8Array): void
+  customMember(config: MemberConfig, spend: Spend): void
+  timelock(timelock: bigint): void
+  force1Of2RestrictedVariable(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array, newRightSideMemberHash: Uint8Array): void
+  preventConditionOpcode(conditionOpcode: number): void
+  preventMultipleCreateCoins(): void
+  preventSideEffects(): void
 }
 
 export declare class Mnemonic {
@@ -577,6 +614,8 @@ export declare class Puzzle {
 }
 
 export declare class R1Pair {
+  static fromSeed(seed: bigint): R1Pair
+  static manyFromSeed(seed: bigint, count: number): Array<R1Pair>
   constructor(sk: R1SecretKey, pk: R1PublicKey)
   get sk(): R1SecretKey
   set sk(value: R1SecretKey)
@@ -623,6 +662,14 @@ export declare class ReserveFee {
   constructor(amount: bigint)
   get amount(): bigint
   set amount(value: bigint)
+}
+
+export declare class Restriction {
+  constructor(kind: RestrictionKind, puzzleHash: Uint8Array)
+  get kind(): RestrictionKind
+  set kind(value: RestrictionKind)
+  get puzzleHash(): Uint8Array
+  set puzzleHash(value: Uint8Array)
 }
 
 export declare class SecretKey {
@@ -689,22 +736,77 @@ export declare class SpendBundle {
   set aggregatedSignature(value: Signature)
 }
 
+export declare class Vault {
+  child(custodyHash: Uint8Array): Vault
+  constructor(coin: Coin, launcherId: Uint8Array, proof: LineageProof, custodyHash: Uint8Array)
+  get coin(): Coin
+  set coin(value: Coin)
+  get launcherId(): Uint8Array
+  set launcherId(value: Uint8Array)
+  get proof(): LineageProof
+  set proof(value: LineageProof)
+  get custodyHash(): Uint8Array
+  set custodyHash(value: Uint8Array)
+}
+
+export declare class VaultMint {
+  constructor(vault: Vault, parentConditions: Array<Program>)
+  get vault(): Vault
+  set vault(value: Vault)
+  get parentConditions(): Array<Program>
+  set parentConditions(value: Array<Program>)
+}
+
+export declare function blsMemberHash(config: MemberConfig, publicKey: PublicKey): Uint8Array
+
 export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
 
 export declare function catPuzzleHash(assetId: Uint8Array, innerPuzzleHash: Uint8Array): Uint8Array
 
 export declare function curryTreeHash(program: Uint8Array, args: Array<Uint8Array>): Uint8Array
 
+export declare function customMemberHash(config: MemberConfig, innerHash: Uint8Array): Uint8Array
+
+export declare function fixedMemberHash(config: MemberConfig, fixedPuzzleHash: Uint8Array): Uint8Array
+
+export declare function force1Of2Restriction(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): Restriction
+
 export declare function fromHex(value: string): Uint8Array
 
 export declare function generateBytes(bytes: number): Uint8Array
 
+export declare function k1MemberHash(config: MemberConfig, publicKey: K1PublicKey, fastForward: boolean): Uint8Array
+
+export declare function mOfNHash(config: MemberConfig, required: number, items: Array<Uint8Array>): Uint8Array
+
+export declare function passkeyMemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Uint8Array
+
+export declare function preventConditionOpcodeRestriction(conditionOpcode: number): Restriction
+
+export declare function preventMultipleCreateCoinsRestriction(): Restriction
+
+export declare function preventSideEffectsRestriction(): Array<Restriction>
+
+export declare function r1MemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Uint8Array
+
+export declare const enum RestrictionKind {
+  MemberCondition = 0,
+  DelegatedPuzzleHash = 1,
+  DelegatedPuzzleWrapper = 2
+}
+
 export declare function sha256(value: Uint8Array): Uint8Array
 
+export declare function singletonMemberHash(config: MemberConfig, launcherId: Uint8Array): Uint8Array
+
 export declare function standardPuzzleHash(syntheticKey: PublicKey): Uint8Array
+
+export declare function timelockRestriction(timelock: bigint): Restriction
 
 export declare function toHex(value: Uint8Array): string
 
 export declare function treeHashAtom(atom: Uint8Array): Uint8Array
 
 export declare function treeHashPair(first: Uint8Array, rest: Uint8Array): Uint8Array
+
+export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restriction>, delegatedPuzzleHash: Uint8Array): Uint8Array

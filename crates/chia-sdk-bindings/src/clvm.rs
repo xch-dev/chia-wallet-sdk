@@ -1,10 +1,11 @@
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use bindy::{Error, Result};
 use chia_protocol::{Bytes, Bytes32, Program as SerializedProgram};
 use chia_puzzle_types::nft;
 use chia_sdk_driver::{HashedPtr, Launcher, SpendContext, StandardLayer};
 use clvm_traits::{clvm_quote, ToClvm};
+use clvm_utils::TreeHash;
 use clvmr::{
     serde::{node_from_bytes, node_from_bytes_backrefs},
     NodePtr,
@@ -12,7 +13,8 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    CatSpend, Coin, CoinSpend, MintedNfts, Nft, NftMetadata, NftMint, Program, PublicKey, Spend,
+    CatSpend, Coin, CoinSpend, MintedNfts, MipsSpend, Nft, NftMetadata, NftMint, Program,
+    PublicKey, Spend, VaultMint,
 };
 
 #[derive(Default, Clone)]
@@ -166,6 +168,43 @@ impl Clvm {
         )?;
 
         Ok(())
+    }
+
+    pub fn mint_vault(
+        &self,
+        parent_coin_id: Bytes32,
+        custody_hash: TreeHash,
+        memos: Program,
+    ) -> Result<VaultMint> {
+        let mut ctx = self.0.write().unwrap();
+
+        let (parent_conditions, vault) =
+            Launcher::new(parent_coin_id, 1).mint_vault(&mut ctx, custody_hash, memos.1)?;
+
+        let parent_conditions = parent_conditions
+            .into_iter()
+            .map(|program| {
+                Ok(Program(
+                    self.0.clone(),
+                    program.to_clvm(&mut ctx.allocator)?,
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(VaultMint {
+            parent_conditions,
+            vault: vault.into(),
+        })
+    }
+
+    pub fn mips_spend(&self, coin: Coin, delegated_spend: Spend) -> Result<MipsSpend> {
+        Ok(MipsSpend {
+            clvm: self.0.clone(),
+            spend: Arc::new(Mutex::new(chia_sdk_driver::MipsSpend::new(
+                chia_sdk_driver::Spend::new(delegated_spend.puzzle.1, delegated_spend.solution.1),
+            ))),
+            coin: coin.into(),
+        })
     }
 
     pub fn deserialize(&self, value: SerializedProgram) -> Result<Program> {

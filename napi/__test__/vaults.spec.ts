@@ -2,25 +2,24 @@ import test from "ava";
 
 import {
   blsMemberHash,
-  childVault,
-  ClvmAllocator,
+  Clvm,
   Coin,
   customMemberHash,
   force1Of2Restriction,
   k1MemberHash,
+  K1Pair,
   K1SecretKey,
   K1Signature,
   MemberConfig,
-  MipsSpend,
   mOfNHash,
   passkeyMemberHash,
   preventSideEffectsRestriction,
+  R1Pair,
   sha256,
   Simulator,
   singletonMemberHash,
   Spend,
   timelockRestriction,
-  toCoinId,
   treeHashPair,
   Vault,
   wrappedDelegatedPuzzleHash,
@@ -28,119 +27,94 @@ import {
 
 test("bls key vault", (t) => {
   const sim = new Simulator();
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
-  const alice = sim.newP2(0n);
+  const alice = sim.bls(0n);
 
-  const config: MemberConfig = {
-    topLevel: true,
-    nonce: 0,
-    restrictions: [],
-  };
+  const config = new MemberConfig().withTopLevel(true);
 
   const [vault, coin] = mintVaultWithCoin(
     sim,
     clvm,
-    blsMemberHash(config, alice.publicKey),
+    blsMemberHash(config, alice.pk),
     1n
   );
 
-  const coinDelegatedSpend = clvm.delegatedSpendForConditions([
-    clvm.reserveFee(1n),
-  ]);
+  const coinDelegatedSpend = clvm.delegatedSpend([clvm.reserveFee(1n)]);
 
-  const delegatedSpend = clvm.delegatedSpendForConditions([
+  const delegatedSpend = clvm.delegatedSpend([
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
     clvm.sendMessage(23, coinDelegatedSpend.puzzle.treeHash(), [
-      clvm.alloc(toCoinId(coin)),
+      clvm.alloc(coin.coinId()),
     ]),
   ]);
 
-  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
-  vaultSpend.spendBls(clvm, config, alice.publicKey);
-  clvm.spendVault(vault, vaultSpend);
+  const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.blsMember(config, alice.pk);
+  mips.spendVault(vault);
 
-  const p2Spend = new MipsSpend(coinDelegatedSpend, coin);
-  p2Spend.spendSingleton(
-    clvm,
-    { topLevel: true, nonce: 0, restrictions: [] },
+  const p2Spend = clvm.mipsSpend(coin, coinDelegatedSpend);
+  p2Spend.singletonMember(
+    config,
     vault.launcherId,
     vault.custodyHash,
     vault.coin.amount
   );
 
-  const spend = p2Spend.spend(clvm, coin.puzzleHash);
+  clvm.spendCoin(coin, p2Spend.spend(coin.puzzleHash));
 
-  sim.spend(
-    [
-      ...clvm.coinSpends(),
-      {
-        coin,
-        puzzleReveal: spend.puzzle.serialize(),
-        solution: spend.solution.serialize(),
-      },
-    ],
-    [alice.secretKey]
-  );
+  sim.spendCoins(clvm.coinSpends(), [alice.sk]);
 
   t.true(true);
 });
 
 test("single signer vault", (t) => {
   const sim = new Simulator();
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
-  const k1 = sim.k1Pair(1);
+  const k1 = K1Pair.fromSeed(1n);
 
-  const config: MemberConfig = {
-    topLevel: true,
-    nonce: 0,
-    restrictions: [],
-  };
+  const config = new MemberConfig().withTopLevel(true);
 
-  const vault = mintVault(sim, clvm, k1MemberHash(config, k1.publicKey, false));
+  const vault = mintVault(sim, clvm, k1MemberHash(config, k1.pk, false));
 
-  const delegatedSpend = clvm.delegatedSpendForConditions([
+  const delegatedSpend = clvm.delegatedSpend([
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
 
   const signature = signK1(
-    k1.secretKey,
+    k1.sk,
     vault,
     delegatedSpend.puzzle.treeHash(),
     false
   );
 
-  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
-  vaultSpend.spendK1(clvm, config, k1.publicKey, signature, false);
-  clvm.spendVault(vault, vaultSpend);
+  const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.k1Member(config, k1.pk, signature, false);
+  mips.spendVault(vault);
 
-  sim.spend(clvm.coinSpends(), []);
+  sim.spendCoins(clvm.coinSpends(), []);
 
   t.true(true);
 });
 
 test("passkey member vault", (t) => {
   const sim = new Simulator();
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
-  const r1 = sim.r1Pair(1);
+  const r1 = R1Pair.fromSeed(1n);
 
-  const config: MemberConfig = {
-    topLevel: true,
-    nonce: 0,
-    restrictions: [],
-  };
+  const config = new MemberConfig().withTopLevel(true);
 
   const fastForward = false;
 
   const vault = mintVault(
     sim,
     clvm,
-    passkeyMemberHash(config, r1.publicKey, fastForward)
+    passkeyMemberHash(config, r1.pk, fastForward)
   );
 
-  const delegatedSpend = clvm.delegatedSpendForConditions([
+  const delegatedSpend = clvm.delegatedSpend([
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
 
@@ -149,7 +123,7 @@ test("passkey member vault", (t) => {
     sha256(
       Buffer.concat([
         Buffer.from(delegatedSpend.puzzle.treeHash()),
-        fastForward ? vault.coin.puzzleHash : toCoinId(vault.coin),
+        fastForward ? vault.coin.puzzleHash : vault.coin.coinId(),
       ])
     )
   );
@@ -169,273 +143,240 @@ test("passkey member vault", (t) => {
     Buffer.concat([authenticatorData, sha256(clientDataJSON)])
   );
 
-  const signature = r1.secretKey.signPrehashed(message);
+  const signature = r1.sk.signPrehashed(message);
 
-  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
-  vaultSpend.spendPasskey(
-    clvm,
+  const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.passkeyMember(
     config,
-    r1.publicKey,
+    r1.pk,
     signature,
     authenticatorData,
     clientDataJSON,
     challengeIndex,
     fastForward
   );
-  clvm.spendVault(vault, vaultSpend);
+  mips.spendVault(vault);
 
-  sim.spend(clvm.coinSpends(), []);
+  sim.spendCoins(clvm.coinSpends(), []);
 
   t.true(true);
 });
 
 test("single signer fast forward vault", (t) => {
   const sim = new Simulator();
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
-  const k1 = sim.k1Pair(1);
+  const k1 = K1Pair.fromSeed(1n);
 
-  const config: MemberConfig = {
-    topLevel: true,
-    nonce: 0,
-    restrictions: [],
-  };
+  const config = new MemberConfig().withTopLevel(true);
 
-  const vault = mintVault(sim, clvm, k1MemberHash(config, k1.publicKey, true));
+  const vault = mintVault(sim, clvm, k1MemberHash(config, k1.pk, true));
 
-  const delegatedSpend = clvm.delegatedSpendForConditions([
+  const delegatedSpend = clvm.delegatedSpend([
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
 
   const signature = signK1(
-    k1.secretKey,
+    k1.sk,
     vault,
     delegatedSpend.puzzle.treeHash(),
     true
   );
 
-  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
-  vaultSpend.spendK1(clvm, config, k1.publicKey, signature, true);
-  clvm.spendVault(vault, vaultSpend);
+  const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.k1Member(config, k1.pk, signature, true);
+  mips.spendVault(vault);
 
-  sim.spend(clvm.coinSpends(), []);
+  sim.spendCoins(clvm.coinSpends(), []);
 
   t.true(true);
 });
 
 test("1 of 2 vault (path 1)", (t) => {
   const sim = new Simulator();
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
-  const alice = sim.k1Pair(1);
-  const bob = sim.k1Pair(2);
+  const alice = K1Pair.fromSeed(1n);
+  const bob = K1Pair.fromSeed(2n);
 
-  const config: MemberConfig = {
-    topLevel: false,
-    nonce: 0,
-    restrictions: [],
-  };
+  const config = new MemberConfig();
 
-  const aliceHash = k1MemberHash(config, alice.publicKey, false);
-  const bobHash = k1MemberHash(config, bob.publicKey, false);
+  const aliceHash = k1MemberHash(config, alice.pk, false);
+  const bobHash = k1MemberHash(config, bob.pk, false);
 
   const vault = mintVault(
     sim,
     clvm,
-    mOfNHash({ ...config, topLevel: true }, 1, [aliceHash, bobHash])
+    mOfNHash(config.withTopLevel(true), 1, [aliceHash, bobHash])
   );
 
-  const delegatedSpend = clvm.delegatedSpendForConditions([
+  const delegatedSpend = clvm.delegatedSpend([
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
 
   const signature = signK1(
-    alice.secretKey,
+    alice.sk,
     vault,
     delegatedSpend.puzzle.treeHash(),
     false
   );
 
-  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
-  vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [aliceHash, bobHash]);
-  vaultSpend.spendK1(clvm, config, alice.publicKey, signature, false);
-  clvm.spendVault(vault, vaultSpend);
+  const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.mOfN(config.withTopLevel(true), 1, [aliceHash, bobHash]);
+  mips.k1Member(config, alice.pk, signature, false);
+  mips.spendVault(vault);
 
-  sim.spend(clvm.coinSpends(), []);
+  sim.spendCoins(clvm.coinSpends(), []);
 
   t.true(true);
 });
 
 test("1 of 2 vault (path 2)", (t) => {
   const sim = new Simulator();
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
-  const alice = sim.k1Pair(1);
-  const bob = sim.k1Pair(2);
+  const alice = K1Pair.fromSeed(1n);
+  const bob = K1Pair.fromSeed(2n);
 
-  const config: MemberConfig = {
-    topLevel: false,
-    nonce: 0,
-    restrictions: [],
-  };
+  const config = new MemberConfig();
 
-  const aliceHash = k1MemberHash(config, alice.publicKey, false);
-  const bobHash = k1MemberHash(config, bob.publicKey, false);
+  const aliceHash = k1MemberHash(config, alice.pk, false);
+  const bobHash = k1MemberHash(config, bob.pk, false);
 
   const vault = mintVault(
     sim,
     clvm,
-    mOfNHash({ ...config, topLevel: true }, 1, [aliceHash, bobHash])
+    mOfNHash(config.withTopLevel(true), 1, [aliceHash, bobHash])
   );
 
-  const delegatedSpend = clvm.delegatedSpendForConditions([
+  const delegatedSpend = clvm.delegatedSpend([
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
 
   const signature = signK1(
-    bob.secretKey,
+    bob.sk,
     vault,
     delegatedSpend.puzzle.treeHash(),
     false
   );
 
-  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
-  vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [aliceHash, bobHash]);
-  vaultSpend.spendK1(clvm, config, bob.publicKey, signature, false);
-  clvm.spendVault(vault, vaultSpend);
+  const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.mOfN(config.withTopLevel(true), 1, [aliceHash, bobHash]);
+  mips.k1Member(config, bob.pk, signature, false);
+  mips.spendVault(vault);
 
-  sim.spend(clvm.coinSpends(), []);
+  sim.spendCoins(clvm.coinSpends(), []);
 
   t.true(true);
 });
 
 test("2 of 2 vault", (t) => {
   const sim = new Simulator();
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
-  const alice = sim.k1Pair(1);
-  const bob = sim.k1Pair(2);
+  const alice = K1Pair.fromSeed(1n);
+  const bob = K1Pair.fromSeed(2n);
 
-  const config: MemberConfig = {
-    topLevel: false,
-    nonce: 0,
-    restrictions: [],
-  };
+  const config = new MemberConfig();
 
-  const aliceHash = k1MemberHash(config, alice.publicKey, false);
-  const bobHash = k1MemberHash(config, bob.publicKey, false);
+  const aliceHash = k1MemberHash(config, alice.pk, false);
+  const bobHash = k1MemberHash(config, bob.pk, false);
 
   const vault = mintVault(
     sim,
     clvm,
-    mOfNHash({ ...config, topLevel: true }, 2, [aliceHash, bobHash])
+    mOfNHash(config.withTopLevel(true), 2, [aliceHash, bobHash])
   );
 
-  const delegatedSpend = clvm.delegatedSpendForConditions([
+  const delegatedSpend = clvm.delegatedSpend([
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
 
   const aliceSignature = signK1(
-    alice.secretKey,
+    alice.sk,
     vault,
     delegatedSpend.puzzle.treeHash(),
     false
   );
   const bobSignature = signK1(
-    bob.secretKey,
+    bob.sk,
     vault,
     delegatedSpend.puzzle.treeHash(),
     false
   );
 
-  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
-  vaultSpend.spendMOfN({ ...config, topLevel: true }, 2, [aliceHash, bobHash]);
-  vaultSpend.spendK1(clvm, config, alice.publicKey, aliceSignature, false);
-  vaultSpend.spendK1(clvm, config, bob.publicKey, bobSignature, false);
-  clvm.spendVault(vault, vaultSpend);
+  const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.mOfN(config.withTopLevel(true), 2, [aliceHash, bobHash]);
+  mips.k1Member(config, alice.pk, aliceSignature, false);
+  mips.k1Member(config, bob.pk, bobSignature, false);
+  mips.spendVault(vault);
 
-  sim.spend(clvm.coinSpends(), []);
+  sim.spendCoins(clvm.coinSpends(), []);
 
   t.true(true);
 });
 
 test("2 of 3 vault", (t) => {
   const sim = new Simulator();
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
-  const alice = sim.k1Pair(1);
-  const bob = sim.k1Pair(2);
-  const charlie = sim.k1Pair(3);
+  const alice = K1Pair.fromSeed(1n);
+  const bob = K1Pair.fromSeed(2n);
+  const charlie = K1Pair.fromSeed(3n);
 
-  const config: MemberConfig = {
-    topLevel: false,
-    nonce: 0,
-    restrictions: [],
-  };
+  const config = new MemberConfig();
 
-  const aliceHash = k1MemberHash(config, alice.publicKey, false);
-  const bobHash = k1MemberHash(config, bob.publicKey, false);
-  const charlieHash = k1MemberHash(config, charlie.publicKey, false);
+  const aliceHash = k1MemberHash(config, alice.pk, false);
+  const bobHash = k1MemberHash(config, bob.pk, false);
+  const charlieHash = k1MemberHash(config, charlie.pk, false);
 
   const vault = mintVault(
     sim,
     clvm,
-    mOfNHash({ ...config, topLevel: true }, 2, [
-      aliceHash,
-      bobHash,
-      charlieHash,
-    ])
+    mOfNHash(config.withTopLevel(true), 2, [aliceHash, bobHash, charlieHash])
   );
 
-  const delegatedSpend = clvm.delegatedSpendForConditions([
+  const delegatedSpend = clvm.delegatedSpend([
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
 
   const aliceSignature = signK1(
-    alice.secretKey,
+    alice.sk,
     vault,
     delegatedSpend.puzzle.treeHash(),
     false
   );
   const bobSignature = signK1(
-    bob.secretKey,
+    bob.sk,
     vault,
     delegatedSpend.puzzle.treeHash(),
     false
   );
 
-  const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
-  vaultSpend.spendMOfN({ ...config, topLevel: true }, 2, [
-    aliceHash,
-    bobHash,
-    charlieHash,
-  ]);
-  vaultSpend.spendK1(clvm, config, alice.publicKey, aliceSignature, false);
-  vaultSpend.spendK1(clvm, config, bob.publicKey, bobSignature, false);
-  clvm.spendVault(vault, vaultSpend);
+  const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.mOfN(config.withTopLevel(true), 2, [aliceHash, bobHash, charlieHash]);
+  mips.k1Member(config, alice.pk, aliceSignature, false);
+  mips.k1Member(config, bob.pk, bobSignature, false);
+  mips.spendVault(vault);
 
-  sim.spend(clvm.coinSpends(), []);
+  sim.spendCoins(clvm.coinSpends(), []);
 
   t.true(true);
 });
 
 test("fast forward paths vault", (t) => {
   const sim = new Simulator();
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
-  const alice = sim.k1Pair(1);
-  const bob = sim.k1Pair(2);
+  const alice = K1Pair.fromSeed(1n);
+  const bob = K1Pair.fromSeed(2n);
 
-  const config: MemberConfig = {
-    topLevel: false,
-    nonce: 0,
-    restrictions: [],
-  };
+  const config = new MemberConfig();
 
-  const aliceRegularHash = k1MemberHash(config, alice.publicKey, false);
-  const aliceFastForwardHash = k1MemberHash(config, alice.publicKey, true);
-  const bobRegularHash = k1MemberHash(config, bob.publicKey, false);
-  const bobFastForwardHash = k1MemberHash(config, bob.publicKey, true);
+  const aliceRegularHash = k1MemberHash(config, alice.pk, false);
+  const aliceFastForwardHash = k1MemberHash(config, alice.pk, true);
+  const bobRegularHash = k1MemberHash(config, bob.pk, false);
+  const bobFastForwardHash = k1MemberHash(config, bob.pk, true);
 
   const regularPathHash = mOfNHash(config, 1, [
     aliceRegularHash,
@@ -449,48 +390,42 @@ test("fast forward paths vault", (t) => {
   let vault = mintVault(
     sim,
     clvm,
-    mOfNHash({ ...config, topLevel: true }, 1, [
+    mOfNHash(config.withTopLevel(true), 1, [
       regularPathHash,
       fastForwardPathHash,
     ])
   );
 
   for (const fastForward of [false, true, false, true]) {
-    const delegatedSpend = clvm.delegatedSpendForConditions([
+    const delegatedSpend = clvm.delegatedSpend([
       clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
     ]);
 
     const aliceSignature = signK1(
-      alice.secretKey,
+      alice.sk,
       vault,
       delegatedSpend.puzzle.treeHash(),
       fastForward
     );
 
-    const vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
-    vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [
+    const mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+    mips.mOfN(config.withTopLevel(true), 1, [
       regularPathHash,
       fastForwardPathHash,
     ]);
-    vaultSpend.spendMOfN(
+    mips.mOfN(
       config,
       1,
       fastForward
         ? [aliceFastForwardHash, bobFastForwardHash]
         : [aliceRegularHash, bobRegularHash]
     );
-    vaultSpend.spendK1(
-      clvm,
-      config,
-      alice.publicKey,
-      aliceSignature,
-      fastForward
-    );
-    clvm.spendVault(vault, vaultSpend);
+    mips.k1Member(config, alice.pk, aliceSignature, fastForward);
+    mips.spendVault(vault);
 
-    sim.spend(clvm.coinSpends(), []);
+    sim.spendCoins(clvm.coinSpends(), []);
 
-    vault = childVault(vault, vault.custodyHash);
+    vault = vault.child(vault.custodyHash);
   }
 
   t.true(true);
@@ -498,19 +433,15 @@ test("fast forward paths vault", (t) => {
 
 test("single signer recovery vault", (t) => {
   const sim = new Simulator();
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
-  const custodyKey = sim.k1Pair(1);
-  const recoveryKey = sim.k1Pair(2);
+  const custodyKey = K1Pair.fromSeed(1n);
+  const recoveryKey = K1Pair.fromSeed(2n);
 
   // Initial vault
-  const config: MemberConfig = {
-    topLevel: false,
-    nonce: 0,
-    restrictions: [],
-  };
+  const config = new MemberConfig();
 
-  const memberHash = k1MemberHash(config, custodyKey.publicKey, false);
+  const memberHash = k1MemberHash(config, custodyKey.pk, false);
 
   const timelock = timelockRestriction(1n);
   const recoveryRestrictions = [
@@ -523,87 +454,65 @@ test("single signer recovery vault", (t) => {
     ...preventSideEffectsRestriction(),
   ];
   const initialRecoveryHash = k1MemberHash(
-    {
-      ...config,
-      restrictions: recoveryRestrictions,
-    },
-    recoveryKey.publicKey,
+    config.withRestrictions(recoveryRestrictions),
+    recoveryKey.pk,
     false
   );
 
   let vault = mintVault(
     sim,
     clvm,
-    mOfNHash({ ...config, topLevel: true }, 1, [
-      memberHash,
-      initialRecoveryHash,
-    ])
+    mOfNHash(config.withTopLevel(true), 1, [memberHash, initialRecoveryHash])
   );
 
-  let delegatedSpend = clvm.delegatedSpendForConditions([
+  let delegatedSpend = clvm.delegatedSpend([
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
 
-  let vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
-  vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [
-    memberHash,
-    initialRecoveryHash,
-  ]);
-  vaultSpend.spendK1(
-    clvm,
+  let mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.mOfN(config.withTopLevel(true), 1, [memberHash, initialRecoveryHash]);
+  mips.k1Member(
     config,
-    custodyKey.publicKey,
-    signK1(
-      custodyKey.secretKey,
-      vault,
-      delegatedSpend.puzzle.treeHash(),
-      false
-    ),
+    custodyKey.pk,
+    signK1(custodyKey.sk, vault, delegatedSpend.puzzle.treeHash(), false),
     false
   );
-  clvm.spendVault(vault, vaultSpend);
+  mips.spendVault(vault);
 
-  sim.spend(clvm.coinSpends(), []);
+  sim.spendCoins(clvm.coinSpends(), []);
 
   // Initiate recovery
   const oldCustodyHash = vault.custodyHash;
-  const recoveryDelegatedSpend: Spend = {
-    puzzle: clvm.nil(),
-    solution: clvm.nil(),
-  };
+  const recoveryDelegatedSpend = new Spend(clvm.nil(), clvm.nil());
 
-  const recoveryFinishMemberSpend = clvm.delegatedSpendForConditions([
+  const recoveryFinishMemberSpend = clvm.delegatedSpend([
     clvm.createCoin(oldCustodyHash, vault.coin.amount, null),
     clvm.assertSecondsRelative(1n),
   ]);
   const recoveryFinishMemberHash = customMemberHash(
-    { ...config, restrictions: [timelock] },
+    config.withRestrictions([timelock]),
     recoveryFinishMemberSpend.puzzle.treeHash()
   );
 
-  const custodyHash = mOfNHash({ ...config, topLevel: true }, 1, [
+  const custodyHash = mOfNHash(config.withTopLevel(true), 1, [
     memberHash,
     recoveryFinishMemberHash,
   ]);
 
-  delegatedSpend = clvm.delegatedSpendForConditions([
+  delegatedSpend = clvm.delegatedSpend([
     clvm.createCoin(custodyHash, vault.coin.amount, null),
   ]);
 
-  vault = childVault(vault, vault.custodyHash);
-  vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
+  vault = vault.child(vault.custodyHash);
+  mips = clvm.mipsSpend(vault.coin, delegatedSpend);
 
-  vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [
-    memberHash,
-    initialRecoveryHash,
-  ]);
+  mips.mOfN(config.withTopLevel(true), 1, [memberHash, initialRecoveryHash]);
 
-  vaultSpend.spendK1(
-    clvm,
-    { ...config, restrictions: recoveryRestrictions },
-    recoveryKey.publicKey,
+  mips.k1Member(
+    config.withRestrictions(recoveryRestrictions),
+    recoveryKey.pk,
     signK1(
-      recoveryKey.secretKey,
+      recoveryKey.sk,
       vault,
       wrappedDelegatedPuzzleHash(
         recoveryRestrictions,
@@ -614,10 +523,9 @@ test("single signer recovery vault", (t) => {
     false
   );
 
-  vaultSpend.spendPreventSideEffectsRestriction(clvm);
+  mips.preventSideEffects();
 
-  vaultSpend.spendForce1Of2Restriction(
-    clvm,
+  mips.force1Of2RestrictedVariable(
     memberHash,
     0,
     treeHashPair(timelock.puzzleHash, clvm.nil().treeHash()),
@@ -625,190 +533,131 @@ test("single signer recovery vault", (t) => {
     recoveryFinishMemberSpend.puzzle.treeHash()
   );
 
-  clvm.spendVault(vault, vaultSpend);
+  mips.spendVault(vault);
 
-  sim.spend(clvm.coinSpends(), []);
+  sim.spendCoins(clvm.coinSpends(), []);
 
   // Finish recovery
-  vault = childVault(vault, custodyHash);
-  vaultSpend = new MipsSpend(recoveryDelegatedSpend, vault.coin);
-  vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [
+  vault = vault.child(custodyHash);
+  mips = clvm.mipsSpend(vault.coin, recoveryDelegatedSpend);
+  mips.mOfN(config.withTopLevel(true), 1, [
     memberHash,
     recoveryFinishMemberHash,
   ]);
-  vaultSpend.spendCustomMember(
-    clvm,
-    { ...config, restrictions: [timelock] },
+  mips.customMember(
+    config.withRestrictions([timelock]),
     recoveryFinishMemberSpend
   );
-  vaultSpend.spendTimelockRestriction(clvm, 1n);
-  clvm.spendVault(vault, vaultSpend);
+  mips.timelock(1n);
+  mips.spendVault(vault);
 
-  sim.spend(clvm.coinSpends(), []);
+  sim.spendCoins(clvm.coinSpends(), []);
 
   // Make sure the vault is spendable after recovery
-  vault = childVault(vault, oldCustodyHash);
-  delegatedSpend = clvm.delegatedSpendForConditions([
+  vault = vault.child(oldCustodyHash);
+  delegatedSpend = clvm.delegatedSpend([
     clvm.createCoin(vault.custodyHash, vault.coin.amount, null),
   ]);
-  vaultSpend = new MipsSpend(delegatedSpend, vault.coin);
-  vaultSpend.spendMOfN({ ...config, topLevel: true }, 1, [
-    memberHash,
-    initialRecoveryHash,
-  ]);
-  vaultSpend.spendK1(
-    clvm,
+  mips = clvm.mipsSpend(vault.coin, delegatedSpend);
+  mips.mOfN(config.withTopLevel(true), 1, [memberHash, initialRecoveryHash]);
+  mips.k1Member(
     config,
-    custodyKey.publicKey,
-    signK1(
-      custodyKey.secretKey,
-      vault,
-      delegatedSpend.puzzle.treeHash(),
-      false
-    ),
+    custodyKey.pk,
+    signK1(custodyKey.sk, vault, delegatedSpend.puzzle.treeHash(), false),
     false
   );
-  clvm.spendVault(vault, vaultSpend);
+  mips.spendVault(vault);
 
-  sim.spend(clvm.coinSpends(), []);
+  sim.spendCoins(clvm.coinSpends(), []);
 
   t.true(true);
 });
 
-function mintVault(
-  sim: Simulator,
-  clvm: ClvmAllocator,
-  custodyHash: Uint8Array
-): Vault {
-  const p2 = sim.newP2(1n);
+function mintVault(sim: Simulator, clvm: Clvm, custodyHash: Uint8Array): Vault {
+  const p2 = sim.bls(1n);
 
   const { vault, parentConditions } = clvm.mintVault(
-    toCoinId(p2.coin),
+    p2.coin.coinId(),
     custodyHash,
     clvm.nil()
   );
 
-  const spend = clvm.spendP2Standard(
-    p2.publicKey,
-    clvm.delegatedSpendForConditions(parentConditions)
+  const spend = clvm.standardSpend(
+    p2.pk,
+    clvm.delegatedSpend(parentConditions)
   );
 
-  sim.spend(
-    [
-      {
-        coin: p2.coin,
-        puzzleReveal: spend.puzzle.serialize(),
-        solution: spend.solution.serialize(),
-      },
-      ...clvm.coinSpends(),
-    ],
-    [p2.secretKey]
-  );
+  clvm.spendCoin(p2.coin, spend);
+
+  sim.spendCoins(clvm.coinSpends(), [p2.sk]);
 
   return vault;
 }
 
 test("non-vault MIPS spend", (t) => {
   const sim = new Simulator();
-  const clvm = new ClvmAllocator();
+  const clvm = new Clvm();
 
-  const p2 = sim.newP2(1n);
+  const p2 = sim.bls(1n);
 
-  const config: MemberConfig = {
-    topLevel: true,
-    nonce: 0,
-    restrictions: [],
-  };
-  const puzzleHash = blsMemberHash(config, p2.publicKey);
+  const config = new MemberConfig().withTopLevel(true);
+  const puzzleHash = blsMemberHash(config, p2.pk);
 
-  const spend1 = clvm.spendP2Standard(
-    p2.publicKey,
-    clvm.delegatedSpendForConditions([clvm.createCoin(puzzleHash, 1n, null)])
+  const spend1 = clvm.standardSpend(
+    p2.pk,
+    clvm.delegatedSpend([clvm.createCoin(puzzleHash, 1n, null)])
   );
 
-  const coin: Coin = {
-    parentCoinInfo: toCoinId(p2.coin),
-    puzzleHash,
-    amount: 1n,
-  };
+  const coin: Coin = new Coin(p2.coin.coinId(), puzzleHash, 1n);
 
-  const mipsSpend = new MipsSpend(
-    clvm.delegatedSpendForConditions([
-      clvm.createCoin(p2.puzzleHash, 1n, null),
-    ]),
-    coin
+  const mipsSpend = clvm.mipsSpend(
+    coin,
+    clvm.delegatedSpend([clvm.createCoin(puzzleHash, 1n, null)])
   );
 
-  mipsSpend.spendBls(clvm, config, p2.publicKey);
-  const spend2 = mipsSpend.spend(clvm, puzzleHash);
+  mipsSpend.blsMember(config, p2.pk);
+  const spend2 = mipsSpend.spend(puzzleHash);
 
-  sim.spend(
-    [
-      ...clvm.coinSpends(),
-      {
-        coin: p2.coin,
-        puzzleReveal: spend1.puzzle.serialize(),
-        solution: spend1.solution.serialize(),
-      },
-      {
-        coin,
-        puzzleReveal: spend2.puzzle.serialize(),
-        solution: spend2.solution.serialize(),
-      },
-    ],
-    [p2.secretKey]
-  );
+  clvm.spendCoin(p2.coin, spend1);
+  clvm.spendCoin(coin, spend2);
+
+  sim.spendCoins(clvm.coinSpends(), [p2.sk]);
 
   t.true(true);
 });
 
 function mintVaultWithCoin(
   sim: Simulator,
-  clvm: ClvmAllocator,
+  clvm: Clvm,
   custodyHash: Uint8Array,
   amount: bigint
 ): [Vault, Coin] {
-  const p2 = sim.newP2(amount + 1n);
+  const p2 = sim.bls(amount + 1n);
 
   const { vault, parentConditions } = clvm.mintVault(
-    toCoinId(p2.coin),
+    p2.coin.coinId(),
     custodyHash,
     clvm.nil()
   );
 
   const p2PuzzleHash = singletonMemberHash(
-    { topLevel: true, nonce: 0, restrictions: [] },
+    new MemberConfig().withTopLevel(true),
     vault.launcherId
   );
 
-  const spend = clvm.spendP2Standard(
-    p2.publicKey,
-    clvm.delegatedSpendForConditions([
+  const spend = clvm.standardSpend(
+    p2.pk,
+    clvm.delegatedSpend([
       ...parentConditions,
       clvm.createCoin(p2PuzzleHash, amount, clvm.alloc([vault.launcherId])),
     ])
   );
 
-  sim.spend(
-    [
-      {
-        coin: p2.coin,
-        puzzleReveal: spend.puzzle.serialize(),
-        solution: spend.solution.serialize(),
-      },
-      ...clvm.coinSpends(),
-    ],
-    [p2.secretKey]
-  );
+  clvm.spendCoin(p2.coin, spend);
 
-  return [
-    vault,
-    {
-      parentCoinInfo: toCoinId(p2.coin),
-      puzzleHash: p2PuzzleHash,
-      amount,
-    },
-  ];
+  sim.spendCoins(clvm.coinSpends(), [p2.sk]);
+
+  return [vault, new Coin(p2.coin.coinId(), p2PuzzleHash, amount)];
 }
 
 function signK1(
@@ -821,7 +670,7 @@ function signK1(
     sha256(
       Uint8Array.from([
         ...delegatedPuzzleHash,
-        ...(fastForward ? vault.coin.puzzleHash : toCoinId(vault.coin)),
+        ...(fastForward ? vault.coin.puzzleHash : vault.coin.coinId()),
       ])
     )
   );

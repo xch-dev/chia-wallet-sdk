@@ -5,6 +5,8 @@
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_precision_loss)]
 #![allow(clippy::cast_lossless)]
+#![allow(clippy::unnecessary_wraps)]
+#![allow(clippy::return_self_not_must_use)]
 
 mod address;
 mod bls;
@@ -14,6 +16,7 @@ mod coin;
 mod conditions;
 mod constants;
 mod key_pairs;
+mod mips;
 mod mnemonic;
 mod program;
 mod puzzle;
@@ -30,6 +33,7 @@ pub use coin::*;
 pub use conditions::*;
 pub use constants::*;
 pub use key_pairs::*;
+pub use mips::*;
 pub use mnemonic::*;
 pub use program::*;
 pub use puzzle::*;

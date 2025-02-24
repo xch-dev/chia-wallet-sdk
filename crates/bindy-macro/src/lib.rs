@@ -32,7 +32,11 @@ enum Binding {
         #[serde(default)]
         methods: IndexMap<String, Method>,
     },
+    Enum {
+        values: Vec<String>,
+    },
     Function {
+        #[serde(default)]
         args: IndexMap<String, String>,
         #[serde(rename = "return")]
         ret: Option<String>,
@@ -246,6 +250,39 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                     impl<T> bindy::IntoRust<#rust_ident, T> for #bound_ident {
                         fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
                             Ok(self.0)
+                        }
+                    }
+                });
+            }
+            Binding::Enum { values } => {
+                let bound_ident = Ident::new(&name, Span::mixed_site());
+                let rust_ident = quote!( #entrypoint::#bound_ident );
+
+                let value_idents = values
+                    .iter()
+                    .map(|v| Ident::new(v, Span::mixed_site()))
+                    .collect::<Vec<_>>();
+
+                output.extend(quote! {
+                    #[napi_derive::napi]
+                    #[derive(Clone)]
+                    pub enum #bound_ident {
+                        #( #value_idents ),*
+                    }
+
+                    impl<T> bindy::FromRust<#rust_ident, T> for #bound_ident {
+                        fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
+                            Ok(match value {
+                                #( #rust_ident::#value_idents => Self::#value_idents ),*
+                            })
+                        }
+                    }
+
+                    impl<T> bindy::IntoRust<#rust_ident, T> for #bound_ident {
+                        fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
+                            Ok(match self {
+                                #( Self::#value_idents => #rust_ident::#value_idents ),*
+                            })
                         }
                     }
                 });
@@ -471,6 +508,9 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         }
                     }
                 });
+            }
+            Binding::Enum { values } => {
+                todo!()
             }
             Binding::Function { args, ret } => {
                 let bound_ident = Ident::new(&name, Span::mixed_site());
@@ -699,6 +739,9 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                     }
                 });
             }
+            Binding::Enum { values } => {
+                todo!()
+            }
             Binding::Function { args, ret } => {
                 let arg_idents = args
                     .keys()
@@ -733,6 +776,9 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                 module.extend(quote! {
                     m.add_class::<#bound_ident>()?;
                 });
+            }
+            Binding::Enum { values } => {
+                todo!()
             }
             Binding::Function { .. } => {
                 module.extend(quote! {
