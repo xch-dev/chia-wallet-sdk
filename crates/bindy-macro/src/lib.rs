@@ -510,7 +510,37 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                 });
             }
             Binding::Enum { values } => {
-                todo!()
+                let bound_ident = Ident::new(&name, Span::mixed_site());
+                let rust_ident = quote!( #entrypoint::#bound_ident );
+
+                let value_idents = values
+                    .iter()
+                    .map(|v| Ident::new(v, Span::mixed_site()))
+                    .collect::<Vec<_>>();
+
+                output.extend(quote! {
+                    #[wasm_bindgen::prelude::wasm_bindgen]
+                    #[derive(Clone)]
+                    pub enum #bound_ident {
+                        #( #value_idents ),*
+                    }
+
+                    impl<T> bindy::FromRust<#rust_ident, T> for #bound_ident {
+                        fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
+                            Ok(match value {
+                                #( #rust_ident::#value_idents => Self::#value_idents ),*
+                            })
+                        }
+                    }
+
+                    impl<T> bindy::IntoRust<#rust_ident, T> for #bound_ident {
+                        fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
+                            Ok(match self {
+                                #( Self::#value_idents => #rust_ident::#value_idents ),*
+                            })
+                        }
+                    }
+                });
             }
             Binding::Function { args, ret } => {
                 let bound_ident = Ident::new(&name, Span::mixed_site());

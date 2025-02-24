@@ -1778,7 +1778,8 @@
     "Bytes": "Vec<u8>",
     "TreeHash": "Vec<u8>",
     "SerializedProgram": "Vec<u8>",
-    "Vec<Bytes32>": "js_sys::Array"
+    "Vec<Bytes32>": "js_sys::Array",
+    "Vec<TreeHash>": "js_sys::Array"
   },
   "pyo3": {
     "Bytes32": "Vec<u8>",

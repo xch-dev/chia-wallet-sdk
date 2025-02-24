@@ -118,3 +118,33 @@ impl<T> IntoRust<Vec<Bytes32>, T> for js_sys::Array {
         Ok(bytes32_array)
     }
 }
+
+impl<T> IntoRust<Vec<TreeHash>, T> for js_sys::Array {
+    fn into_rust(self, context: &T) -> Result<Vec<TreeHash>> {
+        let bytes_array: Vec<Vec<u8>> = self
+            .values()
+            .into_iter()
+            .map(|item| item.unwrap_throw().unchecked_ref::<Uint8Array>().to_vec())
+            .collect();
+
+        let mut bytes32_array = Vec::with_capacity(bytes_array.len());
+
+        for bytes in bytes_array {
+            bytes32_array.push(bytes.into_rust(context)?);
+        }
+
+        Ok(bytes32_array)
+    }
+}
+
+impl<T> FromRust<Vec<TreeHash>, T> for js_sys::Array {
+    fn from_rust(value: Vec<TreeHash>, _context: &T) -> Result<Self> {
+        let array = js_sys::Array::new();
+
+        for item in value {
+            array.push(&Vec::<u8>::from_rust(item, _context)?.into());
+        }
+
+        Ok(array)
+    }
+}
