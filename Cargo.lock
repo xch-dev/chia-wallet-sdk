@@ -515,6 +515,7 @@ dependencies = [
  "chia-bls 0.20.0",
  "chia-protocol",
  "chia-puzzle-types",
+ "chia-puzzles",
  "chia-sdk-driver",
  "chia-sdk-test",
  "chia-sdk-types",

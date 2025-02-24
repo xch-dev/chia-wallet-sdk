@@ -2,7 +2,7 @@ use bindy::Result;
 use chia_protocol::Bytes32;
 use chia_sdk_driver::{CurriedPuzzle, HashedPtr, RawPuzzle};
 
-use crate::{NftInfo, ParsedNft, Program};
+use crate::{Coin, Nft, NftInfo, ParsedNft, Program};
 
 #[derive(Clone)]
 pub struct Puzzle {
@@ -36,6 +36,32 @@ impl Puzzle {
             },
             p2_puzzle: Program(self.program.0.clone(), p2_puzzle.ptr()),
         }))
+    }
+
+    pub fn parse_child_nft(
+        &self,
+        parent_coin: Coin,
+        parent_puzzle: Program,
+        parent_solution: Program,
+    ) -> Result<Option<Nft>> {
+        let mut ctx = self.program.0.write().unwrap();
+
+        let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx.allocator, parent_puzzle.1);
+
+        let Some(nft) = chia_sdk_driver::Nft::<HashedPtr>::parse_child(
+            &mut ctx.allocator,
+            parent_coin.into(),
+            parent_puzzle,
+            parent_solution.1,
+        )?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(
+            nft.with_metadata(Program(self.program.0.clone(), nft.info.metadata.ptr()))
+                .into(),
+        ))
     }
 }
 

@@ -399,6 +399,7 @@ module.exports.CatSpend = nativeBinding.CatSpend
 module.exports.Clvm = nativeBinding.Clvm
 module.exports.Coin = nativeBinding.Coin
 module.exports.CoinSpend = nativeBinding.CoinSpend
+module.exports.Constants = nativeBinding.Constants
 module.exports.CreateCoin = nativeBinding.CreateCoin
 module.exports.CreateCoinAnnouncement = nativeBinding.CreateCoinAnnouncement
 module.exports.CreatePuzzleAnnouncement = nativeBinding.CreatePuzzleAnnouncement

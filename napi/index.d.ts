@@ -231,6 +231,8 @@ export declare class Clvm {
   addCoinSpend(coinSpend: CoinSpend): void
   spendCoin(coin: Coin, spend: Spend): void
   coinSpends(): Array<CoinSpend>
+  deserialize(value: Uint8Array): Program
+  deserializeWithBackrefs(value: Uint8Array): Program
   pair(first: Program, rest: Program): Program
   nil(): Program
   string(value: string): Program
@@ -242,6 +244,7 @@ export declare class Clvm {
   spendStandardCoin(coin: Coin, syntheticKey: PublicKey, spend: Spend): void
   spendCatCoins(catSpends: Array<CatSpend>): void
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
+  spendNft(nft: Nft, innerSpend: Spend): void
   nftMetadata(value: NftMetadata): Program
   remark(rest: Program): Program
   aggSigParent(publicKey: PublicKey, message: Uint8Array): Program
@@ -278,6 +281,7 @@ export declare class Clvm {
   sendMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
   receiveMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
   softfork(cost: bigint, rest: Program): Program
+  alloc(value: any): Program
   int(value: number): Program
   bigInt(value: bigint): Program
 }
@@ -301,6 +305,10 @@ export declare class CoinSpend {
   set puzzleReveal(value: Uint8Array)
   get solution(): Uint8Array
   set solution(value: Uint8Array)
+}
+
+export declare class Constants {
+  static defaultMetadataUpdaterHash(): Uint8Array
 }
 
 export declare class CreateCoin {
@@ -488,7 +496,7 @@ export declare class Program {
   serialize(): Uint8Array
   serializeWithBackrefs(): Uint8Array
   run(solution: Program, maxCost: bigint, mempoolMode: boolean): Output
-  curry(program: Program, args: Array<Program>): Program
+  curry(args: Array<Program>): Program
   uncurry(): CurriedProgram | null
   treeHash(): Uint8Array
   length(): number
@@ -556,6 +564,7 @@ export declare class PublicKey {
 
 export declare class Puzzle {
   parseNft(): ParsedNft | null
+  parseChildNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Nft | null
   constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
   get puzzleHash(): Uint8Array
   set puzzleHash(value: Uint8Array)

@@ -52,7 +52,7 @@ impl Program {
         })
     }
 
-    pub fn curry(&self, program: Program, args: Vec<Program>) -> Result<Program> {
+    pub fn curry(&self, args: Vec<Program>) -> Result<Program> {
         let mut ctx = self.0.write().unwrap();
 
         let mut args_ptr = ctx.allocator.one();
@@ -62,7 +62,7 @@ impl Program {
         }
 
         let ptr = ctx.alloc(&clvm_utils::CurriedProgram {
-            program: program.1,
+            program: self.1,
             args: args_ptr,
         })?;
 

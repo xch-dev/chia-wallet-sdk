@@ -3,24 +3,23 @@ import test from "ava";
 import {
   bytesEqual,
   Clvm,
+  Coin,
+  Constants,
   curryTreeHash,
   fromHex,
+  NftMetadata,
+  NftMint,
   PublicKey,
   Simulator,
-  toCoinId,
   toHex,
 } from "../index.js";
 
 test("calculate coin id", (t) => {
-  const coinId = toCoinId({
-    parentCoinInfo: fromHex(
-      "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a"
-    ),
-    puzzleHash: fromHex(
-      "dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986"
-    ),
-    amount: 100n,
-  });
+  const coinId = new Coin(
+    fromHex("4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a"),
+    fromHex("dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986"),
+    100n
+  ).coinId();
 
   t.true(
     bytesEqual(
@@ -54,7 +53,7 @@ test("atom roundtrip", (t) => {
   const expected = Uint8Array.from([1, 2, 3]);
   const atom = clvm.alloc(expected);
 
-  t.true(bytesEqual(atom.toBytes()!, expected));
+  t.true(bytesEqual(atom.toAtom()!, expected));
 });
 
 test("string roundtrip", (t) => {
@@ -116,10 +115,10 @@ test("bigint roundtrip", (t) => {
 test("pair roundtrip", (t) => {
   const clvm = new Clvm();
 
-  const ptr = clvm.pair(1, 100n);
+  const ptr = clvm.pair(clvm.int(1), clvm.bigInt(100n));
   const { first, rest } = ptr.toPair()!;
 
-  t.is(first.toNumber(), 1);
+  t.is(first.toInt(), 1);
   t.is(rest.toBigInt(), 100n);
 });
 
@@ -128,7 +127,7 @@ test("list roundtrip", (t) => {
 
   const items = Array.from({ length: 10 }, (_, i) => i);
   const ptr = clvm.alloc(items);
-  const list = ptr.toList()?.map((ptr) => ptr.toNumber());
+  const list = ptr.toList()?.map((ptr) => ptr.toInt());
 
   t.deepEqual(list, items);
 });
@@ -165,7 +164,7 @@ test("public key roundtrip", (t) => {
   const clvm = new Clvm();
 
   const ptr = clvm.alloc(PublicKey.infinity());
-  const pk = PublicKey.fromBytes(ptr.toBytes()!);
+  const pk = PublicKey.fromBytes(ptr.toAtom()!);
 
   t.true(bytesEqual(PublicKey.infinity().toBytes(), pk.toBytes()));
 });
@@ -177,7 +176,7 @@ test("curry add function", (t) => {
   const addToTen = addMod.curry([clvm.alloc(10)]);
   const result = addToTen.run(clvm.alloc([5]), 10000000n, true);
 
-  t.is(result.value.toNumber(), 15);
+  t.is(result.value.toInt(), 15);
   t.is(result.cost, 1082n);
 });
 
@@ -187,7 +186,7 @@ test("curry roundtrip", (t) => {
   const items = Array.from({ length: 10 }, (_, i) => i);
   const ptr = clvm.nil().curry(items.map((i) => clvm.alloc(i)));
   const uncurry = ptr.uncurry()!;
-  const args = uncurry.args?.map((ptr) => ptr.toNumber());
+  const args = uncurry.args?.map((ptr) => ptr.toInt());
 
   t.true(bytesEqual(clvm.nil().treeHash(), uncurry.program.treeHash()));
   t.deepEqual(args, items);
@@ -200,7 +199,10 @@ test("clvm serialization", (t) => {
     [clvm.alloc(Uint8Array.from([1, 2, 3])), "83010203"],
     [clvm.alloc(420), "8201a4"],
     [clvm.alloc(100n), "64"],
-    [clvm.pair(Uint8Array.from([1, 2, 3]), 100n), "ff8301020364"],
+    [
+      clvm.pair(clvm.atom(Uint8Array.from([1, 2, 3])), clvm.bigInt(100n)),
+      "ff8301020364",
+    ],
   ] as const) {
     const serialized = ptr.serialize();
     const deserialized = clvm.deserialize(serialized);
@@ -230,19 +232,25 @@ test("mint and spend nft", (t) => {
   const simulator = new Simulator();
   const alice = simulator.bls(1n);
 
-  const result = clvm.mintNfts(toCoinId(alice.coin), [
-    {
-      metadata: {
-        dataUris: ["https://example.com"],
-        metadataUris: ["https://example.com"],
-        licenseUris: ["https://example.com"],
-        editionNumber: 1n,
-        editionTotal: 1n,
-      },
-      p2PuzzleHash: alice.puzzleHash,
-      royaltyPuzzleHash: alice.puzzleHash,
-      royaltyTenThousandths: 300,
-    },
+  const metadata = new NftMetadata(
+    1n,
+    1n,
+    ["https://example.com"],
+    null,
+    ["https://example.com"],
+    null,
+    ["https://example.com"],
+    null
+  );
+
+  const result = clvm.mintNfts(alice.coin.coinId(), [
+    new NftMint(
+      clvm.nftMetadata(metadata),
+      Constants.defaultMetadataUpdaterHash(),
+      alice.puzzleHash,
+      alice.puzzleHash,
+      300
+    ),
   ]);
 
   const spend = clvm.standardSpend(
@@ -250,16 +258,9 @@ test("mint and spend nft", (t) => {
     clvm.delegatedSpend(result.parentConditions)
   );
 
-  simulator.spendCoins(
-    clvm.coinSpends().concat([
-      {
-        coin: alice.coin,
-        puzzleReveal: spend.puzzle.serialize(),
-        solution: spend.solution.serialize(),
-      },
-    ]),
-    [alice.sk]
-  );
+  clvm.spendCoin(alice.coin, spend);
+
+  simulator.spendCoins(clvm.coinSpends(), [alice.sk]);
 
   const innerSpend = clvm.standardSpend(
     alice.pk,
@@ -275,11 +276,9 @@ test("mint and spend nft", (t) => {
   t.true(
     bytesEqual(
       clvm
-        .nftMetadata(
-          clvm.parseNftMetadata(clvm.deserialize(result.nfts[0].info.metadata))
-        )
+        .nftMetadata(result.nfts[0].info.metadata.parseNftMetadata()!)
         .serialize(),
-      result.nfts[0].info.metadata
+      result.nfts[0].info.metadata.serialize()
     )
   );
 });
@@ -298,7 +297,7 @@ test("create and parse condition", (t) => {
   t.deepEqual(
     parsed?.memos
       ?.toList()
-      ?.map((memo) => memo.toBytes())
+      ?.map((memo) => memo.toAtom())
       .filter((memo) => memo !== null),
     [puzzleHash]
   );

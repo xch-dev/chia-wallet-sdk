@@ -12,7 +12,7 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    CatSpend, Coin, CoinSpend, MintedNfts, NftMetadata, NftMint, Program, PublicKey, Spend,
+    CatSpend, Coin, CoinSpend, MintedNfts, Nft, NftMetadata, NftMint, Program, PublicKey, Spend,
 };
 
 #[derive(Default, Clone)]
@@ -142,6 +142,30 @@ impl Clvm {
             nfts,
             parent_conditions,
         })
+    }
+
+    pub fn spend_nft(&self, nft: Nft, inner_spend: Spend) -> Result<()> {
+        let mut ctx = self.0.write().unwrap();
+        let nft = chia_sdk_driver::Nft {
+            coin: nft.coin.into(),
+            proof: nft.lineage_proof.into(),
+            info: chia_sdk_driver::NftInfo {
+                launcher_id: nft.info.launcher_id,
+                metadata: HashedPtr::from_ptr(&ctx.allocator, nft.info.metadata.1),
+                metadata_updater_puzzle_hash: nft.info.metadata_updater_puzzle_hash,
+                current_owner: nft.info.current_owner,
+                royalty_puzzle_hash: nft.info.royalty_puzzle_hash,
+                royalty_ten_thousandths: nft.info.royalty_ten_thousandths,
+                p2_puzzle_hash: nft.info.p2_puzzle_hash,
+            },
+        };
+
+        nft.spend(
+            &mut ctx,
+            chia_sdk_driver::Spend::new(inner_spend.puzzle.1, inner_spend.solution.1),
+        )?;
+
+        Ok(())
     }
 
     pub fn deserialize(&self, value: SerializedProgram) -> Result<Program> {

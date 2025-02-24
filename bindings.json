@@ -2,6 +2,15 @@
   "entrypoint": "chia_sdk_bindings",
   "pymodule": "chia_wallet_sdk_py",
   "bindings": {
+    "Constants": {
+      "type": "class",
+      "methods": {
+        "default_metadata_updater_hash": {
+          "type": "static",
+          "return": "TreeHash"
+        }
+      }
+    },
     "Clvm": {
       "type": "class",
       "methods": {
@@ -21,6 +30,18 @@
         },
         "coin_spends": {
           "return": "Vec<CoinSpend>"
+        },
+        "deserialize": {
+          "args": {
+            "value": "SerializedProgram"
+          },
+          "return": "Program"
+        },
+        "deserialize_with_backrefs": {
+          "args": {
+            "value": "SerializedProgram"
+          },
+          "return": "Program"
         },
         "pair": {
           "args": {
@@ -87,6 +108,12 @@
             "nft_mints": "Vec<NftMint>"
           },
           "return": "MintedNfts"
+        },
+        "spend_nft": {
+          "args": {
+            "nft": "Nft",
+            "inner_spend": "Spend"
+          }
         },
         "nft_metadata": {
           "args": {
@@ -337,7 +364,6 @@
         },
         "curry": {
           "args": {
-            "program": "Program",
             "args": "Vec<Program>"
           },
           "return": "Program"
@@ -498,6 +524,14 @@
       "methods": {
         "parse_nft": {
           "return": "Option<ParsedNft>"
+        },
+        "parse_child_nft": {
+          "args": {
+            "parent_coin": "Coin",
+            "parent_puzzle": "Program",
+            "parent_solution": "Program"
+          },
+          "return": "Option<Nft>"
         }
       }
     },
