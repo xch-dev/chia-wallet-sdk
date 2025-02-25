@@ -9,3 +9,9 @@ pub use coinset_client::*;
 pub use de::*;
 pub use mock_client::*;
 pub use models::*;
+
+#[cfg(any(feature = "native-tls", feature = "rustls"))]
+mod ssl_client;
+
+#[cfg(any(feature = "native-tls", feature = "rustls"))]
+pub use ssl_client::*;
