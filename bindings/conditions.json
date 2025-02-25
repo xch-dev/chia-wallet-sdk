@@ -1,0 +1,259 @@
+{
+  "Remark": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "rest": "Program"
+    }
+  },
+  "AggSigParent": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "public_key": "PublicKey",
+      "message": "Bytes"
+    }
+  },
+  "AggSigPuzzle": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "public_key": "PublicKey",
+      "message": "Bytes"
+    }
+  },
+  "AggSigAmount": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "public_key": "PublicKey",
+      "message": "Bytes"
+    }
+  },
+  "AggSigPuzzleAmount": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "public_key": "PublicKey",
+      "message": "Bytes"
+    }
+  },
+  "AggSigParentAmount": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "public_key": "PublicKey",
+      "message": "Bytes"
+    }
+  },
+  "AggSigParentPuzzle": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "public_key": "PublicKey",
+      "message": "Bytes"
+    }
+  },
+  "AggSigUnsafe": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "public_key": "PublicKey",
+      "message": "Bytes"
+    }
+  },
+  "AggSigMe": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "public_key": "PublicKey",
+      "message": "Bytes"
+    }
+  },
+  "CreateCoin": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "amount": "u64",
+      "memos": "Option<Program>"
+    }
+  },
+  "ReserveFee": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "amount": "u64"
+    }
+  },
+  "CreateCoinAnnouncement": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "message": "Bytes"
+    }
+  },
+  "CreatePuzzleAnnouncement": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "message": "Bytes"
+    }
+  },
+  "AssertCoinAnnouncement": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "announcement_id": "Bytes32"
+    }
+  },
+  "AssertPuzzleAnnouncement": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "announcement_id": "Bytes32"
+    }
+  },
+  "AssertConcurrentSpend": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin_id": "Bytes32"
+    }
+  },
+  "AssertConcurrentPuzzle": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "puzzle_hash": "Bytes32"
+    }
+  },
+  "AssertSecondsRelative": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "seconds": "u64"
+    }
+  },
+  "AssertSecondsAbsolute": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "seconds": "u64"
+    }
+  },
+  "AssertHeightRelative": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "height": "u32"
+    }
+  },
+  "AssertHeightAbsolute": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "height": "u32"
+    }
+  },
+  "AssertBeforeSecondsRelative": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "seconds": "u64"
+    }
+  },
+  "AssertBeforeSecondsAbsolute": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "seconds": "u64"
+    }
+  },
+  "AssertBeforeHeightRelative": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "height": "u32"
+    }
+  },
+  "AssertBeforeHeightAbsolute": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "height": "u32"
+    }
+  },
+  "AssertMyCoinId": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin_id": "Bytes32"
+    }
+  },
+  "AssertMyParentId": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "parent_id": "Bytes32"
+    }
+  },
+  "AssertMyPuzzleHash": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "puzzle_hash": "Bytes32"
+    }
+  },
+  "AssertMyAmount": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "amount": "u64"
+    }
+  },
+  "AssertMyBirthSeconds": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "seconds": "u64"
+    }
+  },
+  "AssertMyBirthHeight": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "height": "u32"
+    }
+  },
+  "AssertEphemeral": {
+    "type": "class",
+    "new": true
+  },
+  "SendMessage": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "mode": "u8",
+      "message": "Bytes",
+      "data": "Vec<Program>"
+    }
+  },
+  "ReceiveMessage": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "mode": "u8",
+      "message": "Bytes",
+      "data": "Vec<Program>"
+    }
+  },
+  "Softfork": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "cost": "u64",
+      "rest": "Program"
+    }
+  }
+}

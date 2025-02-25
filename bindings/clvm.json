@@ -1,0 +1,351 @@
+{
+  "Clvm": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor"
+      },
+      "add_coin_spend": {
+        "args": {
+          "coin_spend": "CoinSpend"
+        }
+      },
+      "spend_coin": {
+        "args": {
+          "coin": "Coin",
+          "spend": "Spend"
+        }
+      },
+      "coin_spends": {
+        "return": "Vec<CoinSpend>"
+      },
+      "deserialize": {
+        "args": {
+          "value": "SerializedProgram"
+        },
+        "return": "Program"
+      },
+      "deserialize_with_backrefs": {
+        "args": {
+          "value": "SerializedProgram"
+        },
+        "return": "Program"
+      },
+      "pair": {
+        "args": {
+          "first": "Program",
+          "rest": "Program"
+        },
+        "return": "Program"
+      },
+      "nil": {
+        "return": "Program"
+      },
+      "string": {
+        "args": {
+          "value": "String"
+        },
+        "return": "Program"
+      },
+      "bool": {
+        "args": {
+          "value": "bool"
+        },
+        "return": "Program"
+      },
+      "atom": {
+        "args": {
+          "value": "Bytes"
+        },
+        "return": "Program"
+      },
+      "list": {
+        "args": {
+          "value": "Vec<Program>"
+        },
+        "return": "Program"
+      },
+      "delegated_spend": {
+        "args": {
+          "conditions": "Vec<Program>"
+        },
+        "return": "Spend"
+      },
+      "standard_spend": {
+        "args": {
+          "synthetic_key": "PublicKey",
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "spend_standard_coin": {
+        "args": {
+          "coin": "Coin",
+          "synthetic_key": "PublicKey",
+          "spend": "Spend"
+        }
+      },
+      "spend_cat_coins": {
+        "args": {
+          "cat_spends": "Vec<CatSpend>"
+        }
+      },
+      "mint_nfts": {
+        "args": {
+          "parent_coin_id": "Bytes32",
+          "nft_mints": "Vec<NftMint>"
+        },
+        "return": "MintedNfts"
+      },
+      "spend_nft": {
+        "args": {
+          "nft": "Nft",
+          "inner_spend": "Spend"
+        }
+      },
+      "mint_vault": {
+        "args": {
+          "parent_coin_id": "Bytes32",
+          "custody_hash": "TreeHash",
+          "memos": "Program"
+        },
+        "return": "VaultMint"
+      },
+      "mips_spend": {
+        "args": {
+          "coin": "Coin",
+          "delegated_spend": "Spend"
+        },
+        "return": "MipsSpend"
+      },
+      "nft_metadata": {
+        "args": {
+          "value": "NftMetadata"
+        },
+        "return": "Program"
+      },
+      "remark": {
+        "args": {
+          "rest": "Program"
+        },
+        "return": "Program"
+      },
+      "agg_sig_parent": {
+        "args": {
+          "public_key": "PublicKey",
+          "message": "Bytes"
+        },
+        "return": "Program"
+      },
+      "agg_sig_puzzle": {
+        "args": {
+          "public_key": "PublicKey",
+          "message": "Bytes"
+        },
+        "return": "Program"
+      },
+      "agg_sig_amount": {
+        "args": {
+          "public_key": "PublicKey",
+          "message": "Bytes"
+        },
+        "return": "Program"
+      },
+      "agg_sig_puzzle_amount": {
+        "args": {
+          "public_key": "PublicKey",
+          "message": "Bytes"
+        },
+        "return": "Program"
+      },
+      "agg_sig_parent_amount": {
+        "args": {
+          "public_key": "PublicKey",
+          "message": "Bytes"
+        },
+        "return": "Program"
+      },
+      "agg_sig_parent_puzzle": {
+        "args": {
+          "public_key": "PublicKey",
+          "message": "Bytes"
+        },
+        "return": "Program"
+      },
+      "agg_sig_unsafe": {
+        "args": {
+          "public_key": "PublicKey",
+          "message": "Bytes"
+        },
+        "return": "Program"
+      },
+      "agg_sig_me": {
+        "args": {
+          "public_key": "PublicKey",
+          "message": "Bytes"
+        },
+        "return": "Program"
+      },
+      "create_coin": {
+        "args": {
+          "puzzle_hash": "Bytes32",
+          "amount": "u64",
+          "memos": "Option<Program>"
+        },
+        "return": "Program"
+      },
+      "reserve_fee": {
+        "args": {
+          "amount": "u64"
+        },
+        "return": "Program"
+      },
+      "create_coin_announcement": {
+        "args": {
+          "message": "Bytes"
+        },
+        "return": "Program"
+      },
+      "create_puzzle_announcement": {
+        "args": {
+          "message": "Bytes"
+        },
+        "return": "Program"
+      },
+      "assert_coin_announcement": {
+        "args": {
+          "announcement_id": "Bytes32"
+        },
+        "return": "Program"
+      },
+      "assert_puzzle_announcement": {
+        "args": {
+          "announcement_id": "Bytes32"
+        },
+        "return": "Program"
+      },
+      "assert_concurrent_spend": {
+        "args": {
+          "coin_id": "Bytes32"
+        },
+        "return": "Program"
+      },
+      "assert_concurrent_puzzle": {
+        "args": {
+          "puzzle_hash": "Bytes32"
+        },
+        "return": "Program"
+      },
+      "assert_seconds_relative": {
+        "args": {
+          "seconds": "u64"
+        },
+        "return": "Program"
+      },
+      "assert_seconds_absolute": {
+        "args": {
+          "seconds": "u64"
+        },
+        "return": "Program"
+      },
+      "assert_height_relative": {
+        "args": {
+          "height": "u32"
+        },
+        "return": "Program"
+      },
+      "assert_height_absolute": {
+        "args": {
+          "height": "u32"
+        },
+        "return": "Program"
+      },
+      "assert_before_seconds_relative": {
+        "args": {
+          "seconds": "u64"
+        },
+        "return": "Program"
+      },
+      "assert_before_seconds_absolute": {
+        "args": {
+          "seconds": "u64"
+        },
+        "return": "Program"
+      },
+      "assert_before_height_relative": {
+        "args": {
+          "height": "u32"
+        },
+        "return": "Program"
+      },
+      "assert_before_height_absolute": {
+        "args": {
+          "height": "u32"
+        },
+        "return": "Program"
+      },
+      "assert_my_coin_id": {
+        "args": {
+          "coin_id": "Bytes32"
+        },
+        "return": "Program"
+      },
+      "assert_my_parent_id": {
+        "args": {
+          "parent_id": "Bytes32"
+        },
+        "return": "Program"
+      },
+      "assert_my_puzzle_hash": {
+        "args": {
+          "puzzle_hash": "Bytes32"
+        },
+        "return": "Program"
+      },
+      "assert_my_amount": {
+        "args": {
+          "amount": "u64"
+        },
+        "return": "Program"
+      },
+      "assert_my_birth_seconds": {
+        "args": {
+          "seconds": "u64"
+        },
+        "return": "Program"
+      },
+      "assert_my_birth_height": {
+        "args": {
+          "height": "u32"
+        },
+        "return": "Program"
+      },
+      "assert_ephemeral": {
+        "return": "Program"
+      },
+      "send_message": {
+        "args": {
+          "mode": "u8",
+          "message": "Bytes",
+          "data": "Vec<Program>"
+        },
+        "return": "Program"
+      },
+      "receive_message": {
+        "args": {
+          "mode": "u8",
+          "message": "Bytes",
+          "data": "Vec<Program>"
+        },
+        "return": "Program"
+      },
+      "softfork": {
+        "args": {
+          "cost": "u64",
+          "rest": "Program"
+        },
+        "return": "Program"
+      }
+    }
+  }
+}

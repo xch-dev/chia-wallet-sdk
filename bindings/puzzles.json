@@ -1,0 +1,130 @@
+{
+  "Puzzle": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "program": "Program",
+      "mod_hash": "Bytes32",
+      "args": "Option<Program>"
+    },
+    "methods": {
+      "parse_nft": {
+        "return": "Option<ParsedNft>"
+      },
+      "parse_child_nft": {
+        "args": {
+          "parent_coin": "Coin",
+          "parent_puzzle": "Program",
+          "parent_solution": "Program"
+        },
+        "return": "Option<Nft>"
+      }
+    }
+  },
+  "Cat": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "lineage_proof": "Option<LineageProof>",
+      "asset_id": "Bytes32",
+      "p2_puzzle_hash": "Bytes32"
+    }
+  },
+  "CatSpend": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "cat": "Cat",
+      "spend": "Spend"
+    }
+  },
+  "Nft": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "lineage_proof": "LineageProof",
+      "info": "NftInfo"
+    }
+  },
+  "NftInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "metadata": "Program",
+      "metadata_updater_puzzle_hash": "Bytes32",
+      "current_owner": "Option<Bytes32>",
+      "royalty_puzzle_hash": "Bytes32",
+      "royalty_ten_thousandths": "u16",
+      "p2_puzzle_hash": "Bytes32"
+    }
+  },
+  "ParsedNft": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "info": "NftInfo",
+      "p2_puzzle": "Program"
+    }
+  },
+  "NftMetadata": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "edition_number": "u64",
+      "edition_total": "u64",
+      "data_uris": "Vec<String>",
+      "data_hash": "Option<Bytes32>",
+      "metadata_uris": "Vec<String>",
+      "metadata_hash": "Option<Bytes32>",
+      "license_uris": "Vec<String>",
+      "license_hash": "Option<Bytes32>"
+    }
+  },
+  "NftMint": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "metadata": "Program",
+      "metadata_updater_puzzle_hash": "Bytes32",
+      "p2_puzzle_hash": "Bytes32",
+      "royalty_puzzle_hash": "Bytes32",
+      "royalty_ten_thousandths": "u16",
+      "owner": "Option<DidOwner>"
+    }
+  },
+  "DidOwner": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "did_id": "Bytes32",
+      "inner_puzzle_hash": "Bytes32"
+    }
+  },
+  "MintedNfts": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "nfts": "Vec<Nft>",
+      "parent_conditions": "Vec<Program>"
+    }
+  },
+  "standard_puzzle_hash": {
+    "type": "function",
+    "args": {
+      "synthetic_key": "PublicKey"
+    },
+    "return": "Bytes32"
+  },
+  "cat_puzzle_hash": {
+    "type": "function",
+    "args": {
+      "asset_id": "Bytes32",
+      "inner_puzzle_hash": "Bytes32"
+    },
+    "return": "Bytes32"
+  }
+}
