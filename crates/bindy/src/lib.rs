@@ -112,6 +112,9 @@ pub enum Error {
     #[cfg(feature = "wasm")]
     #[error("Range error: {0:?}")]
     Range(js_sys::RangeError),
+
+    #[error("Reqwest error: {0}")]
+    Reqwest(#[from] reqwest::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -29,6 +29,7 @@ chia-bls = { workspace = true }
 chia-sdk-utils = { workspace = true }
 chia-sdk-driver = { workspace = true }
 chia-sdk-test = { workspace = true }
+reqwest = { workspace = true }
 clvmr = { workspace = true }
 clvm-traits = { workspace = true }
 clvm-utils = { workspace = true }

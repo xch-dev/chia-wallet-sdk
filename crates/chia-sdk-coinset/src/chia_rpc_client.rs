@@ -1,4 +1,4 @@
-use chia::protocol::{Bytes32, SpendBundle};
+use chia_protocol::{Bytes32, SpendBundle};
 use serde::{de::DeserializeOwned, Serialize};
 use std::future::Future;
 
@@ -18,21 +18,21 @@ pub trait ChiaRpcClient {
         &self,
         endpoint: &str,
         body: B,
-    ) -> impl Future<Output = Result<R, Self::Error>> + Send
+    ) -> impl Future<Output = Result<R, Self::Error>>
     where
         B: Serialize + Send,
         R: DeserializeOwned + Send;
 
     fn get_blockchain_state(
         &self,
-    ) -> impl Future<Output = Result<BlockchainStateResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<BlockchainStateResponse, Self::Error>> {
         self.make_post_request("get_blockchain_state", serde_json::json!({}))
     }
 
     fn get_additions_and_removals(
         &self,
         header_hash: Bytes32,
-    ) -> impl Future<Output = Result<AdditionsAndRemovalsResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<AdditionsAndRemovalsResponse, Self::Error>> {
         self.make_post_request(
             "get_additions_and_removals",
             serde_json::json!({
@@ -44,7 +44,7 @@ pub trait ChiaRpcClient {
     fn get_block(
         &self,
         header_hash: Bytes32,
-    ) -> impl Future<Output = Result<GetBlockResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetBlockResponse, Self::Error>> {
         self.make_post_request(
             "get_block",
             serde_json::json!({
@@ -56,7 +56,7 @@ pub trait ChiaRpcClient {
     fn get_block_record(
         &self,
         header_hash: Bytes32,
-    ) -> impl Future<Output = Result<GetBlockRecordResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetBlockRecordResponse, Self::Error>> {
         self.make_post_request(
             "get_block_record",
             serde_json::json!({
@@ -68,7 +68,7 @@ pub trait ChiaRpcClient {
     fn get_block_record_by_height(
         &self,
         height: u32,
-    ) -> impl Future<Output = Result<GetBlockRecordByHeightResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetBlockRecordByHeightResponse, Self::Error>> {
         self.make_post_request(
             "get_block_record_by_height",
             serde_json::json!({
@@ -81,7 +81,7 @@ pub trait ChiaRpcClient {
         &self,
         start_height: u32,
         end_height: u32,
-    ) -> impl Future<Output = Result<GetBlockRecordsResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetBlockRecordsResponse, Self::Error>> {
         self.make_post_request(
             "get_block_records",
             serde_json::json!({
@@ -97,7 +97,7 @@ pub trait ChiaRpcClient {
         end: u32,
         exclude_header_hash: bool,
         exclude_reorged: bool,
-    ) -> impl Future<Output = Result<GetBlocksResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetBlocksResponse, Self::Error>> {
         self.make_post_request(
             "get_blocks",
             serde_json::json!({
@@ -112,7 +112,7 @@ pub trait ChiaRpcClient {
     fn get_block_spends(
         &self,
         header_hash: Bytes32,
-    ) -> impl Future<Output = Result<GetBlockSpendsResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetBlockSpendsResponse, Self::Error>> {
         self.make_post_request(
             "get_block_spends",
             serde_json::json!({
@@ -124,7 +124,7 @@ pub trait ChiaRpcClient {
     fn get_coin_record_by_name(
         &self,
         name: Bytes32,
-    ) -> impl Future<Output = Result<GetCoinRecordResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetCoinRecordResponse, Self::Error>> {
         self.make_post_request(
             "get_coin_record_by_name",
             serde_json::json!({
@@ -139,7 +139,7 @@ pub trait ChiaRpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
-    ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> {
         self.make_post_request(
             "get_coin_records_by_hint",
             serde_json::json!({
@@ -157,7 +157,7 @@ pub trait ChiaRpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
-    ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> {
         self.make_post_request(
             "get_coin_records_by_names",
             serde_json::json!({
@@ -175,7 +175,7 @@ pub trait ChiaRpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
-    ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> {
         self.make_post_request(
             "get_coin_records_by_parent_ids",
             serde_json::json!({
@@ -193,7 +193,7 @@ pub trait ChiaRpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
-    ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> {
         self.make_post_request(
             "get_coin_records_by_puzzle_hash",
             serde_json::json!({
@@ -211,7 +211,7 @@ pub trait ChiaRpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
-    ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> {
         self.make_post_request(
             "get_coin_records_by_puzzle_hashes",
             serde_json::json!({
@@ -227,7 +227,7 @@ pub trait ChiaRpcClient {
         &self,
         coin_id: Bytes32,
         height: Option<u32>,
-    ) -> impl Future<Output = Result<GetPuzzleAndSolutionResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetPuzzleAndSolutionResponse, Self::Error>> {
         self.make_post_request(
             "get_puzzle_and_solution",
             serde_json::json!({
@@ -240,7 +240,7 @@ pub trait ChiaRpcClient {
     fn push_tx(
         &self,
         spend_bundle: SpendBundle,
-    ) -> impl Future<Output = Result<PushTxResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<PushTxResponse, Self::Error>> {
         self.make_post_request(
             "push_tx",
             serde_json::json!({
@@ -264,14 +264,14 @@ pub trait ChiaRpcClient {
 
     fn get_network_info(
         &self,
-    ) -> impl Future<Output = Result<GetNetworkInfoResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetNetworkInfoResponse, Self::Error>> {
         self.make_post_request("get_network_info", serde_json::json!({}))
     }
 
     fn get_mempool_item_by_tx_id(
         &self,
         tx_id: Bytes32,
-    ) -> impl Future<Output = Result<GetMempoolItemResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetMempoolItemResponse, Self::Error>> {
         self.make_post_request(
             "get_mempool_item_by_tx_id",
             serde_json::json!({
@@ -283,7 +283,7 @@ pub trait ChiaRpcClient {
     fn get_mempool_items_by_coin_name(
         &self,
         coin_name: Bytes32,
-    ) -> impl Future<Output = Result<GetMempoolItemsResponse, Self::Error>> + Send {
+    ) -> impl Future<Output = Result<GetMempoolItemsResponse, Self::Error>> {
         self.make_post_request(
             "get_mempool_items_by_coin_name",
             serde_json::json!({
@@ -295,7 +295,8 @@ pub trait ChiaRpcClient {
 
 #[cfg(test)]
 mod tests {
-    use chia::{protocol::Coin, traits::Streamable};
+    use chia_protocol::Coin;
+    use chia_traits::Streamable;
     use hex_literal::hex;
 
     use crate::MockRpcClient;

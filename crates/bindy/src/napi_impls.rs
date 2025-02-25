@@ -18,6 +18,8 @@ pub struct NapiStructContext(pub Env);
 
 pub struct NapiReturnContext(pub Env);
 
+pub struct NapiAsyncReturnContext;
+
 impl<T, U> IntoRust<T, NapiParamContext, Napi> for ClassInstance<U>
 where
     U: Clone + IntoRust<T, NapiParamContext, Napi>,

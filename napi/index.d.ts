@@ -576,6 +576,27 @@ export declare class R1Pair {
   get pk(): R1PublicKey
   set pk(value: R1PublicKey)
 }
+export declare class CoinsetClient {
+  constructor(baseUrl: string)
+  static testnet11(): CoinsetClient
+  static mainnet(): CoinsetClient
+  getCoinRecordsByHint(hint: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<Array<CoinRecord>>
+}
+export declare class CoinRecord {
+  constructor(coin: Coin, coinbase: boolean, confirmedBlockIndex: number, spent: boolean, spentBlockIndex: number, timestamp: bigint)
+  get coin(): Coin
+  set coin(value: Coin)
+  get coinbase(): boolean
+  set coinbase(value: boolean)
+  get confirmedBlockIndex(): number
+  set confirmedBlockIndex(value: number)
+  get spent(): boolean
+  set spent(value: boolean)
+  get spentBlockIndex(): number
+  set spentBlockIndex(value: number)
+  get timestamp(): bigint
+  set timestamp(value: bigint)
+}
 export declare class Address {
   encode(): string
   static decode(address: string): Address
