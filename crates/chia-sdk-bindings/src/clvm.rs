@@ -4,6 +4,7 @@ use bindy::{Error, Result};
 use chia_protocol::{Bytes, Bytes32, Program as SerializedProgram};
 use chia_puzzle_types::nft;
 use chia_sdk_driver::{HashedPtr, Launcher, SpendContext, StandardLayer};
+use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::TreeHash;
 use clvmr::{
@@ -205,6 +206,12 @@ impl Clvm {
             ))),
             coin: coin.into(),
         })
+    }
+
+    pub fn parse(&self, program: String) -> Result<Program> {
+        let mut ctx = self.0.write().unwrap();
+        let ptr = assemble(&mut ctx.allocator, &program)?;
+        Ok(Program(self.0.clone(), ptr))
     }
 
     pub fn deserialize(&self, value: SerializedProgram) -> Result<Program> {

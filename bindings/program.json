@@ -2,6 +2,12 @@
   "Program": {
     "type": "class",
     "methods": {
+      "compile": {
+        "return": "Output"
+      },
+      "unparse": {
+        "return": "String"
+      },
       "serialize": {
         "return": "SerializedProgram"
       },
