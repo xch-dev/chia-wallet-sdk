@@ -446,6 +446,8 @@ export declare class Mnemonic {
   toSeed(password: string): Uint8Array
 }
 export declare class Program {
+  compile(): Output
+  unparse(): string
   serialize(): Uint8Array
   serializeWithBackrefs(): Uint8Array
   run(solution: Program, maxCost: bigint, mempoolMode: boolean): Output
@@ -588,6 +590,7 @@ export declare class Clvm {
   addCoinSpend(coinSpend: CoinSpend): void
   spendCoin(coin: Coin, spend: Spend): void
   coinSpends(): Array<CoinSpend>
+  parse(program: string): Program
   deserialize(value: Uint8Array): Program
   deserializeWithBackrefs(value: Uint8Array): Program
   pair(first: Program, rest: Program): Program

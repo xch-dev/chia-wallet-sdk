@@ -4,6 +4,11 @@ use bindy::{Error, Result};
 use chia_protocol::{Bytes, Program as SerializedProgram};
 use chia_puzzle_types::nft;
 use chia_sdk_driver::SpendContext;
+use clvm_tools_rs::classic::clvm_tools::stages::run;
+use clvm_tools_rs::classic::clvm_tools::stages::stage_0::TRunProgram;
+use clvm_tools_rs::classic::clvm_tools::{
+    binutils::disassemble, stages::stage_2::operators::run_program_for_search_paths,
+};
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm};
 use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{
@@ -19,6 +24,25 @@ use crate::{CurriedProgram, NftMetadata, Output, Pair, Puzzle};
 pub struct Program(pub(crate) Arc<RwLock<SpendContext>>, pub(crate) NodePtr);
 
 impl Program {
+    pub fn compile(&self) -> Result<Output> {
+        let mut ctx = self.0.write().unwrap();
+
+        let invoke = run(&mut ctx.allocator);
+        let input = ctx.allocator.new_pair(self.1, NodePtr::NIL)?;
+        let run_program = run_program_for_search_paths("program.clsp", &[], false);
+        let output = run_program.run_program(&mut ctx.allocator, invoke, input, None)?;
+
+        Ok(Output {
+            value: Program(self.0.clone(), output.1),
+            cost: output.0,
+        })
+    }
+
+    pub fn unparse(&self) -> Result<String> {
+        let ctx = self.0.read().unwrap();
+        Ok(disassemble(&ctx.allocator, self.1, None))
+    }
+
     pub fn serialize(&self) -> Result<SerializedProgram> {
         let ctx = self.0.read().unwrap();
         Ok(node_to_bytes(&ctx.allocator, self.1)?.into())

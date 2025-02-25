@@ -19,6 +19,12 @@
       "coin_spends": {
         "return": "Vec<CoinSpend>"
       },
+      "parse": {
+        "args": {
+          "program": "String"
+        },
+        "return": "Program"
+      },
       "deserialize": {
         "args": {
           "value": "SerializedProgram"
