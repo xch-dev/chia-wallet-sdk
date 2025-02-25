@@ -37,6 +37,29 @@ impl From<Coin> for chia_protocol::Coin {
 }
 
 #[derive(Clone)]
+pub struct CoinRecord {
+    pub coin: Coin,
+    pub coinbase: bool,
+    pub confirmed_block_index: u32,
+    pub spent: bool,
+    pub spent_block_index: u32,
+    pub timestamp: u64,
+}
+
+impl From<chia_sdk_coinset::CoinRecord> for CoinRecord {
+    fn from(value: chia_sdk_coinset::CoinRecord) -> Self {
+        Self {
+            coin: value.coin.into(),
+            coinbase: value.coinbase,
+            confirmed_block_index: value.confirmed_block_index,
+            spent: value.spent,
+            spent_block_index: value.spent_block_index,
+            timestamp: value.timestamp,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct CoinSpend {
     pub coin: Coin,
     pub puzzle_reveal: Program,

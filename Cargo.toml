@@ -163,6 +163,7 @@ pyo3 = "0.23.3"
 js-sys = "0.3.77"
 parking_lot = "0.12.3"
 clvm_tools_rs = "0.1.46"
+wasm-bindgen-futures = "0.4.50"
 
 [profile.release]
 lto = true

@@ -57,6 +57,7 @@ struct Method {
 enum MethodKind {
     #[default]
     Normal,
+    Async,
     ToString,
     Static,
     Factory,
@@ -162,7 +163,9 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                         MethodKind::Constructor => quote!(#[napi(constructor)]),
                         MethodKind::Static => quote!(#[napi]),
                         MethodKind::Factory => quote!(#[napi(factory)]),
-                        MethodKind::Normal | MethodKind::ToString => quote!(#[napi]),
+                        MethodKind::Normal | MethodKind::Async | MethodKind::ToString => {
+                            quote!(#[napi])
+                        }
                     };
 
                     match method.kind {
@@ -190,6 +193,19 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                                     Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(self.0.#method_ident(
                                         #( bindy::IntoRust::<_, _, bindy::Napi>::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
                                     )?, &bindy::NapiReturnContext(env))?)
+                                }
+                            });
+                        }
+                        MethodKind::Async => {
+                            method_tokens.extend(quote! {
+                                #napi_attr
+                                pub async fn #method_ident(
+                                    &self,
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> napi::Result<#ret> {
+                                    Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(self.0.#method_ident(
+                                        #( bindy::IntoRust::<_, _, bindy::Napi>::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
+                                    ).await?, &bindy::NapiAsyncReturnContext)?)
                                 }
                             });
                         }
@@ -440,6 +456,19 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                     Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(self.0.#method_ident(
                                         #( bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)? ),*
                                     )?, &bindy::WasmContext)?)
+                                }
+                            });
+                        }
+                        MethodKind::Async => {
+                            method_tokens.extend(quote! {
+                                #wasm_attr
+                                pub async fn #method_ident(
+                                    &self,
+                                    #( #arg_attrs #arg_idents: #arg_types ),*
+                                ) -> Result<#ret, wasm_bindgen::JsError> {
+                                    Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(self.0.#method_ident(
+                                        #( bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)? ),*
+                                    ).await?, &bindy::WasmContext)?)
                                 }
                             });
                         }
@@ -707,6 +736,19 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                                     Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(self.0.#method_ident(
                                         #( bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
                                     )?, &bindy::Pyo3Context)?)
+                                }
+                            });
+                        }
+                        MethodKind::Async => {
+                            method_tokens.extend(quote! {
+                                #pyo3_attr
+                                pub async fn #remapped_method_ident(
+                                    &self,
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> pyo3::PyResult<#ret> {
+                                    Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(self.0.#method_ident(
+                                        #( bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
+                                    ).await?, &bindy::Pyo3Context)?)
                                 }
                             });
                         }

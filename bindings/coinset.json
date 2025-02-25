@@ -1,0 +1,41 @@
+{
+  "CoinsetClient": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "base_url": "String"
+        }
+      },
+      "testnet11": {
+        "type": "factory"
+      },
+      "mainnet": {
+        "type": "factory"
+      },
+      "get_coin_records_by_hint": {
+        "type": "async",
+        "args": {
+          "hint": "Bytes32",
+          "start_height": "Option<u32>",
+          "end_height": "Option<u32>",
+          "include_spent_coins": "Option<bool>"
+        },
+        "return": "Vec<CoinRecord>"
+      }
+    }
+  },
+  "CoinRecord": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "coinbase": "bool",
+      "confirmed_block_index": "u32",
+      "spent": "bool",
+      "spent_block_index": "u32",
+      "timestamp": "u64"
+    }
+  }
+}
