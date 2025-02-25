@@ -1,0 +1,35 @@
+{
+  "Output": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "value": "Program",
+      "cost": "u64"
+    }
+  },
+  "Pair": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "first": "Program",
+      "rest": "Program"
+    }
+  },
+  "CurriedProgram": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "program": "Program",
+      "args": "Vec<Program>"
+    }
+  },
+  "LineageProof": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "parent_parent_coin_info": "Bytes32",
+      "parent_inner_puzzle_hash": "Option<Bytes32>",
+      "parent_amount": "u64"
+    }
+  }
+}

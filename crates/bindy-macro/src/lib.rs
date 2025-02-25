@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, path::Path};
 
 use convert_case::{Case, Casing};
 use indexmap::{indexmap, IndexMap};
@@ -12,7 +12,6 @@ use syn::{parse_str, Ident, LitStr, Type};
 struct Bindy {
     entrypoint: String,
     pymodule: String,
-    bindings: IndexMap<String, Binding>,
     #[serde(default)]
     napi: IndexMap<String, String>,
     #[serde(default)]
@@ -64,11 +63,29 @@ enum MethodKind {
     Constructor,
 }
 
+fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
+    let source = fs::read_to_string(path).unwrap();
+    let bindy: Bindy = serde_json::from_str(&source).unwrap();
+
+    let mut bindings = IndexMap::new();
+
+    for path in fs::read_dir(Path::new(path).parent().unwrap().join("bindings")).unwrap() {
+        let path = path.unwrap();
+
+        if path.path().extension().unwrap() == "json" {
+            let source = fs::read_to_string(path.path()).unwrap();
+            let contents: IndexMap<String, Binding> = serde_json::from_str(&source).unwrap();
+            bindings.extend(contents);
+        }
+    }
+
+    (bindy, bindings)
+}
+
 #[proc_macro]
 pub fn bindy_napi(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
-    let source = fs::read_to_string(input).unwrap();
-    let bindy: Bindy = serde_json::from_str(&source).unwrap();
+    let (bindy, bindings) = load_bindings(&input);
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
@@ -83,7 +100,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
     let mut param_mappings = base_mappings.clone();
     let return_mappings = base_mappings;
 
-    for (name, binding) in &bindy.bindings {
+    for (name, binding) in &bindings {
         if matches!(binding, Binding::Class { .. }) {
             param_mappings.insert(
                 name.clone(),
@@ -94,7 +111,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
 
     let mut output = quote!();
 
-    for (name, binding) in bindy.bindings {
+    for (name, binding) in bindings {
         match binding {
             Binding::Class {
                 new,
@@ -328,8 +345,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn bindy_wasm(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
-    let source = fs::read_to_string(input).unwrap();
-    let bindy: Bindy = serde_json::from_str(&source).unwrap();
+    let (bindy, bindings) = load_bindings(&input);
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
@@ -341,7 +357,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 
     let mut output = quote!();
 
-    for (name, binding) in bindy.bindings {
+    for (name, binding) in bindings {
         match binding {
             Binding::Class {
                 new,
@@ -590,8 +606,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
-    let source = fs::read_to_string(input).unwrap();
-    let bindy: Bindy = serde_json::from_str(&source).unwrap();
+    let (bindy, bindings) = load_bindings(&input);
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
@@ -603,7 +618,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
     let mut output = quote!();
     let mut module = quote!();
 
-    for (name, binding) in bindy.bindings {
+    for (name, binding) in bindings {
         let bound_ident = Ident::new(&name, Span::mixed_site());
 
         match &binding {

@@ -1,0 +1,111 @@
+{
+  "Simulator": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor"
+      },
+      "new_coin": {
+        "args": {
+          "puzzle_hash": "Bytes32",
+          "amount": "u64"
+        },
+        "return": "Coin"
+      },
+      "bls": {
+        "args": {
+          "amount": "u64"
+        },
+        "return": "BlsPairWithCoin"
+      },
+      "spend_coins": {
+        "args": {
+          "coin_spends": "Vec<CoinSpend>",
+          "secret_keys": "Vec<SecretKey>"
+        }
+      }
+    }
+  },
+  "BlsPair": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "sk": "SecretKey",
+      "pk": "PublicKey"
+    },
+    "methods": {
+      "from_seed": {
+        "type": "factory",
+        "args": {
+          "seed": "u64"
+        }
+      },
+      "many_from_seed": {
+        "type": "static",
+        "args": {
+          "seed": "u64",
+          "count": "u32"
+        },
+        "return": "Vec<BlsPair>"
+      }
+    }
+  },
+  "BlsPairWithCoin": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "sk": "SecretKey",
+      "pk": "PublicKey",
+      "puzzle_hash": "Bytes32",
+      "coin": "Coin"
+    }
+  },
+  "K1Pair": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "sk": "K1SecretKey",
+      "pk": "K1PublicKey"
+    },
+    "methods": {
+      "from_seed": {
+        "type": "factory",
+        "args": {
+          "seed": "u64"
+        }
+      },
+      "many_from_seed": {
+        "type": "static",
+        "args": {
+          "seed": "u64",
+          "count": "u32"
+        },
+        "return": "Vec<K1Pair>"
+      }
+    }
+  },
+  "R1Pair": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "sk": "R1SecretKey",
+      "pk": "R1PublicKey"
+    },
+    "methods": {
+      "from_seed": {
+        "type": "factory",
+        "args": {
+          "seed": "u64"
+        }
+      },
+      "many_from_seed": {
+        "type": "static",
+        "args": {
+          "seed": "u64",
+          "count": "u32"
+        },
+        "return": "Vec<R1Pair>"
+      }
+    }
+  }
+}
