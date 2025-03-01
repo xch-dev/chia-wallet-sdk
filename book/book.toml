@@ -1,0 +1,6 @@
+[book]
+authors = ["Rigidity"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Chia Wallet SDK"
