@@ -13,6 +13,7 @@ mod bls;
 mod clvm;
 mod clvm_types;
 mod coin;
+mod coinset;
 mod conditions;
 mod constants;
 mod key_pairs;
@@ -30,6 +31,7 @@ pub use bls::*;
 pub use clvm::*;
 pub use clvm_types::*;
 pub use coin::*;
+pub use coinset::*;
 pub use conditions::*;
 pub use constants::*;
 pub use key_pairs::*;
@@ -42,4 +44,18 @@ pub use secp::*;
 pub use simulator::*;
 pub use utils::*;
 
-pub use chia_protocol::{Bytes, Bytes32, Program as SerializedProgram};
+pub use chia_bls::{PublicKey, SecretKey, Signature};
+pub use chia_protocol::{
+    BlockRecord, Bytes, Bytes32, ChallengeChainSubSlot, Coin, CoinSpend, EndOfSubSlotBundle,
+    Foliage, FoliageBlockData, FoliageTransactionBlock, FullBlock, InfusedChallengeChainSubSlot,
+    PoolTarget, Program as SerializedProgram, ProofOfSpace, RewardChainBlock, RewardChainSubSlot,
+    SpendBundle, SubEpochSummary, SubSlotProofs, TransactionsInfo, VDFInfo, VDFProof,
+};
+pub use chia_sdk_coinset::{
+    AdditionsAndRemovalsResponse, BlockchainState, BlockchainStateResponse, CoinRecord,
+    GetBlockRecordByHeightResponse, GetBlockRecordResponse, GetBlockRecordsResponse,
+    GetBlockResponse, GetBlockSpendsResponse, GetBlocksResponse, GetCoinRecordResponse,
+    GetCoinRecordsResponse, GetMempoolItemResponse, GetMempoolItemsResponse,
+    GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem, MempoolMinFees,
+    PushTxResponse, SyncState,
+};

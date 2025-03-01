@@ -1,4 +1,5 @@
 use bindy::Result;
+use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
 use chia_sdk_driver::{member_puzzle_hash, MofN};
 use chia_sdk_types::{
@@ -7,7 +8,7 @@ use chia_sdk_types::{
 };
 use clvm_utils::TreeHash;
 
-use crate::{K1PublicKey, PublicKey, R1PublicKey};
+use crate::{K1PublicKey, R1PublicKey};
 
 use super::{convert_restrictions, Restriction};
 
@@ -95,7 +96,7 @@ pub fn r1_member_hash(
 }
 
 pub fn bls_member_hash(config: MemberConfig, public_key: PublicKey) -> Result<TreeHash> {
-    member_hash(config, BlsMember::new(public_key.0).curry_tree_hash())
+    member_hash(config, BlsMember::new(public_key).curry_tree_hash())
 }
 
 pub fn passkey_member_hash(

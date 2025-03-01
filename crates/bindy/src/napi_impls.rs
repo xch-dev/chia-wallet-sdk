@@ -1,4 +1,4 @@
-use chia_protocol::{Bytes, BytesImpl, Program};
+use chia_protocol::{Bytes, BytesImpl, ClassgroupElement, Program};
 use clvm_utils::TreeHash;
 use napi::bindgen_prelude::*;
 
@@ -18,7 +18,18 @@ pub struct NapiStructContext(pub Env);
 
 pub struct NapiReturnContext(pub Env);
 
+pub struct NapiAsyncReturnContext;
+
 impl<T, U> IntoRust<T, NapiParamContext, Napi> for ClassInstance<U>
+where
+    U: Clone + IntoRust<T, NapiParamContext, Napi>,
+{
+    fn into_rust(self, context: &NapiParamContext) -> Result<T> {
+        std::ops::Deref::deref(&self).clone().into_rust(context)
+    }
+}
+
+impl<T, U> IntoRust<T, NapiParamContext, Napi> for Reference<U>
 where
     U: Clone + IntoRust<T, NapiParamContext, Napi>,
 {
@@ -63,6 +74,27 @@ impl<T, const N: usize> IntoRust<BytesImpl<N>, T, Napi> for Uint8Array {
         }
 
         Ok(bytes.try_into().unwrap())
+    }
+}
+
+impl<T> FromRust<ClassgroupElement, T, Napi> for Uint8Array {
+    fn from_rust(value: ClassgroupElement, _context: &T) -> Result<Self> {
+        Ok(value.data.to_vec().into())
+    }
+}
+
+impl<T> IntoRust<ClassgroupElement, T, Napi> for Uint8Array {
+    fn into_rust(self, _context: &T) -> Result<ClassgroupElement> {
+        let bytes = self.to_vec();
+
+        if bytes.len() != 100 {
+            return Err(Error::WrongLength {
+                expected: 100,
+                found: bytes.len(),
+            });
+        }
+
+        Ok(ClassgroupElement::new(bytes.try_into().unwrap()))
     }
 }
 
@@ -157,6 +189,19 @@ impl<T> IntoRust<u64, T, Napi> for BigInt {
 
 impl<T> FromRust<u64, T, Napi> for BigInt {
     fn from_rust(value: u64, _context: &T) -> Result<Self> {
+        Ok(value.into())
+    }
+}
+
+impl<T> IntoRust<u128, T, Napi> for BigInt {
+    fn into_rust(self, _context: &T) -> Result<u128> {
+        let bigint: num_bigint::BigInt = self.into_rust(_context)?;
+        Ok(bigint.try_into()?)
+    }
+}
+
+impl<T> FromRust<u128, T, Napi> for BigInt {
+    fn from_rust(value: u128, _context: &T) -> Result<Self> {
         Ok(value.into())
     }
 }

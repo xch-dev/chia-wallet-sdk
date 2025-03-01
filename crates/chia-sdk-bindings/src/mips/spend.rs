@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex, RwLock};
 
 use bindy::Result;
+use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_driver::{self as sdk, member_puzzle_hash, MemberSpend, MofN, SpendContext};
 use chia_sdk_types::{
@@ -14,7 +15,7 @@ use chia_sdk_types::{
 use clvm_utils::TreeHash;
 use clvmr::NodePtr;
 
-use crate::{K1PublicKey, K1Signature, Program, PublicKey, R1PublicKey, R1Signature, Spend};
+use crate::{K1PublicKey, K1Signature, Program, R1PublicKey, R1Signature, Spend};
 
 use super::{convert_restrictions, MemberConfig, Vault};
 
@@ -174,7 +175,7 @@ impl MipsSpend {
         let nonce = config.nonce.try_into().unwrap();
         let restrictions = convert_restrictions(config.restrictions);
 
-        let member = BlsMember::new(public_key.0);
+        let member = BlsMember::new(public_key);
         let member_hash = member.curry_tree_hash();
         let member_hash =
             member_puzzle_hash(nonce, restrictions.clone(), member_hash, config.top_level);

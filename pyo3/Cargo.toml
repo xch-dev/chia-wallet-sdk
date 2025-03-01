@@ -8,11 +8,28 @@ name = "chia_wallet_sdk"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { workspace = true, features = ["num-bigint", "multiple-pymethods", "abi3-py38"] }
+pyo3 = { workspace = true, features = ["num-bigint", "multiple-pymethods", "abi3-py38", "experimental-async"] }
+pyo3-async-runtimes = { workspace = true, features = ["tokio-runtime"] }
 chia-sdk-bindings = { workspace = true, features = ["pyo3"] }
 bindy = { workspace = true, features = ["pyo3"] }
 bindy-macro = { workspace = true }
 num-bigint = { workspace = true }
+
+[target.aarch64-unknown-linux-gnu.dependencies]
+openssl = { version = "0.10.68", features = ["vendored"] }
+openssl-sys = { version = "0.9.104", features = ["vendored"] }
+
+[target.aarch64-unknown-linux-musl.dependencies]
+openssl = { version = "0.10.68", features = ["vendored"] }
+openssl-sys = { version = "0.9.104", features = ["vendored"] }
+
+[target.x86_64-unknown-linux-gnu.dependencies]
+openssl = { version = "0.10.68", features = ["vendored"] }
+openssl-sys = { version = "0.9.104", features = ["vendored"] }
+
+[target.x86_64-unknown-linux-musl.dependencies]
+openssl = { version = "0.10.68", features = ["vendored"] }
+openssl-sys = { version = "0.9.104", features = ["vendored"] }
 
 [package.metadata.cargo-machete]
 ignored = ["bindy", "chia-sdk-bindings", "pyo3"]

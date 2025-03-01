@@ -255,6 +255,7 @@ dependencies = [
  "napi",
  "num-bigint",
  "pyo3",
+ "reqwest",
  "signature",
  "thiserror",
 ]
@@ -415,27 +416,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "chia"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be75455e34f2a0e221f0e10bae7a4a066bdeee18b63fb92047d5d075eaf1044c"
-dependencies = [
- "chia-bls 0.20.0",
- "chia-client",
- "chia-consensus",
- "chia-protocol",
- "chia-puzzle-types",
- "chia-secp",
- "chia-serde",
- "chia-sha2 0.20.0",
- "chia-ssl",
- "chia-traits 0.20.0",
- "clvm-traits",
- "clvm-utils",
- "clvmr",
-]
-
-[[package]]
 name = "chia-bls"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -467,21 +447,6 @@ dependencies = [
  "serde",
  "sha2 0.10.8",
  "thiserror",
-]
-
-[[package]]
-name = "chia-client"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c318dc78d656cf8617a672e06af2da200b003603f0597e80363dc869502dc1ec"
-dependencies = [
- "chia-protocol",
- "chia-traits 0.20.0",
- "futures-util",
- "thiserror",
- "tokio",
- "tokio-tungstenite",
- "tungstenite",
 ]
 
 [[package]]
@@ -560,6 +525,7 @@ dependencies = [
  "chia-protocol",
  "chia-puzzle-types",
  "chia-puzzles",
+ "chia-sdk-coinset",
  "chia-sdk-driver",
  "chia-sdk-test",
  "chia-sdk-types",
@@ -602,8 +568,8 @@ dependencies = [
 name = "chia-sdk-coinset"
 version = "0.21.1"
 dependencies = [
- "aws-lc-rs",
- "chia",
+ "chia-protocol",
+ "chia-traits 0.20.0",
  "hex",
  "hex-literal",
  "reqwest",
@@ -864,7 +830,10 @@ dependencies = [
  "bindy-macro",
  "chia-sdk-bindings",
  "num-bigint",
+ "openssl",
+ "openssl-sys",
  "pyo3",
+ "pyo3-async-runtimes",
 ]
 
 [[package]]
@@ -877,6 +846,7 @@ dependencies = [
  "getrandom 0.2.15",
  "js-sys",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -2425,6 +2395,19 @@ dependencies = [
  "pyo3-ffi",
  "pyo3-macros",
  "unindent",
+]
+
+[[package]]
+name = "pyo3-async-runtimes"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "977dc837525cfd22919ba6a831413854beb7c99a256c03bf8624ad707e45810e"
+dependencies = [
+ "futures",
+ "once_cell",
+ "pin-project-lite",
+ "pyo3",
+ "tokio",
 ]
 
 [[package]]

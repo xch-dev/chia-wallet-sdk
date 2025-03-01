@@ -30,6 +30,8 @@ enum Binding {
         fields: IndexMap<String, String>,
         #[serde(default)]
         methods: IndexMap<String, Method>,
+        #[serde(default)]
+        remote: bool,
     },
     Enum {
         values: Vec<String>,
@@ -57,6 +59,7 @@ struct Method {
 enum MethodKind {
     #[default]
     Normal,
+    Async,
     ToString,
     Static,
     Factory,
@@ -93,18 +96,24 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
         "()".to_string() => "napi::JsUndefined".to_string(),
         "Vec<u8>".to_string() => "napi::bindgen_prelude::Uint8Array".to_string(),
         "u64".to_string() => "napi::bindgen_prelude::BigInt".to_string(),
+        "u128".to_string() => "napi::bindgen_prelude::BigInt".to_string(),
         "BigInt".to_string() => "napi::bindgen_prelude::BigInt".to_string(),
     };
     base_mappings.extend(bindy.napi);
 
-    let mut param_mappings = base_mappings.clone();
+    let mut non_async_param_mappings = base_mappings.clone();
+    let mut async_param_mappings = base_mappings.clone();
     let return_mappings = base_mappings;
 
     for (name, binding) in &bindings {
         if matches!(binding, Binding::Class { .. }) {
-            param_mappings.insert(
+            non_async_param_mappings.insert(
                 name.clone(),
                 format!("napi::bindgen_prelude::ClassInstance<{name}>"),
+            );
+            async_param_mappings.insert(
+                name.clone(),
+                format!("napi::bindgen_prelude::Reference<{name}>"),
             );
         }
     }
@@ -115,16 +124,29 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
         match binding {
             Binding::Class {
                 new,
+                remote,
                 methods,
                 fields,
             } => {
                 let bound_ident = Ident::new(&name, Span::mixed_site());
-                let rust_ident = quote!( #entrypoint::#bound_ident );
+                let rust_struct_ident = quote!( #entrypoint::#bound_ident );
+                let rust_remote_ident = if remote {
+                    let ext_ident = Ident::new(&format!("{name}Ext"), Span::mixed_site());
+                    quote!( #entrypoint::#ext_ident )
+                } else {
+                    quote!( #entrypoint::#bound_ident )
+                };
 
                 let mut method_tokens = quote!();
 
                 for (name, method) in methods {
                     let method_ident = Ident::new(&name, Span::mixed_site());
+
+                    let param_mappings = if matches!(method.kind, MethodKind::Async) {
+                        &async_param_mappings
+                    } else {
+                        &non_async_param_mappings
+                    };
 
                     let arg_idents = method
                         .args
@@ -136,7 +158,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                         .args
                         .values()
                         .map(|v| {
-                            parse_str::<Type>(apply_mappings(v, &param_mappings).as_str()).unwrap()
+                            parse_str::<Type>(apply_mappings(v, param_mappings).as_str()).unwrap()
                         })
                         .collect::<Vec<_>>();
 
@@ -162,7 +184,9 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                         MethodKind::Constructor => quote!(#[napi(constructor)]),
                         MethodKind::Static => quote!(#[napi]),
                         MethodKind::Factory => quote!(#[napi(factory)]),
-                        MethodKind::Normal | MethodKind::ToString => quote!(#[napi]),
+                        MethodKind::Normal | MethodKind::Async | MethodKind::ToString => {
+                            quote!(#[napi])
+                        }
                     };
 
                     match method.kind {
@@ -173,7 +197,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                                     env: Env,
                                     #( #arg_idents: #arg_types ),*
                                 ) -> napi::Result<#ret> {
-                                    Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(#rust_ident::#method_ident(
+                                    Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(#rust_remote_ident::#method_ident(
                                         #( bindy::IntoRust::<_, _, bindy::Napi>::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
                                     )?, &bindy::NapiReturnContext(env))?)
                                 }
@@ -187,9 +211,23 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                                     env: Env,
                                     #( #arg_idents: #arg_types ),*
                                 ) -> napi::Result<#ret> {
-                                    Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(self.0.#method_ident(
+                                    Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(#rust_remote_ident::#method_ident(
+                                        &self.0,
                                         #( bindy::IntoRust::<_, _, bindy::Napi>::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
                                     )?, &bindy::NapiReturnContext(env))?)
+                                }
+                            });
+                        }
+                        MethodKind::Async => {
+                            method_tokens.extend(quote! {
+                                #napi_attr
+                                pub async fn #method_ident(
+                                    &self,
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> napi::Result<#ret> {
+                                    Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(self.0.#method_ident(
+                                        #( bindy::IntoRust::<_, _, bindy::Napi>::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
+                                    ).await?, &bindy::NapiAsyncReturnContext)?)
                                 }
                             });
                         }
@@ -205,7 +243,8 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                     let get_ty =
                         parse_str::<Type>(apply_mappings(ty, &return_mappings).as_str()).unwrap();
                     let set_ty =
-                        parse_str::<Type>(apply_mappings(ty, &param_mappings).as_str()).unwrap();
+                        parse_str::<Type>(apply_mappings(ty, &non_async_param_mappings).as_str())
+                            .unwrap();
 
                     field_tokens.extend(quote! {
                         #[napi(getter)]
@@ -230,7 +269,8 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                     let arg_types = fields
                         .values()
                         .map(|v| {
-                            parse_str::<Type>(apply_mappings(v, &param_mappings).as_str()).unwrap()
+                            parse_str::<Type>(apply_mappings(v, &non_async_param_mappings).as_str())
+                                .unwrap()
                         })
                         .collect::<Vec<_>>();
 
@@ -240,7 +280,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                             env: Env,
                             #( #arg_idents: #arg_types ),*
                         ) -> napi::Result<Self> {
-                            Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(#rust_ident {
+                            Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(#rust_struct_ident {
                                 #(#arg_idents: bindy::IntoRust::<_, _, bindy::Napi>::into_rust(#arg_idents, &bindy::NapiParamContext)?),*
                             }, &bindy::NapiReturnContext(env))?)
                         }
@@ -250,7 +290,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                 output.extend(quote! {
                     #[napi_derive::napi]
                     #[derive(Clone)]
-                    pub struct #bound_ident(#rust_ident);
+                    pub struct #bound_ident(#rust_struct_ident);
 
                     #[napi_derive::napi]
                     impl #bound_ident {
@@ -258,14 +298,14 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                         #field_tokens
                     }
 
-                    impl<T> bindy::FromRust<#rust_ident, T, bindy::Napi> for #bound_ident {
-                        fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
+                    impl<T> bindy::FromRust<#rust_struct_ident, T, bindy::Napi> for #bound_ident {
+                        fn from_rust(value: #rust_struct_ident, _context: &T) -> bindy::Result<Self> {
                             Ok(Self(value))
                         }
                     }
 
-                    impl<T> bindy::IntoRust<#rust_ident, T, bindy::Napi> for #bound_ident {
-                        fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
+                    impl<T> bindy::IntoRust<#rust_struct_ident, T, bindy::Napi> for #bound_ident {
+                        fn into_rust(self, _context: &T) -> bindy::Result<#rust_struct_ident> {
                             Ok(self.0)
                         }
                     }
@@ -315,7 +355,8 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                 let arg_types = args
                     .values()
                     .map(|v| {
-                        parse_str::<Type>(apply_mappings(v, &param_mappings).as_str()).unwrap()
+                        parse_str::<Type>(apply_mappings(v, &non_async_param_mappings).as_str())
+                            .unwrap()
                     })
                     .collect::<Vec<_>>();
 
@@ -351,6 +392,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 
     let mut mappings = indexmap! {
         "u64".to_string() => "js_sys::BigInt".to_string(),
+        "u128".to_string() => "js_sys::BigInt".to_string(),
         "BigInt".to_string() => "js_sys::BigInt".to_string(),
     };
     mappings.extend(bindy.wasm);
@@ -361,11 +403,18 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
         match binding {
             Binding::Class {
                 new,
+                remote,
                 methods,
                 fields,
             } => {
                 let bound_ident = Ident::new(&name, Span::mixed_site());
-                let rust_ident = quote!( #entrypoint::#bound_ident );
+                let rust_struct_ident = quote!( #entrypoint::#bound_ident );
+                let rust_remote_ident = if remote {
+                    let ext_ident = Ident::new(&format!("{name}Ext"), Span::mixed_site());
+                    quote!( #entrypoint::#ext_ident )
+                } else {
+                    quote!( #entrypoint::#bound_ident )
+                };
 
                 let mut method_tokens = quote!();
 
@@ -424,7 +473,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                 pub fn #method_ident(
                                     #( #arg_attrs #arg_idents: #arg_types ),*
                                 ) -> Result<#ret, wasm_bindgen::JsError> {
-                                    Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#rust_ident::#method_ident(
+                                    Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#rust_remote_ident::#method_ident(
                                         #( bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)? ),*
                                     )?, &bindy::WasmContext)?)
                                 }
@@ -437,9 +486,23 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                     &self,
                                     #( #arg_attrs #arg_idents: #arg_types ),*
                                 ) -> Result<#ret, wasm_bindgen::JsError> {
-                                    Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(self.0.#method_ident(
+                                    Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#rust_remote_ident::#method_ident(
+                                        &self.0,
                                         #( bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)? ),*
                                     )?, &bindy::WasmContext)?)
+                                }
+                            });
+                        }
+                        MethodKind::Async => {
+                            method_tokens.extend(quote! {
+                                #wasm_attr
+                                pub async fn #method_ident(
+                                    &self,
+                                    #( #arg_attrs #arg_idents: #arg_types ),*
+                                ) -> Result<#ret, wasm_bindgen::JsError> {
+                                    Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(self.0.#method_ident(
+                                        #( bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)? ),*
+                                    ).await?, &bindy::WasmContext)?)
                                 }
                             });
                         }
@@ -493,7 +556,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         pub fn new(
                             #( #arg_attrs #arg_idents: #arg_types ),*
                         ) -> Result<Self, wasm_bindgen::JsError> {
-                            Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#rust_ident {
+                            Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#rust_struct_ident {
                                 #(#arg_idents: bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)?),*
                             }, &bindy::WasmContext)?)
                         }
@@ -503,7 +566,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                 output.extend(quote! {
                     #[wasm_bindgen::prelude::wasm_bindgen]
                     #[derive(Clone)]
-                    pub struct #bound_ident(#rust_ident);
+                    pub struct #bound_ident(#rust_struct_ident);
 
                     #[wasm_bindgen::prelude::wasm_bindgen]
                     impl #bound_ident {
@@ -511,14 +574,14 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         #field_tokens
                     }
 
-                    impl<T> bindy::FromRust<#rust_ident, T, bindy::Wasm> for #bound_ident {
-                        fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
+                    impl<T> bindy::FromRust<#rust_struct_ident, T, bindy::Wasm> for #bound_ident {
+                        fn from_rust(value: #rust_struct_ident, _context: &T) -> bindy::Result<Self> {
                             Ok(Self(value))
                         }
                     }
 
-                    impl<T> bindy::IntoRust<#rust_ident, T, bindy::Wasm> for #bound_ident {
-                        fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
+                    impl<T> bindy::IntoRust<#rust_struct_ident, T, bindy::Wasm> for #bound_ident {
+                        fn into_rust(self, _context: &T) -> bindy::Result<#rust_struct_ident> {
                             Ok(self.0)
                         }
                     }
@@ -624,10 +687,17 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
         match &binding {
             Binding::Class {
                 new,
+                remote,
                 methods,
                 fields,
             } => {
-                let rust_ident = quote!( #entrypoint::#bound_ident );
+                let rust_struct_ident = quote!( #entrypoint::#bound_ident );
+                let rust_remote_ident = if *remote {
+                    let ext_ident = Ident::new(&format!("{name}Ext"), Span::mixed_site());
+                    quote!( #entrypoint::#ext_ident )
+                } else {
+                    quote!( #entrypoint::#bound_ident )
+                };
 
                 let mut method_tokens = quote!();
 
@@ -691,7 +761,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                                 pub fn #remapped_method_ident(
                                     #( #arg_idents: #arg_types ),*
                                 ) -> pyo3::PyResult<#ret> {
-                                    Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#rust_ident::#method_ident(
+                                    Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#rust_remote_ident::#method_ident(
                                         #( bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
                                     )?, &bindy::Pyo3Context)?)
                                 }
@@ -704,9 +774,30 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                                     &self,
                                     #( #arg_idents: #arg_types ),*
                                 ) -> pyo3::PyResult<#ret> {
-                                    Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(self.0.#method_ident(
+                                    Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#rust_remote_ident::#method_ident(
+                                        &self.0,
                                         #( bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
                                     )?, &bindy::Pyo3Context)?)
+                                }
+                            });
+                        }
+                        MethodKind::Async => {
+                            method_tokens.extend(quote! {
+                                #pyo3_attr
+                                pub fn #remapped_method_ident<'a>(
+                                    &self,
+                                    py: Python<'a>,
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> pyo3::PyResult<pyo3::Bound<'a, pyo3::PyAny>> {
+                                    let clone_of_self = self.0.clone();
+                                    #( let #arg_idents = bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)?; )*
+
+                                    pyo3_async_runtimes::tokio::future_into_py(py, async move {
+                                        let result: pyo3::PyResult<#ret> = Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(clone_of_self.#method_ident(
+                                            #( #arg_idents ),*
+                                        ).await?, &bindy::Pyo3Context)?);
+                                        result
+                                    })
                                 }
                             });
                         }
@@ -752,7 +843,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                         pub fn new(
                             #( #arg_idents: #arg_types ),*
                         ) -> pyo3::PyResult<Self> {
-                            Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#rust_ident {
+                            Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#rust_struct_ident {
                                 #(#arg_idents: bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)?),*
                             }, &bindy::Pyo3Context)?)
                         }
@@ -762,7 +853,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                 output.extend(quote! {
                     #[pyo3::pyclass]
                     #[derive(Clone)]
-                    pub struct #bound_ident(#rust_ident);
+                    pub struct #bound_ident(#rust_struct_ident);
 
                     #[pyo3::pymethods]
                     impl #bound_ident {
@@ -770,14 +861,14 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                         #field_tokens
                     }
 
-                    impl<T> bindy::FromRust<#rust_ident, T, bindy::Pyo3> for #bound_ident {
-                        fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
+                    impl<T> bindy::FromRust<#rust_struct_ident, T, bindy::Pyo3> for #bound_ident {
+                        fn from_rust(value: #rust_struct_ident, _context: &T) -> bindy::Result<Self> {
                             Ok(Self(value))
                         }
                     }
 
-                    impl<T> bindy::IntoRust<#rust_ident, T, bindy::Pyo3> for #bound_ident {
-                        fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
+                    impl<T> bindy::IntoRust<#rust_struct_ident, T, bindy::Pyo3> for #bound_ident {
+                        fn into_rust(self, _context: &T) -> bindy::Result<#rust_struct_ident> {
                             Ok(self.0)
                         }
                     }

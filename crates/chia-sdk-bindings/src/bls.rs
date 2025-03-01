@@ -1,179 +1,203 @@
 use bindy::Result;
-use chia_bls::{
-    sign, DerivableKey, PublicKey as PublicKeyRs, SecretKey as SecretKeyRs,
-    Signature as SignatureRs,
-};
+use chia_bls::{sign, DerivableKey, PublicKey, SecretKey, Signature};
 use chia_protocol::{Bytes, Bytes32, Bytes48, Bytes96};
 use chia_puzzle_types::DeriveSynthetic;
 
-#[derive(Clone)]
-pub struct SecretKey(pub(crate) SecretKeyRs);
+pub trait SecretKeyExt: Sized {
+    fn from_seed(seed: Bytes) -> Result<Self>;
+    fn from_bytes(bytes: Bytes32) -> Result<Self>;
+    fn to_bytes(&self) -> Result<Bytes32>;
+    fn public_key(&self) -> Result<PublicKey>;
+    fn sign(&self, message: Bytes) -> Result<Signature>;
+    fn derive_unhardened(&self, index: u32) -> Result<Self>;
+    fn derive_hardened(&self, index: u32) -> Result<Self>;
+    fn derive_unhardened_path(&self, path: Vec<u32>) -> Result<Self>;
+    fn derive_hardened_path(&self, path: Vec<u32>) -> Result<Self>;
+    fn derive_synthetic(&self) -> Result<Self>;
+    fn derive_synthetic_hidden(&self, hidden_puzzle_hash: Bytes32) -> Result<Self>;
+}
 
-impl SecretKey {
-    pub fn from_seed(seed: Bytes) -> Result<Self> {
-        Ok(Self(SecretKeyRs::from_seed(&seed)))
+impl SecretKeyExt for SecretKey {
+    fn from_seed(seed: Bytes) -> Result<Self> {
+        Ok(Self::from_seed(&seed))
     }
 
-    pub fn from_bytes(bytes: Bytes32) -> Result<Self> {
-        Ok(Self(SecretKeyRs::from_bytes(&bytes.to_bytes())?))
+    fn from_bytes(bytes: Bytes32) -> Result<Self> {
+        Ok(Self::from_bytes(&bytes.to_bytes())?)
     }
 
-    pub fn to_bytes(&self) -> Result<Bytes32> {
-        Ok(Bytes32::new(self.0.to_bytes()))
+    fn to_bytes(&self) -> Result<Bytes32> {
+        Ok(Bytes32::new(self.to_bytes()))
     }
 
-    pub fn public_key(&self) -> Result<PublicKey> {
-        Ok(PublicKey(self.0.public_key()))
+    fn public_key(&self) -> Result<PublicKey> {
+        Ok(self.public_key())
     }
 
-    pub fn sign(&self, message: Bytes) -> Result<Signature> {
-        Ok(Signature(sign(&self.0, message)))
+    fn sign(&self, message: Bytes) -> Result<Signature> {
+        Ok(sign(self, message))
     }
 
-    pub fn derive_unhardened(&self, index: u32) -> Result<Self> {
-        Ok(Self(self.0.derive_unhardened(index)))
+    fn derive_unhardened(&self, index: u32) -> Result<Self> {
+        Ok(DerivableKey::derive_unhardened(self, index))
     }
 
-    pub fn derive_hardened(&self, index: u32) -> Result<Self> {
-        Ok(Self(self.0.derive_hardened(index)))
+    fn derive_hardened(&self, index: u32) -> Result<Self> {
+        Ok(self.derive_hardened(index))
     }
 
-    pub fn derive_unhardened_path(&self, path: Vec<u32>) -> Result<Self> {
-        let mut result = self.0.clone();
+    fn derive_unhardened_path(&self, path: Vec<u32>) -> Result<Self> {
+        let mut result = self.clone();
 
         for index in path {
-            result = result.derive_unhardened(index);
+            result = DerivableKey::derive_unhardened(&result, index);
         }
 
-        Ok(Self(result))
+        Ok(result)
     }
 
-    pub fn derive_hardened_path(&self, path: Vec<u32>) -> Result<Self> {
-        let mut result = self.0.clone();
+    fn derive_hardened_path(&self, path: Vec<u32>) -> Result<Self> {
+        let mut result = self.clone();
 
         for index in path {
             result = result.derive_hardened(index);
         }
 
-        Ok(Self(result))
+        Ok(result)
     }
 
-    pub fn derive_synthetic(&self) -> Result<Self> {
-        Ok(Self(self.0.derive_synthetic()))
+    fn derive_synthetic(&self) -> Result<Self> {
+        Ok(DeriveSynthetic::derive_synthetic(self))
     }
 
-    pub fn derive_synthetic_hidden(&self, hidden_puzzle_hash: Bytes32) -> Result<Self> {
-        Ok(Self(
-            self.0
-                .derive_synthetic_hidden(&hidden_puzzle_hash.to_bytes()),
+    fn derive_synthetic_hidden(&self, hidden_puzzle_hash: Bytes32) -> Result<Self> {
+        Ok(DeriveSynthetic::derive_synthetic_hidden(
+            self,
+            &hidden_puzzle_hash.to_bytes(),
         ))
     }
 }
 
-#[derive(Clone, Copy)]
-#[allow(dead_code)]
-pub struct PublicKey(pub(crate) PublicKeyRs);
+pub trait PublicKeyExt: Sized {
+    fn infinity() -> Result<Self>;
+    fn aggregate(public_keys: Vec<Self>) -> Result<Self>;
+    fn from_bytes(bytes: Bytes48) -> Result<Self>;
+    fn to_bytes(&self) -> Result<Bytes48>;
+    fn fingerprint(&self) -> Result<u32>;
+    fn is_infinity(&self) -> Result<bool>;
+    fn is_valid(&self) -> Result<bool>;
+    fn derive_unhardened(&self, index: u32) -> Result<Self>;
+    fn derive_unhardened_path(&self, path: Vec<u32>) -> Result<Self>;
+    fn derive_synthetic(&self) -> Result<Self>;
+    fn derive_synthetic_hidden(&self, hidden_puzzle_hash: Bytes32) -> Result<Self>;
+}
 
-impl PublicKey {
-    pub fn infinity() -> Result<Self> {
-        Ok(Self(PublicKeyRs::default()))
+impl PublicKeyExt for PublicKey {
+    fn infinity() -> Result<Self> {
+        Ok(Self::default())
     }
 
-    pub fn aggregate(mut public_keys: Vec<Self>) -> Result<Self> {
+    fn aggregate(mut public_keys: Vec<Self>) -> Result<Self> {
         if public_keys.is_empty() {
             return Self::infinity();
         }
 
-        let mut result = public_keys.remove(0).0;
+        let mut result = public_keys.remove(0);
 
         for pk in public_keys {
-            result += &pk.0;
+            result += &pk;
         }
 
-        Ok(Self(result))
+        Ok(result)
     }
 
-    pub fn from_bytes(bytes: Bytes48) -> Result<Self> {
-        Ok(Self(PublicKeyRs::from_bytes(&bytes.to_bytes())?))
+    fn from_bytes(bytes: Bytes48) -> Result<Self> {
+        Ok(Self::from_bytes(&bytes.to_bytes())?)
     }
 
-    pub fn to_bytes(&self) -> Result<Bytes48> {
-        Ok(Bytes48::new(self.0.to_bytes()))
+    fn to_bytes(&self) -> Result<Bytes48> {
+        Ok(Bytes48::new(self.to_bytes()))
     }
 
-    pub fn fingerprint(&self) -> Result<u32> {
-        Ok(self.0.get_fingerprint())
+    fn fingerprint(&self) -> Result<u32> {
+        Ok(self.get_fingerprint())
     }
 
-    pub fn is_infinity(&self) -> Result<bool> {
-        Ok(self.0.is_inf())
+    fn is_infinity(&self) -> Result<bool> {
+        Ok(self.is_inf())
     }
 
-    pub fn is_valid(&self) -> Result<bool> {
-        Ok(self.0.is_valid())
+    fn is_valid(&self) -> Result<bool> {
+        Ok(self.is_valid())
     }
 
-    pub fn derive_unhardened(&self, index: u32) -> Result<Self> {
-        Ok(Self(self.0.derive_unhardened(index)))
+    fn derive_unhardened(&self, index: u32) -> Result<Self> {
+        Ok(DerivableKey::derive_unhardened(self, index))
     }
 
-    pub fn derive_unhardened_path(&self, path: Vec<u32>) -> Result<Self> {
-        let mut result = self.0;
+    fn derive_unhardened_path(&self, path: Vec<u32>) -> Result<Self> {
+        let mut result = *self;
 
         for index in path {
-            result = result.derive_unhardened(index);
+            result = DerivableKey::derive_unhardened(&result, index);
         }
 
-        Ok(Self(result))
+        Ok(result)
     }
 
-    pub fn derive_synthetic(&self) -> Result<Self> {
-        Ok(Self(self.0.derive_synthetic()))
+    fn derive_synthetic(&self) -> Result<Self> {
+        Ok(DeriveSynthetic::derive_synthetic(self))
     }
 
-    pub fn derive_synthetic_hidden(&self, hidden_puzzle_hash: Bytes32) -> Result<Self> {
-        Ok(Self(
-            self.0
-                .derive_synthetic_hidden(&hidden_puzzle_hash.to_bytes()),
+    fn derive_synthetic_hidden(&self, hidden_puzzle_hash: Bytes32) -> Result<Self> {
+        Ok(DeriveSynthetic::derive_synthetic_hidden(
+            self,
+            &hidden_puzzle_hash.to_bytes(),
         ))
     }
 }
 
-#[derive(Clone)]
-pub struct Signature(pub(crate) SignatureRs);
+pub trait SignatureExt: Sized {
+    fn infinity() -> Result<Self>;
+    fn aggregate(signatures: Vec<Self>) -> Result<Self>;
+    fn from_bytes(bytes: Bytes96) -> Result<Self>;
+    fn to_bytes(&self) -> Result<Bytes96>;
+    fn is_infinity(&self) -> Result<bool>;
+    fn is_valid(&self) -> Result<bool>;
+}
 
-impl Signature {
-    pub fn infinity() -> Result<Self> {
-        Ok(Self(SignatureRs::default()))
+impl SignatureExt for Signature {
+    fn infinity() -> Result<Self> {
+        Ok(Self::default())
     }
 
-    pub fn aggregate(mut signatures: Vec<Self>) -> Result<Self> {
+    fn aggregate(mut signatures: Vec<Self>) -> Result<Self> {
         if signatures.is_empty() {
             return Self::infinity();
         }
 
-        let mut result = signatures.remove(0).0;
+        let mut result = signatures.remove(0);
 
         for sig in signatures {
-            result += &sig.0;
+            result += &sig;
         }
 
-        Ok(Self(result))
+        Ok(result)
     }
 
-    pub fn from_bytes(bytes: Bytes96) -> Result<Self> {
-        Ok(Self(SignatureRs::from_bytes(&bytes.to_bytes())?))
+    fn from_bytes(bytes: Bytes96) -> Result<Self> {
+        Ok(Self::from_bytes(&bytes.to_bytes())?)
     }
 
-    pub fn to_bytes(&self) -> Result<Bytes96> {
-        Ok(Bytes96::new(self.0.to_bytes()))
+    fn to_bytes(&self) -> Result<Bytes96> {
+        Ok(Bytes96::new(self.to_bytes()))
     }
 
-    pub fn is_infinity(&self) -> Result<bool> {
-        Ok(self.0 == SignatureRs::default())
+    fn is_infinity(&self) -> Result<bool> {
+        Ok(self == &Self::default())
     }
 
-    pub fn is_valid(&self) -> Result<bool> {
-        Ok(self.0.is_valid())
+    fn is_valid(&self) -> Result<bool> {
+        Ok(self.is_valid())
     }
 }

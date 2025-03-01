@@ -310,7 +310,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { SecretKey, PublicKey, Signature, Puzzle, Cat, CatSpend, Nft, NftInfo, ParsedNft, NftMetadata, NftMint, DidOwner, MintedNfts, standardPuzzleHash, catPuzzleHash, Vault, MemberConfig, mOfNHash, k1MemberHash, r1MemberHash, blsMemberHash, passkeyMemberHash, singletonMemberHash, fixedMemberHash, customMemberHash, Restriction, RestrictionKind, timelockRestriction, force1Of2Restriction, preventConditionOpcodeRestriction, preventMultipleCreateCoinsRestriction, preventSideEffectsRestriction, MipsSpend, VaultMint, wrappedDelegatedPuzzleHash, Remark, AggSigParent, AggSigPuzzle, AggSigAmount, AggSigPuzzleAmount, AggSigParentAmount, AggSigParentPuzzle, AggSigUnsafe, AggSigMe, CreateCoin, ReserveFee, CreateCoinAnnouncement, CreatePuzzleAnnouncement, AssertCoinAnnouncement, AssertPuzzleAnnouncement, AssertConcurrentSpend, AssertConcurrentPuzzle, AssertSecondsRelative, AssertSecondsAbsolute, AssertHeightRelative, AssertHeightAbsolute, AssertBeforeSecondsRelative, AssertBeforeSecondsAbsolute, AssertBeforeHeightRelative, AssertBeforeHeightAbsolute, AssertMyCoinId, AssertMyParentId, AssertMyPuzzleHash, AssertMyAmount, AssertMyBirthSeconds, AssertMyBirthHeight, AssertEphemeral, SendMessage, ReceiveMessage, Softfork, Mnemonic, Program, Output, Pair, CurriedProgram, LineageProof, Simulator, BlsPair, BlsPairWithCoin, K1Pair, R1Pair, Address, Clvm, Constants, fromHex, toHex, bytesEqual, treeHashAtom, treeHashPair, sha256, curryTreeHash, generateBytes, K1SecretKey, K1PublicKey, K1Signature, R1SecretKey, R1PublicKey, R1Signature, Coin, CoinSpend, SpendBundle, Spend } = nativeBinding
+const { SecretKey, PublicKey, Signature, Puzzle, Cat, CatSpend, Nft, NftInfo, ParsedNft, NftMetadata, NftMint, DidOwner, MintedNfts, standardPuzzleHash, catPuzzleHash, Vault, MemberConfig, mOfNHash, k1MemberHash, r1MemberHash, blsMemberHash, passkeyMemberHash, singletonMemberHash, fixedMemberHash, customMemberHash, Restriction, RestrictionKind, timelockRestriction, force1Of2Restriction, preventConditionOpcodeRestriction, preventMultipleCreateCoinsRestriction, preventSideEffectsRestriction, MipsSpend, VaultMint, wrappedDelegatedPuzzleHash, Remark, AggSigParent, AggSigPuzzle, AggSigAmount, AggSigPuzzleAmount, AggSigParentAmount, AggSigParentPuzzle, AggSigUnsafe, AggSigMe, CreateCoin, ReserveFee, CreateCoinAnnouncement, CreatePuzzleAnnouncement, AssertCoinAnnouncement, AssertPuzzleAnnouncement, AssertConcurrentSpend, AssertConcurrentPuzzle, AssertSecondsRelative, AssertSecondsAbsolute, AssertHeightRelative, AssertHeightAbsolute, AssertBeforeSecondsRelative, AssertBeforeSecondsAbsolute, AssertBeforeHeightRelative, AssertBeforeHeightAbsolute, AssertMyCoinId, AssertMyParentId, AssertMyPuzzleHash, AssertMyAmount, AssertMyBirthSeconds, AssertMyBirthHeight, AssertEphemeral, SendMessage, ReceiveMessage, Softfork, Mnemonic, Program, Output, Pair, CurriedProgram, LineageProof, Simulator, BlsPair, BlsPairWithCoin, K1Pair, R1Pair, CoinsetClient, BlockchainStateResponse, BlockchainState, MempoolMinFees, SyncState, AdditionsAndRemovalsResponse, GetBlockResponse, GetBlockRecordResponse, GetBlockRecordsResponse, GetBlocksResponse, GetBlockSpendsResponse, GetCoinRecordResponse, GetCoinRecordsResponse, GetPuzzleAndSolutionResponse, PushTxResponse, GetNetworkInfoResponse, GetMempoolItemResponse, GetMempoolItemsResponse, CoinRecord, MempoolItem, FullBlock, EndOfSubSlotBundle, ChallengeChainSubSlot, InfusedChallengeChainSubSlot, RewardChainSubSlot, SubSlotProofs, VdfInfo, VdfProof, TransactionsInfo, RewardChainBlock, FoliageTransactionBlock, FoliageBlockData, Foliage, PoolTarget, BlockRecord, ProofOfSpace, SubEpochSummary, Address, Clvm, Constants, fromHex, toHex, bytesEqual, treeHashAtom, treeHashPair, sha256, curryTreeHash, generateBytes, K1SecretKey, K1PublicKey, K1Signature, R1SecretKey, R1PublicKey, R1Signature, Coin, CoinSpend, SpendBundle, Spend } = nativeBinding
 
 module.exports.SecretKey = SecretKey
 module.exports.PublicKey = PublicKey
@@ -393,6 +393,43 @@ module.exports.BlsPair = BlsPair
 module.exports.BlsPairWithCoin = BlsPairWithCoin
 module.exports.K1Pair = K1Pair
 module.exports.R1Pair = R1Pair
+module.exports.CoinsetClient = CoinsetClient
+module.exports.BlockchainStateResponse = BlockchainStateResponse
+module.exports.BlockchainState = BlockchainState
+module.exports.MempoolMinFees = MempoolMinFees
+module.exports.SyncState = SyncState
+module.exports.AdditionsAndRemovalsResponse = AdditionsAndRemovalsResponse
+module.exports.GetBlockResponse = GetBlockResponse
+module.exports.GetBlockRecordResponse = GetBlockRecordResponse
+module.exports.GetBlockRecordsResponse = GetBlockRecordsResponse
+module.exports.GetBlocksResponse = GetBlocksResponse
+module.exports.GetBlockSpendsResponse = GetBlockSpendsResponse
+module.exports.GetCoinRecordResponse = GetCoinRecordResponse
+module.exports.GetCoinRecordsResponse = GetCoinRecordsResponse
+module.exports.GetPuzzleAndSolutionResponse = GetPuzzleAndSolutionResponse
+module.exports.PushTxResponse = PushTxResponse
+module.exports.GetNetworkInfoResponse = GetNetworkInfoResponse
+module.exports.GetMempoolItemResponse = GetMempoolItemResponse
+module.exports.GetMempoolItemsResponse = GetMempoolItemsResponse
+module.exports.CoinRecord = CoinRecord
+module.exports.MempoolItem = MempoolItem
+module.exports.FullBlock = FullBlock
+module.exports.EndOfSubSlotBundle = EndOfSubSlotBundle
+module.exports.ChallengeChainSubSlot = ChallengeChainSubSlot
+module.exports.InfusedChallengeChainSubSlot = InfusedChallengeChainSubSlot
+module.exports.RewardChainSubSlot = RewardChainSubSlot
+module.exports.SubSlotProofs = SubSlotProofs
+module.exports.VdfInfo = VdfInfo
+module.exports.VdfProof = VdfProof
+module.exports.TransactionsInfo = TransactionsInfo
+module.exports.RewardChainBlock = RewardChainBlock
+module.exports.FoliageTransactionBlock = FoliageTransactionBlock
+module.exports.FoliageBlockData = FoliageBlockData
+module.exports.Foliage = Foliage
+module.exports.PoolTarget = PoolTarget
+module.exports.BlockRecord = BlockRecord
+module.exports.ProofOfSpace = ProofOfSpace
+module.exports.SubEpochSummary = SubEpochSummary
 module.exports.Address = Address
 module.exports.Clvm = Clvm
 module.exports.Constants = Constants
