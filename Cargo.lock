@@ -830,6 +830,8 @@ dependencies = [
  "bindy-macro",
  "chia-sdk-bindings",
  "num-bigint",
+ "openssl",
+ "openssl-sys",
  "pyo3",
 ]
 
@@ -842,8 +844,6 @@ dependencies = [
  "chia-sdk-bindings",
  "getrandom 0.2.15",
  "js-sys",
- "openssl",
- "openssl-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
