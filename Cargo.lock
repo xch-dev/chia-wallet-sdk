@@ -842,6 +842,8 @@ dependencies = [
  "chia-sdk-bindings",
  "getrandom 0.2.15",
  "js-sys",
+ "openssl",
+ "openssl-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]

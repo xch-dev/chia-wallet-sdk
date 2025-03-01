@@ -27,5 +27,21 @@ bindy = { workspace = true, features = ["wasm"] }
 bindy-macro = { workspace = true }
 getrandom = { workspace = true, features = ["js"] }
 
+[target.aarch64-unknown-linux-gnu.dependencies]
+openssl = { version = "0.10.68", features = ["vendored"] }
+openssl-sys = { version = "0.9.104", features = ["vendored"] }
+
+[target.aarch64-unknown-linux-musl.dependencies]
+openssl = { version = "0.10.68", features = ["vendored"] }
+openssl-sys = { version = "0.9.104", features = ["vendored"] }
+
+[target.x86_64-unknown-linux-gnu.dependencies]
+openssl = { version = "0.10.68", features = ["vendored"] }
+openssl-sys = { version = "0.9.104", features = ["vendored"] }
+
+[target.x86_64-unknown-linux-musl.dependencies]
+openssl = { version = "0.10.68", features = ["vendored"] }
+openssl-sys = { version = "0.9.104", features = ["vendored"] }
+
 [package.metadata.cargo-machete]
-ignored = ["bindy", "chia-sdk-bindings", "getrandom", "wasm-bindgen"]
+ignored = ["chia-sdk-bindings", "getrandom", "wasm-bindgen-futures"]
