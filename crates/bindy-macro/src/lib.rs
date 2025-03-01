@@ -784,13 +784,20 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                         MethodKind::Async => {
                             method_tokens.extend(quote! {
                                 #pyo3_attr
-                                pub async fn #remapped_method_ident(
+                                pub fn #remapped_method_ident<'a>(
                                     &self,
+                                    py: Python<'a>,
                                     #( #arg_idents: #arg_types ),*
-                                ) -> pyo3::PyResult<#ret> {
-                                    Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(self.0.#method_ident(
-                                        #( bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
-                                    ).await?, &bindy::Pyo3Context)?)
+                                ) -> pyo3::PyResult<pyo3::Bound<'a, pyo3::PyAny>> {
+                                    let clone_of_self = self.0.clone();
+                                    #( let #arg_idents = bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)?; )*
+
+                                    pyo3_async_runtimes::tokio::future_into_py(py, async move {
+                                        let result: pyo3::PyResult<#ret> = Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(clone_of_self.#method_ident(
+                                            #( #arg_idents ),*
+                                        ).await?, &bindy::Pyo3Context)?);
+                                        result
+                                    })
                                 }
                             });
                         }

@@ -9,6 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { workspace = true, features = ["num-bigint", "multiple-pymethods", "abi3-py38", "experimental-async"] }
+pyo3-async-runtimes = { workspace = true, features = ["tokio-runtime"] }
 chia-sdk-bindings = { workspace = true, features = ["pyo3"] }
 bindy = { workspace = true, features = ["pyo3"] }
 bindy-macro = { workspace = true }
