@@ -26,13 +26,18 @@ impl<T> IntoRust<(), T, Wasm> for () {
 
 impl<T> FromRust<BigInt, T, Wasm> for js_sys::BigInt {
     fn from_rust(value: BigInt, _context: &T) -> Result<Self> {
-        js_sys::BigInt::from_str(&value.to_string()).map_err(Error::Js)
+        js_sys::BigInt::from_str(&value.to_string())
+            .map_err(|error| Error::Custom(format!("{error:?}")))
     }
 }
 
 impl<T> IntoRust<BigInt, T, Wasm> for js_sys::BigInt {
     fn into_rust(self, _context: &T) -> Result<BigInt> {
-        Ok(String::from(self.to_string(10).map_err(Error::Range)?).parse()?)
+        Ok(String::from(
+            self.to_string(10)
+                .map_err(|error| Error::Custom(format!("{error:?}")))?,
+        )
+        .parse()?)
     }
 }
 

@@ -105,13 +105,8 @@ pub enum Error {
     #[error("BigInt error: {0}")]
     BigInt(#[from] TryFromBigIntError<BigInt>),
 
-    #[cfg(feature = "wasm")]
-    #[error("Js error: {0:?}")]
-    Js(js_sys::Error),
-
-    #[cfg(feature = "wasm")]
-    #[error("Range error: {0:?}")]
-    Range(js_sys::RangeError),
+    #[error("{0}")]
+    Custom(String),
 
     #[error("Reqwest error: {0}")]
     Reqwest(#[from] reqwest::Error),
