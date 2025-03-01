@@ -2,17 +2,17 @@ mod members;
 mod restrictions;
 mod spend;
 
-use chia_sdk_types::{AddDelegatedPuzzleWrapper, Mod};
 pub use members::*;
 pub use restrictions::*;
 pub use spend::*;
 
 use bindy::Result;
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver as sdk;
+use chia_sdk_types::{AddDelegatedPuzzleWrapper, Mod};
 use clvm_utils::TreeHash;
 
-use crate::{Coin, LineageProof, Program};
+use crate::{LineageProof, Program};
 
 #[derive(Clone)]
 pub struct Vault {
@@ -31,7 +31,7 @@ impl Vault {
 impl From<sdk::Vault> for Vault {
     fn from(value: sdk::Vault) -> Self {
         Vault {
-            coin: value.coin.into(),
+            coin: value.coin,
             launcher_id: value.launcher_id,
             proof: value.proof.into(),
             custody_hash: value.custody_hash,
@@ -42,7 +42,7 @@ impl From<sdk::Vault> for Vault {
 impl From<Vault> for sdk::Vault {
     fn from(value: Vault) -> Self {
         sdk::Vault {
-            coin: value.coin.into(),
+            coin: value.coin,
             launcher_id: value.launcher_id,
             proof: value.proof.into(),
             custody_hash: value.custody_hash,

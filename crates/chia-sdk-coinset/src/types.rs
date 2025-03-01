@@ -11,7 +11,7 @@ pub struct CoinRecord {
     pub timestamp: u64,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct MempoolItem {
     pub spend_bundle: SpendBundle,
     pub fee: u64,

@@ -14,6 +14,70 @@
       "mainnet": {
         "type": "factory"
       },
+      "get_blockchain_state": {
+        "type": "async",
+        "return": "BlockchainStateResponse"
+      },
+      "get_additions_and_removals": {
+        "type": "async",
+        "args": {
+          "header_hash": "Bytes32"
+        },
+        "return": "AdditionsAndRemovalsResponse"
+      },
+      "get_block": {
+        "type": "async",
+        "args": {
+          "header_hash": "Bytes32"
+        },
+        "return": "GetBlockResponse"
+      },
+      "get_block_record": {
+        "type": "async",
+        "args": {
+          "header_hash": "Bytes32"
+        },
+        "return": "GetBlockRecordResponse"
+      },
+      "get_block_record_by_height": {
+        "type": "async",
+        "args": {
+          "height": "u32"
+        },
+        "return": "GetBlockRecordByHeightResponse"
+      },
+      "get_block_records": {
+        "type": "async",
+        "args": {
+          "start_height": "u32",
+          "end_height": "u32"
+        },
+        "return": "GetBlockRecordsResponse"
+      },
+      "get_blocks": {
+        "type": "async",
+        "args": {
+          "start": "u32",
+          "end": "u32",
+          "exclude_header_hash": "bool",
+          "exclude_reorged": "bool"
+        },
+        "return": "GetBlocksResponse"
+      },
+      "get_block_spends": {
+        "type": "async",
+        "args": {
+          "header_hash": "Bytes32"
+        },
+        "return": "GetBlockSpendsResponse"
+      },
+      "get_coin_record_by_name": {
+        "type": "async",
+        "args": {
+          "name": "Bytes32"
+        },
+        "return": "GetCoinRecordByNameResponse"
+      },
       "get_coin_records_by_hint": {
         "type": "async",
         "args": {
@@ -22,13 +86,270 @@
           "end_height": "Option<u32>",
           "include_spent_coins": "Option<bool>"
         },
-        "return": "Vec<CoinRecord>"
+        "return": "GetCoinRecordsResponse"
+      },
+      "get_coin_records_by_names": {
+        "type": "async",
+        "args": {
+          "names": "Vec<Bytes32>",
+          "start_height": "Option<u32>",
+          "end_height": "Option<u32>",
+          "include_spent_coins": "Option<bool>"
+        },
+        "return": "GetCoinRecordsResponse"
+      },
+      "get_coin_records_by_parent_ids": {
+        "type": "async",
+        "args": {
+          "parent_ids": "Vec<Bytes32>",
+          "start_height": "Option<u32>",
+          "end_height": "Option<u32>",
+          "include_spent_coins": "Option<bool>"
+        },
+        "return": "GetCoinRecordsResponse"
+      },
+      "get_coin_records_by_puzzle_hash": {
+        "type": "async",
+        "args": {
+          "puzzle_hash": "Bytes32",
+          "start_height": "Option<u32>",
+          "end_height": "Option<u32>",
+          "include_spent_coins": "Option<bool>"
+        },
+        "return": "GetCoinRecordsResponse"
+      },
+      "get_coin_records_by_puzzle_hashes": {
+        "type": "async",
+        "args": {
+          "puzzle_hashes": "Vec<Bytes32>",
+          "start_height": "Option<u32>",
+          "end_height": "Option<u32>",
+          "include_spent_coins": "Option<bool>"
+        },
+        "return": "GetCoinRecordsResponse"
+      },
+      "get_puzzle_and_solution": {
+        "type": "async",
+        "args": {
+          "coin_id": "Bytes32",
+          "height": "Option<u32>"
+        },
+        "return": "GetPuzzleAndSolutionResponse"
+      },
+      "push_tx": {
+        "type": "async",
+        "args": {
+          "spend_bundle": "SpendBundle"
+        },
+        "return": "PushTxResponse"
+      },
+      "get_network_info": {
+        "type": "async",
+        "return": "GetNetworkInfoResponse"
+      },
+      "get_mempool_item_by_tx_id": {
+        "type": "async",
+        "args": {
+          "tx_id": "Bytes32"
+        },
+        "return": "GetMempoolItemResponse"
+      },
+      "get_mempool_items_by_coin_name": {
+        "type": "async",
+        "args": {
+          "coin_name": "Bytes32"
+        },
+        "return": "GetMempoolItemsResponse"
       }
+    }
+  },
+  "BlockchainStateResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "blockchain_state": "Option<BlockchainState>",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
+  "BlockchainState": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "average_block_time": "u64",
+      "block_max_cost": "u64",
+      "difficulty": "u64",
+      "genesis_challenge_initialized": "bool",
+      "mempool_cost": "u64",
+      "mempool_fees": "u64",
+      "mempool_max_total_cost": "u64",
+      "mempool_min_fees": "MempoolMinFees",
+      "mempool_size": "u32",
+      "node_id": "Bytes32",
+      "peak": "BlockRecord",
+      "space": "u128",
+      "sub_slot_iters": "u64",
+      "sync": "SyncState"
+    }
+  },
+  "MempoolMinFees": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "cost_5000000": "u64"
+    }
+  },
+  "SyncState": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "sync_mode": "bool",
+      "sync_progress_height": "u32",
+      "sync_tip_height": "u32",
+      "synced": "bool"
+    }
+  },
+  "AdditionsAndRemovalsResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "additions": "Option<Vec<CoinRecord>>",
+      "removals": "Option<Vec<CoinRecord>>",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
+  "GetBlockResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "block": "Option<FullBlock>",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
+  "GetBlockRecordResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "block_record": "Option<BlockRecord>",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
+  "GetBlockRecordsResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "block_records": "Option<Vec<BlockRecord>>",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
+  "GetBlocksResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "blocks": "Option<Vec<FullBlock>>",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
+  "GetBlockSpendsResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "block_spends": "Option<Vec<CoinSpend>>",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
+  "GetCoinRecordResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "coin_record": "Option<CoinRecord>",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
+  "GetCoinRecordsResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "coin_records": "Option<Vec<CoinRecord>>",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
+  "GetPuzzleAndSolutionResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "coin_solution": "Option<CoinSpend>",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
+  "PushTxResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "status": "String",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
+  "GetNetworkInfoResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "network_name": "Option<String>",
+      "network_prefix": "Option<String>",
+      "genesis_challenge": "Option<Bytes32>",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
+  "GetMempoolItemResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "mempool_item": "Option<MempoolItem>",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
+  "GetMempoolItemsResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "mempool_items": "Option<Vec<MempoolItem>>",
+      "error": "Option<String>",
+      "success": "bool"
     }
   },
   "CoinRecord": {
     "type": "class",
     "new": true,
+    "remote": true,
     "fields": {
       "coin": "Coin",
       "coinbase": "bool",
@@ -36,6 +357,244 @@
       "spent": "bool",
       "spent_block_index": "u32",
       "timestamp": "u64"
+    }
+  },
+  "MempoolItem": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "spend_bundle": "SpendBundle",
+      "fee": "u64"
+    }
+  },
+  "FullBlock": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "finished_sub_slots": "Vec<EndOfSubSlotBundle>",
+      "reward_chain_block": "RewardChainBlock",
+      "challenge_chain_sp_proof": "Option<VDFProof>",
+      "challenge_chain_ip_proof": "VDFProof",
+      "reward_chain_sp_proof": "Option<VDFProof>",
+      "reward_chain_ip_proof": "VDFProof",
+      "infused_challenge_chain_ip_proof": "Option<VDFProof>",
+      "foliage": "Foliage",
+      "foliage_transaction_block": "Option<FoliageTransactionBlock>",
+      "transactions_info": "Option<TransactionsInfo>",
+      "transactions_generator": "Option<SerializedProgram>",
+      "transactions_generator_ref_list": "Vec<u32>"
+    }
+  },
+  "EndOfSubSlotBundle": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "challenge_chain": "ChallengeChainSubSlot",
+      "infused_challenge_chain": "Option<InfusedChallengeChainSubSlot>",
+      "reward_chain": "RewardChainSubSlot",
+      "proofs": "SubSlotProofs"
+    }
+  },
+  "ChallengeChainSubSlot": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "challenge_chain_end_of_slot_vdf": "VDFInfo",
+      "infused_challenge_chain_sub_slot_hash": "Option<Bytes32>",
+      "subepoch_summary_hash": "Option<Bytes32>",
+      "new_sub_slot_iters": "Option<u64>",
+      "new_difficulty": "Option<u64>"
+    }
+  },
+  "InfusedChallengeChainSubSlot": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "infused_challenge_chain_end_of_slot_vdf": "VDFInfo"
+    }
+  },
+  "RewardChainSubSlot": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "end_of_slot_vdf": "VDFInfo",
+      "challenge_chain_sub_slot_hash": "Bytes32",
+      "infused_challenge_chain_sub_slot_hash": "Option<Bytes32>",
+      "deficit": "u8"
+    }
+  },
+  "SubSlotProofs": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "challenge_chain_slot_proof": "VDFProof",
+      "infused_challenge_chain_slot_proof": "Option<VDFProof>",
+      "reward_chain_slot_proof": "VDFProof"
+    }
+  },
+  "VDFInfo": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "challenge": "Bytes32",
+      "number_of_iterations": "u64",
+      "output": "ClassgroupElement"
+    }
+  },
+  "VDFProof": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "witness_type": "u8",
+      "witness": "Bytes",
+      "normalized_to_identity": "bool"
+    }
+  },
+  "TransactionsInfo": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "generator_root": "Bytes32",
+      "generator_refs_root": "Bytes32",
+      "aggregated_signature": "Signature",
+      "fees": "u64",
+      "cost": "u64",
+      "reward_claims_incorporated": "Vec<Coin>"
+    }
+  },
+  "RewardChainBlock": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "weight": "u128",
+      "height": "u32",
+      "total_iters": "u128",
+      "signage_point_index": "u8",
+      "pos_ss_cc_challenge_hash": "Bytes32",
+      "proof_of_space": "ProofOfSpace",
+      "challenge_chain_sp_vdf": "Option<VDFInfo>",
+      "challenge_chain_sp_signature": "Signature",
+      "challenge_chain_ip_vdf": "VDFInfo",
+      "reward_chain_sp_vdf": "Option<VDFInfo>",
+      "reward_chain_sp_signature": "Signature",
+      "reward_chain_ip_vdf": "VDFInfo",
+      "infused_challenge_chain_ip_vdf": "Option<VDFInfo>",
+      "is_transaction_block": "bool"
+    }
+  },
+  "FoliageTransactionBlock": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "prev_transaction_block_hash": "Bytes32",
+      "timestamp": "u64",
+      "filter_hash": "Bytes32",
+      "additions_root": "Bytes32",
+      "removals_root": "Bytes32",
+      "transactions_info_hash": "Bytes32"
+    }
+  },
+  "FoliageBlockData": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "unfinished_reward_block_hash": "Bytes32",
+      "pool_target": "PoolTarget",
+      "pool_signature": "Option<Signature>",
+      "farmer_reward_puzzle_hash": "Bytes32",
+      "extension_data": "Bytes32"
+    }
+  },
+  "Foliage": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "prev_block_hash": "Bytes32",
+      "reward_block_hash": "Bytes32",
+      "foliage_block_data": "FoliageBlockData",
+      "foliage_block_data_signature": "Signature",
+      "foliage_transaction_block_hash": "Option<Bytes32>",
+      "foliage_transaction_block_signature": "Option<Signature>"
+    }
+  },
+  "PoolTarget": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "max_height": "u32"
+    }
+  },
+  "BlockRecord": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "header_hash": "Bytes32",
+      "prev_hash": "Bytes32",
+      "height": "u32",
+      "weight": "u128",
+      "total_iters": "u128",
+      "signage_point_index": "u8",
+      "challenge_vdf_output": "ClassgroupElement",
+      "infused_challenge_vdf_output": "Option<ClassgroupElement>",
+      "reward_infusion_new_challenge": "Bytes32",
+      "challenge_block_info_hash": "Bytes32",
+      "sub_slot_iters": "u64",
+      "pool_puzzle_hash": "Bytes32",
+      "farmer_puzzle_hash": "Bytes32",
+      "required_iters": "u64",
+      "deficit": "u8",
+      "overflow": "bool",
+      "prev_transaction_block_height": "u32",
+      "timestamp": "Option<u64>",
+      "prev_transaction_block_hash": "Option<Bytes32>",
+      "fees": "Option<u64>",
+      "reward_claims_incorporated": "Option<Vec<Coin>>",
+      "finished_challenge_slot_hashes": "Option<Vec<Bytes32>>",
+      "finished_infused_challenge_slot_hashes": "Option<Vec<Bytes32>>",
+      "finished_reward_slot_hashes": "Option<Vec<Bytes32>>",
+      "sub_epoch_summary_included": "Option<SubEpochSummary>"
+    }
+  },
+  "ProofOfSpace": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "challenge": "Bytes32",
+      "pool_public_key": "Option<PublicKey>",
+      "pool_contract_puzzle_hash": "Option<Bytes32>",
+      "plot_public_key": "PublicKey",
+      "size": "u8",
+      "proof": "Bytes"
+    }
+  },
+  "SubEpochSummary": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "prev_subepoch_summary_hash": "Bytes32",
+      "reward_chain_hash": "Bytes32",
+      "num_blocks_overflow": "u8",
+      "new_difficulty": "Option<u64>",
+      "new_sub_slot_iters": "Option<u64>"
     }
   }
 }

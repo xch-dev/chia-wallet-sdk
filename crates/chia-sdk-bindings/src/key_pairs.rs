@@ -1,7 +1,8 @@
 use bindy::Result;
-use chia_protocol::Bytes32;
+use chia_bls::{PublicKey, SecretKey};
+use chia_protocol::{Bytes32, Coin};
 
-use crate::{Coin, K1PublicKey, K1SecretKey, PublicKey, R1PublicKey, R1SecretKey, SecretKey};
+use crate::{K1PublicKey, K1SecretKey, R1PublicKey, R1SecretKey};
 
 #[derive(Clone)]
 pub struct BlsPair {
@@ -23,8 +24,8 @@ impl BlsPair {
 impl From<chia_sdk_test::BlsPair> for BlsPair {
     fn from(value: chia_sdk_test::BlsPair) -> Self {
         Self {
-            sk: SecretKey(value.sk),
-            pk: PublicKey(value.pk),
+            sk: value.sk,
+            pk: value.pk,
         }
     }
 }
@@ -39,10 +40,10 @@ pub struct BlsPairWithCoin {
 impl From<chia_sdk_test::BlsPairWithCoin> for BlsPairWithCoin {
     fn from(value: chia_sdk_test::BlsPairWithCoin) -> Self {
         Self {
-            sk: SecretKey(value.sk),
-            pk: PublicKey(value.pk),
+            sk: value.sk,
+            pk: value.pk,
             puzzle_hash: value.puzzle_hash,
-            coin: value.coin.into(),
+            coin: value.coin,
         }
     }
 }

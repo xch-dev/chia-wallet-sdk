@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex, RwLock};
 
 use bindy::{Error, Result};
-use chia_protocol::{Bytes, Bytes32, Program as SerializedProgram};
+use chia_bls::PublicKey;
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram};
 use chia_puzzle_types::nft;
 use chia_sdk_driver::{HashedPtr, Launcher, SpendContext, StandardLayer};
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
@@ -14,8 +15,7 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    CatSpend, Coin, CoinSpend, MintedNfts, MipsSpend, Nft, NftMetadata, NftMint, Program,
-    PublicKey, Spend, VaultMint,
+    CatSpend, MintedNfts, MipsSpend, Nft, NftMetadata, NftMint, Program, Spend, VaultMint,
 };
 
 #[derive(Default, Clone)]
@@ -27,7 +27,7 @@ impl Clvm {
     }
 
     pub fn add_coin_spend(&self, coin_spend: CoinSpend) -> Result<()> {
-        self.0.write().unwrap().insert(coin_spend.into());
+        self.0.write().unwrap().insert(coin_spend);
         Ok(())
     }
 
@@ -35,23 +35,12 @@ impl Clvm {
         let mut ctx = self.0.write().unwrap();
         let puzzle_reveal = ctx.serialize(&spend.puzzle.1)?;
         let solution = ctx.serialize(&spend.solution.1)?;
-        ctx.insert(chia_protocol::CoinSpend::new(
-            coin.into(),
-            puzzle_reveal,
-            solution,
-        ));
+        ctx.insert(chia_protocol::CoinSpend::new(coin, puzzle_reveal, solution));
         Ok(())
     }
 
     pub fn coin_spends(&self) -> Result<Vec<CoinSpend>> {
-        Ok(self
-            .0
-            .write()
-            .unwrap()
-            .take()
-            .into_iter()
-            .map(CoinSpend::from)
-            .collect())
+        Ok(self.0.write().unwrap().take())
     }
 
     pub fn delegated_spend(&self, conditions: Vec<Program>) -> Result<Spend> {
@@ -68,7 +57,7 @@ impl Clvm {
     pub fn standard_spend(&self, synthetic_key: PublicKey, spend: Spend) -> Result<Spend> {
         let mut ctx = self.0.write().unwrap();
         let spend =
-            StandardLayer::new(synthetic_key.0).delegated_inner_spend(&mut ctx, spend.into())?;
+            StandardLayer::new(synthetic_key).delegated_inner_spend(&mut ctx, spend.into())?;
         Ok(Spend {
             puzzle: Program(self.0.clone(), spend.puzzle),
             solution: Program(self.0.clone(), spend.solution),
@@ -85,11 +74,7 @@ impl Clvm {
         let spend = self.standard_spend(synthetic_key, spend)?;
         let puzzle_reveal = ctx.serialize(&spend.puzzle.1)?;
         let solution = ctx.serialize(&spend.solution.1)?;
-        ctx.insert(chia_protocol::CoinSpend::new(
-            coin.into(),
-            puzzle_reveal,
-            solution,
-        ));
+        ctx.insert(chia_protocol::CoinSpend::new(coin, puzzle_reveal, solution));
         Ok(())
     }
 
@@ -150,7 +135,7 @@ impl Clvm {
     pub fn spend_nft(&self, nft: Nft, inner_spend: Spend) -> Result<()> {
         let mut ctx = self.0.write().unwrap();
         let nft = chia_sdk_driver::Nft {
-            coin: nft.coin.into(),
+            coin: nft.coin,
             proof: nft.lineage_proof.into(),
             info: chia_sdk_driver::NftInfo {
                 launcher_id: nft.info.launcher_id,
@@ -204,7 +189,7 @@ impl Clvm {
             spend: Arc::new(Mutex::new(chia_sdk_driver::MipsSpend::new(
                 chia_sdk_driver::Spend::new(delegated_spend.puzzle.1, delegated_spend.solution.1),
             ))),
-            coin: coin.into(),
+            coin,
         })
     }
 

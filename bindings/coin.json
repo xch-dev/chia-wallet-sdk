@@ -2,6 +2,7 @@
   "Coin": {
     "type": "class",
     "new": true,
+    "remote": true,
     "fields": {
       "parent_coin_info": "Bytes32",
       "puzzle_hash": "Bytes32",
@@ -16,6 +17,7 @@
   "CoinSpend": {
     "type": "class",
     "new": true,
+    "remote": true,
     "fields": {
       "coin": "Coin",
       "puzzle_reveal": "SerializedProgram",
@@ -25,6 +27,7 @@
   "SpendBundle": {
     "type": "class",
     "new": true,
+    "remote": true,
     "fields": {
       "coin_spends": "Vec<CoinSpend>",
       "aggregated_signature": "Signature"

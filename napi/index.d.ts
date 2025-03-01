@@ -580,7 +580,204 @@ export declare class CoinsetClient {
   constructor(baseUrl: string)
   static testnet11(): CoinsetClient
   static mainnet(): CoinsetClient
-  getCoinRecordsByHint(hint: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<Array<CoinRecord>>
+  getBlockchainState(): Promise<BlockchainStateResponse>
+  getAdditionsAndRemovals(headerHash: Uint8Array): Promise<AdditionsAndRemovalsResponse>
+  getBlock(headerHash: Uint8Array): Promise<GetBlockResponse>
+  getBlockRecord(headerHash: Uint8Array): Promise<GetBlockRecordResponse>
+  getBlockRecordByHeight(height: number): Promise<GetBlockRecordResponse>
+  getBlockRecords(startHeight: number, endHeight: number): Promise<GetBlockRecordsResponse>
+  getBlocks(start: number, end: number, excludeHeaderHash: boolean, excludeReorged: boolean): Promise<GetBlocksResponse>
+  getBlockSpends(headerHash: Uint8Array): Promise<GetBlockSpendsResponse>
+  getCoinRecordByName(name: Uint8Array): Promise<GetCoinRecordResponse>
+  getCoinRecordsByHint(hint: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByNames(names: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByParentIds(parentIds: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByPuzzleHash(puzzleHash: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByPuzzleHashes(puzzleHashes: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getPuzzleAndSolution(coinId: Uint8Array, height?: number | undefined | null): Promise<GetPuzzleAndSolutionResponse>
+  pushTx(spendBundle: SpendBundle): Promise<PushTxResponse>
+  getNetworkInfo(): Promise<GetNetworkInfoResponse>
+  getMempoolItemByTxId(txId: Uint8Array): Promise<GetMempoolItemResponse>
+  getMempoolItemsByCoinName(coinName: Uint8Array): Promise<GetMempoolItemsResponse>
+}
+export declare class BlockchainStateResponse {
+  constructor(blockchainState: BlockchainState | undefined | null, error: string | undefined | null, success: boolean)
+  get blockchainState(): BlockchainState | null
+  set blockchainState(value?: BlockchainState | undefined | null)
+  get error(): string | null
+  set error(value?: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
+}
+export declare class BlockchainState {
+  constructor(averageBlockTime: bigint, blockMaxCost: bigint, difficulty: bigint, genesisChallengeInitialized: boolean, mempoolCost: bigint, mempoolFees: bigint, mempoolMaxTotalCost: bigint, mempoolMinFees: MempoolMinFees, mempoolSize: number, nodeId: Uint8Array, peak: BlockRecord, space: bigint, subSlotIters: bigint, sync: SyncState)
+  get averageBlockTime(): bigint
+  set averageBlockTime(value: bigint)
+  get blockMaxCost(): bigint
+  set blockMaxCost(value: bigint)
+  get difficulty(): bigint
+  set difficulty(value: bigint)
+  get genesisChallengeInitialized(): boolean
+  set genesisChallengeInitialized(value: boolean)
+  get mempoolCost(): bigint
+  set mempoolCost(value: bigint)
+  get mempoolFees(): bigint
+  set mempoolFees(value: bigint)
+  get mempoolMaxTotalCost(): bigint
+  set mempoolMaxTotalCost(value: bigint)
+  get mempoolMinFees(): MempoolMinFees
+  set mempoolMinFees(value: MempoolMinFees)
+  get mempoolSize(): number
+  set mempoolSize(value: number)
+  get nodeId(): Uint8Array
+  set nodeId(value: Uint8Array)
+  get peak(): BlockRecord
+  set peak(value: BlockRecord)
+  get space(): bigint
+  set space(value: bigint)
+  get subSlotIters(): bigint
+  set subSlotIters(value: bigint)
+  get sync(): SyncState
+  set sync(value: SyncState)
+}
+export declare class MempoolMinFees {
+  constructor(cost5000000: bigint)
+  get cost5000000(): bigint
+  set cost5000000(value: bigint)
+}
+export declare class SyncState {
+  constructor(syncMode: boolean, syncProgressHeight: number, syncTipHeight: number, synced: boolean)
+  get syncMode(): boolean
+  set syncMode(value: boolean)
+  get syncProgressHeight(): number
+  set syncProgressHeight(value: number)
+  get syncTipHeight(): number
+  set syncTipHeight(value: number)
+  get synced(): boolean
+  set synced(value: boolean)
+}
+export declare class AdditionsAndRemovalsResponse {
+  constructor(additions: Array<CoinRecord> | undefined | null, removals: Array<CoinRecord> | undefined | null, error: string | undefined | null, success: boolean)
+  get additions(): Array<CoinRecord> | null
+  set additions(value?: Array<CoinRecord> | undefined | null)
+  get removals(): Array<CoinRecord> | null
+  set removals(value?: Array<CoinRecord> | undefined | null)
+  get error(): string | null
+  set error(value?: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
+}
+export declare class GetBlockResponse {
+  constructor(block: FullBlock | undefined | null, error: string | undefined | null, success: boolean)
+  get block(): FullBlock | null
+  set block(value?: FullBlock | undefined | null)
+  get error(): string | null
+  set error(value?: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
+}
+export declare class GetBlockRecordResponse {
+  constructor(blockRecord: BlockRecord | undefined | null, error: string | undefined | null, success: boolean)
+  get blockRecord(): BlockRecord | null
+  set blockRecord(value?: BlockRecord | undefined | null)
+  get error(): string | null
+  set error(value?: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
+}
+export declare class GetBlockRecordsResponse {
+  constructor(blockRecords: Array<BlockRecord> | undefined | null, error: string | undefined | null, success: boolean)
+  get blockRecords(): Array<BlockRecord> | null
+  set blockRecords(value?: Array<BlockRecord> | undefined | null)
+  get error(): string | null
+  set error(value?: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
+}
+export declare class GetBlocksResponse {
+  constructor(blocks: Array<FullBlock> | undefined | null, error: string | undefined | null, success: boolean)
+  get blocks(): Array<FullBlock> | null
+  set blocks(value?: Array<FullBlock> | undefined | null)
+  get error(): string | null
+  set error(value?: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
+}
+export declare class GetBlockSpendsResponse {
+  constructor(blockSpends: Array<CoinSpend> | undefined | null, error: string | undefined | null, success: boolean)
+  get blockSpends(): Array<CoinSpend> | null
+  set blockSpends(value?: Array<CoinSpend> | undefined | null)
+  get error(): string | null
+  set error(value?: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
+}
+export declare class GetCoinRecordResponse {
+  constructor(coinRecord: CoinRecord | undefined | null, error: string | undefined | null, success: boolean)
+  get coinRecord(): CoinRecord | null
+  set coinRecord(value?: CoinRecord | undefined | null)
+  get error(): string | null
+  set error(value?: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
+}
+export declare class GetCoinRecordsResponse {
+  constructor(coinRecords: Array<CoinRecord> | undefined | null, error: string | undefined | null, success: boolean)
+  get coinRecords(): Array<CoinRecord> | null
+  set coinRecords(value?: Array<CoinRecord> | undefined | null)
+  get error(): string | null
+  set error(value?: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
+}
+export declare class GetPuzzleAndSolutionResponse {
+  constructor(coinSolution: CoinSpend | undefined | null, error: string | undefined | null, success: boolean)
+  get coinSolution(): CoinSpend | null
+  set coinSolution(value?: CoinSpend | undefined | null)
+  get error(): string | null
+  set error(value?: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
+}
+export declare class PushTxResponse {
+  constructor(status: string, error: string | undefined | null, success: boolean)
+  get status(): string
+  set status(value: string)
+  get error(): string | null
+  set error(value?: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
+}
+export declare class GetNetworkInfoResponse {
+  constructor(networkName: string | undefined | null, networkPrefix: string | undefined | null, genesisChallenge: Uint8Array | undefined | null, error: string | undefined | null, success: boolean)
+  get networkName(): string | null
+  set networkName(value?: string | undefined | null)
+  get networkPrefix(): string | null
+  set networkPrefix(value?: string | undefined | null)
+  get genesisChallenge(): Uint8Array | null
+  set genesisChallenge(value?: Uint8Array | undefined | null)
+  get error(): string | null
+  set error(value?: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
+}
+export declare class GetMempoolItemResponse {
+  constructor(mempoolItem: MempoolItem | undefined | null, error: string | undefined | null, success: boolean)
+  get mempoolItem(): MempoolItem | null
+  set mempoolItem(value?: MempoolItem | undefined | null)
+  get error(): string | null
+  set error(value?: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
+}
+export declare class GetMempoolItemsResponse {
+  constructor(mempoolItems: Array<MempoolItem> | undefined | null, error: string | undefined | null, success: boolean)
+  get mempoolItems(): Array<MempoolItem> | null
+  set mempoolItems(value?: Array<MempoolItem> | undefined | null)
+  get error(): string | null
+  set error(value?: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
 }
 export declare class CoinRecord {
   constructor(coin: Coin, coinbase: boolean, confirmedBlockIndex: number, spent: boolean, spentBlockIndex: number, timestamp: bigint)
@@ -596,6 +793,286 @@ export declare class CoinRecord {
   set spentBlockIndex(value: number)
   get timestamp(): bigint
   set timestamp(value: bigint)
+}
+export declare class MempoolItem {
+  constructor(spendBundle: SpendBundle, fee: bigint)
+  get spendBundle(): SpendBundle
+  set spendBundle(value: SpendBundle)
+  get fee(): bigint
+  set fee(value: bigint)
+}
+export declare class FullBlock {
+  constructor(finishedSubSlots: Array<EndOfSubSlotBundle>, rewardChainBlock: RewardChainBlock, challengeChainSpProof: VDFProof | undefined | null, challengeChainIpProof: VDFProof, rewardChainSpProof: VDFProof | undefined | null, rewardChainIpProof: VDFProof, infusedChallengeChainIpProof: VDFProof | undefined | null, foliage: Foliage, foliageTransactionBlock: FoliageTransactionBlock | undefined | null, transactionsInfo: TransactionsInfo | undefined | null, transactionsGenerator: Uint8Array | undefined | null, transactionsGeneratorRefList: Array<number>)
+  get finishedSubSlots(): Array<EndOfSubSlotBundle>
+  set finishedSubSlots(value: Array<EndOfSubSlotBundle>)
+  get rewardChainBlock(): RewardChainBlock
+  set rewardChainBlock(value: RewardChainBlock)
+  get challengeChainSpProof(): VDFProof | null
+  set challengeChainSpProof(value?: VDFProof | undefined | null)
+  get challengeChainIpProof(): VDFProof
+  set challengeChainIpProof(value: VDFProof)
+  get rewardChainSpProof(): VDFProof | null
+  set rewardChainSpProof(value?: VDFProof | undefined | null)
+  get rewardChainIpProof(): VDFProof
+  set rewardChainIpProof(value: VDFProof)
+  get infusedChallengeChainIpProof(): VDFProof | null
+  set infusedChallengeChainIpProof(value?: VDFProof | undefined | null)
+  get foliage(): Foliage
+  set foliage(value: Foliage)
+  get foliageTransactionBlock(): FoliageTransactionBlock | null
+  set foliageTransactionBlock(value?: FoliageTransactionBlock | undefined | null)
+  get transactionsInfo(): TransactionsInfo | null
+  set transactionsInfo(value?: TransactionsInfo | undefined | null)
+  get transactionsGenerator(): Uint8Array | null
+  set transactionsGenerator(value?: Uint8Array | undefined | null)
+  get transactionsGeneratorRefList(): Array<number>
+  set transactionsGeneratorRefList(value: Array<number>)
+}
+export declare class EndOfSubSlotBundle {
+  constructor(challengeChain: ChallengeChainSubSlot, infusedChallengeChain: InfusedChallengeChainSubSlot | undefined | null, rewardChain: RewardChainSubSlot, proofs: SubSlotProofs)
+  get challengeChain(): ChallengeChainSubSlot
+  set challengeChain(value: ChallengeChainSubSlot)
+  get infusedChallengeChain(): InfusedChallengeChainSubSlot | null
+  set infusedChallengeChain(value?: InfusedChallengeChainSubSlot | undefined | null)
+  get rewardChain(): RewardChainSubSlot
+  set rewardChain(value: RewardChainSubSlot)
+  get proofs(): SubSlotProofs
+  set proofs(value: SubSlotProofs)
+}
+export declare class ChallengeChainSubSlot {
+  constructor(challengeChainEndOfSlotVdf: VDFInfo, infusedChallengeChainSubSlotHash?: Uint8Array | undefined | null, subepochSummaryHash?: Uint8Array | undefined | null, newSubSlotIters?: bigint | undefined | null, newDifficulty?: bigint | undefined | null)
+  get challengeChainEndOfSlotVdf(): VDFInfo
+  set challengeChainEndOfSlotVdf(value: VDFInfo)
+  get infusedChallengeChainSubSlotHash(): Uint8Array | null
+  set infusedChallengeChainSubSlotHash(value?: Uint8Array | undefined | null)
+  get subepochSummaryHash(): Uint8Array | null
+  set subepochSummaryHash(value?: Uint8Array | undefined | null)
+  get newSubSlotIters(): bigint | null
+  set newSubSlotIters(value?: bigint | undefined | null)
+  get newDifficulty(): bigint | null
+  set newDifficulty(value?: bigint | undefined | null)
+}
+export declare class InfusedChallengeChainSubSlot {
+  constructor(infusedChallengeChainEndOfSlotVdf: VDFInfo)
+  get infusedChallengeChainEndOfSlotVdf(): VDFInfo
+  set infusedChallengeChainEndOfSlotVdf(value: VDFInfo)
+}
+export declare class RewardChainSubSlot {
+  constructor(endOfSlotVdf: VDFInfo, challengeChainSubSlotHash: Uint8Array, infusedChallengeChainSubSlotHash: Uint8Array | undefined | null, deficit: number)
+  get endOfSlotVdf(): VDFInfo
+  set endOfSlotVdf(value: VDFInfo)
+  get challengeChainSubSlotHash(): Uint8Array
+  set challengeChainSubSlotHash(value: Uint8Array)
+  get infusedChallengeChainSubSlotHash(): Uint8Array | null
+  set infusedChallengeChainSubSlotHash(value?: Uint8Array | undefined | null)
+  get deficit(): number
+  set deficit(value: number)
+}
+export declare class SubSlotProofs {
+  constructor(challengeChainSlotProof: VDFProof, infusedChallengeChainSlotProof: VDFProof | undefined | null, rewardChainSlotProof: VDFProof)
+  get challengeChainSlotProof(): VDFProof
+  set challengeChainSlotProof(value: VDFProof)
+  get infusedChallengeChainSlotProof(): VDFProof | null
+  set infusedChallengeChainSlotProof(value?: VDFProof | undefined | null)
+  get rewardChainSlotProof(): VDFProof
+  set rewardChainSlotProof(value: VDFProof)
+}
+export type VDFInfo = VdfInfo
+export declare class VdfInfo {
+  constructor(challenge: Uint8Array, numberOfIterations: bigint, output: Uint8Array)
+  get challenge(): Uint8Array
+  set challenge(value: Uint8Array)
+  get numberOfIterations(): bigint
+  set numberOfIterations(value: bigint)
+  get output(): Uint8Array
+  set output(value: Uint8Array)
+}
+export type VDFProof = VdfProof
+export declare class VdfProof {
+  constructor(witnessType: number, witness: Uint8Array, normalizedToIdentity: boolean)
+  get witnessType(): number
+  set witnessType(value: number)
+  get witness(): Uint8Array
+  set witness(value: Uint8Array)
+  get normalizedToIdentity(): boolean
+  set normalizedToIdentity(value: boolean)
+}
+export declare class TransactionsInfo {
+  constructor(generatorRoot: Uint8Array, generatorRefsRoot: Uint8Array, aggregatedSignature: Signature, fees: bigint, cost: bigint, rewardClaimsIncorporated: Array<Coin>)
+  get generatorRoot(): Uint8Array
+  set generatorRoot(value: Uint8Array)
+  get generatorRefsRoot(): Uint8Array
+  set generatorRefsRoot(value: Uint8Array)
+  get aggregatedSignature(): Signature
+  set aggregatedSignature(value: Signature)
+  get fees(): bigint
+  set fees(value: bigint)
+  get cost(): bigint
+  set cost(value: bigint)
+  get rewardClaimsIncorporated(): Array<Coin>
+  set rewardClaimsIncorporated(value: Array<Coin>)
+}
+export declare class RewardChainBlock {
+  constructor(weight: bigint, height: number, totalIters: bigint, signagePointIndex: number, posSsCcChallengeHash: Uint8Array, proofOfSpace: ProofOfSpace, challengeChainSpVdf: VdfInfo | undefined | null, challengeChainSpSignature: Signature, challengeChainIpVdf: VdfInfo, rewardChainSpVdf: VdfInfo | undefined | null, rewardChainSpSignature: Signature, rewardChainIpVdf: VdfInfo, infusedChallengeChainIpVdf: VdfInfo | undefined | null, isTransactionBlock: boolean)
+  get weight(): bigint
+  set weight(value: bigint)
+  get height(): number
+  set height(value: number)
+  get totalIters(): bigint
+  set totalIters(value: bigint)
+  get signagePointIndex(): number
+  set signagePointIndex(value: number)
+  get posSsCcChallengeHash(): Uint8Array
+  set posSsCcChallengeHash(value: Uint8Array)
+  get proofOfSpace(): ProofOfSpace
+  set proofOfSpace(value: ProofOfSpace)
+  get challengeChainSpVdf(): VdfInfo | null
+  set challengeChainSpVdf(value?: VdfInfo | undefined | null)
+  get challengeChainSpSignature(): Signature
+  set challengeChainSpSignature(value: Signature)
+  get challengeChainIpVdf(): VdfInfo
+  set challengeChainIpVdf(value: VdfInfo)
+  get rewardChainSpVdf(): VdfInfo | null
+  set rewardChainSpVdf(value?: VdfInfo | undefined | null)
+  get rewardChainSpSignature(): Signature
+  set rewardChainSpSignature(value: Signature)
+  get rewardChainIpVdf(): VdfInfo
+  set rewardChainIpVdf(value: VdfInfo)
+  get infusedChallengeChainIpVdf(): VdfInfo | null
+  set infusedChallengeChainIpVdf(value?: VdfInfo | undefined | null)
+  get isTransactionBlock(): boolean
+  set isTransactionBlock(value: boolean)
+}
+export declare class FoliageTransactionBlock {
+  constructor(prevTransactionBlockHash: Uint8Array, timestamp: bigint, filterHash: Uint8Array, additionsRoot: Uint8Array, removalsRoot: Uint8Array, transactionsInfoHash: Uint8Array)
+  get prevTransactionBlockHash(): Uint8Array
+  set prevTransactionBlockHash(value: Uint8Array)
+  get timestamp(): bigint
+  set timestamp(value: bigint)
+  get filterHash(): Uint8Array
+  set filterHash(value: Uint8Array)
+  get additionsRoot(): Uint8Array
+  set additionsRoot(value: Uint8Array)
+  get removalsRoot(): Uint8Array
+  set removalsRoot(value: Uint8Array)
+  get transactionsInfoHash(): Uint8Array
+  set transactionsInfoHash(value: Uint8Array)
+}
+export declare class FoliageBlockData {
+  constructor(unfinishedRewardBlockHash: Uint8Array, poolTarget: PoolTarget, poolSignature: Signature | undefined | null, farmerRewardPuzzleHash: Uint8Array, extensionData: Uint8Array)
+  get unfinishedRewardBlockHash(): Uint8Array
+  set unfinishedRewardBlockHash(value: Uint8Array)
+  get poolTarget(): PoolTarget
+  set poolTarget(value: PoolTarget)
+  get poolSignature(): Signature | null
+  set poolSignature(value?: Signature | undefined | null)
+  get farmerRewardPuzzleHash(): Uint8Array
+  set farmerRewardPuzzleHash(value: Uint8Array)
+  get extensionData(): Uint8Array
+  set extensionData(value: Uint8Array)
+}
+export declare class Foliage {
+  constructor(prevBlockHash: Uint8Array, rewardBlockHash: Uint8Array, foliageBlockData: FoliageBlockData, foliageBlockDataSignature: Signature, foliageTransactionBlockHash?: Uint8Array | undefined | null, foliageTransactionBlockSignature?: Signature | undefined | null)
+  get prevBlockHash(): Uint8Array
+  set prevBlockHash(value: Uint8Array)
+  get rewardBlockHash(): Uint8Array
+  set rewardBlockHash(value: Uint8Array)
+  get foliageBlockData(): FoliageBlockData
+  set foliageBlockData(value: FoliageBlockData)
+  get foliageBlockDataSignature(): Signature
+  set foliageBlockDataSignature(value: Signature)
+  get foliageTransactionBlockHash(): Uint8Array | null
+  set foliageTransactionBlockHash(value?: Uint8Array | undefined | null)
+  get foliageTransactionBlockSignature(): Signature | null
+  set foliageTransactionBlockSignature(value?: Signature | undefined | null)
+}
+export declare class PoolTarget {
+  constructor(puzzleHash: Uint8Array, maxHeight: number)
+  get puzzleHash(): Uint8Array
+  set puzzleHash(value: Uint8Array)
+  get maxHeight(): number
+  set maxHeight(value: number)
+}
+export declare class BlockRecord {
+  constructor(headerHash: Uint8Array, prevHash: Uint8Array, height: number, weight: bigint, totalIters: bigint, signagePointIndex: number, challengeVdfOutput: Uint8Array, infusedChallengeVdfOutput: Uint8Array | undefined | null, rewardInfusionNewChallenge: Uint8Array, challengeBlockInfoHash: Uint8Array, subSlotIters: bigint, poolPuzzleHash: Uint8Array, farmerPuzzleHash: Uint8Array, requiredIters: bigint, deficit: number, overflow: boolean, prevTransactionBlockHeight: number, timestamp?: bigint | undefined | null, prevTransactionBlockHash?: Uint8Array | undefined | null, fees?: bigint | undefined | null, rewardClaimsIncorporated?: Array<Coin> | undefined | null, finishedChallengeSlotHashes?: Array<Uint8Array> | undefined | null, finishedInfusedChallengeSlotHashes?: Array<Uint8Array> | undefined | null, finishedRewardSlotHashes?: Array<Uint8Array> | undefined | null, subEpochSummaryIncluded?: SubEpochSummary | undefined | null)
+  get headerHash(): Uint8Array
+  set headerHash(value: Uint8Array)
+  get prevHash(): Uint8Array
+  set prevHash(value: Uint8Array)
+  get height(): number
+  set height(value: number)
+  get weight(): bigint
+  set weight(value: bigint)
+  get totalIters(): bigint
+  set totalIters(value: bigint)
+  get signagePointIndex(): number
+  set signagePointIndex(value: number)
+  get challengeVdfOutput(): Uint8Array
+  set challengeVdfOutput(value: Uint8Array)
+  get infusedChallengeVdfOutput(): Uint8Array | null
+  set infusedChallengeVdfOutput(value?: Uint8Array | undefined | null)
+  get rewardInfusionNewChallenge(): Uint8Array
+  set rewardInfusionNewChallenge(value: Uint8Array)
+  get challengeBlockInfoHash(): Uint8Array
+  set challengeBlockInfoHash(value: Uint8Array)
+  get subSlotIters(): bigint
+  set subSlotIters(value: bigint)
+  get poolPuzzleHash(): Uint8Array
+  set poolPuzzleHash(value: Uint8Array)
+  get farmerPuzzleHash(): Uint8Array
+  set farmerPuzzleHash(value: Uint8Array)
+  get requiredIters(): bigint
+  set requiredIters(value: bigint)
+  get deficit(): number
+  set deficit(value: number)
+  get overflow(): boolean
+  set overflow(value: boolean)
+  get prevTransactionBlockHeight(): number
+  set prevTransactionBlockHeight(value: number)
+  get timestamp(): bigint | null
+  set timestamp(value?: bigint | undefined | null)
+  get prevTransactionBlockHash(): Uint8Array | null
+  set prevTransactionBlockHash(value?: Uint8Array | undefined | null)
+  get fees(): bigint | null
+  set fees(value?: bigint | undefined | null)
+  get rewardClaimsIncorporated(): Array<Coin> | null
+  set rewardClaimsIncorporated(value?: Array<Coin> | undefined | null)
+  get finishedChallengeSlotHashes(): Array<Uint8Array> | null
+  set finishedChallengeSlotHashes(value?: Array<Uint8Array> | undefined | null)
+  get finishedInfusedChallengeSlotHashes(): Array<Uint8Array> | null
+  set finishedInfusedChallengeSlotHashes(value?: Array<Uint8Array> | undefined | null)
+  get finishedRewardSlotHashes(): Array<Uint8Array> | null
+  set finishedRewardSlotHashes(value?: Array<Uint8Array> | undefined | null)
+  get subEpochSummaryIncluded(): SubEpochSummary | null
+  set subEpochSummaryIncluded(value?: SubEpochSummary | undefined | null)
+}
+export declare class ProofOfSpace {
+  constructor(challenge: Uint8Array, poolPublicKey: PublicKey | undefined | null, poolContractPuzzleHash: Uint8Array | undefined | null, plotPublicKey: PublicKey, size: number, proof: Uint8Array)
+  get challenge(): Uint8Array
+  set challenge(value: Uint8Array)
+  get poolPublicKey(): PublicKey | null
+  set poolPublicKey(value?: PublicKey | undefined | null)
+  get poolContractPuzzleHash(): Uint8Array | null
+  set poolContractPuzzleHash(value?: Uint8Array | undefined | null)
+  get plotPublicKey(): PublicKey
+  set plotPublicKey(value: PublicKey)
+  get size(): number
+  set size(value: number)
+  get proof(): Uint8Array
+  set proof(value: Uint8Array)
+}
+export declare class SubEpochSummary {
+  constructor(prevSubepochSummaryHash: Uint8Array, rewardChainHash: Uint8Array, numBlocksOverflow: number, newDifficulty?: bigint | undefined | null, newSubSlotIters?: bigint | undefined | null)
+  get prevSubepochSummaryHash(): Uint8Array
+  set prevSubepochSummaryHash(value: Uint8Array)
+  get rewardChainHash(): Uint8Array
+  set rewardChainHash(value: Uint8Array)
+  get numBlocksOverflow(): number
+  set numBlocksOverflow(value: number)
+  get newDifficulty(): bigint | null
+  set newDifficulty(value?: bigint | undefined | null)
+  get newSubSlotIters(): bigint | null
+  set newSubSlotIters(value?: bigint | undefined | null)
 }
 export declare class Address {
   encode(): string

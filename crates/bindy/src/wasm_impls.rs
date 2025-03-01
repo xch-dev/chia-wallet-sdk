@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use chia_protocol::{Bytes, Bytes32, BytesImpl, Program};
+use chia_protocol::{Bytes, Bytes32, BytesImpl, ClassgroupElement, Program};
 use clvm_utils::TreeHash;
 use js_sys::wasm_bindgen::{JsCast, UnwrapThrowExt};
 use js_sys::Uint8Array;
@@ -54,6 +54,25 @@ impl<T, const N: usize> IntoRust<BytesImpl<N>, T, Wasm> for Vec<u8> {
         }
 
         Ok(bytes.try_into().unwrap())
+    }
+}
+
+impl<T> FromRust<ClassgroupElement, T, Wasm> for Vec<u8> {
+    fn from_rust(value: ClassgroupElement, _context: &T) -> Result<Self> {
+        Ok(value.data.to_vec())
+    }
+}
+
+impl<T> IntoRust<ClassgroupElement, T, Wasm> for Vec<u8> {
+    fn into_rust(self, _context: &T) -> Result<ClassgroupElement> {
+        if self.len() != 100 {
+            return Err(Error::WrongLength {
+                expected: 100,
+                found: self.len(),
+            });
+        }
+
+        Ok(ClassgroupElement::new(self.try_into().unwrap()))
     }
 }
 
@@ -113,6 +132,19 @@ impl<T> FromRust<u64, T, Wasm> for js_sys::BigInt {
     }
 }
 
+impl<T> IntoRust<u128, T, Wasm> for js_sys::BigInt {
+    fn into_rust(self, _context: &T) -> Result<u128> {
+        let bigint: BigInt = self.into_rust(_context)?;
+        Ok(bigint.try_into()?)
+    }
+}
+
+impl<T> FromRust<u128, T, Wasm> for js_sys::BigInt {
+    fn from_rust(value: u128, _context: &T) -> Result<Self> {
+        Ok(value.into())
+    }
+}
+
 impl<T> IntoRust<Vec<Bytes32>, T, Wasm> for js_sys::Array {
     fn into_rust(self, context: &T) -> Result<Vec<Bytes32>> {
         let bytes_array: Vec<Vec<u8>> = self
@@ -156,6 +188,18 @@ impl<T> FromRust<Vec<TreeHash>, T, Wasm> for js_sys::Array {
         for item in value {
             array
                 .push(&<Vec<u8> as FromRust<TreeHash, T, Wasm>>::from_rust(item, _context)?.into());
+        }
+
+        Ok(array)
+    }
+}
+
+impl<T> FromRust<Vec<Bytes32>, T, Wasm> for js_sys::Array {
+    fn from_rust(value: Vec<Bytes32>, _context: &T) -> Result<Self> {
+        let array = js_sys::Array::new();
+
+        for item in value {
+            array.push(&<Vec<u8> as FromRust<Bytes32, T, Wasm>>::from_rust(item, _context)?.into());
         }
 
         Ok(array)

@@ -8,8 +8,11 @@
     "BytesImpl<33>": "napi::bindgen_prelude::Uint8Array",
     "BytesImpl<64>": "napi::bindgen_prelude::Uint8Array",
     "Bytes": "napi::bindgen_prelude::Uint8Array",
+    "ClassgroupElement": "napi::bindgen_prelude::Uint8Array",
     "TreeHash": "napi::bindgen_prelude::Uint8Array",
-    "SerializedProgram": "napi::bindgen_prelude::Uint8Array"
+    "SerializedProgram": "napi::bindgen_prelude::Uint8Array",
+    "GetBlockRecordByHeightResponse": "GetBlockRecordResponse",
+    "GetCoinRecordByNameResponse": "GetCoinRecordResponse"
   },
   "wasm": {
     "Bytes32": "Vec<u8>",
@@ -18,10 +21,13 @@
     "BytesImpl<33>": "Vec<u8>",
     "BytesImpl<64>": "Vec<u8>",
     "Bytes": "Vec<u8>",
+    "ClassgroupElement": "Vec<u8>",
     "TreeHash": "Vec<u8>",
     "SerializedProgram": "Vec<u8>",
     "Vec<Bytes32>": "js_sys::Array",
-    "Vec<TreeHash>": "js_sys::Array"
+    "Vec<TreeHash>": "js_sys::Array",
+    "GetBlockRecordByHeightResponse": "GetBlockRecordResponse",
+    "GetCoinRecordByNameResponse": "GetCoinRecordResponse"
   },
   "pyo3": {
     "Bytes32": "Vec<u8>",
@@ -30,7 +36,10 @@
     "BytesImpl<33>": "Vec<u8>",
     "BytesImpl<64>": "Vec<u8>",
     "Bytes": "Vec<u8>",
+    "ClassgroupElement": "Vec<u8>",
     "TreeHash": "Vec<u8>",
-    "SerializedProgram": "Vec<u8>"
+    "SerializedProgram": "Vec<u8>",
+    "GetBlockRecordByHeightResponse": "GetBlockRecordResponse",
+    "GetCoinRecordByNameResponse": "GetCoinRecordResponse"
   }
 }

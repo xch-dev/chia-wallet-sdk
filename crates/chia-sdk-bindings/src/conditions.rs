@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use bindy::Result;
-use chia_bls as bls;
+use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_driver::SpendContext;
 use chia_sdk_types::{self as types, Memos};
@@ -9,7 +9,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
 use paste::paste;
 
-use crate::{Clvm, Program, PublicKey};
+use crate::{Clvm, Program};
 
 trait Convert<T> {
     fn convert(self, clvm: &Arc<RwLock<SpendContext>>) -> Result<T>;
@@ -27,15 +27,9 @@ impl Convert<NodePtr> for Program {
     }
 }
 
-impl Convert<PublicKey> for bls::PublicKey {
+impl Convert<PublicKey> for PublicKey {
     fn convert(self, _clvm: &Arc<RwLock<SpendContext>>) -> Result<PublicKey> {
-        Ok(PublicKey(self))
-    }
-}
-
-impl Convert<bls::PublicKey> for PublicKey {
-    fn convert(self, _clvm: &Arc<RwLock<SpendContext>>) -> Result<bls::PublicKey> {
-        Ok(self.0)
+        Ok(self)
     }
 }
 

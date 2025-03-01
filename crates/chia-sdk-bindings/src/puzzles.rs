@@ -1,11 +1,10 @@
 use bindy::{Error, Result};
-use chia_protocol::Bytes32;
+use chia_bls::PublicKey;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{cat::CatArgs, nft, standard::StandardArgs};
 use clvmr::NodePtr;
 
-use crate::{Coin, LineageProof, Program, Spend};
-
-use super::PublicKey;
+use crate::{LineageProof, Program, Spend};
 
 #[derive(Clone)]
 pub struct Cat {
@@ -20,7 +19,7 @@ impl TryFrom<Cat> for chia_sdk_driver::Cat {
 
     fn try_from(value: Cat) -> Result<Self> {
         Ok(chia_sdk_driver::Cat::new(
-            value.coin.into(),
+            value.coin,
             value.lineage_proof.map(TryInto::try_into).transpose()?,
             value.asset_id,
             value.p2_puzzle_hash,
@@ -55,7 +54,7 @@ pub struct Nft {
 impl From<chia_sdk_driver::Nft<Program>> for Nft {
     fn from(value: chia_sdk_driver::Nft<Program>) -> Self {
         Self {
-            coin: value.coin.into(),
+            coin: value.coin,
             lineage_proof: value.proof.into(),
             info: value.info.into(),
         }
@@ -180,7 +179,7 @@ pub struct MintedNfts {
 }
 
 pub fn standard_puzzle_hash(synthetic_key: PublicKey) -> Result<Bytes32> {
-    Ok(StandardArgs::curry_tree_hash(synthetic_key.0).into())
+    Ok(StandardArgs::curry_tree_hash(synthetic_key).into())
 }
 
 pub fn cat_puzzle_hash(asset_id: Bytes32, inner_puzzle_hash: Bytes32) -> Result<Bytes32> {
