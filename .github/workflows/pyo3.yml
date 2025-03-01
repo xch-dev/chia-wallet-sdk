@@ -37,6 +37,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
+      - name: Install OpenSSL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -65,6 +69,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
+      - name: Install OpenSSL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
