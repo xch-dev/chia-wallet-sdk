@@ -1,6 +1,16 @@
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
+use crate::Mod;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ForceAssertCoinAnnouncementMod;
+
+impl Mod for ForceAssertCoinAnnouncementMod {
+    const MOD_REVEAL: &[u8] = &FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE;
+    const MOD_HASH: TreeHash = FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE_HASH;
+}
+
 pub const FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE: [u8; 85] = hex!(
     "
     ff02ffff01ff02ff06ffff04ff02ffff04ff05ff80808080ffff04ffff01ff3d

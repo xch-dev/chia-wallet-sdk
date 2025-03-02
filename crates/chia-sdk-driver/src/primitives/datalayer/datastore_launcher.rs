@@ -163,8 +163,7 @@ mod tests {
         let spends = ctx.take();
         for spend in spends.clone() {
             if spend.coin.coin_id() == datastore.info.launcher_id {
-                let new_datastore =
-                    DataStore::from_spend(&mut ctx.allocator, &spend, &[])?.unwrap();
+                let new_datastore = DataStore::from_spend(ctx, &spend, &[])?.unwrap();
 
                 assert_eq!(datastore, new_datastore);
             }

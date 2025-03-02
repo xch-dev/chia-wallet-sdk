@@ -413,7 +413,7 @@ mod tests {
         alice_p2.spend(ctx, alice.coin, create_did)?;
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
-        let new_metadata = HashedPtr::from_ptr(&ctx.allocator, ctx.allocator.one());
+        let new_metadata = HashedPtr::from_ptr(ctx, ctx.one());
         let updated_did =
             did.update_with_metadata(ctx, &alice_p2, new_metadata, Conditions::default())?;
 

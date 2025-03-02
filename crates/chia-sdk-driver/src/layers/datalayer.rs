@@ -27,16 +27,13 @@ mod tests {
     fn test_dl_metadata_updater_puzzle(#[case] third_arg: &'static [u8]) -> anyhow::Result<()> {
         let mut ctx = SpendContext::new();
 
-        let third_arg_ptr = node_from_bytes(&mut ctx.allocator, third_arg)?;
-        let solution_ptr = clvm_list![(), (), third_arg_ptr].to_clvm(&mut ctx.allocator)?;
+        let third_arg_ptr = node_from_bytes(&mut ctx, third_arg)?;
+        let solution_ptr = clvm_list![(), (), third_arg_ptr].to_clvm(&mut ctx)?;
 
-        let puzzle_ptr = node_from_bytes(&mut ctx.allocator, &DL_METADATA_UPDATER_PUZZLE)?;
+        let puzzle_ptr = node_from_bytes(&mut ctx, &DL_METADATA_UPDATER_PUZZLE)?;
         let output = ctx.run(puzzle_ptr, solution_ptr)?;
 
-        assert_eq!(
-            tree_hash(&ctx.allocator, output),
-            tree_hash(&ctx.allocator, third_arg_ptr),
-        );
+        assert_eq!(tree_hash(&ctx, output), tree_hash(&ctx, third_arg_ptr),);
 
         Ok(())
     }

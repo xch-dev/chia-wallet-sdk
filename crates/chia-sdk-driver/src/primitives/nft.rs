@@ -167,17 +167,12 @@ where
                 .update_nft_metadata(metadata_update.puzzle, metadata_update.solution),
         )?;
 
-        let metadata_updater_solution = clvm_list!(
+        let metadata_updater_solution = ctx.alloc(&clvm_list!(
             self.info.metadata.clone(),
             self.info.metadata_updater_puzzle_hash,
             metadata_update.solution
-        )
-        .to_clvm(&mut ctx.allocator)?;
-        let ptr = run_puzzle(
-            &mut ctx.allocator,
-            metadata_update.puzzle,
-            metadata_updater_solution,
-        )?;
+        ))?;
+        let ptr = ctx.run(metadata_update.puzzle, metadata_updater_solution)?;
         let output = ctx.extract::<NewMetadataOutput<N, NodePtr>>(ptr)?;
 
         Ok(self.wrapped_child(
@@ -644,17 +639,13 @@ mod tests {
             .solution(parent_nft.coin.coin_id())
             .expect("missing solution");
 
-        let parent_puzzle = parent_puzzle.to_clvm(&mut ctx.allocator)?;
-        let parent_puzzle = Puzzle::parse(&ctx.allocator, parent_puzzle);
-        let parent_solution = parent_solution.to_clvm(&mut ctx.allocator)?;
+        let parent_puzzle = parent_puzzle.to_clvm(ctx)?;
+        let parent_puzzle = Puzzle::parse(ctx, parent_puzzle);
+        let parent_solution = parent_solution.to_clvm(ctx)?;
 
-        let new_child_nft = Nft::<NftMetadata>::parse_child(
-            &mut ctx.allocator,
-            parent_nft.coin,
-            parent_puzzle,
-            parent_solution,
-        )?
-        .expect("child is not an NFT");
+        let new_child_nft =
+            Nft::<NftMetadata>::parse_child(ctx, parent_nft.coin, parent_puzzle, parent_solution)?
+                .expect("child is not an NFT");
 
         assert_eq!(new_child_nft, child_nft);
 

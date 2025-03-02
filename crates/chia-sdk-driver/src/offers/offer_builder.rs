@@ -69,7 +69,7 @@ impl OfferBuilder<Make> {
     {
         let puzzle_ptr = ctx.alloc(puzzle)?;
         let puzzle_hash = ctx.tree_hash(puzzle_ptr).into();
-        let puzzle = Puzzle::parse(&ctx.allocator, puzzle_ptr);
+        let puzzle = Puzzle::parse(ctx, puzzle_ptr);
 
         let notarized_payment = NotarizedPayment { nonce, payments };
         let assertion = payment_assertion(puzzle_hash, &notarized_payment);

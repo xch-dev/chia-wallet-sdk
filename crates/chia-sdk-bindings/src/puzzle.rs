@@ -19,7 +19,7 @@ impl Puzzle {
         let ctx = self.program.0.read().unwrap();
 
         let Some((nft_info, p2_puzzle)) =
-            chia_sdk_driver::NftInfo::<HashedPtr>::parse(&ctx.allocator, puzzle)?
+            chia_sdk_driver::NftInfo::<HashedPtr>::parse(&ctx, puzzle)?
         else {
             return Ok(None);
         };
@@ -46,10 +46,10 @@ impl Puzzle {
     ) -> Result<Option<Nft>> {
         let mut ctx = self.program.0.write().unwrap();
 
-        let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx.allocator, parent_puzzle.1);
+        let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx, parent_puzzle.1);
 
         let Some(nft) = chia_sdk_driver::Nft::<HashedPtr>::parse_child(
-            &mut ctx.allocator,
+            &mut ctx,
             parent_coin,
             parent_puzzle,
             parent_solution.1,

@@ -126,9 +126,8 @@ mod tests {
         let layer = CatLayer::new(asset_id, "Hello, world!".to_string());
 
         let ptr = layer.construct_puzzle(&mut ctx)?;
-        let puzzle = Puzzle::parse(&ctx.allocator, ptr);
-        let roundtrip =
-            CatLayer::<String>::parse_puzzle(&ctx.allocator, puzzle)?.expect("invalid CAT layer");
+        let puzzle = Puzzle::parse(&ctx, ptr);
+        let roundtrip = CatLayer::<String>::parse_puzzle(&ctx, puzzle)?.expect("invalid CAT layer");
 
         assert_eq!(roundtrip.asset_id, layer.asset_id);
         assert_eq!(roundtrip.inner_puzzle, layer.inner_puzzle);
@@ -166,7 +165,7 @@ mod tests {
 
         assert_eq!(hex::encode(actual_hash), hex::encode(expected_hash));
 
-        let roundtrip = CatLayer::<NodePtr>::parse_solution(&ctx.allocator, actual_ptr)?;
+        let roundtrip = CatLayer::<NodePtr>::parse_solution(&ctx, actual_ptr)?;
         assert_eq!(roundtrip, solution);
 
         Ok(())

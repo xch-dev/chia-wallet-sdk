@@ -7,10 +7,11 @@ use chia_sdk_driver::{self as sdk, member_puzzle_hash, MemberSpend, MofN, SpendC
 use chia_sdk_types::{
     BlsMember, FixedPuzzleMember, Force1of2RestrictedVariable, Force1of2RestrictedVariableSolution,
     Mod, PasskeyMember, PasskeyMemberPuzzleAssert, PasskeyMemberPuzzleAssertSolution,
-    PasskeyMemberSolution, PreventConditionOpcode, Secp256k1Member, Secp256k1MemberPuzzleAssert,
-    Secp256k1MemberPuzzleAssertSolution, Secp256k1MemberSolution, Secp256r1Member,
-    Secp256r1MemberPuzzleAssert, Secp256r1MemberPuzzleAssertSolution, Secp256r1MemberSolution,
-    SingletonMember, SingletonMemberSolution, Timelock, PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH,
+    PasskeyMemberSolution, PreventConditionOpcode, PreventMultipleCreateCoinsMod, Secp256k1Member,
+    Secp256k1MemberPuzzleAssert, Secp256k1MemberPuzzleAssertSolution, Secp256k1MemberSolution,
+    Secp256r1Member, Secp256r1MemberPuzzleAssert, Secp256r1MemberPuzzleAssertSolution,
+    Secp256r1MemberSolution, SingletonMember, SingletonMemberSolution, Timelock,
+    PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH,
 };
 use clvm_utils::TreeHash;
 use clvmr::NodePtr;
@@ -413,7 +414,7 @@ impl MipsSpend {
     pub fn prevent_multiple_create_coins(&self) -> Result<()> {
         let mut ctx = self.clvm.write().unwrap();
 
-        let puzzle = ctx.prevent_multiple_create_coins_puzzle()?;
+        let puzzle = ctx.alloc_mod::<PreventMultipleCreateCoinsMod>()?;
         let solution = ctx.alloc(&NodePtr::NIL)?;
 
         self.spend.lock().unwrap().restrictions.insert(

@@ -104,7 +104,7 @@ impl Clvm {
         for (i, nft_mint) in nft_mints.into_iter().enumerate() {
             let nft_mint: chia_sdk_driver::NftMint<NodePtr> = nft_mint.into();
             let nft_mint = chia_sdk_driver::NftMint {
-                metadata: HashedPtr::from_ptr(&ctx.allocator, nft_mint.metadata),
+                metadata: HashedPtr::from_ptr(&ctx, nft_mint.metadata),
                 metadata_updater_puzzle_hash: nft_mint.metadata_updater_puzzle_hash,
                 royalty_puzzle_hash: nft_mint.royalty_puzzle_hash,
                 royalty_ten_thousandths: nft_mint.royalty_ten_thousandths,
@@ -121,7 +121,7 @@ impl Clvm {
             );
 
             for condition in conditions {
-                let condition = condition.to_clvm(&mut ctx.allocator)?;
+                let condition = condition.to_clvm(&mut ctx)?;
                 parent_conditions.push(Program(self.0.clone(), condition));
             }
         }
@@ -139,7 +139,7 @@ impl Clvm {
             proof: nft.lineage_proof.into(),
             info: chia_sdk_driver::NftInfo {
                 launcher_id: nft.info.launcher_id,
-                metadata: HashedPtr::from_ptr(&ctx.allocator, nft.info.metadata.1),
+                metadata: HashedPtr::from_ptr(&ctx, nft.info.metadata.1),
                 metadata_updater_puzzle_hash: nft.info.metadata_updater_puzzle_hash,
                 current_owner: nft.info.current_owner,
                 royalty_puzzle_hash: nft.info.royalty_puzzle_hash,
@@ -169,12 +169,7 @@ impl Clvm {
 
         let parent_conditions = parent_conditions
             .into_iter()
-            .map(|program| {
-                Ok(Program(
-                    self.0.clone(),
-                    program.to_clvm(&mut ctx.allocator)?,
-                ))
-            })
+            .map(|program| Ok(Program(self.0.clone(), program.to_clvm(&mut ctx)?)))
             .collect::<Result<Vec<_>>>()?;
 
         Ok(VaultMint {
@@ -195,25 +190,25 @@ impl Clvm {
 
     pub fn parse(&self, program: String) -> Result<Program> {
         let mut ctx = self.0.write().unwrap();
-        let ptr = assemble(&mut ctx.allocator, &program)?;
+        let ptr = assemble(&mut ctx, &program)?;
         Ok(Program(self.0.clone(), ptr))
     }
 
     pub fn deserialize(&self, value: SerializedProgram) -> Result<Program> {
         let mut ctx = self.0.write().unwrap();
-        let ptr = node_from_bytes(&mut ctx.allocator, &value)?;
+        let ptr = node_from_bytes(&mut ctx, &value)?;
         Ok(Program(self.0.clone(), ptr))
     }
 
     pub fn deserialize_with_backrefs(&self, value: SerializedProgram) -> Result<Program> {
         let mut ctx = self.0.write().unwrap();
-        let ptr = node_from_bytes_backrefs(&mut ctx.allocator, &value)?;
+        let ptr = node_from_bytes_backrefs(&mut ctx, &value)?;
         Ok(Program(self.0.clone(), ptr))
     }
 
     pub fn pair(&self, first: Program, second: Program) -> Result<Program> {
         let mut ctx = self.0.write().unwrap();
-        let ptr = ctx.allocator.new_pair(first.1, second.1)?;
+        let ptr = ctx.new_pair(first.1, second.1)?;
         Ok(Program(self.0.clone(), ptr))
     }
 
@@ -251,13 +246,10 @@ impl Clvm {
         if (0..=67_108_863).contains(&value) {
             Ok(Program(
                 self.0.clone(),
-                ctx.allocator.new_small_number(value.try_into().unwrap())?,
+                ctx.new_small_number(value.try_into().unwrap())?,
             ))
         } else {
-            Ok(Program(
-                self.0.clone(),
-                ctx.allocator.new_number(value.into())?,
-            ))
+            Ok(Program(self.0.clone(), ctx.new_number(value.into())?))
         }
     }
 
@@ -265,36 +257,28 @@ impl Clvm {
     pub fn big_int(&self, value: BigInt) -> Result<Program> {
         Ok(Program(
             self.0.clone(),
-            self.0.write().unwrap().allocator.new_number(value)?,
+            self.0.write().unwrap().new_number(value)?,
         ))
     }
 
     pub fn string(&self, value: String) -> Result<Program> {
         Ok(Program(
             self.0.clone(),
-            self.0
-                .write()
-                .unwrap()
-                .allocator
-                .new_atom(value.as_bytes())?,
+            self.0.write().unwrap().new_atom(value.as_bytes())?,
         ))
     }
 
     pub fn bool(&self, value: bool) -> Result<Program> {
         Ok(Program(
             self.0.clone(),
-            self.0
-                .write()
-                .unwrap()
-                .allocator
-                .new_small_number(value as u32)?,
+            self.0.write().unwrap().new_small_number(value as u32)?,
         ))
     }
 
     pub fn atom(&self, value: Bytes) -> Result<Program> {
         Ok(Program(
             self.0.clone(),
-            self.0.write().unwrap().allocator.new_atom(&value)?,
+            self.0.write().unwrap().new_atom(&value)?,
         ))
     }
 
@@ -303,7 +287,7 @@ impl Clvm {
         let mut result = NodePtr::NIL;
 
         for item in value.into_iter().rev() {
-            result = ctx.allocator.new_pair(item.1, result)?;
+            result = ctx.new_pair(item.1, result)?;
         }
 
         Ok(Program(self.0.clone(), result))
