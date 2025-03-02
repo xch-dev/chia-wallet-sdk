@@ -15,8 +15,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+      - name: Cargo binstall
+        run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
       - name: Install latest mdbook
-        run: cargo install mdbook mdbook-tabs
+        run: cargo binstall mdbook mdbook-tabs --locked -y
       - name: Build Book
         run: |
           cd book
