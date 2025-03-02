@@ -5,7 +5,7 @@ use chia_puzzle_types::{
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_test::{sign_transaction, Simulator};
-use chia_sdk_types::{Conditions, TradePrice};
+use chia_sdk_types::{Conditions, SettlementPaymentMod, TradePrice};
 
 use crate::{
     calculate_nft_royalty, calculate_nft_trace_price, payment_assertion, Launcher, Layer, NftMint,
@@ -32,7 +32,7 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
     sim.spend_coins(coin_spends, &[alice.sk.clone()])?;
 
     // Create offer
-    let settlement = ctx.settlement_payments_puzzle()?;
+    let settlement = ctx.alloc_mod::<SettlementPaymentMod>()?;
     let nonce = Offer::nonce(vec![nft.coin.coin_id()]);
 
     let nft_puzzle = nft

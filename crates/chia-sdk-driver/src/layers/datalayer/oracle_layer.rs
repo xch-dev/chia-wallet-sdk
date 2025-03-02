@@ -65,7 +65,7 @@ impl Layer for OracleLayer {
             Condition::create_puzzle_announcement(Bytes::new("$".into())),
         ];
 
-        Ok(clvm_quote!(conditions).to_clvm(&mut ctx.allocator)?)
+        Ok(clvm_quote!(conditions).to_clvm(ctx)?)
     }
 
     fn construct_solution(

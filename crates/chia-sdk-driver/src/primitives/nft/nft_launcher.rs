@@ -157,7 +157,7 @@ mod tests {
         let spend_bundle = SpendBundle::new(coin_spends, signature);
 
         let conds = get_conditions_from_spendbundle(
-            &mut ctx.allocator,
+            ctx,
             &spend_bundle,
             u64::MAX,
             100_000_000,

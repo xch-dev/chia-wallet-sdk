@@ -1,5 +1,6 @@
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
+use chia_sdk_types::SettlementPaymentMod;
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 
@@ -13,7 +14,7 @@ impl Layer for SettlementLayer {
     type Solution = SettlementPaymentsSolution;
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        ctx.settlement_payments_puzzle()
+        ctx.alloc_mod::<SettlementPaymentMod>()
     }
 
     fn construct_solution(

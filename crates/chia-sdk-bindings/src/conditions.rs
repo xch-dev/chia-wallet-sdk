@@ -108,7 +108,7 @@ macro_rules! conditions {
                     let mut ctx = self.0.write().unwrap();
                     $( let $name = Convert::convert($name, &self.0)?; )*
                     let ptr = types::$condition $( ::< $( $generic ),* > )? ::new( $( $name ),* )
-                    .to_clvm(&mut ctx.allocator)?;
+                    .to_clvm(&mut **ctx)?;
                     Ok(Program(self.0.clone(), ptr))
                 }
             }
@@ -118,7 +118,7 @@ macro_rules! conditions {
                 pub fn [< parse_ $function >]( &self ) -> Result<Option<$condition>> {
                     let ctx = self.0.read().unwrap();
 
-                    let Some(condition) = types::$condition $( ::< $( $generic ),* > )? ::from_clvm(&ctx.allocator, self.1).ok() else {
+                    let Some(condition) = types::$condition $( ::< $( $generic ),* > )? ::from_clvm(&**ctx, self.1).ok() else {
                         return Ok(None);
                     };
 

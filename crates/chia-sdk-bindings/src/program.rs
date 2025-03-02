@@ -27,10 +27,10 @@ impl Program {
     pub fn compile(&self) -> Result<Output> {
         let mut ctx = self.0.write().unwrap();
 
-        let invoke = run(&mut ctx.allocator);
-        let input = ctx.allocator.new_pair(self.1, NodePtr::NIL)?;
+        let invoke = run(&mut ctx);
+        let input = ctx.new_pair(self.1, NodePtr::NIL)?;
         let run_program = run_program_for_search_paths("program.clsp", &[], false);
-        let output = run_program.run_program(&mut ctx.allocator, invoke, input, None)?;
+        let output = run_program.run_program(&mut ctx, invoke, input, None)?;
 
         Ok(Output {
             value: Program(self.0.clone(), output.1),
@@ -40,17 +40,17 @@ impl Program {
 
     pub fn unparse(&self) -> Result<String> {
         let ctx = self.0.read().unwrap();
-        Ok(disassemble(&ctx.allocator, self.1, None))
+        Ok(disassemble(&ctx, self.1, None))
     }
 
     pub fn serialize(&self) -> Result<SerializedProgram> {
         let ctx = self.0.read().unwrap();
-        Ok(node_to_bytes(&ctx.allocator, self.1)?.into())
+        Ok(node_to_bytes(&ctx, self.1)?.into())
     }
 
     pub fn serialize_with_backrefs(&self) -> Result<SerializedProgram> {
         let ctx = self.0.read().unwrap();
-        Ok(node_to_bytes_backrefs(&ctx.allocator, self.1)?.into())
+        Ok(node_to_bytes_backrefs(&ctx, self.1)?.into())
     }
 
     pub fn run(&self, solution: Self, max_cost: u64, mempool_mode: bool) -> Result<Output> {
@@ -63,7 +63,7 @@ impl Program {
         let mut ctx = self.0.write().unwrap();
 
         let reduction = run_program(
-            &mut ctx.allocator,
+            &mut ctx,
             &ChiaDialect::new(flags),
             self.1,
             solution.1,
@@ -79,10 +79,10 @@ impl Program {
     pub fn curry(&self, args: Vec<Program>) -> Result<Program> {
         let mut ctx = self.0.write().unwrap();
 
-        let mut args_ptr = ctx.allocator.one();
+        let mut args_ptr = ctx.one();
 
         for arg in args.into_iter().rev() {
-            args_ptr = ctx.allocator.encode_curried_arg(arg.1, args_ptr)?;
+            args_ptr = ctx.encode_curried_arg(arg.1, args_ptr)?;
         }
 
         let ptr = ctx.alloc(&clvm_utils::CurriedProgram {
@@ -96,8 +96,7 @@ impl Program {
     pub fn uncurry(&self) -> Result<Option<CurriedProgram>> {
         let ctx = self.0.read().unwrap();
 
-        let Ok(value) =
-            clvm_utils::CurriedProgram::<NodePtr, NodePtr>::from_clvm(&ctx.allocator, self.1)
+        let Ok(value) = clvm_utils::CurriedProgram::<NodePtr, NodePtr>::from_clvm(&ctx, self.1)
         else {
             return Ok(None);
         };
@@ -105,12 +104,12 @@ impl Program {
         let mut args = Vec::new();
         let mut args_ptr = value.args;
 
-        while let Ok((first, rest)) = ctx.allocator.decode_curried_arg(&args_ptr) {
+        while let Ok((first, rest)) = ctx.decode_curried_arg(&args_ptr) {
             args.push(first);
             args_ptr = rest;
         }
 
-        if ctx.allocator.small_number(args_ptr) != Some(1) {
+        if ctx.small_number(args_ptr) != Some(1) {
             return Ok(None);
         }
 
@@ -125,23 +124,23 @@ impl Program {
 
     pub fn tree_hash(&self) -> Result<TreeHash> {
         let ctx = self.0.read().unwrap();
-        Ok(tree_hash(&ctx.allocator, self.1))
+        Ok(tree_hash(&ctx, self.1))
     }
 
     pub fn length(&self) -> Result<u32> {
         let ctx = self.0.read().unwrap();
 
-        let SExp::Atom = ctx.allocator.sexp(self.1) else {
+        let SExp::Atom = ctx.sexp(self.1) else {
             return Err(Error::AtomExpected);
         };
 
-        Ok(ctx.allocator.atom_len(self.1) as u32)
+        Ok(ctx.atom_len(self.1) as u32)
     }
 
     pub fn first(&self) -> Result<Program> {
         let ctx = self.0.read().unwrap();
 
-        let SExp::Pair(first, _) = ctx.allocator.sexp(self.1) else {
+        let SExp::Pair(first, _) = ctx.sexp(self.1) else {
             return Err(Error::PairExpected);
         };
 
@@ -151,7 +150,7 @@ impl Program {
     pub fn rest(&self) -> Result<Program> {
         let ctx = self.0.read().unwrap();
 
-        let SExp::Pair(_, rest) = ctx.allocator.sexp(self.1) else {
+        let SExp::Pair(_, rest) = ctx.sexp(self.1) else {
             return Err(Error::PairExpected);
         };
 
@@ -162,11 +161,11 @@ impl Program {
     pub fn to_small_int(&self) -> Result<Option<f64>> {
         let ctx = self.0.read().unwrap();
 
-        let SExp::Atom = ctx.allocator.sexp(self.1) else {
+        let SExp::Atom = ctx.sexp(self.1) else {
             return Ok(None);
         };
 
-        let number = ctx.allocator.number(self.1);
+        let number = ctx.number(self.1);
 
         if number > BigInt::from(9_007_199_254_740_991i64) {
             return Err(Error::TooLarge);
@@ -185,21 +184,21 @@ impl Program {
     pub fn to_big_int(&self) -> Result<Option<BigInt>> {
         let ctx = self.0.read().unwrap();
 
-        let SExp::Atom = ctx.allocator.sexp(self.1) else {
+        let SExp::Atom = ctx.sexp(self.1) else {
             return Ok(None);
         };
 
-        Ok(Some(ctx.allocator.number(self.1)))
+        Ok(Some(ctx.number(self.1)))
     }
 
     pub fn to_string(&self) -> Result<Option<String>> {
         let ctx = self.0.read().unwrap();
 
-        let SExp::Atom = ctx.allocator.sexp(self.1) else {
+        let SExp::Atom = ctx.sexp(self.1) else {
             return Ok(None);
         };
 
-        let bytes = ctx.allocator.atom(self.1);
+        let bytes = ctx.atom(self.1);
 
         Ok(Some(String::from_utf8(bytes.to_vec())?))
     }
@@ -207,11 +206,11 @@ impl Program {
     pub fn to_bool(&self) -> Result<Option<bool>> {
         let ctx = self.0.read().unwrap();
 
-        let SExp::Atom = ctx.allocator.sexp(self.1) else {
+        let SExp::Atom = ctx.sexp(self.1) else {
             return Ok(None);
         };
 
-        let Some(number) = ctx.allocator.small_number(self.1) else {
+        let Some(number) = ctx.small_number(self.1) else {
             return Ok(None);
         };
 
@@ -225,17 +224,17 @@ impl Program {
     pub fn to_atom(&self) -> Result<Option<Bytes>> {
         let ctx = self.0.read().unwrap();
 
-        let SExp::Atom = ctx.allocator.sexp(self.1) else {
+        let SExp::Atom = ctx.sexp(self.1) else {
             return Ok(None);
         };
 
-        Ok(Some(ctx.allocator.atom(self.1).to_vec().into()))
+        Ok(Some(ctx.atom(self.1).to_vec().into()))
     }
 
     pub fn to_list(&self) -> Result<Option<Vec<Program>>> {
         let ctx = self.0.read().unwrap();
 
-        let Some(value) = Vec::<NodePtr>::from_clvm(&ctx.allocator, self.1).ok() else {
+        let Some(value) = Vec::<NodePtr>::from_clvm(&ctx, self.1).ok() else {
             return Ok(None);
         };
 
@@ -250,7 +249,7 @@ impl Program {
     pub fn to_pair(&self) -> Result<Option<Pair>> {
         let ctx = self.0.read().unwrap();
 
-        let SExp::Pair(first, rest) = ctx.allocator.sexp(self.1) else {
+        let SExp::Pair(first, rest) = ctx.sexp(self.1) else {
             return Ok(None);
         };
 
@@ -262,7 +261,7 @@ impl Program {
 
     pub fn puzzle(&self) -> Result<Puzzle> {
         let ctx = self.0.read().unwrap();
-        let value = chia_sdk_driver::Puzzle::parse(&ctx.allocator, self.1);
+        let value = chia_sdk_driver::Puzzle::parse(&ctx, self.1);
 
         Ok(match value {
             chia_sdk_driver::Puzzle::Curried(curried) => Puzzle {
@@ -282,7 +281,7 @@ impl Program {
 
     pub fn parse_nft_metadata(&self) -> Result<Option<NftMetadata>> {
         let ctx = self.0.read().unwrap();
-        let value = nft::NftMetadata::from_clvm(&ctx.allocator, self.1);
+        let value = nft::NftMetadata::from_clvm(&**ctx, self.1);
         Ok(value.ok().map(Into::into))
     }
 }

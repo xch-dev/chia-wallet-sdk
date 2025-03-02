@@ -8,7 +8,7 @@ use chia_sdk_types::{
     DL_METADATA_UPDATER_PUZZLE_HASH,
 };
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
-use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::Allocator;
 use num_bigint::BigInt;
 
@@ -280,7 +280,7 @@ pub fn get_merkle_tree(
                     .ok_or(DriverError::OddOracleFee)?
                     .construct_puzzle(ctx)?;
 
-                leaves.push(tree_hash(&ctx.allocator, oracle_full_puzzle_ptr).into());
+                leaves.push(ctx.tree_hash(oracle_full_puzzle_ptr).into());
             }
         }
     }

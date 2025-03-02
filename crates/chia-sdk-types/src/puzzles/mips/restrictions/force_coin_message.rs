@@ -1,6 +1,16 @@
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
+use crate::Mod;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ForceCoinMessageMod;
+
+impl Mod for ForceCoinMessageMod {
+    const MOD_REVEAL: &[u8] = &FORCE_COIN_MESSAGE_PUZZLE;
+    const MOD_HASH: TreeHash = FORCE_COIN_MESSAGE_PUZZLE_HASH;
+}
+
 pub const FORCE_COIN_MESSAGE_PUZZLE: [u8; 127] = hex!(
     "
     ff02ffff01ff02ff06ffff04ff02ffff04ff05ff80808080ffff04ffff01ff42

@@ -1,13 +1,11 @@
 # Spend Context
 
-The `SpendContext` is an important utility used by the driver code to simplify coin spends. You can think of it as an [Allocator](./allocator.md) with these additional benefits:
+The `SpendContext` is an important utility used by the driver code to simplify coin spends. You can think of it as a wrapper around [Allocator](./allocator.md) with these additional benefits:
 
 1. A simpler interface for common operations.
 2. Automatic caching for puzzle pointers, since the size can be large.
 3. Simple mechanism for currying a puzzle with its arguments.
 4. Keeps track of coin spends for you, so that they can be collected at the end in one place.
-
-In fact, you can call `ctx.allocator` directly if you need to as well.
 
 ## Setup
 

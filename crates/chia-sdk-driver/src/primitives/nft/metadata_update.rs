@@ -1,3 +1,5 @@
+use chia_sdk_types::NftMetadataUpdaterMod;
+
 use crate::{DriverError, Spend, SpendContext};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -14,6 +16,9 @@ impl MetadataUpdate {
             Self::NewMetadataUri(uri) => ("mu", uri),
             Self::NewLicenseUri(uri) => ("lu", uri),
         })?;
-        Ok(Spend::new(ctx.nft_metadata_updater()?, solution))
+        Ok(Spend::new(
+            ctx.alloc_mod::<NftMetadataUpdaterMod>()?,
+            solution,
+        ))
     }
 }
