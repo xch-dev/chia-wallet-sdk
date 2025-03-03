@@ -4,7 +4,7 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{cat::CatArgs, nft, standard::StandardArgs};
 use clvmr::NodePtr;
 
-use crate::{LineageProof, Program, Spend};
+use crate::{LineageProof, Program, Puzzle, Spend};
 
 #[derive(Clone)]
 pub struct Cat {
@@ -27,6 +27,17 @@ impl TryFrom<Cat> for chia_sdk_driver::Cat {
     }
 }
 
+impl From<chia_sdk_driver::Cat> for Cat {
+    fn from(value: chia_sdk_driver::Cat) -> Self {
+        Self {
+            coin: value.coin,
+            lineage_proof: value.lineage_proof.map(Into::into),
+            asset_id: value.asset_id,
+            p2_puzzle_hash: value.p2_puzzle_hash,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct CatSpend {
     pub cat: Cat,
@@ -42,6 +53,12 @@ impl TryFrom<CatSpend> for chia_sdk_driver::CatSpend {
             value.spend.into(),
         ))
     }
+}
+
+#[derive(Clone)]
+pub struct ParsedCat {
+    pub asset_id: Bytes32,
+    pub p2_puzzle: Puzzle,
 }
 
 #[derive(Clone)]
@@ -89,7 +106,7 @@ impl From<chia_sdk_driver::NftInfo<Program>> for NftInfo {
 #[derive(Clone)]
 pub struct ParsedNft {
     pub info: NftInfo,
-    pub p2_puzzle: Program,
+    pub p2_puzzle: Puzzle,
 }
 
 #[derive(Clone)]
@@ -176,6 +193,62 @@ impl From<DidOwner> for chia_sdk_driver::DidOwner {
 pub struct MintedNfts {
     pub nfts: Vec<Nft>,
     pub parent_conditions: Vec<Program>,
+}
+
+#[derive(Clone)]
+pub struct Did {
+    pub coin: Coin,
+    pub lineage_proof: LineageProof,
+    pub info: DidInfo,
+}
+
+#[derive(Clone)]
+pub struct DidInfo {
+    pub launcher_id: Bytes32,
+    pub recovery_list_hash: Option<Bytes32>,
+    pub num_verifications_required: u64,
+    pub metadata: Program,
+    pub p2_puzzle_hash: Bytes32,
+}
+
+impl From<chia_sdk_driver::Did<Program>> for Did {
+    fn from(value: chia_sdk_driver::Did<Program>) -> Self {
+        Self {
+            coin: value.coin,
+            lineage_proof: value.proof.into(),
+            info: value.info.into(),
+        }
+    }
+}
+
+impl From<chia_sdk_driver::DidInfo<Program>> for DidInfo {
+    fn from(value: chia_sdk_driver::DidInfo<Program>) -> Self {
+        Self {
+            launcher_id: value.launcher_id,
+            recovery_list_hash: value.recovery_list_hash,
+            num_verifications_required: value.num_verifications_required,
+            metadata: value.metadata,
+            p2_puzzle_hash: value.p2_puzzle_hash,
+        }
+    }
+}
+
+impl From<DidInfo> for chia_sdk_driver::DidInfo<Program> {
+    fn from(value: DidInfo) -> Self {
+        Self {
+            launcher_id: value.launcher_id,
+            recovery_list_hash: value.recovery_list_hash,
+            num_verifications_required: value.num_verifications_required,
+            metadata: value.metadata,
+            p2_puzzle_hash: value.p2_puzzle_hash,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct ParsedDid {
+    pub info: DidInfo,
+    pub p2_puzzle: Puzzle,
 }
 
 pub fn standard_puzzle_hash(synthetic_key: PublicKey) -> Result<Bytes32> {

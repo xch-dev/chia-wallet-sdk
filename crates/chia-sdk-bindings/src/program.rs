@@ -262,21 +262,7 @@ impl Program {
     pub fn puzzle(&self) -> Result<Puzzle> {
         let ctx = self.0.read().unwrap();
         let value = chia_sdk_driver::Puzzle::parse(&ctx, self.1);
-
-        Ok(match value {
-            chia_sdk_driver::Puzzle::Curried(curried) => Puzzle {
-                puzzle_hash: curried.curried_puzzle_hash.into(),
-                program: Program(self.0.clone(), curried.curried_ptr),
-                mod_hash: curried.mod_hash.into(),
-                args: Some(Program(self.0.clone(), curried.args)),
-            },
-            chia_sdk_driver::Puzzle::Raw(raw) => Puzzle {
-                puzzle_hash: raw.puzzle_hash.into(),
-                program: Program(self.0.clone(), raw.ptr),
-                mod_hash: raw.puzzle_hash.into(),
-                args: None,
-            },
-        })
+        Ok(Puzzle::new(&self.0, value))
     }
 
     pub fn parse_nft_metadata(&self) -> Result<Option<NftMetadata>> {
