@@ -67,8 +67,12 @@ export declare class Signature {
   isValid(): boolean
 }
 export declare class Puzzle {
+  parseCat(): ParsedCat | null
+  parseChildCats(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Array<Cat> | null
   parseNft(): ParsedNft | null
   parseChildNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Nft | null
+  parseDid(): ParsedDid | null
+  parseChildDid(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program, coin: Coin): Did | null
   constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
   get puzzleHash(): Uint8Array
   set puzzleHash(value: Uint8Array)
@@ -97,6 +101,13 @@ export declare class CatSpend {
   get spend(): Spend
   set spend(value: Spend)
 }
+export declare class ParsedCat {
+  constructor(assetId: Uint8Array, p2Puzzle: Puzzle)
+  get assetId(): Uint8Array
+  set assetId(value: Uint8Array)
+  get p2Puzzle(): Puzzle
+  set p2Puzzle(value: Puzzle)
+}
 export declare class Nft {
   constructor(coin: Coin, lineageProof: LineageProof, info: NftInfo)
   get coin(): Coin
@@ -124,11 +135,11 @@ export declare class NftInfo {
   set p2PuzzleHash(value: Uint8Array)
 }
 export declare class ParsedNft {
-  constructor(info: NftInfo, p2Puzzle: Program)
+  constructor(info: NftInfo, p2Puzzle: Puzzle)
   get info(): NftInfo
   set info(value: NftInfo)
-  get p2Puzzle(): Program
-  set p2Puzzle(value: Program)
+  get p2Puzzle(): Puzzle
+  set p2Puzzle(value: Puzzle)
 }
 export declare class NftMetadata {
   constructor(editionNumber: bigint, editionTotal: bigint, dataUris: Array<string>, dataHash: Uint8Array | undefined | null, metadataUris: Array<string>, metadataHash: Uint8Array | undefined | null, licenseUris: Array<string>, licenseHash?: Uint8Array | undefined | null)
@@ -177,6 +188,35 @@ export declare class MintedNfts {
   set nfts(value: Array<Nft>)
   get parentConditions(): Array<Program>
   set parentConditions(value: Array<Program>)
+}
+export declare class Did {
+  constructor(coin: Coin, lineageProof: LineageProof, info: DidInfo)
+  get coin(): Coin
+  set coin(value: Coin)
+  get lineageProof(): LineageProof
+  set lineageProof(value: LineageProof)
+  get info(): DidInfo
+  set info(value: DidInfo)
+}
+export declare class DidInfo {
+  constructor(launcherId: Uint8Array, recoveryListHash: Uint8Array | undefined | null, numVerificationsRequired: bigint, metadata: Program, p2PuzzleHash: Uint8Array)
+  get launcherId(): Uint8Array
+  set launcherId(value: Uint8Array)
+  get recoveryListHash(): Uint8Array | null
+  set recoveryListHash(value?: Uint8Array | undefined | null)
+  get numVerificationsRequired(): bigint
+  set numVerificationsRequired(value: bigint)
+  get metadata(): Program
+  set metadata(value: Program)
+  get p2PuzzleHash(): Uint8Array
+  set p2PuzzleHash(value: Uint8Array)
+}
+export declare class ParsedDid {
+  constructor(info: DidInfo, p2Puzzle: Puzzle)
+  get info(): DidInfo
+  set info(value: DidInfo)
+  get p2Puzzle(): Puzzle
+  set p2Puzzle(value: Puzzle)
 }
 export declare class Vault {
   child(custodyHash: Uint8Array): Vault
@@ -1103,6 +1143,7 @@ export declare class Clvm {
   spendCatCoins(catSpends: Array<CatSpend>): void
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
   spendNft(nft: Nft, innerSpend: Spend): void
+  spendDid(did: Did, innerSpend: Spend): void
   mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
   mipsSpend(coin: Coin, delegatedSpend: Spend): MipsSpend
   nftMetadata(value: NftMetadata): Program
