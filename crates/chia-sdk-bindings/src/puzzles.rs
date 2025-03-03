@@ -185,3 +185,45 @@ pub fn standard_puzzle_hash(synthetic_key: PublicKey) -> Result<Bytes32> {
 pub fn cat_puzzle_hash(asset_id: Bytes32, inner_puzzle_hash: Bytes32) -> Result<Bytes32> {
     Ok(CatArgs::curry_tree_hash(asset_id, inner_puzzle_hash.into()).into())
 }
+
+#[derive(Clone)]
+pub struct StreamedCat {
+    pub coin: Coin,
+    pub asset_id: Bytes32,
+    pub proof: LineageProof,
+    pub inner_puzzle_hash: Bytes32,
+
+    pub recipient: Bytes32,
+    pub clawback_ph: Option<Bytes32>,
+    pub end_time: u64,
+    pub last_payment_time: u64,
+}
+
+impl From<chia_sdk_driver::StreamedCat> for StreamedCat {
+    fn from(value: chia_sdk_driver::StreamedCat) -> Self {
+        Self {
+            coin: value.coin,
+            asset_id: value.asset_id,
+            proof: value.proof.into(),
+            inner_puzzle_hash: value.inner_puzzle_hash,
+            recipient: value.recipient,
+            clawback_ph: value.clawback_ph,
+            end_time: value.end_time,
+            last_payment_time: value.last_payment_time,
+        }
+    }
+}
+
+impl From<StreamedCat> for chia_sdk_driver::StreamedCat {
+    fn from(value: StreamedCat) -> Self {
+        chia_sdk_driver::StreamedCat::new(
+            value.coin,
+            value.asset_id,
+            value.proof,
+            value.recipient,
+            value.clawback_ph,
+            value.end_time,
+            value.last_payment_time,
+        )
+    }
+}

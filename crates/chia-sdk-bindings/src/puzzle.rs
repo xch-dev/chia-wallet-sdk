@@ -2,7 +2,7 @@ use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver::{CurriedPuzzle, HashedPtr, RawPuzzle};
 
-use crate::{Nft, NftInfo, ParsedNft, Program};
+use crate::{Nft, NftInfo, ParsedNft, Program, StreamedCat};
 
 #[derive(Clone)]
 pub struct Puzzle {
@@ -62,6 +62,30 @@ impl Puzzle {
             nft.with_metadata(Program(self.program.0.clone(), nft.info.metadata.ptr()))
                 .into(),
         ))
+    }
+
+    pub fn parse_child_streamed_cat(
+        &self,
+        parent_coin: Coin,
+        parent_puzzle: Program,
+        parent_solution: Program,
+    ) -> Result<Option<StreamedCat>> {
+        let mut ctx = self.program.0.write().unwrap();
+
+        let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx, parent_puzzle.1);
+
+        let Some((streamed_cat, _clawback, _last_payment_time)) =
+            chia_sdk_driver::StreamedCat::from_parent_spend(
+                &mut ctx,
+                parent_coin,
+                parent_puzzle,
+                parent_solution.1,
+            )?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(streamed_cat))
     }
 }
 
