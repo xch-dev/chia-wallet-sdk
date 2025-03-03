@@ -1143,6 +1143,7 @@ export declare class Clvm {
   spendCatCoins(catSpends: Array<CatSpend>): void
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
   spendNft(nft: Nft, innerSpend: Spend): void
+  spendDid(did: Did, innerSpend: Spend): void
   mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
   mipsSpend(coin: Coin, delegatedSpend: Spend): MipsSpend
   nftMetadata(value: NftMetadata): Program

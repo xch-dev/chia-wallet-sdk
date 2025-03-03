@@ -78,6 +78,16 @@ impl From<chia_sdk_driver::Nft<Program>> for Nft {
     }
 }
 
+impl From<Nft> for chia_sdk_driver::Nft<Program> {
+    fn from(value: Nft) -> Self {
+        Self {
+            coin: value.coin,
+            proof: value.lineage_proof.into(),
+            info: value.info.into(),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct NftInfo {
     pub launcher_id: Bytes32,
@@ -91,6 +101,20 @@ pub struct NftInfo {
 
 impl From<chia_sdk_driver::NftInfo<Program>> for NftInfo {
     fn from(value: chia_sdk_driver::NftInfo<Program>) -> Self {
+        Self {
+            launcher_id: value.launcher_id,
+            metadata: value.metadata,
+            metadata_updater_puzzle_hash: value.metadata_updater_puzzle_hash,
+            current_owner: value.current_owner,
+            royalty_puzzle_hash: value.royalty_puzzle_hash,
+            royalty_ten_thousandths: value.royalty_ten_thousandths,
+            p2_puzzle_hash: value.p2_puzzle_hash,
+        }
+    }
+}
+
+impl From<NftInfo> for chia_sdk_driver::NftInfo<Program> {
+    fn from(value: NftInfo) -> Self {
         Self {
             launcher_id: value.launcher_id,
             metadata: value.metadata,
@@ -216,6 +240,16 @@ impl From<chia_sdk_driver::Did<Program>> for Did {
         Self {
             coin: value.coin,
             lineage_proof: value.proof.into(),
+            info: value.info.into(),
+        }
+    }
+}
+
+impl From<Did> for chia_sdk_driver::Did<Program> {
+    fn from(value: Did) -> Self {
+        Self {
+            coin: value.coin,
+            proof: value.lineage_proof.into(),
             info: value.info.into(),
         }
     }

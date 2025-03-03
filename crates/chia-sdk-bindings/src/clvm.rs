@@ -15,7 +15,7 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    CatSpend, MintedNfts, MipsSpend, Nft, NftMetadata, NftMint, Program, Spend, VaultMint,
+    CatSpend, Did, MintedNfts, MipsSpend, Nft, NftMetadata, NftMint, Program, Spend, VaultMint,
 };
 
 #[derive(Default, Clone)]
@@ -134,21 +134,37 @@ impl Clvm {
 
     pub fn spend_nft(&self, nft: Nft, inner_spend: Spend) -> Result<()> {
         let mut ctx = self.0.write().unwrap();
+
+        let ptr = nft.info.metadata.1;
+
         let nft = chia_sdk_driver::Nft {
             coin: nft.coin,
             proof: nft.lineage_proof.into(),
-            info: chia_sdk_driver::NftInfo {
-                launcher_id: nft.info.launcher_id,
-                metadata: HashedPtr::from_ptr(&ctx, nft.info.metadata.1),
-                metadata_updater_puzzle_hash: nft.info.metadata_updater_puzzle_hash,
-                current_owner: nft.info.current_owner,
-                royalty_puzzle_hash: nft.info.royalty_puzzle_hash,
-                royalty_ten_thousandths: nft.info.royalty_ten_thousandths,
-                p2_puzzle_hash: nft.info.p2_puzzle_hash,
-            },
+            info: chia_sdk_driver::NftInfo::from(nft.info)
+                .with_metadata(HashedPtr::from_ptr(&ctx, ptr)),
         };
 
         nft.spend(
+            &mut ctx,
+            chia_sdk_driver::Spend::new(inner_spend.puzzle.1, inner_spend.solution.1),
+        )?;
+
+        Ok(())
+    }
+
+    pub fn spend_did(&self, did: Did, inner_spend: Spend) -> Result<()> {
+        let mut ctx = self.0.write().unwrap();
+
+        let ptr = did.info.metadata.1;
+
+        let did = chia_sdk_driver::Did {
+            coin: did.coin,
+            proof: did.lineage_proof.into(),
+            info: chia_sdk_driver::DidInfo::from(did.info)
+                .with_metadata(HashedPtr::from_ptr(&ctx, ptr)),
+        };
+
+        did.spend(
             &mut ctx,
             chia_sdk_driver::Spend::new(inner_spend.puzzle.1, inner_spend.solution.1),
         )?;
