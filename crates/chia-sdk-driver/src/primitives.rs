@@ -4,6 +4,7 @@ mod did;
 mod intermediate_launcher;
 mod launcher;
 mod nft;
+mod streamed_cat;
 
 pub use cat::*;
 pub use clawback::*;
@@ -11,7 +12,7 @@ pub use did::*;
 pub use intermediate_launcher::*;
 pub use launcher::*;
 pub use nft::*;
-
+pub use streamed_cat::*;
 #[cfg(feature = "chip-0035")]
 mod datalayer;
 

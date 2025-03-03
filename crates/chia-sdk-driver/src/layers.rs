@@ -11,6 +11,7 @@ mod royalty_transfer_layer;
 mod settlement_layer;
 mod singleton_layer;
 mod standard_layer;
+mod streaming_layer;
 
 pub use augmented_condition_layer::*;
 pub use cat_layer::*;
@@ -25,6 +26,7 @@ pub use royalty_transfer_layer::*;
 pub use settlement_layer::*;
 pub use singleton_layer::*;
 pub use standard_layer::*;
+pub use streaming_layer::*;
 
 #[cfg(feature = "chip-0035")]
 mod datalayer;
