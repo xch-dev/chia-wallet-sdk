@@ -204,7 +204,11 @@ impl From<chia_sdk_driver::StreamedCat> for StreamedCat {
         Self {
             coin: value.coin,
             asset_id: value.asset_id,
-            proof: value.proof.into(),
+            proof: LineageProof {
+                parent_parent_coin_info: value.proof.parent_parent_coin_info,
+                parent_inner_puzzle_hash: Some(value.proof.parent_inner_puzzle_hash),
+                parent_amount: value.proof.parent_amount,
+            },
             inner_puzzle_hash: value.inner_puzzle_hash,
             recipient: value.recipient,
             clawback_ph: value.clawback_ph,
@@ -214,16 +218,25 @@ impl From<chia_sdk_driver::StreamedCat> for StreamedCat {
     }
 }
 
-impl From<StreamedCat> for chia_sdk_driver::StreamedCat {
-    fn from(value: StreamedCat) -> Self {
-        chia_sdk_driver::StreamedCat::new(
+impl TryFrom<StreamedCat> for chia_sdk_driver::StreamedCat {
+    type Error = Error;
+
+    fn try_from(value: StreamedCat) -> Result<Self> {
+        Ok(chia_sdk_driver::StreamedCat::new(
             value.coin,
             value.asset_id,
-            value.proof,
+            chia_puzzle_types::LineageProof {
+                parent_parent_coin_info: value.proof.parent_parent_coin_info,
+                parent_inner_puzzle_hash: value
+                    .proof
+                    .parent_inner_puzzle_hash
+                    .ok_or(Error::MissingParentInnerPuzzleHash)?,
+                parent_amount: value.proof.parent_amount,
+            },
             value.recipient,
             value.clawback_ph,
             value.end_time,
             value.last_payment_time,
-        )
+        ))
     }
 }

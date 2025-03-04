@@ -74,7 +74,7 @@ impl Puzzle {
 
         let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx, parent_puzzle.1);
 
-        let Some((streamed_cat, _clawback, _last_payment_time)) =
+        let (Some(streamed_cat), _clawback, _last_payment_times) =
             chia_sdk_driver::StreamedCat::from_parent_spend(
                 &mut ctx,
                 parent_coin,
@@ -85,7 +85,7 @@ impl Puzzle {
             return Ok(None);
         };
 
-        Ok(Some(streamed_cat))
+        Ok(Some(streamed_cat.into()))
     }
 }
 
