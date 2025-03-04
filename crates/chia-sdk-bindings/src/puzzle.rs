@@ -182,14 +182,14 @@ impl Puzzle {
             )?
         else {
             return Ok(StreamedCatParsingResult {
-                streamed_cat_maybe: None,
+                streamed_cat: None,
                 last_spend_was_clawback: false,
                 last_payment_amount_if_clawback: 0,
             });
         };
 
         Ok(StreamedCatParsingResult {
-            streamed_cat_maybe: Some(streamed_cat.into()),
+            streamed_cat: Some(streamed_cat.into()),
             last_spend_was_clawback: clawback,
             last_payment_amount_if_clawback: last_payment_amount,
         })
@@ -216,7 +216,7 @@ impl From<Puzzle> for chia_sdk_driver::Puzzle {
 
 #[derive(Clone)]
 pub struct StreamedCatParsingResult {
-    pub streamed_cat_maybe: Option<StreamedCat>,
+    pub streamed_cat: Option<StreamedCat>,
     pub last_spend_was_clawback: bool,
     pub last_payment_amount_if_clawback: u64,
 }
