@@ -5,8 +5,6 @@
 
 export declare function standardPuzzleHash(syntheticKey: PublicKey): Uint8Array
 export declare function catPuzzleHash(assetId: Uint8Array, innerPuzzleHash: Uint8Array): Uint8Array
-export declare function getStreamedCatHint(recipient: Uint8Array): Uint8Array
-export declare function getStreamedCatLaunchHints(recipient: Uint8Array, clawbackPh: Uint8Array | undefined | null, startTime: bigint, endTime: bigint): Array<Uint8Array>
 export declare function fromHex(value: string): Uint8Array
 export declare function toHex(value: Uint8Array): string
 export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
@@ -53,9 +51,9 @@ export declare class Puzzle {
   set args(value?: Program | undefined | null)
 }
 export declare class StreamedCatParsingResult {
-  constructor(streamedCatMaybe: StreamedCat | undefined | null, lastSpendWasClawback: boolean, lastPaymentAmountIfClawback: bigint)
-  get streamedCatMaybe(): StreamedCat | null
-  set streamedCatMaybe(value?: StreamedCat | undefined | null)
+  constructor(streamedCat: StreamedCat | undefined | null, lastSpendWasClawback: boolean, lastPaymentAmountIfClawback: bigint)
+  get streamedCat(): StreamedCat | null
+  set streamedCat(value?: StreamedCat | undefined | null)
   get lastSpendWasClawback(): boolean
   set lastSpendWasClawback(value: boolean)
   get lastPaymentAmountIfClawback(): bigint
@@ -198,7 +196,8 @@ export declare class ParsedDid {
 }
 export declare class StreamedCat {
   amountToBePaid(paymentTime: bigint): bigint
-  spend(paymentTime: bigint, clawback: boolean): CoinSpend
+  static getHint(recipient: Uint8Array): Uint8Array
+  static getLaunchHints(recipient: Uint8Array, clawbackPh: Uint8Array | undefined | null, startTime: bigint, endTime: bigint): Array<Uint8Array>
   constructor(coin: Coin, assetId: Uint8Array, proof: LineageProof, innerPuzzleHash: Uint8Array, recipient: Uint8Array, clawbackPh: Uint8Array | undefined | null, endTime: bigint, lastPaymentTime: bigint)
   get coin(): Coin
   set coin(value: Coin)
@@ -1033,6 +1032,7 @@ export declare class Clvm {
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
   spendNft(nft: Nft, innerSpend: Spend): void
   spendDid(did: Did, innerSpend: Spend): void
+  spendStreamedCat(streamedCat: StreamedCat, paymentTime: bigint, clawback: boolean): void
   mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
   mipsSpend(coin: Coin, delegatedSpend: Spend): MipsSpend
   nftMetadata(value: NftMetadata): Program

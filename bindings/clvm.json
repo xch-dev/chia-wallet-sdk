@@ -115,6 +115,13 @@
           "inner_spend": "Spend"
         }
       },
+      "spend_streamed_cat": {
+        "args": {
+          "streamed_cat": "StreamedCat",
+          "payment_time": "u64",
+          "clawback": "bool"
+        }
+      },
       "mint_vault": {
         "args": {
           "parent_coin_id": "Bytes32",

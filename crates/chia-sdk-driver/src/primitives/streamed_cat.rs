@@ -13,18 +13,22 @@ use clvmr::{op_utils::u64_from_bytes, Allocator, NodePtr};
 
 use crate::{StreamLayer, StreamPuzzleSolution};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StreamingCoinInfo {
+    pub recipient: Bytes32,
+    pub clawback_ph: Option<Bytes32>,
+    pub end_time: u64,
+    pub last_payment_time: u64,
+}
+
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct StreamedCat {
     pub coin: Coin,
     pub asset_id: Bytes32,
     pub proof: LineageProof,
-    pub inner_puzzle_hash: Bytes32,
 
-    pub recipient: Bytes32,
-    pub clawback_ph: Option<Bytes32>,
-    pub end_time: u64,
-    pub last_payment_time: u64,
+    pub info: StreamingCoinInfo,
 }
 
 impl StreamedCat {
@@ -32,27 +36,13 @@ impl StreamedCat {
         coin: Coin,
         asset_id: Bytes32,
         proof: LineageProof,
-        recipient: Bytes32,
-        clawback_ph: Option<Bytes32>,
-        end_time: u64,
-        last_payment_time: u64,
+        info: StreamingCoinInfo,
     ) -> Self {
         Self {
             coin,
             asset_id,
             proof,
-            inner_puzzle_hash: StreamLayer::new(
-                recipient,
-                clawback_ph,
-                end_time,
-                last_payment_time,
-            )
-            .puzzle_hash()
-            .into(),
-            recipient,
-            clawback_ph,
-            end_time,
-            last_payment_time,
+            info,
         }
     }
 
@@ -60,10 +50,10 @@ impl StreamedCat {
         CatLayer::<StreamLayer>::new(
             self.asset_id,
             StreamLayer::new(
-                self.recipient,
-                self.clawback_ph,
-                self.end_time,
-                self.last_payment_time,
+                self.info.recipient,
+                self.info.clawback_ph,
+                self.info.end_time,
+                self.info.last_payment_time,
             ),
         )
     }
@@ -432,7 +422,7 @@ mod tests {
         let parent_puzzle = ctx.alloc(&streamed_cat_spend.puzzle_reveal)?;
         let parent_puzzle = Puzzle::from_clvm(&ctx, parent_puzzle)?;
         let parent_solution = ctx.alloc(&streamed_cat_spend.solution)?;
-        let (new_streamed_cat_maybe, clawback, _paid_amount_if_clawback) =
+        let (new_streamed_cat, clawback, _paid_amount_if_clawback) =
             StreamedCat::from_parent_spend(
                 &mut ctx,
                 streamed_cat.coin,
@@ -441,7 +431,7 @@ mod tests {
             )?;
 
         assert!(clawback);
-        assert!(new_streamed_cat_maybe.is_none());
+        assert!(new_streamed_cat.is_none());
 
         Ok(())
     }

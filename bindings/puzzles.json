@@ -57,7 +57,7 @@
     "type": "class",
     "new": true,
     "fields": {
-      "streamed_cat_maybe": "Option<StreamedCat>",
+      "streamed_cat": "Option<StreamedCat>",
       "last_spend_was_clawback": "bool",
       "last_payment_amount_if_clawback": "u64"
     }
@@ -223,30 +223,23 @@
         },
         "return": "u64"
       },
-      "spend": {
+      "get_hint": {
+        "type": "static",
         "args": {
-          "payment_time": "u64",
-          "clawback": "bool"
+          "recipient": "Bytes32"
         },
-        "return": "CoinSpend"
+        "return": "Bytes32"
+      },
+      "get_launch_hints": {
+        "type": "static",
+        "args": {
+          "recipient": "Bytes32",
+          "clawback_ph": "Option<Bytes32>",
+          "start_time": "u64",
+          "end_time": "u64"
+        },
+        "return": "Vec<Bytes>"
       }
     }
-  },
-  "get_streamed_cat_hint": {
-    "type": "function",
-    "args": {
-      "recipient": "Bytes32"
-    },
-    "return": "Bytes32"
-  },
-  "get_streamed_cat_launch_hints": {
-    "type": "function",
-    "args": {
-      "recipient": "Bytes32",
-      "clawback_ph": "Option<Bytes32>",
-      "start_time": "u64",
-      "end_time": "u64"
-    },
-    "return": "Vec<Bytes>"
   }
 }
