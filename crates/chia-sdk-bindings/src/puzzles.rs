@@ -1,7 +1,8 @@
 use bindy::{Error, Result};
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes32, Coin};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::{cat::CatArgs, nft, standard::StandardArgs};
+use chia_sdk_driver::SpendContext;
 use clvmr::NodePtr;
 
 use crate::{LineageProof, Program, Spend};
@@ -239,4 +240,39 @@ impl TryFrom<StreamedCat> for chia_sdk_driver::StreamedCat {
             value.last_payment_time,
         ))
     }
+}
+
+impl StreamedCat {
+    pub fn amount_to_be_paid(&self, payment_time: u64) -> Result<u64> {
+        // LAST_PAYMENT_TIME + (to_pay * (END_TIME - LAST_PAYMENT_TIME) / my_amount) = payment_time
+        // to_pay = my_amount * (payment_time - LAST_PAYMENT_TIME) / (END_TIME - LAST_PAYMENT_TIME)
+        Ok(self.coin.amount * (payment_time - self.last_payment_time)
+            / (self.end_time - self.last_payment_time))
+    }
+
+    pub fn spend(&self, payment_time: u64, clawback: bool) -> Result<CoinSpend> {
+        let mut ctx = SpendContext::new();
+        let streamed_cat: chia_sdk_driver::StreamedCat = self.clone().try_into()?;
+        streamed_cat.spend(&mut ctx, payment_time, clawback)?;
+        let spends = ctx.take();
+        Ok(spends.last().ok_or(Error::NoSpends)?.clone())
+    }
+}
+
+pub fn get_streamed_cat_hint(recipient: Bytes32) -> Result<Bytes32> {
+    Ok(chia_sdk_driver::StreamedCat::get_hint(recipient))
+}
+
+pub fn get_streamed_cat_launch_hints(
+    recipient: Bytes32,
+    clawback_ph: Option<Bytes32>,
+    start_time: u64,
+    end_time: u64,
+) -> Result<Vec<Bytes>> {
+    Ok(chia_sdk_driver::StreamedCat::get_launch_hints(
+        recipient,
+        clawback_ph,
+        start_time,
+        end_time,
+    ))
 }

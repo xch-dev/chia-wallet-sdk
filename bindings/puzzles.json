@@ -26,8 +26,17 @@
           "parent_puzzle": "Program",
           "parent_solution": "Program"
         },
-        "return": "Option<StreamedCat>"
+        "return": "StreamedCatParsingResult"
       }
+    }
+  },
+  "StreamedCatParsingResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "streamed_cat_maybe": "Option<StreamedCat>",
+      "last_spend_was_clawback": "bool",
+      "last_payment_amount_if_clawback": "u64"
     }
   },
   "Cat": {
@@ -147,6 +156,38 @@
       "clawback_ph": "Option<Bytes32>",
       "end_time": "u64",
       "last_payment_time": "u64"
+    },
+    "methods": {
+      "amount_to_be_paid": {
+        "args": {
+          "payment_time": "u64"
+        },
+        "return": "u64"
+      },
+      "spend": {
+        "args": {
+          "payment_time": "u64",
+          "clawback": "bool"
+        },
+        "return": "CoinSpend"
+      }
     }
+  },
+  "get_streamed_cat_hint": {
+    "type": "function",
+    "args": {
+      "recipient": "Bytes32"
+    },
+    "return": "Bytes32"
+  },
+  "get_streamed_cat_launch_hints": {
+    "type": "function",
+    "args": {
+      "recipient": "Bytes32",
+      "clawback_ph": "Option<Bytes32>",
+      "start_time": "u64",
+      "end_time": "u64"
+    },
+    "return": "Vec<Bytes>"
   }
 }

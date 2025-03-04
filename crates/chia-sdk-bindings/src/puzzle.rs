@@ -64,17 +64,20 @@ impl Puzzle {
         ))
     }
 
+    // 2nd argument: clawbacked (relating to parent spend)
+    // 3rd argument: if clawbacked, the last amount that was paid
+    //               0 otherwise
     pub fn parse_child_streamed_cat(
         &self,
         parent_coin: Coin,
         parent_puzzle: Program,
         parent_solution: Program,
-    ) -> Result<Option<StreamedCat>> {
+    ) -> Result<StreamedCatParsingResult> {
         let mut ctx = self.program.0.write().unwrap();
 
         let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx, parent_puzzle.1);
 
-        let (Some(streamed_cat), _clawback, _last_payment_times) =
+        let (Some(streamed_cat), clawback, last_payment_amount) =
             chia_sdk_driver::StreamedCat::from_parent_spend(
                 &mut ctx,
                 parent_coin,
@@ -82,10 +85,18 @@ impl Puzzle {
                 parent_solution.1,
             )?
         else {
-            return Ok(None);
+            return Ok(StreamedCatParsingResult {
+                streamed_cat_maybe: None,
+                last_spend_was_clawback: false,
+                last_payment_amount_if_clawback: 0,
+            });
         };
 
-        Ok(Some(streamed_cat.into()))
+        Ok(StreamedCatParsingResult {
+            streamed_cat_maybe: Some(streamed_cat.into()),
+            last_spend_was_clawback: clawback,
+            last_payment_amount_if_clawback: last_payment_amount,
+        })
     }
 }
 
@@ -105,4 +116,11 @@ impl From<Puzzle> for chia_sdk_driver::Puzzle {
             })
         }
     }
+}
+
+#[derive(Clone)]
+pub struct StreamedCatParsingResult {
+    pub streamed_cat_maybe: Option<StreamedCat>,
+    pub last_spend_was_clawback: bool,
+    pub last_payment_amount_if_clawback: u64,
 }
