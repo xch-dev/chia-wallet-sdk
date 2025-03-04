@@ -294,16 +294,42 @@ pub fn cat_puzzle_hash(asset_id: Bytes32, inner_puzzle_hash: Bytes32) -> Result<
 }
 
 #[derive(Clone)]
-pub struct StreamedCat {
-    pub coin: Coin,
-    pub asset_id: Bytes32,
-    pub proof: LineageProof,
-    pub inner_puzzle_hash: Bytes32,
-
+pub struct StreamingCoinInfo {
     pub recipient: Bytes32,
     pub clawback_ph: Option<Bytes32>,
     pub end_time: u64,
     pub last_payment_time: u64,
+}
+
+impl From<chia_sdk_driver::StreamingCoinInfo> for StreamingCoinInfo {
+    fn from(value: chia_sdk_driver::StreamingCoinInfo) -> Self {
+        Self {
+            recipient: value.recipient,
+            clawback_ph: value.clawback_ph,
+            end_time: value.end_time,
+            last_payment_time: value.last_payment_time,
+        }
+    }
+}
+
+impl From<StreamingCoinInfo> for chia_sdk_driver::StreamingCoinInfo {
+    fn from(value: StreamingCoinInfo) -> Self {
+        Self {
+            recipient: value.recipient,
+            clawback_ph: value.clawback_ph,
+            end_time: value.end_time,
+            last_payment_time: value.last_payment_time,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct StreamedCat {
+    pub coin: Coin,
+    pub asset_id: Bytes32,
+    pub proof: LineageProof,
+
+    pub info: StreamingCoinInfo,
 }
 
 impl From<chia_sdk_driver::StreamedCat> for StreamedCat {
@@ -316,11 +342,7 @@ impl From<chia_sdk_driver::StreamedCat> for StreamedCat {
                 parent_inner_puzzle_hash: Some(value.proof.parent_inner_puzzle_hash),
                 parent_amount: value.proof.parent_amount,
             },
-            inner_puzzle_hash: value.inner_puzzle_hash,
-            recipient: value.recipient,
-            clawback_ph: value.clawback_ph,
-            end_time: value.end_time,
-            last_payment_time: value.last_payment_time,
+            info: value.info.into(),
         }
     }
 }
@@ -340,10 +362,7 @@ impl TryFrom<StreamedCat> for chia_sdk_driver::StreamedCat {
                     .ok_or(Error::MissingParentInnerPuzzleHash)?,
                 parent_amount: value.proof.parent_amount,
             },
-            value.recipient,
-            value.clawback_ph,
-            value.end_time,
-            value.last_payment_time,
+            value.info.into(),
         ))
     }
 }
@@ -352,8 +371,10 @@ impl StreamedCat {
     pub fn amount_to_be_paid(&self, payment_time: u64) -> Result<u64> {
         // LAST_PAYMENT_TIME + (to_pay * (END_TIME - LAST_PAYMENT_TIME) / my_amount) = payment_time
         // to_pay = my_amount * (payment_time - LAST_PAYMENT_TIME) / (END_TIME - LAST_PAYMENT_TIME)
-        Ok(self.coin.amount * (payment_time - self.last_payment_time)
-            / (self.end_time - self.last_payment_time))
+        Ok(
+            self.coin.amount * (payment_time - self.info.last_payment_time)
+                / (self.info.end_time - self.info.last_payment_time),
+        )
     }
 
     pub fn get_hint(recipient: Bytes32) -> Result<Bytes32> {

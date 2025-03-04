@@ -8,7 +8,7 @@ use chia_puzzle_types::{
 use chia_sdk_types::{run_puzzle, Condition, Conditions};
 use chia_sha2::Sha256;
 use clvm_traits::FromClvm;
-use clvm_utils::tree_hash;
+use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{op_utils::u64_from_bytes, Allocator, NodePtr};
 
 use crate::{StreamLayer, StreamPuzzleSolution};
@@ -19,6 +19,152 @@ pub struct StreamingCoinInfo {
     pub clawback_ph: Option<Bytes32>,
     pub end_time: u64,
     pub last_payment_time: u64,
+}
+
+impl StreamingCoinInfo {
+    pub fn new(
+        recipient: Bytes32,
+        clawback_ph: Option<Bytes32>,
+        end_time: u64,
+        last_payment_time: u64,
+    ) -> Self {
+        Self {
+            recipient,
+            clawback_ph,
+            end_time,
+            last_payment_time,
+        }
+    }
+
+    pub fn amount_to_be_paid(&self, my_coin_amount: u64, payment_time: u64) -> u64 {
+        // LAST_PAYMENT_TIME + (to_pay * (END_TIME - LAST_PAYMENT_TIME) / my_amount) = payment_time
+        // to_pay = my_amount * (payment_time - LAST_PAYMENT_TIME) / (END_TIME - LAST_PAYMENT_TIME)
+        my_coin_amount * (payment_time - self.last_payment_time)
+            / (self.end_time - self.last_payment_time)
+    }
+
+    pub fn get_hint(recipient: Bytes32) -> Bytes32 {
+        let mut s = Sha256::new();
+        s.update(b"s");
+        s.update(recipient.as_slice());
+        s.finalize().into()
+    }
+
+    pub fn get_launch_hints(
+        recipient: Bytes32,
+        clawback_ph: Option<Bytes32>,
+        start_time: u64,
+        end_time: u64,
+    ) -> Vec<Bytes> {
+        let hint: Bytes = recipient.into();
+        let clawback_ph: Bytes = if let Some(clawback_ph) = clawback_ph {
+            clawback_ph.into()
+        } else {
+            Bytes::new(vec![])
+        };
+        let second_memo = u64_to_bytes(start_time);
+        let third_memo = u64_to_bytes(end_time);
+
+        vec![hint, clawback_ph, second_memo.into(), third_memo.into()]
+    }
+
+    #[must_use]
+    pub fn with_last_payment_time(self, last_payment_time: u64) -> Self {
+        Self {
+            last_payment_time,
+            ..self
+        }
+    }
+
+    pub fn parse(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
+        let Some(layer) = StreamLayer::parse_puzzle(allocator, puzzle)? else {
+            return Ok(None);
+        };
+
+        Ok(Some(Self::from_layer(layer)))
+    }
+
+    pub fn into_layer(self) -> StreamLayer {
+        StreamLayer::new(
+            self.recipient,
+            self.clawback_ph,
+            self.end_time,
+            self.last_payment_time,
+        )
+    }
+
+    pub fn from_layer(layer: StreamLayer) -> Self {
+        Self {
+            recipient: layer.recipient,
+            clawback_ph: layer.clawback_ph,
+            end_time: layer.end_time,
+            last_payment_time: layer.last_payment_time,
+        }
+    }
+
+    pub fn inner_puzzle_hash(&self) -> TreeHash {
+        self.into_layer().puzzle_hash()
+    }
+
+    pub fn from_memos(memos: &[Bytes]) -> Result<Option<Self>, DriverError> {
+        if memos.len() < 4 || memos.len() > 5 {
+            return Ok(None);
+        }
+
+        let (recipient, clawback_ph, last_payment_time, end_time): (
+            Bytes32,
+            Option<Bytes32>,
+            u64,
+            u64,
+        ) = if memos.len() == 4 {
+            let Ok(recipient_b64): Result<Bytes32, _> = memos[0].clone().try_into() else {
+                return Ok(None);
+            };
+            let clawback_ph_b64: Option<Bytes32> = if memos[1].is_empty() {
+                None
+            } else {
+                let b32: Result<Bytes32, _> = memos[1].clone().try_into();
+                if let Ok(b32) = b32 {
+                    Some(b32)
+                } else {
+                    return Ok(None);
+                }
+            };
+            (
+                recipient_b64,
+                clawback_ph_b64,
+                u64_from_bytes(&memos[2]),
+                u64_from_bytes(&memos[3]),
+            )
+        } else {
+            let Ok(recipient_b64): Result<Bytes32, _> = memos[1].clone().try_into() else {
+                return Ok(None);
+            };
+            let clawback_ph_b64: Option<Bytes32> = if memos[2].is_empty() {
+                None
+            } else {
+                let b32: Result<Bytes32, _> = memos[2].clone().try_into();
+                if let Ok(b32) = b32 {
+                    Some(b32)
+                } else {
+                    return Ok(None);
+                }
+            };
+            (
+                recipient_b64,
+                clawback_ph_b64,
+                u64_from_bytes(&memos[3]),
+                u64_from_bytes(&memos[4]),
+            )
+        };
+
+        Ok(Some(Self::new(
+            recipient,
+            clawback_ph,
+            end_time,
+            last_payment_time,
+        )))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -47,26 +193,11 @@ impl StreamedCat {
     }
 
     pub fn layers(&self) -> CatLayer<StreamLayer> {
-        CatLayer::<StreamLayer>::new(
-            self.asset_id,
-            StreamLayer::new(
-                self.info.recipient,
-                self.info.clawback_ph,
-                self.info.end_time,
-                self.info.last_payment_time,
-            ),
-        )
+        CatLayer::<StreamLayer>::new(self.asset_id, self.info.into_layer())
     }
 
     pub fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         self.layers().construct_puzzle(ctx)
-    }
-
-    pub fn amount_to_be_paid(&self, payment_time: u64) -> u64 {
-        // LAST_PAYMENT_TIME + (to_pay * (END_TIME - LAST_PAYMENT_TIME) / my_amount) = payment_time
-        // to_pay = my_amount * (payment_time - LAST_PAYMENT_TIME) / (END_TIME - LAST_PAYMENT_TIME)
-        self.coin.amount * (payment_time - self.last_payment_time)
-            / (self.end_time - self.last_payment_time)
     }
 
     pub fn construct_solution(
@@ -81,7 +212,7 @@ impl StreamedCat {
                 inner_puzzle_solution: StreamPuzzleSolution {
                     my_amount: self.coin.amount,
                     payment_time,
-                    to_pay: self.amount_to_be_paid(payment_time),
+                    to_pay: self.info.amount_to_be_paid(self.coin.amount, payment_time),
                     clawback,
                 },
                 lineage_proof: Some(self.proof),
@@ -89,7 +220,7 @@ impl StreamedCat {
                 this_coin_info: self.coin,
                 next_coin_proof: CoinProof {
                     parent_coin_info: self.coin.parent_coin_info,
-                    inner_puzzle_hash: self.inner_puzzle_hash,
+                    inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
                     amount: self.coin.amount,
                 },
                 prev_subtotal: 0,
@@ -139,60 +270,10 @@ impl StreamedCat {
                 };
 
                 let memos = Vec::<Bytes>::from_clvm(allocator, memos.value)?;
-                if memos.len() < 4 || memos.len() > 5 {
+                let Some(candidate_info) = StreamingCoinInfo::from_memos(&memos)? else {
                     continue;
-                }
-
-                let (recipient, clawback_ph, last_payment_time, end_time): (
-                    Bytes32,
-                    Option<Bytes32>,
-                    u64,
-                    u64,
-                ) = if memos.len() == 4 {
-                    let Ok(recipient_b64): Result<Bytes32, _> = memos[0].clone().try_into() else {
-                        continue;
-                    };
-                    let clawback_ph_b64: Option<Bytes32> = if memos[1].is_empty() {
-                        None
-                    } else {
-                        let b32: Result<Bytes32, _> = memos[1].clone().try_into();
-                        if let Ok(b32) = b32 {
-                            Some(b32)
-                        } else {
-                            continue;
-                        }
-                    };
-                    (
-                        recipient_b64,
-                        clawback_ph_b64,
-                        u64_from_bytes(&memos[2]),
-                        u64_from_bytes(&memos[3]),
-                    )
-                } else {
-                    let Ok(recipient_b64): Result<Bytes32, _> = memos[1].clone().try_into() else {
-                        continue;
-                    };
-                    let clawback_ph_b64: Option<Bytes32> = if memos[2].is_empty() {
-                        None
-                    } else {
-                        let b32: Result<Bytes32, _> = memos[2].clone().try_into();
-                        if let Ok(b32) = b32 {
-                            Some(b32)
-                        } else {
-                            continue;
-                        }
-                    };
-                    (
-                        recipient_b64,
-                        clawback_ph_b64,
-                        u64_from_bytes(&memos[3]),
-                        u64_from_bytes(&memos[4]),
-                    )
                 };
-
-                let candidate_inner_layer =
-                    StreamLayer::new(recipient, clawback_ph, end_time, last_payment_time);
-                let candidate_inner_puzzle_hash = candidate_inner_layer.puzzle_hash();
+                let candidate_inner_puzzle_hash = candidate_info.inner_puzzle_hash();
                 let candidate_puzzle_hash =
                     CatArgs::curry_tree_hash(parent_layer.asset_id, candidate_inner_puzzle_hash);
 
@@ -213,10 +294,7 @@ impl StreamedCat {
                             .into(),
                         parent_amount: parent_coin.amount,
                     },
-                    recipient,
-                    clawback_ph,
-                    end_time,
-                    last_payment_time,
+                    candidate_info,
                 ));
             }
 
@@ -251,40 +329,13 @@ impl StreamedCat {
                 Coin::new(parent_coin.coin_id(), new_puzzle_hash.into(), new_amount),
                 layers.asset_id,
                 proof,
-                layers.inner_puzzle.recipient,
-                layers.inner_puzzle.clawback_ph,
-                layers.inner_puzzle.end_time,
                 // last payment time should've been updated by the spend
-                parent_solution.inner_puzzle_solution.payment_time,
+                StreamingCoinInfo::from_layer(layers.inner_puzzle)
+                    .with_last_payment_time(parent_solution.inner_puzzle_solution.payment_time),
             )),
             false,
             0,
         ))
-    }
-
-    pub fn get_hint(recipient: Bytes32) -> Bytes32 {
-        let mut s = Sha256::new();
-        s.update(b"s");
-        s.update(recipient.as_slice());
-        s.finalize().into()
-    }
-
-    pub fn get_launch_hints(
-        recipient: Bytes32,
-        clawback_ph: Option<Bytes32>,
-        start_time: u64,
-        end_time: u64,
-    ) -> Vec<Bytes> {
-        let hint: Bytes = recipient.into();
-        let clawback_ph: Bytes = if let Some(clawback_ph) = clawback_ph {
-            clawback_ph.into()
-        } else {
-            Bytes::new(vec![])
-        };
-        let second_memo = u64_to_bytes(start_time);
-        let third_memo = u64_to_bytes(end_time);
-
-        vec![hint, clawback_ph, second_memo.into(), third_memo.into()]
     }
 }
 
@@ -353,10 +404,12 @@ mod tests {
             initial_vesting_cat.coin,
             initial_vesting_cat.asset_id,
             initial_vesting_cat.lineage_proof.unwrap(),
-            user_puzzle_hash,
-            Some(clawback_ph.into()),
-            total_claim_time + 1000,
-            1000,
+            StreamingCoinInfo::new(
+                user_puzzle_hash,
+                Some(clawback_ph.into()),
+                total_claim_time + 1000,
+                1000,
+            ),
         );
 
         let mut claim_time = sim.next_timestamp();
