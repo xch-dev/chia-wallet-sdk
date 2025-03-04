@@ -1,5 +1,5 @@
-use crate::{puzzle, DriverError, Layer, P2OneOfManyLayer, Puzzle, Spend, SpendContext};
-use chia_protocol::{Bytes, Bytes32, Coin};
+use crate::{DriverError, Layer, P2OneOfManyLayer, Puzzle, Spend, SpendContext};
+use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::{
     puzzles::{
         AugmentedConditionArgs, AugmentedConditionSolution, P2CurriedArgs, P2CurriedSolution,
