@@ -1,9 +1,9 @@
-use crate::{puzzle, DriverError, Layer, P2OneOfManyLayer, Puzzle, Spend, SpendContext};
-use chia_protocol::{Bytes, Bytes32, Coin};
+use crate::{DriverError, Layer, P2OneOfManyLayer, Puzzle, Spend, SpendContext};
+use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::{
-    run_puzzle, AugmentedConditionArgs, AugmentedConditionSolution, Condition, Conditions,
-    MerkleTree, P2CurriedArgs, P2CurriedSolution, P2OneOfManySolution,
-    AUGMENTED_CONDITION_PUZZLE_HASH, P2_CURRIED_PUZZLE_HASH,
+    run_puzzle, AugmentedConditionArgs, AugmentedConditionSolution, Condition, MerkleTree,
+    P2CurriedArgs, P2CurriedSolution, P2OneOfManySolution, AUGMENTED_CONDITION_PUZZLE_HASH,
+    P2_CURRIED_PUZZLE_HASH,
 };
 use chia_streamable_macro::streamable;
 use chia_traits::Streamable;
