@@ -925,6 +925,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
 
                 output.extend(quote! {
                     #[pyo3::pyfunction]
+                    #[pyo3(signature = (#(#arg_idents),*))]
                     pub fn #bound_ident(
                         #( #arg_idents: #arg_types ),*
                     ) -> pyo3::PyResult<#ret> {

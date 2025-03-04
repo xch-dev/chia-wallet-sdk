@@ -210,3 +210,15 @@ impl<T> FromRust<Vec<Bytes32>, T, Wasm> for js_sys::Array {
         Ok(array)
     }
 }
+
+impl<T> FromRust<Vec<Bytes>, T, Wasm> for js_sys::Array {
+    fn from_rust(value: Vec<Bytes>, _context: &T) -> Result<Self> {
+        let array = js_sys::Array::new();
+
+        for item in value {
+            array.push(&<Vec<u8> as FromRust<Bytes, T, Wasm>>::from_rust(item, _context)?.into());
+        }
+
+        Ok(array)
+    }
+}
