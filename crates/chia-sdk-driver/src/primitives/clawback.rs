@@ -170,6 +170,7 @@ mod tests {
     use chia_protocol::Coin;
     use chia_sdk_test::Simulator;
     use chia_sdk_types::Conditions;
+    use clvm_traits::ToClvm;
 
     use crate::{SpendWithConditions, StandardLayer};
 
@@ -199,9 +200,31 @@ mod tests {
             alice.coin,
             Conditions::new().create_coin(clawback_puzzle_hash, 1, None),
         )?;
+        let mut allocator = Allocator::new();
+        let cs = ctx.take();
+
         let clawback_coin = Coin::new(alice.coin.coin_id(), clawback_puzzle_hash, 1);
 
-        sim.spend_coins(ctx.take(), &[alice.sk])?;
+        sim.spend_coins(cs, &[alice.sk])?;
+
+        let puzzle_reveal = sim
+            .puzzle_reveal(alice.coin.coin_id())
+            .expect("missing puzzle")
+            .to_clvm(&mut allocator)?;
+
+        let solution = sim
+            .solution(alice.coin.coin_id())
+            .expect("missing solution")
+            .to_clvm(&mut allocator)?;
+
+        let puzzle = Puzzle::parse(&allocator, puzzle_reveal);
+
+        // check we can recreate Clawback from the spend
+        let children = Clawback::parse_children(&mut allocator, puzzle, solution)
+            .expect("we should have found the child")
+            .expect("we should have found children");
+        assert_eq!(children.len(), 1);
+        assert_eq!(children[0], clawback);
 
         let bob_inner = bob_p2.spend_with_conditions(ctx, Conditions::new().reserve_fee(1))?;
         let claim_spend = clawback.claim_spend(ctx, bob_inner)?;
