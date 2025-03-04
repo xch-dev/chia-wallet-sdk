@@ -5,6 +5,8 @@
 
 export declare function standardPuzzleHash(syntheticKey: PublicKey): Uint8Array
 export declare function catPuzzleHash(assetId: Uint8Array, innerPuzzleHash: Uint8Array): Uint8Array
+export declare function getStreamedCatHint(recipient: Uint8Array): Uint8Array
+export declare function getStreamedCatLaunchHints(recipient: Uint8Array, clawbackPh: Uint8Array | undefined | null, startTime: bigint, endTime: bigint): Array<Uint8Array>
 export declare function fromHex(value: string): Uint8Array
 export declare function toHex(value: Uint8Array): string
 export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
@@ -35,7 +37,7 @@ export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restricti
 export declare class Puzzle {
   parseNft(): ParsedNft | null
   parseChildNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Nft | null
-  parseChildStreamedCat(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): StreamedCat | null
+  parseChildStreamedCat(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): StreamedCatParsingResult
   constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
   get puzzleHash(): Uint8Array
   set puzzleHash(value: Uint8Array)
@@ -45,6 +47,15 @@ export declare class Puzzle {
   set modHash(value: Uint8Array)
   get args(): Program | null
   set args(value?: Program | undefined | null)
+}
+export declare class StreamedCatParsingResult {
+  constructor(streamedCatMaybe: StreamedCat | undefined | null, lastSpendWasClawback: boolean, lastPaymentAmountIfClawback: bigint)
+  get streamedCatMaybe(): StreamedCat | null
+  set streamedCatMaybe(value?: StreamedCat | undefined | null)
+  get lastSpendWasClawback(): boolean
+  set lastSpendWasClawback(value: boolean)
+  get lastPaymentAmountIfClawback(): bigint
+  set lastPaymentAmountIfClawback(value: bigint)
 }
 export declare class Cat {
   constructor(coin: Coin, lineageProof: LineageProof | undefined | null, assetId: Uint8Array, p2PuzzleHash: Uint8Array)
@@ -146,6 +157,8 @@ export declare class MintedNfts {
   set parentConditions(value: Array<Program>)
 }
 export declare class StreamedCat {
+  amountToBePaid(paymentTime: bigint): bigint
+  spend(paymentTime: bigint, clawback: boolean): CoinSpend
   constructor(coin: Coin, assetId: Uint8Array, proof: LineageProof, innerPuzzleHash: Uint8Array, recipient: Uint8Array, clawbackPh: Uint8Array | undefined | null, endTime: bigint, lastPaymentTime: bigint)
   get coin(): Coin
   set coin(value: Coin)
