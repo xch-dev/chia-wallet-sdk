@@ -6,6 +6,7 @@ use chia_sdk_driver::{CatLayer, CurriedPuzzle, HashedPtr, Layer, RawPuzzle, Spen
 
 use crate::{
     Cat, Did, DidInfo, Nft, NftInfo, ParsedCat, ParsedDid, ParsedNft, Program, StreamedCat,
+    StreamingPuzzleInfo,
 };
 
 #[derive(Clone)]
@@ -161,6 +162,14 @@ impl Puzzle {
             did.with_metadata(Program(self.program.0.clone(), did.info.metadata.ptr()))
                 .into(),
         ))
+    }
+
+    pub fn parse_inner_streaming_puzzle(&self) -> Result<Option<StreamingPuzzleInfo>> {
+        let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
+
+        let ctx = self.program.0.read().unwrap();
+
+        Ok(chia_sdk_driver::StreamingPuzzleInfo::parse(&ctx, puzzle)?.map(Into::into))
     }
 
     pub fn parse_child_streamed_cat(

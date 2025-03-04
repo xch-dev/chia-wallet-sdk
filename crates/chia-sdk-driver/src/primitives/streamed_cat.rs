@@ -14,14 +14,14 @@ use clvmr::{op_utils::u64_from_bytes, Allocator, NodePtr};
 use crate::{StreamLayer, StreamPuzzleSolution};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StreamingCoinInfo {
+pub struct StreamingPuzzleInfo {
     pub recipient: Bytes32,
     pub clawback_ph: Option<Bytes32>,
     pub end_time: u64,
     pub last_payment_time: u64,
 }
 
-impl StreamingCoinInfo {
+impl StreamingPuzzleInfo {
     pub fn new(
         recipient: Bytes32,
         clawback_ph: Option<Bytes32>,
@@ -50,20 +50,15 @@ impl StreamingCoinInfo {
         s.finalize().into()
     }
 
-    pub fn get_launch_hints(
-        recipient: Bytes32,
-        clawback_ph: Option<Bytes32>,
-        start_time: u64,
-        end_time: u64,
-    ) -> Vec<Bytes> {
-        let hint: Bytes = recipient.into();
-        let clawback_ph: Bytes = if let Some(clawback_ph) = clawback_ph {
+    pub fn get_launch_hints(&self) -> Vec<Bytes> {
+        let hint: Bytes = self.recipient.into();
+        let clawback_ph: Bytes = if let Some(clawback_ph) = self.clawback_ph {
             clawback_ph.into()
         } else {
             Bytes::new(vec![])
         };
-        let second_memo = u64_to_bytes(start_time);
-        let third_memo = u64_to_bytes(end_time);
+        let second_memo = u64_to_bytes(self.last_payment_time);
+        let third_memo = u64_to_bytes(self.end_time);
 
         vec![hint, clawback_ph, second_memo.into(), third_memo.into()]
     }
@@ -174,7 +169,7 @@ pub struct StreamedCat {
     pub asset_id: Bytes32,
     pub proof: LineageProof,
 
-    pub info: StreamingCoinInfo,
+    pub info: StreamingPuzzleInfo,
 }
 
 impl StreamedCat {
@@ -182,7 +177,7 @@ impl StreamedCat {
         coin: Coin,
         asset_id: Bytes32,
         proof: LineageProof,
-        info: StreamingCoinInfo,
+        info: StreamingPuzzleInfo,
     ) -> Self {
         Self {
             coin,
@@ -270,7 +265,7 @@ impl StreamedCat {
                 };
 
                 let memos = Vec::<Bytes>::from_clvm(allocator, memos.value)?;
-                let Some(candidate_info) = StreamingCoinInfo::from_memos(&memos)? else {
+                let Some(candidate_info) = StreamingPuzzleInfo::from_memos(&memos)? else {
                     continue;
                 };
                 let candidate_inner_puzzle_hash = candidate_info.inner_puzzle_hash();
@@ -330,7 +325,7 @@ impl StreamedCat {
                 layers.asset_id,
                 proof,
                 // last payment time should've been updated by the spend
-                StreamingCoinInfo::from_layer(layers.inner_puzzle)
+                StreamingPuzzleInfo::from_layer(layers.inner_puzzle)
                     .with_last_payment_time(parent_solution.inner_puzzle_solution.payment_time),
             )),
             false,
@@ -404,7 +399,7 @@ mod tests {
             initial_vesting_cat.coin,
             initial_vesting_cat.asset_id,
             initial_vesting_cat.lineage_proof.unwrap(),
-            StreamingCoinInfo::new(
+            StreamingPuzzleInfo::new(
                 user_puzzle_hash,
                 Some(clawback_ph.into()),
                 total_claim_time + 1000,

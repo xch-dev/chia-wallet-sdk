@@ -39,6 +39,7 @@ export declare class Puzzle {
   parseChildNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Nft | null
   parseDid(): ParsedDid | null
   parseChildDid(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program, coin: Coin): Did | null
+  parseInnerStreamingPuzzle(): StreamingPuzzleInfo | null
   parseChildStreamedCat(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): StreamedCatParsingResult
   constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
   get puzzleHash(): Uint8Array
@@ -194,19 +195,13 @@ export declare class ParsedDid {
   get p2Puzzle(): Puzzle
   set p2Puzzle(value: Puzzle)
 }
-export declare class StreamedCat {
-  amountToBePaid(paymentTime: bigint): bigint
+export declare class StreamingPuzzleInfo {
+  amountToBePaid(myCoinAmount: bigint, paymentTime: bigint): bigint
   static getHint(recipient: Uint8Array): Uint8Array
-  static getLaunchHints(recipient: Uint8Array, clawbackPh: Uint8Array | undefined | null, startTime: bigint, endTime: bigint): Array<Uint8Array>
-  constructor(coin: Coin, assetId: Uint8Array, proof: LineageProof, innerPuzzleHash: Uint8Array, recipient: Uint8Array, clawbackPh: Uint8Array | undefined | null, endTime: bigint, lastPaymentTime: bigint)
-  get coin(): Coin
-  set coin(value: Coin)
-  get assetId(): Uint8Array
-  set assetId(value: Uint8Array)
-  get proof(): LineageProof
-  set proof(value: LineageProof)
-  get innerPuzzleHash(): Uint8Array
-  set innerPuzzleHash(value: Uint8Array)
+  getLaunchHints(): Array<Uint8Array>
+  innerPuzzleHash(): Uint8Array
+  static fromMemos(memos: Array<Uint8Array>): StreamingPuzzleInfo | null
+  constructor(recipient: Uint8Array, clawbackPh: Uint8Array | undefined | null, endTime: bigint, lastPaymentTime: bigint)
   get recipient(): Uint8Array
   set recipient(value: Uint8Array)
   get clawbackPh(): Uint8Array | null
@@ -215,6 +210,17 @@ export declare class StreamedCat {
   set endTime(value: bigint)
   get lastPaymentTime(): bigint
   set lastPaymentTime(value: bigint)
+}
+export declare class StreamedCat {
+  constructor(coin: Coin, assetId: Uint8Array, proof: LineageProof, info: StreamingPuzzleInfo)
+  get coin(): Coin
+  set coin(value: Coin)
+  get assetId(): Uint8Array
+  set assetId(value: Uint8Array)
+  get proof(): LineageProof
+  set proof(value: LineageProof)
+  get info(): StreamingPuzzleInfo
+  set info(value: StreamingPuzzleInfo)
 }
 export declare class Output {
   constructor(value: Program, cost: bigint)
