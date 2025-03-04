@@ -9,6 +9,17 @@
       "args": "Option<Program>"
     },
     "methods": {
+      "parse_cat": {
+        "return": "Option<ParsedCat>"
+      },
+      "parse_child_cats": {
+        "args": {
+          "parent_coin": "Coin",
+          "parent_puzzle": "Program",
+          "parent_solution": "Program"
+        },
+        "return": "Option<Vec<Cat>>"
+      },
       "parse_nft": {
         "return": "Option<ParsedNft>"
       },
@@ -19,6 +30,18 @@
           "parent_solution": "Program"
         },
         "return": "Option<Nft>"
+      },
+      "parse_did": {
+        "return": "Option<ParsedDid>"
+      },
+      "parse_child_did": {
+        "args": {
+          "parent_coin": "Coin",
+          "parent_puzzle": "Program",
+          "parent_solution": "Program",
+          "coin": "Coin"
+        },
+        "return": "Option<Did>"
       },
       "parse_child_streamed_cat": {
         "args": {
@@ -57,6 +80,14 @@
       "spend": "Spend"
     }
   },
+  "ParsedCat": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "asset_id": "Bytes32",
+      "p2_puzzle": "Puzzle"
+    }
+  },
   "Nft": {
     "type": "class",
     "new": true,
@@ -84,7 +115,7 @@
     "new": true,
     "fields": {
       "info": "NftInfo",
-      "p2_puzzle": "Program"
+      "p2_puzzle": "Puzzle"
     }
   },
   "NftMetadata": {
@@ -127,6 +158,34 @@
     "fields": {
       "nfts": "Vec<Nft>",
       "parent_conditions": "Vec<Program>"
+    }
+  },
+  "Did": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "lineage_proof": "LineageProof",
+      "info": "DidInfo"
+    }
+  },
+  "DidInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "recovery_list_hash": "Option<Bytes32>",
+      "num_verifications_required": "u64",
+      "metadata": "Program",
+      "p2_puzzle_hash": "Bytes32"
+    }
+  },
+  "ParsedDid": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "info": "DidInfo",
+      "p2_puzzle": "Puzzle"
     }
   },
   "standard_puzzle_hash": {

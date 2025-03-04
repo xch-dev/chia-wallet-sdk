@@ -109,6 +109,12 @@
           "inner_spend": "Spend"
         }
       },
+      "spend_did": {
+        "args": {
+          "did": "Did",
+          "inner_spend": "Spend"
+        }
+      },
       "mint_vault": {
         "args": {
           "parent_coin_id": "Bytes32",
