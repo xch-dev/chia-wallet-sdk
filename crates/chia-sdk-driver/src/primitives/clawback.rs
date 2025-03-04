@@ -1,15 +1,30 @@
-use std::num::NonZeroU64;
-
-use chia_protocol::Bytes32;
+use crate::{puzzle, DriverError, Layer, P2OneOfManyLayer, Puzzle, Spend, SpendContext};
+use chia_protocol::{Bytes, Bytes32, Coin};
 use chia_sdk_types::{
-    AugmentedConditionArgs, AugmentedConditionSolution, Condition, MerkleTree, P2CurriedArgs,
-    P2CurriedSolution, P2OneOfManySolution, AUGMENTED_CONDITION_PUZZLE_HASH,
+    run_puzzle, AugmentedConditionArgs, AugmentedConditionSolution, Condition, MerkleTree,
+    P2CurriedArgs, P2CurriedSolution, P2OneOfManySolution, AUGMENTED_CONDITION_PUZZLE_HASH,
     P2_CURRIED_PUZZLE_HASH,
 };
+use chia_streamable_macro::streamable;
+use chia_traits::Streamable;
+use clvm_traits::FromClvm;
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
-use clvmr::NodePtr;
+use clvmr::{Allocator, NodePtr};
+use std::num::NonZeroU64;
 
-use crate::{DriverError, Layer, P2OneOfManyLayer, Spend, SpendContext};
+#[streamable]
+pub struct VersionedBlob {
+    version: u16,
+    blob: Bytes,
+}
+
+#[streamable]
+#[derive(Copy)]
+pub struct ClawbackMetadata {
+    timelock: u64,
+    sender_puzzle_hash: Bytes32,
+    recipient_puzzle_hash: Bytes32,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Clawback {
@@ -22,6 +37,54 @@ pub struct Clawback {
 }
 
 impl Clawback {
+    pub fn parse_children(
+        allocator: &mut Allocator,
+        parent_puzzle: Puzzle,
+        parent_solution: NodePtr,
+    ) -> Result<Option<Vec<Self>>, DriverError>
+    where
+        Self: Sized,
+    {
+        let output = run_puzzle(allocator, parent_puzzle.ptr(), parent_solution)?;
+        let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
+
+        let mut outputs = Vec::<Clawback>::new();
+        let mut metadatas = Vec::<ClawbackMetadata>::new();
+        let mut puzhashes = Vec::<[u8; 32]>::with_capacity(conditions.len());
+        for condition in conditions {
+            match condition {
+                Condition::CreateCoin(cc) => puzhashes.push(cc.puzzle_hash.into()),
+                Condition::Remark(rm) => match allocator.sexp(rm.rest) {
+                    clvmr::SExp::Atom => {}
+                    clvmr::SExp::Pair(first, _rest) => {
+                        metadatas.push(
+                            ClawbackMetadata::from_bytes_unchecked(
+                                VersionedBlob::from_bytes_unchecked(&allocator.atom(first))
+                                    .map_err(|_| DriverError::InvalidMemo)?
+                                    .blob
+                                    .as_ref(),
+                            )
+                            .map_err(|_| DriverError::InvalidMemo)?,
+                        );
+                    }
+                },
+                _ => {}
+            }
+            for metadata in &metadatas {
+                let clawback = Clawback {
+                    timelock: metadata.timelock.try_into()?,
+                    sender_puzzle_hash: metadata.sender_puzzle_hash,
+                    recipient_puzzle_hash: metadata.recipient_puzzle_hash,
+                };
+                if puzhashes.contains(&clawback.to_layer().tree_hash().to_bytes()) {
+                    outputs.push(clawback)
+                }
+            }
+        }
+
+        Ok(Some(outputs))
+    }
+
     pub fn claim_path_puzzle_hash(&self) -> TreeHash {
         CurriedProgram {
             program: AUGMENTED_CONDITION_PUZZLE_HASH,

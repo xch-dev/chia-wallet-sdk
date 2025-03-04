@@ -22,7 +22,7 @@ chip-0035 = ["chia-sdk-types/chip-0035"]
 experimental-vaults = ["chia-sdk-types/experimental-vaults"]
 offers = [
     "dep:bech32",
-    "dep:chia-traits",
+
     "dep:flate2",
     "dep:indexmap",
     "dep:once_cell",
@@ -45,10 +45,11 @@ num-bigint = { workspace = true }
 hex = { workspace = true }
 bigdecimal = { workspace = true }
 bech32 = { workspace = true, optional = true }
-chia-traits = { workspace = true, optional = true }
+chia-traits.workspace = true
 flate2 = { workspace = true, features = ["zlib-ng-compat"], optional = true }
 indexmap = { workspace = true, optional = true }
 once_cell = { workspace = true, optional = true }
+chia_streamable_macro = "0.21.0"
 
 [dev-dependencies]
 chia-sdk-test = { workspace = true }
