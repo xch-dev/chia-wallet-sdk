@@ -168,6 +168,24 @@ impl<T> IntoRust<Vec<Bytes32>, T, Wasm> for js_sys::Array {
     }
 }
 
+impl<T> IntoRust<Vec<Bytes>, T, Wasm> for js_sys::Array {
+    fn into_rust(self, context: &T) -> Result<Vec<Bytes>> {
+        let bytes_array: Vec<Vec<u8>> = self
+            .values()
+            .into_iter()
+            .map(|item| item.unwrap_throw().unchecked_ref::<Uint8Array>().to_vec())
+            .collect();
+
+        let mut res_bytes_array: Vec<Bytes> = Vec::with_capacity(bytes_array.len());
+
+        for bytes in bytes_array {
+            res_bytes_array.push(IntoRust::<Bytes, T, Wasm>::into_rust(bytes, context)?);
+        }
+
+        Ok(res_bytes_array)
+    }
+}
+
 impl<T> IntoRust<Vec<TreeHash>, T, Wasm> for js_sys::Array {
     fn into_rust(self, context: &T) -> Result<Vec<TreeHash>> {
         let bytes_array: Vec<Vec<u8>> = self
@@ -205,6 +223,18 @@ impl<T> FromRust<Vec<Bytes32>, T, Wasm> for js_sys::Array {
 
         for item in value {
             array.push(&<Vec<u8> as FromRust<Bytes32, T, Wasm>>::from_rust(item, _context)?.into());
+        }
+
+        Ok(array)
+    }
+}
+
+impl<T> FromRust<Vec<Bytes>, T, Wasm> for js_sys::Array {
+    fn from_rust(value: Vec<Bytes>, _context: &T) -> Result<Self> {
+        let array = js_sys::Array::new();
+
+        for item in value {
+            array.push(&<Vec<u8> as FromRust<Bytes, T, Wasm>>::from_rust(item, _context)?.into());
         }
 
         Ok(array)

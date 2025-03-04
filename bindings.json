@@ -25,6 +25,7 @@
     "TreeHash": "Vec<u8>",
     "SerializedProgram": "Vec<u8>",
     "Vec<Bytes32>": "js_sys::Array",
+    "Vec<Bytes>": "js_sys::Array",
     "Vec<TreeHash>": "js_sys::Array",
     "GetBlockRecordByHeightResponse": "GetBlockRecordResponse",
     "GetCoinRecordByNameResponse": "GetCoinRecordResponse"

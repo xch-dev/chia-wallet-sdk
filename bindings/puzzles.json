@@ -42,7 +42,27 @@
           "coin": "Coin"
         },
         "return": "Option<Did>"
+      },
+      "parse_inner_streaming_puzzle": {
+        "return": "Option<StreamingPuzzleInfo>"
+      },
+      "parse_child_streamed_cat": {
+        "args": {
+          "parent_coin": "Coin",
+          "parent_puzzle": "Program",
+          "parent_solution": "Program"
+        },
+        "return": "StreamedCatParsingResult"
       }
+    }
+  },
+  "StreamedCatParsingResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "streamed_cat": "Option<StreamedCat>",
+      "last_spend_was_clawback": "bool",
+      "last_payment_amount_if_clawback": "u64"
     }
   },
   "Cat": {
@@ -185,5 +205,54 @@
       "inner_puzzle_hash": "Bytes32"
     },
     "return": "Bytes32"
+  },
+  "StreamingPuzzleInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "recipient": "Bytes32",
+      "clawback_ph": "Option<Bytes32>",
+      "end_time": "u64",
+      "last_payment_time": "u64"
+    },
+    "methods": {
+      "amount_to_be_paid": {
+        "args": {
+          "my_coin_amount": "u64",
+          "payment_time": "u64"
+        },
+        "return": "u64"
+      },
+      "get_hint": {
+        "type": "static",
+        "args": {
+          "recipient": "Bytes32"
+        },
+        "return": "Bytes32"
+      },
+      "get_launch_hints": {
+        "return": "Vec<Bytes>"
+      },
+      "inner_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "from_memos": {
+        "type": "static",
+        "args": {
+          "memos": "Vec<Bytes>"
+        },
+        "return": "Option<StreamingPuzzleInfo>"
+      }
+    }
+  },
+  "StreamedCat": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "asset_id": "Bytes32",
+      "proof": "LineageProof",
+      "info": "StreamingPuzzleInfo"
+    }
   }
 }

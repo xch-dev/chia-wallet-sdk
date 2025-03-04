@@ -15,7 +15,8 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    CatSpend, Did, MintedNfts, MipsSpend, Nft, NftMetadata, NftMint, Program, Spend, VaultMint,
+    CatSpend, Did, MintedNfts, MipsSpend, Nft, NftMetadata, NftMint, Program, Spend, StreamedCat,
+    VaultMint,
 };
 
 #[derive(Default, Clone)]
@@ -168,6 +169,20 @@ impl Clvm {
             &mut ctx,
             chia_sdk_driver::Spend::new(inner_spend.puzzle.1, inner_spend.solution.1),
         )?;
+
+        Ok(())
+    }
+
+    pub fn spend_streamed_cat(
+        &self,
+        streamed_cat: StreamedCat,
+        payment_time: u64,
+        clawback: bool,
+    ) -> Result<()> {
+        let mut ctx = self.0.write().unwrap();
+        let streamed_cat: chia_sdk_driver::StreamedCat = streamed_cat.try_into()?;
+
+        streamed_cat.spend(&mut ctx, payment_time, clawback)?;
 
         Ok(())
     }

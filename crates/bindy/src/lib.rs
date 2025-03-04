@@ -105,6 +105,9 @@ pub enum Error {
     #[error("BigInt error: {0}")]
     BigInt(#[from] TryFromBigIntError<BigInt>),
 
+    #[error("No spends")]
+    NoSpends,
+
     #[error("{0}")]
     Custom(String),
 

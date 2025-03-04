@@ -4,7 +4,10 @@ use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver::{CatLayer, CurriedPuzzle, HashedPtr, Layer, RawPuzzle, SpendContext};
 
-use crate::{Cat, Did, DidInfo, Nft, NftInfo, ParsedCat, ParsedDid, ParsedNft, Program};
+use crate::{
+    Cat, Did, DidInfo, Nft, NftInfo, ParsedCat, ParsedDid, ParsedNft, Program, StreamedCat,
+    StreamingPuzzleInfo,
+};
 
 #[derive(Clone)]
 pub struct Puzzle {
@@ -160,6 +163,46 @@ impl Puzzle {
                 .into(),
         ))
     }
+
+    pub fn parse_inner_streaming_puzzle(&self) -> Result<Option<StreamingPuzzleInfo>> {
+        let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
+
+        let ctx = self.program.0.read().unwrap();
+
+        Ok(chia_sdk_driver::StreamingPuzzleInfo::parse(&ctx, puzzle)?.map(Into::into))
+    }
+
+    pub fn parse_child_streamed_cat(
+        &self,
+        parent_coin: Coin,
+        parent_puzzle: Program,
+        parent_solution: Program,
+    ) -> Result<StreamedCatParsingResult> {
+        let mut ctx = self.program.0.write().unwrap();
+
+        let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx, parent_puzzle.1);
+
+        let (Some(streamed_cat), clawback, last_payment_amount) =
+            chia_sdk_driver::StreamedCat::from_parent_spend(
+                &mut ctx,
+                parent_coin,
+                parent_puzzle,
+                parent_solution.1,
+            )?
+        else {
+            return Ok(StreamedCatParsingResult {
+                streamed_cat: None,
+                last_spend_was_clawback: false,
+                last_payment_amount_if_clawback: 0,
+            });
+        };
+
+        Ok(StreamedCatParsingResult {
+            streamed_cat: Some(streamed_cat.into()),
+            last_spend_was_clawback: clawback,
+            last_payment_amount_if_clawback: last_payment_amount,
+        })
+    }
 }
 
 impl From<Puzzle> for chia_sdk_driver::Puzzle {
@@ -178,4 +221,11 @@ impl From<Puzzle> for chia_sdk_driver::Puzzle {
             })
         }
     }
+}
+
+#[derive(Clone)]
+pub struct StreamedCatParsingResult {
+    pub streamed_cat: Option<StreamedCat>,
+    pub last_spend_was_clawback: bool,
+    pub last_payment_amount_if_clawback: u64,
 }
