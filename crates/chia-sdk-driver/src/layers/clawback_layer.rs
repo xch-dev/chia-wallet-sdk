@@ -1,12 +1,14 @@
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::Conditions;
 use clvm_traits::FromClvm;
-use clvmr::Allocator;
+use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, SpendContext};
+use crate::{DriverError, Layer, Puzzle, SpendContext};
+
+use super::{P2ConditionsOptionsLayer, P2ConditionsOptionsSolution};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct P2ClawbackLayer {
+pub struct ClawbackLayer {
     pub sender_puzzle_hash: Bytes32,
     pub receiver_puzzle_hash: Bytes32,
     pub seconds: u64,
@@ -14,7 +16,7 @@ pub struct P2ClawbackLayer {
     pub hinted: bool,
 }
 
-impl P2ClawbackLayer {
+impl ClawbackLayer {
     pub fn new(
         sender_puzzle_hash: Bytes32,
         receiver_puzzle_hash: Bytes32,
@@ -84,6 +86,58 @@ impl P2ClawbackLayer {
             }
             .conditions(ctx)?,
         ])
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ClawbackSolution {
+    Recover,
+    Force,
+    Finish,
+}
+
+impl Layer for ClawbackLayer {
+    type Solution = ClawbackSolution;
+
+    fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
+        let options = self.into_options(ctx)?;
+        P2ConditionsOptionsLayer::new(options).construct_puzzle(ctx)
+    }
+
+    fn construct_solution(
+        &self,
+        ctx: &mut SpendContext,
+        solution: Self::Solution,
+    ) -> Result<NodePtr, DriverError> {
+        P2ConditionsOptionsLayer::new(self.into_options(ctx)?).construct_solution(
+            ctx,
+            P2ConditionsOptionsSolution {
+                option: match solution {
+                    ClawbackSolution::Recover => 0,
+                    ClawbackSolution::Force => 1,
+                    ClawbackSolution::Finish => 2,
+                },
+            },
+        )
+    }
+
+    fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
+        let Some(layer) = P2ConditionsOptionsLayer::parse_puzzle(allocator, puzzle)? else {
+            return Ok(None);
+        };
+        Ok(Self::from_options(allocator, &layer.options))
+    }
+
+    fn parse_solution(
+        allocator: &Allocator,
+        solution: NodePtr,
+    ) -> Result<Self::Solution, DriverError> {
+        match P2ConditionsOptionsLayer::<NodePtr>::parse_solution(allocator, solution)?.option {
+            0 => Ok(ClawbackSolution::Recover),
+            1 => Ok(ClawbackSolution::Force),
+            2 => Ok(ClawbackSolution::Finish),
+            _ => Err(DriverError::NonStandardLayer),
+        }
     }
 }
 
