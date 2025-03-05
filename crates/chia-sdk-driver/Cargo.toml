@@ -20,6 +20,7 @@ workspace = true
 [features]
 chip-0035 = ["chia-sdk-types/chip-0035"]
 experimental-vaults = ["chia-sdk-types/experimental-vaults"]
+experimental-options = []
 offers = [
     "dep:bech32",
     "dep:chia-traits",

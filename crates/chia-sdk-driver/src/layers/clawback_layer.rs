@@ -14,7 +14,7 @@ pub struct ClawbackLayer {
     pub receiver_puzzle_hash: Bytes32,
     pub seconds: u64,
     pub amount: u64,
-    pub receiver_hinted: bool,
+    pub hinted: bool,
 }
 
 impl ClawbackLayer {
@@ -23,14 +23,14 @@ impl ClawbackLayer {
         receiver_puzzle_hash: Bytes32,
         seconds: u64,
         amount: u64,
-        receiver_hinted: bool,
+        hinted: bool,
     ) -> Self {
         Self {
             sender_puzzle_hash,
             receiver_puzzle_hash,
             seconds,
             amount,
-            receiver_hinted,
+            hinted,
         }
     }
 
@@ -39,7 +39,7 @@ impl ClawbackLayer {
         memos: NodePtr,
         receiver_puzzle_hash: Bytes32,
         amount: u64,
-        receiver_hinted: bool,
+        hinted: bool,
         expected_puzzle_hash: Bytes32,
     ) -> Option<Self> {
         let (sender_puzzle_hash, seconds) = <(Bytes32, u64)>::from_clvm(allocator, memos).ok()?;
@@ -49,7 +49,7 @@ impl ClawbackLayer {
             receiver_puzzle_hash,
             seconds,
             amount,
-            receiver_hinted,
+            hinted,
         };
 
         if clawback.tree_hash() != expected_puzzle_hash.into() {
@@ -76,7 +76,8 @@ impl ClawbackLayer {
             || recover.amount != force.amount
             || recover.amount != finish.amount
             || recover.seconds != finish.seconds
-            || force.receiver_hinted != finish.receiver_hinted
+            || recover.hinted != force.hinted
+            || recover.hinted != finish.hinted
             || force.receiver_puzzle_hash != finish.receiver_puzzle_hash
         {
             return None;
@@ -87,7 +88,7 @@ impl ClawbackLayer {
             receiver_puzzle_hash: force.receiver_puzzle_hash,
             seconds: recover.seconds,
             amount: recover.amount,
-            receiver_hinted: force.receiver_hinted,
+            hinted: force.hinted,
         })
     }
 
@@ -97,20 +98,21 @@ impl ClawbackLayer {
                 sender_puzzle_hash: self.sender_puzzle_hash,
                 amount: self.amount,
                 seconds: self.seconds,
+                hinted: self.hinted,
             }
             .conditions(),
             ForceOption {
                 sender_puzzle_hash: self.sender_puzzle_hash,
                 receiver_puzzle_hash: self.receiver_puzzle_hash,
                 amount: self.amount,
-                receiver_hinted: self.receiver_hinted,
+                hinted: self.hinted,
             }
             .conditions(),
             FinishOption {
                 receiver_puzzle_hash: self.receiver_puzzle_hash,
                 amount: self.amount,
                 seconds: self.seconds,
-                receiver_hinted: self.receiver_hinted,
+                hinted: self.hinted,
             }
             .conditions(),
         ]
@@ -206,13 +208,22 @@ struct RecoverOption {
     sender_puzzle_hash: Bytes32,
     amount: u64,
     seconds: u64,
+    hinted: bool,
 }
 
 impl RecoverOption {
     fn conditions(self) -> Conditions<Bytes32> {
         Conditions::default()
             .receive_message(23, vec![1].into(), vec![self.sender_puzzle_hash])
-            .create_coin(self.sender_puzzle_hash, self.amount, None)
+            .create_coin(
+                self.sender_puzzle_hash,
+                self.amount,
+                if self.hinted {
+                    Some(Memos::new(self.sender_puzzle_hash))
+                } else {
+                    None
+                },
+            )
             .assert_before_seconds_absolute(self.seconds)
     }
 
@@ -240,9 +251,17 @@ impl RecoverOption {
 
         let amount = create_coin.amount;
 
-        if create_coin.memos.is_some() {
-            return None;
-        }
+        let hinted = if let Some(memos) = create_coin.memos {
+            let [hint] = <[Bytes32; 1]>::from_clvm(allocator, memos.value).ok()?;
+
+            if hint != sender_puzzle_hash {
+                return None;
+            }
+
+            true
+        } else {
+            false
+        };
 
         let assert_before_seconds_absolute = conditions[2].as_assert_before_seconds_absolute()?;
 
@@ -252,6 +271,7 @@ impl RecoverOption {
             sender_puzzle_hash,
             amount,
             seconds,
+            hinted,
         })
     }
 }
@@ -262,7 +282,7 @@ struct ForceOption {
     sender_puzzle_hash: Bytes32,
     receiver_puzzle_hash: Bytes32,
     amount: u64,
-    receiver_hinted: bool,
+    hinted: bool,
 }
 
 impl ForceOption {
@@ -272,7 +292,7 @@ impl ForceOption {
             .create_coin(
                 self.receiver_puzzle_hash,
                 self.amount,
-                if self.receiver_hinted {
+                if self.hinted {
                     Some(Memos::new(self.receiver_puzzle_hash))
                 } else {
                     None
@@ -302,7 +322,7 @@ impl ForceOption {
 
         let amount = create_coin.amount;
 
-        let receiver_hinted = if let Some(memos) = create_coin.memos {
+        let hinted = if let Some(memos) = create_coin.memos {
             let [hint] = <[Bytes32; 1]>::from_clvm(allocator, memos.value).ok()?;
 
             if hint != receiver_puzzle_hash {
@@ -318,7 +338,7 @@ impl ForceOption {
             sender_puzzle_hash,
             receiver_puzzle_hash,
             amount,
-            receiver_hinted,
+            hinted,
         })
     }
 }
@@ -329,7 +349,7 @@ struct FinishOption {
     receiver_puzzle_hash: Bytes32,
     amount: u64,
     seconds: u64,
-    receiver_hinted: bool,
+    hinted: bool,
 }
 
 impl FinishOption {
@@ -338,7 +358,7 @@ impl FinishOption {
             .create_coin(
                 self.receiver_puzzle_hash,
                 self.amount,
-                if self.receiver_hinted {
+                if self.hinted {
                     Some(Memos::new(self.receiver_puzzle_hash))
                 } else {
                     None
@@ -357,7 +377,7 @@ impl FinishOption {
         let receiver_puzzle_hash = create_coin.puzzle_hash;
         let amount = create_coin.amount;
 
-        let receiver_hinted = if let Some(memos) = create_coin.memos {
+        let hinted = if let Some(memos) = create_coin.memos {
             let [hint] = <[Bytes32; 1]>::from_clvm(allocator, memos.value).ok()?;
 
             if hint != receiver_puzzle_hash {
@@ -377,7 +397,7 @@ impl FinishOption {
             receiver_puzzle_hash,
             amount,
             seconds,
-            receiver_hinted,
+            hinted,
         })
     }
 }
@@ -389,14 +409,21 @@ mod tests {
     use clvm_traits::clvm_list;
     use rstest::rstest;
 
-    use crate::StandardLayer;
+    use crate::{Cat, CatSpend, SpendWithConditions, StandardLayer};
 
     use super::*;
 
     #[rstest]
-    fn test_clawback_layer_recover(#[values(false, true)] hinted: bool) -> anyhow::Result<()> {
+    fn test_clawback_layer_recover_xch(
+        #[values(false, true)] hinted: bool,
+        #[values(false, true)] after_expiration: bool,
+    ) -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
+
+        if after_expiration {
+            sim.set_next_timestamp(100)?;
+        }
 
         let alice = sim.bls(1);
         let p2_alice = StandardLayer::new(alice.pk);
@@ -414,6 +441,8 @@ mod tests {
         )?;
         let clawback_coin = Coin::new(alice.coin.coin_id(), clawback_puzzle_hash, 1);
 
+        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+
         // Child authorizes parent
         let coin_spend =
             clawback.construct_coin_spend(&mut ctx, clawback_coin, ClawbackSolution::Recover)?;
@@ -425,7 +454,317 @@ mod tests {
             .with(clawback.recover_message(&mut ctx, clawback_coin.coin_id())?);
         p2_alice.spend(&mut ctx, intermediate_coin, recover_conditions)?;
 
+        assert_eq!(
+            sim.spend_coins(ctx.take(), &[alice.sk]).is_err(),
+            after_expiration
+        );
+
+        if !after_expiration {
+            assert!(sim
+                .coin_state(Coin::new(intermediate_coin.coin_id(), alice.puzzle_hash, 1).coin_id())
+                .is_some());
+        }
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_clawback_layer_force_xch(
+        #[values(false, true)] hinted: bool,
+        #[values(false, true)] after_expiration: bool,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        // This shouldn't affect the test results, but we'll test both cases anyways
+        if after_expiration {
+            sim.set_next_timestamp(100)?;
+        }
+
+        let alice = sim.bls(1);
+        let p2_alice = StandardLayer::new(alice.pk);
+
+        let bob = sim.bls(0);
+
+        let clawback = ClawbackLayer::new(alice.puzzle_hash, bob.puzzle_hash, 100, 1, hinted);
+        let clawback_puzzle_hash = clawback.tree_hash().into();
+        let memos = ctx.memos(&clvm_list!(bob.puzzle_hash, clawback.memo()))?;
+
+        p2_alice.spend(
+            &mut ctx,
+            alice.coin,
+            Conditions::new()
+                .create_coin(clawback_puzzle_hash, 1, Some(memos))
+                .create_coin(alice.puzzle_hash, 0, None),
+        )?;
+        let clawback_coin = Coin::new(alice.coin.coin_id(), clawback_puzzle_hash, 1);
+        let auth_coin = Coin::new(alice.coin.coin_id(), alice.puzzle_hash, 0);
+
+        let coin_spend =
+            clawback.construct_coin_spend(&mut ctx, clawback_coin, ClawbackSolution::Force)?;
+        ctx.insert(coin_spend);
+
+        let force_conditions =
+            Conditions::new().with(clawback.force_message(&mut ctx, clawback_coin.coin_id())?);
+        p2_alice.spend(&mut ctx, auth_coin, force_conditions)?;
+
         sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        assert!(sim
+            .coin_state(Coin::new(clawback_coin.coin_id(), bob.puzzle_hash, 1).coin_id())
+            .is_some());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_clawback_layer_finish_xch(
+        #[values(false, true)] hinted: bool,
+        #[values(false, true)] after_expiration: bool,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        if after_expiration {
+            sim.set_next_timestamp(100)?;
+        }
+
+        let alice = sim.bls(1);
+        let p2_alice = StandardLayer::new(alice.pk);
+
+        let bob = sim.bls(0);
+
+        let clawback = ClawbackLayer::new(alice.puzzle_hash, bob.puzzle_hash, 100, 1, hinted);
+        let clawback_puzzle_hash = clawback.tree_hash().into();
+        let memos = ctx.memos(&clvm_list!(bob.puzzle_hash, clawback.memo()))?;
+
+        p2_alice.spend(
+            &mut ctx,
+            alice.coin,
+            Conditions::new().create_coin(clawback_puzzle_hash, 1, Some(memos)),
+        )?;
+        let clawback_coin = Coin::new(alice.coin.coin_id(), clawback_puzzle_hash, 1);
+
+        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+
+        let coin_spend =
+            clawback.construct_coin_spend(&mut ctx, clawback_coin, ClawbackSolution::Finish)?;
+        ctx.insert(coin_spend);
+
+        assert_eq!(
+            sim.spend_coins(ctx.take(), &[alice.sk]).is_err(),
+            !after_expiration
+        );
+
+        if after_expiration {
+            assert!(sim
+                .coin_state(Coin::new(clawback_coin.coin_id(), bob.puzzle_hash, 1).coin_id())
+                .is_some());
+        }
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_clawback_layer_recover_cat(
+        #[values(false, true)] after_expiration: bool,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(1);
+        let p2_alice = StandardLayer::new(alice.pk);
+
+        let bob = sim.bls(0);
+
+        let memos = ctx.hint(alice.puzzle_hash)?;
+        let (issue_cat, eve_cat) = Cat::single_issuance_eve(
+            &mut ctx,
+            alice.coin.coin_id(),
+            1,
+            Conditions::new().create_coin(alice.puzzle_hash, 1, Some(memos)),
+        )?;
+        let cat = eve_cat.wrapped_child(alice.puzzle_hash, 1);
+        p2_alice.spend(
+            &mut ctx,
+            alice.coin,
+            issue_cat.create_coin(alice.puzzle_hash, 0, None),
+        )?;
+
+        let clawback = ClawbackLayer::new(alice.puzzle_hash, bob.puzzle_hash, 100, 1, true);
+        let clawback_puzzle_hash = clawback.tree_hash().into();
+        let memos = ctx.memos(&clvm_list!(bob.puzzle_hash, clawback.memo()))?;
+
+        let inner_spend = p2_alice.spend_with_conditions(
+            &mut ctx,
+            Conditions::new().create_coin(clawback_puzzle_hash, 1, Some(memos)),
+        )?;
+        Cat::spend_all(&mut ctx, &[CatSpend::new(cat, inner_spend)])?;
+
+        let clawback_cat = cat.wrapped_child(clawback_puzzle_hash, 1);
+        let auth_coin = Coin::new(alice.coin.coin_id(), alice.puzzle_hash, 0);
+
+        if after_expiration {
+            sim.set_next_timestamp(100)?;
+        }
+
+        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+
+        let clawback_spend = clawback.construct_spend(&mut ctx, ClawbackSolution::Recover)?;
+        Cat::spend_all(&mut ctx, &[CatSpend::new(clawback_cat, clawback_spend)])?;
+
+        let recover_conditions = Conditions::new()
+            .with(clawback.recover_message(&mut ctx, clawback_cat.coin.coin_id())?);
+        p2_alice.spend(&mut ctx, auth_coin, recover_conditions)?;
+
+        assert_eq!(
+            sim.spend_coins(ctx.take(), &[alice.sk]).is_err(),
+            after_expiration
+        );
+
+        if !after_expiration {
+            assert!(sim
+                .coin_state(
+                    clawback_cat
+                        .wrapped_child(alice.puzzle_hash, 1)
+                        .coin
+                        .coin_id()
+                )
+                .is_some());
+        }
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_clawback_layer_force_cat(
+        #[values(false, true)] after_expiration: bool,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        // This shouldn't affect the test results, but we'll test both cases anyways
+        if after_expiration {
+            sim.set_next_timestamp(100)?;
+        }
+
+        let alice = sim.bls(1);
+        let p2_alice = StandardLayer::new(alice.pk);
+
+        let bob = sim.bls(0);
+
+        let memos = ctx.hint(alice.puzzle_hash)?;
+        let (issue_cat, eve_cat) = Cat::single_issuance_eve(
+            &mut ctx,
+            alice.coin.coin_id(),
+            1,
+            Conditions::new().create_coin(alice.puzzle_hash, 1, Some(memos)),
+        )?;
+        let cat = eve_cat.wrapped_child(alice.puzzle_hash, 1);
+        p2_alice.spend(
+            &mut ctx,
+            alice.coin,
+            issue_cat.create_coin(alice.puzzle_hash, 0, None),
+        )?;
+
+        let clawback = ClawbackLayer::new(alice.puzzle_hash, bob.puzzle_hash, 100, 1, true);
+        let clawback_puzzle_hash = clawback.tree_hash().into();
+        let memos = ctx.memos(&clvm_list!(bob.puzzle_hash, clawback.memo()))?;
+
+        let inner_spend = p2_alice.spend_with_conditions(
+            &mut ctx,
+            Conditions::new().create_coin(clawback_puzzle_hash, 1, Some(memos)),
+        )?;
+        Cat::spend_all(&mut ctx, &[CatSpend::new(cat, inner_spend)])?;
+
+        let clawback_cat = cat.wrapped_child(clawback_puzzle_hash, 1);
+        let auth_coin = Coin::new(alice.coin.coin_id(), alice.puzzle_hash, 0);
+
+        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+
+        let clawback_spend = clawback.construct_spend(&mut ctx, ClawbackSolution::Force)?;
+        Cat::spend_all(&mut ctx, &[CatSpend::new(clawback_cat, clawback_spend)])?;
+
+        let force_conditions =
+            Conditions::new().with(clawback.force_message(&mut ctx, clawback_cat.coin.coin_id())?);
+        p2_alice.spend(&mut ctx, auth_coin, force_conditions)?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        assert!(sim
+            .coin_state(
+                clawback_cat
+                    .wrapped_child(bob.puzzle_hash, 1)
+                    .coin
+                    .coin_id()
+            )
+            .is_some());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_clawback_layer_finish_cat(
+        #[values(false, true)] after_expiration: bool,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(1);
+        let p2_alice = StandardLayer::new(alice.pk);
+
+        let bob = sim.bls(0);
+
+        let memos = ctx.hint(alice.puzzle_hash)?;
+        let (issue_cat, eve_cat) = Cat::single_issuance_eve(
+            &mut ctx,
+            alice.coin.coin_id(),
+            1,
+            Conditions::new().create_coin(alice.puzzle_hash, 1, Some(memos)),
+        )?;
+        let cat = eve_cat.wrapped_child(alice.puzzle_hash, 1);
+        p2_alice.spend(
+            &mut ctx,
+            alice.coin,
+            issue_cat.create_coin(alice.puzzle_hash, 0, None),
+        )?;
+
+        let clawback = ClawbackLayer::new(alice.puzzle_hash, bob.puzzle_hash, 100, 1, true);
+        let clawback_puzzle_hash = clawback.tree_hash().into();
+        let memos = ctx.memos(&clvm_list!(bob.puzzle_hash, clawback.memo()))?;
+
+        let inner_spend = p2_alice.spend_with_conditions(
+            &mut ctx,
+            Conditions::new().create_coin(clawback_puzzle_hash, 1, Some(memos)),
+        )?;
+        Cat::spend_all(&mut ctx, &[CatSpend::new(cat, inner_spend)])?;
+
+        let clawback_cat = cat.wrapped_child(clawback_puzzle_hash, 1);
+
+        if after_expiration {
+            sim.set_next_timestamp(100)?;
+        }
+
+        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+
+        let clawback_spend = clawback.construct_spend(&mut ctx, ClawbackSolution::Finish)?;
+        Cat::spend_all(&mut ctx, &[CatSpend::new(clawback_cat, clawback_spend)])?;
+
+        assert_eq!(
+            sim.spend_coins(ctx.take(), &[alice.sk]).is_err(),
+            !after_expiration
+        );
+
+        if after_expiration {
+            assert!(sim
+                .coin_state(
+                    clawback_cat
+                        .wrapped_child(bob.puzzle_hash, 1)
+                        .coin
+                        .coin_id()
+                )
+                .is_some());
+        }
 
         Ok(())
     }

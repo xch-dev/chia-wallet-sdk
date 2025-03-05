@@ -67,6 +67,7 @@ experimental-vaults = [
     "chia-sdk-driver/experimental-vaults",
     "chia-sdk-types/experimental-vaults",
 ]
+experimental-options = ["chia-sdk-driver/experimental-options"]
 offers = ["chia-sdk-driver/offers"]
 native-tls = ["chia-sdk-client/native-tls"]
 rustls = ["chia-sdk-client/rustls"]
