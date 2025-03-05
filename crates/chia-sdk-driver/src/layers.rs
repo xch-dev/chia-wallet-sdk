@@ -28,6 +28,18 @@ pub use singleton_layer::*;
 pub use standard_layer::*;
 pub use streaming_layer::*;
 
+#[cfg(feature = "experimental-options")]
+mod clawback_layer;
+
+#[cfg(feature = "experimental-options")]
+mod p2_condition_options_layer;
+
+#[cfg(feature = "experimental-options")]
+pub use clawback_layer::*;
+
+#[cfg(feature = "experimental-options")]
+pub use p2_condition_options_layer::*;
+
 #[cfg(feature = "chip-0035")]
 mod datalayer;
 
