@@ -72,7 +72,7 @@ impl ClawbackV2 {
         ])
     }
 
-    fn sender_path_hash(&self) -> Bytes32 {
+    pub fn sender_path_hash(&self) -> Bytes32 {
         WrapConditionArgs::<TreeHash, TreeHash>::new(
             AssertBeforeSecondsAbsolute::new(self.seconds).into(),
             self.sender_puzzle_hash.into(),
@@ -81,7 +81,7 @@ impl ClawbackV2 {
         .into()
     }
 
-    fn receiver_path_hash(&self) -> Bytes32 {
+    pub fn receiver_path_hash(&self) -> Bytes32 {
         WrapConditionArgs::<TreeHash, TreeHash>::new(
             AssertSecondsAbsolute::new(self.seconds).into(),
             self.receiver_puzzle_hash.into(),
@@ -90,7 +90,7 @@ impl ClawbackV2 {
         .into()
     }
 
-    fn push_through_path_hash(&self) -> Bytes32 {
+    pub fn push_through_path_hash(&self) -> Bytes32 {
         clvm_quote!(clvm_list!(
             AssertSecondsAbsolute::new(self.seconds),
             CreateCoin::new(
