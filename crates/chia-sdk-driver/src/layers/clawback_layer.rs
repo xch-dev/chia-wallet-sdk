@@ -425,6 +425,8 @@ mod tests {
             .with(clawback.recover_message(&mut ctx, clawback_coin.coin_id())?);
         p2_alice.spend(&mut ctx, intermediate_coin, recover_conditions)?;
 
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
         Ok(())
     }
 }
