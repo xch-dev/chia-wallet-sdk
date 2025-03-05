@@ -134,8 +134,7 @@ impl Clawback {
 
     // this function returns the Remark condition required to hint at this clawback
     // it should be included alongside the createcoin that creates this
-    pub fn get_remark_condition(&self) -> Result<Condition, DriverError> {
-        let mut allocator = Allocator::new();
+    pub fn get_remark_condition(&self, allocator: &mut Allocator) -> Result<Condition, DriverError> {
         let first = allocator.new_small_number(2)?; // magic number for clawback bytes dump
         let cbm = ClawbackMetadata {
             timelock: self.timelock.into(),
@@ -220,11 +219,12 @@ mod tests {
         };
         let clawback_puzzle_hash = clawback.to_layer().tree_hash().into();
         let coin = alice.coin;
+        let mut allocator = Allocator::new();
         let conditions = Conditions::new().create_coin(clawback_puzzle_hash, 1, None);
-        let conditions = conditions.with(clawback.get_remark_condition()?);
+        let conditions = conditions.with(clawback.get_remark_condition(&mut allocator)?);
         println!("DEBUG 0 -  CONDITION INTENTIONS: {:?}", conditions);
         alice_p2.spend(ctx, coin, conditions)?;
-        let mut allocator = Allocator::new();
+        
         let cs = ctx.take();
 
         let clawback_coin = Coin::new(coin.coin_id(), clawback_puzzle_hash, 1);
