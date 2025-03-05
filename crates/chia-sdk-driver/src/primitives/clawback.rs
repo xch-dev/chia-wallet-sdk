@@ -136,7 +136,10 @@ impl Clawback {
 
     // this function returns the Remark condition required to hint at this clawback
     // it should be included alongside the createcoin that creates this
-    pub fn get_remark_condition(&self, allocator: &mut Allocator) -> Result<Condition, DriverError> {
+    pub fn get_remark_condition(
+        &self,
+        allocator: &mut Allocator,
+    ) -> Result<Condition, DriverError> {
         let first = allocator.new_small_number(2)?; // magic number for clawback bytes dump
         let cbm = ClawbackMetadata {
             timelock: self.timelock.into(),
@@ -221,12 +224,11 @@ mod tests {
         };
         let clawback_puzzle_hash = clawback.to_layer().tree_hash().into();
         let coin = alice.coin;
-        let mut allocator = Allocator::new();
         let conditions = Conditions::new().create_coin(clawback_puzzle_hash, 1, None);
-        let conditions = conditions.with(clawback.get_remark_condition(&mut allocator)?);
+        let conditions = conditions.with(clawback.get_remark_condition(ctx)?);
         println!("DEBUG 0 -  CONDITION INTENTIONS: {:?}", conditions);
         alice_p2.spend(ctx, coin, conditions)?;
-        
+
         let cs = ctx.take();
 
         let clawback_coin = Coin::new(coin.coin_id(), clawback_puzzle_hash, 1);
@@ -236,17 +238,17 @@ mod tests {
         let puzzle_reveal = sim
             .puzzle_reveal(coin.coin_id())
             .expect("missing puzzle")
-            .to_clvm(&mut allocator)?;
+            .to_clvm(ctx)?;
 
         let solution = sim
             .solution(coin.coin_id())
             .expect("missing solution")
-            .to_clvm(&mut allocator)?;
+            .to_clvm(ctx)?;
 
-        let puzzle = Puzzle::parse(&allocator, puzzle_reveal);
+        let puzzle = Puzzle::parse(ctx, puzzle_reveal);
 
         // check we can recreate Clawback from the spend
-        let children = Clawback::parse_children(&mut allocator, puzzle, solution)
+        let children = Clawback::parse_children(ctx, puzzle, solution)
             .expect("we should have found the child")
             .expect("we should have found children");
         assert_eq!(children.len(), 1);
