@@ -50,7 +50,6 @@ impl Clawback {
     {
         let output = run_puzzle(allocator, parent_puzzle.ptr(), parent_solution)?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
-        println!("DEBUG 1 - conditions: {:?}", conditions);
         let mut outputs = Vec::<Clawback>::new();
         let mut metadatas = Vec::<ClawbackMetadata>::new();
         let mut puzhashes = Vec::<[u8; 32]>::with_capacity(conditions.len());
@@ -59,33 +58,53 @@ impl Clawback {
                 Condition::CreateCoin(cc) => puzhashes.push(cc.puzzle_hash.into()),
                 Condition::Remark(rm) => match allocator.sexp(rm.rest) {
                     clvmr::SExp::Atom => {}
-                    clvmr::SExp::Pair(first, _rest) => {
-                        metadatas.push(
-                            ClawbackMetadata::from_bytes_unchecked(
-                                VersionedBlob::from_bytes_unchecked(&allocator.atom(first))
-                                    .map_err(|_| DriverError::InvalidMemo)?
-                                    .blob
-                                    .as_ref(),
-                            )
-                            .map_err(|_| DriverError::InvalidMemo)?,
-                        );
-                        println!("DEBUG 2 - metadatas: {:?}", metadatas);
+                    clvmr::SExp::Pair(first, rest) => {
+                        match allocator.sexp(first) {
+                            clvmr::SExp::Atom => {
+                                let Some(atom) = allocator.small_number(first) else {
+                                    continue;
+                                };
+                                if atom != 2 {
+                                    continue;
+                                } // magic number for Clawback in REMARK
+                            }
+                            clvmr::SExp::Pair(_, _) => continue,
+                        }
+                        // we have seen the magic number
+                        // try to deserialise blob
+                        match allocator.sexp(rest) {
+                            clvmr::SExp::Atom => continue,
+                            clvmr::SExp::Pair(r_first, _r_rest) => match allocator.sexp(r_first) {
+                                clvmr::SExp::Atom => {
+                                    let rest_atom = &allocator.atom(r_first);
+                                    metadatas.push(
+                                        ClawbackMetadata::from_bytes_unchecked(
+                                            VersionedBlob::from_bytes_unchecked(rest_atom)
+                                                .map_err(|_| DriverError::InvalidMemo)?
+                                                .blob
+                                                .as_ref(),
+                                        )
+                                        .map_err(|_| DriverError::InvalidMemo)?,
+                                    );
+                                }
+                                clvmr::SExp::Pair(_, _) => continue,
+                            },
+                        }
                     }
                 },
                 _ => {}
             }
-            for metadata in &metadatas {
-                let clawback = Clawback {
-                    timelock: metadata.timelock.try_into()?,
-                    sender_puzzle_hash: metadata.sender_puzzle_hash,
-                    recipient_puzzle_hash: metadata.recipient_puzzle_hash,
-                };
-                if puzhashes.contains(&clawback.to_layer().tree_hash().to_bytes()) {
-                    outputs.push(clawback)
-                }
+        }
+        for metadata in &metadatas {
+            let clawback = Clawback {
+                timelock: metadata.timelock.try_into()?,
+                sender_puzzle_hash: metadata.sender_puzzle_hash,
+                recipient_puzzle_hash: metadata.recipient_puzzle_hash,
+            };
+            if puzhashes.contains(&clawback.to_layer().tree_hash().to_bytes()) {
+                outputs.push(clawback)
             }
         }
-        println!("DEBUG 3 - outputs: {:?}", outputs);
         Ok(Some(outputs))
     }
 
