@@ -102,7 +102,7 @@ impl Clawback {
                 recipient_puzzle_hash: metadata.recipient_puzzle_hash,
             };
             if puzhashes.contains(&clawback.to_layer().tree_hash().to_bytes()) {
-                outputs.push(clawback)
+                outputs.push(clawback);
             }
         }
         Ok(Some(outputs))
@@ -177,7 +177,7 @@ impl Clawback {
         let rest = allocator.new_pair(bytes, allocator.nil())?;
         let node_ptr = allocator.new_pair(first, rest)?;
 
-        return Ok(Condition::remark(node_ptr));
+        Ok(Condition::remark(node_ptr))
     }
 
     pub fn claim_spend(&self, ctx: &mut SpendContext, spend: Spend) -> Result<Spend, DriverError> {
