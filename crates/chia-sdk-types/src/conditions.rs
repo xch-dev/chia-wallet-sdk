@@ -1,3 +1,5 @@
+use std::ops::Index;
+
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
 
@@ -50,6 +52,14 @@ impl<T> Conditions<T> {
     {
         self.conditions.extend_from_slice(conditions);
         self
+    }
+}
+
+impl<T> Index<usize> for Conditions<T> {
+    type Output = Condition<T>;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.conditions[index]
     }
 }
 
