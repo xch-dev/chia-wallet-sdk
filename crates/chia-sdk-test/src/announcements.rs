@@ -1,7 +1,10 @@
 use chia_protocol::{Bytes, Bytes32, CoinSpend};
 use chia_sdk_types::{
-    announcement_id, AssertCoinAnnouncement, AssertPuzzleAnnouncement, CreateCoinAnnouncement,
-    CreatePuzzleAnnouncement,
+    announcement_id,
+    conditions::{
+        AssertCoinAnnouncement, AssertPuzzleAnnouncement, CreateCoinAnnouncement,
+        CreatePuzzleAnnouncement,
+    },
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{reduction::Reduction, run_program, Allocator, ChiaDialect, NodePtr};

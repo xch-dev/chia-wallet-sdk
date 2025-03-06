@@ -1,7 +1,7 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_types::{
-    AssertBeforeSecondsAbsolute, AssertSecondsAbsolute, AugmentedConditionArgs,
-    AugmentedConditionSolution, Conditions, CreateCoin, Memos, MerkleTree, Mod,
+    conditions::{AssertBeforeSecondsAbsolute, AssertSecondsAbsolute, CreateCoin},
+    AugmentedConditionArgs, AugmentedConditionSolution, Conditions, Memos, MerkleTree, Mod,
     P2OneOfManySolution,
 };
 use clvm_traits::{clvm_list, clvm_quote, match_list, FromClvm};

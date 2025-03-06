@@ -17,6 +17,8 @@ workspace = true
 
 [lib]
 crate-type = ["cdylib"]
+doc = false
+test = false
 
 [dependencies]
 napi = { workspace = true, features = ["napi6", "async"] }

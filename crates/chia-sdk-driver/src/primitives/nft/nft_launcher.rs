@@ -1,6 +1,6 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{EveProof, Proof};
-use chia_sdk_types::{Conditions, TransferNft};
+use chia_sdk_types::{conditions::TransferNft, Conditions};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};

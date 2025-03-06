@@ -1,6 +1,6 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::offer::{NotarizedPayment, Payment, SettlementPaymentsSolution};
-use chia_sdk_types::{announcement_id, AssertPuzzleAnnouncement};
+use chia_sdk_types::{announcement_id, conditions::AssertPuzzleAnnouncement};
 use clvm_traits::ToClvm;
 use clvm_utils::tree_hash;
 use clvmr::Allocator;

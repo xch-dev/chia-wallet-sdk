@@ -192,7 +192,8 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
     } = parse_macro_input!(input as Conditions);
 
     let mut variants = Vec::new();
-    let mut structs = Vec::new();
+    let mut conditions = Vec::new();
+    let mut impls = Vec::new();
     let mut main_impls = Vec::new();
 
     for Condition {
@@ -223,7 +224,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
         };
 
         variants.push(quote! {
-            #condition(#condition #generics_remapped),
+            #condition(conditions::#condition #generics_remapped),
         });
 
         let additional_derives = additional_derives.map(|AdditionalDerives { derives }| {
@@ -295,7 +296,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
         let new_parameters = parameters_original.clone();
         let new_names = names.clone();
 
-        structs.push(quote! {
+        conditions.push(quote! {
             #[derive(::clvm_traits::ToClvm, ::clvm_traits::FromClvm)]
             #[::clvm_traits::apply_constants]
             #[derive(Debug, Clone, PartialEq, Eq)]
@@ -330,12 +331,12 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
 
         main_impls.push(quote! {
             pub fn #snake_case( #( #condition_parameters, )* ) -> Self {
-                Self::#condition( #condition #generics_remapped_turbofish { #( #condition_names, )* } )
+                Self::#condition( conditions::#condition #generics_remapped_turbofish { #( #condition_names, )* } )
             }
         });
 
         main_impls.push(quote! {
-            pub fn #into_name(self) -> Option<#condition #generics_remapped> {
+            pub fn #into_name(self) -> Option<conditions::#condition #generics_remapped> {
                 if let Self::#condition(inner) = self {
                     Some(inner)
                 } else {
@@ -345,7 +346,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
         });
 
         main_impls.push(quote! {
-            pub fn #as_name(&self) -> Option<&#condition #generics_remapped> {
+            pub fn #as_name(&self) -> Option<&conditions::#condition #generics_remapped> {
                 if let Self::#condition(inner) = self {
                     Some(inner)
                 } else {
@@ -362,15 +363,15 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
 
         let condition_names = names.clone();
 
-        structs.push(quote! {
+        impls.push(quote! {
             impl<#enum_generic> crate::Conditions<#enum_generic> {
                 pub fn #snake_case(self, #( #parameters_remapped, )* ) -> Self {
-                    self.with( #condition #generics_remapped_turbofish { #( #condition_names, )* } )
+                    self.with( conditions::#condition #generics_remapped_turbofish { #( #condition_names, )* } )
                 }
             }
 
-            impl<#enum_generic> From<#condition #generics_remapped> for Condition<#enum_generic> {
-                fn from(inner: #condition #generics_remapped) -> Self {
+            impl<#enum_generic> From<conditions::#condition #generics_remapped> for Condition<#enum_generic> {
+                fn from(inner: conditions::#condition #generics_remapped) -> Self {
                     Self::#condition(inner)
                 }
             }
@@ -390,7 +391,13 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
             #( #main_impls )*
         }
 
-        #( #structs )*
+        pub mod conditions {
+            pub use super::*;
+
+            #( #conditions )*
+        }
+
+        #( #impls )*
     }
     .into()
 }

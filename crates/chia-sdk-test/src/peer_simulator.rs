@@ -2,9 +2,7 @@ use std::{net::SocketAddr, sync::Arc};
 
 use chia_protocol::{Bytes32, Coin, CoinState, Message};
 use chia_sdk_client::{Peer, PeerOptions};
-use error::PeerSimulatorError;
 use peer_map::PeerMap;
-use simulator_config::SimulatorConfig;
 use subscriptions::Subscriptions;
 use tokio::{
     net::TcpListener,
@@ -21,6 +19,9 @@ mod peer_map;
 mod simulator_config;
 mod subscriptions;
 mod ws_connection;
+
+pub use error::*;
+pub use simulator_config::*;
 
 #[derive(Debug)]
 pub struct PeerSimulator {
@@ -166,7 +167,10 @@ mod tests {
         Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, ProtocolMessageTypes,
         RespondCoinState, RespondPuzzleState, SpendBundle, TransactionAck,
     };
-    use chia_sdk_types::{AggSigMe, CreateCoin, Memos, Remark};
+    use chia_sdk_types::{
+        conditions::{AggSigMe, CreateCoin, Remark},
+        Memos,
+    };
     use chia_traits::Streamable;
     use clvmr::NodePtr;
 
