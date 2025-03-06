@@ -44,7 +44,8 @@ impl ClawbackV2 {
         hinted: bool,
         expected_puzzle_hash: Bytes32,
     ) -> Option<Self> {
-        let (sender_puzzle_hash, seconds) = <(Bytes32, u64)>::from_clvm(allocator, memos).ok()?;
+        let (sender_puzzle_hash, (seconds, ())) =
+            <(Bytes32, (u64, ()))>::from_clvm(allocator, memos).ok()?;
 
         let clawback = Self {
             sender_puzzle_hash,
@@ -61,8 +62,8 @@ impl ClawbackV2 {
         Some(clawback)
     }
 
-    pub fn memo(&self) -> (Bytes32, u64) {
-        (self.sender_puzzle_hash, self.seconds)
+    pub fn memo(&self) -> (Bytes32, (u64, ())) {
+        (self.sender_puzzle_hash, (self.seconds, ()))
     }
 
     pub fn merkle_tree(&self) -> MerkleTree {
