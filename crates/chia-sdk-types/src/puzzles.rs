@@ -4,7 +4,6 @@ mod p2_delegated_conditions;
 mod p2_one_of_many;
 mod p2_singleton;
 mod revocation;
-mod wrap_condition;
 
 pub use augmented_condition::*;
 pub use p2_curried::*;
@@ -12,7 +11,6 @@ pub use p2_delegated_conditions::*;
 pub use p2_one_of_many::*;
 pub use p2_singleton::*;
 pub use revocation::*;
-pub use wrap_condition::*;
 
 #[cfg(feature = "chip-0035")]
 mod datalayer;

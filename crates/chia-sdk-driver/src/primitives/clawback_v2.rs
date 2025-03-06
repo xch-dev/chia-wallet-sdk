@@ -1,7 +1,8 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_types::{
-    AssertBeforeSecondsAbsolute, AssertSecondsAbsolute, Conditions, CreateCoin, Memos, MerkleTree,
-    Mod, P2OneOfManySolution, WrapConditionArgs,
+    AssertBeforeSecondsAbsolute, AssertSecondsAbsolute, AugmentedConditionArgs,
+    AugmentedConditionSolution, Conditions, CreateCoin, Memos, MerkleTree, Mod,
+    P2OneOfManySolution,
 };
 use clvm_traits::{clvm_list, clvm_quote, match_list, FromClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
@@ -73,7 +74,7 @@ impl ClawbackV2 {
     }
 
     pub fn sender_path_hash(&self) -> Bytes32 {
-        WrapConditionArgs::<TreeHash, TreeHash>::new(
+        AugmentedConditionArgs::<TreeHash, TreeHash>::new(
             AssertBeforeSecondsAbsolute::new(self.seconds).into(),
             self.sender_puzzle_hash.into(),
         )
@@ -82,7 +83,7 @@ impl ClawbackV2 {
     }
 
     pub fn receiver_path_hash(&self) -> Bytes32 {
-        WrapConditionArgs::<TreeHash, TreeHash>::new(
+        AugmentedConditionArgs::<TreeHash, TreeHash>::new(
             AssertSecondsAbsolute::new(self.seconds).into(),
             self.receiver_puzzle_hash.into(),
         )
@@ -123,14 +124,16 @@ impl ClawbackV2 {
             .proof(puzzle_hash)
             .ok_or(DriverError::InvalidMerkleProof)?;
 
-        let puzzle = ctx.curry(WrapConditionArgs::<NodePtr, NodePtr>::new(
+        let puzzle = ctx.curry(AugmentedConditionArgs::<NodePtr, NodePtr>::new(
             AssertBeforeSecondsAbsolute::new(self.seconds).into(),
             spend.puzzle,
         ))?;
 
+        let solution = ctx.alloc(&AugmentedConditionSolution::new(spend.solution))?;
+
         P2OneOfManyLayer::new(merkle_tree.root()).construct_spend(
             ctx,
-            P2OneOfManySolution::new(merkle_proof, puzzle, spend.solution),
+            P2OneOfManySolution::new(merkle_proof, puzzle, solution),
         )
     }
 
@@ -146,14 +149,16 @@ impl ClawbackV2 {
             .proof(puzzle_hash)
             .ok_or(DriverError::InvalidMerkleProof)?;
 
-        let puzzle = ctx.curry(WrapConditionArgs::<NodePtr, NodePtr>::new(
+        let puzzle = ctx.curry(AugmentedConditionArgs::<NodePtr, NodePtr>::new(
             AssertSecondsAbsolute::new(self.seconds).into(),
             spend.puzzle,
         ))?;
 
+        let solution = ctx.alloc(&AugmentedConditionSolution::new(spend.solution))?;
+
         P2OneOfManyLayer::new(merkle_tree.root()).construct_spend(
             ctx,
-            P2OneOfManySolution::new(merkle_proof, puzzle, spend.solution),
+            P2OneOfManySolution::new(merkle_proof, puzzle, solution),
         )
     }
 
