@@ -194,7 +194,8 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
     let mut variants = Vec::new();
     let mut conditions = Vec::new();
     let mut impls = Vec::new();
-    let mut main_impls = Vec::new();
+    let mut condition_impls = Vec::new();
+    let mut condition_list_impls = Vec::new();
 
     for Condition {
         name: condition,
@@ -329,13 +330,13 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
             .clone()
             .map(|generics| quote!( ::#generics ));
 
-        main_impls.push(quote! {
+        condition_impls.push(quote! {
             pub fn #snake_case( #( #condition_parameters, )* ) -> Self {
                 Self::#condition( conditions::#condition #generics_remapped_turbofish { #( #condition_names, )* } )
             }
         });
 
-        main_impls.push(quote! {
+        condition_impls.push(quote! {
             pub fn #into_name(self) -> Option<conditions::#condition #generics_remapped> {
                 if let Self::#condition(inner) = self {
                     Some(inner)
@@ -345,7 +346,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
             }
         });
 
-        main_impls.push(quote! {
+        condition_impls.push(quote! {
             pub fn #as_name(&self) -> Option<&conditions::#condition #generics_remapped> {
                 if let Self::#condition(inner) = self {
                     Some(inner)
@@ -355,7 +356,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
             }
         });
 
-        main_impls.push(quote! {
+        condition_impls.push(quote! {
             pub fn #is_name(&self) -> bool {
                 matches!(self, Self::#condition(..))
             }
@@ -363,13 +364,13 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
 
         let condition_names = names.clone();
 
-        impls.push(quote! {
-            impl<#enum_generic> crate::Conditions<#enum_generic> {
-                pub fn #snake_case(self, #( #parameters_remapped, )* ) -> Self {
-                    self.with( conditions::#condition #generics_remapped_turbofish { #( #condition_names, )* } )
-                }
+        condition_list_impls.push(quote! {
+            pub fn #snake_case(self, #( #parameters_remapped, )* ) -> Self {
+                self.with( conditions::#condition #generics_remapped_turbofish { #( #condition_names, )* } )
             }
+        });
 
+        impls.push(quote! {
             impl<#enum_generic> From<conditions::#condition #generics_remapped> for Condition<#enum_generic> {
                 fn from(inner: conditions::#condition #generics_remapped) -> Self {
                     Self::#condition(inner)
@@ -388,7 +389,11 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
         }
 
         impl<#enum_generic> #name<#enum_generic> {
-            #( #main_impls )*
+            #( #condition_impls )*
+        }
+
+        impl<#enum_generic> crate::Conditions<#enum_generic> {
+            #( #condition_list_impls )*
         }
 
         pub mod conditions {
