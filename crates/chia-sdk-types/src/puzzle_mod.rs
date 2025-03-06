@@ -21,10 +21,33 @@ use chia_puzzles::{
 use clvm_traits::ToClvm;
 use clvm_utils::{CurriedProgram, TreeHash, TreeHasher};
 
+/// This trait makes it possible to get the mod hash or puzzle reveal of a puzzle.
+///
+/// There is also a utility for calculating the curried tree hash, provided the type
+/// implements [`ToTreeHash`](clvm_utils::ToTreeHash). This is much more efficient than
+/// manually allocating and hashing the puzzle and its arguments.
+///
+/// This trait should be be implemented for types that represent the curried arguments of puzzles.
+/// However, if a puzzle can't be curried (ie it has no arguments), this trait  can still be
+/// implemented on a marker struct that doesn't implement [`ToTreeHash`](clvm_utils::ToTreeHash).
+/// This will disable the [`curry_tree_hash`](Mod::curry_tree_hash) method.
+///
+/// ## Usage Example
+///
+/// We can specify the arguments of a puzzle to get its curried puzzle hash.
+///
+/// ```rust
+/// # use chia_bls::PublicKey;
+/// # use chia_puzzle_types::standard::StandardArgs;
+/// # use chia_sdk_types::Mod;
+/// let args = StandardArgs::new(PublicKey::default());
+/// let puzzle_hash = args.curry_tree_hash();
+/// ```
 pub trait Mod {
     const MOD_REVEAL: &[u8];
     const MOD_HASH: TreeHash;
 
+    /// Curry the arguments into the [`MOD_HASH`](Mod::MOD_HASH).
     fn curry_tree_hash(&self) -> TreeHash
     where
         Self: Sized + ToClvm<TreeHasher>,
