@@ -31,3 +31,9 @@ pub use vault::*;
 
 #[cfg(feature = "experimental-vaults")]
 pub use mips::*;
+
+#[cfg(feature = "experimental-clawbacks")]
+mod clawback_v2;
+
+#[cfg(feature = "experimental-clawbacks")]
+pub use clawback_v2::*;
