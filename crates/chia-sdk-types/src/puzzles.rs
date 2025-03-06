@@ -1,4 +1,5 @@
 mod augmented_condition;
+mod mods;
 mod p2_curried;
 mod p2_delegated_conditions;
 mod p2_one_of_many;
@@ -6,6 +7,7 @@ mod p2_singleton;
 mod revocation;
 
 pub use augmented_condition::*;
+pub use mods::*;
 pub use p2_curried::*;
 pub use p2_delegated_conditions::*;
 pub use p2_one_of_many::*;

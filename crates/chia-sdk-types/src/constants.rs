@@ -12,6 +12,9 @@ const TESTNET11_GENESIS_CHALLENGE: Bytes32 = Bytes32::new(hex!(
     "37a90eb5185a9c4439a91ddc98bbadce7b4feba060d50116a067de66bf236615"
 ));
 
+/// Used to compute the default constants used by Chia's mainnet network, with a custom
+/// [`genesis_challenge`](ConsensusConstants::genesis_challenge) and
+/// [`agg_sig_me_additional_data`](ConsensusConstants::agg_sig_me_additional_data).
 pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> ConsensusConstants {
     ConsensusConstants {
         slot_blocks_target: 32,
@@ -67,9 +70,13 @@ pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> Con
     }
 }
 
+/// The consensus constants used on Chia's mainnet network. Mainnet should be used for
+/// production applications.
 pub static MAINNET_CONSTANTS: Lazy<ConsensusConstants> =
     Lazy::new(|| default_constants(MAINNET_GENESIS_CHALLENGE, MAINNET_GENESIS_CHALLENGE));
 
+/// The consensus constants used on Chia's testnet11 network. Testnet11 should be used for
+/// development applications.
 pub static TESTNET11_CONSTANTS: Lazy<ConsensusConstants> = Lazy::new(|| ConsensusConstants {
     sub_slot_iters_starting: 2u64.pow(26),
     difficulty_constant_factor: 10_052_721_566_054,

@@ -1,8 +1,8 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_types::{
-    AssertBeforeSecondsAbsolute, AssertSecondsAbsolute, AugmentedConditionArgs,
-    AugmentedConditionSolution, Conditions, CreateCoin, Memos, MerkleTree, Mod,
-    P2OneOfManySolution,
+    conditions::{AssertBeforeSecondsAbsolute, AssertSecondsAbsolute, CreateCoin, Memos},
+    puzzles::{AugmentedConditionArgs, AugmentedConditionSolution, P2OneOfManySolution},
+    Conditions, MerkleTree, Mod,
 };
 use clvm_traits::{clvm_list, clvm_quote, match_list, FromClvm};
 use clvm_utils::{ToTreeHash, TreeHash};

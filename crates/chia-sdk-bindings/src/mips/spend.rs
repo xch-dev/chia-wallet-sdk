@@ -5,13 +5,17 @@ use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_driver::{self as sdk, member_puzzle_hash, MemberSpend, MofN, SpendContext};
 use chia_sdk_types::{
-    BlsMember, FixedPuzzleMember, Force1of2RestrictedVariable, Force1of2RestrictedVariableSolution,
-    Mod, PasskeyMember, PasskeyMemberPuzzleAssert, PasskeyMemberPuzzleAssertSolution,
-    PasskeyMemberSolution, PreventConditionOpcode, PreventMultipleCreateCoinsMod, Secp256k1Member,
-    Secp256k1MemberPuzzleAssert, Secp256k1MemberPuzzleAssertSolution, Secp256k1MemberSolution,
-    Secp256r1Member, Secp256r1MemberPuzzleAssert, Secp256r1MemberPuzzleAssertSolution,
-    Secp256r1MemberSolution, SingletonMember, SingletonMemberSolution, Timelock,
-    PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH,
+    puzzles::{
+        BlsMember, FixedPuzzleMember, Force1of2RestrictedVariable,
+        Force1of2RestrictedVariableSolution, PasskeyMember, PasskeyMemberPuzzleAssert,
+        PasskeyMemberPuzzleAssertSolution, PasskeyMemberSolution, PreventConditionOpcode,
+        PreventMultipleCreateCoinsMod, Secp256k1Member, Secp256k1MemberPuzzleAssert,
+        Secp256k1MemberPuzzleAssertSolution, Secp256k1MemberSolution, Secp256r1Member,
+        Secp256r1MemberPuzzleAssert, Secp256r1MemberPuzzleAssertSolution, Secp256r1MemberSolution,
+        SingletonMember, SingletonMemberSolution, Timelock,
+        PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH,
+    },
+    Mod,
 };
 use clvm_utils::TreeHash;
 use clvmr::NodePtr;

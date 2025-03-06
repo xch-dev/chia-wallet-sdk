@@ -6,10 +6,13 @@ use chia_puzzle_types::{
 };
 use chia_puzzles::{NFT_STATE_LAYER_HASH, SINGLETON_LAUNCHER_HASH};
 use chia_sdk_types::{
-    run_puzzle, CreateCoin, DelegationLayerArgs, DelegationLayerSolution, NewMetadataInfo,
-    NewMetadataOutput, DELEGATION_LAYER_PUZZLE_HASH, DL_METADATA_UPDATER_PUZZLE_HASH,
+    conditions::{CreateCoin, NewMetadataInfo, NewMetadataOutput, UpdateNftMetadata},
+    puzzles::{
+        DelegationLayerArgs, DelegationLayerSolution, DELEGATION_LAYER_PUZZLE_HASH,
+        DL_METADATA_UPDATER_PUZZLE_HASH,
+    },
+    run_puzzle, Condition,
 };
-use chia_sdk_types::{Condition, UpdateNftMetadata};
 use clvm_traits::{FromClvm, FromClvmError, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -593,7 +596,10 @@ pub mod tests {
     use chia_bls::PublicKey;
     use chia_puzzle_types::standard::StandardArgs;
     use chia_sdk_test::{BlsPair, Simulator};
-    use chia_sdk_types::{Conditions, Memos, UpdateDataStoreMerkleRoot};
+    use chia_sdk_types::{
+        conditions::{Memos, UpdateDataStoreMerkleRoot},
+        Conditions,
+    };
     use chia_sha2::Sha256;
     use rstest::rstest;
 

@@ -1,7 +1,10 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{nft::NftStateLayerArgs, EveProof, Proof};
 use chia_puzzles::NFT_STATE_LAYER_HASH;
-use chia_sdk_types::{Conditions, DelegationLayerArgs, DL_METADATA_UPDATER_PUZZLE_HASH};
+use chia_sdk_types::{
+    puzzles::{DelegationLayerArgs, DL_METADATA_UPDATER_PUZZLE_HASH},
+    Conditions,
+};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::Allocator;

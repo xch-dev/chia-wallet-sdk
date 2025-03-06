@@ -3,8 +3,9 @@ use std::ops::Index;
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
 
-use crate::Condition;
+use super::Condition;
 
+/// A grow-only list of conditions which can be used when building spend bundles.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(transparent)]
@@ -21,31 +22,51 @@ impl<T> Default for Conditions<T> {
 }
 
 impl Conditions<NodePtr> {
+    /// Create a new empty list of conditions. To make inference easier for the compiler,
+    /// the generic type defaults to [`NodePtr`], since that's the most general choice
+    /// and common when building spend bundles.
+    ///
+    /// If you need to create an instance with a different generic type, use [`Conditions::default`] instead.
     pub fn new() -> Self {
         Self::default()
     }
 }
 
 impl<T> Conditions<T> {
+    /// Gets the number of conditions.
     pub fn len(&self) -> usize {
         self.conditions.len()
     }
 
+    /// Checks if there are no conditions.
     pub fn is_empty(&self) -> bool {
         self.conditions.is_empty()
     }
 
+    /// Gets an iterator over the conditions.
+    pub fn iter(&self) -> impl Iterator<Item = &Condition<T>> {
+        self.conditions.iter()
+    }
+
+    /// Converts the list of conditions into a vector.
+    pub fn into_vec(self) -> Vec<Condition<T>> {
+        self.conditions
+    }
+
+    /// Adds a condition to the list.
     pub fn with(mut self, condition: impl Into<Condition<T>>) -> Self {
         self.conditions.push(condition.into());
         self
     }
 
+    /// Appends a list of conditions to the end from an iterator.
     pub fn extend(mut self, conditions: impl IntoIterator<Item = impl Into<Condition<T>>>) -> Self {
         self.conditions
             .extend(conditions.into_iter().map(Into::into));
         self
     }
 
+    /// Appends a list of conditions to the end from a slice.
     pub fn extend_from_slice(mut self, conditions: &[Condition<T>]) -> Self
     where
         T: Clone,
@@ -75,5 +96,11 @@ impl<T> IntoIterator for Conditions<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.conditions.into_iter()
+    }
+}
+
+impl<T> From<Vec<Condition<T>>> for Conditions<T> {
+    fn from(conditions: Vec<Condition<T>>) -> Self {
+        Self { conditions }
     }
 }

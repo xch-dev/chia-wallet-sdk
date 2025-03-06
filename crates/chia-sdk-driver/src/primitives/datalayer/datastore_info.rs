@@ -4,8 +4,11 @@ use crate::{
 use chia_protocol::{Bytes, Bytes32};
 use chia_puzzle_types::nft::NftStateLayerArgs;
 use chia_sdk_types::{
-    DelegationLayerArgs, MerkleTree, WriterLayerArgs, DELEGATION_LAYER_PUZZLE_HASH,
-    DL_METADATA_UPDATER_PUZZLE_HASH,
+    puzzles::{
+        DelegationLayerArgs, WriterLayerArgs, DELEGATION_LAYER_PUZZLE_HASH,
+        DL_METADATA_UPDATER_PUZZLE_HASH,
+    },
+    MerkleTree,
 };
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};

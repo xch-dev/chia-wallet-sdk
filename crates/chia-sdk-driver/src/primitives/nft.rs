@@ -8,7 +8,8 @@ use chia_puzzle_types::{
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
-    run_puzzle, Condition, Conditions, NewMetadataOutput, TradePrice, TransferNft,
+    conditions::{NewMetadataOutput, TradePrice, TransferNft},
+    run_puzzle, Condition, Conditions,
 };
 use chia_sha2::Sha256;
 use clvm_traits::{clvm_list, FromClvm, ToClvm};

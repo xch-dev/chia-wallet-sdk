@@ -2,9 +2,11 @@ use std::num::NonZeroU64;
 
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
-    AugmentedConditionArgs, AugmentedConditionSolution, Condition, MerkleTree, P2CurriedArgs,
-    P2CurriedSolution, P2OneOfManySolution, AUGMENTED_CONDITION_PUZZLE_HASH,
-    P2_CURRIED_PUZZLE_HASH,
+    puzzles::{
+        AugmentedConditionArgs, AugmentedConditionSolution, P2CurriedArgs, P2CurriedSolution,
+        P2OneOfManySolution, AUGMENTED_CONDITION_PUZZLE_HASH, P2_CURRIED_PUZZLE_HASH,
+    },
+    Condition, MerkleTree,
 };
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;

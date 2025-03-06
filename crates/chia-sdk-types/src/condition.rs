@@ -1,12 +1,17 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_derive::conditions;
-use clvm_traits::{FromClvm, ToClvm, ToClvmError};
+use memos::Memos;
+use nfts::TradePrice;
 
 mod agg_sig;
+mod announcements;
+mod list;
+mod memos;
+mod nfts;
 
-pub use agg_sig::*;
-use clvmr::{Allocator, NodePtr};
+pub use announcements::*;
+pub use list::*;
 
 conditions! {
     pub enum Condition<T> {
@@ -193,49 +198,4 @@ conditions! {
             ...memos: Vec<Bytes>,
         },
     }
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct Memos<T> {
-    pub value: T,
-}
-
-impl<T> Memos<T> {
-    pub fn new(value: T) -> Self {
-        Self { value }
-    }
-
-    pub fn some(value: T) -> Option<Self> {
-        Some(Self { value })
-    }
-}
-
-impl Memos<NodePtr> {
-    pub fn hint(allocator: &mut Allocator, hint: Bytes32) -> Result<Self, ToClvmError> {
-        Ok(Self {
-            value: [hint].to_clvm(allocator)?,
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct NewMetadataInfo<M> {
-    pub new_metadata: M,
-    pub new_updater_puzzle_hash: Bytes32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct NewMetadataOutput<M, C> {
-    pub metadata_info: NewMetadataInfo<M>,
-    pub conditions: C,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct TradePrice {
-    pub amount: u64,
-    pub puzzle_hash: Bytes32,
 }

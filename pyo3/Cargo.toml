@@ -6,6 +6,8 @@ edition = "2021"
 [lib]
 name = "chia_wallet_sdk"
 crate-type = ["cdylib"]
+doc = false
+test = false
 
 [dependencies]
 pyo3 = { workspace = true, features = ["num-bigint", "multiple-pymethods", "abi3-py38", "experimental-async"] }

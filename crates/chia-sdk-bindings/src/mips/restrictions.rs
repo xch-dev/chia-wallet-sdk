@@ -2,8 +2,11 @@ use bindy::Result;
 use chia_protocol::Bytes32;
 use chia_sdk_driver as sdk;
 use chia_sdk_types::{
-    Force1of2RestrictedVariable, Mod, PreventConditionOpcode, Timelock,
-    PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH,
+    puzzles::{
+        Force1of2RestrictedVariable, PreventConditionOpcode, Timelock,
+        PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH,
+    },
+    Mod,
 };
 use clvm_utils::TreeHash;
 

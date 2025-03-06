@@ -11,22 +11,43 @@ use chia_puzzle_types::{
 use chia_puzzles::{
     CAT_PUZZLE, CAT_PUZZLE_HASH, DID_INNERPUZ, DID_INNERPUZ_HASH, EVERYTHING_WITH_SIGNATURE,
     EVERYTHING_WITH_SIGNATURE_HASH, GENESIS_BY_COIN_ID, GENESIS_BY_COIN_ID_HASH,
-    NFT_INTERMEDIATE_LAUNCHER, NFT_INTERMEDIATE_LAUNCHER_HASH, NFT_METADATA_UPDATER_DEFAULT,
-    NFT_METADATA_UPDATER_DEFAULT_HASH, NFT_OWNERSHIP_LAYER, NFT_OWNERSHIP_LAYER_HASH,
-    NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES,
+    NFT_INTERMEDIATE_LAUNCHER, NFT_INTERMEDIATE_LAUNCHER_HASH, NFT_OWNERSHIP_LAYER,
+    NFT_OWNERSHIP_LAYER_HASH, NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES,
     NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES_HASH, NFT_STATE_LAYER,
     NFT_STATE_LAYER_HASH, P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE,
-    P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE_HASH, SETTLEMENT_PAYMENT, SETTLEMENT_PAYMENT_HASH,
-    SINGLETON_LAUNCHER, SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1,
+    P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE_HASH, SINGLETON_TOP_LAYER_V1_1,
     SINGLETON_TOP_LAYER_V1_1_HASH,
 };
 use clvm_traits::ToClvm;
 use clvm_utils::{CurriedProgram, TreeHash, TreeHasher};
 
+/// This trait makes it possible to get the mod hash or puzzle reveal of a puzzle.
+///
+/// There is also a utility for calculating the curried tree hash, provided the type
+/// implements [`ToTreeHash`](clvm_utils::ToTreeHash). This is much more efficient than
+/// manually allocating and hashing the puzzle and its arguments.
+///
+/// This trait should be be implemented for types that represent the curried arguments of puzzles.
+/// However, if a puzzle can't be curried (ie it has no arguments), this trait  can still be
+/// implemented on a marker struct that doesn't implement [`ToTreeHash`](clvm_utils::ToTreeHash).
+/// This will disable the [`curry_tree_hash`](Mod::curry_tree_hash) method.
+///
+/// ## Usage Example
+///
+/// We can specify the arguments of a puzzle to get its curried puzzle hash.
+///
+/// ```rust
+/// # use chia_bls::PublicKey;
+/// # use chia_puzzle_types::standard::StandardArgs;
+/// # use chia_sdk_types::Mod;
+/// let args = StandardArgs::new(PublicKey::default());
+/// let puzzle_hash = args.curry_tree_hash();
+/// ```
 pub trait Mod {
     const MOD_REVEAL: &[u8];
     const MOD_HASH: TreeHash;
 
+    /// Curry the arguments into the [`MOD_HASH`](Mod::MOD_HASH).
     fn curry_tree_hash(&self) -> TreeHash
     where
         Self: Sized + ToClvm<TreeHasher>,
@@ -46,22 +67,6 @@ where
 {
     const MOD_REVEAL: &'static [u8] = T::MOD_REVEAL;
     const MOD_HASH: TreeHash = T::MOD_HASH;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SingletonLauncherMod;
-
-impl Mod for SingletonLauncherMod {
-    const MOD_REVEAL: &[u8] = &SINGLETON_LAUNCHER;
-    const MOD_HASH: TreeHash = TreeHash::new(SINGLETON_LAUNCHER_HASH);
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SettlementPaymentMod;
-
-impl Mod for SettlementPaymentMod {
-    const MOD_REVEAL: &[u8] = &SETTLEMENT_PAYMENT;
-    const MOD_HASH: TreeHash = TreeHash::new(SETTLEMENT_PAYMENT_HASH);
 }
 
 impl Mod for StandardArgs {
@@ -98,14 +103,6 @@ impl<I, P> Mod for NftOwnershipLayerArgs<I, P> {
 impl<I, M> Mod for NftStateLayerArgs<I, M> {
     const MOD_REVEAL: &[u8] = &NFT_STATE_LAYER;
     const MOD_HASH: TreeHash = TreeHash::new(NFT_STATE_LAYER_HASH);
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NftMetadataUpdaterMod;
-
-impl Mod for NftMetadataUpdaterMod {
-    const MOD_REVEAL: &[u8] = &NFT_METADATA_UPDATER_DEFAULT;
-    const MOD_HASH: TreeHash = TreeHash::new(NFT_METADATA_UPDATER_DEFAULT_HASH);
 }
 
 impl<I> Mod for SingletonArgs<I> {

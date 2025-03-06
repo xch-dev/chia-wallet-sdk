@@ -4,7 +4,7 @@ use bindy::Result;
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_driver::SpendContext;
-use chia_sdk_types::{self as types, Memos};
+use chia_sdk_types::conditions::{self, Memos};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
 use paste::paste;
@@ -107,7 +107,7 @@ macro_rules! conditions {
                 pub fn $function( &self, $( $name: $ty ),* ) -> Result<Program> {
                     let mut ctx = self.0.write().unwrap();
                     $( let $name = Convert::convert($name, &self.0)?; )*
-                    let ptr = types::$condition $( ::< $( $generic ),* > )? ::new( $( $name ),* )
+                    let ptr = conditions::$condition $( ::< $( $generic ),* > )? ::new( $( $name ),* )
                     .to_clvm(&mut **ctx)?;
                     Ok(Program(self.0.clone(), ptr))
                 }
@@ -118,7 +118,7 @@ macro_rules! conditions {
                 pub fn [< parse_ $function >]( &self ) -> Result<Option<$condition>> {
                     let ctx = self.0.read().unwrap();
 
-                    let Some(condition) = types::$condition $( ::< $( $generic ),* > )? ::from_clvm(&**ctx, self.1).ok() else {
+                    let Some(condition) = conditions::$condition $( ::< $( $generic ),* > )? ::from_clvm(&**ctx, self.1).ok() else {
                         return Ok(None);
                     };
 

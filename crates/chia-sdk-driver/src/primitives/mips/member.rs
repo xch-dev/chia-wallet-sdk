@@ -1,8 +1,11 @@
 use chia_sdk_types::{
-    AddDelegatedPuzzleWrapper, AddDelegatedPuzzleWrapperSolution, DelegatedFeederArgs,
-    DelegatedFeederSolution, EnforceDelegatedPuzzleWrappers,
-    EnforceDelegatedPuzzleWrappersSolution, IndexWrapperArgs, Mod, RestrictionsArgs,
-    RestrictionsSolution,
+    puzzles::{
+        AddDelegatedPuzzleWrapper, AddDelegatedPuzzleWrapperSolution, DelegatedFeederArgs,
+        DelegatedFeederSolution, EnforceDelegatedPuzzleWrappers,
+        EnforceDelegatedPuzzleWrappersSolution, IndexWrapperArgs, RestrictionsArgs,
+        RestrictionsSolution,
+    },
+    Mod,
 };
 use clvm_utils::TreeHash;
 

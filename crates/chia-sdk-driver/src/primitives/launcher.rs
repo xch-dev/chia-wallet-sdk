@@ -3,7 +3,7 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs};
 use chia_puzzles::{SINGLETON_LAUNCHER, SINGLETON_LAUNCHER_HASH};
-use chia_sdk_types::{announcement_id, Conditions, Memos};
+use chia_sdk_types::{announcement_id, conditions::Memos, Conditions};
 use clvm_traits::ToClvm;
 use clvmr::{Allocator, NodePtr};
 
@@ -31,7 +31,7 @@ impl Launcher {
     }
 
     /// The parent coin specified when constructing the [`Launcher`] will create the launcher coin.
-    /// By default, no hint is used when creating the launcher coin. To specify a hint, use [`Launcher::hinted`].
+    /// By default, no hint is used when creating the launcher coin. To specify a hint, use [`Launcher::with_memos`].
     pub fn new(parent_coin_id: Bytes32, amount: u64) -> Self {
         Self::from_coin(
             Coin::new(parent_coin_id, SINGLETON_LAUNCHER_HASH.into(), amount),
@@ -49,7 +49,7 @@ impl Launcher {
     }
 
     /// The parent coin specified when constructing the [`Launcher`] will create the launcher coin.
-    /// By default, no hint is used when creating the coin. To specify a hint, use [`Launcher::create_early_hinted`].
+    /// By default, no hint is used when creating the coin. To specify a hint, use [`Launcher::create_early_with_memos`].
     ///
     /// This method is used to create the launcher coin immediately from the parent, then spend it later attached to any coin spend.
     /// For example, this is useful for minting NFTs from intermediate coins created with an earlier instance of a DID.

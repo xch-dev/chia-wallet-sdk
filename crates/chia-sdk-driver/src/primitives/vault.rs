@@ -78,7 +78,10 @@ impl Vault {
 #[cfg(test)]
 mod tests {
     use chia_sdk_test::{K1Pair, Simulator};
-    use chia_sdk_types::{Conditions, Mod, Secp256k1Member, Secp256k1MemberSolution};
+    use chia_sdk_types::{
+        puzzles::{Secp256k1Member, Secp256k1MemberSolution},
+        Conditions, Mod,
+    };
     use chia_secp::{K1SecretKey, K1Signature};
     use chia_sha2::Sha256;
     use rstest::rstest;

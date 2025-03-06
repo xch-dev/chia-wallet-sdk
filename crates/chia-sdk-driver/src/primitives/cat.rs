@@ -4,7 +4,7 @@ use chia_puzzle_types::{
     cat::{CatArgs, CatSolution, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs},
     CoinProof, LineageProof,
 };
-use chia_sdk_types::{run_puzzle, Condition, Conditions, CreateCoin};
+use chia_sdk_types::{conditions::CreateCoin, run_puzzle, Condition, Conditions};
 use clvm_traits::{clvm_quote, FromClvm};
 use clvmr::{Allocator, NodePtr};
 
@@ -76,7 +76,7 @@ impl Cat {
 
     /// Creates and spends an eve CAT with the provided conditions.
     /// To issue the CAT, you will need to reveal the TAIL puzzle and solution.
-    /// This can be done with the [`RunCatTail`] condition.
+    /// This can be done with the [`chia_sdk_types::conditions::RunCatTail`] condition.
     pub fn create_and_spend_eve(
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
