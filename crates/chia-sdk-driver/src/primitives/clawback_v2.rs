@@ -3,7 +3,7 @@ use chia_sdk_types::{
     AssertBeforeSecondsAbsolute, AssertSecondsAbsolute, Conditions, CreateCoin, Memos, MerkleTree,
     Mod, P2OneOfManySolution, WrapConditionArgs,
 };
-use clvm_traits::{clvm_list, clvm_quote, FromClvm};
+use clvm_traits::{clvm_list, clvm_quote, match_list, FromClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -90,7 +90,9 @@ impl ClawbackV2 {
         .into()
     }
 
-    pub fn push_through_path_hash(&self) -> Bytes32 {
+    pub fn push_through_path(
+        &self,
+    ) -> (u8, match_list!(AssertSecondsAbsolute, CreateCoin<Bytes32>)) {
         clvm_quote!(clvm_list!(
             AssertSecondsAbsolute::new(self.seconds),
             CreateCoin::new(
@@ -103,8 +105,10 @@ impl ClawbackV2 {
                 }
             )
         ))
-        .tree_hash()
-        .into()
+    }
+
+    pub fn push_through_path_hash(&self) -> Bytes32 {
+        self.push_through_path().tree_hash().into()
     }
 
     pub fn into_1_of_n(&self) -> P2OneOfManyLayer {
@@ -161,18 +165,7 @@ impl ClawbackV2 {
             .proof(puzzle_hash)
             .ok_or(DriverError::InvalidMerkleProof)?;
 
-        let puzzle = ctx.alloc(&clvm_quote!(clvm_list!(
-            AssertSecondsAbsolute::new(self.seconds),
-            CreateCoin::new(
-                self.receiver_puzzle_hash,
-                self.amount,
-                if self.hinted {
-                    Some(Memos::new(self.receiver_puzzle_hash))
-                } else {
-                    None
-                }
-            )
-        )))?;
+        let puzzle = ctx.alloc(&self.push_through_path())?;
 
         P2OneOfManyLayer::new(merkle_tree.root()).construct_spend(
             ctx,
