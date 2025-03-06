@@ -9,11 +9,35 @@ const HASH_TREE_PREFIX: &[u8] = &[2];
 const HASH_LEAF_PREFIX: &[u8] = &[1];
 
 #[derive(Debug, Clone)]
+enum BinaryTree<T> {
+    Leaf(T),
+    Node(Box<BinaryTree<T>>, Box<BinaryTree<T>>),
+}
+
+/// A merkle tree implementation that can be used to prove the existence of a set of leaves.
+/// The proof format is compatible with standard Chia puzzles, such as `p2_1_of_n.clsp`.
+///
+/// ## Example
+///
+/// ```rust
+/// # use chia_protocol::Bytes32;
+/// # use chia_sdk_types::MerkleTree;
+/// let leaves = vec![
+///     Bytes32::new([1; 32]),
+///     Bytes32::new([2; 32]),
+/// ];
+/// let merkle_tree = MerkleTree::new(&leaves);
+/// let root = merkle_tree.root();
+/// let proof = merkle_tree.proof(leaves[0]);
+/// ```
+#[derive(Debug, Clone)]
 pub struct MerkleTree {
     root: Bytes32,
     proofs: HashMap<Bytes32, MerkleProof>,
 }
 
+/// A proof for a leaf in a merkle tree. This is a CLVM type that can be
+/// passed in the solution of puzzles.
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct MerkleProof {
@@ -28,13 +52,10 @@ impl MerkleProof {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum BinaryTree<T> {
-    Leaf(T),
-    Node(Box<BinaryTree<T>>, Box<BinaryTree<T>>),
-}
-
 impl MerkleTree {
+    /// Create a new merkle tree from a list of leaves. The tree will be
+    /// built automatically up front, so it doesn't need to be recomputed
+    /// when used later.
     pub fn new(leaves: &[Bytes32]) -> Self {
         if leaves.is_empty() {
             return Self {
@@ -47,12 +68,15 @@ impl MerkleTree {
         Self { root, proofs }
     }
 
-    pub fn proof(&self, leaf: Bytes32) -> Option<MerkleProof> {
-        self.proofs.get(&leaf).cloned()
-    }
-
+    /// Get the precomputed root hash of the merkle tree. Typically this will
+    /// be stored in the curried arguments of a puzzle.
     pub fn root(&self) -> Bytes32 {
         self.root
+    }
+
+    /// Get the proof for a given leaf, if it exists in the tree.
+    pub fn proof(&self, leaf: Bytes32) -> Option<MerkleProof> {
+        self.proofs.get(&leaf).cloned()
     }
 
     fn build_merkle_tree(leaves: &[Bytes32]) -> (Bytes32, HashMap<Bytes32, MerkleProof>) {
