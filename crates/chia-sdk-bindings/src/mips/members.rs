@@ -3,8 +3,11 @@ use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
 use chia_sdk_driver::{member_puzzle_hash, MofN};
 use chia_sdk_types::{
-    BlsMember, FixedPuzzleMember, Mod, PasskeyMember, PasskeyMemberPuzzleAssert, Secp256k1Member,
-    Secp256k1MemberPuzzleAssert, Secp256r1Member, Secp256r1MemberPuzzleAssert, SingletonMember,
+    puzzles::{
+        BlsMember, FixedPuzzleMember, PasskeyMember, PasskeyMemberPuzzleAssert, Secp256k1Member,
+        Secp256k1MemberPuzzleAssert, Secp256r1Member, Secp256r1MemberPuzzleAssert, SingletonMember,
+    },
+    Mod,
 };
 use clvm_utils::TreeHash;
 

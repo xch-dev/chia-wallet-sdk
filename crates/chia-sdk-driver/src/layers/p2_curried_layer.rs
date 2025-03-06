@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_sdk_types::{P2CurriedArgs, P2CurriedSolution, P2_CURRIED_PUZZLE_HASH};
+use chia_sdk_types::puzzles::{P2CurriedArgs, P2CurriedSolution, P2_CURRIED_PUZZLE_HASH};
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 

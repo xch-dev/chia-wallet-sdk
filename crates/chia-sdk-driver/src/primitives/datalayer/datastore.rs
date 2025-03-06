@@ -7,8 +7,11 @@ use chia_puzzle_types::{
 use chia_puzzles::{NFT_STATE_LAYER_HASH, SINGLETON_LAUNCHER_HASH};
 use chia_sdk_types::{
     conditions::{CreateCoin, NewMetadataInfo, NewMetadataOutput, UpdateNftMetadata},
-    run_puzzle, Condition, DelegationLayerArgs, DelegationLayerSolution,
-    DELEGATION_LAYER_PUZZLE_HASH, DL_METADATA_UPDATER_PUZZLE_HASH,
+    puzzles::{
+        DelegationLayerArgs, DelegationLayerSolution, DELEGATION_LAYER_PUZZLE_HASH,
+        DL_METADATA_UPDATER_PUZZLE_HASH,
+    },
+    run_puzzle, Condition,
 };
 use clvm_traits::{FromClvm, FromClvmError, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};

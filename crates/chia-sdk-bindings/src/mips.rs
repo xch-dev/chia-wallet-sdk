@@ -9,7 +9,7 @@ pub use spend::*;
 use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver as sdk;
-use chia_sdk_types::{AddDelegatedPuzzleWrapper, Mod};
+use chia_sdk_types::{puzzles::AddDelegatedPuzzleWrapper, Mod};
 use clvm_utils::TreeHash;
 
 use crate::{LineageProof, Program};

@@ -4,7 +4,7 @@ use chia_puzzle_types::{
     offer::{NotarizedPayment, Payment},
 };
 use chia_sdk_test::{sign_transaction, Simulator};
-use chia_sdk_types::{Conditions, SettlementPaymentMod};
+use chia_sdk_types::{puzzles::SettlementPayment, Conditions};
 
 use crate::{
     payment_assertion, Launcher, Layer, NftMint, Offer, OfferBuilder, SpendContext, StandardLayer,
@@ -35,7 +35,7 @@ fn test_nft_for_nft() -> anyhow::Result<()> {
     sim.spend_coins(coin_spends, &[alice.sk.clone(), bob.sk.clone()])?;
 
     // Create offer
-    let settlement = ctx.alloc_mod::<SettlementPaymentMod>()?;
+    let settlement = ctx.alloc_mod::<SettlementPayment>()?;
     let nonce = Offer::nonce(vec![nft_alice.coin.coin_id()]);
 
     let puzzle_alice = nft_alice

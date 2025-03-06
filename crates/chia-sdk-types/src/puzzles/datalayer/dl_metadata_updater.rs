@@ -16,8 +16,11 @@ pub const DL_METADATA_UPDATER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 #[cfg(test)]
 mod tests {
     use crate::{
-        assert_puzzle_hash, DELEGATION_LAYER_PUZZLE, DELEGATION_LAYER_PUZZLE_HASH,
-        WRITER_LAYER_PUZZLE, WRITER_LAYER_PUZZLE_HASH,
+        assert_puzzle_hash,
+        puzzles::{
+            DELEGATION_LAYER_PUZZLE, DELEGATION_LAYER_PUZZLE_HASH, WRITER_LAYER_PUZZLE,
+            WRITER_LAYER_PUZZLE_HASH,
+        },
     };
 
     use super::*;

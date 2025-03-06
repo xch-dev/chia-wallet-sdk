@@ -1,5 +1,5 @@
 use chia_bls::PublicKey;
-use chia_sdk_types::{
+use chia_sdk_types::puzzles::{
     P2DelegatedConditionsArgs, P2DelegatedConditionsSolution, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,
 };
 use clvm_traits::FromClvm;
