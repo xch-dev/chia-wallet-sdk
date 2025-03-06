@@ -167,10 +167,7 @@ mod tests {
         Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, ProtocolMessageTypes,
         RespondCoinState, RespondPuzzleState, SpendBundle, TransactionAck,
     };
-    use chia_sdk_types::{
-        conditions::{AggSigMe, CreateCoin, Remark},
-        Memos,
-    };
+    use chia_sdk_types::conditions::{AggSigMe, CreateCoin, Memos, Remark};
     use chia_traits::Streamable;
     use clvmr::NodePtr;
 

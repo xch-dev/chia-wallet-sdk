@@ -4,7 +4,7 @@ use std::{
 };
 
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
-use chia_sdk_types::{run_puzzle, Conditions, Memos, Mod};
+use chia_sdk_types::{conditions::Memos, run_puzzle, Conditions, Mod};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, TreeHash};
 use clvmr::{

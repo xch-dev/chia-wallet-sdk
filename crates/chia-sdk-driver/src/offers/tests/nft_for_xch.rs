@@ -5,7 +5,7 @@ use chia_puzzle_types::{
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_test::{sign_transaction, Simulator};
-use chia_sdk_types::{Conditions, SettlementPaymentMod, TradePrice};
+use chia_sdk_types::{conditions::TradePrice, Conditions, SettlementPaymentMod};
 
 use crate::{
     calculate_nft_royalty, calculate_nft_trace_price, payment_assertion, Launcher, Layer, NftMint,

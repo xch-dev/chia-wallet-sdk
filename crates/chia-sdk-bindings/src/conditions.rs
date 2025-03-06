@@ -4,7 +4,7 @@ use bindy::Result;
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_driver::SpendContext;
-use chia_sdk_types::{conditions, Memos};
+use chia_sdk_types::conditions::{self, Memos};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
 use paste::paste;

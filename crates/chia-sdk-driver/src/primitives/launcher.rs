@@ -3,7 +3,7 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs};
 use chia_puzzles::{SINGLETON_LAUNCHER, SINGLETON_LAUNCHER_HASH};
-use chia_sdk_types::{announcement_id, Conditions, Memos};
+use chia_sdk_types::{announcement_id, conditions::Memos, Conditions};
 use clvm_traits::ToClvm;
 use clvmr::{Allocator, NodePtr};
 

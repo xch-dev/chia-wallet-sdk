@@ -1,14 +1,17 @@
-use std::ops::Index;
-
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_derive::conditions;
-use clvm_traits::{FromClvm, ToClvm, ToClvmError};
+use memos::Memos;
+use nfts::TradePrice;
 
 mod agg_sig;
+mod announcements;
+mod list;
+mod memos;
+mod nfts;
 
-pub use agg_sig::*;
-use clvmr::{Allocator, NodePtr};
+pub use announcements::*;
+pub use list::*;
 
 conditions! {
     pub enum Condition<T> {
@@ -194,123 +197,5 @@ conditions! {
             new_merkle_root: Bytes32,
             ...memos: Vec<Bytes>,
         },
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct Memos<T> {
-    pub value: T,
-}
-
-impl<T> Memos<T> {
-    pub fn new(value: T) -> Self {
-        Self { value }
-    }
-
-    pub fn some(value: T) -> Option<Self> {
-        Some(Self { value })
-    }
-}
-
-impl Memos<NodePtr> {
-    pub fn hint(allocator: &mut Allocator, hint: Bytes32) -> Result<Self, ToClvmError> {
-        Ok(Self {
-            value: [hint].to_clvm(allocator)?,
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct NewMetadataInfo<M> {
-    pub new_metadata: M,
-    pub new_updater_puzzle_hash: Bytes32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct NewMetadataOutput<M, C> {
-    pub metadata_info: NewMetadataInfo<M>,
-    pub conditions: C,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct TradePrice {
-    pub amount: u64,
-    pub puzzle_hash: Bytes32,
-}
-
-#[must_use]
-#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(transparent)]
-pub struct Conditions<T = NodePtr> {
-    conditions: Vec<Condition<T>>,
-}
-
-impl<T> Default for Conditions<T> {
-    fn default() -> Self {
-        Self {
-            conditions: Vec::new(),
-        }
-    }
-}
-
-impl Conditions<NodePtr> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl<T> Conditions<T> {
-    pub fn len(&self) -> usize {
-        self.conditions.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.conditions.is_empty()
-    }
-
-    pub fn with(mut self, condition: impl Into<Condition<T>>) -> Self {
-        self.conditions.push(condition.into());
-        self
-    }
-
-    pub fn extend(mut self, conditions: impl IntoIterator<Item = impl Into<Condition<T>>>) -> Self {
-        self.conditions
-            .extend(conditions.into_iter().map(Into::into));
-        self
-    }
-
-    pub fn extend_from_slice(mut self, conditions: &[Condition<T>]) -> Self
-    where
-        T: Clone,
-    {
-        self.conditions.extend_from_slice(conditions);
-        self
-    }
-}
-
-impl<T> Index<usize> for Conditions<T> {
-    type Output = Condition<T>;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.conditions[index]
-    }
-}
-
-impl<T> AsRef<[Condition<T>]> for Conditions<T> {
-    fn as_ref(&self) -> &[Condition<T>] {
-        &self.conditions
-    }
-}
-
-impl<T> IntoIterator for Conditions<T> {
-    type Item = Condition<T>;
-    type IntoIter = std::vec::IntoIter<Condition<T>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.conditions.into_iter()
     }
 }

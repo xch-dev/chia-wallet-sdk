@@ -395,6 +395,10 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
             pub use super::*;
 
             #( #conditions )*
+
+            pub use nfts::*;
+            pub use agg_sig::*;
+            pub use memos::*;
         }
 
         #( #impls )*
