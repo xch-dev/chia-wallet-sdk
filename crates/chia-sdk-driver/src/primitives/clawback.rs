@@ -10,6 +10,8 @@ use chia_sdk_types::{
 use chia_streamable_macro::streamable;
 use chia_traits::Streamable;
 use clvm_traits::FromClvm;
+use clvm_traits::clvm_list;
+use clvm_traits::ToClvm;
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use std::num::NonZeroU64;
@@ -159,7 +161,6 @@ impl Clawback {
         &self,
         allocator: &mut Allocator,
     ) -> Result<Condition, DriverError> {
-        let first = allocator.new_small_number(2)?; // magic number for clawback bytes dump
         let cbm = ClawbackMetadata {
             timelock: self.timelock.into(),
             sender_puzzle_hash: self.sender_puzzle_hash,
@@ -169,13 +170,8 @@ impl Clawback {
             version: 1,
             blob: cbm.to_bytes().map_err(|_| DriverError::InvalidMemo)?.into(),
         };
-        let bytes = allocator.new_atom(
-            vb.to_bytes()
-                .map_err(|_| DriverError::InvalidMemo)?
-                .as_ref(),
-        )?;
-        let rest = allocator.new_pair(bytes, allocator.nil())?;
-        let node_ptr = allocator.new_pair(first, rest)?;
+        // 2 is the magic number for clawback
+        let node_ptr = clvm_list!(2, vb.to_bytes().map_err(|_| DriverError::InvalidMemo)?).to_clvm(allocator)?;
 
         Ok(Condition::remark(node_ptr))
     }
