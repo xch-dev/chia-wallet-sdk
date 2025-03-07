@@ -5,12 +5,12 @@ use chia_sdk_types::{
         AugmentedConditionArgs, AugmentedConditionSolution, P2CurriedArgs, P2CurriedSolution,
         P2OneOfManySolution, AUGMENTED_CONDITION_PUZZLE_HASH, P2_CURRIED_PUZZLE_HASH,
     },
-    Condition, MerkleTree,
+    run_puzzle, Condition, MerkleTree,
 };
 use chia_streamable_macro::streamable;
 use chia_traits::Streamable;
-use clvm_traits::FromClvm;
 use clvm_traits::clvm_list;
+use clvm_traits::FromClvm;
 use clvm_traits::ToClvm;
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -59,7 +59,7 @@ impl Clawback {
             match condition {
                 Condition::CreateCoin(cc) => puzhashes.push(cc.puzzle_hash.into()),
                 Condition::Remark(rm) => match allocator.sexp(rm.rest) {
-                    clvmr::SExp::Atom => {continue}
+                    clvmr::SExp::Atom => continue,
                     clvmr::SExp::Pair(first, rest) => {
                         match allocator.sexp(first) {
                             clvmr::SExp::Atom => {
@@ -171,7 +171,11 @@ impl Clawback {
             blob: cbm.to_bytes().map_err(|_| DriverError::InvalidMemo)?.into(),
         };
         // 2 is the magic number for clawback
-        let node_ptr = clvm_list!(2, vb.to_bytes().map_err(|_| DriverError::InvalidMemo)?).to_clvm(allocator)?;
+        let node_ptr = clvm_list!(
+            2,
+            Bytes::new(vb.to_bytes().map_err(|_| DriverError::InvalidMemo)?)
+        )
+        .to_clvm(allocator)?;
 
         Ok(Condition::remark(node_ptr))
     }
@@ -239,8 +243,9 @@ mod tests {
         };
         let clawback_puzzle_hash = clawback.to_layer().tree_hash().into();
         let coin = alice.coin;
-        let conditions = Conditions::new().create_coin(clawback_puzzle_hash, 1, None);
-        let conditions = conditions.with(clawback.get_remark_condition(ctx)?);
+        let conditions = Conditions::new()
+            .create_coin(clawback_puzzle_hash, 1, None)
+            .with(clawback.get_remark_condition(ctx)?);
         alice_p2.spend(ctx, coin, conditions)?;
 
         let cs = ctx.take();
