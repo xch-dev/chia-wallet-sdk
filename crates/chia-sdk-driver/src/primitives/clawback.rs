@@ -57,7 +57,7 @@ impl Clawback {
             match condition {
                 Condition::CreateCoin(cc) => puzhashes.push(cc.puzzle_hash.into()),
                 Condition::Remark(rm) => match allocator.sexp(rm.rest) {
-                    clvmr::SExp::Atom => {}
+                    clvmr::SExp::Atom => {continue}
                     clvmr::SExp::Pair(first, rest) => {
                         match allocator.sexp(first) {
                             clvmr::SExp::Atom => {
@@ -245,7 +245,6 @@ mod tests {
         let coin = alice.coin;
         let conditions = Conditions::new().create_coin(clawback_puzzle_hash, 1, None);
         let conditions = conditions.with(clawback.get_remark_condition(ctx)?);
-        println!("DEBUG 0 -  CONDITION INTENTIONS: {:?}", conditions);
         alice_p2.spend(ctx, coin, conditions)?;
 
         let cs = ctx.take();
