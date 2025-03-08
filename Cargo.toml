@@ -77,8 +77,8 @@ experimental-vaults = [
 ]
 experimental-clawbacks = ["chia-sdk-driver/experimental-clawbacks"]
 offers = ["chia-sdk-driver/offers"]
-native-tls = ["chia-sdk-client/native-tls"]
-rustls = ["chia-sdk-client/rustls"]
+native-tls = ["chia-sdk-client/native-tls", "chia-sdk-coinset/native-tls"]
+rustls = ["chia-sdk-client/rustls", "chia-sdk-coinset/rustls"]
 peer-simulator = ["chia-sdk-test/peer-simulator"]
 
 [dependencies]
@@ -168,7 +168,7 @@ p256 = "0.13.2"
 signature = "2.2.0"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.117"
-reqwest = { version = "0.12.12", features = ["json"] }
+reqwest = { version = "0.12.12", default-features = false, features = ["json"] }
 proc-macro2 = "1.0.93"
 wasm-bindgen = "0.2.100"
 getrandom = "0.2.15"

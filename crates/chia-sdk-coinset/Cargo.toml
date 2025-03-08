@@ -14,6 +14,10 @@ categories = { workspace = true }
 [lints]
 workspace = true
 
+[features]
+native-tls = ["reqwest/native-tls"]
+rustls = ["reqwest/rustls-tls"]
+
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
