@@ -72,9 +72,14 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
 
     let mut bindings = IndexMap::new();
 
-    for path in fs::read_dir(Path::new(path).parent().unwrap().join("bindings")).unwrap() {
-        let path = path.unwrap();
+    let mut dir: Vec<_> = fs::read_dir(Path::new(path).parent().unwrap().join("bindings"))
+        .unwrap()
+        .map(|p| p.unwrap())
+        .collect();
 
+    dir.sort_by_key(|p| p.path().file_name().unwrap().to_str().unwrap().to_string());
+
+    for path in dir {
         if path.path().extension().unwrap() == "json" {
             let source = fs::read_to_string(path.path()).unwrap();
             let contents: IndexMap<String, Binding> = serde_json::from_str(&source).unwrap();

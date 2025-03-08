@@ -5,6 +5,14 @@
 
 export declare function standardPuzzleHash(syntheticKey: PublicKey): Uint8Array
 export declare function catPuzzleHash(assetId: Uint8Array, innerPuzzleHash: Uint8Array): Uint8Array
+export declare function fromHex(value: string): Uint8Array
+export declare function toHex(value: Uint8Array): string
+export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
+export declare function treeHashAtom(atom: Uint8Array): Uint8Array
+export declare function treeHashPair(first: Uint8Array, rest: Uint8Array): Uint8Array
+export declare function sha256(value: Uint8Array): Uint8Array
+export declare function curryTreeHash(program: Uint8Array, args: Array<Uint8Array>): Uint8Array
+export declare function generateBytes(bytes: number): Uint8Array
 export declare function mOfNHash(config: MemberConfig, required: number, items: Array<Uint8Array>): Uint8Array
 export declare function k1MemberHash(config: MemberConfig, publicKey: K1PublicKey, fastForward: boolean): Uint8Array
 export declare function r1MemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Uint8Array
@@ -24,14 +32,15 @@ export declare function preventConditionOpcodeRestriction(conditionOpcode: numbe
 export declare function preventMultipleCreateCoinsRestriction(): Restriction
 export declare function preventSideEffectsRestriction(): Array<Restriction>
 export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restriction>, delegatedPuzzleHash: Uint8Array): Uint8Array
-export declare function fromHex(value: string): Uint8Array
-export declare function toHex(value: Uint8Array): string
-export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
-export declare function treeHashAtom(atom: Uint8Array): Uint8Array
-export declare function treeHashPair(first: Uint8Array, rest: Uint8Array): Uint8Array
-export declare function sha256(value: Uint8Array): Uint8Array
-export declare function curryTreeHash(program: Uint8Array, args: Array<Uint8Array>): Uint8Array
-export declare function generateBytes(bytes: number): Uint8Array
+export declare class Address {
+  encode(): string
+  static decode(address: string): Address
+  constructor(puzzleHash: Uint8Array, prefix: string)
+  get puzzleHash(): Uint8Array
+  set puzzleHash(value: Uint8Array)
+  get prefix(): string
+  set prefix(value: string)
+}
 export declare class SecretKey {
   static fromSeed(seed: Uint8Array): SecretKey
   static fromBytes(bytes: Uint8Array): SecretKey
@@ -66,519 +75,69 @@ export declare class Signature {
   isInfinity(): boolean
   isValid(): boolean
 }
-export declare class Puzzle {
-  parseCat(): ParsedCat | null
-  parseChildCats(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Array<Cat> | null
-  parseNft(): ParsedNft | null
-  parseChildNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Nft | null
-  parseDid(): ParsedDid | null
-  parseChildDid(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program, coin: Coin): Did | null
-  parseInnerStreamingPuzzle(): StreamingPuzzleInfo | null
-  parseChildStreamedCat(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): StreamedCatParsingResult
-  constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
-  get puzzleHash(): Uint8Array
-  set puzzleHash(value: Uint8Array)
-  get program(): Program
-  set program(value: Program)
-  get modHash(): Uint8Array
-  set modHash(value: Uint8Array)
-  get args(): Program | null
-  set args(value?: Program | undefined | null)
-}
-export declare class StreamedCatParsingResult {
-  constructor(streamedCat: StreamedCat | undefined | null, lastSpendWasClawback: boolean, lastPaymentAmountIfClawback: bigint)
-  get streamedCat(): StreamedCat | null
-  set streamedCat(value?: StreamedCat | undefined | null)
-  get lastSpendWasClawback(): boolean
-  set lastSpendWasClawback(value: boolean)
-  get lastPaymentAmountIfClawback(): bigint
-  set lastPaymentAmountIfClawback(value: bigint)
-}
-export declare class Cat {
-  constructor(coin: Coin, lineageProof: LineageProof | undefined | null, assetId: Uint8Array, p2PuzzleHash: Uint8Array)
-  get coin(): Coin
-  set coin(value: Coin)
-  get lineageProof(): LineageProof | null
-  set lineageProof(value?: LineageProof | undefined | null)
-  get assetId(): Uint8Array
-  set assetId(value: Uint8Array)
-  get p2PuzzleHash(): Uint8Array
-  set p2PuzzleHash(value: Uint8Array)
-}
-export declare class CatSpend {
-  constructor(cat: Cat, spend: Spend)
-  get cat(): Cat
-  set cat(value: Cat)
-  get spend(): Spend
-  set spend(value: Spend)
-}
-export declare class ParsedCat {
-  constructor(assetId: Uint8Array, p2Puzzle: Puzzle)
-  get assetId(): Uint8Array
-  set assetId(value: Uint8Array)
-  get p2Puzzle(): Puzzle
-  set p2Puzzle(value: Puzzle)
-}
-export declare class Nft {
-  constructor(coin: Coin, lineageProof: LineageProof, info: NftInfo)
-  get coin(): Coin
-  set coin(value: Coin)
-  get lineageProof(): LineageProof
-  set lineageProof(value: LineageProof)
-  get info(): NftInfo
-  set info(value: NftInfo)
-}
-export declare class NftInfo {
-  constructor(launcherId: Uint8Array, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, currentOwner: Uint8Array | undefined | null, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, p2PuzzleHash: Uint8Array)
-  get launcherId(): Uint8Array
-  set launcherId(value: Uint8Array)
-  get metadata(): Program
-  set metadata(value: Program)
-  get metadataUpdaterPuzzleHash(): Uint8Array
-  set metadataUpdaterPuzzleHash(value: Uint8Array)
-  get currentOwner(): Uint8Array | null
-  set currentOwner(value?: Uint8Array | undefined | null)
-  get royaltyPuzzleHash(): Uint8Array
-  set royaltyPuzzleHash(value: Uint8Array)
-  get royaltyTenThousandths(): number
-  set royaltyTenThousandths(value: number)
-  get p2PuzzleHash(): Uint8Array
-  set p2PuzzleHash(value: Uint8Array)
-}
-export declare class ParsedNft {
-  constructor(info: NftInfo, p2Puzzle: Puzzle)
-  get info(): NftInfo
-  set info(value: NftInfo)
-  get p2Puzzle(): Puzzle
-  set p2Puzzle(value: Puzzle)
-}
-export declare class NftMetadata {
-  constructor(editionNumber: bigint, editionTotal: bigint, dataUris: Array<string>, dataHash: Uint8Array | undefined | null, metadataUris: Array<string>, metadataHash: Uint8Array | undefined | null, licenseUris: Array<string>, licenseHash?: Uint8Array | undefined | null)
-  get editionNumber(): bigint
-  set editionNumber(value: bigint)
-  get editionTotal(): bigint
-  set editionTotal(value: bigint)
-  get dataUris(): Array<string>
-  set dataUris(value: Array<string>)
-  get dataHash(): Uint8Array | null
-  set dataHash(value?: Uint8Array | undefined | null)
-  get metadataUris(): Array<string>
-  set metadataUris(value: Array<string>)
-  get metadataHash(): Uint8Array | null
-  set metadataHash(value?: Uint8Array | undefined | null)
-  get licenseUris(): Array<string>
-  set licenseUris(value: Array<string>)
-  get licenseHash(): Uint8Array | null
-  set licenseHash(value?: Uint8Array | undefined | null)
-}
-export declare class NftMint {
-  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, owner?: DidOwner | undefined | null)
-  get metadata(): Program
-  set metadata(value: Program)
-  get metadataUpdaterPuzzleHash(): Uint8Array
-  set metadataUpdaterPuzzleHash(value: Uint8Array)
-  get p2PuzzleHash(): Uint8Array
-  set p2PuzzleHash(value: Uint8Array)
-  get royaltyPuzzleHash(): Uint8Array
-  set royaltyPuzzleHash(value: Uint8Array)
-  get royaltyTenThousandths(): number
-  set royaltyTenThousandths(value: number)
-  get owner(): DidOwner | null
-  set owner(value?: DidOwner | undefined | null)
-}
-export declare class DidOwner {
-  constructor(didId: Uint8Array, innerPuzzleHash: Uint8Array)
-  get didId(): Uint8Array
-  set didId(value: Uint8Array)
-  get innerPuzzleHash(): Uint8Array
-  set innerPuzzleHash(value: Uint8Array)
-}
-export declare class MintedNfts {
-  constructor(nfts: Array<Nft>, parentConditions: Array<Program>)
-  get nfts(): Array<Nft>
-  set nfts(value: Array<Nft>)
-  get parentConditions(): Array<Program>
-  set parentConditions(value: Array<Program>)
-}
-export declare class Did {
-  constructor(coin: Coin, lineageProof: LineageProof, info: DidInfo)
-  get coin(): Coin
-  set coin(value: Coin)
-  get lineageProof(): LineageProof
-  set lineageProof(value: LineageProof)
-  get info(): DidInfo
-  set info(value: DidInfo)
-}
-export declare class DidInfo {
-  constructor(launcherId: Uint8Array, recoveryListHash: Uint8Array | undefined | null, numVerificationsRequired: bigint, metadata: Program, p2PuzzleHash: Uint8Array)
-  get launcherId(): Uint8Array
-  set launcherId(value: Uint8Array)
-  get recoveryListHash(): Uint8Array | null
-  set recoveryListHash(value?: Uint8Array | undefined | null)
-  get numVerificationsRequired(): bigint
-  set numVerificationsRequired(value: bigint)
-  get metadata(): Program
-  set metadata(value: Program)
-  get p2PuzzleHash(): Uint8Array
-  set p2PuzzleHash(value: Uint8Array)
-}
-export declare class ParsedDid {
-  constructor(info: DidInfo, p2Puzzle: Puzzle)
-  get info(): DidInfo
-  set info(value: DidInfo)
-  get p2Puzzle(): Puzzle
-  set p2Puzzle(value: Puzzle)
-}
-export declare class StreamingPuzzleInfo {
-  amountToBePaid(myCoinAmount: bigint, paymentTime: bigint): bigint
-  static getHint(recipient: Uint8Array): Uint8Array
-  getLaunchHints(): Array<Uint8Array>
-  innerPuzzleHash(): Uint8Array
-  static fromMemos(memos: Array<Uint8Array>): StreamingPuzzleInfo | null
-  constructor(recipient: Uint8Array, clawbackPh: Uint8Array | undefined | null, endTime: bigint, lastPaymentTime: bigint)
-  get recipient(): Uint8Array
-  set recipient(value: Uint8Array)
-  get clawbackPh(): Uint8Array | null
-  set clawbackPh(value?: Uint8Array | undefined | null)
-  get endTime(): bigint
-  set endTime(value: bigint)
-  get lastPaymentTime(): bigint
-  set lastPaymentTime(value: bigint)
-}
-export declare class StreamedCat {
-  constructor(coin: Coin, assetId: Uint8Array, proof: LineageProof, info: StreamingPuzzleInfo)
-  get coin(): Coin
-  set coin(value: Coin)
-  get assetId(): Uint8Array
-  set assetId(value: Uint8Array)
-  get proof(): LineageProof
-  set proof(value: LineageProof)
-  get info(): StreamingPuzzleInfo
-  set info(value: StreamingPuzzleInfo)
-}
-export declare class Vault {
-  child(custodyHash: Uint8Array): Vault
-  constructor(coin: Coin, launcherId: Uint8Array, proof: LineageProof, custodyHash: Uint8Array)
-  get coin(): Coin
-  set coin(value: Coin)
-  get launcherId(): Uint8Array
-  set launcherId(value: Uint8Array)
-  get proof(): LineageProof
-  set proof(value: LineageProof)
-  get custodyHash(): Uint8Array
-  set custodyHash(value: Uint8Array)
-}
-export declare class MemberConfig {
+export declare class Clvm {
   constructor()
-  withTopLevel(topLevel: boolean): MemberConfig
-  withNonce(nonce: number): MemberConfig
-  withRestrictions(restrictions: Array<Restriction>): MemberConfig
-  get topLevel(): boolean
-  set topLevel(value: boolean)
-  get nonce(): number
-  set nonce(value: number)
-  get restrictions(): Array<Restriction>
-  set restrictions(value: Array<Restriction>)
-}
-export declare class Restriction {
-  constructor(kind: RestrictionKind, puzzleHash: Uint8Array)
-  get kind(): RestrictionKind
-  set kind(value: RestrictionKind)
-  get puzzleHash(): Uint8Array
-  set puzzleHash(value: Uint8Array)
-}
-export declare class MipsSpend {
-  spend(custodyHash: Uint8Array): Spend
-  spendVault(vault: Vault): void
-  mOfN(config: MemberConfig, required: number, items: Array<Uint8Array>): void
-  k1Member(config: MemberConfig, publicKey: K1PublicKey, signature: K1Signature, fastForward: boolean): void
-  r1Member(config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, fastForward: boolean): void
-  blsMember(config: MemberConfig, publicKey: PublicKey): void
-  passkeyMember(config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, authenticatorData: Uint8Array, clientDataJson: Uint8Array, challengeIndex: number, fastForward: boolean): void
-  singletonMember(config: MemberConfig, launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, singletonAmount: bigint): void
-  fixedPuzzleMember(config: MemberConfig, fixedPuzzleHash: Uint8Array): void
-  customMember(config: MemberConfig, spend: Spend): void
-  timelock(timelock: bigint): void
-  force1Of2RestrictedVariable(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array, newRightSideMemberHash: Uint8Array): void
-  preventConditionOpcode(conditionOpcode: number): void
-  preventMultipleCreateCoins(): void
-  preventSideEffects(): void
-}
-export declare class VaultMint {
-  constructor(vault: Vault, parentConditions: Array<Program>)
-  get vault(): Vault
-  set vault(value: Vault)
-  get parentConditions(): Array<Program>
-  set parentConditions(value: Array<Program>)
-}
-export declare class Remark {
-  constructor(rest: Program)
-  get rest(): Program
-  set rest(value: Program)
-}
-export declare class AggSigParent {
-  constructor(publicKey: PublicKey, message: Uint8Array)
-  get publicKey(): PublicKey
-  set publicKey(value: PublicKey)
-  get message(): Uint8Array
-  set message(value: Uint8Array)
-}
-export declare class AggSigPuzzle {
-  constructor(publicKey: PublicKey, message: Uint8Array)
-  get publicKey(): PublicKey
-  set publicKey(value: PublicKey)
-  get message(): Uint8Array
-  set message(value: Uint8Array)
-}
-export declare class AggSigAmount {
-  constructor(publicKey: PublicKey, message: Uint8Array)
-  get publicKey(): PublicKey
-  set publicKey(value: PublicKey)
-  get message(): Uint8Array
-  set message(value: Uint8Array)
-}
-export declare class AggSigPuzzleAmount {
-  constructor(publicKey: PublicKey, message: Uint8Array)
-  get publicKey(): PublicKey
-  set publicKey(value: PublicKey)
-  get message(): Uint8Array
-  set message(value: Uint8Array)
-}
-export declare class AggSigParentAmount {
-  constructor(publicKey: PublicKey, message: Uint8Array)
-  get publicKey(): PublicKey
-  set publicKey(value: PublicKey)
-  get message(): Uint8Array
-  set message(value: Uint8Array)
-}
-export declare class AggSigParentPuzzle {
-  constructor(publicKey: PublicKey, message: Uint8Array)
-  get publicKey(): PublicKey
-  set publicKey(value: PublicKey)
-  get message(): Uint8Array
-  set message(value: Uint8Array)
-}
-export declare class AggSigUnsafe {
-  constructor(publicKey: PublicKey, message: Uint8Array)
-  get publicKey(): PublicKey
-  set publicKey(value: PublicKey)
-  get message(): Uint8Array
-  set message(value: Uint8Array)
-}
-export declare class AggSigMe {
-  constructor(publicKey: PublicKey, message: Uint8Array)
-  get publicKey(): PublicKey
-  set publicKey(value: PublicKey)
-  get message(): Uint8Array
-  set message(value: Uint8Array)
-}
-export declare class CreateCoin {
-  constructor(puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null)
-  get puzzleHash(): Uint8Array
-  set puzzleHash(value: Uint8Array)
-  get amount(): bigint
-  set amount(value: bigint)
-  get memos(): Program | null
-  set memos(value?: Program | undefined | null)
-}
-export declare class ReserveFee {
-  constructor(amount: bigint)
-  get amount(): bigint
-  set amount(value: bigint)
-}
-export declare class CreateCoinAnnouncement {
-  constructor(message: Uint8Array)
-  get message(): Uint8Array
-  set message(value: Uint8Array)
-}
-export declare class CreatePuzzleAnnouncement {
-  constructor(message: Uint8Array)
-  get message(): Uint8Array
-  set message(value: Uint8Array)
-}
-export declare class AssertCoinAnnouncement {
-  constructor(announcementId: Uint8Array)
-  get announcementId(): Uint8Array
-  set announcementId(value: Uint8Array)
-}
-export declare class AssertPuzzleAnnouncement {
-  constructor(announcementId: Uint8Array)
-  get announcementId(): Uint8Array
-  set announcementId(value: Uint8Array)
-}
-export declare class AssertConcurrentSpend {
-  constructor(coinId: Uint8Array)
-  get coinId(): Uint8Array
-  set coinId(value: Uint8Array)
-}
-export declare class AssertConcurrentPuzzle {
-  constructor(puzzleHash: Uint8Array)
-  get puzzleHash(): Uint8Array
-  set puzzleHash(value: Uint8Array)
-}
-export declare class AssertSecondsRelative {
-  constructor(seconds: bigint)
-  get seconds(): bigint
-  set seconds(value: bigint)
-}
-export declare class AssertSecondsAbsolute {
-  constructor(seconds: bigint)
-  get seconds(): bigint
-  set seconds(value: bigint)
-}
-export declare class AssertHeightRelative {
-  constructor(height: number)
-  get height(): number
-  set height(value: number)
-}
-export declare class AssertHeightAbsolute {
-  constructor(height: number)
-  get height(): number
-  set height(value: number)
-}
-export declare class AssertBeforeSecondsRelative {
-  constructor(seconds: bigint)
-  get seconds(): bigint
-  set seconds(value: bigint)
-}
-export declare class AssertBeforeSecondsAbsolute {
-  constructor(seconds: bigint)
-  get seconds(): bigint
-  set seconds(value: bigint)
-}
-export declare class AssertBeforeHeightRelative {
-  constructor(height: number)
-  get height(): number
-  set height(value: number)
-}
-export declare class AssertBeforeHeightAbsolute {
-  constructor(height: number)
-  get height(): number
-  set height(value: number)
-}
-export declare class AssertMyCoinId {
-  constructor(coinId: Uint8Array)
-  get coinId(): Uint8Array
-  set coinId(value: Uint8Array)
-}
-export declare class AssertMyParentId {
-  constructor(parentId: Uint8Array)
-  get parentId(): Uint8Array
-  set parentId(value: Uint8Array)
-}
-export declare class AssertMyPuzzleHash {
-  constructor(puzzleHash: Uint8Array)
-  get puzzleHash(): Uint8Array
-  set puzzleHash(value: Uint8Array)
-}
-export declare class AssertMyAmount {
-  constructor(amount: bigint)
-  get amount(): bigint
-  set amount(value: bigint)
-}
-export declare class AssertMyBirthSeconds {
-  constructor(seconds: bigint)
-  get seconds(): bigint
-  set seconds(value: bigint)
-}
-export declare class AssertMyBirthHeight {
-  constructor(height: number)
-  get height(): number
-  set height(value: number)
-}
-export declare class AssertEphemeral {
-  constructor()
-}
-export declare class SendMessage {
-  constructor(mode: number, message: Uint8Array, data: Array<Program>)
-  get mode(): number
-  set mode(value: number)
-  get message(): Uint8Array
-  set message(value: Uint8Array)
-  get data(): Array<Program>
-  set data(value: Array<Program>)
-}
-export declare class ReceiveMessage {
-  constructor(mode: number, message: Uint8Array, data: Array<Program>)
-  get mode(): number
-  set mode(value: number)
-  get message(): Uint8Array
-  set message(value: Uint8Array)
-  get data(): Array<Program>
-  set data(value: Array<Program>)
-}
-export declare class Softfork {
-  constructor(cost: bigint, rest: Program)
-  get cost(): bigint
-  set cost(value: bigint)
-  get rest(): Program
-  set rest(value: Program)
-}
-export declare class Mnemonic {
-  constructor(mnemonic: string)
-  static fromEntropy(entropy: Uint8Array): Mnemonic
-  static generate(use24: boolean): Mnemonic
-  static verify(mnemonic: string): boolean
-  toString(): string
-  toEntropy(): Uint8Array
-  toSeed(password: string): Uint8Array
-}
-export declare class Program {
-  compile(): Output
-  unparse(): string
-  serialize(): Uint8Array
-  serializeWithBackrefs(): Uint8Array
-  run(solution: Program, maxCost: bigint, mempoolMode: boolean): Output
-  curry(args: Array<Program>): Program
-  uncurry(): CurriedProgram | null
-  treeHash(): Uint8Array
-  length(): number
-  first(): Program
-  rest(): Program
-  toString(): string | null
-  toBool(): boolean | null
-  toAtom(): Uint8Array | null
-  toList(): Array<Program> | null
-  toPair(): Pair | null
-  puzzle(): Puzzle
-  parseNftMetadata(): NftMetadata | null
-  parseRemark(): Remark | null
-  parseAggSigParent(): AggSigParent | null
-  parseAggSigPuzzle(): AggSigPuzzle | null
-  parseAggSigAmount(): AggSigAmount | null
-  parseAggSigPuzzleAmount(): AggSigPuzzleAmount | null
-  parseAggSigParentAmount(): AggSigParentAmount | null
-  parseAggSigParentPuzzle(): AggSigParentPuzzle | null
-  parseAggSigUnsafe(): AggSigUnsafe | null
-  parseAggSigMe(): AggSigMe | null
-  parseCreateCoin(): CreateCoin | null
-  parseReserveFee(): ReserveFee | null
-  parseCreateCoinAnnouncement(): CreateCoinAnnouncement | null
-  parseCreatePuzzleAnnouncement(): CreatePuzzleAnnouncement | null
-  parseAssertCoinAnnouncement(): AssertCoinAnnouncement | null
-  parseAssertPuzzleAnnouncement(): AssertPuzzleAnnouncement | null
-  parseAssertConcurrentSpend(): AssertConcurrentSpend | null
-  parseAssertConcurrentPuzzle(): AssertConcurrentPuzzle | null
-  parseAssertSecondsRelative(): AssertSecondsRelative | null
-  parseAssertSecondsAbsolute(): AssertSecondsAbsolute | null
-  parseAssertHeightRelative(): AssertHeightRelative | null
-  parseAssertHeightAbsolute(): AssertHeightAbsolute | null
-  parseAssertBeforeSecondsRelative(): AssertBeforeSecondsRelative | null
-  parseAssertBeforeSecondsAbsolute(): AssertBeforeSecondsAbsolute | null
-  parseAssertBeforeHeightRelative(): AssertBeforeHeightRelative | null
-  parseAssertBeforeHeightAbsolute(): AssertBeforeHeightAbsolute | null
-  parseAssertMyCoinId(): AssertMyCoinId | null
-  parseAssertMyParentId(): AssertMyParentId | null
-  parseAssertMyPuzzleHash(): AssertMyPuzzleHash | null
-  parseAssertMyAmount(): AssertMyAmount | null
-  parseAssertMyBirthSeconds(): AssertMyBirthSeconds | null
-  parseAssertMyBirthHeight(): AssertMyBirthHeight | null
-  parseAssertEphemeral(): AssertEphemeral | null
-  parseSendMessage(): SendMessage | null
-  parseReceiveMessage(): ReceiveMessage | null
-  parseSoftfork(): Softfork | null
-  toInt(): number | null
-  toBigInt(): bigint | null
+  addCoinSpend(coinSpend: CoinSpend): void
+  spendCoin(coin: Coin, spend: Spend): void
+  coinSpends(): Array<CoinSpend>
+  parse(program: string): Program
+  deserialize(value: Uint8Array): Program
+  deserializeWithBackrefs(value: Uint8Array): Program
+  pair(first: Program, rest: Program): Program
+  nil(): Program
+  string(value: string): Program
+  bool(value: boolean): Program
+  atom(value: Uint8Array): Program
+  list(value: Array<Program>): Program
+  delegatedSpend(conditions: Array<Program>): Spend
+  standardSpend(syntheticKey: PublicKey, spend: Spend): Spend
+  spendStandardCoin(coin: Coin, syntheticKey: PublicKey, spend: Spend): void
+  spendCatCoins(catSpends: Array<CatSpend>): void
+  mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
+  spendNft(nft: Nft, innerSpend: Spend): void
+  spendDid(did: Did, innerSpend: Spend): void
+  spendStreamedCat(streamedCat: StreamedCat, paymentTime: bigint, clawback: boolean): void
+  mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
+  mipsSpend(coin: Coin, delegatedSpend: Spend): MipsSpend
+  nftMetadata(value: NftMetadata): Program
+  remark(rest: Program): Program
+  aggSigParent(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigPuzzle(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigAmount(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigPuzzleAmount(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigParentAmount(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigParentPuzzle(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigUnsafe(publicKey: PublicKey, message: Uint8Array): Program
+  aggSigMe(publicKey: PublicKey, message: Uint8Array): Program
+  createCoin(puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null): Program
+  reserveFee(amount: bigint): Program
+  createCoinAnnouncement(message: Uint8Array): Program
+  createPuzzleAnnouncement(message: Uint8Array): Program
+  assertCoinAnnouncement(announcementId: Uint8Array): Program
+  assertPuzzleAnnouncement(announcementId: Uint8Array): Program
+  assertConcurrentSpend(coinId: Uint8Array): Program
+  assertConcurrentPuzzle(puzzleHash: Uint8Array): Program
+  assertSecondsRelative(seconds: bigint): Program
+  assertSecondsAbsolute(seconds: bigint): Program
+  assertHeightRelative(height: number): Program
+  assertHeightAbsolute(height: number): Program
+  assertBeforeSecondsRelative(seconds: bigint): Program
+  assertBeforeSecondsAbsolute(seconds: bigint): Program
+  assertBeforeHeightRelative(height: number): Program
+  assertBeforeHeightAbsolute(height: number): Program
+  assertMyCoinId(coinId: Uint8Array): Program
+  assertMyParentId(parentId: Uint8Array): Program
+  assertMyPuzzleHash(puzzleHash: Uint8Array): Program
+  assertMyAmount(amount: bigint): Program
+  assertMyBirthSeconds(seconds: bigint): Program
+  assertMyBirthHeight(height: number): Program
+  assertEphemeral(): Program
+  sendMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
+  receiveMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
+  softfork(cost: bigint, rest: Program): Program
+  alloc(value: any): Program
+  int(value: number): Program
+  bigInt(value: bigint): Program
 }
 export declare class Output {
   constructor(value: Program, cost: bigint)
@@ -610,49 +169,38 @@ export declare class LineageProof {
   get parentAmount(): bigint
   set parentAmount(value: bigint)
 }
-export declare class Simulator {
-  constructor()
-  newCoin(puzzleHash: Uint8Array, amount: bigint): Coin
-  bls(amount: bigint): BlsPairWithCoin
-  spendCoins(coinSpends: Array<CoinSpend>, secretKeys: Array<SecretKey>): void
-}
-export declare class BlsPair {
-  static fromSeed(seed: bigint): BlsPair
-  static manyFromSeed(seed: bigint, count: number): Array<BlsPair>
-  constructor(sk: SecretKey, pk: PublicKey)
-  get sk(): SecretKey
-  set sk(value: SecretKey)
-  get pk(): PublicKey
-  set pk(value: PublicKey)
-}
-export declare class BlsPairWithCoin {
-  constructor(sk: SecretKey, pk: PublicKey, puzzleHash: Uint8Array, coin: Coin)
-  get sk(): SecretKey
-  set sk(value: SecretKey)
-  get pk(): PublicKey
-  set pk(value: PublicKey)
+export declare class Coin {
+  coinId(): Uint8Array
+  constructor(parentCoinInfo: Uint8Array, puzzleHash: Uint8Array, amount: bigint)
+  get parentCoinInfo(): Uint8Array
+  set parentCoinInfo(value: Uint8Array)
   get puzzleHash(): Uint8Array
   set puzzleHash(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+export declare class CoinSpend {
+  constructor(coin: Coin, puzzleReveal: Uint8Array, solution: Uint8Array)
   get coin(): Coin
   set coin(value: Coin)
+  get puzzleReveal(): Uint8Array
+  set puzzleReveal(value: Uint8Array)
+  get solution(): Uint8Array
+  set solution(value: Uint8Array)
 }
-export declare class K1Pair {
-  static fromSeed(seed: bigint): K1Pair
-  static manyFromSeed(seed: bigint, count: number): Array<K1Pair>
-  constructor(sk: K1SecretKey, pk: K1PublicKey)
-  get sk(): K1SecretKey
-  set sk(value: K1SecretKey)
-  get pk(): K1PublicKey
-  set pk(value: K1PublicKey)
+export declare class SpendBundle {
+  constructor(coinSpends: Array<CoinSpend>, aggregatedSignature: Signature)
+  get coinSpends(): Array<CoinSpend>
+  set coinSpends(value: Array<CoinSpend>)
+  get aggregatedSignature(): Signature
+  set aggregatedSignature(value: Signature)
 }
-export declare class R1Pair {
-  static fromSeed(seed: bigint): R1Pair
-  static manyFromSeed(seed: bigint, count: number): Array<R1Pair>
-  constructor(sk: R1SecretKey, pk: R1PublicKey)
-  get sk(): R1SecretKey
-  set sk(value: R1SecretKey)
-  get pk(): R1PublicKey
-  set pk(value: R1PublicKey)
+export declare class Spend {
+  constructor(puzzle: Program, solution: Program)
+  get puzzle(): Program
+  set puzzle(value: Program)
+  get solution(): Program
+  set solution(value: Program)
 }
 export declare class CoinsetClient {
   constructor(baseUrl: string)
@@ -1152,81 +700,464 @@ export declare class SubEpochSummary {
   get newSubSlotIters(): bigint | null
   set newSubSlotIters(value?: bigint | undefined | null)
 }
-export declare class Address {
-  encode(): string
-  static decode(address: string): Address
-  constructor(puzzleHash: Uint8Array, prefix: string)
+export declare class Remark {
+  constructor(rest: Program)
+  get rest(): Program
+  set rest(value: Program)
+}
+export declare class AggSigParent {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+export declare class AggSigPuzzle {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+export declare class AggSigAmount {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+export declare class AggSigPuzzleAmount {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+export declare class AggSigParentAmount {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+export declare class AggSigParentPuzzle {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+export declare class AggSigUnsafe {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+export declare class AggSigMe {
+  constructor(publicKey: PublicKey, message: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+export declare class CreateCoin {
+  constructor(puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null)
   get puzzleHash(): Uint8Array
   set puzzleHash(value: Uint8Array)
-  get prefix(): string
-  set prefix(value: string)
+  get amount(): bigint
+  set amount(value: bigint)
+  get memos(): Program | null
+  set memos(value?: Program | undefined | null)
 }
-export declare class Clvm {
+export declare class ReserveFee {
+  constructor(amount: bigint)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+export declare class CreateCoinAnnouncement {
+  constructor(message: Uint8Array)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+export declare class CreatePuzzleAnnouncement {
+  constructor(message: Uint8Array)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+}
+export declare class AssertCoinAnnouncement {
+  constructor(announcementId: Uint8Array)
+  get announcementId(): Uint8Array
+  set announcementId(value: Uint8Array)
+}
+export declare class AssertPuzzleAnnouncement {
+  constructor(announcementId: Uint8Array)
+  get announcementId(): Uint8Array
+  set announcementId(value: Uint8Array)
+}
+export declare class AssertConcurrentSpend {
+  constructor(coinId: Uint8Array)
+  get coinId(): Uint8Array
+  set coinId(value: Uint8Array)
+}
+export declare class AssertConcurrentPuzzle {
+  constructor(puzzleHash: Uint8Array)
+  get puzzleHash(): Uint8Array
+  set puzzleHash(value: Uint8Array)
+}
+export declare class AssertSecondsRelative {
+  constructor(seconds: bigint)
+  get seconds(): bigint
+  set seconds(value: bigint)
+}
+export declare class AssertSecondsAbsolute {
+  constructor(seconds: bigint)
+  get seconds(): bigint
+  set seconds(value: bigint)
+}
+export declare class AssertHeightRelative {
+  constructor(height: number)
+  get height(): number
+  set height(value: number)
+}
+export declare class AssertHeightAbsolute {
+  constructor(height: number)
+  get height(): number
+  set height(value: number)
+}
+export declare class AssertBeforeSecondsRelative {
+  constructor(seconds: bigint)
+  get seconds(): bigint
+  set seconds(value: bigint)
+}
+export declare class AssertBeforeSecondsAbsolute {
+  constructor(seconds: bigint)
+  get seconds(): bigint
+  set seconds(value: bigint)
+}
+export declare class AssertBeforeHeightRelative {
+  constructor(height: number)
+  get height(): number
+  set height(value: number)
+}
+export declare class AssertBeforeHeightAbsolute {
+  constructor(height: number)
+  get height(): number
+  set height(value: number)
+}
+export declare class AssertMyCoinId {
+  constructor(coinId: Uint8Array)
+  get coinId(): Uint8Array
+  set coinId(value: Uint8Array)
+}
+export declare class AssertMyParentId {
+  constructor(parentId: Uint8Array)
+  get parentId(): Uint8Array
+  set parentId(value: Uint8Array)
+}
+export declare class AssertMyPuzzleHash {
+  constructor(puzzleHash: Uint8Array)
+  get puzzleHash(): Uint8Array
+  set puzzleHash(value: Uint8Array)
+}
+export declare class AssertMyAmount {
+  constructor(amount: bigint)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+export declare class AssertMyBirthSeconds {
+  constructor(seconds: bigint)
+  get seconds(): bigint
+  set seconds(value: bigint)
+}
+export declare class AssertMyBirthHeight {
+  constructor(height: number)
+  get height(): number
+  set height(value: number)
+}
+export declare class AssertEphemeral {
   constructor()
-  addCoinSpend(coinSpend: CoinSpend): void
-  spendCoin(coin: Coin, spend: Spend): void
-  coinSpends(): Array<CoinSpend>
-  parse(program: string): Program
-  deserialize(value: Uint8Array): Program
-  deserializeWithBackrefs(value: Uint8Array): Program
-  pair(first: Program, rest: Program): Program
-  nil(): Program
-  string(value: string): Program
-  bool(value: boolean): Program
-  atom(value: Uint8Array): Program
-  list(value: Array<Program>): Program
-  delegatedSpend(conditions: Array<Program>): Spend
-  standardSpend(syntheticKey: PublicKey, spend: Spend): Spend
-  spendStandardCoin(coin: Coin, syntheticKey: PublicKey, spend: Spend): void
-  spendCatCoins(catSpends: Array<CatSpend>): void
-  mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
-  spendNft(nft: Nft, innerSpend: Spend): void
-  spendDid(did: Did, innerSpend: Spend): void
-  spendStreamedCat(streamedCat: StreamedCat, paymentTime: bigint, clawback: boolean): void
-  mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
-  mipsSpend(coin: Coin, delegatedSpend: Spend): MipsSpend
-  nftMetadata(value: NftMetadata): Program
-  remark(rest: Program): Program
-  aggSigParent(publicKey: PublicKey, message: Uint8Array): Program
-  aggSigPuzzle(publicKey: PublicKey, message: Uint8Array): Program
-  aggSigAmount(publicKey: PublicKey, message: Uint8Array): Program
-  aggSigPuzzleAmount(publicKey: PublicKey, message: Uint8Array): Program
-  aggSigParentAmount(publicKey: PublicKey, message: Uint8Array): Program
-  aggSigParentPuzzle(publicKey: PublicKey, message: Uint8Array): Program
-  aggSigUnsafe(publicKey: PublicKey, message: Uint8Array): Program
-  aggSigMe(publicKey: PublicKey, message: Uint8Array): Program
-  createCoin(puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null): Program
-  reserveFee(amount: bigint): Program
-  createCoinAnnouncement(message: Uint8Array): Program
-  createPuzzleAnnouncement(message: Uint8Array): Program
-  assertCoinAnnouncement(announcementId: Uint8Array): Program
-  assertPuzzleAnnouncement(announcementId: Uint8Array): Program
-  assertConcurrentSpend(coinId: Uint8Array): Program
-  assertConcurrentPuzzle(puzzleHash: Uint8Array): Program
-  assertSecondsRelative(seconds: bigint): Program
-  assertSecondsAbsolute(seconds: bigint): Program
-  assertHeightRelative(height: number): Program
-  assertHeightAbsolute(height: number): Program
-  assertBeforeSecondsRelative(seconds: bigint): Program
-  assertBeforeSecondsAbsolute(seconds: bigint): Program
-  assertBeforeHeightRelative(height: number): Program
-  assertBeforeHeightAbsolute(height: number): Program
-  assertMyCoinId(coinId: Uint8Array): Program
-  assertMyParentId(parentId: Uint8Array): Program
-  assertMyPuzzleHash(puzzleHash: Uint8Array): Program
-  assertMyAmount(amount: bigint): Program
-  assertMyBirthSeconds(seconds: bigint): Program
-  assertMyBirthHeight(height: number): Program
-  assertEphemeral(): Program
-  sendMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
-  receiveMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
-  softfork(cost: bigint, rest: Program): Program
-  alloc(value: any): Program
-  int(value: number): Program
-  bigInt(value: bigint): Program
 }
-export declare class Constants {
-  static defaultMetadataUpdaterHash(): Uint8Array
+export declare class SendMessage {
+  constructor(mode: number, message: Uint8Array, data: Array<Program>)
+  get mode(): number
+  set mode(value: number)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+  get data(): Array<Program>
+  set data(value: Array<Program>)
+}
+export declare class ReceiveMessage {
+  constructor(mode: number, message: Uint8Array, data: Array<Program>)
+  get mode(): number
+  set mode(value: number)
+  get message(): Uint8Array
+  set message(value: Uint8Array)
+  get data(): Array<Program>
+  set data(value: Array<Program>)
+}
+export declare class Softfork {
+  constructor(cost: bigint, rest: Program)
+  get cost(): bigint
+  set cost(value: bigint)
+  get rest(): Program
+  set rest(value: Program)
+}
+export declare class Mnemonic {
+  constructor(mnemonic: string)
+  static fromEntropy(entropy: Uint8Array): Mnemonic
+  static generate(use24: boolean): Mnemonic
+  static verify(mnemonic: string): boolean
+  toString(): string
+  toEntropy(): Uint8Array
+  toSeed(password: string): Uint8Array
+}
+export declare class Program {
+  compile(): Output
+  unparse(): string
+  serialize(): Uint8Array
+  serializeWithBackrefs(): Uint8Array
+  run(solution: Program, maxCost: bigint, mempoolMode: boolean): Output
+  curry(args: Array<Program>): Program
+  uncurry(): CurriedProgram | null
+  treeHash(): Uint8Array
+  length(): number
+  first(): Program
+  rest(): Program
+  toString(): string | null
+  toBool(): boolean | null
+  toAtom(): Uint8Array | null
+  toList(): Array<Program> | null
+  toPair(): Pair | null
+  puzzle(): Puzzle
+  parseNftMetadata(): NftMetadata | null
+  parseRemark(): Remark | null
+  parseAggSigParent(): AggSigParent | null
+  parseAggSigPuzzle(): AggSigPuzzle | null
+  parseAggSigAmount(): AggSigAmount | null
+  parseAggSigPuzzleAmount(): AggSigPuzzleAmount | null
+  parseAggSigParentAmount(): AggSigParentAmount | null
+  parseAggSigParentPuzzle(): AggSigParentPuzzle | null
+  parseAggSigUnsafe(): AggSigUnsafe | null
+  parseAggSigMe(): AggSigMe | null
+  parseCreateCoin(): CreateCoin | null
+  parseReserveFee(): ReserveFee | null
+  parseCreateCoinAnnouncement(): CreateCoinAnnouncement | null
+  parseCreatePuzzleAnnouncement(): CreatePuzzleAnnouncement | null
+  parseAssertCoinAnnouncement(): AssertCoinAnnouncement | null
+  parseAssertPuzzleAnnouncement(): AssertPuzzleAnnouncement | null
+  parseAssertConcurrentSpend(): AssertConcurrentSpend | null
+  parseAssertConcurrentPuzzle(): AssertConcurrentPuzzle | null
+  parseAssertSecondsRelative(): AssertSecondsRelative | null
+  parseAssertSecondsAbsolute(): AssertSecondsAbsolute | null
+  parseAssertHeightRelative(): AssertHeightRelative | null
+  parseAssertHeightAbsolute(): AssertHeightAbsolute | null
+  parseAssertBeforeSecondsRelative(): AssertBeforeSecondsRelative | null
+  parseAssertBeforeSecondsAbsolute(): AssertBeforeSecondsAbsolute | null
+  parseAssertBeforeHeightRelative(): AssertBeforeHeightRelative | null
+  parseAssertBeforeHeightAbsolute(): AssertBeforeHeightAbsolute | null
+  parseAssertMyCoinId(): AssertMyCoinId | null
+  parseAssertMyParentId(): AssertMyParentId | null
+  parseAssertMyPuzzleHash(): AssertMyPuzzleHash | null
+  parseAssertMyAmount(): AssertMyAmount | null
+  parseAssertMyBirthSeconds(): AssertMyBirthSeconds | null
+  parseAssertMyBirthHeight(): AssertMyBirthHeight | null
+  parseAssertEphemeral(): AssertEphemeral | null
+  parseSendMessage(): SendMessage | null
+  parseReceiveMessage(): ReceiveMessage | null
+  parseSoftfork(): Softfork | null
+  toInt(): number | null
+  toBigInt(): bigint | null
+}
+export declare class Puzzle {
+  parseCat(): ParsedCat | null
+  parseChildCats(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Array<Cat> | null
+  parseNft(): ParsedNft | null
+  parseChildNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Nft | null
+  parseDid(): ParsedDid | null
+  parseChildDid(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program, coin: Coin): Did | null
+  parseInnerStreamingPuzzle(): StreamingPuzzleInfo | null
+  parseChildStreamedCat(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): StreamedCatParsingResult
+  constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
+  get puzzleHash(): Uint8Array
+  set puzzleHash(value: Uint8Array)
+  get program(): Program
+  set program(value: Program)
+  get modHash(): Uint8Array
+  set modHash(value: Uint8Array)
+  get args(): Program | null
+  set args(value?: Program | undefined | null)
+}
+export declare class StreamedCatParsingResult {
+  constructor(streamedCat: StreamedCat | undefined | null, lastSpendWasClawback: boolean, lastPaymentAmountIfClawback: bigint)
+  get streamedCat(): StreamedCat | null
+  set streamedCat(value?: StreamedCat | undefined | null)
+  get lastSpendWasClawback(): boolean
+  set lastSpendWasClawback(value: boolean)
+  get lastPaymentAmountIfClawback(): bigint
+  set lastPaymentAmountIfClawback(value: bigint)
+}
+export declare class Cat {
+  constructor(coin: Coin, lineageProof: LineageProof | undefined | null, assetId: Uint8Array, p2PuzzleHash: Uint8Array)
+  get coin(): Coin
+  set coin(value: Coin)
+  get lineageProof(): LineageProof | null
+  set lineageProof(value?: LineageProof | undefined | null)
+  get assetId(): Uint8Array
+  set assetId(value: Uint8Array)
+  get p2PuzzleHash(): Uint8Array
+  set p2PuzzleHash(value: Uint8Array)
+}
+export declare class CatSpend {
+  constructor(cat: Cat, spend: Spend)
+  get cat(): Cat
+  set cat(value: Cat)
+  get spend(): Spend
+  set spend(value: Spend)
+}
+export declare class ParsedCat {
+  constructor(assetId: Uint8Array, p2Puzzle: Puzzle)
+  get assetId(): Uint8Array
+  set assetId(value: Uint8Array)
+  get p2Puzzle(): Puzzle
+  set p2Puzzle(value: Puzzle)
+}
+export declare class Nft {
+  constructor(coin: Coin, lineageProof: LineageProof, info: NftInfo)
+  get coin(): Coin
+  set coin(value: Coin)
+  get lineageProof(): LineageProof
+  set lineageProof(value: LineageProof)
+  get info(): NftInfo
+  set info(value: NftInfo)
+}
+export declare class NftInfo {
+  constructor(launcherId: Uint8Array, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, currentOwner: Uint8Array | undefined | null, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, p2PuzzleHash: Uint8Array)
+  get launcherId(): Uint8Array
+  set launcherId(value: Uint8Array)
+  get metadata(): Program
+  set metadata(value: Program)
+  get metadataUpdaterPuzzleHash(): Uint8Array
+  set metadataUpdaterPuzzleHash(value: Uint8Array)
+  get currentOwner(): Uint8Array | null
+  set currentOwner(value?: Uint8Array | undefined | null)
+  get royaltyPuzzleHash(): Uint8Array
+  set royaltyPuzzleHash(value: Uint8Array)
+  get royaltyTenThousandths(): number
+  set royaltyTenThousandths(value: number)
+  get p2PuzzleHash(): Uint8Array
+  set p2PuzzleHash(value: Uint8Array)
+}
+export declare class ParsedNft {
+  constructor(info: NftInfo, p2Puzzle: Puzzle)
+  get info(): NftInfo
+  set info(value: NftInfo)
+  get p2Puzzle(): Puzzle
+  set p2Puzzle(value: Puzzle)
+}
+export declare class NftMetadata {
+  constructor(editionNumber: bigint, editionTotal: bigint, dataUris: Array<string>, dataHash: Uint8Array | undefined | null, metadataUris: Array<string>, metadataHash: Uint8Array | undefined | null, licenseUris: Array<string>, licenseHash?: Uint8Array | undefined | null)
+  get editionNumber(): bigint
+  set editionNumber(value: bigint)
+  get editionTotal(): bigint
+  set editionTotal(value: bigint)
+  get dataUris(): Array<string>
+  set dataUris(value: Array<string>)
+  get dataHash(): Uint8Array | null
+  set dataHash(value?: Uint8Array | undefined | null)
+  get metadataUris(): Array<string>
+  set metadataUris(value: Array<string>)
+  get metadataHash(): Uint8Array | null
+  set metadataHash(value?: Uint8Array | undefined | null)
+  get licenseUris(): Array<string>
+  set licenseUris(value: Array<string>)
+  get licenseHash(): Uint8Array | null
+  set licenseHash(value?: Uint8Array | undefined | null)
+}
+export declare class NftMint {
+  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, owner?: DidOwner | undefined | null)
+  get metadata(): Program
+  set metadata(value: Program)
+  get metadataUpdaterPuzzleHash(): Uint8Array
+  set metadataUpdaterPuzzleHash(value: Uint8Array)
+  get p2PuzzleHash(): Uint8Array
+  set p2PuzzleHash(value: Uint8Array)
+  get royaltyPuzzleHash(): Uint8Array
+  set royaltyPuzzleHash(value: Uint8Array)
+  get royaltyTenThousandths(): number
+  set royaltyTenThousandths(value: number)
+  get owner(): DidOwner | null
+  set owner(value?: DidOwner | undefined | null)
+}
+export declare class DidOwner {
+  constructor(didId: Uint8Array, innerPuzzleHash: Uint8Array)
+  get didId(): Uint8Array
+  set didId(value: Uint8Array)
+  get innerPuzzleHash(): Uint8Array
+  set innerPuzzleHash(value: Uint8Array)
+}
+export declare class MintedNfts {
+  constructor(nfts: Array<Nft>, parentConditions: Array<Program>)
+  get nfts(): Array<Nft>
+  set nfts(value: Array<Nft>)
+  get parentConditions(): Array<Program>
+  set parentConditions(value: Array<Program>)
+}
+export declare class Did {
+  constructor(coin: Coin, lineageProof: LineageProof, info: DidInfo)
+  get coin(): Coin
+  set coin(value: Coin)
+  get lineageProof(): LineageProof
+  set lineageProof(value: LineageProof)
+  get info(): DidInfo
+  set info(value: DidInfo)
+}
+export declare class DidInfo {
+  constructor(launcherId: Uint8Array, recoveryListHash: Uint8Array | undefined | null, numVerificationsRequired: bigint, metadata: Program, p2PuzzleHash: Uint8Array)
+  get launcherId(): Uint8Array
+  set launcherId(value: Uint8Array)
+  get recoveryListHash(): Uint8Array | null
+  set recoveryListHash(value?: Uint8Array | undefined | null)
+  get numVerificationsRequired(): bigint
+  set numVerificationsRequired(value: bigint)
+  get metadata(): Program
+  set metadata(value: Program)
+  get p2PuzzleHash(): Uint8Array
+  set p2PuzzleHash(value: Uint8Array)
+}
+export declare class ParsedDid {
+  constructor(info: DidInfo, p2Puzzle: Puzzle)
+  get info(): DidInfo
+  set info(value: DidInfo)
+  get p2Puzzle(): Puzzle
+  set p2Puzzle(value: Puzzle)
+}
+export declare class StreamingPuzzleInfo {
+  amountToBePaid(myCoinAmount: bigint, paymentTime: bigint): bigint
+  static getHint(recipient: Uint8Array): Uint8Array
+  getLaunchHints(): Array<Uint8Array>
+  innerPuzzleHash(): Uint8Array
+  static fromMemos(memos: Array<Uint8Array>): StreamingPuzzleInfo | null
+  constructor(recipient: Uint8Array, clawbackPh: Uint8Array | undefined | null, endTime: bigint, lastPaymentTime: bigint)
+  get recipient(): Uint8Array
+  set recipient(value: Uint8Array)
+  get clawbackPh(): Uint8Array | null
+  set clawbackPh(value?: Uint8Array | undefined | null)
+  get endTime(): bigint
+  set endTime(value: bigint)
+  get lastPaymentTime(): bigint
+  set lastPaymentTime(value: bigint)
+}
+export declare class StreamedCat {
+  constructor(coin: Coin, assetId: Uint8Array, proof: LineageProof, info: StreamingPuzzleInfo)
+  get coin(): Coin
+  set coin(value: Coin)
+  get assetId(): Uint8Array
+  set assetId(value: Uint8Array)
+  get proof(): LineageProof
+  set proof(value: LineageProof)
+  get info(): StreamingPuzzleInfo
+  set info(value: StreamingPuzzleInfo)
 }
 export declare class K1SecretKey {
   static fromBytes(bytes: Uint8Array): K1SecretKey
@@ -1260,36 +1191,105 @@ export declare class R1Signature {
   static fromBytes(bytes: Uint8Array): R1Signature
   toBytes(): Uint8Array
 }
-export declare class Coin {
-  coinId(): Uint8Array
-  constructor(parentCoinInfo: Uint8Array, puzzleHash: Uint8Array, amount: bigint)
-  get parentCoinInfo(): Uint8Array
-  set parentCoinInfo(value: Uint8Array)
+export declare class Simulator {
+  constructor()
+  newCoin(puzzleHash: Uint8Array, amount: bigint): Coin
+  bls(amount: bigint): BlsPairWithCoin
+  spendCoins(coinSpends: Array<CoinSpend>, secretKeys: Array<SecretKey>): void
+}
+export declare class BlsPair {
+  static fromSeed(seed: bigint): BlsPair
+  static manyFromSeed(seed: bigint, count: number): Array<BlsPair>
+  constructor(sk: SecretKey, pk: PublicKey)
+  get sk(): SecretKey
+  set sk(value: SecretKey)
+  get pk(): PublicKey
+  set pk(value: PublicKey)
+}
+export declare class BlsPairWithCoin {
+  constructor(sk: SecretKey, pk: PublicKey, puzzleHash: Uint8Array, coin: Coin)
+  get sk(): SecretKey
+  set sk(value: SecretKey)
+  get pk(): PublicKey
+  set pk(value: PublicKey)
   get puzzleHash(): Uint8Array
   set puzzleHash(value: Uint8Array)
-  get amount(): bigint
-  set amount(value: bigint)
-}
-export declare class CoinSpend {
-  constructor(coin: Coin, puzzleReveal: Uint8Array, solution: Uint8Array)
   get coin(): Coin
   set coin(value: Coin)
-  get puzzleReveal(): Uint8Array
-  set puzzleReveal(value: Uint8Array)
-  get solution(): Uint8Array
-  set solution(value: Uint8Array)
 }
-export declare class SpendBundle {
-  constructor(coinSpends: Array<CoinSpend>, aggregatedSignature: Signature)
-  get coinSpends(): Array<CoinSpend>
-  set coinSpends(value: Array<CoinSpend>)
-  get aggregatedSignature(): Signature
-  set aggregatedSignature(value: Signature)
+export declare class K1Pair {
+  static fromSeed(seed: bigint): K1Pair
+  static manyFromSeed(seed: bigint, count: number): Array<K1Pair>
+  constructor(sk: K1SecretKey, pk: K1PublicKey)
+  get sk(): K1SecretKey
+  set sk(value: K1SecretKey)
+  get pk(): K1PublicKey
+  set pk(value: K1PublicKey)
 }
-export declare class Spend {
-  constructor(puzzle: Program, solution: Program)
-  get puzzle(): Program
-  set puzzle(value: Program)
-  get solution(): Program
-  set solution(value: Program)
+export declare class R1Pair {
+  static fromSeed(seed: bigint): R1Pair
+  static manyFromSeed(seed: bigint, count: number): Array<R1Pair>
+  constructor(sk: R1SecretKey, pk: R1PublicKey)
+  get sk(): R1SecretKey
+  set sk(value: R1SecretKey)
+  get pk(): R1PublicKey
+  set pk(value: R1PublicKey)
+}
+export declare class Constants {
+  static defaultMetadataUpdaterHash(): Uint8Array
+}
+export declare class Vault {
+  child(custodyHash: Uint8Array): Vault
+  constructor(coin: Coin, launcherId: Uint8Array, proof: LineageProof, custodyHash: Uint8Array)
+  get coin(): Coin
+  set coin(value: Coin)
+  get launcherId(): Uint8Array
+  set launcherId(value: Uint8Array)
+  get proof(): LineageProof
+  set proof(value: LineageProof)
+  get custodyHash(): Uint8Array
+  set custodyHash(value: Uint8Array)
+}
+export declare class MemberConfig {
+  constructor()
+  withTopLevel(topLevel: boolean): MemberConfig
+  withNonce(nonce: number): MemberConfig
+  withRestrictions(restrictions: Array<Restriction>): MemberConfig
+  get topLevel(): boolean
+  set topLevel(value: boolean)
+  get nonce(): number
+  set nonce(value: number)
+  get restrictions(): Array<Restriction>
+  set restrictions(value: Array<Restriction>)
+}
+export declare class Restriction {
+  constructor(kind: RestrictionKind, puzzleHash: Uint8Array)
+  get kind(): RestrictionKind
+  set kind(value: RestrictionKind)
+  get puzzleHash(): Uint8Array
+  set puzzleHash(value: Uint8Array)
+}
+export declare class MipsSpend {
+  spend(custodyHash: Uint8Array): Spend
+  spendVault(vault: Vault): void
+  mOfN(config: MemberConfig, required: number, items: Array<Uint8Array>): void
+  k1Member(config: MemberConfig, publicKey: K1PublicKey, signature: K1Signature, fastForward: boolean): void
+  r1Member(config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, fastForward: boolean): void
+  blsMember(config: MemberConfig, publicKey: PublicKey): void
+  passkeyMember(config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, authenticatorData: Uint8Array, clientDataJson: Uint8Array, challengeIndex: number, fastForward: boolean): void
+  singletonMember(config: MemberConfig, launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, singletonAmount: bigint): void
+  fixedPuzzleMember(config: MemberConfig, fixedPuzzleHash: Uint8Array): void
+  customMember(config: MemberConfig, spend: Spend): void
+  timelock(timelock: bigint): void
+  force1Of2RestrictedVariable(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array, newRightSideMemberHash: Uint8Array): void
+  preventConditionOpcode(conditionOpcode: number): void
+  preventMultipleCreateCoins(): void
+  preventSideEffects(): void
+}
+export declare class VaultMint {
+  constructor(vault: Vault, parentConditions: Array<Program>)
+  get vault(): Vault
+  set vault(value: Vault)
+  get parentConditions(): Array<Program>
+  set parentConditions(value: Array<Program>)
 }
