@@ -1,4 +1,4 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
     conditions::{AssertSecondsAbsolute, CreateCoin},
@@ -134,6 +134,27 @@ impl OptionUnderlying {
             ctx,
             P2OneOfManySolution::new(merkle_proof, puzzle, solution),
         )
+    }
+
+    pub fn exercise_coin_spend(
+        &self,
+        ctx: &mut SpendContext,
+        coin: Coin,
+        singleton_inner_puzzle_hash: Bytes32,
+        singleton_amount: u64,
+    ) -> Result<(), DriverError> {
+        let spend = self.exercise_spend(ctx, singleton_inner_puzzle_hash, singleton_amount)?;
+        ctx.spend(coin, spend)
+    }
+
+    pub fn clawback_coin_spend(
+        &self,
+        ctx: &mut SpendContext,
+        coin: Coin,
+        spend: Spend,
+    ) -> Result<(), DriverError> {
+        let spend = self.clawback_spend(ctx, spend)?;
+        ctx.spend(coin, spend)
     }
 }
 

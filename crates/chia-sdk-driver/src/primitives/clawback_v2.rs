@@ -42,7 +42,7 @@ impl ClawbackV2 {
         receiver_puzzle_hash: Bytes32,
         amount: u64,
         hinted: bool,
-        expected_puzzle_hash: Bytes32,
+        expect_spended_puzzle_hash: Bytes32,
     ) -> Option<Self> {
         let (sender_puzzle_hash, (seconds, ())) =
             <(Bytes32, (u64, ()))>::from_clvm(allocator, memos).ok()?;
@@ -55,7 +55,7 @@ impl ClawbackV2 {
             hinted,
         };
 
-        if clawback.tree_hash() != expected_puzzle_hash.into() {
+        if clawback.tree_hash() != expect_spended_puzzle_hash.into() {
             return None;
         }
 
@@ -309,21 +309,13 @@ impl ToTreeHash for ClawbackV2 {
 #[cfg(test)]
 mod tests {
     use chia_protocol::Coin;
-    use chia_sdk_test::{Simulator, SimulatorError};
+    use chia_sdk_test::{expect_spend, Simulator};
     use clvm_traits::clvm_list;
     use rstest::rstest;
 
     use crate::{Cat, CatSpend, SpendWithConditions, StandardLayer};
 
     use super::*;
-
-    fn expect<T>(result: Result<T, SimulatorError>, to_pass: bool) {
-        if let Err(error) = result {
-            assert!(!to_pass, "Expected spend to pass, but got {error}");
-        } else if !to_pass {
-            panic!("Expected spend to fail");
-        }
-    }
 
     #[rstest]
     fn test_clawback_v2_recover_xch(
@@ -357,7 +349,7 @@ mod tests {
 
         clawback.recover_coin_spend(&mut ctx, clawback_coin, &p2_alice, Conditions::new())?;
 
-        expect(sim.spend_coins(ctx.take(), &[alice.sk]), !after_expiration);
+        expect_spend(sim.spend_coins(ctx.take(), &[alice.sk]), !after_expiration);
 
         if !after_expiration {
             assert!(sim
@@ -400,7 +392,7 @@ mod tests {
 
         clawback.force_coin_spend(&mut ctx, clawback_coin, &p2_alice, Conditions::new())?;
 
-        expect(sim.spend_coins(ctx.take(), &[alice.sk]), !after_expiration);
+        expect_spend(sim.spend_coins(ctx.take(), &[alice.sk]), !after_expiration);
 
         if !after_expiration {
             assert!(sim
@@ -444,7 +436,7 @@ mod tests {
 
         clawback.finish_coin_spend(&mut ctx, clawback_coin, &p2_bob, Conditions::new())?;
 
-        expect(sim.spend_coins(ctx.take(), &[bob.sk]), after_expiration);
+        expect_spend(sim.spend_coins(ctx.take(), &[bob.sk]), after_expiration);
 
         if after_expiration {
             assert!(sim
@@ -487,7 +479,7 @@ mod tests {
 
         clawback.push_through_coin_spend(&mut ctx, clawback_coin)?;
 
-        expect(sim.spend_coins(ctx.take(), &[bob.sk]), after_expiration);
+        expect_spend(sim.spend_coins(ctx.take(), &[bob.sk]), after_expiration);
 
         if after_expiration {
             assert!(sim
@@ -541,7 +533,7 @@ mod tests {
         let clawback_spend = clawback.recover_spend(&mut ctx, &p2_alice, Conditions::new())?;
         Cat::spend_all(&mut ctx, &[CatSpend::new(clawback_cat, clawback_spend)])?;
 
-        expect(sim.spend_coins(ctx.take(), &[alice.sk]), !after_expiration);
+        expect_spend(sim.spend_coins(ctx.take(), &[alice.sk]), !after_expiration);
 
         if !after_expiration {
             assert!(sim
@@ -600,7 +592,7 @@ mod tests {
         let clawback_spend = clawback.force_spend(&mut ctx, &p2_alice, Conditions::new())?;
         Cat::spend_all(&mut ctx, &[CatSpend::new(clawback_cat, clawback_spend)])?;
 
-        expect(sim.spend_coins(ctx.take(), &[alice.sk]), !after_expiration);
+        expect_spend(sim.spend_coins(ctx.take(), &[alice.sk]), !after_expiration);
 
         if !after_expiration {
             assert!(sim
@@ -664,7 +656,7 @@ mod tests {
         let clawback_spend = clawback.finish_spend(&mut ctx, &p2_bob, Conditions::new())?;
         Cat::spend_all(&mut ctx, &[CatSpend::new(clawback_cat, clawback_spend)])?;
 
-        expect(sim.spend_coins(ctx.take(), &[bob.sk]), after_expiration);
+        expect_spend(sim.spend_coins(ctx.take(), &[bob.sk]), after_expiration);
 
         if after_expiration {
             assert!(sim
@@ -727,7 +719,7 @@ mod tests {
         let clawback_spend = clawback.push_through_spend(&mut ctx)?;
         Cat::spend_all(&mut ctx, &[CatSpend::new(clawback_cat, clawback_spend)])?;
 
-        expect(sim.spend_coins(ctx.take(), &[]), after_expiration);
+        expect_spend(sim.spend_coins(ctx.take(), &[]), after_expiration);
 
         if after_expiration {
             assert!(sim

@@ -203,7 +203,8 @@ impl OptionContract {
 
 #[cfg(test)]
 mod tests {
-    use chia_sdk_test::Simulator;
+    use chia_sdk_test::{expect_spend, Simulator};
+    use rstest::rstest;
 
     use crate::{OptionLauncher, StandardLayer};
 
@@ -240,6 +241,48 @@ mod tests {
         }
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_clawback_option(#[values(true, false)] expired: bool) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        if expired {
+            sim.set_next_timestamp(100)?;
+        }
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        let parent_coin = sim.new_coin(alice.puzzle_hash, 1);
+
+        let launcher = OptionLauncher::new(
+            ctx,
+            alice.coin.coin_id(),
+            alice.puzzle_hash,
+            alice.puzzle_hash,
+            10,
+        )?;
+
+        let (lock, launcher) = launcher.lock_underlying(parent_coin.coin_id(), None, 1);
+        alice_p2.spend(ctx, parent_coin, lock)?;
+
+        let underlying_coin = launcher.underlying_coin();
+        let underlying = launcher.underlying();
+
+        let (mint_option, _option) = launcher.mint(ctx)?;
+        alice_p2.spend(ctx, alice.coin, mint_option)?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+
+        let clawback_spend =
+            alice_p2.spend_with_conditions(ctx, Conditions::new().reserve_fee(1))?;
+        underlying.clawback_coin_spend(ctx, underlying_coin, clawback_spend)?;
+
+        expect_spend(sim.spend_coins(ctx.take(), &[alice.sk]), expired);
 
         Ok(())
     }

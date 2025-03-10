@@ -20,6 +20,7 @@ pub struct UnspecifiedOption {
 pub struct ReadyOption {
     info: OptionInfo,
     metadata: OptionMetadata,
+    underlying: OptionUnderlying,
     underlying_coin: Coin,
 }
 
@@ -102,6 +103,7 @@ impl OptionLauncher<UnspecifiedOption> {
             state: ReadyOption {
                 info,
                 metadata,
+                underlying,
                 underlying_coin,
             },
         };
@@ -119,8 +121,12 @@ impl OptionLauncher<ReadyOption> {
         self.state.metadata
     }
 
-    pub fn underlying_coin(&self) -> &Coin {
-        &self.state.underlying_coin
+    pub fn underlying_coin(&self) -> Coin {
+        self.state.underlying_coin
+    }
+
+    pub fn underlying(&self) -> OptionUnderlying {
+        self.state.underlying
     }
 
     pub fn mint(self, ctx: &mut SpendContext) -> Result<(Conditions, OptionContract), DriverError> {
