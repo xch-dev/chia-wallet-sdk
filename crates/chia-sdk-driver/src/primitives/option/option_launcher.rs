@@ -62,6 +62,12 @@ impl OptionLauncher<UnspecifiedOption> {
         asset_id: Option<Bytes32>,
         amount: u64,
     ) -> (Conditions, OptionLauncher<ReadyOption>) {
+        let strike_type = if let Some(asset_id) = asset_id {
+            OptionType::Cat { asset_id, amount }
+        } else {
+            OptionType::Xch { amount }
+        };
+
         let launcher_id = self.launcher.coin().coin_id();
 
         let underlying = OptionUnderlying::new(
@@ -69,6 +75,7 @@ impl OptionLauncher<UnspecifiedOption> {
             self.state.creator_puzzle_hash,
             self.state.seconds,
             amount,
+            strike_type,
         );
 
         let underlying_puzzle_hash = underlying.tree_hash().into();
@@ -89,14 +96,7 @@ impl OptionLauncher<UnspecifiedOption> {
             self.state.owner_puzzle_hash,
         );
 
-        let metadata = OptionMetadata::new(
-            self.state.seconds,
-            if let Some(asset_id) = asset_id {
-                OptionType::Cat { asset_id, amount }
-            } else {
-                OptionType::Xch { amount }
-            },
-        );
+        let metadata = OptionMetadata::new(self.state.seconds, strike_type);
 
         let launcher = OptionLauncher {
             launcher: self.launcher,

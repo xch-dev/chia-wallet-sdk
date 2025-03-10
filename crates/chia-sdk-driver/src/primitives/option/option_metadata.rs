@@ -31,4 +31,8 @@ impl OptionType {
             OptionType::Xch { amount } | OptionType::Cat { amount, .. } => *amount,
         }
     }
+
+    pub fn is_hinted(&self) -> bool {
+        matches!(self, OptionType::Cat { .. })
+    }
 }

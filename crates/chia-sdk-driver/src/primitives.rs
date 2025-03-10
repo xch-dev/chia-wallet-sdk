@@ -32,10 +32,10 @@ mod mips;
 #[cfg(feature = "experimental-vaults")]
 pub use mips::*;
 
-#[cfg(feature = "experimental-vaults")]
+#[cfg(all(feature = "experimental-vaults", feature = "offers"))]
 mod option;
 
-#[cfg(feature = "experimental-vaults")]
+#[cfg(all(feature = "experimental-vaults", feature = "offers"))]
 pub use option::*;
 
 #[cfg(feature = "experimental-clawbacks")]

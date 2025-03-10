@@ -1,7 +1,13 @@
 use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::{
+    cat::CatArgs,
+    offer::{NotarizedPayment, Payment},
+};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
-    conditions::{AssertBeforeSecondsAbsolute, AssertSecondsAbsolute, CreateCoin},
+    conditions::{
+        AssertBeforeSecondsAbsolute, AssertPuzzleAnnouncement, AssertSecondsAbsolute, CreateCoin,
+    },
     puzzles::{
         AugmentedConditionArgs, AugmentedConditionSolution, P2OneOfManySolution, SingletonMember,
         SingletonMemberSolution,
@@ -13,9 +19,20 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    member_puzzle_hash, DriverError, Layer, MemberSpend, MipsSpend, P2OneOfManyLayer, Spend,
-    SpendContext,
+    member_puzzle_hash, payment_assertion, DriverError, Layer, MemberSpend, MipsSpend,
+    P2OneOfManyLayer, Spend, SpendContext,
 };
+
+use super::OptionType;
+
+pub type OptionDelegatedPuzzle = (
+    u8,
+    match_list!(
+        AssertBeforeSecondsAbsolute,
+        AssertPuzzleAnnouncement,
+        CreateCoin<Bytes32>
+    ),
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptionUnderlying {
@@ -23,6 +40,7 @@ pub struct OptionUnderlying {
     pub creator_puzzle_hash: Bytes32,
     pub seconds: u64,
     pub amount: u64,
+    pub strike_type: OptionType,
 }
 
 impl OptionUnderlying {
@@ -31,12 +49,14 @@ impl OptionUnderlying {
         creator_puzzle_hash: Bytes32,
         seconds: u64,
         amount: u64,
+        strike_type: OptionType,
     ) -> Self {
         Self {
             launcher_id,
             creator_puzzle_hash,
             seconds,
             amount,
+            strike_type,
         }
     }
 
@@ -62,14 +82,32 @@ impl OptionUnderlying {
         P2OneOfManyLayer::new(self.merkle_tree().root())
     }
 
-    pub fn delegated_puzzle(
-        &self,
-    ) -> (
-        u8,
-        match_list!(AssertBeforeSecondsAbsolute, CreateCoin<Bytes32>),
-    ) {
+    pub fn requested_payment(&self) -> NotarizedPayment {
+        NotarizedPayment {
+            nonce: self.launcher_id,
+            payments: vec![Payment::with_memos(
+                self.creator_puzzle_hash,
+                self.strike_type.amount(),
+                if self.strike_type.is_hinted() {
+                    vec![self.creator_puzzle_hash.into()]
+                } else {
+                    vec![]
+                },
+            )],
+        }
+    }
+
+    pub fn delegated_puzzle(&self) -> OptionDelegatedPuzzle {
+        let puzzle_hash = match self.strike_type {
+            OptionType::Xch { .. } => SETTLEMENT_PAYMENT_HASH.into(),
+            OptionType::Cat { asset_id, .. } => {
+                CatArgs::curry_tree_hash(asset_id, SETTLEMENT_PAYMENT_HASH.into()).into()
+            }
+        };
+
         clvm_quote!(clvm_list!(
             AssertBeforeSecondsAbsolute::new(self.seconds),
+            payment_assertion(puzzle_hash, &self.requested_payment()),
             CreateCoin::new(SETTLEMENT_PAYMENT_HASH.into(), self.amount, None)
         ))
     }

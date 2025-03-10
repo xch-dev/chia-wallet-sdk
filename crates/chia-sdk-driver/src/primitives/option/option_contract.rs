@@ -203,10 +203,12 @@ impl OptionContract {
 
 #[cfg(test)]
 mod tests {
+    use chia_puzzle_types::offer::SettlementPaymentsSolution;
+    use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
     use chia_sdk_test::{expect_spend, Simulator};
     use rstest::rstest;
 
-    use crate::{OptionLauncher, StandardLayer};
+    use crate::{OptionLauncher, SettlementLayer, StandardLayer};
 
     use super::*;
 
@@ -288,7 +290,10 @@ mod tests {
     }
 
     #[rstest]
-    fn test_exercise_option(#[values(true, false)] expired: bool) -> anyhow::Result<()> {
+    fn test_exercise_option(
+        #[values(true, false)] expired: bool,
+        #[values(true, false)] payment_fulfilled: bool,
+    ) -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
@@ -328,7 +333,28 @@ mod tests {
             option.coin.amount,
         )?;
 
-        expect_spend(sim.spend_coins(ctx.take(), &[alice.sk]), !expired);
+        if payment_fulfilled {
+            let coin = sim.new_coin(alice.puzzle_hash, 2);
+            alice_p2.spend(
+                ctx,
+                coin,
+                Conditions::new().create_coin(SETTLEMENT_PAYMENT_HASH.into(), 2, None),
+            )?;
+            let settlement_coin = Coin::new(coin.coin_id(), SETTLEMENT_PAYMENT_HASH.into(), 2);
+            let coin_spend = SettlementLayer.construct_coin_spend(
+                ctx,
+                settlement_coin,
+                SettlementPaymentsSolution {
+                    notarized_payments: vec![underlying.requested_payment()],
+                },
+            )?;
+            ctx.insert(coin_spend);
+        }
+
+        expect_spend(
+            sim.spend_coins(ctx.take(), &[alice.sk]),
+            !expired && payment_fulfilled,
+        );
 
         Ok(())
     }
