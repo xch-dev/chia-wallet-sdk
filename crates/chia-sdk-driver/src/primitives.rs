@@ -4,6 +4,7 @@ mod did;
 mod intermediate_launcher;
 mod launcher;
 mod nft;
+mod option;
 mod streamed_cat;
 
 pub use cat::*;
@@ -12,6 +13,7 @@ pub use did::*;
 pub use intermediate_launcher::*;
 pub use launcher::*;
 pub use nft::*;
+pub use option::*;
 pub use streamed_cat::*;
 
 #[cfg(feature = "chip-0035")]
