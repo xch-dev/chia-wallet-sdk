@@ -5,19 +5,13 @@ use clvm_traits::{FromClvm, ToClvm};
 #[clvm(list)]
 pub struct OptionMetadata {
     pub expiration_seconds: u64,
-    pub underlying_type: OptionType,
     pub strike_type: OptionType,
 }
 
 impl OptionMetadata {
-    pub fn new(
-        expiration_seconds: u64,
-        underlying_type: OptionType,
-        strike_type: OptionType,
-    ) -> Self {
+    pub fn new(expiration_seconds: u64, strike_type: OptionType) -> Self {
         Self {
             expiration_seconds,
-            underlying_type,
             strike_type,
         }
     }

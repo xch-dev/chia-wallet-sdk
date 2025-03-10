@@ -6,7 +6,7 @@ use clvmr::NodePtr;
 
 use crate::{DriverError, Launcher, Spend, SpendContext};
 
-use super::{OptionInfo, OptionMetadata, OptionSingleton};
+use super::{OptionContract, OptionInfo, OptionMetadata};
 
 impl Launcher {
     pub fn mint_eve_option(
@@ -16,7 +16,7 @@ impl Launcher {
         underlying_coin_id: Bytes32,
         underlying_delegated_puzzle_hash: Bytes32,
         metadata: OptionMetadata,
-    ) -> Result<(Conditions, OptionSingleton), DriverError> {
+    ) -> Result<(Conditions, OptionContract), DriverError> {
         let launcher_coin = self.coin();
 
         let option_info = OptionInfo::new(
@@ -36,7 +36,7 @@ impl Launcher {
 
         Ok((
             launch_singleton,
-            OptionSingleton::new(eve_coin, proof, option_info),
+            OptionContract::new(eve_coin, proof, option_info),
         ))
     }
 
@@ -47,7 +47,7 @@ impl Launcher {
         underlying_coin_id: Bytes32,
         underlying_delegated_puzzle_hash: Bytes32,
         metadata: OptionMetadata,
-    ) -> Result<(Conditions, OptionSingleton), DriverError> {
+    ) -> Result<(Conditions, OptionContract), DriverError> {
         let memos = ctx.hint(p2_puzzle_hash)?;
         let conditions = Conditions::new().create_coin(p2_puzzle_hash, 1, Some(memos));
 
@@ -92,7 +92,7 @@ mod tests {
             alice.puzzle_hash,
             alice.coin.coin_id(),
             alice.coin.puzzle_hash,
-            OptionMetadata::new(10, OptionType::Xch, OptionType::Xch),
+            OptionMetadata::new(10, OptionType::Xch),
         )?;
         alice_p2.spend(ctx, alice.coin, create_option)?;
 
