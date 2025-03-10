@@ -358,4 +358,51 @@ mod tests {
 
         Ok(())
     }
+
+    #[rstest]
+    fn test_incomplete_exercise(#[values(true, false)] melt: bool) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        let parent_coin = sim.new_coin(alice.puzzle_hash, 1);
+
+        let launcher = OptionLauncher::new(
+            ctx,
+            alice.coin.coin_id(),
+            alice.puzzle_hash,
+            alice.puzzle_hash,
+            10,
+        )?;
+
+        let (lock, launcher) = launcher.lock_underlying(parent_coin.coin_id(), None, 1);
+        alice_p2.spend(ctx, parent_coin, lock)?;
+
+        let (mint_option, option) = launcher.mint(ctx)?;
+        alice_p2.spend(ctx, alice.coin, mint_option)?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+
+        let data = ctx.alloc(&option.info.underlying_coin_id)?;
+
+        option.spend_with(
+            ctx,
+            &alice_p2,
+            if melt {
+                Conditions::new().melt_singleton()
+            } else {
+                Conditions::new().send_message(
+                    23,
+                    option.info.underlying_delegated_puzzle_hash.into(),
+                    vec![data],
+                )
+            },
+        )?;
+
+        assert!(sim.spend_coins(ctx.take(), &[alice.sk]).is_err());
+
+        Ok(())
+    }
 }
