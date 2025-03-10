@@ -1,7 +1,7 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
-    conditions::{AssertSecondsAbsolute, CreateCoin},
+    conditions::{AssertBeforeSecondsAbsolute, AssertSecondsAbsolute, CreateCoin},
     puzzles::{
         AugmentedConditionArgs, AugmentedConditionSolution, P2OneOfManySolution, SingletonMember,
         SingletonMemberSolution,
@@ -64,9 +64,12 @@ impl OptionUnderlying {
 
     pub fn delegated_puzzle(
         &self,
-    ) -> (u8, match_list!(AssertSecondsAbsolute, CreateCoin<Bytes32>)) {
+    ) -> (
+        u8,
+        match_list!(AssertBeforeSecondsAbsolute, CreateCoin<Bytes32>),
+    ) {
         clvm_quote!(clvm_list!(
-            AssertSecondsAbsolute::new(self.seconds),
+            AssertBeforeSecondsAbsolute::new(self.seconds),
             CreateCoin::new(SETTLEMENT_PAYMENT_HASH.into(), self.amount, None)
         ))
     }

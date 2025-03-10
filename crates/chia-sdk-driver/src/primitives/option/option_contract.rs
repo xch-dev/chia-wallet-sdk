@@ -286,4 +286,50 @@ mod tests {
 
         Ok(())
     }
+
+    #[rstest]
+    fn test_exercise_option(#[values(true, false)] expired: bool) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        if expired {
+            sim.set_next_timestamp(100)?;
+        }
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        let parent_coin = sim.new_coin(alice.puzzle_hash, 1);
+
+        let launcher = OptionLauncher::new(
+            ctx,
+            alice.coin.coin_id(),
+            alice.puzzle_hash,
+            alice.puzzle_hash,
+            10,
+        )?;
+
+        let (lock, launcher) = launcher.lock_underlying(parent_coin.coin_id(), None, 1);
+        alice_p2.spend(ctx, parent_coin, lock)?;
+
+        let underlying_coin = launcher.underlying_coin();
+        let underlying = launcher.underlying();
+
+        let (mint_option, option) = launcher.mint(ctx)?;
+        alice_p2.spend(ctx, alice.coin, mint_option)?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+
+        option.exercise(ctx, &alice_p2, Conditions::new())?;
+        underlying.exercise_coin_spend(
+            ctx,
+            underlying_coin,
+            option.info.inner_puzzle_hash().into(),
+            option.coin.amount,
+        )?;
+
+        expect_spend(sim.spend_coins(ctx.take(), &[alice.sk]), !expired);
+
+        Ok(())
+    }
 }
