@@ -21,6 +21,14 @@ impl OptionMetadata {
 #[clvm(list)]
 #[repr(u8)]
 pub enum OptionType {
-    Xch,
-    Cat(Bytes32),
+    Xch { amount: u64 },
+    Cat { asset_id: Bytes32, amount: u64 },
+}
+
+impl OptionType {
+    pub fn amount(&self) -> u64 {
+        match self {
+            OptionType::Xch { amount } | OptionType::Cat { amount, .. } => *amount,
+        }
+    }
 }

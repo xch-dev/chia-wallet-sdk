@@ -15,6 +15,7 @@ use crate::{DriverError, Layer, Puzzle, Spend, SpendContext, SpendWithConditions
 
 use super::{OptionContractLayers, OptionInfo, OptionMetadata};
 
+#[must_use]
 #[derive(Debug, Clone, Copy)]
 pub struct OptionContract {
     pub coin: Coin,
@@ -146,27 +147,43 @@ impl OptionContract {
     where
         I: SpendWithConditions,
     {
-        let new_inner_puzzle_hash = self
-            .info
-            .with_p2_puzzle_hash(p2_puzzle_hash)
-            .inner_puzzle_hash();
-
         let memos = ctx.hint(p2_puzzle_hash)?;
 
         self.spend_with(
             ctx,
             inner,
-            extra_conditions.create_coin(
-                new_inner_puzzle_hash.into(),
-                self.coin.amount,
-                Some(memos),
-            ),
+            extra_conditions.create_coin(p2_puzzle_hash, self.coin.amount, Some(memos)),
         )?;
 
         Ok(self.wrapped_child(p2_puzzle_hash))
     }
 
-    #[must_use]
+    pub fn exercise<I>(
+        self,
+        ctx: &mut SpendContext,
+        inner: &I,
+        extra_conditions: Conditions,
+    ) -> Result<(), DriverError>
+    where
+        I: SpendWithConditions,
+    {
+        let data = ctx.alloc(&self.info.underlying_coin_id)?;
+
+        self.spend_with(
+            ctx,
+            inner,
+            extra_conditions
+                .send_message(
+                    23,
+                    self.info.underlying_delegated_puzzle_hash.into(),
+                    vec![data],
+                )
+                .melt_singleton(),
+        )?;
+
+        Ok(())
+    }
+
     pub fn wrapped_child(&self, p2_puzzle_hash: Bytes32) -> Self {
         let info = self.info.with_p2_puzzle_hash(p2_puzzle_hash);
 
@@ -181,5 +198,49 @@ impl OptionContract {
             proof: Proof::Lineage(self.child_lineage_proof()),
             info,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chia_sdk_test::Simulator;
+
+    use crate::{OptionLauncher, StandardLayer};
+
+    use super::*;
+
+    #[test]
+    fn test_transfer_option() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        let parent_coin = sim.new_coin(alice.puzzle_hash, 1);
+
+        let launcher = OptionLauncher::new(
+            ctx,
+            alice.coin.coin_id(),
+            alice.puzzle_hash,
+            alice.puzzle_hash,
+            10,
+        )?;
+
+        let (lock, launcher) = launcher.lock_underlying(parent_coin.coin_id(), None, 1);
+        alice_p2.spend(ctx, parent_coin, lock)?;
+
+        let (mint_option, mut option) = launcher.mint(ctx)?;
+        alice_p2.spend(ctx, alice.coin, mint_option)?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+
+        for _ in 0..5 {
+            option = option.transfer(ctx, &alice_p2, alice.puzzle_hash, Conditions::new())?;
+        }
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        Ok(())
     }
 }
