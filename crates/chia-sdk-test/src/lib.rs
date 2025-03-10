@@ -34,3 +34,11 @@ pub fn to_puzzle(value: impl ToClvm<Allocator>) -> anyhow::Result<(Bytes32, Prog
     let puzzle_hash = tree_hash(&allocator, ptr);
     Ok((puzzle_hash.into(), puzzle_reveal))
 }
+
+pub fn expect_spend<T>(result: Result<T, SimulatorError>, to_pass: bool) {
+    if let Err(error) = result {
+        assert!(!to_pass, "Expected spend to pass, but got {error}");
+    } else if !to_pass {
+        panic!("Expected spend to fail");
+    }
+}

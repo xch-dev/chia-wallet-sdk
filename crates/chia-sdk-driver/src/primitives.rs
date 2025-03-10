@@ -24,13 +24,19 @@ pub use datalayer::*;
 mod vault;
 
 #[cfg(feature = "experimental-vaults")]
-mod mips;
-
-#[cfg(feature = "experimental-vaults")]
 pub use vault::*;
 
 #[cfg(feature = "experimental-vaults")]
+mod mips;
+
+#[cfg(feature = "experimental-vaults")]
 pub use mips::*;
+
+#[cfg(all(feature = "experimental-vaults", feature = "offers"))]
+mod option;
+
+#[cfg(all(feature = "experimental-vaults", feature = "offers"))]
+pub use option::*;
 
 #[cfg(feature = "experimental-clawbacks")]
 mod clawback_v2;
