@@ -1,5 +1,5 @@
-use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::{cat::CatArgs, EveProof, Proof};
+use chia_protocol::Bytes32;
+use chia_puzzle_types::{EveProof, Proof};
 use chia_sdk_types::Conditions;
 use clvm_traits::clvm_quote;
 use clvm_utils::ToTreeHash;
@@ -11,17 +11,15 @@ use super::{OptionContract, OptionInfo, OptionMetadata, OptionType, OptionUnderl
 
 #[derive(Debug, Clone, Copy)]
 pub struct UnspecifiedOption {
-    creator_puzzle_hash: Bytes32,
     owner_puzzle_hash: Bytes32,
-    seconds: u64,
+    underlying: OptionUnderlying,
+    metadata: OptionMetadata,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReadyOption {
     info: OptionInfo,
     metadata: OptionMetadata,
-    underlying: OptionUnderlying,
-    underlying_coin: Coin,
 }
 
 #[derive(Debug, Clone)]
@@ -43,90 +41,63 @@ impl OptionLauncher<UnspecifiedOption> {
         creator_puzzle_hash: Bytes32,
         owner_puzzle_hash: Bytes32,
         seconds: u64,
+        strike_type: OptionType,
     ) -> Result<Self, DriverError> {
         let memos = ctx.hint(creator_puzzle_hash)?;
+        let launcher = Launcher::with_memos(parent_coin_id, 1, memos);
+        let launcher_id = launcher.coin().coin_id();
 
         Ok(Self {
-            launcher: Launcher::with_memos(parent_coin_id, 1, memos),
+            launcher,
             state: UnspecifiedOption {
-                creator_puzzle_hash,
                 owner_puzzle_hash,
-                seconds,
+                underlying: OptionUnderlying::new(
+                    launcher_id,
+                    creator_puzzle_hash,
+                    seconds,
+                    strike_type.amount(),
+                    strike_type,
+                ),
+                metadata: OptionMetadata::new(seconds, strike_type),
             },
         })
     }
 
-    pub fn lock_underlying(
-        self,
-        parent_coin_id: Bytes32,
-        asset_id: Option<Bytes32>,
-        amount: u64,
-    ) -> (Conditions, OptionLauncher<ReadyOption>) {
-        let strike_type = if let Some(asset_id) = asset_id {
-            OptionType::Cat { asset_id, amount }
-        } else {
-            OptionType::Xch { amount }
-        };
-
-        let launcher_id = self.launcher.coin().coin_id();
-
-        let underlying = OptionUnderlying::new(
-            launcher_id,
-            self.state.creator_puzzle_hash,
-            self.state.seconds,
-            amount,
-            strike_type,
-        );
-
-        let underlying_puzzle_hash = underlying.tree_hash().into();
-        let conditions = Conditions::new().create_coin(underlying_puzzle_hash, amount, None);
-
-        let wrapped_underlying_puzzle_hash = if let Some(asset_id) = asset_id {
-            CatArgs::curry_tree_hash(asset_id, underlying_puzzle_hash.into()).into()
-        } else {
-            underlying_puzzle_hash
-        };
-
-        let underlying_coin = Coin::new(parent_coin_id, wrapped_underlying_puzzle_hash, amount);
-
-        let info = OptionInfo::new(
-            launcher_id,
-            underlying_coin.coin_id(),
-            underlying.delegated_puzzle().tree_hash().into(),
-            self.state.owner_puzzle_hash,
-        );
-
-        let metadata = OptionMetadata::new(self.state.seconds, strike_type);
-
-        let launcher = OptionLauncher {
-            launcher: self.launcher,
-            state: ReadyOption {
-                info,
-                metadata,
-                underlying,
-                underlying_coin,
-            },
-        };
-
-        (conditions, launcher)
+    pub fn underlying(&self) -> OptionUnderlying {
+        self.state.underlying
     }
-}
 
-impl OptionLauncher<ReadyOption> {
-    pub fn info(&self) -> OptionInfo {
-        self.state.info
+    pub fn p2_puzzle_hash(&self) -> Bytes32 {
+        self.state.underlying.tree_hash().into()
     }
 
     pub fn metadata(&self) -> OptionMetadata {
         self.state.metadata
     }
 
-    pub fn underlying_coin(&self) -> Coin {
-        self.state.underlying_coin
-    }
+    pub fn with_underlying(self, underlying_coin_id: Bytes32) -> OptionLauncher<ReadyOption> {
+        let launcher_id = self.launcher.coin().coin_id();
 
-    pub fn underlying(&self) -> OptionUnderlying {
-        self.state.underlying
+        let info = OptionInfo::new(
+            launcher_id,
+            underlying_coin_id,
+            self.state.underlying.delegated_puzzle().tree_hash().into(),
+            self.state.owner_puzzle_hash,
+        );
+
+        OptionLauncher {
+            launcher: self.launcher,
+            state: ReadyOption {
+                info,
+                metadata: self.state.metadata,
+            },
+        }
+    }
+}
+
+impl OptionLauncher<ReadyOption> {
+    pub fn info(&self) -> OptionInfo {
+        self.state.info
     }
 
     pub fn mint(self, ctx: &mut SpendContext) -> Result<(Conditions, OptionContract), DriverError> {
@@ -171,6 +142,7 @@ impl OptionLauncher<ReadyOption> {
 
 #[cfg(test)]
 mod tests {
+    use chia_protocol::Coin;
     use chia_sdk_test::Simulator;
 
     use crate::StandardLayer;
@@ -193,10 +165,17 @@ mod tests {
             alice.puzzle_hash,
             alice.puzzle_hash,
             10,
+            OptionType::Xch { amount: 1 },
         )?;
+        let p2_option = launcher.p2_puzzle_hash();
 
-        let (lock, launcher) = launcher.lock_underlying(parent_coin.coin_id(), None, 1);
-        alice_p2.spend(ctx, parent_coin, lock)?;
+        alice_p2.spend(
+            ctx,
+            parent_coin,
+            Conditions::new().create_coin(p2_option, 1, None),
+        )?;
+        let launcher =
+            launcher.with_underlying(Coin::new(parent_coin.coin_id(), p2_option, 1).coin_id());
 
         let (mint_option, _option) = launcher.mint(ctx)?;
         alice_p2.spend(ctx, alice.coin, mint_option)?;
