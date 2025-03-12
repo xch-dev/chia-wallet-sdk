@@ -206,9 +206,13 @@ mod tests {
     use chia_puzzle_types::offer::SettlementPaymentsSolution;
     use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
     use chia_sdk_test::{expect_spend, Simulator};
+    use chia_sdk_types::puzzles::{RevocationArgs, RevocationSolution};
     use rstest::rstest;
 
-    use crate::{Cat, CatSpend, OptionLauncher, OptionType, SettlementLayer, StandardLayer};
+    use crate::{
+        Cat, CatSpend, DidOwner, HashedPtr, Launcher, Nft, NftMint, OptionLauncher, OptionType,
+        SettlementLayer, StandardLayer,
+    };
 
     use super::*;
 
@@ -221,18 +225,23 @@ mod tests {
     enum Type {
         Xch,
         Cat,
+        RevocableCat,
+        Nft,
     }
 
     enum OptionCoin {
         Xch(Coin),
         Cat(Cat),
+        RevocableCat(Cat),
+        Nft(Nft<HashedPtr>),
     }
 
     impl OptionCoin {
         fn coin_id(&self) -> Bytes32 {
             match self {
                 Self::Xch(coin) => coin.coin_id(),
-                Self::Cat(cat) => cat.coin.coin_id(),
+                Self::Cat(cat) | Self::RevocableCat(cat) => cat.coin.coin_id(),
+                Self::Nft(nft) => nft.coin.coin_id(),
             }
         }
     }
@@ -242,11 +251,19 @@ mod tests {
         #[values(true, false)] expired: bool,
         #[values(Action::Exercise, Action::ExerciseWithoutPayment, Action::Clawback)]
         action: Action,
-        #[values(Type::Xch, Type::Cat)] underlying_type: Type,
+        #[values(Type::Xch, Type::Cat, Type::RevocableCat, Type::Nft)] underlying_type: Type,
         #[values(1, 1000, u64::MAX)] underlying_amount: u64,
-        #[values(Type::Xch, Type::Cat)] strike_type: Type,
+        #[values(Type::Xch, Type::Cat, Type::RevocableCat, Type::Nft)] strike_type: Type,
         #[values(1, 1000, u64::MAX)] strike_amount: u64,
     ) -> anyhow::Result<()> {
+        if matches!(underlying_type, Type::Nft) && underlying_amount != 1 {
+            return Ok(());
+        }
+
+        if matches!(strike_type, Type::Nft) && strike_amount != 1 {
+            return Ok(());
+        }
+
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
@@ -257,7 +274,14 @@ mod tests {
         let alice = sim.bls(1);
         let alice_p2 = StandardLayer::new(alice.pk);
 
-        let strike_parent_coin = sim.new_coin(alice.puzzle_hash, strike_amount);
+        let strike_parent_coin = sim.new_coin(
+            alice.puzzle_hash,
+            if matches!(strike_type, Type::Nft) {
+                strike_amount + 1
+            } else {
+                strike_amount
+            },
+        );
         let (strike_coin, strike_type) = match strike_type {
             Type::Xch => {
                 alice_p2.spend(
@@ -305,6 +329,65 @@ mod tests {
                     },
                 )
             }
+            Type::RevocableCat => {
+                let hint = ctx.hint(SETTLEMENT_PAYMENT_HASH.into())?;
+                let revocation_settlement_hash =
+                    RevocationArgs::new(Bytes32::default(), SETTLEMENT_PAYMENT_HASH.into())
+                        .curry_tree_hash()
+                        .into();
+                let (issue_cat, cat) = Cat::single_issuance_eve(
+                    ctx,
+                    strike_parent_coin.coin_id(),
+                    strike_amount,
+                    Conditions::new().create_coin(
+                        revocation_settlement_hash,
+                        strike_amount,
+                        Some(hint),
+                    ),
+                )?;
+                alice_p2.spend(ctx, strike_parent_coin, issue_cat)?;
+                let coin = OptionCoin::RevocableCat(
+                    cat.wrapped_child(revocation_settlement_hash, strike_amount),
+                );
+                (
+                    coin,
+                    OptionType::RevocableCat {
+                        asset_id: cat.asset_id,
+                        hidden_puzzle_hash: Bytes32::default(),
+                        amount: strike_amount,
+                    },
+                )
+            }
+            Type::Nft => {
+                let (create_did, did) = Launcher::new(strike_parent_coin.coin_id(), 1)
+                    .create_simple_did(ctx, &alice_p2)?;
+
+                let (mint_nft, nft) = Launcher::new(did.coin.coin_id(), 0)
+                    .with_singleton_amount(strike_amount)
+                    .mint_nft(
+                        ctx,
+                        NftMint::new(
+                            HashedPtr::NIL,
+                            SETTLEMENT_PAYMENT_HASH.into(),
+                            0,
+                            Some(DidOwner::from_did_info(&did.info)),
+                        ),
+                    )?;
+
+                alice_p2.spend(ctx, strike_parent_coin, create_did)?;
+                let _did = did.update(ctx, &alice_p2, mint_nft)?;
+
+                let launcher_id = nft.info.launcher_id;
+
+                (
+                    OptionCoin::Nft(nft),
+                    OptionType::Nft {
+                        launcher_id,
+                        settlement_puzzle_hash: nft.coin.puzzle_hash,
+                        amount: strike_amount,
+                    },
+                )
+            }
         };
 
         let launcher = OptionLauncher::new(
@@ -319,7 +402,14 @@ mod tests {
         let underlying = launcher.underlying();
         let p2_option = launcher.p2_puzzle_hash();
 
-        let underlying_parent_coin = sim.new_coin(alice.puzzle_hash, underlying_amount);
+        let underlying_parent_coin = sim.new_coin(
+            alice.puzzle_hash,
+            if matches!(underlying_type, Type::Nft) {
+                underlying_amount + 1
+            } else {
+                underlying_amount
+            },
+        );
         let underlying_coin = match underlying_type {
             Type::Xch => {
                 alice_p2.spend(
@@ -343,6 +433,45 @@ mod tests {
                 )?;
                 alice_p2.spend(ctx, underlying_parent_coin, issue_cat)?;
                 OptionCoin::Cat(cat.wrapped_child(p2_option, underlying_amount))
+            }
+            Type::RevocableCat => {
+                let hint = ctx.hint(p2_option)?;
+                let revocation_p2_option = RevocationArgs::new(Bytes32::default(), p2_option)
+                    .curry_tree_hash()
+                    .into();
+                let (issue_cat, cat) = Cat::single_issuance_eve(
+                    ctx,
+                    underlying_parent_coin.coin_id(),
+                    underlying_amount,
+                    Conditions::new().create_coin(
+                        revocation_p2_option,
+                        underlying_amount,
+                        Some(hint),
+                    ),
+                )?;
+                alice_p2.spend(ctx, underlying_parent_coin, issue_cat)?;
+                OptionCoin::RevocableCat(cat.wrapped_child(revocation_p2_option, underlying_amount))
+            }
+            Type::Nft => {
+                let (create_did, did) = Launcher::new(underlying_parent_coin.coin_id(), 1)
+                    .create_simple_did(ctx, &alice_p2)?;
+
+                let (mint_nft, nft) = Launcher::new(did.coin.coin_id(), 0)
+                    .with_singleton_amount(underlying_amount)
+                    .mint_nft(
+                        ctx,
+                        NftMint::new(
+                            HashedPtr::NIL,
+                            p2_option,
+                            0,
+                            Some(DidOwner::from_did_info(&did.info)),
+                        ),
+                    )?;
+
+                alice_p2.spend(ctx, underlying_parent_coin, create_did)?;
+                let _did = did.update(ctx, &alice_p2, mint_nft)?;
+
+                OptionCoin::Nft(nft)
             }
         };
 
@@ -374,6 +503,30 @@ mod tests {
                         )?;
                         Cat::spend_all(ctx, &[CatSpend::new(cat, exercise_spend)])?;
                     }
+                    OptionCoin::RevocableCat(cat) => {
+                        let exercise_spend = underlying.exercise_spend(
+                            ctx,
+                            option.info.inner_puzzle_hash().into(),
+                            option.coin.amount,
+                        )?;
+                        let puzzle =
+                            ctx.curry(RevocationArgs::new(Bytes32::default(), p2_option))?;
+                        let solution = ctx.alloc(&RevocationSolution::new(
+                            false,
+                            exercise_spend.puzzle,
+                            exercise_spend.solution,
+                        ))?;
+                        let exercise_spend = Spend::new(puzzle, solution);
+                        Cat::spend_all(ctx, &[CatSpend::new(cat, exercise_spend)])?;
+                    }
+                    OptionCoin::Nft(nft) => {
+                        let exercise_spend = underlying.exercise_spend(
+                            ctx,
+                            option.info.inner_puzzle_hash().into(),
+                            option.coin.amount,
+                        )?;
+                        nft.spend(ctx, exercise_spend)?;
+                    }
                 }
             }
             Action::Clawback => match underlying_coin {
@@ -396,6 +549,39 @@ mod tests {
                     )?;
                     let clawback_spend = underlying.clawback_spend(ctx, clawback_spend)?;
                     Cat::spend_all(ctx, &[CatSpend::new(cat, clawback_spend)])?;
+                }
+                OptionCoin::RevocableCat(cat) => {
+                    let hint = ctx.hint(alice.puzzle_hash)?;
+                    let clawback_spend = alice_p2.spend_with_conditions(
+                        ctx,
+                        Conditions::new().create_coin(
+                            alice.puzzle_hash,
+                            underlying_amount,
+                            Some(hint),
+                        ),
+                    )?;
+                    let clawback_spend = underlying.clawback_spend(ctx, clawback_spend)?;
+                    let puzzle = ctx.curry(RevocationArgs::new(Bytes32::default(), p2_option))?;
+                    let solution = ctx.alloc(&RevocationSolution::new(
+                        false,
+                        clawback_spend.puzzle,
+                        clawback_spend.solution,
+                    ))?;
+                    let clawback_spend = Spend::new(puzzle, solution);
+                    Cat::spend_all(ctx, &[CatSpend::new(cat, clawback_spend)])?;
+                }
+                OptionCoin::Nft(nft) => {
+                    let hint = ctx.hint(alice.puzzle_hash)?;
+                    let clawback_spend = alice_p2.spend_with_conditions(
+                        ctx,
+                        Conditions::new().create_coin(
+                            alice.puzzle_hash,
+                            underlying_amount,
+                            Some(hint),
+                        ),
+                    )?;
+                    let clawback_spend = underlying.clawback_spend(ctx, clawback_spend)?;
+                    nft.spend(ctx, clawback_spend)?;
                 }
             },
         }
@@ -420,6 +606,33 @@ mod tests {
                         },
                     )?;
                     Cat::spend_all(ctx, &[CatSpend::new(cat, spend)])?;
+                }
+                OptionCoin::RevocableCat(cat) => {
+                    let spend = SettlementLayer.construct_spend(
+                        ctx,
+                        SettlementPaymentsSolution {
+                            notarized_payments: vec![underlying.requested_payment()],
+                        },
+                    )?;
+                    let puzzle = ctx.curry(RevocationArgs::new(
+                        Bytes32::default(),
+                        SETTLEMENT_PAYMENT_HASH.into(),
+                    ))?;
+                    let solution = ctx.alloc(&RevocationSolution::new(
+                        false,
+                        spend.puzzle,
+                        spend.solution,
+                    ))?;
+                    Cat::spend_all(ctx, &[CatSpend::new(cat, Spend::new(puzzle, solution))])?;
+                }
+                OptionCoin::Nft(nft) => {
+                    let spend = SettlementLayer.construct_spend(
+                        ctx,
+                        SettlementPaymentsSolution {
+                            notarized_payments: vec![underlying.requested_payment()],
+                        },
+                    )?;
+                    nft.spend(ctx, spend)?;
                 }
             }
         }
