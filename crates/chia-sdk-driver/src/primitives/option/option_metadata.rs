@@ -21,18 +21,39 @@ impl OptionMetadata {
 #[clvm(list)]
 #[repr(u8)]
 pub enum OptionType {
-    Xch { amount: u64 },
-    Cat { asset_id: Bytes32, amount: u64 },
+    Xch {
+        amount: u64,
+    },
+    Cat {
+        asset_id: Bytes32,
+        amount: u64,
+    },
+    RevocableCat {
+        asset_id: Bytes32,
+        hidden_puzzle_hash: Bytes32,
+        amount: u64,
+    },
+    Nft {
+        launcher_id: Bytes32,
+        settlement_puzzle_hash: Bytes32,
+        amount: u64,
+    },
 }
 
 impl OptionType {
     pub fn amount(&self) -> u64 {
         match self {
-            OptionType::Xch { amount } | OptionType::Cat { amount, .. } => *amount,
+            OptionType::Xch { amount }
+            | OptionType::Cat { amount, .. }
+            | OptionType::RevocableCat { amount, .. }
+            | OptionType::Nft { amount, .. } => *amount,
         }
     }
 
     pub fn is_hinted(&self) -> bool {
-        matches!(self, OptionType::Cat { .. })
+        matches!(
+            self,
+            OptionType::Cat { .. } | OptionType::RevocableCat { .. } | OptionType::Nft { .. }
+        )
     }
 }

@@ -14,9 +14,9 @@ pub struct RevocationArgs {
 }
 
 impl RevocationArgs {
-    pub fn new(mod_hash: Bytes32, hidden_puzzle_hash: Bytes32, inner_puzzle_hash: Bytes32) -> Self {
+    pub fn new(hidden_puzzle_hash: Bytes32, inner_puzzle_hash: Bytes32) -> Self {
         Self {
-            mod_hash,
+            mod_hash: REVOCATION_LAYER_HASH.into(),
             hidden_puzzle_hash,
             inner_puzzle_hash,
         }

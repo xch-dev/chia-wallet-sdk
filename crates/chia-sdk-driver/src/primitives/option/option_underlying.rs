@@ -9,8 +9,8 @@ use chia_sdk_types::{
         AssertBeforeSecondsAbsolute, AssertPuzzleAnnouncement, AssertSecondsAbsolute, CreateCoin,
     },
     puzzles::{
-        AugmentedConditionArgs, AugmentedConditionSolution, P2OneOfManySolution, SingletonMember,
-        SingletonMemberSolution,
+        AugmentedConditionArgs, AugmentedConditionSolution, P2OneOfManySolution, RevocationArgs,
+        SingletonMember, SingletonMemberSolution,
     },
     MerkleTree, Mod,
 };
@@ -103,6 +103,20 @@ impl OptionUnderlying {
             OptionType::Cat { asset_id, .. } => {
                 CatArgs::curry_tree_hash(asset_id, SETTLEMENT_PAYMENT_HASH.into()).into()
             }
+            OptionType::RevocableCat {
+                asset_id,
+                hidden_puzzle_hash,
+                ..
+            } => CatArgs::curry_tree_hash(
+                asset_id,
+                RevocationArgs::new(hidden_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into())
+                    .curry_tree_hash(),
+            )
+            .into(),
+            OptionType::Nft {
+                settlement_puzzle_hash,
+                ..
+            } => settlement_puzzle_hash,
         };
 
         clvm_quote!(clvm_list!(
