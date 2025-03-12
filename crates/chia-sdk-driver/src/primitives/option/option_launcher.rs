@@ -41,6 +41,7 @@ impl OptionLauncher<UnspecifiedOption> {
         creator_puzzle_hash: Bytes32,
         owner_puzzle_hash: Bytes32,
         seconds: u64,
+        underlying_amount: u64,
         strike_type: OptionType,
     ) -> Result<Self, DriverError> {
         let memos = ctx.hint(creator_puzzle_hash)?;
@@ -55,7 +56,7 @@ impl OptionLauncher<UnspecifiedOption> {
                     launcher_id,
                     creator_puzzle_hash,
                     seconds,
-                    strike_type.amount(),
+                    underlying_amount,
                     strike_type,
                 ),
                 metadata: OptionMetadata::new(seconds, strike_type),
@@ -165,6 +166,7 @@ mod tests {
             alice.puzzle_hash,
             alice.puzzle_hash,
             10,
+            1,
             OptionType::Xch { amount: 1 },
         )?;
         let p2_option = launcher.p2_puzzle_hash();

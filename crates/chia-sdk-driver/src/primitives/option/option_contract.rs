@@ -212,6 +212,230 @@ mod tests {
 
     use super::*;
 
+    enum Action {
+        Exercise,
+        ExerciseWithoutPayment,
+        Clawback,
+    }
+
+    enum Type {
+        Xch,
+        Cat,
+    }
+
+    enum OptionCoin {
+        Xch(Coin),
+        Cat(Cat),
+    }
+
+    impl OptionCoin {
+        fn coin_id(&self) -> Bytes32 {
+            match self {
+                Self::Xch(coin) => coin.coin_id(),
+                Self::Cat(cat) => cat.coin.coin_id(),
+            }
+        }
+    }
+
+    #[rstest]
+    fn test_option_actions(
+        #[values(true, false)] expired: bool,
+        #[values(Action::Exercise, Action::ExerciseWithoutPayment, Action::Clawback)]
+        action: Action,
+        #[values(Type::Xch, Type::Cat)] underlying_type: Type,
+        #[values(1, 1000, u64::MAX)] underlying_amount: u64,
+        #[values(Type::Xch, Type::Cat)] strike_type: Type,
+        #[values(1, 1000, u64::MAX)] strike_amount: u64,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        if expired {
+            sim.set_next_timestamp(100)?;
+        }
+
+        let alice = sim.bls(1);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        let strike_parent_coin = sim.new_coin(alice.puzzle_hash, strike_amount);
+        let (strike_coin, strike_type) = match strike_type {
+            Type::Xch => {
+                alice_p2.spend(
+                    ctx,
+                    strike_parent_coin,
+                    Conditions::new().create_coin(
+                        SETTLEMENT_PAYMENT_HASH.into(),
+                        strike_amount,
+                        None,
+                    ),
+                )?;
+                let coin = OptionCoin::Xch(Coin::new(
+                    strike_parent_coin.coin_id(),
+                    SETTLEMENT_PAYMENT_HASH.into(),
+                    strike_amount,
+                ));
+                (
+                    coin,
+                    OptionType::Xch {
+                        amount: strike_amount,
+                    },
+                )
+            }
+            Type::Cat => {
+                let hint = ctx.hint(SETTLEMENT_PAYMENT_HASH.into())?;
+                let (issue_cat, cat) = Cat::single_issuance_eve(
+                    ctx,
+                    strike_parent_coin.coin_id(),
+                    strike_amount,
+                    Conditions::new().create_coin(
+                        SETTLEMENT_PAYMENT_HASH.into(),
+                        strike_amount,
+                        Some(hint),
+                    ),
+                )?;
+                alice_p2.spend(ctx, strike_parent_coin, issue_cat)?;
+                let coin = OptionCoin::Cat(
+                    cat.wrapped_child(SETTLEMENT_PAYMENT_HASH.into(), strike_amount),
+                );
+                (
+                    coin,
+                    OptionType::Cat {
+                        asset_id: cat.asset_id,
+                        amount: strike_amount,
+                    },
+                )
+            }
+        };
+
+        let launcher = OptionLauncher::new(
+            ctx,
+            alice.coin.coin_id(),
+            alice.puzzle_hash,
+            alice.puzzle_hash,
+            10,
+            underlying_amount,
+            strike_type,
+        )?;
+        let underlying = launcher.underlying();
+        let p2_option = launcher.p2_puzzle_hash();
+
+        let underlying_parent_coin = sim.new_coin(alice.puzzle_hash, underlying_amount);
+        let underlying_coin = match underlying_type {
+            Type::Xch => {
+                alice_p2.spend(
+                    ctx,
+                    underlying_parent_coin,
+                    Conditions::new().create_coin(p2_option, underlying_amount, None),
+                )?;
+                OptionCoin::Xch(Coin::new(
+                    underlying_parent_coin.coin_id(),
+                    p2_option,
+                    underlying_amount,
+                ))
+            }
+            Type::Cat => {
+                let hint = ctx.hint(p2_option)?;
+                let (issue_cat, cat) = Cat::single_issuance_eve(
+                    ctx,
+                    underlying_parent_coin.coin_id(),
+                    underlying_amount,
+                    Conditions::new().create_coin(p2_option, underlying_amount, Some(hint)),
+                )?;
+                alice_p2.spend(ctx, underlying_parent_coin, issue_cat)?;
+                OptionCoin::Cat(cat.wrapped_child(p2_option, underlying_amount))
+            }
+        };
+
+        let launcher = launcher.with_underlying(underlying_coin.coin_id());
+
+        let (mint_option, option) = launcher.mint(ctx)?;
+        alice_p2.spend(ctx, alice.coin, mint_option)?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+
+        match action {
+            Action::Exercise | Action::ExerciseWithoutPayment => {
+                option.exercise(ctx, &alice_p2, Conditions::new())?;
+
+                match underlying_coin {
+                    OptionCoin::Xch(coin) => {
+                        underlying.exercise_coin_spend(
+                            ctx,
+                            coin,
+                            option.info.inner_puzzle_hash().into(),
+                            option.coin.amount,
+                        )?;
+                    }
+                    OptionCoin::Cat(cat) => {
+                        let exercise_spend = underlying.exercise_spend(
+                            ctx,
+                            option.info.inner_puzzle_hash().into(),
+                            option.coin.amount,
+                        )?;
+                        Cat::spend_all(ctx, &[CatSpend::new(cat, exercise_spend)])?;
+                    }
+                }
+            }
+            Action::Clawback => match underlying_coin {
+                OptionCoin::Xch(coin) => {
+                    let clawback_spend = alice_p2.spend_with_conditions(
+                        ctx,
+                        Conditions::new().create_coin(alice.puzzle_hash, underlying_amount, None),
+                    )?;
+                    underlying.clawback_coin_spend(ctx, coin, clawback_spend)?;
+                }
+                OptionCoin::Cat(cat) => {
+                    let hint = ctx.hint(alice.puzzle_hash)?;
+                    let clawback_spend = alice_p2.spend_with_conditions(
+                        ctx,
+                        Conditions::new().create_coin(
+                            alice.puzzle_hash,
+                            underlying_amount,
+                            Some(hint),
+                        ),
+                    )?;
+                    let clawback_spend = underlying.clawback_spend(ctx, clawback_spend)?;
+                    Cat::spend_all(ctx, &[CatSpend::new(cat, clawback_spend)])?;
+                }
+            },
+        }
+
+        if matches!(action, Action::Exercise) {
+            match strike_coin {
+                OptionCoin::Xch(coin) => {
+                    let coin_spend = SettlementLayer.construct_coin_spend(
+                        ctx,
+                        coin,
+                        SettlementPaymentsSolution {
+                            notarized_payments: vec![underlying.requested_payment()],
+                        },
+                    )?;
+                    ctx.insert(coin_spend);
+                }
+                OptionCoin::Cat(cat) => {
+                    let spend = SettlementLayer.construct_spend(
+                        ctx,
+                        SettlementPaymentsSolution {
+                            notarized_payments: vec![underlying.requested_payment()],
+                        },
+                    )?;
+                    Cat::spend_all(ctx, &[CatSpend::new(cat, spend)])?;
+                }
+            }
+        }
+
+        expect_spend(
+            sim.spend_coins(ctx.take(), &[alice.sk]),
+            match action {
+                Action::Exercise => !expired,
+                Action::ExerciseWithoutPayment => false,
+                Action::Clawback => expired,
+            },
+        );
+
+        Ok(())
+    }
+
     #[test]
     fn test_transfer_option() -> anyhow::Result<()> {
         let mut sim = Simulator::new();
@@ -228,6 +452,7 @@ mod tests {
             alice.puzzle_hash,
             alice.puzzle_hash,
             10,
+            1,
             OptionType::Xch { amount: 1 },
         )?;
         let p2_option = launcher.p2_puzzle_hash();
@@ -255,130 +480,6 @@ mod tests {
     }
 
     #[rstest]
-    fn test_clawback_option(#[values(true, false)] expired: bool) -> anyhow::Result<()> {
-        let mut sim = Simulator::new();
-        let ctx = &mut SpendContext::new();
-
-        if expired {
-            sim.set_next_timestamp(100)?;
-        }
-
-        let alice = sim.bls(1);
-        let alice_p2 = StandardLayer::new(alice.pk);
-
-        let parent_coin = sim.new_coin(alice.puzzle_hash, 1);
-
-        let launcher = OptionLauncher::new(
-            ctx,
-            alice.coin.coin_id(),
-            alice.puzzle_hash,
-            alice.puzzle_hash,
-            10,
-            OptionType::Xch { amount: 1 },
-        )?;
-        let underlying = launcher.underlying();
-        let p2_option = launcher.p2_puzzle_hash();
-
-        alice_p2.spend(
-            ctx,
-            parent_coin,
-            Conditions::new().create_coin(p2_option, 1, None),
-        )?;
-        let underlying_coin = Coin::new(parent_coin.coin_id(), p2_option, 1);
-        let launcher = launcher.with_underlying(underlying_coin.coin_id());
-
-        let (mint_option, _option) = launcher.mint(ctx)?;
-        alice_p2.spend(ctx, alice.coin, mint_option)?;
-
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
-
-        let clawback_spend = alice_p2.spend_with_conditions(
-            ctx,
-            Conditions::new().create_coin(alice.puzzle_hash, 1, None),
-        )?;
-        underlying.clawback_coin_spend(ctx, underlying_coin, clawback_spend)?;
-
-        expect_spend(sim.spend_coins(ctx.take(), &[alice.sk]), expired);
-
-        Ok(())
-    }
-
-    #[rstest]
-    fn test_exercise_option(
-        #[values(true, false)] expired: bool,
-        #[values(true, false)] payment_fulfilled: bool,
-    ) -> anyhow::Result<()> {
-        let mut sim = Simulator::new();
-        let ctx = &mut SpendContext::new();
-
-        if expired {
-            sim.set_next_timestamp(100)?;
-        }
-
-        let alice = sim.bls(1);
-        let alice_p2 = StandardLayer::new(alice.pk);
-
-        let parent_coin = sim.new_coin(alice.puzzle_hash, 1);
-
-        let launcher = OptionLauncher::new(
-            ctx,
-            alice.coin.coin_id(),
-            alice.puzzle_hash,
-            alice.puzzle_hash,
-            10,
-            OptionType::Xch { amount: 1 },
-        )?;
-        let underlying = launcher.underlying();
-        let p2_option = launcher.p2_puzzle_hash();
-
-        alice_p2.spend(
-            ctx,
-            parent_coin,
-            Conditions::new().create_coin(p2_option, 1, None),
-        )?;
-        let underlying_coin = Coin::new(parent_coin.coin_id(), p2_option, 1);
-        let launcher = launcher.with_underlying(underlying_coin.coin_id());
-
-        let (mint_option, option) = launcher.mint(ctx)?;
-        alice_p2.spend(ctx, alice.coin, mint_option)?;
-
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
-
-        option.exercise(ctx, &alice_p2, Conditions::new())?;
-        underlying.exercise_coin_spend(
-            ctx,
-            underlying_coin,
-            option.info.inner_puzzle_hash().into(),
-            option.coin.amount,
-        )?;
-
-        if payment_fulfilled {
-            let coin = sim.new_coin(alice.puzzle_hash, 2);
-            alice_p2.spend(
-                ctx,
-                coin,
-                Conditions::new().create_coin(SETTLEMENT_PAYMENT_HASH.into(), 2, None),
-            )?;
-            let settlement_coin = Coin::new(coin.coin_id(), SETTLEMENT_PAYMENT_HASH.into(), 2);
-            let coin_spend = SettlementLayer.construct_coin_spend(
-                ctx,
-                settlement_coin,
-                SettlementPaymentsSolution {
-                    notarized_payments: vec![underlying.requested_payment()],
-                },
-            )?;
-            ctx.insert(coin_spend);
-        }
-
-        expect_spend(
-            sim.spend_coins(ctx.take(), &[alice.sk]),
-            !expired && payment_fulfilled,
-        );
-
-        Ok(())
-    }
-
-    #[rstest]
     fn test_incomplete_exercise(#[values(true, false)] melt: bool) -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
@@ -394,6 +495,7 @@ mod tests {
             alice.puzzle_hash,
             alice.puzzle_hash,
             10,
+            1,
             OptionType::Xch { amount: 1 },
         )?;
         let p2_option = launcher.p2_puzzle_hash();
@@ -428,63 +530,6 @@ mod tests {
         )?;
 
         assert!(sim.spend_coins(ctx.take(), &[alice.sk]).is_err());
-
-        Ok(())
-    }
-
-    #[rstest]
-    fn test_clawback_option_cat_underlying(
-        #[values(true, false)] expired: bool,
-    ) -> anyhow::Result<()> {
-        let mut sim = Simulator::new();
-        let ctx = &mut SpendContext::new();
-
-        if expired {
-            sim.set_next_timestamp(100)?;
-        }
-
-        let alice = sim.bls(1);
-        let alice_p2 = StandardLayer::new(alice.pk);
-
-        let parent_coin = sim.new_coin(alice.puzzle_hash, 1);
-
-        let launcher = OptionLauncher::new(
-            ctx,
-            alice.coin.coin_id(),
-            alice.puzzle_hash,
-            alice.puzzle_hash,
-            10,
-            OptionType::Xch { amount: 1 },
-        )?;
-        let underlying = launcher.underlying();
-        let p2_option = launcher.p2_puzzle_hash();
-
-        let hint = ctx.hint(p2_option)?;
-        let (issue_cat, cat) = Cat::single_issuance_eve(
-            ctx,
-            parent_coin.coin_id(),
-            1,
-            Conditions::new().create_coin(p2_option, 1, Some(hint)),
-        )?;
-        alice_p2.spend(ctx, parent_coin, issue_cat)?;
-        let underlying_cat = cat.wrapped_child(p2_option, 1);
-
-        let launcher = launcher.with_underlying(underlying_cat.coin.coin_id());
-
-        let (mint_option, _option) = launcher.mint(ctx)?;
-        alice_p2.spend(ctx, alice.coin, mint_option)?;
-
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
-
-        let hint = ctx.hint(alice.puzzle_hash)?;
-        let clawback_spend = alice_p2.spend_with_conditions(
-            ctx,
-            Conditions::new().create_coin(alice.puzzle_hash, 1, Some(hint)),
-        )?;
-        let clawback_spend = underlying.clawback_spend(ctx, clawback_spend)?;
-        Cat::spend_all(ctx, &[CatSpend::new(underlying_cat, clawback_spend)])?;
-
-        expect_spend(sim.spend_coins(ctx.take(), &[alice.sk]), expired);
 
         Ok(())
     }
