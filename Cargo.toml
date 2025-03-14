@@ -71,10 +71,6 @@ workspace = true
 
 [features]
 chip-0035 = ["chia-sdk-driver/chip-0035", "chia-sdk-types/chip-0035"]
-experimental-vaults = [
-    "chia-sdk-driver/experimental-vaults",
-    "chia-sdk-types/experimental-vaults",
-]
 experimental-clawbacks = ["chia-sdk-driver/experimental-clawbacks"]
 offers = ["chia-sdk-driver/offers"]
 native-tls = ["chia-sdk-client/native-tls", "chia-sdk-coinset/native-tls"]
