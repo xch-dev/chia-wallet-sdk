@@ -9,3 +9,9 @@ pub use coinset_client::*;
 pub use mock_client::*;
 pub use models::*;
 pub use types::*;
+
+#[cfg(any(feature = "native-tls", feature = "rustls"))]
+mod full_node_client;
+
+#[cfg(any(feature = "native-tls", feature = "rustls"))]
+pub use full_node_client::*;
