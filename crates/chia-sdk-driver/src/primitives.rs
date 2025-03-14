@@ -3,16 +3,20 @@ mod clawback;
 mod did;
 mod intermediate_launcher;
 mod launcher;
+mod mips;
 mod nft;
 mod streamed_cat;
+mod vault;
 
 pub use cat::*;
 pub use clawback::*;
 pub use did::*;
 pub use intermediate_launcher::*;
 pub use launcher::*;
+pub use mips::*;
 pub use nft::*;
 pub use streamed_cat::*;
+pub use vault::*;
 
 #[cfg(feature = "chip-0035")]
 mod datalayer;
@@ -20,22 +24,10 @@ mod datalayer;
 #[cfg(feature = "chip-0035")]
 pub use datalayer::*;
 
-#[cfg(feature = "experimental-vaults")]
-mod vault;
-
-#[cfg(feature = "experimental-vaults")]
-pub use vault::*;
-
-#[cfg(feature = "experimental-vaults")]
-mod mips;
-
-#[cfg(feature = "experimental-vaults")]
-pub use mips::*;
-
-#[cfg(all(feature = "experimental-vaults", feature = "offers"))]
+#[cfg(feature = "offers")]
 mod option;
 
-#[cfg(all(feature = "experimental-vaults", feature = "offers"))]
+#[cfg(feature = "offers")]
 pub use option::*;
 
 #[cfg(feature = "experimental-clawbacks")]
