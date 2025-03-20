@@ -1,0 +1,16 @@
+{
+  "encode_offer": {
+    "type": "function",
+    "args": {
+      "spend_bundle": "SpendBundle"
+    },
+    "return": "String"
+  },
+  "decode_offer": {
+    "type": "function",
+    "args": {
+      "offer": "String"
+    },
+    "return": "SpendBundle"
+  }
+}

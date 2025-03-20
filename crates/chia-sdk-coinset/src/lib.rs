@@ -10,8 +10,14 @@ pub use mock_client::*;
 pub use models::*;
 pub use types::*;
 
-#[cfg(any(feature = "native-tls", feature = "rustls"))]
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    not(target_arch = "wasm32")
+))]
 mod full_node_client;
 
-#[cfg(any(feature = "native-tls", feature = "rustls"))]
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    not(target_arch = "wasm32")
+))]
 pub use full_node_client::*;
