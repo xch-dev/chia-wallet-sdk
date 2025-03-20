@@ -22,7 +22,6 @@ chip-0035 = ["chia-sdk-types/chip-0035"]
 experimental-clawbacks = []
 offers = [
     "dep:bech32",
-
     "dep:flate2",
     "dep:indexmap",
     "dep:once_cell",
