@@ -31,6 +31,21 @@
     "fields": {
       "coin_spends": "Vec<CoinSpend>",
       "aggregated_signature": "Signature"
+    },
+    "methods": {
+      "to_bytes": {
+        "return": "Bytes"
+      },
+      "from_bytes": {
+        "type": "factory",
+        "args": {
+          "bytes": "Bytes"
+        },
+        "return": "SpendBundle"
+      },
+      "hash": {
+        "return": "Bytes32"
+      }
     }
   },
   "Spend": {

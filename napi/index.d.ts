@@ -191,6 +191,9 @@ export declare class CoinSpend {
   set solution(value: Uint8Array)
 }
 export declare class SpendBundle {
+  toBytes(): Uint8Array
+  static fromBytes(bytes: Uint8Array): SpendBundle
+  hash(): Uint8Array
   constructor(coinSpends: Array<CoinSpend>, aggregatedSignature: Signature)
   get coinSpends(): Array<CoinSpend>
   set coinSpends(value: Array<CoinSpend>)

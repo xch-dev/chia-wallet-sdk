@@ -32,6 +32,7 @@ chia-puzzle-types = { workspace = true }
 chia-puzzles = { workspace = true }
 clvm-utils = { workspace = true }
 clvm-traits = { workspace = true }
+chia-traits = { workspace = true }
 clvmr = { workspace = true }
 bindy = { workspace = true }
 bip39 = { workspace = true }
