@@ -116,6 +116,9 @@ pub enum Error {
 
     #[error("Reqwest error: {0}")]
     Reqwest(#[from] reqwest::Error),
+
+    #[error("Streamable error: {0}")]
+    Streamable(#[from] chia_traits::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
