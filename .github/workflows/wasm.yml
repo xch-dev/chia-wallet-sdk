@@ -38,9 +38,9 @@ jobs:
           name: npm-pkg
           path: ./wasm/pkg/*-*.tgz
 
-      - name: Publish
-        if: startsWith(github.event.ref, 'refs/tags')
-        uses: JS-DevTools/npm-publish@v3
-        with:
-          token: ${{ secrets.NPM_TOKEN }}
-          package: wasm/pkg/package.json
+      # - name: Publish
+      #   if: startsWith(github.event.ref, 'refs/tags')
+      #   uses: JS-DevTools/npm-publish@v3
+      #   with:
+      #     token: ${{ secrets.NPM_TOKEN }}
+      #     package: wasm/pkg/package.json
