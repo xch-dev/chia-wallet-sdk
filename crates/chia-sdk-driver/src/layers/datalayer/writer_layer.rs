@@ -1,5 +1,8 @@
-use chia_puzzles::standard::StandardSolution;
-use chia_sdk_types::{Conditions, WriterLayerArgs, WriterLayerSolution, WRITER_LAYER_PUZZLE_HASH};
+use chia_puzzle_types::standard::StandardSolution;
+use chia_sdk_types::{
+    puzzles::{WriterLayerArgs, WriterLayerSolution, WRITER_LAYER_PUZZLE_HASH},
+    Conditions,
+};
 use clvm_traits::{clvm_quote, FromClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};

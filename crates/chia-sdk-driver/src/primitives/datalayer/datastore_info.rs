@@ -2,13 +2,16 @@ use crate::{
     DelegationLayer, DriverError, Layer, NftStateLayer, OracleLayer, SingletonLayer, SpendContext,
 };
 use chia_protocol::{Bytes, Bytes32};
-use chia_puzzles::nft::NftStateLayerArgs;
+use chia_puzzle_types::nft::NftStateLayerArgs;
 use chia_sdk_types::{
-    DelegationLayerArgs, MerkleTree, WriterLayerArgs, DELEGATION_LAYER_PUZZLE_HASH,
-    DL_METADATA_UPDATER_PUZZLE_HASH,
+    puzzles::{
+        DelegationLayerArgs, WriterLayerArgs, DELEGATION_LAYER_PUZZLE_HASH,
+        DL_METADATA_UPDATER_PUZZLE_HASH,
+    },
+    MerkleTree,
 };
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
-use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::Allocator;
 use num_bigint::BigInt;
 
@@ -280,7 +283,7 @@ pub fn get_merkle_tree(
                     .ok_or(DriverError::OddOracleFee)?
                     .construct_puzzle(ctx)?;
 
-                leaves.push(tree_hash(&ctx.allocator, oracle_full_puzzle_ptr).into());
+                leaves.push(ctx.tree_hash(oracle_full_puzzle_ptr).into());
             }
         }
     }

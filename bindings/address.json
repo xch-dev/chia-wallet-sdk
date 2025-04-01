@@ -1,0 +1,21 @@
+{
+  "Address": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "prefix": "String"
+    },
+    "methods": {
+      "encode": {
+        "return": "String"
+      },
+      "decode": {
+        "type": "factory",
+        "args": {
+          "address": "String"
+        }
+      }
+    }
+  }
+}

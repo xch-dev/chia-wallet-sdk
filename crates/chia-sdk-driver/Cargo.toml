@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-driver"
-version = "0.20.0"
+version = "0.23.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Driver code for interacting with standard puzzles on the Chia blockchain."
@@ -19,10 +19,9 @@ workspace = true
 
 [features]
 chip-0035 = ["chia-sdk-types/chip-0035"]
-experimental-vaults = ["chia-sdk-types/experimental-vaults"]
+experimental-clawbacks = []
 offers = [
     "dep:bech32",
-    "dep:chia-traits",
     "dep:flate2",
     "dep:indexmap",
     "dep:once_cell",
@@ -30,9 +29,12 @@ offers = [
 
 [dependencies]
 chia-bls = { workspace = true }
+chia-consensus = { workspace = true }
 chia-secp = { workspace = true }
 chia-protocol = { workspace = true }
 chia-puzzles = { workspace = true }
+chia-puzzle-types = { workspace = true }
+chia-sha2 = { workspace = true }
 clvm-traits = { workspace = true }
 clvm-utils = { workspace = true }
 clvmr = { workspace = true }
@@ -43,10 +45,11 @@ num-bigint = { workspace = true }
 hex = { workspace = true }
 bigdecimal = { workspace = true }
 bech32 = { workspace = true, optional = true }
-chia-traits = { workspace = true, optional = true }
+chia-traits = {workspace = true}
 flate2 = { workspace = true, features = ["zlib-ng-compat"], optional = true }
 indexmap = { workspace = true, optional = true }
 once_cell = { workspace = true, optional = true }
+chia_streamable_macro = "0.21.2"
 
 [dev-dependencies]
 chia-sdk-test = { workspace = true }

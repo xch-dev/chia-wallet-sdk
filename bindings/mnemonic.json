@@ -1,0 +1,45 @@
+{
+  "Mnemonic": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "mnemonic": "String"
+        }
+      },
+      "from_entropy": {
+        "type": "factory",
+        "args": {
+          "entropy": "Bytes"
+        }
+      },
+      "generate": {
+        "type": "factory",
+        "args": {
+          "use_24": "bool"
+        }
+      },
+      "verify": {
+        "type": "static",
+        "args": {
+          "mnemonic": "String"
+        },
+        "return": "bool"
+      },
+      "to_string": {
+        "type": "to_string",
+        "return": "String"
+      },
+      "to_entropy": {
+        "return": "Bytes"
+      },
+      "to_seed": {
+        "args": {
+          "password": "String"
+        },
+        "return": "Bytes"
+      }
+    }
+  }
+}

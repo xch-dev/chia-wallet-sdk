@@ -2,13 +2,13 @@
 
 Chia coins have a puzzle, which controls how it can be spent.
 The solution is used as the arguments to the puzzle, and the
-output is a list of [`Conditions`].
+output is a list of conditions.
 
 A puzzle consists of multiple layers composed together.
 
 ## Layers
 
-A [`Layer`] is a subset of the logic that makes up a smart coin in Chia.
+A layer is a subset of the logic that makes up a smart coin in Chia.
 They are also referred to as "inner puzzles", and the solution can be broken
 up into "inner solutions" as well.
 
@@ -33,10 +33,10 @@ else builds on top of it to restrict the way it can be spent or attach state.
 
 ## Primitives
 
-A [`Primitive`] uses one or more [`Layer`] to parse info from a parent's coin spend.
-Generally, [`Layer`] has the ability to parse and construct individual puzzles and solutions,
-and the composed [`Primitive`] struct can parse all of the information required to spend a coin.
-The [`Primitive`] should also provide a way to spend the coin, and other utilities necessary.
+A `Primitive` uses one or more `Layer` to parse info from a parent's coin spend.
+Generally, `Layer` has the ability to parse and construct individual puzzles and solutions,
+and the composed `Primitive` struct can parse all of the information required to spend a coin.
+The `Primitive` should also provide a way to spend the coin, and other utilities necessary.
 
 [`p2_conditions.clsp`]: https://github.com/Chia-Network/chia-blockchain/blob/bd022b0c9b0d3e0bc13a0efebba9f22417ca64b5/chia/wallet/puzzles/p2_conditions.clsp
 [`p2_delegated_puzzle_or_hidden_puzzle.clsp`]: https://github.com/Chia-Network/chia-blockchain/blob/bd022b0c9b0d3e0bc13a0efebba9f22417ca64b5/chia/wallet/puzzles/p2_delegated_puzzle_or_hidden_puzzle.clsp

@@ -1,6 +1,10 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::nft::{NftStateLayerArgs, NftStateLayerSolution, NFT_STATE_LAYER_PUZZLE_HASH};
-use chia_sdk_types::{run_puzzle, NewMetadataOutput, UpdateNftMetadata};
+use chia_puzzle_types::nft::{NftStateLayerArgs, NftStateLayerSolution};
+use chia_puzzles::NFT_STATE_LAYER_HASH;
+use chia_sdk_types::{
+    conditions::{NewMetadataOutput, UpdateNftMetadata},
+    run_puzzle,
+};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -11,7 +15,7 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 /// It's typically an inner layer of the [`SingletonLayer`](crate::SingletonLayer).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NftStateLayer<M, I> {
-    /// The NFT metadata. The standard metadata type is [`NftMetadata`](chia_puzzles::nft::NftMetadata).
+    /// The NFT metadata. The standard metadata type is [`NftMetadata`](chia_puzzle_types::nft::NftMetadata).
     pub metadata: M,
     /// The tree hash of the metadata updater puzzle.
     pub metadata_updater_puzzle_hash: Bytes32,
@@ -50,13 +54,13 @@ where
             return Ok(None);
         };
 
-        if puzzle.mod_hash != NFT_STATE_LAYER_PUZZLE_HASH {
+        if puzzle.mod_hash != NFT_STATE_LAYER_HASH.into() {
             return Ok(None);
         }
 
         let args = NftStateLayerArgs::<NodePtr, M>::from_clvm(allocator, puzzle.args)?;
 
-        if args.mod_hash != NFT_STATE_LAYER_PUZZLE_HASH.into() {
+        if args.mod_hash != NFT_STATE_LAYER_HASH.into() {
             return Err(DriverError::InvalidModHash);
         }
 
@@ -86,7 +90,7 @@ where
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let inner_puzzle = self.inner_puzzle.construct_puzzle(ctx)?;
         ctx.curry(NftStateLayerArgs {
-            mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+            mod_hash: NFT_STATE_LAYER_HASH.into(),
             metadata: &self.metadata,
             metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
             inner_puzzle,
@@ -114,9 +118,9 @@ where
         let metadata_hash = self.metadata.tree_hash();
         let inner_puzzle_hash = self.inner_puzzle.tree_hash();
         CurriedProgram {
-            program: NFT_STATE_LAYER_PUZZLE_HASH,
+            program: TreeHash::new(NFT_STATE_LAYER_HASH),
             args: NftStateLayerArgs {
-                mod_hash: NFT_STATE_LAYER_PUZZLE_HASH.into(),
+                mod_hash: NFT_STATE_LAYER_HASH.into(),
                 metadata: metadata_hash,
                 metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
                 inner_puzzle: inner_puzzle_hash,

@@ -9,7 +9,7 @@ importers:
   .:
     devDependencies:
       '@napi-rs/cli':
-        specifier: ^2.18.4
+        specifier: 2.18.4
         version: 2.18.4
       '@types/node':
         specifier: ^22.13.1

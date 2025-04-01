@@ -1,0 +1,175 @@
+{
+  "Program": {
+    "type": "class",
+    "methods": {
+      "compile": {
+        "return": "Output"
+      },
+      "unparse": {
+        "return": "String"
+      },
+      "serialize": {
+        "return": "SerializedProgram"
+      },
+      "serialize_with_backrefs": {
+        "return": "SerializedProgram"
+      },
+      "run": {
+        "args": {
+          "solution": "Program",
+          "max_cost": "u64",
+          "mempool_mode": "bool"
+        },
+        "return": "Output"
+      },
+      "curry": {
+        "args": {
+          "args": "Vec<Program>"
+        },
+        "return": "Program"
+      },
+      "uncurry": {
+        "return": "Option<CurriedProgram>"
+      },
+      "tree_hash": {
+        "return": "TreeHash"
+      },
+      "length": {
+        "return": "u32"
+      },
+      "first": {
+        "return": "Program"
+      },
+      "rest": {
+        "return": "Program"
+      },
+      "to_string": {
+        "type": "to_string",
+        "return": "Option<String>"
+      },
+      "to_bool": {
+        "return": "Option<bool>"
+      },
+      "to_atom": {
+        "return": "Option<Bytes>"
+      },
+      "to_list": {
+        "return": "Option<Vec<Program>>"
+      },
+      "to_pair": {
+        "return": "Option<Pair>"
+      },
+      "puzzle": {
+        "return": "Puzzle"
+      },
+      "parse_nft_metadata": {
+        "return": "Option<NftMetadata>"
+      },
+      "parse_remark": {
+        "return": "Option<Remark>"
+      },
+      "parse_agg_sig_parent": {
+        "return": "Option<AggSigParent>"
+      },
+      "parse_agg_sig_puzzle": {
+        "return": "Option<AggSigPuzzle>"
+      },
+      "parse_agg_sig_amount": {
+        "return": "Option<AggSigAmount>"
+      },
+      "parse_agg_sig_puzzle_amount": {
+        "return": "Option<AggSigPuzzleAmount>"
+      },
+      "parse_agg_sig_parent_amount": {
+        "return": "Option<AggSigParentAmount>"
+      },
+      "parse_agg_sig_parent_puzzle": {
+        "return": "Option<AggSigParentPuzzle>"
+      },
+      "parse_agg_sig_unsafe": {
+        "return": "Option<AggSigUnsafe>"
+      },
+      "parse_agg_sig_me": {
+        "return": "Option<AggSigMe>"
+      },
+      "parse_create_coin": {
+        "return": "Option<CreateCoin>"
+      },
+      "parse_reserve_fee": {
+        "return": "Option<ReserveFee>"
+      },
+      "parse_create_coin_announcement": {
+        "return": "Option<CreateCoinAnnouncement>"
+      },
+      "parse_create_puzzle_announcement": {
+        "return": "Option<CreatePuzzleAnnouncement>"
+      },
+      "parse_assert_coin_announcement": {
+        "return": "Option<AssertCoinAnnouncement>"
+      },
+      "parse_assert_puzzle_announcement": {
+        "return": "Option<AssertPuzzleAnnouncement>"
+      },
+      "parse_assert_concurrent_spend": {
+        "return": "Option<AssertConcurrentSpend>"
+      },
+      "parse_assert_concurrent_puzzle": {
+        "return": "Option<AssertConcurrentPuzzle>"
+      },
+      "parse_assert_seconds_relative": {
+        "return": "Option<AssertSecondsRelative>"
+      },
+      "parse_assert_seconds_absolute": {
+        "return": "Option<AssertSecondsAbsolute>"
+      },
+      "parse_assert_height_relative": {
+        "return": "Option<AssertHeightRelative>"
+      },
+      "parse_assert_height_absolute": {
+        "return": "Option<AssertHeightAbsolute>"
+      },
+      "parse_assert_before_seconds_relative": {
+        "return": "Option<AssertBeforeSecondsRelative>"
+      },
+      "parse_assert_before_seconds_absolute": {
+        "return": "Option<AssertBeforeSecondsAbsolute>"
+      },
+      "parse_assert_before_height_relative": {
+        "return": "Option<AssertBeforeHeightRelative>"
+      },
+      "parse_assert_before_height_absolute": {
+        "return": "Option<AssertBeforeHeightAbsolute>"
+      },
+      "parse_assert_my_coin_id": {
+        "return": "Option<AssertMyCoinId>"
+      },
+      "parse_assert_my_parent_id": {
+        "return": "Option<AssertMyParentId>"
+      },
+      "parse_assert_my_puzzle_hash": {
+        "return": "Option<AssertMyPuzzleHash>"
+      },
+      "parse_assert_my_amount": {
+        "return": "Option<AssertMyAmount>"
+      },
+      "parse_assert_my_birth_seconds": {
+        "return": "Option<AssertMyBirthSeconds>"
+      },
+      "parse_assert_my_birth_height": {
+        "return": "Option<AssertMyBirthHeight>"
+      },
+      "parse_assert_ephemeral": {
+        "return": "Option<AssertEphemeral>"
+      },
+      "parse_send_message": {
+        "return": "Option<SendMessage>"
+      },
+      "parse_receive_message": {
+        "return": "Option<ReceiveMessage>"
+      },
+      "parse_softfork": {
+        "return": "Option<Softfork>"
+      }
+    }
+  }
+}

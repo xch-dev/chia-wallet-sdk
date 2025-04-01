@@ -1,6 +1,6 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
-use chia_puzzles::offer::{NotarizedPayment, Payment, SettlementPaymentsSolution};
-use chia_sdk_types::{announcement_id, AssertPuzzleAnnouncement};
+use chia_puzzle_types::offer::{NotarizedPayment, Payment, SettlementPaymentsSolution};
+use chia_sdk_types::{announcement_id, conditions::AssertPuzzleAnnouncement};
 use clvm_traits::ToClvm;
 use clvm_utils::tree_hash;
 use clvmr::Allocator;
@@ -69,7 +69,7 @@ impl OfferBuilder<Make> {
     {
         let puzzle_ptr = ctx.alloc(puzzle)?;
         let puzzle_hash = ctx.tree_hash(puzzle_ptr).into();
-        let puzzle = Puzzle::parse(&ctx.allocator, puzzle_ptr);
+        let puzzle = Puzzle::parse(ctx, puzzle_ptr);
 
         let notarized_payment = NotarizedPayment { nonce, payments };
         let assertion = payment_assertion(puzzle_hash, &notarized_payment);

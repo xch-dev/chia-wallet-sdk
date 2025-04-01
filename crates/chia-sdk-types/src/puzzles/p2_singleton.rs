@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::singleton::{SINGLETON_LAUNCHER_PUZZLE_HASH, SINGLETON_TOP_LAYER_PUZZLE_HASH};
+use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use hex_literal::hex;
@@ -22,9 +22,9 @@ impl Mod for P2SingletonArgs {
 impl P2SingletonArgs {
     pub fn new(launcher_id: Bytes32) -> Self {
         Self {
-            singleton_mod_hash: SINGLETON_TOP_LAYER_PUZZLE_HASH.into(),
+            singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
             launcher_id,
-            launcher_puzzle_hash: SINGLETON_LAUNCHER_PUZZLE_HASH.into(),
+            launcher_puzzle_hash: SINGLETON_LAUNCHER_HASH.into(),
         }
     }
 
@@ -38,7 +38,7 @@ impl P2SingletonArgs {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
+#[clvm(solution)]
 pub struct P2SingletonSolution {
     pub singleton_inner_puzzle_hash: Bytes32,
     pub my_id: Bytes32,

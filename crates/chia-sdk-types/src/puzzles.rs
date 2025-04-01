@@ -1,26 +1,28 @@
 mod augmented_condition;
+mod mips;
+mod mods;
+mod option_contract;
 mod p2_curried;
 mod p2_delegated_conditions;
 mod p2_one_of_many;
 mod p2_singleton;
+mod revocation;
 
 pub use augmented_condition::*;
+pub use mips::*;
+pub use mods::*;
+pub use option_contract::*;
 pub use p2_curried::*;
 pub use p2_delegated_conditions::*;
 pub use p2_one_of_many::*;
 pub use p2_singleton::*;
+pub use revocation::*;
 
 #[cfg(feature = "chip-0035")]
 mod datalayer;
 
 #[cfg(feature = "chip-0035")]
 pub use datalayer::*;
-
-#[cfg(feature = "experimental-vaults")]
-mod mips;
-
-#[cfg(feature = "experimental-vaults")]
-pub use mips::*;
 
 #[cfg(test)]
 mod tests {

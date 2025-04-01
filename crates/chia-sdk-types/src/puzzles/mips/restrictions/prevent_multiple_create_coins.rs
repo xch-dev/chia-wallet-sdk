@@ -1,6 +1,16 @@
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
+use crate::Mod;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PreventMultipleCreateCoinsMod;
+
+impl Mod for PreventMultipleCreateCoinsMod {
+    const MOD_REVEAL: &[u8] = &PREVENT_MULTIPLE_CREATE_COINS_PUZZLE;
+    const MOD_HASH: TreeHash = PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH;
+}
+
 pub const PREVENT_MULTIPLE_CREATE_COINS_PUZZLE: [u8; 143] = hex!(
     "
     ff02ffff01ff02ffff03ffff09ffff02ff06ffff04ff02ffff04ff05ffff01ff

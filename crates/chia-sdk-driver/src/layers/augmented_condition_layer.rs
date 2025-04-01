@@ -1,5 +1,8 @@
 use chia_sdk_types::{
-    AugmentedConditionArgs, AugmentedConditionSolution, Condition, AUGMENTED_CONDITION_PUZZLE_HASH,
+    puzzles::{
+        AugmentedConditionArgs, AugmentedConditionSolution, AUGMENTED_CONDITION_PUZZLE_HASH,
+    },
+    Condition,
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};
