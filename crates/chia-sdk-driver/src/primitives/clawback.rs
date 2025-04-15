@@ -1,9 +1,10 @@
 use crate::{DriverError, Layer, P2OneOfManyLayer, Puzzle, Spend, SpendContext};
 use chia_protocol::{Bytes, Bytes32};
+use chia_puzzles::AUGMENTED_CONDITION_HASH;
 use chia_sdk_types::{
     puzzles::{
         AugmentedConditionArgs, AugmentedConditionSolution, P2CurriedArgs, P2CurriedSolution,
-        P2OneOfManySolution, AUGMENTED_CONDITION_PUZZLE_HASH, P2_CURRIED_PUZZLE_HASH,
+        P2OneOfManySolution, P2_CURRIED_PUZZLE_HASH,
     },
     run_puzzle, Condition, MerkleTree,
 };
@@ -112,7 +113,7 @@ impl Clawback {
 
     pub fn claim_path_puzzle_hash(&self) -> TreeHash {
         CurriedProgram {
-            program: AUGMENTED_CONDITION_PUZZLE_HASH,
+            program: TreeHash::new(AUGMENTED_CONDITION_HASH),
             args: AugmentedConditionArgs::new(
                 Condition::<TreeHash>::assert_seconds_relative(self.timelock.into()),
                 TreeHash::from(self.recipient_puzzle_hash),

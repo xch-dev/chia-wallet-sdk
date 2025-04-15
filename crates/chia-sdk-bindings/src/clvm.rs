@@ -237,6 +237,12 @@ impl Clvm {
         Ok(Program(self.0.clone(), ptr))
     }
 
+    pub fn cache(&self, mod_hash: Bytes32, value: SerializedProgram) -> Result<Program> {
+        let mut ctx = self.0.write().unwrap();
+        let ptr = ctx.puzzle(mod_hash.into(), &value)?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
     pub fn pair(&self, first: Program, second: Program) -> Result<Program> {
         let mut ctx = self.0.write().unwrap();
         let ptr = ctx.new_pair(first.1, second.1)?;
