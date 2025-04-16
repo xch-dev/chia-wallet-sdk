@@ -1,13 +1,4 @@
 {
-  "Constants": {
-    "type": "class",
-    "methods": {
-      "default_metadata_updater_hash": {
-        "type": "static",
-        "return": "TreeHash"
-      }
-    }
-  },
   "from_hex": {
     "type": "function",
     "args": {

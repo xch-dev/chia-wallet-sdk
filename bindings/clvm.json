@@ -37,6 +37,13 @@
         },
         "return": "Program"
       },
+      "cache": {
+        "args": {
+          "mod_hash": "Bytes32",
+          "value": "SerializedProgram"
+        },
+        "return": "Program"
+      },
       "pair": {
         "args": {
           "first": "Program",

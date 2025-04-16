@@ -1,7 +1,6 @@
+use chia_puzzles::AUGMENTED_CONDITION_HASH;
 use chia_sdk_types::{
-    puzzles::{
-        AugmentedConditionArgs, AugmentedConditionSolution, AUGMENTED_CONDITION_PUZZLE_HASH,
-    },
+    puzzles::{AugmentedConditionArgs, AugmentedConditionSolution},
     Condition,
 };
 use clvm_traits::{FromClvm, ToClvm};
@@ -28,7 +27,7 @@ where
             return Ok(None);
         };
 
-        if puzzle.mod_hash != AUGMENTED_CONDITION_PUZZLE_HASH {
+        if puzzle.mod_hash != AUGMENTED_CONDITION_HASH.into() {
             return Ok(None);
         }
 
