@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use chia_sdk_types::Mod;
 use clvm_traits::{FromClvm, ToClvm};
@@ -193,6 +195,11 @@ pub struct StreamPuzzleSolution {
 }
 
 impl Mod for StreamPuzzle1stCurryArgs {
-    const MOD_REVEAL: &[u8] = &STREAM_PUZZLE;
-    const MOD_HASH: TreeHash = STREAM_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&STREAM_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        STREAM_PUZZLE_HASH
+    }
 }

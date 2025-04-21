@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
@@ -29,8 +31,13 @@ impl EnforceDelegatedPuzzleWrappers {
 }
 
 impl Mod for EnforceDelegatedPuzzleWrappers {
-    const MOD_REVEAL: &[u8] = &ENFORCE_DELEGATED_PUZZLE_WRAPPERS_PUZZLE;
-    const MOD_HASH: TreeHash = ENFORCE_DELEGATED_PUZZLE_WRAPPERS_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&ENFORCE_DELEGATED_PUZZLE_WRAPPERS_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        ENFORCE_DELEGATED_PUZZLE_WRAPPERS_PUZZLE_HASH
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]

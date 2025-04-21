@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
@@ -18,8 +20,13 @@ impl OneOfNArgs {
 }
 
 impl Mod for OneOfNArgs {
-    const MOD_REVEAL: &[u8] = &ONE_OF_N_PUZZLE;
-    const MOD_HASH: TreeHash = ONE_OF_N_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&ONE_OF_N_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        ONE_OF_N_PUZZLE_HASH
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]

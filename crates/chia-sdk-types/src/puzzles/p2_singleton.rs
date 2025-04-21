@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use clvm_traits::{FromClvm, ToClvm};
@@ -15,8 +17,13 @@ pub struct P2SingletonArgs {
 }
 
 impl Mod for P2SingletonArgs {
-    const MOD_REVEAL: &[u8] = &P2_SINGLETON_PUZZLE;
-    const MOD_HASH: TreeHash = P2_SINGLETON_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&P2_SINGLETON_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        P2_SINGLETON_PUZZLE_HASH
+    }
 }
 
 impl P2SingletonArgs {

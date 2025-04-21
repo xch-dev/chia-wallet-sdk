@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_bls::PublicKey;
 use chia_puzzles::{P2_DELEGATED_CONDITIONS, P2_DELEGATED_CONDITIONS_HASH};
 use clvm_traits::{FromClvm, ToClvm};
@@ -19,8 +21,13 @@ impl P2DelegatedConditionsArgs {
 }
 
 impl Mod for P2DelegatedConditionsArgs {
-    const MOD_REVEAL: &[u8] = &P2_DELEGATED_CONDITIONS;
-    const MOD_HASH: TreeHash = TreeHash::new(P2_DELEGATED_CONDITIONS_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&P2_DELEGATED_CONDITIONS)
+    }
+
+    fn mod_hash() -> TreeHash {
+        P2_DELEGATED_CONDITIONS_HASH.into()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]

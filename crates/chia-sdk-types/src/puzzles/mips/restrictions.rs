@@ -5,6 +5,8 @@ mod prevent_condition_opcode;
 mod prevent_multiple_create_coins;
 mod timelock;
 
+use std::borrow::Cow;
+
 pub use force_1_of_2_restricted_variable::*;
 pub use force_assert_coin_announcement::*;
 pub use force_coin_message::*;
@@ -37,8 +39,13 @@ impl<MV, DV, I> RestrictionsArgs<MV, DV, I> {
 }
 
 impl<MV, DV, I> Mod for RestrictionsArgs<MV, DV, I> {
-    const MOD_REVEAL: &[u8] = &RESTRICTIONS_PUZZLE;
-    const MOD_HASH: TreeHash = RESTRICTIONS_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&RESTRICTIONS_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        RESTRICTIONS_PUZZLE_HASH
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
