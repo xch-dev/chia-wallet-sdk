@@ -165,7 +165,7 @@ signature = "2.2.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 reqwest = { version = "0.12.15", default-features = false, features = ["json"] }
-proc-macro2 = "1.0.94"
+proc-macro2 = "1.0.95"
 wasm-bindgen = "0.2.100"
 getrandom = "0.2.15"
 sha2 = "0.10.8"
