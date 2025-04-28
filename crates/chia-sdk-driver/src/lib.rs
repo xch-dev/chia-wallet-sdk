@@ -1,3 +1,5 @@
+// This lint does not have a span, so it's unclear what is causing it
+// For context, see https://github.com/rust-lang/rust-clippy/issues/13774
 #![allow(clippy::large_stack_arrays)]
 #![doc = include_str!("../docs.md")]
 
