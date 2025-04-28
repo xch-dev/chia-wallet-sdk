@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 use bindy::Result;
 use chia_bls::PublicKey;
@@ -26,14 +26,14 @@ use super::{convert_restrictions, MemberConfig, Vault};
 
 #[derive(Clone)]
 pub struct MipsSpend {
-    pub(crate) clvm: Arc<RwLock<SpendContext>>,
+    pub(crate) clvm: Arc<Mutex<SpendContext>>,
     pub(crate) spend: Arc<Mutex<sdk::MipsSpend>>,
     pub(crate) coin: chia_protocol::Coin,
 }
 
 impl MipsSpend {
     pub fn spend(&self, custody_hash: TreeHash) -> Result<Spend> {
-        let mut ctx = self.clvm.write().unwrap();
+        let mut ctx = self.clvm.lock().unwrap();
 
         let spend = self.spend.lock().unwrap().spend(&mut ctx, custody_hash)?;
 
@@ -44,7 +44,7 @@ impl MipsSpend {
     }
 
     pub fn spend_vault(&self, vault: Vault) -> Result<()> {
-        let mut ctx = self.clvm.write().unwrap();
+        let mut ctx = self.clvm.lock().unwrap();
         let vault = sdk::Vault::from(vault);
         let mips_spend = self.spend.lock().unwrap();
         vault.spend(&mut ctx, &mips_spend)?;
@@ -83,7 +83,7 @@ impl MipsSpend {
         signature: K1Signature,
         fast_forward: bool,
     ) -> Result<()> {
-        let mut ctx = self.clvm.write().unwrap();
+        let mut ctx = self.clvm.lock().unwrap();
 
         let nonce = config.nonce.try_into().unwrap();
         let restrictions = convert_restrictions(config.restrictions);
@@ -132,7 +132,7 @@ impl MipsSpend {
         signature: R1Signature,
         fast_forward: bool,
     ) -> Result<()> {
-        let mut ctx = self.clvm.write().unwrap();
+        let mut ctx = self.clvm.lock().unwrap();
 
         let nonce = config.nonce.try_into().unwrap();
         let restrictions = convert_restrictions(config.restrictions);
@@ -175,7 +175,7 @@ impl MipsSpend {
     }
 
     pub fn bls_member(&self, config: MemberConfig, public_key: PublicKey) -> Result<()> {
-        let mut ctx = self.clvm.write().unwrap();
+        let mut ctx = self.clvm.lock().unwrap();
 
         let nonce = config.nonce.try_into().unwrap();
         let restrictions = convert_restrictions(config.restrictions);
@@ -211,7 +211,7 @@ impl MipsSpend {
         challenge_index: u32,
         fast_forward: bool,
     ) -> Result<()> {
-        let mut ctx = self.clvm.write().unwrap();
+        let mut ctx = self.clvm.lock().unwrap();
 
         let nonce = config.nonce.try_into().unwrap();
         let restrictions = convert_restrictions(config.restrictions);
@@ -266,7 +266,7 @@ impl MipsSpend {
         singleton_inner_puzzle_hash: Bytes32,
         singleton_amount: u64,
     ) -> Result<()> {
-        let mut ctx = self.clvm.write().unwrap();
+        let mut ctx = self.clvm.lock().unwrap();
 
         let nonce = config.nonce.try_into().unwrap();
         let restrictions = convert_restrictions(config.restrictions);
@@ -304,7 +304,7 @@ impl MipsSpend {
         config: MemberConfig,
         fixed_puzzle_hash: Bytes32,
     ) -> Result<()> {
-        let mut ctx = self.clvm.write().unwrap();
+        let mut ctx = self.clvm.lock().unwrap();
 
         let nonce = config.nonce.try_into().unwrap();
         let restrictions = convert_restrictions(config.restrictions);
@@ -333,7 +333,7 @@ impl MipsSpend {
     }
 
     pub fn custom_member(&self, config: MemberConfig, spend: Spend) -> Result<()> {
-        let ctx = self.clvm.read().unwrap();
+        let ctx = self.clvm.lock().unwrap();
 
         let nonce = config.nonce.try_into().unwrap();
         let restrictions = convert_restrictions(config.restrictions);
@@ -362,7 +362,7 @@ impl MipsSpend {
 
     pub fn timelock(&self, timelock: u64) -> Result<()> {
         let restriction = Timelock::new(timelock);
-        let puzzle = self.clvm.write().unwrap().curry(restriction)?;
+        let puzzle = self.clvm.lock().unwrap().curry(restriction)?;
         self.spend.lock().unwrap().restrictions.insert(
             restriction.curry_tree_hash(),
             sdk::Spend::new(puzzle, NodePtr::NIL),
@@ -378,7 +378,7 @@ impl MipsSpend {
         delegated_puzzle_validator_list_hash: Bytes32,
         new_right_side_member_hash: Bytes32,
     ) -> Result<()> {
-        let mut ctx = self.clvm.write().unwrap();
+        let mut ctx = self.clvm.lock().unwrap();
 
         let restriction = Force1of2RestrictedVariable::new(
             left_side_subtree_hash,
@@ -401,7 +401,7 @@ impl MipsSpend {
     }
 
     pub fn prevent_condition_opcode(&self, condition_opcode: u16) -> Result<()> {
-        let mut ctx = self.clvm.write().unwrap();
+        let mut ctx = self.clvm.lock().unwrap();
 
         let restriction = PreventConditionOpcode::new(condition_opcode);
         let puzzle = ctx.curry(restriction)?;
@@ -416,7 +416,7 @@ impl MipsSpend {
     }
 
     pub fn prevent_multiple_create_coins(&self) -> Result<()> {
-        let mut ctx = self.clvm.write().unwrap();
+        let mut ctx = self.clvm.lock().unwrap();
 
         let puzzle = ctx.alloc_mod::<PreventMultipleCreateCoinsMod>()?;
         let solution = ctx.alloc(&NodePtr::NIL)?;
