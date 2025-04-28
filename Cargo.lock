@@ -605,7 +605,7 @@ dependencies = [
  "chia-secp",
  "chia-sha2 0.20.0",
  "chia-traits 0.20.0",
- "chia_streamable_macro 0.21.2",
+ "chia_streamable_macro 0.22.0",
  "clvm-traits",
  "clvm-utils",
  "clvmr",
@@ -876,9 +876,9 @@ dependencies = [
 
 [[package]]
 name = "chia_streamable_macro"
-version = "0.21.2"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7423f80e01a3be92630185b9694042c06cd2ffcf700e9b23c1aba828960b9abe"
+checksum = "ed16ee21f14ed878cfc23b0354c8c6703190a5565d03625ea44324a3f21717f1"
 dependencies = [
  "proc-macro-crate 1.3.1",
  "proc-macro2",
@@ -2382,9 +2382,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.94"
+version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a31971752e70b8b2686d7e46ec17fb38dad4051d94024c88df49b667caea9c84"
+checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
 dependencies = [
  "unicode-ident",
 ]
@@ -3102,9 +3102,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "syn"
-version = "2.0.100"
+version = "2.0.101"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b09a44accad81e1ba1cd74a32461ba89dee89095ba17b32f5d03683b1b1fc2a0"
+checksum = "8ce2b7fc941b3a24138a0a7cf8e858bfc6a992e7978a068a5c760deb0ed43caf"
 dependencies = [
  "proc-macro2",
  "quote",
