@@ -2,6 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use bindy::Result;
 use chia_bls::PublicKey;
+use chia_consensus::gen::opcodes::{
+    CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, RECEIVE_MESSAGE, SEND_MESSAGE,
+};
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_driver::{self as sdk, member_puzzle_hash, MemberSpend, MofN, SpendContext};
 use chia_sdk_types::{
@@ -430,10 +433,10 @@ impl MipsSpend {
     }
 
     pub fn prevent_side_effects(&self) -> Result<()> {
-        self.prevent_condition_opcode(60)?;
-        self.prevent_condition_opcode(62)?;
-        self.prevent_condition_opcode(66)?;
-        self.prevent_condition_opcode(67)?;
+        self.prevent_condition_opcode(CREATE_COIN_ANNOUNCEMENT)?;
+        self.prevent_condition_opcode(CREATE_PUZZLE_ANNOUNCEMENT)?;
+        self.prevent_condition_opcode(SEND_MESSAGE)?;
+        self.prevent_condition_opcode(RECEIVE_MESSAGE)?;
         self.prevent_multiple_create_coins()?;
         Ok(())
     }

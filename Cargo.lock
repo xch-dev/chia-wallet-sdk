@@ -521,6 +521,7 @@ dependencies = [
  "bindy",
  "bip39",
  "chia-bls 0.20.0",
+ "chia-consensus",
  "chia-protocol",
  "chia-puzzle-types",
  "chia-puzzles",
