@@ -2,9 +2,7 @@ use std::{net::SocketAddr, sync::Arc};
 
 use chia_protocol::{Bytes32, Coin, CoinState, Message};
 use chia_sdk_client::{Peer, PeerOptions};
-use error::PeerSimulatorError;
 use peer_map::PeerMap;
-use simulator_config::SimulatorConfig;
 use subscriptions::Subscriptions;
 use tokio::{
     net::TcpListener,
@@ -21,6 +19,9 @@ mod peer_map;
 mod simulator_config;
 mod subscriptions;
 mod ws_connection;
+
+pub use error::*;
+pub use simulator_config::*;
 
 #[derive(Debug)]
 pub struct PeerSimulator {
@@ -161,17 +162,50 @@ impl Drop for PeerSimulator {
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::{DerivableKey, PublicKey, Signature};
+    use chia_bls::{PublicKey, SecretKey, Signature};
     use chia_protocol::{
-        Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, RespondCoinState, RespondPuzzleState,
-        SpendBundle,
+        Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, ProtocolMessageTypes,
+        RespondCoinState, RespondPuzzleState, SpendBundle, TransactionAck,
     };
-    use chia_sdk_types::{AggSigMe, CreateCoin, Memos, Remark};
+    use chia_sdk_types::conditions::{AggSigMe, CreateCoin, Memos, Remark};
+    use chia_traits::Streamable;
     use clvmr::NodePtr;
 
-    use crate::{coin_state_updates, test_secret_key, test_transaction, to_program, to_puzzle};
+    use crate::{sign_transaction, to_program, to_puzzle, BlsPair};
 
     use super::*;
+
+    fn coin_state_updates(receiver: &mut mpsc::Receiver<Message>) -> Vec<CoinStateUpdate> {
+        let mut items = Vec::new();
+        while let Ok(message) = receiver.try_recv() {
+            if message.msg_type != ProtocolMessageTypes::CoinStateUpdate {
+                continue;
+            }
+            items.push(CoinStateUpdate::from_bytes(&message.data).unwrap());
+        }
+        items
+    }
+
+    async fn test_transaction_raw(
+        peer: &Peer,
+        coin_spends: Vec<CoinSpend>,
+        secret_keys: &[SecretKey],
+    ) -> anyhow::Result<TransactionAck> {
+        let aggregated_signature = sign_transaction(&coin_spends, secret_keys)?;
+
+        Ok(peer
+            .send_transaction(SpendBundle::new(coin_spends, aggregated_signature))
+            .await?)
+    }
+
+    async fn test_transaction(peer: &Peer, coin_spends: Vec<CoinSpend>, secret_keys: &[SecretKey]) {
+        let ack = test_transaction_raw(peer, coin_spends, secret_keys)
+            .await
+            .expect("could not submit transaction");
+
+        assert_eq!(ack.error, None);
+        assert_eq!(ack.status, 1);
+    }
 
     #[tokio::test]
     async fn test_coin_state() -> anyhow::Result<()> {
@@ -249,7 +283,7 @@ mod tests {
     async fn test_bad_signature() -> anyhow::Result<()> {
         let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
-        let public_key = test_secret_key()?.public_key();
+        let public_key = BlsPair::new(0).pk;
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
@@ -298,8 +332,7 @@ mod tests {
     async fn test_valid_signature() -> anyhow::Result<()> {
         let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
-        let sk = test_secret_key()?;
-        let pk = sk.public_key();
+        let pair = BlsPair::new(0);
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
@@ -310,9 +343,9 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([AggSigMe::new(pk, b"Hello, world!".to_vec().into())])?,
+                to_program([AggSigMe::new(pair.pk, b"Hello, world!".to_vec().into())])?,
             )],
-            &[sk],
+            &[pair.sk],
         )
         .await;
 
@@ -324,11 +357,8 @@ mod tests {
         let sim = PeerSimulator::new().await?;
         let peer = sim.connect().await?;
 
-        let sk1 = test_secret_key()?.derive_unhardened(0);
-        let pk1 = sk1.public_key();
-
-        let sk2 = test_secret_key()?.derive_unhardened(1);
-        let pk2 = sk2.public_key();
+        let alice = BlsPair::new(0);
+        let bob = BlsPair::new(1);
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
@@ -340,11 +370,11 @@ mod tests {
                 coin,
                 puzzle_reveal,
                 to_program([
-                    AggSigMe::new(pk1, b"Hello, world!".to_vec().into()),
-                    AggSigMe::new(pk2, b"Goodbye, world!".to_vec().into()),
+                    AggSigMe::new(alice.pk, b"Hello, world!".to_vec().into()),
+                    AggSigMe::new(bob.pk, b"Goodbye, world!".to_vec().into()),
                 ])?,
             )],
-            &[sk1, sk2],
+            &[alice.sk, bob.sk],
         )
         .await;
 

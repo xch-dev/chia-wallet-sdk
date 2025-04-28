@@ -1,0 +1,59 @@
+{
+  "Coin": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "parent_coin_info": "Bytes32",
+      "puzzle_hash": "Bytes32",
+      "amount": "u64"
+    },
+    "methods": {
+      "coin_id": {
+        "return": "Bytes32"
+      }
+    }
+  },
+  "CoinSpend": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "coin": "Coin",
+      "puzzle_reveal": "SerializedProgram",
+      "solution": "SerializedProgram"
+    }
+  },
+  "SpendBundle": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "coin_spends": "Vec<CoinSpend>",
+      "aggregated_signature": "Signature"
+    },
+    "methods": {
+      "to_bytes": {
+        "return": "Bytes"
+      },
+      "from_bytes": {
+        "type": "factory",
+        "args": {
+          "bytes": "Bytes"
+        },
+        "return": "SpendBundle"
+      },
+      "hash": {
+        "return": "Bytes32"
+      }
+    }
+  },
+  "Spend": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "puzzle": "Program",
+      "solution": "Program"
+    }
+  }
+}

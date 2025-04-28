@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
-    MerkleTree, Mod, MofNArgs, MofNSolution, NofNArgs, NofNSolution, OneOfNArgs, OneOfNSolution,
+    puzzles::{MofNArgs, MofNSolution, NofNArgs, NofNSolution, OneOfNArgs, OneOfNSolution},
+    MerkleTree, Mod,
 };
 use clvm_traits::clvm_tuple;
 use clvm_utils::{tree_hash_atom, tree_hash_pair, TreeHash};

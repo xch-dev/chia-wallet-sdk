@@ -1,0 +1,24 @@
+[package]
+name = "bindy-macro"
+version = "0.23.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Macro for the Bindy generator."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/Rigidity/chia-wallet-sdk"
+repository = "https://github.com/Rigidity/chia-wallet-sdk"
+readme = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[lib]
+proc-macro = true
+
+[dependencies]
+convert_case = { workspace = true }
+indexmap = { workspace = true, features = ["serde"] }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+syn = { workspace = true }

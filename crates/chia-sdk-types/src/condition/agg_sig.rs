@@ -1,7 +1,6 @@
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes, Bytes32};
+use chia_protocol::Bytes;
 use clvm_traits::{FromClvm, ToClvm};
-use clvmr::sha2::Sha256;
 
 use super::Condition;
 
@@ -95,11 +94,4 @@ impl<T> Condition<T> {
                 | Condition::AggSigMe(..)
         )
     }
-}
-
-pub fn announcement_id(coin_info: Bytes32, message: impl AsRef<[u8]>) -> Bytes32 {
-    let mut hasher = Sha256::new();
-    hasher.update(coin_info.as_ref());
-    hasher.update(message.as_ref());
-    Bytes32::from(hasher.finalize())
 }

@@ -1,0 +1,45 @@
+[package]
+name = "chia-sdk-bindings"
+version = "0.23.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Underlying implementation of chia-wallet-sdk bindings."
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+homepage = "https://github.com/Rigidity/chia-wallet-sdk"
+repository = "https://github.com/Rigidity/chia-wallet-sdk"
+readme = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+napi = []
+wasm = []
+pyo3 = []
+
+[dependencies]
+chia-sdk-utils = { workspace = true }
+chia-sdk-driver = { workspace = true, features = ["offers"] }
+chia-sdk-coinset = { workspace = true, features = ["native-tls"] }
+chia-sdk-test = { workspace = true }
+chia-sdk-types = { workspace = true }
+chia-protocol = { workspace = true }
+chia-bls = { workspace = true }
+chia-secp = { workspace = true }
+chia-puzzle-types = { workspace = true }
+chia-puzzles = { workspace = true }
+clvm-utils = { workspace = true }
+clvm-traits = { workspace = true }
+chia-traits = { workspace = true }
+clvmr = { workspace = true }
+bindy = { workspace = true }
+bip39 = { workspace = true }
+hex = { workspace = true }
+sha2 = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+num-bigint = { workspace = true }
+paste = { workspace = true }
+clvm_tools_rs = { workspace = true }

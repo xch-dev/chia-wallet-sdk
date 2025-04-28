@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-coinset"
-version = "0.20.0"
+version = "0.23.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Utilities for connecting to Chia full node peers via the light wallet protocol."
@@ -14,18 +14,18 @@ categories = { workspace = true }
 [lints]
 workspace = true
 
+[features]
+native-tls = ["reqwest/native-tls"]
+rustls = ["reqwest/rustls-tls"]
+
 [dependencies]
-tokio = { workspace = true, features = ["sync", "time", "rt", "macros"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-chia = { workspace = true }
 hex = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 hex-literal = { workspace = true }
+chia-protocol = { workspace = true, features = ["serde"] }
 
-# This is to ensure that the bindgen feature is enabled for the aws-lc-rs crate.
-# https://aws.github.io/aws-lc-rs/platform_support.html#tested-platforms
-aws-lc-rs = { version = "1", features = ["bindgen"], optional = true }
-
-[package.metadata.cargo-machete]
-ignored = ["aws-lc-rs"]
+[dev-dependencies]
+chia-traits = { workspace = true }
+tokio = { workspace = true, features = ["full"] }

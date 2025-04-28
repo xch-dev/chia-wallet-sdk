@@ -1,3 +1,4 @@
+#![allow(clippy::large_stack_arrays)]
 #![doc = include_str!("../docs.md")]
 
 mod driver_error;

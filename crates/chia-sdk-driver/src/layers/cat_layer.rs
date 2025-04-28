@@ -1,5 +1,6 @@
 use chia_protocol::Bytes32;
-use chia_puzzles::cat::{CatArgs, CatSolution, CAT_PUZZLE_HASH};
+use chia_puzzle_types::cat::{CatArgs, CatSolution};
+use chia_puzzles::CAT_PUZZLE_HASH;
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -36,7 +37,7 @@ where
             return Ok(None);
         };
 
-        if puzzle.mod_hash != CAT_PUZZLE_HASH {
+        if puzzle.mod_hash != CAT_PUZZLE_HASH.into() {
             return Ok(None);
         }
 
@@ -113,7 +114,7 @@ where
 #[cfg(test)]
 mod tests {
     use chia_protocol::Coin;
-    use chia_puzzles::CoinProof;
+    use chia_puzzle_types::CoinProof;
 
     use super::*;
 
@@ -125,9 +126,8 @@ mod tests {
         let layer = CatLayer::new(asset_id, "Hello, world!".to_string());
 
         let ptr = layer.construct_puzzle(&mut ctx)?;
-        let puzzle = Puzzle::parse(&ctx.allocator, ptr);
-        let roundtrip =
-            CatLayer::<String>::parse_puzzle(&ctx.allocator, puzzle)?.expect("invalid CAT layer");
+        let puzzle = Puzzle::parse(&ctx, ptr);
+        let roundtrip = CatLayer::<String>::parse_puzzle(&ctx, puzzle)?.expect("invalid CAT layer");
 
         assert_eq!(roundtrip.asset_id, layer.asset_id);
         assert_eq!(roundtrip.inner_puzzle, layer.inner_puzzle);
@@ -165,7 +165,7 @@ mod tests {
 
         assert_eq!(hex::encode(actual_hash), hex::encode(expected_hash));
 
-        let roundtrip = CatLayer::<NodePtr>::parse_solution(&ctx.allocator, actual_ptr)?;
+        let roundtrip = CatLayer::<NodePtr>::parse_solution(&ctx, actual_ptr)?;
         assert_eq!(roundtrip, solution);
 
         Ok(())

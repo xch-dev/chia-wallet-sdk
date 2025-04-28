@@ -3,7 +3,10 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use hex_literal::hex;
 
-use crate::{Mod, DELEGATED_FEEDER_PUZZLE_HASH, INDEX_WRAPPER_HASH, ONE_OF_N_PUZZLE_HASH};
+use crate::{
+    puzzles::{DELEGATED_FEEDER_PUZZLE_HASH, INDEX_WRAPPER_HASH, ONE_OF_N_PUZZLE_HASH},
+    Mod,
+};
 
 use super::RESTRICTIONS_PUZZLE_HASH;
 

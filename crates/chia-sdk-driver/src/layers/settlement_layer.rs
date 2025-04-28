@@ -1,4 +1,6 @@
-use chia_puzzles::offer::{SettlementPaymentsSolution, SETTLEMENT_PAYMENTS_PUZZLE_HASH};
+use chia_puzzle_types::offer::SettlementPaymentsSolution;
+use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
+use chia_sdk_types::puzzles::SettlementPayment;
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 
@@ -12,7 +14,7 @@ impl Layer for SettlementLayer {
     type Solution = SettlementPaymentsSolution;
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        ctx.settlement_payments_puzzle()
+        ctx.alloc_mod::<SettlementPayment>()
     }
 
     fn construct_solution(
@@ -24,7 +26,7 @@ impl Layer for SettlementLayer {
     }
 
     fn parse_puzzle(_allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
-        if puzzle.curried_puzzle_hash() != SETTLEMENT_PAYMENTS_PUZZLE_HASH {
+        if puzzle.curried_puzzle_hash() != SETTLEMENT_PAYMENT_HASH.into() {
             return Ok(None);
         }
         Ok(Some(Self))

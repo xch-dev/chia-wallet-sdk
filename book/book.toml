@@ -1,0 +1,18 @@
+[book]
+authors = ["Rigidity"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Chia Wallet SDK"
+description = "A guide for working with the Chia Wallet SDK."
+
+[build]
+create-missing = false
+
+[preprocessor.tabs]
+
+[output.html]
+additional-css = ["theme/tabs.css"]
+additional-js = ["theme/tabs.js"]
+git-repository-url = "https://github.com/xch-dev/chia-wallet-sdk"
+edit-url-template = "https://github.com/xch-dev/chia-wallet-sdk/edit/main/book/{path}"
