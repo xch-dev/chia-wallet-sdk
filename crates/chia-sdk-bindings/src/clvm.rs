@@ -19,6 +19,12 @@ use crate::{
     VaultMint,
 };
 
+pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
+pub const MIN_SAFE_INTEGER: f64 = -MAX_SAFE_INTEGER;
+
+// This is sort of an implementation detail of the CLVM runtime.
+pub const MAX_CLVM_SMALL_INTEGER: i64 = 67_108_863;
+
 #[derive(Default, Clone)]
 pub struct Clvm(pub(crate) Arc<Mutex<SpendContext>>);
 
@@ -269,18 +275,20 @@ impl Clvm {
             return Err(Error::Fractional);
         }
 
-        if value > 9_007_199_254_740_991.0 {
+        // If the value is larger, it can't be safely encoded as a JavaScript number.
+        if value > MAX_SAFE_INTEGER {
             return Err(Error::TooLarge);
         }
 
-        if value < -9_007_199_254_740_991.0 {
+        // If the value is smaller, it can't be safely encoded as a JavaScript number.
+        if value < MIN_SAFE_INTEGER {
             return Err(Error::TooSmall);
         }
 
         #[allow(clippy::cast_possible_truncation)]
         let value = value as i64;
 
-        if (0..=67_108_863).contains(&value) {
+        if (0..=MAX_CLVM_SMALL_INTEGER).contains(&value) {
             Ok(Program(
                 self.0.clone(),
                 ctx.new_small_number(value.try_into().unwrap())?,
