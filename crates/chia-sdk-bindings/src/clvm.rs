@@ -25,6 +25,8 @@ pub const MIN_SAFE_INTEGER: f64 = -MAX_SAFE_INTEGER;
 // This is sort of an implementation detail of the CLVM runtime.
 pub const MAX_CLVM_SMALL_INTEGER: i64 = 67_108_863;
 
+// We use an Arc because we need to be able to share the SpendContext with the Program class
+// And we use a Mutex because we need to retain mutability even while Program instances exist
 #[derive(Default, Clone)]
 pub struct Clvm(pub(crate) Arc<Mutex<SpendContext>>);
 
