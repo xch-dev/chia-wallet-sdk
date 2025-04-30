@@ -84,7 +84,9 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          # TODO: The container does not have the proper toolchain or toolchain version installed
+          # This causes CI issues, so for now this caching is disabled to get the build to pass
+          # sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
           working-directory: pyo3
       - name: Upload wheels
