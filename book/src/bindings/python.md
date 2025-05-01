@@ -53,8 +53,8 @@ pk = sk.public_key()
 message = b"Hello, Chia!"
 signature = sk.sign(message)
 
-# Verify the signature with the public key
-is_valid = PublicKey.from_bytes(pk.to_bytes()).verify(message, signature)
+# Verify the signature
+is_valid = signature.is_valid()
 print(f"Signature valid: {is_valid}")
 ```
 

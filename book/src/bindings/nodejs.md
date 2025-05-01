@@ -56,8 +56,8 @@ const pk = sk.publicKey();
 const message = new TextEncoder().encode('Hello, Chia!');
 const signature = sk.sign(message);
 
-// Verify the signature with the public key
-const isValid = PublicKey.fromBytes(pk.toBytes()).verify(message, signature);
+// Check if the signature is valid
+const isValid = signature.isValid();
 console.log('Signature valid:', isValid);
 ```
 
