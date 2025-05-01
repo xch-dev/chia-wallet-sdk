@@ -16,6 +16,7 @@ Import the classes and functions you need:
 
 ```python
 from chia_wallet_sdk import (
+    Mnemonic,
     SecretKey,
     PublicKey,
     Signature,
@@ -23,19 +24,26 @@ from chia_wallet_sdk import (
     Coin,
     SpendBundle,
     Clvm,
-    CoinsetClient
+    CoinsetClient,
+    Simulator,
+    standard_puzzle_hash,
+    bytes_equal
 )
 ```
 
 ## Key Management
 
-Create and work with keys:
+Create and work with keys using mnemonics:
 
 ```python
-import os
+# Generate a new mnemonic (24 words by default)
+mnemonic = Mnemonic.generate(True)  # True for 24 words, False for 12 words
+print(f"Mnemonic: {str(mnemonic)}")
 
-# Generate a new key from seed
-seed = os.urandom(32)  # Create a random 32-byte seed
+# Convert mnemonic to seed
+seed = mnemonic.to_seed("")  # Empty password
+
+# Create a key from seed
 sk = SecretKey.from_seed(seed)
 
 # Get the public key
@@ -45,8 +53,9 @@ pk = sk.public_key()
 message = b"Hello, Chia!"
 signature = sk.sign(message)
 
-# Verify the signature
-is_valid = signature.is_valid()
+# Verify the signature with the public key
+is_valid = PublicKey.from_bytes(pk.to_bytes()).verify(message, signature)
+print(f"Signature valid: {is_valid}")
 ```
 
 ## Working with Addresses
@@ -55,7 +64,7 @@ Convert between puzzle hashes and addresses:
 
 ```python
 # Create an address from a puzzle hash
-puzzle_hash = bytes([0] * 32)  # Example puzzle hash (all zeros)
+puzzle_hash = standard_puzzle_hash(pk)  # Get puzzle hash from public key
 address = Address(puzzle_hash, "xch")
 
 # Encode the address
@@ -64,38 +73,40 @@ print(f"XCH address: {encoded_address}")
 
 # Decode an address
 decoded_address = Address.decode(encoded_address)
+print(f"Puzzle hash matches: {bytes_equal(decoded_address.puzzle_hash, puzzle_hash)}")
 ```
 
 ## Creating Transactions
 
-Use the CLVM (ChiaLisp Virtual Machine) to create transactions:
+Use the simulator for testing transactions:
 
 ```python
+# Create a simulator for testing
+simulator = Simulator()
+
+# Create a test key pair with a coin
+alice = simulator.bls(1000)
+
+# Create a CLVM instance
 clvm = Clvm()
 
-# Create a coin
-parent_coin_info = bytes([0] * 32)  # Example parent coin ID
-puzzle_hash = bytes([0] * 32)  # Example recipient's puzzle hash
-amount = 1000  # Amount in mojos
-coin = Coin(parent_coin_info, puzzle_hash, amount)
+# Create a simple spend with conditions
+conditions = [
+    clvm.create_coin(alice.puzzle_hash, 900),
+    clvm.reserve_fee(100)
+]
 
-# Create a simple spend
-conditions = []
-conditions.append(clvm.create_coin(puzzle_hash, 900))
-conditions.append(clvm.reserve_fee(100))
-
+# Create a delegated spend
 delegated_spend = clvm.delegated_spend(conditions)
 
-# For a standard transaction
-standard_spend = clvm.standard_spend(pk, delegated_spend)
-clvm.spend_standard_coin(coin, pk, delegated_spend)
+# Spend the standard coin (this handles the standard_spend internally)
+clvm.spend_standard_coin(alice.coin, alice.pk, delegated_spend)
 
 # Get the coin spends
 coin_spends = clvm.coin_spends()
 
-# Create and sign the spend bundle
-aggregated_signature = Signature.aggregate([signature])
-spend_bundle = SpendBundle(coin_spends, aggregated_signature)
+# Submit the transaction to the simulator
+simulator.spend_coins(coin_spends, [alice.sk])
 ```
 
 ## Interacting with the Network
@@ -118,11 +129,12 @@ async def fetch_coins():
         print(f"Blockchain state: {state}")
         
         # Query coins by puzzle hash
-        puzzle_hash = bytes([0] * 32)  # Example puzzle hash
+        puzzle_hash = standard_puzzle_hash(pk)  # Use a real puzzle hash
         coin_records = await client.get_coin_records_by_puzzle_hash(puzzle_hash)
         print(f"Coin records: {coin_records}")
         
-        # Push a transaction
+        # Create and push a transaction
+        # ... create a spend bundle as shown above
         response = await client.push_tx(spend_bundle)
         print(f"Transaction result: {response}")
     except Exception as e:
@@ -137,7 +149,46 @@ asyncio.run(fetch_coins())
 To create and manage CAT tokens:
 
 ```python
-# To be implemented based on the detailed CAT API
+# Create a simulator for testing
+simulator = Simulator()
+alice = simulator.bls(1000)
+
+# Create a CLVM instance
+clvm = Clvm()
+
+# Create memos for the CAT
+memos = clvm.alloc(alice.puzzle_hash)
+
+# Create conditions for the issuance
+conditions = clvm.create_coin(alice.puzzle_hash, 1000, memos)
+
+# Issue a new CAT
+issue_cat, cat = Cat.single_issuance_eve(
+    clvm, 
+    alice.coin.coin_id(), 
+    1000, 
+    conditions
+)
+
+# Spend the standard coin to issue the CAT
+clvm.spend_standard_coin(alice.coin, alice.pk, issue_cat)
+
+# Create a CAT spend
+new_cat = cat.wrapped_child(alice.puzzle_hash, 1000)
+cat_spends = [
+    CatSpend(
+        new_cat,
+        clvm.delegated_spend([
+            clvm.create_coin(alice.puzzle_hash, 1000, memos)
+        ])
+    )
+]
+
+# Spend the CAT
+clvm.spend_cat_coins(cat_spends)
+
+# Submit the transaction
+simulator.spend_coins(clvm.coin_spends(), [alice.sk])
 ```
 
 ## Working with NFTs
@@ -145,7 +196,38 @@ To create and manage CAT tokens:
 To create and manage NFTs:
 
 ```python
-# To be implemented based on the detailed NFT API
+# Create a simulator for testing
+simulator = Simulator()
+alice = simulator.bls(1000)
+
+# Create a CLVM instance
+clvm = Clvm()
+
+# Define NFT metadata
+metadata = {
+    "name": "My NFT",
+    "description": "A test NFT",
+    "uri": "https://example.com/nft.json"
+}
+
+# Create an NFT mint request
+nft_mint = NftMint(
+    launcher_id=None,  # Will be generated
+    target_address=alice.puzzle_hash,
+    metadata=metadata,
+    royalty_address=alice.puzzle_hash,
+    royalty_percentage=10,  # 10% royalty
+    did_id=None  # No DID association
+)
+
+# Mint the NFT
+minted_nfts = clvm.mint_nfts(alice.coin.coin_id(), [nft_mint])
+
+# Spend the standard coin to mint the NFT
+clvm.spend_standard_coin(alice.coin, alice.pk, minted_nfts.spend)
+
+# Submit the transaction
+simulator.spend_coins(clvm.coin_spends(), [alice.sk])
 ```
 
 ## Error Handling
