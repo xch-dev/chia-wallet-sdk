@@ -1,4 +1,3 @@
-#![allow(unsafe_code)]
 #![allow(clippy::wildcard_imports)]
 #![allow(clippy::too_many_arguments)]
 

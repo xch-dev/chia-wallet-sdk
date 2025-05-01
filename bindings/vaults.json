@@ -160,7 +160,7 @@
     "type": "function",
     "return": "Restriction"
   },
-  "prevent_side_effects_restriction": {
+  "prevent_vault_side_effects_restriction": {
     "type": "function",
     "return": "Vec<Restriction>"
   },
@@ -258,7 +258,7 @@
         }
       },
       "prevent_multiple_create_coins": {},
-      "prevent_side_effects": {}
+      "prevent_vault_side_effects": {}
     }
   },
   "VaultMint": {

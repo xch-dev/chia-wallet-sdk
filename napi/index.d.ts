@@ -32,7 +32,7 @@ export declare function timelockRestriction(timelock: bigint): Restriction
 export declare function force1Of2Restriction(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): Restriction
 export declare function preventConditionOpcodeRestriction(conditionOpcode: number): Restriction
 export declare function preventMultipleCreateCoinsRestriction(): Restriction
-export declare function preventSideEffectsRestriction(): Array<Restriction>
+export declare function preventVaultSideEffectsRestriction(): Array<Restriction>
 export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restriction>, delegatedPuzzleHash: Uint8Array): Uint8Array
 export declare class Address {
   encode(): string
@@ -1421,7 +1421,7 @@ export declare class MipsSpend {
   force1Of2RestrictedVariable(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array, newRightSideMemberHash: Uint8Array): void
   preventConditionOpcode(conditionOpcode: number): void
   preventMultipleCreateCoins(): void
-  preventSideEffects(): void
+  preventVaultSideEffects(): void
 }
 export declare class VaultMint {
   constructor(vault: Vault, parentConditions: Array<Program>)

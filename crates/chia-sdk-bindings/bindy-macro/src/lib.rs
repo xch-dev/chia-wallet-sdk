@@ -1,7 +1,7 @@
 use std::{fs, path::Path};
 
 use convert_case::{Case, Casing};
-use indexmap::{indexmap, IndexMap};
+use indexmap::IndexMap;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
@@ -12,6 +12,10 @@ use syn::{parse_str, Ident, LitStr, Type};
 struct Bindy {
     entrypoint: String,
     pymodule: String,
+    #[serde(default)]
+    type_groups: IndexMap<String, Vec<String>>,
+    #[serde(default)]
+    shared: IndexMap<String, String>,
     #[serde(default)]
     napi: IndexMap<String, String>,
     #[serde(default)]
@@ -90,6 +94,22 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
     (bindy, bindings)
 }
 
+fn build_base_mappings(bindy: &Bindy, mappings: &mut IndexMap<String, String>) {
+    for (name, value) in &bindy.shared {
+        if !mappings.contains_key(name) {
+            mappings.insert(name.clone(), value.clone());
+        }
+    }
+
+    for (name, group) in &bindy.type_groups {
+        if let Some(value) = mappings.shift_remove(name) {
+            for ty in group {
+                mappings.insert(ty.clone(), value.clone());
+            }
+        }
+    }
+}
+
 #[proc_macro]
 pub fn bindy_napi(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
@@ -97,14 +117,8 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
-    let mut base_mappings = indexmap! {
-        "()".to_string() => "napi::JsUndefined".to_string(),
-        "Vec<u8>".to_string() => "napi::bindgen_prelude::Uint8Array".to_string(),
-        "u64".to_string() => "napi::bindgen_prelude::BigInt".to_string(),
-        "u128".to_string() => "napi::bindgen_prelude::BigInt".to_string(),
-        "BigInt".to_string() => "napi::bindgen_prelude::BigInt".to_string(),
-    };
-    base_mappings.extend(bindy.napi);
+    let mut base_mappings = bindy.napi.clone();
+    build_base_mappings(&bindy, &mut base_mappings);
 
     let mut non_async_param_mappings = base_mappings.clone();
     let mut async_param_mappings = base_mappings.clone();
@@ -395,12 +409,8 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
-    let mut mappings = indexmap! {
-        "u64".to_string() => "js_sys::BigInt".to_string(),
-        "u128".to_string() => "js_sys::BigInt".to_string(),
-        "BigInt".to_string() => "js_sys::BigInt".to_string(),
-    };
-    mappings.extend(bindy.wasm);
+    let mut mappings = bindy.wasm.clone();
+    build_base_mappings(&bindy, &mut mappings);
 
     let mut output = quote!();
 
@@ -678,10 +688,8 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
-    let mut mappings = indexmap! {
-        "BigInt".to_string() => "num_bigint::BigInt".to_string(),
-    };
-    mappings.extend(bindy.pyo3);
+    let mut mappings = bindy.pyo3.clone();
+    build_base_mappings(&bindy, &mut mappings);
 
     let mut output = quote!();
     let mut module = quote!();

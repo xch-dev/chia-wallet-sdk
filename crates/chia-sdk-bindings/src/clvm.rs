@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 use bindy::{Error, Result};
 use chia_bls::PublicKey;
@@ -19,8 +19,16 @@ use crate::{
     VaultMint,
 };
 
+pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
+pub const MIN_SAFE_INTEGER: f64 = -MAX_SAFE_INTEGER;
+
+// This is sort of an implementation detail of the CLVM runtime.
+pub const MAX_CLVM_SMALL_INTEGER: i64 = 67_108_863;
+
+// We use an Arc because we need to be able to share the SpendContext with the Program class
+// And we use a Mutex because we need to retain mutability even while Program instances exist
 #[derive(Default, Clone)]
-pub struct Clvm(pub(crate) Arc<RwLock<SpendContext>>);
+pub struct Clvm(pub(crate) Arc<Mutex<SpendContext>>);
 
 impl Clvm {
     pub fn new() -> Result<Self> {
@@ -28,12 +36,12 @@ impl Clvm {
     }
 
     pub fn add_coin_spend(&self, coin_spend: CoinSpend) -> Result<()> {
-        self.0.write().unwrap().insert(coin_spend);
+        self.0.lock().unwrap().insert(coin_spend);
         Ok(())
     }
 
     pub fn spend_coin(&self, coin: Coin, spend: Spend) -> Result<()> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
         let puzzle_reveal = ctx.serialize(&spend.puzzle.1)?;
         let solution = ctx.serialize(&spend.solution.1)?;
         ctx.insert(chia_protocol::CoinSpend::new(coin, puzzle_reveal, solution));
@@ -41,11 +49,11 @@ impl Clvm {
     }
 
     pub fn coin_spends(&self) -> Result<Vec<CoinSpend>> {
-        Ok(self.0.write().unwrap().take())
+        Ok(self.0.lock().unwrap().take())
     }
 
     pub fn delegated_spend(&self, conditions: Vec<Program>) -> Result<Spend> {
-        let delegated_puzzle = self.0.write().unwrap().alloc(&clvm_quote!(conditions
+        let delegated_puzzle = self.0.lock().unwrap().alloc(&clvm_quote!(conditions
             .into_iter()
             .map(|p| p.1)
             .collect::<Vec<_>>()))?;
@@ -56,7 +64,7 @@ impl Clvm {
     }
 
     pub fn standard_spend(&self, synthetic_key: PublicKey, spend: Spend) -> Result<Spend> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
         let spend =
             StandardLayer::new(synthetic_key).delegated_inner_spend(&mut ctx, spend.into())?;
         Ok(Spend {
@@ -71,7 +79,7 @@ impl Clvm {
         synthetic_key: PublicKey,
         spend: Spend,
     ) -> Result<()> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
         let spend = self.standard_spend(synthetic_key, spend)?;
         let puzzle_reveal = ctx.serialize(&spend.puzzle.1)?;
         let solution = ctx.serialize(&spend.solution.1)?;
@@ -80,7 +88,7 @@ impl Clvm {
     }
 
     pub fn spend_cat_coins(&self, cat_spends: Vec<CatSpend>) -> Result<()> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
 
         let mut rust_cat_spends = Vec::new();
 
@@ -98,7 +106,7 @@ impl Clvm {
         parent_coin_id: Bytes32,
         nft_mints: Vec<NftMint>,
     ) -> Result<MintedNfts> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
         let mut nfts = Vec::new();
         let mut parent_conditions = Vec::new();
 
@@ -134,7 +142,7 @@ impl Clvm {
     }
 
     pub fn spend_nft(&self, nft: Nft, inner_spend: Spend) -> Result<()> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
 
         let ptr = nft.info.metadata.1;
 
@@ -154,7 +162,7 @@ impl Clvm {
     }
 
     pub fn spend_did(&self, did: Did, inner_spend: Spend) -> Result<()> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
 
         let ptr = did.info.metadata.1;
 
@@ -179,7 +187,7 @@ impl Clvm {
         payment_time: u64,
         clawback: bool,
     ) -> Result<()> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
         let streamed_cat: chia_sdk_driver::StreamedCat = streamed_cat.try_into()?;
 
         streamed_cat.spend(&mut ctx, payment_time, clawback)?;
@@ -193,7 +201,7 @@ impl Clvm {
         custody_hash: TreeHash,
         memos: Program,
     ) -> Result<VaultMint> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
 
         let (parent_conditions, vault) =
             Launcher::new(parent_coin_id, 1).mint_vault(&mut ctx, custody_hash, memos.1)?;
@@ -220,31 +228,31 @@ impl Clvm {
     }
 
     pub fn parse(&self, program: String) -> Result<Program> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
         let ptr = assemble(&mut ctx, &program)?;
         Ok(Program(self.0.clone(), ptr))
     }
 
     pub fn deserialize(&self, value: SerializedProgram) -> Result<Program> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
         let ptr = node_from_bytes(&mut ctx, &value)?;
         Ok(Program(self.0.clone(), ptr))
     }
 
     pub fn deserialize_with_backrefs(&self, value: SerializedProgram) -> Result<Program> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
         let ptr = node_from_bytes_backrefs(&mut ctx, &value)?;
         Ok(Program(self.0.clone(), ptr))
     }
 
     pub fn cache(&self, mod_hash: Bytes32, value: SerializedProgram) -> Result<Program> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
         let ptr = ctx.puzzle(mod_hash.into(), &value)?;
         Ok(Program(self.0.clone(), ptr))
     }
 
     pub fn pair(&self, first: Program, second: Program) -> Result<Program> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
         let ptr = ctx.new_pair(first.1, second.1)?;
         Ok(Program(self.0.clone(), ptr))
     }
@@ -255,7 +263,7 @@ impl Clvm {
 
     // This is called by the individual napi and wasm binding crates
     pub fn f64(&self, value: f64) -> Result<Program> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
 
         if value.is_infinite() {
             return Err(Error::Infinite);
@@ -269,18 +277,20 @@ impl Clvm {
             return Err(Error::Fractional);
         }
 
-        if value > 9_007_199_254_740_991.0 {
+        // If the value is larger, it can't be safely encoded as a JavaScript number.
+        if value > MAX_SAFE_INTEGER {
             return Err(Error::TooLarge);
         }
 
-        if value < -9_007_199_254_740_991.0 {
+        // If the value is smaller, it can't be safely encoded as a JavaScript number.
+        if value < MIN_SAFE_INTEGER {
             return Err(Error::TooSmall);
         }
 
         #[allow(clippy::cast_possible_truncation)]
         let value = value as i64;
 
-        if (0..=67_108_863).contains(&value) {
+        if (0..=MAX_CLVM_SMALL_INTEGER).contains(&value) {
             Ok(Program(
                 self.0.clone(),
                 ctx.new_small_number(value.try_into().unwrap())?,
@@ -294,33 +304,33 @@ impl Clvm {
     pub fn big_int(&self, value: BigInt) -> Result<Program> {
         Ok(Program(
             self.0.clone(),
-            self.0.write().unwrap().new_number(value)?,
+            self.0.lock().unwrap().new_number(value)?,
         ))
     }
 
     pub fn string(&self, value: String) -> Result<Program> {
         Ok(Program(
             self.0.clone(),
-            self.0.write().unwrap().new_atom(value.as_bytes())?,
+            self.0.lock().unwrap().new_atom(value.as_bytes())?,
         ))
     }
 
     pub fn bool(&self, value: bool) -> Result<Program> {
         Ok(Program(
             self.0.clone(),
-            self.0.write().unwrap().new_small_number(value as u32)?,
+            self.0.lock().unwrap().new_small_number(value as u32)?,
         ))
     }
 
     pub fn atom(&self, value: Bytes) -> Result<Program> {
         Ok(Program(
             self.0.clone(),
-            self.0.write().unwrap().new_atom(&value)?,
+            self.0.lock().unwrap().new_atom(&value)?,
         ))
     }
 
     pub fn list(&self, value: Vec<Program>) -> Result<Program> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
         let mut result = NodePtr::NIL;
 
         for item in value.into_iter().rev() {
@@ -331,7 +341,7 @@ impl Clvm {
     }
 
     pub fn nft_metadata(&self, value: NftMetadata) -> Result<Program> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
         let nft_metadata = nft::NftMetadata::from(value);
         let ptr = ctx.alloc(&nft_metadata)?;
         Ok(Program(self.0.clone(), ptr))

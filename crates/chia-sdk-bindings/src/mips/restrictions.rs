@@ -85,7 +85,7 @@ pub fn prevent_multiple_create_coins_restriction() -> Result<Restriction> {
     })
 }
 
-pub fn prevent_side_effects_restriction() -> Result<Vec<Restriction>> {
+pub fn prevent_vault_side_effects_restriction() -> Result<Vec<Restriction>> {
     Ok(vec![
         prevent_condition_opcode_restriction(60)?,
         prevent_condition_opcode_restriction(62)?,

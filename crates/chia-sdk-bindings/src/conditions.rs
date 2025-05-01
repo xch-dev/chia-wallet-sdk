@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex};
 
 use bindy::Result;
 use chia_bls::PublicKey;
@@ -12,65 +12,65 @@ use paste::paste;
 use crate::{Clvm, Program};
 
 trait Convert<T> {
-    fn convert(self, clvm: &Arc<RwLock<SpendContext>>) -> Result<T>;
+    fn convert(self, clvm: &Arc<Mutex<SpendContext>>) -> Result<T>;
 }
 
 impl Convert<Program> for NodePtr {
-    fn convert(self, clvm: &Arc<RwLock<SpendContext>>) -> Result<Program> {
+    fn convert(self, clvm: &Arc<Mutex<SpendContext>>) -> Result<Program> {
         Ok(Program(clvm.clone(), self))
     }
 }
 
 impl Convert<NodePtr> for Program {
-    fn convert(self, _clvm: &Arc<RwLock<SpendContext>>) -> Result<NodePtr> {
+    fn convert(self, _clvm: &Arc<Mutex<SpendContext>>) -> Result<NodePtr> {
         Ok(self.1)
     }
 }
 
 impl Convert<PublicKey> for PublicKey {
-    fn convert(self, _clvm: &Arc<RwLock<SpendContext>>) -> Result<PublicKey> {
+    fn convert(self, _clvm: &Arc<Mutex<SpendContext>>) -> Result<PublicKey> {
         Ok(self)
     }
 }
 
 impl Convert<Bytes> for Bytes {
-    fn convert(self, _clvm: &Arc<RwLock<SpendContext>>) -> Result<Bytes> {
+    fn convert(self, _clvm: &Arc<Mutex<SpendContext>>) -> Result<Bytes> {
         Ok(self)
     }
 }
 
 impl Convert<Bytes32> for Bytes32 {
-    fn convert(self, _clvm: &Arc<RwLock<SpendContext>>) -> Result<Bytes32> {
+    fn convert(self, _clvm: &Arc<Mutex<SpendContext>>) -> Result<Bytes32> {
         Ok(self)
     }
 }
 
 impl Convert<u64> for u64 {
-    fn convert(self, _clvm: &Arc<RwLock<SpendContext>>) -> Result<u64> {
+    fn convert(self, _clvm: &Arc<Mutex<SpendContext>>) -> Result<u64> {
         Ok(self)
     }
 }
 
 impl Convert<u32> for u32 {
-    fn convert(self, _clvm: &Arc<RwLock<SpendContext>>) -> Result<u32> {
+    fn convert(self, _clvm: &Arc<Mutex<SpendContext>>) -> Result<u32> {
         Ok(self)
     }
 }
 
 impl Convert<u8> for u8 {
-    fn convert(self, _clvm: &Arc<RwLock<SpendContext>>) -> Result<u8> {
+    fn convert(self, _clvm: &Arc<Mutex<SpendContext>>) -> Result<u8> {
         Ok(self)
     }
 }
 
 impl Convert<Memos<NodePtr>> for Program {
-    fn convert(self, _clvm: &Arc<RwLock<SpendContext>>) -> Result<Memos<NodePtr>> {
+    fn convert(self, _clvm: &Arc<Mutex<SpendContext>>) -> Result<Memos<NodePtr>> {
         Ok(Memos::new(self.1))
     }
 }
 
 impl Convert<Program> for Memos<NodePtr> {
-    fn convert(self, clvm: &Arc<RwLock<SpendContext>>) -> Result<Program> {
+    fn convert(self, clvm: &Arc<Mutex<SpendContext>>) -> Result<Program> {
         Ok(Program(clvm.clone(), self.value))
     }
 }
@@ -79,7 +79,7 @@ impl<T, U> Convert<Vec<U>> for Vec<T>
 where
     T: Convert<U>,
 {
-    fn convert(self, clvm: &Arc<RwLock<SpendContext>>) -> Result<Vec<U>> {
+    fn convert(self, clvm: &Arc<Mutex<SpendContext>>) -> Result<Vec<U>> {
         self.into_iter()
             .map(|value| T::convert(value, clvm))
             .collect()
@@ -90,7 +90,7 @@ impl<T, U> Convert<Option<U>> for Option<T>
 where
     T: Convert<U>,
 {
-    fn convert(self, clvm: &Arc<RwLock<SpendContext>>) -> Result<Option<U>> {
+    fn convert(self, clvm: &Arc<Mutex<SpendContext>>) -> Result<Option<U>> {
         self.map(|value| T::convert(value, clvm)).transpose()
     }
 }
@@ -105,7 +105,7 @@ macro_rules! conditions {
         $( paste! {
             impl Clvm {
                 pub fn $function( &self, $( $name: $ty ),* ) -> Result<Program> {
-                    let mut ctx = self.0.write().unwrap();
+                    let mut ctx = self.0.lock().unwrap();
                     $( let $name = Convert::convert($name, &self.0)?; )*
                     let ptr = conditions::$condition $( ::< $( $generic ),* > )? ::new( $( $name ),* )
                     .to_clvm(&mut **ctx)?;
@@ -116,7 +116,7 @@ macro_rules! conditions {
             impl Program {
                 #[allow(unused)]
                 pub fn [< parse_ $function >]( &self ) -> Result<Option<$condition>> {
-                    let ctx = self.0.read().unwrap();
+                    let ctx = self.0.lock().unwrap();
 
                     let Some(condition) = conditions::$condition $( ::< $( $generic ),* > )? ::from_clvm(&**ctx, self.1).ok() else {
                         return Ok(None);
