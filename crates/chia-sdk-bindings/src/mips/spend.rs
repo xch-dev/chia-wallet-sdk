@@ -432,7 +432,7 @@ impl MipsSpend {
         Ok(())
     }
 
-    pub fn prevent_side_effects(&self) -> Result<()> {
+    pub fn prevent_vault_side_effects(&self) -> Result<()> {
         self.prevent_condition_opcode(CREATE_COIN_ANNOUNCEMENT)?;
         self.prevent_condition_opcode(CREATE_PUZZLE_ANNOUNCEMENT)?;
         self.prevent_condition_opcode(SEND_MESSAGE)?;
