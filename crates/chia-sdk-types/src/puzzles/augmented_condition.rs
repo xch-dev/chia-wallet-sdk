@@ -25,11 +25,11 @@ impl<T, I> AugmentedConditionArgs<T, I> {
 
 impl<T, I> Mod for AugmentedConditionArgs<T, I> {
     fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&AUGMENTED_CONDITION_PUZZLE)
+        Cow::Borrowed(&AUGMENTED_CONDITION)
     }
 
     fn mod_hash() -> TreeHash {
-        AUGMENTED_CONDITION_PUZZLE_HASH
+        AUGMENTED_CONDITION_HASH.into()
     }
 }
 
