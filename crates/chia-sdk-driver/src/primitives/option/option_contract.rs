@@ -16,7 +16,7 @@ use crate::{DriverError, Layer, Puzzle, Spend, SpendContext, SpendWithConditions
 use super::{OptionContractLayers, OptionInfo, OptionMetadata};
 
 #[must_use]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptionContract {
     pub coin: Coin,
     pub proof: Proof,
@@ -210,8 +210,8 @@ mod tests {
     use rstest::rstest;
 
     use crate::{
-        Cat, CatSpend, DidOwner, HashedPtr, Launcher, Nft, NftMint, OptionLauncher, OptionType,
-        SettlementLayer, StandardLayer,
+        Cat, CatSpend, DidOwner, HashedPtr, Launcher, Nft, NftMint, OptionLauncher,
+        OptionLauncherInfo, OptionType, SettlementLayer, StandardLayer,
     };
 
     use super::*;
@@ -393,11 +393,13 @@ mod tests {
         let launcher = OptionLauncher::new(
             ctx,
             alice.coin.coin_id(),
-            alice.puzzle_hash,
-            alice.puzzle_hash,
-            10,
-            underlying_amount,
-            strike_type,
+            OptionLauncherInfo::new(
+                alice.puzzle_hash,
+                alice.puzzle_hash,
+                10,
+                underlying_amount,
+                strike_type,
+            ),
         )?;
         let underlying = launcher.underlying();
         let p2_option = launcher.p2_puzzle_hash();
@@ -662,11 +664,13 @@ mod tests {
         let launcher = OptionLauncher::new(
             ctx,
             alice.coin.coin_id(),
-            alice.puzzle_hash,
-            alice.puzzle_hash,
-            10,
-            1,
-            OptionType::Xch { amount: 1 },
+            OptionLauncherInfo::new(
+                alice.puzzle_hash,
+                alice.puzzle_hash,
+                10,
+                1,
+                OptionType::Xch { amount: 1 },
+            ),
         )?;
         let p2_option = launcher.p2_puzzle_hash();
 
@@ -705,11 +709,13 @@ mod tests {
         let launcher = OptionLauncher::new(
             ctx,
             alice.coin.coin_id(),
-            alice.puzzle_hash,
-            alice.puzzle_hash,
-            10,
-            1,
-            OptionType::Xch { amount: 1 },
+            OptionLauncherInfo::new(
+                alice.puzzle_hash,
+                alice.puzzle_hash,
+                10,
+                1,
+                OptionType::Xch { amount: 1 },
+            ),
         )?;
         let p2_option = launcher.p2_puzzle_hash();
 
