@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex};
 
 use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
@@ -18,7 +18,7 @@ pub struct Puzzle {
 }
 
 impl Puzzle {
-    pub(crate) fn new(ctx: &Arc<RwLock<SpendContext>>, value: chia_sdk_driver::Puzzle) -> Self {
+    pub(crate) fn new(ctx: &Arc<Mutex<SpendContext>>, value: chia_sdk_driver::Puzzle) -> Self {
         match value {
             chia_sdk_driver::Puzzle::Curried(curried) => Puzzle {
                 puzzle_hash: curried.curried_puzzle_hash.into(),
@@ -37,7 +37,7 @@ impl Puzzle {
 
     pub fn parse_cat(&self) -> Result<Option<ParsedCat>> {
         let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
-        let ctx = self.program.0.read().unwrap();
+        let ctx = self.program.0.lock().unwrap();
 
         let Some(cat) = CatLayer::<chia_sdk_driver::Puzzle>::parse_puzzle(&ctx, puzzle)? else {
             return Ok(None);
@@ -55,7 +55,7 @@ impl Puzzle {
         parent_puzzle: Program,
         parent_solution: Program,
     ) -> Result<Option<Vec<Cat>>> {
-        let mut ctx = self.program.0.write().unwrap();
+        let mut ctx = self.program.0.lock().unwrap();
 
         let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx, parent_puzzle.1);
 
@@ -75,7 +75,7 @@ impl Puzzle {
     pub fn parse_nft(&self) -> Result<Option<ParsedNft>> {
         let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
-        let ctx = self.program.0.read().unwrap();
+        let ctx = self.program.0.lock().unwrap();
 
         let Some((nft_info, p2_puzzle)) =
             chia_sdk_driver::NftInfo::<HashedPtr>::parse(&ctx, puzzle)?
@@ -97,7 +97,7 @@ impl Puzzle {
         parent_puzzle: Program,
         parent_solution: Program,
     ) -> Result<Option<Nft>> {
-        let mut ctx = self.program.0.write().unwrap();
+        let mut ctx = self.program.0.lock().unwrap();
 
         let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx, parent_puzzle.1);
 
@@ -120,7 +120,7 @@ impl Puzzle {
     pub fn parse_did(&self) -> Result<Option<ParsedDid>> {
         let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
-        let ctx = self.program.0.read().unwrap();
+        let ctx = self.program.0.lock().unwrap();
 
         let Some((did_info, p2_puzzle)) =
             chia_sdk_driver::DidInfo::<HashedPtr>::parse(&ctx, puzzle)?
@@ -143,7 +143,7 @@ impl Puzzle {
         parent_solution: Program,
         coin: Coin,
     ) -> Result<Option<Did>> {
-        let mut ctx = self.program.0.write().unwrap();
+        let mut ctx = self.program.0.lock().unwrap();
 
         let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx, parent_puzzle.1);
 
@@ -167,7 +167,7 @@ impl Puzzle {
     pub fn parse_inner_streaming_puzzle(&self) -> Result<Option<StreamingPuzzleInfo>> {
         let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
-        let ctx = self.program.0.read().unwrap();
+        let ctx = self.program.0.lock().unwrap();
 
         Ok(chia_sdk_driver::StreamingPuzzleInfo::parse(&ctx, puzzle)?.map(Into::into))
     }
@@ -178,7 +178,7 @@ impl Puzzle {
         parent_puzzle: Program,
         parent_solution: Program,
     ) -> Result<StreamedCatParsingResult> {
-        let mut ctx = self.program.0.write().unwrap();
+        let mut ctx = self.program.0.lock().unwrap();
 
         let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx, parent_puzzle.1);
 

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use chia_puzzles::{REVOCATION_LAYER, REVOCATION_LAYER_HASH};
 use clvm_traits::{FromClvm, ToClvm};
@@ -24,8 +26,13 @@ impl RevocationArgs {
 }
 
 impl Mod for RevocationArgs {
-    const MOD_REVEAL: &[u8] = &REVOCATION_LAYER;
-    const MOD_HASH: TreeHash = TreeHash::new(REVOCATION_LAYER_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&REVOCATION_LAYER)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(REVOCATION_LAYER_HASH)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]

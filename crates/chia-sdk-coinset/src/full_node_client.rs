@@ -10,21 +10,20 @@ pub struct FullNodeClient {
 }
 
 impl FullNodeClient {
-    pub fn new(cert_bytes: &[u8], key_bytes: &[u8]) -> Self {
+    pub fn new(cert_bytes: &[u8], key_bytes: &[u8]) -> reqwest::Result<Self> {
         #[cfg(feature = "native-tls")]
-        let identity = Identity::from_pkcs8_pem(cert_bytes, key_bytes).unwrap();
+        let identity = Identity::from_pkcs8_pem(cert_bytes, key_bytes)?;
 
         #[cfg(not(feature = "native-tls"))] // rustls
-        let identity = Identity::from_pem(&[key_bytes, cert_bytes].concat()).unwrap();
+        let identity = Identity::from_pem(&[key_bytes, cert_bytes].concat())?;
 
-        Self {
+        Ok(Self {
             base_url: "https://localhost:8555".to_string(),
             client: Client::builder()
                 .danger_accept_invalid_certs(true)
                 .identity(identity)
-                .build()
-                .unwrap(),
-        }
+                .build()?,
+        })
     }
 }
 

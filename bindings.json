@@ -1,46 +1,39 @@
 {
   "entrypoint": "chia_sdk_bindings",
   "pymodule": "chia_wallet_sdk",
-  "napi": {
-    "Bytes32": "napi::bindgen_prelude::Uint8Array",
-    "Bytes48": "napi::bindgen_prelude::Uint8Array",
-    "Bytes96": "napi::bindgen_prelude::Uint8Array",
-    "BytesImpl<33>": "napi::bindgen_prelude::Uint8Array",
-    "BytesImpl<64>": "napi::bindgen_prelude::Uint8Array",
-    "Bytes": "napi::bindgen_prelude::Uint8Array",
-    "ClassgroupElement": "napi::bindgen_prelude::Uint8Array",
-    "TreeHash": "napi::bindgen_prelude::Uint8Array",
-    "SerializedProgram": "napi::bindgen_prelude::Uint8Array",
+  "type_groups": {
+    "{bytes}": [
+      "Vec<u8>",
+      "Bytes32",
+      "Bytes48",
+      "Bytes96",
+      "BytesImpl<33>",
+      "BytesImpl<64>",
+      "Bytes",
+      "ClassgroupElement",
+      "TreeHash",
+      "SerializedProgram"
+    ],
+    "{bigint}": ["u64", "u128", "BigInt"]
+  },
+  "shared": {
     "GetBlockRecordByHeightResponse": "GetBlockRecordResponse",
     "GetCoinRecordByNameResponse": "GetCoinRecordResponse"
+  },
+  "napi": {
+    "{bytes}": "napi::bindgen_prelude::Uint8Array",
+    "{bigint}": "napi::bindgen_prelude::BigInt",
+    "()": "napi::JsUndefined"
   },
   "wasm": {
-    "Bytes32": "Vec<u8>",
-    "Bytes48": "Vec<u8>",
-    "Bytes96": "Vec<u8>",
-    "BytesImpl<33>": "Vec<u8>",
-    "BytesImpl<64>": "Vec<u8>",
-    "Bytes": "Vec<u8>",
-    "ClassgroupElement": "Vec<u8>",
-    "TreeHash": "Vec<u8>",
-    "SerializedProgram": "Vec<u8>",
+    "{bytes}": "Vec<u8>",
+    "{bigint}": "js_sys::BigInt",
     "Vec<Bytes32>": "js_sys::Array",
     "Vec<Bytes>": "js_sys::Array",
-    "Vec<TreeHash>": "js_sys::Array",
-    "GetBlockRecordByHeightResponse": "GetBlockRecordResponse",
-    "GetCoinRecordByNameResponse": "GetCoinRecordResponse"
+    "Vec<TreeHash>": "js_sys::Array"
   },
   "pyo3": {
-    "Bytes32": "Vec<u8>",
-    "Bytes48": "Vec<u8>",
-    "Bytes96": "Vec<u8>",
-    "BytesImpl<33>": "Vec<u8>",
-    "BytesImpl<64>": "Vec<u8>",
-    "Bytes": "Vec<u8>",
-    "ClassgroupElement": "Vec<u8>",
-    "TreeHash": "Vec<u8>",
-    "SerializedProgram": "Vec<u8>",
-    "GetBlockRecordByHeightResponse": "GetBlockRecordResponse",
-    "GetCoinRecordByNameResponse": "GetCoinRecordResponse"
+    "{bytes}": "Vec<u8>",
+    "BigInt": "num_bigint::BigInt"
   }
 }

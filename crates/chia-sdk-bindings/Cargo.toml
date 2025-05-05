@@ -26,6 +26,7 @@ chia-sdk-coinset = { workspace = true, features = ["native-tls"] }
 chia-sdk-test = { workspace = true }
 chia-sdk-types = { workspace = true }
 chia-protocol = { workspace = true }
+chia-consensus = { workspace = true }
 chia-bls = { workspace = true }
 chia-secp = { workspace = true }
 chia-puzzle-types = { workspace = true }

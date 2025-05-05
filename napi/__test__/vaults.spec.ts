@@ -13,7 +13,7 @@ import {
   MemberConfig,
   mOfNHash,
   passkeyMemberHash,
-  preventSideEffectsRestriction,
+  preventVaultSideEffectsRestriction,
   R1Pair,
   sha256,
   Simulator,
@@ -451,7 +451,7 @@ test("single signer recovery vault", (t) => {
       treeHashPair(timelock.puzzleHash, clvm.nil().treeHash()),
       clvm.nil().treeHash()
     ),
-    ...preventSideEffectsRestriction(),
+    ...preventVaultSideEffectsRestriction(),
   ];
   const initialRecoveryHash = k1MemberHash(
     config.withRestrictions(recoveryRestrictions),
@@ -523,7 +523,7 @@ test("single signer recovery vault", (t) => {
     false
   );
 
-  mips.preventSideEffects();
+  mips.preventVaultSideEffects();
 
   mips.force1Of2RestrictedVariable(
     memberHash,

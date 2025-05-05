@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
@@ -44,8 +46,13 @@ impl Force1of2RestrictedVariable {
 }
 
 impl Mod for Force1of2RestrictedVariable {
-    const MOD_REVEAL: &[u8] = &FORCE_1_OF_2_RESTRICTED_VARIABLE_PUZZLE;
-    const MOD_HASH: TreeHash = FORCE_1_OF_2_RESTRICTED_VARIABLE_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&FORCE_1_OF_2_RESTRICTED_VARIABLE_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        FORCE_1_OF_2_RESTRICTED_VARIABLE_PUZZLE_HASH
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]

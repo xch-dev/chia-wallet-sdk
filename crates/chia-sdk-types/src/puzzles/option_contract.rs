@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
@@ -42,8 +44,13 @@ impl<I> OptionContractSolution<I> {
 }
 
 impl<I> Mod for OptionContractArgs<I> {
-    const MOD_REVEAL: &[u8] = &OPTION_CONTRACT_PUZZLE;
-    const MOD_HASH: TreeHash = OPTION_CONTRACT_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&OPTION_CONTRACT_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        OPTION_CONTRACT_PUZZLE_HASH
+    }
 }
 
 pub const OPTION_CONTRACT_PUZZLE: [u8; 862] = hex!(
