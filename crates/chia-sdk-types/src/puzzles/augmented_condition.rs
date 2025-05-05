@@ -1,4 +1,7 @@
 use chia_puzzles::{AUGMENTED_CONDITION, AUGMENTED_CONDITION_HASH};
+
+use std::borrow::Cow;
+
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 
@@ -21,8 +24,13 @@ impl<T, I> AugmentedConditionArgs<T, I> {
 }
 
 impl<T, I> Mod for AugmentedConditionArgs<T, I> {
-    const MOD_REVEAL: &[u8] = &AUGMENTED_CONDITION;
-    const MOD_HASH: TreeHash = TreeHash::new(AUGMENTED_CONDITION_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&AUGMENTED_CONDITION)
+    }
+
+    fn mod_hash() -> TreeHash {
+        AUGMENTED_CONDITION_HASH.into()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]

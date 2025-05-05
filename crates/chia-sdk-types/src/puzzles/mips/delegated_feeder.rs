@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
@@ -17,8 +19,13 @@ impl<I> DelegatedFeederArgs<I> {
 }
 
 impl<I> Mod for DelegatedFeederArgs<I> {
-    const MOD_REVEAL: &[u8] = &DELEGATED_FEEDER_PUZZLE;
-    const MOD_HASH: TreeHash = DELEGATED_FEEDER_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&DELEGATED_FEEDER_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        DELEGATED_FEEDER_PUZZLE_HASH
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]

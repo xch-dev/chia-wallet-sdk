@@ -1,0 +1,3 @@
+(mod (AAA BBB)
+    (+ (* AAA BBB) AAA BBB)
+)

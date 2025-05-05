@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
@@ -18,8 +20,13 @@ impl P2OneOfManyArgs {
 }
 
 impl Mod for P2OneOfManyArgs {
-    const MOD_REVEAL: &[u8] = &P2_ONE_OF_MANY_PUZZLE;
-    const MOD_HASH: TreeHash = P2_ONE_OF_MANY_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&P2_ONE_OF_MANY_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        P2_ONE_OF_MANY_PUZZLE_HASH
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]

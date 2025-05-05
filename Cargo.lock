@@ -668,6 +668,7 @@ dependencies = [
  "chia-sha2 0.22.0",
  "clvm-traits",
  "clvm-utils",
+ "clvm_tools_rs",
  "clvmr",
  "hex",
  "hex-literal",
@@ -675,6 +676,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "rstest",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
