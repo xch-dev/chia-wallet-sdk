@@ -300,8 +300,7 @@ impl Clvm {
         }
     }
 
-    /// This is called by the individual binding crates
-    pub fn big_int(&self, value: BigInt) -> Result<Program> {
+    pub fn int(&self, value: BigInt) -> Result<Program> {
         Ok(Program(
             self.0.clone(),
             self.0.lock().unwrap().new_number(value)?,

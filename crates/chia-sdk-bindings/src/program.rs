@@ -195,8 +195,7 @@ impl Program {
         Ok(Some(number as f64))
     }
 
-    // This is called by the individual binding crates
-    pub fn to_big_int(&self) -> Result<Option<BigInt>> {
+    pub fn to_int(&self) -> Result<Option<BigInt>> {
         let ctx = self.0.lock().unwrap();
 
         let SExp::Atom = ctx.sexp(self.1) else {

@@ -54,6 +54,12 @@
       "nil": {
         "return": "Program"
       },
+      "int": {
+        "args": {
+          "value": "BigInt"
+        },
+        "return": "Program"
+      },
       "string": {
         "args": {
           "value": "String"
