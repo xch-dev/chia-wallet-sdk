@@ -52,6 +52,9 @@
       "rest": {
         "return": "Program"
       },
+      "to_int": {
+        "return": "Option<BigInt>"
+      },
       "to_string": {
         "type": "to_string",
         "return": "Option<String>"
