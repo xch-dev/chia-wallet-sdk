@@ -34,7 +34,7 @@ pub type OptionDelegatedPuzzle = (
     ),
 );
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct OptionUnderlying {
     pub launcher_id: Bytes32,
     pub creator_puzzle_hash: Bytes32,
