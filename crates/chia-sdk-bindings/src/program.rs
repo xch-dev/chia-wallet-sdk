@@ -127,6 +127,21 @@ impl Program {
         Ok(tree_hash(&ctx, self.1))
     }
 
+    pub fn is_atom(&self) -> Result<bool> {
+        let ctx = self.0.lock().unwrap();
+        Ok(matches!(ctx.sexp(self.1), SExp::Atom))
+    }
+
+    pub fn is_pair(&self) -> Result<bool> {
+        let ctx = self.0.lock().unwrap();
+        Ok(matches!(ctx.sexp(self.1), SExp::Pair(..)))
+    }
+
+    pub fn is_null(&self) -> Result<bool> {
+        let ctx = self.0.lock().unwrap();
+        Ok(matches!(ctx.sexp(self.1), SExp::Atom) && ctx.atom_len(self.1) == 0)
+    }
+
     pub fn length(&self) -> Result<u32> {
         let ctx = self.0.lock().unwrap();
 
