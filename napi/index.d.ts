@@ -1061,6 +1061,9 @@ export declare class Program {
   curry(args: Array<Program>): Program
   uncurry(): CurriedProgram | null
   treeHash(): Uint8Array
+  isAtom(): boolean
+  isPair(): boolean
+  isNull(): boolean
   length(): number
   first(): Program
   rest(): Program

@@ -34,6 +34,15 @@
       "tree_hash": {
         "return": "TreeHash"
       },
+      "is_atom": {
+        "return": "bool"
+      },
+      "is_pair": {
+        "return": "bool"
+      },
+      "is_null": {
+        "return": "bool"
+      },
       "length": {
         "return": "u32"
       },
