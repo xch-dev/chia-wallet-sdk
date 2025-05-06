@@ -7,7 +7,7 @@ use crate::{DriverError, Layer, OptionContractLayer, Puzzle, SingletonLayer};
 
 pub type OptionContractLayers<I> = SingletonLayer<OptionContractLayer<I>>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct OptionInfo {
     pub launcher_id: Bytes32,
     pub underlying_coin_id: Bytes32,
