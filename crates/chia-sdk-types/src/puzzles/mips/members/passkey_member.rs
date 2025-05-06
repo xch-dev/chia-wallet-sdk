@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::{Bytes, Bytes32};
 use chia_secp::{R1PublicKey, R1Signature};
 use clvm_traits::{FromClvm, ToClvm};
@@ -19,8 +21,13 @@ impl PasskeyMember {
 }
 
 impl Mod for PasskeyMember {
-    const MOD_REVEAL: &[u8] = &PASSKEY_MEMBER;
-    const MOD_HASH: TreeHash = PASSKEY_MEMBER_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&PASSKEY_MEMBER)
+    }
+
+    fn mod_hash() -> TreeHash {
+        PASSKEY_MEMBER_HASH
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]

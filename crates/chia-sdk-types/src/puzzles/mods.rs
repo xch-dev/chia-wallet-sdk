@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_puzzles::{
     NFT_METADATA_UPDATER_DEFAULT, NFT_METADATA_UPDATER_DEFAULT_HASH, SETTLEMENT_PAYMENT,
     SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER, SINGLETON_LAUNCHER_HASH,
@@ -10,22 +12,37 @@ use crate::Mod;
 pub struct NftMetadataUpdater;
 
 impl Mod for NftMetadataUpdater {
-    const MOD_REVEAL: &[u8] = &NFT_METADATA_UPDATER_DEFAULT;
-    const MOD_HASH: TreeHash = TreeHash::new(NFT_METADATA_UPDATER_DEFAULT_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&NFT_METADATA_UPDATER_DEFAULT)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(NFT_METADATA_UPDATER_DEFAULT_HASH)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SingletonLauncher;
 
 impl Mod for SingletonLauncher {
-    const MOD_REVEAL: &[u8] = &SINGLETON_LAUNCHER;
-    const MOD_HASH: TreeHash = TreeHash::new(SINGLETON_LAUNCHER_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&SINGLETON_LAUNCHER)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(SINGLETON_LAUNCHER_HASH)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SettlementPayment;
 
 impl Mod for SettlementPayment {
-    const MOD_REVEAL: &[u8] = &SETTLEMENT_PAYMENT;
-    const MOD_HASH: TreeHash = TreeHash::new(SETTLEMENT_PAYMENT_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&SETTLEMENT_PAYMENT)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(SETTLEMENT_PAYMENT_HASH)
+    }
 }

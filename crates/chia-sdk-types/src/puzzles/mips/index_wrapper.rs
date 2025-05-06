@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
@@ -21,8 +23,13 @@ impl<I> IndexWrapperArgs<I> {
 }
 
 impl<I> Mod for IndexWrapperArgs<I> {
-    const MOD_REVEAL: &[u8] = &INDEX_WRAPPER;
-    const MOD_HASH: TreeHash = INDEX_WRAPPER_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&INDEX_WRAPPER)
+    }
+
+    fn mod_hash() -> TreeHash {
+        INDEX_WRAPPER_HASH
+    }
 }
 
 pub const INDEX_WRAPPER: [u8; 7] = hex!("ff02ff05ff0780");

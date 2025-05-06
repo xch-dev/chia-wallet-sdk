@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
 use clvm_traits::{FromClvm, ToClvm};
@@ -21,8 +23,13 @@ impl SingletonMember {
 }
 
 impl Mod for SingletonMember {
-    const MOD_REVEAL: &[u8] = &SINGLETON_MEMBER;
-    const MOD_HASH: TreeHash = SINGLETON_MEMBER_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&SINGLETON_MEMBER)
+    }
+
+    fn mod_hash() -> TreeHash {
+        SINGLETON_MEMBER_HASH
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]

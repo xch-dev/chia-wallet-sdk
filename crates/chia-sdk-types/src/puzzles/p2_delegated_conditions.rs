@@ -1,8 +1,10 @@
+use std::borrow::Cow;
+
 use chia_bls::PublicKey;
+use chia_puzzles::{P2_DELEGATED_CONDITIONS, P2_DELEGATED_CONDITIONS_HASH};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use clvmr::NodePtr;
-use hex_literal::hex;
 
 use crate::{Condition, Mod};
 
@@ -19,8 +21,13 @@ impl P2DelegatedConditionsArgs {
 }
 
 impl Mod for P2DelegatedConditionsArgs {
-    const MOD_REVEAL: &[u8] = &P2_DELEGATED_CONDITIONS_PUZZLE;
-    const MOD_HASH: TreeHash = P2_DELEGATED_CONDITIONS_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&P2_DELEGATED_CONDITIONS)
+    }
+
+    fn mod_hash() -> TreeHash {
+        P2_DELEGATED_CONDITIONS_HASH.into()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
@@ -34,17 +41,3 @@ impl P2DelegatedConditionsSolution {
         Self { conditions }
     }
 }
-
-pub const P2_DELEGATED_CONDITIONS_PUZZLE: [u8; 137] = hex!(
-    "
-    ff02ffff01ff04ffff04ff04ffff04ff05ffff04ffff02ff06ffff04ff02ffff
-    04ff0bff80808080ff80808080ff0b80ffff04ffff01ff32ff02ffff03ffff07
-    ff0580ffff01ff0bffff0102ffff02ff06ffff04ff02ffff04ff09ff80808080
-    ffff02ff06ffff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff05
-    8080ff0180ff018080
-    "
-);
-
-pub const P2_DELEGATED_CONDITIONS_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
-    "0ff94726f1a8dea5c3f70d3121945190778d3b2b3fcda3735a1f290977e98341"
-));

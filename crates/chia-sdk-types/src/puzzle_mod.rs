@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_puzzle_types::{
     cat::{CatArgs, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs},
     did::DidArgs,
@@ -44,8 +46,8 @@ use clvm_utils::{CurriedProgram, TreeHash, TreeHasher};
 /// let puzzle_hash = args.curry_tree_hash();
 /// ```
 pub trait Mod {
-    const MOD_REVEAL: &[u8];
-    const MOD_HASH: TreeHash;
+    fn mod_reveal() -> Cow<'static, [u8]>;
+    fn mod_hash() -> TreeHash;
 
     /// Curry the arguments into the [`MOD_HASH`](Mod::MOD_HASH).
     fn curry_tree_hash(&self) -> TreeHash
@@ -53,7 +55,7 @@ pub trait Mod {
         Self: Sized + ToClvm<TreeHasher>,
     {
         CurriedProgram {
-            program: Self::MOD_HASH,
+            program: Self::mod_hash(),
             args: self,
         }
         .to_clvm(&mut TreeHasher)
@@ -65,57 +67,111 @@ impl<T> Mod for &T
 where
     T: Mod,
 {
-    const MOD_REVEAL: &'static [u8] = T::MOD_REVEAL;
-    const MOD_HASH: TreeHash = T::MOD_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        T::mod_reveal()
+    }
+
+    fn mod_hash() -> TreeHash {
+        T::mod_hash()
+    }
 }
 
 impl Mod for StandardArgs {
-    const MOD_REVEAL: &[u8] = &P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE;
-    const MOD_HASH: TreeHash = TreeHash::new(P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE_HASH)
+    }
 }
 
 impl<I> Mod for CatArgs<I> {
-    const MOD_REVEAL: &[u8] = &CAT_PUZZLE;
-    const MOD_HASH: TreeHash = TreeHash::new(CAT_PUZZLE_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&CAT_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(CAT_PUZZLE_HASH)
+    }
 }
 
 impl<I, M> Mod for DidArgs<I, M> {
-    const MOD_REVEAL: &[u8] = &DID_INNERPUZ;
-    const MOD_HASH: TreeHash = TreeHash::new(DID_INNERPUZ_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&DID_INNERPUZ)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(DID_INNERPUZ_HASH)
+    }
 }
 
 impl Mod for NftIntermediateLauncherArgs {
-    const MOD_REVEAL: &[u8] = &NFT_INTERMEDIATE_LAUNCHER;
-    const MOD_HASH: TreeHash = TreeHash::new(NFT_INTERMEDIATE_LAUNCHER_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&NFT_INTERMEDIATE_LAUNCHER)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(NFT_INTERMEDIATE_LAUNCHER_HASH)
+    }
 }
 
 impl Mod for NftRoyaltyTransferPuzzleArgs {
-    const MOD_REVEAL: &[u8] = &NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES;
-    const MOD_HASH: TreeHash =
-        TreeHash::new(NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES_HASH)
+    }
 }
 
 impl<I, P> Mod for NftOwnershipLayerArgs<I, P> {
-    const MOD_REVEAL: &[u8] = &NFT_OWNERSHIP_LAYER;
-    const MOD_HASH: TreeHash = TreeHash::new(NFT_OWNERSHIP_LAYER_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&NFT_OWNERSHIP_LAYER)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(NFT_OWNERSHIP_LAYER_HASH)
+    }
 }
 
 impl<I, M> Mod for NftStateLayerArgs<I, M> {
-    const MOD_REVEAL: &[u8] = &NFT_STATE_LAYER;
-    const MOD_HASH: TreeHash = TreeHash::new(NFT_STATE_LAYER_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&NFT_STATE_LAYER)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(NFT_STATE_LAYER_HASH)
+    }
 }
 
 impl<I> Mod for SingletonArgs<I> {
-    const MOD_REVEAL: &[u8] = &SINGLETON_TOP_LAYER_V1_1;
-    const MOD_HASH: TreeHash = TreeHash::new(SINGLETON_TOP_LAYER_V1_1_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&SINGLETON_TOP_LAYER_V1_1)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(SINGLETON_TOP_LAYER_V1_1_HASH)
+    }
 }
 
 impl Mod for EverythingWithSignatureTailArgs {
-    const MOD_REVEAL: &[u8] = &EVERYTHING_WITH_SIGNATURE;
-    const MOD_HASH: TreeHash = TreeHash::new(EVERYTHING_WITH_SIGNATURE_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&EVERYTHING_WITH_SIGNATURE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(EVERYTHING_WITH_SIGNATURE_HASH)
+    }
 }
 
 impl Mod for GenesisByCoinIdTailArgs {
-    const MOD_REVEAL: &[u8] = &GENESIS_BY_COIN_ID;
-    const MOD_HASH: TreeHash = TreeHash::new(GENESIS_BY_COIN_ID_HASH);
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&GENESIS_BY_COIN_ID)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(GENESIS_BY_COIN_ID_HASH)
+    }
 }

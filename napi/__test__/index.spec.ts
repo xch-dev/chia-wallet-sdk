@@ -246,7 +246,7 @@ test("mint and spend nft", (t) => {
   const result = clvm.mintNfts(alice.coin.coinId(), [
     new NftMint(
       clvm.nftMetadata(metadata),
-      Constants.defaultMetadataUpdaterHash(),
+      Constants.nftMetadataUpdaterDefaultHash(),
       alice.puzzleHash,
       alice.puzzleHash,
       300

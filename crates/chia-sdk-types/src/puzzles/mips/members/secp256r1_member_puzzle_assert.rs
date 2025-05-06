@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use chia_secp::{R1PublicKey, R1Signature};
 use clvm_traits::{FromClvm, ToClvm};
@@ -19,8 +21,13 @@ impl Secp256r1MemberPuzzleAssert {
 }
 
 impl Mod for Secp256r1MemberPuzzleAssert {
-    const MOD_REVEAL: &[u8] = &SECP256R1_MEMBER_PUZZLE_ASSERT;
-    const MOD_HASH: TreeHash = SECP256R1_MEMBER_PUZZLE_ASSERT_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&SECP256R1_MEMBER_PUZZLE_ASSERT)
+    }
+
+    fn mod_hash() -> TreeHash {
+        SECP256R1_MEMBER_PUZZLE_ASSERT_HASH
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]

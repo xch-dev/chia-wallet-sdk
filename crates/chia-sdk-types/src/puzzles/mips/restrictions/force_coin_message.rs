@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
@@ -7,8 +9,13 @@ use crate::Mod;
 pub struct ForceCoinMessageMod;
 
 impl Mod for ForceCoinMessageMod {
-    const MOD_REVEAL: &[u8] = &FORCE_COIN_MESSAGE_PUZZLE;
-    const MOD_HASH: TreeHash = FORCE_COIN_MESSAGE_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&FORCE_COIN_MESSAGE_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        FORCE_COIN_MESSAGE_PUZZLE_HASH
+    }
 }
 
 pub const FORCE_COIN_MESSAGE_PUZZLE: [u8; 127] = hex!(

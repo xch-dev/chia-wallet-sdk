@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::{Bytes, Bytes32};
 use chia_secp::{R1PublicKey, R1Signature};
 use clvm_traits::{FromClvm, ToClvm};
@@ -19,8 +21,13 @@ impl PasskeyMemberPuzzleAssert {
 }
 
 impl Mod for PasskeyMemberPuzzleAssert {
-    const MOD_REVEAL: &[u8] = &PASSKEY_MEMBER_PUZZLE_ASSERT;
-    const MOD_HASH: TreeHash = PASSKEY_MEMBER_PUZZLE_ASSERT_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&PASSKEY_MEMBER_PUZZLE_ASSERT)
+    }
+
+    fn mod_hash() -> TreeHash {
+        PASSKEY_MEMBER_PUZZLE_ASSERT_HASH
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]

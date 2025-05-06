@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
@@ -90,6 +92,11 @@ pub struct DelegationLayerSolution<P, S> {
 }
 
 impl Mod for DelegationLayerArgs {
-    const MOD_REVEAL: &[u8] = &DELEGATION_LAYER_PUZZLE;
-    const MOD_HASH: TreeHash = DELEGATION_LAYER_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&DELEGATION_LAYER_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        DELEGATION_LAYER_PUZZLE_HASH
+    }
 }

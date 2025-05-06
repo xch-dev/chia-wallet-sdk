@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
@@ -21,8 +23,13 @@ impl<W, P> AddDelegatedPuzzleWrapper<W, P> {
 }
 
 impl<W, P> Mod for AddDelegatedPuzzleWrapper<W, P> {
-    const MOD_REVEAL: &[u8] = &ADD_DELEGATED_PUZZLE_WRAPPER_PUZZLE;
-    const MOD_HASH: TreeHash = ADD_DELEGATED_PUZZLE_WRAPPER_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&ADD_DELEGATED_PUZZLE_WRAPPER_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        ADD_DELEGATED_PUZZLE_WRAPPER_PUZZLE_HASH
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
