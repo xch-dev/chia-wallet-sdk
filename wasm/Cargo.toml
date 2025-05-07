@@ -23,7 +23,6 @@ test = false
 [dependencies]
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
-js-sys = { workspace = true }
 chia-sdk-bindings = { workspace = true, features = ["wasm"] }
 bindy = { workspace = true, features = ["wasm"] }
 bindy-macro = { workspace = true }
