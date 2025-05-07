@@ -1,0 +1,15 @@
+(mod
+  (
+    ID
+    message
+    signature
+  )
+
+  (defun sha256tree (TREE)
+    (if (l TREE)
+        (sha256 2 (sha256tree (f TREE)) (sha256tree (r TREE)))
+  (sha256 1 TREE)))
+
+  ; only condition just announces the message and signature to be asserted by creator (like a launcher)
+  (list (list 60 (sha256 (sha256tree message) (sha256tree signature))))
+)
