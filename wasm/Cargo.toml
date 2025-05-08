@@ -27,6 +27,7 @@ chia-sdk-bindings = { workspace = true, features = ["wasm"] }
 bindy = { workspace = true, features = ["wasm"] }
 bindy-macro = { workspace = true }
 getrandom = { workspace = true, features = ["js"] }
+js-sys = { workspace = true }
 
 [package.metadata.cargo-machete]
-ignored = ["chia-sdk-bindings", "getrandom", "wasm-bindgen-futures"]
+ignored = ["chia-sdk-bindings", "getrandom", "wasm-bindgen-futures", "js-sys"]
