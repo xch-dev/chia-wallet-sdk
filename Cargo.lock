@@ -824,6 +824,7 @@ dependencies = [
  "bindy-macro",
  "chia-sdk-bindings",
  "getrandom 0.2.15",
+ "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
