@@ -88,6 +88,7 @@ export declare class Clvm {
   cache(modHash: Uint8Array, value: Uint8Array): Program
   pair(first: Program, rest: Program): Program
   nil(): Program
+  int(value: bigint): Program
   string(value: string): Program
   bool(value: boolean): Program
   atom(value: Uint8Array): Program
@@ -139,8 +140,7 @@ export declare class Clvm {
   receiveMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
   softfork(cost: bigint, rest: Program): Program
   alloc(value: any): Program
-  int(value: number): Program
-  bigInt(value: bigint): Program
+  boundCheckedNumber(value: number): Program
 }
 export declare class Output {
   constructor(value: Program, cost: bigint)
@@ -1061,9 +1061,13 @@ export declare class Program {
   curry(args: Array<Program>): Program
   uncurry(): CurriedProgram | null
   treeHash(): Uint8Array
+  isAtom(): boolean
+  isPair(): boolean
+  isNull(): boolean
   length(): number
   first(): Program
   rest(): Program
+  toInt(): bigint | null
   toString(): string | null
   toBool(): boolean | null
   toAtom(): Uint8Array | null
@@ -1106,8 +1110,7 @@ export declare class Program {
   parseSendMessage(): SendMessage | null
   parseReceiveMessage(): ReceiveMessage | null
   parseSoftfork(): Softfork | null
-  toInt(): number | null
-  toBigInt(): bigint | null
+  toBoundCheckedNumber(): number | null
 }
 export declare class Puzzle {
   parseCat(): ParsedCat | null

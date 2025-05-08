@@ -76,7 +76,7 @@ test("number roundtrip", (t) => {
     Number.MAX_SAFE_INTEGER,
   ]) {
     const num = clvm.alloc(expected);
-    t.is(num.toBigInt(), BigInt(expected));
+    t.is(num.toInt(), BigInt(expected));
   }
 });
 
@@ -108,18 +108,18 @@ test("bigint roundtrip", (t) => {
     4384723984791283749823764732649187498237483927482n,
   ]) {
     const num = clvm.alloc(expected);
-    t.is(num.toBigInt(), expected);
+    t.is(num.toInt(), expected);
   }
 });
 
 test("pair roundtrip", (t) => {
   const clvm = new Clvm();
 
-  const ptr = clvm.pair(clvm.int(1), clvm.bigInt(100n));
+  const ptr = clvm.pair(clvm.boundCheckedNumber(1), clvm.int(100n));
   const { first, rest } = ptr.toPair()!;
 
-  t.is(first.toInt(), 1);
-  t.is(rest.toBigInt(), 100n);
+  t.is(first.toBoundCheckedNumber(), 1);
+  t.is(rest.toInt(), 100n);
 });
 
 test("list roundtrip", (t) => {
@@ -127,7 +127,7 @@ test("list roundtrip", (t) => {
 
   const items = Array.from({ length: 10 }, (_, i) => i);
   const ptr = clvm.alloc(items);
-  const list = ptr.toList()?.map((ptr) => ptr.toInt());
+  const list = ptr.toList()?.map((ptr) => ptr.toBoundCheckedNumber());
 
   t.deepEqual(list, items);
 });
@@ -176,7 +176,7 @@ test("curry add function", (t) => {
   const addToTen = addMod.curry([clvm.alloc(10)]);
   const result = addToTen.run(clvm.alloc([5]), 10000000n, true);
 
-  t.is(result.value.toInt(), 15);
+  t.is(result.value.toBoundCheckedNumber(), 15);
   t.is(result.cost, 1082n);
 });
 
@@ -186,7 +186,7 @@ test("curry roundtrip", (t) => {
   const items = Array.from({ length: 10 }, (_, i) => i);
   const ptr = clvm.nil().curry(items.map((i) => clvm.alloc(i)));
   const uncurry = ptr.uncurry()!;
-  const args = uncurry.args?.map((ptr) => ptr.toInt());
+  const args = uncurry.args?.map((ptr) => ptr.toBoundCheckedNumber());
 
   t.true(bytesEqual(clvm.nil().treeHash(), uncurry.program.treeHash()));
   t.deepEqual(args, items);
@@ -200,7 +200,7 @@ test("clvm serialization", (t) => {
     [clvm.alloc(420), "8201a4"],
     [clvm.alloc(100n), "64"],
     [
-      clvm.pair(clvm.atom(Uint8Array.from([1, 2, 3])), clvm.bigInt(100n)),
+      clvm.pair(clvm.atom(Uint8Array.from([1, 2, 3])), clvm.int(100n)),
       "ff8301020364",
     ],
   ] as const) {

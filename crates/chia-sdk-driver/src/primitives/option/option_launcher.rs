@@ -23,7 +23,7 @@ pub struct ReadyOption {
 }
 
 #[derive(Debug, Clone)]
-pub struct OptionLauncher<S> {
+pub struct OptionLauncher<S = UnspecifiedOption> {
     launcher: Launcher,
     state: S,
 }
@@ -34,32 +34,64 @@ impl<S> OptionLauncher<S> {
     }
 }
 
-impl OptionLauncher<UnspecifiedOption> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct OptionLauncherInfo {
+    pub creator_puzzle_hash: Bytes32,
+    pub owner_puzzle_hash: Bytes32,
+    pub seconds: u64,
+    pub underlying_amount: u64,
+    pub strike_type: OptionType,
+}
+
+impl OptionLauncherInfo {
     pub fn new(
-        ctx: &mut SpendContext,
-        parent_coin_id: Bytes32,
         creator_puzzle_hash: Bytes32,
         owner_puzzle_hash: Bytes32,
         seconds: u64,
         underlying_amount: u64,
         strike_type: OptionType,
+    ) -> Self {
+        Self {
+            creator_puzzle_hash,
+            owner_puzzle_hash,
+            seconds,
+            underlying_amount,
+            strike_type,
+        }
+    }
+}
+
+impl OptionLauncher<UnspecifiedOption> {
+    pub fn new(
+        ctx: &mut SpendContext,
+        parent_coin_id: Bytes32,
+        info: OptionLauncherInfo,
     ) -> Result<Self, DriverError> {
-        let memos = ctx.hint(creator_puzzle_hash)?;
-        let launcher = Launcher::with_memos(parent_coin_id, 1, memos);
+        Self::with_amount(ctx, parent_coin_id, 1, info)
+    }
+
+    pub fn with_amount(
+        ctx: &mut SpendContext,
+        parent_coin_id: Bytes32,
+        amount: u64,
+        info: OptionLauncherInfo,
+    ) -> Result<Self, DriverError> {
+        let memos = ctx.hint(info.creator_puzzle_hash)?;
+        let launcher = Launcher::with_memos(parent_coin_id, amount, memos).with_singleton_amount(1);
         let launcher_id = launcher.coin().coin_id();
 
         Ok(Self {
             launcher,
             state: UnspecifiedOption {
-                owner_puzzle_hash,
+                owner_puzzle_hash: info.owner_puzzle_hash,
                 underlying: OptionUnderlying::new(
                     launcher_id,
-                    creator_puzzle_hash,
-                    seconds,
-                    underlying_amount,
-                    strike_type,
+                    info.creator_puzzle_hash,
+                    info.seconds,
+                    info.underlying_amount,
+                    info.strike_type,
                 ),
-                metadata: OptionMetadata::new(seconds, strike_type),
+                metadata: OptionMetadata::new(info.seconds, info.strike_type),
             },
         })
     }
@@ -163,11 +195,13 @@ mod tests {
         let launcher = OptionLauncher::new(
             ctx,
             alice.coin.coin_id(),
-            alice.puzzle_hash,
-            alice.puzzle_hash,
-            10,
-            1,
-            OptionType::Xch { amount: 1 },
+            OptionLauncherInfo::new(
+                alice.puzzle_hash,
+                alice.puzzle_hash,
+                10,
+                1,
+                OptionType::Xch { amount: 1 },
+            ),
         )?;
         let p2_option = launcher.p2_puzzle_hash();
 

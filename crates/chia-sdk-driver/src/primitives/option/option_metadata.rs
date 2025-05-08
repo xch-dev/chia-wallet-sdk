@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct OptionMetadata {
     pub expiration_seconds: u64,
@@ -17,7 +17,7 @@ impl OptionMetadata {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ToClvm, FromClvm)]
 #[clvm(list)]
 #[repr(u8)]
 pub enum OptionType {
