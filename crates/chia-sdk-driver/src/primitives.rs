@@ -1,3 +1,4 @@
+mod bulletin;
 mod cat;
 mod clawback;
 mod did;
@@ -8,6 +9,7 @@ mod nft;
 mod streamed_cat;
 mod vault;
 
+pub use bulletin::*;
 pub use cat::*;
 pub use clawback::*;
 pub use did::*;
