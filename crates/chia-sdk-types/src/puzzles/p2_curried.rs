@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
@@ -18,8 +20,13 @@ impl P2CurriedArgs {
 }
 
 impl Mod for P2CurriedArgs {
-    const MOD_REVEAL: &[u8] = &P2_CURRIED_PUZZLE;
-    const MOD_HASH: TreeHash = P2_CURRIED_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&P2_CURRIED_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        P2_CURRIED_PUZZLE_HASH
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]

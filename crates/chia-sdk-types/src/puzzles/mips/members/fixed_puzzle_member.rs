@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
@@ -18,8 +20,13 @@ impl FixedPuzzleMember {
 }
 
 impl Mod for FixedPuzzleMember {
-    const MOD_REVEAL: &[u8] = &FIXED_PUZZLE_MEMBER;
-    const MOD_HASH: TreeHash = FIXED_PUZZLE_MEMBER_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&FIXED_PUZZLE_MEMBER)
+    }
+
+    fn mod_hash() -> TreeHash {
+        FIXED_PUZZLE_MEMBER_HASH
+    }
 }
 
 pub const FIXED_PUZZLE_MEMBER: [u8; 25] =

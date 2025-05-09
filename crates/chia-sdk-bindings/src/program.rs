@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex};
 
 use bindy::{Error, Result};
 use chia_protocol::{Bytes, Program as SerializedProgram};
@@ -21,11 +21,11 @@ use num_bigint::BigInt;
 use crate::{CurriedProgram, NftMetadata, Output, Pair, Puzzle};
 
 #[derive(Clone)]
-pub struct Program(pub(crate) Arc<RwLock<SpendContext>>, pub(crate) NodePtr);
+pub struct Program(pub(crate) Arc<Mutex<SpendContext>>, pub(crate) NodePtr);
 
 impl Program {
     pub fn compile(&self) -> Result<Output> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
 
         let invoke = run(&mut ctx);
         let input = ctx.new_pair(self.1, NodePtr::NIL)?;
@@ -39,17 +39,17 @@ impl Program {
     }
 
     pub fn unparse(&self) -> Result<String> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
         Ok(disassemble(&ctx, self.1, None))
     }
 
     pub fn serialize(&self) -> Result<SerializedProgram> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
         Ok(node_to_bytes(&ctx, self.1)?.into())
     }
 
     pub fn serialize_with_backrefs(&self) -> Result<SerializedProgram> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
         Ok(node_to_bytes_backrefs(&ctx, self.1)?.into())
     }
 
@@ -60,7 +60,7 @@ impl Program {
             flags |= MEMPOOL_MODE;
         }
 
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
 
         let reduction = run_program(
             &mut ctx,
@@ -77,7 +77,7 @@ impl Program {
     }
 
     pub fn curry(&self, args: Vec<Program>) -> Result<Program> {
-        let mut ctx = self.0.write().unwrap();
+        let mut ctx = self.0.lock().unwrap();
 
         let mut args_ptr = ctx.one();
 
@@ -94,7 +94,7 @@ impl Program {
     }
 
     pub fn uncurry(&self) -> Result<Option<CurriedProgram>> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
 
         let Ok(value) = clvm_utils::CurriedProgram::<NodePtr, NodePtr>::from_clvm(&ctx, self.1)
         else {
@@ -123,12 +123,27 @@ impl Program {
     }
 
     pub fn tree_hash(&self) -> Result<TreeHash> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
         Ok(tree_hash(&ctx, self.1))
     }
 
+    pub fn is_atom(&self) -> Result<bool> {
+        let ctx = self.0.lock().unwrap();
+        Ok(matches!(ctx.sexp(self.1), SExp::Atom))
+    }
+
+    pub fn is_pair(&self) -> Result<bool> {
+        let ctx = self.0.lock().unwrap();
+        Ok(matches!(ctx.sexp(self.1), SExp::Pair(..)))
+    }
+
+    pub fn is_null(&self) -> Result<bool> {
+        let ctx = self.0.lock().unwrap();
+        Ok(matches!(ctx.sexp(self.1), SExp::Atom) && ctx.atom_len(self.1) == 0)
+    }
+
     pub fn length(&self) -> Result<u32> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
 
         let SExp::Atom = ctx.sexp(self.1) else {
             return Err(Error::AtomExpected);
@@ -138,7 +153,7 @@ impl Program {
     }
 
     pub fn first(&self) -> Result<Program> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
 
         let SExp::Pair(first, _) = ctx.sexp(self.1) else {
             return Err(Error::PairExpected);
@@ -148,7 +163,7 @@ impl Program {
     }
 
     pub fn rest(&self) -> Result<Program> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
 
         let SExp::Pair(_, rest) = ctx.sexp(self.1) else {
             return Err(Error::PairExpected);
@@ -159,7 +174,7 @@ impl Program {
 
     // This is called by the individual napi and wasm crates
     pub fn to_small_int(&self) -> Result<Option<f64>> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
 
         let SExp::Atom = ctx.sexp(self.1) else {
             return Ok(None);
@@ -180,9 +195,8 @@ impl Program {
         Ok(Some(number as f64))
     }
 
-    // This is called by the individual binding crates
-    pub fn to_big_int(&self) -> Result<Option<BigInt>> {
-        let ctx = self.0.read().unwrap();
+    pub fn to_int(&self) -> Result<Option<BigInt>> {
+        let ctx = self.0.lock().unwrap();
 
         let SExp::Atom = ctx.sexp(self.1) else {
             return Ok(None);
@@ -192,7 +206,7 @@ impl Program {
     }
 
     pub fn to_string(&self) -> Result<Option<String>> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
 
         let SExp::Atom = ctx.sexp(self.1) else {
             return Ok(None);
@@ -204,7 +218,7 @@ impl Program {
     }
 
     pub fn to_bool(&self) -> Result<Option<bool>> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
 
         let SExp::Atom = ctx.sexp(self.1) else {
             return Ok(None);
@@ -222,7 +236,7 @@ impl Program {
     }
 
     pub fn to_atom(&self) -> Result<Option<Bytes>> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
 
         let SExp::Atom = ctx.sexp(self.1) else {
             return Ok(None);
@@ -232,7 +246,7 @@ impl Program {
     }
 
     pub fn to_list(&self) -> Result<Option<Vec<Program>>> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
 
         let Some(value) = Vec::<NodePtr>::from_clvm(&ctx, self.1).ok() else {
             return Ok(None);
@@ -247,7 +261,7 @@ impl Program {
     }
 
     pub fn to_pair(&self) -> Result<Option<Pair>> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
 
         let SExp::Pair(first, rest) = ctx.sexp(self.1) else {
             return Ok(None);
@@ -260,13 +274,13 @@ impl Program {
     }
 
     pub fn puzzle(&self) -> Result<Puzzle> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
         let value = chia_sdk_driver::Puzzle::parse(&ctx, self.1);
         Ok(Puzzle::new(&self.0, value))
     }
 
     pub fn parse_nft_metadata(&self) -> Result<Option<NftMetadata>> {
-        let ctx = self.0.read().unwrap();
+        let ctx = self.0.lock().unwrap();
         let value = nft::NftMetadata::from_clvm(&**ctx, self.1);
         Ok(value.ok().map(Into::into))
     }

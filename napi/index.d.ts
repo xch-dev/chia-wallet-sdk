@@ -32,7 +32,7 @@ export declare function timelockRestriction(timelock: bigint): Restriction
 export declare function force1Of2Restriction(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): Restriction
 export declare function preventConditionOpcodeRestriction(conditionOpcode: number): Restriction
 export declare function preventMultipleCreateCoinsRestriction(): Restriction
-export declare function preventSideEffectsRestriction(): Array<Restriction>
+export declare function preventVaultSideEffectsRestriction(): Array<Restriction>
 export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restriction>, delegatedPuzzleHash: Uint8Array): Uint8Array
 export declare class Address {
   encode(): string
@@ -85,8 +85,10 @@ export declare class Clvm {
   parse(program: string): Program
   deserialize(value: Uint8Array): Program
   deserializeWithBackrefs(value: Uint8Array): Program
+  cache(modHash: Uint8Array, value: Uint8Array): Program
   pair(first: Program, rest: Program): Program
   nil(): Program
+  int(value: bigint): Program
   string(value: string): Program
   bool(value: boolean): Program
   atom(value: Uint8Array): Program
@@ -138,8 +140,7 @@ export declare class Clvm {
   receiveMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
   softfork(cost: bigint, rest: Program): Program
   alloc(value: any): Program
-  int(value: number): Program
-  bigInt(value: bigint): Program
+  boundCheckedNumber(value: number): Program
 }
 export declare class Output {
   constructor(value: Program, cost: bigint)
@@ -908,6 +909,140 @@ export declare class Softfork {
   get rest(): Program
   set rest(value: Program)
 }
+export declare class Constants {
+  static acsTransferProgram(): Uint8Array
+  static acsTransferProgramHash(): Uint8Array
+  static augmentedCondition(): Uint8Array
+  static augmentedConditionHash(): Uint8Array
+  static blockProgramZero(): Uint8Array
+  static blockProgramZeroHash(): Uint8Array
+  static catPuzzle(): Uint8Array
+  static catPuzzleHash(): Uint8Array
+  static chialispDeserialisation(): Uint8Array
+  static chialispDeserialisationHash(): Uint8Array
+  static conditionsWFeeAnnounce(): Uint8Array
+  static conditionsWFeeAnnounceHash(): Uint8Array
+  static covenantLayer(): Uint8Array
+  static covenantLayerHash(): Uint8Array
+  static createNftLauncherFromDid(): Uint8Array
+  static createNftLauncherFromDidHash(): Uint8Array
+  static credentialRestriction(): Uint8Array
+  static credentialRestrictionHash(): Uint8Array
+  static daoCatEve(): Uint8Array
+  static daoCatEveHash(): Uint8Array
+  static daoCatLauncher(): Uint8Array
+  static daoCatLauncherHash(): Uint8Array
+  static daoFinishedState(): Uint8Array
+  static daoFinishedStateHash(): Uint8Array
+  static daoLockup(): Uint8Array
+  static daoLockupHash(): Uint8Array
+  static daoProposal(): Uint8Array
+  static daoProposalHash(): Uint8Array
+  static daoProposalTimer(): Uint8Array
+  static daoProposalTimerHash(): Uint8Array
+  static daoProposalValidator(): Uint8Array
+  static daoProposalValidatorHash(): Uint8Array
+  static daoSpendP2Singleton(): Uint8Array
+  static daoSpendP2SingletonHash(): Uint8Array
+  static daoTreasury(): Uint8Array
+  static daoTreasuryHash(): Uint8Array
+  static daoUpdateProposal(): Uint8Array
+  static daoUpdateProposalHash(): Uint8Array
+  static decompressCoinSpendEntry(): Uint8Array
+  static decompressCoinSpendEntryHash(): Uint8Array
+  static decompressCoinSpendEntryWithPrefix(): Uint8Array
+  static decompressCoinSpendEntryWithPrefixHash(): Uint8Array
+  static decompressPuzzle(): Uint8Array
+  static decompressPuzzleHash(): Uint8Array
+  static delegatedTail(): Uint8Array
+  static delegatedTailHash(): Uint8Array
+  static didInnerpuzzle(): Uint8Array
+  static didInnerpuzzleHash(): Uint8Array
+  static emlCovenantMorpher(): Uint8Array
+  static emlCovenantMorpherHash(): Uint8Array
+  static emlTransferProgramCovenantAdapter(): Uint8Array
+  static emlTransferProgramCovenantAdapterHash(): Uint8Array
+  static emlUpdateMetadataWithDid(): Uint8Array
+  static emlUpdateMetadataWithDidHash(): Uint8Array
+  static everythingWithSignature(): Uint8Array
+  static everythingWithSignatureHash(): Uint8Array
+  static exigentMetadataLayer(): Uint8Array
+  static exigentMetadataLayerHash(): Uint8Array
+  static flagProofsChecker(): Uint8Array
+  static flagProofsCheckerHash(): Uint8Array
+  static genesisByCoinId(): Uint8Array
+  static genesisByCoinIdHash(): Uint8Array
+  static genesisByCoinIdOrSingleton(): Uint8Array
+  static genesisByCoinIdOrSingletonHash(): Uint8Array
+  static genesisByPuzzleHash(): Uint8Array
+  static genesisByPuzzleHashHash(): Uint8Array
+  static graftrootDlOffers(): Uint8Array
+  static graftrootDlOffersHash(): Uint8Array
+  static nftIntermediateLauncher(): Uint8Array
+  static nftIntermediateLauncherHash(): Uint8Array
+  static nftMetadataUpdaterDefault(): Uint8Array
+  static nftMetadataUpdaterDefaultHash(): Uint8Array
+  static nftMetadataUpdaterUpdateable(): Uint8Array
+  static nftMetadataUpdaterUpdateableHash(): Uint8Array
+  static nftOwnershipLayer(): Uint8Array
+  static nftOwnershipLayerHash(): Uint8Array
+  static nftOwnershipTransferProgramOneWayClaimWithRoyalties(): Uint8Array
+  static nftOwnershipTransferProgramOneWayClaimWithRoyaltiesHash(): Uint8Array
+  static nftStateLayer(): Uint8Array
+  static nftStateLayerHash(): Uint8Array
+  static notification(): Uint8Array
+  static notificationHash(): Uint8Array
+  static p21OfN(): Uint8Array
+  static p21OfNHash(): Uint8Array
+  static p2AnnouncedDelegatedPuzzle(): Uint8Array
+  static p2AnnouncedDelegatedPuzzleHash(): Uint8Array
+  static p2Conditions(): Uint8Array
+  static p2ConditionsHash(): Uint8Array
+  static p2DelegatedConditions(): Uint8Array
+  static p2DelegatedConditionsHash(): Uint8Array
+  static p2DelegatedPuzzle(): Uint8Array
+  static p2DelegatedPuzzleHash(): Uint8Array
+  static p2DelegatedPuzzleOrHiddenPuzzle(): Uint8Array
+  static p2DelegatedPuzzleOrHiddenPuzzleHash(): Uint8Array
+  static p2MOfNDelegateDirect(): Uint8Array
+  static p2MOfNDelegateDirectHash(): Uint8Array
+  static p2Parent(): Uint8Array
+  static p2ParentHash(): Uint8Array
+  static p2PuzzleHash(): Uint8Array
+  static p2PuzzleHashHash(): Uint8Array
+  static p2Singleton(): Uint8Array
+  static p2SingletonHash(): Uint8Array
+  static p2SingletonAggregator(): Uint8Array
+  static p2SingletonAggregatorHash(): Uint8Array
+  static p2SingletonOrDelayedPuzzleHash(): Uint8Array
+  static p2SingletonOrDelayedPuzzleHashHash(): Uint8Array
+  static p2SingletonViaDelegatedPuzzle(): Uint8Array
+  static p2SingletonViaDelegatedPuzzleHash(): Uint8Array
+  static poolMemberInnerpuzzle(): Uint8Array
+  static poolMemberInnerpuzzleHash(): Uint8Array
+  static poolWaitingroomInnerpuzzle(): Uint8Array
+  static poolWaitingroomInnerpuzzleHash(): Uint8Array
+  static revocationLayer(): Uint8Array
+  static revocationLayerHash(): Uint8Array
+  static romBootstrapGenerator(): Uint8Array
+  static romBootstrapGeneratorHash(): Uint8Array
+  static settlementPayment(): Uint8Array
+  static settlementPaymentHash(): Uint8Array
+  static singletonLauncher(): Uint8Array
+  static singletonLauncherHash(): Uint8Array
+  static singletonTopLayer(): Uint8Array
+  static singletonTopLayerHash(): Uint8Array
+  static singletonTopLayerV11(): Uint8Array
+  static singletonTopLayerV11Hash(): Uint8Array
+  static standardVcRevocationPuzzle(): Uint8Array
+  static standardVcRevocationPuzzleHash(): Uint8Array
+  static stdParentMorpher(): Uint8Array
+  static stdParentMorpherHash(): Uint8Array
+  static optionContract(): Uint8Array
+  static optionContractHash(): Uint8Array
+  static p2Curried(): Uint8Array
+  static p2CurriedHash(): Uint8Array
+}
 export declare class Mnemonic {
   constructor(mnemonic: string)
   static fromEntropy(entropy: Uint8Array): Mnemonic
@@ -926,9 +1061,13 @@ export declare class Program {
   curry(args: Array<Program>): Program
   uncurry(): CurriedProgram | null
   treeHash(): Uint8Array
+  isAtom(): boolean
+  isPair(): boolean
+  isNull(): boolean
   length(): number
   first(): Program
   rest(): Program
+  toInt(): bigint | null
   toString(): string | null
   toBool(): boolean | null
   toAtom(): Uint8Array | null
@@ -971,8 +1110,7 @@ export declare class Program {
   parseSendMessage(): SendMessage | null
   parseReceiveMessage(): ReceiveMessage | null
   parseSoftfork(): Softfork | null
-  toInt(): number | null
-  toBigInt(): bigint | null
+  toBoundCheckedNumber(): number | null
 }
 export declare class Puzzle {
   parseCat(): ParsedCat | null
@@ -1240,9 +1378,6 @@ export declare class R1Pair {
   get pk(): R1PublicKey
   set pk(value: R1PublicKey)
 }
-export declare class Constants {
-  static defaultMetadataUpdaterHash(): Uint8Array
-}
 export declare class Vault {
   child(custodyHash: Uint8Array): Vault
   constructor(coin: Coin, launcherId: Uint8Array, proof: LineageProof, custodyHash: Uint8Array)
@@ -1289,7 +1424,7 @@ export declare class MipsSpend {
   force1Of2RestrictedVariable(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array, newRightSideMemberHash: Uint8Array): void
   preventConditionOpcode(conditionOpcode: number): void
   preventMultipleCreateCoins(): void
-  preventSideEffects(): void
+  preventVaultSideEffects(): void
 }
 export declare class VaultMint {
   constructor(vault: Vault, parentConditions: Array<Program>)

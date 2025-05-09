@@ -1,6 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
-use bindy::{FromRust, IntoRust, Pyo3, Pyo3Context};
+use bindy::{FromRust, Pyo3Context};
 use num_bigint::BigInt;
 use pyo3::{
     exceptions::PyTypeError,
@@ -15,24 +15,6 @@ impl Clvm {
     pub fn alloc(&self, value: Bound<'_, PyAny>) -> PyResult<Program> {
         Ok(Program::from_rust(alloc(&self.0, value)?, &Pyo3Context)?)
     }
-
-    pub fn int(&self, value: BigInt) -> PyResult<Program> {
-        Ok(Program::from_rust(
-            self.0
-                .big_int(IntoRust::<_, _, Pyo3>::into_rust(value, &Pyo3Context)?)?,
-            &Pyo3Context,
-        )?)
-    }
-}
-
-#[pymethods]
-impl Program {
-    pub fn to_int(&self) -> PyResult<Option<BigInt>> {
-        Ok(<Option<BigInt> as FromRust<_, _, Pyo3>>::from_rust(
-            self.0.to_big_int()?,
-            &Pyo3Context,
-        )?)
-    }
 }
 
 pub fn alloc(
@@ -42,7 +24,7 @@ pub fn alloc(
     if let Ok(_value) = value.downcast::<PyNone>() {
         Ok(clvm.nil()?)
     } else if let Ok(value) = value.extract::<BigInt>() {
-        Ok(clvm.big_int(value)?)
+        Ok(clvm.int(value)?)
     } else if let Ok(value) = value.extract::<bool>() {
         Ok(clvm.bool(value)?)
     } else if let Ok(value) = value.extract::<String>() {

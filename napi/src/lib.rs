@@ -1,4 +1,3 @@
-#![allow(unsafe_code)]
 #![allow(clippy::wildcard_imports)]
 #![allow(clippy::too_many_arguments)]
 
@@ -19,17 +18,9 @@ impl Clvm {
     }
 
     #[napi]
-    pub fn int(&self, env: Env, value: f64) -> Result<Program> {
+    pub fn bound_checked_number(&self, env: Env, value: f64) -> Result<Program> {
         Ok(Program::from_rust(
             self.0.f64(value)?,
-            &NapiReturnContext(env),
-        )?)
-    }
-
-    #[napi]
-    pub fn big_int(&self, env: Env, value: BigInt) -> Result<Program> {
-        Ok(Program::from_rust(
-            self.0.big_int(value.into_rust(&NapiParamContext)?)?,
             &NapiReturnContext(env),
         )?)
     }
@@ -38,16 +29,8 @@ impl Clvm {
 #[napi]
 impl Program {
     #[napi]
-    pub fn to_int(&self) -> Result<Option<f64>> {
+    pub fn to_bound_checked_number(&self) -> Result<Option<f64>> {
         Ok(self.0.to_small_int()?)
-    }
-
-    #[napi]
-    pub fn to_big_int(&self, env: Env) -> Result<Option<BigInt>> {
-        Ok(Option::<BigInt>::from_rust(
-            self.0.to_big_int()?,
-            &NapiReturnContext(env),
-        )?)
     }
 }
 
@@ -118,7 +101,7 @@ fn alloc(
 ) -> bindy::Result<chia_sdk_bindings::Program> {
     match value {
         Value::A(value) => clvm.f64(value),
-        Value::B(value) => clvm.big_int(value.into_rust(&NapiParamContext)?),
+        Value::B(value) => clvm.int(value.into_rust(&NapiParamContext)?),
         Value::C(value) => clvm.bool(value),
         Value::D(value) => clvm.string(value),
         Value::E(value) => clvm.atom(value.to_vec().into()),

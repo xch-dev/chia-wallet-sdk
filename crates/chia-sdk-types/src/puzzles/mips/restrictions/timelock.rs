@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
@@ -17,8 +19,13 @@ impl Timelock {
 }
 
 impl Mod for Timelock {
-    const MOD_REVEAL: &[u8] = &TIMELOCK_PUZZLE;
-    const MOD_HASH: TreeHash = TIMELOCK_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&TIMELOCK_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TIMELOCK_PUZZLE_HASH
+    }
 }
 
 pub const TIMELOCK_PUZZLE: [u8; 137] = hex!(

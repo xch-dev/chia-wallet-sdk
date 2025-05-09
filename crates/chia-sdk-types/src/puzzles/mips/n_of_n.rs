@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
@@ -17,8 +19,13 @@ impl<T> NofNArgs<T> {
 }
 
 impl<T> Mod for NofNArgs<T> {
-    const MOD_REVEAL: &[u8] = &N_OF_N_PUZZLE;
-    const MOD_HASH: TreeHash = N_OF_N_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&N_OF_N_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        N_OF_N_PUZZLE_HASH
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]

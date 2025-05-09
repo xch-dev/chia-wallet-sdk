@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
@@ -17,8 +19,13 @@ impl PreventConditionOpcode {
 }
 
 impl Mod for PreventConditionOpcode {
-    const MOD_REVEAL: &[u8] = &PREVENT_CONDITION_OPCODE_PUZZLE;
-    const MOD_HASH: TreeHash = PREVENT_CONDITION_OPCODE_PUZZLE_HASH;
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&PREVENT_CONDITION_OPCODE_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        PREVENT_CONDITION_OPCODE_PUZZLE_HASH
+    }
 }
 
 pub const PREVENT_CONDITION_OPCODE_PUZZLE: [u8; 131] = hex!(
