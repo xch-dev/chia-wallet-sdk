@@ -1,11 +1,17 @@
 mod cat;
 mod clawback;
 mod clawback_v2;
+mod did;
+mod nft;
 mod streamed_cat;
 
 pub use cat::*;
+use chia_bls::PublicKey;
+use chia_puzzle_types::{cat::CatArgs, standard::StandardArgs};
 pub use clawback::*;
 pub use clawback_v2::*;
+pub use did::*;
+pub use nft::*;
 pub use streamed_cat::*;
 
 use std::sync::{Arc, Mutex};
@@ -13,11 +19,11 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver::{
-    Cat, CatLayer, Clawback, CurriedPuzzle, HashedPtr, Layer, RawPuzzle, SpendContext, StreamedCat,
+    Cat, CatLayer, Clawback, CurriedPuzzle, HashedPtr, Layer, RawPuzzle, SpendContext,
     StreamingPuzzleInfo,
 };
 
-use crate::{Did, DidInfo, Nft, NftInfo, ParsedDid, ParsedNft, Program};
+use crate::Program;
 
 #[derive(Clone)]
 pub struct Puzzle {
@@ -229,9 +235,10 @@ impl From<Puzzle> for chia_sdk_driver::Puzzle {
     }
 }
 
-#[derive(Clone)]
-pub struct StreamedCatParsingResult {
-    pub streamed_cat: Option<StreamedCat>,
-    pub last_spend_was_clawback: bool,
-    pub last_payment_amount_if_clawback: u64,
+pub fn standard_puzzle_hash(synthetic_key: PublicKey) -> Result<Bytes32> {
+    Ok(StandardArgs::curry_tree_hash(synthetic_key).into())
+}
+
+pub fn cat_puzzle_hash(asset_id: Bytes32, inner_puzzle_hash: Bytes32) -> Result<Bytes32> {
+    Ok(CatArgs::curry_tree_hash(asset_id, inner_puzzle_hash.into()).into())
 }

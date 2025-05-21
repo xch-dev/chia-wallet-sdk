@@ -38,3 +38,10 @@ impl StreamingPuzzleInfoExt for StreamingPuzzleInfo {
         Ok(Self::from_memos(&memos)?)
     }
 }
+
+#[derive(Clone)]
+pub struct StreamedCatParsingResult {
+    pub streamed_cat: Option<StreamedCat>,
+    pub last_spend_was_clawback: bool,
+    pub last_payment_amount_if_clawback: u64,
+}
