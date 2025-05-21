@@ -52,12 +52,11 @@ impl Puzzle {
     pub fn parse_child_cats(
         &self,
         parent_coin: Coin,
-        parent_puzzle: Program,
         parent_solution: Program,
     ) -> Result<Option<Vec<Cat>>> {
         let mut ctx = self.program.0.lock().unwrap();
 
-        let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx, parent_puzzle.1);
+        let parent_puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
         let Some(cats) = chia_sdk_driver::Cat::parse_children(
             &mut ctx,
@@ -94,12 +93,11 @@ impl Puzzle {
     pub fn parse_child_nft(
         &self,
         parent_coin: Coin,
-        parent_puzzle: Program,
         parent_solution: Program,
     ) -> Result<Option<Nft>> {
         let mut ctx = self.program.0.lock().unwrap();
 
-        let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx, parent_puzzle.1);
+        let parent_puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
         let Some(nft) = chia_sdk_driver::Nft::<HashedPtr>::parse_child(
             &mut ctx,
@@ -139,13 +137,12 @@ impl Puzzle {
     pub fn parse_child_did(
         &self,
         parent_coin: Coin,
-        parent_puzzle: Program,
         parent_solution: Program,
         coin: Coin,
     ) -> Result<Option<Did>> {
         let mut ctx = self.program.0.lock().unwrap();
 
-        let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx, parent_puzzle.1);
+        let parent_puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
         let Some(did) = chia_sdk_driver::Did::<HashedPtr>::parse_child(
             &mut ctx,
@@ -175,30 +172,22 @@ impl Puzzle {
     pub fn parse_child_streamed_cat(
         &self,
         parent_coin: Coin,
-        parent_puzzle: Program,
         parent_solution: Program,
     ) -> Result<StreamedCatParsingResult> {
         let mut ctx = self.program.0.lock().unwrap();
 
-        let parent_puzzle = chia_sdk_driver::Puzzle::parse(&ctx, parent_puzzle.1);
+        let parent_puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
-        let (Some(streamed_cat), clawback, last_payment_amount) =
+        let (streamed_cat, clawback, last_payment_amount) =
             chia_sdk_driver::StreamedCat::from_parent_spend(
                 &mut ctx,
                 parent_coin,
                 parent_puzzle,
                 parent_solution.1,
-            )?
-        else {
-            return Ok(StreamedCatParsingResult {
-                streamed_cat: None,
-                last_spend_was_clawback: false,
-                last_payment_amount_if_clawback: 0,
-            });
-        };
+            )?;
 
         Ok(StreamedCatParsingResult {
-            streamed_cat: Some(streamed_cat.into()),
+            streamed_cat: streamed_cat.map(std::convert::Into::into),
             last_spend_was_clawback: clawback,
             last_payment_amount_if_clawback: last_payment_amount,
         })
