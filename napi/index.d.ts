@@ -1121,6 +1121,7 @@ export declare class Puzzle {
   parseChildDid(parentCoin: Coin, parentSolution: Program, coin: Coin): Did | null
   parseInnerStreamingPuzzle(): StreamingPuzzleInfo | null
   parseChildStreamedCat(parentCoin: Coin, parentSolution: Program): StreamedCatParsingResult
+  parseChildClawbacks(parentSolution: Program): Array<Clawback> | null
   constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
   get puzzleHash(): Uint8Array
   set puzzleHash(value: Uint8Array)
@@ -1302,6 +1303,38 @@ export declare class StreamedCat {
   get info(): StreamingPuzzleInfo
   set info(value: StreamingPuzzleInfo)
 }
+export declare class ClawbackV2 {
+  static fromMemo(memo: Program, receiverPuzzleHash: Uint8Array, amount: bigint, hinted: boolean, expectedPuzzleHash: Uint8Array): ClawbackV2 | null
+  senderSpend(spend: Spend): Spend
+  receiverSpend(spend: Spend): Spend
+  pushThroughSpend(clvm: Clvm): Spend
+  puzzleHash(): Uint8Array
+  memo(clvm: Clvm): Program
+  constructor(senderPuzzleHash: Uint8Array, receiverPuzzleHash: Uint8Array, seconds: bigint, amount: bigint, hinted: boolean)
+  get senderPuzzleHash(): Uint8Array
+  set senderPuzzleHash(value: Uint8Array)
+  get receiverPuzzleHash(): Uint8Array
+  set receiverPuzzleHash(value: Uint8Array)
+  get seconds(): bigint
+  set seconds(value: bigint)
+  get amount(): bigint
+  set amount(value: bigint)
+  get hinted(): boolean
+  set hinted(value: boolean)
+}
+export declare class Clawback {
+  senderSpend(spend: Spend): Spend
+  receiverSpend(spend: Spend): Spend
+  puzzleHash(): Uint8Array
+  getRemarkCondition(clvm: Clvm): Remark
+  constructor(timelock: bigint, senderPuzzleHash: Uint8Array, receiverPuzzleHash: Uint8Array)
+  get timelock(): bigint
+  set timelock(value: bigint)
+  get senderPuzzleHash(): Uint8Array
+  set senderPuzzleHash(value: Uint8Array)
+  get receiverPuzzleHash(): Uint8Array
+  set receiverPuzzleHash(value: Uint8Array)
+}
 export declare class K1SecretKey {
   static fromBytes(bytes: Uint8Array): K1SecretKey
   toBytes(): Uint8Array
@@ -1339,6 +1372,7 @@ export declare class Simulator {
   newCoin(puzzleHash: Uint8Array, amount: bigint): Coin
   bls(amount: bigint): BlsPairWithCoin
   spendCoins(coinSpends: Array<CoinSpend>, secretKeys: Array<SecretKey>): void
+  passTime(time: bigint): void
 }
 export declare class BlsPair {
   static fromSeed(seed: bigint): BlsPair

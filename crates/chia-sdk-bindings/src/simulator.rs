@@ -33,4 +33,9 @@ impl Simulator {
             .spend_coins(coin_spends, &secret_keys)?;
         Ok(())
     }
+
+    pub fn pass_time(&self, time: u64) -> Result<()> {
+        self.0.lock().unwrap().pass_time(time);
+        Ok(())
+    }
 }

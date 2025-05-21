@@ -38,14 +38,14 @@ impl ClawbackV2 {
 
     pub fn from_memo(
         allocator: &Allocator,
-        memos: NodePtr,
+        memo: NodePtr,
         receiver_puzzle_hash: Bytes32,
         amount: u64,
         hinted: bool,
-        expect_spended_puzzle_hash: Bytes32,
+        expected_puzzle_hash: Bytes32,
     ) -> Option<Self> {
         let (sender_puzzle_hash, (seconds, ())) =
-            <(Bytes32, (u64, ()))>::from_clvm(allocator, memos).ok()?;
+            <(Bytes32, (u64, ()))>::from_clvm(allocator, memo).ok()?;
 
         let clawback = Self {
             sender_puzzle_hash,
@@ -55,7 +55,7 @@ impl ClawbackV2 {
             hinted,
         };
 
-        if clawback.tree_hash() != expect_spended_puzzle_hash.into() {
+        if clawback.tree_hash() != expected_puzzle_hash.into() {
             return None;
         }
 
@@ -310,12 +310,33 @@ impl ToTreeHash for ClawbackV2 {
 mod tests {
     use chia_protocol::Coin;
     use chia_sdk_test::{expect_spend, Simulator};
-    use clvm_traits::clvm_list;
+    use clvm_traits::{clvm_list, ToClvm};
     use rstest::rstest;
 
     use crate::{Cat, CatSpend, SpendWithConditions, StandardLayer};
 
     use super::*;
+
+    #[rstest]
+    fn test_clawback_memo(#[values(false, true)] hinted: bool) -> anyhow::Result<()> {
+        let mut allocator = Allocator::new();
+
+        let clawback =
+            ClawbackV2::new(Bytes32::new([1; 32]), Bytes32::new([2; 32]), 100, 1, hinted);
+        let memo = clawback.memo().to_clvm(&mut allocator)?;
+
+        let roundtrip = ClawbackV2::from_memo(
+            &allocator,
+            memo,
+            Bytes32::new([2; 32]),
+            1,
+            hinted,
+            clawback.tree_hash().into(),
+        );
+        assert_eq!(roundtrip, Some(clawback));
+
+        Ok(())
+    }
 
     #[rstest]
     fn test_clawback_v2_recover_xch(
