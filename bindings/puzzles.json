@@ -250,5 +250,57 @@
       "proof": "LineageProof",
       "info": "StreamingPuzzleInfo"
     }
+  },
+  "ClawbackV2": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "sender_puzzle_hash": "Bytes32",
+      "receiver_puzzle_hash": "Bytes32",
+      "seconds": "u64",
+      "amount": "u64",
+      "hinted": "bool"
+    },
+    "methods": {
+      "from_memo": {
+        "type": "static",
+        "args": {
+          "memo": "Program",
+          "receiver_puzzle_hash": "Bytes32",
+          "amount": "u64",
+          "hinted": "bool",
+          "expected_puzzle_hash": "Bytes32"
+        },
+        "return": "Option<ClawbackV2>"
+      },
+      "sender_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "receiver_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "push_through_spend": {
+        "args": {
+          "clvm": "Clvm"
+        },
+        "return": "Spend"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "memo": {
+        "args": {
+          "clvm": "Clvm"
+        },
+        "return": "Program"
+      }
+    }
   }
 }

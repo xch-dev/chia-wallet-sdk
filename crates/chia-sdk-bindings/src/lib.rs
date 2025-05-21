@@ -61,3 +61,4 @@ pub use chia_sdk_coinset::{
     GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem, MempoolMinFees,
     PushTxResponse, SyncState,
 };
+pub use chia_sdk_driver::ClawbackV2;
