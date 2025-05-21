@@ -15,7 +15,6 @@
       "parse_child_cats": {
         "args": {
           "parent_coin": "Coin",
-          "parent_puzzle": "Program",
           "parent_solution": "Program"
         },
         "return": "Option<Vec<Cat>>"
@@ -26,7 +25,6 @@
       "parse_child_nft": {
         "args": {
           "parent_coin": "Coin",
-          "parent_puzzle": "Program",
           "parent_solution": "Program"
         },
         "return": "Option<Nft>"
@@ -37,7 +35,6 @@
       "parse_child_did": {
         "args": {
           "parent_coin": "Coin",
-          "parent_puzzle": "Program",
           "parent_solution": "Program",
           "coin": "Coin"
         },
@@ -49,7 +46,6 @@
       "parse_child_streamed_cat": {
         "args": {
           "parent_coin": "Coin",
-          "parent_puzzle": "Program",
           "parent_solution": "Program"
         },
         "return": "StreamedCatParsingResult"
