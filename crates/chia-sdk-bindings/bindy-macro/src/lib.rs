@@ -412,6 +412,16 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
     let mut mappings = bindy.wasm.clone();
     build_base_mappings(&bindy, &mut mappings);
 
+    let mut param_mappings = mappings.clone();
+
+    for (name, binding) in &bindings {
+        if matches!(binding, Binding::Class { .. }) {
+            param_mappings.insert(name.clone(), format!("&{name}"));
+            param_mappings.insert(format!("Vec<{name}>"), format!("Vec<{name}>"));
+            param_mappings.insert(format!("Option<{name}>"), format!("Option<{name}>"));
+        }
+    }
+
     let mut output = quote!();
 
     for (name, binding) in bindings {
@@ -455,7 +465,9 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                     let arg_types = method
                         .args
                         .values()
-                        .map(|v| parse_str::<Type>(apply_mappings(v, &mappings).as_str()).unwrap())
+                        .map(|v| {
+                            parse_str::<Type>(apply_mappings(v, &param_mappings).as_str()).unwrap()
+                        })
                         .collect::<Vec<_>>();
 
                     let ret = parse_str::<Type>(
@@ -531,16 +543,18 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                     let ident = Ident::new(name, Span::mixed_site());
                     let get_ident = Ident::new(&format!("get_{name}"), Span::mixed_site());
                     let set_ident = Ident::new(&format!("set_{name}"), Span::mixed_site());
-                    let ty = parse_str::<Type>(apply_mappings(ty, &mappings).as_str()).unwrap();
+                    let arg_ty =
+                        parse_str::<Type>(apply_mappings(ty, &param_mappings).as_str()).unwrap();
+                    let ret_ty = parse_str::<Type>(apply_mappings(ty, &mappings).as_str()).unwrap();
 
                     field_tokens.extend(quote! {
                         #[wasm_bindgen(getter, js_name = #js_name)]
-                        pub fn #get_ident(&self) -> Result<#ty, wasm_bindgen::JsError> {
+                        pub fn #get_ident(&self) -> Result<#ret_ty, wasm_bindgen::JsError> {
                             Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(self.0.#ident.clone(), &bindy::WasmContext)?)
                         }
 
                         #[wasm_bindgen(setter, js_name = #js_name)]
-                        pub fn #set_ident(&mut self, value: #ty) -> Result<(), wasm_bindgen::JsError> {
+                        pub fn #set_ident(&mut self, value: #arg_ty) -> Result<(), wasm_bindgen::JsError> {
                             self.0.#ident = bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(value, &bindy::WasmContext)?;
                             Ok(())
                         }
@@ -656,7 +670,9 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 
                 let arg_types = args
                     .values()
-                    .map(|v| parse_str::<Type>(apply_mappings(v, &mappings).as_str()).unwrap())
+                    .map(|v| {
+                        parse_str::<Type>(apply_mappings(v, &param_mappings).as_str()).unwrap()
+                    })
                     .collect::<Vec<_>>();
 
                 let ret = parse_str::<Type>(
