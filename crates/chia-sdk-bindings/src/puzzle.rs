@@ -1,15 +1,29 @@
+mod cat;
+mod clawback;
+mod clawback_v2;
+mod did;
+mod nft;
+mod streamed_cat;
+
+pub use cat::*;
+use chia_bls::PublicKey;
+use chia_puzzle_types::{cat::CatArgs, standard::StandardArgs};
+pub use clawback::*;
+pub use clawback_v2::*;
+pub use did::*;
+pub use nft::*;
+pub use streamed_cat::*;
+
 use std::sync::{Arc, Mutex};
 
 use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver::{
-    CatLayer, Clawback, CurriedPuzzle, HashedPtr, Layer, RawPuzzle, SpendContext,
-};
-
-use crate::{
-    Cat, Did, DidInfo, Nft, NftInfo, ParsedCat, ParsedDid, ParsedNft, Program, StreamedCat,
+    Cat, CatLayer, Clawback, CurriedPuzzle, HashedPtr, Layer, RawPuzzle, SpendContext,
     StreamingPuzzleInfo,
 };
+
+use crate::Program;
 
 #[derive(Clone)]
 pub struct Puzzle {
@@ -60,17 +74,12 @@ impl Puzzle {
 
         let parent_puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
-        let Some(cats) = chia_sdk_driver::Cat::parse_children(
+        Ok(Cat::parse_children(
             &mut ctx,
             parent_coin,
             parent_puzzle,
             parent_solution.1,
-        )?
-        else {
-            return Ok(None);
-        };
-
-        Ok(Some(cats.into_iter().map(Cat::from).collect()))
+        )?)
     }
 
     pub fn parse_nft(&self) -> Result<Option<ParsedNft>> {
@@ -168,7 +177,7 @@ impl Puzzle {
 
         let ctx = self.program.0.lock().unwrap();
 
-        Ok(chia_sdk_driver::StreamingPuzzleInfo::parse(&ctx, puzzle)?.map(Into::into))
+        Ok(chia_sdk_driver::StreamingPuzzleInfo::parse(&ctx, puzzle)?)
     }
 
     pub fn parse_child_streamed_cat(
@@ -189,7 +198,7 @@ impl Puzzle {
             )?;
 
         Ok(StreamedCatParsingResult {
-            streamed_cat: streamed_cat.map(std::convert::Into::into),
+            streamed_cat,
             last_spend_was_clawback: clawback,
             last_payment_amount_if_clawback: last_payment_amount,
         })
@@ -226,9 +235,10 @@ impl From<Puzzle> for chia_sdk_driver::Puzzle {
     }
 }
 
-#[derive(Clone)]
-pub struct StreamedCatParsingResult {
-    pub streamed_cat: Option<StreamedCat>,
-    pub last_spend_was_clawback: bool,
-    pub last_payment_amount_if_clawback: u64,
+pub fn standard_puzzle_hash(synthetic_key: PublicKey) -> Result<Bytes32> {
+    Ok(StandardArgs::curry_tree_hash(synthetic_key).into())
+}
+
+pub fn cat_puzzle_hash(asset_id: Bytes32, inner_puzzle_hash: Bytes32) -> Result<Bytes32> {
+    Ok(CatArgs::curry_tree_hash(asset_id, inner_puzzle_hash.into()).into())
 }

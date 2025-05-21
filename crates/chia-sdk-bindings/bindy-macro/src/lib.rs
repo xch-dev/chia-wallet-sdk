@@ -149,11 +149,11 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
             } => {
                 let bound_ident = Ident::new(&name, Span::mixed_site());
                 let rust_struct_ident = quote!( #entrypoint::#bound_ident );
-                let rust_remote_ident = if remote {
+                let fully_qualified_ident = if remote {
                     let ext_ident = Ident::new(&format!("{name}Ext"), Span::mixed_site());
-                    quote!( #entrypoint::#ext_ident )
+                    quote!( <#rust_struct_ident as #entrypoint::#ext_ident> )
                 } else {
-                    quote!( #entrypoint::#bound_ident )
+                    quote!( #rust_struct_ident )
                 };
 
                 let mut method_tokens = quote!();
@@ -216,7 +216,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                                     env: Env,
                                     #( #arg_idents: #arg_types ),*
                                 ) -> napi::Result<#ret> {
-                                    Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(#rust_remote_ident::#method_ident(
+                                    Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(#fully_qualified_ident::#method_ident(
                                         #( bindy::IntoRust::<_, _, bindy::Napi>::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
                                     )?, &bindy::NapiReturnContext(env))?)
                                 }
@@ -230,7 +230,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                                     env: Env,
                                     #( #arg_idents: #arg_types ),*
                                 ) -> napi::Result<#ret> {
-                                    Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(#rust_remote_ident::#method_ident(
+                                    Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(#fully_qualified_ident::#method_ident(
                                         &self.0,
                                         #( bindy::IntoRust::<_, _, bindy::Napi>::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
                                     )?, &bindy::NapiReturnContext(env))?)
@@ -424,11 +424,11 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
             } => {
                 let bound_ident = Ident::new(&name, Span::mixed_site());
                 let rust_struct_ident = quote!( #entrypoint::#bound_ident );
-                let rust_remote_ident = if remote {
+                let fully_qualified_ident = if remote {
                     let ext_ident = Ident::new(&format!("{name}Ext"), Span::mixed_site());
-                    quote!( #entrypoint::#ext_ident )
+                    quote!( <#rust_struct_ident as #entrypoint::#ext_ident> )
                 } else {
-                    quote!( #entrypoint::#bound_ident )
+                    quote!( #rust_struct_ident )
                 };
 
                 let mut method_tokens = quote!();
@@ -488,7 +488,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                 pub fn #method_ident(
                                     #( #arg_attrs #arg_idents: #arg_types ),*
                                 ) -> Result<#ret, wasm_bindgen::JsError> {
-                                    Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#rust_remote_ident::#method_ident(
+                                    Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#fully_qualified_ident::#method_ident(
                                         #( bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)? ),*
                                     )?, &bindy::WasmContext)?)
                                 }
@@ -501,7 +501,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                     &self,
                                     #( #arg_attrs #arg_idents: #arg_types ),*
                                 ) -> Result<#ret, wasm_bindgen::JsError> {
-                                    Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#rust_remote_ident::#method_ident(
+                                    Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#fully_qualified_ident::#method_ident(
                                         &self.0,
                                         #( bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)? ),*
                                     )?, &bindy::WasmContext)?)
@@ -705,11 +705,11 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                 fields,
             } => {
                 let rust_struct_ident = quote!( #entrypoint::#bound_ident );
-                let rust_remote_ident = if *remote {
+                let fully_qualified_ident = if *remote {
                     let ext_ident = Ident::new(&format!("{name}Ext"), Span::mixed_site());
-                    quote!( #entrypoint::#ext_ident )
+                    quote!( <#rust_struct_ident as #entrypoint::#ext_ident> )
                 } else {
-                    quote!( #entrypoint::#bound_ident )
+                    quote!( #rust_struct_ident )
                 };
 
                 let mut method_tokens = quote!();
@@ -774,7 +774,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                                 pub fn #remapped_method_ident(
                                     #( #arg_idents: #arg_types ),*
                                 ) -> pyo3::PyResult<#ret> {
-                                    Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#rust_remote_ident::#method_ident(
+                                    Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#fully_qualified_ident::#method_ident(
                                         #( bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
                                     )?, &bindy::Pyo3Context)?)
                                 }
@@ -787,7 +787,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                                     &self,
                                     #( #arg_idents: #arg_types ),*
                                 ) -> pyo3::PyResult<#ret> {
-                                    Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#rust_remote_ident::#method_ident(
+                                    Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#fully_qualified_ident::#method_ident(
                                         &self.0,
                                         #( bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
                                     )?, &bindy::Pyo3Context)?)

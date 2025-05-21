@@ -12,13 +12,13 @@ use chia_sdk_driver as sdk;
 use chia_sdk_types::{puzzles::AddDelegatedPuzzleWrapper, Mod};
 use clvm_utils::TreeHash;
 
-use crate::{LineageProof, Program};
+use crate::{Program, Proof};
 
 #[derive(Clone)]
 pub struct Vault {
     pub coin: Coin,
     pub launcher_id: Bytes32,
-    pub proof: LineageProof,
+    pub proof: Proof,
     pub custody_hash: TreeHash,
 }
 

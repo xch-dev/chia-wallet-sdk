@@ -4,7 +4,7 @@ use bindy::{Error, Result};
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram};
 use chia_puzzle_types::nft;
-use chia_sdk_driver::{HashedPtr, Launcher, SpendContext, StandardLayer};
+use chia_sdk_driver::{HashedPtr, Launcher, SpendContext, StandardLayer, StreamedCat};
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::TreeHash;
@@ -15,8 +15,7 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    CatSpend, Did, MintedNfts, MipsSpend, Nft, NftMetadata, NftMint, Program, Spend, StreamedCat,
-    VaultMint,
+    CatSpend, Did, MintedNfts, MipsSpend, Nft, NftMetadata, NftMint, Program, Spend, VaultMint,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -90,13 +89,10 @@ impl Clvm {
     pub fn spend_cat_coins(&self, cat_spends: Vec<CatSpend>) -> Result<()> {
         let mut ctx = self.0.lock().unwrap();
 
-        let mut rust_cat_spends = Vec::new();
-
-        for cat_spend in cat_spends {
-            rust_cat_spends.push(cat_spend.try_into()?);
-        }
-
-        chia_sdk_driver::Cat::spend_all(&mut ctx, &rust_cat_spends)?;
+        chia_sdk_driver::Cat::spend_all(
+            &mut ctx,
+            &cat_spends.into_iter().map(Into::into).collect::<Vec<_>>(),
+        )?;
 
         Ok(())
     }
@@ -188,10 +184,7 @@ impl Clvm {
         clawback: bool,
     ) -> Result<()> {
         let mut ctx = self.0.lock().unwrap();
-        let streamed_cat: chia_sdk_driver::StreamedCat = streamed_cat.try_into()?;
-
         streamed_cat.spend(&mut ctx, payment_time, clawback)?;
-
         Ok(())
     }
 
