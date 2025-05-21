@@ -79,8 +79,8 @@ impl Clvm {
         synthetic_key: PublicKey,
         spend: Spend,
     ) -> Result<()> {
-        let mut ctx = self.0.lock().unwrap();
         let spend = self.standard_spend(synthetic_key, spend)?;
+        let mut ctx = self.0.lock().unwrap();
         let puzzle_reveal = ctx.serialize(&spend.puzzle.1)?;
         let solution = ctx.serialize(&spend.solution.1)?;
         ctx.insert(chia_protocol::CoinSpend::new(coin, puzzle_reveal, solution));
