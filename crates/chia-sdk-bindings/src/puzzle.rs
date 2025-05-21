@@ -1,3 +1,7 @@
+mod cat;
+
+pub use cat::*;
+
 use std::sync::{Arc, Mutex};
 
 use bindy::Result;
@@ -7,7 +11,7 @@ use chia_sdk_driver::{
     StreamingPuzzleInfo,
 };
 
-use crate::{Did, DidInfo, Nft, NftInfo, ParsedCat, ParsedDid, ParsedNft, Program};
+use crate::{Did, DidInfo, Nft, NftInfo, ParsedDid, ParsedNft, Program};
 
 #[derive(Clone)]
 pub struct Puzzle {

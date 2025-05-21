@@ -1,7 +1,3 @@
-mod cat;
-
-pub use cat::*;
-
 use bindy::Result;
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin};
