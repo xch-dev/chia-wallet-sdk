@@ -24,14 +24,6 @@ pub struct VersionedBlob {
 
 #[streamable]
 #[derive(Copy)]
-// this struct is an unfortunate hack in order to get the streamable bytes which are used on chain for recreating ourself
-pub struct ClawbackMetadata {
-    timelock: u64,
-    sender_puzzle_hash: Bytes32,
-    recipient_puzzle_hash: Bytes32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Clawback {
     /// The number of seconds until this clawback can be claimed by the recipient.
     pub timelock: u64,
@@ -53,7 +45,7 @@ impl Clawback {
         let output = run_puzzle(allocator, parent_puzzle.ptr(), parent_solution)?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
         let mut outputs = Vec::<Clawback>::new();
-        let mut metadatas = Vec::<ClawbackMetadata>::new();
+        let mut metadatas = Vec::<Clawback>::new();
         let mut puzhashes = Vec::<[u8; 32]>::with_capacity(conditions.len());
         for condition in conditions {
             match condition {
@@ -80,7 +72,7 @@ impl Clawback {
                                 clvmr::SExp::Atom => {
                                     let rest_atom = &allocator.atom(r_first);
                                     metadatas.push(
-                                        ClawbackMetadata::from_bytes_unchecked(
+                                        Clawback::from_bytes_unchecked(
                                             VersionedBlob::from_bytes_unchecked(rest_atom)
                                                 .map_err(|_| DriverError::InvalidMemo)?
                                                 .blob
@@ -97,12 +89,7 @@ impl Clawback {
                 _ => {}
             }
         }
-        for metadata in &metadatas {
-            let clawback = Clawback {
-                timelock: metadata.timelock,
-                sender_puzzle_hash: metadata.sender_puzzle_hash,
-                recipient_puzzle_hash: metadata.recipient_puzzle_hash,
-            };
+        for &clawback in &metadatas {
             if puzhashes.contains(&clawback.to_layer().tree_hash().to_bytes()) {
                 outputs.push(clawback);
             }
@@ -161,14 +148,12 @@ impl Clawback {
         &self,
         allocator: &mut Allocator,
     ) -> Result<Condition, DriverError> {
-        let cbm = ClawbackMetadata {
-            timelock: self.timelock,
-            sender_puzzle_hash: self.sender_puzzle_hash,
-            recipient_puzzle_hash: self.recipient_puzzle_hash,
-        };
         let vb = VersionedBlob {
             version: 1,
-            blob: cbm.to_bytes().map_err(|_| DriverError::InvalidMemo)?.into(),
+            blob: self
+                .to_bytes()
+                .map_err(|_| DriverError::InvalidMemo)?
+                .into(),
         };
         // 2 is the magic number for clawback
         let node_ptr = clvm_list!(
