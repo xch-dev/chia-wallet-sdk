@@ -3,13 +3,11 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver::{
-    CatLayer, Clawback, CurriedPuzzle, HashedPtr, Layer, RawPuzzle, SpendContext,
-};
-
-use crate::{
-    Cat, Did, DidInfo, Nft, NftInfo, ParsedCat, ParsedDid, ParsedNft, Program, StreamedCat,
+    Cat, CatLayer, Clawback, CurriedPuzzle, HashedPtr, Layer, RawPuzzle, SpendContext, StreamedCat,
     StreamingPuzzleInfo,
 };
+
+use crate::{Did, DidInfo, Nft, NftInfo, ParsedCat, ParsedDid, ParsedNft, Program};
 
 #[derive(Clone)]
 pub struct Puzzle {
@@ -60,17 +58,12 @@ impl Puzzle {
 
         let parent_puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
-        let Some(cats) = chia_sdk_driver::Cat::parse_children(
+        Ok(Cat::parse_children(
             &mut ctx,
             parent_coin,
             parent_puzzle,
             parent_solution.1,
-        )?
-        else {
-            return Ok(None);
-        };
-
-        Ok(Some(cats.into_iter().map(Cat::from).collect()))
+        )?)
     }
 
     pub fn parse_nft(&self) -> Result<Option<ParsedNft>> {
@@ -168,7 +161,7 @@ impl Puzzle {
 
         let ctx = self.program.0.lock().unwrap();
 
-        Ok(chia_sdk_driver::StreamingPuzzleInfo::parse(&ctx, puzzle)?.map(Into::into))
+        Ok(chia_sdk_driver::StreamingPuzzleInfo::parse(&ctx, puzzle)?)
     }
 
     pub fn parse_child_streamed_cat(
@@ -189,7 +182,7 @@ impl Puzzle {
             )?;
 
         Ok(StreamedCatParsingResult {
-            streamed_cat: streamed_cat.map(std::convert::Into::into),
+            streamed_cat,
             last_spend_was_clawback: clawback,
             last_payment_amount_if_clawback: last_payment_amount,
         })

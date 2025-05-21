@@ -69,6 +69,7 @@
   },
   "Cat": {
     "type": "class",
+    "remote": true,
     "new": true,
     "fields": {
       "coin": "Coin",
@@ -98,7 +99,7 @@
     "new": true,
     "fields": {
       "coin": "Coin",
-      "lineage_proof": "LineageProof",
+      "lineage_proof": "Proof",
       "info": "NftInfo"
     }
   },
@@ -170,7 +171,7 @@
     "new": true,
     "fields": {
       "coin": "Coin",
-      "lineage_proof": "LineageProof",
+      "lineage_proof": "Proof",
       "info": "DidInfo"
     }
   },
@@ -211,6 +212,7 @@
   "StreamingPuzzleInfo": {
     "type": "class",
     "new": true,
+    "remote": true,
     "fields": {
       "recipient": "Bytes32",
       "clawback_ph": "Option<Bytes32>",
@@ -250,6 +252,7 @@
   "StreamedCat": {
     "type": "class",
     "new": true,
+    "remote": true,
     "fields": {
       "coin": "Coin",
       "asset_id": "Bytes32",

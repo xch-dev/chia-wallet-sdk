@@ -163,12 +163,21 @@ export declare class CurriedProgram {
   get args(): Array<Program>
   set args(value: Array<Program>)
 }
-export declare class LineageProof {
+export declare class Proof {
   constructor(parentParentCoinInfo: Uint8Array, parentInnerPuzzleHash: Uint8Array | undefined | null, parentAmount: bigint)
   get parentParentCoinInfo(): Uint8Array
   set parentParentCoinInfo(value: Uint8Array)
   get parentInnerPuzzleHash(): Uint8Array | null
   set parentInnerPuzzleHash(value?: Uint8Array | undefined | null)
+  get parentAmount(): bigint
+  set parentAmount(value: bigint)
+}
+export declare class LineageProof {
+  constructor(parentParentCoinInfo: Uint8Array, parentInnerPuzzleHash: Uint8Array, parentAmount: bigint)
+  get parentParentCoinInfo(): Uint8Array
+  set parentParentCoinInfo(value: Uint8Array)
+  get parentInnerPuzzleHash(): Uint8Array
+  set parentInnerPuzzleHash(value: Uint8Array)
   get parentAmount(): bigint
   set parentAmount(value: bigint)
 }
@@ -1167,11 +1176,11 @@ export declare class ParsedCat {
   set p2Puzzle(value: Puzzle)
 }
 export declare class Nft {
-  constructor(coin: Coin, lineageProof: LineageProof, info: NftInfo)
+  constructor(coin: Coin, lineageProof: Proof, info: NftInfo)
   get coin(): Coin
   set coin(value: Coin)
-  get lineageProof(): LineageProof
-  set lineageProof(value: LineageProof)
+  get lineageProof(): Proof
+  set lineageProof(value: Proof)
   get info(): NftInfo
   set info(value: NftInfo)
 }
@@ -1248,11 +1257,11 @@ export declare class MintedNfts {
   set parentConditions(value: Array<Program>)
 }
 export declare class Did {
-  constructor(coin: Coin, lineageProof: LineageProof, info: DidInfo)
+  constructor(coin: Coin, lineageProof: Proof, info: DidInfo)
   get coin(): Coin
   set coin(value: Coin)
-  get lineageProof(): LineageProof
-  set lineageProof(value: LineageProof)
+  get lineageProof(): Proof
+  set lineageProof(value: Proof)
   get info(): DidInfo
   set info(value: DidInfo)
 }
@@ -1414,13 +1423,13 @@ export declare class R1Pair {
 }
 export declare class Vault {
   child(custodyHash: Uint8Array): Vault
-  constructor(coin: Coin, launcherId: Uint8Array, proof: LineageProof, custodyHash: Uint8Array)
+  constructor(coin: Coin, launcherId: Uint8Array, proof: Proof, custodyHash: Uint8Array)
   get coin(): Coin
   set coin(value: Coin)
   get launcherId(): Uint8Array
   set launcherId(value: Uint8Array)
-  get proof(): LineageProof
-  set proof(value: LineageProof)
+  get proof(): Proof
+  set proof(value: Proof)
   get custodyHash(): Uint8Array
   set custodyHash(value: Uint8Array)
 }

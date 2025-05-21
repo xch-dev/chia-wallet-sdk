@@ -53,6 +53,7 @@ pub use chia_protocol::{
     PoolTarget, Program as SerializedProgram, ProofOfSpace, RewardChainBlock, RewardChainSubSlot,
     SpendBundle, SubEpochSummary, SubSlotProofs, TransactionsInfo, VDFInfo, VDFProof,
 };
+pub use chia_puzzle_types::LineageProof;
 pub use chia_sdk_coinset::{
     AdditionsAndRemovalsResponse, BlockchainState, BlockchainStateResponse, CoinRecord,
     GetBlockRecordByHeightResponse, GetBlockRecordResponse, GetBlockRecordsResponse,
@@ -61,4 +62,4 @@ pub use chia_sdk_coinset::{
     GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem, MempoolMinFees,
     PushTxResponse, SyncState,
 };
-pub use chia_sdk_driver::{Clawback, ClawbackV2};
+pub use chia_sdk_driver::{Cat, Clawback, ClawbackV2, StreamedCat, StreamingPuzzleInfo};
