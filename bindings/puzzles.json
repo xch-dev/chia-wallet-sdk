@@ -49,6 +49,12 @@
           "parent_solution": "Program"
         },
         "return": "StreamedCatParsingResult"
+      },
+      "parse_child_clawbacks": {
+        "args": {
+          "parent_solution": "Program"
+        },
+        "return": "Option<Vec<Clawback>>"
       }
     }
   },
@@ -300,6 +306,39 @@
           "clvm": "Clvm"
         },
         "return": "Program"
+      }
+    }
+  },
+  "Clawback": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "timelock": "u64",
+      "sender_puzzle_hash": "Bytes32",
+      "receiver_puzzle_hash": "Bytes32"
+    },
+    "methods": {
+      "sender_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "receiver_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "get_remark_condition": {
+        "args": {
+          "clvm": "Clvm"
+        },
+        "return": "Remark"
       }
     }
   }

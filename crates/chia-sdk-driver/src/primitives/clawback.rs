@@ -2,6 +2,7 @@ use crate::{DriverError, Layer, P2OneOfManyLayer, Puzzle, Spend, SpendContext};
 use chia_protocol::{Bytes, Bytes32};
 use chia_puzzles::AUGMENTED_CONDITION_HASH;
 use chia_sdk_types::{
+    conditions::Remark,
     puzzles::{
         AugmentedConditionArgs, AugmentedConditionSolution, P2CurriedArgs, P2CurriedSolution,
         P2OneOfManySolution, P2_CURRIED_PUZZLE_HASH,
@@ -30,7 +31,7 @@ pub struct Clawback {
     /// The original sender of the coin, who can claw it back until claimed.
     pub sender_puzzle_hash: Bytes32,
     /// The intended recipient who can claim after the timelock period is up.
-    pub recipient_puzzle_hash: Bytes32,
+    pub receiver_puzzle_hash: Bytes32,
 }
 
 impl Clawback {
@@ -97,18 +98,18 @@ impl Clawback {
         Ok(Some(outputs))
     }
 
-    pub fn claim_path_puzzle_hash(&self) -> TreeHash {
+    pub fn receiver_path_puzzle_hash(&self) -> TreeHash {
         CurriedProgram {
             program: TreeHash::new(AUGMENTED_CONDITION_HASH),
             args: AugmentedConditionArgs::new(
                 Condition::<TreeHash>::assert_seconds_relative(self.timelock),
-                TreeHash::from(self.recipient_puzzle_hash),
+                TreeHash::from(self.receiver_puzzle_hash),
             ),
         }
         .tree_hash()
     }
 
-    pub fn claim_path_puzzle(
+    pub fn receiver_path_puzzle(
         &self,
         ctx: &mut SpendContext,
         inner_puzzle: NodePtr,
@@ -119,7 +120,7 @@ impl Clawback {
         ))
     }
 
-    pub fn clawback_path_puzzle_hash(&self) -> TreeHash {
+    pub fn sender_path_puzzle_hash(&self) -> TreeHash {
         CurriedProgram {
             program: P2_CURRIED_PUZZLE_HASH,
             args: P2CurriedArgs::new(self.sender_puzzle_hash),
@@ -127,14 +128,14 @@ impl Clawback {
         .tree_hash()
     }
 
-    pub fn clawback_path_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
+    pub fn sender_path_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         ctx.curry(P2CurriedArgs::new(self.sender_puzzle_hash))
     }
 
     pub fn merkle_tree(&self) -> MerkleTree {
         MerkleTree::new(&[
-            self.claim_path_puzzle_hash().into(),
-            self.clawback_path_puzzle_hash().into(),
+            self.receiver_path_puzzle_hash().into(),
+            self.sender_path_puzzle_hash().into(),
         ])
     }
 
@@ -147,7 +148,7 @@ impl Clawback {
     pub fn get_remark_condition(
         &self,
         allocator: &mut Allocator,
-    ) -> Result<Condition, DriverError> {
+    ) -> Result<Remark<NodePtr>, DriverError> {
         let vb = VersionedBlob {
             version: 1,
             blob: self
@@ -162,13 +163,17 @@ impl Clawback {
         )
         .to_clvm(allocator)?;
 
-        Ok(Condition::remark(node_ptr))
+        Ok(Remark::new(node_ptr))
     }
 
-    pub fn claim_spend(&self, ctx: &mut SpendContext, spend: Spend) -> Result<Spend, DriverError> {
+    pub fn receiver_spend(
+        &self,
+        ctx: &mut SpendContext,
+        spend: Spend,
+    ) -> Result<Spend, DriverError> {
         let merkle_tree = self.merkle_tree();
 
-        let puzzle = self.claim_path_puzzle(ctx, spend.puzzle)?;
+        let puzzle = self.receiver_path_puzzle(ctx, spend.puzzle)?;
         let solution = ctx.alloc(&AugmentedConditionSolution::new(spend.solution))?;
 
         let proof = merkle_tree
@@ -179,14 +184,10 @@ impl Clawback {
             .construct_spend(ctx, P2OneOfManySolution::new(proof, puzzle, solution))
     }
 
-    pub fn clawback_spend(
-        &self,
-        ctx: &mut SpendContext,
-        spend: Spend,
-    ) -> Result<Spend, DriverError> {
+    pub fn sender_spend(&self, ctx: &mut SpendContext, spend: Spend) -> Result<Spend, DriverError> {
         let merkle_tree = self.merkle_tree();
 
-        let puzzle = self.clawback_path_puzzle(ctx)?;
+        let puzzle = self.sender_path_puzzle(ctx)?;
         let solution = ctx.alloc(&P2CurriedSolution::new(spend.puzzle, spend.solution))?;
 
         let proof = merkle_tree
@@ -224,7 +225,7 @@ mod tests {
         let clawback = Clawback {
             timelock: 1,
             sender_puzzle_hash: alice.puzzle_hash,
-            recipient_puzzle_hash: bob.puzzle_hash,
+            receiver_puzzle_hash: bob.puzzle_hash,
         };
         let clawback_puzzle_hash = clawback.to_layer().tree_hash().into();
         let coin = alice.coin;
@@ -259,8 +260,8 @@ mod tests {
         assert_eq!(children[0], clawback);
 
         let bob_inner = bob_p2.spend_with_conditions(ctx, Conditions::new().reserve_fee(1))?;
-        let claim_spend = clawback.claim_spend(ctx, bob_inner)?;
-        ctx.spend(clawback_coin, claim_spend)?;
+        let receiver_spend = clawback.receiver_spend(ctx, bob_inner)?;
+        ctx.spend(clawback_coin, receiver_spend)?;
 
         sim.spend_coins(ctx.take(), &[bob.sk])?;
 
@@ -294,7 +295,7 @@ mod tests {
         let clawback = Clawback {
             timelock: u64::MAX,
             sender_puzzle_hash: alice.puzzle_hash,
-            recipient_puzzle_hash: Bytes32::default(),
+            receiver_puzzle_hash: Bytes32::default(),
         };
         let clawback_puzzle_hash = clawback.to_layer().tree_hash().into();
 
@@ -308,8 +309,8 @@ mod tests {
         sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
 
         let inner = alice_p2.spend_with_conditions(ctx, Conditions::new().reserve_fee(1))?;
-        let clawback_spend = clawback.clawback_spend(ctx, inner)?;
-        ctx.spend(clawback_coin, clawback_spend)?;
+        let sender_spend = clawback.sender_spend(ctx, inner)?;
+        ctx.spend(clawback_coin, sender_spend)?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 

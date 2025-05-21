@@ -2,7 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
-use chia_sdk_driver::{CatLayer, CurriedPuzzle, HashedPtr, Layer, RawPuzzle, SpendContext};
+use chia_sdk_driver::{
+    CatLayer, Clawback, CurriedPuzzle, HashedPtr, Layer, RawPuzzle, SpendContext,
+};
 
 use crate::{
     Cat, Did, DidInfo, Nft, NftInfo, ParsedCat, ParsedDid, ParsedNft, Program, StreamedCat,
@@ -191,6 +193,18 @@ impl Puzzle {
             last_spend_was_clawback: clawback,
             last_payment_amount_if_clawback: last_payment_amount,
         })
+    }
+
+    pub fn parse_child_clawbacks(&self, parent_solution: Program) -> Result<Option<Vec<Clawback>>> {
+        let mut ctx = self.program.0.lock().unwrap();
+
+        let parent_puzzle = chia_sdk_driver::Puzzle::from(self.clone());
+
+        Ok(Clawback::parse_children(
+            &mut ctx,
+            parent_puzzle,
+            parent_solution.1,
+        )?)
     }
 }
 
