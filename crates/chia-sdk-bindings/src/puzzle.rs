@@ -1,6 +1,12 @@
 mod cat;
+mod clawback;
+mod clawback_v2;
+mod streamed_cat;
 
 pub use cat::*;
+pub use clawback::*;
+pub use clawback_v2::*;
+pub use streamed_cat::*;
 
 use std::sync::{Arc, Mutex};
 
