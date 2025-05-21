@@ -1114,13 +1114,13 @@ export declare class Program {
 }
 export declare class Puzzle {
   parseCat(): ParsedCat | null
-  parseChildCats(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Array<Cat> | null
+  parseChildCats(parentCoin: Coin, parentSolution: Program): Array<Cat> | null
   parseNft(): ParsedNft | null
-  parseChildNft(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): Nft | null
+  parseChildNft(parentCoin: Coin, parentSolution: Program): Nft | null
   parseDid(): ParsedDid | null
-  parseChildDid(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program, coin: Coin): Did | null
+  parseChildDid(parentCoin: Coin, parentSolution: Program, coin: Coin): Did | null
   parseInnerStreamingPuzzle(): StreamingPuzzleInfo | null
-  parseChildStreamedCat(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): StreamedCatParsingResult
+  parseChildStreamedCat(parentCoin: Coin, parentSolution: Program): StreamedCatParsingResult
   constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
   get puzzleHash(): Uint8Array
   set puzzleHash(value: Uint8Array)
