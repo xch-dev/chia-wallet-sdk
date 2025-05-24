@@ -49,6 +49,12 @@
           "parent_solution": "Program"
         },
         "return": "StreamedCatParsingResult"
+      },
+      "parse_child_clawbacks": {
+        "args": {
+          "parent_solution": "Program"
+        },
+        "return": "Option<Vec<Clawback>>"
       }
     }
   },
@@ -63,6 +69,7 @@
   },
   "Cat": {
     "type": "class",
+    "remote": true,
     "new": true,
     "fields": {
       "coin": "Coin",
@@ -92,7 +99,7 @@
     "new": true,
     "fields": {
       "coin": "Coin",
-      "lineage_proof": "LineageProof",
+      "lineage_proof": "Proof",
       "info": "NftInfo"
     }
   },
@@ -164,7 +171,7 @@
     "new": true,
     "fields": {
       "coin": "Coin",
-      "lineage_proof": "LineageProof",
+      "lineage_proof": "Proof",
       "info": "DidInfo"
     }
   },
@@ -205,6 +212,7 @@
   "StreamingPuzzleInfo": {
     "type": "class",
     "new": true,
+    "remote": true,
     "fields": {
       "recipient": "Bytes32",
       "clawback_ph": "Option<Bytes32>",
@@ -244,11 +252,97 @@
   "StreamedCat": {
     "type": "class",
     "new": true,
+    "remote": true,
     "fields": {
       "coin": "Coin",
       "asset_id": "Bytes32",
       "proof": "LineageProof",
       "info": "StreamingPuzzleInfo"
+    }
+  },
+  "ClawbackV2": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "sender_puzzle_hash": "Bytes32",
+      "receiver_puzzle_hash": "Bytes32",
+      "seconds": "u64",
+      "amount": "u64",
+      "hinted": "bool"
+    },
+    "methods": {
+      "from_memo": {
+        "type": "static",
+        "args": {
+          "memo": "Program",
+          "receiver_puzzle_hash": "Bytes32",
+          "amount": "u64",
+          "hinted": "bool",
+          "expected_puzzle_hash": "Bytes32"
+        },
+        "return": "Option<ClawbackV2>"
+      },
+      "sender_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "receiver_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "push_through_spend": {
+        "args": {
+          "clvm": "Clvm"
+        },
+        "return": "Spend"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "memo": {
+        "args": {
+          "clvm": "Clvm"
+        },
+        "return": "Program"
+      }
+    }
+  },
+  "Clawback": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "timelock": "u64",
+      "sender_puzzle_hash": "Bytes32",
+      "receiver_puzzle_hash": "Bytes32"
+    },
+    "methods": {
+      "sender_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "receiver_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "get_remark_condition": {
+        "args": {
+          "clvm": "Clvm"
+        },
+        "return": "Remark"
+      }
     }
   }
 }

@@ -5,7 +5,7 @@
     "fields": {
       "coin": "Coin",
       "launcher_id": "Bytes32",
-      "proof": "LineageProof",
+      "proof": "Proof",
       "custody_hash": "TreeHash"
     },
     "methods": {

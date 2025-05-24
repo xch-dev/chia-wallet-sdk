@@ -163,12 +163,21 @@ export declare class CurriedProgram {
   get args(): Array<Program>
   set args(value: Array<Program>)
 }
-export declare class LineageProof {
+export declare class Proof {
   constructor(parentParentCoinInfo: Uint8Array, parentInnerPuzzleHash: Uint8Array | undefined | null, parentAmount: bigint)
   get parentParentCoinInfo(): Uint8Array
   set parentParentCoinInfo(value: Uint8Array)
   get parentInnerPuzzleHash(): Uint8Array | null
   set parentInnerPuzzleHash(value?: Uint8Array | undefined | null)
+  get parentAmount(): bigint
+  set parentAmount(value: bigint)
+}
+export declare class LineageProof {
+  constructor(parentParentCoinInfo: Uint8Array, parentInnerPuzzleHash: Uint8Array, parentAmount: bigint)
+  get parentParentCoinInfo(): Uint8Array
+  set parentParentCoinInfo(value: Uint8Array)
+  get parentInnerPuzzleHash(): Uint8Array
+  set parentInnerPuzzleHash(value: Uint8Array)
   get parentAmount(): bigint
   set parentAmount(value: bigint)
 }
@@ -1121,6 +1130,7 @@ export declare class Puzzle {
   parseChildDid(parentCoin: Coin, parentSolution: Program, coin: Coin): Did | null
   parseInnerStreamingPuzzle(): StreamingPuzzleInfo | null
   parseChildStreamedCat(parentCoin: Coin, parentSolution: Program): StreamedCatParsingResult
+  parseChildClawbacks(parentSolution: Program): Array<Clawback> | null
   constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
   get puzzleHash(): Uint8Array
   set puzzleHash(value: Uint8Array)
@@ -1166,11 +1176,11 @@ export declare class ParsedCat {
   set p2Puzzle(value: Puzzle)
 }
 export declare class Nft {
-  constructor(coin: Coin, lineageProof: LineageProof, info: NftInfo)
+  constructor(coin: Coin, lineageProof: Proof, info: NftInfo)
   get coin(): Coin
   set coin(value: Coin)
-  get lineageProof(): LineageProof
-  set lineageProof(value: LineageProof)
+  get lineageProof(): Proof
+  set lineageProof(value: Proof)
   get info(): NftInfo
   set info(value: NftInfo)
 }
@@ -1247,11 +1257,11 @@ export declare class MintedNfts {
   set parentConditions(value: Array<Program>)
 }
 export declare class Did {
-  constructor(coin: Coin, lineageProof: LineageProof, info: DidInfo)
+  constructor(coin: Coin, lineageProof: Proof, info: DidInfo)
   get coin(): Coin
   set coin(value: Coin)
-  get lineageProof(): LineageProof
-  set lineageProof(value: LineageProof)
+  get lineageProof(): Proof
+  set lineageProof(value: Proof)
   get info(): DidInfo
   set info(value: DidInfo)
 }
@@ -1302,6 +1312,38 @@ export declare class StreamedCat {
   get info(): StreamingPuzzleInfo
   set info(value: StreamingPuzzleInfo)
 }
+export declare class ClawbackV2 {
+  static fromMemo(memo: Program, receiverPuzzleHash: Uint8Array, amount: bigint, hinted: boolean, expectedPuzzleHash: Uint8Array): ClawbackV2 | null
+  senderSpend(spend: Spend): Spend
+  receiverSpend(spend: Spend): Spend
+  pushThroughSpend(clvm: Clvm): Spend
+  puzzleHash(): Uint8Array
+  memo(clvm: Clvm): Program
+  constructor(senderPuzzleHash: Uint8Array, receiverPuzzleHash: Uint8Array, seconds: bigint, amount: bigint, hinted: boolean)
+  get senderPuzzleHash(): Uint8Array
+  set senderPuzzleHash(value: Uint8Array)
+  get receiverPuzzleHash(): Uint8Array
+  set receiverPuzzleHash(value: Uint8Array)
+  get seconds(): bigint
+  set seconds(value: bigint)
+  get amount(): bigint
+  set amount(value: bigint)
+  get hinted(): boolean
+  set hinted(value: boolean)
+}
+export declare class Clawback {
+  senderSpend(spend: Spend): Spend
+  receiverSpend(spend: Spend): Spend
+  puzzleHash(): Uint8Array
+  getRemarkCondition(clvm: Clvm): Remark
+  constructor(timelock: bigint, senderPuzzleHash: Uint8Array, receiverPuzzleHash: Uint8Array)
+  get timelock(): bigint
+  set timelock(value: bigint)
+  get senderPuzzleHash(): Uint8Array
+  set senderPuzzleHash(value: Uint8Array)
+  get receiverPuzzleHash(): Uint8Array
+  set receiverPuzzleHash(value: Uint8Array)
+}
 export declare class K1SecretKey {
   static fromBytes(bytes: Uint8Array): K1SecretKey
   toBytes(): Uint8Array
@@ -1339,6 +1381,7 @@ export declare class Simulator {
   newCoin(puzzleHash: Uint8Array, amount: bigint): Coin
   bls(amount: bigint): BlsPairWithCoin
   spendCoins(coinSpends: Array<CoinSpend>, secretKeys: Array<SecretKey>): void
+  passTime(time: bigint): void
 }
 export declare class BlsPair {
   static fromSeed(seed: bigint): BlsPair
@@ -1380,13 +1423,13 @@ export declare class R1Pair {
 }
 export declare class Vault {
   child(custodyHash: Uint8Array): Vault
-  constructor(coin: Coin, launcherId: Uint8Array, proof: LineageProof, custodyHash: Uint8Array)
+  constructor(coin: Coin, launcherId: Uint8Array, proof: Proof, custodyHash: Uint8Array)
   get coin(): Coin
   set coin(value: Coin)
   get launcherId(): Uint8Array
   set launcherId(value: Uint8Array)
-  get proof(): LineageProof
-  set proof(value: LineageProof)
+  get proof(): Proof
+  set proof(value: Proof)
   get custodyHash(): Uint8Array
   set custodyHash(value: Uint8Array)
 }
