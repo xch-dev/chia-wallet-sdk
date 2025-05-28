@@ -5,9 +5,7 @@ use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use hex_literal::hex;
 
-use crate::Mod;
-
-use super::ADD_DELEGATED_PUZZLE_WRAPPER_PUZZLE_HASH;
+use crate::{puzzles::ADD_DELEGATED_PUZZLE_WRAPPER_PUZZLE_HASH, Mod};
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
