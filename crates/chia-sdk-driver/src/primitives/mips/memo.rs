@@ -2,14 +2,16 @@ use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
     puzzles::{
-        BlsMember, FixedPuzzleMember, PasskeyMember, PasskeyMemberPuzzleAssert, Secp256k1Member,
-        Secp256k1MemberPuzzleAssert, Secp256r1Member, Secp256r1MemberPuzzleAssert, SingletonMember,
+        BlsMember, BlsTaprootMember, FixedPuzzleMember, K1Member, K1MemberPuzzleAssert,
+        PasskeyMember, PasskeyMemberPuzzleAssert, R1Member, R1MemberPuzzleAssert, SingletonMember,
     },
     Mod,
 };
 use chia_secp::{K1PublicKey, R1PublicKey};
 use clvm_traits::{apply_constants, FromClvm, ToClvm};
-use clvmr::NodePtr;
+use clvmr::{Allocator, NodePtr};
+
+use crate::DriverError;
 
 #[derive(ToClvm, FromClvm)]
 #[apply_constants]
@@ -86,61 +88,297 @@ impl MemberMemo<NodePtr> {
         Self { puzzle_hash, memo }
     }
 
-    pub fn k1(public_key: K1PublicKey, fast_forward: bool) -> Self {
-        Self::new(
+    pub fn k1(
+        allocator: &mut Allocator,
+        public_key: K1PublicKey,
+        fast_forward: bool,
+        reveal: bool,
+    ) -> Result<Self, DriverError> {
+        Ok(Self::new(
             if fast_forward {
-                Secp256k1MemberPuzzleAssert::new(public_key).curry_tree_hash()
+                K1MemberPuzzleAssert::new(public_key).curry_tree_hash()
             } else {
-                Secp256k1Member::new(public_key).curry_tree_hash()
+                K1Member::new(public_key).curry_tree_hash()
             }
             .into(),
-            NodePtr::NIL,
-        )
+            if reveal {
+                public_key.to_clvm(allocator)?
+            } else {
+                NodePtr::NIL
+            },
+        ))
     }
 
-    pub fn r1(public_key: R1PublicKey, fast_forward: bool) -> Self {
-        Self::new(
+    pub fn parse_k1(
+        &self,
+        allocator: &Allocator,
+        ctx: &MipsMemoContext,
+    ) -> Result<Option<K1Member>, DriverError> {
+        for &public_key in Option::<K1PublicKey>::from_clvm(allocator, self.memo)?
+            .iter()
+            .chain(ctx.k1.iter())
+        {
+            let member = K1Member::new(public_key);
+            if member.curry_tree_hash() == self.puzzle_hash.into() {
+                return Ok(Some(member));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn parse_k1_puzzle_assert(
+        &self,
+        allocator: &Allocator,
+        ctx: &MipsMemoContext,
+    ) -> Result<Option<K1MemberPuzzleAssert>, DriverError> {
+        for &public_key in Option::<K1PublicKey>::from_clvm(allocator, self.memo)?
+            .iter()
+            .chain(ctx.k1.iter())
+        {
+            let member = K1MemberPuzzleAssert::new(public_key);
+            if member.curry_tree_hash() == self.puzzle_hash.into() {
+                return Ok(Some(member));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn r1(
+        allocator: &mut Allocator,
+        public_key: R1PublicKey,
+        fast_forward: bool,
+        reveal: bool,
+    ) -> Result<Self, DriverError> {
+        Ok(Self::new(
             if fast_forward {
-                Secp256r1MemberPuzzleAssert::new(public_key).curry_tree_hash()
+                R1MemberPuzzleAssert::new(public_key).curry_tree_hash()
             } else {
-                Secp256r1Member::new(public_key).curry_tree_hash()
+                R1Member::new(public_key).curry_tree_hash()
             }
             .into(),
-            NodePtr::NIL,
-        )
+            if reveal {
+                public_key.to_clvm(allocator)?
+            } else {
+                NodePtr::NIL
+            },
+        ))
     }
 
-    pub fn bls(public_key: PublicKey) -> Self {
-        Self::new(
+    pub fn parse_r1(
+        &self,
+        allocator: &Allocator,
+        ctx: &MipsMemoContext,
+    ) -> Result<Option<R1Member>, DriverError> {
+        for &public_key in Option::<R1PublicKey>::from_clvm(allocator, self.memo)?
+            .iter()
+            .chain(ctx.r1.iter())
+        {
+            let member = R1Member::new(public_key);
+            if member.curry_tree_hash() == self.puzzle_hash.into() {
+                return Ok(Some(member));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn parse_r1_puzzle_assert(
+        &self,
+        allocator: &Allocator,
+        ctx: &MipsMemoContext,
+    ) -> Result<Option<R1MemberPuzzleAssert>, DriverError> {
+        for &public_key in Option::<R1PublicKey>::from_clvm(allocator, self.memo)?
+            .iter()
+            .chain(ctx.r1.iter())
+        {
+            let member = R1MemberPuzzleAssert::new(public_key);
+            if member.curry_tree_hash() == self.puzzle_hash.into() {
+                return Ok(Some(member));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn bls(
+        allocator: &mut Allocator,
+        public_key: PublicKey,
+        reveal: bool,
+    ) -> Result<Self, DriverError> {
+        Ok(Self::new(
             BlsMember::new(public_key).curry_tree_hash().into(),
-            NodePtr::NIL,
-        )
+            if reveal {
+                public_key.to_clvm(allocator)?
+            } else {
+                NodePtr::NIL
+            },
+        ))
     }
 
-    pub fn passkey(public_key: R1PublicKey, fast_forward: bool) -> Self {
-        Self::new(
+    pub fn parse_bls(
+        &self,
+        allocator: &Allocator,
+        ctx: &MipsMemoContext,
+    ) -> Result<Option<BlsMember>, DriverError> {
+        for &public_key in Option::<PublicKey>::from_clvm(allocator, self.memo)?
+            .iter()
+            .chain(ctx.bls.iter())
+        {
+            let member = BlsMember::new(public_key);
+            if member.curry_tree_hash() == self.puzzle_hash.into() {
+                return Ok(Some(member));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn bls_taproot(
+        allocator: &mut Allocator,
+        public_key: PublicKey,
+        reveal: bool,
+    ) -> Result<Self, DriverError> {
+        Ok(Self::new(
+            BlsTaprootMember::new(public_key).curry_tree_hash().into(),
+            if reveal {
+                public_key.to_clvm(allocator)?
+            } else {
+                NodePtr::NIL
+            },
+        ))
+    }
+
+    pub fn parse_bls_taproot(
+        &self,
+        allocator: &Allocator,
+        ctx: &MipsMemoContext,
+    ) -> Result<Option<BlsTaprootMember>, DriverError> {
+        for &public_key in Option::<PublicKey>::from_clvm(allocator, self.memo)?
+            .iter()
+            .chain(ctx.bls.iter())
+        {
+            let member = BlsTaprootMember::new(public_key);
+            if member.curry_tree_hash() == self.puzzle_hash.into() {
+                return Ok(Some(member));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn passkey(
+        allocator: &mut Allocator,
+        public_key: R1PublicKey,
+        fast_forward: bool,
+        reveal: bool,
+    ) -> Result<Self, DriverError> {
+        Ok(Self::new(
             if fast_forward {
                 PasskeyMemberPuzzleAssert::new(public_key).curry_tree_hash()
             } else {
                 PasskeyMember::new(public_key).curry_tree_hash()
             }
             .into(),
-            NodePtr::NIL,
-        )
+            if reveal {
+                public_key.to_clvm(allocator)?
+            } else {
+                NodePtr::NIL
+            },
+        ))
     }
 
-    pub fn singleton(launcher_id: Bytes32) -> Self {
-        Self::new(
+    pub fn parse_passkey(
+        &self,
+        allocator: &Allocator,
+        ctx: &MipsMemoContext,
+    ) -> Result<Option<PasskeyMember>, DriverError> {
+        for &public_key in Option::<R1PublicKey>::from_clvm(allocator, self.memo)?
+            .iter()
+            .chain(ctx.r1.iter())
+        {
+            let member = PasskeyMember::new(public_key);
+            if member.curry_tree_hash() == self.puzzle_hash.into() {
+                return Ok(Some(member));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn parse_passkey_puzzle_assert(
+        &self,
+        allocator: &Allocator,
+        ctx: &MipsMemoContext,
+    ) -> Result<Option<PasskeyMemberPuzzleAssert>, DriverError> {
+        for &public_key in Option::<R1PublicKey>::from_clvm(allocator, self.memo)?
+            .iter()
+            .chain(ctx.r1.iter())
+        {
+            let member = PasskeyMemberPuzzleAssert::new(public_key);
+            if member.curry_tree_hash() == self.puzzle_hash.into() {
+                return Ok(Some(member));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn singleton(
+        allocator: &mut Allocator,
+        launcher_id: Bytes32,
+        reveal: bool,
+    ) -> Result<Self, DriverError> {
+        Ok(Self::new(
             SingletonMember::new(launcher_id).curry_tree_hash().into(),
-            NodePtr::NIL,
-        )
+            if reveal {
+                launcher_id.to_clvm(allocator)?
+            } else {
+                NodePtr::NIL
+            },
+        ))
     }
 
-    pub fn fixed_puzzle(puzzle_hash: Bytes32) -> Self {
-        Self::new(
+    pub fn parse_singleton(
+        &self,
+        allocator: &Allocator,
+        ctx: &MipsMemoContext,
+    ) -> Result<Option<SingletonMember>, DriverError> {
+        for &launcher_id in Option::<Bytes32>::from_clvm(allocator, self.memo)?
+            .iter()
+            .chain(ctx.hashes.iter())
+        {
+            let member = SingletonMember::new(launcher_id);
+            if member.curry_tree_hash() == self.puzzle_hash.into() {
+                return Ok(Some(member));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn fixed_puzzle(
+        allocator: &mut Allocator,
+        puzzle_hash: Bytes32,
+        reveal: bool,
+    ) -> Result<Self, DriverError> {
+        Ok(Self::new(
             FixedPuzzleMember::new(puzzle_hash).curry_tree_hash().into(),
-            NodePtr::NIL,
-        )
+            if reveal {
+                puzzle_hash.to_clvm(allocator)?
+            } else {
+                NodePtr::NIL
+            },
+        ))
+    }
+
+    pub fn parse_fixed_puzzle(
+        &self,
+        allocator: &Allocator,
+        ctx: &MipsMemoContext,
+    ) -> Result<Option<FixedPuzzleMember>, DriverError> {
+        for &puzzle_hash in Option::<Bytes32>::from_clvm(allocator, self.memo)?
+            .iter()
+            .chain(ctx.hashes.iter())
+        {
+            let member = FixedPuzzleMember::new(puzzle_hash);
+            if member.curry_tree_hash() == self.puzzle_hash.into() {
+                return Ok(Some(member));
+            }
+        }
+        Ok(None)
     }
 }
 
@@ -157,6 +395,14 @@ impl MofNMemo<NodePtr> {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct MipsMemoContext {
+    pub k1: Vec<K1PublicKey>,
+    pub r1: Vec<R1PublicKey>,
+    pub bls: Vec<PublicKey>,
+    pub hashes: Vec<Bytes32>,
+}
+
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
@@ -168,11 +414,23 @@ mod tests {
     fn test_mips_memo() -> Result<()> {
         let mut allocator = Allocator::new();
 
+        let bls_member = InnerPuzzleMemo::new(
+            0,
+            vec![],
+            MemoKind::Member(MemberMemo::bls(&mut allocator, PublicKey::default(), true)?),
+        );
+
         let memo = MipsMemo::new(InnerPuzzleMemo::new(
             0,
             vec![],
-            MemoKind::member(Bytes32::default(), NodePtr::NIL),
+            MemoKind::MofN {
+                required: 1,
+                items: vec![bls_member],
+            },
         ));
+
+        let ptr = memo.to_clvm(&mut allocator)?;
+        let memo = MipsMemo::<NodePtr>::from_clvm(&allocator, ptr)?;
 
         Ok(())
     }

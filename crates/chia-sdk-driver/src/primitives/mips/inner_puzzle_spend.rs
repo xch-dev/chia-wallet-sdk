@@ -12,23 +12,22 @@ use clvm_utils::TreeHash;
 use crate::{DriverError, Spend, SpendContext};
 
 use super::{
-    m_of_n::MofN, member_kind::MemberSpendKind, mips_spend::MipsSpend, restriction::Restriction,
-    RestrictionKind,
+    m_of_n::MofN, mips_spend::MipsSpend, restriction::Restriction, MipsSpendKind, RestrictionKind,
 };
 
 #[derive(Debug, Clone)]
-pub struct MemberSpend {
+pub struct InnerPuzzleSpend {
     pub nonce: usize,
     pub restrictions: Vec<Restriction>,
-    pub kind: MemberSpendKind,
+    pub kind: MipsSpendKind,
 }
 
-impl MemberSpend {
+impl InnerPuzzleSpend {
     pub fn new(nonce: usize, restrictions: Vec<Restriction>, spend: Spend) -> Self {
         Self {
             nonce,
             restrictions,
-            kind: MemberSpendKind::Leaf(spend),
+            kind: MipsSpendKind::Member(spend),
         }
     }
 
@@ -41,7 +40,7 @@ impl MemberSpend {
         Self {
             nonce,
             restrictions,
-            kind: MemberSpendKind::MofN(MofN::new(required, items)),
+            kind: MipsSpendKind::MofN(MofN::new(required, items)),
         }
     }
 
