@@ -19,7 +19,7 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    member_puzzle_hash, payment_assertion, DriverError, Layer, MemberSpend, MipsSpend,
+    member_puzzle_hash, payment_assertion, DriverError, InnerPuzzleSpend, Layer, MipsSpend,
     P2OneOfManyLayer, Spend, SpendContext,
 };
 
@@ -151,7 +151,7 @@ impl OptionUnderlying {
         ))?;
         mips.members.insert(
             custody_hash,
-            MemberSpend::new(
+            InnerPuzzleSpend::new(
                 0,
                 Vec::new(),
                 Spend::new(singleton_member_puzzle, singleton_member_solution),

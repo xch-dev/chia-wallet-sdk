@@ -140,6 +140,22 @@ pub fn alloc(
         Ok(clvm.softfork(value.0.cost, value.0.rest)?)
     } else if let Ok(value) = value.extract::<NftMetadata>() {
         Ok(clvm.nft_metadata(value.0.clone())?)
+    } else if let Ok(value) = value.extract::<MipsMemo>() {
+        Ok(clvm.mips_memo(value.0.clone())?)
+    } else if let Ok(value) = value.extract::<InnerPuzzleMemo>() {
+        Ok(clvm.inner_puzzle_memo(value.0.clone())?)
+    } else if let Ok(value) = value.extract::<RestrictionMemo>() {
+        Ok(clvm.restriction_memo(value.0.clone())?)
+    } else if let Ok(value) = value.extract::<WrapperMemo>() {
+        Ok(clvm.wrapper_memo(value.0.clone())?)
+    } else if let Ok(value) = value.extract::<Force1of2RestrictedVariableMemo>() {
+        Ok(clvm.force_1_of_2_restricted_variable_memo(value.0.clone())?)
+    } else if let Ok(value) = value.extract::<MemoKind>() {
+        Ok(clvm.memo_kind(value.0.clone())?)
+    } else if let Ok(value) = value.extract::<MemberMemo>() {
+        Ok(clvm.member_memo(value.0.clone())?)
+    } else if let Ok(value) = value.extract::<MofNMemo>() {
+        Ok(clvm.m_of_n_memo(value.0.clone())?)
     } else {
         PyResult::Err(PyErr::new::<PyTypeError, _>("Unsupported CLVM value type"))
     }

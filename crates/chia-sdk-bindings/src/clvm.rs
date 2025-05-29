@@ -15,7 +15,9 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    CatSpend, Did, MintedNfts, MipsSpend, Nft, NftMetadata, NftMint, Program, Spend, VaultMint,
+    CatSpend, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo, MemberMemo, MemoKind,
+    MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft, NftMetadata, NftMint, Program, RestrictionMemo,
+    Spend, VaultMint, WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -336,6 +338,59 @@ impl Clvm {
         let mut ctx = self.0.lock().unwrap();
         let nft_metadata = nft::NftMetadata::from(value);
         let ptr = ctx.alloc(&nft_metadata)?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn mips_memo(&self, value: MipsMemo) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let ptr = ctx.alloc(&chia_sdk_driver::MipsMemo::from(value))?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn inner_puzzle_memo(&self, value: InnerPuzzleMemo) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let ptr = ctx.alloc(&chia_sdk_driver::InnerPuzzleMemo::from(value))?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn restriction_memo(&self, value: RestrictionMemo) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let ptr = ctx.alloc(&chia_sdk_driver::RestrictionMemo::from(value))?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn wrapper_memo(&self, value: WrapperMemo) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let ptr = ctx.alloc(&chia_sdk_driver::WrapperMemo::from(value))?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn force_1_of_2_restricted_variable_memo(
+        &self,
+        value: Force1of2RestrictedVariableMemo,
+    ) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let ptr = ctx.alloc(&chia_sdk_driver::Force1of2RestrictedVariableMemo::from(
+            value,
+        ))?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn memo_kind(&self, value: MemoKind) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let ptr = ctx.alloc(&chia_sdk_driver::MemoKind::from(value))?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn member_memo(&self, value: MemberMemo) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let ptr = ctx.alloc(&chia_sdk_driver::MemberMemo::from(value))?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn m_of_n_memo(&self, value: MofNMemo) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let ptr = ctx.alloc(&chia_sdk_driver::MofNMemo::from(value))?;
         Ok(Program(self.0.clone(), ptr))
     }
 }
