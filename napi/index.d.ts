@@ -59,8 +59,10 @@ export declare class SecretKey {
 export declare class PublicKey {
   static infinity(): PublicKey
   static aggregate(publicKeys: Array<PublicKey>): PublicKey
+  static aggregateVerify(publicKeys: Array<PublicKey>, messages: Array<Uint8Array>, signature: Signature): boolean
   static fromBytes(bytes: Uint8Array): PublicKey
   toBytes(): Uint8Array
+  verify(message: Uint8Array, signature: Signature): boolean
   fingerprint(): number
   isInfinity(): boolean
   isValid(): boolean
