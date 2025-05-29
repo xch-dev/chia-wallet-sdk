@@ -62,4 +62,7 @@ pub enum DriverError {
 
     #[error("delegated puzzle wrapper conflict")]
     DelegatedPuzzleWrapperConflict,
+
+    #[error("bulletin signature verification failed")]
+    BulletSignatureVerificationFailed,
 }
