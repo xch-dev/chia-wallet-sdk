@@ -1,9 +1,9 @@
 use crate::{CatLayer, DriverError, Layer, Puzzle, Spend, SpendContext};
-use chia_consensus::gen::make_aggsig_final_message::u64_to_bytes;
+use chia_consensus::make_aggsig_final_message::u64_to_bytes;
 use chia_protocol::{Bytes, Bytes32, Coin};
 use chia_puzzle_types::{
     cat::{CatArgs, CatSolution},
-    CoinProof, LineageProof,
+    CoinProof, LineageProof, Memos,
 };
 use chia_sdk_types::{run_puzzle, Condition, Conditions};
 use chia_sha2::Sha256;
@@ -260,11 +260,11 @@ impl StreamedCat {
                     continue;
                 };
 
-                let Some(memos) = cc.memos else {
+                let Memos::Some(memos) = cc.memos else {
                     continue;
                 };
 
-                let memos = Vec::<Bytes>::from_clvm(allocator, memos.value)?;
+                let memos = Vec::<Bytes>::from_clvm(allocator, memos)?;
                 let Some(candidate_info) = StreamingPuzzleInfo::from_memos(&memos)? else {
                     continue;
                 };
@@ -385,7 +385,11 @@ mod tests {
             &mut ctx,
             minter_coin.coin_id(),
             payment_cat_amount,
-            Conditions::new().create_coin(streaming_inner_puzzle_hash, payment_cat_amount, None),
+            Conditions::new().create_coin(
+                streaming_inner_puzzle_hash,
+                payment_cat_amount,
+                Memos::None,
+            ),
         )?;
         minter_p2.spend(&mut ctx, minter_coin, issue_cat)?;
 

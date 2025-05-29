@@ -30,7 +30,7 @@ impl Mod for OneOfNArgs {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct OneOfNSolution<P, S> {
     pub merkle_proof: MerkleProof,
     pub member_puzzle: P,

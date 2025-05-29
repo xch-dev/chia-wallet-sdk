@@ -31,7 +31,7 @@ impl Mod for R1MemberPuzzleAssert {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct R1MemberPuzzleAssertSolution {
     pub puzzle_hash: Bytes32,
     pub signature: R1Signature,

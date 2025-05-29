@@ -31,7 +31,7 @@ impl Mod for P2DelegatedConditionsArgs {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct P2DelegatedConditionsSolution<T = NodePtr> {
     pub conditions: Vec<Condition<T>>,
 }

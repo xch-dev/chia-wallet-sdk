@@ -30,7 +30,7 @@ impl Mod for BlsTaprootMember {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct BlsTaprootMemberSolution {
     pub original_public_key: Option<PublicKey>,
 }

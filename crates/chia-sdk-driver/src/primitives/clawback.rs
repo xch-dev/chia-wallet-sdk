@@ -202,6 +202,7 @@ impl Clawback {
 #[cfg(test)]
 mod tests {
     use chia_protocol::{Coin, SpendBundle};
+    use chia_puzzle_types::Memos;
     use chia_sdk_test::Simulator;
     use chia_sdk_types::Conditions;
     use clvm_traits::ToClvm;
@@ -230,7 +231,7 @@ mod tests {
         let clawback_puzzle_hash = clawback.to_layer().tree_hash().into();
         let coin = alice.coin;
         let conditions = Conditions::new()
-            .create_coin(clawback_puzzle_hash, 1, None)
+            .create_coin(clawback_puzzle_hash, 1, Memos::None)
             .with(clawback.get_remark_condition(ctx)?);
         alice_p2.spend(ctx, coin, conditions)?;
 
@@ -302,7 +303,7 @@ mod tests {
         alice_p2.spend(
             ctx,
             alice.coin,
-            Conditions::new().create_coin(clawback_puzzle_hash, 1, None),
+            Conditions::new().create_coin(clawback_puzzle_hash, 1, Memos::None),
         )?;
         let clawback_coin = Coin::new(alice.coin.coin_id(), clawback_puzzle_hash, 1);
 

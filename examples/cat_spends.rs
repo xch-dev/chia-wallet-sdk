@@ -12,7 +12,7 @@ fn main() -> anyhow::Result<()> {
     let memos = ctx.hint(alice.puzzle_hash)?;
 
     // Issue the CAT using the single issuance (genesis by coin id) TAIL.
-    let conditions = Conditions::new().create_coin(alice.puzzle_hash, 1_000, Some(memos));
+    let conditions = Conditions::new().create_coin(alice.puzzle_hash, 1_000, memos);
     let (issue_cat, cat) = Cat::single_issuance_eve(ctx, alice.coin.coin_id(), 1_000, conditions)?;
     p2.spend(ctx, alice.coin, issue_cat)?;
     println!("Issued test CAT with asset id {}", cat.asset_id);
@@ -23,7 +23,7 @@ fn main() -> anyhow::Result<()> {
         new_cat,
         p2.spend_with_conditions(
             ctx,
-            Conditions::new().create_coin(alice.puzzle_hash, 1000, Some(memos)),
+            Conditions::new().create_coin(alice.puzzle_hash, 1000, memos),
         )?,
     )];
 

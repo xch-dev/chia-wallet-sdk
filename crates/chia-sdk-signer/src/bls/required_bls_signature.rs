@@ -1,5 +1,5 @@
 use chia_bls::PublicKey;
-use chia_consensus::gen::make_aggsig_final_message::u64_to_bytes;
+use chia_consensus::make_aggsig_final_message::u64_to_bytes;
 use chia_protocol::{Bytes, Bytes32, Coin};
 use chia_sdk_types::conditions::{AggSig, AggSigKind};
 

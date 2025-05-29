@@ -34,7 +34,7 @@ impl<T, I> Mod for AugmentedConditionArgs<T, I> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct AugmentedConditionSolution<I> {
     pub inner_solution: I,
 }

@@ -581,7 +581,7 @@
       "pool_public_key": "Option<PublicKey>",
       "pool_contract_puzzle_hash": "Option<Bytes32>",
       "plot_public_key": "PublicKey",
-      "size": "u8",
+      "version_and_size": "u8",
       "proof": "Bytes"
     }
   },

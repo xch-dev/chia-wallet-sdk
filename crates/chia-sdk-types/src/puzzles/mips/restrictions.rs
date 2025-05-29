@@ -41,7 +41,7 @@ impl<MV, DV, I> Mod for RestrictionsArgs<MV, DV, I> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct RestrictionsSolution<MV, DV, I> {
     pub member_validator_solutions: Vec<MV>,
     pub delegated_puzzle_validator_solutions: Vec<DV>,

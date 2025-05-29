@@ -7,7 +7,8 @@ use chia_sdk_test::{sign_transaction, Simulator};
 use chia_sdk_types::{puzzles::SettlementPayment, Conditions};
 
 use crate::{
-    payment_assertion, Launcher, Layer, NftMint, Offer, OfferBuilder, SpendContext, StandardLayer,
+    payment_assertion, tree_hash_notarized_payment, Launcher, Layer, NftMint, Offer, OfferBuilder,
+    SpendContext, StandardLayer,
 };
 
 #[test]
@@ -50,15 +51,14 @@ fn test_nft_for_nft() -> anyhow::Result<()> {
         .into_layers(settlement)
         .construct_puzzle(&mut ctx)?;
 
+    let alice_memos = ctx.hint(alice.puzzle_hash)?;
+    let bob_memos = ctx.hint(bob.puzzle_hash)?;
+
     let (assertions, builder) = OfferBuilder::new(nonce)
         .request(
             &mut ctx,
             &puzzle_bob,
-            vec![Payment::with_memos(
-                alice.puzzle_hash,
-                1,
-                vec![alice.puzzle_hash.into()],
-            )],
+            vec![Payment::new(alice.puzzle_hash, 1, alice_memos)],
         )?
         .finish();
 
@@ -84,30 +84,23 @@ fn test_nft_for_nft() -> anyhow::Result<()> {
         payments,
         [NotarizedPayment {
             nonce,
-            payments: vec![Payment::with_memos(
-                alice.puzzle_hash,
-                1,
-                vec![alice.puzzle_hash.into()],
-            )],
+            payments: vec![Payment::new(alice.puzzle_hash, 1, alice_memos,)],
         }]
     );
 
     let receive_nonce = Offer::nonce(vec![nft_bob.coin.coin_id()]);
     let receive_payment = NotarizedPayment {
         nonce: receive_nonce,
-        payments: vec![Payment::with_memos(
-            bob.puzzle_hash,
-            1,
-            vec![bob.puzzle_hash.into()],
-        )],
+        payments: vec![Payment::new(bob.puzzle_hash, 1, bob_memos)],
     };
+    let receive_payment_hashed = tree_hash_notarized_payment(&ctx, &receive_payment);
 
     let hash = ctx.tree_hash(puzzle_alice).into();
     let settlement_nft_bob = nft_bob.lock_settlement(
         &mut ctx,
         &StandardLayer::new(bob.pk),
         Vec::new(),
-        Conditions::new().with(payment_assertion(hash, &receive_payment)),
+        Conditions::new().with(payment_assertion(hash, &receive_payment_hashed)),
     )?;
 
     let swapped_nft_alice = settlement_nft_bob.unlock_settlement(&mut ctx, payments)?;
