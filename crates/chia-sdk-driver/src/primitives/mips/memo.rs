@@ -318,11 +318,8 @@ impl Force1of2RestrictedVariableMemo {
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub enum MemoKind<T = NodePtr> {
-    Member(#[clvm(rest)] MemberMemo<T>),
-    MofN {
-        required: usize,
-        items: Vec<InnerPuzzleMemo<T>>,
-    },
+    Member(MemberMemo<T>),
+    MofN(MofNMemo<T>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]

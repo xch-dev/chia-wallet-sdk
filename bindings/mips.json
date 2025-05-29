@@ -276,5 +276,212 @@
       "delegated_puzzle_hash": "TreeHash"
     },
     "return": "TreeHash"
+  },
+  "MipsMemo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "inner_puzzle": "InnerPuzzleMemo"
+    }
+  },
+  "InnerPuzzleMemo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "nonce": "u32",
+      "restrictions": "Vec<RestrictionMemo>",
+      "kind": "MemoKind"
+    }
+  },
+  "RestrictionMemo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "member_condition_validator": "bool",
+      "puzzle_hash": "Bytes32",
+      "memo": "Program"
+    },
+    "methods": {
+      "force_1_of_2_restricted_variable": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "left_side_subtree_hash": "Bytes32",
+          "nonce": "u32",
+          "member_validator_list_hash": "Bytes32",
+          "delegated_puzzle_validator_list_hash": "Bytes32"
+        }
+      },
+      "enforce_delegated_puzzle_wrappers": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "wrapper_memos": "Vec<WrapperMemo>"
+        }
+      },
+      "timelock": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "seconds": "u64",
+          "reveal": "bool"
+        }
+      }
+    }
+  },
+  "WrapperMemo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "memo": "Program"
+    },
+    "methods": {
+      "prevent_vault_side_effects": {
+        "type": "static",
+        "args": {
+          "clvm": "Clvm",
+          "reveal": "bool"
+        },
+        "return": "Vec<WrapperMemo>"
+      },
+      "force_coin_announcement": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm"
+        }
+      },
+      "force_coin_message": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm"
+        }
+      },
+      "prevent_multiple_create_coins": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm"
+        }
+      },
+      "timelock": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "seconds": "u64",
+          "reveal": "bool"
+        }
+      },
+      "prevent_condition_opcode": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "opcode": "u16",
+          "reveal": "bool"
+        }
+      }
+    }
+  },
+  "Force1of2RestrictedVariableMemo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "left_side_subtree_hash": "Bytes32",
+      "nonce": "u32",
+      "member_validator_list_hash": "Bytes32",
+      "delegated_puzzle_validator_list_hash": "Bytes32"
+    }
+  },
+  "MemoKind": {
+    "type": "class",
+    "methods": {
+      "member": {
+        "type": "factory",
+        "args": {
+          "member": "MemberMemo"
+        }
+      },
+      "m_of_n": {
+        "type": "factory",
+        "args": {
+          "m_of_n": "MofNMemo"
+        }
+      },
+      "as_member": {
+        "return": "Option<MemberMemo>"
+      },
+      "as_m_of_n": {
+        "return": "Option<MofNMemo>"
+      }
+    }
+  },
+  "MemberMemo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "memo": "Program"
+    },
+    "methods": {
+      "k1": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "public_key": "K1PublicKey",
+          "fast_forward": "bool",
+          "reveal": "bool"
+        }
+      },
+      "r1": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "public_key": "R1PublicKey",
+          "fast_forward": "bool",
+          "reveal": "bool"
+        }
+      },
+      "bls": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "public_key": "PublicKey",
+          "taproot": "bool",
+          "reveal": "bool"
+        }
+      },
+      "passkey": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "public_key": "R1PublicKey",
+          "fast_forward": "bool",
+          "reveal": "bool"
+        }
+      },
+      "singleton": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "launcher_id": "Bytes32",
+          "reveal": "bool"
+        }
+      },
+      "fixed_puzzle": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "puzzle_hash": "Bytes32",
+          "reveal": "bool"
+        }
+      }
+    }
+  },
+  "MofNMemo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "required": "u32",
+      "items": "Vec<InnerPuzzleMemo>"
+    }
   }
 }

@@ -156,6 +156,54 @@
         },
         "return": "Program"
       },
+      "mips_memo": {
+        "args": {
+          "value": "MipsMemo"
+        },
+        "return": "Program"
+      },
+      "inner_puzzle_memo": {
+        "args": {
+          "value": "InnerPuzzleMemo"
+        },
+        "return": "Program"
+      },
+      "restriction_memo": {
+        "args": {
+          "value": "RestrictionMemo"
+        },
+        "return": "Program"
+      },
+      "wrapper_memo": {
+        "args": {
+          "value": "WrapperMemo"
+        },
+        "return": "Program"
+      },
+      "force_1_of_2_restricted_variable_memo": {
+        "args": {
+          "value": "Force1of2RestrictedVariableMemo"
+        },
+        "return": "Program"
+      },
+      "memo_kind": {
+        "args": {
+          "value": "MemoKind"
+        },
+        "return": "Program"
+      },
+      "member_memo": {
+        "args": {
+          "value": "MemberMemo"
+        },
+        "return": "Program"
+      },
+      "m_of_n_memo": {
+        "args": {
+          "value": "MofNMemo"
+        },
+        "return": "Program"
+      },
       "remark": {
         "args": {
           "rest": "Program"

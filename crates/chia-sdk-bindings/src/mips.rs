@@ -1,8 +1,10 @@
 mod members;
+mod memos;
 mod restrictions;
 mod spend;
 
 pub use members::*;
+pub use memos::*;
 pub use restrictions::*;
 pub use spend::*;
 
