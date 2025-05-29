@@ -34,7 +34,7 @@ impl Mod for MofNArgs {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct MofNSolution<P> {
     pub proofs: P,
 }

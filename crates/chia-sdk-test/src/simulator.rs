@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use chia_bls::SecretKey;
 use chia_consensus::{
-    gen::validation_error::ErrorCode, spendbundle_validation::validate_clvm_and_signature,
+    spendbundle_validation::validate_clvm_and_signature, validation_error::ErrorCode,
 };
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
 use chia_sdk_types::TESTNET11_CONSTANTS;

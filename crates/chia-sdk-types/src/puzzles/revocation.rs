@@ -36,7 +36,7 @@ impl Mod for RevocationArgs {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct RevocationSolution<P, S> {
     pub hidden: bool,
     pub puzzle: P,

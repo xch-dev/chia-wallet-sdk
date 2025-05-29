@@ -137,7 +137,7 @@ impl OptionLauncher<ReadyOption> {
         let owner_puzzle_hash = self.state.info.p2_puzzle_hash;
 
         let memos = ctx.hint(owner_puzzle_hash)?;
-        let conditions = Conditions::new().create_coin(owner_puzzle_hash, 1, Some(memos));
+        let conditions = Conditions::new().create_coin(owner_puzzle_hash, 1, memos);
 
         let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
         let eve_p2_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
@@ -176,6 +176,7 @@ impl OptionLauncher<ReadyOption> {
 #[cfg(test)]
 mod tests {
     use chia_protocol::Coin;
+    use chia_puzzle_types::Memos;
     use chia_sdk_test::Simulator;
 
     use crate::StandardLayer;
@@ -208,7 +209,7 @@ mod tests {
         alice_p2.spend(
             ctx,
             parent_coin,
-            Conditions::new().create_coin(p2_option, 1, None),
+            Conditions::new().create_coin(p2_option, 1, Memos::None),
         )?;
         let launcher =
             launcher.with_underlying(Coin::new(parent_coin.coin_id(), p2_option, 1).coin_id());

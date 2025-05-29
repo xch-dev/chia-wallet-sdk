@@ -33,7 +33,7 @@ impl Mod for SingletonMember {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct SingletonMemberSolution {
     pub singleton_inner_puzzle_hash: Bytes32,
     pub singleton_amount: u64,

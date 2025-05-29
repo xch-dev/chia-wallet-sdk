@@ -32,7 +32,7 @@ impl<I> OptionContractArgs<I> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct OptionContractSolution<I> {
     pub inner_solution: I,
 }

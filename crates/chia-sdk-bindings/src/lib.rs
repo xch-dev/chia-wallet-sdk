@@ -22,7 +22,6 @@ mod mnemonic;
 mod offer;
 mod program;
 mod puzzle;
-mod puzzles;
 mod secp;
 mod simulator;
 mod utils;
@@ -41,7 +40,6 @@ pub use mnemonic::*;
 pub use offer::*;
 pub use program::*;
 pub use puzzle::*;
-pub use puzzles::*;
 pub use secp::*;
 pub use simulator::*;
 pub use utils::*;
@@ -53,6 +51,7 @@ pub use chia_protocol::{
     PoolTarget, Program as SerializedProgram, ProofOfSpace, RewardChainBlock, RewardChainSubSlot,
     SpendBundle, SubEpochSummary, SubSlotProofs, TransactionsInfo, VDFInfo, VDFProof,
 };
+pub use chia_puzzle_types::LineageProof;
 pub use chia_sdk_coinset::{
     AdditionsAndRemovalsResponse, BlockchainState, BlockchainStateResponse, CoinRecord,
     GetBlockRecordByHeightResponse, GetBlockRecordResponse, GetBlockRecordsResponse,
@@ -61,3 +60,4 @@ pub use chia_sdk_coinset::{
     GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem, MempoolMinFees,
     PushTxResponse, SyncState,
 };
+pub use chia_sdk_driver::{Cat, Clawback, ClawbackV2, StreamedCat, StreamingPuzzleInfo};

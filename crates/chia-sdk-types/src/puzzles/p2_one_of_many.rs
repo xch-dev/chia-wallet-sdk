@@ -30,7 +30,7 @@ impl Mod for P2OneOfManyArgs {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct P2OneOfManySolution<P, S> {
     pub merkle_proof: MerkleProof,
     pub puzzle: P,

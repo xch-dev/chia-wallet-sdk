@@ -23,6 +23,11 @@
           "coin_spends": "Vec<CoinSpend>",
           "secret_keys": "Vec<SecretKey>"
         }
+      },
+      "pass_time": {
+        "args": {
+          "time": "u64"
+        }
       }
     }
   },
