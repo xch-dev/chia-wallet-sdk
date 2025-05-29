@@ -698,7 +698,7 @@ export declare class BlockRecord {
   set subEpochSummaryIncluded(value?: SubEpochSummary | undefined | null)
 }
 export declare class ProofOfSpace {
-  constructor(challenge: Uint8Array, poolPublicKey: PublicKey | undefined | null, poolContractPuzzleHash: Uint8Array | undefined | null, plotPublicKey: PublicKey, size: number, proof: Uint8Array)
+  constructor(challenge: Uint8Array, poolPublicKey: PublicKey | undefined | null, poolContractPuzzleHash: Uint8Array | undefined | null, plotPublicKey: PublicKey, versionAndSize: number, proof: Uint8Array)
   get challenge(): Uint8Array
   set challenge(value: Uint8Array)
   get poolPublicKey(): PublicKey | null
@@ -707,8 +707,8 @@ export declare class ProofOfSpace {
   set poolContractPuzzleHash(value?: Uint8Array | undefined | null)
   get plotPublicKey(): PublicKey
   set plotPublicKey(value: PublicKey)
-  get size(): number
-  set size(value: number)
+  get versionAndSize(): number
+  set versionAndSize(value: number)
   get proof(): Uint8Array
   set proof(value: Uint8Array)
 }

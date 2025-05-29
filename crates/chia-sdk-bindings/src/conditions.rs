@@ -63,15 +63,18 @@ impl Convert<u8> for u8 {
     }
 }
 
-impl Convert<Memos<NodePtr>> for Program {
+impl Convert<Memos<NodePtr>> for Option<Program> {
     fn convert(self, _clvm: &Arc<Mutex<SpendContext>>) -> Result<Memos<NodePtr>> {
-        Ok(Memos::new(self.1))
+        Ok(self.map_or(Memos::None, |program| Memos::Some(program.1)))
     }
 }
 
-impl Convert<Program> for Memos<NodePtr> {
-    fn convert(self, clvm: &Arc<Mutex<SpendContext>>) -> Result<Program> {
-        Ok(Program(clvm.clone(), self.value))
+impl Convert<Option<Program>> for Memos<NodePtr> {
+    fn convert(self, clvm: &Arc<Mutex<SpendContext>>) -> Result<Option<Program>> {
+        Ok(match self {
+            Memos::None => None,
+            Memos::Some(value) => Some(Program(clvm.clone(), value)),
+        })
     }
 }
 

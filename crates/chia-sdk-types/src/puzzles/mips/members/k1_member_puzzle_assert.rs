@@ -31,7 +31,7 @@ impl Mod for K1MemberPuzzleAssert {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct K1MemberPuzzleAssertSolution {
     pub puzzle_hash: Bytes32,
     pub signature: K1Signature,

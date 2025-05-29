@@ -2,14 +2,16 @@ use chia_protocol::{Coin, SpendBundle};
 use chia_puzzle_types::{
     nft::NftMetadata,
     offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},
+    Memos,
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_test::{sign_transaction, Simulator};
 use chia_sdk_types::{conditions::TradePrice, puzzles::SettlementPayment, Conditions};
 
 use crate::{
-    calculate_nft_royalty, calculate_nft_trace_price, payment_assertion, Launcher, Layer, NftMint,
-    Offer, OfferBuilder, SettlementLayer, SpendContext, StandardLayer,
+    calculate_nft_royalty, calculate_nft_trace_price, payment_assertion,
+    tree_hash_notarized_payment, Launcher, Layer, NftMint, Offer, OfferBuilder, SettlementLayer,
+    SpendContext, StandardLayer,
 };
 
 #[test]
@@ -47,21 +49,24 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
     let nft_royalty = calculate_nft_royalty(nft_trade_price, nft.info.royalty_ten_thousandths)
         .expect("failed to calculate royalty");
 
+    let alice_hint = ctx.hint(alice.puzzle_hash)?;
+    let bob_hint = ctx.hint(bob.puzzle_hash)?;
+
     let (assertions, builder) = OfferBuilder::new(nonce)
         .request(
             &mut ctx,
             &settlement,
-            vec![Payment::new(alice.puzzle_hash, 500_000_000_000)],
+            vec![Payment::new(
+                alice.puzzle_hash,
+                500_000_000_000,
+                Memos::None,
+            )],
         )?
         .request_with_nonce(
             &mut ctx,
             &settlement,
             launcher_id,
-            vec![Payment::with_memos(
-                alice.puzzle_hash,
-                nft_royalty,
-                vec![alice.puzzle_hash.into()],
-            )],
+            vec![Payment::new(alice.puzzle_hash, nft_royalty, alice_hint)],
         )?
         .finish();
 
@@ -91,15 +96,15 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
         [
             NotarizedPayment {
                 nonce,
-                payments: vec![Payment::new(alice.puzzle_hash, 500_000_000_000)],
+                payments: vec![Payment::new(
+                    alice.puzzle_hash,
+                    500_000_000_000,
+                    Memos::None
+                )],
             },
             NotarizedPayment {
                 nonce: launcher_id,
-                payments: vec![Payment::with_memos(
-                    alice.puzzle_hash,
-                    nft_royalty,
-                    vec![alice.puzzle_hash.into()],
-                )],
+                payments: vec![Payment::new(alice.puzzle_hash, nft_royalty, alice_hint)],
             }
         ]
     );
@@ -107,12 +112,9 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
     let receive_nonce = Offer::nonce(vec![bob.coin.coin_id()]);
     let receive_payment = NotarizedPayment {
         nonce: receive_nonce,
-        payments: vec![Payment::with_memos(
-            bob.puzzle_hash,
-            1,
-            vec![bob.puzzle_hash.into()],
-        )],
+        payments: vec![Payment::new(bob.puzzle_hash, 1, bob_hint)],
     };
+    let receive_payment_hashed = tree_hash_notarized_payment(&ctx, &receive_payment);
 
     let total_amount = 500_000_000_000 + nft_royalty;
 
@@ -122,8 +124,8 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
         &mut ctx,
         bob.coin,
         Conditions::new()
-            .create_coin(SETTLEMENT_PAYMENT_HASH.into(), total_amount, None)
-            .with(payment_assertion(hash, &receive_payment)),
+            .create_coin(SETTLEMENT_PAYMENT_HASH.into(), total_amount, Memos::None)
+            .with(payment_assertion(hash, &receive_payment_hashed)),
     )?;
 
     let settlement_coin = Coin::new(

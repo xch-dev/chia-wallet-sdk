@@ -1,6 +1,6 @@
 use std::io;
 
-use chia_consensus::gen::validation_error::ErrorCode;
+use chia_consensus::validation_error::ErrorCode;
 use chia_sdk_signer::SignerError;
 use thiserror::Error;
 

@@ -98,11 +98,11 @@ impl SpendContext {
     where
         T: ToClvm<Allocator>,
     {
-        Ok(Memos::new(self.alloc(value)?))
+        Ok(Memos::Some(self.alloc(value)?))
     }
 
     pub fn hint(&mut self, hint: Bytes32) -> Result<Memos<NodePtr>, DriverError> {
-        Ok(Memos::hint(&mut self.allocator, hint)?)
+        self.memos(&[hint])
     }
 
     pub fn alloc_mod<T>(&mut self) -> Result<NodePtr, DriverError>

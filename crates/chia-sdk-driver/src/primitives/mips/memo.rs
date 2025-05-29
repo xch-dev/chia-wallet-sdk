@@ -2,7 +2,7 @@ mod parsed_member;
 mod parsed_restriction;
 mod parsed_wrapper;
 
-use chia_consensus::gen::opcodes::{
+use chia_consensus::opcodes::{
     CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, RECEIVE_MESSAGE, SEND_MESSAGE,
 };
 pub use parsed_member::*;

@@ -66,7 +66,7 @@ impl Launcher {
 
         let memos = ctx.hint(mint.p2_puzzle_hash)?;
         let conditions = Conditions::new()
-            .create_coin(mint.p2_puzzle_hash, 1, Some(memos))
+            .create_coin(mint.p2_puzzle_hash, 1, memos)
             .extend(transfer_condition.clone());
 
         let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
@@ -113,7 +113,7 @@ mod tests {
 
     use chia_consensus::spendbundle_conditions::get_conditions_from_spendbundle;
     use chia_protocol::{Coin, SpendBundle};
-    use chia_puzzle_types::{nft::NftMetadata, standard::StandardArgs};
+    use chia_puzzle_types::{nft::NftMetadata, standard::StandardArgs, Memos};
     use chia_sdk_test::{sign_transaction, BlsPair, Simulator};
     use chia_sdk_types::{announcement_id, TESTNET11_CONSTANTS};
 
@@ -235,7 +235,7 @@ mod tests {
         let _ = did.update(
             ctx,
             &alice_p2,
-            mint_nft.create_coin(alice.puzzle_hash, 0, None),
+            mint_nft.create_coin(alice.puzzle_hash, 0, Memos::None),
         )?;
         alice_p2.spend(ctx, intermediate_coin, create_launcher)?;
 
@@ -273,7 +273,7 @@ mod tests {
         let did = did.update(
             ctx,
             &alice_p2,
-            Conditions::new().create_coin(alice.puzzle_hash, 0, None),
+            Conditions::new().create_coin(alice.puzzle_hash, 0, Memos::None),
         )?;
 
         let _ = did.update(ctx, &alice_p2, mint_nft)?;

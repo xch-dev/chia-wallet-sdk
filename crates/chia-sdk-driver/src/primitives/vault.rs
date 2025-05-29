@@ -77,6 +77,7 @@ impl Vault {
 
 #[cfg(test)]
 mod tests {
+    use chia_puzzle_types::Memos;
     use chia_sdk_test::{K1Pair, Simulator};
     use chia_sdk_types::{
         puzzles::{K1Member, K1MemberSolution},
@@ -130,7 +131,7 @@ mod tests {
 
         let vault = mint_vault(&mut sim, ctx, custody_hash)?;
 
-        let conditions = Conditions::new().create_coin(vault.custody_hash.into(), 1, None);
+        let conditions = Conditions::new().create_coin(vault.custody_hash.into(), 1, Memos::None);
         let mut spend = MipsSpend::new(ctx.delegated_spend(conditions)?);
 
         let signature = k1_sign(ctx, &vault, &spend, &k1.sk)?;
@@ -179,7 +180,8 @@ mod tests {
         let mut vault = mint_vault(&mut sim, ctx, custody_hash)?;
 
         for start in 0..key_count {
-            let conditions = Conditions::new().create_coin(vault.custody_hash.into(), 1, None);
+            let conditions =
+                Conditions::new().create_coin(vault.custody_hash.into(), 1, Memos::None);
             let mut spend = MipsSpend::new(ctx.delegated_spend(conditions)?);
 
             spend.members.insert(

@@ -31,7 +31,7 @@ impl Mod for R1Member {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct R1MemberSolution {
     pub coin_id: Bytes32,
     pub signature: R1Signature,

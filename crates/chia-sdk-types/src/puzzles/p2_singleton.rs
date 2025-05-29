@@ -45,7 +45,7 @@ impl P2SingletonArgs {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct P2SingletonSolution {
     pub singleton_inner_puzzle_hash: Bytes32,
     pub my_id: Bytes32,

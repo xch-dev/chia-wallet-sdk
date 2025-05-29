@@ -39,7 +39,7 @@ impl Mod for EnforceDelegatedPuzzleWrappers {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct EnforceDelegatedPuzzleWrappersSolution {
     pub inner_delegated_puzzle_hash: Bytes32,
 }

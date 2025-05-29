@@ -29,7 +29,7 @@ impl<T> Mod for NofNArgs<T> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct NofNSolution<T> {
     pub member_solutions: Vec<T>,
 }
