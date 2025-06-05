@@ -92,7 +92,18 @@ type Value2 = Either26<
     Value3,
 >;
 
-type Value3 = Either<ClassInstance<NftMetadata>, ClassInstance<CurriedProgram>>;
+type Value3 = Either10<
+    ClassInstance<NftMetadata>,
+    ClassInstance<CurriedProgram>,
+    ClassInstance<MipsMemo>,
+    ClassInstance<InnerPuzzleMemo>,
+    ClassInstance<RestrictionMemo>,
+    ClassInstance<WrapperMemo>,
+    ClassInstance<Force1of2RestrictedVariableMemo>,
+    ClassInstance<MemoKind>,
+    ClassInstance<MemberMemo>,
+    ClassInstance<MofNMemo>,
+>;
 
 fn alloc(
     env: Env,
@@ -169,6 +180,14 @@ fn alloc(
             Value2::Z(value) => match value {
                 Value3::A(value) => clvm.nft_metadata(value.0.clone()),
                 Value3::B(value) => value.0.program.curry(value.0.args.clone()),
+                Value3::C(value) => clvm.mips_memo(value.0.clone()),
+                Value3::D(value) => clvm.inner_puzzle_memo(value.0.clone()),
+                Value3::E(value) => clvm.restriction_memo(value.0.clone()),
+                Value3::F(value) => clvm.wrapper_memo(value.0.clone()),
+                Value3::G(value) => clvm.force_1_of_2_restricted_variable_memo(value.0.clone()),
+                Value3::H(value) => clvm.memo_kind(value.0.clone()),
+                Value3::I(value) => clvm.member_memo(value.0.clone()),
+                Value3::J(value) => clvm.m_of_n_memo(value.0.clone()),
             },
         },
     }

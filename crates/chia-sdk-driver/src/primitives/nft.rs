@@ -164,7 +164,7 @@ where
             ctx,
             inner,
             extra_conditions
-                .create_coin(p2_puzzle_hash, self.coin.amount, Some(memos))
+                .create_coin(p2_puzzle_hash, self.coin.amount, memos)
                 .update_nft_metadata(metadata_update.puzzle, metadata_update.solution),
         )?;
 
@@ -205,7 +205,7 @@ where
         self.spend_with(
             ctx,
             inner,
-            extra_conditions.create_coin(p2_puzzle_hash, self.coin.amount, Some(memos)),
+            extra_conditions.create_coin(p2_puzzle_hash, self.coin.amount, memos),
         )?;
 
         let metadata = self.info.metadata.clone();
@@ -337,7 +337,7 @@ where
             ctx,
             inner,
             extra_conditions
-                .create_coin(p2_puzzle_hash, self.coin.amount, Some(memos))
+                .create_coin(p2_puzzle_hash, self.coin.amount, memos)
                 .with(transfer_condition),
         )?;
 

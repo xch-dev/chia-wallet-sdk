@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_puzzle_types::nft::NftIntermediateLauncherArgs;
+use chia_puzzle_types::{nft::NftIntermediateLauncherArgs, Memos};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_types::{announcement_id, Conditions};
 use chia_sha2::Sha256;
@@ -64,7 +64,7 @@ impl IntermediateLauncher {
             self.mint_total,
         ))?;
 
-        parent = parent.create_coin(self.intermediate_coin.puzzle_hash, 0, None);
+        parent = parent.create_coin(self.intermediate_coin.puzzle_hash, 0, Memos::None);
 
         let puzzle_reveal = ctx.serialize(&puzzle)?;
         let solution = ctx.serialize(&())?;

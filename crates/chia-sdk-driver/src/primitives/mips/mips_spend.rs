@@ -4,12 +4,12 @@ use clvm_utils::TreeHash;
 
 use crate::{DriverError, Spend, SpendContext};
 
-use super::member::MemberSpend;
+use super::InnerPuzzleSpend;
 
 #[derive(Debug, Clone)]
 pub struct MipsSpend {
     pub delegated: Spend,
-    pub members: HashMap<TreeHash, MemberSpend>,
+    pub members: HashMap<TreeHash, InnerPuzzleSpend>,
     pub restrictions: HashMap<TreeHash, Spend>,
 }
 

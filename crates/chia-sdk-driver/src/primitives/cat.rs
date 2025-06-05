@@ -2,7 +2,7 @@ use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
     cat::{CatArgs, CatSolution, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs},
-    CoinProof, LineageProof,
+    CoinProof, LineageProof, Memos,
 };
 use chia_sdk_types::{conditions::CreateCoin, run_puzzle, Condition, Conditions};
 use clvm_traits::{clvm_quote, FromClvm};
@@ -107,7 +107,7 @@ impl Cat {
         )?;
 
         Ok((
-            Conditions::new().create_coin(puzzle_hash, amount, None),
+            Conditions::new().create_coin(puzzle_hash, amount, Memos::None),
             eve,
         ))
     }
@@ -267,7 +267,7 @@ impl Cat {
 
 #[cfg(test)]
 mod tests {
-    use chia_consensus::gen::validation_error::ErrorCode;
+    use chia_consensus::validation_error::ErrorCode;
     use chia_puzzle_types::cat::EverythingWithSignatureTailArgs;
     use chia_sdk_test::{Simulator, SimulatorError};
     use rstest::rstest;
@@ -289,7 +289,7 @@ mod tests {
             ctx,
             alice.coin.coin_id(),
             1,
-            Conditions::new().create_coin(alice.puzzle_hash, 1, Some(memos)),
+            Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
@@ -320,7 +320,7 @@ mod tests {
             alice.coin.coin_id(),
             alice.pk,
             1,
-            Conditions::new().create_coin(alice.puzzle_hash, 1, Some(memos)),
+            Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
         sim.spend_coins(ctx.take(), &[alice.sk])?;
@@ -349,7 +349,7 @@ mod tests {
             ctx,
             alice.coin.coin_id(),
             0,
-            Conditions::new().create_coin(alice.puzzle_hash, 0, Some(memos)),
+            Conditions::new().create_coin(alice.puzzle_hash, 0, memos),
         )?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
@@ -367,7 +367,7 @@ mod tests {
             cat,
             alice_p2.spend_with_conditions(
                 ctx,
-                Conditions::new().create_coin(alice.puzzle_hash, 0, Some(memos)),
+                Conditions::new().create_coin(alice.puzzle_hash, 0, memos),
             )?,
         );
         Cat::spend_all(ctx, &[cat_spend])?;
@@ -409,7 +409,7 @@ mod tests {
             ctx,
             alice.coin.coin_id(),
             1,
-            Conditions::new().create_coin(alice.puzzle_hash, 2, Some(memos)),
+            Conditions::new().create_coin(alice.puzzle_hash, 2, memos),
         )?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
@@ -448,7 +448,7 @@ mod tests {
 
         let memos = ctx.hint(alice.puzzle_hash)?;
         for &amount in &amounts {
-            conditions = conditions.create_coin(alice.puzzle_hash, amount, Some(memos));
+            conditions = conditions.create_coin(alice.puzzle_hash, amount, memos);
         }
 
         let (issue_cat, cat) =
@@ -474,7 +474,7 @@ mod tests {
                             Conditions::new().create_coin(
                                 alice.puzzle_hash,
                                 cat.coin.amount,
-                                Some(memos),
+                                memos,
                             ),
                         )?,
                     ))
@@ -513,8 +513,8 @@ mod tests {
             alice.coin.coin_id(),
             2,
             Conditions::new()
-                .create_coin(alice.puzzle_hash, 1, Some(memos))
-                .create_coin(custom_p2_puzzle_hash, 1, Some(custom_memos)),
+                .create_coin(alice.puzzle_hash, 1, memos)
+                .create_coin(custom_p2_puzzle_hash, 1, custom_memos),
         )?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
         sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
@@ -524,18 +524,14 @@ mod tests {
                 cat.wrapped_child(alice.puzzle_hash, 1),
                 alice_p2.spend_with_conditions(
                     ctx,
-                    Conditions::new().create_coin(alice.puzzle_hash, 1, Some(memos)),
+                    Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
                 )?,
             ),
             CatSpend::new(
                 cat.wrapped_child(custom_p2_puzzle_hash, 1),
                 Spend::new(
                     custom_p2,
-                    ctx.alloc(&[CreateCoin::new(
-                        custom_p2_puzzle_hash,
-                        1,
-                        Some(custom_memos),
-                    )])?,
+                    ctx.alloc(&[CreateCoin::new(custom_p2_puzzle_hash, 1, custom_memos)])?,
                 ),
             ),
         ];
@@ -555,7 +551,7 @@ mod tests {
         let alice_p2 = StandardLayer::new(alice.pk);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let conditions = Conditions::new().create_coin(alice.puzzle_hash, 10000, Some(memos));
+        let conditions = Conditions::new().create_coin(alice.puzzle_hash, 10000, memos);
         let (issue_cat, cat) =
             Cat::multi_issuance_eve(ctx, alice.coin.coin_id(), alice.pk, 10000, conditions)?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
@@ -567,7 +563,7 @@ mod tests {
             alice_p2.spend_with_conditions(
                 ctx,
                 Conditions::new()
-                    .create_coin(alice.puzzle_hash, 7000, Some(memos))
+                    .create_coin(alice.puzzle_hash, 7000, memos)
                     .run_cat_tail(tail, NodePtr::NIL),
             )?,
             -3000,

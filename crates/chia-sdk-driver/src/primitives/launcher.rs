@@ -35,7 +35,7 @@ impl Launcher {
     pub fn new(parent_coin_id: Bytes32, amount: u64) -> Self {
         Self::from_coin(
             Coin::new(parent_coin_id, SINGLETON_LAUNCHER_HASH.into(), amount),
-            Conditions::new().create_coin(SINGLETON_LAUNCHER_HASH.into(), amount, None),
+            Conditions::new().create_coin(SINGLETON_LAUNCHER_HASH.into(), amount, Memos::None),
         )
     }
 
@@ -44,7 +44,7 @@ impl Launcher {
     pub fn with_memos(parent_coin_id: Bytes32, amount: u64, memos: Memos<NodePtr>) -> Self {
         Self::from_coin(
             Coin::new(parent_coin_id, SINGLETON_LAUNCHER_HASH.into(), amount),
-            Conditions::new().create_coin(SINGLETON_LAUNCHER_HASH.into(), amount, Some(memos)),
+            Conditions::new().create_coin(SINGLETON_LAUNCHER_HASH.into(), amount, memos),
         )
     }
 
@@ -55,7 +55,7 @@ impl Launcher {
     /// For example, this is useful for minting NFTs from intermediate coins created with an earlier instance of a DID.
     pub fn create_early(parent_coin_id: Bytes32, amount: u64) -> (Conditions, Self) {
         (
-            Conditions::new().create_coin(SINGLETON_LAUNCHER_HASH.into(), amount, None),
+            Conditions::new().create_coin(SINGLETON_LAUNCHER_HASH.into(), amount, Memos::None),
             Self::from_coin(
                 Coin::new(parent_coin_id, SINGLETON_LAUNCHER_HASH.into(), amount),
                 Conditions::new(),
@@ -74,7 +74,7 @@ impl Launcher {
         memos: Memos<NodePtr>,
     ) -> (Conditions, Self) {
         (
-            Conditions::new().create_coin(SINGLETON_LAUNCHER_HASH.into(), amount, Some(memos)),
+            Conditions::new().create_coin(SINGLETON_LAUNCHER_HASH.into(), amount, memos),
             Self::from_coin(
                 Coin::new(parent_coin_id, SINGLETON_LAUNCHER_HASH.into(), amount),
                 Conditions::new(),

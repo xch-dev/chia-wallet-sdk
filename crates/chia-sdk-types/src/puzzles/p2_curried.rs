@@ -30,7 +30,7 @@ impl Mod for P2CurriedArgs {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct P2CurriedSolution<P, S> {
     pub puzzle: P,
     pub solution: S,

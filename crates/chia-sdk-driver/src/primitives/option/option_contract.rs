@@ -152,7 +152,7 @@ impl OptionContract {
         self.spend_with(
             ctx,
             inner,
-            extra_conditions.create_coin(p2_puzzle_hash, self.coin.amount, Some(memos)),
+            extra_conditions.create_coin(p2_puzzle_hash, self.coin.amount, memos),
         )?;
 
         Ok(self.wrapped_child(p2_puzzle_hash))
@@ -203,7 +203,7 @@ impl OptionContract {
 
 #[cfg(test)]
 mod tests {
-    use chia_puzzle_types::offer::SettlementPaymentsSolution;
+    use chia_puzzle_types::{offer::SettlementPaymentsSolution, Memos};
     use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
     use chia_sdk_test::{expect_spend, Simulator};
     use chia_sdk_types::puzzles::{RevocationArgs, RevocationSolution};
@@ -290,7 +290,7 @@ mod tests {
                     Conditions::new().create_coin(
                         SETTLEMENT_PAYMENT_HASH.into(),
                         strike_amount,
-                        None,
+                        Memos::None,
                     ),
                 )?;
                 let coin = OptionCoin::Xch(Coin::new(
@@ -314,7 +314,7 @@ mod tests {
                     Conditions::new().create_coin(
                         SETTLEMENT_PAYMENT_HASH.into(),
                         strike_amount,
-                        Some(hint),
+                        hint,
                     ),
                 )?;
                 alice_p2.spend(ctx, strike_parent_coin, issue_cat)?;
@@ -339,11 +339,7 @@ mod tests {
                     ctx,
                     strike_parent_coin.coin_id(),
                     strike_amount,
-                    Conditions::new().create_coin(
-                        revocation_settlement_hash,
-                        strike_amount,
-                        Some(hint),
-                    ),
+                    Conditions::new().create_coin(revocation_settlement_hash, strike_amount, hint),
                 )?;
                 alice_p2.spend(ctx, strike_parent_coin, issue_cat)?;
                 let coin = OptionCoin::RevocableCat(
@@ -417,7 +413,7 @@ mod tests {
                 alice_p2.spend(
                     ctx,
                     underlying_parent_coin,
-                    Conditions::new().create_coin(p2_option, underlying_amount, None),
+                    Conditions::new().create_coin(p2_option, underlying_amount, Memos::None),
                 )?;
                 OptionCoin::Xch(Coin::new(
                     underlying_parent_coin.coin_id(),
@@ -431,7 +427,7 @@ mod tests {
                     ctx,
                     underlying_parent_coin.coin_id(),
                     underlying_amount,
-                    Conditions::new().create_coin(p2_option, underlying_amount, Some(hint)),
+                    Conditions::new().create_coin(p2_option, underlying_amount, hint),
                 )?;
                 alice_p2.spend(ctx, underlying_parent_coin, issue_cat)?;
                 OptionCoin::Cat(cat.wrapped_child(p2_option, underlying_amount))
@@ -445,11 +441,7 @@ mod tests {
                     ctx,
                     underlying_parent_coin.coin_id(),
                     underlying_amount,
-                    Conditions::new().create_coin(
-                        revocation_p2_option,
-                        underlying_amount,
-                        Some(hint),
-                    ),
+                    Conditions::new().create_coin(revocation_p2_option, underlying_amount, hint),
                 )?;
                 alice_p2.spend(ctx, underlying_parent_coin, issue_cat)?;
                 OptionCoin::RevocableCat(cat.wrapped_child(revocation_p2_option, underlying_amount))
@@ -535,7 +527,11 @@ mod tests {
                 OptionCoin::Xch(coin) => {
                     let clawback_spend = alice_p2.spend_with_conditions(
                         ctx,
-                        Conditions::new().create_coin(alice.puzzle_hash, underlying_amount, None),
+                        Conditions::new().create_coin(
+                            alice.puzzle_hash,
+                            underlying_amount,
+                            Memos::None,
+                        ),
                     )?;
                     underlying.clawback_coin_spend(ctx, coin, clawback_spend)?;
                 }
@@ -543,11 +539,7 @@ mod tests {
                     let hint = ctx.hint(alice.puzzle_hash)?;
                     let clawback_spend = alice_p2.spend_with_conditions(
                         ctx,
-                        Conditions::new().create_coin(
-                            alice.puzzle_hash,
-                            underlying_amount,
-                            Some(hint),
-                        ),
+                        Conditions::new().create_coin(alice.puzzle_hash, underlying_amount, hint),
                     )?;
                     let clawback_spend = underlying.clawback_spend(ctx, clawback_spend)?;
                     Cat::spend_all(ctx, &[CatSpend::new(cat, clawback_spend)])?;
@@ -556,11 +548,7 @@ mod tests {
                     let hint = ctx.hint(alice.puzzle_hash)?;
                     let clawback_spend = alice_p2.spend_with_conditions(
                         ctx,
-                        Conditions::new().create_coin(
-                            alice.puzzle_hash,
-                            underlying_amount,
-                            Some(hint),
-                        ),
+                        Conditions::new().create_coin(alice.puzzle_hash, underlying_amount, hint),
                     )?;
                     let clawback_spend = underlying.clawback_spend(ctx, clawback_spend)?;
                     let puzzle = ctx.curry(RevocationArgs::new(Bytes32::default(), p2_option))?;
@@ -576,11 +564,7 @@ mod tests {
                     let hint = ctx.hint(alice.puzzle_hash)?;
                     let clawback_spend = alice_p2.spend_with_conditions(
                         ctx,
-                        Conditions::new().create_coin(
-                            alice.puzzle_hash,
-                            underlying_amount,
-                            Some(hint),
-                        ),
+                        Conditions::new().create_coin(alice.puzzle_hash, underlying_amount, hint),
                     )?;
                     let clawback_spend = underlying.clawback_spend(ctx, clawback_spend)?;
                     nft.spend(ctx, clawback_spend)?;
@@ -591,31 +575,24 @@ mod tests {
         if matches!(action, Action::Exercise) {
             match strike_coin {
                 OptionCoin::Xch(coin) => {
+                    let payment = underlying.requested_payment_ptr(ctx)?;
                     let coin_spend = SettlementLayer.construct_coin_spend(
                         ctx,
                         coin,
-                        SettlementPaymentsSolution {
-                            notarized_payments: vec![underlying.requested_payment()],
-                        },
+                        SettlementPaymentsSolution::new(vec![payment]),
                     )?;
                     ctx.insert(coin_spend);
                 }
                 OptionCoin::Cat(cat) => {
-                    let spend = SettlementLayer.construct_spend(
-                        ctx,
-                        SettlementPaymentsSolution {
-                            notarized_payments: vec![underlying.requested_payment()],
-                        },
-                    )?;
+                    let payment = underlying.requested_payment_ptr(ctx)?;
+                    let spend = SettlementLayer
+                        .construct_spend(ctx, SettlementPaymentsSolution::new(vec![payment]))?;
                     Cat::spend_all(ctx, &[CatSpend::new(cat, spend)])?;
                 }
                 OptionCoin::RevocableCat(cat) => {
-                    let spend = SettlementLayer.construct_spend(
-                        ctx,
-                        SettlementPaymentsSolution {
-                            notarized_payments: vec![underlying.requested_payment()],
-                        },
-                    )?;
+                    let payment = underlying.requested_payment_ptr(ctx)?;
+                    let spend = SettlementLayer
+                        .construct_spend(ctx, SettlementPaymentsSolution::new(vec![payment]))?;
                     let puzzle = ctx.curry(RevocationArgs::new(
                         Bytes32::default(),
                         SETTLEMENT_PAYMENT_HASH.into(),
@@ -628,12 +605,9 @@ mod tests {
                     Cat::spend_all(ctx, &[CatSpend::new(cat, Spend::new(puzzle, solution))])?;
                 }
                 OptionCoin::Nft(nft) => {
-                    let spend = SettlementLayer.construct_spend(
-                        ctx,
-                        SettlementPaymentsSolution {
-                            notarized_payments: vec![underlying.requested_payment()],
-                        },
-                    )?;
+                    let payment = underlying.requested_payment_ptr(ctx)?;
+                    let spend = SettlementLayer
+                        .construct_spend(ctx, SettlementPaymentsSolution::new(vec![payment]))?;
                     nft.spend(ctx, spend)?;
                 }
             }
@@ -677,7 +651,7 @@ mod tests {
         alice_p2.spend(
             ctx,
             parent_coin,
-            Conditions::new().create_coin(p2_option, 1, None),
+            Conditions::new().create_coin(p2_option, 1, Memos::None),
         )?;
         let underlying_coin = Coin::new(parent_coin.coin_id(), p2_option, 1);
         let launcher = launcher.with_underlying(underlying_coin.coin_id());
@@ -722,7 +696,7 @@ mod tests {
         alice_p2.spend(
             ctx,
             parent_coin,
-            Conditions::new().create_coin(p2_option, 1, None),
+            Conditions::new().create_coin(p2_option, 1, Memos::None),
         )?;
         let underlying_coin = Coin::new(parent_coin.coin_id(), p2_option, 1);
         let launcher = launcher.with_underlying(underlying_coin.coin_id());

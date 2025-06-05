@@ -394,7 +394,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::<NodePtr>::new(puzzle_hash, 1, None)])?,
+                to_program([CreateCoin::<NodePtr>::new(puzzle_hash, 1, Memos::None)])?,
             )],
             Signature::default(),
         );
@@ -422,7 +422,7 @@ mod tests {
                     to_program([CreateCoin::<NodePtr>::new(
                         puzzle_hash,
                         coin.amount - 1,
-                        None,
+                        Memos::None,
                     )])?,
                 )],
                 Signature::default(),
@@ -485,8 +485,8 @@ mod tests {
                 coin,
                 puzzle_reveal,
                 to_program([
-                    CreateCoin::<NodePtr>::new(puzzle_hash, 1, None),
-                    CreateCoin::<NodePtr>::new(puzzle_hash, 2, None),
+                    CreateCoin::<NodePtr>::new(puzzle_hash, 1, Memos::None),
+                    CreateCoin::<NodePtr>::new(puzzle_hash, 2, Memos::None),
                 ])?,
             )],
             Signature::default(),
@@ -613,7 +613,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::<NodePtr>::new(puzzle_hash, 1, None)])?,
+                to_program([CreateCoin::<NodePtr>::new(puzzle_hash, 1, Memos::None)])?,
             )],
             Signature::default(),
         );
@@ -695,7 +695,11 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::<NodePtr>::new(child_coin.puzzle_hash, 1, None)])?,
+                to_program([CreateCoin::<NodePtr>::new(
+                    child_coin.puzzle_hash,
+                    1,
+                    Memos::None,
+                )])?,
             )],
             Signature::default(),
         );
@@ -780,7 +784,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::new(puzzle_hash, 0, Some(Memos::new([hint])))])?,
+                to_program([CreateCoin::new(puzzle_hash, 0, Memos::Some([hint]))])?,
             )],
             Signature::default(),
         );

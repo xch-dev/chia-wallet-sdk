@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use chia_consensus::gen::validation_error::{ErrorCode, ValidationErr};
+use chia_consensus::validation_error::{ErrorCode, ValidationErr};
 use chia_protocol::{
     Bytes, Bytes32, CoinState, CoinStateUpdate, Message, NewPeakWallet, ProtocolMessageTypes,
     PuzzleSolutionResponse, RegisterForCoinUpdates, RegisterForPhUpdates, RejectCoinState,

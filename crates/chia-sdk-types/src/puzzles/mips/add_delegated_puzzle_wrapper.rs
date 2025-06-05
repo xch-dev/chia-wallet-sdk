@@ -33,7 +33,7 @@ impl<W, P> Mod for AddDelegatedPuzzleWrapper<W, P> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct AddDelegatedPuzzleWrapperSolution<W, P> {
     pub wrapper_solution: W,
     pub delegated_solution: P,

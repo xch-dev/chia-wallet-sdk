@@ -31,7 +31,7 @@ impl Mod for PasskeyMember {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct PasskeyMemberSolution {
     pub authenticator_data: Bytes,
     pub client_data_json: Bytes,

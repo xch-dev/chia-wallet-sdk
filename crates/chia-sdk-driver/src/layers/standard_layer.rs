@@ -121,6 +121,7 @@ impl ToTreeHash for StandardLayer {
 
 #[cfg(test)]
 mod tests {
+    use chia_puzzle_types::Memos;
     use chia_sdk_test::Simulator;
 
     use super::*;
@@ -135,13 +136,13 @@ mod tests {
         p2.spend(
             ctx,
             alice.coin,
-            Conditions::new().create_coin(alice.puzzle_hash, u64::MAX, None),
+            Conditions::new().create_coin(alice.puzzle_hash, u64::MAX, Memos::None),
         )?;
 
         p2.spend(
             ctx,
             Coin::new(alice.coin.coin_id(), alice.puzzle_hash, u64::MAX),
-            Conditions::new().create_coin(alice.puzzle_hash, 1, None),
+            Conditions::new().create_coin(alice.puzzle_hash, 1, Memos::None),
         )?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;

@@ -1,18 +1,10 @@
+mod enforce_delegated_puzzle_wrappers;
 mod force_1_of_2_restricted_variable;
-mod force_assert_coin_announcement;
-mod force_coin_message;
-mod prevent_condition_opcode;
-mod prevent_multiple_create_coins;
-mod timelock;
 
 use std::borrow::Cow;
 
+pub use enforce_delegated_puzzle_wrappers::*;
 pub use force_1_of_2_restricted_variable::*;
-pub use force_assert_coin_announcement::*;
-pub use force_coin_message::*;
-pub use prevent_condition_opcode::*;
-pub use prevent_multiple_create_coins::*;
-pub use timelock::*;
 
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
@@ -49,7 +41,7 @@ impl<MV, DV, I> Mod for RestrictionsArgs<MV, DV, I> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct RestrictionsSolution<MV, DV, I> {
     pub member_validator_solutions: Vec<MV>,
     pub delegated_puzzle_validator_solutions: Vec<DV>,

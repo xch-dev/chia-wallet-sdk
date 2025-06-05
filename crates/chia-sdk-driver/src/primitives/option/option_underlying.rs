@@ -2,6 +2,7 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
     cat::CatArgs,
     offer::{NotarizedPayment, Payment},
+    Memos,
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
@@ -14,12 +15,12 @@ use chia_sdk_types::{
     },
     MerkleTree, Mod,
 };
-use clvm_traits::{clvm_list, clvm_quote, match_list};
+use clvm_traits::{clvm_list, clvm_quote, match_list, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
-use clvmr::NodePtr;
+use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    member_puzzle_hash, payment_assertion, DriverError, Layer, MemberSpend, MipsSpend,
+    member_puzzle_hash, payment_assertion, DriverError, InnerPuzzleSpend, Layer, MipsSpend,
     P2OneOfManyLayer, Spend, SpendContext,
 };
 
@@ -82,18 +83,36 @@ impl OptionUnderlying {
         P2OneOfManyLayer::new(self.merkle_tree().root())
     }
 
-    pub fn requested_payment(&self) -> NotarizedPayment {
+    pub fn requested_payment_ptr(
+        &self,
+        allocator: &mut Allocator,
+    ) -> Result<NotarizedPayment<NodePtr>, DriverError> {
+        Ok(NotarizedPayment {
+            nonce: self.launcher_id,
+            payments: vec![Payment {
+                puzzle_hash: self.creator_puzzle_hash,
+                amount: self.strike_type.amount(),
+                memos: if self.strike_type.is_hinted() {
+                    Memos::Some(vec![self.creator_puzzle_hash].to_clvm(allocator)?)
+                } else {
+                    Memos::None
+                },
+            }],
+        })
+    }
+
+    pub fn requested_payment_hash(&self) -> NotarizedPayment<TreeHash> {
         NotarizedPayment {
             nonce: self.launcher_id,
-            payments: vec![Payment::with_memos(
-                self.creator_puzzle_hash,
-                self.strike_type.amount(),
-                if self.strike_type.is_hinted() {
-                    vec![self.creator_puzzle_hash.into()]
+            payments: vec![Payment {
+                puzzle_hash: self.creator_puzzle_hash,
+                amount: self.strike_type.amount(),
+                memos: if self.strike_type.is_hinted() {
+                    Memos::Some(vec![self.creator_puzzle_hash].tree_hash())
                 } else {
-                    vec![]
+                    Memos::None
                 },
-            )],
+            }],
         }
     }
 
@@ -121,8 +140,8 @@ impl OptionUnderlying {
 
         clvm_quote!(clvm_list!(
             AssertBeforeSecondsAbsolute::new(self.seconds),
-            payment_assertion(puzzle_hash, &self.requested_payment()),
-            CreateCoin::new(SETTLEMENT_PAYMENT_HASH.into(), self.amount, None)
+            payment_assertion(puzzle_hash, &self.requested_payment_hash()),
+            CreateCoin::new(SETTLEMENT_PAYMENT_HASH.into(), self.amount, Memos::None)
         ))
     }
 
@@ -151,7 +170,7 @@ impl OptionUnderlying {
         ))?;
         mips.members.insert(
             custody_hash,
-            MemberSpend::new(
+            InnerPuzzleSpend::new(
                 0,
                 Vec::new(),
                 Spend::new(singleton_member_puzzle, singleton_member_solution),

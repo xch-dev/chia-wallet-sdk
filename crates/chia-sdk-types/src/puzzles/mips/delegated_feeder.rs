@@ -29,7 +29,7 @@ impl<I> Mod for DelegatedFeederArgs<I> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct DelegatedFeederSolution<P, S, I> {
     pub delegated_puzzle: P,
     pub delegated_solution: S,

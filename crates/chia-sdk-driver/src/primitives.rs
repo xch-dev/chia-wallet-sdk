@@ -1,5 +1,6 @@
 mod cat;
 mod clawback;
+mod clawback_v2;
 mod did;
 mod intermediate_launcher;
 mod launcher;
@@ -10,6 +11,7 @@ mod vault;
 
 pub use cat::*;
 pub use clawback::*;
+pub use clawback_v2::*;
 pub use did::*;
 pub use intermediate_launcher::*;
 pub use launcher::*;
@@ -29,9 +31,3 @@ mod option;
 
 #[cfg(feature = "offers")]
 pub use option::*;
-
-#[cfg(feature = "experimental-clawbacks")]
-mod clawback_v2;
-
-#[cfg(feature = "experimental-clawbacks")]
-pub use clawback_v2::*;

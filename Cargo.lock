@@ -24,18 +24,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "512761e0bb2578dd7380c6baaa0f4ce03e84f95e960231d1dec8bf4d7d6e2627"
 
 [[package]]
-name = "ahash"
-version = "0.8.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e89da841a80418a9b391ebaea17f5c112ffaaa96f621d2c285b5174da76b9011"
-dependencies = [
- "cfg-if",
- "once_cell",
- "version_check",
- "zerocopy",
-]
-
-[[package]]
 name = "aho-corasick"
 version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -43,12 +31,6 @@ checksum = "8e60d3430d3a69478ad0993f19238d2df97c507009a52b3c10addcd7f6bcb916"
 dependencies = [
  "memchr",
 ]
-
-[[package]]
-name = "allocator-api2"
-version = "0.2.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c6cb57a04249c6480766f7f7cef5467412af1490f8d1e243141daddada3264f"
 
 [[package]]
 name = "anyhow"
@@ -124,9 +106,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-rs"
-version = "1.13.0"
+version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19b756939cb2f8dc900aa6dcd505e6e2428e9cae7ff7b028c49e3946efa70878"
+checksum = "93fcc8f365936c834db5514fc45aee5b1202d677e6b40e48468aaaa8183ca8c7"
 dependencies = [
  "aws-lc-fips-sys",
  "aws-lc-sys",
@@ -136,9 +118,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-sys"
-version = "0.28.0"
+version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9f7720b74ed28ca77f90769a71fd8c637a0137f6fae4ae947e1050229cff57f"
+checksum = "61b1d86e7705efe1be1b569bab41d4fa1e14e220b60a160f78de2db687add079"
 dependencies = [
  "bindgen",
  "cc",
@@ -230,16 +212,16 @@ dependencies = [
 
 [[package]]
 name = "bindy"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "bech32",
  "bip39",
- "chia-bls 0.22.0",
+ "chia-bls 0.25.0",
  "chia-protocol",
  "chia-sdk-driver",
  "chia-sdk-test",
  "chia-sdk-utils",
- "chia-traits 0.22.0",
+ "chia-traits 0.25.0",
  "clvm-traits",
  "clvm-utils",
  "clvmr",
@@ -255,7 +237,7 @@ dependencies = [
 
 [[package]]
 name = "bindy-macro"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "convert_case",
  "indexmap",
@@ -393,30 +375,30 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "chia-bls"
-version = "0.15.0"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53dea95bd7dac1e69c59ef6839ecf30ff3fe29170c16c4aa00093be21e0d789e"
+checksum = "d86eaaa00a83a7511e8eb74ccb1ebe4358d927f43e06d45da5350e19ef2df1ca"
 dependencies = [
  "blst",
- "chia-sha2 0.15.0",
- "chia-traits 0.15.0",
+ "chia-sha2 0.22.0",
+ "chia-traits 0.22.0",
  "hex",
  "hkdf",
- "lru",
+ "linked-hash-map",
  "sha2 0.10.9",
  "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "chia-bls"
-version = "0.22.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d86eaaa00a83a7511e8eb74ccb1ebe4358d927f43e06d45da5350e19ef2df1ca"
+checksum = "7c16b9296d434304de07601f24f520dd8dcd127ab217f6c3de2f08b9215e2665"
 dependencies = [
  "blst",
  "chia-serde",
- "chia-sha2 0.22.0",
- "chia-traits 0.22.0",
+ "chia-sha2 0.25.0",
+ "chia-traits 0.25.0",
  "hex",
  "hkdf",
  "linked-hash-map",
@@ -427,17 +409,17 @@ dependencies = [
 
 [[package]]
 name = "chia-consensus"
-version = "0.22.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3522d244ff78ccd08b61855c6c3d3a5aa55f168d2562b19610d4841e4805a67"
+checksum = "716e9c3b8c4418049cac10c8e859246e64f6581ccf433fe65a569b8c43b1b361"
 dependencies = [
- "chia-bls 0.22.0",
+ "chia-bls 0.25.0",
  "chia-protocol",
  "chia-puzzle-types",
  "chia-puzzles",
- "chia-sha2 0.22.0",
- "chia-traits 0.22.0",
- "chia_streamable_macro 0.22.0",
+ "chia-sha2 0.25.0",
+ "chia-traits 0.25.0",
+ "chia_streamable_macro 0.25.0",
  "clvm-traits",
  "clvm-utils",
  "clvmr",
@@ -448,15 +430,15 @@ dependencies = [
 
 [[package]]
 name = "chia-protocol"
-version = "0.22.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36238c89a7b6dae606ccd48040760d91e9c6a3b4f07ceac5a23c85bfb74b14f8"
+checksum = "4d09bfaf24a4a3e9ec7f89d0b95fadf093617aa87cec089aa651a905e81d1af1"
 dependencies = [
- "chia-bls 0.22.0",
+ "chia-bls 0.25.0",
  "chia-serde",
- "chia-sha2 0.22.0",
- "chia-traits 0.22.0",
- "chia_streamable_macro 0.22.0",
+ "chia-sha2 0.25.0",
+ "chia-traits 0.25.0",
+ "chia_streamable_macro 0.25.0",
  "clvm-traits",
  "clvm-utils",
  "clvmr",
@@ -466,14 +448,14 @@ dependencies = [
 
 [[package]]
 name = "chia-puzzle-types"
-version = "0.22.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b3845ad7ab7da38eeb37abbfb8f56b4f648e67616575a24bb52dd5be051ad47"
+checksum = "378afbe1412a2862f7afdb7b6b536957955a28c48bc282223dd70fd0b94a1cf1"
 dependencies = [
- "chia-bls 0.22.0",
+ "chia-bls 0.25.0",
  "chia-protocol",
  "chia-puzzles",
- "chia-sha2 0.22.0",
+ "chia-sha2 0.25.0",
  "clvm-traits",
  "clvm-utils",
  "clvmr",
@@ -493,11 +475,11 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-bindings"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "bindy",
  "bip39",
- "chia-bls 0.22.0",
+ "chia-bls 0.25.0",
  "chia-consensus",
  "chia-protocol",
  "chia-puzzle-types",
@@ -508,7 +490,7 @@ dependencies = [
  "chia-sdk-types",
  "chia-sdk-utils",
  "chia-secp",
- "chia-traits 0.22.0",
+ "chia-traits 0.25.0",
  "clvm-traits",
  "clvm-utils",
  "clvm_tools_rs",
@@ -523,13 +505,13 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-client"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "aws-lc-rs",
  "chia-protocol",
  "chia-sdk-types",
  "chia-ssl",
- "chia-traits 0.22.0",
+ "chia-traits 0.25.0",
  "futures-util",
  "native-tls",
  "once_cell",
@@ -544,10 +526,10 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-coinset"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "chia-protocol",
- "chia-traits 0.22.0",
+ "chia-traits 0.25.0",
  "hex",
  "hex-literal",
  "reqwest",
@@ -558,7 +540,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-derive"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "convert_case",
  "quote",
@@ -567,12 +549,12 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-driver"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "anyhow",
  "bech32",
  "bigdecimal",
- "chia-bls 0.22.0",
+ "chia-bls 0.25.0",
  "chia-consensus",
  "chia-protocol",
  "chia-puzzle-types",
@@ -581,9 +563,9 @@ dependencies = [
  "chia-sdk-test",
  "chia-sdk-types",
  "chia-secp",
- "chia-sha2 0.22.0",
- "chia-traits 0.22.0",
- "chia_streamable_macro 0.22.0",
+ "chia-sha2 0.25.0",
+ "chia-traits 0.25.0",
+ "chia_streamable_macro 0.23.0",
  "clvm-traits",
  "clvm-utils",
  "clvmr",
@@ -601,16 +583,16 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-signer"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "anyhow",
- "chia-bls 0.22.0",
+ "chia-bls 0.25.0",
  "chia-consensus",
  "chia-protocol",
  "chia-puzzle-types",
  "chia-sdk-types",
  "chia-secp",
- "chia-sha2 0.22.0",
+ "chia-sha2 0.25.0",
  "clvm-traits",
  "clvmr",
  "hex",
@@ -623,11 +605,11 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-test"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "anyhow",
  "bip39",
- "chia-bls 0.22.0",
+ "chia-bls 0.25.0",
  "chia-consensus",
  "chia-protocol",
  "chia-puzzle-types",
@@ -635,7 +617,7 @@ dependencies = [
  "chia-sdk-signer",
  "chia-sdk-types",
  "chia-secp",
- "chia-traits 0.22.0",
+ "chia-traits 0.25.0",
  "clvm-traits",
  "clvm-utils",
  "clvmr",
@@ -655,17 +637,17 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-types"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "anyhow",
- "chia-bls 0.22.0",
+ "chia-bls 0.25.0",
  "chia-consensus",
  "chia-protocol",
  "chia-puzzle-types",
  "chia-puzzles",
  "chia-sdk-derive",
  "chia-secp",
- "chia-sha2 0.22.0",
+ "chia-sha2 0.25.0",
  "clvm-traits",
  "clvm-utils",
  "clvm_tools_rs",
@@ -681,7 +663,7 @@ dependencies = [
 
 [[package]]
 name = "chia-sdk-utils"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "bech32",
  "chia-protocol",
@@ -694,11 +676,11 @@ dependencies = [
 
 [[package]]
 name = "chia-secp"
-version = "0.22.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfb38cc97c50da49742d51e515e0d631e1f06513d56db1bd9b0847f9f8e27e9c"
+checksum = "727ab0317d4dc3e74152e0db4a60c86e4e2d5f69c879baf112ca6500866d5d60"
 dependencies = [
- "chia-sha2 0.22.0",
+ "chia-sha2 0.25.0",
  "hex",
  "k256",
  "p256",
@@ -706,21 +688,12 @@ dependencies = [
 
 [[package]]
 name = "chia-serde"
-version = "0.22.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "027a2da563be50bc0936e5fda3dfacbe70c65f5d7ef800043102629a31e2f63a"
+checksum = "cffa2ea6267199feaa1bb0836095cd57d79c664277d8be28d370a44f36e47df1"
 dependencies = [
  "hex",
  "serde",
-]
-
-[[package]]
-name = "chia-sha2"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7020f53eeae8b4c24c5666165738173a167c6478e0c0a9e1c428a491a2e1383d"
-dependencies = [
- "sha2 0.10.9",
 ]
 
 [[package]]
@@ -733,27 +706,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "chia-ssl"
-version = "0.22.0"
+name = "chia-sha2"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84d211fee1046cb651a00563a205ca025babd1bcfd8c9a553873dcb79f75a3dc"
+checksum = "b0074799301bb192744727aa91f88a3ee75d2504bfb8a843b02d2e303a58dd87"
+dependencies = [
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "chia-ssl"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb268d7d4d08e83bda869a2b931dbe519ea4d60426515079c4dbd22f7731a2f4"
 dependencies = [
  "rand",
  "rcgen",
  "rsa",
  "thiserror 1.0.69",
  "time",
-]
-
-[[package]]
-name = "chia-traits"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e57bbde886b38a9a5df185e751d90e295d14e99659bf43df7fa701d52d4da1ea"
-dependencies = [
- "chia-sha2 0.15.0",
- "chia_streamable_macro 0.15.0",
- "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -768,11 +739,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "chia-traits"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b67043daeab938c9b4d205b70e018d3352288fdd62709e87f6e2b331db5baca"
+dependencies = [
+ "chia-sha2 0.25.0",
+ "chia_streamable_macro 0.25.0",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "chia-wallet-sdk"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "anyhow",
- "chia-bls 0.22.0",
+ "chia-bls 0.25.0",
  "chia-protocol",
  "chia-puzzle-types",
  "chia-sdk-client",
@@ -804,7 +786,7 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk-py"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "bindy",
  "bindy-macro",
@@ -818,7 +800,7 @@ dependencies = [
 
 [[package]]
 name = "chia-wallet-sdk-wasm"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "bindy",
  "bindy-macro",
@@ -831,9 +813,9 @@ dependencies = [
 
 [[package]]
 name = "chia_streamable_macro"
-version = "0.15.0"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00e78b5981952d2383b08344fdc6e6f843e72cc9d502d46d1d2824c485b34694"
+checksum = "ed16ee21f14ed878cfc23b0354c8c6703190a5565d03625ea44324a3f21717f1"
 dependencies = [
  "proc-macro-crate 1.3.1",
  "proc-macro2",
@@ -843,9 +825,21 @@ dependencies = [
 
 [[package]]
 name = "chia_streamable_macro"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed16ee21f14ed878cfc23b0354c8c6703190a5565d03625ea44324a3f21717f1"
+checksum = "724a73b48f3690d3add13d56c383da2d0eecfe7b8447927ae144bacb948191ee"
+dependencies = [
+ "proc-macro-crate 1.3.1",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "chia_streamable_macro"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dfc5c6400d47fc7b0bef1e08791e96fc391d678012090c4b95411cfa516c894c"
 dependencies = [
  "proc-macro-crate 1.3.1",
  "proc-macro2",
@@ -866,9 +860,9 @@ dependencies = [
 
 [[package]]
 name = "clvm-derive"
-version = "0.22.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73fb8e15c798561a158ddbbc04278f8847b179f9bb71263c755d3df239f37d9f"
+checksum = "e184e2f4aa7473bf377bd0f03e61406668124eb0d16ccdd4591ec5b6cb8ea533"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -877,11 +871,11 @@ dependencies = [
 
 [[package]]
 name = "clvm-traits"
-version = "0.22.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f52587c912ee7442e79894a2a15286eeba23d5fc4037312f03549117ab28b77c"
+checksum = "93a93051ecabce23522df9d597c915b5df1be00a8b6d28f852a306304d9fe94d"
 dependencies = [
- "chia-bls 0.22.0",
+ "chia-bls 0.25.0",
  "chia-secp",
  "clvm-derive",
  "clvmr",
@@ -891,11 +885,11 @@ dependencies = [
 
 [[package]]
 name = "clvm-utils"
-version = "0.22.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "859604c252fa3456b78d550e1b458887be6d2c4d58e074376a74f105752923f0"
+checksum = "7a3cfd58c573d44d4ecf9b17af614861a53e7e9170523decd212df162162b190"
 dependencies = [
- "chia-sha2 0.22.0",
+ "chia-sha2 0.25.0",
  "clvm-traits",
  "clvmr",
  "hex",
@@ -903,9 +897,9 @@ dependencies = [
 
 [[package]]
 name = "clvm_tools_rs"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73940229291035ef990d81c5d0640d7136f284850f21d189f0e6eb19eef8a918"
+checksum = "b00394d353154d726b10ca4f76056f4fac3ad37a3218c83ba3008b041e1398c3"
 dependencies = [
  "binascii",
  "chia-bls 0.22.0",
@@ -933,14 +927,14 @@ dependencies = [
 
 [[package]]
 name = "clvmr"
-version = "0.13.1"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2635cab767099d7609d1aba736f8bdac17540026d2bc4205824521dee491615b"
+checksum = "cd6b7142674607f3a213addaf261bd70b07537297e460a9cc6a389068a62934f"
 dependencies = [
  "bitvec",
  "bumpalo",
- "chia-bls 0.15.0",
- "chia-sha2 0.15.0",
+ "chia-bls 0.22.0",
+ "chia-sha2 0.22.0",
  "hex",
  "hex-literal",
  "k256",
@@ -1424,16 +1418,6 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.14.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
-dependencies = [
- "ahash",
- "allocator-api2",
-]
-
-[[package]]
-name = "hashbrown"
 version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf151400ff0baff5465007dd2f3e717f3fe502074ca563069ce3a6629d07b289"
@@ -1447,7 +1431,7 @@ version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7382cf6263419f2d8df38c55d7da83da5c18aef87fc7a7fc1fb1e344edfe14c1"
 dependencies = [
- "hashbrown 0.15.2",
+ "hashbrown",
 ]
 
 [[package]]
@@ -1636,7 +1620,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cea70ddb795996207ad57735b50c5982d8844f38ba9ee5f1aedcfb708a2aa11e"
 dependencies = [
  "equivalent",
- "hashbrown 0.15.2",
+ "hashbrown",
  "serde",
 ]
 
@@ -1812,15 +1796,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
 
 [[package]]
-name = "lru"
-version = "0.12.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37ee39891760e7d94734f6f63fedc29a2e4a152f836120753a72503f09fcf904"
-dependencies = [
- "hashbrown 0.14.5",
-]
-
-[[package]]
 name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1893,9 +1868,9 @@ dependencies = [
 
 [[package]]
 name = "napi-build"
-version = "2.1.6"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e28acfa557c083f6e254a786e01ba253fc56f18ee000afcd4f79af735f73a6da"
+checksum = "03acbfa4f156a32188bfa09b86dc11a431b5725253fc1fc6f6df5bed273382c4"
 
 [[package]]
 name = "napi-derive"
@@ -2754,9 +2729,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.26"
+version = "0.23.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df51b5869f3a441595eac5e8ff14d486ff285f7b8c0df8770e49c3b56351f0f0"
+checksum = "730944ca083c1c233a75c09f199e973ca499344a2b7ba9e755c457e86fb4a321"
 dependencies = [
  "aws-lc-rs",
  "log",
@@ -2788,9 +2763,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.0"
+version = "0.103.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0aa4eeac2588ffff23e9d7a7e9b3f971c5fb5b7ebc9452745e0c232c64f83b2f"
+checksum = "e4a72fe2bcf7a6ac6fd7d0b9e5cb68aeb7d4c0a0271730218b3e92d43b4eb435"
 dependencies = [
  "aws-lc-rs",
  "ring",
@@ -3188,9 +3163,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.44.2"
+version = "1.45.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6b88822cbe49de4185e3a4cbf8321dd487cf5fe0c5c65695fef6346371e9c48"
+checksum = "2513ca694ef9ede0fb23fe71a4ee4107cb102b9dc1930f6d0fd77aae068ae165"
 dependencies = [
  "backtrace",
  "bytes",

@@ -23,12 +23,22 @@
       "args": "Vec<Program>"
     }
   },
-  "LineageProof": {
+  "Proof": {
     "type": "class",
     "new": true,
     "fields": {
       "parent_parent_coin_info": "Bytes32",
       "parent_inner_puzzle_hash": "Option<Bytes32>",
+      "parent_amount": "u64"
+    }
+  },
+  "LineageProof": {
+    "type": "class",
+    "remote": true,
+    "new": true,
+    "fields": {
+      "parent_parent_coin_info": "Bytes32",
+      "parent_inner_puzzle_hash": "Bytes32",
       "parent_amount": "u64"
     }
   }

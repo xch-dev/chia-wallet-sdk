@@ -2,7 +2,7 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
     did::DidSolution,
     singleton::{SingletonArgs, SingletonSolution},
-    LineageProof, Proof,
+    LineageProof, Memos, Proof,
 };
 use chia_sdk_types::{run_puzzle, Condition, Conditions};
 use clvm_traits::{FromClvm, ToClvm};
@@ -141,11 +141,7 @@ where
         self.spend_with(
             ctx,
             inner,
-            extra_conditions.create_coin(
-                new_inner_puzzle_hash.into(),
-                self.coin.amount,
-                Some(memos),
-            ),
+            extra_conditions.create_coin(new_inner_puzzle_hash.into(), self.coin.amount, memos),
         )?;
 
         let metadata = self.info.metadata.clone();
@@ -177,11 +173,7 @@ where
         self.spend_with(
             ctx,
             inner,
-            extra_conditions.create_coin(
-                new_inner_puzzle_hash.into(),
-                self.coin.amount,
-                Some(memos),
-            ),
+            extra_conditions.create_coin(new_inner_puzzle_hash.into(), self.coin.amount, memos),
         )?;
 
         Ok(self.wrapped_child(self.info.p2_puzzle_hash, metadata))
@@ -251,11 +243,11 @@ where
             return Err(DriverError::MissingChild);
         };
 
-        let Some(memos) = create_coin.memos else {
+        let Memos::Some(memos) = create_coin.memos else {
             return Err(DriverError::MissingHint);
         };
 
-        let (hint, _) = <(Bytes32, NodePtr)>::from_clvm(allocator, memos.value)?;
+        let (hint, _) = <(Bytes32, NodePtr)>::from_clvm(allocator, memos)?;
 
         let metadata_ptr = did_layer.metadata.to_clvm(allocator)?;
         let metadata_hash = tree_hash(allocator, metadata_ptr);

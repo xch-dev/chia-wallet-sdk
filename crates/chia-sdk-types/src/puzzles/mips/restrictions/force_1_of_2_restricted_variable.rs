@@ -56,7 +56,7 @@ impl Mod for Force1of2RestrictedVariable {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(solution)]
+#[clvm(list)]
 pub struct Force1of2RestrictedVariableSolution {
     pub new_right_side_member_hash: Bytes32,
 }
