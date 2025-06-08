@@ -16,7 +16,7 @@ pub fn bytes_equal(lhs: Bytes, rhs: Bytes) -> Result<bool> {
     Ok(lhs == rhs)
 }
 
-pub fn tree_hash_atom(atom: Bytes32) -> Result<Bytes32> {
+pub fn tree_hash_atom(atom: Bytes) -> Result<Bytes32> {
     Ok(clvm_utils::tree_hash_atom(&atom).into())
 }
 
