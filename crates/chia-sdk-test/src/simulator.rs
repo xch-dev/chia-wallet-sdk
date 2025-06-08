@@ -342,7 +342,9 @@ impl Simulator {
         updates.extend(removed_coins);
         self.create_block();
         self.coin_states.extend(updates.clone());
-        self.hinted_coins.extend(added_hints.clone());
+        for (hint, coins) in added_hints {
+            self.hinted_coins.entry(hint).or_default().extend(coins);
+        }
         self.puzzle_and_solutions.extend(puzzle_solutions);
 
         Ok(updates)
