@@ -35,6 +35,7 @@ export declare function sha256(value: Uint8Array): Uint8Array
 export declare function curryTreeHash(program: Uint8Array, args: Array<Uint8Array>): Uint8Array
 export declare function generateBytes(bytes: number): Uint8Array
 export declare class Address {
+  clone(): Address
   encode(): string
   static decode(address: string): Address
   constructor(puzzleHash: Uint8Array, prefix: string)
@@ -44,6 +45,7 @@ export declare class Address {
   set prefix(value: string)
 }
 export declare class SecretKey {
+  clone(): SecretKey
   static fromSeed(seed: Uint8Array): SecretKey
   static fromBytes(bytes: Uint8Array): SecretKey
   toBytes(): Uint8Array
@@ -57,6 +59,7 @@ export declare class SecretKey {
   deriveSyntheticHidden(hiddenPuzzleHash: Uint8Array): SecretKey
 }
 export declare class PublicKey {
+  clone(): PublicKey
   static infinity(): PublicKey
   static aggregate(publicKeys: Array<PublicKey>): PublicKey
   static aggregateVerify(publicKeys: Array<PublicKey>, messages: Array<Uint8Array>, signature: Signature): boolean
@@ -72,6 +75,7 @@ export declare class PublicKey {
   deriveSyntheticHidden(hiddenPuzzleHash: Uint8Array): PublicKey
 }
 export declare class Signature {
+  clone(): Signature
   static infinity(): Signature
   static aggregate(signatures: Array<Signature>): Signature
   static fromBytes(bytes: Uint8Array): Signature
@@ -80,6 +84,7 @@ export declare class Signature {
   isValid(): boolean
 }
 export declare class Clvm {
+  clone(): Clvm
   constructor()
   addCoinSpend(coinSpend: CoinSpend): void
   spendCoin(coin: Coin, spend: Spend): void
@@ -153,6 +158,7 @@ export declare class Clvm {
   boundCheckedNumber(value: number): Program
 }
 export declare class Output {
+  clone(): Output
   constructor(value: Program, cost: bigint)
   get value(): Program
   set value(value: Program)
@@ -160,6 +166,7 @@ export declare class Output {
   set cost(value: bigint)
 }
 export declare class Pair {
+  clone(): Pair
   constructor(first: Program, rest: Program)
   get first(): Program
   set first(value: Program)
@@ -167,6 +174,7 @@ export declare class Pair {
   set rest(value: Program)
 }
 export declare class CurriedProgram {
+  clone(): CurriedProgram
   constructor(program: Program, args: Array<Program>)
   get program(): Program
   set program(value: Program)
@@ -174,6 +182,7 @@ export declare class CurriedProgram {
   set args(value: Array<Program>)
 }
 export declare class Proof {
+  clone(): Proof
   constructor(parentParentCoinInfo: Uint8Array, parentInnerPuzzleHash: Uint8Array | undefined | null, parentAmount: bigint)
   get parentParentCoinInfo(): Uint8Array
   set parentParentCoinInfo(value: Uint8Array)
@@ -183,6 +192,7 @@ export declare class Proof {
   set parentAmount(value: bigint)
 }
 export declare class LineageProof {
+  clone(): LineageProof
   constructor(parentParentCoinInfo: Uint8Array, parentInnerPuzzleHash: Uint8Array, parentAmount: bigint)
   get parentParentCoinInfo(): Uint8Array
   set parentParentCoinInfo(value: Uint8Array)
@@ -192,6 +202,7 @@ export declare class LineageProof {
   set parentAmount(value: bigint)
 }
 export declare class Coin {
+  clone(): Coin
   coinId(): Uint8Array
   constructor(parentCoinInfo: Uint8Array, puzzleHash: Uint8Array, amount: bigint)
   get parentCoinInfo(): Uint8Array
@@ -202,6 +213,7 @@ export declare class Coin {
   set amount(value: bigint)
 }
 export declare class CoinSpend {
+  clone(): CoinSpend
   constructor(coin: Coin, puzzleReveal: Uint8Array, solution: Uint8Array)
   get coin(): Coin
   set coin(value: Coin)
@@ -211,6 +223,7 @@ export declare class CoinSpend {
   set solution(value: Uint8Array)
 }
 export declare class SpendBundle {
+  clone(): SpendBundle
   toBytes(): Uint8Array
   static fromBytes(bytes: Uint8Array): SpendBundle
   hash(): Uint8Array
@@ -221,6 +234,7 @@ export declare class SpendBundle {
   set aggregatedSignature(value: Signature)
 }
 export declare class Spend {
+  clone(): Spend
   constructor(puzzle: Program, solution: Program)
   get puzzle(): Program
   set puzzle(value: Program)
@@ -228,6 +242,7 @@ export declare class Spend {
   set solution(value: Program)
 }
 export declare class CoinsetClient {
+  clone(): CoinsetClient
   constructor(baseUrl: string)
   static testnet11(): CoinsetClient
   static mainnet(): CoinsetClient
@@ -252,6 +267,7 @@ export declare class CoinsetClient {
   getMempoolItemsByCoinName(coinName: Uint8Array): Promise<GetMempoolItemsResponse>
 }
 export declare class BlockchainStateResponse {
+  clone(): BlockchainStateResponse
   constructor(blockchainState: BlockchainState | undefined | null, error: string | undefined | null, success: boolean)
   get blockchainState(): BlockchainState | null
   set blockchainState(value?: BlockchainState | undefined | null)
@@ -261,6 +277,7 @@ export declare class BlockchainStateResponse {
   set success(value: boolean)
 }
 export declare class BlockchainState {
+  clone(): BlockchainState
   constructor(averageBlockTime: bigint, blockMaxCost: bigint, difficulty: bigint, genesisChallengeInitialized: boolean, mempoolCost: bigint, mempoolFees: bigint, mempoolMaxTotalCost: bigint, mempoolMinFees: MempoolMinFees, mempoolSize: number, nodeId: Uint8Array, peak: BlockRecord, space: bigint, subSlotIters: bigint, sync: SyncState)
   get averageBlockTime(): bigint
   set averageBlockTime(value: bigint)
@@ -292,11 +309,13 @@ export declare class BlockchainState {
   set sync(value: SyncState)
 }
 export declare class MempoolMinFees {
+  clone(): MempoolMinFees
   constructor(cost5000000: bigint)
   get cost5000000(): bigint
   set cost5000000(value: bigint)
 }
 export declare class SyncState {
+  clone(): SyncState
   constructor(syncMode: boolean, syncProgressHeight: number, syncTipHeight: number, synced: boolean)
   get syncMode(): boolean
   set syncMode(value: boolean)
@@ -308,6 +327,7 @@ export declare class SyncState {
   set synced(value: boolean)
 }
 export declare class AdditionsAndRemovalsResponse {
+  clone(): AdditionsAndRemovalsResponse
   constructor(additions: Array<CoinRecord> | undefined | null, removals: Array<CoinRecord> | undefined | null, error: string | undefined | null, success: boolean)
   get additions(): Array<CoinRecord> | null
   set additions(value?: Array<CoinRecord> | undefined | null)
@@ -319,6 +339,7 @@ export declare class AdditionsAndRemovalsResponse {
   set success(value: boolean)
 }
 export declare class GetBlockResponse {
+  clone(): GetBlockResponse
   constructor(block: FullBlock | undefined | null, error: string | undefined | null, success: boolean)
   get block(): FullBlock | null
   set block(value?: FullBlock | undefined | null)
@@ -328,6 +349,7 @@ export declare class GetBlockResponse {
   set success(value: boolean)
 }
 export declare class GetBlockRecordResponse {
+  clone(): GetBlockRecordResponse
   constructor(blockRecord: BlockRecord | undefined | null, error: string | undefined | null, success: boolean)
   get blockRecord(): BlockRecord | null
   set blockRecord(value?: BlockRecord | undefined | null)
@@ -337,6 +359,7 @@ export declare class GetBlockRecordResponse {
   set success(value: boolean)
 }
 export declare class GetBlockRecordsResponse {
+  clone(): GetBlockRecordsResponse
   constructor(blockRecords: Array<BlockRecord> | undefined | null, error: string | undefined | null, success: boolean)
   get blockRecords(): Array<BlockRecord> | null
   set blockRecords(value?: Array<BlockRecord> | undefined | null)
@@ -346,6 +369,7 @@ export declare class GetBlockRecordsResponse {
   set success(value: boolean)
 }
 export declare class GetBlocksResponse {
+  clone(): GetBlocksResponse
   constructor(blocks: Array<FullBlock> | undefined | null, error: string | undefined | null, success: boolean)
   get blocks(): Array<FullBlock> | null
   set blocks(value?: Array<FullBlock> | undefined | null)
@@ -355,6 +379,7 @@ export declare class GetBlocksResponse {
   set success(value: boolean)
 }
 export declare class GetBlockSpendsResponse {
+  clone(): GetBlockSpendsResponse
   constructor(blockSpends: Array<CoinSpend> | undefined | null, error: string | undefined | null, success: boolean)
   get blockSpends(): Array<CoinSpend> | null
   set blockSpends(value?: Array<CoinSpend> | undefined | null)
@@ -364,6 +389,7 @@ export declare class GetBlockSpendsResponse {
   set success(value: boolean)
 }
 export declare class GetCoinRecordResponse {
+  clone(): GetCoinRecordResponse
   constructor(coinRecord: CoinRecord | undefined | null, error: string | undefined | null, success: boolean)
   get coinRecord(): CoinRecord | null
   set coinRecord(value?: CoinRecord | undefined | null)
@@ -373,6 +399,7 @@ export declare class GetCoinRecordResponse {
   set success(value: boolean)
 }
 export declare class GetCoinRecordsResponse {
+  clone(): GetCoinRecordsResponse
   constructor(coinRecords: Array<CoinRecord> | undefined | null, error: string | undefined | null, success: boolean)
   get coinRecords(): Array<CoinRecord> | null
   set coinRecords(value?: Array<CoinRecord> | undefined | null)
@@ -382,6 +409,7 @@ export declare class GetCoinRecordsResponse {
   set success(value: boolean)
 }
 export declare class GetPuzzleAndSolutionResponse {
+  clone(): GetPuzzleAndSolutionResponse
   constructor(coinSolution: CoinSpend | undefined | null, error: string | undefined | null, success: boolean)
   get coinSolution(): CoinSpend | null
   set coinSolution(value?: CoinSpend | undefined | null)
@@ -391,6 +419,7 @@ export declare class GetPuzzleAndSolutionResponse {
   set success(value: boolean)
 }
 export declare class PushTxResponse {
+  clone(): PushTxResponse
   constructor(status: string, error: string | undefined | null, success: boolean)
   get status(): string
   set status(value: string)
@@ -400,6 +429,7 @@ export declare class PushTxResponse {
   set success(value: boolean)
 }
 export declare class GetNetworkInfoResponse {
+  clone(): GetNetworkInfoResponse
   constructor(networkName: string | undefined | null, networkPrefix: string | undefined | null, genesisChallenge: Uint8Array | undefined | null, error: string | undefined | null, success: boolean)
   get networkName(): string | null
   set networkName(value?: string | undefined | null)
@@ -413,6 +443,7 @@ export declare class GetNetworkInfoResponse {
   set success(value: boolean)
 }
 export declare class GetMempoolItemResponse {
+  clone(): GetMempoolItemResponse
   constructor(mempoolItem: MempoolItem | undefined | null, error: string | undefined | null, success: boolean)
   get mempoolItem(): MempoolItem | null
   set mempoolItem(value?: MempoolItem | undefined | null)
@@ -422,6 +453,7 @@ export declare class GetMempoolItemResponse {
   set success(value: boolean)
 }
 export declare class GetMempoolItemsResponse {
+  clone(): GetMempoolItemsResponse
   constructor(mempoolItems: Array<MempoolItem> | undefined | null, error: string | undefined | null, success: boolean)
   get mempoolItems(): Array<MempoolItem> | null
   set mempoolItems(value?: Array<MempoolItem> | undefined | null)
@@ -431,6 +463,7 @@ export declare class GetMempoolItemsResponse {
   set success(value: boolean)
 }
 export declare class CoinRecord {
+  clone(): CoinRecord
   constructor(coin: Coin, coinbase: boolean, confirmedBlockIndex: number, spent: boolean, spentBlockIndex: number, timestamp: bigint)
   get coin(): Coin
   set coin(value: Coin)
@@ -446,6 +479,7 @@ export declare class CoinRecord {
   set timestamp(value: bigint)
 }
 export declare class MempoolItem {
+  clone(): MempoolItem
   constructor(spendBundle: SpendBundle, fee: bigint)
   get spendBundle(): SpendBundle
   set spendBundle(value: SpendBundle)
@@ -453,6 +487,7 @@ export declare class MempoolItem {
   set fee(value: bigint)
 }
 export declare class FullBlock {
+  clone(): FullBlock
   constructor(finishedSubSlots: Array<EndOfSubSlotBundle>, rewardChainBlock: RewardChainBlock, challengeChainSpProof: VDFProof | undefined | null, challengeChainIpProof: VDFProof, rewardChainSpProof: VDFProof | undefined | null, rewardChainIpProof: VDFProof, infusedChallengeChainIpProof: VDFProof | undefined | null, foliage: Foliage, foliageTransactionBlock: FoliageTransactionBlock | undefined | null, transactionsInfo: TransactionsInfo | undefined | null, transactionsGenerator: Uint8Array | undefined | null, transactionsGeneratorRefList: Array<number>)
   get finishedSubSlots(): Array<EndOfSubSlotBundle>
   set finishedSubSlots(value: Array<EndOfSubSlotBundle>)
@@ -480,6 +515,7 @@ export declare class FullBlock {
   set transactionsGeneratorRefList(value: Array<number>)
 }
 export declare class EndOfSubSlotBundle {
+  clone(): EndOfSubSlotBundle
   constructor(challengeChain: ChallengeChainSubSlot, infusedChallengeChain: InfusedChallengeChainSubSlot | undefined | null, rewardChain: RewardChainSubSlot, proofs: SubSlotProofs)
   get challengeChain(): ChallengeChainSubSlot
   set challengeChain(value: ChallengeChainSubSlot)
@@ -491,6 +527,7 @@ export declare class EndOfSubSlotBundle {
   set proofs(value: SubSlotProofs)
 }
 export declare class ChallengeChainSubSlot {
+  clone(): ChallengeChainSubSlot
   constructor(challengeChainEndOfSlotVdf: VDFInfo, infusedChallengeChainSubSlotHash?: Uint8Array | undefined | null, subepochSummaryHash?: Uint8Array | undefined | null, newSubSlotIters?: bigint | undefined | null, newDifficulty?: bigint | undefined | null)
   get challengeChainEndOfSlotVdf(): VDFInfo
   set challengeChainEndOfSlotVdf(value: VDFInfo)
@@ -504,11 +541,13 @@ export declare class ChallengeChainSubSlot {
   set newDifficulty(value?: bigint | undefined | null)
 }
 export declare class InfusedChallengeChainSubSlot {
+  clone(): InfusedChallengeChainSubSlot
   constructor(infusedChallengeChainEndOfSlotVdf: VDFInfo)
   get infusedChallengeChainEndOfSlotVdf(): VDFInfo
   set infusedChallengeChainEndOfSlotVdf(value: VDFInfo)
 }
 export declare class RewardChainSubSlot {
+  clone(): RewardChainSubSlot
   constructor(endOfSlotVdf: VDFInfo, challengeChainSubSlotHash: Uint8Array, infusedChallengeChainSubSlotHash: Uint8Array | undefined | null, deficit: number)
   get endOfSlotVdf(): VDFInfo
   set endOfSlotVdf(value: VDFInfo)
@@ -520,6 +559,7 @@ export declare class RewardChainSubSlot {
   set deficit(value: number)
 }
 export declare class SubSlotProofs {
+  clone(): SubSlotProofs
   constructor(challengeChainSlotProof: VDFProof, infusedChallengeChainSlotProof: VDFProof | undefined | null, rewardChainSlotProof: VDFProof)
   get challengeChainSlotProof(): VDFProof
   set challengeChainSlotProof(value: VDFProof)
@@ -530,6 +570,7 @@ export declare class SubSlotProofs {
 }
 export type VDFInfo = VdfInfo
 export declare class VdfInfo {
+  clone(): VdfInfo
   constructor(challenge: Uint8Array, numberOfIterations: bigint, output: Uint8Array)
   get challenge(): Uint8Array
   set challenge(value: Uint8Array)
@@ -540,6 +581,7 @@ export declare class VdfInfo {
 }
 export type VDFProof = VdfProof
 export declare class VdfProof {
+  clone(): VdfProof
   constructor(witnessType: number, witness: Uint8Array, normalizedToIdentity: boolean)
   get witnessType(): number
   set witnessType(value: number)
@@ -549,6 +591,7 @@ export declare class VdfProof {
   set normalizedToIdentity(value: boolean)
 }
 export declare class TransactionsInfo {
+  clone(): TransactionsInfo
   constructor(generatorRoot: Uint8Array, generatorRefsRoot: Uint8Array, aggregatedSignature: Signature, fees: bigint, cost: bigint, rewardClaimsIncorporated: Array<Coin>)
   get generatorRoot(): Uint8Array
   set generatorRoot(value: Uint8Array)
@@ -564,6 +607,7 @@ export declare class TransactionsInfo {
   set rewardClaimsIncorporated(value: Array<Coin>)
 }
 export declare class RewardChainBlock {
+  clone(): RewardChainBlock
   constructor(weight: bigint, height: number, totalIters: bigint, signagePointIndex: number, posSsCcChallengeHash: Uint8Array, proofOfSpace: ProofOfSpace, challengeChainSpVdf: VdfInfo | undefined | null, challengeChainSpSignature: Signature, challengeChainIpVdf: VdfInfo, rewardChainSpVdf: VdfInfo | undefined | null, rewardChainSpSignature: Signature, rewardChainIpVdf: VdfInfo, infusedChallengeChainIpVdf: VdfInfo | undefined | null, isTransactionBlock: boolean)
   get weight(): bigint
   set weight(value: bigint)
@@ -595,6 +639,7 @@ export declare class RewardChainBlock {
   set isTransactionBlock(value: boolean)
 }
 export declare class FoliageTransactionBlock {
+  clone(): FoliageTransactionBlock
   constructor(prevTransactionBlockHash: Uint8Array, timestamp: bigint, filterHash: Uint8Array, additionsRoot: Uint8Array, removalsRoot: Uint8Array, transactionsInfoHash: Uint8Array)
   get prevTransactionBlockHash(): Uint8Array
   set prevTransactionBlockHash(value: Uint8Array)
@@ -610,6 +655,7 @@ export declare class FoliageTransactionBlock {
   set transactionsInfoHash(value: Uint8Array)
 }
 export declare class FoliageBlockData {
+  clone(): FoliageBlockData
   constructor(unfinishedRewardBlockHash: Uint8Array, poolTarget: PoolTarget, poolSignature: Signature | undefined | null, farmerRewardPuzzleHash: Uint8Array, extensionData: Uint8Array)
   get unfinishedRewardBlockHash(): Uint8Array
   set unfinishedRewardBlockHash(value: Uint8Array)
@@ -623,6 +669,7 @@ export declare class FoliageBlockData {
   set extensionData(value: Uint8Array)
 }
 export declare class Foliage {
+  clone(): Foliage
   constructor(prevBlockHash: Uint8Array, rewardBlockHash: Uint8Array, foliageBlockData: FoliageBlockData, foliageBlockDataSignature: Signature, foliageTransactionBlockHash?: Uint8Array | undefined | null, foliageTransactionBlockSignature?: Signature | undefined | null)
   get prevBlockHash(): Uint8Array
   set prevBlockHash(value: Uint8Array)
@@ -638,6 +685,7 @@ export declare class Foliage {
   set foliageTransactionBlockSignature(value?: Signature | undefined | null)
 }
 export declare class PoolTarget {
+  clone(): PoolTarget
   constructor(puzzleHash: Uint8Array, maxHeight: number)
   get puzzleHash(): Uint8Array
   set puzzleHash(value: Uint8Array)
@@ -645,6 +693,7 @@ export declare class PoolTarget {
   set maxHeight(value: number)
 }
 export declare class BlockRecord {
+  clone(): BlockRecord
   constructor(headerHash: Uint8Array, prevHash: Uint8Array, height: number, weight: bigint, totalIters: bigint, signagePointIndex: number, challengeVdfOutput: Uint8Array, infusedChallengeVdfOutput: Uint8Array | undefined | null, rewardInfusionNewChallenge: Uint8Array, challengeBlockInfoHash: Uint8Array, subSlotIters: bigint, poolPuzzleHash: Uint8Array, farmerPuzzleHash: Uint8Array, requiredIters: bigint, deficit: number, overflow: boolean, prevTransactionBlockHeight: number, timestamp?: bigint | undefined | null, prevTransactionBlockHash?: Uint8Array | undefined | null, fees?: bigint | undefined | null, rewardClaimsIncorporated?: Array<Coin> | undefined | null, finishedChallengeSlotHashes?: Array<Uint8Array> | undefined | null, finishedInfusedChallengeSlotHashes?: Array<Uint8Array> | undefined | null, finishedRewardSlotHashes?: Array<Uint8Array> | undefined | null, subEpochSummaryIncluded?: SubEpochSummary | undefined | null)
   get headerHash(): Uint8Array
   set headerHash(value: Uint8Array)
@@ -698,6 +747,7 @@ export declare class BlockRecord {
   set subEpochSummaryIncluded(value?: SubEpochSummary | undefined | null)
 }
 export declare class ProofOfSpace {
+  clone(): ProofOfSpace
   constructor(challenge: Uint8Array, poolPublicKey: PublicKey | undefined | null, poolContractPuzzleHash: Uint8Array | undefined | null, plotPublicKey: PublicKey, versionAndSize: number, proof: Uint8Array)
   get challenge(): Uint8Array
   set challenge(value: Uint8Array)
@@ -713,6 +763,7 @@ export declare class ProofOfSpace {
   set proof(value: Uint8Array)
 }
 export declare class SubEpochSummary {
+  clone(): SubEpochSummary
   constructor(prevSubepochSummaryHash: Uint8Array, rewardChainHash: Uint8Array, numBlocksOverflow: number, newDifficulty?: bigint | undefined | null, newSubSlotIters?: bigint | undefined | null)
   get prevSubepochSummaryHash(): Uint8Array
   set prevSubepochSummaryHash(value: Uint8Array)
@@ -726,11 +777,13 @@ export declare class SubEpochSummary {
   set newSubSlotIters(value?: bigint | undefined | null)
 }
 export declare class Remark {
+  clone(): Remark
   constructor(rest: Program)
   get rest(): Program
   set rest(value: Program)
 }
 export declare class AggSigParent {
+  clone(): AggSigParent
   constructor(publicKey: PublicKey, message: Uint8Array)
   get publicKey(): PublicKey
   set publicKey(value: PublicKey)
@@ -738,6 +791,7 @@ export declare class AggSigParent {
   set message(value: Uint8Array)
 }
 export declare class AggSigPuzzle {
+  clone(): AggSigPuzzle
   constructor(publicKey: PublicKey, message: Uint8Array)
   get publicKey(): PublicKey
   set publicKey(value: PublicKey)
@@ -745,6 +799,7 @@ export declare class AggSigPuzzle {
   set message(value: Uint8Array)
 }
 export declare class AggSigAmount {
+  clone(): AggSigAmount
   constructor(publicKey: PublicKey, message: Uint8Array)
   get publicKey(): PublicKey
   set publicKey(value: PublicKey)
@@ -752,6 +807,7 @@ export declare class AggSigAmount {
   set message(value: Uint8Array)
 }
 export declare class AggSigPuzzleAmount {
+  clone(): AggSigPuzzleAmount
   constructor(publicKey: PublicKey, message: Uint8Array)
   get publicKey(): PublicKey
   set publicKey(value: PublicKey)
@@ -759,6 +815,7 @@ export declare class AggSigPuzzleAmount {
   set message(value: Uint8Array)
 }
 export declare class AggSigParentAmount {
+  clone(): AggSigParentAmount
   constructor(publicKey: PublicKey, message: Uint8Array)
   get publicKey(): PublicKey
   set publicKey(value: PublicKey)
@@ -766,6 +823,7 @@ export declare class AggSigParentAmount {
   set message(value: Uint8Array)
 }
 export declare class AggSigParentPuzzle {
+  clone(): AggSigParentPuzzle
   constructor(publicKey: PublicKey, message: Uint8Array)
   get publicKey(): PublicKey
   set publicKey(value: PublicKey)
@@ -773,6 +831,7 @@ export declare class AggSigParentPuzzle {
   set message(value: Uint8Array)
 }
 export declare class AggSigUnsafe {
+  clone(): AggSigUnsafe
   constructor(publicKey: PublicKey, message: Uint8Array)
   get publicKey(): PublicKey
   set publicKey(value: PublicKey)
@@ -780,6 +839,7 @@ export declare class AggSigUnsafe {
   set message(value: Uint8Array)
 }
 export declare class AggSigMe {
+  clone(): AggSigMe
   constructor(publicKey: PublicKey, message: Uint8Array)
   get publicKey(): PublicKey
   set publicKey(value: PublicKey)
@@ -787,6 +847,7 @@ export declare class AggSigMe {
   set message(value: Uint8Array)
 }
 export declare class CreateCoin {
+  clone(): CreateCoin
   constructor(puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null)
   get puzzleHash(): Uint8Array
   set puzzleHash(value: Uint8Array)
@@ -796,114 +857,137 @@ export declare class CreateCoin {
   set memos(value?: Program | undefined | null)
 }
 export declare class ReserveFee {
+  clone(): ReserveFee
   constructor(amount: bigint)
   get amount(): bigint
   set amount(value: bigint)
 }
 export declare class CreateCoinAnnouncement {
+  clone(): CreateCoinAnnouncement
   constructor(message: Uint8Array)
   get message(): Uint8Array
   set message(value: Uint8Array)
 }
 export declare class CreatePuzzleAnnouncement {
+  clone(): CreatePuzzleAnnouncement
   constructor(message: Uint8Array)
   get message(): Uint8Array
   set message(value: Uint8Array)
 }
 export declare class AssertCoinAnnouncement {
+  clone(): AssertCoinAnnouncement
   constructor(announcementId: Uint8Array)
   get announcementId(): Uint8Array
   set announcementId(value: Uint8Array)
 }
 export declare class AssertPuzzleAnnouncement {
+  clone(): AssertPuzzleAnnouncement
   constructor(announcementId: Uint8Array)
   get announcementId(): Uint8Array
   set announcementId(value: Uint8Array)
 }
 export declare class AssertConcurrentSpend {
+  clone(): AssertConcurrentSpend
   constructor(coinId: Uint8Array)
   get coinId(): Uint8Array
   set coinId(value: Uint8Array)
 }
 export declare class AssertConcurrentPuzzle {
+  clone(): AssertConcurrentPuzzle
   constructor(puzzleHash: Uint8Array)
   get puzzleHash(): Uint8Array
   set puzzleHash(value: Uint8Array)
 }
 export declare class AssertSecondsRelative {
+  clone(): AssertSecondsRelative
   constructor(seconds: bigint)
   get seconds(): bigint
   set seconds(value: bigint)
 }
 export declare class AssertSecondsAbsolute {
+  clone(): AssertSecondsAbsolute
   constructor(seconds: bigint)
   get seconds(): bigint
   set seconds(value: bigint)
 }
 export declare class AssertHeightRelative {
+  clone(): AssertHeightRelative
   constructor(height: number)
   get height(): number
   set height(value: number)
 }
 export declare class AssertHeightAbsolute {
+  clone(): AssertHeightAbsolute
   constructor(height: number)
   get height(): number
   set height(value: number)
 }
 export declare class AssertBeforeSecondsRelative {
+  clone(): AssertBeforeSecondsRelative
   constructor(seconds: bigint)
   get seconds(): bigint
   set seconds(value: bigint)
 }
 export declare class AssertBeforeSecondsAbsolute {
+  clone(): AssertBeforeSecondsAbsolute
   constructor(seconds: bigint)
   get seconds(): bigint
   set seconds(value: bigint)
 }
 export declare class AssertBeforeHeightRelative {
+  clone(): AssertBeforeHeightRelative
   constructor(height: number)
   get height(): number
   set height(value: number)
 }
 export declare class AssertBeforeHeightAbsolute {
+  clone(): AssertBeforeHeightAbsolute
   constructor(height: number)
   get height(): number
   set height(value: number)
 }
 export declare class AssertMyCoinId {
+  clone(): AssertMyCoinId
   constructor(coinId: Uint8Array)
   get coinId(): Uint8Array
   set coinId(value: Uint8Array)
 }
 export declare class AssertMyParentId {
+  clone(): AssertMyParentId
   constructor(parentId: Uint8Array)
   get parentId(): Uint8Array
   set parentId(value: Uint8Array)
 }
 export declare class AssertMyPuzzleHash {
+  clone(): AssertMyPuzzleHash
   constructor(puzzleHash: Uint8Array)
   get puzzleHash(): Uint8Array
   set puzzleHash(value: Uint8Array)
 }
 export declare class AssertMyAmount {
+  clone(): AssertMyAmount
   constructor(amount: bigint)
   get amount(): bigint
   set amount(value: bigint)
 }
 export declare class AssertMyBirthSeconds {
+  clone(): AssertMyBirthSeconds
   constructor(seconds: bigint)
   get seconds(): bigint
   set seconds(value: bigint)
 }
 export declare class AssertMyBirthHeight {
+  clone(): AssertMyBirthHeight
   constructor(height: number)
   get height(): number
   set height(value: number)
 }
 export declare class AssertEphemeral {
+  clone(): AssertEphemeral
   constructor()
 }
 export declare class SendMessage {
+  clone(): SendMessage
   constructor(mode: number, message: Uint8Array, data: Array<Program>)
   get mode(): number
   set mode(value: number)
@@ -913,6 +997,7 @@ export declare class SendMessage {
   set data(value: Array<Program>)
 }
 export declare class ReceiveMessage {
+  clone(): ReceiveMessage
   constructor(mode: number, message: Uint8Array, data: Array<Program>)
   get mode(): number
   set mode(value: number)
@@ -922,6 +1007,7 @@ export declare class ReceiveMessage {
   set data(value: Array<Program>)
 }
 export declare class Softfork {
+  clone(): Softfork
   constructor(cost: bigint, rest: Program)
   get cost(): bigint
   set cost(value: bigint)
@@ -929,6 +1015,7 @@ export declare class Softfork {
   set rest(value: Program)
 }
 export declare class Constants {
+  clone(): Constants
   static acsTransferProgram(): Uint8Array
   static acsTransferProgramHash(): Uint8Array
   static augmentedCondition(): Uint8Array
@@ -1063,6 +1150,7 @@ export declare class Constants {
   static p2CurriedHash(): Uint8Array
 }
 export declare class Vault {
+  clone(): Vault
   child(custodyHash: Uint8Array): Vault
   constructor(coin: Coin, launcherId: Uint8Array, proof: Proof, custodyHash: Uint8Array)
   get coin(): Coin
@@ -1075,6 +1163,7 @@ export declare class Vault {
   set custodyHash(value: Uint8Array)
 }
 export declare class MemberConfig {
+  clone(): MemberConfig
   constructor()
   withTopLevel(topLevel: boolean): MemberConfig
   withNonce(nonce: number): MemberConfig
@@ -1087,6 +1176,7 @@ export declare class MemberConfig {
   set restrictions(value: Array<Restriction>)
 }
 export declare class Restriction {
+  clone(): Restriction
   constructor(kind: RestrictionKind, puzzleHash: Uint8Array)
   get kind(): RestrictionKind
   set kind(value: RestrictionKind)
@@ -1094,6 +1184,7 @@ export declare class Restriction {
   set puzzleHash(value: Uint8Array)
 }
 export declare class MipsSpend {
+  clone(): MipsSpend
   spend(custodyHash: Uint8Array): Spend
   spendVault(vault: Vault): void
   mOfN(config: MemberConfig, required: number, items: Array<Uint8Array>): void
@@ -1111,6 +1202,7 @@ export declare class MipsSpend {
   preventVaultSideEffects(): void
 }
 export declare class VaultMint {
+  clone(): VaultMint
   constructor(vault: Vault, parentConditions: Array<Program>)
   get vault(): Vault
   set vault(value: Vault)
@@ -1118,11 +1210,13 @@ export declare class VaultMint {
   set parentConditions(value: Array<Program>)
 }
 export declare class MipsMemo {
+  clone(): MipsMemo
   constructor(innerPuzzle: InnerPuzzleMemo)
   get innerPuzzle(): InnerPuzzleMemo
   set innerPuzzle(value: InnerPuzzleMemo)
 }
 export declare class InnerPuzzleMemo {
+  clone(): InnerPuzzleMemo
   constructor(nonce: number, restrictions: Array<RestrictionMemo>, kind: MemoKind)
   get nonce(): number
   set nonce(value: number)
@@ -1132,6 +1226,7 @@ export declare class InnerPuzzleMemo {
   set kind(value: MemoKind)
 }
 export declare class RestrictionMemo {
+  clone(): RestrictionMemo
   static force1Of2RestrictedVariable(clvm: Clvm, leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): RestrictionMemo
   static enforceDelegatedPuzzleWrappers(clvm: Clvm, wrapperMemos: Array<WrapperMemo>): RestrictionMemo
   static timelock(clvm: Clvm, seconds: bigint, reveal: boolean): RestrictionMemo
@@ -1144,6 +1239,7 @@ export declare class RestrictionMemo {
   set memo(value: Program)
 }
 export declare class WrapperMemo {
+  clone(): WrapperMemo
   static preventVaultSideEffects(clvm: Clvm, reveal: boolean): Array<WrapperMemo>
   static forceCoinAnnouncement(clvm: Clvm): WrapperMemo
   static forceCoinMessage(clvm: Clvm): WrapperMemo
@@ -1158,6 +1254,7 @@ export declare class WrapperMemo {
 }
 export type Force1of2RestrictedVariableMemo = Force1Of2RestrictedVariableMemo
 export declare class Force1Of2RestrictedVariableMemo {
+  clone(): Force1Of2RestrictedVariableMemo
   constructor(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array)
   get leftSideSubtreeHash(): Uint8Array
   set leftSideSubtreeHash(value: Uint8Array)
@@ -1169,12 +1266,14 @@ export declare class Force1Of2RestrictedVariableMemo {
   set delegatedPuzzleValidatorListHash(value: Uint8Array)
 }
 export declare class MemoKind {
+  clone(): MemoKind
   static member(member: MemberMemo): MemoKind
   static mOfN(mOfN: MofNMemo): MemoKind
   asMember(): MemberMemo | null
   asMOfN(): MofNMemo | null
 }
 export declare class MemberMemo {
+  clone(): MemberMemo
   static k1(clvm: Clvm, publicKey: K1PublicKey, fastForward: boolean, reveal: boolean): MemberMemo
   static r1(clvm: Clvm, publicKey: R1PublicKey, fastForward: boolean, reveal: boolean): MemberMemo
   static bls(clvm: Clvm, publicKey: PublicKey, taproot: boolean, reveal: boolean): MemberMemo
@@ -1188,6 +1287,7 @@ export declare class MemberMemo {
   set memo(value: Program)
 }
 export declare class MofNMemo {
+  clone(): MofNMemo
   constructor(required: number, items: Array<InnerPuzzleMemo>)
   get required(): number
   set required(value: number)
@@ -1195,6 +1295,7 @@ export declare class MofNMemo {
   set items(value: Array<InnerPuzzleMemo>)
 }
 export declare class Mnemonic {
+  clone(): Mnemonic
   constructor(mnemonic: string)
   static fromEntropy(entropy: Uint8Array): Mnemonic
   static generate(use24: boolean): Mnemonic
@@ -1204,6 +1305,7 @@ export declare class Mnemonic {
   toSeed(password: string): Uint8Array
 }
 export declare class Program {
+  clone(): Program
   compile(): Output
   unparse(): string
   serialize(): Uint8Array
@@ -1264,6 +1366,7 @@ export declare class Program {
   toBoundCheckedNumber(): number | null
 }
 export declare class Puzzle {
+  clone(): Puzzle
   parseCat(): ParsedCat | null
   parseChildCats(parentCoin: Coin, parentSolution: Program): Array<Cat> | null
   parseNft(): ParsedNft | null
@@ -1284,6 +1387,7 @@ export declare class Puzzle {
   set args(value?: Program | undefined | null)
 }
 export declare class StreamedCatParsingResult {
+  clone(): StreamedCatParsingResult
   constructor(streamedCat: StreamedCat | undefined | null, lastSpendWasClawback: boolean, lastPaymentAmountIfClawback: bigint)
   get streamedCat(): StreamedCat | null
   set streamedCat(value?: StreamedCat | undefined | null)
@@ -1293,6 +1397,7 @@ export declare class StreamedCatParsingResult {
   set lastPaymentAmountIfClawback(value: bigint)
 }
 export declare class Cat {
+  clone(): Cat
   constructor(coin: Coin, lineageProof: LineageProof | undefined | null, assetId: Uint8Array, p2PuzzleHash: Uint8Array)
   get coin(): Coin
   set coin(value: Coin)
@@ -1304,6 +1409,7 @@ export declare class Cat {
   set p2PuzzleHash(value: Uint8Array)
 }
 export declare class CatSpend {
+  clone(): CatSpend
   constructor(cat: Cat, spend: Spend)
   get cat(): Cat
   set cat(value: Cat)
@@ -1311,6 +1417,7 @@ export declare class CatSpend {
   set spend(value: Spend)
 }
 export declare class ParsedCat {
+  clone(): ParsedCat
   constructor(assetId: Uint8Array, p2Puzzle: Puzzle)
   get assetId(): Uint8Array
   set assetId(value: Uint8Array)
@@ -1318,6 +1425,7 @@ export declare class ParsedCat {
   set p2Puzzle(value: Puzzle)
 }
 export declare class Nft {
+  clone(): Nft
   constructor(coin: Coin, lineageProof: Proof, info: NftInfo)
   get coin(): Coin
   set coin(value: Coin)
@@ -1327,6 +1435,7 @@ export declare class Nft {
   set info(value: NftInfo)
 }
 export declare class NftInfo {
+  clone(): NftInfo
   constructor(launcherId: Uint8Array, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, currentOwner: Uint8Array | undefined | null, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, p2PuzzleHash: Uint8Array)
   get launcherId(): Uint8Array
   set launcherId(value: Uint8Array)
@@ -1344,6 +1453,7 @@ export declare class NftInfo {
   set p2PuzzleHash(value: Uint8Array)
 }
 export declare class ParsedNft {
+  clone(): ParsedNft
   constructor(info: NftInfo, p2Puzzle: Puzzle)
   get info(): NftInfo
   set info(value: NftInfo)
@@ -1351,6 +1461,7 @@ export declare class ParsedNft {
   set p2Puzzle(value: Puzzle)
 }
 export declare class NftMetadata {
+  clone(): NftMetadata
   constructor(editionNumber: bigint, editionTotal: bigint, dataUris: Array<string>, dataHash: Uint8Array | undefined | null, metadataUris: Array<string>, metadataHash: Uint8Array | undefined | null, licenseUris: Array<string>, licenseHash?: Uint8Array | undefined | null)
   get editionNumber(): bigint
   set editionNumber(value: bigint)
@@ -1370,6 +1481,7 @@ export declare class NftMetadata {
   set licenseHash(value?: Uint8Array | undefined | null)
 }
 export declare class NftMint {
+  clone(): NftMint
   constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, owner?: DidOwner | undefined | null)
   get metadata(): Program
   set metadata(value: Program)
@@ -1385,6 +1497,7 @@ export declare class NftMint {
   set owner(value?: DidOwner | undefined | null)
 }
 export declare class DidOwner {
+  clone(): DidOwner
   constructor(didId: Uint8Array, innerPuzzleHash: Uint8Array)
   get didId(): Uint8Array
   set didId(value: Uint8Array)
@@ -1392,6 +1505,7 @@ export declare class DidOwner {
   set innerPuzzleHash(value: Uint8Array)
 }
 export declare class MintedNfts {
+  clone(): MintedNfts
   constructor(nfts: Array<Nft>, parentConditions: Array<Program>)
   get nfts(): Array<Nft>
   set nfts(value: Array<Nft>)
@@ -1399,6 +1513,7 @@ export declare class MintedNfts {
   set parentConditions(value: Array<Program>)
 }
 export declare class Did {
+  clone(): Did
   constructor(coin: Coin, lineageProof: Proof, info: DidInfo)
   get coin(): Coin
   set coin(value: Coin)
@@ -1408,6 +1523,7 @@ export declare class Did {
   set info(value: DidInfo)
 }
 export declare class DidInfo {
+  clone(): DidInfo
   constructor(launcherId: Uint8Array, recoveryListHash: Uint8Array | undefined | null, numVerificationsRequired: bigint, metadata: Program, p2PuzzleHash: Uint8Array)
   get launcherId(): Uint8Array
   set launcherId(value: Uint8Array)
@@ -1421,6 +1537,7 @@ export declare class DidInfo {
   set p2PuzzleHash(value: Uint8Array)
 }
 export declare class ParsedDid {
+  clone(): ParsedDid
   constructor(info: DidInfo, p2Puzzle: Puzzle)
   get info(): DidInfo
   set info(value: DidInfo)
@@ -1428,6 +1545,7 @@ export declare class ParsedDid {
   set p2Puzzle(value: Puzzle)
 }
 export declare class StreamingPuzzleInfo {
+  clone(): StreamingPuzzleInfo
   amountToBePaid(myCoinAmount: bigint, paymentTime: bigint): bigint
   static getHint(recipient: Uint8Array): Uint8Array
   getLaunchHints(): Array<Uint8Array>
@@ -1444,6 +1562,7 @@ export declare class StreamingPuzzleInfo {
   set lastPaymentTime(value: bigint)
 }
 export declare class StreamedCat {
+  clone(): StreamedCat
   constructor(coin: Coin, assetId: Uint8Array, proof: LineageProof, info: StreamingPuzzleInfo)
   get coin(): Coin
   set coin(value: Coin)
@@ -1455,6 +1574,7 @@ export declare class StreamedCat {
   set info(value: StreamingPuzzleInfo)
 }
 export declare class ClawbackV2 {
+  clone(): ClawbackV2
   static fromMemo(memo: Program, receiverPuzzleHash: Uint8Array, amount: bigint, hinted: boolean, expectedPuzzleHash: Uint8Array): ClawbackV2 | null
   senderSpend(spend: Spend): Spend
   receiverSpend(spend: Spend): Spend
@@ -1474,6 +1594,7 @@ export declare class ClawbackV2 {
   set hinted(value: boolean)
 }
 export declare class Clawback {
+  clone(): Clawback
   senderSpend(spend: Spend): Spend
   receiverSpend(spend: Spend): Spend
   puzzleHash(): Uint8Array
@@ -1487,38 +1608,45 @@ export declare class Clawback {
   set receiverPuzzleHash(value: Uint8Array)
 }
 export declare class K1SecretKey {
+  clone(): K1SecretKey
   static fromBytes(bytes: Uint8Array): K1SecretKey
   toBytes(): Uint8Array
   publicKey(): K1PublicKey
   signPrehashed(prehashed: Uint8Array): K1Signature
 }
 export declare class K1PublicKey {
+  clone(): K1PublicKey
   static fromBytes(bytes: Uint8Array): K1PublicKey
   toBytes(): Uint8Array
   fingerprint(): number
   verifyPrehashed(prehashed: Uint8Array, signature: K1Signature): boolean
 }
 export declare class K1Signature {
+  clone(): K1Signature
   static fromBytes(bytes: Uint8Array): K1Signature
   toBytes(): Uint8Array
 }
 export declare class R1SecretKey {
+  clone(): R1SecretKey
   static fromBytes(bytes: Uint8Array): R1SecretKey
   toBytes(): Uint8Array
   publicKey(): R1PublicKey
   signPrehashed(prehashed: Uint8Array): R1Signature
 }
 export declare class R1PublicKey {
+  clone(): R1PublicKey
   static fromBytes(bytes: Uint8Array): R1PublicKey
   toBytes(): Uint8Array
   fingerprint(): number
   verifyPrehashed(prehashed: Uint8Array, signature: R1Signature): boolean
 }
 export declare class R1Signature {
+  clone(): R1Signature
   static fromBytes(bytes: Uint8Array): R1Signature
   toBytes(): Uint8Array
 }
 export declare class Simulator {
+  clone(): Simulator
   constructor()
   newCoin(puzzleHash: Uint8Array, amount: bigint): Coin
   bls(amount: bigint): BlsPairWithCoin
@@ -1526,6 +1654,7 @@ export declare class Simulator {
   passTime(time: bigint): void
 }
 export declare class BlsPair {
+  clone(): BlsPair
   static fromSeed(seed: bigint): BlsPair
   static manyFromSeed(seed: bigint, count: number): Array<BlsPair>
   constructor(sk: SecretKey, pk: PublicKey)
@@ -1535,6 +1664,7 @@ export declare class BlsPair {
   set pk(value: PublicKey)
 }
 export declare class BlsPairWithCoin {
+  clone(): BlsPairWithCoin
   constructor(sk: SecretKey, pk: PublicKey, puzzleHash: Uint8Array, coin: Coin)
   get sk(): SecretKey
   set sk(value: SecretKey)
@@ -1546,6 +1676,7 @@ export declare class BlsPairWithCoin {
   set coin(value: Coin)
 }
 export declare class K1Pair {
+  clone(): K1Pair
   static fromSeed(seed: bigint): K1Pair
   static manyFromSeed(seed: bigint, count: number): Array<K1Pair>
   constructor(sk: K1SecretKey, pk: K1PublicKey)
@@ -1555,6 +1686,7 @@ export declare class K1Pair {
   set pk(value: K1PublicKey)
 }
 export declare class R1Pair {
+  clone(): R1Pair
   static fromSeed(seed: bigint): R1Pair
   static manyFromSeed(seed: bigint, count: number): Array<R1Pair>
   constructor(sk: R1SecretKey, pk: R1PublicKey)

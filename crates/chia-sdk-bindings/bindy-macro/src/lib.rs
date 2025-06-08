@@ -156,7 +156,12 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                     quote!( #rust_struct_ident )
                 };
 
-                let mut method_tokens = quote!();
+                let mut method_tokens = quote! {
+                    #[napi]
+                    pub fn clone(&self) -> Self {
+                        Clone::clone(self)
+                    }
+                };
 
                 for (name, method) in methods {
                     let method_ident = Ident::new(&name, Span::mixed_site());
@@ -431,7 +436,12 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                     quote!( #rust_struct_ident )
                 };
 
-                let mut method_tokens = quote!();
+                let mut method_tokens = quote! {
+                    #[wasm_bindgen]
+                    pub fn clone(&self) -> Self {
+                        Clone::clone(self)
+                    }
+                };
 
                 for (name, method) in methods {
                     let js_name = name.to_case(Case::Camel);
@@ -712,7 +722,11 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                     quote!( #rust_struct_ident )
                 };
 
-                let mut method_tokens = quote!();
+                let mut method_tokens = quote! {
+                    pub fn clone(&self) -> Self {
+                        Clone::clone(self)
+                    }
+                };
 
                 for (name, method) in methods {
                     let method_ident = Ident::new(name, Span::mixed_site());
