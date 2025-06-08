@@ -122,7 +122,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
 
     let mut non_async_param_mappings = base_mappings.clone();
     let mut async_param_mappings = base_mappings.clone();
-    let return_mappings = base_mappings;
+    let mut return_mappings = base_mappings;
 
     for (name, binding) in &bindings {
         if matches!(binding, Binding::Class { .. }) {
@@ -134,6 +134,14 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                 name.clone(),
                 format!("napi::bindgen_prelude::Reference<{name}>"),
             );
+        }
+    }
+
+    // We accept Uint8Array as parameters for flexibility, but return Buffer for ease of use
+    // For context, Buffer is a subclass of Uint8Array with more methods, and is commonly used in Node.js
+    for ty in return_mappings.values_mut() {
+        if ty.as_str() == "napi::bindgen_prelude::Uint8Array" {
+            *ty = "napi::bindgen_prelude::Buffer".to_string();
         }
     }
 
