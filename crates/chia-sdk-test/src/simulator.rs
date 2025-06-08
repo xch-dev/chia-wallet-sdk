@@ -381,7 +381,7 @@ impl Simulator {
         coin_states.into_values().collect()
     }
 
-    fn create_block(&mut self) {
+    pub fn create_block(&mut self) {
         let mut header_hash = [0; 32];
         self.rng.fill(&mut header_hash);
         self.header_hashes.push(header_hash.into());
