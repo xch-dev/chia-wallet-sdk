@@ -48,7 +48,7 @@ chia-traits = {workspace = true}
 flate2 = { workspace = true, features = ["zlib-ng-compat"], optional = true }
 indexmap = { workspace = true, optional = true }
 once_cell = { workspace = true, optional = true }
-chia_streamable_macro = "0.25.0"
+chia_streamable_macro = "0.26.0"
 
 [dev-dependencies]
 chia-sdk-test = { workspace = true }
