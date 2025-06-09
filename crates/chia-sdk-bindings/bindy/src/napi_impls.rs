@@ -44,27 +44,55 @@ impl FromRust<(), NapiReturnContext, Napi> for napi::JsUndefined {
     }
 }
 
-impl<T> FromRust<Vec<u8>, T, Napi> for Uint8Array {
+trait ArrayBuffer: From<Vec<u8>> {
+    fn generic_to_vec(&self) -> Vec<u8>;
+}
+
+impl ArrayBuffer for Uint8Array {
+    fn generic_to_vec(&self) -> Vec<u8> {
+        self.to_vec()
+    }
+}
+
+impl ArrayBuffer for Buffer {
+    fn generic_to_vec(&self) -> Vec<u8> {
+        self.to_vec()
+    }
+}
+
+impl<T, A> FromRust<Vec<u8>, T, Napi> for A
+where
+    A: ArrayBuffer,
+{
     fn from_rust(value: Vec<u8>, _context: &T) -> Result<Self> {
         Ok(value.into())
     }
 }
 
-impl<T> IntoRust<Vec<u8>, T, Napi> for Uint8Array {
+impl<T, A> IntoRust<Vec<u8>, T, Napi> for A
+where
+    A: ArrayBuffer,
+{
     fn into_rust(self, _context: &T) -> Result<Vec<u8>> {
-        Ok(self.to_vec())
+        Ok(self.generic_to_vec())
     }
 }
 
-impl<T, const N: usize> FromRust<BytesImpl<N>, T, Napi> for Uint8Array {
+impl<T, const N: usize, A> FromRust<BytesImpl<N>, T, Napi> for A
+where
+    A: ArrayBuffer,
+{
     fn from_rust(value: BytesImpl<N>, _context: &T) -> Result<Self> {
         Ok(value.to_vec().into())
     }
 }
 
-impl<T, const N: usize> IntoRust<BytesImpl<N>, T, Napi> for Uint8Array {
+impl<T, const N: usize, A> IntoRust<BytesImpl<N>, T, Napi> for A
+where
+    A: ArrayBuffer,
+{
     fn into_rust(self, _context: &T) -> Result<BytesImpl<N>> {
-        let bytes = self.to_vec();
+        let bytes = self.generic_to_vec();
 
         if bytes.len() != N {
             return Err(Error::WrongLength {
@@ -77,15 +105,21 @@ impl<T, const N: usize> IntoRust<BytesImpl<N>, T, Napi> for Uint8Array {
     }
 }
 
-impl<T> FromRust<ClassgroupElement, T, Napi> for Uint8Array {
+impl<T, A> FromRust<ClassgroupElement, T, Napi> for A
+where
+    A: ArrayBuffer,
+{
     fn from_rust(value: ClassgroupElement, _context: &T) -> Result<Self> {
         Ok(value.data.to_vec().into())
     }
 }
 
-impl<T> IntoRust<ClassgroupElement, T, Napi> for Uint8Array {
+impl<T, A> IntoRust<ClassgroupElement, T, Napi> for A
+where
+    A: ArrayBuffer,
+{
     fn into_rust(self, _context: &T) -> Result<ClassgroupElement> {
-        let bytes = self.to_vec();
+        let bytes = self.generic_to_vec();
 
         if bytes.len() != 100 {
             return Err(Error::WrongLength {
@@ -98,15 +132,21 @@ impl<T> IntoRust<ClassgroupElement, T, Napi> for Uint8Array {
     }
 }
 
-impl<T> FromRust<TreeHash, T, Napi> for Uint8Array {
+impl<T, A> FromRust<TreeHash, T, Napi> for A
+where
+    A: ArrayBuffer,
+{
     fn from_rust(value: TreeHash, _context: &T) -> Result<Self> {
         Ok(value.to_vec().into())
     }
 }
 
-impl<T> IntoRust<TreeHash, T, Napi> for Uint8Array {
+impl<T, A> IntoRust<TreeHash, T, Napi> for A
+where
+    A: ArrayBuffer,
+{
     fn into_rust(self, _context: &T) -> Result<TreeHash> {
-        let bytes = self.to_vec();
+        let bytes = self.generic_to_vec();
 
         if bytes.len() != 32 {
             return Err(Error::WrongLength {
@@ -119,27 +159,39 @@ impl<T> IntoRust<TreeHash, T, Napi> for Uint8Array {
     }
 }
 
-impl<T> FromRust<Bytes, T, Napi> for Uint8Array {
+impl<T, A> FromRust<Bytes, T, Napi> for A
+where
+    A: ArrayBuffer,
+{
     fn from_rust(value: Bytes, _context: &T) -> Result<Self> {
         Ok(value.to_vec().into())
     }
 }
 
-impl<T> IntoRust<Bytes, T, Napi> for Uint8Array {
+impl<T, A> IntoRust<Bytes, T, Napi> for A
+where
+    A: ArrayBuffer,
+{
     fn into_rust(self, _context: &T) -> Result<Bytes> {
-        Ok(self.to_vec().into())
+        Ok(self.generic_to_vec().into())
     }
 }
 
-impl<T> FromRust<Program, T, Napi> for Uint8Array {
+impl<T, A> FromRust<Program, T, Napi> for A
+where
+    A: ArrayBuffer,
+{
     fn from_rust(value: Program, _context: &T) -> Result<Self> {
         Ok(value.to_vec().into())
     }
 }
 
-impl<T> IntoRust<Program, T, Napi> for Uint8Array {
+impl<T, A> IntoRust<Program, T, Napi> for A
+where
+    A: ArrayBuffer,
+{
     fn into_rust(self, _context: &T) -> Result<Program> {
-        Ok(self.to_vec().into())
+        Ok(self.generic_to_vec().into())
     }
 }
 
