@@ -1398,13 +1398,25 @@ export declare class StreamedCatParsingResult {
 }
 export declare class Cat {
   clone(): Cat
-  constructor(coin: Coin, lineageProof: LineageProof | undefined | null, assetId: Uint8Array, p2PuzzleHash: Uint8Array)
+  childLineageProof(): LineageProof
+  child(p2PuzzleHash: Uint8Array, amount: bigint): Cat
+  constructor(coin: Coin, lineageProof: LineageProof | undefined | null, info: CatInfo)
   get coin(): Coin
   set coin(value: Coin)
   get lineageProof(): LineageProof | null
   set lineageProof(value?: LineageProof | undefined | null)
+  get info(): CatInfo
+  set info(value: CatInfo)
+}
+export declare class CatInfo {
+  clone(): CatInfo
+  innerPuzzleHash(): Buffer
+  puzzleHash(): Buffer
+  constructor(assetId: Uint8Array, hiddenPuzzleHash: Uint8Array | undefined | null, p2PuzzleHash: Uint8Array)
   get assetId(): Buffer
   set assetId(value: Uint8Array)
+  get hiddenPuzzleHash(): Buffer | null
+  set hiddenPuzzleHash(value?: Uint8Array | undefined | null)
   get p2PuzzleHash(): Buffer
   set p2PuzzleHash(value: Uint8Array)
 }

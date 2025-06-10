@@ -74,8 +74,37 @@
     "fields": {
       "coin": "Coin",
       "lineage_proof": "Option<LineageProof>",
+      "info": "CatInfo"
+    },
+    "methods": {
+      "child_lineage_proof": {
+        "return": "LineageProof"
+      },
+      "child": {
+        "args": {
+          "p2_puzzle_hash": "Bytes32",
+          "amount": "u64"
+        },
+        "return": "Cat"
+      }
+    }
+  },
+  "CatInfo": {
+    "type": "class",
+    "remote": true,
+    "new": true,
+    "fields": {
       "asset_id": "Bytes32",
+      "hidden_puzzle_hash": "Option<Bytes32>",
       "p2_puzzle_hash": "Bytes32"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "puzzle_hash": {
+        "return": "Bytes32"
+      }
     }
   },
   "CatSpend": {

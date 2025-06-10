@@ -146,7 +146,7 @@ impl OptionLauncher<ReadyOption> {
         let (mint_eve_option, eve_option) = self.mint_eve(ctx, eve_p2_puzzle_hash)?;
         eve_option.spend(ctx, inner_spend)?;
 
-        let child = eve_option.wrapped_child(owner_puzzle_hash);
+        let child = eve_option.child(owner_puzzle_hash);
 
         Ok((mint_eve_option, child))
     }

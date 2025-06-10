@@ -7,6 +7,7 @@ pub struct CatSpend {
     pub cat: Cat,
     pub inner_spend: Spend,
     pub extra_delta: i64,
+    pub revoke: bool,
 }
 
 impl CatSpend {
@@ -15,6 +16,7 @@ impl CatSpend {
             cat,
             inner_spend,
             extra_delta: 0,
+            revoke: false,
         }
     }
 
@@ -23,6 +25,7 @@ impl CatSpend {
             cat,
             inner_spend,
             extra_delta,
+            revoke: false,
         }
     }
 }
