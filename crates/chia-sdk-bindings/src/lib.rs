@@ -60,4 +60,4 @@ pub use chia_sdk_coinset::{
     GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem, MempoolMinFees,
     PushTxResponse, SyncState,
 };
-pub use chia_sdk_driver::{Cat, Clawback, ClawbackV2, StreamedCat, StreamingPuzzleInfo};
+pub use chia_sdk_driver::{Cat, CatInfo, Clawback, ClawbackV2, StreamedCat, StreamingPuzzleInfo};

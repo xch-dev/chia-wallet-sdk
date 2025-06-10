@@ -168,7 +168,6 @@ pub struct StreamedCat {
     pub coin: Coin,
     pub asset_id: Bytes32,
     pub proof: LineageProof,
-
     pub info: StreamingPuzzleInfo,
 }
 
@@ -393,15 +392,14 @@ mod tests {
         )?;
         minter_p2.spend(&mut ctx, minter_coin, issue_cat)?;
 
-        let initial_vesting_cat =
-            eve_cat.wrapped_child(streaming_inner_puzzle_hash, payment_cat_amount);
+        let initial_vesting_cat = eve_cat.child(streaming_inner_puzzle_hash, payment_cat_amount);
         sim.spend_coins(ctx.take(), &[minter_key.sk.clone()])?;
         sim.set_next_timestamp(1000 + claim_intervals[0])?;
 
         // spend streaming CAT
         let mut streamed_cat = StreamedCat::new(
             initial_vesting_cat.coin,
-            initial_vesting_cat.asset_id,
+            initial_vesting_cat.info.asset_id,
             initial_vesting_cat.lineage_proof.unwrap(),
             StreamingPuzzleInfo::new(
                 user_puzzle_hash,

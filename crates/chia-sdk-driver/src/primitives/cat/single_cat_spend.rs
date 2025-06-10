@@ -10,6 +10,7 @@ pub struct SingleCatSpend {
     pub prev_subtotal: i64,
     pub extra_delta: i64,
     pub inner_spend: Spend,
+    pub revoke: bool,
 }
 
 impl SingleCatSpend {
@@ -24,6 +25,7 @@ impl SingleCatSpend {
             prev_subtotal: 0,
             extra_delta: 0,
             inner_spend,
+            revoke: false,
         }
     }
 }

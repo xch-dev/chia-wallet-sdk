@@ -15,10 +15,10 @@ fn main() -> anyhow::Result<()> {
     let conditions = Conditions::new().create_coin(alice.puzzle_hash, 1_000, memos);
     let (issue_cat, cat) = Cat::single_issuance_eve(ctx, alice.coin.coin_id(), 1_000, conditions)?;
     p2.spend(ctx, alice.coin, issue_cat)?;
-    println!("Issued test CAT with asset id {}", cat.asset_id);
+    println!("Issued test CAT with asset id {}", cat.info.asset_id);
 
     // Spend the CAT coin.
-    let new_cat = cat.wrapped_child(alice.puzzle_hash, 1000);
+    let new_cat = cat.child(alice.puzzle_hash, 1000);
     let cat_spends = [CatSpend::new(
         new_cat,
         p2.spend_with_conditions(
@@ -29,7 +29,7 @@ fn main() -> anyhow::Result<()> {
 
     Cat::spend_all(ctx, &cat_spends)?;
 
-    let new_coin = new_cat.wrapped_child(alice.puzzle_hash, 1000).coin;
+    let new_coin = new_cat.child(alice.puzzle_hash, 1000).coin;
 
     sim.spend_coins(ctx.take(), &[alice.sk])?;
 

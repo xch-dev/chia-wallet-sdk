@@ -95,7 +95,7 @@ impl Launcher {
 
         let metadata = eve_nft.info.metadata.clone();
 
-        let child = eve_nft.wrapped_child(
+        let child = eve_nft.child(
             mint.p2_puzzle_hash,
             mint.owner.map(|owner| owner.did_id),
             metadata,

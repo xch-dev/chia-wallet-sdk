@@ -54,7 +54,7 @@ where
     }
 
     /// Creates a wrapped spendable DID for the child.
-    pub fn wrapped_child<N>(&self, p2_puzzle_hash: Bytes32, metadata: N) -> Did<N>
+    pub fn child<N>(&self, p2_puzzle_hash: Bytes32, metadata: N) -> Did<N>
     where
         M: Clone,
         N: ToTreeHash,
@@ -146,7 +146,7 @@ where
 
         let metadata = self.info.metadata.clone();
 
-        Ok(self.wrapped_child(p2_puzzle_hash, metadata))
+        Ok(self.child(p2_puzzle_hash, metadata))
     }
 
     /// Recreates this DID and outputs additional conditions via the inner puzzle.
@@ -176,7 +176,7 @@ where
             extra_conditions.create_coin(new_inner_puzzle_hash.into(), self.coin.amount, memos),
         )?;
 
-        Ok(self.wrapped_child(self.info.p2_puzzle_hash, metadata))
+        Ok(self.child(self.info.p2_puzzle_hash, metadata))
     }
 
     /// Creates a new DID coin with the given metadata.

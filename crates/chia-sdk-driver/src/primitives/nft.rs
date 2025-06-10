@@ -72,7 +72,7 @@ where
     }
 
     /// Creates a new spendable NFT for the child.
-    pub fn wrapped_child<N>(
+    pub fn child<N>(
         &self,
         p2_puzzle_hash: Bytes32,
         owner: Option<Bytes32>,
@@ -176,7 +176,7 @@ where
         let ptr = ctx.run(metadata_update.puzzle, metadata_updater_solution)?;
         let output = ctx.extract::<NewMetadataOutput<N, NodePtr>>(ptr)?;
 
-        Ok(self.wrapped_child(
+        Ok(self.child(
             p2_puzzle_hash,
             self.info.current_owner,
             output.metadata_info.new_metadata,
@@ -210,7 +210,7 @@ where
 
         let metadata = self.info.metadata.clone();
 
-        Ok(self.wrapped_child(p2_puzzle_hash, self.info.current_owner, metadata))
+        Ok(self.child(p2_puzzle_hash, self.info.current_owner, metadata))
     }
 
     /// Transfers this NFT to the settlement payments puzzle and includes a list of trade prices.
@@ -267,7 +267,7 @@ where
 
         self.spend(ctx, inner_spend)?;
 
-        Ok(self.wrapped_child(outputs[0], None, self.info.metadata.clone()))
+        Ok(self.child(outputs[0], None, self.info.metadata.clone()))
     }
 
     /// Transfers this NFT to a new p2 puzzle hash and updates the DID owner.
@@ -343,7 +343,7 @@ where
 
         let metadata = self.info.metadata.clone();
 
-        let child = self.wrapped_child(p2_puzzle_hash, did_id, metadata);
+        let child = self.child(p2_puzzle_hash, did_id, metadata);
 
         Ok((did_conditions, child))
     }
