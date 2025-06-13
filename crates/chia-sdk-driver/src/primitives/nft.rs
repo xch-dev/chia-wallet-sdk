@@ -32,15 +32,11 @@ pub use metadata_update::*;
 pub use nft_info::*;
 pub use nft_mint::*;
 
-/// Everything that is required to spend an NFT coin.
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Nft<M> {
-    /// The coin that holds this NFT.
     pub coin: Coin,
-    /// The lineage proof for the singleton.
     pub proof: Proof,
-    /// The info associated with the NFT, including the metadata.
     pub info: NftInfo<M>,
 }
 
@@ -62,7 +58,6 @@ impl<M> Nft<M>
 where
     M: ToTreeHash,
 {
-    /// Returns the lineage proof that would be used by the child.
     pub fn child_lineage_proof(&self) -> LineageProof {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
@@ -71,35 +66,36 @@ where
         }
     }
 
-    /// Creates a new spendable NFT for the child.
     pub fn child<N>(
         &self,
         p2_puzzle_hash: Bytes32,
-        owner: Option<Bytes32>,
+        current_owner: Option<Bytes32>,
         metadata: N,
     ) -> Nft<N>
     where
         M: Clone,
         N: ToTreeHash,
     {
-        let info = self
-            .info
-            .clone()
-            .with_p2_puzzle_hash(p2_puzzle_hash)
-            .with_owner(owner)
-            .with_metadata(metadata);
+        self.child_with(NftInfo {
+            current_owner,
+            p2_puzzle_hash,
+            ..self.info.clone().with_metadata(metadata)
+        })
+    }
 
-        let inner_puzzle_hash = info.inner_puzzle_hash();
-
-        Nft {
-            coin: Coin::new(
+    pub fn child_with<N>(&self, info: NftInfo<N>) -> Nft<N>
+    where
+        N: ToTreeHash,
+    {
+        Nft::new(
+            Coin::new(
                 self.coin.coin_id(),
-                SingletonArgs::curry_tree_hash(info.launcher_id, inner_puzzle_hash).into(),
+                SingletonArgs::curry_tree_hash(info.launcher_id, info.inner_puzzle_hash()).into(),
                 self.coin.amount,
             ),
-            proof: Proof::Lineage(self.child_lineage_proof()),
+            Proof::Lineage(self.child_lineage_proof()),
             info,
-        }
+        )
     }
 }
 
@@ -107,7 +103,6 @@ impl<M> Nft<M>
 where
     M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
 {
-    /// Creates a coin spend for this NFT.
     pub fn spend(&self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<(), DriverError> {
         let layers = self.info.clone().into_layers(inner_spend.puzzle);
 
@@ -130,7 +125,6 @@ where
         Ok(())
     }
 
-    /// Spends this NFT with an inner puzzle that supports being spent with conditions.
     pub fn spend_with<I>(
         &self,
         ctx: &mut SpendContext,
@@ -144,7 +138,6 @@ where
         self.spend(ctx, inner_spend)
     }
 
-    /// Transfers this NFT to a new p2 puzzle hash, with new metadata.
     pub fn transfer_with_metadata<I, N>(
         self,
         ctx: &mut SpendContext,
@@ -183,12 +176,6 @@ where
         ))
     }
 
-    /// Transfers this NFT to a new p2 puzzle hash.
-    ///
-    /// Note: This does not update the metadata. If you update the metadata manually, the child will be incorrect.
-    ///
-    /// Use can use the [`Self::transfer_with_metadata`] helper method to update the metadata.
-    /// Alternatively, construct a spend manually with [`Self::spend`] or [`Self::spend_with`].
     pub fn transfer<I>(
         self,
         ctx: &mut SpendContext,
@@ -213,7 +200,6 @@ where
         Ok(self.child(p2_puzzle_hash, self.info.current_owner, metadata))
     }
 
-    /// Transfers this NFT to the settlement payments puzzle and includes a list of trade prices.
     pub fn lock_settlement<I>(
         self,
         ctx: &mut SpendContext,
@@ -270,13 +256,6 @@ where
         Ok(self.child(outputs[0], None, self.info.metadata.clone()))
     }
 
-    /// Transfers this NFT to a new p2 puzzle hash and updates the DID owner.
-    /// Returns a list of conditions to be used in the DID spend.
-    ///
-    /// Note: This does not update the metadata. If you update the metadata manually, the child will be incorrect.
-    ///
-    /// You can construct a spend manually with [`Self::spend`] or [`Self::spend_with`] if you need to update metadata
-    /// while transferring to a DID. This is not a common use case, so it's not implemented by default.
     pub fn transfer_to_did<I>(
         self,
         ctx: &mut SpendContext,
@@ -304,8 +283,6 @@ where
         )
     }
 
-    /// Transfers this NFT to a new p2 puzzle hash and runs the transfer program with a condition.
-    /// Returns a list of conditions to be used in the DID spend.
     pub fn transfer_with_condition<I>(
         self,
         ctx: &mut SpendContext,

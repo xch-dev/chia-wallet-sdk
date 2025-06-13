@@ -44,7 +44,6 @@ impl<M> Did<M>
 where
     M: ToTreeHash,
 {
-    /// Returns the lineage proof that would be used by the child.
     pub fn child_lineage_proof(&self) -> LineageProof {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
@@ -53,29 +52,29 @@ where
         }
     }
 
-    /// Creates a wrapped spendable DID for the child.
     pub fn child<N>(&self, p2_puzzle_hash: Bytes32, metadata: N) -> Did<N>
     where
         M: Clone,
         N: ToTreeHash,
     {
-        let info = self
-            .info
-            .clone()
-            .with_p2_puzzle_hash(p2_puzzle_hash)
-            .with_metadata(metadata);
+        let mut info = self.info.clone().with_metadata(metadata);
+        info.p2_puzzle_hash = p2_puzzle_hash;
+        self.child_with(info)
+    }
 
-        let inner_puzzle_hash = info.inner_puzzle_hash();
-
-        Did {
-            coin: Coin::new(
+    pub fn child_with<N>(&self, info: DidInfo<N>) -> Did<N>
+    where
+        N: ToTreeHash,
+    {
+        Did::new(
+            Coin::new(
                 self.coin.coin_id(),
-                SingletonArgs::curry_tree_hash(info.launcher_id, inner_puzzle_hash).into(),
+                SingletonArgs::curry_tree_hash(info.launcher_id, info.inner_puzzle_hash()).into(),
                 self.coin.amount,
             ),
-            proof: Proof::Lineage(self.child_lineage_proof()),
+            Proof::Lineage(self.child_lineage_proof()),
             info,
-        }
+        )
     }
 }
 
@@ -83,7 +82,6 @@ impl<M> Did<M>
 where
     M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
 {
-    /// Creates a coin spend for this DID.
     pub fn spend(&self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<(), DriverError> {
         let layers = self.info.clone().into_layers(inner_spend.puzzle);
 
@@ -102,7 +100,6 @@ where
         Ok(())
     }
 
-    /// Spends this DID with an inner puzzle that supports being spent with conditions.
     pub fn spend_with<I>(
         &self,
         ctx: &mut SpendContext,
@@ -116,9 +113,6 @@ where
         self.spend(ctx, inner_spend)
     }
 
-    /// Transfers this DID to a new p2 puzzle hash.
-    ///
-    /// Note: This does not update the metadata. You need to do an update spend to change the metadata.
     pub fn transfer<I>(
         self,
         ctx: &mut SpendContext,
@@ -130,18 +124,19 @@ where
         M: ToTreeHash,
         I: SpendWithConditions,
     {
-        let new_inner_puzzle_hash = self
-            .info
-            .clone()
-            .with_p2_puzzle_hash(p2_puzzle_hash)
-            .inner_puzzle_hash();
+        let mut new_info = self.info.clone();
+        new_info.p2_puzzle_hash = p2_puzzle_hash;
 
         let memos = ctx.hint(p2_puzzle_hash)?;
 
         self.spend_with(
             ctx,
             inner,
-            extra_conditions.create_coin(new_inner_puzzle_hash.into(), self.coin.amount, memos),
+            extra_conditions.create_coin(
+                new_info.inner_puzzle_hash().into(),
+                self.coin.amount,
+                memos,
+            ),
         )?;
 
         let metadata = self.info.metadata.clone();
@@ -149,7 +144,6 @@ where
         Ok(self.child(p2_puzzle_hash, metadata))
     }
 
-    /// Recreates this DID and outputs additional conditions via the inner puzzle.
     pub fn update_with_metadata<I, N>(
         self,
         ctx: &mut SpendContext,
@@ -179,7 +173,6 @@ where
         Ok(self.child(self.info.p2_puzzle_hash, metadata))
     }
 
-    /// Creates a new DID coin with the given metadata.
     pub fn update<I>(
         self,
         ctx: &mut SpendContext,

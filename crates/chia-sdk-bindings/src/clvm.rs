@@ -3,8 +3,7 @@ use std::sync::{Arc, Mutex};
 use bindy::{Error, Result};
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram};
-use chia_puzzle_types::nft;
-use chia_sdk_driver::{HashedPtr, Launcher, SpendContext, StandardLayer, StreamedCat};
+use chia_sdk_driver::{Launcher, SpendContext, StandardLayer, StreamedCat};
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::TreeHash;
@@ -15,9 +14,9 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    CatSpend, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo, MemberMemo, MemoKind,
-    MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft, NftMetadata, NftMint, Program, RestrictionMemo,
-    Spend, VaultMint, WrapperMemo,
+    AsProgram, AsPtr, CatSpend, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo, MemberMemo,
+    MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft, NftMetadata, NftMint, Program,
+    RestrictionMemo, Spend, VaultMint, WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -109,23 +108,13 @@ impl Clvm {
         let mut parent_conditions = Vec::new();
 
         for (i, nft_mint) in nft_mints.into_iter().enumerate() {
-            let nft_mint: chia_sdk_driver::NftMint<NodePtr> = nft_mint.into();
-            let nft_mint = chia_sdk_driver::NftMint {
-                metadata: HashedPtr::from_ptr(&ctx, nft_mint.metadata),
-                metadata_updater_puzzle_hash: nft_mint.metadata_updater_puzzle_hash,
-                royalty_puzzle_hash: nft_mint.royalty_puzzle_hash,
-                royalty_ten_thousandths: nft_mint.royalty_ten_thousandths,
-                p2_puzzle_hash: nft_mint.p2_puzzle_hash,
-                owner: nft_mint.owner,
-            };
+            let nft_mint = nft_mint.as_ptr(&ctx);
 
-            let (conditions, nft) =
-                Launcher::new(parent_coin_id, i as u64 * 2 + 1).mint_nft(&mut ctx, nft_mint)?;
+            let (conditions, nft) = Launcher::new(parent_coin_id, i as u64 * 2 + 1)
+                .with_singleton_amount(1)
+                .mint_nft(&mut ctx, nft_mint)?;
 
-            nfts.push(
-                nft.with_metadata(Program(self.0.clone(), nft.info.metadata.ptr()))
-                    .into(),
-            );
+            nfts.push(nft.as_program(&self.0));
 
             for condition in conditions {
                 let condition = condition.to_clvm(&mut ctx)?;
@@ -142,16 +131,7 @@ impl Clvm {
     pub fn spend_nft(&self, nft: Nft, inner_spend: Spend) -> Result<()> {
         let mut ctx = self.0.lock().unwrap();
 
-        let ptr = nft.info.metadata.1;
-
-        let nft = chia_sdk_driver::Nft {
-            coin: nft.coin,
-            proof: nft.lineage_proof.into(),
-            info: chia_sdk_driver::NftInfo::from(nft.info)
-                .with_metadata(HashedPtr::from_ptr(&ctx, ptr)),
-        };
-
-        nft.spend(
+        nft.as_ptr(&ctx).spend(
             &mut ctx,
             chia_sdk_driver::Spend::new(inner_spend.puzzle.1, inner_spend.solution.1),
         )?;
@@ -162,16 +142,7 @@ impl Clvm {
     pub fn spend_did(&self, did: Did, inner_spend: Spend) -> Result<()> {
         let mut ctx = self.0.lock().unwrap();
 
-        let ptr = did.info.metadata.1;
-
-        let did = chia_sdk_driver::Did {
-            coin: did.coin,
-            proof: did.lineage_proof.into(),
-            info: chia_sdk_driver::DidInfo::from(did.info)
-                .with_metadata(HashedPtr::from_ptr(&ctx, ptr)),
-        };
-
-        did.spend(
+        did.as_ptr(&ctx).spend(
             &mut ctx,
             chia_sdk_driver::Spend::new(inner_spend.puzzle.1, inner_spend.solution.1),
         )?;
@@ -334,9 +305,8 @@ impl Clvm {
         Ok(Program(self.0.clone(), result))
     }
 
-    pub fn nft_metadata(&self, value: NftMetadata) -> Result<Program> {
+    pub fn nft_metadata(&self, nft_metadata: NftMetadata) -> Result<Program> {
         let mut ctx = self.0.lock().unwrap();
-        let nft_metadata = nft::NftMetadata::from(value);
         let ptr = ctx.alloc(&nft_metadata)?;
         Ok(Program(self.0.clone(), ptr))
     }

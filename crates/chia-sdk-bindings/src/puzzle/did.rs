@@ -1,14 +1,67 @@
-use chia_protocol::{Bytes32, Coin};
+use std::sync::{Arc, Mutex};
 
-use crate::{Program, Proof};
+use bindy::Result;
+use chia_protocol::{Bytes32, Coin};
+use chia_sdk_driver::{Did as SdkDid, DidInfo as SdkDidInfo, HashedPtr, SpendContext};
+use clvm_utils::TreeHash;
+use clvmr::Allocator;
+
+use crate::{AsProgram, AsPtr, Program, Proof};
 
 use super::Puzzle;
 
 #[derive(Clone)]
 pub struct Did {
     pub coin: Coin,
-    pub lineage_proof: Proof,
+    pub proof: Proof,
     pub info: DidInfo,
+}
+
+impl Did {
+    pub fn child_proof(&self) -> Result<Proof> {
+        let ctx = self.info.metadata.0.lock().unwrap();
+        Ok(self.as_ptr(&ctx).child_lineage_proof().into())
+    }
+
+    pub fn child(&self, p2_puzzle_hash: Bytes32, metadata: Program) -> Result<Self> {
+        let ctx = metadata.0.lock().unwrap();
+        Ok(self
+            .as_ptr(&ctx)
+            .child(p2_puzzle_hash, metadata.as_ptr(&ctx))
+            .as_program(&metadata.0))
+    }
+
+    pub fn child_with(&self, info: DidInfo) -> Result<Self> {
+        let ctx = self.info.metadata.0.lock().unwrap();
+        Ok(self
+            .as_ptr(&ctx)
+            .child_with(info.as_ptr(&ctx))
+            .as_program(&self.info.metadata.0))
+    }
+}
+
+impl AsProgram for SdkDid<HashedPtr> {
+    type AsProgram = Did;
+
+    fn as_program(&self, clvm: &Arc<Mutex<SpendContext>>) -> Self::AsProgram {
+        Did {
+            coin: self.coin,
+            proof: self.proof.into(),
+            info: self.info.as_program(clvm),
+        }
+    }
+}
+
+impl AsPtr for Did {
+    type AsPtr = SdkDid<HashedPtr>;
+
+    fn as_ptr(&self, allocator: &Allocator) -> Self::AsPtr {
+        SdkDid::new(
+            self.coin,
+            self.proof.clone().into(),
+            self.info.as_ptr(allocator),
+        )
+    }
 }
 
 #[derive(Clone)]
@@ -20,47 +73,43 @@ pub struct DidInfo {
     pub p2_puzzle_hash: Bytes32,
 }
 
-impl From<chia_sdk_driver::Did<Program>> for Did {
-    fn from(value: chia_sdk_driver::Did<Program>) -> Self {
-        Self {
-            coin: value.coin,
-            lineage_proof: value.proof.into(),
-            info: value.info.into(),
+impl DidInfo {
+    pub fn inner_puzzle_hash(&self) -> Result<TreeHash> {
+        let ctx = self.metadata.0.lock().unwrap();
+        Ok(self.as_ptr(&ctx).inner_puzzle_hash())
+    }
+
+    pub fn puzzle_hash(&self) -> Result<TreeHash> {
+        let ctx = self.metadata.0.lock().unwrap();
+        Ok(self.as_ptr(&ctx).puzzle_hash())
+    }
+}
+
+impl AsProgram for SdkDidInfo<HashedPtr> {
+    type AsProgram = DidInfo;
+
+    fn as_program(&self, clvm: &Arc<Mutex<SpendContext>>) -> Self::AsProgram {
+        DidInfo {
+            launcher_id: self.launcher_id,
+            recovery_list_hash: self.recovery_list_hash,
+            num_verifications_required: self.num_verifications_required,
+            metadata: self.metadata.as_program(clvm),
+            p2_puzzle_hash: self.p2_puzzle_hash,
         }
     }
 }
 
-impl From<Did> for chia_sdk_driver::Did<Program> {
-    fn from(value: Did) -> Self {
-        Self {
-            coin: value.coin,
-            proof: value.lineage_proof.into(),
-            info: value.info.into(),
-        }
-    }
-}
+impl AsPtr for DidInfo {
+    type AsPtr = SdkDidInfo<HashedPtr>;
 
-impl From<chia_sdk_driver::DidInfo<Program>> for DidInfo {
-    fn from(value: chia_sdk_driver::DidInfo<Program>) -> Self {
-        Self {
-            launcher_id: value.launcher_id,
-            recovery_list_hash: value.recovery_list_hash,
-            num_verifications_required: value.num_verifications_required,
-            metadata: value.metadata,
-            p2_puzzle_hash: value.p2_puzzle_hash,
-        }
-    }
-}
-
-impl From<DidInfo> for chia_sdk_driver::DidInfo<Program> {
-    fn from(value: DidInfo) -> Self {
-        Self {
-            launcher_id: value.launcher_id,
-            recovery_list_hash: value.recovery_list_hash,
-            num_verifications_required: value.num_verifications_required,
-            metadata: value.metadata,
-            p2_puzzle_hash: value.p2_puzzle_hash,
-        }
+    fn as_ptr(&self, allocator: &Allocator) -> Self::AsPtr {
+        SdkDidInfo::new(
+            self.launcher_id,
+            self.recovery_list_hash,
+            self.num_verifications_required,
+            self.metadata.as_ptr(allocator),
+            self.p2_puzzle_hash,
+        )
     }
 }
 

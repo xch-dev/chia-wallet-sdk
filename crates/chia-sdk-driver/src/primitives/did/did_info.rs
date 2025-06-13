@@ -1,5 +1,9 @@
 use chia_protocol::Bytes32;
-use chia_puzzle_types::{did::DidArgs, singleton::SingletonStruct};
+use chia_puzzle_types::{
+    did::DidArgs,
+    singleton::{SingletonArgs, SingletonStruct},
+};
+use chia_sdk_types::Mod;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::Allocator;
@@ -8,7 +12,6 @@ use crate::{DidLayer, DriverError, Layer, Puzzle, SingletonLayer};
 
 pub type StandardDidLayers<M, I> = SingletonLayer<DidLayer<M, I>>;
 
-#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DidInfo<M> {
     pub launcher_id: Bytes32,
@@ -35,7 +38,16 @@ impl<M> DidInfo<M> {
         }
     }
 
-    /// Parses the DID info and p2 puzzle that corresponds to the p2 puzzle hash.
+    pub fn with_metadata<N>(self, metadata: N) -> DidInfo<N> {
+        DidInfo {
+            launcher_id: self.launcher_id,
+            recovery_list_hash: self.recovery_list_hash,
+            num_verifications_required: self.num_verifications_required,
+            metadata,
+            p2_puzzle_hash: self.p2_puzzle_hash,
+        }
+    }
+
     pub fn parse(
         allocator: &Allocator,
         puzzle: Puzzle,
@@ -79,26 +91,6 @@ impl<M> DidInfo<M> {
         )
     }
 
-    pub fn with_metadata<N>(self, metadata: N) -> DidInfo<N> {
-        DidInfo {
-            launcher_id: self.launcher_id,
-            recovery_list_hash: self.recovery_list_hash,
-            num_verifications_required: self.num_verifications_required,
-            metadata,
-            p2_puzzle_hash: self.p2_puzzle_hash,
-        }
-    }
-
-    pub fn with_p2_puzzle_hash(self, p2_puzzle_hash: Bytes32) -> Self {
-        Self {
-            launcher_id: self.launcher_id,
-            recovery_list_hash: self.recovery_list_hash,
-            num_verifications_required: self.num_verifications_required,
-            metadata: self.metadata,
-            p2_puzzle_hash,
-        }
-    }
-
     pub fn inner_puzzle_hash(&self) -> TreeHash
     where
         M: ToTreeHash,
@@ -110,6 +102,13 @@ impl<M> DidInfo<M> {
             SingletonStruct::new(self.launcher_id),
             self.metadata.tree_hash(),
         )
+    }
+
+    pub fn puzzle_hash(&self) -> TreeHash
+    where
+        M: ToTreeHash,
+    {
+        SingletonArgs::new(self.launcher_id, self.inner_puzzle_hash()).curry_tree_hash()
     }
 }
 

@@ -1,8 +1,12 @@
 use chia_protocol::Bytes32;
-use chia_puzzle_types::nft::{NftOwnershipLayerArgs, NftStateLayerArgs};
+use chia_puzzle_types::{
+    nft::{NftOwnershipLayerArgs, NftStateLayerArgs},
+    singleton::SingletonArgs,
+};
 use chia_puzzles::NFT_STATE_LAYER_HASH;
+use chia_sdk_types::Mod;
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::Allocator;
 
 use crate::{
@@ -13,7 +17,6 @@ use crate::{
 pub type StandardNftLayers<M, I> =
     SingletonLayer<NftStateLayer<M, NftOwnershipLayer<RoyaltyTransferLayer, I>>>;
 
-#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NftInfo<M> {
     pub launcher_id: Bytes32,
@@ -46,7 +49,18 @@ impl<M> NftInfo<M> {
         }
     }
 
-    /// Parses the NFT info and p2 puzzle that corresponds to the p2 puzzle hash.
+    pub fn with_metadata<N>(self, metadata: N) -> NftInfo<N> {
+        NftInfo {
+            launcher_id: self.launcher_id,
+            metadata,
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+            current_owner: self.current_owner,
+            royalty_puzzle_hash: self.royalty_puzzle_hash,
+            royalty_ten_thousandths: self.royalty_ten_thousandths,
+            p2_puzzle_hash: self.p2_puzzle_hash,
+        }
+    }
+
     pub fn parse(
         allocator: &Allocator,
         puzzle: Puzzle,
@@ -111,55 +125,33 @@ impl<M> NftInfo<M> {
         )
     }
 
-    pub fn with_metadata<N>(self, metadata: N) -> NftInfo<N> {
-        NftInfo {
-            launcher_id: self.launcher_id,
-            metadata,
-            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
-            current_owner: self.current_owner,
-            royalty_puzzle_hash: self.royalty_puzzle_hash,
-            royalty_ten_thousandths: self.royalty_ten_thousandths,
-            p2_puzzle_hash: self.p2_puzzle_hash,
-        }
-    }
-
-    pub fn with_p2_puzzle_hash(self, p2_puzzle_hash: Bytes32) -> Self {
-        Self {
-            p2_puzzle_hash,
-            ..self
-        }
-    }
-
-    pub fn with_owner(self, owner: Option<Bytes32>) -> Self {
-        Self {
-            current_owner: owner,
-            ..self
-        }
-    }
-
     pub fn inner_puzzle_hash(&self) -> TreeHash
     where
         M: ToTreeHash,
     {
-        CurriedProgram {
-            program: TreeHash::new(NFT_STATE_LAYER_HASH),
-            args: NftStateLayerArgs {
-                mod_hash: NFT_STATE_LAYER_HASH.into(),
-                metadata: self.metadata.tree_hash(),
-                metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
-                inner_puzzle: NftOwnershipLayerArgs::curry_tree_hash(
-                    self.current_owner,
-                    RoyaltyTransferLayer::new(
-                        self.launcher_id,
-                        self.royalty_puzzle_hash,
-                        self.royalty_ten_thousandths,
-                    )
-                    .tree_hash(),
-                    self.p2_puzzle_hash.into(),
-                ),
-            },
+        NftStateLayerArgs {
+            mod_hash: NFT_STATE_LAYER_HASH.into(),
+            metadata: self.metadata.tree_hash(),
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+            inner_puzzle: NftOwnershipLayerArgs::curry_tree_hash(
+                self.current_owner,
+                RoyaltyTransferLayer::new(
+                    self.launcher_id,
+                    self.royalty_puzzle_hash,
+                    self.royalty_ten_thousandths,
+                )
+                .tree_hash(),
+                self.p2_puzzle_hash.into(),
+            ),
         }
-        .tree_hash()
+        .curry_tree_hash()
+    }
+
+    pub fn puzzle_hash(&self) -> TreeHash
+    where
+        M: ToTreeHash,
+    {
+        SingletonArgs::new(self.launcher_id, self.inner_puzzle_hash()).curry_tree_hash()
     }
 }
 

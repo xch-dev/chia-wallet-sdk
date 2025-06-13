@@ -8,7 +8,7 @@ use chia_sdk_types::{
     conditions::CreateCoin, puzzles::RevocationSolution, run_puzzle, Condition, Conditions,
 };
 use clvm_traits::{clvm_quote, FromClvm};
-use clvm_utils::tree_hash;
+use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{CatLayer, DriverError, Layer, Puzzle, RevocationLayer, Spend, SpendContext};
@@ -184,25 +184,42 @@ impl Cat {
     pub fn spend_eve(&self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<(), DriverError> {
         self.spend(
             ctx,
-            SingleCatSpend::eve(self.coin, self.info.inner_puzzle_hash(), inner_spend),
+            SingleCatSpend::eve(self.coin, self.info.inner_puzzle_hash().into(), inner_spend),
         )
     }
 
     pub fn child_lineage_proof(&self) -> LineageProof {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.info.inner_puzzle_hash(),
+            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
             parent_amount: self.coin.amount,
         }
     }
 
     pub fn child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
-        let info = CatInfo {
-            p2_puzzle_hash,
-            ..self.info
-        };
+        self.child_with(
+            CatInfo {
+                p2_puzzle_hash,
+                ..self.info
+            },
+            amount,
+        )
+    }
+
+    pub fn unrevocable_child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
+        self.child_with(
+            CatInfo {
+                p2_puzzle_hash,
+                hidden_puzzle_hash: None,
+                ..self.info
+            },
+            amount,
+        )
+    }
+
+    pub fn child_with(&self, info: CatInfo, amount: u64) -> Self {
         Self {
-            coin: Coin::new(self.coin.coin_id(), info.puzzle_hash(), amount),
+            coin: Coin::new(self.coin.coin_id(), info.puzzle_hash().into(), amount),
             lineage_proof: Some(self.child_lineage_proof()),
             info,
         }
@@ -229,6 +246,7 @@ impl Cat {
             parent_layer.inner_puzzle.ptr(),
             parent_solution.inner_puzzle_solution,
         );
+        let mut revoke = false;
 
         if let Some(revocation_layer) =
             RevocationLayer::parse_puzzle(allocator, parent_layer.inner_puzzle)?
@@ -239,6 +257,7 @@ impl Cat {
                 RevocationLayer::parse_solution(allocator, parent_solution.inner_puzzle_solution)?;
 
             inner_spend = Spend::new(revocation_solution.puzzle, revocation_solution.solution);
+            revoke = revocation_solution.hidden;
         }
 
         let cat = Cat::new(
@@ -257,7 +276,48 @@ impl Cat {
         let outputs = conditions
             .into_iter()
             .filter_map(Condition::into_create_coin)
-            .map(|create_coin| cat.child(create_coin.puzzle_hash, create_coin.amount))
+            .map(|create_coin| {
+                // Child with the same hidden puzzle hash as the parent
+                let child = cat.child(create_coin.puzzle_hash, create_coin.amount);
+
+                // If the parent is not revocable, we don't need to add a revocation layer
+                let Some(hidden_puzzle_hash) = hidden_puzzle_hash else {
+                    return child;
+                };
+
+                // If we're not doing a revocation spend, we know it's wrapped in the same revocation layer
+                if !revoke {
+                    return child;
+                }
+
+                // Child without a hidden puzzle hash but with the create coin puzzle hash as the p2 puzzle hash
+                let unrevocable_child =
+                    cat.unrevocable_child(create_coin.puzzle_hash, create_coin.amount);
+
+                // If the hint is missing, just assume the child doesn't have a hidden puzzle hash
+                let Memos::Some(memos) = create_coin.memos else {
+                    return unrevocable_child;
+                };
+
+                let Some((hint, _)) = <(Bytes32, NodePtr)>::from_clvm(allocator, memos).ok() else {
+                    return unrevocable_child;
+                };
+
+                // If the hint wrapped in the revocation layer of the parent matches the create coin's puzzle hash,
+                // then we know that the hint is the p2 puzzle hash and the child has the same revocation layer as the parent
+                if hint
+                    == RevocationLayer::new(hidden_puzzle_hash, hint)
+                        .tree_hash()
+                        .into()
+                {
+                    return cat.child(hint, create_coin.amount);
+                }
+
+                // Otherwise, we can't determine whether there is a revocation layer or not, so we will just assume it's unrevocable
+                // In practice, this should never happen while parsing a coin which is still spendable (not an ephemeral spend)
+                // If it does, a new hinting mechanism should be introduced in the future to accommodate this, but for now this is the best we can do
+                unrevocable_child
+            })
             .collect();
 
         Ok(Some(outputs))

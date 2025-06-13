@@ -1400,6 +1400,7 @@ export declare class Cat {
   clone(): Cat
   childLineageProof(): LineageProof
   child(p2PuzzleHash: Uint8Array, amount: bigint): Cat
+  unrevocableChild(p2PuzzleHash: Uint8Array, amount: bigint): Cat
   constructor(coin: Coin, lineageProof: LineageProof | undefined | null, info: CatInfo)
   get coin(): Coin
   set coin(value: Coin)
@@ -1438,16 +1439,21 @@ export declare class ParsedCat {
 }
 export declare class Nft {
   clone(): Nft
-  constructor(coin: Coin, lineageProof: Proof, info: NftInfo)
+  childProof(): Proof
+  child(p2PuzzleHash: Uint8Array, currentOwner: Uint8Array | undefined | null, metadata: Program): Nft
+  childWith(info: NftInfo): Nft
+  constructor(coin: Coin, proof: Proof, info: NftInfo)
   get coin(): Coin
   set coin(value: Coin)
-  get lineageProof(): Proof
-  set lineageProof(value: Proof)
+  get proof(): Proof
+  set proof(value: Proof)
   get info(): NftInfo
   set info(value: NftInfo)
 }
 export declare class NftInfo {
   clone(): NftInfo
+  innerPuzzleHash(): Buffer
+  puzzleHash(): Buffer
   constructor(launcherId: Uint8Array, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, currentOwner: Uint8Array | undefined | null, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, p2PuzzleHash: Uint8Array)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)
@@ -1526,16 +1532,21 @@ export declare class MintedNfts {
 }
 export declare class Did {
   clone(): Did
-  constructor(coin: Coin, lineageProof: Proof, info: DidInfo)
+  childProof(): Proof
+  child(p2PuzzleHash: Uint8Array, metadata: Program): Did
+  childWith(info: DidInfo): Did
+  constructor(coin: Coin, proof: Proof, info: DidInfo)
   get coin(): Coin
   set coin(value: Coin)
-  get lineageProof(): Proof
-  set lineageProof(value: Proof)
+  get proof(): Proof
+  set proof(value: Proof)
   get info(): DidInfo
   set info(value: DidInfo)
 }
 export declare class DidInfo {
   clone(): DidInfo
+  innerPuzzleHash(): Buffer
+  puzzleHash(): Buffer
   constructor(launcherId: Uint8Array, recoveryListHash: Uint8Array | undefined | null, numVerificationsRequired: bigint, metadata: Program, p2PuzzleHash: Uint8Array)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)

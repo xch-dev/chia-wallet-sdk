@@ -1,35 +1,74 @@
-use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::nft;
-use clvmr::NodePtr;
+use std::sync::{Arc, Mutex};
 
-use crate::{Program, Proof};
+use bindy::Result;
+use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::nft::NftMetadata;
+use chia_sdk_driver::{
+    DidOwner, HashedPtr, Nft as SdkNft, NftInfo as SdkNftInfo, NftMint as SdkNftMint, SpendContext,
+};
+use clvm_utils::TreeHash;
+use clvmr::Allocator;
+
+use crate::{AsProgram, AsPtr, Program, Proof};
 
 use super::Puzzle;
 
 #[derive(Clone)]
 pub struct Nft {
     pub coin: Coin,
-    pub lineage_proof: Proof,
+    pub proof: Proof,
     pub info: NftInfo,
 }
 
-impl From<chia_sdk_driver::Nft<Program>> for Nft {
-    fn from(value: chia_sdk_driver::Nft<Program>) -> Self {
-        Self {
-            coin: value.coin,
-            lineage_proof: value.proof.into(),
-            info: value.info.into(),
+impl Nft {
+    pub fn child_proof(&self) -> Result<Proof> {
+        let ctx = self.info.metadata.0.lock().unwrap();
+        Ok(self.as_ptr(&ctx).child_lineage_proof().into())
+    }
+
+    pub fn child(
+        &self,
+        p2_puzzle_hash: Bytes32,
+        current_owner: Option<Bytes32>,
+        metadata: Program,
+    ) -> Result<Self> {
+        let ctx = metadata.0.lock().unwrap();
+        Ok(self
+            .as_ptr(&ctx)
+            .child(p2_puzzle_hash, current_owner, metadata.as_ptr(&ctx))
+            .as_program(&metadata.0))
+    }
+
+    pub fn child_with(&self, info: NftInfo) -> Result<Self> {
+        let ctx = self.info.metadata.0.lock().unwrap();
+        Ok(self
+            .as_ptr(&ctx)
+            .child_with(info.as_ptr(&ctx))
+            .as_program(&self.info.metadata.0))
+    }
+}
+
+impl AsProgram for SdkNft<HashedPtr> {
+    type AsProgram = Nft;
+
+    fn as_program(&self, clvm: &Arc<Mutex<SpendContext>>) -> Self::AsProgram {
+        Nft {
+            coin: self.coin,
+            proof: self.proof.into(),
+            info: self.info.as_program(clvm),
         }
     }
 }
 
-impl From<Nft> for chia_sdk_driver::Nft<Program> {
-    fn from(value: Nft) -> Self {
-        Self {
-            coin: value.coin,
-            proof: value.lineage_proof.into(),
-            info: value.info.into(),
-        }
+impl AsPtr for Nft {
+    type AsPtr = SdkNft<HashedPtr>;
+
+    fn as_ptr(&self, allocator: &Allocator) -> Self::AsPtr {
+        SdkNft::new(
+            self.coin,
+            self.proof.clone().into(),
+            self.info.as_ptr(allocator),
+        )
     }
 }
 
@@ -44,30 +83,46 @@ pub struct NftInfo {
     pub p2_puzzle_hash: Bytes32,
 }
 
-impl From<chia_sdk_driver::NftInfo<Program>> for NftInfo {
-    fn from(value: chia_sdk_driver::NftInfo<Program>) -> Self {
-        Self {
-            launcher_id: value.launcher_id,
-            metadata: value.metadata,
-            metadata_updater_puzzle_hash: value.metadata_updater_puzzle_hash,
-            current_owner: value.current_owner,
-            royalty_puzzle_hash: value.royalty_puzzle_hash,
-            royalty_ten_thousandths: value.royalty_ten_thousandths,
-            p2_puzzle_hash: value.p2_puzzle_hash,
+impl NftInfo {
+    pub fn inner_puzzle_hash(&self) -> Result<TreeHash> {
+        let ctx = self.metadata.0.lock().unwrap();
+        Ok(self.as_ptr(&ctx).inner_puzzle_hash())
+    }
+
+    pub fn puzzle_hash(&self) -> Result<TreeHash> {
+        let ctx = self.metadata.0.lock().unwrap();
+        Ok(self.as_ptr(&ctx).puzzle_hash())
+    }
+}
+
+impl AsProgram for SdkNftInfo<HashedPtr> {
+    type AsProgram = NftInfo;
+
+    fn as_program(&self, clvm: &Arc<Mutex<SpendContext>>) -> Self::AsProgram {
+        NftInfo {
+            launcher_id: self.launcher_id,
+            metadata: self.metadata.as_program(clvm),
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+            current_owner: self.current_owner,
+            royalty_puzzle_hash: self.royalty_puzzle_hash,
+            royalty_ten_thousandths: self.royalty_ten_thousandths,
+            p2_puzzle_hash: self.p2_puzzle_hash,
         }
     }
 }
 
-impl From<NftInfo> for chia_sdk_driver::NftInfo<Program> {
-    fn from(value: NftInfo) -> Self {
-        Self {
-            launcher_id: value.launcher_id,
-            metadata: value.metadata,
-            metadata_updater_puzzle_hash: value.metadata_updater_puzzle_hash,
-            current_owner: value.current_owner,
-            royalty_puzzle_hash: value.royalty_puzzle_hash,
-            royalty_ten_thousandths: value.royalty_ten_thousandths,
-            p2_puzzle_hash: value.p2_puzzle_hash,
+impl AsPtr for NftInfo {
+    type AsPtr = SdkNftInfo<HashedPtr>;
+
+    fn as_ptr(&self, allocator: &Allocator) -> Self::AsPtr {
+        SdkNftInfo {
+            launcher_id: self.launcher_id,
+            metadata: self.metadata.as_ptr(allocator),
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+            current_owner: self.current_owner,
+            royalty_puzzle_hash: self.royalty_puzzle_hash,
+            royalty_ten_thousandths: self.royalty_ten_thousandths,
+            p2_puzzle_hash: self.p2_puzzle_hash,
         }
     }
 }
@@ -78,47 +133,9 @@ pub struct ParsedNft {
     pub p2_puzzle: Puzzle,
 }
 
-#[derive(Clone)]
-pub struct NftMetadata {
-    pub edition_number: u64,
-    pub edition_total: u64,
-    pub data_uris: Vec<String>,
-    pub data_hash: Option<Bytes32>,
-    pub metadata_uris: Vec<String>,
-    pub metadata_hash: Option<Bytes32>,
-    pub license_uris: Vec<String>,
-    pub license_hash: Option<Bytes32>,
-}
+pub trait NftMetadataExt {}
 
-impl From<nft::NftMetadata> for NftMetadata {
-    fn from(value: nft::NftMetadata) -> Self {
-        Self {
-            edition_number: value.edition_number,
-            edition_total: value.edition_total,
-            data_uris: value.data_uris,
-            data_hash: value.data_hash,
-            metadata_uris: value.metadata_uris,
-            metadata_hash: value.metadata_hash,
-            license_uris: value.license_uris,
-            license_hash: value.license_hash,
-        }
-    }
-}
-
-impl From<NftMetadata> for nft::NftMetadata {
-    fn from(value: NftMetadata) -> Self {
-        nft::NftMetadata {
-            edition_number: value.edition_number,
-            edition_total: value.edition_total,
-            data_uris: value.data_uris,
-            data_hash: value.data_hash,
-            metadata_uris: value.metadata_uris,
-            metadata_hash: value.metadata_hash,
-            license_uris: value.license_uris,
-            license_hash: value.license_hash,
-        }
-    }
-}
+impl NftMetadataExt for NftMetadata {}
 
 #[derive(Clone)]
 pub struct NftMint {
@@ -130,33 +147,24 @@ pub struct NftMint {
     pub owner: Option<DidOwner>,
 }
 
-impl From<NftMint> for chia_sdk_driver::NftMint<NodePtr> {
-    fn from(value: NftMint) -> Self {
-        chia_sdk_driver::NftMint {
-            metadata: value.metadata.1,
-            metadata_updater_puzzle_hash: value.metadata_updater_puzzle_hash,
-            royalty_puzzle_hash: value.royalty_puzzle_hash,
-            royalty_ten_thousandths: value.royalty_ten_thousandths,
-            p2_puzzle_hash: value.p2_puzzle_hash,
-            owner: value.owner.map(Into::into),
+impl AsPtr for NftMint {
+    type AsPtr = SdkNftMint<HashedPtr>;
+
+    fn as_ptr(&self, allocator: &Allocator) -> Self::AsPtr {
+        SdkNftMint {
+            metadata: self.metadata.as_ptr(allocator),
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+            p2_puzzle_hash: self.p2_puzzle_hash,
+            royalty_puzzle_hash: self.royalty_puzzle_hash,
+            royalty_ten_thousandths: self.royalty_ten_thousandths,
+            owner: self.owner,
         }
     }
 }
 
-#[derive(Clone)]
-pub struct DidOwner {
-    pub did_id: Bytes32,
-    pub inner_puzzle_hash: Bytes32,
-}
+pub trait DidOwnerExt {}
 
-impl From<DidOwner> for chia_sdk_driver::DidOwner {
-    fn from(value: DidOwner) -> Self {
-        chia_sdk_driver::DidOwner {
-            did_id: value.did_id,
-            inner_puzzle_hash: value.inner_puzzle_hash,
-        }
-    }
-}
+impl DidOwnerExt for DidOwner {}
 
 #[derive(Clone)]
 pub struct MintedNfts {
