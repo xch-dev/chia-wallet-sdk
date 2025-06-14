@@ -144,7 +144,7 @@ tungstenite = "0.24.0"
 native-tls = "0.2.14"
 rustls = "0.23.27"
 rustls-pemfile = "2.2.0"
-flate2 = "1.1.1"
+flate2 = "1.1.2"
 once_cell = "1.21.3"
 num-bigint = "0.4.6"
 rstest = "0.22.0"
@@ -155,7 +155,7 @@ convert_case = "0.6.0"
 fastrand = "2.3.0"
 napi = { version = "2.16.17", default-features = false }
 napi-derive = { version = "2.16.13" }
-napi-build = "2.2.0"
+napi-build = "2.2.1"
 paste = "1.0.15"
 bigdecimal = "0.4.8"
 k256 = "0.13.4"
@@ -163,7 +163,7 @@ p256 = "0.13.2"
 signature = "2.2.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
-reqwest = { version = "0.12.18", default-features = false, features = ["json"] }
+reqwest = { version = "0.12.19", default-features = false, features = ["json"] }
 proc-macro2 = "1.0.95"
 wasm-bindgen = "0.2.100"
 getrandom = "0.2.15"

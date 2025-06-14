@@ -175,9 +175,9 @@ conditions! {
         },
         TransferNft as Default {
             opcode: i8 if -10,
-            did_id: Option<Bytes32>,
+            launcher_id: Option<Bytes32>,
             trade_prices: Vec<TradePrice>,
-            did_inner_puzzle_hash: Option<Bytes32>,
+            singleton_inner_puzzle_hash: Option<Bytes32>,
         },
         RunCatTail<P, S> as Copy {
             opcode: i8 if 51,

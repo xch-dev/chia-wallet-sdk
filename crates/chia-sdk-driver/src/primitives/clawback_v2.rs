@@ -531,13 +531,13 @@ mod tests {
         let bob = sim.bls(0);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, eve_cat) = Cat::single_issuance_eve(
+        let (issue_cat, cats) = Cat::issue_with_coin(
             &mut ctx,
             alice.coin.coin_id(),
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
-        let cat = eve_cat.wrapped_child(alice.puzzle_hash, 1);
+        let cat = cats[0];
         p2_alice.spend(&mut ctx, alice.coin, issue_cat)?;
 
         let clawback = ClawbackV2::new(alice.puzzle_hash, bob.puzzle_hash, 100, 1, true);
@@ -550,7 +550,7 @@ mod tests {
         )?;
         Cat::spend_all(&mut ctx, &[CatSpend::new(cat, inner_spend)])?;
 
-        let clawback_cat = cat.wrapped_child(clawback_puzzle_hash, 1);
+        let clawback_cat = cat.child(clawback_puzzle_hash, 1);
 
         sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
 
@@ -561,12 +561,7 @@ mod tests {
 
         if !after_expiration {
             assert!(sim
-                .coin_state(
-                    clawback_cat
-                        .wrapped_child(alice.puzzle_hash, 1)
-                        .coin
-                        .coin_id()
-                )
+                .coin_state(clawback_cat.child(alice.puzzle_hash, 1).coin.coin_id())
                 .is_some());
         }
 
@@ -590,13 +585,13 @@ mod tests {
         let bob = sim.bls(0);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, eve_cat) = Cat::single_issuance_eve(
+        let (issue_cat, cats) = Cat::issue_with_coin(
             &mut ctx,
             alice.coin.coin_id(),
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
-        let cat = eve_cat.wrapped_child(alice.puzzle_hash, 1);
+        let cat = cats[0];
         p2_alice.spend(&mut ctx, alice.coin, issue_cat)?;
 
         let clawback = ClawbackV2::new(alice.puzzle_hash, bob.puzzle_hash, 100, 1, true);
@@ -609,7 +604,7 @@ mod tests {
         )?;
         Cat::spend_all(&mut ctx, &[CatSpend::new(cat, inner_spend)])?;
 
-        let clawback_cat = cat.wrapped_child(clawback_puzzle_hash, 1);
+        let clawback_cat = cat.child(clawback_puzzle_hash, 1);
 
         sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
 
@@ -620,12 +615,7 @@ mod tests {
 
         if !after_expiration {
             assert!(sim
-                .coin_state(
-                    clawback_cat
-                        .wrapped_child(bob.puzzle_hash, 1)
-                        .coin
-                        .coin_id()
-                )
+                .coin_state(clawback_cat.child(bob.puzzle_hash, 1).coin.coin_id())
                 .is_some());
         }
 
@@ -650,13 +640,13 @@ mod tests {
         let p2_bob = StandardLayer::new(bob.pk);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, eve_cat) = Cat::single_issuance_eve(
+        let (issue_cat, cats) = Cat::issue_with_coin(
             &mut ctx,
             alice.coin.coin_id(),
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
-        let cat = eve_cat.wrapped_child(alice.puzzle_hash, 1);
+        let cat = cats[0];
         p2_alice.spend(
             &mut ctx,
             alice.coin,
@@ -673,7 +663,7 @@ mod tests {
         )?;
         Cat::spend_all(&mut ctx, &[CatSpend::new(cat, inner_spend)])?;
 
-        let clawback_cat = cat.wrapped_child(clawback_puzzle_hash, 1);
+        let clawback_cat = cat.child(clawback_puzzle_hash, 1);
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
@@ -684,12 +674,7 @@ mod tests {
 
         if after_expiration {
             assert!(sim
-                .coin_state(
-                    clawback_cat
-                        .wrapped_child(bob.puzzle_hash, 1)
-                        .coin
-                        .coin_id()
-                )
+                .coin_state(clawback_cat.child(bob.puzzle_hash, 1).coin.coin_id())
                 .is_some());
         }
 
@@ -713,13 +698,13 @@ mod tests {
         let bob = sim.bls(0);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, eve_cat) = Cat::single_issuance_eve(
+        let (issue_cat, cats) = Cat::issue_with_coin(
             &mut ctx,
             alice.coin.coin_id(),
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
-        let cat = eve_cat.wrapped_child(alice.puzzle_hash, 1);
+        let cat = cats[0];
         p2_alice.spend(
             &mut ctx,
             alice.coin,
@@ -736,7 +721,7 @@ mod tests {
         )?;
         Cat::spend_all(&mut ctx, &[CatSpend::new(cat, inner_spend)])?;
 
-        let clawback_cat = cat.wrapped_child(clawback_puzzle_hash, 1);
+        let clawback_cat = cat.child(clawback_puzzle_hash, 1);
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
@@ -747,12 +732,7 @@ mod tests {
 
         if after_expiration {
             assert!(sim
-                .coin_state(
-                    clawback_cat
-                        .wrapped_child(bob.puzzle_hash, 1)
-                        .coin
-                        .coin_id()
-                )
+                .coin_state(clawback_cat.child(bob.puzzle_hash, 1).coin.coin_id())
                 .is_some());
         }
 

@@ -5,7 +5,7 @@ use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{did_puzzle_assertion, DriverError, Launcher, Spend, SpendContext};
+use crate::{assignment_puzzle_announcement_id, DriverError, Launcher, Spend, SpendContext};
 
 use super::{Nft, NftInfo, NftMint};
 
@@ -17,7 +17,7 @@ impl Launcher {
         metadata: M,
         metadata_updater_puzzle_hash: Bytes32,
         royalty_puzzle_hash: Bytes32,
-        royalty_ten_thousandths: u16,
+        royalty_basis_points: u16,
     ) -> Result<(Conditions, Nft<M>), DriverError>
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash + Clone,
@@ -30,7 +30,7 @@ impl Launcher {
             metadata_updater_puzzle_hash,
             None,
             royalty_puzzle_hash,
-            royalty_ten_thousandths,
+            royalty_basis_points,
             p2_puzzle_hash,
         );
 
@@ -58,9 +58,9 @@ impl Launcher {
     {
         let transfer_condition = mint.owner.map(|owner| {
             TransferNft::new(
-                Some(owner.did_id),
+                Some(owner.launcher_id),
                 Vec::new(),
-                Some(owner.inner_puzzle_hash),
+                Some(owner.singleton_inner_puzzle_hash),
             )
         });
 
@@ -79,7 +79,7 @@ impl Launcher {
             mint.metadata,
             mint.metadata_updater_puzzle_hash,
             mint.royalty_puzzle_hash,
-            mint.royalty_ten_thousandths,
+            mint.royalty_basis_points,
         )?;
 
         eve_nft.spend(ctx, inner_spend)?;
@@ -87,17 +87,16 @@ impl Launcher {
         let mut did_conditions = Conditions::new();
 
         if let Some(transfer_condition) = transfer_condition {
-            did_conditions = did_conditions.assert_puzzle_announcement(did_puzzle_assertion(
-                eve_nft.coin.puzzle_hash,
-                &transfer_condition,
-            ));
+            did_conditions = did_conditions.assert_puzzle_announcement(
+                assignment_puzzle_announcement_id(eve_nft.coin.puzzle_hash, &transfer_condition),
+            );
         }
 
         let metadata = eve_nft.info.metadata.clone();
 
-        let child = eve_nft.wrapped_child(
+        let child = eve_nft.child(
             mint.p2_puzzle_hash,
-            mint.owner.map(|owner| owner.did_id),
+            mint.owner.map(|owner| owner.launcher_id),
             metadata,
         );
 
@@ -107,7 +106,7 @@ impl Launcher {
 
 #[cfg(test)]
 mod tests {
-    use crate::{DidOwner, IntermediateLauncher, Launcher, StandardLayer};
+    use crate::{IntermediateLauncher, Launcher, NftOwner, StandardLayer};
 
     use super::*;
 
@@ -187,7 +186,7 @@ mod tests {
             NftMetadata::default(),
             puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&did.info)),
+            Some(NftOwner::from_did_info(&did.info)),
         );
 
         let mint_1 = IntermediateLauncher::new(did.coin.coin_id(), 0, 2)
@@ -227,7 +226,7 @@ mod tests {
             NftMetadata::default(),
             alice.puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&did.info)),
+            Some(NftOwner::from_did_info(&did.info)),
         );
 
         let (mint_nft, _nft) = launcher.mint_nft(ctx, mint)?;
@@ -265,7 +264,7 @@ mod tests {
             NftMetadata::default(),
             alice.puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&did.info)),
+            Some(NftOwner::from_did_info(&did.info)),
         );
 
         let (mint_nft, _nft_info) = launcher.mint_nft(ctx, mint)?;

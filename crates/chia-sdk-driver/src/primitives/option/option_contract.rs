@@ -155,7 +155,7 @@ impl OptionContract {
             extra_conditions.create_coin(p2_puzzle_hash, self.coin.amount, memos),
         )?;
 
-        Ok(self.wrapped_child(p2_puzzle_hash))
+        Ok(self.child(p2_puzzle_hash))
     }
 
     pub fn exercise<I>(
@@ -184,7 +184,7 @@ impl OptionContract {
         Ok(())
     }
 
-    pub fn wrapped_child(&self, p2_puzzle_hash: Bytes32) -> Self {
+    pub fn child(&self, p2_puzzle_hash: Bytes32) -> Self {
         let info = self.info.with_p2_puzzle_hash(p2_puzzle_hash);
 
         let inner_puzzle_hash = info.inner_puzzle_hash();
@@ -210,7 +210,7 @@ mod tests {
     use rstest::rstest;
 
     use crate::{
-        Cat, CatSpend, DidOwner, HashedPtr, Launcher, Nft, NftMint, OptionLauncher,
+        Cat, CatSpend, HashedPtr, Launcher, Nft, NftMint, NftOwner, OptionLauncher,
         OptionLauncherInfo, OptionType, SettlementLayer, StandardLayer,
     };
 
@@ -307,7 +307,7 @@ mod tests {
             }
             Type::Cat => {
                 let hint = ctx.hint(SETTLEMENT_PAYMENT_HASH.into())?;
-                let (issue_cat, cat) = Cat::single_issuance_eve(
+                let (issue_cat, cats) = Cat::issue_with_coin(
                     ctx,
                     strike_parent_coin.coin_id(),
                     strike_amount,
@@ -318,13 +318,11 @@ mod tests {
                     ),
                 )?;
                 alice_p2.spend(ctx, strike_parent_coin, issue_cat)?;
-                let coin = OptionCoin::Cat(
-                    cat.wrapped_child(SETTLEMENT_PAYMENT_HASH.into(), strike_amount),
-                );
+                let coin = OptionCoin::Cat(cats[0]);
                 (
                     coin,
                     OptionType::Cat {
-                        asset_id: cat.asset_id,
+                        asset_id: cats[0].info.asset_id,
                         amount: strike_amount,
                     },
                 )
@@ -335,20 +333,18 @@ mod tests {
                     RevocationArgs::new(Bytes32::default(), SETTLEMENT_PAYMENT_HASH.into())
                         .curry_tree_hash()
                         .into();
-                let (issue_cat, cat) = Cat::single_issuance_eve(
+                let (issue_cat, cats) = Cat::issue_with_coin(
                     ctx,
                     strike_parent_coin.coin_id(),
                     strike_amount,
                     Conditions::new().create_coin(revocation_settlement_hash, strike_amount, hint),
                 )?;
                 alice_p2.spend(ctx, strike_parent_coin, issue_cat)?;
-                let coin = OptionCoin::RevocableCat(
-                    cat.wrapped_child(revocation_settlement_hash, strike_amount),
-                );
+                let coin = OptionCoin::RevocableCat(cats[0]);
                 (
                     coin,
                     OptionType::RevocableCat {
-                        asset_id: cat.asset_id,
+                        asset_id: cats[0].info.asset_id,
                         hidden_puzzle_hash: Bytes32::default(),
                         amount: strike_amount,
                     },
@@ -366,7 +362,7 @@ mod tests {
                             HashedPtr::NIL,
                             SETTLEMENT_PAYMENT_HASH.into(),
                             0,
-                            Some(DidOwner::from_did_info(&did.info)),
+                            Some(NftOwner::from_did_info(&did.info)),
                         ),
                     )?;
 
@@ -423,28 +419,28 @@ mod tests {
             }
             Type::Cat => {
                 let hint = ctx.hint(p2_option)?;
-                let (issue_cat, cat) = Cat::single_issuance_eve(
+                let (issue_cat, cats) = Cat::issue_with_coin(
                     ctx,
                     underlying_parent_coin.coin_id(),
                     underlying_amount,
                     Conditions::new().create_coin(p2_option, underlying_amount, hint),
                 )?;
                 alice_p2.spend(ctx, underlying_parent_coin, issue_cat)?;
-                OptionCoin::Cat(cat.wrapped_child(p2_option, underlying_amount))
+                OptionCoin::Cat(cats[0])
             }
             Type::RevocableCat => {
                 let hint = ctx.hint(p2_option)?;
                 let revocation_p2_option = RevocationArgs::new(Bytes32::default(), p2_option)
                     .curry_tree_hash()
                     .into();
-                let (issue_cat, cat) = Cat::single_issuance_eve(
+                let (issue_cat, cats) = Cat::issue_with_coin(
                     ctx,
                     underlying_parent_coin.coin_id(),
                     underlying_amount,
                     Conditions::new().create_coin(revocation_p2_option, underlying_amount, hint),
                 )?;
                 alice_p2.spend(ctx, underlying_parent_coin, issue_cat)?;
-                OptionCoin::RevocableCat(cat.wrapped_child(revocation_p2_option, underlying_amount))
+                OptionCoin::RevocableCat(cats[0])
             }
             Type::Nft => {
                 let (create_did, did) = Launcher::new(underlying_parent_coin.coin_id(), 1)
@@ -458,7 +454,7 @@ mod tests {
                             HashedPtr::NIL,
                             p2_option,
                             0,
-                            Some(DidOwner::from_did_info(&did.info)),
+                            Some(NftOwner::from_did_info(&did.info)),
                         ),
                     )?;
 

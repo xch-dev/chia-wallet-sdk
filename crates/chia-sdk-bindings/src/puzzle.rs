@@ -23,7 +23,7 @@ use chia_sdk_driver::{
     StreamingPuzzleInfo,
 };
 
-use crate::Program;
+use crate::{AsProgram, Program};
 
 #[derive(Clone)]
 pub struct Puzzle {
@@ -94,9 +94,7 @@ impl Puzzle {
         };
 
         Ok(Some(ParsedNft {
-            info: NftInfo::from(
-                nft_info.with_metadata(Program(self.program.0.clone(), nft_info.metadata.ptr())),
-            ),
+            info: nft_info.as_program(&self.program.0),
             p2_puzzle: Self::new(&self.program.0, p2_puzzle),
         }))
     }
@@ -120,10 +118,7 @@ impl Puzzle {
             return Ok(None);
         };
 
-        Ok(Some(
-            nft.with_metadata(Program(self.program.0.clone(), nft.info.metadata.ptr()))
-                .into(),
-        ))
+        Ok(Some(nft.as_program(&self.program.0)))
     }
 
     pub fn parse_did(&self) -> Result<Option<ParsedDid>> {
@@ -138,9 +133,7 @@ impl Puzzle {
         };
 
         Ok(Some(ParsedDid {
-            info: DidInfo::from(
-                did_info.with_metadata(Program(self.program.0.clone(), did_info.metadata.ptr())),
-            ),
+            info: did_info.as_program(&self.program.0),
             p2_puzzle: Self::new(&self.program.0, p2_puzzle),
         }))
     }
@@ -166,10 +159,7 @@ impl Puzzle {
             return Ok(None);
         };
 
-        Ok(Some(
-            did.with_metadata(Program(self.program.0.clone(), did.info.metadata.ptr()))
-                .into(),
-        ))
+        Ok(Some(did.as_program(&self.program.0)))
     }
 
     pub fn parse_inner_streaming_puzzle(&self) -> Result<Option<StreamingPuzzleInfo>> {
