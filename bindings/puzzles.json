@@ -285,6 +285,14 @@
       "p2_puzzle": "Puzzle"
     }
   },
+  "CreatedDid": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "did": "Did",
+      "parent_conditions": "Vec<Program>"
+    }
+  },
   "standard_puzzle_hash": {
     "type": "function",
     "args": {

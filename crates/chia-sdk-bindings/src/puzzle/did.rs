@@ -118,3 +118,9 @@ pub struct ParsedDid {
     pub info: DidInfo,
     pub p2_puzzle: Puzzle,
 }
+
+#[derive(Clone)]
+pub struct CreatedDid {
+    pub did: Did,
+    pub parent_conditions: Vec<Program>,
+}

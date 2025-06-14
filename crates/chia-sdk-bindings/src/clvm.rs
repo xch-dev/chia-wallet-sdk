@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use bindy::{Error, Result};
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram};
-use chia_sdk_driver::{Launcher, SpendContext, StandardLayer, StreamedCat};
+use chia_sdk_driver::{HashedPtr, Launcher, SpendContext, StandardLayer, StreamedCat};
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::TreeHash;
@@ -14,9 +14,9 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    AsProgram, AsPtr, CatSpend, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo, MemberMemo,
-    MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft, NftMetadata, NftMint, Program,
-    RestrictionMemo, Spend, VaultMint, WrapperMemo,
+    AsProgram, AsPtr, CatSpend, CreatedDid, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo,
+    MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft, NftMetadata, NftMint,
+    Program, RestrictionMemo, Spend, VaultMint, WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -137,6 +137,34 @@ impl Clvm {
         )?;
 
         Ok(())
+    }
+
+    pub fn create_eve_did(
+        &self,
+        parent_coin_id: Bytes32,
+        p2_puzzle_hash: Bytes32,
+    ) -> Result<CreatedDid> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let (conditions, did) = Launcher::new(parent_coin_id, 1).create_eve_did(
+            &mut ctx,
+            p2_puzzle_hash,
+            None,
+            1,
+            HashedPtr::NIL,
+        )?;
+
+        let mut parent_conditions = Vec::new();
+
+        for condition in conditions {
+            let condition = condition.to_clvm(&mut ctx)?;
+            parent_conditions.push(Program(self.0.clone(), condition));
+        }
+
+        Ok(CreatedDid {
+            did: did.as_program(&self.0),
+            parent_conditions,
+        })
     }
 
     pub fn spend_did(&self, did: Did, inner_spend: Spend) -> Result<()> {

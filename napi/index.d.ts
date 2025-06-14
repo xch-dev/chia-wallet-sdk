@@ -106,6 +106,7 @@ export declare class Clvm {
   spendCatCoins(catSpends: Array<CatSpend>): void
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
   spendNft(nft: Nft, innerSpend: Spend): void
+  createEveDid(parentCoinId: Uint8Array, p2PuzzleHash: Uint8Array): CreatedDid
   spendDid(did: Did, innerSpend: Spend): void
   spendStreamedCat(streamedCat: StreamedCat, paymentTime: bigint, clawback: boolean): void
   mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
@@ -1568,6 +1569,14 @@ export declare class ParsedDid {
   set info(value: DidInfo)
   get p2Puzzle(): Puzzle
   set p2Puzzle(value: Puzzle)
+}
+export declare class CreatedDid {
+  clone(): CreatedDid
+  constructor(did: Did, parentConditions: Array<Program>)
+  get did(): Did
+  set did(value: Did)
+  get parentConditions(): Array<Program>
+  set parentConditions(value: Array<Program>)
 }
 export declare class StreamingPuzzleInfo {
   clone(): StreamingPuzzleInfo

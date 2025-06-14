@@ -122,6 +122,13 @@
           "inner_spend": "Spend"
         }
       },
+      "create_eve_did": {
+        "args": {
+          "parent_coin_id": "Bytes32",
+          "p2_puzzle_hash": "Bytes32"
+        },
+        "return": "CreatedDid"
+      },
       "spend_did": {
         "args": {
           "did": "Did",
