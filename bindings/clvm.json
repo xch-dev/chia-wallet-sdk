@@ -104,10 +104,11 @@
           "spend": "Spend"
         }
       },
-      "spend_cat_coins": {
+      "spend_cats": {
         "args": {
           "cat_spends": "Vec<CatSpend>"
-        }
+        },
+        "return": "Vec<Cat>"
       },
       "mint_nfts": {
         "args": {
