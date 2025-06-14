@@ -1500,7 +1500,7 @@ export declare class NftMetadata {
 }
 export declare class NftMint {
   clone(): NftMint
-  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, owner?: DidOwner | undefined | null)
+  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, owner?: NftOwner | undefined | null)
   get metadata(): Program
   set metadata(value: Program)
   get metadataUpdaterPuzzleHash(): Buffer
@@ -1511,16 +1511,16 @@ export declare class NftMint {
   set royaltyPuzzleHash(value: Uint8Array)
   get royaltyTenThousandths(): number
   set royaltyTenThousandths(value: number)
-  get owner(): DidOwner | null
-  set owner(value?: DidOwner | undefined | null)
+  get owner(): NftOwner | null
+  set owner(value?: NftOwner | undefined | null)
 }
-export declare class DidOwner {
-  clone(): DidOwner
-  constructor(didId: Uint8Array, innerPuzzleHash: Uint8Array)
-  get didId(): Buffer
-  set didId(value: Uint8Array)
-  get innerPuzzleHash(): Buffer
-  set innerPuzzleHash(value: Uint8Array)
+export declare class NftOwner {
+  clone(): NftOwner
+  constructor(launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get singletonInnerPuzzleHash(): Buffer
+  set singletonInnerPuzzleHash(value: Uint8Array)
 }
 export declare class MintedNfts {
   clone(): MintedNfts

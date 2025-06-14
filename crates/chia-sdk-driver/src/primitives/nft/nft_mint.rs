@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::NFT_METADATA_UPDATER_DEFAULT_HASH;
 
-use super::DidOwner;
+use super::NftOwner;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NftMint<M> {
@@ -10,7 +10,7 @@ pub struct NftMint<M> {
     pub royalty_puzzle_hash: Bytes32,
     pub royalty_ten_thousandths: u16,
     pub p2_puzzle_hash: Bytes32,
-    pub owner: Option<DidOwner>,
+    pub owner: Option<NftOwner>,
 }
 
 impl<M> NftMint<M> {
@@ -18,7 +18,7 @@ impl<M> NftMint<M> {
         metadata: M,
         p2_puzzle_hash: Bytes32,
         royalty_ten_thousandths: u16,
-        owner: Option<DidOwner>,
+        owner: Option<NftOwner>,
     ) -> Self {
         Self {
             metadata,

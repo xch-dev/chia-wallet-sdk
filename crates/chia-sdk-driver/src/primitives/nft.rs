@@ -21,22 +21,42 @@ use crate::{
     SettlementLayer, SingletonLayer, Spend, SpendContext, SpendWithConditions,
 };
 
-mod did_owner;
 mod metadata_update;
 mod nft_info;
 mod nft_launcher;
 mod nft_mint;
+mod nft_owner;
 
-pub use did_owner::*;
 pub use metadata_update::*;
 pub use nft_info::*;
 pub use nft_mint::*;
+pub use nft_owner::*;
 
+/// Contains all information needed to spend the outer puzzles of NFT coins.
+/// The [`NftInfo`] is used to construct the puzzle, but the [`Proof`] is needed for the solution.
+///
+/// The only thing missing to create a valid coin spend is the inner puzzle and solution.
+/// However, this is handled separately to provide as much flexibility as possible.
+///
+/// This type should contain all of the information you need to store in a database for later.
+/// As long as you can figure out what puzzle the p2 puzzle hash corresponds to and spend it,
+/// you have enough information to spend the NFT coin.
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Nft<M> {
+    /// The coin that this [`Nft`] represents. Its puzzle hash should match the [`NftInfo::puzzle_hash`].
     pub coin: Coin,
+
+    /// The proof is needed by the singleton puzzle to prove that this coin is a legitimate singleton.
+    /// It's typically obtained by looking up and parsing the parent coin.
+    ///
+    /// Note that while the proof will be a [`LineageProof`] for most coins, for the first singleton
+    /// in the lineage it will be an [`EveProof`](chia_puzzle_types::EveProof) instead.
+    /// However, the eve coin is typically unhinted and spent in the same transaction as it was created,
+    /// so this is not relevant for database storage or syncing unspent coins.
     pub proof: Proof,
+
+    /// The information needed to construct the outer puzzle of an NFT. See [`NftInfo`] for more details.
     pub info: NftInfo<M>,
 }
 
@@ -58,6 +78,7 @@ impl<M> Nft<M>
 where
     M: ToTreeHash,
 {
+    /// Creates a [`LineageProof`] for which would be valid for any children created by this [`Nft`].
     pub fn child_lineage_proof(&self) -> LineageProof {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
@@ -66,6 +87,7 @@ where
         }
     }
 
+    /// Creates a new [`Nft`] that represents a child of this one.
     pub fn child<N>(
         &self,
         p2_puzzle_hash: Bytes32,
@@ -83,6 +105,13 @@ where
         })
     }
 
+    /// Creates a new [`Nft`] that represents a child of this one.
+    ///
+    /// You can specify the [`NftInfo`] to use for the child manually.
+    /// In most cases, you will want to use [`Nft::child`] instead.
+    ///
+    /// It's important to use the right [`NftInfo`] beforehand, otherwise
+    /// the puzzle hash of the child will not match the one expected by the coin.
     pub fn child_with<N>(&self, info: NftInfo<N>) -> Nft<N>
     where
         N: ToTreeHash,
@@ -103,6 +132,8 @@ impl<M> Nft<M>
 where
     M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
 {
+    /// Spends this NFT coin with the provided inner spend.
+    /// The spend is added to the [`SpendContext`] for convenience.
     pub fn spend(&self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<(), DriverError> {
         let layers = self.info.clone().into_layers(inner_spend.puzzle);
 
@@ -125,6 +156,11 @@ where
         Ok(())
     }
 
+    /// Spends this NFT coin with a [`Layer`] that supports [`SpendWithConditions`].
+    /// This is a building block for built in spend methods, but can also be used to spend
+    /// NFTs with conditions more easily.
+    ///
+    /// However, if you need full flexibility of the inner spend, you can use [`Nft::spend`] instead.
     pub fn spend_with<I>(
         &self,
         ctx: &mut SpendContext,
@@ -138,6 +174,11 @@ where
         self.spend(ctx, inner_spend)
     }
 
+    /// Transfers this NFT coin to a new p2 puzzle hash and runs the metadata updater with the
+    /// provided spend.
+    ///
+    /// This spend requires a [`Layer`] that supports [`SpendWithConditions`]. If it doesn't, you can
+    /// use [`Nft::spend_with`] instead.
     pub fn transfer_with_metadata<I, N>(
         self,
         ctx: &mut SpendContext,
@@ -176,6 +217,10 @@ where
         ))
     }
 
+    /// Transfers this NFT coin to a new p2 puzzle hash.
+    ///
+    /// This spend requires a [`Layer`] that supports [`SpendWithConditions`]. If it doesn't, you can
+    /// use [`Nft::spend_with`] instead.
     pub fn transfer<I>(
         self,
         ctx: &mut SpendContext,
@@ -200,6 +245,11 @@ where
         Ok(self.child(p2_puzzle_hash, self.info.current_owner, metadata))
     }
 
+    /// Transfers this NFT coin to the settlement puzzle hash and runs the transfer program to
+    /// remove the assigned owner and reveal the trade prices for the offer.
+    ///
+    /// This spend requires a [`Layer`] that supports [`SpendWithConditions`]. If it doesn't, you can
+    /// use [`Nft::spend_with`] instead.
     pub fn lock_settlement<I>(
         self,
         ctx: &mut SpendContext,
@@ -226,6 +276,8 @@ where
         Ok(nft)
     }
 
+    /// Spends this NFT with the settlement puzzle as its inner puzzle, with the provided notarized
+    /// payments. This only works if the NFT has been locked in an offer already.
     pub fn unlock_settlement(
         self,
         ctx: &mut SpendContext,
@@ -256,12 +308,19 @@ where
         Ok(self.child(outputs[0], None, self.info.metadata.clone()))
     }
 
-    pub fn transfer_to_did<I>(
+    /// Transfers this NFT coin to a new p2 puzzle hash and assigns a new owner to it (for example, a DID).
+    ///
+    /// This will return the conditions that must be emitted by the singleton you're assigning the NFT to.
+    /// The singleton must be spent in the same spend bundle as the NFT spend and emit these conditions.
+    ///
+    /// This spend requires a [`Layer`] that supports [`SpendWithConditions`]. If it doesn't, you can
+    /// use [`Nft::spend_with`] instead.
+    pub fn assign_owner<I>(
         self,
         ctx: &mut SpendContext,
         inner: &I,
         p2_puzzle_hash: Bytes32,
-        new_owner: Option<DidOwner>,
+        new_owner: Option<NftOwner>,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Nft<M>), DriverError>
     where
@@ -269,9 +328,9 @@ where
         I: SpendWithConditions,
     {
         let transfer_condition = TransferNft::new(
-            new_owner.map(|owner| owner.did_id),
+            new_owner.map(|owner| owner.launcher_id),
             Vec::new(),
-            new_owner.map(|owner| owner.inner_puzzle_hash),
+            new_owner.map(|owner| owner.singleton_inner_puzzle_hash),
         );
 
         self.transfer_with_condition(
@@ -283,6 +342,15 @@ where
         )
     }
 
+    /// Transfers this NFT coin to a new p2 puzzle hash and runs the transfer program.
+    ///
+    /// This will return the conditions that must be emitted by the singleton you're assigning the NFT to.
+    /// The singleton must be spent in the same spend bundle as the NFT spend and emit these conditions.
+    ///
+    /// However, if the NFT is being unassigned, there is no singleton spend and the conditions are empty.
+    ///
+    /// This spend requires a [`Layer`] that supports [`SpendWithConditions`]. If it doesn't, you can
+    /// use [`Nft::spend_with`] instead.
     pub fn transfer_with_condition<I>(
         self,
         ctx: &mut SpendContext,
@@ -295,11 +363,11 @@ where
         M: ToTreeHash,
         I: SpendWithConditions,
     {
-        let did_id = transfer_condition.did_id;
+        let launcher_id = transfer_condition.launcher_id;
 
-        let did_conditions = if did_id.is_some() {
+        let assignment_conditions = if launcher_id.is_some() {
             Conditions::new()
-                .assert_puzzle_announcement(did_puzzle_assertion(
+                .assert_puzzle_announcement(assignment_puzzle_announcement_id(
                     self.coin.puzzle_hash,
                     &transfer_condition,
                 ))
@@ -320,9 +388,9 @@ where
 
         let metadata = self.info.metadata.clone();
 
-        let child = self.child(p2_puzzle_hash, did_id, metadata);
+        let child = self.child(p2_puzzle_hash, launcher_id, metadata);
 
-        Ok((did_conditions, child))
+        Ok((assignment_conditions, child))
     }
 }
 
@@ -330,6 +398,15 @@ impl<M> Nft<M>
 where
     M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
 {
+    /// Parses the child of an [`Nft`] from the parent coin spend.
+    ///
+    /// This can be used to construct a valid spendable [`Nft`] for a hinted coin.
+    /// You simply need to look up the parent coin's spend, parse the child, and
+    /// ensure it matches the hinted coin.
+    ///
+    /// This will automatically run the transfer program or metadata updater, if
+    /// they are revealed in the p2 puzzle's output conditions. This way the returned
+    /// [`Nft`] will have the correct owner (if present) and metadata.
     pub fn parse_child(
         allocator: &mut Allocator,
         parent_coin: Coin,
@@ -391,7 +468,7 @@ where
         let mut layers = SingletonLayer::new(singleton_layer.launcher_id, inner_layers);
 
         if let Some(new_owner) = new_owner {
-            layers.inner_puzzle.inner_puzzle.current_owner = new_owner.did_id;
+            layers.inner_puzzle.inner_puzzle.current_owner = new_owner.launcher_id;
         }
 
         if let Some(new_metadata) = new_metadata {
@@ -433,13 +510,16 @@ where
     }
 }
 
-pub fn did_puzzle_assertion(nft_full_puzzle_hash: Bytes32, new_nft_owner: &TransferNft) -> Bytes32 {
+pub fn assignment_puzzle_announcement_id(
+    nft_full_puzzle_hash: Bytes32,
+    new_nft_owner: &TransferNft,
+) -> Bytes32 {
     let mut allocator = Allocator::new();
 
     let new_nft_owner_args = clvm_list!(
-        new_nft_owner.did_id,
+        new_nft_owner.launcher_id,
         &new_nft_owner.trade_prices,
-        new_nft_owner.did_inner_puzzle_hash
+        new_nft_owner.singleton_inner_puzzle_hash
     )
     .to_clvm(&mut allocator)
     .unwrap();
@@ -495,7 +575,7 @@ mod tests {
             NftMetadata::default(),
             alice.puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&did.info)),
+            Some(NftOwner::from_did_info(&did.info)),
         );
 
         let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
@@ -525,7 +605,7 @@ mod tests {
             NftMetadata::default(),
             alice.puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&did.info)),
+            Some(NftOwner::from_did_info(&did.info)),
         );
 
         let (mint_nft, mut nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
@@ -537,13 +617,13 @@ mod tests {
         sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
 
         for i in 0..5 {
-            let did_owner = DidOwner::from_did_info(&did.info);
+            let nft_owner = NftOwner::from_did_info(&did.info);
 
-            let (spend_nft, new_nft) = nft.transfer_to_did(
+            let (spend_nft, new_nft) = nft.assign_owner(
                 ctx,
                 &alice_p2,
                 alice.puzzle_hash,
-                if i % 2 == 0 { Some(did_owner) } else { None },
+                if i % 2 == 0 { Some(nft_owner) } else { None },
                 Conditions::new(),
             )?;
 
@@ -576,7 +656,7 @@ mod tests {
             },
             alice.puzzle_hash,
             300,
-            Some(DidOwner::from_did_info(&did.info)),
+            Some(NftOwner::from_did_info(&did.info)),
         );
 
         let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
@@ -653,7 +733,7 @@ mod tests {
                     metadata,
                     alice.puzzle_hash,
                     300,
-                    Some(DidOwner::from_did_info(&did.info)),
+                    Some(NftOwner::from_did_info(&did.info)),
                 ),
             )?;
         let _did = did.update(ctx, &alice_p2, mint_nft)?;

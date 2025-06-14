@@ -62,7 +62,7 @@ pub use chia_sdk_coinset::{
     PushTxResponse, SyncState,
 };
 pub use chia_sdk_driver::{
-    Cat, CatInfo, Clawback, ClawbackV2, DidOwner, StreamedCat, StreamingPuzzleInfo,
+    Cat, CatInfo, Clawback, ClawbackV2, NftOwner, StreamedCat, StreamingPuzzleInfo,
 };
 
 pub(crate) use convert::{AsProgram, AsPtr};

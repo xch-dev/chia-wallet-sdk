@@ -4,7 +4,7 @@ use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::nft::NftMetadata;
 use chia_sdk_driver::{
-    DidOwner, HashedPtr, Nft as SdkNft, NftInfo as SdkNftInfo, NftMint as SdkNftMint, SpendContext,
+    HashedPtr, Nft as SdkNft, NftInfo as SdkNftInfo, NftMint as SdkNftMint, NftOwner, SpendContext,
 };
 use clvm_utils::TreeHash;
 use clvmr::Allocator;
@@ -144,7 +144,7 @@ pub struct NftMint {
     pub p2_puzzle_hash: Bytes32,
     pub royalty_puzzle_hash: Bytes32,
     pub royalty_ten_thousandths: u16,
-    pub owner: Option<DidOwner>,
+    pub owner: Option<NftOwner>,
 }
 
 impl AsPtr for NftMint {
@@ -162,9 +162,9 @@ impl AsPtr for NftMint {
     }
 }
 
-pub trait DidOwnerExt {}
+pub trait NftOwnerExt {}
 
-impl DidOwnerExt for DidOwner {}
+impl NftOwnerExt for NftOwner {}
 
 #[derive(Clone)]
 pub struct MintedNfts {

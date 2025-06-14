@@ -21,11 +21,32 @@ pub use cat_info::*;
 pub use cat_spend::*;
 pub use single_cat_spend::*;
 
+/// Contains all information needed to spend the outer puzzles of CAT coins.
+/// The [`CatInfo`] is used to construct the puzzle, but the [`LineageProof`] is needed for the solution.
+///
+/// The only thing missing to create a valid coin spend is the inner puzzle and solution.
+/// However, this is handled separately to provide as much flexibility as possible.
+///
+/// This type should contain all of the information you need to store in a database for later.
+/// As long as you can figure out what puzzle the p2 puzzle hash corresponds to and spend it,
+/// you have enough information to spend the CAT coin.
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Cat {
+    /// The coin that this [`Cat`] represents. Its puzzle hash should match the [`CatInfo::puzzle_hash`].
     pub coin: Coin,
+
+    /// The lineage proof is needed by the CAT puzzle to prove that this coin is a legitimate CAT.
+    /// It's typically obtained by looking up and parsing the parent coin.
+    ///
+    /// This can get a bit tedious, so a helper method [`Cat::parse_children`] is provided to parse
+    /// the child [`Cat`] objects from the parent (once you have looked up its information on-chain).
+    ///
+    /// Note that while the lineage proof is needed for most coins, it is optional if you are
+    /// issuing more of the CAT by running its TAIL program.
     pub lineage_proof: Option<LineageProof>,
+
+    /// The information needed to construct the outer puzzle of a CAT. See [`CatInfo`] for more details.
     pub info: CatInfo,
 }
 
@@ -99,6 +120,18 @@ impl Cat {
         ))
     }
 
+    /// Constructs a [`CoinSpend`](chia_protocol::CoinSpend) for each [`CatSpend`] in the list.
+    /// The spends are added to the [`SpendContext`] (in order) for convenience.
+    ///
+    /// All of the ring announcements and proofs required by the CAT puzzle are calculated automatically.
+    /// This requires running the inner spends to get the conditions, so any errors will be propagated.
+    ///
+    /// It's important not to spend CATs with different asset IDs at the same time, since they are not
+    /// compatible.
+    ///
+    /// Additionally, you should group all CAT spends done in the same transaction together
+    /// so that the value of one coin can be freely used in the output of another. If you spend them
+    /// separately, there will be multiple announcement rings and a non-zero delta will be calculated.
     pub fn spend_all(ctx: &mut SpendContext, cat_spends: &[CatSpend]) -> Result<(), DriverError> {
         let len = cat_spends.len();
 
@@ -152,6 +185,12 @@ impl Cat {
         Ok(())
     }
 
+    /// Spends this CAT coin with the provided solution parameters. Other parameters are inferred from
+    /// the [`Cat`] instance.
+    ///
+    /// This is useful if you have already calculated the conditions and want to spend the coin directly.
+    /// However, it's more common to use [`Cat::spend_all`] which handles the details of calculating the
+    /// solution (including ring announcements) for multiple CATs and spending them all at once.
     pub fn spend(&self, ctx: &mut SpendContext, info: SingleCatSpend) -> Result<(), DriverError> {
         let mut spend = info.inner_spend;
 
@@ -188,6 +227,7 @@ impl Cat {
         )
     }
 
+    /// Creates a [`LineageProof`] for which would be valid for any children created by this [`Cat`].
     pub fn child_lineage_proof(&self) -> LineageProof {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
@@ -196,6 +236,10 @@ impl Cat {
         }
     }
 
+    /// Creates a new [`Cat`] that represents a child of this one.
+    /// The child will have the same revocation layer (or lack thereof) as the current [`Cat`].
+    ///
+    /// If you need to construct a child without the revocation layer, use [`Cat::unrevocable_child`].
     pub fn child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
         self.child_with(
             CatInfo {
@@ -206,6 +250,10 @@ impl Cat {
         )
     }
 
+    /// Creates a new [`Cat`] that represents a child of this one.
+    /// The child will not have a revocation layer.
+    ///
+    /// If you need to construct a child with the same revocation layer, use [`Cat::child`].
     pub fn unrevocable_child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
         self.child_with(
             CatInfo {
@@ -217,6 +265,10 @@ impl Cat {
         )
     }
 
+    /// Creates a new [`Cat`] that represents a child of this one.
+    ///
+    /// You can specify the [`CatInfo`] to use for the child manually.
+    /// In most cases, you will want to use [`Cat::child`] or [`Cat::unrevocable_child`] instead.
     pub fn child_with(&self, info: CatInfo, amount: u64) -> Self {
         Self {
             coin: Coin::new(self.coin.coin_id(), info.puzzle_hash().into(), amount),
@@ -227,6 +279,17 @@ impl Cat {
 }
 
 impl Cat {
+    /// Parses the children of a [`Cat`] from the parent coin spend.
+    ///
+    /// This can be used to construct a valid spendable [`Cat`] for a hinted coin.
+    /// You simply need to look up the parent coin's spend, parse the children, and
+    /// find the one that matches the hinted coin.
+    ///
+    /// There is some special handling for the revocation layer:
+    /// 1. If there is no revocation layer for the parent, the child will not have one either.
+    /// 2. If the parent was not revoked, the child will have the same revocation layer.
+    /// 3. If the parent was revoked, the child will not have a revocation layer.
+    /// 4. If the parent was revoked, and the child was hinted (and wrapped with the revocation layer), it will detect it.
     pub fn parse_children(
         allocator: &mut Allocator,
         parent_coin: Coin,

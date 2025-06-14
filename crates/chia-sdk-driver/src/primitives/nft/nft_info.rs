@@ -161,7 +161,7 @@ mod tests {
     use chia_sdk_test::Simulator;
     use chia_sdk_types::Conditions;
 
-    use crate::{DidOwner, IntermediateLauncher, Launcher, NftMint, SpendContext, StandardLayer};
+    use crate::{IntermediateLauncher, Launcher, NftMint, NftOwner, SpendContext, StandardLayer};
 
     use super::*;
 
@@ -188,7 +188,7 @@ mod tests {
                     metadata,
                     alice.puzzle_hash,
                     300,
-                    Some(DidOwner::from_did_info(&did.info)),
+                    Some(NftOwner::from_did_info(&did.info)),
                 ),
             )?;
 

@@ -211,16 +211,16 @@
       "p2_puzzle_hash": "Bytes32",
       "royalty_puzzle_hash": "Bytes32",
       "royalty_ten_thousandths": "u16",
-      "owner": "Option<DidOwner>"
+      "owner": "Option<NftOwner>"
     }
   },
-  "DidOwner": {
+  "NftOwner": {
     "type": "class",
     "new": true,
     "remote": true,
     "fields": {
-      "did_id": "Bytes32",
-      "inner_puzzle_hash": "Bytes32"
+      "launcher_id": "Bytes32",
+      "singleton_inner_puzzle_hash": "Bytes32"
     }
   },
   "MintedNfts": {
