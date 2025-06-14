@@ -307,7 +307,7 @@ mod tests {
             }
             Type::Cat => {
                 let hint = ctx.hint(SETTLEMENT_PAYMENT_HASH.into())?;
-                let (issue_cat, cat) = Cat::single_issuance_eve(
+                let (issue_cat, cats) = Cat::issue_with_coin(
                     ctx,
                     strike_parent_coin.coin_id(),
                     strike_amount,
@@ -318,12 +318,11 @@ mod tests {
                     ),
                 )?;
                 alice_p2.spend(ctx, strike_parent_coin, issue_cat)?;
-                let coin =
-                    OptionCoin::Cat(cat.child(SETTLEMENT_PAYMENT_HASH.into(), strike_amount));
+                let coin = OptionCoin::Cat(cats[0]);
                 (
                     coin,
                     OptionType::Cat {
-                        asset_id: cat.info.asset_id,
+                        asset_id: cats[0].info.asset_id,
                         amount: strike_amount,
                     },
                 )
@@ -334,19 +333,18 @@ mod tests {
                     RevocationArgs::new(Bytes32::default(), SETTLEMENT_PAYMENT_HASH.into())
                         .curry_tree_hash()
                         .into();
-                let (issue_cat, cat) = Cat::single_issuance_eve(
+                let (issue_cat, cats) = Cat::issue_with_coin(
                     ctx,
                     strike_parent_coin.coin_id(),
                     strike_amount,
                     Conditions::new().create_coin(revocation_settlement_hash, strike_amount, hint),
                 )?;
                 alice_p2.spend(ctx, strike_parent_coin, issue_cat)?;
-                let coin =
-                    OptionCoin::RevocableCat(cat.child(revocation_settlement_hash, strike_amount));
+                let coin = OptionCoin::RevocableCat(cats[0]);
                 (
                     coin,
                     OptionType::RevocableCat {
-                        asset_id: cat.info.asset_id,
+                        asset_id: cats[0].info.asset_id,
                         hidden_puzzle_hash: Bytes32::default(),
                         amount: strike_amount,
                     },
@@ -421,28 +419,28 @@ mod tests {
             }
             Type::Cat => {
                 let hint = ctx.hint(p2_option)?;
-                let (issue_cat, cat) = Cat::single_issuance_eve(
+                let (issue_cat, cats) = Cat::issue_with_coin(
                     ctx,
                     underlying_parent_coin.coin_id(),
                     underlying_amount,
                     Conditions::new().create_coin(p2_option, underlying_amount, hint),
                 )?;
                 alice_p2.spend(ctx, underlying_parent_coin, issue_cat)?;
-                OptionCoin::Cat(cat.child(p2_option, underlying_amount))
+                OptionCoin::Cat(cats[0])
             }
             Type::RevocableCat => {
                 let hint = ctx.hint(p2_option)?;
                 let revocation_p2_option = RevocationArgs::new(Bytes32::default(), p2_option)
                     .curry_tree_hash()
                     .into();
-                let (issue_cat, cat) = Cat::single_issuance_eve(
+                let (issue_cat, cats) = Cat::issue_with_coin(
                     ctx,
                     underlying_parent_coin.coin_id(),
                     underlying_amount,
                     Conditions::new().create_coin(revocation_p2_option, underlying_amount, hint),
                 )?;
                 alice_p2.spend(ctx, underlying_parent_coin, issue_cat)?;
-                OptionCoin::RevocableCat(cat.child(revocation_p2_option, underlying_amount))
+                OptionCoin::RevocableCat(cats[0])
             }
             Type::Nft => {
                 let (create_did, did) = Launcher::new(underlying_parent_coin.coin_id(), 1)

@@ -531,13 +531,13 @@ mod tests {
         let bob = sim.bls(0);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, eve_cat) = Cat::single_issuance_eve(
+        let (issue_cat, cats) = Cat::issue_with_coin(
             &mut ctx,
             alice.coin.coin_id(),
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
-        let cat = eve_cat.child(alice.puzzle_hash, 1);
+        let cat = cats[0];
         p2_alice.spend(&mut ctx, alice.coin, issue_cat)?;
 
         let clawback = ClawbackV2::new(alice.puzzle_hash, bob.puzzle_hash, 100, 1, true);
@@ -585,13 +585,13 @@ mod tests {
         let bob = sim.bls(0);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, eve_cat) = Cat::single_issuance_eve(
+        let (issue_cat, cats) = Cat::issue_with_coin(
             &mut ctx,
             alice.coin.coin_id(),
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
-        let cat = eve_cat.child(alice.puzzle_hash, 1);
+        let cat = cats[0];
         p2_alice.spend(&mut ctx, alice.coin, issue_cat)?;
 
         let clawback = ClawbackV2::new(alice.puzzle_hash, bob.puzzle_hash, 100, 1, true);
@@ -640,13 +640,13 @@ mod tests {
         let p2_bob = StandardLayer::new(bob.pk);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, eve_cat) = Cat::single_issuance_eve(
+        let (issue_cat, cats) = Cat::issue_with_coin(
             &mut ctx,
             alice.coin.coin_id(),
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
-        let cat = eve_cat.child(alice.puzzle_hash, 1);
+        let cat = cats[0];
         p2_alice.spend(
             &mut ctx,
             alice.coin,
@@ -698,13 +698,13 @@ mod tests {
         let bob = sim.bls(0);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, eve_cat) = Cat::single_issuance_eve(
+        let (issue_cat, cats) = Cat::issue_with_coin(
             &mut ctx,
             alice.coin.coin_id(),
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
-        let cat = eve_cat.child(alice.puzzle_hash, 1);
+        let cat = cats[0];
         p2_alice.spend(
             &mut ctx,
             alice.coin,
