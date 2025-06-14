@@ -167,7 +167,7 @@
       "metadata_updater_puzzle_hash": "Bytes32",
       "current_owner": "Option<Bytes32>",
       "royalty_puzzle_hash": "Bytes32",
-      "royalty_ten_thousandths": "u16",
+      "royalty_basis_points": "u16",
       "p2_puzzle_hash": "Bytes32"
     },
     "methods": {
@@ -210,7 +210,7 @@
       "metadata_updater_puzzle_hash": "Bytes32",
       "p2_puzzle_hash": "Bytes32",
       "royalty_puzzle_hash": "Bytes32",
-      "royalty_ten_thousandths": "u16",
+      "royalty_basis_points": "u16",
       "owner": "Option<NftOwner>"
     }
   },

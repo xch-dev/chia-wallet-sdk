@@ -8,7 +8,7 @@ pub struct NftMint<M> {
     pub metadata: M,
     pub metadata_updater_puzzle_hash: Bytes32,
     pub royalty_puzzle_hash: Bytes32,
-    pub royalty_ten_thousandths: u16,
+    pub royalty_basis_points: u16,
     pub p2_puzzle_hash: Bytes32,
     pub owner: Option<NftOwner>,
 }
@@ -17,14 +17,14 @@ impl<M> NftMint<M> {
     pub fn new(
         metadata: M,
         p2_puzzle_hash: Bytes32,
-        royalty_ten_thousandths: u16,
+        royalty_basis_points: u16,
         owner: Option<NftOwner>,
     ) -> Self {
         Self {
             metadata,
             metadata_updater_puzzle_hash: NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
             royalty_puzzle_hash: p2_puzzle_hash,
-            royalty_ten_thousandths,
+            royalty_basis_points,
             p2_puzzle_hash,
             owner,
         }

@@ -1454,7 +1454,7 @@ export declare class NftInfo {
   clone(): NftInfo
   innerPuzzleHash(): Buffer
   puzzleHash(): Buffer
-  constructor(launcherId: Uint8Array, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, currentOwner: Uint8Array | undefined | null, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, p2PuzzleHash: Uint8Array)
+  constructor(launcherId: Uint8Array, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, currentOwner: Uint8Array | undefined | null, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number, p2PuzzleHash: Uint8Array)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)
   get metadata(): Program
@@ -1465,8 +1465,8 @@ export declare class NftInfo {
   set currentOwner(value?: Uint8Array | undefined | null)
   get royaltyPuzzleHash(): Buffer
   set royaltyPuzzleHash(value: Uint8Array)
-  get royaltyTenThousandths(): number
-  set royaltyTenThousandths(value: number)
+  get royaltyBasisPoints(): number
+  set royaltyBasisPoints(value: number)
   get p2PuzzleHash(): Buffer
   set p2PuzzleHash(value: Uint8Array)
 }
@@ -1500,7 +1500,7 @@ export declare class NftMetadata {
 }
 export declare class NftMint {
   clone(): NftMint
-  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, owner?: NftOwner | undefined | null)
+  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number, owner?: NftOwner | undefined | null)
   get metadata(): Program
   set metadata(value: Program)
   get metadataUpdaterPuzzleHash(): Buffer
@@ -1509,8 +1509,8 @@ export declare class NftMint {
   set p2PuzzleHash(value: Uint8Array)
   get royaltyPuzzleHash(): Buffer
   set royaltyPuzzleHash(value: Uint8Array)
-  get royaltyTenThousandths(): number
-  set royaltyTenThousandths(value: number)
+  get royaltyBasisPoints(): number
+  set royaltyBasisPoints(value: number)
   get owner(): NftOwner | null
   set owner(value?: NftOwner | undefined | null)
 }

@@ -79,7 +79,7 @@ pub struct NftInfo {
     pub metadata_updater_puzzle_hash: Bytes32,
     pub current_owner: Option<Bytes32>,
     pub royalty_puzzle_hash: Bytes32,
-    pub royalty_ten_thousandths: u16,
+    pub royalty_basis_points: u16,
     pub p2_puzzle_hash: Bytes32,
 }
 
@@ -105,7 +105,7 @@ impl AsProgram for SdkNftInfo<HashedPtr> {
             metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
             current_owner: self.current_owner,
             royalty_puzzle_hash: self.royalty_puzzle_hash,
-            royalty_ten_thousandths: self.royalty_ten_thousandths,
+            royalty_basis_points: self.royalty_basis_points,
             p2_puzzle_hash: self.p2_puzzle_hash,
         }
     }
@@ -121,7 +121,7 @@ impl AsPtr for NftInfo {
             metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
             current_owner: self.current_owner,
             royalty_puzzle_hash: self.royalty_puzzle_hash,
-            royalty_ten_thousandths: self.royalty_ten_thousandths,
+            royalty_basis_points: self.royalty_basis_points,
             p2_puzzle_hash: self.p2_puzzle_hash,
         }
     }
@@ -143,7 +143,7 @@ pub struct NftMint {
     pub metadata_updater_puzzle_hash: Bytes32,
     pub p2_puzzle_hash: Bytes32,
     pub royalty_puzzle_hash: Bytes32,
-    pub royalty_ten_thousandths: u16,
+    pub royalty_basis_points: u16,
     pub owner: Option<NftOwner>,
 }
 
@@ -156,7 +156,7 @@ impl AsPtr for NftMint {
             metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
             p2_puzzle_hash: self.p2_puzzle_hash,
             royalty_puzzle_hash: self.royalty_puzzle_hash,
-            royalty_ten_thousandths: self.royalty_ten_thousandths,
+            royalty_basis_points: self.royalty_basis_points,
             owner: self.owner,
         }
     }

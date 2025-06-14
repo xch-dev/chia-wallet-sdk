@@ -17,7 +17,7 @@ impl Launcher {
         metadata: M,
         metadata_updater_puzzle_hash: Bytes32,
         royalty_puzzle_hash: Bytes32,
-        royalty_ten_thousandths: u16,
+        royalty_basis_points: u16,
     ) -> Result<(Conditions, Nft<M>), DriverError>
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash + Clone,
@@ -30,7 +30,7 @@ impl Launcher {
             metadata_updater_puzzle_hash,
             None,
             royalty_puzzle_hash,
-            royalty_ten_thousandths,
+            royalty_basis_points,
             p2_puzzle_hash,
         );
 
@@ -79,7 +79,7 @@ impl Launcher {
             mint.metadata,
             mint.metadata_updater_puzzle_hash,
             mint.royalty_puzzle_hash,
-            mint.royalty_ten_thousandths,
+            mint.royalty_basis_points,
         )?;
 
         eve_nft.spend(ctx, inner_spend)?;

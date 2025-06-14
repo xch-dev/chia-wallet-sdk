@@ -17,14 +17,46 @@ use crate::{
 pub type StandardNftLayers<M, I> =
     SingletonLayer<NftStateLayer<M, NftOwnershipLayer<RoyaltyTransferLayer, I>>>;
 
+/// Information needed to construct the outer puzzle of an NFT.
+/// It does not include the inner puzzle, which must be stored separately.
+///
+/// This type can be used on its own for parsing, or as part of the [`Nft`](crate::Nft) primitive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NftInfo<M> {
+    /// The coin id of the launcher coin that created this NFT's singleton.
     pub launcher_id: Bytes32,
+
+    /// The metadata stored in the [`NftStateLayer`]. This can only be updated by
+    /// going through the [`metadata_updater_puzzle_hash`](NftInfo::metadata_updater_puzzle_hash).
     pub metadata: M,
+
+    /// The puzzle hash of the metadata updater. This is used to update the metadata of the NFT.
+    /// This is typically [`NFT_METADATA_UPDATER_DEFAULT_HASH`](chia_puzzles::NFT_METADATA_UPDATER_DEFAULT_HASH),
+    /// which ensures the [`NftMetadata`](chia_puzzle_types::nft::NftMetadata) object remains immutable
+    /// except for prepending additional URIs.
+    ///
+    /// A custom metadata updater can be used, however support in existing wallets and display
+    /// services may be limited.
     pub metadata_updater_puzzle_hash: Bytes32,
+
+    /// The current assigned owner of the NFT, if any. This is managed by the [`NftOwnershipLayer`].
+    ///
+    /// Historically this was always a DID, although it's possible to assign any singleton including a vault.
+    ///
+    /// It's intended to unassign the owner after transferring to an external wallet or creating an offer.
     pub current_owner: Option<Bytes32>,
+
+    /// The puzzle hash to which royalties will be paid out to in offers involving this NFT.
+    /// This is required even if the royalty is 0. Currently, all NFTs must use the default [`RoyaltyTransferLayer`],
+    /// however this may change in the future.
     pub royalty_puzzle_hash: Bytes32,
-    pub royalty_ten_thousandths: u16,
+
+    /// The royalty percentage to be paid out to the owner in offers involving this NFT.
+    /// This is represented as hundredths of a percent, so 300 is 3%.
+    pub royalty_basis_points: u16,
+
+    /// The hash of the inner puzzle to this NFT.
+    /// If you encode this puzzle hash as bech32m, it's the same as the current owner's address.
     pub p2_puzzle_hash: Bytes32,
 }
 
@@ -35,7 +67,7 @@ impl<M> NftInfo<M> {
         metadata_updater_puzzle_hash: Bytes32,
         current_owner: Option<Bytes32>,
         royalty_puzzle_hash: Bytes32,
-        royalty_ten_thousandths: u16,
+        royalty_basis_points: u16,
         p2_puzzle_hash: Bytes32,
     ) -> Self {
         Self {
@@ -44,7 +76,7 @@ impl<M> NftInfo<M> {
             metadata_updater_puzzle_hash,
             current_owner,
             royalty_puzzle_hash,
-            royalty_ten_thousandths,
+            royalty_basis_points,
             p2_puzzle_hash,
         }
     }
@@ -56,11 +88,17 @@ impl<M> NftInfo<M> {
             metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
             current_owner: self.current_owner,
             royalty_puzzle_hash: self.royalty_puzzle_hash,
-            royalty_ten_thousandths: self.royalty_ten_thousandths,
+            royalty_basis_points: self.royalty_basis_points,
             p2_puzzle_hash: self.p2_puzzle_hash,
         }
     }
 
+    /// Parses an [`NftInfo`] from a [`Puzzle`] by extracting the [`NftStateLayer`] and [`NftOwnershipLayer`].
+    ///
+    /// This will return a tuple of the [`NftInfo`] and its p2 puzzle.
+    ///
+    /// If the puzzle is not an NFT, this will return [`None`] instead of an error.
+    /// However, if the puzzle should have been an NFT but had a parsing error, this will return an error.
     pub fn parse(
         allocator: &Allocator,
         puzzle: Puzzle,
@@ -91,11 +129,11 @@ impl<M> NftInfo<M> {
                 .inner_puzzle
                 .transfer_layer
                 .royalty_puzzle_hash,
-            royalty_ten_thousandths: layers
+            royalty_basis_points: layers
                 .inner_puzzle
                 .inner_puzzle
                 .transfer_layer
-                .royalty_ten_thousandths,
+                .royalty_basis_points,
             p2_puzzle_hash: layers
                 .inner_puzzle
                 .inner_puzzle
@@ -117,7 +155,7 @@ impl<M> NftInfo<M> {
                     RoyaltyTransferLayer::new(
                         self.launcher_id,
                         self.royalty_puzzle_hash,
-                        self.royalty_ten_thousandths,
+                        self.royalty_basis_points,
                     ),
                     p2_puzzle,
                 ),
@@ -125,6 +163,9 @@ impl<M> NftInfo<M> {
         )
     }
 
+    /// Calculates the inner puzzle hash of the NFT singleton.
+    ///
+    /// This includes both the [`NftStateLayer`] and [`NftOwnershipLayer`], but not the [`SingletonLayer`].
     pub fn inner_puzzle_hash(&self) -> TreeHash
     where
         M: ToTreeHash,
@@ -138,7 +179,7 @@ impl<M> NftInfo<M> {
                 RoyaltyTransferLayer::new(
                     self.launcher_id,
                     self.royalty_puzzle_hash,
-                    self.royalty_ten_thousandths,
+                    self.royalty_basis_points,
                 )
                 .tree_hash(),
                 self.p2_puzzle_hash.into(),
@@ -147,6 +188,7 @@ impl<M> NftInfo<M> {
         .curry_tree_hash()
     }
 
+    /// Calculates the full puzzle hash of the NFT, which is the hash of the outer [`SingletonLayer`].
     pub fn puzzle_hash(&self) -> TreeHash
     where
         M: ToTreeHash,
