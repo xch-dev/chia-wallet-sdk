@@ -83,6 +83,70 @@ test("mints and transfers an nft", (t) => {
   t.true(true);
 });
 
+test("mints 5 nfts", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = sim.bls(6n);
+
+  // Create a DID
+  const { did, parentConditions: didParentConditions } = createDid(
+    clvm,
+    alice.coin.coinId(),
+    alice.pk
+  );
+
+  clvm.spendStandardCoin(
+    alice.coin,
+    alice.pk,
+    clvm.delegatedSpend(
+      didParentConditions.concat([clvm.createCoin(alice.puzzleHash, 0n)])
+    )
+  );
+
+  // Mint 5 NFTs
+  const mintCoin = new Coin(alice.coin.coinId(), alice.puzzleHash, 0n);
+
+  const { nfts, parentConditions: mintParentConditions } = clvm.mintNfts(
+    mintCoin.coinId(),
+    Array.from(
+      { length: 5 },
+      () =>
+        new NftMint(
+          clvm.nil(),
+          Constants.nftMetadataUpdaterDefaultHash(),
+          alice.puzzleHash,
+          alice.puzzleHash,
+          300,
+          null
+        )
+    )
+  );
+
+  clvm.spendStandardCoin(
+    mintCoin,
+    alice.pk,
+    clvm.delegatedSpend(mintParentConditions)
+  );
+
+  // Transfer all of the NFTs to the same p2 puzzle hash
+  for (const nft of nfts) {
+    clvm.spendNft(
+      nft,
+      clvm.standardSpend(
+        alice.pk,
+        clvm.delegatedSpend([
+          clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
+        ])
+      )
+    );
+  }
+
+  sim.spendCoins(clvm.coinSpends(), [alice.sk]);
+
+  t.true(true);
+});
+
 function createDid(
   clvm: Clvm,
   parentCoinId: Buffer,
