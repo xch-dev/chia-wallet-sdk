@@ -103,7 +103,7 @@ export declare class Clvm {
   delegatedSpend(conditions: Array<Program>): Spend
   standardSpend(syntheticKey: PublicKey, spend: Spend): Spend
   spendStandardCoin(coin: Coin, syntheticKey: PublicKey, spend: Spend): void
-  spendCatCoins(catSpends: Array<CatSpend>): void
+  spendCats(catSpends: Array<CatSpend>): Array<Cat>
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
   spendNft(nft: Nft, innerSpend: Spend): void
   createEveDid(parentCoinId: Uint8Array, p2PuzzleHash: Uint8Array): CreatedDid

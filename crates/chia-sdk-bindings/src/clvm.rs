@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use bindy::{Error, Result};
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram};
-use chia_sdk_driver::{HashedPtr, Launcher, SpendContext, StandardLayer, StreamedCat};
+use chia_sdk_driver::{Cat, HashedPtr, Launcher, SpendContext, StandardLayer, StreamedCat};
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::TreeHash;
@@ -87,15 +87,13 @@ impl Clvm {
         Ok(())
     }
 
-    pub fn spend_cat_coins(&self, cat_spends: Vec<CatSpend>) -> Result<()> {
+    pub fn spend_cats(&self, cat_spends: Vec<CatSpend>) -> Result<Vec<Cat>> {
         let mut ctx = self.0.lock().unwrap();
 
-        chia_sdk_driver::Cat::spend_all(
+        Ok(Cat::spend_all(
             &mut ctx,
             &cat_spends.into_iter().map(Into::into).collect::<Vec<_>>(),
-        )?;
-
-        Ok(())
+        )?)
     }
 
     pub fn mint_nfts(
