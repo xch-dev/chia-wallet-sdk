@@ -108,7 +108,7 @@ impl Clvm {
         for (i, nft_mint) in nft_mints.into_iter().enumerate() {
             let nft_mint = nft_mint.as_ptr(&ctx);
 
-            let (conditions, nft) = Launcher::new(parent_coin_id, i as u64 * 2 + 1)
+            let (conditions, nft) = Launcher::new(parent_coin_id, i as u64 * 2)
                 .with_singleton_amount(1)
                 .mint_nft(&mut ctx, nft_mint)?;
 
