@@ -183,6 +183,7 @@ export declare class CurriedProgram {
 }
 export declare class Proof {
   clone(): Proof
+  toLineageProof(): LineageProof | null
   constructor(parentParentCoinInfo: Uint8Array, parentInnerPuzzleHash: Uint8Array | undefined | null, parentAmount: bigint)
   get parentParentCoinInfo(): Buffer
   set parentParentCoinInfo(value: Uint8Array)
@@ -193,6 +194,7 @@ export declare class Proof {
 }
 export declare class LineageProof {
   clone(): LineageProof
+  toProof(): Proof
   constructor(parentParentCoinInfo: Uint8Array, parentInnerPuzzleHash: Uint8Array, parentAmount: bigint)
   get parentParentCoinInfo(): Buffer
   set parentParentCoinInfo(value: Uint8Array)

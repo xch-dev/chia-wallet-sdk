@@ -30,6 +30,11 @@
       "parent_parent_coin_info": "Bytes32",
       "parent_inner_puzzle_hash": "Option<Bytes32>",
       "parent_amount": "u64"
+    },
+    "methods": {
+      "to_lineage_proof": {
+        "return": "Option<LineageProof>"
+      }
     }
   },
   "LineageProof": {
@@ -40,6 +45,11 @@
       "parent_parent_coin_info": "Bytes32",
       "parent_inner_puzzle_hash": "Bytes32",
       "parent_amount": "u64"
+    },
+    "methods": {
+      "to_proof": {
+        "return": "Proof"
+      }
     }
   }
 }

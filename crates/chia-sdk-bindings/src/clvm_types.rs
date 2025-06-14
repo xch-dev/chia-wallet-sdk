@@ -1,6 +1,6 @@
-use bindy::Error;
+use bindy::{Error, Result};
 use chia_protocol::Bytes32;
-use chia_puzzle_types::{EveProof as EveProofRs, LineageProof as LineageProofRs, Proof as ProofRs};
+use chia_puzzle_types::{EveProof as EveProofRs, LineageProof, Proof as ProofRs};
 
 use crate::Program;
 
@@ -44,10 +44,16 @@ pub struct Proof {
     pub parent_amount: u64,
 }
 
-impl TryFrom<Proof> for LineageProofRs {
+impl Proof {
+    pub fn to_lineage_proof(&self) -> Result<Option<LineageProof>> {
+        Ok(self.clone().try_into().ok())
+    }
+}
+
+impl TryFrom<Proof> for LineageProof {
     type Error = Error;
 
-    fn try_from(value: Proof) -> Result<Self, Self::Error> {
+    fn try_from(value: Proof) -> Result<Self> {
         Ok(Self {
             parent_parent_coin_info: value.parent_parent_coin_info,
             parent_inner_puzzle_hash: value
@@ -58,8 +64,8 @@ impl TryFrom<Proof> for LineageProofRs {
     }
 }
 
-impl From<LineageProofRs> for Proof {
-    fn from(value: LineageProofRs) -> Self {
+impl From<LineageProof> for Proof {
+    fn from(value: LineageProof) -> Self {
         Self {
             parent_parent_coin_info: value.parent_parent_coin_info,
             parent_inner_puzzle_hash: Some(value.parent_inner_puzzle_hash),
@@ -99,5 +105,15 @@ impl From<ProofRs> for Proof {
                 parent_amount: proof.parent_amount,
             },
         }
+    }
+}
+
+pub trait LineageProofExt {
+    fn to_proof(&self) -> Result<Proof>;
+}
+
+impl LineageProofExt for LineageProof {
+    fn to_proof(&self) -> Result<Proof> {
+        Ok((*self).into())
     }
 }
