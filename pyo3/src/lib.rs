@@ -138,6 +138,23 @@ pub fn alloc(
         Ok(clvm.receive_message(value.0.mode, value.0.message, value.0.data)?)
     } else if let Ok(value) = value.extract::<Softfork>() {
         Ok(clvm.softfork(value.0.cost, value.0.rest)?)
+    } else if let Ok(_value) = value.extract::<MeltSingleton>() {
+        Ok(clvm.melt_singleton()?)
+    } else if let Ok(value) = value.extract::<TransferNft>() {
+        Ok(clvm.transfer_nft(
+            value.0.launcher_id,
+            value.0.trade_prices.clone(),
+            value.0.singleton_inner_puzzle_hash,
+        )?)
+    } else if let Ok(value) = value.extract::<RunCatTail>() {
+        Ok(clvm.run_cat_tail(value.0.program.clone(), value.0.solution.clone())?)
+    } else if let Ok(value) = value.extract::<UpdateNftMetadata>() {
+        Ok(clvm.update_nft_metadata(
+            value.0.updater_puzzle_reveal.clone(),
+            value.0.updater_solution.clone(),
+        )?)
+    } else if let Ok(value) = value.extract::<UpdateDataStoreMerkleRoot>() {
+        Ok(clvm.update_data_store_merkle_root(value.0.new_merkle_root, value.0.memos.clone())?)
     } else if let Ok(value) = value.extract::<NftMetadata>() {
         Ok(clvm.nft_metadata(value.0.clone())?)
     } else if let Ok(value) = value.extract::<MipsMemo>() {

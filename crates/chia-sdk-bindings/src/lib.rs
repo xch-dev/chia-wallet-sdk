@@ -64,5 +64,6 @@ pub use chia_sdk_coinset::{
 pub use chia_sdk_driver::{
     Cat, CatInfo, Clawback, ClawbackV2, NftOwner, StreamedCat, StreamingPuzzleInfo,
 };
+pub use chia_sdk_types::conditions::TradePrice;
 
 pub(crate) use convert::{AsProgram, AsPtr};

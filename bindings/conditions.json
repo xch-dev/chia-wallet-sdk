@@ -255,5 +255,52 @@
       "cost": "u64",
       "rest": "Program"
     }
+  },
+  "MeltSingleton": {
+    "type": "class",
+    "new": true,
+    "fields": {}
+  },
+  "TransferNft": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "launcher_id": "Option<Bytes32>",
+      "trade_prices": "Vec<TradePrice>",
+      "singleton_inner_puzzle_hash": "Option<Bytes32>"
+    }
+  },
+  "RunCatTail": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "program": "Program",
+      "solution": "Program"
+    }
+  },
+  "UpdateNftMetadata": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "updater_puzzle_reveal": "Program",
+      "updater_solution": "Program"
+    }
+  },
+  "UpdateDataStoreMerkleRoot": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "new_merkle_root": "Bytes32",
+      "memos": "Vec<Bytes>"
+    }
+  },
+  "TradePrice": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "amount": "u64",
+      "puzzle_hash": "Bytes32"
+    }
   }
 }

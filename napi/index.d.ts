@@ -155,6 +155,11 @@ export declare class Clvm {
   sendMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
   receiveMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
   softfork(cost: bigint, rest: Program): Program
+  meltSingleton(): Program
+  transferNft(launcherId: Uint8Array | undefined | null, tradePrices: Array<TradePrice>, singletonInnerPuzzleHash?: Uint8Array | undefined | null): Program
+  runCatTail(program: Program, solution: Program): Program
+  updateNftMetadata(updaterPuzzleReveal: Program, updaterSolution: Program): Program
+  updateDataStoreMerkleRoot(newMerkleRoot: Uint8Array, memos: Array<Uint8Array>): Program
   alloc(value: any): Program
   boundCheckedNumber(value: number): Program
 }
@@ -1017,6 +1022,52 @@ export declare class Softfork {
   get rest(): Program
   set rest(value: Program)
 }
+export declare class MeltSingleton {
+  clone(): MeltSingleton
+  constructor()
+}
+export declare class TransferNft {
+  clone(): TransferNft
+  constructor(launcherId: Uint8Array | undefined | null, tradePrices: Array<TradePrice>, singletonInnerPuzzleHash?: Uint8Array | undefined | null)
+  get launcherId(): Buffer | null
+  set launcherId(value?: Uint8Array | undefined | null)
+  get tradePrices(): Array<TradePrice>
+  set tradePrices(value: Array<TradePrice>)
+  get singletonInnerPuzzleHash(): Buffer | null
+  set singletonInnerPuzzleHash(value?: Uint8Array | undefined | null)
+}
+export declare class RunCatTail {
+  clone(): RunCatTail
+  constructor(program: Program, solution: Program)
+  get program(): Program
+  set program(value: Program)
+  get solution(): Program
+  set solution(value: Program)
+}
+export declare class UpdateNftMetadata {
+  clone(): UpdateNftMetadata
+  constructor(updaterPuzzleReveal: Program, updaterSolution: Program)
+  get updaterPuzzleReveal(): Program
+  set updaterPuzzleReveal(value: Program)
+  get updaterSolution(): Program
+  set updaterSolution(value: Program)
+}
+export declare class UpdateDataStoreMerkleRoot {
+  clone(): UpdateDataStoreMerkleRoot
+  constructor(newMerkleRoot: Uint8Array, memos: Array<Uint8Array>)
+  get newMerkleRoot(): Buffer
+  set newMerkleRoot(value: Uint8Array)
+  get memos(): Array<Buffer>
+  set memos(value: Array<Uint8Array>)
+}
+export declare class TradePrice {
+  clone(): TradePrice
+  constructor(amount: bigint, puzzleHash: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+}
 export declare class Constants {
   clone(): Constants
   static acsTransferProgram(): Buffer
@@ -1366,6 +1417,11 @@ export declare class Program {
   parseSendMessage(): SendMessage | null
   parseReceiveMessage(): ReceiveMessage | null
   parseSoftfork(): Softfork | null
+  parseMeltSingleton(): MeltSingleton | null
+  parseTransferNft(): TransferNft | null
+  parseRunCatTail(): RunCatTail | null
+  parseUpdateNftMetadata(): UpdateNftMetadata | null
+  parseUpdateDataStoreMerkleRoot(): UpdateDataStoreMerkleRoot | null
   toBoundCheckedNumber(): number | null
 }
 export declare class Puzzle {

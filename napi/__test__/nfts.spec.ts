@@ -17,6 +17,7 @@ test("mints and transfers an nft", (t) => {
 
   const alice = sim.bls(2n);
 
+  // Create a DID
   const { did, parentConditions: didParentConditions } = createDid(
     clvm,
     alice.coin.coinId(),
@@ -31,6 +32,7 @@ test("mints and transfers an nft", (t) => {
     )
   );
 
+  // Mint an NFT
   const mintCoin = new Coin(alice.coin.coinId(), alice.puzzleHash, 0n);
 
   const {
@@ -53,12 +55,25 @@ test("mints and transfers an nft", (t) => {
     clvm.delegatedSpend(mintParentConditions)
   );
 
+  // Assign the NFT to the DID by spending both
   clvm.spendNft(
     nft,
     clvm.standardSpend(
       alice.pk,
       clvm.delegatedSpend([
         clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
+        clvm.transferNft(did.info.launcherId, [], did.info.innerPuzzleHash()),
+      ])
+    )
+  );
+
+  clvm.spendDid(
+    did,
+    clvm.standardSpend(
+      alice.pk,
+      clvm.delegatedSpend([
+        clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
+        clvm.createPuzzleAnnouncement(nft.info.launcherId),
       ])
     )
   );
