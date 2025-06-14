@@ -16,6 +16,7 @@ mod coin;
 mod coinset;
 mod conditions;
 mod constants;
+mod convert;
 mod key_pairs;
 mod mips;
 mod mnemonic;
@@ -51,7 +52,7 @@ pub use chia_protocol::{
     PoolTarget, Program as SerializedProgram, ProofOfSpace, RewardChainBlock, RewardChainSubSlot,
     SpendBundle, SubEpochSummary, SubSlotProofs, TransactionsInfo, VDFInfo, VDFProof,
 };
-pub use chia_puzzle_types::LineageProof;
+pub use chia_puzzle_types::{nft::NftMetadata, LineageProof};
 pub use chia_sdk_coinset::{
     AdditionsAndRemovalsResponse, BlockchainState, BlockchainStateResponse, CoinRecord,
     GetBlockRecordByHeightResponse, GetBlockRecordResponse, GetBlockRecordsResponse,
@@ -60,4 +61,9 @@ pub use chia_sdk_coinset::{
     GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem, MempoolMinFees,
     PushTxResponse, SyncState,
 };
-pub use chia_sdk_driver::{Cat, CatInfo, Clawback, ClawbackV2, StreamedCat, StreamingPuzzleInfo};
+pub use chia_sdk_driver::{
+    Cat, CatInfo, Clawback, ClawbackV2, NftOwner, StreamedCat, StreamingPuzzleInfo,
+};
+pub use chia_sdk_types::conditions::TradePrice;
+
+pub(crate) use convert::{AsProgram, AsPtr};

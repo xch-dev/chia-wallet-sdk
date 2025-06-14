@@ -86,6 +86,13 @@
           "amount": "u64"
         },
         "return": "Cat"
+      },
+      "unrevocable_child": {
+        "args": {
+          "p2_puzzle_hash": "Bytes32",
+          "amount": "u64"
+        },
+        "return": "Cat"
       }
     }
   },
@@ -100,10 +107,10 @@
     },
     "methods": {
       "inner_puzzle_hash": {
-        "return": "Bytes32"
+        "return": "TreeHash"
       },
       "puzzle_hash": {
-        "return": "Bytes32"
+        "return": "TreeHash"
       }
     }
   },
@@ -128,8 +135,27 @@
     "new": true,
     "fields": {
       "coin": "Coin",
-      "lineage_proof": "Proof",
+      "proof": "Proof",
       "info": "NftInfo"
+    },
+    "methods": {
+      "child_proof": {
+        "return": "Proof"
+      },
+      "child": {
+        "args": {
+          "p2_puzzle_hash": "Bytes32",
+          "current_owner": "Option<Bytes32>",
+          "metadata": "Program"
+        },
+        "return": "Nft"
+      },
+      "child_with": {
+        "args": {
+          "info": "NftInfo"
+        },
+        "return": "Nft"
+      }
     }
   },
   "NftInfo": {
@@ -141,8 +167,16 @@
       "metadata_updater_puzzle_hash": "Bytes32",
       "current_owner": "Option<Bytes32>",
       "royalty_puzzle_hash": "Bytes32",
-      "royalty_ten_thousandths": "u16",
+      "royalty_basis_points": "u16",
       "p2_puzzle_hash": "Bytes32"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      }
     }
   },
   "ParsedNft": {
@@ -156,6 +190,7 @@
   "NftMetadata": {
     "type": "class",
     "new": true,
+    "remote": true,
     "fields": {
       "edition_number": "u64",
       "edition_total": "u64",
@@ -175,16 +210,17 @@
       "metadata_updater_puzzle_hash": "Bytes32",
       "p2_puzzle_hash": "Bytes32",
       "royalty_puzzle_hash": "Bytes32",
-      "royalty_ten_thousandths": "u16",
-      "owner": "Option<DidOwner>"
+      "royalty_basis_points": "u16",
+      "owner": "Option<NftOwner>"
     }
   },
-  "DidOwner": {
+  "NftOwner": {
     "type": "class",
     "new": true,
+    "remote": true,
     "fields": {
-      "did_id": "Bytes32",
-      "inner_puzzle_hash": "Bytes32"
+      "launcher_id": "Bytes32",
+      "singleton_inner_puzzle_hash": "Bytes32"
     }
   },
   "MintedNfts": {
@@ -200,8 +236,26 @@
     "new": true,
     "fields": {
       "coin": "Coin",
-      "lineage_proof": "Proof",
+      "proof": "Proof",
       "info": "DidInfo"
+    },
+    "methods": {
+      "child_proof": {
+        "return": "Proof"
+      },
+      "child": {
+        "args": {
+          "p2_puzzle_hash": "Bytes32",
+          "metadata": "Program"
+        },
+        "return": "Did"
+      },
+      "child_with": {
+        "args": {
+          "info": "DidInfo"
+        },
+        "return": "Did"
+      }
     }
   },
   "DidInfo": {
@@ -213,6 +267,14 @@
       "num_verifications_required": "u64",
       "metadata": "Program",
       "p2_puzzle_hash": "Bytes32"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      }
     }
   },
   "ParsedDid": {
@@ -221,6 +283,14 @@
     "fields": {
       "info": "DidInfo",
       "p2_puzzle": "Puzzle"
+    }
+  },
+  "CreatedDid": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "did": "Did",
+      "parent_conditions": "Vec<Program>"
     }
   },
   "standard_puzzle_hash": {

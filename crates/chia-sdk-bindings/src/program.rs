@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use bindy::{Error, Result};
 use chia_protocol::{Bytes, Program as SerializedProgram};
-use chia_puzzle_types::nft;
+use chia_puzzle_types::nft::NftMetadata;
 use chia_sdk_driver::SpendContext;
 use clvm_tools_rs::classic::clvm_tools::stages::run;
 use clvm_tools_rs::classic::clvm_tools::stages::stage_0::TRunProgram;
@@ -18,7 +18,7 @@ use clvmr::{
 };
 use num_bigint::BigInt;
 
-use crate::{CurriedProgram, NftMetadata, Output, Pair, Puzzle};
+use crate::{CurriedProgram, Output, Pair, Puzzle};
 
 #[derive(Clone)]
 pub struct Program(pub(crate) Arc<Mutex<SpendContext>>, pub(crate) NodePtr);
@@ -281,7 +281,7 @@ impl Program {
 
     pub fn parse_nft_metadata(&self) -> Result<Option<NftMetadata>> {
         let ctx = self.0.lock().unwrap();
-        let value = nft::NftMetadata::from_clvm(&**ctx, self.1);
-        Ok(value.ok().map(Into::into))
+        let value = NftMetadata::from_clvm(&**ctx, self.1);
+        Ok(value.ok())
     }
 }

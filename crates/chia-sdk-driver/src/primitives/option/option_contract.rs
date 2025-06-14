@@ -210,7 +210,7 @@ mod tests {
     use rstest::rstest;
 
     use crate::{
-        Cat, CatSpend, DidOwner, HashedPtr, Launcher, Nft, NftMint, OptionLauncher,
+        Cat, CatSpend, HashedPtr, Launcher, Nft, NftMint, NftOwner, OptionLauncher,
         OptionLauncherInfo, OptionType, SettlementLayer, StandardLayer,
     };
 
@@ -364,7 +364,7 @@ mod tests {
                             HashedPtr::NIL,
                             SETTLEMENT_PAYMENT_HASH.into(),
                             0,
-                            Some(DidOwner::from_did_info(&did.info)),
+                            Some(NftOwner::from_did_info(&did.info)),
                         ),
                     )?;
 
@@ -456,7 +456,7 @@ mod tests {
                             HashedPtr::NIL,
                             p2_option,
                             0,
-                            Some(DidOwner::from_did_info(&did.info)),
+                            Some(NftOwner::from_did_info(&did.info)),
                         ),
                     )?;
 
