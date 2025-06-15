@@ -1,5 +1,7 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin};
+use chia_sdk_types::Condition;
+use clvm_traits::FromClvm;
 use indexmap::IndexMap;
 
 use crate::{
@@ -15,6 +17,15 @@ pub struct Spends {
     pub dids: IndexMap<Id, SingletonSpends<Did<HashedPtr>>>,
     pub nfts: IndexMap<Id, SingletonSpends<Nft<HashedPtr>>>,
     pub options: IndexMap<Id, SingletonSpends<OptionContract>>,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Outputs {
+    pub xch: Vec<Coin>,
+    pub cats: IndexMap<Id, Vec<Cat>>,
+    pub dids: IndexMap<Id, Did<HashedPtr>>,
+    pub nfts: IndexMap<Id, Nft<HashedPtr>>,
+    pub options: IndexMap<Id, OptionContract>,
 }
 
 impl Spends {
@@ -143,50 +154,79 @@ impl Spends {
         self,
         ctx: &mut SpendContext,
         f: impl Fn(&mut SpendContext, Bytes32, SpendKind) -> Result<Spend, DriverError>,
-    ) -> Result<(), DriverError> {
+    ) -> Result<Outputs, DriverError> {
+        let mut outputs = Outputs::default();
+
         for item in self.xch.items {
             let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
             ctx.spend(item.asset, spend)?;
+
+            let output = ctx.run(spend.puzzle, spend.solution)?;
+            let conditions = Vec::<Condition>::from_clvm(ctx, output)?;
+
+            for condition in conditions {
+                if let Some(create_coin) = condition.into_create_coin() {
+                    outputs.xch.push(Coin::new(
+                        item.asset.coin_id(),
+                        create_coin.puzzle_hash,
+                        create_coin.amount,
+                    ));
+                }
+            }
         }
 
-        for (_, cat) in self.cats {
+        for (id, cat) in self.cats {
             let mut cat_spends = Vec::new();
             for item in cat.items {
                 let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
                 cat_spends.push(CatSpend::new(item.asset, spend));
             }
-            let _cats = Cat::spend_all(ctx, &cat_spends)?;
+            let cats = Cat::spend_all(ctx, &cat_spends)?;
+            if !cats.is_empty() {
+                outputs.cats.insert(id, cats);
+            }
         }
 
-        for (_, did) in self.dids {
+        for (id, did) in self.dids {
             for item in did.lineage {
                 let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
-                let _did = item.asset.spend(ctx, spend)?;
+                let did = item.asset.spend(ctx, spend)?;
+                if let Some(did) = did {
+                    outputs.dids.insert(id, did);
+                } else {
+                    outputs.dids.shift_remove(&id);
+                }
             }
         }
 
-        for (_, nft) in self.nfts {
+        for (id, nft) in self.nfts {
             for item in nft.lineage {
                 let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
-                let _nft = item.asset.spend(ctx, spend)?;
+                let nft = item.asset.spend(ctx, spend)?;
+                outputs.nfts.insert(id, nft);
             }
         }
 
-        for (_, option) in self.options {
+        for (id, option) in self.options {
             for item in option.lineage {
                 let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
-                let _option = item.asset.spend(ctx, spend)?;
+                let option = item.asset.spend(ctx, spend)?;
+                if let Some(option) = option {
+                    outputs.options.insert(id, option);
+                } else {
+                    outputs.options.shift_remove(&id);
+                }
             }
         }
 
-        Ok(())
+        Ok(outputs)
     }
 
     pub fn finish_with_keys(
         self,
         ctx: &mut SpendContext,
         synthetic_keys: &IndexMap<Bytes32, PublicKey>,
-    ) -> Result<(), DriverError> {
+    ) -> Result<Outputs, DriverError> {
         self.finish(ctx, |ctx, p2_puzzle_hash, kind| {
             let Some(&synthetic_key) = synthetic_keys.get(&p2_puzzle_hash) else {
                 return Err(DriverError::MissingKey);

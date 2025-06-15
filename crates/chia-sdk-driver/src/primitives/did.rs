@@ -131,7 +131,7 @@ where
 
         ctx.spend(self.coin, spend)?;
 
-        let output = ctx.run(spend.puzzle, spend.solution)?;
+        let output = ctx.run(inner_spend.puzzle, inner_spend.solution)?;
         let conditions = Vec::<Condition>::from_clvm(ctx, output)?;
 
         for condition in conditions {
