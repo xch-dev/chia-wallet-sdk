@@ -34,6 +34,10 @@ where
         }
     }
 
+    pub fn last(&self) -> Result<&SingletonSpend<A>, DriverError> {
+        self.lineage.last().ok_or(DriverError::NoSourceForOutput)
+    }
+
     pub fn last_mut(&mut self) -> Result<&mut SingletonSpend<A>, DriverError> {
         self.lineage
             .last_mut()

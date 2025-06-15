@@ -1,8 +1,8 @@
 use chia_protocol::Bytes32;
 
 use crate::{
-    Deltas, DriverError, FungibleAsset, HashedPtr, Id, SingletonSpends, SpendAction, SpendContext,
-    SpendKind, Spends,
+    Deltas, DriverError, FungibleAsset, HashedPtr, Id, SingletonAsset, SingletonSpends,
+    SpendAction, SpendContext, SpendKind, Spends,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -68,25 +68,37 @@ impl SpendAction for MintNftAction {
         spends: &mut Spends,
         index: usize,
     ) -> Result<(), DriverError> {
-        let (source, launcher) = spends.xch.create_launcher(self.amount)?;
-        let source = &mut spends.xch.items[source];
+        let (p2_puzzle_hash, source_kind, launcher) = if let Some(id) = self.parent_did_id {
+            let did = spends
+                .dids
+                .get_mut(&id)
+                .ok_or(DriverError::InvalidAssetId)?;
+            let (source, launcher) = did.create_launcher(self.amount)?;
+            let p2_puzzle_hash = did.last()?.asset.p2_puzzle_hash();
+            let source = &mut did.lineage[source];
+            (p2_puzzle_hash, &mut source.kind, launcher)
+        } else {
+            let (source, launcher) = spends.xch.create_launcher(self.amount)?;
+            let source = &mut spends.xch.items[source];
+            (source.asset.p2_puzzle_hash(), &mut source.kind, launcher)
+        };
 
         let (parent_conditions, eve_nft) = launcher.mint_eve_nft(
             ctx,
-            source.asset.p2_puzzle_hash(),
+            p2_puzzle_hash,
             self.metadata,
             self.metadata_updater_puzzle_hash,
             self.royalty_puzzle_hash,
             self.royalty_basis_points,
         )?;
 
-        match &mut source.kind {
+        match source_kind {
             SpendKind::Conditions(spend) => {
                 spend.add_conditions(parent_conditions)?;
             }
         }
 
-        let kind = source.kind.child();
+        let kind = source_kind.child();
 
         spends
             .nfts
