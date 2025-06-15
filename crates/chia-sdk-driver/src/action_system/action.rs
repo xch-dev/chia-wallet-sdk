@@ -71,7 +71,6 @@ impl Action {
     }
 
     pub fn mint_nft(
-        parent_did_id: Option<Id>,
         metadata: HashedPtr,
         metadata_updater_puzzle_hash: Bytes32,
         royalty_puzzle_hash: Bytes32,
@@ -79,7 +78,25 @@ impl Action {
         amount: u64,
     ) -> Self {
         Self::MintNft(MintNftAction::new(
-            parent_did_id,
+            None,
+            metadata,
+            metadata_updater_puzzle_hash,
+            royalty_puzzle_hash,
+            royalty_basis_points,
+            amount,
+        ))
+    }
+
+    pub fn mint_nft_from_did(
+        parent_did_id: Id,
+        metadata: HashedPtr,
+        metadata_updater_puzzle_hash: Bytes32,
+        royalty_puzzle_hash: Bytes32,
+        royalty_basis_points: u16,
+        amount: u64,
+    ) -> Self {
+        Self::MintNft(MintNftAction::new(
+            Some(parent_did_id),
             metadata,
             metadata_updater_puzzle_hash,
             royalty_puzzle_hash,
@@ -89,7 +106,18 @@ impl Action {
     }
 
     pub fn mint_empty_nft() -> Self {
-        Self::MintNft(MintNftAction::default())
+        Self::mint_nft(HashedPtr::NIL, Bytes32::default(), Bytes32::default(), 0, 1)
+    }
+
+    pub fn mint_empty_nft_from_did(parent_did_id: Id) -> Self {
+        Self::mint_nft_from_did(
+            parent_did_id,
+            HashedPtr::NIL,
+            Bytes32::default(),
+            Bytes32::default(),
+            0,
+            1,
+        )
     }
 
     pub fn update_nft(
