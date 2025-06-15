@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 
 use crate::{
-    DriverError, FungibleAsset, HashedPtr, Id, SingletonSpends, SpendAction, SpendContext,
+    Deltas, DriverError, FungibleAsset, HashedPtr, Id, SingletonSpends, SpendAction, SpendContext,
     SpendKind, Spends,
 };
 
@@ -36,6 +36,12 @@ impl Default for CreateDidAction {
 }
 
 impl SpendAction for CreateDidAction {
+    fn calculate_delta(&self, deltas: &mut Deltas, index: usize) {
+        deltas.update(None).output += self.amount;
+        deltas.update(Some(Id::New(index))).input += self.amount;
+        deltas.set_xch_needed();
+    }
+
     fn spend(
         &self,
         ctx: &mut SpendContext,
@@ -63,7 +69,7 @@ impl SpendAction for CreateDidAction {
 
         spends
             .dids
-            .insert(Id::New(index), SingletonSpends::new(eve_did, kind));
+            .insert(Id::New(index), SingletonSpends::new(eve_did, kind, true));
 
         Ok(())
     }
@@ -88,8 +94,8 @@ mod tests {
 
         let mut spends = Spends::new();
         spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
-        spends.apply(&mut ctx, &[Action::create_simple_did()])?;
-        spends.create_change(&mut ctx, alice.puzzle_hash)?;
+        let deltas = spends.apply(&mut ctx, &[Action::create_simple_did()])?;
+        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
         spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
 
         let coin_spends = ctx.take();
@@ -98,6 +104,12 @@ mod tests {
 
         assert_eq!(
             sim.unspent_coins(alice.puzzle_hash, false)
+                .iter()
+                .fold(0, |acc, coin| acc + coin.amount),
+            0
+        );
+        assert_eq!(
+            sim.unspent_coins(alice.puzzle_hash, true)
                 .iter()
                 .fold(0, |acc, coin| acc + coin.amount),
             1

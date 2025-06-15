@@ -2,7 +2,7 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::Memos;
 use chia_sdk_types::Conditions;
 
-use crate::{DriverError, Id, Output, SpendAction, SpendContext, SpendKind, Spends};
+use crate::{Deltas, DriverError, Id, Output, SpendAction, SpendContext, SpendKind, Spends};
 
 #[derive(Debug, Clone, Copy)]
 pub struct SendAction {
@@ -24,6 +24,14 @@ impl SendAction {
 }
 
 impl SpendAction for SendAction {
+    fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
+        deltas.update(self.id).output += self.amount;
+
+        if self.id.is_none() {
+            deltas.set_xch_needed();
+        }
+    }
+
     fn spend(
         &self,
         ctx: &mut SpendContext,
@@ -116,11 +124,11 @@ mod tests {
 
         let mut spends = Spends::new();
         spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
-        spends.apply(
+        let deltas = spends.apply(
             &mut ctx,
             &[Action::send_xch(bob_puzzle_hash, 2, Memos::None)],
         )?;
-        spends.create_change(&mut ctx, alice.puzzle_hash)?;
+        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
         spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;

@@ -18,15 +18,17 @@ where
     A: SingletonAsset,
 {
     pub lineage: Vec<SingletonSpend<A>>,
+    pub ephemeral: bool,
 }
 
 impl<A> SingletonSpends<A>
 where
     A: SingletonAsset,
 {
-    pub fn new(asset: A, spend: SpendKind) -> Self {
+    pub fn new(asset: A, spend: SpendKind, ephemeral: bool) -> Self {
         Self {
             lineage: vec![SingletonSpend::new(asset, spend)],
+            ephemeral,
         }
     }
 

@@ -3,7 +3,7 @@ use chia_protocol::{Bytes32, Coin};
 use indexmap::IndexMap;
 
 use crate::{
-    Action, Cat, CatSpend, Did, DriverError, FungibleAsset, FungibleSpend, FungibleSpends,
+    Action, Cat, CatSpend, Deltas, Did, DriverError, FungibleAsset, FungibleSpend, FungibleSpends,
     HashedPtr, Id, Nft, OptionContract, SingletonAsset, SingletonSpends, Spend, SpendAction,
     SpendContext, SpendKind, SpendWithConditions, StandardLayer,
 };
@@ -23,7 +23,7 @@ impl Spends {
     }
 
     pub fn add_xch(&mut self, coin: Coin, spend: SpendKind) {
-        self.xch.items.push(FungibleSpend::new(coin, spend));
+        self.xch.items.push(FungibleSpend::new(coin, spend, false));
     }
 
     pub fn add_cat(&mut self, cat: Cat, spend: SpendKind) {
@@ -31,46 +31,63 @@ impl Spends {
             .entry(Id::Existing(cat.info.asset_id))
             .or_default()
             .items
-            .push(FungibleSpend::new(cat, spend));
+            .push(FungibleSpend::new(cat, spend, false));
     }
 
     pub fn add_did(&mut self, did: Did<HashedPtr>, spend: SpendKind) {
         self.dids.insert(
             Id::Existing(did.info.launcher_id),
-            SingletonSpends::new(did, spend),
+            SingletonSpends::new(did, spend, false),
         );
     }
 
     pub fn add_nft(&mut self, nft: Nft<HashedPtr>, spend: SpendKind) {
         self.nfts.insert(
             Id::Existing(nft.info.launcher_id),
-            SingletonSpends::new(nft, spend),
+            SingletonSpends::new(nft, spend, false),
         );
     }
 
     pub fn add_option(&mut self, option: OptionContract, spend: SpendKind) {
         self.options.insert(
             Id::Existing(option.info.launcher_id),
-            SingletonSpends::new(option, spend),
+            SingletonSpends::new(option, spend, false),
         );
     }
 
-    pub fn apply(&mut self, ctx: &mut SpendContext, actions: &[Action]) -> Result<(), DriverError> {
+    pub fn apply(
+        &mut self,
+        ctx: &mut SpendContext,
+        actions: &[Action],
+    ) -> Result<Deltas, DriverError> {
+        let mut deltas = Deltas::new();
+
         for (index, action) in actions.iter().enumerate() {
+            action.calculate_delta(&mut deltas, index);
             action.spend(ctx, self, index)?;
         }
-        Ok(())
+
+        Ok(deltas)
     }
 
     pub fn create_change(
         &mut self,
         ctx: &mut SpendContext,
+        deltas: &Deltas,
         change_puzzle_hash: Bytes32,
     ) -> Result<(), DriverError> {
-        self.xch.create_change(ctx, change_puzzle_hash)?;
+        self.xch.create_change(
+            ctx,
+            deltas.get(None).map_or(0, |delta| delta.output),
+            change_puzzle_hash,
+        )?;
 
-        for (_, cat) in &mut self.cats {
-            cat.create_change(ctx, change_puzzle_hash)?;
+        for (&id, cat) in &mut self.cats {
+            cat.create_change(
+                ctx,
+                deltas.get(Some(id)).map_or(0, |delta| delta.output),
+                change_puzzle_hash,
+            )?;
         }
 
         for (_, did) in &mut self.dids {

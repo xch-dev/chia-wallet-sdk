@@ -19,16 +19,12 @@ where
         Self::default()
     }
 
-    pub fn change(&self) -> u64 {
-        let mut inputs = 0;
-        let mut outputs = 0;
-
-        for item in &self.items {
-            inputs += item.asset.amount();
-            outputs += item.kind.outputs().amount();
-        }
-
-        inputs.saturating_sub(outputs)
+    pub fn selected_amount(&self) -> u64 {
+        self.items
+            .iter()
+            .filter(|item| !item.ephemeral)
+            .map(|item| item.asset.amount())
+            .sum()
     }
 
     pub fn output_source(
@@ -111,9 +107,10 @@ where
     pub fn create_change(
         &mut self,
         ctx: &mut SpendContext,
+        spent_amount: u64,
         change_puzzle_hash: Bytes32,
     ) -> Result<(), DriverError> {
-        let change = self.change();
+        let change = self.selected_amount().saturating_sub(spent_amount);
 
         if change == 0 {
             return Ok(());
@@ -147,11 +144,16 @@ impl<A> Default for FungibleSpends<A> {
 pub struct FungibleSpend<T> {
     pub asset: T,
     pub kind: SpendKind,
+    pub ephemeral: bool,
 }
 
 impl<T> FungibleSpend<T> {
-    pub fn new(asset: T, kind: SpendKind) -> Self {
-        Self { asset, kind }
+    pub fn new(asset: T, kind: SpendKind, ephemeral: bool) -> Self {
+        Self {
+            asset,
+            kind,
+            ephemeral,
+        }
     }
 
     #[must_use]
@@ -162,6 +164,7 @@ impl<T> FungibleSpend<T> {
         Self::new(
             self.asset.make_child(p2_puzzle_hash, amount),
             self.kind.child(),
+            true,
         )
     }
 }

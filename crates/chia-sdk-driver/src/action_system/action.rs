@@ -1,7 +1,9 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::Memos;
 
-use crate::{CreateDidAction, DriverError, HashedPtr, Id, SendAction, SpendContext, Spends};
+use crate::{
+    CreateDidAction, Deltas, DriverError, HashedPtr, Id, SendAction, SpendContext, Spends,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Action {
@@ -38,6 +40,8 @@ impl Action {
 }
 
 pub trait SpendAction {
+    fn calculate_delta(&self, deltas: &mut Deltas, index: usize);
+
     fn spend(
         &self,
         ctx: &mut SpendContext,
@@ -47,6 +51,13 @@ pub trait SpendAction {
 }
 
 impl SpendAction for Action {
+    fn calculate_delta(&self, deltas: &mut Deltas, index: usize) {
+        match self {
+            Action::Send(action) => action.calculate_delta(deltas, index),
+            Action::CreateDid(action) => action.calculate_delta(deltas, index),
+        }
+    }
+
     fn spend(
         &self,
         ctx: &mut SpendContext,

@@ -1,4 +1,5 @@
 mod action;
+mod deltas;
 mod fungible_spends;
 mod id;
 mod output;
@@ -7,6 +8,7 @@ mod spend_kind;
 mod spends;
 
 pub use action::*;
+pub use deltas::*;
 pub use fungible_spends::*;
 pub use id::*;
 pub use output::*;
