@@ -106,6 +106,7 @@ impl SpendAction for IssueCatAction {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use chia_puzzle_types::cat::EverythingWithSignatureTailArgs;
     use chia_sdk_test::Simulator;
     use indexmap::indexmap;
 
@@ -114,7 +115,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_action_single_issue_cat() -> Result<()> {
+    fn test_action_single_issuance_cat() -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
@@ -124,6 +125,37 @@ mod tests {
         spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
 
         let deltas = spends.apply(&mut ctx, &[Action::single_issue_cat(1)])?;
+        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
+
+        let outputs =
+            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        let cat = outputs.cats[&Id::New(0)][0];
+        assert_ne!(sim.coin_state(cat.coin.coin_id()), None);
+        assert_eq!(cat.info.p2_puzzle_hash, alice.puzzle_hash);
+        assert_eq!(cat.coin.amount, 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_action_multiple_issuance_cat() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(1);
+
+        let tail = ctx.curry(EverythingWithSignatureTailArgs::new(alice.pk))?;
+
+        let mut spends = Spends::new();
+        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+
+        let deltas = spends.apply(
+            &mut ctx,
+            &[Action::issue_cat(Spend::new(tail, NodePtr::NIL), 1)],
+        )?;
         spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
 
         let outputs =
