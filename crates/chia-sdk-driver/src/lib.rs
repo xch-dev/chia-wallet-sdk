@@ -3,6 +3,8 @@
 #![allow(clippy::large_stack_arrays)]
 #![doc = include_str!("../docs.md")]
 
+mod action_system;
+mod actions;
 mod driver_error;
 mod hashed_ptr;
 mod layer;
@@ -13,6 +15,8 @@ mod spend;
 mod spend_context;
 mod spend_with_conditions;
 
+pub use action_system::*;
+pub use actions::*;
 pub use driver_error::*;
 pub use hashed_ptr::*;
 pub use layer::*;
