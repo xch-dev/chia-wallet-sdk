@@ -9,8 +9,7 @@ use clvm_traits::clvm_list;
 use clvmr::NodePtr;
 
 use crate::{
-    Did, DidInfo, DriverError, HashedPtr, MetadataUpdate, Nft, OptionContract, SpendContext,
-    SpendKind,
+    Did, DidInfo, DriverError, HashedPtr, Nft, OptionContract, Spend, SpendContext, SpendKind,
 };
 
 #[derive(Debug, Clone)]
@@ -193,7 +192,7 @@ impl SingletonAsset for Nft<HashedPtr> {
 
     fn default_child_info(asset: &Self, spend_kind: &SpendKind) -> Self::ChildInfo {
         ChildNftInfo {
-            additional_uris: Vec::new(),
+            metadata_update_spends: Vec::new(),
             transfer_condition: None,
             p2_puzzle_hash: asset.info.p2_puzzle_hash,
             new_spend_kind: spend_kind.child(),
@@ -205,7 +204,7 @@ impl SingletonAsset for Nft<HashedPtr> {
     }
 
     fn needs_additional_spend(child_info: &Self::ChildInfo) -> bool {
-        !child_info.additional_uris.is_empty() || child_info.transfer_condition.is_some()
+        !child_info.metadata_update_spends.is_empty() || child_info.transfer_condition.is_some()
     }
 
     fn create_change(
@@ -214,7 +213,7 @@ impl SingletonAsset for Nft<HashedPtr> {
     ) -> Result<SingletonSpend<Self>, DriverError> {
         let mut new_child_info = singleton.child_info.clone();
 
-        let metadata_update = new_child_info.additional_uris.pop();
+        let metadata_update_spend = new_child_info.metadata_update_spends.pop();
         let transfer_condition = new_child_info.transfer_condition.take();
         let needs_additional_spend = Self::needs_additional_spend(&new_child_info);
 
@@ -238,19 +237,15 @@ impl SingletonAsset for Nft<HashedPtr> {
                     hint,
                 );
 
-                if let Some(metadata_update) = metadata_update {
-                    let metadata_update = metadata_update.spend(ctx)?;
-                    conditions.push(UpdateNftMetadata::new(
-                        metadata_update.puzzle,
-                        metadata_update.solution,
-                    ));
+                if let Some(spend) = metadata_update_spend {
+                    conditions.push(UpdateNftMetadata::new(spend.puzzle, spend.solution));
 
                     let metadata_updater_solution = ctx.alloc(&clvm_list!(
                         singleton.asset.info.metadata,
                         singleton.asset.info.metadata_updater_puzzle_hash,
-                        metadata_update.solution
+                        spend.solution
                     ))?;
-                    let ptr = ctx.run(metadata_update.puzzle, metadata_updater_solution)?;
+                    let ptr = ctx.run(spend.puzzle, metadata_updater_solution)?;
                     let output = ctx.extract::<NewMetadataOutput<HashedPtr, NodePtr>>(ptr)?;
 
                     nft_info.metadata = output.metadata_info.new_metadata;
@@ -338,7 +333,7 @@ pub struct ChildDidInfo {
 
 #[derive(Debug, Clone)]
 pub struct ChildNftInfo {
-    pub additional_uris: Vec<MetadataUpdate>,
+    pub metadata_update_spends: Vec<Spend>,
     pub transfer_condition: Option<TransferNft>,
     pub p2_puzzle_hash: Bytes32,
     pub new_spend_kind: SpendKind,
