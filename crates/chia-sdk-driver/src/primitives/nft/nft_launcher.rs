@@ -1,6 +1,6 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{EveProof, Proof};
-use chia_sdk_types::{conditions::TransferNft, Conditions};
+use chia_sdk_types::Conditions;
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
@@ -56,18 +56,10 @@ impl Launcher {
     where
         M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash + Clone,
     {
-        let transfer_condition = mint.owner.map(|owner| {
-            TransferNft::new(
-                Some(owner.launcher_id),
-                Vec::new(),
-                Some(owner.singleton_inner_puzzle_hash),
-            )
-        });
-
         let memos = ctx.hint(mint.p2_puzzle_hash)?;
         let conditions = Conditions::new()
             .create_coin(mint.p2_puzzle_hash, 1, memos)
-            .extend(transfer_condition.clone());
+            .extend(mint.transfer_condition.clone());
 
         let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
         let p2_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
@@ -86,7 +78,7 @@ impl Launcher {
 
         let mut did_conditions = Conditions::new();
 
-        if let Some(transfer_condition) = transfer_condition {
+        if let Some(transfer_condition) = mint.transfer_condition.clone() {
             did_conditions = did_conditions.assert_puzzle_announcement(
                 assignment_puzzle_announcement_id(eve_nft.coin.puzzle_hash, &transfer_condition),
             );
@@ -96,7 +88,8 @@ impl Launcher {
 
         let child = eve_nft.child(
             mint.p2_puzzle_hash,
-            mint.owner.map(|owner| owner.launcher_id),
+            mint.transfer_condition
+                .and_then(|condition| condition.launcher_id),
             metadata,
         );
 
@@ -106,7 +99,7 @@ impl Launcher {
 
 #[cfg(test)]
 mod tests {
-    use crate::{IntermediateLauncher, Launcher, NftOwner, StandardLayer};
+    use crate::{IntermediateLauncher, Launcher, StandardLayer};
 
     use super::*;
 
@@ -114,7 +107,7 @@ mod tests {
     use chia_protocol::{Coin, SpendBundle};
     use chia_puzzle_types::{nft::NftMetadata, standard::StandardArgs, Memos};
     use chia_sdk_test::{sign_transaction, BlsPair, Simulator};
-    use chia_sdk_types::{announcement_id, TESTNET11_CONSTANTS};
+    use chia_sdk_types::{announcement_id, conditions::TransferNft, TESTNET11_CONSTANTS};
 
     #[test]
     fn test_nft_mint_cost() -> anyhow::Result<()> {
@@ -186,7 +179,11 @@ mod tests {
             NftMetadata::default(),
             puzzle_hash,
             300,
-            Some(NftOwner::from_did_info(&did.info)),
+            Some(TransferNft::new(
+                Some(did.info.launcher_id),
+                Vec::new(),
+                Some(did.info.inner_puzzle_hash().into()),
+            )),
         );
 
         let mint_1 = IntermediateLauncher::new(did.coin.coin_id(), 0, 2)
@@ -226,7 +223,11 @@ mod tests {
             NftMetadata::default(),
             alice.puzzle_hash,
             300,
-            Some(NftOwner::from_did_info(&did.info)),
+            Some(TransferNft::new(
+                Some(did.info.launcher_id),
+                Vec::new(),
+                Some(did.info.inner_puzzle_hash().into()),
+            )),
         );
 
         let (mint_nft, _nft) = launcher.mint_nft(ctx, mint)?;
@@ -264,7 +265,11 @@ mod tests {
             NftMetadata::default(),
             alice.puzzle_hash,
             300,
-            Some(NftOwner::from_did_info(&did.info)),
+            Some(TransferNft::new(
+                Some(did.info.launcher_id),
+                Vec::new(),
+                Some(did.info.inner_puzzle_hash().into()),
+            )),
         );
 
         let (mint_nft, _nft_info) = launcher.mint_nft(ctx, mint)?;

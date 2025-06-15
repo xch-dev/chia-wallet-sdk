@@ -10,7 +10,8 @@ use clvm_traits::clvm_list;
 use clvmr::NodePtr;
 
 use crate::{
-    Did, DidInfo, DriverError, HashedPtr, Nft, OptionContract, Spend, SpendContext, SpendKind,
+    Did, DidInfo, DriverError, HashedPtr, Launcher, Nft, OptionContract, Spend, SpendContext,
+    SpendKind,
 };
 
 #[derive(Debug, Clone)]
@@ -65,6 +66,37 @@ where
 
         Ok(())
     }
+
+    pub fn launcher_source(&mut self) -> Result<(usize, u64), DriverError> {
+        let Some((index, amount)) = self.lineage.iter().enumerate().find_map(|(index, item)| {
+            item.kind
+                .outputs()
+                .launcher_amount()
+                .map(|amount| (index, amount))
+        }) else {
+            return Err(DriverError::NoSourceForOutput);
+        };
+
+        Ok((index, amount))
+    }
+
+    pub fn create_launcher(
+        &mut self,
+        singleton_amount: u64,
+    ) -> Result<(usize, Launcher), DriverError> {
+        let (index, launcher_amount) = self.launcher_source()?;
+
+        let (parent_conditions, launcher) =
+            Launcher::create_early(self.lineage[index].asset.get_coin_id(), launcher_amount);
+
+        match &mut self.lineage[index].kind {
+            SpendKind::Conditions(spend) => {
+                spend.add_conditions(parent_conditions)?;
+            }
+        }
+
+        Ok((index, launcher.with_singleton_amount(singleton_amount)))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -95,6 +127,7 @@ where
 pub trait SingletonAsset: Debug + Clone {
     type ChildInfo: Debug + Clone;
 
+    fn get_coin_id(&self) -> Bytes32;
     fn p2_puzzle_hash(&self) -> Bytes32;
     fn default_child_info(asset: &Self, spend_kind: &SpendKind) -> Self::ChildInfo;
     fn needs_additional_spend(child_info: &Self::ChildInfo) -> bool;
@@ -107,6 +140,10 @@ pub trait SingletonAsset: Debug + Clone {
 
 impl SingletonAsset for Did<HashedPtr> {
     type ChildInfo = ChildDidInfo;
+
+    fn get_coin_id(&self) -> Bytes32 {
+        self.coin.coin_id()
+    }
 
     fn p2_puzzle_hash(&self) -> Bytes32 {
         self.info.p2_puzzle_hash
@@ -192,6 +229,10 @@ impl SingletonAsset for Did<HashedPtr> {
 
 impl SingletonAsset for Nft<HashedPtr> {
     type ChildInfo = ChildNftInfo;
+
+    fn get_coin_id(&self) -> Bytes32 {
+        self.coin.coin_id()
+    }
 
     fn p2_puzzle_hash(&self) -> Bytes32 {
         self.info.p2_puzzle_hash
@@ -284,6 +325,10 @@ impl SingletonAsset for Nft<HashedPtr> {
 
 impl SingletonAsset for OptionContract {
     type ChildInfo = ChildOptionInfo;
+
+    fn get_coin_id(&self) -> Bytes32 {
+        self.coin.coin_id()
+    }
 
     fn p2_puzzle_hash(&self) -> Bytes32 {
         self.info.p2_puzzle_hash

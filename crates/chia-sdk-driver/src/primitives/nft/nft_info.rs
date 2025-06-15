@@ -201,9 +201,9 @@ impl<M> NftInfo<M> {
 mod tests {
     use chia_puzzle_types::nft::NftMetadata;
     use chia_sdk_test::Simulator;
-    use chia_sdk_types::Conditions;
+    use chia_sdk_types::{conditions::TransferNft, Conditions};
 
-    use crate::{IntermediateLauncher, Launcher, NftMint, NftOwner, SpendContext, StandardLayer};
+    use crate::{IntermediateLauncher, Launcher, NftMint, SpendContext, StandardLayer};
 
     use super::*;
 
@@ -230,7 +230,11 @@ mod tests {
                     metadata,
                     alice.puzzle_hash,
                     300,
-                    Some(NftOwner::from_did_info(&did.info)),
+                    Some(TransferNft::new(
+                        Some(did.info.launcher_id),
+                        Vec::new(),
+                        Some(did.info.inner_puzzle_hash().into()),
+                    )),
                 ),
             )?;
 

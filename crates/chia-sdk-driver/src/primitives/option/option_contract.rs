@@ -206,12 +206,15 @@ mod tests {
     use chia_puzzle_types::{offer::SettlementPaymentsSolution, Memos};
     use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
     use chia_sdk_test::{expect_spend, Simulator};
-    use chia_sdk_types::puzzles::{RevocationArgs, RevocationSolution};
+    use chia_sdk_types::{
+        conditions::TransferNft,
+        puzzles::{RevocationArgs, RevocationSolution},
+    };
     use rstest::rstest;
 
     use crate::{
-        Cat, CatSpend, HashedPtr, Launcher, Nft, NftMint, NftOwner, OptionLauncher,
-        OptionLauncherInfo, OptionType, SettlementLayer, StandardLayer,
+        Cat, CatSpend, HashedPtr, Launcher, Nft, NftMint, OptionLauncher, OptionLauncherInfo,
+        OptionType, SettlementLayer, StandardLayer,
     };
 
     use super::*;
@@ -362,7 +365,11 @@ mod tests {
                             HashedPtr::NIL,
                             SETTLEMENT_PAYMENT_HASH.into(),
                             0,
-                            Some(NftOwner::from_did_info(&did.info)),
+                            Some(TransferNft::new(
+                                Some(did.info.launcher_id),
+                                Vec::new(),
+                                Some(did.info.inner_puzzle_hash().into()),
+                            )),
                         ),
                     )?;
 
@@ -454,7 +461,11 @@ mod tests {
                             HashedPtr::NIL,
                             p2_option,
                             0,
-                            Some(NftOwner::from_did_info(&did.info)),
+                            Some(TransferNft::new(
+                                Some(did.info.launcher_id),
+                                Vec::new(),
+                                Some(did.info.inner_puzzle_hash().into()),
+                            )),
                         ),
                     )?;
 

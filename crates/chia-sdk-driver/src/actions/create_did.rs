@@ -94,7 +94,7 @@ mod tests {
 
         let mut spends = Spends::new();
         spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
-        let deltas = spends.apply(&mut ctx, &[Action::create_simple_did()])?;
+        let deltas = spends.apply(&mut ctx, &[Action::create_empty_did()])?;
         spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
         spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
 

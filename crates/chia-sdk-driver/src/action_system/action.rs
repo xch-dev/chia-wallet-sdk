@@ -1,21 +1,24 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::Memos;
+use chia_sdk_types::conditions::TransferNft;
 use hex_literal::hex;
 
 use crate::{
-    CreateDidAction, Deltas, DriverError, HashedPtr, Id, SendAction, SpendContext, Spends,
-    UpdateDidAction,
+    CreateDidAction, Deltas, DriverError, HashedPtr, Id, MintNftAction, SendAction, Spend,
+    SpendContext, Spends, UpdateDidAction, UpdateNftAction,
 };
 
 pub const BURN_PUZZLE_HASH: Bytes32 = Bytes32::new(hex!(
     "000000000000000000000000000000000000000000000000000000000000dead"
 ));
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Action {
     Send(SendAction),
     CreateDid(CreateDidAction),
     UpdateDid(UpdateDidAction),
+    MintNft(MintNftAction),
+    UpdateNft(UpdateNftAction),
 }
 
 impl Action {
@@ -49,7 +52,7 @@ impl Action {
         ))
     }
 
-    pub fn create_simple_did() -> Self {
+    pub fn create_empty_did() -> Self {
         Self::CreateDid(CreateDidAction::default())
     }
 
@@ -64,6 +67,40 @@ impl Action {
             recovery_list_hash,
             num_verifications_required,
             metadata,
+        ))
+    }
+
+    pub fn mint_nft(
+        parent_did_id: Option<Id>,
+        metadata: HashedPtr,
+        metadata_updater_puzzle_hash: Bytes32,
+        royalty_puzzle_hash: Bytes32,
+        royalty_basis_points: u16,
+        amount: u64,
+    ) -> Self {
+        Self::MintNft(MintNftAction::new(
+            parent_did_id,
+            metadata,
+            metadata_updater_puzzle_hash,
+            royalty_puzzle_hash,
+            royalty_basis_points,
+            amount,
+        ))
+    }
+
+    pub fn mint_empty_nft() -> Self {
+        Self::MintNft(MintNftAction::default())
+    }
+
+    pub fn update_nft(
+        id: Id,
+        metadata_update_spends: Vec<Spend>,
+        transfer_condition: Option<TransferNft>,
+    ) -> Self {
+        Self::UpdateNft(UpdateNftAction::new(
+            id,
+            metadata_update_spends,
+            transfer_condition,
         ))
     }
 }
@@ -85,6 +122,8 @@ impl SpendAction for Action {
             Action::Send(action) => action.calculate_delta(deltas, index),
             Action::CreateDid(action) => action.calculate_delta(deltas, index),
             Action::UpdateDid(action) => action.calculate_delta(deltas, index),
+            Action::MintNft(action) => action.calculate_delta(deltas, index),
+            Action::UpdateNft(action) => action.calculate_delta(deltas, index),
         }
     }
 
@@ -98,6 +137,8 @@ impl SpendAction for Action {
             Action::Send(action) => action.spend(ctx, spends, index),
             Action::CreateDid(action) => action.spend(ctx, spends, index),
             Action::UpdateDid(action) => action.spend(ctx, spends, index),
+            Action::MintNft(action) => action.spend(ctx, spends, index),
+            Action::UpdateNft(action) => action.spend(ctx, spends, index),
         }
     }
 }

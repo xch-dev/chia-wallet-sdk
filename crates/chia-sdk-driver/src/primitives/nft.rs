@@ -25,12 +25,10 @@ mod metadata_update;
 mod nft_info;
 mod nft_launcher;
 mod nft_mint;
-mod nft_owner;
 
 pub use metadata_update::*;
 pub use nft_info::*;
 pub use nft_mint::*;
-pub use nft_owner::*;
 
 /// Contains all information needed to spend the outer puzzles of NFT coins.
 /// The [`NftInfo`] is used to construct the puzzle, but the [`Proof`] is needed for the solution.
@@ -263,7 +261,7 @@ where
     {
         let transfer_condition = TransferNft::new(None, trade_prices, None);
 
-        let (conditions, nft) = self.transfer_with_condition(
+        let (conditions, nft) = self.assign_owner(
             ctx,
             inner,
             SETTLEMENT_PAYMENT_HASH.into(),
@@ -308,40 +306,6 @@ where
         Ok(self.child(outputs[0], None, self.info.metadata.clone()))
     }
 
-    /// Transfers this NFT coin to a new p2 puzzle hash and assigns a new owner to it (for example, a DID).
-    ///
-    /// This will return the conditions that must be emitted by the singleton you're assigning the NFT to.
-    /// The singleton must be spent in the same spend bundle as the NFT spend and emit these conditions.
-    ///
-    /// This spend requires a [`Layer`] that supports [`SpendWithConditions`]. If it doesn't, you can
-    /// use [`Nft::spend_with`] instead.
-    pub fn assign_owner<I>(
-        self,
-        ctx: &mut SpendContext,
-        inner: &I,
-        p2_puzzle_hash: Bytes32,
-        new_owner: Option<NftOwner>,
-        extra_conditions: Conditions,
-    ) -> Result<(Conditions, Nft<M>), DriverError>
-    where
-        M: ToTreeHash,
-        I: SpendWithConditions,
-    {
-        let transfer_condition = TransferNft::new(
-            new_owner.map(|owner| owner.launcher_id),
-            Vec::new(),
-            new_owner.map(|owner| owner.singleton_inner_puzzle_hash),
-        );
-
-        self.transfer_with_condition(
-            ctx,
-            inner,
-            p2_puzzle_hash,
-            transfer_condition,
-            extra_conditions,
-        )
-    }
-
     /// Transfers this NFT coin to a new p2 puzzle hash and runs the transfer program.
     ///
     /// This will return the conditions that must be emitted by the singleton you're assigning the NFT to.
@@ -351,7 +315,7 @@ where
     ///
     /// This spend requires a [`Layer`] that supports [`SpendWithConditions`]. If it doesn't, you can
     /// use [`Nft::spend_with`] instead.
-    pub fn transfer_with_condition<I>(
+    pub fn assign_owner<I>(
         self,
         ctx: &mut SpendContext,
         inner: &I,
@@ -575,7 +539,11 @@ mod tests {
             NftMetadata::default(),
             alice.puzzle_hash,
             300,
-            Some(NftOwner::from_did_info(&did.info)),
+            Some(TransferNft::new(
+                Some(did.info.launcher_id),
+                Vec::new(),
+                Some(did.info.inner_puzzle_hash().into()),
+            )),
         );
 
         let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
@@ -605,7 +573,11 @@ mod tests {
             NftMetadata::default(),
             alice.puzzle_hash,
             300,
-            Some(NftOwner::from_did_info(&did.info)),
+            Some(TransferNft::new(
+                Some(did.info.launcher_id),
+                Vec::new(),
+                Some(did.info.inner_puzzle_hash().into()),
+            )),
         );
 
         let (mint_nft, mut nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
@@ -617,13 +589,21 @@ mod tests {
         sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
 
         for i in 0..5 {
-            let nft_owner = NftOwner::from_did_info(&did.info);
+            let transfer_condition = TransferNft::new(
+                Some(did.info.launcher_id),
+                Vec::new(),
+                Some(did.info.inner_puzzle_hash().into()),
+            );
 
             let (spend_nft, new_nft) = nft.assign_owner(
                 ctx,
                 &alice_p2,
                 alice.puzzle_hash,
-                if i % 2 == 0 { Some(nft_owner) } else { None },
+                if i % 2 == 0 {
+                    transfer_condition
+                } else {
+                    TransferNft::new(None, Vec::new(), None)
+                },
                 Conditions::new(),
             )?;
 
@@ -656,7 +636,11 @@ mod tests {
             },
             alice.puzzle_hash,
             300,
-            Some(NftOwner::from_did_info(&did.info)),
+            Some(TransferNft::new(
+                Some(did.info.launcher_id),
+                Vec::new(),
+                Some(did.info.inner_puzzle_hash().into()),
+            )),
         );
 
         let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
@@ -733,7 +717,11 @@ mod tests {
                     metadata,
                     alice.puzzle_hash,
                     300,
-                    Some(NftOwner::from_did_info(&did.info)),
+                    Some(TransferNft::new(
+                        Some(did.info.launcher_id),
+                        Vec::new(),
+                        Some(did.info.inner_puzzle_hash().into()),
+                    )),
                 ),
             )?;
         let _did = did.update(ctx, &alice_p2, mint_nft)?;

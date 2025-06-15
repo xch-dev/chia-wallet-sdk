@@ -78,7 +78,7 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[
-                Action::create_simple_did(),
+                Action::create_empty_did(),
                 Action::update_did(Id::New(0), Some(Bytes32::default()), 2, metadata),
                 Action::burn(Id::New(0), 1, hint),
             ],
