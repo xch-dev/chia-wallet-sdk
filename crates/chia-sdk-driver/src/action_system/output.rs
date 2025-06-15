@@ -25,9 +25,9 @@ pub enum OutputConstraint {
 }
 
 impl OutputConstraint {
-    pub fn is_allowed(&self, output: &Output) -> bool {
+    pub fn is_allowed(&self, output: &Output, has_singleton_output: bool) -> bool {
         match self {
-            Self::Singleton => output.amount % 2 == 0,
+            Self::Singleton => output.amount % 2 == 0 && !has_singleton_output,
             Self::Settlement => output.amount > 0,
         }
     }
@@ -38,6 +38,7 @@ pub struct OutputSet {
     constraints: Vec<OutputConstraint>,
     outputs: HashSet<Output>,
     reserve_fee: u64,
+    melted: bool,
 }
 
 impl OutputSet {
@@ -46,6 +47,7 @@ impl OutputSet {
             constraints,
             outputs: HashSet::new(),
             reserve_fee: 0,
+            melted: false,
         }
     }
 
@@ -61,6 +63,10 @@ impl OutputSet {
         self.reserve_fee += amount;
     }
 
+    pub fn melt(&mut self) {
+        self.melted = true;
+    }
+
     pub fn constraints(&self) -> &[OutputConstraint] {
         &self.constraints
     }
@@ -72,7 +78,7 @@ impl OutputSet {
 
     pub fn is_allowed(&self, output: &Output) -> bool {
         for constraint in &self.constraints {
-            if !constraint.is_allowed(output) {
+            if !constraint.is_allowed(output, self.has_singleton_output()) {
                 return false;
             }
         }
@@ -81,7 +87,7 @@ impl OutputSet {
     }
 
     pub fn has_singleton_output(&self) -> bool {
-        self.outputs.iter().any(|output| output.amount % 2 == 1)
+        self.melted || self.outputs.iter().any(|output| output.amount % 2 == 1)
     }
 
     pub fn insert(&mut self, output: Output) {

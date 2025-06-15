@@ -23,6 +23,10 @@ impl ConditionsSpend {
     pub fn add_conditions(&mut self, conditions: Conditions) -> Result<(), DriverError> {
         // Check for duplicate outputs first to avoid inserting conditions that should be rejected
         for condition in &conditions {
+            if condition.is_melt_singleton() && self.outputs.has_singleton_output() {
+                return Err(DriverError::InvalidOutput);
+            }
+
             if let Some(create_coin) = condition.as_create_coin() {
                 if !self
                     .outputs
@@ -41,6 +45,9 @@ impl ConditionsSpend {
                 }
                 Condition::ReserveFee(reserve_fee) => {
                     self.outputs.reserve_fee(reserve_fee.amount);
+                }
+                Condition::MeltSingleton(_melt_singleton) => {
+                    self.outputs.melt();
                 }
                 _ => {}
             }
