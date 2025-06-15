@@ -137,7 +137,8 @@ impl OptionLauncher<ReadyOption> {
         let owner_puzzle_hash = self.state.info.p2_puzzle_hash;
 
         let memos = ctx.hint(owner_puzzle_hash)?;
-        let conditions = Conditions::new().create_coin(owner_puzzle_hash, 1, memos);
+        let singleton_amount = self.launcher.singleton_amount();
+        let conditions = Conditions::new().create_coin(owner_puzzle_hash, singleton_amount, memos);
 
         let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
         let eve_p2_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
@@ -146,7 +147,7 @@ impl OptionLauncher<ReadyOption> {
         let (mint_eve_option, eve_option) = self.mint_eve(ctx, eve_p2_puzzle_hash)?;
         eve_option.spend(ctx, inner_spend)?;
 
-        let child = eve_option.child(owner_puzzle_hash);
+        let child = eve_option.child(owner_puzzle_hash, singleton_amount);
 
         Ok((mint_eve_option, child))
     }

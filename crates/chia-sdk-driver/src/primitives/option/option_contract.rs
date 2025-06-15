@@ -106,11 +106,14 @@ impl OptionContract {
         }
     }
 
-    pub fn spend(&self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<(), DriverError> {
+    pub fn spend(
+        &self,
+        ctx: &mut SpendContext,
+        inner_spend: Spend,
+    ) -> Result<Option<Self>, DriverError> {
         let layers = self.info.into_layers(inner_spend.puzzle);
 
-        let puzzle = layers.construct_puzzle(ctx)?;
-        let solution = layers.construct_solution(
+        let spend = layers.construct_spend(
             ctx,
             SingletonSolution {
                 lineage_proof: self.proof,
@@ -119,9 +122,22 @@ impl OptionContract {
             },
         )?;
 
-        ctx.spend(self.coin, Spend::new(puzzle, solution))?;
+        ctx.spend(self.coin, spend)?;
 
-        Ok(())
+        let output = ctx.run(inner_spend.puzzle, inner_spend.solution)?;
+        let conditions = Vec::<Condition>::from_clvm(ctx, output)?;
+
+        for condition in conditions {
+            if let Some(create_coin) = condition.into_create_coin() {
+                if create_coin.amount % 2 == 1 {
+                    return Ok(Some(
+                        self.child(create_coin.puzzle_hash, create_coin.amount),
+                    ));
+                }
+            }
+        }
+
+        Ok(None)
     }
 
     pub fn spend_with<I>(
@@ -129,7 +145,7 @@ impl OptionContract {
         ctx: &mut SpendContext,
         inner: &I,
         conditions: Conditions,
-    ) -> Result<(), DriverError>
+    ) -> Result<Option<Self>, DriverError>
     where
         I: SpendWithConditions,
     {
@@ -155,7 +171,7 @@ impl OptionContract {
             extra_conditions.create_coin(p2_puzzle_hash, self.coin.amount, memos),
         )?;
 
-        Ok(self.child(p2_puzzle_hash))
+        Ok(self.child(p2_puzzle_hash, self.coin.amount))
     }
 
     pub fn exercise<I>(
@@ -184,20 +200,20 @@ impl OptionContract {
         Ok(())
     }
 
-    pub fn child(&self, p2_puzzle_hash: Bytes32) -> Self {
+    pub fn child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
         let info = self.info.with_p2_puzzle_hash(p2_puzzle_hash);
 
         let inner_puzzle_hash = info.inner_puzzle_hash();
 
-        Self {
-            coin: Coin::new(
+        Self::new(
+            Coin::new(
                 self.coin.coin_id(),
                 SingletonArgs::curry_tree_hash(info.launcher_id, inner_puzzle_hash).into(),
-                self.coin.amount,
+                amount,
             ),
-            proof: Proof::Lineage(self.child_lineage_proof()),
+            Proof::Lineage(self.child_lineage_proof()),
             info,
-        }
+        )
     }
 }
 

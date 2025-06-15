@@ -175,7 +175,7 @@ impl Spends {
         for (_, option) in self.options {
             for item in option.lineage {
                 let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
-                item.asset.spend(ctx, spend)?;
+                let _option = item.asset.spend(ctx, spend)?;
             }
         }
 

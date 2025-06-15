@@ -372,7 +372,9 @@ impl SingletonAsset for OptionContract {
 
         // Create a new singleton spend with the child and the new spend kind.
         Ok(SingletonSpend::new(
-            singleton.asset.child(destination.puzzle_hash),
+            singleton
+                .asset
+                .child(destination.puzzle_hash, singleton.asset.coin.amount),
             singleton.child_info.new_spend_kind.clone(),
         ))
     }
