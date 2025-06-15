@@ -1,24 +1,45 @@
-use chia_sdk_types::conditions::TransferNft;
+use chia_sdk_types::{
+    conditions::{TradePrice, TransferNft},
+    Conditions,
+};
 
-use crate::{Deltas, DriverError, Id, Spend, SpendAction, SpendContext, Spends};
+use crate::{
+    assignment_puzzle_announcement_id, Deltas, DriverError, Id, Spend, SpendAction, SpendContext,
+    SpendKind, Spends,
+};
+
+#[derive(Debug, Clone)]
+pub struct TransferNftById {
+    pub did_id: Option<Id>,
+    pub trade_prices: Vec<TradePrice>,
+}
+
+impl TransferNftById {
+    pub fn new(did_id: Option<Id>, trade_prices: Vec<TradePrice>) -> Self {
+        Self {
+            did_id,
+            trade_prices,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct UpdateNftAction {
     pub id: Id,
     pub metadata_update_spends: Vec<Spend>,
-    pub transfer_condition: Option<TransferNft>,
+    pub transfer: Option<TransferNftById>,
 }
 
 impl UpdateNftAction {
     pub fn new(
         id: Id,
         metadata_update_spends: Vec<Spend>,
-        transfer_condition: Option<TransferNft>,
+        transfer: Option<TransferNftById>,
     ) -> Self {
         Self {
             id,
             metadata_update_spends,
-            transfer_condition,
+            transfer,
         }
     }
 }
@@ -46,7 +67,38 @@ impl SpendAction for UpdateNftAction {
             .metadata_update_spends
             .extend_from_slice(&self.metadata_update_spends);
 
-        if let Some(transfer_condition) = self.transfer_condition.clone() {
+        if let Some(transfer) = self.transfer.clone() {
+            let transfer_condition = if let Some(did_id) = transfer.did_id {
+                let did = spends
+                    .dids
+                    .get_mut(&did_id)
+                    .ok_or(DriverError::InvalidAssetId)?
+                    .last_mut()?;
+
+                let transfer_condition = TransferNft::new(
+                    Some(did.asset.info.launcher_id),
+                    transfer.trade_prices,
+                    Some(did.asset.info.inner_puzzle_hash().into()),
+                );
+
+                match &mut did.kind {
+                    SpendKind::Conditions(spend) => {
+                        spend.add_conditions(
+                            Conditions::new()
+                                .assert_puzzle_announcement(assignment_puzzle_announcement_id(
+                                    nft.asset.coin.puzzle_hash,
+                                    &transfer_condition,
+                                ))
+                                .create_puzzle_announcement(nft.asset.info.launcher_id.into()),
+                        )?;
+                    }
+                }
+
+                transfer_condition
+            } else {
+                TransferNft::new(None, transfer.trade_prices, None)
+            };
+
             nft.child_info.transfer_condition = Some(transfer_condition);
         }
 
@@ -63,7 +115,7 @@ mod tests {
     use chia_sdk_test::Simulator;
     use indexmap::indexmap;
 
-    use crate::{Action, MetadataUpdate, SpendKind};
+    use crate::{Action, HashedPtr, MetadataUpdate, SpendKind};
 
     use super::*;
 
@@ -172,6 +224,47 @@ mod tests {
         assert_ne!(sim.coin_state(nft.coin.coin_id()), None);
         assert_eq!(nft.info.p2_puzzle_hash, alice.puzzle_hash);
         assert_eq!(nft.info.metadata, updated_metadata);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_action_update_nft_owner() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(2);
+
+        let mut spends = Spends::new();
+        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+
+        let deltas = spends.apply(
+            &mut ctx,
+            &[
+                Action::create_empty_did(),
+                Action::mint_nft(HashedPtr::NIL, Bytes32::default(), Bytes32::default(), 0, 1),
+                Action::update_nft(
+                    Id::New(1),
+                    Vec::new(),
+                    Some(TransferNftById::new(Some(Id::New(0)), vec![])),
+                ),
+            ],
+        )?;
+        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
+
+        let outputs =
+            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        let did = outputs.dids[&Id::New(0)];
+        assert_ne!(sim.coin_state(did.coin.coin_id()), None);
+        assert_eq!(did.info.p2_puzzle_hash, alice.puzzle_hash);
+
+        let nft = outputs.nfts[&Id::New(1)];
+        assert_ne!(sim.coin_state(nft.coin.coin_id()), None);
+        assert_eq!(nft.info.p2_puzzle_hash, alice.puzzle_hash);
+        assert_eq!(nft.info.current_owner, Some(did.info.launcher_id));
 
         Ok(())
     }

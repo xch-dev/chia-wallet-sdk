@@ -1,11 +1,10 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::Memos;
-use chia_sdk_types::conditions::TransferNft;
 use hex_literal::hex;
 
 use crate::{
     CreateDidAction, Deltas, DriverError, HashedPtr, Id, MintNftAction, SendAction, Spend,
-    SpendContext, Spends, UpdateDidAction, UpdateNftAction,
+    SpendContext, Spends, TransferNftById, UpdateDidAction, UpdateNftAction,
 };
 
 pub const BURN_PUZZLE_HASH: Bytes32 = Bytes32::new(hex!(
@@ -123,13 +122,9 @@ impl Action {
     pub fn update_nft(
         id: Id,
         metadata_update_spends: Vec<Spend>,
-        transfer_condition: Option<TransferNft>,
+        transfer: Option<TransferNftById>,
     ) -> Self {
-        Self::UpdateNft(UpdateNftAction::new(
-            id,
-            metadata_update_spends,
-            transfer_condition,
-        ))
+        Self::UpdateNft(UpdateNftAction::new(id, metadata_update_spends, transfer))
     }
 }
 
