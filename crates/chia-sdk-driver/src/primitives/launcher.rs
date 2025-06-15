@@ -89,6 +89,11 @@ impl Launcher {
         self
     }
 
+    /// Returns the current singleton amount.
+    pub fn singleton_amount(&self) -> u64 {
+        self.singleton_amount
+    }
+
     /// The singleton launcher coin that will be created when the parent is spent.
     pub fn coin(&self) -> Coin {
         self.coin

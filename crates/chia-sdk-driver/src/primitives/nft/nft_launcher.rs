@@ -58,7 +58,7 @@ impl Launcher {
     {
         let memos = ctx.hint(mint.p2_puzzle_hash)?;
         let conditions = Conditions::new()
-            .create_coin(mint.p2_puzzle_hash, 1, memos)
+            .create_coin(mint.p2_puzzle_hash, self.singleton_amount(), memos)
             .extend(mint.transfer_condition.clone());
 
         let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
@@ -74,7 +74,7 @@ impl Launcher {
             mint.royalty_basis_points,
         )?;
 
-        eve_nft.spend(ctx, inner_spend)?;
+        let child = eve_nft.spend(ctx, inner_spend)?;
 
         let mut did_conditions = Conditions::new();
 
@@ -83,15 +83,6 @@ impl Launcher {
                 assignment_puzzle_announcement_id(eve_nft.coin.puzzle_hash, &transfer_condition),
             );
         }
-
-        let metadata = eve_nft.info.metadata.clone();
-
-        let child = eve_nft.child(
-            mint.p2_puzzle_hash,
-            mint.transfer_condition
-                .and_then(|condition| condition.launcher_id),
-            metadata,
-        );
 
         Ok((mint_eve_nft.extend(did_conditions), child))
     }

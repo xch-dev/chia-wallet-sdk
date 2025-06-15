@@ -1,9 +1,8 @@
 use std::fmt::Debug;
 
 use chia_protocol::Bytes32;
-use chia_puzzle_types::Memos;
 use chia_sdk_types::{
-    conditions::{NewMetadataOutput, TransferNft, UpdateNftMetadata},
+    conditions::{CreateCoin, NewMetadataOutput, TransferNft, UpdateNftMetadata},
     Conditions,
 };
 use clvm_traits::clvm_list;
@@ -186,14 +185,16 @@ impl SingletonAsset for Did<HashedPtr> {
 
         let final_destination = child_info.destination;
 
-        let (p2_puzzle_hash, hint) = if needs_update {
+        let destination = if needs_update {
             let p2_puzzle_hash = current_info.p2_puzzle_hash;
             let hint = ctx.hint(p2_puzzle_hash)?;
-            (p2_puzzle_hash, hint)
+            CreateCoin::new(p2_puzzle_hash, singleton.asset.coin.amount, hint)
         } else {
-            child_info
-                .destination
-                .unwrap_or((change_puzzle_hash, change_hint))
+            child_info.destination.unwrap_or(CreateCoin::new(
+                change_puzzle_hash,
+                singleton.asset.coin.amount,
+                change_hint,
+            ))
         };
 
         let child_info = DidInfo::new(
@@ -201,7 +202,7 @@ impl SingletonAsset for Did<HashedPtr> {
             child_info.recovery_list_hash,
             child_info.num_verifications_required,
             child_info.metadata,
-            p2_puzzle_hash,
+            destination.puzzle_hash,
         );
 
         // Create the new DID coin with the updated DID info. The DID puzzle does not automatically wrap the output.
@@ -209,8 +210,8 @@ impl SingletonAsset for Did<HashedPtr> {
             SpendKind::Conditions(spend) => {
                 spend.add_conditions(Conditions::new().create_coin(
                     child_info.inner_puzzle_hash().into(),
-                    singleton.asset.coin.amount,
-                    hint,
+                    destination.amount,
+                    destination.memos,
                 ))?;
             }
         }
@@ -268,27 +269,25 @@ impl SingletonAsset for Nft<HashedPtr> {
         let transfer_condition = new_child_info.transfer_condition.take();
         let needs_additional_spend = Self::needs_additional_spend(&new_child_info);
 
-        let (p2_puzzle_hash, hint) = if needs_additional_spend {
+        let destination = if needs_additional_spend {
             let p2_puzzle_hash = singleton.asset.info.p2_puzzle_hash;
             let hint = ctx.hint(p2_puzzle_hash)?;
-            (p2_puzzle_hash, hint)
+            CreateCoin::new(p2_puzzle_hash, singleton.asset.coin.amount, hint)
         } else {
-            new_child_info
-                .destination
-                .unwrap_or((change_puzzle_hash, change_hint))
+            new_child_info.destination.unwrap_or(CreateCoin::new(
+                change_puzzle_hash,
+                singleton.asset.coin.amount,
+                change_hint,
+            ))
         };
 
         let mut nft_info = singleton.asset.info;
-        nft_info.p2_puzzle_hash = p2_puzzle_hash;
+        nft_info.p2_puzzle_hash = destination.puzzle_hash;
 
         // Create the new NFT coin with the updated info.
         match &mut singleton.kind {
             SpendKind::Conditions(spend) => {
-                let mut conditions = Conditions::new().create_coin(
-                    p2_puzzle_hash,
-                    singleton.asset.coin.amount,
-                    hint,
-                );
+                let mut conditions = Conditions::new().with(destination);
 
                 if let Some(spend) = metadata_update_spend {
                     conditions.push(UpdateNftMetadata::new(spend.puzzle, spend.solution));
@@ -317,7 +316,9 @@ impl SingletonAsset for Nft<HashedPtr> {
 
         // Create a new singleton spend with the child and the new spend kind.
         let mut spend = SingletonSpend::new(
-            singleton.asset.child_with(nft_info),
+            singleton
+                .asset
+                .child_with(nft_info, singleton.asset.coin.amount),
             singleton.child_info.new_spend_kind.clone(),
         );
 
@@ -356,25 +357,22 @@ impl SingletonAsset for OptionContract {
     ) -> Result<SingletonSpend<Self>, DriverError> {
         let change_hint = ctx.hint(change_puzzle_hash)?;
 
-        let (p2_puzzle_hash, hint) = singleton
-            .child_info
-            .destination
-            .unwrap_or((change_puzzle_hash, change_hint));
+        let destination = singleton.child_info.destination.unwrap_or(CreateCoin::new(
+            change_puzzle_hash,
+            singleton.asset.coin.amount,
+            change_hint,
+        ));
 
-        // Create the new option contract coin with the updated p2_puzzle_hash.
+        // Create the new option contract coin.
         match &mut singleton.kind {
             SpendKind::Conditions(spend) => {
-                spend.add_conditions(Conditions::new().create_coin(
-                    p2_puzzle_hash,
-                    singleton.asset.coin.amount,
-                    hint,
-                ))?;
+                spend.add_conditions(Conditions::new().with(destination))?;
             }
         }
 
         // Create a new singleton spend with the child and the new spend kind.
         Ok(SingletonSpend::new(
-            singleton.asset.child(p2_puzzle_hash),
+            singleton.asset.child(destination.puzzle_hash),
             singleton.child_info.new_spend_kind.clone(),
         ))
     }
@@ -385,7 +383,7 @@ pub struct ChildDidInfo {
     pub recovery_list_hash: Option<Bytes32>,
     pub num_verifications_required: u64,
     pub metadata: HashedPtr,
-    pub destination: Option<(Bytes32, Memos)>,
+    pub destination: Option<CreateCoin<NodePtr>>,
     pub new_spend_kind: SpendKind,
     pub needs_update: bool,
 }
@@ -394,12 +392,12 @@ pub struct ChildDidInfo {
 pub struct ChildNftInfo {
     pub metadata_update_spends: Vec<Spend>,
     pub transfer_condition: Option<TransferNft>,
-    pub destination: Option<(Bytes32, Memos)>,
+    pub destination: Option<CreateCoin<NodePtr>>,
     pub new_spend_kind: SpendKind,
 }
 
 #[derive(Debug, Clone)]
 pub struct ChildOptionInfo {
-    pub destination: Option<(Bytes32, Memos)>,
+    pub destination: Option<CreateCoin<NodePtr>>,
     pub new_spend_kind: SpendKind,
 }

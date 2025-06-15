@@ -126,15 +126,16 @@ impl Clvm {
         })
     }
 
-    pub fn spend_nft(&self, nft: Nft, inner_spend: Spend) -> Result<()> {
+    pub fn spend_nft(&self, nft: Nft, inner_spend: Spend) -> Result<Nft> {
         let mut ctx = self.0.lock().unwrap();
 
-        nft.as_ptr(&ctx).spend(
-            &mut ctx,
-            chia_sdk_driver::Spend::new(inner_spend.puzzle.1, inner_spend.solution.1),
-        )?;
-
-        Ok(())
+        Ok(nft
+            .as_ptr(&ctx)
+            .spend(
+                &mut ctx,
+                chia_sdk_driver::Spend::new(inner_spend.puzzle.1, inner_spend.solution.1),
+            )?
+            .as_program(&self.0))
     }
 
     pub fn create_eve_did(

@@ -526,7 +526,7 @@ mod tests {
                             option.info.inner_puzzle_hash().into(),
                             option.coin.amount,
                         )?;
-                        nft.spend(ctx, exercise_spend)?;
+                        let _nft = nft.spend(ctx, exercise_spend)?;
                     }
                 }
             }
@@ -574,7 +574,7 @@ mod tests {
                         Conditions::new().create_coin(alice.puzzle_hash, underlying_amount, hint),
                     )?;
                     let clawback_spend = underlying.clawback_spend(ctx, clawback_spend)?;
-                    nft.spend(ctx, clawback_spend)?;
+                    let _nft = nft.spend(ctx, clawback_spend)?;
                 }
             },
         }
@@ -615,7 +615,7 @@ mod tests {
                     let payment = underlying.requested_payment_ptr(ctx)?;
                     let spend = SettlementLayer
                         .construct_spend(ctx, SettlementPaymentsSolution::new(vec![payment]))?;
-                    nft.spend(ctx, spend)?;
+                    let _nft = nft.spend(ctx, spend)?;
                 }
             }
         }

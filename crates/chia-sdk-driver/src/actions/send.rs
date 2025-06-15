@@ -1,6 +1,6 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::Memos;
-use chia_sdk_types::Conditions;
+use chia_sdk_types::{conditions::CreateCoin, Conditions};
 
 use crate::{Deltas, DriverError, Id, Output, SpendAction, SpendContext, SpendKind, Spends};
 
@@ -39,6 +39,7 @@ impl SpendAction for SendAction {
         _index: usize,
     ) -> Result<(), DriverError> {
         let output = Output::new(self.puzzle_hash, self.amount);
+        let create_coin = CreateCoin::new(self.puzzle_hash, self.amount, self.memos);
 
         let spend = if let Some(id) = self.id {
             if let Some(cat) = spends.cats.get_mut(&id) {
@@ -46,15 +47,15 @@ impl SpendAction for SendAction {
                 &mut cat.items[source].kind
             } else if let Some(did) = spends.dids.get_mut(&id) {
                 let source = did.last_mut()?;
-                source.child_info.destination = Some((self.puzzle_hash, self.memos));
+                source.child_info.destination = Some(create_coin);
                 return Ok(());
             } else if let Some(nft) = spends.nfts.get_mut(&id) {
                 let source = nft.last_mut()?;
-                source.child_info.destination = Some((self.puzzle_hash, self.memos));
+                source.child_info.destination = Some(create_coin);
                 return Ok(());
             } else if let Some(option) = spends.options.get_mut(&id) {
                 let source = option.last_mut()?;
-                source.child_info.destination = Some((self.puzzle_hash, self.memos));
+                source.child_info.destination = Some(create_coin);
                 return Ok(());
             } else {
                 return Err(DriverError::InvalidAssetId);
@@ -66,11 +67,7 @@ impl SpendAction for SendAction {
 
         match spend {
             SpendKind::Conditions(spend) => {
-                spend.add_conditions(Conditions::new().create_coin(
-                    self.puzzle_hash,
-                    self.amount,
-                    self.memos,
-                ))?;
+                spend.add_conditions(Conditions::new().with(create_coin))?;
             }
         }
 

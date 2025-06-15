@@ -155,7 +155,7 @@ impl Spends {
                 let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
                 cat_spends.push(CatSpend::new(item.asset, spend));
             }
-            Cat::spend_all(ctx, &cat_spends)?;
+            let _cats = Cat::spend_all(ctx, &cat_spends)?;
         }
 
         for (_, did) in self.dids {
@@ -168,7 +168,7 @@ impl Spends {
         for (_, nft) in self.nfts {
             for item in nft.lineage {
                 let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
-                item.asset.spend(ctx, spend)?;
+                let _nft = item.asset.spend(ctx, spend)?;
             }
         }
 
