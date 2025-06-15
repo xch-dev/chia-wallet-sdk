@@ -118,4 +118,61 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_action_update_nft_uri_twice() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(1);
+
+        let mut metadata = NftMetadata {
+            data_hash: Some(Bytes32::default()),
+            data_uris: vec!["https://example.com/1".to_string()],
+            ..Default::default()
+        };
+        let original_metadata = ctx.alloc_hashed(&metadata)?;
+
+        let metadata_update_spends = vec![
+            MetadataUpdate::NewDataUri("https://example.com/2".to_string()).spend(&mut ctx)?,
+            MetadataUpdate::NewDataUri("https://example.com/3".to_string()).spend(&mut ctx)?,
+        ];
+        metadata
+            .data_uris
+            .insert(0, "https://example.com/3".to_string());
+        metadata
+            .data_uris
+            .insert(0, "https://example.com/2".to_string());
+        let updated_metadata = ctx.alloc_hashed(&metadata)?;
+
+        let mut spends = Spends::new();
+        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+
+        let deltas = spends.apply(
+            &mut ctx,
+            &[
+                Action::mint_nft(
+                    original_metadata,
+                    NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
+                    Bytes32::default(),
+                    0,
+                    1,
+                ),
+                Action::update_nft(Id::New(0), metadata_update_spends, None),
+            ],
+        )?;
+        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
+
+        let outputs =
+            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        let nft = outputs.nfts[&Id::New(0)];
+        assert_ne!(sim.coin_state(nft.coin.coin_id()), None);
+        assert_eq!(nft.info.p2_puzzle_hash, alice.puzzle_hash);
+        assert_eq!(nft.info.metadata, updated_metadata);
+
+        Ok(())
+    }
 }
