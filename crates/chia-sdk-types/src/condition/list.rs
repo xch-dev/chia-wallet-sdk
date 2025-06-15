@@ -53,7 +53,7 @@ impl<T> Conditions<T> {
         self.conditions
     }
 
-    /// Adds a condition to the list.
+    /// Adds a condition and returns the updated list.
     pub fn with(mut self, condition: impl Into<Condition<T>>) -> Self {
         self.conditions.push(condition.into());
         self
@@ -73,6 +73,11 @@ impl<T> Conditions<T> {
     {
         self.conditions.extend_from_slice(conditions);
         self
+    }
+
+    /// Adds a condition to the end of the list.
+    pub fn push(&mut self, condition: impl Into<Condition<T>>) {
+        self.conditions.push(condition.into());
     }
 }
 
@@ -96,6 +101,15 @@ impl<T> IntoIterator for Conditions<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.conditions.into_iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a Conditions<T> {
+    type Item = &'a Condition<T>;
+    type IntoIter = std::slice::Iter<'a, Condition<T>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.conditions.iter()
     }
 }
 

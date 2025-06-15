@@ -62,4 +62,16 @@ pub enum DriverError {
 
     #[error("delegated puzzle wrapper conflict")]
     DelegatedPuzzleWrapperConflict,
+
+    #[error("invalid output")]
+    InvalidOutput,
+
+    #[error("there is no spendable source coin that can create the output without a conflict")]
+    NoSourceForOutput,
+
+    #[error("invalid asset id")]
+    InvalidAssetId,
+
+    #[error("missing key")]
+    MissingKey,
 }

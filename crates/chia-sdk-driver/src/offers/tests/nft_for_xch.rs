@@ -6,12 +6,14 @@ use chia_puzzle_types::{
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_test::{sign_transaction, Simulator};
-use chia_sdk_types::{conditions::TradePrice, puzzles::SettlementPayment, Conditions};
+use chia_sdk_types::{
+    conditions::TradePrice, payment_assertion, puzzles::SettlementPayment,
+    tree_hash_notarized_payment, Conditions,
+};
 
 use crate::{
-    calculate_nft_royalty, calculate_nft_trace_price, payment_assertion,
-    tree_hash_notarized_payment, Launcher, Layer, NftMint, Offer, OfferBuilder, SettlementLayer,
-    SpendContext, StandardLayer,
+    calculate_nft_royalty, calculate_nft_trace_price, Launcher, Layer, NftMint, Offer,
+    OfferBuilder, SettlementLayer, SpendContext, StandardLayer,
 };
 
 #[test]
