@@ -127,24 +127,18 @@ mod tests {
 
         let mut spends = Spends::new();
         spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+
         let deltas = spends.apply(&mut ctx, &[Action::mint_empty_nft()])?;
         spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
-        spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+
+        let outputs =
+            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
-        assert_eq!(
-            sim.unspent_coins(alice.puzzle_hash, false)
-                .iter()
-                .fold(0, |acc, coin| acc + coin.amount),
-            0
-        );
-        assert_eq!(
-            sim.unspent_coins(alice.puzzle_hash, true)
-                .iter()
-                .fold(0, |acc, coin| acc + coin.amount),
-            1
-        );
+        let nft = outputs.nfts[&Id::New(0)];
+        assert_ne!(sim.coin_state(nft.coin.coin_id()), None);
+        assert_eq!(nft.info.p2_puzzle_hash, alice.puzzle_hash);
 
         Ok(())
     }
@@ -178,7 +172,7 @@ mod tests {
         assert_eq!(did.info.p2_puzzle_hash, alice.puzzle_hash);
 
         let nft = outputs.nfts[&Id::New(1)];
-        assert_ne!(sim.coin_state(did.coin.coin_id()), None);
+        assert_ne!(sim.coin_state(nft.coin.coin_id()), None);
         assert_eq!(nft.info.p2_puzzle_hash, alice.puzzle_hash);
 
         Ok(())
