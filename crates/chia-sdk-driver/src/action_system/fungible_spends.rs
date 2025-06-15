@@ -1,9 +1,6 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::Memos;
-use chia_sdk_types::{
-    conditions::{CreateCoin, ReserveFee},
-    Conditions,
-};
+use chia_sdk_types::Conditions;
 
 use crate::{Cat, DriverError, Output, SpendContext, SpendKind};
 
@@ -97,36 +94,24 @@ where
         &mut self,
         ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
-        fee: u64,
     ) -> Result<(), DriverError> {
-        let change = self.change().saturating_sub(fee);
+        let change = self.change();
 
-        if change == 0 && fee == 0 {
+        if change == 0 {
             return Ok(());
         }
 
         let output = Output::new(p2_puzzle_hash, change);
         let source = self.output_source(ctx, &output)?;
-
         let item = &mut self.items[source];
 
         match &mut item.kind {
             SpendKind::Conditions(spend) => {
-                let mut conditions = Conditions::new();
-
-                if change > 0 {
-                    conditions.push(CreateCoin::new(
-                        p2_puzzle_hash,
-                        change,
-                        item.asset.child_memos(ctx, p2_puzzle_hash)?,
-                    ));
-                }
-
-                if fee > 0 {
-                    conditions.push(ReserveFee::new(fee));
-                }
-
-                spend.add_conditions(conditions)?;
+                spend.add_conditions(Conditions::new().create_coin(
+                    p2_puzzle_hash,
+                    change,
+                    item.asset.child_memos(ctx, p2_puzzle_hash)?,
+                ))?;
             }
         }
 

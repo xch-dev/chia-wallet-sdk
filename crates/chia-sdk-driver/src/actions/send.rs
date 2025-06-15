@@ -109,7 +109,7 @@ mod tests {
             &[Action::send_xch(bob_puzzle_hash, 2, Memos::None)],
         )?;
 
-        spends.create_change(&mut ctx, alice.puzzle_hash, 0)?;
+        spends.create_change(&mut ctx, alice.puzzle_hash)?;
         spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;

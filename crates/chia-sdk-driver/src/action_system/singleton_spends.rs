@@ -35,7 +35,6 @@ where
         &mut self,
         ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
-        fee: u64,
     ) -> Result<(), DriverError> {
         loop {
             let last = self
@@ -55,19 +54,6 @@ where
                 self.lineage.push(child);
             } else {
                 break;
-            }
-        }
-
-        let last = self
-            .lineage
-            .last_mut()
-            .ok_or(DriverError::NoSourceForOutput)?;
-
-        match &mut last.kind {
-            SpendKind::Conditions(spend) => {
-                if fee > 0 {
-                    spend.add_conditions(Conditions::new().reserve_fee(fee))?;
-                }
             }
         }
 

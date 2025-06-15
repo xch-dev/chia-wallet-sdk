@@ -66,12 +66,23 @@ impl Spends {
         &mut self,
         ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
-        fee: u64,
     ) -> Result<(), DriverError> {
-        self.xch.create_change(ctx, p2_puzzle_hash, fee)?;
+        self.xch.create_change(ctx, p2_puzzle_hash)?;
 
         for (_, cat) in &mut self.cats {
-            cat.create_change(ctx, p2_puzzle_hash, 0)?;
+            cat.create_change(ctx, p2_puzzle_hash)?;
+        }
+
+        for (_, did) in &mut self.dids {
+            did.create_change(ctx, p2_puzzle_hash)?;
+        }
+
+        for (_, nft) in &mut self.nfts {
+            nft.create_change(ctx, p2_puzzle_hash)?;
+        }
+
+        for (_, option) in &mut self.options {
+            option.create_change(ctx, p2_puzzle_hash)?;
         }
 
         Ok(())
