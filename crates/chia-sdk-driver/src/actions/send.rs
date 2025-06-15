@@ -24,15 +24,30 @@ impl SendAction {
 }
 
 impl SpendAction for SendAction {
-    fn spend(&self, ctx: &mut SpendContext, spends: &mut Spends) -> Result<(), DriverError> {
+    fn spend(
+        &self,
+        ctx: &mut SpendContext,
+        spends: &mut Spends,
+        _index: usize,
+    ) -> Result<(), DriverError> {
         let output = Output::new(self.puzzle_hash, self.amount);
 
         let spend = if let Some(id) = self.id {
-            let Some(cat) = spends.cats.get_mut(&id) else {
+            if let Some(cat) = spends.cats.get_mut(&id) {
+                let source = cat.output_source(ctx, &output)?;
+                &mut cat.items[source].kind
+            } else if let Some(did) = spends.dids.get_mut(&id) {
+                let source = did.last_mut()?;
+                &mut source.kind
+            } else if let Some(nft) = spends.nfts.get_mut(&id) {
+                let source = nft.last_mut()?;
+                &mut source.kind
+            } else if let Some(option) = spends.options.get_mut(&id) {
+                let source = option.last_mut()?;
+                &mut source.kind
+            } else {
                 return Err(DriverError::InvalidAssetId);
-            };
-            let source = cat.output_source(ctx, &output)?;
-            &mut cat.items[source].kind
+            }
         } else {
             let source = spends.xch.output_source(ctx, &output)?;
             &mut spends.xch.items[source].kind
@@ -72,12 +87,10 @@ mod tests {
 
         let mut spends = Spends::new();
         spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
-
         spends.apply(
             &mut ctx,
             &[Action::send_xch(alice.puzzle_hash, 1, Memos::None)],
         )?;
-
         spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
@@ -103,12 +116,10 @@ mod tests {
 
         let mut spends = Spends::new();
         spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
-
         spends.apply(
             &mut ctx,
             &[Action::send_xch(bob_puzzle_hash, 2, Memos::None)],
         )?;
-
         spends.create_change(&mut ctx, alice.puzzle_hash)?;
         spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
 

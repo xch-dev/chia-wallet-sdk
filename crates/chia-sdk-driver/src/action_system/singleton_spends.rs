@@ -30,10 +30,16 @@ where
         }
     }
 
+    pub fn last_mut(&mut self) -> Result<&mut SingletonSpend<A>, DriverError> {
+        self.lineage
+            .last_mut()
+            .ok_or(DriverError::NoSourceForOutput)
+    }
+
     pub fn create_change(
         &mut self,
         ctx: &mut SpendContext,
-        p2_puzzle_hash: Bytes32,
+        change_puzzle_hash: Bytes32,
     ) -> Result<(), DriverError> {
         loop {
             let last = self
@@ -45,9 +51,7 @@ where
                 break;
             }
 
-            A::update_p2_puzzle_hash(&mut last.child_info, p2_puzzle_hash);
-
-            let child = A::create_change(ctx, last)?;
+            let child = A::create_change(ctx, last, change_puzzle_hash)?;
 
             if A::needs_additional_spend(&child.child_info) {
                 self.lineage.push(child);
@@ -90,11 +94,11 @@ pub trait SingletonAsset: Debug + Clone {
 
     fn p2_puzzle_hash(&self) -> Bytes32;
     fn default_child_info(asset: &Self, spend_kind: &SpendKind) -> Self::ChildInfo;
-    fn update_p2_puzzle_hash(child_info: &mut Self::ChildInfo, p2_puzzle_hash: Bytes32);
     fn needs_additional_spend(child_info: &Self::ChildInfo) -> bool;
     fn create_change(
         ctx: &mut SpendContext,
         singleton: &mut SingletonSpend<Self>,
+        change_puzzle_hash: Bytes32,
     ) -> Result<SingletonSpend<Self>, DriverError>;
 }
 
@@ -110,14 +114,10 @@ impl SingletonAsset for Did<HashedPtr> {
             recovery_list_hash: asset.info.recovery_list_hash,
             num_verifications_required: asset.info.num_verifications_required,
             metadata: asset.info.metadata,
-            p2_puzzle_hash: asset.info.p2_puzzle_hash,
+            p2_puzzle_hash: None,
             new_spend_kind: spend_kind.child(),
             needs_update: false,
         }
-    }
-
-    fn update_p2_puzzle_hash(child_info: &mut Self::ChildInfo, p2_puzzle_hash: Bytes32) {
-        child_info.p2_puzzle_hash = p2_puzzle_hash;
     }
 
     fn needs_additional_spend(child_info: &Self::ChildInfo) -> bool {
@@ -127,6 +127,7 @@ impl SingletonAsset for Did<HashedPtr> {
     fn create_change(
         ctx: &mut SpendContext,
         singleton: &mut SingletonSpend<Self>,
+        change_puzzle_hash: Bytes32,
     ) -> Result<SingletonSpend<Self>, DriverError> {
         let current_info = singleton.asset.info;
         let child_info = &singleton.child_info;
@@ -137,10 +138,6 @@ impl SingletonAsset for Did<HashedPtr> {
             || current_info.num_verifications_required != child_info.num_verifications_required
             || current_info.metadata != child_info.metadata;
 
-        // If we are doing an update spend, we should retain the current p2_puzzle_hash and only change it during the last spend.
-        // This is to ensure that we still know the p2 puzzle reveal and have the ability to spend the coin.
-        let final_p2_puzzle_hash = child_info.p2_puzzle_hash;
-
         let child_info = DidInfo::new(
             current_info.launcher_id,
             child_info.recovery_list_hash,
@@ -149,7 +146,7 @@ impl SingletonAsset for Did<HashedPtr> {
             if needs_update {
                 current_info.p2_puzzle_hash
             } else {
-                final_p2_puzzle_hash
+                child_info.p2_puzzle_hash.unwrap_or(change_puzzle_hash)
             },
         );
 
@@ -174,11 +171,6 @@ impl SingletonAsset for Did<HashedPtr> {
         // Signal that an additional spend is required.
         new_spend.child_info.needs_update = needs_update;
 
-        if needs_update {
-            // Because we lost the destination p2_puzzle_hash, we need to set it again.
-            new_spend.child_info.p2_puzzle_hash = final_p2_puzzle_hash;
-        }
-
         Ok(new_spend)
     }
 }
@@ -190,17 +182,13 @@ impl SingletonAsset for Nft<HashedPtr> {
         self.info.p2_puzzle_hash
     }
 
-    fn default_child_info(asset: &Self, spend_kind: &SpendKind) -> Self::ChildInfo {
+    fn default_child_info(_asset: &Self, spend_kind: &SpendKind) -> Self::ChildInfo {
         ChildNftInfo {
             metadata_update_spends: Vec::new(),
             transfer_condition: None,
-            p2_puzzle_hash: asset.info.p2_puzzle_hash,
+            p2_puzzle_hash: None,
             new_spend_kind: spend_kind.child(),
         }
-    }
-
-    fn update_p2_puzzle_hash(child_info: &mut Self::ChildInfo, p2_puzzle_hash: Bytes32) {
-        child_info.p2_puzzle_hash = p2_puzzle_hash;
     }
 
     fn needs_additional_spend(child_info: &Self::ChildInfo) -> bool {
@@ -210,6 +198,7 @@ impl SingletonAsset for Nft<HashedPtr> {
     fn create_change(
         ctx: &mut SpendContext,
         singleton: &mut SingletonSpend<Self>,
+        change_puzzle_hash: Bytes32,
     ) -> Result<SingletonSpend<Self>, DriverError> {
         let mut new_child_info = singleton.child_info.clone();
 
@@ -220,7 +209,7 @@ impl SingletonAsset for Nft<HashedPtr> {
         let p2_puzzle_hash = if needs_additional_spend {
             singleton.asset.info.p2_puzzle_hash
         } else {
-            new_child_info.p2_puzzle_hash
+            new_child_info.p2_puzzle_hash.unwrap_or(change_puzzle_hash)
         };
 
         let mut nft_info = singleton.asset.info;
@@ -281,15 +270,11 @@ impl SingletonAsset for OptionContract {
         self.info.p2_puzzle_hash
     }
 
-    fn default_child_info(asset: &Self, spend_kind: &SpendKind) -> Self::ChildInfo {
+    fn default_child_info(_asset: &Self, spend_kind: &SpendKind) -> Self::ChildInfo {
         ChildOptionInfo {
-            p2_puzzle_hash: asset.info.p2_puzzle_hash,
+            p2_puzzle_hash: None,
             new_spend_kind: spend_kind.child(),
         }
-    }
-
-    fn update_p2_puzzle_hash(child_info: &mut Self::ChildInfo, p2_puzzle_hash: Bytes32) {
-        child_info.p2_puzzle_hash = p2_puzzle_hash;
     }
 
     fn needs_additional_spend(_child_info: &Self::ChildInfo) -> bool {
@@ -299,14 +284,20 @@ impl SingletonAsset for OptionContract {
     fn create_change(
         ctx: &mut SpendContext,
         singleton: &mut SingletonSpend<Self>,
+        change_puzzle_hash: Bytes32,
     ) -> Result<SingletonSpend<Self>, DriverError> {
+        let p2_puzzle_hash = singleton
+            .child_info
+            .p2_puzzle_hash
+            .unwrap_or(change_puzzle_hash);
+
         // Create the new option contract coin with the updated p2_puzzle_hash.
         match &mut singleton.kind {
             SpendKind::Conditions(spend) => {
-                let hint = ctx.hint(singleton.child_info.p2_puzzle_hash)?;
+                let hint = ctx.hint(p2_puzzle_hash)?;
 
                 spend.add_conditions(Conditions::new().create_coin(
-                    singleton.child_info.p2_puzzle_hash,
+                    p2_puzzle_hash,
                     singleton.asset.coin.amount,
                     hint,
                 ))?;
@@ -315,7 +306,7 @@ impl SingletonAsset for OptionContract {
 
         // Create a new singleton spend with the child and the new spend kind.
         Ok(SingletonSpend::new(
-            singleton.asset.child(singleton.child_info.p2_puzzle_hash),
+            singleton.asset.child(p2_puzzle_hash),
             singleton.child_info.new_spend_kind.clone(),
         ))
     }
@@ -326,7 +317,7 @@ pub struct ChildDidInfo {
     pub recovery_list_hash: Option<Bytes32>,
     pub num_verifications_required: u64,
     pub metadata: HashedPtr,
-    pub p2_puzzle_hash: Bytes32,
+    pub p2_puzzle_hash: Option<Bytes32>,
     pub new_spend_kind: SpendKind,
     pub needs_update: bool,
 }
@@ -335,12 +326,12 @@ pub struct ChildDidInfo {
 pub struct ChildNftInfo {
     pub metadata_update_spends: Vec<Spend>,
     pub transfer_condition: Option<TransferNft>,
-    pub p2_puzzle_hash: Bytes32,
+    pub p2_puzzle_hash: Option<Bytes32>,
     pub new_spend_kind: SpendKind,
 }
 
 #[derive(Debug, Clone)]
 pub struct ChildOptionInfo {
-    pub p2_puzzle_hash: Bytes32,
+    pub p2_puzzle_hash: Option<Bytes32>,
     pub new_spend_kind: SpendKind,
 }

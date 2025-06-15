@@ -56,8 +56,8 @@ impl Spends {
     }
 
     pub fn apply(&mut self, ctx: &mut SpendContext, actions: &[Action]) -> Result<(), DriverError> {
-        for action in actions {
-            action.spend(ctx, self)?;
+        for (index, action) in actions.iter().enumerate() {
+            action.spend(ctx, self, index)?;
         }
         Ok(())
     }
@@ -65,24 +65,24 @@ impl Spends {
     pub fn create_change(
         &mut self,
         ctx: &mut SpendContext,
-        p2_puzzle_hash: Bytes32,
+        change_puzzle_hash: Bytes32,
     ) -> Result<(), DriverError> {
-        self.xch.create_change(ctx, p2_puzzle_hash)?;
+        self.xch.create_change(ctx, change_puzzle_hash)?;
 
         for (_, cat) in &mut self.cats {
-            cat.create_change(ctx, p2_puzzle_hash)?;
+            cat.create_change(ctx, change_puzzle_hash)?;
         }
 
         for (_, did) in &mut self.dids {
-            did.create_change(ctx, p2_puzzle_hash)?;
+            did.create_change(ctx, change_puzzle_hash)?;
         }
 
         for (_, nft) in &mut self.nfts {
-            nft.create_change(ctx, p2_puzzle_hash)?;
+            nft.create_change(ctx, change_puzzle_hash)?;
         }
 
         for (_, option) in &mut self.options {
-            option.create_change(ctx, p2_puzzle_hash)?;
+            option.create_change(ctx, change_puzzle_hash)?;
         }
 
         Ok(())

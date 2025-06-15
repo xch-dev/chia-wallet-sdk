@@ -2,7 +2,7 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::Memos;
 use chia_sdk_types::Conditions;
 
-use crate::{Cat, DriverError, Output, SpendContext, SpendKind};
+use crate::{Cat, DriverError, Launcher, Output, SpendContext, SpendKind};
 
 const INTERMEDIATE_AMOUNT: u64 = 1;
 
@@ -90,10 +90,28 @@ where
         Ok((index, amount))
     }
 
+    pub fn create_launcher(
+        &mut self,
+        singleton_amount: u64,
+    ) -> Result<(usize, Launcher), DriverError> {
+        let (index, launcher_amount) = self.launcher_source()?;
+
+        let (parent_conditions, launcher) =
+            Launcher::create_early(self.items[index].asset.get_coin_id(), launcher_amount);
+
+        match &mut self.items[index].kind {
+            SpendKind::Conditions(spend) => {
+                spend.add_conditions(parent_conditions)?;
+            }
+        }
+
+        Ok((index, launcher.with_singleton_amount(singleton_amount)))
+    }
+
     pub fn create_change(
         &mut self,
         ctx: &mut SpendContext,
-        p2_puzzle_hash: Bytes32,
+        change_puzzle_hash: Bytes32,
     ) -> Result<(), DriverError> {
         let change = self.change();
 
@@ -101,16 +119,16 @@ where
             return Ok(());
         }
 
-        let output = Output::new(p2_puzzle_hash, change);
+        let output = Output::new(change_puzzle_hash, change);
         let source = self.output_source(ctx, &output)?;
         let item = &mut self.items[source];
 
         match &mut item.kind {
             SpendKind::Conditions(spend) => {
                 spend.add_conditions(Conditions::new().create_coin(
-                    p2_puzzle_hash,
+                    change_puzzle_hash,
                     change,
-                    item.asset.child_memos(ctx, p2_puzzle_hash)?,
+                    item.asset.child_memos(ctx, change_puzzle_hash)?,
                 ))?;
             }
         }
@@ -149,6 +167,7 @@ impl<T> FungibleSpend<T> {
 }
 
 pub trait FungibleAsset: Clone {
+    fn get_coin_id(&self) -> Bytes32;
     fn p2_puzzle_hash(&self) -> Bytes32;
     fn amount(&self) -> u64;
     #[must_use]
@@ -161,6 +180,10 @@ pub trait FungibleAsset: Clone {
 }
 
 impl FungibleAsset for Coin {
+    fn get_coin_id(&self) -> Bytes32 {
+        self.coin_id()
+    }
+
     fn p2_puzzle_hash(&self) -> Bytes32 {
         self.puzzle_hash
     }
@@ -183,6 +206,10 @@ impl FungibleAsset for Coin {
 }
 
 impl FungibleAsset for Cat {
+    fn get_coin_id(&self) -> Bytes32 {
+        self.coin.coin_id()
+    }
+
     fn p2_puzzle_hash(&self) -> Bytes32 {
         self.info.p2_puzzle_hash
     }
