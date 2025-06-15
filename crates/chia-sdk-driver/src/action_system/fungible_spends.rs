@@ -19,7 +19,7 @@ where
         Self::default()
     }
 
-    pub fn get_source_for_output(
+    pub fn output_source(
         &mut self,
         ctx: &mut SpendContext,
         output: &Output,
@@ -32,13 +32,10 @@ where
             return Ok(index);
         }
 
-        self.get_intermediate_source(ctx)
+        self.intermediate_source(ctx)
     }
 
-    pub fn get_intermediate_source(
-        &mut self,
-        ctx: &mut SpendContext,
-    ) -> Result<usize, DriverError> {
+    pub fn intermediate_source(&mut self, ctx: &mut SpendContext) -> Result<usize, DriverError> {
         let Some(index) = self.items.iter().position(|item| {
             item.kind.outputs().is_allowed(&Output::new(
                 item.asset.p2_puzzle_hash(),
@@ -51,11 +48,15 @@ where
         let source = &mut self.items[index];
 
         match &mut source.kind {
-            SpendKind::Conditions(spend) => spend.add_conditions(Conditions::new().create_coin(
-                source.asset.p2_puzzle_hash(),
-                INTERMEDIATE_AMOUNT,
-                source.asset.intermediate_memos(ctx)?,
-            ))?,
+            SpendKind::Conditions(spend) => spend.add_conditions(
+                Conditions::new().create_coin(
+                    source.asset.p2_puzzle_hash(),
+                    INTERMEDIATE_AMOUNT,
+                    source
+                        .asset
+                        .child_memos(ctx, source.asset.p2_puzzle_hash())?,
+                ),
+            )?,
         }
 
         let child = source.fungible_child(source.asset.p2_puzzle_hash(), INTERMEDIATE_AMOUNT);
@@ -64,7 +65,7 @@ where
         Ok(self.items.len() - 1)
     }
 
-    pub fn get_launcher_source(&mut self) -> Result<(usize, u64), DriverError> {
+    pub fn launcher_source(&mut self) -> Result<(usize, u64), DriverError> {
         let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
             item.kind
                 .outputs()
@@ -88,7 +89,11 @@ pub trait FungibleAsset: Clone {
     fn p2_puzzle_hash(&self) -> Bytes32;
     #[must_use]
     fn make_child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self;
-    fn intermediate_memos(&self, ctx: &mut SpendContext) -> Result<Memos, DriverError>;
+    fn child_memos(
+        &self,
+        ctx: &mut SpendContext,
+        p2_puzzle_hash: Bytes32,
+    ) -> Result<Memos, DriverError>;
 }
 
 impl FungibleAsset for Coin {
@@ -100,7 +105,11 @@ impl FungibleAsset for Coin {
         Coin::new(self.coin_id(), p2_puzzle_hash, amount)
     }
 
-    fn intermediate_memos(&self, _ctx: &mut SpendContext) -> Result<Memos, DriverError> {
+    fn child_memos(
+        &self,
+        _ctx: &mut SpendContext,
+        _p2_puzzle_hash: Bytes32,
+    ) -> Result<Memos, DriverError> {
         Ok(Memos::None)
     }
 }
@@ -114,7 +123,11 @@ impl FungibleAsset for Cat {
         self.child(p2_puzzle_hash, amount)
     }
 
-    fn intermediate_memos(&self, ctx: &mut SpendContext) -> Result<Memos, DriverError> {
-        ctx.hint(self.info.p2_puzzle_hash)
+    fn child_memos(
+        &self,
+        ctx: &mut SpendContext,
+        p2_puzzle_hash: Bytes32,
+    ) -> Result<Memos, DriverError> {
+        ctx.hint(p2_puzzle_hash)
     }
 }

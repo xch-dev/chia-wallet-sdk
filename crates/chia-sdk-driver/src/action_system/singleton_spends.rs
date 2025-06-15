@@ -1,3 +1,5 @@
+use chia_protocol::Bytes32;
+
 use crate::{Did, HashedPtr, Nft, OptionContract, SpendKind, Spendable};
 
 #[derive(Debug, Clone)]
@@ -19,10 +21,24 @@ where
     }
 }
 
-pub trait SingletonAsset {}
+pub trait SingletonAsset {
+    fn p2_puzzle_hash(&self) -> Bytes32;
+}
 
-impl SingletonAsset for Did<HashedPtr> {}
+impl SingletonAsset for Did<HashedPtr> {
+    fn p2_puzzle_hash(&self) -> Bytes32 {
+        self.info.p2_puzzle_hash
+    }
+}
 
-impl SingletonAsset for Nft<HashedPtr> {}
+impl SingletonAsset for Nft<HashedPtr> {
+    fn p2_puzzle_hash(&self) -> Bytes32 {
+        self.info.p2_puzzle_hash
+    }
+}
 
-impl SingletonAsset for OptionContract {}
+impl SingletonAsset for OptionContract {
+    fn p2_puzzle_hash(&self) -> Bytes32 {
+        self.info.p2_puzzle_hash
+    }
+}

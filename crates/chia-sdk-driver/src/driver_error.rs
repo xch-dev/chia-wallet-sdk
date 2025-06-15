@@ -71,4 +71,7 @@ pub enum DriverError {
 
     #[error("invalid asset id")]
     InvalidAssetId,
+
+    #[error("missing key")]
+    MissingKey,
 }

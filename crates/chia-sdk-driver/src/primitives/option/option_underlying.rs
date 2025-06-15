@@ -9,6 +9,7 @@ use chia_sdk_types::{
     conditions::{
         AssertBeforeSecondsAbsolute, AssertPuzzleAnnouncement, AssertSecondsAbsolute, CreateCoin,
     },
+    payment_assertion,
     puzzles::{
         AugmentedConditionArgs, AugmentedConditionSolution, P2OneOfManySolution, RevocationArgs,
         SingletonMember, SingletonMemberSolution,
@@ -20,8 +21,8 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    member_puzzle_hash, payment_assertion, DriverError, InnerPuzzleSpend, Layer, MipsSpend,
-    P2OneOfManyLayer, Spend, SpendContext,
+    member_puzzle_hash, DriverError, InnerPuzzleSpend, Layer, MipsSpend, P2OneOfManyLayer, Spend,
+    SpendContext,
 };
 
 use super::OptionType;

@@ -31,10 +31,10 @@ impl SpendAction for SendAction {
             let Some(cat) = spends.cats.get_mut(&id) else {
                 return Err(DriverError::InvalidAssetId);
             };
-            let source = cat.get_source_for_output(ctx, &output)?;
+            let source = cat.output_source(ctx, &output)?;
             &mut cat.items[source].kind
         } else {
-            let source = spends.xch.get_source_for_output(ctx, &output)?;
+            let source = spends.xch.output_source(ctx, &output)?;
             &mut spends.xch.items[source].kind
         };
 
@@ -47,6 +47,39 @@ impl SpendAction for SendAction {
                 ))?;
             }
         }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use chia_sdk_test::Simulator;
+    use indexmap::indexmap;
+
+    use crate::Action;
+
+    use super::*;
+
+    #[test]
+    fn test_action_send() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(1);
+
+        let mut spends = Spends::new();
+        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+
+        spends.apply(
+            &mut ctx,
+            &[Action::send_xch(alice.puzzle_hash, 1, Memos::None)],
+        )?;
+
+        spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk})?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         Ok(())
     }

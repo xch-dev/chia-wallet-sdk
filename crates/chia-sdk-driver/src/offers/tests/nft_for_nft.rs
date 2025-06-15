@@ -4,12 +4,11 @@ use chia_puzzle_types::{
     offer::{NotarizedPayment, Payment},
 };
 use chia_sdk_test::{sign_transaction, Simulator};
-use chia_sdk_types::{puzzles::SettlementPayment, Conditions};
-
-use crate::{
-    payment_assertion, tree_hash_notarized_payment, Launcher, Layer, NftMint, Offer, OfferBuilder,
-    SpendContext, StandardLayer,
+use chia_sdk_types::{
+    payment_assertion, puzzles::SettlementPayment, tree_hash_notarized_payment, Conditions,
 };
+
+use crate::{Launcher, Layer, NftMint, Offer, OfferBuilder, SpendContext, StandardLayer};
 
 #[test]
 fn test_nft_for_nft() -> anyhow::Result<()> {

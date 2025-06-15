@@ -1,9 +1,11 @@
-use chia_protocol::Coin;
+use chia_bls::PublicKey;
+use chia_protocol::{Bytes32, Coin};
 use indexmap::IndexMap;
 
 use crate::{
-    Cat, Did, FungibleSpends, HashedPtr, Id, Nft, OptionContract, SingletonSpends, SpendKind,
-    Spendable,
+    Action, Cat, CatSpend, Did, DriverError, FungibleAsset, FungibleSpends, HashedPtr, Id, Nft,
+    OptionContract, SingletonAsset, SingletonSpends, Spend, SpendAction, SpendContext, SpendKind,
+    SpendWithConditions, Spendable, StandardLayer,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -51,5 +53,107 @@ impl Spends {
             Id::Existing(option.info.launcher_id),
             SingletonSpends::new(option, spend),
         );
+    }
+
+    pub fn apply(&mut self, ctx: &mut SpendContext, actions: &[Action]) -> Result<(), DriverError> {
+        for action in actions {
+            action.spend(ctx, self)?;
+        }
+        Ok(())
+    }
+
+    pub fn p2_puzzle_hashes(&self) -> Vec<Bytes32> {
+        let mut p2_puzzle_hashes = Vec::new();
+
+        for item in &self.xch.items {
+            p2_puzzle_hashes.push(item.asset.p2_puzzle_hash());
+        }
+
+        for (_, cat) in &self.cats {
+            for item in &cat.items {
+                p2_puzzle_hashes.push(item.asset.p2_puzzle_hash());
+            }
+        }
+
+        for (_, did) in &self.dids {
+            for item in &did.lineage {
+                p2_puzzle_hashes.push(item.asset.p2_puzzle_hash());
+            }
+        }
+
+        for (_, nft) in &self.nfts {
+            for item in &nft.lineage {
+                p2_puzzle_hashes.push(item.asset.p2_puzzle_hash());
+            }
+        }
+
+        for (_, option) in &self.options {
+            for item in &option.lineage {
+                p2_puzzle_hashes.push(item.asset.p2_puzzle_hash());
+            }
+        }
+
+        p2_puzzle_hashes
+    }
+
+    pub fn finish(
+        self,
+        ctx: &mut SpendContext,
+        f: impl Fn(&mut SpendContext, Bytes32, SpendKind) -> Result<Spend, DriverError>,
+    ) -> Result<(), DriverError> {
+        for item in self.xch.items {
+            let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
+            ctx.spend(item.asset, spend)?;
+        }
+
+        for (_, cat) in self.cats {
+            let mut cat_spends = Vec::new();
+            for item in cat.items {
+                let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
+                cat_spends.push(CatSpend::new(item.asset, spend));
+            }
+            Cat::spend_all(ctx, &cat_spends)?;
+        }
+
+        for (_, did) in self.dids {
+            for item in did.lineage {
+                let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
+                item.asset.spend(ctx, spend)?;
+            }
+        }
+
+        for (_, nft) in self.nfts {
+            for item in nft.lineage {
+                let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
+                item.asset.spend(ctx, spend)?;
+            }
+        }
+
+        for (_, option) in self.options {
+            for item in option.lineage {
+                let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
+                item.asset.spend(ctx, spend)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn finish_with_keys(
+        self,
+        ctx: &mut SpendContext,
+        synthetic_keys: &IndexMap<Bytes32, PublicKey>,
+    ) -> Result<(), DriverError> {
+        self.finish(ctx, |ctx, p2_puzzle_hash, kind| {
+            let Some(&synthetic_key) = synthetic_keys.get(&p2_puzzle_hash) else {
+                return Err(DriverError::MissingKey);
+            };
+
+            match kind {
+                SpendKind::Conditions(spend) => {
+                    StandardLayer::new(synthetic_key).spend_with_conditions(ctx, spend.finish())
+                }
+            }
+        })
     }
 }
