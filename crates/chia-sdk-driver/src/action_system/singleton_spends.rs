@@ -218,8 +218,12 @@ impl SingletonAsset for Did<HashedPtr> {
 
         // Create a new singleton spend with the child and the new spend kind.
         // This will only be added to the lineage if an additional spend is required.
-        let mut new_spend =
-            SingletonSpend::new(singleton.asset.child_with(child_info), new_spend_kind);
+        let mut new_spend = SingletonSpend::new(
+            singleton
+                .asset
+                .child_with(child_info, singleton.asset.coin.amount),
+            new_spend_kind,
+        );
 
         // Signal that an additional spend is required.
         new_spend.child_info.needs_update = needs_update;

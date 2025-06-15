@@ -74,14 +74,14 @@ where
     }
 
     /// Creates a new [`Did`] that represents a child of this one.
-    pub fn child<N>(&self, p2_puzzle_hash: Bytes32, metadata: N) -> Did<N>
+    pub fn child<N>(&self, p2_puzzle_hash: Bytes32, metadata: N, amount: u64) -> Did<N>
     where
         M: Clone,
         N: ToTreeHash,
     {
         let mut info = self.info.clone().with_metadata(metadata);
         info.p2_puzzle_hash = p2_puzzle_hash;
-        self.child_with(info)
+        self.child_with(info, amount)
     }
 
     /// Creates a new [`Did`] that represents a child of this one.
@@ -91,7 +91,7 @@ where
     ///
     /// It's important to use the right [`DidInfo`] beforehand, otherwise
     /// the puzzle hash of the child will not match the one expected by the coin.
-    pub fn child_with<N>(&self, info: DidInfo<N>) -> Did<N>
+    pub fn child_with<N>(&self, info: DidInfo<N>, amount: u64) -> Did<N>
     where
         N: ToTreeHash,
     {
@@ -99,7 +99,7 @@ where
             Coin::new(
                 self.coin.coin_id(),
                 SingletonArgs::curry_tree_hash(info.launcher_id, info.inner_puzzle_hash()).into(),
-                self.coin.amount,
+                amount,
             ),
             Proof::Lineage(self.child_lineage_proof()),
             info,
@@ -145,7 +145,7 @@ where
                         return Ok(None);
                     };
 
-                    let child = self.child(hint, self.info.metadata.clone());
+                    let child = self.child(hint, self.info.metadata.clone(), create_coin.amount);
 
                     if child.info.inner_puzzle_hash() == create_coin.puzzle_hash.into() {
                         return Ok(Some(child));
@@ -207,7 +207,7 @@ where
 
         let metadata = self.info.metadata.clone();
 
-        Ok(self.child(p2_puzzle_hash, metadata))
+        Ok(self.child(p2_puzzle_hash, metadata, self.coin.amount))
     }
 
     /// Updates the metadata of this DID.
@@ -244,7 +244,7 @@ where
             extra_conditions.create_coin(new_inner_puzzle_hash.into(), self.coin.amount, memos),
         )?;
 
-        Ok(self.child(self.info.p2_puzzle_hash, metadata))
+        Ok(self.child(self.info.p2_puzzle_hash, metadata, self.coin.amount))
     }
 
     /// Spends the DID without changing its metadata or p2 puzzle hash.

@@ -32,20 +32,24 @@ impl Nft {
         p2_puzzle_hash: Bytes32,
         current_owner: Option<Bytes32>,
         metadata: Program,
-        amount: u64,
     ) -> Result<Self> {
         let ctx = metadata.0.lock().unwrap();
         Ok(self
             .as_ptr(&ctx)
-            .child(p2_puzzle_hash, current_owner, metadata.as_ptr(&ctx), amount)
+            .child(
+                p2_puzzle_hash,
+                current_owner,
+                metadata.as_ptr(&ctx),
+                self.coin.amount,
+            )
             .as_program(&metadata.0))
     }
 
-    pub fn child_with(&self, info: NftInfo, amount: u64) -> Result<Self> {
+    pub fn child_with(&self, info: NftInfo) -> Result<Self> {
         let ctx = self.info.metadata.0.lock().unwrap();
         Ok(self
             .as_ptr(&ctx)
-            .child_with(info.as_ptr(&ctx), amount)
+            .child_with(info.as_ptr(&ctx), self.coin.amount)
             .as_program(&self.info.metadata.0))
     }
 }

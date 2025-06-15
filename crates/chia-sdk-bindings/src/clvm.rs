@@ -166,15 +166,16 @@ impl Clvm {
         })
     }
 
-    pub fn spend_did(&self, did: Did, inner_spend: Spend) -> Result<()> {
+    pub fn spend_did(&self, did: Did, inner_spend: Spend) -> Result<Option<Did>> {
         let mut ctx = self.0.lock().unwrap();
 
-        did.as_ptr(&ctx).spend(
-            &mut ctx,
-            chia_sdk_driver::Spend::new(inner_spend.puzzle.1, inner_spend.solution.1),
-        )?;
-
-        Ok(())
+        Ok(did
+            .as_ptr(&ctx)
+            .spend(
+                &mut ctx,
+                chia_sdk_driver::Spend::new(inner_spend.puzzle.1, inner_spend.solution.1),
+            )?
+            .map(|did| did.as_program(&self.0)))
     }
 
     pub fn spend_streamed_cat(
