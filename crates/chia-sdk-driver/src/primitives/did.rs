@@ -109,15 +109,18 @@ where
 
 impl<M> Did<M>
 where
-    M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
+    M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash + Clone,
 {
     /// Spends this DID coin with the provided inner spend.
     /// The spend is added to the [`SpendContext`] for convenience.
-    pub fn spend(&self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<(), DriverError> {
+    pub fn spend(
+        &self,
+        ctx: &mut SpendContext,
+        inner_spend: Spend,
+    ) -> Result<Option<Self>, DriverError> {
         let layers = self.info.clone().into_layers(inner_spend.puzzle);
 
-        let puzzle = layers.construct_puzzle(ctx)?;
-        let solution = layers.construct_solution(
+        let spend = layers.construct_spend(
             ctx,
             SingletonSolution {
                 lineage_proof: self.proof,
@@ -126,9 +129,32 @@ where
             },
         )?;
 
-        ctx.spend(self.coin, Spend::new(puzzle, solution))?;
+        ctx.spend(self.coin, spend)?;
 
-        Ok(())
+        let output = ctx.run(spend.puzzle, spend.solution)?;
+        let conditions = Vec::<Condition>::from_clvm(ctx, output)?;
+
+        for condition in conditions {
+            if let Some(create_coin) = condition.into_create_coin() {
+                if create_coin.amount % 2 == 1 {
+                    let Memos::Some(memos) = create_coin.memos else {
+                        return Ok(None);
+                    };
+
+                    let Some((hint, _)) = <(Bytes32, NodePtr)>::from_clvm(ctx, memos).ok() else {
+                        return Ok(None);
+                    };
+
+                    let child = self.child(hint, self.info.metadata.clone());
+
+                    if child.info.inner_puzzle_hash() == create_coin.puzzle_hash.into() {
+                        return Ok(Some(child));
+                    }
+                }
+            }
+        }
+
+        Ok(None)
     }
 
     /// Spends this DID coin with a [`Layer`] that supports [`SpendWithConditions`].
@@ -141,7 +167,7 @@ where
         ctx: &mut SpendContext,
         inner: &I,
         conditions: Conditions,
-    ) -> Result<(), DriverError>
+    ) -> Result<Option<Self>, DriverError>
     where
         I: SpendWithConditions,
     {

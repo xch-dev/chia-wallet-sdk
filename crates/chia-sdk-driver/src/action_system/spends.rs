@@ -161,7 +161,7 @@ impl Spends {
         for (_, did) in self.dids {
             for item in did.lineage {
                 let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
-                item.asset.spend(ctx, spend)?;
+                let _did = item.asset.spend(ctx, spend)?;
             }
         }
 
