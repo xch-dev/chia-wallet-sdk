@@ -46,13 +46,16 @@ impl SpendAction for SendAction {
                 &mut cat.items[source].kind
             } else if let Some(did) = spends.dids.get_mut(&id) {
                 let source = did.last_mut()?;
-                &mut source.kind
+                source.child_info.destination = Some((self.puzzle_hash, self.memos));
+                return Ok(());
             } else if let Some(nft) = spends.nfts.get_mut(&id) {
                 let source = nft.last_mut()?;
-                &mut source.kind
+                source.child_info.destination = Some((self.puzzle_hash, self.memos));
+                return Ok(());
             } else if let Some(option) = spends.options.get_mut(&id) {
                 let source = option.last_mut()?;
-                &mut source.kind
+                source.child_info.destination = Some((self.puzzle_hash, self.memos));
+                return Ok(());
             } else {
                 return Err(DriverError::InvalidAssetId);
             }

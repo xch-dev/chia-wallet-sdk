@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use chia_protocol::Bytes32;
+use chia_puzzle_types::Memos;
 use chia_sdk_types::{
     conditions::{NewMetadataOutput, TransferNft, UpdateNftMetadata},
     Conditions,
@@ -116,7 +117,7 @@ impl SingletonAsset for Did<HashedPtr> {
             recovery_list_hash: asset.info.recovery_list_hash,
             num_verifications_required: asset.info.num_verifications_required,
             metadata: asset.info.metadata,
-            p2_puzzle_hash: None,
+            destination: None,
             new_spend_kind: spend_kind.child(),
             needs_update: false,
         }
@@ -131,6 +132,8 @@ impl SingletonAsset for Did<HashedPtr> {
         singleton: &mut SingletonSpend<Self>,
         change_puzzle_hash: Bytes32,
     ) -> Result<SingletonSpend<Self>, DriverError> {
+        let change_hint = ctx.hint(change_puzzle_hash)?;
+
         let current_info = singleton.asset.info;
         let child_info = &singleton.child_info;
         let new_spend_kind = child_info.new_spend_kind.clone();
@@ -140,23 +143,29 @@ impl SingletonAsset for Did<HashedPtr> {
             || current_info.num_verifications_required != child_info.num_verifications_required
             || current_info.metadata != child_info.metadata;
 
+        let final_destination = child_info.destination;
+
+        let (p2_puzzle_hash, hint) = if needs_update {
+            let p2_puzzle_hash = current_info.p2_puzzle_hash;
+            let hint = ctx.hint(p2_puzzle_hash)?;
+            (p2_puzzle_hash, hint)
+        } else {
+            child_info
+                .destination
+                .unwrap_or((change_puzzle_hash, change_hint))
+        };
+
         let child_info = DidInfo::new(
             current_info.launcher_id,
             child_info.recovery_list_hash,
             child_info.num_verifications_required,
             child_info.metadata,
-            if needs_update {
-                current_info.p2_puzzle_hash
-            } else {
-                child_info.p2_puzzle_hash.unwrap_or(change_puzzle_hash)
-            },
+            p2_puzzle_hash,
         );
 
         // Create the new DID coin with the updated DID info. The DID puzzle does not automatically wrap the output.
         match &mut singleton.kind {
             SpendKind::Conditions(spend) => {
-                let hint = ctx.hint(child_info.p2_puzzle_hash)?;
-
                 spend.add_conditions(Conditions::new().create_coin(
                     child_info.inner_puzzle_hash().into(),
                     singleton.asset.coin.amount,
@@ -173,6 +182,10 @@ impl SingletonAsset for Did<HashedPtr> {
         // Signal that an additional spend is required.
         new_spend.child_info.needs_update = needs_update;
 
+        if needs_update {
+            new_spend.child_info.destination = final_destination;
+        }
+
         Ok(new_spend)
     }
 }
@@ -188,7 +201,7 @@ impl SingletonAsset for Nft<HashedPtr> {
         ChildNftInfo {
             metadata_update_spends: Vec::new(),
             transfer_condition: None,
-            p2_puzzle_hash: None,
+            destination: None,
             new_spend_kind: spend_kind.child(),
         }
     }
@@ -202,16 +215,22 @@ impl SingletonAsset for Nft<HashedPtr> {
         singleton: &mut SingletonSpend<Self>,
         change_puzzle_hash: Bytes32,
     ) -> Result<SingletonSpend<Self>, DriverError> {
+        let change_hint = ctx.hint(change_puzzle_hash)?;
+
         let mut new_child_info = singleton.child_info.clone();
 
         let metadata_update_spend = new_child_info.metadata_update_spends.pop();
         let transfer_condition = new_child_info.transfer_condition.take();
         let needs_additional_spend = Self::needs_additional_spend(&new_child_info);
 
-        let p2_puzzle_hash = if needs_additional_spend {
-            singleton.asset.info.p2_puzzle_hash
+        let (p2_puzzle_hash, hint) = if needs_additional_spend {
+            let p2_puzzle_hash = singleton.asset.info.p2_puzzle_hash;
+            let hint = ctx.hint(p2_puzzle_hash)?;
+            (p2_puzzle_hash, hint)
         } else {
-            new_child_info.p2_puzzle_hash.unwrap_or(change_puzzle_hash)
+            new_child_info
+                .destination
+                .unwrap_or((change_puzzle_hash, change_hint))
         };
 
         let mut nft_info = singleton.asset.info;
@@ -220,8 +239,6 @@ impl SingletonAsset for Nft<HashedPtr> {
         // Create the new NFT coin with the updated info.
         match &mut singleton.kind {
             SpendKind::Conditions(spend) => {
-                let hint = ctx.hint(p2_puzzle_hash)?;
-
                 let mut conditions = Conditions::new().create_coin(
                     p2_puzzle_hash,
                     singleton.asset.coin.amount,
@@ -274,7 +291,7 @@ impl SingletonAsset for OptionContract {
 
     fn default_child_info(_asset: &Self, spend_kind: &SpendKind) -> Self::ChildInfo {
         ChildOptionInfo {
-            p2_puzzle_hash: None,
+            destination: None,
             new_spend_kind: spend_kind.child(),
         }
     }
@@ -288,16 +305,16 @@ impl SingletonAsset for OptionContract {
         singleton: &mut SingletonSpend<Self>,
         change_puzzle_hash: Bytes32,
     ) -> Result<SingletonSpend<Self>, DriverError> {
-        let p2_puzzle_hash = singleton
+        let change_hint = ctx.hint(change_puzzle_hash)?;
+
+        let (p2_puzzle_hash, hint) = singleton
             .child_info
-            .p2_puzzle_hash
-            .unwrap_or(change_puzzle_hash);
+            .destination
+            .unwrap_or((change_puzzle_hash, change_hint));
 
         // Create the new option contract coin with the updated p2_puzzle_hash.
         match &mut singleton.kind {
             SpendKind::Conditions(spend) => {
-                let hint = ctx.hint(p2_puzzle_hash)?;
-
                 spend.add_conditions(Conditions::new().create_coin(
                     p2_puzzle_hash,
                     singleton.asset.coin.amount,
@@ -319,7 +336,7 @@ pub struct ChildDidInfo {
     pub recovery_list_hash: Option<Bytes32>,
     pub num_verifications_required: u64,
     pub metadata: HashedPtr,
-    pub p2_puzzle_hash: Option<Bytes32>,
+    pub destination: Option<(Bytes32, Memos)>,
     pub new_spend_kind: SpendKind,
     pub needs_update: bool,
 }
@@ -328,12 +345,12 @@ pub struct ChildDidInfo {
 pub struct ChildNftInfo {
     pub metadata_update_spends: Vec<Spend>,
     pub transfer_condition: Option<TransferNft>,
-    pub p2_puzzle_hash: Option<Bytes32>,
+    pub destination: Option<(Bytes32, Memos)>,
     pub new_spend_kind: SpendKind,
 }
 
 #[derive(Debug, Clone)]
 pub struct ChildOptionInfo {
-    pub p2_puzzle_hash: Option<Bytes32>,
+    pub destination: Option<(Bytes32, Memos)>,
     pub new_spend_kind: SpendKind,
 }

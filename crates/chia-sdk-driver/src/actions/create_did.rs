@@ -98,9 +98,7 @@ mod tests {
         spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
         spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
 
-        let coin_spends = ctx.take();
-
-        sim.spend_coins(coin_spends, &[alice.sk])?;
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         assert_eq!(
             sim.unspent_coins(alice.puzzle_hash, false)

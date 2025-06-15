@@ -141,6 +141,10 @@ impl Simulator {
             .map(|(_, s)| s.clone())
     }
 
+    pub fn puzzle_and_solution(&self, coin_id: Bytes32) -> Option<(Program, Program)> {
+        self.puzzle_and_solutions.get(&coin_id).cloned()
+    }
+
     pub fn spend_coins(
         &mut self,
         coin_spends: Vec<CoinSpend>,
