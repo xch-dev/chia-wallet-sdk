@@ -95,20 +95,22 @@ mod tests {
 
         let mut spends = Spends::new();
         spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
-        spends.apply(
+
+        let deltas = spends.apply(
             &mut ctx,
             &[Action::send_xch(alice.puzzle_hash, 1, Memos::None)],
         )?;
-        spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+
+        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
+        let outputs =
+            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
-        assert_eq!(
-            sim.unspent_coins(alice.puzzle_hash, false)
-                .iter()
-                .fold(0, |acc, coin| acc + coin.amount),
-            1
-        );
+        let coin = outputs.xch[0];
+        assert_eq!(outputs.xch.len(), 1);
+        assert_ne!(sim.coin_state(coin.coin_id()), None);
+        assert_eq!(coin.amount, 1);
 
         Ok(())
     }
@@ -124,28 +126,29 @@ mod tests {
 
         let mut spends = Spends::new();
         spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+
         let deltas = spends.apply(
             &mut ctx,
             &[Action::send_xch(bob_puzzle_hash, 2, Memos::None)],
         )?;
         spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
-        spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+
+        let outputs =
+            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
-        assert_eq!(
-            sim.unspent_coins(alice.puzzle_hash, false)
-                .iter()
-                .fold(0, |acc, coin| acc + coin.amount),
-            3
-        );
+        assert_eq!(outputs.xch.len(), 2);
 
-        assert_eq!(
-            sim.unspent_coins(bob_puzzle_hash, false)
-                .iter()
-                .fold(0, |acc, coin| acc + coin.amount),
-            2
-        );
+        let change = outputs.xch[0];
+        assert_ne!(sim.coin_state(change.coin_id()), None);
+        assert_eq!(change.amount, 2);
+        assert_eq!(change.puzzle_hash, bob_puzzle_hash);
+
+        let coin = outputs.xch[1];
+        assert_ne!(sim.coin_state(coin.coin_id()), None);
+        assert_eq!(coin.amount, 3);
+        assert_eq!(coin.puzzle_hash, alice.puzzle_hash);
 
         Ok(())
     }
