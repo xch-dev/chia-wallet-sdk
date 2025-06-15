@@ -27,7 +27,7 @@ where
         if let Some(index) = self
             .items
             .iter()
-            .position(|spend| spend.kind.can_output(output))
+            .position(|item| item.kind.outputs().is_allowed(output))
         {
             return Ok(index);
         }
@@ -39,9 +39,9 @@ where
         &mut self,
         ctx: &mut SpendContext,
     ) -> Result<usize, DriverError> {
-        let Some(index) = self.items.iter().position(|spend| {
-            spend.kind.can_output(&Output::new(
-                spend.asset.p2_puzzle_hash(),
+        let Some(index) = self.items.iter().position(|item| {
+            item.kind.outputs().is_allowed(&Output::new(
+                item.asset.p2_puzzle_hash(),
                 INTERMEDIATE_AMOUNT,
             ))
         }) else {
@@ -62,6 +62,19 @@ where
         self.items.push(child);
 
         Ok(self.items.len() - 1)
+    }
+
+    pub fn get_launcher_source(&mut self) -> Result<(usize, u64), DriverError> {
+        let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
+            item.kind
+                .outputs()
+                .launcher_amount()
+                .map(|amount| (index, amount))
+        }) else {
+            return Err(DriverError::NoSourceForOutput);
+        };
+
+        Ok((index, amount))
     }
 }
 

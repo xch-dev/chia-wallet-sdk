@@ -1,30 +1,34 @@
-use std::collections::HashSet;
-
 use chia_sdk_types::Conditions;
 
-use crate::{DriverError, Output};
+use crate::{DriverError, Output, OutputConstraint, OutputSet};
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct ConditionsSpend {
     conditions: Conditions,
-    outputs: HashSet<Output>,
+    outputs: OutputSet,
 }
 
 impl ConditionsSpend {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(constraints: Vec<OutputConstraint>) -> Self {
+        Self {
+            conditions: Conditions::new(),
+            outputs: OutputSet::new(constraints),
+        }
     }
 
-    pub fn has_output(&self, output: &Output) -> bool {
-        self.outputs.contains(output)
+    pub fn outputs(&self) -> &OutputSet {
+        &self.outputs
     }
 
     pub fn add_conditions(&mut self, conditions: Conditions) -> Result<(), DriverError> {
         // Check for duplicate outputs first to avoid inserting conditions that should be rejected
         for condition in &conditions {
             if let Some(create_coin) = condition.as_create_coin() {
-                if self.has_output(&Output::new(create_coin.puzzle_hash, create_coin.amount)) {
-                    return Err(DriverError::DuplicateOutput);
+                if !self
+                    .outputs
+                    .is_allowed(&Output::new(create_coin.puzzle_hash, create_coin.amount))
+                {
+                    return Err(DriverError::InvalidOutput);
                 }
             }
         }
