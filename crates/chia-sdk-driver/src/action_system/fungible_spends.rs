@@ -1,5 +1,8 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::Memos;
+use chia_puzzle_types::{
+    cat::{CatArgs, GenesisByCoinIdTailArgs},
+    Memos,
+};
 use chia_sdk_types::Conditions;
 
 use crate::{Cat, DriverError, Launcher, Output, SpendContext, SpendKind};
@@ -19,12 +22,8 @@ where
         Self::default()
     }
 
-    pub fn selected_amount(&self) -> u64 {
-        self.items
-            .iter()
-            .filter(|item| !item.ephemeral)
-            .map(|item| item.asset.amount())
-            .sum()
+    pub fn input_amount(&self) -> u64 {
+        self.items.iter().map(|item| item.asset.amount()).sum()
     }
 
     pub fn output_source(
@@ -37,6 +36,30 @@ where
             .iter()
             .position(|item| item.kind.outputs().is_allowed(output))
         {
+            return Ok(index);
+        }
+
+        self.intermediate_source(ctx)
+    }
+
+    pub fn cat_issuance_source(
+        &mut self,
+        ctx: &mut SpendContext,
+        asset_id: Option<Bytes32>,
+        amount: u64,
+    ) -> Result<usize, DriverError> {
+        if let Some(index) = self.items.iter().position(|item| {
+            item.kind.outputs().is_allowed(&Output::new(
+                CatArgs::curry_tree_hash(
+                    asset_id.unwrap_or_else(|| {
+                        GenesisByCoinIdTailArgs::curry_tree_hash(item.asset.get_coin_id()).into()
+                    }),
+                    item.asset.p2_puzzle_hash().into(),
+                )
+                .into(),
+                amount,
+            ))
+        }) {
             return Ok(index);
         }
 
@@ -107,10 +130,10 @@ where
     pub fn create_change(
         &mut self,
         ctx: &mut SpendContext,
-        spent_amount: u64,
+        output_amount: u64,
         change_puzzle_hash: Bytes32,
     ) -> Result<(), DriverError> {
-        let change = self.selected_amount().saturating_sub(spent_amount);
+        let change = self.input_amount().saturating_sub(output_amount);
 
         if change == 0 {
             return Ok(());
