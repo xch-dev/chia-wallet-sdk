@@ -37,6 +37,7 @@ impl OutputConstraint {
 pub struct OutputSet {
     constraints: Vec<OutputConstraint>,
     outputs: HashSet<Output>,
+    reserve_fee: u64,
 }
 
 impl OutputSet {
@@ -44,7 +45,20 @@ impl OutputSet {
         Self {
             constraints,
             outputs: HashSet::new(),
+            reserve_fee: 0,
         }
+    }
+
+    pub fn amount(&self) -> u64 {
+        self.reserve_fee
+            + self
+                .outputs
+                .iter()
+                .fold(0, |acc, output| acc + output.amount)
+    }
+
+    pub fn reserve_fee(&mut self, amount: u64) {
+        self.reserve_fee += amount;
     }
 
     pub fn constraints(&self) -> &[OutputConstraint] {

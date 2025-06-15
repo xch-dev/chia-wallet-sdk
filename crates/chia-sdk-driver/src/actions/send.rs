@@ -55,7 +55,8 @@ impl SpendAction for SendAction {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use chia_sdk_test::Simulator;
+    use chia_puzzle_types::standard::StandardArgs;
+    use chia_sdk_test::{BlsPair, Simulator};
     use indexmap::indexmap;
 
     use crate::Action;
@@ -77,9 +78,55 @@ mod tests {
             &[Action::send_xch(alice.puzzle_hash, 1, Memos::None)],
         )?;
 
-        spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk})?;
+        spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        assert_eq!(
+            sim.unspent_coins(alice.puzzle_hash, false)
+                .iter()
+                .fold(0, |acc, coin| acc + coin.amount),
+            1
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_action_send_with_change() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(5);
+        let bob = BlsPair::new(0);
+        let bob_puzzle_hash = StandardArgs::curry_tree_hash(bob.pk).into();
+
+        let mut spends = Spends::new();
+        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+
+        spends.apply(
+            &mut ctx,
+            &[Action::send_xch(bob_puzzle_hash, 2, Memos::None)],
+        )?;
+
+        spends.create_change(&mut ctx, alice.puzzle_hash, 0)?;
+        spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        assert_eq!(
+            sim.unspent_coins(alice.puzzle_hash, false)
+                .iter()
+                .fold(0, |acc, coin| acc + coin.amount),
+            3
+        );
+
+        assert_eq!(
+            sim.unspent_coins(bob_puzzle_hash, false)
+                .iter()
+                .fold(0, |acc, coin| acc + coin.amount),
+            2
+        );
 
         Ok(())
     }

@@ -1,4 +1,4 @@
-use chia_sdk_types::Conditions;
+use chia_sdk_types::{Condition, Conditions};
 
 use crate::{DriverError, Output, OutputConstraint, OutputSet};
 
@@ -34,9 +34,15 @@ impl ConditionsSpend {
         }
 
         for condition in conditions {
-            if let Some(&create_coin) = condition.as_create_coin() {
-                self.outputs
-                    .insert(Output::new(create_coin.puzzle_hash, create_coin.amount));
+            match &condition {
+                Condition::CreateCoin(create_coin) => {
+                    self.outputs
+                        .insert(Output::new(create_coin.puzzle_hash, create_coin.amount));
+                }
+                Condition::ReserveFee(reserve_fee) => {
+                    self.outputs.reserve_fee(reserve_fee.amount);
+                }
+                _ => {}
             }
             self.conditions.push(condition);
         }

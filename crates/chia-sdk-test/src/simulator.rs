@@ -6,7 +6,7 @@ use chia_consensus::{
 };
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
 use chia_sdk_types::TESTNET11_CONSTANTS;
-use indexmap::{IndexMap, IndexSet};
+use indexmap::{indexset, IndexMap, IndexSet};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
@@ -381,6 +381,14 @@ impl Simulator {
         }
 
         coin_states.into_values().collect()
+    }
+
+    pub fn unspent_coins(&self, puzzle_hash: Bytes32, include_hints: bool) -> Vec<Coin> {
+        self.lookup_puzzle_hashes(indexset![puzzle_hash], include_hints)
+            .iter()
+            .filter(|cs| cs.spent_height.is_none())
+            .map(|cs| cs.coin)
+            .collect()
     }
 
     pub fn create_block(&mut self) {

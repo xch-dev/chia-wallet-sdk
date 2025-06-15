@@ -62,6 +62,21 @@ impl Spends {
         Ok(())
     }
 
+    pub fn create_change(
+        &mut self,
+        ctx: &mut SpendContext,
+        p2_puzzle_hash: Bytes32,
+        fee: u64,
+    ) -> Result<(), DriverError> {
+        self.xch.create_change(ctx, p2_puzzle_hash, fee)?;
+
+        for (_, cat) in &mut self.cats {
+            cat.create_change(ctx, p2_puzzle_hash, 0)?;
+        }
+
+        Ok(())
+    }
+
     pub fn p2_puzzle_hashes(&self) -> Vec<Bytes32> {
         let mut p2_puzzle_hashes = Vec::new();
 
