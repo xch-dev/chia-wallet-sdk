@@ -5,13 +5,13 @@ use chia_sdk_types::{
     Conditions,
 };
 
-use crate::{Cat, DriverError, Output, SpendContext, SpendKind, Spendable};
+use crate::{Cat, DriverError, Output, SpendContext, SpendKind};
 
 const INTERMEDIATE_AMOUNT: u64 = 1;
 
 #[derive(Debug, Clone)]
 pub struct FungibleSpends<A> {
-    pub items: Vec<Spendable<A>>,
+    pub items: Vec<FungibleSpend<A>>,
 }
 
 impl<A> FungibleSpends<A>
@@ -137,6 +137,29 @@ where
 impl<A> Default for FungibleSpends<A> {
     fn default() -> Self {
         Self { items: Vec::new() }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FungibleSpend<T> {
+    pub asset: T,
+    pub kind: SpendKind,
+}
+
+impl<T> FungibleSpend<T> {
+    pub fn new(asset: T, kind: SpendKind) -> Self {
+        Self { asset, kind }
+    }
+
+    #[must_use]
+    pub fn fungible_child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self
+    where
+        T: FungibleAsset,
+    {
+        Self::new(
+            self.asset.make_child(p2_puzzle_hash, amount),
+            self.kind.child(),
+        )
     }
 }
 

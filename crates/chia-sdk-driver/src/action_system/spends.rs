@@ -3,9 +3,9 @@ use chia_protocol::{Bytes32, Coin};
 use indexmap::IndexMap;
 
 use crate::{
-    Action, Cat, CatSpend, Did, DriverError, FungibleAsset, FungibleSpends, HashedPtr, Id, Nft,
-    OptionContract, SingletonAsset, SingletonSpends, Spend, SpendAction, SpendContext, SpendKind,
-    SpendWithConditions, Spendable, StandardLayer,
+    Action, Cat, CatSpend, Did, DriverError, FungibleAsset, FungibleSpend, FungibleSpends,
+    HashedPtr, Id, Nft, OptionContract, SingletonAsset, SingletonSpends, Spend, SpendAction,
+    SpendContext, SpendKind, SpendWithConditions, StandardLayer,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -23,7 +23,7 @@ impl Spends {
     }
 
     pub fn add_xch(&mut self, coin: Coin, spend: SpendKind) {
-        self.xch.items.push(Spendable::new(coin, spend));
+        self.xch.items.push(FungibleSpend::new(coin, spend));
     }
 
     pub fn add_cat(&mut self, cat: Cat, spend: SpendKind) {
@@ -31,7 +31,7 @@ impl Spends {
             .entry(Id::Existing(cat.info.asset_id))
             .or_default()
             .items
-            .push(Spendable::new(cat, spend));
+            .push(FungibleSpend::new(cat, spend));
     }
 
     pub fn add_did(&mut self, did: Did<HashedPtr>, spend: SpendKind) {

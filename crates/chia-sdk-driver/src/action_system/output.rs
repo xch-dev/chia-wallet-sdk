@@ -80,6 +80,10 @@ impl OutputSet {
         !self.outputs.contains(output)
     }
 
+    pub fn has_singleton_output(&self) -> bool {
+        self.outputs.iter().any(|output| output.amount % 2 == 1)
+    }
+
     pub fn insert(&mut self, output: Output) {
         self.outputs.insert(output);
     }
