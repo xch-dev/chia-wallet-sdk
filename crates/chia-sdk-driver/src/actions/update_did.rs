@@ -59,7 +59,7 @@ mod tests {
     use chia_sdk_test::Simulator;
     use indexmap::indexmap;
 
-    use crate::{Action, Did, Puzzle, SpendKind, BURN_PUZZLE_HASH};
+    use crate::{Action, SpendKind, BURN_PUZZLE_HASH};
 
     use super::*;
 
@@ -75,6 +75,7 @@ mod tests {
 
         let mut spends = Spends::new();
         spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+
         let deltas = spends.apply(
             &mut ctx,
             &[
@@ -84,36 +85,19 @@ mod tests {
             ],
         )?;
         spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
-        spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+
+        let outputs =
+            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
-        let coin = sim.unspent_coins(BURN_PUZZLE_HASH, true)[0];
-        let parent_coin = sim
-            .coin_state(coin.parent_coin_info)
-            .expect("missing parent coin")
-            .coin;
-        let (puzzle, solution) = sim
-            .puzzle_and_solution(coin.parent_coin_info)
-            .expect("missing puzzle and solution");
-
-        let parent_puzzle = ctx.alloc(&puzzle)?;
-        let parent_puzzle = Puzzle::parse(&ctx, parent_puzzle);
-        let parent_solution = ctx.alloc(&solution)?;
-
-        let did = Did::<HashedPtr>::parse_child(
-            &mut ctx,
-            parent_coin,
-            parent_puzzle,
-            parent_solution,
-            coin,
-        )?
-        .expect("missing did");
-
+        let did = outputs.dids[&Id::New(0)];
+        assert_ne!(sim.coin_state(did.coin.coin_id()), None);
         assert_eq!(did.info.recovery_list_hash, Some(Bytes32::default()));
         assert_eq!(did.info.num_verifications_required, 2);
         assert_eq!(did.info.metadata, metadata);
         assert_eq!(did.info.p2_puzzle_hash, BURN_PUZZLE_HASH);
+        assert_eq!(did.coin.amount, 1);
 
         Ok(())
     }

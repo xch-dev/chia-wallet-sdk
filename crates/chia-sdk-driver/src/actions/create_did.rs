@@ -103,10 +103,13 @@ mod tests {
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
-        assert_ne!(
-            sim.coin_state(outputs.dids[&Id::New(0)].coin.coin_id()),
-            None
-        );
+        let did = outputs.dids[&Id::New(0)];
+        assert_ne!(sim.coin_state(did.coin.coin_id()), None);
+        assert_eq!(did.info.recovery_list_hash, None);
+        assert_eq!(did.info.num_verifications_required, 1);
+        assert_eq!(did.info.metadata, HashedPtr::NIL);
+        assert_eq!(did.info.p2_puzzle_hash, alice.puzzle_hash);
+        assert_eq!(did.coin.amount, 1);
 
         Ok(())
     }
