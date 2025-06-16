@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use chia_protocol::Bytes32;
+use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_types::{
     conditions::{CreateCoin, NewMetadataOutput, TransferNft, UpdateNftMetadata},
     Conditions,
@@ -74,7 +75,7 @@ where
         let Some((index, amount)) = self.lineage.iter().enumerate().find_map(|(index, item)| {
             item.kind
                 .outputs()
-                .launcher_amount()
+                .find_amount(SINGLETON_LAUNCHER_HASH.into())
                 .map(|amount| (index, amount))
         }) else {
             return Err(DriverError::NoSourceForOutput);

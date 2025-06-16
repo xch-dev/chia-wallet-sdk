@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use chia_protocol::Bytes32;
-use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Output {
@@ -77,9 +76,8 @@ impl OutputSet {
         &self.constraints
     }
 
-    pub fn launcher_amount(&self) -> Option<u64> {
-        (0..u64::MAX)
-            .find(|&amount| self.is_allowed(&Output::new(SINGLETON_LAUNCHER_HASH.into(), amount)))
+    pub fn find_amount(&self, puzzle_hash: Bytes32) -> Option<u64> {
+        (0..u64::MAX).find(|&amount| self.is_allowed(&Output::new(puzzle_hash, amount)))
     }
 
     pub fn is_allowed(&self, output: &Output) -> bool {

@@ -3,11 +3,10 @@ use chia_puzzle_types::{
     cat::{CatArgs, GenesisByCoinIdTailArgs},
     Memos,
 };
+use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_types::Conditions;
 
 use crate::{Cat, Delta, DriverError, Launcher, Output, SpendContext, SpendKind};
-
-const INTERMEDIATE_AMOUNT: u64 = 1;
 
 #[derive(Debug, Clone)]
 pub struct FungibleSpends<A> {
@@ -83,11 +82,11 @@ where
     }
 
     pub fn intermediate_source(&mut self, ctx: &mut SpendContext) -> Result<usize, DriverError> {
-        let Some(index) = self.items.iter().position(|item| {
-            item.kind.outputs().is_allowed(&Output::new(
-                item.asset.p2_puzzle_hash(),
-                INTERMEDIATE_AMOUNT,
-            ))
+        let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
+            item.kind
+                .outputs()
+                .find_amount(item.asset.p2_puzzle_hash())
+                .map(|amount| (index, amount))
         }) else {
             return Err(DriverError::NoSourceForOutput);
         };
@@ -98,7 +97,7 @@ where
             SpendKind::Conditions(spend) => spend.add_conditions(
                 Conditions::new().create_coin(
                     source.asset.p2_puzzle_hash(),
-                    INTERMEDIATE_AMOUNT,
+                    amount,
                     source
                         .asset
                         .child_memos(ctx, source.asset.p2_puzzle_hash())?,
@@ -106,7 +105,7 @@ where
             )?,
         }
 
-        let child = source.fungible_child(source.asset.p2_puzzle_hash(), INTERMEDIATE_AMOUNT);
+        let child = source.fungible_child(source.asset.p2_puzzle_hash(), amount);
         self.items.push(child);
 
         Ok(self.items.len() - 1)
@@ -116,7 +115,7 @@ where
         let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
             item.kind
                 .outputs()
-                .launcher_amount()
+                .find_amount(SINGLETON_LAUNCHER_HASH.into())
                 .map(|amount| (index, amount))
         }) else {
             return Err(DriverError::NoSourceForOutput);

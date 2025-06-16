@@ -78,11 +78,12 @@ impl SpendAction for SendAction {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use chia_protocol::Coin;
     use chia_puzzle_types::standard::StandardArgs;
     use chia_sdk_test::{BlsPair, Simulator};
     use indexmap::indexmap;
 
-    use crate::Action;
+    use crate::{Action, Cat};
 
     use super::*;
 
@@ -149,6 +150,55 @@ mod tests {
         assert_ne!(sim.coin_state(coin.coin_id()), None);
         assert_eq!(coin.amount, 3);
         assert_eq!(coin.puzzle_hash, alice.puzzle_hash);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_action_send_xch_split() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(3);
+
+        let mut spends = Spends::new();
+        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+
+        let deltas = spends.apply(
+            &mut ctx,
+            &[
+                Action::send_xch(alice.puzzle_hash, 1, Memos::None),
+                Action::send_xch(alice.puzzle_hash, 1, Memos::None),
+                Action::send_xch(alice.puzzle_hash, 1, Memos::None),
+            ],
+        )?;
+        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
+
+        let outputs =
+            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        assert_eq!(outputs.xch.len(), 5);
+
+        let coins: Vec<Coin> = outputs
+            .xch
+            .iter()
+            .copied()
+            .filter(|coin| {
+                sim.coin_state(coin.coin_id())
+                    .expect("missing coin")
+                    .spent_height
+                    .is_none()
+            })
+            .collect();
+
+        assert_eq!(coins.len(), 3);
+
+        for coin in coins {
+            assert_eq!(coin.puzzle_hash, alice.puzzle_hash);
+            assert_eq!(coin.amount, 1);
+        }
 
         Ok(())
     }
@@ -224,6 +274,57 @@ mod tests {
         assert_ne!(sim.coin_state(cat.coin.coin_id()), None);
         assert_eq!(cat.coin.amount, 3);
         assert_eq!(cat.info.p2_puzzle_hash, alice.puzzle_hash);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_action_send_cat_split() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(3);
+        let hint = ctx.hint(alice.puzzle_hash)?;
+
+        let mut spends = Spends::new();
+        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+
+        let deltas = spends.apply(
+            &mut ctx,
+            &[
+                Action::single_issue_cat(3),
+                Action::send(Id::New(0), alice.puzzle_hash, 1, hint),
+                Action::send(Id::New(0), alice.puzzle_hash, 1, hint),
+                Action::send(Id::New(0), alice.puzzle_hash, 1, hint),
+            ],
+        )?;
+        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
+
+        let outputs =
+            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        let cats = &outputs.cats[&Id::New(0)];
+        assert_eq!(cats.len(), 5);
+
+        let cats: Vec<Cat> = cats
+            .iter()
+            .copied()
+            .filter(|cat| {
+                sim.coin_state(cat.coin.coin_id())
+                    .expect("missing coin")
+                    .spent_height
+                    .is_none()
+            })
+            .collect();
+
+        assert_eq!(cats.len(), 3);
+
+        for cat in cats {
+            assert_eq!(cat.info.p2_puzzle_hash, alice.puzzle_hash);
+            assert_eq!(cat.coin.amount, 1);
+        }
 
         Ok(())
     }
