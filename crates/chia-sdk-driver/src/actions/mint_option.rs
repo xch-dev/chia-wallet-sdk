@@ -95,3 +95,53 @@ impl SpendAction for MintOptionAction {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use chia_sdk_test::Simulator;
+    use indexmap::indexmap;
+
+    use crate::Action;
+
+    use super::*;
+
+    #[test]
+    fn test_action_mint_option() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(6);
+
+        let mut spends = Spends::new();
+        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+
+        let deltas = spends.apply(
+            &mut ctx,
+            &[
+                Action::single_issue_cat(5),
+                Action::mint_option(
+                    alice.puzzle_hash,
+                    100,
+                    Some(Id::New(0)),
+                    5,
+                    OptionType::Xch { amount: 5 },
+                    1,
+                ),
+            ],
+        )?;
+        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
+
+        let outputs =
+            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        let option = outputs.options[&Id::New(1)];
+        assert_ne!(sim.coin_state(option.coin.coin_id()), None);
+        assert_eq!(option.info.p2_puzzle_hash, alice.puzzle_hash);
+        assert_eq!(option.coin.amount, 1);
+
+        Ok(())
+    }
+}
