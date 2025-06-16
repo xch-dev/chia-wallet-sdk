@@ -4,8 +4,8 @@ use hex_literal::hex;
 
 use crate::{
     CreateDidAction, Delta, Deltas, DriverError, HashedPtr, Id, IssueCatAction, MintNftAction,
-    RunTailAction, SendAction, Spend, SpendContext, Spends, TailIssuance, TransferNftById,
-    UpdateDidAction, UpdateNftAction,
+    MintOptionAction, OptionType, RunTailAction, SendAction, Spend, SpendContext, Spends,
+    TailIssuance, TransferNftById, UpdateDidAction, UpdateNftAction,
 };
 
 pub const BURN_PUZZLE_HASH: Bytes32 = Bytes32::new(hex!(
@@ -21,6 +21,7 @@ pub enum Action {
     UpdateNft(UpdateNftAction),
     IssueCat(IssueCatAction),
     RunTail(RunTailAction),
+    MintOption(MintOptionAction),
 }
 
 impl Action {
@@ -144,6 +145,24 @@ impl Action {
     pub fn run_tail(id: Id, tail_spend: Spend, supply_delta: Delta) -> Self {
         Self::RunTail(RunTailAction::new(id, tail_spend, supply_delta))
     }
+
+    pub fn mint_option(
+        creator_puzzle_hash: Bytes32,
+        seconds: u64,
+        underlying_id: Option<Id>,
+        underlying_amount: u64,
+        strike_type: OptionType,
+        amount: u64,
+    ) -> Self {
+        Self::MintOption(MintOptionAction::new(
+            creator_puzzle_hash,
+            seconds,
+            underlying_id,
+            underlying_amount,
+            strike_type,
+            amount,
+        ))
+    }
 }
 
 pub trait SpendAction {
@@ -167,6 +186,7 @@ impl SpendAction for Action {
             Action::UpdateNft(action) => action.calculate_delta(deltas, index),
             Action::IssueCat(action) => action.calculate_delta(deltas, index),
             Action::RunTail(action) => action.calculate_delta(deltas, index),
+            Action::MintOption(action) => action.calculate_delta(deltas, index),
         }
     }
 
@@ -184,6 +204,7 @@ impl SpendAction for Action {
             Action::UpdateNft(action) => action.spend(ctx, spends, index),
             Action::IssueCat(action) => action.spend(ctx, spends, index),
             Action::RunTail(action) => action.spend(ctx, spends, index),
+            Action::MintOption(action) => action.spend(ctx, spends, index),
         }
     }
 }

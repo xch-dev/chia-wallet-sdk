@@ -415,6 +415,7 @@ mod tests {
                 underlying_amount,
                 strike_type,
             ),
+            1,
         )?;
         let underlying = launcher.underlying();
         let p2_option = launcher.p2_puzzle_hash();
@@ -668,6 +669,7 @@ mod tests {
                 1,
                 OptionType::Xch { amount: 1 },
             ),
+            1,
         )?;
         let p2_option = launcher.p2_puzzle_hash();
 
@@ -713,6 +715,7 @@ mod tests {
                 1,
                 OptionType::Xch { amount: 1 },
             ),
+            1,
         )?;
         let p2_option = launcher.p2_puzzle_hash();
 

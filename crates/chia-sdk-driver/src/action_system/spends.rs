@@ -66,6 +66,50 @@ impl Spends {
         );
     }
 
+    pub fn resolve_first_cat(&self, id: Id) -> Result<Cat, DriverError> {
+        Ok(self
+            .cats
+            .get(&id)
+            .ok_or(DriverError::InvalidAssetId)?
+            .items
+            .first()
+            .ok_or(DriverError::InvalidAssetId)?
+            .asset)
+    }
+
+    pub fn resolve_did(&self, id: Id) -> Result<Did<HashedPtr>, DriverError> {
+        Ok(self
+            .dids
+            .get(&id)
+            .ok_or(DriverError::InvalidAssetId)?
+            .lineage
+            .last()
+            .ok_or(DriverError::InvalidAssetId)?
+            .asset)
+    }
+
+    pub fn resolve_nft(&self, id: Id) -> Result<Nft<HashedPtr>, DriverError> {
+        Ok(self
+            .nfts
+            .get(&id)
+            .ok_or(DriverError::InvalidAssetId)?
+            .lineage
+            .last()
+            .ok_or(DriverError::InvalidAssetId)?
+            .asset)
+    }
+
+    pub fn resolve_option(&self, id: Id) -> Result<OptionContract, DriverError> {
+        Ok(self
+            .options
+            .get(&id)
+            .ok_or(DriverError::InvalidAssetId)?
+            .lineage
+            .last()
+            .ok_or(DriverError::InvalidAssetId)?
+            .asset)
+    }
+
     pub fn apply(
         &mut self,
         ctx: &mut SpendContext,
@@ -89,28 +133,28 @@ impl Spends {
     ) -> Result<(), DriverError> {
         self.xch.create_change(
             ctx,
-            deltas.get(None).unwrap_or(&Delta::default()),
+            deltas.get_xch().unwrap_or(&Delta::default()),
             change_puzzle_hash,
         )?;
 
         for (&id, cat) in &mut self.cats {
             cat.create_change(
                 ctx,
-                deltas.get(Some(id)).unwrap_or(&Delta::default()),
+                deltas.get(id).unwrap_or(&Delta::default()),
                 change_puzzle_hash,
             )?;
         }
 
         for (_, did) in &mut self.dids {
-            did.create_change(ctx, change_puzzle_hash)?;
+            did.finalize(ctx, change_puzzle_hash)?;
         }
 
         for (_, nft) in &mut self.nfts {
-            nft.create_change(ctx, change_puzzle_hash)?;
+            nft.finalize(ctx, change_puzzle_hash)?;
         }
 
         for (_, option) in &mut self.options {
-            option.create_change(ctx, change_puzzle_hash)?;
+            option.finalize(ctx, change_puzzle_hash)?;
         }
 
         Ok(())

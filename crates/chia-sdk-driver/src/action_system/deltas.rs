@@ -16,12 +16,20 @@ impl Deltas {
         Self::default()
     }
 
-    pub fn get(&self, id: Option<Id>) -> Option<&Delta> {
-        self.items.get(&id)
+    pub fn get(&self, id: Id) -> Option<&Delta> {
+        self.items.get(&Some(id))
     }
 
-    pub fn update(&mut self, id: Option<Id>) -> &mut Delta {
-        self.items.entry(id).or_default()
+    pub fn get_xch(&self) -> Option<&Delta> {
+        self.items.get(&None)
+    }
+
+    pub fn update(&mut self, id: Id) -> &mut Delta {
+        self.items.entry(Some(id)).or_default()
+    }
+
+    pub fn update_xch(&mut self) -> &mut Delta {
+        self.items.entry(None).or_default()
     }
 
     pub fn set_id_needed(&mut self, id: Id) {

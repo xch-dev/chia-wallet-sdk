@@ -6,7 +6,10 @@ use chia_puzzle_types::{
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_types::Conditions;
 
-use crate::{Cat, Delta, DriverError, Launcher, Output, SpendContext, SpendKind};
+use crate::{
+    Cat, Delta, DriverError, Launcher, OptionLauncher, OptionLauncherInfo, OptionType, Output,
+    SpendContext, SpendKind,
+};
 
 #[derive(Debug, Clone)]
 pub struct FungibleSpends<A> {
@@ -140,6 +143,42 @@ where
         }
 
         Ok((index, launcher.with_singleton_amount(singleton_amount)))
+    }
+
+    pub fn create_option_launcher(
+        &mut self,
+        ctx: &mut SpendContext,
+        singleton_amount: u64,
+        creator_puzzle_hash: Bytes32,
+        seconds: u64,
+        underlying_amount: u64,
+        strike_type: OptionType,
+    ) -> Result<(usize, OptionLauncher), DriverError> {
+        let (index, launcher_amount) = self.launcher_source()?;
+
+        let source = &mut self.items[index];
+
+        let (parent_conditions, launcher) = OptionLauncher::create_early(
+            ctx,
+            source.asset.get_coin_id(),
+            launcher_amount,
+            OptionLauncherInfo::new(
+                creator_puzzle_hash,
+                source.asset.p2_puzzle_hash(),
+                seconds,
+                underlying_amount,
+                strike_type,
+            ),
+            singleton_amount,
+        )?;
+
+        match &mut source.kind {
+            SpendKind::Conditions(spend) => {
+                spend.add_conditions(parent_conditions)?;
+            }
+        }
+
+        Ok((index, launcher))
     }
 
     pub fn create_change(

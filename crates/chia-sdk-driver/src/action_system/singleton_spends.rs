@@ -44,19 +44,19 @@ where
             .ok_or(DriverError::NoSourceForOutput)
     }
 
-    pub fn create_change(
+    pub fn finalize(
         &mut self,
         ctx: &mut SpendContext,
         change_puzzle_hash: Bytes32,
-    ) -> Result<(), DriverError> {
-        loop {
+    ) -> Result<Option<A>, DriverError> {
+        let asset = loop {
             let last = self
                 .lineage
                 .last_mut()
                 .ok_or(DriverError::NoSourceForOutput)?;
 
             if last.kind.outputs().has_singleton_output() {
-                break;
+                break None;
             }
 
             let child = A::create_change(ctx, last, change_puzzle_hash)?;
@@ -64,11 +64,11 @@ where
             if A::needs_additional_spend(&child.child_info) {
                 self.lineage.push(child);
             } else {
-                break;
+                break (child.asset.p2_puzzle_hash() == change_puzzle_hash).then_some(child.asset);
             }
-        }
+        };
 
-        Ok(())
+        Ok(asset)
     }
 
     pub fn launcher_source(&mut self) -> Result<(usize, u64), DriverError> {

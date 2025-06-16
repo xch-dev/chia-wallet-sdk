@@ -1,4 +1,4 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::Memos;
 use chia_sdk_types::{conditions::CreateCoin, Conditions};
 
@@ -21,11 +21,94 @@ impl SendAction {
             memos,
         }
     }
+
+    pub fn run_standalone(
+        &self,
+        ctx: &mut SpendContext,
+        spends: &mut Spends,
+        finalize: bool,
+    ) -> Result<Option<Coin>, DriverError> {
+        let output = Output::new(self.puzzle_hash, self.amount);
+        let create_coin = CreateCoin::new(self.puzzle_hash, self.amount, self.memos);
+
+        let (coin, spend) = if let Some(id) = self.id {
+            if let Some(cat) = spends.cats.get_mut(&id) {
+                let source = cat.output_source(ctx, &output)?;
+                let parent = cat.items[source].asset;
+                let kind = &mut cat.items[source].kind;
+                (
+                    parent
+                        .child(create_coin.puzzle_hash, create_coin.amount)
+                        .coin,
+                    kind,
+                )
+            } else if let Some(did) = spends.dids.get_mut(&id) {
+                let source = did.last_mut()?;
+                source.child_info.destination = Some(create_coin);
+
+                if !finalize {
+                    return Ok(None);
+                }
+
+                return Ok(did
+                    .finalize(ctx, create_coin.puzzle_hash)?
+                    .map(|did| did.coin));
+            } else if let Some(nft) = spends.nfts.get_mut(&id) {
+                let source = nft.last_mut()?;
+                source.child_info.destination = Some(create_coin);
+
+                if !finalize {
+                    return Ok(None);
+                }
+
+                return Ok(nft
+                    .finalize(ctx, create_coin.puzzle_hash)?
+                    .map(|nft| nft.coin));
+            } else if let Some(option) = spends.options.get_mut(&id) {
+                let source = option.last_mut()?;
+                source.child_info.destination = Some(create_coin);
+
+                if !finalize {
+                    return Ok(None);
+                }
+
+                return Ok(option
+                    .finalize(ctx, create_coin.puzzle_hash)?
+                    .map(|option| option.coin));
+            } else {
+                return Err(DriverError::InvalidAssetId);
+            }
+        } else {
+            let source = spends.xch.output_source(ctx, &output)?;
+            let parent = spends.xch.items[source].asset;
+            let spend = &mut spends.xch.items[source].kind;
+            (
+                Coin::new(
+                    parent.coin_id(),
+                    create_coin.puzzle_hash,
+                    create_coin.amount,
+                ),
+                spend,
+            )
+        };
+
+        match spend {
+            SpendKind::Conditions(spend) => {
+                spend.add_conditions(Conditions::new().with(create_coin))?;
+            }
+        }
+
+        Ok(Some(coin))
+    }
 }
 
 impl SpendAction for SendAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        deltas.update(self.id).output += self.amount;
+        if let Some(id) = self.id {
+            deltas.update(id).output += self.amount;
+        } else {
+            deltas.update_xch().output += self.amount;
+        }
 
         if self.id.is_none() {
             deltas.set_xch_needed();
@@ -38,39 +121,7 @@ impl SpendAction for SendAction {
         spends: &mut Spends,
         _index: usize,
     ) -> Result<(), DriverError> {
-        let output = Output::new(self.puzzle_hash, self.amount);
-        let create_coin = CreateCoin::new(self.puzzle_hash, self.amount, self.memos);
-
-        let spend = if let Some(id) = self.id {
-            if let Some(cat) = spends.cats.get_mut(&id) {
-                let source = cat.output_source(ctx, &output)?;
-                &mut cat.items[source].kind
-            } else if let Some(did) = spends.dids.get_mut(&id) {
-                let source = did.last_mut()?;
-                source.child_info.destination = Some(create_coin);
-                return Ok(());
-            } else if let Some(nft) = spends.nfts.get_mut(&id) {
-                let source = nft.last_mut()?;
-                source.child_info.destination = Some(create_coin);
-                return Ok(());
-            } else if let Some(option) = spends.options.get_mut(&id) {
-                let source = option.last_mut()?;
-                source.child_info.destination = Some(create_coin);
-                return Ok(());
-            } else {
-                return Err(DriverError::InvalidAssetId);
-            }
-        } else {
-            let source = spends.xch.output_source(ctx, &output)?;
-            &mut spends.xch.items[source].kind
-        };
-
-        match spend {
-            SpendKind::Conditions(spend) => {
-                spend.add_conditions(Conditions::new().with(create_coin))?;
-            }
-        }
-
+        self.run_standalone(ctx, spends, false)?;
         Ok(())
     }
 }
