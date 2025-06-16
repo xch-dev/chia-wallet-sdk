@@ -148,56 +148,67 @@ impl Cat {
         let len = cat_spends.len();
 
         let mut total_delta = 0;
+        let mut prev_subtotals = Vec::new();
+        let mut run_tail_index = None;
         let mut children = Vec::new();
 
-        for (index, cat_spend) in cat_spends.iter().enumerate() {
-            let CatSpend {
-                cat,
-                inner_spend,
-                extra_delta,
-                revoke,
-            } = cat_spend;
-
+        for (index, &item) in cat_spends.iter().enumerate() {
             // Calculate the delta and add it to the subtotal.
-            let output = ctx.run(inner_spend.puzzle, inner_spend.solution)?;
-            let conditions: Vec<NodePtr> = ctx.extract(output)?;
+            let output = ctx.run(item.inner_spend.puzzle, item.inner_spend.solution)?;
+            let conditions: Vec<Condition> = ctx.extract(output)?;
+
+            if conditions.iter().any(Condition::is_run_cat_tail) {
+                run_tail_index = Some(index);
+            }
 
             let create_coins: Vec<CreateCoin<NodePtr>> = conditions
                 .into_iter()
-                .filter_map(|ptr| ctx.extract::<CreateCoin<NodePtr>>(ptr).ok())
+                .filter_map(Condition::into_create_coin)
                 .collect();
 
-            let delta = create_coins.iter().fold(
-                i128::from(cat.coin.amount) - i128::from(*extra_delta),
-                |delta, create_coin| delta - i128::from(create_coin.amount),
-            );
+            let delta = create_coins
+                .iter()
+                .fold(i128::from(item.cat.coin.amount), |delta, create_coin| {
+                    delta - i128::from(create_coin.amount)
+                });
 
             let prev_subtotal = total_delta;
             total_delta += delta;
 
+            prev_subtotals.push(prev_subtotal);
+
+            for create_coin in create_coins {
+                children.push(
+                    item.cat
+                        .child_from_p2_create_coin(ctx, create_coin, item.revoke),
+                );
+            }
+        }
+
+        for (index, item) in cat_spends.iter().enumerate() {
             // Find information of neighboring coins on the ring.
             let prev = &cat_spends[if index == 0 { len - 1 } else { index - 1 }];
             let next = &cat_spends[if index == len - 1 { 0 } else { index + 1 }];
 
-            cat.spend(
+            item.cat.spend(
                 ctx,
                 SingleCatSpend {
-                    inner_spend: *inner_spend,
+                    inner_spend: item.inner_spend,
                     prev_coin_id: prev.cat.coin.coin_id(),
                     next_coin_proof: CoinProof {
                         parent_coin_info: next.cat.coin.parent_coin_info,
                         inner_puzzle_hash: ctx.tree_hash(next.inner_spend.puzzle).into(),
                         amount: next.cat.coin.amount,
                     },
-                    prev_subtotal: prev_subtotal.try_into()?,
-                    extra_delta: *extra_delta,
-                    revoke: *revoke,
+                    prev_subtotal: prev_subtotals[index].try_into()?,
+                    extra_delta: if run_tail_index.is_some_and(|i| i == index) {
+                        -total_delta.try_into()?
+                    } else {
+                        0
+                    },
+                    revoke: item.revoke,
                 },
             )?;
-
-            for create_coin in create_coins {
-                children.push(cat.child_from_p2_create_coin(ctx, create_coin, *revoke));
-            }
         }
 
         Ok(children)
@@ -690,7 +701,7 @@ mod tests {
 
         let tail = ctx.curry(EverythingWithSignatureTailArgs::new(alice.pk))?;
 
-        let cat_spend = CatSpend::with_extra_delta(
+        let cat_spend = CatSpend::new(
             cats[0],
             alice_p2.spend_with_conditions(
                 ctx,
@@ -698,7 +709,6 @@ mod tests {
                     .create_coin(alice.puzzle_hash, 7000, memos)
                     .run_cat_tail(tail, NodePtr::NIL),
             )?,
-            -3000,
         );
 
         Cat::spend_all(ctx, &[cat_spend])?;

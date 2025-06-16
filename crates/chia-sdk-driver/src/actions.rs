@@ -1,15 +1,15 @@
 mod create_did;
 mod issue_cat;
-mod melt_cat;
 mod mint_nft;
+mod run_tail;
 mod send;
 mod update_did;
 mod update_nft;
 
 pub use create_did::*;
 pub use issue_cat::*;
-pub use melt_cat::*;
 pub use mint_nft::*;
+pub use run_tail::*;
 pub use send::*;
 pub use update_did::*;
 pub use update_nft::*;
