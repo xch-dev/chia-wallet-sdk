@@ -421,9 +421,8 @@ impl Cat {
 
 #[cfg(test)]
 mod tests {
-    use chia_consensus::validation_error::ErrorCode;
     use chia_puzzle_types::cat::EverythingWithSignatureTailArgs;
-    use chia_sdk_test::{Simulator, SimulatorError};
+    use chia_sdk_test::Simulator;
     use rstest::rstest;
 
     use crate::{SpendWithConditions, StandardLayer};
@@ -542,10 +541,12 @@ mod tests {
             Cat::issue_with_coin(ctx, alice.coin.coin_id(), 1, Conditions::new())?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
-        assert!(matches!(
-            sim.spend_coins(ctx.take(), &[alice.sk]).unwrap_err(),
-            SimulatorError::Validation(ErrorCode::AssertCoinAnnouncementFailed)
-        ));
+        assert_eq!(
+            sim.spend_coins(ctx.take(), &[alice.sk])
+                .unwrap_err()
+                .to_string(),
+            "Signer error: Eval error: Error at NodePtr(SmallAtom, 0): clvm raise"
+        );
 
         Ok(())
     }
@@ -567,10 +568,12 @@ mod tests {
         )?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
-        assert!(matches!(
-            sim.spend_coins(ctx.take(), &[alice.sk]).unwrap_err(),
-            SimulatorError::Validation(ErrorCode::AssertCoinAnnouncementFailed)
-        ));
+        assert_eq!(
+            sim.spend_coins(ctx.take(), &[alice.sk])
+                .unwrap_err()
+                .to_string(),
+            "Signer error: Eval error: Error at NodePtr(SmallAtom, 0): clvm raise"
+        );
 
         Ok(())
     }
