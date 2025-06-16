@@ -27,6 +27,10 @@ impl ConditionsSpend {
                 return Err(DriverError::InvalidOutput);
             }
 
+            if condition.is_run_cat_tail() && self.outputs.has_tail_spend() {
+                return Err(DriverError::InvalidOutput);
+            }
+
             if let Some(create_coin) = condition.as_create_coin() {
                 if !self
                     .outputs
@@ -48,6 +52,9 @@ impl ConditionsSpend {
                 }
                 Condition::MeltSingleton(_melt_singleton) => {
                     self.outputs.melt();
+                }
+                Condition::RunCatTail(_run_cat_tail) => {
+                    self.outputs.spend_tail();
                 }
                 _ => {}
             }

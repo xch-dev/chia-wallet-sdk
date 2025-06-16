@@ -5,7 +5,7 @@ use chia_puzzle_types::{
 };
 use chia_sdk_types::Conditions;
 
-use crate::{Cat, DriverError, Launcher, Output, SpendContext, SpendKind};
+use crate::{Cat, Delta, DriverError, Launcher, Output, SpendContext, SpendKind};
 
 const INTERMEDIATE_AMOUNT: u64 = 1;
 
@@ -22,8 +22,12 @@ where
         Self::default()
     }
 
-    pub fn input_amount(&self) -> u64 {
-        self.items.iter().map(|item| item.asset.amount()).sum()
+    pub fn selected_amount(&self) -> u64 {
+        self.items
+            .iter()
+            .filter(|item| !item.ephemeral)
+            .map(|item| item.asset.amount())
+            .sum()
     }
 
     pub fn output_source(
@@ -35,6 +39,18 @@ where
             .items
             .iter()
             .position(|item| item.kind.outputs().is_allowed(output))
+        {
+            return Ok(index);
+        }
+
+        self.intermediate_source(ctx)
+    }
+
+    pub fn run_tail_source(&mut self, ctx: &mut SpendContext) -> Result<usize, DriverError> {
+        if let Some(index) = self
+            .items
+            .iter()
+            .position(|item| !item.kind.outputs().has_tail_spend())
         {
             return Ok(index);
         }
@@ -130,10 +146,10 @@ where
     pub fn create_change(
         &mut self,
         ctx: &mut SpendContext,
-        output_amount: u64,
+        delta: &Delta,
         change_puzzle_hash: Bytes32,
     ) -> Result<(), DriverError> {
-        let change = self.input_amount().saturating_sub(output_amount);
+        let change = (self.selected_amount() + delta.input).saturating_sub(delta.output);
 
         if change == 0 {
             return Ok(());

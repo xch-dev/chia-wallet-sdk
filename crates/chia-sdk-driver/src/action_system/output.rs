@@ -38,6 +38,7 @@ pub struct OutputSet {
     constraints: Vec<OutputConstraint>,
     outputs: HashSet<Output>,
     reserve_fee: u64,
+    tail_spend: bool,
     melted: bool,
 }
 
@@ -47,6 +48,7 @@ impl OutputSet {
             constraints,
             outputs: HashSet::new(),
             reserve_fee: 0,
+            tail_spend: false,
             melted: false,
         }
     }
@@ -65,6 +67,10 @@ impl OutputSet {
 
     pub fn melt(&mut self) {
         self.melted = true;
+    }
+
+    pub fn spend_tail(&mut self) {
+        self.tail_spend = true;
     }
 
     pub fn constraints(&self) -> &[OutputConstraint] {
@@ -88,6 +94,10 @@ impl OutputSet {
 
     pub fn has_singleton_output(&self) -> bool {
         self.melted || self.outputs.iter().any(|output| output.amount % 2 == 1)
+    }
+
+    pub fn has_tail_spend(&self) -> bool {
+        self.tail_spend
     }
 
     pub fn insert(&mut self, output: Output) {

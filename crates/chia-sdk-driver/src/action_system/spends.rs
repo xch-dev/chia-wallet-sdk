@@ -5,9 +5,9 @@ use clvm_traits::FromClvm;
 use indexmap::IndexMap;
 
 use crate::{
-    Action, Cat, CatSpend, Deltas, Did, DriverError, FungibleAsset, FungibleSpend, FungibleSpends,
-    HashedPtr, Id, Nft, OptionContract, SingletonAsset, SingletonSpends, Spend, SpendAction,
-    SpendContext, SpendKind, SpendWithConditions, StandardLayer,
+    Action, Cat, CatSpend, Delta, Deltas, Did, DriverError, FungibleAsset, FungibleSpend,
+    FungibleSpends, HashedPtr, Id, Nft, OptionContract, SingletonAsset, SingletonSpends, Spend,
+    SpendAction, SpendContext, SpendKind, SpendWithConditions, StandardLayer,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -89,14 +89,14 @@ impl Spends {
     ) -> Result<(), DriverError> {
         self.xch.create_change(
             ctx,
-            deltas.get(None).map_or(0, |delta| delta.output),
+            deltas.get(None).unwrap_or(&Delta::default()),
             change_puzzle_hash,
         )?;
 
         for (&id, cat) in &mut self.cats {
             cat.create_change(
                 ctx,
-                deltas.get(Some(id)).map_or(0, |delta| delta.output),
+                deltas.get(Some(id)).unwrap_or(&Delta::default()),
                 change_puzzle_hash,
             )?;
         }
