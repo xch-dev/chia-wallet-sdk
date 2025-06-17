@@ -1490,11 +1490,11 @@ export declare class CatSpend {
 }
 export declare class ParsedCat {
   clone(): ParsedCat
-  constructor(assetId: Uint8Array, p2Puzzle: Puzzle)
-  get assetId(): Buffer
-  set assetId(value: Uint8Array)
-  get p2Puzzle(): Puzzle
-  set p2Puzzle(value: Puzzle)
+  constructor(info: CatInfo, p2Puzzle?: Puzzle | undefined | null)
+  get info(): CatInfo
+  set info(value: CatInfo)
+  get p2Puzzle(): Puzzle | null
+  set p2Puzzle(value?: Puzzle | undefined | null)
 }
 export declare class Nft {
   clone(): Nft
