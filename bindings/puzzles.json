@@ -126,8 +126,8 @@
     "type": "class",
     "new": true,
     "fields": {
-      "asset_id": "Bytes32",
-      "p2_puzzle": "Puzzle"
+      "info": "CatInfo",
+      "p2_puzzle": "Option<Puzzle>"
     }
   },
   "Nft": {
