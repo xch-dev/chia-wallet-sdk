@@ -92,7 +92,7 @@ type Value2 = Either26<
     Value3,
 >;
 
-type Value3 = Either10<
+type Value3 = Either15<
     ClassInstance<NftMetadata>,
     ClassInstance<CurriedProgram>,
     ClassInstance<MipsMemo>,
@@ -103,6 +103,11 @@ type Value3 = Either10<
     ClassInstance<MemoKind>,
     ClassInstance<MemberMemo>,
     ClassInstance<MofNMemo>,
+    ClassInstance<MeltSingleton>,
+    ClassInstance<TransferNft>,
+    ClassInstance<RunCatTail>,
+    ClassInstance<UpdateNftMetadata>,
+    ClassInstance<UpdateDataStoreMerkleRoot>,
 >;
 
 fn alloc(
@@ -188,6 +193,21 @@ fn alloc(
                 Value3::H(value) => clvm.memo_kind(value.0.clone()),
                 Value3::I(value) => clvm.member_memo(value.0.clone()),
                 Value3::J(value) => clvm.m_of_n_memo(value.0.clone()),
+                Value3::K(_value) => clvm.melt_singleton(),
+                Value3::L(value) => clvm.transfer_nft(
+                    value.0.launcher_id,
+                    value.0.trade_prices.clone(),
+                    value.0.singleton_inner_puzzle_hash,
+                ),
+                Value3::M(value) => {
+                    clvm.run_cat_tail(value.0.program.clone(), value.0.solution.clone())
+                }
+                Value3::N(value) => clvm.update_nft_metadata(
+                    value.0.updater_puzzle_reveal.clone(),
+                    value.0.updater_solution.clone(),
+                ),
+                Value3::O(value) => clvm
+                    .update_data_store_merkle_root(value.0.new_merkle_root, value.0.memos.clone()),
             },
         },
     }

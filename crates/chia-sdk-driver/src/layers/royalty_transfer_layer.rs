@@ -23,19 +23,19 @@ pub struct RoyaltyTransferLayer {
     pub royalty_puzzle_hash: Bytes32,
     /// The percentage of the transfer amount that is paid as royalties.
     /// This is represented in ten thousandths, so a value of 300 means 3%.
-    pub royalty_ten_thousandths: u16,
+    pub royalty_basis_points: u16,
 }
 
 impl RoyaltyTransferLayer {
     pub fn new(
         launcher_id: Bytes32,
         royalty_puzzle_hash: Bytes32,
-        royalty_ten_thousandths: u16,
+        royalty_basis_points: u16,
     ) -> Self {
         Self {
             launcher_id,
             royalty_puzzle_hash,
-            royalty_ten_thousandths,
+            royalty_basis_points,
         }
     }
 }
@@ -47,7 +47,7 @@ impl Layer for RoyaltyTransferLayer {
         ctx.curry(NftRoyaltyTransferPuzzleArgs {
             singleton_struct: SingletonStruct::new(self.launcher_id),
             royalty_puzzle_hash: self.royalty_puzzle_hash,
-            royalty_ten_thousandths: self.royalty_ten_thousandths,
+            royalty_ten_thousandths: self.royalty_basis_points,
         })
     }
 
@@ -73,7 +73,7 @@ impl Layer for RoyaltyTransferLayer {
         Ok(Some(Self {
             launcher_id: args.singleton_struct.launcher_id,
             royalty_puzzle_hash: args.royalty_puzzle_hash,
-            royalty_ten_thousandths: args.royalty_ten_thousandths,
+            royalty_basis_points: args.royalty_ten_thousandths,
         }))
     }
 
@@ -98,7 +98,7 @@ impl ToTreeHash for RoyaltyTransferLayer {
         NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
             self.launcher_id,
             self.royalty_puzzle_hash,
-            self.royalty_ten_thousandths,
+            self.royalty_basis_points,
         )
     }
 }

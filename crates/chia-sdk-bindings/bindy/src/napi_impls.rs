@@ -5,8 +5,8 @@ use napi::bindgen_prelude::*;
 use crate::{Error, FromRust, IntoRust, Result};
 
 impl From<Error> for napi::Error {
-    fn from(_value: Error) -> Self {
-        napi::Error::new(napi::Status::GenericFailure, "error")
+    fn from(value: Error) -> Self {
+        napi::Error::from_reason(value.to_string())
     }
 }
 

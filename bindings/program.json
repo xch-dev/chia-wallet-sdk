@@ -181,6 +181,21 @@
       },
       "parse_softfork": {
         "return": "Option<Softfork>"
+      },
+      "parse_melt_singleton": {
+        "return": "Option<MeltSingleton>"
+      },
+      "parse_transfer_nft": {
+        "return": "Option<TransferNft>"
+      },
+      "parse_run_cat_tail": {
+        "return": "Option<RunCatTail>"
+      },
+      "parse_update_nft_metadata": {
+        "return": "Option<UpdateNftMetadata>"
+      },
+      "parse_update_data_store_merkle_root": {
+        "return": "Option<UpdateDataStoreMerkleRoot>"
       }
     }
   }

@@ -103,9 +103,10 @@ export declare class Clvm {
   delegatedSpend(conditions: Array<Program>): Spend
   standardSpend(syntheticKey: PublicKey, spend: Spend): Spend
   spendStandardCoin(coin: Coin, syntheticKey: PublicKey, spend: Spend): void
-  spendCatCoins(catSpends: Array<CatSpend>): void
+  spendCats(catSpends: Array<CatSpend>): Array<Cat>
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
   spendNft(nft: Nft, innerSpend: Spend): void
+  createEveDid(parentCoinId: Uint8Array, p2PuzzleHash: Uint8Array): CreatedDid
   spendDid(did: Did, innerSpend: Spend): void
   spendStreamedCat(streamedCat: StreamedCat, paymentTime: bigint, clawback: boolean): void
   mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
@@ -154,6 +155,11 @@ export declare class Clvm {
   sendMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
   receiveMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
   softfork(cost: bigint, rest: Program): Program
+  meltSingleton(): Program
+  transferNft(launcherId: Uint8Array | undefined | null, tradePrices: Array<TradePrice>, singletonInnerPuzzleHash?: Uint8Array | undefined | null): Program
+  runCatTail(program: Program, solution: Program): Program
+  updateNftMetadata(updaterPuzzleReveal: Program, updaterSolution: Program): Program
+  updateDataStoreMerkleRoot(newMerkleRoot: Uint8Array, memos: Array<Uint8Array>): Program
   alloc(value: any): Program
   boundCheckedNumber(value: number): Program
 }
@@ -183,6 +189,7 @@ export declare class CurriedProgram {
 }
 export declare class Proof {
   clone(): Proof
+  toLineageProof(): LineageProof | null
   constructor(parentParentCoinInfo: Uint8Array, parentInnerPuzzleHash: Uint8Array | undefined | null, parentAmount: bigint)
   get parentParentCoinInfo(): Buffer
   set parentParentCoinInfo(value: Uint8Array)
@@ -193,6 +200,7 @@ export declare class Proof {
 }
 export declare class LineageProof {
   clone(): LineageProof
+  toProof(): Proof
   constructor(parentParentCoinInfo: Uint8Array, parentInnerPuzzleHash: Uint8Array, parentAmount: bigint)
   get parentParentCoinInfo(): Buffer
   set parentParentCoinInfo(value: Uint8Array)
@@ -1014,6 +1022,52 @@ export declare class Softfork {
   get rest(): Program
   set rest(value: Program)
 }
+export declare class MeltSingleton {
+  clone(): MeltSingleton
+  constructor()
+}
+export declare class TransferNft {
+  clone(): TransferNft
+  constructor(launcherId: Uint8Array | undefined | null, tradePrices: Array<TradePrice>, singletonInnerPuzzleHash?: Uint8Array | undefined | null)
+  get launcherId(): Buffer | null
+  set launcherId(value?: Uint8Array | undefined | null)
+  get tradePrices(): Array<TradePrice>
+  set tradePrices(value: Array<TradePrice>)
+  get singletonInnerPuzzleHash(): Buffer | null
+  set singletonInnerPuzzleHash(value?: Uint8Array | undefined | null)
+}
+export declare class RunCatTail {
+  clone(): RunCatTail
+  constructor(program: Program, solution: Program)
+  get program(): Program
+  set program(value: Program)
+  get solution(): Program
+  set solution(value: Program)
+}
+export declare class UpdateNftMetadata {
+  clone(): UpdateNftMetadata
+  constructor(updaterPuzzleReveal: Program, updaterSolution: Program)
+  get updaterPuzzleReveal(): Program
+  set updaterPuzzleReveal(value: Program)
+  get updaterSolution(): Program
+  set updaterSolution(value: Program)
+}
+export declare class UpdateDataStoreMerkleRoot {
+  clone(): UpdateDataStoreMerkleRoot
+  constructor(newMerkleRoot: Uint8Array, memos: Array<Uint8Array>)
+  get newMerkleRoot(): Buffer
+  set newMerkleRoot(value: Uint8Array)
+  get memos(): Array<Buffer>
+  set memos(value: Array<Uint8Array>)
+}
+export declare class TradePrice {
+  clone(): TradePrice
+  constructor(amount: bigint, puzzleHash: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+}
 export declare class Constants {
   clone(): Constants
   static acsTransferProgram(): Buffer
@@ -1363,6 +1417,11 @@ export declare class Program {
   parseSendMessage(): SendMessage | null
   parseReceiveMessage(): ReceiveMessage | null
   parseSoftfork(): Softfork | null
+  parseMeltSingleton(): MeltSingleton | null
+  parseTransferNft(): TransferNft | null
+  parseRunCatTail(): RunCatTail | null
+  parseUpdateNftMetadata(): UpdateNftMetadata | null
+  parseUpdateDataStoreMerkleRoot(): UpdateDataStoreMerkleRoot | null
   toBoundCheckedNumber(): number | null
 }
 export declare class Puzzle {
@@ -1398,13 +1457,26 @@ export declare class StreamedCatParsingResult {
 }
 export declare class Cat {
   clone(): Cat
-  constructor(coin: Coin, lineageProof: LineageProof | undefined | null, assetId: Uint8Array, p2PuzzleHash: Uint8Array)
+  childLineageProof(): LineageProof
+  child(p2PuzzleHash: Uint8Array, amount: bigint): Cat
+  unrevocableChild(p2PuzzleHash: Uint8Array, amount: bigint): Cat
+  constructor(coin: Coin, lineageProof: LineageProof | undefined | null, info: CatInfo)
   get coin(): Coin
   set coin(value: Coin)
   get lineageProof(): LineageProof | null
   set lineageProof(value?: LineageProof | undefined | null)
+  get info(): CatInfo
+  set info(value: CatInfo)
+}
+export declare class CatInfo {
+  clone(): CatInfo
+  innerPuzzleHash(): Buffer
+  puzzleHash(): Buffer
+  constructor(assetId: Uint8Array, hiddenPuzzleHash: Uint8Array | undefined | null, p2PuzzleHash: Uint8Array)
   get assetId(): Buffer
   set assetId(value: Uint8Array)
+  get hiddenPuzzleHash(): Buffer | null
+  set hiddenPuzzleHash(value?: Uint8Array | undefined | null)
   get p2PuzzleHash(): Buffer
   set p2PuzzleHash(value: Uint8Array)
 }
@@ -1426,17 +1498,22 @@ export declare class ParsedCat {
 }
 export declare class Nft {
   clone(): Nft
-  constructor(coin: Coin, lineageProof: Proof, info: NftInfo)
+  childProof(): Proof
+  child(p2PuzzleHash: Uint8Array, currentOwner: Uint8Array | undefined | null, metadata: Program): Nft
+  childWith(info: NftInfo): Nft
+  constructor(coin: Coin, proof: Proof, info: NftInfo)
   get coin(): Coin
   set coin(value: Coin)
-  get lineageProof(): Proof
-  set lineageProof(value: Proof)
+  get proof(): Proof
+  set proof(value: Proof)
   get info(): NftInfo
   set info(value: NftInfo)
 }
 export declare class NftInfo {
   clone(): NftInfo
-  constructor(launcherId: Uint8Array, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, currentOwner: Uint8Array | undefined | null, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, p2PuzzleHash: Uint8Array)
+  innerPuzzleHash(): Buffer
+  puzzleHash(): Buffer
+  constructor(launcherId: Uint8Array, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, currentOwner: Uint8Array | undefined | null, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number, p2PuzzleHash: Uint8Array)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)
   get metadata(): Program
@@ -1447,8 +1524,8 @@ export declare class NftInfo {
   set currentOwner(value?: Uint8Array | undefined | null)
   get royaltyPuzzleHash(): Buffer
   set royaltyPuzzleHash(value: Uint8Array)
-  get royaltyTenThousandths(): number
-  set royaltyTenThousandths(value: number)
+  get royaltyBasisPoints(): number
+  set royaltyBasisPoints(value: number)
   get p2PuzzleHash(): Buffer
   set p2PuzzleHash(value: Uint8Array)
 }
@@ -1482,7 +1559,7 @@ export declare class NftMetadata {
 }
 export declare class NftMint {
   clone(): NftMint
-  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyTenThousandths: number, owner?: DidOwner | undefined | null)
+  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number, owner?: NftOwner | undefined | null)
   get metadata(): Program
   set metadata(value: Program)
   get metadataUpdaterPuzzleHash(): Buffer
@@ -1491,18 +1568,18 @@ export declare class NftMint {
   set p2PuzzleHash(value: Uint8Array)
   get royaltyPuzzleHash(): Buffer
   set royaltyPuzzleHash(value: Uint8Array)
-  get royaltyTenThousandths(): number
-  set royaltyTenThousandths(value: number)
-  get owner(): DidOwner | null
-  set owner(value?: DidOwner | undefined | null)
+  get royaltyBasisPoints(): number
+  set royaltyBasisPoints(value: number)
+  get owner(): NftOwner | null
+  set owner(value?: NftOwner | undefined | null)
 }
-export declare class DidOwner {
-  clone(): DidOwner
-  constructor(didId: Uint8Array, innerPuzzleHash: Uint8Array)
-  get didId(): Buffer
-  set didId(value: Uint8Array)
-  get innerPuzzleHash(): Buffer
-  set innerPuzzleHash(value: Uint8Array)
+export declare class NftOwner {
+  clone(): NftOwner
+  constructor(launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get singletonInnerPuzzleHash(): Buffer
+  set singletonInnerPuzzleHash(value: Uint8Array)
 }
 export declare class MintedNfts {
   clone(): MintedNfts
@@ -1514,16 +1591,21 @@ export declare class MintedNfts {
 }
 export declare class Did {
   clone(): Did
-  constructor(coin: Coin, lineageProof: Proof, info: DidInfo)
+  childProof(): Proof
+  child(p2PuzzleHash: Uint8Array, metadata: Program): Did
+  childWith(info: DidInfo): Did
+  constructor(coin: Coin, proof: Proof, info: DidInfo)
   get coin(): Coin
   set coin(value: Coin)
-  get lineageProof(): Proof
-  set lineageProof(value: Proof)
+  get proof(): Proof
+  set proof(value: Proof)
   get info(): DidInfo
   set info(value: DidInfo)
 }
 export declare class DidInfo {
   clone(): DidInfo
+  innerPuzzleHash(): Buffer
+  puzzleHash(): Buffer
   constructor(launcherId: Uint8Array, recoveryListHash: Uint8Array | undefined | null, numVerificationsRequired: bigint, metadata: Program, p2PuzzleHash: Uint8Array)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)
@@ -1543,6 +1625,14 @@ export declare class ParsedDid {
   set info(value: DidInfo)
   get p2Puzzle(): Puzzle
   set p2Puzzle(value: Puzzle)
+}
+export declare class CreatedDid {
+  clone(): CreatedDid
+  constructor(did: Did, parentConditions: Array<Program>)
+  get did(): Did
+  set did(value: Did)
+  get parentConditions(): Array<Program>
+  set parentConditions(value: Array<Program>)
 }
 export declare class StreamingPuzzleInfo {
   clone(): StreamingPuzzleInfo

@@ -46,7 +46,7 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
     let nft_trade_price =
         calculate_nft_trace_price(500_000_000_000, 1).expect("failed to calculate trade price");
 
-    let nft_royalty = calculate_nft_royalty(nft_trade_price, nft.info.royalty_ten_thousandths)
+    let nft_royalty = calculate_nft_royalty(nft_trade_price, nft.info.royalty_basis_points)
         .expect("failed to calculate royalty");
 
     let alice_hint = ctx.hint(alice.puzzle_hash)?;
