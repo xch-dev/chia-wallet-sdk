@@ -6,8 +6,8 @@ use chia_puzzle_types::{
 };
 use chia_sdk_types::{
     conditions::{CreateCoin, RunCatTail},
-    puzzles::RevocationSolution,
-    run_puzzle, Condition, Conditions,
+    puzzles::{RevocationArgs, RevocationSolution},
+    run_puzzle, Condition, Conditions, Mod,
 };
 use clvm_traits::{clvm_quote, FromClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
@@ -190,6 +190,8 @@ impl Cat {
             let prev = &cat_spends[if index == 0 { len - 1 } else { index - 1 }];
             let next = &cat_spends[if index == len - 1 { 0 } else { index + 1 }];
 
+            let next_p2_puzzle_hash = ctx.tree_hash(next.inner_spend.puzzle).into();
+
             item.cat.spend(
                 ctx,
                 SingleCatSpend {
@@ -197,7 +199,15 @@ impl Cat {
                     prev_coin_id: prev.cat.coin.coin_id(),
                     next_coin_proof: CoinProof {
                         parent_coin_info: next.cat.coin.parent_coin_info,
-                        inner_puzzle_hash: ctx.tree_hash(next.inner_spend.puzzle).into(),
+                        inner_puzzle_hash: if let Some(hidden_puzzle_hash) =
+                            item.cat.info.hidden_puzzle_hash
+                        {
+                            RevocationArgs::new(hidden_puzzle_hash, next_p2_puzzle_hash)
+                                .curry_tree_hash()
+                                .into()
+                        } else {
+                            next_p2_puzzle_hash
+                        },
                         amount: next.cat.coin.amount,
                     },
                     prev_subtotal: prev_subtotals[index].try_into()?,
