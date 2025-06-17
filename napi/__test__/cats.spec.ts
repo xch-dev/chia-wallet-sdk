@@ -66,6 +66,66 @@ test("issues and spends a cat", (t) => {
   t.true(true);
 });
 
+test("issues and spends a revocable cat", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = sim.bls(1n);
+
+  const tail = clvm.nil();
+  const assetId = tail.treeHash();
+  const catInfo = new CatInfo(
+    assetId,
+    Buffer.from("00".repeat(32), "hex"),
+    alice.puzzleHash
+  );
+
+  // Issue a CAT
+  clvm.spendStandardCoin(
+    alice.coin,
+    alice.pk,
+    clvm.delegatedSpend([clvm.createCoin(catInfo.puzzleHash(), 1n)])
+  );
+
+  const eve = new Cat(
+    new Coin(alice.coin.coinId(), catInfo.puzzleHash(), 1n),
+    null,
+    catInfo
+  );
+
+  clvm.spendCats([
+    new CatSpend(
+      eve,
+      clvm.standardSpend(
+        alice.pk,
+        clvm.delegatedSpend([
+          clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
+          clvm.runCatTail(tail, clvm.nil()),
+        ])
+      )
+    ),
+  ]);
+
+  // Spend the CAT
+  const cat = eve.child(alice.puzzleHash, 1n);
+
+  clvm.spendCats([
+    new CatSpend(
+      cat,
+      clvm.standardSpend(
+        alice.pk,
+        clvm.delegatedSpend([
+          clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
+        ])
+      )
+    ),
+  ]);
+
+  sim.spendCoins(clvm.coinSpends(), [alice.sk]);
+
+  t.true(true);
+});
+
 test("parses a cat puzzle", (t) => {
   const clvm = new Clvm();
 
