@@ -19,8 +19,7 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver::{
-    Cat, CatLayer, Clawback, CurriedPuzzle, HashedPtr, Layer, RawPuzzle, SpendContext,
-    StreamingPuzzleInfo,
+    Cat, CatInfo, Clawback, CurriedPuzzle, HashedPtr, RawPuzzle, SpendContext, StreamingPuzzleInfo,
 };
 
 use crate::{AsProgram, Program};
@@ -55,13 +54,13 @@ impl Puzzle {
         let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
         let ctx = self.program.0.lock().unwrap();
 
-        let Some(cat) = CatLayer::<chia_sdk_driver::Puzzle>::parse_puzzle(&ctx, puzzle)? else {
+        let Some((info, p2_puzzle)) = CatInfo::parse(&ctx, puzzle)? else {
             return Ok(None);
         };
 
         Ok(Some(ParsedCat {
-            asset_id: cat.asset_id,
-            p2_puzzle: Self::new(&self.program.0, cat.inner_puzzle),
+            info,
+            p2_puzzle: p2_puzzle.map(|puzzle| Self::new(&self.program.0, puzzle)),
         }))
     }
 

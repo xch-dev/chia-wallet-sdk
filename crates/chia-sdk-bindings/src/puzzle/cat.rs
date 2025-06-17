@@ -55,6 +55,6 @@ impl From<CatSpend> for chia_sdk_driver::CatSpend {
 
 #[derive(Clone)]
 pub struct ParsedCat {
-    pub asset_id: Bytes32,
-    pub p2_puzzle: Puzzle,
+    pub info: CatInfo,
+    pub p2_puzzle: Option<Puzzle>,
 }
