@@ -101,7 +101,7 @@ mod tests {
         let hashed_notarized_payment = tree_hash_notarized_payment(&ctx, &notarized_payment);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,

@@ -119,7 +119,7 @@ mod tests {
         let alice = sim.bls(1);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(&mut ctx, &[Action::single_issue_cat(1)])?;
 
@@ -149,7 +149,7 @@ mod tests {
         let tail = ctx.curry(EverythingWithSignatureTailArgs::new(alice.pk))?;
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,

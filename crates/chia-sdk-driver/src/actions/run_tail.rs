@@ -79,7 +79,7 @@ mod tests {
         let tail_spend = Spend::new(tail, NodePtr::NIL);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,
@@ -120,7 +120,7 @@ mod tests {
         let tail_spend = Spend::new(tail, NodePtr::NIL);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(&mut ctx, &[Action::issue_cat(tail_spend, 1)])?;
 
@@ -135,8 +135,8 @@ mod tests {
         let cat = outputs.cats[&Id::New(0)][0];
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(sim.new_coin(alice.puzzle_hash, 0));
-        spends.add_cat(cat);
+        spends.add(sim.new_coin(alice.puzzle_hash, 0));
+        spends.add(cat);
 
         let deltas = spends.apply(
             &mut ctx,

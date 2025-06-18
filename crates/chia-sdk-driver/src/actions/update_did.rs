@@ -74,7 +74,7 @@ mod tests {
         let hint = ctx.hint(BURN_PUZZLE_HASH)?;
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,

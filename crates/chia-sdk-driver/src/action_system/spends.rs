@@ -51,37 +51,8 @@ impl Spends {
         }
     }
 
-    pub fn add_xch(&mut self, coin: Coin) {
-        self.xch.items.push(FungibleSpend::new(coin, false));
-    }
-
-    pub fn add_cat(&mut self, cat: Cat) {
-        self.cats
-            .entry(Id::Existing(cat.info.asset_id))
-            .or_default()
-            .items
-            .push(FungibleSpend::new(cat, false));
-    }
-
-    pub fn add_did(&mut self, did: Did<HashedPtr>) {
-        self.dids.insert(
-            Id::Existing(did.info.launcher_id),
-            SingletonSpends::new(did, false),
-        );
-    }
-
-    pub fn add_nft(&mut self, nft: Nft<HashedPtr>) {
-        self.nfts.insert(
-            Id::Existing(nft.info.launcher_id),
-            SingletonSpends::new(nft, false),
-        );
-    }
-
-    pub fn add_option(&mut self, option: OptionContract) {
-        self.options.insert(
-            Id::Existing(option.info.launcher_id),
-            SingletonSpends::new(option, false),
-        );
+    pub fn add(&mut self, asset: impl AddAsset) {
+        asset.add(self);
     }
 
     pub fn resolve_first_cat(&self, id: Id) -> Result<Cat, DriverError> {
@@ -302,5 +273,53 @@ impl Spends {
             SpendKind::Settlement(spend) => SettlementLayer
                 .construct_spend(ctx, SettlementPaymentsSolution::new(spend.finish())),
         })
+    }
+}
+
+pub trait AddAsset {
+    fn add(self, spends: &mut Spends);
+}
+
+impl AddAsset for Coin {
+    fn add(self, spends: &mut Spends) {
+        spends.xch.items.push(FungibleSpend::new(self, false));
+    }
+}
+
+impl AddAsset for Cat {
+    fn add(self, spends: &mut Spends) {
+        spends
+            .cats
+            .entry(Id::Existing(self.info.asset_id))
+            .or_default()
+            .items
+            .push(FungibleSpend::new(self, false));
+    }
+}
+
+impl AddAsset for Did<HashedPtr> {
+    fn add(self, spends: &mut Spends) {
+        spends.dids.insert(
+            Id::Existing(self.info.launcher_id),
+            SingletonSpends::new(self, false),
+        );
+    }
+}
+
+impl AddAsset for Nft<HashedPtr> {
+    fn add(self, spends: &mut Spends) {
+        spends.nfts.insert(
+            Id::Existing(self.info.launcher_id),
+            SingletonSpends::new(self, false),
+        );
+    }
+}
+
+impl AddAsset for OptionContract {
+    fn add(self, spends: &mut Spends) {
+        spends.options.insert(
+            Id::Existing(self.info.launcher_id),
+            SingletonSpends::new(self, false),
+        );
     }
 }

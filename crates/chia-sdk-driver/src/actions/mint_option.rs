@@ -115,7 +115,7 @@ mod tests {
         let alice = sim.bls(6);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,

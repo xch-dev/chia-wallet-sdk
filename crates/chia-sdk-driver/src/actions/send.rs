@@ -142,7 +142,7 @@ mod tests {
         let alice = sim.bls(1);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,
@@ -175,7 +175,7 @@ mod tests {
         let bob_puzzle_hash = StandardArgs::curry_tree_hash(bob.pk).into();
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,
@@ -213,7 +213,7 @@ mod tests {
         let alice = sim.bls(3);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,
@@ -265,7 +265,7 @@ mod tests {
         let hint = ctx.hint(alice.puzzle_hash)?;
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,
@@ -301,7 +301,7 @@ mod tests {
         let bob_hint = ctx.hint(bob_puzzle_hash)?;
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,
@@ -344,7 +344,7 @@ mod tests {
         let hint = ctx.hint(alice.puzzle_hash)?;
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,

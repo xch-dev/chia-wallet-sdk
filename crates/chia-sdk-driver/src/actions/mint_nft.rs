@@ -127,7 +127,7 @@ mod tests {
         let alice = sim.bls(1);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(&mut ctx, &[Action::mint_empty_nft()])?;
 
@@ -154,7 +154,7 @@ mod tests {
         let alice = sim.bls(2);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin);
+        spends.add(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,
