@@ -101,11 +101,9 @@ impl SpendAction for MintNftAction {
             }
         }
 
-        let kind = source_kind.empty_copy();
-
         spends
             .nfts
-            .insert(Id::New(index), SingletonSpends::new(eve_nft, kind, true));
+            .insert(Id::New(index), SingletonSpends::new(eve_nft, true));
 
         Ok(())
     }
@@ -129,7 +127,7 @@ mod tests {
         let alice = sim.bls(1);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin, SpendKind::conditions());
+        spends.add_xch(alice.coin);
 
         let deltas = spends.apply(&mut ctx, &[Action::mint_empty_nft()])?;
 
@@ -156,7 +154,7 @@ mod tests {
         let alice = sim.bls(2);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin, SpendKind::conditions());
+        spends.add_xch(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,

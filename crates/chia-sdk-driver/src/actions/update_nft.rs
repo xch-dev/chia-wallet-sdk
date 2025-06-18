@@ -118,7 +118,7 @@ mod tests {
     use chia_sdk_test::Simulator;
     use indexmap::indexmap;
 
-    use crate::{Action, HashedPtr, MetadataUpdate, SpendKind};
+    use crate::{Action, HashedPtr, MetadataUpdate};
 
     use super::*;
 
@@ -144,7 +144,7 @@ mod tests {
         let updated_metadata = ctx.alloc_hashed(&metadata)?;
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin, SpendKind::conditions());
+        spends.add_xch(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,
@@ -203,7 +203,7 @@ mod tests {
         let updated_metadata = ctx.alloc_hashed(&metadata)?;
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin, SpendKind::conditions());
+        spends.add_xch(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,
@@ -243,7 +243,7 @@ mod tests {
         let alice = sim.bls(2);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin, SpendKind::conditions());
+        spends.add_xch(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,

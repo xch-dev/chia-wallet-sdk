@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use chia_protocol::Bytes32;
-use chia_puzzles::SINGLETON_LAUNCHER_HASH;
+use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
 use chia_sdk_types::{
     conditions::{CreateCoin, NewMetadataOutput, TransferNft, UpdateNftMetadata},
     Conditions,
@@ -27,9 +27,9 @@ impl<A> SingletonSpends<A>
 where
     A: SingletonAsset,
 {
-    pub fn new(asset: A, spend: SpendKind, ephemeral: bool) -> Self {
+    pub fn new(asset: A, ephemeral: bool) -> Self {
         Self {
-            lineage: vec![SingletonSpend::new(asset, spend)],
+            lineage: vec![SingletonSpend::new(asset)],
             ephemeral,
         }
     }
@@ -113,7 +113,12 @@ impl<A> SingletonSpend<A>
 where
     A: SingletonAsset,
 {
-    pub fn new(asset: A, kind: SpendKind) -> Self {
+    pub fn new(asset: A) -> Self {
+        let kind = if asset.p2_puzzle_hash() == SETTLEMENT_PAYMENT_HASH.into() {
+            SpendKind::settlement()
+        } else {
+            SpendKind::conditions()
+        };
         let child_info = A::default_child_info(&asset, &kind);
 
         Self {
@@ -165,7 +170,6 @@ impl SingletonAsset for Did<HashedPtr> {
 
         let current_info = singleton.asset.info;
         let child_info = &singleton.child_info;
-        let new_spend_kind = child_info.new_spend_kind.empty_copy();
 
         // If the DID layer has changed, we need to perform an update spend to ensure wallets can properly sync the coin.
         let needs_update = current_info.recovery_list_hash != child_info.recovery_list_hash
@@ -207,7 +211,6 @@ impl SingletonAsset for Did<HashedPtr> {
             singleton
                 .asset
                 .child_with(child_info, singleton.asset.coin.amount),
-            new_spend_kind,
         );
 
         // Signal that an additional spend is required.
@@ -262,7 +265,6 @@ impl SingletonAsset for Nft<HashedPtr> {
                 singleton
                     .asset
                     .child_with(new_info, singleton.asset.coin.amount),
-                SpendKind::conditions(),
             );
 
             spend.child_info = singleton.child_info.clone();
@@ -325,7 +327,6 @@ impl SingletonAsset for Nft<HashedPtr> {
             singleton
                 .asset
                 .child_with(nft_info, singleton.asset.coin.amount),
-            singleton.child_info.new_spend_kind.empty_copy(),
         );
 
         spend.child_info = new_child_info;
@@ -366,12 +367,10 @@ impl SingletonAsset for OptionContract {
         singleton.kind.create_coin(destination);
 
         // Create a new singleton spend with the child and the new spend kind.
-        Ok(SingletonSpend::new(
-            singleton
-                .asset
-                .child(destination.puzzle_hash, singleton.asset.coin.amount),
-            singleton.child_info.new_spend_kind.empty_copy(),
-        ))
+        Ok(SingletonSpend::new(singleton.asset.child(
+            destination.puzzle_hash,
+            singleton.asset.coin.amount,
+        )))
     }
 }
 

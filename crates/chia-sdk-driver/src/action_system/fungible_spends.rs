@@ -130,7 +130,6 @@ where
             source
                 .asset
                 .make_child(source.asset.p2_puzzle_hash(), amount),
-            source.kind.empty_copy(),
             true,
         );
 
@@ -160,7 +159,6 @@ where
             source
                 .asset
                 .make_child(SETTLEMENT_PAYMENT_HASH.into(), amount),
-            SpendKind::settlement(),
             true,
         );
 
@@ -266,8 +264,17 @@ pub struct FungibleSpend<T> {
     pub ephemeral: bool,
 }
 
-impl<T> FungibleSpend<T> {
-    pub fn new(asset: T, kind: SpendKind, ephemeral: bool) -> Self {
+impl<T> FungibleSpend<T>
+where
+    T: FungibleAsset,
+{
+    pub fn new(asset: T, ephemeral: bool) -> Self {
+        let kind = if asset.p2_puzzle_hash() == SETTLEMENT_PAYMENT_HASH.into() {
+            SpendKind::settlement()
+        } else {
+            SpendKind::conditions()
+        };
+
         Self {
             asset,
             kind,

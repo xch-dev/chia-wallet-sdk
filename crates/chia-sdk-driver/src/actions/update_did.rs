@@ -59,7 +59,7 @@ mod tests {
     use chia_sdk_test::Simulator;
     use indexmap::indexmap;
 
-    use crate::{Action, SpendKind, BURN_PUZZLE_HASH};
+    use crate::{Action, BURN_PUZZLE_HASH};
 
     use super::*;
 
@@ -74,7 +74,7 @@ mod tests {
         let hint = ctx.hint(BURN_PUZZLE_HASH)?;
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin, SpendKind::conditions());
+        spends.add_xch(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,

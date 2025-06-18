@@ -68,11 +68,9 @@ impl SpendAction for CreateDidAction {
             }
         }
 
-        let kind = source.kind.empty_copy();
-
         spends
             .dids
-            .insert(Id::New(index), SingletonSpends::new(eve_did, kind, true));
+            .insert(Id::New(index), SingletonSpends::new(eve_did, true));
 
         Ok(())
     }
@@ -96,7 +94,7 @@ mod tests {
         let alice = sim.bls(1);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin, SpendKind::conditions());
+        spends.add_xch(alice.coin);
 
         let deltas = spends.apply(&mut ctx, &[Action::create_empty_did()])?;
 

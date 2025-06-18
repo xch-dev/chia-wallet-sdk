@@ -89,11 +89,9 @@ impl SpendAction for MintOptionAction {
             }
         }
 
-        let kind = source.kind.empty_copy();
-
         spends
             .options
-            .insert(Id::New(index), SingletonSpends::new(eve_option, kind, true));
+            .insert(Id::New(index), SingletonSpends::new(eve_option, true));
 
         Ok(())
     }
@@ -117,7 +115,7 @@ mod tests {
         let alice = sim.bls(6);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin, SpendKind::conditions());
+        spends.add_xch(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,

@@ -83,7 +83,7 @@ mod tests {
     use chia_sdk_types::{payment_assertion, tree_hash_notarized_payment, Conditions};
     use indexmap::indexmap;
 
-    use crate::{Action, SpendKind, StandardLayer, BURN_PUZZLE_HASH};
+    use crate::{Action, StandardLayer, BURN_PUZZLE_HASH};
 
     use super::*;
 
@@ -101,7 +101,7 @@ mod tests {
         let hashed_notarized_payment = tree_hash_notarized_payment(&ctx, &notarized_payment);
 
         let mut spends = Spends::new(alice.puzzle_hash);
-        spends.add_xch(alice.coin, SpendKind::conditions());
+        spends.add_xch(alice.coin);
 
         let deltas = spends.apply(
             &mut ctx,

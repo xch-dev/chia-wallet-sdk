@@ -51,36 +51,36 @@ impl Spends {
         }
     }
 
-    pub fn add_xch(&mut self, coin: Coin, spend: SpendKind) {
-        self.xch.items.push(FungibleSpend::new(coin, spend, false));
+    pub fn add_xch(&mut self, coin: Coin) {
+        self.xch.items.push(FungibleSpend::new(coin, false));
     }
 
-    pub fn add_cat(&mut self, cat: Cat, spend: SpendKind) {
+    pub fn add_cat(&mut self, cat: Cat) {
         self.cats
             .entry(Id::Existing(cat.info.asset_id))
             .or_default()
             .items
-            .push(FungibleSpend::new(cat, spend, false));
+            .push(FungibleSpend::new(cat, false));
     }
 
-    pub fn add_did(&mut self, did: Did<HashedPtr>, spend: SpendKind) {
+    pub fn add_did(&mut self, did: Did<HashedPtr>) {
         self.dids.insert(
             Id::Existing(did.info.launcher_id),
-            SingletonSpends::new(did, spend, false),
+            SingletonSpends::new(did, false),
         );
     }
 
-    pub fn add_nft(&mut self, nft: Nft<HashedPtr>, spend: SpendKind) {
+    pub fn add_nft(&mut self, nft: Nft<HashedPtr>) {
         self.nfts.insert(
             Id::Existing(nft.info.launcher_id),
-            SingletonSpends::new(nft, spend, false),
+            SingletonSpends::new(nft, false),
         );
     }
 
-    pub fn add_option(&mut self, option: OptionContract, spend: SpendKind) {
+    pub fn add_option(&mut self, option: OptionContract) {
         self.options.insert(
             Id::Existing(option.info.launcher_id),
-            SingletonSpends::new(option, spend, false),
+            SingletonSpends::new(option, false),
         );
     }
 
