@@ -149,9 +149,11 @@ mod tests {
             &[Action::send_xch(alice.puzzle_hash, 1, Memos::None)],
         )?;
 
-        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
-        let outputs =
-            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
@@ -179,10 +181,12 @@ mod tests {
             &mut ctx,
             &[Action::send_xch(bob_puzzle_hash, 2, Memos::None)],
         )?;
-        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
 
-        let outputs =
-            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
@@ -219,10 +223,12 @@ mod tests {
                 Action::send_xch(alice.puzzle_hash, 1, Memos::None),
             ],
         )?;
-        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
 
-        let outputs =
-            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
@@ -269,9 +275,11 @@ mod tests {
             ],
         )?;
 
-        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
-        let outputs =
-            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
@@ -302,10 +310,12 @@ mod tests {
                 Action::send(Id::New(0), bob_puzzle_hash, 2, bob_hint),
             ],
         )?;
-        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
 
-        let outputs =
-            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
@@ -345,10 +355,12 @@ mod tests {
                 Action::send(Id::New(0), alice.puzzle_hash, 1, hint),
             ],
         )?;
-        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
 
-        let outputs =
-            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 

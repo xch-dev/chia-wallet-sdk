@@ -122,10 +122,12 @@ mod tests {
         spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(&mut ctx, &[Action::single_issue_cat(1)])?;
-        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
 
-        let outputs =
-            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
@@ -153,10 +155,12 @@ mod tests {
             &mut ctx,
             &[Action::issue_cat(Spend::new(tail, NodePtr::NIL), 1)],
         )?;
-        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
 
-        let outputs =
-            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 

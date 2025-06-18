@@ -84,10 +84,12 @@ mod tests {
                 Action::burn(Id::New(0), 1, hint),
             ],
         )?;
-        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
 
-        let outputs =
-            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 

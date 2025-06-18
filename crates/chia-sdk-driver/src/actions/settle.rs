@@ -111,8 +111,11 @@ mod tests {
             ],
         )?;
 
-        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
-        spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+        spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
 
         StandardLayer::new(alice.pk).spend(
             &mut ctx,

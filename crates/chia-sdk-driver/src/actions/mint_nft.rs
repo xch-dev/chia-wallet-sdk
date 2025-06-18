@@ -132,10 +132,12 @@ mod tests {
         spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(&mut ctx, &[Action::mint_empty_nft()])?;
-        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
 
-        let outputs =
-            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
@@ -163,10 +165,12 @@ mod tests {
                 Action::mint_empty_nft_from_did(Id::New(0)),
             ],
         )?;
-        spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
 
-        let outputs =
-            spends.finish_with_keys(&mut ctx, &indexmap! { alice.puzzle_hash => alice.pk })?;
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 

@@ -19,6 +19,7 @@ pub struct Spends {
     pub nfts: IndexMap<Id, SingletonSpends<Nft<HashedPtr>>>,
     pub options: IndexMap<Id, SingletonSpends<OptionContract>>,
     pub conditions_puzzle_hash: Bytes32,
+    pub change_puzzle_hash: Bytes32,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -31,7 +32,14 @@ pub struct Outputs {
 }
 
 impl Spends {
-    pub fn new(conditions_puzzle_hash: Bytes32) -> Self {
+    pub fn new(self_puzzle_hash: Bytes32) -> Self {
+        Self::with_separate_change_puzzle_hash(self_puzzle_hash, self_puzzle_hash)
+    }
+
+    pub fn with_separate_change_puzzle_hash(
+        conditions_puzzle_hash: Bytes32,
+        change_puzzle_hash: Bytes32,
+    ) -> Self {
         Self {
             xch: FungibleSpends::new(),
             cats: IndexMap::new(),
@@ -39,6 +47,7 @@ impl Spends {
             nfts: IndexMap::new(),
             options: IndexMap::new(),
             conditions_puzzle_hash,
+            change_puzzle_hash,
         }
     }
 
@@ -134,36 +143,35 @@ impl Spends {
         Ok(deltas)
     }
 
-    pub fn create_change(
+    fn create_change(
         &mut self,
         ctx: &mut SpendContext,
         deltas: &Deltas,
-        change_puzzle_hash: Bytes32,
     ) -> Result<(), DriverError> {
         self.xch.create_change(
             ctx,
             deltas.get_xch().unwrap_or(&Delta::default()),
-            change_puzzle_hash,
+            self.change_puzzle_hash,
         )?;
 
         for (&id, cat) in &mut self.cats {
             cat.create_change(
                 ctx,
                 deltas.get(id).unwrap_or(&Delta::default()),
-                change_puzzle_hash,
+                self.change_puzzle_hash,
             )?;
         }
 
         for (_, did) in &mut self.dids {
-            did.finalize(ctx, self.conditions_puzzle_hash, change_puzzle_hash)?;
+            did.finalize(ctx, self.conditions_puzzle_hash, self.change_puzzle_hash)?;
         }
 
         for (_, nft) in &mut self.nfts {
-            nft.finalize(ctx, self.conditions_puzzle_hash, change_puzzle_hash)?;
+            nft.finalize(ctx, self.conditions_puzzle_hash, self.change_puzzle_hash)?;
         }
 
         for (_, option) in &mut self.options {
-            option.finalize(ctx, self.conditions_puzzle_hash, change_puzzle_hash)?;
+            option.finalize(ctx, self.conditions_puzzle_hash, self.change_puzzle_hash)?;
         }
 
         Ok(())
@@ -204,10 +212,13 @@ impl Spends {
     }
 
     pub fn finish(
-        self,
+        mut self,
         ctx: &mut SpendContext,
+        deltas: &Deltas,
         f: impl Fn(&mut SpendContext, Bytes32, SpendKind) -> Result<Spend, DriverError>,
     ) -> Result<Outputs, DriverError> {
+        self.create_change(ctx, deltas)?;
+
         let mut outputs = Outputs::default();
 
         for item in self.xch.items {
@@ -278,9 +289,10 @@ impl Spends {
     pub fn finish_with_keys(
         self,
         ctx: &mut SpendContext,
+        deltas: &Deltas,
         synthetic_keys: &IndexMap<Bytes32, PublicKey>,
     ) -> Result<Outputs, DriverError> {
-        self.finish(ctx, |ctx, p2_puzzle_hash, kind| match kind {
+        self.finish(ctx, deltas, |ctx, p2_puzzle_hash, kind| match kind {
             SpendKind::Conditions(spend) => {
                 let Some(&synthetic_key) = synthetic_keys.get(&p2_puzzle_hash) else {
                     return Err(DriverError::MissingKey);
