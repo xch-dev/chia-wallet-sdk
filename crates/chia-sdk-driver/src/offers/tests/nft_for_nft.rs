@@ -7,6 +7,7 @@ use chia_sdk_test::{sign_transaction, Simulator};
 use chia_sdk_types::{
     payment_assertion, puzzles::SettlementPayment, tree_hash_notarized_payment, Conditions,
 };
+use clvm_utils::ToTreeHash;
 
 use crate::{Launcher, Layer, NftMint, Offer, OfferBuilder, SpendContext, StandardLayer};
 
@@ -92,14 +93,14 @@ fn test_nft_for_nft() -> anyhow::Result<()> {
         nonce: receive_nonce,
         payments: vec![Payment::new(bob.puzzle_hash, 1, bob_memos)],
     };
-    let receive_payment_hashed = tree_hash_notarized_payment(&ctx, &receive_payment);
+    let receive_payment_hash = tree_hash_notarized_payment(&ctx, &receive_payment).tree_hash();
 
     let hash = ctx.tree_hash(puzzle_alice).into();
     let settlement_nft_bob = nft_bob.lock_settlement(
         &mut ctx,
         &StandardLayer::new(bob.pk),
         Vec::new(),
-        Conditions::new().with(payment_assertion(hash, &receive_payment_hashed)),
+        Conditions::new().with(payment_assertion(hash, receive_payment_hash)),
     )?;
 
     let swapped_nft_alice = settlement_nft_bob.unlock_settlement(&mut ctx, payments)?;

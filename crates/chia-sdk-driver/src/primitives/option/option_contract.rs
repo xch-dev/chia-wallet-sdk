@@ -599,7 +599,7 @@ mod tests {
         if matches!(action, Action::Exercise) {
             match strike_coin {
                 OptionCoin::Xch(coin) => {
-                    let payment = underlying.requested_payment_ptr(ctx)?;
+                    let payment = underlying.requested_payment(&mut **ctx)?;
                     let coin_spend = SettlementLayer.construct_coin_spend(
                         ctx,
                         coin,
@@ -608,13 +608,13 @@ mod tests {
                     ctx.insert(coin_spend);
                 }
                 OptionCoin::Cat(cat) => {
-                    let payment = underlying.requested_payment_ptr(ctx)?;
+                    let payment = underlying.requested_payment(&mut **ctx)?;
                     let spend = SettlementLayer
                         .construct_spend(ctx, SettlementPaymentsSolution::new(vec![payment]))?;
                     Cat::spend_all(ctx, &[CatSpend::new(cat, spend)])?;
                 }
                 OptionCoin::RevocableCat(cat) => {
-                    let payment = underlying.requested_payment_ptr(ctx)?;
+                    let payment = underlying.requested_payment(&mut **ctx)?;
                     let spend = SettlementLayer
                         .construct_spend(ctx, SettlementPaymentsSolution::new(vec![payment]))?;
                     let puzzle = ctx.curry(RevocationArgs::new(
@@ -629,7 +629,7 @@ mod tests {
                     Cat::spend_all(ctx, &[CatSpend::new(cat, Spend::new(puzzle, solution))])?;
                 }
                 OptionCoin::Nft(nft) => {
-                    let payment = underlying.requested_payment_ptr(ctx)?;
+                    let payment = underlying.requested_payment(&mut **ctx)?;
                     let spend = SettlementLayer
                         .construct_spend(ctx, SettlementPaymentsSolution::new(vec![payment]))?;
                     let _nft = nft.spend(ctx, spend)?;

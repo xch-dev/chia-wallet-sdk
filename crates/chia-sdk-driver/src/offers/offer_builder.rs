@@ -4,6 +4,7 @@ use chia_sdk_types::{
     conditions::AssertPuzzleAnnouncement, payment_assertion, tree_hash_notarized_payment,
 };
 use clvm_traits::ToClvm;
+use clvm_utils::ToTreeHash;
 use clvmr::Allocator;
 use indexmap::IndexMap;
 
@@ -75,7 +76,7 @@ impl OfferBuilder<Make> {
         let notarized_payment = NotarizedPayment::new(nonce, payments);
         let assertion = payment_assertion(
             puzzle_hash,
-            &tree_hash_notarized_payment(ctx, &notarized_payment),
+            tree_hash_notarized_payment(ctx, &notarized_payment).tree_hash(),
         );
 
         self.data

@@ -10,15 +10,15 @@ use crate::{announcement_id, conditions::AssertPuzzleAnnouncement};
 
 pub fn payment_assertion(
     puzzle_hash: Bytes32,
-    notarized_payment: &NotarizedPayment<TreeHash>,
+    notarized_payment_hash: TreeHash,
 ) -> AssertPuzzleAnnouncement {
-    AssertPuzzleAnnouncement::new(announcement_id(puzzle_hash, notarized_payment.tree_hash()))
+    AssertPuzzleAnnouncement::new(announcement_id(puzzle_hash, notarized_payment_hash))
 }
 
 pub fn tree_hash_notarized_payment(
     allocator: &Allocator,
     notarized_payment: &NotarizedPayment<NodePtr>,
-) -> NotarizedPayment<TreeHash> {
+) -> TreeHash {
     NotarizedPayment {
         nonce: notarized_payment.nonce,
         payments: notarized_payment
@@ -34,4 +34,5 @@ pub fn tree_hash_notarized_payment(
             })
             .collect(),
     }
+    .tree_hash()
 }

@@ -124,7 +124,7 @@ mod tests {
                 .create_coin(alice.puzzle_hash, 1, Memos::None)
                 .with(payment_assertion(
                     SETTLEMENT_PAYMENT_HASH.into(),
-                    &hashed_notarized_payment,
+                    hashed_notarized_payment,
                 )),
         )?;
 
