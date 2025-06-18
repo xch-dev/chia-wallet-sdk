@@ -165,7 +165,7 @@ impl SingletonAsset for Did<HashedPtr> {
 
         let current_info = singleton.asset.info;
         let child_info = &singleton.child_info;
-        let new_spend_kind = child_info.new_spend_kind.clone();
+        let new_spend_kind = child_info.new_spend_kind.empty_copy();
 
         // If the DID layer has changed, we need to perform an update spend to ensure wallets can properly sync the coin.
         let needs_update = current_info.recovery_list_hash != child_info.recovery_list_hash
@@ -370,7 +370,7 @@ impl SingletonAsset for OptionContract {
             singleton
                 .asset
                 .child(destination.puzzle_hash, singleton.asset.coin.amount),
-            singleton.child_info.new_spend_kind.clone(),
+            singleton.child_info.new_spend_kind.empty_copy(),
         ))
     }
 }
