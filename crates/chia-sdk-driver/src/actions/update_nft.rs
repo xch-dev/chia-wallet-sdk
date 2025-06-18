@@ -90,7 +90,10 @@ impl SpendAction for UpdateNftAction {
                                     &transfer_condition,
                                 ))
                                 .create_puzzle_announcement(nft.asset.info.launcher_id.into()),
-                        )?;
+                        );
+                    }
+                    SpendKind::Settlement(_) => {
+                        return Err(DriverError::CannotEmitConditions);
                     }
                 }
 
@@ -140,8 +143,8 @@ mod tests {
             .insert(0, "https://example.com/2".to_string());
         let updated_metadata = ctx.alloc_hashed(&metadata)?;
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,
@@ -197,8 +200,8 @@ mod tests {
             .insert(0, "https://example.com/2".to_string());
         let updated_metadata = ctx.alloc_hashed(&metadata)?;
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,
@@ -235,8 +238,8 @@ mod tests {
 
         let alice = sim.bls(2);
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,

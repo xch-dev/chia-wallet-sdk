@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use chia_protocol::Bytes32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -18,87 +16,34 @@ impl Output {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OutputConstraint {
-    Singleton,
-    Settlement,
+pub struct OutputConstraints {
+    pub singleton: bool,
+    pub settlement: bool,
 }
 
-impl OutputConstraint {
-    pub fn is_allowed(&self, output: &Output, has_singleton_output: bool) -> bool {
-        match self {
-            Self::Singleton => output.amount % 2 == 0 && !has_singleton_output,
-            Self::Settlement => output.amount > 0,
-        }
-    }
-}
+pub trait OutputSet {
+    fn has_output(&self, output: &Output) -> bool;
+    fn can_run_cat_tail(&self) -> bool;
+    fn missing_singleton_output(&self) -> bool;
 
-#[derive(Debug, Clone)]
-pub struct OutputSet {
-    constraints: Vec<OutputConstraint>,
-    outputs: HashSet<Output>,
-    reserve_fee: u64,
-    tail_spend: bool,
-    melted: bool,
-}
-
-impl OutputSet {
-    pub fn new(constraints: Vec<OutputConstraint>) -> Self {
-        Self {
-            constraints,
-            outputs: HashSet::new(),
-            reserve_fee: 0,
-            tail_spend: false,
-            melted: false,
-        }
+    fn find_amount(
+        &self,
+        puzzle_hash: Bytes32,
+        output_constraints: &OutputConstraints,
+    ) -> Option<u64> {
+        (0..u64::MAX)
+            .find(|amount| self.is_allowed(&Output::new(puzzle_hash, *amount), output_constraints))
     }
 
-    pub fn amount(&self) -> u64 {
-        self.reserve_fee
-            + self
-                .outputs
-                .iter()
-                .fold(0, |acc, output| acc + output.amount)
-    }
-
-    pub fn reserve_fee(&mut self, amount: u64) {
-        self.reserve_fee += amount;
-    }
-
-    pub fn melt(&mut self) {
-        self.melted = true;
-    }
-
-    pub fn spend_tail(&mut self) {
-        self.tail_spend = true;
-    }
-
-    pub fn constraints(&self) -> &[OutputConstraint] {
-        &self.constraints
-    }
-
-    pub fn find_amount(&self, puzzle_hash: Bytes32) -> Option<u64> {
-        (0..u64::MAX).find(|&amount| self.is_allowed(&Output::new(puzzle_hash, amount)))
-    }
-
-    pub fn is_allowed(&self, output: &Output) -> bool {
-        for constraint in &self.constraints {
-            if !constraint.is_allowed(output, self.has_singleton_output()) {
-                return false;
-            }
+    fn is_allowed(&self, output: &Output, output_constraints: &OutputConstraints) -> bool {
+        if output_constraints.singleton && output.amount % 2 == 1 {
+            return false;
         }
 
-        !self.outputs.contains(output)
-    }
+        if output_constraints.settlement && output.amount == 0 {
+            return false;
+        }
 
-    pub fn has_singleton_output(&self) -> bool {
-        self.melted || self.outputs.iter().any(|output| output.amount % 2 == 1)
-    }
-
-    pub fn has_tail_spend(&self) -> bool {
-        self.tail_spend
-    }
-
-    pub fn insert(&mut self, output: Output) {
-        self.outputs.insert(output);
+        !self.has_output(output)
     }
 }

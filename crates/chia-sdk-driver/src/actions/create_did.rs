@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 
 use crate::{
-    Deltas, DriverError, FungibleAsset, HashedPtr, Id, SingletonSpends, SpendAction, SpendContext,
+    Asset, Deltas, DriverError, HashedPtr, Id, SingletonSpends, SpendAction, SpendContext,
     SpendKind, Spends,
 };
 
@@ -61,11 +61,14 @@ impl SpendAction for CreateDidAction {
 
         match &mut source.kind {
             SpendKind::Conditions(spend) => {
-                spend.add_conditions(parent_conditions)?;
+                spend.add_conditions(parent_conditions);
+            }
+            SpendKind::Settlement(_) => {
+                return Err(DriverError::CannotEmitConditions);
             }
         }
 
-        let kind = source.kind.child();
+        let kind = source.kind.empty_copy();
 
         spends
             .dids
@@ -92,8 +95,8 @@ mod tests {
 
         let alice = sim.bls(1);
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(&mut ctx, &[Action::create_empty_did()])?;
         spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;

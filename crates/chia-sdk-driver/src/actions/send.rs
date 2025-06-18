@@ -1,8 +1,8 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::Memos;
-use chia_sdk_types::{conditions::CreateCoin, Conditions};
+use chia_sdk_types::conditions::CreateCoin;
 
-use crate::{Deltas, DriverError, Id, Output, SpendAction, SpendContext, SpendKind, Spends};
+use crate::{Deltas, DriverError, Id, Output, SpendAction, SpendContext, Spends};
 
 #[derive(Debug, Clone, Copy)]
 pub struct SendAction {
@@ -51,7 +51,7 @@ impl SendAction {
                 }
 
                 return Ok(did
-                    .finalize(ctx, create_coin.puzzle_hash)?
+                    .finalize(ctx, spends.conditions_puzzle_hash, create_coin.puzzle_hash)?
                     .map(|did| did.coin));
             } else if let Some(nft) = spends.nfts.get_mut(&id) {
                 let source = nft.last_mut()?;
@@ -62,7 +62,7 @@ impl SendAction {
                 }
 
                 return Ok(nft
-                    .finalize(ctx, create_coin.puzzle_hash)?
+                    .finalize(ctx, spends.conditions_puzzle_hash, create_coin.puzzle_hash)?
                     .map(|nft| nft.coin));
             } else if let Some(option) = spends.options.get_mut(&id) {
                 let source = option.last_mut()?;
@@ -73,7 +73,7 @@ impl SendAction {
                 }
 
                 return Ok(option
-                    .finalize(ctx, create_coin.puzzle_hash)?
+                    .finalize(ctx, spends.conditions_puzzle_hash, create_coin.puzzle_hash)?
                     .map(|option| option.coin));
             } else {
                 return Err(DriverError::InvalidAssetId);
@@ -92,11 +92,7 @@ impl SendAction {
             )
         };
 
-        match spend {
-            SpendKind::Conditions(spend) => {
-                spend.add_conditions(Conditions::new().with(create_coin))?;
-            }
-        }
+        spend.create_coin(create_coin);
 
         Ok(Some(coin))
     }
@@ -134,7 +130,7 @@ mod tests {
     use chia_sdk_test::{BlsPair, Simulator};
     use indexmap::indexmap;
 
-    use crate::{Action, Cat};
+    use crate::{Action, Cat, SpendKind};
 
     use super::*;
 
@@ -145,8 +141,8 @@ mod tests {
 
         let alice = sim.bls(1);
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,
@@ -176,8 +172,8 @@ mod tests {
         let bob = BlsPair::new(0);
         let bob_puzzle_hash = StandardArgs::curry_tree_hash(bob.pk).into();
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,
@@ -212,8 +208,8 @@ mod tests {
 
         let alice = sim.bls(3);
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,
@@ -262,8 +258,8 @@ mod tests {
         let alice = sim.bls(1);
         let hint = ctx.hint(alice.puzzle_hash)?;
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,
@@ -296,8 +292,8 @@ mod tests {
         let bob_puzzle_hash = StandardArgs::curry_tree_hash(bob.pk).into();
         let bob_hint = ctx.hint(bob_puzzle_hash)?;
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,
@@ -337,8 +333,8 @@ mod tests {
         let alice = sim.bls(3);
         let hint = ctx.hint(alice.puzzle_hash)?;
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,

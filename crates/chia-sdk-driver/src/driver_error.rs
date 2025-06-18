@@ -63,8 +63,11 @@ pub enum DriverError {
     #[error("delegated puzzle wrapper conflict")]
     DelegatedPuzzleWrapperConflict,
 
-    #[error("invalid output")]
-    InvalidOutput,
+    #[error("cannot emit conditions from spend")]
+    CannotEmitConditions,
+
+    #[error("singleton spend already finalized")]
+    AlreadyFinalized,
 
     #[error("there is no spendable source coin that can create the output without a conflict")]
     NoSourceForOutput,

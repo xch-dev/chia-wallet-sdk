@@ -1,22 +1,24 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_sdk_types::Condition;
 use clvm_traits::FromClvm;
 use indexmap::IndexMap;
 
 use crate::{
-    Action, Cat, CatSpend, Delta, Deltas, Did, DriverError, FungibleAsset, FungibleSpend,
-    FungibleSpends, HashedPtr, Id, Nft, OptionContract, SingletonAsset, SingletonSpends, Spend,
+    Action, Asset, Cat, CatSpend, Delta, Deltas, Did, DriverError, FungibleSpend, FungibleSpends,
+    HashedPtr, Id, Layer, Nft, OptionContract, SettlementLayer, SingletonSpends, Spend,
     SpendAction, SpendContext, SpendKind, SpendWithConditions, StandardLayer,
 };
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Spends {
     pub xch: FungibleSpends<Coin>,
     pub cats: IndexMap<Id, FungibleSpends<Cat>>,
     pub dids: IndexMap<Id, SingletonSpends<Did<HashedPtr>>>,
     pub nfts: IndexMap<Id, SingletonSpends<Nft<HashedPtr>>>,
     pub options: IndexMap<Id, SingletonSpends<OptionContract>>,
+    pub conditions_puzzle_hash: Bytes32,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -29,8 +31,15 @@ pub struct Outputs {
 }
 
 impl Spends {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(conditions_puzzle_hash: Bytes32) -> Self {
+        Self {
+            xch: FungibleSpends::new(),
+            cats: IndexMap::new(),
+            dids: IndexMap::new(),
+            nfts: IndexMap::new(),
+            options: IndexMap::new(),
+            conditions_puzzle_hash,
+        }
     }
 
     pub fn add_xch(&mut self, coin: Coin, spend: SpendKind) {
@@ -146,15 +155,15 @@ impl Spends {
         }
 
         for (_, did) in &mut self.dids {
-            did.finalize(ctx, change_puzzle_hash)?;
+            did.finalize(ctx, self.conditions_puzzle_hash, change_puzzle_hash)?;
         }
 
         for (_, nft) in &mut self.nfts {
-            nft.finalize(ctx, change_puzzle_hash)?;
+            nft.finalize(ctx, self.conditions_puzzle_hash, change_puzzle_hash)?;
         }
 
         for (_, option) in &mut self.options {
-            option.finalize(ctx, change_puzzle_hash)?;
+            option.finalize(ctx, self.conditions_puzzle_hash, change_puzzle_hash)?;
         }
 
         Ok(())
@@ -280,6 +289,8 @@ impl Spends {
                 SpendKind::Conditions(spend) => {
                     StandardLayer::new(synthetic_key).spend_with_conditions(ctx, spend.finish())
                 }
+                SpendKind::Settlement(spend) => SettlementLayer
+                    .construct_spend(ctx, SettlementPaymentsSolution::new(spend.finish())),
             }
         })
     }

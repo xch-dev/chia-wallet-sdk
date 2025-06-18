@@ -1,8 +1,8 @@
 use chia_protocol::Bytes32;
 
 use crate::{
-    Deltas, DriverError, FungibleAsset, HashedPtr, Id, SingletonAsset, SingletonSpends,
-    SpendAction, SpendContext, SpendKind, Spends,
+    Asset, Deltas, DriverError, HashedPtr, Id, SingletonSpends, SpendAction, SpendContext,
+    SpendKind, Spends,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -94,11 +94,14 @@ impl SpendAction for MintNftAction {
 
         match source_kind {
             SpendKind::Conditions(spend) => {
-                spend.add_conditions(parent_conditions)?;
+                spend.add_conditions(parent_conditions);
+            }
+            SpendKind::Settlement(_) => {
+                return Err(DriverError::CannotEmitConditions);
             }
         }
 
-        let kind = source_kind.child();
+        let kind = source_kind.empty_copy();
 
         spends
             .nfts
@@ -125,8 +128,8 @@ mod tests {
 
         let alice = sim.bls(1);
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(&mut ctx, &[Action::mint_empty_nft()])?;
         spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
@@ -150,8 +153,8 @@ mod tests {
 
         let alice = sim.bls(2);
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,

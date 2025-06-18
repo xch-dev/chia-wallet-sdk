@@ -1,4 +1,5 @@
 mod action;
+mod asset;
 mod deltas;
 mod fungible_spends;
 mod id;
@@ -8,6 +9,7 @@ mod spend_kind;
 mod spends;
 
 pub use action::*;
+pub use asset::*;
 pub use deltas::*;
 pub use fungible_spends::*;
 pub use id::*;

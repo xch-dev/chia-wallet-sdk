@@ -1,70 +1,50 @@
+use std::collections::HashSet;
+
 use chia_sdk_types::{Condition, Conditions};
 
-use crate::{DriverError, Output, OutputConstraint, OutputSet};
+use crate::{Output, OutputSet};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct ConditionsSpend {
     conditions: Conditions,
-    outputs: OutputSet,
+    outputs: HashSet<Output>,
 }
 
 impl ConditionsSpend {
-    pub fn new(constraints: Vec<OutputConstraint>) -> Self {
-        Self {
-            conditions: Conditions::new(),
-            outputs: OutputSet::new(constraints),
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub fn outputs(&self) -> &OutputSet {
-        &self.outputs
-    }
-
-    pub fn add_conditions(&mut self, conditions: Conditions) -> Result<(), DriverError> {
-        // Check for duplicate outputs first to avoid inserting conditions that should be rejected
-        for condition in &conditions {
-            if condition.is_melt_singleton() && self.outputs.has_singleton_output() {
-                return Err(DriverError::InvalidOutput);
-            }
-
-            if condition.is_run_cat_tail() && self.outputs.has_tail_spend() {
-                return Err(DriverError::InvalidOutput);
-            }
-
-            if let Some(create_coin) = condition.as_create_coin() {
-                if !self
-                    .outputs
-                    .is_allowed(&Output::new(create_coin.puzzle_hash, create_coin.amount))
-                {
-                    return Err(DriverError::InvalidOutput);
-                }
-            }
-        }
-
+    pub fn add_conditions(&mut self, conditions: Conditions) {
         for condition in conditions {
-            match &condition {
-                Condition::CreateCoin(create_coin) => {
-                    self.outputs
-                        .insert(Output::new(create_coin.puzzle_hash, create_coin.amount));
-                }
-                Condition::ReserveFee(reserve_fee) => {
-                    self.outputs.reserve_fee(reserve_fee.amount);
-                }
-                Condition::MeltSingleton(_melt_singleton) => {
-                    self.outputs.melt();
-                }
-                Condition::RunCatTail(_run_cat_tail) => {
-                    self.outputs.spend_tail();
-                }
-                _ => {}
+            if let Some(create_coin) = condition.as_create_coin() {
+                let output = Output::new(create_coin.puzzle_hash, create_coin.amount);
+                self.outputs.insert(output);
             }
             self.conditions.push(condition);
         }
-
-        Ok(())
     }
 
     pub fn finish(self) -> Conditions {
         self.conditions
+    }
+}
+
+impl OutputSet for ConditionsSpend {
+    fn has_output(&self, output: &Output) -> bool {
+        self.outputs.contains(output)
+    }
+
+    fn can_run_cat_tail(&self) -> bool {
+        !self.conditions.iter().any(Condition::is_run_cat_tail)
+    }
+
+    fn missing_singleton_output(&self) -> bool {
+        !self.conditions.iter().any(|condition| {
+            condition.is_melt_singleton()
+                || condition
+                    .as_create_coin()
+                    .is_some_and(|create_coin| create_coin.amount % 2 == 1)
+        })
     }
 }

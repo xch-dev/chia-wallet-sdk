@@ -73,8 +73,8 @@ mod tests {
         let metadata = ctx.alloc_hashed(&"Hello, world!")?;
         let hint = ctx.hint(BURN_PUZZLE_HASH)?;
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,

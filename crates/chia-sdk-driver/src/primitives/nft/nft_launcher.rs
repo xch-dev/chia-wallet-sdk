@@ -228,7 +228,11 @@ mod tests {
             &alice_p2,
             mint_nft.create_coin(alice.puzzle_hash, 0, Memos::None),
         )?;
-        alice_p2.spend(ctx, intermediate_coin, create_launcher)?;
+        alice_p2.spend(
+            ctx,
+            intermediate_coin,
+            Conditions::new().with(create_launcher),
+        )?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
@@ -250,7 +254,11 @@ mod tests {
         let intermediate_coin = Coin::new(did.coin.coin_id(), alice.puzzle_hash, 0);
 
         let (create_launcher, launcher) = Launcher::create_early(intermediate_coin.coin_id(), 1);
-        alice_p2.spend(ctx, intermediate_coin, create_launcher)?;
+        alice_p2.spend(
+            ctx,
+            intermediate_coin,
+            Conditions::new().with(create_launcher),
+        )?;
 
         let mint = NftMint::new(
             NftMetadata::default(),

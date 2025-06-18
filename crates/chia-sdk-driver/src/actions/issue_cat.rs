@@ -3,12 +3,12 @@ use chia_puzzle_types::{
     cat::{CatArgs, GenesisByCoinIdTailArgs},
     Memos,
 };
-use chia_sdk_types::Conditions;
+use chia_sdk_types::{conditions::CreateCoin, Conditions};
 use clvmr::NodePtr;
 
 use crate::{
-    Cat, CatInfo, Deltas, DriverError, FungibleAsset, FungibleSpend, Id, Spend, SpendAction,
-    SpendContext, SpendKind, Spends,
+    Asset, Cat, CatInfo, Deltas, DriverError, FungibleSpend, Id, Spend, SpendAction, SpendContext,
+    SpendKind, Spends,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -57,15 +57,9 @@ impl SpendAction for IssueCatAction {
         let p2_puzzle_hash = source.asset.p2_puzzle_hash().into();
         let cat_puzzle_hash = CatArgs::curry_tree_hash(asset_id, p2_puzzle_hash).into();
 
-        match &mut source.kind {
-            SpendKind::Conditions(spend) => {
-                spend.add_conditions(Conditions::new().create_coin(
-                    cat_puzzle_hash,
-                    self.amount,
-                    Memos::None,
-                ))?;
-            }
-        }
+        source
+            .kind
+            .create_coin(CreateCoin::new(cat_puzzle_hash, self.amount, Memos::None));
 
         let eve_cat = Cat::new(
             Coin::new(source.asset.coin_id(), cat_puzzle_hash, self.amount),
@@ -79,7 +73,7 @@ impl SpendAction for IssueCatAction {
             Id::New(index)
         };
 
-        let mut cat_spend = FungibleSpend::new(eve_cat, source.kind.child(), true);
+        let mut cat_spend = FungibleSpend::new(eve_cat, source.kind.empty_copy(), true);
 
         let tail_spend = match self.issuance {
             TailIssuance::Single => {
@@ -93,7 +87,10 @@ impl SpendAction for IssueCatAction {
             SpendKind::Conditions(spend) => {
                 spend.add_conditions(
                     Conditions::new().run_cat_tail(tail_spend.puzzle, tail_spend.solution),
-                )?;
+                );
+            }
+            SpendKind::Settlement(_) => {
+                return Err(DriverError::CannotEmitConditions);
             }
         }
 
@@ -121,8 +118,8 @@ mod tests {
 
         let alice = sim.bls(1);
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(&mut ctx, &[Action::single_issue_cat(1)])?;
         spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
@@ -149,8 +146,8 @@ mod tests {
 
         let tail = ctx.curry(EverythingWithSignatureTailArgs::new(alice.pk))?;
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,

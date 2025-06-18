@@ -3,7 +3,7 @@ use chia_puzzle_types::Memos;
 use clvm_utils::ToTreeHash;
 
 use crate::{
-    Deltas, DriverError, FungibleAsset, Id, OptionType, SendAction, SingletonSpends, SpendAction,
+    Asset, Deltas, DriverError, Id, OptionType, SendAction, SingletonSpends, SpendAction,
     SpendContext, SpendKind, Spends,
 };
 
@@ -72,7 +72,7 @@ impl SpendAction for MintOptionAction {
             Memos::None,
         )
         .run_standalone(ctx, spends, true)?
-        .ok_or(DriverError::InvalidOutput)?;
+        .ok_or(DriverError::AlreadyFinalized)?;
 
         let source = &mut spends.xch.items[source];
 
@@ -82,11 +82,14 @@ impl SpendAction for MintOptionAction {
 
         match &mut source.kind {
             SpendKind::Conditions(spend) => {
-                spend.add_conditions(parent_conditions)?;
+                spend.add_conditions(parent_conditions);
+            }
+            SpendKind::Settlement(_) => {
+                return Err(DriverError::CannotEmitConditions);
             }
         }
 
-        let kind = source.kind.child();
+        let kind = source.kind.empty_copy();
 
         spends
             .options
@@ -113,8 +116,8 @@ mod tests {
 
         let alice = sim.bls(6);
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,

@@ -1,6 +1,6 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{EveProof, Proof};
-use chia_sdk_types::Conditions;
+use chia_sdk_types::{conditions::CreateCoin, Conditions};
 use clvm_traits::clvm_quote;
 use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
@@ -105,9 +105,9 @@ impl OptionLauncher<UnspecifiedOption> {
         launcher_amount: u64,
         info: OptionLauncherInfo,
         singleton_amount: u64,
-    ) -> Result<(Conditions, Self), DriverError> {
+    ) -> Result<(CreateCoin<NodePtr>, Self), DriverError> {
         let memos = ctx.hint(info.creator_puzzle_hash)?;
-        let (conditions, launcher) =
+        let (create_coin, launcher) =
             Launcher::create_early_with_memos(parent_coin_id, launcher_amount, memos);
         let launcher = launcher.with_singleton_amount(singleton_amount);
         let launcher_id = launcher.coin().coin_id();
@@ -127,7 +127,7 @@ impl OptionLauncher<UnspecifiedOption> {
             },
         };
 
-        Ok((conditions, launcher))
+        Ok((create_coin, launcher))
     }
 
     pub fn underlying(&self) -> OptionUnderlying {

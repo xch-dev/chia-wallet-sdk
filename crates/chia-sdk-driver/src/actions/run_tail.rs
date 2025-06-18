@@ -45,7 +45,10 @@ impl SpendAction for RunTailAction {
                 spend.add_conditions(
                     Conditions::new()
                         .run_cat_tail(self.tail_spend.puzzle, self.tail_spend.solution),
-                )?;
+                );
+            }
+            SpendKind::Settlement(_) => {
+                return Err(DriverError::CannotEmitConditions);
             }
         }
 
@@ -75,8 +78,8 @@ mod tests {
         let tail = ctx.curry(EverythingWithSignatureTailArgs::new(alice.pk))?;
         let tail_spend = Spend::new(tail, NodePtr::NIL);
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,
@@ -114,8 +117,8 @@ mod tests {
         let tail = ctx.curry(EverythingWithSignatureTailArgs::new(alice.pk))?;
         let tail_spend = Spend::new(tail, NodePtr::NIL);
 
-        let mut spends = Spends::new();
-        spends.add_xch(alice.coin, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(alice.coin, SpendKind::conditions());
 
         let deltas = spends.apply(&mut ctx, &[Action::issue_cat(tail_spend, 1)])?;
         spends.create_change(&mut ctx, &deltas, alice.puzzle_hash)?;
@@ -127,12 +130,9 @@ mod tests {
 
         let cat = outputs.cats[&Id::New(0)][0];
 
-        let mut spends = Spends::new();
-        spends.add_xch(
-            sim.new_coin(alice.puzzle_hash, 0),
-            SpendKind::conditions(vec![]),
-        );
-        spends.add_cat(cat, SpendKind::conditions(vec![]));
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add_xch(sim.new_coin(alice.puzzle_hash, 0), SpendKind::conditions());
+        spends.add_cat(cat, SpendKind::conditions());
 
         let deltas = spends.apply(
             &mut ctx,

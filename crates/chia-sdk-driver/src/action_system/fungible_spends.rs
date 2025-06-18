@@ -4,11 +4,11 @@ use chia_puzzle_types::{
     Memos,
 };
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
-use chia_sdk_types::Conditions;
+use chia_sdk_types::conditions::CreateCoin;
 
 use crate::{
-    Cat, Delta, DriverError, Launcher, OptionLauncher, OptionLauncherInfo, OptionType, Output,
-    SpendContext, SpendKind,
+    Asset, Cat, Delta, DriverError, Launcher, OptionLauncher, OptionLauncherInfo, OptionType,
+    Output, OutputSet, SpendContext, SpendKind,
 };
 
 #[derive(Debug, Clone)]
@@ -40,7 +40,7 @@ where
         if let Some(index) = self
             .items
             .iter()
-            .position(|item| item.kind.outputs().is_allowed(output))
+            .position(|item| item.kind.is_allowed(output, &item.asset.constraints()))
         {
             return Ok(index);
         }
@@ -52,7 +52,7 @@ where
         if let Some(index) = self
             .items
             .iter()
-            .position(|item| !item.kind.outputs().has_tail_spend())
+            .position(|item| item.kind.can_run_cat_tail())
         {
             return Ok(index);
         }
@@ -67,16 +67,19 @@ where
         amount: u64,
     ) -> Result<usize, DriverError> {
         if let Some(index) = self.items.iter().position(|item| {
-            item.kind.outputs().is_allowed(&Output::new(
-                CatArgs::curry_tree_hash(
-                    asset_id.unwrap_or_else(|| {
-                        GenesisByCoinIdTailArgs::curry_tree_hash(item.asset.get_coin_id()).into()
-                    }),
-                    item.asset.p2_puzzle_hash().into(),
-                )
-                .into(),
-                amount,
-            ))
+            item.kind.is_allowed(
+                &Output::new(
+                    CatArgs::curry_tree_hash(
+                        asset_id.unwrap_or_else(|| {
+                            GenesisByCoinIdTailArgs::curry_tree_hash(item.asset.coin_id()).into()
+                        }),
+                        item.asset.p2_puzzle_hash().into(),
+                    )
+                    .into(),
+                    amount,
+                ),
+                &item.asset.constraints(),
+            )
         }) {
             return Ok(index);
         }
@@ -87,8 +90,7 @@ where
     pub fn intermediate_source(&mut self, ctx: &mut SpendContext) -> Result<usize, DriverError> {
         let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
             item.kind
-                .outputs()
-                .find_amount(item.asset.p2_puzzle_hash())
+                .find_amount(item.asset.p2_puzzle_hash(), &item.asset.constraints())
                 .map(|amount| (index, amount))
         }) else {
             return Err(DriverError::NoSourceForOutput);
@@ -96,17 +98,13 @@ where
 
         let source = &mut self.items[index];
 
-        match &mut source.kind {
-            SpendKind::Conditions(spend) => spend.add_conditions(
-                Conditions::new().create_coin(
-                    source.asset.p2_puzzle_hash(),
-                    amount,
-                    source
-                        .asset
-                        .child_memos(ctx, source.asset.p2_puzzle_hash())?,
-                ),
-            )?,
-        }
+        source.kind.create_coin(CreateCoin::new(
+            source.asset.p2_puzzle_hash(),
+            amount,
+            source
+                .asset
+                .child_memos(ctx, source.asset.p2_puzzle_hash())?,
+        ));
 
         let child = source.fungible_child(source.asset.p2_puzzle_hash(), amount);
         self.items.push(child);
@@ -117,8 +115,7 @@ where
     pub fn launcher_source(&mut self) -> Result<(usize, u64), DriverError> {
         let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
             item.kind
-                .outputs()
-                .find_amount(SINGLETON_LAUNCHER_HASH.into())
+                .find_amount(SINGLETON_LAUNCHER_HASH.into(), &item.asset.constraints())
                 .map(|amount| (index, amount))
         }) else {
             return Err(DriverError::NoSourceForOutput);
@@ -133,14 +130,10 @@ where
     ) -> Result<(usize, Launcher), DriverError> {
         let (index, launcher_amount) = self.launcher_source()?;
 
-        let (parent_conditions, launcher) =
-            Launcher::create_early(self.items[index].asset.get_coin_id(), launcher_amount);
+        let (create_coin, launcher) =
+            Launcher::create_early(self.items[index].asset.coin_id(), launcher_amount);
 
-        match &mut self.items[index].kind {
-            SpendKind::Conditions(spend) => {
-                spend.add_conditions(parent_conditions)?;
-            }
-        }
+        self.items[index].kind.create_coin(create_coin);
 
         Ok((index, launcher.with_singleton_amount(singleton_amount)))
     }
@@ -158,9 +151,9 @@ where
 
         let source = &mut self.items[index];
 
-        let (parent_conditions, launcher) = OptionLauncher::create_early(
+        let (create_coin, launcher) = OptionLauncher::create_early(
             ctx,
-            source.asset.get_coin_id(),
+            source.asset.coin_id(),
             launcher_amount,
             OptionLauncherInfo::new(
                 creator_puzzle_hash,
@@ -172,11 +165,7 @@ where
             singleton_amount,
         )?;
 
-        match &mut source.kind {
-            SpendKind::Conditions(spend) => {
-                spend.add_conditions(parent_conditions)?;
-            }
-        }
+        source.kind.create_coin(create_coin);
 
         Ok((index, launcher))
     }
@@ -197,15 +186,11 @@ where
         let source = self.output_source(ctx, &output)?;
         let item = &mut self.items[source];
 
-        match &mut item.kind {
-            SpendKind::Conditions(spend) => {
-                spend.add_conditions(Conditions::new().create_coin(
-                    change_puzzle_hash,
-                    change,
-                    item.asset.child_memos(ctx, change_puzzle_hash)?,
-                ))?;
-            }
-        }
+        item.kind.create_coin(CreateCoin::new(
+            change_puzzle_hash,
+            change,
+            item.asset.child_memos(ctx, change_puzzle_hash)?,
+        ));
 
         Ok(())
     }
@@ -240,16 +225,13 @@ impl<T> FungibleSpend<T> {
     {
         Self::new(
             self.asset.make_child(p2_puzzle_hash, amount),
-            self.kind.child(),
+            self.kind.empty_copy(),
             true,
         )
     }
 }
 
-pub trait FungibleAsset: Clone {
-    fn get_coin_id(&self) -> Bytes32;
-    fn p2_puzzle_hash(&self) -> Bytes32;
-    fn amount(&self) -> u64;
+pub trait FungibleAsset: Clone + Asset {
     #[must_use]
     fn make_child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self;
     fn child_memos(
@@ -260,18 +242,6 @@ pub trait FungibleAsset: Clone {
 }
 
 impl FungibleAsset for Coin {
-    fn get_coin_id(&self) -> Bytes32 {
-        self.coin_id()
-    }
-
-    fn p2_puzzle_hash(&self) -> Bytes32 {
-        self.puzzle_hash
-    }
-
-    fn amount(&self) -> u64 {
-        self.amount
-    }
-
     fn make_child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
         Coin::new(self.coin_id(), p2_puzzle_hash, amount)
     }
@@ -286,18 +256,6 @@ impl FungibleAsset for Coin {
 }
 
 impl FungibleAsset for Cat {
-    fn get_coin_id(&self) -> Bytes32 {
-        self.coin.coin_id()
-    }
-
-    fn p2_puzzle_hash(&self) -> Bytes32 {
-        self.info.p2_puzzle_hash
-    }
-
-    fn amount(&self) -> u64 {
-        self.coin.amount
-    }
-
     fn make_child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
         self.child(p2_puzzle_hash, amount)
     }
