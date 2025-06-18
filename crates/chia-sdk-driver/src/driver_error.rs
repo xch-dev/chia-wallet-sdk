@@ -66,6 +66,9 @@ pub enum DriverError {
     #[error("cannot emit conditions from spend")]
     CannotEmitConditions,
 
+    #[error("cannot settle from spend")]
+    CannotSettleFromSpend,
+
     #[error("singleton spend already finalized")]
     AlreadyFinalized,
 

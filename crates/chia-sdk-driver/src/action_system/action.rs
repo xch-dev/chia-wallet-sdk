@@ -1,11 +1,11 @@
 use chia_protocol::Bytes32;
-use chia_puzzle_types::Memos;
+use chia_puzzle_types::{offer::NotarizedPayment, Memos};
 use hex_literal::hex;
 
 use crate::{
     CreateDidAction, Delta, Deltas, DriverError, HashedPtr, Id, IssueCatAction, MintNftAction,
-    MintOptionAction, OptionType, RunTailAction, SendAction, Spend, SpendContext, Spends,
-    TailIssuance, TransferNftById, UpdateDidAction, UpdateNftAction,
+    MintOptionAction, OptionType, RunTailAction, SendAction, SettleAction, Spend, SpendContext,
+    Spends, TailIssuance, TransferNftById, UpdateDidAction, UpdateNftAction,
 };
 
 pub const BURN_PUZZLE_HASH: Bytes32 = Bytes32::new(hex!(
@@ -15,6 +15,7 @@ pub const BURN_PUZZLE_HASH: Bytes32 = Bytes32::new(hex!(
 #[derive(Debug, Clone)]
 pub enum Action {
     Send(SendAction),
+    Settle(SettleAction),
     CreateDid(CreateDidAction),
     UpdateDid(UpdateDidAction),
     MintNft(MintNftAction),
@@ -31,6 +32,14 @@ impl Action {
 
     pub fn send_xch(puzzle_hash: Bytes32, amount: u64, memos: Memos) -> Self {
         Self::Send(SendAction::new(None, puzzle_hash, amount, memos))
+    }
+
+    pub fn settle(id: Id, notarized_payment: NotarizedPayment) -> Self {
+        Self::Settle(SettleAction::new(Some(id), notarized_payment))
+    }
+
+    pub fn settle_xch(notarized_payment: NotarizedPayment) -> Self {
+        Self::Settle(SettleAction::new(None, notarized_payment))
     }
 
     pub fn burn(id: Id, amount: u64, memos: Memos) -> Self {
@@ -180,6 +189,7 @@ impl SpendAction for Action {
     fn calculate_delta(&self, deltas: &mut Deltas, index: usize) {
         match self {
             Action::Send(action) => action.calculate_delta(deltas, index),
+            Action::Settle(action) => action.calculate_delta(deltas, index),
             Action::CreateDid(action) => action.calculate_delta(deltas, index),
             Action::UpdateDid(action) => action.calculate_delta(deltas, index),
             Action::MintNft(action) => action.calculate_delta(deltas, index),
@@ -198,6 +208,7 @@ impl SpendAction for Action {
     ) -> Result<(), DriverError> {
         match self {
             Action::Send(action) => action.spend(ctx, spends, index),
+            Action::Settle(action) => action.spend(ctx, spends, index),
             Action::CreateDid(action) => action.spend(ctx, spends, index),
             Action::UpdateDid(action) => action.spend(ctx, spends, index),
             Action::MintNft(action) => action.spend(ctx, spends, index),

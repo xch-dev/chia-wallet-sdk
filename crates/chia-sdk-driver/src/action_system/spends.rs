@@ -280,18 +280,15 @@ impl Spends {
         ctx: &mut SpendContext,
         synthetic_keys: &IndexMap<Bytes32, PublicKey>,
     ) -> Result<Outputs, DriverError> {
-        self.finish(ctx, |ctx, p2_puzzle_hash, kind| {
-            let Some(&synthetic_key) = synthetic_keys.get(&p2_puzzle_hash) else {
-                return Err(DriverError::MissingKey);
-            };
-
-            match kind {
-                SpendKind::Conditions(spend) => {
-                    StandardLayer::new(synthetic_key).spend_with_conditions(ctx, spend.finish())
-                }
-                SpendKind::Settlement(spend) => SettlementLayer
-                    .construct_spend(ctx, SettlementPaymentsSolution::new(spend.finish())),
+        self.finish(ctx, |ctx, p2_puzzle_hash, kind| match kind {
+            SpendKind::Conditions(spend) => {
+                let Some(&synthetic_key) = synthetic_keys.get(&p2_puzzle_hash) else {
+                    return Err(DriverError::MissingKey);
+                };
+                StandardLayer::new(synthetic_key).spend_with_conditions(ctx, spend.finish())
             }
+            SpendKind::Settlement(spend) => SettlementLayer
+                .construct_spend(ctx, SettlementPaymentsSolution::new(spend.finish())),
         })
     }
 }

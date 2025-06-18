@@ -1,9 +1,10 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
     cat::{CatArgs, GenesisByCoinIdTailArgs},
+    offer::NotarizedPayment,
     Memos,
 };
-use chia_puzzles::SINGLETON_LAUNCHER_HASH;
+use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
 use chia_sdk_types::conditions::CreateCoin;
 
 use crate::{
@@ -46,6 +47,25 @@ where
         }
 
         self.intermediate_source(ctx)
+    }
+
+    pub fn notarized_payment_source(
+        &mut self,
+        notarized_payment: &NotarizedPayment,
+    ) -> Result<usize, DriverError> {
+        if let Some(index) = self.items.iter().position(|item| {
+            item.kind.is_settlement()
+                && notarized_payment.payments.iter().all(|payment| {
+                    item.kind.is_allowed(
+                        &Output::new(payment.puzzle_hash, payment.amount),
+                        &item.asset.constraints(),
+                    )
+                })
+        }) {
+            return Ok(index);
+        }
+
+        self.intermediate_settlement_source()
     }
 
     pub fn run_tail_source(&mut self, ctx: &mut SpendContext) -> Result<usize, DriverError> {
@@ -106,7 +126,44 @@ where
                 .child_memos(ctx, source.asset.p2_puzzle_hash())?,
         ));
 
-        let child = source.fungible_child(source.asset.p2_puzzle_hash(), amount);
+        let child = FungibleSpend::new(
+            source
+                .asset
+                .make_child(source.asset.p2_puzzle_hash(), amount),
+            source.kind.empty_copy(),
+            true,
+        );
+
+        self.items.push(child);
+
+        Ok(self.items.len() - 1)
+    }
+
+    pub fn intermediate_settlement_source(&mut self) -> Result<usize, DriverError> {
+        let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
+            item.kind
+                .find_amount(SETTLEMENT_PAYMENT_HASH.into(), &item.asset.constraints())
+                .map(|amount| (index, amount))
+        }) else {
+            return Err(DriverError::NoSourceForOutput);
+        };
+
+        let source = &mut self.items[index];
+
+        source.kind.create_coin(CreateCoin::new(
+            SETTLEMENT_PAYMENT_HASH.into(),
+            amount,
+            Memos::None,
+        ));
+
+        let child = FungibleSpend::new(
+            source
+                .asset
+                .make_child(SETTLEMENT_PAYMENT_HASH.into(), amount),
+            SpendKind::settlement(),
+            true,
+        );
+
         self.items.push(child);
 
         Ok(self.items.len() - 1)
@@ -216,18 +273,6 @@ impl<T> FungibleSpend<T> {
             kind,
             ephemeral,
         }
-    }
-
-    #[must_use]
-    pub fn fungible_child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self
-    where
-        T: FungibleAsset,
-    {
-        Self::new(
-            self.asset.make_child(p2_puzzle_hash, amount),
-            self.kind.empty_copy(),
-            true,
-        )
     }
 }
 
