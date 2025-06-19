@@ -41,12 +41,14 @@ impl SpendAction for MeltSingletonAction {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use chia_protocol::Bytes32;
     use chia_puzzle_types::{
         offer::{NotarizedPayment, Payment},
         Memos,
     };
     use chia_sdk_test::Simulator;
     use indexmap::indexmap;
+    use rstest::rstest;
 
     use crate::{Action, Cat, CatSpend, OptionType, OptionUnderlying};
 
@@ -81,8 +83,10 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_action_exercise_option() -> Result<()> {
+    #[rstest]
+    #[case::normal(None)]
+    #[case::revocable(Some(Bytes32::default()))]
+    fn test_action_exercise_option(#[case] hidden_puzzle_hash: Option<Bytes32>) -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
@@ -96,7 +100,7 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[
-                Action::single_issue_cat(1),
+                Action::single_issue_cat(hidden_puzzle_hash, 1),
                 Action::mint_option(
                     alice.puzzle_hash,
                     10,

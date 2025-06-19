@@ -59,17 +59,21 @@ impl SpendAction for RunTailAction {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use chia_protocol::Bytes32;
     use chia_puzzle_types::cat::EverythingWithSignatureTailArgs;
     use chia_sdk_test::Simulator;
     use clvmr::NodePtr;
     use indexmap::indexmap;
+    use rstest::rstest;
 
     use crate::Action;
 
     use super::*;
 
-    #[test]
-    fn test_action_melt_cat() -> Result<()> {
+    #[rstest]
+    #[case::normal(None)]
+    #[case::revocable(Some(Bytes32::default()))]
+    fn test_action_melt_cat(#[case] hidden_puzzle_hash: Option<Bytes32>) -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
@@ -84,7 +88,7 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[
-                Action::issue_cat(tail_spend, 1),
+                Action::issue_cat(tail_spend, hidden_puzzle_hash, 1),
                 Action::run_tail(Id::New(0), tail_spend, Delta::new(0, 1)),
             ],
         )?;
@@ -109,8 +113,12 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_action_melt_cat_separate_spends() -> Result<()> {
+    #[rstest]
+    #[case::normal(None)]
+    #[case::revocable(Some(Bytes32::default()))]
+    fn test_action_melt_cat_separate_spends(
+        #[case] hidden_puzzle_hash: Option<Bytes32>,
+    ) -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
@@ -122,7 +130,10 @@ mod tests {
         let mut spends = Spends::new(alice.puzzle_hash);
         spends.add(alice.coin);
 
-        let deltas = spends.apply(&mut ctx, &[Action::issue_cat(tail_spend, 1)])?;
+        let deltas = spends.apply(
+            &mut ctx,
+            &[Action::issue_cat(tail_spend, hidden_puzzle_hash, 1)],
+        )?;
 
         let outputs = spends.finish_with_keys(
             &mut ctx,

@@ -142,15 +142,20 @@ impl Action {
         Self::UpdateNft(UpdateNftAction::new(id, metadata_update_spends, transfer))
     }
 
-    pub fn issue_cat(tail_spend: Spend, amount: u64) -> Self {
+    pub fn issue_cat(tail_spend: Spend, hidden_puzzle_hash: Option<Bytes32>, amount: u64) -> Self {
         Self::IssueCat(IssueCatAction::new(
             TailIssuance::Multiple(tail_spend),
+            hidden_puzzle_hash,
             amount,
         ))
     }
 
-    pub fn single_issue_cat(amount: u64) -> Self {
-        Self::IssueCat(IssueCatAction::new(TailIssuance::Single, amount))
+    pub fn single_issue_cat(hidden_puzzle_hash: Option<Bytes32>, amount: u64) -> Self {
+        Self::IssueCat(IssueCatAction::new(
+            TailIssuance::Single,
+            hidden_puzzle_hash,
+            amount,
+        ))
     }
 
     pub fn run_tail(id: Id, tail_spend: Spend, supply_delta: Delta) -> Self {

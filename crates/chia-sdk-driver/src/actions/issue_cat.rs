@@ -1,8 +1,5 @@
-use chia_protocol::Coin;
-use chia_puzzle_types::{
-    cat::{CatArgs, GenesisByCoinIdTailArgs},
-    Memos,
-};
+use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::{cat::GenesisByCoinIdTailArgs, Memos};
 use chia_sdk_types::{conditions::CreateCoin, Conditions};
 use clvmr::NodePtr;
 
@@ -20,12 +17,17 @@ pub enum TailIssuance {
 #[derive(Debug, Clone, Copy)]
 pub struct IssueCatAction {
     pub issuance: TailIssuance,
+    pub hidden_puzzle_hash: Option<Bytes32>,
     pub amount: u64,
 }
 
 impl IssueCatAction {
-    pub fn new(issuance: TailIssuance, amount: u64) -> Self {
-        Self { issuance, amount }
+    pub fn new(issuance: TailIssuance, hidden_puzzle_hash: Option<Bytes32>, amount: u64) -> Self {
+        Self {
+            issuance,
+            hidden_puzzle_hash,
+            amount,
+        }
     }
 }
 
@@ -54,17 +56,26 @@ impl SpendAction for IssueCatAction {
             GenesisByCoinIdTailArgs::curry_tree_hash(source.asset.coin_id()).into()
         });
 
-        let p2_puzzle_hash = source.asset.p2_puzzle_hash().into();
-        let cat_puzzle_hash = CatArgs::curry_tree_hash(asset_id, p2_puzzle_hash).into();
+        let cat_info = CatInfo::new(
+            asset_id,
+            self.hidden_puzzle_hash,
+            source.asset.p2_puzzle_hash(),
+        );
 
-        source
-            .kind
-            .create_coin(CreateCoin::new(cat_puzzle_hash, self.amount, Memos::None));
+        source.kind.create_coin(CreateCoin::new(
+            cat_info.puzzle_hash().into(),
+            self.amount,
+            Memos::None,
+        ));
 
         let eve_cat = Cat::new(
-            Coin::new(source.asset.coin_id(), cat_puzzle_hash, self.amount),
+            Coin::new(
+                source.asset.coin_id(),
+                cat_info.puzzle_hash().into(),
+                self.amount,
+            ),
             None,
-            CatInfo::new(asset_id, None, p2_puzzle_hash.into()),
+            cat_info,
         );
 
         let id = if spends.cats.contains_key(&Id::Existing(asset_id)) {
@@ -106,13 +117,16 @@ mod tests {
     use chia_puzzle_types::cat::EverythingWithSignatureTailArgs;
     use chia_sdk_test::Simulator;
     use indexmap::indexmap;
+    use rstest::rstest;
 
     use crate::Action;
 
     use super::*;
 
-    #[test]
-    fn test_action_single_issuance_cat() -> Result<()> {
+    #[rstest]
+    #[case::normal(None)]
+    #[case::revocable(Some(Bytes32::default()))]
+    fn test_action_single_issuance_cat(#[case] hidden_puzzle_hash: Option<Bytes32>) -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
@@ -121,7 +135,7 @@ mod tests {
         let mut spends = Spends::new(alice.puzzle_hash);
         spends.add(alice.coin);
 
-        let deltas = spends.apply(&mut ctx, &[Action::single_issue_cat(1)])?;
+        let deltas = spends.apply(&mut ctx, &[Action::single_issue_cat(hidden_puzzle_hash, 1)])?;
 
         let outputs = spends.finish_with_keys(
             &mut ctx,
@@ -139,8 +153,12 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_action_multiple_issuance_cat() -> Result<()> {
+    #[rstest]
+    #[case::normal(None)]
+    #[case::revocable(Some(Bytes32::default()))]
+    fn test_action_multiple_issuance_cat(
+        #[case] hidden_puzzle_hash: Option<Bytes32>,
+    ) -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
@@ -153,7 +171,11 @@ mod tests {
 
         let deltas = spends.apply(
             &mut ctx,
-            &[Action::issue_cat(Spend::new(tail, NodePtr::NIL), 1)],
+            &[Action::issue_cat(
+                Spend::new(tail, NodePtr::NIL),
+                hidden_puzzle_hash,
+                1,
+            )],
         )?;
 
         let outputs = spends.finish_with_keys(

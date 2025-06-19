@@ -131,6 +131,7 @@ mod tests {
     use chia_puzzle_types::standard::StandardArgs;
     use chia_sdk_test::{BlsPair, Simulator};
     use indexmap::indexmap;
+    use rstest::rstest;
 
     use crate::{Action, Cat};
 
@@ -258,8 +259,10 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_action_send_cat() -> Result<()> {
+    #[rstest]
+    #[case::normal(None)]
+    #[case::revocable(Some(Bytes32::default()))]
+    fn test_action_send_cat(#[case] hidden_puzzle_hash: Option<Bytes32>) -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
@@ -272,7 +275,7 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[
-                Action::single_issue_cat(1),
+                Action::single_issue_cat(hidden_puzzle_hash, 1),
                 Action::send(Id::New(0), alice.puzzle_hash, 1, hint),
             ],
         )?;
@@ -292,8 +295,10 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_action_send_cat_with_change() -> Result<()> {
+    #[rstest]
+    #[case::normal(None)]
+    #[case::revocable(Some(Bytes32::default()))]
+    fn test_action_send_cat_with_change(#[case] hidden_puzzle_hash: Option<Bytes32>) -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
@@ -308,7 +313,7 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[
-                Action::single_issue_cat(5),
+                Action::single_issue_cat(hidden_puzzle_hash, 5),
                 Action::send(Id::New(0), bob_puzzle_hash, 2, bob_hint),
             ],
         )?;
@@ -337,8 +342,10 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_action_send_cat_split() -> Result<()> {
+    #[rstest]
+    #[case::normal(None)]
+    #[case::revocable(Some(Bytes32::default()))]
+    fn test_action_send_cat_split(#[case] hidden_puzzle_hash: Option<Bytes32>) -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
@@ -351,7 +358,7 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[
-                Action::single_issue_cat(3),
+                Action::single_issue_cat(hidden_puzzle_hash, 3),
                 Action::send(Id::New(0), alice.puzzle_hash, 1, hint),
                 Action::send(Id::New(0), alice.puzzle_hash, 1, hint),
                 Action::send(Id::New(0), alice.puzzle_hash, 1, hint),
