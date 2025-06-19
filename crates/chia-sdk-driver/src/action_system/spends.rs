@@ -104,13 +104,10 @@ impl Spends {
         ctx: &mut SpendContext,
         actions: &[Action],
     ) -> Result<Deltas, DriverError> {
-        let mut deltas = Deltas::new();
-
+        let deltas = Deltas::from_actions(actions);
         for (index, action) in actions.iter().enumerate() {
-            action.calculate_delta(&mut deltas, index);
             action.spend(ctx, self, index)?;
         }
-
         Ok(deltas)
     }
 
@@ -121,14 +118,14 @@ impl Spends {
     ) -> Result<(), DriverError> {
         self.xch.create_change(
             ctx,
-            deltas.get_xch().unwrap_or(&Delta::default()),
+            deltas.get(None).unwrap_or(&Delta::default()),
             self.change_puzzle_hash,
         )?;
 
         for (&id, cat) in &mut self.cats {
             cat.create_change(
                 ctx,
-                deltas.get(id).unwrap_or(&Delta::default()),
+                deltas.get(Some(id)).unwrap_or(&Delta::default()),
                 self.change_puzzle_hash,
             )?;
         }

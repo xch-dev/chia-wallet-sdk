@@ -50,15 +50,15 @@ impl Default for MintNftAction {
 
 impl SpendAction for MintNftAction {
     fn calculate_delta(&self, deltas: &mut Deltas, index: usize) {
-        deltas.update_xch().output += self.amount;
-        deltas.update(Id::New(index)).input += self.amount;
+        deltas.update(None).output += self.amount;
+        deltas.update(Some(Id::New(index))).input += self.amount;
 
         if let Some(did_id) = self.parent_did_id {
-            let did = deltas.update(did_id);
+            let did = deltas.update(Some(did_id));
             did.input += 1;
             did.output += 1;
         } else {
-            deltas.set_xch_needed();
+            deltas.set_needed(None);
         }
     }
 

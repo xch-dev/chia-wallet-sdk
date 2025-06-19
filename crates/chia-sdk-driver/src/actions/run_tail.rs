@@ -21,9 +21,9 @@ impl RunTailAction {
 
 impl SpendAction for RunTailAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        *deltas.update_xch() += -self.supply_delta;
-        *deltas.update(self.id) += self.supply_delta;
-        deltas.set_id_needed(self.id);
+        *deltas.update(None) += -self.supply_delta;
+        *deltas.update(Some(self.id)) += self.supply_delta;
+        deltas.set_needed(Some(self.id));
     }
 
     fn spend(

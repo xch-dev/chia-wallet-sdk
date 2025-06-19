@@ -26,15 +26,8 @@ impl SpendAction for SettleAction {
             .map(|p| p.amount)
             .sum();
 
-        if let Some(id) = self.id {
-            deltas.update(id).output += amount;
-        } else {
-            deltas.update_xch().output += amount;
-        }
-
-        if self.id.is_none() {
-            deltas.set_xch_needed();
-        }
+        deltas.update(self.id).output += amount;
+        deltas.set_needed(self.id);
     }
 
     fn spend(

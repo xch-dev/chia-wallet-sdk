@@ -102,15 +102,8 @@ impl SendAction {
 
 impl SpendAction for SendAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        if let Some(id) = self.id {
-            deltas.update(id).output += self.amount;
-        } else {
-            deltas.update_xch().output += self.amount;
-        }
-
-        if self.id.is_none() {
-            deltas.set_xch_needed();
-        }
+        deltas.update(self.id).output += self.amount;
+        deltas.set_needed(self.id);
     }
 
     fn spend(
