@@ -2,7 +2,9 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::Memos;
 use chia_sdk_types::conditions::CreateCoin;
 
-use crate::{Deltas, DriverError, Id, Output, SpendAction, SpendContext, Spends};
+use crate::{
+    Deltas, DriverError, Id, Output, SingletonDestination, SpendAction, SpendContext, Spends,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct SendAction {
@@ -44,7 +46,7 @@ impl SendAction {
                 )
             } else if let Some(did) = spends.dids.get_mut(&id) {
                 let source = did.last_mut()?;
-                source.child_info.destination = Some(create_coin);
+                source.child_info.destination = Some(SingletonDestination::CreateCoin(create_coin));
 
                 if !finalize {
                     return Ok(None);
@@ -66,7 +68,7 @@ impl SendAction {
                     .map(|nft| nft.coin));
             } else if let Some(option) = spends.options.get_mut(&id) {
                 let source = option.last_mut()?;
-                source.child_info.destination = Some(create_coin);
+                source.child_info.destination = Some(SingletonDestination::CreateCoin(create_coin));
 
                 if !finalize {
                     return Ok(None);

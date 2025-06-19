@@ -3,9 +3,10 @@ use chia_puzzle_types::{offer::NotarizedPayment, Memos};
 use hex_literal::hex;
 
 use crate::{
-    CreateDidAction, Delta, Deltas, DriverError, HashedPtr, Id, IssueCatAction, MintNftAction,
-    MintOptionAction, OptionType, RunTailAction, SendAction, SettleAction, Spend, SpendContext,
-    Spends, TailIssuance, TransferNftById, UpdateDidAction, UpdateNftAction,
+    CreateDidAction, Delta, Deltas, DriverError, HashedPtr, Id, IssueCatAction,
+    MeltSingletonAction, MintNftAction, MintOptionAction, OptionType, RunTailAction, SendAction,
+    SettleAction, Spend, SpendContext, Spends, TailIssuance, TransferNftById, UpdateDidAction,
+    UpdateNftAction,
 };
 
 pub const BURN_PUZZLE_HASH: Bytes32 = Bytes32::new(hex!(
@@ -23,6 +24,7 @@ pub enum Action {
     IssueCat(IssueCatAction),
     RunTail(RunTailAction),
     MintOption(MintOptionAction),
+    MeltSingleton(MeltSingletonAction),
 }
 
 impl Action {
@@ -172,6 +174,10 @@ impl Action {
             amount,
         ))
     }
+
+    pub fn melt_singleton(id: Id, amount: u64) -> Self {
+        Self::MeltSingleton(MeltSingletonAction::new(id, amount))
+    }
 }
 
 pub trait SpendAction {
@@ -197,6 +203,7 @@ impl SpendAction for Action {
             Action::IssueCat(action) => action.calculate_delta(deltas, index),
             Action::RunTail(action) => action.calculate_delta(deltas, index),
             Action::MintOption(action) => action.calculate_delta(deltas, index),
+            Action::MeltSingleton(action) => action.calculate_delta(deltas, index),
         }
     }
 
@@ -216,6 +223,7 @@ impl SpendAction for Action {
             Action::IssueCat(action) => action.spend(ctx, spends, index),
             Action::RunTail(action) => action.spend(ctx, spends, index),
             Action::MintOption(action) => action.spend(ctx, spends, index),
+            Action::MeltSingleton(action) => action.spend(ctx, spends, index),
         }
     }
 }
