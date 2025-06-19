@@ -24,7 +24,10 @@ impl SpendAction for FeeAction {
         spends: &mut Spends,
         _index: usize,
     ) -> Result<(), DriverError> {
-        let _remaining = spends.try_add_conditions(ctx, Conditions::new().reserve_fee(self.amount));
+        if self.amount > 0 {
+            let _remaining =
+                spends.try_add_conditions(ctx, Conditions::new().reserve_fee(self.amount));
+        }
         Ok(())
     }
 }
