@@ -33,6 +33,23 @@ where
             .sum()
     }
 
+    pub fn conditions_source(
+        &mut self,
+        ctx: &mut SpendContext,
+        conditions_puzzle_hash: Bytes32,
+        create_intermediate: bool,
+    ) -> Result<usize, DriverError> {
+        if let Some(index) = self.items.iter().position(|item| item.kind.is_conditions()) {
+            return Ok(index);
+        }
+
+        if create_intermediate {
+            self.intermediate_conditions_source(ctx, conditions_puzzle_hash)
+        } else {
+            Err(DriverError::NoSourceForOutput)
+        }
+    }
+
     pub fn output_source(
         &mut self,
         ctx: &mut SpendContext,
@@ -159,6 +176,37 @@ where
             source
                 .asset
                 .make_child(SETTLEMENT_PAYMENT_HASH.into(), amount),
+            true,
+        );
+
+        self.items.push(child);
+
+        Ok(self.items.len() - 1)
+    }
+
+    pub fn intermediate_conditions_source(
+        &mut self,
+        ctx: &mut SpendContext,
+        conditions_puzzle_hash: Bytes32,
+    ) -> Result<usize, DriverError> {
+        let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
+            item.kind
+                .find_amount(conditions_puzzle_hash, &item.asset.constraints())
+                .map(|amount| (index, amount))
+        }) else {
+            return Err(DriverError::NoSourceForOutput);
+        };
+
+        let source = &mut self.items[index];
+
+        let hint = ctx.hint(conditions_puzzle_hash)?;
+
+        source
+            .kind
+            .create_coin(CreateCoin::new(conditions_puzzle_hash, amount, hint));
+
+        let child = FungibleSpend::new(
+            source.asset.make_child(conditions_puzzle_hash, amount),
             true,
         );
 

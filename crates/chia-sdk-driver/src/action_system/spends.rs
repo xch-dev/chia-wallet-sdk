@@ -1,7 +1,7 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
-use chia_sdk_types::Condition;
+use chia_sdk_types::{Condition, Conditions};
 use clvm_traits::FromClvm;
 use indexmap::IndexMap;
 
@@ -55,48 +55,61 @@ impl Spends {
         asset.add(self);
     }
 
-    pub fn resolve_first_cat(&self, id: Id) -> Result<Cat, DriverError> {
-        Ok(self
-            .cats
-            .get(&id)
-            .ok_or(DriverError::InvalidAssetId)?
-            .items
-            .first()
-            .ok_or(DriverError::InvalidAssetId)?
-            .asset)
-    }
+    pub fn try_add_conditions(
+        &mut self,
+        ctx: &mut SpendContext,
+        conditions: Conditions,
+    ) -> Conditions {
+        if let Ok(source) = self
+            .xch
+            .conditions_source(ctx, self.conditions_puzzle_hash, false)
+        {
+            return self.xch.items[source].kind.try_add_conditions(conditions);
+        }
 
-    pub fn resolve_did(&self, id: Id) -> Result<Did<HashedPtr>, DriverError> {
-        Ok(self
-            .dids
-            .get(&id)
-            .ok_or(DriverError::InvalidAssetId)?
-            .lineage
-            .last()
-            .ok_or(DriverError::InvalidAssetId)?
-            .asset)
-    }
+        for cat in &mut self.cats.values_mut() {
+            if let Ok(source) = cat.conditions_source(ctx, self.conditions_puzzle_hash, false) {
+                return cat.items[source].kind.try_add_conditions(conditions);
+            }
+        }
 
-    pub fn resolve_nft(&self, id: Id) -> Result<Nft<HashedPtr>, DriverError> {
-        Ok(self
-            .nfts
-            .get(&id)
-            .ok_or(DriverError::InvalidAssetId)?
-            .lineage
-            .last()
-            .ok_or(DriverError::InvalidAssetId)?
-            .asset)
-    }
+        for did in &mut self.dids.values_mut() {
+            for item in &mut did.lineage {
+                match &mut item.kind {
+                    SpendKind::Conditions(spend) => {
+                        spend.add_conditions(conditions);
+                        return Conditions::default();
+                    }
+                    SpendKind::Settlement(_) => {}
+                }
+            }
+        }
 
-    pub fn resolve_option(&self, id: Id) -> Result<OptionContract, DriverError> {
-        Ok(self
-            .options
-            .get(&id)
-            .ok_or(DriverError::InvalidAssetId)?
-            .lineage
-            .last()
-            .ok_or(DriverError::InvalidAssetId)?
-            .asset)
+        for nft in &mut self.nfts.values_mut() {
+            for item in &mut nft.lineage {
+                match &mut item.kind {
+                    SpendKind::Conditions(spend) => {
+                        spend.add_conditions(conditions);
+                        return Conditions::default();
+                    }
+                    SpendKind::Settlement(_) => {}
+                }
+            }
+        }
+
+        for option in &mut self.options.values_mut() {
+            for item in &mut option.lineage {
+                match &mut item.kind {
+                    SpendKind::Conditions(spend) => {
+                        spend.add_conditions(conditions);
+                        return Conditions::default();
+                    }
+                    SpendKind::Settlement(_) => {}
+                }
+            }
+        }
+
+        conditions
     }
 
     pub fn apply(
