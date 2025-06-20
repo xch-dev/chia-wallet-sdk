@@ -73,15 +73,15 @@ impl Action {
 
     pub fn update_did(
         id: Id,
-        recovery_list_hash: Option<Bytes32>,
-        num_verifications_required: u64,
-        metadata: HashedPtr,
+        new_recovery_list_hash: Option<Option<Bytes32>>,
+        new_num_verifications_required: Option<u64>,
+        new_metadata: Option<HashedPtr>,
     ) -> Self {
         Self::UpdateDid(UpdateDidAction::new(
             id,
-            recovery_list_hash,
-            num_verifications_required,
-            metadata,
+            new_recovery_list_hash,
+            new_num_verifications_required,
+            new_metadata,
         ))
     }
 

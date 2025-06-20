@@ -5,23 +5,23 @@ use crate::{Deltas, DriverError, HashedPtr, Id, SpendAction, SpendContext, Spend
 #[derive(Debug, Clone, Copy)]
 pub struct UpdateDidAction {
     pub id: Id,
-    pub recovery_list_hash: Option<Bytes32>,
-    pub num_verifications_required: u64,
-    pub metadata: HashedPtr,
+    pub new_recovery_list_hash: Option<Option<Bytes32>>,
+    pub new_num_verifications_required: Option<u64>,
+    pub new_metadata: Option<HashedPtr>,
 }
 
 impl UpdateDidAction {
     pub fn new(
         id: Id,
-        recovery_list_hash: Option<Bytes32>,
-        num_verifications_required: u64,
-        metadata: HashedPtr,
+        new_recovery_list_hash: Option<Option<Bytes32>>,
+        new_num_verifications_required: Option<u64>,
+        new_metadata: Option<HashedPtr>,
     ) -> Self {
         Self {
             id,
-            recovery_list_hash,
-            num_verifications_required,
-            metadata,
+            new_recovery_list_hash,
+            new_num_verifications_required,
+            new_metadata,
         }
     }
 }
@@ -45,9 +45,17 @@ impl SpendAction for UpdateDidAction {
             .ok_or(DriverError::InvalidAssetId)?
             .last_mut()?;
 
-        did.child_info.recovery_list_hash = self.recovery_list_hash;
-        did.child_info.num_verifications_required = self.num_verifications_required;
-        did.child_info.metadata = self.metadata;
+        if let Some(new_recovery_list_hash) = self.new_recovery_list_hash {
+            did.child_info.recovery_list_hash = new_recovery_list_hash;
+        }
+
+        if let Some(new_num_verifications_required) = self.new_num_verifications_required {
+            did.child_info.num_verifications_required = new_num_verifications_required;
+        }
+
+        if let Some(new_metadata) = self.new_metadata {
+            did.child_info.metadata = new_metadata;
+        }
 
         Ok(())
     }
@@ -80,7 +88,12 @@ mod tests {
             &mut ctx,
             &[
                 Action::create_empty_did(),
-                Action::update_did(Id::New(0), Some(Bytes32::default()), 2, metadata),
+                Action::update_did(
+                    Id::New(0),
+                    Some(Some(Bytes32::default())),
+                    Some(2),
+                    Some(metadata),
+                ),
                 Action::burn(Id::New(0), 1, hint),
             ],
         )?;
