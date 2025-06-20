@@ -8,7 +8,7 @@ use crate::{
     SpendKind, Spends,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct TransferNftById {
     pub did_id: Option<Id>,
     pub trade_prices: Vec<TradePrice>,
@@ -49,6 +49,14 @@ impl SpendAction for UpdateNftAction {
         let nft = deltas.update(Some(self.id));
         nft.input += 1;
         nft.output += 1;
+
+        if let Some(transfer) = &self.transfer {
+            if let Some(did_id) = transfer.did_id {
+                let did = deltas.update(Some(did_id));
+                did.input += 1;
+                did.output += 1;
+            }
+        }
     }
 
     fn spend(
