@@ -1,4 +1,4 @@
-use std::num::TryFromIntError;
+use std::{array::TryFromSliceError, num::TryFromIntError};
 
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
@@ -11,6 +11,9 @@ pub enum DriverError {
 
     #[error("try from int error")]
     TryFromInt(#[from] TryFromIntError),
+
+    #[error("try from slice error: {0}")]
+    TryFromSlice(#[from] TryFromSliceError),
 
     #[error("failed to serialize clvm value: {0}")]
     ToClvm(#[from] ToClvmError),
@@ -80,4 +83,36 @@ pub enum DriverError {
 
     #[error("missing key")]
     MissingKey,
+
+    #[cfg(feature = "offer-compression")]
+    #[error("missing compression version prefix")]
+    MissingVersionPrefix,
+
+    #[cfg(feature = "offer-compression")]
+    #[error("unsupported compression version")]
+    UnsupportedVersion,
+
+    #[cfg(feature = "offer-compression")]
+    #[error("streamable error: {0}")]
+    Streamable(#[from] chia_traits::Error),
+
+    #[cfg(feature = "offer-compression")]
+    #[error("cannot decompress uncompressed input")]
+    NotCompressed,
+
+    #[cfg(feature = "offer-compression")]
+    #[error("flate2 error: {0}")]
+    Flate2(#[from] flate2::DecompressError),
+
+    #[error("invalid prefix: {0}")]
+    InvalidPrefix(String),
+
+    #[error("encoding is not bech32m")]
+    InvalidFormat,
+
+    #[error("error when decoding address: {0}")]
+    Decode(#[from] bech32::Error),
+
+    #[error("Requested payment puzzle mismatch")]
+    PuzzleMismatch,
 }
