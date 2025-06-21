@@ -23,6 +23,14 @@ pub struct Spends {
     pub intermediate_puzzle_hash: Bytes32,
     pub change_puzzle_hash: Bytes32,
     pub outputs: Outputs,
+    pub conditions: ConditionConfig,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ConditionConfig {
+    pub optional: Conditions,
+    pub required: Conditions,
+    pub disable_settlement_assertions: bool,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -53,6 +61,7 @@ impl Spends {
             intermediate_puzzle_hash,
             change_puzzle_hash,
             outputs: Outputs::default(),
+            conditions: ConditionConfig::default(),
         }
     }
 
@@ -210,10 +219,17 @@ impl Spends {
     }
 
     fn emit_conditions(&mut self, ctx: &mut SpendContext) -> Result<(), DriverError> {
-        let payment_assertions = self.payment_assertions();
-        let required = !payment_assertions.is_empty();
+        let mut conditions = self.conditions.required.clone().extend(
+            if self.conditions.disable_settlement_assertions {
+                vec![]
+            } else {
+                self.payment_assertions()
+            },
+        );
 
-        let mut conditions = Conditions::new().extend(payment_assertions);
+        let required = !conditions.is_empty();
+
+        conditions = conditions.extend(self.conditions.optional.clone());
 
         if self.outputs.fee > 0 {
             conditions = conditions.reserve_fee(self.outputs.fee);

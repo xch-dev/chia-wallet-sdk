@@ -1,5 +1,6 @@
 use std::{array::TryFromSliceError, num::TryFromIntError};
 
+use chia_sdk_signer::SignerError;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
 use thiserror::Error;
@@ -116,6 +117,15 @@ pub enum DriverError {
     #[error("error when decoding address: {0}")]
     Decode(#[from] bech32::Error),
 
-    #[error("Requested payment puzzle mismatch")]
-    PuzzleMismatch,
+    #[error("incompatible asset info")]
+    IncompatibleAssetInfo,
+
+    #[error("missing required singleton asset info")]
+    MissingAssetInfo,
+
+    #[error("conflicting inputs in offers")]
+    ConflictingOfferInputs,
+
+    #[error("signer error: {0}")]
+    Signer(#[from] SignerError),
 }

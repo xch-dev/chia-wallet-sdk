@@ -22,6 +22,7 @@ chip-0035 = ["chia-sdk-types/chip-0035"]
 offer-compression = ["dep:flate2", "dep:bech32", "dep:once_cell"]
 
 [dependencies]
+chia-sdk-signer = { workspace = true }
 chia-bls = { workspace = true }
 chia-consensus = { workspace = true }
 chia-secp = { workspace = true }
@@ -39,19 +40,18 @@ num-bigint = { workspace = true }
 hex = { workspace = true }
 bigdecimal = { workspace = true }
 bech32 = { workspace = true, optional = true }
-chia-traits = {workspace = true}
+chia-traits = {workspace = true }
 flate2 = { workspace = true, features = ["zlib-ng-compat"], optional = true }
 indexmap = { workspace = true }
 once_cell = { workspace = true, optional = true }
-chia_streamable_macro = "0.26.0"
+chia_streamable_macro = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
 
 [dev-dependencies]
 chia-sdk-test = { workspace = true }
-chia-sdk-signer = { workspace = true }
 anyhow = { workspace = true }
 chia-consensus = { workspace = true }
 hex = { workspace = true }
 hex-literal = { workspace = true }
 rstest = { workspace = true }
-rand = { workspace = true }
-rand_chacha = { workspace = true }

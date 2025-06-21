@@ -33,7 +33,7 @@ impl OptionContract {
         parent_coin: Coin,
         parent_puzzle: Puzzle,
         parent_solution: NodePtr,
-    ) -> Result<Option<(Self, Puzzle)>, DriverError> {
+    ) -> Result<Option<Self>, DriverError> {
         let Some(singleton) =
             OptionContractLayers::<Puzzle>::parse_puzzle(allocator, parent_puzzle)?
         else {
@@ -87,7 +87,7 @@ impl OptionContract {
             },
         };
 
-        Ok(Some((option, singleton.inner_puzzle.inner_puzzle)))
+        Ok(Some(option))
     }
 
     pub fn parse_metadata(

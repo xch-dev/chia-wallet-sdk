@@ -1,5 +1,8 @@
 use chia_protocol::Bytes32;
-use chia_puzzle_types::{offer::NotarizedPayment, Memos};
+use chia_puzzle_types::{
+    offer::{NotarizedPayment, Payment},
+    Memos,
+};
 use hex_literal::hex;
 
 use crate::{
@@ -35,6 +38,24 @@ impl Action {
 
     pub fn settle(id: Id, notarized_payment: NotarizedPayment) -> Self {
         Self::Settle(SettleAction::new(id, notarized_payment))
+    }
+
+    pub fn settle_royalty(
+        ctx: &mut SpendContext,
+        id: Id,
+        launcher_id: Bytes32,
+        royalty_puzzle_hash: Bytes32,
+        royalty_amount: u64,
+    ) -> Result<Self, DriverError> {
+        let hint = ctx.hint(royalty_puzzle_hash)?;
+
+        Ok(Self::settle(
+            id,
+            NotarizedPayment::new(
+                launcher_id,
+                vec![Payment::new(royalty_puzzle_hash, royalty_amount, hint)],
+            ),
+        ))
     }
 
     pub fn burn(id: Id, amount: u64, memos: Memos) -> Self {
@@ -119,6 +140,31 @@ impl Action {
             Bytes32::default(),
             Bytes32::default(),
             0,
+            1,
+        )
+    }
+
+    pub fn mint_empty_royalty_nft(royalty_puzzle_hash: Bytes32, royalty_basis_points: u16) -> Self {
+        Self::mint_nft(
+            HashedPtr::NIL,
+            Bytes32::default(),
+            royalty_puzzle_hash,
+            royalty_basis_points,
+            1,
+        )
+    }
+
+    pub fn mint_empty_royalty_nft_from_did(
+        parent_did_id: Id,
+        royalty_puzzle_hash: Bytes32,
+        royalty_basis_points: u16,
+    ) -> Self {
+        Self::mint_nft_from_did(
+            parent_did_id,
+            HashedPtr::NIL,
+            Bytes32::default(),
+            royalty_puzzle_hash,
+            royalty_basis_points,
             1,
         )
     }

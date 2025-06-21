@@ -565,7 +565,7 @@ dependencies = [
  "chia-secp",
  "chia-sha2 0.25.0",
  "chia-traits 0.25.0",
- "chia_streamable_macro 0.26.0",
+ "chia_streamable_macro 0.25.0",
  "clvm-traits",
  "clvm-utils",
  "clvmr",
@@ -828,18 +828,6 @@ name = "chia_streamable_macro"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfc5c6400d47fc7b0bef1e08791e96fc391d678012090c4b95411cfa516c894c"
-dependencies = [
- "proc-macro-crate 1.3.1",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "chia_streamable_macro"
-version = "0.26.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "068278c78a0c53786012f6330a088f3f6ffe83bd39cb8f21d308eeec2f43a3dc"
 dependencies = [
  "proc-macro-crate 1.3.1",
  "proc-macro2",
