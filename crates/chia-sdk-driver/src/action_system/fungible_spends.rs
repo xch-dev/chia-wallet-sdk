@@ -278,11 +278,11 @@ where
         ctx: &mut SpendContext,
         delta: &Delta,
         change_puzzle_hash: Bytes32,
-    ) -> Result<(), DriverError> {
+    ) -> Result<Option<A>, DriverError> {
         let change = (self.selected_amount() + delta.input).saturating_sub(delta.output);
 
         if change == 0 {
-            return Ok(());
+            return Ok(None);
         }
 
         let output = Output::new(change_puzzle_hash, change);
@@ -295,7 +295,7 @@ where
             item.asset.child_memos(ctx, change_puzzle_hash)?,
         ));
 
-        Ok(())
+        Ok(Some(item.asset.make_child(change_puzzle_hash, change)))
     }
 }
 

@@ -1,3 +1,4 @@
+use chia_protocol::Coin;
 use chia_puzzle_types::offer::NotarizedPayment;
 
 use crate::{Deltas, DriverError, Id, SpendAction, SpendContext, SpendKind, Spends};
@@ -36,30 +37,94 @@ impl SpendAction for SettleAction {
         spends: &mut Spends,
         _index: usize,
     ) -> Result<(), DriverError> {
-        let spend = if let Some(id) = self.id {
-            if let Some(cat) = spends.cats.get_mut(&id) {
-                let source = cat.notarized_payment_source(&self.notarized_payment)?;
-                &mut cat.items[source].kind
-            } else if let Some(nft) = spends.nfts.get_mut(&id) {
-                let source = nft.last_mut()?;
-                &mut source.kind
-            } else if let Some(option) = spends.options.get_mut(&id) {
-                let source = option.last_mut()?;
-                &mut source.kind
-            } else {
-                return Err(DriverError::InvalidAssetId);
-            }
-        } else {
+        let Some(id) = self.id else {
             let source = spends
                 .xch
                 .notarized_payment_source(&self.notarized_payment)?;
-            &mut spends.xch.items[source].kind
+
+            let parent = &mut spends.xch.items[source];
+
+            if let SpendKind::Settlement(spend) = &mut parent.kind {
+                spend.add_notarized_payment(self.notarized_payment.clone());
+            } else {
+                return Err(DriverError::CannotSettleFromSpend);
+            }
+
+            for payment in &self.notarized_payment.payments {
+                let coin = Coin::new(parent.asset.coin_id(), payment.puzzle_hash, payment.amount);
+                spends.outputs.xch.push(coin);
+            }
+
+            return Ok(());
         };
 
-        if let SpendKind::Settlement(spend) = spend {
-            spend.add_notarized_payment(self.notarized_payment.clone());
+        if let Some(cat) = spends.cats.get_mut(&id) {
+            let source = cat.notarized_payment_source(&self.notarized_payment)?;
+            let parent = &mut cat.items[source];
+
+            if let SpendKind::Settlement(spend) = &mut parent.kind {
+                spend.add_notarized_payment(self.notarized_payment.clone());
+            } else {
+                return Err(DriverError::CannotSettleFromSpend);
+            }
+
+            for payment in &self.notarized_payment.payments {
+                let cat = parent.asset.child(payment.puzzle_hash, payment.amount);
+                spends.outputs.cats.entry(id).or_default().push(cat);
+            }
+        } else if let Some(nft) = spends.nfts.get_mut(&id) {
+            let source = nft.last_mut()?;
+
+            if let SpendKind::Settlement(spend) = &mut source.kind {
+                spend.add_notarized_payment(self.notarized_payment.clone());
+            } else {
+                return Err(DriverError::CannotSettleFromSpend);
+            }
+
+            for payment in &self.notarized_payment.payments {
+                if payment.amount % 2 == 0 {
+                    let coin = Coin::new(
+                        source.asset.coin.coin_id(),
+                        payment.puzzle_hash,
+                        payment.amount,
+                    );
+                    spends.outputs.xch.push(coin);
+                    continue;
+                }
+
+                let nft = source.asset.child(
+                    payment.puzzle_hash,
+                    source.asset.info.current_owner,
+                    source.asset.info.metadata,
+                    payment.amount,
+                );
+                spends.outputs.nfts.insert(id, nft);
+            }
+        } else if let Some(option) = spends.options.get_mut(&id) {
+            let source = option.last_mut()?;
+
+            if let SpendKind::Settlement(spend) = &mut source.kind {
+                spend.add_notarized_payment(self.notarized_payment.clone());
+            } else {
+                return Err(DriverError::CannotSettleFromSpend);
+            }
+
+            for payment in &self.notarized_payment.payments {
+                if payment.amount % 2 == 0 {
+                    let coin = Coin::new(
+                        source.asset.coin.coin_id(),
+                        payment.puzzle_hash,
+                        payment.amount,
+                    );
+                    spends.outputs.xch.push(coin);
+                    continue;
+                }
+
+                let option = source.asset.child(payment.puzzle_hash, payment.amount);
+                spends.outputs.options.insert(id, option);
+            }
         } else {
-            return Err(DriverError::CannotSettleFromSpend);
+            return Err(DriverError::InvalidAssetId);
         }
 
         Ok(())

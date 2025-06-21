@@ -23,81 +23,6 @@ impl SendAction {
             memos,
         }
     }
-
-    pub fn run_standalone(
-        &self,
-        ctx: &mut SpendContext,
-        spends: &mut Spends,
-        finalize: bool,
-    ) -> Result<Option<Coin>, DriverError> {
-        let output = Output::new(self.puzzle_hash, self.amount);
-        let create_coin = CreateCoin::new(self.puzzle_hash, self.amount, self.memos);
-
-        let (coin, spend) = if let Some(id) = self.id {
-            if let Some(cat) = spends.cats.get_mut(&id) {
-                let source = cat.output_source(ctx, &output)?;
-                let parent = cat.items[source].asset;
-                let kind = &mut cat.items[source].kind;
-                (
-                    parent
-                        .child(create_coin.puzzle_hash, create_coin.amount)
-                        .coin,
-                    kind,
-                )
-            } else if let Some(did) = spends.dids.get_mut(&id) {
-                let source = did.last_mut()?;
-                source.child_info.destination = Some(SingletonDestination::CreateCoin(create_coin));
-
-                if !finalize {
-                    return Ok(None);
-                }
-
-                return Ok(did
-                    .finalize(ctx, spends.conditions_puzzle_hash, create_coin.puzzle_hash)?
-                    .map(|did| did.coin));
-            } else if let Some(nft) = spends.nfts.get_mut(&id) {
-                let source = nft.last_mut()?;
-                source.child_info.destination = Some(create_coin);
-
-                if !finalize {
-                    return Ok(None);
-                }
-
-                return Ok(nft
-                    .finalize(ctx, spends.conditions_puzzle_hash, create_coin.puzzle_hash)?
-                    .map(|nft| nft.coin));
-            } else if let Some(option) = spends.options.get_mut(&id) {
-                let source = option.last_mut()?;
-                source.child_info.destination = Some(SingletonDestination::CreateCoin(create_coin));
-
-                if !finalize {
-                    return Ok(None);
-                }
-
-                return Ok(option
-                    .finalize(ctx, spends.conditions_puzzle_hash, create_coin.puzzle_hash)?
-                    .map(|option| option.coin));
-            } else {
-                return Err(DriverError::InvalidAssetId);
-            }
-        } else {
-            let source = spends.xch.output_source(ctx, &output)?;
-            let parent = spends.xch.items[source].asset;
-            let spend = &mut spends.xch.items[source].kind;
-            (
-                Coin::new(
-                    parent.coin_id(),
-                    create_coin.puzzle_hash,
-                    create_coin.amount,
-                ),
-                spend,
-            )
-        };
-
-        spend.create_coin(create_coin);
-
-        Ok(Some(coin))
-    }
 }
 
 impl SpendAction for SendAction {
@@ -112,7 +37,43 @@ impl SpendAction for SendAction {
         spends: &mut Spends,
         _index: usize,
     ) -> Result<(), DriverError> {
-        self.run_standalone(ctx, spends, false)?;
+        let output = Output::new(self.puzzle_hash, self.amount);
+        let create_coin = CreateCoin::new(self.puzzle_hash, self.amount, self.memos);
+
+        let Some(id) = self.id else {
+            let source = spends.xch.output_source(ctx, &output)?;
+            let parent = &mut spends.xch.items[source];
+            parent.kind.create_coin(create_coin);
+            let coin = Coin::new(
+                parent.asset.coin_id(),
+                create_coin.puzzle_hash,
+                create_coin.amount,
+            );
+            spends.outputs.xch.push(coin);
+            return Ok(());
+        };
+
+        if let Some(cat) = spends.cats.get_mut(&id) {
+            let source = cat.output_source(ctx, &output)?;
+            let parent = &mut cat.items[source];
+            parent.kind.create_coin(create_coin);
+            let cat = parent
+                .asset
+                .child(create_coin.puzzle_hash, create_coin.amount);
+            spends.outputs.cats.entry(id).or_default().push(cat);
+        } else if let Some(did) = spends.dids.get_mut(&id) {
+            let source = did.last_mut()?;
+            source.child_info.destination = Some(SingletonDestination::CreateCoin(create_coin));
+        } else if let Some(nft) = spends.nfts.get_mut(&id) {
+            let source = nft.last_mut()?;
+            source.child_info.destination = Some(create_coin);
+        } else if let Some(option) = spends.options.get_mut(&id) {
+            let source = option.last_mut()?;
+            source.child_info.destination = Some(SingletonDestination::CreateCoin(create_coin));
+        } else {
+            return Err(DriverError::InvalidAssetId);
+        }
+
         Ok(())
     }
 }
@@ -228,7 +189,7 @@ mod tests {
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
-        assert_eq!(outputs.xch.len(), 5);
+        assert_eq!(outputs.xch.len(), 3);
 
         let coins: Vec<Coin> = outputs
             .xch
@@ -367,7 +328,7 @@ mod tests {
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
         let cats = &outputs.cats[&Id::New(0)];
-        assert_eq!(cats.len(), 5);
+        assert_eq!(cats.len(), 3);
 
         let cats: Vec<Cat> = cats
             .iter()

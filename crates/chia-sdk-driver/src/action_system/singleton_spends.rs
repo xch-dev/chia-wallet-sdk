@@ -47,7 +47,7 @@ where
     pub fn finalize(
         &mut self,
         ctx: &mut SpendContext,
-        conditions_puzzle_hash: Bytes32,
+        intermediate_puzzle_hash: Bytes32,
         change_puzzle_hash: Bytes32,
     ) -> Result<Option<A>, DriverError> {
         let asset = loop {
@@ -60,7 +60,7 @@ where
                 break None;
             }
 
-            let Some(child) = A::finalize(ctx, last, conditions_puzzle_hash, change_puzzle_hash)?
+            let Some(child) = A::finalize(ctx, last, intermediate_puzzle_hash, change_puzzle_hash)?
             else {
                 break None;
             };
@@ -140,7 +140,7 @@ pub trait SingletonAsset: Debug + Clone + Asset {
     fn finalize(
         ctx: &mut SpendContext,
         singleton: &mut SingletonSpend<Self>,
-        conditions_puzzle_hash: Bytes32,
+        intermediate_puzzle_hash: Bytes32,
         change_puzzle_hash: Bytes32,
     ) -> Result<Option<SingletonSpend<Self>>, DriverError>;
 }
@@ -268,21 +268,21 @@ impl SingletonAsset for Nft<HashedPtr> {
     fn finalize(
         ctx: &mut SpendContext,
         singleton: &mut SingletonSpend<Self>,
-        conditions_puzzle_hash: Bytes32,
+        intermediate_puzzle_hash: Bytes32,
         change_puzzle_hash: Bytes32,
     ) -> Result<Option<SingletonSpend<Self>>, DriverError> {
         if !singleton.kind.is_conditions()
             && (!singleton.child_info.metadata_update_spends.is_empty()
                 || singleton.child_info.transfer_condition.is_some())
         {
-            let hint = ctx.hint(conditions_puzzle_hash)?;
+            let hint = ctx.hint(intermediate_puzzle_hash)?;
             let amount = singleton.asset.coin.amount;
             singleton
                 .kind
-                .create_coin(CreateCoin::new(conditions_puzzle_hash, amount, hint));
+                .create_coin(CreateCoin::new(intermediate_puzzle_hash, amount, hint));
 
             let new_info = NftInfo {
-                p2_puzzle_hash: conditions_puzzle_hash,
+                p2_puzzle_hash: intermediate_puzzle_hash,
                 ..singleton.asset.info
             };
 

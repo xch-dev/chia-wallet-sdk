@@ -1,10 +1,11 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::Memos;
+use chia_sdk_types::conditions::CreateCoin;
 use clvm_utils::ToTreeHash;
 
 use crate::{
-    Asset, Deltas, DriverError, Id, OptionType, SendAction, SingletonSpends, SpendAction,
-    SpendContext, SpendKind, Spends,
+    Asset, Deltas, DriverError, Id, OptionType, Output, SingletonSpends, SpendAction, SpendContext,
+    SpendKind, Spends,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -35,6 +36,64 @@ impl MintOptionAction {
             amount,
         }
     }
+
+    fn lock_underlying(
+        &self,
+        ctx: &mut SpendContext,
+        spends: &mut Spends,
+        p2_puzzle_hash: Bytes32,
+    ) -> Result<Bytes32, DriverError> {
+        let output = Output::new(p2_puzzle_hash, self.underlying_amount);
+        let create_coin = CreateCoin::new(p2_puzzle_hash, self.underlying_amount, Memos::None);
+
+        let Some(id) = self.underlying_id else {
+            let source = spends.xch.output_source(ctx, &output)?;
+            let parent = &mut spends.xch.items[source];
+
+            parent.kind.create_coin(create_coin);
+
+            let coin = Coin::new(
+                parent.asset.coin_id(),
+                p2_puzzle_hash,
+                self.underlying_amount,
+            );
+
+            spends.outputs.xch.push(coin);
+
+            return Ok(coin.coin_id());
+        };
+
+        if let Some(cat) = spends.cats.get_mut(&id) {
+            let source = cat.output_source(ctx, &output)?;
+            let parent = &mut cat.items[source];
+
+            parent.kind.create_coin(create_coin);
+
+            let cat = parent.asset.child(p2_puzzle_hash, self.underlying_amount);
+
+            spends.outputs.cats.entry(id).or_default().push(cat);
+
+            return Ok(cat.coin_id());
+        } else if let Some(nft) = spends.nfts.get_mut(&id) {
+            let source = nft.last_mut()?;
+            source.child_info.destination = Some(create_coin);
+
+            let Some(nft) = nft.finalize(
+                ctx,
+                spends.intermediate_puzzle_hash,
+                spends.change_puzzle_hash,
+            )?
+            else {
+                return Err(DriverError::NoSourceForOutput);
+            };
+
+            spends.outputs.nfts.insert(id, nft);
+
+            return Ok(nft.coin_id());
+        }
+
+        Err(DriverError::InvalidAssetId)
+    }
 }
 
 impl SpendAction for MintOptionAction {
@@ -61,19 +120,12 @@ impl SpendAction for MintOptionAction {
         )?;
 
         let underlying_p2_puzzle_hash = launcher.underlying().tree_hash().into();
-        let underlying_coin = SendAction::new(
-            self.underlying_id,
-            underlying_p2_puzzle_hash,
-            self.underlying_amount,
-            Memos::None,
-        )
-        .run_standalone(ctx, spends, true)?
-        .ok_or(DriverError::AlreadyFinalized)?;
+        let underlying_coin_id = self.lock_underlying(ctx, spends, underlying_p2_puzzle_hash)?;
 
         let source = &mut spends.xch.items[source];
 
         let (parent_conditions, eve_option) = launcher
-            .with_underlying(underlying_coin.coin_id())
+            .with_underlying(underlying_coin_id)
             .mint_eve(ctx, source.asset.p2_puzzle_hash())?;
 
         match &mut source.kind {
