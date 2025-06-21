@@ -12,7 +12,7 @@ use crate::{
 pub struct MintOptionAction {
     pub creator_puzzle_hash: Bytes32,
     pub seconds: u64,
-    pub underlying_id: Option<Id>,
+    pub underlying_id: Id,
     pub underlying_amount: u64,
     pub strike_type: OptionType,
     pub amount: u64,
@@ -22,7 +22,7 @@ impl MintOptionAction {
     pub fn new(
         creator_puzzle_hash: Bytes32,
         seconds: u64,
-        underlying_id: Option<Id>,
+        underlying_id: Id,
         underlying_amount: u64,
         strike_type: OptionType,
         amount: u64,
@@ -46,7 +46,7 @@ impl MintOptionAction {
         let output = Output::new(p2_puzzle_hash, self.underlying_amount);
         let create_coin = CreateCoin::new(p2_puzzle_hash, self.underlying_amount, Memos::None);
 
-        let Some(id) = self.underlying_id else {
+        if matches!(self.underlying_id, Id::Xch) {
             let source = spends.xch.output_source(ctx, &output)?;
             let parent = &mut spends.xch.items[source];
 
@@ -61,9 +61,7 @@ impl MintOptionAction {
             spends.outputs.xch.push(coin);
 
             return Ok(coin.coin_id());
-        };
-
-        if let Some(cat) = spends.cats.get_mut(&id) {
+        } else if let Some(cat) = spends.cats.get_mut(&self.underlying_id) {
             let source = cat.output_source(ctx, &output)?;
             let parent = &mut cat.items[source];
 
@@ -71,10 +69,15 @@ impl MintOptionAction {
 
             let cat = parent.asset.child(p2_puzzle_hash, self.underlying_amount);
 
-            spends.outputs.cats.entry(id).or_default().push(cat);
+            spends
+                .outputs
+                .cats
+                .entry(self.underlying_id)
+                .or_default()
+                .push(cat);
 
             return Ok(cat.coin_id());
-        } else if let Some(nft) = spends.nfts.get_mut(&id) {
+        } else if let Some(nft) = spends.nfts.get_mut(&self.underlying_id) {
             let source = nft.last_mut()?;
             source.child_info.destination = Some(create_coin);
 
@@ -87,7 +90,7 @@ impl MintOptionAction {
                 return Err(DriverError::NoSourceForOutput);
             };
 
-            spends.outputs.nfts.insert(id, nft);
+            spends.outputs.nfts.insert(self.underlying_id, nft);
 
             return Ok(nft.coin_id());
         }
@@ -98,10 +101,10 @@ impl MintOptionAction {
 
 impl SpendAction for MintOptionAction {
     fn calculate_delta(&self, deltas: &mut Deltas, index: usize) {
-        deltas.update(None).output += self.amount;
-        deltas.update(Some(Id::New(index))).input += self.amount;
+        deltas.update(Id::Xch).output += self.amount;
+        deltas.update(Id::New(index)).input += self.amount;
         deltas.update(self.underlying_id).output += self.underlying_amount;
-        deltas.set_needed(None);
+        deltas.set_needed(Id::Xch);
     }
 
     fn spend(
@@ -175,7 +178,7 @@ mod tests {
                 Action::mint_option(
                     alice.puzzle_hash,
                     100,
-                    Some(Id::New(0)),
+                    Id::New(0),
                     5,
                     OptionType::Xch { amount: 5 },
                     1,

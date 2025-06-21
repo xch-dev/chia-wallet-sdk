@@ -132,7 +132,7 @@ impl Spends {
     ) -> Result<(), DriverError> {
         if let Some(change) = self.xch.create_change(
             ctx,
-            deltas.get(None).unwrap_or(&Delta::default()),
+            deltas.get(&Id::Xch).unwrap_or(&Delta::default()),
             self.change_puzzle_hash,
         )? {
             self.outputs.xch.push(change);
@@ -141,7 +141,7 @@ impl Spends {
         for (&id, cat) in &mut self.cats {
             if let Some(change) = cat.create_change(
                 ctx,
-                deltas.get(Some(id)).unwrap_or(&Delta::default()),
+                deltas.get(&id).unwrap_or(&Delta::default()),
                 self.change_puzzle_hash,
             )? {
                 self.outputs.cats.entry(id).or_default().push(change);

@@ -1,6 +1,6 @@
 use chia_sdk_types::Conditions;
 
-use crate::{Deltas, DriverError, SpendAction, SpendContext, Spends};
+use crate::{Deltas, DriverError, Id, SpendAction, SpendContext, Spends};
 
 #[derive(Debug, Clone, Copy)]
 pub struct FeeAction {
@@ -15,7 +15,7 @@ impl FeeAction {
 
 impl SpendAction for FeeAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        deltas.update(None).output += self.amount;
+        deltas.update(Id::Xch).output += self.amount;
     }
 
     fn spend(
@@ -56,7 +56,7 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[
-                Action::send_xch(alice.puzzle_hash, 1, Memos::None),
+                Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None),
                 Action::fee(1),
             ],
         )?;

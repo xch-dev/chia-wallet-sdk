@@ -14,8 +14,8 @@ impl MeltSingletonAction {
 
 impl SpendAction for MeltSingletonAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        deltas.update(Some(self.id)).output += self.amount;
-        deltas.update(None).input += self.amount;
+        deltas.update(self.id).output += self.amount;
+        deltas.update(Id::Xch).input += self.amount;
     }
 
     fn spend(
@@ -104,7 +104,7 @@ mod tests {
                 Action::mint_option(
                     alice.puzzle_hash,
                     10,
-                    Some(Id::New(0)),
+                    Id::New(0),
                     1,
                     OptionType::Xch { amount: 1 },
                     1,
@@ -147,10 +147,13 @@ mod tests {
             &mut ctx,
             &[
                 Action::melt_singleton(Id::Existing(option.info.launcher_id), 1),
-                Action::settle_xch(NotarizedPayment::new(
-                    option.info.launcher_id,
-                    vec![Payment::new(alice.puzzle_hash, 1, Memos::None)],
-                )),
+                Action::settle(
+                    Id::Xch,
+                    NotarizedPayment::new(
+                        option.info.launcher_id,
+                        vec![Payment::new(alice.puzzle_hash, 1, Memos::None)],
+                    ),
+                ),
             ],
         )?;
 

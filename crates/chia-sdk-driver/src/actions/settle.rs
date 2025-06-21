@@ -5,12 +5,12 @@ use crate::{Deltas, DriverError, Id, SpendAction, SpendContext, SpendKind, Spend
 
 #[derive(Debug, Clone)]
 pub struct SettleAction {
-    pub id: Option<Id>,
+    pub id: Id,
     pub notarized_payment: NotarizedPayment,
 }
 
 impl SettleAction {
-    pub fn new(id: Option<Id>, notarized_payment: NotarizedPayment) -> Self {
+    pub fn new(id: Id, notarized_payment: NotarizedPayment) -> Self {
         Self {
             id,
             notarized_payment,
@@ -37,7 +37,7 @@ impl SpendAction for SettleAction {
         spends: &mut Spends,
         _index: usize,
     ) -> Result<(), DriverError> {
-        let Some(id) = self.id else {
+        if matches!(self.id, Id::Xch) {
             let source = spends
                 .xch
                 .notarized_payment_source(&self.notarized_payment)?;
@@ -54,11 +54,7 @@ impl SpendAction for SettleAction {
                 let coin = Coin::new(parent.asset.coin_id(), payment.puzzle_hash, payment.amount);
                 spends.outputs.xch.push(coin);
             }
-
-            return Ok(());
-        };
-
-        if let Some(cat) = spends.cats.get_mut(&id) {
+        } else if let Some(cat) = spends.cats.get_mut(&self.id) {
             let source = cat.notarized_payment_source(&self.notarized_payment)?;
             let parent = &mut cat.items[source];
 
@@ -70,9 +66,9 @@ impl SpendAction for SettleAction {
 
             for payment in &self.notarized_payment.payments {
                 let cat = parent.asset.child(payment.puzzle_hash, payment.amount);
-                spends.outputs.cats.entry(id).or_default().push(cat);
+                spends.outputs.cats.entry(self.id).or_default().push(cat);
             }
-        } else if let Some(nft) = spends.nfts.get_mut(&id) {
+        } else if let Some(nft) = spends.nfts.get_mut(&self.id) {
             let source = nft.last_mut()?;
 
             if let SpendKind::Settlement(spend) = &mut source.kind {
@@ -98,9 +94,9 @@ impl SpendAction for SettleAction {
                     source.asset.info.metadata,
                     payment.amount,
                 );
-                spends.outputs.nfts.insert(id, nft);
+                spends.outputs.nfts.insert(self.id, nft);
             }
-        } else if let Some(option) = spends.options.get_mut(&id) {
+        } else if let Some(option) = spends.options.get_mut(&self.id) {
             let source = option.last_mut()?;
 
             if let SpendKind::Settlement(spend) = &mut source.kind {
@@ -121,7 +117,7 @@ impl SpendAction for SettleAction {
                 }
 
                 let option = source.asset.child(payment.puzzle_hash, payment.amount);
-                spends.outputs.options.insert(id, option);
+                spends.outputs.options.insert(self.id, option);
             }
         } else {
             return Err(DriverError::InvalidAssetId);
@@ -164,8 +160,8 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[
-                Action::send_xch(alice.puzzle_hash, 1, Memos::None),
-                Action::settle_xch(notarized_payment),
+                Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None),
+                Action::settle(Id::Xch, notarized_payment),
             ],
         )?;
 

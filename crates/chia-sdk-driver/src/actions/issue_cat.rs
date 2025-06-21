@@ -33,9 +33,9 @@ impl IssueCatAction {
 
 impl SpendAction for IssueCatAction {
     fn calculate_delta(&self, deltas: &mut Deltas, index: usize) {
-        deltas.update(None).output += self.amount;
-        deltas.update(Some(Id::New(index))).input += self.amount;
-        deltas.set_needed(None);
+        deltas.update(Id::New(index)).input += self.amount;
+        deltas.update(Id::Xch).output += self.amount;
+        deltas.set_needed(Id::Xch);
     }
 
     fn spend(

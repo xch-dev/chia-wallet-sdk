@@ -7,8 +7,8 @@ use crate::{Action, Id, SpendAction};
 
 #[derive(Debug, Default, Clone)]
 pub struct Deltas {
-    items: HashMap<Option<Id>, Delta>,
-    needed: HashSet<Option<Id>>,
+    items: HashMap<Id, Delta>,
+    needed: HashSet<Id>,
 }
 
 impl Deltas {
@@ -25,23 +25,23 @@ impl Deltas {
     }
 
     pub fn ids(&self) -> impl Iterator<Item = &Id> {
-        self.items.keys().filter_map(|id| id.as_ref())
+        self.items.keys()
     }
 
-    pub fn get(&self, id: Option<Id>) -> Option<&Delta> {
-        self.items.get(&id)
+    pub fn get(&self, id: &Id) -> Option<&Delta> {
+        self.items.get(id)
     }
 
-    pub fn update(&mut self, id: Option<Id>) -> &mut Delta {
+    pub fn update(&mut self, id: Id) -> &mut Delta {
         self.items.entry(id).or_default()
     }
 
-    pub fn set_needed(&mut self, id: Option<Id>) {
+    pub fn set_needed(&mut self, id: Id) {
         self.needed.insert(id);
     }
 
-    pub fn is_needed(&self, id: Option<Id>) -> bool {
-        self.needed.contains(&id)
+    pub fn is_needed(&self, id: &Id) -> bool {
+        self.needed.contains(id)
     }
 }
 

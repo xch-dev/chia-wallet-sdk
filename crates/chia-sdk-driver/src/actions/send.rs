@@ -8,14 +8,14 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub struct SendAction {
-    pub id: Option<Id>,
+    pub id: Id,
     pub puzzle_hash: Bytes32,
     pub amount: u64,
     pub memos: Memos,
 }
 
 impl SendAction {
-    pub fn new(id: Option<Id>, puzzle_hash: Bytes32, amount: u64, memos: Memos) -> Self {
+    pub fn new(id: Id, puzzle_hash: Bytes32, amount: u64, memos: Memos) -> Self {
         Self {
             id,
             puzzle_hash,
@@ -40,7 +40,7 @@ impl SpendAction for SendAction {
         let output = Output::new(self.puzzle_hash, self.amount);
         let create_coin = CreateCoin::new(self.puzzle_hash, self.amount, self.memos);
 
-        let Some(id) = self.id else {
+        if matches!(self.id, Id::Xch) {
             let source = spends.xch.output_source(ctx, &output)?;
             let parent = &mut spends.xch.items[source];
             parent.kind.create_coin(create_coin);
@@ -50,24 +50,21 @@ impl SpendAction for SendAction {
                 create_coin.amount,
             );
             spends.outputs.xch.push(coin);
-            return Ok(());
-        };
-
-        if let Some(cat) = spends.cats.get_mut(&id) {
+        } else if let Some(cat) = spends.cats.get_mut(&self.id) {
             let source = cat.output_source(ctx, &output)?;
             let parent = &mut cat.items[source];
             parent.kind.create_coin(create_coin);
             let cat = parent
                 .asset
                 .child(create_coin.puzzle_hash, create_coin.amount);
-            spends.outputs.cats.entry(id).or_default().push(cat);
-        } else if let Some(did) = spends.dids.get_mut(&id) {
+            spends.outputs.cats.entry(self.id).or_default().push(cat);
+        } else if let Some(did) = spends.dids.get_mut(&self.id) {
             let source = did.last_mut()?;
             source.child_info.destination = Some(SingletonDestination::CreateCoin(create_coin));
-        } else if let Some(nft) = spends.nfts.get_mut(&id) {
+        } else if let Some(nft) = spends.nfts.get_mut(&self.id) {
             let source = nft.last_mut()?;
             source.child_info.destination = Some(create_coin);
-        } else if let Some(option) = spends.options.get_mut(&id) {
+        } else if let Some(option) = spends.options.get_mut(&self.id) {
             let source = option.last_mut()?;
             source.child_info.destination = Some(SingletonDestination::CreateCoin(create_coin));
         } else {
@@ -103,7 +100,7 @@ mod tests {
 
         let deltas = spends.apply(
             &mut ctx,
-            &[Action::send_xch(alice.puzzle_hash, 1, Memos::None)],
+            &[Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None)],
         )?;
 
         let outputs = spends.finish_with_keys(
@@ -136,7 +133,7 @@ mod tests {
 
         let deltas = spends.apply(
             &mut ctx,
-            &[Action::send_xch(bob_puzzle_hash, 2, Memos::None)],
+            &[Action::send(Id::Xch, bob_puzzle_hash, 2, Memos::None)],
         )?;
 
         let outputs = spends.finish_with_keys(
@@ -175,9 +172,9 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[
-                Action::send_xch(alice.puzzle_hash, 1, Memos::None),
-                Action::send_xch(alice.puzzle_hash, 1, Memos::None),
-                Action::send_xch(alice.puzzle_hash, 1, Memos::None),
+                Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None),
+                Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None),
+                Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None),
             ],
         )?;
 

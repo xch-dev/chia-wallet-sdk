@@ -30,27 +30,15 @@ pub enum Action {
 
 impl Action {
     pub fn send(id: Id, puzzle_hash: Bytes32, amount: u64, memos: Memos) -> Self {
-        Self::Send(SendAction::new(Some(id), puzzle_hash, amount, memos))
-    }
-
-    pub fn send_xch(puzzle_hash: Bytes32, amount: u64, memos: Memos) -> Self {
-        Self::Send(SendAction::new(None, puzzle_hash, amount, memos))
+        Self::Send(SendAction::new(id, puzzle_hash, amount, memos))
     }
 
     pub fn settle(id: Id, notarized_payment: NotarizedPayment) -> Self {
-        Self::Settle(SettleAction::new(Some(id), notarized_payment))
-    }
-
-    pub fn settle_xch(notarized_payment: NotarizedPayment) -> Self {
-        Self::Settle(SettleAction::new(None, notarized_payment))
+        Self::Settle(SettleAction::new(id, notarized_payment))
     }
 
     pub fn burn(id: Id, amount: u64, memos: Memos) -> Self {
-        Self::Send(SendAction::new(Some(id), BURN_PUZZLE_HASH, amount, memos))
-    }
-
-    pub fn burn_xch(amount: u64, memos: Memos) -> Self {
-        Self::Send(SendAction::new(None, BURN_PUZZLE_HASH, amount, memos))
+        Self::Send(SendAction::new(id, BURN_PUZZLE_HASH, amount, memos))
     }
 
     pub fn create_did(
@@ -93,7 +81,7 @@ impl Action {
         amount: u64,
     ) -> Self {
         Self::MintNft(MintNftAction::new(
-            None,
+            Id::Xch,
             metadata,
             metadata_updater_puzzle_hash,
             royalty_puzzle_hash,
@@ -111,7 +99,7 @@ impl Action {
         amount: u64,
     ) -> Self {
         Self::MintNft(MintNftAction::new(
-            Some(parent_did_id),
+            parent_did_id,
             metadata,
             metadata_updater_puzzle_hash,
             royalty_puzzle_hash,
@@ -166,7 +154,7 @@ impl Action {
     pub fn mint_option(
         creator_puzzle_hash: Bytes32,
         seconds: u64,
-        underlying_id: Option<Id>,
+        underlying_id: Id,
         underlying_amount: u64,
         strike_type: OptionType,
         amount: u64,

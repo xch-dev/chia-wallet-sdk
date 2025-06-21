@@ -7,7 +7,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub struct MintNftAction {
-    pub parent_did_id: Option<Id>,
+    pub parent_id: Id,
     pub metadata: HashedPtr,
     pub metadata_updater_puzzle_hash: Bytes32,
     pub royalty_puzzle_hash: Bytes32,
@@ -17,7 +17,7 @@ pub struct MintNftAction {
 
 impl MintNftAction {
     pub fn new(
-        parent_did_id: Option<Id>,
+        parent_id: Id,
         metadata: HashedPtr,
         metadata_updater_puzzle_hash: Bytes32,
         royalty_puzzle_hash: Bytes32,
@@ -25,7 +25,7 @@ impl MintNftAction {
         amount: u64,
     ) -> Self {
         Self {
-            parent_did_id,
+            parent_id,
             metadata,
             metadata_updater_puzzle_hash,
             royalty_puzzle_hash,
@@ -38,7 +38,7 @@ impl MintNftAction {
 impl Default for MintNftAction {
     fn default() -> Self {
         Self::new(
-            None,
+            Id::Xch,
             HashedPtr::NIL,
             Bytes32::default(),
             Bytes32::default(),
@@ -50,15 +50,15 @@ impl Default for MintNftAction {
 
 impl SpendAction for MintNftAction {
     fn calculate_delta(&self, deltas: &mut Deltas, index: usize) {
-        deltas.update(None).output += self.amount;
-        deltas.update(Some(Id::New(index))).input += self.amount;
+        deltas.update(Id::Xch).output += self.amount;
+        deltas.update(Id::New(index)).input += self.amount;
 
-        if let Some(did_id) = self.parent_did_id {
-            let did = deltas.update(Some(did_id));
+        if matches!(self.parent_id, Id::Xch) {
+            deltas.set_needed(Id::Xch);
+        } else {
+            let did = deltas.update(self.parent_id);
             did.input += 1;
             did.output += 1;
-        } else {
-            deltas.set_needed(None);
         }
     }
 
@@ -68,19 +68,19 @@ impl SpendAction for MintNftAction {
         spends: &mut Spends,
         index: usize,
     ) -> Result<(), DriverError> {
-        let (p2_puzzle_hash, source_kind, launcher) = if let Some(id) = self.parent_did_id {
+        let (p2_puzzle_hash, source_kind, launcher) = if matches!(self.parent_id, Id::Xch) {
+            let (source, launcher) = spends.xch.create_launcher(self.amount)?;
+            let source = &mut spends.xch.items[source];
+            (source.asset.p2_puzzle_hash(), &mut source.kind, launcher)
+        } else {
             let did = spends
                 .dids
-                .get_mut(&id)
+                .get_mut(&self.parent_id)
                 .ok_or(DriverError::InvalidAssetId)?;
             let (source, launcher) = did.create_launcher(self.amount)?;
             let p2_puzzle_hash = did.last()?.asset.p2_puzzle_hash();
             let source = &mut did.lineage[source];
             (p2_puzzle_hash, &mut source.kind, launcher)
-        } else {
-            let (source, launcher) = spends.xch.create_launcher(self.amount)?;
-            let source = &mut spends.xch.items[source];
-            (source.asset.p2_puzzle_hash(), &mut source.kind, launcher)
         };
 
         let (parent_conditions, eve_nft) = launcher.mint_eve_nft(
