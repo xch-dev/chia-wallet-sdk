@@ -1,5 +1,6 @@
 use chia_protocol::Coin;
 use chia_puzzle_types::offer::NotarizedPayment;
+use chia_sdk_types::{payment_assertion, tree_hash_notarized_payment};
 
 use crate::{Deltas, DriverError, Id, SpendAction, SpendContext, SpendKind, Spends};
 
@@ -33,7 +34,7 @@ impl SpendAction for SettleAction {
 
     fn spend(
         &self,
-        _ctx: &mut SpendContext,
+        ctx: &mut SpendContext,
         spends: &mut Spends,
         _index: usize,
     ) -> Result<(), DriverError> {
@@ -45,6 +46,11 @@ impl SpendAction for SettleAction {
             let parent = &mut spends.xch.items[source];
 
             if let SpendKind::Settlement(spend) = &mut parent.kind {
+                spends.xch.payment_assertions.push(payment_assertion(
+                    parent.asset.puzzle_hash,
+                    tree_hash_notarized_payment(ctx, &self.notarized_payment),
+                ));
+
                 spend.add_notarized_payment(self.notarized_payment.clone());
             } else {
                 return Err(DriverError::CannotSettleFromSpend);
@@ -59,6 +65,11 @@ impl SpendAction for SettleAction {
             let parent = &mut cat.items[source];
 
             if let SpendKind::Settlement(spend) = &mut parent.kind {
+                cat.payment_assertions.push(payment_assertion(
+                    parent.asset.coin.puzzle_hash,
+                    tree_hash_notarized_payment(ctx, &self.notarized_payment),
+                ));
+
                 spend.add_notarized_payment(self.notarized_payment.clone());
             } else {
                 return Err(DriverError::CannotSettleFromSpend);
@@ -72,6 +83,11 @@ impl SpendAction for SettleAction {
             let source = nft.last_mut()?;
 
             if let SpendKind::Settlement(spend) = &mut source.kind {
+                source.payment_assertions.push(payment_assertion(
+                    source.asset.coin.puzzle_hash,
+                    tree_hash_notarized_payment(ctx, &self.notarized_payment),
+                ));
+
                 spend.add_notarized_payment(self.notarized_payment.clone());
             } else {
                 return Err(DriverError::CannotSettleFromSpend);
@@ -100,6 +116,11 @@ impl SpendAction for SettleAction {
             let source = option.last_mut()?;
 
             if let SpendKind::Settlement(spend) = &mut source.kind {
+                source.payment_assertions.push(payment_assertion(
+                    source.asset.coin.puzzle_hash,
+                    tree_hash_notarized_payment(ctx, &self.notarized_payment),
+                ));
+
                 spend.add_notarized_payment(self.notarized_payment.clone());
             } else {
                 return Err(DriverError::CannotSettleFromSpend);
@@ -160,27 +181,45 @@ mod tests {
         let deltas = spends.apply(
             &mut ctx,
             &[
-                Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None),
-                Action::settle(Id::Xch, notarized_payment),
+                Action::send(Id::Xch, alice.puzzle_hash, 0, Memos::None),
+                Action::send(Id::Xch, SETTLEMENT_PAYMENT_HASH.into(), 1, Memos::None),
             ],
         )?;
 
-        spends.finish_with_keys(
+        let outputs = spends.finish_with_keys(
             &mut ctx,
             &deltas,
             Relation::None,
             &indexmap! { alice.puzzle_hash => alice.pk },
         )?;
 
+        let mut spends = Spends::new(alice.puzzle_hash);
+        spends.add(
+            outputs
+                .xch
+                .iter()
+                .find(|c| c.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into())
+                .copied()
+                .expect("settlement coin not found"),
+        );
+
+        let deltas = spends.apply(&mut ctx, &[Action::settle(Id::Xch, notarized_payment)])?;
+
+        let outputs = spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &indexmap! { alice.puzzle_hash => alice.pk },
+        )?;
+        assert_eq!(outputs.xch.len(), 1);
+
         StandardLayer::new(alice.pk).spend(
             &mut ctx,
-            Coin::new(alice.coin.coin_id(), alice.puzzle_hash, 1),
-            Conditions::new()
-                .create_coin(alice.puzzle_hash, 1, Memos::None)
-                .with(payment_assertion(
-                    SETTLEMENT_PAYMENT_HASH.into(),
-                    hashed_notarized_payment,
-                )),
+            Coin::new(alice.coin.coin_id(), alice.puzzle_hash, 0),
+            Conditions::new().with(payment_assertion(
+                SETTLEMENT_PAYMENT_HASH.into(),
+                hashed_notarized_payment,
+            )),
         )?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
