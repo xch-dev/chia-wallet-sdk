@@ -4,14 +4,17 @@ use chia_puzzle_types::{
     singleton::SingletonArgs,
 };
 use chia_puzzles::NFT_STATE_LAYER_HASH;
-use chia_sdk_types::Mod;
-use clvm_traits::{FromClvm, ToClvm};
+use chia_sdk_types::{
+    conditions::{CreateCoin, NewMetadataOutput},
+    run_puzzle, Condition, Mod,
+};
+use clvm_traits::{clvm_list, FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
-use clvmr::Allocator;
+use clvmr::{Allocator, NodePtr};
 
 use crate::{
     DriverError, Layer, NftOwnershipLayer, NftStateLayer, Puzzle, RoyaltyTransferLayer,
-    SingletonLayer,
+    SingletonLayer, Spend,
 };
 
 pub type StandardNftLayers<M, I> =
@@ -195,15 +198,85 @@ impl<M> NftInfo<M> {
     {
         SingletonArgs::new(self.launcher_id, self.inner_puzzle_hash()).curry_tree_hash()
     }
+
+    /// Parses the child of an [`NftInfo`] from the p2 spend.
+    ///
+    /// This will automatically run the transfer program or metadata updater, if
+    /// they are revealed in the p2 spend's output conditions. This way the returned
+    /// [`NftInfo`] will have the correct owner (if present) and metadata.
+    pub fn child_from_p2_spend(
+        &self,
+        allocator: &mut Allocator,
+        spend: Spend,
+    ) -> Result<(Self, CreateCoin<NodePtr>), DriverError>
+    where
+        M: Clone + ToClvm<Allocator> + FromClvm<Allocator>,
+    {
+        let output = run_puzzle(allocator, spend.puzzle, spend.solution)?;
+        let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
+
+        let mut create_coin = None;
+        let mut new_owner = None;
+        let mut new_metadata = None;
+
+        for condition in conditions {
+            match condition {
+                Condition::CreateCoin(condition) if condition.amount % 2 == 1 => {
+                    create_coin = Some(condition);
+                }
+                Condition::TransferNft(condition) => {
+                    new_owner = Some(condition);
+                }
+                Condition::UpdateNftMetadata(condition) => {
+                    new_metadata = Some(condition);
+                }
+                _ => {}
+            }
+        }
+
+        let Some(create_coin) = create_coin else {
+            return Err(DriverError::MissingChild);
+        };
+
+        let mut info = self.clone();
+
+        if let Some(new_owner) = new_owner {
+            info.current_owner = new_owner.launcher_id;
+        }
+
+        if let Some(new_metadata) = new_metadata {
+            let metadata_updater_solution = clvm_list!(
+                &self.metadata,
+                self.metadata_updater_puzzle_hash,
+                new_metadata.updater_solution
+            )
+            .to_clvm(allocator)?;
+
+            let output = run_puzzle(
+                allocator,
+                new_metadata.updater_puzzle_reveal,
+                metadata_updater_solution,
+            )?;
+
+            let output =
+                NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)?.metadata_info;
+            info.metadata = output.new_metadata;
+            info.metadata_updater_puzzle_hash = output.new_updater_puzzle_hash;
+        }
+
+        info.p2_puzzle_hash = create_coin.puzzle_hash;
+
+        Ok((info, create_coin))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use chia_puzzle_types::nft::NftMetadata;
     use chia_sdk_test::Simulator;
-    use chia_sdk_types::Conditions;
+    use chia_sdk_types::{conditions::TransferNft, Conditions};
 
-    use crate::{IntermediateLauncher, Launcher, NftMint, NftOwner, SpendContext, StandardLayer};
+    use crate::{IntermediateLauncher, Launcher, NftMint, SpendContext, StandardLayer};
 
     use super::*;
 
@@ -230,7 +303,11 @@ mod tests {
                     metadata,
                     alice.puzzle_hash,
                     300,
-                    Some(NftOwner::from_did_info(&did.info)),
+                    Some(TransferNft::new(
+                        Some(did.info.launcher_id),
+                        Vec::new(),
+                        Some(did.info.inner_puzzle_hash().into()),
+                    )),
                 ),
             )?;
 

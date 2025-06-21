@@ -6,7 +6,6 @@ use super::Cat;
 pub struct CatSpend {
     pub cat: Cat,
     pub inner_spend: Spend,
-    pub extra_delta: i64,
     pub revoke: bool,
 }
 
@@ -15,16 +14,6 @@ impl CatSpend {
         Self {
             cat,
             inner_spend,
-            extra_delta: 0,
-            revoke: false,
-        }
-    }
-
-    pub fn with_extra_delta(cat: Cat, inner_spend: Spend, extra_delta: i64) -> Self {
-        Self {
-            cat,
-            inner_spend,
-            extra_delta,
             revoke: false,
         }
     }

@@ -27,7 +27,7 @@ impl Did {
         let ctx = metadata.0.lock().unwrap();
         Ok(self
             .as_ptr(&ctx)
-            .child(p2_puzzle_hash, metadata.as_ptr(&ctx))
+            .child(p2_puzzle_hash, metadata.as_ptr(&ctx), self.coin.amount)
             .as_program(&metadata.0))
     }
 
@@ -35,7 +35,7 @@ impl Did {
         let ctx = self.info.metadata.0.lock().unwrap();
         Ok(self
             .as_ptr(&ctx)
-            .child_with(info.as_ptr(&ctx))
+            .child_with(info.as_ptr(&ctx), self.coin.amount)
             .as_program(&self.info.metadata.0))
     }
 }

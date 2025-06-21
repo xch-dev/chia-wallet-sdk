@@ -6,12 +6,15 @@ use chia_puzzle_types::{
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_test::{sign_transaction, Simulator};
-use chia_sdk_types::{conditions::TradePrice, puzzles::SettlementPayment, Conditions};
+use chia_sdk_types::{
+    conditions::TradePrice, payment_assertion, puzzles::SettlementPayment,
+    tree_hash_notarized_payment, Conditions,
+};
+use clvm_utils::ToTreeHash;
 
 use crate::{
-    calculate_nft_royalty, calculate_nft_trace_price, payment_assertion,
-    tree_hash_notarized_payment, Launcher, Layer, NftMint, Offer, OfferBuilder, SettlementLayer,
-    SpendContext, StandardLayer,
+    calculate_nft_royalty, calculate_nft_trace_price, Launcher, Layer, NftMint, Offer,
+    OfferBuilder, SettlementLayer, SpendContext, StandardLayer,
 };
 
 #[test]
@@ -114,7 +117,7 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
         nonce: receive_nonce,
         payments: vec![Payment::new(bob.puzzle_hash, 1, bob_hint)],
     };
-    let receive_payment_hashed = tree_hash_notarized_payment(&ctx, &receive_payment);
+    let receive_payment_hash = tree_hash_notarized_payment(&ctx, &receive_payment).tree_hash();
 
     let total_amount = 500_000_000_000 + nft_royalty;
 
@@ -125,7 +128,7 @@ fn test_nft_for_xch() -> anyhow::Result<()> {
         bob.coin,
         Conditions::new()
             .create_coin(SETTLEMENT_PAYMENT_HASH.into(), total_amount, Memos::None)
-            .with(payment_assertion(hash, &receive_payment_hashed)),
+            .with(payment_assertion(hash, receive_payment_hash)),
     )?;
 
     let settlement_coin = Coin::new(

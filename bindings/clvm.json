@@ -121,7 +121,8 @@
         "args": {
           "nft": "Nft",
           "inner_spend": "Spend"
-        }
+        },
+        "return": "Nft"
       },
       "create_eve_did": {
         "args": {
@@ -134,7 +135,8 @@
         "args": {
           "did": "Did",
           "inner_spend": "Spend"
-        }
+        },
+        "return": "Option<Did>"
       },
       "spend_streamed_cat": {
         "args": {

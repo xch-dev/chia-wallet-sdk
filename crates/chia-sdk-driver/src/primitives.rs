@@ -6,6 +6,7 @@ mod intermediate_launcher;
 mod launcher;
 mod mips;
 mod nft;
+mod option;
 mod streamed_cat;
 mod vault;
 
@@ -17,6 +18,7 @@ pub use intermediate_launcher::*;
 pub use launcher::*;
 pub use mips::*;
 pub use nft::*;
+pub use option::*;
 pub use streamed_cat::*;
 pub use vault::*;
 
@@ -25,9 +27,3 @@ mod datalayer;
 
 #[cfg(feature = "chip-0035")]
 pub use datalayer::*;
-
-#[cfg(feature = "offers")]
-mod option;
-
-#[cfg(feature = "offers")]
-pub use option::*;
