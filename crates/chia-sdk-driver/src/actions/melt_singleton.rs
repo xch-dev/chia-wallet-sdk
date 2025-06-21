@@ -50,7 +50,7 @@ mod tests {
     use indexmap::indexmap;
     use rstest::rstest;
 
-    use crate::{Action, Cat, CatSpend, OptionType, OptionUnderlying};
+    use crate::{Action, Cat, CatSpend, OptionType, OptionUnderlying, Relation};
 
     use super::*;
 
@@ -75,6 +75,7 @@ mod tests {
         spends.finish_with_keys(
             &mut ctx,
             &deltas,
+            Relation::None,
             &indexmap! { alice.puzzle_hash => alice.pk },
         )?;
 
@@ -116,6 +117,7 @@ mod tests {
         let outputs = spends.finish_with_keys(
             &mut ctx,
             &deltas,
+            Relation::None,
             &indexmap! { alice.puzzle_hash => alice.pk },
         )?;
 
@@ -157,7 +159,12 @@ mod tests {
             ],
         )?;
 
-        spends.finish_with_keys(&mut ctx, &deltas, &indexmap! { bob.puzzle_hash => bob.pk })?;
+        spends.finish_with_keys(
+            &mut ctx,
+            &deltas,
+            Relation::None,
+            &indexmap! { bob.puzzle_hash => bob.pk },
+        )?;
 
         sim.spend_coins(ctx.take(), &[bob.sk])?;
 

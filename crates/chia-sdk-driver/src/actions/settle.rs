@@ -137,7 +137,7 @@ mod tests {
     use chia_sdk_types::{payment_assertion, tree_hash_notarized_payment, Conditions};
     use indexmap::indexmap;
 
-    use crate::{Action, StandardLayer, BURN_PUZZLE_HASH};
+    use crate::{Action, Relation, StandardLayer, BURN_PUZZLE_HASH};
 
     use super::*;
 
@@ -168,6 +168,7 @@ mod tests {
         spends.finish_with_keys(
             &mut ctx,
             &deltas,
+            Relation::None,
             &indexmap! { alice.puzzle_hash => alice.pk },
         )?;
 

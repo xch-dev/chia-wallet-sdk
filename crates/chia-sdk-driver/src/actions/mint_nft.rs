@@ -115,7 +115,7 @@ mod tests {
     use chia_sdk_test::Simulator;
     use indexmap::indexmap;
 
-    use crate::Action;
+    use crate::{Action, Relation};
 
     use super::*;
 
@@ -134,6 +134,7 @@ mod tests {
         let outputs = spends.finish_with_keys(
             &mut ctx,
             &deltas,
+            Relation::None,
             &indexmap! { alice.puzzle_hash => alice.pk },
         )?;
 
@@ -167,6 +168,7 @@ mod tests {
         let outputs = spends.finish_with_keys(
             &mut ctx,
             &deltas,
+            Relation::None,
             &indexmap! { alice.puzzle_hash => alice.pk },
         )?;
 

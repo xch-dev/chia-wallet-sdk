@@ -7,9 +7,10 @@ use chia_sdk_types::{conditions::AssertPuzzleAnnouncement, Conditions};
 use indexmap::IndexMap;
 
 use crate::{
-    Action, Asset, Cat, CatSpend, Delta, Deltas, Did, DriverError, FungibleSpend, FungibleSpends,
-    HashedPtr, Id, Layer, Nft, OptionContract, SettlementLayer, SingletonSpends, Spend,
-    SpendAction, SpendContext, SpendKind, SpendWithConditions, StandardLayer,
+    Action, Asset, Cat, CatSpend, ConditionsSpend, Delta, Deltas, Did, DriverError, FungibleSpend,
+    FungibleSpends, HashedPtr, Id, Layer, Nft, OptionContract, Relation, SettlementLayer,
+    SingletonSpends, Spend, SpendAction, SpendContext, SpendKind, SpendWithConditions,
+    StandardLayer,
 };
 
 #[derive(Debug, Clone)]
@@ -149,6 +150,65 @@ impl Spends {
         payment_assertions
     }
 
+    fn iter_conditions_spends(&mut self) -> impl Iterator<Item = (Coin, &mut ConditionsSpend)> {
+        self.xch
+            .items
+            .iter_mut()
+            .filter_map(|item| {
+                if let SpendKind::Conditions(spend) = &mut item.kind {
+                    Some((item.asset, spend))
+                } else {
+                    None
+                }
+            })
+            .chain(self.cats.values_mut().filter_map(|cat| {
+                cat.items.iter_mut().find_map(|item| {
+                    if let SpendKind::Conditions(spend) = &mut item.kind {
+                        Some((item.asset.coin, spend))
+                    } else {
+                        None
+                    }
+                })
+            }))
+            .chain(self.dids.values_mut().filter_map(|did| {
+                did.lineage
+                    .iter_mut()
+                    .filter_map(|item| {
+                        if let SpendKind::Conditions(spend) = &mut item.kind {
+                            Some((item.asset.coin, spend))
+                        } else {
+                            None
+                        }
+                    })
+                    .last()
+            }))
+            .chain(self.nfts.values_mut().filter_map(|nft| {
+                nft.lineage
+                    .iter_mut()
+                    .filter_map(|item| {
+                        if let SpendKind::Conditions(spend) = &mut item.kind {
+                            Some((item.asset.coin, spend))
+                        } else {
+                            None
+                        }
+                    })
+                    .last()
+            }))
+            .chain(self.options.values_mut().filter_map(|option| {
+                option
+                    .lineage
+                    .iter_mut()
+                    .filter_map(|item| {
+                        if let SpendKind::Conditions(spend) = &mut item.kind {
+                            Some((item.asset.coin, spend))
+                        } else {
+                            None
+                        }
+                    })
+                    .last()
+            }))
+    }
+
     fn emit_conditions(&mut self, ctx: &mut SpendContext) -> Result<(), DriverError> {
         let payment_assertions = self.payment_assertions();
         let required = !payment_assertions.is_empty();
@@ -159,42 +219,8 @@ impl Spends {
             conditions = conditions.reserve_fee(self.outputs.fee);
         }
 
-        for item in &mut self.xch.items {
-            if let SpendKind::Conditions(spend) = &mut item.kind {
-                spend.add_conditions(mem::take(&mut conditions));
-            }
-        }
-
-        for cat in &mut self.cats.values_mut() {
-            for item in &mut cat.items {
-                if let SpendKind::Conditions(spend) = &mut item.kind {
-                    spend.add_conditions(mem::take(&mut conditions));
-                }
-            }
-        }
-
-        for did in &mut self.dids.values_mut() {
-            for item in &mut did.lineage {
-                if let SpendKind::Conditions(spend) = &mut item.kind {
-                    spend.add_conditions(mem::take(&mut conditions));
-                }
-            }
-        }
-
-        for nft in &mut self.nfts.values_mut() {
-            for item in &mut nft.lineage {
-                if let SpendKind::Conditions(spend) = &mut item.kind {
-                    spend.add_conditions(mem::take(&mut conditions));
-                }
-            }
-        }
-
-        for option in &mut self.options.values_mut() {
-            for item in &mut option.lineage {
-                if let SpendKind::Conditions(spend) = &mut item.kind {
-                    spend.add_conditions(mem::take(&mut conditions));
-                }
-            }
+        for (_, spend) in self.iter_conditions_spends() {
+            spend.add_conditions(mem::take(&mut conditions));
         }
 
         if conditions.is_empty() || !required {
@@ -275,6 +301,33 @@ impl Spends {
         }
     }
 
+    fn emit_relation(&mut self, relation: Relation) {
+        match relation {
+            Relation::None => {}
+            Relation::AssertConcurrent => {
+                let coin_ids: Vec<Bytes32> = self
+                    .iter_conditions_spends()
+                    .map(|(coin, _)| coin.coin_id())
+                    .collect();
+
+                if coin_ids.len() <= 1 {
+                    return;
+                }
+
+                self.iter_conditions_spends()
+                    .enumerate()
+                    .for_each(|(i, (_, spend))| {
+                        spend.add_conditions(Conditions::new().assert_concurrent_spend(
+                            if i == 0 {
+                                coin_ids[coin_ids.len() - 1]
+                            } else {
+                                coin_ids[i - 1]
+                            },
+                        ));
+                    });
+            }
+        }
+    }
     pub fn p2_puzzle_hashes(&self) -> Vec<Bytes32> {
         let mut p2_puzzle_hashes = Vec::new();
 
@@ -313,10 +366,12 @@ impl Spends {
         mut self,
         ctx: &mut SpendContext,
         deltas: &Deltas,
+        relation: Relation,
         f: impl Fn(&mut SpendContext, Bytes32, SpendKind) -> Result<Spend, DriverError>,
     ) -> Result<Outputs, DriverError> {
         self.create_change(ctx, deltas)?;
         self.emit_conditions(ctx)?;
+        self.emit_relation(relation);
 
         for item in self.xch.items {
             let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
@@ -360,18 +415,24 @@ impl Spends {
         self,
         ctx: &mut SpendContext,
         deltas: &Deltas,
+        relation: Relation,
         synthetic_keys: &IndexMap<Bytes32, PublicKey>,
     ) -> Result<Outputs, DriverError> {
-        self.finish(ctx, deltas, |ctx, p2_puzzle_hash, kind| match kind {
-            SpendKind::Conditions(spend) => {
-                let Some(&synthetic_key) = synthetic_keys.get(&p2_puzzle_hash) else {
-                    return Err(DriverError::MissingKey);
-                };
-                StandardLayer::new(synthetic_key).spend_with_conditions(ctx, spend.finish())
-            }
-            SpendKind::Settlement(spend) => SettlementLayer
-                .construct_spend(ctx, SettlementPaymentsSolution::new(spend.finish())),
-        })
+        self.finish(
+            ctx,
+            deltas,
+            relation,
+            |ctx, p2_puzzle_hash, kind| match kind {
+                SpendKind::Conditions(spend) => {
+                    let Some(&synthetic_key) = synthetic_keys.get(&p2_puzzle_hash) else {
+                        return Err(DriverError::MissingKey);
+                    };
+                    StandardLayer::new(synthetic_key).spend_with_conditions(ctx, spend.finish())
+                }
+                SpendKind::Settlement(spend) => SettlementLayer
+                    .construct_spend(ctx, SettlementPaymentsSolution::new(spend.finish())),
+            },
+        )
     }
 }
 
