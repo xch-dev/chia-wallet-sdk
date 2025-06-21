@@ -1,5 +1,6 @@
 use std::io::Read;
 
+use bech32::{u5, Variant};
 use chia_protocol::SpendBundle;
 use chia_puzzles::{
     CAT_PUZZLE, NFT_METADATA_UPDATER_DEFAULT, NFT_OWNERSHIP_LAYER,
@@ -14,7 +15,7 @@ use flate2::{
 use hex_literal::hex;
 use once_cell::sync::Lazy;
 
-use crate::{decode_offer_data, encode_offer_data, DriverError};
+use crate::DriverError;
 
 pub fn compress_offer(spend_bundle: &SpendBundle) -> Result<Vec<u8>, DriverError> {
     compress_offer_bytes(&spend_bundle.to_bytes()?)
@@ -159,12 +160,37 @@ fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DriverError> {
     Ok(output)
 }
 
+fn encode_offer_data(offer: &[u8]) -> Result<String, DriverError> {
+    let data = bech32::convert_bits(offer, 8, 5, true)?
+        .into_iter()
+        .map(u5::try_from_u8)
+        .collect::<Result<Vec<_>, bech32::Error>>()?;
+    Ok(bech32::encode("offer", data, Variant::Bech32m)?)
+}
+
+fn decode_offer_data(offer: &str) -> Result<Vec<u8>, DriverError> {
+    let (hrp, data, variant) = bech32::decode(offer)?;
+
+    if variant != Variant::Bech32m {
+        return Err(DriverError::InvalidFormat);
+    }
+
+    if hrp.as_str() != "offer" {
+        return Err(DriverError::InvalidPrefix(hrp));
+    }
+
+    Ok(bech32::convert_bits(&data, 5, 8, false)?)
+}
+
 #[cfg(test)]
 mod tests {
     use chia_protocol::SpendBundle;
     use chia_traits::Streamable;
 
     use super::*;
+
+    const COMPRESSED_OFFER: &str = include_str!("./test_data/compressed.offer");
+    const DECOMPRESSED_OFFER: &str = include_str!("./test_data/decompressed.offer");
 
     #[test]
     fn test_compression() {
@@ -186,6 +212,11 @@ mod tests {
         SpendBundle::from_bytes(&decompressed_offer).unwrap();
     }
 
-    const COMPRESSED_OFFER: &str = include_str!("./test_data/compressed.offer");
-    const DECOMPRESSED_OFFER: &str = include_str!("./test_data/decompressed.offer");
+    #[test]
+    fn test_encode_decode_offer_data() {
+        let offer = b"hello world";
+        let encoded = encode_offer_data(offer).unwrap();
+        let decoded = decode_offer_data(&encoded).unwrap();
+        assert_eq!(offer, decoded.as_slice());
+    }
 }

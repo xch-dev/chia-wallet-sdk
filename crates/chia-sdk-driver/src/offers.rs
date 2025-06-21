@@ -1,9 +1,7 @@
-mod encode;
 mod offer;
 mod offer_builder;
 mod parsed_offer;
 
-pub use encode::*;
 pub use offer::*;
 pub use offer_builder::*;
 pub use parsed_offer::*;
