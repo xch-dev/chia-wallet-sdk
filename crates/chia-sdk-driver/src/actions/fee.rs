@@ -1,5 +1,3 @@
-use chia_sdk_types::Conditions;
-
 use crate::{Deltas, DriverError, Id, SpendAction, SpendContext, Spends};
 
 #[derive(Debug, Clone, Copy)]
@@ -20,14 +18,12 @@ impl SpendAction for FeeAction {
 
     fn spend(
         &self,
-        ctx: &mut SpendContext,
+        _ctx: &mut SpendContext,
         spends: &mut Spends,
         _index: usize,
     ) -> Result<(), DriverError> {
-        if self.amount > 0 {
-            let _remaining =
-                spends.try_add_conditions(ctx, Conditions::new().reserve_fee(self.amount));
-        }
+        spends.outputs.fee += self.amount;
+
         Ok(())
     }
 }

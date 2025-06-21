@@ -1,7 +1,9 @@
+use std::mem;
+
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
-use chia_sdk_types::Conditions;
+use chia_sdk_types::{conditions::AssertPuzzleAnnouncement, Conditions};
 use indexmap::IndexMap;
 
 use crate::{
@@ -29,6 +31,7 @@ pub struct Outputs {
     pub dids: IndexMap<Id, Did<HashedPtr>>,
     pub nfts: IndexMap<Id, Nft<HashedPtr>>,
     pub options: IndexMap<Id, OptionContract>,
+    pub fee: u64,
 }
 
 impl Spends {
@@ -54,63 +57,6 @@ impl Spends {
 
     pub fn add(&mut self, asset: impl AddAsset) {
         asset.add(self);
-    }
-
-    pub fn try_add_conditions(
-        &mut self,
-        ctx: &mut SpendContext,
-        conditions: Conditions,
-    ) -> Conditions {
-        if let Ok(source) = self
-            .xch
-            .conditions_source(ctx, self.intermediate_puzzle_hash, false)
-        {
-            return self.xch.items[source].kind.try_add_conditions(conditions);
-        }
-
-        for cat in &mut self.cats.values_mut() {
-            if let Ok(source) = cat.conditions_source(ctx, self.intermediate_puzzle_hash, false) {
-                return cat.items[source].kind.try_add_conditions(conditions);
-            }
-        }
-
-        for did in &mut self.dids.values_mut() {
-            for item in &mut did.lineage {
-                match &mut item.kind {
-                    SpendKind::Conditions(spend) => {
-                        spend.add_conditions(conditions);
-                        return Conditions::default();
-                    }
-                    SpendKind::Settlement(_) => {}
-                }
-            }
-        }
-
-        for nft in &mut self.nfts.values_mut() {
-            for item in &mut nft.lineage {
-                match &mut item.kind {
-                    SpendKind::Conditions(spend) => {
-                        spend.add_conditions(conditions);
-                        return Conditions::default();
-                    }
-                    SpendKind::Settlement(_) => {}
-                }
-            }
-        }
-
-        for option in &mut self.options.values_mut() {
-            for item in &mut option.lineage {
-                match &mut item.kind {
-                    SpendKind::Conditions(spend) => {
-                        spend.add_conditions(conditions);
-                        return Conditions::default();
-                    }
-                    SpendKind::Settlement(_) => {}
-                }
-            }
-        }
-
-        conditions
     }
 
     pub fn apply(
@@ -175,6 +121,160 @@ impl Spends {
         Ok(())
     }
 
+    fn payment_assertions(&self) -> Vec<AssertPuzzleAnnouncement> {
+        let mut payment_assertions = self.xch.payment_assertions.clone();
+
+        for cat in self.cats.values() {
+            payment_assertions.extend_from_slice(&cat.payment_assertions);
+        }
+
+        for did in self.dids.values() {
+            for item in &did.lineage {
+                payment_assertions.extend_from_slice(&item.payment_assertions);
+            }
+        }
+
+        for nft in self.nfts.values() {
+            for item in &nft.lineage {
+                payment_assertions.extend_from_slice(&item.payment_assertions);
+            }
+        }
+
+        for option in self.options.values() {
+            for item in &option.lineage {
+                payment_assertions.extend_from_slice(&item.payment_assertions);
+            }
+        }
+
+        payment_assertions
+    }
+
+    fn emit_conditions(&mut self, ctx: &mut SpendContext) -> Result<(), DriverError> {
+        let payment_assertions = self.payment_assertions();
+        let required = !payment_assertions.is_empty();
+
+        let mut conditions = Conditions::new().extend(payment_assertions);
+
+        if self.outputs.fee > 0 {
+            conditions = conditions.reserve_fee(self.outputs.fee);
+        }
+
+        for item in &mut self.xch.items {
+            if let SpendKind::Conditions(spend) = &mut item.kind {
+                spend.add_conditions(mem::take(&mut conditions));
+            }
+        }
+
+        for cat in &mut self.cats.values_mut() {
+            for item in &mut cat.items {
+                if let SpendKind::Conditions(spend) = &mut item.kind {
+                    spend.add_conditions(mem::take(&mut conditions));
+                }
+            }
+        }
+
+        for did in &mut self.dids.values_mut() {
+            for item in &mut did.lineage {
+                if let SpendKind::Conditions(spend) = &mut item.kind {
+                    spend.add_conditions(mem::take(&mut conditions));
+                }
+            }
+        }
+
+        for nft in &mut self.nfts.values_mut() {
+            for item in &mut nft.lineage {
+                if let SpendKind::Conditions(spend) = &mut item.kind {
+                    spend.add_conditions(mem::take(&mut conditions));
+                }
+            }
+        }
+
+        for option in &mut self.options.values_mut() {
+            for item in &mut option.lineage {
+                if let SpendKind::Conditions(spend) = &mut item.kind {
+                    spend.add_conditions(mem::take(&mut conditions));
+                }
+            }
+        }
+
+        if conditions.is_empty() || !required {
+            return Ok(());
+        }
+
+        if let Some(index) = self
+            .xch
+            .intermediate_conditions_source(ctx, self.intermediate_puzzle_hash)?
+        {
+            match &mut self.xch.items[index].kind {
+                SpendKind::Conditions(spend) => {
+                    spend.add_conditions(mem::take(&mut conditions));
+                }
+                SpendKind::Settlement(_) => {}
+            }
+        }
+
+        for cat in self.cats.values_mut() {
+            if let Some(index) =
+                cat.intermediate_conditions_source(ctx, self.intermediate_puzzle_hash)?
+            {
+                match &mut cat.items[index].kind {
+                    SpendKind::Conditions(spend) => {
+                        spend.add_conditions(mem::take(&mut conditions));
+                    }
+                    SpendKind::Settlement(_) => {}
+                }
+            }
+        }
+
+        for did in self.dids.values_mut() {
+            if let Some(mut item) =
+                did.intermediate_fungible_xch_spend(ctx, self.intermediate_puzzle_hash)?
+            {
+                match &mut item.kind {
+                    SpendKind::Conditions(spend) => {
+                        spend.add_conditions(mem::take(&mut conditions));
+                    }
+                    SpendKind::Settlement(_) => {}
+                }
+                self.xch.items.push(item);
+            }
+        }
+
+        for nft in self.nfts.values_mut() {
+            if let Some(mut item) =
+                nft.intermediate_fungible_xch_spend(ctx, self.intermediate_puzzle_hash)?
+            {
+                match &mut item.kind {
+                    SpendKind::Conditions(spend) => {
+                        spend.add_conditions(mem::take(&mut conditions));
+                    }
+                    SpendKind::Settlement(_) => {}
+                }
+                self.xch.items.push(item);
+            }
+        }
+
+        for option in self.options.values_mut() {
+            if let Some(mut item) =
+                option.intermediate_fungible_xch_spend(ctx, self.intermediate_puzzle_hash)?
+            {
+                match &mut item.kind {
+                    SpendKind::Conditions(spend) => {
+                        spend.add_conditions(mem::take(&mut conditions));
+                    }
+                    SpendKind::Settlement(_) => {}
+                }
+                self.xch.items.push(item);
+            }
+        }
+
+        if conditions.is_empty() {
+            Ok(())
+        } else {
+            Err(DriverError::CannotEmitConditions)
+        }
+    }
+
     pub fn p2_puzzle_hashes(&self) -> Vec<Bytes32> {
         let mut p2_puzzle_hashes = Vec::new();
 
@@ -216,6 +316,7 @@ impl Spends {
         f: impl Fn(&mut SpendContext, Bytes32, SpendKind) -> Result<Spend, DriverError>,
     ) -> Result<Outputs, DriverError> {
         self.create_change(ctx, deltas)?;
+        self.emit_conditions(ctx)?;
 
         for item in self.xch.items {
             let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;

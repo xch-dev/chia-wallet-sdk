@@ -5,7 +5,7 @@ use chia_puzzle_types::{
     Memos,
 };
 use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
-use chia_sdk_types::conditions::CreateCoin;
+use chia_sdk_types::conditions::{AssertPuzzleAnnouncement, CreateCoin};
 
 use crate::{
     Asset, Cat, Delta, DriverError, Launcher, OptionLauncher, OptionLauncherInfo, OptionType,
@@ -15,6 +15,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct FungibleSpends<A> {
     pub items: Vec<FungibleSpend<A>>,
+    pub payment_assertions: Vec<AssertPuzzleAnnouncement>,
 }
 
 impl<A> FungibleSpends<A>
@@ -31,23 +32,6 @@ where
             .filter(|item| !item.ephemeral)
             .map(|item| item.asset.amount())
             .sum()
-    }
-
-    pub fn conditions_source(
-        &mut self,
-        ctx: &mut SpendContext,
-        conditions_puzzle_hash: Bytes32,
-        create_intermediate: bool,
-    ) -> Result<usize, DriverError> {
-        if let Some(index) = self.items.iter().position(|item| item.kind.is_conditions()) {
-            return Ok(index);
-        }
-
-        if create_intermediate {
-            self.intermediate_conditions_source(ctx, conditions_puzzle_hash)
-        } else {
-            Err(DriverError::NoSourceForOutput)
-        }
     }
 
     pub fn output_source(
@@ -82,7 +66,8 @@ where
             return Ok(index);
         }
 
-        self.intermediate_settlement_source()
+        self.intermediate_settlement_source()?
+            .ok_or(DriverError::NoSourceForOutput)
     }
 
     pub fn run_tail_source(&mut self, ctx: &mut SpendContext) -> Result<usize, DriverError> {
@@ -135,7 +120,7 @@ where
 
         let source = &mut self.items[index];
 
-        source.kind.create_coin(CreateCoin::new(
+        source.kind.create_intermediate_coin(CreateCoin::new(
             source.asset.p2_puzzle_hash(),
             amount,
             source
@@ -155,18 +140,18 @@ where
         Ok(self.items.len() - 1)
     }
 
-    pub fn intermediate_settlement_source(&mut self) -> Result<usize, DriverError> {
+    pub fn intermediate_settlement_source(&mut self) -> Result<Option<usize>, DriverError> {
         let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
             item.kind
                 .find_amount(SETTLEMENT_PAYMENT_HASH.into(), &item.asset.constraints())
                 .map(|amount| (index, amount))
         }) else {
-            return Err(DriverError::NoSourceForOutput);
+            return Ok(None);
         };
 
         let source = &mut self.items[index];
 
-        source.kind.create_coin(CreateCoin::new(
+        source.kind.create_intermediate_coin(CreateCoin::new(
             SETTLEMENT_PAYMENT_HASH.into(),
             amount,
             Memos::None,
@@ -181,38 +166,40 @@ where
 
         self.items.push(child);
 
-        Ok(self.items.len() - 1)
+        Ok(Some(self.items.len() - 1))
     }
 
     pub fn intermediate_conditions_source(
         &mut self,
         ctx: &mut SpendContext,
-        conditions_puzzle_hash: Bytes32,
-    ) -> Result<usize, DriverError> {
+        intermediate_puzzle_hash: Bytes32,
+    ) -> Result<Option<usize>, DriverError> {
         let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
             item.kind
-                .find_amount(conditions_puzzle_hash, &item.asset.constraints())
+                .find_amount(intermediate_puzzle_hash, &item.asset.constraints())
                 .map(|amount| (index, amount))
         }) else {
-            return Err(DriverError::NoSourceForOutput);
+            return Ok(None);
         };
 
         let source = &mut self.items[index];
 
-        let hint = ctx.hint(conditions_puzzle_hash)?;
+        let hint = ctx.hint(intermediate_puzzle_hash)?;
 
-        source
-            .kind
-            .create_coin(CreateCoin::new(conditions_puzzle_hash, amount, hint));
+        source.kind.create_intermediate_coin(CreateCoin::new(
+            intermediate_puzzle_hash,
+            amount,
+            hint,
+        ));
 
         let child = FungibleSpend::new(
-            source.asset.make_child(conditions_puzzle_hash, amount),
+            source.asset.make_child(intermediate_puzzle_hash, amount),
             true,
         );
 
         self.items.push(child);
 
-        Ok(self.items.len() - 1)
+        Ok(Some(self.items.len() - 1))
     }
 
     pub fn launcher_source(&mut self) -> Result<(usize, u64), DriverError> {
@@ -236,7 +223,7 @@ where
         let (create_coin, launcher) =
             Launcher::create_early(self.items[index].asset.coin_id(), launcher_amount);
 
-        self.items[index].kind.create_coin(create_coin);
+        self.items[index].kind.create_intermediate_coin(create_coin);
 
         Ok((index, launcher.with_singleton_amount(singleton_amount)))
     }
@@ -268,7 +255,7 @@ where
             singleton_amount,
         )?;
 
-        source.kind.create_coin(create_coin);
+        source.kind.create_intermediate_coin(create_coin);
 
         Ok((index, launcher))
     }
@@ -289,11 +276,18 @@ where
         let source = self.output_source(ctx, &output)?;
         let item = &mut self.items[source];
 
-        item.kind.create_coin(CreateCoin::new(
+        let parent_puzzle_hash = item.asset.full_puzzle_hash();
+        let create_coin = CreateCoin::new(
             change_puzzle_hash,
             change,
             item.asset.child_memos(ctx, change_puzzle_hash)?,
-        ));
+        );
+        item.kind.create_coin_with_assertion(
+            ctx,
+            parent_puzzle_hash,
+            &mut self.payment_assertions,
+            create_coin,
+        );
 
         Ok(Some(item.asset.make_child(change_puzzle_hash, change)))
     }
@@ -301,7 +295,10 @@ where
 
 impl<A> Default for FungibleSpends<A> {
     fn default() -> Self {
-        Self { items: Vec::new() }
+        Self {
+            items: Vec::new(),
+            payment_assertions: Vec::new(),
+        }
     }
 }
 

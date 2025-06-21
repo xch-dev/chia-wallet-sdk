@@ -1,14 +1,18 @@
+use chia_protocol::Bytes32;
+use chia_puzzle_types::offer::{NotarizedPayment, Payment};
+use chia_sdk_types::{
+    conditions::{AssertPuzzleAnnouncement, CreateCoin},
+    payment_assertion, tree_hash_notarized_payment, Conditions,
+};
+use clvmr::{Allocator, NodePtr};
+
+use crate::{Output, OutputConstraints, OutputSet};
+
 mod conditions_spend;
 mod settlement_spend;
 
-use chia_protocol::Bytes32;
-use chia_puzzle_types::offer::{NotarizedPayment, Payment};
-use chia_sdk_types::{conditions::CreateCoin, Conditions};
-use clvmr::NodePtr;
 pub use conditions_spend::*;
 pub use settlement_spend::*;
-
-use crate::{Output, OutputConstraints, OutputSet};
 
 #[derive(Debug, Clone)]
 pub enum SpendKind {
@@ -33,7 +37,37 @@ impl SpendKind {
         matches!(self, Self::Settlement(_))
     }
 
-    pub fn create_coin(&mut self, create_coin: CreateCoin<NodePtr>) {
+    pub fn create_coin_with_assertion(
+        &mut self,
+        allocator: &Allocator,
+        parent_puzzle_hash: Bytes32,
+        payment_assertions: &mut Vec<AssertPuzzleAnnouncement>,
+        create_coin: CreateCoin<NodePtr>,
+    ) {
+        match self {
+            SpendKind::Conditions(spend) => {
+                spend.add_conditions(Conditions::new().with(create_coin));
+            }
+            SpendKind::Settlement(spend) => {
+                // TODO: Use nil for the nonce from the payment
+                let notarized_payment = NotarizedPayment::new(
+                    Bytes32::default(),
+                    vec![Payment::new(
+                        create_coin.puzzle_hash,
+                        create_coin.amount,
+                        create_coin.memos,
+                    )],
+                );
+                payment_assertions.push(payment_assertion(
+                    parent_puzzle_hash,
+                    tree_hash_notarized_payment(allocator, &notarized_payment),
+                ));
+                spend.add_notarized_payment(notarized_payment);
+            }
+        }
+    }
+
+    pub fn create_intermediate_coin(&mut self, create_coin: CreateCoin<NodePtr>) {
         match self {
             Self::Conditions(spend) => {
                 spend.add_conditions(Conditions::new().with(create_coin));
@@ -50,25 +84,6 @@ impl SpendKind {
                 });
             }
         }
-    }
-
-    pub fn try_add_conditions(&mut self, conditions: Conditions) -> Conditions {
-        if let Self::Conditions(spend) = self {
-            spend.add_conditions(conditions);
-            return Conditions::new();
-        }
-
-        let mut new_conditions = Conditions::new();
-
-        for condition in conditions {
-            if let Some(&create_coin) = condition.as_create_coin() {
-                self.create_coin(create_coin);
-            } else {
-                new_conditions.push(condition);
-            }
-        }
-
-        new_conditions
     }
 
     #[must_use]

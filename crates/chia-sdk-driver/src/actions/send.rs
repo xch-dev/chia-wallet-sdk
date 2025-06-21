@@ -3,7 +3,7 @@ use chia_puzzle_types::Memos;
 use chia_sdk_types::conditions::CreateCoin;
 
 use crate::{
-    Deltas, DriverError, Id, Output, SingletonDestination, SpendAction, SpendContext, Spends,
+    Asset, Deltas, DriverError, Id, Output, SingletonDestination, SpendAction, SpendContext, Spends,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -43,20 +43,38 @@ impl SpendAction for SendAction {
         if matches!(self.id, Id::Xch) {
             let source = spends.xch.output_source(ctx, &output)?;
             let parent = &mut spends.xch.items[source];
-            parent.kind.create_coin(create_coin);
+            let parent_puzzle_hash = parent.asset.full_puzzle_hash();
+
+            parent.kind.create_coin_with_assertion(
+                ctx,
+                parent_puzzle_hash,
+                &mut spends.xch.payment_assertions,
+                create_coin,
+            );
+
             let coin = Coin::new(
                 parent.asset.coin_id(),
                 create_coin.puzzle_hash,
                 create_coin.amount,
             );
+
             spends.outputs.xch.push(coin);
         } else if let Some(cat) = spends.cats.get_mut(&self.id) {
             let source = cat.output_source(ctx, &output)?;
             let parent = &mut cat.items[source];
-            parent.kind.create_coin(create_coin);
+            let parent_puzzle_hash = parent.asset.full_puzzle_hash();
+
+            parent.kind.create_coin_with_assertion(
+                ctx,
+                parent_puzzle_hash,
+                &mut cat.payment_assertions,
+                create_coin,
+            );
+
             let cat = parent
                 .asset
                 .child(create_coin.puzzle_hash, create_coin.amount);
+
             spends.outputs.cats.entry(self.id).or_default().push(cat);
         } else if let Some(did) = spends.dids.get_mut(&self.id) {
             let source = did.last_mut()?;

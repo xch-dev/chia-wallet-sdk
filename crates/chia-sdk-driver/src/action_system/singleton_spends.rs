@@ -1,17 +1,19 @@
 use std::fmt::Debug;
 
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
 use chia_sdk_types::{
-    conditions::{CreateCoin, NewMetadataOutput, TransferNft, UpdateNftMetadata},
+    conditions::{
+        AssertPuzzleAnnouncement, CreateCoin, NewMetadataOutput, TransferNft, UpdateNftMetadata,
+    },
     Conditions,
 };
 use clvm_traits::clvm_list;
 use clvmr::NodePtr;
 
 use crate::{
-    Asset, Did, DidInfo, DriverError, HashedPtr, Launcher, Nft, NftInfo, OptionContract, OutputSet,
-    Spend, SpendContext, SpendKind,
+    Asset, Did, DidInfo, DriverError, FungibleSpend, HashedPtr, Launcher, Nft, NftInfo,
+    OptionContract, OutputSet, Spend, SpendContext, SpendKind,
 };
 
 #[derive(Debug, Clone)]
@@ -75,6 +77,37 @@ where
         Ok(asset)
     }
 
+    pub fn intermediate_fungible_xch_spend(
+        &mut self,
+        ctx: &mut SpendContext,
+        intermediate_puzzle_hash: Bytes32,
+    ) -> Result<Option<FungibleSpend<Coin>>, DriverError> {
+        let Some((index, amount)) = self.lineage.iter().enumerate().find_map(|(index, item)| {
+            item.kind
+                .find_amount(intermediate_puzzle_hash, &item.asset.constraints())
+                .map(|amount| (index, amount))
+        }) else {
+            return Ok(None);
+        };
+
+        let source = &mut self.lineage[index];
+
+        let hint = ctx.hint(intermediate_puzzle_hash)?;
+
+        source.kind.create_intermediate_coin(CreateCoin::new(
+            intermediate_puzzle_hash,
+            amount,
+            hint,
+        ));
+
+        let child = FungibleSpend::new(
+            Coin::new(source.asset.coin_id(), intermediate_puzzle_hash, amount),
+            true,
+        );
+
+        Ok(Some(child))
+    }
+
     pub fn launcher_source(&mut self) -> Result<(usize, u64), DriverError> {
         let Some((index, amount)) = self.lineage.iter().enumerate().find_map(|(index, item)| {
             item.kind
@@ -96,7 +129,9 @@ where
         let (create_coin, launcher) =
             Launcher::create_early(self.lineage[index].asset.coin_id(), launcher_amount);
 
-        self.lineage[index].kind.create_coin(create_coin);
+        self.lineage[index]
+            .kind
+            .create_intermediate_coin(create_coin);
 
         Ok((index, launcher.with_singleton_amount(singleton_amount)))
     }
@@ -110,6 +145,7 @@ where
     pub asset: A,
     pub kind: SpendKind,
     pub child_info: A::ChildInfo,
+    pub payment_assertions: Vec<AssertPuzzleAnnouncement>,
 }
 
 impl<A> SingletonSpend<A>
@@ -128,6 +164,7 @@ where
             asset,
             kind,
             child_info,
+            payment_assertions: Vec::new(),
         }
     }
 }
@@ -210,11 +247,18 @@ impl SingletonAsset for Did<HashedPtr> {
                 );
 
                 // Create the new DID coin with the updated DID info. The DID puzzle does not automatically wrap the output.
-                singleton.kind.create_coin(CreateCoin::new(
+                let create_coin = CreateCoin::new(
                     child_info.inner_puzzle_hash().into(),
                     destination.amount,
                     destination.memos,
-                ));
+                );
+                let parent_puzzle_hash = singleton.asset.full_puzzle_hash();
+                singleton.kind.create_coin_with_assertion(
+                    ctx,
+                    parent_puzzle_hash,
+                    &mut singleton.payment_assertions,
+                    create_coin,
+                );
 
                 // Create a new singleton spend with the child and the new spend kind.
                 // This will only be added to the lineage if an additional spend is required.
@@ -275,11 +319,18 @@ impl SingletonAsset for Nft<HashedPtr> {
             && (!singleton.child_info.metadata_update_spends.is_empty()
                 || singleton.child_info.transfer_condition.is_some())
         {
-            let hint = ctx.hint(intermediate_puzzle_hash)?;
-            let amount = singleton.asset.coin.amount;
-            singleton
-                .kind
-                .create_coin(CreateCoin::new(intermediate_puzzle_hash, amount, hint));
+            let create_coin = CreateCoin::new(
+                intermediate_puzzle_hash,
+                singleton.asset.coin.amount,
+                ctx.hint(intermediate_puzzle_hash)?,
+            );
+            let parent_puzzle_hash = singleton.asset.full_puzzle_hash();
+            singleton.kind.create_coin_with_assertion(
+                ctx,
+                parent_puzzle_hash,
+                &mut singleton.payment_assertions,
+                create_coin,
+            );
 
             let new_info = NftInfo {
                 p2_puzzle_hash: intermediate_puzzle_hash,
@@ -321,7 +372,16 @@ impl SingletonAsset for Nft<HashedPtr> {
         nft_info.p2_puzzle_hash = destination.puzzle_hash;
 
         // Create the new NFT coin with the updated info.
-        let mut conditions = Conditions::new().with(destination);
+        let parent_puzzle_hash = singleton.asset.full_puzzle_hash();
+
+        singleton.kind.create_coin_with_assertion(
+            ctx,
+            parent_puzzle_hash,
+            &mut singleton.payment_assertions,
+            destination,
+        );
+
+        let mut conditions = Conditions::new();
 
         if let Some(spend) = metadata_update_spend {
             conditions.push(UpdateNftMetadata::new(spend.puzzle, spend.solution));
@@ -343,8 +403,15 @@ impl SingletonAsset for Nft<HashedPtr> {
             conditions.push(transfer_condition);
         }
 
-        if !singleton.kind.try_add_conditions(conditions).is_empty() {
-            return Err(DriverError::CannotEmitConditions);
+        if !conditions.is_empty() {
+            match &mut singleton.kind {
+                SpendKind::Conditions(spend) => {
+                    spend.add_conditions(conditions);
+                }
+                SpendKind::Settlement(_) => {
+                    return Err(DriverError::CannotEmitConditions);
+                }
+            }
         }
 
         // Create a new singleton spend with the child and the new spend kind.
@@ -396,7 +463,13 @@ impl SingletonAsset for OptionContract {
         match destination {
             SingletonDestination::CreateCoin(destination) => {
                 // Create the new option contract coin.
-                singleton.kind.create_coin(destination);
+                let parent_puzzle_hash = singleton.asset.full_puzzle_hash();
+                singleton.kind.create_coin_with_assertion(
+                    ctx,
+                    parent_puzzle_hash,
+                    &mut singleton.payment_assertions,
+                    destination,
+                );
 
                 // Create a new singleton spend with the child and the new spend kind.
                 Ok(Some(SingletonSpend::new(singleton.asset.child(
@@ -409,14 +482,17 @@ impl SingletonAsset for OptionContract {
                 let message = singleton.asset.info.underlying_delegated_puzzle_hash.into();
                 let data = ctx.alloc(&singleton.asset.info.underlying_coin_id)?;
 
-                let extra_conditions = singleton.kind.try_add_conditions(
-                    Conditions::new()
-                        .melt_singleton()
-                        .send_message(23, message, vec![data]),
-                );
-
-                if !extra_conditions.is_empty() {
-                    return Err(DriverError::CannotEmitConditions);
+                match &mut singleton.kind {
+                    SpendKind::Conditions(spend) => {
+                        spend.add_conditions(Conditions::new().melt_singleton().send_message(
+                            23,
+                            message,
+                            vec![data],
+                        ));
+                    }
+                    SpendKind::Settlement(_) => {
+                        return Err(DriverError::CannotEmitConditions);
+                    }
                 }
 
                 Ok(None)

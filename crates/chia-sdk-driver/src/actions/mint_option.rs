@@ -49,8 +49,14 @@ impl MintOptionAction {
         if matches!(self.underlying_id, Id::Xch) {
             let source = spends.xch.output_source(ctx, &output)?;
             let parent = &mut spends.xch.items[source];
+            let parent_puzzle_hash = parent.asset.full_puzzle_hash();
 
-            parent.kind.create_coin(create_coin);
+            parent.kind.create_coin_with_assertion(
+                ctx,
+                parent_puzzle_hash,
+                &mut spends.xch.payment_assertions,
+                create_coin,
+            );
 
             let coin = Coin::new(
                 parent.asset.coin_id(),
@@ -64,8 +70,14 @@ impl MintOptionAction {
         } else if let Some(cat) = spends.cats.get_mut(&self.underlying_id) {
             let source = cat.output_source(ctx, &output)?;
             let parent = &mut cat.items[source];
+            let parent_puzzle_hash = parent.asset.full_puzzle_hash();
 
-            parent.kind.create_coin(create_coin);
+            parent.kind.create_coin_with_assertion(
+                ctx,
+                parent_puzzle_hash,
+                &mut cat.payment_assertions,
+                create_coin,
+            );
 
             let cat = parent.asset.child(p2_puzzle_hash, self.underlying_amount);
 

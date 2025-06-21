@@ -5,6 +5,7 @@ use crate::{Cat, Did, HashedPtr, Nft, OptionContract, OutputConstraints};
 
 pub trait Asset {
     fn coin_id(&self) -> Bytes32;
+    fn full_puzzle_hash(&self) -> Bytes32;
     fn p2_puzzle_hash(&self) -> Bytes32;
     fn amount(&self) -> u64;
     fn constraints(&self) -> OutputConstraints;
@@ -13,6 +14,10 @@ pub trait Asset {
 impl Asset for Coin {
     fn coin_id(&self) -> Bytes32 {
         self.coin_id()
+    }
+
+    fn full_puzzle_hash(&self) -> Bytes32 {
+        self.puzzle_hash
     }
 
     fn p2_puzzle_hash(&self) -> Bytes32 {
@@ -36,6 +41,10 @@ impl Asset for Cat {
         self.coin.coin_id()
     }
 
+    fn full_puzzle_hash(&self) -> Bytes32 {
+        self.coin.puzzle_hash
+    }
+
     fn p2_puzzle_hash(&self) -> Bytes32 {
         self.info.p2_puzzle_hash
     }
@@ -55,6 +64,10 @@ impl Asset for Cat {
 impl Asset for Did<HashedPtr> {
     fn coin_id(&self) -> Bytes32 {
         self.coin.coin_id()
+    }
+
+    fn full_puzzle_hash(&self) -> Bytes32 {
+        self.coin.puzzle_hash
     }
 
     fn p2_puzzle_hash(&self) -> Bytes32 {
@@ -78,6 +91,10 @@ impl Asset for Nft<HashedPtr> {
         self.coin.coin_id()
     }
 
+    fn full_puzzle_hash(&self) -> Bytes32 {
+        self.coin.puzzle_hash
+    }
+
     fn p2_puzzle_hash(&self) -> Bytes32 {
         self.info.p2_puzzle_hash
     }
@@ -97,6 +114,10 @@ impl Asset for Nft<HashedPtr> {
 impl Asset for OptionContract {
     fn coin_id(&self) -> Bytes32 {
         self.coin.coin_id()
+    }
+
+    fn full_puzzle_hash(&self) -> Bytes32 {
+        self.coin.puzzle_hash
     }
 
     fn p2_puzzle_hash(&self) -> Bytes32 {

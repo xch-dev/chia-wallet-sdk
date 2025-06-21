@@ -62,11 +62,15 @@ impl SpendAction for IssueCatAction {
             source.asset.p2_puzzle_hash(),
         );
 
-        source.kind.create_coin(CreateCoin::new(
-            cat_info.puzzle_hash().into(),
-            self.amount,
-            Memos::None,
-        ));
+        let create_coin = CreateCoin::new(cat_info.puzzle_hash().into(), self.amount, Memos::None);
+        let parent_puzzle_hash = source.asset.full_puzzle_hash();
+
+        source.kind.create_coin_with_assertion(
+            ctx,
+            parent_puzzle_hash,
+            &mut spends.xch.payment_assertions,
+            create_coin,
+        );
 
         let eve_cat = Cat::new(
             Coin::new(
