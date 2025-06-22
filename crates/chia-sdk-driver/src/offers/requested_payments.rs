@@ -9,8 +9,8 @@ use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
 use crate::{
-    AssetInfo, CatAssetInfo, CatInfo, DriverError, HashedPtr, Layer, NftAssetInfo, NftInfo,
-    OfferAmounts, OptionAssetInfo, OptionInfo, Puzzle, SettlementLayer, SpendContext,
+    Action, AssetInfo, CatAssetInfo, CatInfo, DriverError, HashedPtr, Id, Layer, NftAssetInfo,
+    NftInfo, OfferAmounts, OptionAssetInfo, OptionInfo, Puzzle, SettlementLayer, SpendContext,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -130,6 +130,43 @@ impl RequestedPayments {
         }
 
         Ok(assertions)
+    }
+
+    pub fn actions(&self) -> Vec<Action> {
+        let mut actions = Vec::new();
+
+        for notarized_payment in &self.xch {
+            actions.push(Action::settle(Id::Xch, notarized_payment.clone()));
+        }
+
+        for (&asset_id, notarized_payments) in &self.cats {
+            for notarized_payment in notarized_payments {
+                actions.push(Action::settle(
+                    Id::Existing(asset_id),
+                    notarized_payment.clone(),
+                ));
+            }
+        }
+
+        for (&launcher_id, notarized_payments) in &self.nfts {
+            for notarized_payment in notarized_payments {
+                actions.push(Action::settle(
+                    Id::Existing(launcher_id),
+                    notarized_payment.clone(),
+                ));
+            }
+        }
+
+        for (&launcher_id, notarized_payments) in &self.options {
+            for notarized_payment in notarized_payments {
+                actions.push(Action::settle(
+                    Id::Existing(launcher_id),
+                    notarized_payment.clone(),
+                ));
+            }
+        }
+
+        actions
     }
 
     pub fn extend(&mut self, other: Self) -> Result<(), DriverError> {

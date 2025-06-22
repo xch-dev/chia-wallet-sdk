@@ -344,6 +344,7 @@ impl Spends {
             }
         }
     }
+
     pub fn p2_puzzle_hashes(&self) -> Vec<Bytes32> {
         let mut p2_puzzle_hashes = Vec::new();
 
@@ -376,6 +377,40 @@ impl Spends {
         }
 
         p2_puzzle_hashes
+    }
+
+    pub fn coin_ids(&self) -> Vec<Bytes32> {
+        let mut coin_ids = Vec::new();
+
+        for item in &self.xch.items {
+            coin_ids.push(item.asset.coin_id());
+        }
+
+        for (_, cat) in &self.cats {
+            for item in &cat.items {
+                coin_ids.push(item.asset.coin_id());
+            }
+        }
+
+        for (_, did) in &self.dids {
+            for item in &did.lineage {
+                coin_ids.push(item.asset.coin_id());
+            }
+        }
+
+        for (_, nft) in &self.nfts {
+            for item in &nft.lineage {
+                coin_ids.push(item.asset.coin_id());
+            }
+        }
+
+        for (_, option) in &self.options {
+            for item in &option.lineage {
+                coin_ids.push(item.asset.coin_id());
+            }
+        }
+
+        coin_ids
     }
 
     pub fn finish(
