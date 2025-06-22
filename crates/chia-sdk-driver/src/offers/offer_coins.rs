@@ -18,6 +18,7 @@ pub struct OfferCoins {
     pub cats: IndexMap<Bytes32, Vec<Cat>>,
     pub nfts: IndexMap<Bytes32, Nft<HashedPtr>>,
     pub options: IndexMap<Bytes32, OptionContract>,
+    pub fee: u64,
 }
 
 impl OfferCoins {
@@ -57,6 +58,8 @@ impl OfferCoins {
                 coins.options.insert(option.info.launcher_id, *option);
             }
         }
+
+        coins.fee = outputs.fee;
 
         coins
     }
@@ -128,6 +131,8 @@ impl OfferCoins {
             }
         }
 
+        self.fee += other.fee;
+
         Ok(())
     }
 
@@ -153,8 +158,6 @@ impl OfferCoins {
                 let info = CatAssetInfo::new(cat.info.hidden_puzzle_hash);
                 asset_info.insert_cat(cat.info.asset_id, info)?;
             }
-
-            return Ok(());
         }
 
         if let Some(nft) =
@@ -195,6 +198,10 @@ impl OfferCoins {
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
         for condition in conditions {
+            if let Some(reserve_fee) = condition.as_reserve_fee() {
+                self.fee += reserve_fee.amount;
+            }
+
             let Some(create_coin) = condition.into_create_coin() else {
                 continue;
             };

@@ -3,15 +3,16 @@ use std::collections::HashSet;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::puzzles::SettlementPayment;
-use clvm_traits::ToClvm;
+use chia_sdk_types::{puzzles::SettlementPayment, run_puzzle, Condition};
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::Allocator;
 use indexmap::IndexSet;
 
 use crate::{
-    Arbitrage, AssetInfo, CatInfo, DriverError, Layer, NftInfo, OfferCoins, OptionInfo, Puzzle,
-    RequestedPayments, SpendContext,
+    calculate_royalty_amounts, calculate_trade_price_amounts, Arbitrage, AssetInfo, CatInfo,
+    DriverError, Layer, NftInfo, OfferAmounts, OfferCoins, OptionInfo, Puzzle, RequestedPayments,
+    RoyaltyInfo, SpendContext,
 };
 
 #[derive(Debug, Clone)]
@@ -37,6 +38,45 @@ impl Offer {
         }
     }
 
+    pub fn cancellable_coin_spends(&self) -> Result<Vec<CoinSpend>, DriverError> {
+        let mut allocator = Allocator::new();
+        let mut created_coin_ids = HashSet::new();
+
+        for coin_spend in &self.spend_bundle.coin_spends {
+            let puzzle = coin_spend.puzzle_reveal.to_clvm(&mut allocator)?;
+            let solution = coin_spend.solution.to_clvm(&mut allocator)?;
+
+            let output = run_puzzle(&mut allocator, puzzle, solution)?;
+            let conditions = Vec::<Condition>::from_clvm(&allocator, output)?;
+
+            for condition in conditions {
+                if let Some(create_coin) = condition.into_create_coin() {
+                    created_coin_ids.insert(
+                        Coin::new(
+                            coin_spend.coin.coin_id(),
+                            create_coin.puzzle_hash,
+                            create_coin.amount,
+                        )
+                        .coin_id(),
+                    );
+                }
+            }
+        }
+
+        Ok(self
+            .spend_bundle
+            .coin_spends
+            .iter()
+            .filter_map(|cs| {
+                if created_coin_ids.contains(&cs.coin.coin_id()) {
+                    None
+                } else {
+                    Some(cs.clone())
+                }
+            })
+            .collect())
+    }
+
     pub fn spend_bundle(&self) -> &SpendBundle {
         &self.spend_bundle
     }
@@ -51,6 +91,56 @@ impl Offer {
 
     pub fn asset_info(&self) -> &AssetInfo {
         &self.asset_info
+    }
+
+    /// Returns the royalty info for requested NFTs, since those are the royalties
+    /// that need to be paid by the offered side.
+    pub fn offered_royalties(&self) -> Vec<RoyaltyInfo> {
+        self.requested_payments
+            .nfts
+            .keys()
+            .filter_map(|&launcher_id| {
+                self.asset_info.nft(launcher_id).map(|nft| {
+                    RoyaltyInfo::new(
+                        launcher_id,
+                        nft.royalty_puzzle_hash,
+                        nft.royalty_basis_points,
+                    )
+                })
+            })
+            .filter(|royalty| royalty.basis_points > 0)
+            .collect()
+    }
+
+    /// Returns the royalty info for offered NFTs, since those are the royalties
+    /// that need to be paid by the requested side.
+    pub fn requested_royalties(&self) -> Vec<RoyaltyInfo> {
+        self.offered_coins
+            .nfts
+            .values()
+            .map(|nft| {
+                RoyaltyInfo::new(
+                    nft.info.launcher_id,
+                    nft.info.royalty_puzzle_hash,
+                    nft.info.royalty_basis_points,
+                )
+            })
+            .filter(|royalty| royalty.basis_points > 0)
+            .collect()
+    }
+
+    pub fn offered_royalty_amounts(&self) -> OfferAmounts {
+        let offered_amounts = self.offered_coins.amounts();
+        let royalties = self.offered_royalties();
+        let trade_prices = calculate_trade_price_amounts(&offered_amounts, royalties.len());
+        calculate_royalty_amounts(&trade_prices, &royalties)
+    }
+
+    pub fn requested_royalty_amounts(&self) -> OfferAmounts {
+        let requested_amounts = self.requested_payments.amounts();
+        let royalties = self.requested_royalties();
+        let trade_prices = calculate_trade_price_amounts(&requested_amounts, royalties.len());
+        calculate_royalty_amounts(&trade_prices, &royalties)
     }
 
     pub fn arbitrage(&self) -> Arbitrage {

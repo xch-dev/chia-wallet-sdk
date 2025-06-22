@@ -122,6 +122,26 @@ pub fn calculate_royalty_payments(
     Ok(payments)
 }
 
+pub fn calculate_royalty_amounts(
+    trade_prices: &OfferAmounts,
+    royalties: &[RoyaltyInfo],
+) -> OfferAmounts {
+    let mut amounts = OfferAmounts::new();
+
+    for royalty in royalties {
+        amounts.xch = calculate_nft_royalty(trade_prices.xch, royalty.basis_points);
+
+        for (&asset_id, &amount) in &trade_prices.cats {
+            amounts.cats.insert(
+                asset_id,
+                calculate_nft_royalty(amount, royalty.basis_points),
+            );
+        }
+    }
+
+    amounts
+}
+
 pub fn calculate_nft_trace_price(amount: u64, royalty_nft_count: usize) -> u64 {
     let amount = BigDecimal::from(amount);
     let royalty_nft_count = BigDecimal::from(royalty_nft_count as u64);
