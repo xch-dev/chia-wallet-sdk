@@ -202,7 +202,7 @@ impl RequestedPayments {
         let notarized_payments =
             SettlementPaymentsSolution::from_clvm(allocator, solution)?.notarized_payments;
 
-        if SettlementLayer::parse_puzzle(allocator, puzzle).is_ok() {
+        if SettlementLayer::parse_puzzle(allocator, puzzle)?.is_some() {
             self.xch.extend(notarized_payments);
         } else if let Some((cat, _)) = CatInfo::parse(allocator, puzzle)? {
             self.cats

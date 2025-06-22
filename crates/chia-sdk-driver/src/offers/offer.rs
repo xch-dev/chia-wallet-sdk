@@ -1,21 +1,17 @@
 use std::collections::HashSet;
 
-use chia_bls::{sign, SecretKey, Signature};
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_signer::{AggSigConstants, RequiredSignature};
-use chia_sdk_types::puzzles::{P2DelegatedConditionsSolution, SettlementPayment};
+use chia_sdk_types::puzzles::SettlementPayment;
 use clvm_traits::ToClvm;
 use clvm_utils::ToTreeHash;
 use clvmr::Allocator;
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaCha20Rng;
+use indexmap::IndexSet;
 
 use crate::{
-    Action, AssetInfo, CatInfo, ConditionsSpend, DriverError, Id, Layer, NftInfo, OfferCoins,
-    OptionInfo, Outputs, P2DelegatedConditionsLayer, Puzzle, Relation, RequestedPayments,
-    SettlementLayer, Spend, SpendContext, SpendKind, Spends,
+    Arbitrage, AssetInfo, CatInfo, DriverError, Layer, NftInfo, OfferCoins, OptionInfo, Puzzle,
+    RequestedPayments, SpendContext,
 };
 
 #[derive(Debug, Clone)]
@@ -41,6 +37,10 @@ impl Offer {
         }
     }
 
+    pub fn spend_bundle(&self) -> &SpendBundle {
+        &self.spend_bundle
+    }
+
     pub fn offered_coins(&self) -> &OfferCoins {
         &self.offered_coins
     }
@@ -51,6 +51,56 @@ impl Offer {
 
     pub fn asset_info(&self) -> &AssetInfo {
         &self.asset_info
+    }
+
+    pub fn arbitrage(&self) -> Arbitrage {
+        let offered = self.offered_coins.amounts();
+        let requested = self.requested_payments.amounts();
+
+        let mut arbitrage = Arbitrage::new();
+
+        if requested.xch > offered.xch {
+            arbitrage.offered.xch = requested.xch - offered.xch;
+        } else {
+            arbitrage.requested.xch = offered.xch - requested.xch;
+        }
+
+        for &asset_id in offered
+            .cats
+            .keys()
+            .chain(requested.cats.keys())
+            .collect::<IndexSet<_>>()
+        {
+            let &offered_amount = offered.cats.get(&asset_id).unwrap_or(&0);
+            let &requested_amount = requested.cats.get(&asset_id).unwrap_or(&0);
+
+            if requested_amount > offered_amount {
+                let diff = requested_amount - offered_amount;
+                arbitrage.offered.cats.insert(asset_id, diff);
+            } else {
+                let diff = offered_amount - requested_amount;
+                arbitrage.requested.cats.insert(asset_id, diff);
+            }
+        }
+
+        for &launcher_id in self
+            .offered_coins
+            .nfts
+            .keys()
+            .chain(self.requested_payments.nfts.keys())
+            .collect::<IndexSet<_>>()
+        {
+            let is_offered = self.offered_coins.nfts.contains_key(&launcher_id);
+            let is_requested = self.requested_payments.nfts.contains_key(&launcher_id);
+
+            if is_offered && !is_requested {
+                arbitrage.requested_nfts.push(launcher_id);
+            } else if !is_offered && is_requested {
+                arbitrage.offered_nfts.push(launcher_id);
+            }
+        }
+
+        arbitrage
     }
 
     pub fn nonce(mut coin_ids: Vec<Bytes32>) -> Bytes32 {
@@ -243,122 +293,11 @@ impl Offer {
         Ok(())
     }
 
-    pub fn take(
-        self,
-        ctx: &mut SpendContext,
-        arbitrage_puzzle_hash: Bytes32,
-        constants: &AggSigConstants,
-    ) -> Result<(SpendBundle, Outputs), DriverError> {
-        let mut rng = ChaCha20Rng::from_entropy();
-        let seed: [u8; 32] = rng.gen();
-
-        let intermediate_secret_key = SecretKey::from_seed(&seed);
-        let intermediate_puzzle =
-            P2DelegatedConditionsLayer::new(intermediate_secret_key.public_key());
-        let intermediate_puzzle_hash = intermediate_puzzle.tree_hash().into();
-
-        self.take_with_intermediate(
-            ctx,
-            intermediate_puzzle_hash,
-            |ctx, spend| {
-                intermediate_puzzle.construct_spend(
-                    ctx,
-                    P2DelegatedConditionsSolution::new(spend.finish().into_vec()),
-                )
-            },
-            |coin_spends| {
-                let mut allocator = Allocator::new();
-                let mut signature = Signature::default();
-
-                for required in
-                    RequiredSignature::from_coin_spends(&mut allocator, &coin_spends, constants)?
-                {
-                    let RequiredSignature::Bls(required) = required else {
-                        continue;
-                    };
-
-                    if required.public_key == intermediate_puzzle.public_key {
-                        signature += &sign(&intermediate_secret_key, required.message());
-                    }
-                }
-
-                Ok(SpendBundle::new(coin_spends, signature))
-            },
-            arbitrage_puzzle_hash,
-        )
-    }
-
-    pub fn take_with_intermediate(
-        self,
-        ctx: &mut SpendContext,
-        intermediate_puzzle_hash: Bytes32,
-        intermediate_spend: impl Fn(&mut SpendContext, ConditionsSpend) -> Result<Spend, DriverError>,
-        sign_spends: impl Fn(Vec<CoinSpend>) -> Result<SpendBundle, DriverError>,
-        arbitrage_puzzle_hash: Bytes32,
-    ) -> Result<(SpendBundle, Outputs), DriverError> {
-        let mut spends = Spends::with_separate_change_puzzle_hash(
-            intermediate_puzzle_hash,
-            arbitrage_puzzle_hash,
-        );
-
-        spends.add(self.offered_coins);
-        spends.conditions.disable_settlement_assertions = true;
-
-        let mut actions = Vec::new();
-
-        for (id, notarized_payment) in
-            self.requested_payments
-                .xch
-                .into_iter()
-                .map(|np| (Id::Xch, np))
-                .chain(
-                    self.requested_payments
-                        .cats
-                        .into_iter()
-                        .flat_map(|(asset_id, cat)| {
-                            cat.into_iter().map(move |np| (Id::Existing(asset_id), np))
-                        }),
-                )
-                .chain(
-                    self.requested_payments
-                        .nfts
-                        .into_iter()
-                        .flat_map(|(launcher_id, nft)| {
-                            nft.into_iter()
-                                .map(move |np| (Id::Existing(launcher_id), np))
-                        }),
-                )
-                .chain(self.requested_payments.options.into_iter().flat_map(
-                    |(launcher_id, option)| {
-                        option
-                            .into_iter()
-                            .map(move |np| (Id::Existing(launcher_id), np))
-                    },
-                ))
-        {
-            actions.push(Action::settle(id, notarized_payment));
-        }
-
-        let deltas = spends.apply(ctx, &actions)?;
-        let outputs = spends.finish(
-            ctx,
-            &deltas,
-            Relation::AssertConcurrent,
-            |ctx, _, spend| match spend {
-                SpendKind::Conditions(spend) => intermediate_spend(ctx, spend),
-                SpendKind::Settlement(spend) => SettlementLayer
-                    .construct_spend(ctx, SettlementPaymentsSolution::new(spend.finish())),
-            },
-        )?;
-
-        let spend_bundle = sign_spends(ctx.take())?;
-
-        let spend_bundle = SpendBundle::new(
+    pub fn take(self, spend_bundle: SpendBundle) -> SpendBundle {
+        SpendBundle::new(
             [self.spend_bundle.coin_spends, spend_bundle.coin_spends].concat(),
             self.spend_bundle.aggregated_signature + &spend_bundle.aggregated_signature,
-        );
-
-        Ok((spend_bundle, outputs))
+        )
     }
 }
 
@@ -369,7 +308,6 @@ mod tests {
         Memos,
     };
     use chia_sdk_test::{sign_transaction, Simulator};
-    use chia_sdk_types::TESTNET11_CONSTANTS;
     use indexmap::indexmap;
 
     use crate::{Action, Id, NftAssetInfo, Relation, SpendContext, Spends};
@@ -461,7 +399,7 @@ mod tests {
         let coin_spends = ctx.take();
         let signature = sign_transaction(&coin_spends, &[alice.sk])?;
 
-        let mut offer = Offer::from_input_spend_bundle(
+        let offer = Offer::from_input_spend_bundle(
             &mut ctx,
             SpendBundle::new(coin_spends, signature),
             requested_payments,
@@ -469,45 +407,13 @@ mod tests {
         )?;
 
         // Take offer
-        let mut requested_payments = RequestedPayments::new();
-        let mut requested_asset_info = AssetInfo::new();
-
-        requested_payments.nfts.insert(
-            alice_nft.info.launcher_id,
-            vec![NotarizedPayment::new(
-                Offer::nonce(vec![bob_nft.coin.coin_id()]),
-                vec![Payment::new(bob.puzzle_hash, 1, bob_hint)],
-            )],
-        );
-        requested_asset_info.insert_nft(
-            alice_nft.info.launcher_id,
-            NftAssetInfo::new(
-                alice_nft.info.metadata,
-                alice_nft.info.metadata_updater_puzzle_hash,
-                alice_nft.info.royalty_puzzle_hash,
-                alice_nft.info.royalty_basis_points,
-            ),
-        )?;
-
         let mut spends = Spends::new(bob.puzzle_hash);
+        spends.add(offer.offered_coins().clone());
         spends.add(bob_nft);
 
-        let deltas = spends.apply(
-            &mut ctx,
-            &[Action::send(
-                Id::Existing(bob_nft.info.launcher_id),
-                SETTLEMENT_PAYMENT_HASH.into(),
-                1,
-                Memos::None,
-            )],
-        )?;
+        let deltas = spends.apply(&mut ctx, &offer.requested_payments().actions())?;
 
-        spends.conditions.required = spends
-            .conditions
-            .required
-            .extend(requested_payments.assertions(&mut ctx, &requested_asset_info)?);
-
-        spends.finish_with_keys(
+        let outputs = spends.finish_with_keys(
             &mut ctx,
             &deltas,
             Relation::AssertConcurrent,
@@ -517,20 +423,7 @@ mod tests {
         let coin_spends = ctx.take();
         let signature = sign_transaction(&coin_spends, &[bob.sk])?;
 
-        let take_offer = Offer::from_input_spend_bundle(
-            &mut ctx,
-            SpendBundle::new(coin_spends, signature),
-            requested_payments,
-            requested_asset_info,
-        )?;
-
-        offer.extend(take_offer)?;
-
-        let (spend_bundle, outputs) = offer.take(
-            &mut ctx,
-            bob.puzzle_hash,
-            &AggSigConstants::new(TESTNET11_CONSTANTS.agg_sig_me_additional_data),
-        )?;
+        let spend_bundle = offer.take(SpendBundle::new(coin_spends, signature));
 
         sim.new_transaction(spend_bundle)?;
 

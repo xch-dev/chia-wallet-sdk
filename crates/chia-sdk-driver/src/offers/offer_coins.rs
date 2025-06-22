@@ -72,6 +72,26 @@ impl OfferCoins {
         }
     }
 
+    pub fn flatten(&self) -> Vec<Coin> {
+        let mut coins = self.xch.clone();
+
+        for cats in self.cats.values() {
+            for cat in cats {
+                coins.push(cat.coin);
+            }
+        }
+
+        for nft in self.nfts.values() {
+            coins.push(nft.coin);
+        }
+
+        for option in self.options.values() {
+            coins.push(option.coin);
+        }
+
+        coins
+    }
+
     pub fn extend(&mut self, other: Self) -> Result<(), DriverError> {
         for coin in other.xch {
             if self.xch.iter().any(|c| c.coin_id() == coin.coin_id()) {

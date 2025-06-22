@@ -80,7 +80,8 @@ impl SpendAction for SettleAction {
                 spends.outputs.cats.entry(self.id).or_default().push(cat);
             }
         } else if let Some(nft) = spends.nfts.get_mut(&self.id) {
-            let source = nft.last_mut()?;
+            let index = nft.last_or_create_settlement(ctx)?;
+            let source = &mut nft.lineage[index];
 
             if let SpendKind::Settlement(spend) = &mut source.kind {
                 source.payment_assertions.push(payment_assertion(
@@ -113,7 +114,8 @@ impl SpendAction for SettleAction {
                 spends.outputs.nfts.insert(self.id, nft);
             }
         } else if let Some(option) = spends.options.get_mut(&self.id) {
-            let source = option.last_mut()?;
+            let index = option.last_or_create_settlement(ctx)?;
+            let source = &mut option.lineage[index];
 
             if let SpendKind::Settlement(spend) = &mut source.kind {
                 source.payment_assertions.push(payment_assertion(

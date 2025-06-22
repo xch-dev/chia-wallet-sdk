@@ -46,6 +46,38 @@ where
             .ok_or(DriverError::NoSourceForOutput)
     }
 
+    pub fn last_or_create_settlement(
+        &mut self,
+        ctx: &mut SpendContext,
+    ) -> Result<usize, DriverError> {
+        let last = self
+            .lineage
+            .last_mut()
+            .ok_or(DriverError::NoSourceForOutput)?;
+
+        if !last.kind.missing_singleton_output() {
+            return Err(DriverError::NoSourceForOutput);
+        }
+
+        if last.kind.is_settlement() {
+            return Ok(self.lineage.len() - 1);
+        }
+
+        let Some(child) = A::finalize(
+            ctx,
+            last,
+            SETTLEMENT_PAYMENT_HASH.into(),
+            SETTLEMENT_PAYMENT_HASH.into(),
+        )?
+        else {
+            return Err(DriverError::NoSourceForOutput);
+        };
+
+        self.lineage.push(child);
+
+        Ok(self.lineage.len() - 1)
+    }
+
     pub fn finalize(
         &mut self,
         ctx: &mut SpendContext,

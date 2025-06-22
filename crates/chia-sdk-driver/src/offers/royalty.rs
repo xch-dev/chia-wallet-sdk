@@ -101,15 +101,21 @@ pub fn calculate_royalty_payments(
 
     for royalty in royalties {
         let amount = calculate_nft_royalty(trade_prices.xch, royalty.basis_points);
-        payments.xch.push(royalty.payment(ctx, amount)?);
+
+        if amount > 0 {
+            payments.xch.push(royalty.payment(ctx, amount)?);
+        }
 
         for (&asset_id, &amount) in &trade_prices.cats {
             let amount = calculate_nft_royalty(amount, royalty.basis_points);
-            payments
-                .cats
-                .entry(asset_id)
-                .or_default()
-                .push(royalty.payment(ctx, amount)?);
+
+            if amount > 0 {
+                payments
+                    .cats
+                    .entry(asset_id)
+                    .or_default()
+                    .push(royalty.payment(ctx, amount)?);
+            }
         }
     }
 
