@@ -33,7 +33,7 @@ impl OptionContract {
         parent_coin: Coin,
         parent_puzzle: Puzzle,
         parent_solution: NodePtr,
-    ) -> Result<Option<(Self, Puzzle)>, DriverError> {
+    ) -> Result<Option<Self>, DriverError> {
         let Some(singleton) =
             OptionContractLayers::<Puzzle>::parse_puzzle(allocator, parent_puzzle)?
         else {
@@ -87,7 +87,7 @@ impl OptionContract {
             },
         };
 
-        Ok(Some((option, singleton.inner_puzzle.inner_puzzle)))
+        Ok(Some(option))
     }
 
     pub fn parse_metadata(
@@ -106,11 +106,14 @@ impl OptionContract {
         }
     }
 
-    pub fn spend(&self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<(), DriverError> {
+    pub fn spend(
+        &self,
+        ctx: &mut SpendContext,
+        inner_spend: Spend,
+    ) -> Result<Option<Self>, DriverError> {
         let layers = self.info.into_layers(inner_spend.puzzle);
 
-        let puzzle = layers.construct_puzzle(ctx)?;
-        let solution = layers.construct_solution(
+        let spend = layers.construct_spend(
             ctx,
             SingletonSolution {
                 lineage_proof: self.proof,
@@ -119,9 +122,22 @@ impl OptionContract {
             },
         )?;
 
-        ctx.spend(self.coin, Spend::new(puzzle, solution))?;
+        ctx.spend(self.coin, spend)?;
 
-        Ok(())
+        let output = ctx.run(inner_spend.puzzle, inner_spend.solution)?;
+        let conditions = Vec::<Condition>::from_clvm(ctx, output)?;
+
+        for condition in conditions {
+            if let Some(create_coin) = condition.into_create_coin() {
+                if create_coin.amount % 2 == 1 {
+                    return Ok(Some(
+                        self.child(create_coin.puzzle_hash, create_coin.amount),
+                    ));
+                }
+            }
+        }
+
+        Ok(None)
     }
 
     pub fn spend_with<I>(
@@ -129,7 +145,7 @@ impl OptionContract {
         ctx: &mut SpendContext,
         inner: &I,
         conditions: Conditions,
-    ) -> Result<(), DriverError>
+    ) -> Result<Option<Self>, DriverError>
     where
         I: SpendWithConditions,
     {
@@ -155,7 +171,7 @@ impl OptionContract {
             extra_conditions.create_coin(p2_puzzle_hash, self.coin.amount, memos),
         )?;
 
-        Ok(self.child(p2_puzzle_hash))
+        Ok(self.child(p2_puzzle_hash, self.coin.amount))
     }
 
     pub fn exercise<I>(
@@ -184,20 +200,20 @@ impl OptionContract {
         Ok(())
     }
 
-    pub fn child(&self, p2_puzzle_hash: Bytes32) -> Self {
+    pub fn child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
         let info = self.info.with_p2_puzzle_hash(p2_puzzle_hash);
 
         let inner_puzzle_hash = info.inner_puzzle_hash();
 
-        Self {
-            coin: Coin::new(
+        Self::new(
+            Coin::new(
                 self.coin.coin_id(),
                 SingletonArgs::curry_tree_hash(info.launcher_id, inner_puzzle_hash).into(),
-                self.coin.amount,
+                amount,
             ),
-            proof: Proof::Lineage(self.child_lineage_proof()),
+            Proof::Lineage(self.child_lineage_proof()),
             info,
-        }
+        )
     }
 }
 
@@ -206,12 +222,15 @@ mod tests {
     use chia_puzzle_types::{offer::SettlementPaymentsSolution, Memos};
     use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
     use chia_sdk_test::{expect_spend, Simulator};
-    use chia_sdk_types::puzzles::{RevocationArgs, RevocationSolution};
+    use chia_sdk_types::{
+        conditions::TransferNft,
+        puzzles::{RevocationArgs, RevocationSolution},
+    };
     use rstest::rstest;
 
     use crate::{
-        Cat, CatSpend, HashedPtr, Launcher, Nft, NftMint, NftOwner, OptionLauncher,
-        OptionLauncherInfo, OptionType, SettlementLayer, StandardLayer,
+        Cat, CatSpend, HashedPtr, Launcher, Nft, NftMint, OptionLauncher, OptionLauncherInfo,
+        OptionType, SettlementLayer, StandardLayer,
     };
 
     use super::*;
@@ -362,7 +381,11 @@ mod tests {
                             HashedPtr::NIL,
                             SETTLEMENT_PAYMENT_HASH.into(),
                             0,
-                            Some(NftOwner::from_did_info(&did.info)),
+                            Some(TransferNft::new(
+                                Some(did.info.launcher_id),
+                                Vec::new(),
+                                Some(did.info.inner_puzzle_hash().into()),
+                            )),
                         ),
                     )?;
 
@@ -392,6 +415,7 @@ mod tests {
                 underlying_amount,
                 strike_type,
             ),
+            1,
         )?;
         let underlying = launcher.underlying();
         let p2_option = launcher.p2_puzzle_hash();
@@ -454,7 +478,11 @@ mod tests {
                             HashedPtr::NIL,
                             p2_option,
                             0,
-                            Some(NftOwner::from_did_info(&did.info)),
+                            Some(TransferNft::new(
+                                Some(did.info.launcher_id),
+                                Vec::new(),
+                                Some(did.info.inner_puzzle_hash().into()),
+                            )),
                         ),
                     )?;
 
@@ -515,7 +543,7 @@ mod tests {
                             option.info.inner_puzzle_hash().into(),
                             option.coin.amount,
                         )?;
-                        nft.spend(ctx, exercise_spend)?;
+                        let _nft = nft.spend(ctx, exercise_spend)?;
                     }
                 }
             }
@@ -563,7 +591,7 @@ mod tests {
                         Conditions::new().create_coin(alice.puzzle_hash, underlying_amount, hint),
                     )?;
                     let clawback_spend = underlying.clawback_spend(ctx, clawback_spend)?;
-                    nft.spend(ctx, clawback_spend)?;
+                    let _nft = nft.spend(ctx, clawback_spend)?;
                 }
             },
         }
@@ -571,7 +599,7 @@ mod tests {
         if matches!(action, Action::Exercise) {
             match strike_coin {
                 OptionCoin::Xch(coin) => {
-                    let payment = underlying.requested_payment_ptr(ctx)?;
+                    let payment = underlying.requested_payment(&mut **ctx)?;
                     let coin_spend = SettlementLayer.construct_coin_spend(
                         ctx,
                         coin,
@@ -580,13 +608,13 @@ mod tests {
                     ctx.insert(coin_spend);
                 }
                 OptionCoin::Cat(cat) => {
-                    let payment = underlying.requested_payment_ptr(ctx)?;
+                    let payment = underlying.requested_payment(&mut **ctx)?;
                     let spend = SettlementLayer
                         .construct_spend(ctx, SettlementPaymentsSolution::new(vec![payment]))?;
                     Cat::spend_all(ctx, &[CatSpend::new(cat, spend)])?;
                 }
                 OptionCoin::RevocableCat(cat) => {
-                    let payment = underlying.requested_payment_ptr(ctx)?;
+                    let payment = underlying.requested_payment(&mut **ctx)?;
                     let spend = SettlementLayer
                         .construct_spend(ctx, SettlementPaymentsSolution::new(vec![payment]))?;
                     let puzzle = ctx.curry(RevocationArgs::new(
@@ -601,10 +629,10 @@ mod tests {
                     Cat::spend_all(ctx, &[CatSpend::new(cat, Spend::new(puzzle, solution))])?;
                 }
                 OptionCoin::Nft(nft) => {
-                    let payment = underlying.requested_payment_ptr(ctx)?;
+                    let payment = underlying.requested_payment(&mut **ctx)?;
                     let spend = SettlementLayer
                         .construct_spend(ctx, SettlementPaymentsSolution::new(vec![payment]))?;
-                    nft.spend(ctx, spend)?;
+                    let _nft = nft.spend(ctx, spend)?;
                 }
             }
         }
@@ -641,6 +669,7 @@ mod tests {
                 1,
                 OptionType::Xch { amount: 1 },
             ),
+            1,
         )?;
         let p2_option = launcher.p2_puzzle_hash();
 
@@ -686,6 +715,7 @@ mod tests {
                 1,
                 OptionType::Xch { amount: 1 },
             ),
+            1,
         )?;
         let p2_option = launcher.p2_puzzle_hash();
 

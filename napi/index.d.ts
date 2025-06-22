@@ -105,9 +105,9 @@ export declare class Clvm {
   spendStandardCoin(coin: Coin, syntheticKey: PublicKey, spend: Spend): void
   spendCats(catSpends: Array<CatSpend>): Array<Cat>
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
-  spendNft(nft: Nft, innerSpend: Spend): void
+  spendNft(nft: Nft, innerSpend: Spend): Nft
   createEveDid(parentCoinId: Uint8Array, p2PuzzleHash: Uint8Array): CreatedDid
-  spendDid(did: Did, innerSpend: Spend): void
+  spendDid(did: Did, innerSpend: Spend): Did | null
   spendStreamedCat(streamedCat: StreamedCat, paymentTime: bigint, clawback: boolean): void
   mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
   mipsSpend(coin: Coin, delegatedSpend: Spend): MipsSpend
@@ -1559,7 +1559,7 @@ export declare class NftMetadata {
 }
 export declare class NftMint {
   clone(): NftMint
-  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number, owner?: NftOwner | undefined | null)
+  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number, transferCondition?: TransferNft | undefined | null)
   get metadata(): Program
   set metadata(value: Program)
   get metadataUpdaterPuzzleHash(): Buffer
@@ -1570,16 +1570,8 @@ export declare class NftMint {
   set royaltyPuzzleHash(value: Uint8Array)
   get royaltyBasisPoints(): number
   set royaltyBasisPoints(value: number)
-  get owner(): NftOwner | null
-  set owner(value?: NftOwner | undefined | null)
-}
-export declare class NftOwner {
-  clone(): NftOwner
-  constructor(launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array)
-  get launcherId(): Buffer
-  set launcherId(value: Uint8Array)
-  get singletonInnerPuzzleHash(): Buffer
-  set singletonInnerPuzzleHash(value: Uint8Array)
+  get transferCondition(): TransferNft | null
+  set transferCondition(value?: TransferNft | undefined | null)
 }
 export declare class MintedNfts {
   clone(): MintedNfts

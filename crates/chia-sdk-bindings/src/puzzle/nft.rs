@@ -4,12 +4,13 @@ use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::nft::NftMetadata;
 use chia_sdk_driver::{
-    HashedPtr, Nft as SdkNft, NftInfo as SdkNftInfo, NftMint as SdkNftMint, NftOwner, SpendContext,
+    HashedPtr, Nft as SdkNft, NftInfo as SdkNftInfo, NftMint as SdkNftMint, SpendContext,
 };
+use chia_sdk_types::conditions;
 use clvm_utils::TreeHash;
 use clvmr::Allocator;
 
-use crate::{AsProgram, AsPtr, Program, Proof};
+use crate::{AsProgram, AsPtr, Program, Proof, TransferNft};
 
 use super::Puzzle;
 
@@ -35,7 +36,12 @@ impl Nft {
         let ctx = metadata.0.lock().unwrap();
         Ok(self
             .as_ptr(&ctx)
-            .child(p2_puzzle_hash, current_owner, metadata.as_ptr(&ctx))
+            .child(
+                p2_puzzle_hash,
+                current_owner,
+                metadata.as_ptr(&ctx),
+                self.coin.amount,
+            )
             .as_program(&metadata.0))
     }
 
@@ -43,7 +49,7 @@ impl Nft {
         let ctx = self.info.metadata.0.lock().unwrap();
         Ok(self
             .as_ptr(&ctx)
-            .child_with(info.as_ptr(&ctx))
+            .child_with(info.as_ptr(&ctx), self.coin.amount)
             .as_program(&self.info.metadata.0))
     }
 }
@@ -144,7 +150,7 @@ pub struct NftMint {
     pub p2_puzzle_hash: Bytes32,
     pub royalty_puzzle_hash: Bytes32,
     pub royalty_basis_points: u16,
-    pub owner: Option<NftOwner>,
+    pub transfer_condition: Option<TransferNft>,
 }
 
 impl AsPtr for NftMint {
@@ -157,14 +163,16 @@ impl AsPtr for NftMint {
             p2_puzzle_hash: self.p2_puzzle_hash,
             royalty_puzzle_hash: self.royalty_puzzle_hash,
             royalty_basis_points: self.royalty_basis_points,
-            owner: self.owner,
+            transfer_condition: self.transfer_condition.as_ref().map(|cond| {
+                conditions::TransferNft::new(
+                    cond.launcher_id,
+                    cond.trade_prices.clone(),
+                    cond.singleton_inner_puzzle_hash,
+                )
+            }),
         }
     }
 }
-
-pub trait NftOwnerExt {}
-
-impl NftOwnerExt for NftOwner {}
 
 #[derive(Clone)]
 pub struct MintedNfts {

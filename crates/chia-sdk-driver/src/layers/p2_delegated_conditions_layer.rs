@@ -1,7 +1,11 @@
 use chia_bls::PublicKey;
 use chia_puzzles::P2_DELEGATED_CONDITIONS_HASH;
-use chia_sdk_types::puzzles::{P2DelegatedConditionsArgs, P2DelegatedConditionsSolution};
+use chia_sdk_types::{
+    puzzles::{P2DelegatedConditionsArgs, P2DelegatedConditionsSolution},
+    Mod,
+};
 use clvm_traits::FromClvm;
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
@@ -13,6 +17,12 @@ use crate::{DriverError, Layer, Puzzle, SpendContext};
 pub struct P2DelegatedConditionsLayer {
     /// The public key that has the ability to spend the coin.
     pub public_key: PublicKey,
+}
+
+impl P2DelegatedConditionsLayer {
+    pub fn new(public_key: PublicKey) -> Self {
+        Self { public_key }
+    }
 }
 
 impl Layer for P2DelegatedConditionsLayer {
@@ -53,5 +63,11 @@ impl Layer for P2DelegatedConditionsLayer {
         Ok(P2DelegatedConditionsSolution::from_clvm(
             allocator, solution,
         )?)
+    }
+}
+
+impl ToTreeHash for P2DelegatedConditionsLayer {
+    fn tree_hash(&self) -> TreeHash {
+        P2DelegatedConditionsArgs::new(self.public_key).curry_tree_hash()
     }
 }

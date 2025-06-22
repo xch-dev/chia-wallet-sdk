@@ -74,14 +74,14 @@ where
     }
 
     /// Creates a new [`Did`] that represents a child of this one.
-    pub fn child<N>(&self, p2_puzzle_hash: Bytes32, metadata: N) -> Did<N>
+    pub fn child<N>(&self, p2_puzzle_hash: Bytes32, metadata: N, amount: u64) -> Did<N>
     where
         M: Clone,
         N: ToTreeHash,
     {
         let mut info = self.info.clone().with_metadata(metadata);
         info.p2_puzzle_hash = p2_puzzle_hash;
-        self.child_with(info)
+        self.child_with(info, amount)
     }
 
     /// Creates a new [`Did`] that represents a child of this one.
@@ -91,7 +91,7 @@ where
     ///
     /// It's important to use the right [`DidInfo`] beforehand, otherwise
     /// the puzzle hash of the child will not match the one expected by the coin.
-    pub fn child_with<N>(&self, info: DidInfo<N>) -> Did<N>
+    pub fn child_with<N>(&self, info: DidInfo<N>, amount: u64) -> Did<N>
     where
         N: ToTreeHash,
     {
@@ -99,7 +99,7 @@ where
             Coin::new(
                 self.coin.coin_id(),
                 SingletonArgs::curry_tree_hash(info.launcher_id, info.inner_puzzle_hash()).into(),
-                self.coin.amount,
+                amount,
             ),
             Proof::Lineage(self.child_lineage_proof()),
             info,
@@ -109,15 +109,18 @@ where
 
 impl<M> Did<M>
 where
-    M: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
+    M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash + Clone,
 {
     /// Spends this DID coin with the provided inner spend.
     /// The spend is added to the [`SpendContext`] for convenience.
-    pub fn spend(&self, ctx: &mut SpendContext, inner_spend: Spend) -> Result<(), DriverError> {
+    pub fn spend(
+        &self,
+        ctx: &mut SpendContext,
+        inner_spend: Spend,
+    ) -> Result<Option<Self>, DriverError> {
         let layers = self.info.clone().into_layers(inner_spend.puzzle);
 
-        let puzzle = layers.construct_puzzle(ctx)?;
-        let solution = layers.construct_solution(
+        let spend = layers.construct_spend(
             ctx,
             SingletonSolution {
                 lineage_proof: self.proof,
@@ -126,9 +129,32 @@ where
             },
         )?;
 
-        ctx.spend(self.coin, Spend::new(puzzle, solution))?;
+        ctx.spend(self.coin, spend)?;
 
-        Ok(())
+        let output = ctx.run(inner_spend.puzzle, inner_spend.solution)?;
+        let conditions = Vec::<Condition>::from_clvm(ctx, output)?;
+
+        for condition in conditions {
+            if let Some(create_coin) = condition.into_create_coin() {
+                if create_coin.amount % 2 == 1 {
+                    let Memos::Some(memos) = create_coin.memos else {
+                        return Ok(None);
+                    };
+
+                    let Some((hint, _)) = <(Bytes32, NodePtr)>::from_clvm(ctx, memos).ok() else {
+                        return Ok(None);
+                    };
+
+                    let child = self.child(hint, self.info.metadata.clone(), create_coin.amount);
+
+                    if child.info.inner_puzzle_hash() == create_coin.puzzle_hash.into() {
+                        return Ok(Some(child));
+                    }
+                }
+            }
+        }
+
+        Ok(None)
     }
 
     /// Spends this DID coin with a [`Layer`] that supports [`SpendWithConditions`].
@@ -141,7 +167,7 @@ where
         ctx: &mut SpendContext,
         inner: &I,
         conditions: Conditions,
-    ) -> Result<(), DriverError>
+    ) -> Result<Option<Self>, DriverError>
     where
         I: SpendWithConditions,
     {
@@ -181,7 +207,7 @@ where
 
         let metadata = self.info.metadata.clone();
 
-        Ok(self.child(p2_puzzle_hash, metadata))
+        Ok(self.child(p2_puzzle_hash, metadata, self.coin.amount))
     }
 
     /// Updates the metadata of this DID.
@@ -218,7 +244,7 @@ where
             extra_conditions.create_coin(new_inner_puzzle_hash.into(), self.coin.amount, memos),
         )?;
 
-        Ok(self.child(self.info.p2_puzzle_hash, metadata))
+        Ok(self.child(self.info.p2_puzzle_hash, metadata, self.coin.amount))
     }
 
     /// Spends the DID without changing its metadata or p2 puzzle hash.

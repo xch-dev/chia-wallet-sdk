@@ -71,7 +71,7 @@ workspace = true
 
 [features]
 chip-0035 = ["chia-sdk-driver/chip-0035", "chia-sdk-types/chip-0035"]
-offers = ["chia-sdk-driver/offers"]
+offer-compression = ["chia-sdk-driver/offer-compression"]
 native-tls = ["chia-sdk-client/native-tls", "chia-sdk-coinset/native-tls"]
 rustls = ["chia-sdk-client/rustls", "chia-sdk-coinset/rustls"]
 peer-simulator = ["chia-sdk-test/peer-simulator"]
@@ -124,6 +124,7 @@ chia-puzzle-types = "0.25.0"
 clvm-traits = "0.25.0"
 clvm-utils = "0.25.0"
 chia-sha2 = "0.25.0"
+chia_streamable_macro = "0.25.0"
 chia-puzzles = "0.20.1"
 clvmr = "0.14.0"
 thiserror = "2.0.12"
