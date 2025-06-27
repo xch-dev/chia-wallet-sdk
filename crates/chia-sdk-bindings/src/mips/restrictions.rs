@@ -4,7 +4,7 @@ use chia_sdk_driver as sdk;
 use chia_sdk_types::{
     puzzles::{
         Force1of2RestrictedVariable, PreventConditionOpcode, Timelock,
-        PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH,
+        PREVENT_MULTIPLE_CREATE_COINS_HASH,
     },
     Mod,
 };
@@ -81,7 +81,7 @@ pub fn prevent_condition_opcode_restriction(condition_opcode: u16) -> Result<Res
 pub fn prevent_multiple_create_coins_restriction() -> Result<Restriction> {
     Ok(Restriction {
         kind: RestrictionKind::DelegatedPuzzleWrapper,
-        puzzle_hash: PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH,
+        puzzle_hash: PREVENT_MULTIPLE_CREATE_COINS_HASH,
     })
 }
 

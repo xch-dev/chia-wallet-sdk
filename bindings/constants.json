@@ -522,11 +522,195 @@
         "type": "static",
         "return": "TreeHash"
       },
-      "p2_curried": {
+      "p2_curried_puzzle": {
         "type": "static",
         "return": "SerializedProgram"
       },
-      "p2_curried_hash": {
+      "p2_curried_puzzle_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "bls_member": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "bls_member_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "bls_taproot_member": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "bls_taproot_member_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "fixed_puzzle_member": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "fixed_puzzle_member_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "k1_member_puzzle_assert": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "k1_member_puzzle_assert_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "k1_member": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "k1_member_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "passkey_member_puzzle_assert": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "passkey_member_puzzle_assert_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "passkey_member": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "passkey_member_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "r1_member_puzzle_assert": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "r1_member_puzzle_assert_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "r1_member": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "r1_member_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "singleton_member": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "singleton_member_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "enforce_delegated_puzzle_wrappers": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "enforce_delegated_puzzle_wrappers_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "force_1_of_2_restricted_variable": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "force_1_of_2_restricted_variable_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "force_assert_coin_announcement": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "force_assert_coin_announcement_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "force_coin_message": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "force_coin_message_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "prevent_condition_opcode": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "prevent_condition_opcode_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "prevent_multiple_create_coins": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "prevent_multiple_create_coins_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "timelock": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "timelock_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "add_delegated_puzzle_wrapper": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "add_delegated_puzzle_wrapper_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "delegated_puzzle_feeder": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "delegated_puzzle_feeder_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "index_wrapper": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "index_wrapper_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "m_of_n": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "m_of_n_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "n_of_n": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "n_of_n_hash": {
+        "type": "static",
+        "return": "TreeHash"
+      },
+      "one_of_n": {
+        "type": "static",
+        "return": "SerializedProgram"
+      },
+      "one_of_n_hash": {
         "type": "static",
         "return": "TreeHash"
       }

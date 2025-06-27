@@ -5,7 +5,7 @@ use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use hex_literal::hex;
 
-use crate::{puzzles::ADD_DELEGATED_PUZZLE_WRAPPER_PUZZLE_HASH, Mod};
+use crate::{puzzles::ADD_DELEGATED_PUZZLE_WRAPPER_HASH, Mod};
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
@@ -17,7 +17,7 @@ pub struct EnforceDelegatedPuzzleWrappers {
 impl EnforceDelegatedPuzzleWrappers {
     pub fn new(wrapper_stack: &[TreeHash]) -> Self {
         Self {
-            quoted_add_wrapper_mod_hash: clvm_quote!(ADD_DELEGATED_PUZZLE_WRAPPER_PUZZLE_HASH)
+            quoted_add_wrapper_mod_hash: clvm_quote!(ADD_DELEGATED_PUZZLE_WRAPPER_HASH)
                 .tree_hash()
                 .into(),
             quoted_wrapper_stack: wrapper_stack
@@ -30,11 +30,11 @@ impl EnforceDelegatedPuzzleWrappers {
 
 impl Mod for EnforceDelegatedPuzzleWrappers {
     fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&ENFORCE_DELEGATED_PUZZLE_WRAPPERS_PUZZLE)
+        Cow::Borrowed(&ENFORCE_DELEGATED_PUZZLE_WRAPPERS)
     }
 
     fn mod_hash() -> TreeHash {
-        ENFORCE_DELEGATED_PUZZLE_WRAPPERS_PUZZLE_HASH
+        ENFORCE_DELEGATED_PUZZLE_WRAPPERS_HASH
     }
 }
 
@@ -51,7 +51,7 @@ impl EnforceDelegatedPuzzleWrappersSolution {
         }
     }
 }
-pub const ENFORCE_DELEGATED_PUZZLE_WRAPPERS_PUZZLE: [u8; 363] = hex!(
+pub const ENFORCE_DELEGATED_PUZZLE_WRAPPERS: [u8; 363] = hex!(
     "
     ff02ffff01ff02ffff03ffff09ff17ffff02ff1effff04ff02ffff04ff05ffff
     04ff0bffff04ff2fff80808080808080ff80ffff01ff088080ff0180ffff04ff
@@ -68,6 +68,6 @@ pub const ENFORCE_DELEGATED_PUZZLE_WRAPPERS_PUZZLE: [u8; 363] = hex!(
     "
 );
 
-pub const ENFORCE_DELEGATED_PUZZLE_WRAPPERS_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
+pub const ENFORCE_DELEGATED_PUZZLE_WRAPPERS_HASH: TreeHash = TreeHash::new(hex!(
     "1f94aa2381c1c02fec90687c0b045ef3cad4b458f8eac5bd90695b4d89624f09"
 ));

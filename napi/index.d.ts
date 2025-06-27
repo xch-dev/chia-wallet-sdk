@@ -1200,8 +1200,54 @@ export declare class Constants {
   static stdParentMorpherHash(): Buffer
   static optionContract(): Buffer
   static optionContractHash(): Buffer
-  static p2Curried(): Buffer
-  static p2CurriedHash(): Buffer
+  static p2CurriedPuzzle(): Buffer
+  static p2CurriedPuzzleHash(): Buffer
+  static blsMember(): Buffer
+  static blsMemberHash(): Buffer
+  static blsTaprootMember(): Buffer
+  static blsTaprootMemberHash(): Buffer
+  static fixedPuzzleMember(): Buffer
+  static fixedPuzzleMemberHash(): Buffer
+  static k1MemberPuzzleAssert(): Buffer
+  static k1MemberPuzzleAssertHash(): Buffer
+  static k1Member(): Buffer
+  static k1MemberHash(): Buffer
+  static passkeyMemberPuzzleAssert(): Buffer
+  static passkeyMemberPuzzleAssertHash(): Buffer
+  static passkeyMember(): Buffer
+  static passkeyMemberHash(): Buffer
+  static r1MemberPuzzleAssert(): Buffer
+  static r1MemberPuzzleAssertHash(): Buffer
+  static r1Member(): Buffer
+  static r1MemberHash(): Buffer
+  static singletonMember(): Buffer
+  static singletonMemberHash(): Buffer
+  static enforceDelegatedPuzzleWrappers(): Buffer
+  static enforceDelegatedPuzzleWrappersHash(): Buffer
+  static force1Of2RestrictedVariable(): Buffer
+  static force1Of2RestrictedVariableHash(): Buffer
+  static forceAssertCoinAnnouncement(): Buffer
+  static forceAssertCoinAnnouncementHash(): Buffer
+  static forceCoinMessage(): Buffer
+  static forceCoinMessageHash(): Buffer
+  static preventConditionOpcode(): Buffer
+  static preventConditionOpcodeHash(): Buffer
+  static preventMultipleCreateCoins(): Buffer
+  static preventMultipleCreateCoinsHash(): Buffer
+  static timelock(): Buffer
+  static timelockHash(): Buffer
+  static addDelegatedPuzzleWrapper(): Buffer
+  static addDelegatedPuzzleWrapperHash(): Buffer
+  static delegatedPuzzleFeeder(): Buffer
+  static delegatedPuzzleFeederHash(): Buffer
+  static indexWrapper(): Buffer
+  static indexWrapperHash(): Buffer
+  static mOfN(): Buffer
+  static mOfNHash(): Buffer
+  static nOfN(): Buffer
+  static nOfNHash(): Buffer
+  static oneOfN(): Buffer
+  static oneOfNHash(): Buffer
 }
 export declare class Vault {
   clone(): Vault

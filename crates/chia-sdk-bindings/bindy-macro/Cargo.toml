@@ -22,3 +22,4 @@ quote = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 syn = { workspace = true }
+chia-sdk-bindings = { workspace = true }

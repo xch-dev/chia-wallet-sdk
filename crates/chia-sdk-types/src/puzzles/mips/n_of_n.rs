@@ -20,11 +20,11 @@ impl<T> NofNArgs<T> {
 
 impl<T> Mod for NofNArgs<T> {
     fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&N_OF_N_PUZZLE)
+        Cow::Borrowed(&N_OF_N)
     }
 
     fn mod_hash() -> TreeHash {
-        N_OF_N_PUZZLE_HASH
+        N_OF_N_HASH
     }
 }
 
@@ -40,7 +40,7 @@ impl<T> NofNSolution<T> {
     }
 }
 
-pub const N_OF_N_PUZZLE: [u8; 243] = hex!(
+pub const N_OF_N: [u8; 243] = hex!(
     "
     ff02ffff01ff02ff04ffff04ff02ffff04ff05ffff04ff17ffff04ff0bff8080
     80808080ffff04ffff01ffff02ffff03ff0dffff01ff02ff0affff04ff02ffff
@@ -53,6 +53,6 @@ pub const N_OF_N_PUZZLE: [u8; 243] = hex!(
     "
 );
 
-pub const N_OF_N_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
+pub const N_OF_N_HASH: TreeHash = TreeHash::new(hex!(
     "d4394f50cb1d6ef130788db2e69ab0087ef79b0737179f201c1d1d2a52df1e59"
 ));

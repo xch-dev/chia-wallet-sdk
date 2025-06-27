@@ -25,11 +25,11 @@ impl MofNArgs {
 
 impl Mod for MofNArgs {
     fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&M_OF_N_PUZZLE)
+        Cow::Borrowed(&M_OF_N)
     }
 
     fn mod_hash() -> TreeHash {
-        M_OF_N_PUZZLE_HASH
+        M_OF_N_HASH
     }
 }
 
@@ -45,7 +45,7 @@ impl<P> MofNSolution<P> {
     }
 }
 
-pub const M_OF_N_PUZZLE: [u8; 622] = hex!(
+pub const M_OF_N: [u8; 622] = hex!(
     "
     ff02ffff01ff02ff16ffff04ff02ffff04ff05ffff04ff0bffff04ffff02ff0c
     ffff04ff02ffff04ff2fffff04ff17ff8080808080ff808080808080ffff04ff
@@ -70,6 +70,6 @@ pub const M_OF_N_PUZZLE: [u8; 622] = hex!(
     "
 );
 
-pub const M_OF_N_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
+pub const M_OF_N_HASH: TreeHash = TreeHash::new(hex!(
     "de27deb2ebc7f1e1b77e1d38cc2f9d90fbd54d4b13dd4e6fa1f659177e36ed4f"
 ));

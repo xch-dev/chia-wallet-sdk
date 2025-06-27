@@ -23,7 +23,7 @@ impl<I> OptionContractArgs<I> {
         inner_puzzle: I,
     ) -> Self {
         Self {
-            mod_hash: OPTION_CONTRACT_PUZZLE_HASH.into(),
+            mod_hash: OPTION_CONTRACT_HASH.into(),
             underlying_coin_id,
             underlying_delegated_puzzle_hash,
             inner_puzzle,
@@ -45,15 +45,15 @@ impl<I> OptionContractSolution<I> {
 
 impl<I> Mod for OptionContractArgs<I> {
     fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&OPTION_CONTRACT_PUZZLE)
+        Cow::Borrowed(&OPTION_CONTRACT)
     }
 
     fn mod_hash() -> TreeHash {
-        OPTION_CONTRACT_PUZZLE_HASH
+        OPTION_CONTRACT_HASH
     }
 }
 
-pub const OPTION_CONTRACT_PUZZLE: [u8; 862] = hex!(
+pub const OPTION_CONTRACT: [u8; 862] = hex!(
     "
     ff02ffff01ff02ff1effff04ff02ffff04ff05ffff04ff0bffff04ff17ffff04
     ffff02ff2fff5f80ffff01ff80ff8080808080808080ffff04ffff01ffffff33
@@ -85,6 +85,6 @@ pub const OPTION_CONTRACT_PUZZLE: [u8; 862] = hex!(
     "
 );
 
-pub const OPTION_CONTRACT_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
+pub const OPTION_CONTRACT_HASH: TreeHash = TreeHash::new(hex!(
     "5a084d1786fc0fe43c30bc5fc0233cc1a791cfde3a25580a9ca4883878f0ba63"
 ));
