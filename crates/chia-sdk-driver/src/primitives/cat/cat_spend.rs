@@ -5,16 +5,24 @@ use super::Cat;
 #[derive(Debug, Clone, Copy)]
 pub struct CatSpend {
     pub cat: Cat,
-    pub inner_spend: Spend,
-    pub revoke: bool,
+    pub spend: Spend,
+    pub hidden: bool,
 }
 
 impl CatSpend {
-    pub fn new(cat: Cat, inner_spend: Spend) -> Self {
+    pub fn new(cat: Cat, spend: Spend) -> Self {
         Self {
             cat,
-            inner_spend,
-            revoke: false,
+            spend,
+            hidden: false,
+        }
+    }
+
+    pub fn revoke(cat: Cat, spend: Spend) -> Self {
+        Self {
+            cat,
+            spend,
+            hidden: true,
         }
     }
 }
