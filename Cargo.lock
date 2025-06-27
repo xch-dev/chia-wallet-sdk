@@ -242,6 +242,8 @@ dependencies = [
  "chia-sdk-bindings",
  "convert_case",
  "indexmap",
+ "openssl",
+ "openssl-sys",
  "proc-macro2",
  "quote",
  "serde",
