@@ -66,7 +66,7 @@ test("issues and spends a cat", (t) => {
   t.true(true);
 });
 
-test.only("issues and spends a revocable cat", (t) => {
+test("issues and spends a revocable cat", (t) => {
   const sim = new Simulator();
   const clvm = new Clvm();
 
