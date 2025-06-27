@@ -1,6 +1,9 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::REVOCATION_LAYER_HASH;
-use chia_sdk_types::puzzles::{RevocationArgs, RevocationSolution};
+use chia_sdk_types::{
+    puzzles::{RevocationArgs, RevocationSolution},
+    Mod,
+};
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -74,6 +77,6 @@ impl Layer for RevocationLayer {
 
 impl ToTreeHash for RevocationLayer {
     fn tree_hash(&self) -> TreeHash {
-        RevocationArgs::new(self.hidden_puzzle_hash, self.inner_puzzle_hash).tree_hash()
+        RevocationArgs::new(self.hidden_puzzle_hash, self.inner_puzzle_hash).curry_tree_hash()
     }
 }

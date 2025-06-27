@@ -1,16 +1,19 @@
-mod compress;
-mod encode;
-mod error;
+mod asset_info;
 mod offer;
-mod offer_builder;
-mod parsed_offer;
+mod offer_amounts;
+mod offer_coins;
+mod requested_payments;
+mod royalty;
 
-pub use compress::*;
-pub use encode::*;
-pub use error::*;
+pub use asset_info::*;
 pub use offer::*;
-pub use offer_builder::*;
-pub use parsed_offer::*;
+pub use offer_amounts::*;
+pub use offer_coins::*;
+pub use requested_payments::*;
+pub use royalty::*;
 
-#[cfg(test)]
-mod tests;
+#[cfg(feature = "offer-compression")]
+mod compress;
+
+#[cfg(feature = "offer-compression")]
+pub use compress::*;

@@ -1,5 +1,6 @@
 use chia_protocol::Bytes32;
-use chia_sdk_types::puzzles::{P2OneOfManyArgs, P2OneOfManySolution, P2_ONE_OF_MANY_PUZZLE_HASH};
+use chia_puzzles::P2_1_OF_N_HASH;
+use chia_sdk_types::puzzles::{P2OneOfManyArgs, P2OneOfManySolution};
 use clvm_traits::FromClvm;
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -27,7 +28,7 @@ impl Layer for P2OneOfManyLayer {
             return Ok(None);
         };
 
-        if puzzle.mod_hash != P2_ONE_OF_MANY_PUZZLE_HASH {
+        if puzzle.mod_hash != P2_1_OF_N_HASH.into() {
             return Ok(None);
         }
 
@@ -65,7 +66,7 @@ impl Layer for P2OneOfManyLayer {
 impl ToTreeHash for P2OneOfManyLayer {
     fn tree_hash(&self) -> TreeHash {
         CurriedProgram {
-            program: P2_ONE_OF_MANY_PUZZLE_HASH,
+            program: TreeHash::new(P2_1_OF_N_HASH),
             args: P2OneOfManyArgs::new(self.merkle_root),
         }
         .tree_hash()

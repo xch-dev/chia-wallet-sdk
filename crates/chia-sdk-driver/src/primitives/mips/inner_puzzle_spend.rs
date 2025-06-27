@@ -1,7 +1,7 @@
 use chia_sdk_types::{
     puzzles::{
-        AddDelegatedPuzzleWrapper, AddDelegatedPuzzleWrapperSolution, DelegatedFeederArgs,
-        DelegatedFeederSolution, EnforceDelegatedPuzzleWrappers,
+        AddDelegatedPuzzleWrapper, AddDelegatedPuzzleWrapperSolution, DelegatedPuzzleFeederArgs,
+        DelegatedPuzzleFeederSolution, EnforceDelegatedPuzzleWrappers,
         EnforceDelegatedPuzzleWrappersSolution, IndexWrapperArgs, RestrictionsArgs,
         RestrictionsSolution,
     },
@@ -121,7 +121,7 @@ impl InnerPuzzleSpend {
         }
 
         if delegated_spend {
-            result.puzzle = ctx.curry(DelegatedFeederArgs::new(result.puzzle))?;
+            result.puzzle = ctx.curry(DelegatedPuzzleFeederArgs::new(result.puzzle))?;
 
             let delegated_puzzle_wrappers = delegated_puzzle_wrappers.clone();
 
@@ -145,7 +145,7 @@ impl InnerPuzzleSpend {
                 delegated_spend = Spend::new(puzzle, solution);
             }
 
-            result.solution = ctx.alloc(&DelegatedFeederSolution::new(
+            result.solution = ctx.alloc(&DelegatedPuzzleFeederSolution::new(
                 delegated_spend.puzzle,
                 delegated_spend.solution,
                 result.solution,
@@ -198,7 +198,7 @@ pub fn member_puzzle_hash(
     }
 
     if top_level {
-        puzzle_hash = DelegatedFeederArgs::new(puzzle_hash).curry_tree_hash();
+        puzzle_hash = DelegatedPuzzleFeederArgs::new(puzzle_hash).curry_tree_hash();
     }
 
     IndexWrapperArgs::new(nonce, puzzle_hash).curry_tree_hash()

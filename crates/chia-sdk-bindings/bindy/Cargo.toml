@@ -1,6 +1,6 @@
 [package]
 name = "bindy"
-version = "0.25.0"
+version = "0.26.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Generator for chia-wallet-sdk bindings."
@@ -28,7 +28,7 @@ bip39 = { workspace = true }
 hex = { workspace = true }
 chia-bls = { workspace = true }
 chia-sdk-utils = { workspace = true }
-chia-sdk-driver = { workspace = true, features = ["offers"] }
+chia-sdk-driver = { workspace = true, features = ["offer-compression"] }
 chia-sdk-test = { workspace = true }
 reqwest = { workspace = true }
 clvmr = { workspace = true }

@@ -1,6 +1,6 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{EveProof, Proof};
-use chia_sdk_types::Conditions;
+use chia_sdk_types::{conditions::CreateCoin, Conditions};
 use clvm_traits::clvm_quote;
 use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
@@ -66,18 +66,21 @@ impl OptionLauncher<UnspecifiedOption> {
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
         info: OptionLauncherInfo,
+        singleton_amount: u64,
     ) -> Result<Self, DriverError> {
-        Self::with_amount(ctx, parent_coin_id, 1, info)
+        Self::with_amount(ctx, parent_coin_id, 1, info, singleton_amount)
     }
 
     pub fn with_amount(
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
-        amount: u64,
+        launcher_amount: u64,
         info: OptionLauncherInfo,
+        singleton_amount: u64,
     ) -> Result<Self, DriverError> {
         let memos = ctx.hint(info.creator_puzzle_hash)?;
-        let launcher = Launcher::with_memos(parent_coin_id, amount, memos).with_singleton_amount(1);
+        let launcher = Launcher::with_memos(parent_coin_id, launcher_amount, memos)
+            .with_singleton_amount(singleton_amount);
         let launcher_id = launcher.coin().coin_id();
 
         Ok(Self {
@@ -94,6 +97,37 @@ impl OptionLauncher<UnspecifiedOption> {
                 metadata: OptionMetadata::new(info.seconds, info.strike_type),
             },
         })
+    }
+
+    pub fn create_early(
+        ctx: &mut SpendContext,
+        parent_coin_id: Bytes32,
+        launcher_amount: u64,
+        info: OptionLauncherInfo,
+        singleton_amount: u64,
+    ) -> Result<(CreateCoin<NodePtr>, Self), DriverError> {
+        let memos = ctx.hint(info.creator_puzzle_hash)?;
+        let (create_coin, launcher) =
+            Launcher::create_early_with_memos(parent_coin_id, launcher_amount, memos);
+        let launcher = launcher.with_singleton_amount(singleton_amount);
+        let launcher_id = launcher.coin().coin_id();
+
+        let launcher = Self {
+            launcher,
+            state: UnspecifiedOption {
+                owner_puzzle_hash: info.owner_puzzle_hash,
+                underlying: OptionUnderlying::new(
+                    launcher_id,
+                    info.creator_puzzle_hash,
+                    info.seconds,
+                    info.underlying_amount,
+                    info.strike_type,
+                ),
+                metadata: OptionMetadata::new(info.seconds, info.strike_type),
+            },
+        };
+
+        Ok((create_coin, launcher))
     }
 
     pub fn underlying(&self) -> OptionUnderlying {
@@ -137,7 +171,8 @@ impl OptionLauncher<ReadyOption> {
         let owner_puzzle_hash = self.state.info.p2_puzzle_hash;
 
         let memos = ctx.hint(owner_puzzle_hash)?;
-        let conditions = Conditions::new().create_coin(owner_puzzle_hash, 1, memos);
+        let singleton_amount = self.launcher.singleton_amount();
+        let conditions = Conditions::new().create_coin(owner_puzzle_hash, singleton_amount, memos);
 
         let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
         let eve_p2_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
@@ -146,12 +181,12 @@ impl OptionLauncher<ReadyOption> {
         let (mint_eve_option, eve_option) = self.mint_eve(ctx, eve_p2_puzzle_hash)?;
         eve_option.spend(ctx, inner_spend)?;
 
-        let child = eve_option.child(owner_puzzle_hash);
+        let child = eve_option.child(owner_puzzle_hash, singleton_amount);
 
         Ok((mint_eve_option, child))
     }
 
-    fn mint_eve(
+    pub fn mint_eve(
         self,
         ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
@@ -203,6 +238,7 @@ mod tests {
                 1,
                 OptionType::Xch { amount: 1 },
             ),
+            1,
         )?;
         let p2_option = launcher.p2_puzzle_hash();
 

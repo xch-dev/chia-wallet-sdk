@@ -116,10 +116,26 @@
   },
   "CatSpend": {
     "type": "class",
-    "new": true,
     "fields": {
       "cat": "Cat",
-      "spend": "Spend"
+      "spend": "Spend",
+      "hidden": "bool"
+    },
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "cat": "Cat",
+          "spend": "Spend"
+        }
+      },
+      "revoke": {
+        "type": "factory",
+        "args": {
+          "cat": "Cat",
+          "spend": "Spend"
+        }
+      }
     }
   },
   "ParsedCat": {
@@ -211,16 +227,7 @@
       "p2_puzzle_hash": "Bytes32",
       "royalty_puzzle_hash": "Bytes32",
       "royalty_basis_points": "u16",
-      "owner": "Option<NftOwner>"
-    }
-  },
-  "NftOwner": {
-    "type": "class",
-    "new": true,
-    "remote": true,
-    "fields": {
-      "launcher_id": "Bytes32",
-      "singleton_inner_puzzle_hash": "Bytes32"
+      "transfer_condition": "Option<TransferNft>"
     }
   },
   "MintedNfts": {

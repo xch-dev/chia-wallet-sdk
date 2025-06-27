@@ -21,11 +21,11 @@ impl OneOfNArgs {
 
 impl Mod for OneOfNArgs {
     fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&ONE_OF_N_PUZZLE)
+        Cow::Borrowed(&ONE_OF_N)
     }
 
     fn mod_hash() -> TreeHash {
-        ONE_OF_N_PUZZLE_HASH
+        ONE_OF_N_HASH
     }
 }
 
@@ -47,7 +47,7 @@ impl<P, S> OneOfNSolution<P, S> {
     }
 }
 
-pub const ONE_OF_N_PUZZLE: [u8; 286] = hex!(
+pub const ONE_OF_N: [u8; 286] = hex!(
     "
     ff02ffff01ff02ffff03ffff09ff05ffff02ff06ffff04ff02ffff04ffff0bff
     ff0101ffff02ff04ffff04ff02ffff04ff2fff8080808080ffff04ff17ff8080
@@ -61,6 +61,6 @@ pub const ONE_OF_N_PUZZLE: [u8; 286] = hex!(
     "
 );
 
-pub const ONE_OF_N_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
+pub const ONE_OF_N_HASH: TreeHash = TreeHash::new(hex!(
     "bcb9aa74893bebcfa2da87271b0330bf2773b6391144ae72262b6824d9c55939"
 ));

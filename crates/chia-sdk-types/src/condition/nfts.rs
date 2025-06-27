@@ -21,3 +21,12 @@ pub struct TradePrice {
     pub amount: u64,
     pub puzzle_hash: Bytes32,
 }
+
+impl TradePrice {
+    pub fn new(amount: u64, puzzle_hash: Bytes32) -> Self {
+        Self {
+            amount,
+            puzzle_hash,
+        }
+    }
+}

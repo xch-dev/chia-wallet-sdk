@@ -8,36 +8,36 @@ use crate::Mod;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
-pub struct DelegatedFeederArgs<I> {
+pub struct DelegatedPuzzleFeederArgs<I> {
     pub inner_puzzle: I,
 }
 
-impl<I> DelegatedFeederArgs<I> {
+impl<I> DelegatedPuzzleFeederArgs<I> {
     pub fn new(inner_puzzle: I) -> Self {
         Self { inner_puzzle }
     }
 }
 
-impl<I> Mod for DelegatedFeederArgs<I> {
+impl<I> Mod for DelegatedPuzzleFeederArgs<I> {
     fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&DELEGATED_FEEDER_PUZZLE)
+        Cow::Borrowed(&DELEGATED_PUZZLE_FEEDER)
     }
 
     fn mod_hash() -> TreeHash {
-        DELEGATED_FEEDER_PUZZLE_HASH
+        DELEGATED_PUZZLE_FEEDER_HASH
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
-pub struct DelegatedFeederSolution<P, S, I> {
+pub struct DelegatedPuzzleFeederSolution<P, S, I> {
     pub delegated_puzzle: P,
     pub delegated_solution: S,
     #[clvm(rest)]
     pub inner_solution: I,
 }
 
-impl<P, S, I> DelegatedFeederSolution<P, S, I> {
+impl<P, S, I> DelegatedPuzzleFeederSolution<P, S, I> {
     pub fn new(delegated_puzzle: P, delegated_solution: S, inner_solution: I) -> Self {
         Self {
             delegated_puzzle,
@@ -47,7 +47,7 @@ impl<P, S, I> DelegatedFeederSolution<P, S, I> {
     }
 }
 
-pub const DELEGATED_FEEDER_PUZZLE: [u8; 203] = hex!(
+pub const DELEGATED_PUZZLE_FEEDER: [u8; 203] = hex!(
     "
     ff02ffff01ff02ff04ffff04ff02ffff04ffff02ff05ffff04ffff02ff06ffff
     04ff02ffff04ff0bff80808080ff1f8080ffff04ffff02ff0bff1780ff808080
@@ -59,6 +59,6 @@ pub const DELEGATED_FEEDER_PUZZLE: [u8; 203] = hex!(
     "
 );
 
-pub const DELEGATED_FEEDER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
+pub const DELEGATED_PUZZLE_FEEDER_HASH: TreeHash = TreeHash::new(hex!(
     "9db33d93853179903d4dd272a00345ee6630dc94907dbcdd96368df6931060fd"
 ));

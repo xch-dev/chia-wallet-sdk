@@ -1,6 +1,6 @@
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
-    puzzles::{OptionContractArgs, OptionContractSolution, OPTION_CONTRACT_PUZZLE_HASH},
+    puzzles::{OptionContractArgs, OptionContractSolution, OPTION_CONTRACT_HASH},
     Mod,
 };
 use clvm_traits::FromClvm;
@@ -44,7 +44,7 @@ where
             return Ok(None);
         };
 
-        if puzzle.mod_hash != OPTION_CONTRACT_PUZZLE_HASH {
+        if puzzle.mod_hash != OPTION_CONTRACT_HASH {
             return Ok(None);
         }
 

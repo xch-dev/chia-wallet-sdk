@@ -9,19 +9,20 @@ use chia_sdk_types::{
     conditions::{
         AssertBeforeSecondsAbsolute, AssertPuzzleAnnouncement, AssertSecondsAbsolute, CreateCoin,
     },
+    payment_assertion,
     puzzles::{
         AugmentedConditionArgs, AugmentedConditionSolution, P2OneOfManySolution, RevocationArgs,
         SingletonMember, SingletonMemberSolution,
     },
     MerkleTree, Mod,
 };
-use clvm_traits::{clvm_list, clvm_quote, match_list, ToClvm};
-use clvm_utils::{ToTreeHash, TreeHash};
-use clvmr::{Allocator, NodePtr};
+use clvm_traits::{clvm_list, clvm_quote, match_list, ClvmEncoder, ToClvm};
+use clvm_utils::{ToTreeHash, TreeHash, TreeHasher};
+use clvmr::NodePtr;
 
 use crate::{
-    member_puzzle_hash, payment_assertion, DriverError, InnerPuzzleSpend, Layer, MipsSpend,
-    P2OneOfManyLayer, Spend, SpendContext,
+    member_puzzle_hash, DriverError, InnerPuzzleSpend, Layer, MipsSpend, P2OneOfManyLayer, Spend,
+    SpendContext,
 };
 
 use super::OptionType;
@@ -83,37 +84,25 @@ impl OptionUnderlying {
         P2OneOfManyLayer::new(self.merkle_tree().root())
     }
 
-    pub fn requested_payment_ptr(
+    pub fn requested_payment<E>(
         &self,
-        allocator: &mut Allocator,
-    ) -> Result<NotarizedPayment<NodePtr>, DriverError> {
+        encoder: &mut E,
+    ) -> Result<NotarizedPayment<E::Node>, DriverError>
+    where
+        E: ClvmEncoder,
+    {
         Ok(NotarizedPayment {
             nonce: self.launcher_id,
             payments: vec![Payment {
                 puzzle_hash: self.creator_puzzle_hash,
                 amount: self.strike_type.amount(),
                 memos: if self.strike_type.is_hinted() {
-                    Memos::Some(vec![self.creator_puzzle_hash].to_clvm(allocator)?)
+                    Memos::Some(vec![self.creator_puzzle_hash].to_clvm(encoder)?)
                 } else {
                     Memos::None
                 },
             }],
         })
-    }
-
-    pub fn requested_payment_hash(&self) -> NotarizedPayment<TreeHash> {
-        NotarizedPayment {
-            nonce: self.launcher_id,
-            payments: vec![Payment {
-                puzzle_hash: self.creator_puzzle_hash,
-                amount: self.strike_type.amount(),
-                memos: if self.strike_type.is_hinted() {
-                    Memos::Some(vec![self.creator_puzzle_hash].tree_hash())
-                } else {
-                    Memos::None
-                },
-            }],
-        }
     }
 
     pub fn delegated_puzzle(&self) -> OptionDelegatedPuzzle {
@@ -140,7 +129,12 @@ impl OptionUnderlying {
 
         clvm_quote!(clvm_list!(
             AssertBeforeSecondsAbsolute::new(self.seconds),
-            payment_assertion(puzzle_hash, &self.requested_payment_hash()),
+            payment_assertion(
+                puzzle_hash,
+                self.requested_payment(&mut TreeHasher)
+                    .expect("failed to hash")
+                    .tree_hash()
+            ),
             CreateCoin::new(SETTLEMENT_PAYMENT_HASH.into(), self.amount, Memos::None)
         ))
     }
