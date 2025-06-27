@@ -10,7 +10,7 @@ use crate::{
     Action, Asset, Cat, CatSpend, ConditionsSpend, Delta, Deltas, Did, DriverError, FungibleSpend,
     FungibleSpends, HashedPtr, Id, Layer, Nft, OptionContract, Relation, SettlementLayer,
     SingletonSpends, Spend, SpendAction, SpendContext, SpendKind, SpendWithConditions,
-    StandardLayer,
+    SpendableAsset, StandardLayer,
 };
 
 #[derive(Debug, Clone)]
@@ -428,21 +428,21 @@ impl Spends {
         ctx: &mut SpendContext,
         deltas: &Deltas,
         relation: Relation,
-        f: impl Fn(&mut SpendContext, Bytes32, SpendKind) -> Result<Spend, DriverError>,
+        f: impl Fn(&mut SpendContext, SpendableAsset, SpendKind) -> Result<Spend, DriverError>,
     ) -> Result<Outputs, DriverError> {
         self.create_change(ctx, deltas)?;
         self.emit_conditions(ctx)?;
         self.emit_relation(relation);
 
         for item in self.xch.items {
-            let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
+            let spend = f(ctx, SpendableAsset::Xch(item.asset), item.kind)?;
             ctx.spend(item.asset, spend)?;
         }
 
         for cat in self.cats.into_values() {
             let mut cat_spends = Vec::new();
             for item in cat.items {
-                let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
+                let spend = f(ctx, SpendableAsset::Cat(item.asset), item.kind)?;
                 cat_spends.push(CatSpend::new(item.asset, spend));
             }
             Cat::spend_all(ctx, &cat_spends)?;
@@ -450,21 +450,21 @@ impl Spends {
 
         for did in self.dids.into_values() {
             for item in did.lineage {
-                let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
+                let spend = f(ctx, SpendableAsset::Did(item.asset), item.kind)?;
                 item.asset.spend(ctx, spend)?;
             }
         }
 
         for nft in self.nfts.into_values() {
             for item in nft.lineage {
-                let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
+                let spend = f(ctx, SpendableAsset::Nft(item.asset), item.kind)?;
                 let _nft = item.asset.spend(ctx, spend)?;
             }
         }
 
         for option in self.options.into_values() {
             for item in option.lineage {
-                let spend = f(ctx, item.asset.p2_puzzle_hash(), item.kind)?;
+                let spend = f(ctx, SpendableAsset::Option(item.asset), item.kind)?;
                 let _option = item.asset.spend(ctx, spend)?;
             }
         }
@@ -479,21 +479,16 @@ impl Spends {
         relation: Relation,
         synthetic_keys: &IndexMap<Bytes32, PublicKey>,
     ) -> Result<Outputs, DriverError> {
-        self.finish(
-            ctx,
-            deltas,
-            relation,
-            |ctx, p2_puzzle_hash, kind| match kind {
-                SpendKind::Conditions(spend) => {
-                    let Some(&synthetic_key) = synthetic_keys.get(&p2_puzzle_hash) else {
-                        return Err(DriverError::MissingKey);
-                    };
-                    StandardLayer::new(synthetic_key).spend_with_conditions(ctx, spend.finish())
-                }
-                SpendKind::Settlement(spend) => SettlementLayer
-                    .construct_spend(ctx, SettlementPaymentsSolution::new(spend.finish())),
-            },
-        )
+        self.finish(ctx, deltas, relation, |ctx, asset, kind| match kind {
+            SpendKind::Conditions(spend) => {
+                let Some(&synthetic_key) = synthetic_keys.get(&asset.p2_puzzle_hash()) else {
+                    return Err(DriverError::MissingKey);
+                };
+                StandardLayer::new(synthetic_key).spend_with_conditions(ctx, spend.finish())
+            }
+            SpendKind::Settlement(spend) => SettlementLayer
+                .construct_spend(ctx, SettlementPaymentsSolution::new(spend.finish())),
+        })
     }
 }
 
