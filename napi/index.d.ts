@@ -1483,10 +1483,13 @@ export declare class CatInfo {
 export declare class CatSpend {
   clone(): CatSpend
   constructor(cat: Cat, spend: Spend)
+  static revoke(cat: Cat, spend: Spend): CatSpend
   get cat(): Cat
   set cat(value: Cat)
   get spend(): Spend
   set spend(value: Spend)
+  get hidden(): boolean
+  set hidden(value: boolean)
 }
 export declare class ParsedCat {
   clone(): ParsedCat

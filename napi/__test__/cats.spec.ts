@@ -71,14 +71,11 @@ test("issues and spends a revocable cat", (t) => {
   const clvm = new Clvm();
 
   const alice = sim.bls(1n);
+  const bob = sim.bls(1n);
 
   const tail = clvm.nil();
   const assetId = tail.treeHash();
-  const catInfo = new CatInfo(
-    assetId,
-    Buffer.from("00".repeat(32), "hex"),
-    alice.puzzleHash
-  );
+  const catInfo = new CatInfo(assetId, bob.puzzleHash, alice.puzzleHash);
 
   // Issue a CAT
   clvm.spendStandardCoin(
@@ -93,6 +90,7 @@ test("issues and spends a revocable cat", (t) => {
     catInfo
   );
 
+  // Spend the CAT
   clvm.spendCats([
     new CatSpend(
       eve,
@@ -106,24 +104,25 @@ test("issues and spends a revocable cat", (t) => {
     ),
   ]);
 
-  // Spend the CAT
+  // Revoke the CAT
   const cat = eve.child(alice.puzzleHash, 1n);
 
-  clvm.spendCats([
-    new CatSpend(
+  const [output] = clvm.spendCats([
+    CatSpend.revoke(
       cat,
       clvm.standardSpend(
-        alice.pk,
+        bob.pk,
         clvm.delegatedSpend([
-          clvm.createCoin(alice.puzzleHash, 1n, clvm.alloc([alice.puzzleHash])),
+          clvm.createCoin(bob.puzzleHash, 1n, clvm.alloc([bob.puzzleHash])),
         ])
       )
     ),
   ]);
 
-  sim.spendCoins(clvm.coinSpends(), [alice.sk]);
+  sim.spendCoins(clvm.coinSpends(), [alice.sk, bob.sk]);
 
-  t.true(true);
+  // No longer revocable
+  t.is(output.info.hiddenPuzzleHash, null);
 });
 
 test("parses a cat puzzle", (t) => {

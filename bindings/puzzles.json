@@ -116,10 +116,26 @@
   },
   "CatSpend": {
     "type": "class",
-    "new": true,
     "fields": {
       "cat": "Cat",
-      "spend": "Spend"
+      "spend": "Spend",
+      "hidden": "bool"
+    },
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "cat": "Cat",
+          "spend": "Spend"
+        }
+      },
+      "revoke": {
+        "type": "factory",
+        "args": {
+          "cat": "Cat",
+          "spend": "Spend"
+        }
+      }
     }
   },
   "ParsedCat": {
