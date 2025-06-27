@@ -16,8 +16,8 @@ use chia_sdk_types::{
         BlsMember, BlsTaprootMember, EnforceDelegatedPuzzleWrappers, FixedPuzzleMember,
         Force1of2RestrictedVariable, K1Member, K1MemberPuzzleAssert, PasskeyMember,
         PasskeyMemberPuzzleAssert, PreventConditionOpcode, R1Member, R1MemberPuzzleAssert,
-        SingletonMember, Timelock, FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE_HASH,
-        FORCE_COIN_MESSAGE_PUZZLE_HASH, PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH,
+        SingletonMember, Timelock, FORCE_ASSERT_COIN_ANNOUNCEMENT_HASH, FORCE_COIN_MESSAGE_HASH,
+        PREVENT_MULTIPLE_CREATE_COINS_HASH,
     },
     Mod,
 };
@@ -204,21 +204,21 @@ impl WrapperMemo<NodePtr> {
 
     pub fn force_assert_coin_announcement() -> Self {
         Self {
-            puzzle_hash: FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE_HASH.into(),
+            puzzle_hash: FORCE_ASSERT_COIN_ANNOUNCEMENT_HASH.into(),
             memo: NodePtr::NIL,
         }
     }
 
     pub fn force_coin_message() -> Self {
         Self {
-            puzzle_hash: FORCE_COIN_MESSAGE_PUZZLE_HASH.into(),
+            puzzle_hash: FORCE_COIN_MESSAGE_HASH.into(),
             memo: NodePtr::NIL,
         }
     }
 
     pub fn prevent_multiple_create_coins() -> Self {
         Self {
-            puzzle_hash: PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH.into(),
+            puzzle_hash: PREVENT_MULTIPLE_CREATE_COINS_HASH.into(),
             memo: NodePtr::NIL,
         }
     }
@@ -254,15 +254,15 @@ impl WrapperMemo<NodePtr> {
     }
 
     pub fn parse(&self, allocator: &Allocator, ctx: &MipsMemoContext) -> Option<ParsedWrapper> {
-        if self.puzzle_hash == FORCE_ASSERT_COIN_ANNOUNCEMENT_PUZZLE_HASH.into() {
+        if self.puzzle_hash == FORCE_ASSERT_COIN_ANNOUNCEMENT_HASH.into() {
             return Some(ParsedWrapper::ForceAssertCoinAnnouncement);
         }
 
-        if self.puzzle_hash == FORCE_COIN_MESSAGE_PUZZLE_HASH.into() {
+        if self.puzzle_hash == FORCE_COIN_MESSAGE_HASH.into() {
             return Some(ParsedWrapper::ForceCoinMessage);
         }
 
-        if self.puzzle_hash == PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH.into() {
+        if self.puzzle_hash == PREVENT_MULTIPLE_CREATE_COINS_HASH.into() {
             return Some(ParsedWrapper::PreventMultipleCreateCoins);
         }
 

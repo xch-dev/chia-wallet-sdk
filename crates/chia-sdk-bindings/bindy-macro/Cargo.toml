@@ -22,3 +22,20 @@ quote = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 syn = { workspace = true }
+chia-sdk-bindings = { workspace = true }
+
+[target.aarch64-unknown-linux-gnu.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }
+
+[target.aarch64-unknown-linux-musl.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }
+
+[target.x86_64-unknown-linux-gnu.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }
+
+[target.x86_64-unknown-linux-musl.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }

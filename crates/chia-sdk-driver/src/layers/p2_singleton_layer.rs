@@ -1,6 +1,6 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
-use chia_sdk_types::puzzles::{P2SingletonArgs, P2SingletonSolution, P2_SINGLETON_PUZZLE_HASH};
+use chia_puzzles::{P2_SINGLETON_HASH, SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
+use chia_sdk_types::puzzles::{P2SingletonArgs, P2SingletonSolution};
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -63,7 +63,7 @@ impl Layer for P2SingletonLayer {
             return Ok(None);
         };
 
-        if puzzle.mod_hash != P2_SINGLETON_PUZZLE_HASH {
+        if puzzle.mod_hash != P2_SINGLETON_HASH.into() {
             return Ok(None);
         }
 

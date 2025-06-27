@@ -20,15 +20,15 @@ impl Timelock {
 
 impl Mod for Timelock {
     fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&TIMELOCK_PUZZLE)
+        Cow::Borrowed(&TIMELOCK)
     }
 
     fn mod_hash() -> TreeHash {
-        TIMELOCK_PUZZLE_HASH
+        TIMELOCK_HASH
     }
 }
 
-pub const TIMELOCK_PUZZLE: [u8; 137] = hex!(
+pub const TIMELOCK: [u8; 137] = hex!(
     "
     ff02ffff01ff02ff06ffff04ff02ffff04ff05ffff04ff0bff8080808080ffff
     04ffff01ff50ff02ffff03ffff02ffff03ffff09ff23ff0480ffff01ff02ffff
@@ -38,6 +38,6 @@ pub const TIMELOCK_PUZZLE: [u8; 137] = hex!(
     "
 );
 
-pub const TIMELOCK_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
+pub const TIMELOCK_HASH: TreeHash = TreeHash::new(hex!(
     "a6f96d8ecf9bd29e8c41822d231408823707b587bc0d372e5db4ac9733cbea3c"
 ));

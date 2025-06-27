@@ -1,5 +1,5 @@
 mod add_delegated_puzzle_wrapper;
-mod delegated_feeder;
+mod delegated_puzzle_feeder;
 mod index_wrapper;
 mod m_of_n;
 mod members;
@@ -9,7 +9,7 @@ mod restrictions;
 mod wrappers;
 
 pub use add_delegated_puzzle_wrapper::*;
-pub use delegated_feeder::*;
+pub use delegated_puzzle_feeder::*;
 pub use index_wrapper::*;
 pub use m_of_n::*;
 pub use members::*;

@@ -239,8 +239,11 @@ dependencies = [
 name = "bindy-macro"
 version = "0.26.0"
 dependencies = [
+ "chia-sdk-bindings",
  "convert_case",
  "indexmap",
+ "openssl",
+ "openssl-sys",
  "proc-macro2",
  "quote",
  "serde",

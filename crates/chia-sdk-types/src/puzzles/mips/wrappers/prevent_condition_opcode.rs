@@ -20,15 +20,15 @@ impl PreventConditionOpcode {
 
 impl Mod for PreventConditionOpcode {
     fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&PREVENT_CONDITION_OPCODE_PUZZLE)
+        Cow::Borrowed(&PREVENT_CONDITION_OPCODE)
     }
 
     fn mod_hash() -> TreeHash {
-        PREVENT_CONDITION_OPCODE_PUZZLE_HASH
+        PREVENT_CONDITION_OPCODE_HASH
     }
 }
 
-pub const PREVENT_CONDITION_OPCODE_PUZZLE: [u8; 131] = hex!(
+pub const PREVENT_CONDITION_OPCODE: [u8; 131] = hex!(
     "
     ff02ffff01ff02ffff03ffff02ff02ffff04ff02ffff04ff05ffff04ff0bff80
     80808080ffff010bffff01ff088080ff0180ffff04ffff01ff02ffff03ff0bff
@@ -38,6 +38,6 @@ pub const PREVENT_CONDITION_OPCODE_PUZZLE: [u8; 131] = hex!(
     "
 );
 
-pub const PREVENT_CONDITION_OPCODE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
+pub const PREVENT_CONDITION_OPCODE_HASH: TreeHash = TreeHash::new(hex!(
     "046dfa794bb1df14d5dc891b23764a0e31f119546d2c56cdc8df0d31daaa555f"
 ));

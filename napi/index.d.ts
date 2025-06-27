@@ -160,6 +160,95 @@ export declare class Clvm {
   runCatTail(program: Program, solution: Program): Program
   updateNftMetadata(updaterPuzzleReveal: Program, updaterSolution: Program): Program
   updateDataStoreMerkleRoot(newMerkleRoot: Uint8Array, memos: Array<Uint8Array>): Program
+  acsTransferProgram(): Program
+  augmentedCondition(): Program
+  blockProgramZero(): Program
+  catPuzzle(): Program
+  chialispDeserialisation(): Program
+  conditionsWFeeAnnounce(): Program
+  covenantLayer(): Program
+  createNftLauncherFromDid(): Program
+  credentialRestriction(): Program
+  daoCatEve(): Program
+  daoCatLauncher(): Program
+  daoFinishedState(): Program
+  daoLockup(): Program
+  daoProposal(): Program
+  daoProposalTimer(): Program
+  daoProposalValidator(): Program
+  daoSpendP2Singleton(): Program
+  daoTreasury(): Program
+  daoUpdateProposal(): Program
+  decompressCoinSpendEntry(): Program
+  decompressCoinSpendEntryWithPrefix(): Program
+  decompressPuzzle(): Program
+  delegatedTail(): Program
+  didInnerpuzzle(): Program
+  emlCovenantMorpher(): Program
+  emlTransferProgramCovenantAdapter(): Program
+  emlUpdateMetadataWithDid(): Program
+  everythingWithSignature(): Program
+  exigentMetadataLayer(): Program
+  flagProofsChecker(): Program
+  genesisByCoinId(): Program
+  genesisByCoinIdOrSingleton(): Program
+  genesisByPuzzleHash(): Program
+  graftrootDlOffers(): Program
+  nftIntermediateLauncher(): Program
+  nftMetadataUpdaterDefault(): Program
+  nftMetadataUpdaterUpdateable(): Program
+  nftOwnershipLayer(): Program
+  nftOwnershipTransferProgramOneWayClaimWithRoyalties(): Program
+  nftStateLayer(): Program
+  notification(): Program
+  p21OfN(): Program
+  p2AnnouncedDelegatedPuzzle(): Program
+  p2Conditions(): Program
+  p2DelegatedConditions(): Program
+  p2DelegatedPuzzle(): Program
+  p2DelegatedPuzzleOrHiddenPuzzle(): Program
+  p2MOfNDelegateDirect(): Program
+  p2Parent(): Program
+  p2PuzzleHash(): Program
+  p2Singleton(): Program
+  p2SingletonAggregator(): Program
+  p2SingletonOrDelayedPuzzleHash(): Program
+  p2SingletonViaDelegatedPuzzle(): Program
+  poolMemberInnerpuzzle(): Program
+  poolWaitingroomInnerpuzzle(): Program
+  revocationLayer(): Program
+  romBootstrapGenerator(): Program
+  settlementPayment(): Program
+  singletonLauncher(): Program
+  singletonTopLayer(): Program
+  singletonTopLayerV11(): Program
+  standardVcRevocationPuzzle(): Program
+  stdParentMorpher(): Program
+  optionContract(): Program
+  p2CurriedPuzzle(): Program
+  blsMember(): Program
+  blsTaprootMember(): Program
+  fixedPuzzleMember(): Program
+  k1MemberPuzzleAssert(): Program
+  k1Member(): Program
+  passkeyMemberPuzzleAssert(): Program
+  passkeyMember(): Program
+  r1MemberPuzzleAssert(): Program
+  r1Member(): Program
+  singletonMember(): Program
+  enforceDelegatedPuzzleWrappers(): Program
+  force1Of2RestrictedVariable(): Program
+  forceAssertCoinAnnouncement(): Program
+  forceCoinMessage(): Program
+  preventConditionOpcode(): Program
+  preventMultipleCreateCoins(): Program
+  timelock(): Program
+  addDelegatedPuzzleWrapper(): Program
+  delegatedPuzzleFeeder(): Program
+  indexWrapper(): Program
+  mOfN(): Program
+  nOfN(): Program
+  oneOfN(): Program
   alloc(value: any): Program
   boundCheckedNumber(value: number): Program
 }
@@ -1200,8 +1289,54 @@ export declare class Constants {
   static stdParentMorpherHash(): Buffer
   static optionContract(): Buffer
   static optionContractHash(): Buffer
-  static p2Curried(): Buffer
-  static p2CurriedHash(): Buffer
+  static p2CurriedPuzzle(): Buffer
+  static p2CurriedPuzzleHash(): Buffer
+  static blsMember(): Buffer
+  static blsMemberHash(): Buffer
+  static blsTaprootMember(): Buffer
+  static blsTaprootMemberHash(): Buffer
+  static fixedPuzzleMember(): Buffer
+  static fixedPuzzleMemberHash(): Buffer
+  static k1MemberPuzzleAssert(): Buffer
+  static k1MemberPuzzleAssertHash(): Buffer
+  static k1Member(): Buffer
+  static k1MemberHash(): Buffer
+  static passkeyMemberPuzzleAssert(): Buffer
+  static passkeyMemberPuzzleAssertHash(): Buffer
+  static passkeyMember(): Buffer
+  static passkeyMemberHash(): Buffer
+  static r1MemberPuzzleAssert(): Buffer
+  static r1MemberPuzzleAssertHash(): Buffer
+  static r1Member(): Buffer
+  static r1MemberHash(): Buffer
+  static singletonMember(): Buffer
+  static singletonMemberHash(): Buffer
+  static enforceDelegatedPuzzleWrappers(): Buffer
+  static enforceDelegatedPuzzleWrappersHash(): Buffer
+  static force1Of2RestrictedVariable(): Buffer
+  static force1Of2RestrictedVariableHash(): Buffer
+  static forceAssertCoinAnnouncement(): Buffer
+  static forceAssertCoinAnnouncementHash(): Buffer
+  static forceCoinMessage(): Buffer
+  static forceCoinMessageHash(): Buffer
+  static preventConditionOpcode(): Buffer
+  static preventConditionOpcodeHash(): Buffer
+  static preventMultipleCreateCoins(): Buffer
+  static preventMultipleCreateCoinsHash(): Buffer
+  static timelock(): Buffer
+  static timelockHash(): Buffer
+  static addDelegatedPuzzleWrapper(): Buffer
+  static addDelegatedPuzzleWrapperHash(): Buffer
+  static delegatedPuzzleFeeder(): Buffer
+  static delegatedPuzzleFeederHash(): Buffer
+  static indexWrapper(): Buffer
+  static indexWrapperHash(): Buffer
+  static mOfN(): Buffer
+  static mOfNHash(): Buffer
+  static nOfN(): Buffer
+  static nOfNHash(): Buffer
+  static oneOfN(): Buffer
+  static oneOfNHash(): Buffer
 }
 export declare class Vault {
   clone(): Vault
