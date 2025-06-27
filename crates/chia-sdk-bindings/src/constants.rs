@@ -7,6 +7,8 @@ use chia_sdk_types::puzzles::*;
 use clvm_utils::TreeHash;
 use paste::paste;
 
+use crate::{Clvm, Program as ClvmProgram};
+
 #[derive(Clone)]
 pub struct Constants;
 
@@ -22,7 +24,19 @@ macro_rules! puzzle_constants {
                     Ok([<$upper _HASH>].into())
                 } )*
             }
+
+            impl Clvm {
+                $( pub fn $lower(&self) -> Result<ClvmProgram> {
+                    let mut ctx = self.0.lock().unwrap();
+                    let ptr = ctx.puzzle([<$upper _HASH>].into(), &$upper)?;
+                    Ok(ClvmProgram(self.0.clone(), ptr))
+                } )*
+            }
         }
+
+        pub const CONSTANTS: &[&str] = &[
+            $(stringify!($lower), )*
+        ];
     };
 }
 

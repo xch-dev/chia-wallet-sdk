@@ -1,5 +1,6 @@
 use std::{fs, path::Path};
 
+use chia_sdk_bindings::CONSTANTS;
 use convert_case::{Case, Casing};
 use indexmap::IndexMap;
 use proc_macro::TokenStream;
@@ -88,6 +89,43 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
             let source = fs::read_to_string(path.path()).unwrap();
             let contents: IndexMap<String, Binding> = serde_json::from_str(&source).unwrap();
             bindings.extend(contents);
+        }
+    }
+
+    if let Binding::Class { methods, .. } =
+        &mut bindings.get_mut("Constants").expect("Constants not found")
+    {
+        for &name in CONSTANTS {
+            methods.insert(
+                name.to_string(),
+                Method {
+                    kind: MethodKind::Static,
+                    args: IndexMap::new(),
+                    ret: Some("SerializedProgram".to_string()),
+                },
+            );
+
+            methods.insert(
+                format!("{name}_hash"),
+                Method {
+                    kind: MethodKind::Static,
+                    args: IndexMap::new(),
+                    ret: Some("TreeHash".to_string()),
+                },
+            );
+        }
+    }
+
+    if let Binding::Class { methods, .. } = &mut bindings.get_mut("Clvm").expect("Clvm not found") {
+        for &name in CONSTANTS {
+            methods.insert(
+                name.to_string(),
+                Method {
+                    kind: MethodKind::Normal,
+                    args: IndexMap::new(),
+                    ret: Some("Program".to_string()),
+                },
+            );
         }
     }
 
