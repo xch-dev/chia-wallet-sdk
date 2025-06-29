@@ -112,13 +112,13 @@ static COMPRESSION_ZDICT: Lazy<Vec<u8>> = Lazy::new(|| {
     bytes
 });
 
-fn compress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DriverError> {
+pub fn compress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DriverError> {
     let mut output = 6u16.to_be_bytes().to_vec();
     output.extend(zlib_compress(bytes, &COMPRESSION_ZDICT)?);
     Ok(output)
 }
 
-fn decompress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DriverError> {
+pub fn decompress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DriverError> {
     let version_bytes: [u8; 2] = bytes
         .get(0..2)
         .ok_or(DriverError::MissingVersionPrefix)?
@@ -133,7 +133,7 @@ fn decompress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DriverError> {
     zlib_decompress(&bytes[2..], &COMPRESSION_ZDICT)
 }
 
-fn zlib_compress(input: &[u8], zdict: &[u8]) -> std::io::Result<Vec<u8>> {
+pub fn zlib_compress(input: &[u8], zdict: &[u8]) -> std::io::Result<Vec<u8>> {
     let mut compress = Compress::new(Compression::new(6), true);
     compress.set_dictionary(zdict)?;
     let mut encoder = ZlibEncoder::new_with_compress(input, compress);
@@ -142,7 +142,7 @@ fn zlib_compress(input: &[u8], zdict: &[u8]) -> std::io::Result<Vec<u8>> {
     Ok(output)
 }
 
-fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DriverError> {
+pub fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DriverError> {
     let mut decompress = Decompress::new(true);
 
     if decompress
@@ -160,7 +160,7 @@ fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DriverError> {
     Ok(output)
 }
 
-fn encode_offer_data(offer: &[u8]) -> Result<String, DriverError> {
+pub fn encode_offer_data(offer: &[u8]) -> Result<String, DriverError> {
     let data = bech32::convert_bits(offer, 8, 5, true)?
         .into_iter()
         .map(u5::try_from_u8)
@@ -168,7 +168,7 @@ fn encode_offer_data(offer: &[u8]) -> Result<String, DriverError> {
     Ok(bech32::encode("offer", data, Variant::Bech32m)?)
 }
 
-fn decode_offer_data(offer: &str) -> Result<Vec<u8>, DriverError> {
+pub fn decode_offer_data(offer: &str) -> Result<Vec<u8>, DriverError> {
     let (hrp, data, variant) = bech32::decode(offer)?;
 
     if variant != Variant::Bech32m {
