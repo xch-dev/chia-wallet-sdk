@@ -44,7 +44,7 @@ jobs:
           - host: macos-latest
             target: aarch64-apple-darwin
             build: pnpm build:macos-arm64
-          - host: linux-arm64
+          - host: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
             build: pnpm build:linux-arm64
@@ -124,6 +124,7 @@ jobs:
             corepack enable
             pnpm --version
             ${{ matrix.settings.build }}
+            objdump -T ./*.node | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
 
       - name: Build
         run: ${{ matrix.settings.build }}
