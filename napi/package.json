@@ -28,7 +28,7 @@
     "update-declarations": "node scripts/update-declarations.js"
   },
   "napi": {
-    "name": "chia-wallet-sdk",
+    "binaryName": "chia-wallet-sdk",
     "triples": {
       "additional": [
         "aarch64-apple-darwin",
@@ -38,7 +38,7 @@
     }
   },
   "devDependencies": {
-    "@napi-rs/cli": "2.18.4",
+    "@napi-rs/cli": "3.0.0-alpha.91",
     "@types/node": "^22.13.1",
     "ava": "^6.0.1",
     "ts-node": "^10.9.2"

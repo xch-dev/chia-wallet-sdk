@@ -20,7 +20,7 @@ pub struct NapiReturnContext(pub Env);
 
 pub struct NapiAsyncReturnContext;
 
-impl<T, U> IntoRust<T, NapiParamContext, Napi> for ClassInstance<U>
+impl<T, U> IntoRust<T, NapiParamContext, Napi> for ClassInstance<'_, U>
 where
     U: Clone + IntoRust<T, NapiParamContext, Napi>,
 {
@@ -29,7 +29,7 @@ where
     }
 }
 
-impl<T, U> IntoRust<T, NapiParamContext, Napi> for Reference<U>
+impl<T, U> IntoRust<T, NapiParamContext, Napi> for &'_ U
 where
     U: Clone + IntoRust<T, NapiParamContext, Napi>,
 {
@@ -38,9 +38,9 @@ where
     }
 }
 
-impl FromRust<(), NapiReturnContext, Napi> for napi::JsUndefined {
-    fn from_rust(_value: (), context: &NapiReturnContext) -> Result<Self> {
-        Ok(context.0.get_undefined()?)
+impl FromRust<(), NapiReturnContext, Napi> for () {
+    fn from_rust(_value: (), _context: &NapiReturnContext) -> Result<Self> {
+        Ok(())
     }
 }
 
@@ -60,140 +60,110 @@ impl ArrayBuffer for Buffer {
     }
 }
 
-impl<T, A> FromRust<Vec<u8>, T, Napi> for A
-where
-    A: ArrayBuffer,
-{
-    fn from_rust(value: Vec<u8>, _context: &T) -> Result<Self> {
-        Ok(value.into())
-    }
-}
-
-impl<T, A> IntoRust<Vec<u8>, T, Napi> for A
-where
-    A: ArrayBuffer,
-{
-    fn into_rust(self, _context: &T) -> Result<Vec<u8>> {
-        Ok(self.generic_to_vec())
-    }
-}
-
-impl<T, const N: usize, A> FromRust<BytesImpl<N>, T, Napi> for A
-where
-    A: ArrayBuffer,
-{
-    fn from_rust(value: BytesImpl<N>, _context: &T) -> Result<Self> {
-        Ok(value.to_vec().into())
-    }
-}
-
-impl<T, const N: usize, A> IntoRust<BytesImpl<N>, T, Napi> for A
-where
-    A: ArrayBuffer,
-{
-    fn into_rust(self, _context: &T) -> Result<BytesImpl<N>> {
-        let bytes = self.generic_to_vec();
-
-        if bytes.len() != N {
-            return Err(Error::WrongLength {
-                expected: N,
-                found: bytes.len(),
-            });
+macro_rules! impl_array_buffer {
+    ($($ty:ty),*) => { $(
+        impl<T> FromRust<Vec<u8>, T, Napi> for $ty {
+            fn from_rust(value: Vec<u8>, _context: &T) -> Result<Self> {
+                Ok(value.into())
+            }
         }
 
-        Ok(bytes.try_into().unwrap())
-    }
-}
-
-impl<T, A> FromRust<ClassgroupElement, T, Napi> for A
-where
-    A: ArrayBuffer,
-{
-    fn from_rust(value: ClassgroupElement, _context: &T) -> Result<Self> {
-        Ok(value.data.to_vec().into())
-    }
-}
-
-impl<T, A> IntoRust<ClassgroupElement, T, Napi> for A
-where
-    A: ArrayBuffer,
-{
-    fn into_rust(self, _context: &T) -> Result<ClassgroupElement> {
-        let bytes = self.generic_to_vec();
-
-        if bytes.len() != 100 {
-            return Err(Error::WrongLength {
-                expected: 100,
-                found: bytes.len(),
-            });
+        impl<T> IntoRust<Vec<u8>, T, Napi> for $ty {
+            fn into_rust(self, _context: &T) -> Result<Vec<u8>> {
+                Ok(self.generic_to_vec())
+            }
         }
 
-        Ok(ClassgroupElement::new(bytes.try_into().unwrap()))
-    }
-}
-
-impl<T, A> FromRust<TreeHash, T, Napi> for A
-where
-    A: ArrayBuffer,
-{
-    fn from_rust(value: TreeHash, _context: &T) -> Result<Self> {
-        Ok(value.to_vec().into())
-    }
-}
-
-impl<T, A> IntoRust<TreeHash, T, Napi> for A
-where
-    A: ArrayBuffer,
-{
-    fn into_rust(self, _context: &T) -> Result<TreeHash> {
-        let bytes = self.generic_to_vec();
-
-        if bytes.len() != 32 {
-            return Err(Error::WrongLength {
-                expected: 32,
-                found: bytes.len(),
-            });
+        impl<T, const N: usize> FromRust<BytesImpl<N>, T, Napi> for $ty {
+            fn from_rust(value: BytesImpl<N>, _context: &T) -> Result<Self> {
+                Ok(value.to_vec().into())
+            }
         }
 
-        Ok(TreeHash::new(bytes.try_into().unwrap()))
-    }
+        impl<T, const N: usize> IntoRust<BytesImpl<N>, T, Napi> for $ty {
+            fn into_rust(self, _context: &T) -> Result<BytesImpl<N>> {
+                let bytes = self.generic_to_vec();
+
+                if bytes.len() != N {
+                    return Err(Error::WrongLength {
+                        expected: N,
+                        found: bytes.len(),
+                    });
+                }
+
+                Ok(bytes.try_into().unwrap())
+            }
+        }
+
+        impl<T> FromRust<ClassgroupElement, T, Napi> for $ty {
+            fn from_rust(value: ClassgroupElement, _context: &T) -> Result<Self> {
+                Ok(value.data.to_vec().into())
+            }
+        }
+
+        impl<T> IntoRust<ClassgroupElement, T, Napi> for $ty {
+            fn into_rust(self, _context: &T) -> Result<ClassgroupElement> {
+                let bytes = self.generic_to_vec();
+
+                if bytes.len() != 100 {
+                    return Err(Error::WrongLength {
+                        expected: 100,
+                        found: bytes.len(),
+                    });
+                }
+
+                Ok(ClassgroupElement::new(bytes.try_into().unwrap()))
+            }
+        }
+
+        impl<T> FromRust<TreeHash, T, Napi> for $ty {
+            fn from_rust(value: TreeHash, _context: &T) -> Result<Self> {
+                Ok(value.to_vec().into())
+            }
+        }
+
+        impl<T> IntoRust<TreeHash, T, Napi> for $ty {
+            fn into_rust(self, _context: &T) -> Result<TreeHash> {
+                let bytes = self.generic_to_vec();
+
+                if bytes.len() != 32 {
+                    return Err(Error::WrongLength {
+                        expected: 32,
+                        found: bytes.len(),
+                    });
+                }
+
+                Ok(TreeHash::new(bytes.try_into().unwrap()))
+            }
+        }
+
+        impl<T> FromRust<Bytes, T, Napi> for $ty {
+            fn from_rust(value: Bytes, _context: &T) -> Result<Self> {
+                Ok(value.to_vec().into())
+            }
+        }
+
+        impl<T> IntoRust<Bytes, T, Napi> for $ty {
+            fn into_rust(self, _context: &T) -> Result<Bytes> {
+                Ok(self.generic_to_vec().into())
+            }
+        }
+
+        impl<T> FromRust<Program, T, Napi> for $ty {
+            fn from_rust(value: Program, _context: &T) -> Result<Self> {
+                Ok(value.to_vec().into())
+            }
+        }
+
+        impl<T> IntoRust<Program, T, Napi> for $ty {
+            fn into_rust(self, _context: &T) -> Result<Program> {
+                Ok(self.generic_to_vec().into())
+            }
+        }
+    )* };
 }
 
-impl<T, A> FromRust<Bytes, T, Napi> for A
-where
-    A: ArrayBuffer,
-{
-    fn from_rust(value: Bytes, _context: &T) -> Result<Self> {
-        Ok(value.to_vec().into())
-    }
-}
-
-impl<T, A> IntoRust<Bytes, T, Napi> for A
-where
-    A: ArrayBuffer,
-{
-    fn into_rust(self, _context: &T) -> Result<Bytes> {
-        Ok(self.generic_to_vec().into())
-    }
-}
-
-impl<T, A> FromRust<Program, T, Napi> for A
-where
-    A: ArrayBuffer,
-{
-    fn from_rust(value: Program, _context: &T) -> Result<Self> {
-        Ok(value.to_vec().into())
-    }
-}
-
-impl<T, A> IntoRust<Program, T, Napi> for A
-where
-    A: ArrayBuffer,
-{
-    fn into_rust(self, _context: &T) -> Result<Program> {
-        Ok(self.generic_to_vec().into())
-    }
-}
+impl_array_buffer!(Uint8Array, Buffer);
 
 impl<T> IntoRust<num_bigint::BigInt, T, Napi> for BigInt {
     fn into_rust(self, _context: &T) -> Result<num_bigint::BigInt> {
