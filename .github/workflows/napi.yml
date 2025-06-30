@@ -39,14 +39,14 @@ jobs:
             target: x86_64-pc-windows-msvc
           - host: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            docker: quay.io/pypa/manylinux_2_28_x86_64:latest
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
             build: pnpm build:linux-x64
           - host: macos-latest
             target: aarch64-apple-darwin
             build: pnpm build:macos-arm64
           - host: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-            docker: ghcr.io/rust-cross/manylinux_2_28-cross:aarch64
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
             build: pnpm build:linux-arm64
     name: stable - ${{ matrix.settings.target }} - node@20
     runs-on: ${{ matrix.settings.host }}
@@ -118,38 +118,6 @@ jobs:
           options: "--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build"
           run: |
             cd napi
-
-            # Download and install nvm:
-            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
-
-            # in lieu of restarting the shell
-            \. "$HOME/.nvm/nvm.sh"
-
-            # Download and install Node.js:
-            nvm install 22
-
-            # Verify the Node.js version:
-            node -v # Should print "v22.17.0".
-            nvm current # Should print "v22.17.0".
-
-            # Verify npm version:
-            npm -v # Should print "10.9.2".
-
-            # Install pnpm
-            npm i -g pnpm
-
-            echo "Before: corepack version => $(corepack --version || echo 'not installed')"
-            npm install -g corepack@latest
-            echo "After : corepack version => $(corepack --version)"
-            corepack enable
-            pnpm --version
-
-            echo "Installing Rust"
-            curl https://sh.rustup.rs -sSf | sh -s -- -y
-            \. "$HOME/.cargo/env"
-
-            apt-get install -y perl
-            snap install zig --classic --beta
 
             ${{ matrix.settings.build }}
             objdump -T ./*.node | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
