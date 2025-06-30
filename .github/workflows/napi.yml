@@ -133,13 +133,24 @@ jobs:
               DEBIAN_FRONTEND=noninteractive apt-get install -y \
                 gcc-aarch64-linux-gnu \
                 g++-aarch64-linux-gnu \
-                pkg-config
+                pkg-config \
+                clang \
+                libc6-dev-arm64-cross \
+                make
 
+              # Set correct environment variables for the cross-compilation
               export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
               export CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
               export AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar
               export PKG_CONFIG_ALLOW_CROSS=1
               export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+              export CMAKE_TOOLCHAIN_FILE=/build/target/release/build/libz-sys-79a11e60c4bf9de2/out/build/aarch64-linux-gnu.cmake
+
+              # Ensure we use the correct sysroot for aarch64
+              export SYSROOT=/usr/aarch64-linux-gnu
+              export CFLAGS="-ffunction-sections -fdata-sections -fPIC -m64 --sysroot=$SYSROOT"
+              export CXXFLAGS="-ffunction-sections -fdata-sections -fPIC -m64 --sysroot=$SYSROOT"
+              export LDFLAGS="-L$SYSROOT/lib64"
             fi
 
             echo "Running build: ${{ matrix.settings.build }}"
