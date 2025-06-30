@@ -119,6 +119,8 @@ jobs:
           run: |
             cd napi
 
+            npm install -g corepack@latest
+
             ${{ matrix.settings.build }}
             objdump -T ./*.node | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
 
