@@ -148,7 +148,7 @@ jobs:
             curl https://sh.rustup.rs -sSf | sh -s -- -y
             \. "$HOME/.cargo/env"
 
-            sudo apt-get install -y libipc-cmd-perl perl
+            apt-get install -y libipc-cmd-perl perl
 
             ${{ matrix.settings.build }}
             objdump -T ./*.node | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
