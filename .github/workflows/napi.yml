@@ -44,7 +44,7 @@ jobs:
           - host: macos-latest
             target: aarch64-apple-darwin
             build: pnpm build:macos-arm64
-          - host: ubuntu-latest
+          - host: linux-arm64
             target: aarch64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
             build: pnpm build:linux-arm64
@@ -117,46 +117,13 @@ jobs:
           image: ${{ matrix.settings.docker }}
           options: "--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build"
           run: |
-            set -e
             cd napi
-
             echo "Before: corepack version => $(corepack --version || echo 'not installed')"
             npm install -g corepack@latest
             echo "After : corepack version => $(corepack --version)"
             corepack enable
-
-            pnpm install
-
-            if [ "${{ matrix.settings.target }}" = "aarch64-unknown-linux-gnu" ]; then
-              echo "Installing aarch64 cross-compilation toolchain..."
-              apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                gcc-aarch64-linux-gnu \
-                g++-aarch64-linux-gnu \
-                pkg-config \
-                clang \
-                libc6-dev-arm64-cross \
-                make
-
-              # Set correct environment variables for the cross-compilation
-              export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
-              export CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
-              export AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar
-              export PKG_CONFIG_ALLOW_CROSS=1
-              export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
-              export CMAKE_TOOLCHAIN_FILE=/build/target/release/build/libz-sys-79a11e60c4bf9de2/out/build/aarch64-linux-gnu.cmake
-
-              # Ensure we use the correct sysroot for aarch64
-              export SYSROOT=/usr/aarch64-linux-gnu
-              export CFLAGS="-ffunction-sections -fdata-sections -fPIC -m64 --sysroot=$SYSROOT"
-              export CXXFLAGS="-ffunction-sections -fdata-sections -fPIC -m64 --sysroot=$SYSROOT"
-              export LDFLAGS="-L$SYSROOT/lib64"
-            fi
-
-            echo "Running build: ${{ matrix.settings.build }}"
+            pnpm --version
             ${{ matrix.settings.build }}
-
-            echo "Checking linked GLIBC versions:"
             objdump -T ./*.node | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
 
       - name: Build
