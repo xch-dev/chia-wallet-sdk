@@ -123,8 +123,6 @@ jobs:
             echo "After : corepack version => $(corepack --version)"
             corepack enable
             pnpm --version
-            sudo apt install clang
-            clang --version
             ${{ matrix.settings.build }}
 
       - name: Build
