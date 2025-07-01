@@ -49,9 +49,9 @@ jobs:
             docker: quay.io/pypa/manylinux2014_aarch64
             build: |
               yum update
-              yum install epel-release
-              yum install -y nodejs
-              yum install -y npm
+              yum install epel-release -y
+              yum install nodejs -y
+              yum install npm -y
               npm i -g npm corepack@latest pnpm
               pnpm build:linux-arm64
     name: stable - ${{ matrix.settings.target }} - node@20
