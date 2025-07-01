@@ -48,10 +48,9 @@ jobs:
             target: aarch64-unknown-linux-gnu
             docker: quay.io/pypa/manylinux2014_aarch64
             build: |
-              yum update
-              yum install epel-release -y
-              yum install nodejs -y
-              npm i -g npm
+              curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+              source ~/.nvm/nvm.sh
+              nvm install node
               npm i -g corepack@latest
               npm i -g pnpm
               pnpm build:linux-arm64
