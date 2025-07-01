@@ -331,7 +331,7 @@ jobs:
           path: napi/artifacts
 
       - name: Ls
-        run: ls -R napi/artifacts
+        run: ls -R artifacts
 
       - name: Combine binaries
         run: pnpm universal
