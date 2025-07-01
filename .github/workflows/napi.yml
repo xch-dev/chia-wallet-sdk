@@ -233,6 +233,7 @@ jobs:
           - "18"
           - "20"
     runs-on: ubuntu-24.04-arm
+    container: node:${{ matrix.node }}-slim
     steps:
       - uses: actions/checkout@v4
       - name: Download artifacts
@@ -249,11 +250,7 @@ jobs:
           pnpm config set supportedArchitectures.libc "glibc"
           pnpm install
       - name: Setup and run tests
-        uses: addnab/docker-run-action@v3
-        with:
-          image: node:${{ matrix.node }}-slim
-          options: "--platform linux/arm64 -v ${{ github.workspace }}:/build -w /build"
-          run: |
+        run: |
             set -e
             pnpm test
             ls -la
