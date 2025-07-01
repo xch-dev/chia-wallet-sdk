@@ -52,7 +52,6 @@ jobs:
               source ~/.nvm/nvm.sh
               nvm install v20
               npm i -g corepack@latest
-              npm i -g pnpm
               pnpm build:linux-arm64
     name: stable - ${{ matrix.settings.target }} - node@20
     runs-on: ${{ matrix.settings.host }}
