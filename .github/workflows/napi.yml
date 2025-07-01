@@ -103,22 +103,8 @@ jobs:
         if: ${{ matrix.settings.setup }}
         shell: bash
 
-      - name: Setup node x86
-        if: matrix.settings.target == 'i686-pc-windows-msvc'
-        run: pnpm config set supportedArchitectures.cpu "ia32"
-        shell: bash
-
       - name: Install dependencies
         run: pnpm install
-
-      - name: Setup node x86
-        uses: actions/setup-node@v4
-        if: matrix.settings.target == 'i686-pc-windows-msvc'
-        with:
-          node-version: 20
-          cache: pnpm
-          cache-dependency-path: napi/pnpm-lock.yaml
-          architecture: x86
 
       - name: Build in docker
         uses: addnab/docker-run-action@v3
