@@ -46,7 +46,7 @@ jobs:
             build: pnpm build:macos-arm64
           - host: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
             build: |
               sudo apt-get update
               sudo apt-get install perl -y
