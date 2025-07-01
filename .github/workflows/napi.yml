@@ -40,7 +40,9 @@ jobs:
           - host: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
-            build: pnpm build:linux-x64
+            build: |
+              npm i -g corepack@latest
+              pnpm build:linux-x64
           - host: macos-latest
             target: aarch64-apple-darwin
             build: pnpm build:macos-arm64
@@ -54,6 +56,7 @@ jobs:
               source ~/.cargo/env
               nvm install v20
               npm i -g corepack@latest
+              yum install perl-IPC-Cmd -y
               pnpm build:linux-arm64
     name: stable - ${{ matrix.settings.target }} - node@20
     runs-on: ${{ matrix.settings.host }}
