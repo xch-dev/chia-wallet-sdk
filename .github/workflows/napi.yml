@@ -51,8 +51,9 @@ jobs:
               yum update
               yum install epel-release -y
               yum install nodejs -y
-              yum install npm -y
-              npm i -g npm corepack@latest pnpm
+              npm i -g npm
+              npm i -g corepack@latest
+              npm i -g pnpm
               pnpm build:linux-arm64
     name: stable - ${{ matrix.settings.target }} - node@20
     runs-on: ${{ matrix.settings.host }}
