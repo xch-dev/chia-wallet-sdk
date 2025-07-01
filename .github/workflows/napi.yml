@@ -50,7 +50,7 @@ jobs:
             build: |
               # sudo apt-get update
               # sudo apt-get install perl -y
-              pnpm build:linux-arm64 --use-napi-cross
+              pnpm build:linux-arm64 --use-cross
     name: stable - ${{ matrix.settings.target }} - node@20
     runs-on: ${{ matrix.settings.host }}
     steps:
