@@ -23,7 +23,7 @@
     "build:linux-arm64": "napi build --platform --release --target aarch64-unknown-linux-gnu",
     "prepublishOnly": "napi prepublish -t npm --skip-gh-release",
     "test": "ava",
-    "universal": "napi universal",
+    "universal": "napi universalize",
     "version": "napi version",
     "update-declarations": "node scripts/update-declarations.js"
   },

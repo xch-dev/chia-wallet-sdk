@@ -177,6 +177,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: napi/pnpm-lock.yaml
           architecture: x64
+
       - name: Install dependencies
         run: pnpm install
 
@@ -208,23 +209,32 @@ jobs:
           - "20"
     runs-on: ubuntu-latest
     steps:
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - uses: actions/checkout@v4
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
           cache-dependency-path: napi/pnpm-lock.yaml
+
       - name: Install dependencies
         run: pnpm install
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: bindings-x86_64-unknown-linux-gnu
           path: napi
+
       - name: List packages
         run: ls -R .
         shell: bash
+
       - name: Test bindings
         run: docker run --rm -v $(pwd):/build -w /build node:${{ matrix.node }}-slim pnpm test
 
@@ -243,25 +253,35 @@ jobs:
           - "20"
     runs-on: ubuntu-latest
     steps:
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - uses: actions/checkout@v4
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: bindings-aarch64-unknown-linux-gnu
           path: napi
+
       - name: List packages
         run: ls -R .
         shell: bash
+
       - name: Install dependencies
         run: |
           pnpm config set supportedArchitectures.cpu "arm64"
           pnpm config set supportedArchitectures.libc "glibc"
           pnpm install
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
+
       - run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
       - name: Setup and run tests
         uses: addnab/docker-run-action@v3
         with:
