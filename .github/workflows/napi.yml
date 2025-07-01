@@ -46,7 +46,7 @@ jobs:
             build: pnpm build:macos-arm64
           - host: linux-arm64
             target: aarch64-unknown-linux-gnu
-            docker: quay.io/pypa/manylinux2014_aarch64
+            docker: quay.io/pypa/manylinux_2_28_aarch64
             build: |
               curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
               source ~/.nvm/nvm.sh
