@@ -114,12 +114,9 @@ jobs:
           cache-dependency-path: napi/pnpm-lock.yaml
           architecture: x86
 
-      - name: Build in docker
-        uses: addnab/docker-run-action@v3
+      - name: Build
         if: ${{ matrix.settings.docker }}
-        with:
-          options: "--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build"
-          run: |
+        run: |
             set -e
             cd napi
             npm install -g corepack@latest
