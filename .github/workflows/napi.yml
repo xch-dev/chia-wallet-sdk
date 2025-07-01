@@ -289,6 +289,7 @@ jobs:
           options: "--platform linux/arm64 -v ${{ github.workspace }}:/build -w /build"
           run: |
             set -e
+            cd napi
             npm i -g pnpm
             pnpm test
             ls -la
