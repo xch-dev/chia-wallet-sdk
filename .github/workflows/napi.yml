@@ -44,15 +44,16 @@ jobs:
           - host: macos-latest
             target: aarch64-apple-darwin
             build: pnpm build:macos-arm64
-          - host: ubuntu-latest
+          - host: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
             build: |
               sudo apt-get update
               sudo apt-get install perl -y
               pnpm build:linux-arm64
     name: stable - ${{ matrix.settings.target }} - node@20
     runs-on: ${{ matrix.settings.host }}
+    container: ${{ matrix.settings.docker }}
     steps:
       - uses: actions/checkout@v4
 
@@ -113,13 +114,9 @@ jobs:
           cache-dependency-path: napi/pnpm-lock.yaml
           architecture: x86
 
-      - name: Build in docker
-        uses: addnab/docker-run-action@v3
+      - name: Build
         if: ${{ matrix.settings.docker }}
-        with:
-          image: ${{ matrix.settings.docker }}
-          options: "--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build"
-          run: |
+        run: |
             set -e
             cd napi
             npm install -g corepack@latest
@@ -235,7 +232,8 @@ jobs:
         node:
           - "18"
           - "20"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
+    container: node:${{ matrix.node }}-slim
     steps:
       - uses: actions/checkout@v4
       - name: Download artifacts
@@ -251,17 +249,8 @@ jobs:
           pnpm config set supportedArchitectures.cpu "arm64"
           pnpm config set supportedArchitectures.libc "glibc"
           pnpm install
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-      - run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
       - name: Setup and run tests
-        uses: addnab/docker-run-action@v3
-        with:
-          image: node:${{ matrix.node }}-slim
-          options: "--platform linux/arm64 -v ${{ github.workspace }}:/build -w /build"
-          run: |
+        run: |
             set -e
             pnpm test
             ls -la
