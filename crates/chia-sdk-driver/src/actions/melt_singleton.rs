@@ -14,6 +14,7 @@ impl MeltSingletonAction {
 
 impl SpendAction for MeltSingletonAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
+        deltas.set_needed(self.id);
         deltas.update(self.id).output += self.amount;
         deltas.update(Id::Xch).input += self.amount;
     }
