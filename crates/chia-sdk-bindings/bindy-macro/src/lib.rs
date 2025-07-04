@@ -166,12 +166,9 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
         if matches!(binding, Binding::Class { .. }) {
             non_async_param_mappings.insert(
                 name.clone(),
-                format!("napi::bindgen_prelude::ClassInstance<{name}>"),
+                format!("napi::bindgen_prelude::ClassInstance<'_, {name}>"),
             );
-            async_param_mappings.insert(
-                name.clone(),
-                format!("napi::bindgen_prelude::Reference<{name}>"),
-            );
+            async_param_mappings.insert(name.clone(), format!("&'_ {name}"));
         }
     }
 
