@@ -1,20 +1,15 @@
-use chia::{
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::Bytes32,
-    puzzles::singleton::SingletonStruct,
-};
-use chia_wallet_sdk::{
-    driver::{DriverError, Spend, SpendContext},
-    types::{announcement_id, Conditions},
-};
+use chia_protocol::Bytes32;
+use chia_puzzle_types::singleton::SingletonStruct;
+use chia_sdk_types::{announcement_id, Conditions};
 use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::{
-    Action, DefaultCatMakerArgs, PrecommitCoin, PrecommitLayer, Slot, SlotNeigborsInfo,
-    SpendContextExt, XchandlesConstants, XchandlesDataValue, XchandlesPrecommitValue,
-    XchandlesRegistry, XchandlesSlotValue,
+    DefaultCatMakerArgs, DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot,
+    SlotNeigborsInfo, Spend, SpendContext, XchandlesConstants, XchandlesDataValue,
+    XchandlesPrecommitValue, XchandlesRegistry, XchandlesSlotValue,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,7 +29,7 @@ impl ToTreeHash for XchandlesRegisterAction {
     }
 }
 
-impl Action<XchandlesRegistry> for XchandlesRegisterAction {
+impl SingletonAction<XchandlesRegistry> for XchandlesRegisterAction {
     fn from_constants(constants: &XchandlesConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,

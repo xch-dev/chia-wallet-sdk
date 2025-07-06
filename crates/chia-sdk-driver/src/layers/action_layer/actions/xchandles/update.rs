@@ -6,6 +6,11 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 use hex_literal::hex;
 
+use crate::{
+    DriverError, SingletonAction, Slot, Spend, SpendContext, XchandlesConstants,
+    XchandlesDataValue, XchandlesRegistry, XchandlesSlotValue,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XchandlesUpdateAction {
     pub launcher_id: Bytes32,
@@ -17,7 +22,7 @@ impl ToTreeHash for XchandlesUpdateAction {
     }
 }
 
-impl Action<XchandlesRegistry> for XchandlesUpdateAction {
+impl SingletonAction<XchandlesRegistry> for XchandlesUpdateAction {
     fn from_constants(constants: &XchandlesConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,

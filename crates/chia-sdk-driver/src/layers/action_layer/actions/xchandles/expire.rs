@@ -1,20 +1,15 @@
-use chia::{
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::Bytes32,
-    puzzles::singleton::SingletonStruct,
-};
-use chia_wallet_sdk::{
-    driver::{DriverError, Spend, SpendContext},
-    types::{announcement_id, Conditions},
-};
+use chia_protocol::Bytes32;
+use chia_puzzle_types::singleton::SingletonStruct;
+use chia_sdk_types::{announcement_id, Conditions};
 use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::{
-    Action, DefaultCatMakerArgs, PrecommitCoin, PrecommitLayer, Slot, SlotNeigborsInfo,
-    SpendContextExt, XchandlesConstants, XchandlesDataValue, XchandlesPrecommitValue,
-    XchandlesRegistry, XchandlesSlotValue,
+    DefaultCatMakerArgs, DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot,
+    SlotNeigborsInfo, Spend, SpendContext, XchandlesConstants, XchandlesDataValue,
+    XchandlesPrecommitValue, XchandlesRegistry, XchandlesSlotValue,
 };
 
 use super::{XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution};
@@ -36,7 +31,7 @@ impl ToTreeHash for XchandlesExpireAction {
     }
 }
 
-impl Action<XchandlesRegistry> for XchandlesExpireAction {
+impl SingletonAction<XchandlesRegistry> for XchandlesExpireAction {
     fn from_constants(constants: &XchandlesConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,
@@ -277,6 +272,7 @@ pub struct XchandlesExponentialPremiumRenewPuzzleArgs<P> {
 
 pub const PREMIUM_PRECISION: u64 = 1_000_000_000_000_000_000; // 10^18
 
+#[allow(clippy::unreadable_literal)]
 // https://github.com/ensdomains/ens-contracts/blob/master/contracts/ethregistrar/ExponentialPremiumPriceOracle.sol
 pub const PREMIUM_BITS_LIST: [u64; 16] = [
     999989423469314432, // 0.5 ^ 1/65536 * (10 ** 18)
@@ -299,12 +295,12 @@ pub const PREMIUM_BITS_LIST: [u64; 16] = [
 
 impl XchandlesExponentialPremiumRenewPuzzleArgs<NodePtr> {
     pub fn get_start_premium(scale_factor: u64) -> u64 {
-        100000000 * scale_factor // start auction at $100 million
+        100_000_000 * scale_factor // start auction at $100 million
     }
 
     pub fn get_end_value(scale_factor: u64) -> u64 {
         // 100000000 * 10 ** 18 // 2 ** 28 = 372529029846191406
-        (372529029846191406_u128 * scale_factor as u128 / 1_000_000_000_000_000_000) as u64
+        (372_529_029_846_191_406_u128 * scale_factor as u128 / 1_000_000_000_000_000_000) as u64
     }
 
     // A scale factor is how many units of the payment token equate to $1

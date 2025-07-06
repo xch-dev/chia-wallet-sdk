@@ -7,7 +7,10 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
-use crate::{DriverError, Spend, SpendContext};
+use crate::{
+    CatalogRegistry, CatalogRegistryConstants, DriverError, SingletonAction, Spend, SpendContext,
+    XchandlesConstants, XchandlesRegistry,
+};
 
 pub struct DelegatedStateAction {
     pub other_launcher_id: Bytes32,
@@ -27,7 +30,7 @@ impl SingletonAction<CatalogRegistry> for DelegatedStateAction {
     }
 }
 
-impl Action<XchandlesRegistry> for DelegatedStateAction {
+impl SingletonAction<XchandlesRegistry> for DelegatedStateAction {
     fn from_constants(constants: &XchandlesConstants) -> Self {
         Self {
             other_launcher_id: constants.price_singleton_launcher_id,

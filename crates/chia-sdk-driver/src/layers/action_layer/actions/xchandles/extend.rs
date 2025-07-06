@@ -1,20 +1,15 @@
-use chia::{
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::Bytes32,
-    puzzles::offer::{NotarizedPayment, Payment},
-};
+use chia_protocol::Bytes32;
+use chia_puzzle_types::offer::{NotarizedPayment, Payment};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_wallet_sdk::{
-    driver::{DriverError, Spend, SpendContext},
-    types::{announcement_id, Conditions},
-};
+use chia_sdk_types::{announcement_id, Conditions};
 use clvm_traits::{clvm_tuple, FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::{
-    Action, DefaultCatMakerArgs, Slot, SlotNeigborsInfo, SpendContextExt, XchandlesConstants,
-    XchandlesDataValue, XchandlesRegistry, XchandlesSlotValue,
+    DefaultCatMakerArgs, DriverError, SingletonAction, Slot, SlotNeigborsInfo, Spend, SpendContext,
+    XchandlesConstants, XchandlesDataValue, XchandlesRegistry, XchandlesSlotValue,
 };
 
 use super::{XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution};
@@ -31,7 +26,7 @@ impl ToTreeHash for XchandlesExtendAction {
     }
 }
 
-impl Action<XchandlesRegistry> for XchandlesExtendAction {
+impl SingletonAction<XchandlesRegistry> for XchandlesExtendAction {
     fn from_constants(constants: &XchandlesConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,

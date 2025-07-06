@@ -1,17 +1,13 @@
-use chia::{
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::Bytes32,
-};
-use chia_wallet_sdk::{
-    driver::{DriverError, Spend, SpendContext},
-    types::{announcement_id, Conditions},
-};
+use chia_protocol::Bytes32;
+use chia_sdk_types::{announcement_id, Conditions};
 use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::{
-    Action, Slot, SpendContextExt, XchandlesConstants, XchandlesRegistry, XchandlesSlotValue,
+    DriverError, SingletonAction, Slot, Spend, SpendContext, XchandlesConstants, XchandlesRegistry,
+    XchandlesSlotValue,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,7 +21,7 @@ impl ToTreeHash for XchandlesOracleAction {
     }
 }
 
-impl Action<XchandlesRegistry> for XchandlesOracleAction {
+impl SingletonAction<XchandlesRegistry> for XchandlesOracleAction {
     fn from_constants(constants: &XchandlesConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,

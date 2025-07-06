@@ -1,19 +1,15 @@
-use chia::{
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::{Bytes, Bytes32},
-    puzzles::singleton::SingletonStruct,
-};
-use chia_wallet_sdk::{
-    driver::{DriverError, Spend, SpendContext},
-    types::{announcement_id, Conditions},
-};
+use chia_protocol::{Bytes, Bytes32};
+use chia_puzzle_types::singleton::SingletonStruct;
+use chia_sdk_types::{announcement_id, Conditions};
 use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::{
-    Action, DefaultCatMakerArgs, PrecommitCoin, PrecommitLayer, Slot, SpendContextExt,
-    XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry, XchandlesSlotValue,
+    DefaultCatMakerArgs, DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend,
+    SpendContext, XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
+    XchandlesSlotValue,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,7 +29,7 @@ impl ToTreeHash for XchandlesRefundAction {
     }
 }
 
-impl Action<XchandlesRegistry> for XchandlesRefundAction {
+impl SingletonAction<XchandlesRegistry> for XchandlesRefundAction {
     fn from_constants(constants: &XchandlesConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,
