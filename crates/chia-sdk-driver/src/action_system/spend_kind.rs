@@ -5,6 +5,8 @@ use chia_sdk_types::{
     payment_assertion, tree_hash_notarized_payment, Conditions,
 };
 use clvmr::{Allocator, NodePtr};
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha20Rng;
 
 use crate::{Output, OutputConstraints, OutputSet};
 
@@ -73,9 +75,8 @@ impl SpendKind {
                 spend.add_conditions(Conditions::new().with(create_coin));
             }
             Self::Settlement(spend) => {
-                // TODO: Use nil for the nonce from the payment
                 spend.add_notarized_payment(NotarizedPayment {
-                    nonce: Bytes32::default(),
+                    nonce: Bytes32::new(ChaCha20Rng::from_entropy().gen()),
                     payments: vec![Payment::new(
                         create_coin.puzzle_hash,
                         create_coin.amount,
