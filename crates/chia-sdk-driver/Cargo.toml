@@ -19,6 +19,7 @@ workspace = true
 
 [features]
 chip-0035 = ["chia-sdk-types/chip-0035"]
+action-layer = ["chia-sdk-types/action-layer"]
 offer-compression = ["dep:flate2", "dep:bech32", "dep:once_cell"]
 
 [dependencies]

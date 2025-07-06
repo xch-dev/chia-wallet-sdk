@@ -1,18 +1,13 @@
-use chia::{
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::Bytes32,
-};
+use chia_protocol::Bytes32;
 use chia_puzzle_types::Memos;
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
-use chia_wallet_sdk::{
-    driver::{DriverError, Layer, Puzzle, SpendContext},
-    types::{Condition, Conditions},
-};
+use chia_sdk_types::{Condition, Conditions};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
-use crate::SpendContextExt;
+use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSchedulerLayer {
