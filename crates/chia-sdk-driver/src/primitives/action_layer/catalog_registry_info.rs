@@ -2,7 +2,7 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonArgs;
 use chia_sdk_types::MerkleTree;
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::TreeHash;
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::Allocator;
 use hex_literal::hex;
 
