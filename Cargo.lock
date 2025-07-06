@@ -578,6 +578,8 @@ dependencies = [
  "indexmap",
  "num-bigint",
  "once_cell",
+ "rand",
+ "rand_chacha",
  "rstest",
  "thiserror 2.0.12",
 ]
