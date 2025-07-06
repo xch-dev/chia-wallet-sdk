@@ -256,3 +256,13 @@ impl<P, S, F> Mod for RawActionLayerSolution<P, S, F> {
         ACTION_LAYER_PUZZLE_HASH
     }
 }
+
+impl<P, S> Mod for ActionLayerArgs<P, S> {
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&ACTION_LAYER_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        ACTION_LAYER_PUZZLE_HASH
+    }
+}
