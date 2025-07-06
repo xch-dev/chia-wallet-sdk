@@ -27,3 +27,9 @@ mod datalayer;
 
 #[cfg(feature = "chip-0035")]
 pub use datalayer::*;
+
+#[cfg(feature = "action-layer")]
+mod action_layer;
+
+#[cfg(feature = "action-layer")]
+pub use action_layer::*;
