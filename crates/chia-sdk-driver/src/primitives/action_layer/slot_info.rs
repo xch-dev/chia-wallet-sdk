@@ -1,12 +1,10 @@
 use std::cmp::Ordering;
 
-use chia::{
-    clvm_utils::ToTreeHash,
-    protocol::{Bytes, Bytes32},
-};
+use chia_protocol::{Bytes, Bytes32};
 use clvm_traits::{
     clvm_tuple, ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, ToClvm, ToClvmError,
 };
+use clvm_utils::ToTreeHash;
 use hex_literal::hex;
 
 // comparison is >s, not >

@@ -1,4 +1,4 @@
-use chia::protocol::Bytes32;
+use chia_protocol::Bytes32;
 
 use crate::VerifiedData;
 

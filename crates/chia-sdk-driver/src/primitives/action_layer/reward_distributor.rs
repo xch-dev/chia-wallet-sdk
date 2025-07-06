@@ -1,29 +1,23 @@
-use chia::{
-    bls::Signature,
-    clvm_utils::{tree_hash, ToTreeHash},
-    protocol::{Bytes32, Coin, CoinSpend},
-    puzzles::{
-        singleton::{SingletonSolution, SingletonStruct},
-        LineageProof, Proof,
-    },
-};
+use chia_bls::Signature;
+use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs};
-use chia_wallet_sdk::{
-    driver::{DriverError, Layer, Puzzle, SingletonLayer, Spend, SpendContext},
-    prelude::{Cat, CatSpend},
-    types::{Condition, Conditions},
+use chia_puzzle_types::{
+    singleton::{SingletonSolution, SingletonStruct},
+    LineageProof, Proof,
 };
+use chia_sdk_types::{Condition, Conditions};
 use clvm_traits::{clvm_list, match_tuple, FromClvm};
+use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    Action, ActionLayer, ActionLayerSolution, RawActionLayerSolution, Registry,
-    ReserveFinalizerSolution, RewardDistributorAddEntryAction,
+    ActionLayer, ActionLayerSolution, ActionSingleton, Cat, CatSpend, DriverError, Puzzle,
+    RawActionLayerSolution, ReserveFinalizerSolution, RewardDistributorAddEntryAction,
     RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
     RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
     RewardDistributorRemoveEntryAction, RewardDistributorStakeAction, RewardDistributorSyncAction,
-    RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, Slot, SlotInfo,
-    SlotProof,
+    RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, SingletonAction,
+    SingletonLayer, Slot, SlotInfo, SlotProof, Spend, SpendContext,
 };
 
 use super::{
@@ -523,7 +517,7 @@ impl RewardDistributor {
     }
 }
 
-impl Registry for RewardDistributor {
+impl ActionSingleton for RewardDistributor {
     type State = RewardDistributorState;
     type Constants = RewardDistributorConstants;
 }
@@ -591,7 +585,7 @@ impl RewardDistributor {
 
     pub fn new_action<A>(&self) -> A
     where
-        A: Action<Self>,
+        A: SingletonAction<Self>,
     {
         A::from_constants(&self.info.constants)
     }

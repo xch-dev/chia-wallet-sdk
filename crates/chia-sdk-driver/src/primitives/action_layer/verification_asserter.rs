@@ -1,14 +1,11 @@
-use chia::{
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::{Bytes32, Coin},
-};
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{singleton::SingletonStruct, LineageProof};
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
-use chia_wallet_sdk::driver::{DriverError, Spend, SpendContext};
 use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use hex_literal::hex;
 
-use crate::{SpendContextExt, VerificationLayer1stCurryArgs};
+use crate::{DriverError, Spend, SpendContext, VerificationLayer1stCurryArgs};
 
 #[derive(Debug, Copy, Clone)]
 #[must_use]

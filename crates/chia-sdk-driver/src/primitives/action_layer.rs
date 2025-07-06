@@ -1,8 +1,10 @@
+mod cat_nft_metadata;
 mod catalog_registry;
 mod catalog_registry_info;
 mod default_cat_maker;
 mod medieval_vault;
 mod medieval_vault_info;
+mod name_nft_metadata;
 mod precommit_coin;
 mod reserve;
 mod reward_distributor;

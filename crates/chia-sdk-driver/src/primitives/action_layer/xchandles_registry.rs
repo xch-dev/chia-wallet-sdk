@@ -1,18 +1,14 @@
-use chia::{
-    bls::Signature,
-    clvm_utils::ToTreeHash,
-    protocol::{Bytes32, Coin, CoinSpend},
-    puzzles::{singleton::SingletonSolution, LineageProof, Proof},
-};
-use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs};
-use chia_wallet_sdk::driver::{DriverError, Layer, Puzzle, Spend, SpendContext};
+use chia_bls::Signature;
+use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs, SingletonSolution};
+use chia_puzzle_types::{LineageProof, Proof};
 use clvm_traits::{clvm_list, match_tuple};
 use clvmr::NodePtr;
 
 use crate::{
-    eve_singleton_inner_puzzle, Action, ActionLayer, ActionLayerSolution, DelegatedStateAction,
-    Registry, XchandlesExpireAction, XchandlesExtendAction, XchandlesOracleAction,
-    XchandlesRefundAction, XchandlesRegisterAction, XchandlesUpdateAction,
+    ActionLayer, ActionLayerSolution, ActionSingleton, DelegatedStateAction, DriverError, Puzzle,
+    SingletonAction, Spend, SpendContext, XchandlesExpireAction, XchandlesExtendAction,
+    XchandlesOracleAction, XchandlesRefundAction, XchandlesRegisterAction, XchandlesUpdateAction,
 };
 
 use super::{
@@ -64,7 +60,7 @@ impl XchandlesRegistry {
     }
 }
 
-impl Registry for XchandlesRegistry {
+impl ActionSingleton for XchandlesRegistry {
     type State = XchandlesRegistryState;
     type Constants = XchandlesConstants;
 }
@@ -106,7 +102,9 @@ impl XchandlesRegistry {
         let refund_action_hash = refund_action.tree_hash();
 
         let delegated_state_action =
-            <DelegatedStateAction as Action<XchandlesRegistry>>::from_constants(&constants);
+            <DelegatedStateAction as SingletonAction<XchandlesRegistry>>::from_constants(
+                &constants,
+            );
         let delegated_state_action_hash = delegated_state_action.tree_hash();
 
         let actual_solution = ctx.alloc(&clvm_list!(
@@ -441,7 +439,7 @@ impl XchandlesRegistry {
 
     pub fn new_action<A>(&self) -> A
     where
-        A: Action<Self>,
+        A: SingletonAction<Self>,
     {
         A::from_constants(&self.info.constants)
     }

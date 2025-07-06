@@ -1,16 +1,13 @@
-use chia::{
-    clvm_utils::TreeHash,
-    protocol::{Bytes32, Coin},
-    puzzles::{
-        cat::{CatArgs, CatSolution},
-        CoinProof, LineageProof,
-    },
+use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::{
+    cat::{CatArgs, CatSolution},
+    CoinProof, LineageProof,
 };
-use chia_wallet_sdk::driver::{CatLayer, DriverError, Layer, Spend, SpendContext};
 use clvm_traits::ToClvm;
+use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{PrecommitLayer, PrecommitLayerSolution};
+use crate::{CatLayer, DriverError, PrecommitLayer, PrecommitLayerSolution, Spend, SpendContext};
 
 #[derive(Debug, Clone)]
 #[must_use]

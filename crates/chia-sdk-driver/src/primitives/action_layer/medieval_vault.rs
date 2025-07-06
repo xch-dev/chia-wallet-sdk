@@ -1,23 +1,18 @@
-use chia::{
-    bls::PublicKey,
-    clvm_utils::{CurriedProgram, ToTreeHash},
-    protocol::{Bytes32, Coin, CoinSpend},
-    puzzles::{
-        singleton::{LauncherSolution, SingletonArgs, SingletonSolution, SingletonStruct},
-        EveProof, LineageProof, Proof,
-    },
+use chia_bls::PublicKey;
+use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_puzzle_types::{
+    singleton::{LauncherSolution, SingletonArgs, SingletonSolution, SingletonStruct},
+    EveProof, LineageProof, Memos, Proof,
 };
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
-use chia_wallet_sdk::{
-    driver::{DriverError, Layer, Puzzle, SingletonLayer, Spend, SpendContext},
-    prelude::{Condition, Conditions, Memos},
-};
+use chia_sdk_types::{Condition, Conditions};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
+use clvm_utils::CurriedProgram;
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
 use crate::{
-    MOfNLayer, P2MOfNDelegateDirectArgs, P2MOfNDelegateDirectSolution, SpendContextExt,
-    StateSchedulerLayerArgs,
+    DriverError, Layer, MOfNLayer, P2MOfNDelegateDirectArgs, P2MOfNDelegateDirectSolution, Puzzle,
+    SingletonLayer, Spend, SpendContext, StateSchedulerLayerArgs,
 };
 
 use super::{MedievalVaultHint, MedievalVaultInfo};
@@ -298,7 +293,10 @@ impl MedievalVault {
 
 #[cfg(test)]
 mod tests {
-    use chia_wallet_sdk::{driver::Launcher, test::Simulator, types::TESTNET11_CONSTANTS};
+    use chia_sdk_test::Simulator;
+    use chia_sdk_types::TESTNET11_CONSTANTS;
+
+    use crate::Launcher;
 
     use super::*;
 

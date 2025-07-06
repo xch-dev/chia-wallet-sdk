@@ -1,19 +1,15 @@
-use chia::{
-    clvm_utils::{ToTreeHash, TreeHash},
-    protocol::Bytes32,
-    puzzles::singleton::SingletonArgs,
-};
-use chia_wallet_sdk::{
-    driver::{DriverError, Layer, Puzzle, SingletonLayer},
-    types::MerkleTree,
-};
+use chia_protocol::Bytes32;
+use chia_puzzle_types::singleton::SingletonArgs;
+use chia_sdk_types::MerkleTree;
 use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::TreeHash;
 use clvmr::Allocator;
 use hex_literal::hex;
 
 use crate::{
-    Action, ActionLayer, ActionLayerArgs, CatalogRefundAction, CatalogRegisterAction,
-    DefaultFinalizer2ndCurryArgs, DelegatedStateAction, Finalizer,
+    ActionLayer, ActionLayerArgs, CatalogRefundAction, CatalogRegisterAction,
+    DefaultFinalizer2ndCurryArgs, DelegatedStateAction, DriverError, Finalizer, Puzzle,
+    SingletonAction, SingletonLayer,
 };
 
 use super::CatalogRegistry;
@@ -101,7 +97,7 @@ impl CatalogRegistryInfo {
             CatalogRefundAction::from_constants(constants)
                 .tree_hash()
                 .into(),
-            <DelegatedStateAction as Action<CatalogRegistry>>::from_constants(constants)
+            <DelegatedStateAction as SingletonAction<CatalogRegistry>>::from_constants(constants)
                 .tree_hash()
                 .into(),
         ]

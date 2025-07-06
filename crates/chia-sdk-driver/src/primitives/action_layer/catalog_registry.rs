@@ -1,16 +1,12 @@
-use chia::{
-    bls::Signature,
-    clvm_utils::ToTreeHash,
-    protocol::{Bytes32, Coin, CoinSpend},
-    puzzles::{singleton::SingletonSolution, LineageProof, Proof},
-};
-use chia_wallet_sdk::driver::{DriverError, Layer, Puzzle, Spend, SpendContext};
+use chia_bls::Signature;
+use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_puzzle_types::{singleton::SingletonSolution, LineageProof, Proof};
 use clvm_traits::{clvm_list, match_tuple};
 use clvmr::NodePtr;
 
 use crate::{
-    Action, ActionLayer, ActionLayerSolution, CatalogRefundAction, CatalogRegisterAction,
-    DelegatedStateAction, Registry,
+    ActionLayer, ActionLayerSolution, ActionSingleton, CatalogRefundAction, CatalogRegisterAction,
+    DelegatedStateAction, DriverError, Puzzle, SingletonAction, Spend, SpendContext,
 };
 
 use super::{
@@ -87,7 +83,7 @@ impl CatalogRegistry {
         let refund_hash = refund_action.tree_hash();
 
         let delegated_state_action =
-            <DelegatedStateAction as Action<CatalogRegistry>>::from_constants(&constants);
+            <DelegatedStateAction as SingletonAction<CatalogRegistry>>::from_constants(&constants);
         let delegated_state_hash = delegated_state_action.tree_hash();
 
         let actual_solution = ctx.alloc(&clvm_list!(
@@ -243,7 +239,7 @@ impl CatalogRegistry {
     }
 }
 
-impl Registry for CatalogRegistry {
+impl ActionSingleton for CatalogRegistry {
     type State = CatalogRegistryState;
     type Constants = CatalogRegistryConstants;
 }
@@ -291,7 +287,7 @@ impl CatalogRegistry {
 
     pub fn new_action<A>(&self) -> A
     where
-        A: Action<Self>,
+        A: SingletonAction<Self>,
     {
         A::from_constants(&self.info.constants)
     }

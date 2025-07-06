@@ -1,8 +1,9 @@
-use chia::{bls::PublicKey, clvm_utils::TreeHash, protocol::Bytes32};
-use chia_wallet_sdk::driver::SingletonLayer;
+use chia_bls::PublicKey;
+use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::TreeHash;
 
-use crate::{MOfNLayer, P2MOfNDelegateDirectArgs};
+use crate::{MOfNLayer, P2MOfNDelegateDirectArgs, SingletonLayer};
 
 type MedievalVaultLayers = SingletonLayer<MOfNLayer>;
 

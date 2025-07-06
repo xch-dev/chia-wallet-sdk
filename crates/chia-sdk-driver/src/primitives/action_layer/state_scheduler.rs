@@ -1,17 +1,12 @@
-use chia::{
-    clvm_utils::ToTreeHash,
-    protocol::{Bytes32, Coin, CoinSpend},
-    puzzles::{
-        singleton::{LauncherSolution, SingletonArgs, SingletonSolution},
-        EveProof, LineageProof, Proof,
-    },
-};
+use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs, SingletonSolution};
+use chia_puzzle_types::{EveProof, LineageProof, Proof};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
-use chia_wallet_sdk::driver::{DriverError, Layer, Spend, SpendContext};
 use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::ToTreeHash;
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
-use crate::{StateSchedulerInfo, StateSchedulerLayerSolution};
+use crate::{DriverError, Spend, SpendContext, StateSchedulerInfo, StateSchedulerLayerSolution};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateScheduler<S>
@@ -124,14 +119,11 @@ where
 #[cfg(test)]
 mod tests {
     use chia_puzzle_types::Memos;
-    use chia_wallet_sdk::{
-        driver::{Launcher, SingletonLayer},
-        test::Simulator,
-        types::Conditions,
-    };
+    use chia_sdk_test::Simulator;
+    use chia_sdk_types::Conditions;
     use clvmr::NodePtr;
 
-    use crate::{CatalogRegistryState, StateSchedulerLauncherHints};
+    use crate::{CatalogRegistryState, Launcher, SingletonLayer, StateSchedulerLauncherHints};
 
     use super::*;
 

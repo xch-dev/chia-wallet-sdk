@@ -1,18 +1,14 @@
-use chia::{
-    clvm_utils::{ToTreeHash, TreeHash},
-    protocol::{Bytes32, Coin, CoinSpend},
-    puzzles::{
-        singleton::{SingletonArgs, SingletonSolution},
-        EveProof, LineageProof, Proof,
-    },
-};
+use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_puzzle_types::singleton::{SingletonArgs, SingletonSolution};
+use chia_puzzle_types::{EveProof, LineageProof, Proof};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
-use chia_wallet_sdk::driver::{DriverError, Layer, Puzzle, SingletonLayer, SpendContext};
 use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    VerificationLayer, VerificationLayer2ndCurryArgs, VerificationLayerSolution, VerifiedData,
+    DriverError, Puzzle, SingletonLayer, SpendContext, VerificationLayer,
+    VerificationLayer2ndCurryArgs, VerificationLayerSolution, VerifiedData,
 };
 
 use super::VerificationInfo;
@@ -177,16 +173,13 @@ pub struct VerificationLauncherKVList {
 #[cfg(test)]
 mod tests {
     use anyhow::Ok;
-    use chia::protocol::Bytes;
+    use chia_protocol::Bytes;
     use chia_puzzle_types::Memos;
     use chia_puzzles::SINGLETON_LAUNCHER_HASH;
-    use chia_wallet_sdk::{
-        driver::{Launcher, StandardLayer},
-        test::Simulator,
-        types::Conditions,
-    };
+    use chia_sdk_test::Simulator;
+    use chia_sdk_types::Conditions;
 
-    use crate::{VerificationAsserter, VerifiedData};
+    use crate::{Launcher, StandardLayer, VerificationAsserter, VerifiedData};
 
     use super::*;
 
