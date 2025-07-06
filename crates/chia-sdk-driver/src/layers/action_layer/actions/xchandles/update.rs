@@ -1,20 +1,10 @@
-use chia::{
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::{Bytes, Bytes32},
-};
+use chia_protocol::{Bytes, Bytes32};
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
-use chia_wallet_sdk::{
-    driver::{DriverError, Spend, SpendContext},
-    types::Conditions,
-};
+use chia_sdk_types::Conditions;
 use clvm_traits::{clvm_tuple, FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 use hex_literal::hex;
-
-use crate::{
-    Action, Slot, SpendContextExt, XchandlesConstants, XchandlesDataValue, XchandlesRegistry,
-    XchandlesSlotValue,
-};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XchandlesUpdateAction {

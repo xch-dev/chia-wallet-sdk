@@ -1,9 +1,8 @@
-use chia_wallet_sdk::{
-    driver::{DriverError, Layer, Puzzle, Spend, SpendContext},
-    types::{Condition, Conditions},
-};
+use chia_sdk_types::{Condition, Conditions};
 use clvm_traits::{clvm_quote, match_quote, FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};
+
+use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 
 /// The Conditions [`Layer`] is a puzzle that simply returns the conditions
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,21 +1,13 @@
-use chia::{
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::{Bytes32, Coin},
-    puzzles::singleton::SingletonStruct,
-};
+use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::singleton::SingletonStruct;
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
-use chia_wallet_sdk::{
-    driver::{DriverError, Spend, SpendContext},
-    types::Conditions,
-};
+use chia_sdk_types::Conditions;
 use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
-use crate::{
-    Action, CatalogRegistry, CatalogRegistryConstants, SpendContextExt, XchandlesConstants,
-    XchandlesRegistry,
-};
+use crate::{DriverError, Spend, SpendContext};
 
 pub struct DelegatedStateAction {
     pub other_launcher_id: Bytes32,
@@ -27,7 +19,7 @@ impl ToTreeHash for DelegatedStateAction {
     }
 }
 
-impl Action<CatalogRegistry> for DelegatedStateAction {
+impl SingletonAction<CatalogRegistry> for DelegatedStateAction {
     fn from_constants(constants: &CatalogRegistryConstants) -> Self {
         Self {
             other_launcher_id: constants.price_singleton_launcher_id,

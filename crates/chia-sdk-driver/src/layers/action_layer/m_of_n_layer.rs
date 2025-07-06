@@ -1,17 +1,12 @@
-use chia::{
-    bls::PublicKey,
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::{Bytes32, Coin},
-};
-use chia_wallet_sdk::{
-    driver::{DriverError, Layer, Puzzle, Spend, SpendContext},
-    types::{Condition, Conditions},
-};
+use chia_bls::PublicKey;
+use chia_protocol::{Bytes32, Coin};
+use chia_sdk_types::{Condition, Conditions};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
-use crate::SpendContextExt;
+use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MOfNLayer {

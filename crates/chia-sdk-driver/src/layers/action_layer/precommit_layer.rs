@@ -1,17 +1,12 @@
-use chia::{
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::{Bytes, Bytes32},
-};
+use chia_protocol::{Bytes, Bytes32};
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
-use chia_wallet_sdk::{
-    driver::{DriverError, Layer, Puzzle, SpendContext},
-    types::Conditions,
-};
+use chia_sdk_types::Conditions;
 use clvm_traits::{clvm_quote, clvm_tuple, ClvmEncoder, FromClvm, ToClvm, ToClvmError};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
-use crate::{CatNftMetadata, DefaultCatMakerArgs, SpendContextExt};
+use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug, Clone)]
 #[must_use]

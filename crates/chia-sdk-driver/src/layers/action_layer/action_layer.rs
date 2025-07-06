@@ -1,19 +1,13 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use chia::{
-    clvm_traits::{FromClvm, ToClvm},
-    clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash},
-    protocol::Bytes32,
-};
-use chia_wallet_sdk::{
-    driver::{DriverError, Layer, Puzzle, Spend, SpendContext},
-    types::{run_puzzle, MerkleProof, MerkleTree},
-};
-use clvm_traits::{clvm_list, match_tuple};
+use chia_protocol::Bytes32;
+use chia_sdk_types::{run_puzzle, MerkleProof, MerkleTree};
+use clvm_traits::{clvm_list, match_tuple, FromClvm, ToClvm};
+use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
-use crate::SpendContextExt;
+use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Finalizer<P> {

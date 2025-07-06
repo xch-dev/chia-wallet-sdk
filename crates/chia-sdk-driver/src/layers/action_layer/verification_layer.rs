@@ -1,19 +1,14 @@
 use std::fmt::Debug;
 
-use chia::{
-    clvm_traits::{FromClvm, ToClvm},
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::Bytes32,
-    puzzles::singleton::SingletonStruct,
-};
+use chia_protocol::Bytes32;
+use chia_puzzle_types::singleton::SingletonStruct;
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
-use chia_wallet_sdk::driver::{DriverError, Layer, Puzzle, SpendContext};
-
-use clvm_traits::clvm_list;
+use clvm_traits::{clvm_list, FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
-use crate::{CatNftMetadata, SpendContextExt};
+use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerificationLayer {
