@@ -20,11 +20,13 @@ mod verification_info;
 mod xchandles_registry;
 mod xchandles_registry_info;
 
+pub use cat_nft_metadata::*;
 pub use catalog_registry::*;
 pub use catalog_registry_info::*;
 pub use default_cat_maker::*;
 pub use medieval_vault::*;
 pub use medieval_vault_info::*;
+pub use name_nft_metadata::*;
 pub use precommit_coin::*;
 pub use reserve::*;
 pub use reward_distributor::*;

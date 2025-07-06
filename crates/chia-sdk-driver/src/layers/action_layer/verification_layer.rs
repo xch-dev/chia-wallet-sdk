@@ -8,7 +8,7 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
-use crate::{DriverError, Layer, Puzzle, SpendContext};
+use crate::{CatNftMetadata, DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerificationLayer {
