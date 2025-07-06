@@ -1,13 +1,13 @@
-use chia::clvm_utils::{ToTreeHash, TreeHash};
-use chia_wallet_sdk::{
-    driver::{DriverError, Spend, SpendContext},
-    types::{announcement_id, Conditions},
-};
+use chia_sdk_types::{announcement_id, Conditions};
 use clvm_traits::{clvm_tuple, FromClvm, ToClvm};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 use hex_literal::hex;
 
-use crate::{Action, RewardDistributor, RewardDistributorConstants, SpendContextExt};
+use crate::{
+    DriverError, RewardDistributor, RewardDistributorConstants, SingletonAction, Spend,
+    SpendContext,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RewardDistributorSyncAction {}
@@ -18,7 +18,7 @@ impl ToTreeHash for RewardDistributorSyncAction {
     }
 }
 
-impl Action<RewardDistributor> for RewardDistributorSyncAction {
+impl SingletonAction<RewardDistributor> for RewardDistributorSyncAction {
     fn from_constants(_constants: &RewardDistributorConstants) -> Self {
         Self {}
     }

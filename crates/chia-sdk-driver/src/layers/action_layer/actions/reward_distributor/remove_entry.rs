@@ -1,20 +1,15 @@
-use chia::{
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::Bytes32,
-    puzzles::singleton::SingletonStruct,
-};
+use chia_protocol::Bytes32;
+use chia_puzzle_types::singleton::SingletonStruct;
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
-use chia_wallet_sdk::{
-    driver::{DriverError, Spend, SpendContext},
-    types::Conditions,
-};
+use chia_sdk_types::Conditions;
 use clvm_traits::{clvm_tuple, FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::{
-    Action, RewardDistributor, RewardDistributorConstants, RewardDistributorEntrySlotValue,
-    RewardDistributorSlotNonce, Slot, SpendContextExt,
+    DriverError, RewardDistributor, RewardDistributorConstants, RewardDistributorEntrySlotValue,
+    RewardDistributorSlotNonce, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,7 +29,7 @@ impl ToTreeHash for RewardDistributorRemoveEntryAction {
     }
 }
 
-impl Action<RewardDistributor> for RewardDistributorRemoveEntryAction {
+impl SingletonAction<RewardDistributor> for RewardDistributorRemoveEntryAction {
     fn from_constants(constants: &RewardDistributorConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,

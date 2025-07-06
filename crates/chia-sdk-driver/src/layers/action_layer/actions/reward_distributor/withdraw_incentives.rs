@@ -1,18 +1,14 @@
-use chia::{
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::{Bytes, Bytes32},
-};
-use chia_wallet_sdk::{
-    driver::{DriverError, Spend, SpendContext},
-    types::Conditions,
-};
+use chia_protocol::{Bytes, Bytes32};
+use chia_sdk_types::Conditions;
 use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::{
-    Action, RewardDistributor, RewardDistributorCommitmentSlotValue, RewardDistributorConstants,
-    RewardDistributorRewardSlotValue, RewardDistributorSlotNonce, Slot, SpendContextExt,
+    DriverError, RewardDistributor, RewardDistributorCommitmentSlotValue,
+    RewardDistributorConstants, RewardDistributorRewardSlotValue, RewardDistributorSlotNonce,
+    SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,7 +26,7 @@ impl ToTreeHash for RewardDistributorWithdrawIncentivesAction {
     }
 }
 
-impl Action<RewardDistributor> for RewardDistributorWithdrawIncentivesAction {
+impl SingletonAction<RewardDistributor> for RewardDistributorWithdrawIncentivesAction {
     fn from_constants(constants: &RewardDistributorConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,

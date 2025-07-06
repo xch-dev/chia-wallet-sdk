@@ -1,26 +1,20 @@
-use chia::{
-    clvm_utils::{CurriedProgram, ToTreeHash, TreeHash},
-    protocol::Bytes32,
-    puzzles::singleton::SingletonStruct,
-};
-use chia_puzzle_types::nft::NftRoyaltyTransferPuzzleArgs;
+use chia_protocol::Bytes32;
+use chia_puzzle_types::{nft::NftRoyaltyTransferPuzzleArgs, singleton::SingletonStruct};
 use chia_puzzles::{
     NFT_OWNERSHIP_LAYER_HASH, NFT_STATE_LAYER_HASH, SINGLETON_LAUNCHER_HASH,
     SINGLETON_TOP_LAYER_V1_1_HASH,
 };
-use chia_wallet_sdk::{
-    driver::{DriverError, HashedPtr, Layer, Nft, Spend, SpendContext},
-    types::Conditions,
-};
+use chia_sdk_types::Conditions;
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 use hex_literal::hex;
 
 use crate::{
-    Action, NonceWrapperArgs, P2DelegatedBySingletonLayer, P2DelegatedBySingletonLayerArgs,
-    P2DelegatedBySingletonLayerSolution, RewardDistributor, RewardDistributorConstants,
-    RewardDistributorEntrySlotValue, RewardDistributorSlotNonce, Slot, SpendContextExt,
-    NONCE_WRAPPER_PUZZLE_HASH,
+    DriverError, HashedPtr, Layer, Nft, NonceWrapperArgs, P2DelegatedBySingletonLayer,
+    P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution, RewardDistributor,
+    RewardDistributorConstants, RewardDistributorEntrySlotValue, RewardDistributorSlotNonce,
+    SingletonAction, Slot, Spend, SpendContext, NONCE_WRAPPER_PUZZLE_HASH,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,7 +32,7 @@ impl ToTreeHash for RewardDistributorUnstakeAction {
     }
 }
 
-impl Action<RewardDistributor> for RewardDistributorUnstakeAction {
+impl SingletonAction<RewardDistributor> for RewardDistributorUnstakeAction {
     fn from_constants(constants: &RewardDistributorConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,
