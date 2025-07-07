@@ -9,12 +9,11 @@ use chia_sdk_types::{
         NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, RewardDistributorEntrySlotValue,
         RewardDistributorSlotNonce, RewardDistributorUnstakeActionArgs,
         RewardDistributorUnstakeActionSolution, NONCE_WRAPPER_PUZZLE_HASH,
-        REWARD_DISTRIBUTOR_UNSTAKE_PUZZLE_HASH,
     },
-    Conditions,
+    Conditions, Mod,
 };
 use clvm_traits::clvm_quote;
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -31,11 +30,7 @@ pub struct RewardDistributorUnstakeAction {
 
 impl ToTreeHash for RewardDistributorUnstakeAction {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: REWARD_DISTRIBUTOR_UNSTAKE_PUZZLE_HASH,
-            args: Self::new_args(self.launcher_id, self.max_second_offset),
-        }
-        .tree_hash()
+        Self::new_args(self.launcher_id, self.max_second_offset).curry_tree_hash()
     }
 }
 

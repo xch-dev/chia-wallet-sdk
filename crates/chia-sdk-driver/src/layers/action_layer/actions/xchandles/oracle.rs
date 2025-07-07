@@ -1,10 +1,10 @@
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
     announcement_id,
-    puzzles::{XchandlesOracleActionArgs, XchandlesSlotValue, XCHANDLES_ORACLE_PUZZLE_HASH},
-    Conditions,
+    puzzles::{XchandlesOracleActionArgs, XchandlesSlotValue},
+    Conditions, Mod,
 };
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -18,11 +18,7 @@ pub struct XchandlesOracleAction {
 
 impl ToTreeHash for XchandlesOracleAction {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: XCHANDLES_ORACLE_PUZZLE_HASH,
-            args: Self::new_args(self.launcher_id),
-        }
-        .tree_hash()
+        Self::new_args(self.launcher_id).curry_tree_hash()
     }
 }
 

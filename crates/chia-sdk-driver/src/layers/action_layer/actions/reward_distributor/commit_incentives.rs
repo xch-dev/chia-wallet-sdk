@@ -5,11 +5,10 @@ use chia_sdk_types::{
         RewardDistributorCommitIncentivesActionArgs,
         RewardDistributorCommitIncentivesActionSolution, RewardDistributorCommitmentSlotValue,
         RewardDistributorRewardSlotValue, RewardDistributorSlotNonce,
-        REWARD_DISTRIBUTOR_COMMIT_INCENTIVES_PUZZLE_HASH,
     },
-    Conditions,
+    Conditions, Mod,
 };
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -25,11 +24,7 @@ pub struct RewardDistributorCommitIncentivesAction {
 
 impl ToTreeHash for RewardDistributorCommitIncentivesAction {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: REWARD_DISTRIBUTOR_COMMIT_INCENTIVES_PUZZLE_HASH,
-            args: Self::new_args(self.launcher_id, self.epoch_seconds),
-        }
-        .tree_hash()
+        Self::new_args(self.launcher_id, self.epoch_seconds).curry_tree_hash()
     }
 }
 

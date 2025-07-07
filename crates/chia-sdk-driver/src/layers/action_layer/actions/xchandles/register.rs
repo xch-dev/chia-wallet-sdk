@@ -5,12 +5,12 @@ use chia_sdk_types::{
     puzzles::{
         SlotNeigborsInfo, XchandlesDataValue, XchandlesFactorPricingPuzzleArgs,
         XchandlesPricingSolution, XchandlesRegisterActionArgs, XchandlesRegisterActionSolution,
-        XchandlesSlotValue, XCHANDLES_REGISTER_PUZZLE_HASH,
+        XchandlesSlotValue,
     },
-    Conditions,
+    Conditions, Mod,
 };
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -27,15 +27,12 @@ pub struct XchandlesRegisterAction {
 
 impl ToTreeHash for XchandlesRegisterAction {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: XCHANDLES_REGISTER_PUZZLE_HASH,
-            args: Self::new_args(
-                self.launcher_id,
-                self.relative_block_height,
-                self.payout_puzzle_hash,
-            ),
-        }
-        .tree_hash()
+        Self::new_args(
+            self.launcher_id,
+            self.relative_block_height,
+            self.payout_puzzle_hash,
+        )
+        .curry_tree_hash()
     }
 }
 

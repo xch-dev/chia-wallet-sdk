@@ -2,14 +2,11 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     announcement_id,
-    puzzles::{
-        XchandlesRefundActionArgs, XchandlesRefundActionSolution, XchandlesSlotValue,
-        XCHANDLES_REFUND_PUZZLE_HASH,
-    },
-    Conditions,
+    puzzles::{XchandlesRefundActionArgs, XchandlesRefundActionSolution, XchandlesSlotValue},
+    Conditions, Mod,
 };
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -26,15 +23,12 @@ pub struct XchandlesRefundAction {
 
 impl ToTreeHash for XchandlesRefundAction {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: XCHANDLES_REFUND_PUZZLE_HASH,
-            args: Self::new_args(
-                self.launcher_id,
-                self.relative_block_height,
-                self.payout_puzzle_hash,
-            ),
-        }
-        .tree_hash()
+        Self::new_args(
+            self.launcher_id,
+            self.relative_block_height,
+            self.payout_puzzle_hash,
+        )
+        .curry_tree_hash()
     }
 }
 

@@ -5,12 +5,11 @@ use chia_sdk_types::{
     puzzles::{
         RewardDistributorAddEntryActionArgs, RewardDistributorAddEntryActionSolution,
         RewardDistributorEntrySlotValue, RewardDistributorSlotNonce,
-        REWARD_DISTRIBUTOR_ADD_ENTRY_PUZZLE_HASH,
     },
-    Conditions,
+    Conditions, Mod,
 };
 use clvm_traits::clvm_tuple;
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -27,15 +26,12 @@ pub struct RewardDistributorAddEntryAction {
 
 impl ToTreeHash for RewardDistributorAddEntryAction {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: REWARD_DISTRIBUTOR_ADD_ENTRY_PUZZLE_HASH,
-            args: Self::new_args(
-                self.launcher_id,
-                self.manager_launcher_id,
-                self.max_second_offset,
-            ),
-        }
-        .tree_hash()
+        Self::new_args(
+            self.launcher_id,
+            self.manager_launcher_id,
+            self.max_second_offset,
+        )
+        .curry_tree_hash()
     }
 }
 

@@ -4,12 +4,11 @@ use chia_sdk_types::{
     announcement_id,
     puzzles::{
         CatalogRefundActionArgs, CatalogRefundActionSolution, CatalogSlotValue, SlotNeigborsInfo,
-        CATALOG_REFUND_PUZZLE_HASH,
     },
-    Conditions,
+    Conditions, Mod,
 };
 use clvm_traits::{clvm_tuple, FromClvm, ToClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -26,15 +25,12 @@ pub struct CatalogRefundAction {
 
 impl ToTreeHash for CatalogRefundAction {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: CATALOG_REFUND_PUZZLE_HASH,
-            args: CatalogRefundAction::new_args(
-                self.launcher_id,
-                self.relative_block_height,
-                self.payout_puzzle_hash,
-            ),
-        }
-        .tree_hash()
+        Self::new_args(
+            self.launcher_id,
+            self.relative_block_height,
+            self.payout_puzzle_hash,
+        )
+        .curry_tree_hash()
     }
 }
 

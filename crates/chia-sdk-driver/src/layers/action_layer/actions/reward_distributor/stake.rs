@@ -11,9 +11,8 @@ use chia_sdk_types::{
         NftLauncherProof, NonceWrapperArgs, RewardDistributorEntrySlotValue,
         RewardDistributorSlotNonce, RewardDistributorStakeActionArgs,
         RewardDistributorStakeActionSolution, NONCE_WRAPPER_PUZZLE_HASH,
-        REWARD_DISTRIBUTOR_STAKE_PUZZLE_HASH,
     },
-    Conditions,
+    Conditions, Mod,
 };
 use clvm_traits::clvm_tuple;
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
@@ -33,15 +32,12 @@ pub struct RewardDistributorStakeAction {
 
 impl ToTreeHash for RewardDistributorStakeAction {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: REWARD_DISTRIBUTOR_STAKE_PUZZLE_HASH,
-            args: Self::new_args(
-                self.launcher_id,
-                self.did_launcher_id,
-                self.max_second_offset,
-            ),
-        }
-        .tree_hash()
+        Self::new_args(
+            self.launcher_id,
+            self.did_launcher_id,
+            self.max_second_offset,
+        )
+        .curry_tree_hash()
     }
 }
 

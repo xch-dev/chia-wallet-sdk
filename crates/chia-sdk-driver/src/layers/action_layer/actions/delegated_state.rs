@@ -1,11 +1,11 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::singleton::SingletonStruct;
-use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
-use chia_sdk_types::{puzzles::DelegatedStateActionArgs, Conditions};
-use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use chia_sdk_types::{
+    puzzles::{DelegatedStateActionArgs, DelegatedStateActionSolution},
+    Conditions,
+};
+use clvm_traits::ToClvm;
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
-use hex_literal::hex;
 
 use crate::{
     CatalogRegistry, CatalogRegistryConstants, DriverError, SingletonAction, Spend, SpendContext,
@@ -44,11 +44,7 @@ impl DelegatedStateAction {
     }
 
     pub fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        Ok(CurriedProgram {
-            program: ctx.delegated_state_action_puzzle()?,
-            args: DelegatedStateActionArgs::new(self.other_launcher_id),
-        }
-        .to_clvm(ctx)?)
+        ctx.curry(DelegatedStateActionArgs::new(self.other_launcher_id))
     }
 
     pub fn spend<S>(

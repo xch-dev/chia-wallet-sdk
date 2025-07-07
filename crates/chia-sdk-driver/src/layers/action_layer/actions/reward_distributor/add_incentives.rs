@@ -3,12 +3,11 @@ use chia_sdk_types::{
     announcement_id,
     puzzles::{
         RewardDistributorAddIncentivesActionArgs, RewardDistributorAddIncentivesActionSolution,
-        REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE_HASH,
     },
-    Conditions,
+    Conditions, Mod,
 };
 use clvm_traits::clvm_tuple;
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -24,14 +23,11 @@ pub struct RewardDistributorAddIncentivesAction {
 
 impl ToTreeHash for RewardDistributorAddIncentivesAction {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE_HASH,
-            args: RewardDistributorAddIncentivesActionArgs {
-                fee_payout_puzzle_hash: self.fee_payout_puzzle_hash,
-                fee_bps: self.fee_bps,
-            },
+        RewardDistributorAddIncentivesActionArgs {
+            fee_payout_puzzle_hash: self.fee_payout_puzzle_hash,
+            fee_bps: self.fee_bps,
         }
-        .tree_hash()
+        .curry_tree_hash()
     }
 }
 

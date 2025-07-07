@@ -4,11 +4,10 @@ use chia_sdk_types::{
     puzzles::{
         RewardDistributorNewEpochActionArgs, RewardDistributorNewEpochActionSolution,
         RewardDistributorRewardSlotValue, RewardDistributorSlotNonce,
-        REWARD_DISTRIBUTOR_NEW_EPOCH_PUZZLE_HASH,
     },
-    Conditions,
+    Conditions, Mod,
 };
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -26,16 +25,13 @@ pub struct RewardDistributorNewEpochAction {
 
 impl ToTreeHash for RewardDistributorNewEpochAction {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: REWARD_DISTRIBUTOR_NEW_EPOCH_PUZZLE_HASH,
-            args: Self::new_args(
-                self.launcher_id,
-                self.fee_payout_puzzle_hash,
-                self.fee_bps,
-                self.epoch_seconds,
-            ),
-        }
-        .tree_hash()
+        Self::new_args(
+            self.launcher_id,
+            self.fee_payout_puzzle_hash,
+            self.fee_bps,
+            self.epoch_seconds,
+        )
+        .curry_tree_hash()
     }
 }
 

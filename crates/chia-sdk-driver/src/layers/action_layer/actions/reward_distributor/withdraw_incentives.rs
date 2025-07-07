@@ -4,11 +4,10 @@ use chia_sdk_types::{
         RewardDistributorCommitmentSlotValue, RewardDistributorRewardSlotValue,
         RewardDistributorSlotNonce, RewardDistributorWithdrawIncentivesActionArgs,
         RewardDistributorWithdrawIncentivesActionSolution,
-        REWARD_DISTRIBUTOR_WITHDRAW_INCENTIVES_PUZZLE_HASH,
     },
-    Conditions,
+    Conditions, Mod,
 };
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -24,11 +23,7 @@ pub struct RewardDistributorWithdrawIncentivesAction {
 
 impl ToTreeHash for RewardDistributorWithdrawIncentivesAction {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: REWARD_DISTRIBUTOR_WITHDRAW_INCENTIVES_PUZZLE_HASH,
-            args: Self::new_args(self.launcher_id, self.withdrawal_share_bps),
-        }
-        .tree_hash()
+        Self::new_args(self.launcher_id, self.withdrawal_share_bps).curry_tree_hash()
     }
 }
 

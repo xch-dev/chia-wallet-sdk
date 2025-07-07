@@ -4,12 +4,11 @@ use chia_sdk_types::{
     puzzles::{
         RewardDistributorEntrySlotValue, RewardDistributorInitiatePayoutActionArgs,
         RewardDistributorInitiatePayoutActionSolution, RewardDistributorSlotNonce,
-        REWARD_DISTRIBUTOR_INITIATE_PAYOUT_PUZZLE_HASH,
     },
-    Conditions,
+    Conditions, Mod,
 };
 use clvm_traits::clvm_tuple;
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -25,11 +24,7 @@ pub struct RewardDistributorInitiatePayoutAction {
 
 impl ToTreeHash for RewardDistributorInitiatePayoutAction {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: REWARD_DISTRIBUTOR_INITIATE_PAYOUT_PUZZLE_HASH,
-            args: Self::new_args(self.launcher_id, self.payout_threshold),
-        }
-        .tree_hash()
+        Self::new_args(self.launcher_id, self.payout_threshold).curry_tree_hash()
     }
 }
 

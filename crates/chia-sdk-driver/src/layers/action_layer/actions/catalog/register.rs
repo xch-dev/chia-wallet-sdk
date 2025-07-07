@@ -4,12 +4,12 @@ use chia_sdk_types::{
     announcement_id,
     puzzles::{
         CatalogRegisterActionArgs, CatalogRegisterActionSolution, CatalogSlotValue, NftPack,
-        ANY_METADATA_UPDATER_HASH, CATALOG_REGISTER_PUZZLE_HASH,
+        ANY_METADATA_UPDATER_HASH,
     },
-    Conditions,
+    Conditions, Mod,
 };
 use clvm_traits::{clvm_tuple, FromClvm, ToClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -29,17 +29,14 @@ pub struct CatalogRegisterAction {
 
 impl ToTreeHash for CatalogRegisterAction {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: CATALOG_REGISTER_PUZZLE_HASH,
-            args: CatalogRegisterAction::new_args(
-                self.launcher_id,
-                self.royalty_puzzle_hash_hash,
-                self.trade_price_percentage,
-                self.relative_block_height,
-                self.payout_puzzle_hash,
-            ),
-        }
-        .tree_hash()
+        Self::new_args(
+            self.launcher_id,
+            self.royalty_puzzle_hash_hash,
+            self.trade_price_percentage,
+            self.relative_block_height,
+            self.payout_puzzle_hash,
+        )
+        .curry_tree_hash()
     }
 }
 

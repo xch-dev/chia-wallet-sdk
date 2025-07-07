@@ -3,12 +3,12 @@ use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
     puzzles::{
         XchandlesDataValue, XchandlesSlotValue, XchandlesUpdateActionArgs,
-        XchandlesUpdateActionSolution, XCHANDLES_UPDATE_PUZZLE_HASH,
+        XchandlesUpdateActionSolution,
     },
-    Conditions,
+    Conditions, Mod,
 };
 use clvm_traits::clvm_tuple;
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -22,11 +22,7 @@ pub struct XchandlesUpdateAction {
 
 impl ToTreeHash for XchandlesUpdateAction {
     fn tree_hash(&self) -> TreeHash {
-        CurriedProgram {
-            program: XCHANDLES_UPDATE_PUZZLE_HASH,
-            args: Self::new_args(self.launcher_id),
-        }
-        .tree_hash()
+        Self::new_args(self.launcher_id).curry_tree_hash()
     }
 }
 
