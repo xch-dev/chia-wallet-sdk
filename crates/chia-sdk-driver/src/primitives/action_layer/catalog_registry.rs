@@ -131,7 +131,7 @@ impl CatalogRegistry {
         let inner_solution =
             ActionLayer::<CatalogRegistryState, NodePtr>::parse_solution(ctx, inner_solution)?;
 
-        for raw_action in inner_solution.action_spends.iter() {
+        for raw_action in &inner_solution.action_spends {
             let res = Self::pending_info_delta_from_spend(
                 ctx,
                 *raw_action,
@@ -315,7 +315,7 @@ impl CatalogRegistry {
         let mut left = on_chain_left_slot;
         let mut right = on_chain_right_slot;
 
-        for slot_value in self.pending_spend.created_slots.iter() {
+        for slot_value in &self.pending_spend.created_slots {
             if slot_value.asset_id < new_tail_hash
                 && slot_value.asset_id >= left.info.value.asset_id
             {
@@ -334,7 +334,7 @@ impl CatalogRegistry {
 
     pub fn actual_slot(&self, slot: Slot<CatalogSlotValue>) -> Slot<CatalogSlotValue> {
         let mut slot = slot;
-        for slot_value in self.pending_spend.created_slots.iter() {
+        for slot_value in &self.pending_spend.created_slots {
             if slot.info.value.asset_id == slot_value.asset_id {
                 slot = self.created_slot_value_to_slot(*slot_value);
             }

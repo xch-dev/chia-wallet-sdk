@@ -189,7 +189,7 @@ impl XchandlesRegistry {
         let inner_solution =
             ActionLayer::<XchandlesRegistryState, NodePtr>::parse_solution(ctx, inner_solution)?;
 
-        for raw_action in inner_solution.action_spends.iter() {
+        for raw_action in &inner_solution.action_spends {
             let res = Self::pending_info_delta_from_spend(
                 ctx,
                 *raw_action,
@@ -468,7 +468,7 @@ impl XchandlesRegistry {
         let mut left = on_chain_left_slot;
         let mut right = on_chain_right_slot;
 
-        for slot_value in self.pending_spend.created_slots.iter() {
+        for slot_value in &self.pending_spend.created_slots {
             if slot_value.handle_hash < new_handle_hash
                 && slot_value.handle_hash >= left.info.value.handle_hash
             {
@@ -487,7 +487,7 @@ impl XchandlesRegistry {
 
     pub fn actual_slot(&self, slot: Slot<XchandlesSlotValue>) -> Slot<XchandlesSlotValue> {
         let mut slot = slot;
-        for slot_value in self.pending_spend.created_slots.iter() {
+        for slot_value in &self.pending_spend.created_slots {
             if slot.info.value.handle_hash == slot_value.handle_hash {
                 slot = self.created_slot_value_to_slot(slot_value.clone());
             }

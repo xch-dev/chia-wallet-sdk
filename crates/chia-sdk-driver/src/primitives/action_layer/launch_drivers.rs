@@ -31,6 +31,7 @@ use crate::{
     XchandlesRegistryInfo, XchandlesRegistryState,
 };
 
+#[allow(clippy::needless_pass_by_value)]
 fn custom_err<T>(e: T) -> DriverError
 where
     T: ToString,
@@ -476,7 +477,7 @@ pub fn spend_settlement_cats(
     offer: &Offer,
     asset_id: Bytes32,
     nonce: Bytes32,
-    payments: Vec<(Bytes32, u64)>,
+    payments: &[(Bytes32, u64)],
 ) -> Result<(Vec<Cat>, Conditions), DriverError> {
     let settlement_cats = offer
         .offered_coins()
@@ -487,7 +488,7 @@ pub fn spend_settlement_cats(
         ))?;
 
     let mut pmnts = Vec::with_capacity(payments.len());
-    for (puzzle_hash, amount) in payments.iter() {
+    for (puzzle_hash, amount) in payments {
         pmnts.push(Payment::new(*puzzle_hash, *amount, ctx.hint(*puzzle_hash)?));
     }
     let notarized_payment = NotarizedPayment {
@@ -617,8 +618,7 @@ pub fn launch_dig_reward_distributor(
         .offered_coins()
         .cats
         .get(&constants.reserve_asset_id)
-        .map(|cs| cs.iter().map(|c| c.coin.amount).sum::<u64>())
-        .unwrap_or(1);
+        .map_or(1, |cs| cs.iter().map(|c| c.coin.amount).sum::<u64>());
 
     let interim_cat_puzzle = clvm_quote!(Conditions::new()
         .create_coin(reserve_inner_ph, 0, ctx.hint(reserve_inner_ph)?)
@@ -635,7 +635,7 @@ pub fn launch_dig_reward_distributor(
         offer,
         constants.reserve_asset_id,
         constants.launcher_id,
-        vec![(interim_cat_puzzle_hash.into(), total_cat_amount)],
+        &[(interim_cat_puzzle_hash.into(), total_cat_amount)],
     )?;
 
     let interim_cat = created_cats[0];

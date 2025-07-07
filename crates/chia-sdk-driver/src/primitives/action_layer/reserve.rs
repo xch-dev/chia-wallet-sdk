@@ -14,7 +14,7 @@ use crate::{
     SpendContext,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[must_use]
 pub struct Reserve {
     pub coin: Coin,

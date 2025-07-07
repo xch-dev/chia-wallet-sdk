@@ -32,7 +32,7 @@ impl MedievalVault {
 
     pub fn from_launcher_spend(
         ctx: &mut SpendContext,
-        launcher_spend: CoinSpend,
+        launcher_spend: &CoinSpend,
     ) -> Result<Option<Self>, DriverError> {
         if launcher_spend.coin.puzzle_hash != SINGLETON_LAUNCHER_HASH.into() {
             return Ok(None);
@@ -93,7 +93,7 @@ impl MedievalVault {
 
     pub fn from_parent_spend(
         ctx: &mut SpendContext,
-        parent_spend: CoinSpend,
+        parent_spend: &CoinSpend,
     ) -> Result<Option<Self>, DriverError> {
         if parent_spend.coin.puzzle_hash == SINGLETON_LAUNCHER_HASH.into() {
             return Self::from_launcher_spend(ctx, parent_spend);
@@ -335,7 +335,7 @@ mod tests {
         let launcher_spend = spends.first().unwrap().clone();
         sim.spend_coins(spends, &[])?;
 
-        let mut vault = MedievalVault::from_parent_spend(ctx, launcher_spend)?.unwrap();
+        let mut vault = MedievalVault::from_parent_spend(ctx, &launcher_spend)?.unwrap();
         assert_eq!(vault.coin, first_vault_coin);
 
         let mut current_vault_info = MedievalVaultInfo {
@@ -391,7 +391,7 @@ mod tests {
 
             let check_vault = vault.child(m, pubkeys).unwrap();
 
-            vault = MedievalVault::from_parent_spend(ctx, vault_spend)?.unwrap();
+            vault = MedievalVault::from_parent_spend(ctx, &vault_spend)?.unwrap();
             assert_eq!(vault.info, current_vault_info);
             assert_eq!(vault, check_vault);
         }

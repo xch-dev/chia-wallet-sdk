@@ -264,7 +264,7 @@ impl RewardDistributor {
         let inner_solution =
             ActionLayer::<RewardDistributorState, NodePtr>::parse_solution(ctx, inner_solution)?;
 
-        for raw_action in inner_solution.action_spends.iter() {
+        for raw_action in &inner_solution.action_spends {
             let delta = Self::pending_info_delta_from_spend(
                 ctx,
                 *raw_action,
@@ -417,7 +417,7 @@ impl RewardDistributor {
         ctx: &mut SpendContext,
         constants: RewardDistributorConstants,
         initial_state: RewardDistributorState,
-        eve_coin_spend: CoinSpend,
+        eve_coin_spend: &CoinSpend,
         reserve_parent_id: Bytes32,
         reserve_lineage_proof: LineageProof,
     ) -> Result<Option<(RewardDistributor, Slot<RewardDistributorRewardSlotValue>)>, DriverError>
@@ -633,7 +633,7 @@ impl RewardDistributor {
     ) -> Slot<RewardDistributorRewardSlotValue> {
         let mut slot = slot;
 
-        for slot_value in self.pending_spend.created_reward_slots.iter() {
+        for slot_value in &self.pending_spend.created_reward_slots {
             if slot_value.epoch_start == slot.info.value.epoch_start {
                 slot = self
                     .created_slot_value_to_slot(*slot_value, RewardDistributorSlotNonce::REWARD);
@@ -649,7 +649,7 @@ impl RewardDistributor {
     ) -> Slot<RewardDistributorEntrySlotValue> {
         let mut slot = slot;
 
-        for slot_value in self.pending_spend.created_entry_slots.iter() {
+        for slot_value in &self.pending_spend.created_entry_slots {
             if slot_value.payout_puzzle_hash == slot.info.value.payout_puzzle_hash {
                 slot =
                     self.created_slot_value_to_slot(*slot_value, RewardDistributorSlotNonce::ENTRY);
@@ -665,7 +665,7 @@ impl RewardDistributor {
     ) -> Slot<RewardDistributorCommitmentSlotValue> {
         let mut slot = slot;
 
-        for slot_value in self.pending_spend.created_commitment_slots.iter() {
+        for slot_value in &self.pending_spend.created_commitment_slots {
             if slot_value.epoch_start == slot.info.value.epoch_start {
                 slot = self.created_slot_value_to_slot(
                     *slot_value,

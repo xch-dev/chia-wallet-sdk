@@ -167,10 +167,10 @@ impl XchandlesRegistryInfo {
             return Ok(None);
         }
 
-        Ok(Some(Self::from_layers(layers, constants)))
+        Ok(Some(Self::from_layers(&layers, constants)))
     }
 
-    pub fn from_layers(layers: XchandlesRegistryLayers, constants: XchandlesConstants) -> Self {
+    pub fn from_layers(layers: &XchandlesRegistryLayers, constants: XchandlesConstants) -> Self {
         Self {
             state: layers.inner_puzzle.state,
             constants,

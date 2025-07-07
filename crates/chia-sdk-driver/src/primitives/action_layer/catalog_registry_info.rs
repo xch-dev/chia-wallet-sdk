@@ -134,10 +134,13 @@ impl CatalogRegistryInfo {
             return Ok(None);
         }
 
-        Ok(Some(Self::from_layers(layers, constants)))
+        Ok(Some(Self::from_layers(&layers, constants)))
     }
 
-    pub fn from_layers(layers: CatalogRegistryLayers, constants: CatalogRegistryConstants) -> Self {
+    pub fn from_layers(
+        layers: &CatalogRegistryLayers,
+        constants: CatalogRegistryConstants,
+    ) -> Self {
         Self {
             state: layers.inner_puzzle.state,
             constants,

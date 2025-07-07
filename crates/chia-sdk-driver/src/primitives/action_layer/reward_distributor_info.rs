@@ -246,11 +246,11 @@ impl RewardDistributorInfo {
             return Ok(None);
         }
 
-        Ok(Some(Self::from_layers(layers, constants)))
+        Ok(Some(Self::from_layers(&layers, constants)))
     }
 
     pub fn from_layers(
-        layers: RewardDistributorLayers,
+        layers: &RewardDistributorLayers,
         constants: RewardDistributorConstants,
     ) -> Self {
         Self {

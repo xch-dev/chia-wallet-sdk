@@ -39,6 +39,7 @@ where
         }
     }
 
+    #[must_use]
     pub fn with_generation(&self, generation: usize) -> Self {
         Self {
             generation,
@@ -50,7 +51,7 @@ where
         &self,
         next_puzzle_hash: Bytes32,
         required_block_height: u32,
-        new_state: S,
+        new_state: &S,
     ) -> TreeHash {
         let message: Bytes32 = new_state.tree_hash().into();
 
@@ -78,7 +79,7 @@ where
             inner_puzzle_hash = self.inner_puzzle_hash_for(
                 inner_puzzle_hash.into(),
                 self.state_schedule[i - 1].0,
-                self.state_schedule[i - 1].1.clone(),
+                &self.state_schedule[i - 1].1,
             );
 
             i -= 1;

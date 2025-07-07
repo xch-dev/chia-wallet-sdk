@@ -85,7 +85,7 @@ where
 
     pub fn from_launcher_spend(
         ctx: &mut SpendContext,
-        launcher_spend: CoinSpend,
+        launcher_spend: &CoinSpend,
     ) -> Result<Option<Self>, DriverError> {
         if launcher_spend.coin.puzzle_hash != SINGLETON_LAUNCHER_HASH.into() {
             return Ok(None);
@@ -131,7 +131,7 @@ mod tests {
     fn mock_state(generator: u8) -> CatalogRegistryState {
         CatalogRegistryState {
             cat_maker_puzzle_hash: Bytes32::new([generator; 32]),
-            registration_price: generator as u64 * 1000,
+            registration_price: u64::from(generator) * 1000,
         }
     }
 
@@ -194,7 +194,7 @@ mod tests {
         sim.spend_coins(ctx.take(), &[])?;
 
         let mut state_scheduler =
-            StateScheduler::from_launcher_spend(ctx, state_scheduler_launcher_spend)?.unwrap();
+            StateScheduler::from_launcher_spend(ctx, &state_scheduler_launcher_spend)?.unwrap();
         assert_eq!(state_scheduler.info, first_coin_info);
         assert_eq!(state_scheduler.coin, state_scheduler_coin);
 
