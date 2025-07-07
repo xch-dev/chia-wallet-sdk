@@ -2,9 +2,9 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::cat::CatArgs;
 use chia_sdk_types::{puzzles::RevocationArgs, Mod};
 use clvm_utils::TreeHash;
-use clvmr::Allocator;
+use clvmr::{Allocator, NodePtr};
 
-use crate::{CatLayer, DriverError, Layer, Puzzle, RevocationLayer};
+use crate::{CatLayer, DriverError, Layer, Puzzle, RevocationLayer, SpendContext};
 
 /// Information needed to construct the outer puzzle of a CAT.
 /// This includes the [`CatLayer`] and [`RevocationLayer`] if present.
@@ -79,15 +79,35 @@ impl CatInfo {
     /// This is only different than the [`p2_puzzle_hash`](Self::p2_puzzle_hash) for revocable CATs.
     pub fn inner_puzzle_hash(&self) -> TreeHash {
         let mut inner_puzzle_hash = TreeHash::from(self.p2_puzzle_hash);
+
         if let Some(hidden_puzzle_hash) = self.hidden_puzzle_hash {
             inner_puzzle_hash =
                 RevocationArgs::new(hidden_puzzle_hash, inner_puzzle_hash.into()).curry_tree_hash();
         }
+
         inner_puzzle_hash
     }
 
     /// Calculates the full puzzle hash of the CAT, which is the hash of the outer [`CatLayer`].
     pub fn puzzle_hash(&self) -> TreeHash {
         CatArgs::curry_tree_hash(self.asset_id, self.inner_puzzle_hash())
+    }
+
+    /// Calculates the full puzzle of the CAT. If the CAT is revocable, the [`Self::p2_puzzle_hash`]
+    /// if used instead of the passed in p2 puzzle reveal. This is because the revocation layer
+    /// reveals the inner puzzle in the solution instead of the puzzle.
+    pub fn construct_puzzle(
+        &self,
+        ctx: &mut SpendContext,
+        p2_puzzle: NodePtr,
+    ) -> Result<NodePtr, DriverError> {
+        let mut inner_puzzle = p2_puzzle;
+
+        if let Some(hidden_puzzle_hash) = self.hidden_puzzle_hash {
+            inner_puzzle =
+                ctx.curry(RevocationArgs::new(hidden_puzzle_hash, self.p2_puzzle_hash))?;
+        }
+
+        ctx.curry(CatArgs::new(self.asset_id, inner_puzzle))
     }
 }

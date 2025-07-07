@@ -6,7 +6,7 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use hex_literal::hex;
 
 use crate::{
-    puzzles::{DELEGATED_FEEDER_PUZZLE_HASH, INDEX_WRAPPER_HASH, ONE_OF_N_PUZZLE_HASH},
+    puzzles::{DELEGATED_PUZZLE_FEEDER_HASH, INDEX_WRAPPER_HASH, ONE_OF_N_HASH},
     Mod,
 };
 
@@ -33,8 +33,8 @@ impl Force1of2RestrictedVariable {
         delegated_puzzle_validator_list_hash: Bytes32,
     ) -> Self {
         Self {
-            delegated_puzzle_feeder_mod_hash: DELEGATED_FEEDER_PUZZLE_HASH.into(),
-            one_of_n_mod_hash: ONE_OF_N_PUZZLE_HASH.into(),
+            delegated_puzzle_feeder_mod_hash: DELEGATED_PUZZLE_FEEDER_HASH.into(),
+            one_of_n_mod_hash: ONE_OF_N_HASH.into(),
             left_side_subtree_hash_hash: left_side_subtree_hash.tree_hash().into(),
             index_wrapper_mod_hash: INDEX_WRAPPER_HASH.into(),
             nonce,
@@ -47,11 +47,11 @@ impl Force1of2RestrictedVariable {
 
 impl Mod for Force1of2RestrictedVariable {
     fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&FORCE_1_OF_2_RESTRICTED_VARIABLE_PUZZLE)
+        Cow::Borrowed(&FORCE_1_OF_2_RESTRICTED_VARIABLE)
     }
 
     fn mod_hash() -> TreeHash {
-        FORCE_1_OF_2_RESTRICTED_VARIABLE_PUZZLE_HASH
+        FORCE_1_OF_2_RESTRICTED_VARIABLE_HASH
     }
 }
 
@@ -69,7 +69,7 @@ impl Force1of2RestrictedVariableSolution {
     }
 }
 
-pub const FORCE_1_OF_2_RESTRICTED_VARIABLE_PUZZLE: [u8; 650] = hex!(
+pub const FORCE_1_OF_2_RESTRICTED_VARIABLE: [u8; 650] = hex!(
     "
     ff02ffff01ff02ffff03ffff02ff12ffff04ff02ffff04ff8205ffffff04ffff
     02ff16ffff04ff02ffff04ff2fffff04ffff0bff18ff5f80ffff04ffff02ff16
@@ -95,6 +95,6 @@ pub const FORCE_1_OF_2_RESTRICTED_VARIABLE_PUZZLE: [u8; 650] = hex!(
     "
 );
 
-pub const FORCE_1_OF_2_RESTRICTED_VARIABLE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
+pub const FORCE_1_OF_2_RESTRICTED_VARIABLE_HASH: TreeHash = TreeHash::new(hex!(
     "4f7bc8f30deb6dad75a1e29ceacb67fd0fe0eda79173e45295ff2cfbb8de53c6"
 ));

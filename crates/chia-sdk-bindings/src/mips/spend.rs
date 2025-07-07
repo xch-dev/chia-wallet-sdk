@@ -15,7 +15,7 @@ use chia_sdk_types::{
         PasskeyMemberPuzzleAssertSolution, PasskeyMemberSolution, PreventConditionOpcode,
         PreventMultipleCreateCoinsMod, R1Member, R1MemberPuzzleAssert,
         R1MemberPuzzleAssertSolution, R1MemberSolution, SingletonMember, SingletonMemberSolution,
-        Timelock, PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH,
+        Timelock, PREVENT_MULTIPLE_CREATE_COINS_HASH,
     },
     Mod,
 };
@@ -418,7 +418,7 @@ impl MipsSpend {
         let solution = ctx.alloc(&NodePtr::NIL)?;
 
         self.spend.lock().unwrap().restrictions.insert(
-            PREVENT_MULTIPLE_CREATE_COINS_PUZZLE_HASH,
+            PREVENT_MULTIPLE_CREATE_COINS_HASH,
             sdk::Spend::new(puzzle, solution),
         );
 

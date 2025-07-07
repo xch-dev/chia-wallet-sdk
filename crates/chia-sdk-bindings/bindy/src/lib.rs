@@ -18,7 +18,7 @@ pub use pyo3_impls::*;
 
 use std::string::FromUtf8Error;
 
-use chia_sdk_driver::{DriverError, OfferError};
+use chia_sdk_driver::DriverError;
 use chia_sdk_test::SimulatorError;
 use chia_sdk_utils::AddressError;
 use clvm_traits::{FromClvmError, ToClvmError};
@@ -56,9 +56,6 @@ pub enum Error {
 
     #[error("Driver error: {0}")]
     Driver(#[from] DriverError),
-
-    #[error("Offer error: {0}")]
-    Offer(#[from] OfferError),
 
     #[error("Eval error: {0}")]
     Eval(#[from] EvalErr),

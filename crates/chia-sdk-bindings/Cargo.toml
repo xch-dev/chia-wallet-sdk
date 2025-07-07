@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-bindings"
-version = "0.25.0"
+version = "0.26.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Underlying implementation of chia-wallet-sdk bindings."
@@ -21,7 +21,7 @@ pyo3 = []
 
 [dependencies]
 chia-sdk-utils = { workspace = true }
-chia-sdk-driver = { workspace = true, features = ["offers"] }
+chia-sdk-driver = { workspace = true, features = ["offer-compression"] }
 chia-sdk-coinset = { workspace = true, features = ["native-tls"] }
 chia-sdk-test = { workspace = true }
 chia-sdk-types = { workspace = true }

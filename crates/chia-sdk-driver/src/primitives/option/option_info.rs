@@ -1,4 +1,5 @@
 use chia_protocol::Bytes32;
+use chia_puzzle_types::singleton::SingletonArgs;
 use chia_sdk_types::{puzzles::OptionContractArgs, Mod};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::Allocator;
@@ -65,6 +66,10 @@ impl OptionInfo {
                 p2_puzzle,
             ),
         )
+    }
+
+    pub fn puzzle_hash(&self) -> TreeHash {
+        SingletonArgs::curry_tree_hash(self.launcher_id, self.inner_puzzle_hash())
     }
 
     pub fn inner_puzzle_hash(&self) -> TreeHash {

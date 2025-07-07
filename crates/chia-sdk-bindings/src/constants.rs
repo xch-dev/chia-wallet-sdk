@@ -3,12 +3,11 @@
 use bindy::Result;
 use chia_protocol::Program;
 use chia_puzzles::*;
-use chia_sdk_types::puzzles::{
-    OPTION_CONTRACT_PUZZLE as OPTION_CONTRACT, OPTION_CONTRACT_PUZZLE_HASH as OPTION_CONTRACT_HASH,
-    P2_CURRIED_PUZZLE as P2_CURRIED, P2_CURRIED_PUZZLE_HASH as P2_CURRIED_HASH,
-};
+use chia_sdk_types::puzzles::*;
 use clvm_utils::TreeHash;
 use paste::paste;
+
+use crate::{Clvm, Program as ClvmProgram};
 
 #[derive(Clone)]
 pub struct Constants;
@@ -25,7 +24,19 @@ macro_rules! puzzle_constants {
                     Ok([<$upper _HASH>].into())
                 } )*
             }
+
+            impl Clvm {
+                $( pub fn $lower(&self) -> Result<ClvmProgram> {
+                    let mut ctx = self.0.lock().unwrap();
+                    let ptr = ctx.puzzle([<$upper _HASH>].into(), &$upper)?;
+                    Ok(ClvmProgram(self.0.clone(), ptr))
+                } )*
+            }
         }
+
+        pub const CONSTANTS: &[&str] = &[
+            $(stringify!($lower), )*
+        ];
     };
 }
 
@@ -99,5 +110,28 @@ puzzle_constants! {
 
     // chia-sdk-types
     option_contract => OPTION_CONTRACT,
-    p2_curried => P2_CURRIED,
+    p2_curried_puzzle => P2_CURRIED_PUZZLE,
+    bls_member => BLS_MEMBER,
+    bls_taproot_member => BLS_TAPROOT_MEMBER,
+    fixed_puzzle_member => FIXED_PUZZLE_MEMBER,
+    k1_member_puzzle_assert => K1_MEMBER_PUZZLE_ASSERT,
+    k1_member => K1_MEMBER,
+    passkey_member_puzzle_assert => PASSKEY_MEMBER_PUZZLE_ASSERT,
+    passkey_member => PASSKEY_MEMBER,
+    r1_member_puzzle_assert => R1_MEMBER_PUZZLE_ASSERT,
+    r1_member => R1_MEMBER,
+    singleton_member => SINGLETON_MEMBER,
+    enforce_delegated_puzzle_wrappers => ENFORCE_DELEGATED_PUZZLE_WRAPPERS,
+    force_1_of_2_restricted_variable => FORCE_1_OF_2_RESTRICTED_VARIABLE,
+    force_assert_coin_announcement => FORCE_ASSERT_COIN_ANNOUNCEMENT,
+    force_coin_message => FORCE_COIN_MESSAGE,
+    prevent_condition_opcode => PREVENT_CONDITION_OPCODE,
+    prevent_multiple_create_coins => PREVENT_MULTIPLE_CREATE_COINS,
+    timelock => TIMELOCK,
+    add_delegated_puzzle_wrapper => ADD_DELEGATED_PUZZLE_WRAPPER,
+    delegated_puzzle_feeder => DELEGATED_PUZZLE_FEEDER,
+    index_wrapper => INDEX_WRAPPER,
+    m_of_n => M_OF_N,
+    n_of_n => N_OF_N,
+    one_of_n => ONE_OF_N,
 }
