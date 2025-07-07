@@ -2,6 +2,7 @@ mod announcements;
 mod benchmark;
 mod error;
 mod key_pairs;
+mod print_spend_bundle;
 mod simulator;
 mod transaction;
 
@@ -9,6 +10,7 @@ pub use announcements::*;
 pub use benchmark::*;
 pub use error::*;
 pub use key_pairs::*;
+pub use print_spend_bundle::*;
 pub use simulator::*;
 pub use transaction::*;
 

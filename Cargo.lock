@@ -634,6 +634,8 @@ dependencies = [
  "prettytable-rs",
  "rand",
  "rand_chacha",
+ "serde",
+ "serde_json",
  "signature",
  "thiserror 2.0.12",
  "tokio",
