@@ -3,11 +3,12 @@ use chia_puzzle_types::{
     cat::{CatArgs, CatSolution},
     CoinProof, LineageProof,
 };
+use chia_sdk_types::puzzles::PrecommitLayerSolution;
 use clvm_traits::ToClvm;
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{CatLayer, DriverError, PrecommitLayer, PrecommitLayerSolution, Spend, SpendContext};
+use crate::{CatLayer, DriverError, Layer, PrecommitLayer, Spend, SpendContext};
 
 #[derive(Debug, Clone)]
 #[must_use]

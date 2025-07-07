@@ -2,11 +2,12 @@ use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs, SingletonSolution};
 use chia_puzzle_types::{EveProof, LineageProof, Proof};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
+use chia_sdk_types::puzzles::StateSchedulerLayerSolution;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
-use crate::{DriverError, Spend, SpendContext, StateSchedulerInfo, StateSchedulerLayerSolution};
+use crate::{DriverError, Layer, Spend, SpendContext, StateSchedulerInfo};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateScheduler<S>

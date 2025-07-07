@@ -1,13 +1,17 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{cat::CatArgs, singleton::SingletonSolution, LineageProof};
-use chia_sdk_types::{conditions::CreateCoin, run_puzzle};
+use chia_sdk_types::{
+    conditions::CreateCoin,
+    puzzles::{P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution},
+    run_puzzle,
+};
 use clvm_traits::{clvm_list, clvm_quote, match_tuple, FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    ActionLayer, Cat, CatInfo, CatSpend, DriverError, P2DelegatedBySingletonLayer,
-    P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution, Spend, SpendContext,
+    ActionLayer, Cat, CatInfo, CatSpend, DriverError, Layer, P2DelegatedBySingletonLayer, Spend,
+    SpendContext,
 };
 
 #[derive(Debug, Clone)]

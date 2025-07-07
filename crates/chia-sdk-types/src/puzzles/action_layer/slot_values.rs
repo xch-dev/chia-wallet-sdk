@@ -1,12 +1,3 @@
-// comparison is >s, not >
-// previous min was 0x8000000000000000000000000000000000000000000000000000000000000000
-// and previous max was 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-pub static SLOT32_MIN_VALUE: [u8; 32] =
-    hex!("0000000000000000000000000000000000000000000000000000000000000000");
-// the maximum possible value of a slot - will be contained by the other end of the list
-pub static SLOT32_MAX_VALUE: [u8; 32] =
-    hex!("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-
 use std::cmp::Ordering;
 
 use chia_protocol::{Bytes, Bytes32};
@@ -15,6 +6,15 @@ use clvm_traits::{
 };
 use clvm_utils::ToTreeHash;
 use hex_literal::hex;
+
+// comparison is >s, not >
+// previous min was 0x8000000000000000000000000000000000000000000000000000000000000000
+// and previous max was 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+pub static SLOT32_MIN_VALUE: [u8; 32] =
+    hex!("0000000000000000000000000000000000000000000000000000000000000000");
+// the maximum possible value of a slot - will be contained by the other end of the list
+pub static SLOT32_MAX_VALUE: [u8; 32] =
+    hex!("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use]

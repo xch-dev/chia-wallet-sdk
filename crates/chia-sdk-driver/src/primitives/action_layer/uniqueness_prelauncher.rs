@@ -1,9 +1,12 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
-use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{tree_hash, CurriedProgram, TreeHash};
+use chia_sdk_types::{
+    puzzles::{UniquenessPrelauncher1stCurryArgs, UniquenessPrelauncher2ndCurryArgs},
+    Mod,
+};
+use clvm_traits::ToClvm;
+use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
-use hex_literal::hex;
 
 use crate::{DriverError, Launcher, SpendContext};
 
@@ -41,13 +44,10 @@ impl<V> UniquenessPrelauncher<V> {
     }
 
     pub fn first_curry_hash() -> TreeHash {
-        CurriedProgram {
-            program: UNIQUENESS_PRELAUNCHER_PUZZLE_HASH,
-            args: UniquenessPrelauncher1stCurryArgs {
-                launcher_puzzle_hash: SINGLETON_LAUNCHER_HASH.into(),
-            },
+        UniquenessPrelauncher1stCurryArgs {
+            launcher_puzzle_hash: SINGLETON_LAUNCHER_HASH.into(),
         }
-        .tree_hash()
+        .curry_tree_hash()
     }
 
     pub fn puzzle_hash(value_hash: TreeHash) -> TreeHash {
@@ -62,12 +62,8 @@ impl<V> UniquenessPrelauncher<V> {
     where
         V: ToClvm<Allocator> + Clone,
     {
-        let program = ctx.uniqueness_prelauncher_puzzle()?;
-        let prog_1st_curry = ctx.alloc(&CurriedProgram {
-            program,
-            args: UniquenessPrelauncher1stCurryArgs {
-                launcher_puzzle_hash: SINGLETON_LAUNCHER_HASH.into(),
-            },
+        let prog_1st_curry = ctx.curry(UniquenessPrelauncher1stCurryArgs {
+            launcher_puzzle_hash: SINGLETON_LAUNCHER_HASH.into(),
         })?;
 
         ctx.alloc(&CurriedProgram {
@@ -91,24 +87,4 @@ impl<V> UniquenessPrelauncher<V> {
 
         Ok(Launcher::new(self.coin.coin_id(), 1))
     }
-}
-
-pub const UNIQUENESS_PRELAUNCHER_PUZZLE: [u8; 59] = hex!("ff02ffff01ff04ffff04ff04ffff04ff05ffff01ff01808080ffff04ffff04ff06ffff04ff0bff808080ff808080ffff04ffff01ff333eff018080");
-
-pub const UNIQUENESS_PRELAUNCHER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
-    "
-    851c3d39cef84cfd9449afcaeff5f50d1be9371d8b7d6057ac318bec553a1a9f
-    "
-));
-
-#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
-#[clvm(curry)]
-pub struct UniquenessPrelauncher1stCurryArgs {
-    pub launcher_puzzle_hash: Bytes32,
-}
-
-#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
-#[clvm(curry)]
-pub struct UniquenessPrelauncher2ndCurryArgs<V> {
-    pub value: V,
 }

@@ -1,5 +1,6 @@
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
+use chia_sdk_types::puzzles::P2MOfNDelegateDirectArgs;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 

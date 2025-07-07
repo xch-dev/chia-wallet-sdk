@@ -5,15 +5,15 @@ use chia_puzzle_types::{
     EveProof, LineageProof, Memos, Proof,
 };
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
-use chia_sdk_types::{Condition, Conditions};
+use chia_sdk_types::{
+    puzzles::{P2MOfNDelegateDirectArgs, P2MOfNDelegateDirectSolution, StateSchedulerLayerArgs},
+    Condition, Conditions,
+};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
-use clvm_utils::CurriedProgram;
+use clvm_utils::ToTreeHash;
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
-use crate::{
-    DriverError, Layer, MOfNLayer, P2MOfNDelegateDirectArgs, P2MOfNDelegateDirectSolution, Puzzle,
-    SingletonLayer, Spend, SpendContext, StateSchedulerLayerArgs,
-};
+use crate::{DriverError, Layer, MOfNLayer, Puzzle, SingletonLayer, Spend, SpendContext};
 
 use super::{MedievalVaultHint, MedievalVaultInfo};
 
@@ -276,17 +276,13 @@ impl MedievalVault {
             Self::delegated_conditions(conditions, my_coin.coin_id(), genesis_challenge)
         ))?;
 
-        let program = ctx.state_scheduler_puzzle()?;
-        ctx.alloc(&CurriedProgram {
-            program,
-            args: StateSchedulerLayerArgs::<M, NodePtr> {
-                singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
-                receiver_singleton_struct_hash: SingletonStruct::new(receiver_launcher_id)
-                    .tree_hash()
-                    .into(),
-                message,
-                inner_puzzle: innermost_delegated_puzzle_ptr,
-            },
+        ctx.curry(StateSchedulerLayerArgs::<M, NodePtr> {
+            singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
+            receiver_singleton_struct_hash: SingletonStruct::new(receiver_launcher_id)
+                .tree_hash()
+                .into(),
+            message,
+            inner_puzzle: innermost_delegated_puzzle_ptr,
         })
     }
 }

@@ -1,12 +1,13 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs, SingletonStruct};
 use chia_puzzle_types::Memos;
+use chia_sdk_types::puzzles::StateSchedulerLayerArgs;
 use chia_sdk_types::Condition;
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, SingletonLayer, StateSchedulerLayer, StateSchedulerLayerArgs};
+use crate::{DriverError, SingletonLayer, StateSchedulerLayer};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSchedulerInfo<S> {
@@ -57,8 +58,8 @@ where
             SingletonStruct::new(self.receiver_singleton_launcher_id)
                 .tree_hash()
                 .into(),
-            message,
-            clvm_quote!(vec![
+            &message,
+            &clvm_quote!(vec![
                 Condition::<()>::create_coin(next_puzzle_hash, 1, Memos::None),
                 Condition::assert_height_absolute(required_block_height),
             ]),

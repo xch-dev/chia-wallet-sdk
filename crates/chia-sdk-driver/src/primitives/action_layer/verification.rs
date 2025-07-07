@@ -2,13 +2,13 @@ use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::singleton::{SingletonArgs, SingletonSolution};
 use chia_puzzle_types::{EveProof, LineageProof, Proof};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
+use chia_sdk_types::puzzles::{VerificationLayer2ndCurryArgs, VerificationLayerSolution};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    DriverError, Puzzle, SingletonLayer, SpendContext, VerificationLayer,
-    VerificationLayer2ndCurryArgs, VerificationLayerSolution, VerifiedData,
+    DriverError, Layer, Puzzle, SingletonLayer, SpendContext, VerificationLayer, VerifiedData,
 };
 
 use super::VerificationInfo;
@@ -55,7 +55,7 @@ impl Verification {
 
     pub fn inner_puzzle_hash<T>(
         revocation_singleton_launcher_id: Bytes32,
-        verified_data: T,
+        verified_data: &T,
     ) -> TreeHash
     where
         T: ToTreeHash,
@@ -71,7 +71,7 @@ impl Verification {
             info.launcher_id,
             Self::inner_puzzle_hash(
                 info.revocation_singleton_launcher_id,
-                info.verified_data.tree_hash(),
+                &info.verified_data.tree_hash(),
             ),
         )
     }
@@ -143,7 +143,7 @@ impl Verification {
 
         let parent_inner_puzzle_hash = Verification::inner_puzzle_hash(
             parent_layers.inner_puzzle.revocation_singleton_launcher_id,
-            parent_layers.inner_puzzle.verified_data.tree_hash(),
+            &parent_layers.inner_puzzle.verified_data.tree_hash(),
         )
         .into();
 
