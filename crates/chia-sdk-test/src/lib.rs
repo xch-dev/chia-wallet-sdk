@@ -1,12 +1,12 @@
 mod announcements;
-mod benchmarker;
+mod benchmark;
 mod error;
 mod key_pairs;
 mod simulator;
 mod transaction;
 
 pub use announcements::*;
-pub use benchmarker::*;
+pub use benchmark::*;
 pub use error::*;
 pub use key_pairs::*;
 pub use simulator::*;
