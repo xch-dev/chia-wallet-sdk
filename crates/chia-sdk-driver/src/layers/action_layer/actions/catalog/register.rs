@@ -1,23 +1,21 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
-use chia_puzzles::{
-    NFT_OWNERSHIP_LAYER_HASH, NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES_HASH,
-    NFT_STATE_LAYER_HASH, SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH,
-};
 use chia_sdk_types::{
     announcement_id,
-    puzzles::{CatalogRegisterActionArgs, CATALOG_REGISTER_PUZZLE_HASH},
+    puzzles::{
+        CatalogRegisterActionArgs, CatalogRegisterActionSolution, CatalogSlotValue, NftPack,
+        ANY_METADATA_UPDATER_HASH, CATALOG_REGISTER_PUZZLE_HASH,
+    },
     Conditions,
 };
 use clvm_traits::{clvm_tuple, FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
-use hex_literal::hex;
 
 use crate::{
-    CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants, CatalogSlotValue,
-    DefaultCatMakerArgs, DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend,
-    SpendContext, UniquenessPrelauncher,
+    CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants, DefaultCatMakerArgs,
+    DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
+    UniquenessPrelauncher,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

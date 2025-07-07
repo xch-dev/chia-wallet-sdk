@@ -2,18 +2,19 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     announcement_id,
-    puzzles::{CatalogRefundActionArgs, CATALOG_REFUND_PUZZLE_HASH},
+    puzzles::{
+        CatalogRefundActionArgs, CatalogRefundActionSolution, CatalogSlotValue, SlotNeigborsInfo,
+        CATALOG_REFUND_PUZZLE_HASH,
+    },
     Conditions,
 };
 use clvm_traits::{clvm_tuple, FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
-use hex_literal::hex;
 
 use crate::{
-    CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants, CatalogSlotValue,
-    DefaultCatMakerArgs, DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot,
-    SlotNeigborsInfo, Spend, SpendContext,
+    CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants, DefaultCatMakerArgs,
+    DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
