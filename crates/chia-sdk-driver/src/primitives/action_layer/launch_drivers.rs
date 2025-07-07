@@ -861,7 +861,7 @@ mod tests {
         price_singleton_coin: Coin,
         price_singleton_proof: Proof,
         price_singleton_puzzle: NodePtr,
-        new_state: S,
+        new_state: &S,
         receiver_puzzle_hash: Bytes32,
     ) -> Result<(Coin, Proof, DelegatedStateActionSolution<NodePtr>), DriverError>
     where
@@ -1027,6 +1027,7 @@ mod tests {
     }
 
     #[allow(clippy::similar_names)]
+    #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn test_catalog() -> anyhow::Result<()> {
         let ctx = &mut SpendContext::new();
@@ -1223,7 +1224,7 @@ mod tests {
 
             let mut left_slot: Option<Slot<CatalogSlotValue>> = None;
             let mut right_slot: Option<Slot<CatalogSlotValue>> = None;
-            for slot in slots.iter() {
+            for slot in &slots {
                 let slot_value = slot.info.value;
 
                 if slot_value < slot_value_to_insert {
@@ -1271,7 +1272,7 @@ mod tests {
                     price_singleton_coin,
                     price_singleton_proof,
                     price_singleton_puzzle,
-                    new_state,
+                    &new_state,
                     catalog.coin.puzzle_hash,
                 )?;
 
@@ -1337,12 +1338,12 @@ mod tests {
             });
             slots.extend(created_slots.clone());
 
-            created_slots.into_iter().for_each(|s| {
+            for s in created_slots {
                 assert!(sim
                     .coin_state(s.coin.coin_id())
                     .map(|c| c.spent_height)
                     .is_some());
-            });
+            }
         }
 
         assert_eq!(
@@ -1437,7 +1438,7 @@ mod tests {
         sim: &mut Simulator,
         benchmark: &mut Benchmark,
         benchmark_label: &str,
-        handle_to_refund: String,
+        handle_to_refund: &str,
         pricing_puzzle: NodePtr,
         pricing_solution: NodePtr,
         slot: Option<Slot<XchandlesSlotValue>>,
@@ -1456,7 +1457,7 @@ mod tests {
             payment_cat.info.asset_id.tree_hash(),
             pricing_puzzle_hash,
             &pricing_solution_hash,
-            handle_to_refund.clone(),
+            handle_to_refund.to_string(),
             Bytes32::default(),
             Bytes32::default(),
             Bytes::default(),
@@ -1548,6 +1549,7 @@ mod tests {
     }
 
     #[allow(clippy::similar_names)]
+    #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn test_xchandles() -> anyhow::Result<()> {
         let ctx = &mut SpendContext::new();
@@ -1797,7 +1799,7 @@ mod tests {
 
             let mut left_slot: Option<Slot<XchandlesSlotValue>> = None;
             let mut right_slot: Option<Slot<XchandlesSlotValue>> = None;
-            for slot in slots.iter() {
+            for slot in &slots {
                 let slot_value = slot.info.value.clone();
 
                 if slot_value < slot_value_to_insert {
@@ -1846,7 +1848,7 @@ mod tests {
                     price_singleton_coin,
                     price_singleton_proof,
                     price_singleton_puzzle,
-                    XchandlesRegistryState::from(
+                    &XchandlesRegistryState::from(
                         payment_cat.info.asset_id.tree_hash().into(),
                         new_price,
                         registration_period,
@@ -2312,7 +2314,7 @@ mod tests {
                 &mut sim,
                 &mut benchmark,
                 "refund_cat_wrong",
-                unregistered_handle.clone(),
+                &unregistered_handle,
                 pricing_puzzle,
                 pricing_solution,
                 None,
@@ -2332,7 +2334,7 @@ mod tests {
                 &mut sim,
                 &mut benchmark,
                 "refund_amount_wrong",
-                unregistered_handle.clone(),
+                &unregistered_handle,
                 pricing_puzzle,
                 pricing_solution,
                 None,
@@ -2351,7 +2353,7 @@ mod tests {
                 &mut sim,
                 &mut benchmark,
                 "refund_pricing_wrong",
-                unregistered_handle.clone(),
+                &unregistered_handle,
                 other_pricing_puzzle,
                 pricing_solution,
                 None,
@@ -2370,7 +2372,7 @@ mod tests {
                 &mut sim,
                 &mut benchmark,
                 "refund_handle_already_registered",
-                existing_handle.clone(), // already registered handle
+                &existing_handle, // already registered handle
                 pricing_puzzle,
                 existing_handle_pricing_solution,
                 Some(existing_slot),
@@ -2827,7 +2829,7 @@ mod tests {
         assert!(sim
             .coin_state(first_epoch_commitment_slot.coin.coin_id())
             .is_some());
-        for incentive_slot in incentive_slots.iter() {
+        for incentive_slot in &incentive_slots {
             assert!(sim.coin_state(incentive_slot.coin.coin_id()).is_some());
         }
 
@@ -2893,7 +2895,7 @@ mod tests {
         assert!(sim
             .coin_state(fifth_epoch_commitment_slot.coin.coin_id())
             .is_some());
-        for incentive_slot in incentive_slots.iter() {
+        for incentive_slot in &incentive_slots {
             assert!(sim.coin_state(incentive_slot.coin.coin_id()).is_some());
         }
 
@@ -2962,7 +2964,7 @@ mod tests {
         assert!(sim
             .coin_state(fifth_epoch_commitment_slot2.coin.coin_id())
             .is_some());
-        for incentive_slot in incentive_slots.iter() {
+        for incentive_slot in &incentive_slots {
             assert!(sim.coin_state(incentive_slot.coin.coin_id()).is_some());
         }
         assert!(sim
@@ -3587,7 +3589,7 @@ mod tests {
         assert!(sim
             .coin_state(tenth_epoch_commitment_slot.coin.coin_id())
             .is_some());
-        for incentive_slot in incentive_slots.iter() {
+        for incentive_slot in &incentive_slots {
             assert!(sim.coin_state(incentive_slot.coin.coin_id()).is_some());
         }
 
