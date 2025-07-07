@@ -757,13 +757,13 @@ pub fn launch_dig_reward_distributor(
 mod tests {
     use chia_protocol::{Bytes, CoinSpend, SpendBundle};
 
-    use chia_puzzle_types::cat::GenesisByCoinIdTailArgs;
+    use chia_puzzle_types::{cat::GenesisByCoinIdTailArgs, CoinProof};
     use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
     use chia_sdk_test::{Benchmark, Simulator};
     use chia_sdk_types::{
         puzzles::{
-            CatNftMetadata, DelegatedStateActionSolution, XchandlesFactorPricingPuzzleArgs,
-            XchandlesPricingSolution,
+            CatNftMetadata, DelegatedStateActionSolution, IntermediaryCoinProof, NftLauncherProof,
+            XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution, ANY_METADATA_UPDATER_HASH,
         },
         TESTNET11_CONSTANTS,
     };
@@ -773,12 +773,13 @@ mod tests {
 
     use crate::{
         CatalogPrecommitValue, CatalogRefundAction, CatalogRegisterAction, DelegatedStateAction,
-        PrecommitCoin, RewardDistributorAddEntryAction, RewardDistributorAddIncentivesAction,
-        RewardDistributorCommitIncentivesAction, RewardDistributorInitiatePayoutAction,
-        RewardDistributorNewEpochAction, RewardDistributorRemoveEntryAction,
-        RewardDistributorStakeAction, RewardDistributorSyncAction, RewardDistributorType,
-        RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, Slot,
-        SpendWithConditions, XchandlesExpireAction, XchandlesExtendAction, XchandlesOracleAction,
+        NftMint, PrecommitCoin, RewardDistributorAddEntryAction,
+        RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
+        RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
+        RewardDistributorRemoveEntryAction, RewardDistributorStakeAction,
+        RewardDistributorSyncAction, RewardDistributorType, RewardDistributorUnstakeAction,
+        RewardDistributorWithdrawIncentivesAction, SingleCatSpend, Slot, SpendWithConditions,
+        XchandlesExpireAction, XchandlesExtendAction, XchandlesOracleAction,
         XchandlesPrecommitValue, XchandlesRefundAction, XchandlesRegisterAction,
         XchandlesUpdateAction,
     };
@@ -1621,13 +1622,13 @@ mod tests {
         ) = launch_test_singleton(ctx, &mut sim)?;
 
         // Launch XCHandles
-        let reg_period = 366 * 24 * 60 * 60;
+        let registration_period = 366 * 24 * 60 * 60;
         let (_, security_sk, mut registry, slots_returned_by_launch, _security_coin) =
             launch_xchandles_registry(
                 ctx,
                 &offer,
                 initial_registration_price,
-                reg_period,
+                registration_period,
                 |_ctx, _launcher_id, _coin, (xchandles_constants, payment_cat_asset_id)| {
                     Ok((Conditions::new(), xchandles_constants, payment_cat_asset_id))
                 },
@@ -1713,7 +1714,7 @@ mod tests {
                 payment_cat.info.asset_id.tree_hash(),
                 XchandlesFactorPricingPuzzleArgs {
                     base_price,
-                    registration_period: reg_period,
+                    registration_period,
                 }
                 .curry_tree_hash(),
                 &XchandlesPricingSolution {
@@ -1820,8 +1821,12 @@ mod tests {
             // update price
             if i % 2 == 1 {
                 let new_price = test_price_schedule[i / 2];
-                let new_price_puzzle_hash: Bytes32 =
-                    XchandlesFactorPricingPuzzleArgs::curry_tree_hash(new_price, reg_period).into();
+                let new_price_puzzle_hash: Bytes32 = XchandlesFactorPricingPuzzleArgs {
+                    base_price: new_price,
+                    registration_period,
+                }
+                .curry_tree_hash()
+                .into();
                 assert_ne!(
                     new_price_puzzle_hash,
                     registry.info.state.pricing_puzzle_hash
@@ -1839,7 +1844,7 @@ mod tests {
                     XchandlesRegistryState::from(
                         payment_cat.info.asset_id.tree_hash().into(),
                         new_price,
-                        reg_period,
+                        registration_period,
                     ),
                     registry.coin.puzzle_hash,
                 )?;
@@ -1874,7 +1879,7 @@ mod tests {
                 right_slot.clone(),
                 precommit_coin,
                 base_price,
-                reg_period,
+                registration_period,
                 100,
             )?;
 
@@ -1962,7 +1967,7 @@ mod tests {
                     extension_slot.clone(),
                     payment_cat.info.asset_id,
                     base_price,
-                    reg_period,
+                    registration_period,
                     extension_years,
                     0,
                 )?;
@@ -2045,7 +2050,7 @@ mod tests {
                 &mut registry,
                 update_slot.clone(),
                 new_owner_launcher_id,
-                new_resolved_data,
+                &new_resolved_data,
                 did.info.inner_puzzle_hash().into(),
             )?;
             let new_slot = registry
@@ -2076,8 +2081,12 @@ mod tests {
         assert_eq!(
             registry.info.state.pricing_puzzle_hash,
             // iterations 1, 3, 5 updated the price
-            XchandlesFactorPricingPuzzleArgs::curry_tree_hash(test_price_schedule[2], reg_period)
-                .into(),
+            XchandlesFactorPricingPuzzleArgs {
+                base_price: test_price_schedule[2],
+                registration_period
+            }
+            .curry_tree_hash()
+            .into(),
         );
 
         // expire one of the slots
@@ -2095,10 +2104,12 @@ mod tests {
         let buy_time = expiration + 27 * 24 * 60 * 60; // last day of auction; 0 < premium < 1 CAT
         let value = XchandlesPrecommitValue::for_normal_registration(
             payment_cat.info.asset_id.tree_hash(),
-            XchandlesExponentialPremiumRenewPuzzleArgs::curry_tree_hash(
-                base_price, reg_period, 1000,
+            XchandlesExpireAction::exponential_premium_puzzle_tree_hash(
+                base_price,
+                registration_period,
+                1000,
             ),
-            XchandlesPricingSolution {
+            &XchandlesPricingSolution {
                 buy_time,
                 current_expiration: expiration,
                 handle: handle_to_expire.clone(),
@@ -2111,11 +2122,20 @@ mod tests {
             Bytes32::from([69; 32]).into(),
         );
 
-        let pricing_puzzle = XchandlesExponentialPremiumRenewPuzzleArgs::from_scale_factor(
-            ctx, base_price, reg_period, 1000,
+        let pricing_puzzle = XchandlesExpireAction::expire_puzzle_args_from_scale_factor(
+            ctx,
+            base_price,
+            registration_period,
+            1000,
         )?;
-        let reg_amount =
-            pricing_puzzle.get_price(ctx, handle_to_expire, expiration, buy_time, 1)? as u64;
+        let reg_amount = XchandlesExpireAction::get_price(
+            ctx,
+            pricing_puzzle,
+            handle_to_expire,
+            expiration,
+            buy_time,
+            1,
+        )? as u64;
 
         let precommit_coin = PrecommitCoin::<XchandlesPrecommitValue>::new(
             ctx,
@@ -2172,7 +2192,7 @@ mod tests {
             initial_slot.clone(),
             1,
             base_price,
-            reg_period,
+            registration_period,
             precommit_coin,
             buy_time,
         )?;
@@ -2201,10 +2221,13 @@ mod tests {
 
         for use_factor_pricing in [true, false] {
             let pricing_puzzle = if use_factor_pricing {
-                XchandlesFactorPricingPuzzleArgs::get_puzzle(ctx, base_price, reg_period)?
+                XchandlesFactorPricingPuzzleArgs::get_puzzle(ctx, base_price, registration_period)?
             } else {
                 XchandlesExponentialPremiumRenewPuzzleArgs::from_scale_factor(
-                    ctx, base_price, reg_period, 1000,
+                    ctx,
+                    base_price,
+                    registration_period,
+                    1000,
                 )?
                 .get_puzzle(ctx)?
             };
@@ -2216,17 +2239,19 @@ mod tests {
             })?;
 
             let expected_price =
-                XchandlesFactorPricingPuzzleArgs::get_price(base_price, &unregistered_handle, 1);
+                XchandlesRegisterAction::get_price(base_price, &unregistered_handle, 1);
             let other_pricing_puzzle = if use_factor_pricing {
-                XchandlesFactorPricingPuzzleArgs::get_puzzle(ctx, base_price + 1, reg_period)?
+                ctx.curry(XchandlesFactorPricingPuzzleArgs {
+                    base_price: base_price + 1,
+                    registration_period,
+                })?
             } else {
-                XchandlesExponentialPremiumRenewPuzzleArgs::from_scale_factor(
+                ctx.curry(XchandlesExpireAction::expire_puzzle_args_from_scale_factor(
                     ctx,
                     base_price + 1,
-                    reg_period,
+                    registration_period,
                     1000,
-                )?
-                .get_puzzle(ctx)?
+                )?)?
             };
             let other_expected_price = XchandlesFactorPricingPuzzleArgs::get_price(
                 base_price + 1,
@@ -2252,7 +2277,7 @@ mod tests {
                 num_periods: 1,
             })?;
             let existing_handle_expected_price =
-                XchandlesFactorPricingPuzzleArgs::get_price(base_price, &existing_handle, 1);
+                XchandlesRegisterAction::get_price(base_price, &existing_handle, 1);
 
             // a - the CAT maker puzzle has changed
             let alternative_payment_cat_amount = 10_000_000;
@@ -2386,7 +2411,8 @@ mod tests {
             ticker: "XXX".to_string(),
             name: "Test Name".to_string(),
             description: "Test desc".to_string(),
-            precision: 4,
+            precision: 3,
+            hidden_puzzle_hash: None,
             image_uris: vec!["img URI".to_string()],
             image_hash: Bytes32::from([31; 32]),
             metadata_uris: vec!["meta URI".to_string()],
@@ -2730,7 +2756,13 @@ mod tests {
             let _new_offer_nft = offer_nft.spend(ctx, nft_inner_spend)?;
 
             // sim.spend_coins(spends, &[nft_bls.sk.clone()])?;
-            benchmark.add_spends(ctx, &mut sim, "stake_nft", &[nft_bls.sk.clone()])?;
+            benchmark.add_spends(
+                ctx,
+                &mut sim,
+                ctx.take(),
+                "stake_nft",
+                &[nft_bls.sk.clone()],
+            )?;
 
             (entry1_slot, Some(locked_nft))
         };
@@ -2774,7 +2806,13 @@ mod tests {
 
         registry = registry.finish_spend(ctx, vec![source_cat_spend])?.0;
         // sim.spend_coins(ctx.take(), &[cat_minter.sk.clone()])?;
-        benchmark.add_spends(ctx, &mut sim, "commit_incentives", &[cat_minter.sk.clone()])?;
+        benchmark.add_spends(
+            ctx,
+            &mut sim,
+            ctx.take(),
+            "commit_incentives",
+            &[cat_minter.sk.clone()],
+        )?;
         source_cat = source_cat.child(
             cat_minter.puzzle_hash,
             source_cat.coin.amount - rewards_to_add,
