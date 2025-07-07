@@ -1,18 +1,24 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{cat::CatArgs, singleton::SingletonArgs};
-use chia_sdk_types::MerkleTree;
+use chia_sdk_types::{
+    puzzles::{
+        ActionLayerArgs, DefaultReserveAmountFromStateProgramArgs, P2DelegatedBySingletonLayerArgs,
+        ReserveFinalizer2ndCurryArgs,
+        RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM_HASH,
+    },
+    MerkleTree,
+};
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::TreeHash;
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    ActionLayer, ActionLayerArgs, DriverError, Finalizer, P2DelegatedBySingletonLayerArgs, Puzzle,
-    ReserveFinalizer2ndCurryArgs, RewardDistributorAddEntryAction,
+    ActionLayer, DriverError, Finalizer, Layer, Puzzle, RewardDistributorAddEntryAction,
     RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
     RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
     RewardDistributorRemoveEntryAction, RewardDistributorStakeAction, RewardDistributorSyncAction,
-    RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, SingletonLayer,
-    SpendContext, RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM_HASH,
+    RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, SingletonAction,
+    SingletonLayer, SpendContext,
 };
 
 use super::Reserveful;
@@ -217,7 +223,8 @@ impl RewardDistributorInfo {
                     reserve_full_puzzle_hash: self.constants.reserve_full_puzzle_hash,
                     reserve_inner_puzzle_hash: self.constants.reserve_inner_puzzle_hash,
                     reserve_amount_from_state_program: ctx
-                        .default_reserve_amount_from_state_program()?,
+                        .alloc_mod::<DefaultReserveAmountFromStateProgramArgs>(
+                    )?,
                     hint: self.constants.launcher_id,
                 },
             ),

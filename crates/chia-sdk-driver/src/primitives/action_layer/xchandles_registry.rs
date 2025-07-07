@@ -2,19 +2,18 @@ use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs, SingletonSolution};
 use chia_puzzle_types::{LineageProof, Proof};
+use chia_sdk_types::puzzles::{SlotInfo, XchandlesSlotValue};
 use clvm_traits::{clvm_list, match_tuple};
+use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 
 use crate::{
-    ActionLayer, ActionLayerSolution, ActionSingleton, DelegatedStateAction, DriverError, Puzzle,
-    SingletonAction, Spend, SpendContext, XchandlesExpireAction, XchandlesExtendAction,
+    ActionLayer, ActionLayerSolution, ActionSingleton, DelegatedStateAction, DriverError, Layer,
+    Puzzle, SingletonAction, Spend, SpendContext, XchandlesExpireAction, XchandlesExtendAction,
     XchandlesOracleAction, XchandlesRefundAction, XchandlesRegisterAction, XchandlesUpdateAction,
 };
 
-use super::{
-    Slot, SlotInfo, SlotProof, XchandlesConstants, XchandlesRegistryInfo, XchandlesRegistryState,
-    XchandlesSlotValue,
-};
+use super::{Slot, SlotProof, XchandlesConstants, XchandlesRegistryInfo, XchandlesRegistryState};
 
 #[derive(Debug, Clone)]
 pub struct XchandlesPendingSpendInfo {

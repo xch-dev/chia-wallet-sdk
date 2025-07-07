@@ -1,19 +1,23 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonArgs;
-use chia_sdk_types::MerkleTree;
+use chia_sdk_types::{
+    puzzles::{
+        ActionLayerArgs, DefaultCatMakerArgs, DefaultFinalizer2ndCurryArgs,
+        XchandlesFactorPricingPuzzleArgs,
+    },
+    MerkleTree, Mod,
+};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::Allocator;
 
 use crate::{
-    ActionLayer, ActionLayerArgs, DefaultFinalizer2ndCurryArgs, DelegatedStateAction, DriverError,
-    Finalizer, Puzzle, SingletonAction, SingletonLayer, XchandlesExpireAction,
-    XchandlesExponentialPremiumRenewPuzzleArgs, XchandlesExtendAction,
-    XchandlesFactorPricingPuzzleArgs, XchandlesOracleAction, XchandlesRefundAction,
-    XchandlesRegisterAction, XchandlesUpdateAction,
+    ActionLayer, DelegatedStateAction, DriverError, Finalizer, Layer, Puzzle, SingletonAction,
+    SingletonLayer, XchandlesExpireAction, XchandlesExtendAction, XchandlesOracleAction,
+    XchandlesRefundAction, XchandlesRegisterAction, XchandlesUpdateAction,
 };
 
-use super::{DefaultCatMakerArgs, XchandlesRegistry};
+use super::XchandlesRegistry;
 
 pub type XchandlesRegistryLayers = SingletonLayer<ActionLayer<XchandlesRegistryState>>;
 
@@ -34,15 +38,17 @@ impl XchandlesRegistryState {
         registration_period: u64,
     ) -> Self {
         Self {
-            cat_maker_puzzle_hash: DefaultCatMakerArgs::curry_tree_hash(payment_cat_tail_hash_hash)
+            cat_maker_puzzle_hash: DefaultCatMakerArgs::new(payment_cat_tail_hash_hash)
+                .curry_tree_hash()
                 .into(),
-            pricing_puzzle_hash: XchandlesFactorPricingPuzzleArgs::curry_tree_hash(
+            pricing_puzzle_hash: XchandlesFactorPricingPuzzleArgs {
                 base_price,
                 registration_period,
-            )
+            }
+            .curry_tree_hash()
             .into(),
             expired_handle_pricing_puzzle_hash:
-                XchandlesExponentialPremiumRenewPuzzleArgs::curry_tree_hash(
+                XchandlesExpireAction::exponential_premium_puzzle_tree_hash(
                     base_price,
                     registration_period,
                     1000,

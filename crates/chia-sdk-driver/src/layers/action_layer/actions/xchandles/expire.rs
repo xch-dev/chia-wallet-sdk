@@ -230,19 +230,18 @@ impl XchandlesExpireAction {
 
         // spend self
         let slot = registry.actual_slot(slot);
+        let expire_args = Self::expire_puzzle_args_from_scale_factor(
+            ctx,
+            base_handle_price,
+            registration_period,
+            1000,
+        )?;
         let action_solution = XchandlesExpireActionSolution {
             cat_maker_puzzle_reveal: ctx.curry(DefaultCatMakerArgs::new(
                 precommit_coin.asset_id.tree_hash().into(),
             ))?,
             cat_maker_puzzle_solution: (),
-            expired_handle_pricing_puzzle_reveal: ctx.curry(
-                Self::expire_puzzle_args_from_scale_factor(
-                    ctx,
-                    base_handle_price,
-                    registration_period,
-                    1000,
-                )?,
-            )?,
+            expired_handle_pricing_puzzle_reveal: ctx.curry(expire_args)?,
             expired_handle_pricing_puzzle_solution: XchandlesPricingSolution {
                 buy_time: start_time,
                 current_expiration: slot.info.value.expiration,

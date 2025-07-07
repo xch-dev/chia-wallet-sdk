@@ -5,26 +5,27 @@ use chia_puzzle_types::{
     singleton::{SingletonSolution, SingletonStruct},
     LineageProof, Proof,
 };
+use chia_sdk_types::puzzles::{
+    RawActionLayerSolution, ReserveFinalizerSolution, RewardDistributorCommitmentSlotValue,
+    RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue, RewardDistributorSlotNonce,
+    SlotInfo,
+};
 use chia_sdk_types::{Condition, Conditions};
 use clvm_traits::{clvm_list, match_tuple, FromClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    ActionLayer, ActionLayerSolution, ActionSingleton, Cat, CatSpend, DriverError, Puzzle,
-    RawActionLayerSolution, ReserveFinalizerSolution, RewardDistributorAddEntryAction,
-    RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
-    RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
-    RewardDistributorRemoveEntryAction, RewardDistributorStakeAction, RewardDistributorSyncAction,
-    RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, SingletonAction,
-    SingletonLayer, Slot, SlotInfo, SlotProof, Spend, SpendContext,
+    ActionLayer, ActionLayerSolution, ActionSingleton, Cat, CatSpend, DriverError, Layer, Puzzle,
+    RewardDistributorAddEntryAction, RewardDistributorAddIncentivesAction,
+    RewardDistributorCommitIncentivesAction, RewardDistributorInitiatePayoutAction,
+    RewardDistributorNewEpochAction, RewardDistributorRemoveEntryAction,
+    RewardDistributorStakeAction, RewardDistributorSyncAction, RewardDistributorUnstakeAction,
+    RewardDistributorWithdrawIncentivesAction, SingletonAction, SingletonLayer, Slot, SlotProof,
+    Spend, SpendContext,
 };
 
-use super::{
-    Reserve, RewardDistributorCommitmentSlotValue, RewardDistributorConstants,
-    RewardDistributorEntrySlotValue, RewardDistributorInfo, RewardDistributorRewardSlotValue,
-    RewardDistributorSlotNonce, RewardDistributorState,
-};
+use super::{Reserve, RewardDistributorConstants, RewardDistributorInfo, RewardDistributorState};
 
 #[derive(Debug, Clone)]
 pub struct RewardDistributorPendingSpendInfo {

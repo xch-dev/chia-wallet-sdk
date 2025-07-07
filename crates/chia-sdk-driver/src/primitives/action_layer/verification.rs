@@ -219,7 +219,7 @@ mod tests {
             ctx,
             Verification::inner_puzzle_hash(
                 verification.info.revocation_singleton_launcher_id,
-                verification.info.verified_data.clone(),
+                &verification.info.verified_data,
             )
             .into(),
             (),

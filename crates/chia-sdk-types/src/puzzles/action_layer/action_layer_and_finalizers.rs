@@ -88,6 +88,19 @@ pub const RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM_HASH: Tree
         "a12871fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222"
     ));
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DefaultReserveAmountFromStateProgramArgs {}
+
+impl Mod for DefaultReserveAmountFromStateProgramArgs {
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM)
+    }
+
+    fn mod_hash() -> TreeHash {
+        RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM_HASH
+    }
+}
+
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct ReserveFinalizer1stCurryArgs<P> {
