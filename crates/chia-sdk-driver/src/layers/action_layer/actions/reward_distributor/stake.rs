@@ -8,9 +8,10 @@ use chia_puzzles::{NFT_OWNERSHIP_LAYER_HASH, NFT_STATE_LAYER_HASH, SETTLEMENT_PA
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        NftLauncherProof, NonceWrapperArgs, RewardDistributorEntrySlotValue,
-        RewardDistributorSlotNonce, RewardDistributorStakeActionArgs,
-        RewardDistributorStakeActionSolution, NONCE_WRAPPER_PUZZLE_HASH,
+        NftLauncherProof, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs,
+        RewardDistributorEntrySlotValue, RewardDistributorSlotNonce,
+        RewardDistributorStakeActionArgs, RewardDistributorStakeActionSolution,
+        NONCE_WRAPPER_PUZZLE_HASH,
     },
     Conditions, Mod,
 };
@@ -19,8 +20,8 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    Asset, DriverError, HashedPtr, Nft, P2DelegatedBySingletonLayerArgs, RewardDistributor,
-    RewardDistributorConstants, RewardDistributorState, SingletonAction, Slot, Spend, SpendContext,
+    Asset, DriverError, HashedPtr, Nft, RewardDistributor, RewardDistributorConstants,
+    RewardDistributorState, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -6,9 +6,10 @@ use chia_puzzles::{
 };
 use chia_sdk_types::{
     puzzles::{
-        NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, RewardDistributorEntrySlotValue,
-        RewardDistributorSlotNonce, RewardDistributorUnstakeActionArgs,
-        RewardDistributorUnstakeActionSolution, NONCE_WRAPPER_PUZZLE_HASH,
+        NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution,
+        RewardDistributorEntrySlotValue, RewardDistributorSlotNonce,
+        RewardDistributorUnstakeActionArgs, RewardDistributorUnstakeActionSolution,
+        NONCE_WRAPPER_PUZZLE_HASH,
     },
     Conditions, Mod,
 };
@@ -17,9 +18,8 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, HashedPtr, Layer, Nft, P2DelegatedBySingletonLayer,
-    P2DelegatedBySingletonLayerSolution, RewardDistributor, RewardDistributorConstants,
-    SingletonAction, Slot, Spend, SpendContext,
+    DriverError, HashedPtr, Layer, Nft, P2DelegatedBySingletonLayer, RewardDistributor,
+    RewardDistributorConstants, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

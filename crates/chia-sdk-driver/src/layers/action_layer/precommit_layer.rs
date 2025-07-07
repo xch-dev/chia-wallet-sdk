@@ -6,7 +6,7 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 use hex_literal::hex;
 
-use crate::{CatNftMetadata, DefaultCatMakerArgs, DriverError, Layer, Puzzle, SpendContext};
+use crate::{DefaultCatMakerArgs, DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug, Clone)]
 #[must_use]
