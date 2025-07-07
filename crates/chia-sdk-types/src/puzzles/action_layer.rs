@@ -1,15 +1,21 @@
 mod action_layer;
 mod actions;
+mod cat_nft_metadata;
+mod name_nft_metadata;
 mod p2_delegated_by_singleton;
 mod p2_m_of_n_delegate_direct;
 mod precommit_layer;
+mod slot_values;
 mod state_scheduler;
 mod verification_layer;
 
 pub use action_layer::*;
 pub use actions::*;
+pub use cat_nft_metadata::*;
+pub use name_nft_metadata::*;
 pub use p2_delegated_by_singleton::*;
 pub use p2_m_of_n_delegate_direct::*;
 pub use precommit_layer::*;
+pub use slot_values::*;
 pub use state_scheduler::*;
 pub use verification_layer::*;

@@ -9,6 +9,7 @@ pub struct CatNftMetadata {
     pub name: String,
     pub description: String,
     pub precision: u8,
+    pub hidden_puzzle_hash: Option<Bytes32>,
     pub image_uris: Vec<String>,
     pub image_hash: Bytes32,
     pub metadata_uris: Vec<String>,
@@ -24,6 +25,7 @@ impl Default for CatNftMetadata {
             name: "Unknown CAT".to_string(),
             description: "(no description provided)".to_string(),
             precision: 3,
+            hidden_puzzle_hash: None,
             image_uris: Vec::default(),
             image_hash: Bytes32::default(),
             metadata_uris: Vec::default(),
@@ -40,6 +42,7 @@ impl CatNftMetadata {
         println!("{}Name: {}", prefix, self.name);
         println!("{}Description: {}", prefix, self.description);
         println!("{}Precision: {}", prefix, self.precision);
+        println!("{}Hidden Puzzle Hash: {:}", prefix, self.hidden_puzzle_hash);
         println!("{}Image URIs: {}", prefix, self.image_uris.join(", "));
         println!("{}Image Hash: {}", prefix, self.image_hash);
 
@@ -74,6 +77,7 @@ impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for CatNftMetadata {
                 "n" => metadata.name = FromClvm::from_clvm(decoder, ptr)?,
                 "d" => metadata.description = FromClvm::from_clvm(decoder, ptr)?,
                 "p" => metadata.precision = FromClvm::from_clvm(decoder, ptr)?,
+                "hph" => metadata.hidden_puzzle_hash = Some(FromClvm::from_clvm(decoder, ptr)?),
                 "u" => metadata.image_uris = FromClvm::from_clvm(decoder, ptr)?,
                 "h" => metadata.image_hash = FromClvm::from_clvm(decoder, ptr)?,
                 "mu" => metadata.metadata_uris = FromClvm::from_clvm(decoder, ptr)?,
@@ -101,6 +105,10 @@ impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for CatNftMetadata {
 
         if self.precision != 3 {
             items.push(("p", Raw(self.precision.to_clvm(encoder)?)));
+        }
+
+        if let Some(hidden_puzzle_hash) = self.hidden_puzzle_hash {
+            items.push(("hph", Raw(hidden_puzzle_hash.to_clvm(encoder)?)));
         }
 
         items.push(("u", Raw(self.image_uris.to_clvm(encoder)?)));
