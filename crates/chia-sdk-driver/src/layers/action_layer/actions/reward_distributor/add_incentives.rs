@@ -1,9 +1,15 @@
 use chia_protocol::Bytes32;
-use chia_sdk_types::{announcement_id, Conditions};
-use clvm_traits::{clvm_tuple, FromClvm, ToClvm};
+use chia_sdk_types::{
+    announcement_id,
+    puzzles::{
+        RewardDistributorAddIncentivesActionArgs, RewardDistributorAddIncentivesActionSolution,
+        REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE_HASH,
+    },
+    Conditions,
+};
+use clvm_traits::clvm_tuple;
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
-use hex_literal::hex;
 
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants, SingletonAction, Spend,
@@ -18,10 +24,14 @@ pub struct RewardDistributorAddIncentivesAction {
 
 impl ToTreeHash for RewardDistributorAddIncentivesAction {
     fn tree_hash(&self) -> TreeHash {
-        RewardDistributorAddIncentivesActionArgs::curry_tree_hash(
-            self.fee_payout_puzzle_hash,
-            self.fee_bps,
-        )
+        CurriedProgram {
+            program: REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE_HASH,
+            args: RewardDistributorAddIncentivesActionArgs {
+                fee_payout_puzzle_hash: self.fee_payout_puzzle_hash,
+                fee_bps: self.fee_bps,
+            },
+        }
+        .tree_hash()
     }
 }
 
@@ -36,15 +46,10 @@ impl SingletonAction<RewardDistributor> for RewardDistributorAddIncentivesAction
 
 impl RewardDistributorAddIncentivesAction {
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        CurriedProgram {
-            program: ctx.reward_distributor_add_incentives_action_puzzle()?,
-            args: RewardDistributorAddIncentivesActionArgs {
-                fee_payout_puzzle_hash: self.fee_payout_puzzle_hash,
-                fee_bps: self.fee_bps,
-            },
-        }
-        .to_clvm(ctx)
-        .map_err(DriverError::ToClvm)
+        ctx.curry(RewardDistributorAddIncentivesActionArgs {
+            fee_payout_puzzle_hash: self.fee_payout_puzzle_hash,
+            fee_bps: self.fee_bps,
+        })
     }
 
     pub fn spend(
@@ -75,40 +80,4 @@ impl RewardDistributorAddIncentivesAction {
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
         Ok(add_incentives_announcement)
     }
-}
-
-pub const REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE: [u8; 261] = hex!("ff02ffff01ff02ffff03ffff22ffff15ff8206f7ff8204f780ffff15ff4fff8080ffff09ff6fffff05ffff14ffff12ff4fff0b80ffff0182271080808080ffff01ff04ffff04ff27ffff04ffff10ff57ffff11ff4fff6f8080ffff04ff81b7ffff04ffff04ff820277ffff10ff820377ffff11ff4fff6f808080ffff04ff8202f7ff808080808080ffff04ffff04ff06ffff04ffff0effff0169ffff0bffff0102ffff0bffff0101ff4f80ffff0bffff0101ff8206f7808080ff808080ffff04ffff04ffff0181d6ffff04ff04ffff04ff05ffff04ff6fffff04ffff04ff05ff8080ff808080808080ff80808080ffff01ff088080ff0180ffff04ffff01ff333eff018080");
-
-pub const REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
-    "
-    eb999158d98d1013b072b7443acca10a1bdfef2eab824ea25f0d71e2e30cec7e
-    "
-));
-
-#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
-#[clvm(curry)]
-pub struct RewardDistributorAddIncentivesActionArgs {
-    pub fee_payout_puzzle_hash: Bytes32,
-    pub fee_bps: u64,
-}
-
-impl RewardDistributorAddIncentivesActionArgs {
-    pub fn curry_tree_hash(fee_payout_puzzle_hash: Bytes32, fee_bps: u64) -> TreeHash {
-        CurriedProgram {
-            program: REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE_HASH,
-            args: RewardDistributorAddIncentivesActionArgs {
-                fee_payout_puzzle_hash,
-                fee_bps,
-            },
-        }
-        .tree_hash()
-    }
-}
-
-#[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
-#[clvm(list)]
-pub struct RewardDistributorAddIncentivesActionSolution {
-    pub amount: u64,
-    #[clvm(rest)]
-    pub manager_fee: u64,
 }
