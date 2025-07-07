@@ -1614,9 +1614,7 @@ mod tests {
         let mut payment_cat = payment_cat[0];
         minter_p2.spend(ctx, minter_bls.coin, issue_cat)?;
 
-        println!("AAA"); // todo: debug
         sim.spend_coins(ctx.take(), &[minter_bls.sk.clone()])?;
-        println!("AAB"); // todo: debug
 
         // Launch price singleton
         let (
@@ -1627,7 +1625,6 @@ mod tests {
             _price_singleton_inner_puzzle_hash,
             price_singleton_puzzle,
         ) = launch_test_singleton(ctx, &mut sim)?;
-        println!("AAC"); // todo: debug
 
         // Launch XCHandles
         let registration_period = 366 * 24 * 60 * 60;
@@ -1646,7 +1643,6 @@ mod tests {
                     payment_cat.info.asset_id,
                 ),
             )?;
-        println!("AAD"); // todo: debug
 
         // Check XCHandlesRegistry::from_launcher_solution
         let spends = ctx.take();
@@ -1677,7 +1673,6 @@ mod tests {
         assert!(initial_slots.is_some());
 
         // sim.spend_coins(ctx.take(), &[launcher_bls.sk, security_sk])?;
-        println!("AAE"); // todo: debug
         let spends = ctx.take();
         benchmark.add_spends(
             ctx,
@@ -1686,7 +1681,6 @@ mod tests {
             "launch",
             &[launcher_bls.sk, security_sk],
         )?;
-        println!("AAF"); // todo: debug
 
         let slots = initial_slots.unwrap();
         assert!(sim.coin_state(slots[0].coin.coin_id()).is_some());
@@ -1919,11 +1913,8 @@ mod tests {
             sim.pass_time(100); // registration start was at timestamp 100
 
             // sim.spend_coins(ctx.take(), &[user_bls.sk.clone()])?;
-            println!("ABA"); // todo: debug
             let spends = ctx.take();
-            print_spend_bundle_to_file(spends.clone(), Signature::default(), "db.debug");
             benchmark.add_spends(ctx, &mut sim, spends, "register", &[user_bls.sk.clone()])?;
-            println!("ABB"); // todo: debug
 
             slots.retain(|s| {
                 s.info.value_hash != left_slot.info.value_hash

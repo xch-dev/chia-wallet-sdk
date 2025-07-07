@@ -1,6 +1,9 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::singleton::{SingletonArgs, SingletonStruct};
-use chia_sdk_types::puzzles::{Slot1stCurryArgs, Slot2ndCurryArgs, SlotInfo, SlotSolution};
+use chia_sdk_types::{
+    puzzles::{Slot1stCurryArgs, Slot2ndCurryArgs, SlotInfo, SlotSolution},
+    Mod,
+};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
@@ -49,7 +52,7 @@ impl<V> Slot<V> {
             singleton_struct: SingletonStruct::new(launcher_id),
             nonce,
         }
-        .tree_hash()
+        .curry_tree_hash()
     }
 
     pub fn puzzle_hash(info: &SlotInfo<V>) -> TreeHash {
