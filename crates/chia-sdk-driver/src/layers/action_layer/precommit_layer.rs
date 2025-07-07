@@ -1,10 +1,15 @@
 use chia_protocol::{Bytes, Bytes32};
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
-use chia_sdk_types::Conditions;
+use chia_sdk_types::{
+    puzzles::{
+        AnyMetadataUpdater, CatNftMetadata, PrecommitLayer1stCurryArgs, PrecommitLayer2ndCurryArgs,
+        PrecommitLayerSolution, PRECOMMIT_LAYER_PUZZLE_HASH,
+    },
+    Conditions, Mod,
+};
 use clvm_traits::{clvm_quote, clvm_tuple, ClvmEncoder, FromClvm, ToClvm, ToClvmError};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
-use hex_literal::hex;
 
 use crate::{DefaultCatMakerArgs, DriverError, Layer, Puzzle, SpendContext};
 
@@ -40,16 +45,13 @@ impl<V> PrecommitLayer<V> {
         relative_block_height: u32,
         payout_puzzle_hash: Bytes32,
     ) -> TreeHash {
-        CurriedProgram {
-            program: PRECOMMIT_LAYER_PUZZLE_HASH,
-            args: PrecommitLayer1stCurryArgs {
-                singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
-                singleton_struct_hash: controller_singleton_struct_hash,
-                relative_block_height,
-                payout_puzzle_hash,
-            },
+        PrecommitLayer1stCurryArgs {
+            singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
+            singleton_struct_hash: controller_singleton_struct_hash,
+            relative_block_height,
+            payout_puzzle_hash,
         }
-        .tree_hash()
+        .curry_tree_hash()
     }
 
     pub fn puzzle_hash(
@@ -77,16 +79,12 @@ impl<V> PrecommitLayer<V> {
     where
         V: Clone + ToClvm<Allocator>,
     {
-        let prog_1st_curry = CurriedProgram {
-            program: ctx.precommit_layer_puzzle()?,
-            args: PrecommitLayer1stCurryArgs {
-                singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
-                singleton_struct_hash: self.controller_singleton_struct_hash,
-                relative_block_height: self.relative_block_height,
-                payout_puzzle_hash: self.payout_puzzle_hash,
-            },
-        }
-        .to_clvm(ctx)?;
+        let prog_1st_curry = ctx.curry(PrecommitLayer1stCurryArgs {
+            singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
+            singleton_struct_hash: self.controller_singleton_struct_hash,
+            relative_block_height: self.relative_block_height,
+            payout_puzzle_hash: self.payout_puzzle_hash,
+        })?;
 
         Ok(CurriedProgram {
             program: prog_1st_curry,
@@ -165,38 +163,6 @@ where
     }
 }
 
-pub const PRECOMMIT_LAYER_PUZZLE: [u8; 469] = hex!("ff02ffff01ff04ffff04ff10ffff04ff17ff808080ffff04ffff04ff18ffff04ff8202ffff808080ffff04ffff04ff14ffff04ffff03ff82017fff2fff5f80ffff04ff8202ffffff04ffff04ffff03ff82017fff2fff5f80ff8080ff8080808080ffff04ffff04ff1cffff04ffff0113ffff04ff82017fffff04ffff02ff2effff04ff02ffff04ff05ffff04ff0bffff04ff8205ffff808080808080ff8080808080ff8080808080ffff04ffff01ffffff5249ff3343ffff02ff02ffff03ff05ffff01ff0bff76ffff02ff3effff04ff02ffff04ff09ffff04ffff02ff1affff04ff02ffff04ff0dff80808080ff808080808080ffff016680ff0180ffffffa04bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459aa09dcf97a184f32623d11a73124ceb99a5709b083721e878a16d78f596718ba7b2ffa102a12871fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222a102a8d5dd63fba471ebcb1f3e8f7c1e1879b7152a6e7298a91ce119a63400ade7c5ffff0bff56ffff02ff3effff04ff02ffff04ff05ffff04ffff02ff1affff04ff02ffff04ff07ff80808080ff808080808080ff0bff12ffff0bff12ff66ff0580ffff0bff12ff0bff468080ff018080");
-
-pub const PRECOMMIT_LAYER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
-    "
-    10efe1dab105ef4780345baa2442196a26944040b12c0167375d79aaec89e33f
-    "
-));
-
-#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
-#[clvm(curry)]
-pub struct PrecommitLayer1stCurryArgs {
-    pub singleton_mod_hash: Bytes32,
-    pub singleton_struct_hash: Bytes32,
-    pub relative_block_height: u32,
-    pub payout_puzzle_hash: Bytes32,
-}
-
-#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
-#[clvm(curry)]
-pub struct PrecommitLayer2ndCurryArgs<V> {
-    pub refund_puzzle_hash: Bytes32,
-    pub value: V,
-}
-
-#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
-#[clvm(list)]
-pub struct PrecommitLayerSolution {
-    pub mode: u8,
-    pub my_amount: u64,
-    pub singleton_inner_puzzle_hash: Bytes32,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CatalogPrecommitValue<T = NodePtr, S = ()>
 where
@@ -236,7 +202,7 @@ impl<T> CatalogPrecommitValue<T> {
             ctx.hint(owner_inner_puzzle_hash)?,
         );
         let updater_solution = ctx.alloc(&initial_metadata)?;
-        conds = conds.update_nft_metadata(ctx.any_metadata_updater()?, updater_solution);
+        conds = conds.update_nft_metadata(ctx.alloc_mod::<AnyMetadataUpdater>()?, updater_solution);
         conds = conds.remark(ctx.alloc(&"MEOW".to_string())?);
 
         ctx.alloc(&clvm_quote!(conds))
