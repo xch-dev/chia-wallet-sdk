@@ -8,9 +8,10 @@ use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 
 use crate::{
-    ActionLayer, ActionLayerSolution, ActionSingleton, DelegatedStateAction, DriverError, Layer,
-    Puzzle, SingletonAction, Spend, SpendContext, XchandlesExpireAction, XchandlesExtendAction,
-    XchandlesOracleAction, XchandlesRefundAction, XchandlesRegisterAction, XchandlesUpdateAction,
+    eve_singleton_inner_puzzle, ActionLayer, ActionLayerSolution, ActionSingleton,
+    DelegatedStateAction, DriverError, Layer, Puzzle, SingletonAction, Spend, SpendContext,
+    XchandlesExpireAction, XchandlesExtendAction, XchandlesOracleAction, XchandlesRefundAction,
+    XchandlesRegisterAction, XchandlesUpdateAction,
 };
 
 use super::{Slot, SlotProof, XchandlesConstants, XchandlesRegistryInfo, XchandlesRegistryState};
