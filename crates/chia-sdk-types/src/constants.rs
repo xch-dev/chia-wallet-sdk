@@ -31,8 +31,10 @@ pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> Con
         discriminant_size_bits: 1024,
         number_zero_bits_plot_filter_v1: 9,
         number_zero_bits_plot_filter_v2: 9, // Placeholder
-        min_plot_size: 32,
-        max_plot_size: 50,
+        min_plot_size_v1: 32,
+        max_plot_size_v1: 50,
+        min_plot_size_v2: 28,
+        max_plot_size_v2: 32,
         sub_slot_time_target: 600,
         num_sp_intervals_extra: 3,
         max_future_time2: 120,
@@ -70,6 +72,7 @@ pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> Con
         plot_filter_32_height: 20_643_000,
 
         // Placeholders
+        plot_difficulty_initial: 2,
         plot_difficulty_4_height: 0xffff_ffff,
         plot_difficulty_5_height: 0xffff_ffff,
         plot_difficulty_6_height: 0xffff_ffff,
@@ -90,7 +93,7 @@ pub static TESTNET11_CONSTANTS: Lazy<ConsensusConstants> = Lazy::new(|| Consensu
     difficulty_constant_factor: 10_052_721_566_054,
     difficulty_starting: 30,
     epoch_blocks: 768,
-    min_plot_size: 18,
+    min_plot_size_v1: 18,
     genesis_pre_farm_pool_puzzle_hash: Bytes32::new(hex!(
         "3ef7c233fc0785f3c0cae5992c1d35e7c955ca37a423571c1607ba392a9d12f7"
     )),

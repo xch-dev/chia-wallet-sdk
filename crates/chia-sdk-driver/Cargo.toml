@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-driver"
-version = "0.26.0"
+version = "0.27.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "Driver code for interacting with standard puzzles on the Chia blockchain."
@@ -45,6 +45,8 @@ flate2 = { workspace = true, features = ["zlib-ng-compat"], optional = true }
 indexmap = { workspace = true }
 once_cell = { workspace = true, optional = true }
 chia_streamable_macro = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
 
 [dev-dependencies]
 chia-sdk-test = { workspace = true }

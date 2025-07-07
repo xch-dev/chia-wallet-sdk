@@ -46,15 +46,15 @@ impl UpdateNftAction {
 
 impl SpendAction for UpdateNftAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        let nft = deltas.update(self.id);
-        nft.input += 1;
-        nft.output += 1;
+        deltas.update(self.id).input += 1;
+        deltas.update(self.id).output += 1;
+        deltas.set_needed(self.id);
 
         if let Some(transfer) = &self.transfer {
             if let Some(did_id) = transfer.did_id {
-                let did = deltas.update(did_id);
-                did.input += 1;
-                did.output += 1;
+                deltas.update(did_id).input += 1;
+                deltas.update(did_id).output += 1;
+                deltas.set_needed(did_id);
             }
         }
     }

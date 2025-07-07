@@ -22,8 +22,7 @@
   },
   "napi": {
     "{bytes}": "napi::bindgen_prelude::Uint8Array",
-    "{bigint}": "napi::bindgen_prelude::BigInt",
-    "()": "napi::JsUndefined"
+    "{bigint}": "napi::bindgen_prelude::BigInt"
   },
   "wasm": {
     "{bytes}": "Vec<u8>",

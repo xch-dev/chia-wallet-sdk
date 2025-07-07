@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-signer"
-version = "0.26.0"
+version = "0.27.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "Calculates the signatures required for coin spends in a transaction."
