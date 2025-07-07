@@ -1,3 +1,4 @@
+use bip39::Mnemonic;
 use chia_bls::{sign, SecretKey, Signature};
 use chia_consensus::consensus_constants::ConsensusConstants;
 use chia_protocol::{Bytes32, Coin};
@@ -40,7 +41,7 @@ where
 pub fn new_sk() -> Result<SecretKey, DriverError> {
     // we need the security coin puzzle hash to spend the offer coin after finding it
     let mut entropy = [0u8; 32];
-    getrandom::fill(&mut entropy).map_err(custom_err)?;
+    getrandom::getrandom(&mut entropy).map_err(custom_err)?;
     let mnemonic = Mnemonic::from_entropy(&entropy).map_err(custom_err)?;
     let seed = mnemonic.to_seed("");
     let sk = SecretKey::from_seed(&seed);

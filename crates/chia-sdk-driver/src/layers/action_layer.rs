@@ -1,5 +1,5 @@
-mod action_layer;
 mod actions;
+mod actual_action_layer;
 mod conditions_layer;
 mod m_of_n_layer;
 mod p2_delegated_by_singleton_layer;
@@ -8,8 +8,8 @@ mod registry_action;
 mod state_scheduler_layer;
 mod verification_layer;
 
-pub use action_layer::*;
 pub use actions::*;
+pub use actual_action_layer::*;
 pub use conditions_layer::*;
 pub use m_of_n_layer::*;
 pub use p2_delegated_by_singleton_layer::*;
