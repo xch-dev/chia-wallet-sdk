@@ -1,6 +1,7 @@
 mod action_layer_and_finalizers;
 mod actions;
 mod cat_nft_metadata;
+mod default_cat_maker;
 mod name_nft_metadata;
 mod p2_delegated_by_singleton;
 mod p2_m_of_n_delegate_direct;
@@ -12,6 +13,7 @@ mod verification_layer;
 pub use action_layer_and_finalizers::*;
 pub use actions::*;
 pub use cat_nft_metadata::*;
+pub use default_cat_maker::*;
 pub use name_nft_metadata::*;
 pub use p2_delegated_by_singleton::*;
 pub use p2_m_of_n_delegate_direct::*;

@@ -1,18 +1,17 @@
 use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::{singleton::SingletonSolution, LineageProof, Proof};
+use chia_sdk_types::puzzles::{CatalogSlotValue, SlotInfo};
 use clvm_traits::{clvm_list, match_tuple};
+use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 
 use crate::{
     ActionLayer, ActionLayerSolution, ActionSingleton, CatalogRefundAction, CatalogRegisterAction,
-    DelegatedStateAction, DriverError, Puzzle, SingletonAction, Spend, SpendContext,
+    DelegatedStateAction, DriverError, Layer, Puzzle, SingletonAction, Spend, SpendContext,
 };
 
-use super::{
-    CatalogRegistryConstants, CatalogRegistryInfo, CatalogRegistryState, CatalogSlotValue, Slot,
-    SlotInfo, SlotProof,
-};
+use super::{CatalogRegistryConstants, CatalogRegistryInfo, CatalogRegistryState, Slot, SlotProof};
 
 #[derive(Debug, Clone)]
 pub struct CatalogPendingSpendInfo {

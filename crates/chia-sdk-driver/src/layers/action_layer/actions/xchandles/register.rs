@@ -3,9 +3,9 @@ use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        SlotNeigborsInfo, XchandlesDataValue, XchandlesFactorPricingPuzzleArgs,
-        XchandlesPricingSolution, XchandlesRegisterActionArgs, XchandlesRegisterActionSolution,
-        XchandlesSlotValue,
+        DefaultCatMakerArgs, SlotNeigborsInfo, XchandlesDataValue,
+        XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution, XchandlesRegisterActionArgs,
+        XchandlesRegisterActionSolution, XchandlesSlotValue,
     },
     Conditions, Mod,
 };
@@ -14,8 +14,8 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DefaultCatMakerArgs, DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend,
-    SpendContext, XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
+    DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
+    XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -197,10 +197,9 @@ impl XchandlesRegisterAction {
                 handle: handle.clone(),
                 num_periods,
             },
-            cat_maker_reveal: DefaultCatMakerArgs::get_puzzle(
-                ctx,
+            cat_maker_reveal: ctx.curry(DefaultCatMakerArgs::new(
                 precommit_coin.asset_id.tree_hash().into(),
-            )?,
+            ))?,
             cat_maker_solution: (),
             neighbors: SlotNeigborsInfo {
                 left_value: left_slot.info.value.handle_hash,

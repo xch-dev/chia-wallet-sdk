@@ -2,8 +2,8 @@ use chia_protocol::{Bytes, Bytes32};
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_types::{
     puzzles::{
-        AnyMetadataUpdater, CatNftMetadata, PrecommitLayer1stCurryArgs, PrecommitLayer2ndCurryArgs,
-        PrecommitLayerSolution, PRECOMMIT_LAYER_PUZZLE_HASH,
+        AnyMetadataUpdater, CatNftMetadata, DefaultCatMakerArgs, PrecommitLayer1stCurryArgs,
+        PrecommitLayer2ndCurryArgs, PrecommitLayerSolution, PRECOMMIT_LAYER_PUZZLE_HASH,
     },
     Conditions, Mod,
 };
@@ -11,7 +11,7 @@ use clvm_traits::{clvm_quote, clvm_tuple, ClvmEncoder, FromClvm, ToClvm, ToClvmE
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DefaultCatMakerArgs, DriverError, Layer, Puzzle, SpendContext};
+use crate::{DriverError, Layer, Puzzle, SpendContext};
 
 #[derive(Debug, Clone)]
 #[must_use]
@@ -183,10 +183,9 @@ impl<T> CatalogPrecommitValue<T> {
         Self {
             tail_reveal,
             initial_inner_puzzle_hash,
-            cat_maker_hash: DefaultCatMakerArgs::curry_tree_hash(
-                payment_asset_tail_hash_hash.into(),
-            )
-            .into(),
+            cat_maker_hash: DefaultCatMakerArgs::new(payment_asset_tail_hash_hash.into())
+                .curry_tree_hash()
+                .into(),
             cat_maker_solution: (),
         }
     }
@@ -294,7 +293,9 @@ impl XchandlesPrecommitValue<(), TreeHash, Bytes32> {
         PS: ToTreeHash,
     {
         Self::new(
-            DefaultCatMakerArgs::curry_tree_hash(payment_tail_hash_hash.into()).into(),
+            DefaultCatMakerArgs::new(payment_tail_hash_hash.into())
+                .curry_tree_hash()
+                .into(),
             (),
             pricing_puzzle_hash.into(),
             pricing_puzzle_solution.tree_hash(),

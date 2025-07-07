@@ -3,10 +3,10 @@ use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        XchandlesDataValue, XchandlesExpireActionArgs, XchandlesExpireActionSolution,
-        XchandlesExponentialPremiumRenewPuzzleArgs, XchandlesFactorPricingPuzzleArgs,
-        XchandlesPricingSolution, XchandlesSlotValue, PREMIUM_BITS_LIST, PREMIUM_PRECISION,
-        XCHANDLES_EXPONENTIAL_PREMIUM_RENEW_PUZZLE_HASH,
+        DefaultCatMakerArgs, XchandlesDataValue, XchandlesExpireActionArgs,
+        XchandlesExpireActionSolution, XchandlesExponentialPremiumRenewPuzzleArgs,
+        XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution, XchandlesSlotValue,
+        PREMIUM_BITS_LIST, PREMIUM_PRECISION, XCHANDLES_EXPONENTIAL_PREMIUM_RENEW_PUZZLE_HASH,
     },
     Conditions, Mod,
 };
@@ -15,8 +15,8 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DefaultCatMakerArgs, DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend,
-    SpendContext, XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
+    DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
+    XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -231,10 +231,9 @@ impl XchandlesExpireAction {
         // spend self
         let slot = registry.actual_slot(slot);
         let action_solution = XchandlesExpireActionSolution {
-            cat_maker_puzzle_reveal: DefaultCatMakerArgs::get_puzzle(
-                ctx,
+            cat_maker_puzzle_reveal: ctx.curry(DefaultCatMakerArgs::new(
                 precommit_coin.asset_id.tree_hash().into(),
-            )?,
+            ))?,
             cat_maker_puzzle_solution: (),
             expired_handle_pricing_puzzle_reveal: ctx.curry(
                 Self::expire_puzzle_args_from_scale_factor(

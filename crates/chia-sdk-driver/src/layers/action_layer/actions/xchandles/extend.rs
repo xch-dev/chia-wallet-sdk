@@ -4,8 +4,8 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        XchandlesExtendActionArgs, XchandlesExtendActionSolution, XchandlesFactorPricingPuzzleArgs,
-        XchandlesPricingSolution, XchandlesSlotValue,
+        DefaultCatMakerArgs, XchandlesExtendActionArgs, XchandlesExtendActionSolution,
+        XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution, XchandlesSlotValue,
     },
     Conditions, Mod,
 };
@@ -14,8 +14,8 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DefaultCatMakerArgs, DriverError, SingletonAction, Slot, Spend, SpendContext,
-    XchandlesConstants, XchandlesRegisterAction, XchandlesRegistry,
+    DriverError, SingletonAction, Slot, Spend, SpendContext, XchandlesConstants,
+    XchandlesRegisterAction, XchandlesRegistry,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -126,8 +126,9 @@ impl XchandlesExtendAction {
         let spender_inner_puzzle_hash: Bytes32 = registry.info.inner_puzzle_hash().into();
 
         // spend self
-        let cat_maker_puzzle_reveal =
-            DefaultCatMakerArgs::get_puzzle(ctx, payment_asset_id.tree_hash().into())?;
+        let cat_maker_puzzle_reveal = ctx.curry(DefaultCatMakerArgs::new(
+            payment_asset_id.tree_hash().into(),
+        ))?;
         let pricing_puzzle_reveal = ctx.curry(XchandlesFactorPricingPuzzleArgs {
             base_price: base_handle_price,
             registration_period,

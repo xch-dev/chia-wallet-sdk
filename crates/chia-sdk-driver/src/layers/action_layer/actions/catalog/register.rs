@@ -3,8 +3,8 @@ use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        CatalogRegisterActionArgs, CatalogRegisterActionSolution, CatalogSlotValue, NftPack,
-        ANY_METADATA_UPDATER_HASH,
+        CatalogRegisterActionArgs, CatalogRegisterActionSolution, CatalogSlotValue,
+        DefaultCatMakerArgs, NftPack, ANY_METADATA_UPDATER_HASH,
     },
     Conditions, Mod,
 };
@@ -13,9 +13,8 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants, DefaultCatMakerArgs,
-    DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
-    UniquenessPrelauncher,
+    CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants, DriverError, PrecommitCoin,
+    PrecommitLayer, SingletonAction, Slot, Spend, SpendContext, UniquenessPrelauncher,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -180,10 +179,9 @@ impl CatalogRegisterAction {
         // finally, spend self
         let (left_slot, right_slot) = catalog.actual_neigbors(tail_hash, left_slot, right_slot);
         let my_solution = CatalogRegisterActionSolution {
-            cat_maker_reveal: DefaultCatMakerArgs::get_puzzle(
-                ctx,
+            cat_maker_reveal: ctx.curry(DefaultCatMakerArgs::new(
                 precommit_coin.asset_id.tree_hash().into(),
-            )?,
+            ))?,
             cat_maker_solution: (),
             tail_hash,
             initial_nft_owner_ph: initial_inner_puzzle_hash,

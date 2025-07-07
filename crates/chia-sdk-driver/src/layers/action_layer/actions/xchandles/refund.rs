@@ -2,7 +2,10 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     announcement_id,
-    puzzles::{XchandlesRefundActionArgs, XchandlesRefundActionSolution, XchandlesSlotValue},
+    puzzles::{
+        DefaultCatMakerArgs, XchandlesRefundActionArgs, XchandlesRefundActionSolution,
+        XchandlesSlotValue,
+    },
     Conditions, Mod,
 };
 use clvm_traits::{FromClvm, ToClvm};
@@ -10,8 +13,8 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DefaultCatMakerArgs, DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend,
-    SpendContext, XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
+    DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
+    XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,13 +112,13 @@ impl XchandlesRefundAction {
         // spend self
         let slot = slot.map(|s| registry.actual_slot(s));
         let action_solution = XchandlesRefundActionSolution {
-            precommited_cat_maker_reveal: DefaultCatMakerArgs::get_puzzle(
-                ctx,
+            precommited_cat_maker_reveal: ctx.curry(DefaultCatMakerArgs::new(
                 precommit_coin.asset_id.tree_hash().into(),
-            )?,
-            precommited_cat_maker_hash: DefaultCatMakerArgs::curry_tree_hash(
+            ))?,
+            precommited_cat_maker_hash: DefaultCatMakerArgs::new(
                 precommit_coin.asset_id.tree_hash().into(),
             )
+            .curry_tree_hash()
             .into(),
             precommited_cat_maker_solution: (),
             precommited_pricing_puzzle_reveal,

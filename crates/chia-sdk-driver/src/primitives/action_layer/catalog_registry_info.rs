@@ -1,15 +1,17 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonArgs;
-use chia_sdk_types::MerkleTree;
+use chia_sdk_types::{
+    puzzles::{ActionLayerArgs, DefaultFinalizer2ndCurryArgs},
+    MerkleTree,
+};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::Allocator;
 use hex_literal::hex;
 
 use crate::{
-    ActionLayer, ActionLayerArgs, CatalogRefundAction, CatalogRegisterAction,
-    DefaultFinalizer2ndCurryArgs, DelegatedStateAction, DriverError, Finalizer, Puzzle,
-    SingletonAction, SingletonLayer,
+    ActionLayer, CatalogRefundAction, CatalogRegisterAction, DelegatedStateAction, DriverError,
+    Finalizer, Layer, Puzzle, SingletonAction, SingletonLayer,
 };
 
 use super::CatalogRegistry;

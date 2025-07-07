@@ -3,7 +3,7 @@ use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 
-use crate::{MOfNLayer, P2MOfNDelegateDirectArgs, SingletonLayer};
+use crate::{MOfNLayer, SingletonLayer};
 
 type MedievalVaultLayers = SingletonLayer<MOfNLayer>;
 

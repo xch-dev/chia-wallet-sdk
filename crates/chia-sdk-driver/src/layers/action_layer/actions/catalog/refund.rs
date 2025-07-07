@@ -3,7 +3,8 @@ use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        CatalogRefundActionArgs, CatalogRefundActionSolution, CatalogSlotValue, SlotNeigborsInfo,
+        CatalogRefundActionArgs, CatalogRefundActionSolution, CatalogSlotValue,
+        DefaultCatMakerArgs, SlotNeigborsInfo,
     },
     Conditions, Mod,
 };
@@ -12,8 +13,8 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants, DefaultCatMakerArgs,
-    DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
+    CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants, DriverError, PrecommitCoin,
+    PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -130,13 +131,13 @@ impl CatalogRefundAction {
 
         // then, create action spend
         let action_solution = CatalogRefundActionSolution {
-            precommited_cat_maker_reveal: DefaultCatMakerArgs::get_puzzle(
-                ctx,
+            precommited_cat_maker_reveal: ctx.curry(DefaultCatMakerArgs::new(
                 precommit_coin.asset_id.tree_hash().into(),
-            )?,
-            precommited_cat_maker_hash: DefaultCatMakerArgs::curry_tree_hash(
+            ))?,
+            precommited_cat_maker_hash: DefaultCatMakerArgs::new(
                 precommit_coin.asset_id.tree_hash().into(),
             )
+            .curry_tree_hash()
             .into(),
             precommited_cat_maker_solution: (),
             tail_hash,
