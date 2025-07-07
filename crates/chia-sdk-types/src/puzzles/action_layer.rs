@@ -1,4 +1,4 @@
-mod action_layer;
+mod action_layer_and_finalizers;
 mod actions;
 mod cat_nft_metadata;
 mod name_nft_metadata;
@@ -9,7 +9,7 @@ mod slot_values;
 mod state_scheduler;
 mod verification_layer;
 
-pub use action_layer::*;
+pub use action_layer_and_finalizers::*;
 pub use actions::*;
 pub use cat_nft_metadata::*;
 pub use name_nft_metadata::*;
