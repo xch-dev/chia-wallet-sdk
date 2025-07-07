@@ -22,7 +22,7 @@ pub struct RewardDistributorInitiatePayoutActionArgs {
     pub payout_threshold: u64,
 }
 
-#[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
+#[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorInitiatePayoutActionSolution {
     pub entry_payout_amount: u64,

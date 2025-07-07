@@ -24,7 +24,7 @@ pub struct RewardDistributorNewEpochActionArgs {
     pub epoch_seconds: u64,
 }
 
-#[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
+#[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorNewEpochActionSolution {
     pub slot_epoch_time: u64,

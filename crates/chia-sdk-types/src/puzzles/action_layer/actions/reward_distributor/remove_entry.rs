@@ -24,7 +24,7 @@ pub struct RewardDistributorRemoveEntryActionArgs {
     pub max_seconds_offset: u64,
 }
 
-#[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
+#[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorRemoveEntryActionSolution {
     pub manager_singleton_inner_puzzle_hash: Bytes32,

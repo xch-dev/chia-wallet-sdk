@@ -29,8 +29,8 @@ pub struct SlotInfo<V> {
 impl<V> SlotInfo<V> {
     pub fn new(launcher_id: Bytes32, nonce: u64, value_hash: Bytes32, value: V) -> Self {
         Self {
-            launcher_id,
             nonce,
+            launcher_id,
             value_hash,
             value,
         }
@@ -172,6 +172,7 @@ impl XchandlesSlotValue {
         )
     }
 
+    #[must_use]
     pub fn with_neighbors(self, left_handle_hash: Bytes32, right_handle_hash: Bytes32) -> Self {
         Self {
             handle_hash: self.handle_hash,
@@ -185,6 +186,7 @@ impl XchandlesSlotValue {
         }
     }
 
+    #[must_use]
     pub fn with_expiration(self, expiration: u64) -> Self {
         Self {
             handle_hash: self.handle_hash,
@@ -195,6 +197,7 @@ impl XchandlesSlotValue {
         }
     }
 
+    #[must_use]
     pub fn with_data(self, owner_launcher_id: Bytes32, resolved_data: Bytes) -> Self {
         Self {
             handle_hash: self.handle_hash,

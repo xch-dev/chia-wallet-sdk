@@ -149,12 +149,3 @@ impl RewardDistributorAddEntryActionArgs {
         .tree_hash()
     }
 }
-
-#[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
-#[clvm(list)]
-pub struct RewardDistributorAddEntryActionSolution {
-    pub manager_singleton_inner_puzzle_hash: Bytes32,
-    pub entry_payout_puzzle_hash: Bytes32,
-    #[clvm(rest)]
-    pub entry_shares: u64,
-}

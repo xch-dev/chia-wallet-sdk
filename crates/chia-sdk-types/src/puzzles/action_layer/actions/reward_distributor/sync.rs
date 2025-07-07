@@ -14,14 +14,16 @@ pub const REWARD_DISTRIBUTOR_SYNC_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
 ));
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct RewardDistributorSyncActionArgs {}
+
 impl RewardDistributorSyncActionArgs {
     pub fn curry_tree_hash() -> TreeHash {
         REWARD_DISTRIBUTOR_SYNC_PUZZLE_HASH
     }
 }
 
-#[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
+#[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorSyncActionSolution {
     pub update_time: u64,

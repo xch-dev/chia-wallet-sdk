@@ -143,7 +143,7 @@ impl ReserveFinalizer2ndCurryArgs {
     pub fn new<P>(
         reserve_full_puzzle_hash: Bytes32,
         reserve_inner_puzzle_hash: Bytes32,
-        reserve_amount_from_state_program: P,
+        reserve_amount_from_state_program: &P,
         hint: Bytes32,
     ) -> Self
     where

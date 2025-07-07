@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::TreeHash;
 use hex_literal::hex;
 
 use crate::{
@@ -24,24 +24,6 @@ pub const XCHANDLES_EXPIRE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 pub struct XchandlesExpireActionArgs {
     pub precommit_1st_curry_hash: Bytes32,
     pub slot_1st_curry_hash: Bytes32,
-}
-
-impl XchandlesExpireActionArgs {
-    pub fn curry_tree_hash(
-        launcher_id: Bytes32,
-        relative_block_height: u32,
-        payout_puzzle_hash: Bytes32,
-    ) -> TreeHash {
-        CurriedProgram {
-            program: XCHANDLES_EXPIRE_PUZZLE_HASH,
-            args: XchandlesExpireActionArgs::new(
-                launcher_id,
-                relative_block_height,
-                payout_puzzle_hash,
-            ),
-        }
-        .tree_hash()
-    }
 }
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]

@@ -23,7 +23,7 @@ pub struct RewardDistributorWithdrawIncentivesActionArgs {
     pub withdrawal_share_bps: u64,
 }
 
-#[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
+#[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorWithdrawIncentivesActionSolution {
     pub reward_slot_epoch_time: u64,

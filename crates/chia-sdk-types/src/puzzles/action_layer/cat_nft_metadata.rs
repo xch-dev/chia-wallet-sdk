@@ -42,25 +42,28 @@ impl CatNftMetadata {
         println!("{}Name: {}", prefix, self.name);
         println!("{}Description: {}", prefix, self.description);
         println!("{}Precision: {}", prefix, self.precision);
-        println!("{}Hidden Puzzle Hash: {:}", prefix, self.hidden_puzzle_hash);
+        println!(
+            "{}Hidden Puzzle Hash: {:?}",
+            prefix, self.hidden_puzzle_hash
+        );
         println!("{}Image URIs: {}", prefix, self.image_uris.join(", "));
         println!("{}Image Hash: {}", prefix, self.image_hash);
 
         if !self.metadata_uris.is_empty() {
             println!("{}Metadata URIs: {}", prefix, self.metadata_uris.join(", "));
             if let Some(metadata_hash) = self.metadata_hash {
-                println!("{}Metadata Hash: {}", prefix, metadata_hash);
+                println!("{prefix}Metadata Hash: {metadata_hash}");
             } else {
-                println!("{}Metadata Hash: None", prefix);
+                println!("{prefix}Metadata Hash: None");
             }
         }
 
         if !self.license_uris.is_empty() {
             println!("{}License URIs: {}", prefix, self.license_uris.join(", "));
             if let Some(license_hash) = self.license_hash {
-                println!("{}License Hash: {}", prefix, license_hash);
+                println!("{prefix}License Hash: {license_hash}");
             } else {
-                println!("{}License Hash: None", prefix);
+                println!("{prefix}License Hash: None");
             }
         }
     }

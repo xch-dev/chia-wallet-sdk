@@ -29,7 +29,7 @@ pub struct RewardDistributorStakeActionArgs {
     pub max_second_offset: u64,
 }
 
-#[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
+#[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct IntermediaryCoinProof {
     pub full_puzzle_hash: Bytes32,

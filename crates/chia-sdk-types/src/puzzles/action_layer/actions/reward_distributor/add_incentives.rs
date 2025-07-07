@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{CurriedProgram, TreeHash};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use hex_literal::hex;
 
 use crate::Mod;
@@ -35,7 +35,7 @@ impl RewardDistributorAddIncentivesActionArgs {
     }
 }
 
-#[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
+#[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorAddIncentivesActionSolution {
     pub amount: u64,

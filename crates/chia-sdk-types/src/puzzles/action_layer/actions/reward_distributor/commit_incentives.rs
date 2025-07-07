@@ -23,7 +23,7 @@ pub struct RewardDistributorCommitIncentivesActionArgs {
     pub epoch_seconds: u64,
 }
 
-#[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
+#[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorCommitIncentivesActionSolution {
     pub slot_epoch_time: u64,

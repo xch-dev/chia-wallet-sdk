@@ -28,7 +28,7 @@ pub struct RewardDistributorUnstakeActionArgs {
     pub max_second_offset: u64,
 }
 
-#[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
+#[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorUnstakeActionSolution {
     pub nft_launcher_id: Bytes32,

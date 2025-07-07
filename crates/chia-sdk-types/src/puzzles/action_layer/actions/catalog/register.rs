@@ -6,7 +6,7 @@ use chia_puzzles::{
     NFT_STATE_LAYER_HASH, SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH,
 };
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::TreeHash;
+use clvm_utils::{ToTreeHash, TreeHash};
 use hex_literal::hex;
 
 use crate::Mod;
@@ -19,6 +19,7 @@ pub const ANY_METADATA_UPDATER_HASH: TreeHash = TreeHash::new(hex!(
     "
 ));
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct AnyMetadataUpdater {}
 
 impl Mod for AnyMetadataUpdater {
