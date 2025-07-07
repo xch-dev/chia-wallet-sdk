@@ -12,7 +12,7 @@ use crate::{
     SpendContext,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorSyncAction {}
 
 impl ToTreeHash for RewardDistributorSyncAction {
@@ -28,7 +28,7 @@ impl SingletonAction<RewardDistributor> for RewardDistributorSyncAction {
 }
 
 impl RewardDistributorSyncAction {
-    fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
+    fn construct_puzzle(ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         ctx.alloc_mod::<RewardDistributorSyncActionArgs>()
     }
 
@@ -52,7 +52,7 @@ impl RewardDistributorSyncAction {
 
         // spend self
         let action_solution = ctx.alloc(&RewardDistributorSyncActionSolution { update_time })?;
-        let action_puzzle = self.construct_puzzle(ctx)?;
+        let action_puzzle = Self::construct_puzzle(ctx)?;
 
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
         Ok(new_epoch_conditions)

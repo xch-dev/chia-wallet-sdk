@@ -9,7 +9,7 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[must_use]
 pub struct P2DelegatedBySingletonLayer {
     pub singleton_struct_hash: Bytes32,

@@ -17,7 +17,7 @@ use crate::{
     PrecommitLayer, SingletonAction, Slot, Spend, SpendContext, UniquenessPrelauncher,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CatalogRegisterAction {
     pub launcher_id: Bytes32,
     pub royalty_puzzle_hash_hash: Bytes32,
@@ -138,7 +138,7 @@ impl CatalogRegisterAction {
         tail_hash: Bytes32,
         left_slot: Slot<CatalogSlotValue>,
         right_slot: Slot<CatalogSlotValue>,
-        precommit_coin: PrecommitCoin<CatalogPrecommitValue>,
+        precommit_coin: &PrecommitCoin<CatalogPrecommitValue>,
         eve_nft_inner_spend: Spend,
     ) -> Result<Conditions, DriverError> {
         // calculate announcement

@@ -22,7 +22,7 @@ use crate::{
     RewardDistributorConstants, SingletonAction, Slot, Spend, SpendContext,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorUnstakeAction {
     pub launcher_id: Bytes32,
     pub max_second_offset: u64,

@@ -17,7 +17,7 @@ use crate::{
     SpendContext,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorRemoveEntryAction {
     pub launcher_id: Bytes32,
     pub manager_launcher_id: Bytes32,

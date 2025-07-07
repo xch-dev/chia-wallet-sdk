@@ -16,7 +16,7 @@ use crate::{
     SpendContext,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorCommitIncentivesAction {
     pub launcher_id: Bytes32,
     pub epoch_seconds: u64,
@@ -87,7 +87,7 @@ impl RewardDistributorCommitIncentivesAction {
                 epoch_start: solution.epoch_start,
                 next_epoch_initialized: solution.slot_next_epoch_initialized,
                 rewards: solution.slot_total_rewards + solution.rewards_to_add,
-            })
+            });
         } else {
             reward_slot_values.push(RewardDistributorRewardSlotValue {
                 epoch_start: solution.slot_epoch_time,

@@ -250,7 +250,7 @@ where
         let mut proofs = Vec::<MerkleProof>::with_capacity(solution.solutions.len());
         let mut selector_proofs = HashMap::<u32, MerkleProof>::new();
 
-        for (selector, proof) in solution.selectors_and_proofs.into_iter() {
+        for (selector, proof) in solution.selectors_and_proofs {
             let proof = if let Some(existing_proof) = selector_proofs.get(&selector) {
                 existing_proof.clone()
             } else {
@@ -267,7 +267,7 @@ where
                 index += 1;
                 remaining_selector /= 2;
             }
-            actions.push(solution.puzzles[index as usize]);
+            actions.push(solution.puzzles[index]);
         }
 
         let action_spends = solution

@@ -19,7 +19,7 @@ use crate::{
     XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesExpireAction {
     pub launcher_id: Bytes32,
     pub relative_block_height: u32,
@@ -68,9 +68,10 @@ impl XchandlesExpireAction {
         100_000_000 * scale_factor // start auction at $100 million
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     pub fn get_end_value(scale_factor: u64) -> u64 {
         // 100000000 * 10 ** 18 // 2 ** 28 = 372529029846191406
-        (372_529_029_846_191_406_u128 * scale_factor as u128 / 1_000_000_000_000_000_000) as u64
+        (372_529_029_846_191_406_u128 * u128::from(scale_factor) / 1_000_000_000_000_000_000) as u64
     }
 
     // A scale factor is how many units of the payment token equate to $1
@@ -276,9 +277,9 @@ impl XchandlesExpireAction {
 mod tests {
     use super::*;
 
-    #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
+    #[derive(FromClvm, ToClvm, Debug, Copy, Clone, PartialEq, Eq)]
     #[clvm(list)]
-    pub struct XchandlesPricingOutput {
+    struct XchandlesPricingOutput {
         pub price: u128,
         #[clvm(rest)]
         pub registered_time: u64,

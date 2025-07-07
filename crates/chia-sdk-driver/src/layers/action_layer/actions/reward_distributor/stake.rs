@@ -24,7 +24,7 @@ use crate::{
     RewardDistributorState, SingletonAction, Slot, Spend, SpendContext,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorStakeAction {
     pub launcher_id: Bytes32,
     pub did_launcher_id: Bytes32,

@@ -15,7 +15,7 @@ use crate::{
     SpendContext,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorAddIncentivesAction {
     pub fee_payout_puzzle_hash: Bytes32,
     pub fee_bps: u64,

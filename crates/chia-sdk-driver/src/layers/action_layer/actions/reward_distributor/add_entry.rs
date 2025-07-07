@@ -17,7 +17,7 @@ use crate::{
     SingletonAction, Slot, Spend, SpendContext,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorAddEntryAction {
     pub launcher_id: Bytes32,
     pub manager_launcher_id: Bytes32,

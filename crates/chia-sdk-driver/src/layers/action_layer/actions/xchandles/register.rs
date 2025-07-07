@@ -18,7 +18,7 @@ use crate::{
     XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesRegisterAction {
     pub launcher_id: Bytes32,
     pub relative_block_height: u32,
@@ -260,7 +260,7 @@ mod tests {
 
     #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
     #[clvm(list)]
-    pub struct XchandlesFactorPricingOutput {
+    struct XchandlesFactorPricingOutput {
         pub price: u64,
         #[clvm(rest)]
         pub registered_time: u64,

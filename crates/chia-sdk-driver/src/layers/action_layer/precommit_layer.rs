@@ -193,7 +193,7 @@ impl<T> CatalogPrecommitValue<T> {
     pub fn initial_inner_puzzle(
         ctx: &mut SpendContext,
         owner_inner_puzzle_hash: Bytes32,
-        initial_metadata: CatNftMetadata,
+        initial_metadata: &CatNftMetadata,
     ) -> Result<NodePtr, DriverError> {
         let mut conds = Conditions::new().create_coin(
             owner_inner_puzzle_hash,
@@ -283,7 +283,7 @@ impl XchandlesPrecommitValue<(), TreeHash, Bytes32> {
     pub fn for_normal_registration<PS>(
         payment_tail_hash_hash: TreeHash,
         pricing_puzzle_hash: TreeHash,
-        pricing_puzzle_solution: PS,
+        pricing_puzzle_solution: &PS,
         handle: String,
         secret: Bytes32,
         owner_launcher_id: Bytes32,

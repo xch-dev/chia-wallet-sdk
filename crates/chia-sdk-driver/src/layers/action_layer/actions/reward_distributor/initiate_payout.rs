@@ -16,7 +16,7 @@ use crate::{
     SingletonAction, Slot, Spend, SpendContext,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorInitiatePayoutAction {
     pub launcher_id: Bytes32,
     pub payout_threshold: u64,

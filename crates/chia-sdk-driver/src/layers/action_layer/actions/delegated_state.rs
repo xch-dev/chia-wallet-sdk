@@ -12,6 +12,7 @@ use crate::{
     XchandlesConstants, XchandlesRegistry,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DelegatedStateAction {
     pub other_launcher_id: Bytes32,
 }

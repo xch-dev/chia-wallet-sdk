@@ -17,7 +17,7 @@ use crate::{
     XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesRefundAction {
     pub launcher_id: Bytes32,
     pub relative_block_height: u32,
@@ -92,7 +92,7 @@ impl XchandlesRefundAction {
         self,
         ctx: &mut SpendContext,
         registry: &mut XchandlesRegistry,
-        precommit_coin: PrecommitCoin<XchandlesPrecommitValue>,
+        precommit_coin: &PrecommitCoin<XchandlesPrecommitValue>,
         precommited_pricing_puzzle_reveal: NodePtr,
         precommited_pricing_puzzle_solution: NodePtr,
         slot: Option<Slot<XchandlesSlotValue>>,

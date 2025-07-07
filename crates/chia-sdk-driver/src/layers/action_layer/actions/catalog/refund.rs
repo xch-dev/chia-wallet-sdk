@@ -17,7 +17,7 @@ use crate::{
     PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CatalogRefundAction {
     pub launcher_id: Bytes32,
     pub relative_block_height: u32,
@@ -98,7 +98,7 @@ impl CatalogRefundAction {
         catalog: &mut CatalogRegistry,
         tail_hash: Bytes32,
         neighbors: Option<SlotNeigborsInfo>,
-        precommit_coin: PrecommitCoin<CatalogPrecommitValue>,
+        precommit_coin: &PrecommitCoin<CatalogPrecommitValue>,
         slot: Option<Slot<CatalogSlotValue>>,
     ) -> Result<Conditions, DriverError> {
         // calculate announcement

@@ -15,7 +15,7 @@ use crate::{
     DriverError, SingletonAction, Slot, Spend, SpendContext, XchandlesConstants, XchandlesRegistry,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesUpdateAction {
     pub launcher_id: Bytes32,
 }
@@ -74,7 +74,7 @@ impl XchandlesUpdateAction {
         registry: &mut XchandlesRegistry,
         slot: Slot<XchandlesSlotValue>,
         new_owner_launcher_id: Bytes32,
-        new_resolved_data: Bytes,
+        new_resolved_data: &Bytes,
         announcer_inner_puzzle_hash: Bytes32,
     ) -> Result<Conditions, DriverError> {
         // spend self

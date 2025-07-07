@@ -15,7 +15,7 @@ use crate::{
     SpendContext,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorWithdrawIncentivesAction {
     pub launcher_id: Bytes32,
     pub withdrawal_share_bps: u64,

@@ -18,7 +18,7 @@ use crate::{
     XchandlesRegisterAction, XchandlesRegistry,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesExtendAction {
     pub launcher_id: Bytes32,
     pub payout_puzzle_hash: Bytes32,
