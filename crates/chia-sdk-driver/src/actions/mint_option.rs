@@ -116,6 +116,7 @@ impl SpendAction for MintOptionAction {
         deltas.update(Id::Xch).output += self.amount;
         deltas.update(Id::New(index)).input += self.amount;
         deltas.update(self.underlying_id).output += self.underlying_amount;
+        deltas.set_needed(self.underlying_id);
         deltas.set_needed(Id::Xch);
     }
 

@@ -28,9 +28,9 @@ impl UpdateDidAction {
 
 impl SpendAction for UpdateDidAction {
     fn calculate_delta(&self, deltas: &mut Deltas, _index: usize) {
-        let did = deltas.update(self.id);
-        did.input += 1;
-        did.output += 1;
+        deltas.update(self.id).input += 1;
+        deltas.update(self.id).output += 1;
+        deltas.set_needed(self.id);
     }
 
     fn spend(
