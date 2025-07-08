@@ -13,8 +13,8 @@ use clvmr::Allocator;
 
 use crate::{
     ActionLayer, DelegatedStateAction, DriverError, Finalizer, Layer, Puzzle, SingletonAction,
-    SingletonLayer, XchandlesExpireAction, XchandlesExtendAction, XchandlesOracleAction,
-    XchandlesRefundAction, XchandlesRegisterAction, XchandlesUpdateAction,
+    SingletonLayer, XchandlesExpireAction, XchandlesExpirePricingPuzzle, XchandlesExtendAction,
+    XchandlesOracleAction, XchandlesRefundAction, XchandlesRegisterAction, XchandlesUpdateAction,
 };
 
 use super::XchandlesRegistry;
@@ -47,13 +47,11 @@ impl XchandlesRegistryState {
             }
             .curry_tree_hash()
             .into(),
-            expired_handle_pricing_puzzle_hash:
-                XchandlesExpireAction::exponential_premium_puzzle_tree_hash(
-                    base_price,
-                    registration_period,
-                    1000,
-                )
-                .into(),
+            expired_handle_pricing_puzzle_hash: XchandlesExpirePricingPuzzle::curry_tree_hash(
+                base_price,
+                registration_period,
+            )
+            .into(),
         }
     }
 }

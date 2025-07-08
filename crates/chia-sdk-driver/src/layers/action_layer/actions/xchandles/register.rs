@@ -169,8 +169,8 @@ impl XchandlesRegisterAction {
 
         let secret = precommit_coin.value.secret;
 
-        let num_periods =
-            precommit_coin.coin.amount / Self::get_price(base_handle_price, &handle, 1);
+        let num_periods = precommit_coin.coin.amount
+            / XchandlesFactorPricingPuzzleArgs::get_price(base_handle_price, &handle, 1);
 
         // calculate announcement
         let mut register_announcement: Vec<u8> = precommit_coin.coin.puzzle_hash.to_vec();
@@ -233,22 +233,6 @@ impl XchandlesRegisterAction {
                 register_announcement,
             )),
         )
-    }
-
-    pub fn get_price(base_price: u64, handle: &str, num_periods: u64) -> u64 {
-        base_price
-            * match handle.len() {
-                3 => 128,
-                4 => 64,
-                5 => 16,
-                _ => 2,
-            }
-            / if handle.contains(|c: char| c.is_numeric()) {
-                2
-            } else {
-                1
-            }
-            * num_periods
     }
 }
 

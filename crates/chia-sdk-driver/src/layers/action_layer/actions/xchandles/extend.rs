@@ -14,8 +14,7 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, SingletonAction, Slot, Spend, SpendContext, XchandlesConstants,
-    XchandlesRegisterAction, XchandlesRegistry,
+    DriverError, SingletonAction, Slot, Spend, SpendContext, XchandlesConstants, XchandlesRegistry,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -153,7 +152,7 @@ impl XchandlesExtendAction {
         registry.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         let renew_amount =
-            XchandlesRegisterAction::get_price(base_handle_price, &handle, num_periods);
+            XchandlesFactorPricingPuzzleArgs::get_price(base_handle_price, &handle, num_periods);
 
         let notarized_payment = NotarizedPayment {
             nonce: clvm_tuple!(handle.clone(), slot.info.value.expiration)

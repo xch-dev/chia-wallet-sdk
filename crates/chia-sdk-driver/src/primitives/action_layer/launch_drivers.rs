@@ -780,9 +780,9 @@ mod tests {
         RewardDistributorRemoveEntryAction, RewardDistributorStakeAction,
         RewardDistributorSyncAction, RewardDistributorType, RewardDistributorUnstakeAction,
         RewardDistributorWithdrawIncentivesAction, SingleCatSpend, Slot, SpendWithConditions,
-        XchandlesExpireAction, XchandlesExtendAction, XchandlesOracleAction,
-        XchandlesPrecommitValue, XchandlesRefundAction, XchandlesRegisterAction,
-        XchandlesUpdateAction,
+        XchandlesExpireAction, XchandlesExpirePricingPuzzle, XchandlesExtendAction,
+        XchandlesOracleAction, XchandlesPrecommitValue, XchandlesRefundAction,
+        XchandlesRegisterAction, XchandlesUpdateAction,
     };
 
     use super::*;
@@ -1710,7 +1710,7 @@ mod tests {
             if i % 2 == 1 {
                 base_price = test_price_schedule[i / 2];
             };
-            let reg_amount = XchandlesRegisterAction::get_price(base_price, &handle, 1);
+            let reg_amount = XchandlesFactorPricingPuzzleArgs::get_price(base_price, &handle, 1);
 
             let handle_owner_launcher_id = did.info.launcher_id;
             let handle_resolved_data: Bytes = Bytes32::from([u8::MAX - i as u8; 32]).into();
@@ -1960,7 +1960,7 @@ mod tests {
             let extension_years: u64 = i as u64 + 1;
             let extension_slot = new_slot;
             let pay_for_extension: u64 =
-                XchandlesRegisterAction::get_price(base_price, &handle, extension_years);
+                XchandlesFactorPricingPuzzleArgs::get_price(base_price, &handle, extension_years);
 
             let spent_slot_value_hash = extension_slot.info.value_hash;
             let (extend_conds, notarized_payment) =
@@ -2110,11 +2110,7 @@ mod tests {
         let buy_time = expiration + 27 * 24 * 60 * 60; // last day of auction; 0 < premium < 1 CAT
         let value = XchandlesPrecommitValue::for_normal_registration(
             payment_cat.info.asset_id.tree_hash(),
-            XchandlesExpireAction::exponential_premium_puzzle_tree_hash(
-                base_price,
-                registration_period,
-                1000,
-            ),
+            XchandlesExpirePricingPuzzle::curry_tree_hash(base_price, registration_period),
             &XchandlesPricingSolution {
                 buy_time,
                 current_expiration: expiration,
@@ -2128,13 +2124,9 @@ mod tests {
             Bytes32::from([69; 32]).into(),
         );
 
-        let pricing_puzzle = XchandlesExpireAction::expire_puzzle_args_from_scale_factor(
-            ctx,
-            base_price,
-            registration_period,
-            1000,
-        )?;
-        let reg_amount = XchandlesExpireAction::get_price(
+        let pricing_puzzle =
+            XchandlesExpirePricingPuzzle::from_info(ctx, base_price, registration_period)?;
+        let reg_amount = XchandlesExpirePricingPuzzle::get_price(
             ctx,
             pricing_puzzle,
             handle_to_expire,
@@ -2234,12 +2226,8 @@ mod tests {
                     registration_period,
                 })?
             } else {
-                let args = XchandlesExpireAction::expire_puzzle_args_from_scale_factor(
-                    ctx,
-                    base_price,
-                    registration_period,
-                    1000,
-                )?;
+                let args =
+                    XchandlesExpirePricingPuzzle::from_info(ctx, base_price, registration_period)?;
 
                 ctx.curry(args)?
             };
@@ -2251,23 +2239,25 @@ mod tests {
             })?;
 
             let expected_price =
-                XchandlesRegisterAction::get_price(base_price, &unregistered_handle, 1);
+                XchandlesFactorPricingPuzzleArgs::get_price(base_price, &unregistered_handle, 1);
             let other_pricing_puzzle = if use_factor_pricing {
                 ctx.curry(XchandlesFactorPricingPuzzleArgs {
                     base_price: base_price + 1,
                     registration_period,
                 })?
             } else {
-                let args = XchandlesExpireAction::expire_puzzle_args_from_scale_factor(
+                let args = XchandlesExpirePricingPuzzle::from_info(
                     ctx,
                     base_price + 1,
                     registration_period,
-                    1000,
                 )?;
                 ctx.curry(args)?
             };
-            let other_expected_price =
-                XchandlesRegisterAction::get_price(base_price + 1, &unregistered_handle, 1);
+            let other_expected_price = XchandlesFactorPricingPuzzleArgs::get_price(
+                base_price + 1,
+                &unregistered_handle,
+                1,
+            );
             assert_ne!(other_expected_price, expected_price);
 
             let existing_handle = if use_factor_pricing {
@@ -2287,7 +2277,7 @@ mod tests {
                 num_periods: 1,
             })?;
             let existing_handle_expected_price =
-                XchandlesRegisterAction::get_price(base_price, &existing_handle, 1);
+                XchandlesFactorPricingPuzzleArgs::get_price(base_price, &existing_handle, 1);
 
             // a - the CAT maker puzzle has changed
             let alternative_payment_cat_amount = 10_000_000;

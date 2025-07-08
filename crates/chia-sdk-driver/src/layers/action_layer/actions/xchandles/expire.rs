@@ -6,12 +6,12 @@ use chia_sdk_types::{
         DefaultCatMakerArgs, XchandlesDataValue, XchandlesExpireActionArgs,
         XchandlesExpireActionSolution, XchandlesExponentialPremiumRenewPuzzleArgs,
         XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution, XchandlesSlotValue,
-        PREMIUM_BITS_LIST, PREMIUM_PRECISION, XCHANDLES_EXPONENTIAL_PREMIUM_RENEW_PUZZLE_HASH,
+        PREMIUM_BITS_LIST, PREMIUM_PRECISION,
     },
     Conditions, Mod,
 };
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
@@ -62,80 +62,6 @@ impl XchandlesExpireAction {
             .into(),
             slot_1st_curry_hash: Slot::<()>::first_curry_hash(launcher_id, 0).into(),
         }
-    }
-
-    pub fn get_start_premium(scale_factor: u64) -> u64 {
-        100_000_000 * scale_factor // start auction at $100 million
-    }
-
-    #[allow(clippy::cast_possible_truncation)]
-    pub fn get_end_value(scale_factor: u64) -> u64 {
-        // 100000000 * 10 ** 18 // 2 ** 28 = 372529029846191406
-        (372_529_029_846_191_406_u128 * u128::from(scale_factor) / 1_000_000_000_000_000_000) as u64
-    }
-
-    // A scale factor is how many units of the payment token equate to $1
-    // For exampe, you'd use scale_factor=1000 for wUSDC.b
-    pub fn expire_puzzle_args_from_scale_factor(
-        ctx: &mut SpendContext,
-        base_price: u64,
-        registration_period: u64,
-        scale_factor: u64,
-    ) -> Result<XchandlesExponentialPremiumRenewPuzzleArgs<NodePtr>, DriverError> {
-        Ok(XchandlesExponentialPremiumRenewPuzzleArgs {
-            base_program: ctx.curry(XchandlesFactorPricingPuzzleArgs {
-                base_price,
-                registration_period,
-            })?,
-            halving_period: 86400, // one day = 86400 = 60 * 60 * 24 seconds
-            start_premium: Self::get_start_premium(scale_factor),
-            end_value: Self::get_end_value(scale_factor),
-            precision: PREMIUM_PRECISION,
-            bits_list: PREMIUM_BITS_LIST.to_vec(),
-        })
-    }
-
-    pub fn exponential_premium_puzzle_tree_hash(
-        base_price: u64,
-        registration_period: u64,
-        scale_factor: u64,
-    ) -> TreeHash {
-        CurriedProgram {
-            program: XCHANDLES_EXPONENTIAL_PREMIUM_RENEW_PUZZLE_HASH,
-            args: XchandlesExponentialPremiumRenewPuzzleArgs::<TreeHash> {
-                base_program: XchandlesFactorPricingPuzzleArgs {
-                    base_price,
-                    registration_period,
-                }
-                .curry_tree_hash(),
-                halving_period: 86400, // one day = 86400 = 60 * 60 * 24 seconds
-                start_premium: Self::get_start_premium(scale_factor),
-                end_value: Self::get_end_value(scale_factor),
-                precision: PREMIUM_PRECISION,
-                bits_list: PREMIUM_BITS_LIST.to_vec(),
-            },
-        }
-        .tree_hash()
-    }
-
-    pub fn get_price(
-        ctx: &mut SpendContext,
-        args: XchandlesExponentialPremiumRenewPuzzleArgs<NodePtr>,
-        handle: String,
-        expiration: u64,
-        buy_time: u64,
-        num_periods: u64,
-    ) -> Result<u128, DriverError> {
-        let puzzle = ctx.curry(args)?;
-        let solution = ctx.alloc(&XchandlesPricingSolution {
-            buy_time,
-            current_expiration: expiration,
-            handle,
-            num_periods,
-        })?;
-        let output = ctx.run(puzzle, solution)?;
-
-        Ok(ctx.extract::<(u128, u64)>(output)?.0)
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
@@ -231,12 +157,8 @@ impl XchandlesExpireAction {
 
         // spend self
         let slot = registry.actual_slot(slot);
-        let expire_args = Self::expire_puzzle_args_from_scale_factor(
-            ctx,
-            base_handle_price,
-            registration_period,
-            1000,
-        )?;
+        let expire_args =
+            XchandlesExpirePricingPuzzle::from_info(ctx, base_handle_price, registration_period)?;
         let action_solution = XchandlesExpireActionSolution {
             cat_maker_puzzle_reveal: ctx.curry(DefaultCatMakerArgs::new(
                 precommit_coin.asset_id.tree_hash().into(),
@@ -273,6 +195,71 @@ impl XchandlesExpireAction {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct XchandlesExpirePricingPuzzle {}
+
+impl XchandlesExpirePricingPuzzle {
+    // A scale factor is how many units of the payment token equate to $1
+    // For exampe, you'd use scale_factor=1000 for wUSDC.b
+    pub fn from_info(
+        ctx: &mut SpendContext,
+        base_price: u64,
+        registration_period: u64,
+    ) -> Result<XchandlesExponentialPremiumRenewPuzzleArgs<NodePtr>, DriverError> {
+        Ok(XchandlesExponentialPremiumRenewPuzzleArgs {
+            base_program: ctx.curry(XchandlesFactorPricingPuzzleArgs {
+                base_price,
+                registration_period,
+            })?,
+            halving_period: 86400, // one day = 86400 = 60 * 60 * 24 seconds
+            start_premium: XchandlesExponentialPremiumRenewPuzzleArgs::<()>::get_start_premium(
+                1000,
+            ),
+            end_value: XchandlesExponentialPremiumRenewPuzzleArgs::<()>::get_end_value(1000),
+            precision: PREMIUM_PRECISION,
+            bits_list: PREMIUM_BITS_LIST.to_vec(),
+        })
+    }
+
+    pub fn curry_tree_hash(base_price: u64, registration_period: u64) -> TreeHash {
+        XchandlesExponentialPremiumRenewPuzzleArgs::<TreeHash> {
+            base_program: XchandlesFactorPricingPuzzleArgs {
+                base_price,
+                registration_period,
+            }
+            .curry_tree_hash(),
+            halving_period: 86400, // one day = 86400 = 60 * 60 * 24 seconds
+            start_premium: XchandlesExponentialPremiumRenewPuzzleArgs::<()>::get_start_premium(
+                1000,
+            ),
+            end_value: XchandlesExponentialPremiumRenewPuzzleArgs::<()>::get_end_value(1000),
+            precision: PREMIUM_PRECISION,
+            bits_list: PREMIUM_BITS_LIST.to_vec(),
+        }
+        .curry_tree_hash()
+    }
+
+    pub fn get_price(
+        ctx: &mut SpendContext,
+        args: XchandlesExponentialPremiumRenewPuzzleArgs<NodePtr>,
+        handle: String,
+        expiration: u64,
+        buy_time: u64,
+        num_periods: u64,
+    ) -> Result<u128, DriverError> {
+        let puzzle = ctx.curry(args)?;
+        let solution = ctx.alloc(&XchandlesPricingSolution {
+            buy_time,
+            current_expiration: expiration,
+            handle,
+            num_periods,
+        })?;
+        let output = ctx.run(puzzle, solution)?;
+
+        Ok(ctx.extract::<(u128, u64)>(output)?.0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -290,12 +277,8 @@ mod tests {
         let mut ctx = SpendContext::new();
 
         let registration_period = 366 * 24 * 60 * 60;
-        let exponential_args = XchandlesExpireAction::expire_puzzle_args_from_scale_factor(
-            &mut ctx,
-            0,
-            registration_period,
-            1000,
-        )?;
+        let exponential_args =
+            XchandlesExpirePricingPuzzle::from_info(&mut ctx, 0, registration_period)?;
         let puzzle = ctx.curry(exponential_args.clone())?;
 
         let mut last_price = 100_000_000_000;
@@ -327,7 +310,7 @@ mod tests {
                 last_price = output.price;
 
                 assert_eq!(
-                    XchandlesExpireAction::get_price(
+                    XchandlesExpirePricingPuzzle::get_price(
                         &mut ctx,
                         exponential_args.clone(),
                         "yakuhito".to_string(),
