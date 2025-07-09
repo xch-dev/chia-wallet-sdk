@@ -75,6 +75,7 @@ offer-compression = ["chia-sdk-driver/offer-compression"]
 native-tls = ["chia-sdk-client/native-tls", "chia-sdk-coinset/native-tls"]
 rustls = ["chia-sdk-client/rustls", "chia-sdk-coinset/rustls"]
 peer-simulator = ["chia-sdk-test/peer-simulator"]
+action-layer = ["chia-sdk-types/action-layer", "chia-sdk-driver/action-layer"]
 
 [dependencies]
 chia-sdk-client = { workspace = true }
