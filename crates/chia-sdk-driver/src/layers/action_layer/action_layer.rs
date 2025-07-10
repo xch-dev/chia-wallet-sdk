@@ -72,14 +72,14 @@ impl<S, P> ActionLayer<S, P> {
     ) -> Option<Vec<MerkleProof>> {
         let merkle_tree = MerkleTree::new(action_puzzle_hashes);
 
-        let proofs: Vec<MerkleProof> = action_spends_puzzle_hashes
+        let proofs = action_spends_puzzle_hashes
             .iter()
             .filter_map(|puzzle_hash| {
                 let proof = merkle_tree.proof(*puzzle_hash)?;
 
                 Some(proof)
             })
-            .collect();
+            .collect::<Vec<_>>();
 
         if proofs.len() != action_spends_puzzle_hashes.len() {
             return None;
@@ -168,7 +168,7 @@ where
                 let finalizer_1st_curry_args =
                     DefaultFinalizer1stCurryArgs::from_clvm(allocator, finalizer_1st_curry.args)?;
 
-                let expected_self_hash: Bytes32 = DefaultFinalizer1stCurryArgs {
+                let expected_self_hash = DefaultFinalizer1stCurryArgs {
                     action_layer_mod_hash: ACTION_LAYER_PUZZLE_HASH.into(),
                     hint: finalizer_1st_curry_args.hint,
                 }
@@ -346,12 +346,12 @@ where
         let mut puzzle_to_selector = HashMap::<Bytes32, u32>::new();
         let mut next_selector = 2;
 
-        let mut puzzles = Vec::<NodePtr>::new();
-        let mut selectors_and_proofs = Vec::<(u32, Option<MerkleProof>)>::new();
-        let mut solutions = Vec::<NodePtr>::new();
+        let mut puzzles = Vec::new();
+        let mut selectors_and_proofs = Vec::new();
+        let mut solutions = Vec::new();
 
         for (spend, proof) in solution.action_spends.into_iter().zip(solution.proofs) {
-            let puzzle_hash: Bytes32 = ctx.tree_hash(spend.puzzle).into();
+            let puzzle_hash = ctx.tree_hash(spend.puzzle).into();
             if let Some(selector) = puzzle_to_selector.get(&puzzle_hash) {
                 selectors_and_proofs.push((*selector, Some(proof.clone())));
             } else {

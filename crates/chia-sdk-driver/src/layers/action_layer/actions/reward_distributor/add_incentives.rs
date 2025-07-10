@@ -57,7 +57,7 @@ impl RewardDistributorAddIncentivesAction {
         let my_state = distributor.pending_spend.latest_state.1;
 
         // calculate announcement needed to ensure everything's happening as expected
-        let mut add_incentives_announcement: Vec<u8> =
+        let mut add_incentives_announcement =
             clvm_tuple!(amount, my_state.round_time_info.epoch_end)
                 .tree_hash()
                 .to_vec();

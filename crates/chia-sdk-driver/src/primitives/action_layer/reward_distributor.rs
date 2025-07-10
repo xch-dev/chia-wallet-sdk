@@ -112,13 +112,13 @@ impl RewardDistributor {
         current_state_and_ephemeral: (NodePtr, RewardDistributorState),
         constants: RewardDistributorConstants,
     ) -> Result<RewardDistributorPendingSpendInfo, DriverError> {
-        let mut spent_reward_slots: Vec<RewardDistributorRewardSlotValue> = vec![];
-        let mut spent_commitment_slots: Vec<RewardDistributorCommitmentSlotValue> = vec![];
-        let mut spent_entry_slots: Vec<RewardDistributorEntrySlotValue> = vec![];
+        let mut spent_reward_slots = vec![];
+        let mut spent_commitment_slots = vec![];
+        let mut spent_entry_slots = vec![];
 
-        let mut created_reward_slots: Vec<RewardDistributorRewardSlotValue> = vec![];
-        let mut created_commitment_slots: Vec<RewardDistributorCommitmentSlotValue> = vec![];
-        let mut created_entry_slots: Vec<RewardDistributorEntrySlotValue> = vec![];
+        let mut created_reward_slots = vec![];
+        let mut created_commitment_slots = vec![];
+        let mut created_entry_slots = vec![];
 
         let new_epoch_action = RewardDistributorNewEpochAction::from_constants(&constants);
         let new_epoch_hash = new_epoch_action.tree_hash();

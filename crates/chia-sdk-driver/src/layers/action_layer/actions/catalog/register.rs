@@ -4,7 +4,7 @@ use chia_sdk_types::{
     announcement_id,
     puzzles::{
         CatalogRegisterActionArgs, CatalogRegisterActionSolution, CatalogSlotValue,
-        DefaultCatMakerArgs, NftPack, ANY_METADATA_UPDATER_HASH,
+        DefaultCatMakerArgs, NftPack, PrecommitSpendMode, ANY_METADATA_UPDATER_HASH,
     },
     Conditions, Mod,
 };
@@ -142,21 +142,16 @@ impl CatalogRegisterAction {
         eve_nft_inner_spend: Spend,
     ) -> Result<Conditions, DriverError> {
         // calculate announcement
-        let register_announcement: Bytes32 =
+        let mut register_announcement =
             clvm_tuple!(tail_hash, precommit_coin.value.initial_inner_puzzle_hash)
                 .tree_hash()
-                .into();
-        let mut register_announcement: Vec<u8> = register_announcement.to_vec();
+                .to_vec();
         register_announcement.insert(0, b'r');
 
         // spend precommit coin
         let initial_inner_puzzle_hash = precommit_coin.value.initial_inner_puzzle_hash;
         let my_inner_puzzle_hash = catalog.info.inner_puzzle_hash().into();
-        precommit_coin.spend(
-            ctx,
-            1, // mode 1 = register
-            my_inner_puzzle_hash,
-        )?;
+        precommit_coin.spend(ctx, PrecommitSpendMode::REGISTER, my_inner_puzzle_hash)?;
 
         // spend uniqueness prelauncher
         let uniqueness_prelauncher =

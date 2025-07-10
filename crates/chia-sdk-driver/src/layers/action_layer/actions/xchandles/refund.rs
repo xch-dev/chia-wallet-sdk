@@ -3,8 +3,8 @@ use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        DefaultCatMakerArgs, XchandlesRefundActionArgs, XchandlesRefundActionSolution,
-        XchandlesSlotValue,
+        DefaultCatMakerArgs, PrecommitSpendMode, XchandlesRefundActionArgs,
+        XchandlesRefundActionSolution, XchandlesSlotValue,
     },
     Conditions, Mod,
 };
@@ -98,28 +98,19 @@ impl XchandlesRefundAction {
         slot: Option<Slot<XchandlesSlotValue>>,
     ) -> Result<Conditions, DriverError> {
         // calculate announcement
-        let mut refund_announcement: Vec<u8> = precommit_coin.coin.puzzle_hash.to_vec();
+        let mut refund_announcement = precommit_coin.coin.puzzle_hash.to_vec();
         refund_announcement.insert(0, b'$');
 
         // spend precommit coin
-        let my_inner_puzzle_hash: Bytes32 = registry.info.inner_puzzle_hash().into();
-        precommit_coin.spend(
-            ctx,
-            0, // mode 0 = refund
-            my_inner_puzzle_hash,
-        )?;
+        let my_inner_puzzle_hash = registry.info.inner_puzzle_hash().into();
+        precommit_coin.spend(ctx, PrecommitSpendMode::REFUND, my_inner_puzzle_hash)?;
 
         // spend self
         let slot = slot.map(|s| registry.actual_slot(s));
+        let cat_maker_args = DefaultCatMakerArgs::new(precommit_coin.asset_id.tree_hash().into());
         let action_solution = XchandlesRefundActionSolution {
-            precommited_cat_maker_reveal: ctx.curry(DefaultCatMakerArgs::new(
-                precommit_coin.asset_id.tree_hash().into(),
-            ))?,
-            precommited_cat_maker_hash: DefaultCatMakerArgs::new(
-                precommit_coin.asset_id.tree_hash().into(),
-            )
-            .curry_tree_hash()
-            .into(),
+            precommited_cat_maker_reveal: ctx.curry(cat_maker_args)?,
+            precommited_cat_maker_hash: cat_maker_args.curry_tree_hash().into(),
             precommited_cat_maker_solution: (),
             precommited_pricing_puzzle_reveal,
             precommited_pricing_puzzle_hash: ctx

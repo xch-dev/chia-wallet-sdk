@@ -92,7 +92,7 @@ impl XchandlesUpdateAction {
         registry.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         // spend slot
-        let my_inner_puzzle_hash: Bytes32 = registry.info.inner_puzzle_hash().into();
+        let my_inner_puzzle_hash = registry.info.inner_puzzle_hash().into();
 
         let msg: Bytes32 = clvm_tuple!(
             slot.info.value.handle_hash,

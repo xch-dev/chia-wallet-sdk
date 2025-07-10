@@ -96,8 +96,7 @@ impl RewardDistributorAddEntryAction {
         manager_singleton_inner_puzzle_hash: Bytes32,
     ) -> Result<Conditions, DriverError> {
         // calculate message that the manager needs to send
-        let add_entry_message: Bytes32 = clvm_tuple!(payout_puzzle_hash, shares).tree_hash().into();
-        let mut add_entry_message: Vec<u8> = add_entry_message.to_vec();
+        let mut add_entry_message = clvm_tuple!(payout_puzzle_hash, shares).tree_hash().to_vec();
         add_entry_message.insert(0, b'a');
         let add_entry_message = Conditions::new().send_message(
             18,

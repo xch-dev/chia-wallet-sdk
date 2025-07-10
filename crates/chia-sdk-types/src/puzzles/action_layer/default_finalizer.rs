@@ -76,7 +76,7 @@ impl DefaultFinalizer2ndCurryArgs {
     }
 
     pub fn curry_tree_hash(hint: Bytes32) -> TreeHash {
-        let self_hash: TreeHash = DefaultFinalizer1stCurryArgs::curry_tree_hash(hint);
+        let self_hash = DefaultFinalizer1stCurryArgs::curry_tree_hash(hint);
 
         CurriedProgram {
             program: self_hash,

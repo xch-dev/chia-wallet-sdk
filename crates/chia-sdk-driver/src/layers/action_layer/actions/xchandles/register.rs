@@ -3,7 +3,7 @@ use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        DefaultCatMakerArgs, SlotNeigborsInfo, XchandlesDataValue,
+        DefaultCatMakerArgs, PrecommitSpendMode, SlotNeigborsInfo, XchandlesDataValue,
         XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution, XchandlesRegisterActionArgs,
         XchandlesRegisterActionSolution, XchandlesSlotValue,
     },
@@ -163,8 +163,8 @@ impl XchandlesRegisterAction {
         registration_period: u64,
         start_time: u64,
     ) -> Result<Conditions, DriverError> {
-        let handle: String = precommit_coin.value.handle.clone();
-        let handle_hash: Bytes32 = handle.tree_hash().into();
+        let handle = precommit_coin.value.handle.clone();
+        let handle_hash = handle.tree_hash().into();
         let (left_slot, right_slot) = registry.actual_neigbors(handle_hash, left_slot, right_slot);
 
         let secret = precommit_coin.value.secret;
@@ -173,16 +173,12 @@ impl XchandlesRegisterAction {
             / XchandlesFactorPricingPuzzleArgs::get_price(base_handle_price, &handle, 1);
 
         // calculate announcement
-        let mut register_announcement: Vec<u8> = precommit_coin.coin.puzzle_hash.to_vec();
+        let mut register_announcement = precommit_coin.coin.puzzle_hash.to_vec();
         register_announcement.insert(0, b'r');
 
         // spend precommit coin
-        let my_inner_puzzle_hash: Bytes32 = registry.info.inner_puzzle_hash().into();
-        precommit_coin.spend(
-            ctx,
-            1, // mode 1 = register/expire (use value)
-            my_inner_puzzle_hash,
-        )?;
+        let my_inner_puzzle_hash = registry.info.inner_puzzle_hash().into();
+        precommit_coin.spend(ctx, PrecommitSpendMode::REGISTER, my_inner_puzzle_hash)?;
 
         // spend self
         let action_solution = XchandlesRegisterActionSolution {

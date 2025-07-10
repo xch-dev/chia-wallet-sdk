@@ -80,7 +80,7 @@ impl RewardDistributorCommitIncentivesAction {
             rewards: solution.rewards_to_add,
         };
 
-        let mut reward_slot_values: Vec<RewardDistributorRewardSlotValue> = vec![];
+        let mut reward_slot_values = vec![];
 
         if solution.slot_epoch_time == solution.epoch_start {
             reward_slot_values.push(RewardDistributorRewardSlotValue {
@@ -148,8 +148,7 @@ impl RewardDistributorCommitIncentivesAction {
         };
 
         // calculate announcement
-        let mut commit_reward_announcement: Vec<u8> =
-            new_commitment_slot_value.tree_hash().to_vec();
+        let mut commit_reward_announcement = new_commitment_slot_value.tree_hash().to_vec();
         commit_reward_announcement.insert(0, b'c');
 
         // spend self

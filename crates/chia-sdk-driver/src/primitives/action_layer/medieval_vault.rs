@@ -346,7 +346,7 @@ mod tests {
         assert_eq!(vault.info, current_vault_info);
 
         for (i, (m, pubkeys)) in multisig_configs.clone().into_iter().enumerate().skip(1) {
-            let mut recreate_memos: NodePtr = ctx.alloc(&vec![vault.info.launcher_id])?;
+            let mut recreate_memos = ctx.alloc(&vec![vault.info.launcher_id])?;
 
             let info_changed =
                 multisig_configs[i - 1].0 != m || multisig_configs[i - 1].1 != pubkeys;

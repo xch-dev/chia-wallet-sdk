@@ -97,11 +97,10 @@ impl RewardDistributorInitiatePayoutAction {
                 - entry_slot.info.value.initial_cumulative_payout);
 
         // this announcement should be asserted to ensure everything goes according to plan
-        let initiate_payout_announcement: Bytes32 =
+        let mut initiate_payout_announcement =
             clvm_tuple!(entry_slot.info.value.payout_puzzle_hash, withdrawal_amount)
                 .tree_hash()
-                .into();
-        let mut initiate_payout_announcement: Vec<u8> = initiate_payout_announcement.to_vec();
+                .to_vec();
         initiate_payout_announcement.insert(0, b'p');
 
         // spend self

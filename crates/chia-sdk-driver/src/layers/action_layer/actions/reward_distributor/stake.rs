@@ -117,7 +117,7 @@ impl RewardDistributorStakeAction {
         let my_id = distributor.coin.coin_id();
 
         // calculate notarized payment
-        let my_p2_treehash: TreeHash = Self::my_p2_puzzle_hash(self.launcher_id).into();
+        let my_p2_treehash = Self::my_p2_puzzle_hash(self.launcher_id).into();
         let payment_puzzle_hash: Bytes32 = CurriedProgram {
             program: NONCE_WRAPPER_PUZZLE_HASH,
             args: NonceWrapperArgs::<Bytes32, TreeHash> {

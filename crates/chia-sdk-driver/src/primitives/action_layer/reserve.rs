@@ -118,8 +118,8 @@ impl Reserve {
         let inner_solution =
             ActionLayer::<S, NodePtr>::parse_solution(ctx, controller_solution.inner_solution)?;
 
-        let mut state: (NodePtr, S) = (NodePtr::NIL, controlelr_initial_state);
-        let mut reserve_conditions: Vec<NodePtr> = Vec::new();
+        let mut state = (NodePtr::NIL, controlelr_initial_state);
+        let mut reserve_conditions = Vec::new();
         for raw_action in inner_solution.action_spends {
             let actual_solution = ctx.alloc(&clvm_list!(state, raw_action.solution))?;
 

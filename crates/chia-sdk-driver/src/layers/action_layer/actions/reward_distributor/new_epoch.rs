@@ -119,8 +119,7 @@ impl RewardDistributorNewEpochAction {
         let fee = epoch_total_rewards * distributor.info.constants.fee_bps / 10000;
 
         // calculate announcement needed to ensure everything's happening as expected
-        let mut new_epoch_announcement: Vec<u8> =
-            my_state.round_time_info.epoch_end.tree_hash().to_vec();
+        let mut new_epoch_announcement = my_state.round_time_info.epoch_end.tree_hash().to_vec();
         new_epoch_announcement.insert(0, b'e');
         let new_epoch_conditions = Conditions::new()
             .assert_puzzle_announcement(announcement_id(

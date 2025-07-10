@@ -122,7 +122,7 @@ impl XchandlesExtendAction {
         num_periods: u64,
         buy_time: u64,
     ) -> Result<(Conditions, NotarizedPayment), DriverError> {
-        let spender_inner_puzzle_hash: Bytes32 = registry.info.inner_puzzle_hash().into();
+        let spender_inner_puzzle_hash = registry.info.inner_puzzle_hash().into();
 
         // spend self
         let cat_maker_puzzle_reveal = ctx.curry(DefaultCatMakerArgs::new(
@@ -168,7 +168,7 @@ impl XchandlesExtendAction {
         // spend slot
         slot.spend(ctx, spender_inner_puzzle_hash)?;
 
-        let mut extend_ann: Vec<u8> = clvm_tuple!(renew_amount, handle).tree_hash().to_vec();
+        let mut extend_ann = clvm_tuple!(renew_amount, handle).tree_hash().to_vec();
         extend_ann.insert(0, b'e');
 
         Ok((

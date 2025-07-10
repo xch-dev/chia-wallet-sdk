@@ -50,9 +50,16 @@ pub struct PrecommitLayer2ndCurryArgs<V> {
 }
 
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
+#[clvm(atom)]
+pub enum PrecommitSpendMode {
+    REFUND = 0,
+    REGISTER = 1,
+}
+
+#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct PrecommitLayerSolution {
-    pub mode: u8,
+    pub mode: PrecommitSpendMode,
     pub my_amount: u64,
     pub singleton_inner_puzzle_hash: Bytes32,
 }

@@ -4,7 +4,7 @@ use chia_sdk_types::{
     announcement_id,
     puzzles::{
         CatalogRefundActionArgs, CatalogRefundActionSolution, CatalogSlotValue,
-        DefaultCatMakerArgs, SlotNeigborsInfo,
+        DefaultCatMakerArgs, PrecommitSpendMode, SlotNeigborsInfo,
     },
     Conditions, Mod,
 };
@@ -91,7 +91,6 @@ impl CatalogRefundAction {
         self.spent_slot_value(ctx, solution)
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,
         ctx: &mut SpendContext,
@@ -102,11 +101,10 @@ impl CatalogRefundAction {
         slot: Option<Slot<CatalogSlotValue>>,
     ) -> Result<Conditions, DriverError> {
         // calculate announcement
-        let refund_announcement: Bytes32 =
+        let mut refund_announcement =
             clvm_tuple!(tail_hash, precommit_coin.value.initial_inner_puzzle_hash)
                 .tree_hash()
-                .into();
-        let mut refund_announcement: Vec<u8> = refund_announcement.to_vec();
+                .to_vec();
         refund_announcement.insert(0, b'$');
 
         let secure_conditions = Conditions::new().assert_puzzle_announcement(announcement_id(
@@ -115,13 +113,9 @@ impl CatalogRefundAction {
         ));
 
         // spend precommit coin
-        let spender_inner_puzzle_hash: Bytes32 = catalog.info.inner_puzzle_hash().into();
+        let spender_inner_puzzle_hash = catalog.info.inner_puzzle_hash().into();
         let initial_inner_puzzle_hash = precommit_coin.value.initial_inner_puzzle_hash;
-        precommit_coin.spend(
-            ctx,
-            0, // mode 0 = refund
-            spender_inner_puzzle_hash,
-        )?;
+        precommit_coin.spend(ctx, PrecommitSpendMode::REFUND, spender_inner_puzzle_hash)?;
 
         // if there's a slot, spend it
         if let Some(slot) = slot {
@@ -130,15 +124,10 @@ impl CatalogRefundAction {
         }
 
         // then, create action spend
+        let cat_maker_args = DefaultCatMakerArgs::new(precommit_coin.asset_id.tree_hash().into());
         let action_solution = CatalogRefundActionSolution {
-            precommited_cat_maker_reveal: ctx.curry(DefaultCatMakerArgs::new(
-                precommit_coin.asset_id.tree_hash().into(),
-            ))?,
-            precommited_cat_maker_hash: DefaultCatMakerArgs::new(
-                precommit_coin.asset_id.tree_hash().into(),
-            )
-            .curry_tree_hash()
-            .into(),
+            precommited_cat_maker_reveal: ctx.curry(cat_maker_args)?,
+            precommited_cat_maker_hash: cat_maker_args.curry_tree_hash().into(),
             precommited_cat_maker_solution: (),
             tail_hash,
             initial_nft_owner_ph: initial_inner_puzzle_hash,

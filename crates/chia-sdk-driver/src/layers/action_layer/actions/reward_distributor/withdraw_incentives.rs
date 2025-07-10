@@ -142,7 +142,7 @@ impl RewardDistributorWithdrawIncentivesAction {
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         // spend slots
-        let my_inner_puzzle_hash: Bytes32 = distributor.info.inner_puzzle_hash().into();
+        let my_inner_puzzle_hash = distributor.info.inner_puzzle_hash().into();
         reward_slot.spend(ctx, my_inner_puzzle_hash)?;
         commitment_slot.spend(ctx, my_inner_puzzle_hash)?;
 

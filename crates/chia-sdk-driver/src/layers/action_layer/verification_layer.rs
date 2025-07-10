@@ -94,7 +94,7 @@ impl Layer for VerificationLayer {
                 self.revocation_singleton_launcher_id,
             ),
         })?;
-        let self_hash: Bytes32 =
+        let self_hash =
             VerificationLayer1stCurryArgs::curry_tree_hash(self.revocation_singleton_launcher_id)
                 .into();
 

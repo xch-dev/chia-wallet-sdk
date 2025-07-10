@@ -144,7 +144,7 @@ impl ReserveFinalizer2ndCurryArgs {
         reserve_amount_from_state_program: TreeHash,
         hint: Bytes32,
     ) -> TreeHash {
-        let self_hash: TreeHash = ReserveFinalizer1stCurryArgs::<TreeHash>::curry_tree_hash(
+        let self_hash = ReserveFinalizer1stCurryArgs::<TreeHash>::curry_tree_hash(
             reserve_full_puzzle_hash,
             reserve_inner_puzzle_hash,
             reserve_amount_from_state_program,

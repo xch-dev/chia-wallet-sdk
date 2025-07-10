@@ -334,7 +334,7 @@ impl XchandlesRegistry {
             return Ok(None);
         }
 
-        let registry_inner_puzzle_hash: Bytes32 = info.inner_puzzle_hash().into();
+        let registry_inner_puzzle_hash = info.inner_puzzle_hash().into();
         let eve_singleton_inner_puzzle = eve_singleton_inner_puzzle(
             ctx,
             launcher_id,

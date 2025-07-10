@@ -85,13 +85,13 @@ impl RewardDistributorRemoveEntryAction {
         let entry_slot = distributor.actual_entry_slot_value(entry_slot);
 
         // compute message that the manager needs to send
-        let remove_entry_message: Bytes32 = clvm_tuple!(
+
+        let mut remove_entry_message = clvm_tuple!(
             entry_slot.info.value.payout_puzzle_hash,
             entry_slot.info.value.shares
         )
         .tree_hash()
-        .into();
-        let mut remove_entry_message: Vec<u8> = remove_entry_message.to_vec();
+        .to_vec();
         remove_entry_message.insert(0, b'r');
 
         let remove_entry_conditions = Conditions::new()

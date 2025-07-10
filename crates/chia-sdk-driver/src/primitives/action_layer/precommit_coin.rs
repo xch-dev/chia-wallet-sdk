@@ -3,7 +3,7 @@ use chia_puzzle_types::{
     cat::{CatArgs, CatSolution},
     CoinProof, LineageProof,
 };
-use chia_sdk_types::puzzles::PrecommitLayerSolution;
+use chia_sdk_types::puzzles::{PrecommitLayerSolution, PrecommitSpendMode};
 use clvm_traits::ToClvm;
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
@@ -116,7 +116,7 @@ impl<V> PrecommitCoin<V> {
     pub fn construct_solution(
         &self,
         ctx: &mut SpendContext,
-        mode: u8,
+        mode: PrecommitSpendMode,
         singleton_inner_puzzle_hash: Bytes32,
     ) -> Result<NodePtr, DriverError>
     where
@@ -151,7 +151,7 @@ impl<V> PrecommitCoin<V> {
     pub fn spend(
         &self,
         ctx: &mut SpendContext,
-        mode: u8,
+        mode: PrecommitSpendMode,
         spender_inner_puzzle_hash: Bytes32,
     ) -> Result<(), DriverError>
     where

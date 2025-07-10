@@ -3,7 +3,7 @@ use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        DefaultCatMakerArgs, XchandlesDataValue, XchandlesExpireActionArgs,
+        DefaultCatMakerArgs, PrecommitSpendMode, XchandlesDataValue, XchandlesExpireActionArgs,
         XchandlesExpireActionSolution, XchandlesExponentialPremiumRenewPuzzleArgs,
         XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution, XchandlesSlotValue,
         PREMIUM_BITS_LIST, PREMIUM_PRECISION,
@@ -143,17 +143,13 @@ impl XchandlesExpireAction {
         precommit_coin: PrecommitCoin<XchandlesPrecommitValue>,
         start_time: u64,
     ) -> Result<Conditions, DriverError> {
-        let my_inner_puzzle_hash: Bytes32 = registry.info.inner_puzzle_hash().into();
+        let my_inner_puzzle_hash = registry.info.inner_puzzle_hash().into();
 
         // announcement is simply premcommitment coin ph
-        let expire_ann: Bytes32 = precommit_coin.coin.puzzle_hash;
+        let expire_ann = precommit_coin.coin.puzzle_hash;
 
         // spend precommit coin
-        precommit_coin.spend(
-            ctx,
-            1, // mode 1 = register/expire (use value)
-            my_inner_puzzle_hash,
-        )?;
+        precommit_coin.spend(ctx, PrecommitSpendMode::REGISTER, my_inner_puzzle_hash)?;
 
         // spend self
         let slot = registry.actual_slot(slot);
@@ -188,7 +184,7 @@ impl XchandlesExpireAction {
         // spend slot
         slot.spend(ctx, my_inner_puzzle_hash)?;
 
-        let mut expire_ann: Vec<u8> = expire_ann.to_vec();
+        let mut expire_ann = expire_ann.to_vec();
         expire_ann.insert(0, b'x');
         Ok(Conditions::new()
             .assert_puzzle_announcement(announcement_id(registry.coin.puzzle_hash, expire_ann)))

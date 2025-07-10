@@ -279,7 +279,6 @@ where
 }
 
 impl XchandlesPrecommitValue<(), TreeHash, Bytes32> {
-    #[allow(clippy::too_many_arguments)]
     pub fn for_normal_registration<PS>(
         payment_tail_hash_hash: TreeHash,
         pricing_puzzle_hash: TreeHash,

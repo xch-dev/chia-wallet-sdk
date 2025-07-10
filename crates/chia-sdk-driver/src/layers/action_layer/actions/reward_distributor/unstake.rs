@@ -101,8 +101,7 @@ impl RewardDistributorUnstakeAction {
         let entry_slot = distributor.actual_entry_slot_value(entry_slot);
 
         // compute message that the custody puzzle needs to send
-        let unstake_message: Bytes32 = locked_nft.info.launcher_id;
-        let unstake_message: Vec<u8> = unstake_message.to_vec();
+        let unstake_message = locked_nft.info.launcher_id.to_vec();
 
         let remove_entry_conditions = Conditions::new()
             .send_message(

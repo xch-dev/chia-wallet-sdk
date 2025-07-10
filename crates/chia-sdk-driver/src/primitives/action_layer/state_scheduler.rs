@@ -140,7 +140,7 @@ mod tests {
         let ctx = &mut SpendContext::new();
         let mut sim = Simulator::new();
 
-        let schedule: Vec<(u32, CatalogRegistryState)> = vec![
+        let schedule = vec![
             (0, mock_state(0)),
             (1, mock_state(1)),
             (2, mock_state(2)),
@@ -150,7 +150,7 @@ mod tests {
             (6, mock_state(6)),
             (7, mock_state(7)),
         ];
-        let final_puzzle_hash: Bytes32 = "yakuhito".tree_hash().into();
+        let final_puzzle_hash = "yakuhito".tree_hash().into();
 
         // Launch 'other' singleton, which will consume (reveive) the messages
         let other_singleton_inner_puzzle = ctx.alloc(&1)?;

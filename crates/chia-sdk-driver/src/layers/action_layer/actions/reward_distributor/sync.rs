@@ -40,7 +40,7 @@ impl RewardDistributorSyncAction {
     ) -> Result<Conditions, DriverError> {
         // calculate announcement needed to ensure everything's happening as expected
         let my_state = distributor.pending_spend.latest_state.1;
-        let mut new_epoch_announcement: Vec<u8> =
+        let mut new_epoch_announcement =
             clvm_tuple!(update_time, my_state.round_time_info.epoch_end)
                 .tree_hash()
                 .to_vec();

@@ -128,7 +128,7 @@ where
     let right_slot_info = SlotInfo::from_value(launcher_id, 0, right_slot_value);
     let right_slot_puzzle_hash = Slot::<S>::puzzle_hash(&right_slot_info);
 
-    let slot_hint: Bytes32 = Slot::<()>::first_curry_hash(launcher_id, 0).into();
+    let slot_hint = Slot::<()>::first_curry_hash(launcher_id, 0).into();
     let slot_memos = ctx.hint(slot_hint)?;
     let launcher_id_ptr = ctx.alloc(&launcher_id)?;
     let launcher_memos = ctx.memos(&clvm_tuple!(launcher_id_ptr, memos_after_hint))?;
@@ -233,7 +233,7 @@ pub fn create_security_coin(
     xch_settlement_coin: Coin,
 ) -> Result<(SecretKey, Coin), DriverError> {
     let security_coin_sk = new_sk()?;
-    let security_coin_puzzle_hash: Bytes32 =
+    let security_coin_puzzle_hash =
         StandardArgs::curry_tree_hash(security_coin_sk.public_key()).into();
 
     let notarized_payment = NotarizedPayment {
@@ -262,7 +262,6 @@ pub fn create_security_coin(
     Ok((security_coin_sk, security_coin))
 }
 
-#[allow(clippy::too_many_arguments)]
 #[allow(clippy::type_complexity)]
 pub fn launch_catalog_registry<V>(
     ctx: &mut SpendContext,
@@ -367,7 +366,6 @@ pub fn launch_catalog_registry<V>(
     ))
 }
 
-#[allow(clippy::too_many_arguments)]
 #[allow(clippy::type_complexity)]
 pub fn launch_xchandles_registry<V>(
     ctx: &mut SpendContext,
@@ -608,9 +606,8 @@ pub fn launch_dig_reward_distributor(
     let launcher_coin = launcher.coin();
     let launcher_id = launcher_coin.coin_id();
 
-    let controller_singleton_struct_hash: Bytes32 =
-        SingletonStruct::new(launcher_id).tree_hash().into();
-    let reserve_inner_ph: Bytes32 =
+    let controller_singleton_struct_hash = SingletonStruct::new(launcher_id).tree_hash().into();
+    let reserve_inner_ph =
         P2DelegatedBySingletonLayerArgs::curry_tree_hash(controller_singleton_struct_hash, 0)
             .into();
 
@@ -668,7 +665,7 @@ pub fn launch_dig_reward_distributor(
     );
     let slot_puzzle_hash = Slot::<RewardDistributorRewardSlotValue>::puzzle_hash(&slot_info);
 
-    let slot_hint: Bytes32 = first_epoch_start.tree_hash().into();
+    let slot_hint = first_epoch_start.tree_hash().into();
     let slot_memos = ctx.hint(slot_hint)?;
     let launcher_memos = ctx.hint(launcher_id)?;
     let eve_singleton_inner_puzzle = clvm_quote!(Conditions::new()
@@ -840,7 +837,7 @@ mod tests {
             test_singleton_launcher_id,
             test_singleton_inner_puzzle,
         ))?;
-        let test_singleton_proof: Proof = Proof::Eve(EveProof {
+        let test_singleton_proof = Proof::Eve(EveProof {
             parent_parent_coin_info: test_singleton_launcher_coin.parent_coin_info,
             parent_amount: test_singleton_launcher_coin.amount,
         });
@@ -1139,7 +1136,7 @@ mod tests {
 
         // Register CAT
 
-        let mut tail: NodePtr = NodePtr::NIL; // will be used for refund as well
+        let mut tail = NodePtr::NIL; // will be used for refund as well
         let mut slots: Vec<Slot<CatalogSlotValue>> = slots.into();
         for i in 0..7 {
             // create precommit coin
@@ -1313,12 +1310,12 @@ mod tests {
             )?;
 
             // check register action created/spent slots function
-            let created_slots: Vec<Slot<CatalogSlotValue>> = catalog
+            let created_slots = catalog
                 .pending_spend
                 .created_slots
                 .iter()
                 .map(|s| catalog.created_slot_value_to_slot(*s))
-                .collect();
+                .collect::<Vec<_>>();
             let spent_slots = catalog.pending_spend.spent_slots.clone();
             assert_eq!(spent_slots.len(), 2);
             assert_eq!(spent_slots[0], left_slot.info.value);
@@ -1704,7 +1701,7 @@ mod tests {
             } else {
                 "aa".to_string() + &"a".repeat(i).to_string() + &i.to_string()
             };
-            let handle_hash: Bytes32 = handle.tree_hash().into();
+            let handle_hash = handle.tree_hash().into();
 
             // create precommit coin
             if i % 2 == 1 {
@@ -1957,9 +1954,9 @@ mod tests {
             slots.push(new_slot.clone());
 
             // test on-chain extend mechanism for current handle
-            let extension_years: u64 = i as u64 + 1;
+            let extension_years = i as u64 + 1;
             let extension_slot = new_slot;
-            let pay_for_extension: u64 =
+            let pay_for_extension =
                 XchandlesFactorPricingPuzzleArgs::get_price(base_price, &handle, extension_years);
 
             let spent_slot_value_hash = extension_slot.info.value_hash;
@@ -2097,7 +2094,7 @@ mod tests {
 
         // expire one of the slots
         let handle_to_expire = "aa0".to_string();
-        let handle_hash: Bytes32 = handle_to_expire.tree_hash().into();
+        let handle_hash = handle_to_expire.tree_hash().into();
         let initial_slot = slots
             .iter()
             .find(|s| s.info.value.handle_hash == handle_hash)
@@ -2426,7 +2423,7 @@ mod tests {
             solution: ctx.alloc(&new_metadata)?,
         };
 
-        let new_nft: Nft<CatNftMetadata> = nft.transfer_with_metadata(
+        let new_nft = nft.transfer_with_metadata(
             ctx,
             &p2,
             bls.puzzle_hash,
