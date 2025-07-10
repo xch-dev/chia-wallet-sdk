@@ -129,9 +129,9 @@ impl Reserve {
                 ctx.extract::<match_tuple!((NodePtr, S), Vec<(i64, NodePtr)>)>(output)?;
             state = new_state;
 
-            for (opcode, cond) in conditions {
-                if opcode == -42 {
-                    reserve_conditions.push(cond);
+            for (opcode, cond) in conditions.iter().rev() {
+                if *opcode == -42 {
+                    reserve_conditions.push(*cond);
                 }
             }
         }
