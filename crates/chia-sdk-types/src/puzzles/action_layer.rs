@@ -9,6 +9,7 @@ mod p2_delegated_by_singleton;
 mod p2_m_of_n_delegate_direct;
 mod precommit_layer;
 mod reserve_finalizer;
+mod revocable_cat_maker;
 mod slot;
 mod slot_values;
 mod state_scheduler;
@@ -27,6 +28,7 @@ pub use p2_delegated_by_singleton::*;
 pub use p2_m_of_n_delegate_direct::*;
 pub use precommit_layer::*;
 pub use reserve_finalizer::*;
+pub use revocable_cat_maker::*;
 pub use slot::*;
 pub use slot_values::*;
 pub use state_scheduler::*;
@@ -82,6 +84,7 @@ mod tests {
         );
         assert_puzzle_hash!(VERIFICATION_ASSERTER_PUZZLE => VERIFICATION_ASSERTER_PUZZLE_HASH);
         assert_puzzle_hash!(CATALOG_VERIFICATION_MAKER_PUZZLE => CATALOG_VERIFICATION_MAKER_PUZZLE_HASH);
+        assert_puzzle_hash!(REVOCABLE_CAT_MAKER_PUZZLE => REVOCABLE_CAT_MAKER_PUZZLE_HASH);
         Ok(())
     }
 }
