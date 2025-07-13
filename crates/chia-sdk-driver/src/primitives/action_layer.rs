@@ -1,3 +1,4 @@
+mod cat_maker;
 mod catalog_registry;
 mod catalog_registry_info;
 mod launch_drivers;
@@ -17,6 +18,7 @@ mod verification_info;
 mod xchandles_registry;
 mod xchandles_registry_info;
 
+pub use cat_maker::*;
 pub use catalog_registry::*;
 pub use catalog_registry_info::*;
 pub use launch_drivers::*;

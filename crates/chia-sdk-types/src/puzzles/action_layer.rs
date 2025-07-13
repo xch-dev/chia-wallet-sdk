@@ -83,6 +83,7 @@ mod tests {
         assert_puzzle_hash!(VERIFICATION_ASSERTER_PUZZLE => VERIFICATION_ASSERTER_PUZZLE_HASH);
         assert_puzzle_hash!(CATALOG_VERIFICATION_MAKER_PUZZLE => CATALOG_VERIFICATION_MAKER_PUZZLE_HASH);
         assert_puzzle_hash!(REVOCABLE_CAT_MAKER_PUZZLE => REVOCABLE_CAT_MAKER_PUZZLE_HASH);
+        assert_puzzle_hash!(XCH_CAT_MAKER_PUZZLE => XCH_CAT_MAKER_PUZZLE_HASH);
         Ok(())
     }
 }
