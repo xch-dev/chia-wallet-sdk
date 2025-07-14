@@ -1,7 +1,11 @@
 #![allow(clippy::too_many_arguments)]
+#![allow(unused_extern_crates)]
+
+extern crate alloc;
 
 use bindy::{FromRust, WasmContext};
 use wasm_bindgen::{prelude::wasm_bindgen, JsError};
+use wasm_bindgen_derive::TryFromJsValue;
 
 bindy_macro::bindy_wasm!("bindings.json");
 

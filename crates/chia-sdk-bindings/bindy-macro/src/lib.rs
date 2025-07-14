@@ -457,10 +457,22 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
-    let mut mappings = bindy.wasm.clone();
-    build_base_mappings(&bindy, &mut mappings);
+    let mut base_mappings = bindy.wasm.clone();
+    build_base_mappings(&bindy, &mut base_mappings);
+
+    let mut param_mappings = base_mappings.clone();
+    let return_mappings = base_mappings;
+
+    for (name, binding) in &bindings {
+        if matches!(binding, Binding::Class { .. }) {
+            param_mappings.insert(name.clone(), format!("&{name}"));
+            param_mappings.insert(format!("Option<{name}>"), format!("&{name}OptionType"));
+            param_mappings.insert(format!("Vec<{name}>"), format!("&{name}ArrayType"));
+        }
+    }
 
     let mut output = quote!();
+    let mut js_types = quote!();
 
     for (name, binding) in bindings {
         match binding {
@@ -508,7 +520,9 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                     let arg_types = method
                         .args
                         .values()
-                        .map(|v| parse_str::<Type>(apply_mappings(v, &mappings).as_str()).unwrap())
+                        .map(|v| {
+                            parse_str::<Type>(apply_mappings(v, &param_mappings).as_str()).unwrap()
+                        })
                         .collect::<Vec<_>>();
 
                     let ret = parse_str::<Type>(
@@ -523,7 +537,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                     "()"
                                 },
                             ),
-                            &mappings,
+                            &return_mappings,
                         )
                         .as_str(),
                     )
@@ -584,16 +598,19 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                     let ident = Ident::new(name, Span::mixed_site());
                     let get_ident = Ident::new(&format!("get_{name}"), Span::mixed_site());
                     let set_ident = Ident::new(&format!("set_{name}"), Span::mixed_site());
-                    let ty = parse_str::<Type>(apply_mappings(ty, &mappings).as_str()).unwrap();
+                    let param_type =
+                        parse_str::<Type>(apply_mappings(ty, &param_mappings).as_str()).unwrap();
+                    let return_type =
+                        parse_str::<Type>(apply_mappings(ty, &return_mappings).as_str()).unwrap();
 
                     field_tokens.extend(quote! {
                         #[wasm_bindgen(getter, js_name = #js_name)]
-                        pub fn #get_ident(&self) -> Result<#ty, wasm_bindgen::JsError> {
+                        pub fn #get_ident(&self) -> Result<#return_type, wasm_bindgen::JsError> {
                             Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(self.0.#ident.clone(), &bindy::WasmContext)?)
                         }
 
                         #[wasm_bindgen(setter, js_name = #js_name)]
-                        pub fn #set_ident(&mut self, value: #ty) -> Result<(), wasm_bindgen::JsError> {
+                        pub fn #set_ident(&mut self, value: #param_type) -> Result<(), wasm_bindgen::JsError> {
                             self.0.#ident = bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(value, &bindy::WasmContext)?;
                             Ok(())
                         }
@@ -616,14 +633,23 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 
                     let arg_types = fields
                         .values()
-                        .map(|v| parse_str::<Type>(apply_mappings(v, &mappings).as_str()).unwrap())
+                        .map(|v| {
+                            parse_str::<Type>(apply_mappings(v, &param_mappings).as_str()).unwrap()
+                        })
                         .collect::<Vec<_>>();
+
+                    let arg_unwrappers = fields.iter().filter(|(_, v)| v.starts_with("Option<")).map(|(k, _v)| {
+                        quote! {
+                            let #k = try_from_js_option::<#bound_ident>(#k).map_err(|err| wasm_bindgen::JsError::new(&err))?;
+                        }
+                    }).collect::<Vec<_>>();
 
                     method_tokens.extend(quote! {
                         #[wasm_bindgen(constructor)]
                         pub fn new(
                             #( #arg_attrs #arg_idents: #arg_types ),*
                         ) -> Result<Self, wasm_bindgen::JsError> {
+                            #(#arg_unwrappers)*
                             Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#rust_struct_ident {
                                 #(#arg_idents: bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)?),*
                             }, &bindy::WasmContext)?)
@@ -632,11 +658,12 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                 }
 
                 output.extend(quote! {
-                    #[wasm_bindgen::prelude::wasm_bindgen]
+                    #[derive(TryFromJsValue)]
+                    #[wasm_bindgen]
                     #[derive(Clone)]
                     pub struct #bound_ident(#rust_struct_ident);
 
-                    #[wasm_bindgen::prelude::wasm_bindgen]
+                    #[wasm_bindgen]
                     impl #bound_ident {
                         #method_tokens
                         #field_tokens
@@ -653,6 +680,32 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                             Ok(self.0)
                         }
                     }
+
+                    impl<T> bindy::FromRust<Option<#rust_struct_ident>, T, bindy::Wasm> for Option<#bound_ident> {
+                        fn from_rust(value: Option<#rust_struct_ident>, _context: &T) -> bindy::Result<Option<Self>> {
+                            Ok(value.map(|v| Self(v)))
+                        }
+                    }
+
+                    impl<T> bindy::IntoRust<Option<#rust_struct_ident>, T, bindy::Wasm> for Option<#bound_ident> {
+                        fn into_rust(self, _context: &T) -> bindy::Result<Option<#rust_struct_ident>> {
+                            Ok(self.map(|v| v.0))
+                        }
+                    }
+                });
+
+                let option_type_hint = format!("{name} | undefined");
+                let option_type_ident =
+                    Ident::new(&format!("{name}OptionType"), Span::mixed_site());
+                let array_type_hint = format!("{name}[]");
+                let array_type_ident = Ident::new(&format!("{name}ArrayType"), Span::mixed_site());
+
+                js_types.extend(quote! {
+                    #[wasm_bindgen(typescript_type = #option_type_hint)]
+                    pub type #option_type_ident;
+
+                    #[wasm_bindgen(typescript_type = #array_type_hint)]
+                    pub type #array_type_ident;
                 });
             }
             Binding::Enum { values } => {
@@ -665,7 +718,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                     .collect::<Vec<_>>();
 
                 output.extend(quote! {
-                    #[wasm_bindgen::prelude::wasm_bindgen]
+                    #[wasm_bindgen]
                     #[derive(Clone)]
                     pub enum #bound_ident {
                         #( #value_idents ),*
@@ -709,16 +762,18 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 
                 let arg_types = args
                     .values()
-                    .map(|v| parse_str::<Type>(apply_mappings(v, &mappings).as_str()).unwrap())
+                    .map(|v| {
+                        parse_str::<Type>(apply_mappings(v, &param_mappings).as_str()).unwrap()
+                    })
                     .collect::<Vec<_>>();
 
                 let ret = parse_str::<Type>(
-                    apply_mappings(ret.as_deref().unwrap_or("()"), &mappings).as_str(),
+                    apply_mappings(ret.as_deref().unwrap_or("()"), &return_mappings).as_str(),
                 )
                 .unwrap();
 
                 output.extend(quote! {
-                    #[wasm_bindgen::prelude::wasm_bindgen(js_name = #js_name)]
+                    #[wasm_bindgen(js_name = #js_name)]
                     pub fn #bound_ident(
                         #( #arg_attrs #arg_idents: #arg_types ),*
                     ) -> Result<#ret, wasm_bindgen::JsError> {
@@ -730,6 +785,13 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
             }
         }
     }
+
+    output.extend(quote! {
+        #[wasm_bindgen]
+        extern "C" {
+            #js_types
+        }
+    });
 
     output.into()
 }
