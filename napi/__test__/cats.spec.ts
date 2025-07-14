@@ -7,6 +7,7 @@ import {
   Clvm,
   Coin,
   Constants,
+  Program,
   Simulator,
 } from "../index.js";
 
@@ -60,6 +61,65 @@ test("issues and spends a cat", (t) => {
       )
     ),
   ]);
+
+  sim.spendCoins(clvm.coinSpends(), [alice.sk]);
+
+  t.true(true);
+});
+
+test("issues and melts a cat", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = sim.bls(1000n);
+
+  const tail = clvm.nil();
+  const assetId = tail.treeHash();
+  const catInfo = new CatInfo(assetId, null, alice.puzzleHash);
+
+  // Issue a CAT
+  clvm.spendStandardCoin(
+    alice.coin,
+    alice.pk,
+    clvm.delegatedSpend([clvm.createCoin(catInfo.puzzleHash(), 1000n)])
+  );
+
+  const eve = new Cat(
+    new Coin(alice.coin.coinId(), catInfo.puzzleHash(), 1000n),
+    null,
+    catInfo
+  );
+
+  const cats = clvm.spendCats([
+    new CatSpend(
+      eve,
+      clvm.standardSpend(
+        alice.pk,
+        clvm.delegatedSpend([
+          clvm.runCatTail(tail, clvm.nil()),
+          clvm.createCoin(alice.puzzleHash, 300n),
+          clvm.createCoin(alice.puzzleHash, 500n),
+          clvm.createCoin(alice.puzzleHash, 200n),
+        ])
+      )
+    ),
+  ]);
+
+  // Spend the CAT
+  clvm.spendCats(
+    cats.map((cat, i) => {
+      const conditions: Program[] = [];
+
+      if (i === 1) {
+        conditions.push(clvm.runCatTail(tail, clvm.nil()));
+      }
+
+      return new CatSpend(
+        cat,
+        clvm.standardSpend(alice.pk, clvm.delegatedSpend(conditions))
+      );
+    })
+  );
 
   sim.spendCoins(clvm.coinSpends(), [alice.sk]);
 
