@@ -13,7 +13,7 @@ categories = { workspace = true }
 
 [features]
 napi = ["dep:napi"]
-wasm = ["dep:js-sys", "dep:wasm-bindgen-derive"]
+wasm = ["dep:js-sys"]
 pyo3 = ["dep:pyo3"]
 
 [dependencies]
@@ -36,4 +36,3 @@ clvm-traits = { workspace = true }
 clvm-utils = { workspace = true }
 signature = { workspace = true }
 num-bigint = { workspace = true }
-wasm-bindgen-derive = { workspace = true, optional = true }

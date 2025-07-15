@@ -31,6 +31,13 @@
     "Vec<Bytes>": "js_sys::Array",
     "Vec<TreeHash>": "js_sys::Array"
   },
+  "wasm_stubs": {
+    "{bytes}": "Uint8Array",
+    "{bigint}": "bigint",
+    "Vec<Bytes32>": "Uint8Array[]",
+    "Vec<Bytes>": "Uint8Array[]",
+    "Vec<TreeHash>": "Uint8Array[]"
+  },
   "pyo3": {
     "{bytes}": "Vec<u8>",
     "BigInt": "num_bigint::BigInt"

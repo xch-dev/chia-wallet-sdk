@@ -22,6 +22,8 @@ struct Bindy {
     #[serde(default)]
     wasm: IndexMap<String, String>,
     #[serde(default)]
+    wasm_stubs: IndexMap<String, String>,
+    #[serde(default)]
     pyo3: IndexMap<String, String>,
 }
 
@@ -132,17 +134,39 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
     (bindy, bindings)
 }
 
-fn build_base_mappings(bindy: &Bindy, mappings: &mut IndexMap<String, String>) {
+fn build_base_mappings(
+    bindy: &Bindy,
+    mappings: &mut IndexMap<String, String>,
+    stubs: &mut IndexMap<String, String>,
+) {
     for (name, value) in &bindy.shared {
         if !mappings.contains_key(name) {
             mappings.insert(name.clone(), value.clone());
         }
+
+        if !stubs.contains_key(name) {
+            stubs.insert(name.clone(), value.clone());
+        }
     }
 
     for (name, group) in &bindy.type_groups {
+        if let Some(value) = stubs.shift_remove(name) {
+            for ty in group {
+                if !stubs.contains_key(ty) {
+                    stubs.insert(ty.clone(), value.clone());
+                }
+            }
+        }
+
         if let Some(value) = mappings.shift_remove(name) {
             for ty in group {
-                mappings.insert(ty.clone(), value.clone());
+                if !mappings.contains_key(ty) {
+                    mappings.insert(ty.clone(), value.clone());
+                }
+
+                if !stubs.contains_key(ty) {
+                    stubs.insert(ty.clone(), value.clone());
+                }
             }
         }
     }
@@ -156,7 +180,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
     let mut base_mappings = bindy.napi.clone();
-    build_base_mappings(&bindy, &mut base_mappings);
+    build_base_mappings(&bindy, &mut base_mappings, &mut IndexMap::new());
 
     let mut non_async_param_mappings = base_mappings.clone();
     let mut async_param_mappings = base_mappings.clone();
@@ -458,16 +482,31 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
     let mut base_mappings = bindy.wasm.clone();
-    build_base_mappings(&bindy, &mut base_mappings);
+    let mut stubs = bindy.wasm_stubs.clone();
+    build_base_mappings(&bindy, &mut base_mappings, &mut stubs);
 
     let mut param_mappings = base_mappings.clone();
     let return_mappings = base_mappings;
 
     for (name, binding) in &bindings {
         if matches!(binding, Binding::Class { .. }) {
-            param_mappings.insert(name.clone(), format!("&{name}"));
+            param_mappings.insert(
+                format!("Option<Vec<{name}>>"),
+                format!("&{name}OptionArrayType"),
+            );
             param_mappings.insert(format!("Option<{name}>"), format!("&{name}OptionType"));
             param_mappings.insert(format!("Vec<{name}>"), format!("&{name}ArrayType"));
+            param_mappings.insert(name.clone(), format!("&{name}"));
+
+            stubs.insert(
+                format!("Option<Vec<{name}>>"),
+                format!("{name}[] | null | undefined"),
+            );
+            stubs.insert(
+                format!("Option<{name}>"),
+                format!("{name} | null | undefined"),
+            );
+            stubs.insert(format!("Vec<{name}>"), format!("{name}[]"));
         }
     }
 
@@ -638,24 +677,37 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         })
                         .collect::<Vec<_>>();
 
-                    let arg_unwrappers = fields.iter().filter(|(_, v)| v.starts_with("Option<")).map(|(k, _v)| {
-                        quote! {
-                            let #k = try_from_js_option::<#bound_ident>(#k).map_err(|err| wasm_bindgen::JsError::new(&err))?;
-                        }
-                    }).collect::<Vec<_>>();
-
                     method_tokens.extend(quote! {
                         #[wasm_bindgen(constructor)]
                         pub fn new(
                             #( #arg_attrs #arg_idents: #arg_types ),*
                         ) -> Result<Self, wasm_bindgen::JsError> {
-                            #(#arg_unwrappers)*
                             Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#rust_struct_ident {
                                 #(#arg_idents: bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)?),*
                             }, &bindy::WasmContext)?)
                         }
                     });
                 }
+
+                let option_type_hint = format!("{name} | null | undefined");
+                let option_type_ident =
+                    Ident::new(&format!("{name}OptionType"), Span::mixed_site());
+                let array_type_hint = format!("{name}[]");
+                let array_type_ident = Ident::new(&format!("{name}ArrayType"), Span::mixed_site());
+                let option_array_type_hint = format!("{name}[] | null | undefined");
+                let option_array_type_ident =
+                    Ident::new(&format!("{name}OptionArrayType"), Span::mixed_site());
+
+                js_types.extend(quote! {
+                    #[wasm_bindgen(typescript_type = #option_type_hint)]
+                    pub type #option_type_ident;
+
+                    #[wasm_bindgen(typescript_type = #array_type_hint)]
+                    pub type #array_type_ident;
+
+                    #[wasm_bindgen(typescript_type = #option_array_type_hint)]
+                    pub type #option_array_type_ident;
+                });
 
                 output.extend(quote! {
                     #[derive(TryFromJsValue)]
@@ -681,31 +733,32 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         }
                     }
 
-                    impl<T> bindy::FromRust<Option<#rust_struct_ident>, T, bindy::Wasm> for Option<#bound_ident> {
-                        fn from_rust(value: Option<#rust_struct_ident>, _context: &T) -> bindy::Result<Option<Self>> {
-                            Ok(value.map(|v| Self(v)))
+                    impl<T> bindy::IntoRust<#rust_struct_ident, T, bindy::Wasm> for &'_ #bound_ident {
+                        fn into_rust(self, context: &T) -> bindy::Result<#rust_struct_ident> {
+                            std::ops::Deref::deref(&self).clone().into_rust(context)
                         }
                     }
 
-                    impl<T> bindy::IntoRust<Option<#rust_struct_ident>, T, bindy::Wasm> for Option<#bound_ident> {
-                        fn into_rust(self, _context: &T) -> bindy::Result<Option<#rust_struct_ident>> {
-                            Ok(self.map(|v| v.0))
+                    impl<T> bindy::IntoRust<Option<#rust_struct_ident>, T, bindy::Wasm> for &'_ #option_type_ident {
+                        fn into_rust(self, context: &T) -> bindy::Result<Option<#rust_struct_ident>> {
+                            let typed_value = try_from_js_option::<#bound_ident>(self).map_err(bindy::Error::Custom)?;
+                            typed_value.into_rust(context)
                         }
                     }
-                });
 
-                let option_type_hint = format!("{name} | undefined");
-                let option_type_ident =
-                    Ident::new(&format!("{name}OptionType"), Span::mixed_site());
-                let array_type_hint = format!("{name}[]");
-                let array_type_ident = Ident::new(&format!("{name}ArrayType"), Span::mixed_site());
+                    impl<T> bindy::IntoRust<Vec<#rust_struct_ident>, T, bindy::Wasm> for &'_ #array_type_ident {
+                        fn into_rust(self, context: &T) -> bindy::Result<Vec<#rust_struct_ident>> {
+                            let typed_value = try_from_js_array::<#bound_ident>(self).map_err(bindy::Error::Custom)?;
+                            typed_value.into_rust(context)
+                        }
+                    }
 
-                js_types.extend(quote! {
-                    #[wasm_bindgen(typescript_type = #option_type_hint)]
-                    pub type #option_type_ident;
-
-                    #[wasm_bindgen(typescript_type = #array_type_hint)]
-                    pub type #array_type_ident;
+                    impl<T> bindy::IntoRust<Option<Vec<#rust_struct_ident>>, T, bindy::Wasm> for &'_ #option_array_type_ident {
+                        fn into_rust(self, context: &T) -> bindy::Result<Option<Vec<#rust_struct_ident>>> {
+                            let typed_value = try_from_js_option_array::<#bound_ident>(self).map_err(bindy::Error::Custom)?;
+                            typed_value.into_rust(context)
+                        }
+                    }
                 });
             }
             Binding::Enum { values } => {
@@ -804,7 +857,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
     let mut mappings = bindy.pyo3.clone();
-    build_base_mappings(&bindy, &mut mappings);
+    build_base_mappings(&bindy, &mut mappings, &mut IndexMap::new());
 
     let mut output = quote!();
     let mut module = quote!();

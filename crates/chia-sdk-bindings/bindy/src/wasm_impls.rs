@@ -12,15 +12,6 @@ pub struct Wasm;
 
 pub struct WasmContext;
 
-impl<T, U> IntoRust<U, T, Wasm> for &'_ U
-where
-    U: Clone + IntoRust<U, T, Wasm>,
-{
-    fn into_rust(self, context: &T) -> Result<U> {
-        std::ops::Deref::deref(&self).clone().into_rust(context)
-    }
-}
-
 impl<T> FromRust<(), T, Wasm> for () {
     fn from_rust(value: (), _context: &T) -> Result<Self> {
         Ok(value)

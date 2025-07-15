@@ -233,7 +233,6 @@ dependencies = [
  "reqwest",
  "signature",
  "thiserror 2.0.12",
- "wasm-bindgen-derive",
 ]
 
 [[package]]
