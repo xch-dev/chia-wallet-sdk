@@ -27,6 +27,8 @@ struct Bindy {
     #[serde(default)]
     pyo3: IndexMap<String, String>,
     #[serde(default)]
+    pyo3_stubs: IndexMap<String, String>,
+    #[serde(default)]
     clvm_types: Vec<String>,
 }
 
@@ -563,34 +565,6 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
     output.into()
 }
 
-fn wasm_function_args(args: &IndexMap<String, String>, stubs: &IndexMap<String, String>) -> String {
-    let mut has_non_optional = false;
-    let mut results = Vec::new();
-
-    for (name, ty) in args.iter().rev() {
-        let is_optional = ty.starts_with("Option<");
-        let ty = apply_mappings_with_flavor(ty, stubs, MappingFlavor::JavaScript);
-
-        results.push(format!(
-            "{}{}: {}",
-            name.to_case(Case::Camel),
-            if is_optional && !has_non_optional {
-                "?"
-            } else {
-                ""
-            },
-            ty
-        ));
-
-        if !is_optional {
-            has_non_optional = true;
-        }
-    }
-
-    results.reverse();
-    results.join(", ")
-}
-
 #[proc_macro]
 pub fn bindy_wasm(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
@@ -759,7 +733,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         name.to_case(Case::Camel)
                     };
 
-                    let arg_stubs = wasm_function_args(&method.args, &stubs);
+                    let arg_stubs = function_args(&method.args, &stubs, MappingFlavor::JavaScript);
 
                     let mut ret_stub = apply_mappings_with_flavor(
                         method.ret.as_deref().unwrap_or("()"),
@@ -815,7 +789,6 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         }
                     });
 
-                    let js_name = name.to_case(Case::Camel);
                     let stub = apply_mappings_with_flavor(ty, &stubs, MappingFlavor::JavaScript);
 
                     field_stubs.push_str(&formatdoc! {"
@@ -857,7 +830,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         }
                     });
 
-                    let arg_stubs = wasm_function_args(&fields, &stubs);
+                    let arg_stubs = function_args(&fields, &stubs, MappingFlavor::JavaScript);
 
                     constructor_stubs.push_str(&formatdoc! {"
                         constructor({arg_stubs});
@@ -1037,7 +1010,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                     }
                 });
 
-                let arg_stubs = wasm_function_args(&args, &stubs);
+                let arg_stubs = function_args(&args, &stubs, MappingFlavor::JavaScript);
 
                 let ret_stub = apply_mappings_with_flavor(
                     ret.as_deref().unwrap_or("()"),
@@ -1063,7 +1036,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
     .join(" | ");
     let clvm_type = format!("export type ClvmType = {clvm_type_values};");
 
-    let typescript = format!("\n{clvm_type}\n{functions}\n{classes}");
+    let typescript = format!("\n{clvm_type}\n\n{functions}\n{classes}");
 
     output.extend(quote! {
         #[wasm_bindgen]
@@ -1429,10 +1402,152 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
     output.into()
 }
 
+#[proc_macro]
+pub fn bindy_pyo3_stubs(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as LitStr).value();
+    let (bindy, bindings) = load_bindings(&input);
+
+    let mut stubs = bindy.pyo3_stubs.clone();
+    build_base_mappings(&bindy, &mut IndexMap::new(), &mut stubs);
+
+    let mut classes = String::new();
+    let mut functions = String::new();
+
+    for (name, binding) in bindings {
+        match binding {
+            Binding::Class {
+                new,
+                methods,
+                fields,
+                ..
+            } => {
+                let mut method_stubs = String::new();
+
+                let class_name = name.clone();
+
+                for (name, method) in methods {
+                    let name = if matches!(method.kind, MethodKind::Constructor) {
+                        "__init__".to_string()
+                    } else {
+                        name
+                    };
+
+                    let arg_stubs = function_args(&method.args, &stubs, MappingFlavor::Python);
+
+                    let mut ret_stub = apply_mappings_with_flavor(
+                        method.ret.as_deref().unwrap_or("()"),
+                        &stubs,
+                        MappingFlavor::Python,
+                    );
+
+                    match method.kind {
+                        MethodKind::Async => ret_stub = format!("Awaitable[{ret_stub}]"),
+                        MethodKind::Factory => ret_stub = class_name.clone(),
+                        _ => {}
+                    }
+
+                    let prefix = match method.kind {
+                        MethodKind::Factory | MethodKind::Static => "@staticmethod\n",
+                        MethodKind::Async => "async ",
+                        _ => "",
+                    };
+
+                    let self_arg =
+                        if matches!(method.kind, MethodKind::Factory | MethodKind::Static) {
+                            ""
+                        } else if method.args.is_empty() {
+                            "self"
+                        } else {
+                            "self, "
+                        };
+
+                    method_stubs.push_str(&formatdoc! {"
+                        {prefix}def {name}({self_arg}{arg_stubs}) -> {ret_stub}: ...
+                    "});
+                }
+
+                let mut field_stubs = String::new();
+
+                for (name, ty) in &fields {
+                    let stub = apply_mappings_with_flavor(ty, &stubs, MappingFlavor::Python);
+
+                    field_stubs.push_str(&formatdoc! {"
+                        {name}: {stub}
+                    "});
+                }
+
+                let mut constructor_stubs = String::new();
+
+                if new {
+                    let arg_stubs = function_args(&fields, &stubs, MappingFlavor::Python);
+
+                    constructor_stubs.push_str(&formatdoc! {"
+                        def __init__(self, {arg_stubs}) -> None: ...
+                    "});
+                }
+
+                let body_stubs = format!("{constructor_stubs}{field_stubs}{method_stubs}")
+                    .trim()
+                    .split("\n")
+                    .map(|s| format!("    {s}"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                classes.push_str(&formatdoc! {"
+                    class {name}:
+                        def clone(self) -> {name}: ...
+                    {body_stubs}
+                "});
+            }
+            Binding::Enum { values } => {
+                let body_stubs = values
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| format!("    {v} = {i}"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                classes.push_str(&formatdoc! {"
+                    class {name}(IntEnum):
+                    {body_stubs}
+                "});
+            }
+            Binding::Function { args, ret } => {
+                let arg_stubs = function_args(&args, &stubs, MappingFlavor::Python);
+
+                let ret_stub = apply_mappings_with_flavor(
+                    ret.as_deref().unwrap_or("()"),
+                    &stubs,
+                    MappingFlavor::Python,
+                );
+
+                functions.push_str(&formatdoc! {"
+                    def {name}({arg_stubs}) -> {ret_stub}: ...
+                "});
+            }
+        }
+    }
+
+    let clvm_type_values = [
+        bindy.clvm_types.clone(),
+        vec!["str, int, bool, bytes, None, List['ClvmType']".to_string()],
+    ]
+    .concat()
+    .join(", ");
+    let clvm_type = format!("ClvmType = Union[{clvm_type_values}]");
+
+    let stubs = format!(
+        "from typing import List, Optional, Union, Awaitable\nfrom enum import IntEnum\n\n{clvm_type}\n\n{functions}\n{classes}"
+    );
+
+    quote!(#stubs).into()
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum MappingFlavor {
     Rust,
     JavaScript,
+    Python,
 }
 
 fn apply_mappings(ty: &str, mappings: &IndexMap<String, String>) -> String {
@@ -1480,10 +1595,54 @@ fn apply_mappings_with_flavor(
             (MappingFlavor::JavaScript, "Vec") => {
                 format!("{}[]", mapped_params[0])
             }
+            (MappingFlavor::Python, "Option") => {
+                format!("Optional[{}]", mapped_params[0])
+            }
+            (MappingFlavor::Python, "Vec") => {
+                format!("List[{}]", mapped_params[0])
+            }
             _ => panic!("Unsupported mapping with flavor {flavor:?} for type {ty}"),
         }
     } else {
         // No generics, return original if no mapping exists
         ty.to_string()
     }
+}
+
+fn function_args(
+    args: &IndexMap<String, String>,
+    stubs: &IndexMap<String, String>,
+    mapping_flavor: MappingFlavor,
+) -> String {
+    let mut has_non_optional = false;
+    let mut results = Vec::new();
+
+    for (name, ty) in args.iter().rev() {
+        let is_optional = ty.starts_with("Option<");
+        let has_default = is_optional && !has_non_optional;
+        let ty = apply_mappings_with_flavor(ty, stubs, mapping_flavor);
+
+        results.push(format!(
+            "{}{}: {}{}",
+            name.to_case(Case::Camel),
+            if has_default && matches!(mapping_flavor, MappingFlavor::JavaScript) {
+                "?"
+            } else {
+                ""
+            },
+            ty,
+            if has_default && matches!(mapping_flavor, MappingFlavor::Python) {
+                " = None"
+            } else {
+                ""
+            }
+        ));
+
+        if !is_optional {
+            has_non_optional = true;
+        }
+    }
+
+    results.reverse();
+    results.join(", ")
 }

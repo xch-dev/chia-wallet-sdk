@@ -23,7 +23,8 @@ members = [
     "crates/chia-sdk-bindings/bindy-macro",
     "napi",
     "wasm",
-    "pyo3"
+    "pyo3",
+    "pyo3/stub-generator"
 ]
 
 [workspace.package]
