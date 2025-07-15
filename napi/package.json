@@ -24,8 +24,7 @@
     "prepublishOnly": "napi prepublish -t npm",
     "test": "ava",
     "universal": "napi universalize",
-    "version": "napi version",
-    "update-declarations": "node scripts/update-declarations.js"
+    "version": "napi version"
   },
   "napi": {
     "binaryName": "chia-wallet-sdk",

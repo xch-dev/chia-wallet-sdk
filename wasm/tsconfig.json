@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "types": ["node"],
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true
+  },
+  "include": ["__test__/**/*.ts"]
+}

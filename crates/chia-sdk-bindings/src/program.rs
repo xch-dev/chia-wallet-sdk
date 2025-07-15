@@ -172,8 +172,17 @@ impl Program {
         Ok(Program(self.0.clone(), rest))
     }
 
-    // This is called by the individual napi and wasm crates
-    pub fn to_small_int(&self) -> Result<Option<f64>> {
+    pub fn to_int(&self) -> Result<Option<BigInt>> {
+        let ctx = self.0.lock().unwrap();
+
+        let SExp::Atom = ctx.sexp(self.1) else {
+            return Ok(None);
+        };
+
+        Ok(Some(ctx.number(self.1)))
+    }
+
+    pub fn to_bound_checked_number(&self) -> Result<Option<f64>> {
         let ctx = self.0.lock().unwrap();
 
         let SExp::Atom = ctx.sexp(self.1) else {
@@ -190,19 +199,9 @@ impl Program {
             return Err(Error::TooSmall);
         }
 
-        let number: u64 = number.try_into().unwrap();
+        let number: i64 = number.try_into().unwrap();
 
         Ok(Some(number as f64))
-    }
-
-    pub fn to_int(&self) -> Result<Option<BigInt>> {
-        let ctx = self.0.lock().unwrap();
-
-        let SExp::Atom = ctx.sexp(self.1) else {
-            return Ok(None);
-        };
-
-        Ok(Some(ctx.number(self.1)))
     }
 
     pub fn to_string(&self) -> Result<Option<String>> {

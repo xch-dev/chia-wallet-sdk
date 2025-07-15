@@ -1,8 +1,9 @@
-use std::{fs, path::Path};
+use std::{fs, mem, path::Path};
 
 use chia_sdk_bindings::CONSTANTS;
 use convert_case::{Case, Casing};
 use indexmap::IndexMap;
+use indoc::formatdoc;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
@@ -22,7 +23,11 @@ struct Bindy {
     #[serde(default)]
     wasm: IndexMap<String, String>,
     #[serde(default)]
+    wasm_stubs: IndexMap<String, String>,
+    #[serde(default)]
     pyo3: IndexMap<String, String>,
+    #[serde(default)]
+    clvm_types: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,6 +62,8 @@ struct Method {
     args: IndexMap<String, String>,
     #[serde(rename = "return")]
     ret: Option<String>,
+    #[serde(default)]
+    stub_only: bool,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -102,6 +109,7 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
                     kind: MethodKind::Static,
                     args: IndexMap::new(),
                     ret: Some("SerializedProgram".to_string()),
+                    stub_only: false,
                 },
             );
 
@@ -111,6 +119,7 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
                     kind: MethodKind::Static,
                     args: IndexMap::new(),
                     ret: Some("TreeHash".to_string()),
+                    stub_only: false,
                 },
             );
         }
@@ -124,6 +133,7 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
                     kind: MethodKind::Normal,
                     args: IndexMap::new(),
                     ret: Some("Program".to_string()),
+                    stub_only: false,
                 },
             );
         }
@@ -132,17 +142,39 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
     (bindy, bindings)
 }
 
-fn build_base_mappings(bindy: &Bindy, mappings: &mut IndexMap<String, String>) {
+fn build_base_mappings(
+    bindy: &Bindy,
+    mappings: &mut IndexMap<String, String>,
+    stubs: &mut IndexMap<String, String>,
+) {
     for (name, value) in &bindy.shared {
         if !mappings.contains_key(name) {
             mappings.insert(name.clone(), value.clone());
         }
+
+        if !stubs.contains_key(name) {
+            stubs.insert(name.clone(), value.clone());
+        }
     }
 
     for (name, group) in &bindy.type_groups {
+        if let Some(value) = stubs.shift_remove(name) {
+            for ty in group {
+                if !stubs.contains_key(ty) {
+                    stubs.insert(ty.clone(), value.clone());
+                }
+            }
+        }
+
         if let Some(value) = mappings.shift_remove(name) {
             for ty in group {
-                mappings.insert(ty.clone(), value.clone());
+                if !mappings.contains_key(ty) {
+                    mappings.insert(ty.clone(), value.clone());
+                }
+
+                if !stubs.contains_key(ty) {
+                    stubs.insert(ty.clone(), value.clone());
+                }
             }
         }
     }
@@ -156,7 +188,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
     let mut base_mappings = bindy.napi.clone();
-    build_base_mappings(&bindy, &mut base_mappings);
+    build_base_mappings(&bindy, &mut base_mappings, &mut IndexMap::new());
 
     let mut non_async_param_mappings = base_mappings.clone();
     let mut async_param_mappings = base_mappings.clone();
@@ -207,6 +239,10 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                 };
 
                 for (name, method) in methods {
+                    if method.stub_only {
+                        continue;
+                    }
+
                     let method_ident = Ident::new(&name, Span::mixed_site());
 
                     let param_mappings = if matches!(method.kind, MethodKind::Async) {
@@ -447,7 +483,112 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
         }
     }
 
+    let clvm_types = bindy
+        .clvm_types
+        .iter()
+        .map(|s| Ident::new(s, Span::mixed_site()))
+        .collect::<Vec<_>>();
+
+    let mut value_index = 1;
+    let mut value_idents = Vec::new();
+    let mut remaining_clvm_types = clvm_types.clone();
+
+    while !remaining_clvm_types.is_empty() {
+        let value_ident = Ident::new(&format!("Value{value_index}"), Span::mixed_site());
+        value_index += 1;
+
+        let consumed = if remaining_clvm_types.len() <= 26 {
+            let either_ident = Ident::new(
+                &format!("Either{}", remaining_clvm_types.len()),
+                Span::mixed_site(),
+            );
+
+            output.extend(quote! {
+                type #value_ident<'a> = #either_ident< #( ClassInstance<'a, #remaining_clvm_types > ),* >;
+            });
+
+            mem::take(&mut remaining_clvm_types)
+        } else {
+            let either_ident = Ident::new("Either26", Span::mixed_site());
+            let next_value_ident = Ident::new(&format!("Value{}", value_index), Span::mixed_site());
+            let next_25 = remaining_clvm_types.drain(..25).collect::<Vec<_>>();
+
+            output.extend(quote! {
+                type #value_ident<'a> = #either_ident< #( ClassInstance<'a, #next_25 > ),*, #next_value_ident<'a> >;
+            });
+
+            next_25
+        };
+
+        value_idents.push((value_ident, consumed));
+    }
+
+    let mut extractor = proc_macro2::TokenStream::new();
+
+    for (i, (value_ident, consumed)) in value_idents.into_iter().rev().enumerate() {
+        let chain = (i > 0).then(|| quote!( #value_ident::Z(value) => #extractor, ));
+
+        let items = consumed
+            .iter()
+            .enumerate()
+            .map(|(i, ty)| {
+                let letter = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                    .chars()
+                    .nth(i)
+                    .unwrap()
+                    .to_string();
+                let letter = Ident::new(&letter, Span::mixed_site());
+                quote!( #value_ident::#letter(value) => ClvmType::#ty((*value).clone()) )
+            })
+            .collect::<Vec<_>>();
+
+        extractor = quote! {
+            match value {
+                #( #items, )*
+                #chain
+            }
+        };
+    }
+
+    output.extend(quote! {
+        enum ClvmType {
+            #( #clvm_types ( #clvm_types ), )*
+        }
+
+        fn extract_clvm_type(value: Value1) -> ClvmType {
+            #extractor
+        }
+    });
+
     output.into()
+}
+
+fn wasm_function_args(args: &IndexMap<String, String>, stubs: &IndexMap<String, String>) -> String {
+    let mut has_non_optional = false;
+    let mut results = Vec::new();
+
+    for (name, ty) in args.iter().rev() {
+        let is_optional = ty.starts_with("Option<");
+        let ty = apply_mappings_with_flavor(ty, stubs, MappingFlavor::JavaScript);
+
+        results.push(format!(
+            "{}{}: {}",
+            name.to_case(Case::Camel),
+            if is_optional && !has_non_optional {
+                "?"
+            } else {
+                ""
+            },
+            ty
+        ));
+
+        if !is_optional {
+            has_non_optional = true;
+        }
+    }
+
+    results.reverse();
+    results.join(", ")
 }
 
 #[proc_macro]
@@ -457,10 +598,37 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
-    let mut mappings = bindy.wasm.clone();
-    build_base_mappings(&bindy, &mut mappings);
+    let mut base_mappings = bindy.wasm.clone();
+    let mut stubs = bindy.wasm_stubs.clone();
+    build_base_mappings(&bindy, &mut base_mappings, &mut stubs);
+
+    let mut param_mappings = base_mappings.clone();
+    let return_mappings = base_mappings;
+
+    for (name, binding) in &bindings {
+        if matches!(binding, Binding::Class { .. }) {
+            param_mappings.insert(
+                format!("Option<Vec<{name}>>"),
+                format!("&{name}OptionArrayType"),
+            );
+            param_mappings.insert(format!("Option<{name}>"), format!("&{name}OptionType"));
+            param_mappings.insert(format!("Vec<{name}>"), format!("&{name}ArrayType"));
+            param_mappings.insert(name.clone(), format!("&{name}"));
+
+            stubs.insert(
+                format!("Option<Vec<{name}>>"),
+                format!("{name}[] | undefined"),
+            );
+            stubs.insert(format!("Option<{name}>"), format!("{name} | undefined"));
+            stubs.insert(format!("Vec<{name}>"), format!("{name}[]"));
+        }
+    }
 
     let mut output = quote!();
+    let mut js_types = quote!();
+
+    let mut classes = String::new();
+    let mut functions = String::new();
 
     for (name, binding) in bindings {
         match binding {
@@ -486,57 +654,65 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                     }
                 };
 
+                let mut method_stubs = String::new();
+
+                let class_name = name.clone();
+
                 for (name, method) in methods {
-                    let js_name = name.to_case(Case::Camel);
-                    let method_ident = Ident::new(&name, Span::mixed_site());
+                    if !method.stub_only {
+                        let js_name = name.to_case(Case::Camel);
+                        let method_ident = Ident::new(&name, Span::mixed_site());
 
-                    let arg_attrs = method
-                        .args
-                        .keys()
-                        .map(|k| {
-                            let js_name = k.to_case(Case::Camel);
-                            quote!( #[wasm_bindgen(js_name = #js_name)] )
-                        })
-                        .collect::<Vec<_>>();
+                        let arg_attrs = method
+                            .args
+                            .keys()
+                            .map(|k| {
+                                let js_name = k.to_case(Case::Camel);
+                                quote!( #[wasm_bindgen(js_name = #js_name)] )
+                            })
+                            .collect::<Vec<_>>();
 
-                    let arg_idents = method
-                        .args
-                        .keys()
-                        .map(|k| Ident::new(k, Span::mixed_site()))
-                        .collect::<Vec<_>>();
+                        let arg_idents = method
+                            .args
+                            .keys()
+                            .map(|k| Ident::new(k, Span::mixed_site()))
+                            .collect::<Vec<_>>();
 
-                    let arg_types = method
-                        .args
-                        .values()
-                        .map(|v| parse_str::<Type>(apply_mappings(v, &mappings).as_str()).unwrap())
-                        .collect::<Vec<_>>();
+                        let arg_types = method
+                            .args
+                            .values()
+                            .map(|v| {
+                                parse_str::<Type>(apply_mappings(v, &param_mappings).as_str())
+                                    .unwrap()
+                            })
+                            .collect::<Vec<_>>();
 
-                    let ret = parse_str::<Type>(
-                        apply_mappings(
-                            method.ret.as_deref().unwrap_or(
-                                if matches!(
-                                    method.kind,
-                                    MethodKind::Constructor | MethodKind::Factory
-                                ) {
-                                    "Self"
-                                } else {
-                                    "()"
-                                },
-                            ),
-                            &mappings,
+                        let ret = parse_str::<Type>(
+                            apply_mappings(
+                                method.ret.as_deref().unwrap_or(
+                                    if matches!(
+                                        method.kind,
+                                        MethodKind::Constructor | MethodKind::Factory
+                                    ) {
+                                        "Self"
+                                    } else {
+                                        "()"
+                                    },
+                                ),
+                                &return_mappings,
+                            )
+                            .as_str(),
                         )
-                        .as_str(),
-                    )
-                    .unwrap();
+                        .unwrap();
 
-                    let wasm_attr = match method.kind {
-                        MethodKind::Constructor => quote!(#[wasm_bindgen(constructor)]),
-                        _ => quote!(#[wasm_bindgen(js_name = #js_name)]),
-                    };
+                        let wasm_attr = match method.kind {
+                            MethodKind::Constructor => quote!(#[wasm_bindgen(constructor)]),
+                            _ => quote!(#[wasm_bindgen(js_name = #js_name)]),
+                        };
 
-                    match method.kind {
-                        MethodKind::Constructor | MethodKind::Static | MethodKind::Factory => {
-                            method_tokens.extend(quote! {
+                        match method.kind {
+                            MethodKind::Constructor | MethodKind::Static | MethodKind::Factory => {
+                                method_tokens.extend(quote! {
                                 #wasm_attr
                                 pub fn #method_ident(
                                     #( #arg_attrs #arg_idents: #arg_types ),*
@@ -546,9 +722,9 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                     )?, &bindy::WasmContext)?)
                                 }
                             });
-                        }
-                        MethodKind::Normal | MethodKind::ToString => {
-                            method_tokens.extend(quote! {
+                            }
+                            MethodKind::Normal | MethodKind::ToString => {
+                                method_tokens.extend(quote! {
                                 #wasm_attr
                                 pub fn #method_ident(
                                     &self,
@@ -560,9 +736,9 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                     )?, &bindy::WasmContext)?)
                                 }
                             });
-                        }
-                        MethodKind::Async => {
-                            method_tokens.extend(quote! {
+                            }
+                            MethodKind::Async => {
+                                method_tokens.extend(quote! {
                                 #wasm_attr
                                 pub async fn #method_ident(
                                     &self,
@@ -573,32 +749,81 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                     ).await?, &bindy::WasmContext)?)
                                 }
                             });
+                            }
                         }
                     }
+
+                    let js_name = if matches!(method.kind, MethodKind::Constructor) {
+                        "constructor".to_string()
+                    } else {
+                        name.to_case(Case::Camel)
+                    };
+
+                    let arg_stubs = wasm_function_args(&method.args, &stubs);
+
+                    let mut ret_stub = apply_mappings_with_flavor(
+                        method.ret.as_deref().unwrap_or("()"),
+                        &stubs,
+                        MappingFlavor::JavaScript,
+                    );
+
+                    match method.kind {
+                        MethodKind::Async => ret_stub = format!("Promise<{ret_stub}>"),
+                        MethodKind::Factory => ret_stub = class_name.clone(),
+                        _ => {}
+                    }
+
+                    let prefix = match method.kind {
+                        MethodKind::Factory | MethodKind::Static => "static ",
+                        _ => "",
+                    };
+
+                    let ret_stub = if matches!(method.kind, MethodKind::Constructor) {
+                        "".to_string()
+                    } else {
+                        format!(": {ret_stub}")
+                    };
+
+                    method_stubs.push_str(&formatdoc! {"
+                        {prefix}{js_name}({arg_stubs}){ret_stub};
+                    "});
                 }
 
                 let mut field_tokens = quote!();
+                let mut field_stubs = String::new();
 
                 for (name, ty) in &fields {
                     let js_name = name.to_case(Case::Camel);
                     let ident = Ident::new(name, Span::mixed_site());
                     let get_ident = Ident::new(&format!("get_{name}"), Span::mixed_site());
                     let set_ident = Ident::new(&format!("set_{name}"), Span::mixed_site());
-                    let ty = parse_str::<Type>(apply_mappings(ty, &mappings).as_str()).unwrap();
+                    let param_type =
+                        parse_str::<Type>(apply_mappings(ty, &param_mappings).as_str()).unwrap();
+                    let return_type =
+                        parse_str::<Type>(apply_mappings(ty, &return_mappings).as_str()).unwrap();
 
                     field_tokens.extend(quote! {
                         #[wasm_bindgen(getter, js_name = #js_name)]
-                        pub fn #get_ident(&self) -> Result<#ty, wasm_bindgen::JsError> {
+                        pub fn #get_ident(&self) -> Result<#return_type, wasm_bindgen::JsError> {
                             Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(self.0.#ident.clone(), &bindy::WasmContext)?)
                         }
 
                         #[wasm_bindgen(setter, js_name = #js_name)]
-                        pub fn #set_ident(&mut self, value: #ty) -> Result<(), wasm_bindgen::JsError> {
+                        pub fn #set_ident(&mut self, value: #param_type) -> Result<(), wasm_bindgen::JsError> {
                             self.0.#ident = bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(value, &bindy::WasmContext)?;
                             Ok(())
                         }
                     });
+
+                    let js_name = name.to_case(Case::Camel);
+                    let stub = apply_mappings_with_flavor(ty, &stubs, MappingFlavor::JavaScript);
+
+                    field_stubs.push_str(&formatdoc! {"
+                        {js_name}: {stub};
+                    "});
                 }
+
+                let mut constructor_stubs = String::new();
 
                 if new {
                     let arg_attrs = fields
@@ -616,7 +841,9 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 
                     let arg_types = fields
                         .values()
-                        .map(|v| parse_str::<Type>(apply_mappings(v, &mappings).as_str()).unwrap())
+                        .map(|v| {
+                            parse_str::<Type>(apply_mappings(v, &param_mappings).as_str()).unwrap()
+                        })
                         .collect::<Vec<_>>();
 
                     method_tokens.extend(quote! {
@@ -629,14 +856,38 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                             }, &bindy::WasmContext)?)
                         }
                     });
+
+                    let arg_stubs = wasm_function_args(&fields, &stubs);
+
+                    constructor_stubs.push_str(&formatdoc! {"
+                        constructor({arg_stubs});
+                    "});
                 }
 
+                let option_type_ident =
+                    Ident::new(&format!("{name}OptionType"), Span::mixed_site());
+                let array_type_ident = Ident::new(&format!("{name}ArrayType"), Span::mixed_site());
+                let option_array_type_ident =
+                    Ident::new(&format!("{name}OptionArrayType"), Span::mixed_site());
+
+                js_types.extend(quote! {
+                    #[wasm_bindgen]
+                    pub type #option_type_ident;
+
+                    #[wasm_bindgen]
+                    pub type #array_type_ident;
+
+                    #[wasm_bindgen]
+                    pub type #option_array_type_ident;
+                });
+
                 output.extend(quote! {
-                    #[wasm_bindgen::prelude::wasm_bindgen]
+                    #[derive(TryFromJsValue)]
+                    #[wasm_bindgen(skip_typescript)]
                     #[derive(Clone)]
                     pub struct #bound_ident(#rust_struct_ident);
 
-                    #[wasm_bindgen::prelude::wasm_bindgen]
+                    #[wasm_bindgen]
                     impl #bound_ident {
                         #method_tokens
                         #field_tokens
@@ -653,7 +904,50 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                             Ok(self.0)
                         }
                     }
+
+                    impl<T> bindy::IntoRust<#rust_struct_ident, T, bindy::Wasm> for &'_ #bound_ident {
+                        fn into_rust(self, context: &T) -> bindy::Result<#rust_struct_ident> {
+                            std::ops::Deref::deref(&self).clone().into_rust(context)
+                        }
+                    }
+
+                    impl<T> bindy::IntoRust<Option<#rust_struct_ident>, T, bindy::Wasm> for &'_ #option_type_ident {
+                        fn into_rust(self, context: &T) -> bindy::Result<Option<#rust_struct_ident>> {
+                            let typed_value = try_from_js_option::<#bound_ident>(self).map_err(bindy::Error::Custom)?;
+                            typed_value.into_rust(context)
+                        }
+                    }
+
+                    impl<T> bindy::IntoRust<Vec<#rust_struct_ident>, T, bindy::Wasm> for &'_ #array_type_ident {
+                        fn into_rust(self, context: &T) -> bindy::Result<Vec<#rust_struct_ident>> {
+                            let typed_value = try_from_js_array::<#bound_ident>(self).map_err(bindy::Error::Custom)?;
+                            typed_value.into_rust(context)
+                        }
+                    }
+
+                    impl<T> bindy::IntoRust<Option<Vec<#rust_struct_ident>>, T, bindy::Wasm> for &'_ #option_array_type_ident {
+                        fn into_rust(self, context: &T) -> bindy::Result<Option<Vec<#rust_struct_ident>>> {
+                            let typed_value = try_from_js_option_array::<#bound_ident>(self).map_err(bindy::Error::Custom)?;
+                            typed_value.into_rust(context)
+                        }
+                    }
                 });
+
+                let body_stubs = format!("{constructor_stubs}{field_stubs}{method_stubs}")
+                    .trim()
+                    .split("\n")
+                    .map(|s| format!("    {s}"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                classes.push_str(&formatdoc! {"
+                    export class {name} {{
+                        free(): void;
+                        __getClassname(): string;
+                        clone(): {name};
+                    {body_stubs}
+                    }}
+                "});
             }
             Binding::Enum { values } => {
                 let bound_ident = Ident::new(&name, Span::mixed_site());
@@ -665,7 +959,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                     .collect::<Vec<_>>();
 
                 output.extend(quote! {
-                    #[wasm_bindgen::prelude::wasm_bindgen]
+                    #[wasm_bindgen(skip_typescript)]
                     #[derive(Clone)]
                     pub enum #bound_ident {
                         #( #value_idents ),*
@@ -687,6 +981,19 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         }
                     }
                 });
+
+                let body_stubs = values
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| format!("    {v} = {i},"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                classes.push_str(&formatdoc! {"
+                    export enum {name} {{
+                    {body_stubs}
+                    }}
+                "});
             }
             Binding::Function { args, ret } => {
                 let bound_ident = Ident::new(&name, Span::mixed_site());
@@ -709,27 +1016,84 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 
                 let arg_types = args
                     .values()
-                    .map(|v| parse_str::<Type>(apply_mappings(v, &mappings).as_str()).unwrap())
+                    .map(|v| {
+                        parse_str::<Type>(apply_mappings(v, &param_mappings).as_str()).unwrap()
+                    })
                     .collect::<Vec<_>>();
 
-                let ret = parse_str::<Type>(
-                    apply_mappings(ret.as_deref().unwrap_or("()"), &mappings).as_str(),
+                let ret_mapping = parse_str::<Type>(
+                    apply_mappings(ret.as_deref().unwrap_or("()"), &return_mappings).as_str(),
                 )
                 .unwrap();
 
                 output.extend(quote! {
-                    #[wasm_bindgen::prelude::wasm_bindgen(js_name = #js_name)]
+                    #[wasm_bindgen(skip_typescript, js_name = #js_name)]
                     pub fn #bound_ident(
                         #( #arg_attrs #arg_idents: #arg_types ),*
-                    ) -> Result<#ret, wasm_bindgen::JsError> {
+                    ) -> Result<#ret_mapping, wasm_bindgen::JsError> {
                         Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#entrypoint::#ident(
                             #( bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)? ),*
                         )?, &bindy::WasmContext)?)
                     }
                 });
+
+                let arg_stubs = wasm_function_args(&args, &stubs);
+
+                let ret_stub = apply_mappings_with_flavor(
+                    ret.as_deref().unwrap_or("()"),
+                    &stubs,
+                    MappingFlavor::JavaScript,
+                );
+
+                functions.push_str(&formatdoc! {"
+                    export function {js_name}({arg_stubs}): {ret_stub};
+                "});
             }
         }
     }
+
+    let clvm_type_values = [
+        bindy.clvm_types.clone(),
+        vec![
+            "string | bigint | number | boolean | Uint8Array | null | undefined | ClvmType[]"
+                .to_string(),
+        ],
+    ]
+    .concat()
+    .join(" | ");
+    let clvm_type = format!("export type ClvmType = {clvm_type_values};");
+
+    let typescript = format!("\n{clvm_type}\n{functions}\n{classes}");
+
+    output.extend(quote! {
+        #[wasm_bindgen]
+        extern "C" {
+            #js_types
+        }
+
+        #[wasm_bindgen(typescript_custom_section)]
+        const TS_APPEND_CONTENT: &'static str = #typescript;
+    });
+
+    let clvm_types = bindy
+        .clvm_types
+        .iter()
+        .map(|s| Ident::new(s, Span::mixed_site()))
+        .collect::<Vec<_>>();
+
+    output.extend(quote! {
+        enum ClvmType {
+            #( #clvm_types ( #clvm_types ), )*
+        }
+
+        fn try_from_js_any(js_val: &JsValue) -> Option<ClvmType> {
+            #( if let Ok(value) = #clvm_types::try_from(js_val) {
+                return Some(ClvmType::#clvm_types(value));
+            } )*
+
+            None
+        }
+    });
 
     output.into()
 }
@@ -742,7 +1106,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
     let entrypoint = Ident::new(&bindy.entrypoint, Span::mixed_site());
 
     let mut mappings = bindy.pyo3.clone();
-    build_base_mappings(&bindy, &mut mappings);
+    build_base_mappings(&bindy, &mut mappings, &mut IndexMap::new());
 
     let mut output = quote!();
     let mut module = quote!();
@@ -772,6 +1136,11 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                 };
 
                 for (name, method) in methods {
+                    if method.stub_only {
+                        // TODO: Add stubs
+                        continue;
+                    }
+
                     let method_ident = Ident::new(name, Span::mixed_site());
 
                     let arg_idents = method
@@ -1037,10 +1406,44 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
         }
     });
 
+    let clvm_types = bindy
+        .clvm_types
+        .iter()
+        .map(|s| Ident::new(s, Span::mixed_site()))
+        .collect::<Vec<_>>();
+
+    output.extend(quote! {
+        enum ClvmType {
+            #( #clvm_types ( #clvm_types ), )*
+        }
+
+        fn extract_clvm_type(value: &Bound<'_, PyAny>) -> Option<ClvmType> {
+            #( if let Ok(value) = value.extract::<#clvm_types>() {
+                return Some(ClvmType::#clvm_types(value));
+            } )*
+
+            None
+        }
+    });
+
     output.into()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MappingFlavor {
+    Rust,
+    JavaScript,
+}
+
 fn apply_mappings(ty: &str, mappings: &IndexMap<String, String>) -> String {
+    apply_mappings_with_flavor(ty, mappings, MappingFlavor::Rust)
+}
+
+fn apply_mappings_with_flavor(
+    ty: &str,
+    mappings: &IndexMap<String, String>,
+    flavor: MappingFlavor,
+) -> String {
     // First check if the entire type has a direct mapping
     if let Some(mapped) = mappings.get(ty) {
         return mapped.clone();
@@ -1057,7 +1460,7 @@ fn apply_mappings(ty: &str, mappings: &IndexMap<String, String>) -> String {
         // Recursively apply mappings to each generic parameter
         let mapped_params: Vec<String> = generic_params
             .into_iter()
-            .map(|param| apply_mappings(param, mappings))
+            .map(|param| apply_mappings_with_flavor(param, mappings, flavor))
             .collect();
 
         // Check if the base type needs mapping
@@ -1067,7 +1470,18 @@ fn apply_mappings(ty: &str, mappings: &IndexMap<String, String>) -> String {
             .unwrap_or(base_type);
 
         // Reconstruct the type with mapped components
-        format!("{}<{}>", mapped_base, mapped_params.join(", "))
+        match (flavor, mapped_base) {
+            (MappingFlavor::Rust, _) => {
+                format!("{}<{}>", mapped_base, mapped_params.join(", "))
+            }
+            (MappingFlavor::JavaScript, "Option") => {
+                format!("{} | undefined", mapped_params[0])
+            }
+            (MappingFlavor::JavaScript, "Vec") => {
+                format!("{}[]", mapped_params[0])
+            }
+            _ => panic!("Unsupported mapping with flavor {flavor:?} for type {ty}"),
+        }
     } else {
         // No generics, return original if no mapping exists
         ty.to_string()

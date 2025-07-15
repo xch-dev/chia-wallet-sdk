@@ -23,6 +23,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 syn = { workspace = true }
 chia-sdk-bindings = { workspace = true }
+indoc = { workspace = true }
 
 [target.aarch64-unknown-linux-gnu.dependencies]
 openssl = { version = "0.10.73", features = ["vendored"] }
