@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{fs, mem, path::Path};
 
 use chia_sdk_bindings::CONSTANTS;
 use convert_case::{Case, Casing};
@@ -26,6 +26,8 @@ struct Bindy {
     wasm_stubs: IndexMap<String, String>,
     #[serde(default)]
     pyo3: IndexMap<String, String>,
+    #[serde(default)]
+    clvm_types: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,6 +62,8 @@ struct Method {
     args: IndexMap<String, String>,
     #[serde(rename = "return")]
     ret: Option<String>,
+    #[serde(default)]
+    stub_only: bool,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -105,6 +109,7 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
                     kind: MethodKind::Static,
                     args: IndexMap::new(),
                     ret: Some("SerializedProgram".to_string()),
+                    stub_only: false,
                 },
             );
 
@@ -114,6 +119,7 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
                     kind: MethodKind::Static,
                     args: IndexMap::new(),
                     ret: Some("TreeHash".to_string()),
+                    stub_only: false,
                 },
             );
         }
@@ -127,6 +133,7 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
                     kind: MethodKind::Normal,
                     args: IndexMap::new(),
                     ret: Some("Program".to_string()),
+                    stub_only: false,
                 },
             );
         }
@@ -232,6 +239,10 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                 };
 
                 for (name, method) in methods {
+                    if method.stub_only {
+                        continue;
+                    }
+
                     let method_ident = Ident::new(&name, Span::mixed_site());
 
                     let param_mappings = if matches!(method.kind, MethodKind::Async) {
@@ -472,6 +483,83 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
         }
     }
 
+    let clvm_types = bindy
+        .clvm_types
+        .iter()
+        .map(|s| Ident::new(s, Span::mixed_site()))
+        .collect::<Vec<_>>();
+
+    let mut value_index = 1;
+    let mut value_idents = Vec::new();
+    let mut remaining_clvm_types = clvm_types.clone();
+
+    while !remaining_clvm_types.is_empty() {
+        let value_ident = Ident::new(&format!("Value{value_index}"), Span::mixed_site());
+        value_index += 1;
+
+        let consumed = if remaining_clvm_types.len() <= 26 {
+            let either_ident = Ident::new(
+                &format!("Either{}", remaining_clvm_types.len()),
+                Span::mixed_site(),
+            );
+
+            output.extend(quote! {
+                type #value_ident<'a> = #either_ident< #( ClassInstance<'a, #remaining_clvm_types > ),* >;
+            });
+
+            mem::take(&mut remaining_clvm_types)
+        } else {
+            let either_ident = Ident::new("Either26", Span::mixed_site());
+            let next_value_ident = Ident::new(&format!("Value{}", value_index), Span::mixed_site());
+            let next_25 = remaining_clvm_types.drain(..25).collect::<Vec<_>>();
+
+            output.extend(quote! {
+                type #value_ident<'a> = #either_ident< #( ClassInstance<'a, #next_25 > ),*, #next_value_ident<'a> >;
+            });
+
+            next_25
+        };
+
+        value_idents.push((value_ident, consumed));
+    }
+
+    let mut extractor = proc_macro2::TokenStream::new();
+
+    for (i, (value_ident, consumed)) in value_idents.into_iter().rev().enumerate() {
+        let chain = (i > 0).then(|| quote!( #value_ident::Z(value) => #extractor, ));
+
+        let items = consumed
+            .iter()
+            .enumerate()
+            .map(|(i, ty)| {
+                let letter = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                    .chars()
+                    .nth(i)
+                    .unwrap()
+                    .to_string();
+                let letter = Ident::new(&letter, Span::mixed_site());
+                quote!( #value_ident::#letter(value) => ClvmType::#ty((*value).clone()) )
+            })
+            .collect::<Vec<_>>();
+
+        extractor = quote! {
+            match value {
+                #( #items, )*
+                #chain
+            }
+        };
+    }
+
+    output.extend(quote! {
+        enum ClvmType {
+            #( #clvm_types ( #clvm_types ), )*
+        }
+
+        fn extract_clvm_type(value: Value1) -> ClvmType {
+            #extractor
+        }
+    });
+
     output.into()
 }
 
@@ -571,58 +659,60 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                 let class_name = name.clone();
 
                 for (name, method) in methods {
-                    let js_name = name.to_case(Case::Camel);
-                    let method_ident = Ident::new(&name, Span::mixed_site());
+                    if !method.stub_only {
+                        let js_name = name.to_case(Case::Camel);
+                        let method_ident = Ident::new(&name, Span::mixed_site());
 
-                    let arg_attrs = method
-                        .args
-                        .keys()
-                        .map(|k| {
-                            let js_name = k.to_case(Case::Camel);
-                            quote!( #[wasm_bindgen(js_name = #js_name)] )
-                        })
-                        .collect::<Vec<_>>();
+                        let arg_attrs = method
+                            .args
+                            .keys()
+                            .map(|k| {
+                                let js_name = k.to_case(Case::Camel);
+                                quote!( #[wasm_bindgen(js_name = #js_name)] )
+                            })
+                            .collect::<Vec<_>>();
 
-                    let arg_idents = method
-                        .args
-                        .keys()
-                        .map(|k| Ident::new(k, Span::mixed_site()))
-                        .collect::<Vec<_>>();
+                        let arg_idents = method
+                            .args
+                            .keys()
+                            .map(|k| Ident::new(k, Span::mixed_site()))
+                            .collect::<Vec<_>>();
 
-                    let arg_types = method
-                        .args
-                        .values()
-                        .map(|v| {
-                            parse_str::<Type>(apply_mappings(v, &param_mappings).as_str()).unwrap()
-                        })
-                        .collect::<Vec<_>>();
+                        let arg_types = method
+                            .args
+                            .values()
+                            .map(|v| {
+                                parse_str::<Type>(apply_mappings(v, &param_mappings).as_str())
+                                    .unwrap()
+                            })
+                            .collect::<Vec<_>>();
 
-                    let ret = parse_str::<Type>(
-                        apply_mappings(
-                            method.ret.as_deref().unwrap_or(
-                                if matches!(
-                                    method.kind,
-                                    MethodKind::Constructor | MethodKind::Factory
-                                ) {
-                                    "Self"
-                                } else {
-                                    "()"
-                                },
-                            ),
-                            &return_mappings,
+                        let ret = parse_str::<Type>(
+                            apply_mappings(
+                                method.ret.as_deref().unwrap_or(
+                                    if matches!(
+                                        method.kind,
+                                        MethodKind::Constructor | MethodKind::Factory
+                                    ) {
+                                        "Self"
+                                    } else {
+                                        "()"
+                                    },
+                                ),
+                                &return_mappings,
+                            )
+                            .as_str(),
                         )
-                        .as_str(),
-                    )
-                    .unwrap();
+                        .unwrap();
 
-                    let wasm_attr = match method.kind {
-                        MethodKind::Constructor => quote!(#[wasm_bindgen(constructor)]),
-                        _ => quote!(#[wasm_bindgen(js_name = #js_name)]),
-                    };
+                        let wasm_attr = match method.kind {
+                            MethodKind::Constructor => quote!(#[wasm_bindgen(constructor)]),
+                            _ => quote!(#[wasm_bindgen(js_name = #js_name)]),
+                        };
 
-                    match method.kind {
-                        MethodKind::Constructor | MethodKind::Static | MethodKind::Factory => {
-                            method_tokens.extend(quote! {
+                        match method.kind {
+                            MethodKind::Constructor | MethodKind::Static | MethodKind::Factory => {
+                                method_tokens.extend(quote! {
                                 #wasm_attr
                                 pub fn #method_ident(
                                     #( #arg_attrs #arg_idents: #arg_types ),*
@@ -632,9 +722,9 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                     )?, &bindy::WasmContext)?)
                                 }
                             });
-                        }
-                        MethodKind::Normal | MethodKind::ToString => {
-                            method_tokens.extend(quote! {
+                            }
+                            MethodKind::Normal | MethodKind::ToString => {
+                                method_tokens.extend(quote! {
                                 #wasm_attr
                                 pub fn #method_ident(
                                     &self,
@@ -646,9 +736,9 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                     )?, &bindy::WasmContext)?)
                                 }
                             });
-                        }
-                        MethodKind::Async => {
-                            method_tokens.extend(quote! {
+                            }
+                            MethodKind::Async => {
+                                method_tokens.extend(quote! {
                                 #wasm_attr
                                 pub async fn #method_ident(
                                     &self,
@@ -659,6 +749,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                     ).await?, &bindy::WasmContext)?)
                                 }
                             });
+                            }
                         }
                     }
 
@@ -961,7 +1052,18 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
         }
     }
 
-    let typescript = format!("\n{functions}\n{classes}");
+    let clvm_type_values = [
+        bindy.clvm_types.clone(),
+        vec![
+            "string | bigint | number | boolean | Uint8Array | null | undefined | ClvmType[]"
+                .to_string(),
+        ],
+    ]
+    .concat()
+    .join(" | ");
+    let clvm_type = format!("export type ClvmType = {clvm_type_values};");
+
+    let typescript = format!("\n{clvm_type}\n{functions}\n{classes}");
 
     output.extend(quote! {
         #[wasm_bindgen]
@@ -971,6 +1073,26 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 
         #[wasm_bindgen(typescript_custom_section)]
         const TS_APPEND_CONTENT: &'static str = #typescript;
+    });
+
+    let clvm_types = bindy
+        .clvm_types
+        .iter()
+        .map(|s| Ident::new(s, Span::mixed_site()))
+        .collect::<Vec<_>>();
+
+    output.extend(quote! {
+        enum ClvmType {
+            #( #clvm_types ( #clvm_types ), )*
+        }
+
+        fn try_from_js_any(js_val: &JsValue) -> Option<ClvmType> {
+            #( if let Ok(value) = #clvm_types::try_from(js_val) {
+                return Some(ClvmType::#clvm_types(value));
+            } )*
+
+            None
+        }
     });
 
     output.into()
@@ -1014,6 +1136,11 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                 };
 
                 for (name, method) in methods {
+                    if method.stub_only {
+                        // TODO: Add stubs
+                        continue;
+                    }
+
                     let method_ident = Ident::new(name, Span::mixed_site());
 
                     let arg_idents = method
@@ -1276,6 +1403,26 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
             use pyo3::types::PyModuleMethods;
             #module
             Ok(())
+        }
+    });
+
+    let clvm_types = bindy
+        .clvm_types
+        .iter()
+        .map(|s| Ident::new(s, Span::mixed_site()))
+        .collect::<Vec<_>>();
+
+    output.extend(quote! {
+        enum ClvmType {
+            #( #clvm_types ( #clvm_types ), )*
+        }
+
+        fn extract_clvm_type(value: &Bound<'_, PyAny>) -> Option<ClvmType> {
+            #( if let Ok(value) = value.extract::<#clvm_types>() {
+                return Some(ClvmType::#clvm_types(value));
+            } )*
+
+            None
         }
     });
 

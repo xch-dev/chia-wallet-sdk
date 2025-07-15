@@ -44,6 +44,13 @@
         },
         "return": "Program"
       },
+      "alloc": {
+        "stub_only": true,
+        "args": {
+          "value": "ClvmType"
+        },
+        "return": "Program"
+      },
       "pair": {
         "args": {
           "first": "Program",
@@ -57,6 +64,12 @@
       "int": {
         "args": {
           "value": "BigInt"
+        },
+        "return": "Program"
+      },
+      "bound_checked_number": {
+        "args": {
+          "value": "f64"
         },
         "return": "Program"
       },
