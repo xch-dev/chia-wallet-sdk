@@ -188,7 +188,7 @@ jobs:
         with:
           python-version: 3.x
 
-      - name: Build source distribution
+      - name: Test
         run: |
           set -e
           python3 -m venv venv
