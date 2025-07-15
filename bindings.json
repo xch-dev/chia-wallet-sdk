@@ -15,7 +15,7 @@
       "SerializedProgram"
     ],
     "{bigint}": ["u64", "u128", "BigInt"],
-    "{number}": ["i8", "u8", "i16", "u16", "i32", "u32", "f32", "f64"]
+    "{number}": ["i8", "u8", "i16", "u16", "i32", "u32", "f32"]
   },
   "shared": {
     "GetBlockRecordByHeightResponse": "GetBlockRecordResponse",
@@ -37,6 +37,7 @@
     "{bytes}": "Uint8Array",
     "{bigint}": "bigint",
     "{number}": "number",
+    "f64": "number",
     "bool": "boolean",
     "String": "string",
     "()": "void",
@@ -47,6 +48,14 @@
   "pyo3": {
     "{bytes}": "Vec<u8>",
     "BigInt": "num_bigint::BigInt"
+  },
+  "pyo3_stubs": {
+    "{bytes}": "bytes",
+    "{bigint}": "int",
+    "{number}": "int",
+    "f64": "float",
+    "String": "str",
+    "()": "None"
   },
   "clvm_types": [
     "Program",
