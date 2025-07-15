@@ -242,6 +242,7 @@ dependencies = [
  "chia-sdk-bindings",
  "convert_case 0.6.0",
  "indexmap",
+ "indoc",
  "openssl",
  "openssl-sys",
  "proc-macro2",
@@ -620,6 +621,7 @@ dependencies = [
  "chia-sdk-signer",
  "chia-sdk-types",
  "chia-secp",
+ "chia-sha2 0.26.0",
  "chia-traits 0.26.0",
  "clvm-traits",
  "clvm-utils",
@@ -808,6 +810,7 @@ dependencies = [
  "bindy",
  "bindy-macro",
  "chia-sdk-bindings",
+ "console_error_panic_hook",
  "getrandom 0.2.15",
  "js-sys",
  "wasm-bindgen",
@@ -947,6 +950,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb1e43aa7fd152b1f968787f7dbcdeb306d1867ff373c69955211876c053f91a"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "console_error_panic_hook"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
+dependencies = [
+ "cfg-if",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1653,9 +1666,9 @@ dependencies = [
 
 [[package]]
 name = "indoc"
-version = "2.0.5"
+version = "2.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b248f5224d1d606005e02c97f5aa4e88eeb230488bcc03bc9ca4d7991399f2b5"
+checksum = "f4c7245a08504955605670dbf141fceab975f15ca21570696aebe9d2e71576bd"
 
 [[package]]
 name = "inventory"

@@ -7,7 +7,7 @@ use std::fmt::Display;
 
 use bindy::{FromRust, WasmContext};
 use js_sys::Array;
-use wasm_bindgen::{prelude::wasm_bindgen, JsError};
+use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError, JsValue};
 use wasm_bindgen_derive::{try_from_js_array, TryFromJsValue};
 
 bindy_macro::bindy_wasm!("bindings.json");
@@ -28,11 +28,10 @@ impl Program {
     }
 }
 
-use alloc::format;
-use alloc::string::String;
-use alloc::vec::Vec;
-
-use wasm_bindgen::{JsCast, JsValue};
+#[wasm_bindgen(js_name = "setPanicHook")]
+pub fn set_panic_hook() {
+    console_error_panic_hook::set_once();
+}
 
 /// Attempts to unpack a JS value into a typed value,
 /// returning `None` if the JS value is `undefined`.
@@ -42,7 +41,7 @@ where
     for<'a> <T as TryFrom<&'a JsValue>>::Error: Display,
 {
     let js_val = val.into();
-    if js_val.is_undefined() || js_val.is_null() {
+    if js_val.is_undefined() {
         return Ok(None);
     }
     T::try_from(&js_val)
@@ -57,7 +56,7 @@ where
     for<'a> <T as TryFrom<&'a JsValue>>::Error: Display,
 {
     let js_val = val.into();
-    if js_val.is_undefined() || js_val.is_null() {
+    if js_val.is_undefined() {
         return Ok(None);
     }
     let array: &Array = js_val.dyn_ref().ok_or("The argument must be an array")?;

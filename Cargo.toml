@@ -176,6 +176,8 @@ js-sys = "0.3.77"
 parking_lot = "0.12.4"
 clvm_tools_rs = "0.3.0"
 pyo3-async-runtimes = "0.23"
+indoc = "2.0.6"
+console_error_panic_hook = "0.1.7"
 
 [profile.release]
 lto = true

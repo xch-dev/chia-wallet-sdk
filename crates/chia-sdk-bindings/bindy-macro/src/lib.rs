@@ -3,6 +3,7 @@ use std::{fs, path::Path};
 use chia_sdk_bindings::CONSTANTS;
 use convert_case::{Case, Casing};
 use indexmap::IndexMap;
+use indoc::formatdoc;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
@@ -474,6 +475,34 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
     output.into()
 }
 
+fn wasm_function_args(args: &IndexMap<String, String>, stubs: &IndexMap<String, String>) -> String {
+    let mut has_non_optional = false;
+    let mut results = Vec::new();
+
+    for (name, ty) in args.iter().rev() {
+        let is_optional = ty.starts_with("Option<");
+        let ty = apply_mappings_with_flavor(ty, stubs, MappingFlavor::JavaScript);
+
+        results.push(format!(
+            "{}{}: {}",
+            name.to_case(Case::Camel),
+            if is_optional && !has_non_optional {
+                "?"
+            } else {
+                ""
+            },
+            ty
+        ));
+
+        if !is_optional {
+            has_non_optional = true;
+        }
+    }
+
+    results.reverse();
+    results.join(", ")
+}
+
 #[proc_macro]
 pub fn bindy_wasm(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
@@ -500,18 +529,18 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 
             stubs.insert(
                 format!("Option<Vec<{name}>>"),
-                format!("{name}[] | null | undefined"),
+                format!("{name}[] | undefined"),
             );
-            stubs.insert(
-                format!("Option<{name}>"),
-                format!("{name} | null | undefined"),
-            );
+            stubs.insert(format!("Option<{name}>"), format!("{name} | undefined"));
             stubs.insert(format!("Vec<{name}>"), format!("{name}[]"));
         }
     }
 
     let mut output = quote!();
     let mut js_types = quote!();
+
+    let mut classes = String::new();
+    let mut functions = String::new();
 
     for (name, binding) in bindings {
         match binding {
@@ -536,6 +565,10 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         Clone::clone(self)
                     }
                 };
+
+                let mut method_stubs = String::new();
+
+                let class_name = name.clone();
 
                 for (name, method) in methods {
                     let js_name = name.to_case(Case::Camel);
@@ -628,9 +661,45 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                             });
                         }
                     }
+
+                    let js_name = if matches!(method.kind, MethodKind::Constructor) {
+                        "constructor".to_string()
+                    } else {
+                        name.to_case(Case::Camel)
+                    };
+
+                    let arg_stubs = wasm_function_args(&method.args, &stubs);
+
+                    let mut ret_stub = apply_mappings_with_flavor(
+                        method.ret.as_deref().unwrap_or("()"),
+                        &stubs,
+                        MappingFlavor::JavaScript,
+                    );
+
+                    match method.kind {
+                        MethodKind::Async => ret_stub = format!("Promise<{ret_stub}>"),
+                        MethodKind::Factory => ret_stub = class_name.clone(),
+                        _ => {}
+                    }
+
+                    let prefix = match method.kind {
+                        MethodKind::Factory | MethodKind::Static => "static ",
+                        _ => "",
+                    };
+
+                    let ret_stub = if matches!(method.kind, MethodKind::Constructor) {
+                        "".to_string()
+                    } else {
+                        format!(": {ret_stub}")
+                    };
+
+                    method_stubs.push_str(&formatdoc! {"
+                        {prefix}{js_name}({arg_stubs}){ret_stub};
+                    "});
                 }
 
                 let mut field_tokens = quote!();
+                let mut field_stubs = String::new();
 
                 for (name, ty) in &fields {
                     let js_name = name.to_case(Case::Camel);
@@ -654,7 +723,16 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                             Ok(())
                         }
                     });
+
+                    let js_name = name.to_case(Case::Camel);
+                    let stub = apply_mappings_with_flavor(ty, &stubs, MappingFlavor::JavaScript);
+
+                    field_stubs.push_str(&formatdoc! {"
+                        {js_name}: {stub};
+                    "});
                 }
+
+                let mut constructor_stubs = String::new();
 
                 if new {
                     let arg_attrs = fields
@@ -687,31 +765,34 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                             }, &bindy::WasmContext)?)
                         }
                     });
+
+                    let arg_stubs = wasm_function_args(&fields, &stubs);
+
+                    constructor_stubs.push_str(&formatdoc! {"
+                        constructor({arg_stubs});
+                    "});
                 }
 
-                let option_type_hint = format!("{name} | null | undefined");
                 let option_type_ident =
                     Ident::new(&format!("{name}OptionType"), Span::mixed_site());
-                let array_type_hint = format!("{name}[]");
                 let array_type_ident = Ident::new(&format!("{name}ArrayType"), Span::mixed_site());
-                let option_array_type_hint = format!("{name}[] | null | undefined");
                 let option_array_type_ident =
                     Ident::new(&format!("{name}OptionArrayType"), Span::mixed_site());
 
                 js_types.extend(quote! {
-                    #[wasm_bindgen(typescript_type = #option_type_hint)]
+                    #[wasm_bindgen]
                     pub type #option_type_ident;
 
-                    #[wasm_bindgen(typescript_type = #array_type_hint)]
+                    #[wasm_bindgen]
                     pub type #array_type_ident;
 
-                    #[wasm_bindgen(typescript_type = #option_array_type_hint)]
+                    #[wasm_bindgen]
                     pub type #option_array_type_ident;
                 });
 
                 output.extend(quote! {
                     #[derive(TryFromJsValue)]
-                    #[wasm_bindgen]
+                    #[wasm_bindgen(skip_typescript)]
                     #[derive(Clone)]
                     pub struct #bound_ident(#rust_struct_ident);
 
@@ -760,6 +841,22 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         }
                     }
                 });
+
+                let body_stubs = format!("{constructor_stubs}{field_stubs}{method_stubs}")
+                    .trim()
+                    .split("\n")
+                    .map(|s| format!("    {s}"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                classes.push_str(&formatdoc! {"
+                    export class {name} {{
+                        free(): void;
+                        __getClassname(): string;
+                        clone(): {name};
+                    {body_stubs}
+                    }}
+                "});
             }
             Binding::Enum { values } => {
                 let bound_ident = Ident::new(&name, Span::mixed_site());
@@ -771,7 +868,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                     .collect::<Vec<_>>();
 
                 output.extend(quote! {
-                    #[wasm_bindgen]
+                    #[wasm_bindgen(skip_typescript)]
                     #[derive(Clone)]
                     pub enum #bound_ident {
                         #( #value_idents ),*
@@ -793,6 +890,19 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         }
                     }
                 });
+
+                let body_stubs = values
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| format!("    {v} = {i},"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                classes.push_str(&formatdoc! {"
+                    export enum {name} {{
+                    {body_stubs}
+                    }}
+                "});
             }
             Binding::Function { args, ret } => {
                 let bound_ident = Ident::new(&name, Span::mixed_site());
@@ -820,30 +930,47 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                     })
                     .collect::<Vec<_>>();
 
-                let ret = parse_str::<Type>(
+                let ret_mapping = parse_str::<Type>(
                     apply_mappings(ret.as_deref().unwrap_or("()"), &return_mappings).as_str(),
                 )
                 .unwrap();
 
                 output.extend(quote! {
-                    #[wasm_bindgen(js_name = #js_name)]
+                    #[wasm_bindgen(skip_typescript, js_name = #js_name)]
                     pub fn #bound_ident(
                         #( #arg_attrs #arg_idents: #arg_types ),*
-                    ) -> Result<#ret, wasm_bindgen::JsError> {
+                    ) -> Result<#ret_mapping, wasm_bindgen::JsError> {
                         Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#entrypoint::#ident(
                             #( bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)? ),*
                         )?, &bindy::WasmContext)?)
                     }
                 });
+
+                let arg_stubs = wasm_function_args(&args, &stubs);
+
+                let ret_stub = apply_mappings_with_flavor(
+                    ret.as_deref().unwrap_or("()"),
+                    &stubs,
+                    MappingFlavor::JavaScript,
+                );
+
+                functions.push_str(&formatdoc! {"
+                    export function {js_name}({arg_stubs}): {ret_stub};
+                "});
             }
         }
     }
+
+    let typescript = format!("\n{functions}\n{classes}");
 
     output.extend(quote! {
         #[wasm_bindgen]
         extern "C" {
             #js_types
         }
+
+        #[wasm_bindgen(typescript_custom_section)]
+        const TS_APPEND_CONTENT: &'static str = #typescript;
     });
 
     output.into()
@@ -1155,7 +1282,21 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
     output.into()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MappingFlavor {
+    Rust,
+    JavaScript,
+}
+
 fn apply_mappings(ty: &str, mappings: &IndexMap<String, String>) -> String {
+    apply_mappings_with_flavor(ty, mappings, MappingFlavor::Rust)
+}
+
+fn apply_mappings_with_flavor(
+    ty: &str,
+    mappings: &IndexMap<String, String>,
+    flavor: MappingFlavor,
+) -> String {
     // First check if the entire type has a direct mapping
     if let Some(mapped) = mappings.get(ty) {
         return mapped.clone();
@@ -1172,7 +1313,7 @@ fn apply_mappings(ty: &str, mappings: &IndexMap<String, String>) -> String {
         // Recursively apply mappings to each generic parameter
         let mapped_params: Vec<String> = generic_params
             .into_iter()
-            .map(|param| apply_mappings(param, mappings))
+            .map(|param| apply_mappings_with_flavor(param, mappings, flavor))
             .collect();
 
         // Check if the base type needs mapping
@@ -1182,7 +1323,18 @@ fn apply_mappings(ty: &str, mappings: &IndexMap<String, String>) -> String {
             .unwrap_or(base_type);
 
         // Reconstruct the type with mapped components
-        format!("{}<{}>", mapped_base, mapped_params.join(", "))
+        match (flavor, mapped_base) {
+            (MappingFlavor::Rust, _) => {
+                format!("{}<{}>", mapped_base, mapped_params.join(", "))
+            }
+            (MappingFlavor::JavaScript, "Option") => {
+                format!("{} | undefined", mapped_params[0])
+            }
+            (MappingFlavor::JavaScript, "Vec") => {
+                format!("{}[]", mapped_params[0])
+            }
+            _ => panic!("Unsupported mapping with flavor {flavor:?} for type {ty}"),
+        }
     } else {
         // No generics, return original if no mapping exists
         ty.to_string()

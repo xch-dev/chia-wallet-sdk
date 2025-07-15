@@ -14,7 +14,8 @@
       "TreeHash",
       "SerializedProgram"
     ],
-    "{bigint}": ["u64", "u128", "BigInt"]
+    "{bigint}": ["u64", "u128", "BigInt"],
+    "{number}": ["i8", "u8", "i16", "u16", "i32", "u32", "f32", "f64"]
   },
   "shared": {
     "GetBlockRecordByHeightResponse": "GetBlockRecordResponse",
@@ -34,6 +35,10 @@
   "wasm_stubs": {
     "{bytes}": "Uint8Array",
     "{bigint}": "bigint",
+    "{number}": "number",
+    "bool": "boolean",
+    "String": "string",
+    "()": "void",
     "Vec<Bytes32>": "Uint8Array[]",
     "Vec<Bytes>": "Uint8Array[]",
     "Vec<TreeHash>": "Uint8Array[]"
