@@ -1,6 +1,6 @@
 {
   "name": "chia-wallet-sdk",
-  "version": "0.27.1",
+  "version": "0.27.2",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -21,7 +21,7 @@
     "build:windows-x64": "napi build --platform --release --target x86_64-pc-windows-msvc",
     "build:linux-x64": "napi build --platform --release --target x86_64-unknown-linux-gnu",
     "build:linux-arm64": "napi build --platform --release --target aarch64-unknown-linux-gnu",
-    "prepublishOnly": "napi prepublish -t npm",
+    "prepublishOnly": "napi prepublish -t npm --no-gh-release",
     "test": "ava",
     "universal": "napi universalize",
     "version": "napi version"
