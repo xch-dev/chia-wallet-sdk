@@ -1,8 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_puzzle_types::{
-    nft::{NftOwnershipLayerArgs, NftStateLayerArgs},
-    singleton::SingletonArgs,
-};
+use chia_puzzle_types::nft::{NftOwnershipLayerArgs, NftStateLayerArgs};
 use chia_puzzles::NFT_STATE_LAYER_HASH;
 use chia_sdk_types::{
     conditions::{CreateCoin, NewMetadataOutput},
@@ -13,8 +10,8 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    DriverError, Layer, NftOwnershipLayer, NftStateLayer, Puzzle, RoyaltyTransferLayer,
-    SingletonLayer, Spend,
+    DriverError, HashedPtr, Layer, NftOwnershipLayer, NftStateLayer, Puzzle, RoyaltyTransferLayer,
+    SingletonInfo, SingletonLayer, Spend,
 };
 
 pub type StandardNftLayers<M, I> =
@@ -25,13 +22,13 @@ pub type StandardNftLayers<M, I> =
 ///
 /// This type can be used on its own for parsing, or as part of the [`Nft`](crate::Nft) primitive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NftInfo<M> {
+pub struct NftInfo {
     /// The coin id of the launcher coin that created this NFT's singleton.
     pub launcher_id: Bytes32,
 
     /// The metadata stored in the [`NftStateLayer`]. This can only be updated by
     /// going through the [`metadata_updater_puzzle_hash`](NftInfo::metadata_updater_puzzle_hash).
-    pub metadata: M,
+    pub metadata: HashedPtr,
 
     /// The puzzle hash of the metadata updater. This is used to update the metadata of the NFT.
     /// This is typically [`NFT_METADATA_UPDATER_DEFAULT_HASH`](chia_puzzles::NFT_METADATA_UPDATER_DEFAULT_HASH),
@@ -63,10 +60,10 @@ pub struct NftInfo<M> {
     pub p2_puzzle_hash: Bytes32,
 }
 
-impl<M> NftInfo<M> {
+impl NftInfo {
     pub fn new(
         launcher_id: Bytes32,
-        metadata: M,
+        metadata: HashedPtr,
         metadata_updater_puzzle_hash: Bytes32,
         current_owner: Option<Bytes32>,
         royalty_puzzle_hash: Bytes32,
@@ -84,18 +81,6 @@ impl<M> NftInfo<M> {
         }
     }
 
-    pub fn with_metadata<N>(self, metadata: N) -> NftInfo<N> {
-        NftInfo {
-            launcher_id: self.launcher_id,
-            metadata,
-            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
-            current_owner: self.current_owner,
-            royalty_puzzle_hash: self.royalty_puzzle_hash,
-            royalty_basis_points: self.royalty_basis_points,
-            p2_puzzle_hash: self.p2_puzzle_hash,
-        }
-    }
-
     /// Parses an [`NftInfo`] from a [`Puzzle`] by extracting the [`NftStateLayer`] and [`NftOwnershipLayer`].
     ///
     /// This will return a tuple of the [`NftInfo`] and its p2 puzzle.
@@ -105,20 +90,18 @@ impl<M> NftInfo<M> {
     pub fn parse(
         allocator: &Allocator,
         puzzle: Puzzle,
-    ) -> Result<Option<(Self, Puzzle)>, DriverError>
-    where
-        M: ToClvm<Allocator> + FromClvm<Allocator>,
-    {
-        let Some(layers) = StandardNftLayers::<M, Puzzle>::parse_puzzle(allocator, puzzle)? else {
+    ) -> Result<Option<(Self, Puzzle)>, DriverError> {
+        let Some(layers) = StandardNftLayers::<HashedPtr, Puzzle>::parse_puzzle(allocator, puzzle)?
+        else {
             return Ok(None);
         };
 
         let p2_puzzle = layers.inner_puzzle.inner_puzzle.inner_puzzle;
 
-        Ok(Some((Self::from_layers(layers), p2_puzzle)))
+        Ok(Some((Self::from_layers(&layers), p2_puzzle)))
     }
 
-    pub fn from_layers<I>(layers: StandardNftLayers<M, I>) -> Self
+    pub fn from_layers<I>(layers: &StandardNftLayers<HashedPtr, I>) -> Self
     where
         I: ToTreeHash,
     {
@@ -147,7 +130,7 @@ impl<M> NftInfo<M> {
     }
 
     #[must_use]
-    pub fn into_layers<I>(self, p2_puzzle: I) -> StandardNftLayers<M, I> {
+    pub fn into_layers<I>(self, p2_puzzle: I) -> StandardNftLayers<HashedPtr, I> {
         SingletonLayer::new(
             self.launcher_id,
             NftStateLayer::new(
@@ -166,39 +149,6 @@ impl<M> NftInfo<M> {
         )
     }
 
-    /// Calculates the inner puzzle hash of the NFT singleton.
-    ///
-    /// This includes both the [`NftStateLayer`] and [`NftOwnershipLayer`], but not the [`SingletonLayer`].
-    pub fn inner_puzzle_hash(&self) -> TreeHash
-    where
-        M: ToTreeHash,
-    {
-        NftStateLayerArgs {
-            mod_hash: NFT_STATE_LAYER_HASH.into(),
-            metadata: self.metadata.tree_hash(),
-            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
-            inner_puzzle: NftOwnershipLayerArgs::curry_tree_hash(
-                self.current_owner,
-                RoyaltyTransferLayer::new(
-                    self.launcher_id,
-                    self.royalty_puzzle_hash,
-                    self.royalty_basis_points,
-                )
-                .tree_hash(),
-                self.p2_puzzle_hash.into(),
-            ),
-        }
-        .curry_tree_hash()
-    }
-
-    /// Calculates the full puzzle hash of the NFT, which is the hash of the outer [`SingletonLayer`].
-    pub fn puzzle_hash(&self) -> TreeHash
-    where
-        M: ToTreeHash,
-    {
-        SingletonArgs::new(self.launcher_id, self.inner_puzzle_hash()).curry_tree_hash()
-    }
-
     /// Parses the child of an [`NftInfo`] from the p2 spend.
     ///
     /// This will automatically run the transfer program or metadata updater, if
@@ -208,10 +158,7 @@ impl<M> NftInfo<M> {
         &self,
         allocator: &mut Allocator,
         spend: Spend,
-    ) -> Result<(Self, CreateCoin<NodePtr>), DriverError>
-    where
-        M: Clone + ToClvm<Allocator> + FromClvm<Allocator>,
-    {
+    ) -> Result<(Self, CreateCoin<NodePtr>), DriverError> {
         let output = run_puzzle(allocator, spend.puzzle, spend.solution)?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
@@ -238,7 +185,7 @@ impl<M> NftInfo<M> {
             return Err(DriverError::MissingChild);
         };
 
-        let mut info = self.clone();
+        let mut info = *self;
 
         if let Some(new_owner) = new_owner {
             info.current_owner = new_owner.launcher_id;
@@ -258,8 +205,8 @@ impl<M> NftInfo<M> {
                 metadata_updater_solution,
             )?;
 
-            let output =
-                NewMetadataOutput::<M, NodePtr>::from_clvm(allocator, output)?.metadata_info;
+            let output = NewMetadataOutput::<HashedPtr, NodePtr>::from_clvm(allocator, output)?
+                .metadata_info;
             info.metadata = output.new_metadata;
             info.metadata_updater_puzzle_hash = output.new_updater_puzzle_hash;
         }
@@ -270,13 +217,40 @@ impl<M> NftInfo<M> {
     }
 }
 
+impl SingletonInfo for NftInfo {
+    fn launcher_id(&self) -> Bytes32 {
+        self.launcher_id
+    }
+
+    fn inner_puzzle_hash(&self) -> TreeHash {
+        NftStateLayerArgs {
+            mod_hash: NFT_STATE_LAYER_HASH.into(),
+            metadata: self.metadata.tree_hash(),
+            metadata_updater_puzzle_hash: self.metadata_updater_puzzle_hash,
+            inner_puzzle: NftOwnershipLayerArgs::curry_tree_hash(
+                self.current_owner,
+                RoyaltyTransferLayer::new(
+                    self.launcher_id,
+                    self.royalty_puzzle_hash,
+                    self.royalty_basis_points,
+                )
+                .tree_hash(),
+                self.p2_puzzle_hash.into(),
+            ),
+        }
+        .curry_tree_hash()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chia_puzzle_types::nft::NftMetadata;
     use chia_sdk_test::Simulator;
     use chia_sdk_types::{conditions::TransferNft, Conditions};
 
-    use crate::{IntermediateLauncher, Launcher, NftMint, SpendContext, StandardLayer};
+    use crate::{
+        IntermediateLauncher, Launcher, NftMint, SingletonInfo, SpendContext, StandardLayer,
+    };
 
     use super::*;
 
@@ -295,11 +269,13 @@ mod tests {
         let mut metadata = NftMetadata::default();
         metadata.data_uris.push("example.com".to_string());
 
+        let metadata = ctx.alloc_hashed(&metadata)?;
+
         let (mint_nft, nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
             .create(ctx)?
             .mint_nft(
                 ctx,
-                NftMint::new(
+                &NftMint::new(
                     metadata,
                     alice.puzzle_hash,
                     300,
@@ -312,7 +288,7 @@ mod tests {
             )?;
 
         let _did = did.update(ctx, &alice_p2, mint_nft)?;
-        let original_nft = nft.clone();
+        let original_nft = nft;
         let _nft = nft.transfer(ctx, &alice_p2, alice.puzzle_hash, Conditions::new())?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
@@ -324,8 +300,7 @@ mod tests {
         let mut allocator = Allocator::new();
         let ptr = puzzle_reveal.to_clvm(&mut allocator)?;
         let puzzle = Puzzle::parse(&allocator, ptr);
-        let (nft_info, p2_puzzle) =
-            NftInfo::<NftMetadata>::parse(&allocator, puzzle)?.expect("not an nft");
+        let (nft_info, p2_puzzle) = NftInfo::parse(&allocator, puzzle)?.expect("not an nft");
 
         assert_eq!(nft_info, original_nft.info);
         assert_eq!(p2_puzzle.curried_puzzle_hash(), alice.puzzle_hash.into());

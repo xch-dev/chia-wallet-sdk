@@ -4,17 +4,26 @@
     "new": true,
     "fields": {
       "coin": "Coin",
-      "launcher_id": "Bytes32",
       "proof": "Proof",
-      "custody_hash": "TreeHash"
+      "info": "VaultInfo"
     },
     "methods": {
       "child": {
         "args": {
-          "custody_hash": "TreeHash"
+          "custody_hash": "TreeHash",
+          "amount": "u64"
         },
         "return": "Vault"
       }
+    }
+  },
+  "VaultInfo": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "custody_hash": "TreeHash"
     }
   },
   "MemberConfig": {

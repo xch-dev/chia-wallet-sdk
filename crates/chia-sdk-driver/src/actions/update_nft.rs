@@ -4,8 +4,8 @@ use chia_sdk_types::{
 };
 
 use crate::{
-    assignment_puzzle_announcement_id, Deltas, DriverError, Id, Spend, SpendAction, SpendContext,
-    SpendKind, Spends,
+    assignment_puzzle_announcement_id, Deltas, DriverError, Id, SingletonInfo, Spend, SpendAction,
+    SpendContext, SpendKind, Spends,
 };
 
 #[derive(Debug, Default, Clone)]

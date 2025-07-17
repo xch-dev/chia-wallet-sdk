@@ -61,7 +61,9 @@ pub use chia_sdk_coinset::{
     GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem, MempoolMinFees,
     PushTxResponse, SyncState,
 };
-pub use chia_sdk_driver::{Cat, CatInfo, Clawback, ClawbackV2, StreamedCat, StreamingPuzzleInfo};
+pub use chia_sdk_driver::{
+    Cat, CatInfo, Clawback, ClawbackV2, StreamedCat, StreamingPuzzleInfo, VaultInfo,
+};
 pub use chia_sdk_types::conditions::TradePrice;
 
 pub(crate) use convert::{AsProgram, AsPtr};

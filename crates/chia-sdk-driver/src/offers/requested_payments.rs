@@ -9,8 +9,9 @@ use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
 use crate::{
-    Action, AssetInfo, CatAssetInfo, CatInfo, DriverError, HashedPtr, Id, Layer, NftAssetInfo,
-    NftInfo, OfferAmounts, OptionAssetInfo, OptionInfo, Puzzle, SettlementLayer, SpendContext,
+    Action, AssetInfo, CatAssetInfo, CatInfo, DriverError, Id, Layer, NftAssetInfo, NftInfo,
+    OfferAmounts, OptionAssetInfo, OptionInfo, Puzzle, SettlementLayer, SingletonInfo,
+    SpendContext,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -212,7 +213,7 @@ impl RequestedPayments {
 
             let info = CatAssetInfo::new(cat.hidden_puzzle_hash);
             asset_info.insert_cat(cat.asset_id, info)?;
-        } else if let Some((nft, _)) = NftInfo::<HashedPtr>::parse(allocator, puzzle)? {
+        } else if let Some((nft, _)) = NftInfo::parse(allocator, puzzle)? {
             self.nfts
                 .entry(nft.launcher_id)
                 .or_default()

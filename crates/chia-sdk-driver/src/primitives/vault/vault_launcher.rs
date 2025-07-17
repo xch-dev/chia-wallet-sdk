@@ -4,7 +4,7 @@ use clvm_traits::ToClvm;
 use clvm_utils::TreeHash;
 use clvmr::Allocator;
 
-use crate::{DriverError, Launcher, SpendContext};
+use crate::{DriverError, Launcher, SpendContext, VaultInfo};
 
 use super::Vault;
 
@@ -22,12 +22,11 @@ impl Launcher {
         let (conditions, coin) = self.spend(ctx, custody_hash.into(), memos)?;
         let vault = Vault::new(
             coin,
-            launcher_coin.coin_id(),
             Proof::Eve(EveProof {
                 parent_parent_coin_info: launcher_coin.parent_coin_info,
                 parent_amount: launcher_coin.amount,
             }),
-            custody_hash,
+            VaultInfo::new(launcher_coin.coin_id(), custody_hash),
         );
         Ok((conditions, vault))
     }

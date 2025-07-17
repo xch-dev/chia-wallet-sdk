@@ -8,17 +8,17 @@ use indexmap::IndexMap;
 
 use crate::{
     Action, Asset, Cat, CatSpend, ConditionsSpend, Delta, Deltas, Did, DriverError, FungibleSpend,
-    FungibleSpends, HashedPtr, Id, Layer, Nft, OptionContract, Relation, SettlementLayer,
-    SingletonSpends, Spend, SpendAction, SpendContext, SpendKind, SpendWithConditions,
-    SpendableAsset, StandardLayer,
+    FungibleSpends, Id, Layer, Nft, OptionContract, Relation, SettlementLayer, SingletonSpends,
+    Spend, SpendAction, SpendContext, SpendKind, SpendWithConditions, SpendableAsset,
+    StandardLayer,
 };
 
 #[derive(Debug, Clone)]
 pub struct Spends {
     pub xch: FungibleSpends<Coin>,
     pub cats: IndexMap<Id, FungibleSpends<Cat>>,
-    pub dids: IndexMap<Id, SingletonSpends<Did<HashedPtr>>>,
-    pub nfts: IndexMap<Id, SingletonSpends<Nft<HashedPtr>>>,
+    pub dids: IndexMap<Id, SingletonSpends<Did>>,
+    pub nfts: IndexMap<Id, SingletonSpends<Nft>>,
     pub options: IndexMap<Id, SingletonSpends<OptionContract>>,
     pub intermediate_puzzle_hash: Bytes32,
     pub change_puzzle_hash: Bytes32,
@@ -37,8 +37,8 @@ pub struct ConditionConfig {
 pub struct Outputs {
     pub xch: Vec<Coin>,
     pub cats: IndexMap<Id, Vec<Cat>>,
-    pub dids: IndexMap<Id, Did<HashedPtr>>,
-    pub nfts: IndexMap<Id, Nft<HashedPtr>>,
+    pub dids: IndexMap<Id, Did>,
+    pub nfts: IndexMap<Id, Nft>,
     pub options: IndexMap<Id, OptionContract>,
     pub fee: u64,
 }
@@ -513,7 +513,7 @@ impl AddAsset for Cat {
     }
 }
 
-impl AddAsset for Did<HashedPtr> {
+impl AddAsset for Did {
     fn add(self, spends: &mut Spends) {
         spends.dids.insert(
             Id::Existing(self.info.launcher_id),
@@ -522,7 +522,7 @@ impl AddAsset for Did<HashedPtr> {
     }
 }
 
-impl AddAsset for Nft<HashedPtr> {
+impl AddAsset for Nft {
     fn add(self, spends: &mut Spends) {
         spends.nfts.insert(
             Id::Existing(self.info.launcher_id),

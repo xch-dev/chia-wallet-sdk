@@ -12,7 +12,7 @@ use indexmap::IndexSet;
 use crate::{
     calculate_royalty_amounts, calculate_trade_price_amounts, Arbitrage, AssetInfo, CatInfo,
     DriverError, Layer, NftInfo, OfferAmounts, OfferCoins, OptionInfo, Puzzle, RequestedPayments,
-    RoyaltyInfo, SpendContext,
+    RoyaltyInfo, SingletonInfo, SpendContext,
 };
 
 #[derive(Debug, Clone)]

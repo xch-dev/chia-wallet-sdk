@@ -512,6 +512,7 @@ module.exports.TransferNft = nativeBinding.TransferNft
 module.exports.UpdateDataStoreMerkleRoot = nativeBinding.UpdateDataStoreMerkleRoot
 module.exports.UpdateNftMetadata = nativeBinding.UpdateNftMetadata
 module.exports.Vault = nativeBinding.Vault
+module.exports.VaultInfo = nativeBinding.VaultInfo
 module.exports.VaultMint = nativeBinding.VaultMint
 module.exports.VdfInfo = nativeBinding.VdfInfo
 module.exports.VDFInfo = nativeBinding.VDFInfo

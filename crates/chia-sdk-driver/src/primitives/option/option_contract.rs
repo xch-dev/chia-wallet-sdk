@@ -11,23 +11,15 @@ use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, Layer, Puzzle, Spend, SpendContext, SpendWithConditions};
+use crate::{
+    DriverError, Layer, Puzzle, Singleton, SingletonInfo, Spend, SpendContext, SpendWithConditions,
+};
 
 use super::{OptionContractLayers, OptionInfo, OptionMetadata};
 
-#[must_use]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OptionContract {
-    pub coin: Coin,
-    pub proof: Proof,
-    pub info: OptionInfo,
-}
+pub type OptionContract = Singleton<OptionInfo>;
 
 impl OptionContract {
-    pub fn new(coin: Coin, proof: Proof, info: OptionInfo) -> Self {
-        Self { coin, proof, info }
-    }
-
     pub fn parse_child(
         allocator: &mut Allocator,
         parent_coin: Coin,
@@ -96,14 +88,6 @@ impl OptionContract {
     ) -> Result<OptionMetadata, DriverError> {
         let solution = LauncherSolution::<OptionMetadata>::from_clvm(allocator, launcher_solution)?;
         Ok(solution.key_value_list)
-    }
-
-    pub fn child_lineage_proof(&self) -> LineageProof {
-        LineageProof {
-            parent_parent_coin_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
-            parent_amount: self.coin.amount,
-        }
     }
 
     pub fn spend(
@@ -201,7 +185,10 @@ impl OptionContract {
     }
 
     pub fn child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
-        let info = self.info.with_p2_puzzle_hash(p2_puzzle_hash);
+        let info = OptionInfo {
+            p2_puzzle_hash,
+            ..self.info
+        };
 
         let inner_puzzle_hash = info.inner_puzzle_hash();
 
@@ -230,7 +217,7 @@ mod tests {
 
     use crate::{
         Cat, CatSpend, HashedPtr, Launcher, Nft, NftMint, OptionLauncher, OptionLauncherInfo,
-        OptionType, SettlementLayer, StandardLayer,
+        OptionType, SettlementLayer, SingletonInfo, StandardLayer,
     };
 
     use super::*;
@@ -252,7 +239,7 @@ mod tests {
         Xch(Coin),
         Cat(Cat),
         RevocableCat(Cat),
-        Nft(Nft<HashedPtr>),
+        Nft(Nft),
     }
 
     impl OptionCoin {
@@ -377,7 +364,7 @@ mod tests {
                     .with_singleton_amount(strike_amount)
                     .mint_nft(
                         ctx,
-                        NftMint::new(
+                        &NftMint::new(
                             HashedPtr::NIL,
                             SETTLEMENT_PAYMENT_HASH.into(),
                             0,
@@ -474,7 +461,7 @@ mod tests {
                     .with_singleton_amount(underlying_amount)
                     .mint_nft(
                         ctx,
-                        NftMint::new(
+                        &NftMint::new(
                             HashedPtr::NIL,
                             p2_option,
                             0,

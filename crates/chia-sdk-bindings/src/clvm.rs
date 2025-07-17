@@ -110,7 +110,7 @@ impl Clvm {
 
             let (conditions, nft) = Launcher::new(parent_coin_id, i as u64 * 2)
                 .with_singleton_amount(1)
-                .mint_nft(&mut ctx, nft_mint)?;
+                .mint_nft(&mut ctx, &nft_mint)?;
 
             nfts.push(nft.as_program(&self.0));
 
