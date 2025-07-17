@@ -1,9 +1,11 @@
+use chia_protocol::Bytes32;
 use chia_sdk_types::{
     puzzles::{DefaultCatMakerArgs, RevocableCatMakerArgs, XchCatMaker, XCH_CAT_MAKER_PUZZLE_HASH},
     Mod,
 };
+use clvm_traits::{clvm_tuple, ToClvm};
 use clvm_utils::TreeHash;
-use clvmr::NodePtr;
+use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, SpendContext};
 
@@ -48,5 +50,23 @@ impl CatMaker {
             )),
             CatMaker::Xch => ctx.alloc_mod::<XchCatMaker>(),
         }
+    }
+
+    pub fn run<S>(
+        &self,
+        ctx: &mut SpendContext,
+        inner_puzzle_hash: Bytes32,
+        solution_rest: S,
+    ) -> Result<Bytes32, DriverError>
+    where
+        S: ToClvm<Allocator>,
+    {
+        let solution = clvm_tuple!(inner_puzzle_hash, solution_rest);
+        let solution = ctx.alloc(&solution)?;
+
+        let puzzle = self.get_puzzle(ctx)?;
+        let result = ctx.run(puzzle, solution)?;
+
+        ctx.extract(result)
     }
 }
