@@ -8,19 +8,11 @@ use clvm_utils::TreeHash;
 
 use crate::{DriverError, Singleton, Spend, SpendContext};
 
-use super::{member_puzzle_hash, MipsSpend, Restriction};
+use super::MipsSpend;
 
 pub type Vault = Singleton<VaultInfo>;
 
 impl Vault {
-    pub fn custody_hash(
-        nonce: usize,
-        restrictions: Vec<Restriction>,
-        inner_puzzle_hash: TreeHash,
-    ) -> TreeHash {
-        member_puzzle_hash(nonce, restrictions, inner_puzzle_hash, true)
-    }
-
     pub fn child(&self, custody_hash: TreeHash, amount: u64) -> Self {
         self.child_with(VaultInfo::new(self.info.launcher_id, custody_hash), amount)
     }
@@ -56,7 +48,7 @@ mod tests {
     use chia_sha2::Sha256;
     use rstest::rstest;
 
-    use crate::{InnerPuzzleSpend, Launcher, MofN, StandardLayer};
+    use crate::{mips_puzzle_hash, InnerPuzzleSpend, Launcher, MofN, StandardLayer};
 
     use super::*;
 
@@ -96,7 +88,7 @@ mod tests {
 
         let k1 = K1Pair::default();
         let custody = K1Member::new(k1.pk);
-        let custody_hash = Vault::custody_hash(0, Vec::new(), custody.curry_tree_hash());
+        let custody_hash = mips_puzzle_hash(0, Vec::new(), custody.curry_tree_hash(), true);
 
         let vault = mint_vault(&mut sim, ctx, custody_hash)?;
 
@@ -141,11 +133,11 @@ mod tests {
 
         let hashes = members
             .iter()
-            .map(|m| member_puzzle_hash(0, Vec::new(), m.curry_tree_hash(), false))
+            .map(|m| mips_puzzle_hash(0, Vec::new(), m.curry_tree_hash(), false))
             .collect::<Vec<_>>();
 
         let custody = MofN::new(required, hashes.clone());
-        let custody_hash = Vault::custody_hash(0, Vec::new(), custody.inner_puzzle_hash());
+        let custody_hash = mips_puzzle_hash(0, Vec::new(), custody.inner_puzzle_hash(), true);
 
         let mut vault = mint_vault(&mut sim, ctx, custody_hash)?;
 
