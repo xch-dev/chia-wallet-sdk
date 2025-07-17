@@ -13,7 +13,7 @@ use clvmr::NodePtr;
 
 use crate::{
     Asset, Did, DidInfo, DriverError, FungibleSpend, HashedPtr, Launcher, Nft, NftInfo,
-    OptionContract, OutputSet, Spend, SpendContext, SpendKind,
+    OptionContract, OutputSet, SingletonInfo, Spend, SpendContext, SpendKind,
 };
 
 #[derive(Debug, Clone)]
@@ -214,7 +214,7 @@ pub trait SingletonAsset: Debug + Clone + Asset {
     ) -> Result<Option<SingletonSpend<Self>>, DriverError>;
 }
 
-impl SingletonAsset for Did<HashedPtr> {
+impl SingletonAsset for Did {
     type ChildInfo = ChildDidInfo;
 
     fn default_child_info(asset: &Self, spend_kind: &SpendKind) -> Self::ChildInfo {
@@ -325,7 +325,7 @@ impl SingletonAsset for Did<HashedPtr> {
     }
 }
 
-impl SingletonAsset for Nft<HashedPtr> {
+impl SingletonAsset for Nft {
     type ChildInfo = ChildNftInfo;
 
     fn default_child_info(_asset: &Self, spend_kind: &SpendKind) -> Self::ChildInfo {

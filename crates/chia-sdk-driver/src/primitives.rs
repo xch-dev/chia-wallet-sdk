@@ -20,6 +20,7 @@ pub use launcher::*;
 pub use mips::*;
 pub use nft::*;
 pub use option::*;
+pub use singleton::*;
 pub use streamed_cat::*;
 pub use vault::*;
 

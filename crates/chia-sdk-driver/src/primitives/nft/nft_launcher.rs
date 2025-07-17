@@ -1,27 +1,26 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{EveProof, Proof};
 use chia_sdk_types::Conditions;
-use clvm_traits::{clvm_quote, FromClvm, ToClvm};
-use clvm_utils::ToTreeHash;
-use clvmr::{Allocator, NodePtr};
+use clvm_traits::clvm_quote;
+use clvmr::NodePtr;
 
-use crate::{assignment_puzzle_announcement_id, DriverError, Launcher, Spend, SpendContext};
+use crate::{
+    assignment_puzzle_announcement_id, DriverError, HashedPtr, Launcher, SingletonInfo, Spend,
+    SpendContext,
+};
 
 use super::{Nft, NftInfo, NftMint};
 
 impl Launcher {
-    pub fn mint_eve_nft<M>(
+    pub fn mint_eve_nft(
         self,
         ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
-        metadata: M,
+        metadata: HashedPtr,
         metadata_updater_puzzle_hash: Bytes32,
         royalty_puzzle_hash: Bytes32,
         royalty_basis_points: u16,
-    ) -> Result<(Conditions, Nft<M>), DriverError>
-    where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash + Clone,
-    {
+    ) -> Result<(Conditions, Nft), DriverError> {
         let launcher_coin = self.coin();
 
         let nft_info = NftInfo::new(
@@ -48,14 +47,11 @@ impl Launcher {
         ))
     }
 
-    pub fn mint_nft<M>(
+    pub fn mint_nft(
         self,
         ctx: &mut SpendContext,
-        mint: NftMint<M>,
-    ) -> Result<(Conditions, Nft<M>), DriverError>
-    where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash + Clone,
-    {
+        mint: &NftMint,
+    ) -> Result<(Conditions, Nft), DriverError> {
         let memos = ctx.hint(mint.p2_puzzle_hash)?;
         let conditions = Conditions::new()
             .create_coin(mint.p2_puzzle_hash, self.singleton_amount(), memos)
@@ -90,7 +86,7 @@ impl Launcher {
 
 #[cfg(test)]
 mod tests {
-    use crate::{IntermediateLauncher, Launcher, StandardLayer};
+    use crate::{IntermediateLauncher, Launcher, SingletonInfo, StandardLayer};
 
     use super::*;
 
@@ -115,13 +111,12 @@ mod tests {
         // We don't want to count the DID creation.
         ctx.take();
 
+        let metadata = ctx.alloc_hashed(&NftMetadata::default())?;
+
         let coin = Coin::new(Bytes32::new([1; 32]), alice.puzzle_hash, 1);
         let (mint_nft, _nft) = IntermediateLauncher::new(did.coin.coin_id(), 0, 1)
             .create(ctx)?
-            .mint_nft(
-                ctx,
-                NftMint::new(NftMetadata::default(), alice.puzzle_hash, 300, None),
-            )?;
+            .mint_nft(ctx, &NftMint::new(metadata, alice.puzzle_hash, 300, None))?;
 
         let _ = did.update(
             ctx,
@@ -166,8 +161,10 @@ mod tests {
             Launcher::new(alice.coin.coin_id(), 1).create_simple_did(ctx, &alice_p2)?;
         alice_p2.spend(ctx, alice.coin, create_did)?;
 
+        let metadata = ctx.alloc_hashed(&NftMetadata::default())?;
+
         let mint = NftMint::new(
-            NftMetadata::default(),
+            metadata,
             puzzle_hash,
             300,
             Some(TransferNft::new(
@@ -179,12 +176,12 @@ mod tests {
 
         let mint_1 = IntermediateLauncher::new(did.coin.coin_id(), 0, 2)
             .create(ctx)?
-            .mint_nft(ctx, mint.clone())?
+            .mint_nft(ctx, &mint)?
             .0;
 
         let mint_2 = IntermediateLauncher::new(did.coin.coin_id(), 1, 2)
             .create(ctx)?
-            .mint_nft(ctx, mint)?
+            .mint_nft(ctx, &mint)?
             .0;
 
         let _ = did.update(ctx, &alice_p2, mint_1.extend(mint_2))?;
@@ -210,8 +207,10 @@ mod tests {
 
         let (create_launcher, launcher) = Launcher::create_early(intermediate_coin.coin_id(), 1);
 
+        let metadata = ctx.alloc_hashed(&NftMetadata::default())?;
+
         let mint = NftMint::new(
-            NftMetadata::default(),
+            metadata,
             alice.puzzle_hash,
             300,
             Some(TransferNft::new(
@@ -221,7 +220,7 @@ mod tests {
             )),
         );
 
-        let (mint_nft, _nft) = launcher.mint_nft(ctx, mint)?;
+        let (mint_nft, _nft) = launcher.mint_nft(ctx, &mint)?;
 
         let _ = did.update(
             ctx,
@@ -260,8 +259,10 @@ mod tests {
             Conditions::new().with(create_launcher),
         )?;
 
+        let metadata = ctx.alloc_hashed(&NftMetadata::default())?;
+
         let mint = NftMint::new(
-            NftMetadata::default(),
+            metadata,
             alice.puzzle_hash,
             300,
             Some(TransferNft::new(
@@ -271,7 +272,7 @@ mod tests {
             )),
         );
 
-        let (mint_nft, _nft_info) = launcher.mint_nft(ctx, mint)?;
+        let (mint_nft, _nft_info) = launcher.mint_nft(ctx, &mint)?;
 
         let did = did.update(
             ctx,
