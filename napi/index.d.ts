@@ -1960,14 +1960,21 @@ export declare class UpdateNftMetadata {
 
 export declare class Vault {
   clone(): Vault
-  child(custodyHash: Uint8Array): Vault
-  constructor(coin: Coin, launcherId: Uint8Array, proof: Proof, custodyHash: Uint8Array)
+  child(custodyHash: Uint8Array, amount: bigint): Vault
+  constructor(coin: Coin, proof: Proof, info: VaultInfo)
   get coin(): Coin
   set coin(value: Coin)
-  get launcherId(): Buffer
-  set launcherId(value: Uint8Array)
   get proof(): Proof
   set proof(value: Proof)
+  get info(): VaultInfo
+  set info(value: VaultInfo)
+}
+
+export declare class VaultInfo {
+  clone(): VaultInfo
+  constructor(launcherId: Uint8Array, custodyHash: Uint8Array)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
   get custodyHash(): Buffer
   set custodyHash(value: Uint8Array)
 }
