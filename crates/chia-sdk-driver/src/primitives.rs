@@ -7,6 +7,7 @@ mod launcher;
 mod mips;
 mod nft;
 mod option;
+mod singleton;
 mod streamed_cat;
 mod vault;
 

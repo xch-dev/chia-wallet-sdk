@@ -348,6 +348,39 @@ where
             info,
         }))
     }
+
+    /// Parses a [`Did`] and its p2 spend from a coin spend.
+    ///
+    /// If the puzzle is not a DID, this will return [`None`] instead of an error.
+    /// However, if the puzzle should have been a DID but had a parsing error, this will return an error.
+    #[allow(clippy::type_complexity)]
+    pub fn parse(
+        allocator: &mut Allocator,
+        coin: Coin,
+        puzzle: Puzzle,
+        solution: NodePtr,
+    ) -> Result<Option<(Self, Option<(Puzzle, NodePtr)>)>, DriverError>
+    where
+        Self: Sized,
+    {
+        let Some((did_info, p2_puzzle)) = DidInfo::<M>::parse(allocator, puzzle)? else {
+            return Ok(None);
+        };
+
+        let singleton_solution = SingletonLayer::<Puzzle>::parse_solution(allocator, solution)?;
+
+        let did_solution =
+            DidLayer::<M, Puzzle>::parse_solution(allocator, singleton_solution.inner_solution)?;
+
+        Ok(Some((
+            Self::new(coin, singleton_solution.lineage_proof, did_info),
+            if let DidSolution::Spend(p2_solution) = did_solution {
+                Some((p2_puzzle, p2_solution))
+            } else {
+                None
+            },
+        )))
+    }
 }
 
 #[cfg(test)]

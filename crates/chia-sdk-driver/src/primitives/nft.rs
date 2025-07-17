@@ -365,6 +365,31 @@ where
             info,
         }))
     }
+
+    /// Parses an [`Nft`] and its p2 spend from a coin spend.
+    ///
+    /// If the puzzle is not an NFT, this will return [`None`] instead of an error.
+    /// However, if the puzzle should have been an NFT but had a parsing error, this will return an error.
+    pub fn parse(
+        allocator: &Allocator,
+        coin: Coin,
+        puzzle: Puzzle,
+        solution: NodePtr,
+    ) -> Result<Option<(Self, Puzzle, NodePtr)>, DriverError> {
+        let Some((nft_info, p2_puzzle)) = NftInfo::<M>::parse(allocator, puzzle)? else {
+            return Ok(None);
+        };
+
+        let solution = StandardNftLayers::<M, Puzzle>::parse_solution(allocator, solution)?;
+
+        let p2_solution = solution.inner_solution.inner_solution.inner_solution;
+
+        Ok(Some((
+            Self::new(coin, solution.lineage_proof, nft_info),
+            p2_puzzle,
+            p2_solution,
+        )))
+    }
 }
 
 pub fn assignment_puzzle_announcement_id(
