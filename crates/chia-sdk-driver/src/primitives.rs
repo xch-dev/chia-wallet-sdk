@@ -7,6 +7,7 @@ mod launcher;
 mod mips;
 mod nft;
 mod option;
+mod singleton;
 mod streamed_cat;
 mod vault;
 
@@ -19,6 +20,7 @@ pub use launcher::*;
 pub use mips::*;
 pub use nft::*;
 pub use option::*;
+pub use singleton::*;
 pub use streamed_cat::*;
 pub use vault::*;
 

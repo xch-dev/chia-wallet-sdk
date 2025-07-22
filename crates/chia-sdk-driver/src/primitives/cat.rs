@@ -352,9 +352,62 @@ impl Cat {
             info,
         }
     }
-}
 
-impl Cat {
+    /// Parses a [`Cat`] and its p2 spend from a coin spend by extracting the [`CatLayer`] and [`RevocationLayer`] if present.
+    ///
+    /// If the puzzle is not a CAT, this will return [`None`] instead of an error.
+    /// However, if the puzzle should have been a CAT but had a parsing error, this will return an error.
+    pub fn parse(
+        allocator: &Allocator,
+        coin: Coin,
+        puzzle: Puzzle,
+        solution: NodePtr,
+    ) -> Result<Option<(Self, Puzzle, NodePtr)>, DriverError> {
+        let Some(cat_layer) = CatLayer::<Puzzle>::parse_puzzle(allocator, puzzle)? else {
+            return Ok(None);
+        };
+        let cat_solution = CatLayer::<Puzzle>::parse_solution(allocator, solution)?;
+
+        if let Some(revocation_layer) =
+            RevocationLayer::parse_puzzle(allocator, cat_layer.inner_puzzle)?
+        {
+            let revocation_solution =
+                RevocationLayer::parse_solution(allocator, cat_solution.inner_puzzle_solution)?;
+
+            let info = Self::new(
+                coin,
+                cat_solution.lineage_proof,
+                CatInfo::new(
+                    cat_layer.asset_id,
+                    Some(revocation_layer.hidden_puzzle_hash),
+                    revocation_layer.inner_puzzle_hash,
+                ),
+            );
+
+            Ok(Some((
+                info,
+                Puzzle::parse(allocator, revocation_solution.puzzle),
+                revocation_solution.solution,
+            )))
+        } else {
+            let info = Self::new(
+                coin,
+                cat_solution.lineage_proof,
+                CatInfo::new(
+                    cat_layer.asset_id,
+                    None,
+                    cat_layer.inner_puzzle.curried_puzzle_hash().into(),
+                ),
+            );
+
+            Ok(Some((
+                info,
+                cat_layer.inner_puzzle,
+                cat_solution.inner_puzzle_solution,
+            )))
+        }
+    }
+
     /// Parses the children of a [`Cat`] from the parent coin spend.
     ///
     /// This can be used to construct a valid spendable [`Cat`] for a hinted coin.
@@ -368,10 +421,7 @@ impl Cat {
         parent_coin: Coin,
         parent_puzzle: Puzzle,
         parent_solution: NodePtr,
-    ) -> Result<Option<Vec<Self>>, DriverError>
-    where
-        Self: Sized,
-    {
+    ) -> Result<Option<Vec<Self>>, DriverError> {
         let Some(parent_layer) = CatLayer::<Puzzle>::parse_puzzle(allocator, parent_puzzle)? else {
             return Ok(None);
         };

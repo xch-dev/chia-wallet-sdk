@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver::{
-    Cat, CatInfo, Clawback, CurriedPuzzle, HashedPtr, RawPuzzle, SpendContext, StreamingPuzzleInfo,
+    Cat, CatInfo, Clawback, CurriedPuzzle, RawPuzzle, SpendContext, StreamingPuzzleInfo,
 };
 
 use crate::{AsProgram, Program};
@@ -86,9 +86,7 @@ impl Puzzle {
 
         let ctx = self.program.0.lock().unwrap();
 
-        let Some((nft_info, p2_puzzle)) =
-            chia_sdk_driver::NftInfo::<HashedPtr>::parse(&ctx, puzzle)?
-        else {
+        let Some((nft_info, p2_puzzle)) = chia_sdk_driver::NftInfo::parse(&ctx, puzzle)? else {
             return Ok(None);
         };
 
@@ -107,7 +105,7 @@ impl Puzzle {
 
         let parent_puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
-        let Some(nft) = chia_sdk_driver::Nft::<HashedPtr>::parse_child(
+        let Some(nft) = chia_sdk_driver::Nft::parse_child(
             &mut ctx,
             parent_coin,
             parent_puzzle,
@@ -125,9 +123,7 @@ impl Puzzle {
 
         let ctx = self.program.0.lock().unwrap();
 
-        let Some((did_info, p2_puzzle)) =
-            chia_sdk_driver::DidInfo::<HashedPtr>::parse(&ctx, puzzle)?
-        else {
+        let Some((did_info, p2_puzzle)) = chia_sdk_driver::DidInfo::parse(&ctx, puzzle)? else {
             return Ok(None);
         };
 
@@ -147,7 +143,7 @@ impl Puzzle {
 
         let parent_puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
-        let Some(did) = chia_sdk_driver::Did::<HashedPtr>::parse_child(
+        let Some(did) = chia_sdk_driver::Did::parse_child(
             &mut ctx,
             parent_coin,
             parent_puzzle,

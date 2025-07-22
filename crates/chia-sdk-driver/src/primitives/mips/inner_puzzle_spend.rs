@@ -159,7 +159,7 @@ impl InnerPuzzleSpend {
     }
 }
 
-pub fn member_puzzle_hash(
+pub fn mips_puzzle_hash(
     nonce: usize,
     restrictions: Vec<Restriction>,
     inner_puzzle_hash: TreeHash,

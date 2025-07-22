@@ -21,7 +21,7 @@ use clvm_utils::{ToTreeHash, TreeHash, TreeHasher};
 use clvmr::NodePtr;
 
 use crate::{
-    member_puzzle_hash, DriverError, InnerPuzzleSpend, Layer, MipsSpend, P2OneOfManyLayer, Spend,
+    mips_puzzle_hash, DriverError, InnerPuzzleSpend, Layer, MipsSpend, P2OneOfManyLayer, Spend,
     SpendContext,
 };
 
@@ -68,7 +68,7 @@ impl OptionUnderlying {
 
     pub fn exercise_path_hash(&self) -> Bytes32 {
         let singleton_member_hash = SingletonMember::new(self.launcher_id).curry_tree_hash();
-        member_puzzle_hash(0, Vec::new(), singleton_member_hash, true).into()
+        mips_puzzle_hash(0, Vec::new(), singleton_member_hash, true).into()
     }
 
     pub fn clawback_path_hash(&self) -> Bytes32 {

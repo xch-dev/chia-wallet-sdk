@@ -1,7 +1,7 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 
-use crate::{Cat, Did, HashedPtr, Nft, OptionContract, OutputConstraints};
+use crate::{Cat, Did, Nft, OptionContract, OutputConstraints};
 
 pub trait Asset {
     fn coin_id(&self) -> Bytes32;
@@ -61,7 +61,7 @@ impl Asset for Cat {
     }
 }
 
-impl Asset for Did<HashedPtr> {
+impl Asset for Did {
     fn coin_id(&self) -> Bytes32 {
         self.coin.coin_id()
     }
@@ -86,7 +86,7 @@ impl Asset for Did<HashedPtr> {
     }
 }
 
-impl Asset for Nft<HashedPtr> {
+impl Asset for Nft {
     fn coin_id(&self) -> Bytes32 {
         self.coin.coin_id()
     }
