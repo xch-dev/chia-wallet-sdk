@@ -18,7 +18,7 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, HashedPtr, Layer, Nft, P2DelegatedBySingletonLayer, RewardDistributor,
+    DriverError, Layer, Nft, P2DelegatedBySingletonLayer, RewardDistributor,
     RewardDistributorConstants, SingletonAction, Slot, Spend, SpendContext,
 };
 
@@ -94,7 +94,7 @@ impl RewardDistributorUnstakeAction {
         ctx: &mut SpendContext,
         distributor: &mut RewardDistributor,
         entry_slot: Slot<RewardDistributorEntrySlotValue>,
-        locked_nft: Nft<HashedPtr>,
+        locked_nft: Nft,
     ) -> Result<(Conditions, u64), DriverError> {
         // u64 = last payment amount
         let my_state = distributor.pending_spend.latest_state.1;

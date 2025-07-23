@@ -55,6 +55,9 @@
       "to_int": {
         "return": "Option<BigInt>"
       },
+      "to_bound_checked_number": {
+        "return": "Option<f64>"
+      },
       "to_string": {
         "type": "to_string",
         "return": "Option<String>"

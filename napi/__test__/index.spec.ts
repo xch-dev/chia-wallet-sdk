@@ -76,6 +76,7 @@ test("number roundtrip", (t) => {
     Number.MAX_SAFE_INTEGER,
   ]) {
     const num = clvm.alloc(expected);
+    t.is(num.toBoundCheckedNumber(), expected);
     t.is(num.toInt(), BigInt(expected));
   }
 });

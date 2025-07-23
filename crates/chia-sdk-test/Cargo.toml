@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-test"
-version = "0.27.0"
+version = "0.27.2"
 edition = "2021"
 license = "Apache-2.0"
 description = "A wallet simulator and related tooling for testing Chia wallet code."
@@ -35,6 +35,7 @@ chia-traits = { workspace = true }
 chia-puzzle-types = { workspace = true }
 clvm-utils = { workspace = true }
 clvm-traits = { workspace = true }
+chia-sha2 = { workspace = true }
 clvmr = { workspace = true }
 indexmap = { workspace = true }
 thiserror = { workspace = true }

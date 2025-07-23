@@ -179,7 +179,7 @@ mod tests {
     use chia_sdk_test::Simulator;
     use chia_sdk_types::Conditions;
 
-    use crate::{Launcher, StandardLayer, VerificationAsserter, VerifiedData};
+    use crate::{Launcher, SingletonInfo, StandardLayer, VerificationAsserter, VerifiedData};
 
     use super::*;
 

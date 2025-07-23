@@ -1,0 +1,8 @@
+[package]
+publish = false
+name = "pyo3-stub-generator"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+bindy-macro = { workspace = true }

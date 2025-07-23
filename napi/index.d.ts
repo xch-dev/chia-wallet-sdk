@@ -453,6 +453,7 @@ export declare class Clvm {
   pair(first: Program, rest: Program): Program
   nil(): Program
   int(value: bigint): Program
+  boundCheckedNumber(value: number): Program
   string(value: string): Program
   bool(value: boolean): Program
   atom(value: Uint8Array): Program
@@ -607,7 +608,6 @@ export declare class Clvm {
   nOfN(): Program
   oneOfN(): Program
   alloc(value: any): Program
-  boundCheckedNumber(value: number): Program
 }
 
 export declare class Coin {
@@ -1482,6 +1482,7 @@ export declare class Program {
   first(): Program
   rest(): Program
   toInt(): bigint | null
+  toBoundCheckedNumber(): number | null
   toString(): string | null
   toBool(): boolean | null
   toAtom(): Buffer | null
@@ -1529,7 +1530,6 @@ export declare class Program {
   parseRunCatTail(): RunCatTail | null
   parseUpdateNftMetadata(): UpdateNftMetadata | null
   parseUpdateDataStoreMerkleRoot(): UpdateDataStoreMerkleRoot | null
-  toBoundCheckedNumber(): number | null
 }
 
 export declare class Proof {
@@ -1960,14 +1960,21 @@ export declare class UpdateNftMetadata {
 
 export declare class Vault {
   clone(): Vault
-  child(custodyHash: Uint8Array): Vault
-  constructor(coin: Coin, launcherId: Uint8Array, proof: Proof, custodyHash: Uint8Array)
+  child(custodyHash: Uint8Array, amount: bigint): Vault
+  constructor(coin: Coin, proof: Proof, info: VaultInfo)
   get coin(): Coin
   set coin(value: Coin)
-  get launcherId(): Buffer
-  set launcherId(value: Uint8Array)
   get proof(): Proof
   set proof(value: Proof)
+  get info(): VaultInfo
+  set info(value: VaultInfo)
+}
+
+export declare class VaultInfo {
+  clone(): VaultInfo
+  constructor(launcherId: Uint8Array, custodyHash: Uint8Array)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
   get custodyHash(): Buffer
   set custodyHash(value: Uint8Array)
 }

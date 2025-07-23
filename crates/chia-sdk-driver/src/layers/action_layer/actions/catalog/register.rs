@@ -13,8 +13,9 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants, DriverError, PrecommitCoin,
-    PrecommitLayer, SingletonAction, Slot, Spend, SpendContext, UniquenessPrelauncher,
+    CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants, DriverError, HashedPtr,
+    PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
+    UniquenessPrelauncher,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,7 +163,7 @@ impl CatalogRegisterAction {
         let (_, nft) = nft_launcher.mint_eve_nft(
             ctx,
             initial_inner_puzzle_hash,
-            (),
+            HashedPtr::NIL,
             ANY_METADATA_UPDATER_HASH.into(),
             catalog.info.constants.royalty_address,
             catalog.info.constants.royalty_basis_points,

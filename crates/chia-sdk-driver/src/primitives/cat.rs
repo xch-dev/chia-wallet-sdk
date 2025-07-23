@@ -190,11 +190,11 @@ impl Cat {
         let mut children = Vec::new();
 
         for (index, &item) in cat_spends.iter().enumerate() {
-            // Calculate the delta and add it to the subtotal.
             let output = ctx.run(item.spend.puzzle, item.spend.solution)?;
             let conditions: Vec<Condition> = ctx.extract(output)?;
 
-            if conditions.iter().any(Condition::is_run_cat_tail) {
+            // If this is the first TAIL reveal, we're going to keep track of it
+            if run_tail_index.is_none() && conditions.iter().any(Condition::is_run_cat_tail) {
                 run_tail_index = Some(index);
             }
 
@@ -203,16 +203,18 @@ impl Cat {
                 .filter_map(Condition::into_create_coin)
                 .collect();
 
+            // Calculate the delta of inputs and outputs
             let delta = create_coins
                 .iter()
                 .fold(i128::from(item.cat.coin.amount), |delta, create_coin| {
                     delta - i128::from(create_coin.amount)
                 });
 
-            let prev_subtotal = total_delta;
-            total_delta += delta;
+            // Add the previous subtotal for this coin
+            prev_subtotals.push(total_delta);
 
-            prev_subtotals.push(prev_subtotal);
+            // Add the delta to the total
+            total_delta += delta;
 
             for create_coin in create_coins {
                 children.push(
@@ -220,6 +222,18 @@ impl Cat {
                         .child_from_p2_create_coin(ctx, create_coin, item.hidden),
                 );
             }
+        }
+
+        // If the TAIL was revealed, we need to adjust the subsequent previous subtotals to account for the extra delta
+        if let Some(tail_index) = run_tail_index {
+            let tail_adjustment = -total_delta;
+
+            prev_subtotals
+                .iter_mut()
+                .skip(tail_index + 1)
+                .for_each(|subtotal| {
+                    *subtotal += tail_adjustment;
+                });
         }
 
         for (index, item) in cat_spends.iter().enumerate() {
@@ -240,6 +254,7 @@ impl Cat {
                         amount: next.cat.coin.amount,
                     },
                     prev_subtotal: prev_subtotals[index].try_into()?,
+                    // If the TAIL was revealed, we need to add the extra delta needed to net the spend to zero
                     extra_delta: if run_tail_index.is_some_and(|i| i == index) {
                         -total_delta.try_into()?
                     } else {
@@ -337,9 +352,62 @@ impl Cat {
             info,
         }
     }
-}
 
-impl Cat {
+    /// Parses a [`Cat`] and its p2 spend from a coin spend by extracting the [`CatLayer`] and [`RevocationLayer`] if present.
+    ///
+    /// If the puzzle is not a CAT, this will return [`None`] instead of an error.
+    /// However, if the puzzle should have been a CAT but had a parsing error, this will return an error.
+    pub fn parse(
+        allocator: &Allocator,
+        coin: Coin,
+        puzzle: Puzzle,
+        solution: NodePtr,
+    ) -> Result<Option<(Self, Puzzle, NodePtr)>, DriverError> {
+        let Some(cat_layer) = CatLayer::<Puzzle>::parse_puzzle(allocator, puzzle)? else {
+            return Ok(None);
+        };
+        let cat_solution = CatLayer::<Puzzle>::parse_solution(allocator, solution)?;
+
+        if let Some(revocation_layer) =
+            RevocationLayer::parse_puzzle(allocator, cat_layer.inner_puzzle)?
+        {
+            let revocation_solution =
+                RevocationLayer::parse_solution(allocator, cat_solution.inner_puzzle_solution)?;
+
+            let info = Self::new(
+                coin,
+                cat_solution.lineage_proof,
+                CatInfo::new(
+                    cat_layer.asset_id,
+                    Some(revocation_layer.hidden_puzzle_hash),
+                    revocation_layer.inner_puzzle_hash,
+                ),
+            );
+
+            Ok(Some((
+                info,
+                Puzzle::parse(allocator, revocation_solution.puzzle),
+                revocation_solution.solution,
+            )))
+        } else {
+            let info = Self::new(
+                coin,
+                cat_solution.lineage_proof,
+                CatInfo::new(
+                    cat_layer.asset_id,
+                    None,
+                    cat_layer.inner_puzzle.curried_puzzle_hash().into(),
+                ),
+            );
+
+            Ok(Some((
+                info,
+                cat_layer.inner_puzzle,
+                cat_solution.inner_puzzle_solution,
+            )))
+        }
+    }
+
     /// Parses the children of a [`Cat`] from the parent coin spend.
     ///
     /// This can be used to construct a valid spendable [`Cat`] for a hinted coin.
@@ -353,10 +421,7 @@ impl Cat {
         parent_coin: Coin,
         parent_puzzle: Puzzle,
         parent_solution: NodePtr,
-    ) -> Result<Option<Vec<Self>>, DriverError>
-    where
-        Self: Sized,
-    {
+    ) -> Result<Option<Vec<Self>>, DriverError> {
         let Some(parent_layer) = CatLayer::<Puzzle>::parse_puzzle(allocator, parent_puzzle)? else {
             return Ok(None);
         };
@@ -735,11 +800,13 @@ mod tests {
 
         let alice = sim.bls(10000);
         let alice_p2 = StandardLayer::new(alice.pk);
+        let hint = ctx.hint(alice.puzzle_hash)?;
 
-        let memos = ctx.hint(alice.puzzle_hash)?;
-        let conditions = Conditions::new().create_coin(alice.puzzle_hash, 10000, memos);
+        let conditions = Conditions::new().create_coin(alice.puzzle_hash, 10000, hint);
+
         let (issue_cat, cats) =
             Cat::issue_with_key(ctx, alice.coin.coin_id(), alice.pk, 10000, conditions)?;
+
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
         let tail = ctx.curry(EverythingWithSignatureTailArgs::new(alice.pk))?;
@@ -749,12 +816,65 @@ mod tests {
             alice_p2.spend_with_conditions(
                 ctx,
                 Conditions::new()
-                    .create_coin(alice.puzzle_hash, 7000, memos)
+                    .create_coin(alice.puzzle_hash, 7000, hint)
                     .run_cat_tail(tail, NodePtr::NIL),
             )?,
         );
 
         Cat::spend_all(ctx, &[cat_spend])?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_cat_tail_reveal(
+        #[values(0, 1, 2)] tail_index: usize,
+        #[values(true, false)] melt: bool,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(15000);
+        let alice_p2 = StandardLayer::new(alice.pk);
+        let hint = ctx.hint(alice.puzzle_hash)?;
+
+        let conditions = Conditions::new()
+            .create_coin(alice.puzzle_hash, 3000, hint)
+            .create_coin(alice.puzzle_hash, 6000, hint)
+            .create_coin(alice.puzzle_hash, 1000, hint);
+
+        let (issue_cat, cats) =
+            Cat::issue_with_key(ctx, alice.coin.coin_id(), alice.pk, 10000, conditions)?;
+
+        alice_p2.spend(ctx, alice.coin, issue_cat)?;
+
+        let tail = ctx.curry(EverythingWithSignatureTailArgs::new(alice.pk))?;
+
+        let cat_spends = cats
+            .into_iter()
+            .enumerate()
+            .map(|(i, cat)| {
+                let mut conditions = Conditions::new();
+
+                // Add the TAIL reveal to the second spend, to ensure the order doesn't matter
+                if i == tail_index {
+                    conditions.push(RunCatTail::new(tail, NodePtr::NIL));
+
+                    if !melt {
+                        conditions.push(CreateCoin::new(alice.puzzle_hash, 15000, hint));
+                    }
+                }
+
+                Ok(CatSpend::new(
+                    cat,
+                    alice_p2.spend_with_conditions(ctx, conditions)?,
+                ))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        Cat::spend_all(ctx, &cat_spends)?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 

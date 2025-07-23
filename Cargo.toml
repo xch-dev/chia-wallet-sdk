@@ -1,6 +1,6 @@
 [package]
 name = "chia-wallet-sdk"
-version = "0.27.0"
+version = "0.27.2"
 edition = "2021"
 license = "Apache-2.0"
 description = "An unofficial SDK for building Chia wallets."
@@ -23,7 +23,8 @@ members = [
     "crates/chia-sdk-bindings/bindy-macro",
     "napi",
     "wasm",
-    "pyo3"
+    "pyo3",
+    "pyo3/stub-generator"
 ]
 
 [workspace.package]
@@ -102,18 +103,18 @@ clvm-traits = { workspace = true, features = ["derive"] }
 clvmr = { workspace = true }
 
 [workspace.dependencies]
-chia-wallet-sdk = { version = "0.27.0", path = "." }
-chia-sdk-client = { version = "0.27.0", path = "./crates/chia-sdk-client" }
-chia-sdk-driver = { version = "0.27.0", path = "./crates/chia-sdk-driver" }
-chia-sdk-signer = { version = "0.27.0", path = "./crates/chia-sdk-signer" }
-chia-sdk-test = { version = "0.27.0", path = "./crates/chia-sdk-test" }
-chia-sdk-types = { version = "0.27.0", path = "./crates/chia-sdk-types" }
-chia-sdk-derive = { version = "0.27.0", path = "./crates/chia-sdk-types/derive" }
-chia-sdk-utils = { version = "0.27.0", path = "./crates/chia-sdk-utils" }
-chia-sdk-coinset = { version = "0.27.0", path = "./crates/chia-sdk-coinset" }
-chia-sdk-bindings = { version = "0.27.0", path = "./crates/chia-sdk-bindings" }
-bindy = { version = "0.27.0", path = "./crates/chia-sdk-bindings/bindy" }
-bindy-macro = { version = "0.27.0", path = "./crates/chia-sdk-bindings/bindy-macro" }
+chia-wallet-sdk = { version = "0.27.2", path = "." }
+chia-sdk-client = { version = "0.27.2", path = "./crates/chia-sdk-client" }
+chia-sdk-driver = { version = "0.27.2", path = "./crates/chia-sdk-driver" }
+chia-sdk-signer = { version = "0.27.2", path = "./crates/chia-sdk-signer" }
+chia-sdk-test = { version = "0.27.2", path = "./crates/chia-sdk-test" }
+chia-sdk-types = { version = "0.27.2", path = "./crates/chia-sdk-types" }
+chia-sdk-derive = { version = "0.27.2", path = "./crates/chia-sdk-types/derive" }
+chia-sdk-utils = { version = "0.27.2", path = "./crates/chia-sdk-utils" }
+chia-sdk-coinset = { version = "0.27.2", path = "./crates/chia-sdk-coinset" }
+chia-sdk-bindings = { version = "0.27.2", path = "./crates/chia-sdk-bindings" }
+bindy = { version = "0.27.2", path = "./crates/chia-sdk-bindings/bindy" }
+bindy-macro = { version = "0.27.2", path = "./crates/chia-sdk-bindings/bindy-macro" }
 chia = "0.26.0"
 chia-ssl = "0.26.0"
 chia-protocol = "0.26.0"
@@ -168,14 +169,17 @@ serde_json = "1.0.140"
 reqwest = { version = "0.12.20", default-features = false, features = ["json"] }
 proc-macro2 = "1.0.95"
 wasm-bindgen = "0.2.100"
+wasm-bindgen-futures = "0.4.50"
+wasm-bindgen-derive = "0.3.0"
 getrandom = "0.2.15"
 sha2 = "0.10.9"
 pyo3 = "0.23.5"
 js-sys = "0.3.77"
 parking_lot = "0.12.4"
 clvm_tools_rs = "0.3.0"
-wasm-bindgen-futures = "0.4.50"
 pyo3-async-runtimes = "0.23"
+indoc = "2.0.6"
+console_error_panic_hook = "0.1.7"
 prettytable-rs = "0.10.0"
 
 [profile.release]

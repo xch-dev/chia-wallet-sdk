@@ -49,7 +49,7 @@ pub trait Mod {
     fn mod_reveal() -> Cow<'static, [u8]>;
     fn mod_hash() -> TreeHash;
 
-    /// Curry the arguments into the [`MOD_HASH`](Mod::MOD_HASH).
+    /// Curry the arguments into the [`Mod::mod_hash`].
     fn curry_tree_hash(&self) -> TreeHash
     where
         Self: Sized + ToClvm<TreeHasher>,

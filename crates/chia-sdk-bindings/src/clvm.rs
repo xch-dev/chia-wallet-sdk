@@ -110,7 +110,7 @@ impl Clvm {
 
             let (conditions, nft) = Launcher::new(parent_coin_id, i as u64 * 2)
                 .with_singleton_amount(1)
-                .mint_nft(&mut ctx, nft_mint)?;
+                .mint_nft(&mut ctx, &nft_mint)?;
 
             nfts.push(nft.as_program(&self.0));
 
@@ -255,8 +255,14 @@ impl Clvm {
         Ok(Program(self.0.clone(), NodePtr::NIL))
     }
 
-    // This is called by the individual napi and wasm binding crates
-    pub fn f64(&self, value: f64) -> Result<Program> {
+    pub fn int(&self, value: BigInt) -> Result<Program> {
+        Ok(Program(
+            self.0.clone(),
+            self.0.lock().unwrap().new_number(value)?,
+        ))
+    }
+
+    pub fn bound_checked_number(&self, value: f64) -> Result<Program> {
         let mut ctx = self.0.lock().unwrap();
 
         if value.is_infinite() {
@@ -292,13 +298,6 @@ impl Clvm {
         } else {
             Ok(Program(self.0.clone(), ctx.new_number(value.into())?))
         }
-    }
-
-    pub fn int(&self, value: BigInt) -> Result<Program> {
-        Ok(Program(
-            self.0.clone(),
-            self.0.lock().unwrap().new_number(value)?,
-        ))
     }
 
     pub fn string(&self, value: String) -> Result<Program> {

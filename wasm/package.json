@@ -1,9 +1,22 @@
 {
   "scripts": {
     "build": "wasm-pack build",
-    "pack": "wasm-pack pack"
+    "pack": "wasm-pack pack",
+    "test": "wasm-pack build --target nodejs && ava"
   },
   "devDependencies": {
-    "@wasm-tool/wasm-pack-plugin": "1.5.0"
+    "@types/node": "^24.0.13",
+    "@wasm-tool/wasm-pack-plugin": "1.5.0",
+    "ava": "^6.4.1",
+    "ts-node": "^10.9.2"
+  },
+  "ava": {
+    "timeout": "3m",
+    "extensions": [
+      "ts"
+    ],
+    "require": [
+      "ts-node/register"
+    ]
   }
 }

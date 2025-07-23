@@ -25,9 +25,9 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{
     Cat, CatSpend, CatalogRegistry, CatalogRegistryConstants, CatalogRegistryInfo,
-    CatalogRegistryState, DriverError, HashedPtr, Launcher, Layer, Nft, Offer, Reserve,
-    RewardDistributor, RewardDistributorConstants, RewardDistributorInfo, RewardDistributorState,
-    Slot, SlotProof, Spend, SpendContext, StandardLayer, XchandlesConstants, XchandlesRegistry,
+    CatalogRegistryState, DriverError, Launcher, Layer, Nft, Offer, Reserve, RewardDistributor,
+    RewardDistributorConstants, RewardDistributorInfo, RewardDistributorState, Slot, SlotProof,
+    Spend, SpendContext, StandardLayer, XchandlesConstants, XchandlesRegistry,
     XchandlesRegistryInfo, XchandlesRegistryState,
 };
 
@@ -533,7 +533,7 @@ pub fn spend_settlement_nft(
     nft_launcher_id: Bytes32,
     nonce: Bytes32,
     destination_puzzle_hash: Bytes32,
-) -> Result<(Nft<HashedPtr>, Conditions), DriverError> {
+) -> Result<(Nft, Conditions), DriverError> {
     let settlement_nft =
         offer
             .offered_coins()
@@ -771,15 +771,15 @@ mod tests {
 
     use crate::{
         CatalogPrecommitValue, CatalogRefundAction, CatalogRegisterAction, DelegatedStateAction,
-        NftMint, PrecommitCoin, RewardDistributorAddEntryAction,
+        HashedPtr, NftMint, PrecommitCoin, RewardDistributorAddEntryAction,
         RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
         RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
         RewardDistributorRemoveEntryAction, RewardDistributorStakeAction,
         RewardDistributorSyncAction, RewardDistributorType, RewardDistributorUnstakeAction,
-        RewardDistributorWithdrawIncentivesAction, SingleCatSpend, Slot, SpendWithConditions,
-        XchandlesExpireAction, XchandlesExpirePricingPuzzle, XchandlesExtendAction,
-        XchandlesOracleAction, XchandlesPrecommitValue, XchandlesRefundAction,
-        XchandlesRegisterAction, XchandlesUpdateAction,
+        RewardDistributorWithdrawIncentivesAction, SingleCatSpend, SingletonInfo, Slot,
+        SpendWithConditions, XchandlesExpireAction, XchandlesExpirePricingPuzzle,
+        XchandlesExtendAction, XchandlesOracleAction, XchandlesPrecommitValue,
+        XchandlesRefundAction, XchandlesRegisterAction, XchandlesUpdateAction,
     };
 
     use super::*;
@@ -2390,10 +2390,13 @@ mod tests {
         let nft_launcher = Launcher::new(bls.coin.coin_id(), 1);
 
         let royalty_puzzle_hash = Bytes32::from([7; 32]);
+
+        let metadata = ctx.alloc(&cat_nft_metadata_for_testing())?;
+        let metadata = HashedPtr::from_ptr(ctx, metadata);
         let (create_nft, nft) = nft_launcher.mint_nft(
             ctx,
-            NftMint::<CatNftMetadata> {
-                metadata: cat_nft_metadata_for_testing(),
+            &NftMint {
+                metadata,
                 metadata_updater_puzzle_hash: ANY_METADATA_UPDATER_HASH.into(),
                 royalty_puzzle_hash,
                 royalty_basis_points: 100,
@@ -2431,7 +2434,10 @@ mod tests {
             Conditions::new(),
         )?;
 
-        assert_eq!(new_nft.info.metadata, new_metadata);
+        assert_eq!(
+            ctx.extract::<CatNftMetadata>(new_nft.info.metadata.ptr())?,
+            new_metadata
+        );
         sim.spend_coins(ctx.take(), &[bls.sk])?;
         Ok(())
     }
@@ -2688,9 +2694,14 @@ mod tests {
 
             let (conds, nft) = nft_launcher.mint_nft(
                 ctx,
-                NftMint::new(meta, nft_bls.puzzle_hash, 10, None)
-                    .with_royalty_puzzle_hash(Bytes32::from([1; 32]))
-                    .with_custom_metadata_updater(ANY_METADATA_UPDATER_HASH.into()),
+                &NftMint {
+                    metadata: meta,
+                    metadata_updater_puzzle_hash: ANY_METADATA_UPDATER_HASH.into(),
+                    royalty_puzzle_hash: Bytes32::from([1; 32]),
+                    royalty_basis_points: 10,
+                    p2_puzzle_hash: nft_bls.puzzle_hash,
+                    transfer_condition: None,
+                },
             )?;
 
             (manager_or_did_coin, manager_or_did_singleton_proof) = spend_manager_singleton(
@@ -3231,15 +3242,26 @@ mod tests {
 
             let (conds2, nft2) = nft2_launcher.mint_nft(
                 ctx,
-                NftMint::new(meta2, nft2_bls.puzzle_hash, 12, None)
-                    .with_royalty_puzzle_hash(Bytes32::from([2; 32]))
-                    .with_custom_metadata_updater(ANY_METADATA_UPDATER_HASH.into()),
+                &NftMint {
+                    metadata: meta2,
+                    metadata_updater_puzzle_hash: ANY_METADATA_UPDATER_HASH.into(),
+                    royalty_puzzle_hash: Bytes32::from([2; 32]),
+                    royalty_basis_points: 12,
+                    p2_puzzle_hash: nft2_bls.puzzle_hash,
+                    transfer_condition: None,
+                },
             )?;
 
             let (conds3, nft3) = nft3_launcher.mint_nft(
                 ctx,
-                NftMint::new(meta3, nft3_bls.puzzle_hash, 15, None)
-                    .with_royalty_puzzle_hash(Bytes32::from([3; 32])),
+                &NftMint {
+                    metadata: meta3,
+                    metadata_updater_puzzle_hash: ANY_METADATA_UPDATER_HASH.into(),
+                    royalty_puzzle_hash: Bytes32::from([3; 32]),
+                    royalty_basis_points: 15,
+                    p2_puzzle_hash: nft3_bls.puzzle_hash,
+                    transfer_condition: None,
+                },
             )?;
 
             (manager_or_did_coin, manager_or_did_singleton_proof) = spend_manager_singleton(

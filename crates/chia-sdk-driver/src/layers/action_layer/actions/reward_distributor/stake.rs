@@ -108,10 +108,10 @@ impl RewardDistributorStakeAction {
         self,
         ctx: &mut SpendContext,
         distributor: &mut RewardDistributor,
-        current_nft: Nft<HashedPtr>,
+        current_nft: Nft,
         nft_launcher_proof: NftLauncherProof,
         entry_custody_puzzle_hash: Bytes32,
-    ) -> Result<(Conditions, NotarizedPayment, Nft<HashedPtr>), DriverError> {
+    ) -> Result<(Conditions, NotarizedPayment, Nft), DriverError> {
         let ephemeral_counter =
             ctx.extract::<HashedPtr>(distributor.pending_spend.latest_state.0)?;
         let my_id = distributor.coin.coin_id();

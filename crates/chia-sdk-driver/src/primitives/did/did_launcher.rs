@@ -1,26 +1,21 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{EveProof, Proof};
 use chia_sdk_types::Conditions;
-use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
-use clvmr::Allocator;
 
-use crate::{DriverError, Launcher, SpendContext, SpendWithConditions};
+use crate::{DriverError, HashedPtr, Launcher, SingletonInfo, SpendContext, SpendWithConditions};
 
 use super::{Did, DidInfo};
 
 impl Launcher {
-    pub fn create_eve_did<M>(
+    pub fn create_eve_did(
         self,
         ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
         recovery_list_hash: Option<Bytes32>,
         num_verifications_required: u64,
-        metadata: M,
-    ) -> Result<(Conditions, Did<M>), DriverError>
-    where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash,
-    {
+        metadata: HashedPtr,
+    ) -> Result<(Conditions, Did), DriverError> {
         let launcher_coin = self.coin();
 
         let did_info = DidInfo::new(
@@ -42,18 +37,16 @@ impl Launcher {
         Ok((launch_singleton, Did::new(eve_coin, proof, did_info)))
     }
 
-    pub fn create_did<M, I>(
+    pub fn create_did<I>(
         self,
         ctx: &mut SpendContext,
         recovery_list_hash: Option<Bytes32>,
         num_verifications_required: u64,
-        metadata: M,
+        metadata: HashedPtr,
         inner: &I,
-    ) -> Result<(Conditions, Did<M>), DriverError>
+    ) -> Result<(Conditions, Did), DriverError>
     where
-        M: ToClvm<Allocator> + FromClvm<Allocator> + ToTreeHash + Clone,
         I: SpendWithConditions + ToTreeHash,
-        Self: Sized,
     {
         let (create_eve, eve) = self.create_eve_did(
             ctx,
@@ -72,11 +65,11 @@ impl Launcher {
         self,
         ctx: &mut SpendContext,
         inner: &I,
-    ) -> Result<(Conditions, Did<()>), DriverError>
+    ) -> Result<(Conditions, Did), DriverError>
     where
         I: SpendWithConditions + ToTreeHash,
         Self: Sized,
     {
-        self.create_did(ctx, None, 1, (), inner)
+        self.create_did(ctx, None, 1, HashedPtr::NIL, inner)
     }
 }
