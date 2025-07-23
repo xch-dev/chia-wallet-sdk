@@ -13,23 +13,16 @@ use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
 
-use crate::{DriverError, Layer, MOfNLayer, Puzzle, SingletonLayer, Spend, SpendContext};
+use crate::{
+    DriverError, Layer, MOfNLayer, Puzzle, Singleton, SingletonInfo, SingletonLayer, Spend,
+    SpendContext,
+};
 
 use super::{MedievalVaultHint, MedievalVaultInfo};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MedievalVault {
-    pub coin: Coin,
-    pub proof: Proof,
-
-    pub info: MedievalVaultInfo,
-}
+pub type MedievalVault = Singleton<MedievalVaultInfo>;
 
 impl MedievalVault {
-    pub fn new(coin: Coin, proof: Proof, info: MedievalVaultInfo) -> Self {
-        Self { coin, proof, info }
-    }
-
     pub fn from_launcher_spend(
         ctx: &mut SpendContext,
         launcher_spend: &CoinSpend,
@@ -69,7 +62,7 @@ impl MedievalVault {
         )))
     }
 
-    pub fn child(&self, new_m: usize, new_public_key_list: Vec<PublicKey>) -> Option<Self> {
+    pub fn child(&self, new_m: usize, new_public_key_list: Vec<PublicKey>) -> Self {
         let child_proof = Proof::Lineage(LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
             parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
@@ -79,7 +72,7 @@ impl MedievalVault {
         let child_info = MedievalVaultInfo::new(self.info.launcher_id, new_m, new_public_key_list);
         let child_inner_puzzle_hash = child_info.inner_puzzle_hash();
 
-        Some(Self {
+        Self {
             coin: Coin::new(
                 self.coin.coin_id(),
                 SingletonArgs::curry_tree_hash(self.info.launcher_id, child_inner_puzzle_hash)
@@ -88,7 +81,7 @@ impl MedievalVault {
             ),
             proof: child_proof,
             info: child_info,
-        })
+        }
     }
 
     pub fn from_parent_spend(
@@ -389,7 +382,7 @@ mod tests {
                 &[user1.sk.clone(), user2.sk.clone(), user3.sk.clone()],
             )?;
 
-            let check_vault = vault.child(m, pubkeys).unwrap();
+            let check_vault = vault.child(m, pubkeys);
 
             vault = MedievalVault::from_parent_spend(ctx, &vault_spend)?.unwrap();
             assert_eq!(vault.info, current_vault_info);

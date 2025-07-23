@@ -4,7 +4,7 @@ use chia_sdk_types::puzzles::P2MOfNDelegateDirectArgs;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 
-use crate::{MOfNLayer, SingletonLayer};
+use crate::{MOfNLayer, SingletonInfo, SingletonLayer};
 
 type MedievalVaultLayers = SingletonLayer<MOfNLayer>;
 
@@ -33,10 +33,6 @@ impl MedievalVaultInfo {
         }
     }
 
-    pub fn inner_puzzle_hash(&self) -> TreeHash {
-        P2MOfNDelegateDirectArgs::curry_tree_hash(self.m, self.public_key_list.clone())
-    }
-
     pub fn into_layers(&self) -> MedievalVaultLayers {
         SingletonLayer::new(
             self.launcher_id,
@@ -50,6 +46,16 @@ impl MedievalVaultInfo {
             m: self.m,
             public_key_list: self.public_key_list.clone(),
         }
+    }
+}
+
+impl SingletonInfo for MedievalVaultInfo {
+    fn launcher_id(&self) -> Bytes32 {
+        self.launcher_id
+    }
+
+    fn inner_puzzle_hash(&self) -> TreeHash {
+        P2MOfNDelegateDirectArgs::curry_tree_hash(self.m, self.public_key_list.clone())
     }
 }
 
