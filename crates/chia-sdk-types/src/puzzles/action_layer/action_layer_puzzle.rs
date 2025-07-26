@@ -5,7 +5,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use hex_literal::hex;
 
-use crate::{MerkleProof, Mod};
+use crate::Mod;
 
 pub const ACTION_LAYER_PUZZLE: [u8; 808] = hex!(
     "
@@ -78,21 +78,11 @@ impl ActionLayerArgs<TreeHash, TreeHash> {
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
-pub struct RawActionLayerSolution<P, S, F> {
+pub struct RawActionLayerSolution<P, R, S, F> {
     pub puzzles: Vec<P>,
-    pub selectors_and_proofs: Vec<(u32, Option<MerkleProof>)>,
-    pub solutions: Vec<S>,
+    pub partial_tree_reveal: R,
+    pub solutions: Vec<(u32, S)>,
     pub finalizer_solution: F,
-}
-
-impl<P, S, F> Mod for RawActionLayerSolution<P, S, F> {
-    fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&ACTION_LAYER_PUZZLE)
-    }
-
-    fn mod_hash() -> TreeHash {
-        ACTION_LAYER_PUZZLE_HASH
-    }
 }
 
 impl<P, S> Mod for ActionLayerArgs<P, S> {

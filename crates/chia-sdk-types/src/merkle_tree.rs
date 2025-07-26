@@ -5,11 +5,11 @@ use chia_protocol::Bytes32;
 use chia_sha2::Sha256;
 use clvm_traits::{FromClvm, ToClvm};
 
-const HASH_TREE_PREFIX: &[u8] = &[2];
-const HASH_LEAF_PREFIX: &[u8] = &[1];
+pub const HASH_TREE_PREFIX: &[u8] = &[2];
+pub const HASH_LEAF_PREFIX: &[u8] = &[1];
 
 #[derive(Debug, Clone)]
-enum BinaryTree<T> {
+pub enum BinaryTree<T> {
     Leaf(T),
     Node(Box<BinaryTree<T>>, Box<BinaryTree<T>>),
 }
@@ -79,19 +79,19 @@ impl MerkleTree {
         self.proofs.get(&leaf).cloned()
     }
 
-    fn build_merkle_tree(leaves: &[Bytes32]) -> (Bytes32, HashMap<Bytes32, MerkleProof>) {
+    pub fn build_merkle_tree(leaves: &[Bytes32]) -> (Bytes32, HashMap<Bytes32, MerkleProof>) {
         let binary_tree = MerkleTree::list_to_binary_tree(leaves);
         MerkleTree::build_merkle_tree_from_binary_tree(&binary_tree)
     }
 
-    fn sha256(args: &[&[u8]]) -> Bytes32 {
+    pub fn sha256(args: &[&[u8]]) -> Bytes32 {
         let mut hasher = Sha256::new();
         args.iter().for_each(|arg| hasher.update(arg));
 
         Bytes32::from(hasher.finalize())
     }
 
-    fn list_to_binary_tree<T: Clone + Debug + Default>(objects: &[T]) -> BinaryTree<T> {
+    pub fn list_to_binary_tree<T: Clone + Debug + Default>(objects: &[T]) -> BinaryTree<T> {
         let size = objects.len();
         if size == 0 {
             return BinaryTree::Leaf(T::default());
@@ -107,7 +107,7 @@ impl MerkleTree {
         BinaryTree::Node(Box::new(left_tree), Box::new(right_tree))
     }
 
-    fn build_merkle_tree_from_binary_tree(
+    pub fn build_merkle_tree_from_binary_tree(
         tuples: &BinaryTree<Bytes32>,
     ) -> (Bytes32, HashMap<Bytes32, MerkleProof>) {
         match tuples {
