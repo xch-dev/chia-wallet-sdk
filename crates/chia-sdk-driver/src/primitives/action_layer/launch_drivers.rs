@@ -26,9 +26,9 @@ use clvmr::{Allocator, NodePtr};
 use crate::{
     Cat, CatSpend, CatalogRegistry, CatalogRegistryConstants, CatalogRegistryInfo,
     CatalogRegistryState, DriverError, Launcher, Layer, Nft, Offer, Reserve, RewardDistributor,
-    RewardDistributorConstants, RewardDistributorInfo, RewardDistributorState, Slot, SlotProof,
-    Spend, SpendContext, StandardLayer, XchandlesConstants, XchandlesRegistry,
-    XchandlesRegistryInfo, XchandlesRegistryState,
+    RewardDistributorConstants, RewardDistributorInfo, RewardDistributorState, Slot, Spend,
+    SpendContext, StandardLayer, XchandlesConstants, XchandlesRegistry, XchandlesRegistryInfo,
+    XchandlesRegistryState,
 };
 
 #[allow(clippy::needless_pass_by_value)]
@@ -207,9 +207,10 @@ where
         parent_amount: 1,
     });
 
-    let slot_proof = SlotProof {
-        parent_parent_info: eve_coin.parent_coin_info,
+    let slot_proof = LineageProof {
+        parent_parent_coin_info: eve_coin.parent_coin_info,
         parent_inner_puzzle_hash: eve_singleton_inner_puzzle_hash.into(),
+        parent_amount: 1,
     };
     let left_slot = Slot::new(
         slot_proof,
@@ -703,17 +704,12 @@ pub fn launch_dig_reward_distributor(
         SingletonArgs::curry_tree_hash(launcher_id, target_inner_puzzle_hash).into(),
         1,
     );
-    let new_proof = Proof::Lineage(LineageProof {
+    let new_proof = LineageProof {
         parent_parent_coin_info: eve_coin.parent_coin_info,
         parent_inner_puzzle_hash: eve_singleton_inner_puzzle_hash.into(),
-        parent_amount: 1,
-    });
-
-    let slot_proof = SlotProof {
-        parent_parent_info: eve_coin.parent_coin_info,
-        parent_inner_puzzle_hash: eve_singleton_inner_puzzle_hash.into(),
+        parent_amount: eve_coin.amount,
     };
-    let slot = Slot::new(slot_proof, slot_info);
+    let slot = Slot::new(new_proof, slot_info);
 
     // this creates the launcher & secures the spend
     let security_coin_conditions =
@@ -729,7 +725,12 @@ pub fn launch_dig_reward_distributor(
         0,
         reserve_cat.coin.amount,
     );
-    let registry = RewardDistributor::new(new_registry_coin, new_proof, target_info, reserve);
+    let registry = RewardDistributor::new(
+        new_registry_coin,
+        Proof::Lineage(new_proof),
+        target_info,
+        reserve,
+    );
 
     // Spend security coin
     let security_coin_sig = spend_security_coin(
@@ -1640,6 +1641,7 @@ mod tests {
                     payment_cat.info.asset_id,
                 ),
             )?;
+        println!("launched"); // todo: debug
 
         // Check XCHandlesRegistry::from_launcher_solution
         let spends = ctx.take();

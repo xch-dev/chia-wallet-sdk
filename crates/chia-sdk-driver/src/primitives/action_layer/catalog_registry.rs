@@ -11,7 +11,7 @@ use crate::{
     DelegatedStateAction, DriverError, Layer, Puzzle, SingletonAction, Spend, SpendContext,
 };
 
-use super::{CatalogRegistryConstants, CatalogRegistryInfo, CatalogRegistryState, Slot, SlotProof};
+use super::{CatalogRegistryConstants, CatalogRegistryInfo, CatalogRegistryState, Slot};
 
 #[derive(Debug, Clone)]
 pub struct CatalogPendingSpendInfo {
@@ -295,13 +295,12 @@ impl CatalogRegistry {
         &self,
         slot_value: CatalogSlotValue,
     ) -> Slot<CatalogSlotValue> {
-        let proof = SlotProof {
-            parent_parent_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
-        };
-
         Slot::new(
-            proof,
+            LineageProof {
+                parent_parent_coin_info: self.coin.parent_coin_info,
+                parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
+                parent_amount: self.coin.amount,
+            },
             SlotInfo::from_value(self.info.constants.launcher_id, 0, slot_value),
         )
     }

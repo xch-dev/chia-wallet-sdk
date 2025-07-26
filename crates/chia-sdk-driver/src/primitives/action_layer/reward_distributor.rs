@@ -21,8 +21,8 @@ use crate::{
     RewardDistributorCommitIncentivesAction, RewardDistributorInitiatePayoutAction,
     RewardDistributorNewEpochAction, RewardDistributorRemoveEntryAction,
     RewardDistributorStakeAction, RewardDistributorSyncAction, RewardDistributorUnstakeAction,
-    RewardDistributorWithdrawIncentivesAction, SingletonAction, SingletonLayer, Slot, SlotProof,
-    Spend, SpendContext,
+    RewardDistributorWithdrawIncentivesAction, SingletonAction, SingletonLayer, Slot, Spend,
+    SpendContext,
 };
 
 use super::{Reserve, RewardDistributorConstants, RewardDistributorInfo, RewardDistributorState};
@@ -487,10 +487,6 @@ impl RewardDistributor {
             ));
         }
 
-        let slot_proof = SlotProof {
-            parent_parent_info: lineage_proof.parent_parent_coin_info,
-            parent_inner_puzzle_hash: lineage_proof.parent_inner_puzzle_hash,
-        };
         let slot_value = RewardDistributorRewardSlotValue {
             epoch_start: initial_state.round_time_info.epoch_end,
             next_epoch_initialized: false,
@@ -498,7 +494,7 @@ impl RewardDistributor {
         };
 
         let slot = Slot::new(
-            slot_proof,
+            lineage_proof,
             SlotInfo::from_value(
                 constants.launcher_id,
                 RewardDistributorSlotNonce::REWARD.to_u64(),
@@ -599,13 +595,12 @@ impl RewardDistributor {
     where
         SlotValue: Copy + ToTreeHash,
     {
-        let proof = SlotProof {
-            parent_parent_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
-        };
-
         Slot::new(
-            proof,
+            LineageProof {
+                parent_parent_coin_info: self.coin.parent_coin_info,
+                parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
+                parent_amount: self.coin.amount,
+            },
             SlotInfo::from_value(self.info.constants.launcher_id, nonce.to_u64(), slot_value),
         )
     }
