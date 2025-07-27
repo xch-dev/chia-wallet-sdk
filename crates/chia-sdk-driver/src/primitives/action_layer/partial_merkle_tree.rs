@@ -8,25 +8,41 @@ use clvmr::{Allocator, NodePtr};
 use crate::{DriverError, SpendContext};
 
 #[derive(Debug, Clone)]
-enum PartialTreeLeaf<T> {
+pub enum PartialTreeLeaf<T> {
     Hash(Bytes32),
     Reveal(T),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PartialMerkleTreeReveal {}
 
 impl PartialMerkleTreeReveal {
+    pub fn for_action_layer_solution(
+        ctx: &mut SpendContext,
+        all_puzzles: &[Bytes32],
+        puzzles_to_run: &[Bytes32],
+    ) -> Result<NodePtr, DriverError> {
+        let mut leaf_reveals = HashMap::new();
+        let mut next_selector: u32 = 2;
+        for puzzle in puzzles_to_run {
+            leaf_reveals.insert(*puzzle, next_selector);
+            next_selector = next_selector * 2 + 1;
+        }
+
+        Self::build(ctx, all_puzzles, &leaf_reveals)
+    }
+
     pub fn build<T>(
         ctx: &mut SpendContext,
         leaves: &[Bytes32],
-        leaf_reveals: HashMap<Bytes32, T>,
+        leaf_reveals: &HashMap<Bytes32, T>,
     ) -> Result<NodePtr, DriverError>
     where
         T: ToClvm<Allocator> + Clone,
     {
         let binary_tree = MerkleTree::list_to_binary_tree(leaves);
 
-        let partial_tree = Self::convert_to_partial_tree(&binary_tree, &leaf_reveals);
+        let partial_tree = Self::convert_to_partial_tree(&binary_tree, leaf_reveals);
         let partial_tree = Self::optimize_partial_tree(&partial_tree);
 
         Self::optimized_tree_to_clvm(ctx, &partial_tree)

@@ -9,9 +9,9 @@ use clvmr::NodePtr;
 
 use crate::{
     eve_singleton_inner_puzzle, ActionLayer, ActionLayerSolution, ActionSingleton,
-    DelegatedStateAction, DriverError, Layer, Puzzle, SingletonAction, Spend, SpendContext,
-    XchandlesExpireAction, XchandlesExtendAction, XchandlesOracleAction, XchandlesRefundAction,
-    XchandlesRegisterAction, XchandlesUpdateAction,
+    DelegatedStateAction, DriverError, Layer, PartialMerkleTreeReveal, Puzzle, SingletonAction,
+    Spend, SpendContext, XchandlesExpireAction, XchandlesExtendAction, XchandlesOracleAction,
+    XchandlesRefundAction, XchandlesRegisterAction, XchandlesUpdateAction,
 };
 
 use super::{Slot, XchandlesConstants, XchandlesRegistryInfo, XchandlesRegistryState};
@@ -411,21 +411,18 @@ impl XchandlesRegistry {
             .collect::<Vec<Bytes32>>();
 
         let child = self.child(self.pending_spend.latest_state.1);
+        let partial_tree_reveal = PartialMerkleTreeReveal::for_action_layer_solution(
+            ctx,
+            &XchandlesRegistryInfo::action_puzzle_hashes(&self.info.constants),
+            &action_puzzle_hashes,
+        )?;
         let solution = layers.construct_solution(
             ctx,
             SingletonSolution {
                 lineage_proof: self.proof,
                 amount: self.coin.amount,
                 inner_solution: ActionLayerSolution {
-                    proofs: layers
-                        .inner_puzzle
-                        .get_proofs(
-                            &XchandlesRegistryInfo::action_puzzle_hashes(&self.info.constants),
-                            &action_puzzle_hashes,
-                        )
-                        .ok_or(DriverError::Custom(
-                            "Couldn't build proofs for one or more actions".to_string(),
-                        ))?,
+                    partial_tree_reveal,
                     action_spends: self.pending_spend.actions,
                     finalizer_solution: NodePtr::NIL,
                 },
