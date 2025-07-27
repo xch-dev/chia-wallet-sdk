@@ -81,7 +81,7 @@ impl ActionLayerArgs<TreeHash, TreeHash> {
 pub struct RawActionLayerSolution<P, R, S, F> {
     pub puzzles: Vec<P>,
     pub partial_tree_reveal: R,
-    pub solutions: Vec<(u32, S)>,
+    pub selectors_and_solutions: Vec<(u32, S)>,
     pub finalizer_solution: F,
 }
 

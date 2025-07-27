@@ -299,11 +299,12 @@ impl RewardDistributor {
         let pending_spend =
             Self::pending_info_from_spend(ctx, solution.inner_solution, info.state, constants)?;
 
-        let inner_solution =
-            RawActionLayerSolution::<NodePtr, NodePtr, ReserveFinalizerSolution>::from_clvm(
-                ctx,
-                solution.inner_solution,
-            )?;
+        let inner_solution = RawActionLayerSolution::<
+            NodePtr,
+            NodePtr,
+            NodePtr,
+            ReserveFinalizerSolution,
+        >::from_clvm(ctx, solution.inner_solution)?;
 
         let reserve = Reserve::new(
             inner_solution.finalizer_solution.reserve_parent_id,

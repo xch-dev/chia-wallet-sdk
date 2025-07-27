@@ -7,7 +7,7 @@ use chia_sdk_types::{
         RawActionLayerSolution, ReserveFinalizer1stCurryArgs, ReserveFinalizer2ndCurryArgs,
         ACTION_LAYER_PUZZLE_HASH, DEFAULT_FINALIZER_PUZZLE_HASH, RESERVE_FINALIZER_PUZZLE_HASH,
     },
-    run_puzzle, MerkleProof, MerkleTree, Mod,
+    run_puzzle, MerkleTree, Mod,
 };
 use clvm_traits::{clvm_list, match_tuple, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, TreeHash};
@@ -36,8 +36,8 @@ pub struct ActionLayer<S, P = ()> {
 }
 
 #[derive(Debug, Clone)]
-pub struct ActionLayerSolution<F> {
-    pub proofs: Vec<MerkleProof>,
+pub struct ActionLayerSolution<R, F> {
+    pub partial_tree_reveal: R,
     pub action_spends: Vec<Spend>,
     pub finalizer_solution: F,
 }
@@ -63,29 +63,6 @@ impl<S, P> ActionLayer<S, P> {
             state,
             finalizer,
         }
-    }
-
-    pub fn get_proofs(
-        &self,
-        action_puzzle_hashes: &[Bytes32],
-        action_spends_puzzle_hashes: &[Bytes32],
-    ) -> Option<Vec<MerkleProof>> {
-        let merkle_tree = MerkleTree::new(action_puzzle_hashes);
-
-        let proofs = action_spends_puzzle_hashes
-            .iter()
-            .filter_map(|puzzle_hash| {
-                let proof = merkle_tree.proof(*puzzle_hash)?;
-
-                Some(proof)
-            })
-            .collect::<Vec<_>>();
-
-        if proofs.len() != action_spends_puzzle_hashes.len() {
-            return None;
-        }
-
-        Some(proofs)
     }
 
     pub fn extract_merkle_root_and_state(
@@ -138,7 +115,7 @@ where
     S: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
     P: ToClvm<Allocator> + FromClvm<Allocator> + Clone,
 {
-    type Solution = ActionLayerSolution<NodePtr>;
+    type Solution = ActionLayerSolution<NodePtr, NodePtr>;
 
     fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
         let Some(puzzle) = puzzle.as_curried() else {
@@ -243,43 +220,24 @@ where
         allocator: &Allocator,
         solution: NodePtr,
     ) -> Result<Self::Solution, DriverError> {
-        let solution =
-            RawActionLayerSolution::<NodePtr, NodePtr, NodePtr>::from_clvm(allocator, solution)?;
+        let solution = RawActionLayerSolution::<NodePtr, NodePtr, NodePtr, NodePtr>::from_clvm(
+            allocator, solution,
+        )?;
 
-        let mut actions = Vec::<NodePtr>::with_capacity(solution.solutions.len());
-        let mut proofs = Vec::<MerkleProof>::with_capacity(solution.solutions.len());
-        let mut selector_proofs = HashMap::<u32, MerkleProof>::new();
+        let mut action_spends = Vec::<Spend>::with_capacity(solution.selectors_and_solutions.len());
 
-        for (selector, proof) in solution.selectors_and_proofs {
-            let proof = if let Some(existing_proof) = selector_proofs.get(&selector) {
-                existing_proof.clone()
-            } else {
-                let proof = proof.ok_or(DriverError::InvalidMerkleProof)?;
-                selector_proofs.insert(selector, proof.clone());
-                proof
-            };
-
-            proofs.push(proof);
-
+        for (selector, action_solution) in solution.selectors_and_solutions {
             let mut index = 0;
             let mut remaining_selector = selector;
             while remaining_selector > 2 {
                 index += 1;
                 remaining_selector /= 2;
             }
-            actions.push(solution.puzzles[index]);
+            action_spends.push(Spend::new(solution.puzzles[index], action_solution));
         }
 
-        let action_spends = solution
-            .solutions
-            .iter()
-            .zip(actions.into_iter().rev())
-            .map(|(action_solution, action_puzzle)| Spend::new(action_puzzle, *action_solution))
-            .collect();
-        let proofs = proofs.into_iter().rev().collect();
-
         Ok(ActionLayerSolution {
-            proofs,
+            partial_tree_reveal: solution.partial_tree_reveal,
             action_spends,
             finalizer_solution: solution.finalizer_solution,
         })
@@ -347,42 +305,24 @@ where
         let mut next_selector = 2;
 
         let mut puzzles = Vec::new();
-        let mut selectors_and_proofs = Vec::new();
-        let mut solutions = Vec::new();
+        let mut selectors_and_solutions = Vec::with_capacity(solution.action_spends.len());
 
-        for (spend, proof) in solution.action_spends.into_iter().zip(solution.proofs) {
+        for spend in solution.action_spends {
             let puzzle_hash = ctx.tree_hash(spend.puzzle).into();
             if let Some(selector) = puzzle_to_selector.get(&puzzle_hash) {
-                selectors_and_proofs.push((*selector, Some(proof.clone())));
+                selectors_and_solutions.push((*selector, spend.solution));
             } else {
                 puzzles.push(spend.puzzle);
-                selectors_and_proofs.push((next_selector, Some(proof.clone())));
+                selectors_and_solutions.push((next_selector, spend.solution));
                 puzzle_to_selector.insert(puzzle_hash, next_selector);
 
                 next_selector = next_selector * 2 + 1;
             }
-
-            solutions.push(spend.solution);
         }
-
-        let mut proven_selectors = Vec::<u32>::new();
-        let mut selectors_and_proofs: Vec<(u32, Option<MerkleProof>)> =
-            selectors_and_proofs.into_iter().rev().collect();
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..selectors_and_proofs.len() {
-            let selector = selectors_and_proofs[i].0;
-
-            if proven_selectors.contains(&selector) {
-                selectors_and_proofs[i].1 = None;
-            } else {
-                proven_selectors.push(selector);
-            }
-        }
-
         Ok(RawActionLayerSolution {
             puzzles,
-            selectors_and_proofs,
-            solutions,
+            partial_tree_reveal: solution.partial_tree_reveal,
+            selectors_and_solutions,
             finalizer_solution: solution.finalizer_solution,
         }
         .to_clvm(ctx)?)
