@@ -26,8 +26,10 @@ impl PartialMerkleTreeReveal {
         let mut leaf_reveals = HashMap::new();
         let mut next_selector: u32 = 2;
         for puzzle in puzzles_to_run {
-            leaf_reveals.insert(*puzzle, next_selector);
-            next_selector = next_selector * 2 + 1;
+            if !leaf_reveals.contains_key(puzzle) {
+                leaf_reveals.insert(*puzzle, next_selector);
+                next_selector = next_selector * 2 + 1;
+            }
         }
 
         Self::build(ctx, all_puzzles, &leaf_reveals)

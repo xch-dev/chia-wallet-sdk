@@ -557,7 +557,12 @@ impl RewardDistributor {
             "all puzzles: {:?}",
             RewardDistributorInfo::action_puzzle_hashes(&self.info.constants)
         ); // todo: debug
-        println!("overall merkle tree:"); // todo: debug
+        println!(
+            "overall merkle tree: {:?}",
+            MerkleTree::new(&RewardDistributorInfo::action_puzzle_hashes(
+                &self.info.constants,
+            ))
+        ); // todo: debug
         MerkleTree::print_merkle_tree(&RewardDistributorInfo::action_puzzle_hashes(
             &self.info.constants,
         )); // todo: debug
