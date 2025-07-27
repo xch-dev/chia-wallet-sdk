@@ -140,6 +140,24 @@ impl MerkleTree {
             }
         }
     }
+
+    pub fn print_merkle_tree(leaves: &[Bytes32]) {
+        let binary_tree = MerkleTree::list_to_binary_tree(leaves);
+        MerkleTree::print_binary_tree(&binary_tree, 0);
+    }
+
+    pub fn print_binary_tree(binary_tree: &BinaryTree<Bytes32>, indent: usize) {
+        match binary_tree {
+            BinaryTree::Leaf(t) => {
+                println!("{}- {}", " ".repeat(indent), t);
+            }
+            BinaryTree::Node(left, right) => {
+                println!("{}- [Branch]", " ".repeat(indent));
+                MerkleTree::print_binary_tree(left, indent + 2);
+                MerkleTree::print_binary_tree(right, indent + 2);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
