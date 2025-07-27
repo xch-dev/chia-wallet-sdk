@@ -16,10 +16,10 @@ pub const ACTION_LAYER_PUZZLE: [u8; 808] = hex!(
     8080808080ffff04ff82017fff808080808080ffff04ffff01ffffff02ffff03
     ffff09ff05ff1b80ffff0113ffff01ff088080ff0180ffff02ffff03ff2bffff
     01ff04ffff02ff1affff04ff02ffff04ffff05ffff02ff1cffff04ff02ffff04
-    ff05ffff04ffff04ff2bff8080ff808080808080ffff04ffff05ffff02ff1cff
+    ff05ffff04ffff04ff80ff2b80ff808080808080ffff04ffff05ffff02ff1cff
     ff04ff02ffff04ff05ffff04ffff04ff13ff3b80ff808080808080ff80808080
     80ffff0bffff0102ffff06ffff02ff1cffff04ff02ffff04ff05ffff04ffff04
-    ff2bff8080ff808080808080ffff06ffff02ff1cffff04ff02ffff04ff05ffff
+    ff80ff2b80ff808080808080ffff06ffff02ff1cffff04ff02ffff04ff05ffff
     04ffff04ff13ff3b80ff8080808080808080ffff01ff04ffff04ff3bff1380ff
     ff0bffff0101ffff02ff1effff04ff02ffff04ffff02ff3bff0580ff80808080
     808080ff0180ff02ffff03ffff07ff1b80ffff01ff02ff14ffff04ff02ffff04
@@ -40,7 +40,7 @@ pub const ACTION_LAYER_PUZZLE: [u8; 808] = hex!(
 
 pub const ACTION_LAYER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    36c675ccbaf385caeb0d8ee34bffc1ce8b0d4fc9d9dba2b1c2c9bcae75ca7659
+    1473683ec234da8b63870e1484c3a165e524b6a76a6a82628ca45a475b4c6616
     "
 ));
 
