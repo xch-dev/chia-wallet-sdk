@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use chia_protocol::Bytes32;
 use chia_sdk_types::{BinaryTree, MerkleTree, HASH_TREE_PREFIX};
 use clvm_traits::{clvm_tuple, ToClvm};
+use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, SpendContext};
@@ -60,7 +61,8 @@ impl PartialMerkleTreeReveal {
                 if let Some(reveal) = leaf_reveals.get(leaf) {
                     BinaryTree::Leaf(PartialTreeLeaf::Reveal(reveal.clone()))
                 } else {
-                    BinaryTree::Leaf(PartialTreeLeaf::Hash(*leaf))
+                    let leaf: Bytes32 = leaf.tree_hash().into();
+                    BinaryTree::Leaf(PartialTreeLeaf::Hash(leaf))
                 }
             }
             BinaryTree::Node(left, right) => {
@@ -88,7 +90,9 @@ impl PartialMerkleTreeReveal {
                     BinaryTree::Leaf(PartialTreeLeaf::Hash(right_reveal)),
                 ) = (left.clone(), right.clone())
                 {
+                    println!("hashing: 2 {:?} {:?}", left_reveal, right_reveal); // todo: debug
                     let hash = MerkleTree::sha256(&[HASH_TREE_PREFIX, &left_reveal, &right_reveal]);
+                    println!("hash: {:?}", hash); // todo: debug
                     BinaryTree::Leaf(PartialTreeLeaf::Hash(hash))
                 } else {
                     BinaryTree::Node(Box::new(left), Box::new(right))

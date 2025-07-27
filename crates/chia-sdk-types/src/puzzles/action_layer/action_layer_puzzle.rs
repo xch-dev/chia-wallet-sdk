@@ -7,6 +7,7 @@ use hex_literal::hex;
 
 use crate::Mod;
 
+// todo: debug puzzle
 pub const ACTION_LAYER_PUZZLE: [u8; 808] = hex!(
     "
     ff02ffff01ff02ff05ffff04ff0bffff04ff17ffff04ffff02ff16ffff04ff02

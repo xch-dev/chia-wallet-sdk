@@ -1,10 +1,13 @@
 use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::{singleton::SingletonSolution, LineageProof, Proof};
-use chia_sdk_types::puzzles::{CatalogSlotValue, SlotInfo};
+use chia_sdk_types::{
+    puzzles::{CatalogSlotValue, SlotInfo},
+    MerkleTree,
+};
 use clvm_traits::{clvm_list, match_tuple};
 use clvm_utils::ToTreeHash;
-use clvmr::NodePtr;
+use clvmr::{serde::node_to_bytes, NodePtr};
 
 use crate::{
     ActionLayer, ActionLayerSolution, ActionSingleton, CatalogRefundAction, CatalogRegisterAction,
@@ -263,6 +266,17 @@ impl CatalogRegistry {
             &CatalogRegistryInfo::action_puzzle_hashes(&self.info.constants),
             &action_puzzle_hashes,
         )?;
+        println!(
+            "partial_tree_reveal: {:?}",
+            hex::encode(node_to_bytes(ctx, partial_tree_reveal)?)
+        ); // todo: debug
+        let all_puzzle_hashes = CatalogRegistryInfo::action_puzzle_hashes(&self.info.constants); // todo: debug
+        println!("all puzzle hashes: {:?}", all_puzzle_hashes); // todo: debug
+        println!("puzzles to run: {:?}", action_puzzle_hashes); // todo: debug
+        println!(
+            "overall merkle root: {:?}",
+            MerkleTree::new(&all_puzzle_hashes)
+        ); // todo: debug
         let solution = layers.construct_solution(
             ctx,
             SingletonSolution {
