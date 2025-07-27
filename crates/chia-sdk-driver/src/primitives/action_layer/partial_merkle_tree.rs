@@ -7,23 +7,23 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, SpendContext};
 
-#[derive(Debug, Clone, Clone)]
+#[derive(Debug, Clone)]
 enum PartialTreeLeaf<T> {
     Hash(Bytes32),
     Reveal(T),
 }
 
-pub struct PartialMerkleTreeReveal<T> {}
+pub struct PartialMerkleTreeReveal {}
 
-impl<T> PartialMerkleTreeReveal<T>
-where
-    T: ToClvm<Allocator> + Clone,
-{
-    pub fn build(
+impl PartialMerkleTreeReveal {
+    pub fn build<T>(
         ctx: &mut SpendContext,
         leaves: &[Bytes32],
         leaf_reveals: HashMap<Bytes32, T>,
-    ) -> Result<NodePtr, DriverError> {
+    ) -> Result<NodePtr, DriverError>
+    where
+        T: ToClvm<Allocator> + Clone,
+    {
         let binary_tree = MerkleTree::list_to_binary_tree(leaves);
 
         let partial_tree = Self::convert_to_partial_tree(&binary_tree, &leaf_reveals);
@@ -32,10 +32,13 @@ where
         Self::optimized_tree_to_clvm(ctx, &partial_tree)
     }
 
-    pub fn convert_to_partial_tree(
+    pub fn convert_to_partial_tree<T>(
         tree: &BinaryTree<Bytes32>,
         leaf_reveals: &HashMap<Bytes32, T>,
-    ) -> BinaryTree<PartialTreeLeaf<T>> {
+    ) -> BinaryTree<PartialTreeLeaf<T>>
+    where
+        T: Clone,
+    {
         match tree {
             BinaryTree::Leaf(leaf) => {
                 if let Some(reveal) = leaf_reveals.get(leaf) {
@@ -52,9 +55,12 @@ where
         }
     }
 
-    pub fn optimize_partial_tree(
+    pub fn optimize_partial_tree<T>(
         tree: &BinaryTree<PartialTreeLeaf<T>>,
-    ) -> BinaryTree<PartialTreeLeaf<T>> {
+    ) -> BinaryTree<PartialTreeLeaf<T>>
+    where
+        T: Clone,
+    {
         match tree {
             BinaryTree::Leaf(leaf) => BinaryTree::Leaf(leaf.clone()),
             BinaryTree::Node(left, right) => {
@@ -64,7 +70,7 @@ where
                 if let (
                     BinaryTree::Leaf(PartialTreeLeaf::Hash(left_reveal)),
                     BinaryTree::Leaf(PartialTreeLeaf::Hash(right_reveal)),
-                ) = (left, right)
+                ) = (left.clone(), right.clone())
                 {
                     let hash = MerkleTree::sha256(&[HASH_TREE_PREFIX, &left_reveal, &right_reveal]);
                     BinaryTree::Leaf(PartialTreeLeaf::Hash(hash))
@@ -75,25 +81,31 @@ where
         }
     }
 
-    pub fn optimized_tree_to_clvm(
+    pub fn optimized_tree_to_clvm<T>(
         ctx: &mut SpendContext,
         tree: &BinaryTree<PartialTreeLeaf<T>>,
-    ) -> Result<NodePtr, DriverError> {
+    ) -> Result<NodePtr, DriverError>
+    where
+        T: ToClvm<Allocator>,
+    {
         Self::optimized_tree_to_clvm_recursive(ctx, tree)
     }
 
-    fn optimized_tree_to_clvm_recursive(
+    fn optimized_tree_to_clvm_recursive<T>(
         ctx: &mut SpendContext,
         tree: &BinaryTree<PartialTreeLeaf<T>>,
-    ) {
+    ) -> Result<NodePtr, DriverError>
+    where
+        T: ToClvm<Allocator>,
+    {
         match tree {
             BinaryTree::Leaf(leaf) => match leaf {
                 PartialTreeLeaf::Hash(hash) => ctx.alloc(hash),
                 PartialTreeLeaf::Reveal(reveal) => ctx.alloc(&clvm_tuple!((), reveal)),
             },
             BinaryTree::Node(left, right) => {
-                let left = Self::optimized_tree_to_clvm_recursive(ctx, left);
-                let right = Self::optimized_tree_to_clvm_recursive(ctx, right);
+                let left = Self::optimized_tree_to_clvm_recursive(ctx, left)?;
+                let right = Self::optimized_tree_to_clvm_recursive(ctx, right)?;
                 ctx.alloc(&clvm_tuple!(left, right))
             }
         }
