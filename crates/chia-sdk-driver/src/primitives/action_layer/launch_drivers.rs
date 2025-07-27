@@ -757,7 +757,7 @@ mod tests {
 
     use chia_puzzle_types::{cat::GenesisByCoinIdTailArgs, CoinProof};
     use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
-    use chia_sdk_test::{print_spend_bundle_to_file, Benchmark, Simulator};
+    use chia_sdk_test::{Benchmark, Simulator};
     use chia_sdk_types::{
         puzzles::{
             AnyMetadataUpdater, CatNftMetadata, DelegatedStateActionSolution,
@@ -1328,7 +1328,6 @@ mod tests {
 
             // sim.spend_coins(ctx.take(), &[user_bls.sk.clone()])?;
             let spends = ctx.take();
-            print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs"); // todo: debug
             benchmark.add_spends(ctx, &mut sim, spends, "register", &[user_bls.sk.clone()])?;
 
             slots.retain(|s| {
@@ -1642,7 +1641,6 @@ mod tests {
                     payment_cat.info.asset_id,
                 ),
             )?;
-        println!("launched"); // todo: debug
 
         // Check XCHandlesRegistry::from_launcher_solution
         let spends = ctx.take();

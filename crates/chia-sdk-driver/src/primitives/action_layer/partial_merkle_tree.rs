@@ -90,9 +90,7 @@ impl PartialMerkleTreeReveal {
                     BinaryTree::Leaf(PartialTreeLeaf::Hash(right_reveal)),
                 ) = (left.clone(), right.clone())
                 {
-                    println!("hashing: 2 {:?} {:?}", left_reveal, right_reveal); // todo: debug
                     let hash = MerkleTree::sha256(&[HASH_TREE_PREFIX, &left_reveal, &right_reveal]);
-                    println!("hash: {:?}", hash); // todo: debug
                     BinaryTree::Leaf(PartialTreeLeaf::Hash(hash))
                 } else {
                     BinaryTree::Node(Box::new(left), Box::new(right))
