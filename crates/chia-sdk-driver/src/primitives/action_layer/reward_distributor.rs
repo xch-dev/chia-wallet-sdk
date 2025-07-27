@@ -10,10 +10,9 @@ use chia_sdk_types::puzzles::{
     RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue, RewardDistributorSlotNonce,
     SlotInfo,
 };
-use chia_sdk_types::{Condition, Conditions, MerkleTree};
+use chia_sdk_types::{Condition, Conditions};
 use clvm_traits::{clvm_list, match_tuple, FromClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
-use clvmr::serde::node_to_bytes;
 use clvmr::NodePtr;
 
 use crate::{
@@ -548,24 +547,6 @@ impl RewardDistributor {
             &RewardDistributorInfo::action_puzzle_hashes(&self.info.constants),
             &action_puzzle_hashes,
         )?;
-        println!(
-            "partial_tree_reveal: {:?}",
-            hex::encode(node_to_bytes(ctx, partial_tree_reveal)?)
-        ); // todo: debug
-        println!("action_puzzle_hashes: {:?}", action_puzzle_hashes); // todo: debug
-        println!(
-            "all puzzles: {:?}",
-            RewardDistributorInfo::action_puzzle_hashes(&self.info.constants)
-        ); // todo: debug
-        println!(
-            "overall merkle tree: {:?}",
-            MerkleTree::new(&RewardDistributorInfo::action_puzzle_hashes(
-                &self.info.constants,
-            ))
-        ); // todo: debug
-        MerkleTree::print_merkle_tree(&RewardDistributorInfo::action_puzzle_hashes(
-            &self.info.constants,
-        )); // todo: debug
         let solution = layers.construct_solution(
             ctx,
             SingletonSolution {

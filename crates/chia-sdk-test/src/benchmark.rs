@@ -33,7 +33,6 @@ impl Benchmark {
         key: &str,
         keys: &[SecretKey],
     ) -> anyhow::Result<()> {
-        println!("running: {:?}", key); // todo: debug
         let sb = SpendBundle::new(coin_spends, Signature::default());
         let sb_conds = get_conditions_from_spendbundle(
             ctx,
