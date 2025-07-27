@@ -14,7 +14,7 @@ use crate::{
     XchandlesRegisterAction, XchandlesUpdateAction,
 };
 
-use super::{Slot, SlotProof, XchandlesConstants, XchandlesRegistryInfo, XchandlesRegistryState};
+use super::{Slot, XchandlesConstants, XchandlesRegistryInfo, XchandlesRegistryState};
 
 #[derive(Debug, Clone)]
 pub struct XchandlesPendingSpendInfo {
@@ -367,9 +367,10 @@ impl XchandlesRegistry {
             parent_amount: eve_coin.amount,
         });
 
-        let slot_proof = SlotProof {
-            parent_parent_info: eve_coin.parent_coin_info,
+        let slot_proof = LineageProof {
+            parent_parent_coin_info: eve_coin.parent_coin_info,
             parent_inner_puzzle_hash: eve_singleton_inner_puzzle_hash.into(),
+            parent_amount: 1,
         };
         let slots = [
             Slot::new(
@@ -448,9 +449,10 @@ impl XchandlesRegistry {
         &self,
         slot_value: XchandlesSlotValue,
     ) -> Slot<XchandlesSlotValue> {
-        let proof = SlotProof {
-            parent_parent_info: self.coin.parent_coin_info,
+        let proof = LineageProof {
+            parent_parent_coin_info: self.coin.parent_coin_info,
             parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
+            parent_amount: 1,
         };
 
         Slot::new(
