@@ -4,6 +4,12 @@ use chia_puzzle_types::LineageProof;
 use chia_sdk_driver::{StreamedAsset, StreamingPuzzleInfo};
 
 pub trait StreamedAssetExt {
+    fn new(
+        coin: Coin,
+        asset_id: Option<Bytes32>,
+        proof: Option<LineageProof>,
+        info: StreamingPuzzleInfo,
+    ) -> Self;
     fn xch(coin: Coin, info: StreamingPuzzleInfo) -> Result<StreamedAsset>;
     fn cat(
         coin: Coin,
@@ -14,6 +20,20 @@ pub trait StreamedAssetExt {
 }
 
 impl StreamedAssetExt for StreamedAsset {
+    fn new(
+        coin: Coin,
+        asset_id: Option<Bytes32>,
+        proof: Option<LineageProof>,
+        info: StreamingPuzzleInfo,
+    ) -> Self {
+        StreamedAsset {
+            coin,
+            asset_id,
+            proof,
+            info,
+        }
+    }
+
     fn xch(coin: Coin, info: StreamingPuzzleInfo) -> Result<StreamedAsset> {
         Ok(StreamedAsset::xch(coin, info))
     }

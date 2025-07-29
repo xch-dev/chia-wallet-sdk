@@ -360,20 +360,20 @@
     },
     "methods": {
       "xch": {
+        "type": "factory",
         "args": {
           "coin": "Coin",
           "info": "StreamingPuzzleInfo"
-        },
-        "return": "StreamedAsset"
+        }
       },
       "cat": {
+        "type": "factory",
         "args": {
           "coin": "Coin",
           "asset_id": "Bytes32",
           "proof": "LineageProof",
           "info": "StreamingPuzzleInfo"
-        },
-        "return": "StreamedAsset"
+        }
       }
     }
   },
