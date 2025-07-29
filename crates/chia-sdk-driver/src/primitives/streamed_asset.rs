@@ -396,7 +396,8 @@ mod tests {
     use rstest::rstest;
 
     use crate::{
-        Cat, CatSpend, SpendWithConditions, StandardLayer, STREAM_PUZZLE, STREAM_PUZZLE_HASH,
+        Cat, CatSpend, FungibleAsset, SpendWithConditions, StandardLayer, STREAM_PUZZLE,
+        STREAM_PUZZLE_HASH,
     };
 
     use super::*;
@@ -438,19 +439,6 @@ mod tests {
 
         let launch_hints =
             ctx.alloc(&StreamingPuzzleInfo::from_layer(streaming_inner_puzzle).get_launch_hints())?;
-        let (issue_cat, cats) = Cat::issue_with_coin(
-            &mut ctx,
-            minter_bls.coin.coin_id(),
-            minter_bls.coin.amount,
-            Conditions::new().create_coin(
-                minter_bls.puzzle_hash,
-                minter_bls.coin.amount,
-                Memos::None,
-            ),
-        )?;
-        StandardLayer::new(minter_bls.pk).spend(&mut ctx, minter_bls.coin, issue_cat)?;
-        sim.spend_coins(ctx.take(), &[minter_bls.sk.clone()])?;
-
         let create_inner_spend = StandardLayer::new(minter_bls.pk).spend_with_conditions(
             &mut ctx,
             Conditions::new().create_coin(
@@ -459,9 +447,40 @@ mod tests {
                 Memos::Some(launch_hints),
             ),
         )?;
-        let cats = Cat::spend_all(&mut ctx, &[CatSpend::new(cats[0], create_inner_spend)])?;
 
-        let initial_vesting_cat = cats[0];
+        let (expected_coin, expected_asset_id, expected_lp) = if xch_stream {
+            ctx.spend(minter_bls.coin, create_inner_spend)?;
+
+            (
+                minter_bls
+                    .coin
+                    .make_child(streaming_inner_puzzle_hash, minter_bls.coin.amount),
+                None,
+                None,
+            )
+        } else {
+            let (issue_cat, cats) = Cat::issue_with_coin(
+                &mut ctx,
+                minter_bls.coin.coin_id(),
+                minter_bls.coin.amount,
+                Conditions::new().create_coin(
+                    minter_bls.puzzle_hash,
+                    minter_bls.coin.amount,
+                    Memos::None,
+                ),
+            )?;
+            StandardLayer::new(minter_bls.pk).spend(&mut ctx, minter_bls.coin, issue_cat)?;
+            sim.spend_coins(ctx.take(), &[minter_bls.sk.clone()])?;
+
+            let cats = Cat::spend_all(&mut ctx, &[CatSpend::new(cats[0], create_inner_spend)])?;
+
+            (
+                cats[0].coin,
+                Some(cats[0].info.asset_id),
+                cats[0].lineage_proof,
+            )
+        };
+
         let spends = ctx.take();
         let launch_spend = spends.last().unwrap().clone();
         benchmark.add_spends(
@@ -474,22 +493,22 @@ mod tests {
         sim.set_next_timestamp(1000 + claim_intervals[0])?;
 
         // spend streaming CAT
-        let mut streamed_cat = StreamedAsset::from_parent_spend(&mut ctx, &launch_spend)?
+        let mut streamed_asset = StreamedAsset::from_parent_spend(&mut ctx, &launch_spend)?
             .0
             .unwrap();
         assert_eq!(
-            streamed_cat,
-            StreamedAsset::cat(
-                initial_vesting_cat.coin,
-                initial_vesting_cat.info.asset_id,
-                initial_vesting_cat.lineage_proof.unwrap(),
-                StreamingPuzzleInfo::new(
+            streamed_asset,
+            StreamedAsset {
+                coin: expected_coin,
+                asset_id: expected_asset_id,
+                proof: expected_lp,
+                info: StreamingPuzzleInfo::new(
                     user_bls.puzzle_hash,
                     Some(clawback_ph.into()),
                     total_claim_time + 1000,
                     1000,
                 ),
-            ),
+            },
         );
 
         let mut claim_time = sim.next_timestamp();
@@ -502,47 +521,47 @@ mod tests {
             // to claim the payment, user needs to send a message to the streaming CAT
             let user_coin = sim.new_coin(user_bls.puzzle_hash, 0);
             let message_to_send: Bytes = Bytes::new(u64_to_bytes(claim_time));
-            let coin_id_ptr = ctx.alloc(&streamed_cat.coin.coin_id())?;
+            let coin_id_ptr = ctx.alloc(&streamed_asset.coin.coin_id())?;
             StandardLayer::new(user_bls.pk).spend(
                 &mut ctx,
                 user_coin,
                 Conditions::new().send_message(23, message_to_send, vec![coin_id_ptr]),
             )?;
 
-            streamed_cat.spend(&mut ctx, claim_time, false)?;
+            streamed_asset.spend(&mut ctx, claim_time, false)?;
 
             let spends = ctx.take();
-            let streamed_cat_spend = spends.last().unwrap().clone();
+            let streamed_asset_spend = spends.last().unwrap().clone();
             benchmark.add_spends(&mut ctx, &mut sim, spends, "claim", &[user_bls.sk.clone()])?;
 
             // set up for next iteration
             if i < claim_intervals.len() - 1 {
                 claim_time += claim_intervals[i + 1];
             }
-            let (Some(new_streamed_cat), clawback, _) =
-                StreamedAsset::from_parent_spend(&mut ctx, &streamed_cat_spend)?
+            let (Some(new_streamed_asset), clawback, _) =
+                StreamedAsset::from_parent_spend(&mut ctx, &streamed_asset_spend)?
             else {
-                panic!("Failed to parse new streamed cat");
+                panic!("Failed to parse new streamed asset");
             };
 
             assert!(!clawback);
-            streamed_cat = new_streamed_cat;
+            streamed_asset = new_streamed_asset;
         }
 
         // Test clawback
-        assert!(streamed_cat.coin.amount > 0);
+        assert!(streamed_asset.coin.amount > 0);
         let clawback_msg_coin = sim.new_coin(clawback_ph.into(), 0);
         let claim_time = sim.next_timestamp() + 1;
         let message_to_send: Bytes = Bytes::new(u64_to_bytes(claim_time));
-        let coin_id_ptr = ctx.alloc(&streamed_cat.coin.coin_id())?;
+        let coin_id_ptr = ctx.alloc(&streamed_asset.coin.coin_id())?;
         let solution =
             ctx.alloc(&Conditions::new().send_message(23, message_to_send, vec![coin_id_ptr]))?;
         ctx.spend(clawback_msg_coin, Spend::new(clawback_puzzle_ptr, solution))?;
 
-        streamed_cat.spend(&mut ctx, claim_time, true)?;
+        streamed_asset.spend(&mut ctx, claim_time, true)?;
 
         let spends = ctx.take();
-        let streamed_cat_spend = spends.last().unwrap().clone();
+        let streamed_asset_spend = spends.last().unwrap().clone();
         benchmark.add_spends(
             &mut ctx,
             &mut sim,
@@ -551,11 +570,11 @@ mod tests {
             &[user_bls.sk.clone()],
         )?;
 
-        let (new_streamed_cat, clawback, _paid_amount_if_clawback) =
-            StreamedAsset::from_parent_spend(&mut ctx, &streamed_cat_spend)?;
+        let (new_streamed_asset, clawback, _paid_amount_if_clawback) =
+            StreamedAsset::from_parent_spend(&mut ctx, &streamed_asset_spend)?;
 
         assert!(clawback);
-        assert!(new_streamed_cat.is_none());
+        assert!(new_streamed_asset.is_none());
 
         benchmark.print_summary(Some(&format!(
             "streamed-{}.costs",
