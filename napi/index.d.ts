@@ -466,7 +466,7 @@ export declare class Clvm {
   spendNft(nft: Nft, innerSpend: Spend): Nft
   createEveDid(parentCoinId: Uint8Array, p2PuzzleHash: Uint8Array): CreatedDid
   spendDid(did: Did, innerSpend: Spend): Did | null
-  spendStreamedCat(streamedCat: StreamedCat, paymentTime: bigint, clawback: boolean): void
+  spendStreamedAsset(streamedAsset: StreamedAsset, paymentTime: bigint, clawback: boolean): void
   mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
   mipsSpend(coin: Coin, delegatedSpend: Spend): MipsSpend
   nftMetadata(value: NftMetadata): Program
@@ -518,6 +518,7 @@ export declare class Clvm {
   runCatTail(program: Program, solution: Program): Program
   updateNftMetadata(updaterPuzzleReveal: Program, updaterSolution: Program): Program
   updateDataStoreMerkleRoot(newMerkleRoot: Uint8Array, memos: Array<Uint8Array>): Program
+  parseChildStreamedAsset(coinSpend: CoinSpend): StreamedAssetParsingResult
   acsTransferProgram(): Program
   augmentedCondition(): Program
   blockProgramZero(): Program
@@ -1598,7 +1599,6 @@ export declare class Puzzle {
   parseDid(): ParsedDid | null
   parseChildDid(parentCoin: Coin, parentSolution: Program, coin: Coin): Did | null
   parseInnerStreamingPuzzle(): StreamingPuzzleInfo | null
-  parseChildStreamedCat(parentCoin: Coin, parentSolution: Program): StreamedCatParsingResult
   parseChildClawbacks(parentSolution: Program): Array<Clawback> | null
   constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
   get puzzleHash(): Buffer
@@ -1822,24 +1822,26 @@ export declare class SpendBundle {
   set aggregatedSignature(value: Signature)
 }
 
-export declare class StreamedCat {
-  clone(): StreamedCat
-  constructor(coin: Coin, assetId: Uint8Array, proof: LineageProof, info: StreamingPuzzleInfo)
+export declare class StreamedAsset {
+  clone(): StreamedAsset
+  static xch(coin: Coin, info: StreamingPuzzleInfo): StreamedAsset
+  static cat(coin: Coin, assetId: Uint8Array, proof: LineageProof, info: StreamingPuzzleInfo): StreamedAsset
+  constructor(coin: Coin, assetId: Uint8Array | undefined | null, proof: LineageProof | undefined | null, info: StreamingPuzzleInfo)
   get coin(): Coin
   set coin(value: Coin)
-  get assetId(): Buffer
-  set assetId(value: Uint8Array)
-  get proof(): LineageProof
-  set proof(value: LineageProof)
+  get assetId(): Buffer | null
+  set assetId(value?: Uint8Array | undefined | null)
+  get proof(): LineageProof | null
+  set proof(value?: LineageProof | undefined | null)
   get info(): StreamingPuzzleInfo
   set info(value: StreamingPuzzleInfo)
 }
 
-export declare class StreamedCatParsingResult {
-  clone(): StreamedCatParsingResult
-  constructor(streamedCat: StreamedCat | undefined | null, lastSpendWasClawback: boolean, lastPaymentAmountIfClawback: bigint)
-  get streamedCat(): StreamedCat | null
-  set streamedCat(value?: StreamedCat | undefined | null)
+export declare class StreamedAssetParsingResult {
+  clone(): StreamedAssetParsingResult
+  constructor(streamedAsset: StreamedAsset | undefined | null, lastSpendWasClawback: boolean, lastPaymentAmountIfClawback: bigint)
+  get streamedAsset(): StreamedAsset | null
+  set streamedAsset(value?: StreamedAsset | undefined | null)
   get lastSpendWasClawback(): boolean
   set lastSpendWasClawback(value: boolean)
   get lastPaymentAmountIfClawback(): bigint

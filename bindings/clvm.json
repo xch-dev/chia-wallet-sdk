@@ -151,9 +151,9 @@
         },
         "return": "Option<Did>"
       },
-      "spend_streamed_cat": {
+      "spend_streamed_asset": {
         "args": {
-          "streamed_cat": "StreamedCat",
+          "streamed_asset": "StreamedAsset",
           "payment_time": "u64",
           "clawback": "bool"
         }
@@ -480,6 +480,12 @@
           "memos": "Vec<Bytes>"
         },
         "return": "Program"
+      },
+      "parse_child_streamed_asset": {
+        "args": {
+          "coin_spend": "CoinSpend"
+        },
+        "return": "StreamedAssetParsingResult"
       }
     }
   }

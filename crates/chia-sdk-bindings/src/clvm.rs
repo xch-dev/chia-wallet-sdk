@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use bindy::{Error, Result};
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram};
-use chia_sdk_driver::{Cat, HashedPtr, Launcher, SpendContext, StandardLayer, StreamedCat};
+use chia_sdk_driver::{Cat, HashedPtr, Launcher, SpendContext, StandardLayer, StreamedAsset};
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::TreeHash;
@@ -16,7 +16,7 @@ use num_bigint::BigInt;
 use crate::{
     AsProgram, AsPtr, CatSpend, CreatedDid, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo,
     MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft, NftMetadata, NftMint,
-    Program, RestrictionMemo, Spend, VaultMint, WrapperMemo,
+    Program, RestrictionMemo, Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -178,14 +178,14 @@ impl Clvm {
             .map(|did| did.as_program(&self.0)))
     }
 
-    pub fn spend_streamed_cat(
+    pub fn spend_streamed_asset(
         &self,
-        streamed_cat: StreamedCat,
+        streamed_asset: StreamedAsset,
         payment_time: u64,
         clawback: bool,
     ) -> Result<()> {
         let mut ctx = self.0.lock().unwrap();
-        streamed_cat.spend(&mut ctx, payment_time, clawback)?;
+        streamed_asset.spend(&mut ctx, payment_time, clawback)?;
         Ok(())
     }
 
@@ -389,5 +389,21 @@ impl Clvm {
         let mut ctx = self.0.lock().unwrap();
         let ptr = ctx.alloc(&chia_sdk_driver::MofNMemo::from(value))?;
         Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn parse_child_streamed_asset(
+        &self,
+        parent_spend: CoinSpend,
+    ) -> Result<StreamedAssetParsingResult> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let (streamed_asset, clawback, last_payment_amount) =
+            chia_sdk_driver::StreamedAsset::from_parent_spend(&mut ctx, &parent_spend)?;
+
+        Ok(StreamedAssetParsingResult {
+            streamed_asset,
+            last_spend_was_clawback: clawback,
+            last_payment_amount_if_clawback: last_payment_amount,
+        })
     }
 }

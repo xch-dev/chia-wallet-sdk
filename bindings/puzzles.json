@@ -43,13 +43,6 @@
       "parse_inner_streaming_puzzle": {
         "return": "Option<StreamingPuzzleInfo>"
       },
-      "parse_child_streamed_cat": {
-        "args": {
-          "parent_coin": "Coin",
-          "parent_solution": "Program"
-        },
-        "return": "StreamedCatParsingResult"
-      },
       "parse_child_clawbacks": {
         "args": {
           "parent_solution": "Program"
@@ -58,11 +51,11 @@
       }
     }
   },
-  "StreamedCatParsingResult": {
+  "StreamedAssetParsingResult": {
     "type": "class",
     "new": true,
     "fields": {
-      "streamed_cat": "Option<StreamedCat>",
+      "streamed_asset": "Option<StreamedAsset>",
       "last_spend_was_clawback": "bool",
       "last_payment_amount_if_clawback": "u64"
     }
@@ -355,15 +348,33 @@
       }
     }
   },
-  "StreamedCat": {
+  "StreamedAsset": {
     "type": "class",
     "new": true,
     "remote": true,
     "fields": {
       "coin": "Coin",
-      "asset_id": "Bytes32",
-      "proof": "LineageProof",
+      "asset_id": "Option<Bytes32>",
+      "proof": "Option<LineageProof>",
       "info": "StreamingPuzzleInfo"
+    },
+    "methods": {
+      "xch": {
+        "type": "factory",
+        "args": {
+          "coin": "Coin",
+          "info": "StreamingPuzzleInfo"
+        }
+      },
+      "cat": {
+        "type": "factory",
+        "args": {
+          "coin": "Coin",
+          "asset_id": "Bytes32",
+          "proof": "LineageProof",
+          "info": "StreamingPuzzleInfo"
+        }
+      }
     }
   },
   "ClawbackV2": {
