@@ -395,7 +395,9 @@ mod tests {
     use clvmr::serde::node_from_bytes;
     use rstest::rstest;
 
-    use crate::{Cat, StandardLayer, STREAM_PUZZLE, STREAM_PUZZLE_HASH};
+    use crate::{
+        Cat, CatSpend, SpendWithConditions, StandardLayer, STREAM_PUZZLE, STREAM_PUZZLE_HASH,
+    };
 
     use super::*;
 
@@ -441,12 +443,23 @@ mod tests {
             minter_bls.coin.coin_id(),
             minter_bls.coin.amount,
             Conditions::new().create_coin(
+                minter_bls.puzzle_hash,
+                minter_bls.coin.amount,
+                Memos::None,
+            ),
+        )?;
+        StandardLayer::new(minter_bls.pk).spend(&mut ctx, minter_bls.coin, issue_cat)?;
+        sim.spend_coins(ctx.take(), &[minter_bls.sk.clone()])?;
+
+        let create_inner_spend = StandardLayer::new(minter_bls.pk).spend_with_conditions(
+            &mut ctx,
+            Conditions::new().create_coin(
                 streaming_inner_puzzle_hash,
                 minter_bls.coin.amount,
                 Memos::Some(launch_hints),
             ),
         )?;
-        StandardLayer::new(minter_bls.pk).spend(&mut ctx, minter_bls.coin, issue_cat)?;
+        let cats = Cat::spend_all(&mut ctx, &[CatSpend::new(cats[0], create_inner_spend)])?;
 
         let initial_vesting_cat = cats[0];
         let spends = ctx.take();
