@@ -480,6 +480,12 @@
           "memos": "Vec<Bytes>"
         },
         "return": "Program"
+      },
+      "parse_child_streamed_asset": {
+        "args": {
+          "coin_spend": "CoinSpend"
+        },
+        "return": "StreamedAssetParsingResult"
       }
     }
   }

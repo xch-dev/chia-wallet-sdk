@@ -165,30 +165,6 @@ impl Puzzle {
         Ok(chia_sdk_driver::StreamingPuzzleInfo::parse(&ctx, puzzle)?)
     }
 
-    pub fn parse_child_streamed_cat(
-        &self,
-        parent_coin: Coin,
-        parent_solution: Program,
-    ) -> Result<StreamedAssetParsingResult> {
-        let mut ctx = self.program.0.lock().unwrap();
-
-        let parent_puzzle = chia_sdk_driver::Puzzle::from(self.clone());
-
-        let (streamed_asset, clawback, last_payment_amount) =
-            chia_sdk_driver::StreamedAsset::from_parent_spend(
-                &mut ctx,
-                parent_coin,
-                parent_puzzle,
-                parent_solution.1,
-            )?;
-
-        Ok(StreamedAssetParsingResult {
-            streamed_asset,
-            last_spend_was_clawback: clawback,
-            last_payment_amount_if_clawback: last_payment_amount,
-        })
-    }
-
     pub fn parse_child_clawbacks(&self, parent_solution: Program) -> Result<Option<Vec<Clawback>>> {
         let mut ctx = self.program.0.lock().unwrap();
 

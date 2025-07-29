@@ -43,13 +43,6 @@
       "parse_inner_streaming_puzzle": {
         "return": "Option<StreamingPuzzleInfo>"
       },
-      "parse_child_streamed_asset": {
-        "args": {
-          "parent_coin": "Coin",
-          "parent_solution": "Program"
-        },
-        "return": "StreamedAssetParsingResult"
-      },
       "parse_child_clawbacks": {
         "args": {
           "parent_solution": "Program"
