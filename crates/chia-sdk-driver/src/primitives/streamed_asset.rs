@@ -1,4 +1,4 @@
-use crate::{CatLayer, DriverError, Layer, Puzzle, Spend, SpendContext};
+use crate::{CatLayer, DriverError, HashedPtr, Layer, Puzzle, Spend, SpendContext};
 use chia_consensus::make_aggsig_final_message::u64_to_bytes;
 use chia_protocol::{Bytes, Bytes32, Coin};
 use chia_puzzle_types::{
@@ -8,7 +8,7 @@ use chia_puzzle_types::{
 use chia_sdk_types::{run_puzzle, Condition, Conditions};
 use chia_sha2::Sha256;
 use clvm_traits::FromClvm;
-use clvm_utils::{tree_hash, TreeHash};
+use clvm_utils::TreeHash;
 use clvmr::{op_utils::u64_from_bytes, Allocator, NodePtr};
 
 use crate::{StreamLayer, StreamPuzzleSolution};
@@ -164,15 +164,15 @@ impl StreamingPuzzleInfo {
 
 #[derive(Debug, Clone)]
 #[must_use]
-pub struct StreamedCat {
+pub struct StreamedAsset {
     pub coin: Coin,
-    pub asset_id: Bytes32,
-    pub proof: LineageProof,
+    pub asset_id: Option<Bytes32>,
+    pub proof: Option<LineageProof>,
     pub info: StreamingPuzzleInfo,
 }
 
-impl StreamedCat {
-    pub fn new(
+impl StreamedAsset {
+    pub fn cat(
         coin: Coin,
         asset_id: Bytes32,
         proof: LineageProof,
@@ -180,18 +180,28 @@ impl StreamedCat {
     ) -> Self {
         Self {
             coin,
-            asset_id,
-            proof,
+            asset_id: Some(asset_id),
+            proof: Some(proof),
             info,
         }
     }
 
-    pub fn layers(&self) -> CatLayer<StreamLayer> {
-        CatLayer::<StreamLayer>::new(self.asset_id, self.info.into_layer())
+    pub fn xch(coin: Coin, info: StreamingPuzzleInfo) -> Self {
+        Self {
+            coin,
+            asset_id: None,
+            proof: None,
+            info,
+        }
     }
 
     pub fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        self.layers().construct_puzzle(ctx)
+        let inner_layer = self.info.into_layer();
+        if let Some(asset_id) = self.asset_id {
+            CatLayer::new(asset_id, inner_layer).construct_puzzle(ctx)
+        } else {
+            inner_layer.construct_puzzle(ctx)
+        }
     }
 
     pub fn construct_solution(
@@ -200,27 +210,36 @@ impl StreamedCat {
         payment_time: u64,
         clawback: bool,
     ) -> Result<NodePtr, DriverError> {
-        self.layers().construct_solution(
-            ctx,
-            CatSolution {
-                inner_puzzle_solution: StreamPuzzleSolution {
-                    my_amount: self.coin.amount,
-                    payment_time,
-                    to_pay: self.info.amount_to_be_paid(self.coin.amount, payment_time),
-                    clawback,
+        let inner_layer = self.info.into_layer();
+        let inner_solution = StreamPuzzleSolution {
+            my_amount: self.coin.amount,
+            payment_time,
+            to_pay: self.info.amount_to_be_paid(self.coin.amount, payment_time),
+            clawback,
+        };
+
+        if let Some(asset_id) = self.asset_id {
+            CatLayer::new(asset_id, inner_layer).construct_solution(
+                ctx,
+                CatSolution {
+                    inner_puzzle_solution: inner_solution,
+                    lineage_proof: Some(self.proof.ok_or(DriverError::Custom(
+                        "Missing lineage proof for CAT steam".to_string(),
+                    ))?),
+                    prev_coin_id: self.coin.coin_id(),
+                    this_coin_info: self.coin,
+                    next_coin_proof: CoinProof {
+                        parent_coin_info: self.coin.parent_coin_info,
+                        inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
+                        amount: self.coin.amount,
+                    },
+                    prev_subtotal: 0,
+                    extra_delta: 0,
                 },
-                lineage_proof: Some(self.proof),
-                prev_coin_id: self.coin.coin_id(),
-                this_coin_info: self.coin,
-                next_coin_proof: CoinProof {
-                    parent_coin_info: self.coin.parent_coin_info,
-                    inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
-                    amount: self.coin.amount,
-                },
-                prev_subtotal: 0,
-                extra_delta: 0,
-            },
-        )
+            )
+        } else {
+            inner_layer.construct_solution(ctx, inner_solution)
+        }
     }
 
     pub fn spend(
@@ -235,101 +254,135 @@ impl StreamedCat {
         ctx.spend(self.coin, Spend::new(puzzle, solution))
     }
 
-    // if clawback, 3rd arg = las
+    // if clawback, 3rd arg = last paid amount
     pub fn from_parent_spend(
         allocator: &mut Allocator,
         parent_coin: Coin,
         parent_puzzle: Puzzle,
         parent_solution: NodePtr,
     ) -> Result<(Option<Self>, bool, u64), DriverError> {
-        let Some(layers) = CatLayer::<StreamLayer>::parse_puzzle(allocator, parent_puzzle)? else {
-            // check if parent created streaming CAT
-            let parent_puzzle_ptr = parent_puzzle.ptr();
-            let output = run_puzzle(allocator, parent_puzzle_ptr, parent_solution)?;
-            let conds: Conditions<NodePtr> = Conditions::from_clvm(allocator, output)?;
+        if let Some((asset_id, proof, streaming_layer, streaming_solution)) =
+            if let Ok(Some(layers)) =
+                CatLayer::<StreamLayer>::parse_puzzle(allocator, parent_puzzle)
+            {
+                // parent is CAT streaming coin
 
-            let Some(parent_layer) = CatLayer::<NodePtr>::parse_puzzle(allocator, parent_puzzle)?
-            else {
-                return Ok((None, false, 0));
+                Some((
+                    Some(layers.asset_id),
+                    Some(LineageProof {
+                        parent_parent_coin_info: parent_coin.parent_coin_info,
+                        parent_inner_puzzle_hash: layers.inner_puzzle.puzzle_hash().into(),
+                        parent_amount: parent_coin.amount,
+                    }),
+                    layers.inner_puzzle,
+                    CatSolution::<StreamPuzzleSolution>::from_clvm(allocator, parent_solution)?
+                        .inner_puzzle_solution,
+                ))
+            } else if let Ok(Some(layer)) = StreamLayer::parse_puzzle(allocator, parent_puzzle) {
+                Some((
+                    None,
+                    None,
+                    layer,
+                    StreamPuzzleSolution::from_clvm(allocator, parent_solution)?,
+                ))
+            } else {
+                None
+            }
+        {
+            if streaming_solution.clawback {
+                return Ok((None, true, streaming_solution.to_pay));
+            }
+
+            let new_amount = parent_coin.amount - streaming_solution.to_pay;
+
+            let new_inner_layer = StreamLayer::new(
+                streaming_layer.recipient,
+                streaming_layer.clawback_ph,
+                streaming_layer.end_time,
+                streaming_solution.payment_time,
+            );
+            let new_puzzle_hash = if let Some(asset_id) = asset_id {
+                CatArgs::curry_tree_hash(asset_id, new_inner_layer.puzzle_hash())
+            } else {
+                new_inner_layer.puzzle_hash()
             };
 
-            let mut found_stream_layer: Option<Self> = None;
-            for cond in conds {
-                let Condition::CreateCoin(cc) = cond else {
-                    continue;
-                };
+            return Ok((
+                Some(Self {
+                    coin: Coin::new(parent_coin.coin_id(), new_puzzle_hash.into(), new_amount),
+                    asset_id,
+                    proof,
+                    // last payment time should've been updated by the spend
+                    info: StreamingPuzzleInfo::from_layer(streaming_layer)
+                        .with_last_payment_time(streaming_solution.payment_time),
+                }),
+                false,
+                0,
+            ));
+        }
 
-                let Memos::Some(memos) = cc.memos else {
-                    continue;
-                };
+        // if parent is not CAT/XCH streaming coin,
+        // check if parent created eve streaming asset
+        let parent_puzzle_ptr = parent_puzzle.ptr();
+        let output = run_puzzle(allocator, parent_puzzle_ptr, parent_solution)?;
+        let conds: Conditions<NodePtr> = Conditions::from_clvm(allocator, output)?;
 
-                let memos = Vec::<Bytes>::from_clvm(allocator, memos)?;
-                let Some(candidate_info) = StreamingPuzzleInfo::from_memos(&memos)? else {
-                    continue;
-                };
-                let candidate_inner_puzzle_hash = candidate_info.inner_puzzle_hash();
-                let candidate_puzzle_hash =
-                    CatArgs::curry_tree_hash(parent_layer.asset_id, candidate_inner_puzzle_hash);
+        let (asset_id, proof) = if let Ok(Some(parent_layer)) =
+            CatLayer::<HashedPtr>::parse_puzzle(allocator, parent_puzzle)
+        {
+            (
+                Some(parent_layer.asset_id),
+                Some(LineageProof {
+                    parent_parent_coin_info: parent_coin.parent_coin_info,
+                    parent_inner_puzzle_hash: parent_layer.inner_puzzle.tree_hash().into(),
+                    parent_amount: parent_coin.amount,
+                }),
+            )
+        } else {
+            (None, None)
+        };
 
-                if cc.puzzle_hash != candidate_puzzle_hash.into() {
-                    continue;
-                }
+        for cond in conds {
+            let Condition::CreateCoin(cc) = cond else {
+                continue;
+            };
 
-                found_stream_layer = Some(Self::new(
-                    Coin::new(
+            let Memos::Some(memos) = cc.memos else {
+                continue;
+            };
+
+            let memos = Vec::<Bytes>::from_clvm(allocator, memos)?;
+            let Some(candidate_info) = StreamingPuzzleInfo::from_memos(&memos)? else {
+                continue;
+            };
+            let candidate_inner_puzzle_hash = candidate_info.inner_puzzle_hash();
+            let candidate_puzzle_hash = if let Some(asset_id) = asset_id {
+                CatArgs::curry_tree_hash(asset_id, candidate_inner_puzzle_hash)
+            } else {
+                candidate_inner_puzzle_hash
+            };
+
+            if cc.puzzle_hash != candidate_puzzle_hash.into() {
+                continue;
+            }
+
+            return Ok((
+                Some(Self {
+                    coin: Coin::new(
                         parent_coin.coin_id(),
                         candidate_puzzle_hash.into(),
                         cc.amount,
                     ),
-                    parent_layer.asset_id,
-                    LineageProof {
-                        parent_parent_coin_info: parent_coin.parent_coin_info,
-                        parent_inner_puzzle_hash: tree_hash(allocator, parent_layer.inner_puzzle)
-                            .into(),
-                        parent_amount: parent_coin.amount,
-                    },
-                    candidate_info,
-                ));
-            }
-
-            return Ok((found_stream_layer, false, 0));
-        };
-
-        let proof = LineageProof {
-            parent_parent_coin_info: parent_coin.parent_coin_info,
-            parent_inner_puzzle_hash: layers.inner_puzzle.puzzle_hash().into(),
-            parent_amount: parent_coin.amount,
-        };
-
-        let parent_solution =
-            CatSolution::<StreamPuzzleSolution>::from_clvm(allocator, parent_solution)?;
-        if parent_solution.inner_puzzle_solution.clawback {
-            return Ok((None, true, parent_solution.inner_puzzle_solution.to_pay));
+                    asset_id,
+                    proof,
+                    info: candidate_info,
+                }),
+                false,
+                0,
+            ));
         }
 
-        let new_amount = parent_coin.amount - parent_solution.inner_puzzle_solution.to_pay;
-
-        let new_inner_layer = StreamLayer::new(
-            layers.inner_puzzle.recipient,
-            layers.inner_puzzle.clawback_ph,
-            layers.inner_puzzle.end_time,
-            parent_solution.inner_puzzle_solution.payment_time,
-        );
-        let new_puzzle_hash =
-            CatArgs::curry_tree_hash(layers.asset_id, new_inner_layer.puzzle_hash());
-
-        Ok((
-            Some(Self::new(
-                Coin::new(parent_coin.coin_id(), new_puzzle_hash.into(), new_amount),
-                layers.asset_id,
-                proof,
-                // last payment time should've been updated by the spend
-                StreamingPuzzleInfo::from_layer(layers.inner_puzzle)
-                    .with_last_payment_time(parent_solution.inner_puzzle_solution.payment_time),
-            )),
-            false,
-            0,
-        ))
+        Ok((None, false, 0))
     }
 }
 
@@ -353,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    fn test_streamed_cat() -> anyhow::Result<()> {
+    fn test_streamed_asset() -> anyhow::Result<()> {
         let mut ctx = SpendContext::new();
         let mut sim = Simulator::new();
 
@@ -397,7 +450,7 @@ mod tests {
         sim.set_next_timestamp(1000 + claim_intervals[0])?;
 
         // spend streaming CAT
-        let mut streamed_cat = StreamedCat::new(
+        let mut streamed_cat = StreamedAsset::cat(
             initial_vesting_cat.coin,
             initial_vesting_cat.info.asset_id,
             initial_vesting_cat.lineage_proof.unwrap(),
@@ -439,7 +492,7 @@ mod tests {
             let parent_puzzle = ctx.alloc(&streamed_cat_spend.puzzle_reveal)?;
             let parent_puzzle = Puzzle::from_clvm(&ctx, parent_puzzle)?;
             let parent_solution = ctx.alloc(&streamed_cat_spend.solution)?;
-            let (Some(new_streamed_cat), clawback, _) = StreamedCat::from_parent_spend(
+            let (Some(new_streamed_cat), clawback, _) = StreamedAsset::from_parent_spend(
                 &mut ctx,
                 streamed_cat.coin,
                 parent_puzzle,
@@ -473,7 +526,7 @@ mod tests {
         let parent_puzzle = Puzzle::from_clvm(&ctx, parent_puzzle)?;
         let parent_solution = ctx.alloc(&streamed_cat_spend.solution)?;
         let (new_streamed_cat, clawback, _paid_amount_if_clawback) =
-            StreamedCat::from_parent_spend(
+            StreamedAsset::from_parent_spend(
                 &mut ctx,
                 streamed_cat.coin,
                 parent_puzzle,

@@ -1,10 +1,32 @@
 use bindy::Result;
-use chia_protocol::{Bytes, Bytes32};
-use chia_sdk_driver::{StreamedCat, StreamingPuzzleInfo};
+use chia_protocol::{Bytes, Bytes32, Coin};
+use chia_puzzle_types::LineageProof;
+use chia_sdk_driver::{StreamedAsset, StreamingPuzzleInfo};
 
-pub trait StreamedCatExt {}
+pub trait StreamedAssetExt {
+    fn xch(coin: Coin, info: StreamingPuzzleInfo) -> Result<StreamedAsset>;
+    fn cat(
+        coin: Coin,
+        asset_id: Bytes32,
+        proof: LineageProof,
+        info: StreamingPuzzleInfo,
+    ) -> Result<StreamedAsset>;
+}
 
-impl StreamedCatExt for StreamedCat {}
+impl StreamedAssetExt for StreamedAsset {
+    fn xch(coin: Coin, info: StreamingPuzzleInfo) -> Result<StreamedAsset> {
+        Ok(StreamedAsset::xch(coin, info))
+    }
+
+    fn cat(
+        coin: Coin,
+        asset_id: Bytes32,
+        proof: LineageProof,
+        info: StreamingPuzzleInfo,
+    ) -> Result<StreamedAsset> {
+        Ok(StreamedAsset::cat(coin, asset_id, proof, info))
+    }
+}
 
 pub trait StreamingPuzzleInfoExt: Sized {
     fn amount_to_be_paid(&self, my_coin_amount: u64, payment_time: u64) -> Result<u64>;
@@ -40,8 +62,8 @@ impl StreamingPuzzleInfoExt for StreamingPuzzleInfo {
 }
 
 #[derive(Clone)]
-pub struct StreamedCatParsingResult {
-    pub streamed_cat: Option<StreamedCat>,
+pub struct StreamedAssetParsingResult {
+    pub streamed_asset: Option<StreamedAsset>,
     pub last_spend_was_clawback: bool,
     pub last_payment_amount_if_clawback: u64,
 }

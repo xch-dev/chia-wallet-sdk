@@ -3,7 +3,7 @@ mod clawback;
 mod clawback_v2;
 mod did;
 mod nft;
-mod streamed_cat;
+mod streamed_asset;
 
 pub use cat::*;
 use chia_bls::PublicKey;
@@ -12,7 +12,7 @@ pub use clawback::*;
 pub use clawback_v2::*;
 pub use did::*;
 pub use nft::*;
-pub use streamed_cat::*;
+pub use streamed_asset::*;
 
 use std::sync::{Arc, Mutex};
 
@@ -169,21 +169,21 @@ impl Puzzle {
         &self,
         parent_coin: Coin,
         parent_solution: Program,
-    ) -> Result<StreamedCatParsingResult> {
+    ) -> Result<StreamedAssetParsingResult> {
         let mut ctx = self.program.0.lock().unwrap();
 
         let parent_puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
-        let (streamed_cat, clawback, last_payment_amount) =
-            chia_sdk_driver::StreamedCat::from_parent_spend(
+        let (streamed_asset, clawback, last_payment_amount) =
+            chia_sdk_driver::StreamedAsset::from_parent_spend(
                 &mut ctx,
                 parent_coin,
                 parent_puzzle,
                 parent_solution.1,
             )?;
 
-        Ok(StreamedCatParsingResult {
-            streamed_cat,
+        Ok(StreamedAssetParsingResult {
+            streamed_asset,
             last_spend_was_clawback: clawback,
             last_payment_amount_if_clawback: last_payment_amount,
         })

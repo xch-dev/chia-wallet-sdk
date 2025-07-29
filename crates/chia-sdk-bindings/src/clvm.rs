@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use bindy::{Error, Result};
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram};
-use chia_sdk_driver::{Cat, HashedPtr, Launcher, SpendContext, StandardLayer, StreamedCat};
+use chia_sdk_driver::{Cat, HashedPtr, Launcher, SpendContext, StandardLayer, StreamedAsset};
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::TreeHash;
@@ -178,14 +178,14 @@ impl Clvm {
             .map(|did| did.as_program(&self.0)))
     }
 
-    pub fn spend_streamed_cat(
+    pub fn spend_streamed_asset(
         &self,
-        streamed_cat: StreamedCat,
+        streamed_asset: StreamedAsset,
         payment_time: u64,
         clawback: bool,
     ) -> Result<()> {
         let mut ctx = self.0.lock().unwrap();
-        streamed_cat.spend(&mut ctx, payment_time, clawback)?;
+        streamed_asset.spend(&mut ctx, payment_time, clawback)?;
         Ok(())
     }
 
