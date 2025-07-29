@@ -275,7 +275,7 @@ impl Did {
     /// However, if the puzzle should have been a DID but had a parsing error, this will return an error.
     #[allow(clippy::type_complexity)]
     pub fn parse(
-        allocator: &mut Allocator,
+        allocator: &Allocator,
         coin: Coin,
         puzzle: Puzzle,
         solution: NodePtr,
