@@ -36,7 +36,7 @@ impl RequestMap {
 
         items.retain(|_, v| !v.sender.is_closed());
 
-        let index = self.next_id.fetch_add(0, Ordering::SeqCst);
+        let index = self.next_id.fetch_add(1, Ordering::SeqCst);
 
         items.insert(index, Request { sender });
 
