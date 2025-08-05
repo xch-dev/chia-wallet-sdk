@@ -2,8 +2,11 @@ use std::sync::{Arc, Mutex};
 
 use bindy::{Error, Result};
 use chia_protocol::{Bytes, Program as SerializedProgram};
-use chia_puzzle_types::nft::NftMetadata;
-use chia_sdk_driver::SpendContext;
+use chia_puzzle_types::{
+    nft::NftMetadata,
+    offer::{NotarizedPayment as ChiaNotarizedPayment, Payment as ChiaPayment},
+};
+use chia_sdk_driver::{OptionMetadata, SpendContext};
 use clvm_tools_rs::classic::clvm_tools::stages::run;
 use clvm_tools_rs::classic::clvm_tools::stages::stage_0::TRunProgram;
 use clvm_tools_rs::classic::clvm_tools::{
@@ -18,7 +21,7 @@ use clvmr::{
 };
 use num_bigint::BigInt;
 
-use crate::{CurriedProgram, Output, Pair, Puzzle};
+use crate::{AsProgram, CurriedProgram, NotarizedPayment, Output, Pair, Payment, Puzzle};
 
 #[derive(Clone)]
 pub struct Program(pub(crate) Arc<Mutex<SpendContext>>, pub(crate) NodePtr);
@@ -282,5 +285,23 @@ impl Program {
         let ctx = self.0.lock().unwrap();
         let value = NftMetadata::from_clvm(&**ctx, self.1);
         Ok(value.ok())
+    }
+
+    pub fn parse_option_metadata(&self) -> Result<Option<OptionMetadata>> {
+        let ctx = self.0.lock().unwrap();
+        let value = OptionMetadata::from_clvm(&**ctx, self.1);
+        Ok(value.ok())
+    }
+
+    pub fn parse_payment(&self) -> Result<Option<Payment>> {
+        let ctx = self.0.lock().unwrap();
+        let value = ChiaPayment::from_clvm(&**ctx, self.1);
+        Ok(value.ok().map(|p| p.as_program(&self.0)))
+    }
+
+    pub fn parse_notarized_payment(&self) -> Result<Option<NotarizedPayment>> {
+        let ctx = self.0.lock().unwrap();
+        let value = ChiaNotarizedPayment::from_clvm(&**ctx, self.1);
+        Ok(value.ok().map(|p| p.as_program(&self.0)))
     }
 }

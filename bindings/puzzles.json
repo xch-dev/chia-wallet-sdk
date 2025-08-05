@@ -425,25 +425,108 @@
       "p2_solution": "Program"
     }
   },
+  "OptionUnderlying": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "creator_puzzle_hash": "Bytes32",
+      "seconds": "u64",
+      "amount": "u64",
+      "strike_type": "OptionType"
+    },
+    "methods": {
+      "exercise_spend": {
+        "args": {
+          "clvm": "Clvm",
+          "singleton_inner_puzzle_hash": "Bytes32",
+          "singleton_amount": "u64"
+        },
+        "return": "Spend"
+      },
+      "clawback_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "delegated_puzzle_hash": {
+        "return": "TreeHash"
+      }
+    }
+  },
+  "OptionMetadata": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "expiration_seconds": "u64",
+      "strike_type": "OptionType"
+    }
+  },
   "OptionType": {
-    "type": "union",
-    "variants": [
-      "OptionTypeXch",
-      "OptionTypeCat",
-      "OptionTypeRevocableCat",
-      "OptionTypeNft"
-    ]
+    "type": "class",
+    "remote": true,
+    "methods": {
+      "xch": {
+        "type": "factory",
+        "args": {
+          "amount": "u64"
+        },
+        "return": "OptionType"
+      },
+      "cat": {
+        "type": "factory",
+        "args": {
+          "asset_id": "Bytes32",
+          "amount": "u64"
+        },
+        "return": "OptionType"
+      },
+      "revocable_cat": {
+        "type": "factory",
+        "args": {
+          "asset_id": "Bytes32",
+          "hidden_puzzle_hash": "Bytes32",
+          "amount": "u64"
+        },
+        "return": "OptionType"
+      },
+      "nft": {
+        "type": "factory",
+        "args": {
+          "launcher_id": "Bytes32",
+          "settlement_puzzle_hash": "Bytes32",
+          "amount": "u64"
+        },
+        "return": "OptionType"
+      },
+      "to_xch": {
+        "return": "Option<OptionTypeXch>"
+      },
+      "to_cat": {
+        "return": "Option<OptionTypeCat>"
+      },
+      "to_revocable_cat": {
+        "return": "Option<OptionTypeRevocableCat>"
+      },
+      "to_nft": {
+        "return": "Option<OptionTypeNft>"
+      }
+    }
   },
   "OptionTypeXch": {
     "type": "class",
-    "new": true,
     "fields": {
       "amount": "u64"
     }
   },
   "OptionTypeCat": {
     "type": "class",
-    "new": true,
     "fields": {
       "asset_id": "Bytes32",
       "amount": "u64"
@@ -451,7 +534,6 @@
   },
   "OptionTypeRevocableCat": {
     "type": "class",
-    "new": true,
     "fields": {
       "asset_id": "Bytes32",
       "hidden_puzzle_hash": "Bytes32",
@@ -460,7 +542,6 @@
   },
   "OptionTypeNft": {
     "type": "class",
-    "new": true,
     "fields": {
       "launcher_id": "Bytes32",
       "settlement_puzzle_hash": "Bytes32",

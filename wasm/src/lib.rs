@@ -150,6 +150,9 @@ fn alloc(
             ClvmType::MemoKind(value) => clvm.memo_kind(value.0.clone())?,
             ClvmType::MemberMemo(value) => clvm.member_memo(value.0.clone())?,
             ClvmType::MofNMemo(value) => clvm.m_of_n_memo(value.0.clone())?,
+            ClvmType::OptionMetadata(value) => clvm.option_metadata(value.0.clone())?,
+            ClvmType::NotarizedPayment(value) => clvm.notarized_payment(value.0.clone())?,
+            ClvmType::Payment(value) => clvm.payment(value.0.clone())?,
         });
     }
 

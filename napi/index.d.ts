@@ -461,11 +461,14 @@ export declare class Clvm {
   delegatedSpend(conditions: Array<Program>): Spend
   standardSpend(syntheticKey: PublicKey, spend: Spend): Spend
   spendStandardCoin(coin: Coin, syntheticKey: PublicKey, spend: Spend): void
+  settlementSpend(notarizedPayments: Array<NotarizedPayment>): Spend
+  spendSettlementCoin(coin: Coin, notarizedPayments: Array<NotarizedPayment>): void
   spendCats(catSpends: Array<CatSpend>): Array<Cat>
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
   spendNft(nft: Nft, innerSpend: Spend): Nft
   createEveDid(parentCoinId: Uint8Array, p2PuzzleHash: Uint8Array): CreatedDid
   spendDid(did: Did, innerSpend: Spend): Did | null
+  spendOption(option: OptionContract, innerSpend: Spend): OptionContract | null
   spendStreamedAsset(streamedAsset: StreamedAsset, paymentTime: bigint, clawback: boolean): void
   mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
   mipsSpend(coin: Coin, delegatedSpend: Spend): MipsSpend
@@ -1415,6 +1418,15 @@ export declare class NftMint {
   set transferCondition(value?: TransferNft | undefined | null)
 }
 
+export declare class NotarizedPayment {
+  clone(): NotarizedPayment
+  constructor(nonce: Uint8Array, payments: Array<Payment>)
+  get nonce(): Buffer
+  set nonce(value: Uint8Array)
+  get payments(): Array<Payment>
+  set payments(value: Array<Payment>)
+}
+
 export declare class OptionContract {
   clone(): OptionContract
   constructor(coin: Coin, proof: Proof, info: OptionInfo)
@@ -1439,6 +1451,80 @@ export declare class OptionInfo {
   set underlyingDelegatedPuzzleHash(value: Uint8Array)
   get p2PuzzleHash(): Buffer
   set p2PuzzleHash(value: Uint8Array)
+}
+
+export declare class OptionMetadata {
+  clone(): OptionMetadata
+  constructor(expirationSeconds: bigint, strikeType: OptionType)
+  get expirationSeconds(): bigint
+  set expirationSeconds(value: bigint)
+  get strikeType(): OptionType
+  set strikeType(value: OptionType)
+}
+
+export declare class OptionType {
+  clone(): OptionType
+  static xch(amount: bigint): OptionType
+  static cat(assetId: Uint8Array, amount: bigint): OptionType
+  static revocableCat(assetId: Uint8Array, hiddenPuzzleHash: Uint8Array, amount: bigint): OptionType
+  static nft(launcherId: Uint8Array, settlementPuzzleHash: Uint8Array, amount: bigint): OptionType
+  toXch(): OptionTypeXch | null
+  toCat(): OptionTypeCat | null
+  toRevocableCat(): OptionTypeRevocableCat | null
+  toNft(): OptionTypeNft | null
+}
+
+export declare class OptionTypeCat {
+  clone(): OptionTypeCat
+  get assetId(): Buffer
+  set assetId(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+
+export declare class OptionTypeNft {
+  clone(): OptionTypeNft
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get settlementPuzzleHash(): Buffer
+  set settlementPuzzleHash(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+
+export declare class OptionTypeRevocableCat {
+  clone(): OptionTypeRevocableCat
+  get assetId(): Buffer
+  set assetId(value: Uint8Array)
+  get hiddenPuzzleHash(): Buffer
+  set hiddenPuzzleHash(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+
+export declare class OptionTypeXch {
+  clone(): OptionTypeXch
+  get amount(): bigint
+  set amount(value: bigint)
+}
+
+export declare class OptionUnderlying {
+  clone(): OptionUnderlying
+  exerciseSpend(clvm: Clvm, singletonInnerPuzzleHash: Uint8Array, singletonAmount: bigint): Spend
+  clawbackSpend(spend: Spend): Spend
+  puzzleHash(): Buffer
+  delegatedPuzzleHash(): Buffer
+  constructor(launcherId: Uint8Array, creatorPuzzleHash: Uint8Array, seconds: bigint, amount: bigint, strikeType: OptionType)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get creatorPuzzleHash(): Buffer
+  set creatorPuzzleHash(value: Uint8Array)
+  get seconds(): bigint
+  set seconds(value: bigint)
+  get amount(): bigint
+  set amount(value: bigint)
+  get strikeType(): OptionType
+  set strikeType(value: OptionType)
 }
 
 export declare class Output {
@@ -1546,6 +1632,17 @@ export declare class ParsedOptionInfo {
   set p2Puzzle(value: Puzzle)
 }
 
+export declare class Payment {
+  clone(): Payment
+  constructor(puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+  get memos(): Program | null
+  set memos(value?: Program | undefined | null)
+}
+
 export declare class PoolTarget {
   clone(): PoolTarget
   constructor(puzzleHash: Uint8Array, maxHeight: number)
@@ -1620,6 +1717,9 @@ export declare class Program {
   parseRunCatTail(): RunCatTail | null
   parseUpdateNftMetadata(): UpdateNftMetadata | null
   parseUpdateDataStoreMerkleRoot(): UpdateDataStoreMerkleRoot | null
+  parseOptionMetadata(): OptionMetadata | null
+  parsePayment(): Payment | null
+  parseNotarizedPayment(): NotarizedPayment | null
 }
 
 export declare class Proof {

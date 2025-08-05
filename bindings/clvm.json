@@ -117,6 +117,18 @@
           "spend": "Spend"
         }
       },
+      "settlement_spend": {
+        "args": {
+          "notarized_payments": "Vec<NotarizedPayment>"
+        },
+        "return": "Spend"
+      },
+      "spend_settlement_coin": {
+        "args": {
+          "coin": "Coin",
+          "notarized_payments": "Vec<NotarizedPayment>"
+        }
+      },
       "spend_cats": {
         "args": {
           "cat_spends": "Vec<CatSpend>"

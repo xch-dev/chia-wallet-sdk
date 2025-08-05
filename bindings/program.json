@@ -199,6 +199,15 @@
       },
       "parse_update_data_store_merkle_root": {
         "return": "Option<UpdateDataStoreMerkleRoot>"
+      },
+      "parse_option_metadata": {
+        "return": "Option<OptionMetadata>"
+      },
+      "parse_payment": {
+        "return": "Option<Payment>"
+      },
+      "parse_notarized_payment": {
+        "return": "Option<NotarizedPayment>"
       }
     }
   }
