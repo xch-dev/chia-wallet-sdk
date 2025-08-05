@@ -604,6 +604,7 @@ export declare class Clvm {
   timelock(): Program
   addDelegatedPuzzleWrapper(): Program
   delegatedPuzzleFeeder(): Program
+  restrictions(): Program
   indexWrapper(): Program
   mOfN(): Program
   nOfN(): Program
@@ -849,6 +850,8 @@ export declare class Constants {
   static addDelegatedPuzzleWrapperHash(): Buffer
   static delegatedPuzzleFeeder(): Buffer
   static delegatedPuzzleFeederHash(): Buffer
+  static restrictions(): Buffer
+  static restrictionsHash(): Buffer
   static indexWrapper(): Buffer
   static indexWrapperHash(): Buffer
   static mOfN(): Buffer
