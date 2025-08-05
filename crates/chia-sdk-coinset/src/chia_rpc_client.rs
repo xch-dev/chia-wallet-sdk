@@ -79,14 +79,14 @@ pub trait ChiaRpcClient {
 
     fn get_block_records(
         &self,
-        start_height: u32,
-        end_height: u32,
+        start: u32,
+        end: u32,
     ) -> impl Future<Output = Result<GetBlockRecordsResponse, Self::Error>> {
         self.make_post_request(
             "get_block_records",
             serde_json::json!({
-                "start_height": start_height,
-                "end_height": end_height,
+                "start": start,
+                "end": end,
             }),
         )
     }
