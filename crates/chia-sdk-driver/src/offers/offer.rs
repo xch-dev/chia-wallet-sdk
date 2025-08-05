@@ -184,9 +184,26 @@ impl Offer {
             let is_requested = self.requested_payments.nfts.contains_key(&launcher_id);
 
             if is_offered && !is_requested {
-                arbitrage.requested_nfts.push(launcher_id);
+                arbitrage.requested.nfts.push(launcher_id);
             } else if !is_offered && is_requested {
-                arbitrage.offered_nfts.push(launcher_id);
+                arbitrage.offered.nfts.push(launcher_id);
+            }
+        }
+
+        for &launcher_id in self
+            .offered_coins
+            .options
+            .keys()
+            .chain(self.requested_payments.options.keys())
+            .collect::<IndexSet<_>>()
+        {
+            let is_offered = self.offered_coins.options.contains_key(&launcher_id);
+            let is_requested = self.requested_payments.options.contains_key(&launcher_id);
+
+            if is_offered && !is_requested {
+                arbitrage.requested.options.push(launcher_id);
+            } else if !is_offered && is_requested {
+                arbitrage.offered.options.push(launcher_id);
             }
         }
 
