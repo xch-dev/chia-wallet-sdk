@@ -151,6 +151,13 @@
         },
         "return": "Option<Did>"
       },
+      "spend_option": {
+        "args": {
+          "option": "OptionContract",
+          "inner_spend": "Spend"
+        },
+        "return": "Option<OptionContract>"
+      },
       "spend_streamed_asset": {
         "args": {
           "streamed_asset": "StreamedAsset",

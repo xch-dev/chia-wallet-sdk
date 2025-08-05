@@ -1415,6 +1415,32 @@ export declare class NftMint {
   set transferCondition(value?: TransferNft | undefined | null)
 }
 
+export declare class OptionContract {
+  clone(): OptionContract
+  constructor(coin: Coin, proof: Proof, info: OptionInfo)
+  get coin(): Coin
+  set coin(value: Coin)
+  get proof(): Proof
+  set proof(value: Proof)
+  get info(): OptionInfo
+  set info(value: OptionInfo)
+}
+
+export declare class OptionInfo {
+  clone(): OptionInfo
+  innerPuzzleHash(): Buffer
+  puzzleHash(): Buffer
+  constructor(launcherId: Uint8Array, underlyingCoinId: Uint8Array, underlyingDelegatedPuzzleHash: Uint8Array, p2PuzzleHash: Uint8Array)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get underlyingCoinId(): Buffer
+  set underlyingCoinId(value: Uint8Array)
+  get underlyingDelegatedPuzzleHash(): Buffer
+  set underlyingDelegatedPuzzleHash(value: Uint8Array)
+  get p2PuzzleHash(): Buffer
+  set p2PuzzleHash(value: Uint8Array)
+}
+
 export declare class Output {
   clone(): Output
   constructor(value: Program, cost: bigint)
@@ -1435,6 +1461,17 @@ export declare class Pair {
 
 export declare class ParsedCat {
   clone(): ParsedCat
+  constructor(cat: Cat, p2Puzzle: Puzzle, p2Solution: Program)
+  get cat(): Cat
+  set cat(value: Cat)
+  get p2Puzzle(): Puzzle
+  set p2Puzzle(value: Puzzle)
+  get p2Solution(): Program
+  set p2Solution(value: Program)
+}
+
+export declare class ParsedCatInfo {
+  clone(): ParsedCatInfo
   constructor(info: CatInfo, p2Puzzle?: Puzzle | undefined | null)
   get info(): CatInfo
   set info(value: CatInfo)
@@ -1444,6 +1481,15 @@ export declare class ParsedCat {
 
 export declare class ParsedDid {
   clone(): ParsedDid
+  constructor(did: Did, p2Spend?: ParsedDidSpend | undefined | null)
+  get did(): Did
+  set did(value: Did)
+  get p2Spend(): ParsedDidSpend | null
+  set p2Spend(value?: ParsedDidSpend | undefined | null)
+}
+
+export declare class ParsedDidInfo {
+  clone(): ParsedDidInfo
   constructor(info: DidInfo, p2Puzzle: Puzzle)
   get info(): DidInfo
   set info(value: DidInfo)
@@ -1451,11 +1497,51 @@ export declare class ParsedDid {
   set p2Puzzle(value: Puzzle)
 }
 
+export declare class ParsedDidSpend {
+  clone(): ParsedDidSpend
+  constructor(puzzle: Puzzle, solution: Program)
+  get puzzle(): Puzzle
+  set puzzle(value: Puzzle)
+  get solution(): Program
+  set solution(value: Program)
+}
+
 export declare class ParsedNft {
   clone(): ParsedNft
+  constructor(nft: Nft, p2Puzzle: Puzzle, p2Solution: Program)
+  get nft(): Nft
+  set nft(value: Nft)
+  get p2Puzzle(): Puzzle
+  set p2Puzzle(value: Puzzle)
+  get p2Solution(): Program
+  set p2Solution(value: Program)
+}
+
+export declare class ParsedNftInfo {
+  clone(): ParsedNftInfo
   constructor(info: NftInfo, p2Puzzle: Puzzle)
   get info(): NftInfo
   set info(value: NftInfo)
+  get p2Puzzle(): Puzzle
+  set p2Puzzle(value: Puzzle)
+}
+
+export declare class ParsedOption {
+  clone(): ParsedOption
+  constructor(option: OptionContract, p2Puzzle: Puzzle, p2Solution: Program)
+  get option(): OptionContract
+  set option(value: OptionContract)
+  get p2Puzzle(): Puzzle
+  set p2Puzzle(value: Puzzle)
+  get p2Solution(): Program
+  set p2Solution(value: Program)
+}
+
+export declare class ParsedOptionInfo {
+  clone(): ParsedOptionInfo
+  constructor(info: OptionInfo, p2Puzzle: Puzzle)
+  get info(): OptionInfo
+  set info(value: OptionInfo)
   get p2Puzzle(): Puzzle
   set p2Puzzle(value: Puzzle)
 }
@@ -1595,12 +1681,18 @@ export declare class PushTxResponse {
 
 export declare class Puzzle {
   clone(): Puzzle
-  parseCat(): ParsedCat | null
+  parseCatInfo(): ParsedCatInfo | null
+  parseCat(coin: Coin, solution: Program): ParsedCat | null
   parseChildCats(parentCoin: Coin, parentSolution: Program): Array<Cat> | null
-  parseNft(): ParsedNft | null
+  parseNftInfo(): ParsedNftInfo | null
+  parseNft(coin: Coin, solution: Program): ParsedNft | null
   parseChildNft(parentCoin: Coin, parentSolution: Program): Nft | null
-  parseDid(): ParsedDid | null
+  parseDidInfo(): ParsedDidInfo | null
+  parseDid(coin: Coin, solution: Program): ParsedDid | null
   parseChildDid(parentCoin: Coin, parentSolution: Program, coin: Coin): Did | null
+  parseOptionInfo(): ParsedOptionInfo | null
+  parseOption(coin: Coin, solution: Program): ParsedOption | null
+  parseChildOption(parentCoin: Coin, parentSolution: Program): OptionContract | null
   parseInnerStreamingPuzzle(): StreamingPuzzleInfo | null
   parseChildClawbacks(parentSolution: Program): Array<Clawback> | null
   constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)

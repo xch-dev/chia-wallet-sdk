@@ -16,7 +16,8 @@ use num_bigint::BigInt;
 use crate::{
     AsProgram, AsPtr, CatSpend, CreatedDid, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo,
     MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft, NftMetadata, NftMint,
-    Program, RestrictionMemo, Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
+    OptionContract, Program, RestrictionMemo, Spend, StreamedAssetParsingResult, VaultMint,
+    WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -176,6 +177,23 @@ impl Clvm {
                 chia_sdk_driver::Spend::new(inner_spend.puzzle.1, inner_spend.solution.1),
             )?
             .map(|did| did.as_program(&self.0)))
+    }
+
+    pub fn spend_option(
+        &self,
+        option: OptionContract,
+        inner_spend: Spend,
+    ) -> Result<Option<OptionContract>> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let option = chia_sdk_driver::OptionContract::from(option);
+
+        Ok(option
+            .spend(
+                &mut ctx,
+                chia_sdk_driver::Spend::new(inner_spend.puzzle.1, inner_spend.solution.1),
+            )?
+            .map(Into::into))
     }
 
     pub fn spend_streamed_asset(

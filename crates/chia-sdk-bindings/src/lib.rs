@@ -62,7 +62,7 @@ pub use chia_sdk_coinset::{
     PushTxResponse, SyncState,
 };
 pub use chia_sdk_driver::{
-    Cat, CatInfo, Clawback, ClawbackV2, StreamedAsset, StreamingPuzzleInfo, VaultInfo,
+    Cat, CatInfo, Clawback, ClawbackV2, OptionInfo, StreamedAsset, StreamingPuzzleInfo, VaultInfo,
 };
 pub use chia_sdk_types::conditions::TradePrice;
 

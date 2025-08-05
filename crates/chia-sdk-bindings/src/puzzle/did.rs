@@ -114,9 +114,21 @@ impl AsPtr for DidInfo {
 }
 
 #[derive(Clone)]
-pub struct ParsedDid {
+pub struct ParsedDidInfo {
     pub info: DidInfo,
     pub p2_puzzle: Puzzle,
+}
+
+#[derive(Clone)]
+pub struct ParsedDid {
+    pub did: Did,
+    pub p2_spend: Option<ParsedDidSpend>,
+}
+
+#[derive(Clone)]
+pub struct ParsedDidSpend {
+    pub puzzle: Puzzle,
+    pub solution: Program,
 }
 
 #[derive(Clone)]
