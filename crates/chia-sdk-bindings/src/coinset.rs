@@ -54,12 +54,8 @@ impl CoinsetClient {
         Ok(self.0.get_block_record_by_height(height).await?)
     }
 
-    pub async fn get_block_records(
-        &self,
-        start_height: u32,
-        end_height: u32,
-    ) -> Result<GetBlockRecordsResponse> {
-        Ok(self.0.get_block_records(start_height, end_height).await?)
+    pub async fn get_block_records(&self, start: u32, end: u32) -> Result<GetBlockRecordsResponse> {
+        Ok(self.0.get_block_records(start, end).await?)
     }
 
     pub async fn get_blocks(
