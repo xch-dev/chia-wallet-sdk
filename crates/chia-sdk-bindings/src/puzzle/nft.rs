@@ -134,9 +134,16 @@ impl AsPtr for NftInfo {
 }
 
 #[derive(Clone)]
-pub struct ParsedNft {
+pub struct ParsedNftInfo {
     pub info: NftInfo,
     pub p2_puzzle: Puzzle,
+}
+
+#[derive(Clone)]
+pub struct ParsedNft {
+    pub nft: Nft,
+    pub p2_puzzle: Puzzle,
+    pub p2_solution: Program,
 }
 
 pub trait NftMetadataExt {}

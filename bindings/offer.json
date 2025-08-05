@@ -12,5 +12,22 @@
       "offer": "String"
     },
     "return": "SpendBundle"
+  },
+  "NotarizedPayment": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "nonce": "Bytes32",
+      "payments": "Vec<Payment>"
+    }
+  },
+  "Payment": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "amount": "u64",
+      "memos": "Option<Program>"
+    }
   }
 }

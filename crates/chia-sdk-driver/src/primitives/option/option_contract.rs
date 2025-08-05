@@ -82,6 +82,31 @@ impl OptionContract {
         Ok(Some(option))
     }
 
+    /// Parses an [`OptionContract`] and its p2 spend from a coin spend.
+    ///
+    /// If the puzzle is not an option contract, this will return [`None`] instead of an error.
+    /// However, if the puzzle should have been an option contract but had a parsing error, this will return an error.
+    pub fn parse(
+        allocator: &Allocator,
+        coin: Coin,
+        puzzle: Puzzle,
+        solution: NodePtr,
+    ) -> Result<Option<(Self, Puzzle, NodePtr)>, DriverError> {
+        let Some((option_info, p2_puzzle)) = OptionInfo::parse(allocator, puzzle)? else {
+            return Ok(None);
+        };
+
+        let solution = OptionContractLayers::<Puzzle>::parse_solution(allocator, solution)?;
+
+        let p2_solution = solution.inner_solution.inner_solution;
+
+        Ok(Some((
+            Self::new(coin, solution.lineage_proof, option_info),
+            p2_puzzle,
+            p2_solution,
+        )))
+    }
+
     pub fn parse_metadata(
         allocator: &mut Allocator,
         launcher_solution: NodePtr,

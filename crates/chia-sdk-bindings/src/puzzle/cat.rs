@@ -4,7 +4,7 @@ use chia_puzzle_types::LineageProof;
 use chia_sdk_driver::{Cat, CatInfo, CatSpend as SdkCatSpend};
 use clvm_utils::TreeHash;
 
-use crate::{Puzzle, Spend};
+use crate::{Program, Puzzle, Spend};
 
 pub trait CatExt {
     fn child_lineage_proof(&self) -> Result<LineageProof>;
@@ -77,7 +77,14 @@ impl From<CatSpend> for SdkCatSpend {
 }
 
 #[derive(Clone)]
-pub struct ParsedCat {
+pub struct ParsedCatInfo {
     pub info: CatInfo,
     pub p2_puzzle: Option<Puzzle>,
+}
+
+#[derive(Clone)]
+pub struct ParsedCat {
+    pub cat: Cat,
+    pub p2_puzzle: Puzzle,
+    pub p2_solution: Program,
 }

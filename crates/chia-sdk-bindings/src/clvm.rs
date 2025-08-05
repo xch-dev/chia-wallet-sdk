@@ -3,7 +3,11 @@ use std::sync::{Arc, Mutex};
 use bindy::{Error, Result};
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram};
-use chia_sdk_driver::{Cat, HashedPtr, Launcher, SpendContext, StandardLayer, StreamedAsset};
+use chia_puzzle_types::offer::SettlementPaymentsSolution;
+use chia_sdk_driver::{
+    Cat, HashedPtr, Launcher, Layer, OptionMetadata, SettlementLayer, SpendContext, StandardLayer,
+    StreamedAsset,
+};
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::TreeHash;
@@ -16,7 +20,8 @@ use num_bigint::BigInt;
 use crate::{
     AsProgram, AsPtr, CatSpend, CreatedDid, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo,
     MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft, NftMetadata, NftMint,
-    Program, RestrictionMemo, Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
+    NotarizedPayment, OptionContract, Payment, Program, RestrictionMemo, Spend,
+    StreamedAssetParsingResult, VaultMint, WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -80,6 +85,38 @@ impl Clvm {
         spend: Spend,
     ) -> Result<()> {
         let spend = self.standard_spend(synthetic_key, spend)?;
+        let mut ctx = self.0.lock().unwrap();
+        let puzzle_reveal = ctx.serialize(&spend.puzzle.1)?;
+        let solution = ctx.serialize(&spend.solution.1)?;
+        ctx.insert(chia_protocol::CoinSpend::new(coin, puzzle_reveal, solution));
+        Ok(())
+    }
+
+    pub fn settlement_spend(&self, notarized_payments: Vec<NotarizedPayment>) -> Result<Spend> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let notarized_payments = notarized_payments
+            .into_iter()
+            .map(|p| p.as_ptr(&ctx))
+            .collect::<Vec<_>>();
+
+        let spend = SettlementLayer.construct_spend(
+            &mut ctx,
+            SettlementPaymentsSolution::new(notarized_payments),
+        )?;
+
+        Ok(Spend {
+            puzzle: Program(self.0.clone(), spend.puzzle),
+            solution: Program(self.0.clone(), spend.solution),
+        })
+    }
+
+    pub fn spend_settlement_coin(
+        &self,
+        coin: Coin,
+        notarized_payments: Vec<NotarizedPayment>,
+    ) -> Result<()> {
+        let spend = self.settlement_spend(notarized_payments)?;
         let mut ctx = self.0.lock().unwrap();
         let puzzle_reveal = ctx.serialize(&spend.puzzle.1)?;
         let solution = ctx.serialize(&spend.solution.1)?;
@@ -176,6 +213,23 @@ impl Clvm {
                 chia_sdk_driver::Spend::new(inner_spend.puzzle.1, inner_spend.solution.1),
             )?
             .map(|did| did.as_program(&self.0)))
+    }
+
+    pub fn spend_option(
+        &self,
+        option: OptionContract,
+        inner_spend: Spend,
+    ) -> Result<Option<OptionContract>> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let option = chia_sdk_driver::OptionContract::from(option);
+
+        Ok(option
+            .spend(
+                &mut ctx,
+                chia_sdk_driver::Spend::new(inner_spend.puzzle.1, inner_spend.solution.1),
+            )?
+            .map(Into::into))
     }
 
     pub fn spend_streamed_asset(
@@ -388,6 +442,26 @@ impl Clvm {
     pub fn m_of_n_memo(&self, value: MofNMemo) -> Result<Program> {
         let mut ctx = self.0.lock().unwrap();
         let ptr = ctx.alloc(&chia_sdk_driver::MofNMemo::from(value))?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn option_metadata(&self, value: OptionMetadata) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let ptr = ctx.alloc(&value)?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn payment(&self, value: Payment) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let ptr = value.as_ptr(&ctx);
+        let ptr = ctx.alloc(&ptr)?;
+        Ok(Program(self.0.clone(), ptr))
+    }
+
+    pub fn notarized_payment(&self, value: NotarizedPayment) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+        let ptr = value.as_ptr(&ctx);
+        let ptr = ctx.alloc(&ptr)?;
         Ok(Program(self.0.clone(), ptr))
     }
 
