@@ -6,6 +6,7 @@ use chia_consensus::opcodes::{
     CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, RECEIVE_MESSAGE, SEND_MESSAGE,
 };
 use chia_protocol::{Bytes, Bytes32};
+use chia_puzzles::PREVENT_MULTIPLE_CREATE_COINS_HASH;
 use chia_sdk_driver::{self as sdk, mips_puzzle_hash, InnerPuzzleSpend, MofN, SpendContext};
 use chia_sdk_types::{
     puzzles::{
@@ -15,7 +16,7 @@ use chia_sdk_types::{
         PasskeyMemberPuzzleAssertSolution, PasskeyMemberSolution, PreventConditionOpcode,
         PreventMultipleCreateCoinsMod, R1Member, R1MemberPuzzleAssert,
         R1MemberPuzzleAssertSolution, R1MemberSolution, SingletonMember, SingletonMemberSolution,
-        Timelock, PREVENT_MULTIPLE_CREATE_COINS_HASH,
+        Timelock,
     },
     Mod,
 };
@@ -418,7 +419,7 @@ impl MipsSpend {
         let solution = ctx.alloc(&NodePtr::NIL)?;
 
         self.spend.lock().unwrap().restrictions.insert(
-            PREVENT_MULTIPLE_CREATE_COINS_HASH,
+            PREVENT_MULTIPLE_CREATE_COINS_HASH.into(),
             sdk::Spend::new(puzzle, solution),
         );
 
