@@ -505,6 +505,12 @@
           "coin_spend": "CoinSpend"
         },
         "return": "StreamedAssetParsingResult"
+      },
+      "parse_child_medieval_vault": {
+        "args": {
+          "coin_spend": "CoinSpend"
+        },
+        "return": "Option<MedievalVault>"
       }
     }
   }

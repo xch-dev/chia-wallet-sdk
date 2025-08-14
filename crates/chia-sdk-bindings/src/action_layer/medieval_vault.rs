@@ -40,6 +40,7 @@ impl MedievalVaultInfoExt for MedievalVaultInfo {
     }
 }
 
+#[derive(Clone)]
 pub struct MedievalVault {
     pub coin: Coin,
     pub proof: Proof,

@@ -4,9 +4,10 @@ use bindy::{Error, Result};
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
+use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_driver::{
-    Cat, HashedPtr, Launcher, Layer, OptionMetadata, SettlementLayer, SpendContext, StandardLayer,
-    StreamedAsset,
+    Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault, OptionMetadata,
+    SettlementLayer, SpendContext, StandardLayer, StreamedAsset,
 };
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{clvm_quote, ToClvm};
@@ -19,9 +20,9 @@ use num_bigint::BigInt;
 
 use crate::{
     AsProgram, AsPtr, CatSpend, CreatedDid, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo,
-    MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft, NftMetadata, NftMint,
-    NotarizedPayment, OptionContract, Payment, Program, RestrictionMemo, Spend,
-    StreamedAssetParsingResult, VaultMint, WrapperMemo,
+    MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft,
+    NftMetadata, NftMint, NotarizedPayment, OptionContract, Payment, Program, RestrictionMemo,
+    Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -479,5 +480,22 @@ impl Clvm {
             last_spend_was_clawback: clawback,
             last_payment_amount_if_clawback: last_payment_amount,
         })
+    }
+
+    pub fn parse_child_medieval_vault(
+        &self,
+        parent_spend: CoinSpend,
+    ) -> Result<Option<MedievalVault>> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let result = if parent_spend.coin.puzzle_hash == SINGLETON_LAUNCHER_HASH.into() {
+            SdkMedievalVault::from_launcher_spend(&mut ctx, &parent_spend)?
+        } else {
+            SdkMedievalVault::from_parent_spend(&mut ctx, &parent_spend)?
+        };
+
+        Ok(result.map(|sdk_vault| {
+            MedievalVault::new(sdk_vault.coin, sdk_vault.proof.into(), sdk_vault.info)
+        }))
     }
 }
