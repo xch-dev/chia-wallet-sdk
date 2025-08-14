@@ -744,10 +744,11 @@
         "return": "TreeHash"
       },
       "from_hint": {
-        "type": "constructor",
+        "type": "static",
         "args": {
           "hint": "MedievalVaultHint"
-        }
+        },
+        "return": "MedievalVaultInfo"
       },
       "to_hint": {
         "return": "MedievalVaultHint"
