@@ -754,5 +754,23 @@
         "return": "MedievalVaultHint"
       }
     }
+  },
+  "MedievalVault": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "proof": "Proof",
+      "info": "MedievalVaultInfo"
+    },
+    "methods": {
+      "child": {
+        "args": {
+          "new_m": "usize",
+          "new_public_key_list": "Vec<PublicKey>"
+        },
+        "return": "MedievalVault"
+      }
+    }
   }
 }

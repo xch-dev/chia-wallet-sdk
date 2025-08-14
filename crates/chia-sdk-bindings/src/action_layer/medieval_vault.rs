@@ -1,6 +1,12 @@
 use bindy::Result;
-use chia_sdk_driver::{MedievalVaultHint, MedievalVaultInfo, SingletonInfo};
+use chia_bls::PublicKey;
+use chia_protocol::Coin;
+use chia_sdk_driver::{
+    MedievalVault as SdkMedievalVault, MedievalVaultHint, MedievalVaultInfo, SingletonInfo,
+};
 use clvm_utils::TreeHash;
+
+use crate::Proof;
 
 pub trait MedievalVaultHintExt {}
 
@@ -31,5 +37,29 @@ impl MedievalVaultInfoExt for MedievalVaultInfo {
 
     fn to_hint(&self) -> Result<MedievalVaultHint> {
         Ok(self.to_hint())
+    }
+}
+
+pub struct MedievalVault {
+    pub coin: Coin,
+    pub proof: Proof,
+    pub info: MedievalVaultInfo,
+}
+
+impl MedievalVault {
+    pub fn new(coin: Coin, proof: Proof, info: MedievalVaultInfo) -> Self {
+        Self { coin, proof, info }
+    }
+
+    pub fn child(&self, new_m: usize, new_public_key_list: Vec<PublicKey>) -> Result<Self> {
+        let new_sdk_vault =
+            SdkMedievalVault::new(self.coin, self.proof.clone().into(), self.info.clone())
+                .child(new_m, new_public_key_list);
+
+        Ok(Self::new(
+            new_sdk_vault.coin,
+            new_sdk_vault.proof.into(),
+            new_sdk_vault.info,
+        ))
     }
 }
