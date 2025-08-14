@@ -8,6 +8,7 @@
 #![allow(clippy::unnecessary_wraps)]
 #![allow(clippy::return_self_not_must_use)]
 
+mod action_layer;
 mod address;
 mod bls;
 mod clvm;
@@ -27,6 +28,7 @@ mod secp;
 mod simulator;
 mod utils;
 
+pub use action_layer::*;
 pub use address::*;
 pub use bls::*;
 pub use clvm::*;
@@ -62,8 +64,8 @@ pub use chia_sdk_coinset::{
     PushTxResponse, SyncState,
 };
 pub use chia_sdk_driver::{
-    Cat, CatInfo, Clawback, ClawbackV2, OptionInfo, OptionMetadata, OptionType, OptionUnderlying,
-    StreamedAsset, StreamingPuzzleInfo, VaultInfo,
+    Cat, CatInfo, Clawback, ClawbackV2, MedievalVaultHint, MedievalVaultInfo, OptionInfo,
+    OptionMetadata, OptionType, OptionUnderlying, StreamedAsset, StreamingPuzzleInfo, VaultInfo,
 };
 pub use chia_sdk_types::conditions::TradePrice;
 

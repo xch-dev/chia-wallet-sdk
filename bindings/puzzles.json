@@ -716,5 +716,42 @@
         "return": "Remark"
       }
     }
+  },
+  "MedievalVaultHint": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "my_launcher_id": "Bytes32",
+      "m": "usize",
+      "public_key_list": "Vec<PublicKey>"
+    }
+  },
+  "MedievalVaultInfo": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "m": "usize",
+      "public_key_list": "Vec<PublicKey>"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "from_hint": {
+        "type": "constructor",
+        "args": {
+          "hint": "MedievalVaultHint"
+        }
+      },
+      "to_hint": {
+        "return": "MedievalVaultHint"
+      }
+    }
   }
 }
