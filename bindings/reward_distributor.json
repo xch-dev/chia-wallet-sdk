@@ -1,0 +1,52 @@
+{
+  "RewardDistributorType": {
+    "type": "enum",
+    "remote": true,
+    "values": ["Manager", "Nft"]
+  },
+  "RewardDistributorConstants": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "reward_distributor_type": "RewardDistributorType",
+      "manager_or_collection_did_launcher_id": "Bytes32",
+      "fee_payout_puzzle_hash": "Bytes32",
+      "epoch_seconds": "u64",
+      "max_seconds_offset": "u64",
+      "payout_threshold": "u64",
+      "fee_bps": "u64",
+      "withdrawal_share_bps": "u64",
+      "reserve_asset_id": "Bytes32",
+      "reserve_inner_puzzle_hash": "Bytes32",
+      "reserve_full_puzzle_hash": "Bytes32"
+    },
+    "methods": {
+      "without_launcher_id": {
+        "type": "factory",
+        "args": {
+          "reward_distributor_type": "RewardDistributorType",
+          "manager_or_collection_did_launcher_id": "Bytes32",
+          "fee_payout_puzzle_hash": "Bytes32",
+          "epoch_seconds": "u64",
+          "max_seconds_offset": "u64",
+          "payout_threshold": "u64",
+          "fee_bps": "u64",
+          "withdrawal_share_bps": "u64",
+          "reserve_asset_id": "Bytes32"
+        }
+      },
+      "with_launcher_id": {
+        "args": {
+          "launcher_id": "Bytes32"
+        },
+        "return": "RewardDistributorConstants"
+      }
+    }
+  },
+  "RewardDistributor": {
+    "type": "class",
+    "methods": {}
+  }
+}
