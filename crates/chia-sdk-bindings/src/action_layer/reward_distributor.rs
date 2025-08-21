@@ -1,13 +1,14 @@
 use std::sync::{Arc, Mutex};
 
-use bindy::Result;
+use bindy::{Error, Result};
 use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::LineageProof;
 use chia_sdk_driver::{
-    Reserve, RewardDistributor as SdkRewardDistributor, RewardDistributorAddIncentivesAction,
-    RewardDistributorCommitIncentivesAction, RewardDistributorConstants,
-    RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction, RewardDistributorState,
+    Reserve, RewardDistributor as SdkRewardDistributor, RewardDistributorAddEntryAction,
+    RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
+    RewardDistributorConstants, RewardDistributorInitiatePayoutAction,
+    RewardDistributorNewEpochAction, RewardDistributorRemoveEntryAction, RewardDistributorState,
     RewardDistributorSyncAction, RewardDistributorType, RewardDistributorWithdrawIncentivesAction,
     RoundRewardInfo, RoundTimeInfo, SpendContext,
 };
@@ -134,6 +135,12 @@ pub struct RewardDistributorNewEpochResult {
 pub struct RewardDistributorWithdrawIncentivesResult {
     pub conditions: Vec<Program>,
     pub withdrawn_amount: u64,
+}
+
+#[derive(Clone)]
+pub struct RewardDistributorRemoveEntryResult {
+    pub conditions: Vec<Program>,
+    pub last_payment_amount: u64,
 }
 
 impl RewardDistributor {
@@ -313,6 +320,63 @@ impl RewardDistributor {
         Ok(RewardDistributorWithdrawIncentivesResult {
             conditions: self.sdk_conditions_to_program_list(conditions)?,
             withdrawn_amount,
+        })
+    }
+
+    pub fn add_entry(
+        &self,
+        payout_puzzle_hash: Bytes32,
+        shares: u64,
+        manager_singleton_inner_puzzle_hash: Bytes32,
+    ) -> Result<Vec<Program>> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let mut distributor = self.distributor.lock().unwrap();
+
+        if distributor.info.constants.reward_distributor_type != RewardDistributorType::Manager {
+            return Err(Error::Custom(
+                "Reward distributor is not a manager one".to_string(),
+            ));
+        }
+
+        let conditions = distributor
+            .new_action::<RewardDistributorAddEntryAction>()
+            .spend(
+                &mut ctx,
+                &mut distributor,
+                payout_puzzle_hash,
+                shares,
+                manager_singleton_inner_puzzle_hash,
+            )?;
+
+        self.sdk_conditions_to_program_list(conditions)
+    }
+
+    pub fn remove_entry(
+        &self,
+        entry_slot: EntrySlot,
+        manager_singleton_inner_puzzle_hash: Bytes32,
+    ) -> Result<RewardDistributorRemoveEntryResult> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let mut distributor = self.distributor.lock().unwrap();
+
+        if distributor.info.constants.reward_distributor_type != RewardDistributorType::Manager {
+            return Err(Error::Custom(
+                "Reward distributor is not a manager one".to_string(),
+            ));
+        }
+
+        let (conditions, last_payment_amount) = distributor
+            .new_action::<RewardDistributorRemoveEntryAction>()
+            .spend(
+                &mut ctx,
+                &mut distributor,
+                entry_slot.to_slot(),
+                manager_singleton_inner_puzzle_hash,
+            )?;
+
+        Ok(RewardDistributorRemoveEntryResult {
+            conditions: self.sdk_conditions_to_program_list(conditions)?,
+            last_payment_amount,
         })
     }
 }
