@@ -5,12 +5,14 @@ use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::LineageProof;
 use chia_sdk_driver::{
-    Reserve, RewardDistributor as SdkRewardDistributor, RewardDistributorConstants,
-    RewardDistributorState, RewardDistributorType, RoundRewardInfo, RoundTimeInfo, SpendContext,
+    Reserve, RewardDistributor as SdkRewardDistributor, RewardDistributorAddIncentivesAction,
+    RewardDistributorCommitIncentivesAction, RewardDistributorConstants, RewardDistributorState,
+    RewardDistributorType, RoundRewardInfo, RoundTimeInfo, SpendContext,
 };
+use chia_sdk_types::Conditions;
 use clvm_utils::TreeHash;
 
-use crate::{CatSpend, Proof};
+use crate::{CatSpend, Program, Proof};
 
 pub trait RewardDistributorTypeExt {}
 
@@ -181,5 +183,51 @@ impl RewardDistributor {
             },
             signature,
         })
+    }
+
+    fn sdk_conditions_to_program_list(&self, conditions: Conditions) -> Result<Vec<Program>> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let mut result = Vec::with_capacity(conditions.len());
+
+        for condition in conditions {
+            result.push(Program(self.clvm.clone(), ctx.alloc(&condition)?));
+        }
+
+        Ok(result)
+    }
+
+    pub fn add_incentives(&self, amount: u64) -> Result<Vec<Program>> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let mut distributor = self.distributor.lock().unwrap();
+
+        let conditions = distributor
+            .new_action::<RewardDistributorAddIncentivesAction>()
+            .spend(&mut ctx, &mut distributor, amount)?;
+
+        self.sdk_conditions_to_program_list(conditions)
+    }
+
+    pub fn commit_incentives(
+        &self,
+        reward_slot: u8,
+        epoch_start: u64,
+        clawback_ph: Bytes32,
+        rewards_to_add: u64,
+    ) -> Result<Vec<Program>> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let mut distributor = self.distributor.lock().unwrap();
+
+        let conditions = distributor
+            .new_action::<RewardDistributorCommitIncentivesAction>()
+            .spend(
+                &mut ctx,
+                &mut distributor,
+                reward_slot,
+                epoch_start,
+                clawback_ph,
+                rewards_to_add,
+            )?;
+
+        self.sdk_conditions_to_program_list(conditions)
     }
 }
