@@ -63,4 +63,8 @@ impl MedievalVault {
             new_sdk_vault.info,
         ))
     }
+
+    pub fn to_sdk(self) -> SdkMedievalVault {
+        SdkMedievalVault::new(self.coin, self.proof.into(), self.info)
+    }
 }

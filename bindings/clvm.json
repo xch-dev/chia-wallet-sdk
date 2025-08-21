@@ -511,6 +511,41 @@
           "coin_spend": "CoinSpend"
         },
         "return": "Option<MedievalVault>"
+      },
+      "spend_medieval_vault": {
+        "args": {
+          "medieval_vault": "MedievalVault",
+          "used_pubkeys": "Vec<PublicKey>",
+          "conditions": "Vec<Program>",
+          "genesis_challenge": "Bytes32"
+        }
+      },
+      "spend_medieval_vault_unsafe": {
+        "args": {
+          "medieval_vault": "MedievalVault",
+          "used_pubkeys": "Vec<PublicKey>",
+          "delegated_spend": "Spend"
+        }
+      },
+      "medieval_vault_rekey_delegated_puzzle": {
+        "args": {
+          "launcher_id": "Bytes32",
+          "new_m": "usize",
+          "new_pubkeys": "Vec<PublicKey>",
+          "coin_id": "Bytes32",
+          "genesis_challenge": "Bytes32"
+        },
+        "return": "Program"
+      },
+      "medieval_vault_send_message_delegated_puzzle": {
+        "args": {
+          "message": "Bytes",
+          "receiver_launcher_id": "Bytes32",
+          "my_coin": "Coin",
+          "my_info": "MedievalVaultInfo",
+          "genesis_challenge": "Bytes32"
+        },
+        "return": "Program"
       }
     }
   }

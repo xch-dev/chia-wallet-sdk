@@ -6,9 +6,10 @@ use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgra
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_driver::{
-    Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault, OptionMetadata,
-    SettlementLayer, SpendContext, StandardLayer, StreamedAsset,
+    Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault, MedievalVaultInfo,
+    OptionMetadata, SettlementLayer, SpendContext, StandardLayer, StreamedAsset,
 };
+use chia_sdk_types::{Condition, Conditions};
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::TreeHash;
@@ -497,5 +498,89 @@ impl Clvm {
         Ok(result.map(|sdk_vault| {
             MedievalVault::new(sdk_vault.coin, sdk_vault.proof.into(), sdk_vault.info)
         }))
+    }
+
+    pub fn spend_medieval_vault(
+        &self,
+        medieval_vault: MedievalVault,
+        used_pubkeys: Vec<PublicKey>,
+        conditions: Vec<Program>,
+        genesis_challenge: Bytes32,
+    ) -> Result<()> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let mut actual_conditions = Conditions::new();
+        for condition in conditions {
+            actual_conditions.push(ctx.extract::<Condition<NodePtr>>(condition.1)?);
+        }
+
+        Ok(medieval_vault.to_sdk().spend(
+            &mut ctx,
+            &used_pubkeys,
+            actual_conditions,
+            genesis_challenge,
+        )?)
+    }
+
+    pub fn spend_medieval_vault_unsafe(
+        &self,
+        medieval_vault: MedievalVault,
+        used_pubkeys: Vec<PublicKey>,
+        delegated_spend: Spend,
+    ) -> Result<()> {
+        let mut ctx = self.0.lock().unwrap();
+
+        Ok(medieval_vault.to_sdk().spend_sunsafe(
+            &mut ctx,
+            &used_pubkeys,
+            delegated_spend.puzzle.1,
+            delegated_spend.solution.1,
+        )?)
+    }
+
+    pub fn medieval_vault_rekey_delegated_puzzle(
+        &self,
+        launcher_id: Bytes32,
+        new_m: usize,
+        new_pubkeys: Vec<PublicKey>,
+        coin_id: Bytes32,
+        genesis_challenge: Bytes32,
+    ) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+
+        Ok(Program(
+            self.0.clone(),
+            SdkMedievalVault::delegated_puzzle_for_rekey(
+                &mut ctx,
+                launcher_id,
+                new_m,
+                new_pubkeys,
+                coin_id,
+                genesis_challenge,
+            )?,
+        ))
+    }
+
+    pub fn medieval_vault_send_message_delegated_puzzle(
+        &self,
+        message: Bytes,
+        receiver_launcher_id: Bytes32,
+        my_coin: Coin,
+        my_info: MedievalVaultInfo,
+        genesis_challenge: Bytes32,
+    ) -> Result<Program> {
+        let mut ctx = self.0.lock().unwrap();
+
+        Ok(Program(
+            self.0.clone(),
+            SdkMedievalVault::delegated_puzzle_for_flexible_send_message(
+                &mut ctx,
+                message,
+                receiver_launcher_id,
+                my_coin,
+                &my_info,
+                genesis_challenge,
+            )?,
+        ))
     }
 }
