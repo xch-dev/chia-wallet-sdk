@@ -6,13 +6,15 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::LineageProof;
 use chia_sdk_driver::{
     Reserve, RewardDistributor as SdkRewardDistributor, RewardDistributorAddIncentivesAction,
-    RewardDistributorCommitIncentivesAction, RewardDistributorConstants, RewardDistributorState,
-    RewardDistributorType, RoundRewardInfo, RoundTimeInfo, SpendContext,
+    RewardDistributorCommitIncentivesAction, RewardDistributorConstants,
+    RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction, RewardDistributorState,
+    RewardDistributorSyncAction, RewardDistributorType, RewardDistributorWithdrawIncentivesAction,
+    RoundRewardInfo, RoundTimeInfo, SpendContext,
 };
 use chia_sdk_types::Conditions;
 use clvm_utils::TreeHash;
 
-use crate::{CatSpend, Program, Proof, RewardSlot};
+use crate::{CatSpend, CommitmentSlot, EntrySlot, Program, Proof, RewardSlot};
 
 pub trait RewardDistributorTypeExt {}
 
@@ -114,6 +116,24 @@ pub struct RewardDistributorFinishedSpendResult {
 pub struct RewardDistributor {
     pub(crate) clvm: Arc<Mutex<SpendContext>>,
     pub(crate) distributor: Arc<Mutex<SdkRewardDistributor>>,
+}
+
+#[derive(Clone)]
+pub struct RewardDistributorInitiatePayoutResult {
+    pub conditions: Vec<Program>,
+    pub payout_amount: u64,
+}
+
+#[derive(Clone)]
+pub struct RewardDistributorNewEpochResult {
+    pub conditions: Vec<Program>,
+    pub epoch_fee: u64,
+}
+
+#[derive(Clone)]
+pub struct RewardDistributorWithdrawIncentivesResult {
+    pub conditions: Vec<Program>,
+    pub withdrawn_amount: u64,
 }
 
 impl RewardDistributor {
@@ -229,5 +249,70 @@ impl RewardDistributor {
             )?;
 
         self.sdk_conditions_to_program_list(conditions)
+    }
+
+    pub fn initiate_payout(
+        &self,
+        entry_slot: EntrySlot,
+    ) -> Result<RewardDistributorInitiatePayoutResult> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let mut distributor = self.distributor.lock().unwrap();
+
+        let (conditions, payout_amount) = distributor
+            .new_action::<RewardDistributorInitiatePayoutAction>()
+            .spend(&mut ctx, &mut distributor, entry_slot.to_slot())?;
+
+        Ok(RewardDistributorInitiatePayoutResult {
+            conditions: self.sdk_conditions_to_program_list(conditions)?,
+            payout_amount,
+        })
+    }
+
+    pub fn new_epoch(&self, reward_slot: RewardSlot) -> Result<RewardDistributorNewEpochResult> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let mut distributor = self.distributor.lock().unwrap();
+
+        let (conditions, epoch_fee) = distributor
+            .new_action::<RewardDistributorNewEpochAction>()
+            .spend(&mut ctx, &mut distributor, reward_slot.to_slot())?;
+
+        Ok(RewardDistributorNewEpochResult {
+            conditions: self.sdk_conditions_to_program_list(conditions)?,
+            epoch_fee,
+        })
+    }
+
+    pub fn sync(&self, update_time: u64) -> Result<Vec<Program>> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let mut distributor = self.distributor.lock().unwrap();
+
+        let conditions = distributor
+            .new_action::<RewardDistributorSyncAction>()
+            .spend(&mut ctx, &mut distributor, update_time)?;
+
+        self.sdk_conditions_to_program_list(conditions)
+    }
+
+    pub fn withdraw_incentives(
+        &self,
+        commitment_slot: CommitmentSlot,
+        reward_slot: RewardSlot,
+    ) -> Result<RewardDistributorWithdrawIncentivesResult> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let mut distributor = self.distributor.lock().unwrap();
+
+        let (conditions, withdrawn_amount) = distributor
+            .new_action::<RewardDistributorWithdrawIncentivesAction>()
+            .spend(
+                &mut ctx,
+                &mut distributor,
+                commitment_slot.to_slot(),
+                reward_slot.to_slot(),
+            )?;
+
+        Ok(RewardDistributorWithdrawIncentivesResult {
+            conditions: self.sdk_conditions_to_program_list(conditions)?,
+            withdrawn_amount,
+        })
     }
 }
