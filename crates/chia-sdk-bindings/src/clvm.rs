@@ -3,11 +3,12 @@ use std::sync::{Arc, Mutex};
 use bindy::{Error, Result};
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram};
-use chia_puzzle_types::offer::SettlementPaymentsSolution;
+use chia_puzzle_types::{offer::SettlementPaymentsSolution, LineageProof};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_driver::{
     Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault, MedievalVaultInfo,
-    OptionMetadata, SettlementLayer, SpendContext, StandardLayer, StreamedAsset,
+    OptionMetadata, RewardDistributor as SdkRewardDistributor, RewardDistributorConstants,
+    SettlementLayer, SpendContext, StandardLayer, StreamedAsset,
 };
 use chia_sdk_types::{Condition, Conditions};
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
@@ -23,7 +24,7 @@ use crate::{
     AsProgram, AsPtr, CatSpend, CreatedDid, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo,
     MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft,
     NftMetadata, NftMint, NotarizedPayment, OptionContract, Payment, Program, RestrictionMemo,
-    Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
+    RewardDistributor, Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -582,5 +583,37 @@ impl Clvm {
                 genesis_challenge,
             )?,
         ))
+    }
+
+    pub fn reward_distributor_from_spend(
+        &self,
+        spend: CoinSpend,
+        reserve_lineage_proof: Option<LineageProof>,
+        constants: RewardDistributorConstants,
+    ) -> Result<Option<RewardDistributor>> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let result =
+            SdkRewardDistributor::from_spend(&mut ctx, &spend, reserve_lineage_proof, constants)?;
+
+        Ok(result.map(|reward_distributor| RewardDistributor {
+            clvm: self.0.clone(),
+            distributor: Arc::new(Mutex::new(reward_distributor)),
+        }))
+    }
+
+    pub fn reward_distributor_from_parent_spend(
+        &self,
+        parent_spend: CoinSpend,
+        constants: RewardDistributorConstants,
+    ) -> Result<Option<RewardDistributor>> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let result = SdkRewardDistributor::from_parent_spend(&mut ctx, &parent_spend, constants)?;
+
+        Ok(result.map(|reward_distributor| RewardDistributor {
+            clvm: self.0.clone(),
+            distributor: Arc::new(Mutex::new(reward_distributor)),
+        }))
     }
 }

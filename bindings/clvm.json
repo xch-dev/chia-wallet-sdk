@@ -546,6 +546,21 @@
           "genesis_challenge": "Bytes32"
         },
         "return": "Program"
+      },
+      "reward_distributor_from_spend": {
+        "args": {
+          "spend": "CoinSpend",
+          "reserve_lineage_proof": "Option<LineageProof>",
+          "constants": "RewardDistributorConstants"
+        },
+        "return": "Option<RewardDistributor>"
+      },
+      "reward_distributor_from_parent_spend": {
+        "args": {
+          "parent_spend": "CoinSpend",
+          "constants": "RewardDistributorConstants"
+        },
+        "return": "Option<RewardDistributor>"
       }
     }
   }
