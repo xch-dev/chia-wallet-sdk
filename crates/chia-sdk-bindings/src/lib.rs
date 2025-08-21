@@ -65,7 +65,9 @@ pub use chia_sdk_coinset::{
 };
 pub use chia_sdk_driver::{
     Cat, CatInfo, Clawback, ClawbackV2, MedievalVaultHint, MedievalVaultInfo, OptionInfo,
-    OptionMetadata, OptionType, OptionUnderlying, StreamedAsset, StreamingPuzzleInfo, VaultInfo,
+    OptionMetadata, OptionType, OptionUnderlying, RewardDistributor, RewardDistributorConstants,
+    RewardDistributorState, RewardDistributorType, RoundRewardInfo, RoundTimeInfo, StreamedAsset,
+    StreamingPuzzleInfo, VaultInfo,
 };
 pub use chia_sdk_types::conditions::TradePrice;
 

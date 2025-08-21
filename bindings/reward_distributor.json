@@ -45,8 +45,33 @@
       }
     }
   },
-  "RewardDistributor": {
+  "RoundRewardInfo": {
     "type": "class",
-    "methods": {}
+    "new": true,
+    "remote": true,
+    "fields": {
+      "cumulative_payout": "u64",
+      "remaining_rewards": "u64"
+    }
+  },
+  "RoundTimeInfo": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "last_update": "u64",
+      "epoch_end": "u64"
+    }
+  },
+  "RewardDistributorState": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "total_reserves": "u64",
+      "active_shares": "u64",
+      "round_reward_info": "RoundRewardInfo",
+      "round_time_info": "RoundTimeInfo"
+    }
   }
 }

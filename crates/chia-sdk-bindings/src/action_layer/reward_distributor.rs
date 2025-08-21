@@ -1,16 +1,20 @@
 use std::sync::{Arc, Mutex};
 
+use bindy::Result;
 use chia_protocol::Bytes32;
 use chia_sdk_driver::{
-    RewardDistributor as SdkRewardDistributor, RewardDistributorConstants, RewardDistributorType,
-    SpendContext,
+    RewardDistributor as SdkRewardDistributor, RewardDistributorConstants, RewardDistributorState,
+    RewardDistributorType, RoundRewardInfo, RoundTimeInfo, SpendContext,
 };
 
 pub trait RewardDistributorTypeExt {}
 
 impl RewardDistributorTypeExt for RewardDistributorType {}
 
-pub trait RewardDistributorConstantsExt {
+pub trait RewardDistributorConstantsExt
+where
+    Self: Sized,
+{
     #[allow(clippy::too_many_arguments)]
     fn without_launcher_id(
         reward_distributor_type: RewardDistributorType,
@@ -22,9 +26,9 @@ pub trait RewardDistributorConstantsExt {
         fee_bps: u64,
         withdrawal_share_bps: u64,
         reserve_asset_id: Bytes32,
-    ) -> Self;
+    ) -> Result<Self>;
 
-    fn with_launcher_id(self, launcher_id: Bytes32) -> Self;
+    fn with_launcher_id(&self, launcher_id: Bytes32) -> Result<Self>;
 }
 
 impl RewardDistributorConstantsExt for RewardDistributorConstants {
@@ -39,8 +43,8 @@ impl RewardDistributorConstantsExt for RewardDistributorConstants {
         fee_bps: u64,
         withdrawal_share_bps: u64,
         reserve_asset_id: Bytes32,
-    ) -> Self {
-        RewardDistributorConstants::without_launcher_id(
+    ) -> Result<Self> {
+        Ok(RewardDistributorConstants::without_launcher_id(
             reward_distributor_type,
             manager_or_collection_did_launcher_id,
             fee_payout_puzzle_hash,
@@ -50,18 +54,51 @@ impl RewardDistributorConstantsExt for RewardDistributorConstants {
             fee_bps,
             withdrawal_share_bps,
             reserve_asset_id,
-        )
+        ))
     }
 
-    fn with_launcher_id(self, launcher_id: Bytes32) -> Self {
-        RewardDistributorConstants::with_launcher_id(self, launcher_id)
+    fn with_launcher_id(&self, launcher_id: Bytes32) -> Result<Self> {
+        Ok(RewardDistributorConstants::with_launcher_id(
+            *self,
+            launcher_id,
+        ))
     }
 }
 
-#[derive(Clone)]
-pub struct RewardDistributor {
-    pub(crate) clvm: Arc<Mutex<SpendContext>>,
-    pub(crate) distributor: Arc<Mutex<SdkRewardDistributor>>,
+pub trait RoundRewardInfoExt {}
+
+impl RoundRewardInfoExt for RoundRewardInfo {}
+
+pub trait RoundTimeInfoExt {}
+
+impl RoundTimeInfoExt for RoundTimeInfo {}
+
+pub trait RewardDistributorStateExt
+where
+    Self: Sized,
+{
+    fn initial(first_epoch_start: u64) -> Result<Self>;
 }
 
-impl RewardDistributor {}
+impl RewardDistributorStateExt for RewardDistributorState {
+    fn initial(first_epoch_start: u64) -> Result<Self> {
+        Ok(RewardDistributorState::initial(first_epoch_start))
+    }
+}
+
+/*
+
+,
+  "RewardDistributor": {
+    "type": "class",
+    "methods": {}
+  }
+
+  */
+// #[derive(Clone)]
+// pub struct RewardDistributor {
+//     pub(crate) clvm: Arc<Mutex<SpendContext>>,
+//     pub(crate) distributor: Arc<Mutex<SdkRewardDistributor>>,
+// }
+
+// impl RewardDistributor {}
