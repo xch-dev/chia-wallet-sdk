@@ -527,6 +527,8 @@ export declare class Clvm {
   spendMedievalVaultUnsafe(medievalVault: MedievalVault, usedPubkeys: Array<PublicKey>, delegatedSpend: Spend): void
   medievalVaultRekeyDelegatedPuzzle(launcherId: Uint8Array, newM: bigint, newPubkeys: Array<PublicKey>, coinId: Uint8Array, genesisChallenge: Uint8Array): Program
   medievalVaultSendMessageDelegatedPuzzle(message: Uint8Array, receiverLauncherId: Uint8Array, myCoin: Coin, myInfo: MedievalVaultInfo, genesisChallenge: Uint8Array): Program
+  rewardDistributorFromSpend(spend: CoinSpend, reserveLineageProof: LineageProof | undefined | null, constants: RewardDistributorConstants): RewardDistributor | null
+  rewardDistributorFromParentSpend(parentSpend: CoinSpend, constants: RewardDistributorConstants): RewardDistributor | null
   acsTransferProgram(): Program
   augmentedCondition(): Program
   blockProgramZero(): Program
@@ -684,6 +686,22 @@ export declare class CoinSpend {
   set puzzleReveal(value: Uint8Array)
   get solution(): Buffer
   set solution(value: Uint8Array)
+}
+
+export declare class CommitmentSlot {
+  clone(): CommitmentSlot
+  static new(proof: LineageProof, launcherId: Uint8Array, value: RewardDistributorCommitmentSlotValue): CommitmentSlot
+  valueHash(): Buffer
+  get coin(): Coin
+  set coin(value: Coin)
+  get proof(): LineageProof
+  set proof(value: LineageProof)
+  get nonce(): bigint
+  set nonce(value: bigint)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get value(): RewardDistributorCommitmentSlotValue
+  set value(value: RewardDistributorCommitmentSlotValue)
 }
 
 export declare class Constants {
@@ -957,6 +975,22 @@ export declare class EndOfSubSlotBundle {
   set proofs(value: SubSlotProofs)
 }
 
+export declare class EntrySlot {
+  clone(): EntrySlot
+  static new(proof: LineageProof, launcherId: Uint8Array, value: RewardDistributorEntrySlotValue): EntrySlot
+  valueHash(): Buffer
+  get coin(): Coin
+  set coin(value: Coin)
+  get proof(): LineageProof
+  set proof(value: LineageProof)
+  get nonce(): bigint
+  set nonce(value: bigint)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get value(): RewardDistributorEntrySlotValue
+  set value(value: RewardDistributorEntrySlotValue)
+}
+
 export declare class Foliage {
   clone(): Foliage
   constructor(prevBlockHash: Uint8Array, rewardBlockHash: Uint8Array, foliageBlockData: FoliageBlockData, foliageBlockDataSignature: Signature, foliageTransactionBlockHash?: Uint8Array | undefined | null, foliageTransactionBlockSignature?: Signature | undefined | null)
@@ -1192,6 +1226,15 @@ export declare class InnerPuzzleMemo {
   set kind(value: MemoKind)
 }
 
+export declare class IntermediaryCoinProof {
+  clone(): IntermediaryCoinProof
+  constructor(fullPuzzleHash: Uint8Array, amount: bigint)
+  get fullPuzzleHash(): Buffer
+  set fullPuzzleHash(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+
 export declare class K1Pair {
   clone(): K1Pair
   static fromSeed(seed: bigint): K1Pair
@@ -1421,6 +1464,15 @@ export declare class NftInfo {
   set royaltyBasisPoints(value: number)
   get p2PuzzleHash(): Buffer
   set p2PuzzleHash(value: Uint8Array)
+}
+
+export declare class NftLauncherProof {
+  clone(): NftLauncherProof
+  constructor(didProof: LineageProof, intermediaryCoinProofs: Array<IntermediaryCoinProof>)
+  get didProof(): LineageProof
+  set didProof(value: LineageProof)
+  get intermediaryCoinProofs(): Array<IntermediaryCoinProof>
+  set intermediaryCoinProofs(value: Array<IntermediaryCoinProof>)
 }
 
 export declare class NftMetadata {
@@ -1763,6 +1815,7 @@ export declare class Program {
   parseOptionMetadata(): OptionMetadata | null
   parsePayment(): Payment | null
   parseNotarizedPayment(): NotarizedPayment | null
+  parseRewardDistributorLauncherSolution(launcherCoin: Coin): RewardDistributorLauncherSolutionInfo | null
 }
 
 export declare class Proof {
@@ -1974,6 +2027,212 @@ export declare class RewardChainSubSlot {
   set infusedChallengeChainSubSlotHash(value?: Uint8Array | undefined | null)
   get deficit(): number
   set deficit(value: number)
+}
+
+export declare class RewardDistributor {
+  clone(): RewardDistributor
+  coin(): Coin
+  proof(): Proof
+  state(): RewardDistributorState
+  constants(): RewardDistributorConstants
+  innerPuzzleHash(): Buffer
+  puzzleHash(): Buffer
+  reserveCoin(): Coin
+  reserveAssetId(): Buffer
+  reserveProof(): LineageProof
+  static reserveFullPuzzleHash(assetId: Uint8Array, controllerSingletonStructHash: Uint8Array, nonce: bigint): Buffer
+  finishSpend(otherCatSpends: Array<CatSpend>): RewardDistributorFinishedSpendResult
+  addIncentives(amount: bigint): Array<Program>
+  commitIncentives(rewardSlot: RewardSlot, epochStart: bigint, clawbackPh: Uint8Array, rewardsToAdd: bigint): Array<Program>
+  initiatePayout(entrySlot: EntrySlot): RewardDistributorInitiatePayoutResult
+  newEpoch(rewardSlot: RewardSlot): RewardDistributorNewEpochResult
+  sync(updateTime: bigint): Array<Program>
+  withdrawIncentives(commitmentSlot: CommitmentSlot, rewardSlot: RewardSlot): RewardDistributorWithdrawIncentivesResult
+  addEntry(payoutPuzzleHash: Uint8Array, shares: bigint, managerSingletonInnerPuzzleHash: Uint8Array): Array<Program>
+  removeEntry(entrySlot: EntrySlot, managerSingletonInnerPuzzleHash: Uint8Array): RewardDistributorRemoveEntryResult
+  stake(currentNft: Nft, nftLauncherProof: NftLauncherProof, entryCustodyPuzzleHash: Uint8Array): RewardDistributorStakeResult
+  unstake(entrySlot: EntrySlot, lockedNft: Nft): RewardDistributorUnstakeResult
+}
+
+export declare class RewardDistributorCommitmentSlotValue {
+  clone(): RewardDistributorCommitmentSlotValue
+  constructor(epochStart: bigint, clawbackPh: Uint8Array, rewards: bigint)
+  get epochStart(): bigint
+  set epochStart(value: bigint)
+  get clawbackPh(): Buffer
+  set clawbackPh(value: Uint8Array)
+  get rewards(): bigint
+  set rewards(value: bigint)
+}
+
+export declare class RewardDistributorConstants {
+  clone(): RewardDistributorConstants
+  static withoutLauncherId(rewardDistributorType: RewardDistributorType, managerOrCollectionDidLauncherId: Uint8Array, feePayoutPuzzleHash: Uint8Array, epochSeconds: bigint, maxSecondsOffset: bigint, payoutThreshold: bigint, feeBps: bigint, withdrawalShareBps: bigint, reserveAssetId: Uint8Array): RewardDistributorConstants
+  withLauncherId(launcherId: Uint8Array): RewardDistributorConstants
+  constructor(launcherId: Uint8Array, rewardDistributorType: RewardDistributorType, managerOrCollectionDidLauncherId: Uint8Array, feePayoutPuzzleHash: Uint8Array, epochSeconds: bigint, maxSecondsOffset: bigint, payoutThreshold: bigint, feeBps: bigint, withdrawalShareBps: bigint, reserveAssetId: Uint8Array, reserveInnerPuzzleHash: Uint8Array, reserveFullPuzzleHash: Uint8Array)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get rewardDistributorType(): RewardDistributorType
+  set rewardDistributorType(value: RewardDistributorType)
+  get managerOrCollectionDidLauncherId(): Buffer
+  set managerOrCollectionDidLauncherId(value: Uint8Array)
+  get feePayoutPuzzleHash(): Buffer
+  set feePayoutPuzzleHash(value: Uint8Array)
+  get epochSeconds(): bigint
+  set epochSeconds(value: bigint)
+  get maxSecondsOffset(): bigint
+  set maxSecondsOffset(value: bigint)
+  get payoutThreshold(): bigint
+  set payoutThreshold(value: bigint)
+  get feeBps(): bigint
+  set feeBps(value: bigint)
+  get withdrawalShareBps(): bigint
+  set withdrawalShareBps(value: bigint)
+  get reserveAssetId(): Buffer
+  set reserveAssetId(value: Uint8Array)
+  get reserveInnerPuzzleHash(): Buffer
+  set reserveInnerPuzzleHash(value: Uint8Array)
+  get reserveFullPuzzleHash(): Buffer
+  set reserveFullPuzzleHash(value: Uint8Array)
+}
+
+export declare class RewardDistributorEntrySlotValue {
+  clone(): RewardDistributorEntrySlotValue
+  constructor(payoutPuzzleHash: Uint8Array, initialCumulativePayout: bigint, shares: bigint)
+  get payoutPuzzleHash(): Buffer
+  set payoutPuzzleHash(value: Uint8Array)
+  get initialCumulativePayout(): bigint
+  set initialCumulativePayout(value: bigint)
+  get shares(): bigint
+  set shares(value: bigint)
+}
+
+export declare class RewardDistributorFinishedSpendResult {
+  clone(): RewardDistributorFinishedSpendResult
+  constructor(newDistributor: RewardDistributor, signature: Signature)
+  get newDistributor(): RewardDistributor
+  set newDistributor(value: RewardDistributor)
+  get signature(): Signature
+  set signature(value: Signature)
+}
+
+export declare class RewardDistributorInitiatePayoutResult {
+  clone(): RewardDistributorInitiatePayoutResult
+  get conditions(): Array<Program>
+  set conditions(value: Array<Program>)
+  get payoutAmount(): bigint
+  set payoutAmount(value: bigint)
+}
+
+export declare class RewardDistributorLauncherSolutionInfo {
+  clone(): RewardDistributorLauncherSolutionInfo
+  constructor(constants: RewardDistributorConstants, initialState: RewardDistributorState, coin: Coin)
+  get constants(): RewardDistributorConstants
+  set constants(value: RewardDistributorConstants)
+  get initialState(): RewardDistributorState
+  set initialState(value: RewardDistributorState)
+  get coin(): Coin
+  set coin(value: Coin)
+}
+
+export declare class RewardDistributorNewEpochResult {
+  clone(): RewardDistributorNewEpochResult
+  get conditions(): Array<Program>
+  set conditions(value: Array<Program>)
+  get epochFee(): bigint
+  set epochFee(value: bigint)
+}
+
+export declare class RewardDistributorRemoveEntryResult {
+  clone(): RewardDistributorRemoveEntryResult
+  get conditions(): Array<Program>
+  set conditions(value: Array<Program>)
+  get lastPaymentAmount(): bigint
+  set lastPaymentAmount(value: bigint)
+}
+
+export declare class RewardDistributorRewardSlotValue {
+  clone(): RewardDistributorRewardSlotValue
+  constructor(epochStart: bigint, nextEpochInitialized: boolean, rewards: bigint)
+  get epochStart(): bigint
+  set epochStart(value: bigint)
+  get nextEpochInitialized(): boolean
+  set nextEpochInitialized(value: boolean)
+  get rewards(): bigint
+  set rewards(value: bigint)
+}
+
+export declare class RewardDistributorStakeResult {
+  clone(): RewardDistributorStakeResult
+  get conditions(): Array<Program>
+  set conditions(value: Array<Program>)
+  get notarizedPayment(): NotarizedPayment
+  set notarizedPayment(value: NotarizedPayment)
+  get newNft(): Nft
+  set newNft(value: Nft)
+}
+
+export declare class RewardDistributorState {
+  clone(): RewardDistributorState
+  constructor(totalReserves: bigint, activeShares: bigint, roundRewardInfo: RoundRewardInfo, roundTimeInfo: RoundTimeInfo)
+  get totalReserves(): bigint
+  set totalReserves(value: bigint)
+  get activeShares(): bigint
+  set activeShares(value: bigint)
+  get roundRewardInfo(): RoundRewardInfo
+  set roundRewardInfo(value: RoundRewardInfo)
+  get roundTimeInfo(): RoundTimeInfo
+  set roundTimeInfo(value: RoundTimeInfo)
+}
+
+export declare class RewardDistributorUnstakeResult {
+  clone(): RewardDistributorUnstakeResult
+  get conditions(): Array<Program>
+  set conditions(value: Array<Program>)
+  get paymentAmount(): bigint
+  set paymentAmount(value: bigint)
+}
+
+export declare class RewardDistributorWithdrawIncentivesResult {
+  clone(): RewardDistributorWithdrawIncentivesResult
+  get conditions(): Array<Program>
+  set conditions(value: Array<Program>)
+  get withdrawnAmount(): bigint
+  set withdrawnAmount(value: bigint)
+}
+
+export declare class RewardSlot {
+  clone(): RewardSlot
+  static new(proof: LineageProof, launcherId: Uint8Array, value: RewardDistributorRewardSlotValue): RewardSlot
+  valueHash(): Buffer
+  get coin(): Coin
+  set coin(value: Coin)
+  get proof(): LineageProof
+  set proof(value: LineageProof)
+  get nonce(): bigint
+  set nonce(value: bigint)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get value(): RewardDistributorRewardSlotValue
+  set value(value: RewardDistributorRewardSlotValue)
+}
+
+export declare class RoundRewardInfo {
+  clone(): RoundRewardInfo
+  constructor(cumulativePayout: bigint, remainingRewards: bigint)
+  get cumulativePayout(): bigint
+  set cumulativePayout(value: bigint)
+  get remainingRewards(): bigint
+  set remainingRewards(value: bigint)
+}
+
+export declare class RoundTimeInfo {
+  clone(): RoundTimeInfo
+  constructor(lastUpdate: bigint, epochEnd: bigint)
+  get lastUpdate(): bigint
+  set lastUpdate(value: bigint)
+  get epochEnd(): bigint
+  set epochEnd(value: bigint)
 }
 
 export declare class RunCatTail {
@@ -2307,6 +2566,11 @@ export declare const enum RestrictionKind {
   MemberCondition = 0,
   DelegatedPuzzleHash = 1,
   DelegatedPuzzleWrapper = 2
+}
+
+export declare const enum RewardDistributorType {
+  Manager = 0,
+  Nft = 1
 }
 
 export declare function sha256(value: Uint8Array): Buffer
