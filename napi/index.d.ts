@@ -522,6 +522,11 @@ export declare class Clvm {
   updateNftMetadata(updaterPuzzleReveal: Program, updaterSolution: Program): Program
   updateDataStoreMerkleRoot(newMerkleRoot: Uint8Array, memos: Array<Uint8Array>): Program
   parseChildStreamedAsset(coinSpend: CoinSpend): StreamedAssetParsingResult
+  parseChildMedievalVault(coinSpend: CoinSpend): MedievalVault | null
+  spendMedievalVault(medievalVault: MedievalVault, usedPubkeys: Array<PublicKey>, conditions: Array<Program>, genesisChallenge: Uint8Array): void
+  spendMedievalVaultUnsafe(medievalVault: MedievalVault, usedPubkeys: Array<PublicKey>, delegatedSpend: Spend): void
+  medievalVaultRekeyDelegatedPuzzle(launcherId: Uint8Array, newM: bigint, newPubkeys: Array<PublicKey>, coinId: Uint8Array, genesisChallenge: Uint8Array): Program
+  medievalVaultSendMessageDelegatedPuzzle(message: Uint8Array, receiverLauncherId: Uint8Array, myCoin: Coin, myInfo: MedievalVaultInfo, genesisChallenge: Uint8Array): Program
   acsTransferProgram(): Program
   augmentedCondition(): Program
   blockProgramZero(): Program
@@ -1230,6 +1235,44 @@ export declare class LineageProof {
   set parentInnerPuzzleHash(value: Uint8Array)
   get parentAmount(): bigint
   set parentAmount(value: bigint)
+}
+
+export declare class MedievalVault {
+  clone(): MedievalVault
+  child(newM: bigint, newPublicKeyList: Array<PublicKey>): MedievalVault
+  constructor(coin: Coin, proof: Proof, info: MedievalVaultInfo)
+  get coin(): Coin
+  set coin(value: Coin)
+  get proof(): Proof
+  set proof(value: Proof)
+  get info(): MedievalVaultInfo
+  set info(value: MedievalVaultInfo)
+}
+
+export declare class MedievalVaultHint {
+  clone(): MedievalVaultHint
+  constructor(myLauncherId: Uint8Array, m: bigint, publicKeyList: Array<PublicKey>)
+  get myLauncherId(): Buffer
+  set myLauncherId(value: Uint8Array)
+  get m(): bigint
+  set m(value: bigint)
+  get publicKeyList(): Array<PublicKey>
+  set publicKeyList(value: Array<PublicKey>)
+}
+
+export declare class MedievalVaultInfo {
+  clone(): MedievalVaultInfo
+  innerPuzzleHash(): Buffer
+  puzzleHash(): Buffer
+  static fromHint(hint: MedievalVaultHint): MedievalVaultInfo
+  toHint(): MedievalVaultHint
+  constructor(launcherId: Uint8Array, m: bigint, publicKeyList: Array<PublicKey>)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get m(): bigint
+  set m(value: bigint)
+  get publicKeyList(): Array<PublicKey>
+  set publicKeyList(value: Array<PublicKey>)
 }
 
 export declare class MeltSingleton {

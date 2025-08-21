@@ -215,6 +215,19 @@ impl<T> FromRust<u64, T, Napi> for BigInt {
     }
 }
 
+impl<T> IntoRust<usize, T, Napi> for BigInt {
+    fn into_rust(self, _context: &T) -> Result<usize> {
+        let bigint: num_bigint::BigInt = self.into_rust(_context)?;
+        Ok(bigint.try_into()?)
+    }
+}
+
+impl<T> FromRust<usize, T, Napi> for BigInt {
+    fn from_rust(value: usize, _context: &T) -> Result<Self> {
+        Ok((value as u64).into())
+    }
+}
+
 impl<T> IntoRust<u128, T, Napi> for BigInt {
     fn into_rust(self, _context: &T) -> Result<u128> {
         let bigint: num_bigint::BigInt = self.into_rust(_context)?;
