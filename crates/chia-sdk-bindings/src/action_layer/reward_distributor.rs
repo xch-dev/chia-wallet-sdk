@@ -20,7 +20,8 @@ use chia_sdk_types::{
 use clvm_utils::TreeHash;
 
 use crate::{
-    CatSpend, CommitmentSlot, EntrySlot, Nft, NotarizedPayment, Program, Proof, RewardSlot,
+    AsProgram, AsPtr, CatSpend, CommitmentSlot, EntrySlot, Nft, NotarizedPayment, Program, Proof,
+    RewardSlot,
 };
 
 pub trait RewardDistributorTypeExt {}
@@ -422,20 +423,21 @@ impl RewardDistributor {
             ));
         }
 
+        let sdk_nft = current_nft.as_ptr(&ctx);
         let (conditions, notarized_payment, new_nft) = distributor
             .new_action::<RewardDistributorStakeAction>()
             .spend(
                 &mut ctx,
                 &mut distributor,
-                current_nft.into(),
+                sdk_nft,
                 nft_launcher_proof,
                 entry_custody_puzzle_hash,
             )?;
 
         Ok(RewardDistributorStakeResult {
             conditions: self.sdk_conditions_to_program_list(conditions)?,
-            notarized_payment: notarized_payment.into(),
-            new_nft: new_nft.into(),
+            notarized_payment: notarized_payment.as_program(&self.clvm),
+            new_nft: new_nft.as_program(&self.clvm),
         })
     }
 
@@ -447,13 +449,14 @@ impl RewardDistributor {
         let mut ctx = self.clvm.lock().unwrap();
         let mut distributor = self.distributor.lock().unwrap();
 
+        let sdk_locked_nft = locked_nft.as_ptr(&ctx);
         let (conditions, payment_amount) = distributor
             .new_action::<RewardDistributorUnstakeAction>()
             .spend(
                 &mut ctx,
                 &mut distributor,
                 entry_slot.to_slot(),
-                locked_nft.into(),
+                sdk_locked_nft,
             )?;
 
         Ok(RewardDistributorUnstakeResult {
