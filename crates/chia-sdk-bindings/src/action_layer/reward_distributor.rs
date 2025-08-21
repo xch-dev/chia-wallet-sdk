@@ -8,14 +8,20 @@ use chia_sdk_driver::{
     Reserve, RewardDistributor as SdkRewardDistributor, RewardDistributorAddEntryAction,
     RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
     RewardDistributorConstants, RewardDistributorInitiatePayoutAction,
-    RewardDistributorNewEpochAction, RewardDistributorRemoveEntryAction, RewardDistributorState,
-    RewardDistributorSyncAction, RewardDistributorType, RewardDistributorWithdrawIncentivesAction,
-    RoundRewardInfo, RoundTimeInfo, SpendContext,
+    RewardDistributorNewEpochAction, RewardDistributorRemoveEntryAction,
+    RewardDistributorStakeAction, RewardDistributorState, RewardDistributorSyncAction,
+    RewardDistributorType, RewardDistributorUnstakeAction,
+    RewardDistributorWithdrawIncentivesAction, RoundRewardInfo, RoundTimeInfo, SpendContext,
 };
-use chia_sdk_types::Conditions;
+use chia_sdk_types::{
+    puzzles::{IntermediaryCoinProof, NftLauncherProof},
+    Conditions,
+};
 use clvm_utils::TreeHash;
 
-use crate::{CatSpend, CommitmentSlot, EntrySlot, Program, Proof, RewardSlot};
+use crate::{
+    CatSpend, CommitmentSlot, EntrySlot, Nft, NotarizedPayment, Program, Proof, RewardSlot,
+};
 
 pub trait RewardDistributorTypeExt {}
 
@@ -114,12 +120,6 @@ pub struct RewardDistributorFinishedSpendResult {
 }
 
 #[derive(Clone)]
-pub struct RewardDistributor {
-    pub(crate) clvm: Arc<Mutex<SpendContext>>,
-    pub(crate) distributor: Arc<Mutex<SdkRewardDistributor>>,
-}
-
-#[derive(Clone)]
 pub struct RewardDistributorInitiatePayoutResult {
     pub conditions: Vec<Program>,
     pub payout_amount: u64,
@@ -141,6 +141,33 @@ pub struct RewardDistributorWithdrawIncentivesResult {
 pub struct RewardDistributorRemoveEntryResult {
     pub conditions: Vec<Program>,
     pub last_payment_amount: u64,
+}
+
+pub trait IntermediaryCoinProofExt {}
+
+impl IntermediaryCoinProofExt for IntermediaryCoinProof {}
+
+pub trait NftLauncherProofExt {}
+
+impl NftLauncherProofExt for NftLauncherProof {}
+
+#[derive(Clone)]
+pub struct RewardDistributorStakeResult {
+    pub conditions: Vec<Program>,
+    pub notarized_payment: NotarizedPayment,
+    pub new_nft: Nft,
+}
+
+#[derive(Clone)]
+pub struct RewardDistributorUnstakeResult {
+    pub conditions: Vec<Program>,
+    pub payment_amount: u64,
+}
+
+#[derive(Clone)]
+pub struct RewardDistributor {
+    pub(crate) clvm: Arc<Mutex<SpendContext>>,
+    pub(crate) distributor: Arc<Mutex<SdkRewardDistributor>>,
 }
 
 impl RewardDistributor {
@@ -334,7 +361,7 @@ impl RewardDistributor {
 
         if distributor.info.constants.reward_distributor_type != RewardDistributorType::Manager {
             return Err(Error::Custom(
-                "Reward distributor is not a manager one".to_string(),
+                "Reward distributor is not managed".to_string(),
             ));
         }
 
@@ -361,7 +388,7 @@ impl RewardDistributor {
 
         if distributor.info.constants.reward_distributor_type != RewardDistributorType::Manager {
             return Err(Error::Custom(
-                "Reward distributor is not a manager one".to_string(),
+                "Reward distributor is not managed".to_string(),
             ));
         }
 
@@ -377,6 +404,61 @@ impl RewardDistributor {
         Ok(RewardDistributorRemoveEntryResult {
             conditions: self.sdk_conditions_to_program_list(conditions)?,
             last_payment_amount,
+        })
+    }
+
+    pub fn stake(
+        &self,
+        current_nft: Nft,
+        nft_launcher_proof: NftLauncherProof,
+        entry_custody_puzzle_hash: Bytes32,
+    ) -> Result<RewardDistributorStakeResult> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let mut distributor = self.distributor.lock().unwrap();
+
+        if distributor.info.constants.reward_distributor_type != RewardDistributorType::Nft {
+            return Err(Error::Custom(
+                "Reward distributor is not an NFT one".to_string(),
+            ));
+        }
+
+        let (conditions, notarized_payment, new_nft) = distributor
+            .new_action::<RewardDistributorStakeAction>()
+            .spend(
+                &mut ctx,
+                &mut distributor,
+                current_nft.into(),
+                nft_launcher_proof,
+                entry_custody_puzzle_hash,
+            )?;
+
+        Ok(RewardDistributorStakeResult {
+            conditions: self.sdk_conditions_to_program_list(conditions)?,
+            notarized_payment: notarized_payment.into(),
+            new_nft: new_nft.into(),
+        })
+    }
+
+    pub fn unstake(
+        &self,
+        entry_slot: EntrySlot,
+        locked_nft: Nft,
+    ) -> Result<RewardDistributorUnstakeResult> {
+        let mut ctx = self.clvm.lock().unwrap();
+        let mut distributor = self.distributor.lock().unwrap();
+
+        let (conditions, payment_amount) = distributor
+            .new_action::<RewardDistributorUnstakeAction>()
+            .spend(
+                &mut ctx,
+                &mut distributor,
+                entry_slot.to_slot(),
+                locked_nft.into(),
+            )?;
+
+        Ok(RewardDistributorUnstakeResult {
+            conditions: self.sdk_conditions_to_program_list(conditions)?,
+            payment_amount,
         })
     }
 }
