@@ -12,7 +12,7 @@ use chia_sdk_driver::{
 use chia_sdk_types::Conditions;
 use clvm_utils::TreeHash;
 
-use crate::{CatSpend, Program, Proof};
+use crate::{CatSpend, Program, Proof, RewardSlot};
 
 pub trait RewardDistributorTypeExt {}
 
@@ -209,7 +209,7 @@ impl RewardDistributor {
 
     pub fn commit_incentives(
         &self,
-        reward_slot: u8,
+        reward_slot: RewardSlot,
         epoch_start: u64,
         clawback_ph: Bytes32,
         rewards_to_add: u64,
@@ -222,7 +222,7 @@ impl RewardDistributor {
             .spend(
                 &mut ctx,
                 &mut distributor,
-                reward_slot,
+                reward_slot.to_slot(),
                 epoch_start,
                 clawback_ph,
                 rewards_to_add,
