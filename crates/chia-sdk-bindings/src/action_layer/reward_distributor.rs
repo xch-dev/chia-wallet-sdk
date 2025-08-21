@@ -3,9 +3,10 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::LineageProof;
 use chia_sdk_driver::{
-    RewardDistributor as SdkRewardDistributor, RewardDistributorConstants, RewardDistributorState,
-    RewardDistributorType, RoundRewardInfo, RoundTimeInfo, SpendContext,
+    Reserve, RewardDistributor as SdkRewardDistributor, RewardDistributorConstants,
+    RewardDistributorState, RewardDistributorType, RoundRewardInfo, RoundTimeInfo, SpendContext,
 };
 use clvm_utils::TreeHash;
 
@@ -102,6 +103,12 @@ pub struct RewardDistributorLauncherSolutionInfo {
 }
 
 #[derive(Clone)]
+pub struct RewardDistributorFinishedSpendResult {
+    pub new_distributor: RewardDistributor,
+    pub signature: Signature,
+}
+
+#[derive(Clone)]
 pub struct RewardDistributor {
     pub(crate) clvm: Arc<Mutex<SpendContext>>,
     pub(crate) distributor: Arc<Mutex<SdkRewardDistributor>>,
@@ -132,10 +139,34 @@ impl RewardDistributor {
         Ok(self.distributor.lock().unwrap().info.puzzle_hash())
     }
 
+    pub fn reserve_coin(&self) -> Result<Coin> {
+        Ok(self.distributor.lock().unwrap().reserve.coin)
+    }
+
+    pub fn reserve_asset_id(&self) -> Result<Bytes32> {
+        Ok(self.distributor.lock().unwrap().reserve.asset_id)
+    }
+
+    pub fn reserve_proof(&self) -> Result<LineageProof> {
+        Ok(self.distributor.lock().unwrap().reserve.proof)
+    }
+
+    pub fn reserve_full_puzzle_hash(
+        asset_id: Bytes32,
+        controller_singleton_struct_hash: Bytes32,
+        nonce: u64,
+    ) -> Result<TreeHash> {
+        Ok(Reserve::puzzle_hash(
+            asset_id,
+            controller_singleton_struct_hash,
+            nonce,
+        ))
+    }
+
     pub fn finish_spend(
         &self,
         other_cat_spends: Vec<CatSpend>,
-    ) -> Result<(RewardDistributor, Signature)> {
+    ) -> Result<RewardDistributorFinishedSpendResult> {
         let mut ctx = self.clvm.lock().unwrap();
 
         let (distributor, signature) = self.distributor.lock().unwrap().clone().finish_spend(
@@ -143,12 +174,12 @@ impl RewardDistributor {
             other_cat_spends.into_iter().map(Into::into).collect(),
         )?;
 
-        Ok((
-            RewardDistributor {
+        Ok(RewardDistributorFinishedSpendResult {
+            new_distributor: RewardDistributor {
                 clvm: self.clvm.clone(),
                 distributor: Arc::new(Mutex::new(distributor)),
             },
             signature,
-        ))
+        })
     }
 }

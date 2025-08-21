@@ -83,11 +83,58 @@
       "coin": "Coin"
     }
   },
+  "RewardDistributorFinishedSpendResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "new_distributor": "RewardDistributor",
+      "signature": "Signature"
+    }
+  },
   "RewardDistributor": {
     "type": "class",
     "methods": {
       "coin": {
         "return": "Coin"
+      },
+      "proof": {
+        "return": "Proof"
+      },
+      "state": {
+        "return": "RewardDistributorState"
+      },
+      "constants": {
+        "return": "RewardDistributorConstants"
+      },
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "reserve_coin": {
+        "return": "Coin"
+      },
+      "reserve_asset_id": {
+        "return": "Bytes32"
+      },
+      "reserve_proof": {
+        "return": "LineageProof"
+      },
+      "reserve_full_puzzle_hash": {
+        "type": "static",
+        "args": {
+          "asset_id": "Bytes32",
+          "controller_singleton_struct_hash": "Bytes32",
+          "nonce": "u64"
+        },
+        "return": "TreeHash"
+      },
+      "finish_spend": {
+        "args": {
+          "other_cat_spends": "Vec<CatSpend>"
+        },
+        "return": "RewardDistributorFinishedSpendResult"
       }
     }
   }
