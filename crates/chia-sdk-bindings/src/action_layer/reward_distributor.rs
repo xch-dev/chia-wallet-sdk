@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use bindy::Result;
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_sdk_driver::{
     RewardDistributor as SdkRewardDistributor, RewardDistributorConstants, RewardDistributorState,
     RewardDistributorType, RoundRewardInfo, RoundTimeInfo, SpendContext,
@@ -86,19 +86,24 @@ impl RewardDistributorStateExt for RewardDistributorState {
     }
 }
 
-/*
+pub trait RewardDistributorLauncherSolutionInfoExt {}
 
-,
-  "RewardDistributor": {
-    "type": "class",
-    "methods": {}
-  }
+impl RewardDistributorLauncherSolutionInfoExt for RewardDistributorLauncherSolutionInfo {}
 
-  */
-// #[derive(Clone)]
-// pub struct RewardDistributor {
-//     pub(crate) clvm: Arc<Mutex<SpendContext>>,
-//     pub(crate) distributor: Arc<Mutex<SdkRewardDistributor>>,
-// }
+pub struct RewardDistributorLauncherSolutionInfo {
+    pub constants: RewardDistributorConstants,
+    pub initial_state: RewardDistributorState,
+    pub coin: Coin,
+}
 
-// impl RewardDistributor {}
+#[derive(Clone)]
+pub struct RewardDistributor {
+    pub(crate) clvm: Arc<Mutex<SpendContext>>,
+    pub(crate) distributor: Arc<Mutex<SdkRewardDistributor>>,
+}
+
+impl RewardDistributor {
+    pub fn coin(&self) -> Result<Coin> {
+        Ok(self.distributor.lock().unwrap().coin)
+    }
+}

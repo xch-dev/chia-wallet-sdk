@@ -73,5 +73,22 @@
       "round_reward_info": "RoundRewardInfo",
       "round_time_info": "RoundTimeInfo"
     }
+  },
+  "RewardDistributorLauncherSolutionInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "constants": "RewardDistributorConstants",
+      "initial_state": "RewardDistributorState",
+      "coin": "Coin"
+    }
+  },
+  "RewardDistributor": {
+    "type": "class",
+    "methods": {
+      "coin": {
+        "return": "Coin"
+      }
+    }
   }
 }
