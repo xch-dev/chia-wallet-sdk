@@ -72,8 +72,8 @@ pub use chia_sdk_driver::{
 pub use chia_sdk_types::{
     conditions::TradePrice,
     puzzles::{
-        RewardDistributorCommitmentSlotValue, RewardDistributorEntrySlotValue,
-        RewardDistributorRewardSlotValue,
+        IntermediaryCoinProof, NftLauncherProof, RewardDistributorCommitmentSlotValue,
+        RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue,
     },
 };
 
