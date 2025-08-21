@@ -5,7 +5,7 @@ use chia_bls::PublicKey;
 use chia_consensus::opcodes::{
     CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, RECEIVE_MESSAGE, SEND_MESSAGE,
 };
-use chia_protocol::{Bytes, Bytes32};
+use chia_protocol::{Bytes, Bytes32, Coin};
 use chia_puzzles::PREVENT_MULTIPLE_CREATE_COINS_HASH;
 use chia_sdk_driver::{self as sdk, mips_puzzle_hash, InnerPuzzleSpend, MofN, SpendContext};
 use chia_sdk_types::{
@@ -31,7 +31,7 @@ use super::{convert_restrictions, MemberConfig, Vault};
 pub struct MipsSpend {
     pub(crate) clvm: Arc<Mutex<SpendContext>>,
     pub(crate) spend: Arc<Mutex<sdk::MipsSpend>>,
-    pub(crate) coin: chia_protocol::Coin,
+    pub(crate) coin: Coin,
 }
 
 impl MipsSpend {
