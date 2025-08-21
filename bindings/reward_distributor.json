@@ -124,6 +124,72 @@
       }
     }
   },
+  "RewardDistributorCommitmentSlotValue": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "epoch_start": "u64",
+      "clawback_ph": "Bytes32",
+      "rewards": "u64"
+    }
+  },
+  "CommitmentSlot": {
+    "type": "class",
+    "fields": {
+      "coin": "Coin",
+      "proof": "LineageProof",
+      "nonce": "u64",
+      "launcher_id": "Bytes32",
+      "value": "RewardDistributorCommitmentSlotValue"
+    },
+    "methods": {
+      "new": {
+        "type": "factory",
+        "args": {
+          "proof": "LineageProof",
+          "launcher_id": "Bytes32",
+          "value": "RewardDistributorCommitmentSlotValue"
+        }
+      },
+      "value_hash": {
+        "return": "Bytes32"
+      }
+    }
+  },
+  "RewardDistributorEntrySlotValue": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "payout_puzzle_hash": "Bytes32",
+      "initial_cumulative_payout": "u64",
+      "shares": "u64"
+    }
+  },
+  "EntrySlot": {
+    "type": "class",
+    "fields": {
+      "coin": "Coin",
+      "proof": "LineageProof",
+      "nonce": "u64",
+      "launcher_id": "Bytes32",
+      "value": "RewardDistributorEntrySlotValue"
+    },
+    "methods": {
+      "new": {
+        "type": "factory",
+        "args": {
+          "proof": "LineageProof",
+          "launcher_id": "Bytes32",
+          "value": "RewardDistributorEntrySlotValue"
+        }
+      },
+      "value_hash": {
+        "return": "Bytes32"
+      }
+    }
+  },
   "RewardDistributor": {
     "type": "class",
     "methods": {
