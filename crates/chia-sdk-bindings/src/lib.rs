@@ -69,6 +69,12 @@ pub use chia_sdk_driver::{
     RewardDistributorState, RewardDistributorType, RoundRewardInfo, RoundTimeInfo, StreamedAsset,
     StreamingPuzzleInfo, VaultInfo,
 };
-pub use chia_sdk_types::conditions::TradePrice;
+pub use chia_sdk_types::{
+    conditions::TradePrice,
+    puzzles::{
+        RewardDistributorCommitmentSlotValue, RewardDistributorEntrySlotValue,
+        RewardDistributorRewardSlotValue,
+    },
+};
 
 pub(crate) use convert::{AsProgram, AsPtr};

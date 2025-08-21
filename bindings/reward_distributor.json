@@ -91,6 +91,39 @@
       "signature": "Signature"
     }
   },
+  "RewardDistributorRewardSlotValue": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "epoch_start": "u64",
+      "next_epoch_initialized": "bool",
+      "rewards": "u64"
+    }
+  },
+  "RewardSlot": {
+    "type": "class",
+    "fields": {
+      "coin": "Coin",
+      "proof": "LineageProof",
+      "nonce": "u64",
+      "launcher_id": "Bytes32",
+      "value": "RewardDistributorRewardSlotValue"
+    },
+    "methods": {
+      "new": {
+        "type": "factory",
+        "args": {
+          "proof": "LineageProof",
+          "launcher_id": "Bytes32",
+          "value": "RewardDistributorRewardSlotValue"
+        }
+      },
+      "value_hash": {
+        "return": "Bytes32"
+      }
+    }
+  },
   "RewardDistributor": {
     "type": "class",
     "methods": {

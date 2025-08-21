@@ -9,7 +9,12 @@ use chia_sdk_types::puzzles::{
 use clvm_utils::ToTreeHash;
 
 macro_rules! define_reward_distributor_slot {
-    ($name:ident, $value_ty:ty, $nonce:expr) => {
+    ($name:ident, $value_ty:ty, $nonce:expr, $ext_trait:ident) => {
+        pub trait $ext_trait {}
+
+        impl $ext_trait for $value_ty {}
+
+        #[derive(Clone)]
         pub struct $name {
             pub coin: Coin,
             pub proof: LineageProof,
@@ -71,17 +76,20 @@ macro_rules! define_reward_distributor_slot {
 define_reward_distributor_slot!(
     RewardSlot,
     RewardDistributorRewardSlotValue,
-    RewardDistributorSlotNonce::REWARD
+    RewardDistributorSlotNonce::REWARD,
+    RewardDistributorRewardSlotValueExt
 );
 
 define_reward_distributor_slot!(
     CommitmentSlot,
     RewardDistributorCommitmentSlotValue,
-    RewardDistributorSlotNonce::COMMITMENT
+    RewardDistributorSlotNonce::COMMITMENT,
+    RewardDistributorCommitmentSlotValueExt
 );
 
 define_reward_distributor_slot!(
     EntrySlot,
     RewardDistributorEntrySlotValue,
-    RewardDistributorSlotNonce::ENTRY
+    RewardDistributorSlotNonce::ENTRY,
+    RewardDistributorEntrySlotValueExt
 );
