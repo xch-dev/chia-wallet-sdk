@@ -563,7 +563,6 @@
         "return": "Option<RewardDistributor>"
       },
       "launch_reward_distributor": {
-        "type": "static",
         "args": {
           "offer": "SpendBundle",
           "first_epoch_start": "u64",
