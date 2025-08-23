@@ -561,6 +561,18 @@
           "constants": "RewardDistributorConstants"
         },
         "return": "Option<RewardDistributor>"
+      },
+      "launch_reward_distributor": {
+        "type": "static",
+        "args": {
+          "offer": "SpendBundle",
+          "first_epoch_start": "u64",
+          "cat_refund_puzzle_hash": "Bytes32",
+          "constants": "RewardDistributorConstants",
+          "mainnet": "bool",
+          "comment": "String"
+        },
+        "return": "RewardDistributorLaunchResult"
       }
     }
   }

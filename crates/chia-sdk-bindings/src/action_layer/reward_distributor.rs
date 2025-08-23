@@ -1,11 +1,11 @@
 use std::sync::{Arc, Mutex};
 
 use bindy::{Error, Result};
-use chia_bls::Signature;
+use chia_bls::{SecretKey, Signature};
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::LineageProof;
 use chia_sdk_driver::{
-    Reserve, RewardDistributor as SdkRewardDistributor, RewardDistributorAddEntryAction,
+    Cat, Reserve, RewardDistributor as SdkRewardDistributor, RewardDistributorAddEntryAction,
     RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
     RewardDistributorConstants, RewardDistributorInitiatePayoutAction,
     RewardDistributorNewEpochAction, RewardDistributorRemoveEntryAction,
@@ -163,6 +163,15 @@ pub struct RewardDistributorStakeResult {
 pub struct RewardDistributorUnstakeResult {
     pub conditions: Vec<Program>,
     pub payment_amount: u64,
+}
+
+#[derive(Clone)]
+pub struct RewardDistributorLaunchResult {
+    pub security_signature: Signature,
+    pub security_secret_key: SecretKey,
+    pub reward_distributor: RewardDistributor,
+    pub first_epoch_slot: RewardSlot,
+    pub refunded_cat: Cat,
 }
 
 #[derive(Clone)]

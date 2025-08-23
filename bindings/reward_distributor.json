@@ -251,6 +251,17 @@
       "payment_amount": "u64"
     }
   },
+  "RewardDistributorLaunchResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "security_signature": "Signature",
+      "security_secret_key": "SecretKey",
+      "reward_distributor": "RewardDistributor",
+      "first_epoch_slot": "RewardSlot",
+      "refunded_cat": "Cat"
+    }
+  },
   "RewardDistributor": {
     "type": "class",
     "methods": {

@@ -2,15 +2,15 @@ use std::sync::{Arc, Mutex};
 
 use bindy::{Error, Result};
 use chia_bls::PublicKey;
-use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram, SpendBundle};
 use chia_puzzle_types::{offer::SettlementPaymentsSolution, LineageProof};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_driver::{
-    Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault, MedievalVaultInfo,
-    OptionMetadata, RewardDistributor as SdkRewardDistributor, RewardDistributorConstants,
-    SettlementLayer, SpendContext, StandardLayer, StreamedAsset,
+    launch_reward_distributor, Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault,
+    MedievalVaultInfo, Offer, OptionMetadata, RewardDistributor as SdkRewardDistributor,
+    RewardDistributorConstants, SettlementLayer, SpendContext, StandardLayer, StreamedAsset,
 };
-use chia_sdk_types::{Condition, Conditions};
+use chia_sdk_types::{Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::TreeHash;
@@ -24,7 +24,8 @@ use crate::{
     AsProgram, AsPtr, CatSpend, CreatedDid, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo,
     MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft,
     NftMetadata, NftMint, NotarizedPayment, OptionContract, Payment, Program, RestrictionMemo,
-    RewardDistributor, Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
+    RewardDistributor, RewardDistributorLaunchResult, RewardSlot, Spend,
+    StreamedAssetParsingResult, VaultMint, WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -615,5 +616,49 @@ impl Clvm {
             clvm: self.0.clone(),
             distributor: Arc::new(Mutex::new(reward_distributor)),
         }))
+    }
+
+    pub fn launch_reward_distributor(
+        &self,
+        offer: SpendBundle,
+        first_epoch_start: u64,
+        cat_refund_puzzle_hash: Bytes32,
+        constants: RewardDistributorConstants,
+        mainnet: bool,
+        comment: String,
+    ) -> Result<RewardDistributorLaunchResult> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
+        let (
+            security_signature,
+            security_secret_key,
+            sdk_distributor,
+            first_epoch_slot,
+            refunded_cat,
+        ) = launch_reward_distributor(
+            &mut ctx,
+            &offer,
+            first_epoch_start,
+            cat_refund_puzzle_hash,
+            constants,
+            if mainnet {
+                &MAINNET_CONSTANTS
+            } else {
+                &TESTNET11_CONSTANTS
+            },
+            &comment,
+        )?;
+
+        Ok(RewardDistributorLaunchResult {
+            security_signature,
+            security_secret_key,
+            reward_distributor: RewardDistributor {
+                clvm: self.0.clone(),
+                distributor: Arc::new(Mutex::new(sdk_distributor)),
+            },
+            first_epoch_slot: RewardSlot::from_slot(first_epoch_slot),
+            refunded_cat,
+        })
     }
 }
