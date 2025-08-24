@@ -529,6 +529,7 @@ export declare class Clvm {
   medievalVaultSendMessageDelegatedPuzzle(message: Uint8Array, receiverLauncherId: Uint8Array, myCoin: Coin, myInfo: MedievalVaultInfo, genesisChallenge: Uint8Array): Program
   rewardDistributorFromSpend(spend: CoinSpend, reserveLineageProof: LineageProof | undefined | null, constants: RewardDistributorConstants): RewardDistributor | null
   rewardDistributorFromParentSpend(parentSpend: CoinSpend, constants: RewardDistributorConstants): RewardDistributor | null
+  launchRewardDistributor(offer: SpendBundle, firstEpochStart: bigint, catRefundPuzzleHash: Uint8Array, constants: RewardDistributorConstants, mainnet: boolean, comment: string): RewardDistributorLaunchResult
   acsTransferProgram(): Program
   augmentedCondition(): Program
   blockProgramZero(): Program
@@ -2133,6 +2134,21 @@ export declare class RewardDistributorLauncherSolutionInfo {
   set initialState(value: RewardDistributorState)
   get coin(): Coin
   set coin(value: Coin)
+}
+
+export declare class RewardDistributorLaunchResult {
+  clone(): RewardDistributorLaunchResult
+  constructor(securitySignature: Signature, securitySecretKey: SecretKey, rewardDistributor: RewardDistributor, firstEpochSlot: RewardSlot, refundedCat: Cat)
+  get securitySignature(): Signature
+  set securitySignature(value: Signature)
+  get securitySecretKey(): SecretKey
+  set securitySecretKey(value: SecretKey)
+  get rewardDistributor(): RewardDistributor
+  set rewardDistributor(value: RewardDistributor)
+  get firstEpochSlot(): RewardSlot
+  set firstEpochSlot(value: RewardSlot)
+  get refundedCat(): Cat
+  set refundedCat(value: Cat)
 }
 
 export declare class RewardDistributorNewEpochResult {

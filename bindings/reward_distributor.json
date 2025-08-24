@@ -262,6 +262,15 @@
       "refunded_cat": "Cat"
     }
   },
+  "RewardDistributorInfoFromLauncher": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "constants": "RewardDistributorConstants",
+      "initial_state": "RewardDistributorState",
+      "eve_singleton": "Coin"
+    }
+  },
   "RewardDistributor": {
     "type": "class",
     "methods": {
@@ -296,10 +305,18 @@
         "type": "static",
         "args": {
           "asset_id": "Bytes32",
-          "controller_singleton_struct_hash": "Bytes32",
+          "distributor_launcher_id": "Bytes32",
           "nonce": "u64"
         },
         "return": "TreeHash"
+      },
+      "parse_launcher_solution": {
+        "type": "static",
+        "args": {
+          "launcher_coin": "Coin",
+          "launcher_solution": "Program"
+        },
+        "return": "Option<RewardDistributorInfoFromLauncher>"
       },
       "finish_spend": {
         "args": {

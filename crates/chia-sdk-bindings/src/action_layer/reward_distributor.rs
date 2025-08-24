@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use bindy::{Error, Result};
 use chia_bls::{SecretKey, Signature};
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::LineageProof;
+use chia_puzzle_types::{singleton::SingletonStruct, LineageProof};
 use chia_sdk_driver::{
     Cat, Reserve, RewardDistributor as SdkRewardDistributor, RewardDistributorAddEntryAction,
     RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
@@ -17,7 +17,7 @@ use chia_sdk_types::{
     puzzles::{IntermediaryCoinProof, NftLauncherProof},
     Conditions,
 };
-use clvm_utils::TreeHash;
+use clvm_utils::{ToTreeHash, TreeHash};
 
 use crate::{
     AsProgram, AsPtr, CatSpend, CommitmentSlot, EntrySlot, Nft, NotarizedPayment, Program, Proof,
@@ -175,6 +175,13 @@ pub struct RewardDistributorLaunchResult {
 }
 
 #[derive(Clone)]
+pub struct RewardDistributorInfoFromLauncher {
+    pub constants: RewardDistributorConstants,
+    pub initial_state: RewardDistributorState,
+    pub eve_singleton: Coin,
+}
+
+#[derive(Clone)]
 pub struct RewardDistributor {
     pub(crate) clvm: Arc<Mutex<SpendContext>>,
     pub(crate) distributor: Arc<Mutex<SdkRewardDistributor>>,
@@ -219,14 +226,36 @@ impl RewardDistributor {
 
     pub fn reserve_full_puzzle_hash(
         asset_id: Bytes32,
-        controller_singleton_struct_hash: Bytes32,
+        distributor_launcher_id: Bytes32,
         nonce: u64,
     ) -> Result<TreeHash> {
         Ok(Reserve::puzzle_hash(
             asset_id,
-            controller_singleton_struct_hash,
+            SingletonStruct::new(distributor_launcher_id)
+                .tree_hash()
+                .into(),
             nonce,
         ))
+    }
+
+    pub fn parse_launcher_solution(
+        launcher_coin: Coin,
+        launcher_solution: Program,
+    ) -> Result<Option<RewardDistributorInfoFromLauncher>> {
+        let mut ctx = launcher_solution.0.lock().unwrap();
+
+        Ok(SdkRewardDistributor::from_launcher_solution(
+            &mut ctx,
+            launcher_coin,
+            launcher_solution.1,
+        )?
+        .map(|(constants, initial_state, eve_singleton)| {
+            RewardDistributorInfoFromLauncher {
+                constants,
+                initial_state,
+                eve_singleton,
+            }
+        }))
     }
 
     pub fn finish_spend(
