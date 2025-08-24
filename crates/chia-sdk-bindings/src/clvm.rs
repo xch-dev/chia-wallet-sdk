@@ -8,7 +8,8 @@ use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_driver::{
     launch_reward_distributor, Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault,
     MedievalVaultInfo, Offer, OptionMetadata, RewardDistributor as SdkRewardDistributor,
-    RewardDistributorConstants, SettlementLayer, SpendContext, StandardLayer, StreamedAsset,
+    RewardDistributorConstants, RewardDistributorState, SettlementLayer, SpendContext,
+    StandardLayer, StreamedAsset,
 };
 use chia_sdk_types::{Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
@@ -616,6 +617,33 @@ impl Clvm {
             clvm: self.0.clone(),
             distributor: Arc::new(Mutex::new(reward_distributor)),
         }))
+    }
+
+    pub fn reward_distributor_from_eve_coin_spend(
+        &self,
+        constants: RewardDistributorConstants,
+        initial_state: RewardDistributorState,
+        eve_coin_spend: CoinSpend,
+        reserve_parent_id: Bytes32,
+        reserve_lineage_proof: LineageProof,
+    ) -> Result<Option<RewardDistributor>> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let result = SdkRewardDistributor::from_eve_coin_spend(
+            &mut ctx,
+            constants,
+            initial_state,
+            &eve_coin_spend,
+            reserve_parent_id,
+            reserve_lineage_proof,
+        )?;
+
+        Ok(
+            result.map(|(reward_distributor, _reward_slot)| RewardDistributor {
+                clvm: self.0.clone(),
+                distributor: Arc::new(Mutex::new(reward_distributor)),
+            }),
+        )
     }
 
     pub fn launch_reward_distributor(

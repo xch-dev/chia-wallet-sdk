@@ -562,6 +562,16 @@
         },
         "return": "Option<RewardDistributor>"
       },
+      "reward_distributor_from_eve_coin_spend": {
+        "args": {
+          "constants": "RewardDistributorConstants",
+          "initial_state": "RewardDistributorState",
+          "eve_coin_spend": "CoinSpend",
+          "reserve_parent_id": "Bytes32",
+          "reserve_lineage_proof": "LineageProof"
+        },
+        "return": "Option<RewardDistributor>"
+      },
       "launch_reward_distributor": {
         "args": {
           "offer": "SpendBundle",
