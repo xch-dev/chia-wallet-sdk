@@ -301,20 +301,17 @@
       "reserve_proof": {
         "return": "LineageProof"
       },
-      "pending_reward_slots": {
+      "pending_created_reward_slots": {
         "return": "Vec<RewardSlot>"
       },
-      "pending_commitment_slots": {
+      "pending_created_commitment_slots": {
         "return": "Vec<CommitmentSlot>"
       },
-      "pending_entry_slots": {
+      "pending_created_entry_slots": {
         "return": "Vec<EntrySlot>"
       },
       "pending_signature": {
         "return": "Signature"
-      },
-      "pending_other_cats": {
-        "return": "Vec<CatSpend>"
       },
       "reserve_full_puzzle_hash": {
         "type": "static",

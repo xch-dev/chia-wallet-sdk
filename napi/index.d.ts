@@ -529,6 +529,7 @@ export declare class Clvm {
   medievalVaultSendMessageDelegatedPuzzle(message: Uint8Array, receiverLauncherId: Uint8Array, myCoin: Coin, myInfo: MedievalVaultInfo, genesisChallenge: Uint8Array): Program
   rewardDistributorFromSpend(spend: CoinSpend, reserveLineageProof: LineageProof | undefined | null, constants: RewardDistributorConstants): RewardDistributor | null
   rewardDistributorFromParentSpend(parentSpend: CoinSpend, constants: RewardDistributorConstants): RewardDistributor | null
+  rewardDistributorFromEveCoinSpend(constants: RewardDistributorConstants, initialState: RewardDistributorState, eveCoinSpend: CoinSpend, reserveParentId: Uint8Array, reserveLineageProof: LineageProof): RewardDistributor | null
   launchRewardDistributor(offer: SpendBundle, firstEpochStart: bigint, catRefundPuzzleHash: Uint8Array, constants: RewardDistributorConstants, mainnet: boolean, comment: string): RewardDistributorLaunchResult
   acsTransferProgram(): Program
   augmentedCondition(): Program
@@ -2041,7 +2042,12 @@ export declare class RewardDistributor {
   reserveCoin(): Coin
   reserveAssetId(): Buffer
   reserveProof(): LineageProof
-  static reserveFullPuzzleHash(assetId: Uint8Array, controllerSingletonStructHash: Uint8Array, nonce: bigint): Buffer
+  pendingCreatedRewardSlots(): Array<RewardSlot>
+  pendingCreatedCommitmentSlots(): Array<CommitmentSlot>
+  pendingCreatedEntrySlots(): Array<EntrySlot>
+  pendingSignature(): Signature
+  static reserveFullPuzzleHash(assetId: Uint8Array, distributorLauncherId: Uint8Array, nonce: bigint): Buffer
+  static parseLauncherSolution(launcherCoin: Coin, launcherSolution: Program): RewardDistributorInfoFromLauncher | null
   finishSpend(otherCatSpends: Array<CatSpend>): RewardDistributorFinishedSpendResult
   addIncentives(amount: bigint): Array<Program>
   commitIncentives(rewardSlot: RewardSlot, epochStart: bigint, clawbackPh: Uint8Array, rewardsToAdd: bigint): Array<Program>
@@ -2115,6 +2121,17 @@ export declare class RewardDistributorFinishedSpendResult {
   set newDistributor(value: RewardDistributor)
   get signature(): Signature
   set signature(value: Signature)
+}
+
+export declare class RewardDistributorInfoFromLauncher {
+  clone(): RewardDistributorInfoFromLauncher
+  constructor(constants: RewardDistributorConstants, initialState: RewardDistributorState, eveSingleton: Coin)
+  get constants(): RewardDistributorConstants
+  set constants(value: RewardDistributorConstants)
+  get initialState(): RewardDistributorState
+  set initialState(value: RewardDistributorState)
+  get eveSingleton(): Coin
+  set eveSingleton(value: Coin)
 }
 
 export declare class RewardDistributorInitiatePayoutResult {

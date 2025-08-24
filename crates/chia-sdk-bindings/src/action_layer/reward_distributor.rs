@@ -14,7 +14,7 @@ use chia_sdk_driver::{
     RewardDistributorWithdrawIncentivesAction, RoundRewardInfo, RoundTimeInfo, SpendContext,
 };
 use chia_sdk_types::{
-    puzzles::{IntermediaryCoinProof, NftLauncherProof},
+    puzzles::{IntermediaryCoinProof, NftLauncherProof, RewardDistributorSlotNonce},
     Conditions,
 };
 use clvm_utils::{ToTreeHash, TreeHash};
@@ -222,6 +222,69 @@ impl RewardDistributor {
 
     pub fn reserve_proof(&self) -> Result<LineageProof> {
         Ok(self.distributor.lock().unwrap().reserve.proof)
+    }
+
+    pub fn pending_created_reward_slots(&self) -> Result<Vec<RewardSlot>> {
+        let distributor = self.distributor.lock().unwrap();
+
+        Ok(distributor
+            .pending_spend
+            .created_reward_slots
+            .clone()
+            .into_iter()
+            .map(|slot_value| {
+                RewardSlot::from_slot(
+                    distributor
+                        .created_slot_value_to_slot(slot_value, RewardDistributorSlotNonce::REWARD),
+                )
+            })
+            .collect())
+    }
+
+    pub fn pending_created_commitment_slots(&self) -> Result<Vec<CommitmentSlot>> {
+        let distributor = self.distributor.lock().unwrap();
+
+        Ok(distributor
+            .pending_spend
+            .created_commitment_slots
+            .clone()
+            .into_iter()
+            .map(|slot_value| {
+                CommitmentSlot::from_slot(
+                    distributor.created_slot_value_to_slot(
+                        slot_value,
+                        RewardDistributorSlotNonce::COMMITMENT,
+                    ),
+                )
+            })
+            .collect())
+    }
+
+    pub fn pending_created_entry_slots(&self) -> Result<Vec<EntrySlot>> {
+        let distributor = self.distributor.lock().unwrap();
+
+        Ok(distributor
+            .pending_spend
+            .created_entry_slots
+            .clone()
+            .into_iter()
+            .map(|slot_value| {
+                EntrySlot::from_slot(
+                    distributor
+                        .created_slot_value_to_slot(slot_value, RewardDistributorSlotNonce::ENTRY),
+                )
+            })
+            .collect())
+    }
+
+    pub fn pending_signature(&self) -> Result<Signature> {
+        Ok(self
+            .distributor
+            .lock()
+            .unwrap()
+            .pending_spend
+            .signature
+            .clone())
     }
 
     pub fn reserve_full_puzzle_hash(
