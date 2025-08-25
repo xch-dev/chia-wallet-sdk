@@ -271,6 +271,14 @@
       "eve_singleton": "Coin"
     }
   },
+  "RewardDistributorInfoFromEveCoin": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "distributor": "RewardDistributor",
+      "first_reward_slot": "RewardSlot"
+    }
+  },
   "RewardDistributor": {
     "type": "class",
     "methods": {

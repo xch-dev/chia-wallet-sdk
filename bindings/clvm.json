@@ -570,7 +570,7 @@
           "reserve_parent_id": "Bytes32",
           "reserve_lineage_proof": "LineageProof"
         },
-        "return": "Option<RewardDistributor>"
+        "return": "Option<RewardDistributorInfoFromEveCoin>"
       },
       "launch_reward_distributor": {
         "args": {

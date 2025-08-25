@@ -182,6 +182,12 @@ pub struct RewardDistributorInfoFromLauncher {
 }
 
 #[derive(Clone)]
+pub struct RewardDistributorInfoFromEveCoin {
+    pub distributor: RewardDistributor,
+    pub first_reward_slot: RewardSlot,
+}
+
+#[derive(Clone)]
 pub struct RewardDistributor {
     pub(crate) clvm: Arc<Mutex<SpendContext>>,
     pub(crate) distributor: Arc<Mutex<SdkRewardDistributor>>,

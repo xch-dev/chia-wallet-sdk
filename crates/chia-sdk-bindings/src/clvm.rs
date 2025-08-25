@@ -25,8 +25,8 @@ use crate::{
     AsProgram, AsPtr, CatSpend, CreatedDid, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo,
     MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft,
     NftMetadata, NftMint, NotarizedPayment, OptionContract, Payment, Program, RestrictionMemo,
-    RewardDistributor, RewardDistributorLaunchResult, RewardSlot, Spend,
-    StreamedAssetParsingResult, VaultMint, WrapperMemo,
+    RewardDistributor, RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
+    Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -626,7 +626,7 @@ impl Clvm {
         eve_coin_spend: CoinSpend,
         reserve_parent_id: Bytes32,
         reserve_lineage_proof: LineageProof,
-    ) -> Result<Option<RewardDistributor>> {
+    ) -> Result<Option<RewardDistributorInfoFromEveCoin>> {
         let mut ctx = self.0.lock().unwrap();
 
         let result = SdkRewardDistributor::from_eve_coin_spend(
@@ -638,12 +638,15 @@ impl Clvm {
             reserve_lineage_proof,
         )?;
 
-        Ok(
-            result.map(|(reward_distributor, _reward_slot)| RewardDistributor {
-                clvm: self.0.clone(),
-                distributor: Arc::new(Mutex::new(reward_distributor)),
-            }),
-        )
+        Ok(result.map(
+            |(reward_distributor, reward_slot)| RewardDistributorInfoFromEveCoin {
+                distributor: RewardDistributor {
+                    clvm: self.0.clone(),
+                    distributor: Arc::new(Mutex::new(reward_distributor)),
+                },
+                first_reward_slot: RewardSlot::from_slot(reward_slot),
+            },
+        ))
     }
 
     pub fn launch_reward_distributor(
