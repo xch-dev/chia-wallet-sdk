@@ -347,8 +347,11 @@ impl RewardDistributor {
         })
     }
 
-    fn sdk_conditions_to_program_list(&self, conditions: Conditions) -> Result<Vec<Program>> {
-        let mut ctx = self.clvm.lock().unwrap();
+    fn sdk_conditions_to_program_list(
+        &self,
+        ctx: &mut SpendContext,
+        conditions: Conditions,
+    ) -> Result<Vec<Program>> {
         let mut result = Vec::with_capacity(conditions.len());
 
         for condition in conditions {
@@ -366,7 +369,7 @@ impl RewardDistributor {
             .new_action::<RewardDistributorAddIncentivesAction>()
             .spend(&mut ctx, &mut distributor, amount)?;
 
-        self.sdk_conditions_to_program_list(conditions)
+        self.sdk_conditions_to_program_list(&mut ctx, conditions)
     }
 
     pub fn commit_incentives(
@@ -390,7 +393,7 @@ impl RewardDistributor {
                 rewards_to_add,
             )?;
 
-        self.sdk_conditions_to_program_list(conditions)
+        self.sdk_conditions_to_program_list(&mut ctx, conditions)
     }
 
     pub fn initiate_payout(
@@ -405,7 +408,7 @@ impl RewardDistributor {
             .spend(&mut ctx, &mut distributor, entry_slot.to_slot())?;
 
         Ok(RewardDistributorInitiatePayoutResult {
-            conditions: self.sdk_conditions_to_program_list(conditions)?,
+            conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
             payout_amount,
         })
     }
@@ -419,7 +422,7 @@ impl RewardDistributor {
             .spend(&mut ctx, &mut distributor, reward_slot.to_slot())?;
 
         Ok(RewardDistributorNewEpochResult {
-            conditions: self.sdk_conditions_to_program_list(conditions)?,
+            conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
             epoch_fee,
         })
     }
@@ -432,7 +435,7 @@ impl RewardDistributor {
             .new_action::<RewardDistributorSyncAction>()
             .spend(&mut ctx, &mut distributor, update_time)?;
 
-        self.sdk_conditions_to_program_list(conditions)
+        self.sdk_conditions_to_program_list(&mut ctx, conditions)
     }
 
     pub fn withdraw_incentives(
@@ -453,7 +456,7 @@ impl RewardDistributor {
             )?;
 
         Ok(RewardDistributorWithdrawIncentivesResult {
-            conditions: self.sdk_conditions_to_program_list(conditions)?,
+            conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
             withdrawn_amount,
         })
     }
@@ -483,7 +486,7 @@ impl RewardDistributor {
                 manager_singleton_inner_puzzle_hash,
             )?;
 
-        self.sdk_conditions_to_program_list(conditions)
+        self.sdk_conditions_to_program_list(&mut ctx, conditions)
     }
 
     pub fn remove_entry(
@@ -510,7 +513,7 @@ impl RewardDistributor {
             )?;
 
         Ok(RewardDistributorRemoveEntryResult {
-            conditions: self.sdk_conditions_to_program_list(conditions)?,
+            conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
             last_payment_amount,
         })
     }
@@ -542,7 +545,7 @@ impl RewardDistributor {
             )?;
 
         Ok(RewardDistributorStakeResult {
-            conditions: self.sdk_conditions_to_program_list(conditions)?,
+            conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
             notarized_payment: notarized_payment.as_program(&self.clvm),
             new_nft: new_nft.as_program(&self.clvm),
         })
@@ -567,7 +570,7 @@ impl RewardDistributor {
             )?;
 
         Ok(RewardDistributorUnstakeResult {
-            conditions: self.sdk_conditions_to_program_list(conditions)?,
+            conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
             payment_amount,
         })
     }
