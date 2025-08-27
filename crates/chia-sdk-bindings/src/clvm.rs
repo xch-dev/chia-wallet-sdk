@@ -1,15 +1,15 @@
 use std::sync::{Arc, Mutex};
 
 use bindy::{Error, Result};
-use chia_bls::PublicKey;
+use chia_bls::{PublicKey, Signature};
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram, SpendBundle};
 use chia_puzzle_types::{offer::SettlementPaymentsSolution, LineageProof};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_driver::{
-    launch_reward_distributor, Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault,
-    MedievalVaultInfo, Offer, OptionMetadata, RewardDistributor as SdkRewardDistributor,
-    RewardDistributorConstants, RewardDistributorState, SettlementLayer, SpendContext,
-    StandardLayer, StreamedAsset,
+    create_security_coin, launch_reward_distributor, spend_security_coin, spend_settlement_nft,
+    Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault, MedievalVaultInfo, Offer,
+    OptionMetadata, RewardDistributor as SdkRewardDistributor, RewardDistributorConstants,
+    RewardDistributorState, SettlementLayer, SpendContext, StandardLayer, StreamedAsset,
 };
 use chia_sdk_types::{Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
@@ -24,9 +24,10 @@ use num_bigint::BigInt;
 use crate::{
     AsProgram, AsPtr, CatSpend, CreatedDid, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo,
     MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft,
-    NftMetadata, NftMint, NotarizedPayment, OptionContract, Payment, Program, RestrictionMemo,
-    RewardDistributor, RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
-    Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
+    NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails, OptionContract, Payment,
+    Program, RestrictionMemo, RewardDistributor, RewardDistributorInfoFromEveCoin,
+    RewardDistributorLaunchResult, RewardSlot, SettlementNftSpendResult, Spend,
+    StreamedAssetParsingResult, VaultMint, WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -690,6 +691,77 @@ impl Clvm {
             },
             first_epoch_slot: RewardSlot::from_slot(first_epoch_slot),
             refunded_cat,
+        })
+    }
+
+    pub fn create_offer_security_coin(
+        &self,
+        offer: SpendBundle,
+    ) -> Result<OfferSecurityCoinDetails> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
+
+        let (security_coin_sk, security_coin) =
+            create_security_coin(&mut ctx, offer.offered_coins().xch[0])?;
+
+        Ok(OfferSecurityCoinDetails {
+            security_coin,
+            security_coin_sk,
+        })
+    }
+
+    pub fn spend_offer_security_coin(
+        &self,
+        security_coin_details: OfferSecurityCoinDetails,
+        conditions: Vec<Program>,
+        mainnet: bool,
+    ) -> Result<Signature> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let mut sdk_conditions = Conditions::new();
+        for condition in conditions {
+            sdk_conditions.push(ctx.extract::<Condition<NodePtr>>(condition.1)?);
+        }
+
+        Ok(spend_security_coin(
+            &mut ctx,
+            security_coin_details.security_coin,
+            sdk_conditions,
+            &security_coin_details.security_coin_sk,
+            if mainnet {
+                &MAINNET_CONSTANTS
+            } else {
+                &TESTNET11_CONSTANTS
+            },
+        )?)
+    }
+
+    pub fn spend_settlement_nft(
+        &self,
+        offer: SpendBundle,
+        nft_launcher_id: Bytes32,
+        nonce: Bytes32,
+        destination_puzzle_hash: Bytes32,
+    ) -> Result<SettlementNftSpendResult> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
+
+        let (new_nft, security_conditions) = spend_settlement_nft(
+            &mut ctx,
+            &offer,
+            nft_launcher_id,
+            nonce,
+            destination_puzzle_hash,
+        )?;
+
+        Ok(SettlementNftSpendResult {
+            new_nft: new_nft.as_program(&self.0),
+            security_conditions: security_conditions
+                .into_iter()
+                .map(|c| Program(self.0.clone(), ctx.alloc(&c).unwrap()))
+                .collect(),
         })
     }
 }
