@@ -764,4 +764,17 @@ impl Clvm {
                 .collect(),
         })
     }
+
+    pub fn offer_settlement_cats(&self, offer: SpendBundle, asset_id: Bytes32) -> Result<Vec<Cat>> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
+
+        Ok(offer
+            .offered_coins()
+            .cats
+            .get(&asset_id)
+            .cloned()
+            .unwrap_or_default())
+    }
 }

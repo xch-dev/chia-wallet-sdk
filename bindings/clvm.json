@@ -582,6 +582,36 @@
           "comment": "String"
         },
         "return": "RewardDistributorLaunchResult"
+      },
+      "create_offer_security_coin": {
+        "args": {
+          "offer": "SpendBundle"
+        },
+        "return": "OfferSecurityCoinDetails"
+      },
+      "spend_offer_security_coin": {
+        "args": {
+          "security_coin_details": "OfferSecurityCoinDetails",
+          "conditions": "Vec<Program>",
+          "mainnet": "bool"
+        },
+        "return": "Signature"
+      },
+      "spend_settlement_nft": {
+        "args": {
+          "offer": "SpendBundle",
+          "nft_launcher_id": "Bytes32",
+          "nonce": "Bytes32",
+          "destination_puzzle_hash": "Bytes32"
+        },
+        "return": "SettlementNftSpendResult"
+      },
+      "offer_settlement_cats": {
+        "args": {
+          "offer": "SpendBundle",
+          "asset_id": "Bytes32"
+        },
+        "return": "Vec<Cat>"
       }
     }
   }
