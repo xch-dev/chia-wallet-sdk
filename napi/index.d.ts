@@ -529,8 +529,13 @@ export declare class Clvm {
   medievalVaultSendMessageDelegatedPuzzle(message: Uint8Array, receiverLauncherId: Uint8Array, myCoin: Coin, myInfo: MedievalVaultInfo, genesisChallenge: Uint8Array): Program
   rewardDistributorFromSpend(spend: CoinSpend, reserveLineageProof: LineageProof | undefined | null, constants: RewardDistributorConstants): RewardDistributor | null
   rewardDistributorFromParentSpend(parentSpend: CoinSpend, constants: RewardDistributorConstants): RewardDistributor | null
-  rewardDistributorFromEveCoinSpend(constants: RewardDistributorConstants, initialState: RewardDistributorState, eveCoinSpend: CoinSpend, reserveParentId: Uint8Array, reserveLineageProof: LineageProof): RewardDistributor | null
+  rewardDistributorFromEveCoinSpend(constants: RewardDistributorConstants, initialState: RewardDistributorState, eveCoinSpend: CoinSpend, reserveParentId: Uint8Array, reserveLineageProof: LineageProof): RewardDistributorInfoFromEveCoin | null
   launchRewardDistributor(offer: SpendBundle, firstEpochStart: bigint, catRefundPuzzleHash: Uint8Array, constants: RewardDistributorConstants, mainnet: boolean, comment: string): RewardDistributorLaunchResult
+  createOfferSecurityCoin(offer: SpendBundle): OfferSecurityCoinDetails
+  spendOfferSecurityCoin(securityCoinDetails: OfferSecurityCoinDetails, conditions: Array<Program>, mainnet: boolean): Signature
+  spendSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array, nonce: Uint8Array, destinationPuzzleHash: Uint8Array): SettlementNftSpendResult
+  offerSettlementCats(offer: SpendBundle, assetId: Uint8Array): Array<Cat>
+  offerSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array): Nft | null
   acsTransferProgram(): Program
   augmentedCondition(): Program
   blockProgramZero(): Program
@@ -668,6 +673,7 @@ export declare class CoinsetClient {
   getBlockSpends(headerHash: Uint8Array): Promise<GetBlockSpendsResponse>
   getCoinRecordByName(name: Uint8Array): Promise<GetCoinRecordResponse>
   getCoinRecordsByHint(hint: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByHints(hints: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
   getCoinRecordsByNames(names: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
   getCoinRecordsByParentIds(parentIds: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
   getCoinRecordsByPuzzleHash(puzzleHash: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
@@ -1524,6 +1530,15 @@ export declare class NotarizedPayment {
   set payments(value: Array<Payment>)
 }
 
+export declare class OfferSecurityCoinDetails {
+  clone(): OfferSecurityCoinDetails
+  constructor(securityCoin: Coin, securityCoinSk: SecretKey)
+  get securityCoin(): Coin
+  set securityCoin(value: Coin)
+  get securityCoinSk(): SecretKey
+  set securityCoinSk(value: SecretKey)
+}
+
 export declare class OptionContract {
   clone(): OptionContract
   constructor(coin: Coin, proof: Proof, info: OptionInfo)
@@ -2059,6 +2074,7 @@ export declare class RewardDistributor {
   removeEntry(entrySlot: EntrySlot, managerSingletonInnerPuzzleHash: Uint8Array): RewardDistributorRemoveEntryResult
   stake(currentNft: Nft, nftLauncherProof: NftLauncherProof, entryCustodyPuzzleHash: Uint8Array): RewardDistributorStakeResult
   unstake(entrySlot: EntrySlot, lockedNft: Nft): RewardDistributorUnstakeResult
+  static lockedNftHint(distributorLauncherId: Uint8Array, custodyPuzzleHash: Uint8Array): Buffer
 }
 
 export declare class RewardDistributorCommitmentSlotValue {
@@ -2121,6 +2137,15 @@ export declare class RewardDistributorFinishedSpendResult {
   set newDistributor(value: RewardDistributor)
   get signature(): Signature
   set signature(value: Signature)
+}
+
+export declare class RewardDistributorInfoFromEveCoin {
+  clone(): RewardDistributorInfoFromEveCoin
+  constructor(distributor: RewardDistributor, firstRewardSlot: RewardSlot)
+  get distributor(): RewardDistributor
+  set distributor(value: RewardDistributor)
+  get firstRewardSlot(): RewardSlot
+  set firstRewardSlot(value: RewardSlot)
 }
 
 export declare class RewardDistributorInfoFromLauncher {
@@ -2301,6 +2326,15 @@ export declare class SendMessage {
   set message(value: Uint8Array)
   get data(): Array<Program>
   set data(value: Array<Program>)
+}
+
+export declare class SettlementNftSpendResult {
+  clone(): SettlementNftSpendResult
+  constructor(newNft: Nft, securityConditions: Array<Program>)
+  get newNft(): Nft
+  set newNft(value: Nft)
+  get securityConditions(): Array<Program>
+  set securityConditions(value: Array<Program>)
 }
 
 export declare class Signature {
