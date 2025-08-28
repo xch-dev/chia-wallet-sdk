@@ -169,8 +169,10 @@ impl RewardDistributorStakeAction {
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         Ok((
-            Conditions::new()
-                .assert_puzzle_announcement(announcement_id(nft.coin.puzzle_hash, msg)),
+            Conditions::new().assert_puzzle_announcement(announcement_id(
+                distributor.coin.puzzle_hash,
+                announcement_id(nft.coin.puzzle_hash, msg),
+            )),
             notarized_payment,
             nft.child(payment_puzzle_hash, None, nft.info.metadata, nft.amount()),
         ))
