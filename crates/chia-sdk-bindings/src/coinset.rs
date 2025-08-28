@@ -92,6 +92,19 @@ impl CoinsetClient {
             .await?)
     }
 
+    pub async fn get_coin_records_by_hints(
+        &self,
+        hints: Vec<Bytes32>,
+        start_height: Option<u32>,
+        end_height: Option<u32>,
+        include_spent_coins: Option<bool>,
+    ) -> Result<GetCoinRecordsResponse> {
+        Ok(self
+            .0
+            .get_coin_records_by_hints(hints, start_height, end_height, include_spent_coins)
+            .await?)
+    }
+
     pub async fn get_coin_records_by_names(
         &self,
         names: Vec<Bytes32>,

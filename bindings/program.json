@@ -208,6 +208,12 @@
       },
       "parse_notarized_payment": {
         "return": "Option<NotarizedPayment>"
+      },
+      "parse_reward_distributor_launcher_solution": {
+        "args": {
+          "launcher_coin": "Coin"
+        },
+        "return": "Option<RewardDistributorLauncherSolutionInfo>"
       }
     }
   }

@@ -88,6 +88,16 @@
         },
         "return": "GetCoinRecordsResponse"
       },
+      "get_coin_records_by_hints": {
+        "type": "async",
+        "args": {
+          "hints": "Vec<Bytes32>",
+          "start_height": "Option<u32>",
+          "end_height": "Option<u32>",
+          "include_spent_coins": "Option<bool>"
+        },
+        "return": "GetCoinRecordsResponse"
+      },
       "get_coin_records_by_names": {
         "type": "async",
         "args": {

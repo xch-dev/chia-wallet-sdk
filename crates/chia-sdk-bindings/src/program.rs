@@ -1,12 +1,12 @@
 use std::sync::{Arc, Mutex};
 
 use bindy::{Error, Result};
-use chia_protocol::{Bytes, Program as SerializedProgram};
+use chia_protocol::{Bytes, Coin, Program as SerializedProgram};
 use chia_puzzle_types::{
     nft::NftMetadata,
     offer::{NotarizedPayment as ChiaNotarizedPayment, Payment as ChiaPayment},
 };
-use chia_sdk_driver::{OptionMetadata, SpendContext};
+use chia_sdk_driver::{OptionMetadata, RewardDistributor as SdkRewardDistributor, SpendContext};
 use clvm_tools_rs::classic::clvm_tools::stages::run;
 use clvm_tools_rs::classic::clvm_tools::stages::stage_0::TRunProgram;
 use clvm_tools_rs::classic::clvm_tools::{
@@ -21,7 +21,10 @@ use clvmr::{
 };
 use num_bigint::BigInt;
 
-use crate::{AsProgram, CurriedProgram, NotarizedPayment, Output, Pair, Payment, Puzzle};
+use crate::{
+    AsProgram, CurriedProgram, NotarizedPayment, Output, Pair, Payment, Puzzle,
+    RewardDistributorLauncherSolutionInfo,
+};
 
 #[derive(Clone)]
 pub struct Program(pub(crate) Arc<Mutex<SpendContext>>, pub(crate) NodePtr);
@@ -303,5 +306,24 @@ impl Program {
         let ctx = self.0.lock().unwrap();
         let value = ChiaNotarizedPayment::from_clvm(&**ctx, self.1);
         Ok(value.ok().map(|p| p.as_program(&self.0)))
+    }
+
+    pub fn parse_reward_distributor_launcher_solution(
+        &self,
+        launcher_coin: Coin,
+    ) -> Result<Option<RewardDistributorLauncherSolutionInfo>> {
+        let mut ctx = self.0.lock().unwrap();
+
+        if let Some((constants, initial_state, coin)) =
+            SdkRewardDistributor::from_launcher_solution(&mut ctx, launcher_coin, self.1)?
+        {
+            Ok(Some(RewardDistributorLauncherSolutionInfo {
+                constants,
+                initial_state,
+                coin,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 }

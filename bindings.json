@@ -15,7 +15,8 @@
       "SerializedProgram"
     ],
     "{bigint}": ["u64", "u128", "BigInt"],
-    "{number}": ["i8", "u8", "i16", "u16", "i32", "u32", "f32"]
+    "{number}": ["i8", "u8", "i16", "u16", "i32", "u32", "f32"],
+    "{usize}": ["usize"]
   },
   "shared": {
     "GetBlockRecordByHeightResponse": "GetBlockRecordResponse",
@@ -23,7 +24,8 @@
   },
   "napi": {
     "{bytes}": "napi::bindgen_prelude::Uint8Array",
-    "{bigint}": "napi::bindgen_prelude::BigInt"
+    "{bigint}": "napi::bindgen_prelude::BigInt",
+    "{usize}": "napi::bindgen_prelude::BigInt"
   },
   "wasm": {
     "{bytes}": "Vec<u8>",

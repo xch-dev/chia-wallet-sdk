@@ -575,7 +575,7 @@ pub fn spend_settlement_nft(
 }
 
 #[allow(clippy::type_complexity)]
-pub fn launch_dig_reward_distributor(
+pub fn launch_reward_distributor(
     ctx: &mut SpendContext,
     offer: &Offer,
     first_epoch_start: u64,
@@ -2622,7 +2622,7 @@ mod tests {
         // Launch the reward distributor
         let first_epoch_start = 1234;
         let (_, security_sk, mut registry, first_epoch_slot, mut source_cat) =
-            launch_dig_reward_distributor(
+            launch_reward_distributor(
                 ctx,
                 &offer,
                 first_epoch_start,
