@@ -413,6 +413,14 @@
           "locked_nft": "Nft"
         },
         "return": "RewardDistributorUnstakeResult"
+      },
+      "locked_nft_hint": {
+        "type": "static",
+        "args": {
+          "distributor_launcher_id": "Bytes32",
+          "custody_puzzle_hash": "Bytes32"
+        },
+        "return": "Bytes32"
       }
     }
   }

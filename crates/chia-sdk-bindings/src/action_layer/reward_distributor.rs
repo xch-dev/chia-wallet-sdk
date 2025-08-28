@@ -14,8 +14,10 @@ use chia_sdk_driver::{
     RewardDistributorWithdrawIncentivesAction, RoundRewardInfo, RoundTimeInfo, SpendContext,
 };
 use chia_sdk_types::{
-    puzzles::{IntermediaryCoinProof, NftLauncherProof, RewardDistributorSlotNonce},
-    Conditions,
+    puzzles::{
+        IntermediaryCoinProof, NftLauncherProof, NonceWrapperArgs, RewardDistributorSlotNonce,
+    },
+    Conditions, Mod,
 };
 use clvm_utils::{ToTreeHash, TreeHash};
 
@@ -573,5 +575,18 @@ impl RewardDistributor {
             conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
             payment_amount,
         })
+    }
+
+    pub fn locked_nft_hint(
+        distributor_launcher_id: Bytes32,
+        custody_puzzle_hash: Bytes32,
+    ) -> Result<Bytes32> {
+        Ok(NonceWrapperArgs::<Bytes32, TreeHash> {
+            nonce: custody_puzzle_hash,
+            inner_puzzle: RewardDistributorStakeAction::my_p2_puzzle_hash(distributor_launcher_id)
+                .into(),
+        }
+        .curry_tree_hash()
+        .into())
     }
 }
