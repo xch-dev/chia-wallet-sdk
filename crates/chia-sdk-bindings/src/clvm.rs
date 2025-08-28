@@ -777,4 +777,21 @@ impl Clvm {
             .cloned()
             .unwrap_or_default())
     }
+
+    pub fn offer_settlement_nft(
+        &self,
+        offer: SpendBundle,
+        nft_launcher_id: Bytes32,
+    ) -> Result<Option<Nft>> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
+
+        Ok(offer
+            .offered_coins()
+            .nfts
+            .get(&nft_launcher_id)
+            .copied()
+            .map(|n| n.as_program(&self.0)))
+    }
 }

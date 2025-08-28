@@ -612,6 +612,13 @@
           "asset_id": "Bytes32"
         },
         "return": "Vec<Cat>"
+      },
+      "offer_settlement_nft": {
+        "args": {
+          "offer": "SpendBundle",
+          "nft_launcher_id": "Bytes32"
+        },
+        "return": "Option<Nft>"
       }
     }
   }
