@@ -103,6 +103,7 @@ impl MetadataWithRootHash for DataStoreMetadata {
             label: None,
             description: None,
             bytes: None,
+            size_proof: None,
         }
     }
 }
@@ -113,6 +114,7 @@ pub struct DataStoreMetadata {
     pub label: Option<String>,
     pub description: Option<String>,
     pub bytes: Option<u64>,
+    pub size_proof: Option<Bytes32>,
 }
 
 impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for DataStoreMetadata {
@@ -125,6 +127,7 @@ impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for DataStoreMetadata {
                 "l" => metadata.label = Some(String::from_clvm(decoder, ptr)?),
                 "d" => metadata.description = Some(String::from_clvm(decoder, ptr)?),
                 "b" => metadata.bytes = Some(u64::from_clvm(decoder, ptr)?),
+                "p" => metadata.size_proof = Some(Bytes32::from_clvm(decoder, ptr)?),
                 _ => (),
             }
         }
@@ -147,6 +150,10 @@ impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for DataStoreMetadata {
 
         if let Some(bytes) = self.bytes {
             items.push(("b", Raw(bytes.to_clvm(encoder)?)));
+        }
+
+        if let Some(size_proof) = self.size_proof {
+            items.push(("p", Raw(size_proof.to_clvm(encoder)?)));
         }
 
         (self.root_hash, items).to_clvm(encoder)
