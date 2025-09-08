@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
+use chia_puzzles::{PREVENT_CONDITION_OPCODE, PREVENT_CONDITION_OPCODE_HASH};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
-use hex_literal::hex;
 
 use crate::Mod;
 
@@ -24,20 +24,6 @@ impl Mod for PreventConditionOpcode {
     }
 
     fn mod_hash() -> TreeHash {
-        PREVENT_CONDITION_OPCODE_HASH
+        PREVENT_CONDITION_OPCODE_HASH.into()
     }
 }
-
-pub const PREVENT_CONDITION_OPCODE: [u8; 131] = hex!(
-    "
-    ff02ffff01ff02ffff03ffff02ff02ffff04ff02ffff04ff05ffff04ff0bff80
-    80808080ffff010bffff01ff088080ff0180ffff04ffff01ff02ffff03ff0bff
-    ff01ff02ffff03ffff09ff23ff0580ffff01ff0880ffff01ff02ff02ffff04ff
-    02ffff04ff05ffff04ff1bff808080808080ff0180ffff01ff010180ff0180ff
-    018080
-    "
-);
-
-pub const PREVENT_CONDITION_OPCODE_HASH: TreeHash = TreeHash::new(hex!(
-    "046dfa794bb1df14d5dc891b23764a0e31f119546d2c56cdc8df0d31daaa555f"
-));

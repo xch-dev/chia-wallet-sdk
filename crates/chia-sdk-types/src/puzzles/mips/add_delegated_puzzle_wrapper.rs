@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
+use chia_puzzles::{ADD_DPUZ_WRAPPER, ADD_DPUZ_WRAPPER_HASH};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
-use hex_literal::hex;
 
 use crate::Mod;
 
@@ -24,11 +24,11 @@ impl<W, P> AddDelegatedPuzzleWrapper<W, P> {
 
 impl<W, P> Mod for AddDelegatedPuzzleWrapper<W, P> {
     fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&ADD_DELEGATED_PUZZLE_WRAPPER)
+        Cow::Borrowed(&ADD_DPUZ_WRAPPER)
     }
 
     fn mod_hash() -> TreeHash {
-        ADD_DELEGATED_PUZZLE_WRAPPER_HASH
+        ADD_DPUZ_WRAPPER_HASH.into()
     }
 }
 
@@ -47,8 +47,3 @@ impl<W, P> AddDelegatedPuzzleWrapperSolution<W, P> {
         }
     }
 }
-pub const ADD_DELEGATED_PUZZLE_WRAPPER: [u8; 19] = hex!("ff02ff02ffff04ffff02ff05ff1780ff0b8080");
-
-pub const ADD_DELEGATED_PUZZLE_WRAPPER_HASH: TreeHash = TreeHash::new(hex!(
-    "6427724905f2dcf8187300ef9a0436a3c96198e4fcd17101d1ded9bc61c3f3bf"
-));

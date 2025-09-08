@@ -146,6 +146,7 @@ macro_rules! impl_self {
 }
 
 impl_self!(bool);
+impl_self!(usize);
 impl_self!(u8);
 impl_self!(i8);
 impl_self!(u16);

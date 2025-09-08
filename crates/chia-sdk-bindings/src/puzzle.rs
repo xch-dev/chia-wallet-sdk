@@ -3,23 +3,26 @@ mod clawback;
 mod clawback_v2;
 mod did;
 mod nft;
-mod streamed_cat;
+mod option;
+mod streamed_asset;
 
 pub use cat::*;
-use chia_bls::PublicKey;
-use chia_puzzle_types::{cat::CatArgs, standard::StandardArgs};
 pub use clawback::*;
 pub use clawback_v2::*;
 pub use did::*;
 pub use nft::*;
-pub use streamed_cat::*;
+pub use option::*;
+pub use streamed_asset::*;
 
 use std::sync::{Arc, Mutex};
 
 use bindy::Result;
+use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::{cat::CatArgs, standard::StandardArgs};
 use chia_sdk_driver::{
-    Cat, CatInfo, Clawback, CurriedPuzzle, RawPuzzle, SpendContext, StreamingPuzzleInfo,
+    Cat, CatInfo, Clawback, CurriedPuzzle, OptionContract as SdkOptionContract, OptionInfo,
+    RawPuzzle, SpendContext, StreamingPuzzleInfo,
 };
 
 use crate::{AsProgram, Program};
@@ -50,7 +53,7 @@ impl Puzzle {
         }
     }
 
-    pub fn parse_cat(&self) -> Result<Option<ParsedCat>> {
+    pub fn parse_cat_info(&self) -> Result<Option<ParsedCatInfo>> {
         let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
         let ctx = self.program.0.lock().unwrap();
 
@@ -58,9 +61,25 @@ impl Puzzle {
             return Ok(None);
         };
 
-        Ok(Some(ParsedCat {
+        Ok(Some(ParsedCatInfo {
             info,
             p2_puzzle: p2_puzzle.map(|puzzle| Self::new(&self.program.0, puzzle)),
+        }))
+    }
+
+    pub fn parse_cat(&self, coin: Coin, solution: Program) -> Result<Option<ParsedCat>> {
+        let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
+        let ctx = self.program.0.lock().unwrap();
+
+        let Some((cat, p2_puzzle, p2_solution)) = Cat::parse(&ctx, coin, puzzle, solution.1)?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(ParsedCat {
+            cat,
+            p2_puzzle: Self::new(&self.program.0, p2_puzzle),
+            p2_solution: Program(self.program.0.clone(), p2_solution),
         }))
     }
 
@@ -81,7 +100,7 @@ impl Puzzle {
         )?)
     }
 
-    pub fn parse_nft(&self) -> Result<Option<ParsedNft>> {
+    pub fn parse_nft_info(&self) -> Result<Option<ParsedNftInfo>> {
         let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
         let ctx = self.program.0.lock().unwrap();
@@ -90,9 +109,27 @@ impl Puzzle {
             return Ok(None);
         };
 
-        Ok(Some(ParsedNft {
+        Ok(Some(ParsedNftInfo {
             info: nft_info.as_program(&self.program.0),
             p2_puzzle: Self::new(&self.program.0, p2_puzzle),
+        }))
+    }
+
+    pub fn parse_nft(&self, coin: Coin, solution: Program) -> Result<Option<ParsedNft>> {
+        let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
+
+        let ctx = self.program.0.lock().unwrap();
+
+        let Some((nft_info, p2_puzzle, p2_solution)) =
+            chia_sdk_driver::Nft::parse(&ctx, coin, puzzle, solution.1)?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(ParsedNft {
+            nft: nft_info.as_program(&self.program.0),
+            p2_puzzle: Self::new(&self.program.0, p2_puzzle),
+            p2_solution: Program(self.program.0.clone(), p2_solution),
         }))
     }
 
@@ -118,7 +155,7 @@ impl Puzzle {
         Ok(Some(nft.as_program(&self.program.0)))
     }
 
-    pub fn parse_did(&self) -> Result<Option<ParsedDid>> {
+    pub fn parse_did_info(&self) -> Result<Option<ParsedDidInfo>> {
         let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
         let ctx = self.program.0.lock().unwrap();
@@ -127,9 +164,29 @@ impl Puzzle {
             return Ok(None);
         };
 
-        Ok(Some(ParsedDid {
+        Ok(Some(ParsedDidInfo {
             info: did_info.as_program(&self.program.0),
             p2_puzzle: Self::new(&self.program.0, p2_puzzle),
+        }))
+    }
+
+    pub fn parse_did(&self, coin: Coin, solution: Program) -> Result<Option<ParsedDid>> {
+        let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
+
+        let ctx = self.program.0.lock().unwrap();
+
+        let Some((did_info, p2_spend)) =
+            chia_sdk_driver::Did::parse(&ctx, coin, puzzle, solution.1)?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(ParsedDid {
+            did: did_info.as_program(&self.program.0),
+            p2_spend: p2_spend.map(|(p2_puzzle, p2_solution)| ParsedDidSpend {
+                puzzle: Self::new(&self.program.0, p2_puzzle),
+                solution: Program(self.program.0.clone(), p2_solution),
+            }),
         }))
     }
 
@@ -157,36 +214,67 @@ impl Puzzle {
         Ok(Some(did.as_program(&self.program.0)))
     }
 
+    pub fn parse_option_info(&self) -> Result<Option<ParsedOptionInfo>> {
+        let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
+
+        let ctx = self.program.0.lock().unwrap();
+
+        let Some((info, p2_puzzle)) = OptionInfo::parse(&ctx, puzzle)? else {
+            return Ok(None);
+        };
+
+        Ok(Some(ParsedOptionInfo {
+            info,
+            p2_puzzle: Self::new(&self.program.0, p2_puzzle),
+        }))
+    }
+
+    pub fn parse_option(&self, coin: Coin, solution: Program) -> Result<Option<ParsedOption>> {
+        let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
+
+        let ctx = self.program.0.lock().unwrap();
+
+        let Some((option, p2_puzzle, p2_solution)) =
+            SdkOptionContract::parse(&ctx, coin, puzzle, solution.1)?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(ParsedOption {
+            option: option.into(),
+            p2_puzzle: Self::new(&self.program.0, p2_puzzle),
+            p2_solution: Program(self.program.0.clone(), p2_solution),
+        }))
+    }
+
+    pub fn parse_child_option(
+        &self,
+        parent_coin: Coin,
+        parent_solution: Program,
+    ) -> Result<Option<OptionContract>> {
+        let mut ctx = self.program.0.lock().unwrap();
+
+        let parent_puzzle = chia_sdk_driver::Puzzle::from(self.clone());
+
+        let Some(option) = SdkOptionContract::parse_child(
+            &mut ctx,
+            parent_coin,
+            parent_puzzle,
+            parent_solution.1,
+        )?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(option.into()))
+    }
+
     pub fn parse_inner_streaming_puzzle(&self) -> Result<Option<StreamingPuzzleInfo>> {
         let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
 
         let ctx = self.program.0.lock().unwrap();
 
         Ok(chia_sdk_driver::StreamingPuzzleInfo::parse(&ctx, puzzle)?)
-    }
-
-    pub fn parse_child_streamed_cat(
-        &self,
-        parent_coin: Coin,
-        parent_solution: Program,
-    ) -> Result<StreamedCatParsingResult> {
-        let mut ctx = self.program.0.lock().unwrap();
-
-        let parent_puzzle = chia_sdk_driver::Puzzle::from(self.clone());
-
-        let (streamed_cat, clawback, last_payment_amount) =
-            chia_sdk_driver::StreamedCat::from_parent_spend(
-                &mut ctx,
-                parent_coin,
-                parent_puzzle,
-                parent_solution.1,
-            )?;
-
-        Ok(StreamedCatParsingResult {
-            streamed_cat,
-            last_spend_was_clawback: clawback,
-            last_payment_amount_if_clawback: last_payment_amount,
-        })
     }
 
     pub fn parse_child_clawbacks(&self, parent_solution: Program) -> Result<Option<Vec<Clawback>>> {
