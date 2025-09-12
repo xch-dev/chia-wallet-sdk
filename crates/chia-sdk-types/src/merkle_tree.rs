@@ -86,7 +86,10 @@ impl MerkleTree {
 
     fn sha256(args: &[&[u8]]) -> Bytes32 {
         let mut hasher = Sha256::new();
-        args.iter().for_each(|arg| hasher.update(arg));
+
+        for arg in args {
+            hasher.update(arg);
+        }
 
         Bytes32::from(hasher.finalize())
     }

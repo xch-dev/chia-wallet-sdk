@@ -213,6 +213,8 @@ impl OptionLauncher<ReadyOption> {
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
     use chia_protocol::Coin;
     use chia_puzzle_types::Memos;
     use chia_sdk_test::Simulator;
@@ -256,7 +258,7 @@ mod tests {
         let (mint_option, _option) = launcher.mint(ctx)?;
         alice_p2.spend(ctx, alice.coin, mint_option)?;
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         Ok(())
     }

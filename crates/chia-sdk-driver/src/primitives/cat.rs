@@ -525,6 +525,8 @@ impl Cat {
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
     use chia_puzzle_types::cat::EverythingWithSignatureTailArgs;
     use chia_sdk_test::Simulator;
     use chia_sdk_types::{puzzles::RevocationArgs, Mod};
@@ -611,7 +613,7 @@ mod tests {
         )?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         let cat = cats[0];
         assert_eq!(cat.info.p2_puzzle_hash, alice.puzzle_hash);
@@ -717,7 +719,7 @@ mod tests {
             Cat::issue_with_coin(ctx, alice.coin.coin_id(), sum, conditions)?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         // Spend the CAT coins a few times.
         for _ in 0..3 {
@@ -739,7 +741,7 @@ mod tests {
                 .collect::<anyhow::Result<_>>()?;
 
             cats = Cat::spend_all(ctx, &cat_spends)?;
-            sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+            sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
         }
 
         Ok(())
@@ -768,7 +770,7 @@ mod tests {
                 .create_coin(custom_p2_puzzle_hash, 1, custom_memos),
         )?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         let spends = [
             CatSpend::new(

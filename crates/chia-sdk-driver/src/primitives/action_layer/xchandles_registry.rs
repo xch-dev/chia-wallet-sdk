@@ -147,7 +147,7 @@ impl XchandlesRegistry {
             {
                 spent_slots.push(slot_value.clone());
                 created_slots.push(slot_value);
-            };
+            }
         } else if raw_action_hash == expire_action_hash {
             spent_slots.push(XchandlesExpireAction::spent_slot_value(
                 ctx,

@@ -410,6 +410,8 @@ impl Offer {
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
     use chia_puzzle_types::{
         offer::{NotarizedPayment, Payment},
         Memos,
@@ -455,7 +457,7 @@ mod tests {
         let alice_nft = outputs.nfts[&Id::New(0)];
         let bob_nft = outputs.nfts[&Id::New(1)];
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         // Make offer
         let mut requested_payments = RequestedPayments::new();
