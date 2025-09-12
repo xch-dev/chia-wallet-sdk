@@ -231,6 +231,8 @@ impl OptionContract {
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
     use chia_puzzle_types::{offer::SettlementPaymentsSolution, Memos};
     use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
     use chia_sdk_test::{expect_spend, Simulator};
@@ -510,7 +512,7 @@ mod tests {
         let (mint_option, option) = launcher.mint(ctx)?;
         alice_p2.spend(ctx, alice.coin, mint_option)?;
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         match action {
             Action::Exercise | Action::ExerciseWithoutPayment => {
@@ -696,7 +698,7 @@ mod tests {
         let (mint_option, mut option) = launcher.mint(ctx)?;
         alice_p2.spend(ctx, alice.coin, mint_option)?;
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         for _ in 0..5 {
             option = option.transfer(ctx, &alice_p2, alice.puzzle_hash, Conditions::new())?;
@@ -742,7 +744,7 @@ mod tests {
         let (mint_option, option) = launcher.mint(ctx)?;
         alice_p2.spend(ctx, alice.coin, mint_option)?;
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         let data = ctx.alloc(&option.info.underlying_coin_id)?;
 

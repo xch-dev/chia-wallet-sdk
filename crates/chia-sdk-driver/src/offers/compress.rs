@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::{io::Read, sync::LazyLock};
 
 use bech32::{u5, Variant};
 use chia_protocol::SpendBundle;
@@ -13,7 +13,6 @@ use flate2::{
     Compress, Compression, Decompress, FlushDecompress,
 };
 use hex_literal::hex;
-use once_cell::sync::Lazy;
 
 use crate::DriverError;
 
@@ -97,7 +96,7 @@ const SETTLEMENT_PAYMENT_V1: [u8; 267] = hex!(
     "
 );
 
-static COMPRESSION_ZDICT: Lazy<Vec<u8>> = Lazy::new(|| {
+static COMPRESSION_ZDICT: LazyLock<Vec<u8>> = LazyLock::new(|| {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE);
     bytes.extend_from_slice(&CAT_PUZZLE_V1);

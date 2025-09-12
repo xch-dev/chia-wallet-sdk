@@ -62,12 +62,11 @@ pub fn load_clvm<P: AsRef<Path>>(
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Cow;
+    use std::{borrow::Cow, sync::LazyLock};
 
     use clvm_traits::{FromClvm, ToClvm};
     use clvm_utils::CurriedProgram;
     use clvmr::{serde::node_from_bytes, NodePtr};
-    use once_cell::sync::Lazy;
 
     use crate::{run_puzzle, Mod};
 
@@ -82,7 +81,7 @@ mod tests {
             b: u64,
         }
 
-        static TEST_MOD: Lazy<Compilation> = Lazy::new(|| {
+        static TEST_MOD: LazyLock<Compilation> = LazyLock::new(|| {
             load_clvm(
                 "load_clvm_test.clsp",
                 &[".".to_string(), "include".to_string()],

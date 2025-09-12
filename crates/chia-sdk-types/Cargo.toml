@@ -31,7 +31,6 @@ clvm-traits = { workspace = true, features = ["chia-secp"] }
 clvm-utils = { workspace = true }
 clvmr = { workspace = true }
 hex-literal = { workspace = true }
-once_cell = { workspace = true }
 thiserror = { workspace = true }
 clvm_tools_rs = { workspace = true }
 

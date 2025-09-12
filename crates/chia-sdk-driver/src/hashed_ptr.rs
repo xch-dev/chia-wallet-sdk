@@ -54,6 +54,7 @@ impl PartialEq for HashedPtr {
     }
 }
 
+#[allow(clippy::non_canonical_partial_ord_impl)] // TODO: Fix this
 impl PartialOrd for HashedPtr {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.tree_hash.cmp(&other.tree_hash))

@@ -335,6 +335,8 @@ pub fn assignment_puzzle_announcement_id(
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
     use crate::{IntermediateLauncher, Launcher, NftMint, SingletonInfo, StandardLayer};
 
     use super::*;
@@ -410,7 +412,7 @@ mod tests {
 
         let mut did = did.update(ctx, &alice_p2, mint_nft)?;
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         for i in 0..5 {
             let transfer_condition = TransferNft::new(

@@ -389,6 +389,8 @@ impl StreamedAsset {
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
     use chia_protocol::Bytes;
     use chia_sdk_test::{Benchmark, Simulator};
     use clvm_utils::tree_hash;
@@ -470,7 +472,7 @@ mod tests {
                 ),
             )?;
             StandardLayer::new(minter_bls.pk).spend(&mut ctx, minter_bls.coin, issue_cat)?;
-            sim.spend_coins(ctx.take(), &[minter_bls.sk.clone()])?;
+            sim.spend_coins(ctx.take(), slice::from_ref(&minter_bls.sk))?;
 
             let cats = Cat::spend_all(&mut ctx, &[CatSpend::new(cats[0], create_inner_spend)])?;
 
@@ -488,7 +490,7 @@ mod tests {
             &mut sim,
             spends,
             "create",
-            &[minter_bls.sk.clone()],
+            slice::from_ref(&minter_bls.sk),
         )?;
         sim.set_next_timestamp(1000 + claim_intervals[0])?;
 
@@ -532,7 +534,13 @@ mod tests {
 
             let spends = ctx.take();
             let streamed_asset_spend = spends.last().unwrap().clone();
-            benchmark.add_spends(&mut ctx, &mut sim, spends, "claim", &[user_bls.sk.clone()])?;
+            benchmark.add_spends(
+                &mut ctx,
+                &mut sim,
+                spends,
+                "claim",
+                slice::from_ref(&user_bls.sk),
+            )?;
 
             // set up for next iteration
             if i < claim_intervals.len() - 1 {
@@ -567,7 +575,7 @@ mod tests {
             &mut sim,
             spends,
             "clawback",
-            &[user_bls.sk.clone()],
+            slice::from_ref(&user_bls.sk),
         )?;
 
         let (new_streamed_asset, clawback, _paid_amount_if_clawback) =

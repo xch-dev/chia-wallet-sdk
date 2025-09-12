@@ -58,6 +58,8 @@ impl SpendAction for RunTailAction {
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
     use anyhow::Result;
     use chia_protocol::Bytes32;
     use chia_puzzle_types::cat::EverythingWithSignatureTailArgs;
@@ -143,7 +145,7 @@ mod tests {
             &indexmap! { alice.puzzle_hash => alice.pk },
         )?;
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         let cat = outputs.cats[&Id::New(0)][0];
 
