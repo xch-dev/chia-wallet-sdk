@@ -8,7 +8,7 @@ use chia_sdk_types::{
     },
     MerkleTree,
 };
-use clvm_traits::{FromClvm, ToClvm};
+use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, Raw, ToClvm, ToClvmError};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -28,9 +28,9 @@ pub type RewardDistributorLayers = SingletonLayer<ActionLayer<RewardDistributorS
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm, Copy)]
 #[clvm(list)]
 pub struct RoundRewardInfo {
-    pub cumulative_payout: u64,
+    pub cumulative_payout: u128,
     #[clvm(rest)]
-    pub remaining_rewards: u64,
+    pub remaining_rewards: u128,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm, Copy)]
@@ -78,12 +78,71 @@ impl Reserveful for RewardDistributorState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[repr(u8)]
-#[clvm(atom)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RewardDistributorType {
-    Manager = 1,
-    Nft = 2,
+    Managed {
+        manager_singleton_launcher_id: Bytes32,
+    },
+    NftCollection {
+        collection_did_launcher_id: Bytes32,
+    },
+    WeightedNft {
+        store_launcher_id: Bytes32,
+    },
+    Cat {
+        asset_id: Bytes32,
+        hidden_puzzle_hash: Option<Bytes32>,
+    },
+}
+
+impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for RewardDistributorType {
+    fn from_clvm(decoder: &D, node: N) -> Result<Self, FromClvmError> {
+        let type_pair: (u8, Raw<N>) = FromClvm::from_clvm(decoder, node)?;
+
+        match type_pair.0 {
+            1 => Ok(RewardDistributorType::Managed {
+                manager_singleton_launcher_id: FromClvm::from_clvm(decoder, type_pair.1 .0)?,
+            }),
+            2 => Ok(RewardDistributorType::NftCollection {
+                collection_did_launcher_id: FromClvm::from_clvm(decoder, type_pair.1 .0)?,
+            }),
+            3 => Ok(RewardDistributorType::WeightedNft {
+                store_launcher_id: FromClvm::from_clvm(decoder, type_pair.1 .0)?,
+            }),
+            4 => {
+                let (asset_id, hidden_puzzle_hash): (Bytes32, Option<Bytes32>) =
+                    FromClvm::from_clvm(decoder, type_pair.1 .0)?;
+                Ok(RewardDistributorType::Cat {
+                    asset_id,
+                    hidden_puzzle_hash,
+                })
+            }
+            _ => Err(FromClvmError::Custom(format!(
+                "Invalid RewardDistributorType: {}",
+                type_pair.0
+            ))),
+        }
+    }
+}
+
+impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for RewardDistributorType {
+    fn to_clvm(&self, encoder: &mut E) -> Result<N, ToClvmError> {
+        match self {
+            RewardDistributorType::Managed {
+                manager_singleton_launcher_id,
+            } => (1, manager_singleton_launcher_id).to_clvm(encoder),
+            RewardDistributorType::NftCollection {
+                collection_did_launcher_id,
+            } => (2, collection_did_launcher_id).to_clvm(encoder),
+            RewardDistributorType::WeightedNft { store_launcher_id } => {
+                (3, store_launcher_id).to_clvm(encoder)
+            }
+            RewardDistributorType::Cat {
+                asset_id,
+                hidden_puzzle_hash,
+            } => (4, (asset_id, hidden_puzzle_hash)).to_clvm(encoder),
+        }
+    }
 }
 
 #[must_use]
@@ -92,9 +151,9 @@ pub enum RewardDistributorType {
 pub struct RewardDistributorConstants {
     pub launcher_id: Bytes32,
     pub reward_distributor_type: RewardDistributorType,
-    pub manager_or_collection_did_launcher_id: Bytes32,
     pub fee_payout_puzzle_hash: Bytes32,
     pub epoch_seconds: u64,
+    pub precision: u64,
     pub max_seconds_offset: u64,
     pub payout_threshold: u64,
     pub fee_bps: u64,
