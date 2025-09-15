@@ -50,7 +50,7 @@ pub struct RewardDistributorCatLockingPuzzleArgs<CM> {
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
-pub struct RewardDistributorNftsFromDlLockingPuzzleSolution<CMS> {
+pub struct RewardDistributorCatLockingPuzzleSolution<CMS> {
     pub my_id: Bytes32,
     pub cat_amount: u64,
     #[clvm(rest)]
