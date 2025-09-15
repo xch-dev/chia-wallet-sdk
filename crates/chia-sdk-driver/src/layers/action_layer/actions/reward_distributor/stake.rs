@@ -9,7 +9,9 @@ use chia_sdk_types::{
     announcement_id,
     puzzles::{
         NftLauncherProof, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs,
-        RewardDistributorEntrySlotValue, RewardDistributorSlotNonce,
+        RewardDistributorCatLockingPuzzleArgs, RewardDistributorEntrySlotValue,
+        RewardDistributorNftsFromDidLockingPuzzleArgs,
+        RewardDistributorNftsFromDlLockingPuzzleArgs, RewardDistributorSlotNonce,
         RewardDistributorStakeActionArgs, RewardDistributorStakeActionSolution,
         NONCE_WRAPPER_PUZZLE_HASH,
     },
@@ -20,23 +22,23 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    Asset, DriverError, HashedPtr, Nft, RewardDistributor, RewardDistributorConstants,
-    RewardDistributorState, SingletonAction, Slot, Spend, SpendContext,
+    Asset, CatMaker, DriverError, HashedPtr, Nft, RewardDistributor, RewardDistributorConstants,
+    RewardDistributorState, RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewardDistributorStakeAction {
     pub launcher_id: Bytes32,
-    pub did_launcher_id: Bytes32,
     pub max_second_offset: u64,
+    pub distributor_type: RewardDistributorType,
 }
 
 impl ToTreeHash for RewardDistributorStakeAction {
     fn tree_hash(&self) -> TreeHash {
-        Self::new_args(
+        Self::new_args_treehash(
             self.launcher_id,
-            self.did_launcher_id,
             self.max_second_offset,
+            self.distributor_type,
         )
         .curry_tree_hash()
     }
@@ -46,31 +48,146 @@ impl SingletonAction<RewardDistributor> for RewardDistributorStakeAction {
     fn from_constants(constants: &RewardDistributorConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,
-            did_launcher_id: constants.manager_or_collection_did_launcher_id,
             max_second_offset: constants.max_seconds_offset,
+            distributor_type: constants.reward_distributor_type,
         }
     }
 }
 
 impl RewardDistributorStakeAction {
     pub fn new_args(
+        ctx: &mut SpendContext,
         launcher_id: Bytes32,
-        did_launcher_id: Bytes32,
         max_second_offset: u64,
-    ) -> RewardDistributorStakeActionArgs {
-        RewardDistributorStakeActionArgs {
-            did_singleton_struct: SingletonStruct::new(did_launcher_id),
-            nft_state_layer_mod_hash: NFT_STATE_LAYER_HASH.into(),
-            nft_ownership_layer_mod_hash: NFT_OWNERSHIP_LAYER_HASH.into(),
-            offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
-            nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
-            my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
+        distributor_type: RewardDistributorType,
+    ) -> Result<RewardDistributorStakeActionArgs<NodePtr>, DriverError> {
+        let lock_puzzle = match distributor_type {
+            RewardDistributorType::Managed {
+                manager_singleton_launcher_id: _,
+            } => Err(DriverError::Custom(
+                "Stake action not available in managed mode".to_string(),
+            )),
+            RewardDistributorType::NftCollection {
+                collection_did_launcher_id,
+            } => ctx.curry(&RewardDistributorNftsFromDidLockingPuzzleArgs {
+                did_singleton_struct: SingletonStruct::new(collection_did_launcher_id),
+                nft_state_layer_mod_hash: NFT_STATE_LAYER_HASH.into(),
+                nft_ownership_layer_mod_hash: NFT_OWNERSHIP_LAYER_HASH.into(),
+                offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
+                nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
+                my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
+            }),
+            RewardDistributorType::WeightedNft { store_launcher_id } => {
+                ctx.curry(&RewardDistributorNftsFromDlLockingPuzzleArgs {
+                    dl_singleton_struct: SingletonStruct::new(store_launcher_id),
+                    nft_state_layer_mod_hash: NFT_STATE_LAYER_HASH.into(),
+                    nft_ownership_layer_mod_hash: NFT_OWNERSHIP_LAYER_HASH.into(),
+                    offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
+                    nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
+                    my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
+                })
+            }
+            RewardDistributorType::Cat {
+                asset_id,
+                hidden_puzzle_hash,
+            } => {
+                let cat_maker = if let Some(hidden_puzzle_hash) = hidden_puzzle_hash {
+                    CatMaker::Revocable {
+                        tail_hash_hash: asset_id.tree_hash(),
+                        hidden_puzzle_hash_hash: hidden_puzzle_hash.tree_hash(),
+                    }
+                } else {
+                    CatMaker::Default {
+                        tail_hash_hash: asset_id.tree_hash(),
+                    }
+                };
+                let cat_maker_puzzle = cat_maker.get_puzzle(ctx)?;
+
+                ctx.curry(&RewardDistributorCatLockingPuzzleArgs {
+                    cat_maker: cat_maker_puzzle,
+                    offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
+                    nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
+                    my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
+                })
+            }
+        }?;
+
+        Ok(RewardDistributorStakeActionArgs {
             entry_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
                 launcher_id,
                 RewardDistributorSlotNonce::ENTRY.to_u64(),
             )
             .into(),
             max_second_offset,
+            lock_puzzle,
+        })
+    }
+
+    pub fn new_args_treehash(
+        launcher_id: Bytes32,
+        max_second_offset: u64,
+        distributor_type: RewardDistributorType,
+    ) -> RewardDistributorStakeActionArgs<TreeHash> {
+        let lock_puzzle_hash = match distributor_type {
+            RewardDistributorType::Managed {
+                manager_singleton_launcher_id: _,
+            } => TreeHash::new([0; 32]),
+            RewardDistributorType::NftCollection {
+                collection_did_launcher_id,
+            } => RewardDistributorNftsFromDidLockingPuzzleArgs {
+                did_singleton_struct: SingletonStruct::new(collection_did_launcher_id),
+                nft_state_layer_mod_hash: NFT_STATE_LAYER_HASH.into(),
+                nft_ownership_layer_mod_hash: NFT_OWNERSHIP_LAYER_HASH.into(),
+                offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
+                nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
+                my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
+            }
+            .curry_tree_hash(),
+            RewardDistributorType::WeightedNft { store_launcher_id } => {
+                RewardDistributorNftsFromDlLockingPuzzleArgs {
+                    dl_singleton_struct: SingletonStruct::new(store_launcher_id),
+                    nft_state_layer_mod_hash: NFT_STATE_LAYER_HASH.into(),
+                    nft_ownership_layer_mod_hash: NFT_OWNERSHIP_LAYER_HASH.into(),
+                    offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
+                    nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
+                    my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
+                }
+                .curry_tree_hash()
+            }
+            RewardDistributorType::Cat {
+                asset_id,
+                hidden_puzzle_hash,
+            } => {
+                let cat_maker = if let Some(hidden_puzzle_hash) = hidden_puzzle_hash {
+                    CatMaker::Revocable {
+                        tail_hash_hash: asset_id.tree_hash(),
+                        hidden_puzzle_hash_hash: hidden_puzzle_hash.tree_hash(),
+                    }
+                } else {
+                    CatMaker::Default {
+                        tail_hash_hash: asset_id.tree_hash(),
+                    }
+                };
+                let cat_maker_puzzle_hash = cat_maker.curry_tree_hash();
+
+                RewardDistributorCatLockingPuzzleArgs {
+                    cat_maker: cat_maker_puzzle_hash,
+                    offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
+                    nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
+                    my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
+                }
+                .curry_tree_hash()
+            }
+        };
+
+        RewardDistributorStakeActionArgs {
+            entry_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                launcher_id,
+                RewardDistributorSlotNonce::ENTRY.to_u64(),
+            )
+            .into(),
+            max_second_offset,
+            lock_puzzle: lock_puzzle_hash,
         }
     }
 
@@ -83,11 +200,14 @@ impl RewardDistributorStakeAction {
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        ctx.curry(Self::new_args(
+        let args = Self::new_args(
+            ctx,
             self.launcher_id,
-            self.did_launcher_id,
             self.max_second_offset,
-        ))
+            self.distributor_type,
+        )?;
+
+        ctx.curry(&args)
     }
 
     pub fn created_slot_value(
@@ -95,7 +215,7 @@ impl RewardDistributorStakeAction {
         state: &RewardDistributorState,
         solution: NodePtr,
     ) -> Result<RewardDistributorEntrySlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorStakeActionSolution>(solution)?;
+        let solution = ctx.extract::<RewardDistributorStakeActionSolution<NodePtr>>(solution)?;
 
         Ok(RewardDistributorEntrySlotValue {
             payout_puzzle_hash: solution.entry_custody_puzzle_hash,
