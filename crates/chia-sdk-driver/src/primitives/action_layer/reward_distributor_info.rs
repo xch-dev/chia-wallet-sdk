@@ -167,9 +167,9 @@ impl RewardDistributorConstants {
     #[allow(clippy::too_many_arguments)]
     pub fn without_launcher_id(
         reward_distributor_type: RewardDistributorType,
-        manager_or_collection_did_launcher_id: Bytes32,
         fee_payout_puzzle_hash: Bytes32,
         epoch_seconds: u64,
+        precision: u64,
         max_seconds_offset: u64,
         payout_threshold: u64,
         fee_bps: u64,
@@ -179,9 +179,9 @@ impl RewardDistributorConstants {
         Self {
             launcher_id: Bytes32::default(),
             reward_distributor_type,
-            manager_or_collection_did_launcher_id,
             fee_payout_puzzle_hash,
             epoch_seconds,
+            precision,
             max_seconds_offset,
             payout_threshold,
             fee_bps,
