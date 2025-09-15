@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
 use chia_protocol::Bytes32;
-use chia_puzzle_types::{singleton::SingletonStruct, LineageProof};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
@@ -51,46 +50,23 @@ pub const REWARD_DISTRIBUTOR_STAKE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
-pub struct RewardDistributorStakeActionArgs {
-    pub did_singleton_struct: SingletonStruct,
-    pub nft_state_layer_mod_hash: Bytes32,
-    pub nft_ownership_layer_mod_hash: Bytes32,
-    pub offer_mod_hash: Bytes32,
-    pub nonce_mod_hash: Bytes32,
-    pub my_p2_puzzle_hash: Bytes32,
+pub struct RewardDistributorStakeActionArgs<LP> {
     pub entry_slot_1st_curry_hash: Bytes32,
     pub max_second_offset: u64,
-}
-
-#[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
-#[clvm(list)]
-pub struct IntermediaryCoinProof {
-    pub full_puzzle_hash: Bytes32,
-    #[clvm(rest)]
-    pub amount: u64,
+    pub lock_puzzle: LP,
 }
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
-pub struct NftLauncherProof {
-    pub did_proof: LineageProof,
-    #[clvm(rest)]
-    pub intermediary_coin_proofs: Vec<IntermediaryCoinProof>,
-}
-
-#[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
-#[clvm(list)]
-pub struct RewardDistributorStakeActionSolution {
-    pub my_id: Bytes32,
-    pub nft_metadata_hash: Bytes32,
-    pub nft_metadata_updater_hash_hash: Bytes32,
-    pub nft_transfer_porgram_hash: Bytes32,
-    pub nft_launcher_proof: NftLauncherProof,
-    #[clvm(rest)]
+pub struct RewardDistributorStakeActionSolution<LPS> {
+    pub lock_puzzle_solution: LPS,
     pub entry_custody_puzzle_hash: Bytes32,
+    pub existing_slot_cumulative_payout: i128,
+    #[clvm(rest)]
+    pub existing_slot_shares: u64,
 }
 
-impl Mod for RewardDistributorStakeActionArgs {
+impl<LP> Mod for RewardDistributorStakeActionArgs<LP> {
     fn mod_reveal() -> Cow<'static, [u8]> {
         Cow::Borrowed(&REWARD_DISTRIBUTOR_STAKE_PUZZLE)
     }

@@ -305,7 +305,7 @@ pub struct RewardDistributorCommitmentSlotValue {
 #[clvm(list)]
 pub struct RewardDistributorEntrySlotValue {
     pub payout_puzzle_hash: Bytes32,
-    pub initial_cumulative_payout: u64,
+    pub initial_cumulative_payout: u128,
     #[clvm(rest)]
     pub shares: u64,
 }
