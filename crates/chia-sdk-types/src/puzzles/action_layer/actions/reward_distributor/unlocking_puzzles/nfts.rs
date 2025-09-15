@@ -7,7 +7,7 @@ use hex_literal::hex;
 
 use crate::Mod;
 
-pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE: [u8; 865] = hex!(
+pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE: [u8; 873] = hex!(
     "
     ff02ffff01ff02ff2effff04ff02ffff04ff03ffff04ff8203ffffff01ff80ff
     808080808080ffff04ffff01ffffff3343ff42ff02ff02ffff03ff05ffff01ff
@@ -27,22 +27,22 @@ pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE: [u8; 865] = hex!(
     1affff04ff02ffff04ff09ffff04ffff02ff3effff04ff02ffff04ffff04ff09
     ffff04ff23ff158080ff80808080ffff04ffff02ff1affff04ff02ffff04ff2d
     ffff04ffff0bffff0101ff2d80ffff04ff81b3ffff04ff820173ffff04ffff02
-    ff1affff04ff02ffff04ff5dffff04ffff0bffff0101ff5d80ffff04ff8202f3
-    ffff04ff8205f3ffff04ffff02ff1affff04ff02ffff04ff81bdffff04ffff02
-    ff3effff04ff02ffff04ffff04ff8205fdff8207f380ff80808080ffff04ff82
-    017dff808080808080ff8080808080808080ff8080808080808080ff80808080
-    8080ffff010180ff8080808080ffff04ffff04ff18ffff04ffff0112ffff04ff
-    ff0effff0175ff2380ffff04ff8205fdff8080808080ff2f8080ff8080808080
-    8080ffff01ff04ff17ff2f8080ff0180ff02ffff03ffff07ff0580ffff01ff0b
-    ffff0102ffff02ff3effff04ff02ffff04ff09ff80808080ffff02ff3effff04
-    ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff0180
-    80
+    ff1affff04ff02ffff04ff5dffff04ffff0bffff0101ff5d80ffff04ffff0bff
+    ff0101ff8202f380ffff04ff8205f3ffff04ffff02ff1affff04ff02ffff04ff
+    81bdffff04ffff02ff3effff04ff02ffff04ffff04ff8205fdff8207f380ff80
+    808080ffff04ff82017dff808080808080ff8080808080808080ff8080808080
+    808080ff808080808080ffff010180ff8080808080ffff04ffff04ff18ffff04
+    ffff0112ffff04ffff0effff0175ff2380ffff04ff8205fdff8080808080ff2f
+    8080ff80808080808080ffff01ff04ff17ff2f8080ff0180ff02ffff03ffff07
+    ff0580ffff01ff0bffff0102ffff02ff3effff04ff02ffff04ff09ff80808080
+    ffff02ff3effff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff05
+    8080ff0180ff018080
     "
 );
 
 pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    fca43ea7bb146208a670bf123bcd7be255a80af67948ba2218fc40e901590168
+    dc54c83ce61284c97434e81faeee4982e5e318e2208846d889a119b0a8818ef5
     "
 ));
 
@@ -64,7 +64,7 @@ pub struct NftToUnlockInfo {
     pub nft_parent_id: Bytes32,
     pub nft_metadata_hash: Bytes32,
     pub nft_metadata_updater_hash_hash: Bytes32,
-    pub nft_owner_hash: Bytes32,
+    pub nft_owner: Option<Bytes32>,
     pub nft_transfer_porgram_hash: Bytes32,
     #[clvm(rest)]
     pub nft_shares: u64,
