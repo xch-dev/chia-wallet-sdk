@@ -211,16 +211,29 @@ impl RewardDistributorStakeAction {
     }
 
     pub fn created_slot_value(
-        ctx: &SpendContext,
+        ctx: &mut SpendContext,
         state: &RewardDistributorState,
+        distributor_type: RewardDistributorType,
         solution: NodePtr,
     ) -> Result<RewardDistributorEntrySlotValue, DriverError> {
         let solution = ctx.extract::<RewardDistributorStakeActionSolution<NodePtr>>(solution)?;
 
+        let lock_puzzle = Self::new_args(ctx, Bytes32::default(), 1, distributor_type)?.lock_puzzle;
+        let actual_lock_solution = ctx.alloc(&(
+            1,
+            (
+                solution.entry_custody_puzzle_hash,
+                solution.lock_puzzle_solution,
+            ),
+        ))?;
+
+        let lock_puzzle_output = ctx.run(lock_puzzle, actual_lock_solution)?;
+        let (new_shares, _conds): (u64, NodePtr) = ctx.extract(lock_puzzle_output)?;
+
         Ok(RewardDistributorEntrySlotValue {
             payout_puzzle_hash: solution.entry_custody_puzzle_hash,
             initial_cumulative_payout: state.round_reward_info.cumulative_payout,
-            shares: 1,
+            shares: solution.existing_slot_shares + new_shares,
         })
     }
 
