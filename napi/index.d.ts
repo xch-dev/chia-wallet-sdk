@@ -389,6 +389,17 @@ export declare class CatSpend {
   set hidden(value: boolean)
 }
 
+export declare class Certificate {
+  clone(): Certificate
+  static load(certPath: string, keyPath: string): Certificate
+  static generate(): Certificate
+  constructor(certPem: string, keyPem: string)
+  get certPem(): string
+  set certPem(value: string)
+  get keyPem(): string
+  set keyPem(value: string)
+}
+
 export declare class ChallengeChainSubSlot {
   clone(): ChallengeChainSubSlot
   constructor(challengeChainEndOfSlotVdf: VDFInfo, infusedChallengeChainSubSlotHash?: Uint8Array | undefined | null, subepochSummaryHash?: Uint8Array | undefined | null, newSubSlotIters?: bigint | undefined | null, newDifficulty?: bigint | undefined | null)
@@ -696,6 +707,43 @@ export declare class CoinSpend {
   set solution(value: Uint8Array)
 }
 
+export declare class CoinState {
+  clone(): CoinState
+  constructor(coin: Coin, spentHeight?: number | undefined | null, createdHeight?: number | undefined | null)
+  get coin(): Coin
+  set coin(value: Coin)
+  get spentHeight(): number | null
+  set spentHeight(value?: number | undefined | null)
+  get createdHeight(): number | null
+  set createdHeight(value?: number | undefined | null)
+}
+
+export declare class CoinStateFilters {
+  clone(): CoinStateFilters
+  constructor(includeSpent: boolean, includeUnspent: boolean, includeHinted: boolean, minAmount: bigint)
+  get includeSpent(): boolean
+  set includeSpent(value: boolean)
+  get includeUnspent(): boolean
+  set includeUnspent(value: boolean)
+  get includeHinted(): boolean
+  set includeHinted(value: boolean)
+  get minAmount(): bigint
+  set minAmount(value: bigint)
+}
+
+export declare class CoinStateUpdate {
+  clone(): CoinStateUpdate
+  constructor(height: number, forkHeight: number, peakHash: Uint8Array, items: Array<CoinState>)
+  get height(): number
+  set height(value: number)
+  get forkHeight(): number
+  set forkHeight(value: number)
+  get peakHash(): Buffer
+  set peakHash(value: Uint8Array)
+  get items(): Array<CoinState>
+  set items(value: Array<CoinState>)
+}
+
 export declare class CommitmentSlot {
   clone(): CommitmentSlot
   static new(proof: LineageProof, launcherId: Uint8Array, value: RewardDistributorCommitmentSlotValue): CommitmentSlot
@@ -710,6 +758,11 @@ export declare class CommitmentSlot {
   set launcherId(value: Uint8Array)
   get value(): RewardDistributorCommitmentSlotValue
   set value(value: RewardDistributorCommitmentSlotValue)
+}
+
+export declare class Connector {
+  clone(): Connector
+  constructor(cert: Certificate)
 }
 
 export declare class Constants {
@@ -997,6 +1050,14 @@ export declare class EntrySlot {
   set launcherId(value: Uint8Array)
   get value(): RewardDistributorEntrySlotValue
   set value(value: RewardDistributorEntrySlotValue)
+}
+
+export declare class Event {
+  clone(): Event
+  get newPeakWallet(): NewPeakWallet | null
+  set newPeakWallet(value?: NewPeakWallet | undefined | null)
+  get coinStateUpdate(): CoinStateUpdate | null
+  set coinStateUpdate(value?: CoinStateUpdate | undefined | null)
 }
 
 export declare class Foliage {
@@ -1439,6 +1500,19 @@ export declare class MofNMemo {
   set items(value: Array<InnerPuzzleMemo>)
 }
 
+export declare class NewPeakWallet {
+  clone(): NewPeakWallet
+  constructor(headerHash: Uint8Array, height: number, weight: bigint, forkPointWithPreviousPeak: number)
+  get headerHash(): Buffer
+  set headerHash(value: Uint8Array)
+  get height(): number
+  set height(value: number)
+  get weight(): bigint
+  set weight(value: bigint)
+  get forkPointWithPreviousPeak(): number
+  set forkPointWithPreviousPeak(value: number)
+}
+
 export declare class Nft {
   clone(): Nft
   childProof(): Proof
@@ -1755,6 +1829,24 @@ export declare class Payment {
   set memos(value?: Program | undefined | null)
 }
 
+export declare class Peer {
+  clone(): Peer
+  static connect(networkId: string, socketAddr: string, connector: Connector, options: PeerOptions): Promise<Peer>
+  requestCoinState(coinIds: Array<Uint8Array>, previousHeight: number | undefined | null, headerHash: Uint8Array, subscribe: boolean): Promise<RespondCoinState>
+  requestPuzzleState(puzzleHashes: Array<Uint8Array>, previousHeight: number | undefined | null, headerHash: Uint8Array, filters: CoinStateFilters, subscribe: boolean): Promise<RespondPuzzleState>
+  requestPuzzleAndSolution(coinId: Uint8Array, height: number): Promise<PuzzleSolutionResponse>
+  removeCoinSubscriptions(coinIds?: Array<Uint8Array> | undefined | null): Promise<Array<Buffer>>
+  removePuzzleSubscriptions(puzzleHashes?: Array<Uint8Array> | undefined | null): Promise<Array<Buffer>>
+  next(): Promise<Event | null>
+}
+
+export declare class PeerOptions {
+  clone(): PeerOptions
+  constructor()
+  get rateLimitFactor(): number
+  set rateLimitFactor(value: number)
+}
+
 export declare class PoolTarget {
   clone(): PoolTarget
   constructor(puzzleHash: Uint8Array, maxHeight: number)
@@ -1919,6 +2011,19 @@ export declare class Puzzle {
   set args(value?: Program | undefined | null)
 }
 
+export declare class PuzzleSolutionResponse {
+  clone(): PuzzleSolutionResponse
+  constructor(coinName: Uint8Array, height: number, puzzle: Uint8Array, solution: Uint8Array)
+  get coinName(): Buffer
+  set coinName(value: Uint8Array)
+  get height(): number
+  set height(value: number)
+  get puzzle(): Buffer
+  set puzzle(value: Uint8Array)
+  get solution(): Buffer
+  set solution(value: Uint8Array)
+}
+
 export declare class R1Pair {
   clone(): R1Pair
   static fromSeed(seed: bigint): R1Pair
@@ -1975,6 +2080,30 @@ export declare class ReserveFee {
   constructor(amount: bigint)
   get amount(): bigint
   set amount(value: bigint)
+}
+
+export declare class RespondCoinState {
+  clone(): RespondCoinState
+  constructor(coinIds: Array<Uint8Array>, coinStates: Array<CoinState>)
+  get coinIds(): Array<Buffer>
+  set coinIds(value: Array<Uint8Array>)
+  get coinStates(): Array<CoinState>
+  set coinStates(value: Array<CoinState>)
+}
+
+export declare class RespondPuzzleState {
+  clone(): RespondPuzzleState
+  constructor(puzzleHashes: Array<Uint8Array>, height: number, headerHash: Uint8Array, isFinished: boolean, coinStates: Array<CoinState>)
+  get puzzleHashes(): Array<Buffer>
+  set puzzleHashes(value: Array<Uint8Array>)
+  get height(): number
+  set height(value: number)
+  get headerHash(): Buffer
+  set headerHash(value: Uint8Array)
+  get isFinished(): boolean
+  set isFinished(value: boolean)
+  get coinStates(): Array<CoinState>
+  set coinStates(value: Array<CoinState>)
 }
 
 export declare class Restriction {

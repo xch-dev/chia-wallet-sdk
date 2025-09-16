@@ -44,6 +44,8 @@ enum Binding {
         methods: IndexMap<String, Method>,
         #[serde(default)]
         remote: bool,
+        #[serde(default)]
+        no_wasm: bool,
     },
     Enum {
         values: Vec<String>,
@@ -77,11 +79,13 @@ enum MethodKind {
     ToString,
     Static,
     Factory,
+    AsyncFactory,
     Constructor,
 }
 
 fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
     let source = fs::read_to_string(path).unwrap();
+
     let bindy: Bindy = serde_json::from_str(&source).unwrap();
 
     let mut bindings = IndexMap::new();
@@ -223,6 +227,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                 remote,
                 methods,
                 fields,
+                no_wasm: _,
             } => {
                 let bound_ident = Ident::new(&name, Span::mixed_site());
                 let rust_struct_ident = quote!( #entrypoint::#bound_ident );
@@ -247,7 +252,9 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
 
                     let method_ident = Ident::new(&name, Span::mixed_site());
 
-                    let param_mappings = if matches!(method.kind, MethodKind::Async) {
+                    let param_mappings = if matches!(method.kind, MethodKind::Async)
+                        || matches!(method.kind, MethodKind::AsyncFactory)
+                    {
                         &async_param_mappings
                     } else {
                         &non_async_param_mappings
@@ -272,7 +279,9 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                             method.ret.as_deref().unwrap_or(
                                 if matches!(
                                     method.kind,
-                                    MethodKind::Constructor | MethodKind::Factory
+                                    MethodKind::Constructor
+                                        | MethodKind::Factory
+                                        | MethodKind::AsyncFactory
                                 ) {
                                     "Self"
                                 } else {
@@ -288,7 +297,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                     let napi_attr = match method.kind {
                         MethodKind::Constructor => quote!(#[napi(constructor)]),
                         MethodKind::Static => quote!(#[napi]),
-                        MethodKind::Factory => quote!(#[napi(factory)]),
+                        MethodKind::Factory | MethodKind::AsyncFactory => quote!(#[napi(factory)]),
                         MethodKind::Normal | MethodKind::Async | MethodKind::ToString => {
                             quote!(#[napi])
                         }
@@ -305,6 +314,18 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
                                     Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(#fully_qualified_ident::#method_ident(
                                         #( bindy::IntoRust::<_, _, bindy::Napi>::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
                                     )?, &bindy::NapiReturnContext(env))?)
+                                }
+                            });
+                        }
+                        MethodKind::AsyncFactory => {
+                            method_tokens.extend(quote! {
+                                #napi_attr
+                                pub async fn #method_ident(
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> napi::Result<#ret> {
+                                    Ok(bindy::FromRust::<_, _, bindy::Napi>::from_rust(#fully_qualified_ident::#method_ident(
+                                        #( bindy::IntoRust::<_, _, bindy::Napi>::into_rust(#arg_idents, &bindy::NapiParamContext)? ),*
+                                    ).await?, &bindy::NapiAsyncReturnContext)?)
                                 }
                             });
                         }
@@ -512,7 +533,7 @@ pub fn bindy_napi(input: TokenStream) -> TokenStream {
             mem::take(&mut remaining_clvm_types)
         } else {
             let either_ident = Ident::new("Either26", Span::mixed_site());
-            let next_value_ident = Ident::new(&format!("Value{}", value_index), Span::mixed_site());
+            let next_value_ident = Ident::new(&format!("Value{value_index}"), Span::mixed_site());
             let next_25 = remaining_clvm_types.drain(..25).collect::<Vec<_>>();
 
             output.extend(quote! {
@@ -580,7 +601,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
     let return_mappings = base_mappings;
 
     for (name, binding) in &bindings {
-        if matches!(binding, Binding::Class { .. }) {
+        if matches!(binding, Binding::Class { no_wasm: false, .. }) {
             param_mappings.insert(
                 format!("Option<Vec<{name}>>"),
                 format!("&{name}OptionArrayType"),
@@ -611,7 +632,12 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                 remote,
                 methods,
                 fields,
+                no_wasm,
             } => {
+                if no_wasm {
+                    continue;
+                }
+
                 let bound_ident = Ident::new(&name, Span::mixed_site());
                 let rust_struct_ident = quote!( #entrypoint::#bound_ident );
                 let fully_qualified_ident = if remote {
@@ -666,7 +692,9 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                 method.ret.as_deref().unwrap_or(
                                     if matches!(
                                         method.kind,
-                                        MethodKind::Constructor | MethodKind::Factory
+                                        MethodKind::Constructor
+                                            | MethodKind::Factory
+                                            | MethodKind::AsyncFactory
                                     ) {
                                         "Self"
                                     } else {
@@ -679,9 +707,10 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                         )
                         .unwrap();
 
-                        let wasm_attr = match method.kind {
-                            MethodKind::Constructor => quote!(#[wasm_bindgen(constructor)]),
-                            _ => quote!(#[wasm_bindgen(js_name = #js_name)]),
+                        let wasm_attr = if let MethodKind::Constructor = method.kind {
+                            quote!(#[wasm_bindgen(constructor)])
+                        } else {
+                            quote!(#[wasm_bindgen(js_name = #js_name)])
                         };
 
                         match method.kind {
@@ -694,6 +723,18 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                                     Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#fully_qualified_ident::#method_ident(
                                         #( bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)? ),*
                                     )?, &bindy::WasmContext)?)
+                                }
+                            });
+                            }
+                            MethodKind::AsyncFactory => {
+                                method_tokens.extend(quote! {
+                                #wasm_attr
+                                pub async fn #method_ident(
+                                    #( #arg_attrs #arg_idents: #arg_types ),*
+                                ) -> Result<#ret, wasm_bindgen::JsError> {
+                                    Ok(bindy::FromRust::<_, _, bindy::Wasm>::from_rust(#fully_qualified_ident::#method_ident(
+                                        #( bindy::IntoRust::<_, _, bindy::Wasm>::into_rust(#arg_idents, &bindy::WasmContext)? ),*
+                                    ).await?, &bindy::WasmContext)?)
                                 }
                             });
                             }
@@ -743,17 +784,24 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
 
                     match method.kind {
                         MethodKind::Async => ret_stub = format!("Promise<{ret_stub}>"),
-                        MethodKind::Factory => ret_stub = class_name.clone(),
+                        MethodKind::Factory => {
+                            ret_stub.clone_from(&class_name);
+                        }
+                        MethodKind::AsyncFactory => {
+                            ret_stub = format!("Promise<{class_name}>");
+                        }
                         _ => {}
                     }
 
                     let prefix = match method.kind {
-                        MethodKind::Factory | MethodKind::Static => "static ",
+                        MethodKind::Factory | MethodKind::Static | MethodKind::AsyncFactory => {
+                            "static "
+                        }
                         _ => "",
                     };
 
                     let ret_stub = if matches!(method.kind, MethodKind::Constructor) {
-                        "".to_string()
+                        String::new()
                     } else {
                         format!(": {ret_stub}")
                     };
@@ -907,8 +955,7 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                 });
 
                 let body_stubs = format!("{constructor_stubs}{field_stubs}{method_stubs}")
-                    .trim()
-                    .split("\n")
+                    .lines()
                     .map(|s| format!("    {s}"))
                     .collect::<Vec<_>>()
                     .join("\n");
@@ -1093,6 +1140,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                 remote,
                 methods,
                 fields,
+                no_wasm: _,
             } => {
                 let rust_struct_ident = quote!( #entrypoint::#bound_ident );
                 let fully_qualified_ident = if *remote {
@@ -1133,7 +1181,9 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                             method.ret.as_deref().unwrap_or(
                                 if matches!(
                                     method.kind,
-                                    MethodKind::Constructor | MethodKind::Factory
+                                    MethodKind::Constructor
+                                        | MethodKind::Factory
+                                        | MethodKind::AsyncFactory
                                 ) {
                                     "Self"
                                 } else {
@@ -1148,8 +1198,9 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
 
                     let mut pyo3_attr = match method.kind {
                         MethodKind::Constructor => quote!(#[new]),
-                        MethodKind::Static => quote!(#[staticmethod]),
-                        MethodKind::Factory => quote!(#[staticmethod]),
+                        MethodKind::Static | MethodKind::Factory | MethodKind::AsyncFactory => {
+                            quote!(#[staticmethod])
+                        }
                         _ => quote!(),
                     };
 
@@ -1176,6 +1227,18 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                                     Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#fully_qualified_ident::#method_ident(
                                         #( bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
                                     )?, &bindy::Pyo3Context)?)
+                                }
+                            });
+                        }
+                        MethodKind::AsyncFactory => {
+                            method_tokens.extend(quote! {
+                                #pyo3_attr
+                                pub async fn #remapped_method_ident(
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> pyo3::PyResult<#ret> {
+                                    Ok(bindy::FromRust::<_, _, bindy::Pyo3>::from_rust(#fully_qualified_ident::#method_ident(
+                                        #( bindy::IntoRust::<_, _, bindy::Pyo3>::into_rust(#arg_idents, &bindy::Pyo3Context)? ),*
+                                    ).await?, &bindy::Pyo3Context)?)
                                 }
                             });
                         }
@@ -1350,12 +1413,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
         }
 
         match binding {
-            Binding::Class { .. } => {
-                module.extend(quote! {
-                    m.add_class::<#bound_ident>()?;
-                });
-            }
-            Binding::Enum { .. } => {
+            Binding::Class { .. } | Binding::Enum { .. } => {
                 module.extend(quote! {
                     m.add_class::<#bound_ident>()?;
                 });
@@ -1442,24 +1500,32 @@ pub fn bindy_pyo3_stubs(input: TokenStream) -> TokenStream {
 
                     match method.kind {
                         MethodKind::Async => ret_stub = format!("Awaitable[{ret_stub}]"),
-                        MethodKind::Factory => ret_stub = class_name.clone(),
+                        MethodKind::Factory => {
+                            ret_stub.clone_from(&class_name);
+                        }
+                        MethodKind::AsyncFactory => {
+                            ret_stub = format!("Awaitable[{class_name}]");
+                        }
                         _ => {}
                     }
 
                     let prefix = match method.kind {
                         MethodKind::Factory | MethodKind::Static => "@staticmethod\n",
+                        MethodKind::AsyncFactory => "@staticmethod\nasync ",
                         MethodKind::Async => "async ",
                         _ => "",
                     };
 
-                    let self_arg =
-                        if matches!(method.kind, MethodKind::Factory | MethodKind::Static) {
-                            ""
-                        } else if method.args.is_empty() {
-                            "self"
-                        } else {
-                            "self, "
-                        };
+                    let self_arg = if matches!(
+                        method.kind,
+                        MethodKind::Factory | MethodKind::Static | MethodKind::AsyncFactory
+                    ) {
+                        ""
+                    } else if method.args.is_empty() {
+                        "self"
+                    } else {
+                        "self, "
+                    };
 
                     method_stubs.push_str(&formatdoc! {"
                         {prefix}def {name}({self_arg}{arg_stubs}) -> {ret_stub}: ...
@@ -1487,8 +1553,7 @@ pub fn bindy_pyo3_stubs(input: TokenStream) -> TokenStream {
                 }
 
                 let body_stubs = format!("{constructor_stubs}{field_stubs}{method_stubs}")
-                    .trim()
-                    .split("\n")
+                    .lines()
                     .map(|s| format!("    {s}"))
                     .collect::<Vec<_>>()
                     .join("\n");
@@ -1570,7 +1635,7 @@ fn apply_mappings_with_flavor(
         let generic_part = &ty[start + 1..end];
 
         // Split generic parameters by comma and trim whitespace
-        let generic_params: Vec<&str> = generic_part.split(',').map(|s| s.trim()).collect();
+        let generic_params: Vec<&str> = generic_part.split(',').map(str::trim).collect();
 
         // Recursively apply mappings to each generic parameter
         let mapped_params: Vec<String> = generic_params
@@ -1579,10 +1644,7 @@ fn apply_mappings_with_flavor(
             .collect();
 
         // Check if the base type needs mapping
-        let mapped_base = mappings
-            .get(base_type)
-            .map(|s| s.as_str())
-            .unwrap_or(base_type);
+        let mapped_base = mappings.get(base_type).map_or(base_type, String::as_str);
 
         // Reconstruct the type with mapped components
         match (flavor, mapped_base) {

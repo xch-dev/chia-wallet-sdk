@@ -47,6 +47,12 @@ pub use secp::*;
 pub use simulator::*;
 pub use utils::*;
 
+#[cfg(any(feature = "napi", feature = "pyo3"))]
+mod peer;
+
+#[cfg(any(feature = "napi", feature = "pyo3"))]
+pub use peer::*;
+
 pub use chia_bls::{PublicKey, SecretKey, Signature};
 pub use chia_protocol::{
     BlockRecord, Bytes, Bytes32, ChallengeChainSubSlot, Coin, CoinSpend, EndOfSubSlotBundle,
@@ -75,6 +81,12 @@ pub use chia_sdk_types::{
         IntermediaryCoinProof, NftLauncherProof, RewardDistributorCommitmentSlotValue,
         RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue,
     },
+};
+
+#[cfg(any(feature = "napi", feature = "pyo3"))]
+pub use chia_protocol::{
+    CoinState, CoinStateUpdate, NewPeakWallet, PuzzleSolutionResponse, RespondCoinState,
+    RespondPuzzleState,
 };
 
 pub(crate) use convert::{AsProgram, AsPtr};
