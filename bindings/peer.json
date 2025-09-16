@@ -109,6 +109,7 @@
   },
   "Event": {
     "type": "class",
+    "no_wasm": true,
     "fields": {
       "new_peak_wallet": "Option<NewPeakWallet>",
       "coin_state_update": "Option<CoinStateUpdate>"
@@ -116,6 +117,7 @@
   },
   "NewPeakWallet": {
     "type": "class",
+    "no_wasm": true,
     "remote": true,
     "new": true,
     "fields": {
@@ -127,6 +129,7 @@
   },
   "CoinStateUpdate": {
     "type": "class",
+    "no_wasm": true,
     "remote": true,
     "new": true,
     "fields": {
@@ -138,6 +141,7 @@
   },
   "CoinState": {
     "type": "class",
+    "no_wasm": true,
     "remote": true,
     "new": true,
     "fields": {
@@ -148,6 +152,7 @@
   },
   "RespondCoinState": {
     "type": "class",
+    "no_wasm": true,
     "remote": true,
     "new": true,
     "fields": {
@@ -157,6 +162,7 @@
   },
   "RespondPuzzleState": {
     "type": "class",
+    "no_wasm": true,
     "remote": true,
     "new": true,
     "fields": {
@@ -169,6 +175,7 @@
   },
   "PuzzleSolutionResponse": {
     "type": "class",
+    "no_wasm": true,
     "remote": true,
     "new": true,
     "fields": {
@@ -180,6 +187,7 @@
   },
   "CoinStateFilters": {
     "type": "class",
+    "no_wasm": true,
     "remote": true,
     "new": true,
     "fields": {
