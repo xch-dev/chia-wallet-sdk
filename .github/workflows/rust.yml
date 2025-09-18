@@ -30,22 +30,26 @@ jobs:
       - name: Install cargo-workspaces
         run: cargo binstall cargo-workspaces --locked -y
 
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin --locked
+      # TODO: Add code coverage back once Tarpaulin is updated to support the latest Rust version
+      # - name: Install cargo-tarpaulin
+      #   run: cargo install cargo-tarpaulin --locked
+
+      # - name: Run tests
+      #   run: cargo tarpaulin --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features --out xml
 
       - name: Run tests
-        run: cargo tarpaulin --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features --out xml
+        run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features
 
-      - name: Log costs
-        run: cat crates/chia-sdk-driver/*.costs
+      # - name: Log costs
+      #   run: cat crates/chia-sdk-driver/*.costs
 
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4.0.1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+      # - name: Upload coverage reports to Codecov
+      #   uses: codecov/codecov-action@v4.0.1
+      #   with:
+      #     token: ${{ secrets.CODECOV_TOKEN }}
 
-      - name: Cleanup coverage reports
-        run: rm -f cobertura.xml
+      # - name: Cleanup coverage reports
+      #   run: rm -f cobertura.xml
 
       - name: Clippy
         run: cargo clippy --workspace --all-features --all-targets
