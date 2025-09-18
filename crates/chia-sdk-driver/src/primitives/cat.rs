@@ -10,7 +10,7 @@ use chia_sdk_types::{
     run_puzzle, Condition, Conditions,
 };
 use clvm_traits::FromClvm;
-use clvm_utils::{tree_hash, ToTreeHash};
+use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{CatLayer, DriverError, Layer, Puzzle, RevocationLayer, Spend, SpendContext};
@@ -428,6 +428,7 @@ impl Cat {
         let parent_solution = CatLayer::<Puzzle>::parse_solution(allocator, parent_solution)?;
 
         let mut hidden_puzzle_hash = None;
+        let mut p2_puzzle_hash = parent_layer.inner_puzzle.curried_puzzle_hash().into();
         let mut inner_spend = Spend::new(
             parent_layer.inner_puzzle.ptr(),
             parent_solution.inner_puzzle_solution,
@@ -438,6 +439,7 @@ impl Cat {
             RevocationLayer::parse_puzzle(allocator, parent_layer.inner_puzzle)?
         {
             hidden_puzzle_hash = Some(revocation_layer.hidden_puzzle_hash);
+            p2_puzzle_hash = revocation_layer.inner_puzzle_hash;
 
             let revocation_solution =
                 RevocationLayer::parse_solution(allocator, parent_solution.inner_puzzle_solution)?;
@@ -449,11 +451,7 @@ impl Cat {
         let cat = Cat::new(
             parent_coin,
             parent_solution.lineage_proof,
-            CatInfo::new(
-                parent_layer.asset_id,
-                hidden_puzzle_hash,
-                tree_hash(allocator, inner_spend.puzzle).into(),
-            ),
+            CatInfo::new(parent_layer.asset_id, hidden_puzzle_hash, p2_puzzle_hash),
         );
 
         let output = run_puzzle(allocator, inner_spend.puzzle, inner_spend.solution)?;
@@ -933,10 +931,11 @@ mod tests {
                     .create_coin(revocable_puzzle_hash, 5, hint),
             )?,
         );
+
         let cats = Cat::spend_all(&mut ctx, &[cat_spend])?;
 
         // Validate the transaction
-        sim.spend_coins(ctx.take(), &[alice.sk, bob.sk])?;
+        sim.spend_coins(ctx.take(), &[alice.sk.clone(), bob.sk.clone()])?;
 
         // The first coin should exist and not be revocable
         assert_ne!(sim.coin_state(cats[0].coin.coin_id()), None);
@@ -949,6 +948,49 @@ mod tests {
         assert_eq!(cats[1].info.p2_puzzle_hash, alice.puzzle_hash);
         assert_eq!(cats[1].info.asset_id, asset_id);
         assert_eq!(cats[1].info.hidden_puzzle_hash, Some(alice.puzzle_hash));
+
+        let lineage_proof = cats[0].lineage_proof;
+
+        let parent_spend = sim.coin_spend(cats[0].coin.parent_coin_info).unwrap();
+        let parent_puzzle = ctx.alloc(&parent_spend.puzzle_reveal)?;
+        let parent_puzzle = Puzzle::parse(&ctx, parent_puzzle);
+        let parent_solution = ctx.alloc(&parent_spend.solution)?;
+
+        let cats =
+            Cat::parse_children(&mut ctx, parent_spend.coin, parent_puzzle, parent_solution)?
+                .unwrap();
+
+        // The first coin should exist and not be revocable
+        assert_ne!(sim.coin_state(cats[0].coin.coin_id()), None);
+        assert_eq!(cats[0].info.p2_puzzle_hash, alice.puzzle_hash);
+        assert_eq!(cats[0].info.asset_id, asset_id);
+        assert_eq!(cats[0].info.hidden_puzzle_hash, None);
+
+        // The second coin should exist and be revocable
+        assert_ne!(sim.coin_state(cats[1].coin.coin_id()), None);
+        assert_eq!(cats[1].info.p2_puzzle_hash, alice.puzzle_hash);
+        assert_eq!(cats[1].info.asset_id, asset_id);
+        assert_eq!(cats[1].info.hidden_puzzle_hash, Some(alice.puzzle_hash));
+
+        assert_eq!(cats[0].lineage_proof, lineage_proof);
+
+        let cat_spends = cats
+            .into_iter()
+            .map(|cat| {
+                Ok(CatSpend::revoke(
+                    cat,
+                    alice_p2.spend_with_conditions(
+                        &mut ctx,
+                        Conditions::new().create_coin(alice.puzzle_hash, 5, hint),
+                    )?,
+                ))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        _ = Cat::spend_all(&mut ctx, &cat_spends)?;
+
+        // Validate the transaction
+        sim.spend_coins(ctx.take(), &[alice.sk, bob.sk])?;
 
         Ok(())
     }

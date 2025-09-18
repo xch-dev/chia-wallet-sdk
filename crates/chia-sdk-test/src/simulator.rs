@@ -149,6 +149,14 @@ impl Simulator {
         self.puzzle_and_solutions.get(&coin_id).cloned()
     }
 
+    pub fn coin_spend(&self, coin_id: Bytes32) -> Option<CoinSpend> {
+        let (puzzle, solution) = self.puzzle_and_solution(coin_id)?;
+
+        self.coin_states
+            .get(&coin_id)
+            .map(|cs| CoinSpend::new(cs.coin, puzzle, solution))
+    }
+
     pub fn spend_coins(
         &mut self,
         coin_spends: Vec<CoinSpend>,
