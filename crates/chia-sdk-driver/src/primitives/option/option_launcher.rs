@@ -5,7 +5,7 @@ use clvm_traits::clvm_quote;
 use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 
-use crate::{DriverError, Launcher, Spend, SpendContext};
+use crate::{DriverError, Launcher, SingletonInfo, Spend, SpendContext};
 
 use super::{OptionContract, OptionInfo, OptionMetadata, OptionType, OptionUnderlying};
 
@@ -193,7 +193,10 @@ impl OptionLauncher<ReadyOption> {
     ) -> Result<(Conditions, OptionContract), DriverError> {
         let launcher_coin = self.launcher.coin();
 
-        let info = self.state.info.with_p2_puzzle_hash(p2_puzzle_hash);
+        let info = OptionInfo {
+            p2_puzzle_hash,
+            ..self.state.info
+        };
 
         let (launch_singleton, eve_coin) =
             self.launcher
@@ -210,6 +213,8 @@ impl OptionLauncher<ReadyOption> {
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
     use chia_protocol::Coin;
     use chia_puzzle_types::Memos;
     use chia_sdk_test::Simulator;
@@ -253,7 +258,7 @@ mod tests {
         let (mint_option, _option) = launcher.mint(ctx)?;
         alice_p2.spend(ctx, alice.coin, mint_option)?;
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         Ok(())
     }

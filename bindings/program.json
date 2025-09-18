@@ -55,6 +55,9 @@
       "to_int": {
         "return": "Option<BigInt>"
       },
+      "to_bound_checked_number": {
+        "return": "Option<f64>"
+      },
       "to_string": {
         "type": "to_string",
         "return": "Option<String>"
@@ -196,6 +199,21 @@
       },
       "parse_update_data_store_merkle_root": {
         "return": "Option<UpdateDataStoreMerkleRoot>"
+      },
+      "parse_option_metadata": {
+        "return": "Option<OptionMetadata>"
+      },
+      "parse_payment": {
+        "return": "Option<Payment>"
+      },
+      "parse_notarized_payment": {
+        "return": "Option<NotarizedPayment>"
+      },
+      "parse_reward_distributor_launcher_solution": {
+        "args": {
+          "launcher_coin": "Coin"
+        },
+        "return": "Option<RewardDistributorLauncherSolutionInfo>"
       }
     }
   }

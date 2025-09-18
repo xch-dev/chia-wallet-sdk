@@ -9,8 +9,8 @@ pub use restrictions::*;
 pub use spend::*;
 
 use bindy::Result;
-use chia_protocol::{Bytes32, Coin};
-use chia_sdk_driver as sdk;
+use chia_protocol::Coin;
+use chia_sdk_driver::{self as sdk, VaultInfo};
 use chia_sdk_types::{puzzles::AddDelegatedPuzzleWrapper, Mod};
 use clvm_utils::TreeHash;
 
@@ -19,14 +19,15 @@ use crate::{Program, Proof};
 #[derive(Clone)]
 pub struct Vault {
     pub coin: Coin,
-    pub launcher_id: Bytes32,
     pub proof: Proof,
-    pub custody_hash: TreeHash,
+    pub info: VaultInfo,
 }
 
 impl Vault {
-    pub fn child(&self, custody_hash: TreeHash) -> Result<Self> {
-        Ok(sdk::Vault::from(self.clone()).child(custody_hash).into())
+    pub fn child(&self, custody_hash: TreeHash, amount: u64) -> Result<Self> {
+        Ok(sdk::Vault::from(self.clone())
+            .child(custody_hash, amount)
+            .into())
     }
 }
 
@@ -34,21 +35,15 @@ impl From<sdk::Vault> for Vault {
     fn from(value: sdk::Vault) -> Self {
         Vault {
             coin: value.coin,
-            launcher_id: value.launcher_id,
             proof: value.proof.into(),
-            custody_hash: value.custody_hash,
+            info: value.info,
         }
     }
 }
 
 impl From<Vault> for sdk::Vault {
     fn from(value: Vault) -> Self {
-        sdk::Vault {
-            coin: value.coin,
-            launcher_id: value.launcher_id,
-            proof: value.proof.into(),
-            custody_hash: value.custody_hash,
-        }
+        sdk::Vault::new(value.coin, value.proof.into(), value.info)
     }
 }
 

@@ -5,15 +5,34 @@ use indexmap::IndexMap;
 
 #[derive(Debug, Default, Clone)]
 pub struct Arbitrage {
-    pub offered: OfferAmounts,
-    pub requested: OfferAmounts,
-    pub offered_nfts: Vec<Bytes32>,
-    pub requested_nfts: Vec<Bytes32>,
+    pub offered: ArbitrageSide,
+    pub requested: ArbitrageSide,
 }
 
 impl Arbitrage {
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ArbitrageSide {
+    pub xch: u64,
+    pub cats: IndexMap<Bytes32, u64>,
+    pub nfts: Vec<Bytes32>,
+    pub options: Vec<Bytes32>,
+}
+
+impl ArbitrageSide {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn amounts(&self) -> OfferAmounts {
+        OfferAmounts {
+            xch: self.xch,
+            cats: self.cats.clone(),
+        }
     }
 }
 

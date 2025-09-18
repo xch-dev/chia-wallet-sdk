@@ -5,6 +5,10 @@ mod parsed_wrapper;
 use chia_consensus::opcodes::{
     CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, RECEIVE_MESSAGE, SEND_MESSAGE,
 };
+use chia_puzzles::{
+    FORCE_ASSERT_COIN_ANNOUNCEMENT_HASH, FORCE_COIN_MESSAGE_HASH,
+    PREVENT_MULTIPLE_CREATE_COINS_HASH,
+};
 pub use parsed_member::*;
 pub use parsed_restriction::*;
 pub use parsed_wrapper::*;
@@ -16,8 +20,7 @@ use chia_sdk_types::{
         BlsMember, BlsTaprootMember, EnforceDelegatedPuzzleWrappers, FixedPuzzleMember,
         Force1of2RestrictedVariable, K1Member, K1MemberPuzzleAssert, PasskeyMember,
         PasskeyMemberPuzzleAssert, PreventConditionOpcode, R1Member, R1MemberPuzzleAssert,
-        SingletonMember, Timelock, FORCE_ASSERT_COIN_ANNOUNCEMENT_HASH, FORCE_COIN_MESSAGE_HASH,
-        PREVENT_MULTIPLE_CREATE_COINS_HASH,
+        SingletonMember, Timelock,
     },
     Mod,
 };

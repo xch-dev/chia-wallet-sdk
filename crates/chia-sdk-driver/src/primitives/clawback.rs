@@ -52,7 +52,7 @@ impl Clawback {
             match condition {
                 Condition::CreateCoin(cc) => puzhashes.push(cc.puzzle_hash.into()),
                 Condition::Remark(rm) => match allocator.sexp(rm.rest) {
-                    clvmr::SExp::Atom => continue,
+                    clvmr::SExp::Atom => {}
                     clvmr::SExp::Pair(first, rest) => {
                         match allocator.sexp(first) {
                             clvmr::SExp::Atom => {
@@ -68,7 +68,7 @@ impl Clawback {
                         // we have seen the magic number
                         // try to deserialise blob
                         match allocator.sexp(rest) {
-                            clvmr::SExp::Atom => continue,
+                            clvmr::SExp::Atom => {}
                             clvmr::SExp::Pair(r_first, _r_rest) => match allocator.sexp(r_first) {
                                 clvmr::SExp::Atom => {
                                     let rest_atom = &allocator.atom(r_first);
@@ -82,7 +82,7 @@ impl Clawback {
                                         .map_err(|_| DriverError::InvalidMemo)?,
                                     );
                                 }
-                                clvmr::SExp::Pair(_, _) => continue,
+                                clvmr::SExp::Pair(_, _) => {}
                             },
                         }
                     }
@@ -201,6 +201,8 @@ impl Clawback {
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
     use chia_protocol::{Coin, SpendBundle};
     use chia_puzzle_types::Memos;
     use chia_sdk_test::Simulator;
@@ -307,7 +309,7 @@ mod tests {
         )?;
         let clawback_coin = Coin::new(alice.coin.coin_id(), clawback_puzzle_hash, 1);
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         let inner = alice_p2.spend_with_conditions(ctx, Conditions::new().reserve_fee(1))?;
         let sender_spend = clawback.sender_spend(ctx, inner)?;

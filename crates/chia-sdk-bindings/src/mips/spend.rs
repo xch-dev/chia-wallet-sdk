@@ -6,7 +6,8 @@ use chia_consensus::opcodes::{
     CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, RECEIVE_MESSAGE, SEND_MESSAGE,
 };
 use chia_protocol::{Bytes, Bytes32};
-use chia_sdk_driver::{self as sdk, member_puzzle_hash, InnerPuzzleSpend, MofN, SpendContext};
+use chia_puzzles::PREVENT_MULTIPLE_CREATE_COINS_HASH;
+use chia_sdk_driver::{self as sdk, mips_puzzle_hash, InnerPuzzleSpend, MofN, SpendContext};
 use chia_sdk_types::{
     puzzles::{
         BlsMember, FixedPuzzleMember, Force1of2RestrictedVariable,
@@ -15,7 +16,7 @@ use chia_sdk_types::{
         PasskeyMemberPuzzleAssertSolution, PasskeyMemberSolution, PreventConditionOpcode,
         PreventMultipleCreateCoinsMod, R1Member, R1MemberPuzzleAssert,
         R1MemberPuzzleAssertSolution, R1MemberSolution, SingletonMember, SingletonMemberSolution,
-        Timelock, PREVENT_MULTIPLE_CREATE_COINS_HASH,
+        Timelock,
     },
     Mod,
 };
@@ -58,7 +59,7 @@ impl MipsSpend {
 
         let member = MofN::new(required as usize, items.clone());
 
-        let member_hash = member_puzzle_hash(
+        let member_hash = mips_puzzle_hash(
             config.nonce.try_into().unwrap(),
             restrictions.clone(),
             member.inner_puzzle_hash(),
@@ -101,7 +102,7 @@ impl MipsSpend {
         };
 
         let member_hash =
-            member_puzzle_hash(nonce, restrictions.clone(), member_hash, config.top_level);
+            mips_puzzle_hash(nonce, restrictions.clone(), member_hash, config.top_level);
 
         let member_solution = if fast_forward {
             ctx.alloc(&K1MemberPuzzleAssertSolution::new(
@@ -147,7 +148,7 @@ impl MipsSpend {
         };
 
         let member_hash =
-            member_puzzle_hash(nonce, restrictions.clone(), member_hash, config.top_level);
+            mips_puzzle_hash(nonce, restrictions.clone(), member_hash, config.top_level);
 
         let member_solution = if fast_forward {
             ctx.alloc(&R1MemberPuzzleAssertSolution::new(
@@ -179,7 +180,7 @@ impl MipsSpend {
         let member = BlsMember::new(public_key);
         let member_hash = member.curry_tree_hash();
         let member_hash =
-            member_puzzle_hash(nonce, restrictions.clone(), member_hash, config.top_level);
+            mips_puzzle_hash(nonce, restrictions.clone(), member_hash, config.top_level);
 
         let member_puzzle = ctx.curry(member)?;
         let member_solution = ctx.alloc(&NodePtr::NIL)?;
@@ -223,7 +224,7 @@ impl MipsSpend {
         };
 
         let member_hash =
-            member_puzzle_hash(nonce, restrictions.clone(), member_hash, config.top_level);
+            mips_puzzle_hash(nonce, restrictions.clone(), member_hash, config.top_level);
 
         let member_solution = if fast_forward {
             ctx.alloc(&PasskeyMemberPuzzleAssertSolution {
@@ -269,7 +270,7 @@ impl MipsSpend {
 
         let member = SingletonMember::new(launcher_id);
 
-        let member_hash = member_puzzle_hash(
+        let member_hash = mips_puzzle_hash(
             nonce,
             restrictions.clone(),
             member.curry_tree_hash(),
@@ -307,7 +308,7 @@ impl MipsSpend {
 
         let member = FixedPuzzleMember::new(fixed_puzzle_hash);
 
-        let member_hash = member_puzzle_hash(
+        let member_hash = mips_puzzle_hash(
             nonce,
             restrictions.clone(),
             member.curry_tree_hash(),
@@ -334,7 +335,7 @@ impl MipsSpend {
         let nonce = config.nonce.try_into().unwrap();
         let restrictions = convert_restrictions(config.restrictions);
 
-        let member_hash = member_puzzle_hash(
+        let member_hash = mips_puzzle_hash(
             nonce,
             restrictions.clone(),
             ctx.tree_hash(spend.puzzle.1),
@@ -418,7 +419,7 @@ impl MipsSpend {
         let solution = ctx.alloc(&NodePtr::NIL)?;
 
         self.spend.lock().unwrap().restrictions.insert(
-            PREVENT_MULTIPLE_CREATE_COINS_HASH,
+            PREVENT_MULTIPLE_CREATE_COINS_HASH.into(),
             sdk::Spend::new(puzzle, solution),
         );
 

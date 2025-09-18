@@ -16,8 +16,9 @@ pub use wasm_impls::*;
 #[cfg(feature = "pyo3")]
 pub use pyo3_impls::*;
 
-use std::string::FromUtf8Error;
+use std::{net::AddrParseError, string::FromUtf8Error};
 
+use chia_protocol::{RejectCoinState, RejectPuzzleSolution, RejectPuzzleState};
 use chia_sdk_driver::DriverError;
 use chia_sdk_test::SimulatorError;
 use chia_sdk_utils::AddressError;
@@ -57,6 +58,23 @@ pub enum Error {
     #[error("Driver error: {0}")]
     Driver(#[from] DriverError),
 
+    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    #[error("Client error: {0}")]
+    Client(#[from] chia_sdk_client::ClientError),
+
+    #[error("Reject coin state: {0:?}")]
+    RejectCoinState(RejectCoinState),
+
+    #[error("Reject puzzle state: {0:?}")]
+    RejectPuzzleState(RejectPuzzleState),
+
+    #[error("Reject puzzle solution: {0:?}")]
+    RejectPuzzleSolution(RejectPuzzleSolution),
+
+    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    #[error("SSL error: {0}")]
+    Ssl(#[from] chia_ssl::Error),
+
     #[error("Eval error: {0}")]
     Eval(#[from] EvalErr),
 
@@ -80,6 +98,9 @@ pub enum Error {
 
     #[error("UTF-8 error: {0}")]
     Utf8(#[from] FromUtf8Error),
+
+    #[error("Address parse error: {0}")]
+    AddressParse(#[from] AddrParseError),
 
     #[error("Atom expected")]
     AtomExpected,
@@ -146,12 +167,14 @@ macro_rules! impl_self {
 }
 
 impl_self!(bool);
+impl_self!(usize);
 impl_self!(u8);
 impl_self!(i8);
 impl_self!(u16);
 impl_self!(i16);
 impl_self!(u32);
 impl_self!(i32);
+impl_self!(f64);
 impl_self!(String);
 
 impl<R, B, C, L> IntoRust<Vec<R>, C, L> for Vec<B>

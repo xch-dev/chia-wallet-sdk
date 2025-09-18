@@ -11,23 +11,15 @@ use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, Layer, Puzzle, Spend, SpendContext, SpendWithConditions};
+use crate::{
+    DriverError, Layer, Puzzle, Singleton, SingletonInfo, Spend, SpendContext, SpendWithConditions,
+};
 
 use super::{OptionContractLayers, OptionInfo, OptionMetadata};
 
-#[must_use]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OptionContract {
-    pub coin: Coin,
-    pub proof: Proof,
-    pub info: OptionInfo,
-}
+pub type OptionContract = Singleton<OptionInfo>;
 
 impl OptionContract {
-    pub fn new(coin: Coin, proof: Proof, info: OptionInfo) -> Self {
-        Self { coin, proof, info }
-    }
-
     pub fn parse_child(
         allocator: &mut Allocator,
         parent_coin: Coin,
@@ -90,20 +82,37 @@ impl OptionContract {
         Ok(Some(option))
     }
 
+    /// Parses an [`OptionContract`] and its p2 spend from a coin spend.
+    ///
+    /// If the puzzle is not an option contract, this will return [`None`] instead of an error.
+    /// However, if the puzzle should have been an option contract but had a parsing error, this will return an error.
+    pub fn parse(
+        allocator: &Allocator,
+        coin: Coin,
+        puzzle: Puzzle,
+        solution: NodePtr,
+    ) -> Result<Option<(Self, Puzzle, NodePtr)>, DriverError> {
+        let Some((option_info, p2_puzzle)) = OptionInfo::parse(allocator, puzzle)? else {
+            return Ok(None);
+        };
+
+        let solution = OptionContractLayers::<Puzzle>::parse_solution(allocator, solution)?;
+
+        let p2_solution = solution.inner_solution.inner_solution;
+
+        Ok(Some((
+            Self::new(coin, solution.lineage_proof, option_info),
+            p2_puzzle,
+            p2_solution,
+        )))
+    }
+
     pub fn parse_metadata(
         allocator: &mut Allocator,
         launcher_solution: NodePtr,
     ) -> Result<OptionMetadata, DriverError> {
         let solution = LauncherSolution::<OptionMetadata>::from_clvm(allocator, launcher_solution)?;
         Ok(solution.key_value_list)
-    }
-
-    pub fn child_lineage_proof(&self) -> LineageProof {
-        LineageProof {
-            parent_parent_coin_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
-            parent_amount: self.coin.amount,
-        }
     }
 
     pub fn spend(
@@ -201,7 +210,10 @@ impl OptionContract {
     }
 
     pub fn child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
-        let info = self.info.with_p2_puzzle_hash(p2_puzzle_hash);
+        let info = OptionInfo {
+            p2_puzzle_hash,
+            ..self.info
+        };
 
         let inner_puzzle_hash = info.inner_puzzle_hash();
 
@@ -219,6 +231,8 @@ impl OptionContract {
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
     use chia_puzzle_types::{offer::SettlementPaymentsSolution, Memos};
     use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
     use chia_sdk_test::{expect_spend, Simulator};
@@ -230,7 +244,7 @@ mod tests {
 
     use crate::{
         Cat, CatSpend, HashedPtr, Launcher, Nft, NftMint, OptionLauncher, OptionLauncherInfo,
-        OptionType, SettlementLayer, StandardLayer,
+        OptionType, SettlementLayer, SingletonInfo, StandardLayer,
     };
 
     use super::*;
@@ -252,7 +266,7 @@ mod tests {
         Xch(Coin),
         Cat(Cat),
         RevocableCat(Cat),
-        Nft(Nft<HashedPtr>),
+        Nft(Nft),
     }
 
     impl OptionCoin {
@@ -377,7 +391,7 @@ mod tests {
                     .with_singleton_amount(strike_amount)
                     .mint_nft(
                         ctx,
-                        NftMint::new(
+                        &NftMint::new(
                             HashedPtr::NIL,
                             SETTLEMENT_PAYMENT_HASH.into(),
                             0,
@@ -474,7 +488,7 @@ mod tests {
                     .with_singleton_amount(underlying_amount)
                     .mint_nft(
                         ctx,
-                        NftMint::new(
+                        &NftMint::new(
                             HashedPtr::NIL,
                             p2_option,
                             0,
@@ -498,7 +512,7 @@ mod tests {
         let (mint_option, option) = launcher.mint(ctx)?;
         alice_p2.spend(ctx, alice.coin, mint_option)?;
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         match action {
             Action::Exercise | Action::ExerciseWithoutPayment => {
@@ -684,7 +698,7 @@ mod tests {
         let (mint_option, mut option) = launcher.mint(ctx)?;
         alice_p2.spend(ctx, alice.coin, mint_option)?;
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         for _ in 0..5 {
             option = option.transfer(ctx, &alice_p2, alice.puzzle_hash, Conditions::new())?;
@@ -730,7 +744,7 @@ mod tests {
         let (mint_option, option) = launcher.mint(ctx)?;
         alice_p2.spend(ctx, alice.coin, mint_option)?;
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         let data = ctx.alloc(&option.info.underlying_coin_id)?;
 

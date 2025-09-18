@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 
 use chia_protocol::Bytes32;
+use chia_puzzles::{FIXED_PUZZLE_MEMBER, FIXED_PUZZLE_MEMBER_HASH};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
-use hex_literal::hex;
 
 use crate::Mod;
 
@@ -25,13 +25,6 @@ impl Mod for FixedPuzzleMember {
     }
 
     fn mod_hash() -> TreeHash {
-        FIXED_PUZZLE_MEMBER_HASH
+        FIXED_PUZZLE_MEMBER_HASH.into()
     }
 }
-
-pub const FIXED_PUZZLE_MEMBER: [u8; 25] =
-    hex!("ff02ffff03ffff09ff02ff0580ff80ffff01ff088080ff0180");
-
-pub const FIXED_PUZZLE_MEMBER_HASH: TreeHash = TreeHash::new(hex!(
-    "34ede3eadc52ed750e405f2b9dea9891506547f651290bb606356d997c64f219"
-));

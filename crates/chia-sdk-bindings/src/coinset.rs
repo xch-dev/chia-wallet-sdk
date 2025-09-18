@@ -54,12 +54,8 @@ impl CoinsetClient {
         Ok(self.0.get_block_record_by_height(height).await?)
     }
 
-    pub async fn get_block_records(
-        &self,
-        start_height: u32,
-        end_height: u32,
-    ) -> Result<GetBlockRecordsResponse> {
-        Ok(self.0.get_block_records(start_height, end_height).await?)
+    pub async fn get_block_records(&self, start: u32, end: u32) -> Result<GetBlockRecordsResponse> {
+        Ok(self.0.get_block_records(start, end).await?)
     }
 
     pub async fn get_blocks(
@@ -93,6 +89,19 @@ impl CoinsetClient {
         Ok(self
             .0
             .get_coin_records_by_hint(hint, start_height, end_height, include_spent_coins)
+            .await?)
+    }
+
+    pub async fn get_coin_records_by_hints(
+        &self,
+        hints: Vec<Bytes32>,
+        start_height: Option<u32>,
+        end_height: Option<u32>,
+        include_spent_coins: Option<bool>,
+    ) -> Result<GetCoinRecordsResponse> {
+        Ok(self
+            .0
+            .get_coin_records_by_hints(hints, start_height, end_height, include_spent_coins)
             .await?)
     }
 

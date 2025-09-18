@@ -1,10 +1,9 @@
 use chia_protocol::Bytes32;
-use chia_puzzle_types::singleton::SingletonArgs;
 use chia_sdk_types::{puzzles::OptionContractArgs, Mod};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::Allocator;
 
-use crate::{DriverError, Layer, OptionContractLayer, Puzzle, SingletonLayer};
+use crate::{DriverError, Layer, OptionContractLayer, Puzzle, SingletonInfo, SingletonLayer};
 
 pub type OptionContractLayers<I> = SingletonLayer<OptionContractLayer<I>>;
 
@@ -67,27 +66,19 @@ impl OptionInfo {
             ),
         )
     }
+}
 
-    pub fn puzzle_hash(&self) -> TreeHash {
-        SingletonArgs::curry_tree_hash(self.launcher_id, self.inner_puzzle_hash())
+impl SingletonInfo for OptionInfo {
+    fn launcher_id(&self) -> Bytes32 {
+        self.launcher_id
     }
 
-    pub fn inner_puzzle_hash(&self) -> TreeHash {
+    fn inner_puzzle_hash(&self) -> TreeHash {
         OptionContractArgs::new(
             self.underlying_coin_id,
             self.underlying_delegated_puzzle_hash,
             TreeHash::from(self.p2_puzzle_hash),
         )
         .curry_tree_hash()
-    }
-
-    #[must_use]
-    pub fn with_p2_puzzle_hash(self, p2_puzzle_hash: Bytes32) -> Self {
-        Self {
-            launcher_id: self.launcher_id,
-            underlying_coin_id: self.underlying_coin_id,
-            underlying_delegated_puzzle_hash: self.underlying_delegated_puzzle_hash,
-            p2_puzzle_hash,
-        }
     }
 }

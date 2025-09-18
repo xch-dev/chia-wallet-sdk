@@ -51,7 +51,7 @@ mod tests {
     use indexmap::indexmap;
     use rstest::rstest;
 
-    use crate::{Action, Cat, CatSpend, OptionType, OptionUnderlying, Relation};
+    use crate::{Action, Cat, CatSpend, OptionType, OptionUnderlying, Relation, SingletonInfo};
 
     use super::*;
 

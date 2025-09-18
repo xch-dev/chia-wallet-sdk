@@ -10,14 +10,21 @@ impl From<Error> for napi::Error {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Napi;
 
+#[derive(Debug, Clone, Copy)]
 pub struct NapiParamContext;
 
+#[derive(Clone, Copy)]
+#[allow(missing_debug_implementations)]
 pub struct NapiStructContext(pub Env);
 
+#[derive(Clone, Copy)]
+#[allow(missing_debug_implementations)]
 pub struct NapiReturnContext(pub Env);
 
+#[derive(Debug, Clone, Copy)]
 pub struct NapiAsyncReturnContext;
 
 impl<T, U> IntoRust<T, NapiParamContext, Napi> for ClassInstance<'_, U>
@@ -25,7 +32,7 @@ where
     U: Clone + IntoRust<T, NapiParamContext, Napi>,
 {
     fn into_rust(self, context: &NapiParamContext) -> Result<T> {
-        std::ops::Deref::deref(&self).clone().into_rust(context)
+        (*self).clone().into_rust(context)
     }
 }
 
@@ -34,7 +41,7 @@ where
     U: Clone + IntoRust<T, NapiParamContext, Napi>,
 {
     fn into_rust(self, context: &NapiParamContext) -> Result<T> {
-        std::ops::Deref::deref(&self).clone().into_rust(context)
+        (*self).clone().into_rust(context)
     }
 }
 
@@ -203,8 +210,8 @@ impl<T> FromRust<num_bigint::BigInt, T, Napi> for BigInt {
 }
 
 impl<T> IntoRust<u64, T, Napi> for BigInt {
-    fn into_rust(self, _context: &T) -> Result<u64> {
-        let bigint: num_bigint::BigInt = self.into_rust(_context)?;
+    fn into_rust(self, context: &T) -> Result<u64> {
+        let bigint: num_bigint::BigInt = self.into_rust(context)?;
         Ok(bigint.try_into()?)
     }
 }
@@ -215,9 +222,22 @@ impl<T> FromRust<u64, T, Napi> for BigInt {
     }
 }
 
+impl<T> IntoRust<usize, T, Napi> for BigInt {
+    fn into_rust(self, context: &T) -> Result<usize> {
+        let bigint: num_bigint::BigInt = self.into_rust(context)?;
+        Ok(bigint.try_into()?)
+    }
+}
+
+impl<T> FromRust<usize, T, Napi> for BigInt {
+    fn from_rust(value: usize, _context: &T) -> Result<Self> {
+        Ok((value as u64).into())
+    }
+}
+
 impl<T> IntoRust<u128, T, Napi> for BigInt {
-    fn into_rust(self, _context: &T) -> Result<u128> {
-        let bigint: num_bigint::BigInt = self.into_rust(_context)?;
+    fn into_rust(self, context: &T) -> Result<u128> {
+        let bigint: num_bigint::BigInt = self.into_rust(context)?;
         Ok(bigint.try_into()?)
     }
 }

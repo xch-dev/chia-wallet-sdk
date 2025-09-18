@@ -1,8 +1,9 @@
 use bindy::{Error, Result};
-use chia_protocol::Bytes32;
+use chia_bls::SecretKey;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{EveProof as EveProofRs, LineageProof, Proof as ProofRs};
 
-use crate::Program;
+use crate::{Nft, Program};
 
 #[derive(Clone)]
 pub struct Spend {
@@ -116,4 +117,16 @@ impl LineageProofExt for LineageProof {
     fn to_proof(&self) -> Result<Proof> {
         Ok((*self).into())
     }
+}
+
+#[derive(Clone)]
+pub struct OfferSecurityCoinDetails {
+    pub security_coin: Coin,
+    pub security_coin_sk: SecretKey,
+}
+
+#[derive(Clone)]
+pub struct SettlementNftSpendResult {
+    pub new_nft: Nft,
+    pub security_conditions: Vec<Program>,
 }

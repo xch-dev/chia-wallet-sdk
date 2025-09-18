@@ -19,4 +19,5 @@ Special thanks to:
 
 - [SumSet Tech, LLC](https://sumset.tech) for sponsoring the initial development of the Wallet SDK
 - [Solomons Lot](https://solslot.com) for sponsoring the WASM bindings
+- [FireAcademy.io](https://www.fireacademy.io/)
 - All of the open source contributors who have helped it get this far

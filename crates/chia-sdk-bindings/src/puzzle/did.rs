@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
-use chia_sdk_driver::{Did as SdkDid, DidInfo as SdkDidInfo, HashedPtr, SpendContext};
+use chia_sdk_driver::{Did as SdkDid, DidInfo as SdkDidInfo, SingletonInfo, SpendContext};
 use clvm_utils::TreeHash;
 use clvmr::Allocator;
 
@@ -40,7 +40,7 @@ impl Did {
     }
 }
 
-impl AsProgram for SdkDid<HashedPtr> {
+impl AsProgram for SdkDid {
     type AsProgram = Did;
 
     fn as_program(&self, clvm: &Arc<Mutex<SpendContext>>) -> Self::AsProgram {
@@ -53,7 +53,7 @@ impl AsProgram for SdkDid<HashedPtr> {
 }
 
 impl AsPtr for Did {
-    type AsPtr = SdkDid<HashedPtr>;
+    type AsPtr = SdkDid;
 
     fn as_ptr(&self, allocator: &Allocator) -> Self::AsPtr {
         SdkDid::new(
@@ -85,7 +85,7 @@ impl DidInfo {
     }
 }
 
-impl AsProgram for SdkDidInfo<HashedPtr> {
+impl AsProgram for SdkDidInfo {
     type AsProgram = DidInfo;
 
     fn as_program(&self, clvm: &Arc<Mutex<SpendContext>>) -> Self::AsProgram {
@@ -100,7 +100,7 @@ impl AsProgram for SdkDidInfo<HashedPtr> {
 }
 
 impl AsPtr for DidInfo {
-    type AsPtr = SdkDidInfo<HashedPtr>;
+    type AsPtr = SdkDidInfo;
 
     fn as_ptr(&self, allocator: &Allocator) -> Self::AsPtr {
         SdkDidInfo::new(
@@ -114,9 +114,21 @@ impl AsPtr for DidInfo {
 }
 
 #[derive(Clone)]
-pub struct ParsedDid {
+pub struct ParsedDidInfo {
     pub info: DidInfo,
     pub p2_puzzle: Puzzle,
+}
+
+#[derive(Clone)]
+pub struct ParsedDid {
+    pub did: Did,
+    pub p2_spend: Option<ParsedDidSpend>,
+}
+
+#[derive(Clone)]
+pub struct ParsedDidSpend {
+    pub puzzle: Puzzle,
+    pub solution: Program,
 }
 
 #[derive(Clone)]

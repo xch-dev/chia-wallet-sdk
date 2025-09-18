@@ -1,10 +1,10 @@
 use std::borrow::Cow;
 
 use chia_protocol::Bytes32;
+use chia_puzzles::{SECP256K1_MEMBER, SECP256K1_MEMBER_HASH};
 use chia_secp::{K1PublicKey, K1Signature};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
-use hex_literal::hex;
 
 use crate::Mod;
 
@@ -22,11 +22,11 @@ impl K1Member {
 
 impl Mod for K1Member {
     fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&K1_MEMBER)
+        Cow::Borrowed(&SECP256K1_MEMBER)
     }
 
     fn mod_hash() -> TreeHash {
-        K1_MEMBER_HASH
+        SECP256K1_MEMBER_HASH.into()
     }
 }
 
@@ -42,14 +42,3 @@ impl K1MemberSolution {
         Self { coin_id, signature }
     }
 }
-
-pub const K1_MEMBER: [u8; 53] = hex!(
-    "
-    ff02ffff01ff04ffff04ff02ffff04ff17ff808080ffff8413d61f00ff05ffff
-    0bff0bff1780ff2f8080ffff04ffff0146ff018080
-    "
-);
-
-pub const K1_MEMBER_HASH: TreeHash = TreeHash::new(hex!(
-    "2b05daf134c9163acc8f2ac05b61f7d8328fca3dcc963154a28e89bcfc4dbfca"
-));

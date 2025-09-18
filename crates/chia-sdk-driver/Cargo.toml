@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-driver"
-version = "0.27.1"
+version = "0.29.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Driver code for interacting with standard puzzles on the Chia blockchain."
@@ -19,7 +19,8 @@ workspace = true
 
 [features]
 chip-0035 = ["chia-sdk-types/chip-0035"]
-offer-compression = ["dep:flate2", "dep:bech32", "dep:once_cell"]
+action-layer = ["chia-sdk-types/action-layer"]
+offer-compression = ["dep:flate2", "dep:bech32"]
 
 [dependencies]
 chia-sdk-signer = { workspace = true }
@@ -43,10 +44,11 @@ bech32 = { workspace = true, optional = true }
 chia-traits = {workspace = true }
 flate2 = { workspace = true, features = ["zlib-ng-compat"], optional = true }
 indexmap = { workspace = true }
-once_cell = { workspace = true, optional = true }
 chia_streamable_macro = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
+getrandom = { workspace = true }
+bip39 = { workspace = true }
 
 [dev-dependencies]
 chia-sdk-test = { workspace = true }
