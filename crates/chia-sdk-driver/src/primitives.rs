@@ -7,7 +7,8 @@ mod launcher;
 mod mips;
 mod nft;
 mod option;
-mod streamed_cat;
+mod singleton;
+mod streamed_asset;
 mod vault;
 
 pub use cat::*;
@@ -19,7 +20,8 @@ pub use launcher::*;
 pub use mips::*;
 pub use nft::*;
 pub use option::*;
-pub use streamed_cat::*;
+pub use singleton::*;
+pub use streamed_asset::*;
 pub use vault::*;
 
 #[cfg(feature = "chip-0035")]
@@ -27,3 +29,9 @@ mod datalayer;
 
 #[cfg(feature = "chip-0035")]
 pub use datalayer::*;
+
+#[cfg(feature = "action-layer")]
+mod action_layer;
+
+#[cfg(feature = "action-layer")]
+pub use action_layer::*;

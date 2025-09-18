@@ -153,6 +153,7 @@ mod tests {
             } else {
                 None
             },
+            size_proof: None, // Default to None for tests
         };
 
         let (launch_singleton, datastore) = Launcher::new(coin.coin_id(), 1).mint_datastore(

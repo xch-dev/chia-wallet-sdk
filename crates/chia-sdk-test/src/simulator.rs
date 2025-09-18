@@ -1,11 +1,15 @@
 use std::collections::HashSet;
 
-use chia_bls::SecretKey;
+use chia_bls::{aggregate_verify_gt, hash_to_g2, SecretKey};
 use chia_consensus::{
-    spendbundle_validation::validate_clvm_and_signature, validation_error::ErrorCode,
+    allocator::make_allocator, consensus_constants::ConsensusConstants,
+    owned_conditions::OwnedSpendBundleConditions, spendbundle_conditions::run_spendbundle,
+    validation_error::ErrorCode,
 };
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
 use chia_sdk_types::TESTNET11_CONSTANTS;
+use chia_sha2::Sha256;
+use clvmr::LIMIT_HEAP;
 use indexmap::{indexset, IndexMap, IndexSet};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
@@ -145,6 +149,14 @@ impl Simulator {
         self.puzzle_and_solutions.get(&coin_id).cloned()
     }
 
+    pub fn coin_spend(&self, coin_id: Bytes32) -> Option<CoinSpend> {
+        let (puzzle, solution) = self.puzzle_and_solution(coin_id)?;
+
+        self.coin_states
+            .get(&coin_id)
+            .map(|cs| CoinSpend::new(cs.coin, puzzle, solution))
+    }
+
     pub fn spend_coins(
         &mut self,
         coin_spends: Vec<CoinSpend>,
@@ -164,7 +176,7 @@ impl Simulator {
         }
 
         // TODO: Fix cost
-        let (conds, _pairings, _duration) = validate_clvm_and_signature(
+        let conds = validate_clvm_and_signature(
             &spend_bundle,
             7_700_000_000,
             &TESTNET11_CONSTANTS,
@@ -405,4 +417,46 @@ impl Simulator {
         self.height += 1;
         self.next_timestamp += 1;
     }
+}
+
+// TODO: This function is copied here because WASM doesn't support std::time::Instant
+// Should this be changed upstream?
+fn validate_clvm_and_signature(
+    spend_bundle: &SpendBundle,
+    max_cost: u64,
+    constants: &ConsensusConstants,
+    height: u32,
+) -> Result<OwnedSpendBundleConditions, ErrorCode> {
+    let mut a = make_allocator(LIMIT_HEAP);
+    let (sbc, pkm_pairs) =
+        run_spendbundle(&mut a, spend_bundle, max_cost, height, 0, constants).map_err(|e| e.1)?;
+    let conditions = OwnedSpendBundleConditions::from(&a, sbc);
+
+    // Collect all pairs in a single vector to avoid multiple iterations
+    let mut pairs = Vec::new();
+
+    let mut aug_msg = Vec::<u8>::new();
+
+    for (pk, msg) in pkm_pairs {
+        aug_msg.clear();
+        aug_msg.extend_from_slice(&pk.to_bytes());
+        aug_msg.extend(&*msg);
+        let aug_hash = hash_to_g2(&aug_msg);
+        let pairing = aug_hash.pair(&pk);
+
+        let mut key = Sha256::new();
+        key.update(&aug_msg);
+        pairs.push((key.finalize(), pairing));
+    }
+    // Verify aggregated signature
+    let result = aggregate_verify_gt(
+        &spend_bundle.aggregated_signature,
+        pairs.iter().map(|tuple| &tuple.1),
+    );
+    if !result {
+        return Err(ErrorCode::BadAggregateSignature);
+    }
+
+    // Collect results
+    Ok(conditions)
 }

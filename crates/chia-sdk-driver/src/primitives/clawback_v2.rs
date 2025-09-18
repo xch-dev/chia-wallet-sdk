@@ -311,6 +311,8 @@ impl ToTreeHash for ClawbackV2 {
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
     use chia_protocol::Coin;
     use chia_sdk_test::{expect_spend, Simulator};
     use clvm_traits::{clvm_list, ToClvm};
@@ -369,7 +371,7 @@ mod tests {
         )?;
         let clawback_coin = Coin::new(alice.coin.coin_id(), clawback_puzzle_hash, 1);
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         clawback.recover_coin_spend(&mut ctx, clawback_coin, &p2_alice, Conditions::new())?;
 
@@ -412,7 +414,7 @@ mod tests {
         )?;
         let clawback_coin = Coin::new(alice.coin.coin_id(), clawback_puzzle_hash, 1);
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         clawback.force_coin_spend(&mut ctx, clawback_coin, &p2_alice, Conditions::new())?;
 
@@ -552,7 +554,7 @@ mod tests {
 
         let clawback_cat = cat.child(clawback_puzzle_hash, 1);
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         let clawback_spend = clawback.recover_spend(&mut ctx, &p2_alice, Conditions::new())?;
         Cat::spend_all(&mut ctx, &[CatSpend::new(clawback_cat, clawback_spend)])?;
@@ -606,7 +608,7 @@ mod tests {
 
         let clawback_cat = cat.child(clawback_puzzle_hash, 1);
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         let clawback_spend = clawback.force_spend(&mut ctx, &p2_alice, Conditions::new())?;
         Cat::spend_all(&mut ctx, &[CatSpend::new(clawback_cat, clawback_spend)])?;

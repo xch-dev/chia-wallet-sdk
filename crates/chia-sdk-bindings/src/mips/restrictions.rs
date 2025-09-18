@@ -1,11 +1,9 @@
 use bindy::Result;
 use chia_protocol::Bytes32;
+use chia_puzzles::PREVENT_MULTIPLE_CREATE_COINS_HASH;
 use chia_sdk_driver as sdk;
 use chia_sdk_types::{
-    puzzles::{
-        Force1of2RestrictedVariable, PreventConditionOpcode, Timelock,
-        PREVENT_MULTIPLE_CREATE_COINS_HASH,
-    },
+    puzzles::{Force1of2RestrictedVariable, PreventConditionOpcode, Timelock},
     Mod,
 };
 use clvm_utils::TreeHash;
@@ -81,7 +79,7 @@ pub fn prevent_condition_opcode_restriction(condition_opcode: u16) -> Result<Res
 pub fn prevent_multiple_create_coins_restriction() -> Result<Restriction> {
     Ok(Restriction {
         kind: RestrictionKind::DelegatedPuzzleWrapper,
-        puzzle_hash: PREVENT_MULTIPLE_CREATE_COINS_HASH,
+        puzzle_hash: PREVENT_MULTIPLE_CREATE_COINS_HASH.into(),
     })
 }
 

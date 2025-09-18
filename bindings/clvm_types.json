@@ -51,5 +51,21 @@
         "return": "Proof"
       }
     }
+  },
+  "OfferSecurityCoinDetails": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "security_coin": "Coin",
+      "security_coin_sk": "SecretKey"
+    }
+  },
+  "SettlementNftSpendResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "new_nft": "Nft",
+      "security_conditions": "Vec<Program>"
+    }
   }
 }

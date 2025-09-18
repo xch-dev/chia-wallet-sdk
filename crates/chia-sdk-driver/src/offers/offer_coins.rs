@@ -8,15 +8,15 @@ use clvmr::{Allocator, NodePtr};
 use indexmap::IndexMap;
 
 use crate::{
-    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, HashedPtr, Nft, NftAssetInfo,
-    OfferAmounts, OptionAssetInfo, OptionContract, Outputs, Puzzle, Spends,
+    AddAsset, AssetInfo, Cat, CatAssetInfo, DriverError, Nft, NftAssetInfo, OfferAmounts,
+    OptionAssetInfo, OptionContract, Outputs, Puzzle, Spends,
 };
 
 #[derive(Debug, Default, Clone)]
 pub struct OfferCoins {
     pub xch: Vec<Coin>,
     pub cats: IndexMap<Bytes32, Vec<Cat>>,
-    pub nfts: IndexMap<Bytes32, Nft<HashedPtr>>,
+    pub nfts: IndexMap<Bytes32, Nft>,
     pub options: IndexMap<Bytes32, OptionContract>,
     pub fee: u64,
 }
@@ -160,8 +160,7 @@ impl OfferCoins {
             }
         }
 
-        if let Some(nft) =
-            Nft::<HashedPtr>::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?
+        if let Some(nft) = Nft::parse_child(allocator, parent_coin, parent_puzzle, parent_solution)?
         {
             if !spent_coin_ids.contains(&nft.coin.coin_id())
                 && nft.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()

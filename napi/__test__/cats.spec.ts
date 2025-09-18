@@ -201,7 +201,7 @@ test("parses a cat puzzle", (t) => {
     ])
     .puzzle();
 
-  const parsed = puzzle.parseCat();
+  const parsed = puzzle.parseCatInfo();
   if (!parsed?.p2Puzzle) throw new Error("Failed to parse cat");
 
   t.is(parsed.info.assetId.toString("hex"), assetId.toString("hex"));

@@ -79,14 +79,14 @@ pub trait ChiaRpcClient {
 
     fn get_block_records(
         &self,
-        start_height: u32,
-        end_height: u32,
+        start: u32,
+        end: u32,
     ) -> impl Future<Output = Result<GetBlockRecordsResponse, Self::Error>> {
         self.make_post_request(
             "get_block_records",
             serde_json::json!({
-                "start_height": start_height,
-                "end_height": end_height,
+                "start": start,
+                "end": end,
             }),
         )
     }
@@ -144,6 +144,24 @@ pub trait ChiaRpcClient {
             "get_coin_records_by_hint",
             serde_json::json!({
                 "hint": format!("0x{}", hex::encode(hint.to_bytes())),
+                "start_height": start_height,
+                "end_height": end_height,
+                "include_spent_coins": include_spent_coins,
+            }),
+        )
+    }
+
+    fn get_coin_records_by_hints(
+        &self,
+        hints: Vec<Bytes32>,
+        start_height: Option<u32>,
+        end_height: Option<u32>,
+        include_spent_coins: Option<bool>,
+    ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> {
+        self.make_post_request(
+            "get_coin_records_by_hints",
+            serde_json::json!({
+                "hints": hints.iter().map(|hint| format!("0x{}", hex::encode(hint.to_bytes()))).collect::<Vec<String>>(),
                 "start_height": start_height,
                 "end_height": end_height,
                 "include_spent_coins": include_spent_coins,

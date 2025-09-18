@@ -681,6 +681,7 @@ pub mod tests {
             label: t.1.value(),
             description: t.2.value(),
             bytes: t.3.value(),
+            size_proof: None, // Default to None for existing tests
         }
     }
 

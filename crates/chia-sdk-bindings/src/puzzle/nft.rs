@@ -4,7 +4,7 @@ use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::nft::NftMetadata;
 use chia_sdk_driver::{
-    HashedPtr, Nft as SdkNft, NftInfo as SdkNftInfo, NftMint as SdkNftMint, SpendContext,
+    Nft as SdkNft, NftInfo as SdkNftInfo, NftMint as SdkNftMint, SingletonInfo, SpendContext,
 };
 use chia_sdk_types::conditions;
 use clvm_utils::TreeHash;
@@ -54,7 +54,7 @@ impl Nft {
     }
 }
 
-impl AsProgram for SdkNft<HashedPtr> {
+impl AsProgram for SdkNft {
     type AsProgram = Nft;
 
     fn as_program(&self, clvm: &Arc<Mutex<SpendContext>>) -> Self::AsProgram {
@@ -67,7 +67,7 @@ impl AsProgram for SdkNft<HashedPtr> {
 }
 
 impl AsPtr for Nft {
-    type AsPtr = SdkNft<HashedPtr>;
+    type AsPtr = SdkNft;
 
     fn as_ptr(&self, allocator: &Allocator) -> Self::AsPtr {
         SdkNft::new(
@@ -101,7 +101,7 @@ impl NftInfo {
     }
 }
 
-impl AsProgram for SdkNftInfo<HashedPtr> {
+impl AsProgram for SdkNftInfo {
     type AsProgram = NftInfo;
 
     fn as_program(&self, clvm: &Arc<Mutex<SpendContext>>) -> Self::AsProgram {
@@ -118,7 +118,7 @@ impl AsProgram for SdkNftInfo<HashedPtr> {
 }
 
 impl AsPtr for NftInfo {
-    type AsPtr = SdkNftInfo<HashedPtr>;
+    type AsPtr = SdkNftInfo;
 
     fn as_ptr(&self, allocator: &Allocator) -> Self::AsPtr {
         SdkNftInfo {
@@ -134,9 +134,16 @@ impl AsPtr for NftInfo {
 }
 
 #[derive(Clone)]
-pub struct ParsedNft {
+pub struct ParsedNftInfo {
     pub info: NftInfo,
     pub p2_puzzle: Puzzle,
+}
+
+#[derive(Clone)]
+pub struct ParsedNft {
+    pub nft: Nft,
+    pub p2_puzzle: Puzzle,
+    pub p2_solution: Program,
 }
 
 pub trait NftMetadataExt {}
@@ -154,7 +161,7 @@ pub struct NftMint {
 }
 
 impl AsPtr for NftMint {
-    type AsPtr = SdkNftMint<HashedPtr>;
+    type AsPtr = SdkNftMint;
 
     fn as_ptr(&self, allocator: &Allocator) -> Self::AsPtr {
         SdkNftMint {

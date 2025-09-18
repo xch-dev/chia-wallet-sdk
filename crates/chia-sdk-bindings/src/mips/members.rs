@@ -1,7 +1,7 @@
 use bindy::Result;
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
-use chia_sdk_driver::{member_puzzle_hash, MofN};
+use chia_sdk_driver::{mips_puzzle_hash, MofN};
 use chia_sdk_types::{
     puzzles::{
         BlsMember, FixedPuzzleMember, K1Member, K1MemberPuzzleAssert, PasskeyMember,
@@ -53,7 +53,7 @@ impl MemberConfig {
 }
 
 fn member_hash(config: MemberConfig, inner_hash: TreeHash) -> Result<TreeHash> {
-    Ok(member_puzzle_hash(
+    Ok(mips_puzzle_hash(
         config.nonce.try_into().unwrap(),
         convert_restrictions(config.restrictions),
         inner_hash,
