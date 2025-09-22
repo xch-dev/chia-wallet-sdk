@@ -1,4 +1,5 @@
 mod augmented_condition;
+mod bulletin;
 mod mips;
 mod mods;
 mod option_contract;
@@ -9,6 +10,7 @@ mod p2_singleton;
 mod revocation;
 
 pub use augmented_condition::*;
+pub use bulletin::*;
 pub use mips::*;
 pub use mods::*;
 pub use option_contract::*;
