@@ -8,8 +8,10 @@ use num_bigint::BigInt;
 
 use crate::{Error, FromRust, IntoRust, Result};
 
+#[derive(Debug, Clone, Copy)]
 pub struct Wasm;
 
+#[derive(Debug, Clone, Copy)]
 pub struct WasmContext;
 
 impl<T> FromRust<(), T, Wasm> for () {
@@ -49,7 +51,7 @@ impl<T, const N: usize> FromRust<BytesImpl<N>, T, Wasm> for Vec<u8> {
 
 impl<T, const N: usize> IntoRust<BytesImpl<N>, T, Wasm> for Vec<u8> {
     fn into_rust(self, _context: &T) -> Result<BytesImpl<N>> {
-        let bytes = self.to_vec();
+        let bytes = self.clone();
 
         if bytes.len() != N {
             return Err(Error::WrongLength {
@@ -108,7 +110,7 @@ impl<T> FromRust<Bytes, T, Wasm> for Vec<u8> {
 
 impl<T> IntoRust<Bytes, T, Wasm> for Vec<u8> {
     fn into_rust(self, _context: &T) -> Result<Bytes> {
-        Ok(self.to_vec().into())
+        Ok(self.clone().into())
     }
 }
 
@@ -120,13 +122,13 @@ impl<T> FromRust<Program, T, Wasm> for Vec<u8> {
 
 impl<T> IntoRust<Program, T, Wasm> for Vec<u8> {
     fn into_rust(self, _context: &T) -> Result<Program> {
-        Ok(self.to_vec().into())
+        Ok(self.clone().into())
     }
 }
 
 impl<T> IntoRust<u64, T, Wasm> for js_sys::BigInt {
-    fn into_rust(self, _context: &T) -> Result<u64> {
-        let bigint: BigInt = self.into_rust(_context)?;
+    fn into_rust(self, context: &T) -> Result<u64> {
+        let bigint: BigInt = self.into_rust(context)?;
         Ok(bigint.try_into()?)
     }
 }
@@ -138,8 +140,8 @@ impl<T> FromRust<u64, T, Wasm> for js_sys::BigInt {
 }
 
 impl<T> IntoRust<u128, T, Wasm> for js_sys::BigInt {
-    fn into_rust(self, _context: &T) -> Result<u128> {
-        let bigint: BigInt = self.into_rust(_context)?;
+    fn into_rust(self, context: &T) -> Result<u128> {
+        let bigint: BigInt = self.into_rust(context)?;
         Ok(bigint.try_into()?)
     }
 }
@@ -205,12 +207,11 @@ impl<T> IntoRust<Vec<TreeHash>, T, Wasm> for js_sys::Array {
 }
 
 impl<T> FromRust<Vec<TreeHash>, T, Wasm> for js_sys::Array {
-    fn from_rust(value: Vec<TreeHash>, _context: &T) -> Result<Self> {
+    fn from_rust(value: Vec<TreeHash>, context: &T) -> Result<Self> {
         let array = js_sys::Array::new();
 
         for item in value {
-            array
-                .push(&<Vec<u8> as FromRust<TreeHash, T, Wasm>>::from_rust(item, _context)?.into());
+            array.push(&<Vec<u8> as FromRust<TreeHash, T, Wasm>>::from_rust(item, context)?.into());
         }
 
         Ok(array)
@@ -218,11 +219,11 @@ impl<T> FromRust<Vec<TreeHash>, T, Wasm> for js_sys::Array {
 }
 
 impl<T> FromRust<Vec<Bytes32>, T, Wasm> for js_sys::Array {
-    fn from_rust(value: Vec<Bytes32>, _context: &T) -> Result<Self> {
+    fn from_rust(value: Vec<Bytes32>, context: &T) -> Result<Self> {
         let array = js_sys::Array::new();
 
         for item in value {
-            array.push(&<Vec<u8> as FromRust<Bytes32, T, Wasm>>::from_rust(item, _context)?.into());
+            array.push(&<Vec<u8> as FromRust<Bytes32, T, Wasm>>::from_rust(item, context)?.into());
         }
 
         Ok(array)
@@ -230,11 +231,11 @@ impl<T> FromRust<Vec<Bytes32>, T, Wasm> for js_sys::Array {
 }
 
 impl<T> FromRust<Vec<Bytes>, T, Wasm> for js_sys::Array {
-    fn from_rust(value: Vec<Bytes>, _context: &T) -> Result<Self> {
+    fn from_rust(value: Vec<Bytes>, context: &T) -> Result<Self> {
         let array = js_sys::Array::new();
 
         for item in value {
-            array.push(&<Vec<u8> as FromRust<Bytes, T, Wasm>>::from_rust(item, _context)?.into());
+            array.push(&<Vec<u8> as FromRust<Bytes, T, Wasm>>::from_rust(item, context)?.into());
         }
 
         Ok(array)

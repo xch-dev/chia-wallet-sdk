@@ -14,7 +14,9 @@
       "TreeHash",
       "SerializedProgram"
     ],
-    "{bigint}": ["u64", "u128", "BigInt"]
+    "{bigint}": ["u64", "u128", "BigInt"],
+    "{number}": ["i8", "u8", "i16", "u16", "i32", "u32", "f32"],
+    "{usize}": ["usize"]
   },
   "shared": {
     "GetBlockRecordByHeightResponse": "GetBlockRecordResponse",
@@ -23,17 +25,101 @@
   "napi": {
     "{bytes}": "napi::bindgen_prelude::Uint8Array",
     "{bigint}": "napi::bindgen_prelude::BigInt",
-    "()": "napi::JsUndefined"
+    "{usize}": "napi::bindgen_prelude::BigInt"
   },
   "wasm": {
     "{bytes}": "Vec<u8>",
     "{bigint}": "js_sys::BigInt",
     "Vec<Bytes32>": "js_sys::Array",
     "Vec<Bytes>": "js_sys::Array",
-    "Vec<TreeHash>": "js_sys::Array"
+    "Vec<TreeHash>": "js_sys::Array",
+    "ClvmType": "wasm_bindgen::JsValue"
+  },
+  "wasm_stubs": {
+    "{bytes}": "Uint8Array",
+    "{bigint}": "bigint",
+    "{number}": "number",
+    "f64": "number",
+    "bool": "boolean",
+    "String": "string",
+    "()": "void",
+    "Vec<Bytes32>": "Uint8Array[]",
+    "Vec<Bytes>": "Uint8Array[]",
+    "Vec<TreeHash>": "Uint8Array[]"
   },
   "pyo3": {
     "{bytes}": "Vec<u8>",
     "BigInt": "num_bigint::BigInt"
-  }
+  },
+  "pyo3_stubs": {
+    "{bytes}": "bytes",
+    "{bigint}": "int",
+    "{number}": "int",
+    "f64": "float",
+    "String": "str",
+    "()": "None"
+  },
+  "clvm_types": [
+    "Program",
+    "PublicKey",
+    "Signature",
+    "K1PublicKey",
+    "K1Signature",
+    "R1PublicKey",
+    "R1Signature",
+    "Remark",
+    "AggSigParent",
+    "AggSigPuzzle",
+    "AggSigAmount",
+    "AggSigPuzzleAmount",
+    "AggSigParentAmount",
+    "AggSigParentPuzzle",
+    "AggSigUnsafe",
+    "AggSigMe",
+    "CreateCoin",
+    "ReserveFee",
+    "CreateCoinAnnouncement",
+    "CreatePuzzleAnnouncement",
+    "AssertCoinAnnouncement",
+    "AssertPuzzleAnnouncement",
+    "AssertConcurrentSpend",
+    "AssertConcurrentPuzzle",
+    "AssertSecondsRelative",
+    "AssertSecondsAbsolute",
+    "AssertHeightRelative",
+    "AssertHeightAbsolute",
+    "AssertBeforeSecondsRelative",
+    "AssertBeforeSecondsAbsolute",
+    "AssertBeforeHeightRelative",
+    "AssertBeforeHeightAbsolute",
+    "AssertMyCoinId",
+    "AssertMyParentId",
+    "AssertMyPuzzleHash",
+    "AssertMyAmount",
+    "AssertMyBirthSeconds",
+    "AssertMyBirthHeight",
+    "AssertEphemeral",
+    "SendMessage",
+    "ReceiveMessage",
+    "Softfork",
+    "Pair",
+    "NftMetadata",
+    "CurriedProgram",
+    "MipsMemo",
+    "InnerPuzzleMemo",
+    "RestrictionMemo",
+    "WrapperMemo",
+    "Force1of2RestrictedVariableMemo",
+    "MemoKind",
+    "MemberMemo",
+    "MofNMemo",
+    "MeltSingleton",
+    "TransferNft",
+    "RunCatTail",
+    "UpdateNftMetadata",
+    "UpdateDataStoreMerkleRoot",
+    "OptionMetadata",
+    "NotarizedPayment",
+    "Payment"
+  ]
 }

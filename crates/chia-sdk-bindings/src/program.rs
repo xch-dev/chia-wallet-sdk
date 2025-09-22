@@ -1,9 +1,12 @@
 use std::sync::{Arc, Mutex};
 
 use bindy::{Error, Result};
-use chia_protocol::{Bytes, Program as SerializedProgram};
-use chia_puzzle_types::nft;
-use chia_sdk_driver::SpendContext;
+use chia_protocol::{Bytes, Coin, Program as SerializedProgram};
+use chia_puzzle_types::{
+    nft::NftMetadata,
+    offer::{NotarizedPayment as ChiaNotarizedPayment, Payment as ChiaPayment},
+};
+use chia_sdk_driver::{OptionMetadata, RewardDistributor as SdkRewardDistributor, SpendContext};
 use clvm_tools_rs::classic::clvm_tools::stages::run;
 use clvm_tools_rs::classic::clvm_tools::stages::stage_0::TRunProgram;
 use clvm_tools_rs::classic::clvm_tools::{
@@ -18,7 +21,10 @@ use clvmr::{
 };
 use num_bigint::BigInt;
 
-use crate::{CurriedProgram, NftMetadata, Output, Pair, Puzzle};
+use crate::{
+    AsProgram, CurriedProgram, NotarizedPayment, Output, Pair, Payment, Puzzle,
+    RewardDistributorLauncherSolutionInfo,
+};
 
 #[derive(Clone)]
 pub struct Program(pub(crate) Arc<Mutex<SpendContext>>, pub(crate) NodePtr);
@@ -172,8 +178,17 @@ impl Program {
         Ok(Program(self.0.clone(), rest))
     }
 
-    // This is called by the individual napi and wasm crates
-    pub fn to_small_int(&self) -> Result<Option<f64>> {
+    pub fn to_int(&self) -> Result<Option<BigInt>> {
+        let ctx = self.0.lock().unwrap();
+
+        let SExp::Atom = ctx.sexp(self.1) else {
+            return Ok(None);
+        };
+
+        Ok(Some(ctx.number(self.1)))
+    }
+
+    pub fn to_bound_checked_number(&self) -> Result<Option<f64>> {
         let ctx = self.0.lock().unwrap();
 
         let SExp::Atom = ctx.sexp(self.1) else {
@@ -190,19 +205,9 @@ impl Program {
             return Err(Error::TooSmall);
         }
 
-        let number: u64 = number.try_into().unwrap();
+        let number: i64 = number.try_into().unwrap();
 
         Ok(Some(number as f64))
-    }
-
-    pub fn to_int(&self) -> Result<Option<BigInt>> {
-        let ctx = self.0.lock().unwrap();
-
-        let SExp::Atom = ctx.sexp(self.1) else {
-            return Ok(None);
-        };
-
-        Ok(Some(ctx.number(self.1)))
     }
 
     pub fn to_string(&self) -> Result<Option<String>> {
@@ -281,7 +286,44 @@ impl Program {
 
     pub fn parse_nft_metadata(&self) -> Result<Option<NftMetadata>> {
         let ctx = self.0.lock().unwrap();
-        let value = nft::NftMetadata::from_clvm(&**ctx, self.1);
-        Ok(value.ok().map(Into::into))
+        let value = NftMetadata::from_clvm(&**ctx, self.1);
+        Ok(value.ok())
+    }
+
+    pub fn parse_option_metadata(&self) -> Result<Option<OptionMetadata>> {
+        let ctx = self.0.lock().unwrap();
+        let value = OptionMetadata::from_clvm(&**ctx, self.1);
+        Ok(value.ok())
+    }
+
+    pub fn parse_payment(&self) -> Result<Option<Payment>> {
+        let ctx = self.0.lock().unwrap();
+        let value = ChiaPayment::from_clvm(&**ctx, self.1);
+        Ok(value.ok().map(|p| p.as_program(&self.0)))
+    }
+
+    pub fn parse_notarized_payment(&self) -> Result<Option<NotarizedPayment>> {
+        let ctx = self.0.lock().unwrap();
+        let value = ChiaNotarizedPayment::from_clvm(&**ctx, self.1);
+        Ok(value.ok().map(|p| p.as_program(&self.0)))
+    }
+
+    pub fn parse_reward_distributor_launcher_solution(
+        &self,
+        launcher_coin: Coin,
+    ) -> Result<Option<RewardDistributorLauncherSolutionInfo>> {
+        let mut ctx = self.0.lock().unwrap();
+
+        if let Some((constants, initial_state, coin)) =
+            SdkRewardDistributor::from_launcher_solution(&mut ctx, launcher_coin, self.1)?
+        {
+            Ok(Some(RewardDistributorLauncherSolutionInfo {
+                constants,
+                initial_state,
+                coin,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 }

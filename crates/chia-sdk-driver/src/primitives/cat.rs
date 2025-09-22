@@ -1,275 +1,533 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
-    cat::{CatArgs, CatSolution, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs},
-    CoinProof, LineageProof,
+    cat::{CatSolution, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs},
+    CoinProof, LineageProof, Memos,
 };
-use chia_sdk_types::{conditions::CreateCoin, run_puzzle, Condition, Conditions};
-use clvm_traits::{clvm_quote, FromClvm};
+use chia_sdk_types::{
+    conditions::{CreateCoin, RunCatTail},
+    puzzles::RevocationSolution,
+    run_puzzle, Condition, Conditions,
+};
+use clvm_traits::FromClvm;
+use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{CatLayer, DriverError, Layer, Puzzle, Spend, SpendContext};
+use crate::{CatLayer, DriverError, Layer, Puzzle, RevocationLayer, Spend, SpendContext};
 
+mod cat_info;
 mod cat_spend;
 mod single_cat_spend;
 
+pub use cat_info::*;
 pub use cat_spend::*;
 pub use single_cat_spend::*;
 
+/// Contains all information needed to spend the outer puzzles of CAT coins.
+/// The [`CatInfo`] is used to construct the puzzle, but the [`LineageProof`] is needed for the solution.
+///
+/// The only thing missing to create a valid coin spend is the inner puzzle and solution.
+/// However, this is handled separately to provide as much flexibility as possible.
+///
+/// This type should contain all of the information you need to store in a database for later.
+/// As long as you can figure out what puzzle the p2 puzzle hash corresponds to and spend it,
+/// you have enough information to spend the CAT coin.
+#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Cat {
+    /// The coin that this [`Cat`] represents. Its puzzle hash should match the [`CatInfo::puzzle_hash`].
     pub coin: Coin,
+
+    /// The lineage proof is needed by the CAT puzzle to prove that this coin is a legitimate CAT.
+    /// It's typically obtained by looking up and parsing the parent coin.
+    ///
+    /// This can get a bit tedious, so a helper method [`Cat::parse_children`] is provided to parse
+    /// the child [`Cat`] objects from the parent (once you have looked up its information on-chain).
+    ///
+    /// Note that while the lineage proof is needed for most coins, it is optional if you are
+    /// issuing more of the CAT by running its TAIL program.
     pub lineage_proof: Option<LineageProof>,
-    pub asset_id: Bytes32,
-    pub p2_puzzle_hash: Bytes32,
+
+    /// The information needed to construct the outer puzzle of a CAT. See [`CatInfo`] for more details.
+    pub info: CatInfo,
 }
 
 impl Cat {
-    pub fn new(
-        coin: Coin,
-        lineage_proof: Option<LineageProof>,
-        asset_id: Bytes32,
-        p2_puzzle_hash: Bytes32,
-    ) -> Self {
+    pub fn new(coin: Coin, lineage_proof: Option<LineageProof>, info: CatInfo) -> Self {
         Self {
             coin,
             lineage_proof,
-            asset_id,
-            p2_puzzle_hash,
+            info,
         }
     }
 
-    pub fn single_issuance_eve(
+    pub fn issue_with_coin(
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
         amount: u64,
         extra_conditions: Conditions,
-    ) -> Result<(Conditions, Cat), DriverError> {
+    ) -> Result<(Conditions, Vec<Cat>), DriverError> {
         let tail = ctx.curry(GenesisByCoinIdTailArgs::new(parent_coin_id))?;
 
-        Self::create_and_spend_eve(
+        Self::issue(
             ctx,
             parent_coin_id,
-            ctx.tree_hash(tail).into(),
+            None,
             amount,
-            extra_conditions.run_cat_tail(tail, NodePtr::NIL),
+            RunCatTail::new(tail, NodePtr::NIL),
+            extra_conditions,
         )
     }
 
-    pub fn multi_issuance_eve(
+    pub fn issue_with_key(
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
         public_key: PublicKey,
         amount: u64,
         extra_conditions: Conditions,
-    ) -> Result<(Conditions, Cat), DriverError> {
+    ) -> Result<(Conditions, Vec<Cat>), DriverError> {
         let tail = ctx.curry(EverythingWithSignatureTailArgs::new(public_key))?;
 
-        Self::create_and_spend_eve(
+        Self::issue(
             ctx,
             parent_coin_id,
-            ctx.tree_hash(tail).into(),
+            None,
             amount,
-            extra_conditions.run_cat_tail(tail, NodePtr::NIL),
+            RunCatTail::new(tail, NodePtr::NIL),
+            extra_conditions,
         )
     }
 
-    /// Creates and spends an eve CAT with the provided conditions.
-    /// To issue the CAT, you will need to reveal the TAIL puzzle and solution.
-    /// This can be done with the [`chia_sdk_types::conditions::RunCatTail`] condition.
-    pub fn create_and_spend_eve(
+    pub fn issue_revocable_with_coin(
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
-        asset_id: Bytes32,
+        hidden_puzzle_hash: Bytes32,
         amount: u64,
-        conditions: Conditions,
-    ) -> Result<(Conditions, Cat), DriverError> {
-        let inner_puzzle = ctx.alloc(&clvm_quote!(conditions))?;
-        let eve_layer = CatLayer::new(asset_id, inner_puzzle);
-        let inner_puzzle_hash = ctx.tree_hash(inner_puzzle).into();
-        let puzzle_ptr = eve_layer.construct_puzzle(ctx)?;
-        let puzzle_hash = ctx.tree_hash(puzzle_ptr).into();
+        extra_conditions: Conditions,
+    ) -> Result<(Conditions, Vec<Cat>), DriverError> {
+        let tail = ctx.curry(GenesisByCoinIdTailArgs::new(parent_coin_id))?;
 
-        let eve = Cat::new(
-            Coin::new(parent_coin_id, puzzle_hash, amount),
-            None,
-            asset_id,
-            inner_puzzle_hash,
+        Self::issue(
+            ctx,
+            parent_coin_id,
+            Some(hidden_puzzle_hash),
+            amount,
+            RunCatTail::new(tail, NodePtr::NIL),
+            extra_conditions,
+        )
+    }
+
+    pub fn issue_revocable_with_key(
+        ctx: &mut SpendContext,
+        parent_coin_id: Bytes32,
+        public_key: PublicKey,
+        hidden_puzzle_hash: Bytes32,
+        amount: u64,
+        extra_conditions: Conditions,
+    ) -> Result<(Conditions, Vec<Cat>), DriverError> {
+        let tail = ctx.curry(EverythingWithSignatureTailArgs::new(public_key))?;
+
+        Self::issue(
+            ctx,
+            parent_coin_id,
+            Some(hidden_puzzle_hash),
+            amount,
+            RunCatTail::new(tail, NodePtr::NIL),
+            extra_conditions,
+        )
+    }
+
+    pub fn issue(
+        ctx: &mut SpendContext,
+        parent_coin_id: Bytes32,
+        hidden_puzzle_hash: Option<Bytes32>,
+        amount: u64,
+        run_tail: RunCatTail<NodePtr, NodePtr>,
+        conditions: Conditions,
+    ) -> Result<(Conditions, Vec<Cat>), DriverError> {
+        let delegated_spend = ctx.delegated_spend(conditions.with(run_tail))?;
+        let eve_info = CatInfo::new(
+            ctx.tree_hash(run_tail.program).into(),
+            hidden_puzzle_hash,
+            ctx.tree_hash(delegated_spend.puzzle).into(),
         );
 
-        eve.spend(
-            ctx,
-            SingleCatSpend::eve(
-                eve.coin,
-                inner_puzzle_hash,
-                Spend::new(inner_puzzle, NodePtr::NIL),
-            ),
-        )?;
+        let eve = Cat::new(
+            Coin::new(parent_coin_id, eve_info.puzzle_hash().into(), amount),
+            None,
+            eve_info,
+        );
+
+        let children = Cat::spend_all(ctx, &[CatSpend::new(eve, delegated_spend)])?;
 
         Ok((
-            Conditions::new().create_coin(puzzle_hash, amount, None),
-            eve,
+            Conditions::new().create_coin(eve.coin.puzzle_hash, eve.coin.amount, Memos::None),
+            children,
         ))
     }
 
-    /// Creates coin spends for one or more CATs in a ring.
-    /// Without the ring announcements, CAT spends cannot share inputs and outputs.
+    /// Constructs a [`CoinSpend`](chia_protocol::CoinSpend) for each [`CatSpend`] in the list.
+    /// The spends are added to the [`SpendContext`] (in order) for convenience.
     ///
-    /// Each item is a CAT and the inner spend for that CAT.
-    pub fn spend_all(ctx: &mut SpendContext, cat_spends: &[CatSpend]) -> Result<(), DriverError> {
+    /// All of the ring announcements and proofs required by the CAT puzzle are calculated automatically.
+    /// This requires running the inner spends to get the conditions, so any errors will be propagated.
+    ///
+    /// It's important not to spend CATs with different asset IDs at the same time, since they are not
+    /// compatible.
+    ///
+    /// Additionally, you should group all CAT spends done in the same transaction together
+    /// so that the value of one coin can be freely used in the output of another. If you spend them
+    /// separately, there will be multiple announcement rings and a non-zero delta will be calculated.
+    pub fn spend_all(
+        ctx: &mut SpendContext,
+        cat_spends: &[CatSpend],
+    ) -> Result<Vec<Cat>, DriverError> {
         let len = cat_spends.len();
 
         let mut total_delta = 0;
+        let mut prev_subtotals = Vec::new();
+        let mut run_tail_index = None;
+        let mut children = Vec::new();
 
-        for (index, cat_spend) in cat_spends.iter().enumerate() {
-            let CatSpend {
-                cat,
-                inner_spend,
-                extra_delta,
-            } = cat_spend;
+        for (index, &item) in cat_spends.iter().enumerate() {
+            let output = ctx.run(item.spend.puzzle, item.spend.solution)?;
+            let conditions: Vec<Condition> = ctx.extract(output)?;
 
-            // Calculate the delta and add it to the subtotal.
-            let output = ctx.run(inner_spend.puzzle, inner_spend.solution)?;
-            let conditions: Vec<NodePtr> = ctx.extract(output)?;
+            // If this is the first TAIL reveal, we're going to keep track of it
+            if run_tail_index.is_none() && conditions.iter().any(Condition::is_run_cat_tail) {
+                run_tail_index = Some(index);
+            }
 
-            let create_coins = conditions
+            let create_coins: Vec<CreateCoin<NodePtr>> = conditions
                 .into_iter()
-                .filter_map(|ptr| ctx.extract::<CreateCoin<NodePtr>>(ptr).ok());
+                .filter_map(Condition::into_create_coin)
+                .collect();
 
-            let delta = create_coins.fold(
-                i128::from(cat.coin.amount) - i128::from(*extra_delta),
-                |delta, create_coin| delta - i128::from(create_coin.amount),
-            );
+            // Calculate the delta of inputs and outputs
+            let delta = create_coins
+                .iter()
+                .fold(i128::from(item.cat.coin.amount), |delta, create_coin| {
+                    delta - i128::from(create_coin.amount)
+                });
 
-            let prev_subtotal = total_delta;
+            // Add the previous subtotal for this coin
+            prev_subtotals.push(total_delta);
+
+            // Add the delta to the total
             total_delta += delta;
 
+            for create_coin in create_coins {
+                children.push(
+                    item.cat
+                        .child_from_p2_create_coin(ctx, create_coin, item.hidden),
+                );
+            }
+        }
+
+        // If the TAIL was revealed, we need to adjust the subsequent previous subtotals to account for the extra delta
+        if let Some(tail_index) = run_tail_index {
+            let tail_adjustment = -total_delta;
+
+            prev_subtotals
+                .iter_mut()
+                .skip(tail_index + 1)
+                .for_each(|subtotal| {
+                    *subtotal += tail_adjustment;
+                });
+        }
+
+        for (index, item) in cat_spends.iter().enumerate() {
             // Find information of neighboring coins on the ring.
             let prev = &cat_spends[if index == 0 { len - 1 } else { index - 1 }];
             let next = &cat_spends[if index == len - 1 { 0 } else { index + 1 }];
 
-            cat.spend(
+            let next_inner_puzzle_hash = next.cat.info.inner_puzzle_hash();
+
+            item.cat.spend(
                 ctx,
                 SingleCatSpend {
-                    inner_spend: *inner_spend,
+                    p2_spend: item.spend,
                     prev_coin_id: prev.cat.coin.coin_id(),
                     next_coin_proof: CoinProof {
                         parent_coin_info: next.cat.coin.parent_coin_info,
-                        inner_puzzle_hash: ctx.tree_hash(next.inner_spend.puzzle).into(),
+                        inner_puzzle_hash: next_inner_puzzle_hash.into(),
                         amount: next.cat.coin.amount,
                     },
-                    prev_subtotal: prev_subtotal.try_into()?,
-                    extra_delta: *extra_delta,
+                    prev_subtotal: prev_subtotals[index].try_into()?,
+                    // If the TAIL was revealed, we need to add the extra delta needed to net the spend to zero
+                    extra_delta: if run_tail_index.is_some_and(|i| i == index) {
+                        -total_delta.try_into()?
+                    } else {
+                        0
+                    },
+                    revoke: item.hidden,
                 },
             )?;
         }
 
-        Ok(())
+        Ok(children)
     }
 
-    /// Creates a coin spend for this CAT.
-    pub fn spend(&self, ctx: &mut SpendContext, spend: SingleCatSpend) -> Result<(), DriverError> {
-        let cat_layer = CatLayer::new(self.asset_id, spend.inner_spend.puzzle);
+    /// Spends this CAT coin with the provided solution parameters. Other parameters are inferred from
+    /// the [`Cat`] instance.
+    ///
+    /// This is useful if you have already calculated the conditions and want to spend the coin directly.
+    /// However, it's more common to use [`Cat::spend_all`] which handles the details of calculating the
+    /// solution (including ring announcements) for multiple CATs and spending them all at once.
+    pub fn spend(&self, ctx: &mut SpendContext, info: SingleCatSpend) -> Result<(), DriverError> {
+        let mut spend = info.p2_spend;
 
-        let puzzle = cat_layer.construct_puzzle(ctx)?;
-        let solution = cat_layer.construct_solution(
+        if let Some(hidden_puzzle_hash) = self.info.hidden_puzzle_hash {
+            spend = RevocationLayer::new(hidden_puzzle_hash, self.info.p2_puzzle_hash)
+                .construct_spend(
+                    ctx,
+                    RevocationSolution::new(info.revoke, spend.puzzle, spend.solution),
+                )?;
+        }
+
+        spend = CatLayer::new(self.info.asset_id, spend.puzzle).construct_spend(
             ctx,
             CatSolution {
                 lineage_proof: self.lineage_proof,
-                prev_coin_id: spend.prev_coin_id,
+                inner_puzzle_solution: spend.solution,
+                prev_coin_id: info.prev_coin_id,
                 this_coin_info: self.coin,
-                next_coin_proof: spend.next_coin_proof,
-                prev_subtotal: spend.prev_subtotal,
-                extra_delta: spend.extra_delta,
-                inner_puzzle_solution: spend.inner_spend.solution,
+                next_coin_proof: info.next_coin_proof,
+                extra_delta: info.extra_delta,
+                prev_subtotal: info.prev_subtotal,
             },
         )?;
 
-        ctx.spend(self.coin, Spend::new(puzzle, solution))
+        ctx.spend(self.coin, spend)?;
+
+        Ok(())
     }
 
-    /// Returns the lineage proof that would be used by each child.
+    /// Creates a [`LineageProof`] for which would be valid for any children created by this [`Cat`].
     pub fn child_lineage_proof(&self) -> LineageProof {
         LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
-            parent_inner_puzzle_hash: self.p2_puzzle_hash,
+            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
             parent_amount: self.coin.amount,
         }
     }
 
-    /// Creates a wrapped spendable CAT for a given output.
-    #[must_use]
-    pub fn wrapped_child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
-        let puzzle_hash = CatArgs::curry_tree_hash(self.asset_id, p2_puzzle_hash.into());
+    /// Creates a new [`Cat`] that represents a child of this one.
+    /// The child will have the same revocation layer (or lack thereof) as the current [`Cat`].
+    ///
+    /// If you need to construct a child without the revocation layer, use [`Cat::unrevocable_child`].
+    pub fn child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
+        self.child_with(
+            CatInfo {
+                p2_puzzle_hash,
+                ..self.info
+            },
+            amount,
+        )
+    }
+
+    /// Creates a new [`Cat`] that represents a child of this one.
+    /// The child will not have a revocation layer.
+    ///
+    /// If you need to construct a child with the same revocation layer, use [`Cat::child`].
+    pub fn unrevocable_child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
+        self.child_with(
+            CatInfo {
+                p2_puzzle_hash,
+                hidden_puzzle_hash: None,
+                ..self.info
+            },
+            amount,
+        )
+    }
+
+    /// Creates a new [`Cat`] that represents a child of this one.
+    ///
+    /// You can specify the [`CatInfo`] to use for the child manually.
+    /// In most cases, you will want to use [`Cat::child`] or [`Cat::unrevocable_child`] instead.
+    pub fn child_with(&self, info: CatInfo, amount: u64) -> Self {
         Self {
-            coin: Coin::new(self.coin.coin_id(), puzzle_hash.into(), amount),
+            coin: Coin::new(self.coin.coin_id(), info.puzzle_hash().into(), amount),
             lineage_proof: Some(self.child_lineage_proof()),
-            asset_id: self.asset_id,
-            p2_puzzle_hash,
+            info,
         }
     }
-}
 
-impl Cat {
+    /// Parses a [`Cat`] and its p2 spend from a coin spend by extracting the [`CatLayer`] and [`RevocationLayer`] if present.
+    ///
+    /// If the puzzle is not a CAT, this will return [`None`] instead of an error.
+    /// However, if the puzzle should have been a CAT but had a parsing error, this will return an error.
+    pub fn parse(
+        allocator: &Allocator,
+        coin: Coin,
+        puzzle: Puzzle,
+        solution: NodePtr,
+    ) -> Result<Option<(Self, Puzzle, NodePtr)>, DriverError> {
+        let Some(cat_layer) = CatLayer::<Puzzle>::parse_puzzle(allocator, puzzle)? else {
+            return Ok(None);
+        };
+        let cat_solution = CatLayer::<Puzzle>::parse_solution(allocator, solution)?;
+
+        if let Some(revocation_layer) =
+            RevocationLayer::parse_puzzle(allocator, cat_layer.inner_puzzle)?
+        {
+            let revocation_solution =
+                RevocationLayer::parse_solution(allocator, cat_solution.inner_puzzle_solution)?;
+
+            let info = Self::new(
+                coin,
+                cat_solution.lineage_proof,
+                CatInfo::new(
+                    cat_layer.asset_id,
+                    Some(revocation_layer.hidden_puzzle_hash),
+                    revocation_layer.inner_puzzle_hash,
+                ),
+            );
+
+            Ok(Some((
+                info,
+                Puzzle::parse(allocator, revocation_solution.puzzle),
+                revocation_solution.solution,
+            )))
+        } else {
+            let info = Self::new(
+                coin,
+                cat_solution.lineage_proof,
+                CatInfo::new(
+                    cat_layer.asset_id,
+                    None,
+                    cat_layer.inner_puzzle.curried_puzzle_hash().into(),
+                ),
+            );
+
+            Ok(Some((
+                info,
+                cat_layer.inner_puzzle,
+                cat_solution.inner_puzzle_solution,
+            )))
+        }
+    }
+
+    /// Parses the children of a [`Cat`] from the parent coin spend.
+    ///
+    /// This can be used to construct a valid spendable [`Cat`] for a hinted coin.
+    /// You simply need to look up the parent coin's spend, parse the children, and
+    /// find the one that matches the hinted coin.
+    ///
+    /// There is special handling for the revocation layer.
+    /// See [`Cat::child_from_p2_create_coin`] for more details.
     pub fn parse_children(
         allocator: &mut Allocator,
         parent_coin: Coin,
         parent_puzzle: Puzzle,
         parent_solution: NodePtr,
-    ) -> Result<Option<Vec<Self>>, DriverError>
-    where
-        Self: Sized,
-    {
+    ) -> Result<Option<Vec<Self>>, DriverError> {
         let Some(parent_layer) = CatLayer::<Puzzle>::parse_puzzle(allocator, parent_puzzle)? else {
             return Ok(None);
         };
         let parent_solution = CatLayer::<Puzzle>::parse_solution(allocator, parent_solution)?;
 
-        let output = run_puzzle(
-            allocator,
+        let mut hidden_puzzle_hash = None;
+        let mut p2_puzzle_hash = parent_layer.inner_puzzle.curried_puzzle_hash().into();
+        let mut inner_spend = Spend::new(
             parent_layer.inner_puzzle.ptr(),
             parent_solution.inner_puzzle_solution,
-        )?;
+        );
+        let mut revoke = false;
+
+        if let Some(revocation_layer) =
+            RevocationLayer::parse_puzzle(allocator, parent_layer.inner_puzzle)?
+        {
+            hidden_puzzle_hash = Some(revocation_layer.hidden_puzzle_hash);
+            p2_puzzle_hash = revocation_layer.inner_puzzle_hash;
+
+            let revocation_solution =
+                RevocationLayer::parse_solution(allocator, parent_solution.inner_puzzle_solution)?;
+
+            inner_spend = Spend::new(revocation_solution.puzzle, revocation_solution.solution);
+            revoke = revocation_solution.hidden;
+        }
+
+        let cat = Cat::new(
+            parent_coin,
+            parent_solution.lineage_proof,
+            CatInfo::new(parent_layer.asset_id, hidden_puzzle_hash, p2_puzzle_hash),
+        );
+
+        let output = run_puzzle(allocator, inner_spend.puzzle, inner_spend.solution)?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
         let outputs = conditions
             .into_iter()
             .filter_map(Condition::into_create_coin)
-            .map(|create_coin| {
-                // Calculate what the wrapped puzzle hash would be for the created coin.
-                // This is because we're running the inner layer.
-                let wrapped_puzzle_hash =
-                    CatArgs::curry_tree_hash(parent_layer.asset_id, create_coin.puzzle_hash.into());
-
-                Self {
-                    coin: Coin::new(
-                        parent_coin.coin_id(),
-                        wrapped_puzzle_hash.into(),
-                        create_coin.amount,
-                    ),
-                    lineage_proof: Some(LineageProof {
-                        parent_parent_coin_info: parent_coin.parent_coin_info,
-                        parent_inner_puzzle_hash: parent_layer
-                            .inner_puzzle
-                            .curried_puzzle_hash()
-                            .into(),
-                        parent_amount: parent_coin.amount,
-                    }),
-                    asset_id: parent_layer.asset_id,
-                    p2_puzzle_hash: create_coin.puzzle_hash,
-                }
-            })
+            .map(|create_coin| cat.child_from_p2_create_coin(allocator, create_coin, revoke))
             .collect();
 
         Ok(Some(outputs))
+    }
+
+    /// Creates a new [`Cat`] that reflects the create coin condition in the p2 spend's conditions.
+    ///
+    /// There is special handling for the revocation layer:
+    /// 1. If there is no revocation layer for the parent, the child will not have one either.
+    /// 2. If the parent was not revoked, the child will have the same revocation layer.
+    /// 3. If the parent was revoked, the child will not have a revocation layer.
+    /// 4. If the parent was revoked, and the child was hinted (and wrapped with the revocation layer), it will detect it.
+    pub fn child_from_p2_create_coin(
+        &self,
+        allocator: &Allocator,
+        create_coin: CreateCoin<NodePtr>,
+        revoke: bool,
+    ) -> Self {
+        // Child with the same hidden puzzle hash as the parent
+        let child = self.child(create_coin.puzzle_hash, create_coin.amount);
+
+        // If the parent is not revocable, we don't need to add a revocation layer
+        let Some(hidden_puzzle_hash) = self.info.hidden_puzzle_hash else {
+            return child;
+        };
+
+        // If we're not doing a revocation spend, we know it's wrapped in the same revocation layer
+        if !revoke {
+            return child;
+        }
+
+        // Child without a hidden puzzle hash but with the create coin puzzle hash as the p2 puzzle hash
+        let unrevocable_child = self.unrevocable_child(create_coin.puzzle_hash, create_coin.amount);
+
+        // If the hint is missing, just assume the child doesn't have a hidden puzzle hash
+        let Memos::Some(memos) = create_coin.memos else {
+            return unrevocable_child;
+        };
+
+        let Some((hint, _)) = <(Bytes32, NodePtr)>::from_clvm(allocator, memos).ok() else {
+            return unrevocable_child;
+        };
+
+        // If the hint wrapped in the revocation layer of the parent matches the create coin's puzzle hash,
+        // then we know that the hint is the p2 puzzle hash and the child has the same revocation layer as the parent
+        if create_coin.puzzle_hash
+            == RevocationLayer::new(hidden_puzzle_hash, hint)
+                .tree_hash()
+                .into()
+        {
+            return self.child(hint, create_coin.amount);
+        }
+
+        // Otherwise, we can't determine whether there is a revocation layer or not, so we will just assume it's unrevocable
+        // In practice, this should never happen while parsing a coin which is still spendable (not an ephemeral spend)
+        // If it does, a new hinting mechanism should be introduced in the future to accommodate this, but for now this is the best we can do
+        unrevocable_child
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use chia_consensus::gen::validation_error::ErrorCode;
+    use std::slice;
+
     use chia_puzzle_types::cat::EverythingWithSignatureTailArgs;
-    use chia_sdk_test::{Simulator, SimulatorError};
+    use chia_sdk_test::Simulator;
+    use chia_sdk_types::{puzzles::RevocationArgs, Mod};
     use rstest::rstest;
 
     use crate::{SpendWithConditions, StandardLayer};
@@ -285,20 +543,20 @@ mod tests {
         let alice_p2 = StandardLayer::new(alice.pk);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, cat) = Cat::single_issuance_eve(
+        let (issue_cat, cats) = Cat::issue_with_coin(
             ctx,
             alice.coin.coin_id(),
             1,
-            Conditions::new().create_coin(alice.puzzle_hash, 1, Some(memos)),
+            Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
-        let cat = cat.wrapped_child(alice.puzzle_hash, 1);
-        assert_eq!(cat.p2_puzzle_hash, alice.puzzle_hash);
+        let cat = cats[0];
+        assert_eq!(cat.info.p2_puzzle_hash, alice.puzzle_hash);
         assert_eq!(
-            cat.asset_id,
+            cat.info.asset_id,
             GenesisByCoinIdTailArgs::curry_tree_hash(alice.coin.coin_id()).into()
         );
         assert!(sim.coin_state(cat.coin.coin_id()).is_some());
@@ -315,20 +573,20 @@ mod tests {
         let alice_p2 = StandardLayer::new(alice.pk);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, cat) = Cat::multi_issuance_eve(
+        let (issue_cat, cats) = Cat::issue_with_key(
             ctx,
             alice.coin.coin_id(),
             alice.pk,
             1,
-            Conditions::new().create_coin(alice.puzzle_hash, 1, Some(memos)),
+            Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
         sim.spend_coins(ctx.take(), &[alice.sk])?;
 
-        let cat = cat.wrapped_child(alice.puzzle_hash, 1);
-        assert_eq!(cat.p2_puzzle_hash, alice.puzzle_hash);
+        let cat = cats[0];
+        assert_eq!(cat.info.p2_puzzle_hash, alice.puzzle_hash);
         assert_eq!(
-            cat.asset_id,
+            cat.info.asset_id,
             EverythingWithSignatureTailArgs::curry_tree_hash(alice.pk).into()
         );
         assert!(sim.coin_state(cat.coin.coin_id()).is_some());
@@ -345,20 +603,20 @@ mod tests {
         let alice_p2 = StandardLayer::new(alice.pk);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, cat) = Cat::single_issuance_eve(
+        let (issue_cat, cats) = Cat::issue_with_coin(
             ctx,
             alice.coin.coin_id(),
             0,
-            Conditions::new().create_coin(alice.puzzle_hash, 0, Some(memos)),
+            Conditions::new().create_coin(alice.puzzle_hash, 0, memos),
         )?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
-        let cat = cat.wrapped_child(alice.puzzle_hash, 0);
-        assert_eq!(cat.p2_puzzle_hash, alice.puzzle_hash);
+        let cat = cats[0];
+        assert_eq!(cat.info.p2_puzzle_hash, alice.puzzle_hash);
         assert_eq!(
-            cat.asset_id,
+            cat.info.asset_id,
             GenesisByCoinIdTailArgs::curry_tree_hash(alice.coin.coin_id()).into()
         );
         assert!(sim.coin_state(cat.coin.coin_id()).is_some());
@@ -367,7 +625,7 @@ mod tests {
             cat,
             alice_p2.spend_with_conditions(
                 ctx,
-                Conditions::new().create_coin(alice.puzzle_hash, 0, Some(memos)),
+                Conditions::new().create_coin(alice.puzzle_hash, 0, memos),
             )?,
         );
         Cat::spend_all(ctx, &[cat_spend])?;
@@ -384,14 +642,16 @@ mod tests {
         let alice = sim.bls(1);
         let alice_p2 = StandardLayer::new(alice.pk);
 
-        let (issue_cat, _cat) =
-            Cat::single_issuance_eve(ctx, alice.coin.coin_id(), 1, Conditions::new())?;
+        let (issue_cat, _cats) =
+            Cat::issue_with_coin(ctx, alice.coin.coin_id(), 1, Conditions::new())?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
-        assert!(matches!(
-            sim.spend_coins(ctx.take(), &[alice.sk]).unwrap_err(),
-            SimulatorError::Validation(ErrorCode::AssertCoinAnnouncementFailed)
-        ));
+        assert_eq!(
+            sim.spend_coins(ctx.take(), &[alice.sk])
+                .unwrap_err()
+                .to_string(),
+            "Signer error: Eval error: Error at NodePtr(SmallAtom, 0): clvm raise"
+        );
 
         Ok(())
     }
@@ -405,18 +665,20 @@ mod tests {
         let alice_p2 = StandardLayer::new(alice.pk);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, _cat) = Cat::single_issuance_eve(
+        let (issue_cat, _cats) = Cat::issue_with_coin(
             ctx,
             alice.coin.coin_id(),
             1,
-            Conditions::new().create_coin(alice.puzzle_hash, 2, Some(memos)),
+            Conditions::new().create_coin(alice.puzzle_hash, 2, memos),
         )?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
-        assert!(matches!(
-            sim.spend_coins(ctx.take(), &[alice.sk]).unwrap_err(),
-            SimulatorError::Validation(ErrorCode::AssertCoinAnnouncementFailed)
-        ));
+        assert_eq!(
+            sim.spend_coins(ctx.take(), &[alice.sk])
+                .unwrap_err()
+                .to_string(),
+            "Signer error: Eval error: Error at NodePtr(SmallAtom, 0): clvm raise"
+        );
 
         Ok(())
     }
@@ -448,19 +710,14 @@ mod tests {
 
         let memos = ctx.hint(alice.puzzle_hash)?;
         for &amount in &amounts {
-            conditions = conditions.create_coin(alice.puzzle_hash, amount, Some(memos));
+            conditions = conditions.create_coin(alice.puzzle_hash, amount, memos);
         }
 
-        let (issue_cat, cat) =
-            Cat::single_issuance_eve(ctx, alice.coin.coin_id(), sum, conditions)?;
+        let (issue_cat, mut cats) =
+            Cat::issue_with_coin(ctx, alice.coin.coin_id(), sum, conditions)?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
-
-        let mut cats: Vec<Cat> = amounts
-            .into_iter()
-            .map(|amount| cat.wrapped_child(alice.puzzle_hash, amount))
-            .collect();
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         // Spend the CAT coins a few times.
         for _ in 0..3 {
@@ -474,21 +731,15 @@ mod tests {
                             Conditions::new().create_coin(
                                 alice.puzzle_hash,
                                 cat.coin.amount,
-                                Some(memos),
+                                memos,
                             ),
                         )?,
                     ))
                 })
                 .collect::<anyhow::Result<_>>()?;
 
-            Cat::spend_all(ctx, &cat_spends)?;
-            sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
-
-            // Update the cats to the children.
-            cats = cats
-                .into_iter()
-                .map(|cat| cat.wrapped_child(alice.puzzle_hash, cat.coin.amount))
-                .collect();
+            cats = Cat::spend_all(ctx, &cat_spends)?;
+            sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
         }
 
         Ok(())
@@ -508,34 +759,30 @@ mod tests {
 
         let memos = ctx.hint(alice.puzzle_hash)?;
         let custom_memos = ctx.hint(custom_p2_puzzle_hash)?;
-        let (issue_cat, cat) = Cat::single_issuance_eve(
+        let (issue_cat, cats) = Cat::issue_with_coin(
             ctx,
             alice.coin.coin_id(),
             2,
             Conditions::new()
-                .create_coin(alice.puzzle_hash, 1, Some(memos))
-                .create_coin(custom_p2_puzzle_hash, 1, Some(custom_memos)),
+                .create_coin(alice.puzzle_hash, 1, memos)
+                .create_coin(custom_p2_puzzle_hash, 1, custom_memos),
         )?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
-        sim.spend_coins(ctx.take(), &[alice.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
 
         let spends = [
             CatSpend::new(
-                cat.wrapped_child(alice.puzzle_hash, 1),
+                cats[0],
                 alice_p2.spend_with_conditions(
                     ctx,
-                    Conditions::new().create_coin(alice.puzzle_hash, 1, Some(memos)),
+                    Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
                 )?,
             ),
             CatSpend::new(
-                cat.wrapped_child(custom_p2_puzzle_hash, 1),
+                cats[1],
                 Spend::new(
                     custom_p2,
-                    ctx.alloc(&[CreateCoin::new(
-                        custom_p2_puzzle_hash,
-                        1,
-                        Some(custom_memos),
-                    )])?,
+                    ctx.alloc(&[CreateCoin::new(custom_p2_puzzle_hash, 1, custom_memos)])?,
                 ),
             ),
         ];
@@ -553,29 +800,197 @@ mod tests {
 
         let alice = sim.bls(10000);
         let alice_p2 = StandardLayer::new(alice.pk);
+        let hint = ctx.hint(alice.puzzle_hash)?;
 
-        let memos = ctx.hint(alice.puzzle_hash)?;
-        let conditions = Conditions::new().create_coin(alice.puzzle_hash, 10000, Some(memos));
-        let (issue_cat, cat) =
-            Cat::multi_issuance_eve(ctx, alice.coin.coin_id(), alice.pk, 10000, conditions)?;
+        let conditions = Conditions::new().create_coin(alice.puzzle_hash, 10000, hint);
+
+        let (issue_cat, cats) =
+            Cat::issue_with_key(ctx, alice.coin.coin_id(), alice.pk, 10000, conditions)?;
+
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
         let tail = ctx.curry(EverythingWithSignatureTailArgs::new(alice.pk))?;
 
-        let cat_spend = CatSpend::with_extra_delta(
-            cat.wrapped_child(alice.puzzle_hash, 10000),
+        let cat_spend = CatSpend::new(
+            cats[0],
             alice_p2.spend_with_conditions(
                 ctx,
                 Conditions::new()
-                    .create_coin(alice.puzzle_hash, 7000, Some(memos))
+                    .create_coin(alice.puzzle_hash, 7000, hint)
                     .run_cat_tail(tail, NodePtr::NIL),
             )?,
-            -3000,
         );
 
         Cat::spend_all(ctx, &[cat_spend])?;
 
         sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_cat_tail_reveal(
+        #[values(0, 1, 2)] tail_index: usize,
+        #[values(true, false)] melt: bool,
+    ) -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let ctx = &mut SpendContext::new();
+
+        let alice = sim.bls(15000);
+        let alice_p2 = StandardLayer::new(alice.pk);
+        let hint = ctx.hint(alice.puzzle_hash)?;
+
+        let conditions = Conditions::new()
+            .create_coin(alice.puzzle_hash, 3000, hint)
+            .create_coin(alice.puzzle_hash, 6000, hint)
+            .create_coin(alice.puzzle_hash, 1000, hint);
+
+        let (issue_cat, cats) =
+            Cat::issue_with_key(ctx, alice.coin.coin_id(), alice.pk, 10000, conditions)?;
+
+        alice_p2.spend(ctx, alice.coin, issue_cat)?;
+
+        let tail = ctx.curry(EverythingWithSignatureTailArgs::new(alice.pk))?;
+
+        let cat_spends = cats
+            .into_iter()
+            .enumerate()
+            .map(|(i, cat)| {
+                let mut conditions = Conditions::new();
+
+                // Add the TAIL reveal to the second spend, to ensure the order doesn't matter
+                if i == tail_index {
+                    conditions.push(RunCatTail::new(tail, NodePtr::NIL));
+
+                    if !melt {
+                        conditions.push(CreateCoin::new(alice.puzzle_hash, 15000, hint));
+                    }
+                }
+
+                Ok(CatSpend::new(
+                    cat,
+                    alice_p2.spend_with_conditions(ctx, conditions)?,
+                ))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        Cat::spend_all(ctx, &cat_spends)?;
+
+        sim.spend_coins(ctx.take(), &[alice.sk])?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_revocable_cat() -> anyhow::Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = sim.bls(10);
+        let alice_p2 = StandardLayer::new(alice.pk);
+
+        let bob = sim.bls(0);
+        let bob_p2 = StandardLayer::new(bob.pk);
+
+        let asset_id = EverythingWithSignatureTailArgs::curry_tree_hash(alice.pk).into();
+        let hint = ctx.hint(bob.puzzle_hash)?;
+
+        let (issue_cat, cats) = Cat::issue_revocable_with_key(
+            &mut ctx,
+            alice.coin.coin_id(),
+            alice.pk,
+            alice.puzzle_hash,
+            10,
+            Conditions::new().create_coin(bob.puzzle_hash, 10, hint),
+        )?;
+        alice_p2.spend(&mut ctx, alice.coin, issue_cat)?;
+
+        // Bob can spend the CAT because he owns it
+        let cat_spend = CatSpend::new(
+            cats[0],
+            bob_p2.spend_with_conditions(
+                &mut ctx,
+                Conditions::new().create_coin(bob.puzzle_hash, 10, hint),
+            )?,
+        );
+        let cats = Cat::spend_all(&mut ctx, &[cat_spend])?;
+
+        // But Alice can also spend (revoke) it because she owns the revocation key
+        let hint = ctx.hint(alice.puzzle_hash)?;
+
+        let revocable_puzzle_hash = RevocationArgs::new(alice.puzzle_hash, alice.puzzle_hash)
+            .curry_tree_hash()
+            .into();
+
+        let cat_spend = CatSpend::revoke(
+            cats[0],
+            alice_p2.spend_with_conditions(
+                &mut ctx,
+                Conditions::new()
+                    .create_coin(alice.puzzle_hash, 5, hint)
+                    .create_coin(revocable_puzzle_hash, 5, hint),
+            )?,
+        );
+
+        let cats = Cat::spend_all(&mut ctx, &[cat_spend])?;
+
+        // Validate the transaction
+        sim.spend_coins(ctx.take(), &[alice.sk.clone(), bob.sk.clone()])?;
+
+        // The first coin should exist and not be revocable
+        assert_ne!(sim.coin_state(cats[0].coin.coin_id()), None);
+        assert_eq!(cats[0].info.p2_puzzle_hash, alice.puzzle_hash);
+        assert_eq!(cats[0].info.asset_id, asset_id);
+        assert_eq!(cats[0].info.hidden_puzzle_hash, None);
+
+        // The second coin should exist and be revocable
+        assert_ne!(sim.coin_state(cats[1].coin.coin_id()), None);
+        assert_eq!(cats[1].info.p2_puzzle_hash, alice.puzzle_hash);
+        assert_eq!(cats[1].info.asset_id, asset_id);
+        assert_eq!(cats[1].info.hidden_puzzle_hash, Some(alice.puzzle_hash));
+
+        let lineage_proof = cats[0].lineage_proof;
+
+        let parent_spend = sim.coin_spend(cats[0].coin.parent_coin_info).unwrap();
+        let parent_puzzle = ctx.alloc(&parent_spend.puzzle_reveal)?;
+        let parent_puzzle = Puzzle::parse(&ctx, parent_puzzle);
+        let parent_solution = ctx.alloc(&parent_spend.solution)?;
+
+        let cats =
+            Cat::parse_children(&mut ctx, parent_spend.coin, parent_puzzle, parent_solution)?
+                .unwrap();
+
+        // The first coin should exist and not be revocable
+        assert_ne!(sim.coin_state(cats[0].coin.coin_id()), None);
+        assert_eq!(cats[0].info.p2_puzzle_hash, alice.puzzle_hash);
+        assert_eq!(cats[0].info.asset_id, asset_id);
+        assert_eq!(cats[0].info.hidden_puzzle_hash, None);
+
+        // The second coin should exist and be revocable
+        assert_ne!(sim.coin_state(cats[1].coin.coin_id()), None);
+        assert_eq!(cats[1].info.p2_puzzle_hash, alice.puzzle_hash);
+        assert_eq!(cats[1].info.asset_id, asset_id);
+        assert_eq!(cats[1].info.hidden_puzzle_hash, Some(alice.puzzle_hash));
+
+        assert_eq!(cats[0].lineage_proof, lineage_proof);
+
+        let cat_spends = cats
+            .into_iter()
+            .map(|cat| {
+                Ok(CatSpend::revoke(
+                    cat,
+                    alice_p2.spend_with_conditions(
+                        &mut ctx,
+                        Conditions::new().create_coin(alice.puzzle_hash, 5, hint),
+                    )?,
+                ))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        _ = Cat::spend_all(&mut ctx, &cat_spends)?;
+
+        // Validate the transaction
+        sim.spend_coins(ctx.take(), &[alice.sk, bob.sk])?;
 
         Ok(())
     }

@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use chia_consensus::gen::validation_error::{ErrorCode, ValidationErr};
+use chia_consensus::validation_error::{ErrorCode, ValidationErr};
 use chia_protocol::{
     Bytes, Bytes32, CoinState, CoinStateUpdate, Message, NewPeakWallet, ProtocolMessageTypes,
     PuzzleSolutionResponse, RegisterForCoinUpdates, RegisterForPhUpdates, RejectCoinState,
@@ -55,7 +55,6 @@ pub(crate) async fn ws_connection(
         while let Some(message) = rx.next().await {
             if let Err(error) = sink.send(message).await {
                 tracing::error!("error sending message to peer: {}", error);
-                continue;
             }
         }
     });
@@ -250,7 +249,7 @@ fn new_transaction(
 
         if coin_states.is_empty() {
             continue;
-        };
+        }
 
         peer_updates.insert(peer, coin_states);
     }

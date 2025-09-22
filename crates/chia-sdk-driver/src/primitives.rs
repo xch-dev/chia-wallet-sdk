@@ -1,23 +1,29 @@
 mod bulletin;
 mod cat;
 mod clawback;
+mod clawback_v2;
 mod did;
 mod intermediate_launcher;
 mod launcher;
 mod mips;
 mod nft;
-mod streamed_cat;
+mod option;
+mod singleton;
+mod streamed_asset;
 mod vault;
 
 pub use bulletin::*;
 pub use cat::*;
 pub use clawback::*;
+pub use clawback_v2::*;
 pub use did::*;
 pub use intermediate_launcher::*;
 pub use launcher::*;
 pub use mips::*;
 pub use nft::*;
-pub use streamed_cat::*;
+pub use option::*;
+pub use singleton::*;
+pub use streamed_asset::*;
 pub use vault::*;
 
 #[cfg(feature = "chip-0035")]
@@ -26,14 +32,8 @@ mod datalayer;
 #[cfg(feature = "chip-0035")]
 pub use datalayer::*;
 
-#[cfg(feature = "offers")]
-mod option;
+#[cfg(feature = "action-layer")]
+mod action_layer;
 
-#[cfg(feature = "offers")]
-pub use option::*;
-
-#[cfg(feature = "experimental-clawbacks")]
-mod clawback_v2;
-
-#[cfg(feature = "experimental-clawbacks")]
-pub use clawback_v2::*;
+#[cfg(feature = "action-layer")]
+pub use action_layer::*;

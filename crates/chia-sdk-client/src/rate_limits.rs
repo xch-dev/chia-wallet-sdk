@@ -1,7 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::LazyLock};
 
 use chia_protocol::ProtocolMessageTypes;
-use once_cell::sync::Lazy;
 
 #[derive(Debug, Clone)]
 pub struct RateLimits {
@@ -62,7 +61,7 @@ macro_rules! settings {
 }
 
 // TODO: Fix commented out rate limits.
-pub static V1_RATE_LIMITS: Lazy<RateLimits> = Lazy::new(|| RateLimits {
+pub static V1_RATE_LIMITS: LazyLock<RateLimits> = LazyLock::new(|| RateLimits {
     default_settings: RateLimit::new(100.0, 1024.0 * 1024.0, Some(100.0 * 1024.0 * 1024.0)),
     non_tx_frequency: 1000.0,
     non_tx_max_total_size: 100.0 * 1024.0 * 1024.0,
@@ -173,7 +172,7 @@ pub static V1_RATE_LIMITS: Lazy<RateLimits> = Lazy::new(|| RateLimits {
 
 // TODO: Fix commented out rate limits.
 // Also, why are these in tx?
-static V2_RATE_LIMIT_CHANGES: Lazy<RateLimits> = Lazy::new(|| RateLimits {
+static V2_RATE_LIMIT_CHANGES: LazyLock<RateLimits> = LazyLock::new(|| RateLimits {
     default_settings: RateLimit::new(100.0, 1024.0 * 1024.0, Some(100.0 * 1024.0 * 1024.0)),
     non_tx_frequency: 1000.0,
     non_tx_max_total_size: 100.0 * 1024.0 * 1024.0,
@@ -207,7 +206,7 @@ static V2_RATE_LIMIT_CHANGES: Lazy<RateLimits> = Lazy::new(|| RateLimits {
     },
 });
 
-pub static V2_RATE_LIMITS: Lazy<RateLimits> = Lazy::new(|| {
+pub static V2_RATE_LIMITS: LazyLock<RateLimits> = LazyLock::new(|| {
     let mut rate_limits = V1_RATE_LIMITS.clone();
     rate_limits.extend(&V2_RATE_LIMIT_CHANGES);
     rate_limits

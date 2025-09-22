@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-bindings"
-version = "0.23.0"
+version = "0.29.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Underlying implementation of chia-wallet-sdk bindings."
@@ -15,16 +15,18 @@ categories = { workspace = true }
 workspace = true
 
 [features]
-napi = []
+napi = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio"]
 wasm = []
-pyo3 = []
+pyo3 = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio"]
 
 [dependencies]
 chia-sdk-utils = { workspace = true }
-chia-sdk-driver = { workspace = true, features = ["offers"] }
+chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-layer"] }
 chia-sdk-coinset = { workspace = true, features = ["native-tls"] }
 chia-sdk-test = { workspace = true }
 chia-sdk-types = { workspace = true }
+chia-sdk-client = { workspace = true, optional = true, features = ["native-tls"] }
+chia-ssl = { workspace = true, optional = true }
 chia-protocol = { workspace = true }
 chia-consensus = { workspace = true }
 chia-bls = { workspace = true }
@@ -44,3 +46,4 @@ rand_chacha = { workspace = true }
 num-bigint = { workspace = true }
 paste = { workspace = true }
 clvm_tools_rs = { workspace = true }
+tokio = { workspace = true, features = ["sync"], optional = true }

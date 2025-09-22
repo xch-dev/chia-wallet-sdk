@@ -9,86 +9,181 @@
       "args": "Option<Program>"
     },
     "methods": {
+      "parse_cat_info": {
+        "return": "Option<ParsedCatInfo>"
+      },
       "parse_cat": {
+        "args": {
+          "coin": "Coin",
+          "solution": "Program"
+        },
         "return": "Option<ParsedCat>"
       },
       "parse_child_cats": {
         "args": {
           "parent_coin": "Coin",
-          "parent_puzzle": "Program",
           "parent_solution": "Program"
         },
         "return": "Option<Vec<Cat>>"
       },
+      "parse_nft_info": {
+        "return": "Option<ParsedNftInfo>"
+      },
       "parse_nft": {
+        "args": {
+          "coin": "Coin",
+          "solution": "Program"
+        },
         "return": "Option<ParsedNft>"
       },
       "parse_child_nft": {
         "args": {
           "parent_coin": "Coin",
-          "parent_puzzle": "Program",
           "parent_solution": "Program"
         },
         "return": "Option<Nft>"
       },
+      "parse_did_info": {
+        "return": "Option<ParsedDidInfo>"
+      },
       "parse_did": {
+        "args": {
+          "coin": "Coin",
+          "solution": "Program"
+        },
         "return": "Option<ParsedDid>"
       },
       "parse_child_did": {
         "args": {
           "parent_coin": "Coin",
-          "parent_puzzle": "Program",
           "parent_solution": "Program",
           "coin": "Coin"
         },
         "return": "Option<Did>"
       },
+      "parse_option_info": {
+        "return": "Option<ParsedOptionInfo>"
+      },
+      "parse_option": {
+        "args": {
+          "coin": "Coin",
+          "solution": "Program"
+        },
+        "return": "Option<ParsedOption>"
+      },
+      "parse_child_option": {
+        "args": {
+          "parent_coin": "Coin",
+          "parent_solution": "Program"
+        },
+        "return": "Option<OptionContract>"
+      },
       "parse_inner_streaming_puzzle": {
         "return": "Option<StreamingPuzzleInfo>"
       },
-      "parse_child_streamed_cat": {
+      "parse_child_clawbacks": {
         "args": {
-          "parent_coin": "Coin",
-          "parent_puzzle": "Program",
           "parent_solution": "Program"
         },
-        "return": "StreamedCatParsingResult"
+        "return": "Option<Vec<Clawback>>"
       }
     }
   },
-  "StreamedCatParsingResult": {
+  "StreamedAssetParsingResult": {
     "type": "class",
     "new": true,
     "fields": {
-      "streamed_cat": "Option<StreamedCat>",
+      "streamed_asset": "Option<StreamedAsset>",
       "last_spend_was_clawback": "bool",
       "last_payment_amount_if_clawback": "u64"
     }
   },
   "Cat": {
     "type": "class",
+    "remote": true,
     "new": true,
     "fields": {
       "coin": "Coin",
       "lineage_proof": "Option<LineageProof>",
+      "info": "CatInfo"
+    },
+    "methods": {
+      "child_lineage_proof": {
+        "return": "LineageProof"
+      },
+      "child": {
+        "args": {
+          "p2_puzzle_hash": "Bytes32",
+          "amount": "u64"
+        },
+        "return": "Cat"
+      },
+      "unrevocable_child": {
+        "args": {
+          "p2_puzzle_hash": "Bytes32",
+          "amount": "u64"
+        },
+        "return": "Cat"
+      }
+    }
+  },
+  "CatInfo": {
+    "type": "class",
+    "remote": true,
+    "new": true,
+    "fields": {
       "asset_id": "Bytes32",
+      "hidden_puzzle_hash": "Option<Bytes32>",
       "p2_puzzle_hash": "Bytes32"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      }
     }
   },
   "CatSpend": {
     "type": "class",
-    "new": true,
     "fields": {
       "cat": "Cat",
-      "spend": "Spend"
+      "spend": "Spend",
+      "hidden": "bool"
+    },
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "cat": "Cat",
+          "spend": "Spend"
+        }
+      },
+      "revoke": {
+        "type": "factory",
+        "args": {
+          "cat": "Cat",
+          "spend": "Spend"
+        }
+      }
+    }
+  },
+  "ParsedCatInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "info": "CatInfo",
+      "p2_puzzle": "Option<Puzzle>"
     }
   },
   "ParsedCat": {
     "type": "class",
     "new": true,
     "fields": {
-      "asset_id": "Bytes32",
-      "p2_puzzle": "Puzzle"
+      "cat": "Cat",
+      "p2_puzzle": "Puzzle",
+      "p2_solution": "Program"
     }
   },
   "Nft": {
@@ -96,8 +191,27 @@
     "new": true,
     "fields": {
       "coin": "Coin",
-      "lineage_proof": "LineageProof",
+      "proof": "Proof",
       "info": "NftInfo"
+    },
+    "methods": {
+      "child_proof": {
+        "return": "Proof"
+      },
+      "child": {
+        "args": {
+          "p2_puzzle_hash": "Bytes32",
+          "current_owner": "Option<Bytes32>",
+          "metadata": "Program"
+        },
+        "return": "Nft"
+      },
+      "child_with": {
+        "args": {
+          "info": "NftInfo"
+        },
+        "return": "Nft"
+      }
     }
   },
   "NftInfo": {
@@ -109,11 +223,19 @@
       "metadata_updater_puzzle_hash": "Bytes32",
       "current_owner": "Option<Bytes32>",
       "royalty_puzzle_hash": "Bytes32",
-      "royalty_ten_thousandths": "u16",
+      "royalty_basis_points": "u16",
       "p2_puzzle_hash": "Bytes32"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      }
     }
   },
-  "ParsedNft": {
+  "ParsedNftInfo": {
     "type": "class",
     "new": true,
     "fields": {
@@ -121,9 +243,19 @@
       "p2_puzzle": "Puzzle"
     }
   },
+  "ParsedNft": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "nft": "Nft",
+      "p2_puzzle": "Puzzle",
+      "p2_solution": "Program"
+    }
+  },
   "NftMetadata": {
     "type": "class",
     "new": true,
+    "remote": true,
     "fields": {
       "edition_number": "u64",
       "edition_total": "u64",
@@ -143,16 +275,8 @@
       "metadata_updater_puzzle_hash": "Bytes32",
       "p2_puzzle_hash": "Bytes32",
       "royalty_puzzle_hash": "Bytes32",
-      "royalty_ten_thousandths": "u16",
-      "owner": "Option<DidOwner>"
-    }
-  },
-  "DidOwner": {
-    "type": "class",
-    "new": true,
-    "fields": {
-      "did_id": "Bytes32",
-      "inner_puzzle_hash": "Bytes32"
+      "royalty_basis_points": "u16",
+      "transfer_condition": "Option<TransferNft>"
     }
   },
   "MintedNfts": {
@@ -168,8 +292,26 @@
     "new": true,
     "fields": {
       "coin": "Coin",
-      "lineage_proof": "LineageProof",
+      "proof": "Proof",
       "info": "DidInfo"
+    },
+    "methods": {
+      "child_proof": {
+        "return": "Proof"
+      },
+      "child": {
+        "args": {
+          "p2_puzzle_hash": "Bytes32",
+          "metadata": "Program"
+        },
+        "return": "Did"
+      },
+      "child_with": {
+        "args": {
+          "info": "DidInfo"
+        },
+        "return": "Did"
+      }
     }
   },
   "DidInfo": {
@@ -181,14 +323,229 @@
       "num_verifications_required": "u64",
       "metadata": "Program",
       "p2_puzzle_hash": "Bytes32"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      }
+    }
+  },
+  "ParsedDidInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "info": "DidInfo",
+      "p2_puzzle": "Puzzle"
     }
   },
   "ParsedDid": {
     "type": "class",
     "new": true,
     "fields": {
-      "info": "DidInfo",
+      "did": "Did",
+      "p2_spend": "Option<ParsedDidSpend>"
+    }
+  },
+  "ParsedDidSpend": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "puzzle": "Puzzle",
+      "solution": "Program"
+    }
+  },
+  "CreatedDid": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "did": "Did",
+      "parent_conditions": "Vec<Program>"
+    }
+  },
+  "OptionContract": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "proof": "Proof",
+      "info": "OptionInfo"
+    },
+    "child_proof": {
+      "return": "Proof"
+    },
+    "child": {
+      "args": {
+        "p2_puzzle_hash": "Bytes32"
+      },
+      "return": "OptionContract"
+    },
+    "child_with": {
+      "args": {
+        "info": "OptionInfo"
+      },
+      "return": "OptionContract"
+    }
+  },
+  "OptionInfo": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "underlying_coin_id": "Bytes32",
+      "underlying_delegated_puzzle_hash": "Bytes32",
+      "p2_puzzle_hash": "Bytes32"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      }
+    }
+  },
+  "ParsedOptionInfo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "info": "OptionInfo",
       "p2_puzzle": "Puzzle"
+    }
+  },
+  "ParsedOption": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "option": "OptionContract",
+      "p2_puzzle": "Puzzle",
+      "p2_solution": "Program"
+    }
+  },
+  "OptionUnderlying": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "creator_puzzle_hash": "Bytes32",
+      "seconds": "u64",
+      "amount": "u64",
+      "strike_type": "OptionType"
+    },
+    "methods": {
+      "exercise_spend": {
+        "args": {
+          "clvm": "Clvm",
+          "singleton_inner_puzzle_hash": "Bytes32",
+          "singleton_amount": "u64"
+        },
+        "return": "Spend"
+      },
+      "clawback_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "delegated_puzzle_hash": {
+        "return": "TreeHash"
+      }
+    }
+  },
+  "OptionMetadata": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "expiration_seconds": "u64",
+      "strike_type": "OptionType"
+    }
+  },
+  "OptionType": {
+    "type": "class",
+    "remote": true,
+    "methods": {
+      "xch": {
+        "type": "factory",
+        "args": {
+          "amount": "u64"
+        },
+        "return": "OptionType"
+      },
+      "cat": {
+        "type": "factory",
+        "args": {
+          "asset_id": "Bytes32",
+          "amount": "u64"
+        },
+        "return": "OptionType"
+      },
+      "revocable_cat": {
+        "type": "factory",
+        "args": {
+          "asset_id": "Bytes32",
+          "hidden_puzzle_hash": "Bytes32",
+          "amount": "u64"
+        },
+        "return": "OptionType"
+      },
+      "nft": {
+        "type": "factory",
+        "args": {
+          "launcher_id": "Bytes32",
+          "settlement_puzzle_hash": "Bytes32",
+          "amount": "u64"
+        },
+        "return": "OptionType"
+      },
+      "to_xch": {
+        "return": "Option<OptionTypeXch>"
+      },
+      "to_cat": {
+        "return": "Option<OptionTypeCat>"
+      },
+      "to_revocable_cat": {
+        "return": "Option<OptionTypeRevocableCat>"
+      },
+      "to_nft": {
+        "return": "Option<OptionTypeNft>"
+      }
+    }
+  },
+  "OptionTypeXch": {
+    "type": "class",
+    "fields": {
+      "amount": "u64"
+    }
+  },
+  "OptionTypeCat": {
+    "type": "class",
+    "fields": {
+      "asset_id": "Bytes32",
+      "amount": "u64"
+    }
+  },
+  "OptionTypeRevocableCat": {
+    "type": "class",
+    "fields": {
+      "asset_id": "Bytes32",
+      "hidden_puzzle_hash": "Bytes32",
+      "amount": "u64"
+    }
+  },
+  "OptionTypeNft": {
+    "type": "class",
+    "fields": {
+      "launcher_id": "Bytes32",
+      "settlement_puzzle_hash": "Bytes32",
+      "amount": "u64"
     }
   },
   "standard_puzzle_hash": {
@@ -209,6 +566,7 @@
   "StreamingPuzzleInfo": {
     "type": "class",
     "new": true,
+    "remote": true,
     "fields": {
       "recipient": "Bytes32",
       "clawback_ph": "Option<Bytes32>",
@@ -245,14 +603,174 @@
       }
     }
   },
-  "StreamedCat": {
+  "StreamedAsset": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "coin": "Coin",
+      "asset_id": "Option<Bytes32>",
+      "proof": "Option<LineageProof>",
+      "info": "StreamingPuzzleInfo"
+    },
+    "methods": {
+      "xch": {
+        "type": "factory",
+        "args": {
+          "coin": "Coin",
+          "info": "StreamingPuzzleInfo"
+        }
+      },
+      "cat": {
+        "type": "factory",
+        "args": {
+          "coin": "Coin",
+          "asset_id": "Bytes32",
+          "proof": "LineageProof",
+          "info": "StreamingPuzzleInfo"
+        }
+      }
+    }
+  },
+  "ClawbackV2": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "sender_puzzle_hash": "Bytes32",
+      "receiver_puzzle_hash": "Bytes32",
+      "seconds": "u64",
+      "amount": "u64",
+      "hinted": "bool"
+    },
+    "methods": {
+      "from_memo": {
+        "type": "static",
+        "args": {
+          "memo": "Program",
+          "receiver_puzzle_hash": "Bytes32",
+          "amount": "u64",
+          "hinted": "bool",
+          "expected_puzzle_hash": "Bytes32"
+        },
+        "return": "Option<ClawbackV2>"
+      },
+      "sender_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "receiver_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "push_through_spend": {
+        "args": {
+          "clvm": "Clvm"
+        },
+        "return": "Spend"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "memo": {
+        "args": {
+          "clvm": "Clvm"
+        },
+        "return": "Program"
+      }
+    }
+  },
+  "Clawback": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "timelock": "u64",
+      "sender_puzzle_hash": "Bytes32",
+      "receiver_puzzle_hash": "Bytes32"
+    },
+    "methods": {
+      "sender_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "receiver_spend": {
+        "args": {
+          "spend": "Spend"
+        },
+        "return": "Spend"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "get_remark_condition": {
+        "args": {
+          "clvm": "Clvm"
+        },
+        "return": "Remark"
+      }
+    }
+  },
+  "MedievalVaultHint": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "my_launcher_id": "Bytes32",
+      "m": "usize",
+      "public_key_list": "Vec<PublicKey>"
+    }
+  },
+  "MedievalVaultInfo": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "m": "usize",
+      "public_key_list": "Vec<PublicKey>"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "return": "TreeHash"
+      },
+      "from_hint": {
+        "type": "static",
+        "args": {
+          "hint": "MedievalVaultHint"
+        },
+        "return": "MedievalVaultInfo"
+      },
+      "to_hint": {
+        "return": "MedievalVaultHint"
+      }
+    }
+  },
+  "MedievalVault": {
     "type": "class",
     "new": true,
     "fields": {
       "coin": "Coin",
-      "asset_id": "Bytes32",
-      "proof": "LineageProof",
-      "info": "StreamingPuzzleInfo"
+      "proof": "Proof",
+      "info": "MedievalVaultInfo"
+    },
+    "methods": {
+      "child": {
+        "args": {
+          "new_m": "usize",
+          "new_public_key_list": "Vec<PublicKey>"
+        },
+        "return": "MedievalVault"
+      }
     }
   }
 }

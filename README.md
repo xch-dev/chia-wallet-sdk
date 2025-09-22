@@ -9,7 +9,7 @@ This is a library for building applications that need to interact with coins on 
 
 ## Getting Started
 
-To learn more about developing applications on Chia, or the bindings provided for other languages, I'd recommend reading the [Wallet SDK book](https://xch-dev.github.io/chia-wallet-sdk/).
+To learn more about developing applications on Chia, I'd recommend reading [xch.dev](https://xch.dev).
 
 There are also [Rust docs](https://docs.rs/chia-wallet-sdk/latest/chia_wallet_sdk) will get you going with the crate, and assume you are already familiar with Rust and Chia's coin set model.
 
@@ -19,4 +19,5 @@ Special thanks to:
 
 - [SumSet Tech, LLC](https://sumset.tech) for sponsoring the initial development of the Wallet SDK
 - [Solomons Lot](https://solslot.com) for sponsoring the WASM bindings
+- [FireAcademy.io](https://www.fireacademy.io/)
 - All of the open source contributors who have helped it get this far

@@ -403,7 +403,7 @@ pub(crate) fn impl_conditions(input: TokenStream) -> TokenStream {
 
             pub use nfts::*;
             pub use agg_sig::*;
-            pub use memos::*;
+            pub use chia_puzzle_types::Memos;
         }
 
         #( #impls )*

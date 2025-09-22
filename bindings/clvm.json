@@ -44,6 +44,13 @@
         },
         "return": "Program"
       },
+      "alloc": {
+        "stub_only": true,
+        "args": {
+          "value": "ClvmType"
+        },
+        "return": "Program"
+      },
       "pair": {
         "args": {
           "first": "Program",
@@ -57,6 +64,12 @@
       "int": {
         "args": {
           "value": "BigInt"
+        },
+        "return": "Program"
+      },
+      "bound_checked_number": {
+        "args": {
+          "value": "f64"
         },
         "return": "Program"
       },
@@ -104,10 +117,23 @@
           "spend": "Spend"
         }
       },
-      "spend_cat_coins": {
+      "settlement_spend": {
+        "args": {
+          "notarized_payments": "Vec<NotarizedPayment>"
+        },
+        "return": "Spend"
+      },
+      "spend_settlement_coin": {
+        "args": {
+          "coin": "Coin",
+          "notarized_payments": "Vec<NotarizedPayment>"
+        }
+      },
+      "spend_cats": {
         "args": {
           "cat_spends": "Vec<CatSpend>"
-        }
+        },
+        "return": "Vec<Cat>"
       },
       "mint_nfts": {
         "args": {
@@ -120,17 +146,33 @@
         "args": {
           "nft": "Nft",
           "inner_spend": "Spend"
-        }
+        },
+        "return": "Nft"
+      },
+      "create_eve_did": {
+        "args": {
+          "parent_coin_id": "Bytes32",
+          "p2_puzzle_hash": "Bytes32"
+        },
+        "return": "CreatedDid"
       },
       "spend_did": {
         "args": {
           "did": "Did",
           "inner_spend": "Spend"
-        }
+        },
+        "return": "Option<Did>"
       },
-      "spend_streamed_cat": {
+      "spend_option": {
         "args": {
-          "streamed_cat": "StreamedCat",
+          "option": "OptionContract",
+          "inner_spend": "Spend"
+        },
+        "return": "Option<OptionContract>"
+      },
+      "spend_streamed_asset": {
+        "args": {
+          "streamed_asset": "StreamedAsset",
           "payment_time": "u64",
           "clawback": "bool"
         }
@@ -153,6 +195,54 @@
       "nft_metadata": {
         "args": {
           "value": "NftMetadata"
+        },
+        "return": "Program"
+      },
+      "mips_memo": {
+        "args": {
+          "value": "MipsMemo"
+        },
+        "return": "Program"
+      },
+      "inner_puzzle_memo": {
+        "args": {
+          "value": "InnerPuzzleMemo"
+        },
+        "return": "Program"
+      },
+      "restriction_memo": {
+        "args": {
+          "value": "RestrictionMemo"
+        },
+        "return": "Program"
+      },
+      "wrapper_memo": {
+        "args": {
+          "value": "WrapperMemo"
+        },
+        "return": "Program"
+      },
+      "force_1_of_2_restricted_variable_memo": {
+        "args": {
+          "value": "Force1of2RestrictedVariableMemo"
+        },
+        "return": "Program"
+      },
+      "memo_kind": {
+        "args": {
+          "value": "MemoKind"
+        },
+        "return": "Program"
+      },
+      "member_memo": {
+        "args": {
+          "value": "MemberMemo"
+        },
+        "return": "Program"
+      },
+      "m_of_n_memo": {
+        "args": {
+          "value": "MofNMemo"
         },
         "return": "Program"
       },
@@ -377,6 +467,158 @@
           "rest": "Program"
         },
         "return": "Program"
+      },
+      "melt_singleton": {
+        "return": "Program"
+      },
+      "transfer_nft": {
+        "args": {
+          "launcher_id": "Option<Bytes32>",
+          "trade_prices": "Vec<TradePrice>",
+          "singleton_inner_puzzle_hash": "Option<Bytes32>"
+        },
+        "return": "Program"
+      },
+      "run_cat_tail": {
+        "args": {
+          "program": "Program",
+          "solution": "Program"
+        },
+        "return": "Program"
+      },
+      "update_nft_metadata": {
+        "args": {
+          "updater_puzzle_reveal": "Program",
+          "updater_solution": "Program"
+        },
+        "return": "Program"
+      },
+      "update_data_store_merkle_root": {
+        "args": {
+          "new_merkle_root": "Bytes32",
+          "memos": "Vec<Bytes>"
+        },
+        "return": "Program"
+      },
+      "parse_child_streamed_asset": {
+        "args": {
+          "coin_spend": "CoinSpend"
+        },
+        "return": "StreamedAssetParsingResult"
+      },
+      "parse_child_medieval_vault": {
+        "args": {
+          "coin_spend": "CoinSpend"
+        },
+        "return": "Option<MedievalVault>"
+      },
+      "spend_medieval_vault": {
+        "args": {
+          "medieval_vault": "MedievalVault",
+          "used_pubkeys": "Vec<PublicKey>",
+          "conditions": "Vec<Program>",
+          "genesis_challenge": "Bytes32"
+        }
+      },
+      "spend_medieval_vault_unsafe": {
+        "args": {
+          "medieval_vault": "MedievalVault",
+          "used_pubkeys": "Vec<PublicKey>",
+          "delegated_spend": "Spend"
+        }
+      },
+      "medieval_vault_rekey_delegated_puzzle": {
+        "args": {
+          "launcher_id": "Bytes32",
+          "new_m": "usize",
+          "new_pubkeys": "Vec<PublicKey>",
+          "coin_id": "Bytes32",
+          "genesis_challenge": "Bytes32"
+        },
+        "return": "Program"
+      },
+      "medieval_vault_send_message_delegated_puzzle": {
+        "args": {
+          "message": "Bytes",
+          "receiver_launcher_id": "Bytes32",
+          "my_coin": "Coin",
+          "my_info": "MedievalVaultInfo",
+          "genesis_challenge": "Bytes32"
+        },
+        "return": "Program"
+      },
+      "reward_distributor_from_spend": {
+        "args": {
+          "spend": "CoinSpend",
+          "reserve_lineage_proof": "Option<LineageProof>",
+          "constants": "RewardDistributorConstants"
+        },
+        "return": "Option<RewardDistributor>"
+      },
+      "reward_distributor_from_parent_spend": {
+        "args": {
+          "parent_spend": "CoinSpend",
+          "constants": "RewardDistributorConstants"
+        },
+        "return": "Option<RewardDistributor>"
+      },
+      "reward_distributor_from_eve_coin_spend": {
+        "args": {
+          "constants": "RewardDistributorConstants",
+          "initial_state": "RewardDistributorState",
+          "eve_coin_spend": "CoinSpend",
+          "reserve_parent_id": "Bytes32",
+          "reserve_lineage_proof": "LineageProof"
+        },
+        "return": "Option<RewardDistributorInfoFromEveCoin>"
+      },
+      "launch_reward_distributor": {
+        "args": {
+          "offer": "SpendBundle",
+          "first_epoch_start": "u64",
+          "cat_refund_puzzle_hash": "Bytes32",
+          "constants": "RewardDistributorConstants",
+          "mainnet": "bool",
+          "comment": "String"
+        },
+        "return": "RewardDistributorLaunchResult"
+      },
+      "create_offer_security_coin": {
+        "args": {
+          "offer": "SpendBundle"
+        },
+        "return": "OfferSecurityCoinDetails"
+      },
+      "spend_offer_security_coin": {
+        "args": {
+          "security_coin_details": "OfferSecurityCoinDetails",
+          "conditions": "Vec<Program>",
+          "mainnet": "bool"
+        },
+        "return": "Signature"
+      },
+      "spend_settlement_nft": {
+        "args": {
+          "offer": "SpendBundle",
+          "nft_launcher_id": "Bytes32",
+          "nonce": "Bytes32",
+          "destination_puzzle_hash": "Bytes32"
+        },
+        "return": "SettlementNftSpendResult"
+      },
+      "offer_settlement_cats": {
+        "args": {
+          "offer": "SpendBundle",
+          "asset_id": "Bytes32"
+        },
+        "return": "Vec<Cat>"
+      },
+      "offer_settlement_nft": {
+        "args": {
+          "offer": "SpendBundle",
+          "nft_launcher_id": "Bytes32"
+        },
+        "return": "Option<Nft>"
       }
     }
   }

@@ -1,20 +1,38 @@
-use std::io::Read;
+use std::{io::Read, sync::LazyLock};
 
+use bech32::{u5, Variant};
+use chia_protocol::SpendBundle;
 use chia_puzzles::{
     CAT_PUZZLE, NFT_METADATA_UPDATER_DEFAULT, NFT_OWNERSHIP_LAYER,
     NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES, NFT_STATE_LAYER,
     P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE, SETTLEMENT_PAYMENT, SINGLETON_TOP_LAYER_V1_1,
 };
+use chia_traits::Streamable;
 use flate2::{
     read::{ZlibDecoder, ZlibEncoder},
     Compress, Compression, Decompress, FlushDecompress,
 };
 use hex_literal::hex;
-use once_cell::sync::Lazy;
 
-use crate::OfferError;
+use crate::DriverError;
 
-pub const CAT_PUZZLE_V1: [u8; 1420] = hex!(
+pub fn compress_offer(spend_bundle: &SpendBundle) -> Result<Vec<u8>, DriverError> {
+    compress_offer_bytes(&spend_bundle.to_bytes()?)
+}
+
+pub fn decompress_offer(bytes: &[u8]) -> Result<SpendBundle, DriverError> {
+    Ok(SpendBundle::from_bytes(&decompress_offer_bytes(bytes)?)?)
+}
+
+pub fn encode_offer(spend_bundle: &SpendBundle) -> Result<String, DriverError> {
+    encode_offer_data(&compress_offer(spend_bundle)?)
+}
+
+pub fn decode_offer(text: &str) -> Result<SpendBundle, DriverError> {
+    decompress_offer(&decode_offer_data(text)?)
+}
+
+const CAT_PUZZLE_V1: [u8; 1420] = hex!(
     "
     ff02ffff01ff02ff5effff04ff02ffff04ffff04ff05ffff04ffff0bff2cff05
     80ffff04ff0bff80808080ffff04ffff02ff17ff2f80ffff04ff5fffff04ffff
@@ -64,7 +82,7 @@ pub const CAT_PUZZLE_V1: [u8; 1420] = hex!(
     "
 );
 
-pub const SETTLEMENT_PAYMENT_V1: [u8; 267] = hex!(
+const SETTLEMENT_PAYMENT_V1: [u8; 267] = hex!(
     "
     ff02ffff01ff02ff0affff04ff02ffff04ff03ff80808080ffff04ffff01ffff
     333effff02ffff03ff05ffff01ff04ffff04ff0cffff04ffff02ff1effff04ff
@@ -78,7 +96,7 @@ pub const SETTLEMENT_PAYMENT_V1: [u8; 267] = hex!(
     "
 );
 
-static COMPRESSION_ZDICT: Lazy<Vec<u8>> = Lazy::new(|| {
+static COMPRESSION_ZDICT: LazyLock<Vec<u8>> = LazyLock::new(|| {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE);
     bytes.extend_from_slice(&CAT_PUZZLE_V1);
@@ -93,28 +111,28 @@ static COMPRESSION_ZDICT: Lazy<Vec<u8>> = Lazy::new(|| {
     bytes
 });
 
-pub fn compress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, OfferError> {
+pub fn compress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DriverError> {
     let mut output = 6u16.to_be_bytes().to_vec();
     output.extend(zlib_compress(bytes, &COMPRESSION_ZDICT)?);
     Ok(output)
 }
 
-pub fn decompress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, OfferError> {
+pub fn decompress_offer_bytes(bytes: &[u8]) -> Result<Vec<u8>, DriverError> {
     let version_bytes: [u8; 2] = bytes
         .get(0..2)
-        .ok_or(OfferError::MissingVersionPrefix)?
+        .ok_or(DriverError::MissingVersionPrefix)?
         .try_into()?;
 
     let version = u16::from_be_bytes(version_bytes);
 
     if version > 6 {
-        return Err(OfferError::UnsupportedVersion);
+        return Err(DriverError::UnsupportedVersion);
     }
 
     zlib_decompress(&bytes[2..], &COMPRESSION_ZDICT)
 }
 
-fn zlib_compress(input: &[u8], zdict: &[u8]) -> std::io::Result<Vec<u8>> {
+pub fn zlib_compress(input: &[u8], zdict: &[u8]) -> std::io::Result<Vec<u8>> {
     let mut compress = Compress::new(Compression::new(6), true);
     compress.set_dictionary(zdict)?;
     let mut encoder = ZlibEncoder::new_with_compress(input, compress);
@@ -123,14 +141,14 @@ fn zlib_compress(input: &[u8], zdict: &[u8]) -> std::io::Result<Vec<u8>> {
     Ok(output)
 }
 
-fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, OfferError> {
+pub fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DriverError> {
     let mut decompress = Decompress::new(true);
 
     if decompress
         .decompress(input, &mut [], FlushDecompress::Finish)
         .is_ok()
     {
-        return Err(OfferError::NotCompressed);
+        return Err(DriverError::NotCompressed);
     }
 
     decompress.set_dictionary(zdict)?;
@@ -141,12 +159,37 @@ fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, OfferError> {
     Ok(output)
 }
 
+pub fn encode_offer_data(offer: &[u8]) -> Result<String, DriverError> {
+    let data = bech32::convert_bits(offer, 8, 5, true)?
+        .into_iter()
+        .map(u5::try_from_u8)
+        .collect::<Result<Vec<_>, bech32::Error>>()?;
+    Ok(bech32::encode("offer", data, Variant::Bech32m)?)
+}
+
+pub fn decode_offer_data(offer: &str) -> Result<Vec<u8>, DriverError> {
+    let (hrp, data, variant) = bech32::decode(offer)?;
+
+    if variant != Variant::Bech32m {
+        return Err(DriverError::InvalidFormat);
+    }
+
+    if hrp.as_str() != "offer" {
+        return Err(DriverError::InvalidPrefix(hrp));
+    }
+
+    Ok(bech32::convert_bits(&data, 5, 8, false)?)
+}
+
 #[cfg(test)]
 mod tests {
     use chia_protocol::SpendBundle;
     use chia_traits::Streamable;
 
     use super::*;
+
+    const COMPRESSED_OFFER: &str = include_str!("./test_data/compressed.offer");
+    const DECOMPRESSED_OFFER: &str = include_str!("./test_data/decompressed.offer");
 
     #[test]
     fn test_compression() {
@@ -168,6 +211,11 @@ mod tests {
         SpendBundle::from_bytes(&decompressed_offer).unwrap();
     }
 
-    const COMPRESSED_OFFER: &str = include_str!("./test_data/compressed.offer");
-    const DECOMPRESSED_OFFER: &str = include_str!("./test_data/decompressed.offer");
+    #[test]
+    fn test_encode_decode_offer_data() {
+        let offer = b"hello world";
+        let encoded = encode_offer_data(offer).unwrap();
+        let decoded = decode_offer_data(&encoded).unwrap();
+        assert_eq!(offer, decoded.as_slice());
+    }
 }

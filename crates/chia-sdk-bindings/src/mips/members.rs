@@ -1,11 +1,11 @@
 use bindy::Result;
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
-use chia_sdk_driver::{member_puzzle_hash, MofN};
+use chia_sdk_driver::{mips_puzzle_hash, MofN};
 use chia_sdk_types::{
     puzzles::{
-        BlsMember, FixedPuzzleMember, PasskeyMember, PasskeyMemberPuzzleAssert, Secp256k1Member,
-        Secp256k1MemberPuzzleAssert, Secp256r1Member, Secp256r1MemberPuzzleAssert, SingletonMember,
+        BlsMember, FixedPuzzleMember, K1Member, K1MemberPuzzleAssert, PasskeyMember,
+        PasskeyMemberPuzzleAssert, R1Member, R1MemberPuzzleAssert, SingletonMember,
     },
     Mod,
 };
@@ -53,7 +53,7 @@ impl MemberConfig {
 }
 
 fn member_hash(config: MemberConfig, inner_hash: TreeHash) -> Result<TreeHash> {
-    Ok(member_puzzle_hash(
+    Ok(mips_puzzle_hash(
         config.nonce.try_into().unwrap(),
         convert_restrictions(config.restrictions),
         inner_hash,
@@ -76,9 +76,9 @@ pub fn k1_member_hash(
     member_hash(
         config,
         if fast_forward {
-            Secp256k1MemberPuzzleAssert::new(public_key.0).curry_tree_hash()
+            K1MemberPuzzleAssert::new(public_key.0).curry_tree_hash()
         } else {
-            Secp256k1Member::new(public_key.0).curry_tree_hash()
+            K1Member::new(public_key.0).curry_tree_hash()
         },
     )
 }
@@ -91,9 +91,9 @@ pub fn r1_member_hash(
     member_hash(
         config,
         if fast_forward {
-            Secp256r1MemberPuzzleAssert::new(public_key.0).curry_tree_hash()
+            R1MemberPuzzleAssert::new(public_key.0).curry_tree_hash()
         } else {
-            Secp256r1Member::new(public_key.0).curry_tree_hash()
+            R1Member::new(public_key.0).curry_tree_hash()
         },
     )
 }

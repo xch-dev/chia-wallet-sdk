@@ -1,0 +1,496 @@
+{
+  "Vault": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "proof": "Proof",
+      "info": "VaultInfo"
+    },
+    "methods": {
+      "child": {
+        "args": {
+          "custody_hash": "TreeHash",
+          "amount": "u64"
+        },
+        "return": "Vault"
+      }
+    }
+  },
+  "VaultInfo": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "custody_hash": "TreeHash"
+    }
+  },
+  "MemberConfig": {
+    "type": "class",
+    "fields": {
+      "top_level": "bool",
+      "nonce": "u32",
+      "restrictions": "Vec<Restriction>"
+    },
+    "methods": {
+      "new": {
+        "type": "constructor"
+      },
+      "with_top_level": {
+        "args": {
+          "top_level": "bool"
+        },
+        "return": "MemberConfig"
+      },
+      "with_nonce": {
+        "args": {
+          "nonce": "u32"
+        },
+        "return": "MemberConfig"
+      },
+      "with_restrictions": {
+        "args": {
+          "restrictions": "Vec<Restriction>"
+        },
+        "return": "MemberConfig"
+      }
+    }
+  },
+  "m_of_n_hash": {
+    "type": "function",
+    "args": {
+      "config": "MemberConfig",
+      "required": "u32",
+      "items": "Vec<TreeHash>"
+    },
+    "return": "TreeHash"
+  },
+  "k1_member_hash": {
+    "type": "function",
+    "args": {
+      "config": "MemberConfig",
+      "public_key": "K1PublicKey",
+      "fast_forward": "bool"
+    },
+    "return": "TreeHash"
+  },
+  "r1_member_hash": {
+    "type": "function",
+    "args": {
+      "config": "MemberConfig",
+      "public_key": "R1PublicKey",
+      "fast_forward": "bool"
+    },
+    "return": "TreeHash"
+  },
+  "bls_member_hash": {
+    "type": "function",
+    "args": {
+      "config": "MemberConfig",
+      "public_key": "PublicKey"
+    },
+    "return": "TreeHash"
+  },
+  "passkey_member_hash": {
+    "type": "function",
+    "args": {
+      "config": "MemberConfig",
+      "public_key": "R1PublicKey",
+      "fast_forward": "bool"
+    },
+    "return": "TreeHash"
+  },
+  "singleton_member_hash": {
+    "type": "function",
+    "args": {
+      "config": "MemberConfig",
+      "launcher_id": "Bytes32"
+    },
+    "return": "TreeHash"
+  },
+  "fixed_member_hash": {
+    "type": "function",
+    "args": {
+      "config": "MemberConfig",
+      "fixed_puzzle_hash": "Bytes32"
+    },
+    "return": "TreeHash"
+  },
+  "custom_member_hash": {
+    "type": "function",
+    "args": {
+      "config": "MemberConfig",
+      "inner_hash": "TreeHash"
+    },
+    "return": "TreeHash"
+  },
+  "Restriction": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "kind": "RestrictionKind",
+      "puzzle_hash": "TreeHash"
+    }
+  },
+  "RestrictionKind": {
+    "type": "enum",
+    "values": [
+      "MemberCondition",
+      "DelegatedPuzzleHash",
+      "DelegatedPuzzleWrapper"
+    ]
+  },
+  "timelock_restriction": {
+    "type": "function",
+    "args": {
+      "timelock": "u64"
+    },
+    "return": "Restriction"
+  },
+  "force_1_of_2_restriction": {
+    "type": "function",
+    "args": {
+      "left_side_subtree_hash": "Bytes32",
+      "nonce": "u32",
+      "member_validator_list_hash": "Bytes32",
+      "delegated_puzzle_validator_list_hash": "Bytes32"
+    },
+    "return": "Restriction"
+  },
+  "prevent_condition_opcode_restriction": {
+    "type": "function",
+    "args": {
+      "condition_opcode": "u16"
+    },
+    "return": "Restriction"
+  },
+  "prevent_multiple_create_coins_restriction": {
+    "type": "function",
+    "return": "Restriction"
+  },
+  "prevent_vault_side_effects_restriction": {
+    "type": "function",
+    "return": "Vec<Restriction>"
+  },
+  "MipsSpend": {
+    "type": "class",
+    "methods": {
+      "spend": {
+        "args": {
+          "custody_hash": "TreeHash"
+        },
+        "return": "Spend"
+      },
+      "spend_vault": {
+        "args": {
+          "vault": "Vault"
+        }
+      },
+      "m_of_n": {
+        "args": {
+          "config": "MemberConfig",
+          "required": "u32",
+          "items": "Vec<TreeHash>"
+        }
+      },
+      "k1_member": {
+        "args": {
+          "config": "MemberConfig",
+          "public_key": "K1PublicKey",
+          "signature": "K1Signature",
+          "fast_forward": "bool"
+        }
+      },
+      "r1_member": {
+        "args": {
+          "config": "MemberConfig",
+          "public_key": "R1PublicKey",
+          "signature": "R1Signature",
+          "fast_forward": "bool"
+        }
+      },
+      "bls_member": {
+        "args": {
+          "config": "MemberConfig",
+          "public_key": "PublicKey"
+        }
+      },
+      "passkey_member": {
+        "args": {
+          "config": "MemberConfig",
+          "public_key": "R1PublicKey",
+          "signature": "R1Signature",
+          "authenticator_data": "Bytes",
+          "client_data_json": "Bytes",
+          "challenge_index": "u32",
+          "fast_forward": "bool"
+        }
+      },
+      "singleton_member": {
+        "args": {
+          "config": "MemberConfig",
+          "launcher_id": "Bytes32",
+          "singleton_inner_puzzle_hash": "Bytes32",
+          "singleton_amount": "u64"
+        }
+      },
+      "fixed_puzzle_member": {
+        "args": {
+          "config": "MemberConfig",
+          "fixed_puzzle_hash": "Bytes32"
+        }
+      },
+      "custom_member": {
+        "args": {
+          "config": "MemberConfig",
+          "spend": "Spend"
+        }
+      },
+      "timelock": {
+        "args": {
+          "timelock": "u64"
+        }
+      },
+      "force_1_of_2_restricted_variable": {
+        "args": {
+          "left_side_subtree_hash": "Bytes32",
+          "nonce": "u32",
+          "member_validator_list_hash": "Bytes32",
+          "delegated_puzzle_validator_list_hash": "Bytes32",
+          "new_right_side_member_hash": "Bytes32"
+        }
+      },
+      "prevent_condition_opcode": {
+        "args": {
+          "condition_opcode": "u16"
+        }
+      },
+      "prevent_multiple_create_coins": {},
+      "prevent_vault_side_effects": {}
+    }
+  },
+  "VaultMint": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "vault": "Vault",
+      "parent_conditions": "Vec<Program>"
+    }
+  },
+  "wrapped_delegated_puzzle_hash": {
+    "type": "function",
+    "args": {
+      "restrictions": "Vec<Restriction>",
+      "delegated_puzzle_hash": "TreeHash"
+    },
+    "return": "TreeHash"
+  },
+  "MipsMemo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "inner_puzzle": "InnerPuzzleMemo"
+    }
+  },
+  "InnerPuzzleMemo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "nonce": "u32",
+      "restrictions": "Vec<RestrictionMemo>",
+      "kind": "MemoKind"
+    }
+  },
+  "RestrictionMemo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "member_condition_validator": "bool",
+      "puzzle_hash": "Bytes32",
+      "memo": "Program"
+    },
+    "methods": {
+      "force_1_of_2_restricted_variable": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "left_side_subtree_hash": "Bytes32",
+          "nonce": "u32",
+          "member_validator_list_hash": "Bytes32",
+          "delegated_puzzle_validator_list_hash": "Bytes32"
+        }
+      },
+      "enforce_delegated_puzzle_wrappers": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "wrapper_memos": "Vec<WrapperMemo>"
+        }
+      },
+      "timelock": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "seconds": "u64",
+          "reveal": "bool"
+        }
+      }
+    }
+  },
+  "WrapperMemo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "memo": "Program"
+    },
+    "methods": {
+      "prevent_vault_side_effects": {
+        "type": "static",
+        "args": {
+          "clvm": "Clvm",
+          "reveal": "bool"
+        },
+        "return": "Vec<WrapperMemo>"
+      },
+      "force_coin_announcement": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm"
+        }
+      },
+      "force_coin_message": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm"
+        }
+      },
+      "prevent_multiple_create_coins": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm"
+        }
+      },
+      "timelock": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "seconds": "u64",
+          "reveal": "bool"
+        }
+      },
+      "prevent_condition_opcode": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "opcode": "u16",
+          "reveal": "bool"
+        }
+      }
+    }
+  },
+  "Force1of2RestrictedVariableMemo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "left_side_subtree_hash": "Bytes32",
+      "nonce": "u32",
+      "member_validator_list_hash": "Bytes32",
+      "delegated_puzzle_validator_list_hash": "Bytes32"
+    }
+  },
+  "MemoKind": {
+    "type": "class",
+    "methods": {
+      "member": {
+        "type": "factory",
+        "args": {
+          "member": "MemberMemo"
+        }
+      },
+      "m_of_n": {
+        "type": "factory",
+        "args": {
+          "m_of_n": "MofNMemo"
+        }
+      },
+      "as_member": {
+        "return": "Option<MemberMemo>"
+      },
+      "as_m_of_n": {
+        "return": "Option<MofNMemo>"
+      }
+    }
+  },
+  "MemberMemo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "memo": "Program"
+    },
+    "methods": {
+      "k1": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "public_key": "K1PublicKey",
+          "fast_forward": "bool",
+          "reveal": "bool"
+        }
+      },
+      "r1": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "public_key": "R1PublicKey",
+          "fast_forward": "bool",
+          "reveal": "bool"
+        }
+      },
+      "bls": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "public_key": "PublicKey",
+          "taproot": "bool",
+          "reveal": "bool"
+        }
+      },
+      "passkey": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "public_key": "R1PublicKey",
+          "fast_forward": "bool",
+          "reveal": "bool"
+        }
+      },
+      "singleton": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "launcher_id": "Bytes32",
+          "reveal": "bool"
+        }
+      },
+      "fixed_puzzle": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "puzzle_hash": "Bytes32",
+          "reveal": "bool"
+        }
+      }
+    }
+  },
+  "MofNMemo": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "required": "u32",
+      "items": "Vec<InnerPuzzleMemo>"
+    }
+  }
+}

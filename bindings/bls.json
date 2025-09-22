@@ -75,6 +75,15 @@
           "public_keys": "Vec<PublicKey>"
         }
       },
+      "aggregate_verify": {
+        "type": "static",
+        "args": {
+          "public_keys": "Vec<PublicKey>",
+          "messages": "Vec<Bytes>",
+          "signature": "Signature"
+        },
+        "return": "bool"
+      },
       "from_bytes": {
         "type": "factory",
         "args": {
@@ -83,6 +92,13 @@
       },
       "to_bytes": {
         "return": "Bytes48"
+      },
+      "verify": {
+        "args": {
+          "message": "Bytes",
+          "signature": "Signature"
+        },
+        "return": "bool"
       },
       "fingerprint": {
         "return": "u32"

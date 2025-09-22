@@ -9,8 +9,10 @@ impl From<Error> for pyo3::PyErr {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Pyo3;
 
+#[derive(Debug, Clone, Copy)]
 pub struct Pyo3Context;
 
 impl_self!(u64);
@@ -39,7 +41,7 @@ impl<T, const N: usize> FromRust<BytesImpl<N>, T, Pyo3> for Vec<u8> {
 
 impl<T, const N: usize> IntoRust<BytesImpl<N>, T, Pyo3> for Vec<u8> {
     fn into_rust(self, _context: &T) -> Result<BytesImpl<N>> {
-        let bytes = self.to_vec();
+        let bytes = self.clone();
 
         if bytes.len() != N {
             return Err(Error::WrongLength {
@@ -60,7 +62,7 @@ impl<T> FromRust<ClassgroupElement, T, Pyo3> for Vec<u8> {
 
 impl<T> IntoRust<ClassgroupElement, T, Pyo3> for Vec<u8> {
     fn into_rust(self, _context: &T) -> Result<ClassgroupElement> {
-        let bytes = self.to_vec();
+        let bytes = self.clone();
 
         if bytes.len() != 100 {
             return Err(Error::WrongLength {
@@ -100,7 +102,7 @@ impl<T> FromRust<Bytes, T, Pyo3> for Vec<u8> {
 
 impl<T> IntoRust<Bytes, T, Pyo3> for Vec<u8> {
     fn into_rust(self, _context: &T) -> Result<Bytes> {
-        Ok(self.to_vec().into())
+        Ok(self.clone().into())
     }
 }
 
@@ -112,6 +114,6 @@ impl<T> FromRust<Program, T, Pyo3> for Vec<u8> {
 
 impl<T> IntoRust<Program, T, Pyo3> for Vec<u8> {
     fn into_rust(self, _context: &T) -> Result<Program> {
-        Ok(self.to_vec().into())
+        Ok(self.clone().into())
     }
 }

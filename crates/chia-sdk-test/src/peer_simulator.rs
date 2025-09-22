@@ -1,6 +1,6 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, ops::Deref, sync::Arc};
 
-use chia_protocol::{Bytes32, Coin, CoinState, Message};
+use chia_protocol::Message;
 use chia_sdk_client::{Peer, PeerOptions};
 use peer_map::PeerMap;
 use subscriptions::Subscriptions;
@@ -30,6 +30,14 @@ pub struct PeerSimulator {
     simulator: Arc<Mutex<Simulator>>,
     subscriptions: Arc<Mutex<Subscriptions>>,
     join_handle: JoinHandle<()>,
+}
+
+impl Deref for PeerSimulator {
+    type Target = Mutex<Simulator>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.simulator
+    }
 }
 
 impl PeerSimulator {
@@ -128,30 +136,6 @@ impl PeerSimulator {
         *self.subscriptions.lock().await = Subscriptions::default();
         Ok(())
     }
-
-    pub async fn mint_coin(&self, puzzle_hash: Bytes32, amount: u64) -> Coin {
-        self.simulator.lock().await.new_coin(puzzle_hash, amount)
-    }
-
-    pub async fn add_hint(&self, coin_id: Bytes32, hint: Bytes32) {
-        self.simulator.lock().await.hint_coin(coin_id, hint);
-    }
-
-    pub async fn coin_state(&self, coin_id: Bytes32) -> Option<CoinState> {
-        self.simulator.lock().await.coin_state(coin_id)
-    }
-
-    pub async fn height(&self) -> u32 {
-        self.simulator.lock().await.height()
-    }
-
-    pub async fn header_hash(&self, height: u32) -> Bytes32 {
-        self.simulator.lock().await.header_hash_of(height).unwrap()
-    }
-
-    pub async fn peak_hash(&self) -> Bytes32 {
-        self.simulator.lock().await.header_hash()
-    }
 }
 
 impl Drop for PeerSimulator {
@@ -164,8 +148,8 @@ impl Drop for PeerSimulator {
 mod tests {
     use chia_bls::{PublicKey, SecretKey, Signature};
     use chia_protocol::{
-        Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, ProtocolMessageTypes,
-        RespondCoinState, RespondPuzzleState, SpendBundle, TransactionAck,
+        Bytes, Bytes32, Coin, CoinSpend, CoinState, CoinStateFilters, CoinStateUpdate,
+        ProtocolMessageTypes, RespondCoinState, RespondPuzzleState, SpendBundle, TransactionAck,
     };
     use chia_sdk_types::conditions::{AggSigMe, CreateCoin, Memos, Remark};
     use chia_traits::Streamable;
@@ -211,10 +195,11 @@ mod tests {
     async fn test_coin_state() -> anyhow::Result<()> {
         let sim = PeerSimulator::new().await?;
 
-        let coin = sim.mint_coin(Bytes32::default(), 1000).await;
+        let coin = sim.lock().await.new_coin(Bytes32::default(), 1000);
         let coin_state = sim
-            .coin_state(coin.coin_id())
+            .lock()
             .await
+            .coin_state(coin.coin_id())
             .expect("missing coin state");
 
         assert_eq!(coin_state.coin, coin);
@@ -246,7 +231,7 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
 
         let spend_bundle = SpendBundle::new(
             vec![CoinSpend::new(coin, puzzle_reveal, to_program(())?)],
@@ -287,7 +272,7 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
 
         let spend_bundle = SpendBundle::new(
             vec![CoinSpend::new(
@@ -311,7 +296,7 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
 
         let spend_bundle = SpendBundle::new(
             vec![CoinSpend::new(
@@ -336,7 +321,7 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
 
         test_transaction(
             &peer,
@@ -362,7 +347,7 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
 
         test_transaction(
             &peer,
@@ -388,13 +373,13 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
 
         let spend_bundle = SpendBundle::new(
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::<NodePtr>::new(puzzle_hash, 1, None)])?,
+                to_program([CreateCoin::<NodePtr>::new(puzzle_hash, 1, Memos::None)])?,
             )],
             Signature::default(),
         );
@@ -412,7 +397,7 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let mut coin = sim.mint_coin(puzzle_hash, 1000).await;
+        let mut coin = sim.lock().await.new_coin(puzzle_hash, 1000);
 
         for _ in 0..1000 {
             let spend_bundle = SpendBundle::new(
@@ -422,7 +407,7 @@ mod tests {
                     to_program([CreateCoin::<NodePtr>::new(
                         puzzle_hash,
                         coin.amount - 1,
-                        None,
+                        Memos::None,
                     )])?,
                 )],
                 Signature::default(),
@@ -455,7 +440,7 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
 
         let spend_bundle = SpendBundle::new(
             vec![CoinSpend::new(coin, puzzle_reveal, to_program(())?)],
@@ -478,15 +463,15 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 3).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 3);
 
         let spend_bundle = SpendBundle::new(
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
                 to_program([
-                    CreateCoin::<NodePtr>::new(puzzle_hash, 1, None),
-                    CreateCoin::<NodePtr>::new(puzzle_hash, 2, None),
+                    CreateCoin::<NodePtr>::new(puzzle_hash, 1, Memos::None),
+                    CreateCoin::<NodePtr>::new(puzzle_hash, 2, Memos::None),
                 ])?,
             )],
             Signature::default(),
@@ -526,7 +511,7 @@ mod tests {
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
         let solution = to_program([Remark::new(())])?;
 
-        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
 
         let spend_bundle = SpendBundle::new(
             vec![CoinSpend::new(
@@ -559,10 +544,11 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
         let mut coin_state = sim
-            .coin_state(coin.coin_id())
+            .lock()
             .await
+            .coin_state(coin.coin_id())
             .expect("missing coin state");
 
         let coin_states = peer
@@ -587,7 +573,7 @@ mod tests {
 
         assert_eq!(
             updates[0],
-            CoinStateUpdate::new(1, 1, sim.peak_hash().await, vec![coin_state])
+            CoinStateUpdate::new(1, 1, sim.lock().await.header_hash(), vec![coin_state])
         );
 
         Ok(())
@@ -600,7 +586,7 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 1).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 1);
         let child_coin = Coin::new(coin.coin_id(), puzzle_hash, 1);
 
         let coin_states = peer
@@ -613,7 +599,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::<NodePtr>::new(puzzle_hash, 1, None)])?,
+                to_program([CreateCoin::<NodePtr>::new(puzzle_hash, 1, Memos::None)])?,
             )],
             Signature::default(),
         );
@@ -628,7 +614,7 @@ mod tests {
 
         assert_eq!(
             updates[0],
-            CoinStateUpdate::new(1, 1, sim.peak_hash().await, vec![coin_state])
+            CoinStateUpdate::new(1, 1, sim.lock().await.header_hash(), vec![coin_state])
         );
 
         Ok(())
@@ -641,10 +627,11 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
         let mut coin_state = sim
-            .coin_state(coin.coin_id())
+            .lock()
             .await
+            .coin_state(coin.coin_id())
             .expect("missing coin state");
 
         let coin_states = peer
@@ -669,7 +656,7 @@ mod tests {
 
         assert_eq!(
             updates[0],
-            CoinStateUpdate::new(1, 1, sim.peak_hash().await, vec![coin_state])
+            CoinStateUpdate::new(1, 1, sim.lock().await.header_hash(), vec![coin_state])
         );
 
         Ok(())
@@ -682,7 +669,7 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 1).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 1);
         let child_coin = Coin::new(coin.coin_id(), Bytes32::default(), 1);
 
         let coin_states = peer
@@ -695,7 +682,11 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::<NodePtr>::new(child_coin.puzzle_hash, 1, None)])?,
+                to_program([CreateCoin::<NodePtr>::new(
+                    child_coin.puzzle_hash,
+                    1,
+                    Memos::None,
+                )])?,
             )],
             Signature::default(),
         );
@@ -710,7 +701,7 @@ mod tests {
 
         assert_eq!(
             updates[0],
-            CoinStateUpdate::new(1, 1, sim.peak_hash().await, vec![coin_state])
+            CoinStateUpdate::new(1, 1, sim.lock().await.header_hash(), vec![coin_state])
         );
 
         Ok(())
@@ -724,12 +715,13 @@ mod tests {
         let hint = Bytes32::new([42; 32]);
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 0).await;
-        sim.add_hint(coin.coin_id(), hint).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
+        sim.lock().await.hint_coin(coin.coin_id(), hint);
 
         let mut coin_state = sim
-            .coin_state(coin.coin_id())
+            .lock()
             .await
+            .coin_state(coin.coin_id())
             .expect("missing coin state");
 
         let coin_states = peer
@@ -754,7 +746,7 @@ mod tests {
 
         assert_eq!(
             updates[0],
-            CoinStateUpdate::new(1, 1, sim.peak_hash().await, vec![coin_state])
+            CoinStateUpdate::new(1, 1, sim.lock().await.header_hash(), vec![coin_state])
         );
 
         Ok(())
@@ -768,7 +760,7 @@ mod tests {
         let hint = Bytes32::new([42; 32]);
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
 
         let coin_states = peer
             .register_for_ph_updates(vec![hint], 0)
@@ -780,7 +772,7 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::new(puzzle_hash, 0, Some(Memos::new([hint])))])?,
+                to_program([CreateCoin::new(puzzle_hash, 0, Memos::Some([hint]))])?,
             )],
             Signature::default(),
         );
@@ -796,7 +788,7 @@ mod tests {
             CoinStateUpdate::new(
                 1,
                 1,
-                sim.peak_hash().await,
+                sim.lock().await.header_hash(),
                 vec![CoinState::new(
                     Coin::new(coin.coin_id(), puzzle_hash, 0),
                     None,
@@ -815,10 +807,11 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
         let mut coin_state = sim
-            .coin_state(coin.coin_id())
+            .lock()
             .await
+            .coin_state(coin.coin_id())
             .expect("missing coin state");
 
         let response = peer
@@ -869,10 +862,11 @@ mod tests {
 
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
 
-        let coin = sim.mint_coin(puzzle_hash, 0).await;
+        let coin = sim.lock().await.new_coin(puzzle_hash, 0);
         let mut coin_state = sim
-            .coin_state(coin.coin_id())
+            .lock()
             .await
+            .coin_state(coin.coin_id())
             .expect("missing coin state");
 
         let response = peer
@@ -890,7 +884,10 @@ mod tests {
             RespondPuzzleState::new(
                 vec![puzzle_hash],
                 0,
-                sim.header_hash(0).await,
+                sim.lock()
+                    .await
+                    .header_hash_of(0)
+                    .expect("missing header hash"),
                 true,
                 vec![coin_state]
             )
@@ -921,7 +918,10 @@ mod tests {
             RespondPuzzleState::new(
                 vec![puzzle_hash],
                 1,
-                sim.header_hash(1).await,
+                sim.lock()
+                    .await
+                    .header_hash_of(1)
+                    .expect("missing header hash"),
                 true,
                 vec![coin_state]
             )

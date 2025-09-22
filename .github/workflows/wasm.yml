@@ -17,8 +17,26 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./wasm
     steps:
       - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: wasm/pnpm-lock.yaml
+          architecture: x64
+
+      - name: Install dependencies
+        run: pnpm install
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -26,9 +44,12 @@ jobs:
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
 
+      - name: Tests
+        run: pnpm test
+
       - name: WASM build and pack
         run: |
-          cd wasm
+          rm -rf pkg
           wasm-pack build
           wasm-pack pack
 

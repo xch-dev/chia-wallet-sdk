@@ -1,5 +1,5 @@
 use bindy::Result;
-use chia_bls::{sign, DerivableKey, PublicKey, SecretKey, Signature};
+use chia_bls::{aggregate_verify, sign, verify, DerivableKey, PublicKey, SecretKey, Signature};
 use chia_protocol::{Bytes, Bytes32, Bytes48, Bytes96};
 use chia_puzzle_types::DeriveSynthetic;
 
@@ -81,8 +81,14 @@ impl SecretKeyExt for SecretKey {
 pub trait PublicKeyExt: Sized {
     fn infinity() -> Result<Self>;
     fn aggregate(public_keys: Vec<Self>) -> Result<Self>;
+    fn aggregate_verify(
+        public_keys: Vec<Self>,
+        messages: Vec<Bytes>,
+        signature: Signature,
+    ) -> Result<bool>;
     fn from_bytes(bytes: Bytes48) -> Result<Self>;
     fn to_bytes(&self) -> Result<Bytes48>;
+    fn verify(&self, message: Bytes, signature: Signature) -> Result<bool>;
     fn fingerprint(&self) -> Result<u32>;
     fn is_infinity(&self) -> Result<bool>;
     fn is_valid(&self) -> Result<bool>;
@@ -111,12 +117,27 @@ impl PublicKeyExt for PublicKey {
         Ok(result)
     }
 
+    fn aggregate_verify(
+        public_keys: Vec<Self>,
+        messages: Vec<Bytes>,
+        signature: Signature,
+    ) -> Result<bool> {
+        Ok(aggregate_verify(
+            &signature,
+            public_keys.iter().zip(messages.iter().map(Bytes::as_slice)),
+        ))
+    }
+
     fn from_bytes(bytes: Bytes48) -> Result<Self> {
         Ok(Self::from_bytes(&bytes.to_bytes())?)
     }
 
     fn to_bytes(&self) -> Result<Bytes48> {
         Ok(Bytes48::new(self.to_bytes()))
+    }
+
+    fn verify(&self, message: Bytes, signature: Signature) -> Result<bool> {
+        Ok(verify(&signature, self, message))
     }
 
     fn fingerprint(&self) -> Result<u32> {

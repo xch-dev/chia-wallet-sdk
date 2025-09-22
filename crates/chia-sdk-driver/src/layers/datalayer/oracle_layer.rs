@@ -1,4 +1,5 @@
 use chia_protocol::{Bytes, Bytes32};
+use chia_puzzle_types::Memos;
 use chia_sdk_types::Condition;
 use clvm_traits::{clvm_quote, match_quote, FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};
@@ -61,7 +62,7 @@ impl Layer for OracleLayer {
         }
 
         let conditions: Vec<Condition<NodePtr>> = vec![
-            Condition::create_coin(self.oracle_puzzle_hash, self.oracle_fee, None),
+            Condition::create_coin(self.oracle_puzzle_hash, self.oracle_fee, Memos::None),
             Condition::create_puzzle_announcement(Bytes::new("$".into())),
         ];
 

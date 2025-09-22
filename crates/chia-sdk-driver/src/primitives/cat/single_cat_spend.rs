@@ -9,11 +9,12 @@ pub struct SingleCatSpend {
     pub next_coin_proof: CoinProof,
     pub prev_subtotal: i64,
     pub extra_delta: i64,
-    pub inner_spend: Spend,
+    pub p2_spend: Spend,
+    pub revoke: bool,
 }
 
 impl SingleCatSpend {
-    pub fn eve(coin: Coin, inner_puzzle_hash: Bytes32, inner_spend: Spend) -> Self {
+    pub fn eve(coin: Coin, inner_puzzle_hash: Bytes32, p2_spend: Spend) -> Self {
         Self {
             prev_coin_id: coin.coin_id(),
             next_coin_proof: CoinProof {
@@ -23,7 +24,8 @@ impl SingleCatSpend {
             },
             prev_subtotal: 0,
             extra_delta: 0,
-            inner_spend,
+            p2_spend,
+            revoke: false,
         }
     }
 }

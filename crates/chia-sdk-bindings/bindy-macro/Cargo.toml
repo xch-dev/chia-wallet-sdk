@@ -1,6 +1,6 @@
 [package]
 name = "bindy-macro"
-version = "0.23.0"
+version = "0.29.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Macro for the Bindy generator."
@@ -10,6 +10,9 @@ repository = "https://github.com/Rigidity/chia-wallet-sdk"
 readme = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
+
+[lints]
+workspace = true
 
 [lib]
 proc-macro = true
@@ -22,3 +25,21 @@ quote = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 syn = { workspace = true }
+chia-sdk-bindings = { workspace = true }
+indoc = { workspace = true }
+
+[target.aarch64-unknown-linux-gnu.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }
+
+[target.aarch64-unknown-linux-musl.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }
+
+[target.x86_64-unknown-linux-gnu.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }
+
+[target.x86_64-unknown-linux-musl.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }

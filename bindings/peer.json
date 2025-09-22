@@ -1,0 +1,200 @@
+{
+  "Certificate": {
+    "type": "class",
+    "no_wasm": true,
+    "new": true,
+    "fields": {
+      "cert_pem": "String",
+      "key_pem": "String"
+    },
+    "methods": {
+      "load": {
+        "type": "factory",
+        "args": {
+          "cert_path": "String",
+          "key_path": "String"
+        }
+      },
+      "generate": {
+        "type": "factory"
+      }
+    }
+  },
+  "Connector": {
+    "type": "class",
+    "no_wasm": true,
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "args": {
+          "cert": "Certificate"
+        }
+      }
+    }
+  },
+  "PeerOptions": {
+    "type": "class",
+    "no_wasm": true,
+    "fields": {
+      "rate_limit_factor": "f64"
+    },
+    "methods": {
+      "new": {
+        "type": "constructor",
+        "return": "PeerOptions"
+      }
+    }
+  },
+  "Peer": {
+    "type": "class",
+    "no_wasm": true,
+    "methods": {
+      "connect": {
+        "type": "async_factory",
+        "args": {
+          "network_id": "String",
+          "socket_addr": "String",
+          "connector": "Connector",
+          "options": "PeerOptions"
+        }
+      },
+      "request_coin_state": {
+        "type": "async",
+        "args": {
+          "coin_ids": "Vec<Bytes32>",
+          "previous_height": "Option<u32>",
+          "header_hash": "Bytes32",
+          "subscribe": "bool"
+        },
+        "return": "RespondCoinState"
+      },
+      "request_puzzle_state": {
+        "type": "async",
+        "args": {
+          "puzzle_hashes": "Vec<Bytes32>",
+          "previous_height": "Option<u32>",
+          "header_hash": "Bytes32",
+          "filters": "CoinStateFilters",
+          "subscribe": "bool"
+        },
+        "return": "RespondPuzzleState"
+      },
+      "request_puzzle_and_solution": {
+        "type": "async",
+        "args": {
+          "coin_id": "Bytes32",
+          "height": "u32"
+        },
+        "return": "PuzzleSolutionResponse"
+      },
+      "remove_coin_subscriptions": {
+        "type": "async",
+        "args": {
+          "coin_ids": "Option<Vec<Bytes32>>"
+        },
+        "return": "Vec<Bytes32>"
+      },
+      "remove_puzzle_subscriptions": {
+        "type": "async",
+        "args": {
+          "puzzle_hashes": "Option<Vec<Bytes32>>"
+        },
+        "return": "Vec<Bytes32>"
+      },
+      "next": {
+        "type": "async",
+        "return": "Option<Event>"
+      }
+    }
+  },
+  "Event": {
+    "type": "class",
+    "no_wasm": true,
+    "fields": {
+      "new_peak_wallet": "Option<NewPeakWallet>",
+      "coin_state_update": "Option<CoinStateUpdate>"
+    }
+  },
+  "NewPeakWallet": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "header_hash": "Bytes32",
+      "height": "u32",
+      "weight": "u128",
+      "fork_point_with_previous_peak": "u32"
+    }
+  },
+  "CoinStateUpdate": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "height": "u32",
+      "fork_height": "u32",
+      "peak_hash": "Bytes32",
+      "items": "Vec<CoinState>"
+    }
+  },
+  "CoinState": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "coin": "Coin",
+      "spent_height": "Option<u32>",
+      "created_height": "Option<u32>"
+    }
+  },
+  "RespondCoinState": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "coin_ids": "Vec<Bytes32>",
+      "coin_states": "Vec<CoinState>"
+    }
+  },
+  "RespondPuzzleState": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "puzzle_hashes": "Vec<Bytes32>",
+      "height": "u32",
+      "header_hash": "Bytes32",
+      "is_finished": "bool",
+      "coin_states": "Vec<CoinState>"
+    }
+  },
+  "PuzzleSolutionResponse": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "coin_name": "Bytes32",
+      "height": "u32",
+      "puzzle": "SerializedProgram",
+      "solution": "SerializedProgram"
+    }
+  },
+  "CoinStateFilters": {
+    "type": "class",
+    "no_wasm": true,
+    "remote": true,
+    "new": true,
+    "fields": {
+      "include_spent": "bool",
+      "include_unspent": "bool",
+      "include_hinted": "bool",
+      "min_amount": "u64"
+    }
+  }
+}

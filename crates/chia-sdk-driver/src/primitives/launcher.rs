@@ -3,7 +3,11 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs};
 use chia_puzzles::{SINGLETON_LAUNCHER, SINGLETON_LAUNCHER_HASH};
-use chia_sdk_types::{announcement_id, conditions::Memos, Conditions};
+use chia_sdk_types::{
+    announcement_id,
+    conditions::{CreateCoin, Memos},
+    Conditions,
+};
 use clvm_traits::ToClvm;
 use clvmr::{Allocator, NodePtr};
 
@@ -35,7 +39,7 @@ impl Launcher {
     pub fn new(parent_coin_id: Bytes32, amount: u64) -> Self {
         Self::from_coin(
             Coin::new(parent_coin_id, SINGLETON_LAUNCHER_HASH.into(), amount),
-            Conditions::new().create_coin(SINGLETON_LAUNCHER_HASH.into(), amount, None),
+            Conditions::new().create_coin(SINGLETON_LAUNCHER_HASH.into(), amount, Memos::None),
         )
     }
 
@@ -44,7 +48,7 @@ impl Launcher {
     pub fn with_memos(parent_coin_id: Bytes32, amount: u64, memos: Memos<NodePtr>) -> Self {
         Self::from_coin(
             Coin::new(parent_coin_id, SINGLETON_LAUNCHER_HASH.into(), amount),
-            Conditions::new().create_coin(SINGLETON_LAUNCHER_HASH.into(), amount, Some(memos)),
+            Conditions::new().create_coin(SINGLETON_LAUNCHER_HASH.into(), amount, memos),
         )
     }
 
@@ -53,9 +57,9 @@ impl Launcher {
     ///
     /// This method is used to create the launcher coin immediately from the parent, then spend it later attached to any coin spend.
     /// For example, this is useful for minting NFTs from intermediate coins created with an earlier instance of a DID.
-    pub fn create_early(parent_coin_id: Bytes32, amount: u64) -> (Conditions, Self) {
+    pub fn create_early(parent_coin_id: Bytes32, amount: u64) -> (CreateCoin<NodePtr>, Self) {
         (
-            Conditions::new().create_coin(SINGLETON_LAUNCHER_HASH.into(), amount, None),
+            CreateCoin::new(SINGLETON_LAUNCHER_HASH.into(), amount, Memos::None),
             Self::from_coin(
                 Coin::new(parent_coin_id, SINGLETON_LAUNCHER_HASH.into(), amount),
                 Conditions::new(),
@@ -72,9 +76,9 @@ impl Launcher {
         parent_coin_id: Bytes32,
         amount: u64,
         memos: Memos<NodePtr>,
-    ) -> (Conditions, Self) {
+    ) -> (CreateCoin<NodePtr>, Self) {
         (
-            Conditions::new().create_coin(SINGLETON_LAUNCHER_HASH.into(), amount, Some(memos)),
+            CreateCoin::new(SINGLETON_LAUNCHER_HASH.into(), amount, memos),
             Self::from_coin(
                 Coin::new(parent_coin_id, SINGLETON_LAUNCHER_HASH.into(), amount),
                 Conditions::new(),
@@ -87,6 +91,11 @@ impl Launcher {
     pub fn with_singleton_amount(mut self, singleton_amount: u64) -> Self {
         self.singleton_amount = singleton_amount;
         self
+    }
+
+    /// Returns the current singleton amount.
+    pub fn singleton_amount(&self) -> u64 {
+        self.singleton_amount
     }
 
     /// The singleton launcher coin that will be created when the parent is spent.

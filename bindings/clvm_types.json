@@ -23,13 +23,49 @@
       "args": "Vec<Program>"
     }
   },
-  "LineageProof": {
+  "Proof": {
     "type": "class",
     "new": true,
     "fields": {
       "parent_parent_coin_info": "Bytes32",
       "parent_inner_puzzle_hash": "Option<Bytes32>",
       "parent_amount": "u64"
+    },
+    "methods": {
+      "to_lineage_proof": {
+        "return": "Option<LineageProof>"
+      }
+    }
+  },
+  "LineageProof": {
+    "type": "class",
+    "remote": true,
+    "new": true,
+    "fields": {
+      "parent_parent_coin_info": "Bytes32",
+      "parent_inner_puzzle_hash": "Bytes32",
+      "parent_amount": "u64"
+    },
+    "methods": {
+      "to_proof": {
+        "return": "Proof"
+      }
+    }
+  },
+  "OfferSecurityCoinDetails": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "security_coin": "Coin",
+      "security_coin_sk": "SecretKey"
+    }
+  },
+  "SettlementNftSpendResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "new_nft": "Nft",
+      "security_conditions": "Vec<Program>"
     }
   }
 }

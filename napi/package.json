@@ -1,6 +1,6 @@
 {
   "name": "chia-wallet-sdk",
-  "version": "0.23.0",
+  "version": "0.29.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -21,24 +21,24 @@
     "build:windows-x64": "napi build --platform --release --target x86_64-pc-windows-msvc",
     "build:linux-x64": "napi build --platform --release --target x86_64-unknown-linux-gnu",
     "build:linux-arm64": "napi build --platform --release --target aarch64-unknown-linux-gnu",
-    "prepublishOnly": "napi prepublish -t npm --skip-gh-release",
+    "prepublishOnly": "napi prepublish -t npm --no-gh-release",
     "test": "ava",
-    "universal": "napi universal",
-    "version": "napi version",
-    "update-declarations": "node scripts/update-declarations.js"
+    "universal": "napi universalize",
+    "version": "napi version"
   },
   "napi": {
-    "name": "chia-wallet-sdk",
-    "triples": {
-      "additional": [
-        "aarch64-apple-darwin",
-        "universal-apple-darwin",
-        "aarch64-unknown-linux-gnu"
-      ]
-    }
+    "binaryName": "chia-wallet-sdk",
+    "targets": [
+      "x86_64-pc-windows-msvc",
+      "x86_64-apple-darwin",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "aarch64-apple-darwin",
+      "universal-apple-darwin"
+    ]
   },
   "devDependencies": {
-    "@napi-rs/cli": "2.18.4",
+    "@napi-rs/cli": "3.0.0-alpha.91",
     "@types/node": "^22.13.1",
     "ava": "^6.0.1",
     "ts-node": "^10.9.2"

@@ -24,7 +24,7 @@
   "tree_hash_atom": {
     "type": "function",
     "args": {
-      "atom": "Bytes32"
+      "atom": "Bytes"
     },
     "return": "Bytes32"
   },

@@ -1,6 +1,6 @@
 [package]
 name = "chia-wallet-sdk"
-version = "0.23.0"
+version = "0.29.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "An unofficial SDK for building Chia wallets."
@@ -23,7 +23,8 @@ members = [
     "crates/chia-sdk-bindings/bindy-macro",
     "napi",
     "wasm",
-    "pyo3"
+    "pyo3",
+    "pyo3/stub-generator"
 ]
 
 [workspace.package]
@@ -65,17 +66,19 @@ module_name_repetitions = "allow"
 multiple_crate_versions = "allow"
 must_use_candidate = "allow"
 cargo_common_metadata = "allow"
+result_large_err = "allow"
+format_push_string = "allow"
 
 [lints]
 workspace = true
 
 [features]
 chip-0035 = ["chia-sdk-driver/chip-0035", "chia-sdk-types/chip-0035"]
-experimental-clawbacks = ["chia-sdk-driver/experimental-clawbacks"]
-offers = ["chia-sdk-driver/offers"]
+offer-compression = ["chia-sdk-driver/offer-compression"]
 native-tls = ["chia-sdk-client/native-tls", "chia-sdk-coinset/native-tls"]
 rustls = ["chia-sdk-client/rustls", "chia-sdk-coinset/rustls"]
 peer-simulator = ["chia-sdk-test/peer-simulator"]
+action-layer = ["chia-sdk-types/action-layer", "chia-sdk-driver/action-layer"]
 
 [dependencies]
 chia-sdk-client = { workspace = true }
@@ -102,79 +105,83 @@ clvm-traits = { workspace = true, features = ["derive"] }
 clvmr = { workspace = true }
 
 [workspace.dependencies]
-chia-wallet-sdk = { version = "0.23.0", path = "." }
-chia-sdk-client = { version = "0.23.0", path = "./crates/chia-sdk-client" }
-chia-sdk-driver = { version = "0.23.0", path = "./crates/chia-sdk-driver" }
-chia-sdk-signer = { version = "0.23.0", path = "./crates/chia-sdk-signer" }
-chia-sdk-test = { version = "0.23.0", path = "./crates/chia-sdk-test" }
-chia-sdk-types = { version = "0.23.0", path = "./crates/chia-sdk-types" }
-chia-sdk-derive = { version = "0.23.0", path = "./crates/chia-sdk-types/derive" }
-chia-sdk-utils = { version = "0.23.0", path = "./crates/chia-sdk-utils" }
-chia-sdk-coinset = { version = "0.23.0", path = "./crates/chia-sdk-coinset" }
-chia-sdk-bindings = { version = "0.23.0", path = "./crates/chia-sdk-bindings" }
-bindy = { version = "0.23.0", path = "./crates/chia-sdk-bindings/bindy" }
-bindy-macro = { version = "0.23.0", path = "./crates/chia-sdk-bindings/bindy-macro" }
-chia = "0.22.0"
-chia-ssl = "0.22.0"
-chia-protocol = "0.22.0"
-chia-consensus = "0.22.0"
-chia-traits = "0.22.0"
-chia-bls = "0.22.0"
-chia-secp = "0.22.0"
-chia-puzzles = "0.20.1"
-chia-puzzle-types = "0.22.0"
-clvm-traits = "0.22.0"
-clvm-utils = "0.22.0"
-chia-sha2 = "0.22.0"
-clvmr = "0.13.1"
+chia-wallet-sdk = { version = "0.29.0", path = "." }
+chia-sdk-client = { version = "0.29.0", path = "./crates/chia-sdk-client" }
+chia-sdk-driver = { version = "0.29.0", path = "./crates/chia-sdk-driver" }
+chia-sdk-signer = { version = "0.29.0", path = "./crates/chia-sdk-signer" }
+chia-sdk-test = { version = "0.29.0", path = "./crates/chia-sdk-test" }
+chia-sdk-types = { version = "0.29.0", path = "./crates/chia-sdk-types" }
+chia-sdk-derive = { version = "0.29.0", path = "./crates/chia-sdk-types/derive" }
+chia-sdk-utils = { version = "0.29.0", path = "./crates/chia-sdk-utils" }
+chia-sdk-coinset = { version = "0.29.0", path = "./crates/chia-sdk-coinset" }
+chia-sdk-bindings = { version = "0.29.0", path = "./crates/chia-sdk-bindings" }
+bindy = { version = "0.29.0", path = "./crates/chia-sdk-bindings/bindy" }
+bindy-macro = { version = "0.29.0", path = "./crates/chia-sdk-bindings/bindy-macro" }
+chia = "0.26.0"
+chia-ssl = "0.26.0"
+chia-protocol = "0.26.0"
+chia-consensus = "0.26.0"
+chia-traits = "0.26.0"
+chia-bls = "0.26.0"
+chia-secp = "0.26.0"
+chia-puzzle-types = "0.26.0"
+clvm-traits = "0.26.0"
+clvm-utils = "0.26.0"
+chia-sha2 = "0.26.0"
+chia_streamable_macro = "0.26.0"
+chia-puzzles = "0.20.2"
+clvmr = "0.14.0"
 thiserror = "2.0.12"
 hex = "0.4.3"
 bech32 = "0.9.1"
 rand = "0.8.5"
 rand_chacha = "0.3.1"
 hex-literal = "0.4.1"
-indexmap = "2.9.0"
-bip39 = "2.1.0"
+indexmap = "2.10.0"
+bip39 = "2.2.0"
 futures-util = "0.3.30"
 futures-channel = "0.3.30"
 anyhow = "1.0.98"
-tokio = "1.44.2"
+tokio = "1.47.1"
 itertools = "0.13.0"
 tokio-tungstenite = "0.24.0"
 tungstenite = "0.24.0"
 native-tls = "0.2.14"
-rustls = "0.23.26"
+rustls = "0.23.31"
 rustls-pemfile = "2.2.0"
-flate2 = "1.1.1"
-once_cell = "1.21.3"
+flate2 = "1.1.2"
 num-bigint = "0.4.6"
 rstest = "0.22.0"
 tracing = "0.1.41"
-syn = "2.0.101"
+syn = "2.0.104"
 quote = "1.0.40"
-convert_case = "0.6.0"
+convert_case = "0.8.0"
 fastrand = "2.3.0"
-napi = { version = "2.16.17", default-features = false }
-napi-derive = { version = "2.16.13" }
-napi-build = "2.1.6"
+napi = { version = "3.1.6", default-features = false }
+napi-derive = { version = "3.1.2" }
+napi-build = "3.0.0-beta.0"
 paste = "1.0.15"
 bigdecimal = "0.4.8"
 k256 = "0.13.4"
 p256 = "0.13.2"
 signature = "2.2.0"
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
-reqwest = { version = "0.12.15", default-features = false, features = ["json"] }
+serde_json = "1.0.142"
+reqwest = { version = "0.12.22", default-features = false, features = ["json"] }
 proc-macro2 = "1.0.95"
 wasm-bindgen = "0.2.100"
+wasm-bindgen-futures = "0.4.50"
+wasm-bindgen-derive = "0.3.0"
 getrandom = "0.2.15"
 sha2 = "0.10.9"
 pyo3 = "0.23.5"
 js-sys = "0.3.77"
-parking_lot = "0.12.3"
-clvm_tools_rs = "0.2.0"
-wasm-bindgen-futures = "0.4.50"
+parking_lot = "0.12.4"
+clvm_tools_rs = "0.3.0"
 pyo3-async-runtimes = "0.23"
+indoc = "2.0.6"
+console_error_panic_hook = "0.1.7"
+prettytable-rs = "0.10.0"
 
 [profile.release]
 lto = true

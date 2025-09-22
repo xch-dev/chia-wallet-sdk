@@ -1,6 +1,6 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
-use chia_sdk_types::puzzles::{P2SingletonArgs, P2SingletonSolution, P2_SINGLETON_PUZZLE_HASH};
+use chia_puzzles::{P2_SINGLETON_HASH, SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
+use chia_sdk_types::puzzles::{P2SingletonArgs, P2SingletonSolution};
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -63,7 +63,7 @@ impl Layer for P2SingletonLayer {
             return Ok(None);
         };
 
-        if puzzle.mod_hash != P2_SINGLETON_PUZZLE_HASH {
+        if puzzle.mod_hash != P2_SINGLETON_HASH.into() {
             return Ok(None);
         }
 
@@ -136,7 +136,7 @@ mod tests {
         p2.spend(
             ctx,
             alice.coin,
-            create_singleton.create_coin(p2_singleton_hash, 1, Some(memos)),
+            create_singleton.create_coin(p2_singleton_hash, 1, memos),
         )?;
 
         let p2_coin = Coin::new(alice.coin.coin_id(), p2_singleton_hash, 1);
@@ -147,7 +147,7 @@ mod tests {
             .spend_with_conditions(
                 ctx,
                 Conditions::new()
-                    .create_coin(alice.puzzle_hash, 1, Some(memos))
+                    .create_coin(alice.puzzle_hash, 1, memos)
                     .create_puzzle_announcement(p2_coin.coin_id().into()),
             )?
             .solution;

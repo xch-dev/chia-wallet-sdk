@@ -2,25 +2,27 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
     cat::CatArgs,
     offer::{NotarizedPayment, Payment},
+    Memos,
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
     conditions::{
         AssertBeforeSecondsAbsolute, AssertPuzzleAnnouncement, AssertSecondsAbsolute, CreateCoin,
     },
+    payment_assertion,
     puzzles::{
         AugmentedConditionArgs, AugmentedConditionSolution, P2OneOfManySolution, RevocationArgs,
         SingletonMember, SingletonMemberSolution,
     },
     MerkleTree, Mod,
 };
-use clvm_traits::{clvm_list, clvm_quote, match_list};
-use clvm_utils::{ToTreeHash, TreeHash};
+use clvm_traits::{clvm_list, clvm_quote, match_list, ClvmEncoder, ToClvm};
+use clvm_utils::{ToTreeHash, TreeHash, TreeHasher};
 use clvmr::NodePtr;
 
 use crate::{
-    member_puzzle_hash, payment_assertion, DriverError, Layer, MemberSpend, MipsSpend,
-    P2OneOfManyLayer, Spend, SpendContext,
+    mips_puzzle_hash, DriverError, InnerPuzzleSpend, Layer, MipsSpend, P2OneOfManyLayer, Spend,
+    SpendContext,
 };
 
 use super::OptionType;
@@ -66,7 +68,7 @@ impl OptionUnderlying {
 
     pub fn exercise_path_hash(&self) -> Bytes32 {
         let singleton_member_hash = SingletonMember::new(self.launcher_id).curry_tree_hash();
-        member_puzzle_hash(0, Vec::new(), singleton_member_hash, true).into()
+        mips_puzzle_hash(0, Vec::new(), singleton_member_hash, true).into()
     }
 
     pub fn clawback_path_hash(&self) -> Bytes32 {
@@ -82,19 +84,25 @@ impl OptionUnderlying {
         P2OneOfManyLayer::new(self.merkle_tree().root())
     }
 
-    pub fn requested_payment(&self) -> NotarizedPayment {
-        NotarizedPayment {
+    pub fn requested_payment<E>(
+        &self,
+        encoder: &mut E,
+    ) -> Result<NotarizedPayment<E::Node>, DriverError>
+    where
+        E: ClvmEncoder,
+    {
+        Ok(NotarizedPayment {
             nonce: self.launcher_id,
-            payments: vec![Payment::with_memos(
-                self.creator_puzzle_hash,
-                self.strike_type.amount(),
-                if self.strike_type.is_hinted() {
-                    vec![self.creator_puzzle_hash.into()]
+            payments: vec![Payment {
+                puzzle_hash: self.creator_puzzle_hash,
+                amount: self.strike_type.amount(),
+                memos: if self.strike_type.is_hinted() {
+                    Memos::Some(vec![self.creator_puzzle_hash].to_clvm(encoder)?)
                 } else {
-                    vec![]
+                    Memos::None
                 },
-            )],
-        }
+            }],
+        })
     }
 
     pub fn delegated_puzzle(&self) -> OptionDelegatedPuzzle {
@@ -121,8 +129,13 @@ impl OptionUnderlying {
 
         clvm_quote!(clvm_list!(
             AssertBeforeSecondsAbsolute::new(self.seconds),
-            payment_assertion(puzzle_hash, &self.requested_payment()),
-            CreateCoin::new(SETTLEMENT_PAYMENT_HASH.into(), self.amount, None)
+            payment_assertion(
+                puzzle_hash,
+                self.requested_payment(&mut TreeHasher)
+                    .expect("failed to hash")
+                    .tree_hash()
+            ),
+            CreateCoin::new(SETTLEMENT_PAYMENT_HASH.into(), self.amount, Memos::None)
         ))
     }
 
@@ -151,7 +164,7 @@ impl OptionUnderlying {
         ))?;
         mips.members.insert(
             custody_hash,
-            MemberSpend::new(
+            InnerPuzzleSpend::new(
                 0,
                 Vec::new(),
                 Spend::new(singleton_member_puzzle, singleton_member_solution),

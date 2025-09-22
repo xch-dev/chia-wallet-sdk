@@ -15,7 +15,7 @@ pub enum CoinSelectionError {
 
     /// There weren't enough coins to reach the amount.
     #[error("insufficient balance {0}")]
-    InsufficientBalance(u128),
+    InsufficientBalance(u64),
 
     /// The selected coins exceeded the maximum.
     #[error("exceeded max coins")]
@@ -25,8 +25,9 @@ pub enum CoinSelectionError {
 /// Uses the knapsack algorithm to select coins.
 pub fn select_coins(
     mut spendable_coins: Vec<Coin>,
-    amount: u128,
+    amount: u64,
 ) -> Result<Vec<Coin>, CoinSelectionError> {
+    let amount = u128::from(amount);
     let max_coins = 500;
 
     // You cannot spend no coins.
@@ -40,7 +41,9 @@ pub fn select_coins(
         .fold(0u128, |acc, coin| acc + u128::from(coin.amount));
 
     if spendable_amount < amount {
-        return Err(CoinSelectionError::InsufficientBalance(spendable_amount));
+        return Err(CoinSelectionError::InsufficientBalance(
+            spendable_amount.try_into().expect("should fit"),
+        ));
     }
 
     // Sorts by amount, descending.

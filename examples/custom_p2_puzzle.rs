@@ -1,5 +1,6 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Coin, CoinSpend};
+use chia_puzzle_types::Memos;
 use chia_sdk_driver::{DriverError, Spend, SpendContext};
 use chia_sdk_test::Simulator;
 use chia_sdk_types::Conditions;
@@ -127,7 +128,7 @@ fn main() -> anyhow::Result<()> {
     let ctx = &mut SpendContext::new();
 
     let conditions = Conditions::new()
-        .create_coin(alice.puzzle_hash, 900, None)
+        .create_coin(alice.puzzle_hash, 900, Memos::None)
         .reserve_fee(100);
 
     ctx.spend_custom_coin(alice.coin, alice.pk, conditions)?;

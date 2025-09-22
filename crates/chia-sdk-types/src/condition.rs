@@ -1,13 +1,12 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
+use chia_puzzle_types::Memos;
 use chia_sdk_derive::conditions;
-use memos::Memos;
 use nfts::TradePrice;
 
 mod agg_sig;
 mod announcements;
 mod list;
-mod memos;
 mod nfts;
 
 pub use announcements::*;
@@ -63,7 +62,7 @@ conditions! {
             opcode: i8 if 51,
             puzzle_hash: Bytes32,
             amount: u64,
-            ...memos: Option<Memos<T>>,
+            ...memos: Memos<T>,
         },
         ReserveFee as Copy {
             opcode: i8 if 52,
@@ -169,16 +168,11 @@ conditions! {
             cost: u64,
             ...rest: T,
         },
-        MeltSingleton as Default + Copy {
-            opcode: i8 if 51,
-            puzzle_hash: () if (),
-            magic_amount: i8 if -113,
-        },
         TransferNft as Default {
             opcode: i8 if -10,
-            did_id: Option<Bytes32>,
+            launcher_id: Option<Bytes32>,
             trade_prices: Vec<TradePrice>,
-            did_inner_puzzle_hash: Option<Bytes32>,
+            singleton_inner_puzzle_hash: Option<Bytes32>,
         },
         RunCatTail<P, S> as Copy {
             opcode: i8 if 51,
@@ -186,6 +180,11 @@ conditions! {
             magic_amount: i8 if -113,
             program: P,
             solution: S,
+        },
+        MeltSingleton as Default + Copy {
+            opcode: i8 if 51,
+            puzzle_hash: () if (),
+            magic_amount: i8 if -113,
         },
         UpdateNftMetadata<P, S> as Copy {
             opcode: i8 if -24,
