@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::LazyLock};
 
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_sdk_types::{
@@ -12,11 +12,10 @@ use chia_sha2::Sha256;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
-use once_cell::sync::Lazy;
 
-use crate::{DriverError, Spend, SpendContext};
+use crate::{mips_puzzle_hash, DriverError, InnerPuzzleSpend, MipsSpend, Spend, SpendContext};
 
-use super::{member_puzzle_hash, MemberSpend, MipsSpend, MofN};
+use super::MofN;
 
 // Puzzle structure
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
@@ -33,7 +32,8 @@ pub struct Bulletin<S: BulletinSignature> {
     pub signature: S,
 }
 
-static BULLETIN_MOD: Lazy<Compilation> = Lazy::new(|| load_clvm("bulletin.clsp", &[]).unwrap());
+static BULLETIN_MOD: LazyLock<Compilation> =
+    LazyLock::new(|| load_clvm("bulletin.clsp", &[]).unwrap());
 
 impl Mod for BulletinArgs {
     fn mod_reveal() -> Cow<'static, [u8]> {
@@ -66,7 +66,7 @@ impl<S: BulletinSignature> Bulletin<S> {
 
     pub fn spend(&self, ctx: &mut SpendContext, coin: Coin) -> Result<(), DriverError> {
         let signature_ptr = ctx.alloc(&self.signature).unwrap();
-        let puzzle = ctx.curry(&BulletinArgs { id: self.id }).unwrap();
+        let puzzle = ctx.curry(BulletinArgs { id: self.id }).unwrap();
         let solution = ctx.alloc(&vec![self.message, signature_ptr]).unwrap();
         let bulletin_coin_spend =
             CoinSpend::new(coin, ctx.serialize(&puzzle)?, ctx.serialize(&solution)?);
@@ -96,11 +96,11 @@ impl SingletonTwoOfTwo {
         &self,
         ctx: &mut SpendContext,
         singleton_inner_puzzle_hash: TreeHash,
-    ) -> MemberSpend {
+    ) -> InnerPuzzleSpend {
         let singleton_member_puzzle = self.member();
         let singleton_member_solution =
             SingletonMemberSolution::new(Bytes32::from(singleton_inner_puzzle_hash), 1);
-        MemberSpend::new(
+        InnerPuzzleSpend::new(
             0,
             Vec::new(),
             Spend::new(
@@ -111,7 +111,7 @@ impl SingletonTwoOfTwo {
     }
 
     pub fn left_side_hash(&self) -> TreeHash {
-        member_puzzle_hash(0, Vec::new(), self.member().curry_tree_hash(), false)
+        mips_puzzle_hash(0, Vec::new(), self.member().curry_tree_hash(), false)
     }
 
     pub fn mofn(&self) -> MofN {
@@ -125,7 +125,7 @@ impl SingletonTwoOfTwo {
     }
 
     pub fn puzhash(&self) -> TreeHash {
-        member_puzzle_hash(0, Vec::new(), self.mofn().inner_puzzle_hash(), true)
+        mips_puzzle_hash(0, Vec::new(), self.mofn().inner_puzzle_hash(), true)
     }
 
     pub fn send_message_condition(
@@ -135,7 +135,7 @@ impl SingletonTwoOfTwo {
         bulletin_parent_id: Bytes32,
     ) -> SendMessage<NodePtr> {
         Condition::send_message(
-            0b00010111,
+            0b0001_0111,
             Bytes::from(Bytes32::from(delegated_puzzle_hash)),
             vec![ctx.alloc(&bulletin_parent_id).unwrap()],
         )
@@ -149,7 +149,7 @@ impl SingletonTwoOfTwo {
         coin: Coin,
         delegated_spend: Spend,
         singleton_inner_puzzle_hash: TreeHash,
-        right_side_member_spend: MemberSpend,
+        right_side_member_spend: InnerPuzzleSpend,
     ) -> Result<(), DriverError> {
         let mut parent_spend = MipsSpend::new(delegated_spend);
         parent_spend.members.insert(
@@ -160,7 +160,7 @@ impl SingletonTwoOfTwo {
             TreeHash::from(self.right_side_puzhash),
             right_side_member_spend,
         );
-        let m_of_n_spend = MemberSpend::m_of_n(
+        let m_of_n_spend = InnerPuzzleSpend::m_of_n(
             0,
             Vec::new(),
             2,
@@ -210,32 +210,26 @@ impl BulletinSignature for MessageFromSingletonThatMintedCAT {
 
         if expected_parent_coin.coin_id() != coin.parent_coin_info {
             return Err(DriverError::BulletSignatureVerificationFailed);
-        } else {
-            return Ok(());
         }
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use chia_protocol::{Bytes32, Coin, CoinSpend};
-    use chia_puzzle_types::{singleton::SingletonSolution, EveProof, Proof};
+    use std::slice;
+
+    use chia_puzzle_types::{singleton::SingletonSolution, EveProof, Memos, Proof};
     use chia_sdk_test::Simulator;
-    use chia_sdk_types::{Conditions, Mod};
+    use chia_sdk_types::Conditions;
     use clvm_traits::clvm_quote;
     use clvm_utils::ToTreeHash;
-    use clvmr::{Allocator, NodePtr};
     use rstest::rstest;
 
-    use crate::{
-        member_puzzle_hash, Launcher, Layer, MemberSpend, SingletonLayer, Spend, SpendContext,
-        SpendWithConditions, StandardLayer,
-    };
+    use crate::{Launcher, Layer, SingletonLayer, SpendWithConditions, StandardLayer};
 
-    use super::{
-        Bulletin, BulletinArgs, BulletinSignature, MessageFromSingletonThatMintedCAT,
-        SingletonTwoOfTwo,
-    };
+    use super::*;
 
     #[rstest]
     #[case::message_atom(Allocator::new().new_atom(b"foo").unwrap())]
@@ -265,7 +259,7 @@ mod tests {
         let bulletin_parent_fund = sim.bls(0);
         let bulletin_fund_puzzle = StandardLayer::new(bulletin_parent_fund.pk);
         let nil_hash = ctx.tree_hash(NodePtr::NIL);
-        let nil_member_hash = member_puzzle_hash(0, Vec::new(), nil_hash, false);
+        let nil_member_hash = mips_puzzle_hash(0, Vec::new(), nil_hash, false);
         let two_of_two = SingletonTwoOfTwo {
             launcher_id,
             right_side_puzhash: Bytes32::from(nil_member_hash),
@@ -278,7 +272,7 @@ mod tests {
         bulletin_fund_puzzle.spend(
             ctx,
             bulletin_parent_fund.coin,
-            Conditions::new().create_coin(bulletin_parent_coin.puzzle_hash, 0, None),
+            Conditions::new().create_coin(bulletin_parent_coin.puzzle_hash, 0, Memos::None),
         )?;
 
         // Process the singleton and bulletin parent creations
@@ -307,7 +301,7 @@ mod tests {
         };
         let announcement_id = bulletin.announcement_id(ctx);
         let delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new()
-            .create_coin(Bytes32::from(bulletin_puzzle_hash), 0, None)
+            .create_coin(Bytes32::from(bulletin_puzzle_hash), 0, Memos::None)
             .assert_coin_announcement(announcement_id)))?;
         let delegated_spend = Spend::new(delegated_puzzle, NodePtr::NIL);
         two_of_two
@@ -316,7 +310,7 @@ mod tests {
                 bulletin_parent_coin,
                 delegated_spend,
                 singleton_inner_puzzle_hash,
-                MemberSpend::new(0, Vec::new(), Spend::new(NodePtr::NIL, NodePtr::NIL)),
+                InnerPuzzleSpend::new(0, Vec::new(), Spend::new(NodePtr::NIL, NodePtr::NIL)),
             )
             .unwrap();
 
@@ -333,7 +327,7 @@ mod tests {
             .spend_with_conditions(
                 ctx,
                 Conditions::new()
-                    .create_coin(singleton_fund.puzzle_hash, 1, None)
+                    .create_coin(singleton_fund.puzzle_hash, 1, Memos::None)
                     .with(required_send_message),
             )?
             .solution;
@@ -356,14 +350,14 @@ mod tests {
 
         // Check the spends
         let spends: Vec<CoinSpend> = ctx.iter().cloned().collect();
-        for spend in spends.iter() {
+        for spend in &spends {
             let puzzle_ptr = ctx.alloc(&spend.puzzle_reveal).unwrap();
             assert_eq!(
                 spend.coin.puzzle_hash,
                 Bytes32::from(ctx.tree_hash(puzzle_ptr))
-            )
+            );
         }
-        sim.spend_coins(ctx.take(), &[singleton_fund.sk.clone()])?;
+        sim.spend_coins(ctx.take(), slice::from_ref(&singleton_fund.sk))?;
 
         // Check that the signature verifies
         signature.verify(bulletin_coin).unwrap();
