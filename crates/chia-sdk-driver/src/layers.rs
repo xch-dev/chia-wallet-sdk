@@ -1,4 +1,5 @@
 mod augmented_condition_layer;
+mod bulletin_layer;
 mod cat_layer;
 mod did_layer;
 mod nft_ownership_layer;
@@ -16,6 +17,7 @@ mod standard_layer;
 mod streaming_layer;
 
 pub use augmented_condition_layer::*;
+pub use bulletin_layer::*;
 pub use cat_layer::*;
 pub use did_layer::*;
 pub use nft_ownership_layer::*;
