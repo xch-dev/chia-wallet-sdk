@@ -2757,6 +2757,8 @@ export declare class WrapperMemo {
 
 export declare function blsMemberHash(config: MemberConfig, publicKey: PublicKey): Buffer
 
+export declare function bulletinPuzzleHash(hiddenPuzzleHash: Uint8Array): Buffer
+
 export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
 
 export declare function catPuzzleHash(assetId: Uint8Array, innerPuzzleHash: Uint8Array): Buffer

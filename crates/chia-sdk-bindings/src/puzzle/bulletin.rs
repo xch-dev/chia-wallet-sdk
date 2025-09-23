@@ -1,6 +1,8 @@
 use bindy::Result;
-use chia_sdk_driver::Bulletin;
+use chia_protocol::Bytes32;
+use chia_sdk_driver::{Bulletin, BulletinLayer};
 use clvm_traits::ToClvm;
+use clvm_utils::{ToTreeHash, TreeHash};
 
 use crate::{Clvm, Program, Spend};
 
@@ -41,4 +43,10 @@ impl BulletinExt for Bulletin {
 pub struct CreatedBulletin {
     pub bulletin: Bulletin,
     pub parent_conditions: Vec<Program>,
+}
+
+pub fn bulletin_puzzle_hash(hidden_puzzle_hash: Bytes32) -> Result<Bytes32> {
+    Ok(BulletinLayer::new(TreeHash::from(hidden_puzzle_hash))
+        .tree_hash()
+        .into())
 }

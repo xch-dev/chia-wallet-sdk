@@ -1,5 +1,5 @@
 import test from "ava";
-import { BulletinMessage, Clvm, Simulator } from "..";
+import { BulletinMessage, bulletinPuzzleHash, Clvm, Simulator } from "..";
 
 test("issues and spends a cat", (t) => {
   const sim = new Simulator();
@@ -63,5 +63,8 @@ test("issues and spends a cat", (t) => {
     created.bulletin.hiddenPuzzleHash.toString("hex")
   );
 
-  t.true(true);
+  t.is(
+    bulletin.coin.puzzleHash.toString("hex"),
+    bulletinPuzzleHash(bulletin.hiddenPuzzleHash).toString("hex")
+  );
 });

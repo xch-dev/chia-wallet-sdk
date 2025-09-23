@@ -819,5 +819,12 @@
       "bulletin": "Bulletin",
       "parent_conditions": "Vec<Program>"
     }
+  },
+  "bulletin_puzzle_hash": {
+    "type": "function",
+    "args": {
+      "hidden_puzzle_hash": "Bytes32"
+    },
+    "return": "Bytes32"
   }
 }

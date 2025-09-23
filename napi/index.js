@@ -581,6 +581,7 @@ module.exports.VdfProof = nativeBinding.VdfProof
 module.exports.VDFProof = nativeBinding.VDFProof
 module.exports.WrapperMemo = nativeBinding.WrapperMemo
 module.exports.blsMemberHash = nativeBinding.blsMemberHash
+module.exports.bulletinPuzzleHash = nativeBinding.bulletinPuzzleHash
 module.exports.bytesEqual = nativeBinding.bytesEqual
 module.exports.catPuzzleHash = nativeBinding.catPuzzleHash
 module.exports.curryTreeHash = nativeBinding.curryTreeHash
