@@ -7,9 +7,10 @@ use chia_puzzle_types::{offer::SettlementPaymentsSolution, LineageProof};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_driver::{
     create_security_coin, launch_reward_distributor, spend_security_coin, spend_settlement_nft,
-    Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault, MedievalVaultInfo, Offer,
-    OptionMetadata, RewardDistributor as SdkRewardDistributor, RewardDistributorConstants,
-    RewardDistributorState, SettlementLayer, SpendContext, StandardLayer, StreamedAsset,
+    Bulletin, BulletinMessage, Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault,
+    MedievalVaultInfo, Offer, OptionMetadata, RewardDistributor as SdkRewardDistributor,
+    RewardDistributorConstants, RewardDistributorState, SettlementLayer, SpendContext,
+    StandardLayer, StreamedAsset,
 };
 use chia_sdk_types::{Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
 use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
@@ -22,12 +23,12 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    AsProgram, AsPtr, CatSpend, CreatedDid, Did, Force1of2RestrictedVariableMemo, InnerPuzzleMemo,
-    MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft,
-    NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails, OptionContract, Payment,
-    Program, RestrictionMemo, RewardDistributor, RewardDistributorInfoFromEveCoin,
-    RewardDistributorLaunchResult, RewardSlot, SettlementNftSpendResult, Spend,
-    StreamedAssetParsingResult, VaultMint, WrapperMemo,
+    AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did, Force1of2RestrictedVariableMemo,
+    InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend,
+    MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
+    OptionContract, Payment, Program, RestrictionMemo, RewardDistributor,
+    RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
+    SettlementNftSpendResult, Spend, StreamedAssetParsingResult, VaultMint, WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -247,6 +248,30 @@ impl Clvm {
         let mut ctx = self.0.lock().unwrap();
         streamed_asset.spend(&mut ctx, payment_time, clawback)?;
         Ok(())
+    }
+
+    pub fn create_bulletin(
+        &self,
+        parent_coin_id: Bytes32,
+        hidden_puzzle_hash: Bytes32,
+        messages: Vec<BulletinMessage>,
+    ) -> Result<CreatedBulletin> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let (conditions, bulletin) =
+            Bulletin::create(parent_coin_id, hidden_puzzle_hash, messages)?;
+
+        let mut parent_conditions = Vec::new();
+
+        for condition in conditions {
+            let condition = condition.to_clvm(&mut ctx)?;
+            parent_conditions.push(Program(self.0.clone(), condition));
+        }
+
+        Ok(CreatedBulletin {
+            bulletin,
+            parent_conditions,
+        })
     }
 
     pub fn mint_vault(
