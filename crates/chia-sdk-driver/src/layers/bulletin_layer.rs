@@ -1,4 +1,7 @@
-use chia_sdk_types::puzzles::{IndexWrapperArgs, INDEX_WRAPPER_HASH};
+use chia_sdk_types::{
+    puzzles::{IndexWrapperArgs, INDEX_WRAPPER_HASH},
+    Mod,
+};
 use clvm_traits::{FromClvm, MatchByte};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -81,6 +84,7 @@ where
 {
     fn tree_hash(&self) -> TreeHash {
         let inner_puzzle_hash = self.inner_puzzle.tree_hash();
-        IndexWrapperArgs::<BulletinNonce, _>::new((MatchByte, ()), inner_puzzle_hash).tree_hash()
+        IndexWrapperArgs::<BulletinNonce, _>::new((MatchByte, ()), inner_puzzle_hash)
+            .curry_tree_hash()
     }
 }
