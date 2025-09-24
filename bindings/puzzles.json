@@ -86,6 +86,13 @@
           "parent_solution": "Program"
         },
         "return": "Option<Vec<Clawback>>"
+      },
+      "parse_bulletin": {
+        "args": {
+          "coin": "Coin",
+          "solution": "Program"
+        },
+        "return": "Option<Bulletin>"
       }
     }
   },
@@ -772,5 +779,52 @@
         "return": "MedievalVault"
       }
     }
+  },
+  "Bulletin": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "coin": "Coin",
+      "hidden_puzzle_hash": "Bytes32",
+      "messages": "Vec<BulletinMessage>"
+    },
+    "methods": {
+      "conditions": {
+        "args": {
+          "clvm": "Clvm"
+        },
+        "return": "Vec<Program>"
+      },
+      "spend": {
+        "args": {
+          "spend": "Spend"
+        }
+      }
+    }
+  },
+  "BulletinMessage": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "topic": "String",
+      "content": "String"
+    }
+  },
+  "CreatedBulletin": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "bulletin": "Bulletin",
+      "parent_conditions": "Vec<Program>"
+    }
+  },
+  "bulletin_puzzle_hash": {
+    "type": "function",
+    "args": {
+      "hidden_puzzle_hash": "Bytes32"
+    },
+    "return": "Bytes32"
   }
 }

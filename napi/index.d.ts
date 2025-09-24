@@ -350,6 +350,28 @@ export declare class BlsPairWithCoin {
   set coin(value: Coin)
 }
 
+export declare class Bulletin {
+  clone(): Bulletin
+  conditions(clvm: Clvm): Array<Program>
+  spend(spend: Spend): void
+  constructor(coin: Coin, hiddenPuzzleHash: Uint8Array, messages: Array<BulletinMessage>)
+  get coin(): Coin
+  set coin(value: Coin)
+  get hiddenPuzzleHash(): Buffer
+  set hiddenPuzzleHash(value: Uint8Array)
+  get messages(): Array<BulletinMessage>
+  set messages(value: Array<BulletinMessage>)
+}
+
+export declare class BulletinMessage {
+  clone(): BulletinMessage
+  constructor(topic: string, content: string)
+  get topic(): string
+  set topic(value: string)
+  get content(): string
+  set content(value: string)
+}
+
 export declare class Cat {
   clone(): Cat
   childLineageProof(): LineageProof
@@ -482,6 +504,7 @@ export declare class Clvm {
   spendOption(option: OptionContract, innerSpend: Spend): OptionContract | null
   spendStreamedAsset(streamedAsset: StreamedAsset, paymentTime: bigint, clawback: boolean): void
   mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
+  createBulletin(parentCoinId: Uint8Array, hiddenPuzzleHash: Uint8Array, messages: Array<BulletinMessage>): CreatedBulletin
   mipsSpend(coin: Coin, delegatedSpend: Spend): MipsSpend
   nftMetadata(value: NftMetadata): Program
   mipsMemo(value: MipsMemo): Program
@@ -965,6 +988,15 @@ export declare class CreateCoinAnnouncement {
   constructor(message: Uint8Array)
   get message(): Buffer
   set message(value: Uint8Array)
+}
+
+export declare class CreatedBulletin {
+  clone(): CreatedBulletin
+  constructor(bulletin: Bulletin, parentConditions: Array<Program>)
+  get bulletin(): Bulletin
+  set bulletin(value: Bulletin)
+  get parentConditions(): Array<Program>
+  set parentConditions(value: Array<Program>)
 }
 
 export declare class CreatedDid {
@@ -2000,6 +2032,7 @@ export declare class Puzzle {
   parseChildOption(parentCoin: Coin, parentSolution: Program): OptionContract | null
   parseInnerStreamingPuzzle(): StreamingPuzzleInfo | null
   parseChildClawbacks(parentSolution: Program): Array<Clawback> | null
+  parseBulletin(coin: Coin, solution: Program): Bulletin | null
   constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
   get puzzleHash(): Buffer
   set puzzleHash(value: Uint8Array)
@@ -2723,6 +2756,8 @@ export declare class WrapperMemo {
 }
 
 export declare function blsMemberHash(config: MemberConfig, publicKey: PublicKey): Buffer
+
+export declare function bulletinPuzzleHash(hiddenPuzzleHash: Uint8Array): Buffer
 
 export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
 

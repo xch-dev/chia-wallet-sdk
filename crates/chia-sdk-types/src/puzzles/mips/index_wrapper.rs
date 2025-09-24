@@ -8,21 +8,21 @@ use crate::Mod;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]
-pub struct IndexWrapperArgs<I> {
-    pub index: usize,
+pub struct IndexWrapperArgs<N, I> {
+    pub nonce: N,
     pub inner_puzzle: I,
 }
 
-impl<I> IndexWrapperArgs<I> {
-    pub fn new(index: usize, inner_puzzle: I) -> Self {
+impl<N, I> IndexWrapperArgs<N, I> {
+    pub fn new(nonce: N, inner_puzzle: I) -> Self {
         Self {
-            index,
+            nonce,
             inner_puzzle,
         }
     }
 }
 
-impl<I> Mod for IndexWrapperArgs<I> {
+impl<N, I> Mod for IndexWrapperArgs<N, I> {
     fn mod_reveal() -> Cow<'static, [u8]> {
         Cow::Borrowed(&INDEX_WRAPPER)
     }
