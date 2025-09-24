@@ -8,6 +8,9 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 
+/// A standard nonce for bulletin coins to differentiate them from normal XCH coins.
+/// This is the CLVM value ("b", ()), where "b" stands for "bulletin" and the pair
+/// is to disambiguate it from standard atom nonces. This is not related to MIPS.
 pub type BulletinNonce = (MatchByte<98>, ());
 
 /// The Bulletin [`Layer`] is used to wrap a puzzle hash with a static nonce
