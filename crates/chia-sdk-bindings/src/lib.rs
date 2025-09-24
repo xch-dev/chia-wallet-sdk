@@ -70,10 +70,10 @@ pub use chia_sdk_coinset::{
     PushTxResponse, SyncState,
 };
 pub use chia_sdk_driver::{
-    Cat, CatInfo, Clawback, ClawbackV2, MedievalVaultHint, MedievalVaultInfo, OptionInfo,
-    OptionMetadata, OptionType, OptionUnderlying, RewardDistributorConstants,
-    RewardDistributorState, RewardDistributorType, RoundRewardInfo, RoundTimeInfo, StreamedAsset,
-    StreamingPuzzleInfo, VaultInfo,
+    Bulletin, BulletinMessage, Cat, CatInfo, Clawback, ClawbackV2, MedievalVaultHint,
+    MedievalVaultInfo, OptionInfo, OptionMetadata, OptionType, OptionUnderlying,
+    RewardDistributorConstants, RewardDistributorState, RewardDistributorType, RoundRewardInfo,
+    RoundTimeInfo, StreamedAsset, StreamingPuzzleInfo, VaultInfo,
 };
 pub use chia_sdk_types::{
     conditions::TradePrice,
