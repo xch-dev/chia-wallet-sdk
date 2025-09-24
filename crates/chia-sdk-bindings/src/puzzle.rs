@@ -1,3 +1,4 @@
+mod bulletin;
 mod cat;
 mod clawback;
 mod clawback_v2;
@@ -6,6 +7,7 @@ mod nft;
 mod option;
 mod streamed_asset;
 
+pub use bulletin::*;
 pub use cat::*;
 pub use clawback::*;
 pub use clawback_v2::*;
@@ -21,8 +23,8 @@ use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{cat::CatArgs, standard::StandardArgs};
 use chia_sdk_driver::{
-    Cat, CatInfo, Clawback, CurriedPuzzle, OptionContract as SdkOptionContract, OptionInfo,
-    RawPuzzle, SpendContext, StreamingPuzzleInfo,
+    Bulletin, Cat, CatInfo, Clawback, CurriedPuzzle, OptionContract as SdkOptionContract,
+    OptionInfo, RawPuzzle, SpendContext, StreamingPuzzleInfo,
 };
 
 use crate::{AsProgram, Program};
@@ -287,6 +289,14 @@ impl Puzzle {
             parent_puzzle,
             parent_solution.1,
         )?)
+    }
+
+    pub fn parse_bulletin(&self, coin: Coin, solution: Program) -> Result<Option<Bulletin>> {
+        let puzzle = chia_sdk_driver::Puzzle::from(self.clone());
+
+        let mut ctx = self.program.0.lock().unwrap();
+
+        Ok(Bulletin::parse(&mut ctx, coin, puzzle, solution.1)?)
     }
 }
 
