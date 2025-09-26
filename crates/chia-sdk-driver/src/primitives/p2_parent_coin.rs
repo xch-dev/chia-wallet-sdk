@@ -178,6 +178,7 @@ impl P2ParentCoin {
 
 #[cfg(test)]
 mod tests {
+    use chia_sdk_test::{Benchmark, Simulator};
     use chia_sdk_types::puzzles::{P2_PARENT_PUZZLE, P2_PARENT_PUZZLE_HASH};
     use clvm_utils::tree_hash;
     use clvmr::serde::node_from_bytes;
@@ -197,7 +198,17 @@ mod tests {
     #[case::xch(false)]
     #[case::cat(true)]
     fn test_p2_parent(#[case] cat_mode: bool) -> anyhow::Result<()> {
-        // todo
+        let mut ctx = SpendContext::new();
+        let mut sim = Simulator::new();
+        let mut benchmark = Benchmark::new(format!(
+            "P2 Parent Coin ({})",
+            if cat_mode { "CAT" } else { "XCH" }
+        ));
+
+        benchmark.print_summary(Some(&format!(
+            "p2parent-coin-{}.costs",
+            if cat_mode { "cat" } else { "xch" }
+        )));
 
         Ok(())
     }
