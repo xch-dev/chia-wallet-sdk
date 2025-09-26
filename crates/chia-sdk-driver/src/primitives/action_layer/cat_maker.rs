@@ -1,13 +1,16 @@
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
-    puzzles::{DefaultCatMakerArgs, RevocableCatMakerArgs, XchCatMaker, XCH_CAT_MAKER_PUZZLE_HASH},
+    puzzles::{
+        DefaultCatMakerArgs, RevocableCatMakerArgs, XchCatMaker, DEFAULT_CAT_MAKER_PUZZLE_HASH,
+        REVOCABLE_CAT_MAKER_PUZZLE_HASH, XCH_CAT_MAKER_PUZZLE_HASH,
+    },
     Mod,
 };
-use clvm_traits::{clvm_tuple, ToClvm};
+use clvm_traits::{clvm_tuple, FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, SpendContext};
+use crate::{DriverError, Puzzle, SpendContext};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CatMaker {
@@ -70,9 +73,33 @@ impl CatMaker {
         ctx.extract(result)
     }
 
-    pub fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
-        if let Some(curried) = puzzle.as_curried() {} else {
-            if puzzle.
+    pub fn parse_puzzle(
+        allocator: &Allocator,
+        puzzle: Puzzle,
+    ) -> Result<Option<Self>, DriverError> {
+        let puzzle_mod_hash = puzzle.mod_hash();
+
+        if puzzle_mod_hash == XCH_CAT_MAKER_PUZZLE_HASH {
+            return Ok(Some(Self::Xch));
         }
+
+        if let Some(curried_puzzle) = puzzle.as_curried() {
+            if puzzle_mod_hash == DEFAULT_CAT_MAKER_PUZZLE_HASH {
+                let args = DefaultCatMakerArgs::from_clvm(allocator, curried_puzzle.args)?;
+
+                return Ok(Some(Self::Default {
+                    tail_hash_hash: args.tail_hash_hash.into(),
+                }));
+            } else if puzzle_mod_hash == REVOCABLE_CAT_MAKER_PUZZLE_HASH {
+                let args = RevocableCatMakerArgs::from_clvm(allocator, curried_puzzle.args)?;
+
+                return Ok(Some(Self::Revocable {
+                    tail_hash_hash: args.tail_hash_hash.into(),
+                    hidden_puzzle_hash_hash: args.mod_struct.hidden_puzzle_hash_hash.into(),
+                }));
+            }
+        }
+
+        Ok(None)
     }
 }
