@@ -1,11 +1,17 @@
-use crate::{CatLayer, CatMaker, DriverError, Layer, P2ParentLayer, Puzzle, Spend, SpendContext};
+use crate::{
+    CatLayer, CatMaker, DriverError, HashedPtr, Layer, P2ParentLayer, Puzzle, Spend, SpendContext,
+};
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
     cat::{CatArgs, CatSolution},
-    CoinProof, LineageProof,
+    CoinProof, LineageProof, Memos,
 };
-use chia_sdk_types::puzzles::{P2ParentArgs, P2ParentSolution};
-use clvm_traits::ToClvm;
+use chia_puzzles::CAT_PUZZLE_HASH;
+use chia_sdk_types::{
+    puzzles::{P2ParentArgs, P2ParentSolution},
+    run_puzzle, Conditions,
+};
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -34,9 +40,9 @@ impl P2ParentCoin {
         }
     }
 
-    pub fn inner_puzzle_hash(&self) -> TreeHash {
+    pub fn inner_puzzle_hash(asset_id: Option<Bytes32>) -> TreeHash {
         P2ParentArgs {
-            cat_maker: if let Some(asset_id) = self.asset_id {
+            cat_maker: if let Some(asset_id) = asset_id {
                 CatMaker::Default {
                     tail_hash_hash: asset_id.tree_hash(),
                 }
@@ -48,10 +54,10 @@ impl P2ParentCoin {
         .tree_hash()
     }
 
-    pub fn puzzle_hash(&self) -> TreeHash {
-        let inner_puzzle_hash = self.inner_puzzle_hash();
+    pub fn puzzle_hash(asset_id: Option<Bytes32>) -> TreeHash {
+        let inner_puzzle_hash = Self::inner_puzzle_hash(asset_id);
 
-        if let Some(asset_id) = self.asset_id {
+        if let Some(asset_id) = asset_id {
             CatArgs::curry_tree_hash(asset_id, inner_puzzle_hash)
         } else {
             inner_puzzle_hash
@@ -87,7 +93,7 @@ impl P2ParentCoin {
                     this_coin_info: self.coin,
                     next_coin_proof: CoinProof {
                         parent_coin_info: self.coin.parent_coin_info,
-                        inner_puzzle_hash: self.inner_puzzle_hash().into(),
+                        inner_puzzle_hash: Self::inner_puzzle_hash(self.asset_id).into(),
                         amount: self.coin.amount,
                     },
                     prev_subtotal: 0,
@@ -114,13 +120,59 @@ impl P2ParentCoin {
         ctx.spend(self.coin, Spend::new(puzzle, solution))
     }
 
-    pub fn from_parent_spend(
-        ctx: &mut SpendContext,
+    // also returns memo
+    pub fn parse_child<M>(
+        allocator: &mut Allocator,
         parent_coin: Coin,
         parent_puzzle: Puzzle,
         parent_solution: NodePtr,
-    ) -> Result<Option<(Self, NodePtr)>, DriverError> {
-        todo!("TODO")
+    ) -> Result<Option<(Self, Memos)>, DriverError>
+    where
+        M: FromClvm<Allocator>,
+    {
+        let (parent_inner_puzzle_hash, asset_id) =
+            if parent_puzzle.mod_hash() == CAT_PUZZLE_HASH.into() {
+                let Some(parent_puzzle) = parent_puzzle.as_curried() else {
+                    return Err(DriverError::Custom(
+                        "Expected parent puzzle to be curried but it's not.".to_string(),
+                    ));
+                };
+
+                let args = CatArgs::<HashedPtr>::from_clvm(allocator, parent_puzzle.args)?;
+                (args.inner_puzzle.tree_hash().into(), Some(args.asset_id))
+            } else {
+                (parent_coin.puzzle_hash, None)
+            };
+
+        let proof = LineageProof {
+            parent_parent_coin_info: parent_coin.parent_coin_info,
+            parent_inner_puzzle_hash,
+            parent_amount: parent_coin.amount,
+        };
+
+        let expected_puzzle_hash: Bytes32 = Self::puzzle_hash(asset_id).into();
+
+        let parent_output = run_puzzle(allocator, parent_puzzle.ptr(), parent_solution)?;
+        let parent_conditions = Conditions::<NodePtr>::from_clvm(allocator, parent_output)?;
+        let Some(create_coin) = parent_conditions.iter().find_map(|c| {
+            c.as_create_coin()
+                .filter(|&create_coin| create_coin.puzzle_hash == expected_puzzle_hash)
+        }) else {
+            return Ok(None);
+        };
+
+        Ok(Some((
+            Self {
+                coin: Coin::new(
+                    parent_coin.coin_id(),
+                    expected_puzzle_hash,
+                    create_coin.amount,
+                ),
+                asset_id,
+                proof,
+            },
+            create_coin.memos,
+        )))
     }
 }
 
