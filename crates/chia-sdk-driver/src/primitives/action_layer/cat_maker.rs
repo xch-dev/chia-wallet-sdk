@@ -69,4 +69,10 @@ impl CatMaker {
 
         ctx.extract(result)
     }
+
+    pub fn parse_puzzle(allocator: &Allocator, puzzle: Puzzle) -> Result<Option<Self>, DriverError> {
+        if let Some(curried) = puzzle.as_curried() {} else {
+            if puzzle.
+        }
+    }
 }
