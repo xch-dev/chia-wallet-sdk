@@ -121,15 +121,12 @@ impl P2ParentCoin {
     }
 
     // also returns memo
-    pub fn parse_child<M>(
+    pub fn parse_child(
         allocator: &mut Allocator,
         parent_coin: Coin,
         parent_puzzle: Puzzle,
         parent_solution: NodePtr,
-    ) -> Result<Option<(Self, Memos)>, DriverError>
-    where
-        M: FromClvm<Allocator>,
-    {
+    ) -> Result<Option<(Self, Memos)>, DriverError> {
         let (parent_inner_puzzle_hash, asset_id) =
             if parent_puzzle.mod_hash() == CAT_PUZZLE_HASH.into() {
                 let Some(parent_puzzle) = parent_puzzle.as_curried() else {
@@ -178,11 +175,16 @@ impl P2ParentCoin {
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
+    use chia_protocol::Bytes;
     use chia_sdk_test::{Benchmark, Simulator};
     use chia_sdk_types::puzzles::{P2_PARENT_PUZZLE, P2_PARENT_PUZZLE_HASH};
     use clvm_utils::tree_hash;
     use clvmr::serde::node_from_bytes;
     use rstest::rstest;
+
+    use crate::{Cat, CatSpend, FungibleAsset, SpendWithConditions, StandardLayer};
 
     use super::*;
 
@@ -205,8 +207,136 @@ mod tests {
             if cat_mode { "CAT" } else { "XCH" }
         ));
 
+        let parent_bls = sim.bls(1337);
+
+        // Server coins will be created with a list of strings as memos
+        let server_list = vec![
+            Bytes::new(b"yak1".to_vec()),
+            Bytes::new(b"yak2".to_vec()),
+            Bytes::new(b"yak3".to_vec()),
+        ];
+
+        let (expected_coin, expected_asset_id, expected_lp) = if !cat_mode {
+            let parent_inner_spend = StandardLayer::new(parent_bls.pk).spend_with_conditions(
+                &mut ctx,
+                Conditions::new().create_coin(
+                    P2ParentCoin::puzzle_hash(None).into(),
+                    1337,
+                    ctx.memos(&server_list)?,
+                ),
+            )?;
+
+            ctx.spend(parent_bls.coin, parent_inner_spend)?;
+
+            (
+                parent_bls.coin.make_child(
+                    P2ParentCoin::puzzle_hash(None).into(),
+                    parent_bls.coin.amount,
+                ),
+                None,
+                LineageProof {
+                    parent_parent_coin_info: parent_bls.coin.parent_coin_info,
+                    parent_inner_puzzle_hash: parent_bls.coin.puzzle_hash,
+                    parent_amount: parent_bls.coin.amount,
+                },
+            )
+        } else {
+            let (issue_cat, cats) = Cat::issue_with_coin(
+                &mut ctx,
+                parent_bls.coin.coin_id(),
+                parent_bls.coin.amount,
+                Conditions::new().create_coin(
+                    parent_bls.puzzle_hash,
+                    parent_bls.coin.amount,
+                    Memos::None,
+                ),
+            )?;
+            StandardLayer::new(parent_bls.pk).spend(&mut ctx, parent_bls.coin, issue_cat)?;
+            sim.spend_coins(ctx.take(), slice::from_ref(&parent_bls.sk))?;
+
+            let parent_conds = Conditions::new().create_coin(
+                P2ParentCoin::puzzle_hash(Some(cats[0].info.asset_id)).into(),
+                1337,
+                ctx.memos(&server_list)?,
+            );
+            let parent_cat_inner_spend =
+                StandardLayer::new(parent_bls.pk).spend_with_conditions(&mut ctx, parent_conds)?;
+
+            let cats = Cat::spend_all(&mut ctx, &[CatSpend::new(cats[0], parent_cat_inner_spend)])?;
+
+            (
+                cats[0].coin,
+                Some(cats[0].info.asset_id),
+                cats[0].lineage_proof.unwrap(),
+            )
+        };
+
+        let spends = ctx.take();
+        let launch_spend = spends.last().unwrap().clone();
+        benchmark.add_spends(
+            &mut ctx,
+            &mut sim,
+            spends,
+            "create",
+            slice::from_ref(&parent_bls.sk),
+        )?;
+
+        // Test parsing
+        let parent_puzzle = Puzzle::parse(&ctx, ctx.alloc(&launch_spend.puzzle_reveal)?);
+        let parent_solution = ctx.alloc(&launch_spend.solution)?;
+        let (p2_parent_coin, memos) =
+            P2ParentCoin::parse_child(&mut ctx, launch_spend.coin, parent_puzzle, parent_solution)?
+                .unwrap();
+
+        assert_eq!(
+            p2_parent_coin,
+            P2ParentCoin {
+                coin: expected_coin,
+                asset_id: expected_asset_id,
+                proof: expected_lp,
+            },
+        );
+        let Memos::Some(memos) = memos else {
+            panic!("Expected memos");
+        };
+        let memos = ctx.extract::<Vec<Bytes>>(memos)?;
+        assert_eq!(memos, server_list);
+
+        // Spend the p2_parent coin
+        let new_coin_inner_puzzle_hash = Bytes32::new([0; 32]);
+        let new_coin = Coin::new(
+            p2_parent_coin.coin.coin_id(),
+            if cat_mode {
+                CatArgs::curry_tree_hash(
+                    p2_parent_coin.asset_id.unwrap(),
+                    new_coin_inner_puzzle_hash.into(),
+                )
+                .into()
+            } else {
+                new_coin_inner_puzzle_hash
+            },
+            p2_parent_coin.coin.amount,
+        );
+
+        let delegated_spend = StandardLayer::new(parent_bls.pk).spend_with_conditions(
+            &mut ctx,
+            Conditions::new().create_coin(new_coin_inner_puzzle_hash, new_coin.amount, Memos::None),
+        )?;
+        p2_parent_coin.spend(&mut ctx, delegated_spend, ())?;
+
+        let spends = ctx.take();
+        benchmark.add_spends(
+            &mut ctx,
+            &mut sim,
+            spends,
+            "spend",
+            slice::from_ref(&parent_bls.sk),
+        )?;
+
+        assert!(sim.coin_state(new_coin.coin_id()).is_some());
+
         benchmark.print_summary(Some(&format!(
-            "p2parent-coin-{}.costs",
+            "p2-parent-coin-{}.costs",
             if cat_mode { "cat" } else { "xch" }
         )));
 
