@@ -216,31 +216,7 @@ mod tests {
             Bytes::new(b"yak3".to_vec()),
         ];
 
-        let (expected_coin, expected_asset_id, expected_lp) = if !cat_mode {
-            let parent_inner_spend = StandardLayer::new(parent_bls.pk).spend_with_conditions(
-                &mut ctx,
-                Conditions::new().create_coin(
-                    P2ParentCoin::puzzle_hash(None).into(),
-                    1337,
-                    ctx.memos(&server_list)?,
-                ),
-            )?;
-
-            ctx.spend(parent_bls.coin, parent_inner_spend)?;
-
-            (
-                parent_bls.coin.make_child(
-                    P2ParentCoin::puzzle_hash(None).into(),
-                    parent_bls.coin.amount,
-                ),
-                None,
-                LineageProof {
-                    parent_parent_coin_info: parent_bls.coin.parent_coin_info,
-                    parent_inner_puzzle_hash: parent_bls.coin.puzzle_hash,
-                    parent_amount: parent_bls.coin.amount,
-                },
-            )
-        } else {
+        let (expected_coin, expected_asset_id, expected_lp) = if cat_mode {
             let (issue_cat, cats) = Cat::issue_with_coin(
                 &mut ctx,
                 parent_bls.coin.coin_id(),
@@ -269,6 +245,29 @@ mod tests {
                 Some(cats[0].info.asset_id),
                 cats[0].lineage_proof.unwrap(),
             )
+        } else {
+            let parent_conds = Conditions::new().create_coin(
+                P2ParentCoin::puzzle_hash(None).into(),
+                1337,
+                ctx.memos(&server_list)?,
+            );
+            let parent_inner_spend =
+                StandardLayer::new(parent_bls.pk).spend_with_conditions(&mut ctx, parent_conds)?;
+
+            ctx.spend(parent_bls.coin, parent_inner_spend)?;
+
+            (
+                parent_bls.coin.make_child(
+                    P2ParentCoin::puzzle_hash(None).into(),
+                    parent_bls.coin.amount,
+                ),
+                None,
+                LineageProof {
+                    parent_parent_coin_info: parent_bls.coin.parent_coin_info,
+                    parent_inner_puzzle_hash: parent_bls.coin.puzzle_hash,
+                    parent_amount: parent_bls.coin.amount,
+                },
+            )
         };
 
         let spends = ctx.take();
@@ -282,7 +281,8 @@ mod tests {
         )?;
 
         // Test parsing
-        let parent_puzzle = Puzzle::parse(&ctx, ctx.alloc(&launch_spend.puzzle_reveal)?);
+        let parent_puzzle = ctx.alloc(&launch_spend.puzzle_reveal)?;
+        let parent_puzzle = Puzzle::parse(&ctx, parent_puzzle);
         let parent_solution = ctx.alloc(&launch_spend.solution)?;
         let (p2_parent_coin, memos) =
             P2ParentCoin::parse_child(&mut ctx, launch_spend.coin, parent_puzzle, parent_solution)?
