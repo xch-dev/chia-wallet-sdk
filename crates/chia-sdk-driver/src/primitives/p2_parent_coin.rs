@@ -194,7 +194,9 @@ mod tests {
     }
 
     #[rstest]
-    fn test_p2_parent(#[values(true, false)] xch_stream: bool) -> anyhow::Result<()> {
+    #[case::xch(false)]
+    #[case::cat(true)]
+    fn test_p2_parent(#[case] cat_mode: bool) -> anyhow::Result<()> {
         // todo
 
         Ok(())
