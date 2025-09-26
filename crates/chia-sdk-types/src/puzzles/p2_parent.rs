@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
-use chia_bls::PublicKey;
+use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::TreeHash;
 use hex_literal::hex;
 
 use crate::Mod;
