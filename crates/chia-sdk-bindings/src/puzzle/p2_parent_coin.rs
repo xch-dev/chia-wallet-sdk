@@ -6,17 +6,17 @@ use clvm_utils::TreeHash;
 use crate::Spend;
 
 pub trait P2ParentCoinExt {
-    fn inner_puzzle_hash(&self, asset_id: Option<Bytes32>) -> Result<TreeHash>;
-    fn puzzle_hash(&self, asset_id: Option<Bytes32>) -> Result<TreeHash>;
+    fn inner_puzzle_hash(asset_id: Option<Bytes32>) -> Result<TreeHash>;
+    fn puzzle_hash(asset_id: Option<Bytes32>) -> Result<TreeHash>;
     fn spend(&self, delegated_spend: Spend) -> Result<()>;
 }
 
 impl P2ParentCoinExt for P2ParentCoin {
-    fn inner_puzzle_hash(&self, asset_id: Option<Bytes32>) -> Result<TreeHash> {
+    fn inner_puzzle_hash(asset_id: Option<Bytes32>) -> Result<TreeHash> {
         Ok(P2ParentCoin::inner_puzzle_hash(asset_id))
     }
 
-    fn puzzle_hash(&self, asset_id: Option<Bytes32>) -> Result<TreeHash> {
+    fn puzzle_hash(asset_id: Option<Bytes32>) -> Result<TreeHash> {
         Ok(P2ParentCoin::puzzle_hash(asset_id))
     }
 
