@@ -58,6 +58,12 @@ impl P2ParentCoin {
         let inner_puzzle_hash = Self::inner_puzzle_hash(asset_id);
 
         if let Some(asset_id) = asset_id {
+            println!("asset_id {:?}", asset_id); // todo: debug
+            println!("inner_puzzle_hash {:?}", inner_puzzle_hash); // todo: debug
+            println!(
+                "full ph {:?}",
+                CatArgs::curry_tree_hash(asset_id, inner_puzzle_hash)
+            ); // todo: debug
             CatArgs::curry_tree_hash(asset_id, inner_puzzle_hash)
         } else {
             inner_puzzle_hash
@@ -147,14 +153,18 @@ impl P2ParentCoin {
             parent_amount: parent_coin.amount,
         };
 
+        println!("asset_id {:?}", asset_id); // todo: debug
         let expected_puzzle_hash: Bytes32 = Self::puzzle_hash(asset_id).into();
+        println!("expected_puzzle_hash {:?}", expected_puzzle_hash); // todo: debug
 
         let parent_output = run_puzzle(allocator, parent_puzzle.ptr(), parent_solution)?;
         let parent_conditions = Conditions::<NodePtr>::from_clvm(allocator, parent_output)?;
+        parent_conditions.iter().for_each(|c| println!("c {:?}", c)); //todo: debug
         let Some(create_coin) = parent_conditions.iter().find_map(|c| {
             c.as_create_coin()
                 .filter(|&create_coin| create_coin.puzzle_hash == expected_puzzle_hash)
         }) else {
+            println!("didn't find ph"); // todo: debug
             return Ok(None);
         };
 
@@ -232,7 +242,7 @@ mod tests {
             sim.spend_coins(ctx.take(), slice::from_ref(&parent_bls.sk))?;
 
             let parent_conds = Conditions::new().create_coin(
-                P2ParentCoin::puzzle_hash(Some(cats[0].info.asset_id)).into(),
+                P2ParentCoin::inner_puzzle_hash(Some(cats[0].info.asset_id)).into(),
                 1337,
                 ctx.memos(&server_list)?,
             );
@@ -270,6 +280,7 @@ mod tests {
                 },
             )
         };
+        println!("asset_id {:?}", expected_asset_id); // todo: debug
 
         println!("1"); // todo: debug
         let spends = ctx.take();
