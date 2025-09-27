@@ -93,6 +93,13 @@
           "solution": "Program"
         },
         "return": "Option<Bulletin>"
+      },
+      "parse_child_p2_parent": {
+        "args": {
+          "parent_coin": "Coin",
+          "parent_solution": "Program"
+        },
+        "return": "Option<P2ParentCoinChildParseResult>"
       }
     }
   },
@@ -826,5 +833,44 @@
       "hidden_puzzle_hash": "Bytes32"
     },
     "return": "Bytes32"
+  },
+  "P2ParentCoin": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "coin": "Coin",
+      "asset_id": "Option<Bytes32>",
+      "proof": "LineageProof"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "type": "static",
+        "args": {
+          "asset_id": "Option<Bytes32>"
+        },
+        "return": "TreeHash"
+      },
+      "puzzle_hash": {
+        "type": "static",
+        "args": {
+          "asset_id": "Option<Bytes32>"
+        },
+        "return": "TreeHash"
+      },
+      "spend": {
+        "args": {
+          "delegated_spend": "Spend"
+        }
+      }
+    }
+  },
+  "P2ParentCoinChildParseResult": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "p2_parent_coin": "P2ParentCoin",
+      "memos": "Vec<Bytes>"
+    }
   }
 }
