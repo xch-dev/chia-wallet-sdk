@@ -8,7 +8,6 @@ mod option_contract_layer;
 mod p2_curried_layer;
 mod p2_delegated_conditions_layer;
 mod p2_one_of_many_layer;
-mod p2_parent;
 mod p2_singleton_layer;
 mod revocation_layer;
 mod royalty_transfer_layer;
@@ -27,7 +26,6 @@ pub use option_contract_layer::*;
 pub use p2_curried_layer::*;
 pub use p2_delegated_conditions_layer::*;
 pub use p2_one_of_many_layer::*;
-pub use p2_parent::*;
 pub use p2_singleton_layer::*;
 pub use revocation_layer::*;
 pub use royalty_transfer_layer::*;
@@ -47,3 +45,9 @@ mod action_layer;
 
 #[cfg(feature = "action-layer")]
 pub use action_layer::*;
+
+#[cfg(feature = "action-layer")]
+mod p2_parent;
+
+#[cfg(feature = "action-layer")]
+pub use p2_parent::*;

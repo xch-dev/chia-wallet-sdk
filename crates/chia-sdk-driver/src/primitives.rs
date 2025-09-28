@@ -8,7 +8,6 @@ mod launcher;
 mod mips;
 mod nft;
 mod option;
-mod p2_parent_coin;
 mod singleton;
 mod streamed_asset;
 mod vault;
@@ -23,7 +22,6 @@ pub use launcher::*;
 pub use mips::*;
 pub use nft::*;
 pub use option::*;
-pub use p2_parent_coin::*;
 pub use singleton::*;
 pub use streamed_asset::*;
 pub use vault::*;
@@ -39,3 +37,9 @@ mod action_layer;
 
 #[cfg(feature = "action-layer")]
 pub use action_layer::*;
+
+#[cfg(feature = "action-layer")]
+mod p2_parent_coin;
+
+#[cfg(feature = "action-layer")]
+pub use p2_parent_coin::*;
