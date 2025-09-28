@@ -1754,6 +1754,29 @@ export declare class Output {
   set cost(value: bigint)
 }
 
+export declare class P2ParentCoin {
+  clone(): P2ParentCoin
+  static innerPuzzleHash(assetId?: Uint8Array | undefined | null): Buffer
+  static puzzleHash(assetId?: Uint8Array | undefined | null): Buffer
+  spend(delegatedSpend: Spend): void
+  constructor(coin: Coin, assetId: Uint8Array | undefined | null, proof: LineageProof)
+  get coin(): Coin
+  set coin(value: Coin)
+  get assetId(): Buffer | null
+  set assetId(value?: Uint8Array | undefined | null)
+  get proof(): LineageProof
+  set proof(value: LineageProof)
+}
+
+export declare class P2ParentCoinChildParseResult {
+  clone(): P2ParentCoinChildParseResult
+  constructor(p2ParentCoin: P2ParentCoin, memos: Array<Uint8Array>)
+  get p2ParentCoin(): P2ParentCoin
+  set p2ParentCoin(value: P2ParentCoin)
+  get memos(): Array<Buffer>
+  set memos(value: Array<Uint8Array>)
+}
+
 export declare class Pair {
   clone(): Pair
   constructor(first: Program, rest: Program)
@@ -2033,6 +2056,7 @@ export declare class Puzzle {
   parseInnerStreamingPuzzle(): StreamingPuzzleInfo | null
   parseChildClawbacks(parentSolution: Program): Array<Clawback> | null
   parseBulletin(coin: Coin, solution: Program): Bulletin | null
+  parseChildP2Parent(parentCoin: Coin, parentSolution: Program): P2ParentCoinChildParseResult | null
   constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
   get puzzleHash(): Buffer
   set puzzleHash(value: Uint8Array)
