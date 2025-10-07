@@ -1,0 +1,139 @@
+{
+  "Spends": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "args": {
+          "clvm": "Clvm",
+          "change_puzzle_hash": "Bytes32"
+        },
+        "type": "constructor"
+      },
+      "add_xch": {
+        "args": {
+          "coin": "Coin"
+        }
+      },
+      "p2_puzzle_hashes": {
+        "return": "Vec<Bytes32>"
+      },
+      "non_settlement_coin_ids": {
+        "return": "Vec<Bytes32>"
+      },
+      "add_optional_condition": {
+        "args": {
+          "condition": "Program"
+        }
+      },
+      "add_required_condition": {
+        "args": {
+          "condition": "Program"
+        }
+      },
+      "disable_settlement_assertions": {},
+      "selected_xch_amount": {
+        "return": "u64"
+      },
+      "selected_asset_ids": {
+        "return": "Vec<Bytes32>"
+      },
+      "selected_cat_amount": {
+        "args": {
+          "asset_id": "Bytes32"
+        },
+        "return": "u64"
+      },
+      "apply": {
+        "args": {
+          "actions": "Vec<Action>"
+        },
+        "return": "Deltas"
+      },
+      "prepare": {
+        "args": {
+          "deltas": "Deltas"
+        },
+        "return": "FinishedSpends"
+      }
+    }
+  },
+  "FinishedSpends": {
+    "type": "class",
+    "methods": {
+      "pending_spends": {
+        "return": "Vec<PendingSpend>"
+      },
+      "insert": {
+        "args": {
+          "coin_id": "Bytes32",
+          "spend": "Spend"
+        }
+      },
+      "spend": {}
+    }
+  },
+  "PendingSpend": {
+    "type": "class",
+    "methods": {
+      "p2_puzzle_hash": {
+        "return": "Bytes32"
+      },
+      "coin": {
+        "return": "Coin"
+      },
+      "conditions": {
+        "return": "Vec<Program>"
+      },
+      "as_xch": {
+        "return": "Option<Coin>"
+      },
+      "as_cat": {
+        "return": "Option<Cat>"
+      },
+      "as_did": {
+        "return": "Option<Did>"
+      },
+      "as_nft": {
+        "return": "Option<Nft>"
+      },
+      "as_option": {
+        "return": "Option<OptionContract>"
+      }
+    }
+  },
+  "Action": {
+    "type": "class",
+    "methods": {
+      "send_xch": {
+        "type": "factory",
+        "args": {
+          "puzzle_hash": "Bytes32",
+          "amount": "u64"
+        }
+      },
+      "fee": {
+        "type": "factory",
+        "args": {
+          "amount": "u64"
+        }
+      }
+    }
+  },
+  "Deltas": {
+    "type": "class",
+    "methods": {
+      "xch": {
+        "return": "Option<Delta>"
+      }
+    }
+  },
+  "Delta": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "input": "u64",
+      "output": "u64"
+    }
+  }
+}
