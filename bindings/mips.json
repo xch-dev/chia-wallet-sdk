@@ -88,7 +88,8 @@
     "type": "function",
     "args": {
       "config": "MemberConfig",
-      "public_key": "PublicKey"
+      "public_key": "PublicKey",
+      "fast_forward": "bool"
     },
     "return": "TreeHash"
   },
@@ -105,7 +106,8 @@
     "type": "function",
     "args": {
       "config": "MemberConfig",
-      "launcher_id": "Bytes32"
+      "launcher_id": "Bytes32",
+      "fast_forward": "bool"
     },
     "return": "TreeHash"
   },
@@ -213,7 +215,8 @@
       "bls_member": {
         "args": {
           "config": "MemberConfig",
-          "public_key": "PublicKey"
+          "public_key": "PublicKey",
+          "fast_forward": "bool"
         }
       },
       "passkey_member": {
@@ -231,6 +234,7 @@
         "args": {
           "config": "MemberConfig",
           "launcher_id": "Bytes32",
+          "fast_forward": "bool",
           "singleton_inner_puzzle_hash": "Bytes32",
           "singleton_amount": "u64"
         }
@@ -454,6 +458,7 @@
         "args": {
           "clvm": "Clvm",
           "public_key": "PublicKey",
+          "fast_forward": "bool",
           "taproot": "bool",
           "reveal": "bool"
         }
@@ -472,6 +477,7 @@
         "args": {
           "clvm": "Clvm",
           "launcher_id": "Bytes32",
+          "fast_forward": "bool",
           "reveal": "bool"
         }
       },
