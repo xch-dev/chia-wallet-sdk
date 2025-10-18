@@ -392,6 +392,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "chia"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e87c370bdae7b49eea5623b798ea86caba296ce24fd4a78462f80aea6f8185b1"
+dependencies = [
+ "chia-bls 0.29.0",
+ "chia-client",
+ "chia-consensus",
+ "chia-protocol",
+ "chia-puzzle-types",
+ "chia-secp",
+ "chia-serde",
+ "chia-sha2 0.29.0",
+ "chia-ssl",
+ "chia-traits 0.29.0",
+ "clvm-traits",
+ "clvm-utils",
+ "clvmr",
+]
+
+[[package]]
 name = "chia-bls"
 version = "0.28.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -439,6 +460,21 @@ dependencies = [
  "linked-hash-map",
  "sha2",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "chia-client"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f87344491bb7a1d573a23d537c1ac0333d965253c369fb5b351fdbaedb5400d7"
+dependencies = [
+ "chia-protocol",
+ "chia-traits 0.29.0",
+ "futures-util",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-tungstenite",
+ "tungstenite",
 ]
 
 [[package]]
@@ -814,6 +850,7 @@ name = "chia-wallet-sdk"
 version = "0.30.0"
 dependencies = [
  "anyhow",
+ "chia",
  "chia-bls 0.29.0",
  "chia-protocol",
  "chia-puzzle-types",

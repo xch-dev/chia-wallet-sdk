@@ -85,10 +85,7 @@ chia-sdk-test = { workspace = true }
 chia-sdk-types = { workspace = true }
 chia-sdk-utils = { workspace = true }
 chia-sdk-coinset = { workspace = true }
-chia-protocol = { workspace = true }
-chia-bls = { workspace = true }
-clvm-traits = { workspace = true }
-clvm-utils = { workspace = true }
+chia = { workspace = true }
 clvmr = { workspace = true }
 
 [dev-dependencies]
