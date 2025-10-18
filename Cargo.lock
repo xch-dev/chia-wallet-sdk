@@ -851,9 +851,6 @@ version = "0.30.0"
 dependencies = [
  "anyhow",
  "chia",
- "chia-bls 0.29.0",
- "chia-protocol",
- "chia-puzzle-types",
  "chia-sdk-client",
  "chia-sdk-coinset",
  "chia-sdk-driver",
@@ -862,7 +859,6 @@ dependencies = [
  "chia-sdk-types",
  "chia-sdk-utils",
  "clvm-traits",
- "clvm-utils",
  "clvmr",
  "hex-literal",
 ]

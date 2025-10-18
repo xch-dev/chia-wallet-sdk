@@ -86,17 +86,12 @@ chia-sdk-types = { workspace = true }
 chia-sdk-utils = { workspace = true }
 chia-sdk-coinset = { workspace = true }
 chia = { workspace = true }
+clvm-traits = { workspace = true, features = ["derive"] }
 clvmr = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
 hex-literal = { workspace = true }
-chia-protocol = { workspace = true }
-chia-puzzle-types = { workspace = true }
-chia-bls = { workspace = true }
-clvm-utils = { workspace = true }
-clvm-traits = { workspace = true, features = ["derive"] }
-clvmr = { workspace = true }
 
 [workspace.dependencies]
 chia-wallet-sdk = { version = "0.30.0", path = "." }
