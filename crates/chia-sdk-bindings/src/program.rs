@@ -7,9 +7,9 @@ use chia_puzzle_types::{
     offer::{NotarizedPayment as ChiaNotarizedPayment, Payment as ChiaPayment},
 };
 use chia_sdk_driver::{OptionMetadata, RewardDistributor as SdkRewardDistributor, SpendContext};
-use clvm_tools_rs::classic::clvm_tools::stages::run;
-use clvm_tools_rs::classic::clvm_tools::stages::stage_0::TRunProgram;
-use clvm_tools_rs::classic::clvm_tools::{
+use chialisp::classic::clvm_tools::stages::run;
+use chialisp::classic::clvm_tools::stages::stage_0::TRunProgram;
+use chialisp::classic::clvm_tools::{
     binutils::disassemble, stages::stage_2::operators::run_program_for_search_paths,
 };
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm};

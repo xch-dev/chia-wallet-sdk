@@ -79,6 +79,7 @@ pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> Con
         plot_difficulty_6_height: 0xffff_ffff,
         plot_difficulty_7_height: 0xffff_ffff,
         plot_difficulty_8_height: 0xffff_ffff,
+        plot_v1_phase_out: 0xffff_ffff,
     }
 }
 

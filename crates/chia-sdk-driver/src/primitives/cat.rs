@@ -650,7 +650,7 @@ mod tests {
             sim.spend_coins(ctx.take(), &[alice.sk])
                 .unwrap_err()
                 .to_string(),
-            "Signer error: Eval error: Error at NodePtr(SmallAtom, 0): clvm raise"
+            "Signer error: Eval error: clvm raise"
         );
 
         Ok(())
@@ -677,7 +677,7 @@ mod tests {
             sim.spend_coins(ctx.take(), &[alice.sk])
                 .unwrap_err()
                 .to_string(),
-            "Signer error: Eval error: Error at NodePtr(SmallAtom, 0): clvm raise"
+            "Signer error: Eval error: clvm raise"
         );
 
         Ok(())

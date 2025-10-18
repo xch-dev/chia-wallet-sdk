@@ -234,7 +234,7 @@ impl XchandlesRegisterAction {
 
 #[cfg(test)]
 mod tests {
-    use clvmr::reduction::EvalErr;
+    use clvmr::error::EvalErr;
 
     use super::*;
 
@@ -305,10 +305,9 @@ mod tests {
             num_periods: 1,
         })?;
 
-        let Err(DriverError::Eval(EvalErr(_, s))) = ctx.run(puzzle, solution) else {
-            panic!("Expected error");
+        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
+            panic!("Expected clvm raise");
         };
-        assert_eq!(s, "clvm raise");
 
         // make sure the puzzle won't let us register a handle of length 32
 
@@ -319,10 +318,9 @@ mod tests {
             num_periods: 1,
         })?;
 
-        let Err(DriverError::Eval(EvalErr(_, s))) = ctx.run(puzzle, solution) else {
-            panic!("Expected error");
+        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
+            panic!("Expected clvm raise");
         };
-        assert_eq!(s, "clvm raise");
 
         // make sure the puzzle won't let us register a handle with invalid characters
 
@@ -333,10 +331,9 @@ mod tests {
             num_periods: 1,
         })?;
 
-        let Err(DriverError::Eval(EvalErr(_, s))) = ctx.run(puzzle, solution) else {
-            panic!("Expected error");
+        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
+            panic!("Expected clvm raise");
         };
-        assert_eq!(s, "clvm raise");
 
         Ok(())
     }

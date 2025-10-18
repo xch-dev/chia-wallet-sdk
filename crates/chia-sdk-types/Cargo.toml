@@ -32,7 +32,7 @@ clvm-utils = { workspace = true }
 clvmr = { workspace = true }
 hex-literal = { workspace = true }
 thiserror = { workspace = true }
-clvm_tools_rs = { workspace = true }
+chialisp = { workspace = true }
 
 [dev-dependencies]
 hex = { workspace = true }

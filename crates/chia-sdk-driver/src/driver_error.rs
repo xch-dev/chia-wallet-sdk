@@ -2,7 +2,7 @@ use std::{array::TryFromSliceError, num::TryFromIntError};
 
 use chia_sdk_signer::SignerError;
 use clvm_traits::{FromClvmError, ToClvmError};
-use clvmr::reduction::EvalErr;
+use clvmr::error::EvalErr;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
