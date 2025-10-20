@@ -5,8 +5,8 @@ edition = "2021"
 license = "Apache-2.0"
 description = "Driver code for interacting with standard puzzles on the Chia blockchain."
 authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
-homepage = "https://github.com/Rigidity/chia-wallet-sdk"
-repository = "https://github.com/Rigidity/chia-wallet-sdk"
+homepage = "https://github.com/Chia-Network/cni-wallet-sdk"
+repository = "https://github.com/Chia-Network/cni-wallet-sdk"
 readme = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
