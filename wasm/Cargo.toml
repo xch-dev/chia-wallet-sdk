@@ -1,6 +1,6 @@
 [package]
 publish = false
-name = "chia-wallet-sdk-wasm"
+name = "cni-wallet-sdk-wasm"
 version = "0.30.0"
 edition = "2021"
 license = "Apache-2.0"

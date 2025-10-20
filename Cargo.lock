@@ -832,21 +832,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chia-wallet-sdk-wasm"
-version = "0.30.0"
-dependencies = [
- "bindy",
- "bindy-macro",
- "chia-sdk-bindings",
- "console_error_panic_hook",
- "getrandom 0.2.15",
- "js-sys",
- "wasm-bindgen",
- "wasm-bindgen-derive",
- "wasm-bindgen-futures",
-]
-
-[[package]]
 name = "chia_streamable_macro"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -978,6 +963,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7caa3f9de89ddbe2c607f4101924c5abec803763ae9534e4f4d7d8f84aa81f0"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "cni-wallet-sdk-wasm"
+version = "0.30.0"
+dependencies = [
+ "bindy",
+ "bindy-macro",
+ "chia-sdk-bindings",
+ "console_error_panic_hook",
+ "getrandom 0.2.15",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-derive",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
