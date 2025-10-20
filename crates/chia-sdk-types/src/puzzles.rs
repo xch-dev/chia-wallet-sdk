@@ -5,6 +5,7 @@ mod option_contract;
 mod p2_curried;
 mod p2_delegated_conditions;
 mod p2_one_of_many;
+mod p2_parent;
 mod p2_singleton;
 mod revocation;
 
@@ -15,6 +16,7 @@ pub use option_contract::*;
 pub use p2_curried::*;
 pub use p2_delegated_conditions::*;
 pub use p2_one_of_many::*;
+pub use p2_parent::*;
 pub use p2_singleton::*;
 pub use revocation::*;
 

@@ -35,10 +35,10 @@ jobs:
       #   run: cargo install cargo-tarpaulin --locked
 
       # - name: Run tests
-      #   run: cargo tarpaulin --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features --out xml
+      #   run: cargo tarpaulin --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude cni-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features --out xml
 
       - name: Run tests
-        run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude chia-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features
+        run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude cni-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features
 
       # - name: Log costs
       #   run: cat crates/chia-sdk-driver/*.costs
