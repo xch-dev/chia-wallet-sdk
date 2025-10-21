@@ -156,6 +156,10 @@ impl Spends {
             finished: Arc::new(Mutex::new(finished)),
         })
     }
+
+    pub fn calculate_deltas(actions: Vec<Action>) -> Result<Deltas> {
+        Ok(Deltas::from_actions(&actions))
+    }
 }
 
 #[derive(Clone)]
@@ -211,6 +215,10 @@ impl FinishedSpends {
         spends.spend(&mut ctx, finished)?;
 
         Ok(())
+    }
+
+    pub fn outputs(&self) -> &Outputs {
+        &self.outputs
     }
 }
 
@@ -294,5 +302,54 @@ pub struct Deltas(sdk::Deltas);
 impl Deltas {
     pub fn xch(&self) -> Result<Option<Delta>> {
         Ok(self.0.get(&sdk::Id::Xch).copied())
+    }
+
+    pub fn get(&self, id: &Id) -> Option<&Delta> {
+        self.0.get(id)
+    }
+
+    pub fn is_needed(&self, id: &Id) -> bool {
+        self.0.is_needed(id)
+    }
+
+    pub fn asset_ids(&self) -> Vec<Id> {
+        self.0.ids().cloned().collect()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct AssetId(sdk::Id);
+
+impl AssetId {
+    pub fn xch() -> Self {
+        Self(sdk::Id::Xch)
+    }
+    
+    pub fn existing(asset_id: Bytes32) -> Self {
+        Self(sdk::Id::Existing(asset_id))
+    }
+    
+    pub fn new(index: usize) -> Self {
+        Self(sdk::Id::New(index))
+    }
+    
+    pub fn into_sdk_id(self) -> sdk::Id {
+        self.0
+    }
+}
+
+
+#[derive(Clone)]
+pub struct Outputs {
+    xch_coins: Vec<Coin>,
+}
+
+impl Outputs {
+    pub fn xch_coins(&self) -> &[Coin] {
+        &self.xch_coins
+    }
+    
+    pub fn new(xch_coins: Vec<Coin>) -> Self {
+        Self { xch_coins }
     }
 }
