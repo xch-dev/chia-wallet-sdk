@@ -134,25 +134,22 @@
     "methods": {
       "xch": {
         "return": "Option<Delta>"
+      },
+      "get": {
+        "args": {
+          "id": "Id"
+        },
+        "returns": "Option<Delta>"
+      },
+      "is_needed": {
+        "args": {
+          "id": "Id"
+        },
+        "returns": "bool"
+      },
+      "asset_ids": {
+        "returns": "Vec<Id>"
       }
-    },
-    "get": {
-      "type": "method",
-      "args": {
-        "id": "Id"
-      },
-      "returns": "Option<Delta>"
-    },
-    "is_needed": {
-      "type": "method",
-      "args": {
-        "id": "Id"
-      },
-      "returns": "bool"
-    },
-    "asset_ids": {
-      "type": "method",
-      "returns": "Vec<Id>"
     }
   },
   "Delta": {
@@ -183,7 +180,6 @@
         }
       },
       "into_sdk_id": {
-        "type": "method",
         "returns": "Id"
       }
     }
@@ -192,7 +188,6 @@
     "type": "class",
     "methods": {
       "xch_coins": {
-        "type": "method",
         "returns": "Vec<Coin>"
       }
     }
