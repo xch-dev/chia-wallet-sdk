@@ -13,10 +13,11 @@ use clvmr::LIMIT_HEAP;
 use indexmap::{indexset, IndexMap, IndexSet};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use serde::{Deserialize, Serialize};
 
 use crate::{sign_transaction, BlsPair, BlsPairWithCoin, SimulatorError};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Simulator {
     rng: ChaCha8Rng,
     height: u32,
@@ -86,7 +87,7 @@ impl Simulator {
     }
 
     pub fn bls(&mut self, amount: u64) -> BlsPairWithCoin {
-        let pair = BlsPair::new(self.rng.gen());
+        let pair = BlsPair::new(self.rng.random());
         let coin = self.new_coin(pair.puzzle_hash, amount);
         BlsPairWithCoin::new(pair, coin)
     }
