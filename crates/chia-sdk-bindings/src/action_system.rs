@@ -318,6 +318,7 @@ impl Deltas {
 }
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct Id(sdk::Id);
 
 impl Id {
