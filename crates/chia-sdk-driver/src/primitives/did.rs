@@ -1,10 +1,10 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
-    did::DidSolution, singleton::SingletonSolution, LineageProof, Memos, Proof,
+    LineageProof, Memos, Proof, did::DidSolution, singleton::SingletonSolution,
 };
-use chia_sdk_types::{run_puzzle, Condition, Conditions};
+use chia_sdk_types::{Condition, Conditions, run_puzzle};
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{tree_hash, ToTreeHash};
+use clvm_utils::{ToTreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
@@ -65,21 +65,21 @@ impl Did {
         let conditions = Vec::<Condition>::from_clvm(ctx, output)?;
 
         for condition in conditions {
-            if let Some(create_coin) = condition.into_create_coin() {
-                if create_coin.amount % 2 == 1 {
-                    let Memos::Some(memos) = create_coin.memos else {
-                        return Ok(None);
-                    };
+            if let Some(create_coin) = condition.into_create_coin()
+                && create_coin.amount % 2 == 1
+            {
+                let Memos::Some(memos) = create_coin.memos else {
+                    return Ok(None);
+                };
 
-                    let Some((hint, _)) = <(Bytes32, NodePtr)>::from_clvm(ctx, memos).ok() else {
-                        return Ok(None);
-                    };
+                let Some((hint, _)) = <(Bytes32, NodePtr)>::from_clvm(ctx, memos).ok() else {
+                    return Ok(None);
+                };
 
-                    let child = self.child(hint, self.info.metadata, create_coin.amount);
+                let child = self.child(hint, self.info.metadata, create_coin.amount);
 
-                    if child.info.inner_puzzle_hash() == create_coin.puzzle_hash.into() {
-                        return Ok(Some(child));
-                    }
+                if child.info.inner_puzzle_hash() == create_coin.puzzle_hash.into() {
+                    return Ok(Some(child));
                 }
             }
         }

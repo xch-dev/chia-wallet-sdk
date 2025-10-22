@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use chia_bls::{aggregate_verify_gt, hash_to_g2, SecretKey};
+use chia_bls::{SecretKey, aggregate_verify_gt, hash_to_g2};
 use chia_consensus::{
     allocator::make_allocator, consensus_constants::ConsensusConstants,
     owned_conditions::OwnedSpendBundleConditions, spendbundle_conditions::run_spendbundle,
@@ -10,12 +10,12 @@ use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
 use chia_sdk_types::TESTNET11_CONSTANTS;
 use chia_sha2::Sha256;
 use clvmr::LIMIT_HEAP;
-use indexmap::{indexset, IndexMap, IndexSet};
+use indexmap::{IndexMap, IndexSet, indexset};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 
-use crate::{sign_transaction, BlsPair, BlsPairWithCoin, SimulatorError};
+use crate::{BlsPair, BlsPairWithCoin, SimulatorError, sign_transaction};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Simulator {
@@ -93,12 +93,11 @@ impl Simulator {
     }
 
     pub fn set_next_timestamp(&mut self, time: u64) -> Result<(), SimulatorError> {
-        if self.height > 0 {
-            if let Some(last_block_timestamp) = self.block_timestamps.get(&(self.height - 1)) {
-                if time < *last_block_timestamp {
-                    return Err(SimulatorError::Validation(ErrorCode::TimestampTooFarInPast));
-                }
-            }
+        if self.height > 0
+            && let Some(last_block_timestamp) = self.block_timestamps.get(&(self.height - 1))
+            && time < *last_block_timestamp
+        {
+            return Err(SimulatorError::Validation(ErrorCode::TimestampTooFarInPast));
         }
         self.next_timestamp = time;
 
@@ -215,20 +214,20 @@ impl Simulator {
             ));
         }
 
-        if let Some(height) = conds.before_height_absolute {
-            if height < self.height {
-                return Err(SimulatorError::Validation(
-                    ErrorCode::AssertBeforeHeightAbsoluteFailed,
-                ));
-            }
+        if let Some(height) = conds.before_height_absolute
+            && height < self.height
+        {
+            return Err(SimulatorError::Validation(
+                ErrorCode::AssertBeforeHeightAbsoluteFailed,
+            ));
         }
 
-        if let Some(seconds) = conds.before_seconds_absolute {
-            if seconds < self.next_timestamp {
-                return Err(SimulatorError::Validation(
-                    ErrorCode::AssertBeforeSecondsAbsoluteFailed,
-                ));
-            }
+        if let Some(seconds) = conds.before_seconds_absolute
+            && seconds < self.next_timestamp
+        {
+            return Err(SimulatorError::Validation(
+                ErrorCode::AssertBeforeSecondsAbsoluteFailed,
+            ));
         }
 
         for coin_spend in spend_bundle.coin_spends {
