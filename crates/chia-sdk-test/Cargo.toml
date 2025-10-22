@@ -25,6 +25,14 @@ peer-simulator = [
     "dep:futures-channel",
     "dep:futures-util"
 ]
+serde = [
+    "chia-bls/serde",
+    "chia-protocol/serde",
+    "indexmap/serde",
+    "rand/serde",
+    "rand_chacha/serde",
+    "dep:serde"
+]
 
 [dependencies]
 chia-bls = { workspace = true }
@@ -37,10 +45,10 @@ clvm-utils = { workspace = true }
 clvm-traits = { workspace = true }
 chia-sha2 = { workspace = true }
 clvmr = { workspace = true }
-indexmap = { workspace = true, features = ["serde"] }
+indexmap = { workspace = true }
 thiserror = { workspace = true }
-rand = { workspace = true, features = ["serde"] }
-rand_chacha = { workspace = true, features = ["serde"] }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
 bip39 = { workspace = true }
 anyhow = { workspace = true }
 chia-sdk-types = { workspace = true }
@@ -55,7 +63,7 @@ tokio-tungstenite = { workspace = true, optional = true }
 futures-channel = { workspace = true, features = ["sink"], optional = true }
 futures-util = { workspace = true, optional = true }
 prettytable-rs = {workspace = true }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive"], optional = true }
 
 [package.metadata.cargo-machete]
 ignored = ["prettytable-rs"]

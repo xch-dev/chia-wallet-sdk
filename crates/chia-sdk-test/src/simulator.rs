@@ -7,22 +7,21 @@ use chia_sdk_types::TESTNET11_CONSTANTS;
 use indexmap::{IndexMap, IndexSet, indexset};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use serde::{Deserialize, Serialize};
 
 use crate::{
     BlsPair, BlsPairWithCoin, SimulatorError, sign_transaction, validate_clvm_and_signature,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+mod config;
+mod data;
+
+pub use config::*;
+pub use data::*;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Simulator {
-    rng: ChaCha8Rng,
-    height: u32,
-    next_timestamp: u64,
-    header_hashes: Vec<Bytes32>,
-    coin_states: IndexMap<Bytes32, CoinState>,
-    block_timestamps: IndexMap<u32, u64>,
-    hinted_coins: IndexMap<Bytes32, IndexSet<Bytes32>>,
-    puzzle_and_solutions: IndexMap<Bytes32, (Program, Program)>,
+    config: SimulatorConfig,
+    data: SimulatorData,
 }
 
 impl Default for Simulator {
@@ -33,87 +32,83 @@ impl Default for Simulator {
 
 impl Simulator {
     pub fn new() -> Self {
-        Self::with_seed(1337)
+        Self::with_config(SimulatorConfig::default())
     }
 
-    pub fn with_seed(seed: u64) -> Self {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let mut header_hash = [0; 32];
-        rng.fill(&mut header_hash);
-
+    pub fn with_config(config: SimulatorConfig) -> Self {
         Self {
-            rng,
-            height: 0,
-            next_timestamp: 0,
-            header_hashes: vec![header_hash.into()],
-            coin_states: IndexMap::new(),
-            block_timestamps: IndexMap::new(),
-            hinted_coins: IndexMap::new(),
-            puzzle_and_solutions: IndexMap::new(),
+            config,
+            data: SimulatorData::new(ChaCha8Rng::seed_from_u64(config.seed)),
         }
     }
 
     pub fn height(&self) -> u32 {
-        self.height
+        self.data.height
     }
 
     pub fn next_timestamp(&self) -> u64 {
-        self.next_timestamp
+        self.data.next_timestamp
     }
 
     pub fn header_hash(&self) -> Bytes32 {
-        self.header_hashes.last().copied().unwrap()
+        self.data.header_hashes.last().copied().unwrap()
     }
 
     pub fn header_hash_of(&self, height: u32) -> Option<Bytes32> {
-        self.header_hashes.get(height as usize).copied()
+        self.data.header_hashes.get(height as usize).copied()
     }
 
     pub fn insert_coin(&mut self, coin: Coin) {
-        let coin_state = CoinState::new(coin, None, Some(self.height));
-        self.coin_states.insert(coin.coin_id(), coin_state);
+        let coin_state = CoinState::new(coin, None, Some(self.data.height));
+        self.data.coin_states.insert(coin.coin_id(), coin_state);
     }
 
     pub fn new_coin(&mut self, puzzle_hash: Bytes32, amount: u64) -> Coin {
         let mut parent_coin_info = [0; 32];
-        self.rng.fill(&mut parent_coin_info);
+        self.data.rng.fill(&mut parent_coin_info);
         let coin = Coin::new(parent_coin_info.into(), puzzle_hash, amount);
         self.insert_coin(coin);
         coin
     }
 
     pub fn bls(&mut self, amount: u64) -> BlsPairWithCoin {
-        let pair = BlsPair::new(self.rng.random());
+        let pair = BlsPair::new(self.data.rng.random());
         let coin = self.new_coin(pair.puzzle_hash, amount);
         BlsPairWithCoin::new(pair, coin)
     }
 
     pub fn set_next_timestamp(&mut self, time: u64) -> Result<(), SimulatorError> {
-        if self.height > 0
-            && let Some(last_block_timestamp) = self.block_timestamps.get(&(self.height - 1))
+        if self.data.height > 0
+            && let Some(last_block_timestamp) =
+                self.data.block_timestamps.get(&(self.data.height - 1))
             && time < *last_block_timestamp
         {
             return Err(SimulatorError::Validation(ErrorCode::TimestampTooFarInPast));
         }
-        self.next_timestamp = time;
+        self.data.next_timestamp = time;
 
         Ok(())
     }
 
     pub fn pass_time(&mut self, time: u64) {
-        self.next_timestamp += time;
+        self.data.next_timestamp += time;
     }
 
     pub fn hint_coin(&mut self, coin_id: Bytes32, hint: Bytes32) {
-        self.hinted_coins.entry(hint).or_default().insert(coin_id);
+        self.data
+            .hinted_coins
+            .entry(hint)
+            .or_default()
+            .insert(coin_id);
     }
 
     pub fn coin_state(&self, coin_id: Bytes32) -> Option<CoinState> {
-        self.coin_states.get(&coin_id).copied()
+        self.data.coin_states.get(&coin_id).copied()
     }
 
     pub fn children(&self, coin_id: Bytes32) -> Vec<CoinState> {
-        self.coin_states
+        self.data
+            .coin_states
             .values()
             .filter(move |cs| cs.coin.parent_coin_info == coin_id)
             .copied()
@@ -121,7 +116,8 @@ impl Simulator {
     }
 
     pub fn hinted_coins(&self, hint: Bytes32) -> Vec<Bytes32> {
-        self.hinted_coins
+        self.data
+            .hinted_coins
             .get(&hint)
             .into_iter()
             .flatten()
@@ -130,27 +126,28 @@ impl Simulator {
     }
 
     pub fn puzzle_reveal(&self, coin_id: Bytes32) -> Option<Program> {
-        self.puzzle_and_solutions
+        self.data
+            .coin_spends
             .get(&coin_id)
-            .map(|(p, _)| p.clone())
+            .map(|spend| spend.puzzle_reveal.clone())
     }
 
     pub fn solution(&self, coin_id: Bytes32) -> Option<Program> {
-        self.puzzle_and_solutions
+        self.data
+            .coin_spends
             .get(&coin_id)
-            .map(|(_, s)| s.clone())
+            .map(|spend| spend.solution.clone())
     }
 
     pub fn puzzle_and_solution(&self, coin_id: Bytes32) -> Option<(Program, Program)> {
-        self.puzzle_and_solutions.get(&coin_id).cloned()
+        self.data
+            .coin_spends
+            .get(&coin_id)
+            .map(|spend| (spend.puzzle_reveal.clone(), spend.solution.clone()))
     }
 
     pub fn coin_spend(&self, coin_id: Bytes32) -> Option<CoinSpend> {
-        let (puzzle, solution) = self.puzzle_and_solution(coin_id)?;
-
-        self.coin_states
-            .get(&coin_id)
-            .map(|cs| CoinSpend::new(cs.coin, puzzle, solution))
+        self.data.coin_spends.get(&coin_id).cloned()
     }
 
     pub fn spend_coins(
@@ -191,22 +188,22 @@ impl Simulator {
         let mut removed_coins = IndexMap::new();
         let mut added_coins = IndexMap::new();
         let mut added_hints = IndexMap::new();
-        let mut puzzle_solutions = IndexMap::new();
+        let mut coin_spends = IndexMap::new();
 
-        if self.height < conds.height_absolute {
+        if self.data.height < conds.height_absolute {
             return Err(SimulatorError::Validation(
                 ErrorCode::AssertHeightAbsoluteFailed,
             ));
         }
 
-        if self.next_timestamp < conds.seconds_absolute {
+        if self.data.next_timestamp < conds.seconds_absolute {
             return Err(SimulatorError::Validation(
                 ErrorCode::AssertSecondsAbsoluteFailed,
             ));
         }
 
         if let Some(height) = conds.before_height_absolute
-            && height < self.height
+            && height < self.data.height
         {
             return Err(SimulatorError::Validation(
                 ErrorCode::AssertBeforeHeightAbsoluteFailed,
@@ -214,7 +211,7 @@ impl Simulator {
         }
 
         if let Some(seconds) = conds.before_seconds_absolute
-            && seconds < self.next_timestamp
+            && seconds < self.data.next_timestamp
         {
             return Err(SimulatorError::Validation(
                 ErrorCode::AssertBeforeSecondsAbsoluteFailed,
@@ -222,10 +219,7 @@ impl Simulator {
         }
 
         for coin_spend in spend_bundle.coin_spends {
-            puzzle_solutions.insert(
-                coin_spend.coin.coin_id(),
-                (coin_spend.puzzle_reveal, coin_spend.solution),
-            );
+            coin_spends.insert(coin_spend.coin.coin_id(), coin_spend);
         }
 
         // Calculate additions and removals.
@@ -235,7 +229,7 @@ impl Simulator {
 
                 added_coins.insert(
                     coin.coin_id(),
-                    CoinState::new(coin, None, Some(self.height)),
+                    CoinState::new(coin, None, Some(self.data.height)),
                 );
 
                 let Some(hint) = new_coin.2.clone() else {
@@ -255,10 +249,11 @@ impl Simulator {
             let coin = Coin::new(spend.parent_id, spend.puzzle_hash, spend.coin_amount);
 
             let coin_state = self
+                .data
                 .coin_states
                 .get(&spend.coin_id)
                 .copied()
-                .unwrap_or(CoinState::new(coin, None, Some(self.height)));
+                .unwrap_or(CoinState::new(coin, None, Some(self.data.height)));
 
             if let Some(relative_height) = spend.height_relative {
                 let Some(created_height) = coin_state.created_height else {
@@ -267,7 +262,7 @@ impl Simulator {
                     ));
                 };
 
-                if self.height < created_height + relative_height {
+                if self.data.height < created_height + relative_height {
                     return Err(SimulatorError::Validation(
                         ErrorCode::AssertHeightRelativeFailed,
                     ));
@@ -280,13 +275,14 @@ impl Simulator {
                         ErrorCode::EphemeralRelativeCondition,
                     ));
                 };
-                let Some(created_timestamp) = self.block_timestamps.get(&created_height) else {
+                let Some(created_timestamp) = self.data.block_timestamps.get(&created_height)
+                else {
                     return Err(SimulatorError::Validation(
                         ErrorCode::EphemeralRelativeCondition,
                     ));
                 };
 
-                if self.next_timestamp < created_timestamp + relative_seconds {
+                if self.data.next_timestamp < created_timestamp + relative_seconds {
                     return Err(SimulatorError::Validation(
                         ErrorCode::AssertSecondsRelativeFailed,
                     ));
@@ -300,7 +296,7 @@ impl Simulator {
                     ));
                 };
 
-                if created_height + relative_height < self.height {
+                if created_height + relative_height < self.data.height {
                     return Err(SimulatorError::Validation(
                         ErrorCode::AssertBeforeHeightRelativeFailed,
                     ));
@@ -313,13 +309,14 @@ impl Simulator {
                         ErrorCode::EphemeralRelativeCondition,
                     ));
                 };
-                let Some(created_timestamp) = self.block_timestamps.get(&created_height) else {
+                let Some(created_timestamp) = self.data.block_timestamps.get(&created_height)
+                else {
                     return Err(SimulatorError::Validation(
                         ErrorCode::EphemeralRelativeCondition,
                     ));
                 };
 
-                if created_timestamp + relative_seconds < self.next_timestamp {
+                if created_timestamp + relative_seconds < self.data.next_timestamp {
                     return Err(SimulatorError::Validation(
                         ErrorCode::AssertBeforeSecondsRelativeFailed,
                     ));
@@ -331,9 +328,9 @@ impl Simulator {
 
         // Validate removals.
         for (coin_id, coin_state) in &mut removed_coins {
-            let height = self.height;
+            let height = self.data.height;
 
-            if !self.coin_states.contains_key(coin_id) && !added_coins.contains_key(coin_id) {
+            if !self.data.coin_states.contains_key(coin_id) && !added_coins.contains_key(coin_id) {
                 return Err(SimulatorError::Validation(ErrorCode::UnknownUnspent));
             }
 
@@ -348,11 +345,15 @@ impl Simulator {
         let mut updates = added_coins.clone();
         updates.extend(removed_coins);
         self.create_block();
-        self.coin_states.extend(updates.clone());
+        self.data.coin_states.extend(updates.clone());
         for (hint, coins) in added_hints {
-            self.hinted_coins.entry(hint).or_default().extend(coins);
+            self.data
+                .hinted_coins
+                .entry(hint)
+                .or_default()
+                .extend(coins);
         }
-        self.puzzle_and_solutions.extend(puzzle_solutions);
+        self.data.coin_spends.extend(coin_spends);
 
         Ok(updates)
     }
@@ -360,7 +361,7 @@ impl Simulator {
     pub fn lookup_coin_ids(&self, coin_ids: &IndexSet<Bytes32>) -> Vec<CoinState> {
         coin_ids
             .iter()
-            .filter_map(|coin_id| self.coin_states.get(coin_id).copied())
+            .filter_map(|coin_id| self.data.coin_states.get(coin_id).copied())
             .collect()
     }
 
@@ -371,17 +372,17 @@ impl Simulator {
     ) -> Vec<CoinState> {
         let mut coin_states = IndexMap::new();
 
-        for (coin_id, coin_state) in &self.coin_states {
+        for (coin_id, coin_state) in &self.data.coin_states {
             if puzzle_hashes.contains(&coin_state.coin.puzzle_hash) {
-                coin_states.insert(*coin_id, self.coin_states[coin_id]);
+                coin_states.insert(*coin_id, self.data.coin_states[coin_id]);
             }
         }
 
         if include_hints {
             for puzzle_hash in puzzle_hashes {
-                if let Some(hinted_coins) = self.hinted_coins.get(&puzzle_hash) {
+                if let Some(hinted_coins) = self.data.hinted_coins.get(&puzzle_hash) {
                     for coin_id in hinted_coins {
-                        coin_states.insert(*coin_id, self.coin_states[coin_id]);
+                        coin_states.insert(*coin_id, self.data.coin_states[coin_id]);
                     }
                 }
             }
@@ -400,12 +401,13 @@ impl Simulator {
 
     pub fn create_block(&mut self) {
         let mut header_hash = [0; 32];
-        self.rng.fill(&mut header_hash);
-        self.header_hashes.push(header_hash.into());
-        self.block_timestamps
-            .insert(self.height, self.next_timestamp);
+        self.data.rng.fill(&mut header_hash);
+        self.data.header_hashes.push(header_hash.into());
+        self.data
+            .block_timestamps
+            .insert(self.data.height, self.data.next_timestamp);
 
-        self.height += 1;
-        self.next_timestamp += 1;
+        self.data.height += 1;
+        self.data.next_timestamp += 1;
     }
 }
