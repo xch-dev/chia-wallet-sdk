@@ -9,6 +9,7 @@ use chia_puzzle_types::{offer::SettlementPaymentsSolution, Memos};
 use chia_sdk_driver::{
     self as sdk, Cat, Delta, Layer, Relation, SettlementLayer, SpendContext, SpendKind,
 };
+use sdk::Id as SdkId;
 use chia_sdk_types::Condition;
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
@@ -294,22 +295,22 @@ pub struct Deltas(sdk::Deltas);
 
 impl Deltas {
     pub fn from_actions(actions: Vec<Action>) -> Result<Deltas> {
-        Ok(Deltas::from_actions(&actions))
+        Ok(Deltas::from_actions(actions)?)
     }
 
     pub fn xch(&self) -> Result<Option<Delta>> {
         Ok(self.0.get(&sdk::Id::Xch).copied())
     }
 
-    pub fn get(&self, id: &Id) -> Option<&Delta> {
+    pub fn get(&self, id: &SdkId) -> Option<&Delta> {
         self.0.get(id)
     }
 
-    pub fn is_needed(&self, id: &Id) -> bool {
+    pub fn is_needed(&self, id: &SdkId) -> bool {
         self.0.is_needed(id)
     }
 
-    pub fn ids(&self) -> Vec<Id> {
+    pub fn ids(&self) -> Vec<SdkId> {
         self.0.ids().cloned().collect()
     }
 }
