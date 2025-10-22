@@ -34,7 +34,7 @@ test("construct mips memos", (t) => {
               1,
               [],
               MemoKind.member(
-                MemberMemo.bls(clvm, PublicKey.infinity(), false, true)
+                MemberMemo.bls(clvm, PublicKey.infinity(), false, false, true)
               )
             ),
             new InnerPuzzleMemo(
