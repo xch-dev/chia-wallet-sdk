@@ -76,7 +76,7 @@ impl SpendKind {
             }
             Self::Settlement(spend) => {
                 spend.add_notarized_payment(NotarizedPayment {
-                    nonce: Bytes32::new(ChaCha20Rng::from_entropy().gen()),
+                    nonce: Bytes32::new(ChaCha20Rng::from_os_rng().random()),
                     payments: vec![Payment::new(
                         create_coin.puzzle_hash,
                         create_coin.amount,

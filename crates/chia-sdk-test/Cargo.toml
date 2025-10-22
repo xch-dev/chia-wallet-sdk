@@ -39,8 +39,8 @@ chia-sha2 = { workspace = true }
 clvmr = { workspace = true }
 indexmap = { workspace = true }
 thiserror = { workspace = true }
-rand = { workspace = true }
-rand_chacha = { workspace = true }
+rand = { workspace = true, features = ["serde"] }
+rand_chacha = { workspace = true, features = ["serde"] }
 bip39 = { workspace = true }
 anyhow = { workspace = true }
 chia-sdk-types = { workspace = true }

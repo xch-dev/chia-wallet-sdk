@@ -127,7 +127,7 @@ mod tests {
         let mut rng = ChaCha8Rng::seed_from_u64(1337);
 
         let op = Bytes::from(vec![0x13, 0xd6, 0x1f, 0x00]);
-        let public_key = K1SecretKey::from_bytes(&rng.gen())?.public_key();
+        let public_key = K1SecretKey::from_bytes(&rng.random())?.public_key();
         let fake_sig = a.new_atom(&[1, 2, 3])?;
         let message = a.new_atom(&[42; 32])?;
         let program = clvm_list!(
