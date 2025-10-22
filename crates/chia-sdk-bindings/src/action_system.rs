@@ -295,7 +295,9 @@ pub struct Deltas(sdk::Deltas);
 
 impl Deltas {
     pub fn from_actions(actions: Vec<Action>) -> Result<Deltas> {
-        Ok(Deltas::from_actions(actions)?)
+        let sdk_actions: Vec<sdk::Action> = actions.into_iter().map(|a| a.0).collect();
+        let deltas = sdk::Deltas::from_actions(&sdk_actions);
+        Ok(Deltas(deltas))
     }
 
     pub fn xch(&self) -> Result<Option<Delta>> {
