@@ -1,17 +1,20 @@
 use std::{collections::HashMap, fs, io, path::Path, rc::Rc};
 
-use clvm_tools_rs::{
+use chialisp::{
     classic::clvm_tools::clvmc::compile_clvm_text,
     compiler::{compiler::DefaultCompilerOpts, comptypes::CompilerOpts},
 };
 use clvm_utils::{tree_hash, TreeHash};
-use clvmr::{serde::node_to_bytes, Allocator};
+use clvmr::{error::EvalErr, serde::node_to_bytes, Allocator};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum LoadClvmError {
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
+
+    #[error("CLVM error: {0}")]
+    Clvm(#[from] EvalErr),
 
     #[error("Invalid file name")]
     InvalidFileName,

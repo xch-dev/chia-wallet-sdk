@@ -601,6 +601,7 @@ pub mod tests {
     use chia_sdk_test::{BlsPair, Simulator};
     use chia_sdk_types::{conditions::UpdateDataStoreMerkleRoot, Conditions};
     use chia_sha2::Sha256;
+    use clvmr::error::EvalErr;
     use rstest::rstest;
 
     use crate::{
@@ -1731,12 +1732,7 @@ pub mod tests {
         let solution_ptr = ctx.alloc(&new_spend.solution)?;
         match ctx.run(puzzle_reveal_ptr, solution_ptr) {
             Ok(_) => panic!("expected error"),
-            Err(err) => match err {
-                DriverError::Eval(eval_err) => {
-                    assert_eq!(eval_err.1, "clvm raise");
-                }
-                _ => panic!("expected 'clvm raise' error"),
-            },
+            Err(err) => assert!(matches!(err, DriverError::Eval(EvalErr::Raise(_)))),
         }
 
         Ok(())
@@ -1782,13 +1778,10 @@ pub mod tests {
         let solution_ptr = ctx.alloc(&new_spend.solution)?;
         match ctx.run(puzzle_reveal_ptr, solution_ptr) {
             Ok(_) => panic!("expected error"),
-            Err(err) => match err {
-                DriverError::Eval(eval_err) => {
-                    assert_eq!(eval_err.1, "clvm raise");
-                    Ok(())
-                }
-                _ => panic!("expected 'clvm raise' error"),
-            },
+            Err(err) => {
+                assert!(matches!(err, DriverError::Eval(EvalErr::Raise(_))));
+                Ok(())
+            }
         }
     }
 
@@ -1822,7 +1815,7 @@ pub mod tests {
                 DriverError::Eval(eval_err) => match test_puzzle {
                     AttackerPuzzle::Admin => panic!("expected admin puzzle to run normally"),
                     AttackerPuzzle::Writer => {
-                        assert_eq!(eval_err.1, "clvm raise");
+                        assert!(matches!(eval_err, EvalErr::Raise(_)));
                         Ok(())
                     }
                 },
@@ -1914,9 +1907,12 @@ pub mod tests {
                 DriverError::Eval(eval_err) => {
                     if should_error_out {
                         if output_conditions {
-                            assert_eq!(eval_err.1, "= on list");
+                            let EvalErr::InvalidOpArg(_, text) = eval_err else {
+                                panic!("expected invalid op arg error");
+                            };
+                            assert_eq!(text, "= used on list");
                         } else {
-                            assert_eq!(eval_err.1, "clvm raise");
+                            assert!(matches!(eval_err, EvalErr::Raise(_)));
                         }
                         Ok(())
                     } else {

@@ -175,14 +175,9 @@ impl Simulator {
             return Err(SimulatorError::Validation(ErrorCode::InvalidSpendBundle));
         }
 
-        // TODO: Fix cost
-        let conds = validate_clvm_and_signature(
-            &spend_bundle,
-            7_700_000_000,
-            &TESTNET11_CONSTANTS,
-            self.height,
-        )
-        .map_err(SimulatorError::Validation)?;
+        let conds =
+            validate_clvm_and_signature(&spend_bundle, 11_000_000_000 / 2, &TESTNET11_CONSTANTS, 0)
+                .map_err(SimulatorError::Validation)?;
 
         let puzzle_hashes: HashSet<Bytes32> =
             conds.spends.iter().map(|spend| spend.puzzle_hash).collect();
@@ -425,11 +420,11 @@ fn validate_clvm_and_signature(
     spend_bundle: &SpendBundle,
     max_cost: u64,
     constants: &ConsensusConstants,
-    height: u32,
+    flags: u32,
 ) -> Result<OwnedSpendBundleConditions, ErrorCode> {
     let mut a = make_allocator(LIMIT_HEAP);
     let (sbc, pkm_pairs) =
-        run_spendbundle(&mut a, spend_bundle, max_cost, height, 0, constants).map_err(|e| e.1)?;
+        run_spendbundle(&mut a, spend_bundle, max_cost, flags, constants).map_err(|e| e.1)?;
     let conditions = OwnedSpendBundleConditions::from(&a, sbc);
 
     // Collect all pairs in a single vector to avoid multiple iterations

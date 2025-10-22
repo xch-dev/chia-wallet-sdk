@@ -45,5 +45,5 @@ rand = { workspace = true }
 rand_chacha = { workspace = true }
 num-bigint = { workspace = true }
 paste = { workspace = true }
-clvm_tools_rs = { workspace = true }
+chialisp = { workspace = true }
 tokio = { workspace = true, features = ["sync"], optional = true }

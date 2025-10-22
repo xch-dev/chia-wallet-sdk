@@ -1,7 +1,4 @@
-use clvmr::{
-    reduction::{EvalErr, Reduction},
-    Allocator, NodePtr,
-};
+use clvmr::{error::EvalErr, reduction::Reduction, Allocator, NodePtr};
 
 pub fn run_puzzle(
     allocator: &mut Allocator,

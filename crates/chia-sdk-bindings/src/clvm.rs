@@ -13,7 +13,7 @@ use chia_sdk_driver::{
     StandardLayer, StreamedAsset,
 };
 use chia_sdk_types::{Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
-use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
+use chialisp::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::TreeHash;
 use clvmr::{

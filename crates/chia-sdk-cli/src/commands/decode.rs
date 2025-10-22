@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chia_wallet_sdk::utils::Bech32;
+use chia_wallet_sdk::prelude::*;
 
 use crate::args::DecodeCommand;
 

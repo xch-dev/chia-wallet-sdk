@@ -7,6 +7,7 @@ mod wasm_impls;
 #[cfg(feature = "pyo3")]
 mod pyo3_impls;
 
+use clvmr::error::EvalErr;
 #[cfg(feature = "napi")]
 pub use napi_impls::*;
 
@@ -23,7 +24,6 @@ use chia_sdk_driver::DriverError;
 use chia_sdk_test::SimulatorError;
 use chia_sdk_utils::Bech32Error;
 use clvm_traits::{FromClvmError, ToClvmError};
-use clvmr::reduction::EvalErr;
 
 use num_bigint::{BigInt, ParseBigIntError, TryFromBigIntError};
 use thiserror::Error;
