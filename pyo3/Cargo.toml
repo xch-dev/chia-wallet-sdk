@@ -2,7 +2,7 @@
 publish = false
 name = "chia-wallet-sdk-py"
 version = "0.30.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
 name = "chia_wallet_sdk"
