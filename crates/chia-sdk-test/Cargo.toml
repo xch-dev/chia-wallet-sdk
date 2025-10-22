@@ -37,7 +37,7 @@ clvm-utils = { workspace = true }
 clvm-traits = { workspace = true }
 chia-sha2 = { workspace = true }
 clvmr = { workspace = true }
-indexmap = { workspace = true }
+indexmap = { workspace = true, features = ["serde"] }
 thiserror = { workspace = true }
 rand = { workspace = true, features = ["serde"] }
 rand_chacha = { workspace = true, features = ["serde"] }

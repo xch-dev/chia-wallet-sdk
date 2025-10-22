@@ -42,7 +42,7 @@ non_ascii_idents = "deny"
 unused_extern_crates = "deny"
 trivial_casts = "deny"
 trivial_numeric_casts = "deny"
-unreachable_pub = "warn"
+unreachable_pub = "allow"
 unreachable_code = "warn"
 unreachable_patterns = "deny"
 dead_code = "deny"
@@ -182,6 +182,7 @@ pyo3-async-runtimes = "0.23"
 indoc = "2.0.6"
 console_error_panic_hook = "0.1.7"
 prettytable-rs = "0.10.0"
+clap = "4.5.50"
 
 [profile.release]
 lto = true

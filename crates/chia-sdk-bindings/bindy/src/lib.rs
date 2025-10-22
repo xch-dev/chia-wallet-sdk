@@ -21,7 +21,7 @@ use std::{net::AddrParseError, string::FromUtf8Error};
 use chia_protocol::{RejectCoinState, RejectPuzzleSolution, RejectPuzzleState};
 use chia_sdk_driver::DriverError;
 use chia_sdk_test::SimulatorError;
-use chia_sdk_utils::AddressError;
+use chia_sdk_utils::Bech32Error;
 use clvm_traits::{FromClvmError, ToClvmError};
 use clvmr::reduction::EvalErr;
 
@@ -37,14 +37,11 @@ pub enum Error {
     #[error("Wrong length, expected {expected} bytes, found {found}")]
     WrongLength { expected: usize, found: usize },
 
-    #[error("Bech32m encoding error: {0}")]
-    Bech32(#[from] bech32::Error),
-
     #[error("Bip39 error: {0}")]
     Bip39(#[from] bip39::Error),
 
-    #[error("Address error: {0}")]
-    Address(#[from] AddressError),
+    #[error("Bech32 error: {0}")]
+    Bech32(#[from] Bech32Error),
 
     #[error("Hex error: {0}")]
     Hex(#[from] hex::FromHexError),

@@ -21,6 +21,7 @@ bech32 = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 indexmap = { workspace = true }
+hex = { workspace = true }
 
 [dev-dependencies]
 hex-literal = { workspace = true }
