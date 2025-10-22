@@ -54,13 +54,6 @@
           "deltas": "Deltas"
         },
         "return": "FinishedSpends"
-      },
-      "calculate_deltas": {
-        "type": "static_method",
-        "args": {
-          "actions": "Vec<Action>"
-        },
-        "returns": "Deltas"
       }
     }
   },
@@ -76,8 +69,7 @@
           "spend": "Spend"
         }
       },
-      "spend": {},
-      "outputs": {
+      "spend": {
         "returns": "Outputs"
       }
     }
@@ -132,8 +124,15 @@
   "Deltas": {
     "type": "class",
     "methods": {
+      "from_actions": {
+        "type": "static",
+        "args": {
+          "actions": "Vec<Action>"
+        },
+        "returns": "Deltas"
+      },
       "xch": {
-        "return": "Option<Delta>"
+        "returns": "Option<Delta>"
       },
       "get": {
         "args": {
@@ -147,7 +146,7 @@
         },
         "returns": "bool"
       },
-      "asset_ids": {
+      "Ids": {
         "returns": "Vec<Id>"
       }
     }
@@ -161,7 +160,7 @@
       "output": "u64"
     }
   },
-  "AssetId": {
+  "Id": {
     "type": "class",
     "methods": {
       "xch": {
@@ -178,9 +177,6 @@
         "args": {
           "index": "usize"
         }
-      },
-      "into_sdk_id": {
-        "returns": "Id"
       }
     }
   },

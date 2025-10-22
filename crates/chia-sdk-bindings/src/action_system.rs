@@ -157,9 +157,6 @@ impl Spends {
         })
     }
 
-    pub fn calculate_deltas(actions: Vec<Action>) -> Result<Deltas> {
-        Ok(Deltas::from_actions(&actions))
-    }
 }
 
 #[derive(Clone)]
@@ -206,20 +203,16 @@ impl FinishedSpends {
         Ok(())
     }
 
-    pub fn spend(&self) -> Result<()> {
+    pub fn spend(&self) -> Result<Outputs> {
         let mut ctx = self.clvm.lock().unwrap();
 
         let spends = self.spends.lock().unwrap().clone();
         let finished = self.finished.lock().unwrap().clone();
 
-        spends.spend(&mut ctx, finished)?;
-
-        Ok(())
+        let outputs = spends.spend(&mut ctx, finished)?;
+        Ok(Outputs::new(outputs.xch))
     }
 
-    pub fn outputs(&self) -> &Outputs {
-        &self.outputs
-    }
 }
 
 #[derive(Clone)]
@@ -300,6 +293,10 @@ impl Action {
 pub struct Deltas(sdk::Deltas);
 
 impl Deltas {
+    pub fn from_actions(actions: Vec<Action>) -> Result<Deltas> {
+        Ok(Deltas::from_actions(&actions))
+    }
+
     pub fn xch(&self) -> Result<Option<Delta>> {
         Ok(self.0.get(&sdk::Id::Xch).copied())
     }
@@ -312,15 +309,15 @@ impl Deltas {
         self.0.is_needed(id)
     }
 
-    pub fn asset_ids(&self) -> Vec<Id> {
+    pub fn ids(&self) -> Vec<Id> {
         self.0.ids().cloned().collect()
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct AssetId(sdk::Id);
+pub struct Id(sdk::Id);
 
-impl AssetId {
+impl Id {
     pub fn xch() -> Self {
         Self(sdk::Id::Xch)
     }
@@ -331,10 +328,6 @@ impl AssetId {
     
     pub fn new(index: usize) -> Self {
         Self(sdk::Id::New(index))
-    }
-    
-    pub fn into_sdk_id(self) -> sdk::Id {
-        self.0
     }
 }
 
