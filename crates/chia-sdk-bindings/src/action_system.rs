@@ -156,7 +156,6 @@ impl Spends {
             finished: Arc::new(Mutex::new(finished)),
         })
     }
-
 }
 
 #[derive(Clone)]
@@ -212,7 +211,6 @@ impl FinishedSpends {
         let outputs = spends.spend(&mut ctx, finished)?;
         Ok(Outputs::new(outputs.xch))
     }
-
 }
 
 #[derive(Clone)]
@@ -324,16 +322,15 @@ impl Id {
     pub fn xch() -> Result<Self> {
         Ok(Self(sdk::Id::Xch))
     }
-    
+
     pub fn existing(asset_id: Bytes32) -> Result<Self> {
         Ok(Self(sdk::Id::Existing(asset_id)))
     }
-    
+
     pub fn new(index: usize) -> Result<Self> {
         Ok(Self(sdk::Id::New(index)))
     }
 }
-
 
 #[derive(Clone)]
 pub struct Outputs {
@@ -344,7 +341,7 @@ impl Outputs {
     pub fn xch_coins(&self) -> Result<Vec<Coin>> {
         Ok(self.xch_coins.clone())
     }
-    
+
     pub fn new(xch_coins: Vec<Coin>) -> Self {
         Self { xch_coins }
     }
