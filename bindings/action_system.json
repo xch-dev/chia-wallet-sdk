@@ -69,7 +69,9 @@
           "spend": "Spend"
         }
       },
-      "spend": {}
+      "spend": {
+        "return": "Outputs"
+      }
     }
   },
   "PendingSpend": {
@@ -122,8 +124,30 @@
   "Deltas": {
     "type": "class",
     "methods": {
+      "from_actions": {
+        "type": "static",
+        "args": {
+          "actions": "Vec<Action>"
+        },
+        "return": "Deltas"
+      },
       "xch": {
         "return": "Option<Delta>"
+      },
+      "get": {
+        "args": {
+          "id": "Id"
+        },
+        "return": "Option<Delta>"
+      },
+      "is_needed": {
+        "args": {
+          "id": "Id"
+        },
+        "return": "bool"
+      },
+      "ids": {
+        "return": "Vec<Id>"
       }
     }
   },
@@ -134,6 +158,34 @@
     "fields": {
       "input": "u64",
       "output": "u64"
+    }
+  },
+  "Id": {
+    "type": "class",
+    "methods": {
+      "xch": {
+        "type": "factory"
+      },
+      "existing": {
+        "type": "factory",
+        "args": {
+          "asset_id": "Bytes32"
+        }
+      },
+      "new": {
+        "type": "factory",
+        "args": {
+          "index": "usize"
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "type": "class",
+    "methods": {
+      "xch_coins": {
+        "return": "Vec<Coin>"
+      }
     }
   }
 }

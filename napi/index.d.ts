@@ -1041,7 +1041,11 @@ export declare class Delta {
 
 export declare class Deltas {
   clone(): Deltas
+  static fromActions(actions: Array<Action>): Deltas
   xch(): Delta | null
+  get(id: Id): Delta | null
+  isNeeded(id: Id): boolean
+  ids(): Array<Id>
 }
 
 export declare class Did {
@@ -1116,7 +1120,7 @@ export declare class FinishedSpends {
   clone(): FinishedSpends
   pendingSpends(): Array<PendingSpend>
   insert(coinId: Uint8Array, spend: Spend): void
-  spend(): void
+  spend(): Outputs
 }
 
 export declare class Foliage {
@@ -1334,6 +1338,13 @@ export declare class GetPuzzleAndSolutionResponse {
   set error(value?: string | undefined | null)
   get success(): boolean
   set success(value: boolean)
+}
+
+export declare class Id {
+  clone(): Id
+  static xch(): Id
+  static existing(assetId: Uint8Array): Id
+  static new(index: bigint): Id
 }
 
 export declare class InfusedChallengeChainSubSlot {
@@ -1779,6 +1790,11 @@ export declare class Output {
   set value(value: Program)
   get cost(): bigint
   set cost(value: bigint)
+}
+
+export declare class Outputs {
+  clone(): Outputs
+  xchCoins(): Array<Coin>
 }
 
 export declare class P2ParentCoin {

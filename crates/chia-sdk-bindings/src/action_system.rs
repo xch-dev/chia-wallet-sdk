@@ -202,15 +202,14 @@ impl FinishedSpends {
         Ok(())
     }
 
-    pub fn spend(&self) -> Result<()> {
+    pub fn spend(&self) -> Result<Outputs> {
         let mut ctx = self.clvm.lock().unwrap();
 
         let spends = self.spends.lock().unwrap().clone();
         let finished = self.finished.lock().unwrap().clone();
 
-        spends.spend(&mut ctx, finished)?;
-
-        Ok(())
+        let outputs = spends.spend(&mut ctx, finished)?;
+        Ok(Outputs::new(outputs.xch))
     }
 }
 
@@ -292,7 +291,58 @@ impl Action {
 pub struct Deltas(sdk::Deltas);
 
 impl Deltas {
+    pub fn from_actions(actions: Vec<Action>) -> Result<Deltas> {
+        let sdk_actions: Vec<sdk::Action> = actions.into_iter().map(|a| a.0).collect();
+        let deltas = sdk::Deltas::from_actions(&sdk_actions);
+        Ok(Deltas(deltas))
+    }
+
     pub fn xch(&self) -> Result<Option<Delta>> {
         Ok(self.0.get(&sdk::Id::Xch).copied())
+    }
+
+    pub fn get(&self, id: Id) -> Result<Option<Delta>> {
+        Ok(self.0.get(&id.0).copied())
+    }
+
+    pub fn is_needed(&self, id: Id) -> Result<bool> {
+        Ok(self.0.is_needed(&id.0))
+    }
+
+    pub fn ids(&self) -> Result<Vec<Id>> {
+        Ok(self.0.ids().cloned().map(Id).collect())
+    }
+}
+
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+pub struct Id(sdk::Id);
+
+impl Id {
+    pub fn xch() -> Result<Self> {
+        Ok(Self(sdk::Id::Xch))
+    }
+
+    pub fn existing(asset_id: Bytes32) -> Result<Self> {
+        Ok(Self(sdk::Id::Existing(asset_id)))
+    }
+
+    pub fn new(index: usize) -> Result<Self> {
+        Ok(Self(sdk::Id::New(index)))
+    }
+}
+
+#[derive(Clone)]
+pub struct Outputs {
+    xch_coins: Vec<Coin>,
+}
+
+impl Outputs {
+    pub fn xch_coins(&self) -> Result<Vec<Coin>> {
+        Ok(self.xch_coins.clone())
+    }
+
+    pub fn new(xch_coins: Vec<Coin>) -> Self {
+        Self { xch_coins }
     }
 }
