@@ -85,6 +85,9 @@ pub enum DriverError {
     #[error("missing key")]
     MissingKey,
 
+    #[error("missing spend")]
+    MissingSpend,
+
     #[cfg(feature = "offer-compression")]
     #[error("missing compression version prefix")]
     MissingVersionPrefix,
