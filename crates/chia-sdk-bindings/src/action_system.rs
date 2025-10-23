@@ -9,7 +9,6 @@ use chia_puzzle_types::{offer::SettlementPaymentsSolution, Memos};
 use chia_sdk_driver::{
     self as sdk, Cat, Delta, Layer, Relation, SettlementLayer, SpendContext, SpendKind,
 };
-use sdk::Id as SdkId;
 use chia_sdk_types::Condition;
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
@@ -304,16 +303,16 @@ impl Deltas {
         Ok(self.0.get(&sdk::Id::Xch).copied())
     }
 
-    pub fn get(&self, id: &SdkId) -> Option<&Delta> {
-        self.0.get(id)
+    pub fn get(&self, id: Id) -> Result<Option<Delta>> {
+        Ok(self.0.get(&id.0).copied())
     }
 
-    pub fn is_needed(&self, id: &SdkId) -> bool {
-        self.0.is_needed(id)
+    pub fn is_needed(&self, id: Id) -> Result<bool> {
+        Ok(self.0.is_needed(&id.0))
     }
 
-    pub fn ids(&self) -> Vec<SdkId> {
-        self.0.ids().cloned().collect()
+    pub fn ids(&self) -> Result<Vec<Id>> {
+        Ok(self.0.ids().cloned().map(Id).collect())
     }
 }
 
@@ -322,16 +321,16 @@ impl Deltas {
 pub struct Id(sdk::Id);
 
 impl Id {
-    pub fn xch() -> Self {
-        Self(sdk::Id::Xch)
+    pub fn xch() -> Result<Self> {
+        Ok(Self(sdk::Id::Xch))
     }
     
-    pub fn existing(asset_id: Bytes32) -> Self {
-        Self(sdk::Id::Existing(asset_id))
+    pub fn existing(asset_id: Bytes32) -> Result<Self> {
+        Ok(Self(sdk::Id::Existing(asset_id)))
     }
     
-    pub fn new(index: usize) -> Self {
-        Self(sdk::Id::New(index))
+    pub fn new(index: usize) -> Result<Self> {
+        Ok(Self(sdk::Id::New(index)))
     }
 }
 
@@ -342,8 +341,8 @@ pub struct Outputs {
 }
 
 impl Outputs {
-    pub fn xch_coins(&self) -> &[Coin] {
-        &self.xch_coins
+    pub fn xch_coins(&self) -> Result<Vec<Coin>> {
+        Ok(self.xch_coins.clone())
     }
     
     pub fn new(xch_coins: Vec<Coin>) -> Self {

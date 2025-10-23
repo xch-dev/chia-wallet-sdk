@@ -70,7 +70,7 @@
         }
       },
       "spend": {
-        "returns": "Outputs"
+        "return": "Outputs"
       }
     }
   },
@@ -129,25 +129,25 @@
         "args": {
           "actions": "Vec<Action>"
         },
-        "returns": "Deltas"
+        "return": "Deltas"
       },
       "xch": {
-        "returns": "Option<Delta>"
+        "return": "Option<Delta>"
       },
       "get": {
         "args": {
           "id": "Id"
         },
-        "returns": "Option<Delta>"
+        "return": "Option<Delta>"
       },
       "is_needed": {
         "args": {
           "id": "Id"
         },
-        "returns": "bool"
+        "return": "bool"
       },
-      "Ids": {
-        "returns": "Vec<Id>"
+      "ids": {
+        "return": "Vec<Id>"
       }
     }
   },
@@ -184,7 +184,7 @@
     "type": "class",
     "methods": {
       "xch_coins": {
-        "returns": "Vec<Coin>"
+        "return": "Vec<Coin>"
       }
     }
   }
