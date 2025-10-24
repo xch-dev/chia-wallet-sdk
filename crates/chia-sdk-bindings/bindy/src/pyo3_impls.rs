@@ -1,4 +1,4 @@
-use crate::{impl_self, Error, FromRust, IntoRust, Result};
+use crate::{Error, FromRust, IntoRust, Result, impl_self};
 use chia_protocol::{Bytes, BytesImpl, ClassgroupElement, Program};
 use clvm_utils::TreeHash;
 use num_bigint::BigInt;

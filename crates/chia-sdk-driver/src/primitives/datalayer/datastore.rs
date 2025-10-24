@@ -1,28 +1,29 @@
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::{
+    EveProof, LineageProof, Memos, Proof,
     nft::{NftStateLayerArgs, NftStateLayerSolution},
     singleton::{LauncherSolution, SingletonArgs, SingletonSolution},
-    EveProof, LineageProof, Memos, Proof,
 };
 use chia_puzzles::{NFT_STATE_LAYER_HASH, SINGLETON_LAUNCHER_HASH};
 use chia_sdk_types::{
+    Condition,
     conditions::{CreateCoin, NewMetadataInfo, NewMetadataOutput, UpdateNftMetadata},
     puzzles::{
-        DelegationLayerArgs, DelegationLayerSolution, DELEGATION_LAYER_PUZZLE_HASH,
-        DL_METADATA_UPDATER_PUZZLE_HASH,
+        DELEGATION_LAYER_PUZZLE_HASH, DL_METADATA_UPDATER_PUZZLE_HASH, DelegationLayerArgs,
+        DelegationLayerSolution,
     },
-    run_puzzle, Condition,
+    run_puzzle,
 };
 use clvm_traits::{FromClvm, FromClvmError, ToClvm};
-use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 use num_bigint::BigInt;
 
 use crate::{DriverError, Layer, NftStateLayer, Puzzle, SingletonLayer, Spend, SpendContext};
 
 use super::{
-    get_merkle_tree, DataStoreInfo, DataStoreMetadata, DelegatedPuzzle, HintType,
-    MetadataWithRootHash,
+    DataStoreInfo, DataStoreMetadata, DelegatedPuzzle, HintType, MetadataWithRootHash,
+    get_merkle_tree,
 };
 
 /// Everything that is required to spend a [`DataStore`] coin.
@@ -597,9 +598,9 @@ impl<M> DataStore<M> {
 #[cfg(test)]
 pub mod tests {
     use chia_bls::PublicKey;
-    use chia_puzzle_types::{standard::StandardArgs, Memos};
+    use chia_puzzle_types::{Memos, standard::StandardArgs};
     use chia_sdk_test::{BlsPair, Simulator};
-    use chia_sdk_types::{conditions::UpdateDataStoreMerkleRoot, Conditions};
+    use chia_sdk_types::{Conditions, conditions::UpdateDataStoreMerkleRoot};
     use chia_sha2::Sha256;
     use clvmr::error::EvalErr;
     use rstest::rstest;

@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use chia_protocol::{Bytes, Bytes32};
 use clvm_traits::{
-    clvm_tuple, ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, ToClvm, ToClvmError,
+    ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, ToClvm, ToClvmError, clvm_tuple,
 };
 use clvm_utils::ToTreeHash;
 use hex_literal::hex;

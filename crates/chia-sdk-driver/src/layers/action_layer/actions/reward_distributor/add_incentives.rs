@@ -1,10 +1,9 @@
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
-    announcement_id,
+    Conditions, Mod, announcement_id,
     puzzles::{
         RewardDistributorAddIncentivesActionArgs, RewardDistributorAddIncentivesActionSolution,
     },
-    Conditions, Mod,
 };
 use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};

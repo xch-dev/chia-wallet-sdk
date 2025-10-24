@@ -2,8 +2,8 @@ use std::str::FromStr;
 
 use chia_protocol::{Bytes, Bytes32, BytesImpl, ClassgroupElement, Program};
 use clvm_utils::TreeHash;
-use js_sys::wasm_bindgen::{JsCast, UnwrapThrowExt};
 use js_sys::Uint8Array;
+use js_sys::wasm_bindgen::{JsCast, UnwrapThrowExt};
 use num_bigint::BigInt;
 
 use crate::{Error, FromRust, IntoRust, Result};

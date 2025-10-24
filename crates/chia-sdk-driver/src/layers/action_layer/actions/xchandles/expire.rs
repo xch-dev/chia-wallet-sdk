@@ -1,14 +1,13 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
-    announcement_id,
+    Conditions, Mod, announcement_id,
     puzzles::{
-        DefaultCatMakerArgs, PrecommitSpendMode, XchandlesDataValue, XchandlesExpireActionArgs,
-        XchandlesExpireActionSolution, XchandlesExponentialPremiumRenewPuzzleArgs,
-        XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution, XchandlesSlotValue,
-        PREMIUM_BITS_LIST, PREMIUM_PRECISION,
+        DefaultCatMakerArgs, PREMIUM_BITS_LIST, PREMIUM_PRECISION, PrecommitSpendMode,
+        XchandlesDataValue, XchandlesExpireActionArgs, XchandlesExpireActionSolution,
+        XchandlesExponentialPremiumRenewPuzzleArgs, XchandlesFactorPricingPuzzleArgs,
+        XchandlesPricingSolution, XchandlesSlotValue,
     },
-    Conditions, Mod,
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
@@ -85,8 +84,8 @@ impl XchandlesExpireAction {
             NodePtr,
         >::from_clvm(ctx, solution)?;
 
-        let handle = solution.expired_handle_pricing_puzzle_solution.1 .1 .0;
-        let current_expiration = solution.expired_handle_pricing_puzzle_solution.1 .0;
+        let handle = solution.expired_handle_pricing_puzzle_solution.1.1.0;
+        let current_expiration = solution.expired_handle_pricing_puzzle_solution.1.0;
 
         Ok(XchandlesSlotValue::new(
             handle.tree_hash().into(),

@@ -1,7 +1,7 @@
 use chia_protocol::CoinSpend;
 use chia_sdk_types::Condition;
 use clvm_traits::{FromClvm, ToClvm};
-use clvmr::{run_program, Allocator, ChiaDialect};
+use clvmr::{Allocator, ChiaDialect, run_program};
 
 use crate::{
     AggSigConstants, RequiredBlsSignature, RequiredSecpSignature, SecpDialect, SignerError,
@@ -73,12 +73,12 @@ impl RequiredSignature {
 mod tests {
     use super::*;
 
-    use chia_bls::{master_to_wallet_unhardened, SecretKey};
+    use chia_bls::{SecretKey, master_to_wallet_unhardened};
     use chia_protocol::{Bytes, Bytes32, Coin};
     use chia_puzzle_types::DeriveSynthetic;
     use chia_sdk_types::{
-        conditions::{AggSig, AggSigKind},
         MAINNET_CONSTANTS,
+        conditions::{AggSig, AggSigKind},
     };
     use hex_literal::hex;
 

@@ -1,20 +1,20 @@
 use bindy::Result;
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
-use chia_sdk_driver::{mips_puzzle_hash, MofN};
+use chia_sdk_driver::{MofN, mips_puzzle_hash};
 use chia_sdk_types::{
+    Mod,
     puzzles::{
         BlsMember, BlsMemberPuzzleAssert, FixedPuzzleMember, K1Member, K1MemberPuzzleAssert,
         PasskeyMember, PasskeyMemberPuzzleAssert, R1Member, R1MemberPuzzleAssert, SingletonMember,
         SingletonMemberWithMode,
     },
-    Mod,
 };
 use clvm_utils::TreeHash;
 
 use crate::{K1PublicKey, R1PublicKey};
 
-use super::{convert_restrictions, Restriction};
+use super::{Restriction, convert_restrictions};
 
 #[derive(Default, Clone)]
 pub struct MemberConfig {

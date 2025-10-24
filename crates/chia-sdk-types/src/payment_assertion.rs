@@ -1,9 +1,9 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{
-    offer::{NotarizedPayment, Payment},
     Memos,
+    offer::{NotarizedPayment, Payment},
 };
-use clvm_utils::{tree_hash, ToTreeHash, TreeHash};
+use clvm_utils::{ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{announcement_id, conditions::AssertPuzzleAnnouncement};

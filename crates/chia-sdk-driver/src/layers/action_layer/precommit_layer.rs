@@ -1,13 +1,13 @@
 use chia_protocol::{Bytes, Bytes32};
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_types::{
-    puzzles::{
-        AnyMetadataUpdater, CatNftMetadata, DefaultCatMakerArgs, PrecommitLayer1stCurryArgs,
-        PrecommitLayer2ndCurryArgs, PrecommitLayerSolution, PRECOMMIT_LAYER_PUZZLE_HASH,
-    },
     Conditions, Mod,
+    puzzles::{
+        AnyMetadataUpdater, CatNftMetadata, DefaultCatMakerArgs, PRECOMMIT_LAYER_PUZZLE_HASH,
+        PrecommitLayer1stCurryArgs, PrecommitLayer2ndCurryArgs, PrecommitLayerSolution,
+    },
 };
-use clvm_traits::{clvm_quote, clvm_tuple, ClvmEncoder, FromClvm, ToClvm, ToClvmError};
+use clvm_traits::{ClvmEncoder, FromClvm, ToClvm, ToClvmError, clvm_quote, clvm_tuple};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 

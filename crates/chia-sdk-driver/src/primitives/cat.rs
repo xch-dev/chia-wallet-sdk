@@ -1,13 +1,14 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
-    cat::{CatSolution, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs},
     CoinProof, LineageProof, Memos,
+    cat::{CatSolution, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs},
 };
 use chia_sdk_types::{
+    Condition, Conditions,
     conditions::{CreateCoin, RunCatTail},
     puzzles::RevocationSolution,
-    run_puzzle, Condition, Conditions,
+    run_puzzle,
 };
 use clvm_traits::FromClvm;
 use clvm_utils::ToTreeHash;
@@ -527,7 +528,7 @@ mod tests {
 
     use chia_puzzle_types::cat::EverythingWithSignatureTailArgs;
     use chia_sdk_test::Simulator;
-    use chia_sdk_types::{puzzles::RevocationArgs, Mod};
+    use chia_sdk_types::{Mod, puzzles::RevocationArgs};
     use rstest::rstest;
 
     use crate::{SpendWithConditions, StandardLayer};

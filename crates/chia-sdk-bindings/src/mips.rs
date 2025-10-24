@@ -11,7 +11,7 @@ pub use spend::*;
 use bindy::Result;
 use chia_protocol::Coin;
 use chia_sdk_driver::{self as sdk, VaultInfo};
-use chia_sdk_types::{puzzles::AddDelegatedPuzzleWrapper, Mod};
+use chia_sdk_types::{Mod, puzzles::AddDelegatedPuzzleWrapper};
 use clvm_utils::TreeHash;
 
 use crate::{Program, Proof};

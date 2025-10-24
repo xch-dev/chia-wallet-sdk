@@ -1,10 +1,10 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_types::{
+    Conditions, MerkleTree, Mod,
     conditions::{AssertBeforeSecondsAbsolute, AssertSecondsAbsolute, CreateCoin, Memos},
     puzzles::{AugmentedConditionArgs, AugmentedConditionSolution, P2OneOfManySolution},
-    Conditions, MerkleTree, Mod,
 };
-use clvm_traits::{clvm_list, clvm_quote, match_list, FromClvm};
+use clvm_traits::{FromClvm, clvm_list, clvm_quote, match_list};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -314,8 +314,8 @@ mod tests {
     use std::slice;
 
     use chia_protocol::Coin;
-    use chia_sdk_test::{expect_spend, Simulator};
-    use clvm_traits::{clvm_list, ToClvm};
+    use chia_sdk_test::{Simulator, expect_spend};
+    use clvm_traits::{ToClvm, clvm_list};
     use rstest::rstest;
 
     use crate::{Cat, CatSpend, SpendWithConditions, StandardLayer};
@@ -378,9 +378,10 @@ mod tests {
         expect_spend(sim.spend_coins(ctx.take(), &[alice.sk]), !after_expiration);
 
         if !after_expiration {
-            assert!(sim
-                .coin_state(Coin::new(clawback_coin.coin_id(), alice.puzzle_hash, 1).coin_id())
-                .is_some());
+            assert!(
+                sim.coin_state(Coin::new(clawback_coin.coin_id(), alice.puzzle_hash, 1).coin_id())
+                    .is_some()
+            );
         }
 
         Ok(())
@@ -421,9 +422,10 @@ mod tests {
         expect_spend(sim.spend_coins(ctx.take(), &[alice.sk]), !after_expiration);
 
         if !after_expiration {
-            assert!(sim
-                .coin_state(Coin::new(clawback_coin.coin_id(), bob.puzzle_hash, 1).coin_id())
-                .is_some());
+            assert!(
+                sim.coin_state(Coin::new(clawback_coin.coin_id(), bob.puzzle_hash, 1).coin_id())
+                    .is_some()
+            );
         }
 
         Ok(())
@@ -465,9 +467,10 @@ mod tests {
         expect_spend(sim.spend_coins(ctx.take(), &[bob.sk]), after_expiration);
 
         if after_expiration {
-            assert!(sim
-                .coin_state(Coin::new(clawback_coin.coin_id(), bob.puzzle_hash, 1).coin_id())
-                .is_some());
+            assert!(
+                sim.coin_state(Coin::new(clawback_coin.coin_id(), bob.puzzle_hash, 1).coin_id())
+                    .is_some()
+            );
         }
 
         Ok(())
@@ -508,9 +511,10 @@ mod tests {
         expect_spend(sim.spend_coins(ctx.take(), &[bob.sk]), after_expiration);
 
         if after_expiration {
-            assert!(sim
-                .coin_state(Coin::new(clawback_coin.coin_id(), bob.puzzle_hash, 1).coin_id())
-                .is_some());
+            assert!(
+                sim.coin_state(Coin::new(clawback_coin.coin_id(), bob.puzzle_hash, 1).coin_id())
+                    .is_some()
+            );
         }
 
         Ok(())
@@ -562,9 +566,10 @@ mod tests {
         expect_spend(sim.spend_coins(ctx.take(), &[alice.sk]), !after_expiration);
 
         if !after_expiration {
-            assert!(sim
-                .coin_state(clawback_cat.child(alice.puzzle_hash, 1).coin.coin_id())
-                .is_some());
+            assert!(
+                sim.coin_state(clawback_cat.child(alice.puzzle_hash, 1).coin.coin_id())
+                    .is_some()
+            );
         }
 
         Ok(())
@@ -616,9 +621,10 @@ mod tests {
         expect_spend(sim.spend_coins(ctx.take(), &[alice.sk]), !after_expiration);
 
         if !after_expiration {
-            assert!(sim
-                .coin_state(clawback_cat.child(bob.puzzle_hash, 1).coin.coin_id())
-                .is_some());
+            assert!(
+                sim.coin_state(clawback_cat.child(bob.puzzle_hash, 1).coin.coin_id())
+                    .is_some()
+            );
         }
 
         Ok(())
@@ -675,9 +681,10 @@ mod tests {
         expect_spend(sim.spend_coins(ctx.take(), &[bob.sk]), after_expiration);
 
         if after_expiration {
-            assert!(sim
-                .coin_state(clawback_cat.child(bob.puzzle_hash, 1).coin.coin_id())
-                .is_some());
+            assert!(
+                sim.coin_state(clawback_cat.child(bob.puzzle_hash, 1).coin.coin_id())
+                    .is_some()
+            );
         }
 
         Ok(())
@@ -733,9 +740,10 @@ mod tests {
         expect_spend(sim.spend_coins(ctx.take(), &[]), after_expiration);
 
         if after_expiration {
-            assert!(sim
-                .coin_state(clawback_cat.child(bob.puzzle_hash, 1).coin.coin_id())
-                .is_some());
+            assert!(
+                sim.coin_state(clawback_cat.child(bob.puzzle_hash, 1).coin.coin_id())
+                    .is_some()
+            );
         }
 
         Ok(())

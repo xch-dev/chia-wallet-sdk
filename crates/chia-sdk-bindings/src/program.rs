@@ -13,11 +13,10 @@ use chialisp::classic::clvm_tools::{
     binutils::disassemble, stages::stage_2::operators::run_program_for_search_paths,
 };
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm};
-use clvm_utils::{tree_hash, TreeHash};
+use clvm_utils::{TreeHash, tree_hash};
 use clvmr::{
-    run_program,
+    ChiaDialect, MEMPOOL_MODE, NodePtr, SExp, run_program,
     serde::{node_to_bytes, node_to_bytes_backrefs},
-    ChiaDialect, NodePtr, SExp, MEMPOOL_MODE,
 };
 use num_bigint::BigInt;
 

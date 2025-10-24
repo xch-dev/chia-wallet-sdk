@@ -3,8 +3,8 @@ use chia_protocol::Bytes32;
 use chia_puzzles::PREVENT_MULTIPLE_CREATE_COINS_HASH;
 use chia_sdk_driver as sdk;
 use chia_sdk_types::{
-    puzzles::{Force1of2RestrictedVariable, PreventConditionOpcode, Timelock},
     Mod,
+    puzzles::{Force1of2RestrictedVariable, PreventConditionOpcode, Timelock},
 };
 use clvm_utils::TreeHash;
 

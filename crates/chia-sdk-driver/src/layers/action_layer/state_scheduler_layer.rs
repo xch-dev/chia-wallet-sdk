@@ -2,10 +2,10 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::Memos;
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_types::{
-    puzzles::{StateSchedulerLayerArgs, StateSchedulerLayerSolution, STATE_SCHEDULER_PUZZLE_HASH},
     Condition, Conditions,
+    puzzles::{STATE_SCHEDULER_PUZZLE_HASH, StateSchedulerLayerArgs, StateSchedulerLayerSolution},
 };
-use clvm_traits::{clvm_quote, FromClvm};
+use clvm_traits::{FromClvm, clvm_quote};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};

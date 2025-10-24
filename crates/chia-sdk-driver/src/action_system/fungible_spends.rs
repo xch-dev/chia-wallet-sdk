@@ -1,8 +1,8 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
+    Memos,
     cat::{CatArgs, GenesisByCoinIdTailArgs},
     offer::NotarizedPayment,
-    Memos,
 };
 use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
 use chia_sdk_types::conditions::{AssertPuzzleAnnouncement, CreateCoin};

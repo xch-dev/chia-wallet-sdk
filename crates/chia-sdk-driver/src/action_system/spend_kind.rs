@@ -1,8 +1,9 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::offer::{NotarizedPayment, Payment};
 use chia_sdk_types::{
+    Conditions,
     conditions::{AssertPuzzleAnnouncement, CreateCoin},
-    payment_assertion, tree_hash_notarized_payment, Conditions,
+    payment_assertion, tree_hash_notarized_payment,
 };
 use clvmr::{Allocator, NodePtr};
 use rand::{Rng, SeedableRng};

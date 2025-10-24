@@ -3,13 +3,14 @@ use crate::{
 };
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
-    cat::{CatArgs, CatSolution},
     CoinProof, LineageProof, Memos,
+    cat::{CatArgs, CatSolution},
 };
 use chia_puzzles::CAT_PUZZLE_HASH;
 use chia_sdk_types::{
+    Conditions, Mod,
     puzzles::{P2ParentArgs, P2ParentSolution},
-    run_puzzle, Conditions, Mod,
+    run_puzzle,
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
