@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use chia_protocol::Bytes32;
 use chia_puzzles::{ADD_DPUZ_WRAPPER_HASH, ENFORCE_DPUZ_WRAPPERS, ENFORCE_DPUZ_WRAPPERS_HASH};
-use clvm_traits::{clvm_quote, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm, clvm_quote};
 use clvm_utils::{ToTreeHash, TreeHash};
 
 use crate::Mod;

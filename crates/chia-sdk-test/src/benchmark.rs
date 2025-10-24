@@ -5,7 +5,7 @@ use chia_consensus::spendbundle_conditions::get_conditions_from_spendbundle;
 use chia_protocol::{CoinSpend, SpendBundle};
 use chia_sdk_types::TESTNET11_CONSTANTS;
 use clvmr::Allocator;
-use prettytable::{row, Table};
+use prettytable::{Table, row};
 
 use crate::Simulator;
 

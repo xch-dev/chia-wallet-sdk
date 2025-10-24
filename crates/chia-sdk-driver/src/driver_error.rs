@@ -2,7 +2,7 @@ use std::{array::TryFromSliceError, num::TryFromIntError};
 
 use chia_sdk_signer::SignerError;
 use clvm_traits::{FromClvmError, ToClvmError};
-use clvmr::reduction::EvalErr;
+use clvmr::error::EvalErr;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -106,16 +106,8 @@ pub enum DriverError {
     Flate2(#[from] flate2::DecompressError),
 
     #[cfg(feature = "offer-compression")]
-    #[error("invalid prefix: {0}")]
-    InvalidPrefix(String),
-
-    #[cfg(feature = "offer-compression")]
-    #[error("encoding is not bech32m")]
-    InvalidFormat,
-
-    #[cfg(feature = "offer-compression")]
     #[error("error when decoding address: {0}")]
-    Decode(#[from] bech32::Error),
+    Decode(#[from] chia_sdk_utils::Bech32Error),
 
     #[error("incompatible asset info")]
     IncompatibleAssetInfo,

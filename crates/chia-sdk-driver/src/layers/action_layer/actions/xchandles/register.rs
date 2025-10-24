@@ -1,13 +1,12 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
-    announcement_id,
+    Conditions, Mod, announcement_id,
     puzzles::{
         DefaultCatMakerArgs, PrecommitSpendMode, SlotNeigborsInfo, XchandlesDataValue,
         XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution, XchandlesRegisterActionArgs,
         XchandlesRegisterActionSolution, XchandlesSlotValue,
     },
-    Conditions, Mod,
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
@@ -234,7 +233,7 @@ impl XchandlesRegisterAction {
 
 #[cfg(test)]
 mod tests {
-    use clvmr::reduction::EvalErr;
+    use clvmr::error::EvalErr;
 
     use super::*;
 
@@ -305,10 +304,9 @@ mod tests {
             num_periods: 1,
         })?;
 
-        let Err(DriverError::Eval(EvalErr(_, s))) = ctx.run(puzzle, solution) else {
-            panic!("Expected error");
+        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
+            panic!("Expected clvm raise");
         };
-        assert_eq!(s, "clvm raise");
 
         // make sure the puzzle won't let us register a handle of length 32
 
@@ -319,10 +317,9 @@ mod tests {
             num_periods: 1,
         })?;
 
-        let Err(DriverError::Eval(EvalErr(_, s))) = ctx.run(puzzle, solution) else {
-            panic!("Expected error");
+        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
+            panic!("Expected clvm raise");
         };
-        assert_eq!(s, "clvm raise");
 
         // make sure the puzzle won't let us register a handle with invalid characters
 
@@ -333,10 +330,9 @@ mod tests {
             num_periods: 1,
         })?;
 
-        let Err(DriverError::Eval(EvalErr(_, s))) = ctx.run(puzzle, solution) else {
-            panic!("Expected error");
+        let Err(DriverError::Eval(EvalErr::Raise(_))) = ctx.run(puzzle, solution) else {
+            panic!("Expected clvm raise");
         };
-        assert_eq!(s, "clvm raise");
 
         Ok(())
     }

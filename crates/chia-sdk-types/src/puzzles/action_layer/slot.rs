@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use chia_protocol::Bytes32;
-use chia_puzzle_types::{singleton::SingletonStruct, LineageProof};
+use chia_puzzle_types::{LineageProof, singleton::SingletonStruct};
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};

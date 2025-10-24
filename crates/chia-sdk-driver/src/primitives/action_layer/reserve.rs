@@ -1,11 +1,11 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::{cat::CatArgs, singleton::SingletonSolution, LineageProof};
+use chia_puzzle_types::{LineageProof, cat::CatArgs, singleton::SingletonSolution};
 use chia_sdk_types::{
     conditions::CreateCoin,
     puzzles::{P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution},
     run_puzzle,
 };
-use clvm_traits::{clvm_list, clvm_quote, match_tuple, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm, clvm_list, clvm_quote, match_tuple};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 

@@ -7,8 +7,9 @@ use chia_consensus::opcodes::{
 };
 use chia_protocol::{Bytes, Bytes32};
 use chia_puzzles::PREVENT_MULTIPLE_CREATE_COINS_HASH;
-use chia_sdk_driver::{self as sdk, mips_puzzle_hash, InnerPuzzleSpend, MofN, SpendContext};
+use chia_sdk_driver::{self as sdk, InnerPuzzleSpend, MofN, SpendContext, mips_puzzle_hash};
 use chia_sdk_types::{
+    Mod,
     puzzles::{
         BlsMember, BlsMemberPuzzleAssert, FixedPuzzleMember, Force1of2RestrictedVariable,
         Force1of2RestrictedVariableSolution, K1Member, K1MemberPuzzleAssert,
@@ -18,14 +19,13 @@ use chia_sdk_types::{
         R1MemberPuzzleAssertSolution, R1MemberSolution, SingletonMember, SingletonMemberSolution,
         SingletonMemberWithMode, SingletonMemberWithModeSolution, Timelock,
     },
-    Mod,
 };
 use clvm_utils::TreeHash;
 use clvmr::NodePtr;
 
 use crate::{K1PublicKey, K1Signature, Program, R1PublicKey, R1Signature, Spend};
 
-use super::{convert_restrictions, MemberConfig, Vault};
+use super::{MemberConfig, Vault, convert_restrictions};
 
 #[derive(Clone)]
 pub struct MipsSpend {

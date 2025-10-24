@@ -1,7 +1,7 @@
 [package]
 publish = false
 name = "chia-wallet-sdk-wasm"
-version = "0.30.0"
+version = "0.31.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "WASM bindings for the Chia Wallet SDK."
@@ -27,7 +27,7 @@ wasm-bindgen-derive = { workspace = true }
 chia-sdk-bindings = { workspace = true, features = ["wasm"] }
 bindy = { workspace = true, features = ["wasm"] }
 bindy-macro = { workspace = true }
-getrandom = { workspace = true, features = ["js"] }
+getrandom = { workspace = true, features = ["wasm_js"] }
 js-sys = { workspace = true }
 console_error_panic_hook = { workspace = true }
 

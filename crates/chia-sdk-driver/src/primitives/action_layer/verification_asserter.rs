@@ -1,11 +1,11 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::{singleton::SingletonStruct, LineageProof};
+use chia_puzzle_types::{LineageProof, singleton::SingletonStruct};
 use chia_sdk_types::{
+    Mod,
     puzzles::{
         CatalogVerificationInnerPuzzleMakerArgs, CatalogVerificationInnerPuzzleMakerSolution,
         VerificationAsserterArgs, VerificationAsserterSolution, VerificationLayer1stCurryArgs,
     },
-    Mod,
 };
 use clvm_utils::{ToTreeHash, TreeHash};
 

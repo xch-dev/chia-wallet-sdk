@@ -8,7 +8,7 @@ use chia_puzzles::{
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 
-use crate::{puzzles::INDEX_WRAPPER_HASH, Mod};
+use crate::{Mod, puzzles::INDEX_WRAPPER_HASH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(curry)]

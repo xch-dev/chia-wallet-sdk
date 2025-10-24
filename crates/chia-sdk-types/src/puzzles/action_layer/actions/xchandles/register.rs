@@ -6,8 +6,8 @@ use clvm_utils::TreeHash;
 use hex_literal::hex;
 
 use crate::{
-    puzzles::{SlotNeigborsInfo, XchandlesDataValue},
     Mod,
+    puzzles::{SlotNeigborsInfo, XchandlesDataValue},
 };
 
 pub const XCHANDLES_REGISTER_PUZZLE: [u8; 1345] = hex!(

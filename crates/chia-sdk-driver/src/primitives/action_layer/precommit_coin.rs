@@ -1,7 +1,7 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
-    cat::{CatArgs, CatSolution},
     CoinProof, LineageProof,
+    cat::{CatArgs, CatSolution},
 };
 use chia_sdk_types::puzzles::{PrecommitLayerSolution, PrecommitSpendMode};
 use clvm_traits::ToClvm;

@@ -1,17 +1,20 @@
 use std::{collections::HashMap, fs, io, path::Path, rc::Rc};
 
-use clvm_tools_rs::{
+use chialisp::{
     classic::clvm_tools::clvmc::compile_clvm_text,
     compiler::{compiler::DefaultCompilerOpts, comptypes::CompilerOpts},
 };
-use clvm_utils::{tree_hash, TreeHash};
-use clvmr::{serde::node_to_bytes, Allocator};
+use clvm_utils::{TreeHash, tree_hash};
+use clvmr::{Allocator, error::EvalErr, serde::node_to_bytes};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum LoadClvmError {
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
+
+    #[error("CLVM error: {0}")]
+    Clvm(#[from] EvalErr),
 
     #[error("Invalid file name")]
     InvalidFileName,
@@ -66,9 +69,9 @@ mod tests {
 
     use clvm_traits::{FromClvm, ToClvm};
     use clvm_utils::CurriedProgram;
-    use clvmr::{serde::node_from_bytes, NodePtr};
+    use clvmr::{NodePtr, serde::node_from_bytes};
 
-    use crate::{run_puzzle, Mod};
+    use crate::{Mod, run_puzzle};
 
     use super::*;
 

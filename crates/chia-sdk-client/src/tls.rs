@@ -45,10 +45,10 @@ pub fn create_rustls_connector(cert: &ChiaCertificate) -> Result<Connector, Clie
 
     use chia_ssl::CHIA_CA_CRT;
     use rustls::{
-        client::danger::HandshakeSignatureValid,
-        crypto::{verify_tls12_signature, verify_tls13_signature, CryptoProvider},
-        pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime},
         ClientConfig, DigitallySignedStruct, RootCertStore,
+        client::danger::HandshakeSignatureValid,
+        crypto::{CryptoProvider, verify_tls12_signature, verify_tls13_signature},
+        pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime},
     };
 
     #[derive(Debug)]

@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_sdk_types::{puzzles::OptionContractArgs, Mod};
+use chia_sdk_types::{Mod, puzzles::OptionContractArgs};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::Allocator;
 

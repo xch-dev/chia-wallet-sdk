@@ -4,11 +4,11 @@ use chia_protocol::Bytes32;
 use chia_secp::{K1PublicKey, R1PublicKey};
 use clvm_traits::FromClvm;
 use clvmr::{
+    Allocator, NodePtr,
     cost::Cost,
     dialect::{Dialect, OperatorSet},
     op_utils::get_args,
     reduction::{Reduction, Response},
-    Allocator, NodePtr,
 };
 
 use super::{RequiredSecpSignature, SecpPublicKey};
@@ -114,8 +114,8 @@ where
 mod tests {
     use chia_protocol::Bytes;
     use chia_secp::K1SecretKey;
-    use clvm_traits::{clvm_list, clvm_quote, ToClvm};
-    use clvmr::{run_program, ChiaDialect};
+    use clvm_traits::{ToClvm, clvm_list, clvm_quote};
+    use clvmr::{ChiaDialect, run_program};
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha8Rng;
 

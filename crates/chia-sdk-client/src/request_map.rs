@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use chia_protocol::Message;
-use tokio::sync::{oneshot, Mutex, OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore, oneshot};
 
 #[derive(Debug)]
 pub(crate) struct Request {

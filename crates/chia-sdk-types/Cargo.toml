@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-types"
-version = "0.30.0"
+version = "0.31.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Standard Chia types for things such as puzzle info and conditions."
@@ -32,7 +32,7 @@ clvm-utils = { workspace = true }
 clvmr = { workspace = true }
 hex-literal = { workspace = true }
 thiserror = { workspace = true }
-clvm_tools_rs = { workspace = true }
+chialisp = { workspace = true }
 
 [dev-dependencies]
 hex = { workspace = true }

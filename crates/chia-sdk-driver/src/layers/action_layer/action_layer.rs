@@ -2,15 +2,16 @@ use std::{collections::HashMap, fmt::Debug};
 
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
+    MerkleProof, MerkleTree, Mod,
     puzzles::{
-        ActionLayerArgs, DefaultFinalizer1stCurryArgs, DefaultFinalizer2ndCurryArgs,
+        ACTION_LAYER_PUZZLE_HASH, ActionLayerArgs, DEFAULT_FINALIZER_PUZZLE_HASH,
+        DefaultFinalizer1stCurryArgs, DefaultFinalizer2ndCurryArgs, RESERVE_FINALIZER_PUZZLE_HASH,
         RawActionLayerSolution, ReserveFinalizer1stCurryArgs, ReserveFinalizer2ndCurryArgs,
-        ACTION_LAYER_PUZZLE_HASH, DEFAULT_FINALIZER_PUZZLE_HASH, RESERVE_FINALIZER_PUZZLE_HASH,
     },
-    run_puzzle, MerkleProof, MerkleTree, Mod,
+    run_puzzle,
 };
-use clvm_traits::{clvm_list, match_tuple, FromClvm, ToClvm};
-use clvm_utils::{tree_hash, CurriedProgram, TreeHash};
+use clvm_traits::{FromClvm, ToClvm, clvm_list, match_tuple};
+use clvm_utils::{CurriedProgram, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
