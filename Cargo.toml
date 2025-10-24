@@ -81,7 +81,7 @@ action-layer = ["chia-sdk-types/action-layer", "chia-sdk-driver/action-layer"]
 chia-sdk-client = { workspace = true }
 chia-sdk-driver = { workspace = true }
 chia-sdk-signer = { workspace = true }
-chia-sdk-test = { workspace = true }
+chia-sdk-test = { workspace = true, features = ["serde"] }
 chia-sdk-types = { workspace = true }
 chia-sdk-utils = { workspace = true }
 chia-sdk-coinset = { workspace = true }
@@ -154,7 +154,7 @@ bigdecimal = "0.4.8"
 k256 = "0.13.4"
 p256 = "0.13.2"
 signature = "2.2.0"
-serde = { version = "1.0.228", features = ["derive"] }
+serde = "1.0.228"
 serde_json = "1.0.145"
 reqwest = { version = "0.12.23", default-features = false, features = ["json"] }
 proc-macro2 = "1.0.101"
@@ -172,6 +172,7 @@ indoc = "2.0.6"
 console_error_panic_hook = "0.1.7"
 prettytable-rs = "0.10.0"
 clap = "4.5.50"
+bincode = "2.0.1"
 
 [profile.release]
 lto = true

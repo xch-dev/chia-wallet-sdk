@@ -14,8 +14,6 @@ categories = { workspace = true }
 [lints]
 workspace = true
 
-[features]
-
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }

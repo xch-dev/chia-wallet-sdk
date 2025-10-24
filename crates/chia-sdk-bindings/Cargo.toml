@@ -15,9 +15,9 @@ categories = { workspace = true }
 workspace = true
 
 [features]
-napi = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio"]
-wasm = []
-pyo3 = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio"]
+napi = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio", "bindy/napi"]
+wasm = ["bindy/wasm"]
+pyo3 = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio", "bindy/pyo3"]
 
 [dependencies]
 chia-sdk-utils = { workspace = true }

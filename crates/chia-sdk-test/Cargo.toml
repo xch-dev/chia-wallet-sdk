@@ -31,7 +31,8 @@ serde = [
     "indexmap/serde",
     "rand/serde",
     "rand_chacha/serde",
-    "dep:serde"
+    "dep:serde",
+    "dep:bincode"
 ]
 
 [dependencies]
@@ -64,6 +65,7 @@ futures-channel = { workspace = true, features = ["sink"], optional = true }
 futures-util = { workspace = true, optional = true }
 prettytable-rs = {workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
+bincode = { workspace = true, features = ["serde"], optional = true }
 
 [package.metadata.cargo-machete]
 ignored = ["prettytable-rs"]

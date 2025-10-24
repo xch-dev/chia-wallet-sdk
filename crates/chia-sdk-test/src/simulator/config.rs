@@ -2,6 +2,8 @@
 pub struct SimulatorConfig {
     pub seed: u64,
     pub timestamp_mode: TimestampMode,
+    pub save_spends: bool,
+    pub save_hints: bool,
 }
 
 impl Default for SimulatorConfig {
@@ -9,6 +11,8 @@ impl Default for SimulatorConfig {
         Self {
             seed: 1337,
             timestamp_mode: TimestampMode::default(),
+            save_spends: true,
+            save_hints: true,
         }
     }
 }

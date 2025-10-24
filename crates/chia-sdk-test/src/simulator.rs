@@ -16,7 +16,8 @@ mod config;
 mod data;
 
 pub use config::*;
-pub use data::*;
+
+use data::SimulatorData;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Simulator {
@@ -40,6 +41,26 @@ impl Simulator {
             config,
             data: SimulatorData::new(ChaCha8Rng::seed_from_u64(config.seed)),
         }
+    }
+
+    #[cfg(feature = "serde")]
+    pub fn serialize(&self) -> Result<Vec<u8>, bincode::error::EncodeError> {
+        bincode::serde::encode_to_vec(&self.data, bincode::config::standard())
+    }
+
+    #[cfg(feature = "serde")]
+    pub fn deserialize_with_config(
+        data: &[u8],
+        config: SimulatorConfig,
+    ) -> Result<Self, bincode::error::DecodeError> {
+        let data: SimulatorData =
+            bincode::serde::decode_from_slice(data, bincode::config::standard())?.0;
+        Ok(Self { config, data })
+    }
+
+    #[cfg(feature = "serde")]
+    pub fn deserialize(data: &[u8]) -> Result<Self, bincode::error::DecodeError> {
+        Self::deserialize_with_config(data, SimulatorConfig::default())
     }
 
     pub fn height(&self) -> u32 {
@@ -344,16 +365,24 @@ impl Simulator {
         // Update the coin data.
         let mut updates = added_coins.clone();
         updates.extend(removed_coins);
+
         self.create_block();
+
         self.data.coin_states.extend(updates.clone());
-        for (hint, coins) in added_hints {
-            self.data
-                .hinted_coins
-                .entry(hint)
-                .or_default()
-                .extend(coins);
+
+        if self.config.save_hints {
+            for (hint, coins) in added_hints {
+                self.data
+                    .hinted_coins
+                    .entry(hint)
+                    .or_default()
+                    .extend(coins);
+            }
         }
-        self.data.coin_spends.extend(coin_spends);
+
+        if self.config.save_spends {
+            self.data.coin_spends.extend(coin_spends);
+        }
 
         Ok(updates)
     }
