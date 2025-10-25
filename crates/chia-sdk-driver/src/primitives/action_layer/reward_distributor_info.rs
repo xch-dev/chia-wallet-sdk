@@ -88,6 +88,7 @@ pub enum RewardDistributorType {
     },
     WeightedNft {
         store_launcher_id: Bytes32,
+        refreshable: bool,
     },
     Cat {
         asset_id: Bytes32,
@@ -106,9 +107,14 @@ impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for RewardDistributorType {
             2 => Ok(RewardDistributorType::NftCollection {
                 collection_did_launcher_id: FromClvm::from_clvm(decoder, type_pair.1 .0)?,
             }),
-            3 => Ok(RewardDistributorType::WeightedNft {
-                store_launcher_id: FromClvm::from_clvm(decoder, type_pair.1 .0)?,
-            }),
+            3 => {
+                let (store_launcher_id, refreshable): (Bytes32, bool) =
+                    FromClvm::from_clvm(decoder, type_pair.1 .0)?;
+                Ok(RewardDistributorType::WeightedNft {
+                    store_launcher_id,
+                    refreshable,
+                })
+            }
             4 => {
                 let (asset_id, hidden_puzzle_hash): (Bytes32, Option<Bytes32>) =
                     FromClvm::from_clvm(decoder, type_pair.1 .0)?;
@@ -134,9 +140,10 @@ impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for RewardDistributorType {
             RewardDistributorType::NftCollection {
                 collection_did_launcher_id,
             } => (2, collection_did_launcher_id).to_clvm(encoder),
-            RewardDistributorType::WeightedNft { store_launcher_id } => {
-                (3, store_launcher_id).to_clvm(encoder)
-            }
+            RewardDistributorType::WeightedNft {
+                store_launcher_id,
+                refreshable,
+            } => (3, (store_launcher_id, refreshable)).to_clvm(encoder),
             RewardDistributorType::Cat {
                 asset_id,
                 hidden_puzzle_hash,
@@ -242,12 +249,13 @@ impl RewardDistributorInfo {
             RewardDistributorWithdrawIncentivesAction::from_constants(constants)
                 .tree_hash()
                 .into(),
+            // todo: build actions
             match constants.reward_distributor_type {
-                RewardDistributorType::Manager => {
-                    RewardDistributorAddEntryAction::from_constants(constants)
-                        .tree_hash()
-                        .into()
-                }
+                RewardDistributorType::Managed {
+                    manager_singleton_launcher_id,
+                } => RewardDistributorAddEntryAction::from_constants(constants)
+                    .tree_hash()
+                    .into(),
                 RewardDistributorType::Nft => {
                     RewardDistributorStakeAction::from_constants(constants)
                         .tree_hash()
