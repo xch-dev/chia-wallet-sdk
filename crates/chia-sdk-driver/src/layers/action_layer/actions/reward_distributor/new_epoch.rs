@@ -21,6 +21,7 @@ pub struct RewardDistributorNewEpochAction {
     pub fee_payout_puzzle_hash: Bytes32,
     pub fee_bps: u64,
     pub epoch_seconds: u64,
+    pub precision: u64,
 }
 
 impl ToTreeHash for RewardDistributorNewEpochAction {
@@ -30,6 +31,7 @@ impl ToTreeHash for RewardDistributorNewEpochAction {
             self.fee_payout_puzzle_hash,
             self.fee_bps,
             self.epoch_seconds,
+            self.precision,
         )
         .curry_tree_hash()
     }
@@ -42,6 +44,7 @@ impl SingletonAction<RewardDistributor> for RewardDistributorNewEpochAction {
             fee_payout_puzzle_hash: constants.fee_payout_puzzle_hash,
             fee_bps: constants.fee_bps,
             epoch_seconds: constants.epoch_seconds,
+            precision: constants.precision,
         }
     }
 }
@@ -52,6 +55,7 @@ impl RewardDistributorNewEpochAction {
         fee_payout_puzzle_hash: Bytes32,
         fee_bps: u64,
         epoch_seconds: u64,
+        precision: u64,
     ) -> RewardDistributorNewEpochActionArgs {
         RewardDistributorNewEpochActionArgs {
             reward_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
@@ -62,6 +66,7 @@ impl RewardDistributorNewEpochAction {
             fee_payout_puzzle_hash,
             fee_bps,
             epoch_seconds,
+            precision,
         }
     }
 
@@ -71,6 +76,7 @@ impl RewardDistributorNewEpochAction {
             self.fee_payout_puzzle_hash,
             self.fee_bps,
             self.epoch_seconds,
+            self.precision,
         ))
     }
 

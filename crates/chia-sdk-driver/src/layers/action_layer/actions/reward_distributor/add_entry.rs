@@ -14,7 +14,7 @@ use clvmr::NodePtr;
 
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants, RewardDistributorState,
-    SingletonAction, Slot, Spend, SpendContext,
+    RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,7 +39,14 @@ impl SingletonAction<RewardDistributor> for RewardDistributorAddEntryAction {
     fn from_constants(constants: &RewardDistributorConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,
-            manager_launcher_id: constants.manager_or_collection_did_launcher_id,
+            manager_launcher_id: if let RewardDistributorType::Managed {
+                manager_singleton_launcher_id,
+            } = constants.reward_distributor_type
+            {
+                manager_singleton_launcher_id
+            } else {
+                Bytes32::default()
+            },
             max_second_offset: constants.max_seconds_offset,
         }
     }

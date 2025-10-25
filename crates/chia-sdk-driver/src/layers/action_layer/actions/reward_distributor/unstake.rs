@@ -26,11 +26,12 @@ use crate::{
 pub struct RewardDistributorUnstakeAction {
     pub launcher_id: Bytes32,
     pub max_second_offset: u64,
+    pub precision: u64,
 }
 
 impl ToTreeHash for RewardDistributorUnstakeAction {
     fn tree_hash(&self) -> TreeHash {
-        Self::new_args(self.launcher_id, self.max_second_offset).curry_tree_hash()
+        Self::new_args(self.launcher_id, self.max_second_offset, self.precision).curry_tree_hash()
     }
 }
 
@@ -39,6 +40,7 @@ impl SingletonAction<RewardDistributor> for RewardDistributorUnstakeAction {
         Self {
             launcher_id: constants.launcher_id,
             max_second_offset: constants.max_seconds_offset,
+            precision: constants.precision,
         }
     }
 }
@@ -47,6 +49,7 @@ impl RewardDistributorUnstakeAction {
     pub fn new_args(
         launcher_id: Bytes32,
         max_second_offset: u64,
+        precision: u64,
     ) -> RewardDistributorUnstakeActionArgs {
         RewardDistributorUnstakeActionArgs {
             singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
@@ -61,6 +64,7 @@ impl RewardDistributorUnstakeAction {
             )
             .into(),
             max_second_offset,
+            precision,
         }
     }
 
@@ -112,9 +116,10 @@ impl RewardDistributorUnstakeAction {
             .assert_concurrent_puzzle(entry_slot.coin.puzzle_hash);
 
         // spend self
-        let entry_payout_amount = entry_slot.info.value.shares
+        let entry_payout_amount_precision = entry_slot.info.value.shares as u128
             * (my_state.round_reward_info.cumulative_payout
                 - entry_slot.info.value.initial_cumulative_payout);
+        let entry_payout_amount = (entry_payout_amount_precision / self.precision as u128) as u64;
         let action_solution = ctx.alloc(&RewardDistributorUnstakeActionSolution {
             nft_launcher_id: locked_nft.info.launcher_id,
             nft_parent_id: locked_nft.coin.parent_coin_info,

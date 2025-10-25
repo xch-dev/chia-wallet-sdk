@@ -19,6 +19,7 @@ use crate::{
 pub struct RewardDistributorAddIncentivesAction {
     pub fee_payout_puzzle_hash: Bytes32,
     pub fee_bps: u64,
+    pub precision: u64,
 }
 
 impl ToTreeHash for RewardDistributorAddIncentivesAction {
@@ -26,6 +27,7 @@ impl ToTreeHash for RewardDistributorAddIncentivesAction {
         RewardDistributorAddIncentivesActionArgs {
             fee_payout_puzzle_hash: self.fee_payout_puzzle_hash,
             fee_bps: self.fee_bps,
+            precision: self.precision,
         }
         .curry_tree_hash()
     }
@@ -36,6 +38,7 @@ impl SingletonAction<RewardDistributor> for RewardDistributorAddIncentivesAction
         Self {
             fee_payout_puzzle_hash: constants.fee_payout_puzzle_hash,
             fee_bps: constants.fee_bps,
+            precision: constants.precision,
         }
     }
 }
@@ -45,6 +48,7 @@ impl RewardDistributorAddIncentivesAction {
         ctx.curry(RewardDistributorAddIncentivesActionArgs {
             fee_payout_puzzle_hash: self.fee_payout_puzzle_hash,
             fee_bps: self.fee_bps,
+            precision: self.precision,
         })
     }
 

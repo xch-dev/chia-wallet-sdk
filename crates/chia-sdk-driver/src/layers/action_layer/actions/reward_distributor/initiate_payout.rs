@@ -20,11 +20,12 @@ use crate::{
 pub struct RewardDistributorInitiatePayoutAction {
     pub launcher_id: Bytes32,
     pub payout_threshold: u64,
+    pub precision: u64,
 }
 
 impl ToTreeHash for RewardDistributorInitiatePayoutAction {
     fn tree_hash(&self) -> TreeHash {
-        Self::new_args(self.launcher_id, self.payout_threshold).curry_tree_hash()
+        Self::new_args(self.launcher_id, self.payout_threshold, self.precision).curry_tree_hash()
     }
 }
 
@@ -33,6 +34,7 @@ impl SingletonAction<RewardDistributor> for RewardDistributorInitiatePayoutActio
         Self {
             launcher_id: constants.launcher_id,
             payout_threshold: constants.payout_threshold,
+            precision: constants.precision,
         }
     }
 }
@@ -41,6 +43,7 @@ impl RewardDistributorInitiatePayoutAction {
     pub fn new_args(
         launcher_id: Bytes32,
         payout_threshold: u64,
+        precision: u64,
     ) -> RewardDistributorInitiatePayoutActionArgs {
         RewardDistributorInitiatePayoutActionArgs {
             entry_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
@@ -49,11 +52,16 @@ impl RewardDistributorInitiatePayoutAction {
             )
             .into(),
             payout_threshold,
+            precision,
         }
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        ctx.curry(Self::new_args(self.launcher_id, self.payout_threshold))
+        ctx.curry(Self::new_args(
+            self.launcher_id,
+            self.payout_threshold,
+            self.precision,
+        ))
     }
 
     pub fn created_slot_value(
@@ -92,9 +100,10 @@ impl RewardDistributorInitiatePayoutAction {
         let my_state = distributor.pending_spend.latest_state.1;
         let entry_slot = distributor.actual_entry_slot_value(entry_slot);
 
-        let withdrawal_amount = entry_slot.info.value.shares
+        let withdrawal_amount_precision = entry_slot.info.value.shares as u128
             * (my_state.round_reward_info.cumulative_payout
                 - entry_slot.info.value.initial_cumulative_payout);
+        let withdrawal_amount = (withdrawal_amount_precision / self.precision as u128) as u64;
 
         // this announcement should be asserted to ensure everything goes according to plan
         let mut initiate_payout_announcement =
@@ -109,6 +118,7 @@ impl RewardDistributorInitiatePayoutAction {
             entry_payout_puzzle_hash: entry_slot.info.value.payout_puzzle_hash,
             entry_initial_cumulative_payout: entry_slot.info.value.initial_cumulative_payout,
             entry_shares: entry_slot.info.value.shares,
+            payout_rounding_error: withdrawal_amount_precision % self.precision as u128,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
