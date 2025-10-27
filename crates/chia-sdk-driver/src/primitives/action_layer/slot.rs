@@ -1,8 +1,8 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_puzzle_types::{singleton::SingletonArgs, LineageProof};
+use chia_puzzle_types::{LineageProof, singleton::SingletonArgs};
 use chia_sdk_types::{
-    puzzles::{Slot1stCurryArgs, Slot2ndCurryArgs, SlotInfo, SlotSolution},
     Mod,
+    puzzles::{Slot1stCurryArgs, Slot2ndCurryArgs, SlotInfo, SlotSolution},
 };
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;

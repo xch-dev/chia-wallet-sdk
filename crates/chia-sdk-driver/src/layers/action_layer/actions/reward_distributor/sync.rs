@@ -1,7 +1,6 @@
 use chia_sdk_types::{
-    announcement_id,
+    Conditions, announcement_id,
     puzzles::{RewardDistributorSyncActionArgs, RewardDistributorSyncActionSolution},
-    Conditions,
 };
 use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};

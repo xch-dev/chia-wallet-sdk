@@ -6,12 +6,12 @@ use chia_protocol::{
     RespondCoinState, RespondPuzzleState,
 };
 use chia_sdk_client::{
-    connect_peer, create_native_tls_connector, load_ssl_cert, Connector as SdkConnector,
-    Peer as SdkPeer, PeerOptions as SdkPeerOptions,
+    Connector as SdkConnector, Peer as SdkPeer, PeerOptions as SdkPeerOptions, connect_peer,
+    create_native_tls_connector, load_ssl_cert,
 };
 use chia_ssl::ChiaCertificate;
 use chia_traits::Streamable;
-use tokio::sync::{mpsc::Receiver, Mutex};
+use tokio::sync::{Mutex, mpsc::Receiver};
 
 #[derive(Clone)]
 pub struct Certificate {
@@ -204,8 +204,6 @@ pub trait RespondCoinStateExt {}
 pub trait RespondPuzzleStateExt {}
 
 pub trait PuzzleSolutionResponseExt {}
-
-pub trait CoinStateExt {}
 
 pub trait CoinStateUpdateExt {}
 

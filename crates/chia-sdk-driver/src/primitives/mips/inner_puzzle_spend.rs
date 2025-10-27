@@ -1,18 +1,18 @@
 use chia_sdk_types::{
+    Mod,
     puzzles::{
         AddDelegatedPuzzleWrapper, AddDelegatedPuzzleWrapperSolution, DelegatedPuzzleFeederArgs,
         DelegatedPuzzleFeederSolution, EnforceDelegatedPuzzleWrappers,
         EnforceDelegatedPuzzleWrappersSolution, IndexWrapperArgs, RestrictionsArgs,
         RestrictionsSolution,
     },
-    Mod,
 };
 use clvm_utils::TreeHash;
 
 use crate::{DriverError, Spend, SpendContext};
 
 use super::{
-    m_of_n::MofN, mips_spend::MipsSpend, restriction::Restriction, MipsSpendKind, RestrictionKind,
+    MipsSpendKind, RestrictionKind, m_of_n::MofN, mips_spend::MipsSpend, restriction::Restriction,
 };
 
 #[derive(Debug, Clone)]

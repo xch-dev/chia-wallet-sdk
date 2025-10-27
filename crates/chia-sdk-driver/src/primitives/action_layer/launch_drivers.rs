@@ -1,25 +1,24 @@
 use bip39::Mnemonic;
-use chia_bls::{sign, SecretKey, Signature};
+use chia_bls::{SecretKey, Signature, sign};
 use chia_consensus::consensus_constants::ConsensusConstants;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
+    EveProof, LineageProof, Memos, Proof,
     offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},
     singleton::{SingletonArgs, SingletonSolution, SingletonStruct},
     standard::{StandardArgs, StandardSolution},
-    EveProof, LineageProof, Memos, Proof,
 };
 use chia_sdk_signer::{AggSigConstants, RequiredBlsSignature};
 use chia_sdk_types::{
-    announcement_id,
+    Condition, Conditions, Mod, announcement_id,
     conditions::{AggSig, AggSigKind},
     puzzles::{
         CatalogSlotValue, DefaultCatMakerArgs, P2DelegatedBySingletonLayerArgs,
         RewardDistributorRewardSlotValue, RewardDistributorSlotNonce, SettlementPayment, SlotInfo,
         XchandlesSlotValue,
     },
-    Condition, Conditions, Mod,
 };
-use clvm_traits::{clvm_list, clvm_quote, clvm_tuple, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm, clvm_list, clvm_quote, clvm_tuple};
 use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
 
@@ -42,7 +41,7 @@ where
 pub fn new_sk() -> Result<SecretKey, DriverError> {
     // we need the security coin puzzle hash to spend the offer coin after finding it
     let mut entropy = [0u8; 32];
-    getrandom::getrandom(&mut entropy).map_err(custom_err)?;
+    getrandom::fill(&mut entropy).map_err(custom_err)?;
     let mnemonic = Mnemonic::from_entropy(&entropy).map_err(custom_err)?;
     let seed = mnemonic.to_seed("");
     let sk = SecretKey::from_seed(&seed);
@@ -133,10 +132,12 @@ where
     let launcher_id_ptr = ctx.alloc(&launcher_id)?;
     let launcher_memos = ctx.memos(&clvm_tuple!(launcher_id_ptr, memos_after_hint))?;
 
-    clvm_quote!(Conditions::new()
-        .create_coin(left_slot_puzzle_hash.into(), 0, slot_memos)
-        .create_coin(right_slot_puzzle_hash.into(), 0, slot_memos)
-        .create_coin(target_inner_puzzle_hash, 1, launcher_memos))
+    clvm_quote!(
+        Conditions::new()
+            .create_coin(left_slot_puzzle_hash.into(), 0, slot_memos)
+            .create_coin(right_slot_puzzle_hash.into(), 0, slot_memos)
+            .create_coin(target_inner_puzzle_hash, 1, launcher_memos)
+    )
     .to_clvm(ctx)
     .map_err(DriverError::ToClvm)
 }
@@ -618,13 +619,15 @@ pub fn launch_reward_distributor(
         .get(&constants.reserve_asset_id)
         .map_or(1, |cs| cs.iter().map(|c| c.coin.amount).sum::<u64>());
 
-    let interim_cat_puzzle = clvm_quote!(Conditions::new()
-        .create_coin(reserve_inner_ph, 0, ctx.hint(reserve_inner_ph)?)
-        .create_coin(
-            cat_refund_puzzle_hash,
-            total_cat_amount,
-            ctx.hint(cat_refund_puzzle_hash)?
-        ));
+    let interim_cat_puzzle = clvm_quote!(
+        Conditions::new()
+            .create_coin(reserve_inner_ph, 0, ctx.hint(reserve_inner_ph)?)
+            .create_coin(
+                cat_refund_puzzle_hash,
+                total_cat_amount,
+                ctx.hint(cat_refund_puzzle_hash)?
+            )
+    );
     let interim_cat_puzzle = ctx.alloc(&interim_cat_puzzle)?;
     let interim_cat_puzzle_hash = ctx.tree_hash(interim_cat_puzzle);
 
@@ -669,9 +672,11 @@ pub fn launch_reward_distributor(
     let slot_hint = first_epoch_start.tree_hash().into();
     let slot_memos = ctx.hint(slot_hint)?;
     let launcher_memos = ctx.hint(launcher_id)?;
-    let eve_singleton_inner_puzzle = clvm_quote!(Conditions::new()
-        .create_coin(slot_puzzle_hash.into(), 0, slot_memos)
-        .create_coin(target_inner_puzzle_hash.into(), 1, launcher_memos))
+    let eve_singleton_inner_puzzle = clvm_quote!(
+        Conditions::new()
+            .create_coin(slot_puzzle_hash.into(), 0, slot_memos)
+            .create_coin(target_inner_puzzle_hash.into(), 1, launcher_memos)
+    )
     .to_clvm(ctx)?;
 
     let eve_singleton_inner_puzzle_hash = ctx.tree_hash(eve_singleton_inner_puzzle);
@@ -757,16 +762,16 @@ mod tests {
 
     use chia_protocol::{Bytes, CoinSpend, SpendBundle};
 
-    use chia_puzzle_types::{cat::GenesisByCoinIdTailArgs, CoinProof};
+    use chia_puzzle_types::{CoinProof, cat::GenesisByCoinIdTailArgs};
     use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
     use chia_sdk_test::{Benchmark, Simulator};
     use chia_sdk_types::{
-        puzzles::{
-            AnyMetadataUpdater, CatNftMetadata, DelegatedStateActionSolution,
-            IntermediaryCoinProof, NftLauncherProof, XchandlesFactorPricingPuzzleArgs,
-            XchandlesPricingSolution, ANY_METADATA_UPDATER_HASH,
-        },
         TESTNET11_CONSTANTS,
+        puzzles::{
+            ANY_METADATA_UPDATER_HASH, AnyMetadataUpdater, CatNftMetadata,
+            DelegatedStateActionSolution, IntermediaryCoinProof, NftLauncherProof,
+            XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution,
+        },
     };
     use clvm_traits::clvm_list;
     use clvmr::Allocator;
@@ -1345,10 +1350,11 @@ mod tests {
             slots.extend(created_slots.clone());
 
             for s in created_slots {
-                assert!(sim
-                    .coin_state(s.coin.coin_id())
-                    .map(|c| c.spent_height)
-                    .is_some());
+                assert!(
+                    sim.coin_state(s.coin.coin_id())
+                        .map(|c| c.spent_height)
+                        .is_some()
+                );
             }
         }
 
@@ -2864,9 +2870,10 @@ mod tests {
             cat_minter.puzzle_hash,
             source_cat.coin.amount - rewards_to_add,
         );
-        assert!(sim
-            .coin_state(first_epoch_commitment_slot.coin.coin_id())
-            .is_some());
+        assert!(
+            sim.coin_state(first_epoch_commitment_slot.coin.coin_id())
+                .is_some()
+        );
         for incentive_slot in &incentive_slots {
             assert!(sim.coin_state(incentive_slot.coin.coin_id()).is_some());
         }
@@ -2930,9 +2937,10 @@ mod tests {
             cat_minter.puzzle_hash,
             source_cat.coin.amount - rewards_to_add,
         );
-        assert!(sim
-            .coin_state(fifth_epoch_commitment_slot.coin.coin_id())
-            .is_some());
+        assert!(
+            sim.coin_state(fifth_epoch_commitment_slot.coin.coin_id())
+                .is_some()
+        );
         for incentive_slot in &incentive_slots {
             assert!(sim.coin_state(incentive_slot.coin.coin_id()).is_some());
         }
@@ -2999,17 +3007,19 @@ mod tests {
             cat_minter.puzzle_hash,
             source_cat.coin.amount - rewards_to_add,
         );
-        assert!(sim
-            .coin_state(fifth_epoch_commitment_slot2.coin.coin_id())
-            .is_some());
+        assert!(
+            sim.coin_state(fifth_epoch_commitment_slot2.coin.coin_id())
+                .is_some()
+        );
         for incentive_slot in &incentive_slots {
             assert!(sim.coin_state(incentive_slot.coin.coin_id()).is_some());
         }
-        assert!(sim
-            .coin_state(registry.reserve.coin.coin_id())
-            .unwrap()
-            .spent_height
-            .is_none());
+        assert!(
+            sim.coin_state(registry.reserve.coin.coin_id())
+                .unwrap()
+                .spent_height
+                .is_none()
+        );
 
         // withdraw the 1st incentives for epoch 5
         let (withdraw_incentives_conditions, withdrawn_amount) = registry
@@ -3055,16 +3065,18 @@ mod tests {
         )?;
 
         assert!(sim.coin_state(payout_coin_id).is_some());
-        assert!(sim
-            .coin_state(fifth_epoch_commitment_slot.coin.coin_id())
-            .unwrap()
-            .spent_height
-            .is_some());
-        assert!(sim
-            .coin_state(new_reward_slot.coin.coin_id())
-            .unwrap()
-            .spent_height
-            .is_none());
+        assert!(
+            sim.coin_state(fifth_epoch_commitment_slot.coin.coin_id())
+                .unwrap()
+                .spent_height
+                .is_some()
+        );
+        assert!(
+            sim.coin_state(new_reward_slot.coin.coin_id())
+                .unwrap()
+                .spent_height
+                .is_none()
+        );
         incentive_slots
             .retain(|s| s.info.value.epoch_start != new_reward_slot.info.value.epoch_start);
         incentive_slots.push(new_reward_slot);
@@ -3117,16 +3129,18 @@ mod tests {
             registry.info.state.round_time_info.epoch_end,
             first_epoch_start + constants.epoch_seconds
         );
-        assert!(sim
-            .coin_state(first_epoch_incentives_slot.coin.coin_id())
-            .unwrap()
-            .spent_height
-            .is_some());
-        assert!(sim
-            .coin_state(new_reward_slot.coin.coin_id())
-            .unwrap()
-            .spent_height
-            .is_none());
+        assert!(
+            sim.coin_state(first_epoch_incentives_slot.coin.coin_id())
+                .unwrap()
+                .spent_height
+                .is_some()
+        );
+        assert!(
+            sim.coin_state(new_reward_slot.coin.coin_id())
+                .unwrap()
+                .spent_height
+                .is_none()
+        );
         incentive_slots
             .retain(|s| s.info.value.epoch_start != new_reward_slot.info.value.epoch_start);
         incentive_slots.push(new_reward_slot);
@@ -3481,11 +3495,12 @@ mod tests {
 
             assert!(sim.coin_state(payout_coin_id2).is_some());
             assert!(sim.coin_state(payout_coin_id3).is_some());
-            assert!(sim
-                .coin_state(entry3_slot.coin.coin_id())
-                .unwrap()
-                .spent_height
-                .is_some());
+            assert!(
+                sim.coin_state(entry3_slot.coin.coin_id())
+                    .unwrap()
+                    .spent_height
+                    .is_some()
+            );
             assert!(sim.coin_state(nft2_return_coin_id).is_some());
             assert!(sim.coin_state(nft3_return_coin_id).is_some());
         } else {
@@ -3518,11 +3533,12 @@ mod tests {
             assert!(sim.coin_state(payout_coin_id).is_some());
         }
         assert!(registry.info.state.active_shares == 1);
-        assert!(sim
-            .coin_state(entry2_slot.coin.coin_id())
-            .unwrap()
-            .spent_height
-            .is_some());
+        assert!(
+            sim.coin_state(entry2_slot.coin.coin_id())
+                .unwrap()
+                .spent_height
+                .is_some()
+        );
 
         for epoch in 1..7 {
             let update_time = registry.info.state.round_time_info.epoch_end;
@@ -3635,9 +3651,10 @@ mod tests {
             cat_minter.puzzle_hash,
             source_cat.coin.amount - rewards_to_add,
         );
-        assert!(sim
-            .coin_state(tenth_epoch_commitment_slot.coin.coin_id())
-            .is_some());
+        assert!(
+            sim.coin_state(tenth_epoch_commitment_slot.coin.coin_id())
+                .is_some()
+        );
         for incentive_slot in &incentive_slots {
             assert!(sim.coin_state(incentive_slot.coin.coin_id()).is_some());
         }

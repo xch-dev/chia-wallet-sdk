@@ -5,13 +5,13 @@ use chia_puzzles::{
     SINGLETON_TOP_LAYER_V1_1_HASH,
 };
 use chia_sdk_types::{
-    puzzles::{
-        NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution,
-        RewardDistributorEntrySlotValue, RewardDistributorSlotNonce,
-        RewardDistributorUnstakeActionArgs, RewardDistributorUnstakeActionSolution,
-        NONCE_WRAPPER_PUZZLE_HASH,
-    },
     Conditions, Mod,
+    puzzles::{
+        NONCE_WRAPPER_PUZZLE_HASH, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs,
+        P2DelegatedBySingletonLayerSolution, RewardDistributorEntrySlotValue,
+        RewardDistributorSlotNonce, RewardDistributorUnstakeActionArgs,
+        RewardDistributorUnstakeActionSolution,
+    },
 };
 use clvm_traits::clvm_quote;
 use clvm_utils::{ToTreeHash, TreeHash};

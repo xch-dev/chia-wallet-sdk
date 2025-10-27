@@ -41,14 +41,14 @@ mod tests {
     use chia_puzzle_types::Memos;
     use chia_sdk_test::{K1Pair, Simulator};
     use chia_sdk_types::{
-        puzzles::{K1Member, K1MemberSolution},
         Conditions, Mod,
+        puzzles::{K1Member, K1MemberSolution},
     };
     use chia_secp::{K1SecretKey, K1Signature};
     use chia_sha2::Sha256;
     use rstest::rstest;
 
-    use crate::{mips_puzzle_hash, InnerPuzzleSpend, Launcher, MofN, StandardLayer};
+    use crate::{InnerPuzzleSpend, Launcher, MofN, StandardLayer, mips_puzzle_hash};
 
     use super::*;
 

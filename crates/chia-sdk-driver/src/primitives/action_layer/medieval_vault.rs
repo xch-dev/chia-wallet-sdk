@@ -1,17 +1,17 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::{
-    singleton::{LauncherSolution, SingletonArgs, SingletonSolution, SingletonStruct},
     EveProof, LineageProof, Memos, Proof,
+    singleton::{LauncherSolution, SingletonArgs, SingletonSolution, SingletonStruct},
 };
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
-    puzzles::{P2MOfNDelegateDirectArgs, P2MOfNDelegateDirectSolution, StateSchedulerLayerArgs},
     Condition, Conditions,
+    puzzles::{P2MOfNDelegateDirectArgs, P2MOfNDelegateDirectSolution, StateSchedulerLayerArgs},
 };
-use clvm_traits::{clvm_quote, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm, clvm_quote};
 use clvm_utils::ToTreeHash;
-use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
+use clvmr::{Allocator, NodePtr, serde::node_from_bytes};
 
 use crate::{
     DriverError, Layer, MOfNLayer, Puzzle, Singleton, SingletonInfo, SingletonLayer, Spend,

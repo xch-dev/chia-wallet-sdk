@@ -16,16 +16,16 @@ pub use parsed_wrapper::*;
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
-    puzzles::{
-        BlsMember, BlsTaprootMember, EnforceDelegatedPuzzleWrappers, FixedPuzzleMember,
-        Force1of2RestrictedVariable, K1Member, K1MemberPuzzleAssert, PasskeyMember,
-        PasskeyMemberPuzzleAssert, PreventConditionOpcode, R1Member, R1MemberPuzzleAssert,
-        SingletonMember, Timelock,
-    },
     Mod,
+    puzzles::{
+        BlsMember, BlsMemberPuzzleAssert, BlsTaprootMember, BlsTaprootMemberPuzzleAssert,
+        EnforceDelegatedPuzzleWrappers, FixedPuzzleMember, Force1of2RestrictedVariable, K1Member,
+        K1MemberPuzzleAssert, PasskeyMember, PasskeyMemberPuzzleAssert, PreventConditionOpcode,
+        R1Member, R1MemberPuzzleAssert, SingletonMember, SingletonMemberWithMode, Timelock,
+    },
 };
 use chia_secp::{K1PublicKey, R1PublicKey};
-use clvm_traits::{apply_constants, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm, apply_constants};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
@@ -382,12 +382,23 @@ impl MemberMemo<NodePtr> {
     pub fn bls(
         allocator: &mut Allocator,
         public_key: PublicKey,
+        fast_forward: bool,
         taproot: bool,
         reveal: bool,
     ) -> Result<Self, DriverError> {
         Ok(Self::new(
             if taproot {
-                BlsTaprootMember::new(public_key).curry_tree_hash().into()
+                if fast_forward {
+                    BlsTaprootMemberPuzzleAssert::new(public_key)
+                        .curry_tree_hash()
+                        .into()
+                } else {
+                    BlsTaprootMember::new(public_key).curry_tree_hash().into()
+                }
+            } else if fast_forward {
+                BlsMemberPuzzleAssert::new(public_key)
+                    .curry_tree_hash()
+                    .into()
             } else {
                 BlsMember::new(public_key).curry_tree_hash().into()
             },
@@ -423,10 +434,17 @@ impl MemberMemo<NodePtr> {
     pub fn singleton(
         allocator: &mut Allocator,
         launcher_id: Bytes32,
+        fast_forward: bool,
         reveal: bool,
     ) -> Result<Self, DriverError> {
         Ok(Self::new(
-            SingletonMember::new(launcher_id).curry_tree_hash().into(),
+            if fast_forward {
+                SingletonMemberWithMode::new(launcher_id, 0b010_010)
+                    .curry_tree_hash()
+                    .into()
+            } else {
+                SingletonMember::new(launcher_id).curry_tree_hash().into()
+            },
             if reveal {
                 launcher_id.to_clvm(allocator)?
             } else {

@@ -2,12 +2,11 @@ use convert_case::{Case, Casing};
 use proc_macro::{Span, TokenStream};
 use quote::quote;
 use syn::{
-    braced,
+    Expr, Ident, Token, Type, braced,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::{Pair, Punctuated},
     visit_mut::VisitMut,
-    Expr, Ident, Token, Type,
 };
 
 #[derive(Debug, Clone)]
@@ -166,13 +165,13 @@ struct IdentReplacer {
 
 impl VisitMut for IdentReplacer {
     fn visit_type_mut(&mut self, ty: &mut Type) {
-        if let Type::Path(type_path) = ty {
-            if let Some(first_segment) = type_path.path.segments.first_mut() {
-                if first_segment.ident == self.from {
-                    first_segment.ident = self.to.clone();
-                }
-            }
+        if let Type::Path(type_path) = ty
+            && let Some(first_segment) = type_path.path.segments.first_mut()
+            && first_segment.ident == self.from
+        {
+            first_segment.ident = self.to.clone();
         }
+
         // Continue recursively visiting all types
         syn::visit_mut::visit_type_mut(self, ty);
     }

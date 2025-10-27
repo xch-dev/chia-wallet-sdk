@@ -5,7 +5,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use hex_literal::hex;
 
-use crate::{puzzles::ACTION_LAYER_PUZZLE_HASH, Mod};
+use crate::{Mod, puzzles::ACTION_LAYER_PUZZLE_HASH};
 
 pub const DEFAULT_FINALIZER_PUZZLE: [u8; 617] = hex!(
     "

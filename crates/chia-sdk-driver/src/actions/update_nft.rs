@@ -1,11 +1,11 @@
 use chia_sdk_types::{
-    conditions::{TradePrice, TransferNft},
     Conditions,
+    conditions::{TradePrice, TransferNft},
 };
 
 use crate::{
-    assignment_puzzle_announcement_id, Deltas, DriverError, Id, SingletonInfo, Spend, SpendAction,
-    SpendContext, SpendKind, Spends,
+    Deltas, DriverError, Id, SingletonInfo, Spend, SpendAction, SpendContext, SpendKind, Spends,
+    assignment_puzzle_announcement_id,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -50,12 +50,12 @@ impl SpendAction for UpdateNftAction {
         deltas.update(self.id).output += 1;
         deltas.set_needed(self.id);
 
-        if let Some(transfer) = &self.transfer {
-            if let Some(did_id) = transfer.did_id {
-                deltas.update(did_id).input += 1;
-                deltas.update(did_id).output += 1;
-                deltas.set_needed(did_id);
-            }
+        if let Some(transfer) = &self.transfer
+            && let Some(did_id) = transfer.did_id
+        {
+            deltas.update(did_id).input += 1;
+            deltas.update(did_id).output += 1;
+            deltas.set_needed(did_id);
         }
     }
 

@@ -1,6 +1,6 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::Memos;
-use chia_sdk_types::{conditions::Remark, run_puzzle, Condition, Conditions};
+use chia_sdk_types::{Condition, Conditions, conditions::Remark, run_puzzle};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};

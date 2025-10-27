@@ -1,7 +1,7 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
-    singleton::{SingletonArgs, SingletonSolution, SingletonStruct},
     LineageProof,
+    singleton::{SingletonArgs, SingletonSolution, SingletonStruct},
 };
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use clvm_traits::FromClvm;

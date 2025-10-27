@@ -2,7 +2,7 @@ use std::{net::SocketAddr, time::Duration};
 
 use chia_protocol::Bytes32;
 use chia_sdk_types::{MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
-use futures_util::{stream::FuturesUnordered, StreamExt};
+use futures_util::{StreamExt, stream::FuturesUnordered};
 use tracing::{info, instrument, warn};
 
 use crate::ClientError;

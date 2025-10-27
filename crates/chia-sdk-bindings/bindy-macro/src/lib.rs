@@ -8,7 +8,7 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
 use serde::{Deserialize, Serialize};
-use syn::{parse_str, Ident, LitStr, Type};
+use syn::{Ident, LitStr, Type, parse_str};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Bindy {

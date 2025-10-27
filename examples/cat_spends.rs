@@ -1,8 +1,7 @@
-use chia_sdk_driver::{Cat, CatSpend, SpendContext, SpendWithConditions, StandardLayer};
-use chia_sdk_test::Simulator;
-use chia_sdk_types::Conditions;
+use anyhow::Result;
+use chia_wallet_sdk::prelude::*;
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<()> {
     let mut sim = Simulator::new();
     let ctx = &mut SpendContext::new();
 

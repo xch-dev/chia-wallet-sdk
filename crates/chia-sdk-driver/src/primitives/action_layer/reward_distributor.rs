@@ -2,8 +2,8 @@ use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs};
 use chia_puzzle_types::{
-    singleton::{SingletonSolution, SingletonStruct},
     LineageProof, Proof,
+    singleton::{SingletonSolution, SingletonStruct},
 };
 use chia_sdk_types::puzzles::{
     RawActionLayerSolution, ReserveFinalizerSolution, RewardDistributorCommitmentSlotValue,
@@ -11,8 +11,8 @@ use chia_sdk_types::puzzles::{
     SlotInfo,
 };
 use chia_sdk_types::{Condition, Conditions};
-use clvm_traits::{clvm_list, match_tuple, FromClvm};
-use clvm_utils::{tree_hash, ToTreeHash};
+use clvm_traits::{FromClvm, clvm_list, match_tuple};
+use clvm_utils::{ToTreeHash, tree_hash};
 use clvmr::NodePtr;
 
 use crate::{

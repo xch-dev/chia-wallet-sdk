@@ -1,11 +1,12 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
-    singleton::{LauncherSolution, SingletonArgs, SingletonSolution},
     LineageProof, Proof,
+    singleton::{LauncherSolution, SingletonArgs, SingletonSolution},
 };
 use chia_sdk_types::{
+    Condition, Conditions, Mod,
     puzzles::{OptionContractArgs, OptionContractSolution},
-    run_puzzle, Condition, Conditions, Mod,
+    run_puzzle,
 };
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
@@ -137,12 +138,12 @@ impl OptionContract {
         let conditions = Vec::<Condition>::from_clvm(ctx, output)?;
 
         for condition in conditions {
-            if let Some(create_coin) = condition.into_create_coin() {
-                if create_coin.amount % 2 == 1 {
-                    return Ok(Some(
-                        self.child(create_coin.puzzle_hash, create_coin.amount),
-                    ));
-                }
+            if let Some(create_coin) = condition.into_create_coin()
+                && create_coin.amount % 2 == 1
+            {
+                return Ok(Some(
+                    self.child(create_coin.puzzle_hash, create_coin.amount),
+                ));
             }
         }
 
@@ -233,9 +234,9 @@ impl OptionContract {
 mod tests {
     use std::slice;
 
-    use chia_puzzle_types::{offer::SettlementPaymentsSolution, Memos};
+    use chia_puzzle_types::{Memos, offer::SettlementPaymentsSolution};
     use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-    use chia_sdk_test::{expect_spend, Simulator};
+    use chia_sdk_test::{Simulator, expect_spend};
     use chia_sdk_types::{
         conditions::TransferNft,
         puzzles::{RevocationArgs, RevocationSolution},

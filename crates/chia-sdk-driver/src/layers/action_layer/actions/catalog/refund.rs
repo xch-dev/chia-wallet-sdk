@@ -1,14 +1,13 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
-    announcement_id,
+    Conditions, Mod, announcement_id,
     puzzles::{
         CatalogRefundActionArgs, CatalogRefundActionSolution, CatalogSlotValue,
         DefaultCatMakerArgs, PrecommitSpendMode, SlotNeigborsInfo,
     },
-    Conditions, Mod,
 };
-use clvm_traits::{clvm_tuple, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm, clvm_tuple};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 

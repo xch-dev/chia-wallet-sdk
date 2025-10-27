@@ -1,7 +1,7 @@
 [package]
 name = "chia-sdk-test"
-version = "0.30.0"
-edition = "2021"
+version = "0.31.0"
+edition = "2024"
 license = "Apache-2.0"
 description = "A wallet simulator and related tooling for testing Chia wallet code."
 authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
@@ -24,6 +24,15 @@ peer-simulator = [
     "dep:tokio-tungstenite",
     "dep:futures-channel",
     "dep:futures-util"
+]
+serde = [
+    "chia-bls/serde",
+    "chia-protocol/serde",
+    "indexmap/serde",
+    "rand/serde",
+    "rand_chacha/serde",
+    "dep:serde",
+    "dep:bincode"
 ]
 
 [dependencies]
@@ -54,9 +63,9 @@ tokio = { workspace = true, features = ["full"], optional = true }
 tokio-tungstenite = { workspace = true, optional = true }
 futures-channel = { workspace = true, features = ["sink"], optional = true }
 futures-util = { workspace = true, optional = true }
-prettytable-rs = {workspace = true}
-serde = { workspace = true, features = ["derive"] }
-serde_json = {workspace = true}
+prettytable-rs = {workspace = true }
+serde = { workspace = true, features = ["derive"], optional = true }
+bincode = { workspace = true, features = ["serde"], optional = true }
 
 [package.metadata.cargo-machete]
 ignored = ["prettytable-rs"]

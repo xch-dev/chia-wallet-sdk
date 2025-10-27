@@ -1,9 +1,9 @@
-use std::mem;
+use std::{collections::HashMap, mem};
 
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
-use chia_sdk_types::{conditions::AssertPuzzleAnnouncement, Conditions};
+use chia_sdk_types::{Conditions, conditions::AssertPuzzleAnnouncement};
 use indexmap::IndexMap;
 
 use crate::{
@@ -14,7 +14,8 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct Spends {
+#[must_use]
+pub struct Spends<S = Unfinished> {
     pub xch: FungibleSpends<Coin>,
     pub cats: IndexMap<Id, FungibleSpends<Cat>>,
     pub dids: IndexMap<Id, SingletonSpends<Did>>,
@@ -24,6 +25,7 @@ pub struct Spends {
     pub change_puzzle_hash: Bytes32,
     pub outputs: Outputs,
     pub conditions: ConditionConfig,
+    _state: S,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -43,7 +45,13 @@ pub struct Outputs {
     pub fee: u64,
 }
 
-impl Spends {
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Unfinished;
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Finished;
+
+impl Spends<Unfinished> {
     pub fn new(change_puzzle_hash: Bytes32) -> Self {
         Self::with_separate_change_puzzle_hash(change_puzzle_hash, change_puzzle_hash)
     }
@@ -62,6 +70,7 @@ impl Spends {
             change_puzzle_hash,
             outputs: Outputs::default(),
             conditions: ConditionConfig::default(),
+            _state: Unfinished,
         }
     }
 
@@ -423,53 +432,28 @@ impl Spends {
         coin_ids
     }
 
-    pub fn finish(
+    pub fn prepare(
         mut self,
         ctx: &mut SpendContext,
         deltas: &Deltas,
         relation: Relation,
-        f: impl Fn(&mut SpendContext, SpendableAsset, SpendKind) -> Result<Spend, DriverError>,
-    ) -> Result<Outputs, DriverError> {
+    ) -> Result<Spends<Finished>, DriverError> {
         self.create_change(ctx, deltas)?;
         self.emit_conditions(ctx)?;
         self.emit_relation(relation);
 
-        for item in self.xch.items {
-            let spend = f(ctx, SpendableAsset::Xch(item.asset), item.kind)?;
-            ctx.spend(item.asset, spend)?;
-        }
-
-        for cat in self.cats.into_values() {
-            let mut cat_spends = Vec::new();
-            for item in cat.items {
-                let spend = f(ctx, SpendableAsset::Cat(item.asset), item.kind)?;
-                cat_spends.push(CatSpend::new(item.asset, spend));
-            }
-            Cat::spend_all(ctx, &cat_spends)?;
-        }
-
-        for did in self.dids.into_values() {
-            for item in did.lineage {
-                let spend = f(ctx, SpendableAsset::Did(item.asset), item.kind)?;
-                item.asset.spend(ctx, spend)?;
-            }
-        }
-
-        for nft in self.nfts.into_values() {
-            for item in nft.lineage {
-                let spend = f(ctx, SpendableAsset::Nft(item.asset), item.kind)?;
-                let _nft = item.asset.spend(ctx, spend)?;
-            }
-        }
-
-        for option in self.options.into_values() {
-            for item in option.lineage {
-                let spend = f(ctx, SpendableAsset::Option(item.asset), item.kind)?;
-                let _option = item.asset.spend(ctx, spend)?;
-            }
-        }
-
-        Ok(self.outputs)
+        Ok(Spends {
+            xch: self.xch,
+            cats: self.cats,
+            dids: self.dids,
+            nfts: self.nfts,
+            options: self.options,
+            intermediate_puzzle_hash: self.intermediate_puzzle_hash,
+            change_puzzle_hash: self.change_puzzle_hash,
+            outputs: self.outputs,
+            conditions: self.conditions,
+            _state: Finished,
+        })
     }
 
     pub fn finish_with_keys(
@@ -479,16 +463,123 @@ impl Spends {
         relation: Relation,
         synthetic_keys: &IndexMap<Bytes32, PublicKey>,
     ) -> Result<Outputs, DriverError> {
-        self.finish(ctx, deltas, relation, |ctx, asset, kind| match kind {
-            SpendKind::Conditions(spend) => {
-                let Some(&synthetic_key) = synthetic_keys.get(&asset.p2_puzzle_hash()) else {
-                    return Err(DriverError::MissingKey);
-                };
-                StandardLayer::new(synthetic_key).spend_with_conditions(ctx, spend.finish())
+        let spends = self.prepare(ctx, deltas, relation)?;
+        let mut coin_spends = HashMap::new();
+
+        for (asset, kind) in spends.unspent() {
+            match kind {
+                SpendKind::Conditions(spend) => {
+                    let Some(&synthetic_key) = synthetic_keys.get(&asset.p2_puzzle_hash()) else {
+                        return Err(DriverError::MissingKey);
+                    };
+                    coin_spends.insert(
+                        asset.coin().coin_id(),
+                        StandardLayer::new(synthetic_key)
+                            .spend_with_conditions(ctx, spend.finish())?,
+                    );
+                }
+                SpendKind::Settlement(spend) => {
+                    coin_spends.insert(
+                        asset.coin().coin_id(),
+                        SettlementLayer.construct_spend(
+                            ctx,
+                            SettlementPaymentsSolution::new(spend.finish()),
+                        )?,
+                    );
+                }
             }
-            SpendKind::Settlement(spend) => SettlementLayer
-                .construct_spend(ctx, SettlementPaymentsSolution::new(spend.finish())),
-        })
+        }
+
+        spends.spend(ctx, coin_spends)
+    }
+}
+
+impl Spends<Finished> {
+    pub fn unspent(&self) -> Vec<(SpendableAsset, SpendKind)> {
+        let mut result = Vec::new();
+
+        for item in &self.xch.items {
+            result.push((SpendableAsset::Xch(item.asset), item.kind.clone()));
+        }
+
+        for cat in self.cats.values() {
+            for item in &cat.items {
+                result.push((SpendableAsset::Cat(item.asset), item.kind.clone()));
+            }
+        }
+
+        for did in self.dids.values() {
+            for item in &did.lineage {
+                result.push((SpendableAsset::Did(item.asset), item.kind.clone()));
+            }
+        }
+
+        for nft in self.nfts.values() {
+            for item in &nft.lineage {
+                result.push((SpendableAsset::Nft(item.asset), item.kind.clone()));
+            }
+        }
+
+        for option in self.options.values() {
+            for item in &option.lineage {
+                result.push((SpendableAsset::Option(item.asset), item.kind.clone()));
+            }
+        }
+
+        result
+    }
+
+    pub fn spend(
+        self,
+        ctx: &mut SpendContext,
+        mut coin_spends: HashMap<Bytes32, Spend>,
+    ) -> Result<Outputs, DriverError> {
+        for item in self.xch.items {
+            let spend = coin_spends
+                .remove(&item.asset.coin_id())
+                .ok_or(DriverError::MissingSpend)?;
+            ctx.spend(item.asset, spend)?;
+        }
+
+        for cat in self.cats.into_values() {
+            let mut cat_spends = Vec::new();
+            for item in cat.items {
+                let spend = coin_spends
+                    .remove(&item.asset.coin_id())
+                    .ok_or(DriverError::MissingSpend)?;
+                cat_spends.push(CatSpend::new(item.asset, spend));
+            }
+            Cat::spend_all(ctx, &cat_spends)?;
+        }
+
+        for did in self.dids.into_values() {
+            for item in did.lineage {
+                let spend = coin_spends
+                    .remove(&item.asset.coin_id())
+                    .ok_or(DriverError::MissingSpend)?;
+                item.asset.spend(ctx, spend)?;
+            }
+        }
+
+        for nft in self.nfts.into_values() {
+            for item in nft.lineage {
+                let spend = coin_spends
+                    .remove(&item.asset.coin_id())
+                    .ok_or(DriverError::MissingSpend)?;
+                let _nft = item.asset.spend(ctx, spend)?;
+            }
+        }
+
+        for option in self.options.into_values() {
+            for item in option.lineage {
+                let spend = coin_spends
+                    .remove(&item.asset.coin_id())
+                    .ok_or(DriverError::MissingSpend)?;
+                let _option = item.asset.spend(ctx, spend)?;
+            }
+        }
+
+        Ok(self.outputs)
     }
 }
 

@@ -1,7 +1,7 @@
 use chia_protocol::{Bytes, Bytes32};
 use chia_puzzle_types::Memos;
 use chia_sdk_types::Condition;
-use clvm_traits::{clvm_quote, match_quote, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm, clvm_quote, match_quote};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};

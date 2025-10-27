@@ -1,5 +1,5 @@
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::{singleton::SingletonArgs, LineageProof, Proof};
+use chia_puzzle_types::{LineageProof, Proof, singleton::SingletonArgs};
 use clvm_utils::TreeHash;
 
 /// A generic singleton primitive, which can be extended with the [`SingletonInfo`] trait.

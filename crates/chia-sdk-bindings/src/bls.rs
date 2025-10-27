@@ -1,5 +1,5 @@
 use bindy::Result;
-use chia_bls::{aggregate_verify, sign, verify, DerivableKey, PublicKey, SecretKey, Signature};
+use chia_bls::{DerivableKey, PublicKey, SecretKey, Signature, aggregate_verify, sign, verify};
 use chia_protocol::{Bytes, Bytes32, Bytes48, Bytes96};
 use chia_puzzle_types::DeriveSynthetic;
 

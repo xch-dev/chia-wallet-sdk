@@ -1,17 +1,17 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
+    LineageProof, Proof,
     nft::{NftOwnershipLayerSolution, NftStateLayerSolution},
     offer::{NotarizedPayment, SettlementPaymentsSolution},
     singleton::SingletonSolution,
-    LineageProof, Proof,
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
-    conditions::{TradePrice, TransferNft},
     Conditions,
+    conditions::{TradePrice, TransferNft},
 };
 use chia_sha2::Sha256;
-use clvm_traits::{clvm_list, ToClvm};
+use clvm_traits::{ToClvm, clvm_list};
 use clvm_utils::tree_hash;
 use clvmr::{Allocator, NodePtr};
 
