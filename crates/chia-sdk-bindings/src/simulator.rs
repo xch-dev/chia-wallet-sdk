@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_bls::SecretKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, SpendBundle};
+use chia_sdk_test::SimulatorConfig;
 
 use crate::BlsPairWithCoin;
 
@@ -16,7 +17,10 @@ impl Simulator {
 
     pub fn with_seed(seed: u64) -> Result<Self> {
         Ok(Self(Arc::new(Mutex::new(
-            chia_sdk_test::Simulator::with_seed(seed),
+            chia_sdk_test::Simulator::with_config(SimulatorConfig {
+                seed,
+                ..Default::default()
+            }),
         ))))
     }
 
