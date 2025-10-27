@@ -62,7 +62,7 @@ pub use chia_protocol::{
     PoolTarget, Program as SerializedProgram, ProofOfSpace, RewardChainBlock, RewardChainSubSlot,
     SpendBundle, SubEpochSummary, SubSlotProofs, TransactionsInfo, VDFInfo, VDFProof,
 };
-pub use chia_puzzle_types::{nft::NftMetadata, LineageProof};
+pub use chia_puzzle_types::{LineageProof, nft::NftMetadata};
 pub use chia_sdk_coinset::{
     AdditionsAndRemovalsResponse, BlockchainState, BlockchainStateResponse, CoinRecord,
     GetBlockRecordByHeightResponse, GetBlockRecordResponse, GetBlockRecordsResponse,

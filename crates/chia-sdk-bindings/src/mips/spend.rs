@@ -7,25 +7,25 @@ use chia_consensus::opcodes::{
 };
 use chia_protocol::{Bytes, Bytes32};
 use chia_puzzles::PREVENT_MULTIPLE_CREATE_COINS_HASH;
-use chia_sdk_driver::{self as sdk, mips_puzzle_hash, InnerPuzzleSpend, MofN, SpendContext};
+use chia_sdk_driver::{self as sdk, InnerPuzzleSpend, MofN, SpendContext, mips_puzzle_hash};
 use chia_sdk_types::{
+    Mod,
     puzzles::{
-        BlsMember, FixedPuzzleMember, Force1of2RestrictedVariable,
+        BlsMember, BlsMemberPuzzleAssert, FixedPuzzleMember, Force1of2RestrictedVariable,
         Force1of2RestrictedVariableSolution, K1Member, K1MemberPuzzleAssert,
         K1MemberPuzzleAssertSolution, K1MemberSolution, PasskeyMember, PasskeyMemberPuzzleAssert,
         PasskeyMemberPuzzleAssertSolution, PasskeyMemberSolution, PreventConditionOpcode,
         PreventMultipleCreateCoinsMod, R1Member, R1MemberPuzzleAssert,
         R1MemberPuzzleAssertSolution, R1MemberSolution, SingletonMember, SingletonMemberSolution,
-        Timelock,
+        SingletonMemberWithMode, SingletonMemberWithModeSolution, Timelock,
     },
-    Mod,
 };
 use clvm_utils::TreeHash;
 use clvmr::NodePtr;
 
 use crate::{K1PublicKey, K1Signature, Program, R1PublicKey, R1Signature, Spend};
 
-use super::{convert_restrictions, MemberConfig, Vault};
+use super::{MemberConfig, Vault, convert_restrictions};
 
 #[derive(Clone)]
 pub struct MipsSpend {
@@ -171,18 +171,30 @@ impl MipsSpend {
         Ok(())
     }
 
-    pub fn bls_member(&self, config: MemberConfig, public_key: PublicKey) -> Result<()> {
+    pub fn bls_member(
+        &self,
+        config: MemberConfig,
+        public_key: PublicKey,
+        fast_forward: bool,
+    ) -> Result<()> {
         let mut ctx = self.clvm.lock().unwrap();
 
         let nonce = config.nonce.try_into().unwrap();
         let restrictions = convert_restrictions(config.restrictions);
 
-        let member = BlsMember::new(public_key);
-        let member_hash = member.curry_tree_hash();
+        let (member_hash, member_puzzle) = if fast_forward {
+            let member = BlsMemberPuzzleAssert::new(public_key);
+            let tree_hash = member.curry_tree_hash();
+            (tree_hash, ctx.curry(member)?)
+        } else {
+            let member = BlsMember::new(public_key);
+            let tree_hash = member.curry_tree_hash();
+            (tree_hash, ctx.curry(member)?)
+        };
+
         let member_hash =
             mips_puzzle_hash(nonce, restrictions.clone(), member_hash, config.top_level);
 
-        let member_puzzle = ctx.curry(member)?;
         let member_solution = ctx.alloc(&NodePtr::NIL)?;
 
         self.spend.lock().unwrap().members.insert(
@@ -260,6 +272,7 @@ impl MipsSpend {
         &self,
         config: MemberConfig,
         launcher_id: Bytes32,
+        fast_forward: bool,
         singleton_inner_puzzle_hash: Bytes32,
         singleton_amount: u64,
     ) -> Result<()> {
@@ -268,21 +281,30 @@ impl MipsSpend {
         let nonce = config.nonce.try_into().unwrap();
         let restrictions = convert_restrictions(config.restrictions);
 
-        let member = SingletonMember::new(launcher_id);
+        let (member_hash, member_puzzle) = if fast_forward {
+            let member = SingletonMemberWithMode::new(launcher_id, 0b010_010);
+            let tree_hash = member.curry_tree_hash();
+            (tree_hash, ctx.curry(member)?)
+        } else {
+            let member = SingletonMember::new(launcher_id);
+            let tree_hash = member.curry_tree_hash();
+            (tree_hash, ctx.curry(member)?)
+        };
 
-        let member_hash = mips_puzzle_hash(
-            nonce,
-            restrictions.clone(),
-            member.curry_tree_hash(),
-            config.top_level,
-        );
+        let member_hash =
+            mips_puzzle_hash(nonce, restrictions.clone(), member_hash, config.top_level);
 
-        let member_puzzle = ctx.curry(member)?;
-
-        let member_solution = ctx.alloc(&SingletonMemberSolution::new(
-            singleton_inner_puzzle_hash,
-            singleton_amount,
-        ))?;
+        let member_solution = if fast_forward {
+            ctx.alloc(&SingletonMemberWithModeSolution::new(
+                singleton_inner_puzzle_hash,
+                singleton_amount,
+            ))?
+        } else {
+            ctx.alloc(&SingletonMemberSolution::new(
+                singleton_inner_puzzle_hash,
+                singleton_amount,
+            ))?
+        };
 
         self.spend.lock().unwrap().members.insert(
             member_hash,

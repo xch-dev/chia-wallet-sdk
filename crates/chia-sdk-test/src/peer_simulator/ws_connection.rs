@@ -21,22 +21,22 @@ use tokio::{
     sync::{Mutex, MutexGuard},
 };
 use tokio_tungstenite::{
-    tungstenite::{self, Message as WsMessage},
     WebSocketStream,
+    tungstenite::{self, Message as WsMessage},
 };
 
 use crate::{Simulator, SimulatorError};
 
 use super::{
-    error::PeerSimulatorError, peer_map::Ws, simulator_config::SimulatorConfig,
-    subscriptions::Subscriptions, PeerMap,
+    PeerMap, config::PeerSimulatorConfig, error::PeerSimulatorError, peer_map::Ws,
+    subscriptions::Subscriptions,
 };
 
 pub(crate) async fn ws_connection(
     peer_map: PeerMap,
     ws: WebSocketStream<TcpStream>,
     addr: SocketAddr,
-    config: Arc<SimulatorConfig>,
+    config: Arc<PeerSimulatorConfig>,
     simulator: Arc<Mutex<Simulator>>,
     subscriptions: Arc<Mutex<Subscriptions>>,
 ) {
@@ -115,7 +115,7 @@ async fn handle_initial_peak(
 
 async fn handle_message(
     peer_map: PeerMap,
-    config: &SimulatorConfig,
+    config: &PeerSimulatorConfig,
     simulator: &Mutex<Simulator>,
     subscriptions: &Mutex<Subscriptions>,
     message: WsMessage,
@@ -437,7 +437,7 @@ fn request_children(
 fn request_coin_state(
     peer: SocketAddr,
     request: RequestCoinState,
-    config: &SimulatorConfig,
+    config: &PeerSimulatorConfig,
     simulator: &MutexGuard<'_, Simulator>,
     mut subscriptions: MutexGuard<'_, Subscriptions>,
 ) -> Result<Bytes, PeerSimulatorError> {
@@ -447,7 +447,7 @@ fn request_coin_state(
                 .to_bytes()?
                 .into());
         }
-    } else if request.header_hash != config.constants.genesis_challenge {
+    } else if request.header_hash != config.genesis_challenge {
         return Ok(RejectCoinState::new(RejectStateReason::Reorg)
             .to_bytes()?
             .into());
@@ -491,7 +491,7 @@ fn request_coin_state(
 fn request_puzzle_state(
     peer: SocketAddr,
     request: RequestPuzzleState,
-    config: &SimulatorConfig,
+    config: &PeerSimulatorConfig,
     simulator: &MutexGuard<'_, Simulator>,
     mut subscriptions: MutexGuard<'_, Subscriptions>,
 ) -> Result<Bytes, PeerSimulatorError> {
@@ -501,7 +501,7 @@ fn request_puzzle_state(
                 .to_bytes()?
                 .into());
         }
-    } else if request.header_hash != config.constants.genesis_challenge {
+    } else if request.header_hash != config.genesis_challenge {
         return Ok(RejectPuzzleState::new(RejectStateReason::Reorg)
             .to_bytes()?
             .into());

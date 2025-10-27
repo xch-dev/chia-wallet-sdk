@@ -1487,9 +1487,9 @@ export declare class MemberMemo {
   clone(): MemberMemo
   static k1(clvm: Clvm, publicKey: K1PublicKey, fastForward: boolean, reveal: boolean): MemberMemo
   static r1(clvm: Clvm, publicKey: R1PublicKey, fastForward: boolean, reveal: boolean): MemberMemo
-  static bls(clvm: Clvm, publicKey: PublicKey, taproot: boolean, reveal: boolean): MemberMemo
+  static bls(clvm: Clvm, publicKey: PublicKey, fastForward: boolean, taproot: boolean, reveal: boolean): MemberMemo
   static passkey(clvm: Clvm, publicKey: R1PublicKey, fastForward: boolean, reveal: boolean): MemberMemo
-  static singleton(clvm: Clvm, launcherId: Uint8Array, reveal: boolean): MemberMemo
+  static singleton(clvm: Clvm, launcherId: Uint8Array, fastForward: boolean, reveal: boolean): MemberMemo
   static fixedPuzzle(clvm: Clvm, puzzleHash: Uint8Array, reveal: boolean): MemberMemo
   constructor(puzzleHash: Uint8Array, memo: Program)
   get puzzleHash(): Buffer
@@ -1545,9 +1545,9 @@ export declare class MipsSpend {
   mOfN(config: MemberConfig, required: number, items: Array<Uint8Array>): void
   k1Member(config: MemberConfig, publicKey: K1PublicKey, signature: K1Signature, fastForward: boolean): void
   r1Member(config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, fastForward: boolean): void
-  blsMember(config: MemberConfig, publicKey: PublicKey): void
+  blsMember(config: MemberConfig, publicKey: PublicKey, fastForward: boolean): void
   passkeyMember(config: MemberConfig, publicKey: R1PublicKey, signature: R1Signature, authenticatorData: Uint8Array, clientDataJson: Uint8Array, challengeIndex: number, fastForward: boolean): void
-  singletonMember(config: MemberConfig, launcherId: Uint8Array, singletonInnerPuzzleHash: Uint8Array, singletonAmount: bigint): void
+  singletonMember(config: MemberConfig, launcherId: Uint8Array, fastForward: boolean, singletonInnerPuzzleHash: Uint8Array, singletonAmount: bigint): void
   fixedPuzzleMember(config: MemberConfig, fixedPuzzleHash: Uint8Array): void
   customMember(config: MemberConfig, spend: Spend): void
   timelock(timelock: bigint): void
@@ -2877,7 +2877,7 @@ export declare class WrapperMemo {
   set memo(value: Program)
 }
 
-export declare function blsMemberHash(config: MemberConfig, publicKey: PublicKey): Buffer
+export declare function blsMemberHash(config: MemberConfig, publicKey: PublicKey, fastForward: boolean): Buffer
 
 export declare function bulletinPuzzleHash(hiddenPuzzleHash: Uint8Array): Buffer
 
@@ -2930,7 +2930,7 @@ export declare function selectCoins(coins: Array<Coin>, amount: bigint): Array<C
 
 export declare function sha256(value: Uint8Array): Buffer
 
-export declare function singletonMemberHash(config: MemberConfig, launcherId: Uint8Array): Buffer
+export declare function singletonMemberHash(config: MemberConfig, launcherId: Uint8Array, fastForward: boolean): Buffer
 
 export declare function standardPuzzleHash(syntheticKey: PublicKey): Buffer
 

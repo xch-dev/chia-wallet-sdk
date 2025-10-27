@@ -1,12 +1,12 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{cat::CatArgs, singleton::SingletonArgs};
 use chia_sdk_types::{
+    MerkleTree,
     puzzles::{
         ActionLayerArgs, DefaultReserveAmountFromStateProgramArgs, P2DelegatedBySingletonLayerArgs,
-        ReserveFinalizer2ndCurryArgs,
         RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM_HASH,
+        ReserveFinalizer2ndCurryArgs,
     },
-    MerkleTree,
 };
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
@@ -70,11 +70,7 @@ impl RewardDistributorState {
 
 impl Reserveful for RewardDistributorState {
     fn reserve_amount(&self, index: u64) -> u64 {
-        if index == 0 {
-            self.total_reserves
-        } else {
-            0
-        }
+        if index == 0 { self.total_reserves } else { 0 }
     }
 }
 

@@ -1,12 +1,12 @@
 [package]
 name = "bindy-macro"
-version = "0.30.0"
-edition = "2021"
+version = "0.31.0"
+edition = "2024"
 license = "Apache-2.0"
 description = "Macro for the Bindy generator."
 authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
-homepage = "https://github.com/Rigidity/chia-wallet-sdk"
-repository = "https://github.com/Rigidity/chia-wallet-sdk"
+homepage = "https://github.com/xch-dev/chia-wallet-sdk"
+repository = "https://github.com/xch-dev/chia-wallet-sdk"
 readme = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }

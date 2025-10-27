@@ -1,12 +1,12 @@
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
-    puzzles::{
-        DefaultCatMakerArgs, RevocableCatMakerArgs, XchCatMaker, DEFAULT_CAT_MAKER_PUZZLE_HASH,
-        REVOCABLE_CAT_MAKER_PUZZLE_HASH, XCH_CAT_MAKER_PUZZLE_HASH,
-    },
     Mod,
+    puzzles::{
+        DEFAULT_CAT_MAKER_PUZZLE_HASH, DefaultCatMakerArgs, REVOCABLE_CAT_MAKER_PUZZLE_HASH,
+        RevocableCatMakerArgs, XCH_CAT_MAKER_PUZZLE_HASH, XchCatMaker,
+    },
 };
-use clvm_traits::{clvm_tuple, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm, clvm_tuple};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 

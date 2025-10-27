@@ -23,7 +23,7 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin};
-use chia_puzzle_types::{cat::CatArgs, standard::StandardArgs, Memos};
+use chia_puzzle_types::{Memos, cat::CatArgs, standard::StandardArgs};
 use chia_sdk_driver::{
     Bulletin, Cat, CatInfo, Clawback, CurriedPuzzle, OptionContract as SdkOptionContract,
     OptionInfo, P2ParentCoin, RawPuzzle, SpendContext, StreamingPuzzleInfo,

@@ -3,7 +3,7 @@ use std::{collections::HashMap, mem};
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
-use chia_sdk_types::{conditions::AssertPuzzleAnnouncement, Conditions};
+use chia_sdk_types::{Conditions, conditions::AssertPuzzleAnnouncement};
 use indexmap::IndexMap;
 
 use crate::{

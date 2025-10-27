@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{
-    offer::{NotarizedPayment, Payment},
     Memos,
+    offer::{NotarizedPayment, Payment},
 };
 use hex_literal::hex;
 

@@ -5,7 +5,7 @@ use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_types::puzzles::StateSchedulerLayerSolution;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
-use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
+use clvmr::{Allocator, NodePtr, serde::node_from_bytes};
 
 use crate::{DriverError, Layer, Spend, SpendContext, StateSchedulerInfo};
 

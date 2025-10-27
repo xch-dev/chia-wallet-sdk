@@ -1,12 +1,12 @@
 [package]
 name = "chia-sdk-bindings"
-version = "0.30.0"
-edition = "2021"
+version = "0.31.0"
+edition = "2024"
 license = "Apache-2.0"
 description = "Underlying implementation of chia-wallet-sdk bindings."
 authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
-homepage = "https://github.com/Rigidity/chia-wallet-sdk"
-repository = "https://github.com/Rigidity/chia-wallet-sdk"
+homepage = "https://github.com/xch-dev/chia-wallet-sdk"
+repository = "https://github.com/xch-dev/chia-wallet-sdk"
 readme = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
@@ -15,9 +15,9 @@ categories = { workspace = true }
 workspace = true
 
 [features]
-napi = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio"]
-wasm = []
-pyo3 = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio"]
+napi = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio", "bindy/napi"]
+wasm = ["bindy/wasm"]
+pyo3 = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio", "bindy/pyo3"]
 
 [dependencies]
 chia-sdk-utils = { workspace = true }
@@ -45,5 +45,5 @@ rand = { workspace = true }
 rand_chacha = { workspace = true }
 num-bigint = { workspace = true }
 paste = { workspace = true }
-clvm_tools_rs = { workspace = true }
+chialisp = { workspace = true }
 tokio = { workspace = true, features = ["sync"], optional = true }

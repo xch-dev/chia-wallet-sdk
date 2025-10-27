@@ -1,6 +1,6 @@
 use chia_sdk_types::{
-    puzzles::{IndexWrapperArgs, INDEX_WRAPPER_HASH},
     Mod,
+    puzzles::{INDEX_WRAPPER_HASH, IndexWrapperArgs},
 };
 use clvm_traits::{FromClvm, MatchByte};
 use clvm_utils::{ToTreeHash, TreeHash};

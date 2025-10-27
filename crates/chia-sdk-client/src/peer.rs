@@ -12,18 +12,18 @@ use chia_protocol::{
 };
 use chia_traits::Streamable;
 use futures_util::{
-    stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
+    stream::{SplitSink, SplitStream},
 };
 use tokio::{
     net::TcpStream,
-    sync::{mpsc, oneshot, Mutex},
+    sync::{Mutex, mpsc, oneshot},
     task::JoinHandle,
 };
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tracing::{debug, warn};
 
-use crate::{request_map::RequestMap, ClientError, RateLimiter, V2_RATE_LIMITS};
+use crate::{ClientError, RateLimiter, V2_RATE_LIMITS, request_map::RequestMap};
 
 #[cfg(any(feature = "native-tls", feature = "rustls"))]
 use tokio_tungstenite::Connector;

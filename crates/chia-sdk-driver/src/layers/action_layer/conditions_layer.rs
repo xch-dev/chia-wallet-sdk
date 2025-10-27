@@ -1,5 +1,5 @@
 use chia_sdk_types::{Condition, Conditions};
-use clvm_traits::{clvm_quote, match_quote, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm, clvm_quote, match_quote};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};

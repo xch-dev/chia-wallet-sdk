@@ -4,10 +4,10 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::puzzles::{
-    CatNftMetadata, VerificationLayer1stCurryArgs, VerificationLayer2ndCurryArgs,
-    VerificationLayerSolution, VERIFICATION_LAYER_PUZZLE_HASH,
+    CatNftMetadata, VERIFICATION_LAYER_PUZZLE_HASH, VerificationLayer1stCurryArgs,
+    VerificationLayer2ndCurryArgs, VerificationLayerSolution,
 };
-use clvm_traits::{clvm_list, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm, clvm_list};
 use clvm_utils::{CurriedProgram, ToTreeHash};
 use clvmr::{Allocator, NodePtr};
 

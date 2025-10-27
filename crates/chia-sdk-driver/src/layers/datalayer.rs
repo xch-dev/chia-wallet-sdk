@@ -9,7 +9,7 @@ pub use writer_layer::*;
 #[cfg(test)]
 mod tests {
     use chia_sdk_types::puzzles::DL_METADATA_UPDATER_PUZZLE;
-    use clvm_traits::{clvm_list, ToClvm};
+    use clvm_traits::{ToClvm, clvm_list};
     use clvm_utils::tree_hash;
     use clvmr::serde::node_from_bytes;
     use hex_literal::hex;

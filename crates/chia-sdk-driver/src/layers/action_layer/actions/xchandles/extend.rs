@@ -2,14 +2,13 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::offer::{NotarizedPayment, Payment};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
-    announcement_id,
+    Conditions, Mod, announcement_id,
     puzzles::{
         DefaultCatMakerArgs, XchandlesExtendActionArgs, XchandlesExtendActionSolution,
         XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution, XchandlesSlotValue,
     },
-    Conditions, Mod,
 };
-use clvm_traits::{clvm_tuple, FromClvm};
+use clvm_traits::{FromClvm, clvm_tuple};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
@@ -66,10 +65,10 @@ impl XchandlesExtendAction {
         >>(solution)?;
 
         // current expiration is the second truth given to a pricing puzzle
-        let current_expiration = solution.pricing_solution.1 .0;
+        let current_expiration = solution.pricing_solution.1.0;
 
         Ok(XchandlesSlotValue::new(
-            solution.pricing_solution.1 .1 .0.tree_hash().into(),
+            solution.pricing_solution.1.1.0.tree_hash().into(),
             solution.neighbors.left_value,
             solution.neighbors.right_value,
             current_expiration,
@@ -97,7 +96,7 @@ impl XchandlesExtendAction {
         let current_expiration = ctx
             .extract::<(NodePtr, (u64, NodePtr))>(solution.pricing_solution)?
             .1
-             .0;
+            .0;
 
         Ok(XchandlesSlotValue::new(
             handle.tree_hash().into(),

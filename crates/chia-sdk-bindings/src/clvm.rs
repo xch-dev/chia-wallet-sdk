@@ -3,10 +3,6 @@ use std::sync::{Arc, Mutex};
 use bindy::{Error, Result};
 use chia_bls::{PublicKey, Signature};
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram, SpendBundle};
-use chia_puzzle_types::{
-    offer::{self, SettlementPaymentsSolution},
-    LineageProof,
-};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_driver::{
     create_security_coin, launch_reward_distributor, spend_security_coin, spend_settlement_nft,
@@ -16,7 +12,7 @@ use chia_sdk_driver::{
     StandardLayer, StreamedAsset,
 };
 use chia_sdk_types::{Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
-use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
+use chialisp::classic::clvm_tools::binutils::assemble;
 use clvm_traits::{clvm_quote, ToClvm};
 use clvm_utils::TreeHash;
 use clvmr::{

@@ -1,5 +1,7 @@
-mod address;
+mod bech32;
 mod coin_selection;
+mod hex;
 
-pub use address::*;
+pub use bech32::*;
 pub use coin_selection::*;
+pub use hex::*;

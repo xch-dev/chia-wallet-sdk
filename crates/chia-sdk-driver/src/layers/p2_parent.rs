@@ -1,4 +1,4 @@
-use chia_sdk_types::puzzles::{P2ParentArgs, P2ParentSolution, P2_PARENT_PUZZLE_HASH};
+use chia_sdk_types::puzzles::{P2_PARENT_PUZZLE_HASH, P2ParentArgs, P2ParentSolution};
 use clvm_traits::FromClvm;
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};

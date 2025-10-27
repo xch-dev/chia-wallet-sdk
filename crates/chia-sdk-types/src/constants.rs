@@ -63,7 +63,6 @@ pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> Con
         blocks_cache_size: 4608 + 128 * 4,
         weight_proof_recent_blocks: 1000,
         max_block_count_per_requests: 32,
-        max_generator_size: 1_000_000,
         max_generator_ref_list_size: 512,
         pool_sub_slot_iters: 37_600_000_000,
         hard_fork_height: 5_496_000,
@@ -73,12 +72,12 @@ pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> Con
         plot_filter_32_height: 20_643_000,
 
         // Placeholders
-        plot_difficulty_initial: 2,
-        plot_difficulty_4_height: 0xffff_ffff,
-        plot_difficulty_5_height: 0xffff_ffff,
-        plot_difficulty_6_height: 0xffff_ffff,
-        plot_difficulty_7_height: 0xffff_ffff,
-        plot_difficulty_8_height: 0xffff_ffff,
+        plot_v1_phase_out: 0xffff_ffff,
+        plot_strength_initial: 2,
+        quality_proof_scan_filter: 5,
+        plot_filter_v2_first_adjustment_height: 0xffff_ffff,
+        plot_filter_v2_second_adjustment_height: 0xffff_ffff,
+        plot_filter_v2_third_adjustment_height: 0xffff_ffff,
     }
 }
 

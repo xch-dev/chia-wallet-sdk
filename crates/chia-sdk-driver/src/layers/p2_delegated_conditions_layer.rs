@@ -1,8 +1,8 @@
 use chia_bls::PublicKey;
 use chia_puzzles::P2_DELEGATED_CONDITIONS_HASH;
 use chia_sdk_types::{
-    puzzles::{P2DelegatedConditionsArgs, P2DelegatedConditionsSolution},
     Mod,
+    puzzles::{P2DelegatedConditionsArgs, P2DelegatedConditionsSolution},
 };
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, TreeHash};

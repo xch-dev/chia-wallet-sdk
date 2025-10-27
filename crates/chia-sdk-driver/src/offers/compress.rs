@@ -1,16 +1,16 @@
 use std::{io::Read, sync::LazyLock};
 
-use bech32::{u5, Variant};
 use chia_protocol::SpendBundle;
 use chia_puzzles::{
     CAT_PUZZLE, NFT_METADATA_UPDATER_DEFAULT, NFT_OWNERSHIP_LAYER,
     NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES, NFT_STATE_LAYER,
     P2_DELEGATED_PUZZLE_OR_HIDDEN_PUZZLE, SETTLEMENT_PAYMENT, SINGLETON_TOP_LAYER_V1_1,
 };
+use chia_sdk_utils::Bech32;
 use chia_traits::Streamable;
 use flate2::{
-    read::{ZlibDecoder, ZlibEncoder},
     Compress, Compression, Decompress, FlushDecompress,
+    read::{ZlibDecoder, ZlibEncoder},
 };
 use hex_literal::hex;
 
@@ -25,11 +25,11 @@ pub fn decompress_offer(bytes: &[u8]) -> Result<SpendBundle, DriverError> {
 }
 
 pub fn encode_offer(spend_bundle: &SpendBundle) -> Result<String, DriverError> {
-    encode_offer_data(&compress_offer(spend_bundle)?)
+    Ok(Bech32::new(compress_offer(spend_bundle)?.into(), "offer".to_string()).encode()?)
 }
 
 pub fn decode_offer(text: &str) -> Result<SpendBundle, DriverError> {
-    decompress_offer(&decode_offer_data(text)?)
+    decompress_offer(&Bech32::decode(text)?.expect_prefix("offer")?)
 }
 
 const CAT_PUZZLE_V1: [u8; 1420] = hex!(
@@ -159,28 +159,6 @@ pub fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DriverErro
     Ok(output)
 }
 
-pub fn encode_offer_data(offer: &[u8]) -> Result<String, DriverError> {
-    let data = bech32::convert_bits(offer, 8, 5, true)?
-        .into_iter()
-        .map(u5::try_from_u8)
-        .collect::<Result<Vec<_>, bech32::Error>>()?;
-    Ok(bech32::encode("offer", data, Variant::Bech32m)?)
-}
-
-pub fn decode_offer_data(offer: &str) -> Result<Vec<u8>, DriverError> {
-    let (hrp, data, variant) = bech32::decode(offer)?;
-
-    if variant != Variant::Bech32m {
-        return Err(DriverError::InvalidFormat);
-    }
-
-    if hrp.as_str() != "offer" {
-        return Err(DriverError::InvalidPrefix(hrp));
-    }
-
-    Ok(bech32::convert_bits(&data, 5, 8, false)?)
-}
-
 #[cfg(test)]
 mod tests {
     use chia_protocol::SpendBundle;
@@ -214,8 +192,13 @@ mod tests {
     #[test]
     fn test_encode_decode_offer_data() {
         let offer = b"hello world";
-        let encoded = encode_offer_data(offer).unwrap();
-        let decoded = decode_offer_data(&encoded).unwrap();
+        let encoded = Bech32::new(offer.to_vec().into(), "offer".to_string())
+            .encode()
+            .unwrap();
+        let decoded = Bech32::decode(&encoded)
+            .unwrap()
+            .expect_prefix("offer")
+            .unwrap();
         assert_eq!(offer, decoded.as_slice());
     }
 }

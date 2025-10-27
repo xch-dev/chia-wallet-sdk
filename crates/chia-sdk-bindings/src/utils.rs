@@ -41,7 +41,7 @@ pub fn curry_tree_hash(program: Bytes32, args: Vec<Bytes32>) -> Result<Bytes32> 
 }
 
 pub fn generate_bytes(bytes: u32) -> Result<Bytes> {
-    let mut rng = ChaCha20Rng::from_entropy();
+    let mut rng = ChaCha20Rng::from_os_rng();
     let mut buffer = vec![0; bytes as usize];
     rng.fill_bytes(&mut buffer);
     Ok(Bytes::new(buffer))

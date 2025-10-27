@@ -2,10 +2,11 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::nft::{NftOwnershipLayerArgs, NftStateLayerArgs};
 use chia_puzzles::NFT_STATE_LAYER_HASH;
 use chia_sdk_types::{
+    Condition, Mod,
     conditions::{CreateCoin, NewMetadataOutput},
-    run_puzzle, Condition, Mod,
+    run_puzzle,
 };
-use clvm_traits::{clvm_list, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm, clvm_list};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -246,7 +247,7 @@ impl SingletonInfo for NftInfo {
 mod tests {
     use chia_puzzle_types::nft::NftMetadata;
     use chia_sdk_test::Simulator;
-    use chia_sdk_types::{conditions::TransferNft, Conditions};
+    use chia_sdk_types::{Conditions, conditions::TransferNft};
 
     use crate::{
         IntermediateLauncher, Launcher, NftMint, SingletonInfo, SpendContext, StandardLayer,

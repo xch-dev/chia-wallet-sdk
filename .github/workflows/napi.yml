@@ -19,7 +19,8 @@ env:
   MACOSX_DEPLOYMENT_TARGET: "10.13"
 
 permissions:
-  contents: write
+  contents: read
+  actions: write
   id-token: write
 
 jobs:
@@ -371,12 +372,15 @@ jobs:
         run: ls -R ./npm
         shell: bash
 
+      - name: Ensure we have a new enough npm version for trusted publishing
+        run: |
+          npm install -g npm
+          npm --version
+
       - name: Publish
         if: startsWith(github.event.ref, 'refs/tags')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm config set provenance true
-          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
           npm publish --access public

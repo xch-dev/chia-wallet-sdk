@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 use bindy::Result;
 use chia_protocol::{Bytes32, SpendBundle};
 use chia_puzzle_types::{
-    offer::{NotarizedPayment as SdkNotarizedPayment, Payment as SdkPayment},
     Memos,
+    offer::{NotarizedPayment as SdkNotarizedPayment, Payment as SdkPayment},
 };
 use chia_sdk_driver::SpendContext;
 
