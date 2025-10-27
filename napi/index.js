@@ -611,6 +611,7 @@ module.exports.preventVaultSideEffectsRestriction = nativeBinding.preventVaultSi
 module.exports.r1MemberHash = nativeBinding.r1MemberHash
 module.exports.RestrictionKind = nativeBinding.RestrictionKind
 module.exports.RewardDistributorType = nativeBinding.RewardDistributorType
+module.exports.selectCoins = nativeBinding.selectCoins
 module.exports.sha256 = nativeBinding.sha256
 module.exports.singletonMemberHash = nativeBinding.singletonMemberHash
 module.exports.standardPuzzleHash = nativeBinding.standardPuzzleHash

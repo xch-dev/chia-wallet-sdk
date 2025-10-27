@@ -13,7 +13,7 @@ use chia_sdk_types::Condition;
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
 
-use crate::{AsProgram, Clvm, Did, Nft, OptionContract, Program, Spend};
+use crate::{AsProgram, Clvm, Did, Nft, NotarizedPayment, OptionContract, Program, Spend};
 
 #[derive(Clone)]
 pub struct Spends {
@@ -31,6 +31,12 @@ impl Spends {
 
     pub fn add_xch(&self, coin: Coin) -> Result<()> {
         self.spends.lock().unwrap().add(coin);
+
+        Ok(())
+    }
+
+    pub fn add_cat(&self, cat: Cat) -> Result<()> {
+        self.spends.lock().unwrap().add(cat);
 
         Ok(())
     }
@@ -209,7 +215,7 @@ impl FinishedSpends {
         let finished = self.finished.lock().unwrap().clone();
 
         let outputs = spends.spend(&mut ctx, finished)?;
-        Ok(Outputs::new(outputs.xch))
+        Ok(Outputs(outputs))
     }
 }
 
@@ -273,12 +279,43 @@ impl PendingSpend {
 pub struct Action(sdk::Action);
 
 impl Action {
-    pub fn send_xch(puzzle_hash: Bytes32, amount: u64) -> Result<Self> {
+    pub fn send(id: Id, puzzle_hash: Bytes32, amount: u64, memos: Option<Program>) -> Result<Self> {
         Ok(Self(sdk::Action::send(
-            sdk::Id::Xch,
+            id.0,
             puzzle_hash,
             amount,
-            Memos::None,
+            memos.map_or(Memos::None, |memos| Memos::Some(memos.1)),
+        )))
+    }
+
+    pub fn settle(id: Id, notarized_payment: NotarizedPayment) -> Result<Self> {
+        Ok(Self(sdk::Action::settle(id.0, notarized_payment.into())))
+    }
+
+    pub fn issue_cat(
+        tail_spend: Spend,
+        hidden_puzzle_hash: Option<Bytes32>,
+        amount: u64,
+    ) -> Result<Self> {
+        Ok(Self(sdk::Action::issue_cat(
+            tail_spend.into(),
+            hidden_puzzle_hash,
+            amount,
+        )))
+    }
+
+    pub fn single_issue_cat(hidden_puzzle_hash: Option<Bytes32>, amount: u64) -> Result<Self> {
+        Ok(Self(sdk::Action::single_issue_cat(
+            hidden_puzzle_hash,
+            amount,
+        )))
+    }
+
+    pub fn run_tail(id: Id, tail_spend: Spend, supply_delta: Delta) -> Result<Self> {
+        Ok(Self(sdk::Action::run_tail(
+            id.0,
+            tail_spend.into(),
+            supply_delta,
         )))
     }
 
@@ -297,10 +334,6 @@ impl Deltas {
         Ok(Deltas(deltas))
     }
 
-    pub fn xch(&self) -> Result<Option<Delta>> {
-        Ok(self.0.get(&sdk::Id::Xch).copied())
-    }
-
     pub fn get(&self, id: Id) -> Result<Option<Delta>> {
         Ok(self.0.get(&id.0).copied())
     }
@@ -310,12 +343,11 @@ impl Deltas {
     }
 
     pub fn ids(&self) -> Result<Vec<Id>> {
-        Ok(self.0.ids().cloned().map(Id).collect())
+        Ok(self.0.ids().copied().map(Id).collect())
     }
 }
 
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub struct Id(sdk::Id);
 
 impl Id {
@@ -330,19 +362,43 @@ impl Id {
     pub fn new(index: usize) -> Result<Self> {
         Ok(Self(sdk::Id::New(index)))
     }
+
+    pub fn is_xch(&self) -> Result<bool> {
+        Ok(self.0 == sdk::Id::Xch)
+    }
+
+    pub fn as_existing(&self) -> Result<Option<Bytes32>> {
+        Ok(match self.0 {
+            sdk::Id::Existing(asset_id) => Some(asset_id),
+            _ => None,
+        })
+    }
+
+    pub fn as_new(&self) -> Result<Option<usize>> {
+        Ok(match self.0 {
+            sdk::Id::New(index) => Some(index),
+            _ => None,
+        })
+    }
+
+    pub fn equals(&self, id: Id) -> Result<bool> {
+        Ok(self.0 == id.0)
+    }
 }
 
 #[derive(Clone)]
-pub struct Outputs {
-    xch_coins: Vec<Coin>,
-}
+pub struct Outputs(sdk::Outputs);
 
 impl Outputs {
-    pub fn xch_coins(&self) -> Result<Vec<Coin>> {
-        Ok(self.xch_coins.clone())
+    pub fn xch(&self) -> Result<Vec<Coin>> {
+        Ok(self.0.xch.clone())
     }
 
-    pub fn new(xch_coins: Vec<Coin>) -> Self {
-        Self { xch_coins }
+    pub fn cats(&self) -> Result<Vec<Id>> {
+        Ok(self.0.cats.keys().copied().map(Id).collect())
+    }
+
+    pub fn cat(&self, id: Id) -> Result<Vec<Cat>> {
+        Ok(self.0.cats.get(&id.0).cloned().unwrap_or_default())
     }
 }

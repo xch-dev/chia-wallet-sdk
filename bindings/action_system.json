@@ -14,6 +14,11 @@
           "coin": "Coin"
         }
       },
+      "add_cat": {
+        "args": {
+          "cat": "Cat"
+        }
+      },
       "p2_puzzle_hashes": {
         "return": "Vec<Bytes32>"
       },
@@ -106,11 +111,43 @@
   "Action": {
     "type": "class",
     "methods": {
-      "send_xch": {
+      "send": {
         "type": "factory",
         "args": {
+          "id": "Id",
           "puzzle_hash": "Bytes32",
+          "amount": "u64",
+          "memos": "Option<Program>"
+        }
+      },
+      "settle": {
+        "type": "factory",
+        "args": {
+          "id": "Id",
+          "notarized_payment": "NotarizedPayment"
+        }
+      },
+      "issue_cat": {
+        "type": "factory",
+        "args": {
+          "tail_spend": "Spend",
+          "hidden_puzzle_hash": "Option<Bytes32>",
           "amount": "u64"
+        }
+      },
+      "single_issue_cat": {
+        "type": "factory",
+        "args": {
+          "hidden_puzzle_hash": "Option<Bytes32>",
+          "amount": "u64"
+        }
+      },
+      "run_tail": {
+        "type": "factory",
+        "args": {
+          "id": "Id",
+          "tail_spend": "Spend",
+          "supply_delta": "Delta"
         }
       },
       "fee": {
@@ -130,9 +167,6 @@
           "actions": "Vec<Action>"
         },
         "return": "Deltas"
-      },
-      "xch": {
-        "return": "Option<Delta>"
       },
       "get": {
         "args": {
@@ -177,14 +211,38 @@
         "args": {
           "index": "usize"
         }
+      },
+      "is_xch": {
+        "return": "bool"
+      },
+      "as_existing": {
+        "return": "Option<Bytes32>"
+      },
+      "as_new": {
+        "return": "Option<usize>"
+      },
+      "equals": {
+        "args": {
+          "id": "Id"
+        },
+        "return": "bool"
       }
     }
   },
   "Outputs": {
     "type": "class",
     "methods": {
-      "xch_coins": {
+      "xch": {
         "return": "Vec<Coin>"
+      },
+      "cats": {
+        "return": "Vec<Id>"
+      },
+      "cat": {
+        "args": {
+          "id": "Id"
+        },
+        "return": "Vec<Cat>"
       }
     }
   }

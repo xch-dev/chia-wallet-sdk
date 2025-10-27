@@ -137,6 +137,9 @@ pub enum Error {
 
     #[error("Streamable error: {0}")]
     Streamable(#[from] chia_traits::Error),
+
+    #[error("Coin selection error: {0}")]
+    CoinSelection(#[from] chia_sdk_utils::CoinSelectionError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

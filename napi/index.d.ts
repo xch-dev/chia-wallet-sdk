@@ -2,7 +2,11 @@
 /* eslint-disable */
 export declare class Action {
   clone(): Action
-  static sendXch(puzzleHash: Uint8Array, amount: bigint): Action
+  static send(id: Id, puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null): Action
+  static settle(id: Id, notarizedPayment: NotarizedPayment): Action
+  static issueCat(tailSpend: Spend, hiddenPuzzleHash: Uint8Array | undefined | null, amount: bigint): Action
+  static singleIssueCat(hiddenPuzzleHash: Uint8Array | undefined | null, amount: bigint): Action
+  static runTail(id: Id, tailSpend: Spend, supplyDelta: Delta): Action
   static fee(amount: bigint): Action
 }
 
@@ -1042,7 +1046,6 @@ export declare class Delta {
 export declare class Deltas {
   clone(): Deltas
   static fromActions(actions: Array<Action>): Deltas
-  xch(): Delta | null
   get(id: Id): Delta | null
   isNeeded(id: Id): boolean
   ids(): Array<Id>
@@ -1345,6 +1348,10 @@ export declare class Id {
   static xch(): Id
   static existing(assetId: Uint8Array): Id
   static new(index: bigint): Id
+  isXch(): boolean
+  asExisting(): Buffer | null
+  asNew(): bigint | null
+  equals(id: Id): boolean
 }
 
 export declare class InfusedChallengeChainSubSlot {
@@ -1794,7 +1801,9 @@ export declare class Output {
 
 export declare class Outputs {
   clone(): Outputs
-  xchCoins(): Array<Coin>
+  xch(): Array<Coin>
+  cats(): Array<Id>
+  cat(id: Id): Array<Cat>
 }
 
 export declare class P2ParentCoin {
@@ -2591,10 +2600,27 @@ export declare class Signature {
 export declare class Simulator {
   clone(): Simulator
   constructor()
+  static withSeed(seed: bigint): Simulator
+  height(): number
+  nextTimestamp(): bigint
+  headerHash(): Buffer
+  headerHashOf(height: number): Buffer | null
+  insertCoin(coin: Coin): void
   newCoin(puzzleHash: Uint8Array, amount: bigint): Coin
   bls(amount: bigint): BlsPairWithCoin
-  spendCoins(coinSpends: Array<CoinSpend>, secretKeys: Array<SecretKey>): void
+  setNextTimestamp(time: bigint): void
   passTime(time: bigint): void
+  hintCoin(coinId: Uint8Array, hint: Uint8Array): void
+  coinState(coinId: Uint8Array): CoinState | null
+  children(coinId: Uint8Array): Array<CoinState>
+  hintedCoins(hint: Uint8Array): Array<Buffer>
+  coinSpend(coinId: Uint8Array): CoinSpend | null
+  spendCoins(coinSpends: Array<CoinSpend>, secretKeys: Array<SecretKey>): void
+  newTransaction(spendBundle: SpendBundle): void
+  lookupCoinIds(coinIds: Array<Uint8Array>): Array<CoinState>
+  lookupPuzzleHashes(puzzleHashes: Array<Uint8Array>, includeHints: boolean): Array<CoinState>
+  unspentCoins(puzzleHash: Uint8Array, includeHints: boolean): Array<Coin>
+  createBlock(): void
 }
 
 export declare class Softfork {
@@ -2631,6 +2657,7 @@ export declare class Spends {
   clone(): Spends
   constructor(clvm: Clvm, changePuzzleHash: Uint8Array)
   addXch(coin: Coin): void
+  addCat(cat: Cat): void
   p2PuzzleHashes(): Array<Buffer>
   nonSettlementCoinIds(): Array<Buffer>
   addOptionalCondition(condition: Program): void
@@ -2898,6 +2925,8 @@ export declare const enum RewardDistributorType {
   Manager = 0,
   Nft = 1
 }
+
+export declare function selectCoins(coins: Array<Coin>, amount: bigint): Array<Coin>
 
 export declare function sha256(value: Uint8Array): Buffer
 
