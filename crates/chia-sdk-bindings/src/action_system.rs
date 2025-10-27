@@ -5,7 +5,7 @@ use std::{
 
 use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::{offer::SettlementPaymentsSolution, Memos};
+use chia_puzzle_types::{Memos, offer::SettlementPaymentsSolution};
 use chia_sdk_driver::{
     self as sdk, Cat, Delta, Layer, Relation, SettlementLayer, SpendContext, SpendKind,
 };
