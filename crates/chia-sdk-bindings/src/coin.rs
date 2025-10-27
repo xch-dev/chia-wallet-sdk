@@ -31,3 +31,5 @@ impl SpendBundleExt for SpendBundle {
         Ok(Streamable::hash(self).into())
     }
 }
+
+pub trait CoinStateExt {}

@@ -962,6 +962,7 @@ version = "0.31.0"
 dependencies = [
  "anyhow",
  "chia",
+ "chia-puzzles",
  "chia-sdk-client",
  "chia-sdk-coinset",
  "chia-sdk-driver",

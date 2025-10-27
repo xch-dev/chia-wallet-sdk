@@ -57,10 +57,11 @@ pub use peer::*;
 
 pub use chia_bls::{PublicKey, SecretKey, Signature};
 pub use chia_protocol::{
-    BlockRecord, Bytes, Bytes32, ChallengeChainSubSlot, Coin, CoinSpend, EndOfSubSlotBundle,
-    Foliage, FoliageBlockData, FoliageTransactionBlock, FullBlock, InfusedChallengeChainSubSlot,
-    PoolTarget, Program as SerializedProgram, ProofOfSpace, RewardChainBlock, RewardChainSubSlot,
-    SpendBundle, SubEpochSummary, SubSlotProofs, TransactionsInfo, VDFInfo, VDFProof,
+    BlockRecord, Bytes, Bytes32, ChallengeChainSubSlot, Coin, CoinSpend, CoinState,
+    EndOfSubSlotBundle, Foliage, FoliageBlockData, FoliageTransactionBlock, FullBlock,
+    InfusedChallengeChainSubSlot, PoolTarget, Program as SerializedProgram, ProofOfSpace,
+    RewardChainBlock, RewardChainSubSlot, SpendBundle, SubEpochSummary, SubSlotProofs,
+    TransactionsInfo, VDFInfo, VDFProof,
 };
 pub use chia_puzzle_types::{LineageProof, nft::NftMetadata};
 pub use chia_sdk_coinset::{
@@ -87,8 +88,7 @@ pub use chia_sdk_types::{
 
 #[cfg(any(feature = "napi", feature = "pyo3"))]
 pub use chia_protocol::{
-    CoinState, CoinStateUpdate, NewPeakWallet, PuzzleSolutionResponse, RespondCoinState,
-    RespondPuzzleState,
+    CoinStateUpdate, NewPeakWallet, PuzzleSolutionResponse, RespondCoinState, RespondPuzzleState,
 };
 
 pub(crate) use convert::{AsProgram, AsPtr};

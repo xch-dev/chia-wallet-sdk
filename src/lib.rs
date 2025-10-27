@@ -12,4 +12,5 @@ pub use chia_sdk_types as types;
 pub use chia_sdk_utils as utils;
 
 pub use chia;
+pub use chia_puzzles as puzzles;
 pub use clvmr;
