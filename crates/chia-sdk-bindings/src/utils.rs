@@ -1,5 +1,5 @@
 use bindy::Result;
-use chia_protocol::{Bytes, Bytes32};
+use chia_protocol::{Bytes, Bytes32, Coin};
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use sha2::{Digest, Sha256};
@@ -45,4 +45,8 @@ pub fn generate_bytes(bytes: u32) -> Result<Bytes> {
     let mut buffer = vec![0; bytes as usize];
     rng.fill_bytes(&mut buffer);
     Ok(Bytes::new(buffer))
+}
+
+pub fn select_coins(coins: Vec<Coin>, amount: u64) -> Result<Vec<Coin>> {
+    Ok(chia_sdk_utils::select_coins(coins, amount)?)
 }

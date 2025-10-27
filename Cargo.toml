@@ -88,6 +88,7 @@ chia-sdk-coinset = { workspace = true }
 chia = { workspace = true }
 clvm-traits = { workspace = true, features = ["derive"] }
 clvmr = { workspace = true }
+chia-puzzles = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }

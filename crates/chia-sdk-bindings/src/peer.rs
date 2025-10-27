@@ -205,8 +205,6 @@ pub trait RespondPuzzleStateExt {}
 
 pub trait PuzzleSolutionResponseExt {}
 
-pub trait CoinStateExt {}
-
 pub trait CoinStateUpdateExt {}
 
 pub trait NewPeakWalletExt {}
