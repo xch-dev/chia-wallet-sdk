@@ -5,7 +5,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
-use crate::{puzzles::XchandlesSlotValue, Mod};
+use crate::{Mod, puzzles::XchandlesSlotValue};
 
 pub const XCHANDLES_REFUND_PUZZLE: [u8; 1075] = hex!(
     "

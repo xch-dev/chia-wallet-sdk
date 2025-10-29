@@ -5,7 +5,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
-use crate::{puzzles::SlotNeigborsInfo, Mod};
+use crate::{Mod, puzzles::SlotNeigborsInfo};
 
 pub const CATALOG_REFUND_PUZZLE: [u8; 922] = hex!(
     "

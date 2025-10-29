@@ -268,9 +268,15 @@ impl MemberMemo {
         })
     }
 
-    pub fn bls(clvm: Clvm, public_key: PublicKey, taproot: bool, reveal: bool) -> Result<Self> {
+    pub fn bls(
+        clvm: Clvm,
+        public_key: PublicKey,
+        fast_forward: bool,
+        taproot: bool,
+        reveal: bool,
+    ) -> Result<Self> {
         let mut ctx = clvm.0.lock().unwrap();
-        let memo = sdk::MemberMemo::bls(&mut ctx, public_key, taproot, reveal)?;
+        let memo = sdk::MemberMemo::bls(&mut ctx, public_key, fast_forward, taproot, reveal)?;
         Ok(Self {
             puzzle_hash: memo.puzzle_hash,
             memo: Program(clvm.0.clone(), memo.memo),
@@ -291,9 +297,14 @@ impl MemberMemo {
         })
     }
 
-    pub fn singleton(clvm: Clvm, launcher_id: Bytes32, reveal: bool) -> Result<Self> {
+    pub fn singleton(
+        clvm: Clvm,
+        launcher_id: Bytes32,
+        fast_forward: bool,
+        reveal: bool,
+    ) -> Result<Self> {
         let mut ctx = clvm.0.lock().unwrap();
-        let memo = sdk::MemberMemo::singleton(&mut ctx, launcher_id, reveal)?;
+        let memo = sdk::MemberMemo::singleton(&mut ctx, launcher_id, fast_forward, reveal)?;
         Ok(Self {
             puzzle_hash: memo.puzzle_hash,
             memo: Program(clvm.0.clone(), memo.memo),

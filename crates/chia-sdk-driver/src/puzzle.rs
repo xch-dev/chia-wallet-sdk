@@ -1,5 +1,5 @@
 use clvm_traits::{FromClvm, FromClvmError};
-use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
+use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{DriverError, Layer, SpendContext};

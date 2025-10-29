@@ -2,18 +2,19 @@ use crate::{DriverError, Layer, P2OneOfManyLayer, Puzzle, Spend, SpendContext};
 use chia_protocol::{Bytes, Bytes32};
 use chia_puzzles::AUGMENTED_CONDITION_HASH;
 use chia_sdk_types::{
+    Condition, MerkleTree,
     conditions::Remark,
     puzzles::{
-        AugmentedConditionArgs, AugmentedConditionSolution, P2CurriedArgs, P2CurriedSolution,
-        P2OneOfManySolution, P2_CURRIED_PUZZLE_HASH,
+        AugmentedConditionArgs, AugmentedConditionSolution, P2_CURRIED_PUZZLE_HASH, P2CurriedArgs,
+        P2CurriedSolution, P2OneOfManySolution,
     },
-    run_puzzle, Condition, MerkleTree,
+    run_puzzle,
 };
 use chia_streamable_macro::streamable;
 use chia_traits::Streamable;
-use clvm_traits::clvm_list;
 use clvm_traits::FromClvm;
 use clvm_traits::ToClvm;
+use clvm_traits::clvm_list;
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -274,7 +275,9 @@ mod tests {
     #[test]
     fn test_clawback_compatible_with_python() -> anyhow::Result<()> {
         let ctx = &mut SpendContext::new();
-        let bytes = hex_literal::hex!("00000001e3b0c44298fc1c149afbf4c8996fb924000000000000000000000000000000014eb7420f8651b09124e1d40cdc49eeddacbaa0c25e6ae5a0a482fac8e3b5259f000001977420dc00ff02ffff01ff02ffff01ff02ffff03ff0bffff01ff02ffff03ffff09ff05ffff1dff0bffff1effff0bff0bffff02ff06ffff04ff02ffff04ff17ff8080808080808080ffff01ff02ff17ff2f80ffff01ff088080ff0180ffff01ff04ffff04ff04ffff04ff05ffff04ffff02ff06ffff04ff02ffff04ff17ff80808080ff80808080ffff02ff17ff2f808080ff0180ffff04ffff01ff32ff02ffff03ffff07ff0580ffff01ff0bffff0102ffff02ff06ffff04ff02ffff04ff09ff80808080ffff02ff06ffff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff018080ffff04ffff01b0b50b02adba343fff8bf3a94e92ed7df43743aedf0006b81a6c00ae573c0cce7d08216f60886fe84e4078a5209b0e5171ff018080ff80ffff01ffff33ffa0aeb663f32c4cfe1122710bc03cdc086f87e3243c055e8bebba42189cafbaf465ff840098968080ffff01ff02ffc04e00010000004800000000000000644eb7420f8651b09124e1d40cdc49eeddacbaa0c25e6ae5a0a482fac8e3b5259f5abb5d5568b4a7411dd97b3356cfedfac09b5fb35621a7fa29ab9b59dc905fb68080ff8080a8a06f869d849d69f194df0c5e003a302aa360309a8a75eb50867f8f4c90484d8fe6cc63d4d3bc1f4d5ac456e75678ad09209f744a4aea5857e2771f0c351623f90f72418d086862c66d4270d8b04c13814d8279050ff9e9944c8d491377da87");
+        let bytes = hex_literal::hex!(
+            "00000001e3b0c44298fc1c149afbf4c8996fb924000000000000000000000000000000014eb7420f8651b09124e1d40cdc49eeddacbaa0c25e6ae5a0a482fac8e3b5259f000001977420dc00ff02ffff01ff02ffff01ff02ffff03ff0bffff01ff02ffff03ffff09ff05ffff1dff0bffff1effff0bff0bffff02ff06ffff04ff02ffff04ff17ff8080808080808080ffff01ff02ff17ff2f80ffff01ff088080ff0180ffff01ff04ffff04ff04ffff04ff05ffff04ffff02ff06ffff04ff02ffff04ff17ff80808080ff80808080ffff02ff17ff2f808080ff0180ffff04ffff01ff32ff02ffff03ffff07ff0580ffff01ff0bffff0102ffff02ff06ffff04ff02ffff04ff09ff80808080ffff02ff06ffff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff018080ffff04ffff01b0b50b02adba343fff8bf3a94e92ed7df43743aedf0006b81a6c00ae573c0cce7d08216f60886fe84e4078a5209b0e5171ff018080ff80ffff01ffff33ffa0aeb663f32c4cfe1122710bc03cdc086f87e3243c055e8bebba42189cafbaf465ff840098968080ffff01ff02ffc04e00010000004800000000000000644eb7420f8651b09124e1d40cdc49eeddacbaa0c25e6ae5a0a482fac8e3b5259f5abb5d5568b4a7411dd97b3356cfedfac09b5fb35621a7fa29ab9b59dc905fb68080ff8080a8a06f869d849d69f194df0c5e003a302aa360309a8a75eb50867f8f4c90484d8fe6cc63d4d3bc1f4d5ac456e75678ad09209f744a4aea5857e2771f0c351623f90f72418d086862c66d4270d8b04c13814d8279050ff9e9944c8d491377da87"
+        );
         let sb = SpendBundle::from_bytes(&bytes)?;
         let puzzle_clvm = sb.coin_spends[0].puzzle_reveal.to_clvm(ctx)?;
         let puz = Puzzle::parse(ctx, puzzle_clvm);

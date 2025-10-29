@@ -44,8 +44,8 @@ mod tests {
     use anyhow::Result;
     use chia_protocol::Bytes32;
     use chia_puzzle_types::{
-        offer::{NotarizedPayment, Payment},
         Memos,
+        offer::{NotarizedPayment, Payment},
     };
     use chia_sdk_test::Simulator;
     use indexmap::indexmap;

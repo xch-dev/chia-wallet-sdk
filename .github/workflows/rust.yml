@@ -14,6 +14,11 @@ concurrency:
   group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow_ref, github.event.pull_request.number) || github.run_id }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  actions: write
+  id-token: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -27,29 +32,43 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Show Rust versions
+        run: |
+          rustup --version
+          rustc --version
+          rustfmt --version
+          cargo --version
+
+      - name: Fmt
+        run: cargo fmt --all -- --files-with-diff --check
+
       - name: Install cargo-workspaces
         run: cargo binstall cargo-workspaces --locked -y
 
-      # TODO: Add code coverage back once Tarpaulin is updated to support the latest Rust version
-      # - name: Install cargo-tarpaulin
-      #   run: cargo install cargo-tarpaulin --locked
-
-      # - name: Run tests
-      #   run: cargo tarpaulin --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude cni-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features --out xml
+      - name: Build individual crates
+        run: |
+          set -e
+          cargo build --release
+          cargo build --release --all-features
+          cargo build --release -p chia-sdk-driver
+          cargo build --release -p chia-sdk-driver --all-features
+          cargo build --release -p chia-sdk-client
+          cargo build --release -p chia-sdk-client --all-features
+          cargo build --release -p chia-sdk-coinset
+          cargo build --release -p chia-sdk-coinset --all-features
+          cargo build --release -p chia-sdk-cli
+          cargo build --release -p chia-sdk-signer
+          cargo build --release -p chia-sdk-test
+          cargo build --release -p chia-sdk-test --all-features
+          cargo build --release -p chia-sdk-types
+          cargo build --release -p chia-sdk-types --all-features
+          cargo build --release -p chia-sdk-utils
+          cargo build --release -p chia-sdk-bindings -F napi
+          cargo build --release -p chia-sdk-bindings -F wasm
+          cargo build --release -p chia-sdk-bindings -F pyo3
 
       - name: Run tests
         run: cargo test --release --workspace --exclude chia-wallet-sdk-napi --exclude chia-sdk-derive --exclude chia-wallet-sdk-py --exclude cni-wallet-sdk-wasm --exclude chia-sdk-bindings --exclude bindy --exclude bindy-macro --all-features
-
-      # - name: Log costs
-      #   run: cat crates/chia-sdk-driver/*.costs
-
-      # - name: Upload coverage reports to Codecov
-      #   uses: codecov/codecov-action@v4.0.1
-      #   with:
-      #     token: ${{ secrets.CODECOV_TOKEN }}
-
-      # - name: Cleanup coverage reports
-      #   run: rm -f cobertura.xml
 
       - name: Clippy
         run: cargo clippy --workspace --all-features --all-targets
@@ -59,11 +78,12 @@ jobs:
           cargo binstall cargo-machete --locked -y
           cargo machete
 
-      - name: Fmt
-        run: cargo fmt --all -- --files-with-diff --check
+      # - uses: rust-lang/crates-io-auth-action@v1
+      #   if: startsWith(github.event.ref, 'refs/tags')
+      #   id: auth
 
       # - name: Publish
       #   if: startsWith(github.event.ref, 'refs/tags')
       #   env:
-      #     CARGO_REGISTRY_TOKEN: ${{ secrets.cargo_registry_token }}
+      #     CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
       #   run: cargo ws publish --publish-as-is --allow-dirty

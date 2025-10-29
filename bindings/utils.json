@@ -57,5 +57,13 @@
       "bytes": "u32"
     },
     "return": "Bytes"
+  },
+  "select_coins": {
+    "type": "function",
+    "args": {
+      "coins": "Vec<Coin>",
+      "amount": "u64"
+    },
+    "return": "Vec<Coin>"
   }
 }

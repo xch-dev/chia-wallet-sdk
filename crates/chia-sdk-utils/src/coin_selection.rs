@@ -157,7 +157,7 @@ pub fn knapsack_coin_algorithm(
             }
 
             for coin in spendable_coins {
-                let filter_first = pass != 0 || !rng.gen::<bool>();
+                let filter_first = pass != 0 || !rng.random::<bool>();
                 let filter_second = pass != 1 || selected_coins.contains(coin);
 
                 if filter_first && filter_second {

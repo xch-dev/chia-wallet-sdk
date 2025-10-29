@@ -3,22 +3,25 @@ use std::sync::{Arc, Mutex};
 use bindy::{Error, Result};
 use chia_bls::{PublicKey, Signature};
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program as SerializedProgram, SpendBundle};
-use chia_puzzle_types::{offer::SettlementPaymentsSolution, LineageProof};
+use chia_puzzle_types::{
+    LineageProof,
+    offer::{self, SettlementPaymentsSolution},
+};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_driver::{
-    create_security_coin, launch_reward_distributor, spend_security_coin, spend_settlement_nft,
     Bulletin, BulletinMessage, Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault,
     MedievalVaultInfo, Offer, OptionMetadata, RewardDistributor as SdkRewardDistributor,
     RewardDistributorConstants, RewardDistributorState, SettlementLayer, SpendContext,
-    StandardLayer, StreamedAsset,
+    StandardLayer, StreamedAsset, create_security_coin, launch_reward_distributor,
+    spend_security_coin, spend_settlement_nft,
 };
 use chia_sdk_types::{Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS};
-use clvm_tools_rs::classic::clvm_tools::binutils::assemble;
-use clvm_traits::{clvm_quote, ToClvm};
+use chialisp::classic::clvm_tools::binutils::assemble;
+use clvm_traits::{ToClvm, clvm_quote};
 use clvm_utils::TreeHash;
 use clvmr::{
-    serde::{node_from_bytes, node_from_bytes_backrefs},
     NodePtr,
+    serde::{node_from_bytes, node_from_bytes_backrefs},
 };
 use num_bigint::BigInt;
 
@@ -65,10 +68,9 @@ impl Clvm {
     }
 
     pub fn delegated_spend(&self, conditions: Vec<Program>) -> Result<Spend> {
-        let delegated_puzzle = self.0.lock().unwrap().alloc(&clvm_quote!(conditions
-            .into_iter()
-            .map(|p| p.1)
-            .collect::<Vec<_>>()))?;
+        let delegated_puzzle = self.0.lock().unwrap().alloc(&clvm_quote!(
+            conditions.into_iter().map(|p| p.1).collect::<Vec<_>>()
+        ))?;
         Ok(Spend {
             puzzle: Program(self.0.clone(), delegated_puzzle),
             solution: Program(self.0.clone(), NodePtr::NIL),
@@ -104,7 +106,7 @@ impl Clvm {
 
         let notarized_payments = notarized_payments
             .into_iter()
-            .map(|p| p.as_ptr(&ctx))
+            .map(Into::into)
             .collect::<Vec<_>>();
 
         let spend = SettlementLayer.construct_spend(
@@ -484,14 +486,14 @@ impl Clvm {
 
     pub fn payment(&self, value: Payment) -> Result<Program> {
         let mut ctx = self.0.lock().unwrap();
-        let ptr = value.as_ptr(&ctx);
+        let ptr: offer::Payment = value.into();
         let ptr = ctx.alloc(&ptr)?;
         Ok(Program(self.0.clone(), ptr))
     }
 
     pub fn notarized_payment(&self, value: NotarizedPayment) -> Result<Program> {
         let mut ctx = self.0.lock().unwrap();
-        let ptr = value.as_ptr(&ctx);
+        let ptr: offer::NotarizedPayment = value.into();
         let ptr = ctx.alloc(&ptr)?;
         Ok(Program(self.0.clone(), ptr))
     }

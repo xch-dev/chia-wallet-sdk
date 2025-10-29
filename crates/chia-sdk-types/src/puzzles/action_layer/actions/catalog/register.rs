@@ -9,7 +9,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use hex_literal::hex;
 
-use crate::{puzzles::ANY_METADATA_UPDATER_HASH, Mod};
+use crate::{Mod, puzzles::ANY_METADATA_UPDATER_HASH};
 
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]

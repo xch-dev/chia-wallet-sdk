@@ -3,10 +3,10 @@ use std::fmt::Debug;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
 use chia_sdk_types::{
+    Conditions,
     conditions::{
         AssertPuzzleAnnouncement, CreateCoin, NewMetadataOutput, TransferNft, UpdateNftMetadata,
     },
-    Conditions,
 };
 use clvm_traits::clvm_list;
 use clvmr::NodePtr;

@@ -7,7 +7,7 @@ use chia_sdk_types::{
     },
 };
 use clvm_traits::{FromClvm, ToClvm};
-use clvmr::{reduction::Reduction, run_program, Allocator, ChiaDialect, NodePtr};
+use clvmr::{Allocator, ChiaDialect, NodePtr, reduction::Reduction, run_program};
 
 #[derive(Debug, Default, Clone)]
 pub struct Announcements {

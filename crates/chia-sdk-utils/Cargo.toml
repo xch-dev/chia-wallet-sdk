@@ -1,7 +1,7 @@
 [package]
 name = "chia-sdk-utils"
-version = "0.30.0"
-edition = "2021"
+version = "0.31.0"
+edition = "2024"
 license = "Apache-2.0"
 description = "General utilities for the chia-wallet-sdk."
 authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
@@ -21,6 +21,7 @@ bech32 = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 indexmap = { workspace = true }
+hex = { workspace = true }
 
 [dev-dependencies]
 hex-literal = { workspace = true }

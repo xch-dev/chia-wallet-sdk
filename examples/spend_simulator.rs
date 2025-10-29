@@ -1,10 +1,7 @@
-use chia_protocol::Coin;
-use chia_puzzle_types::Memos;
-use chia_sdk_driver::{SpendContext, StandardLayer};
-use chia_sdk_test::Simulator;
-use chia_sdk_types::Conditions;
+use anyhow::Result;
+use chia_wallet_sdk::prelude::*;
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<()> {
     // Create the simulator server and connect the peer client.
     let mut sim = Simulator::new();
 

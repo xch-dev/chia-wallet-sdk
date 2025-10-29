@@ -5,7 +5,7 @@ use chia_consensus::spendbundle_conditions::get_conditions_from_spendbundle;
 use chia_protocol::{CoinSpend, SpendBundle};
 use chia_sdk_types::TESTNET11_CONSTANTS;
 use clvmr::Allocator;
-use prettytable::{row, Table};
+use prettytable::{Table, row};
 
 use crate::Simulator;
 
@@ -68,7 +68,7 @@ impl Benchmark {
             let data_min = sorted[0];
             let data_max = sorted[sorted.len() - 1];
 
-            let data_median = if sorted.len() % 2 == 0 {
+            let data_median = if sorted.len().is_multiple_of(2) {
                 (sorted[sorted.len() / 2] + sorted[sorted.len() / 2 - 1]) as f64 / 2.0
             } else {
                 sorted[sorted.len() / 2] as f64

@@ -1,13 +1,13 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin};
 use chia_sdk_types::{
-    puzzles::{
-        P2MOfNDelegateDirectArgs, P2MOfNDelegateDirectSolution,
-        P2_M_OF_N_DELEGATE_DIRECT_PUZZLE_HASH,
-    },
     Condition, Conditions,
+    puzzles::{
+        P2_M_OF_N_DELEGATE_DIRECT_PUZZLE_HASH, P2MOfNDelegateDirectArgs,
+        P2MOfNDelegateDirectSolution,
+    },
 };
-use clvm_traits::{clvm_quote, FromClvm};
+use clvm_traits::{FromClvm, clvm_quote};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
