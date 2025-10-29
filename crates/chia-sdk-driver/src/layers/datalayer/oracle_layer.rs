@@ -20,7 +20,7 @@ impl OracleLayer {
     /// Creates a new [`OracleLayer`] if the fee is even.
     /// Returns `None` if the fee is odd, which would make the puzzle invalid.
     pub fn new(oracle_puzzle_hash: Bytes32, oracle_fee: u64) -> Option<Self> {
-        if oracle_fee % 2 != 0 {
+        if !oracle_fee.is_multiple_of(2) {
             return None;
         }
 

@@ -68,7 +68,7 @@ impl Benchmark {
             let data_min = sorted[0];
             let data_max = sorted[sorted.len() - 1];
 
-            let data_median = if sorted.len() % 2 == 0 {
+            let data_median = if sorted.len().is_multiple_of(2) {
                 (sorted[sorted.len() / 2] + sorted[sorted.len() / 2 - 1]) as f64 / 2.0
             } else {
                 sorted[sorted.len() / 2] as f64
