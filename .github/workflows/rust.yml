@@ -32,6 +32,9 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Fmt
+        run: cargo fmt --all -- --files-with-diff --check
+
       - name: Install cargo-workspaces
         run: cargo binstall cargo-workspaces --locked -y
 
@@ -67,9 +70,6 @@ jobs:
         run: |
           cargo binstall cargo-machete --locked -y
           cargo machete
-
-      - name: Fmt
-        run: cargo fmt --all -- --files-with-diff --check
 
       # - uses: rust-lang/crates-io-auth-action@v1
       #   if: startsWith(github.event.ref, 'refs/tags')
