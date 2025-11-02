@@ -264,6 +264,20 @@ impl Program {
         ))
     }
 
+    pub fn to_arg_list(&self) -> Result<Option<Vec<Program>>> {
+        let ctx = self.0.lock().unwrap();
+
+        let mut args = Vec::new();
+        let mut ptr = self.1;
+
+        while let Ok((first, rest)) = ctx.decode_curried_arg(&ptr) {
+            args.push(Program(self.0.clone(), first));
+            ptr = rest;
+        }
+
+        Ok(Some(args))
+    }
+
     pub fn to_pair(&self) -> Result<Option<Pair>> {
         let ctx = self.0.lock().unwrap();
 
