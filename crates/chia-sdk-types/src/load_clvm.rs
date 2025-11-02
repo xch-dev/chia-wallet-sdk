@@ -4,8 +4,11 @@ use chialisp::{
     classic::clvm_tools::clvmc::compile_clvm_text,
     compiler::{compiler::DefaultCompilerOpts, comptypes::CompilerOpts},
 };
+use clvm_traits::ToClvmError;
 use clvm_utils::{TreeHash, tree_hash};
 use clvmr::{Allocator, error::EvalErr, serde::node_to_bytes};
+use rue_diagnostic::{Source, SourceKind};
+use rue_options::CompilerOptions;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -21,6 +24,15 @@ pub enum LoadClvmError {
 
     #[error("Compiler error: {0}")]
     Compiler(String),
+
+    #[error("Conversion error: {0}")]
+    Conversion(#[from] ToClvmError),
+
+    #[error("Main not found")]
+    MainNotFound,
+
+    #[error("Export not found: {0}")]
+    ExportNotFound(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -29,12 +41,10 @@ pub struct Compilation {
     pub hash: TreeHash,
 }
 
-pub fn load_clvm<P: AsRef<Path>>(
-    path: P,
+pub fn compile_chialisp(
+    path: &Path,
     include_paths: &[String],
 ) -> Result<Compilation, LoadClvmError> {
-    let path = path.as_ref();
-
     let mut allocator = Allocator::new();
 
     let opts = Rc::new(DefaultCompilerOpts::new(
@@ -63,6 +73,42 @@ pub fn load_clvm<P: AsRef<Path>>(
     Ok(Compilation { reveal, hash })
 }
 
+pub fn compile_rue(
+    path: &Path,
+    debug: bool,
+    export_name: Option<String>,
+) -> Result<Compilation, LoadClvmError> {
+    let mut allocator = Allocator::new();
+
+    let text = fs::read_to_string(path)?;
+
+    let compilation = rue_compiler::compile_file(
+        &mut allocator,
+        Source::new(text.into(), SourceKind::File("main.rue".to_string())),
+        if debug {
+            CompilerOptions::debug()
+        } else {
+            CompilerOptions::default()
+        },
+    )
+    .map_err(|error| LoadClvmError::Compiler(error.to_string()))?;
+
+    let ptr = if let Some(export_name) = export_name {
+        compilation
+            .exports
+            .get(&export_name)
+            .copied()
+            .ok_or(LoadClvmError::ExportNotFound(export_name))?
+    } else {
+        compilation.main.ok_or(LoadClvmError::MainNotFound)?
+    };
+
+    let hash = tree_hash(&allocator, ptr);
+    let reveal = node_to_bytes(&allocator, ptr)?;
+
+    Ok(Compilation { reveal, hash })
+}
+
 #[cfg(test)]
 mod tests {
     use std::{borrow::Cow, sync::LazyLock};
@@ -76,7 +122,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_load_clvm() -> anyhow::Result<()> {
+    fn test_compile_chialisp() -> anyhow::Result<()> {
         #[derive(Debug, Clone, PartialEq, Eq, Hash, ToClvm, FromClvm)]
         #[clvm(curry)]
         struct TestArgs {
@@ -85,12 +131,53 @@ mod tests {
         }
 
         static TEST_MOD: LazyLock<Compilation> = LazyLock::new(|| {
-            load_clvm(
-                "load_clvm_test.clsp",
+            compile_chialisp(
+                Path::new("compile_chialisp_test.clsp"),
                 &[".".to_string(), "include".to_string()],
             )
             .unwrap()
         });
+
+        impl Mod for TestArgs {
+            fn mod_reveal() -> Cow<'static, [u8]> {
+                Cow::Owned(TEST_MOD.reveal.clone())
+            }
+
+            fn mod_hash() -> TreeHash {
+                TEST_MOD.hash
+            }
+        }
+
+        let args = TestArgs { a: 10, b: 20 };
+
+        let mut allocator = Allocator::new();
+
+        let mod_ptr = node_from_bytes(&mut allocator, TestArgs::mod_reveal().as_ref())?;
+
+        let ptr = CurriedProgram {
+            program: mod_ptr,
+            args,
+        }
+        .to_clvm(&mut allocator)?;
+
+        let output = run_puzzle(&mut allocator, ptr, NodePtr::NIL)?;
+
+        assert_eq!(hex::encode(node_to_bytes(&allocator, output)?), "8200e6");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_compile_rue() -> anyhow::Result<()> {
+        #[derive(Debug, Clone, PartialEq, Eq, Hash, ToClvm, FromClvm)]
+        #[clvm(curry)]
+        struct TestArgs {
+            a: u64,
+            b: u64,
+        }
+
+        static TEST_MOD: LazyLock<Compilation> =
+            LazyLock::new(|| compile_rue(Path::new("compile_rue_test.rue"), true, None).unwrap());
 
         impl Mod for TestArgs {
             fn mod_reveal() -> Cow<'static, [u8]> {
