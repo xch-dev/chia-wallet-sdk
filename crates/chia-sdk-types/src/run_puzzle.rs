@@ -1,4 +1,7 @@
-use clvmr::{Allocator, NodePtr, error::EvalErr, reduction::Reduction};
+use clvmr::{
+    Allocator, ENABLE_KECCAK_OPS_OUTSIDE_GUARD, NodePtr, error::EvalErr, reduction::Reduction,
+};
+use rue_lir::DebugDialect;
 
 pub fn run_puzzle(
     allocator: &mut Allocator,
@@ -7,7 +10,7 @@ pub fn run_puzzle(
 ) -> Result<NodePtr, EvalErr> {
     let Reduction(_cost, output) = clvmr::run_program(
         allocator,
-        &clvmr::ChiaDialect::new(0),
+        &DebugDialect::new(ENABLE_KECCAK_OPS_OUTSIDE_GUARD, true),
         puzzle,
         solution,
         11_000_000_000,
