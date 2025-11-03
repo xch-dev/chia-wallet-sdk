@@ -372,18 +372,22 @@ impl Action {
                 let code = clvm.string(selector.to_string())?;
                 let value = clvm.string(uri.clone())?;
                 let solution = clvm.pair(code, value)?;
-                spends.push(Spend { puzzle: updater_puzzle.clone(), solution });
+                spends.push(Spend {
+                    puzzle: updater_puzzle.clone(),
+                    solution,
+                });
             }
         }
 
-        let transfer = if params.transfer_did_id.is_some() || !params.transfer_trade_prices.is_empty() {
-            Some(sdk::TransferNftById::new(
-                params.transfer_did_id.map(|d| d.0),
-                params.transfer_trade_prices,
-            ))
-        } else {
-            None
-        };
+        let transfer =
+            if params.transfer_did_id.is_some() || !params.transfer_trade_prices.is_empty() {
+                Some(sdk::TransferNftById::new(
+                    params.transfer_did_id.map(|d| d.0),
+                    params.transfer_trade_prices,
+                ))
+            } else {
+                None
+            };
 
         Ok(Self(sdk::Action::update_nft(
             id.0,
