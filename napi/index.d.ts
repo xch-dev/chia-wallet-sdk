@@ -7,6 +7,8 @@ export declare class Action {
   static issueCat(tailSpend: Spend, hiddenPuzzleHash: Uint8Array | undefined | null, amount: bigint): Action
   static singleIssueCat(hiddenPuzzleHash: Uint8Array | undefined | null, amount: bigint): Action
   static runTail(id: Id, tailSpend: Spend, supplyDelta: Delta): Action
+  static mintNft(clvm: Clvm, params: MintNftParams): Action
+  static updateNft(clvm: Clvm, id: Id, params: UpdateNftParams): Action
   static fee(amount: bigint): Action
 }
 
@@ -1531,6 +1533,23 @@ export declare class MintedNfts {
   set parentConditions(value: Array<Program>)
 }
 
+export declare class MintNftParams {
+  clone(): MintNftParams
+  constructor(metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number, parentDidId: Id | undefined | null, amount: bigint)
+  get metadata(): Program
+  set metadata(value: Program)
+  get metadataUpdaterPuzzleHash(): Buffer
+  set metadataUpdaterPuzzleHash(value: Uint8Array)
+  get royaltyPuzzleHash(): Buffer
+  set royaltyPuzzleHash(value: Uint8Array)
+  get royaltyBasisPoints(): number
+  set royaltyBasisPoints(value: number)
+  get parentDidId(): Id | null
+  set parentDidId(value?: Id | undefined | null)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+
 export declare class MipsMemo {
   clone(): MipsMemo
   constructor(innerPuzzle: InnerPuzzleMemo)
@@ -1804,6 +1823,8 @@ export declare class Outputs {
   xch(): Array<Coin>
   cats(): Array<Id>
   cat(id: Id): Array<Cat>
+  nfts(): Array<Id>
+  nft(id: Id): Nft
 }
 
 export declare class P2ParentCoin {
@@ -2658,6 +2679,7 @@ export declare class Spends {
   constructor(clvm: Clvm, changePuzzleHash: Uint8Array)
   addXch(coin: Coin): void
   addCat(cat: Cat): void
+  addNft(nft: Nft): void
   p2PuzzleHashes(): Array<Buffer>
   nonSettlementCoinIds(): Array<Buffer>
   addOptionalCondition(condition: Program): void
@@ -2806,6 +2828,21 @@ export declare class UpdateNftMetadata {
   set updaterPuzzleReveal(value: Program)
   get updaterSolution(): Program
   set updaterSolution(value: Program)
+}
+
+export declare class UpdateNftParams {
+  clone(): UpdateNftParams
+  constructor(newDataUri: string | undefined | null, newMetadataUri: string | undefined | null, newLicenseUri: string | undefined | null, transferDidId: Id | undefined | null, transferTradePrices: Array<TradePrice>)
+  get newDataUri(): string | null
+  set newDataUri(value?: string | undefined | null)
+  get newMetadataUri(): string | null
+  set newMetadataUri(value?: string | undefined | null)
+  get newLicenseUri(): string | null
+  set newLicenseUri(value?: string | undefined | null)
+  get transferDidId(): Id | null
+  set transferDidId(value?: Id | undefined | null)
+  get transferTradePrices(): Array<TradePrice>
+  set transferTradePrices(value: Array<TradePrice>)
 }
 
 export declare class Vault {
