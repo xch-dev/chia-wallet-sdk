@@ -373,13 +373,14 @@ impl Action {
         owner_id: Option<Id>,
         trade_prices: Vec<TradePrice>,
     ) -> Result<Self> {
-        let sdk_spends: Vec<sdk::Spend> = metadata_update_spends
-            .into_iter()
-            .map(Into::into)
-            .collect();
+        let sdk_spends: Vec<sdk::Spend> =
+            metadata_update_spends.into_iter().map(Into::into).collect();
 
         let transfer = if owner_id.is_some() || !trade_prices.is_empty() {
-            Some(sdk::TransferNftById::new(owner_id.map(|o| o.0), trade_prices))
+            Some(sdk::TransferNftById::new(
+                owner_id.map(|o| o.0),
+                trade_prices,
+            ))
         } else {
             None
         };
