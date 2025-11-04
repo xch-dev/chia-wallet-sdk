@@ -159,15 +159,21 @@
         "type": "factory",
         "args": {
           "clvm": "Clvm",
-          "params": "MintNftParams"
+          "metadata": "Program",
+          "metadata_updater_puzzle_hash": "Bytes32",
+          "royalty_puzzle_hash": "Bytes32",
+          "royalty_basis_points": "u16",
+          "amount": "u64",
+          "parent_id": "Option<Id>"
         }
       },
       "update_nft": {
         "type": "factory",
         "args": {
-          "clvm": "Clvm",
           "id": "Id",
-          "params": "UpdateNftParams"
+          "metadata_update_spends": "Vec<Spend>",
+          "owner_id": "Option<Id>",
+          "trade_prices": "Vec<TradePrice>"
         }
       },
       "fee": {
@@ -176,30 +182,6 @@
           "amount": "u64"
         }
       }
-    }
-  },
-  "MintNftParams": {
-    "type": "class",
-    "new": true,
-    "fields": {
-      "metadata": "Program",
-      "metadata_updater_puzzle_hash": "Bytes32",
-      "royalty_puzzle_hash": "Bytes32",
-      "royalty_basis_points": "u16",
-      "parent_did_id": "Option<Id>",
-      "amount": "u64"
-    },
-    "methods": {}
-  },
-  "UpdateNftParams": {
-    "type": "class",
-    "new": true,
-    "fields": {
-      "new_data_uri": "Option<String>",
-      "new_metadata_uri": "Option<String>",
-      "new_license_uri": "Option<String>",
-      "transfer_did_id": "Option<Id>",
-      "transfer_trade_prices": "Vec<TradePrice>"
     }
   },
   "Deltas": {

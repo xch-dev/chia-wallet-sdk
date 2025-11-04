@@ -334,66 +334,57 @@ impl Action {
         Ok(Self(sdk::Action::fee(amount)))
     }
 
-    pub fn mint_nft(clvm: Clvm, params: MintNftParams) -> Result<Self> {
+    pub fn mint_nft(
+        clvm: Clvm,
+        metadata: Program,
+        metadata_updater_puzzle_hash: Bytes32,
+        royalty_puzzle_hash: Bytes32,
+        royalty_basis_points: u16,
+        amount: u64,
+        parent_id: Option<Id>,
+    ) -> Result<Self> {
         let ctx = clvm.0.lock().unwrap();
-        let hashed: HashedPtr = params.metadata.as_ptr(&ctx);
+        let hashed: HashedPtr = metadata.as_ptr(&ctx);
 
-        let sdk_action = match &params.parent_did_id {
+        let sdk_action = match &parent_id {
             Some(parent) => sdk::Action::mint_nft_from_did(
                 parent.0,
                 hashed,
-                params.metadata_updater_puzzle_hash,
-                params.royalty_puzzle_hash,
-                params.royalty_basis_points,
-                params.amount,
+                metadata_updater_puzzle_hash,
+                royalty_puzzle_hash,
+                royalty_basis_points,
+                amount,
             ),
             None => sdk::Action::mint_nft(
                 hashed,
-                params.metadata_updater_puzzle_hash,
-                params.royalty_puzzle_hash,
-                params.royalty_basis_points,
-                params.amount,
+                metadata_updater_puzzle_hash,
+                royalty_puzzle_hash,
+                royalty_basis_points,
+                amount,
             ),
         };
 
         Ok(Self(sdk_action))
     }
 
-    pub fn update_nft(clvm: Clvm, id: Id, params: UpdateNftParams) -> Result<Self> {
-        let updater_puzzle = clvm.nft_metadata_updater_default()?;
+    pub fn update_nft(
+        id: Id,
+        metadata_update_spends: Vec<Spend>,
+        owner_id: Option<Id>,
+        trade_prices: Vec<TradePrice>,
+    ) -> Result<Self> {
+        let sdk_spends: Vec<sdk::Spend> = metadata_update_spends
+            .into_iter()
+            .map(Into::into)
+            .collect();
 
-        let mut spends: Vec<Spend> = Vec::new();
-        for (selector, uri_opt) in [
-            ("u", &params.new_data_uri),
-            ("mu", &params.new_metadata_uri),
-            ("lu", &params.new_license_uri),
-        ] {
-            if let Some(uri) = uri_opt.as_ref() {
-                let code = clvm.string(selector.to_string())?;
-                let value = clvm.string(uri.clone())?;
-                let solution = clvm.pair(code, value)?;
-                spends.push(Spend {
-                    puzzle: updater_puzzle.clone(),
-                    solution,
-                });
-            }
-        }
+        let transfer = if owner_id.is_some() || !trade_prices.is_empty() {
+            Some(sdk::TransferNftById::new(owner_id.map(|o| o.0), trade_prices))
+        } else {
+            None
+        };
 
-        let transfer =
-            if params.transfer_did_id.is_some() || !params.transfer_trade_prices.is_empty() {
-                Some(sdk::TransferNftById::new(
-                    params.transfer_did_id.map(|d| d.0),
-                    params.transfer_trade_prices,
-                ))
-            } else {
-                None
-            };
-
-        Ok(Self(sdk::Action::update_nft(
-            id.0,
-            spends.into_iter().map(Into::into).collect(),
-            transfer,
-        )))
+        Ok(Self(sdk::Action::update_nft(id.0, sdk_spends, transfer)))
     }
 }
 
@@ -491,23 +482,4 @@ impl Outputs {
             .ok_or_else(|| bindy::Error::Custom("NFT not found in outputs".to_string()))?;
         Ok(sdk_nft.as_program(&self.clvm))
     }
-}
-
-#[derive(Clone)]
-pub struct MintNftParams {
-    pub metadata: Program,
-    pub metadata_updater_puzzle_hash: Bytes32,
-    pub royalty_puzzle_hash: Bytes32,
-    pub royalty_basis_points: u16,
-    pub parent_did_id: Option<Id>,
-    pub amount: u64,
-}
-
-#[derive(Clone)]
-pub struct UpdateNftParams {
-    pub new_data_uri: Option<String>,
-    pub new_metadata_uri: Option<String>,
-    pub new_license_uri: Option<String>,
-    pub transfer_did_id: Option<Id>,
-    pub transfer_trade_prices: Vec<TradePrice>,
 }
