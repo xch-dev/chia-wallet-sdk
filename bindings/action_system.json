@@ -172,8 +172,7 @@
         "args": {
           "id": "Id",
           "metadata_update_spends": "Vec<Spend>",
-          "owner_id": "Option<Id>",
-          "trade_prices": "Vec<TradePrice>"
+          "transfer": "Option<TransferNftById>"
         }
       },
       "fee": {
@@ -279,6 +278,14 @@
         },
         "return": "Nft"
       }
+    }
+  },
+  "TransferNftById": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "owner_id": "Option<Id>",
+      "trade_prices": "Vec<TradePrice>"
     }
   }
 }

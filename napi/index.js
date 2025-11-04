@@ -580,6 +580,7 @@ module.exports.SyncState = nativeBinding.SyncState
 module.exports.TradePrice = nativeBinding.TradePrice
 module.exports.TransactionsInfo = nativeBinding.TransactionsInfo
 module.exports.TransferNft = nativeBinding.TransferNft
+module.exports.TransferNftById = nativeBinding.TransferNftById
 module.exports.UpdateDataStoreMerkleRoot = nativeBinding.UpdateDataStoreMerkleRoot
 module.exports.UpdateNftMetadata = nativeBinding.UpdateNftMetadata
 module.exports.Vault = nativeBinding.Vault

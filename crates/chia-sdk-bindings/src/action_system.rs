@@ -370,20 +370,13 @@ impl Action {
     pub fn update_nft(
         id: Id,
         metadata_update_spends: Vec<Spend>,
-        owner_id: Option<Id>,
-        trade_prices: Vec<TradePrice>,
+        transfer: Option<TransferNftById>,
     ) -> Result<Self> {
         let sdk_spends: Vec<sdk::Spend> =
             metadata_update_spends.into_iter().map(Into::into).collect();
 
-        let transfer = if owner_id.is_some() || !trade_prices.is_empty() {
-            Some(sdk::TransferNftById::new(
-                owner_id.map(|o| o.0),
-                trade_prices,
-            ))
-        } else {
-            None
-        };
+        let transfer =
+            transfer.map(|t| sdk::TransferNftById::new(t.owner_id.map(|o| o.0), t.trade_prices));
 
         Ok(Self(sdk::Action::update_nft(id.0, sdk_spends, transfer)))
     }
@@ -483,4 +476,10 @@ impl Outputs {
             .ok_or_else(|| bindy::Error::Custom("NFT not found in outputs".to_string()))?;
         Ok(sdk_nft.as_program(&self.clvm))
     }
+}
+
+#[derive(Clone)]
+pub struct TransferNftById {
+    pub owner_id: Option<Id>,
+    pub trade_prices: Vec<TradePrice>,
 }
