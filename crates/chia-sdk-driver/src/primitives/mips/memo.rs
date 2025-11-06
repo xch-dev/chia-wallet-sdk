@@ -16,12 +16,14 @@ pub use parsed_wrapper::*;
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
-    Mod,
+    MerkleTree, Mod,
     puzzles::{
         BlsMember, BlsMemberPuzzleAssert, BlsTaprootMember, BlsTaprootMemberPuzzleAssert,
-        EnforceDelegatedPuzzleWrappers, FixedPuzzleMember, Force1of2RestrictedVariable, K1Member,
-        K1MemberPuzzleAssert, PasskeyMember, PasskeyMemberPuzzleAssert, PreventConditionOpcode,
-        R1Member, R1MemberPuzzleAssert, SingletonMember, SingletonMemberWithMode, Timelock,
+        DelegatedPuzzleFeederArgs, EnforceDelegatedPuzzleWrappers, FixedPuzzleMember,
+        Force1of2RestrictedVariable, IndexWrapperArgs, K1Member, K1MemberPuzzleAssert, MofNArgs,
+        NofNArgs, OneOfNArgs, PasskeyMember, PasskeyMemberPuzzleAssert, PreventConditionOpcode,
+        R1Member, R1MemberPuzzleAssert, RestrictionsArgs, SingletonMember, SingletonMemberWithMode,
+        Timelock,
     },
 };
 use chia_secp::{K1PublicKey, R1PublicKey};
@@ -45,6 +47,10 @@ impl MipsMemo<NodePtr> {
     pub fn new(inner_puzzle: InnerPuzzleMemo) -> Self {
         Self { inner_puzzle }
     }
+
+    pub fn inner_puzzle_hash(&self) -> TreeHash {
+        self.inner_puzzle.inner_puzzle_hash(true)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
@@ -63,6 +69,33 @@ impl InnerPuzzleMemo<NodePtr> {
             restrictions,
             kind,
         }
+    }
+
+    pub fn inner_puzzle_hash(&self, top_level: bool) -> TreeHash {
+        let mut puzzle_hash = self.kind.inner_puzzle_hash();
+
+        if !self.restrictions.is_empty() {
+            let mut member_validators: Vec<TreeHash> = Vec::new();
+            let mut delegated_puzzle_validators: Vec<TreeHash> = Vec::new();
+
+            for restriction in &self.restrictions {
+                if restriction.member_condition_validator {
+                    member_validators.push(restriction.puzzle_hash.into());
+                } else {
+                    delegated_puzzle_validators.push(restriction.puzzle_hash.into());
+                }
+            }
+
+            puzzle_hash =
+                RestrictionsArgs::new(member_validators, delegated_puzzle_validators, puzzle_hash)
+                    .curry_tree_hash();
+        }
+
+        if top_level {
+            puzzle_hash = DelegatedPuzzleFeederArgs::new(puzzle_hash).curry_tree_hash();
+        }
+
+        IndexWrapperArgs::new(self.nonce, puzzle_hash).curry_tree_hash()
     }
 }
 
@@ -325,6 +358,15 @@ pub enum MemoKind<T = NodePtr> {
     MofN(MofNMemo<T>),
 }
 
+impl MemoKind<NodePtr> {
+    pub fn inner_puzzle_hash(&self) -> TreeHash {
+        match self {
+            Self::Member(member) => member.puzzle_hash.into(),
+            Self::MofN(m_of_n) => m_of_n.inner_puzzle_hash(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct MemberMemo<T = NodePtr> {
@@ -561,6 +603,29 @@ pub struct MofNMemo<T = NodePtr> {
 impl MofNMemo<NodePtr> {
     pub fn new(required: usize, items: Vec<InnerPuzzleMemo>) -> Self {
         Self { required, items }
+    }
+
+    pub fn inner_puzzle_hash(&self) -> TreeHash {
+        let leaves = self
+            .items
+            .iter()
+            .map(|member| member.inner_puzzle_hash(false).into())
+            .collect::<Vec<_>>();
+        let merkle_tree = MerkleTree::new(&leaves);
+
+        if self.required == 1 {
+            OneOfNArgs::new(merkle_tree.root()).curry_tree_hash()
+        } else if self.required == self.items.len() {
+            NofNArgs::new(
+                self.items
+                    .iter()
+                    .map(|member| member.inner_puzzle_hash(false))
+                    .collect(),
+            )
+            .curry_tree_hash()
+        } else {
+            MofNArgs::new(self.required, merkle_tree.root()).curry_tree_hash()
+        }
     }
 }
 
