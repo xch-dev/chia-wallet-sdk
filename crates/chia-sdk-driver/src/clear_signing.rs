@@ -22,7 +22,7 @@ pub struct VaultSpendReveal {
     pub launcher_id: Bytes32,
     /// The inner puzzle hash of the vault singleton.
     /// This is used to construct the puzzle hash we're signing for.
-    pub custody_hash: Bytes32,
+    pub custody_hash: TreeHash,
     /// The delegated puzzle we're signing and its solution.
     /// Its output is the non-custody related conditions that the vault spend will output.
     pub delegated_spend: Spend,
@@ -31,7 +31,7 @@ pub struct VaultSpendReveal {
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
 /// as a result of a transaction at a glance. Information that is not verifiable should not be included or displayed.
 /// We can still allow transactions which are not fully verifiable, but a conservative summary should be provided.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VaultTransaction {
     /// If a new vault coin is created (i.e. the vault isn't melted), this will be set.
     /// It's the new inner puzzle hash of the vault singleton. If it's different, the custody configuration has changed.
@@ -54,7 +54,7 @@ pub struct VaultTransaction {
     pub total_fee: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedPayment {
     /// The asset id, if applicable. This may be [`None`] for XCH, or [`Some`] for a CAT or singleton asset.
     pub asset_id: Option<Bytes32>,
@@ -194,7 +194,7 @@ impl VaultTransaction {
 
                     total_output += child.coin.amount;
 
-                    if is_child_ours {
+                    if is_parent_ours {
                         our_output += child.coin.amount;
                     }
 
@@ -263,7 +263,7 @@ impl VaultTransaction {
 
                     total_output += child_coin.amount;
 
-                    if is_child_ours {
+                    if is_parent_ours {
                         our_output += child_coin.amount;
                     }
 
@@ -410,17 +410,33 @@ mod tests {
         let mut ctx = SpendContext::new();
 
         let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+        let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
 
-        alice.spend(
+        let result = alice.spend(
             &mut sim,
             &mut ctx,
-            &[Action::send(
-                Id::Xch,
-                alice.puzzle_hash(),
-                1000,
-                Memos::None,
-            )],
+            &[
+                Action::send(Id::Xch, bob.puzzle_hash(), 800, Memos::None),
+                Action::fee(200),
+            ],
         )?;
+
+        let reveal = VaultSpendReveal {
+            launcher_id: alice.launcher_id(),
+            custody_hash: alice.custody_hash(),
+            delegated_spend: result.delegated_spend,
+        };
+
+        let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
+        assert_eq!(tx.new_custody_hash, Some(alice.custody_hash()));
+        assert_eq!(tx.sent_payments.len(), 1);
+        assert_eq!(tx.received_payments, []);
+        assert_eq!(tx.fee_paid, 200);
+        assert_eq!(tx.total_fee, 200);
+
+        let payment = &tx.sent_payments[0];
+        assert_eq!(payment.p2_puzzle_hash, bob.puzzle_hash());
+        assert_eq!(payment.coin.amount, 800);
 
         Ok(())
     }

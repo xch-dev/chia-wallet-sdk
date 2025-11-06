@@ -35,4 +35,4 @@ pub use spend_with_conditions::*;
 mod test_wallet;
 
 #[cfg(test)]
-pub(crate) use test_wallet::*;
+pub use test_wallet::*;
