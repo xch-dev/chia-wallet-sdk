@@ -7,13 +7,13 @@ use bindy::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{Memos, offer::SettlementPaymentsSolution};
 use chia_sdk_driver::{
-    self as sdk, Cat, Delta, Layer, Relation, SettlementLayer, SpendContext, SpendKind,
+    self as sdk, Cat, Delta, HashedPtr, Layer, Relation, SettlementLayer, SpendContext, SpendKind,
 };
-use chia_sdk_types::Condition;
+use chia_sdk_types::{Condition, conditions::TradePrice};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
 
-use crate::{AsProgram, Clvm, Did, Nft, NotarizedPayment, OptionContract, Program, Spend};
+use crate::{AsProgram, AsPtr, Clvm, Did, Nft, NotarizedPayment, OptionContract, Program, Spend};
 
 #[derive(Clone)]
 pub struct Spends {
@@ -37,6 +37,14 @@ impl Spends {
 
     pub fn add_cat(&self, cat: Cat) -> Result<()> {
         self.spends.lock().unwrap().add(cat);
+
+        Ok(())
+    }
+
+    pub fn add_nft(&self, nft: Nft) -> Result<()> {
+        let ctx = self.clvm.lock().unwrap();
+        let sdk_nft = nft.as_ptr(&ctx);
+        self.spends.lock().unwrap().add(sdk_nft);
 
         Ok(())
     }
@@ -215,7 +223,10 @@ impl FinishedSpends {
         let finished = self.finished.lock().unwrap().clone();
 
         let outputs = spends.spend(&mut ctx, finished)?;
-        Ok(Outputs(outputs))
+        Ok(Outputs {
+            inner: outputs,
+            clvm: self.clvm.clone(),
+        })
     }
 }
 
@@ -322,6 +333,53 @@ impl Action {
     pub fn fee(amount: u64) -> Result<Self> {
         Ok(Self(sdk::Action::fee(amount)))
     }
+
+    pub fn mint_nft(
+        clvm: Clvm,
+        metadata: Program,
+        metadata_updater_puzzle_hash: Bytes32,
+        royalty_puzzle_hash: Bytes32,
+        royalty_basis_points: u16,
+        amount: u64,
+        parent_id: Option<Id>,
+    ) -> Result<Self> {
+        let ctx = clvm.0.lock().unwrap();
+        let hashed: HashedPtr = metadata.as_ptr(&ctx);
+
+        let sdk_action = match &parent_id {
+            Some(parent) => sdk::Action::mint_nft_from_did(
+                parent.0,
+                hashed,
+                metadata_updater_puzzle_hash,
+                royalty_puzzle_hash,
+                royalty_basis_points,
+                amount,
+            ),
+            None => sdk::Action::mint_nft(
+                hashed,
+                metadata_updater_puzzle_hash,
+                royalty_puzzle_hash,
+                royalty_basis_points,
+                amount,
+            ),
+        };
+
+        Ok(Self(sdk_action))
+    }
+
+    pub fn update_nft(
+        id: Id,
+        metadata_update_spends: Vec<Spend>,
+        transfer: Option<TransferNftById>,
+    ) -> Result<Self> {
+        let sdk_spends: Vec<sdk::Spend> =
+            metadata_update_spends.into_iter().map(Into::into).collect();
+
+        let transfer =
+            transfer.map(|t| sdk::TransferNftById::new(t.owner_id.map(|o| o.0), t.trade_prices));
+
+        Ok(Self(sdk::Action::update_nft(id.0, sdk_spends, transfer)))
+    }
 }
 
 #[derive(Clone)]
@@ -387,18 +445,41 @@ impl Id {
 }
 
 #[derive(Clone)]
-pub struct Outputs(sdk::Outputs);
+pub struct Outputs {
+    inner: sdk::Outputs,
+    clvm: Arc<Mutex<SpendContext>>,
+}
 
 impl Outputs {
     pub fn xch(&self) -> Result<Vec<Coin>> {
-        Ok(self.0.xch.clone())
+        Ok(self.inner.xch.clone())
     }
 
     pub fn cats(&self) -> Result<Vec<Id>> {
-        Ok(self.0.cats.keys().copied().map(Id).collect())
+        Ok(self.inner.cats.keys().copied().map(Id).collect())
     }
 
     pub fn cat(&self, id: Id) -> Result<Vec<Cat>> {
-        Ok(self.0.cats.get(&id.0).cloned().unwrap_or_default())
+        Ok(self.inner.cats.get(&id.0).cloned().unwrap_or_default())
     }
+
+    pub fn nfts(&self) -> Result<Vec<Id>> {
+        Ok(self.inner.nfts.keys().copied().map(Id).collect())
+    }
+
+    pub fn nft(&self, id: Id) -> Result<Nft> {
+        let sdk_nft = self
+            .inner
+            .nfts
+            .get(&id.0)
+            .cloned()
+            .ok_or_else(|| bindy::Error::Custom("NFT not found in outputs".to_string()))?;
+        Ok(sdk_nft.as_program(&self.clvm))
+    }
+}
+
+#[derive(Clone)]
+pub struct TransferNftById {
+    pub owner_id: Option<Id>,
+    pub trade_prices: Vec<TradePrice>,
 }

@@ -7,6 +7,8 @@ export declare class Action {
   static issueCat(tailSpend: Spend, hiddenPuzzleHash: Uint8Array | undefined | null, amount: bigint): Action
   static singleIssueCat(hiddenPuzzleHash: Uint8Array | undefined | null, amount: bigint): Action
   static runTail(id: Id, tailSpend: Spend, supplyDelta: Delta): Action
+  static mintNft(clvm: Clvm, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number, amount: bigint, parentId?: Id | undefined | null): Action
+  static updateNft(id: Id, metadataUpdateSpends: Array<Spend>, transfer?: TransferNftById | undefined | null): Action
   static fee(amount: bigint): Action
 }
 
@@ -1804,6 +1806,8 @@ export declare class Outputs {
   xch(): Array<Coin>
   cats(): Array<Id>
   cat(id: Id): Array<Cat>
+  nfts(): Array<Id>
+  nft(id: Id): Nft
 }
 
 export declare class P2ParentCoin {
@@ -2658,6 +2662,7 @@ export declare class Spends {
   constructor(clvm: Clvm, changePuzzleHash: Uint8Array)
   addXch(coin: Coin): void
   addCat(cat: Cat): void
+  addNft(nft: Nft): void
   p2PuzzleHashes(): Array<Buffer>
   nonSettlementCoinIds(): Array<Buffer>
   addOptionalCondition(condition: Program): void
@@ -2788,6 +2793,15 @@ export declare class TransferNft {
   set tradePrices(value: Array<TradePrice>)
   get singletonInnerPuzzleHash(): Buffer | null
   set singletonInnerPuzzleHash(value?: Uint8Array | undefined | null)
+}
+
+export declare class TransferNftById {
+  clone(): TransferNftById
+  constructor(ownerId: Id | undefined | null, tradePrices: Array<TradePrice>)
+  get ownerId(): Id | null
+  set ownerId(value?: Id | undefined | null)
+  get tradePrices(): Array<TradePrice>
+  set tradePrices(value: Array<TradePrice>)
 }
 
 export declare class UpdateDataStoreMerkleRoot {
