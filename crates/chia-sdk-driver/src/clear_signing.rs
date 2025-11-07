@@ -108,6 +108,8 @@ pub enum TransferType {
     Sent,
     /// Instead of being [`TransferType::Sent`], this is being sent to the burn address.
     Burned,
+    /// Instead of being [`TransferType::Sent`], this is being sent to the settlement payments.
+    Offered,
     /// These are payments to the vault's p2 puzzle hash that are output from offer settlement coins.
     /// Change coins and non-offer payments are excluded, since their authenticity cannot be easily verified off-chain.
     /// An offer payment is also excluded if its notarized payment announcement id is not asserted by a coin spend authorized by the vault.
@@ -667,6 +669,8 @@ fn calculate_transfer_type(
         // Therefore, it's a valid sent payment
         if p2_puzzle_hash == BURN_PUZZLE_HASH {
             Some(TransferType::Burned)
+        } else if p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
+            Some(TransferType::Offered)
         } else {
             Some(TransferType::Sent)
         }

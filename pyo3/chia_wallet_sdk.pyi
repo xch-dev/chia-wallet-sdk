@@ -198,8 +198,9 @@ class ParsedNftTransfer:
 class TransferType(IntEnum):
     Sent = 0
     Burned = 1
-    Received = 2
-    Updated = 3
+    Offered = 2
+    Received = 3
+    Updated = 4
 class DropCoin:
     def clone(self) -> DropCoin: ...
     def __init__(self, puzzleHash: bytes, amount: int) -> None: ...
