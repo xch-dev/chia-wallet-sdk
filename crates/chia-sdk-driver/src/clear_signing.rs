@@ -1,7 +1,10 @@
 use std::collections::HashSet;
 
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
-use chia_puzzle_types::{Memos, offer::SettlementPaymentsSolution};
+use chia_puzzle_types::{
+    Memos,
+    offer::{NotarizedPayment, SettlementPaymentsSolution},
+};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
     Condition, MessageFlags, MessageSide, Mod, announcement_id, conditions::CreateCoin,
@@ -10,6 +13,7 @@ use chia_sdk_types::{
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
+use indexmap::IndexMap;
 
 use crate::{Cat, ClawbackV2, DriverError, MetadataUpdate, Puzzle, Spend, mips_puzzle_hash};
 
@@ -40,6 +44,8 @@ pub struct VaultTransaction {
     pub payments: Vec<ParsedPayment>,
     /// NFT transfers that are relevant to the vault and can be verified to exist if the signature is used.
     pub nfts: Vec<ParsedNftTransfer>,
+    /// Coins which were created as outputs of the vault singleton spend itself, for example to mint NFTs.
+    pub drop_coins: Vec<DropCoin>,
     /// Total fees (different between input and output amounts) paid by coin spends authorized by the vault.
     /// If the transaction is signed, the fee is guaranteed to be at least this amount, unless it's not reserved.
     /// The reason to include unreserved fees is to make it clear that the XCH is leaving the vault due to this transaction.
@@ -106,6 +112,12 @@ pub enum TransferType {
     Updated,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DropCoin {
+    pub puzzle_hash: Bytes32,
+    pub amount: u64,
+}
+
 impl VaultTransaction {
     pub fn parse(
         allocator: &mut Allocator,
@@ -114,28 +126,28 @@ impl VaultTransaction {
     ) -> Result<Self, DriverError> {
         let our_p2_puzzle_hash = vault_p2_puzzle_hash(vault.launcher_id);
 
+        let all_spent_coin_ids = coin_spends.iter().map(|cs| cs.coin.coin_id()).collect();
+
         let ParsedDelegatedSpend {
             new_custody_hash,
             our_spent_coin_ids,
             puzzle_assertion_ids,
-        } = parse_delegated_spend(
-            allocator,
-            vault.delegated_spend,
-            &coin_spends.iter().map(|cs| cs.coin.coin_id()).collect(),
-        )?;
+            drop_coins,
+        } = parse_delegated_spend(allocator, vault.delegated_spend, &all_spent_coin_ids)?;
 
         let ParsedConditions {
             puzzle_assertion_ids,
         } = parse_our_conditions(
             allocator,
-            coin_spends
-                .iter()
-                .filter(|cs| our_spent_coin_ids.contains(&cs.coin.coin_id())),
+            &coin_spends,
+            &our_spent_coin_ids,
             puzzle_assertion_ids,
         )?;
 
+        let coin_spends = reorder_coin_spends(coin_spends);
+
         let mut payments = Vec::new();
-        let mut nfts = Vec::new();
+        let mut nfts = IndexMap::<Bytes32, ParsedNftTransfer>::new();
         let mut our_input = 0;
         let mut our_output = 0;
         let mut total_input = 0;
@@ -172,12 +184,10 @@ impl VaultTransaction {
 
                 let notarized_payments =
                     if cat.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
-                        Some(
-                            SettlementPaymentsSolution::from_clvm(allocator, p2_solution)?
-                                .notarized_payments,
-                        )
+                        SettlementPaymentsSolution::from_clvm(allocator, p2_solution)?
+                            .notarized_payments
                     } else {
-                        None
+                        Vec::new()
                     };
 
                 for child in children {
@@ -196,42 +206,27 @@ impl VaultTransaction {
                         continue;
                     }
 
-                    let parsed_payment = ParsedPayment {
-                        transfer_type: TransferType::Sent,
-                        asset_id: Some(child.info.asset_id),
-                        hidden_puzzle_hash: child.info.hidden_puzzle_hash,
-                        p2_puzzle_hash: parsed_memos.p2_puzzle_hash,
-                        coin: child.coin,
-                        clawback: parsed_memos.clawback,
-                        memos: parsed_memos.memos,
-                    };
-
-                    // Don't add change coins to the payment list, or received payments
-                    // that aren't from verifiable offer payments
-                    if is_parent_ours && !is_child_ours {
-                        payments.push(parsed_payment);
-                    } else if !is_parent_ours
-                        && is_child_ours
-                        && let Some(notarized_payments) = &notarized_payments
-                        && let Some(notarized_payment) = notarized_payments.iter().find(|np| {
-                            np.payments.iter().any(|p| {
-                                p.puzzle_hash == create_coin.puzzle_hash
-                                    && p.amount == create_coin.amount
-                            })
-                        })
-                    {
-                        let notarized_payment_hash =
-                            tree_hash_notarized_payment(allocator, notarized_payment);
-
-                        let settlement_announcement_id =
-                            announcement_id(cat.coin.puzzle_hash, notarized_payment_hash);
-
-                        if puzzle_assertion_ids.contains(&settlement_announcement_id) {
-                            payments.push(ParsedPayment {
-                                transfer_type: TransferType::Received,
-                                ..parsed_payment
-                            });
-                        }
+                    if let Some(transfer_type) = calculate_transfer_type(
+                        allocator,
+                        TransferTypeContext {
+                            puzzle_assertion_ids: &puzzle_assertion_ids,
+                            notarized_payments: &notarized_payments,
+                            create_coin: &create_coin,
+                            full_puzzle_hash: cat.coin.puzzle_hash,
+                            is_parent_ours,
+                            is_child_ours,
+                            is_fungible: true,
+                        },
+                    ) {
+                        payments.push(ParsedPayment {
+                            transfer_type,
+                            asset_id: Some(child.info.asset_id),
+                            hidden_puzzle_hash: child.info.hidden_puzzle_hash,
+                            p2_puzzle_hash: parsed_memos.p2_puzzle_hash,
+                            coin: child.coin,
+                            clawback: parsed_memos.clawback,
+                            memos: parsed_memos.memos,
+                        });
                     }
                 }
             } else {
@@ -240,15 +235,13 @@ impl VaultTransaction {
                     .filter_map(Condition::into_create_coin)
                     .collect::<Vec<_>>();
 
-                let notarized_payments =
-                    if coin_spend.coin.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
-                        Some(
-                            SettlementPaymentsSolution::from_clvm(allocator, solution)?
-                                .notarized_payments,
-                        )
-                    } else {
-                        None
-                    };
+                let notarized_payments = if coin_spend.coin.puzzle_hash
+                    == SETTLEMENT_PAYMENT_HASH.into()
+                {
+                    SettlementPaymentsSolution::from_clvm(allocator, solution)?.notarized_payments
+                } else {
+                    Vec::new()
+                };
 
                 for create_coin in create_coins {
                     let child_coin = Coin::new(
@@ -271,41 +264,27 @@ impl VaultTransaction {
                         continue;
                     }
 
-                    let parsed_payment = ParsedPayment {
-                        transfer_type: TransferType::Sent,
-                        asset_id: None,
-                        hidden_puzzle_hash: None,
-                        p2_puzzle_hash: parsed_memos.p2_puzzle_hash,
-                        coin: child_coin,
-                        clawback: parsed_memos.clawback,
-                        memos: parsed_memos.memos,
-                    };
-
-                    // Don't add change coins to the payment list
-                    if is_parent_ours && !is_child_ours {
-                        payments.push(parsed_payment);
-                    } else if !is_parent_ours
-                        && is_child_ours
-                        && let Some(notarized_payments) = &notarized_payments
-                        && let Some(notarized_payment) = notarized_payments.iter().find(|np| {
-                            np.payments.iter().any(|p| {
-                                p.puzzle_hash == create_coin.puzzle_hash
-                                    && p.amount == create_coin.amount
-                            })
-                        })
-                    {
-                        let notarized_payment_hash =
-                            tree_hash_notarized_payment(allocator, notarized_payment);
-
-                        let settlement_announcement_id =
-                            announcement_id(coin_spend.coin.puzzle_hash, notarized_payment_hash);
-
-                        if puzzle_assertion_ids.contains(&settlement_announcement_id) {
-                            payments.push(ParsedPayment {
-                                transfer_type: TransferType::Received,
-                                ..parsed_payment
-                            });
-                        }
+                    if let Some(transfer_type) = calculate_transfer_type(
+                        allocator,
+                        TransferTypeContext {
+                            puzzle_assertion_ids: &puzzle_assertion_ids,
+                            notarized_payments: &notarized_payments,
+                            create_coin: &create_coin,
+                            full_puzzle_hash: coin_spend.coin.puzzle_hash,
+                            is_parent_ours,
+                            is_child_ours,
+                            is_fungible: true,
+                        },
+                    ) {
+                        payments.push(ParsedPayment {
+                            transfer_type,
+                            asset_id: None,
+                            hidden_puzzle_hash: None,
+                            p2_puzzle_hash: parsed_memos.p2_puzzle_hash,
+                            coin: child_coin,
+                            clawback: parsed_memos.clawback,
+                            memos: parsed_memos.memos,
+                        });
                     }
                 }
             }
@@ -314,7 +293,8 @@ impl VaultTransaction {
         Ok(Self {
             new_custody_hash,
             payments,
-            nfts,
+            nfts: nfts.into_values().collect(),
+            drop_coins,
             fee_paid: our_input.saturating_sub(our_output),
             total_fee: total_input.saturating_sub(total_output),
         })
@@ -336,6 +316,7 @@ struct ParsedDelegatedSpend {
     new_custody_hash: Option<TreeHash>,
     our_spent_coin_ids: HashSet<Bytes32>,
     puzzle_assertion_ids: HashSet<Bytes32>,
+    drop_coins: Vec<DropCoin>,
 }
 
 fn parse_delegated_spend(
@@ -349,6 +330,7 @@ fn parse_delegated_spend(
     let mut new_custody_hash = None;
     let mut our_spent_coin_ids = HashSet::new();
     let mut puzzle_assertion_ids = HashSet::new();
+    let mut drop_coins = Vec::new();
 
     for condition in vault_conditions {
         match condition {
@@ -357,7 +339,10 @@ fn parse_delegated_spend(
                     // The vault singleton is being recreated
                     new_custody_hash = Some(condition.puzzle_hash.into());
                 } else {
-                    // TODO: The vault is creating a drop coin
+                    drop_coins.push(DropCoin {
+                        puzzle_hash: condition.puzzle_hash,
+                        amount: condition.amount,
+                    });
                 }
             }
             Condition::SendMessage(condition) => {
@@ -391,6 +376,7 @@ fn parse_delegated_spend(
         new_custody_hash,
         our_spent_coin_ids,
         puzzle_assertion_ids,
+        drop_coins,
     })
 }
 
@@ -399,19 +385,23 @@ struct ParsedConditions {
     puzzle_assertion_ids: HashSet<Bytes32>,
 }
 
-fn parse_our_conditions<'a>(
+fn parse_our_conditions(
     allocator: &mut Allocator,
-    coin_spends: impl Iterator<Item = &'a CoinSpend>,
+    coin_spends: &[CoinSpend],
+    our_coin_ids: &HashSet<Bytes32>,
     mut puzzle_assertion_ids: HashSet<Bytes32>,
 ) -> Result<ParsedConditions, DriverError> {
     for coin_spend in coin_spends {
+        let coin_id = coin_spend.coin.coin_id();
         let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
         let solution = coin_spend.solution.to_clvm(allocator)?;
         let output = run_puzzle(allocator, puzzle, solution)?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
         for condition in conditions {
-            if let Condition::AssertPuzzleAnnouncement(condition) = condition {
+            if let Condition::AssertPuzzleAnnouncement(condition) = condition
+                && our_coin_ids.contains(&coin_id)
+            {
                 puzzle_assertion_ids.insert(condition.announcement_id);
             }
         }
@@ -420,6 +410,29 @@ fn parse_our_conditions<'a>(
     Ok(ParsedConditions {
         puzzle_assertion_ids,
     })
+}
+
+/// The idea here is to order coin spends by the order in which they were created.
+/// This simplifies keeping track of the lineage and latest updates of singletons such as NFTs.
+/// Coins which weren't created in this transaction are first, followed by coins which they created, and so on.
+fn reorder_coin_spends(mut coin_spends: Vec<CoinSpend>) -> Vec<CoinSpend> {
+    let mut reordered_coin_spends = Vec::new();
+    let mut remaining_spent_coin_ids: HashSet<Bytes32> =
+        coin_spends.iter().map(|cs| cs.coin.coin_id()).collect();
+
+    while !coin_spends.is_empty() {
+        coin_spends.retain(|cs| {
+            if remaining_spent_coin_ids.contains(&cs.coin.parent_coin_info) {
+                true
+            } else {
+                remaining_spent_coin_ids.remove(&cs.coin.coin_id());
+                reordered_coin_spends.push(cs.clone());
+                false
+            }
+        });
+    }
+
+    reordered_coin_spends
 }
 
 #[derive(Debug, Clone)]
@@ -477,6 +490,61 @@ fn parse_memos(
         p2_puzzle_hash: p2_create_coin.puzzle_hash,
         clawback: None,
         memos: Vec::<Bytes>::from_clvm(allocator, memos).unwrap_or_default(),
+    }
+}
+
+struct TransferTypeContext<'a> {
+    puzzle_assertion_ids: &'a HashSet<Bytes32>,
+    notarized_payments: &'a Vec<NotarizedPayment>,
+    create_coin: &'a CreateCoin<NodePtr>,
+    full_puzzle_hash: Bytes32,
+    is_parent_ours: bool,
+    is_child_ours: bool,
+    is_fungible: bool,
+}
+
+fn calculate_transfer_type(
+    allocator: &Allocator,
+    context: TransferTypeContext<'_>,
+) -> Option<TransferType> {
+    let TransferTypeContext {
+        puzzle_assertion_ids,
+        notarized_payments,
+        create_coin,
+        full_puzzle_hash,
+        is_parent_ours,
+        is_child_ours,
+        is_fungible,
+    } = context;
+
+    if is_parent_ours && !is_child_ours {
+        // We know that the coin spend is authorized by the delegated spend, and we don't own the child coin
+        // Therefore, it's a valid sent payment
+        Some(TransferType::Sent)
+    } else if !is_parent_ours
+        && is_child_ours
+        && let Some(notarized_payment) = notarized_payments.iter().find(|np| {
+            np.payments
+                .iter()
+                .any(|p| p.puzzle_hash == create_coin.puzzle_hash && p.amount == create_coin.amount)
+        })
+    {
+        let notarized_payment_hash = tree_hash_notarized_payment(allocator, notarized_payment);
+        let settlement_announcement_id = announcement_id(full_puzzle_hash, notarized_payment_hash);
+
+        // Since the parent spend isn't verifiable, we need to know that we've asserted the payment
+        // Otherwise, it may as well not exist since we could be being lied to by the coin spend provider
+        if puzzle_assertion_ids.contains(&settlement_announcement_id) {
+            Some(TransferType::Received)
+        } else {
+            None
+        }
+    } else if is_parent_ours && is_child_ours && !is_fungible {
+        // For non-fungible assets that we sent to ourself, we can assume they are updated
+        Some(TransferType::Updated)
+    } else {
+        // For fungible assets, change coins aren't relevant to the transaction summary
+        None
     }
 }
 
