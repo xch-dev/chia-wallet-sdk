@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
+use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::{
     Memos,
     nft::NftMetadata,
@@ -74,7 +74,7 @@ pub struct ParsedPayment {
     /// If applicable, the clawback information for the payment (including who can claw it back and for how long).
     pub clawback: Option<ClawbackV2>,
     /// The potentially human readable memo list after the hint and/or clawback memo is removed.
-    pub memos: Vec<Bytes>,
+    pub memos: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,7 +91,7 @@ pub struct ParsedNftTransfer {
     /// If applicable, the clawback information for the NFT (including who can claw it back and for how long).
     pub clawback: Option<ClawbackV2>,
     /// The potentially human readable memo list after the hint and/or clawback memo is removed.
-    pub memos: Vec<Bytes>,
+    pub memos: Vec<String>,
     /// URIs which are added to the NFT's metadata as part of coin spends which can be verified to exist.
     pub new_uris: Vec<MetadataUpdate>,
     /// The latest owner hash of the NFT from verified coin spends.
@@ -585,7 +585,7 @@ fn reorder_coin_spends(mut coin_spends: Vec<CoinSpend>) -> Vec<CoinSpend> {
 struct ParsedMemos {
     p2_puzzle_hash: Bytes32,
     clawback: Option<ClawbackV2>,
-    memos: Vec<Bytes>,
+    memos: Vec<String>,
 }
 
 fn parse_memos(
@@ -618,7 +618,7 @@ fn parse_memos(
         return ParsedMemos {
             p2_puzzle_hash: clawback.receiver_puzzle_hash,
             clawback: Some(clawback),
-            memos: Vec::<Bytes>::from_clvm(allocator, rest).unwrap_or_default(),
+            memos: Vec::<String>::from_clvm(allocator, rest).unwrap_or_default(),
         };
     }
 
@@ -627,7 +627,7 @@ fn parse_memos(
         return ParsedMemos {
             p2_puzzle_hash: p2_create_coin.puzzle_hash,
             clawback: None,
-            memos: Vec::<Bytes>::from_clvm(allocator, rest).unwrap_or_default(),
+            memos: Vec::<String>::from_clvm(allocator, rest).unwrap_or_default(),
         };
     }
 
@@ -635,7 +635,7 @@ fn parse_memos(
     ParsedMemos {
         p2_puzzle_hash: p2_create_coin.puzzle_hash,
         clawback: None,
-        memos: Vec::<Bytes>::from_clvm(allocator, memos).unwrap_or_default(),
+        memos: Vec::<String>::from_clvm(allocator, memos).unwrap_or_default(),
     }
 }
 
