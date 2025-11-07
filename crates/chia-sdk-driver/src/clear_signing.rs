@@ -689,20 +689,20 @@ mod tests {
 
     use crate::{Action, Id, SpendContext, Spends, TestVault};
 
-    #[test]
-    fn test_clear_signing_sent() -> Result<()> {
+    #[rstest]
+    fn test_clear_signing_sent(#[values(0, 100)] fee: u64) -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
-        let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+        let alice = TestVault::mint(&mut sim, &mut ctx, 1000 + fee)?;
         let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
 
         let result = alice.spend(
             &mut sim,
             &mut ctx,
             &[
-                Action::send(Id::Xch, bob.puzzle_hash(), 800, Memos::None),
-                Action::fee(200),
+                Action::send(Id::Xch, bob.puzzle_hash(), 1000, Memos::None),
+                Action::fee(fee),
             ],
         )?;
 
@@ -715,13 +715,13 @@ mod tests {
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
         assert_eq!(tx.new_custody_hash, Some(alice.custody_hash()));
         assert_eq!(tx.payments.len(), 1);
-        assert_eq!(tx.fee_paid, 200);
-        assert_eq!(tx.total_fee, 200);
+        assert_eq!(tx.fee_paid, fee);
+        assert_eq!(tx.total_fee, fee);
 
         let payment = &tx.payments[0];
         assert_eq!(payment.transfer_type, TransferType::Sent);
         assert_eq!(payment.p2_puzzle_hash, bob.puzzle_hash());
-        assert_eq!(payment.coin.amount, 800);
+        assert_eq!(payment.coin.amount, 1000);
 
         Ok(())
     }
@@ -729,29 +729,52 @@ mod tests {
     #[rstest]
     fn test_clear_signing_received(
         #[values(true, false)] disable_settlement_assertions: bool,
+        #[values(0, 100)] alice_fee: u64,
+        #[values(0, 100)] bob_fee: u64,
     ) -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
-        let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
-        let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+        let alice = TestVault::mint(&mut sim, &mut ctx, 1000 + alice_fee)?;
+        let bob = TestVault::mint(&mut sim, &mut ctx, bob_fee)?;
 
         let result = alice.spend(
             &mut sim,
             &mut ctx,
-            &[Action::send(
-                Id::Xch,
-                SETTLEMENT_PAYMENT_HASH.into(),
-                1000,
-                Memos::None,
-            )],
+            &[
+                Action::send(Id::Xch, SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None),
+                Action::fee(alice_fee),
+            ],
         )?;
+
+        let reveal = VaultSpendReveal {
+            launcher_id: bob.launcher_id(),
+            custody_hash: bob.custody_hash(),
+            delegated_spend: result.delegated_spend,
+        };
+
+        let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
+
+        assert_eq!(tx.payments.len(), 1);
+        assert_eq!(tx.fee_paid, alice_fee);
+        assert_eq!(tx.total_fee, alice_fee);
+
+        let payment = &tx.payments[0];
+        assert_eq!(payment.transfer_type, TransferType::Sent);
+        assert_eq!(payment.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
+        assert_eq!(payment.coin.amount, 1000);
 
         let mut spends = Spends::new(bob.puzzle_hash());
         spends.add(result.outputs.xch[0]);
         spends.conditions.disable_settlement_assertions = disable_settlement_assertions;
 
-        let result = bob.custom_spend(&mut sim, &mut ctx, &[], spends, Conditions::new())?;
+        let result = bob.custom_spend(
+            &mut sim,
+            &mut ctx,
+            &[Action::fee(bob_fee)],
+            spends,
+            Conditions::new(),
+        )?;
 
         let reveal = VaultSpendReveal {
             launcher_id: bob.launcher_id(),
@@ -763,12 +786,12 @@ mod tests {
 
         if disable_settlement_assertions {
             assert_eq!(tx.payments.len(), 0);
-            assert_eq!(tx.fee_paid, 0);
-            assert_eq!(tx.total_fee, 0);
+            assert_eq!(tx.fee_paid, bob_fee);
+            assert_eq!(tx.total_fee, bob_fee);
         } else {
             assert_eq!(tx.payments.len(), 1);
-            assert_eq!(tx.fee_paid, 0);
-            assert_eq!(tx.total_fee, 0);
+            assert_eq!(tx.fee_paid, bob_fee);
+            assert_eq!(tx.total_fee, bob_fee);
 
             let payment = &tx.payments[0];
             assert_eq!(payment.transfer_type, TransferType::Received);
