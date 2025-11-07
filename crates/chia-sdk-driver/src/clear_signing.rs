@@ -62,7 +62,7 @@ pub struct VaultTransaction {
 pub struct ParsedPayment {
     /// The direction in which the asset is being transferred.
     pub transfer_type: TransferType,
-    /// The asset id, if applicable. This may be [`None`] for XCH, or [`Some`] for a CAT or singleton asset.
+    /// The asset id, if applicable. This may be [`None`] for XCH, or [`Some`] for a CAT.
     pub asset_id: Option<Bytes32>,
     /// The revocation hidden puzzle hash (if the asset is a revocable CAT).
     pub hidden_puzzle_hash: Option<Bytes32>,
