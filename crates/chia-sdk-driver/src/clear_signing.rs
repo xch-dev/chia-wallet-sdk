@@ -16,7 +16,8 @@ use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    Cat, ClawbackV2, DriverError, MetadataUpdate, Nft, Puzzle, Spend, UriKind, mips_puzzle_hash,
+    BURN_PUZZLE_HASH, Cat, ClawbackV2, DriverError, MetadataUpdate, Nft, Puzzle, Spend, UriKind,
+    mips_puzzle_hash,
 };
 
 /// Information about a vault that must be provided in order to securely parse a transaction.
@@ -105,6 +106,8 @@ pub enum TransferType {
     /// Notably, this will not include payments that are being sent to the vault's p2 puzzle hash.
     /// Thus, this excludes change coins and payments that are received from taken offers.
     Sent,
+    /// Instead of being [`TransferType::Sent`], this is being sent to the burn address.
+    Burned,
     /// These are payments to the vault's p2 puzzle hash that are output from offer settlement coins.
     /// Change coins and non-offer payments are excluded, since their authenticity cannot be easily verified off-chain.
     /// An offer payment is also excluded if its notarized payment announcement id is not asserted by a coin spend authorized by the vault.
@@ -219,10 +222,10 @@ impl VaultTransaction {
                             puzzle_assertion_ids: &puzzle_assertion_ids,
                             notarized_payments: &notarized_payments,
                             create_coin: &create_coin,
+                            p2_puzzle_hash: parsed_memos.p2_puzzle_hash,
                             full_puzzle_hash: cat.coin.puzzle_hash,
                             is_parent_ours,
                             is_child_ours,
-                            is_fungible: true,
                         },
                     ) {
                         payments.push(ParsedPayment {
@@ -289,10 +292,10 @@ impl VaultTransaction {
                         puzzle_assertion_ids: &puzzle_assertion_ids,
                         notarized_payments: &notarized_payments,
                         create_coin: &create_coin,
+                        p2_puzzle_hash: parsed_memos.p2_puzzle_hash,
                         full_puzzle_hash: nft.coin.puzzle_hash,
                         is_parent_ours,
                         is_child_ours,
-                        is_fungible: false,
                     },
                 ) {
                     let mut includes_unverifiable_updates = false;
@@ -399,10 +402,10 @@ impl VaultTransaction {
                         puzzle_assertion_ids: &puzzle_assertion_ids,
                         notarized_payments: &notarized_payments,
                         create_coin: &create_coin,
+                        p2_puzzle_hash: parsed_memos.p2_puzzle_hash,
                         full_puzzle_hash: coin_spend.coin.puzzle_hash,
                         is_parent_ours,
                         is_child_ours,
-                        is_fungible: true,
                     },
                 ) {
                     payments.push(ParsedPayment {
@@ -482,6 +485,7 @@ fn parse_delegated_spend(
                     || receiver != MessageFlags::COIN
                     || condition.data.len() != 1
                 {
+                    // TODO: Handle vault of vaults
                     return Err(DriverError::MissingSpend);
                 }
 
@@ -638,10 +642,10 @@ struct TransferTypeContext<'a> {
     puzzle_assertion_ids: &'a HashSet<Bytes32>,
     notarized_payments: &'a Vec<NotarizedPayment>,
     create_coin: &'a CreateCoin<NodePtr>,
+    p2_puzzle_hash: Bytes32,
     full_puzzle_hash: Bytes32,
     is_parent_ours: bool,
     is_child_ours: bool,
-    is_fungible: bool,
 }
 
 fn calculate_transfer_type(
@@ -652,16 +656,20 @@ fn calculate_transfer_type(
         puzzle_assertion_ids,
         notarized_payments,
         create_coin,
+        p2_puzzle_hash,
         full_puzzle_hash,
         is_parent_ours,
         is_child_ours,
-        is_fungible,
     } = context;
 
     if is_parent_ours && !is_child_ours {
         // We know that the coin spend is authorized by the delegated spend, and we don't own the child coin
         // Therefore, it's a valid sent payment
-        Some(TransferType::Sent)
+        if p2_puzzle_hash == BURN_PUZZLE_HASH {
+            Some(TransferType::Burned)
+        } else {
+            Some(TransferType::Sent)
+        }
     } else if !is_parent_ours
         && is_child_ours
         && let Some(notarized_payment) = notarized_payments.iter().find(|np| {
@@ -680,11 +688,10 @@ fn calculate_transfer_type(
         } else {
             None
         }
-    } else if is_parent_ours && is_child_ours && !is_fungible {
+    } else if is_parent_ours && is_child_ours {
         // For non-fungible assets that we sent to ourself, we can assume they are updated
         Some(TransferType::Updated)
     } else {
-        // For fungible assets, change coins aren't relevant to the transaction summary
         None
     }
 }
@@ -701,9 +708,16 @@ mod tests {
 
     use crate::{Action, Id, SpendContext, Spends, TestVault};
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum AssetKind {
+        Xch,
+        Cat,
+        RevocableCat,
+    }
+
     #[rstest]
     fn test_clear_signing_sent(
-        #[values(false, true)] is_cat: bool,
+        #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
         #[values(0, 100)] fee: u64,
     ) -> Result<()> {
         let mut sim = Simulator::new();
@@ -712,9 +726,19 @@ mod tests {
         let alice = TestVault::mint(&mut sim, &mut ctx, 1000 + fee)?;
         let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
 
-        let (id, asset_id) = if is_cat {
-            let result =
-                alice.spend(&mut sim, &mut ctx, &[Action::single_issue_cat(None, 1000)])?;
+        let (id, asset_id) = if let AssetKind::Cat | AssetKind::RevocableCat = asset_kind {
+            let result = alice.spend(
+                &mut sim,
+                &mut ctx,
+                &[Action::single_issue_cat(
+                    if let AssetKind::RevocableCat = asset_kind {
+                        Some(Bytes32::default())
+                    } else {
+                        None
+                    },
+                    1000,
+                )],
+            )?;
 
             let asset_id = result.outputs.cats[0][0].info.asset_id;
             let id = Id::Existing(asset_id);
@@ -755,7 +779,7 @@ mod tests {
 
     #[rstest]
     fn test_clear_signing_received(
-        #[values(false, true)] is_cat: bool,
+        #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
         #[values(true, false)] disable_settlement_assertions: bool,
         #[values(0, 100)] alice_fee: u64,
         #[values(0, 100)] bob_fee: u64,
@@ -766,9 +790,19 @@ mod tests {
         let alice = TestVault::mint(&mut sim, &mut ctx, 1000 + alice_fee)?;
         let bob = TestVault::mint(&mut sim, &mut ctx, bob_fee)?;
 
-        let (id, asset_id) = if is_cat {
-            let result =
-                alice.spend(&mut sim, &mut ctx, &[Action::single_issue_cat(None, 1000)])?;
+        let (id, asset_id) = if let AssetKind::Cat | AssetKind::RevocableCat = asset_kind {
+            let result = alice.spend(
+                &mut sim,
+                &mut ctx,
+                &[Action::single_issue_cat(
+                    if let AssetKind::RevocableCat = asset_kind {
+                        Some(Bytes32::default())
+                    } else {
+                        None
+                    },
+                    1000,
+                )],
+            )?;
 
             let asset_id = result.outputs.cats[0][0].info.asset_id;
             let id = Id::Existing(asset_id);

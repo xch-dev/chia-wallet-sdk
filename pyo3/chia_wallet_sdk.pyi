@@ -197,8 +197,9 @@ class ParsedNftTransfer:
     includes_unverifiable_updates: bool
 class TransferType(IntEnum):
     Sent = 0
-    Received = 1
-    Updated = 2
+    Burned = 1
+    Received = 2
+    Updated = 3
 class DropCoin:
     def clone(self) -> DropCoin: ...
     def __init__(self, puzzleHash: bytes, amount: int) -> None: ...

@@ -12,7 +12,7 @@ use chia_sdk_test::Simulator;
 use chia_sdk_types::{
     Conditions, MessageFlags, MessageSide, Mod,
     conditions::{CreateCoin, SendMessage},
-    puzzles::{BlsMemberPuzzleAssert, SingletonMember, SingletonMemberSolution},
+    puzzles::{BlsMemberPuzzleAssert, RevocationArgs, SingletonMember, SingletonMemberSolution},
 };
 use chia_sdk_utils::select_coins;
 use clvm_traits::ToClvm;
@@ -249,10 +249,21 @@ impl TestVault {
     }
 
     fn fetch_cat_coins(&self, sim: &Simulator, asset_id: Bytes32) -> Vec<Coin> {
-        sim.unspent_coins(
+        let non_revocable = sim.unspent_coins(
             CatArgs::curry_tree_hash(asset_id, self.puzzle_hash.into()).into(),
             false,
-        )
+        );
+
+        let revocable = sim.unspent_coins(
+            CatArgs::curry_tree_hash(
+                asset_id,
+                RevocationArgs::new(Bytes32::default(), self.puzzle_hash).curry_tree_hash(),
+            )
+            .into(),
+            false,
+        );
+
+        [non_revocable, revocable].concat()
     }
 
     fn fetch_hinted_coins(&self, sim: &Simulator) -> Vec<Coin> {

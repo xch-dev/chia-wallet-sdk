@@ -3046,8 +3046,9 @@ export declare function toHex(value: Uint8Array): string
 
 export declare const enum TransferType {
   Sent = 0,
-  Received = 1,
-  Updated = 2
+  Burned = 1,
+  Received = 2,
+  Updated = 3
 }
 
 export declare function treeHashAtom(atom: Uint8Array): Buffer
