@@ -683,6 +683,7 @@ mod tests {
     use super::*;
 
     use anyhow::Result;
+    use chia_puzzles::SINGLETON_LAUNCHER_HASH;
     use chia_sdk_test::Simulator;
     use chia_sdk_types::Conditions;
     use rstest::rstest;
@@ -798,6 +799,72 @@ mod tests {
             assert_eq!(payment.p2_puzzle_hash, bob.puzzle_hash());
             assert_eq!(payment.coin.amount, 1000);
         }
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_clear_signing_nft_lifecycle() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = TestVault::mint(&mut sim, &mut ctx, 1)?;
+        let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+        let result = alice.spend(&mut sim, &mut ctx, &[Action::mint_empty_nft()])?;
+
+        let reveal = VaultSpendReveal {
+            launcher_id: alice.launcher_id(),
+            custody_hash: alice.custody_hash(),
+            delegated_spend: result.delegated_spend,
+        };
+
+        let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
+
+        assert_eq!(tx.payments.len(), 1);
+        assert_eq!(tx.nfts.len(), 1);
+        assert_eq!(tx.fee_paid, 0);
+        assert_eq!(tx.total_fee, 0);
+
+        // Even though this is for an NFT mint, the launcher is tracked as a sent payment
+        let payment = &tx.payments[0];
+        assert_eq!(payment.transfer_type, TransferType::Sent);
+        assert_eq!(payment.p2_puzzle_hash, SINGLETON_LAUNCHER_HASH.into());
+        assert_eq!(payment.coin.amount, 0);
+
+        // The NFT should be included
+        let nft = &tx.nfts[0];
+        assert_eq!(nft.transfer_type, TransferType::Updated);
+        assert_eq!(nft.p2_puzzle_hash, alice.puzzle_hash());
+        assert!(!nft.includes_unverifiable_updates);
+
+        // Transfer the NFT to Bob
+        let nft_id = Id::Existing(nft.launcher_id);
+        let bob_hint = ctx.hint(bob.puzzle_hash())?;
+
+        let result = alice.spend(
+            &mut sim,
+            &mut ctx,
+            &[Action::send(nft_id, bob.puzzle_hash(), 1, bob_hint)],
+        )?;
+
+        let reveal = VaultSpendReveal {
+            launcher_id: alice.launcher_id(),
+            custody_hash: alice.custody_hash(),
+            delegated_spend: result.delegated_spend,
+        };
+
+        let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
+
+        assert_eq!(tx.payments.len(), 0);
+        assert_eq!(tx.nfts.len(), 1);
+        assert_eq!(tx.fee_paid, 0);
+        assert_eq!(tx.total_fee, 0);
+
+        let nft = &tx.nfts[0];
+        assert_eq!(nft.transfer_type, TransferType::Sent);
+        assert_eq!(nft.p2_puzzle_hash, bob.puzzle_hash());
+        assert!(!nft.includes_unverifiable_updates);
 
         Ok(())
     }

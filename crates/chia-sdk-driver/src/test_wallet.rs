@@ -20,7 +20,7 @@ use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    Action, Cat, Deltas, Id, InnerPuzzleSpend, Launcher, Layer, MipsSpend, Outputs, Puzzle,
+    Action, Cat, Deltas, Id, InnerPuzzleSpend, Launcher, Layer, MipsSpend, Nft, Outputs, Puzzle,
     Relation, SettlementLayer, Spend, SpendContext, SpendKind, Spends, StandardLayer, Vault,
     VaultInfo, mips_puzzle_hash,
 };
@@ -109,6 +109,24 @@ impl TestVault {
                         }
                     }
                     Id::Existing(asset_id) => {
+                        let mut is_nft = false;
+
+                        for coin in self.fetch_hinted_coins(sim) {
+                            let nft = try_fetch_nft(sim, coin)?;
+
+                            if let Some(nft) = nft
+                                && nft.info.launcher_id == asset_id
+                            {
+                                is_nft = true;
+                                spends.add(nft);
+                                break;
+                            }
+                        }
+
+                        if is_nft {
+                            continue;
+                        }
+
                         for coin in
                             select_coins(self.fetch_cat_coins(sim, asset_id), required_amount)?
                         {
@@ -236,6 +254,10 @@ impl TestVault {
             false,
         )
     }
+
+    fn fetch_hinted_coins(&self, sim: &Simulator) -> Vec<Coin> {
+        sim.unspent_coins(self.puzzle_hash, true)
+    }
 }
 
 fn vault_p2_puzzle_hash(launcher_id: Bytes32) -> TreeHash {
@@ -318,4 +340,22 @@ fn fetch_vault(sim: &Simulator, launcher_id: Bytes32, custody_hash: Bytes32) -> 
         proof,
         VaultInfo::new(launcher_id, custody_hash.into()),
     ))
+}
+
+fn try_fetch_nft(sim: &Simulator, coin: Coin) -> Result<Option<Nft>> {
+    let mut allocator = Allocator::new();
+
+    let parent_spend = sim
+        .coin_spend(coin.parent_coin_info)
+        .ok_or(anyhow!("missing parent spend"))?;
+    let parent_puzzle = parent_spend.puzzle_reveal.to_clvm(&mut allocator)?;
+    let parent_puzzle = Puzzle::parse(&allocator, parent_puzzle);
+    let parent_solution = parent_spend.solution.to_clvm(&mut allocator)?;
+
+    Ok(Nft::parse_child(
+        &mut allocator,
+        parent_spend.coin,
+        parent_puzzle,
+        parent_solution,
+    )?)
 }
