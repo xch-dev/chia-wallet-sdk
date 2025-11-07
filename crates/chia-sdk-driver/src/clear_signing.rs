@@ -245,12 +245,12 @@ impl VaultTransaction {
                 continue;
             }
 
-            let mut exclude_odd_coins = false;
+            let mut is_singleton = false;
 
             if let Some((nft, p2_puzzle, p2_solution)) =
                 Nft::parse(allocator, coin_spend.coin, puzzle, solution)?
             {
-                exclude_odd_coins = true;
+                is_singleton = true;
 
                 let p2_output = run_puzzle(allocator, p2_puzzle.ptr(), p2_solution)?;
 
@@ -379,8 +379,8 @@ impl VaultTransaction {
                 let child_coin_id = child_coin.coin_id();
                 let is_child_ephemeral = all_spent_coin_ids.contains(&child_coin_id);
 
-                // We've already emitted payments for singleton outputs, so we can skip odd coins
-                if exclude_odd_coins && child_coin.amount % 2 == 1 {
+                // If this is a singleton, we've already emitted payments for the odd singleton output, so we can skip odd coins
+                if is_singleton && child_coin.amount % 2 == 1 {
                     continue;
                 }
 
