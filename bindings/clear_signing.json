@@ -32,7 +32,7 @@
       "p2_puzzle_hash": "Bytes32",
       "coin": "Coin",
       "clawback": "Option<ClawbackV2>",
-      "memos": "Vec<Bytes>"
+      "memos": "Vec<String>"
     }
   },
   "ParsedNftTransfer": {
@@ -45,7 +45,7 @@
       "p2_puzzle_hash": "Bytes32",
       "coin": "Coin",
       "clawback": "Option<ClawbackV2>",
-      "memos": "Vec<Bytes>",
+      "memos": "Vec<String>",
       "new_uris": "Vec<MetadataUpdate>",
       "latest_owner": "Option<Bytes32>",
       "includes_unverifiable_updates": "bool"

@@ -1942,7 +1942,7 @@ export declare class ParsedNftInfo {
 
 export declare class ParsedNftTransfer {
   clone(): ParsedNftTransfer
-  constructor(transferType: TransferType, launcherId: Uint8Array, p2PuzzleHash: Uint8Array, coin: Coin, clawback: ClawbackV2 | undefined | null, memos: Array<Uint8Array>, newUris: Array<MetadataUpdate>, latestOwner: Uint8Array | undefined | null, includesUnverifiableUpdates: boolean)
+  constructor(transferType: TransferType, launcherId: Uint8Array, p2PuzzleHash: Uint8Array, coin: Coin, clawback: ClawbackV2 | undefined | null, memos: Array<string>, newUris: Array<MetadataUpdate>, latestOwner: Uint8Array | undefined | null, includesUnverifiableUpdates: boolean)
   get transferType(): TransferType
   set transferType(value: TransferType)
   get launcherId(): Buffer
@@ -1953,8 +1953,8 @@ export declare class ParsedNftTransfer {
   set coin(value: Coin)
   get clawback(): ClawbackV2 | null
   set clawback(value?: ClawbackV2 | undefined | null)
-  get memos(): Array<Buffer>
-  set memos(value: Array<Uint8Array>)
+  get memos(): Array<string>
+  set memos(value: Array<string>)
   get newUris(): Array<MetadataUpdate>
   set newUris(value: Array<MetadataUpdate>)
   get latestOwner(): Buffer | null
@@ -1985,7 +1985,7 @@ export declare class ParsedOptionInfo {
 
 export declare class ParsedPayment {
   clone(): ParsedPayment
-  constructor(transferType: TransferType, assetId: Uint8Array | undefined | null, hiddenPuzzleHash: Uint8Array | undefined | null, p2PuzzleHash: Uint8Array, coin: Coin, clawback: ClawbackV2 | undefined | null, memos: Array<Uint8Array>)
+  constructor(transferType: TransferType, assetId: Uint8Array | undefined | null, hiddenPuzzleHash: Uint8Array | undefined | null, p2PuzzleHash: Uint8Array, coin: Coin, clawback: ClawbackV2 | undefined | null, memos: Array<string>)
   get transferType(): TransferType
   set transferType(value: TransferType)
   get assetId(): Buffer | null
@@ -1998,8 +1998,8 @@ export declare class ParsedPayment {
   set coin(value: Coin)
   get clawback(): ClawbackV2 | null
   set clawback(value?: ClawbackV2 | undefined | null)
-  get memos(): Array<Buffer>
-  set memos(value: Array<Uint8Array>)
+  get memos(): Array<string>
+  set memos(value: Array<string>)
 }
 
 export declare class Payment {

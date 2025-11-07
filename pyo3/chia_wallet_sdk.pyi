@@ -175,23 +175,23 @@ class VaultTransaction:
     total_fee: int
 class ParsedPayment:
     def clone(self) -> ParsedPayment: ...
-    def __init__(self, transferType: TransferType, assetId: Optional[bytes], hiddenPuzzleHash: Optional[bytes], p2PuzzleHash: bytes, coin: Coin, clawback: Optional[ClawbackV2], memos: List[bytes]) -> None: ...
+    def __init__(self, transferType: TransferType, assetId: Optional[bytes], hiddenPuzzleHash: Optional[bytes], p2PuzzleHash: bytes, coin: Coin, clawback: Optional[ClawbackV2], memos: List[str]) -> None: ...
     transfer_type: TransferType
     asset_id: Optional[bytes]
     hidden_puzzle_hash: Optional[bytes]
     p2_puzzle_hash: bytes
     coin: Coin
     clawback: Optional[ClawbackV2]
-    memos: List[bytes]
+    memos: List[str]
 class ParsedNftTransfer:
     def clone(self) -> ParsedNftTransfer: ...
-    def __init__(self, transferType: TransferType, launcherId: bytes, p2PuzzleHash: bytes, coin: Coin, clawback: Optional[ClawbackV2], memos: List[bytes], newUris: List[MetadataUpdate], latestOwner: Optional[bytes], includesUnverifiableUpdates: bool) -> None: ...
+    def __init__(self, transferType: TransferType, launcherId: bytes, p2PuzzleHash: bytes, coin: Coin, clawback: Optional[ClawbackV2], memos: List[str], newUris: List[MetadataUpdate], latestOwner: Optional[bytes], includesUnverifiableUpdates: bool) -> None: ...
     transfer_type: TransferType
     launcher_id: bytes
     p2_puzzle_hash: bytes
     coin: Coin
     clawback: Optional[ClawbackV2]
-    memos: List[bytes]
+    memos: List[str]
     new_uris: List[MetadataUpdate]
     latest_owner: Optional[bytes]
     includes_unverifiable_updates: bool
