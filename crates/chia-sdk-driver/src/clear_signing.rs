@@ -946,4 +946,93 @@ mod tests {
 
         Ok(())
     }
+
+    #[rstest]
+    fn test_clear_signing_split(
+        #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
+        #[values(0, 100)] fee: u64,
+    ) -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = TestVault::mint(&mut sim, &mut ctx, 1000 + fee)?;
+
+        let (id, asset_id) = if let AssetKind::Cat | AssetKind::RevocableCat = asset_kind {
+            let result = alice.spend(
+                &mut sim,
+                &mut ctx,
+                &[Action::single_issue_cat(
+                    if let AssetKind::RevocableCat = asset_kind {
+                        Some(Bytes32::default())
+                    } else {
+                        None
+                    },
+                    1000,
+                )],
+            )?;
+
+            let asset_id = result.outputs.cats[0][0].info.asset_id;
+            let id = Id::Existing(asset_id);
+            (id, Some(asset_id))
+        } else {
+            (Id::Xch, None)
+        };
+
+        let result = alice.spend(
+            &mut sim,
+            &mut ctx,
+            &[
+                Action::send(id, alice.puzzle_hash(), 250, Memos::None),
+                Action::send(id, alice.puzzle_hash(), 250, Memos::None),
+                Action::send(id, alice.puzzle_hash(), 250, Memos::None),
+                Action::send(id, alice.puzzle_hash(), 250, Memos::None),
+                Action::fee(fee),
+            ],
+        )?;
+
+        let reveal = VaultSpendReveal {
+            launcher_id: alice.launcher_id(),
+            custody_hash: alice.custody_hash(),
+            delegated_spend: result.delegated_spend,
+        };
+
+        let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
+        assert_eq!(tx.new_custody_hash, Some(alice.custody_hash()));
+        assert_eq!(tx.payments.len(), 4);
+        assert_eq!(tx.fee_paid, fee);
+        assert_eq!(tx.total_fee, fee);
+
+        for payment in &tx.payments {
+            assert_eq!(payment.transfer_type, TransferType::Updated);
+            assert_eq!(payment.asset_id, asset_id);
+            assert_eq!(payment.p2_puzzle_hash, alice.puzzle_hash());
+            assert_eq!(payment.coin.amount, 250);
+        }
+
+        let result = alice.spend(
+            &mut sim,
+            &mut ctx,
+            &[Action::send(id, alice.puzzle_hash(), 1000, Memos::None)],
+        )?;
+
+        let reveal = VaultSpendReveal {
+            launcher_id: alice.launcher_id(),
+            custody_hash: alice.custody_hash(),
+            delegated_spend: result.delegated_spend,
+        };
+
+        let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
+        assert_eq!(tx.new_custody_hash, Some(alice.custody_hash()));
+        assert_eq!(tx.payments.len(), 1);
+        assert_eq!(tx.fee_paid, 0);
+        assert_eq!(tx.total_fee, 0);
+
+        let payment = &tx.payments[0];
+        assert_eq!(payment.transfer_type, TransferType::Updated);
+        assert_eq!(payment.asset_id, asset_id);
+        assert_eq!(payment.p2_puzzle_hash, alice.puzzle_hash());
+        assert_eq!(payment.coin.amount, 1000);
+
+        Ok(())
+    }
 }
