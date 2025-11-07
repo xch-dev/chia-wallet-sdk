@@ -691,18 +691,32 @@ mod tests {
     use crate::{Action, Id, SpendContext, Spends, TestVault};
 
     #[rstest]
-    fn test_clear_signing_sent(#[values(0, 100)] fee: u64) -> Result<()> {
+    fn test_clear_signing_sent(
+        #[values(false, true)] is_cat: bool,
+        #[values(0, 100)] fee: u64,
+    ) -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
         let alice = TestVault::mint(&mut sim, &mut ctx, 1000 + fee)?;
         let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
 
+        let (id, asset_id) = if is_cat {
+            let result =
+                alice.spend(&mut sim, &mut ctx, &[Action::single_issue_cat(None, 1000)])?;
+
+            let asset_id = result.outputs.cats[0][0].info.asset_id;
+            let id = Id::Existing(asset_id);
+            (id, Some(asset_id))
+        } else {
+            (Id::Xch, None)
+        };
+
         let result = alice.spend(
             &mut sim,
             &mut ctx,
             &[
-                Action::send(Id::Xch, bob.puzzle_hash(), 1000, Memos::None),
+                Action::send(id, bob.puzzle_hash(), 1000, Memos::None),
                 Action::fee(fee),
             ],
         )?;
@@ -721,6 +735,7 @@ mod tests {
 
         let payment = &tx.payments[0];
         assert_eq!(payment.transfer_type, TransferType::Sent);
+        assert_eq!(payment.asset_id, asset_id);
         assert_eq!(payment.p2_puzzle_hash, bob.puzzle_hash());
         assert_eq!(payment.coin.amount, 1000);
 
@@ -729,6 +744,7 @@ mod tests {
 
     #[rstest]
     fn test_clear_signing_received(
+        #[values(false, true)] is_cat: bool,
         #[values(true, false)] disable_settlement_assertions: bool,
         #[values(0, 100)] alice_fee: u64,
         #[values(0, 100)] bob_fee: u64,
@@ -739,11 +755,22 @@ mod tests {
         let alice = TestVault::mint(&mut sim, &mut ctx, 1000 + alice_fee)?;
         let bob = TestVault::mint(&mut sim, &mut ctx, bob_fee)?;
 
+        let (id, asset_id) = if is_cat {
+            let result =
+                alice.spend(&mut sim, &mut ctx, &[Action::single_issue_cat(None, 1000)])?;
+
+            let asset_id = result.outputs.cats[0][0].info.asset_id;
+            let id = Id::Existing(asset_id);
+            (id, Some(asset_id))
+        } else {
+            (Id::Xch, None)
+        };
+
         let result = alice.spend(
             &mut sim,
             &mut ctx,
             &[
-                Action::send(Id::Xch, SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None),
+                Action::send(id, SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None),
                 Action::fee(alice_fee),
             ],
         )?;
@@ -762,11 +789,16 @@ mod tests {
 
         let payment = &tx.payments[0];
         assert_eq!(payment.transfer_type, TransferType::Sent);
+        assert_eq!(payment.asset_id, asset_id);
         assert_eq!(payment.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
         assert_eq!(payment.coin.amount, 1000);
 
         let mut spends = Spends::new(bob.puzzle_hash());
-        spends.add(result.outputs.xch[0]);
+        if id == Id::Xch {
+            spends.add(result.outputs.xch[0]);
+        } else {
+            spends.add(result.outputs.cats[&id][0]);
+        }
         spends.conditions.disable_settlement_assertions = disable_settlement_assertions;
 
         let result = bob.custom_spend(
@@ -796,6 +828,7 @@ mod tests {
 
             let payment = &tx.payments[0];
             assert_eq!(payment.transfer_type, TransferType::Received);
+            assert_eq!(payment.asset_id, asset_id);
             assert_eq!(payment.p2_puzzle_hash, bob.puzzle_hash());
             assert_eq!(payment.coin.amount, 1000);
         }
