@@ -591,7 +591,7 @@ struct ParsedMemos {
 fn parse_memos(
     allocator: &Allocator,
     p2_create_coin: CreateCoin<NodePtr>,
-    hintable: bool,
+    requires_hint: bool,
 ) -> ParsedMemos {
     // If there is no memo list, there's nothing to parse and we can assume there's no clawback
     let Memos::Some(memos) = p2_create_coin.memos else {
@@ -611,7 +611,7 @@ fn parse_memos(
             clawback_memo,
             hint,
             p2_create_coin.amount,
-            hintable,
+            requires_hint,
             p2_create_coin.puzzle_hash,
         )
     {
@@ -623,7 +623,7 @@ fn parse_memos(
     }
 
     // If we're parsing a CAT output, we can remove the hint from the memos if applicable.
-    if hintable && let Ok((_hint, rest)) = <(Bytes32, NodePtr)>::from_clvm(allocator, memos) {
+    if requires_hint && let Ok((_hint, rest)) = <(Bytes32, NodePtr)>::from_clvm(allocator, memos) {
         return ParsedMemos {
             p2_puzzle_hash: p2_create_coin.puzzle_hash,
             clawback: None,
