@@ -137,6 +137,7 @@ impl VaultTransaction {
 
         let ParsedConditions {
             puzzle_assertion_ids,
+            all_created_coin_ids,
         } = parse_our_conditions(
             allocator,
             &coin_spends,
@@ -154,11 +155,13 @@ impl VaultTransaction {
         let mut total_output = 0;
 
         for coin_spend in coin_spends {
-            let is_parent_ours = our_spent_coin_ids.contains(&coin_spend.coin.coin_id());
+            let coin_id = coin_spend.coin.coin_id();
+            let is_parent_ours = our_spent_coin_ids.contains(&coin_id);
+            let is_parent_ephemeral = all_created_coin_ids.contains(&coin_id);
 
             total_input += coin_spend.coin.amount;
 
-            if is_parent_ours {
+            if is_parent_ours && !is_parent_ephemeral {
                 our_input += coin_spend.coin.amount;
             }
 
@@ -191,18 +194,20 @@ impl VaultTransaction {
                     };
 
                 for child in children {
+                    let child_coin_id = child.coin.coin_id();
                     let create_coin = p2_create_coins.remove(0);
                     let parsed_memos = parse_memos(allocator, create_coin, true);
                     let is_child_ours = parsed_memos.p2_puzzle_hash == our_p2_puzzle_hash;
+                    let is_child_ephemeral = all_spent_coin_ids.contains(&child_coin_id);
 
                     total_output += child.coin.amount;
 
-                    if is_parent_ours {
+                    if is_parent_ours && !is_child_ephemeral {
                         our_output += child.coin.amount;
                     }
 
                     // Skip ephemeral coins
-                    if our_spent_coin_ids.contains(&child.coin.coin_id()) {
+                    if our_spent_coin_ids.contains(&child_coin_id) {
                         continue;
                     }
 
@@ -229,9 +234,17 @@ impl VaultTransaction {
                         });
                     }
                 }
-            } else if let Some((nft, p2_puzzle, p2_solution)) =
+
+                continue;
+            }
+
+            let mut exclude_odd_coins = false;
+
+            if let Some((nft, p2_puzzle, p2_solution)) =
                 Nft::parse(allocator, coin_spend.coin, puzzle, solution)?
             {
+                exclude_odd_coins = true;
+
                 let p2_output = run_puzzle(allocator, p2_puzzle.ptr(), p2_solution)?;
 
                 let mut p2_create_coins = Vec::<Condition>::from_clvm(allocator, p2_output)?
@@ -251,13 +264,15 @@ impl VaultTransaction {
                         Vec::new()
                     };
 
+                let child_coin_id = child.coin.coin_id();
+                let is_child_ephemeral = all_spent_coin_ids.contains(&child_coin_id);
                 let create_coin = p2_create_coins.remove(0);
                 let parsed_memos = parse_memos(allocator, create_coin, true);
                 let is_child_ours = parsed_memos.p2_puzzle_hash == our_p2_puzzle_hash;
 
                 total_output += child.coin.amount;
 
-                if is_parent_ours {
+                if is_parent_ours && !is_child_ephemeral {
                     our_output += child.coin.amount;
                 }
 
@@ -324,63 +339,70 @@ impl VaultTransaction {
                         includes_unverifiable_updates,
                     });
                 }
-            } else {
-                let create_coins = conditions
-                    .into_iter()
-                    .filter_map(Condition::into_create_coin)
-                    .collect::<Vec<_>>();
+            }
 
-                let notarized_payments = if coin_spend.coin.puzzle_hash
-                    == SETTLEMENT_PAYMENT_HASH.into()
-                {
+            let create_coins = conditions
+                .into_iter()
+                .filter_map(Condition::into_create_coin)
+                .collect::<Vec<_>>();
+
+            let notarized_payments =
+                if coin_spend.coin.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
                     SettlementPaymentsSolution::from_clvm(allocator, solution)?.notarized_payments
                 } else {
                     Vec::new()
                 };
 
-                for create_coin in create_coins {
-                    let child_coin = Coin::new(
-                        coin_spend.coin.coin_id(),
-                        create_coin.puzzle_hash,
-                        create_coin.amount,
-                    );
+            for create_coin in create_coins {
+                let child_coin = Coin::new(
+                    coin_spend.coin.coin_id(),
+                    create_coin.puzzle_hash,
+                    create_coin.amount,
+                );
 
-                    let parsed_memos = parse_memos(allocator, create_coin, false);
-                    let is_child_ours = parsed_memos.p2_puzzle_hash == our_p2_puzzle_hash;
+                let child_coin_id = child_coin.coin_id();
+                let is_child_ephemeral = all_spent_coin_ids.contains(&child_coin_id);
 
-                    total_output += child_coin.amount;
+                // We've already emitted payments for singleton outputs, so we can skip odd coins
+                if exclude_odd_coins && child_coin.amount % 2 == 1 {
+                    continue;
+                }
 
-                    if is_parent_ours {
-                        our_output += child_coin.amount;
-                    }
+                let parsed_memos = parse_memos(allocator, create_coin, false);
+                let is_child_ours = parsed_memos.p2_puzzle_hash == our_p2_puzzle_hash;
 
-                    // Skip ephemeral coins
-                    if our_spent_coin_ids.contains(&child_coin.coin_id()) {
-                        continue;
-                    }
+                total_output += child_coin.amount;
 
-                    if let Some(transfer_type) = calculate_transfer_type(
-                        allocator,
-                        TransferTypeContext {
-                            puzzle_assertion_ids: &puzzle_assertion_ids,
-                            notarized_payments: &notarized_payments,
-                            create_coin: &create_coin,
-                            full_puzzle_hash: coin_spend.coin.puzzle_hash,
-                            is_parent_ours,
-                            is_child_ours,
-                            is_fungible: true,
-                        },
-                    ) {
-                        payments.push(ParsedPayment {
-                            transfer_type,
-                            asset_id: None,
-                            hidden_puzzle_hash: None,
-                            p2_puzzle_hash: parsed_memos.p2_puzzle_hash,
-                            coin: child_coin,
-                            clawback: parsed_memos.clawback,
-                            memos: parsed_memos.memos,
-                        });
-                    }
+                if is_parent_ours && !is_child_ephemeral {
+                    our_output += child_coin.amount;
+                }
+
+                // Skip ephemeral coins
+                if our_spent_coin_ids.contains(&child_coin_id) {
+                    continue;
+                }
+
+                if let Some(transfer_type) = calculate_transfer_type(
+                    allocator,
+                    TransferTypeContext {
+                        puzzle_assertion_ids: &puzzle_assertion_ids,
+                        notarized_payments: &notarized_payments,
+                        create_coin: &create_coin,
+                        full_puzzle_hash: coin_spend.coin.puzzle_hash,
+                        is_parent_ours,
+                        is_child_ours,
+                        is_fungible: true,
+                    },
+                ) {
+                    payments.push(ParsedPayment {
+                        transfer_type,
+                        asset_id: None,
+                        hidden_puzzle_hash: None,
+                        p2_puzzle_hash: parsed_memos.p2_puzzle_hash,
+                        coin: child_coin,
+                        clawback: parsed_memos.clawback,
+                        memos: parsed_memos.memos,
+                    });
                 }
             }
         }
@@ -478,6 +500,7 @@ fn parse_delegated_spend(
 #[derive(Debug, Clone)]
 struct ParsedConditions {
     puzzle_assertion_ids: HashSet<Bytes32>,
+    all_created_coin_ids: HashSet<Bytes32>,
 }
 
 fn parse_our_conditions(
@@ -486,6 +509,8 @@ fn parse_our_conditions(
     our_coin_ids: &HashSet<Bytes32>,
     mut puzzle_assertion_ids: HashSet<Bytes32>,
 ) -> Result<ParsedConditions, DriverError> {
+    let mut all_created_coin_ids = HashSet::new();
+
     for coin_spend in coin_spends {
         let coin_id = coin_spend.coin.coin_id();
         let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
@@ -494,16 +519,25 @@ fn parse_our_conditions(
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
         for condition in conditions {
-            if let Condition::AssertPuzzleAnnouncement(condition) = condition
-                && our_coin_ids.contains(&coin_id)
-            {
-                puzzle_assertion_ids.insert(condition.announcement_id);
+            match condition {
+                Condition::AssertPuzzleAnnouncement(condition) => {
+                    if our_coin_ids.contains(&coin_id) {
+                        puzzle_assertion_ids.insert(condition.announcement_id);
+                    }
+                }
+                Condition::CreateCoin(condition) => {
+                    all_created_coin_ids.insert(
+                        Coin::new(coin_id, condition.puzzle_hash, condition.amount).coin_id(),
+                    );
+                }
+                _ => {}
             }
         }
     }
 
     Ok(ParsedConditions {
         puzzle_assertion_ids,
+        all_created_coin_ids,
     })
 }
 
@@ -650,11 +684,13 @@ mod tests {
 
     use anyhow::Result;
     use chia_sdk_test::Simulator;
+    use chia_sdk_types::Conditions;
+    use rstest::rstest;
 
-    use crate::{Action, Id, SpendContext, TestVault};
+    use crate::{Action, Id, SpendContext, Spends, TestVault};
 
     #[test]
-    fn test_clear_signing() -> Result<()> {
+    fn test_clear_signing_sent() -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
@@ -686,6 +722,59 @@ mod tests {
         assert_eq!(payment.transfer_type, TransferType::Sent);
         assert_eq!(payment.p2_puzzle_hash, bob.puzzle_hash());
         assert_eq!(payment.coin.amount, 800);
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_clear_signing_received(
+        #[values(true, false)] disable_settlement_assertions: bool,
+    ) -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+        let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+        let result = alice.spend(
+            &mut sim,
+            &mut ctx,
+            &[Action::send(
+                Id::Xch,
+                SETTLEMENT_PAYMENT_HASH.into(),
+                1000,
+                Memos::None,
+            )],
+        )?;
+
+        let mut spends = Spends::new(bob.puzzle_hash());
+        spends.add(result.outputs.xch[0]);
+        spends.conditions.disable_settlement_assertions = disable_settlement_assertions;
+
+        let result = bob.custom_spend(&mut sim, &mut ctx, &[], spends, Conditions::new())?;
+
+        let reveal = VaultSpendReveal {
+            launcher_id: bob.launcher_id(),
+            custody_hash: bob.custody_hash(),
+            delegated_spend: result.delegated_spend,
+        };
+
+        let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
+
+        if disable_settlement_assertions {
+            assert_eq!(tx.payments.len(), 0);
+            assert_eq!(tx.fee_paid, 0);
+            assert_eq!(tx.total_fee, 0);
+        } else {
+            assert_eq!(tx.payments.len(), 1);
+            assert_eq!(tx.fee_paid, 0);
+            assert_eq!(tx.total_fee, 0);
+
+            let payment = &tx.payments[0];
+            assert_eq!(payment.transfer_type, TransferType::Received);
+            assert_eq!(payment.p2_puzzle_hash, bob.puzzle_hash());
+            assert_eq!(payment.coin.amount, 1000);
+        }
 
         Ok(())
     }

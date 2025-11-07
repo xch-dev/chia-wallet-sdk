@@ -11,7 +11,7 @@ use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_test::Simulator;
 use chia_sdk_types::{
     Conditions, MessageFlags, MessageSide, Mod,
-    conditions::SendMessage,
+    conditions::{CreateCoin, SendMessage},
     puzzles::{BlsMemberPuzzleAssert, SingletonMember, SingletonMemberSolution},
 };
 use chia_sdk_utils::select_coins;
@@ -45,7 +45,7 @@ impl TestVault {
         let pair = sim.bls(balance + 1);
         let p2 = StandardLayer::new(pair.pk);
 
-        let (parent_conditions, vault) = Launcher::new(pair.coin.coin_id(), 1).mint_vault(
+        let (mut parent_conditions, vault) = Launcher::new(pair.coin.coin_id(), 1).mint_vault(
             ctx,
             vault_custody_puzzle_hash(pair.pk),
             (),
@@ -53,11 +53,15 @@ impl TestVault {
 
         let puzzle_hash = vault_p2_puzzle_hash(vault.info.launcher_id).into();
 
-        p2.spend(
-            ctx,
-            pair.coin,
-            parent_conditions.create_coin(puzzle_hash, pair.coin.amount - 1, Memos::None),
-        )?;
+        if balance > 0 {
+            parent_conditions.push(CreateCoin::new(
+                puzzle_hash,
+                pair.coin.amount - 1,
+                Memos::None,
+            ));
+        }
+
+        p2.spend(ctx, pair.coin, parent_conditions)?;
 
         sim.spend_coins(ctx.take(), slice::from_ref(&pair.sk))?;
 
@@ -74,9 +78,19 @@ impl TestVault {
         ctx: &mut SpendContext,
         actions: &[Action],
     ) -> Result<TransactionData> {
-        let deltas = Deltas::from_actions(actions);
+        let spends = Spends::new(self.puzzle_hash);
+        self.custom_spend(sim, ctx, actions, spends, Conditions::new())
+    }
 
-        let mut spends = Spends::new(self.puzzle_hash);
+    pub fn custom_spend(
+        &self,
+        sim: &mut Simulator,
+        ctx: &mut SpendContext,
+        actions: &[Action],
+        mut spends: Spends,
+        mut vault_conditions: Conditions,
+    ) -> Result<TransactionData> {
+        let deltas = Deltas::from_actions(actions);
 
         for &id in deltas.ids() {
             let delta = deltas.get(&id).copied().unwrap_or_default();
@@ -112,7 +126,6 @@ impl TestVault {
         let spends = spends.prepare(ctx, &deltas, Relation::None)?;
 
         let mut coin_spends = HashMap::new();
-        let mut vault_conditions = Conditions::new();
 
         for (asset, kind) in spends.unspent() {
             match kind {
