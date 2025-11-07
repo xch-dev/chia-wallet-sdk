@@ -14,8 +14,9 @@
     "remote": true,
     "fields": {
       "new_custody_hash": "Option<TreeHash>",
-      "sent_payments": "Vec<ParsedPayment>",
-      "received_payments": "Vec<ParsedPayment>",
+      "payments": "Vec<ParsedPayment>",
+      "nfts": "Vec<ParsedNftTransfer>",
+      "drop_coins": "Vec<DropCoin>",
       "fee_paid": "u64",
       "total_fee": "u64"
     }
@@ -25,12 +26,42 @@
     "new": true,
     "remote": true,
     "fields": {
+      "transfer_type": "TransferType",
       "asset_id": "Option<Bytes32>",
       "hidden_puzzle_hash": "Option<Bytes32>",
       "p2_puzzle_hash": "Bytes32",
       "coin": "Coin",
       "clawback": "Option<ClawbackV2>",
       "memos": "Vec<Bytes>"
+    }
+  },
+  "ParsedNftTransfer": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "transfer_type": "TransferType",
+      "launcher_id": "Bytes32",
+      "p2_puzzle_hash": "Bytes32",
+      "coin": "Coin",
+      "clawback": "Option<ClawbackV2>",
+      "memos": "Vec<Bytes>",
+      "new_uris": "Vec<MetadataUpdate>",
+      "latest_owner": "Option<Bytes32>",
+      "includes_unverifiable_updates": "bool"
+    }
+  },
+  "TransferType": {
+    "type": "enum",
+    "values": ["Sent", "Received", "Updated"]
+  },
+  "DropCoin": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "amount": "u64"
     }
   }
 }

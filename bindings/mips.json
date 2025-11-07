@@ -504,12 +504,6 @@
           "puzzle_hash": "Bytes32",
           "reveal": "bool"
         }
-      },
-      "parse": {
-        "args": {
-          "context": "MipsMemoContext"
-        },
-        "return": "Option<ParsedMember>"
       }
     }
   },

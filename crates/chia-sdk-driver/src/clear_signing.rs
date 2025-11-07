@@ -15,7 +15,9 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{Cat, ClawbackV2, DriverError, MetadataUpdate, Nft, Puzzle, Spend, mips_puzzle_hash};
+use crate::{
+    Cat, ClawbackV2, DriverError, MetadataUpdate, Nft, Puzzle, Spend, UriKind, mips_puzzle_hash,
+};
 
 /// Information about a vault that must be provided in order to securely parse a transaction.
 #[derive(Debug, Clone, Copy)]
@@ -304,19 +306,28 @@ impl VaultTransaction {
 
                         for uri in new_metadata.data_uris {
                             if !old_metadata.data_uris.contains(&uri) {
-                                new_uris.push(MetadataUpdate::NewDataUri(uri));
+                                new_uris.push(MetadataUpdate {
+                                    kind: UriKind::Data,
+                                    uri,
+                                });
                             }
                         }
 
                         for uri in new_metadata.metadata_uris {
                             if !old_metadata.metadata_uris.contains(&uri) {
-                                new_uris.push(MetadataUpdate::NewMetadataUri(uri));
+                                new_uris.push(MetadataUpdate {
+                                    kind: UriKind::Metadata,
+                                    uri,
+                                });
                             }
                         }
 
                         for uri in new_metadata.license_uris {
                             if !old_metadata.license_uris.contains(&uri) {
-                                new_uris.push(MetadataUpdate::NewLicenseUri(uri));
+                                new_uris.push(MetadataUpdate {
+                                    kind: UriKind::License,
+                                    uri,
+                                });
                             }
                         }
 

@@ -1083,6 +1083,15 @@ export declare class DidInfo {
   set p2PuzzleHash(value: Uint8Array)
 }
 
+export declare class DropCoin {
+  clone(): DropCoin
+  constructor(puzzleHash: Uint8Array, amount: bigint)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+
 export declare class EndOfSubSlotBundle {
   clone(): EndOfSubSlotBundle
   constructor(challengeChain: ChallengeChainSubSlot, infusedChallengeChain: InfusedChallengeChainSubSlot | undefined | null, rewardChain: RewardChainSubSlot, proofs: SubSlotProofs)
@@ -1364,6 +1373,7 @@ export declare class InfusedChallengeChainSubSlot {
 
 export declare class InnerPuzzleMemo {
   clone(): InnerPuzzleMemo
+  innerPuzzleHash(topLevel: boolean): Buffer
   constructor(nonce: number, restrictions: Array<RestrictionMemo>, kind: MemoKind)
   get nonce(): number
   set nonce(value: number)
@@ -1505,6 +1515,7 @@ export declare class MemoKind {
   static mOfN(mOfN: MofNMemo): MemoKind
   asMember(): MemberMemo | null
   asMOfN(): MofNMemo | null
+  innerPuzzleHash(): Buffer
 }
 
 export declare class MempoolItem {
@@ -1523,6 +1534,15 @@ export declare class MempoolMinFees {
   set cost5000000(value: bigint)
 }
 
+export declare class MetadataUpdate {
+  clone(): MetadataUpdate
+  constructor(kind: UriKind, uri: string)
+  get kind(): UriKind
+  set kind(value: UriKind)
+  get uri(): string
+  set uri(value: string)
+}
+
 export declare class MintedNfts {
   clone(): MintedNfts
   constructor(nfts: Array<Nft>, parentConditions: Array<Program>)
@@ -1534,9 +1554,22 @@ export declare class MintedNfts {
 
 export declare class MipsMemo {
   clone(): MipsMemo
+  innerPuzzleHash(): Buffer
   constructor(innerPuzzle: InnerPuzzleMemo)
   get innerPuzzle(): InnerPuzzleMemo
   set innerPuzzle(value: InnerPuzzleMemo)
+}
+
+export declare class MipsMemoContext {
+  clone(): MipsMemoContext
+  constructor()
+  addK1(publicKey: K1PublicKey): void
+  addR1(publicKey: R1PublicKey): void
+  addBls(publicKey: PublicKey): void
+  addHash(hash: Uint8Array): void
+  addTimelock(timelock: bigint): void
+  addOpcode(opcode: number): void
+  addSingletonMode(mode: number): void
 }
 
 export declare class MipsSpend {
@@ -1571,6 +1604,7 @@ export declare class Mnemonic {
 
 export declare class MofNMemo {
   clone(): MofNMemo
+  innerPuzzleHash(): Buffer
   constructor(required: number, items: Array<InnerPuzzleMemo>)
   get required(): number
   set required(value: number)
@@ -1906,6 +1940,29 @@ export declare class ParsedNftInfo {
   set p2Puzzle(value: Puzzle)
 }
 
+export declare class ParsedNftTransfer {
+  clone(): ParsedNftTransfer
+  constructor(transferType: TransferType, launcherId: Uint8Array, p2PuzzleHash: Uint8Array, coin: Coin, clawback: ClawbackV2 | undefined | null, memos: Array<Uint8Array>, newUris: Array<MetadataUpdate>, latestOwner: Uint8Array | undefined | null, includesUnverifiableUpdates: boolean)
+  get transferType(): TransferType
+  set transferType(value: TransferType)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get p2PuzzleHash(): Buffer
+  set p2PuzzleHash(value: Uint8Array)
+  get coin(): Coin
+  set coin(value: Coin)
+  get clawback(): ClawbackV2 | null
+  set clawback(value?: ClawbackV2 | undefined | null)
+  get memos(): Array<Buffer>
+  set memos(value: Array<Uint8Array>)
+  get newUris(): Array<MetadataUpdate>
+  set newUris(value: Array<MetadataUpdate>)
+  get latestOwner(): Buffer | null
+  set latestOwner(value?: Uint8Array | undefined | null)
+  get includesUnverifiableUpdates(): boolean
+  set includesUnverifiableUpdates(value: boolean)
+}
+
 export declare class ParsedOption {
   clone(): ParsedOption
   constructor(option: OptionContract, p2Puzzle: Puzzle, p2Solution: Program)
@@ -1928,7 +1985,9 @@ export declare class ParsedOptionInfo {
 
 export declare class ParsedPayment {
   clone(): ParsedPayment
-  constructor(assetId: Uint8Array | undefined | null, hiddenPuzzleHash: Uint8Array | undefined | null, p2PuzzleHash: Uint8Array, coin: Coin, clawback: ClawbackV2 | undefined | null, memos: Array<Uint8Array>)
+  constructor(transferType: TransferType, assetId: Uint8Array | undefined | null, hiddenPuzzleHash: Uint8Array | undefined | null, p2PuzzleHash: Uint8Array, coin: Coin, clawback: ClawbackV2 | undefined | null, memos: Array<Uint8Array>)
+  get transferType(): TransferType
+  set transferType(value: TransferType)
   get assetId(): Buffer | null
   set assetId(value?: Uint8Array | undefined | null)
   get hiddenPuzzleHash(): Buffer | null
@@ -2870,13 +2929,15 @@ export declare class VaultSpendReveal {
 
 export declare class VaultTransaction {
   clone(): VaultTransaction
-  constructor(newCustodyHash: Uint8Array | undefined | null, sentPayments: Array<ParsedPayment>, receivedPayments: Array<ParsedPayment>, feePaid: bigint, totalFee: bigint)
+  constructor(newCustodyHash: Uint8Array | undefined | null, payments: Array<ParsedPayment>, nfts: Array<ParsedNftTransfer>, dropCoins: Array<DropCoin>, feePaid: bigint, totalFee: bigint)
   get newCustodyHash(): Buffer | null
   set newCustodyHash(value?: Uint8Array | undefined | null)
-  get sentPayments(): Array<ParsedPayment>
-  set sentPayments(value: Array<ParsedPayment>)
-  get receivedPayments(): Array<ParsedPayment>
-  set receivedPayments(value: Array<ParsedPayment>)
+  get payments(): Array<ParsedPayment>
+  set payments(value: Array<ParsedPayment>)
+  get nfts(): Array<ParsedNftTransfer>
+  set nfts(value: Array<ParsedNftTransfer>)
+  get dropCoins(): Array<DropCoin>
+  set dropCoins(value: Array<DropCoin>)
   get feePaid(): bigint
   set feePaid(value: bigint)
   get totalFee(): bigint
@@ -2983,8 +3044,20 @@ export declare function timelockRestriction(timelock: bigint): Restriction
 
 export declare function toHex(value: Uint8Array): string
 
+export declare const enum TransferType {
+  Sent = 0,
+  Received = 1,
+  Updated = 2
+}
+
 export declare function treeHashAtom(atom: Uint8Array): Buffer
 
 export declare function treeHashPair(first: Uint8Array, rest: Uint8Array): Buffer
+
+export declare const enum UriKind {
+  Data = 0,
+  Metadata = 1,
+  License = 2
+}
 
 export declare function wrappedDelegatedPuzzleHash(restrictions: Array<Restriction>, delegatedPuzzleHash: Uint8Array): Buffer
