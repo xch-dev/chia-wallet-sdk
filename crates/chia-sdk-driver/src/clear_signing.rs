@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::{
     Memos,
+    nft::NftMetadata,
     offer::{NotarizedPayment, SettlementPaymentsSolution},
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
@@ -13,9 +14,8 @@ use chia_sdk_types::{
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
-use indexmap::IndexMap;
 
-use crate::{Cat, ClawbackV2, DriverError, MetadataUpdate, Puzzle, Spend, mips_puzzle_hash};
+use crate::{Cat, ClawbackV2, DriverError, MetadataUpdate, Nft, Puzzle, Spend, mips_puzzle_hash};
 
 /// Information about a vault that must be provided in order to securely parse a transaction.
 #[derive(Debug, Clone, Copy)]
@@ -147,7 +147,7 @@ impl VaultTransaction {
         let coin_spends = reorder_coin_spends(coin_spends);
 
         let mut payments = Vec::new();
-        let mut nfts = IndexMap::<Bytes32, ParsedNftTransfer>::new();
+        let mut nfts = Vec::new();
         let mut our_input = 0;
         let mut our_output = 0;
         let mut total_input = 0;
@@ -229,6 +229,101 @@ impl VaultTransaction {
                         });
                     }
                 }
+            } else if let Some((nft, p2_puzzle, p2_solution)) =
+                Nft::parse(allocator, coin_spend.coin, puzzle, solution)?
+            {
+                let p2_output = run_puzzle(allocator, p2_puzzle.ptr(), p2_solution)?;
+
+                let mut p2_create_coins = Vec::<Condition>::from_clvm(allocator, p2_output)?
+                    .into_iter()
+                    .filter_map(Condition::into_create_coin)
+                    .filter(|cc| cc.amount % 2 == 1)
+                    .collect::<Vec<_>>();
+
+                let child = Nft::parse_child(allocator, coin_spend.coin, puzzle, solution)?
+                    .ok_or(DriverError::MissingChild)?;
+
+                let notarized_payments =
+                    if nft.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
+                        SettlementPaymentsSolution::from_clvm(allocator, p2_solution)?
+                            .notarized_payments
+                    } else {
+                        Vec::new()
+                    };
+
+                let create_coin = p2_create_coins.remove(0);
+                let parsed_memos = parse_memos(allocator, create_coin, true);
+                let is_child_ours = parsed_memos.p2_puzzle_hash == our_p2_puzzle_hash;
+
+                total_output += child.coin.amount;
+
+                if is_parent_ours {
+                    our_output += child.coin.amount;
+                }
+
+                // Skip ephemeral coins
+                if our_spent_coin_ids.contains(&child.coin.coin_id()) {
+                    continue;
+                }
+
+                if let Some(transfer_type) = calculate_transfer_type(
+                    allocator,
+                    TransferTypeContext {
+                        puzzle_assertion_ids: &puzzle_assertion_ids,
+                        notarized_payments: &notarized_payments,
+                        create_coin: &create_coin,
+                        full_puzzle_hash: nft.coin.puzzle_hash,
+                        is_parent_ours,
+                        is_child_ours,
+                        is_fungible: false,
+                    },
+                ) {
+                    let mut includes_unverifiable_updates = false;
+
+                    let new_uris = if let Ok(old_metadata) =
+                        NftMetadata::from_clvm(allocator, nft.info.metadata.ptr())
+                        && let Ok(new_metadata) =
+                            NftMetadata::from_clvm(allocator, child.info.metadata.ptr())
+                    {
+                        let mut new_uris = Vec::new();
+
+                        for uri in new_metadata.data_uris {
+                            if !old_metadata.data_uris.contains(&uri) {
+                                new_uris.push(MetadataUpdate::NewDataUri(uri));
+                            }
+                        }
+
+                        for uri in new_metadata.metadata_uris {
+                            if !old_metadata.metadata_uris.contains(&uri) {
+                                new_uris.push(MetadataUpdate::NewMetadataUri(uri));
+                            }
+                        }
+
+                        for uri in new_metadata.license_uris {
+                            if !old_metadata.license_uris.contains(&uri) {
+                                new_uris.push(MetadataUpdate::NewLicenseUri(uri));
+                            }
+                        }
+
+                        new_uris
+                    } else {
+                        includes_unverifiable_updates |= nft.info.metadata != child.info.metadata;
+
+                        vec![]
+                    };
+
+                    nfts.push(ParsedNftTransfer {
+                        transfer_type,
+                        launcher_id: child.info.launcher_id,
+                        p2_puzzle_hash: parsed_memos.p2_puzzle_hash,
+                        coin: child.coin,
+                        clawback: parsed_memos.clawback,
+                        memos: parsed_memos.memos,
+                        new_uris,
+                        latest_owner: child.info.current_owner,
+                        includes_unverifiable_updates,
+                    });
+                }
             } else {
                 let create_coins = conditions
                     .into_iter()
@@ -293,7 +388,7 @@ impl VaultTransaction {
         Ok(Self {
             new_custody_hash,
             payments,
-            nfts: nfts.into_values().collect(),
+            nfts,
             drop_coins,
             fee_paid: our_input.saturating_sub(our_output),
             total_fee: total_input.saturating_sub(total_output),
@@ -445,7 +540,7 @@ struct ParsedMemos {
 fn parse_memos(
     allocator: &Allocator,
     p2_create_coin: CreateCoin<NodePtr>,
-    is_cat: bool,
+    hintable: bool,
 ) -> ParsedMemos {
     // If there is no memo list, there's nothing to parse and we can assume there's no clawback
     let Memos::Some(memos) = p2_create_coin.memos else {
@@ -465,7 +560,7 @@ fn parse_memos(
             clawback_memo,
             hint,
             p2_create_coin.amount,
-            is_cat,
+            hintable,
             p2_create_coin.puzzle_hash,
         )
     {
@@ -477,7 +572,7 @@ fn parse_memos(
     }
 
     // If we're parsing a CAT output, we can remove the hint from the memos if applicable.
-    if is_cat && let Ok((_hint, rest)) = <(Bytes32, NodePtr)>::from_clvm(allocator, memos) {
+    if hintable && let Ok((_hint, rest)) = <(Bytes32, NodePtr)>::from_clvm(allocator, memos) {
         return ParsedMemos {
             p2_puzzle_hash: p2_create_coin.puzzle_hash,
             clawback: None,
@@ -493,6 +588,7 @@ fn parse_memos(
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 struct TransferTypeContext<'a> {
     puzzle_assertion_ids: &'a HashSet<Bytes32>,
     notarized_payments: &'a Vec<NotarizedPayment>,
