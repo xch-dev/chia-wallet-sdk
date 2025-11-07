@@ -852,7 +852,7 @@ mod tests {
         assert_eq!(tx.total_fee, alice_fee);
 
         let payment = &tx.payments[0];
-        assert_eq!(payment.transfer_type, TransferType::Sent);
+        assert_eq!(payment.transfer_type, TransferType::Offered);
         assert_eq!(payment.asset_id, asset_id);
         assert_eq!(payment.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
         assert_eq!(payment.coin.amount, 1000);
