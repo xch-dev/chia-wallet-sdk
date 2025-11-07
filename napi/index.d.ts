@@ -580,6 +580,7 @@ export declare class Clvm {
   spendSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array, nonce: Uint8Array, destinationPuzzleHash: Uint8Array): SettlementNftSpendResult
   offerSettlementCats(offer: SpendBundle, assetId: Uint8Array): Array<Cat>
   offerSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array): Nft | null
+  parseVaultTransaction(vault: VaultSpendReveal, coinSpends: Array<CoinSpend>): VaultTransaction
   acsTransferProgram(): Program
   augmentedCondition(): Program
   blockProgramZero(): Program
@@ -1925,6 +1926,23 @@ export declare class ParsedOptionInfo {
   set p2Puzzle(value: Puzzle)
 }
 
+export declare class ParsedPayment {
+  clone(): ParsedPayment
+  constructor(assetId: Uint8Array | undefined | null, hiddenPuzzleHash: Uint8Array | undefined | null, p2PuzzleHash: Uint8Array, coin: Coin, clawback: ClawbackV2 | undefined | null, memos: Array<Uint8Array>)
+  get assetId(): Buffer | null
+  set assetId(value?: Uint8Array | undefined | null)
+  get hiddenPuzzleHash(): Buffer | null
+  set hiddenPuzzleHash(value?: Uint8Array | undefined | null)
+  get p2PuzzleHash(): Buffer
+  set p2PuzzleHash(value: Uint8Array)
+  get coin(): Coin
+  set coin(value: Coin)
+  get clawback(): ClawbackV2 | null
+  set clawback(value?: ClawbackV2 | undefined | null)
+  get memos(): Array<Buffer>
+  set memos(value: Array<Uint8Array>)
+}
+
 export declare class Payment {
   clone(): Payment
   constructor(puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null)
@@ -1997,6 +2015,7 @@ export declare class Program {
   toBool(): boolean | null
   toAtom(): Buffer | null
   toList(): Array<Program> | null
+  toArgList(): Array<Program> | null
   toPair(): Pair | null
   puzzle(): Puzzle
   parseNftMetadata(): NftMetadata | null
@@ -2836,6 +2855,32 @@ export declare class VaultMint {
   set vault(value: Vault)
   get parentConditions(): Array<Program>
   set parentConditions(value: Array<Program>)
+}
+
+export declare class VaultSpendReveal {
+  clone(): VaultSpendReveal
+  constructor(launcherId: Uint8Array, custodyHash: Uint8Array, delegatedSpend: Spend)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get custodyHash(): Buffer
+  set custodyHash(value: Uint8Array)
+  get delegatedSpend(): Spend
+  set delegatedSpend(value: Spend)
+}
+
+export declare class VaultTransaction {
+  clone(): VaultTransaction
+  constructor(newCustodyHash: Uint8Array | undefined | null, sentPayments: Array<ParsedPayment>, receivedPayments: Array<ParsedPayment>, feePaid: bigint, totalFee: bigint)
+  get newCustodyHash(): Buffer | null
+  set newCustodyHash(value?: Uint8Array | undefined | null)
+  get sentPayments(): Array<ParsedPayment>
+  set sentPayments(value: Array<ParsedPayment>)
+  get receivedPayments(): Array<ParsedPayment>
+  set receivedPayments(value: Array<ParsedPayment>)
+  get feePaid(): bigint
+  set feePaid(value: bigint)
+  get totalFee(): bigint
+  set totalFee(value: bigint)
 }
 
 export declare class VdfInfo {

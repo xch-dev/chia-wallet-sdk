@@ -295,6 +295,11 @@
     "new": true,
     "fields": {
       "inner_puzzle": "InnerPuzzleMemo"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      }
     }
   },
   "InnerPuzzleMemo": {
@@ -304,6 +309,14 @@
       "nonce": "u32",
       "restrictions": "Vec<RestrictionMemo>",
       "kind": "MemoKind"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "args": {
+          "top_level": "bool"
+        },
+        "return": "TreeHash"
+      }
     }
   },
   "RestrictionMemo": {
@@ -424,6 +437,9 @@
       },
       "as_m_of_n": {
         "return": "Option<MofNMemo>"
+      },
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
       }
     }
   },
@@ -488,6 +504,12 @@
           "puzzle_hash": "Bytes32",
           "reveal": "bool"
         }
+      },
+      "parse": {
+        "args": {
+          "context": "MipsMemoContext"
+        },
+        "return": "Option<ParsedMember>"
       }
     }
   },
@@ -497,6 +519,54 @@
     "fields": {
       "required": "u32",
       "items": "Vec<InnerPuzzleMemo>"
+    },
+    "methods": {
+      "inner_puzzle_hash": {
+        "return": "TreeHash"
+      }
+    }
+  },
+  "MipsMemoContext": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor"
+      },
+      "add_k1": {
+        "args": {
+          "public_key": "K1PublicKey"
+        }
+      },
+      "add_r1": {
+        "args": {
+          "public_key": "R1PublicKey"
+        }
+      },
+      "add_bls": {
+        "args": {
+          "public_key": "PublicKey"
+        }
+      },
+      "add_hash": {
+        "args": {
+          "hash": "Bytes32"
+        }
+      },
+      "add_timelock": {
+        "args": {
+          "timelock": "u64"
+        }
+      },
+      "add_opcode": {
+        "args": {
+          "opcode": "u16"
+        }
+      },
+      "add_singleton_mode": {
+        "args": {
+          "mode": "u8"
+        }
+      }
     }
   }
 }

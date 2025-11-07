@@ -522,9 +522,19 @@ impl MemberMemo<NodePtr> {
                 return Some(ParsedMember::Bls(member));
             }
 
+            let member = BlsMemberPuzzleAssert::new(public_key);
+            if member.curry_tree_hash() == self.puzzle_hash.into() {
+                return Some(ParsedMember::BlsPuzzleAssert(member));
+            }
+
             let member = BlsTaprootMember::new(public_key);
             if member.curry_tree_hash() == self.puzzle_hash.into() {
                 return Some(ParsedMember::BlsTaproot(member));
+            }
+
+            let member = BlsTaprootMemberPuzzleAssert::new(public_key);
+            if member.curry_tree_hash() == self.puzzle_hash.into() {
+                return Some(ParsedMember::BlsTaprootPuzzleAssert(member));
             }
         }
 
@@ -583,6 +593,13 @@ impl MemberMemo<NodePtr> {
                 return Some(ParsedMember::Singleton(member));
             }
 
+            for &mode in &ctx.singleton_modes {
+                let member = SingletonMemberWithMode::new(hash, mode);
+                if member.curry_tree_hash() == self.puzzle_hash.into() {
+                    return Some(ParsedMember::SingletonWithMode(member));
+                }
+            }
+
             let member = FixedPuzzleMember::new(hash);
             if member.curry_tree_hash() == self.puzzle_hash.into() {
                 return Some(ParsedMember::FixedPuzzle(member));
@@ -637,6 +654,7 @@ pub struct MipsMemoContext {
     pub hashes: Vec<Bytes32>,
     pub timelocks: Vec<u64>,
     pub opcodes: Vec<u16>,
+    pub singleton_modes: Vec<u8>,
 }
 
 impl Default for MipsMemoContext {
@@ -653,6 +671,7 @@ impl Default for MipsMemoContext {
                 CREATE_PUZZLE_ANNOUNCEMENT,
                 CREATE_COIN_ANNOUNCEMENT,
             ],
+            singleton_modes: vec![0b010_010, 0b010_111],
         }
     }
 }

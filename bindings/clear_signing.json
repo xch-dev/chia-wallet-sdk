@@ -1,1 +1,36 @@
-{}
+{
+  "VaultSpendReveal": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "launcher_id": "Bytes32",
+      "custody_hash": "TreeHash",
+      "delegated_spend": "Spend"
+    }
+  },
+  "VaultTransaction": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "new_custody_hash": "Option<TreeHash>",
+      "sent_payments": "Vec<ParsedPayment>",
+      "received_payments": "Vec<ParsedPayment>",
+      "fee_paid": "u64",
+      "total_fee": "u64"
+    }
+  },
+  "ParsedPayment": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "asset_id": "Option<Bytes32>",
+      "hidden_puzzle_hash": "Option<Bytes32>",
+      "p2_puzzle_hash": "Bytes32",
+      "coin": "Coin",
+      "clawback": "Option<ClawbackV2>",
+      "memos": "Vec<Bytes>"
+    }
+  }
+}
