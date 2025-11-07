@@ -627,6 +627,13 @@
           "nft_launcher_id": "Bytes32"
         },
         "return": "Option<Nft>"
+      },
+      "parse_vault_transaction": {
+        "args": {
+          "vault": "VaultSpendReveal",
+          "coin_spends": "Vec<CoinSpend>"
+        },
+        "return": "VaultTransaction"
       }
     }
   }
