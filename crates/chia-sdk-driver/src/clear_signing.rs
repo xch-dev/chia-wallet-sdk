@@ -618,7 +618,7 @@ fn parse_memos(
         return ParsedMemos {
             p2_puzzle_hash: clawback.receiver_puzzle_hash,
             clawback: Some(clawback),
-            memos: Vec::<String>::from_clvm(allocator, rest).unwrap_or_default(),
+            memos: parse_memo_list(allocator, rest),
         };
     }
 
@@ -627,7 +627,7 @@ fn parse_memos(
         return ParsedMemos {
             p2_puzzle_hash: p2_create_coin.puzzle_hash,
             clawback: None,
-            memos: Vec::<String>::from_clvm(allocator, rest).unwrap_or_default(),
+            memos: parse_memo_list(allocator, rest),
         };
     }
 
@@ -635,8 +635,23 @@ fn parse_memos(
     ParsedMemos {
         p2_puzzle_hash: p2_create_coin.puzzle_hash,
         clawback: None,
-        memos: Vec::<String>::from_clvm(allocator, memos).unwrap_or_default(),
+        memos: parse_memo_list(allocator, memos),
     }
+}
+
+fn parse_memo_list(allocator: &Allocator, memos: NodePtr) -> Vec<String> {
+    let memos = Vec::<NodePtr>::from_clvm(allocator, memos).unwrap_or_default();
+
+    let mut result = Vec::new();
+
+    for memo in memos {
+        let Ok(memo) = String::from_clvm(allocator, memo) else {
+            continue;
+        };
+        result.push(memo);
+    }
+
+    result
 }
 
 #[derive(Debug, Clone, Copy)]
