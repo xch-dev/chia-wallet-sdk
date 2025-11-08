@@ -65,5 +65,12 @@
       "amount": "u64"
     },
     "return": "Vec<Coin>"
+  },
+  "spend_bundle_cost": {
+    "type": "function",
+    "args": {
+      "coin_spends": "Vec<CoinSpend>"
+    },
+    "return": "u64"
   }
 }
