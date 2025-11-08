@@ -476,7 +476,11 @@ mod tests {
             .mint_nft(ctx, &mint)?;
         let _did = did.update(ctx, &alice_p2, mint_nft)?;
 
-        let metadata_update = MetadataUpdate::NewDataUri("another.com".to_string()).spend(ctx)?;
+        let metadata_update = MetadataUpdate {
+            kind: UriKind::Data,
+            uri: "another.com".to_string(),
+        }
+        .spend(ctx)?;
         let parent_nft = nft;
         let nft = nft.transfer_with_metadata(
             ctx,

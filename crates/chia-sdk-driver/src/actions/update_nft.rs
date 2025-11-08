@@ -126,7 +126,7 @@ mod tests {
     use chia_sdk_test::Simulator;
     use indexmap::indexmap;
 
-    use crate::{Action, HashedPtr, MetadataUpdate, Relation};
+    use crate::{Action, HashedPtr, MetadataUpdate, Relation, UriKind};
 
     use super::*;
 
@@ -144,8 +144,11 @@ mod tests {
         };
         let original_metadata = ctx.alloc_hashed(&metadata)?;
 
-        let metadata_update_spend =
-            MetadataUpdate::NewDataUri("https://example.com/2".to_string()).spend(&mut ctx)?;
+        let metadata_update_spend = MetadataUpdate {
+            kind: UriKind::Data,
+            uri: "https://example.com/2".to_string(),
+        }
+        .spend(&mut ctx)?;
         metadata
             .data_uris
             .insert(0, "https://example.com/2".to_string());
@@ -200,8 +203,16 @@ mod tests {
         let original_metadata = ctx.alloc_hashed(&metadata)?;
 
         let metadata_update_spends = vec![
-            MetadataUpdate::NewDataUri("https://example.com/2".to_string()).spend(&mut ctx)?,
-            MetadataUpdate::NewDataUri("https://example.com/3".to_string()).spend(&mut ctx)?,
+            MetadataUpdate {
+                kind: UriKind::Data,
+                uri: "https://example.com/2".to_string(),
+            }
+            .spend(&mut ctx)?,
+            MetadataUpdate {
+                kind: UriKind::Data,
+                uri: "https://example.com/3".to_string(),
+            }
+            .spend(&mut ctx)?,
         ];
         metadata
             .data_uris

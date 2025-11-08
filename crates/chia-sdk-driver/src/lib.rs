@@ -5,6 +5,7 @@
 
 mod action_system;
 mod actions;
+mod clear_signing;
 mod driver_error;
 mod hashed_ptr;
 mod layer;
@@ -13,11 +14,13 @@ mod offers;
 mod primitives;
 mod puzzle;
 mod spend;
+mod spend_bundle_cost;
 mod spend_context;
 mod spend_with_conditions;
 
 pub use action_system::*;
 pub use actions::*;
+pub use clear_signing::*;
 pub use driver_error::*;
 pub use hashed_ptr::*;
 pub use layer::*;
@@ -26,5 +29,12 @@ pub use offers::*;
 pub use primitives::*;
 pub use puzzle::*;
 pub use spend::*;
+pub use spend_bundle_cost::*;
 pub use spend_context::*;
 pub use spend_with_conditions::*;
+
+#[cfg(test)]
+mod test_wallet;
+
+#[cfg(test)]
+pub use test_wallet::*;

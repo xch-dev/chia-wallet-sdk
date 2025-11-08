@@ -1,5 +1,5 @@
 use bindy::Result;
-use chia_protocol::{Bytes, Bytes32, Coin};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use sha2::{Digest, Sha256};
@@ -49,4 +49,8 @@ pub fn generate_bytes(bytes: u32) -> Result<Bytes> {
 
 pub fn select_coins(coins: Vec<Coin>, amount: u64) -> Result<Vec<Coin>> {
     Ok(chia_sdk_utils::select_coins(coins, amount)?)
+}
+
+pub fn spend_bundle_cost(coin_spends: Vec<CoinSpend>) -> Result<u64> {
+    Ok(chia_sdk_driver::spend_bundle_cost(&coin_spends)?)
 }
