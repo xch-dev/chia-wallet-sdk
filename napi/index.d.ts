@@ -3052,6 +3052,8 @@ export declare function sha256(value: Uint8Array): Buffer
 
 export declare function singletonMemberHash(config: MemberConfig, launcherId: Uint8Array, fastForward: boolean): Buffer
 
+export declare function spendBundleCost(coinSpends: Array<CoinSpend>): bigint
+
 export declare function standardPuzzleHash(syntheticKey: PublicKey): Buffer
 
 export declare function timelockRestriction(timelock: bigint): Restriction

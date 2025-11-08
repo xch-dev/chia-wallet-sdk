@@ -622,6 +622,7 @@ module.exports.RewardDistributorType = nativeBinding.RewardDistributorType
 module.exports.selectCoins = nativeBinding.selectCoins
 module.exports.sha256 = nativeBinding.sha256
 module.exports.singletonMemberHash = nativeBinding.singletonMemberHash
+module.exports.spendBundleCost = nativeBinding.spendBundleCost
 module.exports.standardPuzzleHash = nativeBinding.standardPuzzleHash
 module.exports.timelockRestriction = nativeBinding.timelockRestriction
 module.exports.toHex = nativeBinding.toHex

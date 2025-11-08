@@ -472,7 +472,7 @@ impl Outputs {
             .inner
             .nfts
             .get(&id.0)
-            .cloned()
+            .copied()
             .ok_or_else(|| bindy::Error::Custom("NFT not found in outputs".to_string()))?;
         Ok(sdk_nft.as_program(&self.clvm))
     }

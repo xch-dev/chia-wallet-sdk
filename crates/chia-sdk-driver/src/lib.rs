@@ -14,6 +14,7 @@ mod offers;
 mod primitives;
 mod puzzle;
 mod spend;
+mod spend_bundle_cost;
 mod spend_context;
 mod spend_with_conditions;
 
@@ -28,6 +29,7 @@ pub use offers::*;
 pub use primitives::*;
 pub use puzzle::*;
 pub use spend::*;
+pub use spend_bundle_cost::*;
 pub use spend_context::*;
 pub use spend_with_conditions::*;
 
