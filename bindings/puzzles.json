@@ -281,6 +281,19 @@
       "license_hash": "Option<Bytes32>"
     }
   },
+  "MetadataUpdate": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "kind": "UriKind",
+      "uri": "String"
+    }
+  },
+  "UriKind": {
+    "type": "enum",
+    "values": ["Data", "Metadata", "License"]
+  },
   "NftMint": {
     "type": "class",
     "new": true,

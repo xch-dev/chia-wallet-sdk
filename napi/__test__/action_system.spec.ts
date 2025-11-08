@@ -5,12 +5,16 @@ import {
   catPuzzleHash,
   Clvm,
   Coin,
+  Constants,
   Delta,
   Deltas,
   Id,
+  Nft,
+  NftMetadata,
   Outputs,
   selectCoins,
   Simulator,
+  Spend,
   Spends,
   standardPuzzleHash,
 } from "..";
@@ -65,7 +69,12 @@ class Wallet {
     }
   }
 
-  selectCoins(sim: Simulator, spends: Spends, actions: Action[]) {
+  selectCoins(
+    sim: Simulator,
+    spends: Spends,
+    actions: Action[],
+    reservedNfts: Map<string, Nft>
+  ) {
     const deltas = Deltas.fromActions(actions);
 
     for (const id of deltas.ids()) {
@@ -94,6 +103,13 @@ class Wallet {
           spends.addXch(selectedCoin);
         }
       } else if (existing) {
+        const assetHex = Buffer.from(existing).toString("hex");
+        const reserved = reservedNfts.get(assetHex);
+        if (reserved) {
+          spends.addNft(reserved);
+          reservedNfts.delete(assetHex);
+          continue;
+        }
         const coins = this.fetchCatCoins(sim, existing);
 
         for (const selectedCoin of selectCoins(coins, required)) {
@@ -103,10 +119,22 @@ class Wallet {
     }
   }
 
-  spend(sim: Simulator, clvm: Clvm, actions: Action[]): Outputs {
+  spend(
+    sim: Simulator,
+    clvm: Clvm,
+    actions: Action[],
+    extras?: { nfts?: Nft[] }
+  ): Outputs {
     // Create a Spends object and insert coins we want to spend
     const spends = new Spends(clvm, this.puzzleHash);
-    this.selectCoins(sim, spends, actions);
+    const reservedNfts = new Map<string, Nft>();
+    if (extras?.nfts) {
+      for (const nft of extras.nfts) {
+        const launcherId = nft.info.launcherId as Uint8Array;
+        reservedNfts.set(Buffer.from(launcherId).toString("hex"), nft);
+      }
+    }
+    this.selectCoins(sim, spends, actions, reservedNfts);
 
     // Apply actions and finish the proposed spends with the deltas
     const deltas = spends.apply(actions);
@@ -191,4 +219,107 @@ test("issue and send a cat", (t) => {
   t.throws(() => {
     alice.spend(sim, clvm, [Action.send(id, alice.puzzleHash, 1001n)]);
   });
+});
+
+test("mint and update nft metadata", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(2n);
+  alice.addXch(sim, 2_000n);
+
+  const metadata = new NftMetadata(
+    1n,
+    1n,
+    ["https://example.com/1"],
+    null,
+    [],
+    null,
+    [],
+    null
+  );
+
+  const mint = Action.mintNft(
+    clvm,
+    clvm.nftMetadata(metadata),
+    Constants.nftMetadataUpdaterDefaultHash(),
+    alice.puzzleHash,
+    0,
+    1n,
+    null
+  );
+
+  const metadataUpdate = new Spend(
+    clvm.nftMetadataUpdaterDefault(),
+    clvm.list([clvm.string("u"), clvm.string("https://example.com/2")])
+  );
+
+  const update = Action.updateNft(Id.new(0n), [metadataUpdate]);
+
+  const outputs = alice.spend(sim, clvm, [mint, update]);
+
+  const nftId = outputs.nfts()[0];
+  const nft = outputs.nft(nftId);
+  const metadataSource = nft.info.metadata.unparse();
+
+  t.is(outputs.nfts().length, 1);
+  t.is(nftId.asNew(), 0n);
+  t.truthy(sim.coinState(nft.coin.coinId()));
+  t.truthy(metadataSource);
+  t.true(metadataSource?.includes("https://example.com/2") ?? false);
+});
+
+test("update existing nft metadata", (t) => {
+  const sim = new Simulator();
+  const clvm = new Clvm();
+
+  const alice = new Wallet(3n);
+  alice.addXch(sim, 2_000n);
+
+  // Mint the NFT that we will update later
+  const metadata = new NftMetadata(
+    1n,
+    1n,
+    ["https://example.com/1"],
+    null,
+    [],
+    null,
+    [],
+    null
+  );
+
+  const mint = Action.mintNft(
+    clvm,
+    clvm.nftMetadata(metadata),
+    Constants.nftMetadataUpdaterDefaultHash(),
+    alice.puzzleHash,
+    0,
+    1n,
+    null
+  );
+
+  const mintOutputs = alice.spend(sim, clvm, [mint]);
+  const mintedId = mintOutputs.nfts()[0];
+  const mintedNft = mintOutputs.nft(mintedId);
+
+  // Update the metadata using the existing NFT
+  const metadataUpdate = new Spend(
+    clvm.nftMetadataUpdaterDefault(),
+    clvm.list([clvm.string("u"), clvm.string("https://example.com/2")])
+  );
+
+  const update = Action.updateNft(Id.existing(mintedNft.info.launcherId), [metadataUpdate]);
+
+  const outputs = alice.spend(sim, clvm, [update], { nfts: [mintedNft] });
+
+  const updatedNft = outputs.nft(Id.existing(mintedNft.info.launcherId));
+  const previousState = sim.coinState(mintedNft.coin.coinId());
+  const metadataSource = updatedNft.info.metadata.unparse();
+
+  t.truthy(previousState);
+  t.not(previousState?.spentHeight, null);
+  t.truthy(sim.coinState(updatedNft.coin.coinId()));
+  t.deepEqual(outputs.nfts(), [Id.existing(mintedNft.info.launcherId)]);
+  t.truthy(metadataSource);
+  t.true(metadataSource?.includes("https://example.com/2") ?? false);
 });
