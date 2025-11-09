@@ -86,7 +86,7 @@ pub enum RewardDistributorType {
     NftCollection {
         collection_did_launcher_id: Bytes32,
     },
-    WeightedNft {
+    CuratedNft {
         store_launcher_id: Bytes32,
         refreshable: bool,
     },
@@ -110,7 +110,7 @@ impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for RewardDistributorType {
             3 => {
                 let (store_launcher_id, refreshable): (Bytes32, bool) =
                     FromClvm::from_clvm(decoder, type_pair.1 .0)?;
-                Ok(RewardDistributorType::WeightedNft {
+                Ok(RewardDistributorType::CuratedNft {
                     store_launcher_id,
                     refreshable,
                 })
@@ -140,7 +140,7 @@ impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for RewardDistributorType {
             RewardDistributorType::NftCollection {
                 collection_did_launcher_id,
             } => (2, collection_did_launcher_id).to_clvm(encoder),
-            RewardDistributorType::WeightedNft {
+            RewardDistributorType::CuratedNft {
                 store_launcher_id,
                 refreshable,
             } => (3, (store_launcher_id, refreshable)).to_clvm(encoder),

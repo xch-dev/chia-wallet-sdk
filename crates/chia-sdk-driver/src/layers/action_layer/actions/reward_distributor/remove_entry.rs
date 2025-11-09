@@ -13,8 +13,8 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, RewardDistributor, RewardDistributorConstants, SingletonAction, Slot, Spend,
-    SpendContext,
+    DriverError, RewardDistributor, RewardDistributorConstants, RewardDistributorType,
+    SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,6 +22,7 @@ pub struct RewardDistributorRemoveEntryAction {
     pub launcher_id: Bytes32,
     pub manager_launcher_id: Bytes32,
     pub max_seconds_offset: u64,
+    pub precision: u64,
 }
 
 impl ToTreeHash for RewardDistributorRemoveEntryAction {
@@ -30,6 +31,7 @@ impl ToTreeHash for RewardDistributorRemoveEntryAction {
             self.launcher_id,
             self.manager_launcher_id,
             self.max_seconds_offset,
+            self.precision,
         )
         .curry_tree_hash()
     }
@@ -39,8 +41,14 @@ impl SingletonAction<RewardDistributor> for RewardDistributorRemoveEntryAction {
     fn from_constants(constants: &RewardDistributorConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,
-            manager_launcher_id: constants.manager_or_collection_did_launcher_id,
+            manager_launcher_id: match constants.reward_distributor_type {
+                RewardDistributorType::Managed {
+                    manager_singleton_launcher_id,
+                } => manager_singleton_launcher_id,
+                _ => Bytes32::default(),
+            },
             max_seconds_offset: constants.max_seconds_offset,
+            precision: constants.precision,
         }
     }
 }
@@ -50,6 +58,7 @@ impl RewardDistributorRemoveEntryAction {
         launcher_id: Bytes32,
         manager_launcher_id: Bytes32,
         max_seconds_offset: u64,
+        precision: u64,
     ) -> RewardDistributorRemoveEntryActionArgs {
         RewardDistributorRemoveEntryActionArgs {
             singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
@@ -62,6 +71,7 @@ impl RewardDistributorRemoveEntryAction {
             )
             .into(),
             max_seconds_offset,
+            precision,
         }
     }
 
@@ -70,6 +80,7 @@ impl RewardDistributorRemoveEntryAction {
             self.launcher_id,
             self.manager_launcher_id,
             self.max_seconds_offset,
+            self.precision,
         ))
     }
 
@@ -103,12 +114,14 @@ impl RewardDistributorRemoveEntryAction {
             .assert_concurrent_puzzle(entry_slot.coin.puzzle_hash);
 
         // spend self
-        let entry_payout_amount = entry_slot.info.value.shares
+        let entry_payout_amount_precision = entry_slot.info.value.shares as u128
             * (my_state.round_reward_info.cumulative_payout
                 - entry_slot.info.value.initial_cumulative_payout);
+        let entry_payout_amount = (entry_payout_amount_precision / self.precision as u128) as u64;
         let action_solution = ctx.alloc(&RewardDistributorRemoveEntryActionSolution {
             manager_singleton_inner_puzzle_hash,
             entry_payout_amount,
+            payout_rounding_error: entry_payout_amount_precision % self.precision as u128,
             entry_payout_puzzle_hash: entry_slot.info.value.payout_puzzle_hash,
             entry_initial_cumulative_payout: entry_slot.info.value.initial_cumulative_payout,
             entry_shares: entry_slot.info.value.shares,

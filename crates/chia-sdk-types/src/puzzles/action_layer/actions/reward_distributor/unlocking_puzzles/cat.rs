@@ -7,34 +7,34 @@ use hex_literal::hex;
 
 use crate::Mod;
 
-pub const REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE: [u8; 615] = hex!(
+pub const REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE: [u8; 635] = hex!(
     "
-    ff02ffff01ff04ff8202ffffff04ffff04ff14ffff04ffff0117ffff04ffff02
-    ff3effff04ff02ffff04ffff04ffff0101ffff04ffff04ff10ffff04ff5fffff
-    04ff82017fffff04ffff04ff5fff8080ff8080808080ff808080ff80808080ff
-    ff04ffff30ff81bfffff02ff05ffff04ffff02ff16ffff04ff02ffff04ff0bff
-    ff04ffff02ff3effff04ff02ffff04ffff04ff5fff8202ff80ff80808080ffff
-    04ff17ff808080808080ff8203ff8080ff82017f80ff8080808080ffff04ffff
-    04ff18ffff04ffff0112ffff04ffff04ffff0175ffff04ff81bfff808080ffff
-    04ff5fff8080808080ff80808080ffff04ffff01ffffff3343ff4202ffffff02
-    ffff03ff05ffff01ff0bff7affff02ff2effff04ff02ffff04ff09ffff04ffff
-    02ff12ffff04ff02ffff04ff0dff80808080ff808080808080ffff016a80ff01
-    80ffffa04bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c
-    7785459aa09dcf97a184f32623d11a73124ceb99a5709b083721e878a16d78f5
-    96718ba7b2ffa102a12871fee210fb8619291eaea194581cbd2531e4b23759d2
-    25f6806923f63222a102a8d5dd63fba471ebcb1f3e8f7c1e1879b7152a6e7298
-    a91ce119a63400ade7c5ffff0bff5affff02ff2effff04ff02ffff04ff05ffff
-    04ffff02ff12ffff04ff02ffff04ff07ff80808080ff808080808080ffff0bff
-    1cffff0bff1cff6aff0580ffff0bff1cff0bff4a8080ff02ffff03ffff07ff05
-    80ffff01ff0bffff0102ffff02ff3effff04ff02ffff04ff09ff80808080ffff
-    02ff3effff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff058080
-    ff0180ff018080
+    ff02ffff01ff02ffff03ff2fffff01ff0880ffff01ff04ff8202ffffff04ffff
+    04ff14ffff04ffff0117ffff04ffff02ff3effff04ff02ffff04ffff04ffff01
+    01ffff04ffff04ff10ffff04ff5fffff04ff82017fffff04ffff04ff5fff8080
+    ff8080808080ff808080ff80808080ffff04ffff30ff81bfffff02ff05ffff04
+    ffff02ff16ffff04ff02ffff04ff0bffff04ffff02ff3effff04ff02ffff04ff
+    ff04ff5fff8202ff80ff80808080ffff04ff17ff808080808080ff8203ff8080
+    ff82017f80ff8080808080ffff04ffff04ff18ffff04ffff0112ffff04ffff04
+    ffff0175ffff04ff81bfff808080ffff04ff5fff8080808080ff8080808080ff
+    0180ffff04ffff01ffffff3343ff4202ffffff02ffff03ff05ffff01ff0bff7a
+    ffff02ff2effff04ff02ffff04ff09ffff04ffff02ff12ffff04ff02ffff04ff
+    0dff80808080ff808080808080ffff016a80ff0180ffffa04bf5122f344554c5
+    3bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459aa09dcf97a184f326
+    23d11a73124ceb99a5709b083721e878a16d78f596718ba7b2ffa102a12871fe
+    e210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222a102a8d5
+    dd63fba471ebcb1f3e8f7c1e1879b7152a6e7298a91ce119a63400ade7c5ffff
+    0bff5affff02ff2effff04ff02ffff04ff05ffff04ffff02ff12ffff04ff02ff
+    ff04ff07ff80808080ff808080808080ffff0bff1cffff0bff1cff6aff0580ff
+    ff0bff1cff0bff4a8080ff02ffff03ffff07ff0580ffff01ff0bffff0102ffff
+    02ff3effff04ff02ffff04ff09ff80808080ffff02ff3effff04ff02ffff04ff
+    0dff8080808080ffff01ff0bffff0101ff058080ff0180ff018080
     "
 );
 
 pub const REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    fca43ea7bb146208a670bf123bcd7be255a80af67948ba2218fc40e901590168
+    5a8dad52a999697addddb35aaca0a5e3be25c438d5aa5e89ad95d3a7564f9ea2
     "
 ));
 
