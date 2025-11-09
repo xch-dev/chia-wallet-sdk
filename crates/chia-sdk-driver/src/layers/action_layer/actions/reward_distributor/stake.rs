@@ -12,7 +12,8 @@ use chia_sdk_types::{
         RewardDistributorCatLockingPuzzleArgs, RewardDistributorEntrySlotValue,
         RewardDistributorNftsFromDidLockingPuzzleArgs,
         RewardDistributorNftsFromDidLockingPuzzleSolution,
-        RewardDistributorNftsFromDlLockingPuzzleArgs, RewardDistributorSlotNonce,
+        RewardDistributorNftsFromDlLockingPuzzleArgs,
+        RewardDistributorNftsFromDlLockingPuzzleSolution, RewardDistributorSlotNonce,
         RewardDistributorStakeActionArgs, RewardDistributorStakeActionSolution,
         StakeNftFromDidInfo, StakeNftFromDlInfo, NONCE_WRAPPER_PUZZLE_HASH,
     },
@@ -361,6 +362,10 @@ impl RewardDistributorStakeAction {
         inclusion_proofs: Vec<MerkleProof>,
         entry_custody_puzzle_hash: Bytes32,
         existing_slot: Option<Slot<RewardDistributorEntrySlotValue>>,
+        dl_root_hash: Bytes32,
+        dl_metadata_rest_hash: Option<Bytes32>,
+        dl_metadata_updater_hash_hash: Bytes32,
+        dl_inner_puzzle_hash: Bytes32,
     ) -> Result<(Conditions, Vec<NotarizedPayment>, Vec<Nft>), DriverError> {
         let ephemeral_counter =
             ctx.extract::<HashedPtr>(distributor.pending_spend.latest_state.0)?;
@@ -411,6 +416,7 @@ impl RewardDistributorStakeAction {
             ));
 
             nft_infos.push(StakeNftFromDlInfo {
+                nft_launcher_id: nft.info.launcher_id,
                 nft_metadata_hash: nft.info.metadata.tree_hash().into(),
                 nft_metadata_updater_hash_hash: nft
                     .info
@@ -425,7 +431,7 @@ impl RewardDistributorStakeAction {
                 )
                 .into(),
                 nft_shares: nft_shares[i],
-                nft_inclusion_proof: inclusion_proofs[i],
+                nft_inclusion_proof: inclusion_proofs[i].clone(),
             });
 
             let msg: Bytes32 = ctx.tree_hash(notarized_payment_ptr).into();
@@ -436,9 +442,13 @@ impl RewardDistributorStakeAction {
         }
 
         // spend self
-        let lock_puzzle_solution = RewardDistributorNftsFromDidLockingPuzzleSolution {
+        let lock_puzzle_solution = RewardDistributorNftsFromDlLockingPuzzleSolution {
             my_id: distributor.coin.coin_id(),
             nft_infos,
+            dl_root_hash,
+            dl_metadata_rest_hash,
+            dl_metadata_updater_hash_hash,
+            dl_inner_puzzle_hash,
         };
         let action_solution = ctx.alloc(&RewardDistributorStakeActionSolution {
             lock_puzzle_solution,
