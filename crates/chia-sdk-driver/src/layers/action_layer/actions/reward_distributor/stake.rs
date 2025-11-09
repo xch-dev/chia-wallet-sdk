@@ -9,8 +9,8 @@ use chia_sdk_types::{
     announcement_id,
     puzzles::{
         NftLauncherProof, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs,
-        RewardDistributorCatLockingPuzzleArgs, RewardDistributorEntrySlotValue,
-        RewardDistributorNftsFromDidLockingPuzzleArgs,
+        RewardDistributorCatLockingPuzzleArgs, RewardDistributorCatLockingPuzzleSolution,
+        RewardDistributorEntrySlotValue, RewardDistributorNftsFromDidLockingPuzzleArgs,
         RewardDistributorNftsFromDidLockingPuzzleSolution,
         RewardDistributorNftsFromDlLockingPuzzleArgs,
         RewardDistributorNftsFromDlLockingPuzzleSolution, RewardDistributorSlotNonce,
@@ -24,8 +24,9 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    Asset, CatMaker, DriverError, HashedPtr, Nft, RewardDistributor, RewardDistributorConstants,
-    RewardDistributorState, RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
+    Asset, Cat, CatMaker, DriverError, HashedPtr, Nft, RewardDistributor,
+    RewardDistributorConstants, RewardDistributorState, RewardDistributorType, SingletonAction,
+    Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -479,5 +480,87 @@ impl RewardDistributorStakeAction {
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         Ok((security_conditions, notarized_payments, created_nfts))
+    }
+
+    pub fn spend_for_cat_mode(
+        self,
+        ctx: &mut SpendContext,
+        distributor: &mut RewardDistributor,
+        current_cat: Cat,
+        entry_custody_puzzle_hash: Bytes32,
+        existing_slot: Option<Slot<RewardDistributorEntrySlotValue>>,
+    ) -> Result<(Conditions, NotarizedPayment, Cat), DriverError> {
+        let ephemeral_counter =
+            ctx.extract::<HashedPtr>(distributor.pending_spend.latest_state.0)?;
+        let my_id = distributor.coin.coin_id();
+
+        // calculate notarized payments; spend said nfts
+        let my_p2_treehash = Self::my_p2_puzzle_hash(self.launcher_id).into();
+        let payment_puzzle_hash: Bytes32 = CurriedProgram {
+            program: NONCE_WRAPPER_PUZZLE_HASH,
+            args: NonceWrapperArgs::<Bytes32, TreeHash> {
+                nonce: entry_custody_puzzle_hash,
+                inner_puzzle: my_p2_treehash,
+            },
+        }
+        .tree_hash()
+        .into();
+
+        let np = NotarizedPayment {
+            nonce: clvm_tuple!(ephemeral_counter.tree_hash(), my_id)
+                .tree_hash()
+                .into(),
+            payments: vec![Payment::new(
+                payment_puzzle_hash,
+                current_cat.amount(),
+                ctx.hint(payment_puzzle_hash)?,
+            )],
+        };
+        let notarized_payment_ptr = ctx.alloc(&np)?;
+
+        let created_cat = current_cat.child(SETTLEMENT_PAYMENT_HASH.into(), current_cat.amount());
+
+        let msg: Bytes32 = ctx.tree_hash(notarized_payment_ptr).into();
+        let mut security_conditions =
+            Conditions::new().assert_puzzle_announcement(announcement_id(
+                distributor.coin.puzzle_hash,
+                announcement_id(current_cat.coin.puzzle_hash, msg),
+            ));
+
+        // spend self
+        let lock_puzzle_solution = RewardDistributorCatLockingPuzzleSolution {
+            my_id: distributor.coin.coin_id(),
+            cat_amount: current_cat.amount(),
+            cat_maker_solution_rest: (),
+        };
+        let action_solution = ctx.alloc(&RewardDistributorStakeActionSolution {
+            lock_puzzle_solution,
+            entry_custody_puzzle_hash,
+            existing_slot_cumulative_payout: existing_slot
+                .as_ref()
+                .map_or(-1i128, |s| s.info.value.initial_cumulative_payout as i128),
+            existing_slot_shares: existing_slot.as_ref().map_or(0, |s| s.info.value.shares),
+        })?;
+        let action_puzzle = self.construct_puzzle(ctx)?;
+
+        // if needed, spend existing slot
+        if let Some(existing_slot) = existing_slot {
+            existing_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
+        }
+
+        // ensure new slot is properly created
+        let new_slot_value = Self::created_slot_value(
+            ctx,
+            &distributor.pending_spend.latest_state.1,
+            self.distributor_type,
+            action_solution,
+        )?;
+        let mut msg = new_slot_value.tree_hash().to_vec();
+        msg.insert(0, b't');
+        security_conditions = security_conditions
+            .assert_puzzle_announcement(announcement_id(distributor.coin.puzzle_hash, msg));
+        distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
+
+        Ok((security_conditions, np, created_cat))
     }
 }
