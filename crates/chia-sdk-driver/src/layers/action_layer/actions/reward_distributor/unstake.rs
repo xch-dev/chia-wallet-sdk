@@ -7,9 +7,10 @@ use chia_puzzles::{
 use chia_sdk_types::{
     puzzles::{
         NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution,
-        RewardDistributorEntrySlotValue, RewardDistributorNftsUnlockingPuzzleArgs,
-        RewardDistributorSlotNonce, RewardDistributorUnstakeActionArgs,
-        RewardDistributorUnstakeActionSolution, NONCE_WRAPPER_PUZZLE_HASH,
+        RewardDistributorCatUnlockingPuzzleArgs, RewardDistributorEntrySlotValue,
+        RewardDistributorNftsUnlockingPuzzleArgs, RewardDistributorSlotNonce,
+        RewardDistributorUnstakeActionArgs, RewardDistributorUnstakeActionSolution,
+        NONCE_WRAPPER_PUZZLE_HASH,
     },
     Conditions, Mod,
 };
@@ -18,7 +19,7 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, Layer, Nft, P2DelegatedBySingletonLayer, RewardDistributor,
+    CatMaker, DriverError, Layer, Nft, P2DelegatedBySingletonLayer, RewardDistributor,
     RewardDistributorConstants, RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
 };
 
@@ -82,14 +83,8 @@ impl RewardDistributorUnstakeAction {
         max_second_offset: u64,
         precision: u64,
         distributor_type: RewardDistributorType,
-    ) -> RewardDistributorUnstakeActionArgs {
+    ) -> RewardDistributorUnstakeActionArgs<TreeHash> {
         RewardDistributorUnstakeActionArgs {
-            singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
-            singleton_launcher_hash: SINGLETON_LAUNCHER_HASH.into(),
-            nft_state_layer_mod_hash: NFT_STATE_LAYER_HASH.into(),
-            nft_ownership_layer_mod_hash: NFT_OWNERSHIP_LAYER_HASH.into(),
-            nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
-            my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
             entry_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
                 launcher_id,
                 RewardDistributorSlotNonce::ENTRY.to_u64(),
@@ -99,10 +94,34 @@ impl RewardDistributorUnstakeAction {
             precision,
             unlock_puzzle: match distributor_type {
                 RewardDistributorType::NftCollection {
-                    collection_did_launcher_id,
+                    collection_did_launcher_id: _,
                 } => RewardDistributorNftsUnlockingPuzzleArgs::new(Self::my_p2_puzzle_hash(
                     launcher_id,
                 ))
+                .curry_tree_hash(),
+                RewardDistributorType::CuratedNft {
+                    store_launcher_id: _,
+                    refreshable: _,
+                } => RewardDistributorNftsUnlockingPuzzleArgs::new(Self::my_p2_puzzle_hash(
+                    launcher_id,
+                ))
+                .curry_tree_hash(),
+                RewardDistributorType::Cat {
+                    asset_id,
+                    hidden_puzzle_hash,
+                } => RewardDistributorCatUnlockingPuzzleArgs::new(
+                    match hidden_puzzle_hash {
+                        Some(hidden_puzzle_hash) => CatMaker::Revocable {
+                            tail_hash_hash: asset_id.tree_hash(),
+                            hidden_puzzle_hash_hash: hidden_puzzle_hash.tree_hash(),
+                        },
+                        None => CatMaker::Default {
+                            tail_hash_hash: asset_id.tree_hash(),
+                        },
+                    }
+                    .curry_tree_hash(),
+                    Self::my_p2_puzzle_hash(launcher_id),
+                )
                 .curry_tree_hash(),
                 _ => TreeHash::new([0; 32]),
             },

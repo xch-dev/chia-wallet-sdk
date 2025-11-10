@@ -5,7 +5,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
-use crate::Mod;
+use crate::{puzzles::NONCE_WRAPPER_PUZZLE_HASH, Mod};
 
 pub const REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE: [u8; 635] = hex!(
     "
@@ -46,6 +46,15 @@ pub struct RewardDistributorCatUnlockingPuzzleArgs<CM> {
     pub my_p2_puzzle_hash: Bytes32,
 }
 
+impl<CM> RewardDistributorCatUnlockingPuzzleArgs<CM> {
+    pub fn new(cat_maker: CM, my_p2_puzzle_hash: Bytes32) -> Self {
+        Self {
+            cat_maker,
+            nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
+            my_p2_puzzle_hash,
+        }
+    }
+}
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorCatUnlockingPuzzleSolution<CMS> {
