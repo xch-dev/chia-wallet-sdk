@@ -9,7 +9,7 @@ use chia_sdk_types::{
     },
     Conditions, Mod,
 };
-use clvm_traits::clvm_quote;
+use clvm_traits::{clvm_quote, clvm_tuple};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
@@ -50,6 +50,50 @@ impl SingletonAction<RewardDistributor> for RewardDistributorUnstakeAction {
 }
 
 impl RewardDistributorUnstakeAction {
+    pub fn unlock_puzzle(
+        ctx: &mut SpendContext,
+        launcher_id: Bytes32,
+        distributor_type: RewardDistributorType,
+    ) -> Result<NodePtr, DriverError> {
+        match distributor_type {
+            RewardDistributorType::NftCollection {
+                collection_did_launcher_id: _,
+            } => ctx.curry(&RewardDistributorNftsUnlockingPuzzleArgs::new(
+                Self::my_p2_puzzle_hash(launcher_id),
+            )),
+            RewardDistributorType::CuratedNft {
+                store_launcher_id: _,
+                refreshable: _,
+            } => ctx.curry(&RewardDistributorNftsUnlockingPuzzleArgs::new(
+                Self::my_p2_puzzle_hash(launcher_id),
+            )),
+            RewardDistributorType::Cat {
+                asset_id,
+                hidden_puzzle_hash,
+            } => {
+                let cat_maker = if let Some(hidden_puzzle_hash) = hidden_puzzle_hash {
+                    CatMaker::Revocable {
+                        tail_hash_hash: asset_id.tree_hash(),
+                        hidden_puzzle_hash_hash: hidden_puzzle_hash.tree_hash(),
+                    }
+                } else {
+                    CatMaker::Default {
+                        tail_hash_hash: asset_id.tree_hash(),
+                    }
+                };
+                let cat_maker_puzzle = cat_maker.get_puzzle(ctx)?;
+
+                ctx.curry(&RewardDistributorCatUnlockingPuzzleArgs::new(
+                    cat_maker_puzzle,
+                    Self::my_p2_puzzle_hash(launcher_id),
+                ))
+            }
+            _ => Err(DriverError::Custom(
+                "Unstake action not available in this mode".to_string(),
+            )),
+        }
+    }
+
     pub fn new_args(
         ctx: &mut SpendContext,
         launcher_id: Bytes32,
@@ -65,43 +109,7 @@ impl RewardDistributorUnstakeAction {
             .into(),
             max_second_offset,
             precision,
-            unlock_puzzle: match distributor_type {
-                RewardDistributorType::NftCollection {
-                    collection_did_launcher_id: _,
-                } => ctx.curry(&RewardDistributorNftsUnlockingPuzzleArgs::new(
-                    Self::my_p2_puzzle_hash(launcher_id),
-                )),
-                RewardDistributorType::CuratedNft {
-                    store_launcher_id: _,
-                    refreshable: _,
-                } => ctx.curry(&RewardDistributorNftsUnlockingPuzzleArgs::new(
-                    Self::my_p2_puzzle_hash(launcher_id),
-                )),
-                RewardDistributorType::Cat {
-                    asset_id,
-                    hidden_puzzle_hash,
-                } => {
-                    let cat_maker = if let Some(hidden_puzzle_hash) = hidden_puzzle_hash {
-                        CatMaker::Revocable {
-                            tail_hash_hash: asset_id.tree_hash(),
-                            hidden_puzzle_hash_hash: hidden_puzzle_hash.tree_hash(),
-                        }
-                    } else {
-                        CatMaker::Default {
-                            tail_hash_hash: asset_id.tree_hash(),
-                        }
-                    };
-                    let cat_maker_puzzle = cat_maker.get_puzzle(ctx)?;
-
-                    ctx.curry(&RewardDistributorCatUnlockingPuzzleArgs::new(
-                        cat_maker_puzzle,
-                        Self::my_p2_puzzle_hash(launcher_id),
-                    ))
-                }
-                _ => Err(DriverError::Custom(
-                    "Unstake action not available in this mode".to_string(),
-                )),
-            }?,
+            unlock_puzzle: Self::unlock_puzzle(ctx, launcher_id, distributor_type)?,
         })
     }
 
@@ -164,20 +172,55 @@ impl RewardDistributorUnstakeAction {
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        ctx.curry(Self::new_args(self.launcher_id, self.max_second_offset))
+        let args = Self::new_args(
+            ctx,
+            self.launcher_id,
+            self.max_second_offset,
+            self.precision,
+            self.distributor_type,
+        )?;
+
+        ctx.curry(&args)
     }
 
     pub fn spent_slot_value(
         ctx: &SpendContext,
         solution: NodePtr,
     ) -> Result<RewardDistributorEntrySlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorUnstakeActionSolution>(solution)?;
+        let solution = ctx.extract::<RewardDistributorUnstakeActionSolution<NodePtr>>(solution)?;
 
-        Ok(RewardDistributorEntrySlotValue {
-            payout_puzzle_hash: solution.entry_custody_puzzle_hash,
-            initial_cumulative_payout: solution.entry_initial_cumulative_payout,
-            shares: 1,
-        })
+        Ok(solution.entry_slot)
+    }
+
+    pub fn created_slot_value(
+        ctx: &mut SpendContext,
+        launcher_id: Bytes32,
+        distributor_type: RewardDistributorType,
+        ephemeral_state: u64,
+        solution: NodePtr,
+    ) -> Result<Option<RewardDistributorEntrySlotValue>, DriverError> {
+        let solution = ctx.extract::<RewardDistributorUnstakeActionSolution<NodePtr>>(solution)?;
+        let actual_unlock_solution = ctx.alloc(&clvm_tuple!(
+            ephemeral_state,
+            clvm_tuple!(
+                solution.entry_slot.payout_puzzle_hash,
+                solution.unlock_puzzle_solution
+            )
+        ))?;
+        let unlock_puzzle = Self::unlock_puzzle(ctx, launcher_id, distributor_type)?;
+
+        let unlock_puzzle_result = ctx.run(unlock_puzzle, actual_unlock_solution)?;
+        let removed_shares = ctx.extract::<(u64, NodePtr)>(unlock_puzzle_result)?.0;
+
+        if solution.entry_slot.shares == removed_shares {
+            return Ok(None);
+        }
+
+        Ok(Some(RewardDistributorEntrySlotValue {
+            payout_puzzle_hash: solution.entry_slot.payout_puzzle_hash,
+            initial_cumulative_payout: solution.entry_slot.initial_cumulative_payout,
+            shares: solution.entry_slot.shares - removed_shares,
+        }))
     }
 
     pub fn spend(
