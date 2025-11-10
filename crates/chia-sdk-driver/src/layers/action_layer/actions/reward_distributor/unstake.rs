@@ -1,16 +1,11 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::{nft::NftRoyaltyTransferPuzzleArgs, singleton::SingletonStruct};
-use chia_puzzles::{
-    NFT_OWNERSHIP_LAYER_HASH, NFT_STATE_LAYER_HASH, SINGLETON_LAUNCHER_HASH,
-    SINGLETON_TOP_LAYER_V1_1_HASH,
-};
 use chia_sdk_types::{
     puzzles::{
         NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution,
         RewardDistributorCatUnlockingPuzzleArgs, RewardDistributorEntrySlotValue,
         RewardDistributorNftsUnlockingPuzzleArgs, RewardDistributorSlotNonce,
         RewardDistributorUnstakeActionArgs, RewardDistributorUnstakeActionSolution,
-        NONCE_WRAPPER_PUZZLE_HASH,
     },
     Conditions, Mod,
 };
@@ -56,18 +51,13 @@ impl SingletonAction<RewardDistributor> for RewardDistributorUnstakeAction {
 
 impl RewardDistributorUnstakeAction {
     pub fn new_args(
+        ctx: &mut SpendContext,
         launcher_id: Bytes32,
         max_second_offset: u64,
         precision: u64,
         distributor_type: RewardDistributorType,
-    ) -> RewardDistributorUnstakeActionArgs {
-        RewardDistributorUnstakeActionArgs {
-            singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
-            singleton_launcher_hash: SINGLETON_LAUNCHER_HASH.into(),
-            nft_state_layer_mod_hash: NFT_STATE_LAYER_HASH.into(),
-            nft_ownership_layer_mod_hash: NFT_OWNERSHIP_LAYER_HASH.into(),
-            nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
-            my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
+    ) -> Result<RewardDistributorUnstakeActionArgs<NodePtr>, DriverError> {
+        Ok(RewardDistributorUnstakeActionArgs {
             entry_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
                 launcher_id,
                 RewardDistributorSlotNonce::ENTRY.to_u64(),
@@ -75,7 +65,44 @@ impl RewardDistributorUnstakeAction {
             .into(),
             max_second_offset,
             precision,
-        }
+            unlock_puzzle: match distributor_type {
+                RewardDistributorType::NftCollection {
+                    collection_did_launcher_id: _,
+                } => ctx.curry(&RewardDistributorNftsUnlockingPuzzleArgs::new(
+                    Self::my_p2_puzzle_hash(launcher_id),
+                )),
+                RewardDistributorType::CuratedNft {
+                    store_launcher_id: _,
+                    refreshable: _,
+                } => ctx.curry(&RewardDistributorNftsUnlockingPuzzleArgs::new(
+                    Self::my_p2_puzzle_hash(launcher_id),
+                )),
+                RewardDistributorType::Cat {
+                    asset_id,
+                    hidden_puzzle_hash,
+                } => {
+                    let cat_maker = if let Some(hidden_puzzle_hash) = hidden_puzzle_hash {
+                        CatMaker::Revocable {
+                            tail_hash_hash: asset_id.tree_hash(),
+                            hidden_puzzle_hash_hash: hidden_puzzle_hash.tree_hash(),
+                        }
+                    } else {
+                        CatMaker::Default {
+                            tail_hash_hash: asset_id.tree_hash(),
+                        }
+                    };
+                    let cat_maker_puzzle = cat_maker.get_puzzle(ctx)?;
+
+                    ctx.curry(&RewardDistributorCatUnlockingPuzzleArgs::new(
+                        cat_maker_puzzle,
+                        Self::my_p2_puzzle_hash(launcher_id),
+                    ))
+                }
+                _ => Err(DriverError::Custom(
+                    "Unstake action not available in this mode".to_string(),
+                )),
+            }?,
+        })
     }
 
     pub fn new_args_treehash(
