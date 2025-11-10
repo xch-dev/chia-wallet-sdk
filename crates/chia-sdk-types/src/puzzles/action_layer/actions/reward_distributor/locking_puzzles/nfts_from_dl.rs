@@ -2,11 +2,12 @@ use std::borrow::Cow;
 
 use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
+use chia_puzzles::{NFT_OWNERSHIP_LAYER_HASH, NFT_STATE_LAYER_HASH, SETTLEMENT_PAYMENT_HASH};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
-use crate::{MerkleProof, Mod};
+use crate::{puzzles::NONCE_WRAPPER_PUZZLE_HASH, MerkleProof, Mod};
 
 pub const REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE: [u8; 1287] = hex!(
     "
@@ -69,6 +70,19 @@ pub struct RewardDistributorNftsFromDlLockingPuzzleArgs {
     pub offer_mod_hash: Bytes32,
     pub nonce_mod_hash: Bytes32,
     pub my_p2_puzzle_hash: Bytes32,
+}
+
+impl RewardDistributorNftsFromDlLockingPuzzleArgs {
+    pub fn new(store_launcher_id: Bytes32, my_p2_puzzle_hash: Bytes32) -> Self {
+        Self {
+            dl_singleton_struct: SingletonStruct::new(store_launcher_id),
+            nft_state_layer_mod_hash: NFT_STATE_LAYER_HASH.into(),
+            nft_ownership_layer_mod_hash: NFT_OWNERSHIP_LAYER_HASH.into(),
+            offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
+            nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
+            my_p2_puzzle_hash,
+        }
+    }
 }
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]

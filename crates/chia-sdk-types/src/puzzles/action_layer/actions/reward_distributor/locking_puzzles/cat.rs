@@ -1,11 +1,12 @@
 use std::borrow::Cow;
 
 use chia_protocol::Bytes32;
+use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
-use crate::Mod;
+use crate::{puzzles::NONCE_WRAPPER_PUZZLE_HASH, Mod};
 
 pub const REWARD_DISTRIBUTOR_CAT_LOCKING_PUZZLE: [u8; 657] = hex!(
     "
@@ -46,6 +47,17 @@ pub struct RewardDistributorCatLockingPuzzleArgs<CM> {
     pub offer_mod_hash: Bytes32,
     pub nonce_mod_hash: Bytes32,
     pub my_p2_puzzle_hash: Bytes32,
+}
+
+impl<CM> RewardDistributorCatLockingPuzzleArgs<CM> {
+    pub fn new(cat_maker: CM, my_p2_puzzle_hash: Bytes32) -> Self {
+        Self {
+            cat_maker,
+            offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
+            nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
+            my_p2_puzzle_hash,
+        }
+    }
 }
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]

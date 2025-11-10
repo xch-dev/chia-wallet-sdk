@@ -4,7 +4,7 @@ use chia_puzzle_types::{
     offer::{NotarizedPayment, Payment},
     singleton::SingletonStruct,
 };
-use chia_puzzles::{NFT_OWNERSHIP_LAYER_HASH, NFT_STATE_LAYER_HASH, SETTLEMENT_PAYMENT_HASH};
+use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
@@ -72,25 +72,17 @@ impl RewardDistributorStakeAction {
             )),
             RewardDistributorType::NftCollection {
                 collection_did_launcher_id,
-            } => ctx.curry(&RewardDistributorNftsFromDidLockingPuzzleArgs {
-                did_singleton_struct: SingletonStruct::new(collection_did_launcher_id),
-                nft_state_layer_mod_hash: NFT_STATE_LAYER_HASH.into(),
-                nft_ownership_layer_mod_hash: NFT_OWNERSHIP_LAYER_HASH.into(),
-                offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
-                nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
-                my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
-            }),
+            } => ctx.curry(&RewardDistributorNftsFromDidLockingPuzzleArgs::new(
+                collection_did_launcher_id,
+                Self::my_p2_puzzle_hash(launcher_id),
+            )),
             RewardDistributorType::CuratedNft {
                 store_launcher_id,
                 refreshable: _,
-            } => ctx.curry(&RewardDistributorNftsFromDlLockingPuzzleArgs {
-                dl_singleton_struct: SingletonStruct::new(store_launcher_id),
-                nft_state_layer_mod_hash: NFT_STATE_LAYER_HASH.into(),
-                nft_ownership_layer_mod_hash: NFT_OWNERSHIP_LAYER_HASH.into(),
-                offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
-                nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
-                my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
-            }),
+            } => ctx.curry(&RewardDistributorNftsFromDlLockingPuzzleArgs::new(
+                store_launcher_id,
+                Self::my_p2_puzzle_hash(launcher_id),
+            )),
             RewardDistributorType::Cat {
                 asset_id,
                 hidden_puzzle_hash,
@@ -107,12 +99,10 @@ impl RewardDistributorStakeAction {
                 };
                 let cat_maker_puzzle = cat_maker.get_puzzle(ctx)?;
 
-                ctx.curry(&RewardDistributorCatLockingPuzzleArgs {
-                    cat_maker: cat_maker_puzzle,
-                    offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
-                    nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
-                    my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
-                })
+                ctx.curry(&RewardDistributorCatLockingPuzzleArgs::new(
+                    cat_maker_puzzle,
+                    Self::my_p2_puzzle_hash(launcher_id),
+                ))
             }
         }?;
 
@@ -138,26 +128,18 @@ impl RewardDistributorStakeAction {
             } => TreeHash::new([0; 32]),
             RewardDistributorType::NftCollection {
                 collection_did_launcher_id,
-            } => RewardDistributorNftsFromDidLockingPuzzleArgs {
-                did_singleton_struct: SingletonStruct::new(collection_did_launcher_id),
-                nft_state_layer_mod_hash: NFT_STATE_LAYER_HASH.into(),
-                nft_ownership_layer_mod_hash: NFT_OWNERSHIP_LAYER_HASH.into(),
-                offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
-                nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
-                my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
-            }
+            } => RewardDistributorNftsFromDidLockingPuzzleArgs::new(
+                collection_did_launcher_id,
+                Self::my_p2_puzzle_hash(launcher_id),
+            )
             .curry_tree_hash(),
             RewardDistributorType::CuratedNft {
                 store_launcher_id,
                 refreshable: _,
-            } => RewardDistributorNftsFromDlLockingPuzzleArgs {
-                dl_singleton_struct: SingletonStruct::new(store_launcher_id),
-                nft_state_layer_mod_hash: NFT_STATE_LAYER_HASH.into(),
-                nft_ownership_layer_mod_hash: NFT_OWNERSHIP_LAYER_HASH.into(),
-                offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
-                nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
-                my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
-            }
+            } => RewardDistributorNftsFromDlLockingPuzzleArgs::new(
+                store_launcher_id,
+                Self::my_p2_puzzle_hash(launcher_id),
+            )
             .curry_tree_hash(),
             RewardDistributorType::Cat {
                 asset_id,
@@ -175,12 +157,10 @@ impl RewardDistributorStakeAction {
                 };
                 let cat_maker_puzzle_hash = cat_maker.curry_tree_hash();
 
-                RewardDistributorCatLockingPuzzleArgs {
-                    cat_maker: cat_maker_puzzle_hash,
-                    offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
-                    nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
-                    my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
-                }
+                RewardDistributorCatLockingPuzzleArgs::new(
+                    cat_maker_puzzle_hash,
+                    Self::my_p2_puzzle_hash(launcher_id),
+                )
                 .curry_tree_hash()
             }
         };

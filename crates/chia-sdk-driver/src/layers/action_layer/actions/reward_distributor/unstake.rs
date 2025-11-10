@@ -7,9 +7,9 @@ use chia_puzzles::{
 use chia_sdk_types::{
     puzzles::{
         NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution,
-        RewardDistributorEntrySlotValue, RewardDistributorSlotNonce,
-        RewardDistributorUnstakeActionArgs, RewardDistributorUnstakeActionSolution,
-        NONCE_WRAPPER_PUZZLE_HASH,
+        RewardDistributorEntrySlotValue, RewardDistributorNftsUnlockingPuzzleArgs,
+        RewardDistributorSlotNonce, RewardDistributorUnstakeActionArgs,
+        RewardDistributorUnstakeActionSolution, NONCE_WRAPPER_PUZZLE_HASH,
     },
     Conditions, Mod,
 };
@@ -19,7 +19,7 @@ use clvmr::NodePtr;
 
 use crate::{
     DriverError, Layer, Nft, P2DelegatedBySingletonLayer, RewardDistributor,
-    RewardDistributorConstants, SingletonAction, Slot, Spend, SpendContext,
+    RewardDistributorConstants, RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,11 +27,18 @@ pub struct RewardDistributorUnstakeAction {
     pub launcher_id: Bytes32,
     pub max_second_offset: u64,
     pub precision: u64,
+    pub distributor_type: RewardDistributorType,
 }
 
 impl ToTreeHash for RewardDistributorUnstakeAction {
     fn tree_hash(&self) -> TreeHash {
-        Self::new_args(self.launcher_id, self.max_second_offset, self.precision).curry_tree_hash()
+        Self::new_args_treehash(
+            self.launcher_id,
+            self.max_second_offset,
+            self.precision,
+            self.distributor_type,
+        )
+        .curry_tree_hash()
     }
 }
 
@@ -41,6 +48,7 @@ impl SingletonAction<RewardDistributor> for RewardDistributorUnstakeAction {
             launcher_id: constants.launcher_id,
             max_second_offset: constants.max_seconds_offset,
             precision: constants.precision,
+            distributor_type: constants.reward_distributor_type,
         }
     }
 }
@@ -50,6 +58,7 @@ impl RewardDistributorUnstakeAction {
         launcher_id: Bytes32,
         max_second_offset: u64,
         precision: u64,
+        distributor_type: RewardDistributorType,
     ) -> RewardDistributorUnstakeActionArgs {
         RewardDistributorUnstakeActionArgs {
             singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
@@ -65,6 +74,38 @@ impl RewardDistributorUnstakeAction {
             .into(),
             max_second_offset,
             precision,
+        }
+    }
+
+    pub fn new_args_treehash(
+        launcher_id: Bytes32,
+        max_second_offset: u64,
+        precision: u64,
+        distributor_type: RewardDistributorType,
+    ) -> RewardDistributorUnstakeActionArgs {
+        RewardDistributorUnstakeActionArgs {
+            singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
+            singleton_launcher_hash: SINGLETON_LAUNCHER_HASH.into(),
+            nft_state_layer_mod_hash: NFT_STATE_LAYER_HASH.into(),
+            nft_ownership_layer_mod_hash: NFT_OWNERSHIP_LAYER_HASH.into(),
+            nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
+            my_p2_puzzle_hash: Self::my_p2_puzzle_hash(launcher_id),
+            entry_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                launcher_id,
+                RewardDistributorSlotNonce::ENTRY.to_u64(),
+            )
+            .into(),
+            max_second_offset,
+            precision,
+            unlock_puzzle: match distributor_type {
+                RewardDistributorType::NftCollection {
+                    collection_did_launcher_id,
+                } => RewardDistributorNftsUnlockingPuzzleArgs::new(Self::my_p2_puzzle_hash(
+                    launcher_id,
+                ))
+                .curry_tree_hash(),
+                _ => TreeHash::new([0; 32]),
+            },
         }
     }
 
