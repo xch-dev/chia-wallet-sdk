@@ -1,5 +1,7 @@
 #![allow(unused)]
 
+use std::sync::{Arc, Mutex};
+
 use bindy::Result;
 use chia_bls::PublicKey;
 use chia_consensus::opcodes::{
@@ -7,6 +9,7 @@ use chia_consensus::opcodes::{
 };
 use chia_protocol::Bytes32;
 use chia_sdk_driver as sdk;
+use clvm_utils::TreeHash;
 
 use crate::{Clvm, K1PublicKey, Program, R1PublicKey};
 
@@ -18,6 +21,12 @@ pub struct MipsMemo {
 impl From<MipsMemo> for sdk::MipsMemo {
     fn from(value: MipsMemo) -> Self {
         Self::new(value.inner_puzzle.into())
+    }
+}
+
+impl MipsMemo {
+    pub fn inner_puzzle_hash(&self) -> Result<TreeHash> {
+        Ok(sdk::MipsMemo::from(self.clone()).inner_puzzle_hash())
     }
 }
 
@@ -35,6 +44,12 @@ impl From<InnerPuzzleMemo> for sdk::InnerPuzzleMemo {
             value.restrictions.into_iter().map(Into::into).collect(),
             value.kind.into(),
         )
+    }
+}
+
+impl InnerPuzzleMemo {
+    pub fn inner_puzzle_hash(&self, top_level: bool) -> Result<TreeHash> {
+        Ok(sdk::InnerPuzzleMemo::from(self.clone()).inner_puzzle_hash(top_level))
     }
 }
 
@@ -222,6 +237,10 @@ impl MemoKind {
             Ok(None)
         }
     }
+
+    pub fn inner_puzzle_hash(&self) -> Result<TreeHash> {
+        Ok(sdk::MemoKind::from(self.clone()).inner_puzzle_hash())
+    }
 }
 
 impl From<MemoKind> for sdk::MemoKind {
@@ -339,5 +358,62 @@ impl From<MofNMemo> for sdk::MofNMemo {
             value.required.try_into().unwrap(),
             value.items.into_iter().map(Into::into).collect(),
         )
+    }
+}
+
+impl MofNMemo {
+    pub fn inner_puzzle_hash(&self) -> Result<TreeHash> {
+        Ok(sdk::MofNMemo::from(self.clone()).inner_puzzle_hash())
+    }
+}
+
+#[derive(Clone)]
+pub struct MipsMemoContext(Arc<Mutex<sdk::MipsMemoContext>>);
+
+impl MipsMemoContext {
+    pub fn new() -> Result<Self> {
+        Ok(Self(Arc::new(Mutex::new(sdk::MipsMemoContext::default()))))
+    }
+
+    pub fn add_k1(&self, public_key: K1PublicKey) -> Result<()> {
+        let mut ctx = self.0.lock().unwrap();
+        ctx.k1.push(public_key.0);
+        Ok(())
+    }
+
+    pub fn add_r1(&self, public_key: R1PublicKey) -> Result<()> {
+        let mut ctx = self.0.lock().unwrap();
+        ctx.r1.push(public_key.0);
+        Ok(())
+    }
+
+    pub fn add_bls(&self, public_key: PublicKey) -> Result<()> {
+        let mut ctx = self.0.lock().unwrap();
+        ctx.bls.push(public_key);
+        Ok(())
+    }
+
+    pub fn add_hash(&self, hash: Bytes32) -> Result<()> {
+        let mut ctx = self.0.lock().unwrap();
+        ctx.hashes.push(hash);
+        Ok(())
+    }
+
+    pub fn add_timelock(&self, timelock: u64) -> Result<()> {
+        let mut ctx = self.0.lock().unwrap();
+        ctx.timelocks.push(timelock);
+        Ok(())
+    }
+
+    pub fn add_opcode(&self, opcode: u16) -> Result<()> {
+        let mut ctx = self.0.lock().unwrap();
+        ctx.opcodes.push(opcode);
+        Ok(())
+    }
+
+    pub fn add_singleton_mode(&self, mode: u8) -> Result<()> {
+        let mut ctx = self.0.lock().unwrap();
+        ctx.singleton_modes.push(mode);
+        Ok(())
     }
 }

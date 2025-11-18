@@ -19,6 +19,11 @@
           "cat": "Cat"
         }
       },
+      "add_nft": {
+        "args": {
+          "nft": "Nft"
+        }
+      },
       "p2_puzzle_hashes": {
         "return": "Vec<Bytes32>"
       },
@@ -150,6 +155,26 @@
           "supply_delta": "Delta"
         }
       },
+      "mint_nft": {
+        "type": "factory",
+        "args": {
+          "clvm": "Clvm",
+          "metadata": "Program",
+          "metadata_updater_puzzle_hash": "Bytes32",
+          "royalty_puzzle_hash": "Bytes32",
+          "royalty_basis_points": "u16",
+          "amount": "u64",
+          "parent_id": "Option<Id>"
+        }
+      },
+      "update_nft": {
+        "type": "factory",
+        "args": {
+          "id": "Id",
+          "metadata_update_spends": "Vec<Spend>",
+          "transfer": "Option<TransferNftById>"
+        }
+      },
       "fee": {
         "type": "factory",
         "args": {
@@ -243,7 +268,24 @@
           "id": "Id"
         },
         "return": "Vec<Cat>"
+      },
+      "nfts": {
+        "return": "Vec<Id>"
+      },
+      "nft": {
+        "args": {
+          "id": "Id"
+        },
+        "return": "Nft"
       }
+    }
+  },
+  "TransferNftById": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "owner_id": "Option<Id>",
+      "trade_prices": "Vec<TradePrice>"
     }
   }
 }
