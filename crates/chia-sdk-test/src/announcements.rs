@@ -5,9 +5,10 @@ use chia_sdk_types::{
         AssertCoinAnnouncement, AssertPuzzleAnnouncement, CreateCoinAnnouncement,
         CreatePuzzleAnnouncement,
     },
+    run_puzzle,
 };
 use clvm_traits::{FromClvm, ToClvm};
-use clvmr::{Allocator, ChiaDialect, NodePtr, reduction::Reduction, run_program};
+use clvmr::{Allocator, NodePtr};
 
 #[derive(Debug, Default, Clone)]
 pub struct Announcements {
@@ -120,13 +121,7 @@ pub fn announcements_for_spend(coin_spend: &CoinSpend) -> anyhow::Result<Announc
     let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
     let solution = coin_spend.solution.to_clvm(allocator)?;
 
-    let Reduction(_cost, output) = run_program(
-        allocator,
-        &ChiaDialect::new(0),
-        puzzle,
-        solution,
-        11_000_000_000,
-    )?;
+    let output = run_puzzle(allocator, puzzle, solution)?;
 
     let conditions = Vec::<NodePtr>::from_clvm(allocator, output)?;
 
