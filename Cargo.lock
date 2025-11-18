@@ -847,7 +847,6 @@ dependencies = [
  "rand_chacha 0.9.0",
  "rstest 0.22.0",
  "rue-compiler",
- "rue-diagnostic",
  "rue-lir",
  "rue-options",
  "thiserror 2.0.17",
@@ -3301,9 +3300,9 @@ dependencies = [
 
 [[package]]
 name = "rue-ast"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d2ebbb5ce5f8a7c6872bfcd90f51aab6ba47a47ad8387147214a50ea3c72161"
+checksum = "9e8feffcdd1f81db8d83980714cdd15d53608f7cc49e4d4a1c52d0fe1d523c4b"
 dependencies = [
  "paste",
  "rue-parser",
@@ -3311,9 +3310,9 @@ dependencies = [
 
 [[package]]
 name = "rue-compiler"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e44c8523877c64db840bec984d78b44463982c25af11acee08f8c0dcd187d0b"
+checksum = "7b58c388afe6e7fb78e63f43b455c57b6f788f1e2b65ae895e9ff38039ab2fdc"
 dependencies = [
  "clvmr",
  "hex",
@@ -3331,13 +3330,14 @@ dependencies = [
  "rue-options",
  "rue-parser",
  "rue-types",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
 name = "rue-diagnostic"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa0508e120ddf7158792cc8229ef8ce55b93a4141e7f1525862a3bf6ffb5cdc8"
+checksum = "a953cccb3041f21c77e80ea8fdb03e7214b91195d939f3146f054e27020ea1a9"
 dependencies = [
  "derive_more",
  "thiserror 2.0.17",
@@ -3345,33 +3345,33 @@ dependencies = [
 
 [[package]]
 name = "rue-hir"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cc6b3486413c8cadc848dd963a1b7291dbd6b60c797efb2626498007a78464e"
+checksum = "a2d73674bfcd164e453dbeabfa99cb952827abf7bc0540ed5bf6d2ccea97d06a"
 dependencies = [
  "derive_more",
  "hex",
  "id-arena",
  "indexmap",
+ "log",
  "num-bigint",
  "rue-diagnostic",
  "rue-lir",
  "rue-options",
- "rue-parser",
  "rue-types",
 ]
 
 [[package]]
 name = "rue-lexer"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "859f8190b680e775f60b92ef64ce6b08a9df982d8ff06481c6035feb2938443b"
+checksum = "68345f23ba80d548d4a671de14e455de74ae58fccfa436db105b35308a1780ed"
 
 [[package]]
 name = "rue-lir"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26b0d9d9c35c0f16d41833564098c1ad8a29c8b660d1930f2932ca18d27eb718"
+checksum = "099f3c3d6b432bb94cf8876b7f71b650d6887ae9193e8063c529feca37276b6f"
 dependencies = [
  "chialisp",
  "clvm-traits 0.28.1",
@@ -3387,15 +3387,20 @@ dependencies = [
 
 [[package]]
 name = "rue-options"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e878bd88e666f9567c4691207faa8347dc5772d1311407079e9a6bf9d79451b"
+checksum = "12f94c541b1397b7fbc4aaba36440c0bc11ddb703b024a424dd2fe193ec413b7"
+dependencies = [
+ "serde",
+ "thiserror 2.0.17",
+ "toml",
+]
 
 [[package]]
 name = "rue-parser"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cbd7ba29c35c32593004df91e6724305e2552be533a2db525920a1d6eae2ed2"
+checksum = "7d23577d98f535c02d2898e0a0e9cdf04b82d1ea91b15cd31e66141bce73c4c5"
 dependencies = [
  "derive_more",
  "indexmap",
@@ -3409,9 +3414,9 @@ dependencies = [
 
 [[package]]
 name = "rue-types"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "995a83f7f078b2b6a1bc83d2372f3518b7fcdd42dfed6e20d11ce21bdaf20011"
+checksum = "4a6dc5f584d1ff7cf562737aa990d746def396ca4211c8f56c2d28d6dc00718b"
 dependencies = [
  "clvmr",
  "derive_more",
@@ -3420,7 +3425,7 @@ dependencies = [
  "indexmap",
  "log",
  "rstest 0.26.1",
- "rue-parser",
+ "rue-diagnostic",
  "thiserror 2.0.17",
 ]
 
@@ -3643,6 +3648,15 @@ dependencies = [
  "memchr",
  "ryu",
  "serde",
+ "serde_core",
+]
+
+[[package]]
+name = "serde_spanned"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e24345aa0fe688594e73770a5f6d1b216508b4f93484c0026d521acd30134392"
+dependencies = [
  "serde_core",
 ]
 
@@ -4040,6 +4054,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "toml"
+version = "0.9.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0dc8b1fb61449e27716ec0e1bdf0f6b8f3e8f6b05391e8497b8b6d7804ea6d8"
+dependencies = [
+ "indexmap",
+ "serde_core",
+ "serde_spanned",
+ "toml_datetime 0.7.3",
+ "toml_parser",
+ "toml_writer",
+ "winnow 0.7.13",
+]
+
+[[package]]
 name = "toml_datetime"
 version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4085,6 +4114,12 @@ checksum = "c0cbe268d35bdb4bb5a56a2de88d0ad0eb70af5384a99d648cd4b3d04039800e"
 dependencies = [
  "winnow 0.7.13",
 ]
+
+[[package]]
+name = "toml_writer"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df8b2b54733674ad286d16267dcfc7a71ed5c776e4ac7aa3c3e2561f7c637bf2"
 
 [[package]]
 name = "tower"

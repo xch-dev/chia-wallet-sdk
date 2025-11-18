@@ -28,7 +28,7 @@ pub use chia_sdk_test::{
     BlsPair, BlsPairWithCoin, K1Pair, R1Pair, Simulator, SimulatorConfig, SimulatorError,
 };
 pub use chia_sdk_types::{
-    Condition, Conditions, MAINNET_CONSTANTS, MerkleProof, MerkleTree, Mod, TESTNET11_CONSTANTS,
-    conditions::*, run_puzzle,
+    Compilation, Condition, Conditions, MAINNET_CONSTANTS, MerkleProof, MerkleTree, Mod,
+    TESTNET11_CONSTANTS, compile_mod, conditions::*, run_puzzle,
 };
 pub use chia_sdk_utils::{Address, Bech32, parse_hex, select_coins};

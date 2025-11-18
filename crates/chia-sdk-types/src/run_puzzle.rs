@@ -45,6 +45,10 @@ pub fn run_puzzle_with_cost(
 }
 
 pub fn is_debug_dialect_enabled() -> bool {
+    if cfg!(debug_assertions) || cfg!(test) {
+        return true;
+    }
+
     match option_env!("DEBUG_CLVM") {
         Some(value) => {
             // Convert the value to lowercase for case-insensitive comparison

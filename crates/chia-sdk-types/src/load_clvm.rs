@@ -7,8 +7,8 @@ use chialisp::{
 use clvm_traits::ToClvmError;
 use clvm_utils::{TreeHash, tree_hash};
 use clvmr::{Allocator, error::EvalErr, serde::node_to_bytes};
-use rue_diagnostic::{Source, SourceKind};
-use rue_options::CompilerOptions;
+use rue_compiler::{Compiler, FileTree, normalize_path};
+use rue_options::find_project;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -28,11 +28,20 @@ pub enum LoadClvmError {
     #[error("Conversion error: {0}")]
     Conversion(#[from] ToClvmError),
 
+    #[error("Project error: {0}")]
+    Project(#[from] rue_options::Error),
+
+    #[error("Project not found")]
+    ProjectNotFound,
+
     #[error("Main not found")]
     MainNotFound,
 
     #[error("Export not found: {0}")]
     ExportNotFound(String),
+
+    #[error("Rue error: {0}")]
+    Rue(#[from] rue_compiler::Error),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -80,33 +89,86 @@ pub fn compile_rue(
 ) -> Result<Compilation, LoadClvmError> {
     let mut allocator = Allocator::new();
 
-    let text = fs::read_to_string(path)?;
+    let path = path.canonicalize()?;
+    let project = find_project(&path, debug)?;
 
-    let compilation = rue_compiler::compile_file(
-        &mut allocator,
-        Source::new(text.into(), SourceKind::File("main.rue".to_string())),
-        if debug {
-            CompilerOptions::debug()
-        } else {
-            CompilerOptions::default()
-        },
-    )
-    .map_err(|error| LoadClvmError::Compiler(error.to_string()))?;
+    let Some(project) = project else {
+        return Err(LoadClvmError::ProjectNotFound);
+    };
+
+    let main_kind = if project.entrypoint.join("main.rue").exists() {
+        Some(normalize_path(&project.entrypoint.join("main.rue"))?)
+    } else {
+        None
+    };
+
+    let mut ctx = Compiler::new(project.options);
+
+    let tree = FileTree::compile_path(&mut ctx, &project.entrypoint, &mut HashMap::new())?;
 
     let ptr = if let Some(export_name) = export_name {
-        compilation
-            .exports
-            .get(&export_name)
-            .copied()
-            .ok_or(LoadClvmError::ExportNotFound(export_name))?
+        if let Some(export) = tree
+            .exports(
+                &mut ctx,
+                &mut allocator,
+                main_kind.as_ref(),
+                Some(&export_name),
+            )?
+            .into_iter()
+            .next()
+        {
+            export.ptr
+        } else {
+            return Err(LoadClvmError::ExportNotFound(export_name));
+        }
+    } else if let Some(main_kind) = main_kind
+        && let Some(main) = tree.main(&mut ctx, &mut allocator, &main_kind)?
+    {
+        main
+    } else if let Some(main) = tree.main(&mut ctx, &mut allocator, &normalize_path(&path)?)? {
+        main
     } else {
-        compilation.main.ok_or(LoadClvmError::MainNotFound)?
+        return Err(LoadClvmError::MainNotFound);
     };
 
     let hash = tree_hash(&allocator, ptr);
     let reveal = node_to_bytes(&allocator, ptr)?;
 
     Ok(Compilation { reveal, hash })
+}
+
+#[macro_export]
+macro_rules! compile_mod {
+    ( $args:ty = $mod_name:ident, $path:literal ) => {
+        compile_mod!(impl $args = $mod_name $path false None);
+    };
+
+    ( $args:ty = $mod_name:ident, $path:literal, $export_name:literal ) => {
+        compile_mod!(impl $args = $mod_name $path false Some($export_name));
+    };
+
+    ( debug $args:ty = $mod_name:ident, $path:literal ) => {
+        compile_mod!(impl $args = $mod_name $path true None);
+    };
+
+    ( debug $args:ty = $mod_name:ident, $path:literal, $export_name:literal ) => {
+        compile_mod!(impl $args = $mod_name $path true Some($export_name));
+    };
+
+    ( impl $args:ty = $mod_name:ident $path:literal $debug:literal $export_name:expr ) => {
+        static $mod_name: ::std::sync::LazyLock<Compilation> =
+            ::std::sync::LazyLock::new(|| $crate::compile_rue(::std::path::Path::new($path), $debug, $export_name).unwrap());
+
+        impl $crate::Mod for $args {
+            fn mod_reveal() -> ::std::borrow::Cow<'static, [u8]> {
+                ::std::borrow::Cow::Owned($mod_name.reveal.clone())
+            }
+
+            fn mod_hash() -> $crate::__internals::TreeHash {
+                $mod_name.hash
+            }
+        }
+    };
 }
 
 #[cfg(test)]
@@ -176,18 +238,7 @@ mod tests {
             b: u64,
         }
 
-        static TEST_MOD: LazyLock<Compilation> =
-            LazyLock::new(|| compile_rue(Path::new("compile_rue_test.rue"), true, None).unwrap());
-
-        impl Mod for TestArgs {
-            fn mod_reveal() -> Cow<'static, [u8]> {
-                Cow::Owned(TEST_MOD.reveal.clone())
-            }
-
-            fn mod_hash() -> TreeHash {
-                TEST_MOD.hash
-            }
-        }
+        compile_mod!(debug TestArgs = TEST_MOD, "compile_rue_test.rue");
 
         let args = TestArgs { a: 10, b: 20 };
 

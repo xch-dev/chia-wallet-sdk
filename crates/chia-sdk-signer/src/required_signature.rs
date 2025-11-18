@@ -30,7 +30,7 @@ impl RequiredSignature {
                 allocator,
                 coin_spend,
                 constants,
-                DebugDialect::new(ENABLE_KECCAK_OPS_OUTSIDE_GUARD, true),
+                DebugDialect::new(ENABLE_KECCAK_OPS_OUTSIDE_GUARD, false),
             )
         } else {
             Self::from_coin_spend_with_dialect(
