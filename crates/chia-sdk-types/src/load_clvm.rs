@@ -138,21 +138,43 @@ pub fn compile_rue(
 }
 
 #[macro_export]
-macro_rules! compile_mod {
+macro_rules! compile_chialisp {
     ( $args:ty = $mod_name:ident, $path:literal ) => {
-        compile_mod!(impl $args = $mod_name $path false None);
+        compile_chialisp!(impl $args = $mod_name $path);
+    };
+
+    ( impl $args:ty = $mod_name:ident $path:literal ) => {
+        static $mod_name: ::std::sync::LazyLock<Compilation> =
+            ::std::sync::LazyLock::new(|| $crate::compile_chialisp(::std::path::Path::new($path), &[".".to_string(), "include".to_string()]).unwrap());
+
+        impl $crate::Mod for $args {
+            fn mod_reveal() -> ::std::borrow::Cow<'static, [u8]> {
+                ::std::borrow::Cow::Owned($mod_name.reveal.clone())
+            }
+
+            fn mod_hash() -> $crate::__internals::TreeHash {
+                $mod_name.hash
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! compile_rue {
+    ( $args:ty = $mod_name:ident, $path:literal ) => {
+        compile_rue!(impl $args = $mod_name $path false None);
     };
 
     ( $args:ty = $mod_name:ident, $path:literal, $export_name:literal ) => {
-        compile_mod!(impl $args = $mod_name $path false Some($export_name));
+        compile_rue!(impl $args = $mod_name $path false Some($export_name));
     };
 
     ( debug $args:ty = $mod_name:ident, $path:literal ) => {
-        compile_mod!(impl $args = $mod_name $path true None);
+        compile_rue!(impl $args = $mod_name $path true None);
     };
 
     ( debug $args:ty = $mod_name:ident, $path:literal, $export_name:literal ) => {
-        compile_mod!(impl $args = $mod_name $path true Some($export_name));
+        compile_rue!(impl $args = $mod_name $path true Some($export_name));
     };
 
     ( impl $args:ty = $mod_name:ident $path:literal $debug:literal $export_name:expr ) => {
@@ -173,8 +195,6 @@ macro_rules! compile_mod {
 
 #[cfg(test)]
 mod tests {
-    use std::{borrow::Cow, sync::LazyLock};
-
     use clvm_traits::{FromClvm, ToClvm};
     use clvm_utils::CurriedProgram;
     use clvmr::{NodePtr, serde::node_from_bytes};
@@ -192,23 +212,7 @@ mod tests {
             b: u64,
         }
 
-        static TEST_MOD: LazyLock<Compilation> = LazyLock::new(|| {
-            compile_chialisp(
-                Path::new("compile_chialisp_test.clsp"),
-                &[".".to_string(), "include".to_string()],
-            )
-            .unwrap()
-        });
-
-        impl Mod for TestArgs {
-            fn mod_reveal() -> Cow<'static, [u8]> {
-                Cow::Owned(TEST_MOD.reveal.clone())
-            }
-
-            fn mod_hash() -> TreeHash {
-                TEST_MOD.hash
-            }
-        }
+        compile_chialisp!(TestArgs = TEST_MOD, "compile_chialisp_test.clsp");
 
         let args = TestArgs { a: 10, b: 20 };
 
@@ -238,7 +242,7 @@ mod tests {
             b: u64,
         }
 
-        compile_mod!(debug TestArgs = TEST_MOD, "compile_rue_test.rue");
+        compile_rue!(debug TestArgs = TEST_MOD, "compile_rue_test.rue");
 
         let args = TestArgs { a: 10, b: 20 };
 

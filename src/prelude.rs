@@ -29,6 +29,6 @@ pub use chia_sdk_test::{
 };
 pub use chia_sdk_types::{
     Compilation, Condition, Conditions, MAINNET_CONSTANTS, MerkleProof, MerkleTree, Mod,
-    TESTNET11_CONSTANTS, compile_mod, conditions::*, run_puzzle,
+    TESTNET11_CONSTANTS, compile_chialisp, compile_rue, conditions::*, run_puzzle,
 };
 pub use chia_sdk_utils::{Address, Bech32, parse_hex, select_coins};
