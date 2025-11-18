@@ -4,6 +4,7 @@ use chia_bls::SecretKey;
 use chia_consensus::validation_error::ErrorCode;
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
 use chia_sdk_types::TESTNET11_CONSTANTS;
+use clvmr::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
 use indexmap::{IndexMap, IndexSet, indexset};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
@@ -189,9 +190,13 @@ impl Simulator {
             return Err(SimulatorError::Validation(ErrorCode::InvalidSpendBundle));
         }
 
-        let conds =
-            validate_clvm_and_signature(&spend_bundle, 11_000_000_000 / 2, &TESTNET11_CONSTANTS, 0)
-                .map_err(SimulatorError::Validation)?;
+        let conds = validate_clvm_and_signature(
+            &spend_bundle,
+            11_000_000_000 / 2,
+            &TESTNET11_CONSTANTS,
+            ENABLE_KECCAK_OPS_OUTSIDE_GUARD,
+        )
+        .map_err(SimulatorError::Validation)?;
 
         let puzzle_hashes: HashSet<Bytes32> =
             conds.spends.iter().map(|spend| spend.puzzle_hash).collect();

@@ -25,6 +25,7 @@ clvmr = { workspace = true }
 thiserror = { workspace = true }
 chia-sdk-types = { workspace = true }
 k256 = { workspace = true }
+rue-lir = { workspace = true }
 
 [dev-dependencies]
 chia-puzzle-types = { workspace = true }

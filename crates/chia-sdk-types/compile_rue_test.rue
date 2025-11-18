@@ -1,0 +1,4 @@
+fn main(a: Int, b: Int) -> Int {
+    debug a + b;
+    a * b + a + b
+}

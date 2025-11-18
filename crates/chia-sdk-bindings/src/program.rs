@@ -7,6 +7,7 @@ use chia_puzzle_types::{
     offer::{NotarizedPayment as ChiaNotarizedPayment, Payment as ChiaPayment},
 };
 use chia_sdk_driver::{OptionMetadata, RewardDistributor as SdkRewardDistributor, SpendContext};
+use chia_sdk_types::run_puzzle_with_cost;
 use chialisp::classic::clvm_tools::stages::run;
 use chialisp::classic::clvm_tools::stages::stage_0::TRunProgram;
 use chialisp::classic::clvm_tools::{
@@ -15,7 +16,7 @@ use chialisp::classic::clvm_tools::{
 use clvm_traits::{ClvmDecoder, ClvmEncoder, FromClvm};
 use clvm_utils::{TreeHash, tree_hash};
 use clvmr::{
-    ChiaDialect, MEMPOOL_MODE, NodePtr, SExp, run_program,
+    NodePtr, SExp,
     serde::{node_to_bytes, node_to_bytes_backrefs},
 };
 use num_bigint::BigInt;
@@ -59,21 +60,9 @@ impl Program {
     }
 
     pub fn run(&self, solution: Self, max_cost: u64, mempool_mode: bool) -> Result<Output> {
-        let mut flags = 0;
-
-        if mempool_mode {
-            flags |= MEMPOOL_MODE;
-        }
-
         let mut ctx = self.0.lock().unwrap();
 
-        let reduction = run_program(
-            &mut ctx,
-            &ChiaDialect::new(flags),
-            self.1,
-            solution.1,
-            max_cost,
-        )?;
+        let reduction = run_puzzle_with_cost(&mut ctx, self.1, solution.1, max_cost, mempool_mode)?;
 
         Ok(Output {
             value: Program(self.0.clone(), reduction.1),
