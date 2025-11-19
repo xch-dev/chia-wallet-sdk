@@ -4,9 +4,9 @@ use chia_sdk_types::{
     puzzles::{
         NftToUnlockInfo, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs,
         P2DelegatedBySingletonLayerSolution, RewardDistributorCatUnlockingPuzzleArgs,
-        RewardDistributorEntrySlotValue, RewardDistributorNftsUnlockingPuzzleArgs,
-        RewardDistributorSlotNonce, RewardDistributorUnstakeActionArgs,
-        RewardDistributorUnstakeActionSolution,
+        RewardDistributorCatUnlockingPuzzleSolution, RewardDistributorEntrySlotValue,
+        RewardDistributorNftsUnlockingPuzzleArgs, RewardDistributorSlotNonce,
+        RewardDistributorUnstakeActionArgs, RewardDistributorUnstakeActionSolution,
     },
     Conditions, Mod,
 };
@@ -15,8 +15,9 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    CatMaker, DriverError, Layer, Nft, P2DelegatedBySingletonLayer, RewardDistributor,
-    RewardDistributorConstants, RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
+    Cat, CatMaker, CatSpend, DriverError, Layer, Nft, P2DelegatedBySingletonLayer,
+    RewardDistributor, RewardDistributorConstants, RewardDistributorType, SingletonAction, Slot,
+    Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -246,7 +247,8 @@ impl RewardDistributorUnstakeAction {
         let registry_inner_puzzle_hash = distributor.info.inner_puzzle_hash();
 
         for (locked_nft, locked_nft_share) in locked_nfts.iter().zip(locked_nft_shares.iter()) {
-            let unstake_message = locked_nft.info.launcher_id.to_vec();
+            let mut unstake_message = locked_nft.info.launcher_id.to_vec();
+            unstake_message.insert(0, b'r');
 
             remove_entry_conditions = remove_entry_conditions.send_message(
                 18,
@@ -319,6 +321,98 @@ impl RewardDistributorUnstakeAction {
         let entry_payout_amount = (entry_payout_amount_precision / self.precision as u128) as u64;
         let action_solution = ctx.alloc(&RewardDistributorUnstakeActionSolution {
             unlock_puzzle_solution: nfts_unlock_info,
+            entry_payout_amount,
+            payout_rounding_error: entry_payout_amount_precision % self.precision as u128,
+            entry_slot: entry_slot.info.value,
+        })?;
+        let action_puzzle = self.construct_puzzle(ctx)?;
+
+        distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
+
+        // spend entry slot
+        entry_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
+
+        Ok((remove_entry_conditions, entry_payout_amount))
+    }
+
+    pub fn spend_for_locked_cats(
+        self,
+        ctx: &mut SpendContext,
+        distributor: &mut RewardDistributor,
+        entry_slot: Slot<RewardDistributorEntrySlotValue>,
+        locked_cat: Cat,
+    ) -> Result<(Conditions, u64), DriverError> {
+        // u64 = last payment amount
+        let my_state = distributor.pending_spend.latest_state.1;
+        let entry_slot = distributor.actual_entry_slot_value(entry_slot);
+
+        // compute messages that the custody puzzle needs to send
+        let locked_cat_coin = locked_cat.coin;
+        let mut unstake_message = locked_cat_coin.parent_coin_info.to_vec();
+        unstake_message.insert(0, b'r');
+
+        let remove_entry_conditions = Conditions::new()
+            .send_message(
+                18,
+                unstake_message.into(),
+                vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
+            )
+            .assert_concurrent_puzzle(entry_slot.coin.puzzle_hash);
+
+        let distributor_singleton_struct_hash: Bytes32 =
+            SingletonStruct::new(self.launcher_id).tree_hash().into();
+        let registry_inner_puzzle_hash = distributor.info.inner_puzzle_hash();
+
+        // spend locked CAT
+        let cat_p2 = P2DelegatedBySingletonLayer::new(distributor_singleton_struct_hash, 1);
+        let cat_inner_puzzle = cat_p2.construct_puzzle(ctx)?;
+        // don't forget about the nonce wrapper!
+        let cat_nonce: Bytes32 = clvm_tuple!(clvm_tuple!(
+            entry_slot.info.value.payout_puzzle_hash,
+            locked_cat_coin.amount
+        ))
+        .tree_hash()
+        .into();
+        let cat_inner_puzzle = ctx.curry(NonceWrapperArgs::<Bytes32, NodePtr> {
+            nonce: cat_nonce,
+            inner_puzzle: cat_inner_puzzle,
+        })?;
+
+        let hint = ctx.hint(entry_slot.info.value.payout_puzzle_hash)?;
+        let delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
+            entry_slot.info.value.payout_puzzle_hash,
+            locked_cat_coin.amount,
+            hint,
+        )))?;
+        let cat_inner_solution = cat_p2.construct_solution(
+            ctx,
+            P2DelegatedBySingletonLayerSolution::<NodePtr, NodePtr> {
+                singleton_inner_puzzle_hash: registry_inner_puzzle_hash.into(),
+                delegated_puzzle,
+                delegated_solution: NodePtr::NIL,
+            },
+        )?;
+
+        let _new_cats = Cat::spend_all(
+            ctx,
+            &[CatSpend::new(
+                locked_cat,
+                Spend::new(cat_inner_puzzle, cat_inner_solution),
+            )],
+        )?;
+
+        // spend self
+        let entry_payout_amount_precision = locked_cat_coin.amount as u128
+            * (my_state.round_reward_info.cumulative_payout
+                - entry_slot.info.value.initial_cumulative_payout);
+        let entry_payout_amount = (entry_payout_amount_precision / self.precision as u128) as u64;
+        let action_solution = ctx.alloc(&RewardDistributorUnstakeActionSolution {
+            unlock_puzzle_solution: RewardDistributorCatUnlockingPuzzleSolution {
+                cat_parent_id: locked_cat_coin.parent_coin_info,
+                cat_amount: locked_cat_coin.amount,
+                cat_shares: locked_cat_coin.amount,
+                cat_maker_solution_rest: (),
+            },
             entry_payout_amount,
             payout_rounding_error: entry_payout_amount_precision % self.precision as u128,
             entry_slot: entry_slot.info.value,
