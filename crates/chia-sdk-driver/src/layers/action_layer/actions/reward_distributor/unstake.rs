@@ -2,10 +2,11 @@ use chia_protocol::Bytes32;
 use chia_puzzle_types::{nft::NftRoyaltyTransferPuzzleArgs, singleton::SingletonStruct};
 use chia_sdk_types::{
     puzzles::{
-        NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution,
-        RewardDistributorCatUnlockingPuzzleArgs, RewardDistributorEntrySlotValue,
-        RewardDistributorNftsUnlockingPuzzleArgs, RewardDistributorSlotNonce,
-        RewardDistributorUnstakeActionArgs, RewardDistributorUnstakeActionSolution,
+        NftToUnlockInfo, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs,
+        P2DelegatedBySingletonLayerSolution, RewardDistributorCatUnlockingPuzzleArgs,
+        RewardDistributorEntrySlotValue, RewardDistributorNftsUnlockingPuzzleArgs,
+        RewardDistributorSlotNonce, RewardDistributorUnstakeActionArgs,
+        RewardDistributorUnstakeActionSolution,
     },
     Conditions, Mod,
 };
@@ -223,84 +224,108 @@ impl RewardDistributorUnstakeAction {
         }))
     }
 
-    pub fn spend(
+    pub fn spend_for_locked_nfts(
         self,
         ctx: &mut SpendContext,
         distributor: &mut RewardDistributor,
         entry_slot: Slot<RewardDistributorEntrySlotValue>,
-        locked_nft: Nft,
+        locked_nfts: Vec<Nft>,
+        locked_nft_shares: Vec<u64>,
     ) -> Result<(Conditions, u64), DriverError> {
         // u64 = last payment amount
         let my_state = distributor.pending_spend.latest_state.1;
         let entry_slot = distributor.actual_entry_slot_value(entry_slot);
 
-        // compute message that the custody puzzle needs to send
-        let unstake_message = locked_nft.info.launcher_id.to_vec();
+        // compute messages that the custody puzzle needs to send
+        let mut nfts_unlock_info = Vec::with_capacity(locked_nfts.len());
+        let mut remove_entry_conditions = Conditions::new();
+        let mut removed_shares = 0;
 
-        let remove_entry_conditions = Conditions::new()
-            .send_message(
+        let distributor_singleton_struct_hash: Bytes32 =
+            SingletonStruct::new(self.launcher_id).tree_hash().into();
+        let registry_inner_puzzle_hash = distributor.info.inner_puzzle_hash();
+
+        for (locked_nft, locked_nft_share) in locked_nfts.iter().zip(locked_nft_shares.iter()) {
+            let unstake_message = locked_nft.info.launcher_id.to_vec();
+
+            remove_entry_conditions = remove_entry_conditions.send_message(
                 18,
                 unstake_message.into(),
                 vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
-            )
-            .assert_concurrent_puzzle(entry_slot.coin.puzzle_hash);
+            );
+
+            nfts_unlock_info.push(NftToUnlockInfo {
+                nft_launcher_id: locked_nft.info.launcher_id,
+                nft_parent_id: locked_nft.coin.parent_coin_info,
+                nft_metadata_hash: locked_nft.info.metadata.tree_hash().into(),
+                nft_metadata_updater_hash_hash: locked_nft
+                    .info
+                    .metadata_updater_puzzle_hash
+                    .tree_hash()
+                    .into(),
+                nft_owner: locked_nft.info.current_owner,
+                nft_transfer_porgram_hash: NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
+                    locked_nft.info.launcher_id,
+                    locked_nft.info.royalty_puzzle_hash,
+                    locked_nft.info.royalty_basis_points,
+                )
+                .into(),
+                nft_shares: *locked_nft_share,
+            });
+
+            removed_shares += locked_nft_share;
+
+            // spend locked NFT
+            let nft_p2 = P2DelegatedBySingletonLayer::new(distributor_singleton_struct_hash, 1);
+            let nft_inner_puzzle = nft_p2.construct_puzzle(ctx)?;
+            // don't forget about the nonce wrapper!
+            let nft_nonce: Bytes32 = clvm_tuple!(clvm_tuple!(
+                entry_slot.info.value.payout_puzzle_hash,
+                locked_nft_share
+            ))
+            .tree_hash()
+            .into();
+            let nft_inner_puzzle = ctx.curry(NonceWrapperArgs::<Bytes32, NodePtr> {
+                nonce: nft_nonce,
+                inner_puzzle: nft_inner_puzzle,
+            })?;
+
+            let hint = ctx.hint(entry_slot.info.value.payout_puzzle_hash)?;
+            let delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
+                entry_slot.info.value.payout_puzzle_hash,
+                1,
+                hint,
+            )))?;
+            let nft_inner_solution = nft_p2.construct_solution(
+                ctx,
+                P2DelegatedBySingletonLayerSolution::<NodePtr, NodePtr> {
+                    singleton_inner_puzzle_hash: registry_inner_puzzle_hash.into(),
+                    delegated_puzzle,
+                    delegated_solution: NodePtr::NIL,
+                },
+            )?;
+
+            let _new_nft =
+                locked_nft.spend(ctx, Spend::new(nft_inner_puzzle, nft_inner_solution))?;
+        }
+
+        remove_entry_conditions =
+            remove_entry_conditions.assert_concurrent_puzzle(entry_slot.coin.puzzle_hash);
 
         // spend self
-        let entry_payout_amount_precision = entry_slot.info.value.shares as u128
+        let entry_payout_amount_precision = removed_shares as u128
             * (my_state.round_reward_info.cumulative_payout
                 - entry_slot.info.value.initial_cumulative_payout);
         let entry_payout_amount = (entry_payout_amount_precision / self.precision as u128) as u64;
         let action_solution = ctx.alloc(&RewardDistributorUnstakeActionSolution {
-            nft_launcher_id: locked_nft.info.launcher_id,
-            nft_parent_id: locked_nft.coin.parent_coin_info,
-            nft_metadata_hash: locked_nft.info.metadata.tree_hash().into(),
-            nft_metadata_updater_hash_hash: locked_nft
-                .info
-                .metadata_updater_puzzle_hash
-                .tree_hash()
-                .into(),
-            nft_transfer_porgram_hash: NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
-                locked_nft.info.launcher_id,
-                locked_nft.info.royalty_puzzle_hash,
-                locked_nft.info.royalty_basis_points,
-            )
-            .into(),
-            entry_initial_cumulative_payout: entry_slot.info.value.initial_cumulative_payout,
-            entry_custody_puzzle_hash: entry_slot.info.value.payout_puzzle_hash,
+            unlock_puzzle_solution: nfts_unlock_info,
+            entry_payout_amount,
+            payout_rounding_error: entry_payout_amount_precision % self.precision as u128,
+            entry_slot: entry_slot.info.value,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
-        let registry_inner_puzzle_hash = distributor.info.inner_puzzle_hash();
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
-
-        // spend NFT
-        let my_p2 = P2DelegatedBySingletonLayer::new(
-            SingletonStruct::new(self.launcher_id).tree_hash().into(),
-            1,
-        );
-        let nft_inner_puzzle = my_p2.construct_puzzle(ctx)?;
-        // don't forget about the nonce wrapper!
-        let nft_inner_puzzle = ctx.curry(NonceWrapperArgs::<Bytes32, NodePtr> {
-            nonce: entry_slot.info.value.payout_puzzle_hash,
-            inner_puzzle: nft_inner_puzzle,
-        })?;
-
-        let hint = ctx.hint(entry_slot.info.value.payout_puzzle_hash)?;
-        let delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
-            entry_slot.info.value.payout_puzzle_hash,
-            1,
-            hint,
-        )))?;
-        let nft_inner_solution = my_p2.construct_solution(
-            ctx,
-            P2DelegatedBySingletonLayerSolution::<NodePtr, NodePtr> {
-                singleton_inner_puzzle_hash: registry_inner_puzzle_hash.into(),
-                delegated_puzzle,
-                delegated_solution: NodePtr::NIL,
-            },
-        )?;
-
-        let _new_nft = locked_nft.spend(ctx, Spend::new(nft_inner_puzzle, nft_inner_solution))?;
 
         // spend entry slot
         entry_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
