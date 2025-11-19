@@ -197,6 +197,7 @@ impl RewardDistributor {
             created_entry_slots.push(RewardDistributorStakeAction::created_slot_value(
                 ctx,
                 &current_state_and_ephemeral.1,
+                constants.reward_distributor_type,
                 action_spend.solution,
             )?);
         } else if raw_action_hash == remove_entry_hash {

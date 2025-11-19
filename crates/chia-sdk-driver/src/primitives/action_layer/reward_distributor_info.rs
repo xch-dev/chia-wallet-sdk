@@ -249,30 +249,45 @@ impl RewardDistributorInfo {
             RewardDistributorWithdrawIncentivesAction::from_constants(constants)
                 .tree_hash()
                 .into(),
-            // todo: build actions
             match constants.reward_distributor_type {
                 RewardDistributorType::Managed {
-                    manager_singleton_launcher_id,
+                    manager_singleton_launcher_id: _,
                 } => RewardDistributorAddEntryAction::from_constants(constants)
                     .tree_hash()
                     .into(),
-                RewardDistributorType::Nft => {
-                    RewardDistributorStakeAction::from_constants(constants)
-                        .tree_hash()
-                        .into()
+                RewardDistributorType::NftCollection {
+                    collection_did_launcher_id: _,
                 }
+                | RewardDistributorType::CuratedNft {
+                    store_launcher_id: _,
+                    refreshable: _,
+                }
+                | RewardDistributorType::Cat {
+                    asset_id: _,
+                    hidden_puzzle_hash: _,
+                } => RewardDistributorStakeAction::from_constants(constants)
+                    .tree_hash()
+                    .into(),
             },
             match constants.reward_distributor_type {
-                RewardDistributorType::Manager => {
-                    RewardDistributorRemoveEntryAction::from_constants(constants)
-                        .tree_hash()
-                        .into()
+                RewardDistributorType::Managed {
+                    manager_singleton_launcher_id: _,
+                } => RewardDistributorRemoveEntryAction::from_constants(constants)
+                    .tree_hash()
+                    .into(),
+                RewardDistributorType::NftCollection {
+                    collection_did_launcher_id: _,
                 }
-                RewardDistributorType::Nft => {
-                    RewardDistributorUnstakeAction::from_constants(constants)
-                        .tree_hash()
-                        .into()
+                | RewardDistributorType::CuratedNft {
+                    store_launcher_id: _,
+                    refreshable: _,
                 }
+                | RewardDistributorType::Cat {
+                    asset_id: _,
+                    hidden_puzzle_hash: _,
+                } => RewardDistributorUnstakeAction::from_constants(constants)
+                    .tree_hash()
+                    .into(),
             },
         ]
     }
