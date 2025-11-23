@@ -58,17 +58,10 @@ impl RewardDistributorUnstakeAction {
         distributor_type: RewardDistributorType,
     ) -> Result<NodePtr, DriverError> {
         match distributor_type {
-            RewardDistributorType::NftCollection {
-                collection_did_launcher_id: _,
-            } => ctx.curry(&RewardDistributorNftsUnlockingPuzzleArgs::new(
-                Self::my_p2_puzzle_hash(launcher_id),
-            )),
-            RewardDistributorType::CuratedNft {
-                store_launcher_id: _,
-                refreshable: _,
-            } => ctx.curry(&RewardDistributorNftsUnlockingPuzzleArgs::new(
-                Self::my_p2_puzzle_hash(launcher_id),
-            )),
+            RewardDistributorType::NftCollection { .. }
+            | RewardDistributorType::CuratedNft { .. } => ctx.curry(
+                RewardDistributorNftsUnlockingPuzzleArgs::new(Self::my_p2_puzzle_hash(launcher_id)),
+            ),
             RewardDistributorType::Cat {
                 asset_id,
                 hidden_puzzle_hash,
@@ -85,12 +78,12 @@ impl RewardDistributorUnstakeAction {
                 };
                 let cat_maker_puzzle = cat_maker.get_puzzle(ctx)?;
 
-                ctx.curry(&RewardDistributorCatUnlockingPuzzleArgs::new(
+                ctx.curry(RewardDistributorCatUnlockingPuzzleArgs::new(
                     cat_maker_puzzle,
                     Self::my_p2_puzzle_hash(launcher_id),
                 ))
             }
-            _ => Err(DriverError::Custom(
+            RewardDistributorType::Managed { .. } => Err(DriverError::Custom(
                 "Unstake action not available in this mode".to_string(),
             )),
         }
@@ -130,19 +123,13 @@ impl RewardDistributorUnstakeAction {
             max_second_offset,
             precision,
             unlock_puzzle: match distributor_type {
-                RewardDistributorType::NftCollection {
-                    collection_did_launcher_id: _,
-                } => RewardDistributorNftsUnlockingPuzzleArgs::new(Self::my_p2_puzzle_hash(
-                    launcher_id,
-                ))
-                .curry_tree_hash(),
-                RewardDistributorType::CuratedNft {
-                    store_launcher_id: _,
-                    refreshable: _,
-                } => RewardDistributorNftsUnlockingPuzzleArgs::new(Self::my_p2_puzzle_hash(
-                    launcher_id,
-                ))
-                .curry_tree_hash(),
+                RewardDistributorType::NftCollection { .. }
+                | RewardDistributorType::CuratedNft { .. } => {
+                    RewardDistributorNftsUnlockingPuzzleArgs::new(Self::my_p2_puzzle_hash(
+                        launcher_id,
+                    ))
+                    .curry_tree_hash()
+                }
                 RewardDistributorType::Cat {
                     asset_id,
                     hidden_puzzle_hash,
@@ -160,7 +147,7 @@ impl RewardDistributorUnstakeAction {
                     Self::my_p2_puzzle_hash(launcher_id),
                 )
                 .curry_tree_hash(),
-                _ => TreeHash::new([0; 32]),
+                RewardDistributorType::Managed { .. } => TreeHash::new([0; 32]),
             },
         }
     }
@@ -182,7 +169,7 @@ impl RewardDistributorUnstakeAction {
             self.distributor_type,
         )?;
 
-        ctx.curry(&args)
+        ctx.curry(args)
     }
 
     pub fn spent_slot_value(
@@ -230,8 +217,8 @@ impl RewardDistributorUnstakeAction {
         ctx: &mut SpendContext,
         distributor: &mut RewardDistributor,
         entry_slot: Slot<RewardDistributorEntrySlotValue>,
-        locked_nfts: Vec<Nft>,
-        locked_nft_shares: Vec<u64>,
+        locked_nfts: &[Nft],
+        locked_nft_shares: &[u64],
     ) -> Result<(Conditions, u64), DriverError> {
         // u64 = last payment amount
         let my_state = distributor.pending_spend.latest_state.1;
@@ -315,14 +302,15 @@ impl RewardDistributorUnstakeAction {
             remove_entry_conditions.assert_concurrent_puzzle(entry_slot.coin.puzzle_hash);
 
         // spend self
-        let entry_payout_amount_precision = removed_shares as u128
+        let entry_payout_amount_precision = u128::from(removed_shares)
             * (my_state.round_reward_info.cumulative_payout
                 - entry_slot.info.value.initial_cumulative_payout);
-        let entry_payout_amount = (entry_payout_amount_precision / self.precision as u128) as u64;
+        let entry_payout_amount =
+            u64::try_from(entry_payout_amount_precision / u128::from(self.precision))?;
         let action_solution = ctx.alloc(&RewardDistributorUnstakeActionSolution {
             unlock_puzzle_solution: nfts_unlock_info,
             entry_payout_amount,
-            payout_rounding_error: entry_payout_amount_precision % self.precision as u128,
+            payout_rounding_error: entry_payout_amount_precision % u128::from(self.precision),
             entry_slot: entry_slot.info.value,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
@@ -402,10 +390,11 @@ impl RewardDistributorUnstakeAction {
         )?;
 
         // spend self
-        let entry_payout_amount_precision = locked_cat_coin.amount as u128
+        let entry_payout_amount_precision = u128::from(locked_cat_coin.amount)
             * (my_state.round_reward_info.cumulative_payout
                 - entry_slot.info.value.initial_cumulative_payout);
-        let entry_payout_amount = (entry_payout_amount_precision / self.precision as u128) as u64;
+        let entry_payout_amount =
+            u64::try_from(entry_payout_amount_precision / u128::from(self.precision))?;
         let action_solution = ctx.alloc(&RewardDistributorUnstakeActionSolution {
             unlock_puzzle_solution: RewardDistributorCatUnlockingPuzzleSolution {
                 cat_parent_id: locked_cat_coin.parent_coin_info,
@@ -414,7 +403,7 @@ impl RewardDistributorUnstakeAction {
                 cat_maker_solution_rest: (),
             },
             entry_payout_amount,
-            payout_rounding_error: entry_payout_amount_precision % self.precision as u128,
+            payout_rounding_error: entry_payout_amount_precision % u128::from(self.precision),
             entry_slot: entry_slot.info.value,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;

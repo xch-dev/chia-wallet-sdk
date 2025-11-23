@@ -72,14 +72,14 @@ impl RewardDistributorStakeAction {
             )),
             RewardDistributorType::NftCollection {
                 collection_did_launcher_id,
-            } => ctx.curry(&RewardDistributorNftsFromDidLockingPuzzleArgs::new(
+            } => ctx.curry(RewardDistributorNftsFromDidLockingPuzzleArgs::new(
                 collection_did_launcher_id,
                 Self::my_p2_puzzle_hash(launcher_id),
             )),
             RewardDistributorType::CuratedNft {
                 store_launcher_id,
                 refreshable: _,
-            } => ctx.curry(&RewardDistributorNftsFromDlLockingPuzzleArgs::new(
+            } => ctx.curry(RewardDistributorNftsFromDlLockingPuzzleArgs::new(
                 store_launcher_id,
                 Self::my_p2_puzzle_hash(launcher_id),
             )),
@@ -99,7 +99,7 @@ impl RewardDistributorStakeAction {
                 };
                 let cat_maker_puzzle = cat_maker.get_puzzle(ctx)?;
 
-                ctx.curry(&RewardDistributorCatLockingPuzzleArgs::new(
+                ctx.curry(RewardDistributorCatLockingPuzzleArgs::new(
                     cat_maker_puzzle,
                     Self::my_p2_puzzle_hash(launcher_id),
                 ))
@@ -192,7 +192,7 @@ impl RewardDistributorStakeAction {
             self.distributor_type,
         )?;
 
-        ctx.curry(&args)
+        ctx.curry(args)
     }
 
     pub fn created_slot_value(
@@ -222,12 +222,13 @@ impl RewardDistributorStakeAction {
         })
     }
 
+    #[allow(clippy::cast_possible_wrap)]
     pub fn spend_for_collection_nft_mode(
         self,
         ctx: &mut SpendContext,
         distributor: &mut RewardDistributor,
-        current_nfts: Vec<Nft>,
-        nft_launcher_proofs: Vec<NftLauncherProof>,
+        current_nfts: &[Nft],
+        nft_launcher_proofs: &[NftLauncherProof],
         entry_custody_puzzle_hash: Bytes32,
         existing_slot: Option<Slot<RewardDistributorEntrySlotValue>>,
     ) -> Result<(Conditions, Vec<NotarizedPayment>, Vec<Nft>), DriverError> {
@@ -334,13 +335,15 @@ impl RewardDistributorStakeAction {
         Ok((security_conditions, notarized_payments, created_nfts))
     }
 
+    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::cast_possible_wrap)]
     pub fn spend_for_curated_nft_mode(
         self,
         ctx: &mut SpendContext,
         distributor: &mut RewardDistributor,
-        current_nfts: Vec<Nft>,
-        nft_shares: Vec<u64>,
-        inclusion_proofs: Vec<MerkleProof>,
+        current_nfts: &[Nft],
+        nft_shares: &[u64],
+        inclusion_proofs: &[MerkleProof],
         entry_custody_puzzle_hash: Bytes32,
         existing_slot: Option<Slot<RewardDistributorEntrySlotValue>>,
         dl_root_hash: Bytes32,
@@ -462,6 +465,7 @@ impl RewardDistributorStakeAction {
         Ok((security_conditions, notarized_payments, created_nfts))
     }
 
+    #[allow(clippy::cast_possible_wrap)]
     pub fn spend_for_cat_mode(
         self,
         ctx: &mut SpendContext,
