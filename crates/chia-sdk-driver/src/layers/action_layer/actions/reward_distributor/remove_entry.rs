@@ -114,14 +114,15 @@ impl RewardDistributorRemoveEntryAction {
             .assert_concurrent_puzzle(entry_slot.coin.puzzle_hash);
 
         // spend self
-        let entry_payout_amount_precision = entry_slot.info.value.shares as u128
+        let entry_payout_amount_precision = u128::from(entry_slot.info.value.shares)
             * (my_state.round_reward_info.cumulative_payout
                 - entry_slot.info.value.initial_cumulative_payout);
-        let entry_payout_amount = (entry_payout_amount_precision / self.precision as u128) as u64;
+        let entry_payout_amount =
+            u64::try_from(entry_payout_amount_precision / u128::from(self.precision))?;
         let action_solution = ctx.alloc(&RewardDistributorRemoveEntryActionSolution {
             manager_singleton_inner_puzzle_hash,
             entry_payout_amount,
-            payout_rounding_error: entry_payout_amount_precision % self.precision as u128,
+            payout_rounding_error: entry_payout_amount_precision % u128::from(self.precision),
             entry_payout_puzzle_hash: entry_slot.info.value.payout_puzzle_hash,
             entry_initial_cumulative_payout: entry_slot.info.value.initial_cumulative_payout,
             entry_shares: entry_slot.info.value.shares,

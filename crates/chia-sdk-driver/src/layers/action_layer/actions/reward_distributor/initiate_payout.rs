@@ -100,10 +100,11 @@ impl RewardDistributorInitiatePayoutAction {
         let my_state = distributor.pending_spend.latest_state.1;
         let entry_slot = distributor.actual_entry_slot_value(entry_slot);
 
-        let withdrawal_amount_precision = entry_slot.info.value.shares as u128
+        let withdrawal_amount_precision = u128::from(entry_slot.info.value.shares)
             * (my_state.round_reward_info.cumulative_payout
                 - entry_slot.info.value.initial_cumulative_payout);
-        let withdrawal_amount = (withdrawal_amount_precision / self.precision as u128) as u64;
+        let withdrawal_amount =
+            u64::try_from(withdrawal_amount_precision / u128::from(self.precision))?;
 
         // this announcement should be asserted to ensure everything goes according to plan
         let mut initiate_payout_announcement =
@@ -118,7 +119,7 @@ impl RewardDistributorInitiatePayoutAction {
             entry_payout_puzzle_hash: entry_slot.info.value.payout_puzzle_hash,
             entry_initial_cumulative_payout: entry_slot.info.value.initial_cumulative_payout,
             entry_shares: entry_slot.info.value.shares,
-            payout_rounding_error: withdrawal_amount_precision % self.precision as u128,
+            payout_rounding_error: withdrawal_amount_precision % u128::from(self.precision),
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 

@@ -2514,25 +2514,44 @@ mod tests {
         Ok((next_test_singleton_coin, next_test_singleton_proof))
     }
 
-    #[test]
-    fn test_managed_reward_distributor() -> anyhow::Result<()> {
-        test_reward_distributor(RewardDistributorType::Manager)
+    enum RewardDistributorTestType {
+        Managed,
+        NftCollection,
+        CuratedNft,
+        Cat,
     }
 
     #[test]
-    fn test_nft_reward_distributor() -> anyhow::Result<()> {
-        test_reward_distributor(RewardDistributorType::Nft)
+    fn test_managed_reward_distributor() -> anyhow::Result<()> {
+        test_reward_distributor(RewardDistributorTestType::Managed)
+    }
+
+    #[test]
+    fn test_collection_nft_reward_distributor() -> anyhow::Result<()> {
+        test_reward_distributor(RewardDistributorTestType::NftCollection)
+    }
+
+    #[test]
+    fn test_curated_nft_reward_distributor() -> anyhow::Result<()> {
+        test_reward_distributor(RewardDistributorTestType::CuratedNft)
+    }
+
+    #[test]
+    fn test_cat_reward_distributor() -> anyhow::Result<()> {
+        test_reward_distributor(RewardDistributorTestType::Cat)
     }
 
     #[allow(clippy::similar_names)]
-    fn test_reward_distributor(manager_type: RewardDistributorType) -> anyhow::Result<()> {
+    fn test_reward_distributor(test_type: RewardDistributorTestType) -> anyhow::Result<()> {
         let ctx = &mut SpendContext::new();
         let mut sim = Simulator::new();
         let mut benchmark = Benchmark::new(format!(
-            "Reward Distributor ({})",
-            match manager_type {
-                RewardDistributorType::Manager => "Manager",
-                RewardDistributorType::Nft => "NFT",
+            "{} Reward Distributor",
+            match test_type {
+                RewardDistributorTestType::Managed => "Managed",
+                RewardDistributorTestType::NftCollection => "NFT Collection",
+                RewardDistributorTestType::CuratedNft => "Curated NFT",
+                RewardDistributorTestType::Cat => "CAT",
             }
         ));
 
@@ -2553,21 +2572,42 @@ mod tests {
         sim.spend_coins(ctx.take(), slice::from_ref(&cat_minter.sk))?;
 
         // Launch manager singleton
+        // What this singleton is depends on the mode:
+        //  - for managed mode, it's a manager singleton
+        //  - for nft collection mode, it's a DID singleton
+        //  - for curated nft mode, it's a store singleton
+        //  - for cat mode, it's not used
         let (
-            manager_or_did_launcher_id,
-            mut manager_or_did_coin,
-            mut manager_or_did_singleton_proof,
-            _manager_or_didsingleton_inner_puzzle,
-            manager_or_did_singleton_inner_puzzle_hash,
-            manager_or_did_singleton_puzzle,
+            manager_launcher_id,
+            mut manager_coin,
+            mut manager_singleton_proof,
+            _manager_singleton_inner_puzzle,
+            manager_singleton_inner_puzzle_hash,
+            manager_singleton_puzzle,
         ) = launch_test_singleton(ctx, &mut sim)?;
 
         // setup config
         let constants = RewardDistributorConstants::without_launcher_id(
-            manager_type,
-            manager_or_did_launcher_id,
+            match test_type {
+                RewardDistributorTestType::Managed => RewardDistributorType::Managed {
+                    manager_singleton_launcher_id: manager_launcher_id,
+                },
+                RewardDistributorTestType::NftCollection => RewardDistributorType::NftCollection {
+                    collection_did_launcher_id: manager_launcher_id,
+                },
+                _ => todo!("other modes not implemented yet"),
+                // RewardDistributorTestType::CuratedNft => RewardDistributorType::CuratedNft {
+                //     store_launcher_id: manager_launcher_id,
+                //     refreshable: false,
+                // },
+                // RewardDistributorTestType::Cat => RewardDistributorType::Cat {
+                //     asset_id: source_cat.info.asset_id,
+                //     hidden_puzzle_hash: None,
+                // },
+            },
             Bytes32::new([1; 32]),
             1000,
+            u64::MAX, // precision
             300,
             42,
             420,  // 4.2% fee
