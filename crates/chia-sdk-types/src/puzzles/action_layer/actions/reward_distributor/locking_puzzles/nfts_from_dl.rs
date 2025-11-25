@@ -9,7 +9,7 @@ use hex_literal::hex;
 
 use crate::{puzzles::NONCE_WRAPPER_PUZZLE_HASH, MerkleProof, Mod};
 
-pub const REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE: [u8; 1285] = hex!(
+pub const REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE: [u8; 1286] = hex!(
     "
     ff02ffff01ff02ff3cffff04ff02ffff04ff03ffff04ff820bffffff01ff80ff
     808080808080ffff04ffff01ffffff46ff3f3eff02ffff04ffff04ff28ffff04

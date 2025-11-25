@@ -2951,7 +2951,6 @@ mod tests {
 
             // sim.spend_coins(spends, slice::from_ref(&nft_bls.sk))?;
             let spends = ctx.take();
-            print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs"); // todo: debug
             benchmark.add_spends(
                 ctx,
                 &mut sim,

@@ -458,23 +458,6 @@ impl RewardDistributorStakeAction {
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
-        // todo: debug
-        println!(
-            "action puzzle: {:?}",
-            hex::encode(node_to_bytes(ctx, action_puzzle)?)
-        );
-        let actual_solution = ctx.alloc(&clvm_list!(
-            distributor.pending_spend.latest_state,
-            action_solution
-        ))?;
-        println!(
-            "actual solution: {:?}",
-            hex::encode(node_to_bytes(ctx, actual_solution)?)
-        );
-        let output = ctx.run(action_puzzle, actual_solution)?;
-        println!("output: {:?}", hex::encode(node_to_bytes(ctx, output)?));
-        // todo: debug
-
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
             existing_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
