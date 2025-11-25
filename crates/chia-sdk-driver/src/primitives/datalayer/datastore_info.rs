@@ -269,6 +269,29 @@ impl<M> DataStoreInfo<M> {
             inner_ph_hash,
         ))
     }
+
+    pub fn delegation_layer_puzzle_hash(
+        &self,
+        ctx: &mut SpendContext,
+    ) -> Result<TreeHash, DriverError>
+    where
+        M: ToClvm<Allocator>,
+    {
+        if !self.delegated_puzzles.is_empty() {
+            return Ok(CurriedProgram {
+                program: DELEGATION_LAYER_PUZZLE_HASH,
+                args: DelegationLayerArgs {
+                    mod_hash: DELEGATION_LAYER_PUZZLE_HASH.into(),
+                    launcher_id: self.launcher_id,
+                    owner_puzzle_hash: self.owner_puzzle_hash,
+                    merkle_root: get_merkle_tree(ctx, self.delegated_puzzles.clone())?.root(),
+                },
+            }
+            .tree_hash());
+        }
+
+        Ok(self.owner_puzzle_hash.into())
+    }
 }
 
 pub fn get_merkle_tree(

@@ -766,24 +766,25 @@ mod tests {
             IntermediaryCoinProof, NftLauncherProof, XchandlesFactorPricingPuzzleArgs,
             XchandlesPricingSolution, ANY_METADATA_UPDATER_HASH,
         },
-        TESTNET11_CONSTANTS,
+        MerkleTree, TESTNET11_CONSTANTS,
     };
     use clvm_traits::clvm_list;
     use clvmr::Allocator;
     use hex_literal::hex;
 
     use crate::{
-        CatalogPrecommitValue, CatalogRefundAction, CatalogRegisterAction, DataStore,
-        DataStoreMetadata, DelegatedPuzzle, DelegatedStateAction, HashedPtr, MetadataWithRootHash,
-        NftMint, PrecommitCoin, RewardDistributorAddEntryAction,
-        RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
-        RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
-        RewardDistributorRemoveEntryAction, RewardDistributorStakeAction,
-        RewardDistributorSyncAction, RewardDistributorType, RewardDistributorUnstakeAction,
-        RewardDistributorWithdrawIncentivesAction, SingleCatSpend, SingletonInfo, Slot,
-        SpendWithConditions, XchandlesExpireAction, XchandlesExpirePricingPuzzle,
-        XchandlesExtendAction, XchandlesOracleAction, XchandlesPrecommitValue,
-        XchandlesRefundAction, XchandlesRegisterAction, XchandlesUpdateAction,
+        get_merkle_tree, CatalogPrecommitValue, CatalogRefundAction, CatalogRegisterAction,
+        DataStore, DataStoreMetadata, DelegatedPuzzle, DelegatedStateAction, DelegationLayer,
+        HashedPtr, MetadataWithRootHash, NftMint, OracleLayer, PrecommitCoin,
+        RewardDistributorAddEntryAction, RewardDistributorAddIncentivesAction,
+        RewardDistributorCommitIncentivesAction, RewardDistributorInitiatePayoutAction,
+        RewardDistributorNewEpochAction, RewardDistributorRemoveEntryAction,
+        RewardDistributorStakeAction, RewardDistributorSyncAction, RewardDistributorType,
+        RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, SingleCatSpend,
+        SingletonInfo, Slot, SpendWithConditions, XchandlesExpireAction,
+        XchandlesExpirePricingPuzzle, XchandlesExtendAction, XchandlesOracleAction,
+        XchandlesPrecommitValue, XchandlesRefundAction, XchandlesRegisterAction,
+        XchandlesUpdateAction,
     };
 
     use super::*;
@@ -2597,16 +2598,18 @@ mod tests {
         ) = launch_test_singleton(ctx, &mut sim)?;
 
         let datastore_p2 = sim.bls(1);
-        let datastore: Option<DataStore> = if let RewardDistributorTestType::CuratedNft {
+        let delegated_puzzles = vec![DelegatedPuzzle::Oracle(Bytes32::default(), 1336)];
+        let mut merkle_tree = MerkleTree::new(&[]);
+        let mut datastore: Option<DataStore> = if let RewardDistributorTestType::CuratedNft {
             refreshable: _,
         } = test_type
         {
             let (launch_singleton, datastore) = Launcher::new(datastore_p2.coin.coin_id(), 1)
                 .mint_datastore(
                     ctx,
-                    DataStoreMetadata::root_hash_only(Bytes32::default()),
+                    DataStoreMetadata::root_hash_only(merkle_tree.root()),
                     datastore_p2.puzzle_hash.into(),
-                    vec![DelegatedPuzzle::Oracle(Bytes32::default(), 1337)],
+                    delegated_puzzles.clone(),
                 )?;
             StandardLayer::new(datastore_p2.pk).spend(ctx, datastore_p2.coin, launch_singleton)?;
 
@@ -2626,7 +2629,7 @@ mod tests {
                 },
                 RewardDistributorTestType::CuratedNft { refreshable } => {
                     RewardDistributorType::CuratedNft {
-                        store_launcher_id: datastore.unwrap().info.launcher_id,
+                        store_launcher_id: datastore.as_ref().unwrap().info.launcher_id,
                         refreshable,
                     }
                 }
@@ -2749,6 +2752,7 @@ mod tests {
                 launcher_bls.sk.clone(),
                 security_sk.clone(),
                 cat_minter.sk.clone(),
+                datastore_p2.sk.clone(),
             ],
         )?;
 
@@ -2822,27 +2826,93 @@ mod tests {
             let spends = ctx.take();
             benchmark.add_spends(ctx, &mut sim, spends, "mint_nft", &[])?;
 
-            let Proof::Lineage(did_proof) = manager_singleton_proof else {
-                panic!("did_proof is not a lineage proof");
-            };
-            let nft_proof = NftLauncherProof {
-                did_proof,
-                intermediary_coin_proofs: vec![IntermediaryCoinProof {
-                    full_puzzle_hash: nft_launcher_coin.puzzle_hash,
-                    amount: nft_launcher_coin.amount,
-                }],
-            };
-
-            let (sec_conds, notarized_payments, locked_nfts) = registry
-                .new_action::<RewardDistributorStakeAction>()
-                .spend_for_collection_nft_mode(
+            if let Some(some_datastore) = datastore {
+                merkle_tree = MerkleTree::new(&[(nft.info.launcher_id, 1).tree_hash().into()]);
+                let new_meta = DataStore::new_metadata_condition(
                     ctx,
-                    &mut registry,
-                    &[nft],
-                    &[nft_proof],
-                    nft_bls.puzzle_hash,
-                    None,
+                    DataStoreMetadata::root_hash_only(merkle_tree.root()),
                 )?;
+
+                let owner_layer = StandardLayer::new(datastore_p2.pk);
+                let recreate = DataStore::<()>::owner_create_coin_condition(
+                    ctx,
+                    some_datastore.info.launcher_id,
+                    owner_layer.tree_hash().into(),
+                    delegated_puzzles.clone(),
+                    false,
+                )?;
+
+                let inner_spend = owner_layer
+                    .spend_with_conditions(ctx, Conditions::new().with(recreate).with(new_meta))?;
+                let dl_spend = some_datastore.spend(ctx, inner_spend)?;
+                datastore =
+                    Some(DataStore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
+
+                benchmark.add_spends(
+                    ctx,
+                    &mut sim,
+                    vec![dl_spend],
+                    "update_datastore",
+                    std::slice::from_ref(&datastore_p2.sk),
+                )?;
+            }
+
+            let (sec_conds, notarized_payments, locked_nfts) = if let Some(some_datastore) =
+                datastore
+            {
+                let oracle_layer = match delegated_puzzles[0] {
+                    DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee) => {
+                        OracleLayer::new(oracle_puzzle_hash, oracle_fee).unwrap()
+                    }
+                    _ => panic!("expected first member of delegated puzzles to be an oracle"),
+                };
+                let inner_spend = oracle_layer.construct_spend(ctx, ())?;
+
+                let dl_metadata_updater_hash: Bytes32 = 11.tree_hash().into();
+                let dl_inner_puzzle_hash = some_datastore.info.delegation_layer_puzzle_hash(ctx)?;
+
+                let dl_spend = some_datastore.spend(ctx, inner_spend)?;
+                datastore =
+                    Some(DataStore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
+                ctx.insert(dl_spend);
+
+                registry
+                    .new_action::<RewardDistributorStakeAction>()
+                    .spend_for_curated_nft_mode(
+                        ctx,
+                        &mut registry,
+                        &[nft],
+                        &[1],
+                        &[merkle_tree.proof(nft.info.launcher_id).unwrap()],
+                        nft_bls.puzzle_hash,
+                        None,
+                        merkle_tree.root(),
+                        None,
+                        dl_metadata_updater_hash.tree_hash().into(),
+                        dl_inner_puzzle_hash.into(),
+                    )?
+            } else {
+                let Proof::Lineage(did_proof) = manager_singleton_proof else {
+                    panic!("did_proof is not a lineage proof");
+                };
+                let nft_proof = NftLauncherProof {
+                    did_proof,
+                    intermediary_coin_proofs: vec![IntermediaryCoinProof {
+                        full_puzzle_hash: nft_launcher_coin.puzzle_hash,
+                        amount: nft_launcher_coin.amount,
+                    }],
+                };
+                registry
+                    .new_action::<RewardDistributorStakeAction>()
+                    .spend_for_collection_nft_mode(
+                        ctx,
+                        &mut registry,
+                        &[nft],
+                        &[nft_proof],
+                        nft_bls.puzzle_hash,
+                        None,
+                    )?
+            };
             let entry1_slot = registry.created_slot_value_to_slot(
                 registry.pending_spend.created_entry_slots[0],
                 RewardDistributorSlotNonce::ENTRY,
@@ -2878,7 +2948,7 @@ mod tests {
                 &mut sim,
                 spends,
                 "stake_nft",
-                slice::from_ref(&nft_bls.sk),
+                &[nft_bls.sk.clone(), datastore_p2.sk.clone()],
             )?;
 
             (entry1_slot, Some(locked_nfts[0]))
