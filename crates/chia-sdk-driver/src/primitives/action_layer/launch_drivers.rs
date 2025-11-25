@@ -773,8 +773,9 @@ mod tests {
     use hex_literal::hex;
 
     use crate::{
-        CatalogPrecommitValue, CatalogRefundAction, CatalogRegisterAction, DelegatedStateAction,
-        HashedPtr, NftMint, PrecommitCoin, RewardDistributorAddEntryAction,
+        CatalogPrecommitValue, CatalogRefundAction, CatalogRegisterAction, DataStore,
+        DataStoreMetadata, DelegatedPuzzle, DelegatedStateAction, HashedPtr, MetadataWithRootHash,
+        NftMint, NftStateLayer, PrecommitCoin, RewardDistributorAddEntryAction,
         RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
         RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
         RewardDistributorRemoveEntryAction, RewardDistributorStakeAction,
@@ -2517,7 +2518,7 @@ mod tests {
     enum RewardDistributorTestType {
         Managed,
         NftCollection,
-        CuratedNft,
+        CuratedNft { refreshable: bool },
         Cat,
     }
 
@@ -2532,9 +2533,15 @@ mod tests {
     }
 
     #[test]
-    fn test_curated_nft_reward_distributor() -> anyhow::Result<()> {
-        test_reward_distributor(RewardDistributorTestType::CuratedNft)
+    fn test_curated_nft_non_refreshable_reward_distributor() -> anyhow::Result<()> {
+        test_reward_distributor(RewardDistributorTestType::CuratedNft { refreshable: false })
     }
+
+    // TODO: after refreshable test is implemented
+    // #[test]
+    // fn test_curated_nft_refreshable_reward_distributor() -> anyhow::Result<()> {
+    //     test_reward_distributor(RewardDistributorTestType::CuratedNft { refreshable: true })
+    // }
 
     #[test]
     fn test_cat_reward_distributor() -> anyhow::Result<()> {
@@ -2550,12 +2557,15 @@ mod tests {
             match test_type {
                 RewardDistributorTestType::Managed => "Managed",
                 RewardDistributorTestType::NftCollection => "NFT Collection",
-                RewardDistributorTestType::CuratedNft => "Curated NFT",
+                RewardDistributorTestType::CuratedNft { refreshable: false } =>
+                    "Curated NFT (non-refreshable)",
+                RewardDistributorTestType::CuratedNft { refreshable: true } =>
+                    "Curated NFT (refreshable)",
                 RewardDistributorTestType::Cat => "CAT",
             }
         ));
 
-        // Launch token CAT
+        // Launch reward token CAT
         let cat_amount = 10_000_000_000;
         let cat_minter = sim.bls(cat_amount);
         let cat_minter_p2 = StandardLayer::new(cat_minter.pk);
@@ -2586,6 +2596,25 @@ mod tests {
             manager_singleton_puzzle,
         ) = launch_test_singleton(ctx, &mut sim)?;
 
+        let datastore_p2 = sim.bls(1);
+        let datastore: Option<DataStore> = if let RewardDistributorTestType::CuratedNft {
+            refreshable: _,
+        } = test_type
+        {
+            let (launch_singleton, datastore) = Launcher::new(datastore_p2.coin.coin_id(), 1)
+                .mint_datastore(
+                    ctx,
+                    DataStoreMetadata::root_hash_only(Bytes32::default()),
+                    datastore_p2.puzzle_hash.into(),
+                    vec![DelegatedPuzzle::Oracle(Bytes32::default(), 1337)],
+                )?;
+            StandardLayer::new(datastore_p2.pk).spend(ctx, datastore_p2.coin, launch_singleton)?;
+
+            Some(datastore)
+        } else {
+            None
+        };
+
         // setup config
         let constants = RewardDistributorConstants::without_launcher_id(
             match test_type {
@@ -2595,15 +2624,13 @@ mod tests {
                 RewardDistributorTestType::NftCollection => RewardDistributorType::NftCollection {
                     collection_did_launcher_id: manager_launcher_id,
                 },
-                _ => todo!("other modes not implemented yet"),
-                // RewardDistributorTestType::CuratedNft => RewardDistributorType::CuratedNft {
-                //     store_launcher_id: manager_launcher_id,
-                //     refreshable: false,
-                // },
-                // RewardDistributorTestType::Cat => RewardDistributorType::Cat {
-                //     asset_id: source_cat.info.asset_id,
-                //     hidden_puzzle_hash: None,
-                // },
+                RewardDistributorTestType::CuratedNft { refreshable } => {
+                    RewardDistributorType::CuratedNft {
+                        store_launcher_id: datastore.unwrap().info.launcher_id,
+                        refreshable,
+                    }
+                }
+                RewardDistributorTestType::Cat => todo!("other modes not implemented yet"),
             },
             Bytes32::new([1; 32]),
             1000,
@@ -3813,7 +3840,10 @@ mod tests {
             match test_type {
                 RewardDistributorTestType::Managed => "managed",
                 RewardDistributorTestType::NftCollection => "collection-nft",
-                RewardDistributorTestType::CuratedNft => "curated-nft",
+                RewardDistributorTestType::CuratedNft { refreshable: false } =>
+                    "curated-nft-non-refreshable",
+                RewardDistributorTestType::CuratedNft { refreshable: true } =>
+                    "curated-nft-refreshable",
                 RewardDistributorTestType::Cat => "cat",
             }
         )));
