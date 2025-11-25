@@ -759,7 +759,7 @@ mod tests {
 
     use chia_puzzle_types::{cat::GenesisByCoinIdTailArgs, CoinProof};
     use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
-    use chia_sdk_test::{print_spend_bundle_to_file, Benchmark, Simulator};
+    use chia_sdk_test::{Benchmark, BlsPairWithCoin, Simulator};
     use chia_sdk_types::{
         puzzles::{
             AnyMetadataUpdater, CatNftMetadata, DelegatedStateActionSolution,
@@ -773,18 +773,17 @@ mod tests {
     use hex_literal::hex;
 
     use crate::{
-        get_merkle_tree, CatalogPrecommitValue, CatalogRefundAction, CatalogRegisterAction,
-        DataStore, DataStoreMetadata, DelegatedPuzzle, DelegatedStateAction, DelegationLayer,
-        HashedPtr, MetadataWithRootHash, NftMint, OracleLayer, PrecommitCoin,
-        RewardDistributorAddEntryAction, RewardDistributorAddIncentivesAction,
-        RewardDistributorCommitIncentivesAction, RewardDistributorInitiatePayoutAction,
-        RewardDistributorNewEpochAction, RewardDistributorRemoveEntryAction,
-        RewardDistributorStakeAction, RewardDistributorSyncAction, RewardDistributorType,
-        RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, SingleCatSpend,
-        SingletonInfo, Slot, SpendWithConditions, XchandlesExpireAction,
-        XchandlesExpirePricingPuzzle, XchandlesExtendAction, XchandlesOracleAction,
-        XchandlesPrecommitValue, XchandlesRefundAction, XchandlesRegisterAction,
-        XchandlesUpdateAction,
+        CatalogPrecommitValue, CatalogRefundAction, CatalogRegisterAction, DataStore,
+        DataStoreMetadata, DelegatedPuzzle, DelegatedStateAction, HashedPtr, MetadataWithRootHash,
+        NftMint, OracleLayer, PrecommitCoin, RewardDistributorAddEntryAction,
+        RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
+        RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
+        RewardDistributorRemoveEntryAction, RewardDistributorStakeAction,
+        RewardDistributorSyncAction, RewardDistributorType, RewardDistributorUnstakeAction,
+        RewardDistributorWithdrawIncentivesAction, SingleCatSpend, SingletonInfo, Slot,
+        SpendWithConditions, XchandlesExpireAction, XchandlesExpirePricingPuzzle,
+        XchandlesExtendAction, XchandlesOracleAction, XchandlesPrecommitValue,
+        XchandlesRefundAction, XchandlesRegisterAction, XchandlesUpdateAction,
     };
 
     use super::*;
@@ -2549,6 +2548,47 @@ mod tests {
         test_reward_distributor(RewardDistributorTestType::Cat)
     }
 
+    fn update_datastore(
+        ctx: &mut SpendContext,
+        sim: &mut Simulator,
+        benchmark: &mut Benchmark,
+        datastore: DataStore,
+        delegated_puzzles: &[DelegatedPuzzle],
+        new_metadata: DataStoreMetadata,
+        datastore_p2: &BlsPairWithCoin,
+    ) -> anyhow::Result<DataStore<DataStoreMetadata>> {
+        let owner_layer = StandardLayer::new(datastore_p2.pk);
+        let recreate = DataStore::<()>::owner_create_coin_condition(
+            ctx,
+            datastore.info.launcher_id,
+            owner_layer.tree_hash().into(),
+            delegated_puzzles.to_vec(),
+            false,
+        )?;
+
+        let new_metadata_condition = DataStore::new_metadata_condition(ctx, new_metadata)?;
+
+        let inner_spend = owner_layer.spend_with_conditions(
+            ctx,
+            Conditions::new()
+                .with(recreate)
+                .with(new_metadata_condition),
+        )?;
+        let dl_spend = datastore.spend(ctx, inner_spend)?;
+
+        let new_datastore = DataStore::from_spend(ctx, &dl_spend, delegated_puzzles)?.unwrap();
+
+        benchmark.add_spends(
+            ctx,
+            sim,
+            vec![dl_spend],
+            "update_datastore",
+            std::slice::from_ref(&datastore_p2.sk),
+        )?;
+
+        Ok(new_datastore)
+    }
+
     #[allow(clippy::similar_names)]
     fn test_reward_distributor(test_type: RewardDistributorTestType) -> anyhow::Result<()> {
         let ctx = &mut SpendContext::new();
@@ -2829,33 +2869,22 @@ mod tests {
 
             if let Some(some_datastore) = datastore {
                 merkle_tree = MerkleTree::new(&[(nft.info.launcher_id, 1).tree_hash().into()]);
-                let new_meta = DataStore::new_metadata_condition(
-                    ctx,
-                    DataStoreMetadata::root_hash_only(merkle_tree.root()),
-                )?;
-
-                let owner_layer = StandardLayer::new(datastore_p2.pk);
-                let recreate = DataStore::<()>::owner_create_coin_condition(
-                    ctx,
-                    some_datastore.info.launcher_id,
-                    owner_layer.tree_hash().into(),
-                    delegated_puzzles.clone(),
-                    false,
-                )?;
-
-                let inner_spend = owner_layer
-                    .spend_with_conditions(ctx, Conditions::new().with(recreate).with(new_meta))?;
-                let dl_spend = some_datastore.spend(ctx, inner_spend)?;
-                datastore =
-                    Some(DataStore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
-
-                benchmark.add_spends(
+                let metadata = DataStoreMetadata {
+                    root_hash: merkle_tree.root(),
+                    label: Some("label".to_string()),
+                    description: None,
+                    bytes: None,
+                    size_proof: None,
+                };
+                datastore = Some(update_datastore(
                     ctx,
                     &mut sim,
-                    vec![dl_spend],
-                    "update_datastore",
-                    std::slice::from_ref(&datastore_p2.sk),
-                )?;
+                    &mut benchmark,
+                    some_datastore,
+                    &delegated_puzzles,
+                    metadata,
+                    &datastore_p2,
+                )?);
             }
 
             let (sec_conds, notarized_payments, locked_nfts) = if let Some(some_datastore) =
@@ -2890,7 +2919,7 @@ mod tests {
                         nft_bls.puzzle_hash,
                         None,
                         merkle_tree.root(),
-                        None,
+                        Some(clvm_tuple!(("l", "label"), ()).tree_hash().into()),
                         dl_metadata_updater_hash.tree_hash().into(),
                         dl_inner_puzzle_hash.into(),
                     )?
