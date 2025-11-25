@@ -19,9 +19,9 @@ use chia_sdk_types::{
     },
     Conditions, MerkleProof, Mod,
 };
-use clvm_traits::clvm_tuple;
+use clvm_traits::{clvm_list, clvm_tuple};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
-use clvmr::NodePtr;
+use clvmr::{serde::node_to_bytes, NodePtr};
 
 use crate::{
     Asset, Cat, CatMaker, DriverError, HashedPtr, Nft, RewardDistributor,
@@ -364,15 +364,6 @@ impl RewardDistributorStakeAction {
 
         // calculate notarized payments; spend said nfts
         let my_p2_treehash = Self::my_p2_puzzle_hash(self.launcher_id).into();
-        let payment_puzzle_hash: Bytes32 = CurriedProgram {
-            program: NONCE_WRAPPER_PUZZLE_HASH,
-            args: NonceWrapperArgs::<Bytes32, TreeHash> {
-                nonce: entry_custody_puzzle_hash,
-                inner_puzzle: my_p2_treehash,
-            },
-        }
-        .tree_hash()
-        .into();
 
         let mut notarized_payments = Vec::with_capacity(current_nfts.len());
         let mut created_nfts = Vec::with_capacity(current_nfts.len());
@@ -380,6 +371,16 @@ impl RewardDistributorStakeAction {
         let mut security_conditions = Conditions::new();
         let mut total_shares_until_now = 0;
         for i in 0..current_nfts.len() {
+            let payment_puzzle_hash: Bytes32 = CurriedProgram {
+                program: NONCE_WRAPPER_PUZZLE_HASH,
+                args: NonceWrapperArgs::<(Bytes32, u64), TreeHash> {
+                    nonce: clvm_tuple!(entry_custody_puzzle_hash, nft_shares[i]),
+                    inner_puzzle: my_p2_treehash,
+                },
+            }
+            .tree_hash()
+            .into();
+
             let np = NotarizedPayment {
                 // NFTs may have different weights in curated NFT mode
                 nonce: clvm_tuple!(
@@ -450,6 +451,23 @@ impl RewardDistributorStakeAction {
             existing_slot_shares: existing_slot.as_ref().map_or(0, |s| s.info.value.shares),
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
+
+        // todo: debug
+        println!(
+            "action puzzle: {:?}",
+            hex::encode(node_to_bytes(ctx, action_puzzle)?)
+        );
+        let actual_solution = ctx.alloc(&clvm_list!(
+            distributor.pending_spend.latest_state,
+            action_solution
+        ))?;
+        println!(
+            "actual solution: {:?}",
+            hex::encode(node_to_bytes(ctx, actual_solution)?)
+        );
+        let output = ctx.run(action_puzzle, actual_solution)?;
+        println!("output: {:?}", hex::encode(node_to_bytes(ctx, output)?));
+        // todo: debug
 
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {

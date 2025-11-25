@@ -2848,6 +2848,7 @@ mod tests {
                 datastore =
                     Some(DataStore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
 
+                println!("updating datastore..."); // TODO: debug
                 benchmark.add_spends(
                     ctx,
                     &mut sim,
@@ -2855,6 +2856,7 @@ mod tests {
                     "update_datastore",
                     std::slice::from_ref(&datastore_p2.sk),
                 )?;
+                println!("datastore updated"); // TODO: debug
             }
 
             let (sec_conds, notarized_payments, locked_nfts) = if let Some(some_datastore) =
@@ -2871,11 +2873,15 @@ mod tests {
                 let dl_metadata_updater_hash: Bytes32 = 11.tree_hash().into();
                 let dl_inner_puzzle_hash = some_datastore.info.delegation_layer_puzzle_hash(ctx)?;
 
+                println!("spending datastore..."); // TODO: debug
                 let dl_spend = some_datastore.spend(ctx, inner_spend)?;
+                println!("datastore spent"); // TODO: debug
                 datastore =
                     Some(DataStore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
+                println!("new datastore parsed"); // TODO: debug
                 ctx.insert(dl_spend);
 
+                println!("staking nft..."); // TODO: debug
                 registry
                     .new_action::<RewardDistributorStakeAction>()
                     .spend_for_curated_nft_mode(
@@ -2883,7 +2889,9 @@ mod tests {
                         &mut registry,
                         &[nft],
                         &[1],
-                        &[merkle_tree.proof(nft.info.launcher_id).unwrap()],
+                        &[merkle_tree
+                            .proof((nft.info.launcher_id, 1).tree_hash().into())
+                            .unwrap()],
                         nft_bls.puzzle_hash,
                         None,
                         merkle_tree.root(),
@@ -2913,6 +2921,7 @@ mod tests {
                         None,
                     )?
             };
+            println!("staking nft complete"); // TODO: debug
             let entry1_slot = registry.created_slot_value_to_slot(
                 registry.pending_spend.created_entry_slots[0],
                 RewardDistributorSlotNonce::ENTRY,
