@@ -7,6 +7,7 @@ use chia_sdk_types::{
     },
     Conditions, Mod,
 };
+use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
@@ -120,10 +121,17 @@ impl RewardDistributorWithdrawIncentivesAction {
             / 10000;
 
         // calculate message that the withdrawer needs to send
+        let mut msg = clvm_tuple!(
+            reward_slot.info.value.epoch_start,
+            commitment_slot.info.value.rewards
+        )
+        .tree_hash()
+        .to_vec();
+        msg.insert(0, b'w');
         let withdraw_incentives_conditions = Conditions::new()
             .send_message(
                 18,
-                Bytes::new(Vec::new()),
+                msg.into(),
                 vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
             )
             .assert_concurrent_puzzle(commitment_slot.coin.puzzle_hash);
