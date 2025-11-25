@@ -241,7 +241,7 @@ impl RewardDistributorStakeAction {
         let payment_puzzle_hash: Bytes32 = CurriedProgram {
             program: NONCE_WRAPPER_PUZZLE_HASH,
             args: NonceWrapperArgs::<Bytes32, TreeHash> {
-                nonce: entry_custody_puzzle_hash,
+                nonce: clvm_tuple!(entry_custody_puzzle_hash, 1).tree_hash().into(),
                 inner_puzzle: my_p2_treehash,
             },
         }
@@ -318,21 +318,6 @@ impl RewardDistributorStakeAction {
         if let Some(existing_slot) = existing_slot {
             existing_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
         }
-
-        // todo: debug
-        println!(
-            "action_puzzle: {}",
-            hex::encode(node_to_bytes(ctx, action_puzzle)?)
-        );
-        let actual_sol = ctx.alloc(&clvm_list!(
-            distributor.pending_spend.latest_state,
-            action_solution
-        ))?;
-        println!(
-            "action_actual_sol: {}",
-            hex::encode(node_to_bytes(ctx, actual_sol)?)
-        );
-        // todo: debug
 
         // ensure new slot is properly created
         let new_slot_value = Self::created_slot_value(
