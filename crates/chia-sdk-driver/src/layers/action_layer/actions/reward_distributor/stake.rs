@@ -19,9 +19,9 @@ use chia_sdk_types::{
     },
     Conditions, MerkleProof, Mod,
 };
-use clvm_traits::clvm_tuple;
+use clvm_traits::{clvm_list, clvm_tuple};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
-use clvmr::NodePtr;
+use clvmr::{serde::node_to_bytes, NodePtr};
 
 use crate::{
     Asset, Cat, CatMaker, DriverError, HashedPtr, Nft, RewardDistributor,
@@ -318,6 +318,21 @@ impl RewardDistributorStakeAction {
         if let Some(existing_slot) = existing_slot {
             existing_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
         }
+
+        // todo: debug
+        println!(
+            "action_puzzle: {}",
+            hex::encode(node_to_bytes(ctx, action_puzzle)?)
+        );
+        let actual_sol = ctx.alloc(&clvm_list!(
+            distributor.pending_spend.latest_state,
+            action_solution
+        ))?;
+        println!(
+            "action_actual_sol: {}",
+            hex::encode(node_to_bytes(ctx, actual_sol)?)
+        );
+        // todo: debug
 
         // ensure new slot is properly created
         let new_slot_value = Self::created_slot_value(

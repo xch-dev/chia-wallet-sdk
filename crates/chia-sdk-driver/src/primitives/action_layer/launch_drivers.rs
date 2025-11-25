@@ -1649,7 +1649,6 @@ mod tests {
                     payment_cat.info.asset_id,
                 ),
             )?;
-        println!("launched"); // todo: debug
 
         // Check XCHandlesRegistry::from_launcher_solution
         let spends = ctx.take();
@@ -2807,6 +2806,7 @@ mod tests {
                 }],
             };
 
+            println!("staking nft"); // TODO: debug
             let (sec_conds, notarized_payments, locked_nfts) = registry
                 .new_action::<RewardDistributorStakeAction>()
                 .spend_for_collection_nft_mode(
@@ -2817,6 +2817,7 @@ mod tests {
                     nft_bls.puzzle_hash,
                     None,
                 )?;
+            println!("staked nft called"); // TODO: debug
             let entry1_slot = registry.created_slot_value_to_slot(
                 registry.pending_spend.created_entry_slots[0],
                 RewardDistributorSlotNonce::ENTRY,
@@ -3719,7 +3720,6 @@ mod tests {
         }
 
         for epoch in 7..10 {
-            println!("epoch: {}", epoch); // TODO: debug
             let update_time = registry.info.state.round_time_info.epoch_end;
             let sync_conditions = registry.new_action::<RewardDistributorSyncAction>().spend(
                 ctx,

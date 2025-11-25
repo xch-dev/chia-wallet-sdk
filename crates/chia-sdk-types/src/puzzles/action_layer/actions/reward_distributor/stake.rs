@@ -7,7 +7,7 @@ use hex_literal::hex;
 
 use crate::Mod;
 
-pub const REWARD_DISTRIBUTOR_STAKE_PUZZLE: [u8; 1005] = hex!(
+pub const REWARD_DISTRIBUTOR_STAKE_PUZZLE: [u8; 997] = hex!(
     "
     ff02ffff01ff02ff36ffff04ff02ffff04ff05ffff04ff0bffff04ff2fffff04
     ff81dfffff04ffff02ff17ffff04ff4fffff04ff82015fff819f808080ff8080
@@ -30,23 +30,23 @@ pub const REWARD_DISTRIBUTOR_STAKE_PUZZLE: [u8; 1005] = hex!(
     04ff8202f7ff808080808080ffff02ff32ffff04ff02ffff04ff05ffff04ffff
     02ff2effff04ff02ffff04ffff04ff4fffff04ff820277ffff10ff81efff819f
     808080ff80808080ffff04ff4fffff04ffff04ffff04ff10ffff04ffff10ff82
-    04f7ff0b80ff808080ffff04ffff02ffff03ffff15ff81afffff0181ff80ffff
-    01ff04ffff04ff24ffff04ffff0112ffff04ffff0effff0173ffff0bffff0101
-    ffff12ff81efffff11ff820277ff81af80808080ffff04ff4fff8080808080ff
-    ff04ffff02ff3effff04ff02ffff04ff05ffff04ffff02ff2effff04ff02ffff
-    04ff2fff80808080ff8080808080ff81df8080ffff01ff02ffff03ffff20ff81
-    ef80ffff0181dfffff01ff088080ff018080ff01808080ff8080808080808080
-    ffff02ffff03ffff07ff0580ffff01ff0bffff0102ffff02ff2effff04ff02ff
-    ff04ff09ff80808080ffff02ff2effff04ff02ffff04ff0dff8080808080ffff
-    01ff0bffff0101ff058080ff0180ff04ff34ffff04ffff0112ffff04ff80ffff
-    04ffff02ff3affff04ff02ffff04ff05ffff04ffff0bffff0101ff0b80ff8080
-    808080ff8080808080ff018080
+    04f7ff0b80ff808080ffff02ffff03ffff15ff81afffff0181ff80ffff01ff04
+    ffff04ff24ffff04ffff0112ffff04ffff0effff0173ffff0bffff0101ffff12
+    ff81efffff11ff820277ff81af80808080ffff04ff4fff8080808080ffff04ff
+    ff02ff3effff04ff02ffff04ff05ffff04ffff02ff2effff04ff02ffff04ff2f
+    ff80808080ff8080808080ff81df8080ffff01ff02ffff03ff81efffff01ff08
+    80ffff0181df80ff018080ff018080ff8080808080808080ffff02ffff03ffff
+    07ff0580ffff01ff0bffff0102ffff02ff2effff04ff02ffff04ff09ff808080
+    80ffff02ff2effff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff
+    058080ff0180ff04ff34ffff04ffff0112ffff04ff80ffff04ffff02ff3affff
+    04ff02ffff04ff05ffff04ffff0bffff0101ff0b80ff8080808080ff80808080
+    80ff018080
     "
 );
 
 pub const REWARD_DISTRIBUTOR_STAKE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    09ae1e89277f0c39513363ebcabe85cf1434ffeff264cfb9b501e36d00b5b53a
+    54922214fe3163a5dbfa986bd857850b4addddd213b66e69f29debf2cea6706a
     "
 ));
 

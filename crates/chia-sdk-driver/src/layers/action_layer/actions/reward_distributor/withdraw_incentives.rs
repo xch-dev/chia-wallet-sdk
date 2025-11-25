@@ -1,4 +1,4 @@
-use chia_protocol::{Bytes, Bytes32};
+use chia_protocol::Bytes32;
 use chia_sdk_types::{
     puzzles::{
         RewardDistributorCommitmentSlotValue, RewardDistributorRewardSlotValue,
