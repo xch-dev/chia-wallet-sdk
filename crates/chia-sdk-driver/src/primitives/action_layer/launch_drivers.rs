@@ -759,7 +759,7 @@ mod tests {
 
     use chia_puzzle_types::{cat::GenesisByCoinIdTailArgs, CoinProof};
     use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
-    use chia_sdk_test::{print_spend_bundle_to_file, Benchmark, Simulator};
+    use chia_sdk_test::{Benchmark, Simulator};
     use chia_sdk_types::{
         puzzles::{
             AnyMetadataUpdater, CatNftMetadata, DelegatedStateActionSolution,
@@ -775,7 +775,7 @@ mod tests {
     use crate::{
         CatalogPrecommitValue, CatalogRefundAction, CatalogRegisterAction, DataStore,
         DataStoreMetadata, DelegatedPuzzle, DelegatedStateAction, HashedPtr, MetadataWithRootHash,
-        NftMint, NftStateLayer, PrecommitCoin, RewardDistributorAddEntryAction,
+        NftMint, PrecommitCoin, RewardDistributorAddEntryAction,
         RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
         RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
         RewardDistributorRemoveEntryAction, RewardDistributorStakeAction,
@@ -2833,7 +2833,6 @@ mod tests {
                 }],
             };
 
-            println!("staking nft"); // TODO: debug
             let (sec_conds, notarized_payments, locked_nfts) = registry
                 .new_action::<RewardDistributorStakeAction>()
                 .spend_for_collection_nft_mode(
@@ -2844,7 +2843,6 @@ mod tests {
                     nft_bls.puzzle_hash,
                     None,
                 )?;
-            println!("staked nft called"); // TODO: debug
             let entry1_slot = registry.created_slot_value_to_slot(
                 registry.pending_spend.created_entry_slots[0],
                 RewardDistributorSlotNonce::ENTRY,
@@ -2875,7 +2873,6 @@ mod tests {
 
             // sim.spend_coins(spends, slice::from_ref(&nft_bls.sk))?;
             let spends = ctx.take();
-            print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs");
             benchmark.add_spends(
                 ctx,
                 &mut sim,
@@ -3530,10 +3527,8 @@ mod tests {
         );
 
         // remove 2nd entry/the 2 NFTs
-        println!("trying to remove NFT"); // TODO: debug
         let reserve_cat = registry.reserve.to_cat();
         if let Some((entry3_slot, locked_nft2, locked_nft3)) = other_nft2_info {
-            println!("removing NFTs 2 and 3"); // TODO: debug
             let nft2_return_coin_id = locked_nft2
                 .child(nft2_bls.puzzle_hash, None, locked_nft2.info.metadata, 1)
                 .coin
@@ -3543,7 +3538,6 @@ mod tests {
                 .coin
                 .coin_id();
 
-            println!("calling unstake action for NFT 2"); // TODO: debug
             let (custody2_conds, payout2_amount) = registry
                 .new_action::<RewardDistributorUnstakeAction>()
                 .spend_for_locked_nfts(
@@ -3553,7 +3547,6 @@ mod tests {
                     &[locked_nft2],
                     &[1],
                 )?;
-            println!("calling unstake action for NFT 3"); // TODO: debug
             let (custody3_conds, payout3_amount) = registry
                 .new_action::<RewardDistributorUnstakeAction>()
                 .spend_for_locked_nfts(
@@ -3563,7 +3556,6 @@ mod tests {
                     &[locked_nft3],
                     &[1],
                 )?;
-            println!("done teh calls"); // TODO: debug
 
             StandardLayer::new(nft2_bls.pk).spend(ctx, nft2_bls.coin, custody2_conds)?;
             StandardLayer::new(nft3_bls.pk).spend(ctx, nft3_bls.coin, custody3_conds)?;
@@ -3572,7 +3564,6 @@ mod tests {
 
             // sim.spend_coins(spends, &[nft2_bls.sk.clone(), nft3_bls.sk.clone()])?;
             let spends = ctx.take();
-            print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs");
             benchmark.add_spends(
                 ctx,
                 &mut sim,
@@ -3580,7 +3571,6 @@ mod tests {
                 "unstake_2_nfts",
                 &[nft2_bls.sk.clone(), nft3_bls.sk.clone()],
             )?;
-            println!("unstaked 2 NFTs; spends accepted"); // TODO: debug
 
             let payout_coin_id2 = reserve_cat
                 .child(nft2_bls.puzzle_hash, payout2_amount)
