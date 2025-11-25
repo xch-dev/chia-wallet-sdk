@@ -235,7 +235,7 @@ impl RewardDistributorUnstakeAction {
 
         for (locked_nft, locked_nft_share) in locked_nfts.iter().zip(locked_nft_shares.iter()) {
             let mut unstake_message = locked_nft.info.launcher_id.to_vec();
-            unstake_message.insert(0, b'r');
+            unstake_message.insert(0, b'u');
 
             remove_entry_conditions = remove_entry_conditions.send_message(
                 18,
