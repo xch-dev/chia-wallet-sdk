@@ -2882,6 +2882,16 @@ mod tests {
                 ctx.insert(dl_spend);
 
                 println!("staking nft..."); // TODO: debug
+                println!(
+                    "inclusion proof: {:?}",
+                    merkle_tree
+                        .proof((nft.info.launcher_id, 1).tree_hash().into())
+                        .unwrap()
+                );
+                println!("merkle tree root: {:?}", merkle_tree.root());
+                println!("leaf: {:?}", (nft.info.launcher_id, 1).tree_hash());
+                let lh: Bytes32 = (nft.info.launcher_id, 1).tree_hash().into();
+                println!("leaf hash: {:?}", lh.tree_hash());
                 registry
                     .new_action::<RewardDistributorStakeAction>()
                     .spend_for_curated_nft_mode(
