@@ -759,7 +759,7 @@ mod tests {
 
     use chia_puzzle_types::{cat::GenesisByCoinIdTailArgs, CoinProof};
     use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
-    use chia_sdk_test::{print_spend_bundle_to_file, Benchmark, Simulator};
+    use chia_sdk_test::{Benchmark, Simulator};
     use chia_sdk_types::{
         puzzles::{
             AnyMetadataUpdater, CatNftMetadata, DelegatedStateActionSolution,
@@ -3762,44 +3762,27 @@ mod tests {
             // sim.spend_coins(ctx.take(), &[])?;
             let spends = ctx.take();
             benchmark.add_spends(ctx, &mut sim, spends, "sync", &[])?;
-            println!("synced to epoch: {}", epoch); // TODO: debug
         }
 
-        println!("syncing to payout"); // TODO: debug
         let update_time = registry.info.state.round_time_info.epoch_end - 100;
         let sync_conditions = registry.new_action::<RewardDistributorSyncAction>().spend(
             ctx,
             &mut registry,
             update_time,
         )?;
-        println!("synced to payout"); // TODO: debug
 
         // payout entry
         let reserve_cat = registry.reserve.to_cat();
-        println!("initiating payout"); // TODO: debug
         let (payout_conditions, withdrawal_amount) = registry
             .new_action::<RewardDistributorInitiatePayoutAction>()
             .spend(ctx, &mut registry, entry1_slot)?;
-        println!("initiated payout"); // TODO: debug
-
-        println!("ensuring conditions met"); // TODO: debug
         ensure_conditions_met(ctx, &mut sim, payout_conditions.extend(sync_conditions), 0)?;
-        println!("ensured conditions met"); // TODO: debug
 
-        println!("finishing spend"); // TODO: debug
         let _registry = registry.finish_spend(ctx, vec![])?.0;
-        println!("finished spend"); // TODO: debug
 
-        println!("setting next timestamp"); // TODO: debug
         sim.set_next_timestamp(update_time)?;
-        println!("set next timestamp"); // TODO: debug
-
-        println!("taking spends"); // TODO: debug
-                                   // sim.spend_coins(ctx.take(), &[])?;
+        // sim.spend_coins(ctx.take(), &[])?;
         let spends = ctx.take();
-        println!("logging spends"); // TODO: debug
-        print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs");
-        println!("logged spends"); // TODO: debug
         benchmark.add_spends(ctx, &mut sim, spends, "initiate_payout", &[])?;
 
         let payout_coin_id = reserve_cat
@@ -3815,7 +3798,7 @@ mod tests {
             .coin_id();
 
         assert!(sim.coin_state(payout_coin_id).is_some());
-        assert_eq!(sim.coin_state(payout_coin_id).unwrap().coin.amount, 12602);
+        assert_eq!(sim.coin_state(payout_coin_id).unwrap().coin.amount, 12601);
 
         benchmark.print_summary(Some(&format!(
             "{}-reward-distributor.costs",

@@ -7,9 +7,9 @@ use chia_sdk_types::{
     },
     Conditions, Mod,
 };
-use clvm_traits::{clvm_list, clvm_tuple};
+use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
-use clvmr::{serde::node_to_bytes, NodePtr};
+use clvmr::NodePtr;
 
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants, RewardDistributorState,
@@ -122,38 +122,9 @@ impl RewardDistributorInitiatePayoutAction {
             payout_rounding_error: withdrawal_amount_precision % u128::from(self.precision),
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
-        println!(
-            "withdrawal_amount_precision: {}",
-            withdrawal_amount_precision
-        ); // TODO: debug
-        println!("entry_payout_amount: {}", withdrawal_amount); // TODO: debug
-        println!(
-            "payout_rounding_error: {}",
-            withdrawal_amount_precision % u128::from(self.precision)
-        ); // TODO: debug
-        println!(
-            "sum: {}",
-            u128::from(withdrawal_amount) * u128::from(self.precision)
-                + withdrawal_amount_precision % u128::from(self.precision)
-        ); // TODO: debug
 
         // spend entry slot
         entry_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
-
-        // todo: debug
-        println!(
-            "action_puzzle: {}",
-            hex::encode(node_to_bytes(ctx, action_puzzle)?)
-        );
-        let actual_sol = ctx.alloc(&clvm_list!(
-            distributor.pending_spend.latest_state,
-            action_solution
-        ))?;
-        println!(
-            "action_actual_sol: {}",
-            hex::encode(node_to_bytes(ctx, actual_sol)?)
-        );
-        // todo: debug
 
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
