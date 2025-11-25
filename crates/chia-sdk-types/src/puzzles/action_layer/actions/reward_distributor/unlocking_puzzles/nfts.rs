@@ -23,7 +23,7 @@ pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE: [u8; 873] = hex!(
     22a102a8d5dd63fba471ebcb1f3e8f7c1e1879b7152a6e7298a91ce119a63400
     ade7c5ff0bff52ffff02ff16ffff04ff02ffff04ff05ffff04ffff02ff3cffff
     04ff02ffff04ff07ff80808080ff808080808080ffff0bff2cffff0bff2cff62
-    ff0580ffff0bff2cff0bff428080ffff02ffff03ff1bffff01ff02ff2effff04
+    ff0580ffff0bff2cff0bff428080ffff02ffff03ff0bffff01ff02ff2effff04
     ff02ffff04ff05ffff04ff1bffff04ffff10ff17ff8207f380ffff04ffff04ff
     ff04ff14ffff04ffff0117ffff04ffff02ff3effff04ff02ffff04ffff04ffff
     0101ffff04ffff04ff10ffff04ff8205fdffff04ffff0101ffff04ffff04ff82
@@ -46,7 +46,7 @@ pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE: [u8; 873] = hex!(
 
 pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    dc54c83ce61284c97434e81faeee4982e5e318e2208846d889a119b0a8818ef5
+    a515fc039812314bdbf490b940dc3de5e07a1165463c4bd2f647d4d21e628312
     "
 ));
 

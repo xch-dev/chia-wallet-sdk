@@ -7,15 +7,45 @@ use hex_literal::hex;
 
 use crate::{puzzles::RewardDistributorEntrySlotValue, Mod};
 
-pub const REWARD_DISTRIBUTOR_UNSTAKE_PUZZLE: [u8; 22] = hex!(
+pub const REWARD_DISTRIBUTOR_UNSTAKE_PUZZLE: [u8; 969] = hex!(
     "
-    ff02ff17ffff04ff4fffff04ff8205dfff819f808080
+    ff02ffff01ff02ff16ffff04ff02ffff04ff03ffff04ffff02ff2fffff04ff81
+    9fffff04ff820bbfff82013f808080ff8080808080ffff04ffff01ffffff55ff
+    3342ff02ffff02ffff03ff05ffff01ff0bff81fcffff02ff3affff04ff02ffff
+    04ff09ffff04ffff02ff2cffff04ff02ffff04ff0dff80808080ff8080808080
+    80ffff0181dc80ff0180ffffa04bf5122f344554c53bde2ebb8cd2b7e3d1600a
+    d631c385a5d7cce23c7785459aa09dcf97a184f32623d11a73124ceb99a5709b
+    083721e878a16d78f596718ba7b2ffa102a12871fee210fb8619291eaea19458
+    1cbd2531e4b23759d225f6806923f63222a102a8d5dd63fba471ebcb1f3e8f7c
+    1e1879b7152a6e7298a91ce119a63400ade7c5ffffff04ff28ffff04ffff02ff
+    2affff04ff02ffff04ff05ffff04ffff0bffff0101ff0b80ff8080808080ffff
+    04ff80ffff04ffff04ff17ff8080ff8080808080ffff0bff81bcffff02ff3aff
+    ff04ff02ffff04ff05ffff04ffff02ff2cffff04ff02ffff04ff07ff80808080
+    ff808080808080ff0bff14ffff0bff14ff81dcff0580ffff0bff14ff0bff819c
+    8080ffff02ffff03ffff22ffff09ffff12ff13ffff11ff8213bdff822f7d8080
+    ffff10ffff12ff82057dff2d80ff820b7d8080ffff15ff820b7dffff0181ff80
+    ffff15ff2dff820b7d80ffff20ffff15ff13ff823f7d808080ffff01ff04ffff
+    04ff82013dffff04ffff11ff8202bdff82057d80ffff04ffff11ff8205bdff13
+    80ffff04ffff04ff8213bdffff10ff821bbdff820b7d8080ffff04ff8217bdff
+    808080808080ffff04ffff04ff10ffff04ffff10ff8227bdff1580ff808080ff
+    ff04ffff02ff3effff04ff02ffff04ff09ffff04ffff02ff2effff04ff02ffff
+    04ff820f7dff80808080ff8080808080ffff04ffff04ffff0181d6ffff04ff28
+    ffff04ff82177dffff04ff82057dffff04ffff04ff82177dff8080ff80808080
+    8080ffff02ffff03ffff09ff13ff823f7d80ffff011bffff01ff04ffff02ff12
+    ffff04ff02ffff04ff09ffff04ffff02ff2effff04ff02ffff04ffff04ff8217
+    7dffff04ff822f7dffff11ff823f7dff13808080ff80808080ffff04ff82177d
+    ff808080808080ff1b8080ff018080808080ffff01ff088080ff0180ffff02ff
+    ff03ffff07ff0580ffff01ff0bffff0102ffff02ff2effff04ff02ffff04ff09
+    ff80808080ffff02ff2effff04ff02ffff04ff0dff8080808080ffff01ff0bff
+    ff0101ff058080ff0180ff04ff38ffff04ffff0112ffff04ff80ffff04ffff02
+    ff2affff04ff02ffff04ff05ffff04ffff0bffff0101ff0b80ff8080808080ff
+    8080808080ff018080
     "
 );
 
 pub const REWARD_DISTRIBUTOR_UNSTAKE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    33835a65a107bc6e807d14a69b2a23f390f3de6fdf0731761683834edafa027b
+    884749a3cb046f6a53cf1bd42231bedf91f43fabfd3fdb27471a2237b73aaf37
     "
 ));
 
