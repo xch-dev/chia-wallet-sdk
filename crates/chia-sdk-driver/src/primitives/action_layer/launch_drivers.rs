@@ -759,7 +759,7 @@ mod tests {
 
     use chia_puzzle_types::{cat::GenesisByCoinIdTailArgs, CoinProof};
     use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
-    use chia_sdk_test::{Benchmark, Simulator};
+    use chia_sdk_test::{print_spend_bundle_to_file, Benchmark, Simulator};
     use chia_sdk_types::{
         puzzles::{
             AnyMetadataUpdater, CatNftMetadata, DelegatedStateActionSolution,
@@ -3797,6 +3797,9 @@ mod tests {
         println!("taking spends"); // TODO: debug
                                    // sim.spend_coins(ctx.take(), &[])?;
         let spends = ctx.take();
+        println!("logging spends"); // TODO: debug
+        print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs");
+        println!("logged spends"); // TODO: debug
         benchmark.add_spends(ctx, &mut sim, spends, "initiate_payout", &[])?;
 
         let payout_coin_id = reserve_cat

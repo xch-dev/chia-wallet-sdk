@@ -9,7 +9,7 @@ use chia_sdk_types::{
 };
 use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
-use clvmr::NodePtr;
+use clvmr::{serde::node_to_bytes, NodePtr};
 
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants, RewardDistributorState,
@@ -139,6 +139,21 @@ impl RewardDistributorInitiatePayoutAction {
 
         // spend entry slot
         entry_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
+
+        // todo: debug
+        println!(
+            "action_puzzle: {}",
+            hex::encode(node_to_bytes(ctx, action_puzzle)?)
+        );
+        let actual_sol = ctx.alloc(&clvm_tuple!(
+            distributor.pending_spend.latest_state,
+            action_solution
+        ))?;
+        println!(
+            "action_actual_sol: {}",
+            hex::encode(node_to_bytes(ctx, actual_sol)?)
+        );
+        // todo: debug
 
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
