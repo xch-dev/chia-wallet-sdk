@@ -240,8 +240,8 @@ impl RewardDistributorStakeAction {
         let my_p2_treehash = Self::my_p2_puzzle_hash(self.launcher_id).into();
         let payment_puzzle_hash: Bytes32 = CurriedProgram {
             program: NONCE_WRAPPER_PUZZLE_HASH,
-            args: NonceWrapperArgs::<Bytes32, TreeHash> {
-                nonce: clvm_tuple!(entry_custody_puzzle_hash, 1).tree_hash().into(),
+            args: NonceWrapperArgs::<(Bytes32, u64), TreeHash> {
+                nonce: clvm_tuple!(entry_custody_puzzle_hash, 1),
                 inner_puzzle: my_p2_treehash,
             },
         }
@@ -253,11 +253,12 @@ impl RewardDistributorStakeAction {
         let mut nft_infos = Vec::with_capacity(current_nfts.len());
         let mut security_conditions = Conditions::new();
         for i in 0..current_nfts.len() {
+            let nonce: Bytes32 = clvm_tuple!(i, clvm_tuple!(ephemeral_counter.tree_hash(), my_id))
+                .tree_hash()
+                .into();
             let np = NotarizedPayment {
                 // i = cumulative shares until now since each NFT has a weight of 1 in the Collection NFT mode
-                nonce: clvm_tuple!(i, clvm_tuple!(ephemeral_counter.tree_hash(), my_id))
-                    .tree_hash()
-                    .into(),
+                nonce,
                 payments: vec![Payment::new(
                     payment_puzzle_hash,
                     1,
@@ -293,9 +294,10 @@ impl RewardDistributorStakeAction {
             });
 
             let msg: Bytes32 = ctx.tree_hash(notarized_payment_ptr).into();
+            let offer_nft = nft.child(SETTLEMENT_PAYMENT_HASH.into(), None, nft.info.metadata, 1);
             security_conditions = security_conditions.assert_puzzle_announcement(announcement_id(
                 distributor.coin.puzzle_hash,
-                announcement_id(nft.coin.puzzle_hash, msg),
+                announcement_id(offer_nft.coin.puzzle_hash, msg),
             ));
         }
 
