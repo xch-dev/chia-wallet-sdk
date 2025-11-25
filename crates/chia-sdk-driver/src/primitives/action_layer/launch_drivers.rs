@@ -3504,6 +3504,23 @@ mod tests {
             let spends = ctx.take();
             benchmark.add_spends(ctx, &mut sim, spends, "mint_2_nfts", &[])?;
 
+            // update datastore to contain new NFTs if needed
+            if let Some(some_datastore) = datastore {
+                merkle_tree = MerkleTree::new(&[
+                    (nft2.info.launcher_id, 2).tree_hash().into(),
+                    (nft3.info.launcher_id, 3).tree_hash().into(),
+                ]);
+                datastore = Some(update_datastore(
+                    ctx,
+                    &mut sim,
+                    &mut benchmark,
+                    some_datastore,
+                    &delegated_puzzles,
+                    DataStoreMetadata::root_hash_only(merkle_tree.root()),
+                    &datastore_p2,
+                )?);
+            }
+
             let Proof::Lineage(did_proof) = manager_singleton_proof else {
                 panic!("did_proof is not a lineage proof");
             };
@@ -3522,40 +3539,130 @@ mod tests {
                 }],
             };
 
-            let (sec_conds2, notarized_payments2, locked_nfts2) = registry
-                .new_action::<RewardDistributorStakeAction>()
-                .spend_for_collection_nft_mode(
-                    ctx,
-                    &mut registry,
-                    &[nft2],
-                    &[nft2_proof],
-                    nft2_bls.puzzle_hash,
-                    None,
-                )?;
-            let entry2_slot = registry.created_slot_value_to_slot(
-                registry.pending_spend.created_entry_slots[0],
-                RewardDistributorSlotNonce::ENTRY,
-            );
-            let (sec_conds3, notarized_payments3, locked_nfts3) = registry
-                .new_action::<RewardDistributorStakeAction>()
-                .spend_for_collection_nft_mode(
-                    ctx,
-                    &mut registry,
-                    &[nft3],
-                    &[nft3_proof],
-                    nft3_bls.puzzle_hash,
-                    None,
-                )?;
-            let entry3_slot = registry.created_slot_value_to_slot(
-                registry.pending_spend.created_entry_slots[1],
-                RewardDistributorSlotNonce::ENTRY,
-            );
+            let (
+                entry2_slot,
+                entry3_slot,
+                locked_nft2,
+                locked_nft3,
+                notarized_payments2,
+                notarized_payments3,
+                sec_conds,
+                mint_mojos,
+            ) = if let Some(some_datastore) = datastore {
+                let oracle_layer = match delegated_puzzles[0] {
+                    DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee) => {
+                        OracleLayer::new(oracle_puzzle_hash, oracle_fee).unwrap()
+                    }
+                    _ => panic!("expected first member of delegated puzzles to be an oracle"),
+                };
+                let inner_spend = oracle_layer.construct_spend(ctx, ())?;
+
+                let dl_metadata_updater_hash: Bytes32 = 11.tree_hash().into();
+                let dl_inner_puzzle_hash = some_datastore.info.delegation_layer_puzzle_hash(ctx)?;
+
+                let dl_spend = some_datastore.spend(ctx, inner_spend)?;
+                datastore =
+                    Some(DataStore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
+                ctx.insert(dl_spend);
+
+                let (sec_conds2, notarized_payments2, locked_nfts2) = registry
+                    .new_action::<RewardDistributorStakeAction>()
+                    .spend_for_curated_nft_mode(
+                        ctx,
+                        &mut registry,
+                        &[nft2],
+                        &[2],
+                        &[merkle_tree
+                            .proof((nft2.info.launcher_id, 2).tree_hash().into())
+                            .unwrap()],
+                        nft2_bls.puzzle_hash,
+                        None,
+                        merkle_tree.root(),
+                        None,
+                        dl_metadata_updater_hash.tree_hash().into(),
+                        dl_inner_puzzle_hash.into(),
+                    )?;
+                let entry2_slot = registry.created_slot_value_to_slot(
+                    registry.pending_spend.created_entry_slots[0],
+                    RewardDistributorSlotNonce::ENTRY,
+                );
+
+                let (sec_conds3, notarized_payments3, locked_nfts3) = registry
+                    .new_action::<RewardDistributorStakeAction>()
+                    .spend_for_curated_nft_mode(
+                        ctx,
+                        &mut registry,
+                        &[nft3],
+                        &[3],
+                        &[merkle_tree
+                            .proof((nft3.info.launcher_id, 3).tree_hash().into())
+                            .unwrap()],
+                        nft3_bls.puzzle_hash,
+                        None,
+                        merkle_tree.root(),
+                        None,
+                        dl_metadata_updater_hash.tree_hash().into(),
+                        dl_inner_puzzle_hash.into(),
+                    )?;
+                let entry3_slot = registry.created_slot_value_to_slot(
+                    registry.pending_spend.created_entry_slots[0],
+                    RewardDistributorSlotNonce::ENTRY,
+                );
+
+                (
+                    entry2_slot,
+                    entry3_slot,
+                    locked_nfts2[0],
+                    locked_nfts3[0],
+                    notarized_payments2,
+                    notarized_payments3,
+                    sec_conds2.extend(sec_conds3),
+                    1336,
+                )
+            } else {
+                let (sec_conds2, notarized_payments2, locked_nfts2) = registry
+                    .new_action::<RewardDistributorStakeAction>()
+                    .spend_for_collection_nft_mode(
+                        ctx,
+                        &mut registry,
+                        &[nft2],
+                        &[nft2_proof],
+                        nft2_bls.puzzle_hash,
+                        None,
+                    )?;
+                let entry2_slot = registry.created_slot_value_to_slot(
+                    registry.pending_spend.created_entry_slots[0],
+                    RewardDistributorSlotNonce::ENTRY,
+                );
+                let (sec_conds3, notarized_payments3, locked_nfts3) = registry
+                    .new_action::<RewardDistributorStakeAction>()
+                    .spend_for_collection_nft_mode(
+                        ctx,
+                        &mut registry,
+                        &[nft3],
+                        &[nft3_proof],
+                        nft3_bls.puzzle_hash,
+                        None,
+                    )?;
+                let entry3_slot = registry.created_slot_value_to_slot(
+                    registry.pending_spend.created_entry_slots[1],
+                    RewardDistributorSlotNonce::ENTRY,
+                );
+
+                (
+                    entry2_slot,
+                    entry3_slot,
+                    locked_nfts2[0],
+                    locked_nfts3[0],
+                    notarized_payments2,
+                    notarized_payments3,
+                    sec_conds2.extend(sec_conds3),
+                    0,
+                )
+            };
             registry = registry.finish_spend(ctx, vec![])?.0;
 
-            ensure_conditions_met(ctx, &mut sim, sec_conds2.extend(sec_conds3), 0)?;
-
-            let locked_nft2 = locked_nfts2[0];
-            let locked_nft3 = locked_nfts3[0];
+            ensure_conditions_met(ctx, &mut sim, sec_conds, mint_mojos)?;
 
             let offer2_nft =
                 nft2.child(SETTLEMENT_PAYMENT_HASH.into(), None, nft2.info.metadata, 1);
@@ -3606,7 +3713,8 @@ mod tests {
 
             (entry2_slot, Some((entry3_slot, locked_nft2, locked_nft3)))
         };
-        assert_eq!(registry.info.state.active_shares, 3);
+        let active_shares = if datastore.is_some() { 6 } else { 3 };
+        assert_eq!(registry.info.state.active_shares, active_shares);
 
         // sync to 75% (so + 25%)
         let initial_reward_info = registry.info.state.round_reward_info;
@@ -3623,10 +3731,12 @@ mod tests {
         benchmark.add_spends(ctx, &mut sim, spends, "sync", &[])?;
         assert!(registry.info.state.round_time_info.last_update == first_epoch_start + 750);
 
-        let cumulative_payout_delta = initial_reward_info.remaining_rewards * 250 / (3 * 500);
+        let cumulative_payout_delta =
+            initial_reward_info.remaining_rewards * 250 / (u128::from(active_shares) * 500);
         assert!(
             registry.info.state.round_reward_info.remaining_rewards
-                == initial_reward_info.remaining_rewards - cumulative_payout_delta * 3
+                == initial_reward_info.remaining_rewards
+                    - cumulative_payout_delta * u128::from(active_shares)
         );
         assert!(
             registry.info.state.round_reward_info.cumulative_payout
@@ -3652,7 +3762,7 @@ mod tests {
                     &mut registry,
                     entry2_slot.clone(),
                     &[locked_nft2],
-                    &[1],
+                    &[if datastore.is_some() { 2 } else { 1 }],
                 )?;
             let (custody3_conds, payout3_amount) = registry
                 .new_action::<RewardDistributorUnstakeAction>()
@@ -3661,7 +3771,7 @@ mod tests {
                     &mut registry,
                     entry3_slot.clone(),
                     &[locked_nft3],
-                    &[1],
+                    &[if datastore.is_some() { 3 } else { 1 }],
                 )?;
 
             StandardLayer::new(nft2_bls.pk).spend(ctx, nft2_bls.coin, custody2_conds)?;
