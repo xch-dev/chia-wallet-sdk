@@ -3545,6 +3545,7 @@ mod tests {
 
             // sim.spend_coins(spends, &[nft2_bls.sk.clone(), nft3_bls.sk.clone()])?;
             let spends = ctx.take();
+            print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs");
             benchmark.add_spends(
                 ctx,
                 &mut sim,
@@ -3552,6 +3553,7 @@ mod tests {
                 "unstake_2_nfts",
                 &[nft2_bls.sk.clone(), nft3_bls.sk.clone()],
             )?;
+            println!("unstaked 2 NFTs; spends accepted"); // TODO: debug
 
             let payout_coin_id2 = reserve_cat
                 .child(nft2_bls.puzzle_hash, payout2_amount)

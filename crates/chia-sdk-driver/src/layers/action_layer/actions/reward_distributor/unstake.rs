@@ -10,12 +10,9 @@ use chia_sdk_types::{
     },
     Conditions, Mod,
 };
-use clvm_traits::{clvm_list, clvm_quote, clvm_tuple};
+use clvm_traits::{clvm_quote, clvm_tuple};
 use clvm_utils::{ToTreeHash, TreeHash};
-use clvmr::{
-    serde::{node_from_bytes, node_to_bytes},
-    NodePtr,
-};
+use clvmr::NodePtr;
 
 use crate::{
     Cat, CatMaker, CatSpend, DriverError, Layer, Nft, P2DelegatedBySingletonLayer,
@@ -271,13 +268,9 @@ impl RewardDistributorUnstakeAction {
             let nft_p2 = P2DelegatedBySingletonLayer::new(distributor_singleton_struct_hash, 1);
             let nft_inner_puzzle = nft_p2.construct_puzzle(ctx)?;
             // don't forget about the nonce wrapper!
-            let nft_nonce: Bytes32 = clvm_tuple!(clvm_tuple!(
-                entry_slot.info.value.payout_puzzle_hash,
-                locked_nft_share
-            ))
-            .tree_hash()
-            .into();
-            let nft_inner_puzzle = ctx.curry(NonceWrapperArgs::<Bytes32, NodePtr> {
+            let nft_nonce: (Bytes32, u64) =
+                clvm_tuple!(entry_slot.info.value.payout_puzzle_hash, *locked_nft_share);
+            let nft_inner_puzzle = ctx.curry(NonceWrapperArgs::<(Bytes32, u64), NodePtr> {
                 nonce: nft_nonce,
                 inner_puzzle: nft_inner_puzzle,
             })?;
@@ -317,21 +310,6 @@ impl RewardDistributorUnstakeAction {
             entry_slot: entry_slot.info.value,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
-
-        // todo: debug
-        println!(
-            "action puzzle: {:?}",
-            hex::encode(node_to_bytes(ctx, action_puzzle)?)
-        );
-        let actual_sol = ctx.alloc(&clvm_list!(
-            distributor.pending_spend.latest_state,
-            action_solution
-        ))?;
-        println!(
-            "actual action solution: {:?}",
-            hex::encode(node_to_bytes(ctx, actual_sol)?)
-        );
-        // todo: debug
 
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
