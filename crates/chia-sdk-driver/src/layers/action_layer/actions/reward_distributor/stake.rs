@@ -400,11 +400,17 @@ impl RewardDistributorStakeAction {
             total_shares_until_now += nft_shares[i];
 
             let nft = current_nfts[i];
-            created_nfts.push(current_nfts[i].child(
+            let offer_nft = current_nfts[i].child(
                 SETTLEMENT_PAYMENT_HASH.into(),
-                nft.info.current_owner,
+                None,
                 nft.info.metadata,
                 nft.amount(),
+            );
+            created_nfts.push(offer_nft.child(
+                payment_puzzle_hash,
+                offer_nft.info.current_owner,
+                offer_nft.info.metadata,
+                offer_nft.coin.amount,
             ));
 
             nft_infos.push(StakeNftFromDlInfo {
@@ -429,7 +435,7 @@ impl RewardDistributorStakeAction {
             let msg: Bytes32 = ctx.tree_hash(notarized_payment_ptr).into();
             security_conditions = security_conditions.assert_puzzle_announcement(announcement_id(
                 distributor.coin.puzzle_hash,
-                announcement_id(nft.coin.puzzle_hash, msg),
+                announcement_id(offer_nft.coin.puzzle_hash, msg),
             ));
         }
 

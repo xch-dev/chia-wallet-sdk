@@ -32,32 +32,32 @@ pub const REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE: [u8; 1285] = hex!(
     80808080ffff01ff04ff17ffff04ffff04ff28ffff04ffff0bffff02ff3affff
     04ff02ffff04ff11ffff04ffff02ff2effff04ff02ffff04ff09ff80808080ff
     ff04ffff02ff3affff04ff02ffff04ff15ffff04ffff0bffff0101ff1580ffff
-    04ffff03ff825ffdffff0bffff0102ffff0bffff0101ff822ffd80ff825ffd80
-    ffff0bffff0101ff822ffd8080ffff04ff82bffdffff04ff82fffdff80808080
-    80808080ff808080808080ffff012480ff808080ffff04ffff04ff10ffff04ff
-    820bfdff808080ff2f80808080ff0180ffffff02ffff03ff05ffff01ff0bff81
-    eaffff02ff26ffff04ff02ffff04ff09ffff04ffff02ff12ffff04ff02ffff04
-    ff0dff80808080ff808080808080ffff0181ca80ff0180ffffffa04bf5122f34
-    4554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459aa09dcf97a1
-    84f32623d11a73124ceb99a5709b083721e878a16d78f596718ba7b2ffa102a1
-    2871fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222a1
-    02a8d5dd63fba471ebcb1f3e8f7c1e1879b7152a6e7298a91ce119a63400ade7
-    c5ff0bff81aaffff02ff26ffff04ff02ffff04ff05ffff04ffff02ff12ffff04
-    ff02ffff04ff07ff80808080ff808080808080ffffff0bff14ffff0bff14ff81
-    caff0580ffff0bff14ff0bff818a8080ff04ff05ffff04ffff0101ffff04ffff
-    04ff05ff8080ff80808080ffff02ffff03ffff07ff0580ffff01ff0bffff0102
-    ffff02ff2effff04ff02ffff04ff09ff80808080ffff02ff2effff04ff02ffff
-    04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff02ffff03ff1b
-    ffff01ff02ff3effff04ff02ffff04ffff02ffff03ffff18ffff0101ff1380ff
-    ff01ff0bffff0102ff2bff0580ffff01ff0bffff0102ff05ff2b8080ff0180ff
-    ff04ffff04ffff17ff13ffff0181ff80ff3b80ff8080808080ffff010580ff01
-    80ff018080
+    04ffff0bffff0102ffff0bffff0101ff822ffd80ffff02ffff03ff825ffdffff
+    01825ffdffff01818a80ff018080ffff04ff82bffdffff04ff82fffdff808080
+    8080808080ff808080808080ffff012480ff808080ffff04ffff04ff10ffff04
+    ff820bfdff808080ff2f80808080ff0180ffffff02ffff03ff05ffff01ff0bff
+    81eaffff02ff26ffff04ff02ffff04ff09ffff04ffff02ff12ffff04ff02ffff
+    04ff0dff80808080ff808080808080ffff0181ca80ff0180ffffffa04bf5122f
+    344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459aa09dcf97
+    a184f32623d11a73124ceb99a5709b083721e878a16d78f596718ba7b2ffa102
+    a12871fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222
+    a102a8d5dd63fba471ebcb1f3e8f7c1e1879b7152a6e7298a91ce119a63400ad
+    e7c5ff0bff81aaffff02ff26ffff04ff02ffff04ff05ffff04ffff02ff12ffff
+    04ff02ffff04ff07ff80808080ff808080808080ffffff0bff14ffff0bff14ff
+    81caff0580ffff0bff14ff0bff818a8080ff04ff05ffff04ffff0101ffff04ff
+    ff04ff05ff8080ff80808080ffff02ffff03ffff07ff0580ffff01ff0bffff01
+    02ffff02ff2effff04ff02ffff04ff09ff80808080ffff02ff2effff04ff02ff
+    ff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff02ffff03ff
+    1bffff01ff02ff3effff04ff02ffff04ffff02ffff03ffff18ffff0101ff1380
+    ffff01ff0bffff0102ff2bff0580ffff01ff0bffff0102ff05ff2b8080ff0180
+    ffff04ffff04ffff17ff13ffff0181ff80ff3b80ff8080808080ffff010580ff
+    0180ff018080
     "
 );
 
 pub const REWARD_DISTRIBUTOR_NFTS_FROM_DL_LOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    0c0a3f85f307e1c0b653c6033ba8f994f9845ce0aacd3e864065fd8db66f900b
+    002c8ca2a7b78d94cbbec169751ad5b71379b22d6d01b89bf6082e4cabd55514
     "
 ));
 
