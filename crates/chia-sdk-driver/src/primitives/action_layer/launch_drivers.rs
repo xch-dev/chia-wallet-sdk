@@ -2730,7 +2730,7 @@ mod tests {
         let nft_bls = sim.bls(1);
 
         // add the 1st entry/NFT before reward epoch ('first epoch') begins
-        let (entry1_slot, _nft1) = if manager_type == RewardDistributorType::Manager {
+        let (entry1_slot, _nft1) = if test_type == RewardDistributorTestType::Managed {
             let manager_conditions = registry
                 .new_action::<RewardDistributorAddEntryAction>()
                 .spend(
@@ -2746,11 +2746,11 @@ mod tests {
             );
             registry = registry.finish_spend(ctx, vec![])?.0;
 
-            (manager_or_did_coin, manager_or_did_singleton_proof) = spend_manager_singleton(
+            (manager_coin, manager_singleton_proof) = spend_manager_singleton(
                 ctx,
-                manager_or_did_coin,
-                manager_or_did_singleton_proof,
-                manager_or_did_singleton_puzzle,
+                manager_coin,
+                manager_singleton_proof,
+                manager_singleton_puzzle,
                 manager_conditions,
             )?;
 
@@ -2760,8 +2760,7 @@ mod tests {
 
             (entry1_slot, None)
         } else {
-            let nft_launcher =
-                Launcher::new(manager_or_did_coin.coin_id(), 0).with_singleton_amount(1);
+            let nft_launcher = Launcher::new(manager_coin.coin_id(), 0).with_singleton_amount(1);
             let nft_launcher_coin = nft_launcher.coin();
             let meta = ctx.alloc(&"nft1")?;
             let meta = HashedPtr::from_ptr(ctx, meta);
@@ -2778,11 +2777,11 @@ mod tests {
                 },
             )?;
 
-            (manager_or_did_coin, manager_or_did_singleton_proof) = spend_manager_singleton(
+            (manager_coin, manager_singleton_proof) = spend_manager_singleton(
                 ctx,
-                manager_or_did_coin,
-                manager_or_did_singleton_proof,
-                manager_or_did_singleton_puzzle,
+                manager_coin,
+                manager_singleton_proof,
+                manager_singleton_puzzle,
                 conds,
             )?;
 
@@ -2796,7 +2795,7 @@ mod tests {
             let spends = ctx.take();
             benchmark.add_spends(ctx, &mut sim, spends, "mint_nft", &[])?;
 
-            let Proof::Lineage(did_proof) = manager_or_did_singleton_proof else {
+            let Proof::Lineage(did_proof) = manager_singleton_proof else {
                 panic!("did_proof is not a lineage proof");
             };
             let nft_proof = NftLauncherProof {
@@ -3147,7 +3146,8 @@ mod tests {
         assert_eq!(registry.info.state.round_reward_info.cumulative_payout, 0);
         assert_eq!(
             registry.info.state.round_reward_info.remaining_rewards,
-            first_epoch_incentives_slot.info.value.rewards - fee
+            u128::from(first_epoch_incentives_slot.info.value.rewards - fee)
+                * u128::from(constants.precision)
         );
         assert_eq!(
             registry.info.state.round_time_info.last_update,

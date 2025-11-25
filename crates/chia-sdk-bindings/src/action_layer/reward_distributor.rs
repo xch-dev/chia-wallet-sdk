@@ -37,9 +37,9 @@ where
     #[allow(clippy::too_many_arguments)]
     fn without_launcher_id(
         reward_distributor_type: RewardDistributorType,
-        manager_or_collection_did_launcher_id: Bytes32,
         fee_payout_puzzle_hash: Bytes32,
         epoch_seconds: u64,
+        precision: u64,
         max_seconds_offset: u64,
         payout_threshold: u64,
         fee_bps: u64,
@@ -54,9 +54,9 @@ impl RewardDistributorConstantsExt for RewardDistributorConstants {
     #[allow(clippy::too_many_arguments)]
     fn without_launcher_id(
         reward_distributor_type: RewardDistributorType,
-        manager_or_collection_did_launcher_id: Bytes32,
         fee_payout_puzzle_hash: Bytes32,
         epoch_seconds: u64,
+        precision: u64,
         max_seconds_offset: u64,
         payout_threshold: u64,
         fee_bps: u64,
@@ -65,9 +65,9 @@ impl RewardDistributorConstantsExt for RewardDistributorConstants {
     ) -> Result<Self> {
         Ok(RewardDistributorConstants::without_launcher_id(
             reward_distributor_type,
-            manager_or_collection_did_launcher_id,
             fee_payout_puzzle_hash,
             epoch_seconds,
+            precision,
             max_seconds_offset,
             payout_threshold,
             fee_bps,
@@ -472,23 +472,25 @@ impl RewardDistributor {
         let mut ctx = self.clvm.lock().unwrap();
         let mut distributor = self.distributor.lock().unwrap();
 
-        if distributor.info.constants.reward_distributor_type != RewardDistributorType::Manager {
-            return Err(Error::Custom(
+        if let RewardDistributorType::Managed { .. } =
+            distributor.info.constants.reward_distributor_type
+        {
+            let conditions = distributor
+                .new_action::<RewardDistributorAddEntryAction>()
+                .spend(
+                    &mut ctx,
+                    &mut distributor,
+                    payout_puzzle_hash,
+                    shares,
+                    manager_singleton_inner_puzzle_hash,
+                )?;
+
+            self.sdk_conditions_to_program_list(&mut ctx, conditions)
+        } else {
+            Err(Error::Custom(
                 "Reward distributor is not managed".to_string(),
-            ));
+            ))
         }
-
-        let conditions = distributor
-            .new_action::<RewardDistributorAddEntryAction>()
-            .spend(
-                &mut ctx,
-                &mut distributor,
-                payout_puzzle_hash,
-                shares,
-                manager_singleton_inner_puzzle_hash,
-            )?;
-
-        self.sdk_conditions_to_program_list(&mut ctx, conditions)
     }
 
     pub fn remove_entry(
@@ -499,83 +501,87 @@ impl RewardDistributor {
         let mut ctx = self.clvm.lock().unwrap();
         let mut distributor = self.distributor.lock().unwrap();
 
-        if distributor.info.constants.reward_distributor_type != RewardDistributorType::Manager {
-            return Err(Error::Custom(
+        if let RewardDistributorType::Managed { .. } =
+            distributor.info.constants.reward_distributor_type
+        {
+            let (conditions, last_payment_amount) = distributor
+                .new_action::<RewardDistributorRemoveEntryAction>()
+                .spend(
+                    &mut ctx,
+                    &mut distributor,
+                    entry_slot.to_slot(),
+                    manager_singleton_inner_puzzle_hash,
+                )?;
+
+            Ok(RewardDistributorRemoveEntryResult {
+                conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
+                last_payment_amount,
+            })
+        } else {
+            Err(Error::Custom(
                 "Reward distributor is not managed".to_string(),
-            ));
+            ))
         }
-
-        let (conditions, last_payment_amount) = distributor
-            .new_action::<RewardDistributorRemoveEntryAction>()
-            .spend(
-                &mut ctx,
-                &mut distributor,
-                entry_slot.to_slot(),
-                manager_singleton_inner_puzzle_hash,
-            )?;
-
-        Ok(RewardDistributorRemoveEntryResult {
-            conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
-            last_payment_amount,
-        })
     }
 
-    pub fn stake(
-        &self,
-        current_nft: Nft,
-        nft_launcher_proof: NftLauncherProof,
-        entry_custody_puzzle_hash: Bytes32,
-    ) -> Result<RewardDistributorStakeResult> {
-        let mut ctx = self.clvm.lock().unwrap();
-        let mut distributor = self.distributor.lock().unwrap();
+    // pub fn stake_collection_nfts(
+    //     &self,
+    //     current_nfts: &[Nft],
+    //     nft_launcher_proofs: &[NftLauncherProof],
+    //     entry_custody_puzzle_hash: Bytes32,
+    //     existing_slot: Option<EntrySlot>,
+    // ) -> Result<RewardDistributorStakeResult> {
+    //     let mut ctx = self.clvm.lock().unwrap();
+    //     let mut distributor = self.distributor.lock().unwrap();
 
-        if distributor.info.constants.reward_distributor_type != RewardDistributorType::Nft {
-            return Err(Error::Custom(
-                "Reward distributor is not an NFT one".to_string(),
-            ));
-        }
+    //     if distributor.info.constants.reward_distributor_type != RewardDistributorType::Nft {
+    //         return Err(Error::Custom(
+    //             "Reward distributor is not an NFT one".to_string(),
+    //         ));
+    //     }
 
-        let sdk_nft = current_nft.as_ptr(&ctx);
-        let (conditions, notarized_payment, new_nft) = distributor
-            .new_action::<RewardDistributorStakeAction>()
-            .spend(
-                &mut ctx,
-                &mut distributor,
-                sdk_nft,
-                nft_launcher_proof,
-                entry_custody_puzzle_hash,
-            )?;
+    //     let sdk_nft = current_nft.as_ptr(&ctx);
+    //     let (conditions, notarized_payment, new_nft) = distributor
+    //         .new_action::<RewardDistributorStakeAction>()
+    //         .spend_for_collection_nft_mode(
+    //             &mut ctx,
+    //             &mut distributor,
+    //             &[sdk_nft],
+    //             &[nft_launcher_proof],
+    //             entry_custody_puzzle_hash,
+    //             existing_slot,
+    //         )?;
 
-        Ok(RewardDistributorStakeResult {
-            conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
-            notarized_payment: notarized_payment.as_program(&self.clvm),
-            new_nft: new_nft.as_program(&self.clvm),
-        })
-    }
+    //     Ok(RewardDistributorStakeResult {
+    //         conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
+    //         notarized_payment: notarized_payment.as_program(&self.clvm),
+    //         new_nft: new_nft.as_program(&self.clvm),
+    //     })
+    // }
 
-    pub fn unstake(
-        &self,
-        entry_slot: EntrySlot,
-        locked_nft: Nft,
-    ) -> Result<RewardDistributorUnstakeResult> {
-        let mut ctx = self.clvm.lock().unwrap();
-        let mut distributor = self.distributor.lock().unwrap();
+    // pub fn unstake(
+    //     &self,
+    //     entry_slot: EntrySlot,
+    //     locked_nft: Nft,
+    // ) -> Result<RewardDistributorUnstakeResult> {
+    //     let mut ctx = self.clvm.lock().unwrap();
+    //     let mut distributor = self.distributor.lock().unwrap();
 
-        let sdk_locked_nft = locked_nft.as_ptr(&ctx);
-        let (conditions, payment_amount) = distributor
-            .new_action::<RewardDistributorUnstakeAction>()
-            .spend(
-                &mut ctx,
-                &mut distributor,
-                entry_slot.to_slot(),
-                sdk_locked_nft,
-            )?;
+    //     let sdk_locked_nft = locked_nft.as_ptr(&ctx);
+    //     let (conditions, payment_amount) = distributor
+    //         .new_action::<RewardDistributorUnstakeAction>()
+    //         .spend(
+    //             &mut ctx,
+    //             &mut distributor,
+    //             entry_slot.to_slot(),
+    //             sdk_locked_nft,
+    //         )?;
 
-        Ok(RewardDistributorUnstakeResult {
-            conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
-            payment_amount,
-        })
-    }
+    //     Ok(RewardDistributorUnstakeResult {
+    //         conditions: self.sdk_conditions_to_program_list(&mut ctx, conditions)?,
+    //         payment_amount,
+    //     })
+    // }
 
     pub fn locked_nft_hint(
         distributor_launcher_id: Bytes32,
