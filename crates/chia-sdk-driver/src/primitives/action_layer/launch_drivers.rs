@@ -2598,6 +2598,7 @@ mod tests {
         ) = launch_test_singleton(ctx, &mut sim)?;
 
         let datastore_p2 = sim.bls(1);
+        let oracle_fee = 1336;
         let delegated_puzzles = vec![DelegatedPuzzle::Oracle(Bytes32::default(), 1336)];
         let mut merkle_tree = MerkleTree::new(&[]);
         let mut datastore: Option<DataStore> = if let RewardDistributorTestType::CuratedNft {
@@ -2938,7 +2939,12 @@ mod tests {
             );
             registry = registry.finish_spend(ctx, vec![])?.0;
 
-            ensure_conditions_met(ctx, &mut sim, sec_conds, 0)?;
+            ensure_conditions_met(
+                ctx,
+                &mut sim,
+                sec_conds,
+                if datastore.is_some() { oracle_fee } else { 0 },
+            )?;
 
             let offer_nft = nft.child(SETTLEMENT_PAYMENT_HASH.into(), None, nft.info.metadata, 1);
 
