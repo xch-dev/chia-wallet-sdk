@@ -7,7 +7,7 @@ use chia_sdk_types::{
     },
     Conditions, Mod,
 };
-use clvm_traits::clvm_tuple;
+use clvm_traits::{clvm_list, clvm_tuple};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{serde::node_to_bytes, NodePtr};
 
@@ -145,7 +145,7 @@ impl RewardDistributorInitiatePayoutAction {
             "action_puzzle: {}",
             hex::encode(node_to_bytes(ctx, action_puzzle)?)
         );
-        let actual_sol = ctx.alloc(&clvm_tuple!(
+        let actual_sol = ctx.alloc(&clvm_list!(
             distributor.pending_spend.latest_state,
             action_solution
         ))?;
