@@ -19,9 +19,9 @@ use chia_sdk_types::{
     },
     Conditions, MerkleProof, Mod,
 };
-use clvm_traits::{clvm_list, clvm_tuple};
+use clvm_traits::clvm_tuple;
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
-use clvmr::{serde::node_to_bytes, NodePtr};
+use clvmr::NodePtr;
 
 use crate::{
     Asset, Cat, CatMaker, DriverError, HashedPtr, Nft, RewardDistributor,

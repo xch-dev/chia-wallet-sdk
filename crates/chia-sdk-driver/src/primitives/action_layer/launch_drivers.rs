@@ -3503,8 +3503,10 @@ mod tests {
         );
 
         // remove 2nd entry/the 2 NFTs
+        println!("trying to remove NFT"); // TODO: debug
         let reserve_cat = registry.reserve.to_cat();
         if let Some((entry3_slot, locked_nft2, locked_nft3)) = other_nft2_info {
+            println!("removing NFTs 2 and 3"); // TODO: debug
             let nft2_return_coin_id = locked_nft2
                 .child(nft2_bls.puzzle_hash, None, locked_nft2.info.metadata, 1)
                 .coin
@@ -3514,6 +3516,7 @@ mod tests {
                 .coin
                 .coin_id();
 
+            println!("calling unstake action for NFT 2"); // TODO: debug
             let (custody2_conds, payout2_amount) = registry
                 .new_action::<RewardDistributorUnstakeAction>()
                 .spend_for_locked_nfts(
@@ -3523,6 +3526,7 @@ mod tests {
                     &[locked_nft2],
                     &[1],
                 )?;
+            println!("calling unstake action for NFT 3"); // TODO: debug
             let (custody3_conds, payout3_amount) = registry
                 .new_action::<RewardDistributorUnstakeAction>()
                 .spend_for_locked_nfts(
@@ -3532,6 +3536,7 @@ mod tests {
                     &[locked_nft3],
                     &[1],
                 )?;
+            println!("done teh calls"); // TODO: debug
 
             StandardLayer::new(nft2_bls.pk).spend(ctx, nft2_bls.coin, custody2_conds)?;
             StandardLayer::new(nft3_bls.pk).spend(ctx, nft3_bls.coin, custody3_conds)?;
