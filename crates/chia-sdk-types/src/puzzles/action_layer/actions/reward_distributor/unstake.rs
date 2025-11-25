@@ -22,18 +22,18 @@ pub const REWARD_DISTRIBUTOR_UNSTAKE_PUZZLE: [u8; 969] = hex!(
     04ff80ffff04ffff04ff17ff8080ff8080808080ffff0bff81bcffff02ff3aff
     ff04ff02ffff04ff05ffff04ffff02ff2cffff04ff02ffff04ff07ff80808080
     ff808080808080ff0bff14ffff0bff14ff81dcff0580ffff0bff14ff0bff819c
-    8080ffff02ffff03ffff22ffff09ffff12ff13ffff11ff8213bdff82577d8080
+    8080ffff02ffff03ffff22ffff09ffff12ff13ffff11ff8213bdff822f7d8080
     ffff10ffff12ff82057dff2d80ff820b7d8080ffff15ff820b7dffff0181ff80
-    ffff15ff2dff820b7d80ffff20ffff15ff13ff82777d808080ffff01ff04ffff
+    ffff15ff2dff820b7d80ffff20ffff15ff13ff823f7d808080ffff01ff04ffff
     04ff82013dffff04ffff11ff8202bdff82057d80ffff04ffff11ff8205bdff13
     80ffff04ffff04ff8213bdffff10ff821bbdff820b7d8080ffff04ff8217bdff
     808080808080ffff04ffff04ff10ffff04ffff10ff8227bdff1580ff808080ff
     ff04ffff02ff3effff04ff02ffff04ff09ffff04ffff02ff2effff04ff02ffff
-    04ff82177dff80808080ff8080808080ffff04ffff04ffff0181d6ffff04ff28
-    ffff04ff82277dffff04ff82057dffff04ffff04ff82277dff8080ff80808080
-    8080ffff02ffff03ffff09ff13ff82777d80ffff011bffff01ff04ffff02ff12
-    ffff04ff02ffff04ff09ffff04ffff02ff2effff04ff02ffff04ffff04ff8227
-    7dffff04ff82577dffff11ff82777dff13808080ff80808080ffff04ff82277d
+    04ff820f7dff80808080ff8080808080ffff04ffff04ffff0181d6ffff04ff28
+    ffff04ff82177dffff04ff82057dffff04ffff04ff82177dff8080ff80808080
+    8080ffff02ffff03ffff09ff13ff823f7d80ffff011bffff01ff04ffff02ff12
+    ffff04ff02ffff04ff09ffff04ffff02ff2effff04ff02ffff04ffff04ff8217
+    7dffff04ff822f7dffff11ff823f7dff13808080ff80808080ffff04ff82177d
     ff808080808080ff1b8080ff018080808080ffff01ff088080ff0180ffff02ff
     ff03ffff07ff0580ffff01ff0bffff0102ffff02ff2effff04ff02ffff04ff09
     ff80808080ffff02ff2effff04ff02ffff04ff0dff8080808080ffff01ff0bff
@@ -45,7 +45,7 @@ pub const REWARD_DISTRIBUTOR_UNSTAKE_PUZZLE: [u8; 969] = hex!(
 
 pub const REWARD_DISTRIBUTOR_UNSTAKE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    f1ed1beb1cea9822067c2b5b68f89ddfe3f3b4c6f4bdc79933f363747e77a643
+    884749a3cb046f6a53cf1bd42231bedf91f43fabfd3fdb27471a2237b73aaf37
     "
 ));
 
