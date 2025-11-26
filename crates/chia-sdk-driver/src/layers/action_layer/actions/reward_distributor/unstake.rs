@@ -333,7 +333,7 @@ impl RewardDistributorUnstakeAction {
         // compute messages that the custody puzzle needs to send
         let locked_cat_coin = locked_cat.coin;
         let mut unstake_message = locked_cat_coin.parent_coin_info.to_vec();
-        unstake_message.insert(0, b'r');
+        unstake_message.insert(0, b'u');
 
         let remove_entry_conditions = Conditions::new()
             .send_message(

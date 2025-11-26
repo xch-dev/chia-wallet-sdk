@@ -3995,7 +3995,11 @@ mod tests {
             assert_eq!(new_entry2_slot.info.value.shares, 2);
 
             assert_eq!(payout2_amount, 234);
-            StandardLayer::new(nft2_bls.pk).spend(ctx, nft2_bls.coin, custody2_conds)?;
+            StandardLayer::new(nft2_bls.pk).spend(
+                ctx,
+                sim.new_coin(nft2_bls.puzzle_hash, 0),
+                custody2_conds,
+            )?;
 
             registry = registry.finish_spend(ctx, vec![])?.0;
 
