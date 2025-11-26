@@ -3504,7 +3504,9 @@ mod tests {
         // add second entry OR 2 more NFTs
         let nft2_bls = sim.bls(0);
         let nft3_bls = sim.bls(0);
-        let (entry2_slot, other_nft2_info) = if test_type == RewardDistributorTestType::Managed {
+        let (entry2_slot, other_nft2_info, locked_cat2) = if test_type
+            == RewardDistributorTestType::Managed
+        {
             let manager_conditions = registry
                 .new_action::<RewardDistributorAddEntryAction>()
                 .spend(
@@ -3533,7 +3535,7 @@ mod tests {
             let spends = ctx.take();
             benchmark.add_spends(ctx, &mut sim, spends, "add_entry", &[])?;
 
-            (entry2_slot, None)
+            (entry2_slot, None, None)
         } else if test_type == RewardDistributorTestType::Cat {
             let stakeable_cat = source_stakeable_cat.as_ref().unwrap();
             let offered_cat2 = stakeable_cat.child(SETTLEMENT_PAYMENT_HASH.into(), 2);
@@ -3546,7 +3548,7 @@ mod tests {
                 RewardDistributorSlotNonce::ENTRY,
             );
 
-            let (security_conds3, np3, _locked_cat3) = registry
+            let (security_conds3, np3, locked_cat3) = registry
                 .new_action::<RewardDistributorStakeAction>()
                 .spend_for_cat_mode(
                     ctx,
@@ -3612,7 +3614,7 @@ mod tests {
                 "stake_2_cats",
                 &[stakeable_cat_minter.sk.clone(), nft2_bls.sk.clone()],
             )?;
-            (entry2_slot, None)
+            (entry2_slot, None, Some(locked_cat3))
         } else {
             let nft2_launcher = Launcher::new(manager_coin.coin_id(), 0).with_singleton_amount(1);
             let nft2_launcher_coin = nft2_launcher.coin();
@@ -3875,7 +3877,11 @@ mod tests {
                 &[nft2_bls.sk.clone(), nft3_bls.sk.clone()],
             )?;
 
-            (entry2_slot, Some((entry3_slot, locked_nft2, locked_nft3)))
+            (
+                entry2_slot,
+                Some((entry3_slot, locked_nft2, locked_nft3)),
+                None,
+            )
         };
         let active_shares = if datastore.is_some() || source_stakeable_cat.is_some() {
             6
@@ -3975,6 +3981,47 @@ mod tests {
                 .is_some());
             assert!(sim.coin_state(nft2_return_coin_id).is_some());
             assert!(sim.coin_state(nft3_return_coin_id).is_some());
+        } else if let Some(locked_cat2) = locked_cat2 {
+            assert_eq!(locked_cat2.amount(), 3);
+            let cat2_return_coin_id = locked_cat2.child(nft2_bls.puzzle_hash, 3).coin.coin_id();
+
+            let (custody2_conds, payout2_amount) = registry
+                .new_action::<RewardDistributorUnstakeAction>()
+                .spend_for_locked_cats(ctx, &mut registry, entry2_slot.clone(), locked_cat2)?;
+            println!("registry pending spend: {:?}", registry.pending_spend);
+            let new_entry2_slot = registry.created_slot_value_to_slot(
+                registry.pending_spend.created_entry_slots[0],
+                RewardDistributorSlotNonce::ENTRY,
+            );
+            assert_eq!(new_entry2_slot.info.value.shares, 2);
+
+            assert_eq!(payout2_amount, 6969);
+            StandardLayer::new(nft2_bls.pk).spend(ctx, nft2_bls.coin, custody2_conds)?;
+
+            registry = registry.finish_spend(ctx, vec![])?.0;
+
+            // sim.spend_coins(spends, &[nft2_bls.sk.clone(), nft3_bls.sk.clone()])?;
+            let spends = ctx.take();
+            benchmark.add_spends(
+                ctx,
+                &mut sim,
+                spends,
+                "unstake_cat",
+                &[nft2_bls.sk.clone(), nft3_bls.sk.clone()],
+            )?;
+
+            let payout_coin_id2 = reserve_cat
+                .child(nft2_bls.puzzle_hash, payout2_amount)
+                .coin
+                .coin_id();
+
+            assert!(sim.coin_state(payout_coin_id2).is_some());
+            assert!(sim
+                .coin_state(entry2_slot.coin.coin_id())
+                .unwrap()
+                .spent_height
+                .is_some());
+            assert!(sim.coin_state(cat2_return_coin_id).is_some());
         } else {
             let (remove_entry_manager_conditions, entry2_payout_amount) = registry
                 .new_action::<RewardDistributorRemoveEntryAction>()
