@@ -484,7 +484,7 @@ impl RewardDistributorStakeAction {
         self,
         ctx: &mut SpendContext,
         distributor: &mut RewardDistributor,
-        current_cat: Cat,
+        offered_cat: Cat,
         entry_custody_puzzle_hash: Bytes32,
         existing_slot: Option<Slot<RewardDistributorEntrySlotValue>>,
     ) -> Result<(Conditions, NotarizedPayment, Cat), DriverError> {
@@ -510,25 +510,23 @@ impl RewardDistributorStakeAction {
                 .into(),
             payments: vec![Payment::new(
                 payment_puzzle_hash,
-                current_cat.amount(),
+                offered_cat.amount(),
                 ctx.hint(payment_puzzle_hash)?,
             )],
         };
         let notarized_payment_ptr = ctx.alloc(&np)?;
 
-        let created_cat = current_cat.child(SETTLEMENT_PAYMENT_HASH.into(), current_cat.amount());
-
         let msg: Bytes32 = ctx.tree_hash(notarized_payment_ptr).into();
         let mut security_conditions =
             Conditions::new().assert_puzzle_announcement(announcement_id(
                 distributor.coin.puzzle_hash,
-                announcement_id(current_cat.coin.puzzle_hash, msg),
+                announcement_id(offered_cat.coin.puzzle_hash, msg),
             ));
 
         // spend self
         let lock_puzzle_solution = RewardDistributorCatLockingPuzzleSolution {
             my_id: distributor.coin.coin_id(),
-            cat_amount: current_cat.amount(),
+            cat_amount: offered_cat.amount(),
             cat_maker_solution_rest: (),
         };
         let action_solution = ctx.alloc(&RewardDistributorStakeActionSolution {
@@ -559,6 +557,10 @@ impl RewardDistributorStakeAction {
             .assert_puzzle_announcement(announcement_id(distributor.coin.puzzle_hash, msg));
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
-        Ok((security_conditions, np, created_cat))
+        Ok((
+            security_conditions,
+            np,
+            offered_cat.child(payment_puzzle_hash, offered_cat.amount()),
+        ))
     }
 }

@@ -773,7 +773,7 @@ mod tests {
     use hex_literal::hex;
 
     use crate::{
-        CatalogPrecommitValue, CatalogRefundAction, CatalogRegisterAction, DataStore,
+        Asset, CatalogPrecommitValue, CatalogRefundAction, CatalogRegisterAction, DataStore,
         DataStoreMetadata, DelegatedPuzzle, DelegatedStateAction, HashedPtr, MetadataWithRootHash,
         NftMint, OracleLayer, PrecommitCoin, RewardDistributorAddEntryAction,
         RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
@@ -2653,11 +2653,35 @@ mod tests {
                     delegated_puzzles.clone(),
                 )?;
             StandardLayer::new(datastore_p2.pk).spend(ctx, datastore_p2.coin, launch_singleton)?;
+            sim.spend_coins(ctx.take(), slice::from_ref(&datastore_p2.sk))?;
 
             Some(datastore)
         } else {
             None
         };
+
+        let stakeable_cat_minter = sim.bls(cat_amount);
+        let stakeable_cat_minter_p2 = StandardLayer::new(stakeable_cat_minter.pk);
+        let mut source_stakeable_cat =
+            if let RewardDistributorTestType::CuratedNft { refreshable: _ } = test_type {
+                let (issue_cat, stakeable_cat) = Cat::issue_with_coin(
+                    ctx,
+                    stakeable_cat_minter.coin.coin_id(),
+                    cat_amount,
+                    Conditions::new().create_coin(
+                        stakeable_cat_minter.puzzle_hash,
+                        cat_amount,
+                        Memos::None,
+                    ),
+                )?;
+                stakeable_cat_minter_p2.spend(ctx, stakeable_cat_minter.coin, issue_cat)?;
+
+                let stakeable_cat = stakeable_cat[0];
+                sim.spend_coins(ctx.take(), slice::from_ref(&stakeable_cat_minter.sk))?;
+                Some(stakeable_cat)
+            } else {
+                None
+            };
 
         // setup config
         let constants = RewardDistributorConstants::without_launcher_id(
@@ -2793,7 +2817,6 @@ mod tests {
                 launcher_bls.sk.clone(),
                 security_sk.clone(),
                 cat_minter.sk.clone(),
-                datastore_p2.sk.clone(),
             ],
         )?;
 
@@ -2830,6 +2853,69 @@ mod tests {
             let spends = ctx.take();
             benchmark.add_spends(ctx, &mut sim, spends, "add_entry", &[])?;
 
+            (entry1_slot, None)
+        } else if test_type == RewardDistributorTestType::Cat {
+            let stakeable_cat = source_stakeable_cat.as_ref().unwrap();
+            let offered_cat = stakeable_cat.child(SETTLEMENT_PAYMENT_HASH.into(), 1000);
+            let (security_conds, np, created_cat) = registry
+                .new_action::<RewardDistributorStakeAction>()
+                .spend_for_cat_mode(
+                    ctx,
+                    &mut registry,
+                    offered_cat,
+                    entry1_bls.puzzle_hash,
+                    None,
+                )?;
+            let entry1_slot = registry.created_slot_value_to_slot(
+                registry.pending_spend.created_entry_slots[0],
+                RewardDistributorSlotNonce::ENTRY,
+            );
+            registry = registry.finish_spend(ctx, vec![])?.0;
+
+            let stakeable_cat_delegated_puzzle = ctx.alloc(
+                &security_conds
+                    .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None)
+                    .create_coin(
+                        stakeable_cat.p2_puzzle_hash(),
+                        stakeable_cat.amount() - 1000,
+                        Memos::None,
+                    ),
+            )?;
+            let stakeable_cat_spend = stakeable_cat_minter_p2.delegated_inner_spend(
+                ctx,
+                Spend::new(stakeable_cat_delegated_puzzle, NodePtr::NIL),
+            )?;
+
+            let offer_sol = ctx.alloc(&SettlementPaymentsSolution {
+                notarized_payments: vec![np],
+            })?;
+            let offered_cat_spend = Spend::new(ctx.alloc_mod::<SettlementPayment>()?, offer_sol);
+            let _new_cats = Cat::spend_all(
+                ctx,
+                &[
+                    CatSpend::new(*stakeable_cat, stakeable_cat_spend),
+                    CatSpend::new(offered_cat, offered_cat_spend),
+                ],
+            )?;
+
+            source_stakeable_cat = Some(stakeable_cat.child(
+                stakeable_cat.p2_puzzle_hash(),
+                stakeable_cat.amount() - 1000,
+            ));
+
+            // sim.spend_coins(ctx.take(), &[])?;
+            let spends = ctx.take();
+            benchmark.add_spends(
+                ctx,
+                &mut sim,
+                spends,
+                "stake_cat",
+                &[
+                    nft_bls.sk.clone(),
+                    datastore_p2.sk.clone(),
+                    stakeable_cat_minter.sk.clone(),
+                ],
+            )?;
             (entry1_slot, None)
         } else {
             let nft_launcher = Launcher::new(manager_coin.coin_id(), 0).with_singleton_amount(1);
