@@ -3988,7 +3988,6 @@ mod tests {
             let (custody2_conds, payout2_amount) = registry
                 .new_action::<RewardDistributorUnstakeAction>()
                 .spend_for_locked_cats(ctx, &mut registry, entry2_slot.clone(), locked_cat2)?;
-            println!("registry pending spend: {:?}", registry.pending_spend);
             let new_entry2_slot = registry.created_slot_value_to_slot(
                 registry.pending_spend.created_entry_slots[0],
                 RewardDistributorSlotNonce::ENTRY,

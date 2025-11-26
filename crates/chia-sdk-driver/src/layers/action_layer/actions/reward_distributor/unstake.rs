@@ -185,7 +185,7 @@ impl RewardDistributorUnstakeAction {
         ctx: &mut SpendContext,
         launcher_id: Bytes32,
         distributor_type: RewardDistributorType,
-        ephemeral_state: u64,
+        ephemeral_state: NodePtr,
         solution: NodePtr,
     ) -> Result<Option<RewardDistributorEntrySlotValue>, DriverError> {
         let solution = ctx.extract::<RewardDistributorUnstakeActionSolution<NodePtr>>(solution)?;

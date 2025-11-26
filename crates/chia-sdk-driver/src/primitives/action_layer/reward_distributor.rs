@@ -194,6 +194,12 @@ impl RewardDistributor {
                 action_spend.solution,
             )?);
         } else if raw_action_hash == stake_hash {
+            if let Some(spent_entry_slot) =
+                RewardDistributorStakeAction::spent_slot_value(ctx, action_spend.solution)?
+            {
+                spent_entry_slots.push(spent_entry_slot);
+            }
+
             created_entry_slots.push(RewardDistributorStakeAction::created_slot_value(
                 ctx,
                 &current_state_and_ephemeral.1,
@@ -206,6 +212,16 @@ impl RewardDistributor {
                 action_spend.solution,
             )?);
         } else if raw_action_hash == unstake_hash {
+            if let Some(created_entry_slot) = RewardDistributorUnstakeAction::created_slot_value(
+                ctx,
+                constants.launcher_id,
+                constants.reward_distributor_type,
+                current_state_and_ephemeral.0,
+                action_spend.solution,
+            )? {
+                created_entry_slots.push(created_entry_slot);
+            }
+
             spent_entry_slots.push(RewardDistributorUnstakeAction::spent_slot_value(
                 ctx,
                 action_spend.solution,

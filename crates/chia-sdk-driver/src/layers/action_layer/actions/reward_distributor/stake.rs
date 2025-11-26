@@ -222,6 +222,25 @@ impl RewardDistributorStakeAction {
         })
     }
 
+    pub fn spent_slot_value(
+        ctx: &mut SpendContext,
+        solution: NodePtr,
+    ) -> Result<Option<RewardDistributorEntrySlotValue>, DriverError> {
+        let solution = ctx.extract::<RewardDistributorStakeActionSolution<NodePtr>>(solution)?;
+
+        if solution.existing_slot_cumulative_payout != -1i128 {
+            return Ok(Some(RewardDistributorEntrySlotValue {
+                payout_puzzle_hash: solution.entry_custody_puzzle_hash,
+                initial_cumulative_payout: u128::try_from(
+                    solution.existing_slot_cumulative_payout,
+                )?,
+                shares: solution.existing_slot_shares,
+            }));
+        }
+
+        Ok(None)
+    }
+
     #[allow(clippy::cast_possible_wrap)]
     pub fn spend_for_collection_nft_mode(
         self,
