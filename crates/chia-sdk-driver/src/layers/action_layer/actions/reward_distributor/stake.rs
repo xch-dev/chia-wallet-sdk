@@ -516,6 +516,13 @@ impl RewardDistributorStakeAction {
         };
         let notarized_payment_ptr = ctx.alloc(&np)?;
 
+        println!(
+            "nonce: {:?}",
+            clvm_tuple!(ephemeral_counter.tree_hash(), my_id).tree_hash()
+        ); // todo: debug
+        println!("payment_puzzle_hash: {:?}", payment_puzzle_hash); // todo: debug
+        println!("offered cat full ph: {:?}", offered_cat.coin.puzzle_hash); // todo: debug
+        println!("offered cat p2 ph: {:?}", offered_cat.p2_puzzle_hash()); // todo: debug
         let msg: Bytes32 = ctx.tree_hash(notarized_payment_ptr).into();
         let mut security_conditions =
             Conditions::new().assert_puzzle_announcement(announcement_id(
