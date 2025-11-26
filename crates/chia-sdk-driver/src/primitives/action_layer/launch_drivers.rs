@@ -2662,26 +2662,25 @@ mod tests {
 
         let stakeable_cat_minter = sim.bls(cat_amount);
         let stakeable_cat_minter_p2 = StandardLayer::new(stakeable_cat_minter.pk);
-        let mut source_stakeable_cat =
-            if let RewardDistributorTestType::CuratedNft { refreshable: _ } = test_type {
-                let (issue_cat, stakeable_cat) = Cat::issue_with_coin(
-                    ctx,
-                    stakeable_cat_minter.coin.coin_id(),
+        let mut source_stakeable_cat = if let RewardDistributorTestType::Cat = test_type {
+            let (issue_cat, stakeable_cat) = Cat::issue_with_coin(
+                ctx,
+                stakeable_cat_minter.coin.coin_id(),
+                cat_amount,
+                Conditions::new().create_coin(
+                    stakeable_cat_minter.puzzle_hash,
                     cat_amount,
-                    Conditions::new().create_coin(
-                        stakeable_cat_minter.puzzle_hash,
-                        cat_amount,
-                        Memos::None,
-                    ),
-                )?;
-                stakeable_cat_minter_p2.spend(ctx, stakeable_cat_minter.coin, issue_cat)?;
+                    Memos::None,
+                ),
+            )?;
+            stakeable_cat_minter_p2.spend(ctx, stakeable_cat_minter.coin, issue_cat)?;
 
-                let stakeable_cat = stakeable_cat[0];
-                sim.spend_coins(ctx.take(), slice::from_ref(&stakeable_cat_minter.sk))?;
-                Some(stakeable_cat)
-            } else {
-                None
-            };
+            let stakeable_cat = stakeable_cat[0];
+            sim.spend_coins(ctx.take(), slice::from_ref(&stakeable_cat_minter.sk))?;
+            Some(stakeable_cat)
+        } else {
+            None
+        };
 
         // setup config
         let constants = RewardDistributorConstants::without_launcher_id(
@@ -2698,7 +2697,10 @@ mod tests {
                         refreshable,
                     }
                 }
-                RewardDistributorTestType::Cat => todo!("other modes not implemented yet"),
+                RewardDistributorTestType::Cat => RewardDistributorType::Cat {
+                    asset_id: source_stakeable_cat.as_ref().unwrap().info.asset_id,
+                    hidden_puzzle_hash: None,
+                },
             },
             Bytes32::new([1; 32]),
             1000,
@@ -2857,7 +2859,8 @@ mod tests {
         } else if test_type == RewardDistributorTestType::Cat {
             let stakeable_cat = source_stakeable_cat.as_ref().unwrap();
             let offered_cat = stakeable_cat.child(SETTLEMENT_PAYMENT_HASH.into(), 1000);
-            let (security_conds, np, created_cat) = registry
+            println!("before stake");
+            let (security_conds, np, _locked_cat) = registry
                 .new_action::<RewardDistributorStakeAction>()
                 .spend_for_cat_mode(
                     ctx,
@@ -2866,6 +2869,7 @@ mod tests {
                     entry1_bls.puzzle_hash,
                     None,
                 )?;
+            println!("after stake");
             let entry1_slot = registry.created_slot_value_to_slot(
                 registry.pending_spend.created_entry_slots[0],
                 RewardDistributorSlotNonce::ENTRY,
