@@ -3605,7 +3605,7 @@ mod tests {
                         dl_inner_puzzle_hash.into(),
                     )?;
                 let entry3_slot = registry.created_slot_value_to_slot(
-                    registry.pending_spend.created_entry_slots[0],
+                    registry.pending_spend.created_entry_slots[1],
                     RewardDistributorSlotNonce::ENTRY,
                 );
 
@@ -4031,7 +4031,8 @@ mod tests {
             .child(
                 match test_type {
                     RewardDistributorTestType::Managed => entry1_bls.puzzle_hash,
-                    RewardDistributorTestType::NftCollection => nft_bls.puzzle_hash,
+                    RewardDistributorTestType::NftCollection
+                    | RewardDistributorTestType::CuratedNft { .. } => nft_bls.puzzle_hash,
                     _ => todo!("other modes not implemented yet"),
                 },
                 withdrawal_amount,
@@ -4040,7 +4041,12 @@ mod tests {
             .coin_id();
 
         assert!(sim.coin_state(payout_coin_id).is_some());
-        assert_eq!(sim.coin_state(payout_coin_id).unwrap().coin.amount, 12601);
+        // lower payout for curated NFT since the 1st NF receives a 6th
+        //  of the rewards afte the other two NFTs have been paid out
+        assert_eq!(
+            sim.coin_state(payout_coin_id).unwrap().coin.amount,
+            if datastore.is_some() { 12523 } else { 12601 }
+        );
 
         benchmark.print_summary(Some(&format!(
             "{}-reward-distributor.costs",
