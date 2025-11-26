@@ -3369,7 +3369,12 @@ mod tests {
         benchmark.add_spends(ctx, &mut sim, spends, "new_epoch", &[])?;
 
         assert!(sim.coin_state(payout_coin_id).is_some());
-        assert_eq!(registry.info.state.active_shares, 1);
+        let active_shares = if source_stakeable_cat.is_some() {
+            1000
+        } else {
+            1
+        };
+        assert_eq!(registry.info.state.active_shares, active_shares);
         assert_eq!(registry.info.state.total_reserves, 4000 - fee);
         assert_eq!(registry.info.state.round_reward_info.cumulative_payout, 0);
         assert_eq!(
@@ -3802,7 +3807,13 @@ mod tests {
 
             (entry2_slot, Some((entry3_slot, locked_nft2, locked_nft3)))
         };
-        let active_shares = if datastore.is_some() { 6 } else { 3 };
+        let active_shares = if datastore.is_some() {
+            6
+        } else if source_stakeable_cat.is_some() {
+            6000
+        } else {
+            3
+        };
         assert_eq!(registry.info.state.active_shares, active_shares);
 
         // sync to 75% (so + 25%)
