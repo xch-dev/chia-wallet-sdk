@@ -323,6 +323,22 @@ impl RewardDistributorStakeAction {
 
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
+            let mut msg = (u128::from(existing_slot.info.value.shares)
+                * (distributor
+                    .pending_spend
+                    .latest_state
+                    .1
+                    .round_reward_info
+                    .cumulative_payout
+                    - existing_slot.info.value.initial_cumulative_payout))
+                .tree_hash()
+                .to_vec();
+            msg.insert(0, b's');
+            security_conditions = security_conditions.send_message(
+                18,
+                msg.into(),
+                vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
+            );
             existing_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
         }
 
@@ -460,6 +476,22 @@ impl RewardDistributorStakeAction {
 
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
+            let mut msg = (u128::from(existing_slot.info.value.shares)
+                * (distributor
+                    .pending_spend
+                    .latest_state
+                    .1
+                    .round_reward_info
+                    .cumulative_payout
+                    - existing_slot.info.value.initial_cumulative_payout))
+                .tree_hash()
+                .to_vec();
+            msg.insert(0, b's');
+            security_conditions = security_conditions.send_message(
+                18,
+                msg.into(),
+                vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
+            );
             existing_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
         }
 
@@ -516,13 +548,6 @@ impl RewardDistributorStakeAction {
         };
         let notarized_payment_ptr = ctx.alloc(&np)?;
 
-        println!(
-            "nonce: {:?}",
-            clvm_tuple!(ephemeral_counter.tree_hash(), my_id).tree_hash()
-        ); // todo: debug
-        println!("payment_puzzle_hash: {:?}", payment_puzzle_hash); // todo: debug
-        println!("offered cat full ph: {:?}", offered_cat.coin.puzzle_hash); // todo: debug
-        println!("offered cat p2 ph: {:?}", offered_cat.p2_puzzle_hash()); // todo: debug
         let msg: Bytes32 = ctx.tree_hash(notarized_payment_ptr).into();
         let mut security_conditions =
             Conditions::new().assert_puzzle_announcement(announcement_id(
@@ -548,6 +573,22 @@ impl RewardDistributorStakeAction {
 
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
+            let mut msg = (u128::from(existing_slot.info.value.shares)
+                * (distributor
+                    .pending_spend
+                    .latest_state
+                    .1
+                    .round_reward_info
+                    .cumulative_payout
+                    - existing_slot.info.value.initial_cumulative_payout))
+                .tree_hash()
+                .to_vec();
+            msg.insert(0, b's');
+            security_conditions = security_conditions.send_message(
+                18,
+                msg.into(),
+                vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
+            );
             existing_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
         }
 

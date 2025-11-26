@@ -3548,16 +3548,27 @@ mod tests {
 
             let (security_conds3, np3, _locked_cat3) = registry
                 .new_action::<RewardDistributorStakeAction>()
-                .spend_for_cat_mode(ctx, &mut registry, offered_cat3, nft3_bls.puzzle_hash, None)?;
-            let entry3_slot = registry.created_slot_value_to_slot(
+                .spend_for_cat_mode(
+                    ctx,
+                    &mut registry,
+                    offered_cat3,
+                    nft2_bls.puzzle_hash,
+                    Some(entry2_slot),
+                )?;
+            let entry2_slot = registry.created_slot_value_to_slot(
                 registry.pending_spend.created_entry_slots[1],
                 RewardDistributorSlotNonce::ENTRY,
             );
 
             registry = registry.finish_spend(ctx, vec![])?.0;
 
-            let stakeable_cat_delegated_puzzle = ctx.alloc(&clvm_quote!(security_conds2
-                .extend(security_conds3)
+            StandardLayer::new(nft2_bls.pk).spend(
+                ctx,
+                nft2_bls.coin,
+                security_conds2.extend(security_conds3),
+            )?;
+
+            let stakeable_cat_delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new()
                 .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 2, Memos::None)
                 .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 3, Memos::None)
                 .create_coin(
@@ -3591,6 +3602,7 @@ mod tests {
                 stakeable_cat.child(stakeable_cat.p2_puzzle_hash(), stakeable_cat.amount() - 5),
             );
 
+            sim.pass_time(250);
             // sim.spend_coins(ctx.take(), &[])?;
             let spends = ctx.take();
             benchmark.add_spends(
@@ -3598,11 +3610,7 @@ mod tests {
                 &mut sim,
                 spends,
                 "stake_2_cats",
-                &[
-                    nft_bls.sk.clone(),
-                    datastore_p2.sk.clone(),
-                    stakeable_cat_minter.sk.clone(),
-                ],
+                &[stakeable_cat_minter.sk.clone(), nft2_bls.sk.clone()],
             )?;
             (entry2_slot, None)
         } else {
