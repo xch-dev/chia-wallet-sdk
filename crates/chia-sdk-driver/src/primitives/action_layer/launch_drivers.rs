@@ -2869,22 +2869,19 @@ mod tests {
                     entry1_bls.puzzle_hash,
                     None,
                 )?;
-            println!("after stake");
             let entry1_slot = registry.created_slot_value_to_slot(
                 registry.pending_spend.created_entry_slots[0],
                 RewardDistributorSlotNonce::ENTRY,
             );
             registry = registry.finish_spend(ctx, vec![])?.0;
 
-            let stakeable_cat_delegated_puzzle = ctx.alloc(
-                &security_conds
-                    .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None)
-                    .create_coin(
-                        stakeable_cat.p2_puzzle_hash(),
-                        stakeable_cat.amount() - 1000,
-                        Memos::None,
-                    ),
-            )?;
+            let stakeable_cat_delegated_puzzle = ctx.alloc(&clvm_quote!(security_conds
+                .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None)
+                .create_coin(
+                    stakeable_cat.p2_puzzle_hash(),
+                    stakeable_cat.amount() - 1000,
+                    Memos::None,
+                )))?;
             let stakeable_cat_spend = stakeable_cat_minter_p2.delegated_inner_spend(
                 ctx,
                 Spend::new(stakeable_cat_delegated_puzzle, NodePtr::NIL),
@@ -2898,7 +2895,7 @@ mod tests {
                 ctx,
                 &[
                     CatSpend::new(*stakeable_cat, stakeable_cat_spend),
-                    CatSpend::new(offered_cat, offered_cat_spend),
+                    // CatSpend::new(offered_cat, offered_cat_spend),
                 ],
             )?;
 
@@ -2920,6 +2917,7 @@ mod tests {
                     stakeable_cat_minter.sk.clone(),
                 ],
             )?;
+            println!("staked!");
             (entry1_slot, None)
         } else {
             let nft_launcher = Launcher::new(manager_coin.coin_id(), 0).with_singleton_amount(1);

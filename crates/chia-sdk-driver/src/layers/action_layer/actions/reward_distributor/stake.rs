@@ -496,8 +496,8 @@ impl RewardDistributorStakeAction {
         let my_p2_treehash = Self::my_p2_puzzle_hash(self.launcher_id).into();
         let payment_puzzle_hash: Bytes32 = CurriedProgram {
             program: NONCE_WRAPPER_PUZZLE_HASH,
-            args: NonceWrapperArgs::<Bytes32, TreeHash> {
-                nonce: entry_custody_puzzle_hash,
+            args: NonceWrapperArgs::<(Bytes32, u64), TreeHash> {
+                nonce: clvm_tuple!(entry_custody_puzzle_hash, offered_cat.amount()),
                 inner_puzzle: my_p2_treehash,
             },
         }
