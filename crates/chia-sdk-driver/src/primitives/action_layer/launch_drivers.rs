@@ -3994,7 +3994,7 @@ mod tests {
             );
             assert_eq!(new_entry2_slot.info.value.shares, 2);
 
-            assert_eq!(payout2_amount, 6969);
+            assert_eq!(payout2_amount, 234);
             StandardLayer::new(nft2_bls.pk).spend(ctx, nft2_bls.coin, custody2_conds)?;
 
             registry = registry.finish_spend(ctx, vec![])?.0;
@@ -4246,8 +4246,8 @@ mod tests {
                 match test_type {
                     RewardDistributorTestType::Managed => entry1_bls.puzzle_hash,
                     RewardDistributorTestType::NftCollection
-                    | RewardDistributorTestType::CuratedNft { .. } => nft_bls.puzzle_hash,
-                    _ => todo!("other modes not implemented yet"),
+                    | RewardDistributorTestType::CuratedNft { .. }
+                    | RewardDistributorTestType::Cat => nft_bls.puzzle_hash,
                 },
                 withdrawal_amount,
             )

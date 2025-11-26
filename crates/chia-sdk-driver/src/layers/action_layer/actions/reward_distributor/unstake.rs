@@ -351,14 +351,11 @@ impl RewardDistributorUnstakeAction {
         let cat_p2 = P2DelegatedBySingletonLayer::new(distributor_singleton_struct_hash, 1);
         let cat_inner_puzzle = cat_p2.construct_puzzle(ctx)?;
         // don't forget about the nonce wrapper!
-        let cat_nonce: Bytes32 = clvm_tuple!(clvm_tuple!(
-            entry_slot.info.value.payout_puzzle_hash,
-            locked_cat_coin.amount
-        ))
-        .tree_hash()
-        .into();
-        let cat_inner_puzzle = ctx.curry(NonceWrapperArgs::<Bytes32, NodePtr> {
-            nonce: cat_nonce,
+        let cat_inner_puzzle = ctx.curry(NonceWrapperArgs::<(Bytes32, u64), NodePtr> {
+            nonce: (
+                entry_slot.info.value.payout_puzzle_hash,
+                locked_cat_coin.amount,
+            ),
             inner_puzzle: cat_inner_puzzle,
         })?;
 
