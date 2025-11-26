@@ -4054,7 +4054,10 @@ mod tests {
 
             assert!(sim.coin_state(payout_coin_id).is_some());
         }
-        assert!(registry.info.state.active_shares == 1);
+        assert_eq!(
+            registry.info.state.active_shares,
+            if source_stakeable_cat.is_some() { 3 } else { 1 }
+        );
         assert!(sim
             .coin_state(entry2_slot.coin.coin_id())
             .unwrap()
@@ -4233,6 +4236,7 @@ mod tests {
 
         // payout entry
         let reserve_cat = registry.reserve.to_cat();
+        let payout_puzzle_hash = entry1_slot.info.value.payout_puzzle_hash;
         let (payout_conditions, withdrawal_amount) = registry
             .new_action::<RewardDistributorInitiatePayoutAction>()
             .spend(ctx, &mut registry, entry1_slot)?;
@@ -4246,15 +4250,7 @@ mod tests {
         benchmark.add_spends(ctx, &mut sim, spends, "initiate_payout", &[])?;
 
         let payout_coin_id = reserve_cat
-            .child(
-                match test_type {
-                    RewardDistributorTestType::Managed => entry1_bls.puzzle_hash,
-                    RewardDistributorTestType::NftCollection
-                    | RewardDistributorTestType::CuratedNft { .. }
-                    | RewardDistributorTestType::Cat => nft_bls.puzzle_hash,
-                },
-                withdrawal_amount,
-            )
+            .child(payout_puzzle_hash, withdrawal_amount)
             .coin
             .coin_id();
 
@@ -4263,8 +4259,10 @@ mod tests {
         //  of the rewards afte the other two NFTs have been paid out
         assert_eq!(
             sim.coin_state(payout_coin_id).unwrap().coin.amount,
-            if datastore.is_some() || source_stakeable_cat.is_some() {
+            if datastore.is_some() {
                 12523
+            } else if source_stakeable_cat.is_some() {
+                4545
             } else {
                 12601
             }
