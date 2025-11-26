@@ -759,7 +759,7 @@ mod tests {
 
     use chia_puzzle_types::{cat::GenesisByCoinIdTailArgs, CoinProof};
     use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
-    use chia_sdk_test::{print_spend_bundle_to_file, Benchmark, BlsPairWithCoin, Simulator};
+    use chia_sdk_test::{Benchmark, BlsPairWithCoin, Simulator};
     use chia_sdk_types::{
         puzzles::{
             AnyMetadataUpdater, CatNftMetadata, DelegatedStateActionSolution,
@@ -2858,8 +2858,7 @@ mod tests {
             (entry1_slot, None)
         } else if test_type == RewardDistributorTestType::Cat {
             let stakeable_cat = source_stakeable_cat.as_ref().unwrap();
-            let offered_cat = stakeable_cat.child(SETTLEMENT_PAYMENT_HASH.into(), 1000);
-            println!("before stake");
+            let offered_cat = stakeable_cat.child(SETTLEMENT_PAYMENT_HASH.into(), 1);
             let (security_conds, np, _locked_cat) = registry
                 .new_action::<RewardDistributorStakeAction>()
                 .spend_for_cat_mode(
@@ -2876,10 +2875,10 @@ mod tests {
             registry = registry.finish_spend(ctx, vec![])?.0;
 
             let stakeable_cat_delegated_puzzle = ctx.alloc(&clvm_quote!(security_conds
-                .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None)
+                .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 1, Memos::None)
                 .create_coin(
                     stakeable_cat.p2_puzzle_hash(),
-                    stakeable_cat.amount() - 1000,
+                    stakeable_cat.amount() - 1,
                     Memos::None,
                 )))?;
             let stakeable_cat_spend = stakeable_cat_minter_p2.delegated_inner_spend(
@@ -2899,14 +2898,12 @@ mod tests {
                 ],
             )?;
 
-            source_stakeable_cat = Some(stakeable_cat.child(
-                stakeable_cat.p2_puzzle_hash(),
-                stakeable_cat.amount() - 1000,
-            ));
+            source_stakeable_cat = Some(
+                stakeable_cat.child(stakeable_cat.p2_puzzle_hash(), stakeable_cat.amount() - 1),
+            );
 
             // sim.spend_coins(ctx.take(), &[])?;
             let spends = ctx.take();
-            print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs");
             benchmark.add_spends(
                 ctx,
                 &mut sim,
@@ -2918,7 +2915,6 @@ mod tests {
                     stakeable_cat_minter.sk.clone(),
                 ],
             )?;
-            println!("staked!");
             (entry1_slot, None)
         } else {
             let nft_launcher = Launcher::new(manager_coin.coin_id(), 0).with_singleton_amount(1);
@@ -3369,12 +3365,7 @@ mod tests {
         benchmark.add_spends(ctx, &mut sim, spends, "new_epoch", &[])?;
 
         assert!(sim.coin_state(payout_coin_id).is_some());
-        let active_shares = if source_stakeable_cat.is_some() {
-            1000
-        } else {
-            1
-        };
-        assert_eq!(registry.info.state.active_shares, active_shares);
+        assert_eq!(registry.info.state.active_shares, 1);
         assert_eq!(registry.info.state.total_reserves, 4000 - fee);
         assert_eq!(registry.info.state.round_reward_info.cumulative_payout, 0);
         assert_eq!(
@@ -3422,13 +3413,13 @@ mod tests {
         assert!(registry.info.state.round_time_info.last_update == first_epoch_start + 100);
 
         let cumulative_payout_delta = initial_reward_info.remaining_rewards / 10;
-        assert!(
-            registry.info.state.round_reward_info.remaining_rewards
-                == initial_reward_info.remaining_rewards - cumulative_payout_delta
+        assert_eq!(
+            registry.info.state.round_reward_info.remaining_rewards,
+            initial_reward_info.remaining_rewards - cumulative_payout_delta
         );
-        assert!(
-            registry.info.state.round_reward_info.cumulative_payout
-                == initial_reward_info.cumulative_payout + cumulative_payout_delta
+        assert_eq!(
+            registry.info.state.round_reward_info.cumulative_payout,
+            initial_reward_info.cumulative_payout + cumulative_payout_delta
         );
 
         // sync to 50% (so + 40%)
@@ -3542,6 +3533,77 @@ mod tests {
             let spends = ctx.take();
             benchmark.add_spends(ctx, &mut sim, spends, "add_entry", &[])?;
 
+            (entry2_slot, None)
+        } else if test_type == RewardDistributorTestType::Cat {
+            let stakeable_cat = source_stakeable_cat.as_ref().unwrap();
+            let offered_cat2 = stakeable_cat.child(SETTLEMENT_PAYMENT_HASH.into(), 2);
+            let offered_cat3 = stakeable_cat.child(SETTLEMENT_PAYMENT_HASH.into(), 3);
+            let (security_conds2, np2, _locked_cat2) = registry
+                .new_action::<RewardDistributorStakeAction>()
+                .spend_for_cat_mode(ctx, &mut registry, offered_cat2, nft2_bls.puzzle_hash, None)?;
+            let entry2_slot = registry.created_slot_value_to_slot(
+                registry.pending_spend.created_entry_slots[0],
+                RewardDistributorSlotNonce::ENTRY,
+            );
+
+            let (security_conds3, np3, _locked_cat3) = registry
+                .new_action::<RewardDistributorStakeAction>()
+                .spend_for_cat_mode(ctx, &mut registry, offered_cat3, nft3_bls.puzzle_hash, None)?;
+            let entry3_slot = registry.created_slot_value_to_slot(
+                registry.pending_spend.created_entry_slots[1],
+                RewardDistributorSlotNonce::ENTRY,
+            );
+
+            registry = registry.finish_spend(ctx, vec![])?.0;
+
+            let stakeable_cat_delegated_puzzle = ctx.alloc(&clvm_quote!(security_conds2
+                .extend(security_conds3)
+                .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 2, Memos::None)
+                .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 3, Memos::None)
+                .create_coin(
+                    stakeable_cat.p2_puzzle_hash(),
+                    stakeable_cat.amount() - 5,
+                    Memos::None,
+                )))?;
+            let stakeable_cat_spend = stakeable_cat_minter_p2.delegated_inner_spend(
+                ctx,
+                Spend::new(stakeable_cat_delegated_puzzle, NodePtr::NIL),
+            )?;
+
+            let offer2_sol = ctx.alloc(&SettlementPaymentsSolution {
+                notarized_payments: vec![np2],
+            })?;
+            let offer3_sol = ctx.alloc(&SettlementPaymentsSolution {
+                notarized_payments: vec![np3],
+            })?;
+            let offered_cat2_spend = Spend::new(ctx.alloc_mod::<SettlementPayment>()?, offer2_sol);
+            let offered_cat3_spend = Spend::new(ctx.alloc_mod::<SettlementPayment>()?, offer3_sol);
+            let _new_cats = Cat::spend_all(
+                ctx,
+                &[
+                    CatSpend::new(*stakeable_cat, stakeable_cat_spend),
+                    CatSpend::new(offered_cat2, offered_cat2_spend),
+                    CatSpend::new(offered_cat3, offered_cat3_spend),
+                ],
+            )?;
+
+            source_stakeable_cat = Some(
+                stakeable_cat.child(stakeable_cat.p2_puzzle_hash(), stakeable_cat.amount() - 5),
+            );
+
+            // sim.spend_coins(ctx.take(), &[])?;
+            let spends = ctx.take();
+            benchmark.add_spends(
+                ctx,
+                &mut sim,
+                spends,
+                "stake_2_cats",
+                &[
+                    nft_bls.sk.clone(),
+                    datastore_p2.sk.clone(),
+                    stakeable_cat_minter.sk.clone(),
+                ],
+            )?;
             (entry2_slot, None)
         } else {
             let nft2_launcher = Launcher::new(manager_coin.coin_id(), 0).with_singleton_amount(1);
@@ -3807,10 +3869,8 @@ mod tests {
 
             (entry2_slot, Some((entry3_slot, locked_nft2, locked_nft3)))
         };
-        let active_shares = if datastore.is_some() {
+        let active_shares = if datastore.is_some() || source_stakeable_cat.is_some() {
             6
-        } else if source_stakeable_cat.is_some() {
-            6000
         } else {
             3
         };
@@ -4145,7 +4205,11 @@ mod tests {
         //  of the rewards afte the other two NFTs have been paid out
         assert_eq!(
             sim.coin_state(payout_coin_id).unwrap().coin.amount,
-            if datastore.is_some() { 12523 } else { 12601 }
+            if datastore.is_some() || source_stakeable_cat.is_some() {
+                12523
+            } else {
+                12601
+            }
         );
 
         benchmark.print_summary(Some(&format!(
