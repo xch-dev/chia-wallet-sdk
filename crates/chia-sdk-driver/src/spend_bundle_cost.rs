@@ -15,7 +15,7 @@ pub fn spend_bundle_cost(coin_spends: &[CoinSpend]) -> Result<u64, DriverError> 
     for coin_spend in coin_spends {
         let puzzle = coin_spend.puzzle_reveal.to_clvm(&mut allocator)?;
         let solution = coin_spend.solution.to_clvm(&mut allocator)?;
-        let output = run_puzzle_with_cost(&mut allocator, puzzle, solution)?;
+        let output = run_puzzle_with_cost(&mut allocator, puzzle, solution, 11_000_000_000, false)?;
         let conditions = Vec::<Condition>::from_clvm(&allocator, output.1)?;
 
         cost += output.0;
