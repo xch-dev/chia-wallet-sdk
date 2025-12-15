@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-types"
-version = "0.31.0"
+version = "0.32.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Standard Chia types for things such as puzzle info and conditions."
@@ -33,6 +33,9 @@ clvmr = { workspace = true }
 hex-literal = { workspace = true }
 thiserror = { workspace = true }
 chialisp = { workspace = true }
+rue-compiler = { workspace = true }
+rue-options = { workspace = true }
+rue-lir = { workspace = true }
 
 [dev-dependencies]
 hex = { workspace = true }
