@@ -34,8 +34,7 @@ pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> Con
         number_zero_bits_plot_filter_v2: 9, // Placeholder
         min_plot_size_v1: 32,
         max_plot_size_v1: 50,
-        min_plot_size_v2: 28,
-        max_plot_size_v2: 32,
+        plot_size_v2: 28,
         sub_slot_time_target: 600,
         num_sp_intervals_extra: 3,
         max_future_time2: 120,
@@ -67,14 +66,14 @@ pub fn default_constants(genesis_challenge: Bytes32, agg_sig_me: Bytes32) -> Con
         pool_sub_slot_iters: 37_600_000_000,
         hard_fork_height: 5_496_000,
         hard_fork2_height: 0xffff_ffff, // Placeholder
+        plot_v1_phase_out_epoch_bits: 8,
         plot_filter_128_height: 10_542_000,
         plot_filter_64_height: 15_592_000,
         plot_filter_32_height: 20_643_000,
 
         // Placeholders
-        plot_v1_phase_out: 0xffff_ffff,
-        plot_strength_initial: 2,
-        quality_proof_scan_filter: 5,
+        min_plot_strength: 2,
+        max_plot_strength: 32,
         plot_filter_v2_first_adjustment_height: 0xffff_ffff,
         plot_filter_v2_second_adjustment_height: 0xffff_ffff,
         plot_filter_v2_third_adjustment_height: 0xffff_ffff,
