@@ -500,6 +500,7 @@
       "reward_chain_sp_signature": "Signature",
       "reward_chain_ip_vdf": "VDFInfo",
       "infused_challenge_chain_ip_vdf": "Option<VDFInfo>",
+      "header_mmr_root": "Option<Bytes32>",
       "is_transaction_block": "bool"
     }
   },
