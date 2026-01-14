@@ -462,28 +462,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
-name = "chia"
-version = "0.32.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3b1f0665fbbbbf916ac1fdd4bbaa122b280762ef916c770d2c9cb2407f58b10"
-dependencies = [
- "chia-bls 0.32.0",
- "chia-client",
- "chia-consensus",
- "chia-datalayer",
- "chia-protocol",
- "chia-puzzle-types",
- "chia-secp",
- "chia-serde",
- "chia-sha2 0.32.0",
- "chia-ssl",
- "chia-traits 0.32.0",
- "clvm-traits 0.32.0",
- "clvm-utils",
- "clvmr",
-]
-
-[[package]]
 name = "chia-bls"
 version = "0.28.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -534,21 +512,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chia-client"
-version = "0.32.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75e06ad0b7e58278bb32fa1407667281a1e813ce411dfb1c860f5191ef45ee69"
-dependencies = [
- "chia-protocol",
- "chia-traits 0.32.0",
- "futures-util",
- "thiserror 1.0.69",
- "tokio",
- "tokio-tungstenite",
- "tungstenite",
-]
-
-[[package]]
 name = "chia-consensus"
 version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -567,36 +530,6 @@ dependencies = [
  "hex",
  "hex-literal",
  "thiserror 1.0.69",
-]
-
-[[package]]
-name = "chia-datalayer"
-version = "0.32.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "401d56b0a6d1d0a6e5bbbef56580cc7c7e8d19749ec9dc652f979841dcd4d352"
-dependencies = [
- "bitvec",
- "chia-datalayer-macro",
- "chia-protocol",
- "chia-sha2 0.32.0",
- "chia-traits 0.32.0",
- "chia_streamable_macro 0.32.0",
- "indexmap",
- "num-traits",
- "rayon",
- "thiserror 1.0.69",
- "zstd",
-]
-
-[[package]]
-name = "chia-datalayer-macro"
-version = "0.32.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "519fe234eea75902a31f50165167ce59c503c758d24de997c356bb819858c4a5"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.106",
 ]
 
 [[package]]
@@ -965,7 +898,10 @@ name = "chia-wallet-sdk"
 version = "0.32.0"
 dependencies = [
  "anyhow",
- "chia",
+ "chia-bls 0.32.0",
+ "chia-consensus",
+ "chia-protocol",
+ "chia-puzzle-types",
  "chia-puzzles",
  "chia-sdk-client",
  "chia-sdk-coinset",
@@ -974,7 +910,13 @@ dependencies = [
  "chia-sdk-test",
  "chia-sdk-types",
  "chia-sdk-utils",
+ "chia-secp",
+ "chia-serde",
+ "chia-sha2 0.32.0",
+ "chia-ssl",
+ "chia-traits 0.32.0",
  "clvm-traits 0.32.0",
+ "clvm-utils",
  "clvmr",
  "hex-literal",
 ]
@@ -1300,31 +1242,6 @@ checksum = "a97769d94ddab943e4510d138150169a2758b5ef3eb191a9ee688de3e23ef7b3"
 dependencies = [
  "cfg-if",
 ]
-
-[[package]]
-name = "crossbeam-deque"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dd111b7b7f7d55b72c0a6ae361660ee5853c9af73f70c3c2ef6858b950e2e51"
-dependencies = [
- "crossbeam-epoch",
- "crossbeam-utils",
-]
-
-[[package]]
-name = "crossbeam-epoch"
-version = "0.9.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
-dependencies = [
- "crossbeam-utils",
-]
-
-[[package]]
-name = "crossbeam-utils"
-version = "0.8.21"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "crypto-bigint"
@@ -3053,26 +2970,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rayon"
-version = "1.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "368f01d005bf8fd9b1206fb6fa653e6c4a81ceb1466406b81792d87c5677a58f"
-dependencies = [
- "either",
- "rayon-core",
-]
-
-[[package]]
-name = "rayon-core"
-version = "1.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
-dependencies = [
- "crossbeam-deque",
- "crossbeam-utils",
-]
-
-[[package]]
 name = "rcgen"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4796,32 +4693,4 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.106",
-]
-
-[[package]]
-name = "zstd"
-version = "0.13.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
-dependencies = [
- "zstd-safe",
-]
-
-[[package]]
-name = "zstd-safe"
-version = "7.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f49c4d5f0abb602a93fb8736af2a4f4dd9512e36f7f570d66e65ff867ed3b9d"
-dependencies = [
- "zstd-sys",
-]
-
-[[package]]
-name = "zstd-sys"
-version = "2.0.16+zstd.1.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91e19ebc2adc8f83e43039e79776e3fda8ca919132d68a1fed6a5faca2683748"
-dependencies = [
- "cc",
- "pkg-config",
 ]

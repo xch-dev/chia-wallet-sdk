@@ -85,8 +85,17 @@ chia-sdk-test = { workspace = true, features = ["serde"] }
 chia-sdk-types = { workspace = true }
 chia-sdk-utils = { workspace = true }
 chia-sdk-coinset = { workspace = true }
-chia = { workspace = true }
-clvm-traits = { workspace = true, features = ["derive"] }
+chia-protocol = { workspace = true, features = ["serde"] }
+chia-bls = { workspace = true, features = ["serde"] }
+chia-secp = { workspace = true }
+chia-traits = { workspace = true }
+chia-sha2 = { workspace = true }
+chia-consensus = { workspace = true }
+chia-puzzle-types = { workspace = true }
+chia-ssl = { workspace = true }
+chia-serde = { workspace = true }
+clvm-traits = { workspace = true, features = ["derive", "chia-bls", "chia-secp"] }
+clvm-utils = { workspace = true }
 clvmr = { workspace = true }
 chia-puzzles = { workspace = true }
 
@@ -107,7 +116,6 @@ chia-sdk-coinset = { version = "0.32.0", path = "./crates/chia-sdk-coinset" }
 chia-sdk-bindings = { version = "0.32.0", path = "./crates/chia-sdk-bindings" }
 bindy = { version = "0.32.0", path = "./crates/chia-sdk-bindings/bindy" }
 bindy-macro = { version = "0.32.0", path = "./crates/chia-sdk-bindings/bindy-macro" }
-chia = "0.32.0"
 chia-ssl = "0.32.0"
 chia-protocol = "0.32.0"
 chia-consensus = "0.32.0"
@@ -119,6 +127,7 @@ clvm-traits = "0.32.0"
 clvm-utils = "0.32.0"
 chia-sha2 = "0.32.0"
 chia_streamable_macro = "0.32.0"
+chia-serde = "0.32.0"
 chia-puzzles = "0.20.3"
 clvmr = "0.16.2"
 thiserror = "2.0.17"
