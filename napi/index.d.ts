@@ -2602,7 +2602,7 @@ export declare class RoundTimeInfo {
 
 export declare class RpcClient {
   clone(): RpcClient
-  static new(coinsetUrl: string): RpcClient
+  constructor(coinsetUrl: string)
   static testnet11(): RpcClient
   static mainnet(): RpcClient
   static local(certBytes: Uint8Array, keyBytes: Uint8Array): RpcClient
