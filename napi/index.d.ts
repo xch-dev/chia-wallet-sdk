@@ -705,33 +705,6 @@ export declare class CoinRecord {
   set timestamp(value: bigint)
 }
 
-export declare class CoinsetClient {
-  clone(): CoinsetClient
-  constructor(baseUrl: string)
-  static testnet11(): CoinsetClient
-  static mainnet(): CoinsetClient
-  getBlockchainState(): Promise<BlockchainStateResponse>
-  getAdditionsAndRemovals(headerHash: Uint8Array): Promise<AdditionsAndRemovalsResponse>
-  getBlock(headerHash: Uint8Array): Promise<GetBlockResponse>
-  getBlockRecord(headerHash: Uint8Array): Promise<GetBlockRecordResponse>
-  getBlockRecordByHeight(height: number): Promise<GetBlockRecordResponse>
-  getBlockRecords(startHeight: number, endHeight: number): Promise<GetBlockRecordsResponse>
-  getBlocks(start: number, end: number, excludeHeaderHash: boolean, excludeReorged: boolean): Promise<GetBlocksResponse>
-  getBlockSpends(headerHash: Uint8Array): Promise<GetBlockSpendsResponse>
-  getCoinRecordByName(name: Uint8Array): Promise<GetCoinRecordResponse>
-  getCoinRecordsByHint(hint: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByHints(hints: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByNames(names: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByParentIds(parentIds: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByPuzzleHash(puzzleHash: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByPuzzleHashes(puzzleHashes: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getPuzzleAndSolution(coinId: Uint8Array, height?: number | undefined | null): Promise<GetPuzzleAndSolutionResponse>
-  pushTx(spendBundle: SpendBundle): Promise<PushTxResponse>
-  getNetworkInfo(): Promise<GetNetworkInfoResponse>
-  getMempoolItemByTxId(txId: Uint8Array): Promise<GetMempoolItemResponse>
-  getMempoolItemsByCoinName(coinName: Uint8Array): Promise<GetMempoolItemsResponse>
-}
-
 export declare class CoinSpend {
   clone(): CoinSpend
   constructor(coin: Coin, puzzleReveal: Uint8Array, solution: Uint8Array)
@@ -2625,6 +2598,35 @@ export declare class RoundTimeInfo {
   set lastUpdate(value: bigint)
   get epochEnd(): bigint
   set epochEnd(value: bigint)
+}
+
+export declare class RpcClient {
+  clone(): RpcClient
+  static new(coinsetUrl: string): RpcClient
+  static testnet11(): RpcClient
+  static mainnet(): RpcClient
+  static local(certBytes: Uint8Array, keyBytes: Uint8Array): RpcClient
+  static localWithUrl(baseUrl: string, certBytes: Uint8Array, keyBytes: Uint8Array): RpcClient
+  getBlockchainState(): Promise<BlockchainStateResponse>
+  getAdditionsAndRemovals(headerHash: Uint8Array): Promise<AdditionsAndRemovalsResponse>
+  getBlock(headerHash: Uint8Array): Promise<GetBlockResponse>
+  getBlockRecord(headerHash: Uint8Array): Promise<GetBlockRecordResponse>
+  getBlockRecordByHeight(height: number): Promise<GetBlockRecordResponse>
+  getBlockRecords(startHeight: number, endHeight: number): Promise<GetBlockRecordsResponse>
+  getBlocks(start: number, end: number, excludeHeaderHash: boolean, excludeReorged: boolean): Promise<GetBlocksResponse>
+  getBlockSpends(headerHash: Uint8Array): Promise<GetBlockSpendsResponse>
+  getCoinRecordByName(name: Uint8Array): Promise<GetCoinRecordResponse>
+  getCoinRecordsByHint(hint: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByHints(hints: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByNames(names: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByParentIds(parentIds: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByPuzzleHash(puzzleHash: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByPuzzleHashes(puzzleHashes: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getPuzzleAndSolution(coinId: Uint8Array, height?: number | undefined | null): Promise<GetPuzzleAndSolutionResponse>
+  pushTx(spendBundle: SpendBundle): Promise<PushTxResponse>
+  getNetworkInfo(): Promise<GetNetworkInfoResponse>
+  getMempoolItemByTxId(txId: Uint8Array): Promise<GetMempoolItemResponse>
+  getMempoolItemsByCoinName(coinName: Uint8Array): Promise<GetMempoolItemsResponse>
 }
 
 export declare class RunCatTail {
