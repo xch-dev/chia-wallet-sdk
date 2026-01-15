@@ -1,11 +1,11 @@
 {
-  "CoinsetClient": {
+  "RpcClient": {
     "type": "class",
     "methods": {
       "new": {
-        "type": "constructor",
+        "type": "factory",
         "args": {
-          "base_url": "String"
+          "coinset_url": "String"
         }
       },
       "testnet11": {
@@ -13,6 +13,23 @@
       },
       "mainnet": {
         "type": "factory"
+      },
+      "local": {
+        "type": "factory",
+        "no_wasm": true,
+        "args": {
+          "cert_bytes": "Bytes",
+          "key_bytes": "Bytes"
+        }
+      },
+      "local_with_url": {
+        "type": "factory",
+        "no_wasm": true,
+        "args": {
+          "base_url": "String",
+          "cert_bytes": "Bytes",
+          "key_bytes": "Bytes"
+        }
       },
       "get_blockchain_state": {
         "type": "async",

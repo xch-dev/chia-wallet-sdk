@@ -68,6 +68,8 @@ struct Method {
     ret: Option<String>,
     #[serde(default)]
     stub_only: bool,
+    #[serde(default)]
+    no_wasm: bool,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -116,6 +118,7 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
                     args: IndexMap::new(),
                     ret: Some("SerializedProgram".to_string()),
                     stub_only: false,
+                    no_wasm: false,
                 },
             );
 
@@ -126,6 +129,7 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
                     args: IndexMap::new(),
                     ret: Some("TreeHash".to_string()),
                     stub_only: false,
+                    no_wasm: false,
                 },
             );
         }
@@ -140,6 +144,7 @@ fn load_bindings(path: &str) -> (Bindy, IndexMap<String, Binding>) {
                     args: IndexMap::new(),
                     ret: Some("Program".to_string()),
                     stub_only: false,
+                    no_wasm: false,
                 },
             );
         }
@@ -659,6 +664,10 @@ pub fn bindy_wasm(input: TokenStream) -> TokenStream {
                 let class_name = name.clone();
 
                 for (name, method) in methods {
+                    if method.no_wasm {
+                        continue;
+                    }
+
                     if !method.stub_only {
                         let js_name = name.to_case(Case::Camel);
                         let method_ident = Ident::new(&name, Span::mixed_site());
