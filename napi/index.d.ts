@@ -2334,7 +2334,7 @@ export declare class RestrictionMemo {
 
 export declare class RewardChainBlock {
   clone(): RewardChainBlock
-  constructor(weight: bigint, height: number, totalIters: bigint, signagePointIndex: number, posSsCcChallengeHash: Uint8Array, proofOfSpace: ProofOfSpace, challengeChainSpVdf: VdfInfo | undefined | null, challengeChainSpSignature: Signature, challengeChainIpVdf: VdfInfo, rewardChainSpVdf: VdfInfo | undefined | null, rewardChainSpSignature: Signature, rewardChainIpVdf: VdfInfo, infusedChallengeChainIpVdf: VdfInfo | undefined | null, isTransactionBlock: boolean)
+  constructor(weight: bigint, height: number, totalIters: bigint, signagePointIndex: number, posSsCcChallengeHash: Uint8Array, proofOfSpace: ProofOfSpace, challengeChainSpVdf: VdfInfo | undefined | null, challengeChainSpSignature: Signature, challengeChainIpVdf: VdfInfo, rewardChainSpVdf: VdfInfo | undefined | null, rewardChainSpSignature: Signature, rewardChainIpVdf: VdfInfo, infusedChallengeChainIpVdf: VdfInfo | undefined | null, headerMmrRoot: Uint8Array | undefined | null, isTransactionBlock: boolean)
   get weight(): bigint
   set weight(value: bigint)
   get height(): number
@@ -2361,6 +2361,8 @@ export declare class RewardChainBlock {
   set rewardChainIpVdf(value: VdfInfo)
   get infusedChallengeChainIpVdf(): VdfInfo | null
   set infusedChallengeChainIpVdf(value?: VdfInfo | undefined | null)
+  get headerMmrRoot(): Buffer | null
+  set headerMmrRoot(value?: Uint8Array | undefined | null)
   get isTransactionBlock(): boolean
   set isTransactionBlock(value: boolean)
 }
@@ -2799,7 +2801,7 @@ export declare class StreamingPuzzleInfo {
 
 export declare class SubEpochSummary {
   clone(): SubEpochSummary
-  constructor(prevSubepochSummaryHash: Uint8Array, rewardChainHash: Uint8Array, numBlocksOverflow: number, newDifficulty?: bigint | undefined | null, newSubSlotIters?: bigint | undefined | null)
+  constructor(prevSubepochSummaryHash: Uint8Array, rewardChainHash: Uint8Array, numBlocksOverflow: number, newDifficulty?: bigint | undefined | null, newSubSlotIters?: bigint | undefined | null, challengeMerkleRoot?: Uint8Array | undefined | null)
   get prevSubepochSummaryHash(): Buffer
   set prevSubepochSummaryHash(value: Uint8Array)
   get rewardChainHash(): Buffer
@@ -2810,6 +2812,8 @@ export declare class SubEpochSummary {
   set newDifficulty(value?: bigint | undefined | null)
   get newSubSlotIters(): bigint | null
   set newSubSlotIters(value?: bigint | undefined | null)
+  get challengeMerkleRoot(): Buffer | null
+  set challengeMerkleRoot(value?: Uint8Array | undefined | null)
 }
 
 export declare class SubSlotProofs {
