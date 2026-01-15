@@ -605,7 +605,8 @@
       "reward_chain_hash": "Bytes32",
       "num_blocks_overflow": "u8",
       "new_difficulty": "Option<u64>",
-      "new_sub_slot_iters": "Option<u64>"
+      "new_sub_slot_iters": "Option<u64>",
+      "challenge_merkle_root": "Option<Bytes32>"
     }
   }
 }

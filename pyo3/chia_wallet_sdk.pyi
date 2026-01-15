@@ -706,7 +706,7 @@ class TransactionsInfo:
     reward_claims_incorporated: List[Coin]
 class RewardChainBlock:
     def clone(self) -> RewardChainBlock: ...
-    def __init__(self, weight: int, height: int, totalIters: int, signagePointIndex: int, posSsCcChallengeHash: bytes, proofOfSpace: ProofOfSpace, challengeChainSpVdf: Optional[VDFInfo], challengeChainSpSignature: Signature, challengeChainIpVdf: VDFInfo, rewardChainSpVdf: Optional[VDFInfo], rewardChainSpSignature: Signature, rewardChainIpVdf: VDFInfo, infusedChallengeChainIpVdf: Optional[VDFInfo], isTransactionBlock: bool) -> None: ...
+    def __init__(self, weight: int, height: int, totalIters: int, signagePointIndex: int, posSsCcChallengeHash: bytes, proofOfSpace: ProofOfSpace, challengeChainSpVdf: Optional[VDFInfo], challengeChainSpSignature: Signature, challengeChainIpVdf: VDFInfo, rewardChainSpVdf: Optional[VDFInfo], rewardChainSpSignature: Signature, rewardChainIpVdf: VDFInfo, infusedChallengeChainIpVdf: Optional[VDFInfo], headerMmrRoot: Optional[bytes], isTransactionBlock: bool) -> None: ...
     weight: int
     height: int
     total_iters: int
@@ -720,6 +720,7 @@ class RewardChainBlock:
     reward_chain_sp_signature: Signature
     reward_chain_ip_vdf: VDFInfo
     infused_challenge_chain_ip_vdf: Optional[VDFInfo]
+    header_mmr_root: Optional[bytes]
     is_transaction_block: bool
 class FoliageTransactionBlock:
     def clone(self) -> FoliageTransactionBlock: ...
@@ -791,12 +792,13 @@ class ProofOfSpace:
     proof: bytes
 class SubEpochSummary:
     def clone(self) -> SubEpochSummary: ...
-    def __init__(self, prevSubepochSummaryHash: bytes, rewardChainHash: bytes, numBlocksOverflow: int, newDifficulty: Optional[int] = None, newSubSlotIters: Optional[int] = None) -> None: ...
+    def __init__(self, prevSubepochSummaryHash: bytes, rewardChainHash: bytes, numBlocksOverflow: int, newDifficulty: Optional[int] = None, newSubSlotIters: Optional[int] = None, challengeMerkleRoot: Optional[bytes] = None) -> None: ...
     prev_subepoch_summary_hash: bytes
     reward_chain_hash: bytes
     num_blocks_overflow: int
     new_difficulty: Optional[int]
     new_sub_slot_iters: Optional[int]
+    challenge_merkle_root: Optional[bytes]
 class Remark:
     def clone(self) -> Remark: ...
     def __init__(self, rest: Program) -> None: ...
