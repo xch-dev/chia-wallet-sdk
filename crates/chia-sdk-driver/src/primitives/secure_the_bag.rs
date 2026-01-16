@@ -37,7 +37,7 @@ pub struct BagOptions {
 impl Default for BagOptions {
     fn default() -> Self {
         Self {
-            bag_width: 100,
+            bag_width: 10,
             structure_algorithm: StructureAlgorithm::MinimizeIntermediateCoins,
             distribution_algorithm: DistributionAlgorithm::Striped,
         }
