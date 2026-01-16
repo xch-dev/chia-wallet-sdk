@@ -56,25 +56,8 @@ pub struct SecureTheBag {
 }
 
 impl SecureTheBag {
-    pub fn new(parent_coin_id: Bytes32, payments: Vec<BagPayment>, options: BagOptions) -> Self {
-        let sorting_nonces = payments
-            .iter()
-            .map(|p| {
-                let mut hasher = Sha256::new();
-                hasher.update(p.puzzle_hash);
-                hasher.update(parent_coin_id);
-            })
-            .collect::<Vec<_>>();
-
-        let mut indexed_payments = payments.into_iter().enumerate().collect::<Vec<_>>();
-
-        indexed_payments
-            .sort_by_key(|(index, payment)| (Reverse(payment.amount), sorting_nonces[*index]));
-
-        let payments = indexed_payments
-            .into_iter()
-            .map(|(_, payment)| payment)
-            .collect::<Vec<_>>();
+    pub fn new(mut payments: Vec<BagPayment>, options: BagOptions) -> Self {
+        payments.sort_by_key(|payment| (Reverse(payment.amount), payment.puzzle_hash));
 
         match options.structure_algorithm {
             StructureAlgorithm::MinimizeIntermediateCoins => {
@@ -237,6 +220,7 @@ mod tests {
     use chia_sdk_test::Simulator;
     use chia_sdk_types::Conditions;
     use indexmap::{IndexMap, IndexSet};
+    use std::time::Instant;
 
     use crate::{SpendContext, StandardLayer};
 
@@ -332,6 +316,8 @@ mod tests {
         let mut puzzle_hashes = IndexSet::new();
         let mut total_amount = 0;
 
+        let start_time = Instant::now();
+
         for i in 0..1_000_000 {
             let puzzle_hash: Bytes32 = i.tree_hash().into();
 
@@ -344,9 +330,22 @@ mod tests {
             total_amount += i;
         }
 
+        let end_time = Instant::now();
+        println!(
+            "Time taken initialization: {:?}",
+            end_time.duration_since(start_time)
+        );
+
         let alice = sim.bls(total_amount);
 
-        let bag = SecureTheBag::new(alice.coin.coin_id(), payments, BagOptions::default());
+        let start_time = Instant::now();
+        let bag = SecureTheBag::new(payments, BagOptions::default());
+
+        let end_time = Instant::now();
+        println!(
+            "Time taken bag construction: {:?}",
+            end_time.duration_since(start_time)
+        );
 
         StandardLayer::new(alice.pk).spend(
             &mut ctx,
@@ -360,6 +359,8 @@ mod tests {
 
         let mut bag_coins = vec![bag_coin];
         let mut unique_amounts = IndexMap::new();
+
+        let start_time = Instant::now();
 
         while let Some(bag_coin) = bag_coins.pop() {
             let nodes = bag.branch(bag_coin.puzzle_hash).unwrap();
@@ -391,7 +392,13 @@ mod tests {
             sim.spend_coins(ctx.take(), &[])?;
         }
 
-        println!("unique_amounts: {unique_amounts:?}");
+        let end_time = Instant::now();
+        println!(
+            "Time taken spending: {:?}",
+            end_time.duration_since(start_time)
+        );
+
+        // println!("unique_amounts: {unique_amounts:?}");
 
         let payment_count = puzzle_hashes.len();
 
