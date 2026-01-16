@@ -24,6 +24,7 @@ pub enum StructureAlgorithm {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DistributionAlgorithm {
     Striped,
+    Naive,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -133,6 +134,13 @@ impl SelectLeaf for DistributionAlgorithm {
 
                 None
             }
+            DistributionAlgorithm::Naive => {
+                if index >= payments.len() || width == 0 {
+                    return None;
+                }
+
+                payments.get(index).copied()
+            }
         }
     }
 }
@@ -187,6 +195,10 @@ where
             amount: payment.amount,
             memos: Memos::None,
         });
+
+        if *leaf_index >= payments.len() {
+            break;
+        }
     }
 
     let branch_hash = clvm_quote!(conditions).tree_hash().into();
@@ -216,13 +228,15 @@ fn calculate_bag_levels(total: usize, options: BagOptions) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use chia_protocol::Coin;
+    use chia_bls::Signature;
+    use chia_protocol::{Coin, SpendBundle};
     use chia_sdk_test::Simulator;
     use chia_sdk_types::Conditions;
     use indexmap::{IndexMap, IndexSet};
+    use rstest::rstest;
     use std::time::Instant;
 
-    use crate::{SpendContext, StandardLayer};
+    use crate::{SpendContext, StandardLayer, spend_bundle_cost};
 
     use super::*;
 
@@ -307,8 +321,11 @@ mod tests {
         assert_eq!(selected, vec![0, 3, 6, 1, 4, 7, 2, 5]);
     }
 
-    #[test]
-    fn test_secure_the_bag() -> Result<()> {
+    #[rstest]
+    fn test_secure_the_bag(
+        #[values(5, 10, 20, 100)] bag_width: usize,
+        #[values(1, 1000, 1_000_000)] payment_count: u64,
+    ) -> Result<()> {
         let mut sim = Simulator::new();
         let mut ctx = SpendContext::new();
 
@@ -318,7 +335,7 @@ mod tests {
 
         let start_time = Instant::now();
 
-        for i in 0..1_000_000 {
+        for i in 0..payment_count {
             let puzzle_hash: Bytes32 = i.tree_hash().into();
 
             payments.push(BagPayment {
@@ -339,7 +356,13 @@ mod tests {
         let alice = sim.bls(total_amount);
 
         let start_time = Instant::now();
-        let bag = SecureTheBag::new(payments, BagOptions::default());
+        let bag = SecureTheBag::new(
+            payments,
+            BagOptions {
+                bag_width,
+                ..BagOptions::default()
+            },
+        );
 
         let end_time = Instant::now();
         println!(
@@ -361,6 +384,8 @@ mod tests {
         let mut unique_amounts = IndexMap::new();
 
         let start_time = Instant::now();
+
+        let mut costs = Vec::new();
 
         while let Some(bag_coin) = bag_coins.pop() {
             let nodes = bag.branch(bag_coin.puzzle_hash).unwrap();
@@ -389,8 +414,16 @@ mod tests {
 
             let spend = ctx.delegated_spend(conditions)?;
             ctx.spend(bag_coin, spend)?;
-            sim.spend_coins(ctx.take(), &[])?;
+
+            let spend_bundle = SpendBundle::new(ctx.take(), Signature::default());
+            let cost = spend_bundle_cost(&spend_bundle.coin_spends)?;
+
+            sim.new_transaction(spend_bundle)?;
+            costs.push(cost);
         }
+
+        let total_cost = costs.iter().sum::<u64>();
+        println!("total_cost for leaf size {bag_width}: {total_cost}");
 
         let end_time = Instant::now();
         println!(
