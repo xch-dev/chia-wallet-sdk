@@ -119,19 +119,25 @@ impl RewardDistributorRefreshAction {
     ) -> Result<Vec<RewardDistributorEntrySlotValue>, DriverError> {
         let solution = ctx.extract::<RewardDistributorRefreshNftsFromDlActionSolution>(solution)?;
 
-        Ok(solution
+        solution
             .slots_and_nfts
             .iter()
-            .map(|e| RewardDistributorEntrySlotValue {
-                payout_puzzle_hash: e.existing_slot_value.payout_puzzle_hash,
-                initial_cumulative_payout: state.round_reward_info.cumulative_payout,
-                shares: if e.nfts_total_shares_delta > 0 {
-                    e.existing_slot_value.shares + e.nfts_total_shares_delta as u64
-                } else {
-                    e.existing_slot_value.shares - (-e.nfts_total_shares_delta) as u64
-                },
+            .map(|e| {
+                println!("e.nfts_total_shares_delta: {}", e.nfts_total_shares_delta); // todo: debug
+                println!(
+                    "e.existing_slot_value.shares: {}",
+                    e.existing_slot_value.shares
+                ); // todo: debug
+                Ok(RewardDistributorEntrySlotValue {
+                    payout_puzzle_hash: e.existing_slot_value.payout_puzzle_hash,
+                    initial_cumulative_payout: state.round_reward_info.cumulative_payout,
+                    shares: u64::try_from(
+                        i128::from(e.existing_slot_value.shares)
+                            + i128::from(e.nfts_total_shares_delta),
+                    )?,
+                })
             })
-            .collect())
+            .collect::<Result<Vec<_>, DriverError>>()
     }
 
     pub fn spent_slot_values(
@@ -213,11 +219,9 @@ impl RewardDistributorRefreshAction {
                 .into();
                 let nft_p2 = P2DelegatedBySingletonLayer::new(my_singleton_struct_hash, 1);
                 let nft_inner_puzzle = nft_p2.construct_puzzle(ctx)?;
-                let old_nft_shares = if nft_shares_delta[i][j] > 0 {
-                    nft_new_shares[i][j] - (nft_shares_delta[i][j] as u64)
-                } else {
-                    nft_new_shares[i][j] + ((-nft_shares_delta[i][j]) as u64)
-                };
+                let old_nft_shares = u64::try_from(
+                    i128::from(nft_new_shares[i][j]) - i128::from(nft_shares_delta[i][j]),
+                )?;
                 let nft_nonce: (Bytes32, u64) =
                     clvm_tuple!(slot.info.value.payout_puzzle_hash, old_nft_shares);
                 let nft_inner_puzzle = ctx.curry(NonceWrapperArgs::<(Bytes32, u64), NodePtr> {
