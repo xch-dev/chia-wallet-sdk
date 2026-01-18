@@ -3929,11 +3929,11 @@ mod tests {
                         ctx,
                         &mut registry,
                         vec![entry3_slot],
-                        &[&[nft3]],
+                        &[&[locked_nft3]],
                         &[&[-3]],
                         &[&[3]],
                         &[&[merkle_tree
-                            .proof((nft3.info.launcher_id, 3).tree_hash().into())
+                            .proof((locked_nft3.info.launcher_id, 3).tree_hash().into())
                             .unwrap()]],
                         merkle_tree.root(),
                         None,
@@ -3941,7 +3941,7 @@ mod tests {
                         dl_inner_puzzle_hash.into(),
                     )?;
                 entry3_slot = registry.created_slot_value_to_slot(
-                    registry.pending_spend.created_entry_slots[1],
+                    registry.pending_spend.created_entry_slots[0],
                     RewardDistributorSlotNonce::ENTRY,
                 );
                 registry = registry.finish_spend(ctx, vec![])?.0;
