@@ -123,11 +123,6 @@ impl RewardDistributorRefreshAction {
             .slots_and_nfts
             .iter()
             .map(|e| {
-                println!("e.nfts_total_shares_delta: {}", e.nfts_total_shares_delta); // todo: debug
-                println!(
-                    "e.existing_slot_value.shares: {}",
-                    e.existing_slot_value.shares
-                ); // todo: debug
                 Ok(RewardDistributorEntrySlotValue {
                     payout_puzzle_hash: e.existing_slot_value.payout_puzzle_hash,
                     initial_cumulative_payout: state.round_reward_info.cumulative_payout,
