@@ -778,12 +778,13 @@ mod tests {
         NftMint, OracleLayer, PrecommitCoin, RewardDistributorAddEntryAction,
         RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
         RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
-        RewardDistributorRemoveEntryAction, RewardDistributorStakeAction,
-        RewardDistributorSyncAction, RewardDistributorType, RewardDistributorUnstakeAction,
-        RewardDistributorWithdrawIncentivesAction, SingleCatSpend, SingletonInfo, Slot,
-        SpendWithConditions, XchandlesExpireAction, XchandlesExpirePricingPuzzle,
-        XchandlesExtendAction, XchandlesOracleAction, XchandlesPrecommitValue,
-        XchandlesRefundAction, XchandlesRegisterAction, XchandlesUpdateAction,
+        RewardDistributorRefreshAction, RewardDistributorRemoveEntryAction,
+        RewardDistributorStakeAction, RewardDistributorSyncAction, RewardDistributorType,
+        RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, SingleCatSpend,
+        SingletonInfo, Slot, SpendWithConditions, XchandlesExpireAction,
+        XchandlesExpirePricingPuzzle, XchandlesExtendAction, XchandlesOracleAction,
+        XchandlesPrecommitValue, XchandlesRefundAction, XchandlesRegisterAction,
+        XchandlesUpdateAction,
     };
 
     use super::*;
@@ -3503,6 +3504,11 @@ mod tests {
         // add second entry OR 2 more NFTs
         let nft2_bls = sim.bls(0);
         let nft3_bls = sim.bls(0);
+        let refreshable = if let RewardDistributorTestType::CuratedNft { refreshable } = test_type {
+            refreshable
+        } else {
+            false
+        };
         let (entry2_slot, other_nft2_info, locked_cat2) = if test_type
             == RewardDistributorTestType::Managed
         {
@@ -3673,7 +3679,9 @@ mod tests {
             if let Some(some_datastore) = datastore {
                 merkle_tree = MerkleTree::new(&[
                     (nft2.info.launcher_id, 2).tree_hash().into(),
-                    (nft3.info.launcher_id, 3).tree_hash().into(),
+                    (nft3.info.launcher_id, if refreshable { 6 } else { 3 })
+                        .tree_hash()
+                        .into(),
                 ]);
                 datastore = Some(update_datastore(
                     ctx,
@@ -3706,9 +3714,9 @@ mod tests {
 
             let (
                 entry2_slot,
-                entry3_slot,
+                mut entry3_slot,
                 locked_nft2,
-                locked_nft3,
+                mut locked_nft3,
                 notarized_payments2,
                 notarized_payments3,
                 sec_conds,
@@ -3758,9 +3766,13 @@ mod tests {
                         ctx,
                         &mut registry,
                         &[nft3],
-                        &[3],
+                        &[if refreshable { 6 } else { 3 }],
                         &[merkle_tree
-                            .proof((nft3.info.launcher_id, 3).tree_hash().into())
+                            .proof(
+                                (nft3.info.launcher_id, if refreshable { 6 } else { 3 })
+                                    .tree_hash()
+                                    .into(),
+                            )
                             .unwrap()],
                         nft3_bls.puzzle_hash,
                         None,
@@ -3875,6 +3887,81 @@ mod tests {
                 "stake_2_nfts",
                 &[nft2_bls.sk.clone(), nft3_bls.sk.clone()],
             )?;
+
+            if refreshable {
+                let some_datastore = datastore.unwrap();
+                merkle_tree = MerkleTree::new(&[
+                    (nft2.info.launcher_id, 2).tree_hash().into(),
+                    (nft3.info.launcher_id, 3).tree_hash().into(),
+                ]);
+                datastore = Some(update_datastore(
+                    ctx,
+                    &mut sim,
+                    &mut benchmark,
+                    some_datastore,
+                    &delegated_puzzles,
+                    DataStoreMetadata::root_hash_only(merkle_tree.root()),
+                    &datastore_p2,
+                )?);
+
+                let oracle_layer = match delegated_puzzles[0] {
+                    DelegatedPuzzle::Oracle(oracle_puzzle_hash, oracle_fee) => {
+                        OracleLayer::new(oracle_puzzle_hash, oracle_fee).unwrap()
+                    }
+                    _ => panic!("expected first member of delegated puzzles to be an oracle"),
+                };
+                let inner_spend = oracle_layer.construct_spend(ctx, ())?;
+
+                let some_datastore = datastore.unwrap();
+
+                let dl_metadata_updater_hash: Bytes32 = 11.tree_hash().into();
+                let dl_inner_puzzle_hash = some_datastore.info.delegation_layer_puzzle_hash(ctx)?;
+
+                let dl_spend = some_datastore.spend(ctx, inner_spend)?;
+                datastore =
+                    Some(DataStore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
+                ctx.insert(dl_spend);
+
+                let (sec_conds, new_locked_nfts) = registry
+                    .new_action::<RewardDistributorRefreshAction>()
+                    .spend(
+                        ctx,
+                        &mut registry,
+                        vec![entry3_slot],
+                        &[&[nft3]],
+                        &[&[-3]],
+                        &[&[3]],
+                        &[&[merkle_tree
+                            .proof((nft3.info.launcher_id, 3).tree_hash().into())
+                            .unwrap()]],
+                        merkle_tree.root(),
+                        None,
+                        dl_metadata_updater_hash.tree_hash().into(),
+                        dl_inner_puzzle_hash.into(),
+                    )?;
+                entry3_slot = registry.created_slot_value_to_slot(
+                    registry.pending_spend.created_entry_slots[1],
+                    RewardDistributorSlotNonce::ENTRY,
+                );
+                registry = registry.finish_spend(ctx, vec![])?.0;
+
+                assert_eq!(
+                    new_locked_nfts[0].coin.parent_coin_info,
+                    locked_nft3.coin.coin_id()
+                );
+                locked_nft3 = new_locked_nfts[0];
+                ensure_conditions_met(ctx, &mut sim, sec_conds, 0)?;
+
+                let spends = ctx.take();
+                benchmark.add_spends(ctx, &mut sim, spends, "refresh", &[])?;
+
+                assert!(sim.coin_state(locked_nft3.coin.coin_id()).is_some());
+                assert!(sim
+                    .coin_state(locked_nft3.coin.parent_coin_info)
+                    .unwrap()
+                    .spent_height
+                    .is_some());
+            }
 
             (
                 entry2_slot,

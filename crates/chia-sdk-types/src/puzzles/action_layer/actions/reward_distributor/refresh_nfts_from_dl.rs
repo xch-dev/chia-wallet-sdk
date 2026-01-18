@@ -62,7 +62,7 @@ impl RewardDistributorRefreshNftsFromDlActionArgs {
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RefreshNftInfo {
-    pub nft_shares_delta: u64,
+    pub nft_shares_delta: i64,
     pub new_nft_shares: u64,
     pub nft_parent_id: Bytes32,
     pub nft_launcher_id: Bytes32,
@@ -80,7 +80,7 @@ pub struct SlotAndNfts {
     pub existing_slot_value: RewardDistributorEntrySlotValue,
     pub entry_payout_amount: u64,
     pub payout_rounding_error: u64,
-    pub nfts_total_shares_delta: u64,
+    pub nfts_total_shares_delta: i64,
     #[clvm(rest)]
     pub nfts: Vec<RefreshNftInfo>,
 }
@@ -93,7 +93,7 @@ pub struct RewardDistributorRefreshNftsFromDlActionSolution {
     pub dl_metadata_updater_hash_hash: Bytes32,
     pub dl_inner_puzzle_hash: Bytes32,
     pub total_entry_payout_amount: u64,
-    pub total_shares_delta: u64,
+    pub total_shares_delta: i64,
     pub total_payout_rounding_error: u64,
     #[clvm(rest)]
     pub slots_and_nfts: Vec<SlotAndNfts>,

@@ -342,6 +342,7 @@ impl RewardDistributorStakeAction {
 
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
+            let existing_slot = distributor.actual_entry_slot_value(existing_slot);
             let mut msg = (u128::from(existing_slot.info.value.shares)
                 * (distributor
                     .pending_spend

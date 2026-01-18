@@ -10,8 +10,8 @@ use chia_sdk_driver::{
     RewardDistributorConstants, RewardDistributorInitiatePayoutAction,
     RewardDistributorNewEpochAction, RewardDistributorRemoveEntryAction,
     RewardDistributorStakeAction, RewardDistributorState, RewardDistributorSyncAction,
-    RewardDistributorType, RewardDistributorUnstakeAction,
-    RewardDistributorWithdrawIncentivesAction, RoundRewardInfo, RoundTimeInfo, SpendContext,
+    RewardDistributorType, RewardDistributorWithdrawIncentivesAction, RoundRewardInfo,
+    RoundTimeInfo, SpendContext,
 };
 use chia_sdk_types::{
     puzzles::{

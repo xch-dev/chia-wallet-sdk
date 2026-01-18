@@ -109,6 +109,7 @@ impl RewardDistributorRefreshAction {
         ctx.curry(args)
     }
 
+    #[allow(clippy::cast_sign_loss)]
     pub fn created_slot_values(
         ctx: &mut SpendContext,
         state: &RewardDistributorState,
@@ -122,7 +123,11 @@ impl RewardDistributorRefreshAction {
             .map(|e| RewardDistributorEntrySlotValue {
                 payout_puzzle_hash: e.existing_slot_value.payout_puzzle_hash,
                 initial_cumulative_payout: state.round_reward_info.cumulative_payout,
-                shares: e.existing_slot_value.shares + e.nfts_total_shares_delta,
+                shares: if e.nfts_total_shares_delta > 0 {
+                    e.existing_slot_value.shares + e.nfts_total_shares_delta as u64
+                } else {
+                    e.existing_slot_value.shares - (-e.nfts_total_shares_delta) as u64
+                },
             })
             .collect())
     }
@@ -147,7 +152,7 @@ impl RewardDistributorRefreshAction {
         distributor: &mut RewardDistributor,
         slots: Vec<Slot<RewardDistributorEntrySlotValue>>,
         nfts: &[&[Nft]],
-        nft_shares_delta: &[&[u64]],
+        nft_shares_delta: &[&[i64]],
         nft_new_shares: &[&[u64]],
         nft_inclusion_proofs: &[&[MerkleProof]],
         dl_root_hash: Bytes32,
@@ -164,6 +169,7 @@ impl RewardDistributorRefreshAction {
         let my_p2_treehash = Self::my_p2_puzzle_hash(self.launcher_id).into();
 
         for (i, slot) in slots.into_iter().enumerate() {
+            let slot = distributor.actual_entry_slot_value(slot);
             let mut nft_infos = Vec::<RefreshNftInfo>::new();
             for (j, nft) in nfts[i].iter().enumerate() {
                 nft_infos.push(RefreshNftInfo {
