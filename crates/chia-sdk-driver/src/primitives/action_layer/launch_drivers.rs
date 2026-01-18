@@ -4467,7 +4467,7 @@ mod tests {
             &mut sim,
             spends,
             "initiate_payout",
-            &[entry1_bls.sk.clone()],
+            std::slice::from_ref(&entry1_bls.sk),
         )?;
 
         let payout_coin_id = reserve_cat
