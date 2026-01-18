@@ -8,7 +8,7 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        NftLauncherProof, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs,
+        NftLauncherProof, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, RefreshNftInfo,
         RewardDistributorCatLockingPuzzleSolution, RewardDistributorEntrySlotValue,
         RewardDistributorNftsFromDidLockingPuzzleSolution,
         RewardDistributorNftsFromDlLockingPuzzleSolution,
@@ -149,16 +149,101 @@ impl RewardDistributorRefreshAction {
             .collect())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,
         ctx: &mut SpendContext,
         distributor: &mut RewardDistributor,
-        slots_and_nfts: Vec<SlotAndNfts>,
+        slots: Vec<Slot<RewardDistributorEntrySlotValue>>,
+        nfts: &[&[Nft]],
+        nft_shares_delta: &[&[u64]],
+        nft_new_shares: &[&[u64]],
+        nft_inclusion_proofs: &[&[MerkleProof]],
         dl_root_hash: Bytes32,
         dl_metadata_rest_hash: Option<Bytes32>,
         dl_metadata_updater_hash_hash: Bytes32,
         dl_inner_puzzle_hash: Bytes32,
     ) -> Result<(Conditions, Vec<Nft>), DriverError> {
+        // spend existing slots, build security conds, compute NFT children
+        let mut security_conditions = Conditions::new();
+        let mut slots_and_nfts = Vec::<SlotAndNfts>::new();
+        let mut created_nfts = Vec::<Nft>::new();
+
+        let my_inner_puzzle_hash = distributor.info.inner_puzzle_hash().into();
+        let my_p2_treehash = Self::my_p2_puzzle_hash(self.launcher_id).into();
+
+        for (i, slot) in slots.into_iter().enumerate() {
+            let mut nft_infos = Vec::<RefreshNftInfo>::new();
+            for (j, nft) in nfts[i].iter().enumerate() {
+                nft_infos.push(RefreshNftInfo {
+                    nft_shares_delta: nft_shares_delta[i][j],
+                    new_nft_shares: nft_new_shares[i][j],
+                    nft_parent_id: nft.coin.parent_coin_info,
+                    nft_launcher_id: nft.info.launcher_id,
+                    nft_metadata_hash: nft.info.metadata.tree_hash().into(),
+                    nft_metadata_updater_hash_hash: nft
+                        .info
+                        .metadata_updater_puzzle_hash
+                        .tree_hash()
+                        .into(),
+                    nft_transfer_porgram_hash: NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
+                        nft.info.launcher_id,
+                        nft.info.royalty_puzzle_hash,
+                        nft.info.royalty_basis_points,
+                    )
+                    .into(),
+                    nft_owner: nft.info.current_owner,
+                    nft_inclusion_proof: nft_inclusion_proofs[i][j].clone(),
+                });
+
+                created_nfts.push(
+                    nft.child(
+                        CurriedProgram {
+                            program: NONCE_WRAPPER_PUZZLE_HASH,
+                            args: NonceWrapperArgs::<(Bytes32, u64), TreeHash> {
+                                nonce: clvm_tuple!(
+                                    slot.info.value.payout_puzzle_hash,
+                                    nft_new_shares[i][j]
+                                ),
+                                inner_puzzle: my_p2_treehash,
+                            },
+                        }
+                        .tree_hash()
+                        .into(),
+                        nft.info.current_owner,
+                        nft.info.metadata,
+                        nft.coin.amount,
+                    ),
+                );
+
+                let mut msg: Vec<u8> = nft.info.launcher_id.into();
+                msg.insert(0, b'r');
+                security_conditions = security_conditions
+                    .assert_puzzle_announcement(announcement_id(distributor.coin.puzzle_hash, msg));
+            }
+
+            let payout_amount_precision = u128::from(slot.info.value.shares)
+                * (distributor
+                    .pending_spend
+                    .latest_state
+                    .1
+                    .round_reward_info
+                    .cumulative_payout
+                    - slot.info.value.initial_cumulative_payout);
+            let entry_payout_amount =
+                u64::try_from(payout_amount_precision / u128::from(self.precision))?;
+            let payout_rounding_error =
+                u64::try_from(payout_amount_precision % u128::from(self.precision))?;
+            slots_and_nfts.push(SlotAndNfts {
+                existing_slot_value: slot.info.value,
+                entry_payout_amount,
+                payout_rounding_error,
+                nfts_total_shares_delta: nft_infos.iter().map(|e| e.nft_shares_delta).sum(),
+                nfts: nft_infos,
+            });
+            slot.spend(ctx, my_inner_puzzle_hash)?;
+        }
+
         // spend self
         let action_solution = ctx.alloc(&RewardDistributorRefreshNftsFromDlActionSolution {
             dl_root_hash,
@@ -178,40 +263,8 @@ impl RewardDistributorRefreshAction {
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
-        // if needed, spend existing slots
-        if let Some(existing_slot) = existing_slot {
-            let mut msg = (u128::from(existing_slot.info.value.shares)
-                * (distributor
-                    .pending_spend
-                    .latest_state
-                    .1
-                    .round_reward_info
-                    .cumulative_payout
-                    - existing_slot.info.value.initial_cumulative_payout))
-                .tree_hash()
-                .to_vec();
-            msg.insert(0, b's');
-            security_conditions = security_conditions.send_message(
-                18,
-                msg.into(),
-                vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
-            );
-            existing_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
-        }
-
-        // ensure new slot is properly created
-        let new_slot_value = Self::created_slot_value(
-            ctx,
-            &distributor.pending_spend.latest_state.1,
-            self.distributor_type,
-            action_solution,
-        )?;
-        let mut msg = new_slot_value.tree_hash().to_vec();
-        msg.insert(0, b't');
-        security_conditions = security_conditions
-            .assert_puzzle_announcement(announcement_id(distributor.coin.puzzle_hash, msg));
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
-        Ok((security_conditions, notarized_payments, created_nfts))
+        Ok((security_conditions, created_nfts))
     }
 }
