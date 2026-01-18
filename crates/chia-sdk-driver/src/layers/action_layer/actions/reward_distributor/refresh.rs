@@ -1,20 +1,11 @@
 use chia_protocol::Bytes32;
-use chia_puzzle_types::{
-    nft::NftRoyaltyTransferPuzzleArgs,
-    offer::{NotarizedPayment, Payment},
-    singleton::SingletonStruct,
-};
-use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
+use chia_puzzle_types::{nft::NftRoyaltyTransferPuzzleArgs, singleton::SingletonStruct};
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        NftLauncherProof, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, RefreshNftInfo,
-        RewardDistributorCatLockingPuzzleSolution, RewardDistributorEntrySlotValue,
-        RewardDistributorNftsFromDidLockingPuzzleSolution,
-        RewardDistributorNftsFromDlLockingPuzzleSolution,
-        RewardDistributorRefreshNftsFromDlActionArgs,
-        RewardDistributorRefreshNftsFromDlActionSolution, RewardDistributorSlotNonce,
-        RewardDistributorStakeActionSolution, SlotAndNfts, StakeNftFromDidInfo, StakeNftFromDlInfo,
+        NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, RefreshNftInfo,
+        RewardDistributorEntrySlotValue, RewardDistributorRefreshNftsFromDlActionArgs,
+        RewardDistributorRefreshNftsFromDlActionSolution, RewardDistributorSlotNonce, SlotAndNfts,
         NONCE_WRAPPER_PUZZLE_HASH,
     },
     Conditions, MerkleProof, Mod,
@@ -24,8 +15,8 @@ use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    Asset, Cat, DriverError, HashedPtr, Nft, RewardDistributor, RewardDistributorConstants,
-    RewardDistributorState, RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
+    DriverError, Nft, RewardDistributor, RewardDistributorConstants, RewardDistributorState,
+    RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
