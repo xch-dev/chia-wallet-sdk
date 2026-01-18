@@ -2537,11 +2537,10 @@ mod tests {
         test_reward_distributor(RewardDistributorTestType::CuratedNft { refreshable: false })
     }
 
-    // TODO: after refreshable test is implemented
-    // #[test]
-    // fn test_curated_nft_refreshable_reward_distributor() -> anyhow::Result<()> {
-    //     test_reward_distributor(RewardDistributorTestType::CuratedNft { refreshable: true })
-    // }
+    #[test]
+    fn test_curated_nft_refreshable_reward_distributor() -> anyhow::Result<()> {
+        test_reward_distributor(RewardDistributorTestType::CuratedNft { refreshable: true })
+    }
 
     #[test]
     fn test_cat_reward_distributor() -> anyhow::Result<()> {

@@ -127,7 +127,7 @@ impl RewardDistributorRefreshAction {
             .collect())
     }
 
-    pub fn spent_slot_value(
+    pub fn spent_slot_values(
         ctx: &mut SpendContext,
         solution: NodePtr,
     ) -> Result<Vec<RewardDistributorEntrySlotValue>, DriverError> {

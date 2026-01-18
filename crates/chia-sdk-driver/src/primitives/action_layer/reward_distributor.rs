@@ -19,10 +19,10 @@ use crate::{
     ActionLayer, ActionLayerSolution, ActionSingleton, Cat, CatSpend, DriverError, Layer, Puzzle,
     RewardDistributorAddEntryAction, RewardDistributorAddIncentivesAction,
     RewardDistributorCommitIncentivesAction, RewardDistributorInitiatePayoutAction,
-    RewardDistributorNewEpochAction, RewardDistributorRemoveEntryAction,
-    RewardDistributorStakeAction, RewardDistributorSyncAction, RewardDistributorUnstakeAction,
-    RewardDistributorWithdrawIncentivesAction, SingletonAction, SingletonLayer, Slot, Spend,
-    SpendContext,
+    RewardDistributorNewEpochAction, RewardDistributorRefreshAction,
+    RewardDistributorRemoveEntryAction, RewardDistributorStakeAction, RewardDistributorSyncAction,
+    RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, SingletonAction,
+    SingletonLayer, Slot, Spend, SpendContext,
 };
 
 use super::{Reserve, RewardDistributorConstants, RewardDistributorInfo, RewardDistributorState};
@@ -154,6 +154,9 @@ impl RewardDistributor {
         let sync_action = RewardDistributorSyncAction::from_constants(&constants);
         let sync_hash = sync_action.tree_hash();
 
+        let refresh_action = RewardDistributorRefreshAction::from_constants(&constants);
+        let refresh_hash = refresh_action.tree_hash();
+
         let actual_solution = ctx.alloc(&clvm_list!(
             current_state_and_ephemeral,
             action_spend.solution
@@ -248,6 +251,16 @@ impl RewardDistributor {
                 action_spend.solution,
             )?);
             spent_entry_slots.push(RewardDistributorInitiatePayoutAction::spent_slot_value(
+                ctx,
+                action_spend.solution,
+            )?);
+        } else if raw_action_hash == refresh_hash {
+            created_entry_slots.extend(RewardDistributorRefreshAction::created_slot_values(
+                ctx,
+                &current_state_and_ephemeral.1,
+                action_spend.solution,
+            )?);
+            spent_entry_slots.extend(RewardDistributorRefreshAction::spent_slot_values(
                 ctx,
                 action_spend.solution,
             )?);

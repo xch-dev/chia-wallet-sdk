@@ -16,9 +16,9 @@ use crate::{
     ActionLayer, DriverError, Finalizer, Layer, Puzzle, RewardDistributorAddEntryAction,
     RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
     RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
-    RewardDistributorRemoveEntryAction, RewardDistributorStakeAction, RewardDistributorSyncAction,
-    RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, SingletonAction,
-    SingletonLayer, SpendContext,
+    RewardDistributorRefreshAction, RewardDistributorRemoveEntryAction,
+    RewardDistributorStakeAction, RewardDistributorSyncAction, RewardDistributorUnstakeAction,
+    RewardDistributorWithdrawIncentivesAction, SingletonAction, SingletonLayer, SpendContext,
 };
 
 use super::Reserveful;
@@ -229,8 +229,8 @@ impl RewardDistributorInfo {
         self
     }
 
-    pub fn action_puzzle_hashes(constants: &RewardDistributorConstants) -> [Bytes32; 8] {
-        [
+    pub fn action_puzzle_hashes(constants: &RewardDistributorConstants) -> Vec<Bytes32> {
+        let mut action_puzzle_hashes = vec![
             RewardDistributorAddIncentivesAction::from_constants(constants)
                 .tree_hash()
                 .into(),
@@ -289,7 +289,21 @@ impl RewardDistributorInfo {
                     .tree_hash()
                     .into(),
             },
-        ]
+        ];
+
+        if let RewardDistributorType::CuratedNft { refreshable, .. } =
+            constants.reward_distributor_type
+        {
+            if refreshable {
+                action_puzzle_hashes.push(
+                    RewardDistributorRefreshAction::from_constants(constants)
+                        .tree_hash()
+                        .into(),
+                );
+            }
+        }
+
+        action_puzzle_hashes
     }
 
     pub fn into_layers(

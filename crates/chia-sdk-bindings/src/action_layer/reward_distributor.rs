@@ -22,8 +22,7 @@ use chia_sdk_types::{
 use clvm_utils::{ToTreeHash, TreeHash};
 
 use crate::{
-    AsProgram, AsPtr, CatSpend, CommitmentSlot, EntrySlot, Nft, NotarizedPayment, Program, Proof,
-    RewardSlot,
+    CatSpend, CommitmentSlot, EntrySlot, Nft, NotarizedPayment, Program, Proof, RewardSlot,
 };
 
 pub trait RewardDistributorTypeExt {}
