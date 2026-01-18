@@ -759,7 +759,7 @@ mod tests {
 
     use chia_puzzle_types::{cat::GenesisByCoinIdTailArgs, CoinProof};
     use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
-    use chia_sdk_test::{print_spend_bundle_to_file, Benchmark, BlsPairWithCoin, Simulator};
+    use chia_sdk_test::{Benchmark, BlsPairWithCoin, Simulator};
     use chia_sdk_types::{
         puzzles::{
             AnyMetadataUpdater, CatNftMetadata, DelegatedStateActionSolution,
@@ -3922,7 +3922,6 @@ mod tests {
                     Some(DataStore::from_spend(ctx, &dl_spend, &delegated_puzzles)?.unwrap());
                 ctx.insert(dl_spend);
 
-                println!("before new action"); // todo: debug
                 let (sec_conds, new_locked_nfts) = registry
                     .new_action::<RewardDistributorRefreshAction>()
                     .spend(
@@ -3954,10 +3953,7 @@ mod tests {
                 ensure_conditions_met(ctx, &mut sim, sec_conds, oracle_fee)?;
 
                 let spends = ctx.take();
-                print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs");
-                println!("before refresh"); // todo: debug
                 benchmark.add_spends(ctx, &mut sim, spends, "refresh", &[])?;
-                println!("after refresh"); // todo: debug
 
                 assert!(sim.coin_state(locked_nft3.coin.coin_id()).is_some());
                 assert!(sim

@@ -11,9 +11,9 @@ use chia_sdk_types::{
     },
     Conditions, MerkleProof, Mod,
 };
-use clvm_traits::{clvm_list, clvm_quote, clvm_tuple};
+use clvm_traits::{clvm_quote, clvm_tuple};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
-use clvmr::{serde::node_to_bytes, NodePtr};
+use clvmr::NodePtr;
 
 use crate::{
     DriverError, Layer, Nft, P2DelegatedBySingletonLayer, RewardDistributor,
@@ -291,20 +291,6 @@ impl RewardDistributorRefreshAction {
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
-        // todo: debug -------------------------
-        println!(
-            "action puzzle: {:?}",
-            hex::encode(node_to_bytes(ctx, action_puzzle)?)
-        );
-        let actual_solution = ctx.alloc(&clvm_list!(
-            distributor.pending_spend.latest_state,
-            action_solution
-        ))?;
-        println!(
-            "actual solution: {:?}",
-            hex::encode(node_to_bytes(ctx, actual_solution)?)
-        );
-        // todo: debug -------------------------
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         Ok((security_conditions, created_nfts))
