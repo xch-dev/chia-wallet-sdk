@@ -4004,7 +4004,7 @@ mod tests {
         );
 
         // remove 2nd entry/the 2 NFTs
-        let reserve_cat = registry.reserve.to_cat();
+        let mut reserve_cat = registry.reserve.to_cat();
         if let Some((mut entry3_slot, mut locked_nft2, mut locked_nft3)) = other_nft2_info {
             if refreshable {
                 // if refreshable, refresh NFTs to 0 shares before removing
@@ -4088,7 +4088,6 @@ mod tests {
                 ensure_conditions_met(ctx, &mut sim, sec_conds, oracle_fee)?;
 
                 let spends = ctx.take();
-                print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs");
                 benchmark.add_spends(ctx, &mut sim, spends, "refresh_2_nfts", &[])?;
 
                 assert_eq!(registry.info.state.active_shares, 1);
@@ -4104,6 +4103,9 @@ mod tests {
                     .unwrap()
                     .spent_height
                     .is_some());
+                println!("done, acsually"); // todo: debug
+
+                reserve_cat = registry.reserve.to_cat();
             }
 
             let nft2_return_coin_id = locked_nft2
@@ -4122,7 +4124,15 @@ mod tests {
                     &mut registry,
                     entry2_slot.clone(),
                     &[locked_nft2],
-                    &[if datastore.is_some() { 2 } else { 1 }],
+                    &[if datastore.is_some() {
+                        if refreshable {
+                            0
+                        } else {
+                            2
+                        }
+                    } else {
+                        1
+                    }],
                 )?;
             let (custody3_conds, payout3_amount) = registry
                 .new_action::<RewardDistributorUnstakeAction>()
@@ -4131,7 +4141,15 @@ mod tests {
                     &mut registry,
                     entry3_slot.clone(),
                     &[locked_nft3],
-                    &[if datastore.is_some() { 3 } else { 1 }],
+                    &[if datastore.is_some() {
+                        if refreshable {
+                            0
+                        } else {
+                            3
+                        }
+                    } else {
+                        1
+                    }],
                 )?;
 
             StandardLayer::new(nft2_bls.pk).spend(ctx, nft2_bls.coin, custody2_conds)?;
@@ -4141,6 +4159,7 @@ mod tests {
 
             // sim.spend_coins(spends, &[nft2_bls.sk.clone(), nft3_bls.sk.clone()])?;
             let spends = ctx.take();
+            print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs"); // todo: debug
             benchmark.add_spends(
                 ctx,
                 &mut sim,
