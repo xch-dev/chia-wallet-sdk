@@ -14,7 +14,7 @@ use chia_sdk_types::{
         RewardDistributorNftsFromDlLockingPuzzleSolution,
         RewardDistributorRefreshNftsFromDlActionArgs,
         RewardDistributorRefreshNftsFromDlActionSolution, RewardDistributorSlotNonce,
-        RewardDistributorStakeActionSolution, StakeNftFromDidInfo, StakeNftFromDlInfo,
+        RewardDistributorStakeActionSolution, SlotAndNfts, StakeNftFromDidInfo, StakeNftFromDlInfo,
         NONCE_WRAPPER_PUZZLE_HASH,
     },
     Conditions, MerkleProof, Mod,
@@ -149,22 +149,16 @@ impl RewardDistributorRefreshAction {
             .collect())
     }
 
-    #[allow(clippy::too_many_arguments)]
-    #[allow(clippy::cast_possible_wrap)]
-    pub fn spend_for_curated_nft_mode(
+    pub fn spend(
         self,
         ctx: &mut SpendContext,
         distributor: &mut RewardDistributor,
-        current_nfts: &[Nft],
-        nft_shares: &[u64],
-        inclusion_proofs: &[MerkleProof],
-        entry_custody_puzzle_hash: Bytes32,
-        existing_slot: Option<Slot<RewardDistributorEntrySlotValue>>,
+        slots_and_nfts: Vec<SlotAndNfts>,
         dl_root_hash: Bytes32,
         dl_metadata_rest_hash: Option<Bytes32>,
         dl_metadata_updater_hash_hash: Bytes32,
         dl_inner_puzzle_hash: Bytes32,
-    ) -> Result<(Conditions, Vec<NotarizedPayment>, Vec<Nft>), DriverError> {
+    ) -> Result<(Conditions, Vec<Nft>), DriverError> {
         let ephemeral_counter =
             ctx.extract::<HashedPtr>(distributor.pending_spend.latest_state.0)?;
         let my_id = distributor.coin.coin_id();
