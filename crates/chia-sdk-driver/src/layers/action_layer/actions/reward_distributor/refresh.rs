@@ -214,9 +214,9 @@ impl RewardDistributorRefreshAction {
                 let nft_p2 = P2DelegatedBySingletonLayer::new(my_singleton_struct_hash, 1);
                 let nft_inner_puzzle = nft_p2.construct_puzzle(ctx)?;
                 let old_nft_shares = if nft_shares_delta[i][j] > 0 {
-                    nft_new_shares[i][j] + (nft_shares_delta[i][j] as u64)
+                    nft_new_shares[i][j] - (nft_shares_delta[i][j] as u64)
                 } else {
-                    nft_new_shares[i][j] - ((-nft_shares_delta[i][j]) as u64)
+                    nft_new_shares[i][j] + ((-nft_shares_delta[i][j]) as u64)
                 };
                 let nft_nonce: (Bytes32, u64) =
                     clvm_tuple!(slot.info.value.payout_puzzle_hash, old_nft_shares);
