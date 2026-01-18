@@ -130,13 +130,19 @@ impl RewardDistributorInitiatePayoutAction {
                 - entry_slot.info.value.initial_cumulative_payout);
         let withdrawal_amount =
             u64::try_from(withdrawal_amount_precision / u128::from(self.precision))?;
+        let payout_rounding_error = withdrawal_amount_precision % u128::from(self.precision);
 
-        // this announcement should be asserted to ensure everything goes according to plan
-        let mut initiate_payout_announcement =
+        // this announcement/message should be asserted to ensure everything goes according to plan
+        let mut announcement_or_message_data = if self.require_approval {
+            clvm_tuple!(withdrawal_amount, payout_rounding_error)
+                .tree_hash()
+                .to_vec()
+        } else {
             clvm_tuple!(entry_slot.info.value.payout_puzzle_hash, withdrawal_amount)
                 .tree_hash()
-                .to_vec();
-        initiate_payout_announcement.insert(0, b'p');
+                .to_vec()
+        };
+        announcement_or_message_data.insert(0, b'p');
 
         // spend self
         let action_solution = ctx.alloc(&RewardDistributorInitiatePayoutActionSolution {
@@ -144,7 +150,7 @@ impl RewardDistributorInitiatePayoutAction {
             entry_payout_puzzle_hash: entry_slot.info.value.payout_puzzle_hash,
             entry_initial_cumulative_payout: entry_slot.info.value.initial_cumulative_payout,
             entry_shares: entry_slot.info.value.shares,
-            payout_rounding_error: withdrawal_amount_precision % u128::from(self.precision),
+            payout_rounding_error,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
@@ -154,10 +160,18 @@ impl RewardDistributorInitiatePayoutAction {
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         Ok((
-            Conditions::new().assert_puzzle_announcement(announcement_id(
-                distributor.coin.puzzle_hash,
-                initiate_payout_announcement,
-            )),
+            if self.require_approval {
+                Conditions::new().send_message(
+                    18,
+                    announcement_or_message_data.into(),
+                    vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
+                )
+            } else {
+                Conditions::new().assert_puzzle_announcement(announcement_id(
+                    distributor.coin.puzzle_hash,
+                    announcement_or_message_data,
+                ))
+            },
             withdrawal_amount,
         ))
     }

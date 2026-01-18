@@ -2683,6 +2683,12 @@ mod tests {
         };
 
         // setup config
+        let require_payout_approval = match test_type {
+            RewardDistributorTestType::Managed => false,
+            RewardDistributorTestType::NftCollection
+            | RewardDistributorTestType::CuratedNft { refreshable: _ }
+            | RewardDistributorTestType::Cat => true,
+        };
         let constants = RewardDistributorConstants::without_launcher_id(
             match test_type {
                 RewardDistributorTestType::Managed => RewardDistributorType::Managed {
@@ -2707,6 +2713,7 @@ mod tests {
             u64::MAX, // precision
             300,
             42,
+            require_payout_approval,
             420,  // 4.2% fee
             9000, // 90% of the amount deposited will be returned
             source_cat.info.asset_id,
@@ -4443,14 +4450,25 @@ mod tests {
         let (payout_conditions, withdrawal_amount) = registry
             .new_action::<RewardDistributorInitiatePayoutAction>()
             .spend(ctx, &mut registry, entry1_slot)?;
-        ensure_conditions_met(ctx, &mut sim, payout_conditions.extend(sync_conditions), 0)?;
+        let coin = sim.new_coin(entry1_bls.puzzle_hash, 0);
+        StandardLayer::new(entry1_bls.pk).spend(
+            ctx,
+            coin,
+            payout_conditions.extend(sync_conditions),
+        )?;
 
         let _registry = registry.finish_spend(ctx, vec![])?.0;
 
         sim.set_next_timestamp(update_time)?;
         // sim.spend_coins(ctx.take(), &[])?;
         let spends = ctx.take();
-        benchmark.add_spends(ctx, &mut sim, spends, "initiate_payout", &[])?;
+        benchmark.add_spends(
+            ctx,
+            &mut sim,
+            spends,
+            "initiate_payout",
+            &[entry1_bls.sk.clone()],
+        )?;
 
         let payout_coin_id = reserve_cat
             .child(payout_puzzle_hash, withdrawal_amount)
