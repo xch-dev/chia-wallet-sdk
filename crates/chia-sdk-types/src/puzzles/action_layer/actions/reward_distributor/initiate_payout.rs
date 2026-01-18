@@ -83,10 +83,38 @@ pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE_HASH: TreeHash
 
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
-pub struct RewardDistributorInitiatePayoutActionArgs {
+pub struct RewardDistributorInitiatePayoutWithoutApprovalActionArgs {
     pub entry_slot_1st_curry_hash: Bytes32,
     pub payout_threshold: u64,
     pub precision: u64,
+}
+
+impl Mod for RewardDistributorInitiatePayoutWithoutApprovalActionArgs {
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE_HASH
+    }
+}
+
+#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
+#[clvm(curry)]
+pub struct RewardDistributorInitiatePayoutWithApprovalActionArgs {
+    pub entry_slot_1st_curry_hash: Bytes32,
+    pub payout_threshold: u64,
+    pub precision: u64,
+}
+
+impl Mod for RewardDistributorInitiatePayoutWithApprovalActionArgs {
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE)
+    }
+
+    fn mod_hash() -> TreeHash {
+        REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE_HASH
+    }
 }
 
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
@@ -98,30 +126,4 @@ pub struct RewardDistributorInitiatePayoutActionSolution {
     pub entry_initial_cumulative_payout: u128,
     #[clvm(rest)]
     pub entry_shares: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RewardDistributorInitiatePayoutWithoutApproval {}
-
-impl Mod for RewardDistributorInitiatePayoutWithoutApproval {
-    fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE)
-    }
-
-    fn mod_hash() -> TreeHash {
-        REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE_HASH
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RewardDistributorInitiatePayoutWithApproval {}
-
-impl Mod for RewardDistributorInitiatePayoutWithApproval {
-    fn mod_reveal() -> Cow<'static, [u8]> {
-        Cow::Borrowed(&REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE)
-    }
-
-    fn mod_hash() -> TreeHash {
-        REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE_HASH
-    }
 }

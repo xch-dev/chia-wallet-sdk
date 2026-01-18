@@ -2,8 +2,9 @@ use chia_protocol::Bytes32;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        RewardDistributorEntrySlotValue, RewardDistributorInitiatePayoutActionArgs,
-        RewardDistributorInitiatePayoutActionSolution, RewardDistributorSlotNonce,
+        RewardDistributorEntrySlotValue, RewardDistributorInitiatePayoutActionSolution,
+        RewardDistributorInitiatePayoutWithApprovalActionArgs,
+        RewardDistributorInitiatePayoutWithoutApprovalActionArgs, RewardDistributorSlotNonce,
     },
     Conditions, Mod,
 };
@@ -21,11 +22,34 @@ pub struct RewardDistributorInitiatePayoutAction {
     pub launcher_id: Bytes32,
     pub payout_threshold: u64,
     pub precision: u64,
+    pub require_approval: bool,
 }
 
 impl ToTreeHash for RewardDistributorInitiatePayoutAction {
     fn tree_hash(&self) -> TreeHash {
-        Self::new_args(self.launcher_id, self.payout_threshold, self.precision).curry_tree_hash()
+        if self.require_approval {
+            RewardDistributorInitiatePayoutWithApprovalActionArgs {
+                entry_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                    self.launcher_id,
+                    RewardDistributorSlotNonce::ENTRY.to_u64(),
+                )
+                .into(),
+                payout_threshold: self.payout_threshold,
+                precision: self.precision,
+            }
+            .curry_tree_hash()
+        } else {
+            RewardDistributorInitiatePayoutWithoutApprovalActionArgs {
+                entry_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                    self.launcher_id,
+                    RewardDistributorSlotNonce::ENTRY.to_u64(),
+                )
+                .into(),
+                payout_threshold: self.payout_threshold,
+                precision: self.precision,
+            }
+            .curry_tree_hash()
+        }
     }
 }
 
@@ -35,33 +59,34 @@ impl SingletonAction<RewardDistributor> for RewardDistributorInitiatePayoutActio
             launcher_id: constants.launcher_id,
             payout_threshold: constants.payout_threshold,
             precision: constants.precision,
+            require_approval: constants.require_payout_approval,
         }
     }
 }
 
 impl RewardDistributorInitiatePayoutAction {
-    pub fn new_args(
-        launcher_id: Bytes32,
-        payout_threshold: u64,
-        precision: u64,
-    ) -> RewardDistributorInitiatePayoutActionArgs {
-        RewardDistributorInitiatePayoutActionArgs {
-            entry_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
-                launcher_id,
-                RewardDistributorSlotNonce::ENTRY.to_u64(),
-            )
-            .into(),
-            payout_threshold,
-            precision,
-        }
-    }
-
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        ctx.curry(Self::new_args(
-            self.launcher_id,
-            self.payout_threshold,
-            self.precision,
-        ))
+        if self.require_approval {
+            ctx.curry(RewardDistributorInitiatePayoutWithApprovalActionArgs {
+                entry_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                    self.launcher_id,
+                    RewardDistributorSlotNonce::ENTRY.to_u64(),
+                )
+                .into(),
+                payout_threshold: self.payout_threshold,
+                precision: self.precision,
+            })
+        } else {
+            ctx.curry(RewardDistributorInitiatePayoutWithoutApprovalActionArgs {
+                entry_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                    self.launcher_id,
+                    RewardDistributorSlotNonce::ENTRY.to_u64(),
+                )
+                .into(),
+                payout_threshold: self.payout_threshold,
+                precision: self.precision,
+            })
+        }
     }
 
     pub fn created_slot_value(
