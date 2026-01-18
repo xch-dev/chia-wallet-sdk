@@ -3,20 +3,22 @@ use chia_puzzle_types::{nft::NftRoyaltyTransferPuzzleArgs, singleton::SingletonS
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, RefreshNftInfo,
-        RewardDistributorEntrySlotValue, RewardDistributorRefreshNftsFromDlActionArgs,
+        NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution,
+        RefreshNftInfo, RewardDistributorEntrySlotValue,
+        RewardDistributorRefreshNftsFromDlActionArgs,
         RewardDistributorRefreshNftsFromDlActionSolution, RewardDistributorSlotNonce, SlotAndNfts,
         NONCE_WRAPPER_PUZZLE_HASH,
     },
     Conditions, MerkleProof, Mod,
 };
-use clvm_traits::{clvm_list, clvm_tuple};
+use clvm_traits::{clvm_list, clvm_quote, clvm_tuple};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{serde::node_to_bytes, NodePtr};
 
 use crate::{
-    DriverError, Nft, RewardDistributor, RewardDistributorConstants, RewardDistributorState,
-    RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
+    DriverError, Layer, Nft, P2DelegatedBySingletonLayer, RewardDistributor,
+    RewardDistributorConstants, RewardDistributorState, RewardDistributorType, SingletonAction,
+    Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -146,6 +148,7 @@ impl RewardDistributorRefreshAction {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::cast_sign_loss)]
     pub fn spend(
         self,
         ctx: &mut SpendContext,
@@ -165,13 +168,15 @@ impl RewardDistributorRefreshAction {
         let mut slots_and_nfts = Vec::<SlotAndNfts>::new();
         let mut created_nfts = Vec::<Nft>::new();
 
-        let my_inner_puzzle_hash = distributor.info.inner_puzzle_hash().into();
+        let my_inner_puzzle_hash: Bytes32 = distributor.info.inner_puzzle_hash().into();
         let my_p2_treehash = Self::my_p2_puzzle_hash(self.launcher_id).into();
+        let my_singleton_struct_hash = SingletonStruct::new(self.launcher_id).tree_hash().into();
 
         for (i, slot) in slots.into_iter().enumerate() {
             let slot = distributor.actual_entry_slot_value(slot);
             let mut nft_infos = Vec::<RefreshNftInfo>::new();
             for (j, nft) in nfts[i].iter().enumerate() {
+                // add NFT data to solution
                 nft_infos.push(RefreshNftInfo {
                     nft_shares_delta: nft_shares_delta[i][j],
                     new_nft_shares: nft_new_shares[i][j],
@@ -193,26 +198,52 @@ impl RewardDistributorRefreshAction {
                     nft_inclusion_proof: nft_inclusion_proofs[i][j].clone(),
                 });
 
-                created_nfts.push(
-                    nft.child(
-                        CurriedProgram {
-                            program: NONCE_WRAPPER_PUZZLE_HASH,
-                            args: NonceWrapperArgs::<(Bytes32, u64), TreeHash> {
-                                nonce: clvm_tuple!(
-                                    slot.info.value.payout_puzzle_hash,
-                                    nft_new_shares[i][j]
-                                ),
-                                inner_puzzle: my_p2_treehash,
-                            },
-                        }
-                        .tree_hash()
-                        .into(),
-                        nft.info.current_owner,
-                        nft.info.metadata,
-                        nft.coin.amount,
-                    ),
-                );
+                // spend NFT
+                let new_nft_inner_puzzle_hash = CurriedProgram {
+                    program: NONCE_WRAPPER_PUZZLE_HASH,
+                    args: NonceWrapperArgs::<(Bytes32, u64), TreeHash> {
+                        nonce: clvm_tuple!(
+                            slot.info.value.payout_puzzle_hash,
+                            nft_new_shares[i][j]
+                        ),
+                        inner_puzzle: my_p2_treehash,
+                    },
+                }
+                .tree_hash()
+                .into();
+                let nft_p2 = P2DelegatedBySingletonLayer::new(my_singleton_struct_hash, 1);
+                let nft_inner_puzzle = nft_p2.construct_puzzle(ctx)?;
+                let old_nft_shares = if nft_shares_delta[i][j] > 0 {
+                    nft_new_shares[i][j] + (nft_shares_delta[i][j] as u64)
+                } else {
+                    nft_new_shares[i][j] - ((-nft_shares_delta[i][j]) as u64)
+                };
+                let nft_nonce: (Bytes32, u64) =
+                    clvm_tuple!(slot.info.value.payout_puzzle_hash, old_nft_shares);
+                let nft_inner_puzzle = ctx.curry(NonceWrapperArgs::<(Bytes32, u64), NodePtr> {
+                    nonce: nft_nonce,
+                    inner_puzzle: nft_inner_puzzle,
+                })?;
 
+                let hint = ctx.hint(new_nft_inner_puzzle_hash)?;
+                let delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
+                    new_nft_inner_puzzle_hash,
+                    1,
+                    hint,
+                )))?;
+                let nft_inner_solution = nft_p2.construct_solution(
+                    ctx,
+                    P2DelegatedBySingletonLayerSolution::<NodePtr, NodePtr> {
+                        singleton_inner_puzzle_hash: my_inner_puzzle_hash,
+                        delegated_puzzle,
+                        delegated_solution: NodePtr::NIL,
+                    },
+                )?;
+
+                created_nfts
+                    .push(nft.spend(ctx, Spend::new(nft_inner_puzzle, nft_inner_solution))?);
+
+                // compute security condition for this NFT
                 let mut msg: Vec<u8> = nft.info.launcher_id.into();
                 msg.insert(0, b'r');
                 security_conditions = security_conditions

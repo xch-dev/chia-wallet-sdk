@@ -3951,7 +3951,7 @@ mod tests {
                     locked_nft3.coin.coin_id()
                 );
                 locked_nft3 = new_locked_nfts[0];
-                ensure_conditions_met(ctx, &mut sim, sec_conds, 0)?;
+                ensure_conditions_met(ctx, &mut sim, sec_conds, oracle_fee)?;
 
                 let spends = ctx.take();
                 print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs");
