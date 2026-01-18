@@ -46,34 +46,34 @@ pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITHOUT_APPROVAL_PUZZLE_HASH: TreeH
 
 pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE: [u8; 855] = hex!(
     "
-        ff02ffff01ff02ffff03ffff22ffff09ffff12ffff11ff8204efff8205df80ff
-        8207df80ffff10ffff12ff819fff1780ff82015f8080ffff15ff82015fffff01
-        81ff80ffff15ff17ff82015f80ffff20ffff15ff0bff819f808080ffff01ff04
-        ffff04ff4fffff04ffff11ff81afff819f80ff81ef8080ffff04ffff02ff3eff
-        ff04ff02ffff04ff05ffff04ffff02ff2effff04ff02ffff04ff8202dfffff04
-        ff8205dfffff04ff8207dfff808080808080ff8080808080ffff04ffff02ff16
-        ffff04ff02ffff04ff05ffff04ffff02ff2effff04ff02ffff04ff8202dfffff
-        04ffff11ff8204efff82015f80ffff04ff8207dfff808080808080ffff04ff82
-        02dfff808080808080ffff04ffff04ff18ffff04ffff0effff0170ffff0bffff
-        0102ffff0bffff0101ff8202df80ffff0bffff0101ff819f808080ff808080ff
-        ff04ffff04ffff0181d6ffff04ff10ffff04ff8202dfffff04ff819fffff04ff
-        ff04ff8202dfff8080ff808080808080ffff04ffff04ff14ffff04ffff0112ff
-        ff04ffff0effff0170ffff0bffff0102ffff0bffff0101ff819f80ffff0bffff
-        0101ff82015f808080ffff04ff8202dfff8080808080ff80808080808080ffff
-        01ff088080ff0180ffff04ffff01ffffff333eff4342ffff02ffffa04bf5122f
-        344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459aa09dcf97
-        a184f32623d11a73124ceb99a5709b083721e878a16d78f596718ba7b2ffa102
-        a12871fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222
-        a102a8d5dd63fba471ebcb1f3e8f7c1e1879b7152a6e7298a91ce119a63400ad
-        e7c5ffff04ff10ffff04ffff0bff5affff0bff12ffff0bff12ff6aff0580ffff
-        0bff12ffff0bff7affff0bff12ffff0bff12ff6affff0bffff0101ff0b8080ff
-        ff0bff12ff6aff4a808080ff4a808080ffff04ff80ffff04ffff04ff17ff8080
-        ff8080808080ffff0bffff0102ffff0bffff0101ff0580ffff0bffff0102ffff
-        0bffff0101ff0b80ffff0bffff0101ff17808080ff04ff1cffff04ffff0112ff
-        ff04ff80ffff04ffff0bff5affff0bff12ffff0bff12ff6aff0580ffff0bff12
-        ffff0bff7affff0bff12ffff0bff12ff6affff0bffff0101ff0b8080ffff0bff
-        12ff6aff4a808080ff4a808080ff8080808080ff018080
-        "
+    ff02ffff01ff02ffff03ffff22ffff09ffff12ffff11ff8204efff8205df80ff
+    8207df80ffff10ffff12ff819fff1780ff82015f8080ffff15ff82015fffff01
+    81ff80ffff15ff17ff82015f80ffff20ffff15ff0bff819f808080ffff01ff04
+    ffff04ff4fffff04ffff11ff81afff819f80ff81ef8080ffff04ffff02ff3eff
+    ff04ff02ffff04ff05ffff04ffff02ff2effff04ff02ffff04ff8202dfffff04
+    ff8205dfffff04ff8207dfff808080808080ff8080808080ffff04ffff02ff16
+    ffff04ff02ffff04ff05ffff04ffff02ff2effff04ff02ffff04ff8202dfffff
+    04ffff11ff8204efff82015f80ffff04ff8207dfff808080808080ffff04ff82
+    02dfff808080808080ffff04ffff04ff18ffff04ffff0effff0170ffff0bffff
+    0102ffff0bffff0101ff8202df80ffff0bffff0101ff819f808080ff808080ff
+    ff04ffff04ffff0181d6ffff04ff10ffff04ff8202dfffff04ff819fffff04ff
+    ff04ff8202dfff8080ff808080808080ffff04ffff04ff14ffff04ffff0112ff
+    ff04ffff0effff0170ffff0bffff0102ffff0bffff0101ff819f80ffff0bffff
+    0101ff82015f808080ffff04ff8202dfff8080808080ff80808080808080ffff
+    01ff088080ff0180ffff04ffff01ffffff333eff4342ffff02ffffa04bf5122f
+    344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459aa09dcf97
+    a184f32623d11a73124ceb99a5709b083721e878a16d78f596718ba7b2ffa102
+    a12871fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222
+    a102a8d5dd63fba471ebcb1f3e8f7c1e1879b7152a6e7298a91ce119a63400ad
+    e7c5ffff04ff10ffff04ffff0bff5affff0bff12ffff0bff12ff6aff0580ffff
+    0bff12ffff0bff7affff0bff12ffff0bff12ff6affff0bffff0101ff0b8080ff
+    ff0bff12ff6aff4a808080ff4a808080ffff04ff80ffff04ffff04ff17ff8080
+    ff8080808080ffff0bffff0102ffff0bffff0101ff0580ffff0bffff0102ffff
+    0bffff0101ff0b80ffff0bffff0101ff17808080ff04ff1cffff04ffff0112ff
+    ff04ff80ffff04ffff0bff5affff0bff12ffff0bff12ff6aff0580ffff0bff12
+    ffff0bff7affff0bff12ffff0bff12ff6affff0bffff0101ff0b8080ffff0bff
+    12ff6aff4a808080ff4a808080ff8080808080ff018080
+    "
 );
 
 pub const REWARD_DISTRIBUTOR_INITIATE_PAYOUT_WITH_APPROVAL_PUZZLE_HASH: TreeHash =

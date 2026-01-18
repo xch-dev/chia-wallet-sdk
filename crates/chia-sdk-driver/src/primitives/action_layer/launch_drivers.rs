@@ -4446,12 +4446,17 @@ mod tests {
 
         // payout entry
         let reserve_cat = registry.reserve.to_cat();
+        let payout_bls = match test_type {
+            RewardDistributorTestType::NftCollection
+            | RewardDistributorTestType::CuratedNft { refreshable: _ } => nft_bls,
+            RewardDistributorTestType::Managed | RewardDistributorTestType::Cat => entry1_bls,
+        };
         let payout_puzzle_hash = entry1_slot.info.value.payout_puzzle_hash;
         let (payout_conditions, withdrawal_amount) = registry
             .new_action::<RewardDistributorInitiatePayoutAction>()
             .spend(ctx, &mut registry, entry1_slot)?;
-        let coin = sim.new_coin(entry1_bls.puzzle_hash, 0);
-        StandardLayer::new(entry1_bls.pk).spend(
+        let coin = sim.new_coin(payout_bls.puzzle_hash, 0);
+        StandardLayer::new(payout_bls.pk).spend(
             ctx,
             coin,
             payout_conditions.extend(sync_conditions),
@@ -4467,7 +4472,7 @@ mod tests {
             &mut sim,
             spends,
             "initiate_payout",
-            std::slice::from_ref(&entry1_bls.sk),
+            std::slice::from_ref(&payout_bls.sk),
         )?;
 
         let payout_coin_id = reserve_cat
