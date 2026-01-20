@@ -9,12 +9,14 @@ pub enum RewardDistributorCreatedAnnouncementPrefix {
     CommitIncentives = b'c',
     InitiatePayout = b'p',
     NewEpoch = b'e',
+    Sync = b's',
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum RewardDistributorReceivedMessagePrefix {
     InitiatePayout = b'p',
+    WithdrawIncentives = b'w',
 }
 
 pub fn prefix_hash(prefix: u8, hash: TreeHash) -> Vec<u8> {
@@ -45,6 +47,13 @@ impl RewardDistributorCreatedAnnouncementPrefix {
     pub fn new_epoch(epoch_end: u64) -> Vec<u8> {
         prefix_hash(Self::NewEpoch as u8, epoch_end.tree_hash())
     }
+
+    pub fn sync(update_time: u64, epoch_end: u64) -> Vec<u8> {
+        prefix_hash(
+            Self::Sync as u8,
+            clvm_tuple!(update_time, epoch_end).tree_hash(),
+        )
+    }
 }
 
 impl RewardDistributorReceivedMessagePrefix {
@@ -52,6 +61,13 @@ impl RewardDistributorReceivedMessagePrefix {
         prefix_hash(
             Self::InitiatePayout as u8,
             clvm_tuple!(payout_amount, payout_rounding_error).tree_hash(),
+        )
+    }
+
+    pub fn withdraw_incentives(reward_slot_epoch_time: u64, committed_value: u64) -> Vec<u8> {
+        prefix_hash(
+            Self::WithdrawIncentives as u8,
+            clvm_tuple!(reward_slot_epoch_time, committed_value).tree_hash(),
         )
     }
 }
