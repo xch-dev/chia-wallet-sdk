@@ -8,13 +8,14 @@ use chia_sdk_types::{
     },
     Conditions, Mod,
 };
-use clvm_traits::{clvm_tuple, FromClvm, ToClvm};
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants, DriverError, PrecommitCoin,
-    PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
+    CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants,
+    CatalogRegistryCreatedAnnouncementPrefix, DriverError, PrecommitCoin, PrecommitLayer,
+    SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,11 +102,10 @@ impl CatalogRefundAction {
         slot: Option<Slot<CatalogSlotValue>>,
     ) -> Result<Conditions, DriverError> {
         // calculate announcement
-        let mut refund_announcement =
-            clvm_tuple!(tail_hash, precommit_coin.value.initial_inner_puzzle_hash)
-                .tree_hash()
-                .to_vec();
-        refund_announcement.insert(0, b'$');
+        let refund_announcement = CatalogRegistryCreatedAnnouncementPrefix::refund(
+            tail_hash,
+            precommit_coin.value.initial_inner_puzzle_hash,
+        );
 
         let secure_conditions = Conditions::new().assert_puzzle_announcement(announcement_id(
             catalog.coin.puzzle_hash,

@@ -1,6 +1,7 @@
 mod cat_maker;
 mod catalog_registry;
 mod catalog_registry_info;
+mod catalog_registry_prefix;
 mod launch_drivers;
 mod medieval_vault;
 mod medieval_vault_info;
@@ -23,6 +24,7 @@ mod xchandles_registry_prefix;
 pub use cat_maker::*;
 pub use catalog_registry::*;
 pub use catalog_registry_info::*;
+pub use catalog_registry_prefix::*;
 pub use launch_drivers::*;
 pub use medieval_vault::*;
 pub use medieval_vault_info::*;

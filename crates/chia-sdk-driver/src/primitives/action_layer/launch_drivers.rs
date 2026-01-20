@@ -1987,7 +1987,7 @@ mod tests {
                 registry.new_action::<XchandlesExtendAction>().spend(
                     ctx,
                     &mut registry,
-                    handle,
+                    &handle,
                     extension_slot.clone(),
                     payment_cat.info.asset_id,
                     base_price,
