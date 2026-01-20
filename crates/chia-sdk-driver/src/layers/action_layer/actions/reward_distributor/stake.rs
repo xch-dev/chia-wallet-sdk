@@ -25,8 +25,9 @@ use clvmr::NodePtr;
 
 use crate::{
     Asset, Cat, CatMaker, DriverError, HashedPtr, Nft, RewardDistributor,
-    RewardDistributorConstants, RewardDistributorState, RewardDistributorType, SingletonAction,
-    Slot, Spend, SpendContext,
+    RewardDistributorConstants, RewardDistributorCreatedAnnouncementPrefix,
+    RewardDistributorReceivedMessagePrefix, RewardDistributorState, RewardDistributorType,
+    SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -343,20 +344,17 @@ impl RewardDistributorStakeAction {
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
             let existing_slot = distributor.actual_entry_slot_value(existing_slot);
-            let mut msg = (u128::from(existing_slot.info.value.shares)
+            let rewards_to_give_up = u128::from(existing_slot.info.value.shares)
                 * (distributor
                     .pending_spend
                     .latest_state
                     .1
                     .round_reward_info
                     .cumulative_payout
-                    - existing_slot.info.value.initial_cumulative_payout))
-                .tree_hash()
-                .to_vec();
-            msg.insert(0, b's');
+                    - existing_slot.info.value.initial_cumulative_payout);
             security_conditions = security_conditions.send_message(
                 18,
-                msg.into(),
+                RewardDistributorReceivedMessagePrefix::stake(rewards_to_give_up).into(),
                 vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
             );
             existing_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
@@ -369,10 +367,10 @@ impl RewardDistributorStakeAction {
             self.distributor_type,
             action_solution,
         )?;
-        let mut msg = new_slot_value.tree_hash().to_vec();
-        msg.insert(0, b't');
-        security_conditions = security_conditions
-            .assert_puzzle_announcement(announcement_id(distributor.coin.puzzle_hash, msg));
+        security_conditions = security_conditions.assert_puzzle_announcement(announcement_id(
+            distributor.coin.puzzle_hash,
+            RewardDistributorCreatedAnnouncementPrefix::stake_slot(new_slot_value.tree_hash()),
+        ));
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         Ok((security_conditions, notarized_payments, created_nfts))
@@ -496,20 +494,17 @@ impl RewardDistributorStakeAction {
 
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
-            let mut msg = (u128::from(existing_slot.info.value.shares)
+            let rewards_to_give_up = u128::from(existing_slot.info.value.shares)
                 * (distributor
                     .pending_spend
                     .latest_state
                     .1
                     .round_reward_info
                     .cumulative_payout
-                    - existing_slot.info.value.initial_cumulative_payout))
-                .tree_hash()
-                .to_vec();
-            msg.insert(0, b's');
+                    - existing_slot.info.value.initial_cumulative_payout);
             security_conditions = security_conditions.send_message(
                 18,
-                msg.into(),
+                RewardDistributorReceivedMessagePrefix::stake(rewards_to_give_up).into(),
                 vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
             );
             existing_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
@@ -522,10 +517,10 @@ impl RewardDistributorStakeAction {
             self.distributor_type,
             action_solution,
         )?;
-        let mut msg = new_slot_value.tree_hash().to_vec();
-        msg.insert(0, b't');
-        security_conditions = security_conditions
-            .assert_puzzle_announcement(announcement_id(distributor.coin.puzzle_hash, msg));
+        security_conditions = security_conditions.assert_puzzle_announcement(announcement_id(
+            distributor.coin.puzzle_hash,
+            RewardDistributorCreatedAnnouncementPrefix::stake_slot(new_slot_value.tree_hash()),
+        ));
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         Ok((security_conditions, notarized_payments, created_nfts))
@@ -593,20 +588,17 @@ impl RewardDistributorStakeAction {
 
         // if needed, spend existing slot
         if let Some(existing_slot) = existing_slot {
-            let mut msg = (u128::from(existing_slot.info.value.shares)
+            let rewards_to_give_up = u128::from(existing_slot.info.value.shares)
                 * (distributor
                     .pending_spend
                     .latest_state
                     .1
                     .round_reward_info
                     .cumulative_payout
-                    - existing_slot.info.value.initial_cumulative_payout))
-                .tree_hash()
-                .to_vec();
-            msg.insert(0, b's');
+                    - existing_slot.info.value.initial_cumulative_payout);
             security_conditions = security_conditions.send_message(
                 18,
-                msg.into(),
+                RewardDistributorReceivedMessagePrefix::stake(rewards_to_give_up).into(),
                 vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
             );
             existing_slot.spend(ctx, distributor.info.inner_puzzle_hash().into())?;
@@ -619,10 +611,10 @@ impl RewardDistributorStakeAction {
             self.distributor_type,
             action_solution,
         )?;
-        let mut msg = new_slot_value.tree_hash().to_vec();
-        msg.insert(0, b't');
-        security_conditions = security_conditions
-            .assert_puzzle_announcement(announcement_id(distributor.coin.puzzle_hash, msg));
+        security_conditions = security_conditions.assert_puzzle_announcement(announcement_id(
+            distributor.coin.puzzle_hash,
+            RewardDistributorCreatedAnnouncementPrefix::stake_slot(new_slot_value.tree_hash()),
+        ));
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         Ok((

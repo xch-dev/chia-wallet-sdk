@@ -10,6 +10,7 @@ pub enum RewardDistributorCreatedAnnouncementPrefix {
     InitiatePayout = b'p',
     NewEpoch = b'e',
     Sync = b's',
+    StakeSlot = b't',
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,6 +20,8 @@ pub enum RewardDistributorReceivedMessagePrefix {
     WithdrawIncentives = b'w',
     AddEntry = b'a',
     RemoveEntry = b'r',
+    Stake = b's',
+    Unstake = b'u',
 }
 
 pub fn prefix_hash(prefix: u8, hash: TreeHash) -> Vec<u8> {
@@ -56,6 +59,10 @@ impl RewardDistributorCreatedAnnouncementPrefix {
             clvm_tuple!(update_time, epoch_end).tree_hash(),
         )
     }
+
+    pub fn stake_slot(new_entry_slot_value_hash: TreeHash) -> Vec<u8> {
+        prefix_hash(Self::StakeSlot as u8, new_entry_slot_value_hash)
+    }
 }
 
 impl RewardDistributorReceivedMessagePrefix {
@@ -85,5 +92,17 @@ impl RewardDistributorReceivedMessagePrefix {
             Self::RemoveEntry as u8,
             clvm_tuple!(payout_puzzle_hash, shares).tree_hash(),
         )
+    }
+
+    pub fn stake(rewards_to_give_up: u128) -> Vec<u8> {
+        prefix_hash(Self::Stake as u8, rewards_to_give_up.tree_hash())
+    }
+
+    pub fn unstake_nft(nft_launcher_id: Bytes32) -> Vec<u8> {
+        prefix_hash(Self::Unstake as u8, nft_launcher_id.into())
+    }
+
+    pub fn unstake_cat(cat_parent_id: Bytes32) -> Vec<u8> {
+        prefix_hash(Self::Unstake as u8, cat_parent_id.into())
     }
 }

@@ -16,8 +16,8 @@ use clvmr::NodePtr;
 
 use crate::{
     Cat, CatMaker, CatSpend, DriverError, Layer, Nft, P2DelegatedBySingletonLayer,
-    RewardDistributor, RewardDistributorConstants, RewardDistributorType, SingletonAction, Slot,
-    Spend, SpendContext,
+    RewardDistributor, RewardDistributorConstants, RewardDistributorReceivedMessagePrefix,
+    RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -234,12 +234,10 @@ impl RewardDistributorUnstakeAction {
         let registry_inner_puzzle_hash = distributor.info.inner_puzzle_hash();
 
         for (locked_nft, locked_nft_share) in locked_nfts.iter().zip(locked_nft_shares.iter()) {
-            let mut unstake_message = locked_nft.info.launcher_id.to_vec();
-            unstake_message.insert(0, b'u');
-
             remove_entry_conditions = remove_entry_conditions.send_message(
                 18,
-                unstake_message.into(),
+                RewardDistributorReceivedMessagePrefix::unstake_nft(locked_nft.info.launcher_id)
+                    .into(),
                 vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
             );
 
@@ -332,13 +330,14 @@ impl RewardDistributorUnstakeAction {
 
         // compute messages that the custody puzzle needs to send
         let locked_cat_coin = locked_cat.coin;
-        let mut unstake_message = locked_cat_coin.parent_coin_info.to_vec();
-        unstake_message.insert(0, b'u');
 
         let remove_entry_conditions = Conditions::new()
             .send_message(
                 18,
-                unstake_message.into(),
+                RewardDistributorReceivedMessagePrefix::unstake_cat(
+                    locked_cat_coin.parent_coin_info,
+                )
+                .into(),
                 vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
             )
             .assert_concurrent_puzzle(entry_slot.coin.puzzle_hash);
