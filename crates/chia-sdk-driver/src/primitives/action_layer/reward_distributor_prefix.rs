@@ -8,6 +8,7 @@ pub enum RewardDistributorCreatedAnnouncementPrefix {
     AddIncentives = b'i',
     CommitIncentives = b'c',
     InitiatePayout = b'p',
+    NewEpoch = b'e',
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,10 +41,14 @@ impl RewardDistributorCreatedAnnouncementPrefix {
             clvm_tuple!(payout_puzzle_hash, payout_amount).tree_hash(),
         )
     }
+
+    pub fn new_epoch(epoch_end: u64) -> Vec<u8> {
+        prefix_hash(Self::NewEpoch as u8, epoch_end.tree_hash())
+    }
 }
 
 impl RewardDistributorReceivedMessagePrefix {
-    pub fn initiate_payout(payout_amount: u64, payout_rounding_error: u64) -> Vec<u8> {
+    pub fn initiate_payout(payout_amount: u64, payout_rounding_error: u128) -> Vec<u8> {
         prefix_hash(
             Self::InitiatePayout as u8,
             clvm_tuple!(payout_amount, payout_rounding_error).tree_hash(),

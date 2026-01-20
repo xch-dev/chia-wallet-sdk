@@ -11,8 +11,8 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, RewardDistributor, RewardDistributorConstants, SingletonAction, Slot, Spend,
-    SpendContext,
+    DriverError, RewardDistributor, RewardDistributorConstants,
+    RewardDistributorCreatedAnnouncementPrefix, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -125,8 +125,9 @@ impl RewardDistributorNewEpochAction {
         let fee = epoch_total_rewards * distributor.info.constants.fee_bps / 10000;
 
         // calculate announcement needed to ensure everything's happening as expected
-        let mut new_epoch_announcement = my_state.round_time_info.epoch_end.tree_hash().to_vec();
-        new_epoch_announcement.insert(0, b'e');
+        let new_epoch_announcement = RewardDistributorCreatedAnnouncementPrefix::new_epoch(
+            my_state.round_time_info.epoch_end,
+        );
         let new_epoch_conditions = Conditions::new()
             .assert_puzzle_announcement(announcement_id(
                 distributor.coin.puzzle_hash,

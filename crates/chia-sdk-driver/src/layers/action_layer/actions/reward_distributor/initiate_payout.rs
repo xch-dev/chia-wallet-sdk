@@ -8,13 +8,13 @@ use chia_sdk_types::{
     },
     Conditions, Mod,
 };
-use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, RewardDistributor, RewardDistributorConstants, RewardDistributorState,
-    SingletonAction, Slot, Spend, SpendContext,
+    DriverError, RewardDistributor, RewardDistributorConstants,
+    RewardDistributorCreatedAnnouncementPrefix, RewardDistributorReceivedMessagePrefix,
+    RewardDistributorState, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -133,16 +133,17 @@ impl RewardDistributorInitiatePayoutAction {
         let payout_rounding_error = withdrawal_amount_precision % u128::from(self.precision);
 
         // this announcement/message should be asserted to ensure everything goes according to plan
-        let mut announcement_or_message_data = if self.require_approval {
-            clvm_tuple!(withdrawal_amount, payout_rounding_error)
-                .tree_hash()
-                .to_vec()
+        let announcement_or_message_data = if self.require_approval {
+            RewardDistributorReceivedMessagePrefix::initiate_payout(
+                withdrawal_amount,
+                payout_rounding_error,
+            )
         } else {
-            clvm_tuple!(entry_slot.info.value.payout_puzzle_hash, withdrawal_amount)
-                .tree_hash()
-                .to_vec()
+            RewardDistributorCreatedAnnouncementPrefix::initiate_payout(
+                entry_slot.info.value.payout_puzzle_hash,
+                withdrawal_amount,
+            )
         };
-        announcement_or_message_data.insert(0, b'p');
 
         // spend self
         let action_solution = ctx.alloc(&RewardDistributorInitiatePayoutActionSolution {
