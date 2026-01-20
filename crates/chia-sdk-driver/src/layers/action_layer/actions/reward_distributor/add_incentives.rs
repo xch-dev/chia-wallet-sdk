@@ -10,8 +10,8 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, RewardDistributor, RewardDistributorConstants, RewardDistributorPrefix,
-    SingletonAction, Spend, SpendContext,
+    DriverError, RewardDistributor, RewardDistributorConstants,
+    RewardDistributorCreatedAnnouncementPrefix, SingletonAction, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,7 +63,7 @@ impl RewardDistributorAddIncentivesAction {
         let add_incentives_announcement =
             Conditions::new().assert_puzzle_announcement(announcement_id(
                 distributor.coin.puzzle_hash,
-                RewardDistributorPrefix::add_incentives_announcement(
+                RewardDistributorCreatedAnnouncementPrefix::add_incentives(
                     amount,
                     my_state.round_time_info.epoch_end,
                 ),

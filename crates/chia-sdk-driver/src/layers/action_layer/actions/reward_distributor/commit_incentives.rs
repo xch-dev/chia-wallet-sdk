@@ -12,8 +12,8 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, RewardDistributor, RewardDistributorConstants, SingletonAction, Slot, Spend,
-    SpendContext,
+    DriverError, RewardDistributor, RewardDistributorConstants,
+    RewardDistributorCreatedAnnouncementPrefix, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,8 +148,10 @@ impl RewardDistributorCommitIncentivesAction {
         };
 
         // calculate announcement
-        let mut commit_reward_announcement = new_commitment_slot_value.tree_hash().to_vec();
-        commit_reward_announcement.insert(0, b'c');
+        let commit_reward_announcement =
+            RewardDistributorCreatedAnnouncementPrefix::commit_incentives(
+                new_commitment_slot_value.tree_hash(),
+            );
 
         // spend self
         let action_solution = ctx.alloc(&RewardDistributorCommitIncentivesActionSolution {
