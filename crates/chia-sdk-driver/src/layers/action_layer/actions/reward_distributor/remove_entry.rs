@@ -8,13 +8,13 @@ use chia_sdk_types::{
     },
     Conditions, Mod,
 };
-use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, RewardDistributor, RewardDistributorConstants, RewardDistributorType,
-    SingletonAction, Slot, Spend, SpendContext,
+    DriverError, RewardDistributor, RewardDistributorConstants,
+    RewardDistributorReceivedMessagePrefix, RewardDistributorType, SingletonAction, Slot, Spend,
+    SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,19 +96,14 @@ impl RewardDistributorRemoveEntryAction {
         let entry_slot = distributor.actual_entry_slot_value(entry_slot);
 
         // compute message that the manager needs to send
-
-        let mut remove_entry_message = clvm_tuple!(
-            entry_slot.info.value.payout_puzzle_hash,
-            entry_slot.info.value.shares
-        )
-        .tree_hash()
-        .to_vec();
-        remove_entry_message.insert(0, b'r');
-
         let remove_entry_conditions = Conditions::new()
             .send_message(
                 18,
-                remove_entry_message.into(),
+                RewardDistributorReceivedMessagePrefix::remove_entry(
+                    entry_slot.info.value.payout_puzzle_hash,
+                    entry_slot.info.value.shares,
+                )
+                .into(),
                 vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
             )
             .assert_concurrent_puzzle(entry_slot.coin.puzzle_hash);

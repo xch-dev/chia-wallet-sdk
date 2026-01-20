@@ -17,6 +17,8 @@ pub enum RewardDistributorCreatedAnnouncementPrefix {
 pub enum RewardDistributorReceivedMessagePrefix {
     InitiatePayout = b'p',
     WithdrawIncentives = b'w',
+    AddEntry = b'a',
+    RemoveEntry = b'r',
 }
 
 pub fn prefix_hash(prefix: u8, hash: TreeHash) -> Vec<u8> {
@@ -68,6 +70,20 @@ impl RewardDistributorReceivedMessagePrefix {
         prefix_hash(
             Self::WithdrawIncentives as u8,
             clvm_tuple!(reward_slot_epoch_time, committed_value).tree_hash(),
+        )
+    }
+
+    pub fn add_entry(payout_puzzle_hash: Bytes32, shares: u64) -> Vec<u8> {
+        prefix_hash(
+            Self::AddEntry as u8,
+            clvm_tuple!(payout_puzzle_hash, shares).tree_hash(),
+        )
+    }
+
+    pub fn remove_entry(payout_puzzle_hash: Bytes32, shares: u64) -> Vec<u8> {
+        prefix_hash(
+            Self::RemoveEntry as u8,
+            clvm_tuple!(payout_puzzle_hash, shares).tree_hash(),
         )
     }
 }

@@ -8,13 +8,13 @@ use chia_sdk_types::{
     },
     Conditions, Mod,
 };
-use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, RewardDistributor, RewardDistributorConstants, RewardDistributorState,
-    RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
+    DriverError, RewardDistributor, RewardDistributorConstants,
+    RewardDistributorReceivedMessagePrefix, RewardDistributorState, RewardDistributorType,
+    SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,11 +103,9 @@ impl RewardDistributorAddEntryAction {
         manager_singleton_inner_puzzle_hash: Bytes32,
     ) -> Result<Conditions, DriverError> {
         // calculate message that the manager needs to send
-        let mut add_entry_message = clvm_tuple!(payout_puzzle_hash, shares).tree_hash().to_vec();
-        add_entry_message.insert(0, b'a');
         let add_entry_message = Conditions::new().send_message(
             18,
-            add_entry_message.into(),
+            RewardDistributorReceivedMessagePrefix::add_entry(payout_puzzle_hash, shares).into(),
             vec![ctx.alloc(&distributor.coin.puzzle_hash)?],
         );
 
