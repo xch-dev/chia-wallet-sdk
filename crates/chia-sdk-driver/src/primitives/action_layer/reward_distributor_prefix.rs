@@ -11,6 +11,7 @@ pub enum RewardDistributorCreatedAnnouncementPrefix {
     NewEpoch = b'e',
     Sync = b's',
     StakeSlot = b't',
+    StakeLock = b'l',
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,6 +63,10 @@ impl RewardDistributorCreatedAnnouncementPrefix {
 
     pub fn stake_slot(new_entry_slot_value_hash: TreeHash) -> Vec<u8> {
         prefix_hash(Self::StakeSlot as u8, new_entry_slot_value_hash)
+    }
+
+    pub fn stake_lock(offer_announcement_id: Bytes32) -> Vec<u8> {
+        prefix_hash(Self::StakeLock as u8, offer_announcement_id.into())
     }
 }
 

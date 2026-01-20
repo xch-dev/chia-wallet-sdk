@@ -322,7 +322,10 @@ impl RewardDistributorStakeAction {
             let msg: Bytes32 = ctx.tree_hash(notarized_payment_ptr).into();
             security_conditions = security_conditions.assert_puzzle_announcement(announcement_id(
                 distributor.coin.puzzle_hash,
-                announcement_id(offer_nft.coin.puzzle_hash, msg),
+                RewardDistributorCreatedAnnouncementPrefix::stake_lock(announcement_id(
+                    offer_nft.coin.puzzle_hash,
+                    msg,
+                )),
             ));
         }
 
@@ -469,7 +472,10 @@ impl RewardDistributorStakeAction {
             let msg: Bytes32 = ctx.tree_hash(notarized_payment_ptr).into();
             security_conditions = security_conditions.assert_puzzle_announcement(announcement_id(
                 distributor.coin.puzzle_hash,
-                announcement_id(offer_nft.coin.puzzle_hash, msg),
+                RewardDistributorCreatedAnnouncementPrefix::stake_lock(announcement_id(
+                    offer_nft.coin.puzzle_hash,
+                    msg,
+                )),
             ));
         }
 
@@ -567,7 +573,10 @@ impl RewardDistributorStakeAction {
         let mut security_conditions =
             Conditions::new().assert_puzzle_announcement(announcement_id(
                 distributor.coin.puzzle_hash,
-                announcement_id(offered_cat.coin.puzzle_hash, msg),
+                RewardDistributorCreatedAnnouncementPrefix::stake_lock(announcement_id(
+                    offered_cat.coin.puzzle_hash,
+                    msg,
+                )),
             ));
 
         // spend self
