@@ -6,13 +6,12 @@ use chia_sdk_types::{
     },
     Conditions, Mod,
 };
-use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, RewardDistributor, RewardDistributorConstants, SingletonAction, Spend,
-    SpendContext,
+    DriverError, RewardDistributor, RewardDistributorConstants, RewardDistributorPrefix,
+    SingletonAction, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,14 +60,14 @@ impl RewardDistributorAddIncentivesAction {
         let my_state = distributor.pending_spend.latest_state.1;
 
         // calculate announcement needed to ensure everything's happening as expected
-        let mut add_incentives_announcement =
-            clvm_tuple!(amount, my_state.round_time_info.epoch_end)
-                .tree_hash()
-                .to_vec();
-        add_incentives_announcement.insert(0, b'i');
-        let add_incentives_announcement = Conditions::new().assert_puzzle_announcement(
-            announcement_id(distributor.coin.puzzle_hash, add_incentives_announcement),
-        );
+        let add_incentives_announcement =
+            Conditions::new().assert_puzzle_announcement(announcement_id(
+                distributor.coin.puzzle_hash,
+                RewardDistributorPrefix::add_incentives_announcement(
+                    amount,
+                    my_state.round_time_info.epoch_end,
+                ),
+            ));
 
         // spend self
         let action_solution = ctx.alloc(&RewardDistributorAddIncentivesActionSolution {
