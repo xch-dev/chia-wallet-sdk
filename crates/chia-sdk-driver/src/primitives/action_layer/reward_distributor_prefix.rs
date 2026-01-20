@@ -12,6 +12,7 @@ pub enum RewardDistributorCreatedAnnouncementPrefix {
     Sync = b's',
     StakeSlot = b't',
     StakeLock = b'l',
+    Refresh = b'r',
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,6 +68,10 @@ impl RewardDistributorCreatedAnnouncementPrefix {
 
     pub fn stake_lock(offer_announcement_id: Bytes32) -> Vec<u8> {
         prefix_hash(Self::StakeLock as u8, offer_announcement_id.into())
+    }
+
+    pub fn refresh(nft_launcher_id: Bytes32) -> Vec<u8> {
+        prefix_hash(Self::Refresh as u8, nft_launcher_id.into())
     }
 }
 

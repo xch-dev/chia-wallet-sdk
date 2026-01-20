@@ -18,6 +18,7 @@ mod verification_asserter;
 mod verification_info;
 mod xchandles_registry;
 mod xchandles_registry_info;
+mod xchandles_registry_prefix;
 
 pub use cat_maker::*;
 pub use catalog_registry::*;
@@ -39,3 +40,4 @@ pub use verification_asserter::*;
 pub use verification_info::*;
 pub use xchandles_registry::*;
 pub use xchandles_registry_info::*;
+pub use xchandles_registry_prefix::*;

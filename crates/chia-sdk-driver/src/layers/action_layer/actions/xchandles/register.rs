@@ -16,6 +16,7 @@ use clvmr::NodePtr;
 use crate::{
     DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
     XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
+    XchandlesRegistryCreatedAnnouncementPrefix,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -173,8 +174,8 @@ impl XchandlesRegisterAction {
             / XchandlesFactorPricingPuzzleArgs::get_price(base_handle_price, &handle, 1);
 
         // calculate announcement
-        let mut register_announcement = precommit_coin.coin.puzzle_hash.to_vec();
-        register_announcement.insert(0, b'r');
+        let register_announcement =
+            XchandlesRegistryCreatedAnnouncementPrefix::register(precommit_coin.coin.puzzle_hash);
 
         // spend precommit coin
         let my_inner_puzzle_hash = registry.info.inner_puzzle_hash().into();

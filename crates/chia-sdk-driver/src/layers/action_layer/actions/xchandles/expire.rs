@@ -17,6 +17,7 @@ use clvmr::NodePtr;
 use crate::{
     DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
     XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
+    XchandlesRegistryCreatedAnnouncementPrefix,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -146,7 +147,8 @@ impl XchandlesExpireAction {
         let my_inner_puzzle_hash = registry.info.inner_puzzle_hash().into();
 
         // announcement is simply premcommitment coin ph
-        let expire_ann = precommit_coin.coin.puzzle_hash;
+        let expire_ann =
+            XchandlesRegistryCreatedAnnouncementPrefix::expire(precommit_coin.coin.puzzle_hash);
 
         // spend precommit coin
         precommit_coin.spend(ctx, PrecommitSpendMode::REGISTER, my_inner_puzzle_hash)?;
@@ -184,8 +186,6 @@ impl XchandlesExpireAction {
         // spend slot
         slot.spend(ctx, my_inner_puzzle_hash)?;
 
-        let mut expire_ann = expire_ann.to_vec();
-        expire_ann.insert(0, b'x');
         Ok(Conditions::new()
             .assert_puzzle_announcement(announcement_id(registry.coin.puzzle_hash, expire_ann)))
     }

@@ -9,6 +9,7 @@ use clvmr::NodePtr;
 
 use crate::{
     DriverError, SingletonAction, Slot, Spend, SpendContext, XchandlesConstants, XchandlesRegistry,
+    XchandlesRegistryCreatedAnnouncementPrefix,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,8 +73,7 @@ impl XchandlesOracleAction {
         // spend slot
         slot.spend(ctx, registry.info.inner_puzzle_hash().into())?;
 
-        let mut oracle_ann = new_slot.tree_hash().to_vec();
-        oracle_ann.insert(0, b'o');
+        let oracle_ann = XchandlesRegistryCreatedAnnouncementPrefix::oracle(new_slot.tree_hash());
         Ok(Conditions::new()
             .assert_puzzle_announcement(announcement_id(registry.coin.puzzle_hash, oracle_ann)))
     }

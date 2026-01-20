@@ -15,6 +15,7 @@ use clvmr::NodePtr;
 
 use crate::{
     DriverError, SingletonAction, Slot, Spend, SpendContext, XchandlesConstants, XchandlesRegistry,
+    XchandlesRegistryCreatedAnnouncementPrefix,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -114,7 +115,7 @@ impl XchandlesExtendAction {
         self,
         ctx: &mut SpendContext,
         registry: &mut XchandlesRegistry,
-        handle: String,
+        handle: &str,
         slot: Slot<XchandlesSlotValue>,
         payment_asset_id: Bytes32,
         base_handle_price: u64,
@@ -139,7 +140,7 @@ impl XchandlesExtendAction {
             pricing_solution: XchandlesPricingSolution {
                 buy_time,
                 current_expiration: slot.info.value.expiration,
-                handle: handle.clone(),
+                handle: handle.to_string(),
                 num_periods,
             },
             cat_maker_puzzle_reveal,
@@ -152,10 +153,10 @@ impl XchandlesExtendAction {
         registry.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         let renew_amount =
-            XchandlesFactorPricingPuzzleArgs::get_price(base_handle_price, &handle, num_periods);
+            XchandlesFactorPricingPuzzleArgs::get_price(base_handle_price, handle, num_periods);
 
         let notarized_payment = NotarizedPayment {
-            nonce: clvm_tuple!(handle.clone(), slot.info.value.expiration)
+            nonce: clvm_tuple!(handle.to_string(), slot.info.value.expiration)
                 .tree_hash()
                 .into(),
             payments: vec![Payment::new(
@@ -168,12 +169,11 @@ impl XchandlesExtendAction {
         // spend slot
         slot.spend(ctx, spender_inner_puzzle_hash)?;
 
-        let mut extend_ann = clvm_tuple!(renew_amount, handle).tree_hash().to_vec();
-        extend_ann.insert(0, b'e');
-
         Ok((
-            Conditions::new()
-                .assert_puzzle_announcement(announcement_id(registry.coin.puzzle_hash, extend_ann)),
+            Conditions::new().assert_puzzle_announcement(announcement_id(
+                registry.coin.puzzle_hash,
+                XchandlesRegistryCreatedAnnouncementPrefix::extend(renew_amount, handle),
+            )),
             notarized_payment,
         ))
     }

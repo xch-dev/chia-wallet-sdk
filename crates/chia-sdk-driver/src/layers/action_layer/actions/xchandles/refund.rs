@@ -15,6 +15,7 @@ use clvmr::NodePtr;
 use crate::{
     DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
     XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
+    XchandlesRegistryCreatedAnnouncementPrefix,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,8 +99,8 @@ impl XchandlesRefundAction {
         slot: Option<Slot<XchandlesSlotValue>>,
     ) -> Result<Conditions, DriverError> {
         // calculate announcement
-        let mut refund_announcement = precommit_coin.coin.puzzle_hash.to_vec();
-        refund_announcement.insert(0, b'$');
+        let refund_announcement =
+            XchandlesRegistryCreatedAnnouncementPrefix::refund(precommit_coin.coin.puzzle_hash);
 
         // spend precommit coin
         let my_inner_puzzle_hash = registry.info.inner_puzzle_hash().into();

@@ -17,8 +17,8 @@ use clvmr::NodePtr;
 
 use crate::{
     DriverError, Layer, Nft, P2DelegatedBySingletonLayer, RewardDistributor,
-    RewardDistributorConstants, RewardDistributorState, RewardDistributorType, SingletonAction,
-    Slot, Spend, SpendContext,
+    RewardDistributorConstants, RewardDistributorCreatedAnnouncementPrefix, RewardDistributorState,
+    RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -243,10 +243,11 @@ impl RewardDistributorRefreshAction {
                     .push(nft.spend(ctx, Spend::new(nft_inner_puzzle, nft_inner_solution))?);
 
                 // compute security condition for this NFT
-                let mut msg: Vec<u8> = nft.info.launcher_id.into();
-                msg.insert(0, b'r');
-                security_conditions = security_conditions
-                    .assert_puzzle_announcement(announcement_id(distributor.coin.puzzle_hash, msg));
+                security_conditions =
+                    security_conditions.assert_puzzle_announcement(announcement_id(
+                        distributor.coin.puzzle_hash,
+                        RewardDistributorCreatedAnnouncementPrefix::refresh(nft.info.launcher_id),
+                    ));
             }
 
             let payout_amount_precision = u128::from(slot.info.value.shares)
