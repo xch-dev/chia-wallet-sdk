@@ -2979,6 +2979,18 @@ mod tests {
                 )?);
             }
 
+            let nft_inner_spend = Spend::new(
+                ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
+                    SETTLEMENT_PAYMENT_HASH.into(),
+                    1,
+                    Memos::None
+                )))?,
+                NodePtr::NIL,
+            );
+            let nft_inner_spend =
+                StandardLayer::new(nft_bls.pk).delegated_inner_spend(ctx, nft_inner_spend)?;
+            let offer_nft = nft.spend(ctx, nft_inner_spend)?;
+
             let (sec_conds, notarized_payments, locked_nfts) = if let Some(some_datastore) =
                 datastore
             {
@@ -3003,7 +3015,7 @@ mod tests {
                     .spend_for_curated_nft_mode(
                         ctx,
                         &mut registry,
-                        &[nft],
+                        &[offer_nft],
                         &[1],
                         &[merkle_tree
                             .proof((nft.info.launcher_id, 1).tree_hash().into())
@@ -3050,25 +3062,11 @@ mod tests {
                 if datastore.is_some() { oracle_fee } else { 0 },
             )?;
 
-            let offer_nft = nft.child(SETTLEMENT_PAYMENT_HASH.into(), None, nft.info.metadata, 1);
-
-            let nft_inner_spend = Spend::new(
-                ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
-                    SETTLEMENT_PAYMENT_HASH.into(),
-                    1,
-                    Memos::None
-                )))?,
-                NodePtr::NIL,
-            );
-            let nft_inner_spend =
-                StandardLayer::new(nft_bls.pk).delegated_inner_spend(ctx, nft_inner_spend)?;
-            let _new_nft = nft.spend(ctx, nft_inner_spend)?;
-
             let nft_inner_spend = Spend::new(
                 ctx.alloc_mod::<SettlementPayment>()?,
                 ctx.alloc(&SettlementPaymentsSolution { notarized_payments })?,
             );
-            let _new_offer_nft = offer_nft.spend(ctx, nft_inner_spend)?;
+            let _locked_nft = offer_nft.spend(ctx, nft_inner_spend)?;
 
             // sim.spend_coins(spends, slice::from_ref(&nft_bls.sk))?;
             let spends = ctx.take();
@@ -3719,6 +3717,21 @@ mod tests {
                 }],
             };
 
+            let nfts_inner_spend = Spend::new(
+                ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
+                    SETTLEMENT_PAYMENT_HASH.into(),
+                    1,
+                    Memos::None
+                )))?,
+                NodePtr::NIL,
+            );
+            let nft2_inner_spend =
+                StandardLayer::new(nft2_bls.pk).delegated_inner_spend(ctx, nfts_inner_spend)?;
+            let nft3_inner_spend =
+                StandardLayer::new(nft3_bls.pk).delegated_inner_spend(ctx, nfts_inner_spend)?;
+            let offer2_nft = nft2.spend(ctx, nft2_inner_spend)?;
+            let offer3_nft = nft3.spend(ctx, nft3_inner_spend)?;
+
             let (
                 entry2_slot,
                 mut entry3_slot,
@@ -3750,7 +3763,7 @@ mod tests {
                     .spend_for_curated_nft_mode(
                         ctx,
                         &mut registry,
-                        &[nft2],
+                        &[offer2_nft],
                         &[2],
                         &[merkle_tree
                             .proof((nft2.info.launcher_id, 2).tree_hash().into())
@@ -3772,7 +3785,7 @@ mod tests {
                     .spend_for_curated_nft_mode(
                         ctx,
                         &mut registry,
-                        &[nft3],
+                        &[offer3_nft],
                         &[if refreshable { 6 } else { 3 }],
                         &[merkle_tree
                             .proof(
@@ -3809,7 +3822,7 @@ mod tests {
                     .spend_for_collection_nft_mode(
                         ctx,
                         &mut registry,
-                        &[nft2],
+                        &[offer2_nft],
                         &[nft2_proof],
                         nft2_bls.puzzle_hash,
                         None,
@@ -3823,7 +3836,7 @@ mod tests {
                     .spend_for_collection_nft_mode(
                         ctx,
                         &mut registry,
-                        &[nft3],
+                        &[offer3_nft],
                         &[nft3_proof],
                         nft3_bls.puzzle_hash,
                         None,
@@ -3847,26 +3860,6 @@ mod tests {
             registry = registry.finish_spend(ctx, vec![])?.0;
 
             ensure_conditions_met(ctx, &mut sim, sec_conds, mint_mojos)?;
-
-            let offer2_nft =
-                nft2.child(SETTLEMENT_PAYMENT_HASH.into(), None, nft2.info.metadata, 1);
-            let offer3_nft =
-                nft3.child(SETTLEMENT_PAYMENT_HASH.into(), None, nft3.info.metadata, 1);
-
-            let nfts_inner_spend = Spend::new(
-                ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
-                    SETTLEMENT_PAYMENT_HASH.into(),
-                    1,
-                    Memos::None
-                )))?,
-                NodePtr::NIL,
-            );
-            let nft2_inner_spend =
-                StandardLayer::new(nft2_bls.pk).delegated_inner_spend(ctx, nfts_inner_spend)?;
-            let nft3_inner_spend =
-                StandardLayer::new(nft3_bls.pk).delegated_inner_spend(ctx, nfts_inner_spend)?;
-            let _new_nft2 = nft2.spend(ctx, nft2_inner_spend)?;
-            let _new_nft3 = nft3.spend(ctx, nft3_inner_spend)?;
 
             let nft2_inner_spend = Spend::new(
                 ctx.alloc_mod::<SettlementPayment>()?,

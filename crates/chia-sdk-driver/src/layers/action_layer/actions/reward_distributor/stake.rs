@@ -4,7 +4,6 @@ use chia_puzzle_types::{
     offer::{NotarizedPayment, Payment},
     singleton::SingletonStruct,
 };
-use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
@@ -247,7 +246,7 @@ impl RewardDistributorStakeAction {
         self,
         ctx: &mut SpendContext,
         distributor: &mut RewardDistributor,
-        current_nfts: &[Nft],
+        offered_nfts: &[Nft],
         nft_launcher_proofs: &[NftLauncherProof],
         entry_custody_puzzle_hash: Bytes32,
         existing_slot: Option<Slot<RewardDistributorEntrySlotValue>>,
@@ -268,11 +267,11 @@ impl RewardDistributorStakeAction {
         .tree_hash()
         .into();
 
-        let mut notarized_payments = Vec::with_capacity(current_nfts.len());
-        let mut created_nfts = Vec::with_capacity(current_nfts.len());
-        let mut nft_infos = Vec::with_capacity(current_nfts.len());
+        let mut notarized_payments = Vec::with_capacity(offered_nfts.len());
+        let mut created_nfts = Vec::with_capacity(offered_nfts.len());
+        let mut nft_infos = Vec::with_capacity(offered_nfts.len());
         let mut security_conditions = Conditions::new();
-        for i in 0..current_nfts.len() {
+        for i in 0..offered_nfts.len() {
             let nonce: Bytes32 = clvm_tuple!(i, clvm_tuple!(ephemeral_counter.tree_hash(), my_id))
                 .tree_hash()
                 .into();
@@ -288,32 +287,25 @@ impl RewardDistributorStakeAction {
             let notarized_payment_ptr = ctx.alloc(&np)?;
             notarized_payments.push(np);
 
-            let nft = current_nfts[i];
-            let offer_nft = current_nfts[i].child(
-                SETTLEMENT_PAYMENT_HASH.into(),
-                None,
-                nft.info.metadata,
-                nft.amount(),
-            );
-            created_nfts.push(offer_nft.child(
+            created_nfts.push(offered_nfts[i].child(
                 payment_puzzle_hash,
-                offer_nft.info.current_owner,
-                offer_nft.info.metadata,
-                offer_nft.coin.amount,
+                offered_nfts[i].info.current_owner,
+                offered_nfts[i].info.metadata,
+                offered_nfts[i].coin.amount,
             ));
 
             nft_infos.push(StakeNftFromDidInfo {
-                nft_metadata_hash: nft.info.metadata.tree_hash().into(),
-                nft_metadata_updater_hash_hash: nft
+                nft_metadata_hash: offered_nfts[i].info.metadata.tree_hash().into(),
+                nft_metadata_updater_hash_hash: offered_nfts[i]
                     .info
                     .metadata_updater_puzzle_hash
                     .tree_hash()
                     .into(),
-                nft_owner: nft.info.current_owner,
+                nft_owner: offered_nfts[i].info.current_owner,
                 nft_transfer_porgram_hash: NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
-                    nft.info.launcher_id,
-                    nft.info.royalty_puzzle_hash,
-                    nft.info.royalty_basis_points,
+                    offered_nfts[i].info.launcher_id,
+                    offered_nfts[i].info.royalty_puzzle_hash,
+                    offered_nfts[i].info.royalty_basis_points,
                 )
                 .into(),
                 nft_launcher_proof: nft_launcher_proofs[i].clone(),
@@ -323,7 +315,7 @@ impl RewardDistributorStakeAction {
             security_conditions = security_conditions.assert_puzzle_announcement(announcement_id(
                 distributor.coin.puzzle_hash,
                 RewardDistributorCreatedAnnouncementPrefix::stake_lock(announcement_id(
-                    offer_nft.coin.puzzle_hash,
+                    offered_nfts[i].coin.puzzle_hash,
                     msg,
                 )),
             ));
@@ -385,7 +377,7 @@ impl RewardDistributorStakeAction {
         self,
         ctx: &mut SpendContext,
         distributor: &mut RewardDistributor,
-        current_nfts: &[Nft],
+        offered_nfts: &[Nft],
         nft_shares: &[u64],
         inclusion_proofs: &[MerkleProof],
         entry_custody_puzzle_hash: Bytes32,
@@ -402,12 +394,12 @@ impl RewardDistributorStakeAction {
         // calculate notarized payments; spend said nfts
         let my_p2_treehash = Self::my_p2_puzzle_hash(self.launcher_id).into();
 
-        let mut notarized_payments = Vec::with_capacity(current_nfts.len());
-        let mut created_nfts = Vec::with_capacity(current_nfts.len());
-        let mut nft_infos = Vec::with_capacity(current_nfts.len());
+        let mut notarized_payments = Vec::with_capacity(offered_nfts.len());
+        let mut created_nfts = Vec::with_capacity(offered_nfts.len());
+        let mut nft_infos = Vec::with_capacity(offered_nfts.len());
         let mut security_conditions = Conditions::new();
         let mut total_shares_until_now = 0;
-        for i in 0..current_nfts.len() {
+        for i in 0..offered_nfts.len() {
             let payment_puzzle_hash: Bytes32 = CurriedProgram {
                 program: NONCE_WRAPPER_PUZZLE_HASH,
                 args: NonceWrapperArgs::<(Bytes32, u64), TreeHash> {
@@ -436,33 +428,26 @@ impl RewardDistributorStakeAction {
             notarized_payments.push(np);
             total_shares_until_now += nft_shares[i];
 
-            let nft = current_nfts[i];
-            let offer_nft = current_nfts[i].child(
-                SETTLEMENT_PAYMENT_HASH.into(),
-                None,
-                nft.info.metadata,
-                nft.amount(),
-            );
-            created_nfts.push(offer_nft.child(
+            created_nfts.push(offered_nfts[i].child(
                 payment_puzzle_hash,
-                offer_nft.info.current_owner,
-                offer_nft.info.metadata,
-                offer_nft.coin.amount,
+                offered_nfts[i].info.current_owner,
+                offered_nfts[i].info.metadata,
+                offered_nfts[i].coin.amount,
             ));
 
             nft_infos.push(StakeNftFromDlInfo {
-                nft_launcher_id: nft.info.launcher_id,
-                nft_metadata_hash: nft.info.metadata.tree_hash().into(),
-                nft_metadata_updater_hash_hash: nft
+                nft_launcher_id: offered_nfts[i].info.launcher_id,
+                nft_metadata_hash: offered_nfts[i].info.metadata.tree_hash().into(),
+                nft_metadata_updater_hash_hash: offered_nfts[i]
                     .info
                     .metadata_updater_puzzle_hash
                     .tree_hash()
                     .into(),
-                nft_owner: nft.info.current_owner,
+                nft_owner: offered_nfts[i].info.current_owner,
                 nft_transfer_porgram_hash: NftRoyaltyTransferPuzzleArgs::curry_tree_hash(
-                    nft.info.launcher_id,
-                    nft.info.royalty_puzzle_hash,
-                    nft.info.royalty_basis_points,
+                    offered_nfts[i].info.launcher_id,
+                    offered_nfts[i].info.royalty_puzzle_hash,
+                    offered_nfts[i].info.royalty_basis_points,
                 )
                 .into(),
                 nft_shares: nft_shares[i],
@@ -473,7 +458,7 @@ impl RewardDistributorStakeAction {
             security_conditions = security_conditions.assert_puzzle_announcement(announcement_id(
                 distributor.coin.puzzle_hash,
                 RewardDistributorCreatedAnnouncementPrefix::stake_lock(announcement_id(
-                    offer_nft.coin.puzzle_hash,
+                    offered_nfts[i].coin.puzzle_hash,
                     msg,
                 )),
             ));
