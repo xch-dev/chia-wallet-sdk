@@ -3043,7 +3043,7 @@ mod tests {
                     .spend_for_collection_nft_mode(
                         ctx,
                         &mut registry,
-                        &[nft],
+                        &[offer_nft],
                         &[nft_proof],
                         nft_bls.puzzle_hash,
                         None,
