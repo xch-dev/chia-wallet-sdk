@@ -8,7 +8,7 @@ use chia_sdk_types::{
 use clvm_traits::{clvm_quote, FromClvm};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{DriverError, Layer, Puzzle, SpendContext};
+use crate::{DriverError, Layer, Puzzle, SpendContext, XchandlesRegistryReceivedMessagePrefix};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StateSchedulerLayer {
@@ -76,7 +76,7 @@ impl Layer for StateSchedulerLayer {
 
         Ok(Some(Self {
             receiver_singleton_struct_hash: args.receiver_singleton_struct_hash,
-            new_state_hash: args.message,
+            new_state_hash: args.message.1,
             required_block_height: assert_height_condition.height,
             new_puzzle_hash: create_coin_condition.puzzle_hash,
         }))
@@ -99,7 +99,10 @@ impl Layer for StateSchedulerLayer {
         ctx.curry(StateSchedulerLayerArgs::<Bytes32, NodePtr> {
             singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
             receiver_singleton_struct_hash: self.receiver_singleton_struct_hash,
-            message: self.new_state_hash,
+            message: (
+                XchandlesRegistryReceivedMessagePrefix::UpdateState as u8,
+                self.new_state_hash,
+            ),
             inner_puzzle,
         })
     }

@@ -33,7 +33,7 @@ pub const STATE_SCHEDULER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 pub struct StateSchedulerLayerArgs<M, I> {
     pub singleton_mod_hash: Bytes32,
     pub receiver_singleton_struct_hash: Bytes32,
-    pub message: M,
+    pub message: (u8, M),
     pub inner_puzzle: I,
 }
 
@@ -52,7 +52,7 @@ where
             args: StateSchedulerLayerArgs {
                 singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
                 receiver_singleton_struct_hash,
-                message: message.tree_hash(),
+                message: (b's', message.tree_hash()),
                 inner_puzzle: inner_puzzle.tree_hash(),
             },
         }

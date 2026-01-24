@@ -784,7 +784,7 @@ mod tests {
         SingletonInfo, Slot, SpendWithConditions, XchandlesExpireAction,
         XchandlesExpirePricingPuzzle, XchandlesExtendAction, XchandlesOracleAction,
         XchandlesPrecommitValue, XchandlesRefundAction, XchandlesRegisterAction,
-        XchandlesUpdateAction,
+        XchandlesRegistryReceivedMessagePrefix, XchandlesUpdateAction,
     };
 
     use super::*;
@@ -872,9 +872,12 @@ mod tests {
         let price_singleton_inner_puzzle = ctx.alloc(&1)?;
         let price_singleton_inner_puzzle_hash = ctx.tree_hash(price_singleton_inner_puzzle);
 
-        let message: Bytes32 = new_state.tree_hash().into();
         let price_singleton_inner_solution = Conditions::new()
-            .send_message(18, message.into(), vec![ctx.alloc(&receiver_puzzle_hash)?])
+            .send_message(
+                18,
+                XchandlesRegistryReceivedMessagePrefix::update_state(new_state.tree_hash()).into(),
+                vec![ctx.alloc(&receiver_puzzle_hash)?],
+            )
             .create_coin(price_singleton_inner_puzzle_hash.into(), 1, Memos::None);
 
         let price_singleton_inner_solution = price_singleton_inner_solution.to_clvm(ctx)?;

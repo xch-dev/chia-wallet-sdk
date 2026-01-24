@@ -14,6 +14,18 @@ pub enum XchandlesRegistryCreatedAnnouncementPrefix {
     Register = b'r',
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum XchandlesRegistryReceivedMessagePrefix {
+    UpdateState = b's',
+}
+
+impl XchandlesRegistryReceivedMessagePrefix {
+    pub fn update_state(state_hash: TreeHash) -> Vec<u8> {
+        prefix_hash(Self::UpdateState as u8, state_hash)
+    }
+}
+
 impl XchandlesRegistryCreatedAnnouncementPrefix {
     pub fn expire(precommit_coin_puzzle_hash: Bytes32) -> Vec<u8> {
         prefix_hash(Self::Expire as u8, precommit_coin_puzzle_hash.into())
