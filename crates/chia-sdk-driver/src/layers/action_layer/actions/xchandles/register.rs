@@ -243,15 +243,15 @@ impl XchandlesRegisterAction {
         left_slot.spend(ctx, my_inner_puzzle_hash)?;
         right_slot.spend(ctx, my_inner_puzzle_hash)?;
 
-        let message_destination = vec![ctx.alloc(&registry.coin.puzzle_hash)?];
+        let message_destination = ctx.alloc(&registry.coin.puzzle_hash)?;
         Ok((
             Conditions::new().assert_puzzle_announcement(announcement_id(
                 registry.coin.puzzle_hash,
                 register_announcement,
             )),
-            Conditions::new().send_message(18, new_owner_message.into(), message_destination),
+            Conditions::new().send_message(18, new_owner_message.into(), vec![message_destination]),
             new_resolved_message.map(|message| {
-                Conditions::new().send_message(18, message.into(), message_destination)
+                Conditions::new().send_message(18, message.into(), vec![message_destination])
             }),
         ))
     }

@@ -15,7 +15,7 @@ use chia_sdk_types::{
     puzzles::{
         CatalogSlotValue, DefaultCatMakerArgs, P2DelegatedBySingletonLayerArgs,
         RewardDistributorRewardSlotValue, RewardDistributorSlotNonce, SettlementPayment, SlotInfo,
-        XchandlesSlotValue,
+        XchandlesHandleSlotValue, XchandlesSlotNonce,
     },
     Condition, Conditions, Mod,
 };
@@ -114,6 +114,7 @@ pub fn sign_standard_transaction(
 pub fn eve_singleton_inner_puzzle<S>(
     ctx: &mut SpendContext,
     launcher_id: Bytes32,
+    slot_nonce: u64,
     left_slot_value: S,
     right_slot_value: S,
     memos_after_hint: NodePtr,
@@ -122,13 +123,13 @@ pub fn eve_singleton_inner_puzzle<S>(
 where
     S: ToTreeHash,
 {
-    let left_slot_info = SlotInfo::from_value(launcher_id, 0, left_slot_value);
+    let left_slot_info = SlotInfo::from_value(launcher_id, slot_nonce, left_slot_value);
     let left_slot_puzzle_hash = Slot::<S>::puzzle_hash(&left_slot_info);
 
-    let right_slot_info = SlotInfo::from_value(launcher_id, 0, right_slot_value);
+    let right_slot_info = SlotInfo::from_value(launcher_id, slot_nonce, right_slot_value);
     let right_slot_puzzle_hash = Slot::<S>::puzzle_hash(&right_slot_info);
 
-    let slot_hint = Slot::<()>::first_curry_hash(launcher_id, 0).into();
+    let slot_hint = Slot::<()>::first_curry_hash(launcher_id, slot_nonce).into();
     let slot_memos = ctx.hint(slot_hint)?;
     let launcher_id_ptr = ctx.alloc(&launcher_id)?;
     let launcher_memos = ctx.memos(&clvm_tuple!(launcher_id_ptr, memos_after_hint))?;
@@ -149,6 +150,7 @@ fn spend_eve_coin_and_create_registry<S, M, KV>(
     ctx: &mut SpendContext,
     launcher: Launcher,
     target_inner_puzzle_hash: Bytes32,
+    slot_nonce: u64,
     left_slot_value: S,
     right_slot_value: S,
     memos_after_hint: M,
@@ -166,6 +168,7 @@ where
     let eve_singleton_inner_puzzle = eve_singleton_inner_puzzle(
         ctx,
         launcher_id,
+        slot_nonce,
         left_slot_value.clone(),
         right_slot_value.clone(),
         memos_after_hint,
@@ -214,11 +217,11 @@ where
     };
     let left_slot = Slot::new(
         slot_proof,
-        SlotInfo::from_value(launcher_id, 0, left_slot_value),
+        SlotInfo::from_value(launcher_id, slot_nonce, left_slot_value),
     );
     let right_slot = Slot::new(
         slot_proof,
-        SlotInfo::from_value(launcher_id, 0, right_slot_value),
+        SlotInfo::from_value(launcher_id, slot_nonce, right_slot_value),
     );
 
     Ok((
@@ -328,6 +331,7 @@ pub fn launch_catalog_registry<V>(
             ctx,
             registry_launcher,
             catalog_inner_puzzle_hash.into(),
+            0,
             CatalogSlotValue::initial_left_end(),
             CatalogSlotValue::initial_right_end(),
             clvm_tuple!(
@@ -390,7 +394,7 @@ pub fn launch_xchandles_registry<V>(
         Signature,
         SecretKey,
         XchandlesRegistry,
-        [Slot<XchandlesSlotValue>; 2],
+        [Slot<XchandlesHandleSlotValue>; 2],
         Coin, // security coin
     ),
     DriverError,
@@ -432,8 +436,9 @@ pub fn launch_xchandles_registry<V>(
             ctx,
             registry_launcher,
             target_xchandles_inner_puzzle_hash.into(),
-            XchandlesSlotValue::initial_left_end(),
-            XchandlesSlotValue::initial_right_end(),
+            XchandlesSlotNonce::HANDLE.to_u64(),
+            XchandlesHandleSlotValue::initial_left_end(),
+            XchandlesHandleSlotValue::initial_right_end(),
             (),
             clvm_list!(
                 initial_registration_asset_id,
@@ -784,7 +789,7 @@ mod tests {
         SingletonInfo, Slot, SpendWithConditions, XchandlesExpireAction,
         XchandlesExpirePricingPuzzle, XchandlesExtendAction, XchandlesOracleAction,
         XchandlesPrecommitValue, XchandlesRefundAction, XchandlesRegisterAction,
-        XchandlesRegistryReceivedMessagePrefix, XchandlesUpdateAction,
+        XchandlesRegistryReceivedMessagePrefix,
     };
 
     use super::*;
