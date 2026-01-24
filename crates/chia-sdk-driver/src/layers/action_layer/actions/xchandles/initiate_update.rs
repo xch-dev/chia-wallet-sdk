@@ -1,9 +1,10 @@
-use chia_protocol::{Bytes, Bytes32};
+use chia_protocol::{Bytes, Bytes32, Coin};
+use chia_puzzle_types::singleton::SingletonArgs;
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
     puzzles::{
-        XchandlesDataValue, XchandlesSlotValue, XchandlesUpdateActionArgs,
-        XchandlesUpdateActionSolution,
+        XchandlesDataValue, XchandlesHandleSlotValue, XchandlesInitiateUpdateActionArgs,
+        XchandlesInitiateUpdateActionSolution, XchandlesSlotNonce, XchandlesUpdateSlotValue,
     },
     Conditions, Mod,
 };
@@ -16,55 +17,85 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct XchandlesUpdateAction {
+pub struct XchandlesInitiateUpdateAction {
     pub launcher_id: Bytes32,
+    pub relative_block_height: u32,
 }
 
-impl ToTreeHash for XchandlesUpdateAction {
+impl ToTreeHash for XchandlesInitiateUpdateAction {
     fn tree_hash(&self) -> TreeHash {
-        Self::new_args(self.launcher_id).curry_tree_hash()
+        Self::new_args(self.launcher_id, self.relative_block_height).curry_tree_hash()
     }
 }
 
-impl SingletonAction<XchandlesRegistry> for XchandlesUpdateAction {
+impl SingletonAction<XchandlesRegistry> for XchandlesInitiateUpdateAction {
     fn from_constants(constants: &XchandlesConstants) -> Self {
         Self {
             launcher_id: constants.launcher_id,
+            relative_block_height: constants.relative_block_height,
         }
     }
 }
 
-impl XchandlesUpdateAction {
-    pub fn new_args(launcher_id: Bytes32) -> XchandlesUpdateActionArgs {
-        XchandlesUpdateActionArgs {
+impl XchandlesInitiateUpdateAction {
+    pub fn new_args(
+        launcher_id: Bytes32,
+        relative_block_height: u32,
+    ) -> XchandlesInitiateUpdateActionArgs {
+        XchandlesInitiateUpdateActionArgs {
             singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
             singleton_launcher_mod_hash: SINGLETON_LAUNCHER_HASH.into(),
-            slot_1st_curry_hash: Slot::<()>::first_curry_hash(launcher_id, 0).into(),
+            relative_block_height,
+            handle_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                launcher_id,
+                XchandlesSlotNonce::HANDLE.to_u64(),
+            )
+            .into(),
+            update_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                launcher_id,
+                XchandlesSlotNonce::UPDATE.to_u64(),
+            )
+            .into(),
         }
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
-        ctx.curry(Self::new_args(self.launcher_id))
+        ctx.curry(Self::new_args(self.launcher_id, self.relative_block_height))
     }
 
     pub fn spent_slot_value(
         ctx: &SpendContext,
         solution: NodePtr,
-    ) -> Result<XchandlesSlotValue, DriverError> {
-        let solution = ctx.extract::<XchandlesUpdateActionSolution>(solution)?;
+    ) -> Result<XchandlesHandleSlotValue, DriverError> {
+        let solution = ctx.extract::<XchandlesInitiateUpdateActionSolution>(solution)?;
 
         Ok(solution.current_slot_value)
     }
 
-    pub fn created_slot_value(
+    pub fn created_slot_values(
         ctx: &mut SpendContext,
         solution: NodePtr,
-    ) -> Result<XchandlesSlotValue, DriverError> {
-        let solution = ctx.extract::<XchandlesUpdateActionSolution>(solution)?;
+    ) -> Result<(XchandlesHandleSlotValue, XchandlesUpdateSlotValue), DriverError> {
+        let solution = ctx.extract::<XchandlesInitiateUpdateActionSolution>(solution)?;
 
-        Ok(solution.current_slot_value.with_data(
-            solution.new_data.owner_launcher_id,
-            solution.new_data.resolved_data,
+        Ok((
+            solution.current_slot_value,
+            XchandlesUpdateSlotValue::new(
+                Coin::new(
+                    solution.current_owner.parent_coin_info,
+                    SingletonArgs::curry_tree_hash(
+                        solution.current_slot_value.owner_launcher_id,
+                        solution.current_owner.inner_puzzle_hash.into(),
+                    )
+                    .into(),
+                    solution.current_owner.amount,
+                )
+                .coin_id(),
+                solution.min_height,
+                solution.current_slot_value.handle_hash,
+                solution.new_data.owner_launcher_id,
+                solution.new_data.resolved_launcher_id,
+            ),
         ))
     }
 
@@ -72,7 +103,7 @@ impl XchandlesUpdateAction {
         self,
         ctx: &mut SpendContext,
         registry: &mut XchandlesRegistry,
-        slot: Slot<XchandlesSlotValue>,
+        slot: Slot<XchandlesHandleSlotValue>,
         new_owner_launcher_id: Bytes32,
         new_resolved_data: &Bytes,
         announcer_inner_puzzle_hash: Bytes32,
