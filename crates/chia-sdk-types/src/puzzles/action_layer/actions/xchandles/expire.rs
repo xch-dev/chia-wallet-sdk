@@ -59,7 +59,7 @@ pub const XCHANDLES_EXPIRE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 #[clvm(curry)]
 pub struct XchandlesExpireActionArgs {
     pub precommit_1st_curry_hash: Bytes32,
-    pub slot_1st_curry_hash: Bytes32,
+    pub handle_slot_1st_curry_hash: Bytes32,
 }
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]

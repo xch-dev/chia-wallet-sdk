@@ -57,7 +57,7 @@ pub const XCHANDLES_EXTEND_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 pub struct XchandlesExtendActionArgs {
     pub offer_mod_hash: Bytes32,
     pub payout_puzzle_hash: Bytes32,
-    pub slot_1st_curry_hash: Bytes32,
+    pub handle_slot_1st_curry_hash: Bytes32,
 }
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]

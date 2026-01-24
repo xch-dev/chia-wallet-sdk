@@ -68,7 +68,7 @@ pub const XCHANDLES_REGISTER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 #[clvm(curry)]
 pub struct XchandlesRegisterActionArgs {
     pub precommit_1st_curry_hash: Bytes32,
-    pub slot_1st_curry_hash: Bytes32,
+    pub handle_slot_1st_curry_hash: Bytes32,
 }
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]

@@ -39,7 +39,7 @@ pub const XCHANDLES_ORACLE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(curry)]
 pub struct XchandlesOracleActionArgs {
-    pub slot_1st_curry_hash: Bytes32,
+    pub handle_slot_1st_curry_hash: Bytes32,
 }
 
 impl Mod for XchandlesOracleActionArgs {
