@@ -5,8 +5,8 @@ use chia_sdk_types::{
     puzzles::{
         DefaultCatMakerArgs, PrecommitSpendMode, XchandlesDataValue, XchandlesExpireActionArgs,
         XchandlesExpireActionSolution, XchandlesExponentialPremiumRenewPuzzleArgs,
-        XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution, XchandlesSlotValue,
-        PREMIUM_BITS_LIST, PREMIUM_PRECISION,
+        XchandlesFactorPricingPuzzleArgs, XchandlesHandleSlotValue, XchandlesPricingSolution,
+        XchandlesSlotNonce, PREMIUM_BITS_LIST, PREMIUM_PRECISION,
     },
     Conditions, Mod,
 };
@@ -61,7 +61,11 @@ impl XchandlesExpireAction {
                 payout_puzzle_hash,
             )
             .into(),
-            slot_1st_curry_hash: Slot::<()>::first_curry_hash(launcher_id, 0).into(),
+            handle_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                launcher_id,
+                XchandlesSlotNonce::HANDLE.to_u64(),
+            )
+            .into(),
         }
     }
 
@@ -76,7 +80,7 @@ impl XchandlesExpireAction {
     pub fn spent_slot_value(
         ctx: &SpendContext,
         solution: NodePtr,
-    ) -> Result<XchandlesSlotValue, DriverError> {
+    ) -> Result<XchandlesHandleSlotValue, DriverError> {
         // truths for epired solution are: Buy_Time, Current_Expiration, Handle
         let solution = XchandlesExpireActionSolution::<
             NodePtr,
@@ -89,20 +93,20 @@ impl XchandlesExpireAction {
         let handle = solution.expired_handle_pricing_puzzle_solution.1 .1 .0;
         let current_expiration = solution.expired_handle_pricing_puzzle_solution.1 .0;
 
-        Ok(XchandlesSlotValue::new(
+        Ok(XchandlesHandleSlotValue::new(
             handle.tree_hash().into(),
             solution.neighbors.left_value,
             solution.neighbors.right_value,
             current_expiration,
             solution.old_rest.owner_launcher_id,
-            solution.old_rest.resolved_data,
+            solution.old_rest.resolved_launcher_id,
         ))
     }
 
     pub fn created_slot_value(
         ctx: &mut SpendContext,
         solution: NodePtr,
-    ) -> Result<XchandlesSlotValue, DriverError> {
+    ) -> Result<XchandlesHandleSlotValue, DriverError> {
         let solution = ctx.extract::<XchandlesExpireActionSolution<
             NodePtr,
             NodePtr,
@@ -122,13 +126,13 @@ impl XchandlesExpireAction {
             solution.expired_handle_pricing_puzzle_solution,
         )?;
 
-        Ok(XchandlesSlotValue::new(
+        Ok(XchandlesHandleSlotValue::new(
             handle.tree_hash().into(),
             solution.neighbors.left_value,
             solution.neighbors.right_value,
             buy_time + registration_time_delta,
             solution.new_rest.owner_launcher_id,
-            solution.new_rest.resolved_data,
+            solution.new_rest.resolved_launcher_id,
         ))
     }
 
@@ -137,7 +141,7 @@ impl XchandlesExpireAction {
         self,
         ctx: &mut SpendContext,
         registry: &mut XchandlesRegistry,
-        slot: Slot<XchandlesSlotValue>,
+        slot: Slot<XchandlesHandleSlotValue>,
         num_periods: u64,
         base_handle_price: u64,
         registration_period: u64,
@@ -175,7 +179,7 @@ impl XchandlesExpireAction {
             old_rest: slot.info.value.rest_data(),
             new_rest: XchandlesDataValue {
                 owner_launcher_id: precommit_coin.value.owner_launcher_id,
-                resolved_data: precommit_coin.value.resolved_data,
+                resolved_launcher_id: precommit_coin.value.resolved_launcher_id,
             },
         }
         .to_clvm(ctx)?;

@@ -18,12 +18,12 @@ pub enum XchandlesRegistryCreatedAnnouncementPrefix {
 #[repr(u8)]
 pub enum XchandlesRegistryReceivedMessagePrefix {
     UpdateState = b's',
-    RegisterOwner = b'a',            // todo
-    RegisterResolved = b'b',         // todo
-    InitiateUpdate = b'i',           // todo
-    ExecuteUpdateOldOwner = b'u',    // todo
-    ExecuteUpdateNewOwner = b'o',    // todo
-    ExecuteUpdateNewResolved = b'r', // todo
+    RegisterOwner = b'a',
+    RegisterResolved = b'b',
+    InitiateUpdate = b'i',
+    ExecuteUpdateOldOwner = b'u',
+    ExecuteUpdateNewOwner = b'o',
+    ExecuteUpdateNewResolved = b'r',
 }
 
 impl XchandlesRegistryReceivedMessagePrefix {

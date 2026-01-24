@@ -3,8 +3,8 @@ use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        DefaultCatMakerArgs, PrecommitSpendMode, XchandlesRefundActionArgs,
-        XchandlesRefundActionSolution, XchandlesSlotValue,
+        DefaultCatMakerArgs, PrecommitSpendMode, XchandlesHandleSlotValue,
+        XchandlesRefundActionArgs, XchandlesRefundActionSolution, XchandlesSlotNonce,
     },
     Conditions, Mod,
 };
@@ -59,7 +59,11 @@ impl XchandlesRefundAction {
                 payout_puzzle_hash,
             )
             .into(),
-            slot_1st_curry_hash: Slot::<()>::first_curry_hash(launcher_id, 0).into(),
+            handle_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                launcher_id,
+                XchandlesSlotNonce::HANDLE.to_u64(),
+            )
+            .into(),
         }
     }
 
@@ -74,7 +78,7 @@ impl XchandlesRefundAction {
     pub fn spent_slot_value(
         ctx: &SpendContext,
         solution: NodePtr,
-    ) -> Result<Option<XchandlesSlotValue>, DriverError> {
+    ) -> Result<Option<XchandlesHandleSlotValue>, DriverError> {
         let solution =
             XchandlesRefundActionSolution::<NodePtr, NodePtr, NodePtr, NodePtr, NodePtr>::from_clvm(
                 ctx, solution,
@@ -84,8 +88,8 @@ impl XchandlesRefundAction {
     }
 
     pub fn created_slot_value(
-        spent_slot_value: Option<XchandlesSlotValue>,
-    ) -> Option<XchandlesSlotValue> {
+        spent_slot_value: Option<XchandlesHandleSlotValue>,
+    ) -> Option<XchandlesHandleSlotValue> {
         spent_slot_value // nothing changed; just oracle
     }
 
@@ -96,7 +100,7 @@ impl XchandlesRefundAction {
         precommit_coin: &PrecommitCoin<XchandlesPrecommitValue>,
         precommited_pricing_puzzle_reveal: NodePtr,
         precommited_pricing_puzzle_solution: NodePtr,
-        slot: Option<Slot<XchandlesSlotValue>>,
+        slot: Option<Slot<XchandlesHandleSlotValue>>,
     ) -> Result<Conditions, DriverError> {
         // calculate announcement
         let refund_announcement =
@@ -121,7 +125,7 @@ impl XchandlesRefundAction {
             handle: precommit_coin.value.handle.clone(),
             secret: precommit_coin.value.secret,
             precommited_owner_launcher_id: precommit_coin.value.owner_launcher_id,
-            precommited_resolved_data: precommit_coin.value.resolved_data.clone(),
+            precommited_resolved_launcher_id: precommit_coin.value.resolved_launcher_id,
             refund_puzzle_hash_hash: precommit_coin.refund_puzzle_hash.tree_hash().into(),
             precommit_amount: precommit_coin.coin.amount,
             slot_value: slot.as_ref().map(|slot| slot.info.value.clone()),

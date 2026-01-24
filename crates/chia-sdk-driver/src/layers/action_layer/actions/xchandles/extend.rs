@@ -5,7 +5,8 @@ use chia_sdk_types::{
     announcement_id,
     puzzles::{
         DefaultCatMakerArgs, XchandlesExtendActionArgs, XchandlesExtendActionSolution,
-        XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution, XchandlesSlotValue,
+        XchandlesFactorPricingPuzzleArgs, XchandlesHandleSlotValue, XchandlesPricingSolution,
+        XchandlesSlotNonce,
     },
     Conditions, Mod,
 };
@@ -47,7 +48,11 @@ impl XchandlesExtendAction {
         XchandlesExtendActionArgs {
             offer_mod_hash: SETTLEMENT_PAYMENT_HASH.into(),
             payout_puzzle_hash,
-            slot_1st_curry_hash: Slot::<()>::first_curry_hash(launcher_id, 0).into(),
+            handle_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                launcher_id,
+                XchandlesSlotNonce::HANDLE.to_u64(),
+            )
+            .into(),
         }
     }
 
@@ -58,7 +63,7 @@ impl XchandlesExtendAction {
     pub fn spent_slot_value(
         ctx: &mut SpendContext,
         solution: NodePtr,
-    ) -> Result<XchandlesSlotValue, DriverError> {
+    ) -> Result<XchandlesHandleSlotValue, DriverError> {
         let solution = ctx.extract::<XchandlesExtendActionSolution<
             NodePtr,
             (u64, (u64, (String, NodePtr))),
@@ -69,20 +74,20 @@ impl XchandlesExtendAction {
         // current expiration is the second truth given to a pricing puzzle
         let current_expiration = solution.pricing_solution.1 .0;
 
-        Ok(XchandlesSlotValue::new(
+        Ok(XchandlesHandleSlotValue::new(
             solution.pricing_solution.1 .1 .0.tree_hash().into(),
             solution.neighbors.left_value,
             solution.neighbors.right_value,
             current_expiration,
             solution.rest.owner_launcher_id,
-            solution.rest.resolved_data,
+            solution.rest.resolved_launcher_id,
         ))
     }
 
     pub fn created_slot_value(
         ctx: &mut SpendContext,
         solution: NodePtr,
-    ) -> Result<XchandlesSlotValue, DriverError> {
+    ) -> Result<XchandlesHandleSlotValue, DriverError> {
         let solution = ctx
             .extract::<XchandlesExtendActionSolution<NodePtr, NodePtr, NodePtr, NodePtr>>(
                 solution,
@@ -100,13 +105,13 @@ impl XchandlesExtendAction {
             .1
              .0;
 
-        Ok(XchandlesSlotValue::new(
+        Ok(XchandlesHandleSlotValue::new(
             handle.tree_hash().into(),
             solution.neighbors.left_value,
             solution.neighbors.right_value,
             current_expiration + registration_time_delta,
             solution.rest.owner_launcher_id,
-            solution.rest.resolved_data,
+            solution.rest.resolved_launcher_id,
         ))
     }
 
@@ -116,7 +121,7 @@ impl XchandlesExtendAction {
         ctx: &mut SpendContext,
         registry: &mut XchandlesRegistry,
         handle: &str,
-        slot: Slot<XchandlesSlotValue>,
+        slot: Slot<XchandlesHandleSlotValue>,
         payment_asset_id: Bytes32,
         base_handle_price: u64,
         registration_period: u64,

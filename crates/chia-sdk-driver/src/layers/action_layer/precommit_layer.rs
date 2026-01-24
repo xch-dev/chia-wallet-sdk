@@ -1,4 +1,4 @@
-use chia_protocol::{Bytes, Bytes32};
+use chia_protocol::Bytes32;
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_types::{
     puzzles::{
@@ -245,7 +245,7 @@ where
     pub handle: String,
     pub secret: S,
     pub owner_launcher_id: Bytes32,
-    pub resolved_data: Bytes,
+    pub resolved_launcher_id: Bytes32,
 }
 
 impl<CS, PS, S> XchandlesPrecommitValue<CS, PS, S>
@@ -263,7 +263,7 @@ where
         handle: String,
         secret: S,
         owner_launcher_id: Bytes32,
-        resolved_data: Bytes,
+        resolved_launcher_id: Bytes32,
     ) -> Self {
         Self {
             cat_maker_hash,
@@ -273,7 +273,7 @@ where
             handle,
             secret,
             owner_launcher_id,
-            resolved_data,
+            resolved_launcher_id,
         }
     }
 }
@@ -286,7 +286,7 @@ impl XchandlesPrecommitValue<(), TreeHash, Bytes32> {
         handle: String,
         secret: Bytes32,
         owner_launcher_id: Bytes32,
-        resolved_data: Bytes,
+        resolved_launcher_id: Bytes32,
     ) -> Self
     where
         PS: ToTreeHash,
@@ -301,7 +301,7 @@ impl XchandlesPrecommitValue<(), TreeHash, Bytes32> {
             handle,
             secret,
             owner_launcher_id,
-            resolved_data,
+            resolved_launcher_id,
         )
     }
 }
@@ -321,7 +321,7 @@ where
             ),
             clvm_tuple!(
                 clvm_tuple!(self.handle.tree_hash(), self.secret.tree_hash()),
-                clvm_tuple!(self.owner_launcher_id, self.resolved_data.tree_hash())
+                clvm_tuple!(self.owner_launcher_id, self.resolved_launcher_id)
             )
         )
         .tree_hash()

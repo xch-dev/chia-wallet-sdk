@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use chia_protocol::{Bytes, Bytes32};
+use chia_protocol::Bytes32;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
@@ -71,7 +71,7 @@ pub struct XchandlesRefundActionSolution<CMP, CMS, PP, PS, S> {
     pub handle: String,
     pub secret: S,
     pub precommited_owner_launcher_id: Bytes32,
-    pub precommited_resolved_data: Bytes,
+    pub precommited_resolved_launcher_id: Bytes32,
     pub refund_puzzle_hash_hash: Bytes32,
     pub precommit_amount: u64,
     #[clvm(rest)]

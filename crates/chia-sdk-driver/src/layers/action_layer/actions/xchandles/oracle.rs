@@ -1,7 +1,7 @@
 use chia_protocol::Bytes32;
 use chia_sdk_types::{
     announcement_id,
-    puzzles::{XchandlesOracleActionArgs, XchandlesSlotValue},
+    puzzles::{XchandlesHandleSlotValue, XchandlesOracleActionArgs, XchandlesSlotNonce},
     Conditions, Mod,
 };
 use clvm_utils::{ToTreeHash, TreeHash};
@@ -34,7 +34,11 @@ impl SingletonAction<XchandlesRegistry> for XchandlesOracleAction {
 impl XchandlesOracleAction {
     pub fn new_args(launcher_id: Bytes32) -> XchandlesOracleActionArgs {
         XchandlesOracleActionArgs {
-            slot_1st_curry_hash: Slot::<()>::first_curry_hash(launcher_id, 0).into(),
+            handle_slot_1st_curry_hash: Slot::<()>::first_curry_hash(
+                launcher_id,
+                XchandlesSlotNonce::HANDLE.to_u64(),
+            )
+            .into(),
         }
     }
 
@@ -45,13 +49,15 @@ impl XchandlesOracleAction {
     pub fn spent_slot_value(
         ctx: &SpendContext,
         solution: NodePtr,
-    ) -> Result<XchandlesSlotValue, DriverError> {
-        let slot_value = ctx.extract::<XchandlesSlotValue>(solution)?;
+    ) -> Result<XchandlesHandleSlotValue, DriverError> {
+        let slot_value = ctx.extract::<XchandlesHandleSlotValue>(solution)?;
 
         Ok(slot_value)
     }
 
-    pub fn created_slot_value(spent_slot_value: XchandlesSlotValue) -> XchandlesSlotValue {
+    pub fn created_slot_value(
+        spent_slot_value: XchandlesHandleSlotValue,
+    ) -> XchandlesHandleSlotValue {
         spent_slot_value
     }
 
@@ -59,7 +65,7 @@ impl XchandlesOracleAction {
         self,
         ctx: &mut SpendContext,
         registry: &mut XchandlesRegistry,
-        slot: Slot<XchandlesSlotValue>,
+        slot: Slot<XchandlesHandleSlotValue>,
     ) -> Result<Conditions, DriverError> {
         // spend self
         let slot = registry.actual_slot(slot);
