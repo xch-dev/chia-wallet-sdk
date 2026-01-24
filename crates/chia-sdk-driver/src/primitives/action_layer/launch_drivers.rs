@@ -765,7 +765,7 @@ mod tests {
 
     use chia_puzzle_types::{cat::GenesisByCoinIdTailArgs, CoinProof};
     use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
-    use chia_sdk_test::{print_spend_bundle_to_file, Benchmark, BlsPairWithCoin, Simulator};
+    use chia_sdk_test::{Benchmark, BlsPairWithCoin, Simulator};
     use chia_sdk_types::{
         puzzles::{
             AnyMetadataUpdater, CatNftMetadata, CompactCoinProof, DelegatedStateActionSolution,
@@ -2106,9 +2106,12 @@ mod tests {
                     },
                     min_height,
                 )?;
+
+            slots.retain(|s| s.info.value_hash != update_slot.info.value_hash);
             let mut new_slot = registry
                 .created_handle_slot_value_to_slot(registry.pending_spend.created_handle_slots[0]);
 
+            // note: update slot is now taking on a new meaning
             let update_slot = registry
                 .created_update_slot_value_to_slot(registry.pending_spend.created_update_slots[0]);
             assert_eq!(
@@ -2140,6 +2143,8 @@ mod tests {
                 "initiate_update",
                 slice::from_ref(&user_bls.sk),
             )?;
+
+            slots.push(new_slot.clone());
             for _ in 0..=(xchandles_constants.relative_block_height as usize) {
                 sim.create_block();
             }
@@ -2162,6 +2167,7 @@ mod tests {
                     owner_did.info.inner_puzzle_hash().into(),
                     owner_did.info.inner_puzzle_hash().into(),
                 )?;
+            slots.retain(|s| s.info.value_hash != new_slot.info.value_hash);
             new_slot = registry
                 .created_handle_slot_value_to_slot(registry.pending_spend.created_handle_slots[0]);
 
@@ -2173,8 +2179,6 @@ mod tests {
 
             // sim.spend_coins(ctx.take(), slice::from_ref(&user_bls.sk))?;
             let spends = ctx.take();
-            println!("took spends"); // todo: debug
-            print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs");
             benchmark.add_spends(
                 ctx,
                 &mut sim,
@@ -2182,11 +2186,8 @@ mod tests {
                 "execute_update",
                 slice::from_ref(&user_bls.sk),
             )?;
-            println!("executed"); // todo: debug
 
-            slots.retain(|s| s.info.value_hash != update_slot.info.value_hash);
             slots.push(new_slot.clone());
-            println!("about to go to next loop"); // todo: debug
         }
 
         assert_eq!(
