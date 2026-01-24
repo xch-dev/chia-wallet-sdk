@@ -7,12 +7,12 @@ use chia_sdk_types::{
     },
     Conditions, Mod,
 };
-use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
     DriverError, SingletonAction, Slot, Spend, SpendContext, XchandlesConstants, XchandlesRegistry,
+    XchandlesRegistryReceivedMessagePrefix,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,19 +93,18 @@ impl XchandlesUpdateAction {
 
         // spend slot
         let my_inner_puzzle_hash = registry.info.inner_puzzle_hash().into();
-
-        let msg: Bytes32 = clvm_tuple!(
-            slot.info.value.handle_hash,
-            clvm_tuple!(new_owner_launcher_id, new_resolved_data.clone())
-        )
-        .tree_hash()
-        .into();
+        let handle_hash = slot.info.value.handle_hash;
 
         slot.spend(ctx, my_inner_puzzle_hash)?;
 
         Ok(Conditions::new().send_message(
             18,
-            msg.into(),
+            XchandlesRegistryReceivedMessagePrefix::update_handle(
+                handle_hash,
+                new_owner_launcher_id,
+                new_resolved_data,
+            )
+            .into(),
             vec![ctx.alloc(&registry.coin.puzzle_hash)?],
         ))
     }

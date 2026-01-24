@@ -1,4 +1,4 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes, Bytes32};
 use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
 
@@ -18,11 +18,27 @@ pub enum XchandlesRegistryCreatedAnnouncementPrefix {
 #[repr(u8)]
 pub enum XchandlesRegistryReceivedMessagePrefix {
     UpdateState = b's',
+    Update = b'u',
 }
 
 impl XchandlesRegistryReceivedMessagePrefix {
     pub fn update_state(state_hash: TreeHash) -> Vec<u8> {
         prefix_hash(Self::UpdateState as u8, state_hash)
+    }
+
+    pub fn update_handle(
+        handle_hash: Bytes32,
+        new_owner_launcher_id: Bytes32,
+        new_resolved_data: &Bytes,
+    ) -> Vec<u8> {
+        prefix_hash(
+            Self::Update as u8,
+            clvm_tuple!(
+                handle_hash,
+                clvm_tuple!(new_owner_launcher_id, new_resolved_data)
+            )
+            .tree_hash(),
+        )
     }
 }
 
