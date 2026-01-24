@@ -1714,7 +1714,7 @@ mod tests {
             // mint controller singleton (it's a DID, not an NFT - don't rat on me to the NFT board plz)
             let launcher_coin = sim.new_coin(SINGLETON_LAUNCHER_HASH.into(), 1);
             let launcher = Launcher::new(launcher_coin.parent_coin_info, 1);
-            let (_, did) = launcher.create_simple_did(ctx, &user_p2)?;
+            let (_, mut did) = launcher.create_simple_did(ctx, &user_p2)?;
 
             // name is "aa" + "a" * i + "{i}"
             let handle = if i == 0 {
@@ -1731,7 +1731,7 @@ mod tests {
             let reg_amount = XchandlesFactorPricingPuzzleArgs::get_price(base_price, &handle, 1);
 
             let handle_owner_launcher_id = did.info.launcher_id;
-            let handle_resolved_launcher_id = Bytes32::from([u8::MAX - i as u8; 32]);
+            let handle_resolved_launcher_id = did.info.launcher_id;
             let secret = Bytes32::default();
 
             let value = XchandlesPrecommitValue::for_normal_registration(
@@ -1911,7 +1911,12 @@ mod tests {
                 )?;
 
             ensure_conditions_met(ctx, &mut sim, secure_cond.clone(), 1)?;
-            // todo: owner conds and resolved conds
+            let owner_spend_conds = owner_conds.create_coin(
+                did.info.inner_puzzle_hash().into(),
+                1,
+                ctx.hint(did.info.inner_puzzle_hash().into())?,
+            );
+            did = did.spend_with(ctx, &user_p2, owner_spend_conds)?.unwrap();
 
             assert_eq!(
                 registry
