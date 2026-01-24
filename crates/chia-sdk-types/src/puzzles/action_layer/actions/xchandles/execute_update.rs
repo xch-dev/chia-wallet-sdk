@@ -1,13 +1,12 @@
 use std::borrow::Cow;
 
 use chia_protocol::Bytes32;
-use chia_puzzle_types::CoinProof;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
 use crate::{
-    puzzles::{XchandlesDataValue, XchandlesHandleSlotValue},
+    puzzles::{CompactCoinProof, XchandlesDataValue, XchandlesHandleSlotValue},
     Mod,
 };
 
@@ -74,7 +73,7 @@ pub struct XchandlesExecuteUpdateActionArgs {
 pub struct XchandlesExecuteUpdateActionSolution {
     pub current_slot_value: XchandlesHandleSlotValue,
     pub new_data: XchandlesDataValue,
-    pub current_owner: CoinProof,
+    pub current_owner: CompactCoinProof,
     pub min_execution_height: u32,
     pub new_owner_inner_puzzle_hash: Bytes32,
     #[clvm(rest)]

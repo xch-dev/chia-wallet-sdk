@@ -1,11 +1,10 @@
 use chia_protocol::Bytes32;
-use chia_puzzle_types::CoinProof;
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
     puzzles::{
-        XchandlesDataValue, XchandlesExecuteUpdateActionArgs, XchandlesExecuteUpdateActionSolution,
-        XchandlesHandleSlotValue, XchandlesInitiateUpdateActionSolution, XchandlesSlotNonce,
-        XchandlesUpdateSlotValue,
+        CompactCoinProof, XchandlesDataValue, XchandlesExecuteUpdateActionArgs,
+        XchandlesExecuteUpdateActionSolution, XchandlesHandleSlotValue,
+        XchandlesInitiateUpdateActionSolution, XchandlesSlotNonce, XchandlesUpdateSlotValue,
     },
     Conditions, Mod,
 };
@@ -101,7 +100,7 @@ impl XchandlesExecuteUpdateAction {
         update_slot: Slot<XchandlesUpdateSlotValue>,
         new_owner_launcher_id: Bytes32,
         new_resolved_launcher_id: Bytes32,
-        current_owner: CoinProof,
+        current_owner: CompactCoinProof,
         min_execution_height: u32,
         new_owner_inner_puzzle_hash: Bytes32,
         new_resolved_inner_puzzle_hash: Bytes32,

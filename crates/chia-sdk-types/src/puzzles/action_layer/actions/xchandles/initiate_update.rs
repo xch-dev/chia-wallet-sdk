@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
 use chia_protocol::Bytes32;
-use chia_puzzle_types::CoinProof;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
@@ -65,12 +64,21 @@ pub struct XchandlesInitiateUpdateActionArgs {
     pub update_slot_1st_curry_hash: Bytes32,
 }
 
+#[derive(FromClvm, ToClvm, Debug, Clone, Copy, PartialEq, Eq)]
+#[clvm(list)]
+pub struct CompactCoinProof {
+    pub parent_coin_info: Bytes32,
+    pub inner_puzzle_hash: Bytes32,
+    #[clvm(rest)]
+    pub amount: u64,
+}
+
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct XchandlesInitiateUpdateActionSolution {
     pub current_slot_value: XchandlesHandleSlotValue,
     pub new_data: XchandlesDataValue,
-    pub current_owner: CoinProof,
+    pub current_owner: CompactCoinProof,
     #[clvm(rest)]
     pub min_height: u32,
 }
