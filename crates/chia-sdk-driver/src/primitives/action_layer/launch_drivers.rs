@@ -1914,15 +1914,12 @@ mod tests {
                     base_price,
                     registration_period,
                     100,
+                    did.info.inner_puzzle_hash().into(),
+                    did.info.inner_puzzle_hash().into(),
                 )?;
 
             ensure_conditions_met(ctx, &mut sim, secure_cond.clone(), 1)?;
-            let owner_spend_conds = owner_conds.create_coin(
-                did.info.inner_puzzle_hash().into(),
-                1,
-                ctx.hint(did.info.inner_puzzle_hash().into())?,
-            );
-            did = did.spend_with(ctx, &user_p2, owner_spend_conds)?.unwrap();
+            did = did.update(ctx, &user_p2, owner_conds)?;
 
             assert_eq!(
                 registry
@@ -2018,9 +2015,8 @@ mod tests {
                     extension_years,
                     0,
                 )?;
-            let new_slot = registry.created_handle_slot_value_to_slot(
-                registry.pending_spend.created_handle_slots[0].clone(),
-            );
+            let new_slot = registry
+                .created_handle_slot_value_to_slot(registry.pending_spend.created_handle_slots[0]);
 
             assert_eq!(
                 spent_slot_value_hash,
@@ -2140,7 +2136,7 @@ mod tests {
                 "initiate_update",
                 slice::from_ref(&user_bls.sk),
             )?;
-            for _ in 0..(xchandles_constants.relative_block_height as usize + 1) {
+            for _ in 0..=(xchandles_constants.relative_block_height as usize) {
                 sim.create_block();
             }
 
@@ -2219,7 +2215,7 @@ mod tests {
             handle_to_expire.clone(),
             Bytes32::default(),
             Bytes32::from([42; 32]),
-            Bytes32::from([69; 32]).into(),
+            Bytes32::from([69; 32]),
         );
 
         let pricing_puzzle =

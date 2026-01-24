@@ -171,6 +171,8 @@ impl XchandlesRegisterAction {
         base_handle_price: u64,
         registration_period: u64,
         start_time: u64,
+        owner_inner_puzzle_hash: Bytes32,
+        resolved_inner_puzzle_hash: Bytes32,
     ) -> Result<(Conditions, Conditions, Option<Conditions>), DriverError> {
         let handle = precommit_coin.value.handle.clone();
         let handle_hash = handle.tree_hash().into();
@@ -231,6 +233,8 @@ impl XchandlesRegisterAction {
                 owner_launcher_id: precommit_coin.value.owner_launcher_id,
                 resolved_launcher_id: precommit_coin.value.resolved_launcher_id,
             },
+            owner_inner_puzzle_hash,
+            resolved_inner_puzzle_hash,
             refund_puzzle_hash_hash: precommit_coin.refund_puzzle_hash.tree_hash().into(),
             secret,
         }

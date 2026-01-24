@@ -87,7 +87,10 @@ pub struct XchandlesRegisterActionSolution<PP, PS, CMP, CMS, S> {
     pub right_expiration: u64,
     pub right_data: XchandlesDataValue,
     pub data: XchandlesDataValue,
+    pub owner_inner_puzzle_hash: Bytes32,
+    pub resolved_inner_puzzle_hash: Bytes32,
     pub refund_puzzle_hash_hash: Bytes32,
+    #[clvm(rest)]
     pub secret: S,
 }
 
