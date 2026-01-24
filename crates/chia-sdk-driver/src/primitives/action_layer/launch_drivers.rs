@@ -761,7 +761,7 @@ pub fn launch_reward_distributor(
 mod tests {
     use std::slice;
 
-    use chia_protocol::{Bytes, CoinSpend, SpendBundle};
+    use chia_protocol::{CoinSpend, SpendBundle};
 
     use chia_puzzle_types::{cat::GenesisByCoinIdTailArgs, CoinProof};
     use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
@@ -787,10 +787,10 @@ mod tests {
         RewardDistributorRefreshAction, RewardDistributorRemoveEntryAction,
         RewardDistributorStakeAction, RewardDistributorSyncAction, RewardDistributorType,
         RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, SingleCatSpend,
-        SingletonInfo, Slot, SpendWithConditions, XchandlesExpireAction,
-        XchandlesExpirePricingPuzzle, XchandlesExtendAction, XchandlesOracleAction,
-        XchandlesPrecommitValue, XchandlesRefundAction, XchandlesRegisterAction,
-        XchandlesRegistryReceivedMessagePrefix,
+        SingletonInfo, Slot, SpendWithConditions, XchandlesExecuteUpdateAction,
+        XchandlesExpireAction, XchandlesExpirePricingPuzzle, XchandlesExtendAction,
+        XchandlesInitiateUpdateAction, XchandlesOracleAction, XchandlesPrecommitValue,
+        XchandlesRefundAction, XchandlesRegisterAction, XchandlesRegistryReceivedMessagePrefix,
     };
 
     use super::*;
@@ -1709,6 +1709,12 @@ mod tests {
 
         let mut base_price = initial_registration_price;
 
+        // this DID will be the owner and resolved of all handles at end of for loop
+        let launcher_coin = sim.new_coin(SINGLETON_LAUNCHER_HASH.into(), 1);
+        let launcher = Launcher::new(launcher_coin.parent_coin_info, 1);
+        let (_, mut owner_did) = launcher.create_simple_did(ctx, &user_p2)?;
+        sim.spend_coins(ctx.take(), std::slice::from_ref(&user_bls.sk))?;
+
         let mut slots: Vec<Slot<XchandlesHandleSlotValue>> = slots.into();
         for i in 0..7 {
             // mint controller singleton (it's a DID, not an NFT - don't rat on me to the NFT board plz)
@@ -1818,7 +1824,7 @@ mod tests {
             let mut left_slot: Option<Slot<XchandlesHandleSlotValue>> = None;
             let mut right_slot: Option<Slot<XchandlesHandleSlotValue>> = None;
             for slot in &slots {
-                let slot_value = slot.info.value.clone();
+                let slot_value = slot.info.value;
 
                 if slot_value < slot_value_to_insert {
                     // slot belongs to the left
@@ -1897,8 +1903,8 @@ mod tests {
                 )?;
             }
 
-            let spent_values = [left_slot.info.value.clone(), right_slot.info.value.clone()];
-            let (secure_cond, owner_conds, resolved_conds) =
+            let spent_values = [left_slot.info.value, right_slot.info.value];
+            let (secure_cond, owner_conds, _resolved_conds) =
                 registry.new_action::<XchandlesRegisterAction>().spend(
                     ctx,
                     &mut registry,
@@ -1932,7 +1938,7 @@ mod tests {
                 .pending_spend
                 .created_handle_slots
                 .iter()
-                .map(|s| registry.created_handle_slot_value_to_slot(s.clone()))
+                .map(|s| registry.created_handle_slot_value_to_slot(*s))
                 .collect::<Vec<_>>();
             registry = registry.finish_spend(ctx)?.0;
             sim.pass_time(100); // registration start was at timestamp 100
@@ -1962,9 +1968,8 @@ mod tests {
                 &mut registry,
                 oracle_slot.clone(),
             )?;
-            let new_slot = registry.created_handle_slot_value_to_slot(
-                registry.pending_spend.created_handle_slots[0].clone(),
-            );
+            let new_slot = registry
+                .created_handle_slot_value_to_slot(registry.pending_spend.created_handle_slots[0]);
 
             ensure_conditions_met(ctx, &mut sim, oracle_conds, 0)?;
 
@@ -2084,24 +2089,34 @@ mod tests {
             slots.push(new_slot.clone());
 
             // test on-chain mechanism for handle updates
-            let new_owner_launcher_id = Bytes32::new([4 + i as u8; 32]);
-            let new_resolved_data: Bytes = Bytes32::new([u8::MAX - i as u8 - 1; 32]).into();
+            let new_owner_launcher_id = owner_did.info.launcher_id;
+            let new_resolved_launcher_id = owner_did.info.launcher_id;
             let update_slot = new_slot;
             let update_slot_value_hash = update_slot.info.value_hash;
 
-            let update_conds = registry.new_action::<XchandlesUpdateAction>().spend(
-                ctx,
-                &mut registry,
-                update_slot.clone(),
-                new_owner_launcher_id,
-                &new_resolved_data,
-                did.info.inner_puzzle_hash().into(),
-            )?;
-            let new_slot = registry.created_handle_slot_value_to_slot(
-                registry.pending_spend.created_handle_slots[0].clone(),
-            );
+            let min_height = sim.height() + 1;
+            let initiate_update_conds = registry
+                .new_action::<XchandlesInitiateUpdateAction>()
+                .spend(
+                    ctx,
+                    &mut registry,
+                    update_slot.clone(),
+                    new_owner_launcher_id,
+                    new_resolved_launcher_id,
+                    CoinProof {
+                        parent_coin_info: did.coin.parent_coin_info,
+                        inner_puzzle_hash: did.info.inner_puzzle_hash().into(),
+                        amount: 1,
+                    },
+                    min_height,
+                )?;
+            let mut new_slot = registry
+                .created_handle_slot_value_to_slot(registry.pending_spend.created_handle_slots[0]);
 
-            let _new_did = did.update(ctx, &user_p2, update_conds)?;
+            let update_slot = registry
+                .created_update_slot_value_to_slot(registry.pending_spend.created_update_slots[0]);
+
+            did = did.update(ctx, &user_p2, initiate_update_conds)?;
 
             assert_eq!(
                 update_slot_value_hash,
@@ -2122,7 +2137,44 @@ mod tests {
                 ctx,
                 &mut sim,
                 spends,
-                "update",
+                "initiate_update",
+                slice::from_ref(&user_bls.sk),
+            )?;
+            for _ in 0..(xchandles_constants.relative_block_height as usize + 1) {
+                sim.create_block();
+            }
+
+            let (old_owner_conds, new_owner_conds, new_resolved_conds) = registry
+                .new_action::<XchandlesExecuteUpdateAction>()
+                .spend(
+                    ctx,
+                    &mut registry,
+                    new_slot.clone(),
+                    update_slot.clone(),
+                    new_owner_launcher_id,
+                    new_resolved_launcher_id,
+                    CoinProof {
+                        parent_coin_info: did.coin.parent_coin_info,
+                        inner_puzzle_hash: did.info.inner_puzzle_hash().into(),
+                        amount: 1,
+                    },
+                    min_height + xchandles_constants.relative_block_height,
+                    did.info.inner_puzzle_hash().into(),
+                    did.info.inner_puzzle_hash().into(),
+                )?;
+            new_slot = registry
+                .created_handle_slot_value_to_slot(registry.pending_spend.created_handle_slots[0]);
+
+            let _new_did = did.update(ctx, &user_p2, old_owner_conds)?;
+            owner_did = did.update(ctx, &user_p2, new_owner_conds.extend(new_resolved_conds))?;
+
+            // sim.spend_coins(ctx.take(), slice::from_ref(&user_bls.sk))?;
+            let spends = ctx.take();
+            benchmark.add_spends(
+                ctx,
+                &mut sim,
+                spends,
+                "execute_update",
                 slice::from_ref(&user_bls.sk),
             )?;
 

@@ -75,7 +75,7 @@ pub struct XchandlesExecuteUpdateActionSolution {
     pub current_slot_value: XchandlesHandleSlotValue,
     pub new_data: XchandlesDataValue,
     pub current_owner: CoinProof,
-    pub min_execution_height: u64,
+    pub min_execution_height: u32,
     pub new_owner_inner_puzzle_hash: Bytes32,
     #[clvm(rest)]
     pub new_resolved_inner_puzzle_hash: Bytes32,

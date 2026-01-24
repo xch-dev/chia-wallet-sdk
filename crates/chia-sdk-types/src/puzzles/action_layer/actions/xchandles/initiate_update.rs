@@ -72,7 +72,7 @@ pub struct XchandlesInitiateUpdateActionSolution {
     pub new_data: XchandlesDataValue,
     pub current_owner: CoinProof,
     #[clvm(rest)]
-    pub min_height: u64,
+    pub min_height: u32,
 }
 
 impl Mod for XchandlesInitiateUpdateActionArgs {

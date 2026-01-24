@@ -92,7 +92,7 @@ impl XchandlesInitiateUpdateAction {
                     solution.current_owner.amount,
                 )
                 .coin_id(),
-                solution.min_height + u64::from(relative_block_height),
+                solution.min_height + relative_block_height,
                 solution.current_slot_value.handle_hash,
                 solution.new_data.owner_launcher_id,
                 solution.new_data.resolved_launcher_id,
@@ -109,7 +109,7 @@ impl XchandlesInitiateUpdateAction {
         new_owner_launcher_id: Bytes32,
         new_resolved_launcher_id: Bytes32,
         current_owner: CoinProof,
-        min_height: u64,
+        min_height: u32,
     ) -> Result<Conditions, DriverError> {
         // spend self
         let slot = registry.actual_handle_slot(slot);

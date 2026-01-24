@@ -102,7 +102,7 @@ impl XchandlesExecuteUpdateAction {
         new_owner_launcher_id: Bytes32,
         new_resolved_launcher_id: Bytes32,
         current_owner: CoinProof,
-        min_execution_height: u64,
+        min_execution_height: u32,
         new_owner_inner_puzzle_hash: Bytes32,
         new_resolved_inner_puzzle_hash: Bytes32,
     ) -> Result<(Conditions, Conditions, Conditions), DriverError> {

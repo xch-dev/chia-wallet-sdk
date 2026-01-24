@@ -283,7 +283,7 @@ impl PartialOrd for XchandlesHandleSlotValue {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesUpdateSlotValue {
     pub update_initiator_coin_id: Bytes32,
-    pub min_height: u64,
+    pub min_height: u32,
     pub handle_hash: Bytes32,
     pub new_owner_launcher_id: Bytes32,
     pub new_resolved_launcher_id: Bytes32,
@@ -292,7 +292,7 @@ pub struct XchandlesUpdateSlotValue {
 impl XchandlesUpdateSlotValue {
     pub fn new(
         update_initiator_coin_id: Bytes32,
-        min_height: u64,
+        min_height: u32,
         handle_hash: Bytes32,
         new_owner_launcher_id: Bytes32,
         new_resolved_launcher_id: Bytes32,
@@ -313,7 +313,7 @@ impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for XchandlesUpdateSlotValue {
         let (
             (update_initiator_coin_id, min_height),
             (handle_hash, (new_owner_launcher_id, new_resolved_launcher_id)),
-        ): ((Bytes32, u64), (Bytes32, (Bytes32, Bytes32))) = FromClvm::from_clvm(decoder, node)?;
+        ): ((Bytes32, u32), (Bytes32, (Bytes32, Bytes32))) = FromClvm::from_clvm(decoder, node)?;
 
         Ok(Self::new(
             update_initiator_coin_id,
