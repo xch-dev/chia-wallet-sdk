@@ -765,7 +765,7 @@ mod tests {
 
     use chia_puzzle_types::{cat::GenesisByCoinIdTailArgs, CoinProof};
     use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
-    use chia_sdk_test::{Benchmark, BlsPairWithCoin, Simulator};
+    use chia_sdk_test::{print_spend_bundle_to_file, Benchmark, BlsPairWithCoin, Simulator};
     use chia_sdk_types::{
         puzzles::{
             AnyMetadataUpdater, CatNftMetadata, CompactCoinProof, DelegatedStateActionSolution,
@@ -2111,6 +2111,10 @@ mod tests {
 
             let update_slot = registry
                 .created_update_slot_value_to_slot(registry.pending_spend.created_update_slots[0]);
+            assert_eq!(
+                update_slot.info.value.min_height,
+                min_height + xchandles_constants.relative_block_height
+            );
 
             did = did.update(ctx, &user_p2, initiate_update_conds)?;
 
@@ -2136,7 +2140,6 @@ mod tests {
                 "initiate_update",
                 slice::from_ref(&user_bls.sk),
             )?;
-            println!("done!"); // todo: debug
             for _ in 0..=(xchandles_constants.relative_block_height as usize) {
                 sim.create_block();
             }
@@ -2162,12 +2165,15 @@ mod tests {
             new_slot = registry
                 .created_handle_slot_value_to_slot(registry.pending_spend.created_handle_slots[0]);
 
+            registry = registry.finish_spend(ctx)?.0;
+
             let _new_did = did.update(ctx, &user_p2, old_owner_conds)?;
             owner_did =
                 owner_did.update(ctx, &user_p2, new_owner_conds.extend(new_resolved_conds))?;
 
             // sim.spend_coins(ctx.take(), slice::from_ref(&user_bls.sk))?;
             let spends = ctx.take();
+            print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs");
             benchmark.add_spends(
                 ctx,
                 &mut sim,

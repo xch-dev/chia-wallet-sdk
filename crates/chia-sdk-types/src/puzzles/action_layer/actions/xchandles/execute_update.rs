@@ -32,11 +32,11 @@ pub const XCHANDLES_EXECUTE_UPDATE_PUZZLE: [u8; 1206] = hex!(
     9dcf97a184f32623d11a73124ceb99a5709b083721e878a16d78f596718ba7b2
     ffa102a12871fee210fb8619291eaea194581cbd2531e4b23759d225f6806923
     f63222a102a8d5dd63fba471ebcb1f3e8f7c1e1879b7152a6e7298a91ce119a6
-    3400ade7c5ffff04ffff04ff14ffff04ffff013affff04ffff0effff0175ff17
+    3400ade7c5ffff04ffff04ff14ffff04ffff013affff04ffff0effff0175ff0b
     80ffff04ff2fff8080808080ffff04ffff04ff14ffff04ffff0112ffff04ffff
-    0effff016fff1780ffff04ff5fff8080808080ffff04ffff04ff14ffff04ffff
-    0112ffff04ffff0effff0172ff1780ffff04ff81bfff8080808080ffff04ffff
-    02ff3effff04ff02ffff04ff05ffff04ffff0bffff0102ff0bff1780ff808080
+    0effff016fff0b80ffff04ff5fff8080808080ffff04ffff04ff14ffff04ffff
+    0112ffff04ffff0effff0172ff0b80ffff04ff81bfff8080808080ffff04ffff
+    02ff3effff04ff02ffff04ff05ffff04ffff0bffff0102ff17ff0b80ff808080
     8080ff8080808080ff04ff38ffff04ffff0bff52ffff0bff3cffff0bff3cff62
     ff0580ffff0bff3cffff0bff72ffff0bff3cffff0bff3cff62ffff0bffff0101
     ff0b8080ffff0bff3cff62ff42808080ff42808080ffff04ff80ffff04ffff04
@@ -55,7 +55,7 @@ pub const XCHANDLES_EXECUTE_UPDATE_PUZZLE: [u8; 1206] = hex!(
 
 pub const XCHANDLES_EXECUTE_UPDATE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    31b8d87f67f901948c9dc31c8eab42e1caaa4ba27659ca45f6554e915d0ec2d6
+    61ced69fb64637d7ad374182eb8040668ab5f51e3480cbcb2f5ea90a9d22c757
     "
 ));
 
