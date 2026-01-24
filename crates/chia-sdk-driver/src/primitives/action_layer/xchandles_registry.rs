@@ -2,7 +2,9 @@ use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs, SingletonSolution};
 use chia_puzzle_types::{LineageProof, Proof};
-use chia_sdk_types::puzzles::{SlotInfo, XchandlesHandleSlotValue, XchandlesUpdateSlotValue};
+use chia_sdk_types::puzzles::{
+    SlotInfo, XchandlesHandleSlotValue, XchandlesSlotNonce, XchandlesUpdateSlotValue,
+};
 use clvm_traits::{clvm_list, match_tuple};
 use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
@@ -339,7 +341,7 @@ impl XchandlesRegistry {
         ctx: &mut SpendContext,
         launcher_coin: Coin,
         launcher_solution: NodePtr,
-    ) -> Result<Option<(Self, [Slot<XchandlesSlotValue>; 2], Bytes32, u64)>, DriverError>
+    ) -> Result<Option<(Self, [Slot<XchandlesHandleSlotValue>; 2], Bytes32, u64)>, DriverError>
     where
         Self: Sized,
     {
@@ -377,8 +379,8 @@ impl XchandlesRegistry {
         let eve_singleton_inner_puzzle = eve_singleton_inner_puzzle(
             ctx,
             launcher_id,
-            XchandlesSlotValue::initial_left_end(),
-            XchandlesSlotValue::initial_right_end(),
+            XchandlesHandleSlotValue::initial_left_end(),
+            XchandlesHandleSlotValue::initial_right_end(),
             NodePtr::NIL,
             registry_inner_puzzle_hash,
         )?;
@@ -414,11 +416,19 @@ impl XchandlesRegistry {
         let slots = [
             Slot::new(
                 slot_proof,
-                SlotInfo::from_value(launcher_id, 0, XchandlesSlotValue::initial_left_end()),
+                SlotInfo::from_value(
+                    launcher_id,
+                    XchandlesSlotNonce::HANDLE.to_u64(),
+                    XchandlesHandleSlotValue::initial_left_end(),
+                ),
             ),
             Slot::new(
                 slot_proof,
-                SlotInfo::from_value(launcher_id, 0, XchandlesSlotValue::initial_right_end()),
+                SlotInfo::from_value(
+                    launcher_id,
+                    XchandlesSlotNonce::HANDLE.to_u64(),
+                    XchandlesHandleSlotValue::initial_right_end(),
+                ),
             ),
         ];
 
@@ -484,10 +494,10 @@ impl XchandlesRegistry {
         A::from_constants(&self.info.constants)
     }
 
-    pub fn created_slot_value_to_slot(
+    pub fn created_handle_slot_value_to_slot(
         &self,
-        slot_value: XchandlesSlotValue,
-    ) -> Slot<XchandlesSlotValue> {
+        slot_value: XchandlesHandleSlotValue,
+    ) -> Slot<XchandlesHandleSlotValue> {
         let proof = LineageProof {
             parent_parent_coin_info: self.coin.parent_coin_info,
             parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
@@ -496,41 +506,71 @@ impl XchandlesRegistry {
 
         Slot::new(
             proof,
-            SlotInfo::from_value(self.info.constants.launcher_id, 0, slot_value),
+            SlotInfo::from_value(
+                self.info.constants.launcher_id,
+                XchandlesSlotNonce::HANDLE.to_u64(),
+                slot_value,
+            ),
+        )
+    }
+
+    pub fn created_update_slot_value_to_slot(
+        &self,
+        slot_value: XchandlesUpdateSlotValue,
+    ) -> Slot<XchandlesUpdateSlotValue> {
+        let proof = LineageProof {
+            parent_parent_coin_info: self.coin.parent_coin_info,
+            parent_inner_puzzle_hash: self.info.inner_puzzle_hash().into(),
+            parent_amount: 1,
+        };
+
+        Slot::new(
+            proof,
+            SlotInfo::from_value(
+                self.info.constants.launcher_id,
+                XchandlesSlotNonce::UPDATE.to_u64(),
+                slot_value,
+            ),
         )
     }
 
     pub fn actual_neigbors(
         &self,
         new_handle_hash: Bytes32,
-        on_chain_left_slot: Slot<XchandlesSlotValue>,
-        on_chain_right_slot: Slot<XchandlesSlotValue>,
-    ) -> (Slot<XchandlesSlotValue>, Slot<XchandlesSlotValue>) {
+        on_chain_left_slot: Slot<XchandlesHandleSlotValue>,
+        on_chain_right_slot: Slot<XchandlesHandleSlotValue>,
+    ) -> (
+        Slot<XchandlesHandleSlotValue>,
+        Slot<XchandlesHandleSlotValue>,
+    ) {
         let mut left = on_chain_left_slot;
         let mut right = on_chain_right_slot;
 
-        for slot_value in &self.pending_spend.created_slots {
+        for slot_value in &self.pending_spend.created_handle_slots {
             if slot_value.handle_hash < new_handle_hash
                 && slot_value.handle_hash >= left.info.value.handle_hash
             {
-                left = self.created_slot_value_to_slot(slot_value.clone());
+                left = self.created_handle_slot_value_to_slot(slot_value.clone());
             }
 
             if slot_value.handle_hash > new_handle_hash
                 && slot_value.handle_hash <= right.info.value.handle_hash
             {
-                right = self.created_slot_value_to_slot(slot_value.clone());
+                right = self.created_handle_slot_value_to_slot(slot_value.clone());
             }
         }
 
         (left, right)
     }
 
-    pub fn actual_handle_slot(&self, slot: Slot<XchandlesSlotValue>) -> Slot<XchandlesSlotValue> {
+    pub fn actual_handle_slot(
+        &self,
+        slot: Slot<XchandlesHandleSlotValue>,
+    ) -> Slot<XchandlesHandleSlotValue> {
         let mut slot = slot;
         for slot_value in &self.pending_spend.created_handle_slots {
             if slot.info.value.handle_hash == slot_value.handle_hash {
-                slot = self.created_slot_value_to_slot(slot_value.clone());
+                slot = self.created_handle_slot_value_to_slot(slot_value.clone());
             }
         }
 
@@ -544,7 +584,7 @@ impl XchandlesRegistry {
         let mut slot = slot;
         for slot_value in &self.pending_spend.created_update_slots {
             if slot.info.value.update_initiator_coin_id == slot_value.update_initiator_coin_id {
-                slot = self.created_slot_value_to_slot(slot_value.clone());
+                slot = self.created_update_slot_value_to_slot(slot_value.clone());
             }
         }
 
@@ -564,8 +604,10 @@ impl XchandlesRegistry {
         )?;
 
         self.pending_spend.latest_state = res.0;
-        self.pending_spend.created_slots.extend(res.1);
-        self.pending_spend.spent_slots.extend(res.2);
+        self.pending_spend.created_handle_slots.extend(res.1);
+        self.pending_spend.created_update_slots.extend(res.2);
+        self.pending_spend.spent_handle_slots.extend(res.3);
+        self.pending_spend.spent_update_slots.extend(res.4);
         self.pending_spend.actions.push(action_spend);
 
         Ok(())
