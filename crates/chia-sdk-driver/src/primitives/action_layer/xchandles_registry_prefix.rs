@@ -1,4 +1,4 @@
-use chia_protocol::{Bytes, Bytes32};
+use chia_protocol::Bytes32;
 use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
 
@@ -18,7 +18,12 @@ pub enum XchandlesRegistryCreatedAnnouncementPrefix {
 #[repr(u8)]
 pub enum XchandlesRegistryReceivedMessagePrefix {
     UpdateState = b's',
-    Update = b'u',
+    RegisterOwner = b'a',            // todo
+    RegisterResolved = b'b',         // todo
+    InitiateUpdate = b'i',           // todo
+    ExecuteUpdateOldOwner = b'u',    // todo
+    ExecuteUpdateNewOwner = b'o',    // todo
+    ExecuteUpdateNewResolved = b'r', // todo
 }
 
 impl XchandlesRegistryReceivedMessagePrefix {
@@ -26,16 +31,72 @@ impl XchandlesRegistryReceivedMessagePrefix {
         prefix_hash(Self::UpdateState as u8, state_hash)
     }
 
-    pub fn update_handle(
+    pub fn register_owner(precommit_coin_puzzle_hash: Bytes32) -> Vec<u8> {
+        prefix_hash(Self::RegisterOwner as u8, precommit_coin_puzzle_hash.into())
+    }
+
+    pub fn register_resolved(precommit_coin_puzzle_hash: Bytes32) -> Vec<u8> {
+        prefix_hash(
+            Self::RegisterResolved as u8,
+            precommit_coin_puzzle_hash.into(),
+        )
+    }
+
+    pub fn initiate_update(
         handle_hash: Bytes32,
         new_owner_launcher_id: Bytes32,
-        new_resolved_data: &Bytes,
+        new_resolved_launcher_id: Bytes32,
     ) -> Vec<u8> {
         prefix_hash(
-            Self::Update as u8,
+            Self::InitiateUpdate as u8,
             clvm_tuple!(
                 handle_hash,
-                clvm_tuple!(new_owner_launcher_id, new_resolved_data)
+                clvm_tuple!(new_owner_launcher_id, new_resolved_launcher_id)
+            )
+            .tree_hash(),
+        )
+    }
+
+    pub fn execute_update_old_owner(
+        handle_hash: Bytes32,
+        new_owner_launcher_id: Bytes32,
+        new_resolved_launcher_id: Bytes32,
+    ) -> Vec<u8> {
+        prefix_hash(
+            Self::ExecuteUpdateOldOwner as u8,
+            clvm_tuple!(
+                handle_hash,
+                clvm_tuple!(new_owner_launcher_id, new_resolved_launcher_id)
+            )
+            .tree_hash(),
+        )
+    }
+
+    pub fn execute_update_new_owner(
+        handle_hash: Bytes32,
+        new_owner_launcher_id: Bytes32,
+        new_resolved_launcher_id: Bytes32,
+    ) -> Vec<u8> {
+        prefix_hash(
+            Self::ExecuteUpdateNewOwner as u8,
+            clvm_tuple!(
+                handle_hash,
+                clvm_tuple!(new_owner_launcher_id, new_resolved_launcher_id)
+            )
+            .tree_hash(),
+        )
+    }
+
+    pub fn execute_update_new_resolved(
+        handle_hash: Bytes32,
+        new_owner_launcher_id: Bytes32,
+        new_resolved_launcher_id: Bytes32,
+    ) -> Vec<u8> {
+        prefix_hash(
+            Self::ExecuteUpdateNewResolved as u8,
+            clvm_tuple!(
+                handle_hash,
+                clvm_tuple!(new_owner_launcher_id, new_resolved_launcher_id)
             )
             .tree_hash(),
         )
