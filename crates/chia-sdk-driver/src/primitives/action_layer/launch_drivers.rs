@@ -2159,8 +2159,8 @@ mod tests {
                         amount: 1,
                     },
                     min_height + xchandles_constants.relative_block_height,
-                    did.info.inner_puzzle_hash().into(),
-                    did.info.inner_puzzle_hash().into(),
+                    owner_did.info.inner_puzzle_hash().into(),
+                    owner_did.info.inner_puzzle_hash().into(),
                 )?;
             new_slot = registry
                 .created_handle_slot_value_to_slot(registry.pending_spend.created_handle_slots[0]);
@@ -2173,6 +2173,7 @@ mod tests {
 
             // sim.spend_coins(ctx.take(), slice::from_ref(&user_bls.sk))?;
             let spends = ctx.take();
+            println!("took spends"); // todo: debug
             print_spend_bundle_to_file(spends.clone(), Signature::default(), "sb.debug.costs");
             benchmark.add_spends(
                 ctx,
@@ -2181,9 +2182,11 @@ mod tests {
                 "execute_update",
                 slice::from_ref(&user_bls.sk),
             )?;
+            println!("executed"); // todo: debug
 
             slots.retain(|s| s.info.value_hash != update_slot.info.value_hash);
             slots.push(new_slot.clone());
+            println!("about to go to next loop"); // todo: debug
         }
 
         assert_eq!(
