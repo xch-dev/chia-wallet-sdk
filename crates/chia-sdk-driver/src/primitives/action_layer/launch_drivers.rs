@@ -2141,7 +2141,6 @@ mod tests {
                 sim.create_block();
             }
 
-            println!("a1"); // todo: debug
             let (old_owner_conds, new_owner_conds, new_resolved_conds) = registry
                 .new_action::<XchandlesExecuteUpdateAction>()
                 .spend(
@@ -2160,18 +2159,15 @@ mod tests {
                     did.info.inner_puzzle_hash().into(),
                     did.info.inner_puzzle_hash().into(),
                 )?;
-            println!("a2"); // todo: debug
             new_slot = registry
                 .created_handle_slot_value_to_slot(registry.pending_spend.created_handle_slots[0]);
 
-            println!("a3"); // todo: debug
             let _new_did = did.update(ctx, &user_p2, old_owner_conds)?;
-            owner_did = did.update(ctx, &user_p2, new_owner_conds.extend(new_resolved_conds))?;
+            owner_did =
+                owner_did.update(ctx, &user_p2, new_owner_conds.extend(new_resolved_conds))?;
 
-            println!("a4"); // todo: debug
-                            // sim.spend_coins(ctx.take(), slice::from_ref(&user_bls.sk))?;
+            // sim.spend_coins(ctx.take(), slice::from_ref(&user_bls.sk))?;
             let spends = ctx.take();
-            println!("a5"); // todo: debug
             benchmark.add_spends(
                 ctx,
                 &mut sim,
