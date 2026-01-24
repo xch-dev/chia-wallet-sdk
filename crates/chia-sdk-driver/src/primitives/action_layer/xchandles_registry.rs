@@ -144,7 +144,7 @@ impl XchandlesRegistry {
         } else if raw_action_hash == oracle_action_hash {
             let slot_value = XchandlesOracleAction::spent_slot_value(ctx, action_spend.solution)?;
 
-            spent_handle_slots.push(slot_value.clone());
+            spent_handle_slots.push(slot_value);
             created_handle_slots.push(slot_value);
         } else if raw_action_hash == initiate_update_action_hash {
             spent_handle_slots.push(XchandlesInitiateUpdateAction::spent_slot_value(
@@ -174,7 +174,7 @@ impl XchandlesRegistry {
             if let Some(slot_value) =
                 XchandlesRefundAction::spent_slot_value(ctx, action_spend.solution)?
             {
-                spent_handle_slots.push(slot_value.clone());
+                spent_handle_slots.push(slot_value);
                 created_handle_slots.push(slot_value);
             }
         } else if raw_action_hash == expire_action_hash {
@@ -379,6 +379,7 @@ impl XchandlesRegistry {
         let eve_singleton_inner_puzzle = eve_singleton_inner_puzzle(
             ctx,
             launcher_id,
+            XchandlesSlotNonce::HANDLE.to_u64(),
             XchandlesHandleSlotValue::initial_left_end(),
             XchandlesHandleSlotValue::initial_right_end(),
             NodePtr::NIL,
@@ -550,13 +551,13 @@ impl XchandlesRegistry {
             if slot_value.handle_hash < new_handle_hash
                 && slot_value.handle_hash >= left.info.value.handle_hash
             {
-                left = self.created_handle_slot_value_to_slot(slot_value.clone());
+                left = self.created_handle_slot_value_to_slot(*slot_value);
             }
 
             if slot_value.handle_hash > new_handle_hash
                 && slot_value.handle_hash <= right.info.value.handle_hash
             {
-                right = self.created_handle_slot_value_to_slot(slot_value.clone());
+                right = self.created_handle_slot_value_to_slot(*slot_value);
             }
         }
 
@@ -570,7 +571,7 @@ impl XchandlesRegistry {
         let mut slot = slot;
         for slot_value in &self.pending_spend.created_handle_slots {
             if slot.info.value.handle_hash == slot_value.handle_hash {
-                slot = self.created_handle_slot_value_to_slot(slot_value.clone());
+                slot = self.created_handle_slot_value_to_slot(*slot_value);
             }
         }
 
@@ -584,7 +585,7 @@ impl XchandlesRegistry {
         let mut slot = slot;
         for slot_value in &self.pending_spend.created_update_slots {
             if slot.info.value.update_initiator_coin_id == slot_value.update_initiator_coin_id {
-                slot = self.created_update_slot_value_to_slot(slot_value.clone());
+                slot = self.created_update_slot_value_to_slot(*slot_value);
             }
         }
 

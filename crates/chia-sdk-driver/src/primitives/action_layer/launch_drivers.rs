@@ -146,6 +146,7 @@ where
 //   slot 'premine' (leftmost and rightmost slots) and
 //   transition to the actual registry puzzle
 #[allow(clippy::type_complexity)]
+#[allow(clippy::too_many_arguments)]
 fn spend_eve_coin_and_create_registry<S, M, KV>(
     ctx: &mut SpendContext,
     launcher: Launcher,
@@ -1457,7 +1458,7 @@ mod tests {
         handle_to_refund: &str,
         pricing_puzzle: NodePtr,
         pricing_solution: NodePtr,
-        slot: Option<Slot<XchandlesSlotValue>>,
+        slot: Option<Slot<XchandlesHandleSlotValue>>,
         payment_cat: Cat,
         payment_cat_amount: u64,
         registry: XchandlesRegistry,
@@ -1476,7 +1477,7 @@ mod tests {
             handle_to_refund.to_string(),
             Bytes32::default(),
             Bytes32::default(),
-            Bytes::default(),
+            Bytes32::default(),
         );
 
         let refund_puzzle = ctx.alloc(&1)?;
@@ -1547,7 +1548,8 @@ mod tests {
         if let Some(used_slot_value_hash) = used_slot_value_hash {
             assert_eq!(
                 used_slot_value_hash,
-                registry.pending_spend.spent_slots[registry.pending_spend.spent_slots.len() - 1]
+                registry.pending_spend.spent_handle_slots
+                    [registry.pending_spend.spent_handle_slots.len() - 1]
                     .tree_hash()
                     .into()
             );
@@ -1707,7 +1709,7 @@ mod tests {
 
         let mut base_price = initial_registration_price;
 
-        let mut slots: Vec<Slot<XchandlesSlotValue>> = slots.into();
+        let mut slots: Vec<Slot<XchandlesHandleSlotValue>> = slots.into();
         for i in 0..7 {
             // mint controller singleton (it's a DID, not an NFT - don't rat on me to the NFT board plz)
             let launcher_coin = sim.new_coin(SINGLETON_LAUNCHER_HASH.into(), 1);
@@ -1729,7 +1731,7 @@ mod tests {
             let reg_amount = XchandlesFactorPricingPuzzleArgs::get_price(base_price, &handle, 1);
 
             let handle_owner_launcher_id = did.info.launcher_id;
-            let handle_resolved_data: Bytes = Bytes32::from([u8::MAX - i as u8; 32]).into();
+            let handle_resolved_launcher_id = Bytes32::from([u8::MAX - i as u8; 32]);
             let secret = Bytes32::default();
 
             let value = XchandlesPrecommitValue::for_normal_registration(
@@ -1749,7 +1751,7 @@ mod tests {
                 handle.clone(),
                 secret,
                 handle_owner_launcher_id,
-                handle_resolved_data,
+                handle_resolved_launcher_id,
             );
 
             let refund_puzzle = ctx.alloc(&1)?;
@@ -1804,17 +1806,17 @@ mod tests {
             // call the 'register' action on the registry
             slots.sort_unstable_by(|a, b| a.info.value.cmp(&b.info.value));
 
-            let slot_value_to_insert = XchandlesSlotValue::new(
+            let slot_value_to_insert = XchandlesHandleSlotValue::new(
                 handle_hash,
                 Bytes32::default(),
                 Bytes32::default(),
                 0,
                 Bytes32::default(),
-                Bytes::default(),
+                Bytes32::default(),
             );
 
-            let mut left_slot: Option<Slot<XchandlesSlotValue>> = None;
-            let mut right_slot: Option<Slot<XchandlesSlotValue>> = None;
+            let mut left_slot: Option<Slot<XchandlesHandleSlotValue>> = None;
+            let mut right_slot: Option<Slot<XchandlesHandleSlotValue>> = None;
             for slot in &slots {
                 let slot_value = slot.info.value.clone();
 
@@ -1896,34 +1898,36 @@ mod tests {
             }
 
             let spent_values = [left_slot.info.value.clone(), right_slot.info.value.clone()];
-            let secure_cond = registry.new_action::<XchandlesRegisterAction>().spend(
-                ctx,
-                &mut registry,
-                left_slot.clone(),
-                right_slot.clone(),
-                precommit_coin,
-                base_price,
-                registration_period,
-                100,
-            )?;
+            let (secure_cond, owner_conds, resolved_conds) =
+                registry.new_action::<XchandlesRegisterAction>().spend(
+                    ctx,
+                    &mut registry,
+                    left_slot.clone(),
+                    right_slot.clone(),
+                    &precommit_coin,
+                    base_price,
+                    registration_period,
+                    100,
+                )?;
 
             ensure_conditions_met(ctx, &mut sim, secure_cond.clone(), 1)?;
+            // todo: owner conds and resolved conds
 
             assert_eq!(
                 registry
                     .pending_spend
-                    .spent_slots
+                    .spent_handle_slots
                     .iter()
                     .rev()
                     .take(2)
-                    .collect::<Vec<&XchandlesSlotValue>>(),
+                    .collect::<Vec<&XchandlesHandleSlotValue>>(),
                 spent_values.iter().rev().collect::<Vec<_>>(),
             );
             let new_slots = registry
                 .pending_spend
-                .created_slots
+                .created_handle_slots
                 .iter()
-                .map(|s| registry.created_slot_value_to_slot(s.clone()))
+                .map(|s| registry.created_handle_slot_value_to_slot(s.clone()))
                 .collect::<Vec<_>>();
             registry = registry.finish_spend(ctx)?.0;
             sim.pass_time(100); // registration start was at timestamp 100
@@ -1953,8 +1957,9 @@ mod tests {
                 &mut registry,
                 oracle_slot.clone(),
             )?;
-            let new_slot = registry
-                .created_slot_value_to_slot(registry.pending_spend.created_slots[0].clone());
+            let new_slot = registry.created_handle_slot_value_to_slot(
+                registry.pending_spend.created_handle_slots[0].clone(),
+            );
 
             ensure_conditions_met(ctx, &mut sim, oracle_conds, 0)?;
 
@@ -1962,7 +1967,7 @@ mod tests {
                 spent_slot_value_hash,
                 registry
                     .pending_spend
-                    .spent_slots
+                    .spent_handle_slots
                     .iter()
                     .next_back()
                     .unwrap()
@@ -2003,14 +2008,15 @@ mod tests {
                     extension_years,
                     0,
                 )?;
-            let new_slot = registry
-                .created_slot_value_to_slot(registry.pending_spend.created_slots[0].clone());
+            let new_slot = registry.created_handle_slot_value_to_slot(
+                registry.pending_spend.created_handle_slots[0].clone(),
+            );
 
             assert_eq!(
                 spent_slot_value_hash,
                 registry
                     .pending_spend
-                    .spent_slots
+                    .spent_handle_slots
                     .iter()
                     .next_back()
                     .unwrap()
@@ -2086,8 +2092,9 @@ mod tests {
                 &new_resolved_data,
                 did.info.inner_puzzle_hash().into(),
             )?;
-            let new_slot = registry
-                .created_slot_value_to_slot(registry.pending_spend.created_slots[0].clone());
+            let new_slot = registry.created_handle_slot_value_to_slot(
+                registry.pending_spend.created_handle_slots[0].clone(),
+            );
 
             let _new_did = did.update(ctx, &user_p2, update_conds)?;
 
@@ -2095,7 +2102,7 @@ mod tests {
                 update_slot_value_hash,
                 registry
                     .pending_spend
-                    .spent_slots
+                    .spent_handle_slots
                     .iter()
                     .next_back()
                     .unwrap()
@@ -2226,7 +2233,7 @@ mod tests {
             1,
             base_price,
             registration_period,
-            precommit_coin,
+            &precommit_coin,
             buy_time,
         )?;
 
@@ -2237,7 +2244,7 @@ mod tests {
             spent_slot_value_hash,
             registry
                 .pending_spend
-                .spent_slots
+                .spent_handle_slots
                 .iter()
                 .next_back()
                 .unwrap()

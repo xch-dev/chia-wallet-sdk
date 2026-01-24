@@ -92,6 +92,7 @@ impl XchandlesExecuteUpdateAction {
     //  - message to be sent by old owner
     //  - message to be sent by new owner
     //  - message to be sent by new resolved
+    #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,
         ctx: &mut SpendContext,
@@ -110,7 +111,7 @@ impl XchandlesExecuteUpdateAction {
         let update_slot = registry.actual_update_slot(update_slot);
 
         let action_solution = ctx.alloc(&XchandlesExecuteUpdateActionSolution {
-            current_slot_value: handle_slot.info.value.clone(),
+            current_slot_value: handle_slot.info.value,
             new_data: XchandlesDataValue {
                 owner_launcher_id: new_owner_launcher_id,
                 resolved_launcher_id: new_resolved_launcher_id,

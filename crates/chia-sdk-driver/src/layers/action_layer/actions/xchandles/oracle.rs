@@ -74,7 +74,7 @@ impl XchandlesOracleAction {
 
         registry.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
-        let new_slot = Self::created_slot_value(slot.info.value.clone());
+        let new_slot = Self::created_slot_value(slot.info.value);
 
         // spend slot
         slot.spend(ctx, registry.info.inner_puzzle_hash().into())?;

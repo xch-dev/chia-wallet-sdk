@@ -145,7 +145,7 @@ impl XchandlesExpireAction {
         num_periods: u64,
         base_handle_price: u64,
         registration_period: u64,
-        precommit_coin: PrecommitCoin<XchandlesPrecommitValue>,
+        precommit_coin: &PrecommitCoin<XchandlesPrecommitValue>,
         start_time: u64,
     ) -> Result<Conditions, DriverError> {
         let my_inner_puzzle_hash = registry.info.inner_puzzle_hash().into();

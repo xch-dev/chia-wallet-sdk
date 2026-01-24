@@ -100,6 +100,7 @@ impl XchandlesInitiateUpdateAction {
         ))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn spend(
         self,
         ctx: &mut SpendContext,
@@ -113,7 +114,7 @@ impl XchandlesInitiateUpdateAction {
         // spend self
         let slot = registry.actual_handle_slot(slot);
         let action_solution = ctx.alloc(&XchandlesInitiateUpdateActionSolution {
-            current_slot_value: slot.info.value.clone(),
+            current_slot_value: slot.info.value,
             new_data: XchandlesDataValue {
                 owner_launcher_id: new_owner_launcher_id,
                 resolved_launcher_id: new_resolved_launcher_id,

@@ -167,7 +167,7 @@ impl XchandlesRegisterAction {
         registry: &mut XchandlesRegistry,
         left_slot: Slot<XchandlesHandleSlotValue>,
         right_slot: Slot<XchandlesHandleSlotValue>,
-        precommit_coin: PrecommitCoin<XchandlesPrecommitValue>,
+        precommit_coin: &PrecommitCoin<XchandlesPrecommitValue>,
         base_handle_price: u64,
         registration_period: u64,
         start_time: u64,
@@ -187,13 +187,13 @@ impl XchandlesRegisterAction {
         let new_owner_message =
             XchandlesRegistryReceivedMessagePrefix::register_owner(precommit_coin.coin.puzzle_hash);
         let new_resolved_message = if precommit_coin.value.resolved_launcher_id
-            != precommit_coin.value.owner_launcher_id
+            == precommit_coin.value.owner_launcher_id
         {
+            None
+        } else {
             Some(XchandlesRegistryReceivedMessagePrefix::register_resolved(
                 precommit_coin.coin.puzzle_hash,
             ))
-        } else {
-            None
         };
 
         // spend precommit coin

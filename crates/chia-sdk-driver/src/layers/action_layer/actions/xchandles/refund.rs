@@ -128,7 +128,7 @@ impl XchandlesRefundAction {
             precommited_resolved_launcher_id: precommit_coin.value.resolved_launcher_id,
             refund_puzzle_hash_hash: precommit_coin.refund_puzzle_hash.tree_hash().into(),
             precommit_amount: precommit_coin.coin.amount,
-            slot_value: slot.as_ref().map(|slot| slot.info.value.clone()),
+            slot_value: slot.as_ref().map(|slot| slot.info.value),
         }
         .to_clvm(ctx)?;
         let action_puzzle = self.construct_puzzle(ctx)?;
