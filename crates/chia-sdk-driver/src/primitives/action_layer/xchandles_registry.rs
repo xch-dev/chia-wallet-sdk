@@ -2,7 +2,9 @@ use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs, SingletonSolution};
 use chia_puzzle_types::{LineageProof, Proof};
-use chia_sdk_types::puzzles::{SlotInfo, XchandlesSlotValue};
+use chia_sdk_types::puzzles::{
+    SlotInfo, XchandlesHandleSlotValue, XchandlesSlotValue, XchandlesUpdateSlotValue,
+};
 use clvm_traits::{clvm_list, match_tuple};
 use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
@@ -19,8 +21,10 @@ use super::{Slot, XchandlesConstants, XchandlesRegistryInfo, XchandlesRegistrySt
 #[derive(Debug, Clone)]
 pub struct XchandlesPendingSpendInfo {
     pub actions: Vec<Spend>,
-    pub spent_slots: Vec<XchandlesSlotValue>,
-    pub created_slots: Vec<XchandlesSlotValue>,
+    pub spent_handle_slots: Vec<XchandlesHandleSlotValue>,
+    pub spent_update_slots: Vec<XchandlesUpdateSlotValue>,
+    pub created_handle_slots: Vec<XchandlesHandleSlotValue>,
+    pub created_update_slots: Vec<XchandlesUpdateSlotValue>,
 
     pub latest_state: (NodePtr, XchandlesRegistryState),
 
@@ -487,10 +491,24 @@ impl XchandlesRegistry {
         (left, right)
     }
 
-    pub fn actual_slot(&self, slot: Slot<XchandlesSlotValue>) -> Slot<XchandlesSlotValue> {
+    pub fn actual_handle_slot(&self, slot: Slot<XchandlesSlotValue>) -> Slot<XchandlesSlotValue> {
         let mut slot = slot;
-        for slot_value in &self.pending_spend.created_slots {
+        for slot_value in &self.pending_spend.created_handle_slots {
             if slot.info.value.handle_hash == slot_value.handle_hash {
+                slot = self.created_slot_value_to_slot(slot_value.clone());
+            }
+        }
+
+        slot
+    }
+
+    pub fn actual_update_slot(
+        &self,
+        slot: Slot<XchandlesUpdateSlotValue>,
+    ) -> Slot<XchandlesUpdateSlotValue> {
+        let mut slot = slot;
+        for slot_value in &self.pending_spend.created_update_slots {
+            if slot.info.value.update_initiator_coin_id == slot_value.update_initiator_coin_id {
                 slot = self.created_slot_value_to_slot(slot_value.clone());
             }
         }

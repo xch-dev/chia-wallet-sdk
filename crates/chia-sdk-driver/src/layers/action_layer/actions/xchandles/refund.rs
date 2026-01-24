@@ -111,7 +111,7 @@ impl XchandlesRefundAction {
         precommit_coin.spend(ctx, PrecommitSpendMode::REFUND, my_inner_puzzle_hash)?;
 
         // spend self
-        let slot = slot.map(|s| registry.actual_slot(s));
+        let slot = slot.map(|s| registry.actual_handle_slot(s));
         let cat_maker_args = DefaultCatMakerArgs::new(precommit_coin.asset_id.tree_hash().into());
         let action_solution = XchandlesRefundActionSolution {
             precommited_cat_maker_reveal: ctx.curry(cat_maker_args)?,

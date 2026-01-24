@@ -158,7 +158,7 @@ impl XchandlesExpireAction {
         precommit_coin.spend(ctx, PrecommitSpendMode::REGISTER, my_inner_puzzle_hash)?;
 
         // spend self
-        let slot = registry.actual_slot(slot);
+        let slot = registry.actual_handle_slot(slot);
         let expire_args =
             XchandlesExpirePricingPuzzle::from_info(ctx, base_handle_price, registration_period)?;
         let action_solution = XchandlesExpireActionSolution {

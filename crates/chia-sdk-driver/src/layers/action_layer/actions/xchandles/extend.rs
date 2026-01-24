@@ -139,7 +139,7 @@ impl XchandlesExtendAction {
             registration_period,
         })?;
 
-        let slot = registry.actual_slot(slot);
+        let slot = registry.actual_handle_slot(slot);
         let action_solution = ctx.alloc(&XchandlesExtendActionSolution {
             pricing_puzzle_reveal,
             pricing_solution: XchandlesPricingSolution {

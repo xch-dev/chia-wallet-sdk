@@ -1,5 +1,5 @@
-use chia_protocol::{Bytes, Bytes32, Coin};
-use chia_puzzle_types::singleton::SingletonArgs;
+use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::{singleton::SingletonArgs, CoinProof};
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
     puzzles::{
@@ -75,6 +75,7 @@ impl XchandlesInitiateUpdateAction {
     pub fn created_slot_values(
         ctx: &mut SpendContext,
         solution: NodePtr,
+        relative_block_height: u32,
     ) -> Result<(XchandlesHandleSlotValue, XchandlesUpdateSlotValue), DriverError> {
         let solution = ctx.extract::<XchandlesInitiateUpdateActionSolution>(solution)?;
 
@@ -91,7 +92,7 @@ impl XchandlesInitiateUpdateAction {
                     solution.current_owner.amount,
                 )
                 .coin_id(),
-                solution.min_height,
+                solution.min_height + u64::from(relative_block_height),
                 solution.current_slot_value.handle_hash,
                 solution.new_data.owner_launcher_id,
                 solution.new_data.resolved_launcher_id,
@@ -105,18 +106,20 @@ impl XchandlesInitiateUpdateAction {
         registry: &mut XchandlesRegistry,
         slot: Slot<XchandlesHandleSlotValue>,
         new_owner_launcher_id: Bytes32,
-        new_resolved_data: &Bytes,
-        announcer_inner_puzzle_hash: Bytes32,
+        new_resolved_launcher_id: Bytes32,
+        current_owner: CoinProof,
+        min_height: u64,
     ) -> Result<Conditions, DriverError> {
         // spend self
-        let slot = registry.actual_slot(slot);
-        let action_solution = ctx.alloc(&XchandlesUpdateActionSolution {
+        let slot = registry.actual_handle_slot(slot);
+        let action_solution = ctx.alloc(&XchandlesInitiateUpdateActionSolution {
             current_slot_value: slot.info.value.clone(),
             new_data: XchandlesDataValue {
                 owner_launcher_id: new_owner_launcher_id,
-                resolved_data: new_resolved_data.clone(),
+                resolved_launcher_id: new_resolved_launcher_id,
             },
-            announcer_inner_puzzle_hash,
+            current_owner,
+            min_height,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
@@ -129,11 +132,11 @@ impl XchandlesInitiateUpdateAction {
         slot.spend(ctx, my_inner_puzzle_hash)?;
 
         Ok(Conditions::new().send_message(
-            18,
-            XchandlesRegistryReceivedMessagePrefix::update_handle(
+            58,
+            XchandlesRegistryReceivedMessagePrefix::initiate_update(
                 handle_hash,
                 new_owner_launcher_id,
-                new_resolved_data,
+                new_resolved_launcher_id,
             )
             .into(),
             vec![ctx.alloc(&registry.coin.puzzle_hash)?],

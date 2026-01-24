@@ -68,7 +68,7 @@ impl XchandlesOracleAction {
         slot: Slot<XchandlesHandleSlotValue>,
     ) -> Result<Conditions, DriverError> {
         // spend self
-        let slot = registry.actual_slot(slot);
+        let slot = registry.actual_handle_slot(slot);
         let action_solution = ctx.alloc(&slot.info.value)?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
