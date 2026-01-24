@@ -1,5 +1,6 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::singleton::SingletonStruct;
+use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
@@ -54,6 +55,8 @@ impl XchandlesRegisterAction {
         payout_puzzle_hash: Bytes32,
     ) -> XchandlesRegisterActionArgs {
         XchandlesRegisterActionArgs {
+            singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
+            singleton_launcher_puzzle_hash: SINGLETON_LAUNCHER_HASH.into(),
             precommit_1st_curry_hash: PrecommitLayer::<()>::first_curry_hash(
                 SingletonStruct::new(launcher_id).tree_hash().into(),
                 relative_block_height,
