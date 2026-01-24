@@ -5,7 +5,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
-use crate::{puzzles::XchandlesSlotValue, Mod};
+use crate::{puzzles::XchandlesHandleSlotValue, Mod};
 
 pub const XCHANDLES_REFUND_PUZZLE: [u8; 1075] = hex!(
     "
@@ -75,7 +75,7 @@ pub struct XchandlesRefundActionSolution<CMP, CMS, PP, PS, S> {
     pub refund_puzzle_hash_hash: Bytes32,
     pub precommit_amount: u64,
     #[clvm(rest)]
-    pub slot_value: Option<XchandlesSlotValue>,
+    pub slot_value: Option<XchandlesHandleSlotValue>,
 }
 
 impl Mod for XchandlesRefundActionArgs {

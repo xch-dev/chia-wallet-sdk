@@ -7,7 +7,7 @@ use clvm_utils::TreeHash;
 use hex_literal::hex;
 
 use crate::{
-    puzzles::{XchandlesDataValue, XchandlesSlotValue},
+    puzzles::{XchandlesDataValue, XchandlesHandleSlotValue},
     Mod,
 };
 
@@ -72,7 +72,7 @@ pub struct XchandlesExecuteUpdateActionArgs {
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct XchandlesExecuteUpdateActionSolution {
-    pub current_slot_value: XchandlesSlotValue,
+    pub current_slot_value: XchandlesHandleSlotValue,
     pub new_data: XchandlesDataValue,
     pub current_owner: CoinProof,
     pub min_execution_height: u64,

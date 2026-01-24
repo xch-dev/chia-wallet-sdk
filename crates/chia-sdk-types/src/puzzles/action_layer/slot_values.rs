@@ -280,14 +280,63 @@ impl PartialOrd for XchandlesHandleSlotValue {
     }
 }
 
-// (c (c update_initiator_coin_id . min_height) (c handle_hash (c new_owner_launcher_id new_resolved_launcher_id)))
-#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
-#[clvm(list)]
-pub struct RewardDistributorRewardSlotValue {
-    pub epoch_start: u64,
-    pub next_epoch_initialized: bool,
-    #[clvm(rest)]
-    pub rewards: u64,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct XchandlesUpdateSlotValue {
+    pub update_initiator_coin_id: Bytes32,
+    pub min_height: u64,
+    pub handle_hash: Bytes32,
+    pub new_owner_launcher_id: Bytes32,
+    pub new_resolved_launcher_id: Bytes32,
+}
+
+impl XchandlesUpdateSlotValue {
+    pub fn new(
+        update_initiator_coin_id: Bytes32,
+        min_height: u64,
+        handle_hash: Bytes32,
+        new_owner_launcher_id: Bytes32,
+        new_resolved_launcher_id: Bytes32,
+    ) -> Self {
+        Self {
+            update_initiator_coin_id,
+            min_height,
+            handle_hash,
+            new_owner_launcher_id,
+            new_resolved_launcher_id,
+        }
+    }
+}
+
+impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for XchandlesUpdateSlotValue {
+    fn from_clvm(decoder: &D, node: N) -> Result<Self, FromClvmError> {
+        #[allow(clippy::type_complexity)]
+        let (
+            (update_initiator_coin_id, min_height),
+            (handle_hash, (new_owner_launcher_id, new_resolved_launcher_id)),
+        ): ((Bytes32, u64), (Bytes32, (Bytes32, Bytes32))) = FromClvm::from_clvm(decoder, node)?;
+
+        Ok(Self::new(
+            update_initiator_coin_id,
+            min_height,
+            handle_hash,
+            new_owner_launcher_id,
+            new_resolved_launcher_id,
+        ))
+    }
+}
+
+impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for XchandlesUpdateSlotValue {
+    fn to_clvm(&self, encoder: &mut E) -> Result<N, ToClvmError> {
+        let obj = clvm_tuple!(
+            clvm_tuple!(self.update_initiator_coin_id, self.min_height,),
+            clvm_tuple!(
+                self.handle_hash,
+                clvm_tuple!(self.new_owner_launcher_id, self.new_resolved_launcher_id)
+            ),
+        );
+
+        obj.to_clvm(encoder)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
