@@ -58,7 +58,7 @@ impl XchandlesExecuteUpdateAction {
         ctx.curry(Self::new_args(self.launcher_id))
     }
 
-    pub fn spent_slot_value(
+    pub fn spent_slot_values(
         ctx: &SpendContext,
         solution: NodePtr,
     ) -> Result<(XchandlesHandleSlotValue, XchandlesUpdateSlotValue), DriverError> {
@@ -76,7 +76,7 @@ impl XchandlesExecuteUpdateAction {
         ))
     }
 
-    pub fn created_slot_values(
+    pub fn created_slot_value(
         ctx: &mut SpendContext,
         solution: NodePtr,
     ) -> Result<XchandlesHandleSlotValue, DriverError> {
