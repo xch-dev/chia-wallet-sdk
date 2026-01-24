@@ -3,8 +3,8 @@ use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
     puzzles::{
         CompactCoinProof, XchandlesDataValue, XchandlesExecuteUpdateActionArgs,
-        XchandlesExecuteUpdateActionSolution, XchandlesHandleSlotValue,
-        XchandlesInitiateUpdateActionSolution, XchandlesSlotNonce, XchandlesUpdateSlotValue,
+        XchandlesExecuteUpdateActionSolution, XchandlesHandleSlotValue, XchandlesSlotNonce,
+        XchandlesUpdateSlotValue,
     },
     Conditions, Mod,
 };
@@ -61,13 +61,13 @@ impl XchandlesExecuteUpdateAction {
         ctx: &SpendContext,
         solution: NodePtr,
     ) -> Result<(XchandlesHandleSlotValue, XchandlesUpdateSlotValue), DriverError> {
-        let solution = ctx.extract::<XchandlesInitiateUpdateActionSolution>(solution)?;
+        let solution = ctx.extract::<XchandlesExecuteUpdateActionSolution>(solution)?;
 
         Ok((
             solution.current_slot_value,
             XchandlesUpdateSlotValue::new(
                 solution.current_owner.parent_coin_info,
-                solution.min_height,
+                solution.min_execution_height,
                 solution.current_slot_value.handle_hash,
                 solution.new_data.owner_launcher_id,
                 solution.new_data.resolved_launcher_id,
@@ -79,7 +79,7 @@ impl XchandlesExecuteUpdateAction {
         ctx: &mut SpendContext,
         solution: NodePtr,
     ) -> Result<XchandlesHandleSlotValue, DriverError> {
-        let solution = ctx.extract::<XchandlesInitiateUpdateActionSolution>(solution)?;
+        let solution = ctx.extract::<XchandlesExecuteUpdateActionSolution>(solution)?;
 
         Ok(solution.current_slot_value.with_data(
             solution.new_data.owner_launcher_id,
