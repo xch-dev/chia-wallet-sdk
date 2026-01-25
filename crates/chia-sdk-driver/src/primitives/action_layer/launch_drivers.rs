@@ -1715,6 +1715,8 @@ mod tests {
         let (_, mut owner_did) = launcher.create_simple_did(ctx, &user_p2)?;
         sim.spend_coins(ctx.take(), std::slice::from_ref(&user_bls.sk))?;
 
+        let mut forgotten_did = owner_did.clone();
+
         let mut slots: Vec<Slot<XchandlesHandleSlotValue>> = slots.into();
         for i in 0..7 {
             // mint controller singleton (it's a DID, not an NFT - don't rat on me to the NFT board plz)
@@ -2173,7 +2175,7 @@ mod tests {
 
             registry = registry.finish_spend(ctx)?.0;
 
-            let _new_did = did.update(ctx, &user_p2, old_owner_conds)?;
+            forgotten_did = did.update(ctx, &user_p2, old_owner_conds)?;
             owner_did =
                 owner_did.update(ctx, &user_p2, new_owner_conds.extend(new_resolved_conds))?;
 
@@ -2226,8 +2228,8 @@ mod tests {
             .tree_hash(),
             handle_to_expire.clone(),
             Bytes32::default(),
-            Bytes32::from([42; 32]),
-            Bytes32::from([69; 32]),
+            forgotten_did.info.launcher_id,
+            forgotten_did.info.launcher_id,
         );
 
         let pricing_puzzle =
@@ -2291,19 +2293,24 @@ mod tests {
         )?;
 
         let spent_slot_value_hash = initial_slot.info.value_hash;
-        let expire_conds = registry.new_action::<XchandlesExpireAction>().spend(
-            ctx,
-            &mut registry,
-            initial_slot.clone(),
-            1,
-            base_price,
-            registration_period,
-            &precommit_coin,
-            buy_time,
-        )?;
+        let (expire_conds, forgotten_did_conds, hopefully_none) =
+            registry.new_action::<XchandlesExpireAction>().spend(
+                ctx,
+                &mut registry,
+                initial_slot.clone(),
+                1,
+                base_price,
+                registration_period,
+                &precommit_coin,
+                buy_time,
+                forgotten_did.info.inner_puzzle_hash().into(),
+                forgotten_did.info.inner_puzzle_hash().into(),
+            )?;
+        assert_eq!(hopefully_none, None);
 
         // assert expire conds
         ensure_conditions_met(ctx, &mut sim, expire_conds, 1)?;
+        let _new_forgotten_did = forgotten_did.update(ctx, &user_p2, forgotten_did_conds)?;
 
         assert_eq!(
             spent_slot_value_hash,
