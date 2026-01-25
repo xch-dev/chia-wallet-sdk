@@ -12,77 +12,77 @@ use crate::{
     MerkleProof, Mod,
 };
 
-pub const REWARD_DISTRIBUTOR_REFRESH_NFTS_FROM_DL_PUZZLE: [u8; 2001] = hex!(
+pub const REWARD_DISTRIBUTOR_REFRESH_NFTS_FROM_DL_PUZZLE: [u8; 1992] = hex!(
     "
-    ff02ffff01ff04ffff04ff8209ffffff04ffff11ff8215ffff83017bff80ffff
-    04ffff10ff822dffff8302fbff80ffff04ffff04ff829dffffff10ff82ddffff
-    8305fbff8080ffff04ff82bdffff808080808080ffff04ffff04ff20ffff04ff
-    ff10ff83013dffff82017f80ff808080ffff04ffff04ff30ffff04ffff0bffff
-    02ff2affff04ff02ffff04ff09ffff04ffff02ff2effff04ff02ffff04ff05ff
-    80808080ffff04ffff02ff2affff04ff02ffff04ff0bffff04ffff0bffff0101
-    ff0b80ffff04ffff0bffff0102ffff0bffff0101ff8213ff80ffff02ffff03ff
-    822bffffff01822bffffff01819c80ff018080ffff04ff825bffffff04ff82bb
-    ffff8080808080808080ff808080808080ffff012480ff808080ffff02ff26ff
-    ff04ff02ffff04ff03ffff04ff8307fbffffff04ff83017bffffff04ff8302fb
-    ffffff04ff8305fbffff8080808080808080808080ffff04ffff01ffffffff55
-    3fff333effff4202ffff02ffff03ff05ffff01ff0bff81fcffff02ff3affff04
-    ff02ffff04ff09ffff04ffff02ff2cffff04ff02ffff04ff0dff80808080ff80
-    8080808080ffff0181dc80ff0180ffffa04bf5122f344554c53bde2ebb8cd2b7
-    e3d1600ad631c385a5d7cce23c7785459aa09dcf97a184f32623d11a73124ceb
-    99a5709b083721e878a16d78f596718ba7b2ffa102a12871fee210fb8619291e
-    aea194581cbd2531e4b23759d225f6806923f63222a102a8d5dd63fba471ebcb
-    1f3e8f7c1e1879b7152a6e7298a91ce119a63400ade7c5ffffffff04ff28ffff
-    04ff05ffff04ffff0101ffff04ffff04ff05ff8080ff8080808080ff04ff28ff
-    ff04ffff02ff2affff04ff02ffff04ff05ffff04ffff0bffff0101ff0b80ff80
-    80808080ffff04ff80ffff04ffff04ff17ff8080ff8080808080ffff0bff81bc
-    ffff02ff3affff04ff02ffff04ff05ffff04ffff02ff2cffff04ff02ffff04ff
-    07ff80808080ff808080808080ff0bff34ffff0bff34ff81dcff0580ffff0bff
-    34ff0bff819c8080ffffff02ffff03ff0bffff01ff02ffff03ffff22ffff09ff
-    ff12ff81e3ffff11ff83013bfdff81a38080ffff10ffff12ff53ff8205fd80ff
-    81b38080ffff15ff81b3ffff0181ff80ffff15ff8205fdff81b380ffff20ffff
-    15ff820173ff81e3808080ffff01ff04ffff02ff7effff04ff02ffff04ff8201
-    7dffff04ffff02ff2effff04ff02ffff04ff23ff80808080ff8080808080ffff
-    04ffff02ff32ffff04ff02ffff04ff82017dffff04ffff02ff2effff04ff02ff
-    ff04ffff04ff43ffff04ff83013bfdffff10ff81e3ff820173808080ff808080
-    80ffff04ff43ff808080808080ffff04ffff04ffff0181d6ffff04ff28ffff04
-    ff43ffff04ff53ffff04ffff04ff43ff8080ff808080808080ffff02ff36ffff
-    04ff02ffff04ff05ffff04ff23ffff04ff8201f3ffff04ff820173ffff04ffff
-    02ff26ffff04ff02ffff04ff05ffff04ff1bffff04ffff11ff17ff5380ffff04
-    ffff11ff2fff82017380ffff04ffff11ff5fff81b380ff8080808080808080ff
-    8080808080808080808080ffff01ff088080ff0180ffff01ff21ff17ff5f8080
-    ff0180ff02ffff03ff17ffff01ff04ffff04ff24ffff04ffff0117ffff04ffff
-    02ff2effff04ff02ffff04ffff04ffff0101ffff04ffff02ff22ffff04ff02ff
-    ff04ffff02ff2affff04ff02ffff04ff5dffff04ffff02ff2effff04ff02ffff
-    04ffff04ff13ff81a780ff80808080ffff04ff81bdff808080808080ff808080
-    80ff808080ff80808080ffff04ffff30ff820167ffff02ff2affff04ff02ffff
-    04ff11ffff04ffff02ff2effff04ff02ffff04ffff04ff11ffff04ff8202e7ff
-    398080ff80808080ffff04ffff02ff2affff04ff02ffff04ff15ffff04ffff0b
-    ffff0101ff1580ffff04ff8205e7ffff04ff820be7ffff04ffff02ff2affff04
-    ff02ffff04ff2dffff04ffff0bffff0101ff2d80ffff04ffff0bffff0101ff82
-    2fe780ffff04ff8217e7ffff04ffff02ff2affff04ff02ffff04ff5dffff04ff
-    ff02ff2effff04ff02ffff04ffff04ff13ffff11ff81a7ff478080ff80808080
-    ffff04ff81bdff808080808080ff8080808080808080ff8080808080808080ff
-    808080808080ffff010180ff8080808080ffff04ffff04ff38ffff04ffff0eff
-    ff0172ff8202e780ff808080ffff02ffff03ffff22ffff09ff8227fdffff02ff
-    5effff04ff02ffff04ffff0bffff0101ffff02ff2effff04ff02ffff04ffff04
-    ff8202e7ff81a780ff8080808080ffff04ff823fe7ff808080808080ff4780ff
-    ff01ff02ff36ffff04ff02ffff04ff05ffff04ff0bffff04ff37ffff04ffff11
-    ff2fff4780ffff04ff5fff8080808080808080ffff01ff088080ff01808080ff
-    ff01ff02ffff03ff2fffff01ff0880ffff015f80ff018080ff0180ffff02ffff
-    03ffff07ff0580ffff01ff0bffff0102ffff02ff2effff04ff02ffff04ff09ff
-    80808080ffff02ff2effff04ff02ffff04ff0dff8080808080ffff01ff0bffff
-    0101ff058080ff0180ffff02ffff03ff1bffff01ff02ff5effff04ff02ffff04
-    ffff02ffff03ffff18ffff0101ff1380ffff01ff0bffff0102ff2bff0580ffff
-    01ff0bffff0102ff05ff2b8080ff0180ffff04ffff04ffff17ff13ffff0181ff
-    80ff3b80ff8080808080ffff010580ff0180ff04ff24ffff04ffff0112ffff04
-    ff80ffff04ffff02ff2affff04ff02ffff04ff05ffff04ffff0bffff0101ff0b
-    80ff8080808080ff8080808080ff018080
+    ff02ffff01ff04ffff04ff8209ffffff04ffff11ff8215ffff824fff80ffff04
+    ffff10ff822dffff82afff80ffff04ffff04ff829dffffff10ff82ddffff82ef
+    ff8080ffff04ff82bdffff808080808080ffff04ffff04ff20ffff04ffff10ff
+    83013dffff82017f80ff808080ffff04ffff04ff30ffff04ffff0bffff02ff2a
+    ffff04ff02ffff04ff09ffff04ffff02ff2effff04ff02ffff04ff05ff808080
+    80ffff04ffff02ff2affff04ff02ffff04ff0bffff04ffff0bffff0101ff0b80
+    ffff04ffff0bffff0102ffff0bffff0101ff820bff80ffff02ffff03ff8227ff
+    ffff018227ffffff01819c80ff018080ffff04ff8257ffffff04ff8277ffff80
+    80808080808080ff808080808080ffff012480ff808080ffff02ff26ffff04ff
+    02ffff04ff03ffff04ff823fffffff04ff824fffffff04ff82afffffff04ff82
+    efffff8080808080808080808080ffff04ffff01ffffffff553fff333effff42
+    02ffff02ffff03ff05ffff01ff0bff81fcffff02ff3affff04ff02ffff04ff09
+    ffff04ffff02ff2cffff04ff02ffff04ff0dff80808080ff808080808080ffff
+    0181dc80ff0180ffffa04bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c3
+    85a5d7cce23c7785459aa09dcf97a184f32623d11a73124ceb99a5709b083721
+    e878a16d78f596718ba7b2ffa102a12871fee210fb8619291eaea194581cbd25
+    31e4b23759d225f6806923f63222a102a8d5dd63fba471ebcb1f3e8f7c1e1879
+    b7152a6e7298a91ce119a63400ade7c5ffffffff04ff28ffff04ff05ffff04ff
+    ff0101ffff04ffff04ff05ff8080ff8080808080ff04ff28ffff04ffff02ff2a
+    ffff04ff02ffff04ff05ffff04ffff0bffff0101ff0b80ff8080808080ffff04
+    ff80ffff04ffff04ff17ff8080ff8080808080ffff0bff81bcffff02ff3affff
+    04ff02ffff04ff05ffff04ffff02ff2cffff04ff02ffff04ff07ff80808080ff
+    808080808080ff0bff34ffff0bff34ff81dcff0580ffff0bff34ff0bff819c80
+    80ffffff02ffff03ff0bffff01ff02ffff03ffff22ffff09ffff12ff81e3ffff
+    11ff83013bfdff81a38080ffff10ffff12ff8193ff8205fd80ff81d38080ffff
+    15ff81d3ffff0181ff80ffff15ff8205fdff81d380ffff20ffff15ff81b3ff81
+    e3808080ffff01ff04ffff02ff7effff04ff02ffff04ff82017dffff04ffff02
+    ff2effff04ff02ffff04ff23ff80808080ff8080808080ffff04ffff02ff32ff
+    ff04ff02ffff04ff82017dffff04ffff02ff2effff04ff02ffff04ffff04ff43
+    ffff04ff83013bfdffff10ff81e3ff81b3808080ff80808080ffff04ff43ff80
+    8080808080ffff04ffff04ffff0181d6ffff04ff28ffff04ff43ffff04ff8193
+    ffff04ffff04ff43ff8080ff808080808080ffff02ff36ffff04ff02ffff04ff
+    05ffff04ff23ffff04ff81f3ffff04ff81b3ffff04ffff02ff26ffff04ff02ff
+    ff04ff05ffff04ff1bffff04ffff11ff17ff819380ffff04ffff11ff2fff81b3
+    80ffff04ffff11ff5fff81d380ff8080808080808080ff808080808080808080
+    8080ffff01ff088080ff0180ffff01ff21ff17ff5f8080ff0180ff02ffff03ff
+    17ffff01ff04ffff04ff24ffff04ffff0117ffff04ffff02ff2effff04ff02ff
+    ff04ffff04ffff0101ffff04ffff02ff22ffff04ff02ffff04ffff02ff2affff
+    04ff02ffff04ff5dffff04ffff02ff2effff04ff02ffff04ffff04ff13ff81a7
+    80ff80808080ffff04ff81bdff808080808080ff80808080ff808080ff808080
+    80ffff04ffff30ff820167ffff02ff2affff04ff02ffff04ff11ffff04ffff02
+    ff2effff04ff02ffff04ffff04ff11ffff04ff8202e7ff398080ff80808080ff
+    ff04ffff02ff2affff04ff02ffff04ff15ffff04ffff0bffff0101ff1580ffff
+    04ff8205e7ffff04ff820be7ffff04ffff02ff2affff04ff02ffff04ff2dffff
+    04ffff0bffff0101ff2d80ffff04ffff0bffff0101ff822fe780ffff04ff8217
+    e7ffff04ffff02ff2affff04ff02ffff04ff5dffff04ffff02ff2effff04ff02
+    ffff04ffff04ff13ffff11ff81a7ff478080ff80808080ffff04ff81bdff8080
+    80808080ff8080808080808080ff8080808080808080ff808080808080ffff01
+    0180ff8080808080ffff04ffff04ff38ffff04ffff0effff0172ff8202e780ff
+    808080ffff02ffff03ffff22ffff09ff8227fdffff02ff5effff04ff02ffff04
+    ffff0bffff0101ffff02ff2effff04ff02ffff04ffff04ff8202e7ff81a780ff
+    8080808080ffff04ff823fe7ff808080808080ff4780ffff01ff02ff36ffff04
+    ff02ffff04ff05ffff04ff0bffff04ff37ffff04ffff11ff2fff4780ffff04ff
+    5fff8080808080808080ffff01ff088080ff01808080ffff01ff02ffff03ff2f
+    ffff01ff0880ffff015f80ff018080ff0180ffff02ffff03ffff07ff0580ffff
+    01ff0bffff0102ffff02ff2effff04ff02ffff04ff09ff80808080ffff02ff2e
+    ffff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180
+    ffff02ffff03ff1bffff01ff02ff5effff04ff02ffff04ffff02ffff03ffff18
+    ffff0101ff1380ffff01ff0bffff0102ff2bff0580ffff01ff0bffff0102ff05
+    ff2b8080ff0180ffff04ffff04ffff17ff13ffff0181ff80ff3b80ff80808080
+    80ffff010580ff0180ff04ff24ffff04ffff0112ffff04ff80ffff04ffff02ff
+    2affff04ff02ffff04ff05ffff04ffff0bffff0101ff0b80ff8080808080ff80
+    80808080ff018080
     "
 );
 
 pub const REWARD_DISTRIBUTOR_REFRESH_NFTS_FROM_DL_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    65d4372efa6c354f9f7c6dc22f64b2a4d7aaa9457f1008cb0c57252153257d83
+    bb2f77da22a0165317788415dad4fbae4bcc603c1069e70845e76e3fb9425571
     "
 ));
 
@@ -135,27 +135,48 @@ pub struct RefreshNftInfo {
     pub nft_inclusion_proof: MerkleProof,
 }
 
+#[derive(FromClvm, ToClvm, Debug, Clone, Copy, PartialEq, Eq)]
+#[clvm(list)]
+pub struct RewardDistributorEntryPayoutInfo {
+    pub payout_amount: u64,
+    #[clvm(rest)]
+    pub payout_rounding_error: u64,
+}
+
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct SlotAndNfts {
     pub existing_slot_value: RewardDistributorEntrySlotValue,
-    pub entry_payout_amount: u64,
-    pub payout_rounding_error: u64,
+    pub entry_payout_info: RewardDistributorEntryPayoutInfo,
     pub nfts_total_shares_delta: i64,
     #[clvm(rest)]
     pub nfts: Vec<RefreshNftInfo>,
+}
+
+#[derive(FromClvm, ToClvm, Debug, Clone, Copy, PartialEq, Eq)]
+#[clvm(list)]
+pub struct RewardDistributorDlInfo {
+    pub dl_metadata_rest_hash: Option<Bytes32>,
+    pub dl_metadata_updater_hash_hash: Bytes32,
+    #[clvm(rest)]
+    pub dl_inner_puzzle_hash: Bytes32,
+}
+
+#[derive(FromClvm, ToClvm, Debug, Clone, Copy, PartialEq, Eq)]
+#[clvm(list)]
+pub struct RewardDistributorRefreshNftsTotals {
+    pub total_entry_payout_amount: u64,
+    pub total_shares_delta: i128,
+    #[clvm(rest)]
+    pub total_payout_rounding_error: u64,
 }
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorRefreshNftsFromDlActionSolution {
     pub dl_root_hash: Bytes32,
-    pub dl_metadata_rest_hash: Option<Bytes32>,
-    pub dl_metadata_updater_hash_hash: Bytes32,
-    pub dl_inner_puzzle_hash: Bytes32,
-    pub total_entry_payout_amount: u64,
-    pub total_shares_delta: i64,
-    pub total_payout_rounding_error: u64,
+    pub dl_info: RewardDistributorDlInfo,
+    pub totals: RewardDistributorRefreshNftsTotals,
     #[clvm(rest)]
     pub slots_and_nfts: Vec<SlotAndNfts>,
 }
