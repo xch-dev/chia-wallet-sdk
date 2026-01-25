@@ -183,12 +183,6 @@ impl XchandlesExpireAction {
         let expire_args =
             XchandlesExpirePricingPuzzle::from_info(ctx, base_handle_price, registration_period)?;
         let action_solution = XchandlesExpireActionSolution {
-            cat_maker_and_solution: PuzzleAndSolution::new(
-                ctx.curry(DefaultCatMakerArgs::new(
-                    precommit_coin.asset_id.tree_hash().into(),
-                ))?,
-                (),
-            ),
             expired_handle_pricing_puzzle_and_solution: PuzzleAndSolution::new(
                 ctx.curry(expire_args)?,
                 XchandlesPricingSolution {
@@ -197,6 +191,12 @@ impl XchandlesExpireAction {
                     handle: precommit_coin.value.handle.clone(),
                     num_periods,
                 },
+            ),
+            cat_maker_and_solution: PuzzleAndSolution::new(
+                ctx.curry(DefaultCatMakerArgs::new(
+                    precommit_coin.asset_id.tree_hash().into(),
+                ))?,
+                (),
             ),
             other_precommit_data: XchandlesOtherPrecommitData::new(
                 precommit_coin.value.owner_launcher_id,

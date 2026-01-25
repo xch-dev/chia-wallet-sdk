@@ -12,7 +12,7 @@ use crate::{
     Mod,
 };
 
-pub const XCHANDLES_EXPIRE_PUZZLE: [u8; 1320] = hex!(
+pub const XCHANDLES_EXPIRE_PUZZLE: [u8; 1303] = hex!(
     "
     ff02ffff01ff02ffff03ffff22ffff09ffff02ff2effff04ff02ffff04ff8202
     7fff80808080ff82015f80ffff09ffff02ff2effff04ff02ffff04ff82013fff
@@ -27,41 +27,40 @@ pub const XCHANDLES_EXPIRE_PUZZLE: [u8; 1320] = hex!(
     7fffff04ffff02ff26ffff04ff02ffff04ff17ffff04ff820affffff04ffff0b
     ffff0101ffff02ff2effff04ff02ffff04ffff04ffff04ffff04ff82015fff82
     037f80ffff04ff8203dfff8201bf8080ffff04ffff04ff820bbfff820eff80ff
-    ff04ff8208ffffff01916e65775f7265736f6c7665645f64617461808080ff80
-    80808080ff808080808080ff82037f8080ffff04ffff05ffff02ff82013fff82
-    01bf8080ffff04ffff02ff26ffff04ff02ffff04ff05ffff04ffff02ff2effff
-    04ff02ffff04ffff04ff05ffff04ff8208ffff0b8080ff80808080ffff04ff82
-    17ffff808080808080ffff04ffff02ff26ffff04ff02ffff04ff05ffff04ffff
-    02ff2effff04ff02ffff04ffff04ff05ffff04ff820cffff0b8080ff80808080
-    ffff04ff821fffff808080808080ff808080808080808080808080ffff01ff08
-    8080ff0180ffff04ffff01ffffff51ff333effff4342ff02ff02ffff03ff05ff
-    ff01ff0bff72ffff02ff36ffff04ff02ffff04ff09ffff04ffff02ff3cffff04
-    ff02ffff04ff0dff80808080ff808080808080ffff016280ff0180ffffffffa0
-    4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a
-    a09dcf97a184f32623d11a73124ceb99a5709b083721e878a16d78f596718ba7
-    b2ffa102a12871fee210fb8619291eaea194581cbd2531e4b23759d225f68069
-    23f63222a102a8d5dd63fba471ebcb1f3e8f7c1e1879b7152a6e7298a91ce119
-    a63400ade7c5ffff04ffff04ff34ffff04ffff0113ffff04ffff0101ffff04ff
-    05ffff04ff0bff808080808080ffff04ffff04ff38ffff04ffff0effff0178ff
-    0580ff808080ffff04ffff04ff24ffff04ffff0112ffff04ffff0effff0161ff
-    0580ffff04ff17ff8080808080ffff02ffff03ffff09ff17ff2f80ff80ffff01
-    ff04ffff04ff24ffff04ffff0112ffff04ffff0effff0162ff0580ffff04ff2f
-    ff8080808080ff808080ff0180808080ff04ff28ffff04ffff02ff26ffff04ff
-    02ffff04ff05ffff04ffff0bffff0101ff0b80ff8080808080ffff04ff80ffff
-    04ffff04ff05ff8080ff8080808080ffffff0bff52ffff02ff36ffff04ff02ff
-    ff04ff05ffff04ffff02ff3cffff04ff02ffff04ff07ff80808080ff80808080
-    8080ff0bff2cffff0bff2cff62ff0580ffff0bff2cff0bff428080ffff02ffff
-    03ffff07ff0580ffff01ff0bffff0102ffff02ff2effff04ff02ffff04ff09ff
-    80808080ffff02ff2effff04ff02ffff04ff0dff8080808080ffff01ff0bffff
-    0101ff058080ff0180ff04ff34ffff04ffff0112ffff04ff80ffff04ffff02ff
-    26ffff04ff02ffff04ff05ffff04ffff0bffff0101ff0b80ff8080808080ff80
-    80808080ff018080
+    ff04ff8208ffff820cff808080ff8080808080ff808080808080ff82037f8080
+    ffff04ffff05ffff02ff82013fff8201bf8080ffff04ffff02ff26ffff04ff02
+    ffff04ff05ffff04ffff02ff2effff04ff02ffff04ffff04ff05ffff04ff8208
+    ffff0b8080ff80808080ffff04ff8217ffff808080808080ffff04ffff02ff26
+    ffff04ff02ffff04ff05ffff04ffff02ff2effff04ff02ffff04ffff04ff05ff
+    ff04ff820cffff0b8080ff80808080ffff04ff821fffff808080808080ff8080
+    80808080808080808080ffff01ff088080ff0180ffff04ffff01ffffff51ff33
+    3effff4342ff02ff02ffff03ff05ffff01ff0bff72ffff02ff36ffff04ff02ff
+    ff04ff09ffff04ffff02ff3cffff04ff02ffff04ff0dff80808080ff80808080
+    8080ffff016280ff0180ffffffffa04bf5122f344554c53bde2ebb8cd2b7e3d1
+    600ad631c385a5d7cce23c7785459aa09dcf97a184f32623d11a73124ceb99a5
+    709b083721e878a16d78f596718ba7b2ffa102a12871fee210fb8619291eaea1
+    94581cbd2531e4b23759d225f6806923f63222a102a8d5dd63fba471ebcb1f3e
+    8f7c1e1879b7152a6e7298a91ce119a63400ade7c5ffff04ffff04ff34ffff04
+    ffff0113ffff04ffff0101ffff04ff05ffff04ff0bff808080808080ffff04ff
+    ff04ff38ffff04ffff0effff0178ff0580ff808080ffff04ffff04ff24ffff04
+    ffff0112ffff04ffff0effff0165ff0580ffff04ff17ff8080808080ffff02ff
+    ff03ffff09ff17ff2f80ff80ffff01ff04ffff04ff24ffff04ffff0112ffff04
+    ffff0effff0166ff0580ffff04ff2fff8080808080ff808080ff0180808080ff
+    04ff28ffff04ffff02ff26ffff04ff02ffff04ff05ffff04ffff0bffff0101ff
+    0b80ff8080808080ffff04ff80ffff04ffff04ff05ff8080ff8080808080ffff
+    ff0bff52ffff02ff36ffff04ff02ffff04ff05ffff04ffff02ff3cffff04ff02
+    ffff04ff07ff80808080ff808080808080ff0bff2cffff0bff2cff62ff0580ff
+    ff0bff2cff0bff428080ffff02ffff03ffff07ff0580ffff01ff0bffff0102ff
+    ff02ff2effff04ff02ffff04ff09ff80808080ffff02ff2effff04ff02ffff04
+    ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff04ff34ffff04ff
+    ff0112ffff04ff80ffff04ffff02ff26ffff04ff02ffff04ff05ffff04ffff0b
+    ffff0101ff0b80ff8080808080ff8080808080ff018080
     "
 );
 
 pub const XCHANDLES_EXPIRE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    7d864f0e4d94b3f1caf2653e0eff3a42940a76f07cb9e675e24f96c2b0f90e68
+    d97f49ef4bd91aa3ebd5501240f625f8ad5f499cdf4b252e2c8e3d2c2ad99d23
     "
 ));
 
@@ -119,8 +118,8 @@ impl<S> XchandlesOtherPrecommitData<S> {
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct XchandlesExpireActionSolution<CMP, CMS, EP, ES, S> {
-    pub cat_maker_and_solution: PuzzleAndSolution<CMP, CMS>,
     pub expired_handle_pricing_puzzle_and_solution: PuzzleAndSolution<EP, ES>,
+    pub cat_maker_and_solution: PuzzleAndSolution<CMP, CMS>,
     pub other_precommit_data: XchandlesOtherPrecommitData<S>,
     pub neighbors: SlotNeigborsInfo,
     pub old_rest: XchandlesDataValue,

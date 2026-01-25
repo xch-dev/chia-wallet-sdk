@@ -1715,7 +1715,7 @@ mod tests {
         let (_, mut owner_did) = launcher.create_simple_did(ctx, &user_p2)?;
         sim.spend_coins(ctx.take(), std::slice::from_ref(&user_bls.sk))?;
 
-        let mut forgotten_did = owner_did.clone();
+        let mut forgotten_did = owner_did;
 
         let mut slots: Vec<Slot<XchandlesHandleSlotValue>> = slots.into();
         for i in 0..7 {
