@@ -11,11 +11,11 @@ use crate::Mod;
 
 pub const DELEGATED_STATE_ACTION_PUZZLE: [u8; 395] = hex!(
     "
-    ff02ffff01ff04ffff04ff27ff4f80ffff04ffff04ff08ffff04ffff0112ffff
-    04ffff0effff0173ffff02ff0effff04ff02ffff04ff4fff8080808080ffff04
+    ff02ffff01ff04ffff04ff27ff2f80ffff04ffff04ff08ffff04ffff0112ffff
+    04ffff0effff0173ffff02ff0effff04ff02ffff04ff2fff8080808080ffff04
     ffff0bff2affff0bff0cffff0bff0cff32ff0580ffff0bff0cffff0bff3affff
     0bff0cffff0bff0cff32ff0b80ffff0bff0cffff0bff3affff0bff0cffff0bff
-    0cff32ff6f80ffff0bff0cff32ff22808080ff22808080ff22808080ff808080
+    0cff32ff3f80ffff0bff0cff32ff22808080ff22808080ff22808080ff808080
     8080ff808080ffff04ffff01ffff4302ffffffa04bf5122f344554c53bde2ebb
     8cd2b7e3d1600ad631c385a5d7cce23c7785459aa09dcf97a184f32623d11a73
     124ceb99a5709b083721e878a16d78f596718ba7b2ffa102a12871fee210fb86
@@ -29,7 +29,7 @@ pub const DELEGATED_STATE_ACTION_PUZZLE: [u8; 395] = hex!(
 
 pub const DELEGATED_STATE_ACTION_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    3585381696d6d15ac644befad0e0c878281e00d1d67445310e8cb0a73ed4580a
+    b58d77604a610116c93d22a886cf4c76bd79f212195bb0ea0782c39418be0ec7
     "
 ));
 

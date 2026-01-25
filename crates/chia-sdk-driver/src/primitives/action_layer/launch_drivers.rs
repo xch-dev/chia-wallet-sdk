@@ -1219,7 +1219,6 @@ mod tests {
 
             // sim.spend_coins(ctx.take(), &[user_bls.sk.clone(), minter_bls.sk.clone()])?;
             let spends = ctx.take();
-            println!("before adding and executing spends"); // todo: debug
             benchmark.add_spends(
                 ctx,
                 &mut sim,
@@ -1227,7 +1226,6 @@ mod tests {
                 "create_precommit",
                 &[user_bls.sk.clone(), minter_bls.sk.clone()],
             )?;
-            println!("after adding and executing spends"); // todo: debug
 
             // call the 'register' action on CATalog
             slots.sort_unstable_by(|a, b| a.info.value.cmp(&b.info.value));
@@ -1312,7 +1310,6 @@ mod tests {
                 )?;
             }
 
-            println!("before creating register action"); // todo: debug
             let secure_cond = catalog.new_action::<CatalogRegisterAction>().spend(
                 ctx,
                 &mut catalog,
@@ -1325,7 +1322,6 @@ mod tests {
                     solution: NodePtr::NIL,
                 },
             )?;
-            println!("after creating register action"); // todo: debug
 
             // check register action created/spent slots function
             let created_slots = catalog
@@ -1339,9 +1335,7 @@ mod tests {
             assert_eq!(spent_slots[0], left_slot.info.value);
             assert_eq!(spent_slots[1], right_slot.info.value);
 
-            println!("before finishing spend"); // todo: debug
             catalog = catalog.finish_spend(ctx)?.0;
-            println!("after finishing spend"); // todo: debug
 
             ensure_conditions_met(ctx, &mut sim, secure_cond.clone(), 1)?;
 

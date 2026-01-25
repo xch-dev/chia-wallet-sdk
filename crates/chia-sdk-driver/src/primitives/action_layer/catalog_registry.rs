@@ -4,7 +4,7 @@ use chia_puzzle_types::{singleton::SingletonSolution, LineageProof, Proof};
 use chia_sdk_types::puzzles::{CatalogSlotValue, SlotInfo};
 use clvm_traits::{clvm_tuple, match_tuple};
 use clvm_utils::ToTreeHash;
-use clvmr::{serde::node_to_bytes, NodePtr};
+use clvmr::NodePtr;
 
 use crate::{
     ActionLayer, ActionLayerSolution, ActionSingleton, CatalogRefundAction, CatalogRegisterAction,
@@ -90,21 +90,7 @@ impl CatalogRegistry {
             action_spend.solution
         ))?;
 
-        println!(
-            "solution: {:}",
-            hex::encode(node_to_bytes(ctx, action_spend.solution)?)
-        ); // todo: debug
-        println!(
-            "actual_solution: {:}",
-            hex::encode(node_to_bytes(ctx, actual_solution)?)
-        ); // todo: debug
-        println!(
-            "puzzle: {:}",
-            hex::encode(node_to_bytes(ctx, action_spend.puzzle)?)
-        ); // todo: debug
-        println!("before run"); // todo: debug
         let output = ctx.run(action_spend.puzzle, actual_solution)?;
-        println!("after run"); // todo: debug
         let (new_state_and_ephemeral, _) =
             ctx.extract::<match_tuple!((NodePtr, CatalogRegistryState), NodePtr)>(output)?;
 
