@@ -3,8 +3,9 @@ use chia_puzzle_types::singleton::SingletonStruct;
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_types::{
     puzzles::{
-        RewardDistributorEntrySlotValue, RewardDistributorRemoveEntryActionArgs,
-        RewardDistributorRemoveEntryActionSolution, RewardDistributorSlotNonce,
+        RewardDistributorEntryPayoutInfo, RewardDistributorEntrySlotValue,
+        RewardDistributorRemoveEntryActionArgs, RewardDistributorRemoveEntryActionSolution,
+        RewardDistributorSlotNonce,
     },
     Conditions, Mod,
 };
@@ -116,11 +117,11 @@ impl RewardDistributorRemoveEntryAction {
             u64::try_from(entry_payout_amount_precision / u128::from(self.precision))?;
         let action_solution = ctx.alloc(&RewardDistributorRemoveEntryActionSolution {
             manager_singleton_inner_puzzle_hash,
-            entry_payout_amount,
-            payout_rounding_error: entry_payout_amount_precision % u128::from(self.precision),
-            entry_payout_puzzle_hash: entry_slot.info.value.payout_puzzle_hash,
-            entry_initial_cumulative_payout: entry_slot.info.value.initial_cumulative_payout,
-            entry_shares: entry_slot.info.value.shares,
+            entry_payout_info: RewardDistributorEntryPayoutInfo {
+                payout_amount: entry_payout_amount,
+                payout_rounding_error: entry_payout_amount_precision % u128::from(self.precision),
+            },
+            entry_slot: entry_slot.info.value,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
@@ -137,10 +138,6 @@ impl RewardDistributorRemoveEntryAction {
     ) -> Result<RewardDistributorEntrySlotValue, DriverError> {
         let solution = ctx.extract::<RewardDistributorRemoveEntryActionSolution>(solution)?;
 
-        Ok(RewardDistributorEntrySlotValue {
-            payout_puzzle_hash: solution.entry_payout_puzzle_hash,
-            initial_cumulative_payout: solution.entry_initial_cumulative_payout,
-            shares: solution.entry_shares,
-        })
+        Ok(solution.entry_slot)
     }
 }

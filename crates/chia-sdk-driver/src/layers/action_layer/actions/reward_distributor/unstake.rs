@@ -4,9 +4,10 @@ use chia_sdk_types::{
     puzzles::{
         NftToUnlockInfo, NonceWrapperArgs, P2DelegatedBySingletonLayerArgs,
         P2DelegatedBySingletonLayerSolution, RewardDistributorCatUnlockingPuzzleArgs,
-        RewardDistributorCatUnlockingPuzzleSolution, RewardDistributorEntrySlotValue,
-        RewardDistributorNftsUnlockingPuzzleArgs, RewardDistributorSlotNonce,
-        RewardDistributorUnstakeActionArgs, RewardDistributorUnstakeActionSolution,
+        RewardDistributorCatUnlockingPuzzleSolution, RewardDistributorEntryPayoutInfo,
+        RewardDistributorEntrySlotValue, RewardDistributorNftsUnlockingPuzzleArgs,
+        RewardDistributorSlotNonce, RewardDistributorUnstakeActionArgs,
+        RewardDistributorUnstakeActionSolution,
     },
     Conditions, Mod,
 };
@@ -303,8 +304,10 @@ impl RewardDistributorUnstakeAction {
             u64::try_from(entry_payout_amount_precision / u128::from(self.precision))?;
         let action_solution = ctx.alloc(&RewardDistributorUnstakeActionSolution {
             unlock_puzzle_solution: nfts_unlock_info,
-            entry_payout_amount,
-            payout_rounding_error: entry_payout_amount_precision % u128::from(self.precision),
+            entry_payout_info: RewardDistributorEntryPayoutInfo {
+                payout_amount: entry_payout_amount,
+                payout_rounding_error: entry_payout_amount_precision % u128::from(self.precision),
+            },
             entry_slot: entry_slot.info.value,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
@@ -394,8 +397,10 @@ impl RewardDistributorUnstakeAction {
                 cat_shares: locked_cat_coin.amount,
                 cat_maker_solution_rest: (),
             },
-            entry_payout_amount,
-            payout_rounding_error: entry_payout_amount_precision % u128::from(self.precision),
+            entry_payout_info: RewardDistributorEntryPayoutInfo {
+                payout_amount: entry_payout_amount,
+                payout_rounding_error: entry_payout_amount_precision % u128::from(self.precision),
+            },
             entry_slot: entry_slot.info.value,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;

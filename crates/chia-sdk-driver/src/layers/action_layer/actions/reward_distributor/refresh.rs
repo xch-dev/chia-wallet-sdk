@@ -4,10 +4,10 @@ use chia_sdk_types::{
     announcement_id,
     puzzles::{
         NonceWrapperArgs, P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution,
-        RefreshNftInfo, RewardDistributorEntrySlotValue,
-        RewardDistributorRefreshNftsFromDlActionArgs,
-        RewardDistributorRefreshNftsFromDlActionSolution, RewardDistributorSlotNonce, SlotAndNfts,
-        NONCE_WRAPPER_PUZZLE_HASH,
+        RefreshNftInfo, RewardDistributorDlInfo, RewardDistributorEntryPayoutInfo,
+        RewardDistributorEntrySlotValue, RewardDistributorRefreshNftsFromDlActionArgs,
+        RewardDistributorRefreshNftsFromDlActionSolution, RewardDistributorRefreshNftsTotals,
+        RewardDistributorSlotNonce, SlotAndNfts, NONCE_WRAPPER_PUZZLE_HASH,
     },
     Conditions, MerkleProof, Mod,
 };
@@ -260,12 +260,13 @@ impl RewardDistributorRefreshAction {
                     - slot.info.value.initial_cumulative_payout);
             let entry_payout_amount =
                 u64::try_from(payout_amount_precision / u128::from(self.precision))?;
-            let payout_rounding_error =
-                u64::try_from(payout_amount_precision % u128::from(self.precision))?;
+            let payout_rounding_error = payout_amount_precision % u128::from(self.precision);
             slots_and_nfts.push(SlotAndNfts {
                 existing_slot_value: slot.info.value,
-                entry_payout_amount,
-                payout_rounding_error,
+                entry_payout_info: RewardDistributorEntryPayoutInfo {
+                    payout_amount: entry_payout_amount,
+                    payout_rounding_error,
+                },
                 nfts_total_shares_delta: nft_infos.iter().map(|e| e.nft_shares_delta).sum(),
                 nfts: nft_infos,
             });
@@ -275,18 +276,27 @@ impl RewardDistributorRefreshAction {
         // spend self
         let action_solution = ctx.alloc(&RewardDistributorRefreshNftsFromDlActionSolution {
             dl_root_hash,
-            dl_metadata_rest_hash,
-            dl_metadata_updater_hash_hash,
-            dl_inner_puzzle_hash,
-            total_entry_payout_amount: slots_and_nfts.iter().map(|e| e.entry_payout_amount).sum(),
-            total_shares_delta: slots_and_nfts
-                .iter()
-                .map(|e| e.nfts_total_shares_delta)
-                .sum(),
-            total_payout_rounding_error: slots_and_nfts
-                .iter()
-                .map(|e| e.payout_rounding_error)
-                .sum(),
+            dl_info: RewardDistributorDlInfo {
+                dl_metadata_rest_hash,
+                dl_metadata_updater_hash_hash,
+                dl_inner_puzzle_hash,
+            },
+            totals: RewardDistributorRefreshNftsTotals {
+                total_entry_payout_amount: slots_and_nfts
+                    .iter()
+                    .map(|e| e.entry_payout_info.payout_amount)
+                    .sum(),
+                total_shares_delta: i128::from(
+                    slots_and_nfts
+                        .iter()
+                        .map(|e| e.nfts_total_shares_delta)
+                        .sum::<i64>(),
+                ),
+                total_payout_rounding_error: slots_and_nfts
+                    .iter()
+                    .map(|e| e.entry_payout_info.payout_rounding_error)
+                    .sum(),
+            },
             slots_and_nfts,
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;

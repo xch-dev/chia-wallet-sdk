@@ -168,7 +168,7 @@ pub struct RewardDistributorRefreshNftsTotals {
     pub total_entry_payout_amount: u64,
     pub total_shares_delta: i128,
     #[clvm(rest)]
-    pub total_payout_rounding_error: u64,
+    pub total_payout_rounding_error: u128,
 }
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
