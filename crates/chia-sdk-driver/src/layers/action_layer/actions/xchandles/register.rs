@@ -4,9 +4,10 @@ use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        DefaultCatMakerArgs, PrecommitSpendMode, SlotNeigborsInfo, XchandlesDataValue,
-        XchandlesFactorPricingPuzzleArgs, XchandlesHandleSlotValue, XchandlesPricingSolution,
-        XchandlesRegisterActionArgs, XchandlesRegisterActionSolution, XchandlesSlotNonce,
+        DefaultCatMakerArgs, PrecommitSpendMode, PuzzleAndSolution, SlotNeigborsInfo,
+        XchandlesFactorPricingPuzzleArgs, XchandlesHandleSlotValue, XchandlesNewDataPuzzleHashes,
+        XchandlesOtherPrecommitData, XchandlesPricingSolution, XchandlesRegisterActionArgs,
+        XchandlesRegisterActionSolution, XchandlesRestOfSlot, XchandlesSlotNonce,
     },
     Conditions, Mod,
 };
@@ -94,19 +95,19 @@ impl XchandlesRegisterAction {
         Ok([
             XchandlesHandleSlotValue::new(
                 solution.neighbors.left_value,
-                solution.left_left_value,
+                solution.left_rest_of_slot.this_this_value,
                 solution.neighbors.right_value,
-                solution.left_expiration,
-                solution.left_data.owner_launcher_id,
-                solution.left_data.resolved_launcher_id,
+                solution.left_rest_of_slot.this_expiration,
+                solution.left_rest_of_slot.this_data.owner_launcher_id,
+                solution.left_rest_of_slot.this_data.resolved_launcher_id,
             ),
             XchandlesHandleSlotValue::new(
                 solution.neighbors.right_value,
                 solution.neighbors.left_value,
-                solution.right_right_value,
-                solution.right_expiration,
-                solution.right_data.owner_launcher_id,
-                solution.right_data.resolved_launcher_id,
+                solution.right_rest_of_slot.this_this_value,
+                solution.right_rest_of_slot.this_expiration,
+                solution.right_rest_of_slot.this_data.owner_launcher_id,
+                solution.right_rest_of_slot.this_data.resolved_launcher_id,
             ),
         ])
     }
@@ -124,37 +125,41 @@ impl XchandlesRegisterAction {
         >::from_clvm(ctx, solution)?;
 
         let pricing_output = ctx.run(
-            solution.pricing_puzzle_reveal,
-            solution.pricing_puzzle_solution,
+            solution.pricing_puzzle_and_solution.puzzle,
+            solution.pricing_puzzle_and_solution.solution,
         )?;
         let registration_time_delta = <(NodePtr, u64)>::from_clvm(ctx, pricing_output)?.1;
 
-        let (start_time, _) = ctx.extract::<(u64, NodePtr)>(solution.pricing_puzzle_solution)?;
+        let (start_time, _) =
+            ctx.extract::<(u64, NodePtr)>(solution.pricing_puzzle_and_solution.solution)?;
 
         Ok([
             XchandlesHandleSlotValue::new(
                 solution.neighbors.left_value,
-                solution.left_left_value,
+                solution.left_rest_of_slot.this_this_value,
                 solution.handle_hash,
-                solution.left_expiration,
-                solution.left_data.owner_launcher_id,
-                solution.left_data.resolved_launcher_id,
+                solution.left_rest_of_slot.this_expiration,
+                solution.left_rest_of_slot.this_data.owner_launcher_id,
+                solution.left_rest_of_slot.this_data.resolved_launcher_id,
             ),
             XchandlesHandleSlotValue::new(
                 solution.handle_hash,
                 solution.neighbors.left_value,
                 solution.neighbors.right_value,
                 start_time + registration_time_delta,
-                solution.data.owner_launcher_id,
-                solution.data.resolved_launcher_id,
+                solution.other_precommit_data.launcher_ids.owner_launcher_id,
+                solution
+                    .other_precommit_data
+                    .launcher_ids
+                    .resolved_launcher_id,
             ),
             XchandlesHandleSlotValue::new(
                 solution.neighbors.right_value,
                 solution.handle_hash,
-                solution.right_right_value,
-                solution.right_expiration,
-                solution.right_data.owner_launcher_id,
-                solution.right_data.resolved_launcher_id,
+                solution.right_rest_of_slot.this_this_value,
+                solution.right_rest_of_slot.this_expiration,
+                solution.right_rest_of_slot.this_data.owner_launcher_id,
+                solution.right_rest_of_slot.this_data.resolved_launcher_id,
             ),
         ])
     }
@@ -208,38 +213,48 @@ impl XchandlesRegisterAction {
         // spend self
         let action_solution = XchandlesRegisterActionSolution {
             handle_hash,
-            pricing_puzzle_reveal: ctx.curry(XchandlesFactorPricingPuzzleArgs {
-                base_price: base_handle_price,
-                registration_period,
-            })?,
-            pricing_puzzle_solution: XchandlesPricingSolution {
-                buy_time: start_time,
-                current_expiration: 0,
-                handle: handle.clone(),
-                num_periods,
-            },
-            cat_maker_reveal: ctx.curry(DefaultCatMakerArgs::new(
-                precommit_coin.asset_id.tree_hash().into(),
-            ))?,
-            cat_maker_solution: (),
             neighbors: SlotNeigborsInfo {
                 left_value: left_slot.info.value.handle_hash,
                 right_value: right_slot.info.value.handle_hash,
             },
-            left_left_value: left_slot.info.value.neighbors.left_value,
-            left_expiration: left_slot.info.value.expiration,
-            left_data: left_slot.info.value.rest_data(),
-            right_right_value: right_slot.info.value.neighbors.right_value,
-            right_expiration: right_slot.info.value.expiration,
-            right_data: right_slot.info.value.rest_data(),
-            data: XchandlesDataValue {
-                owner_launcher_id: precommit_coin.value.owner_launcher_id,
-                resolved_launcher_id: precommit_coin.value.resolved_launcher_id,
-            },
-            owner_inner_puzzle_hash,
-            resolved_inner_puzzle_hash,
-            refund_puzzle_hash_hash: precommit_coin.refund_puzzle_hash.tree_hash().into(),
-            secret,
+            cat_maker_puzzle_and_solution: PuzzleAndSolution::new(
+                ctx.curry(DefaultCatMakerArgs::new(
+                    precommit_coin.asset_id.tree_hash().into(),
+                ))?,
+                (),
+            ),
+            pricing_puzzle_and_solution: PuzzleAndSolution::new(
+                ctx.curry(XchandlesFactorPricingPuzzleArgs {
+                    base_price: base_handle_price,
+                    registration_period,
+                })?,
+                XchandlesPricingSolution {
+                    buy_time: start_time,
+                    current_expiration: 0,
+                    handle: handle.clone(),
+                    num_periods,
+                },
+            ),
+            left_rest_of_slot: XchandlesRestOfSlot::new(
+                left_slot.info.value.neighbors.left_value,
+                left_slot.info.value.expiration,
+                left_slot.info.value.rest_data(),
+            ),
+            right_rest_of_slot: XchandlesRestOfSlot::new(
+                right_slot.info.value.neighbors.right_value,
+                right_slot.info.value.expiration,
+                right_slot.info.value.rest_data(),
+            ),
+            data_puzzle_hashes: XchandlesNewDataPuzzleHashes::new(
+                owner_inner_puzzle_hash,
+                resolved_inner_puzzle_hash,
+            ),
+            other_precommit_data: XchandlesOtherPrecommitData::new(
+                precommit_coin.value.owner_launcher_id,
+                precommit_coin.value.resolved_launcher_id,
+                precommit_coin.refund_puzzle_hash.tree_hash().into(),
+                secret,
+            ),
         }
         .to_clvm(ctx)?;
         let action_puzzle = self.construct_puzzle(ctx)?;

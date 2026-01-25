@@ -3,10 +3,9 @@ use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        CatalogCatMakerData, CatalogDoubleTailHashData, CatalogOtherPrecommitData,
-        CatalogRegisterActionArgs, CatalogRegisterActionSolution, CatalogSlotValue,
-        DefaultCatMakerArgs, NftPack, PrecommitSpendMode, PuzzleAndSolution,
-        ANY_METADATA_UPDATER_HASH,
+        CatalogDoubleTailHashData, CatalogOtherPrecommitData, CatalogRegisterActionArgs,
+        CatalogRegisterActionSolution, CatalogSlotValue, DefaultCatMakerArgs, NftPack,
+        PrecommitSpendMode, PuzzleAndSolution, ANY_METADATA_UPDATER_HASH,
     },
     Conditions, Mod,
 };

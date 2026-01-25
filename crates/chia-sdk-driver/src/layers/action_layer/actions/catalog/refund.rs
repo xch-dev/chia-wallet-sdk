@@ -3,8 +3,8 @@ use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        CatalogOtherPrecommitData, CatalogPrecommitCatMakerDataWithHash, CatalogRefundActionArgs,
-        CatalogRefundActionSolution, CatalogSlotValue, DefaultCatMakerArgs, PrecommitSpendMode,
+        CatalogOtherPrecommitData, CatalogRefundActionArgs, CatalogRefundActionSolution,
+        CatalogSlotValue, DefaultCatMakerArgs, PrecommitSpendMode, PuzzleHashPuzzleAndSolution,
         SlotNeigborsInfo,
     },
     Conditions, Mod,
@@ -127,7 +127,7 @@ impl CatalogRefundAction {
         // then, create action spend
         let cat_maker_args = DefaultCatMakerArgs::new(precommit_coin.asset_id.tree_hash().into());
         let action_solution = CatalogRefundActionSolution {
-            precommited_cat_maker_data: CatalogPrecommitCatMakerDataWithHash::new(
+            precommited_cat_maker_and_solution: PuzzleHashPuzzleAndSolution::new(
                 cat_maker_args.curry_tree_hash().into(),
                 ctx.curry(cat_maker_args)?,
                 (),

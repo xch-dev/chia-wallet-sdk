@@ -7,8 +7,8 @@ use hex_literal::hex;
 
 use crate::{
     puzzles::{
-        PuzzleHashPuzzleAndSolution, SlotNeigborsInfo, XchandlesDataValue,
-        XchandlesNewDataPuzzleHashes, XchandlesOtherPrecommitData,
+        PuzzleAndSolution, SlotNeigborsInfo, XchandlesDataValue, XchandlesNewDataPuzzleHashes,
+        XchandlesOtherPrecommitData,
     },
     Mod,
 };
@@ -110,8 +110,8 @@ impl XchandlesRestOfSlot {
 pub struct XchandlesRegisterActionSolution<PP, PS, CMP, CMS, S> {
     pub handle_hash: Bytes32,
     pub neighbors: SlotNeigborsInfo,
-    pub cat_maker_puzzle_and_solution: PuzzleHashPuzzleAndSolution<CMP, CMS>,
-    pub pricing_puzzle_and_solution: PuzzleHashPuzzleAndSolution<PP, PS>,
+    pub cat_maker_puzzle_and_solution: PuzzleAndSolution<CMP, CMS>,
+    pub pricing_puzzle_and_solution: PuzzleAndSolution<PP, PS>,
     pub left_rest_of_slot: XchandlesRestOfSlot,
     pub right_rest_of_slot: XchandlesRestOfSlot,
     pub data_puzzle_hashes: XchandlesNewDataPuzzleHashes,
