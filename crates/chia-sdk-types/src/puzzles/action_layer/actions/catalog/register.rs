@@ -167,18 +167,15 @@ pub struct CatalogRegisterActionArgs {
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
-pub struct CatalogCatMakerData<P, S> {
-    pub precommited_cat_maker_reveal: P,
+pub struct PuzzleAndSolution<P, S> {
+    pub puzzle: P,
     #[clvm(rest)]
-    pub precommited_cat_maker_solution: S,
+    pub solution: S,
 }
 
-impl<P, S> CatalogCatMakerData<P, S> {
-    pub fn new(precommited_cat_maker_reveal: P, precommited_cat_maker_solution: S) -> Self {
-        Self {
-            precommited_cat_maker_reveal,
-            precommited_cat_maker_solution,
-        }
+impl<P, S> PuzzleAndSolution<P, S> {
+    pub fn new(puzzle: P, solution: S) -> Self {
+        Self { puzzle, solution }
     }
 }
 
@@ -202,7 +199,7 @@ impl CatalogDoubleTailHashData {
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct CatalogRegisterActionSolution<P, S> {
-    pub cat_maker_data: CatalogCatMakerData<P, S>,
+    pub precommitted_cat_maker_data: PuzzleAndSolution<P, S>,
     pub other_precommit_data: CatalogOtherPrecommitData,
     pub left_data: CatalogDoubleTailHashData,
     pub right_data: CatalogDoubleTailHashData,

@@ -5,7 +5,8 @@ use chia_sdk_types::{
     puzzles::{
         CatalogCatMakerData, CatalogDoubleTailHashData, CatalogOtherPrecommitData,
         CatalogRegisterActionArgs, CatalogRegisterActionSolution, CatalogSlotValue,
-        DefaultCatMakerArgs, NftPack, PrecommitSpendMode, ANY_METADATA_UPDATER_HASH,
+        DefaultCatMakerArgs, NftPack, PrecommitSpendMode, PuzzleAndSolution,
+        ANY_METADATA_UPDATER_HASH,
     },
     Conditions, Mod,
 };
@@ -175,7 +176,7 @@ impl CatalogRegisterAction {
         // finally, spend self
         let (left_slot, right_slot) = catalog.actual_neigbors(tail_hash, left_slot, right_slot);
         let my_solution = CatalogRegisterActionSolution {
-            cat_maker_data: CatalogCatMakerData::new(
+            precommitted_cat_maker_data: PuzzleAndSolution::new(
                 ctx.curry(DefaultCatMakerArgs::new(
                     precommit_coin.asset_id.tree_hash().into(),
                 ))?,

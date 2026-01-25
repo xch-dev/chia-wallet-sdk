@@ -3,8 +3,8 @@ use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
     puzzles::{
         CompactCoinProof, XchandlesDataValue, XchandlesExecuteUpdateActionArgs,
-        XchandlesExecuteUpdateActionSolution, XchandlesHandleSlotValue, XchandlesSlotNonce,
-        XchandlesUpdateSlotValue,
+        XchandlesExecuteUpdateActionSolution, XchandlesHandleSlotValue,
+        XchandlesNewDataPuzzleHashes, XchandlesSlotNonce, XchandlesUpdateSlotValue,
     },
     Conditions, Mod,
 };
@@ -117,8 +117,10 @@ impl XchandlesExecuteUpdateAction {
             },
             current_owner,
             min_execution_height,
-            new_owner_inner_puzzle_hash,
-            new_resolved_inner_puzzle_hash,
+            new_data_puzzle_hashes: XchandlesNewDataPuzzleHashes::new(
+                new_owner_inner_puzzle_hash,
+                new_resolved_inner_puzzle_hash,
+            ),
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
