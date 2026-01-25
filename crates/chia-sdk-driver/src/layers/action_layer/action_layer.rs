@@ -9,7 +9,7 @@ use chia_sdk_types::{
     },
     run_puzzle, MerkleProof, MerkleTree, Mod,
 };
-use clvm_traits::{clvm_list, match_tuple, FromClvm, ToClvm};
+use clvm_traits::{clvm_tuple, match_tuple, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
@@ -121,7 +121,7 @@ impl<S, P> ActionLayer<S, P> {
         let mut state_incl_ephemeral: (NodePtr, S) = (NodePtr::NIL, initial_state);
         for raw_action in solution.action_spends {
             let actual_solution =
-                clvm_list!(state_incl_ephemeral, raw_action.solution).to_clvm(allocator)?;
+                clvm_tuple!(state_incl_ephemeral, raw_action.solution).to_clvm(allocator)?;
 
             let output = run_puzzle(allocator, raw_action.puzzle, actual_solution)?;
 

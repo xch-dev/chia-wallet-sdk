@@ -9,26 +9,26 @@ use hex_literal::hex;
 
 use crate::Mod;
 
-pub const P2_DELEGATED_BY_SINGLETON_PUZZLE: [u8; 382] = hex!(
+pub const P2_DELEGATED_BY_SINGLETON_PUZZLE: [u8; 381] = hex!(
     "
     ff02ffff01ff04ffff04ff08ffff04ffff0117ffff04ffff02ff0effff04ff02
     ffff04ff5fff80808080ffff04ffff0bff2affff0bff0cffff0bff0cff32ff05
     80ffff0bff0cffff0bff3affff0bff0cffff0bff0cff32ff0b80ffff0bff0cff
     ff0bff3affff0bff0cffff0bff0cff32ff2f80ffff0bff0cff32ff22808080ff
-    22808080ff22808080ff8080808080ffff02ff5fff81bf8080ffff04ffff01ff
-    ff4302ffffffa04bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7
-    cce23c7785459aa09dcf97a184f32623d11a73124ceb99a5709b083721e878a1
-    6d78f596718ba7b2ffa102a12871fee210fb8619291eaea194581cbd2531e4b2
-    3759d225f6806923f63222a102a8d5dd63fba471ebcb1f3e8f7c1e1879b7152a
-    6e7298a91ce119a63400ade7c5ff02ffff03ffff07ff0580ffff01ff0bffff01
-    02ffff02ff0effff04ff02ffff04ff09ff80808080ffff02ff0effff04ff02ff
-    ff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff018080
+    22808080ff22808080ff8080808080ffff02ff5fff7f8080ffff04ffff01ffff
+    4302ffffffa04bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cc
+    e23c7785459aa09dcf97a184f32623d11a73124ceb99a5709b083721e878a16d
+    78f596718ba7b2ffa102a12871fee210fb8619291eaea194581cbd2531e4b237
+    59d225f6806923f63222a102a8d5dd63fba471ebcb1f3e8f7c1e1879b7152a6e
+    7298a91ce119a63400ade7c5ff02ffff03ffff07ff0580ffff01ff0bffff0102
+    ffff02ff0effff04ff02ffff04ff09ff80808080ffff02ff0effff04ff02ffff
+    04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff018080
     "
 );
 
 pub const P2_DELEGATED_BY_SINGLETON_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    25fbd0d4586ff8266eb8b0fc4768b7714394d87f87824b0124fc10806ba87bb5
+    57d1db4000b7123a3f0a79d56a0db69c65b897f7ee5c50f4098925cb8b6920ae
     "
 ));
 
@@ -79,6 +79,7 @@ impl P2DelegatedBySingletonLayerArgs {
 pub struct P2DelegatedBySingletonLayerSolution<P, S> {
     pub singleton_inner_puzzle_hash: Bytes32,
     pub delegated_puzzle: P,
+    #[clvm(rest)]
     pub delegated_solution: S,
 }
 

@@ -13,7 +13,7 @@ pub const PRECOMMIT_LAYER_PUZZLE: [u8; 469] = hex!(
     ff8202ffff808080ffff04ffff04ff14ffff04ffff03ff82017fff2fff5f80ff
     ff04ff8202ffffff04ffff04ffff03ff82017fff2fff5f80ff8080ff80808080
     80ffff04ffff04ff1cffff04ffff0113ffff04ff82017fffff04ffff02ff2eff
-    ff04ff02ffff04ff05ffff04ff0bffff04ff8205ffff808080808080ff808080
+    ff04ff02ffff04ff05ffff04ff0bffff04ff8203ffff808080808080ff808080
     8080ff8080808080ffff04ffff01ffffff5249ff3343ffff02ff02ffff03ff05
     ffff01ff0bff76ffff02ff3effff04ff02ffff04ff09ffff04ffff02ff1affff
     04ff02ffff04ff0dff80808080ff808080808080ffff016680ff0180ffffffa0
@@ -29,7 +29,7 @@ pub const PRECOMMIT_LAYER_PUZZLE: [u8; 469] = hex!(
 
 pub const PRECOMMIT_LAYER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    10efe1dab105ef4780345baa2442196a26944040b12c0167375d79aaec89e33f
+    b5a39f8d4803f840e15f0f0304fd5b605cb7c68af582b0e167a8dfbf3e742f3e
     "
 ));
 
@@ -61,6 +61,7 @@ pub enum PrecommitSpendMode {
 pub struct PrecommitLayerSolution {
     pub mode: PrecommitSpendMode,
     pub my_amount: u64,
+    #[clvm(rest)]
     pub singleton_inner_puzzle_hash: Bytes32,
 }
 

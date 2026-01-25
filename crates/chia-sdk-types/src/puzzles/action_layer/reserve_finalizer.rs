@@ -11,14 +11,14 @@ pub const RESERVE_FINALIZER_PUZZLE: [u8; 884] = hex!(
     "
     ff02ffff01ff04ffff04ff10ffff04ffff02ff1affff04ff02ffff04ff05ffff
     04ffff02ff1affff04ff02ffff04ff81bfffff04ffff0bffff0101ff81bf80ff
-    8080808080ffff04ffff0bffff0101ff82017f80ffff04ffff02ff3effff04ff
-    02ffff04ff8219ffff80808080ff80808080808080ffff04ffff0101ffff04ff
+    8080808080ffff04ffff0bffff0101ff82027f80ffff04ffff02ff3effff04ff
+    02ffff04ff820cffff80808080ff80808080808080ffff04ffff0101ffff04ff
     ff04ff5fff8080ff8080808080ffff04ffff04ff18ffff04ffff0117ffff04ff
     ff02ff3effff04ff02ffff04ffff04ffff0101ffff04ffff04ff10ffff04ff17
-    ffff04ffff02ff2fff8219ff80ffff04ffff04ff17ff8080ff8080808080ffff
-    06ffff02ff2effff04ff02ffff04ff820dffffff01ff80ff8080808080808080
-    ff80808080ffff04ffff30ff8213ffff0bffff02ff2fff8202ff8080ff808080
-    8080ffff05ffff02ff2effff04ff02ffff04ff820dffffff01ff80ff80808080
+    ffff04ffff02ff2fff820cff80ffff04ffff04ff17ff8080ff8080808080ffff
+    06ffff02ff2effff04ff02ffff04ff8206ffffff01ff80ff8080808080808080
+    ff80808080ffff04ffff30ff8203ffff0bffff02ff2fff82037f8080ff808080
+    8080ffff05ffff02ff2effff04ff02ffff04ff8206ffffff01ff80ff80808080
     80808080ffff04ffff01ffffff3342ff02ff02ffff03ff05ffff01ff0bff72ff
     ff02ff16ffff04ff02ffff04ff09ffff04ffff02ff1cffff04ff02ffff04ff0d
     ff80808080ff808080808080ffff016280ff0180ffffffffa04bf5122f344554
@@ -42,7 +42,7 @@ pub const RESERVE_FINALIZER_PUZZLE: [u8; 884] = hex!(
 
 pub const RESERVE_FINALIZER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    d277207ecea05d2b6a3874ef3bf5831cd224527eedab8c000a03b5511fb511de
+    e8846034e2d2c23fb35ed07847d02e7e8236fb992e5607d63396b16e9fa978e7
     "
 ));
 
@@ -162,7 +162,7 @@ impl ReserveFinalizer2ndCurryArgs {
 }
 
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
-#[clvm(list)]
+#[clvm(transparent)]
 pub struct ReserveFinalizerSolution {
     pub reserve_parent_id: Bytes32,
 }

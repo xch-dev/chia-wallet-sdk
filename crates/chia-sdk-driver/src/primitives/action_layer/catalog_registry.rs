@@ -2,7 +2,7 @@ use chia_bls::Signature;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::{singleton::SingletonSolution, LineageProof, Proof};
 use chia_sdk_types::puzzles::{CatalogSlotValue, SlotInfo};
-use clvm_traits::{clvm_list, match_tuple};
+use clvm_traits::{clvm_tuple, match_tuple};
 use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 
@@ -85,7 +85,7 @@ impl CatalogRegistry {
             <DelegatedStateAction as SingletonAction<CatalogRegistry>>::from_constants(&constants);
         let delegated_state_hash = delegated_state_action.tree_hash();
 
-        let actual_solution = ctx.alloc(&clvm_list!(
+        let actual_solution = ctx.alloc(&clvm_tuple!(
             current_state_and_ephemeral,
             action_spend.solution
         ))?;

@@ -5,7 +5,7 @@ use chia_puzzle_types::{LineageProof, Proof};
 use chia_sdk_types::puzzles::{
     SlotInfo, XchandlesHandleSlotValue, XchandlesSlotNonce, XchandlesUpdateSlotValue,
 };
-use clvm_traits::{clvm_list, match_tuple};
+use clvm_traits::{clvm_tuple, match_tuple};
 use clvm_utils::ToTreeHash;
 use clvmr::NodePtr;
 
@@ -121,7 +121,7 @@ impl XchandlesRegistry {
             );
         let delegated_state_action_hash = delegated_state_action.tree_hash();
 
-        let actual_solution = ctx.alloc(&clvm_list!(
+        let actual_solution = ctx.alloc(&clvm_tuple!(
             current_state_and_ephemeral,
             action_spend.solution
         ))?;

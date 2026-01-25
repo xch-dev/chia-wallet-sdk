@@ -11,7 +11,7 @@ use chia_sdk_types::puzzles::{
     SlotInfo,
 };
 use chia_sdk_types::{Condition, Conditions};
-use clvm_traits::{clvm_list, match_tuple, FromClvm};
+use clvm_traits::{clvm_tuple, match_tuple, FromClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::NodePtr;
 
@@ -157,7 +157,7 @@ impl RewardDistributor {
         let refresh_action = RewardDistributorRefreshAction::from_constants(&constants);
         let refresh_hash = refresh_action.tree_hash();
 
-        let actual_solution = ctx.alloc(&clvm_list!(
+        let actual_solution = ctx.alloc(&clvm_tuple!(
             current_state_and_ephemeral,
             action_spend.solution
         ))?;
