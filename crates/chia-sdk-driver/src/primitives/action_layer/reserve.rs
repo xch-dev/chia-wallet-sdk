@@ -5,7 +5,7 @@ use chia_sdk_types::{
     puzzles::{P2DelegatedBySingletonLayerArgs, P2DelegatedBySingletonLayerSolution},
     run_puzzle,
 };
-use clvm_traits::{clvm_list, clvm_quote, match_tuple, FromClvm, ToClvm};
+use clvm_traits::{clvm_quote, clvm_tuple, match_tuple, FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
@@ -108,7 +108,7 @@ impl Reserve {
     pub fn delegated_puzzle_for_finalizer_controller<S>(
         &self,
         ctx: &mut SpendContext,
-        controlelr_initial_state: S,
+        controller_initial_state: S,
         controller_solution: NodePtr,
     ) -> Result<NodePtr, DriverError>
     where
@@ -118,10 +118,10 @@ impl Reserve {
         let inner_solution =
             ActionLayer::<S, NodePtr>::parse_solution(ctx, controller_solution.inner_solution)?;
 
-        let mut state = (NodePtr::NIL, controlelr_initial_state);
+        let mut state = (NodePtr::NIL, controller_initial_state);
         let mut reserve_conditions = Vec::new();
         for raw_action in inner_solution.action_spends {
-            let actual_solution = ctx.alloc(&clvm_list!(state, raw_action.solution))?;
+            let actual_solution = ctx.alloc(&clvm_tuple!(state, raw_action.solution))?;
 
             let output = run_puzzle(ctx, raw_action.puzzle, actual_solution)?;
 
@@ -154,7 +154,7 @@ impl Reserve {
     pub fn cat_spend_for_reserve_finalizer_controller<S>(
         &self,
         ctx: &mut SpendContext,
-        controlelr_initial_state: S,
+        controller_initial_state: S,
         controller_singleton_inner_puzzle_hash: Bytes32,
         controller_solution: NodePtr,
     ) -> Result<CatSpend, DriverError>
@@ -163,7 +163,7 @@ impl Reserve {
     {
         let delegated_puzzle = self.delegated_puzzle_for_finalizer_controller(
             ctx,
-            controlelr_initial_state,
+            controller_initial_state,
             controller_solution,
         )?;
 

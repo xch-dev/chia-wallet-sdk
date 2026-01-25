@@ -48,6 +48,7 @@ pub struct RewardDistributorState {
     pub total_reserves: u64,
     pub active_shares: u64,
     pub round_reward_info: RoundRewardInfo,
+    #[clvm(rest)]
     pub round_time_info: RoundTimeInfo,
 }
 
