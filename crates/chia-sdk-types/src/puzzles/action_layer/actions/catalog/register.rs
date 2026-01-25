@@ -5,14 +5,18 @@ use chia_puzzles::{
     NFT_OWNERSHIP_LAYER_HASH, NFT_OWNERSHIP_TRANSFER_PROGRAM_ONE_WAY_CLAIM_WITH_ROYALTIES_HASH,
     NFT_STATE_LAYER_HASH, SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH,
 };
-use clvm_traits::{FromClvm, ToClvm};
+use clvm_traits::{
+    clvm_tuple, ClvmDecoder, ClvmEncoder, FromClvm, FromClvmError, ToClvm, ToClvmError,
+};
 use clvm_utils::{ToTreeHash, TreeHash};
 use hex_literal::hex;
 
-use crate::{puzzles::ANY_METADATA_UPDATER_HASH, Mod};
+use crate::{
+    puzzles::{CatalogOtherPrecommitData, ANY_METADATA_UPDATER_HASH},
+    Mod,
+};
 
-#[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
-#[clvm(list)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NftPack {
     pub launcher_hash: Bytes32,
     pub singleton_mod_hash: Bytes32,
@@ -22,6 +26,56 @@ pub struct NftPack {
     pub transfer_program_mod_hash: Bytes32,
     pub royalty_puzzle_hash_hash: Bytes32,
     pub trade_price_percentage: u16,
+}
+
+impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for NftPack {
+    fn from_clvm(decoder: &D, node: N) -> Result<Self, FromClvmError> {
+        #[allow(clippy::type_complexity)]
+        let (
+            (
+                (launcher_hash, singleton_mod_hash),
+                (state_layer_mod_hash, metadata_updater_hash_hash),
+            ),
+            (
+                (nft_ownership_layer_mod_hash, transfer_program_mod_hash),
+                (royalty_puzzle_hash_hash, trade_price_percentage),
+            ),
+        ): (
+            ((Bytes32, Bytes32), (Bytes32, Bytes32)),
+            ((Bytes32, Bytes32), (Bytes32, u16)),
+        ) = FromClvm::from_clvm(decoder, node)?;
+
+        Ok(Self {
+            launcher_hash,
+            singleton_mod_hash,
+            state_layer_mod_hash,
+            metadata_updater_hash_hash,
+            nft_ownership_layer_mod_hash,
+            transfer_program_mod_hash,
+            royalty_puzzle_hash_hash,
+            trade_price_percentage,
+        })
+    }
+}
+
+impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for NftPack {
+    fn to_clvm(&self, encoder: &mut E) -> Result<N, ToClvmError> {
+        let obj = clvm_tuple!(
+            clvm_tuple!(
+                clvm_tuple!(self.launcher_hash, self.singleton_mod_hash,),
+                clvm_tuple!(self.state_layer_mod_hash, self.metadata_updater_hash_hash),
+            ),
+            clvm_tuple!(
+                clvm_tuple!(
+                    self.nft_ownership_layer_mod_hash,
+                    self.transfer_program_mod_hash
+                ),
+                clvm_tuple!(self.royalty_puzzle_hash_hash, self.trade_price_percentage)
+            )
+        );
+
+        obj.to_clvm(encoder)
+    }
 }
 
 impl NftPack {
@@ -42,64 +96,63 @@ impl NftPack {
     }
 }
 
-pub const CATALOG_REGISTER_PUZZLE: [u8; 1578] = hex!(
+pub const CATALOG_REGISTER_PUZZLE: [u8; 1566] = hex!(
     "
-    ff02ffff01ff02ffff03ffff22ffff0aff8205bfff822fbf80ffff0aff82bfbf
-    ff8205bf80ffff09ffff02ff2effff04ff02ffff04ff82013fff80808080ff82
-    015f8080ffff01ff04ff5fffff02ff32ffff04ff02ffff04ff05ffff04ff8301
-    ffbfffff04ff820bbfffff04ffff02ff3affff04ff02ffff04ff0bffff04ffff
-    0bffff0101ff8205bf80ff8080808080ffff04ffff04ffff04ff28ffff04ff83
-    01ffbfff808080ffff04ffff04ff24ffff04ffff0effff0172ffff02ff2effff
-    04ff02ffff04ffff04ff8205bfff820bbf80ff8080808080ff808080ffff04ff
-    ff02ff3effff04ff02ffff04ff2fffff04ffff02ff2effff04ff02ffff04ffff
-    04ff822fbfffff04ff825fbfff82bfbf8080ff80808080ff8080808080ffff04
-    ffff02ff3effff04ff02ffff04ff2fffff04ffff02ff2effff04ff02ffff04ff
-    ff04ff82bfbfffff04ff822fbfff83017fbf8080ff80808080ff8080808080ff
-    ff04ffff02ff2affff04ff02ffff04ff2fffff04ffff02ff2effff04ff02ffff
-    04ffff04ff8205bfffff04ff822fbfff82bfbf8080ff80808080ff8080808080
-    ffff04ffff02ff2affff04ff02ffff04ff2fffff04ffff02ff2effff04ff02ff
-    ff04ffff04ff822fbfffff04ff825fbfff8205bf8080ff80808080ff80808080
-    80ffff04ffff02ff2affff04ff02ffff04ff2fffff04ffff02ff2effff04ff02
-    ffff04ffff04ff82bfbfffff04ff8205bfff83017fbf8080ff80808080ff8080
-    808080ffff04ffff04ff34ffff04ffff0113ffff04ffff0101ffff04ffff02ff
-    82013fffff04ffff02ff3affff04ff02ffff04ff17ffff04ff8217bfffff04ff
-    ff0bffff0102ff8205bfffff0bffff0101ffff02ff2effff04ff02ffff04ffff
-    04ff820bbfffff04ff82015fff8202bf8080ff808080808080ff808080808080
-    ff8202bf8080ffff04ff8201dfff808080808080ff808080808080808080ff80
-    8080808080808080ffff01ff088080ff0180ffff04ffff01ffffff40ff4633ff
-    ff3e42ff02ff02ffff03ff05ffff01ff0bff81e2ffff02ff26ffff04ff02ffff
-    04ff09ffff04ffff02ff3cffff04ff02ffff04ff0dff80808080ff8080808080
-    80ffff0181c280ff0180ffffffffffa04bf5122f344554c53bde2ebb8cd2b7e3
-    d1600ad631c385a5d7cce23c7785459aa09dcf97a184f32623d11a73124ceb99
-    a5709b083721e878a16d78f596718ba7b2ffa102a12871fee210fb8619291eae
-    a194581cbd2531e4b23759d225f6806923f63222a102a8d5dd63fba471ebcb1f
-    3e8f7c1e1879b7152a6e7298a91ce119a63400ade7c5ff04ffff04ff38ffff04
-    ff2fffff01ff80808080ffff04ffff02ff36ffff04ff02ffff04ff05ffff04ff
-    17ffff04ffff30ffff30ff0bff2fff8080ff09ffff010180ff808080808080ff
-    5f8080ffff04ff38ffff04ffff02ff3affff04ff02ffff04ff05ffff04ffff0b
-    ffff0101ff0b80ff8080808080ffff04ff80ffff04ffff04ff05ff8080ff8080
-    808080ff0bff81a2ffff02ff26ffff04ff02ffff04ff05ffff04ffff02ff3cff
-    ff04ff02ffff04ff07ff80808080ff808080808080ffffff0bff2cffff0bff2c
-    ff81c2ff0580ffff0bff2cff0bff81828080ff04ff10ffff04ffff30ff17ffff
-    02ff3affff04ff02ffff04ff15ffff04ffff02ff2effff04ff02ffff04ffff04
-    ff15ffff04ff17ff098080ff80808080ffff04ffff02ff3affff04ff02ffff04
-    ff2dffff04ffff0bffff0101ff2d80ffff04ff8182ffff04ff5dffff04ffff02
-    ff3affff04ff02ffff04ff81bdffff04ffff0bffff0101ff81bd80ffff04ff81
-    82ffff04ffff02ff3affff04ff02ffff04ff82017dffff04ffff02ff2effff04
-    ff02ffff04ffff04ff15ffff04ff17ff098080ff80808080ffff04ff8202fdff
-    ff04ffff0bffff0101ff8205fd80ff80808080808080ffff04ff0bff80808080
-    80808080ff8080808080808080ff808080808080ffff010180ff808080ffff02
-    ffff03ffff07ff0580ffff01ff0bffff0102ffff02ff2effff04ff02ffff04ff
-    09ff80808080ffff02ff2effff04ff02ffff04ff0dff8080808080ffff01ff0b
-    ffff0101ff058080ff0180ff04ff34ffff04ffff0112ffff04ff80ffff04ffff
-    02ff3affff04ff02ffff04ff05ffff04ffff0bffff0101ff0b80ff8080808080
-    ff8080808080ff018080
+    ff02ffff01ff02ffff03ffff22ffff0aff82027fff8204ff80ffff0aff8209ff
+    ff82027f80ffff09ffff02ff2effff04ff02ffff04ff82013fff80808080ff82
+    015f8080ffff01ff04ff5fffff02ff32ffff04ff02ffff04ff05ffff04ff8207
+    ffffff04ff82057fffff04ffff02ff3affff04ff02ffff04ff0bffff04ffff0b
+    ffff0101ff82027f80ff8080808080ffff04ffff04ffff04ff28ffff04ff8207
+    ffff808080ffff04ffff04ff24ffff04ffff0effff0172ffff02ff2effff04ff
+    02ffff04ffff04ff82027fff82057f80ff8080808080ff808080ffff04ffff02
+    ff3effff04ff02ffff04ff2fffff04ffff02ff2effff04ff02ffff04ffff04ff
+    8204ffffff04ff8206ffff8209ff8080ff80808080ff8080808080ffff04ffff
+    02ff3effff04ff02ffff04ff2fffff04ffff02ff2effff04ff02ffff04ffff04
+    ff8209ffffff04ff8204ffff820dff8080ff80808080ff8080808080ffff04ff
+    ff02ff2affff04ff02ffff04ff2fffff04ffff02ff2effff04ff02ffff04ffff
+    04ff82027fffff04ff8204ffff8209ff8080ff80808080ff8080808080ffff04
+    ffff02ff2affff04ff02ffff04ff2fffff04ffff02ff2effff04ff02ffff04ff
+    ff04ff8204ffffff04ff8206ffff82027f8080ff80808080ff8080808080ffff
+    04ffff02ff2affff04ff02ffff04ff2fffff04ffff02ff2effff04ff02ffff04
+    ffff04ff8209ffffff04ff82027fff820dff8080ff80808080ff8080808080ff
+    ff04ffff04ff34ffff04ffff0113ffff04ffff0101ffff04ffff02ff82013fff
+    ff04ffff02ff3affff04ff02ffff04ff17ffff04ff82077fffff04ffff0bffff
+    0102ff82027fffff0bffff0101ffff02ff2effff04ff02ffff04ffff04ff8205
+    7fffff04ff82015fff8201bf8080ff808080808080ff808080808080ff8201bf
+    8080ffff04ff8201dfff808080808080ff808080808080808080ff8080808080
+    80808080ffff01ff088080ff0180ffff04ffff01ffffff40ff4633ffff3e42ff
+    02ff02ffff03ff05ffff01ff0bff81e2ffff02ff26ffff04ff02ffff04ff09ff
+    ff04ffff02ff3cffff04ff02ffff04ff0dff80808080ff808080808080ffff01
+    81c280ff0180ffffffffffa04bf5122f344554c53bde2ebb8cd2b7e3d1600ad6
+    31c385a5d7cce23c7785459aa09dcf97a184f32623d11a73124ceb99a5709b08
+    3721e878a16d78f596718ba7b2ffa102a12871fee210fb8619291eaea194581c
+    bd2531e4b23759d225f6806923f63222a102a8d5dd63fba471ebcb1f3e8f7c1e
+    1879b7152a6e7298a91ce119a63400ade7c5ff04ffff04ff38ffff04ff2fffff
+    01ff80808080ffff04ffff02ff36ffff04ff02ffff04ff05ffff04ff17ffff04
+    ffff30ffff30ff0bff2fff8080ff09ffff010180ff808080808080ff5f8080ff
+    ff04ff38ffff04ffff02ff3affff04ff02ffff04ff05ffff04ffff0bffff0101
+    ff0b80ff8080808080ffff04ff80ffff04ffff04ff05ff8080ff8080808080ff
+    0bff81a2ffff02ff26ffff04ff02ffff04ff05ffff04ffff02ff3cffff04ff02
+    ffff04ff07ff80808080ff808080808080ffffff0bff2cffff0bff2cff81c2ff
+    0580ffff0bff2cff0bff81828080ff04ff10ffff04ffff30ff17ffff02ff3aff
+    ff04ff02ffff04ff31ffff04ffff02ff2effff04ff02ffff04ffff04ff31ffff
+    04ff17ff218080ff80808080ffff04ffff02ff3affff04ff02ffff04ff29ffff
+    04ffff0bffff0101ff2980ffff04ff8182ffff04ff39ffff04ffff02ff3affff
+    04ff02ffff04ff25ffff04ffff0bffff0101ff2580ffff04ff8182ffff04ffff
+    02ff3affff04ff02ffff04ff35ffff04ffff02ff2effff04ff02ffff04ffff04
+    ff31ffff04ff17ff218080ff80808080ffff04ff2dffff04ffff0bffff0101ff
+    3d80ff80808080808080ffff04ff0bff8080808080808080ff80808080808080
+    80ff808080808080ffff010180ff808080ffff02ffff03ffff07ff0580ffff01
+    ff0bffff0102ffff02ff2effff04ff02ffff04ff09ff80808080ffff02ff2eff
+    ff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff
+    04ff34ffff04ffff0112ffff04ff80ffff04ffff02ff3affff04ff02ffff04ff
+    05ffff04ffff0bffff0101ff0b80ff8080808080ff8080808080ff018080
     "
 );
 
 pub const CATALOG_REGISTER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    028d83ae6f75c1a1fa40ebc68efb7c983257d0cc3fc7161a3418f63cca934e20
+    38f56b88b0f0a0dafa71a181eba0c1e277f1fccc15060188df8681ca59e39d78
     "
 ));
 
@@ -114,16 +167,45 @@ pub struct CatalogRegisterActionArgs {
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
+pub struct CatalogCatMakerData<P, S> {
+    pub precommited_cat_maker_reveal: P,
+    #[clvm(rest)]
+    pub precommited_cat_maker_solution: S,
+}
+
+impl<P, S> CatalogCatMakerData<P, S> {
+    pub fn new(precommited_cat_maker_reveal: P, precommited_cat_maker_solution: S) -> Self {
+        Self {
+            precommited_cat_maker_reveal,
+            precommited_cat_maker_solution,
+        }
+    }
+}
+
+#[derive(FromClvm, ToClvm, Debug, Clone, Copy, PartialEq, Eq)]
+#[clvm(list)]
+pub struct CatalogDoubleTailHashData {
+    pub this_tail_hash: Bytes32, // left_tail_hash or right_tail_hash
+    #[clvm(rest)]
+    pub this_this_tail_hash: Bytes32, // left_left_tail_hash or right_right_tail_hash
+}
+
+impl CatalogDoubleTailHashData {
+    pub fn new(this_tail_hash: Bytes32, this_this_tail_hash: Bytes32) -> Self {
+        Self {
+            this_tail_hash,
+            this_this_tail_hash,
+        }
+    }
+}
+
+#[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
+#[clvm(list)]
 pub struct CatalogRegisterActionSolution<P, S> {
-    pub cat_maker_reveal: P,
-    pub cat_maker_solution: S,
-    pub tail_hash: Bytes32,
-    pub initial_nft_owner_ph: Bytes32,
-    pub refund_puzzle_hash_hash: Bytes32,
-    pub left_tail_hash: Bytes32,
-    pub left_left_tail_hash: Bytes32,
-    pub right_tail_hash: Bytes32,
-    pub right_right_tail_hash: Bytes32,
+    pub cat_maker_data: CatalogCatMakerData<P, S>,
+    pub other_precommit_data: CatalogOtherPrecommitData,
+    pub left_data: CatalogDoubleTailHashData,
+    pub right_data: CatalogDoubleTailHashData,
     #[clvm(rest)]
     pub my_id: Bytes32,
 }
