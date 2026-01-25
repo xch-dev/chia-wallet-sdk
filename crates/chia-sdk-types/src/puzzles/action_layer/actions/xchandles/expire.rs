@@ -14,26 +14,26 @@ use crate::{
 
 pub const XCHANDLES_EXPIRE_PUZZLE: [u8; 1320] = hex!(
     "
-    ff02ffff01ff02ffff03ffff22ffff09ffff02ff2effff04ff02ffff04ff8204
-    bfff80808080ff82015f80ffff09ffff02ff2effff04ff02ffff04ff82023fff
-    80808080ff8203df8080ffff01ff04ff5fffff04ffff04ff10ffff04ff82053f
-    ff808080ffff04ffff04ff10ffff04ff820b3fff808080ffff04ffff02ff3eff
+    ff02ffff01ff02ffff03ffff22ffff09ffff02ff2effff04ff02ffff04ff8202
+    7fff80808080ff82015f80ffff09ffff02ff2effff04ff02ffff04ff82013fff
+    80808080ff8203df8080ffff01ff04ff5fffff04ffff04ff10ffff04ff8202bf
+    ff808080ffff04ffff04ff10ffff04ff8205bfff808080ffff04ffff02ff3eff
     ff04ff02ffff04ff2fffff04ffff02ff2effff04ff02ffff04ffff04ffff04ff
-    ff0bffff0101ff82173f80ff820bbf80ffff04ff820b3fff8217bf8080ff8080
+    ff0bffff0101ff820bbf80ff8205ff80ffff04ff8205bfff820bff8080ff8080
     8080ff8080808080ffff04ffff02ff3affff04ff02ffff04ff2fffff04ffff02
-    ff2effff04ff02ffff04ffff04ffff04ffff0bffff0101ff82173f80ff820bbf
-    80ffff04ffff10ffff06ffff02ff82023fff82033f8080ff82053f80ff8209bf
-    8080ff80808080ff8080808080ffff02ff2affff04ff02ffff04ffff02ff8204
-    bfffff04ffff02ff26ffff04ff02ffff04ff17ffff04ff8215bfffff04ffff0b
+    ff2effff04ff02ffff04ffff04ffff04ffff0bffff0101ff820bbf80ff8205ff
+    80ffff04ffff10ffff06ffff02ff82013fff8201bf8080ff8202bf80ff8204ff
+    8080ff80808080ff8080808080ffff02ff2affff04ff02ffff04ffff02ff8202
+    7fffff04ffff02ff26ffff04ff02ffff04ff17ffff04ff820affffff04ffff0b
     ffff0101ffff02ff2effff04ff02ffff04ffff04ffff04ffff04ff82015fff82
-    06bf80ffff04ff8203dfff82033f8080ffff04ffff04ff82173fff821dbf80ff
-    ff04ff8211bfffff01916e65775f7265736f6c7665645f64617461808080ff80
-    80808080ff808080808080ff8206bf8080ffff04ffff05ffff02ff82023fff82
-    033f8080ffff04ffff02ff26ffff04ff02ffff04ff05ffff04ffff02ff2effff
-    04ff02ffff04ffff04ff05ffff04ff8211bfff0b8080ff80808080ffff04ff82
-    2fbfff808080808080ffff04ffff02ff26ffff04ff02ffff04ff05ffff04ffff
-    02ff2effff04ff02ffff04ffff04ff05ffff04ff8219bfff0b8080ff80808080
-    ffff04ff823fbfff808080808080ff808080808080808080808080ffff01ff08
+    037f80ffff04ff8203dfff8201bf8080ffff04ffff04ff820bbfff820eff80ff
+    ff04ff8208ffffff01916e65775f7265736f6c7665645f64617461808080ff80
+    80808080ff808080808080ff82037f8080ffff04ffff05ffff02ff82013fff82
+    01bf8080ffff04ffff02ff26ffff04ff02ffff04ff05ffff04ffff02ff2effff
+    04ff02ffff04ffff04ff05ffff04ff8208ffff0b8080ff80808080ffff04ff82
+    17ffff808080808080ffff04ffff02ff26ffff04ff02ffff04ff05ffff04ffff
+    02ff2effff04ff02ffff04ffff04ff05ffff04ff820cffff0b8080ff80808080
+    ffff04ff821fffff808080808080ff808080808080808080808080ffff01ff08
     8080ff0180ffff04ffff01ffffff51ff333effff4342ff02ff02ffff03ff05ff
     ff01ff0bff72ffff02ff36ffff04ff02ffff04ff09ffff04ffff02ff3cffff04
     ff02ffff04ff0dff80808080ff808080808080ffff016280ff0180ffffffffa0
@@ -61,7 +61,7 @@ pub const XCHANDLES_EXPIRE_PUZZLE: [u8; 1320] = hex!(
 
 pub const XCHANDLES_EXPIRE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    e5b570b6f2e426b17cf6b73c9dfa350d2d56eb7ff761a894f57a6ca2dc9b8954
+    7d864f0e4d94b3f1caf2653e0eff3a42940a76f07cb9e675e24f96c2b0f90e68
     "
 ));
 
