@@ -20,6 +20,8 @@ pub enum XchandlesRegistryReceivedMessagePrefix {
     UpdateState = b's',
     RegisterOwner = b'a',
     RegisterResolved = b'b',
+    ExpireOwner = b'e',
+    ExpireResolved = b'f',
     InitiateUpdate = b'i',
     ExecuteUpdateOldOwner = b'u',
     ExecuteUpdateNewOwner = b'o',
@@ -38,6 +40,17 @@ impl XchandlesRegistryReceivedMessagePrefix {
     pub fn register_resolved(precommit_coin_puzzle_hash: Bytes32) -> Vec<u8> {
         prefix_hash(
             Self::RegisterResolved as u8,
+            precommit_coin_puzzle_hash.into(),
+        )
+    }
+
+    pub fn expire_owner(precommit_coin_puzzle_hash: Bytes32) -> Vec<u8> {
+        prefix_hash(Self::ExpireOwner as u8, precommit_coin_puzzle_hash.into())
+    }
+
+    pub fn expire_resolved(precommit_coin_puzzle_hash: Bytes32) -> Vec<u8> {
+        prefix_hash(
+            Self::ExpireResolved as u8,
             precommit_coin_puzzle_hash.into(),
         )
     }
