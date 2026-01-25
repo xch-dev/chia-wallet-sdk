@@ -3,8 +3,9 @@ use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        DefaultCatMakerArgs, PrecommitSpendMode, XchandlesHandleSlotValue,
-        XchandlesRefundActionArgs, XchandlesRefundActionSolution, XchandlesSlotNonce,
+        DefaultCatMakerArgs, PrecommitSpendMode, PuzzleHashPuzzleAndSolution,
+        XchandlesHandleSlotValue, XchandlesOtherPrecommitData, XchandlesRefundActionArgs,
+        XchandlesRefundActionSolution, XchandlesSlotNonce,
     },
     Conditions, Mod,
 };
@@ -114,21 +115,25 @@ impl XchandlesRefundAction {
         let slot = slot.map(|s| registry.actual_handle_slot(s));
         let cat_maker_args = DefaultCatMakerArgs::new(precommit_coin.asset_id.tree_hash().into());
         let action_solution = XchandlesRefundActionSolution {
-            precommited_cat_maker_reveal: ctx.curry(cat_maker_args)?,
-            precommited_cat_maker_hash: cat_maker_args.curry_tree_hash().into(),
-            precommited_cat_maker_solution: (),
-            precommited_pricing_puzzle_reveal,
-            precommited_pricing_puzzle_hash: ctx
-                .tree_hash(precommited_pricing_puzzle_reveal)
-                .into(),
-            precommited_pricing_puzzle_solution,
+            precommited_pricing_puzzle_and_solution: PuzzleHashPuzzleAndSolution::new(
+                ctx.tree_hash(precommited_pricing_puzzle_reveal).into(),
+                precommited_pricing_puzzle_reveal,
+                precommited_pricing_puzzle_solution,
+            ),
+            precommited_cat_maker_and_solution: PuzzleHashPuzzleAndSolution::new(
+                cat_maker_args.curry_tree_hash().into(),
+                ctx.curry(cat_maker_args)?,
+                (),
+            ),
             handle: precommit_coin.value.handle.clone(),
-            secret: precommit_coin.value.secret,
-            precommited_owner_launcher_id: precommit_coin.value.owner_launcher_id,
-            precommited_resolved_launcher_id: precommit_coin.value.resolved_launcher_id,
-            refund_puzzle_hash_hash: precommit_coin.refund_puzzle_hash.tree_hash().into(),
             precommit_amount: precommit_coin.coin.amount,
             slot_value: slot.as_ref().map(|slot| slot.info.value),
+            other_precommit_data: XchandlesOtherPrecommitData::new(
+                precommit_coin.value.owner_launcher_id,
+                precommit_coin.value.resolved_launcher_id,
+                precommit_coin.refund_puzzle_hash.tree_hash().into(),
+                precommit_coin.value.secret,
+            ),
         }
         .to_clvm(ctx)?;
         let action_puzzle = self.construct_puzzle(ctx)?;
