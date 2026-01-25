@@ -5,25 +5,25 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
-use crate::Mod;
+use crate::{puzzles::RewardDistributorEntrySlotValue, Mod};
 
 pub const REWARD_DISTRIBUTOR_REMOVE_ENTRY_PUZZLE: [u8; 743] = hex!(
     "
-    ff02ffff01ff02ffff03ffff22ffff09ffff12ffff11ff8213bfff822f7f80ff
-    823f7f80ffff10ffff12ff82057fff5f80ff820b7f8080ffff15ff820b7fffff
-    0181ff80ffff15ff5fff820b7f8080ffff01ff04ffff04ff82013fffff04ffff
-    11ff8202bfff82057f80ffff04ffff11ff8205bfff823f7f80ffff04ffff04ff
-    8213bfffff10ff821bbfff820b7f8080ffff04ff8217bfff808080808080ffff
+    ff02ffff01ff02ffff03ffff22ffff09ffff12ffff11ff8213bfff82057f80ff
+    82077f80ffff10ffff12ff8205ffff5f80ff8202ff8080ffff15ff8202ffffff
+    0181ff80ffff15ff5fff8202ff8080ffff01ff04ffff04ff82013fffff04ffff
+    11ff8202bfff8205ff80ffff04ffff11ff8205bfff82077f80ffff04ffff04ff
+    8213bfffff10ff821bbfff8202ff8080ffff04ff8217bfff808080808080ffff
     04ffff04ff1cffff04ffff0112ffff04ffff0effff0172ffff0bffff0102ffff
-    0bffff0101ff82177f80ffff0bffff0101ff823f7f808080ffff04ffff0bff56
+    0bffff0101ff82027f80ffff0bffff0101ff82077f808080ffff04ffff0bff56
     ffff0bff1affff0bff1aff66ff0580ffff0bff1affff0bff76ffff0bff1affff
     0bff1aff66ff0b80ffff0bff1affff0bff76ffff0bff1affff0bff1aff66ff82
-    027f80ffff0bff1aff66ff46808080ff46808080ff46808080ff8080808080ff
+    07ff80ffff0bff1aff66ff46808080ff46808080ff46808080ff8080808080ff
     ff04ffff04ff08ffff04ffff10ff8227bfff2f80ff808080ffff04ffff02ff1e
-    ffff04ff02ffff04ff17ffff04ffff0bffff0102ffff0bffff0101ff82177f80
-    ffff0bffff0102ffff0bffff0101ff822f7f80ffff0bffff0101ff823f7f8080
-    80ff8080808080ffff04ffff04ffff0181d6ffff04ff14ffff04ff82177fffff
-    04ff82057fffff04ffff04ff82177fff8080ff808080808080ff808080808080
+    ffff04ff02ffff04ff17ffff04ffff0bffff0102ffff0bffff0101ff82027f80
+    ffff0bffff0102ffff0bffff0101ff82057f80ffff0bffff0101ff82077f8080
+    80ff8080808080ffff04ffff04ffff0181d6ffff04ff14ffff04ff82027fffff
+    04ff8205ffffff04ffff04ff82027fff8080ff808080808080ff808080808080
     ffff01ff088080ff0180ffff04ffff01ffff55ff3343ffff4202ffffffa04bf5
     122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459aa09d
     cf97a184f32623d11a73124ceb99a5709b083721e878a16d78f596718ba7b2ff
@@ -38,7 +38,7 @@ pub const REWARD_DISTRIBUTOR_REMOVE_ENTRY_PUZZLE: [u8; 743] = hex!(
 
 pub const REWARD_DISTRIBUTOR_REMOVE_ENTRY_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    c529e505c71d330ad80ca1fa7f3892520e6a7325bec861ec9e0b5278164823cb
+    d071e2ab9406bbc4d4369868138b403142591bb0a2ed0c24395ff0961545923b
     "
 ));
 
@@ -55,13 +55,11 @@ pub struct RewardDistributorRemoveEntryActionArgs {
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorRemoveEntryActionSolution {
-    pub manager_singleton_inner_puzzle_hash: Bytes32,
-    pub entry_payout_amount: u64,
+    pub entry_slot: RewardDistributorEntrySlotValue,
     pub payout_rounding_error: u128,
-    pub entry_payout_puzzle_hash: Bytes32,
-    pub entry_initial_cumulative_payout: u128,
+    pub entry_payout_amount: u64,
     #[clvm(rest)]
-    pub entry_shares: u64,
+    pub manager_singleton_inner_puzzle_hash: Bytes32,
 }
 
 impl Mod for RewardDistributorRemoveEntryActionArgs {
