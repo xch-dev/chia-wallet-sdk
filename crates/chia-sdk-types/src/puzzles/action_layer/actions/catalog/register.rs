@@ -129,7 +129,7 @@ pub const CATALOG_REGISTER_PUZZLE: [u8; 1566] = hex!(
     bd2531e4b23759d225f6806923f63222a102a8d5dd63fba471ebcb1f3e8f7c1e
     1879b7152a6e7298a91ce119a63400ade7c5ff04ffff04ff38ffff04ff2fffff
     01ff80808080ffff04ffff02ff36ffff04ff02ffff04ff05ffff04ff17ffff04
-    ffff30ffff30ff0bff2fff8080ff09ffff010180ff808080808080ff5f8080ff
+    ffff30ffff30ff0bff2fff8080ff21ffff010180ff808080808080ff5f8080ff
     ff04ff38ffff04ffff02ff3affff04ff02ffff04ff05ffff04ffff0bffff0101
     ff0b80ff8080808080ffff04ff80ffff04ffff04ff05ff8080ff8080808080ff
     0bff81a2ffff02ff26ffff04ff02ffff04ff05ffff04ffff02ff3cffff04ff02
@@ -152,7 +152,7 @@ pub const CATALOG_REGISTER_PUZZLE: [u8; 1566] = hex!(
 
 pub const CATALOG_REGISTER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    38f56b88b0f0a0dafa71a181eba0c1e277f1fccc15060188df8681ca59e39d78
+    ddc07891fc010a39139a5e868a420cfe32c1fe6d1b5a2587d4212626ff740d30
     "
 ));
 
