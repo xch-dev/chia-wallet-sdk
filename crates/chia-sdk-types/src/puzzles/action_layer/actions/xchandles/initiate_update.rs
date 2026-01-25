@@ -6,7 +6,7 @@ use clvm_utils::TreeHash;
 use hex_literal::hex;
 
 use crate::{
-    puzzles::{XchandlesDataValue, XchandlesHandleSlotValue},
+    puzzles::{CompactCoinProof, XchandlesDataValue, XchandlesHandleSlotValue},
     Mod,
 };
 
@@ -62,15 +62,6 @@ pub struct XchandlesInitiateUpdateActionArgs {
     pub relative_block_height: u32,
     pub handle_slot_1st_curry_hash: Bytes32,
     pub update_slot_1st_curry_hash: Bytes32,
-}
-
-#[derive(FromClvm, ToClvm, Debug, Clone, Copy, PartialEq, Eq)]
-#[clvm(list)]
-pub struct CompactCoinProof {
-    pub parent_coin_info: Bytes32,
-    pub inner_puzzle_hash: Bytes32,
-    #[clvm(rest)]
-    pub amount: u64,
 }
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
