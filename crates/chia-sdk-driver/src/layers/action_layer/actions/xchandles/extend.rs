@@ -4,9 +4,9 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
-        DefaultCatMakerArgs, XchandlesExtendActionArgs, XchandlesExtendActionSolution,
-        XchandlesFactorPricingPuzzleArgs, XchandlesHandleSlotValue, XchandlesPricingSolution,
-        XchandlesSlotNonce,
+        DefaultCatMakerArgs, PuzzleAndSolution, XchandlesExtendActionArgs,
+        XchandlesExtendActionSolution, XchandlesFactorPricingPuzzleArgs, XchandlesHandleSlotValue,
+        XchandlesPricingSolution, XchandlesSlotNonce,
     },
     Conditions, Mod,
 };
@@ -72,10 +72,17 @@ impl XchandlesExtendAction {
         >>(solution)?;
 
         // current expiration is the second truth given to a pricing puzzle
-        let current_expiration = solution.pricing_solution.1 .0;
+        let current_expiration = solution.pricing_puzzle_and_solution.solution.1 .0;
 
         Ok(XchandlesHandleSlotValue::new(
-            solution.pricing_solution.1 .1 .0.tree_hash().into(),
+            solution
+                .pricing_puzzle_and_solution
+                .solution
+                .1
+                 .1
+                 .0
+                .tree_hash()
+                .into(),
             solution.neighbors.left_value,
             solution.neighbors.right_value,
             current_expiration,
@@ -93,15 +100,19 @@ impl XchandlesExtendAction {
                 solution,
             )?;
 
-        let pricing_output = ctx.run(solution.pricing_puzzle_reveal, solution.pricing_solution)?;
+        let pricing_output = ctx.run(
+            solution.pricing_puzzle_and_solution.puzzle,
+            solution.pricing_puzzle_and_solution.solution,
+        )?;
         let registration_time_delta = <(NodePtr, u64)>::from_clvm(ctx, pricing_output)?.1;
 
-        let (_, (_, (handle, _))) =
-            ctx.extract::<(NodePtr, (NodePtr, (String, NodePtr)))>(solution.pricing_solution)?;
+        let (_, (_, (handle, _))) = ctx.extract::<(NodePtr, (NodePtr, (String, NodePtr)))>(
+            solution.pricing_puzzle_and_solution.solution,
+        )?;
 
         // current expiration is the second truth given to a pricing puzzle
         let current_expiration = ctx
-            .extract::<(NodePtr, (u64, NodePtr))>(solution.pricing_solution)?
+            .extract::<(NodePtr, (u64, NodePtr))>(solution.pricing_puzzle_and_solution.solution)?
             .1
              .0;
 
@@ -141,17 +152,18 @@ impl XchandlesExtendAction {
 
         let slot = registry.actual_handle_slot(slot);
         let action_solution = ctx.alloc(&XchandlesExtendActionSolution {
-            pricing_puzzle_reveal,
-            pricing_solution: XchandlesPricingSolution {
-                buy_time,
-                current_expiration: slot.info.value.expiration,
-                handle: handle.to_string(),
-                num_periods,
-            },
-            cat_maker_puzzle_reveal,
-            cat_maker_solution: (),
+            pricing_puzzle_and_solution: PuzzleAndSolution::new(
+                pricing_puzzle_reveal,
+                XchandlesPricingSolution {
+                    buy_time,
+                    current_expiration: slot.info.value.expiration,
+                    handle: handle.to_string(),
+                    num_periods,
+                },
+            ),
             neighbors: slot.info.value.neighbors,
             rest: slot.info.value.rest_data(),
+            cat_maker_and_solution: PuzzleAndSolution::new(cat_maker_puzzle_reveal, ()),
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
 
