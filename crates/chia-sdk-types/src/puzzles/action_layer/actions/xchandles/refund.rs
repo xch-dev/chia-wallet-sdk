@@ -5,50 +5,53 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::TreeHash;
 use hex_literal::hex;
 
-use crate::{puzzles::XchandlesHandleSlotValue, Mod};
+use crate::{
+    puzzles::{PuzzleHashPuzzleAndSolution, XchandlesHandleSlotValue, XchandlesOtherPrecommitData},
+    Mod,
+};
 
-pub const XCHANDLES_REFUND_PUZZLE: [u8; 1075] = hex!(
+pub const XCHANDLES_REFUND_PUZZLE: [u8; 1057] = hex!(
     "
-    ff02ffff01ff02ffff03ffff22ffff09ff81afffff02ff2effff04ff02ffff04
-    ff4fff8080808080ffff09ff8205efffff02ff2effff04ff02ffff04ff8202ef
-    ff8080808080ffff02ffff03ff8303ffefffff01ff09ff8309ffefffff0bffff
-    0101ff8217ef8080ffff01ff010180ff018080ffff01ff04ff17ffff02ff16ff
-    ff04ff02ffff04ff0bffff04ffff02ff2effff04ff02ffff04ff8303ffefff80
-    808080ffff04ffff02ffff03ffff22ffff09ff81afff5780ffff09ff8217efff
-    825bef80ffff21ffff09ff8205efff81b780ffff09ff8205efff81f78080ffff
-    09ff8302ffefffff05ffff02ff8202efff820bef80808080ffff01830bffefff
-    8080ff0180ffff04ffff02ff4fffff04ffff0bff52ffff0bff3cffff0bff3cff
-    62ff0580ffff0bff3cffff0bff72ffff0bff3cffff0bff3cff62ff83017fef80
-    ffff0bff3cffff0bff72ffff0bff3cffff0bff3cff62ffff0bffff0101ffff02
-    ff2effff04ff02ffff04ffff04ffff04ffff04ff81afff82016f80ffff04ff82
-    05efff820bef8080ffff04ffff04ff8217efff822fef80ffff04ff825fefff82
-    bfef808080ff808080808080ffff0bff3cff62ff42808080ff42808080ff4280
-    8080ff82016f8080ffff04ff8302ffefff808080808080808080ffff01ff0880
-    80ff0180ffff04ffff01ffffff5533ff3eff4202ffffffffa04bf5122f344554
-    c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459aa09dcf97a184f3
-    2623d11a73124ceb99a5709b083721e878a16d78f596718ba7b2ffa102a12871
-    fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222a102a8
-    d5dd63fba471ebcb1f3e8f7c1e1879b7152a6e7298a91ce119a63400ade7c5ff
-    04ff18ffff04ffff0bff52ffff0bff3cffff0bff3cff62ff0580ffff0bff3cff
-    ff0bff72ffff0bff3cffff0bff3cff62ffff0bffff0101ff0b8080ffff0bff3c
-    ff62ff42808080ff42808080ffff04ff80ffff04ffff04ff05ff8080ff808080
-    8080ffff04ffff04ff2cffff04ffff0113ffff04ff80ffff04ff2fffff04ff5f
-    ff808080808080ffff04ffff04ff14ffff04ffff0effff0124ff2f80ff808080
-    ffff02ffff03ff17ffff01ff04ffff04ff10ffff04ff17ff808080ffff04ffff
-    02ff3effff04ff02ffff04ff05ffff04ff0bff8080808080ffff04ffff02ff1a
-    ffff04ff02ffff04ff05ffff04ff0bff8080808080ff80808080ff8080ff0180
-    8080ffff02ffff03ffff07ff0580ffff01ff0bffff0102ffff02ff2effff04ff
-    02ffff04ff09ff80808080ffff02ff2effff04ff02ffff04ff0dff8080808080
-    ffff01ff0bffff0101ff058080ff0180ff04ff2cffff04ffff0112ffff04ff80
-    ffff04ffff0bff52ffff0bff3cffff0bff3cff62ff0580ffff0bff3cffff0bff
-    72ffff0bff3cffff0bff3cff62ffff0bffff0101ff0b8080ffff0bff3cff62ff
-    42808080ff42808080ff8080808080ff018080
+    ff02ffff01ff02ffff03ffff22ffff09ff819fffff02ff2effff04ff02ffff04
+    ff82015fff8080808080ffff09ff4fffff02ff2effff04ff02ffff04ff81afff
+    8080808080ffff02ffff03ff8202ffffff01ff09ff8208ffffff0bffff0101ff
+    81bf8080ffff01ff010180ff018080ffff01ff04ff17ffff02ff16ffff04ff02
+    ffff04ff0bffff04ffff02ff2effff04ff02ffff04ff8202ffff80808080ffff
+    04ffff02ffff03ffff22ffff09ff819fff5780ffff09ff81bfff8205ef80ffff
+    21ffff09ff4fff81b780ffff09ff4fff81f78080ffff09ff82017fffff05ffff
+    02ff81afff81ef80808080ffff01820affff8080ff0180ffff04ffff02ff8201
+    5fffff04ffff0bff52ffff0bff3cffff0bff3cff62ff0580ffff0bff3cffff0b
+    ff72ffff0bff3cffff0bff3cff62ff820bff80ffff0bff3cffff0bff72ffff0b
+    ff3cffff0bff3cff62ffff0bffff0101ffff02ff2effff04ff02ffff04ffff04
+    ffff04ffff04ff819fff8201df80ffff04ff4fff81ef8080ffff04ffff04ff81
+    bfff820fff80ffff04ff8209ffff820dff808080ff808080808080ffff0bff3c
+    ff62ff42808080ff42808080ff42808080ff8201df8080ffff04ff82017fff80
+    8080808080808080ffff01ff088080ff0180ffff04ffff01ffffff5533ff3eff
+    4202ffffffffa04bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7
+    cce23c7785459aa09dcf97a184f32623d11a73124ceb99a5709b083721e878a1
+    6d78f596718ba7b2ffa102a12871fee210fb8619291eaea194581cbd2531e4b2
+    3759d225f6806923f63222a102a8d5dd63fba471ebcb1f3e8f7c1e1879b7152a
+    6e7298a91ce119a63400ade7c5ff04ff18ffff04ffff0bff52ffff0bff3cffff
+    0bff3cff62ff0580ffff0bff3cffff0bff72ffff0bff3cffff0bff3cff62ffff
+    0bffff0101ff0b8080ffff0bff3cff62ff42808080ff42808080ffff04ff80ff
+    ff04ffff04ff05ff8080ff8080808080ffff04ffff04ff2cffff04ffff0113ff
+    ff04ff80ffff04ff2fffff04ff5fff808080808080ffff04ffff04ff14ffff04
+    ffff0effff0124ff2f80ff808080ffff02ffff03ff17ffff01ff04ffff04ff10
+    ffff04ff17ff808080ffff04ffff02ff3effff04ff02ffff04ff05ffff04ff0b
+    ff8080808080ffff04ffff02ff1affff04ff02ffff04ff05ffff04ff0bff8080
+    808080ff80808080ff8080ff01808080ffff02ffff03ffff07ff0580ffff01ff
+    0bffff0102ffff02ff2effff04ff02ffff04ff09ff80808080ffff02ff2effff
+    04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff04
+    ff2cffff04ffff0112ffff04ff80ffff04ffff0bff52ffff0bff3cffff0bff3c
+    ff62ff0580ffff0bff3cffff0bff72ffff0bff3cffff0bff3cff62ffff0bffff
+    0101ff0b8080ffff0bff3cff62ff42808080ff42808080ff8080808080ff0180
+    80
     "
 );
 
 pub const XCHANDLES_REFUND_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    c1469c124abadf18b0deee827c57f5189bc81d0f59aa07e2290676d0000b20a1
+    02fd6f79996cb4a5adade14b7e0ef6239f49f1c657b68094c09583b2200b89e0
     "
 ));
 
@@ -62,20 +65,13 @@ pub struct XchandlesRefundActionArgs {
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct XchandlesRefundActionSolution<CMP, CMS, PP, PS, S> {
-    pub precommited_cat_maker_reveal: CMP,
-    pub precommited_cat_maker_hash: Bytes32,
-    pub precommited_cat_maker_solution: CMS,
-    pub precommited_pricing_puzzle_reveal: PP,
-    pub precommited_pricing_puzzle_hash: Bytes32,
-    pub precommited_pricing_puzzle_solution: PS,
+    pub precommited_pricing_puzzle_and_solution: PuzzleHashPuzzleAndSolution<PP, PS>,
+    pub precommited_cat_maker_and_solution: PuzzleHashPuzzleAndSolution<CMP, CMS>,
     pub handle: String,
-    pub secret: S,
-    pub precommited_owner_launcher_id: Bytes32,
-    pub precommited_resolved_launcher_id: Bytes32,
-    pub refund_puzzle_hash_hash: Bytes32,
     pub precommit_amount: u64,
-    #[clvm(rest)]
     pub slot_value: Option<XchandlesHandleSlotValue>,
+    #[clvm(rest)]
+    pub other_precommit_data: XchandlesOtherPrecommitData<S>,
 }
 
 impl Mod for XchandlesRefundActionArgs {

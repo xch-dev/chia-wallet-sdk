@@ -119,8 +119,8 @@ impl<S> XchandlesOtherPrecommitData<S> {
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct XchandlesExpireActionSolution<CMP, CMS, EP, ES, S> {
-    pub cat_maker_data: PuzzleAndSolution<CMP, CMS>,
-    pub expired_handle_pricing_puzzle_data: PuzzleAndSolution<EP, ES>,
+    pub cat_maker_and_solution: PuzzleAndSolution<CMP, CMS>,
+    pub expired_handle_pricing_puzzle_and_solution: PuzzleAndSolution<EP, ES>,
     pub other_precommit_data: XchandlesOtherPrecommitData<S>,
     pub neighbors: SlotNeigborsInfo,
     pub old_rest: XchandlesDataValue,

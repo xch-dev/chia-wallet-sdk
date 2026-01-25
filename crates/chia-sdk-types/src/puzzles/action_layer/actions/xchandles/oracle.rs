@@ -10,7 +10,7 @@ use crate::Mod;
 pub const XCHANDLES_ORACLE_PUZZLE: [u8; 571] = hex!(
     "
     ff02ffff01ff04ff0bffff02ff16ffff04ff02ffff04ff05ffff04ffff02ff2e
-    ffff04ff02ffff04ff17ff80808080ff808080808080ffff04ffff01ffffff33
+    ffff04ff02ffff04ff0fff80808080ff808080808080ffff04ffff01ffffff33
     3eff4202ffffffffa04bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385
     a5d7cce23c7785459aa09dcf97a184f32623d11a73124ceb99a5709b083721e8
     78a16d78f596718ba7b2ffa102a12871fee210fb8619291eaea194581cbd2531
@@ -32,7 +32,7 @@ pub const XCHANDLES_ORACLE_PUZZLE: [u8; 571] = hex!(
 
 pub const XCHANDLES_ORACLE_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    1ba03341b929f37687610644f24a0cd36cb6ef019dc7289a0c2172d61482c23c
+    ccf9ba923d04ba90a194ecb1a26f59912c838a4d6b175a4f041c59127cbe38e3
     "
 ));
 

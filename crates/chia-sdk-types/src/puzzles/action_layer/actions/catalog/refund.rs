@@ -56,23 +56,19 @@ pub struct CatalogRefundActionArgs {
 
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
-pub struct CatalogPrecommitCatMakerDataWithHash<P, S> {
-    pub precommited_cat_maker_hash: Bytes32,
-    pub precommited_cat_maker_reveal: P,
+pub struct PuzzleHashPuzzleAndSolution<P, S> {
+    pub puzzle_hash: Bytes32,
+    pub puzzle: P,
     #[clvm(rest)]
-    pub precommited_cat_maker_solution: S,
+    pub solution: S,
 }
 
-impl<P, S> CatalogPrecommitCatMakerDataWithHash<P, S> {
-    pub fn new(
-        precommited_cat_maker_hash: Bytes32,
-        precommited_cat_maker_reveal: P,
-        precommited_cat_maker_solution: S,
-    ) -> Self {
+impl<P, S> PuzzleHashPuzzleAndSolution<P, S> {
+    pub fn new(puzzle_hash: Bytes32, puzzle: P, solution: S) -> Self {
         Self {
-            precommited_cat_maker_hash,
-            precommited_cat_maker_reveal,
-            precommited_cat_maker_solution,
+            puzzle_hash,
+            puzzle,
+            solution,
         }
     }
 }
@@ -103,7 +99,7 @@ impl CatalogOtherPrecommitData {
 #[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct CatalogRefundActionSolution<P, S> {
-    pub precommited_cat_maker_data: CatalogPrecommitCatMakerDataWithHash<P, S>,
+    pub precommited_cat_maker_and_solution: PuzzleHashPuzzleAndSolution<P, S>,
     pub other_precommit_data: CatalogOtherPrecommitData,
     pub precommit_amount: u64,
     #[clvm(rest)]
