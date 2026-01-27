@@ -17,6 +17,9 @@ importers:
       ava:
         specifier: ^6.4.1
         version: 6.4.1(@ava/typescript@6.0.0)
+      binaryen:
+        specifier: ^125.0.0
+        version: 125.0.0
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@24.0.13)(typescript@5.8.3)
@@ -191,6 +194,10 @@ packages:
 
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
+
+  binaryen@125.0.0:
+    resolution: {integrity: sha512-X7CUM9ZnwL/Ow++JH5AJKiemc82J7JyeryuPvXQdXBLcL/rqrC5KMUB1mHiORSolietH9sotvaOZlr6HSwPAlw==}
+    hasBin: true
 
   bindings@1.5.0:
     resolution: {integrity: sha512-p2q/t/mhvuOj/UeLlV6566GD/guowlr0hHxClI0W9m7MWYkL1F0hLo+0Aexs9HSPCtR1SXQ0TD3MMKrXZajbiQ==}
@@ -1037,6 +1044,8 @@ snapshots:
       - supports-color
 
   balanced-match@1.0.2: {}
+
+  binaryen@125.0.0: {}
 
   bindings@1.5.0:
     dependencies:
