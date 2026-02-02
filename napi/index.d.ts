@@ -1682,6 +1682,17 @@ export declare class NftMint {
   set transferCondition(value?: TransferNft | undefined | null)
 }
 
+export declare class NftState {
+  clone(): NftState
+  constructor(parsedMetadata: NftMetadata | undefined | null, metadataUpdaterPuzzleHash: Uint8Array, owner?: Uint8Array | undefined | null)
+  get parsedMetadata(): NftMetadata | null
+  set parsedMetadata(value?: NftMetadata | undefined | null)
+  get metadataUpdaterPuzzleHash(): Buffer
+  set metadataUpdaterPuzzleHash(value: Uint8Array)
+  get owner(): Buffer | null
+  set owner(value?: Uint8Array | undefined | null)
+}
+
 export declare class NotarizedPayment {
   clone(): NotarizedPayment
   constructor(nonce: Uint8Array, payments: Array<Payment>)
@@ -1919,7 +1930,7 @@ export declare class ParsedNftInfo {
 
 export declare class ParsedNftTransfer {
   clone(): ParsedNftTransfer
-  constructor(transferType: TransferType, launcherId: Uint8Array, p2PuzzleHash: Uint8Array, coin: Coin, clawback: ClawbackV2 | undefined | null, memos: Array<string>, newUris: Array<MetadataUpdate>, latestOwner: Uint8Array | undefined | null, includesUnverifiableUpdates: boolean)
+  constructor(transferType: TransferType, launcherId: Uint8Array, p2PuzzleHash: Uint8Array, coin: Coin, clawback: ClawbackV2 | undefined | null, memos: Array<string>, oldState: NftState, newState: NftState, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number, includesUnverifiableUpdates: boolean)
   get transferType(): TransferType
   set transferType(value: TransferType)
   get launcherId(): Buffer
@@ -1932,10 +1943,14 @@ export declare class ParsedNftTransfer {
   set clawback(value?: ClawbackV2 | undefined | null)
   get memos(): Array<string>
   set memos(value: Array<string>)
-  get newUris(): Array<MetadataUpdate>
-  set newUris(value: Array<MetadataUpdate>)
-  get latestOwner(): Buffer | null
-  set latestOwner(value?: Uint8Array | undefined | null)
+  get oldState(): NftState
+  set oldState(value: NftState)
+  get newState(): NftState
+  set newState(value: NftState)
+  get royaltyPuzzleHash(): Buffer
+  set royaltyPuzzleHash(value: Uint8Array)
+  get royaltyBasisPoints(): number
+  set royaltyBasisPoints(value: number)
   get includesUnverifiableUpdates(): boolean
   set includesUnverifiableUpdates(value: boolean)
 }
@@ -2938,18 +2953,20 @@ export declare class VaultMint {
 
 export declare class VaultSpendReveal {
   clone(): VaultSpendReveal
-  constructor(launcherId: Uint8Array, custodyHash: Uint8Array, delegatedSpend: Spend)
+  constructor(launcherId: Uint8Array, custodyHash: Uint8Array, delegatedSpend: Spend, coinId?: Uint8Array | undefined | null)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)
   get custodyHash(): Buffer
   set custodyHash(value: Uint8Array)
   get delegatedSpend(): Spend
   set delegatedSpend(value: Spend)
+  get coinId(): Buffer | null
+  set coinId(value?: Uint8Array | undefined | null)
 }
 
 export declare class VaultTransaction {
   clone(): VaultTransaction
-  constructor(newCustodyHash: Uint8Array | undefined | null, payments: Array<ParsedPayment>, nfts: Array<ParsedNftTransfer>, dropCoins: Array<DropCoin>, feePaid: bigint, totalFee: bigint)
+  constructor(newCustodyHash: Uint8Array | undefined | null, payments: Array<ParsedPayment>, nfts: Array<ParsedNftTransfer>, dropCoins: Array<DropCoin>, feePaid: bigint, totalFee: bigint, reservedFee: bigint, p2PuzzleHash: Uint8Array, coinMessageHash: Uint8Array | undefined | null, puzzleMessageHash: Uint8Array)
   get newCustodyHash(): Buffer | null
   set newCustodyHash(value?: Uint8Array | undefined | null)
   get payments(): Array<ParsedPayment>
@@ -2962,6 +2979,14 @@ export declare class VaultTransaction {
   set feePaid(value: bigint)
   get totalFee(): bigint
   set totalFee(value: bigint)
+  get reservedFee(): bigint
+  set reservedFee(value: bigint)
+  get p2PuzzleHash(): Buffer
+  set p2PuzzleHash(value: Uint8Array)
+  get coinMessageHash(): Buffer | null
+  set coinMessageHash(value?: Uint8Array | undefined | null)
+  get puzzleMessageHash(): Buffer
+  set puzzleMessageHash(value: Uint8Array)
 }
 
 export declare class VdfInfo {

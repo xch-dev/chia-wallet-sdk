@@ -493,6 +493,7 @@ module.exports.NftInfo = nativeBinding.NftInfo
 module.exports.NftLauncherProof = nativeBinding.NftLauncherProof
 module.exports.NftMetadata = nativeBinding.NftMetadata
 module.exports.NftMint = nativeBinding.NftMint
+module.exports.NftState = nativeBinding.NftState
 module.exports.NotarizedPayment = nativeBinding.NotarizedPayment
 module.exports.OfferSecurityCoinDetails = nativeBinding.OfferSecurityCoinDetails
 module.exports.OptionContract = nativeBinding.OptionContract
