@@ -43,6 +43,7 @@ pub struct Outputs {
     pub nfts: IndexMap<Id, Nft>,
     pub options: IndexMap<Id, OptionContract>,
     pub fee: u64,
+    pub reserved_fee: u64,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -240,8 +241,8 @@ impl Spends<Unfinished> {
 
         conditions = conditions.extend(self.conditions.optional.clone());
 
-        if self.outputs.fee > 0 {
-            conditions = conditions.reserve_fee(self.outputs.fee);
+        if self.outputs.reserved_fee > 0 {
+            conditions = conditions.reserve_fee(self.outputs.reserved_fee);
         }
 
         for (_, spend) in self.iter_conditions_spends() {

@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-coinset"
-version = "0.32.0"
+version = "0.33.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Utilities for connecting to Chia full node peers via the light wallet protocol."

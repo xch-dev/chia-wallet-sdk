@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-bindings"
-version = "0.32.0"
+version = "0.33.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Underlying implementation of chia-wallet-sdk bindings."
@@ -47,3 +47,5 @@ num-bigint = { workspace = true }
 paste = { workspace = true }
 chialisp = { workspace = true }
 tokio = { workspace = true, features = ["sync"], optional = true }
+reqwest = { workspace = true }
+serde = { workspace = true }

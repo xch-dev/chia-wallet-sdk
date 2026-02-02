@@ -11,6 +11,14 @@ pub struct FullNodeClient {
 
 impl FullNodeClient {
     pub fn new(cert_bytes: &[u8], key_bytes: &[u8]) -> reqwest::Result<Self> {
+        Self::with_base_url("https://localhost:8555".to_string(), cert_bytes, key_bytes)
+    }
+
+    pub fn with_base_url(
+        base_url: String,
+        cert_bytes: &[u8],
+        key_bytes: &[u8],
+    ) -> reqwest::Result<Self> {
         #[cfg(feature = "native-tls")]
         let identity = Identity::from_pkcs8_pem(cert_bytes, key_bytes)?;
 
@@ -18,7 +26,7 @@ impl FullNodeClient {
         let identity = Identity::from_pem(&[key_bytes, cert_bytes].concat())?;
 
         Ok(Self {
-            base_url: "https://localhost:8555".to_string(),
+            base_url,
             client: Client::builder()
                 .danger_accept_invalid_certs(true)
                 .identity(identity)
