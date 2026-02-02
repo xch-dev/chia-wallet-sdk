@@ -17,10 +17,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{
-    BURN_PUZZLE_HASH, Cat, ClawbackV2, DriverError, MetadataUpdate, Nft, Puzzle, Spend, UriKind,
-    mips_puzzle_hash,
-};
+use crate::{BURN_PUZZLE_HASH, Cat, ClawbackV2, DriverError, Nft, Puzzle, Spend, mips_puzzle_hash};
 
 /// Information about a vault that must be provided in order to securely parse a transaction.
 #[derive(Debug, Clone, Copy)]
@@ -107,12 +104,26 @@ pub struct ParsedNftTransfer {
     pub clawback: Option<ClawbackV2>,
     /// The potentially human readable memo list after the hint and/or clawback memo is removed.
     pub memos: Vec<String>,
-    /// URIs which are added to the NFT's metadata as part of coin spends which can be verified to exist.
-    pub new_uris: Vec<MetadataUpdate>,
-    /// The latest owner hash of the NFT from verified coin spends.
-    pub latest_owner: Option<Bytes32>,
+    /// The NFT's state before the transfer.
+    pub old_state: NftState,
+    /// The NFT's state after the transfer.
+    pub new_state: NftState,
+    /// The NFT's royalty puzzle hash.
+    pub royalty_puzzle_hash: Bytes32,
+    /// The NFT's royalty basis points.
+    pub royalty_basis_points: u16,
     /// Whether the NFT transfer includes unverifiable metadata updates.
     pub includes_unverifiable_updates: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NftState {
+    /// The NFT's full metadata, if it was parseable.
+    pub parsed_metadata: Option<NftMetadata>,
+    /// The NFT's metadata updater puzzle hash.
+    pub metadata_updater_puzzle_hash: Bytes32,
+    /// The owner of the NFT (i.e. a DID, not its p2 puzzle hash).
+    pub owner: Option<Bytes32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -178,6 +189,11 @@ impl VaultTransaction {
         let mut total_output = 0;
 
         for coin_spend in coin_spends {
+            // Filter out "requested payments", which are placeholder coin spends used to make offers.
+            if coin_spend.coin.parent_coin_info == Bytes32::default() {
+                continue;
+            }
+
             let coin_id = coin_spend.coin.coin_id();
             let is_parent_ours = our_spent_coin_ids.contains(&coin_id);
             let is_parent_ephemeral = all_created_coin_ids.contains(&coin_id);
@@ -325,48 +341,26 @@ impl VaultTransaction {
                         is_child_ours,
                     },
                 ) {
-                    let mut includes_unverifiable_updates = false;
-
-                    let new_uris = if let Ok(old_metadata) =
-                        NftMetadata::from_clvm(allocator, nft.info.metadata.ptr())
-                        && let Ok(new_metadata) =
-                            NftMetadata::from_clvm(allocator, child.info.metadata.ptr())
-                    {
-                        let mut new_uris = Vec::new();
-
-                        for uri in new_metadata.data_uris {
-                            if !old_metadata.data_uris.contains(&uri) {
-                                new_uris.push(MetadataUpdate {
-                                    kind: UriKind::Data,
-                                    uri,
-                                });
-                            }
-                        }
-
-                        for uri in new_metadata.metadata_uris {
-                            if !old_metadata.metadata_uris.contains(&uri) {
-                                new_uris.push(MetadataUpdate {
-                                    kind: UriKind::Metadata,
-                                    uri,
-                                });
-                            }
-                        }
-
-                        for uri in new_metadata.license_uris {
-                            if !old_metadata.license_uris.contains(&uri) {
-                                new_uris.push(MetadataUpdate {
-                                    kind: UriKind::License,
-                                    uri,
-                                });
-                            }
-                        }
-
-                        new_uris
-                    } else {
-                        includes_unverifiable_updates |= nft.info.metadata != child.info.metadata;
-
-                        vec![]
+                    let old_state = NftState {
+                        parsed_metadata: NftMetadata::from_clvm(allocator, nft.info.metadata.ptr())
+                            .ok(),
+                        metadata_updater_puzzle_hash: nft.info.metadata_updater_puzzle_hash,
+                        owner: nft.info.current_owner,
                     };
+
+                    let new_state = NftState {
+                        parsed_metadata: NftMetadata::from_clvm(
+                            allocator,
+                            child.info.metadata.ptr(),
+                        )
+                        .ok(),
+                        metadata_updater_puzzle_hash: child.info.metadata_updater_puzzle_hash,
+                        owner: child.info.current_owner,
+                    };
+
+                    let includes_unverifiable_updates = nft.info.metadata != child.info.metadata
+                        && (old_state.parsed_metadata.is_none()
+                            || new_state.parsed_metadata.is_none());
 
                     nfts.push(ParsedNftTransfer {
                         transfer_type,
@@ -375,8 +369,10 @@ impl VaultTransaction {
                         coin: child.coin,
                         clawback: parsed_memos.clawback,
                         memos: parsed_memos.memos,
-                        new_uris,
-                        latest_owner: child.info.current_owner,
+                        old_state,
+                        new_state,
+                        royalty_puzzle_hash: child.info.royalty_puzzle_hash,
+                        royalty_basis_points: child.info.royalty_basis_points,
                         includes_unverifiable_updates,
                     });
                 }
@@ -999,6 +995,20 @@ mod tests {
         assert_eq!(nft.transfer_type, TransferType::Updated);
         assert_eq!(nft.p2_puzzle_hash, alice.puzzle_hash());
         assert!(!nft.includes_unverifiable_updates);
+        assert_eq!(nft.old_state.parsed_metadata, Some(NftMetadata::default()));
+        assert_eq!(
+            nft.old_state.metadata_updater_puzzle_hash,
+            Bytes32::default()
+        );
+        assert_eq!(nft.old_state.owner, None);
+        assert_eq!(nft.new_state.parsed_metadata, Some(NftMetadata::default()));
+        assert_eq!(
+            nft.new_state.metadata_updater_puzzle_hash,
+            Bytes32::default()
+        );
+        assert_eq!(nft.new_state.owner, None);
+        assert_eq!(nft.royalty_puzzle_hash, Bytes32::default());
+        assert_eq!(nft.royalty_basis_points, 0);
 
         // Transfer the NFT to Bob
         let nft_id = Id::Existing(nft.launcher_id);
