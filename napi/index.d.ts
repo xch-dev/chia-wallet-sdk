@@ -2938,18 +2938,20 @@ export declare class VaultMint {
 
 export declare class VaultSpendReveal {
   clone(): VaultSpendReveal
-  constructor(launcherId: Uint8Array, custodyHash: Uint8Array, delegatedSpend: Spend)
+  constructor(launcherId: Uint8Array, custodyHash: Uint8Array, delegatedSpend: Spend, coinId?: Uint8Array | undefined | null)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)
   get custodyHash(): Buffer
   set custodyHash(value: Uint8Array)
   get delegatedSpend(): Spend
   set delegatedSpend(value: Spend)
+  get coinId(): Buffer | null
+  set coinId(value?: Uint8Array | undefined | null)
 }
 
 export declare class VaultTransaction {
   clone(): VaultTransaction
-  constructor(newCustodyHash: Uint8Array | undefined | null, payments: Array<ParsedPayment>, nfts: Array<ParsedNftTransfer>, dropCoins: Array<DropCoin>, feePaid: bigint, totalFee: bigint)
+  constructor(newCustodyHash: Uint8Array | undefined | null, payments: Array<ParsedPayment>, nfts: Array<ParsedNftTransfer>, dropCoins: Array<DropCoin>, feePaid: bigint, totalFee: bigint, reservedFee: bigint, p2PuzzleHash: Uint8Array, coinMessageHash: Uint8Array | undefined | null, puzzleMessageHash: Uint8Array)
   get newCustodyHash(): Buffer | null
   set newCustodyHash(value?: Uint8Array | undefined | null)
   get payments(): Array<ParsedPayment>
@@ -2962,6 +2964,14 @@ export declare class VaultTransaction {
   set feePaid(value: bigint)
   get totalFee(): bigint
   set totalFee(value: bigint)
+  get reservedFee(): bigint
+  set reservedFee(value: bigint)
+  get p2PuzzleHash(): Buffer
+  set p2PuzzleHash(value: Uint8Array)
+  get coinMessageHash(): Buffer | null
+  set coinMessageHash(value?: Uint8Array | undefined | null)
+  get puzzleMessageHash(): Buffer
+  set puzzleMessageHash(value: Uint8Array)
 }
 
 export declare class VdfInfo {

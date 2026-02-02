@@ -5,7 +5,8 @@
     "fields": {
       "launcher_id": "Bytes32",
       "custody_hash": "TreeHash",
-      "delegated_spend": "Spend"
+      "delegated_spend": "Spend",
+      "coin_id": "Option<Bytes32>"
     }
   },
   "VaultTransaction": {
@@ -18,7 +19,11 @@
       "nfts": "Vec<ParsedNftTransfer>",
       "drop_coins": "Vec<DropCoin>",
       "fee_paid": "u64",
-      "total_fee": "u64"
+      "total_fee": "u64",
+      "reserved_fee": "u64",
+      "p2_puzzle_hash": "Bytes32",
+      "coin_message_hash": "Option<Bytes32>",
+      "puzzle_message_hash": "Bytes32"
     }
   },
   "ParsedPayment": {
