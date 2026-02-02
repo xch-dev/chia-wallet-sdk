@@ -51,9 +51,21 @@
       "coin": "Coin",
       "clawback": "Option<ClawbackV2>",
       "memos": "Vec<String>",
-      "new_uris": "Vec<MetadataUpdate>",
-      "latest_owner": "Option<Bytes32>",
+      "old_state": "NftState",
+      "new_state": "NftState",
+      "royalty_puzzle_hash": "Bytes32",
+      "royalty_basis_points": "u16",
       "includes_unverifiable_updates": "bool"
+    }
+  },
+  "NftState": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "parsed_metadata": "Option<NftMetadata>",
+      "metadata_updater_puzzle_hash": "Bytes32",
+      "owner": "Option<Bytes32>"
     }
   },
   "TransferType": {
