@@ -1,11 +1,11 @@
 {
-  "CoinsetClient": {
+  "RpcClient": {
     "type": "class",
     "methods": {
       "new": {
         "type": "constructor",
         "args": {
-          "base_url": "String"
+          "coinset_url": "String"
         }
       },
       "testnet11": {
@@ -13,6 +13,23 @@
       },
       "mainnet": {
         "type": "factory"
+      },
+      "local": {
+        "type": "factory",
+        "no_wasm": true,
+        "args": {
+          "cert_bytes": "Bytes",
+          "key_bytes": "Bytes"
+        }
+      },
+      "local_with_url": {
+        "type": "factory",
+        "no_wasm": true,
+        "args": {
+          "base_url": "String",
+          "cert_bytes": "Bytes",
+          "key_bytes": "Bytes"
+        }
       },
       "get_blockchain_state": {
         "type": "async",
@@ -500,6 +517,7 @@
       "reward_chain_sp_signature": "Signature",
       "reward_chain_ip_vdf": "VDFInfo",
       "infused_challenge_chain_ip_vdf": "Option<VDFInfo>",
+      "header_mmr_root": "Option<Bytes32>",
       "is_transaction_block": "bool"
     }
   },
@@ -604,7 +622,8 @@
       "reward_chain_hash": "Bytes32",
       "num_blocks_overflow": "u8",
       "new_difficulty": "Option<u64>",
-      "new_sub_slot_iters": "Option<u64>"
+      "new_sub_slot_iters": "Option<u64>",
+      "challenge_merkle_root": "Option<Bytes32>"
     }
   }
 }

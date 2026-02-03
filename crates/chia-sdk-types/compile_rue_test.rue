@@ -2,3 +2,8 @@ fn main(a: Int, b: Int) -> Int {
     debug a + b;
     a * b + a + b
 }
+
+export fn another(a: Int, b: Int) -> Int {
+    debug a + b;
+    a * b + a + b
+}

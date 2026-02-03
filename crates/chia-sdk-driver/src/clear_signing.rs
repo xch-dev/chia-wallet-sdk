@@ -5,20 +5,19 @@ use chia_puzzle_types::{
     Memos,
     nft::NftMetadata,
     offer::{NotarizedPayment, SettlementPaymentsSolution},
+    singleton::SingletonArgs,
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
     Condition, MessageFlags, MessageSide, Mod, announcement_id, conditions::CreateCoin,
     puzzles::SingletonMember, run_puzzle, tree_hash_notarized_payment,
 };
+use chia_sha2::Sha256;
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::TreeHash;
+use clvm_utils::{TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{
-    BURN_PUZZLE_HASH, Cat, ClawbackV2, DriverError, MetadataUpdate, Nft, Puzzle, Spend, UriKind,
-    mips_puzzle_hash,
-};
+use crate::{BURN_PUZZLE_HASH, Cat, ClawbackV2, DriverError, Nft, Puzzle, Spend, mips_puzzle_hash};
 
 /// Information about a vault that must be provided in order to securely parse a transaction.
 #[derive(Debug, Clone, Copy)]
@@ -32,6 +31,8 @@ pub struct VaultSpendReveal {
     /// The delegated puzzle we're signing and its solution.
     /// Its output is the non-custody related conditions that the vault spend will output.
     pub delegated_spend: Spend,
+    /// The coin id of the vault coin that is being spent (used for calculating the non-fast forwardable message hash).
+    pub coin_id: Option<Bytes32>,
 }
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -56,6 +57,17 @@ pub struct VaultTransaction {
     /// Total fees (different between input and output amounts) paid by all coin spends in the transaction combined.
     /// Because the full coin spend list cannot be validated off-chain, this is not guaranteed to be accurate.
     pub total_fee: u64,
+    /// The amount of fees reserved by coin spends authorized by the vault.
+    /// If this is greater than or equal to the fee paid, you can be sure that the XCH spent for fees will not be
+    /// maliciously redirected for some other purpose by the submitter of the transaction after signing.
+    pub reserved_fee: u64,
+    /// The p2 puzzle hash that the vault owns (analogous to a decoded XCH or TXCH address).
+    pub p2_puzzle_hash: Bytes32,
+    /// The hash of the delegated puzzle hash and the vault coin id, used for non-fast forwardable spend signing.
+    /// This is only calculated if the vault coin id is provided.
+    pub coin_message_hash: Option<Bytes32>,
+    /// The hash of the delegated puzzle hash and the vault puzzle hash, used for fast forwardable spend signing.
+    pub puzzle_message_hash: Bytes32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,12 +104,26 @@ pub struct ParsedNftTransfer {
     pub clawback: Option<ClawbackV2>,
     /// The potentially human readable memo list after the hint and/or clawback memo is removed.
     pub memos: Vec<String>,
-    /// URIs which are added to the NFT's metadata as part of coin spends which can be verified to exist.
-    pub new_uris: Vec<MetadataUpdate>,
-    /// The latest owner hash of the NFT from verified coin spends.
-    pub latest_owner: Option<Bytes32>,
+    /// The NFT's state before the transfer.
+    pub old_state: NftState,
+    /// The NFT's state after the transfer.
+    pub new_state: NftState,
+    /// The NFT's royalty puzzle hash.
+    pub royalty_puzzle_hash: Bytes32,
+    /// The NFT's royalty basis points.
+    pub royalty_basis_points: u16,
     /// Whether the NFT transfer includes unverifiable metadata updates.
     pub includes_unverifiable_updates: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NftState {
+    /// The NFT's full metadata, if it was parseable.
+    pub parsed_metadata: Option<NftMetadata>,
+    /// The NFT's metadata updater puzzle hash.
+    pub metadata_updater_puzzle_hash: Bytes32,
+    /// The owner of the NFT (i.e. a DID, not its p2 puzzle hash).
+    pub owner: Option<Bytes32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -140,6 +166,7 @@ impl VaultTransaction {
             our_spent_coin_ids,
             puzzle_assertion_ids,
             drop_coins,
+            mut reserved_fee,
         } = parse_delegated_spend(allocator, vault.delegated_spend, &all_spent_coin_ids)?;
 
         let ParsedConditions {
@@ -162,6 +189,11 @@ impl VaultTransaction {
         let mut total_output = 0;
 
         for coin_spend in coin_spends {
+            // Filter out "requested payments", which are placeholder coin spends used to make offers.
+            if coin_spend.coin.parent_coin_info == Bytes32::default() {
+                continue;
+            }
+
             let coin_id = coin_spend.coin.coin_id();
             let is_parent_ours = our_spent_coin_ids.contains(&coin_id);
             let is_parent_ephemeral = all_created_coin_ids.contains(&coin_id);
@@ -178,6 +210,15 @@ impl VaultTransaction {
 
             let output = run_puzzle(allocator, puzzle.ptr(), solution)?;
             let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
+
+            for condition in &conditions {
+                // We only count reserves fees from our coin spends
+                if let Some(reserve_fee) = condition.as_reserve_fee()
+                    && is_parent_ours
+                {
+                    reserved_fee += reserve_fee.amount;
+                }
+            }
 
             if let Some((cat, p2_puzzle, p2_solution)) =
                 Cat::parse(allocator, coin_spend.coin, puzzle, solution)?
@@ -300,48 +341,26 @@ impl VaultTransaction {
                         is_child_ours,
                     },
                 ) {
-                    let mut includes_unverifiable_updates = false;
-
-                    let new_uris = if let Ok(old_metadata) =
-                        NftMetadata::from_clvm(allocator, nft.info.metadata.ptr())
-                        && let Ok(new_metadata) =
-                            NftMetadata::from_clvm(allocator, child.info.metadata.ptr())
-                    {
-                        let mut new_uris = Vec::new();
-
-                        for uri in new_metadata.data_uris {
-                            if !old_metadata.data_uris.contains(&uri) {
-                                new_uris.push(MetadataUpdate {
-                                    kind: UriKind::Data,
-                                    uri,
-                                });
-                            }
-                        }
-
-                        for uri in new_metadata.metadata_uris {
-                            if !old_metadata.metadata_uris.contains(&uri) {
-                                new_uris.push(MetadataUpdate {
-                                    kind: UriKind::Metadata,
-                                    uri,
-                                });
-                            }
-                        }
-
-                        for uri in new_metadata.license_uris {
-                            if !old_metadata.license_uris.contains(&uri) {
-                                new_uris.push(MetadataUpdate {
-                                    kind: UriKind::License,
-                                    uri,
-                                });
-                            }
-                        }
-
-                        new_uris
-                    } else {
-                        includes_unverifiable_updates |= nft.info.metadata != child.info.metadata;
-
-                        vec![]
+                    let old_state = NftState {
+                        parsed_metadata: NftMetadata::from_clvm(allocator, nft.info.metadata.ptr())
+                            .ok(),
+                        metadata_updater_puzzle_hash: nft.info.metadata_updater_puzzle_hash,
+                        owner: nft.info.current_owner,
                     };
+
+                    let new_state = NftState {
+                        parsed_metadata: NftMetadata::from_clvm(
+                            allocator,
+                            child.info.metadata.ptr(),
+                        )
+                        .ok(),
+                        metadata_updater_puzzle_hash: child.info.metadata_updater_puzzle_hash,
+                        owner: child.info.current_owner,
+                    };
+
+                    let includes_unverifiable_updates = nft.info.metadata != child.info.metadata
+                        && (old_state.parsed_metadata.is_none()
+                            || new_state.parsed_metadata.is_none());
 
                     nfts.push(ParsedNftTransfer {
                         transfer_type,
@@ -350,8 +369,10 @@ impl VaultTransaction {
                         coin: child.coin,
                         clawback: parsed_memos.clawback,
                         memos: parsed_memos.memos,
-                        new_uris,
-                        latest_owner: child.info.current_owner,
+                        old_state,
+                        new_state,
+                        royalty_puzzle_hash: child.info.royalty_puzzle_hash,
+                        royalty_basis_points: child.info.royalty_basis_points,
                         includes_unverifiable_updates,
                     });
                 }
@@ -423,6 +444,25 @@ impl VaultTransaction {
             }
         }
 
+        let delegated_puzzle_hash = tree_hash(allocator, vault.delegated_spend.puzzle);
+
+        let coin_message_hash = if let Some(vault_coin_id) = vault.coin_id {
+            let mut coin_message_hasher = Sha256::new();
+            coin_message_hasher.update(delegated_puzzle_hash);
+            coin_message_hasher.update(vault_coin_id);
+            Some(coin_message_hasher.finalize().into())
+        } else {
+            None
+        };
+
+        let vault_puzzle_hash =
+            SingletonArgs::curry_tree_hash(vault.launcher_id, vault.custody_hash);
+
+        let mut puzzle_message_hasher = Sha256::new();
+        puzzle_message_hasher.update(delegated_puzzle_hash);
+        puzzle_message_hasher.update(vault_puzzle_hash);
+        let puzzle_message_hash = puzzle_message_hasher.finalize().into();
+
         Ok(Self {
             new_custody_hash,
             payments,
@@ -430,6 +470,10 @@ impl VaultTransaction {
             drop_coins,
             fee_paid: our_input.saturating_sub(our_output),
             total_fee: total_input.saturating_sub(total_output),
+            reserved_fee,
+            p2_puzzle_hash: our_p2_puzzle_hash,
+            coin_message_hash,
+            puzzle_message_hash,
         })
     }
 }
@@ -450,6 +494,7 @@ struct ParsedDelegatedSpend {
     our_spent_coin_ids: HashSet<Bytes32>,
     puzzle_assertion_ids: HashSet<Bytes32>,
     drop_coins: Vec<DropCoin>,
+    reserved_fee: u64,
 }
 
 fn parse_delegated_spend(
@@ -464,6 +509,7 @@ fn parse_delegated_spend(
     let mut our_spent_coin_ids = HashSet::new();
     let mut puzzle_assertion_ids = HashSet::new();
     let mut drop_coins = Vec::new();
+    let mut reserved_fee = 0;
 
     for condition in vault_conditions {
         match condition {
@@ -502,6 +548,11 @@ fn parse_delegated_spend(
             Condition::AssertPuzzleAnnouncement(condition) => {
                 puzzle_assertion_ids.insert(condition.announcement_id);
             }
+            Condition::ReserveFee(condition) => {
+                // The vault can technically reserve fees too, so let's count that
+                // in addition to the fees reserved by the coin spends authorized by the vault
+                reserved_fee += condition.amount;
+            }
             _ => {}
         }
     }
@@ -511,6 +562,7 @@ fn parse_delegated_spend(
         our_spent_coin_ids,
         puzzle_assertion_ids,
         drop_coins,
+        reserved_fee,
     })
 }
 
@@ -725,7 +777,7 @@ mod tests {
     use chia_sdk_types::Conditions;
     use rstest::rstest;
 
-    use crate::{Action, Id, SpendContext, Spends, TestVault};
+    use crate::{Action, FeeAction, Id, SpendContext, Spends, TestVault};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum AssetKind {
@@ -779,6 +831,7 @@ mod tests {
             launcher_id: alice.launcher_id(),
             custody_hash: alice.custody_hash(),
             delegated_spend: result.delegated_spend,
+            coin_id: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -786,6 +839,7 @@ mod tests {
         assert_eq!(tx.payments.len(), 1);
         assert_eq!(tx.fee_paid, fee);
         assert_eq!(tx.total_fee, fee);
+        assert_eq!(tx.reserved_fee, fee);
 
         let payment = &tx.payments[0];
         assert_eq!(payment.transfer_type, TransferType::Sent);
@@ -843,6 +897,7 @@ mod tests {
             launcher_id: bob.launcher_id(),
             custody_hash: bob.custody_hash(),
             delegated_spend: result.delegated_spend,
+            coin_id: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -850,6 +905,7 @@ mod tests {
         assert_eq!(tx.payments.len(), 1);
         assert_eq!(tx.fee_paid, alice_fee);
         assert_eq!(tx.total_fee, alice_fee);
+        assert_eq!(tx.reserved_fee, alice_fee);
 
         let payment = &tx.payments[0];
         assert_eq!(payment.transfer_type, TransferType::Offered);
@@ -877,6 +933,7 @@ mod tests {
             launcher_id: bob.launcher_id(),
             custody_hash: bob.custody_hash(),
             delegated_spend: result.delegated_spend,
+            coin_id: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -885,10 +942,12 @@ mod tests {
             assert_eq!(tx.payments.len(), 0);
             assert_eq!(tx.fee_paid, bob_fee);
             assert_eq!(tx.total_fee, bob_fee);
+            assert_eq!(tx.reserved_fee, bob_fee);
         } else {
             assert_eq!(tx.payments.len(), 1);
             assert_eq!(tx.fee_paid, bob_fee);
             assert_eq!(tx.total_fee, bob_fee);
+            assert_eq!(tx.reserved_fee, bob_fee);
 
             let payment = &tx.payments[0];
             assert_eq!(payment.transfer_type, TransferType::Received);
@@ -914,6 +973,7 @@ mod tests {
             launcher_id: alice.launcher_id(),
             custody_hash: alice.custody_hash(),
             delegated_spend: result.delegated_spend,
+            coin_id: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -922,6 +982,7 @@ mod tests {
         assert_eq!(tx.nfts.len(), 1);
         assert_eq!(tx.fee_paid, 0);
         assert_eq!(tx.total_fee, 0);
+        assert_eq!(tx.reserved_fee, 0);
 
         // Even though this is for an NFT mint, the launcher is tracked as a sent payment
         let payment = &tx.payments[0];
@@ -934,6 +995,20 @@ mod tests {
         assert_eq!(nft.transfer_type, TransferType::Updated);
         assert_eq!(nft.p2_puzzle_hash, alice.puzzle_hash());
         assert!(!nft.includes_unverifiable_updates);
+        assert_eq!(nft.old_state.parsed_metadata, Some(NftMetadata::default()));
+        assert_eq!(
+            nft.old_state.metadata_updater_puzzle_hash,
+            Bytes32::default()
+        );
+        assert_eq!(nft.old_state.owner, None);
+        assert_eq!(nft.new_state.parsed_metadata, Some(NftMetadata::default()));
+        assert_eq!(
+            nft.new_state.metadata_updater_puzzle_hash,
+            Bytes32::default()
+        );
+        assert_eq!(nft.new_state.owner, None);
+        assert_eq!(nft.royalty_puzzle_hash, Bytes32::default());
+        assert_eq!(nft.royalty_basis_points, 0);
 
         // Transfer the NFT to Bob
         let nft_id = Id::Existing(nft.launcher_id);
@@ -949,6 +1024,7 @@ mod tests {
             launcher_id: alice.launcher_id(),
             custody_hash: alice.custody_hash(),
             delegated_spend: result.delegated_spend,
+            coin_id: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -957,6 +1033,7 @@ mod tests {
         assert_eq!(tx.nfts.len(), 1);
         assert_eq!(tx.fee_paid, 0);
         assert_eq!(tx.total_fee, 0);
+        assert_eq!(tx.reserved_fee, 0);
 
         let nft = &tx.nfts[0];
         assert_eq!(nft.transfer_type, TransferType::Sent);
@@ -1013,6 +1090,7 @@ mod tests {
             launcher_id: alice.launcher_id(),
             custody_hash: alice.custody_hash(),
             delegated_spend: result.delegated_spend,
+            coin_id: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -1020,6 +1098,7 @@ mod tests {
         assert_eq!(tx.payments.len(), 4);
         assert_eq!(tx.fee_paid, fee);
         assert_eq!(tx.total_fee, fee);
+        assert_eq!(tx.reserved_fee, fee);
 
         for payment in &tx.payments {
             assert_eq!(payment.transfer_type, TransferType::Updated);
@@ -1038,6 +1117,7 @@ mod tests {
             launcher_id: alice.launcher_id(),
             custody_hash: alice.custody_hash(),
             delegated_spend: result.delegated_spend,
+            coin_id: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -1045,11 +1125,55 @@ mod tests {
         assert_eq!(tx.payments.len(), 1);
         assert_eq!(tx.fee_paid, 0);
         assert_eq!(tx.total_fee, 0);
+        assert_eq!(tx.reserved_fee, 0);
 
         let payment = &tx.payments[0];
         assert_eq!(payment.transfer_type, TransferType::Updated);
         assert_eq!(payment.asset_id, asset_id);
         assert_eq!(payment.p2_puzzle_hash, alice.puzzle_hash());
+        assert_eq!(payment.coin.amount, 1000);
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_clear_signing_unreserved_fee() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = TestVault::mint(&mut sim, &mut ctx, 1100)?;
+        let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+        let result = alice.spend(
+            &mut sim,
+            &mut ctx,
+            &[
+                Action::send(Id::Xch, bob.puzzle_hash(), 1000, Memos::None),
+                Action::Fee(FeeAction {
+                    amount: 100,
+                    reserved: false,
+                }),
+            ],
+        )?;
+
+        let reveal = VaultSpendReveal {
+            launcher_id: alice.launcher_id(),
+            custody_hash: alice.custody_hash(),
+            delegated_spend: result.delegated_spend,
+            coin_id: None,
+        };
+
+        let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
+        assert_eq!(tx.new_custody_hash, Some(alice.custody_hash()));
+        assert_eq!(tx.payments.len(), 1);
+        assert_eq!(tx.fee_paid, 100);
+        assert_eq!(tx.total_fee, 100);
+        assert_eq!(tx.reserved_fee, 0);
+
+        let payment = &tx.payments[0];
+        assert_eq!(payment.transfer_type, TransferType::Sent);
+        assert_eq!(payment.asset_id, None);
+        assert_eq!(payment.p2_puzzle_hash, bob.puzzle_hash());
         assert_eq!(payment.coin.amount, 1000);
 
         Ok(())

@@ -16,7 +16,6 @@ mod clear_signing;
 mod clvm;
 mod clvm_types;
 mod coin;
-mod coinset;
 mod conditions;
 mod constants;
 mod convert;
@@ -26,6 +25,7 @@ mod mnemonic;
 mod offer;
 mod program;
 mod puzzle;
+mod rpc;
 mod secp;
 mod simulator;
 mod utils;
@@ -38,7 +38,6 @@ pub use clear_signing::*;
 pub use clvm::*;
 pub use clvm_types::*;
 pub use coin::*;
-pub use coinset::*;
 pub use conditions::*;
 pub use constants::*;
 pub use key_pairs::*;
@@ -47,6 +46,7 @@ pub use mnemonic::*;
 pub use offer::*;
 pub use program::*;
 pub use puzzle::*;
+pub use rpc::*;
 pub use secp::*;
 pub use simulator::*;
 pub use utils::*;
@@ -76,10 +76,11 @@ pub use chia_sdk_coinset::{
 };
 pub use chia_sdk_driver::{
     Bulletin, BulletinMessage, Cat, CatInfo, Clawback, ClawbackV2, Delta, DropCoin,
-    MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, OptionInfo, OptionMetadata, OptionType,
-    OptionUnderlying, P2ParentCoin, ParsedNftTransfer, ParsedPayment, RewardDistributorConstants,
-    RewardDistributorState, RewardDistributorType, RoundRewardInfo, RoundTimeInfo, StreamedAsset,
-    StreamingPuzzleInfo, TransferType, UriKind, VaultInfo, VaultTransaction,
+    MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, NftState, OptionInfo, OptionMetadata,
+    OptionType, OptionUnderlying, P2ParentCoin, ParsedNftTransfer, ParsedPayment,
+    RewardDistributorConstants, RewardDistributorState, RewardDistributorType, RoundRewardInfo,
+    RoundTimeInfo, StreamedAsset, StreamingPuzzleInfo, TransferType, UriKind, VaultInfo,
+    VaultTransaction,
 };
 pub use chia_sdk_types::{
     conditions::TradePrice,

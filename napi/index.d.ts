@@ -705,33 +705,6 @@ export declare class CoinRecord {
   set timestamp(value: bigint)
 }
 
-export declare class CoinsetClient {
-  clone(): CoinsetClient
-  constructor(baseUrl: string)
-  static testnet11(): CoinsetClient
-  static mainnet(): CoinsetClient
-  getBlockchainState(): Promise<BlockchainStateResponse>
-  getAdditionsAndRemovals(headerHash: Uint8Array): Promise<AdditionsAndRemovalsResponse>
-  getBlock(headerHash: Uint8Array): Promise<GetBlockResponse>
-  getBlockRecord(headerHash: Uint8Array): Promise<GetBlockRecordResponse>
-  getBlockRecordByHeight(height: number): Promise<GetBlockRecordResponse>
-  getBlockRecords(startHeight: number, endHeight: number): Promise<GetBlockRecordsResponse>
-  getBlocks(start: number, end: number, excludeHeaderHash: boolean, excludeReorged: boolean): Promise<GetBlocksResponse>
-  getBlockSpends(headerHash: Uint8Array): Promise<GetBlockSpendsResponse>
-  getCoinRecordByName(name: Uint8Array): Promise<GetCoinRecordResponse>
-  getCoinRecordsByHint(hint: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByHints(hints: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByNames(names: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByParentIds(parentIds: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByPuzzleHash(puzzleHash: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByPuzzleHashes(puzzleHashes: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getPuzzleAndSolution(coinId: Uint8Array, height?: number | undefined | null): Promise<GetPuzzleAndSolutionResponse>
-  pushTx(spendBundle: SpendBundle): Promise<PushTxResponse>
-  getNetworkInfo(): Promise<GetNetworkInfoResponse>
-  getMempoolItemByTxId(txId: Uint8Array): Promise<GetMempoolItemResponse>
-  getMempoolItemsByCoinName(coinName: Uint8Array): Promise<GetMempoolItemsResponse>
-}
-
 export declare class CoinSpend {
   clone(): CoinSpend
   constructor(coin: Coin, puzzleReveal: Uint8Array, solution: Uint8Array)
@@ -1709,6 +1682,17 @@ export declare class NftMint {
   set transferCondition(value?: TransferNft | undefined | null)
 }
 
+export declare class NftState {
+  clone(): NftState
+  constructor(parsedMetadata: NftMetadata | undefined | null, metadataUpdaterPuzzleHash: Uint8Array, owner?: Uint8Array | undefined | null)
+  get parsedMetadata(): NftMetadata | null
+  set parsedMetadata(value?: NftMetadata | undefined | null)
+  get metadataUpdaterPuzzleHash(): Buffer
+  set metadataUpdaterPuzzleHash(value: Uint8Array)
+  get owner(): Buffer | null
+  set owner(value?: Uint8Array | undefined | null)
+}
+
 export declare class NotarizedPayment {
   clone(): NotarizedPayment
   constructor(nonce: Uint8Array, payments: Array<Payment>)
@@ -1946,7 +1930,7 @@ export declare class ParsedNftInfo {
 
 export declare class ParsedNftTransfer {
   clone(): ParsedNftTransfer
-  constructor(transferType: TransferType, launcherId: Uint8Array, p2PuzzleHash: Uint8Array, coin: Coin, clawback: ClawbackV2 | undefined | null, memos: Array<string>, newUris: Array<MetadataUpdate>, latestOwner: Uint8Array | undefined | null, includesUnverifiableUpdates: boolean)
+  constructor(transferType: TransferType, launcherId: Uint8Array, p2PuzzleHash: Uint8Array, coin: Coin, clawback: ClawbackV2 | undefined | null, memos: Array<string>, oldState: NftState, newState: NftState, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number, includesUnverifiableUpdates: boolean)
   get transferType(): TransferType
   set transferType(value: TransferType)
   get launcherId(): Buffer
@@ -1959,10 +1943,14 @@ export declare class ParsedNftTransfer {
   set clawback(value?: ClawbackV2 | undefined | null)
   get memos(): Array<string>
   set memos(value: Array<string>)
-  get newUris(): Array<MetadataUpdate>
-  set newUris(value: Array<MetadataUpdate>)
-  get latestOwner(): Buffer | null
-  set latestOwner(value?: Uint8Array | undefined | null)
+  get oldState(): NftState
+  set oldState(value: NftState)
+  get newState(): NftState
+  set newState(value: NftState)
+  get royaltyPuzzleHash(): Buffer
+  set royaltyPuzzleHash(value: Uint8Array)
+  get royaltyBasisPoints(): number
+  set royaltyBasisPoints(value: number)
   get includesUnverifiableUpdates(): boolean
   set includesUnverifiableUpdates(value: boolean)
 }
@@ -2334,7 +2322,7 @@ export declare class RestrictionMemo {
 
 export declare class RewardChainBlock {
   clone(): RewardChainBlock
-  constructor(weight: bigint, height: number, totalIters: bigint, signagePointIndex: number, posSsCcChallengeHash: Uint8Array, proofOfSpace: ProofOfSpace, challengeChainSpVdf: VdfInfo | undefined | null, challengeChainSpSignature: Signature, challengeChainIpVdf: VdfInfo, rewardChainSpVdf: VdfInfo | undefined | null, rewardChainSpSignature: Signature, rewardChainIpVdf: VdfInfo, infusedChallengeChainIpVdf: VdfInfo | undefined | null, isTransactionBlock: boolean)
+  constructor(weight: bigint, height: number, totalIters: bigint, signagePointIndex: number, posSsCcChallengeHash: Uint8Array, proofOfSpace: ProofOfSpace, challengeChainSpVdf: VdfInfo | undefined | null, challengeChainSpSignature: Signature, challengeChainIpVdf: VdfInfo, rewardChainSpVdf: VdfInfo | undefined | null, rewardChainSpSignature: Signature, rewardChainIpVdf: VdfInfo, infusedChallengeChainIpVdf: VdfInfo | undefined | null, headerMmrRoot: Uint8Array | undefined | null, isTransactionBlock: boolean)
   get weight(): bigint
   set weight(value: bigint)
   get height(): number
@@ -2361,6 +2349,8 @@ export declare class RewardChainBlock {
   set rewardChainIpVdf(value: VdfInfo)
   get infusedChallengeChainIpVdf(): VdfInfo | null
   set infusedChallengeChainIpVdf(value?: VdfInfo | undefined | null)
+  get headerMmrRoot(): Buffer | null
+  set headerMmrRoot(value?: Uint8Array | undefined | null)
   get isTransactionBlock(): boolean
   set isTransactionBlock(value: boolean)
 }
@@ -2625,6 +2615,35 @@ export declare class RoundTimeInfo {
   set epochEnd(value: bigint)
 }
 
+export declare class RpcClient {
+  clone(): RpcClient
+  constructor(coinsetUrl: string)
+  static testnet11(): RpcClient
+  static mainnet(): RpcClient
+  static local(certBytes: Uint8Array, keyBytes: Uint8Array): RpcClient
+  static localWithUrl(baseUrl: string, certBytes: Uint8Array, keyBytes: Uint8Array): RpcClient
+  getBlockchainState(): Promise<BlockchainStateResponse>
+  getAdditionsAndRemovals(headerHash: Uint8Array): Promise<AdditionsAndRemovalsResponse>
+  getBlock(headerHash: Uint8Array): Promise<GetBlockResponse>
+  getBlockRecord(headerHash: Uint8Array): Promise<GetBlockRecordResponse>
+  getBlockRecordByHeight(height: number): Promise<GetBlockRecordResponse>
+  getBlockRecords(startHeight: number, endHeight: number): Promise<GetBlockRecordsResponse>
+  getBlocks(start: number, end: number, excludeHeaderHash: boolean, excludeReorged: boolean): Promise<GetBlocksResponse>
+  getBlockSpends(headerHash: Uint8Array): Promise<GetBlockSpendsResponse>
+  getCoinRecordByName(name: Uint8Array): Promise<GetCoinRecordResponse>
+  getCoinRecordsByHint(hint: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByHints(hints: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByNames(names: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByParentIds(parentIds: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByPuzzleHash(puzzleHash: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByPuzzleHashes(puzzleHashes: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getPuzzleAndSolution(coinId: Uint8Array, height?: number | undefined | null): Promise<GetPuzzleAndSolutionResponse>
+  pushTx(spendBundle: SpendBundle): Promise<PushTxResponse>
+  getNetworkInfo(): Promise<GetNetworkInfoResponse>
+  getMempoolItemByTxId(txId: Uint8Array): Promise<GetMempoolItemResponse>
+  getMempoolItemsByCoinName(coinName: Uint8Array): Promise<GetMempoolItemsResponse>
+}
+
 export declare class RunCatTail {
   clone(): RunCatTail
   constructor(program: Program, solution: Program)
@@ -2799,7 +2818,7 @@ export declare class StreamingPuzzleInfo {
 
 export declare class SubEpochSummary {
   clone(): SubEpochSummary
-  constructor(prevSubepochSummaryHash: Uint8Array, rewardChainHash: Uint8Array, numBlocksOverflow: number, newDifficulty?: bigint | undefined | null, newSubSlotIters?: bigint | undefined | null)
+  constructor(prevSubepochSummaryHash: Uint8Array, rewardChainHash: Uint8Array, numBlocksOverflow: number, newDifficulty?: bigint | undefined | null, newSubSlotIters?: bigint | undefined | null, challengeMerkleRoot?: Uint8Array | undefined | null)
   get prevSubepochSummaryHash(): Buffer
   set prevSubepochSummaryHash(value: Uint8Array)
   get rewardChainHash(): Buffer
@@ -2810,6 +2829,8 @@ export declare class SubEpochSummary {
   set newDifficulty(value?: bigint | undefined | null)
   get newSubSlotIters(): bigint | null
   set newSubSlotIters(value?: bigint | undefined | null)
+  get challengeMerkleRoot(): Buffer | null
+  set challengeMerkleRoot(value?: Uint8Array | undefined | null)
 }
 
 export declare class SubSlotProofs {
@@ -2932,18 +2953,20 @@ export declare class VaultMint {
 
 export declare class VaultSpendReveal {
   clone(): VaultSpendReveal
-  constructor(launcherId: Uint8Array, custodyHash: Uint8Array, delegatedSpend: Spend)
+  constructor(launcherId: Uint8Array, custodyHash: Uint8Array, delegatedSpend: Spend, coinId?: Uint8Array | undefined | null)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)
   get custodyHash(): Buffer
   set custodyHash(value: Uint8Array)
   get delegatedSpend(): Spend
   set delegatedSpend(value: Spend)
+  get coinId(): Buffer | null
+  set coinId(value?: Uint8Array | undefined | null)
 }
 
 export declare class VaultTransaction {
   clone(): VaultTransaction
-  constructor(newCustodyHash: Uint8Array | undefined | null, payments: Array<ParsedPayment>, nfts: Array<ParsedNftTransfer>, dropCoins: Array<DropCoin>, feePaid: bigint, totalFee: bigint)
+  constructor(newCustodyHash: Uint8Array | undefined | null, payments: Array<ParsedPayment>, nfts: Array<ParsedNftTransfer>, dropCoins: Array<DropCoin>, feePaid: bigint, totalFee: bigint, reservedFee: bigint, p2PuzzleHash: Uint8Array, coinMessageHash: Uint8Array | undefined | null, puzzleMessageHash: Uint8Array)
   get newCustodyHash(): Buffer | null
   set newCustodyHash(value?: Uint8Array | undefined | null)
   get payments(): Array<ParsedPayment>
@@ -2956,6 +2979,14 @@ export declare class VaultTransaction {
   set feePaid(value: bigint)
   get totalFee(): bigint
   set totalFee(value: bigint)
+  get reservedFee(): bigint
+  set reservedFee(value: bigint)
+  get p2PuzzleHash(): Buffer
+  set p2PuzzleHash(value: Uint8Array)
+  get coinMessageHash(): Buffer | null
+  set coinMessageHash(value?: Uint8Array | undefined | null)
+  get puzzleMessageHash(): Buffer
+  set puzzleMessageHash(value: Uint8Array)
 }
 
 export declare class VdfInfo {

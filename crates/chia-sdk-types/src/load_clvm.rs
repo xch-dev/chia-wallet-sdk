@@ -85,7 +85,7 @@ pub fn compile_chialisp(
 pub fn compile_rue(
     path: &Path,
     debug: bool,
-    export_name: Option<String>,
+    export_name: Option<&str>,
 ) -> Result<Compilation, LoadClvmError> {
     let mut allocator = Allocator::new();
 
@@ -112,14 +112,14 @@ pub fn compile_rue(
                 &mut ctx,
                 &mut allocator,
                 main_kind.as_ref(),
-                Some(&export_name),
+                Some(export_name),
             )?
             .into_iter()
             .next()
         {
             export.ptr
         } else {
-            return Err(LoadClvmError::ExportNotFound(export_name));
+            return Err(LoadClvmError::ExportNotFound(export_name.to_string()));
         }
     } else if let Some(main_kind) = main_kind
         && let Some(main) = tree.main(&mut ctx, &mut allocator, &main_kind)?
@@ -243,6 +243,36 @@ mod tests {
         }
 
         compile_rue!(debug TestArgs = TEST_MOD, "compile_rue_test.rue");
+
+        let args = TestArgs { a: 10, b: 20 };
+
+        let mut allocator = Allocator::new();
+
+        let mod_ptr = node_from_bytes(&mut allocator, TestArgs::mod_reveal().as_ref())?;
+
+        let ptr = CurriedProgram {
+            program: mod_ptr,
+            args,
+        }
+        .to_clvm(&mut allocator)?;
+
+        let output = run_puzzle(&mut allocator, ptr, NodePtr::NIL)?;
+
+        assert_eq!(hex::encode(node_to_bytes(&allocator, output)?), "8200e6");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_compile_rue_export() -> anyhow::Result<()> {
+        #[derive(Debug, Clone, PartialEq, Eq, Hash, ToClvm, FromClvm)]
+        #[clvm(curry)]
+        struct TestArgs {
+            a: u64,
+            b: u64,
+        }
+
+        compile_rue!(debug TestArgs = TEST_MOD, "compile_rue_test.rue", "another");
 
         let args = TestArgs { a: 10, b: 20 };
 

@@ -9,6 +9,7 @@ pub struct VaultSpendReveal {
     pub launcher_id: Bytes32,
     pub custody_hash: TreeHash,
     pub delegated_spend: Spend,
+    pub coin_id: Option<Bytes32>,
 }
 
 impl From<VaultSpendReveal> for sdk::VaultSpendReveal {
@@ -17,6 +18,7 @@ impl From<VaultSpendReveal> for sdk::VaultSpendReveal {
             launcher_id: value.launcher_id,
             custody_hash: value.custody_hash,
             delegated_spend: value.delegated_spend.into(),
+            coin_id: value.coin_id,
         }
     }
 }
