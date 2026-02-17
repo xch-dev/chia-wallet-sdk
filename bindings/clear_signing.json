@@ -6,7 +6,8 @@
       "launcher_id": "Bytes32",
       "custody_hash": "TreeHash",
       "delegated_spend": "Spend",
-      "coin_id": "Option<Bytes32>"
+      "coin_id": "Option<Bytes32>",
+      "genesis_challenge": "Option<Bytes32>"
     }
   },
   "VaultTransaction": {
@@ -22,8 +23,8 @@
       "total_fee": "u64",
       "reserved_fee": "u64",
       "p2_puzzle_hash": "Bytes32",
-      "coin_message_hash": "Option<Bytes32>",
-      "puzzle_message_hash": "Bytes32"
+      "coin_message": "Option<Bytes>",
+      "puzzle_message": "Bytes"
     }
   },
   "ParsedPayment": {

@@ -10,6 +10,7 @@ pub struct VaultSpendReveal {
     pub custody_hash: TreeHash,
     pub delegated_spend: Spend,
     pub coin_id: Option<Bytes32>,
+    pub genesis_challenge: Option<Bytes32>,
 }
 
 impl From<VaultSpendReveal> for sdk::VaultSpendReveal {
@@ -19,6 +20,7 @@ impl From<VaultSpendReveal> for sdk::VaultSpendReveal {
             custody_hash: value.custody_hash,
             delegated_spend: value.delegated_spend.into(),
             coin_id: value.coin_id,
+            genesis_challenge: value.genesis_challenge,
         }
     }
 }
