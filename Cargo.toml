@@ -186,6 +186,7 @@ bincode = "2.0.1"
 rue-compiler = "0.6.0"
 rue-options = "0.6.0"
 rue-lir = "0.6.0"
+colored = "3.1.1"
 
 [profile.release]
 lto = true
