@@ -3044,7 +3044,7 @@ export declare function decodeOffer(offer: string): SpendBundle
 
 export declare function encodeOffer(spendBundle: SpendBundle): string
 
-export declare function fromInputSpendBundle(spendBundle: SpendBundle, requestedPaymentsXch: Array<NotarizedPayment>): SpendBundle
+export declare function fromInputSpendBundleXch(spendBundle: SpendBundle, requestedPaymentsXch: Array<NotarizedPayment>): SpendBundle
 
 export declare function fixedMemberHash(config: MemberConfig, fixedPuzzleHash: Uint8Array): Buffer
 

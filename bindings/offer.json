@@ -19,7 +19,7 @@
       "offer": "String"
     }
   },
-  "from_input_spend_bundle": {
+  "from_input_spend_bundle_xch": {
     "type": "function",
     "args": {
       "spend_bundle": "SpendBundle",

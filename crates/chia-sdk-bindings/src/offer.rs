@@ -23,7 +23,7 @@ pub fn validate_offer(offer: String) -> Result<()> {
     Ok(())
 }
 
-pub fn from_input_spend_bundle(
+pub fn from_input_spend_bundle_xch(
     spend_bundle: SpendBundle,
     requested_payments_xch: Vec<NotarizedPayment>,
 ) -> Result<SpendBundle> {
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn validate_offer_accepts_generated_offer() {
-        let generated_offer = from_input_spend_bundle(
+        let generated_offer = from_input_spend_bundle_xch(
             SpendBundle::new(Vec::new(), Signature::default()),
             vec![NotarizedPayment {
                 nonce: Bytes32::new([1; 32]),
