@@ -109,3 +109,41 @@ impl From<Payment> for SdkPayment {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use chia_bls::Signature;
+    use chia_protocol::Bytes32;
+
+    use super::*;
+
+    #[test]
+    fn validate_offer_accepts_generated_offer() {
+        let generated_offer = from_input_spend_bundle(
+            SpendBundle::new(Vec::new(), Signature::default()),
+            vec![NotarizedPayment {
+                nonce: Bytes32::new([1; 32]),
+                payments: vec![Payment {
+                    puzzle_hash: Bytes32::new([2; 32]),
+                    amount: 42,
+                    memos: None,
+                }],
+            }],
+        )
+        .unwrap();
+
+        let mut ctx = SpendContext::new();
+        let parsed = Offer::from_spend_bundle(&mut ctx, &generated_offer).unwrap();
+        assert_eq!(parsed.spend_bundle().coin_spends.len(), 0);
+        assert_eq!(parsed.requested_payments().xch.len(), 1);
+        assert_eq!(parsed.requested_payments().xch[0].payments[0].amount, 42);
+
+        let encoded = encode_offer(generated_offer).unwrap();
+        validate_offer(encoded).unwrap();
+    }
+
+    #[test]
+    fn validate_offer_rejects_invalid_string() {
+        assert!(validate_offer("not-an-offer".to_string()).is_err());
+    }
+}

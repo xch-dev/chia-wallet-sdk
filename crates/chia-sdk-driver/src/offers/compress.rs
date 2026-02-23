@@ -168,8 +168,13 @@ pub fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DriverErro
 
 #[cfg(test)]
 mod tests {
+    use chia_bls::Signature;
+    use chia_protocol::Bytes32;
+    use chia_puzzle_types::offer::{NotarizedPayment, Payment};
     use chia_protocol::SpendBundle;
     use chia_traits::Streamable;
+
+    use crate::{AssetInfo, Offer, RequestedPayments, SpendContext};
 
     use super::*;
 
@@ -207,5 +212,29 @@ mod tests {
             .expect_prefix("offer")
             .unwrap();
         assert_eq!(offer, decoded.as_slice());
+    }
+
+    #[test]
+    fn test_validate_offer_str() {
+        let mut ctx = SpendContext::new();
+
+        let mut requested_payments = RequestedPayments::new();
+        requested_payments.xch.push(NotarizedPayment::new(
+            Bytes32::new([1; 32]),
+            vec![Payment::new(Bytes32::new([2; 32]), 42, Default::default())],
+        ));
+
+        let offer = Offer::from_input_spend_bundle(
+            &mut ctx,
+            SpendBundle::new(Vec::new(), Signature::default()),
+            requested_payments,
+            AssetInfo::new(),
+        )
+        .unwrap();
+
+        let encoded = encode_offer(&offer.to_spend_bundle(&mut ctx).unwrap()).unwrap();
+
+        validate_offer_str(&encoded).unwrap();
+        assert!(validate_offer_str("not-an-offer").is_err());
     }
 }
