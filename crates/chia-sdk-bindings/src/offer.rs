@@ -18,6 +18,13 @@ pub fn decode_offer(offer: String) -> Result<SpendBundle> {
     Ok(chia_sdk_driver::decode_offer(&offer)?)
 }
 
+pub fn verify_offer(offer: String) -> Result<bool> {
+    let spend_bundle = chia_sdk_driver::decode_offer(&offer)?;
+    let mut ctx = SpendContext::new();
+    let _parsed = Offer::from_spend_bundle(&mut ctx, &spend_bundle)?;
+    Ok(true)
+}
+
 pub fn from_input_spend_bundle(
     spend_bundle: SpendBundle,
     requested_payments_xch: Vec<NotarizedPayment>,
