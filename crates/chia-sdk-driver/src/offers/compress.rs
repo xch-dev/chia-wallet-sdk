@@ -14,7 +14,7 @@ use flate2::{
 };
 use hex_literal::hex;
 
-use crate::DriverError;
+use crate::{DriverError, Offer, SpendContext};
 
 pub fn compress_offer(spend_bundle: &SpendBundle) -> Result<Vec<u8>, DriverError> {
     compress_offer_bytes(&spend_bundle.to_bytes()?)
@@ -30,6 +30,13 @@ pub fn encode_offer(spend_bundle: &SpendBundle) -> Result<String, DriverError> {
 
 pub fn decode_offer(text: &str) -> Result<SpendBundle, DriverError> {
     decompress_offer(&Bech32::decode(text)?.expect_prefix("offer")?)
+}
+
+pub fn validate_offer_str(text: &str) -> Result<(), DriverError> {
+    let spend_bundle = decode_offer(text)?;
+    let mut ctx = SpendContext::new();
+    Offer::from_spend_bundle(&mut ctx, &spend_bundle)?;
+    Ok(())
 }
 
 const CAT_PUZZLE_V1: [u8; 1420] = hex!(

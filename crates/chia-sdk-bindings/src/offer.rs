@@ -19,9 +19,7 @@ pub fn decode_offer(offer: String) -> Result<SpendBundle> {
 }
 
 pub fn verify_offer(offer: String) -> Result<bool> {
-    let spend_bundle = chia_sdk_driver::decode_offer(&offer)?;
-    let mut ctx = SpendContext::new();
-    let _parsed = Offer::from_spend_bundle(&mut ctx, &spend_bundle)?;
+    chia_sdk_driver::validate_offer_str(&offer)?;
     Ok(true)
 }
 
