@@ -30,10 +30,7 @@ pub fn from_input_spend_bundle_xch(
     let mut ctx = SpendContext::new();
 
     let mut requested_payments = RequestedPayments::new();
-    requested_payments.xch = requested_payments_xch
-        .into_iter()
-        .map(Into::into)
-        .collect();
+    requested_payments.xch = requested_payments_xch.into_iter().map(Into::into).collect();
 
     let offer = Offer::from_input_spend_bundle(
         &mut ctx,

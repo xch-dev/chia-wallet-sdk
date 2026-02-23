@@ -170,8 +170,8 @@ pub fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DriverErro
 mod tests {
     use chia_bls::Signature;
     use chia_protocol::Bytes32;
-    use chia_puzzle_types::offer::{NotarizedPayment, Payment};
     use chia_protocol::SpendBundle;
+    use chia_puzzle_types::offer::{NotarizedPayment, Payment};
     use chia_traits::Streamable;
 
     use crate::{AssetInfo, Offer, RequestedPayments, SpendContext};
