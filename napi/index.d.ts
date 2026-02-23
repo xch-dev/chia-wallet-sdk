@@ -3044,6 +3044,8 @@ export declare function decodeOffer(offer: string): SpendBundle
 
 export declare function encodeOffer(spendBundle: SpendBundle): string
 
+export declare function fromInputSpendBundle(spendBundle: SpendBundle, requestedPaymentsXch: Array<NotarizedPayment>): SpendBundle
+
 export declare function fixedMemberHash(config: MemberConfig, fixedPuzzleHash: Uint8Array): Buffer
 
 export declare function force1Of2Restriction(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): Restriction
@@ -3065,6 +3067,8 @@ export declare function preventMultipleCreateCoinsRestriction(): Restriction
 export declare function preventVaultSideEffectsRestriction(): Array<Restriction>
 
 export declare function r1MemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Buffer
+
+export declare function validateOffer(offer: string): void
 
 export declare const enum RestrictionKind {
   MemberCondition = 0,

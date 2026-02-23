@@ -18,7 +18,7 @@ pub fn decode_offer(offer: String) -> Result<SpendBundle> {
     Ok(chia_sdk_driver::decode_offer(&offer)?)
 }
 
-pub fn verify_offer(offer: String) -> Result<()> {
+pub fn validate_offer(offer: String) -> Result<()> {
     chia_sdk_driver::validate_offer_str(&offer)?;
     Ok(())
 }
