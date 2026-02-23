@@ -13,6 +13,14 @@
     },
     "return": "SpendBundle"
   },
+  "from_input_spend_bundle": {
+    "type": "function",
+    "args": {
+      "spend_bundle": "SpendBundle",
+      "requested_payments_xch": "Vec<NotarizedPayment>"
+    },
+    "return": "SpendBundle"
+  },
   "NotarizedPayment": {
     "type": "class",
     "new": true,
