@@ -1,19 +1,26 @@
 use std::collections::HashSet;
 
+use chia_consensus::opcodes::{
+    CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, RECEIVE_MESSAGE, SEND_MESSAGE,
+};
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::{
     Memos,
     nft::NftMetadata,
     offer::{NotarizedPayment, SettlementPaymentsSolution},
-    singleton::SingletonArgs,
 };
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{
-    Condition, MessageFlags, MessageSide, Mod, announcement_id, conditions::CreateCoin,
-    puzzles::SingletonMember, run_puzzle, tree_hash_notarized_payment,
+    Condition, MessageFlags, MessageSide, Mod, announcement_id,
+    conditions::CreateCoin,
+    puzzles::{
+        AddDelegatedPuzzleWrapper, Force1of2RestrictedVariable, PreventConditionOpcode,
+        PreventMultipleCreateCoinsMod, SingletonMember, Timelock,
+    },
+    run_puzzle, tree_hash_notarized_payment,
 };
 use clvm_traits::{FromClvm, ToClvm};
-use clvm_utils::{TreeHash, tree_hash};
+use clvm_utils::{ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{BURN_PUZZLE_HASH, Cat, ClawbackV2, DriverError, Nft, Puzzle, Spend, mips_puzzle_hash};
@@ -30,10 +37,6 @@ pub struct VaultSpendReveal {
     /// The delegated puzzle we're signing and its solution.
     /// Its output is the non-custody related conditions that the vault spend will output.
     pub delegated_spend: Spend,
-    /// The coin id of the vault coin that is being spent (used for calculating the non-fast forwardable message hash).
-    pub coin_id: Option<Bytes32>,
-    /// The genesis challenge of the network for which this spend is being made.
-    pub genesis_challenge: Option<Bytes32>,
 }
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -64,11 +67,8 @@ pub struct VaultTransaction {
     pub reserved_fee: u64,
     /// The p2 puzzle hash that the vault owns (analogous to a decoded XCH or TXCH address).
     pub p2_puzzle_hash: Bytes32,
-    /// The delegated puzzle hash and vault coin id, used for non-fast forwardable spend signing.
-    /// This is only calculated if the vault coin id and genesis challenge are provided.
-    pub coin_message: Option<Bytes>,
-    /// The delegated puzzle hash and vault puzzle hash, used for fast forwardable spend signing.
-    pub puzzle_message: Bytes,
+    /// The original delegated puzzle hash that is being signed for.
+    pub delegated_puzzle_hash: Bytes32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -445,26 +445,7 @@ impl VaultTransaction {
             }
         }
 
-        let delegated_puzzle_hash = tree_hash(allocator, vault.delegated_spend.puzzle);
-
-        let coin_message = if let Some(vault_coin_id) = vault.coin_id
-            && let Some(genesis_challenge) = vault.genesis_challenge
-        {
-            let mut bytes = Vec::new();
-            bytes.extend_from_slice(&delegated_puzzle_hash);
-            bytes.extend_from_slice(&vault_coin_id);
-            bytes.extend_from_slice(&genesis_challenge);
-            Some(bytes.into())
-        } else {
-            None
-        };
-
-        let vault_puzzle_hash =
-            SingletonArgs::curry_tree_hash(vault.launcher_id, vault.custody_hash);
-
-        let mut puzzle_message = Vec::new();
-        puzzle_message.extend_from_slice(&delegated_puzzle_hash);
-        puzzle_message.extend_from_slice(&vault_puzzle_hash);
+        let delegated_puzzle_hash = tree_hash(allocator, vault.delegated_spend.puzzle).into();
 
         Ok(Self {
             new_custody_hash,
@@ -475,8 +456,7 @@ impl VaultTransaction {
             total_fee: total_input.saturating_sub(total_output),
             reserved_fee,
             p2_puzzle_hash: our_p2_puzzle_hash,
-            coin_message,
-            puzzle_message: puzzle_message.into(),
+            delegated_puzzle_hash,
         })
     }
 }
@@ -770,6 +750,72 @@ fn calculate_transfer_type(
     }
 }
 
+pub fn calculate_vault_puzzle_message(
+    delegated_puzzle_hash: Bytes32,
+    vault_puzzle_hash: Bytes32,
+) -> Bytes {
+    [
+        delegated_puzzle_hash.to_bytes(),
+        vault_puzzle_hash.to_bytes(),
+    ]
+    .concat()
+    .into()
+}
+
+pub fn calculate_vault_coin_message(
+    delegated_puzzle_hash: Bytes32,
+    vault_coin_id: Bytes32,
+    genesis_challenge: Bytes32,
+) -> Bytes {
+    [
+        delegated_puzzle_hash.to_bytes(),
+        vault_coin_id.to_bytes(),
+        genesis_challenge.to_bytes(),
+    ]
+    .concat()
+    .into()
+}
+
+pub fn calculate_vault_start_recovery_message(
+    delegated_puzzle_hash: Bytes32,
+    left_side_subtree_hash: Bytes32,
+    recovery_timelock: u64,
+    vault_coin_id: Bytes32,
+    genesis_challenge: Bytes32,
+) -> Bytes {
+    let mut delegated_puzzle_hash: TreeHash = delegated_puzzle_hash.into();
+
+    let restrictions = vec![
+        Force1of2RestrictedVariable::new(
+            left_side_subtree_hash,
+            0,
+            vec![Timelock::new(recovery_timelock).curry_tree_hash()]
+                .tree_hash()
+                .into(),
+            ().tree_hash().into(),
+        )
+        .curry_tree_hash(),
+        PreventConditionOpcode::new(CREATE_COIN_ANNOUNCEMENT).curry_tree_hash(),
+        PreventConditionOpcode::new(CREATE_PUZZLE_ANNOUNCEMENT).curry_tree_hash(),
+        PreventConditionOpcode::new(SEND_MESSAGE).curry_tree_hash(),
+        PreventConditionOpcode::new(RECEIVE_MESSAGE).curry_tree_hash(),
+        PreventMultipleCreateCoinsMod::mod_hash(),
+    ];
+
+    for restriction in restrictions.into_iter().rev() {
+        delegated_puzzle_hash =
+            AddDelegatedPuzzleWrapper::new(restriction, delegated_puzzle_hash).curry_tree_hash();
+    }
+
+    [
+        delegated_puzzle_hash.to_bytes(),
+        vault_coin_id.to_bytes(),
+        genesis_challenge.to_bytes(),
+    ]
+    .concat()
+    .into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -835,8 +881,6 @@ mod tests {
             launcher_id: alice.launcher_id(),
             custody_hash: alice.custody_hash(),
             delegated_spend: result.delegated_spend,
-            coin_id: None,
-            genesis_challenge: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -902,8 +946,6 @@ mod tests {
             launcher_id: bob.launcher_id(),
             custody_hash: bob.custody_hash(),
             delegated_spend: result.delegated_spend,
-            coin_id: None,
-            genesis_challenge: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -939,8 +981,6 @@ mod tests {
             launcher_id: bob.launcher_id(),
             custody_hash: bob.custody_hash(),
             delegated_spend: result.delegated_spend,
-            coin_id: None,
-            genesis_challenge: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -980,8 +1020,6 @@ mod tests {
             launcher_id: alice.launcher_id(),
             custody_hash: alice.custody_hash(),
             delegated_spend: result.delegated_spend,
-            coin_id: None,
-            genesis_challenge: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -1032,8 +1070,6 @@ mod tests {
             launcher_id: alice.launcher_id(),
             custody_hash: alice.custody_hash(),
             delegated_spend: result.delegated_spend,
-            coin_id: None,
-            genesis_challenge: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -1099,8 +1135,6 @@ mod tests {
             launcher_id: alice.launcher_id(),
             custody_hash: alice.custody_hash(),
             delegated_spend: result.delegated_spend,
-            coin_id: None,
-            genesis_challenge: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -1127,8 +1161,6 @@ mod tests {
             launcher_id: alice.launcher_id(),
             custody_hash: alice.custody_hash(),
             delegated_spend: result.delegated_spend,
-            coin_id: None,
-            genesis_challenge: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -1171,8 +1203,6 @@ mod tests {
             launcher_id: alice.launcher_id(),
             custody_hash: alice.custody_hash(),
             delegated_spend: result.delegated_spend,
-            coin_id: None,
-            genesis_challenge: None,
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
@@ -1211,19 +1241,19 @@ mod tests {
             launcher_id: alice.launcher_id(),
             custody_hash: alice.custody_hash(),
             delegated_spend: result.delegated_spend,
-            coin_id: Some(vault.coin.coin_id()),
-            genesis_challenge: Some(TESTNET11_CONSTANTS.genesis_challenge),
         };
 
         let tx = VaultTransaction::parse(&mut ctx, &reveal, result.coin_spends)?;
         assert_eq!(tx.new_custody_hash, Some(alice.custody_hash()));
         assert_eq!(tx.payments.len(), 1);
 
-        assert!(verify(
-            &result.signature,
-            &alice.public_key,
-            tx.coin_message.expect("coin message should be calculated")
-        ));
+        let coin_message = calculate_vault_coin_message(
+            tx.delegated_puzzle_hash,
+            vault.coin.coin_id(),
+            TESTNET11_CONSTANTS.genesis_challenge,
+        );
+
+        assert!(verify(&result.signature, &alice.public_key, coin_message));
 
         Ok(())
     }
