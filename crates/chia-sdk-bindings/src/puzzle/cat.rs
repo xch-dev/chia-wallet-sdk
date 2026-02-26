@@ -2,6 +2,7 @@ use bindy::Result;
 use chia_protocol::Bytes32;
 use chia_puzzle_types::LineageProof;
 use chia_sdk_driver::{Cat, CatInfo, CatSpend as SdkCatSpend};
+use chia_sdk_types::puzzles::FeeTradePrice;
 use clvm_utils::TreeHash;
 
 use crate::{Program, Puzzle, Spend};
@@ -46,6 +47,8 @@ pub struct CatSpend {
     pub cat: Cat,
     pub spend: Spend,
     pub hidden: bool,
+    pub trade_nonce: Bytes32,
+    pub trade_prices: Vec<FeeTradePrice>,
 }
 
 impl CatSpend {
@@ -54,6 +57,8 @@ impl CatSpend {
             cat,
             spend,
             hidden: false,
+            trade_nonce: Bytes32::default(),
+            trade_prices: Vec::new(),
         })
     }
 
@@ -62,7 +67,19 @@ impl CatSpend {
             cat,
             spend,
             hidden: true,
+            trade_nonce: Bytes32::default(),
+            trade_prices: Vec::new(),
         })
+    }
+
+    pub fn with_trade(
+        mut self,
+        trade_nonce: Bytes32,
+        trade_prices: Vec<FeeTradePrice>,
+    ) -> Result<Self> {
+        self.trade_nonce = trade_nonce;
+        self.trade_prices = trade_prices;
+        Ok(self)
     }
 }
 
@@ -72,6 +89,8 @@ impl From<CatSpend> for SdkCatSpend {
             cat: value.cat,
             spend: value.spend.into(),
             hidden: value.hidden,
+            trade_nonce: value.trade_nonce,
+            trade_prices: value.trade_prices,
         }
     }
 }

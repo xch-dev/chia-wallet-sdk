@@ -4,6 +4,7 @@ mod offer_amounts;
 mod offer_coins;
 mod requested_payments;
 mod royalty;
+mod transfer_fee;
 
 pub use asset_info::*;
 pub use offer::*;
@@ -11,6 +12,7 @@ pub use offer_amounts::*;
 pub use offer_coins::*;
 pub use requested_payments::*;
 pub use royalty::*;
+pub use transfer_fee::*;
 
 #[cfg(feature = "offer-compression")]
 mod compress;

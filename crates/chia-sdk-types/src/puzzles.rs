@@ -1,4 +1,5 @@
 mod augmented_condition;
+mod fee_layer;
 mod mips;
 mod mods;
 mod option_contract;
@@ -10,6 +11,7 @@ mod p2_singleton;
 mod revocation;
 
 pub use augmented_condition::*;
+pub use fee_layer::*;
 pub use mips::*;
 pub use mods::*;
 pub use option_contract::*;

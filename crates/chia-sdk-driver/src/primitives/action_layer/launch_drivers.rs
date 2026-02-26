@@ -512,7 +512,7 @@ pub fn spend_settlement_cats(
     let mut cat_spends = Vec::with_capacity(settlement_cats.len());
     for (i, cat) in settlement_cats.iter().enumerate() {
         cat_spends.push(CatSpend {
-            cat: *cat,
+            cat: cat.clone(),
             spend: Spend::new(
                 settlement_inner_puzzle,
                 if i == 0 {
@@ -522,6 +522,8 @@ pub fn spend_settlement_cats(
                 },
             ),
             hidden: false,
+            trade_nonce: Bytes32::default(),
+            trade_prices: Vec::new(),
         });
     }
     let created_cats = Cat::spend_all(ctx, &cat_spends)?;
@@ -639,13 +641,15 @@ pub fn launch_reward_distributor(
         &[(interim_cat_puzzle_hash.into(), total_cat_amount)],
     )?;
 
-    let interim_cat = created_cats[0];
+    let interim_cat = created_cats[0].clone();
     let created_cats = Cat::spend_all(
         ctx,
         &[CatSpend {
             cat: interim_cat,
             spend: Spend::new(interim_cat_puzzle, NodePtr::NIL),
             hidden: false,
+            trade_nonce: Bytes32::default(),
+            trade_prices: Vec::new(),
         }],
     )?;
 
@@ -721,7 +725,7 @@ pub fn launch_reward_distributor(
         security_coin_conditions.assert_concurrent_spend(eve_coin.coin_id());
 
     // create reserve and registry
-    let reserve_cat = created_cats[0];
+    let reserve_cat = created_cats[0].clone();
     let reserve = Reserve::new(
         reserve_cat.coin.parent_coin_info,
         reserve_cat.lineage_proof.unwrap(),
@@ -752,7 +756,7 @@ pub fn launch_reward_distributor(
         security_coin_sk,
         registry,
         slot,
-        created_cats[1], // refund cat
+        created_cats[1].clone(), // refund cat
     ))
 }
 
@@ -982,6 +986,8 @@ mod tests {
                 cat: payment_cat,
                 spend: payment_cat_inner_spend,
                 hidden: false,
+                trade_nonce: Bytes32::default(),
+                trade_prices: Vec::new(),
             }],
         )?;
 
@@ -1205,6 +1211,8 @@ mod tests {
                     cat: payment_cat,
                     spend: payment_cat_inner_spend,
                     hidden: false,
+                    trade_nonce: Bytes32::default(),
+                    trade_prices: Vec::new(),
                 }],
             )?;
 
@@ -1512,6 +1520,8 @@ mod tests {
                 cat: payment_cat,
                 spend: payment_cat_inner_spend,
                 hidden: false,
+                trade_nonce: Bytes32::default(),
+                trade_prices: Vec::new(),
             }],
         )?;
 
@@ -1782,6 +1792,8 @@ mod tests {
                     cat: payment_cat,
                     spend: payment_cat_inner_spend,
                     hidden: false,
+                    trade_nonce: Bytes32::default(),
+                    trade_prices: Vec::new(),
                 }],
             )?;
 
@@ -2042,11 +2054,15 @@ mod tests {
                         cat: payment_cat,
                         spend: payment_cat_inner_spend,
                         hidden: false,
+                        trade_nonce: Bytes32::default(),
+                        trade_prices: Vec::new(),
                     },
                     CatSpend {
                         cat: payment_cat.child(SETTLEMENT_PAYMENT_HASH.into(), pay_for_extension),
                         spend: cat_offer_inner_spend,
                         hidden: false,
+                        trade_nonce: Bytes32::default(),
+                        trade_prices: Vec::new(),
                     },
                 ],
             )?;
@@ -2198,6 +2214,8 @@ mod tests {
                 cat: payment_cat,
                 spend: payment_cat_inner_spend,
                 hidden: false,
+                trade_nonce: Bytes32::default(),
+                trade_prices: Vec::new(),
             }],
         )?;
 

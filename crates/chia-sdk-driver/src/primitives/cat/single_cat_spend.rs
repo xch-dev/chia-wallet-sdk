@@ -1,9 +1,10 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::CoinProof;
+use chia_sdk_types::puzzles::FeeTradePrice;
 
 use crate::Spend;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct SingleCatSpend {
     pub prev_coin_id: Bytes32,
     pub next_coin_proof: CoinProof,
@@ -11,6 +12,8 @@ pub struct SingleCatSpend {
     pub extra_delta: i64,
     pub p2_spend: Spend,
     pub revoke: bool,
+    pub trade_nonce: Bytes32,
+    pub trade_prices: Vec<FeeTradePrice>,
 }
 
 impl SingleCatSpend {
@@ -26,6 +29,8 @@ impl SingleCatSpend {
             extra_delta: 0,
             p2_spend,
             revoke: false,
+            trade_nonce: Bytes32::default(),
+            trade_prices: Vec::new(),
         }
     }
 }

@@ -86,7 +86,7 @@ impl MintOptionAction {
                 .cats
                 .entry(self.underlying_id)
                 .or_default()
-                .push(cat);
+                .push(cat.clone());
 
             return Ok(cat.coin_id());
         } else if let Some(nft) = spends.nfts.get_mut(&self.underlying_id) {

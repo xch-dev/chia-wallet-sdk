@@ -1,0 +1,20 @@
+[package]
+name = "chia-sdk-puzzles"
+version = "0.33.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+
+[build-dependencies]
+anyhow = { workspace = true }
+clvmr = { workspace = true }
+clvm-utils = { workspace = true }
+hex = { workspace = true }
+rue-compiler = { workspace = true }
+rue-options = { workspace = true }
+

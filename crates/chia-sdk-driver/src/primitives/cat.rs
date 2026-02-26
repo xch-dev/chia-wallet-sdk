@@ -7,14 +7,14 @@ use chia_puzzle_types::{
 use chia_sdk_types::{
     Condition, Conditions,
     conditions::{CreateCoin, RunCatTail},
-    puzzles::RevocationSolution,
+    puzzles::{FeeLayerSolution, RevocationSolution},
     run_puzzle,
 };
 use clvm_traits::FromClvm;
 use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{CatLayer, DriverError, Layer, Puzzle, RevocationLayer, Spend, SpendContext};
+use crate::{CatLayer, DriverError, FeeLayer, Layer, Puzzle, RevocationLayer, Spend, SpendContext};
 
 mod cat_info;
 mod cat_spend;
@@ -74,6 +74,7 @@ impl Cat {
             ctx,
             parent_coin_id,
             None,
+            None,
             amount,
             RunCatTail::new(tail, NodePtr::NIL),
             extra_conditions,
@@ -92,6 +93,7 @@ impl Cat {
         Self::issue(
             ctx,
             parent_coin_id,
+            None,
             None,
             amount,
             RunCatTail::new(tail, NodePtr::NIL),
@@ -112,6 +114,7 @@ impl Cat {
             ctx,
             parent_coin_id,
             Some(hidden_puzzle_hash),
+            None,
             amount,
             RunCatTail::new(tail, NodePtr::NIL),
             extra_conditions,
@@ -132,6 +135,91 @@ impl Cat {
             ctx,
             parent_coin_id,
             Some(hidden_puzzle_hash),
+            None,
+            amount,
+            RunCatTail::new(tail, NodePtr::NIL),
+            extra_conditions,
+        )
+    }
+
+    pub fn issue_fee_with_coin(
+        ctx: &mut SpendContext,
+        parent_coin_id: Bytes32,
+        fee_policy: FeePolicy,
+        amount: u64,
+        extra_conditions: Conditions,
+    ) -> Result<(Conditions, Vec<Cat>), DriverError> {
+        let tail = ctx.curry(GenesisByCoinIdTailArgs::new(parent_coin_id))?;
+
+        Self::issue(
+            ctx,
+            parent_coin_id,
+            None,
+            Some(fee_policy),
+            amount,
+            RunCatTail::new(tail, NodePtr::NIL),
+            extra_conditions,
+        )
+    }
+
+    pub fn issue_fee_with_key(
+        ctx: &mut SpendContext,
+        parent_coin_id: Bytes32,
+        public_key: PublicKey,
+        fee_policy: FeePolicy,
+        amount: u64,
+        extra_conditions: Conditions,
+    ) -> Result<(Conditions, Vec<Cat>), DriverError> {
+        let tail = ctx.curry(EverythingWithSignatureTailArgs::new(public_key))?;
+
+        Self::issue(
+            ctx,
+            parent_coin_id,
+            None,
+            Some(fee_policy),
+            amount,
+            RunCatTail::new(tail, NodePtr::NIL),
+            extra_conditions,
+        )
+    }
+
+    pub fn issue_revocable_fee_with_coin(
+        ctx: &mut SpendContext,
+        parent_coin_id: Bytes32,
+        hidden_puzzle_hash: Bytes32,
+        fee_policy: FeePolicy,
+        amount: u64,
+        extra_conditions: Conditions,
+    ) -> Result<(Conditions, Vec<Cat>), DriverError> {
+        let tail = ctx.curry(GenesisByCoinIdTailArgs::new(parent_coin_id))?;
+
+        Self::issue(
+            ctx,
+            parent_coin_id,
+            Some(hidden_puzzle_hash),
+            Some(fee_policy),
+            amount,
+            RunCatTail::new(tail, NodePtr::NIL),
+            extra_conditions,
+        )
+    }
+
+    pub fn issue_revocable_fee_with_key(
+        ctx: &mut SpendContext,
+        parent_coin_id: Bytes32,
+        public_key: PublicKey,
+        hidden_puzzle_hash: Bytes32,
+        fee_policy: FeePolicy,
+        amount: u64,
+        extra_conditions: Conditions,
+    ) -> Result<(Conditions, Vec<Cat>), DriverError> {
+        let tail = ctx.curry(EverythingWithSignatureTailArgs::new(public_key))?;
+
+        Self::issue(
+            ctx,
+            parent_coin_id,
+            Some(hidden_puzzle_hash),
+            Some(fee_policy),
             amount,
             RunCatTail::new(tail, NodePtr::NIL),
             extra_conditions,
@@ -142,6 +230,7 @@ impl Cat {
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
         hidden_puzzle_hash: Option<Bytes32>,
+        fee_policy: Option<FeePolicy>,
         amount: u64,
         run_tail: RunCatTail<NodePtr, NodePtr>,
         conditions: Conditions,
@@ -151,7 +240,8 @@ impl Cat {
             ctx.tree_hash(run_tail.program).into(),
             hidden_puzzle_hash,
             ctx.tree_hash(delegated_spend.puzzle).into(),
-        );
+        )
+        .with_fee_policy(fee_policy);
 
         let eve = Cat::new(
             Coin::new(parent_coin_id, eve_info.puzzle_hash().into(), amount),
@@ -159,7 +249,7 @@ impl Cat {
             eve_info,
         );
 
-        let children = Cat::spend_all(ctx, &[CatSpend::new(eve, delegated_spend)])?;
+        let children = Cat::spend_all(ctx, &[CatSpend::new(eve.clone(), delegated_spend)])?;
 
         Ok((
             Conditions::new().create_coin(eve.coin.puzzle_hash, eve.coin.amount, Memos::None),
@@ -190,7 +280,7 @@ impl Cat {
         let mut run_tail_index = None;
         let mut children = Vec::new();
 
-        for (index, &item) in cat_spends.iter().enumerate() {
+        for (index, item) in cat_spends.iter().enumerate() {
             let output = ctx.run(item.spend.puzzle, item.spend.solution)?;
             let conditions: Vec<Condition> = ctx.extract(output)?;
 
@@ -262,6 +352,8 @@ impl Cat {
                         0
                     },
                     revoke: item.hidden,
+                    trade_nonce: item.trade_nonce,
+                    trade_prices: item.trade_prices.clone(),
                 },
             )?;
         }
@@ -284,6 +376,23 @@ impl Cat {
                     ctx,
                     RevocationSolution::new(info.revoke, spend.puzzle, spend.solution),
                 )?;
+        }
+
+        if let Some(fee_policy) = &self.info.fee_policy {
+            let has_hidden_revoke_layer = self.info.hidden_puzzle_hash.is_some();
+            spend = FeeLayer::new(
+                fee_policy.issuer_fee_puzzle_hash,
+                fee_policy.fee_basis_points,
+                fee_policy.min_fee,
+                fee_policy.allow_zero_price,
+                fee_policy.allow_revoke_fee_bypass,
+                has_hidden_revoke_layer,
+                spend.puzzle,
+            )
+            .construct_spend(
+                ctx,
+                FeeLayerSolution::new(info.trade_nonce, info.trade_prices, spend.solution),
+            )?;
         }
 
         spend = CatLayer::new(self.info.asset_id, spend.puzzle).construct_spend(
@@ -318,13 +427,9 @@ impl Cat {
     ///
     /// If you need to construct a child without the revocation layer, use [`Cat::unrevocable_child`].
     pub fn child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
-        self.child_with(
-            CatInfo {
-                p2_puzzle_hash,
-                ..self.info
-            },
-            amount,
-        )
+        let mut info = self.info.clone();
+        info.p2_puzzle_hash = p2_puzzle_hash;
+        self.child_with(info, amount)
     }
 
     /// Creates a new [`Cat`] that represents a child of this one.
@@ -332,14 +437,10 @@ impl Cat {
     ///
     /// If you need to construct a child with the same revocation layer, use [`Cat::child`].
     pub fn unrevocable_child(&self, p2_puzzle_hash: Bytes32, amount: u64) -> Self {
-        self.child_with(
-            CatInfo {
-                p2_puzzle_hash,
-                hidden_puzzle_hash: None,
-                ..self.info
-            },
-            amount,
-        )
+        let mut info = self.info.clone();
+        info.p2_puzzle_hash = p2_puzzle_hash;
+        info.hidden_puzzle_hash = None;
+        self.child_with(info, amount)
     }
 
     /// Creates a new [`Cat`] that represents a child of this one.
@@ -368,12 +469,25 @@ impl Cat {
             return Ok(None);
         };
         let cat_solution = CatLayer::<Puzzle>::parse_solution(allocator, solution)?;
+        let mut fee_policy = None;
+        let mut inner_puzzle = cat_layer.inner_puzzle;
+        let mut inner_solution = cat_solution.inner_puzzle_solution;
 
-        if let Some(revocation_layer) =
-            RevocationLayer::parse_puzzle(allocator, cat_layer.inner_puzzle)?
-        {
-            let revocation_solution =
-                RevocationLayer::parse_solution(allocator, cat_solution.inner_puzzle_solution)?;
+        if let Some(fee_layer) = FeeLayer::<Puzzle>::parse_puzzle(allocator, inner_puzzle)? {
+            let fee_solution = FeeLayer::<Puzzle>::parse_solution(allocator, inner_solution)?;
+            fee_policy = Some(FeePolicy::new(
+                fee_layer.issuer_fee_puzzle_hash,
+                fee_layer.fee_basis_points,
+                fee_layer.min_fee,
+                fee_layer.allow_zero_price,
+                fee_layer.allow_revoke_fee_bypass,
+            ));
+            inner_puzzle = fee_layer.inner_puzzle;
+            inner_solution = fee_solution.inner_solution;
+        }
+
+        if let Some(revocation_layer) = RevocationLayer::parse_puzzle(allocator, inner_puzzle)? {
+            let revocation_solution = RevocationLayer::parse_solution(allocator, inner_solution)?;
 
             let info = Self::new(
                 coin,
@@ -382,7 +496,8 @@ impl Cat {
                     cat_layer.asset_id,
                     Some(revocation_layer.hidden_puzzle_hash),
                     revocation_layer.inner_puzzle_hash,
-                ),
+                )
+                .with_fee_policy(fee_policy),
             );
 
             Ok(Some((
@@ -397,15 +512,12 @@ impl Cat {
                 CatInfo::new(
                     cat_layer.asset_id,
                     None,
-                    cat_layer.inner_puzzle.curried_puzzle_hash().into(),
-                ),
+                    inner_puzzle.curried_puzzle_hash().into(),
+                )
+                .with_fee_policy(fee_policy),
             );
 
-            Ok(Some((
-                info,
-                cat_layer.inner_puzzle,
-                cat_solution.inner_puzzle_solution,
-            )))
+            Ok(Some((info, inner_puzzle, inner_solution)))
         }
     }
 
@@ -429,21 +541,39 @@ impl Cat {
         let parent_solution = CatLayer::<Puzzle>::parse_solution(allocator, parent_solution)?;
 
         let mut hidden_puzzle_hash = None;
-        let mut p2_puzzle_hash = parent_layer.inner_puzzle.curried_puzzle_hash().into();
+        let mut fee_policy = None;
         let mut inner_spend = Spend::new(
             parent_layer.inner_puzzle.ptr(),
             parent_solution.inner_puzzle_solution,
         );
+        let mut p2_puzzle_hash = parent_layer.inner_puzzle.curried_puzzle_hash().into();
         let mut revoke = false;
 
+        if let Some(fee_layer) = FeeLayer::<Puzzle>::parse_puzzle(
+            allocator,
+            Puzzle::parse(allocator, inner_spend.puzzle),
+        )? {
+            fee_policy = Some(FeePolicy::new(
+                fee_layer.issuer_fee_puzzle_hash,
+                fee_layer.fee_basis_points,
+                fee_layer.min_fee,
+                fee_layer.allow_zero_price,
+                fee_layer.allow_revoke_fee_bypass,
+            ));
+
+            let fee_solution = FeeLayer::<Puzzle>::parse_solution(allocator, inner_spend.solution)?;
+            inner_spend = Spend::new(fee_layer.inner_puzzle.ptr(), fee_solution.inner_solution);
+            p2_puzzle_hash = fee_layer.inner_puzzle.curried_puzzle_hash().into();
+        }
+
         if let Some(revocation_layer) =
-            RevocationLayer::parse_puzzle(allocator, parent_layer.inner_puzzle)?
+            RevocationLayer::parse_puzzle(allocator, Puzzle::parse(allocator, inner_spend.puzzle))?
         {
             hidden_puzzle_hash = Some(revocation_layer.hidden_puzzle_hash);
             p2_puzzle_hash = revocation_layer.inner_puzzle_hash;
 
             let revocation_solution =
-                RevocationLayer::parse_solution(allocator, parent_solution.inner_puzzle_solution)?;
+                RevocationLayer::parse_solution(allocator, inner_spend.solution)?;
 
             inner_spend = Spend::new(revocation_solution.puzzle, revocation_solution.solution);
             revoke = revocation_solution.hidden;
@@ -452,10 +582,19 @@ impl Cat {
         let cat = Cat::new(
             parent_coin,
             parent_solution.lineage_proof,
-            CatInfo::new(parent_layer.asset_id, hidden_puzzle_hash, p2_puzzle_hash),
+            CatInfo::new(parent_layer.asset_id, hidden_puzzle_hash, p2_puzzle_hash)
+                .with_fee_policy(fee_policy),
         );
 
-        let output = run_puzzle(allocator, inner_spend.puzzle, inner_spend.solution)?;
+        let output =
+            run_puzzle(allocator, inner_spend.puzzle, inner_spend.solution).map_err(|e| {
+                let inner_puzzle_hash = clvm_utils::tree_hash(allocator, inner_spend.puzzle);
+                DriverError::Custom(format!(
+                    "failed running inner CAT spend (coin_id={}, inner_puzzle_hash={}): {e}",
+                    parent_coin.coin_id(),
+                    Bytes32::from(inner_puzzle_hash)
+                ))
+            })?;
         let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
 
         let outputs = conditions

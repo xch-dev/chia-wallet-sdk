@@ -1,0 +1,159 @@
+use std::borrow::Cow;
+
+use chia_protocol::Bytes32;
+use chia_sdk_puzzles::{FEE_LAYER_V1, FEE_LAYER_V1_HASH};
+use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::TreeHash;
+
+use crate::Mod;
+
+// Asset kind is now inferred from `asset_id`: `None` means XCH, `Some` means CAT.
+pub const FEE_TRADE_PRICE_ASSET_KIND_XCH: u8 = 0;
+pub const FEE_TRADE_PRICE_ASSET_KIND_CAT: u8 = 1;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, ToClvm, FromClvm)]
+#[clvm(list)]
+pub struct FeeTradePriceFeePolicy {
+    pub issuer_fee_puzzle_hash: Bytes32,
+    pub fee_basis_points: u16,
+    pub min_fee: u64,
+    pub allow_zero_price: bool,
+    pub allow_revoke_fee_bypass: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
+#[clvm(list)]
+pub struct FeeTradePrice {
+    pub amount: u64,
+    pub asset_id: Option<Bytes32>,
+    pub quote_hidden_puzzle_hash: Option<Bytes32>,
+    pub quote_fee_policy: Option<FeeTradePriceFeePolicy>,
+}
+
+impl FeeTradePrice {
+    pub fn xch(amount: u64) -> Self {
+        Self {
+            amount,
+            asset_id: None,
+            quote_hidden_puzzle_hash: None,
+            quote_fee_policy: None,
+        }
+    }
+
+    pub fn cat(
+        amount: u64,
+        asset_id: Bytes32,
+        hidden_puzzle_hash: Option<Bytes32>,
+        fee_policy: Option<FeeTradePriceFeePolicy>,
+    ) -> Self {
+        Self::cat_with_quote_layers(amount, asset_id, hidden_puzzle_hash, fee_policy)
+    }
+
+    pub fn cat_with_quote_layers(
+        amount: u64,
+        asset_id: Bytes32,
+        hidden_puzzle_hash: Option<Bytes32>,
+        fee_policy: Option<FeeTradePriceFeePolicy>,
+    ) -> Self {
+        Self {
+            amount,
+            asset_id: Some(asset_id),
+            quote_hidden_puzzle_hash: hidden_puzzle_hash,
+            quote_fee_policy: fee_policy,
+        }
+    }
+
+    pub fn is_xch(&self) -> bool {
+        self.asset_id.is_none()
+    }
+
+    pub fn is_valid_quote_descriptor(&self) -> bool {
+        if self.is_xch() {
+            self.quote_hidden_puzzle_hash.is_none() && self.quote_fee_policy.is_none()
+        } else {
+            true
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
+#[clvm(curry)]
+pub struct FeeLayerArgs<I> {
+    pub mod_hash: Bytes32,
+    pub issuer_fee_puzzle_hash: Bytes32,
+    pub fee_basis_points: u16,
+    pub min_fee: u64,
+    pub allow_zero_price: bool,
+    pub allow_revoke_fee_bypass: bool,
+    pub has_hidden_revoke_layer: bool,
+    pub inner_puzzle: I,
+}
+
+impl<I> FeeLayerArgs<I> {
+    pub fn new(
+        issuer_fee_puzzle_hash: Bytes32,
+        fee_basis_points: u16,
+        min_fee: u64,
+        allow_zero_price: bool,
+        allow_revoke_fee_bypass: bool,
+        has_hidden_revoke_layer: bool,
+        inner_puzzle: I,
+    ) -> Self {
+        Self {
+            mod_hash: FEE_LAYER_V1_HASH.into(),
+            issuer_fee_puzzle_hash,
+            fee_basis_points,
+            min_fee,
+            allow_zero_price,
+            allow_revoke_fee_bypass,
+            has_hidden_revoke_layer,
+            inner_puzzle,
+        }
+    }
+}
+
+impl<I> Mod for FeeLayerArgs<I> {
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(FEE_LAYER_V1)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(FEE_LAYER_V1_HASH)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
+#[clvm(list)]
+pub struct FeeLayerSolution<S> {
+    pub trade_nonce: Bytes32,
+    pub trade_prices: Vec<FeeTradePrice>,
+    pub inner_solution: S,
+}
+
+impl<S> FeeLayerSolution<S> {
+    pub fn new(trade_nonce: Bytes32, trade_prices: Vec<FeeTradePrice>, inner_solution: S) -> Self {
+        Self {
+            trade_nonce,
+            trade_prices,
+            inner_solution,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use clvm_traits::{FromClvm, ToClvm};
+    use clvmr::Allocator;
+
+    use super::*;
+
+    #[test]
+    fn xch_trade_price_clvm_shape_includes_quote_fee_policy_slot() -> anyhow::Result<()> {
+        let mut allocator = Allocator::new();
+        let ptr = FeeTradePrice::xch(1).to_clvm(&mut allocator)?;
+        let fields = Vec::<clvmr::NodePtr>::from_clvm(&allocator, ptr)?;
+
+        assert_eq!(fields.len(), 4);
+        Ok(())
+    }
+}

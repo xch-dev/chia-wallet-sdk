@@ -1,10 +1,40 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::cat::CatArgs;
-use chia_sdk_types::{Mod, puzzles::RevocationArgs};
+use chia_sdk_types::{
+    Mod,
+    puzzles::{FeeLayerArgs, RevocationArgs},
+};
 use clvm_utils::TreeHash;
 use clvmr::{Allocator, NodePtr};
 
-use crate::{CatLayer, DriverError, Layer, Puzzle, RevocationLayer, SpendContext};
+use crate::{CatLayer, DriverError, FeeLayer, Layer, Puzzle, RevocationLayer, SpendContext};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FeePolicy {
+    pub issuer_fee_puzzle_hash: Bytes32,
+    pub fee_basis_points: u16,
+    pub min_fee: u64,
+    pub allow_zero_price: bool,
+    pub allow_revoke_fee_bypass: bool,
+}
+
+impl FeePolicy {
+    pub fn new(
+        issuer_fee_puzzle_hash: Bytes32,
+        fee_basis_points: u16,
+        min_fee: u64,
+        allow_zero_price: bool,
+        allow_revoke_fee_bypass: bool,
+    ) -> Self {
+        Self {
+            issuer_fee_puzzle_hash,
+            fee_basis_points,
+            min_fee,
+            allow_zero_price,
+            allow_revoke_fee_bypass,
+        }
+    }
+}
 
 /// Information needed to construct the outer puzzle of a CAT.
 /// This includes the [`CatLayer`] and [`RevocationLayer`] if present.
@@ -25,6 +55,9 @@ pub struct CatInfo {
     /// The hash of the inner puzzle to this CAT. For revocable CATs, it's the inner puzzle of the [`RevocationLayer`].
     /// If you encode this puzzle hash as bech32m, it's the same as the current owner's address.
     pub p2_puzzle_hash: Bytes32,
+
+    /// Optional transfer-fee policy, enforced by the [`FeeLayer`].
+    pub fee_policy: Option<FeePolicy>,
 }
 
 impl CatInfo {
@@ -37,7 +70,13 @@ impl CatInfo {
             asset_id,
             hidden_puzzle_hash,
             p2_puzzle_hash,
+            fee_policy: None,
         }
+    }
+
+    pub fn with_fee_policy(mut self, fee_policy: Option<FeePolicy>) -> Self {
+        self.fee_policy = fee_policy;
+        self
     }
 
     /// Parses a [`CatInfo`] from a [`Puzzle`] by extracting the [`CatLayer`] and [`RevocationLayer`] if present.
@@ -55,22 +94,36 @@ impl CatInfo {
             return Ok(None);
         };
 
-        if let Some(revocation_layer) =
-            RevocationLayer::parse_puzzle(allocator, cat_layer.inner_puzzle)?
-        {
+        let mut fee_policy = None;
+        let mut inner_puzzle = cat_layer.inner_puzzle;
+
+        if let Some(fee_layer) = FeeLayer::<Puzzle>::parse_puzzle(allocator, inner_puzzle)? {
+            fee_policy = Some(FeePolicy::new(
+                fee_layer.issuer_fee_puzzle_hash,
+                fee_layer.fee_basis_points,
+                fee_layer.min_fee,
+                fee_layer.allow_zero_price,
+                fee_layer.allow_revoke_fee_bypass,
+            ));
+            inner_puzzle = fee_layer.inner_puzzle;
+        }
+
+        if let Some(revocation_layer) = RevocationLayer::parse_puzzle(allocator, inner_puzzle)? {
             let info = Self::new(
                 cat_layer.asset_id,
                 Some(revocation_layer.hidden_puzzle_hash),
                 revocation_layer.inner_puzzle_hash,
-            );
+            )
+            .with_fee_policy(fee_policy);
             Ok(Some((info, None)))
         } else {
             let info = Self::new(
                 cat_layer.asset_id,
                 None,
-                cat_layer.inner_puzzle.curried_puzzle_hash().into(),
-            );
-            Ok(Some((info, Some(cat_layer.inner_puzzle))))
+                inner_puzzle.curried_puzzle_hash().into(),
+            )
+            .with_fee_policy(fee_policy);
+            Ok(Some((info, Some(inner_puzzle))))
         }
     }
 
@@ -83,6 +136,20 @@ impl CatInfo {
         if let Some(hidden_puzzle_hash) = self.hidden_puzzle_hash {
             inner_puzzle_hash =
                 RevocationArgs::new(hidden_puzzle_hash, inner_puzzle_hash.into()).curry_tree_hash();
+        }
+
+        if let Some(fee_policy) = &self.fee_policy {
+            let has_hidden_revoke_layer = self.hidden_puzzle_hash.is_some();
+            inner_puzzle_hash = FeeLayerArgs::new(
+                fee_policy.issuer_fee_puzzle_hash,
+                fee_policy.fee_basis_points,
+                fee_policy.min_fee,
+                fee_policy.allow_zero_price,
+                fee_policy.allow_revoke_fee_bypass,
+                has_hidden_revoke_layer,
+                inner_puzzle_hash,
+            )
+            .curry_tree_hash();
         }
 
         inner_puzzle_hash
@@ -106,6 +173,20 @@ impl CatInfo {
         if let Some(hidden_puzzle_hash) = self.hidden_puzzle_hash {
             inner_puzzle =
                 ctx.curry(RevocationArgs::new(hidden_puzzle_hash, self.p2_puzzle_hash))?;
+        }
+
+        if let Some(fee_policy) = &self.fee_policy {
+            let has_hidden_revoke_layer = self.hidden_puzzle_hash.is_some();
+            inner_puzzle = FeeLayer::new(
+                fee_policy.issuer_fee_puzzle_hash,
+                fee_policy.fee_basis_points,
+                fee_policy.min_fee,
+                fee_policy.allow_zero_price,
+                fee_policy.allow_revoke_fee_bypass,
+                has_hidden_revoke_layer,
+                inner_puzzle,
+            )
+            .construct_puzzle(ctx)?;
         }
 
         ctx.curry(CatArgs::new(self.asset_id, inner_puzzle))

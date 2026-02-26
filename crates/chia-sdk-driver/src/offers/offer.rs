@@ -10,9 +10,11 @@ use clvmr::Allocator;
 use indexmap::IndexSet;
 
 use crate::{
-    Arbitrage, AssetInfo, CatInfo, DriverError, Layer, NftInfo, OfferAmounts, OfferCoins,
-    OptionInfo, Puzzle, RequestedPayments, RoyaltyInfo, SingletonInfo, SpendContext,
-    calculate_royalty_amounts, calculate_trade_price_amounts,
+    Action, Arbitrage, AssetInfo, CatInfo, DriverError, Id, Layer, NftInfo, OfferAmounts,
+    OfferCoins, OptionInfo, Puzzle, RequestedPayments, RoyaltyInfo, SingletonInfo, SpendContext,
+    Spends, TransferFeeInfo, calculate_royalty_amounts, calculate_trade_price_amounts,
+    calculate_trade_prices, calculate_transfer_fee_amounts, calculate_transfer_fee_payments,
+    ensure_trade_prices_supported,
 };
 
 #[derive(Debug, Clone)]
@@ -129,6 +131,87 @@ impl Offer {
             .collect()
     }
 
+    /// Returns transfer-fee policies for requested CATs (fees paid by the offered side).
+    pub fn offered_transfer_fees(&self) -> Vec<TransferFeeInfo> {
+        self.requested_payments
+            .cats
+            .keys()
+            .filter_map(|&asset_id| {
+                let policy = self
+                    .asset_info
+                    .cat(asset_id)
+                    .and_then(|cat| cat.fee_policy.clone())?;
+                Some(TransferFeeInfo::new(asset_id, policy))
+            })
+            .filter(|info| info.policy.fee_basis_points > 0)
+            .collect()
+    }
+
+    /// Returns transfer-fee policies for offered CATs (fees paid by the requested side).
+    pub fn requested_transfer_fees(&self) -> Vec<TransferFeeInfo> {
+        let mut infos = Vec::new();
+        let mut seen = IndexSet::new();
+
+        for cats in self.offered_coins.cats.values() {
+            for cat in cats {
+                let Some(policy) = cat.info.fee_policy.clone() else {
+                    continue;
+                };
+
+                if seen.insert(cat.info.asset_id) {
+                    infos.push(TransferFeeInfo::new(cat.info.asset_id, policy));
+                }
+            }
+        }
+
+        infos
+            .into_iter()
+            .filter(|info| info.policy.fee_basis_points > 0)
+            .collect()
+    }
+
+    pub fn offered_transfer_fee_amounts(&self) -> OfferAmounts {
+        let offered_amounts = self.offered_coins.amounts();
+        let transfer_fees = self.offered_transfer_fees();
+        calculate_transfer_fee_amounts(&offered_amounts, &transfer_fees)
+    }
+
+    pub fn requested_transfer_fee_amounts(&self) -> OfferAmounts {
+        let requested_amounts = self.requested_payments.amounts();
+        let transfer_fees = self.requested_transfer_fees();
+        calculate_transfer_fee_amounts(&requested_amounts, &transfer_fees)
+    }
+
+    pub fn offered_transfer_fee_payments(
+        &self,
+        ctx: &mut SpendContext,
+        trade_nonce: Bytes32,
+    ) -> Result<RequestedPayments, DriverError> {
+        let transfer_fees = self.offered_transfer_fees();
+        if transfer_fees.is_empty() {
+            return Ok(RequestedPayments::new());
+        }
+        let offered_amounts = self.offered_coins.amounts();
+        let trade_prices = calculate_trade_prices(&offered_amounts, &self.asset_info);
+        ensure_trade_prices_supported(&trade_prices)?;
+        calculate_transfer_fee_payments(ctx, trade_nonce, &offered_amounts, &transfer_fees)
+    }
+
+    pub fn requested_transfer_fee_payments(
+        &self,
+        ctx: &mut SpendContext,
+        trade_nonce: Bytes32,
+    ) -> Result<RequestedPayments, DriverError> {
+        let transfer_fees = self.requested_transfer_fees();
+        if transfer_fees.is_empty() {
+            return Ok(RequestedPayments::new());
+        }
+        let requested_amounts = self.requested_payments.amounts();
+        let trade_prices = calculate_trade_prices(&requested_amounts, &self.asset_info);
+        ensure_trade_prices_supported(&trade_prices)?;
+        calculate_transfer_fee_payments(ctx, trade_nonce, &requested_amounts, &transfer_fees)
+    }
+
     pub fn offered_royalty_amounts(&self) -> OfferAmounts {
         let offered_amounts = self.offered_coins.amounts();
         let royalties = self.offered_royalties();
@@ -137,7 +220,7 @@ impl Offer {
     }
 
     pub fn requested_royalty_amounts(&self) -> OfferAmounts {
-        let requested_amounts = self.requested_payments.amounts();
+        let requested_amounts = self.offered_coins.amounts();
         let royalties = self.requested_royalties();
         let trade_prices = calculate_trade_price_amounts(&requested_amounts, royalties.len());
         calculate_royalty_amounts(&trade_prices, &royalties)
@@ -213,6 +296,117 @@ impl Offer {
     pub fn nonce(mut coin_ids: Vec<Bytes32>) -> Bytes32 {
         coin_ids.sort();
         coin_ids.tree_hash().into()
+    }
+
+    pub fn trade_nonce(&self) -> Result<Bytes32, DriverError> {
+        let mut trade_nonce = None;
+
+        for notarized_payment in &self.requested_payments.xch {
+            if let Some(existing) = trade_nonce {
+                if existing != notarized_payment.nonce {
+                    return Err(DriverError::InvalidTradeContext);
+                }
+            } else {
+                trade_nonce = Some(notarized_payment.nonce);
+            }
+        }
+
+        for notarized_payments in self.requested_payments.cats.values() {
+            for notarized_payment in notarized_payments {
+                if let Some(existing) = trade_nonce {
+                    if existing != notarized_payment.nonce {
+                        return Err(DriverError::InvalidTradeContext);
+                    }
+                } else {
+                    trade_nonce = Some(notarized_payment.nonce);
+                }
+            }
+        }
+
+        for notarized_payments in self.requested_payments.nfts.values() {
+            for notarized_payment in notarized_payments {
+                if let Some(existing) = trade_nonce {
+                    if existing != notarized_payment.nonce {
+                        return Err(DriverError::InvalidTradeContext);
+                    }
+                } else {
+                    trade_nonce = Some(notarized_payment.nonce);
+                }
+            }
+        }
+
+        for notarized_payments in self.requested_payments.options.values() {
+            for notarized_payment in notarized_payments {
+                if let Some(existing) = trade_nonce {
+                    if existing != notarized_payment.nonce {
+                        return Err(DriverError::InvalidTradeContext);
+                    }
+                } else {
+                    trade_nonce = Some(notarized_payment.nonce);
+                }
+            }
+        }
+
+        trade_nonce.ok_or(DriverError::MissingTradeContext)
+    }
+
+    pub fn take_actions_with_transfer_fees(
+        &self,
+        ctx: &mut SpendContext,
+    ) -> Result<Vec<Action>, DriverError> {
+        let mut actions = self.requested_payments.actions();
+        let offered_transfer_fees = self.offered_transfer_fees();
+        let requested_transfer_fees = self.requested_transfer_fees();
+
+        if offered_transfer_fees.is_empty() && requested_transfer_fees.is_empty() {
+            return Ok(actions);
+        }
+
+        let trade_nonce = self.trade_nonce()?;
+        let offered_fee_payments = self.offered_transfer_fee_payments(ctx, trade_nonce)?;
+        let requested_fee_payments = self.requested_transfer_fee_payments(ctx, trade_nonce)?;
+        actions.extend(offered_fee_payments.actions());
+        actions.extend(requested_fee_payments.actions());
+        Ok(actions)
+    }
+
+    pub fn apply_transfer_fee_trade_context(&self, spends: &mut Spends) -> Result<(), DriverError> {
+        let offered_transfer_fees = self.offered_transfer_fees();
+        let requested_transfer_fees = self.requested_transfer_fees();
+
+        if offered_transfer_fees.is_empty() && requested_transfer_fees.is_empty() {
+            return Ok(());
+        }
+
+        let trade_nonce = self.trade_nonce()?;
+        let offered_amounts = self.offered_coins.amounts();
+        let requested_amounts = self.requested_payments.amounts();
+
+        if !offered_transfer_fees.is_empty() {
+            let trade_prices = calculate_trade_prices(&offered_amounts, &self.asset_info);
+            ensure_trade_prices_supported(&trade_prices)?;
+            for transfer_fee in offered_transfer_fees {
+                spends.set_cat_trade_context(
+                    Id::Existing(transfer_fee.asset_id),
+                    trade_nonce,
+                    trade_prices.clone(),
+                )?;
+            }
+        }
+
+        if !requested_transfer_fees.is_empty() {
+            let trade_prices = calculate_trade_prices(&requested_amounts, &self.asset_info);
+            ensure_trade_prices_supported(&trade_prices)?;
+            for transfer_fee in requested_transfer_fees {
+                spends.set_cat_trade_context(
+                    Id::Existing(transfer_fee.asset_id),
+                    trade_nonce,
+                    trade_prices.clone(),
+                )?;
+            }
+        }
+
+        Ok(())
     }
 
     pub fn from_input_spend_bundle(
@@ -318,13 +512,13 @@ impl Offer {
         }
 
         for (asset_id, notarized_payments) in self.requested_payments.cats {
+            let cat_asset_info = self.asset_info.cat(asset_id);
             let cat_info = CatInfo::new(
                 asset_id,
-                self.asset_info
-                    .cat(asset_id)
-                    .and_then(|info| info.hidden_puzzle_hash),
+                cat_asset_info.and_then(|info| info.hidden_puzzle_hash),
                 SETTLEMENT_PAYMENT_HASH.into(),
-            );
+            )
+            .with_fee_policy(cat_asset_info.and_then(|info| info.fee_policy.clone()));
 
             let puzzle = cat_info.construct_puzzle(ctx, settlement)?;
             let solution = SettlementPaymentsSolution::new(notarized_payments);
@@ -412,14 +606,20 @@ impl Offer {
 mod tests {
     use std::slice;
 
+    use chia_bls::Signature;
+    use chia_protocol::{Bytes32, Coin};
     use chia_puzzle_types::{
         Memos,
         offer::{NotarizedPayment, Payment},
     };
     use chia_sdk_test::{Simulator, sign_transaction};
+    use clvmr::NodePtr;
     use indexmap::indexmap;
 
-    use crate::{Action, Id, NftAssetInfo, Relation, SpendContext, Spends};
+    use crate::{
+        Action, AssetInfo, Cat, CatAssetInfo, CatInfo, FeePolicy, Id, NftAssetInfo,
+        OfferCoins, Relation, RequestedPayments, SpendContext, Spends, TransferFeeInfo,
+    };
 
     use super::*;
 
@@ -541,6 +741,390 @@ mod tests {
 
         assert_eq!(final_bob_nft.info.p2_puzzle_hash, bob.puzzle_hash);
         assert_eq!(final_alice_nft.info.p2_puzzle_hash, alice.puzzle_hash);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_offer_transfer_fee_metadata() -> anyhow::Result<()> {
+        let asset_id = Bytes32::new([7; 32]);
+        let fee_policy = FeePolicy::new(
+            Bytes32::new([8; 32]),
+            500,
+            1,
+            false,
+            false,
+        );
+
+        let offered_cat = Cat::new(
+            Coin::new(Bytes32::new([1; 32]), SETTLEMENT_PAYMENT_HASH.into(), 100),
+            None,
+            CatInfo::new(asset_id, None, SETTLEMENT_PAYMENT_HASH.into())
+                .with_fee_policy(Some(fee_policy.clone())),
+        );
+
+        let mut offered_coins = OfferCoins::new();
+        offered_coins.cats.insert(asset_id, vec![offered_cat]);
+
+        let mut requested_payments = RequestedPayments::new();
+        requested_payments.cats.insert(
+            asset_id,
+            vec![NotarizedPayment::new(
+                Bytes32::new([2; 32]),
+                vec![Payment::new(Bytes32::new([3; 32]), 100, Memos::None)],
+            )],
+        );
+
+        let mut asset_info = AssetInfo::new();
+        asset_info.insert_cat(asset_id, CatAssetInfo::new(None, Some(fee_policy.clone())))?;
+
+        let offer = Offer::new(
+            SpendBundle::new(Vec::new(), Signature::default()),
+            offered_coins,
+            requested_payments,
+            asset_info,
+        );
+
+        assert_eq!(
+            offer.offered_transfer_fees(),
+            vec![TransferFeeInfo::new(asset_id, fee_policy.clone())]
+        );
+        assert_eq!(
+            offer.requested_transfer_fees(),
+            vec![TransferFeeInfo::new(asset_id, fee_policy)]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_offer_transfer_fee_amounts() -> anyhow::Result<()> {
+        let fee_asset_id = Bytes32::new([7; 32]);
+        let quote_asset_id = Bytes32::new([9; 32]);
+        let fee_policy = FeePolicy::new(
+            Bytes32::new([8; 32]),
+            500,
+            1,
+            false,
+            false,
+        );
+
+        // Requested fee CAT => offered side pays issuer fees based on offered quote amounts.
+        let offered_quote_cat = Cat::new(
+            Coin::new(Bytes32::new([1; 32]), SETTLEMENT_PAYMENT_HASH.into(), 200),
+            None,
+            CatInfo::new(quote_asset_id, None, SETTLEMENT_PAYMENT_HASH.into()),
+        );
+
+        let mut offered_coins = OfferCoins::new();
+        offered_coins.xch.push(Coin::new(
+            Bytes32::new([2; 32]),
+            SETTLEMENT_PAYMENT_HASH.into(),
+            1_000,
+        ));
+        offered_coins
+            .cats
+            .insert(quote_asset_id, vec![offered_quote_cat]);
+
+        let mut requested_payments = RequestedPayments::new();
+        requested_payments.cats.insert(
+            fee_asset_id,
+            vec![NotarizedPayment::new(
+                Bytes32::new([3; 32]),
+                vec![Payment::new(Bytes32::new([4; 32]), 1, Memos::None)],
+            )],
+        );
+
+        let mut asset_info = AssetInfo::new();
+        asset_info.insert_cat(
+            fee_asset_id,
+            CatAssetInfo::new(None, Some(fee_policy.clone())),
+        )?;
+        asset_info.insert_cat(quote_asset_id, CatAssetInfo::new(None, None))?;
+
+        let offer = Offer::new(
+            SpendBundle::new(Vec::new(), Signature::default()),
+            offered_coins,
+            requested_payments,
+            asset_info,
+        );
+
+        let offered_amounts = offer.offered_transfer_fee_amounts();
+        assert_eq!(offered_amounts.xch, 50);
+        assert_eq!(offered_amounts.cats[&quote_asset_id], 10);
+        assert!(!offered_amounts.cats.contains_key(&fee_asset_id));
+
+        // Offered fee CAT => requested side pays issuer fees based on requested quote amounts.
+        let offered_fee_cat = Cat::new(
+            Coin::new(Bytes32::new([5; 32]), SETTLEMENT_PAYMENT_HASH.into(), 100),
+            None,
+            CatInfo::new(fee_asset_id, None, SETTLEMENT_PAYMENT_HASH.into())
+                .with_fee_policy(Some(fee_policy.clone())),
+        );
+
+        let mut offered_coins = OfferCoins::new();
+        offered_coins
+            .cats
+            .insert(fee_asset_id, vec![offered_fee_cat.clone()]);
+
+        let mut requested_payments = RequestedPayments::new();
+        requested_payments.xch.push(NotarizedPayment::new(
+            Bytes32::new([6; 32]),
+            vec![Payment::new(Bytes32::new([10; 32]), 1_000, Memos::None)],
+        ));
+        requested_payments.cats.insert(
+            quote_asset_id,
+            vec![NotarizedPayment::new(
+                Bytes32::new([11; 32]),
+                vec![Payment::new(Bytes32::new([12; 32]), 200, Memos::None)],
+            )],
+        );
+
+        let mut asset_info = AssetInfo::new();
+        asset_info.insert_cat(
+            fee_asset_id,
+            CatAssetInfo::new(None, Some(fee_policy.clone())),
+        )?;
+        asset_info.insert_cat(quote_asset_id, CatAssetInfo::new(None, None))?;
+
+        let offer = Offer::new(
+            SpendBundle::new(Vec::new(), Signature::default()),
+            offered_coins,
+            requested_payments,
+            asset_info,
+        );
+
+        let requested_amounts = offer.requested_transfer_fee_amounts();
+        assert_eq!(requested_amounts.xch, 50);
+        assert_eq!(requested_amounts.cats[&quote_asset_id], 10);
+        assert!(!requested_amounts.cats.contains_key(&fee_asset_id));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_offer_transfer_fee_payments() -> anyhow::Result<()> {
+        let fee_asset_id = Bytes32::new([7; 32]);
+        let quote_asset_id = Bytes32::new([9; 32]);
+        let fee_policy = FeePolicy::new(
+            Bytes32::new([8; 32]),
+            500,
+            1,
+            false,
+            false,
+        );
+
+        let offered_quote_cat = Cat::new(
+            Coin::new(Bytes32::new([1; 32]), SETTLEMENT_PAYMENT_HASH.into(), 200),
+            None,
+            CatInfo::new(quote_asset_id, None, SETTLEMENT_PAYMENT_HASH.into()),
+        );
+
+        let mut offered_coins = OfferCoins::new();
+        offered_coins.xch.push(Coin::new(
+            Bytes32::new([2; 32]),
+            SETTLEMENT_PAYMENT_HASH.into(),
+            1_000,
+        ));
+        offered_coins
+            .cats
+            .insert(quote_asset_id, vec![offered_quote_cat]);
+
+        let mut requested_payments = RequestedPayments::new();
+        requested_payments.cats.insert(
+            fee_asset_id,
+            vec![NotarizedPayment::new(
+                Bytes32::new([3; 32]),
+                vec![Payment::new(Bytes32::new([4; 32]), 1, Memos::None)],
+            )],
+        );
+
+        let mut asset_info = AssetInfo::new();
+        asset_info.insert_cat(
+            fee_asset_id,
+            CatAssetInfo::new(None, Some(fee_policy.clone())),
+        )?;
+        asset_info.insert_cat(quote_asset_id, CatAssetInfo::new(None, None))?;
+
+        let offer = Offer::new(
+            SpendBundle::new(Vec::new(), Signature::default()),
+            offered_coins,
+            requested_payments,
+            asset_info,
+        );
+
+        let mut ctx = SpendContext::new();
+        let nonce = Bytes32::new([5; 32]);
+        let fee_payments = offer.offered_transfer_fee_payments(&mut ctx, nonce)?;
+
+        assert_eq!(fee_payments.xch.len(), 1);
+        assert_eq!(fee_payments.xch[0].nonce, nonce);
+        assert_eq!(fee_payments.xch[0].payments.len(), 1);
+        assert_eq!(
+            fee_payments.xch[0].payments[0],
+            Payment::new(
+                fee_policy.issuer_fee_puzzle_hash,
+                50,
+                Memos::Some(NodePtr::NIL)
+            )
+        );
+
+        assert_eq!(fee_payments.cats[&quote_asset_id].len(), 1);
+        assert_eq!(fee_payments.cats[&quote_asset_id][0].nonce, nonce);
+        let cat_fee_payment = &fee_payments.cats[&quote_asset_id][0].payments[0];
+        assert_eq!(cat_fee_payment.puzzle_hash, fee_policy.issuer_fee_puzzle_hash);
+        assert_eq!(cat_fee_payment.amount, 10);
+        let Memos::Some(memos_ptr) = cat_fee_payment.memos else {
+            panic!("expected CAT fee payment memos to be present");
+        };
+        let hints = Vec::<Bytes32>::from_clvm(&*ctx, memos_ptr)?;
+        assert_eq!(hints, vec![fee_policy.issuer_fee_puzzle_hash]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_offer_transfer_fee_payments_allow_fee_enabled_quote_asset() -> anyhow::Result<()> {
+        let fee_asset_id = Bytes32::new([7; 32]);
+        let quote_fee_asset_id = Bytes32::new([9; 32]);
+        let quote_fee_policy = FeePolicy::new(
+            Bytes32::new([10; 32]),
+            250,
+            1,
+            false,
+            false,
+        );
+        let fee_policy = FeePolicy::new(
+            Bytes32::new([8; 32]),
+            500,
+            1,
+            false,
+            false,
+        );
+
+        let offered_quote_fee_cat = Cat::new(
+            Coin::new(Bytes32::new([1; 32]), SETTLEMENT_PAYMENT_HASH.into(), 200),
+            None,
+            CatInfo::new(quote_fee_asset_id, None, SETTLEMENT_PAYMENT_HASH.into())
+                .with_fee_policy(Some(quote_fee_policy.clone())),
+        );
+
+        let mut offered_coins = OfferCoins::new();
+        offered_coins
+            .cats
+            .insert(quote_fee_asset_id, vec![offered_quote_fee_cat]);
+
+        let mut requested_payments = RequestedPayments::new();
+        requested_payments.cats.insert(
+            fee_asset_id,
+            vec![NotarizedPayment::new(
+                Bytes32::new([2; 32]),
+                vec![Payment::new(Bytes32::new([3; 32]), 1, Memos::None)],
+            )],
+        );
+
+        let mut asset_info = AssetInfo::new();
+        asset_info.insert_cat(
+            fee_asset_id,
+            CatAssetInfo::new(None, Some(fee_policy.clone())),
+        )?;
+        asset_info.insert_cat(
+            quote_fee_asset_id,
+            CatAssetInfo::new(None, Some(quote_fee_policy)),
+        )?;
+
+        let offer = Offer::new(
+            SpendBundle::new(Vec::new(), Signature::default()),
+            offered_coins,
+            requested_payments,
+            asset_info,
+        );
+
+        let mut ctx = SpendContext::new();
+        let nonce = Bytes32::new([4; 32]);
+        let fee_payments = offer.offered_transfer_fee_payments(&mut ctx, nonce)?;
+        assert_eq!(fee_payments.cats[&quote_fee_asset_id].len(), 1);
+        assert_eq!(fee_payments.cats[&quote_fee_asset_id][0].nonce, nonce);
+        let cat_fee_payment = &fee_payments.cats[&quote_fee_asset_id][0].payments[0];
+        assert_eq!(cat_fee_payment.puzzle_hash, fee_policy.issuer_fee_puzzle_hash);
+        assert_eq!(cat_fee_payment.amount, 10);
+        let Memos::Some(memos_ptr) = cat_fee_payment.memos else {
+            panic!("expected CAT fee payment memos to be present");
+        };
+        let hints = Vec::<Bytes32>::from_clvm(&*ctx, memos_ptr)?;
+        assert_eq!(hints, vec![fee_policy.issuer_fee_puzzle_hash]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_offer_requested_transfer_fee_payments_allow_fee_enabled_quote_asset()
+    -> anyhow::Result<()> {
+        let fee_asset_id = Bytes32::new([7; 32]);
+        let quote_fee_asset_id = Bytes32::new([9; 32]);
+        let fee_policy = FeePolicy::new(
+            Bytes32::new([8; 32]),
+            500,
+            1,
+            false,
+            false,
+        );
+        let quote_fee_policy = FeePolicy::new(
+            Bytes32::new([10; 32]),
+            250,
+            1,
+            false,
+            false,
+        );
+
+        let offered_fee_cat = Cat::new(
+            Coin::new(Bytes32::new([1; 32]), SETTLEMENT_PAYMENT_HASH.into(), 1),
+            None,
+            CatInfo::new(fee_asset_id, None, SETTLEMENT_PAYMENT_HASH.into())
+                .with_fee_policy(Some(fee_policy.clone())),
+        );
+
+        let mut offered_coins = OfferCoins::new();
+        offered_coins
+            .cats
+            .insert(fee_asset_id, vec![offered_fee_cat]);
+
+        let mut requested_payments = RequestedPayments::new();
+        requested_payments.cats.insert(
+            quote_fee_asset_id,
+            vec![NotarizedPayment::new(
+                Bytes32::new([2; 32]),
+                vec![Payment::new(Bytes32::new([3; 32]), 200, Memos::None)],
+            )],
+        );
+
+        let mut asset_info = AssetInfo::new();
+        asset_info.insert_cat(fee_asset_id, CatAssetInfo::new(None, Some(fee_policy)))?;
+        asset_info.insert_cat(
+            quote_fee_asset_id,
+            CatAssetInfo::new(None, Some(quote_fee_policy)),
+        )?;
+
+        let offer = Offer::new(
+            SpendBundle::new(Vec::new(), Signature::default()),
+            offered_coins,
+            requested_payments,
+            asset_info,
+        );
+
+        let mut ctx = SpendContext::new();
+        let nonce = Bytes32::new([4; 32]);
+        let fee_payments = offer.requested_transfer_fee_payments(&mut ctx, nonce)?;
+        assert_eq!(fee_payments.cats[&quote_fee_asset_id].len(), 1);
+        assert_eq!(fee_payments.cats[&quote_fee_asset_id][0].nonce, nonce);
+        let cat_fee_payment = &fee_payments.cats[&quote_fee_asset_id][0].payments[0];
+        assert_eq!(cat_fee_payment.puzzle_hash, fee_policy.issuer_fee_puzzle_hash);
+        assert_eq!(cat_fee_payment.amount, 10);
+        let Memos::Some(memos_ptr) = cat_fee_payment.memos else {
+            panic!("expected CAT fee payment memos to be present");
+        };
+        let hints = Vec::<Bytes32>::from_clvm(&*ctx, memos_ptr)?;
+        assert_eq!(hints, vec![fee_policy.issuer_fee_puzzle_hash]);
 
         Ok(())
     }

@@ -110,6 +110,7 @@ chia-sdk-driver = { version = "0.33.0", path = "./crates/chia-sdk-driver" }
 chia-sdk-signer = { version = "0.33.0", path = "./crates/chia-sdk-signer" }
 chia-sdk-test = { version = "0.33.0", path = "./crates/chia-sdk-test" }
 chia-sdk-types = { version = "0.33.0", path = "./crates/chia-sdk-types" }
+chia-sdk-puzzles = { version = "0.33.0", path = "./crates/chia-sdk-puzzles" }
 chia-sdk-derive = { version = "0.33.0", path = "./crates/chia-sdk-types/derive" }
 chia-sdk-utils = { version = "0.33.0", path = "./crates/chia-sdk-utils" }
 chia-sdk-coinset = { version = "0.33.0", path = "./crates/chia-sdk-coinset" }
