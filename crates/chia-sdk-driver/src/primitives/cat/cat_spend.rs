@@ -2,7 +2,7 @@ use crate::Spend;
 
 use super::Cat;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct CatSpend {
     pub cat: Cat,
     pub spend: Spend,

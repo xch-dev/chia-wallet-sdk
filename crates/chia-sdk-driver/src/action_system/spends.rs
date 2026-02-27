@@ -480,13 +480,10 @@ impl Spends<Unfinished> {
                     );
                 }
                 SpendKind::Settlement(spend) => {
-                    coin_spends.insert(
-                        asset.coin().coin_id(),
-                        SettlementLayer.construct_spend(
-                            ctx,
-                            SettlementPaymentsSolution::new(spend.finish()),
-                        )?,
-                    );
+                    let solution = SettlementPaymentsSolution::new(spend.finish());
+                    let spend = SettlementLayer.construct_spend(ctx, solution)?;
+
+                    coin_spends.insert(asset.coin().coin_id(), spend);
                 }
             }
         }
@@ -542,7 +539,7 @@ impl Spends<Finished> {
             ctx.spend(item.asset, spend)?;
         }
 
-        for cat in self.cats.into_values() {
+        for (_, cat) in self.cats {
             let mut cat_spends = Vec::new();
             for item in cat.items {
                 let spend = coin_spends

@@ -142,25 +142,25 @@ where
 
     pub fn intermediate_settlement_source(&mut self) -> Result<Option<usize>, DriverError> {
         let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
+            let settlement_p2_puzzle_hash = SETTLEMENT_PAYMENT_HASH.into();
             item.kind
-                .find_amount(SETTLEMENT_PAYMENT_HASH.into(), &item.asset.constraints())
+                .find_amount(settlement_p2_puzzle_hash, &item.asset.constraints())
                 .map(|amount| (index, amount))
         }) else {
             return Ok(None);
         };
 
         let source = &mut self.items[index];
+        let settlement_p2_puzzle_hash = SETTLEMENT_PAYMENT_HASH.into();
 
         source.kind.create_intermediate_coin(CreateCoin::new(
-            SETTLEMENT_PAYMENT_HASH.into(),
+            settlement_p2_puzzle_hash,
             amount,
             Memos::None,
         ));
 
         let child = FungibleSpend::new(
-            source
-                .asset
-                .make_child(SETTLEMENT_PAYMENT_HASH.into(), amount),
+            source.asset.make_child(settlement_p2_puzzle_hash, amount),
             true,
         );
 

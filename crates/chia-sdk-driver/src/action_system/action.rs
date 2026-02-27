@@ -6,10 +6,9 @@ use chia_puzzle_types::{
 use hex_literal::hex;
 
 use crate::{
-    CreateDidAction, Delta, Deltas, DriverError, FeeAction, HashedPtr, Id, IssueCatAction,
-    MeltSingletonAction, MintNftAction, MintOptionAction, OptionType, RunTailAction, SendAction,
-    SettleAction, Spend, SpendContext, Spends, TailIssuance, TransferNftById, UpdateDidAction,
-    UpdateNftAction,
+    CreateDidAction, Delta, Deltas, DriverError, FeeAction, HashedPtr, Id, IssueCatAction, MeltSingletonAction,
+    MintNftAction, MintOptionAction, OptionType, RunTailAction, SendAction, SettleAction, Spend, SpendContext,
+    Spends, TailIssuance, TransferNftById, UpdateDidAction, UpdateNftAction,
 };
 
 pub const BURN_PUZZLE_HASH: Bytes32 = Bytes32::new(hex!(

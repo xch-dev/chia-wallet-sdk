@@ -21,6 +21,21 @@ pub struct OfferCoins {
     pub fee: u64,
 }
 
+fn is_offer_settlement_cat_puzzle_hash(
+    asset_info: &AssetInfo,
+    asset_id: Bytes32,
+    puzzle_hash: Bytes32,
+) -> bool {
+    if puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
+        return true;
+    }
+
+    asset_info
+        .cat(asset_id)
+        .and_then(|info| info.settlement_puzzle_hash)
+        .is_some_and(|expected| expected == puzzle_hash)
+}
+
 impl OfferCoins {
     pub fn new() -> Self {
         Self::default()
@@ -42,7 +57,7 @@ impl OfferCoins {
                         .cats
                         .entry(cat.info.asset_id)
                         .or_insert_with(Vec::new)
-                        .push(*cat);
+                        .push(cat.clone());
                 }
             }
         }
@@ -149,13 +164,21 @@ impl OfferCoins {
             Cat::parse_children(allocator, parent_coin, parent_puzzle, parent_solution)?
         {
             for cat in cats {
-                if !spent_coin_ids.contains(&cat.coin.coin_id())
-                    && cat.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
-                {
-                    self.cats.entry(cat.info.asset_id).or_default().push(cat);
+                let is_settlement = !spent_coin_ids.contains(&cat.coin.coin_id())
+                    && is_offer_settlement_cat_puzzle_hash(
+                        asset_info,
+                        cat.info.asset_id,
+                        cat.info.p2_puzzle_hash,
+                    );
+                if !spent_coin_ids.contains(&cat.coin.coin_id()) && is_settlement {
+                    self.cats
+                        .entry(cat.info.asset_id)
+                        .or_default()
+                        .push(cat.clone());
                 }
 
-                let info = CatAssetInfo::new(cat.info.hidden_puzzle_hash);
+                let info = CatAssetInfo::new(cat.info.hidden_puzzle_hash, cat.info.fee_policy)
+                    .with_settlement_puzzle_hash(is_settlement.then_some(cat.info.p2_puzzle_hash));
                 asset_info.insert_cat(cat.info.asset_id, info)?;
             }
         }

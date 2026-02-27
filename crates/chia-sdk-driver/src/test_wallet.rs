@@ -232,8 +232,114 @@ impl TestVault {
         })
     }
 
+    pub fn custom_spend_with_selected_assets(
+        &self,
+        sim: &mut Simulator,
+        ctx: &mut SpendContext,
+        actions: &[Action],
+        spends: Spends,
+        mut vault_conditions: Conditions,
+    ) -> Result<TransactionData> {
+        let mut spends = spends;
+        let deltas = spends.apply(ctx, actions)?;
+
+        let spends = spends.prepare(ctx, &deltas, Relation::None)?;
+
+        let mut coin_spends = HashMap::new();
+
+        for (asset, kind) in spends.unspent() {
+            match kind {
+                SpendKind::Conditions(spend) => {
+                    let delegated_spend = ctx.delegated_spend(spend.finish())?;
+
+                    let mode = MessageFlags::PUZZLE.encode(MessageSide::Sender)
+                        | MessageFlags::COIN.encode(MessageSide::Receiver);
+
+                    let coin_id = ctx.alloc(&asset.coin().coin_id())?;
+
+                    vault_conditions.push(SendMessage::new(
+                        mode,
+                        ctx.tree_hash(delegated_spend.puzzle).to_vec().into(),
+                        vec![coin_id],
+                    ));
+
+                    let mut mips_spend = MipsSpend::new(delegated_spend);
+
+                    let puzzle = ctx.curry(SingletonMember::new(self.info.launcher_id))?;
+                    let solution = ctx.alloc(&SingletonMemberSolution::new(
+                        vault_custody_puzzle_hash(self.secret_key.public_key()).into(),
+                        1,
+                    ))?;
+                    let custody_hash = vault_p2_puzzle_hash(self.info.launcher_id);
+
+                    mips_spend.members.insert(
+                        custody_hash,
+                        InnerPuzzleSpend::new(0, vec![], Spend::new(puzzle, solution)),
+                    );
+
+                    let spend = mips_spend.spend(ctx, custody_hash)?;
+
+                    coin_spends.insert(asset.coin().coin_id(), spend);
+                }
+                SpendKind::Settlement(spend) => {
+                    coin_spends.insert(
+                        asset.coin().coin_id(),
+                        SettlementLayer.construct_spend(
+                            ctx,
+                            SettlementPaymentsSolution::new(spend.finish()),
+                        )?,
+                    );
+                }
+            }
+        }
+
+        let outputs = spends.spend(ctx, coin_spends)?;
+        let coin_spends = ctx.take();
+
+        let vault = fetch_vault(sim, self.info.launcher_id, self.info.custody_hash.into())?;
+
+        let delegated_spend = ctx.delegated_spend(vault_conditions.create_coin(
+            self.info.custody_hash.into(),
+            vault.coin.amount,
+            Memos::None,
+        ))?;
+
+        let mut mips_spend = MipsSpend::new(delegated_spend);
+
+        let puzzle = ctx.curry(BlsMemberPuzzleAssert::new(self.secret_key.public_key()))?;
+
+        mips_spend.members.insert(
+            self.info.custody_hash,
+            InnerPuzzleSpend::new(0, vec![], Spend::new(puzzle, NodePtr::NIL)),
+        );
+
+        vault.spend(ctx, &mips_spend)?;
+
+        let vault_spend = ctx.take().remove(0);
+
+        sim.spend_coins(
+            coin_spends
+                .clone()
+                .into_iter()
+                .chain(vec![vault_spend.clone()])
+                .collect(),
+            slice::from_ref(&self.secret_key),
+        )?;
+
+        Ok(TransactionData {
+            outputs,
+            delegated_spend,
+            coin_spends,
+            vault_spend,
+        })
+    }
+
     pub fn puzzle_hash(&self) -> Bytes32 {
         self.puzzle_hash
+    }
+
+    pub fn public_key(&self) -> PublicKey {
+        self.secret_key.public_key()
     }
 
     pub fn launcher_id(&self) -> Bytes32 {

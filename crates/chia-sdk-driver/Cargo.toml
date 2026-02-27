@@ -24,6 +24,7 @@ offer-compression = ["dep:flate2", "dep:chia-sdk-utils"]
 
 [dependencies]
 chia-sdk-signer = { workspace = true }
+chia-sdk-puzzles = { workspace = true }
 chia-bls = { workspace = true }
 chia-consensus = { workspace = true }
 chia-secp = { workspace = true }

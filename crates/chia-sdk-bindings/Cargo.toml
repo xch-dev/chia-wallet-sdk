@@ -25,6 +25,7 @@ chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-l
 chia-sdk-coinset = { workspace = true, features = ["native-tls"] }
 chia-sdk-test = { workspace = true }
 chia-sdk-types = { workspace = true }
+chia-sdk-puzzles = { workspace = true }
 chia-sdk-client = { workspace = true, optional = true, features = ["native-tls"] }
 chia-ssl = { workspace = true, optional = true }
 chia-protocol = { workspace = true }

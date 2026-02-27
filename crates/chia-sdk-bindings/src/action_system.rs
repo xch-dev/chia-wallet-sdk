@@ -9,7 +9,7 @@ use chia_puzzle_types::{Memos, offer::SettlementPaymentsSolution};
 use chia_sdk_driver::{
     self as sdk, Cat, Delta, HashedPtr, Layer, Relation, SettlementLayer, SpendContext, SpendKind,
 };
-use chia_sdk_types::{Condition, conditions::TradePrice};
+use chia_sdk_types::{Condition, conditions::TradePrice as NftTradePrice};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
 
@@ -258,8 +258,8 @@ impl PendingSpend {
     }
 
     pub fn as_cat(&self) -> Result<Option<Cat>> {
-        match self.asset {
-            sdk::SpendableAsset::Cat(cat) => Ok(Some(cat)),
+        match &self.asset {
+            sdk::SpendableAsset::Cat(cat) => Ok(Some(*cat)),
             _ => Ok(None),
         }
     }
@@ -287,7 +287,7 @@ impl PendingSpend {
 }
 
 #[derive(Clone)]
-pub struct Action(sdk::Action);
+pub struct Action(pub(crate) sdk::Action);
 
 impl Action {
     pub fn send(id: Id, puzzle_hash: Bytes32, amount: u64, memos: Option<Program>) -> Result<Self> {
@@ -481,5 +481,5 @@ impl Outputs {
 #[derive(Clone)]
 pub struct TransferNftById {
     pub owner_id: Option<Id>,
-    pub trade_prices: Vec<TradePrice>,
+    pub trade_prices: Vec<NftTradePrice>,
 }

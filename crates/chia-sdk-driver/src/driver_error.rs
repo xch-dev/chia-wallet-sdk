@@ -121,6 +121,24 @@ pub enum DriverError {
     #[error("conflicting inputs in offers")]
     ConflictingOfferInputs,
 
+    #[error("missing trade context")]
+    MissingTradeContext,
+
+    #[error("invalid trade context")]
+    InvalidTradeContext,
+
+    #[error("trade-price kind is unsupported by transfer-fee policy")]
+    UnsupportedTradePriceKind,
+
+    #[error("trade-price kind is invalid")]
+    InvalidTradePriceKind,
+
+    #[error("trade-price profile is unsupported by transfer-fee policy")]
+    UnsupportedTradePriceProfile,
+
+    #[error("trade-price profile is invalid")]
+    InvalidTradePriceProfile,
+
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 

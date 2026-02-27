@@ -771,13 +771,16 @@ fn calculate_transfer_type(
 mod tests {
     use super::*;
 
-    use anyhow::Result;
+    use anyhow::{Context, Result};
+    use chia_puzzle_types::cat::EverythingWithSignatureTailArgs;
     use chia_puzzles::SINGLETON_LAUNCHER_HASH;
     use chia_sdk_test::Simulator;
     use chia_sdk_types::Conditions;
     use rstest::rstest;
 
-    use crate::{Action, FeeAction, Id, SpendContext, Spends, TestVault};
+    use crate::{
+        Action, Delta, FeeAction, FeePolicy, Id, SpendContext, Spends, TestVault,
+    };
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum AssetKind {
@@ -1132,6 +1135,119 @@ mod tests {
         assert_eq!(payment.asset_id, asset_id);
         assert_eq!(payment.p2_puzzle_hash, alice.puzzle_hash());
         assert_eq!(payment.coin.amount, 1000);
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_vault_fee_cat_reissue_later_block(
+        #[values(false, true)] revocable: bool,
+    ) -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let issuer = TestVault::mint(&mut sim, &mut ctx, 5)?;
+        let hidden_puzzle_hash = revocable.then_some(issuer.puzzle_hash());
+        let source_xch = sim
+            .unspent_coins(issuer.puzzle_hash(), false)
+            .into_iter()
+            .next()
+            .context("missing vault XCH source coin for fee CAT issuance")?;
+
+        let fee_policy = FeePolicy::new(
+            issuer.puzzle_hash(),
+            500,
+            1,
+            false,
+            true,
+        );
+        let issuer_hint = ctx.hint(issuer.puzzle_hash())?;
+        let (issue_fee_cat, issued_cats) = if revocable {
+            Cat::issue_revocable_fee_with_key(
+                &mut ctx,
+                source_xch.coin_id(),
+                issuer.public_key(),
+                hidden_puzzle_hash.context("missing hidden puzzle hash for revocable case")?,
+                fee_policy.clone(),
+                1,
+                Conditions::new().create_coin(issuer.puzzle_hash(), 1, issuer_hint),
+            )?
+        } else {
+            Cat::issue_fee_with_key(
+                &mut ctx,
+                source_xch.coin_id(),
+                issuer.public_key(),
+                fee_policy.clone(),
+                1,
+                Conditions::new().create_coin(issuer.puzzle_hash(), 1, issuer_hint),
+            )?
+        };
+
+        let (eve_puzzle_hash, eve_amount) = {
+            let Some(condition) = issue_fee_cat.iter().next() else {
+                return Err(anyhow::anyhow!("missing fee CAT eve create-coin condition").into());
+            };
+            let Condition::CreateCoin(CreateCoin {
+                puzzle_hash,
+                amount,
+                ..
+            }) = condition
+            else {
+                return Err(anyhow::anyhow!("unexpected issuance condition shape").into());
+            };
+            (*puzzle_hash, *amount)
+        };
+
+        let mut issuance_spends = Spends::new(issuer.puzzle_hash());
+        issuance_spends.add(source_xch);
+
+        issuer.custom_spend_with_selected_assets(
+            &mut sim,
+            &mut ctx,
+            &[Action::send(Id::Xch, eve_puzzle_hash, eve_amount, Memos::None)],
+            issuance_spends,
+            Conditions::new(),
+        )?;
+
+        let issued_cat = issued_cats[0].clone();
+        assert_ne!(sim.coin_state(issued_cat.coin.coin_id()), None);
+        assert_eq!(issued_cat.info.hidden_puzzle_hash, hidden_puzzle_hash);
+        assert_eq!(issued_cat.info.fee_policy.as_ref(), Some(&fee_policy));
+
+        let mint_xch_source = sim
+            .unspent_coins(issuer.puzzle_hash(), false)
+            .into_iter()
+            .next()
+            .context("missing vault XCH source coin for fee CAT re-issuance")?;
+        let tail = ctx.curry(EverythingWithSignatureTailArgs::new(issuer.public_key()))?;
+        let tail_spend = Spend::new(tail, NodePtr::NIL);
+        let mut mint_spends = Spends::new(issuer.puzzle_hash());
+        mint_spends.add(mint_xch_source);
+        mint_spends.add(issued_cat.clone());
+
+        let mint_result = issuer.custom_spend_with_selected_assets(
+            &mut sim,
+            &mut ctx,
+            &[Action::run_tail(
+                Id::Existing(issued_cat.info.asset_id),
+                tail_spend,
+                Delta::new(1, 0),
+            )],
+            mint_spends,
+            Conditions::new(),
+        )?;
+
+        let minted_outputs = mint_result
+            .outputs
+            .cats
+            .get(&Id::Existing(issued_cat.info.asset_id))
+            .context("missing reissued fee CAT output")?;
+        assert_eq!(minted_outputs.len(), 1);
+        let reissued_cat = &minted_outputs[0];
+        assert_eq!(reissued_cat.coin.amount, issued_cat.coin.amount + 1);
+        assert_eq!(reissued_cat.info.hidden_puzzle_hash, hidden_puzzle_hash);
+        assert_eq!(reissued_cat.info.fee_policy.as_ref(), Some(&fee_policy));
+        assert_ne!(sim.coin_state(reissued_cat.coin.coin_id()), None);
 
         Ok(())
     }

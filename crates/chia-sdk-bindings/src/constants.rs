@@ -3,6 +3,7 @@
 use bindy::Result;
 use chia_protocol::Program;
 use chia_puzzles::*;
+use chia_sdk_puzzles::{FEE_LAYER_V1, FEE_LAYER_V1_HASH};
 use chia_sdk_types::puzzles::*;
 use clvm_utils::TreeHash;
 use paste::paste;
@@ -47,6 +48,7 @@ puzzle_constants! {
     augmented_condition => AUGMENTED_CONDITION,
     block_program_zero => BLOCK_PROGRAM_ZERO,
     cat_puzzle => CAT_PUZZLE,
+    fee_layer_v1 => FEE_LAYER_V1,
     chialisp_deserialisation => CHIALISP_DESERIALISATION,
     conditions_w_fee_announce => CONDITIONS_W_FEE_ANNOUNCE,
     covenant_layer => COVENANT_LAYER,

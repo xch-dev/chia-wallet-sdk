@@ -3,7 +3,7 @@ use chia_puzzle_types::CoinProof;
 
 use crate::Spend;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct SingleCatSpend {
     pub prev_coin_id: Bytes32,
     pub next_coin_proof: CoinProof,

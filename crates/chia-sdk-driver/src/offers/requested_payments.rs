@@ -66,14 +66,15 @@ impl RequestedPayments {
         for (&asset_id, notarized_payments) in &self.cats {
             let default = CatAssetInfo::default();
             let info = asset_info.cat(asset_id).unwrap_or(&default);
+            let settlement_puzzle_hash = info
+                .settlement_puzzle_hash
+                .unwrap_or(SETTLEMENT_PAYMENT_HASH.into());
 
-            let puzzle_hash = CatInfo::new(
-                asset_id,
-                info.hidden_puzzle_hash,
-                SETTLEMENT_PAYMENT_HASH.into(),
-            )
-            .puzzle_hash()
-            .into();
+            let puzzle_hash =
+                CatInfo::new(asset_id, info.hidden_puzzle_hash, settlement_puzzle_hash)
+                    .with_fee_policy(info.fee_policy)
+                    .puzzle_hash()
+                    .into();
 
             for notarized_payment in notarized_payments {
                 assertions.push(payment_assertion(
@@ -211,7 +212,8 @@ impl RequestedPayments {
                 .or_default()
                 .extend(notarized_payments);
 
-            let info = CatAssetInfo::new(cat.hidden_puzzle_hash);
+            let info = CatAssetInfo::new(cat.hidden_puzzle_hash, cat.fee_policy)
+                .with_settlement_puzzle_hash(Some(cat.p2_puzzle_hash));
             asset_info.insert_cat(cat.asset_id, info)?;
         } else if let Some((nft, _)) = NftInfo::parse(allocator, puzzle)? {
             self.nfts
