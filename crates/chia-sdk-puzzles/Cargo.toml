@@ -9,12 +9,5 @@ publish = false
 workspace = true
 
 [dependencies]
-
-[build-dependencies]
-anyhow = { workspace = true }
-clvmr = { workspace = true }
-clvm-utils = { workspace = true }
-hex = { workspace = true }
-rue-compiler = { workspace = true }
-rue-options = { workspace = true }
+hex-literal = { workspace = true }
 

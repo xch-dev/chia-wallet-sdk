@@ -706,12 +706,7 @@ dependencies = [
 name = "chia-sdk-puzzles"
 version = "0.33.0"
 dependencies = [
- "anyhow",
- "clvm-utils",
- "clvmr",
- "hex",
- "rue-compiler",
- "rue-options",
+ "hex-literal",
 ]
 
 [[package]]

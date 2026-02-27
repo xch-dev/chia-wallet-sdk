@@ -142,7 +142,7 @@ where
 
     pub fn intermediate_settlement_source(&mut self) -> Result<Option<usize>, DriverError> {
         let Some((index, amount)) = self.items.iter().enumerate().find_map(|(index, item)| {
-            let settlement_p2_puzzle_hash = item.asset.settlement_p2_puzzle_hash();
+            let settlement_p2_puzzle_hash = SETTLEMENT_PAYMENT_HASH.into();
             item.kind
                 .find_amount(settlement_p2_puzzle_hash, &item.asset.constraints())
                 .map(|amount| (index, amount))
@@ -151,7 +151,7 @@ where
         };
 
         let source = &mut self.items[index];
-        let settlement_p2_puzzle_hash = source.asset.settlement_p2_puzzle_hash();
+        let settlement_p2_puzzle_hash = SETTLEMENT_PAYMENT_HASH.into();
 
         source.kind.create_intermediate_coin(CreateCoin::new(
             settlement_p2_puzzle_hash,
@@ -314,7 +314,7 @@ where
     T: FungibleAsset,
 {
     pub fn new(asset: T, ephemeral: bool) -> Self {
-        let kind = if T::is_settlement_p2_puzzle_hash(asset.p2_puzzle_hash()) {
+        let kind = if asset.p2_puzzle_hash() == SETTLEMENT_PAYMENT_HASH.into() {
             SpendKind::settlement()
         } else {
             SpendKind::conditions()
@@ -336,14 +336,6 @@ pub trait FungibleAsset: Clone + Asset {
         ctx: &mut SpendContext,
         p2_puzzle_hash: Bytes32,
     ) -> Result<Memos, DriverError>;
-
-    fn settlement_p2_puzzle_hash(&self) -> Bytes32 {
-        SETTLEMENT_PAYMENT_HASH.into()
-    }
-
-    fn is_settlement_p2_puzzle_hash(p2_puzzle_hash: Bytes32) -> bool {
-        p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
-    }
 }
 
 impl FungibleAsset for Coin {
@@ -371,13 +363,5 @@ impl FungibleAsset for Cat {
         p2_puzzle_hash: Bytes32,
     ) -> Result<Memos, DriverError> {
         ctx.hint(p2_puzzle_hash)
-    }
-
-    fn settlement_p2_puzzle_hash(&self) -> Bytes32 {
-        SETTLEMENT_PAYMENT_HASH.into()
-    }
-
-    fn is_settlement_p2_puzzle_hash(p2_puzzle_hash: Bytes32) -> bool {
-        p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
     }
 }

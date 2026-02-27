@@ -26,13 +26,12 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    Action, AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did,
-    Force1of2RestrictedVariableMemo, InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind,
-    MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment,
-    OfferSecurityCoinDetails, OptionContract, Payment, Program, RestrictionMemo, RewardDistributor,
+    AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did, Force1of2RestrictedVariableMemo,
+    InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo, MipsSpend,
+    MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
+    OptionContract, Payment, Program, RestrictionMemo, RewardDistributor,
     RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
-    SettlementNftSpendResult, Spend, StreamedAssetParsingResult, TransferFeeInfo, VaultMint,
-    VaultSpendReveal, WrapperMemo,
+    SettlementNftSpendResult, Spend, StreamedAssetParsingResult, VaultMint, VaultSpendReveal, WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
@@ -823,32 +822,10 @@ impl Clvm {
             .map(|n| n.as_program(&self.0)))
     }
 
-    pub fn offer_offered_transfer_fees(&self, offer: SpendBundle) -> Result<Vec<TransferFeeInfo>> {
-        let mut ctx = self.0.lock().unwrap();
-        let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
-        Ok(offer.offered_transfer_fees())
-    }
-
-    pub fn offer_requested_transfer_fees(
-        &self,
-        offer: SpendBundle,
-    ) -> Result<Vec<TransferFeeInfo>> {
-        let mut ctx = self.0.lock().unwrap();
-        let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
-        Ok(offer.requested_transfer_fees())
-    }
-
     pub fn offer_trade_nonce(&self, offer: SpendBundle) -> Result<Bytes32> {
         let mut ctx = self.0.lock().unwrap();
         let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
         Ok(offer.trade_nonce()?)
-    }
-
-    pub fn offer_take_actions_with_transfer_fees(&self, offer: SpendBundle) -> Result<Vec<Action>> {
-        let mut ctx = self.0.lock().unwrap();
-        let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
-        let actions = offer.take_actions_with_transfer_fees(&mut ctx)?;
-        Ok(actions.into_iter().map(Action::from_sdk).collect())
     }
 
     pub fn parse_vault_transaction(

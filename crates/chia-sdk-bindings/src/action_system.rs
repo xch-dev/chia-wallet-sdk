@@ -4,12 +4,12 @@ use std::{
 };
 
 use bindy::Result;
-use chia_protocol::{Bytes32, Coin, SpendBundle};
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{Memos, offer::SettlementPaymentsSolution};
 use chia_sdk_driver::{
     self as sdk, Cat, Delta, HashedPtr, Layer, Relation, SettlementLayer, SpendContext, SpendKind,
 };
-use chia_sdk_types::{Condition, conditions::TradePrice as NftTradePrice, puzzles::FeeTradePrice};
+use chia_sdk_types::{Condition, conditions::TradePrice as NftTradePrice};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
 
@@ -125,30 +125,6 @@ impl Spends {
                 }
             })
             .unwrap_or(0))
-    }
-
-    pub fn set_cat_trade_context(
-        &self,
-        id: Id,
-        trade_nonce: Bytes32,
-        trade_prices: Vec<FeeTradePrice>,
-    ) -> Result<()> {
-        self.spends
-            .lock()
-            .unwrap()
-            .set_cat_trade_context(id.0, trade_nonce, trade_prices)?;
-
-        Ok(())
-    }
-
-    pub fn apply_offer_transfer_fee_trade_context(&self, offer: SpendBundle) -> Result<()> {
-        let mut ctx = self.clvm.lock().unwrap();
-        let offer = sdk::Offer::from_spend_bundle(&mut ctx, &offer)?;
-        drop(ctx);
-
-        offer.apply_transfer_fee_trade_context(&mut self.spends.lock().unwrap())?;
-
-        Ok(())
     }
 
     pub fn apply(&self, actions: Vec<Action>) -> Result<Deltas> {
@@ -283,7 +259,7 @@ impl PendingSpend {
 
     pub fn as_cat(&self) -> Result<Option<Cat>> {
         match &self.asset {
-            sdk::SpendableAsset::Cat(cat) => Ok(Some(cat.clone())),
+            sdk::SpendableAsset::Cat(cat) => Ok(Some(*cat)),
             _ => Ok(None),
         }
     }
@@ -311,13 +287,9 @@ impl PendingSpend {
 }
 
 #[derive(Clone)]
-pub struct Action(sdk::Action);
+pub struct Action(pub(crate) sdk::Action);
 
 impl Action {
-    pub(crate) fn from_sdk(action: sdk::Action) -> Self {
-        Self(action)
-    }
-
     pub fn send(id: Id, puzzle_hash: Bytes32, amount: u64, memos: Option<Program>) -> Result<Self> {
         Ok(Self(sdk::Action::send(
             id.0,

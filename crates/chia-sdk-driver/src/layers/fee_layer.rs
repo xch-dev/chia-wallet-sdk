@@ -88,11 +88,7 @@ where
     ) -> Result<Self::Solution, DriverError> {
         let solution = FeeLayerSolution::<NodePtr>::from_clvm(allocator, solution)?;
         let inner_solution = I::parse_solution(allocator, solution.inner_solution)?;
-        Ok(FeeLayerSolution::new(
-            solution.trade_nonce,
-            solution.trade_prices,
-            inner_solution,
-        ))
+        Ok(FeeLayerSolution::new(inner_solution))
     }
 
     fn construct_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
@@ -117,11 +113,7 @@ where
             .inner_puzzle
             .construct_solution(ctx, solution.inner_solution)?;
 
-        ctx.alloc(&FeeLayerSolution::new(
-            solution.trade_nonce,
-            solution.trade_prices,
-            inner_solution,
-        ))
+        ctx.alloc(&FeeLayerSolution::new(inner_solution))
     }
 }
 

@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::{Condition, puzzles::SettlementPayment, run_puzzle};
+use chia_sdk_types::{Condition, Conditions, puzzles::SettlementPayment, run_puzzle};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::Allocator;
@@ -147,6 +147,21 @@ impl Offer {
             .collect()
     }
 
+    /// Returns requested CAT ids that require CAT trade context.
+    fn offered_fee_context_asset_ids(&self) -> Vec<Bytes32> {
+        self.requested_payments
+            .cats
+            .keys()
+            .copied()
+            .filter(|&asset_id| {
+                self.asset_info
+                    .cat(asset_id)
+                    .and_then(|cat| cat.fee_policy.clone())
+                    .is_some()
+            })
+            .collect()
+    }
+
     /// Returns transfer-fee policies for offered CATs (fees paid by the requested side).
     pub fn requested_transfer_fees(&self) -> Vec<TransferFeeInfo> {
         let mut infos = Vec::new();
@@ -168,6 +183,21 @@ impl Offer {
             .into_iter()
             .filter(|info| info.policy.fee_basis_points > 0)
             .collect()
+    }
+
+    /// Returns offered CAT ids that require CAT trade context.
+    fn requested_fee_context_asset_ids(&self) -> Vec<Bytes32> {
+        let mut ids = IndexSet::new();
+
+        for cats in self.offered_coins.cats.values() {
+            for cat in cats {
+                if cat.info.fee_policy.is_some() {
+                    ids.insert(cat.info.asset_id);
+                }
+            }
+        }
+
+        ids.into_iter().collect()
     }
 
     pub fn offered_transfer_fee_amounts(&self) -> OfferAmounts {
@@ -370,39 +400,60 @@ impl Offer {
         Ok(actions)
     }
 
-    pub fn apply_transfer_fee_trade_context(&self, spends: &mut Spends) -> Result<(), DriverError> {
-        let offered_transfer_fees = self.offered_transfer_fees();
-        let requested_transfer_fees = self.requested_transfer_fees();
+    fn transfer_fee_trade_contexts(&self) -> Result<Vec<(Id, Bytes32, Vec<chia_sdk_types::puzzles::FeeTradePrice>)>, DriverError> {
+        let offered_context_asset_ids = self.offered_fee_context_asset_ids();
+        let requested_context_asset_ids = self.requested_fee_context_asset_ids();
 
-        if offered_transfer_fees.is_empty() && requested_transfer_fees.is_empty() {
-            return Ok(());
+        if offered_context_asset_ids.is_empty() && requested_context_asset_ids.is_empty() {
+            return Ok(Vec::new());
         }
 
         let trade_nonce = self.trade_nonce()?;
         let offered_amounts = self.offered_coins.amounts();
         let requested_amounts = self.requested_payments.amounts();
+        let mut contexts = Vec::new();
 
-        if !offered_transfer_fees.is_empty() {
+        if !offered_context_asset_ids.is_empty() {
             let trade_prices = calculate_trade_prices(&offered_amounts, &self.asset_info);
             ensure_trade_prices_supported(&trade_prices)?;
-            for transfer_fee in offered_transfer_fees {
-                spends.set_cat_trade_context(
-                    Id::Existing(transfer_fee.asset_id),
+            for asset_id in offered_context_asset_ids {
+                contexts.push((
+                    Id::Existing(asset_id),
                     trade_nonce,
                     trade_prices.clone(),
-                )?;
+                ));
             }
         }
 
-        if !requested_transfer_fees.is_empty() {
+        if !requested_context_asset_ids.is_empty() {
             let trade_prices = calculate_trade_prices(&requested_amounts, &self.asset_info);
             ensure_trade_prices_supported(&trade_prices)?;
-            for transfer_fee in requested_transfer_fees {
-                spends.set_cat_trade_context(
-                    Id::Existing(transfer_fee.asset_id),
+            for asset_id in requested_context_asset_ids {
+                contexts.push((
+                    Id::Existing(asset_id),
                     trade_nonce,
                     trade_prices.clone(),
-                )?;
+                ));
+            }
+        }
+
+        Ok(contexts)
+    }
+
+    pub fn apply_transfer_fee_trade_context(&self, spends: &mut Spends) -> Result<(), DriverError> {
+        for (id, trade_nonce, trade_prices) in self.transfer_fee_trade_contexts()? {
+            let Some(cat_spends) = spends.cats.get_mut(&id) else {
+                // Not all transfer-fee contexts correspond to CATs being spent by this `Spends`.
+                continue;
+            };
+
+            let context_condition =
+                Conditions::new().set_cat_trade_context(trade_nonce, trade_prices.clone());
+
+            for item in &mut cat_spends.items {
+                if let crate::SpendKind::Conditions(spend) = &mut item.kind {
+                    spend.add_conditions(context_condition.clone());
+                }
             }
         }
 

@@ -21,6 +21,22 @@ struct TradePrice {
     quote_fee_policy: Any,
 }
 
+struct SetCatTradeContextCondition {
+    opcode = -26,
+    trade_nonce: Bytes32,
+    trade_prices: Any,
+}
+
+struct SetCatTradeContextOpcode {
+    opcode = -26,
+    ...rest: Any,
+}
+
+struct AnyList {
+    first: Any,
+    ...rest: Any,
+}
+
 struct RunCatTailCondition {
     opcode = CREATE_COIN,
     puzzle_hash: Any,
@@ -245,16 +261,28 @@ fn fee_message_without_memo(
     tree_hash([trade_nonce, [issuer_fee_puzzle_hash, fee_amount, nil]])
 }
 
+fn parse_trade_price(raw_trade_price: Any) -> TradePrice {
+    if raw_trade_price is TradePrice {
+        raw_trade_price
+    } else {
+        raise "Invalid trade-price descriptor";
+    }
+}
+
 fn build_fee_assertions(
     config: FeeLayerConfig,
     trade_nonce: Bytes32,
-    trade_prices: List<TradePrice>,
+    trade_prices: Any,
 ) -> List<Any> {
     if trade_prices is nil {
         return nil;
     }
 
-    let trade_price = trade_prices.first;
+    if !(trade_prices is AnyList) {
+        raise "Invalid CAT trade context condition";
+    }
+
+    let trade_price = parse_trade_price(trade_prices.first);
 
     if !trade_price_amount_valid(config.allow_zero_price, trade_price.amount) {
         raise "Invalid trade-price amount";
@@ -271,11 +299,7 @@ fn build_fee_assertions(
     let settlement_puzzle_hash = trade_price_settlement_puzzle_hash(config, trade_price);
     let fee_amount = calculate_fee(trade_price.amount, config.fee_basis_points, config.min_fee);
 
-    let rest = build_fee_assertions(
-        config,
-        trade_nonce,
-        trade_prices.rest,
-    );
+    let rest = build_fee_assertions(config, trade_nonce, trade_prices.rest);
 
     if fee_amount == 0 {
         rest
@@ -302,6 +326,34 @@ fn build_fee_assertions(
     }
 }
 
+fn count_trade_contexts(conditions: List<Any>) -> Int {
+    if conditions is nil {
+        return 0;
+    }
+
+    let condition = conditions.first;
+    let rest_count = count_trade_contexts(conditions.rest);
+
+    if condition is SetCatTradeContextOpcode {
+        1 + rest_count
+    } else {
+        rest_count
+    }
+}
+
+fn parse_trade_context(conditions: List<Any>) -> Any {
+    if conditions is nil {
+        return nil;
+    }
+
+    let condition = conditions.first;
+    if condition is SetCatTradeContextCondition {
+        condition
+    } else {
+        parse_trade_context(conditions.rest)
+    }
+}
+
 fn morph_conditions(
     conditions: List<Any>,
     config: FeeLayerConfig,
@@ -312,6 +364,10 @@ fn morph_conditions(
 
     inline let condition = conditions.first;
     let rest = morph_conditions(conditions.rest, config);
+
+    if condition is SetCatTradeContextOpcode {
+        return rest;
+    }
 
     if condition is RunCatTailCondition {
         return [condition, ...rest];
@@ -358,6 +414,23 @@ fn hidden_revoke_mode(
     }
 }
 
+fn settlement_unlock_mode(
+    has_hidden_revoke_layer: Bool,
+    inner_puzzle: Any,
+    inner_solution: Any,
+) -> Bool {
+    if has_hidden_revoke_layer {
+        if inner_solution is RevocationSolution {
+            !inner_solution.hidden
+                && tree_hash(inner_solution.puzzle) == SETTLEMENT_PAYMENT_HASH
+        } else {
+            false
+        }
+    } else {
+        tree_hash(inner_puzzle) == SETTLEMENT_PAYMENT_HASH
+    }
+}
+
 fn main(
     this_mod_hash: Bytes32,
     issuer_fee_puzzle_hash: Bytes32,
@@ -367,8 +440,6 @@ fn main(
     allow_revoke_fee_bypass: Bool,
     has_hidden_revoke_layer: Bool,
     inner_puzzle: fn(...inner_solution: Any) -> List<Any>,
-    trade_nonce: Bytes32,
-    trade_prices: List<TradePrice>,
     inner_solution: Any,
 ) -> List<Any> {
     let config = FeeLayerConfig {
@@ -382,6 +453,7 @@ fn main(
     };
 
     let inner_conditions = inner_puzzle(...inner_solution);
+    let trade_context_count = count_trade_contexts(inner_conditions);
     let morphed_conditions = morph_conditions(inner_conditions, config);
     let is_hidden_revoke = hidden_revoke_mode(
         config.allow_revoke_fee_bypass,
@@ -400,17 +472,35 @@ fn main(
         return morphed_conditions;
     }
 
-    if !config.allow_zero_price && trade_prices is nil {
-        raise "Trade prices required when zero-price transfers are disabled";
+    if settlement_unlock_mode(config.has_hidden_revoke_layer, inner_puzzle, inner_solution) {
+        // Settlement unlock spends intentionally bypass transfer-fee assertions.
+        return morphed_conditions;
     }
 
-    merge_list(
-        build_fee_assertions(
-            config,
-            trade_nonce,
-            trade_prices,
-        ),
-        morphed_conditions,
-    )
+    if trade_context_count == 0 {
+        raise "Missing CAT trade context condition";
+    }
+
+    if trade_context_count > 1 {
+        raise "Duplicate CAT trade context condition";
+    }
+
+    let trade_context = parse_trade_context(inner_conditions);
+    if trade_context is SetCatTradeContextCondition {
+        if !config.allow_zero_price && trade_context.trade_prices is nil {
+            raise "Trade prices required when zero-price transfers are disabled";
+        }
+
+        merge_list(
+            build_fee_assertions(
+                config,
+                trade_context.trade_nonce,
+                trade_context.trade_prices,
+            ),
+            morphed_conditions,
+        )
+    } else {
+        raise "Invalid CAT trade context condition";
+    }
 }
 

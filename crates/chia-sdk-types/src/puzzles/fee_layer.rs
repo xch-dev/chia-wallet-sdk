@@ -125,23 +125,19 @@ impl<I> Mod for FeeLayerArgs<I> {
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct FeeLayerSolution<S> {
-    pub trade_nonce: Bytes32,
-    pub trade_prices: Vec<FeeTradePrice>,
     pub inner_solution: S,
 }
 
 impl<S> FeeLayerSolution<S> {
-    pub fn new(trade_nonce: Bytes32, trade_prices: Vec<FeeTradePrice>, inner_solution: S) -> Self {
-        Self {
-            trade_nonce,
-            trade_prices,
-            inner_solution,
-        }
+    pub fn new(inner_solution: S) -> Self {
+        Self { inner_solution }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use clvm_traits::{FromClvm, ToClvm};
     use clvmr::Allocator;
 
@@ -154,6 +150,32 @@ mod tests {
         let fields = Vec::<clvmr::NodePtr>::from_clvm(&allocator, ptr)?;
 
         assert_eq!(fields.len(), 4);
+        Ok(())
+    }
+
+    #[test]
+    fn fee_layer_rue_source_matches_embedded_constants() -> anyhow::Result<()> {
+        let path = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../chia-sdk-puzzles/puzzles/fee_layer_v1.rue"
+        ));
+
+        let compiled = crate::compile_rue(path, false, None)?;
+        if compiled.reveal.as_slice() != FEE_LAYER_V1 {
+            let first_mismatch = compiled
+                .reveal
+                .iter()
+                .zip(FEE_LAYER_V1.iter())
+                .position(|(a, b)| a != b);
+
+            panic!(
+                "fee_layer_v1 bytes drifted (compiled_len={}, embedded_len={}, first_mismatch={first_mismatch:?})",
+                compiled.reveal.len(),
+                FEE_LAYER_V1.len(),
+            );
+        }
+        assert_eq!(compiled.hash, TreeHash::new(FEE_LAYER_V1_HASH));
+
         Ok(())
     }
 }

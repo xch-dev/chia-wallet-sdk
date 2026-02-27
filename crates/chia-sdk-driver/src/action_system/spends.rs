@@ -3,7 +3,7 @@ use std::{collections::HashMap, mem};
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
-use chia_sdk_types::{Conditions, conditions::AssertPuzzleAnnouncement, puzzles::FeeTradePrice};
+use chia_sdk_types::{Conditions, conditions::AssertPuzzleAnnouncement};
 use indexmap::IndexMap;
 
 use crate::{
@@ -25,7 +25,6 @@ pub struct Spends<S = Unfinished> {
     pub change_puzzle_hash: Bytes32,
     pub outputs: Outputs,
     pub conditions: ConditionConfig,
-    pub cat_trade_contexts: IndexMap<Id, CatTradeContext>,
     _state: S,
 }
 
@@ -34,12 +33,6 @@ pub struct ConditionConfig {
     pub optional: Conditions,
     pub required: Conditions,
     pub disable_settlement_assertions: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CatTradeContext {
-    pub trade_nonce: Bytes32,
-    pub trade_prices: Vec<FeeTradePrice>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -78,7 +71,6 @@ impl Spends<Unfinished> {
             change_puzzle_hash,
             outputs: Outputs::default(),
             conditions: ConditionConfig::default(),
-            cat_trade_contexts: IndexMap::new(),
             _state: Unfinished,
         }
     }
@@ -97,29 +89,6 @@ impl Spends<Unfinished> {
             action.spend(ctx, self, index)?;
         }
         Ok(deltas)
-    }
-
-    pub fn set_cat_trade_context(
-        &mut self,
-        id: Id,
-        trade_nonce: Bytes32,
-        trade_prices: Vec<FeeTradePrice>,
-    ) -> Result<(), DriverError> {
-        if let Some(existing) = self.cat_trade_contexts.get(&id) {
-            if existing.trade_nonce != trade_nonce || existing.trade_prices != trade_prices {
-                return Err(DriverError::InvalidTradeContext);
-            }
-            return Ok(());
-        }
-
-        self.cat_trade_contexts.insert(
-            id,
-            CatTradeContext {
-                trade_nonce,
-                trade_prices,
-            },
-        );
-        Ok(())
     }
 
     fn create_change(
@@ -484,7 +453,6 @@ impl Spends<Unfinished> {
             change_puzzle_hash: self.change_puzzle_hash,
             outputs: self.outputs,
             conditions: self.conditions,
-            cat_trade_contexts: self.cat_trade_contexts,
             _state: Finished,
         })
     }
@@ -534,7 +502,7 @@ impl Spends<Finished> {
 
         for cat in self.cats.values() {
             for item in &cat.items {
-                result.push((SpendableAsset::Cat(item.asset.clone()), item.kind.clone()));
+                result.push((SpendableAsset::Cat(item.asset), item.kind.clone()));
             }
         }
 
@@ -571,21 +539,13 @@ impl Spends<Finished> {
             ctx.spend(item.asset, spend)?;
         }
 
-        for (id, cat) in self.cats {
-            let trade_context = self.cat_trade_contexts.get(&id).cloned();
+        for (_, cat) in self.cats {
             let mut cat_spends = Vec::new();
             for item in cat.items {
                 let spend = coin_spends
                     .remove(&item.asset.coin_id())
                     .ok_or(DriverError::MissingSpend)?;
-                let mut cat_spend = CatSpend::new(item.asset, spend);
-                if let Some(trade_context) = &trade_context {
-                    cat_spend = cat_spend.with_trade(
-                        trade_context.trade_nonce,
-                        trade_context.trade_prices.clone(),
-                    );
-                }
-                cat_spends.push(cat_spend);
+                cat_spends.push(CatSpend::new(item.asset, spend));
             }
             Cat::spend_all(ctx, &cat_spends)?;
         }

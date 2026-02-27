@@ -2,7 +2,7 @@ use chia_protocol::{Bytes32, Coin};
 
 use crate::{Cat, Did, Nft, OptionContract};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum SpendableAsset {
     Xch(Coin),
     Cat(Cat),
