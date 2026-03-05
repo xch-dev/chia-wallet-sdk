@@ -2953,20 +2953,18 @@ export declare class VaultMint {
 
 export declare class VaultSpendReveal {
   clone(): VaultSpendReveal
-  constructor(launcherId: Uint8Array, custodyHash: Uint8Array, delegatedSpend: Spend, coinId?: Uint8Array | undefined | null)
+  constructor(launcherId: Uint8Array, custodyHash: Uint8Array, delegatedSpend: Spend)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)
   get custodyHash(): Buffer
   set custodyHash(value: Uint8Array)
   get delegatedSpend(): Spend
   set delegatedSpend(value: Spend)
-  get coinId(): Buffer | null
-  set coinId(value?: Uint8Array | undefined | null)
 }
 
 export declare class VaultTransaction {
   clone(): VaultTransaction
-  constructor(newCustodyHash: Uint8Array | undefined | null, payments: Array<ParsedPayment>, nfts: Array<ParsedNftTransfer>, dropCoins: Array<DropCoin>, feePaid: bigint, totalFee: bigint, reservedFee: bigint, p2PuzzleHash: Uint8Array, coinMessageHash: Uint8Array | undefined | null, puzzleMessageHash: Uint8Array)
+  constructor(newCustodyHash: Uint8Array | undefined | null, payments: Array<ParsedPayment>, nfts: Array<ParsedNftTransfer>, dropCoins: Array<DropCoin>, feePaid: bigint, totalFee: bigint, reservedFee: bigint, p2PuzzleHash: Uint8Array, delegatedPuzzleHash: Uint8Array)
   get newCustodyHash(): Buffer | null
   set newCustodyHash(value?: Uint8Array | undefined | null)
   get payments(): Array<ParsedPayment>
@@ -2983,10 +2981,8 @@ export declare class VaultTransaction {
   set reservedFee(value: bigint)
   get p2PuzzleHash(): Buffer
   set p2PuzzleHash(value: Uint8Array)
-  get coinMessageHash(): Buffer | null
-  set coinMessageHash(value?: Uint8Array | undefined | null)
-  get puzzleMessageHash(): Buffer
-  set puzzleMessageHash(value: Uint8Array)
+  get delegatedPuzzleHash(): Buffer
+  set delegatedPuzzleHash(value: Uint8Array)
 }
 
 export declare class VdfInfo {
@@ -3033,6 +3029,12 @@ export declare function blsMemberHash(config: MemberConfig, publicKey: PublicKey
 export declare function bulletinPuzzleHash(hiddenPuzzleHash: Uint8Array): Buffer
 
 export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
+
+export declare function calculateVaultCoinMessage(delegatedPuzzleHash: Uint8Array, vaultCoinId: Uint8Array, genesisChallenge: Uint8Array): Buffer
+
+export declare function calculateVaultPuzzleMessage(delegatedPuzzleHash: Uint8Array, vaultPuzzleHash: Uint8Array): Buffer
+
+export declare function calculateVaultStartRecoveryMessage(delegatedPuzzleHash: Uint8Array, leftSideSubtreeHash: Uint8Array, recoveryTimelock: bigint, vaultCoinId: Uint8Array, genesisChallenge: Uint8Array): Buffer
 
 export declare function catPuzzleHash(assetId: Uint8Array, innerPuzzleHash: Uint8Array): Buffer
 

@@ -5,8 +5,7 @@
     "fields": {
       "launcher_id": "Bytes32",
       "custody_hash": "TreeHash",
-      "delegated_spend": "Spend",
-      "coin_id": "Option<Bytes32>"
+      "delegated_spend": "Spend"
     }
   },
   "VaultTransaction": {
@@ -22,8 +21,7 @@
       "total_fee": "u64",
       "reserved_fee": "u64",
       "p2_puzzle_hash": "Bytes32",
-      "coin_message_hash": "Option<Bytes32>",
-      "puzzle_message_hash": "Bytes32"
+      "delegated_puzzle_hash": "Bytes32"
     }
   },
   "ParsedPayment": {
@@ -80,5 +78,33 @@
       "puzzle_hash": "Bytes32",
       "amount": "u64"
     }
+  },
+  "calculate_vault_puzzle_message": {
+    "type": "function",
+    "args": {
+      "delegated_puzzle_hash": "Bytes32",
+      "vault_puzzle_hash": "Bytes32"
+    },
+    "return": "Bytes"
+  },
+  "calculate_vault_coin_message": {
+    "type": "function",
+    "args": {
+      "delegated_puzzle_hash": "Bytes32",
+      "vault_coin_id": "Bytes32",
+      "genesis_challenge": "Bytes32"
+    },
+    "return": "Bytes"
+  },
+  "calculate_vault_start_recovery_message": {
+    "type": "function",
+    "args": {
+      "delegated_puzzle_hash": "Bytes32",
+      "left_side_subtree_hash": "Bytes32",
+      "recovery_timelock": "u64",
+      "vault_coin_id": "Bytes32",
+      "genesis_challenge": "Bytes32"
+    },
+    "return": "Bytes"
   }
 }
