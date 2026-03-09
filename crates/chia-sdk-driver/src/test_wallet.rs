@@ -1,18 +1,18 @@
 use std::{collections::HashMap, slice};
 
 use anyhow::{Result, anyhow};
-use chia_bls::{PublicKey, SecretKey};
-use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_bls::{PublicKey, SecretKey, Signature};
+use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{
     EveProof, LineageProof, Memos, Proof, cat::CatArgs, offer::SettlementPaymentsSolution,
     singleton::SingletonArgs,
 };
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
-use chia_sdk_test::Simulator;
+use chia_sdk_test::{Simulator, sign_transaction};
 use chia_sdk_types::{
     Conditions, MessageFlags, MessageSide, Mod,
     conditions::{CreateCoin, SendMessage},
-    puzzles::{BlsMemberPuzzleAssert, RevocationArgs, SingletonMember, SingletonMemberSolution},
+    puzzles::{BlsMember, RevocationArgs, SingletonMember, SingletonMemberSolution},
 };
 use chia_sdk_utils::select_coins;
 use clvm_traits::ToClvm;
@@ -31,13 +31,15 @@ pub struct TransactionData {
     pub delegated_spend: Spend,
     pub coin_spends: Vec<CoinSpend>,
     pub vault_spend: CoinSpend,
+    pub signature: Signature,
 }
 
 #[derive(Debug, Clone)]
 pub struct TestVault {
-    info: VaultInfo,
-    puzzle_hash: Bytes32,
-    secret_key: SecretKey,
+    pub info: VaultInfo,
+    pub puzzle_hash: Bytes32,
+    pub secret_key: SecretKey,
+    pub public_key: PublicKey,
 }
 
 impl TestVault {
@@ -69,6 +71,7 @@ impl TestVault {
             info: vault.info,
             puzzle_hash,
             secret_key: pair.sk,
+            public_key: pair.pk,
         })
     }
 
@@ -194,7 +197,7 @@ impl TestVault {
         let outputs = spends.spend(ctx, coin_spends)?;
         let coin_spends = ctx.take();
 
-        let vault = fetch_vault(sim, self.info.launcher_id, self.info.custody_hash.into())?;
+        let vault = self.fetch_vault(sim)?;
 
         let delegated_spend = ctx.delegated_spend(vault_conditions.create_coin(
             self.info.custody_hash.into(),
@@ -204,7 +207,7 @@ impl TestVault {
 
         let mut mips_spend = MipsSpend::new(delegated_spend);
 
-        let puzzle = ctx.curry(BlsMemberPuzzleAssert::new(self.secret_key.public_key()))?;
+        let puzzle = ctx.curry(BlsMember::new(self.secret_key.public_key()))?;
 
         mips_spend.members.insert(
             self.info.custody_hash,
@@ -215,21 +218,28 @@ impl TestVault {
 
         let vault_spend = ctx.take().remove(0);
 
-        sim.spend_coins(
-            coin_spends
-                .clone()
-                .into_iter()
-                .chain(vec![vault_spend.clone()])
-                .collect(),
-            slice::from_ref(&self.secret_key),
-        )?;
+        let bundle_coin_spends: Vec<CoinSpend> = coin_spends
+            .clone()
+            .into_iter()
+            .chain(vec![vault_spend.clone()])
+            .collect();
+
+        let signature = sign_transaction(&bundle_coin_spends, slice::from_ref(&self.secret_key))?;
+        let spend_bundle = SpendBundle::new(bundle_coin_spends, signature.clone());
+
+        sim.new_transaction(spend_bundle)?;
 
         Ok(TransactionData {
             outputs,
             delegated_spend,
             coin_spends,
             vault_spend,
+            signature,
         })
+    }
+
+    pub fn fetch_vault(&self, sim: &Simulator) -> Result<Vault> {
+        fetch_vault(sim, self.info.launcher_id, self.info.custody_hash.into())
     }
 
     pub fn puzzle_hash(&self) -> Bytes32 {
@@ -281,12 +291,7 @@ fn vault_p2_puzzle_hash(launcher_id: Bytes32) -> TreeHash {
 }
 
 fn vault_custody_puzzle_hash(pk: PublicKey) -> TreeHash {
-    mips_puzzle_hash(
-        0,
-        vec![],
-        BlsMemberPuzzleAssert::new(pk).curry_tree_hash(),
-        true,
-    )
+    mips_puzzle_hash(0, vec![], BlsMember::new(pk).curry_tree_hash(), true)
 }
 
 fn fetch_cat(sim: &Simulator, coin: Coin) -> Result<Cat> {

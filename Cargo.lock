@@ -1153,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "cni-wallet-sdk-wasm"
-version = "0.28.0"
+version = "0.30.0"
 dependencies = [
  "bindy",
  "bindy-macro",
