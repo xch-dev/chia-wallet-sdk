@@ -141,6 +141,10 @@ pub fn zlib_compress(input: &[u8], zdict: &[u8]) -> std::io::Result<Vec<u8>> {
     Ok(output)
 }
 
+// 6 MB matches the limit in chia-blockchain
+// see https://github.com/Chia-Network/chia-blockchain/blob/383e1d4897738719ad945300f9be2dffbfa54f58/chia/wallet/util/puzzle_compression.py#L70
+const MAX_DECOMPRESSED_SIZE: usize = 6 * 1024 * 1024; // 6 MB
+
 pub fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DriverError> {
     let mut decompress = Decompress::new(true);
 
@@ -155,7 +159,15 @@ pub fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DriverErro
     let i = decompress.total_in();
     let mut decoder = ZlibDecoder::new_with_decompress(&input[usize::try_from(i)?..], decompress);
     let mut output = Vec::new();
-    decoder.read_to_end(&mut output)?;
+    decoder
+        .by_ref()
+        .take(MAX_DECOMPRESSED_SIZE as u64)
+        .read_to_end(&mut output)?;
+
+    if decoder.read(&mut [0u8])? > 0 {
+        return Err(DriverError::DecompressionTooLarge);
+    }
+
     Ok(output)
 }
 
@@ -187,6 +199,24 @@ mod tests {
     fn parse_spend_bundle() {
         let decompressed_offer = hex::decode(DECOMPRESSED_OFFER.trim()).unwrap();
         SpendBundle::from_bytes(&decompressed_offer).unwrap();
+    }
+
+    #[test]
+    fn test_decompression_too_large() {
+        let zdict = &COMPRESSION_ZDICT;
+        let data = vec![0u8; MAX_DECOMPRESSED_SIZE + 1];
+        let compressed = zlib_compress(&data, zdict).unwrap();
+        let result = zlib_decompress(&compressed, zdict);
+        assert!(matches!(result, Err(DriverError::DecompressionTooLarge)));
+    }
+
+    #[test]
+    fn test_decompression_at_limit() {
+        let zdict = &COMPRESSION_ZDICT;
+        let data = vec![0u8; MAX_DECOMPRESSED_SIZE];
+        let compressed = zlib_compress(&data, zdict).unwrap();
+        let output = zlib_decompress(&compressed, zdict).unwrap();
+        assert_eq!(output.len(), MAX_DECOMPRESSED_SIZE);
     }
 
     #[test]

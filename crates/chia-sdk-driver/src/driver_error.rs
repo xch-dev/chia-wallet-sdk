@@ -105,6 +105,10 @@ pub enum DriverError {
     NotCompressed,
 
     #[cfg(feature = "offer-compression")]
+    #[error("decompressed output exceeds maximum allowed size")]
+    DecompressionTooLarge,
+
+    #[cfg(feature = "offer-compression")]
     #[error("flate2 error: {0}")]
     Flate2(#[from] flate2::DecompressError),
 
