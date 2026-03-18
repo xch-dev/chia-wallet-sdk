@@ -7,13 +7,22 @@ use clvm_utils::TreeHash;
 
 use crate::Mod;
 
-// Asset kind is now inferred from `asset_id`: `None` means XCH, `Some` means CAT.
-pub const FEE_TRADE_PRICE_ASSET_KIND_XCH: u8 = 0;
-pub const FEE_TRADE_PRICE_ASSET_KIND_CAT: u8 = 1;
+// Asset kind is inferred from `asset_id`: `None` means XCH, `Some` means CAT.
+pub const TRANSFER_FEE_TRADE_PRICE_ASSET_KIND_XCH: u8 = 0;
+pub const TRANSFER_FEE_TRADE_PRICE_ASSET_KIND_CAT: u8 = 1;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
+#[clvm(list)]
+pub struct TransferFeeTradePrice {
+    pub amount: u64,
+    pub asset_id: Option<Bytes32>,
+    pub quote_hidden_puzzle_hash: Option<Bytes32>,
+    pub quote_fee_policy: Option<TransferFeeQuoteFeePolicy>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, ToClvm, FromClvm)]
 #[clvm(list)]
-pub struct FeeTradePriceFeePolicy {
+pub struct TransferFeeQuoteFeePolicy {
     pub issuer_fee_puzzle_hash: Bytes32,
     pub fee_basis_points: u16,
     pub min_fee: u64,
@@ -21,16 +30,7 @@ pub struct FeeTradePriceFeePolicy {
     pub allow_revoke_fee_bypass: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ToClvm, FromClvm)]
-#[clvm(list)]
-pub struct FeeTradePrice {
-    pub amount: u64,
-    pub asset_id: Option<Bytes32>,
-    pub quote_hidden_puzzle_hash: Option<Bytes32>,
-    pub quote_fee_policy: Option<FeeTradePriceFeePolicy>,
-}
-
-impl FeeTradePrice {
+impl TransferFeeTradePrice {
     pub fn xch(amount: u64) -> Self {
         Self {
             amount,
@@ -44,7 +44,7 @@ impl FeeTradePrice {
         amount: u64,
         asset_id: Bytes32,
         hidden_puzzle_hash: Option<Bytes32>,
-        fee_policy: Option<FeeTradePriceFeePolicy>,
+        fee_policy: Option<TransferFeeQuoteFeePolicy>,
     ) -> Self {
         Self::cat_with_quote_layers(amount, asset_id, hidden_puzzle_hash, fee_policy)
     }
@@ -53,7 +53,7 @@ impl FeeTradePrice {
         amount: u64,
         asset_id: Bytes32,
         hidden_puzzle_hash: Option<Bytes32>,
-        fee_policy: Option<FeeTradePriceFeePolicy>,
+        fee_policy: Option<TransferFeeQuoteFeePolicy>,
     ) -> Self {
         Self {
             amount,
@@ -125,12 +125,28 @@ impl<I> Mod for FeeLayerArgs<I> {
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct FeeLayerSolution<S> {
+    pub trade_nonce: Option<Bytes32>,
+    pub trade_prices: Vec<TransferFeeTradePrice>,
     pub inner_solution: S,
 }
 
 impl<S> FeeLayerSolution<S> {
     pub fn new(inner_solution: S) -> Self {
-        Self { inner_solution }
+        Self {
+            trade_nonce: None,
+            trade_prices: Vec::new(),
+            inner_solution,
+        }
+    }
+
+    pub fn with_trade_context(
+        mut self,
+        trade_nonce: Bytes32,
+        trade_prices: Vec<TransferFeeTradePrice>,
+    ) -> Self {
+        self.trade_nonce = Some(trade_nonce);
+        self.trade_prices = trade_prices;
+        self
     }
 }
 
@@ -146,7 +162,7 @@ mod tests {
     #[test]
     fn xch_trade_price_clvm_shape_includes_quote_fee_policy_slot() -> anyhow::Result<()> {
         let mut allocator = Allocator::new();
-        let ptr = FeeTradePrice::xch(1).to_clvm(&mut allocator)?;
+        let ptr = TransferFeeTradePrice::xch(1).to_clvm(&mut allocator)?;
         let fields = Vec::<clvmr::NodePtr>::from_clvm(&allocator, ptr)?;
 
         assert_eq!(fields.len(), 4);

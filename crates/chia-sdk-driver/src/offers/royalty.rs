@@ -1,7 +1,7 @@
 use bigdecimal::{BigDecimal, RoundingMode, ToPrimitive};
 use chia_protocol::Bytes32;
 use chia_puzzle_types::offer::{NotarizedPayment, Payment};
-use chia_sdk_types::puzzles::{FeeTradePrice, FeeTradePriceFeePolicy};
+use chia_sdk_types::puzzles::{TransferFeeQuoteFeePolicy, TransferFeeTradePrice};
 
 use crate::{AssetInfo, CatAssetInfo, DriverError, OfferAmounts, RequestedPayments, SpendContext};
 
@@ -58,11 +58,11 @@ pub fn calculate_trade_price_amounts(
 pub fn calculate_trade_prices(
     trade_price_amounts: &OfferAmounts,
     asset_info: &AssetInfo,
-) -> Vec<FeeTradePrice> {
+) -> Vec<TransferFeeTradePrice> {
     let mut trade_prices = Vec::new();
 
     if trade_price_amounts.xch > 0 {
-        trade_prices.push(FeeTradePrice::xch(trade_price_amounts.xch));
+        trade_prices.push(TransferFeeTradePrice::xch(trade_price_amounts.xch));
     }
 
     for (&asset_id, &amount) in &trade_price_amounts.cats {
@@ -72,14 +72,16 @@ pub fn calculate_trade_prices(
 
         let default = CatAssetInfo::default();
         let info = asset_info.cat(asset_id).unwrap_or(&default);
-        let quote_fee_policy = info.fee_policy.map(|policy| FeeTradePriceFeePolicy {
-            issuer_fee_puzzle_hash: policy.issuer_fee_puzzle_hash,
-            fee_basis_points: policy.fee_basis_points,
-            min_fee: policy.min_fee,
-            allow_zero_price: policy.allow_zero_price,
-            allow_revoke_fee_bypass: policy.allow_revoke_fee_bypass,
-        });
-        trade_prices.push(FeeTradePrice::cat_with_quote_layers(
+        let quote_fee_policy = info
+            .transfer_fee_policy
+            .map(|policy| TransferFeeQuoteFeePolicy {
+                issuer_fee_puzzle_hash: policy.issuer_fee_puzzle_hash,
+                fee_basis_points: policy.fee_basis_points,
+                min_fee: policy.min_fee,
+                allow_zero_price: policy.allow_zero_price,
+                allow_revoke_fee_bypass: policy.allow_revoke_fee_bypass,
+            });
+        trade_prices.push(TransferFeeTradePrice::cat_with_quote_layers(
             amount,
             asset_id,
             info.hidden_puzzle_hash,

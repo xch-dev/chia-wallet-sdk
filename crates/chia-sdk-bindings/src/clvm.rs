@@ -31,7 +31,8 @@ use crate::{
     MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
     OptionContract, Payment, Program, RestrictionMemo, RewardDistributor,
     RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
-    SettlementNftSpendResult, Spend, StreamedAssetParsingResult, VaultMint, VaultSpendReveal, WrapperMemo,
+    SettlementNftSpendResult, Spend, StreamedAssetParsingResult, VaultMint, VaultSpendReveal,
+    WrapperMemo,
 };
 
 pub const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;

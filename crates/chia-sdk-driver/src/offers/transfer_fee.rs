@@ -3,24 +3,24 @@ use chia_puzzle_types::{
     Memos,
     offer::{NotarizedPayment, Payment},
 };
-use chia_sdk_types::puzzles::FeeTradePrice;
+use chia_sdk_types::puzzles::TransferFeeTradePrice;
 use clvmr::NodePtr;
 
-use crate::{DriverError, FeePolicy, OfferAmounts, RequestedPayments, SpendContext};
+use crate::{DriverError, OfferAmounts, RequestedPayments, SpendContext, TransferFeePolicy};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TransferFeeInfo {
     pub asset_id: Bytes32,
-    pub policy: FeePolicy,
+    pub policy: TransferFeePolicy,
 }
 
 impl TransferFeeInfo {
-    pub fn new(asset_id: Bytes32, policy: FeePolicy) -> Self {
+    pub fn new(asset_id: Bytes32, policy: TransferFeePolicy) -> Self {
         Self { asset_id, policy }
     }
 }
 
-pub fn calculate_transfer_fee(amount: u64, policy: &FeePolicy) -> u64 {
+pub fn calculate_transfer_fee(amount: u64, policy: &TransferFeePolicy) -> u64 {
     if amount == 0 {
         return 0;
     }
@@ -94,7 +94,9 @@ pub fn calculate_transfer_fee_payments(
     Ok(payments)
 }
 
-pub fn ensure_trade_prices_supported(trade_prices: &[FeeTradePrice]) -> Result<(), DriverError> {
+pub fn ensure_trade_prices_supported(
+    trade_prices: &[TransferFeeTradePrice],
+) -> Result<(), DriverError> {
     for trade_price in trade_prices {
         if !trade_price.is_valid_quote_descriptor() {
             return Err(DriverError::InvalidTradePriceProfile);
@@ -107,20 +109,14 @@ pub fn ensure_trade_prices_supported(trade_prices: &[FeeTradePrice]) -> Result<(
 #[cfg(test)]
 mod tests {
     use chia_protocol::Bytes32;
-    use chia_sdk_types::puzzles::FeeTradePriceFeePolicy;
+    use chia_sdk_types::puzzles::TransferFeeQuoteFeePolicy;
     use indexmap::indexmap;
 
     use super::*;
 
     #[test]
     fn test_calculate_transfer_fee() {
-        let policy = FeePolicy::new(
-            Bytes32::new([1; 32]),
-            500,
-            3,
-            false,
-            false,
-        );
+        let policy = TransferFeePolicy::new(Bytes32::new([1; 32]), 500, 3, false, false);
 
         assert_eq!(calculate_transfer_fee(0, &policy), 0);
         assert_eq!(calculate_transfer_fee(1, &policy), 3);
@@ -138,23 +134,11 @@ mod tests {
         let transfer_fees = vec![
             TransferFeeInfo::new(
                 Bytes32::new([3; 32]),
-                FeePolicy::new(
-                    Bytes32::new([4; 32]),
-                    500,
-                    1,
-                    false,
-                    false,
-                ),
+                TransferFeePolicy::new(Bytes32::new([4; 32]), 500, 1, false, false),
             ),
             TransferFeeInfo::new(
                 Bytes32::new([5; 32]),
-                FeePolicy::new(
-                    Bytes32::new([6; 32]),
-                    250,
-                    0,
-                    false,
-                    false,
-                ),
+                TransferFeePolicy::new(Bytes32::new([6; 32]), 250, 0, false, false),
             ),
         ];
 
@@ -165,14 +149,14 @@ mod tests {
 
     #[test]
     fn test_ensure_trade_prices_supported_accepts_valid_trade_prices() {
-        let trade_prices = vec![FeeTradePrice::xch(200)];
+        let trade_prices = vec![TransferFeeTradePrice::xch(200)];
 
         assert!(ensure_trade_prices_supported(&trade_prices).is_ok());
     }
 
     #[test]
     fn test_ensure_trade_prices_supported_accepts_valid_cat_trade_price() {
-        let trade_prices = vec![FeeTradePrice::cat(
+        let trade_prices = vec![TransferFeeTradePrice::cat(
             200,
             Bytes32::new([7; 32]),
             None,
@@ -183,8 +167,8 @@ mod tests {
 
     #[test]
     fn test_ensure_trade_prices_supported_rejects_xch_with_fee_policy() {
-        let mut trade_price = FeeTradePrice::xch(200);
-        trade_price.quote_fee_policy = Some(FeeTradePriceFeePolicy::default());
+        let mut trade_price = TransferFeeTradePrice::xch(200);
+        trade_price.quote_fee_policy = Some(TransferFeeQuoteFeePolicy::default());
         let trade_prices = vec![trade_price];
 
         let result = ensure_trade_prices_supported(&trade_prices);
@@ -193,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_ensure_trade_prices_supported_rejects_invalid_xch_quote_descriptor() {
-        let mut trade_price = FeeTradePrice::xch(200);
+        let mut trade_price = TransferFeeTradePrice::xch(200);
         trade_price.quote_hidden_puzzle_hash = Some(Bytes32::new([9; 32]));
         let trade_prices = vec![trade_price];
 

@@ -10,7 +10,7 @@ use clvmr::{Allocator, NodePtr};
 use crate::{CatLayer, DriverError, FeeLayer, Layer, Puzzle, RevocationLayer, SpendContext};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FeePolicy {
+pub struct TransferFeePolicy {
     pub issuer_fee_puzzle_hash: Bytes32,
     pub fee_basis_points: u16,
     pub min_fee: u64,
@@ -18,7 +18,7 @@ pub struct FeePolicy {
     pub allow_revoke_fee_bypass: bool,
 }
 
-impl FeePolicy {
+impl TransferFeePolicy {
     pub fn new(
         issuer_fee_puzzle_hash: Bytes32,
         fee_basis_points: u16,
@@ -57,7 +57,7 @@ pub struct CatInfo {
     pub p2_puzzle_hash: Bytes32,
 
     /// Optional transfer-fee policy, enforced by the [`FeeLayer`].
-    pub fee_policy: Option<FeePolicy>,
+    pub transfer_fee_policy: Option<TransferFeePolicy>,
 }
 
 impl CatInfo {
@@ -70,12 +70,12 @@ impl CatInfo {
             asset_id,
             hidden_puzzle_hash,
             p2_puzzle_hash,
-            fee_policy: None,
+            transfer_fee_policy: None,
         }
     }
 
-    pub fn with_fee_policy(mut self, fee_policy: Option<FeePolicy>) -> Self {
-        self.fee_policy = fee_policy;
+    pub fn with_transfer_fee_policy(mut self, transfer_fee_policy: Option<TransferFeePolicy>) -> Self {
+        self.transfer_fee_policy = transfer_fee_policy;
         self
     }
 
@@ -98,7 +98,7 @@ impl CatInfo {
         let mut inner_puzzle = cat_layer.inner_puzzle;
 
         if let Some(fee_layer) = FeeLayer::<Puzzle>::parse_puzzle(allocator, inner_puzzle)? {
-            fee_policy = Some(FeePolicy::new(
+            fee_policy = Some(TransferFeePolicy::new(
                 fee_layer.issuer_fee_puzzle_hash,
                 fee_layer.fee_basis_points,
                 fee_layer.min_fee,
@@ -114,7 +114,7 @@ impl CatInfo {
                 Some(revocation_layer.hidden_puzzle_hash),
                 revocation_layer.inner_puzzle_hash,
             )
-            .with_fee_policy(fee_policy);
+            .with_transfer_fee_policy(fee_policy);
             Ok(Some((info, None)))
         } else {
             let info = Self::new(
@@ -122,7 +122,7 @@ impl CatInfo {
                 None,
                 inner_puzzle.curried_puzzle_hash().into(),
             )
-            .with_fee_policy(fee_policy);
+            .with_transfer_fee_policy(fee_policy);
             Ok(Some((info, Some(inner_puzzle))))
         }
     }
@@ -138,7 +138,7 @@ impl CatInfo {
                 RevocationArgs::new(hidden_puzzle_hash, inner_puzzle_hash.into()).curry_tree_hash();
         }
 
-        if let Some(fee_policy) = &self.fee_policy {
+        if let Some(fee_policy) = &self.transfer_fee_policy {
             let has_hidden_revoke_layer = self.hidden_puzzle_hash.is_some();
             inner_puzzle_hash = FeeLayerArgs::new(
                 fee_policy.issuer_fee_puzzle_hash,
@@ -175,7 +175,7 @@ impl CatInfo {
                 ctx.curry(RevocationArgs::new(hidden_puzzle_hash, self.p2_puzzle_hash))?;
         }
 
-        if let Some(fee_policy) = &self.fee_policy {
+        if let Some(fee_policy) = &self.transfer_fee_policy {
             let has_hidden_revoke_layer = self.hidden_puzzle_hash.is_some();
             inner_puzzle = FeeLayer::new(
                 fee_policy.issuer_fee_puzzle_hash,

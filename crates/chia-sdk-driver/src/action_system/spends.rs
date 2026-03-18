@@ -7,10 +7,10 @@ use chia_sdk_types::{Conditions, conditions::AssertPuzzleAnnouncement};
 use indexmap::IndexMap;
 
 use crate::{
-    Action, Asset, Cat, CatSpend, ConditionsSpend, Delta, Deltas, Did, DriverError, FungibleSpend,
-    FungibleSpends, Id, Layer, Nft, OptionContract, Relation, SettlementLayer, SingletonSpends,
-    Spend, SpendAction, SpendContext, SpendKind, SpendWithConditions, SpendableAsset,
-    StandardLayer,
+    Action, Asset, Cat, CatSpend, CatTransferFeeContext, ConditionsSpend, Delta, Deltas, Did,
+    DriverError, FungibleSpend, FungibleSpends, Id, Layer, Nft, OptionContract, Relation,
+    SettlementLayer, SingletonSpends, Spend, SpendAction, SpendContext, SpendKind,
+    SpendWithConditions, SpendableAsset, StandardLayer,
 };
 
 #[derive(Debug, Clone)]
@@ -18,6 +18,7 @@ use crate::{
 pub struct Spends<S = Unfinished> {
     pub xch: FungibleSpends<Coin>,
     pub cats: IndexMap<Id, FungibleSpends<Cat>>,
+    pub cat_transfer_fee_contexts: IndexMap<Id, CatTransferFeeContext>,
     pub dids: IndexMap<Id, SingletonSpends<Did>>,
     pub nfts: IndexMap<Id, SingletonSpends<Nft>>,
     pub options: IndexMap<Id, SingletonSpends<OptionContract>>,
@@ -64,6 +65,7 @@ impl Spends<Unfinished> {
         Self {
             xch: FungibleSpends::new(),
             cats: IndexMap::new(),
+            cat_transfer_fee_contexts: IndexMap::new(),
             dids: IndexMap::new(),
             nfts: IndexMap::new(),
             options: IndexMap::new(),
@@ -446,6 +448,7 @@ impl Spends<Unfinished> {
         Ok(Spends {
             xch: self.xch,
             cats: self.cats,
+            cat_transfer_fee_contexts: self.cat_transfer_fee_contexts,
             dids: self.dids,
             nfts: self.nfts,
             options: self.options,
@@ -539,13 +542,16 @@ impl Spends<Finished> {
             ctx.spend(item.asset, spend)?;
         }
 
-        for (_, cat) in self.cats {
+        for (id, cat) in self.cats {
             let mut cat_spends = Vec::new();
+            let transfer_fee_context = self.cat_transfer_fee_contexts.get(&id).cloned();
             for item in cat.items {
                 let spend = coin_spends
                     .remove(&item.asset.coin_id())
                     .ok_or(DriverError::MissingSpend)?;
-                cat_spends.push(CatSpend::new(item.asset, spend));
+                let mut cat_spend = CatSpend::new(item.asset, spend);
+                cat_spend.transfer_fee_context = transfer_fee_context.clone();
+                cat_spends.push(cat_spend);
             }
             Cat::spend_all(ctx, &cat_spends)?;
         }

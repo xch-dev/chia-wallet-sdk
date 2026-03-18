@@ -3,7 +3,6 @@ use chia_protocol::{Bytes, Bytes32};
 use chia_puzzle_types::Memos;
 use chia_sdk_derive::conditions;
 use nfts::TradePrice;
-use crate::puzzles::FeeTradePrice;
 
 mod agg_sig;
 mod announcements;
@@ -176,11 +175,6 @@ conditions! {
             launcher_id: Option<Bytes32>,
             trade_prices: Vec<TradePrice>,
             singleton_inner_puzzle_hash: Option<Bytes32>,
-        },
-        SetCatTradeContext as Default {
-            opcode: i8 if -26,
-            trade_nonce: Bytes32,
-            trade_prices: Vec<FeeTradePrice>,
         },
         RunCatTail<P, S> as Copy {
             opcode: i8 if 51,

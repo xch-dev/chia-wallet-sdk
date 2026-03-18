@@ -177,7 +177,7 @@ impl OfferCoins {
                         .push(cat.clone());
                 }
 
-                let info = CatAssetInfo::new(cat.info.hidden_puzzle_hash, cat.info.fee_policy)
+                let info = CatAssetInfo::new(cat.info.hidden_puzzle_hash, cat.info.transfer_fee_policy)
                     .with_settlement_puzzle_hash(is_settlement.then_some(cat.info.p2_puzzle_hash));
                 asset_info.insert_cat(cat.info.asset_id, info)?;
             }

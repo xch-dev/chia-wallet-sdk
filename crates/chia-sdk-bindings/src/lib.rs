@@ -75,20 +75,20 @@ pub use chia_sdk_coinset::{
     PushTxResponse, SyncState,
 };
 pub use chia_sdk_driver::{
-    Bulletin, BulletinMessage, Cat, CatInfo, Clawback, ClawbackV2, Delta, DropCoin, FeePolicy,
+    Bulletin, BulletinMessage, Cat, CatInfo, Clawback, ClawbackV2, Delta, DropCoin,
     MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, NftState, OptionInfo, OptionMetadata,
     OptionType, OptionUnderlying, P2ParentCoin, ParsedNftTransfer, ParsedPayment,
     RewardDistributorConstants, RewardDistributorState, RewardDistributorType, RoundRewardInfo,
-    RoundTimeInfo, StreamedAsset, StreamingPuzzleInfo, TransferFeeInfo, TransferType, UriKind,
-    VaultInfo, VaultTransaction,
+    RoundTimeInfo, StreamedAsset, StreamingPuzzleInfo, TransferFeeInfo, TransferFeePolicy,
+    TransferType, UriKind, VaultInfo, VaultTransaction,
 };
 pub use chia_sdk_types::{
     conditions::TradePrice,
     puzzles::{
-        FEE_TRADE_PRICE_ASSET_KIND_CAT, FEE_TRADE_PRICE_ASSET_KIND_XCH, FeeTradePrice,
-        FeeTradePriceFeePolicy, IntermediaryCoinProof, NftLauncherProof,
-        RewardDistributorCommitmentSlotValue, RewardDistributorEntrySlotValue,
-        RewardDistributorRewardSlotValue,
+        IntermediaryCoinProof, NftLauncherProof, RewardDistributorCommitmentSlotValue,
+        RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue,
+        TRANSFER_FEE_TRADE_PRICE_ASSET_KIND_CAT, TRANSFER_FEE_TRADE_PRICE_ASSET_KIND_XCH,
+        TransferFeeQuoteFeePolicy, TransferFeeTradePrice,
     },
 };
 

@@ -3,14 +3,14 @@ use std::collections::HashSet;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::{Condition, Conditions, puzzles::SettlementPayment, run_puzzle};
+use chia_sdk_types::{Condition, puzzles::SettlementPayment, run_puzzle};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::Allocator;
 use indexmap::IndexSet;
 
 use crate::{
-    Action, Arbitrage, AssetInfo, CatInfo, DriverError, Id, Layer, NftInfo, OfferAmounts,
+    Action, Arbitrage, AssetInfo, CatInfo, CatTransferFeeContext, DriverError, Id, Layer, NftInfo, OfferAmounts,
     OfferCoins, OptionInfo, Puzzle, RequestedPayments, RoyaltyInfo, SingletonInfo, SpendContext,
     Spends, TransferFeeInfo, calculate_royalty_amounts, calculate_trade_price_amounts,
     calculate_trade_prices, calculate_transfer_fee_amounts, calculate_transfer_fee_payments,
@@ -140,7 +140,7 @@ impl Offer {
                 let policy = self
                     .asset_info
                     .cat(asset_id)
-                    .and_then(|cat| cat.fee_policy.clone())?;
+                    .and_then(|cat| cat.transfer_fee_policy.clone())?;
                 Some(TransferFeeInfo::new(asset_id, policy))
             })
             .filter(|info| info.policy.fee_basis_points > 0)
@@ -156,7 +156,7 @@ impl Offer {
             .filter(|&asset_id| {
                 self.asset_info
                     .cat(asset_id)
-                    .and_then(|cat| cat.fee_policy.clone())
+                    .and_then(|cat| cat.transfer_fee_policy.clone())
                     .is_some()
             })
             .collect()
@@ -169,7 +169,7 @@ impl Offer {
 
         for cats in self.offered_coins.cats.values() {
             for cat in cats {
-                let Some(policy) = cat.info.fee_policy.clone() else {
+                let Some(policy) = cat.info.transfer_fee_policy.clone() else {
                     continue;
                 };
 
@@ -191,7 +191,7 @@ impl Offer {
 
         for cats in self.offered_coins.cats.values() {
             for cat in cats {
-                if cat.info.fee_policy.is_some() {
+                if cat.info.transfer_fee_policy.is_some() {
                     ids.insert(cat.info.asset_id);
                 }
             }
@@ -400,7 +400,7 @@ impl Offer {
         Ok(actions)
     }
 
-    fn transfer_fee_trade_contexts(&self) -> Result<Vec<(Id, Bytes32, Vec<chia_sdk_types::puzzles::FeeTradePrice>)>, DriverError> {
+    fn transfer_fee_trade_contexts(&self) -> Result<Vec<(Id, Bytes32, Vec<chia_sdk_types::puzzles::TransferFeeTradePrice>)>, DriverError> {
         let offered_context_asset_ids = self.offered_fee_context_asset_ids();
         let requested_context_asset_ids = self.requested_fee_context_asset_ids();
 
@@ -417,11 +417,7 @@ impl Offer {
             let trade_prices = calculate_trade_prices(&offered_amounts, &self.asset_info);
             ensure_trade_prices_supported(&trade_prices)?;
             for asset_id in offered_context_asset_ids {
-                contexts.push((
-                    Id::Existing(asset_id),
-                    trade_nonce,
-                    trade_prices.clone(),
-                ));
+                contexts.push((Id::Existing(asset_id), trade_nonce, trade_prices.clone()));
             }
         }
 
@@ -429,11 +425,7 @@ impl Offer {
             let trade_prices = calculate_trade_prices(&requested_amounts, &self.asset_info);
             ensure_trade_prices_supported(&trade_prices)?;
             for asset_id in requested_context_asset_ids {
-                contexts.push((
-                    Id::Existing(asset_id),
-                    trade_nonce,
-                    trade_prices.clone(),
-                ));
+                contexts.push((Id::Existing(asset_id), trade_nonce, trade_prices.clone()));
             }
         }
 
@@ -442,19 +434,19 @@ impl Offer {
 
     pub fn apply_transfer_fee_trade_context(&self, spends: &mut Spends) -> Result<(), DriverError> {
         for (id, trade_nonce, trade_prices) in self.transfer_fee_trade_contexts()? {
-            let Some(cat_spends) = spends.cats.get_mut(&id) else {
+            if !spends.cats.contains_key(&id) {
                 // Not all transfer-fee contexts correspond to CATs being spent by this `Spends`.
                 continue;
-            };
-
-            let context_condition =
-                Conditions::new().set_cat_trade_context(trade_nonce, trade_prices.clone());
-
-            for item in &mut cat_spends.items {
-                if let crate::SpendKind::Conditions(spend) = &mut item.kind {
-                    spend.add_conditions(context_condition.clone());
-                }
             }
+
+            if let Some(existing) = spends.cat_transfer_fee_contexts.get(&id) {
+                if existing.trade_nonce != trade_nonce || existing.trade_prices != trade_prices {
+                  return Err(DriverError::InvalidTradeContext);
+                }
+                continue;
+            }
+
+            spends.cat_transfer_fee_contexts.insert(id, CatTransferFeeContext::new(trade_nonce, trade_prices));
         }
 
         Ok(())
@@ -569,7 +561,7 @@ impl Offer {
                 cat_asset_info.and_then(|info| info.hidden_puzzle_hash),
                 SETTLEMENT_PAYMENT_HASH.into(),
             )
-            .with_fee_policy(cat_asset_info.and_then(|info| info.fee_policy.clone()));
+            .with_transfer_fee_policy(cat_asset_info.and_then(|info| info.transfer_fee_policy.clone()));
 
             let puzzle = cat_info.construct_puzzle(ctx, settlement)?;
             let solution = SettlementPaymentsSolution::new(notarized_payments);
@@ -668,8 +660,8 @@ mod tests {
     use indexmap::indexmap;
 
     use crate::{
-        Action, AssetInfo, Cat, CatAssetInfo, CatInfo, FeePolicy, Id, NftAssetInfo,
-        OfferCoins, Relation, RequestedPayments, SpendContext, Spends, TransferFeeInfo,
+        Action, AssetInfo, Cat, CatAssetInfo, CatInfo, Id, NftAssetInfo, OfferCoins, Relation,
+        RequestedPayments, SpendContext, Spends, TransferFeeInfo, TransferFeePolicy,
     };
 
     use super::*;
@@ -799,19 +791,13 @@ mod tests {
     #[test]
     fn test_offer_transfer_fee_metadata() -> anyhow::Result<()> {
         let asset_id = Bytes32::new([7; 32]);
-        let fee_policy = FeePolicy::new(
-            Bytes32::new([8; 32]),
-            500,
-            1,
-            false,
-            false,
-        );
+        let fee_policy = TransferFeePolicy::new(Bytes32::new([8; 32]), 500, 1, false, false);
 
         let offered_cat = Cat::new(
             Coin::new(Bytes32::new([1; 32]), SETTLEMENT_PAYMENT_HASH.into(), 100),
             None,
             CatInfo::new(asset_id, None, SETTLEMENT_PAYMENT_HASH.into())
-                .with_fee_policy(Some(fee_policy.clone())),
+                .with_transfer_fee_policy(Some(fee_policy.clone())),
         );
 
         let mut offered_coins = OfferCoins::new();
@@ -852,13 +838,7 @@ mod tests {
     fn test_offer_transfer_fee_amounts() -> anyhow::Result<()> {
         let fee_asset_id = Bytes32::new([7; 32]);
         let quote_asset_id = Bytes32::new([9; 32]);
-        let fee_policy = FeePolicy::new(
-            Bytes32::new([8; 32]),
-            500,
-            1,
-            false,
-            false,
-        );
+        let fee_policy = TransferFeePolicy::new(Bytes32::new([8; 32]), 500, 1, false, false);
 
         // Requested fee CAT => offered side pays issuer fees based on offered quote amounts.
         let offered_quote_cat = Cat::new(
@@ -910,7 +890,7 @@ mod tests {
             Coin::new(Bytes32::new([5; 32]), SETTLEMENT_PAYMENT_HASH.into(), 100),
             None,
             CatInfo::new(fee_asset_id, None, SETTLEMENT_PAYMENT_HASH.into())
-                .with_fee_policy(Some(fee_policy.clone())),
+                .with_transfer_fee_policy(Some(fee_policy.clone())),
         );
 
         let mut offered_coins = OfferCoins::new();
@@ -957,13 +937,7 @@ mod tests {
     fn test_offer_transfer_fee_payments() -> anyhow::Result<()> {
         let fee_asset_id = Bytes32::new([7; 32]);
         let quote_asset_id = Bytes32::new([9; 32]);
-        let fee_policy = FeePolicy::new(
-            Bytes32::new([8; 32]),
-            500,
-            1,
-            false,
-            false,
-        );
+        let fee_policy = TransferFeePolicy::new(Bytes32::new([8; 32]), 500, 1, false, false);
 
         let offered_quote_cat = Cat::new(
             Coin::new(Bytes32::new([1; 32]), SETTLEMENT_PAYMENT_HASH.into(), 200),
@@ -1038,26 +1012,14 @@ mod tests {
     fn test_offer_transfer_fee_payments_allow_fee_enabled_quote_asset() -> anyhow::Result<()> {
         let fee_asset_id = Bytes32::new([7; 32]);
         let quote_fee_asset_id = Bytes32::new([9; 32]);
-        let quote_fee_policy = FeePolicy::new(
-            Bytes32::new([10; 32]),
-            250,
-            1,
-            false,
-            false,
-        );
-        let fee_policy = FeePolicy::new(
-            Bytes32::new([8; 32]),
-            500,
-            1,
-            false,
-            false,
-        );
+        let quote_fee_policy = TransferFeePolicy::new(Bytes32::new([10; 32]), 250, 1, false, false);
+        let fee_policy = TransferFeePolicy::new(Bytes32::new([8; 32]), 500, 1, false, false);
 
         let offered_quote_fee_cat = Cat::new(
             Coin::new(Bytes32::new([1; 32]), SETTLEMENT_PAYMENT_HASH.into(), 200),
             None,
             CatInfo::new(quote_fee_asset_id, None, SETTLEMENT_PAYMENT_HASH.into())
-                .with_fee_policy(Some(quote_fee_policy.clone())),
+                .with_transfer_fee_policy(Some(quote_fee_policy.clone())),
         );
 
         let mut offered_coins = OfferCoins::new();
@@ -1113,26 +1075,14 @@ mod tests {
     -> anyhow::Result<()> {
         let fee_asset_id = Bytes32::new([7; 32]);
         let quote_fee_asset_id = Bytes32::new([9; 32]);
-        let fee_policy = FeePolicy::new(
-            Bytes32::new([8; 32]),
-            500,
-            1,
-            false,
-            false,
-        );
-        let quote_fee_policy = FeePolicy::new(
-            Bytes32::new([10; 32]),
-            250,
-            1,
-            false,
-            false,
-        );
+        let fee_policy = TransferFeePolicy::new(Bytes32::new([8; 32]), 500, 1, false, false);
+        let quote_fee_policy = TransferFeePolicy::new(Bytes32::new([10; 32]), 250, 1, false, false);
 
         let offered_fee_cat = Cat::new(
             Coin::new(Bytes32::new([1; 32]), SETTLEMENT_PAYMENT_HASH.into(), 1),
             None,
             CatInfo::new(fee_asset_id, None, SETTLEMENT_PAYMENT_HASH.into())
-                .with_fee_policy(Some(fee_policy.clone())),
+                .with_transfer_fee_policy(Some(fee_policy.clone())),
         );
 
         let mut offered_coins = OfferCoins::new();

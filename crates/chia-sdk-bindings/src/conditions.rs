@@ -4,10 +4,7 @@ use bindy::Result;
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_driver::SpendContext;
-use chia_sdk_types::{
-    conditions::{self, Memos, TradePrice},
-    puzzles::FeeTradePrice,
-};
+use chia_sdk_types::conditions::{self, Memos, TradePrice};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::NodePtr;
 use paste::paste;
@@ -68,12 +65,6 @@ impl Convert<u8> for u8 {
 
 impl Convert<TradePrice> for TradePrice {
     fn convert(self, _clvm: &Arc<Mutex<SpendContext>>) -> Result<TradePrice> {
-        Ok(self)
-    }
-}
-
-impl Convert<FeeTradePrice> for FeeTradePrice {
-    fn convert(self, _clvm: &Arc<Mutex<SpendContext>>) -> Result<FeeTradePrice> {
         Ok(self)
     }
 }
@@ -260,9 +251,6 @@ conditions!(
     },
     TransferNft {
         transfer_nft(launcher_id: Option<Bytes32>, trade_prices: Vec<TradePrice>, singleton_inner_puzzle_hash: Option<Bytes32>)
-    },
-    SetCatTradeContext {
-        set_cat_trade_context(trade_nonce: Bytes32, trade_prices: Vec<FeeTradePrice>)
     },
     RunCatTail<NodePtr, NodePtr> {
         run_cat_tail(program: Program, solution: Program)

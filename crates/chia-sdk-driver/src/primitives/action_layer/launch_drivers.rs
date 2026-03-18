@@ -522,6 +522,7 @@ pub fn spend_settlement_cats(
                 },
             ),
             hidden: false,
+            transfer_fee_context: None,
         });
     }
     let created_cats = Cat::spend_all(ctx, &cat_spends)?;
@@ -646,6 +647,7 @@ pub fn launch_reward_distributor(
             cat: interim_cat,
             spend: Spend::new(interim_cat_puzzle, NodePtr::NIL),
             hidden: false,
+            transfer_fee_context: None,
         }],
     )?;
 
@@ -982,6 +984,7 @@ mod tests {
                 cat: payment_cat,
                 spend: payment_cat_inner_spend,
                 hidden: false,
+                transfer_fee_context: None,
             }],
         )?;
 
@@ -1205,6 +1208,7 @@ mod tests {
                     cat: payment_cat,
                     spend: payment_cat_inner_spend,
                     hidden: false,
+                    transfer_fee_context: None,
                 }],
             )?;
 
@@ -1512,6 +1516,7 @@ mod tests {
                 cat: payment_cat,
                 spend: payment_cat_inner_spend,
                 hidden: false,
+                transfer_fee_context: None,
             }],
         )?;
 
@@ -1782,6 +1787,7 @@ mod tests {
                     cat: payment_cat,
                     spend: payment_cat_inner_spend,
                     hidden: false,
+                    transfer_fee_context: None,
                 }],
             )?;
 
@@ -2042,11 +2048,13 @@ mod tests {
                         cat: payment_cat,
                         spend: payment_cat_inner_spend,
                         hidden: false,
+                        transfer_fee_context: None,
                     },
                     CatSpend {
                         cat: payment_cat.child(SETTLEMENT_PAYMENT_HASH.into(), pay_for_extension),
                         spend: cat_offer_inner_spend,
                         hidden: false,
+                        transfer_fee_context: None,
                     },
                 ],
             )?;
@@ -2198,6 +2206,7 @@ mod tests {
                 cat: payment_cat,
                 spend: payment_cat_inner_spend,
                 hidden: false,
+                transfer_fee_context: None,
             }],
         )?;
 
@@ -2625,6 +2634,7 @@ mod tests {
                 extra_delta: 0,
                 p2_spend: source_cat_inner_spend,
                 revoke: false,
+                transfer_fee_context: None,
             },
         )?;
         let spends = ctx.take();

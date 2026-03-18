@@ -1,7 +1,7 @@
 use bindy::Result;
 use chia_protocol::Bytes32;
 use chia_puzzle_types::LineageProof;
-use chia_sdk_driver::{Cat, CatInfo, CatSpend as SdkCatSpend};
+use chia_sdk_driver::{Cat, CatInfo, CatSpend as SdkCatSpend, CatTransferFeeContext};
 use clvm_utils::TreeHash;
 
 use crate::{Program, Puzzle, Spend};
@@ -46,6 +46,7 @@ pub struct CatSpend {
     pub cat: Cat,
     pub spend: Spend,
     pub hidden: bool,
+    pub transfer_fee_context: Option<CatTransferFeeContext>,
 }
 
 impl CatSpend {
@@ -54,6 +55,7 @@ impl CatSpend {
             cat,
             spend,
             hidden: false,
+            transfer_fee_context: None,
         })
     }
 
@@ -62,6 +64,7 @@ impl CatSpend {
             cat,
             spend,
             hidden: true,
+            transfer_fee_context: None,
         })
     }
 }
@@ -72,6 +75,7 @@ impl From<CatSpend> for SdkCatSpend {
             cat: value.cat,
             spend: value.spend.into(),
             hidden: value.hidden,
+            transfer_fee_context: value.transfer_fee_context,
         }
     }
 }

@@ -270,14 +270,6 @@
       "singleton_inner_puzzle_hash": "Option<Bytes32>"
     }
   },
-  "SetCatTradeContext": {
-    "type": "class",
-    "new": true,
-    "fields": {
-      "trade_nonce": "Bytes32",
-      "trade_prices": "Vec<FeeTradePrice>"
-    }
-  },
   "RunCatTail": {
     "type": "class",
     "new": true,
@@ -311,7 +303,7 @@
       "puzzle_hash": "Bytes32"
     }
   },
-  "FeeTradePrice": {
+  "TransferFeeTradePrice": {
     "type": "class",
     "new": true,
     "remote": true,
@@ -319,10 +311,10 @@
       "amount": "u64",
       "asset_id": "Option<Bytes32>",
       "quote_hidden_puzzle_hash": "Option<Bytes32>",
-      "quote_fee_policy": "Option<FeeTradePriceFeePolicy>"
+      "quote_fee_policy": "Option<TransferFeeQuoteFeePolicy>"
     }
   },
-  "FeeTradePriceFeePolicy": {
+  "TransferFeeQuoteFeePolicy": {
     "type": "class",
     "new": true,
     "remote": true,

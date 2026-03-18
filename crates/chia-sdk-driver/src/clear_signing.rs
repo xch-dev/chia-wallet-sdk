@@ -778,9 +778,7 @@ mod tests {
     use chia_sdk_types::Conditions;
     use rstest::rstest;
 
-    use crate::{
-        Action, Delta, FeeAction, FeePolicy, Id, SpendContext, Spends, TestVault,
-    };
+    use crate::{Action, Delta, FeeAction, Id, SpendContext, Spends, TestVault, TransferFeePolicy};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum AssetKind {
@@ -1154,13 +1152,7 @@ mod tests {
             .next()
             .context("missing vault XCH source coin for fee CAT issuance")?;
 
-        let fee_policy = FeePolicy::new(
-            issuer.puzzle_hash(),
-            500,
-            1,
-            false,
-            true,
-        );
+        let fee_policy = TransferFeePolicy::new(issuer.puzzle_hash(), 500, 1, false, true);
         let issuer_hint = ctx.hint(issuer.puzzle_hash())?;
         let (issue_fee_cat, issued_cats) = if revocable {
             Cat::issue_revocable_fee_with_key(
@@ -1212,7 +1204,7 @@ mod tests {
         let issued_cat = issued_cats[0].clone();
         assert_ne!(sim.coin_state(issued_cat.coin.coin_id()), None);
         assert_eq!(issued_cat.info.hidden_puzzle_hash, hidden_puzzle_hash);
-        assert_eq!(issued_cat.info.fee_policy.as_ref(), Some(&fee_policy));
+        assert_eq!(issued_cat.info.transfer_fee_policy.as_ref(), Some(&fee_policy));
 
         let mint_xch_source = sim
             .unspent_coins(issuer.puzzle_hash(), false)
@@ -1246,7 +1238,7 @@ mod tests {
         let reissued_cat = &minted_outputs[0];
         assert_eq!(reissued_cat.coin.amount, issued_cat.coin.amount + 1);
         assert_eq!(reissued_cat.info.hidden_puzzle_hash, hidden_puzzle_hash);
-        assert_eq!(reissued_cat.info.fee_policy.as_ref(), Some(&fee_policy));
+        assert_eq!(reissued_cat.info.transfer_fee_policy.as_ref(), Some(&fee_policy));
         assert_ne!(sim.coin_state(reissued_cat.coin.coin_id()), None);
 
         Ok(())

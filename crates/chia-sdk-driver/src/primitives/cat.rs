@@ -145,7 +145,7 @@ impl Cat {
     pub fn issue_fee_with_coin(
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
-        fee_policy: FeePolicy,
+        fee_policy: TransferFeePolicy,
         amount: u64,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Vec<Cat>), DriverError> {
@@ -166,7 +166,7 @@ impl Cat {
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
         public_key: PublicKey,
-        fee_policy: FeePolicy,
+        fee_policy: TransferFeePolicy,
         amount: u64,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Vec<Cat>), DriverError> {
@@ -187,7 +187,7 @@ impl Cat {
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
         hidden_puzzle_hash: Bytes32,
-        fee_policy: FeePolicy,
+        fee_policy: TransferFeePolicy,
         amount: u64,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Vec<Cat>), DriverError> {
@@ -209,7 +209,7 @@ impl Cat {
         parent_coin_id: Bytes32,
         public_key: PublicKey,
         hidden_puzzle_hash: Bytes32,
-        fee_policy: FeePolicy,
+        fee_policy: TransferFeePolicy,
         amount: u64,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Vec<Cat>), DriverError> {
@@ -230,7 +230,7 @@ impl Cat {
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
         hidden_puzzle_hash: Option<Bytes32>,
-        fee_policy: Option<FeePolicy>,
+        fee_policy: Option<TransferFeePolicy>,
         amount: u64,
         run_tail: RunCatTail<NodePtr, NodePtr>,
         conditions: Conditions,
@@ -241,7 +241,7 @@ impl Cat {
             hidden_puzzle_hash,
             ctx.tree_hash(delegated_spend.puzzle).into(),
         )
-        .with_fee_policy(fee_policy);
+        .with_transfer_fee_policy(fee_policy);
 
         let eve = Cat::new(
             Coin::new(parent_coin_id, eve_info.puzzle_hash().into(), amount),
@@ -352,6 +352,7 @@ impl Cat {
                         0
                     },
                     revoke: item.hidden,
+                    transfer_fee_context: item.transfer_fee_context.clone(),
                 },
             )?;
         }
@@ -376,8 +377,15 @@ impl Cat {
                 )?;
         }
 
-        if let Some(fee_policy) = &self.info.fee_policy {
+        if let Some(fee_policy) = &self.info.transfer_fee_policy {
             let has_hidden_revoke_layer = self.info.hidden_puzzle_hash.is_some();
+            let mut fee_solution = FeeLayerSolution::new(spend.solution);
+            if let Some(transfer_fee_context) = info.transfer_fee_context.as_ref() {
+                fee_solution = fee_solution.with_trade_context(
+                    transfer_fee_context.trade_nonce,
+                    transfer_fee_context.trade_prices.clone(),
+                );
+            }
             spend = FeeLayer::new(
                 fee_policy.issuer_fee_puzzle_hash,
                 fee_policy.fee_basis_points,
@@ -387,10 +395,7 @@ impl Cat {
                 has_hidden_revoke_layer,
                 spend.puzzle,
             )
-            .construct_spend(
-                ctx,
-                FeeLayerSolution::new(spend.solution),
-            )?;
+            .construct_spend(ctx, fee_solution)?;
         }
 
         spend = CatLayer::new(self.info.asset_id, spend.puzzle).construct_spend(
@@ -473,7 +478,7 @@ impl Cat {
 
         if let Some(fee_layer) = FeeLayer::<Puzzle>::parse_puzzle(allocator, inner_puzzle)? {
             let fee_solution = FeeLayer::<Puzzle>::parse_solution(allocator, inner_solution)?;
-            fee_policy = Some(FeePolicy::new(
+            fee_policy = Some(TransferFeePolicy::new(
                 fee_layer.issuer_fee_puzzle_hash,
                 fee_layer.fee_basis_points,
                 fee_layer.min_fee,
@@ -495,7 +500,7 @@ impl Cat {
                     Some(revocation_layer.hidden_puzzle_hash),
                     revocation_layer.inner_puzzle_hash,
                 )
-                .with_fee_policy(fee_policy),
+                .with_transfer_fee_policy(fee_policy),
             );
 
             Ok(Some((
@@ -512,7 +517,7 @@ impl Cat {
                     None,
                     inner_puzzle.curried_puzzle_hash().into(),
                 )
-                .with_fee_policy(fee_policy),
+                .with_transfer_fee_policy(fee_policy),
             );
 
             Ok(Some((info, inner_puzzle, inner_solution)))
@@ -551,7 +556,7 @@ impl Cat {
             allocator,
             Puzzle::parse(allocator, inner_spend.puzzle),
         )? {
-            fee_policy = Some(FeePolicy::new(
+            fee_policy = Some(TransferFeePolicy::new(
                 fee_layer.issuer_fee_puzzle_hash,
                 fee_layer.fee_basis_points,
                 fee_layer.min_fee,
@@ -581,7 +586,7 @@ impl Cat {
             parent_coin,
             parent_solution.lineage_proof,
             CatInfo::new(parent_layer.asset_id, hidden_puzzle_hash, p2_puzzle_hash)
-                .with_fee_policy(fee_policy),
+                .with_transfer_fee_policy(fee_policy),
         );
 
         let output =
@@ -667,14 +672,12 @@ mod tests {
     use chia_puzzle_types::{
         cat::{CatSolution, EverythingWithSignatureTailArgs},
         offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},
-        standard::StandardSolution,
     };
     use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
     use chia_sdk_test::{BlsPairWithCoin, Simulator};
     use chia_sdk_types::{
-        Condition,
         Mod,
-        puzzles::{FeeLayerSolution, FeeTradePrice, FeeTradePriceFeePolicy, RevocationArgs},
+        puzzles::{FeeLayerSolution, RevocationArgs, TransferFeeQuoteFeePolicy, TransferFeeTradePrice},
     };
     use clvm_traits::{FromClvm, ToClvm};
     use clvm_utils::{tree_hash_atom, tree_hash_pair};
@@ -682,8 +685,8 @@ mod tests {
     use rstest::rstest;
 
     use crate::{
-        AssetInfo, CatAssetInfo, FeePolicy, Offer, OfferCoins, Relation, RequestedPayments,
-        SettlementLayer, SpendWithConditions, Spends, StandardLayer,
+        AssetInfo, CatAssetInfo, Offer, OfferCoins, Relation, RequestedPayments, SettlementLayer,
+        SpendWithConditions, Spends, StandardLayer, TransferFeePolicy,
     };
 
     use super::*;
@@ -1165,8 +1168,8 @@ mod tests {
         SellBase,
     }
 
-    fn fee_tpq(policy: &FeePolicy) -> FeeTradePriceFeePolicy {
-        FeeTradePriceFeePolicy {
+    fn fee_tpq(policy: &TransferFeePolicy) -> TransferFeeQuoteFeePolicy {
+        TransferFeeQuoteFeePolicy {
             issuer_fee_puzzle_hash: policy.issuer_fee_puzzle_hash,
             fee_basis_points: policy.fee_basis_points,
             min_fee: policy.min_fee,
@@ -1175,12 +1178,12 @@ mod tests {
         }
     }
 
-    fn fee_tp_for_cat(cat: &Cat, amount: u64) -> FeeTradePrice {
-        FeeTradePrice::cat_with_quote_layers(
+    fn fee_tp_for_cat(cat: &Cat, amount: u64) -> TransferFeeTradePrice {
+        TransferFeeTradePrice::cat_with_quote_layers(
             amount,
             cat.info.asset_id,
             cat.info.hidden_puzzle_hash,
-            cat.info.fee_policy.as_ref().map(fee_tpq),
+            cat.info.transfer_fee_policy.as_ref().map(fee_tpq),
         )
     }
 
@@ -1195,7 +1198,7 @@ mod tests {
         target_ph: Bytes32,
         flavor: Flavor,
         amount: u64,
-        fee_policy: Option<FeePolicy>,
+        fee_policy: Option<TransferFeePolicy>,
     ) -> anyhow::Result<Cat> {
         let issuer_p2 = StandardLayer::new(issuer.pk);
         let hint = ctx.hint(target_ph)?;
@@ -1261,7 +1264,7 @@ mod tests {
         let issuer_p2 = StandardLayer::new(issuer.pk);
         let trader_p2 = StandardLayer::new(trader.pk);
 
-        let fee_policy = FeePolicy::new(
+        let fee_policy = TransferFeePolicy::new(
             issuer.puzzle_hash,
             500,
             1,
@@ -1301,7 +1304,7 @@ mod tests {
 
     fn execute_xch_quoted(
         mut s: XchQuotedScenario,
-        trade_prices: Vec<FeeTradePrice>,
+        trade_prices: Vec<TransferFeeTradePrice>,
         settlement_nonce: Option<Bytes32>,
         settlement_fee_amount: u64,
         announcement: Option<Vec<u8>>,
@@ -1309,8 +1312,7 @@ mod tests {
     ) -> anyhow::Result<Vec<Cat>> {
         let hint = s.ctx.hint(s.trader.puzzle_hash)?;
         let mut conditions = Conditions::new()
-            .create_coin(s.trader.puzzle_hash, s.fee_cat.coin.amount, hint)
-            .set_cat_trade_context(s.trade_nonce, trade_prices);
+            .create_coin(s.trader.puzzle_hash, s.fee_cat.coin.amount, hint);
         if let Some(msg) = announcement {
             conditions = conditions.create_puzzle_announcement(msg.into());
         }
@@ -1318,7 +1320,8 @@ mod tests {
         let fee_cat_spend = CatSpend::new(
             s.fee_cat,
             s.trader_p2.spend_with_conditions(&mut s.ctx, conditions)?,
-        );
+        )
+        .with_transfer_fee_context(s.trade_nonce, trade_prices);
 
         if let Some(nonce) = settlement_nonce {
             let change_hint = s.ctx.hint(s.trader.puzzle_hash)?;
@@ -1359,8 +1362,7 @@ mod tests {
         }
 
         let children = Cat::spend_all(&mut s.ctx, &[fee_cat_spend])?;
-        s.sim
-            .spend_coins(s.ctx.take(), &[s.trader.sk.clone()])?;
+        s.sim.spend_coins(s.ctx.take(), &[s.trader.sk.clone()])?;
         Ok(children)
     }
 
@@ -1397,11 +1399,21 @@ mod tests {
             trader.puzzle_hash,
             Flavor::FeeRevocable,
             quote_amount,
-            Some(FeePolicy::new(quote_issuer.puzzle_hash, 0, 0, true, true)),
+            Some(TransferFeePolicy::new(
+                quote_issuer.puzzle_hash,
+                0,
+                0,
+                true,
+                true,
+            )),
         )?;
 
-        let fee_policy = FeePolicy::new(fee_issuer.puzzle_hash, 500, 1, false, false);
-        let exp_fee = calc_fee(quote_amount, fee_policy.fee_basis_points, fee_policy.min_fee);
+        let fee_policy = TransferFeePolicy::new(fee_issuer.puzzle_hash, 500, 1, false, false);
+        let exp_fee = calc_fee(
+            quote_amount,
+            fee_policy.fee_basis_points,
+            fee_policy.min_fee,
+        );
         let fee_cat = issue_cat_flavor(
             &mut sim,
             &mut ctx,
@@ -1448,14 +1460,13 @@ mod tests {
 
     fn execute_cat_quoted(
         mut s: CatQuotedScenario,
-        trade_price: FeeTradePrice,
+        trade_price: TransferFeeTradePrice,
         settlement: Option<(Bytes32, u64)>,
         announcement: Option<Vec<u8>>,
     ) -> anyhow::Result<()> {
         let hint = s.ctx.hint(s.trader.puzzle_hash)?;
-        let mut conditions = Conditions::new()
-            .create_coin(s.trader.puzzle_hash, s.fee_cat.coin.amount, hint)
-            .set_cat_trade_context(s.trade_nonce, vec![trade_price]);
+        let mut conditions =
+            Conditions::new().create_coin(s.trader.puzzle_hash, s.fee_cat.coin.amount, hint);
         if let Some(msg) = announcement {
             conditions = conditions.create_puzzle_announcement(msg.into());
         }
@@ -1463,7 +1474,8 @@ mod tests {
         let fee_cat_spend = CatSpend::new(
             s.fee_cat,
             s.trader_p2.spend_with_conditions(&mut s.ctx, conditions)?,
-        );
+        )
+        .with_transfer_fee_context(s.trade_nonce, vec![trade_price]);
 
         if let Some((nonce, amount)) = settlement {
             let fee_memos = s.ctx.hint(s.fee_issuer.puzzle_hash)?;
@@ -1481,8 +1493,7 @@ mod tests {
         }
 
         Cat::spend_all(&mut s.ctx, &[fee_cat_spend])?;
-        s.sim
-            .spend_coins(s.ctx.take(), &[s.trader.sk.clone()])?;
+        s.sim.spend_coins(s.ctx.take(), &[s.trader.sk.clone()])?;
         Ok(())
     }
 
@@ -1528,13 +1539,13 @@ mod tests {
     #[derive(Clone, Copy)]
     struct TamperCase {
         name: &'static str,
-        mutate: fn(&mut FeeTradePrice),
+        mutate: fn(&mut TransferFeeTradePrice),
     }
 
     fn run_tamper_cases<T>(
         cases: &[TamperCase],
-        mut build: impl FnMut() -> anyhow::Result<(T, FeeTradePrice)>,
-        mut execute: impl FnMut(T, FeeTradePrice) -> anyhow::Result<()>,
+        mut build: impl FnMut() -> anyhow::Result<(T, TransferFeeTradePrice)>,
+        mut execute: impl FnMut(T, TransferFeeTradePrice) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
         for case in cases {
             let (ctx, mut tp) = build()?;
@@ -1557,8 +1568,8 @@ mod tests {
         offered_amount: u64,
         requested_amount: u64,
         requested_ph: Bytes32,
-        base_fee_policy: Option<FeePolicy>,
-        quote_fee_policy: Option<FeePolicy>,
+        base_fee_policy: Option<TransferFeePolicy>,
+        quote_fee_policy: Option<TransferFeePolicy>,
         direction: Direction,
     ) -> anyhow::Result<Offer> {
         let settlement_ph: Bytes32 = SETTLEMENT_PAYMENT_HASH.into();
@@ -1637,10 +1648,10 @@ mod tests {
 
     #[derive(ToClvm)]
     #[clvm(list)]
-    struct RawSetCatTradeContextCondition {
-        opcode: i8,
-        trade_nonce: Bytes32,
+    struct RawFeeLayerSolution<S> {
+        trade_nonce: Option<Bytes32>,
         trade_prices: Vec<RawTradePrice>,
+        inner_solution: S,
     }
 
     struct PendingMutation {
@@ -1664,7 +1675,7 @@ mod tests {
         let issuer_p2 = StandardLayer::new(issuer.pk);
         let trader_p2 = StandardLayer::new(trader.pk);
 
-        let fee_policy = FeePolicy::new(
+        let fee_policy = TransferFeePolicy::new(
             issuer.puzzle_hash,
             500,
             1,
@@ -1692,11 +1703,10 @@ mod tests {
             fee_cat,
             trader_p2.spend_with_conditions(
                 &mut ctx,
-                Conditions::new()
-                    .create_coin(trader.puzzle_hash, 1, cat_hint)
-                    .set_cat_trade_context(trade_nonce, vec![FeeTradePrice::xch(1_000)]),
+                Conditions::new().create_coin(trader.puzzle_hash, 1, cat_hint),
             )?,
-        );
+        )
+        .with_transfer_fee_context(trade_nonce, vec![TransferFeeTradePrice::xch(1_000)]);
 
         if include_settlement {
             let change_hint = ctx.hint(trader.puzzle_hash)?;
@@ -1704,11 +1714,7 @@ mod tests {
                 &mut ctx,
                 Conditions::new()
                     .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 50, Memos::None)
-                    .create_coin(
-                        trader.puzzle_hash,
-                        trader.coin.amount - 50,
-                        change_hint,
-                    ),
+                    .create_coin(trader.puzzle_hash, trader.coin.amount - 50, change_hint),
             )?;
             ctx.spend(trader.coin, xch_spend)?;
 
@@ -1754,8 +1760,7 @@ mod tests {
 
         let sol_ptr = ctx.alloc(&spend.solution)?;
         let mut cat_sol = CatSolution::<NodePtr>::from_clvm(ctx, sol_ptr)?;
-        let fee_sol =
-            FeeLayerSolution::<NodePtr>::from_clvm(ctx, cat_sol.inner_puzzle_solution)?;
+        let fee_sol = FeeLayerSolution::<NodePtr>::from_clvm(ctx, cat_sol.inner_puzzle_solution)?;
         cat_sol.inner_puzzle_solution = mutate(ctx, fee_sol)?;
         spend.solution = ctx.serialize(&cat_sol)?;
         Ok(())
@@ -1766,59 +1771,41 @@ mod tests {
         sol: FeeLayerSolution<NodePtr>,
         replacement: i64,
     ) -> anyhow::Result<NodePtr> {
-        let mut standard_solution =
-            StandardSolution::<NodePtr, NodePtr>::from_clvm(ctx, sol.inner_solution)?;
-        let conditions =
-            Vec::<Condition<NodePtr>>::from_clvm(ctx, standard_solution.delegated_puzzle)?;
-        let mut condition_nodes = Vec::with_capacity(conditions.len());
-        let mut patched = false;
+        let mut first = true;
+        let raw_prices: Vec<RawTradePrice> = sol
+            .trade_prices
+            .iter()
+            .map(|tp| {
+                let amount = if first {
+                    first = false;
+                    replacement
+                } else {
+                    i64::try_from(tp.amount).expect("amount overflow")
+                };
+                RawTradePrice {
+                    amount,
+                    asset_id: tp.asset_id,
+                    quote_hidden_puzzle_hash: tp.quote_hidden_puzzle_hash,
+                    quote_fee_policy: tp.quote_fee_policy.map(|p| RawQuoteFeePolicy {
+                        issuer_fee_puzzle_hash: p.issuer_fee_puzzle_hash,
+                        quote_fee_basis_points: p.fee_basis_points,
+                        quote_fee_min_fee: p.min_fee,
+                        quote_fee_allow_zero_price: p.allow_zero_price,
+                        quote_fee_allow_revoke_fee_bypass: p.allow_revoke_fee_bypass,
+                    }),
+                }
+            })
+            .collect();
 
-        for condition in conditions {
-            if let Some(context) = condition.as_set_cat_trade_context() {
-                let mut first = true;
-                let raw_prices: Vec<RawTradePrice> = context
-                    .trade_prices
-                    .iter()
-                    .map(|tp| {
-                        let amount = if first {
-                            first = false;
-                            replacement
-                        } else {
-                            i64::try_from(tp.amount).expect("amount overflow")
-                        };
-                        RawTradePrice {
-                            amount,
-                            asset_id: tp.asset_id,
-                            quote_hidden_puzzle_hash: tp.quote_hidden_puzzle_hash,
-                            quote_fee_policy: tp.quote_fee_policy.map(|p| RawQuoteFeePolicy {
-                                issuer_fee_puzzle_hash: p.issuer_fee_puzzle_hash,
-                                quote_fee_basis_points: p.fee_basis_points,
-                                quote_fee_min_fee: p.min_fee,
-                                quote_fee_allow_zero_price: p.allow_zero_price,
-                                quote_fee_allow_revoke_fee_bypass: p.allow_revoke_fee_bypass,
-                            }),
-                        }
-                    })
-                    .collect();
-
-                condition_nodes.push(ctx.alloc(&RawSetCatTradeContextCondition {
-                    opcode: -26,
-                    trade_nonce: context.trade_nonce,
-                    trade_prices: raw_prices,
-                })?);
-                patched = true;
-            } else {
-                condition_nodes.push(condition.to_clvm(ctx)?);
-            }
+        if first {
+            anyhow::bail!("missing fee-layer trade prices");
         }
 
-        if !patched {
-            anyhow::bail!("missing set_cat_trade_context condition");
-        }
-
-        standard_solution.delegated_puzzle = ctx.alloc(&condition_nodes)?;
-        let inner_solution = ctx.alloc(&standard_solution)?;
-        Ok(ctx.alloc(&FeeLayerSolution::new(inner_solution))?)
+        Ok(ctx.alloc(&RawFeeLayerSolution {
+            trade_nonce: sol.trade_nonce,
+            trade_prices: raw_prices,
+            inner_solution: sol.inner_solution,
+        })?)
     }
 
     // ===== Fee Layer Tests =====
@@ -1836,7 +1823,7 @@ mod tests {
         let issuer_p2 = StandardLayer::new(issuer.pk);
         let hint = ctx.hint(holder.puzzle_hash)?;
 
-        let fee_policy = FeePolicy::new(issuer.puzzle_hash, 500, 1, false, true);
+        let fee_policy = TransferFeePolicy::new(issuer.puzzle_hash, 500, 1, false, true);
         let (revocable, fee_enabled) = match flavor {
             Flavor::Plain => (false, false),
             Flavor::Revocable => (true, false),
@@ -1896,28 +1883,21 @@ mod tests {
         )?
         .unwrap();
         assert_eq!(parsed.info.hidden_puzzle_hash, expected_hidden);
-        assert_eq!(parsed.info.fee_policy, expected_fee);
+        assert_eq!(parsed.info.transfer_fee_policy, expected_fee);
 
         let parsed_puzzle = Puzzle::parse(ctx, parent_puzzle);
-        let children = Cat::parse_children(
-            ctx,
-            parent_spend.coin,
-            parsed_puzzle,
-            parent_solution,
-        )?
-        .unwrap();
+        let children =
+            Cat::parse_children(ctx, parent_spend.coin, parsed_puzzle, parent_solution)?.unwrap();
         assert_eq!(children.len(), 1);
         assert_eq!(children[0].coin.coin_id(), child.coin.coin_id());
         assert_eq!(children[0].info.hidden_puzzle_hash, expected_hidden);
-        assert_eq!(children[0].info.fee_policy, expected_fee);
+        assert_eq!(children[0].info.transfer_fee_policy, expected_fee);
 
         Ok(())
     }
 
     #[rstest]
-    fn test_fee_cat_multi_issuance(
-        #[values(false, true)] revocable: bool,
-    ) -> anyhow::Result<()> {
+    fn test_fee_cat_multi_issuance(#[values(false, true)] revocable: bool) -> anyhow::Result<()> {
         let mut sim = Simulator::new();
         let ctx = &mut SpendContext::new();
 
@@ -1926,7 +1906,7 @@ mod tests {
         let issuer_p2 = StandardLayer::new(issuer.pk);
         let hint = ctx.hint(holder.puzzle_hash)?;
 
-        let fee_policy = FeePolicy::new(issuer.puzzle_hash, 500, 1, false, true);
+        let fee_policy = TransferFeePolicy::new(issuer.puzzle_hash, 500, 1, false, true);
         let expected_hidden = revocable.then_some(issuer.puzzle_hash);
 
         let conditions = Conditions::new()
@@ -1960,30 +1940,26 @@ mod tests {
         assert_eq!(cats.len(), 3);
         for cat in &cats {
             assert_eq!(cat.info.hidden_puzzle_hash, expected_hidden);
-            assert_eq!(cat.info.fee_policy, Some(fee_policy));
+            assert_eq!(cat.info.transfer_fee_policy, Some(fee_policy));
         }
 
         let parent_spend = sim.coin_spend(cats[0].coin.parent_coin_info).unwrap();
         let puzzle = ctx.alloc(&parent_spend.puzzle_reveal)?;
         let solution = ctx.alloc(&parent_spend.solution)?;
         let parsed_puzzle = Puzzle::parse(ctx, puzzle);
-        let parsed = Cat::parse_children(
-            ctx,
-            parent_spend.coin,
-            parsed_puzzle,
-            solution,
-        )?
-        .unwrap();
+        let parsed = Cat::parse_children(ctx, parent_spend.coin, parsed_puzzle, solution)?.unwrap();
 
         assert_eq!(parsed.len(), 3);
         for child in &parsed {
             assert_eq!(child.info.hidden_puzzle_hash, expected_hidden);
-            assert_eq!(child.info.fee_policy, Some(fee_policy));
+            assert_eq!(child.info.transfer_fee_policy, Some(fee_policy));
         }
         for issued in &cats {
-            assert!(parsed
-                .iter()
-                .any(|p| p.coin.coin_id() == issued.coin.coin_id()));
+            assert!(
+                parsed
+                    .iter()
+                    .any(|p| p.coin.coin_id() == issued.coin.coin_id())
+            );
         }
 
         Ok(())
@@ -2000,7 +1976,8 @@ mod tests {
         let holder = sim.bls(0);
         let issuer_p2 = StandardLayer::new(issuer.pk);
 
-        let policy = FeePolicy::new(issuer.puzzle_hash, 500, 1, false, allow_revoke_fee_bypass);
+        let policy =
+            TransferFeePolicy::new(issuer.puzzle_hash, 500, 1, false, allow_revoke_fee_bypass);
         let hint = ctx.hint(holder.puzzle_hash)?;
         let (issue, cats) = Cat::issue_revocable_fee_with_key(
             ctx,
@@ -2026,7 +2003,7 @@ mod tests {
             result?;
             assert_eq!(revoked[0].coin.amount, 10);
             assert_eq!(revoked[0].info.hidden_puzzle_hash, None);
-            assert!(revoked[0].info.fee_policy.is_some());
+            assert!(revoked[0].info.transfer_fee_policy.is_some());
         } else {
             assert!(result.is_err());
         }
@@ -2042,7 +2019,7 @@ mod tests {
         let issuer = sim.bls(20_000);
         let issuer_p2 = StandardLayer::new(issuer.pk);
 
-        let fee_policy = FeePolicy::new(issuer.puzzle_hash, 500, 1, false, true);
+        let fee_policy = TransferFeePolicy::new(issuer.puzzle_hash, 500, 1, false, true);
         let hint = ctx.hint(issuer.puzzle_hash)?;
         let (issue, cats) = Cat::issue_fee_with_key(
             ctx,
@@ -2070,7 +2047,7 @@ mod tests {
         sim.spend_coins(ctx.take(), &[issuer.sk.clone()])?;
 
         assert_eq!(melted[0].coin.amount, 7_000);
-        assert!(melted[0].info.fee_policy.is_some());
+        assert!(melted[0].info.transfer_fee_policy.is_some());
 
         Ok(())
     }
@@ -2105,14 +2082,35 @@ mod tests {
         let issuer_ph = s.issuer.puzzle_hash;
         let fee_cat_asset_id = s.fee_cat.info.asset_id;
         let fee_cat_hidden = s.fee_cat.info.hidden_puzzle_hash;
-        let fee_cat_policy = s.fee_cat.info.fee_policy;
+        let fee_cat_policy = s.fee_cat.info.transfer_fee_policy;
 
         let (prices, nonce, fee_amt, ann, wrong_memos, should_succeed) = match case {
-            "success" => (vec![FeeTradePrice::xch(q)], Some(n), f, None, false, true),
-            "no_payment" => (vec![FeeTradePrice::xch(q)], None, 0, None, false, false),
-            "wrong_memos" => (vec![FeeTradePrice::xch(q)], Some(n), f, None, true, false),
+            "success" => (
+                vec![TransferFeeTradePrice::xch(q)],
+                Some(n),
+                f,
+                None,
+                false,
+                true,
+            ),
+            "no_payment" => (
+                vec![TransferFeeTradePrice::xch(q)],
+                None,
+                0,
+                None,
+                false,
+                false,
+            ),
+            "wrong_memos" => (
+                vec![TransferFeeTradePrice::xch(q)],
+                Some(n),
+                f,
+                None,
+                true,
+                false,
+            ),
             "wrong_nonce" => (
-                vec![FeeTradePrice::xch(q)],
+                vec![TransferFeeTradePrice::xch(q)],
                 Some(Bytes32::new([9; 32])),
                 f,
                 None,
@@ -2120,7 +2118,7 @@ mod tests {
                 false,
             ),
             "underpay" => (
-                vec![FeeTradePrice::xch(q)],
+                vec![TransferFeeTradePrice::xch(q)],
                 Some(n),
                 f - 1,
                 None,
@@ -2128,7 +2126,7 @@ mod tests {
                 false,
             ),
             "overpay" => (
-                vec![FeeTradePrice::xch(q)],
+                vec![TransferFeeTradePrice::xch(q)],
                 Some(n),
                 f + 1,
                 None,
@@ -2136,7 +2134,10 @@ mod tests {
                 false,
             ),
             "two_prices_one_payment" => (
-                vec![FeeTradePrice::xch(600), FeeTradePrice::xch(400)],
+                vec![
+                    TransferFeeTradePrice::xch(600),
+                    TransferFeeTradePrice::xch(400),
+                ],
                 Some(n),
                 calc_fee(600, 500, 1),
                 None,
@@ -2146,21 +2147,41 @@ mod tests {
             "extra_announcement" => {
                 let mut msg = vec![0xcf_u8];
                 msg.extend_from_slice(&[0x42; 32]);
-                (vec![FeeTradePrice::xch(q)], Some(n), f, Some(msg), false, true)
+                (
+                    vec![TransferFeeTradePrice::xch(q)],
+                    Some(n),
+                    f,
+                    Some(msg),
+                    false,
+                    true,
+                )
             }
             "self_announcement_bypass" => {
-                let mut tp = FeeTradePrice::xch(q);
+                let mut tp = TransferFeeTradePrice::xch(q);
                 tp.asset_id = Some(fee_cat_asset_id);
                 tp.quote_hidden_puzzle_hash = fee_cat_hidden;
                 tp.quote_fee_policy = fee_cat_policy.as_ref().map(fee_tpq);
-                let ann =
-                    fee_message_hash(n, issuer_ph, f, false).as_ref().to_vec();
+                let ann = fee_message_hash(n, issuer_ph, f, false).as_ref().to_vec();
                 (vec![tp], None, 0, Some(ann), false, false)
             }
-            "zero_price_allowed" => (vec![FeeTradePrice::xch(0)], None, 0, None, false, true),
-            "zero_price_rejected" => (vec![FeeTradePrice::xch(0)], None, 0, None, false, false),
+            "zero_price_allowed" => (
+                vec![TransferFeeTradePrice::xch(0)],
+                None,
+                0,
+                None,
+                false,
+                true,
+            ),
+            "zero_price_rejected" => (
+                vec![TransferFeeTradePrice::xch(0)],
+                None,
+                0,
+                None,
+                false,
+                false,
+            ),
             "non_revocable_enforces" => (
-                vec![FeeTradePrice::xch(q)],
+                vec![TransferFeeTradePrice::xch(q)],
                 None,
                 0,
                 None,
@@ -2174,7 +2195,7 @@ mod tests {
         if should_succeed {
             let children = result?;
             assert_eq!(children[0].coin.amount, 1);
-            assert!(children[0].info.fee_policy.is_some());
+            assert!(children[0].info.transfer_fee_policy.is_some());
         } else {
             assert!(result.is_err(), "expected failure for {case}");
         }
@@ -2207,7 +2228,7 @@ mod tests {
         sim.spend_coins(ctx.take(), &[quote_issuer.sk.clone()])?;
         let quote_cat = quote_cats[0];
 
-        let fee_policy = FeePolicy::new(fee_issuer.puzzle_hash, 500, 1, false, false);
+        let fee_policy = TransferFeePolicy::new(fee_issuer.puzzle_hash, 500, 1, false, false);
         let hint = ctx.hint(trader.puzzle_hash)?;
         let (issue_fee, fee_cats) = Cat::issue_fee_with_key(
             ctx,
@@ -2221,8 +2242,7 @@ mod tests {
         sim.spend_coins(ctx.take(), &[fee_issuer.sk.clone()])?;
         let fee_cat = fee_cats[0];
 
-        let trade_nonce =
-            Offer::nonce(vec![fee_cat.coin.coin_id(), quote_cat.coin.coin_id()]);
+        let trade_nonce = Offer::nonce(vec![fee_cat.coin.coin_id(), quote_cat.coin.coin_id()]);
         let settlement_ph: Bytes32 = SETTLEMENT_PAYMENT_HASH.into();
         let fee_amount = 50;
 
@@ -2231,11 +2251,10 @@ mod tests {
             fee_cat,
             trader_p2.spend_with_conditions(
                 ctx,
-                Conditions::new()
-                    .create_coin(trader.puzzle_hash, 1, fee_hint)
-                    .set_cat_trade_context(trade_nonce, vec![fee_tp_for_cat(&quote_cat, 1_000)]),
+                Conditions::new().create_coin(trader.puzzle_hash, 1, fee_hint),
             )?,
-        );
+        )
+        .with_transfer_fee_context(trade_nonce, vec![fee_tp_for_cat(&quote_cat, 1_000)]);
 
         let change_hint = ctx.hint(trader.puzzle_hash)?;
         let quote_spend = CatSpend::new(
@@ -2267,7 +2286,7 @@ mod tests {
         sim.spend_coins(ctx.take(), &[trader.sk.clone()])?;
 
         assert_eq!(children[0].coin.amount, 1);
-        assert!(children[0].info.fee_policy.is_some());
+        assert!(children[0].info.transfer_fee_policy.is_some());
 
         Ok(())
     }
@@ -2277,21 +2296,86 @@ mod tests {
         #[values("cat_quote", "xch_quote")] quote_type: &str,
     ) -> anyhow::Result<()> {
         let mut cases: Vec<TamperCase> = vec![
-            TamperCase { name: "asset_id", mutate: |tp| { tp.asset_id = Some(Bytes32::new([0x22; 32])); } },
-            TamperCase { name: "hidden_puzzle_hash", mutate: |tp| { tp.quote_hidden_puzzle_hash = Some(Bytes32::new([0x34; 32])); } },
+            TamperCase {
+                name: "asset_id",
+                mutate: |tp| {
+                    tp.asset_id = Some(Bytes32::new([0x22; 32]));
+                },
+            },
+            TamperCase {
+                name: "hidden_puzzle_hash",
+                mutate: |tp| {
+                    tp.quote_hidden_puzzle_hash = Some(Bytes32::new([0x34; 32]));
+                },
+            },
         ];
 
         match quote_type {
             "cat_quote" => {
                 cases.extend([
-                    TamperCase { name: "asset_id_nil", mutate: |tp| { tp.asset_id = None; } },
-                    TamperCase { name: "hidden_puzzle_hash_removed", mutate: |tp| { tp.quote_hidden_puzzle_hash = None; } },
-                    TamperCase { name: "fee_policy_removed", mutate: |tp| { tp.quote_fee_policy = None; } },
-                    TamperCase { name: "issuer_fee_puzzle_hash", mutate: |tp| { tp.quote_fee_policy = tp.quote_fee_policy.map(|mut p| { p.issuer_fee_puzzle_hash = Bytes32::new([0x35; 32]); p }); } },
-                    TamperCase { name: "basis_points", mutate: |tp| { tp.quote_fee_policy = tp.quote_fee_policy.map(|mut p| { p.fee_basis_points += 1; p }); } },
-                    TamperCase { name: "min_fee", mutate: |tp| { tp.quote_fee_policy = tp.quote_fee_policy.map(|mut p| { p.min_fee += 1; p }); } },
-                    TamperCase { name: "allow_zero_price", mutate: |tp| { tp.quote_fee_policy = tp.quote_fee_policy.map(|mut p| { p.allow_zero_price = !p.allow_zero_price; p }); } },
-                    TamperCase { name: "allow_revoke_fee_bypass", mutate: |tp| { tp.quote_fee_policy = tp.quote_fee_policy.map(|mut p| { p.allow_revoke_fee_bypass = !p.allow_revoke_fee_bypass; p }); } },
+                    TamperCase {
+                        name: "asset_id_nil",
+                        mutate: |tp| {
+                            tp.asset_id = None;
+                        },
+                    },
+                    TamperCase {
+                        name: "hidden_puzzle_hash_removed",
+                        mutate: |tp| {
+                            tp.quote_hidden_puzzle_hash = None;
+                        },
+                    },
+                    TamperCase {
+                        name: "fee_policy_removed",
+                        mutate: |tp| {
+                            tp.quote_fee_policy = None;
+                        },
+                    },
+                    TamperCase {
+                        name: "issuer_fee_puzzle_hash",
+                        mutate: |tp| {
+                            tp.quote_fee_policy = tp.quote_fee_policy.map(|mut p| {
+                                p.issuer_fee_puzzle_hash = Bytes32::new([0x35; 32]);
+                                p
+                            });
+                        },
+                    },
+                    TamperCase {
+                        name: "basis_points",
+                        mutate: |tp| {
+                            tp.quote_fee_policy = tp.quote_fee_policy.map(|mut p| {
+                                p.fee_basis_points += 1;
+                                p
+                            });
+                        },
+                    },
+                    TamperCase {
+                        name: "min_fee",
+                        mutate: |tp| {
+                            tp.quote_fee_policy = tp.quote_fee_policy.map(|mut p| {
+                                p.min_fee += 1;
+                                p
+                            });
+                        },
+                    },
+                    TamperCase {
+                        name: "allow_zero_price",
+                        mutate: |tp| {
+                            tp.quote_fee_policy = tp.quote_fee_policy.map(|mut p| {
+                                p.allow_zero_price = !p.allow_zero_price;
+                                p
+                            });
+                        },
+                    },
+                    TamperCase {
+                        name: "allow_revoke_fee_bypass",
+                        mutate: |tp| {
+                            tp.quote_fee_policy = tp.quote_fee_policy.map(|mut p| {
+                                p.allow_revoke_fee_bypass = !p.allow_revoke_fee_bypass;
+                                p
+                            });
+                        },
+                    },
                 ]);
                 run_tamper_cases(
                     &cases,
@@ -2308,12 +2392,17 @@ mod tests {
                 )
             }
             "xch_quote" => {
-                cases.push(TamperCase { name: "fee_policy", mutate: |tp| { tp.quote_fee_policy = Some(FeeTradePriceFeePolicy::default()); } });
+                cases.push(TamperCase {
+                    name: "fee_policy",
+                    mutate: |tp| {
+                        tp.quote_fee_policy = Some(TransferFeeQuoteFeePolicy::default());
+                    },
+                });
                 run_tamper_cases(
                     &cases,
                     || {
                         let s = setup_xch_quoted(false, false)?;
-                        let tp = FeeTradePrice::xch(s.quote_amount);
+                        let tp = TransferFeeTradePrice::xch(s.quote_amount);
                         Ok((s, tp))
                     },
                     |s, tp| {
@@ -2337,7 +2426,7 @@ mod tests {
         let mut tp = fee_tp_for_cat(&s.quote_cat, s.quote_amount);
         tp.asset_id = Some(s.fee_cat.info.asset_id);
         tp.quote_hidden_puzzle_hash = s.fee_cat.info.hidden_puzzle_hash;
-        tp.quote_fee_policy = s.fee_cat.info.fee_policy.as_ref().map(fee_tpq);
+        tp.quote_fee_policy = s.fee_cat.info.transfer_fee_policy.as_ref().map(fee_tpq);
 
         let ann = fee_message_hash(n, issuer_ph, f, true).as_ref().to_vec();
 
@@ -2374,12 +2463,30 @@ mod tests {
         let (base_fee_policy, quote_fee_policy) = if fee_on_quote {
             (
                 None,
-                Some(FeePolicy::new(quote_issuer.puzzle_hash, 500, 1, false, true)),
+                Some(TransferFeePolicy::new(
+                    quote_issuer.puzzle_hash,
+                    500,
+                    1,
+                    false,
+                    true,
+                )),
             )
         } else {
             (
-                Some(FeePolicy::new(base_issuer.puzzle_hash, 500, 1, false, true)),
-                Some(FeePolicy::new(quote_issuer.puzzle_hash, 0, 0, true, true)),
+                Some(TransferFeePolicy::new(
+                    base_issuer.puzzle_hash,
+                    500,
+                    1,
+                    false,
+                    true,
+                )),
+                Some(TransferFeePolicy::new(
+                    quote_issuer.puzzle_hash,
+                    0,
+                    0,
+                    true,
+                    true,
+                )),
             )
         };
 
@@ -2425,9 +2532,13 @@ mod tests {
             offered_amount,
             100,
             requested_ph,
-            base_cat.info.fee_policy,
-            quote_cat.info.fee_policy,
-            if fee_on_quote { Direction::BuyBase } else { direction },
+            base_cat.info.transfer_fee_policy,
+            quote_cat.info.transfer_fee_policy,
+            if fee_on_quote {
+                Direction::BuyBase
+            } else {
+                direction
+            },
         )?;
 
         let mut spends = Spends::new(taker.puzzle_hash);

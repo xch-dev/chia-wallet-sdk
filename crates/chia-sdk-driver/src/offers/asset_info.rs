@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chia_protocol::Bytes32;
 
-use crate::{DriverError, FeePolicy, HashedPtr};
+use crate::{DriverError, HashedPtr, TransferFeePolicy};
 
 #[derive(Debug, Default, Clone)]
 pub struct AssetInfo {
@@ -93,15 +93,15 @@ impl AssetInfo {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct CatAssetInfo {
     pub hidden_puzzle_hash: Option<Bytes32>,
-    pub fee_policy: Option<FeePolicy>,
+    pub transfer_fee_policy: Option<TransferFeePolicy>,
     pub settlement_puzzle_hash: Option<Bytes32>,
 }
 
 impl CatAssetInfo {
-    pub fn new(hidden_puzzle_hash: Option<Bytes32>, fee_policy: Option<FeePolicy>) -> Self {
+    pub fn new(hidden_puzzle_hash: Option<Bytes32>, transfer_fee_policy: Option<TransferFeePolicy>) -> Self {
         Self {
             hidden_puzzle_hash,
-            fee_policy,
+            transfer_fee_policy,
             settlement_puzzle_hash: None,
         }
     }
@@ -113,7 +113,7 @@ impl CatAssetInfo {
 
     fn merge(self, other: Self) -> Option<Self> {
         if self.hidden_puzzle_hash != other.hidden_puzzle_hash
-            || self.fee_policy != other.fee_policy
+            || self.transfer_fee_policy != other.transfer_fee_policy
         {
             return None;
         }
@@ -128,7 +128,7 @@ impl CatAssetInfo {
 
         Some(Self {
             hidden_puzzle_hash: self.hidden_puzzle_hash,
-            fee_policy: self.fee_policy,
+            transfer_fee_policy: self.transfer_fee_policy,
             settlement_puzzle_hash,
         })
     }
