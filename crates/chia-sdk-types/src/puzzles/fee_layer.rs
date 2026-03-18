@@ -125,28 +125,12 @@ impl<I> Mod for FeeLayerArgs<I> {
 #[derive(Debug, Clone, PartialEq, Eq, ToClvm, FromClvm)]
 #[clvm(list)]
 pub struct FeeLayerSolution<S> {
-    pub trade_nonce: Option<Bytes32>,
-    pub trade_prices: Vec<TransferFeeTradePrice>,
     pub inner_solution: S,
 }
 
 impl<S> FeeLayerSolution<S> {
     pub fn new(inner_solution: S) -> Self {
-        Self {
-            trade_nonce: None,
-            trade_prices: Vec::new(),
-            inner_solution,
-        }
-    }
-
-    pub fn with_trade_context(
-        mut self,
-        trade_nonce: Bytes32,
-        trade_prices: Vec<TransferFeeTradePrice>,
-    ) -> Self {
-        self.trade_nonce = Some(trade_nonce);
-        self.trade_prices = trade_prices;
-        self
+        Self { inner_solution }
     }
 }
 

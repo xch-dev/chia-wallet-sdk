@@ -3,14 +3,14 @@ use std::collections::HashSet;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::offer::SettlementPaymentsSolution;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::{Condition, puzzles::SettlementPayment, run_puzzle};
+use chia_sdk_types::{Condition, Conditions, puzzles::SettlementPayment, run_puzzle};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::Allocator;
 use indexmap::IndexSet;
 
 use crate::{
-    Action, Arbitrage, AssetInfo, CatInfo, CatTransferFeeContext, DriverError, Id, Layer, NftInfo, OfferAmounts,
+    Action, Arbitrage, AssetInfo, CatInfo, DriverError, Id, Layer, NftInfo, OfferAmounts,
     OfferCoins, OptionInfo, Puzzle, RequestedPayments, RoyaltyInfo, SingletonInfo, SpendContext,
     Spends, TransferFeeInfo, calculate_royalty_amounts, calculate_trade_price_amounts,
     calculate_trade_prices, calculate_transfer_fee_amounts, calculate_transfer_fee_payments,
@@ -434,19 +434,19 @@ impl Offer {
 
     pub fn apply_transfer_fee_trade_context(&self, spends: &mut Spends) -> Result<(), DriverError> {
         for (id, trade_nonce, trade_prices) in self.transfer_fee_trade_contexts()? {
-            if !spends.cats.contains_key(&id) {
+            let Some(cat_spends) = spends.cats.get_mut(&id) else {
                 // Not all transfer-fee contexts correspond to CATs being spent by this `Spends`.
                 continue;
-            }
+            };
 
-            if let Some(existing) = spends.cat_transfer_fee_contexts.get(&id) {
-                if existing.trade_nonce != trade_nonce || existing.trade_prices != trade_prices {
-                  return Err(DriverError::InvalidTradeContext);
+            let context_condition =
+                Conditions::new().set_cat_trade_context(trade_nonce, trade_prices.clone());
+
+            for item in &mut cat_spends.items {
+                if let crate::SpendKind::Conditions(spend) = &mut item.kind {
+                    spend.add_conditions(context_condition.clone());
                 }
-                continue;
             }
-
-            spends.cat_transfer_fee_contexts.insert(id, CatTransferFeeContext::new(trade_nonce, trade_prices));
         }
 
         Ok(())

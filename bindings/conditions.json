@@ -270,6 +270,14 @@
       "singleton_inner_puzzle_hash": "Option<Bytes32>"
     }
   },
+  "SetCatTradeContext": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "trade_nonce": "Bytes32",
+      "trade_prices": "Vec<TransferFeeTradePrice>"
+    }
+  },
   "RunCatTail": {
     "type": "class",
     "new": true,

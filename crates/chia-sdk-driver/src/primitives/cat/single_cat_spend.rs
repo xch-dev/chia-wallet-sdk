@@ -3,8 +3,6 @@ use chia_puzzle_types::CoinProof;
 
 use crate::Spend;
 
-use super::CatTransferFeeContext;
-
 #[derive(Debug, Clone)]
 pub struct SingleCatSpend {
     pub prev_coin_id: Bytes32,
@@ -13,7 +11,6 @@ pub struct SingleCatSpend {
     pub extra_delta: i64,
     pub p2_spend: Spend,
     pub revoke: bool,
-    pub transfer_fee_context: Option<CatTransferFeeContext>,
 }
 
 impl SingleCatSpend {
@@ -29,7 +26,6 @@ impl SingleCatSpend {
             extra_delta: 0,
             p2_spend,
             revoke: false,
-            transfer_fee_context: None,
         }
     }
 }
