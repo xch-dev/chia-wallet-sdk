@@ -1464,6 +1464,386 @@ func TestOfferEncoding(t *testing.T) {
 	}
 }
 
+// ── Action System: XCH Send ─────────────────────────────────────────────
+
+// buildPendingSpends fills in all pending spends for a FinishedSpends by
+// building DelegatedSpend → StandardSpend for each, using the given public key.
+func buildPendingSpends(t *testing.T, clvm *Clvm, finished *FinishedSpends, pk *PublicKey) {
+	t.Helper()
+	pending, err := finished.PendingSpends()
+	if err != nil {
+		t.Fatalf("PendingSpends: %v", err)
+	}
+	for _, ps := range pending {
+		conditions, _ := ps.Conditions()
+		coinObj, _ := ps.Coin()
+		coinId, _ := coinObj.CoinId()
+
+		delegated, err := clvm.DelegatedSpend(conditions)
+		if err != nil {
+			t.Fatalf("DelegatedSpend: %v", err)
+		}
+		spend, err := clvm.StandardSpend(pk, delegated)
+		if err != nil {
+			t.Fatalf("StandardSpend: %v", err)
+		}
+		if err := finished.Insert(coinId, spend); err != nil {
+			t.Fatalf("Insert: %v", err)
+		}
+
+		for _, c := range conditions {
+			c.Free()
+		}
+		spend.Free()
+		delegated.Free()
+		coinObj.Free()
+		ps.Free()
+	}
+}
+
+func TestActionXchSend(t *testing.T) {
+	sim, err := SimulatorNew()
+	if err != nil {
+		t.Fatalf("SimulatorNew: %v", err)
+	}
+	defer sim.Close()
+
+	pair, err := sim.Bls(1_000_000)
+	if err != nil {
+		t.Fatalf("Bls: %v", err)
+	}
+	defer pair.Close()
+
+	sk, _ := pair.Sk()
+	defer sk.Close()
+	pk, _ := pair.Pk()
+	defer pk.Close()
+	coin, _ := pair.Coin()
+	defer coin.Close()
+	puzzleHash, _ := pair.PuzzleHash()
+
+	clvm, _ := ClvmNew()
+	defer clvm.Close()
+
+	spends, err := SpendsNew(clvm, puzzleHash)
+	if err != nil {
+		t.Fatalf("SpendsNew: %v", err)
+	}
+	defer spends.Close()
+	spends.AddXch(coin)
+
+	destPh := make([]byte, 32)
+	destPh[0] = 0xbb
+	xchId, _ := NewIdXch()
+	defer xchId.Close()
+	send, _ := NewActionSend(xchId, destPh, 500_000, nil)
+	defer send.Close()
+	fee, _ := NewActionFee(100)
+	defer fee.Close()
+
+	deltas, err := spends.Apply([]*Action{send, fee})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	defer deltas.Close()
+
+	finished, err := spends.Prepare(deltas)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	defer finished.Close()
+
+	buildPendingSpends(t, clvm, finished, pk)
+
+	outputs, err := finished.Spend()
+	if err != nil {
+		t.Fatalf("Spend: %v", err)
+	}
+	defer outputs.Close()
+
+	// Verify XCH outputs: should have the 500k send + change
+	xchCoins, err := outputs.Xch()
+	if err != nil {
+		t.Fatalf("Xch: %v", err)
+	}
+	if len(xchCoins) == 0 {
+		t.Fatal("expected XCH output coins")
+	}
+	for _, c := range xchCoins {
+		c.Free()
+	}
+
+	// Confirm on simulator
+	coinSpends, _ := clvm.CoinSpends()
+	defer func() {
+		for _, cs := range coinSpends {
+			cs.Free()
+		}
+	}()
+	if err := sim.SpendCoins(coinSpends, []*SecretKey{sk}); err != nil {
+		t.Fatalf("SpendCoins: %v", err)
+	}
+
+	h, _ := sim.Height()
+	if h == 0 {
+		t.Fatal("expected height > 0 after spending")
+	}
+}
+
+// ── Action System: CAT Issuance ─────────────────────────────────────────
+
+func TestActionCatIssuance(t *testing.T) {
+	sim, err := SimulatorNew()
+	if err != nil {
+		t.Fatalf("SimulatorNew: %v", err)
+	}
+	defer sim.Close()
+
+	pair, err := sim.Bls(1_000_000)
+	if err != nil {
+		t.Fatalf("Bls: %v", err)
+	}
+	defer pair.Close()
+
+	sk, _ := pair.Sk()
+	defer sk.Close()
+	pk, _ := pair.Pk()
+	defer pk.Close()
+	coin, _ := pair.Coin()
+	defer coin.Close()
+	puzzleHash, _ := pair.PuzzleHash()
+
+	clvm, _ := ClvmNew()
+	defer clvm.Close()
+
+	spends, err := SpendsNew(clvm, puzzleHash)
+	if err != nil {
+		t.Fatalf("SpendsNew: %v", err)
+	}
+	defer spends.Close()
+	spends.AddXch(coin)
+
+	issueCat, err := NewActionSingleIssueCat(puzzleHash, 10_000)
+	if err != nil {
+		t.Fatalf("NewActionSingleIssueCat: %v", err)
+	}
+	defer issueCat.Close()
+	fee, _ := NewActionFee(100)
+	defer fee.Close()
+
+	deltas, err := spends.Apply([]*Action{issueCat, fee})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	defer deltas.Close()
+
+	finished, err := spends.Prepare(deltas)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	defer finished.Close()
+
+	buildPendingSpends(t, clvm, finished, pk)
+
+	outputs, err := finished.Spend()
+	if err != nil {
+		t.Fatalf("Spend: %v", err)
+	}
+	defer outputs.Close()
+
+	// Verify CAT outputs exist
+	catIds, err := outputs.Cats()
+	if err != nil {
+		t.Fatalf("Cats: %v", err)
+	}
+	if len(catIds) != 1 {
+		t.Fatalf("expected 1 CAT asset, got %d", len(catIds))
+	}
+
+	cats, err := outputs.Cat(catIds[0])
+	if err != nil {
+		t.Fatalf("Cat: %v", err)
+	}
+	if len(cats) == 0 {
+		t.Fatal("expected CAT coins")
+	}
+
+	// Verify the CAT coin has the right amount
+	catCoin, _ := cats[0].Coin()
+	defer catCoin.Close()
+	catAmount, _ := catCoin.Amount()
+	if catAmount != 10_000 {
+		t.Fatalf("expected CAT amount 10000, got %d", catAmount)
+	}
+
+	for _, c := range cats {
+		c.Free()
+	}
+	for _, id := range catIds {
+		id.Free()
+	}
+
+	// Confirm on simulator
+	coinSpends, _ := clvm.CoinSpends()
+	defer func() {
+		for _, cs := range coinSpends {
+			cs.Free()
+		}
+	}()
+	if err := sim.SpendCoins(coinSpends, []*SecretKey{sk}); err != nil {
+		t.Fatalf("SpendCoins: %v", err)
+	}
+}
+
+func TestActionNftMint(t *testing.T) {
+	sim, err := SimulatorNew()
+	if err != nil {
+		t.Fatalf("SimulatorNew: %v", err)
+	}
+	defer sim.Close()
+
+	pair, err := sim.Bls(1_000_000)
+	if err != nil {
+		t.Fatalf("Bls: %v", err)
+	}
+	defer pair.Close()
+
+	sk, _ := pair.Sk()
+	defer sk.Close()
+	pk, _ := pair.Pk()
+	defer pk.Close()
+	coin, _ := pair.Coin()
+	defer coin.Close()
+	puzzleHash, _ := pair.PuzzleHash()
+
+	clvm, _ := ClvmNew()
+	defer clvm.Close()
+
+	// Create NFT metadata with Vec<String> parameters
+	metadata, err := NewNftMetadata(
+		1,    // edition number
+		1,    // edition total
+		[]string{"https://example.com/nft.png"}, // data_uris
+		nil, // data_hash
+		[]string{"https://example.com/metadata.json"}, // metadata_uris
+		nil, // metadata_hash
+		[]string{}, // license_uris (empty)
+		nil, // license_hash
+	)
+	if err != nil {
+		t.Fatalf("NewNftMetadata: %v", err)
+	}
+	defer metadata.Close()
+
+	// Verify we can read back the string fields
+	dataUris, err := metadata.DataUris()
+	if err != nil {
+		t.Fatalf("DataUris: %v", err)
+	}
+	if len(dataUris) != 1 || dataUris[0] != "https://example.com/nft.png" {
+		t.Fatalf("expected data_uris [https://example.com/nft.png], got %v", dataUris)
+	}
+
+	metadataUris, err := metadata.MetadataUris()
+	if err != nil {
+		t.Fatalf("MetadataUris: %v", err)
+	}
+	if len(metadataUris) != 1 || metadataUris[0] != "https://example.com/metadata.json" {
+		t.Fatalf("expected metadata_uris [https://example.com/metadata.json], got %v", metadataUris)
+	}
+
+	licenseUris, err := metadata.LicenseUris()
+	if err != nil {
+		t.Fatalf("LicenseUris: %v", err)
+	}
+	if len(licenseUris) != 0 {
+		t.Fatalf("expected empty license_uris, got %v", licenseUris)
+	}
+
+	// Convert metadata to CLVM program
+	metadataProgram, err := clvm.NftMetadata(metadata)
+	if err != nil {
+		t.Fatalf("NftMetadata: %v", err)
+	}
+	defer metadataProgram.Close()
+
+	// Get metadata updater puzzle hash
+	updater, err := clvm.NftMetadataUpdaterDefault()
+	if err != nil {
+		t.Fatalf("NftMetadataUpdaterDefault: %v", err)
+	}
+	defer updater.Close()
+	updaterHash, err := updater.TreeHash()
+	if err != nil {
+		t.Fatalf("TreeHash: %v", err)
+	}
+
+	spends, err := SpendsNew(clvm, puzzleHash)
+	if err != nil {
+		t.Fatalf("SpendsNew: %v", err)
+	}
+	defer spends.Close()
+	spends.AddXch(coin)
+
+	mintNft, err := NewActionMintNft(clvm, metadataProgram, updaterHash, puzzleHash, 0, 1, nil)
+	if err != nil {
+		t.Fatalf("NewActionMintNft: %v", err)
+	}
+	defer mintNft.Close()
+	fee, _ := NewActionFee(100)
+	defer fee.Close()
+
+	deltas, err := spends.Apply([]*Action{mintNft, fee})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	defer deltas.Close()
+
+	finished, err := spends.Prepare(deltas)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	defer finished.Close()
+
+	buildPendingSpends(t, clvm, finished, pk)
+
+	outputs, err := finished.Spend()
+	if err != nil {
+		t.Fatalf("Spend: %v", err)
+	}
+	defer outputs.Close()
+
+	// Verify NFT outputs exist
+	nftIds, err := outputs.Nfts()
+	if err != nil {
+		t.Fatalf("Nfts: %v", err)
+	}
+	if len(nftIds) != 1 {
+		t.Fatalf("expected 1 NFT, got %d", len(nftIds))
+	}
+
+	nft, err := outputs.Nft(nftIds[0])
+	if err != nil {
+		t.Fatalf("Nft: %v", err)
+	}
+	defer nft.Close()
+
+	for _, id := range nftIds {
+		id.Free()
+	}
+
+	// Confirm on simulator
+	coinSpends, _ := clvm.CoinSpends()
+	defer func() {
+		for _, cs := range coinSpends {
+			cs.Free()
+		}
+	}()
+	if err := sim.SpendCoins(coinSpends, []*SecretKey{sk}); err != nil {
+		t.Fatalf("SpendCoins: %v", err)
+	}
+}
+
 // ── Object Lifecycle ────────────────────────────────────────────────────
 
 func TestFreeNilSafety(t *testing.T) {

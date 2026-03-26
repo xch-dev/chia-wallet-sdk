@@ -314,12 +314,15 @@ impl RustGen {
                 FfiKind::BigInt => {
                     format!("{name}_ptr: *const u8, {name}_len: usize")
                 }
-                // Class, List, and other complex types use opaque pointers (null = None)
+                FfiKind::List(list_inner) => self.c_param_decl(name, &FfiKind::List(list_inner.clone())),
+                // Class and other complex types use opaque pointers (null = None)
                 _ => format!("{name}: *const std::ffi::c_void"),
             },
             FfiKind::List(inner) => match inner.as_ref() {
                 FfiKind::Class(_) | FfiKind::Enum(_) => format!("{name}_ptrs: *const *const std::ffi::c_void, {name}_len: usize"),
                 FfiKind::Bytes => format!("{name}_ptrs: *const *const u8, {name}_lens: *const usize, {name}_count: usize"),
+                FfiKind::Str => format!("{name}_ptrs: *const *const std::ffi::c_char, {name}_lens: *const usize, {name}_count: usize"),
+                FfiKind::Prim(t) => format!("{name}_ptr: *const {t}, {name}_len: usize"),
                 _ => format!("{name}: *const std::ffi::c_void"),
             },
         }
@@ -344,7 +347,10 @@ impl RustGen {
                 // Complex types (List, Class, etc.) use opaque pointer (null = None)
                 _ => "out: *mut *mut std::ffi::c_void".to_string(),
             },
-            FfiKind::List(_) => "out: *mut *mut std::ffi::c_void".to_string(),
+            FfiKind::List(inner) => match inner.as_ref() {
+                FfiKind::Prim(t) => format!("out_ptr: *mut *mut {t}, out_len: *mut usize"),
+                _ => "out: *mut *mut std::ffi::c_void".to_string(),
+            },
         }
     }
 
@@ -413,24 +419,23 @@ impl RustGen {
                         Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(\
                             std::slice::from_raw_parts({name}_ptr, {name}_len).to_vec(), &bindy::GoContext)?) }}"
                 ),
-                FfiKind::List(_) => {
-                    // Extract inner type from Option<Vec<X>> -> Vec<X>
-                    let inner_type = if orig_type.starts_with("Option<") {
-                        &orig_type[7..orig_type.len() - 1]
-                    } else {
-                        orig_type
-                    };
-                    // Qualify the inner list element type
-                    let qualified = if inner_type.starts_with("Vec<") {
-                        let elem = &inner_type[4..inner_type.len() - 1];
-                        format!("Vec<{ep}::{elem}>")
-                    } else {
-                        format!("{ep}::{inner_type}")
-                    };
-                    format!(
-                        "if {name}.is_null() {{ None }} else {{ \
-                            Some((*({name} as *const {qualified})).clone()) }}"
-                    )
+                FfiKind::List(list_inner) => {
+                    // Delegate to List reconstruction, wrapped in Option
+                    let list_expr = self.param_to_rust(name, &FfiKind::List(list_inner.clone()), orig_type);
+                    match list_inner.as_ref() {
+                        FfiKind::Class(_) | FfiKind::Enum(_) => format!(
+                            "if {name}_ptrs.is_null() {{ None }} else {{ Some({list_expr}) }}"
+                        ),
+                        FfiKind::Bytes | FfiKind::Str => format!(
+                            "if {name}_count == 0 && {name}_ptrs.is_null() {{ None }} else {{ Some({list_expr}) }}"
+                        ),
+                        FfiKind::Prim(_) => format!(
+                            "if {name}_ptr.is_null() && {name}_len == 0 {{ None }} else {{ Some({list_expr}) }}"
+                        ),
+                        _ => format!(
+                            "if {name}.is_null() {{ None }} else {{ Some({list_expr}) }}"
+                        ),
+                    }
                 },
                 // Other complex types use opaque pointer (null = None)
                 _ => {
@@ -464,6 +469,24 @@ impl RustGen {
                            bindy::IntoRust::<_, _, bindy::Go>::into_rust(\
                                std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) \
                        ).collect::<bindy::Result<Vec<_>>>()? }}"
+                ),
+                FfiKind::Str => format!(
+                    "{{ if {name}_count > 0 && {name}_ptrs.is_null() {{ return Err(bindy::Error::Custom(\
+                        format!(\"{name} must not be null\"))); }} \
+                       if {name}_count == 0 {{ Vec::new() }} else {{ \
+                       let ptrs = std::slice::from_raw_parts({name}_ptrs, {name}_count); \
+                       let lens = std::slice::from_raw_parts({name}_lens, {name}_count); \
+                       ptrs.iter().zip(lens.iter()).map(|(p, l)| {{ \
+                           let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) \
+                               .map_err(|e| bindy::Error::Custom(e.to_string()))?; \
+                           Ok(s.to_string()) \
+                       }}).collect::<bindy::Result<Vec<String>>>()? }} }}"
+                ),
+                FfiKind::Prim(_) => format!(
+                    "{{ if {name}_len > 0 && {name}_ptr.is_null() {{ return Err(bindy::Error::Custom(\
+                        format!(\"{name} must not be null\"))); }} \
+                       if {name}_len == 0 {{ Vec::new() }} else {{ \
+                       std::slice::from_raw_parts({name}_ptr, {name}_len).to_vec() }} }}"
                 ),
                 _ => format!(
                     "{{ if ({name}).is_null() {{ return Err(bindy::Error::Custom(\
@@ -597,6 +620,19 @@ impl RustGen {
                          *out = Box::into_raw(boxed) as *mut std::ffi::c_void;"
                     )
                 }
+                FfiKind::Str => {
+                    "*out = Box::into_raw(Box::new(result)) as *mut std::ffi::c_void;".to_string()
+                }
+                FfiKind::Bytes => {
+                    "*out = Box::into_raw(Box::new(result)) as *mut std::ffi::c_void;".to_string()
+                }
+                FfiKind::Prim(t) => {
+                    format!(
+                        "let boxed = result.into_boxed_slice();\n\
+                         *out_len = boxed.len();\n\
+                         *out_ptr = Box::into_raw(boxed) as *mut {t};"
+                    )
+                }
                 _ => {
                     "*out = Box::into_raw(Box::new(result)) as *mut std::ffi::c_void;".to_string()
                 }
@@ -682,6 +718,88 @@ pub unsafe extern "C" fn go_free_bytes(ptr: *mut u8, len: usize) {
 pub unsafe extern "C" fn go_free_string(ptr: *mut c_char) {
     if !ptr.is_null() {
         drop(CString::from_raw(ptr));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_string_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<String>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_string_list_get(ptr: *const c_void, index: usize, out_ptr: *mut *const c_char, out_len: *mut usize) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<String>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out_ptr = list[index].as_ptr() as *const c_char;
+        *out_len = list[index].len();
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_string_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<String>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_bytes_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<Vec<u8>>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_bytes_list_get(ptr: *const c_void, index: usize, out_ptr: *mut *const u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<Vec<u8>>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out_ptr = list[index].as_ptr();
+        *out_len = list[index].len();
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_bytes_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<Vec<u8>>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_free_prim_list(ptr: *mut c_void, len: usize, elem_size: usize) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let layout = std::alloc::Layout::from_size_align(len * elem_size, elem_size).unwrap();
+            std::alloc::dealloc(ptr as *mut u8, layout);
+        }));
     }
 }
 
@@ -1343,10 +1461,14 @@ impl GoGen {
                 FfiKind::Str => "*string".to_string(),
                 FfiKind::Class(cls) | FfiKind::Enum(cls) => format!("*{cls}"),
                 FfiKind::BigInt => "*big.Int".to_string(),
+                FfiKind::List(list_inner) => self.go_type(&FfiKind::List(list_inner.clone())),
                 _ => "unsafe.Pointer".to_string(),
             },
             FfiKind::List(inner) => match inner.as_ref() {
                 FfiKind::Class(cls) | FfiKind::Enum(cls) => format!("[]*{cls}"),
+                FfiKind::Str => "[]string".to_string(),
+                FfiKind::Bytes => "[][]byte".to_string(),
+                FfiKind::Prim(t) => format!("[]{}", self.go_type(&FfiKind::Prim(t.clone()))),
                 _ => "unsafe.Pointer".to_string(),
             },
         }
@@ -1359,6 +1481,16 @@ extern int go_last_error_length();
 extern int go_last_error_message(char* buf, int buf_len);
 extern void go_free_bytes(uint8_t* ptr, size_t len);
 extern void go_free_string(char* ptr);
+// String list helpers
+extern size_t go_string_list_len(const void* ptr);
+extern int go_string_list_get(const void* ptr, size_t index, const char** out_ptr, size_t* out_len);
+extern void go_string_list_free(void* ptr);
+// Bytes list helpers
+extern size_t go_bytes_list_len(const void* ptr);
+extern int go_bytes_list_get(const void* ptr, size_t index, const uint8_t** out_ptr, size_t* out_len);
+extern void go_bytes_list_free(void* ptr);
+// Prim list helpers
+extern void go_free_prim_list(void* ptr, size_t len, size_t elem_size);
 "#,
         );
         self.c_func_names.extend([
@@ -1366,6 +1498,13 @@ extern void go_free_string(char* ptr);
             "go_last_error_message".to_string(),
             "go_free_bytes".to_string(),
             "go_free_string".to_string(),
+            "go_string_list_len".to_string(),
+            "go_string_list_get".to_string(),
+            "go_string_list_free".to_string(),
+            "go_bytes_list_len".to_string(),
+            "go_bytes_list_get".to_string(),
+            "go_bytes_list_free".to_string(),
+            "go_free_prim_list".to_string(),
         ]);
 
         self.body.push_str(
@@ -2339,12 +2478,32 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                     };
                     format!("{ct} {name}, int {name}_is_some")
                 }
-                // List and other complex types: opaque pointer (null = None)
+                FfiKind::List(list_inner) => self.c_extern_param(name, &FfiKind::List(list_inner.clone())),
+                // Other complex types: opaque pointer (null = None)
                 _ => format!("const void* {name}"),
             },
             FfiKind::List(inner) => match inner.as_ref() {
                 FfiKind::Class(_) | FfiKind::Enum(_) => {
                     format!("const void** {name}_ptrs, size_t {name}_len")
+                }
+                FfiKind::Str => {
+                    format!("const char** {name}_ptrs, const size_t* {name}_lens, size_t {name}_count")
+                }
+                FfiKind::Bytes => {
+                    format!("const uint8_t** {name}_ptrs, const size_t* {name}_lens, size_t {name}_count")
+                }
+                FfiKind::Prim(t) => {
+                    let ct = match t.as_str() {
+                        "u8" => "uint8_t",
+                        "u16" => "uint16_t",
+                        "u32" => "uint32_t",
+                        "u64" => "uint64_t",
+                        "i32" => "int32_t",
+                        "i64" => "int64_t",
+                        "usize" => "size_t",
+                        _ => "uint64_t",
+                    };
+                    format!("const {ct}* {name}_ptr, size_t {name}_len")
                 }
                 _ => format!("const void* {name}"),
             },
@@ -2391,10 +2550,26 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                     };
                     vec![format!("{ct}* out"), "int* out_is_some".to_string()]
                 }
-                // List and other complex types: opaque pointer
+                FfiKind::List(_) => vec!["void** out".to_string()],
+                // Other complex types: opaque pointer
                 _ => vec!["void** out".to_string()],
             },
-            FfiKind::List(_) => vec!["void** out".to_string()],
+            FfiKind::List(inner) => match inner.as_ref() {
+                FfiKind::Prim(t) => {
+                    let ct = match t.as_str() {
+                        "u8" => "uint8_t",
+                        "u16" => "uint16_t",
+                        "u32" => "uint32_t",
+                        "u64" => "uint64_t",
+                        "i32" => "int32_t",
+                        "i64" => "int64_t",
+                        "usize" => "size_t",
+                        _ => "uint64_t",
+                    };
+                    vec![format!("{ct}** out_ptr"), "size_t* out_len".to_string()]
+                }
+                _ => vec!["void** out".to_string()],
+            },
         }
     }
 
@@ -2548,7 +2723,8 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                         vec![],
                     )
                 }
-                // List and other complex types: pass opaque pointer directly
+                FfiKind::List(list_inner) => self.go_to_c_param(name, &FfiKind::List(list_inner.clone())),
+                // Other complex types: pass opaque pointer directly
                 _ => (
                     vec![],
                     vec![format!("{name}")],
@@ -2573,6 +2749,92 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                         )],
                         vec![
                             format!("(*unsafe.Pointer)(unsafe.Pointer({ptrs_var}C))"),
+                            len_var,
+                        ],
+                        vec![],
+                    )
+                }
+                FfiKind::Str => {
+                    let ptrs_var = format!("{name}Ptrs");
+                    let lens_var = format!("{name}Lens");
+                    let count_var = format!("{name}Count");
+                    (
+                        vec![format!(
+                            "{ptrs_var} := make([]*C.char, len({name}))\n\t\
+                             {lens_var} := make([]C.size_t, len({name}))\n\t\
+                             for i, s := range {name} {{\n\t\t\
+                                 {ptrs_var}[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))\n\t\t\
+                                 {lens_var}[i] = C.size_t(len(s))\n\t\
+                             }}\n\t\
+                             var {ptrs_var}C **C.char\n\t\
+                             var {lens_var}C *C.size_t\n\t\
+                             if len({name}) > 0 {{\n\t\t\
+                                 {ptrs_var}C = &{ptrs_var}[0]\n\t\t\
+                                 {lens_var}C = &{lens_var}[0]\n\t\
+                             }}\n\t\
+                             {count_var} := C.size_t(len({name}))"
+                        )],
+                        vec![
+                            format!("{ptrs_var}C"),
+                            format!("{lens_var}C"),
+                            count_var,
+                        ],
+                        vec![],
+                    )
+                }
+                FfiKind::Bytes => {
+                    let ptrs_var = format!("{name}Ptrs");
+                    let lens_var = format!("{name}Lens");
+                    let count_var = format!("{name}Count");
+                    (
+                        vec![format!(
+                            "{ptrs_var} := make([]*C.uint8_t, len({name}))\n\t\
+                             {lens_var} := make([]C.size_t, len({name}))\n\t\
+                             for i, b := range {name} {{\n\t\t\
+                                 if len(b) > 0 {{\n\t\t\t\
+                                     {ptrs_var}[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))\n\t\t\
+                                 }}\n\t\t\
+                                 {lens_var}[i] = C.size_t(len(b))\n\t\
+                             }}\n\t\
+                             var {ptrs_var}C **C.uint8_t\n\t\
+                             var {lens_var}C *C.size_t\n\t\
+                             if len({name}) > 0 {{\n\t\t\
+                                 {ptrs_var}C = &{ptrs_var}[0]\n\t\t\
+                                 {lens_var}C = &{lens_var}[0]\n\t\
+                             }}\n\t\
+                             {count_var} := C.size_t(len({name}))"
+                        )],
+                        vec![
+                            format!("{ptrs_var}C"),
+                            format!("{lens_var}C"),
+                            count_var,
+                        ],
+                        vec![],
+                    )
+                }
+                FfiKind::Prim(t) => {
+                    let ct = match t.as_str() {
+                        "u8" => "C.uint8_t",
+                        "u16" => "C.uint16_t",
+                        "u32" => "C.uint32_t",
+                        "u64" => "C.uint64_t",
+                        "i32" => "C.int32_t",
+                        "i64" => "C.int64_t",
+                        "usize" => "C.size_t",
+                        _ => "C.uint64_t",
+                    };
+                    let ptr_var = format!("{name}Ptr");
+                    let len_var = format!("{name}Len");
+                    (
+                        vec![format!(
+                            "var {ptr_var} *{ct}\n\t\
+                             if len({name}) > 0 {{\n\t\t\
+                                 {ptr_var} = (*{ct})(unsafe.Pointer(&{name}[0]))\n\t\
+                             }}\n\t\
+                             {len_var} := C.size_t(len({name}))"
+                        )],
+                        vec![
+                            ptr_var,
                             len_var,
                         ],
                         vec![],
@@ -2712,7 +2974,26 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                      return result, nil"
                         .to_string(),
                 ),
-                // List and other complex types: opaque pointer (null = None)
+                FfiKind::List(list_inner) => {
+                    match list_inner.as_ref() {
+                        FfiKind::Class(_) | FfiKind::Enum(_) | FfiKind::Str | FfiKind::Bytes => {
+                            let (decl, arg, list_expr) = self.c_to_go_output(&FfiKind::List(list_inner.clone()));
+                            (
+                                decl,
+                                arg,
+                                format!("if out == nil {{\n\t\treturn nil, nil\n\t}}\n\t{list_expr}"),
+                            )
+                        }
+                        _ => (
+                            "var out unsafe.Pointer".to_string(),
+                            "&out".to_string(),
+                            "if out == nil {\n\t\treturn nil, nil\n\t}\n\t\
+                             return out, nil"
+                                .to_string(),
+                        ),
+                    }
+                }
+                // Other complex types: opaque pointer (null = None)
                 _ => (
                     "var out unsafe.Pointer".to_string(),
                     "&out".to_string(),
@@ -2742,6 +3023,74 @@ func {go_name}({go_params}) ({go_ret_ty}, error) {{
                         snake = cls.to_case(Case::Snake),
                     ),
                 ),
+                FfiKind::Str => (
+                    "var out unsafe.Pointer".to_string(),
+                    "&out".to_string(),
+                    "listLen := C.go_string_list_len(out)\n\t\
+                     result := make([]string, listLen)\n\t\
+                     for i := range result {\n\t\t\
+                         var sPtr *C.char\n\t\t\
+                         var sLen C.size_t\n\t\t\
+                         if ret := C.go_string_list_get(out, C.size_t(i), &sPtr, &sLen); ret != 0 {\n\t\t\t\
+                             C.go_string_list_free(out)\n\t\t\t\
+                             return nil, lastError()\n\t\t\
+                         }\n\t\t\
+                         result[i] = C.GoStringN(sPtr, C.int(sLen))\n\t\
+                     }\n\t\
+                     C.go_string_list_free(out)\n\t\
+                     return result, nil".to_string(),
+                ),
+                FfiKind::Bytes => (
+                    "var out unsafe.Pointer".to_string(),
+                    "&out".to_string(),
+                    "listLen := C.go_bytes_list_len(out)\n\t\
+                     result := make([][]byte, listLen)\n\t\
+                     for i := range result {\n\t\t\
+                         var bPtr *C.uint8_t\n\t\t\
+                         var bLen C.size_t\n\t\t\
+                         if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {\n\t\t\t\
+                             C.go_bytes_list_free(out)\n\t\t\t\
+                             return nil, lastError()\n\t\t\
+                         }\n\t\t\
+                         result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))\n\t\
+                     }\n\t\
+                     C.go_bytes_list_free(out)\n\t\
+                     return result, nil".to_string(),
+                ),
+                FfiKind::Prim(t) => {
+                    let ct = match t.as_str() {
+                        "u8" => "C.uint8_t",
+                        "u16" => "C.uint16_t",
+                        "u32" => "C.uint32_t",
+                        "u64" => "C.uint64_t",
+                        "i32" => "C.int32_t",
+                        "i64" => "C.int64_t",
+                        "usize" => "C.size_t",
+                        _ => "C.uint64_t",
+                    };
+                    let go_type = match t.as_str() {
+                        "u8" => "uint8",
+                        "u16" => "uint16",
+                        "u32" => "uint32",
+                        "u64" => "uint64",
+                        "i32" => "int32",
+                        "i64" => "int64",
+                        "usize" => "uint",
+                        _ => "uint64",
+                    };
+                    (
+                        format!("var outPtr *{ct}\n\tvar outLen C.size_t"),
+                        "&outPtr, &outLen".to_string(),
+                        format!(
+                            "if outLen == 0 {{\n\t\treturn nil, nil\n\t}}\n\t\
+                             result := make([]{go_type}, outLen)\n\t\
+                             src := unsafe.Slice((*{go_type})(unsafe.Pointer(outPtr)), outLen)\n\t\
+                             copy(result, src)\n\t\
+                             C.go_free_prim_list(unsafe.Pointer(outPtr), outLen, C.size_t(unsafe.Sizeof(*outPtr)))\n\t\
+                             return result, nil"
+                        ),
+                    )
+                }
                 _ => (
                     "var out unsafe.Pointer".to_string(),
                     "&out".to_string(),

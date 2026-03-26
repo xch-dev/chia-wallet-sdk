@@ -17,6 +17,16 @@ extern int go_last_error_length();
 extern int go_last_error_message(char* buf, int buf_len);
 extern void go_free_bytes(uint8_t* ptr, size_t len);
 extern void go_free_string(char* ptr);
+// String list helpers
+extern size_t go_string_list_len(const void* ptr);
+extern int go_string_list_get(const void* ptr, size_t index, const char** out_ptr, size_t* out_len);
+extern void go_string_list_free(void* ptr);
+// Bytes list helpers
+extern size_t go_bytes_list_len(const void* ptr);
+extern int go_bytes_list_get(const void* ptr, size_t index, const uint8_t** out_ptr, size_t* out_len);
+extern void go_bytes_list_free(void* ptr);
+// Prim list helpers
+extern void go_free_prim_list(void* ptr, size_t len, size_t elem_size);
 
 // Spends
 extern void go_spends_free(void* ptr);
@@ -164,8 +174,8 @@ extern int go_secret_key_public_key(const void* ptr, void** out);
 extern int go_secret_key_sign(const void* ptr, const uint8_t* message_ptr, size_t message_len, void** out);
 extern int go_secret_key_derive_unhardened(const void* ptr, uint32_t index, void** out);
 extern int go_secret_key_derive_hardened(const void* ptr, uint32_t index, void** out);
-extern int go_secret_key_derive_unhardened_path(const void* ptr, const void* path, void** out);
-extern int go_secret_key_derive_hardened_path(const void* ptr, const void* path, void** out);
+extern int go_secret_key_derive_unhardened_path(const void* ptr, const uint32_t* path_ptr, size_t path_len, void** out);
+extern int go_secret_key_derive_hardened_path(const void* ptr, const uint32_t* path_ptr, size_t path_len, void** out);
 extern int go_secret_key_derive_synthetic(const void* ptr, void** out);
 extern int go_secret_key_derive_synthetic_hidden(const void* ptr, const uint8_t* hidden_puzzle_hash_ptr, size_t hidden_puzzle_hash_len, void** out);
 extern size_t go_secret_key_list_len(const void* ptr);
@@ -177,7 +187,7 @@ extern void go_public_key_free(void* ptr);
 extern int go_public_key_clone(const void* ptr, void** out);
 extern int go_public_key_infinity(void** out);
 extern int go_public_key_aggregate(const void** public_keys_ptrs, size_t public_keys_len, void** out);
-extern int go_public_key_aggregate_verify(const void** public_keys_ptrs, size_t public_keys_len, const void* messages, const void* signature, int* out);
+extern int go_public_key_aggregate_verify(const void** public_keys_ptrs, size_t public_keys_len, const uint8_t** messages_ptrs, const size_t* messages_lens, size_t messages_count, const void* signature, int* out);
 extern int go_public_key_from_bytes(const uint8_t* bytes_ptr, size_t bytes_len, void** out);
 extern int go_public_key_to_bytes(const void* ptr, uint8_t** out_ptr, size_t* out_len);
 extern int go_public_key_verify(const void* ptr, const uint8_t* message_ptr, size_t message_len, const void* signature, int* out);
@@ -185,7 +195,7 @@ extern int go_public_key_fingerprint(const void* ptr, uint32_t* out);
 extern int go_public_key_is_infinity(const void* ptr, int* out);
 extern int go_public_key_is_valid(const void* ptr, int* out);
 extern int go_public_key_derive_unhardened(const void* ptr, uint32_t index, void** out);
-extern int go_public_key_derive_unhardened_path(const void* ptr, const void* path, void** out);
+extern int go_public_key_derive_unhardened_path(const void* ptr, const uint32_t* path_ptr, size_t path_len, void** out);
 extern int go_public_key_derive_synthetic(const void* ptr, void** out);
 extern int go_public_key_derive_synthetic_hidden(const void* ptr, const uint8_t* hidden_puzzle_hash_ptr, size_t hidden_puzzle_hash_len, void** out);
 extern size_t go_public_key_list_len(const void* ptr);
@@ -248,7 +258,7 @@ extern void go_vault_transaction_list_free(void* ptr);
 // ParsedPayment
 extern void go_parsed_payment_free(void* ptr);
 extern int go_parsed_payment_clone(const void* ptr, void** out);
-extern int go_parsed_payment_new(const void* transfer_type, const uint8_t* asset_id_ptr, size_t asset_id_len, const uint8_t* hidden_puzzle_hash_ptr, size_t hidden_puzzle_hash_len, const uint8_t* p2_puzzle_hash_ptr, size_t p2_puzzle_hash_len, const void* coin, const void* clawback, const void* memos, void** out);
+extern int go_parsed_payment_new(const void* transfer_type, const uint8_t* asset_id_ptr, size_t asset_id_len, const uint8_t* hidden_puzzle_hash_ptr, size_t hidden_puzzle_hash_len, const uint8_t* p2_puzzle_hash_ptr, size_t p2_puzzle_hash_len, const void* coin, const void* clawback, const char** memos_ptrs, const size_t* memos_lens, size_t memos_count, void** out);
 extern int go_parsed_payment_get_transfer_type(const void* ptr, void** out);
 extern int go_parsed_payment_set_transfer_type(void* ptr, const void* value);
 extern int go_parsed_payment_get_asset_id(const void* ptr, uint8_t** out_ptr, size_t* out_len);
@@ -262,7 +272,7 @@ extern int go_parsed_payment_set_coin(void* ptr, const void* value);
 extern int go_parsed_payment_get_clawback(const void* ptr, void** out);
 extern int go_parsed_payment_set_clawback(void* ptr, const void* value);
 extern int go_parsed_payment_get_memos(const void* ptr, void** out);
-extern int go_parsed_payment_set_memos(void* ptr, const void* value);
+extern int go_parsed_payment_set_memos(void* ptr, const char** value_ptrs, const size_t* value_lens, size_t value_count);
 extern size_t go_parsed_payment_list_len(const void* ptr);
 extern int go_parsed_payment_list_get(const void* ptr, size_t index, void** out);
 extern void go_parsed_payment_list_free(void* ptr);
@@ -270,7 +280,7 @@ extern void go_parsed_payment_list_free(void* ptr);
 // ParsedNftTransfer
 extern void go_parsed_nft_transfer_free(void* ptr);
 extern int go_parsed_nft_transfer_clone(const void* ptr, void** out);
-extern int go_parsed_nft_transfer_new(const void* transfer_type, const uint8_t* launcher_id_ptr, size_t launcher_id_len, const uint8_t* p2_puzzle_hash_ptr, size_t p2_puzzle_hash_len, const void* coin, const void* clawback, const void* memos, const void* old_state, const void* new_state, const uint8_t* royalty_puzzle_hash_ptr, size_t royalty_puzzle_hash_len, uint16_t royalty_basis_points, int includes_unverifiable_updates, void** out);
+extern int go_parsed_nft_transfer_new(const void* transfer_type, const uint8_t* launcher_id_ptr, size_t launcher_id_len, const uint8_t* p2_puzzle_hash_ptr, size_t p2_puzzle_hash_len, const void* coin, const void* clawback, const char** memos_ptrs, const size_t* memos_lens, size_t memos_count, const void* old_state, const void* new_state, const uint8_t* royalty_puzzle_hash_ptr, size_t royalty_puzzle_hash_len, uint16_t royalty_basis_points, int includes_unverifiable_updates, void** out);
 extern int go_parsed_nft_transfer_get_transfer_type(const void* ptr, void** out);
 extern int go_parsed_nft_transfer_set_transfer_type(void* ptr, const void* value);
 extern int go_parsed_nft_transfer_get_launcher_id(const void* ptr, uint8_t** out_ptr, size_t* out_len);
@@ -282,7 +292,7 @@ extern int go_parsed_nft_transfer_set_coin(void* ptr, const void* value);
 extern int go_parsed_nft_transfer_get_clawback(const void* ptr, void** out);
 extern int go_parsed_nft_transfer_set_clawback(void* ptr, const void* value);
 extern int go_parsed_nft_transfer_get_memos(const void* ptr, void** out);
-extern int go_parsed_nft_transfer_set_memos(void* ptr, const void* value);
+extern int go_parsed_nft_transfer_set_memos(void* ptr, const char** value_ptrs, const size_t* value_lens, size_t value_count);
 extern int go_parsed_nft_transfer_get_old_state(const void* ptr, void** out);
 extern int go_parsed_nft_transfer_set_old_state(void* ptr, const void* value);
 extern int go_parsed_nft_transfer_get_new_state(const void* ptr, void** out);
@@ -416,7 +426,7 @@ extern int go_clvm_melt_singleton(const void* ptr, void** out);
 extern int go_clvm_transfer_nft(const void* ptr, const uint8_t* launcher_id_ptr, size_t launcher_id_len, const void** trade_prices_ptrs, size_t trade_prices_len, const uint8_t* singleton_inner_puzzle_hash_ptr, size_t singleton_inner_puzzle_hash_len, void** out);
 extern int go_clvm_run_cat_tail(const void* ptr, const void* program, const void* solution, void** out);
 extern int go_clvm_update_nft_metadata(const void* ptr, const void* updater_puzzle_reveal, const void* updater_solution, void** out);
-extern int go_clvm_update_data_store_merkle_root(const void* ptr, const uint8_t* new_merkle_root_ptr, size_t new_merkle_root_len, const void* memos, void** out);
+extern int go_clvm_update_data_store_merkle_root(const void* ptr, const uint8_t* new_merkle_root_ptr, size_t new_merkle_root_len, const uint8_t** memos_ptrs, const size_t* memos_lens, size_t memos_count, void** out);
 extern int go_clvm_parse_child_streamed_asset(const void* ptr, const void* coin_spend, void** out);
 extern int go_clvm_parse_child_medieval_vault(const void* ptr, const void* coin_spend, void** out);
 extern int go_clvm_spend_medieval_vault(const void* ptr, const void* medieval_vault, const void** used_pubkeys_ptrs, size_t used_pubkeys_len, const void** conditions_ptrs, size_t conditions_len, const uint8_t* genesis_challenge_ptr, size_t genesis_challenge_len);
@@ -1114,11 +1124,11 @@ extern void go_update_nft_metadata_list_free(void* ptr);
 // UpdateDataStoreMerkleRoot
 extern void go_update_data_store_merkle_root_free(void* ptr);
 extern int go_update_data_store_merkle_root_clone(const void* ptr, void** out);
-extern int go_update_data_store_merkle_root_new(const uint8_t* new_merkle_root_ptr, size_t new_merkle_root_len, const void* memos, void** out);
+extern int go_update_data_store_merkle_root_new(const uint8_t* new_merkle_root_ptr, size_t new_merkle_root_len, const uint8_t** memos_ptrs, const size_t* memos_lens, size_t memos_count, void** out);
 extern int go_update_data_store_merkle_root_get_new_merkle_root(const void* ptr, uint8_t** out_ptr, size_t* out_len);
 extern int go_update_data_store_merkle_root_set_new_merkle_root(void* ptr, const uint8_t* value_ptr, size_t value_len);
 extern int go_update_data_store_merkle_root_get_memos(const void* ptr, void** out);
-extern int go_update_data_store_merkle_root_set_memos(void* ptr, const void* value);
+extern int go_update_data_store_merkle_root_set_memos(void* ptr, const uint8_t** value_ptrs, const size_t* value_lens, size_t value_count);
 extern size_t go_update_data_store_merkle_root_list_len(const void* ptr);
 extern int go_update_data_store_merkle_root_list_get(const void* ptr, size_t index, void** out);
 extern void go_update_data_store_merkle_root_list_free(void* ptr);
@@ -1365,7 +1375,7 @@ extern int go_member_config_with_restrictions(const void* ptr, const void** rest
 extern size_t go_member_config_list_len(const void* ptr);
 extern int go_member_config_list_get(const void* ptr, size_t index, void** out);
 extern void go_member_config_list_free(void* ptr);
-extern int go_m_of_n_hash(const void* config, uint32_t required, const void* items, uint8_t** out_ptr, size_t* out_len);
+extern int go_m_of_n_hash(const void* config, uint32_t required, const uint8_t** items_ptrs, const size_t* items_lens, size_t items_count, uint8_t** out_ptr, size_t* out_len);
 extern int go_k_1_member_hash(const void* config, const void* public_key, int fast_forward, uint8_t** out_ptr, size_t* out_len);
 extern int go_r_1_member_hash(const void* config, const void* public_key, int fast_forward, uint8_t** out_ptr, size_t* out_len);
 extern int go_bls_member_hash(const void* config, const void* public_key, int fast_forward, uint8_t** out_ptr, size_t* out_len);
@@ -1401,7 +1411,7 @@ extern void go_mips_spend_free(void* ptr);
 extern int go_mips_spend_clone(const void* ptr, void** out);
 extern int go_mips_spend_spend(const void* ptr, const uint8_t* custody_hash_ptr, size_t custody_hash_len, void** out);
 extern int go_mips_spend_spend_vault(const void* ptr, const void* vault);
-extern int go_mips_spend_m_of_n(const void* ptr, const void* config, uint32_t required, const void* items);
+extern int go_mips_spend_m_of_n(const void* ptr, const void* config, uint32_t required, const uint8_t** items_ptrs, const size_t* items_lens, size_t items_count);
 extern int go_mips_spend_k_1_member(const void* ptr, const void* config, const void* public_key, const void* signature, int fast_forward);
 extern int go_mips_spend_r_1_member(const void* ptr, const void* config, const void* public_key, const void* signature, int fast_forward);
 extern int go_mips_spend_bls_member(const void* ptr, const void* config, const void* public_key, int fast_forward);
@@ -1644,11 +1654,11 @@ extern void go_peer_options_list_free(void* ptr);
 extern void go_peer_free(void* ptr);
 extern int go_peer_clone(const void* ptr, void** out);
 extern int go_peer_connect(const char* network_id, const char* socket_addr, const void* connector, const void* options, void** out);
-extern int go_peer_request_coin_state(const void* ptr, const void* coin_ids, uint32_t previous_height, int previous_height_is_some, const uint8_t* header_hash_ptr, size_t header_hash_len, int subscribe, void** out);
-extern int go_peer_request_puzzle_state(const void* ptr, const void* puzzle_hashes, uint32_t previous_height, int previous_height_is_some, const uint8_t* header_hash_ptr, size_t header_hash_len, const void* filters, int subscribe, void** out);
+extern int go_peer_request_coin_state(const void* ptr, const uint8_t** coin_ids_ptrs, const size_t* coin_ids_lens, size_t coin_ids_count, uint32_t previous_height, int previous_height_is_some, const uint8_t* header_hash_ptr, size_t header_hash_len, int subscribe, void** out);
+extern int go_peer_request_puzzle_state(const void* ptr, const uint8_t** puzzle_hashes_ptrs, const size_t* puzzle_hashes_lens, size_t puzzle_hashes_count, uint32_t previous_height, int previous_height_is_some, const uint8_t* header_hash_ptr, size_t header_hash_len, const void* filters, int subscribe, void** out);
 extern int go_peer_request_puzzle_and_solution(const void* ptr, const uint8_t* coin_id_ptr, size_t coin_id_len, uint32_t height, void** out);
-extern int go_peer_remove_coin_subscriptions(const void* ptr, const void* coin_ids, void** out);
-extern int go_peer_remove_puzzle_subscriptions(const void* ptr, const void* puzzle_hashes, void** out);
+extern int go_peer_remove_coin_subscriptions(const void* ptr, const uint8_t** coin_ids_ptrs, const size_t* coin_ids_lens, size_t coin_ids_count, void** out);
+extern int go_peer_remove_puzzle_subscriptions(const void* ptr, const uint8_t** puzzle_hashes_ptrs, const size_t* puzzle_hashes_lens, size_t puzzle_hashes_count, void** out);
 extern int go_peer_next(const void* ptr, void** out);
 extern size_t go_peer_list_len(const void* ptr);
 extern int go_peer_list_get(const void* ptr, size_t index, void** out);
@@ -1700,9 +1710,9 @@ extern void go_coin_state_update_list_free(void* ptr);
 // RespondCoinState
 extern void go_respond_coin_state_free(void* ptr);
 extern int go_respond_coin_state_clone(const void* ptr, void** out);
-extern int go_respond_coin_state_new(const void* coin_ids, const void** coin_states_ptrs, size_t coin_states_len, void** out);
+extern int go_respond_coin_state_new(const uint8_t** coin_ids_ptrs, const size_t* coin_ids_lens, size_t coin_ids_count, const void** coin_states_ptrs, size_t coin_states_len, void** out);
 extern int go_respond_coin_state_get_coin_ids(const void* ptr, void** out);
-extern int go_respond_coin_state_set_coin_ids(void* ptr, const void* value);
+extern int go_respond_coin_state_set_coin_ids(void* ptr, const uint8_t** value_ptrs, const size_t* value_lens, size_t value_count);
 extern int go_respond_coin_state_get_coin_states(const void* ptr, void** out);
 extern int go_respond_coin_state_set_coin_states(void* ptr, const void** value_ptrs, size_t value_len);
 extern size_t go_respond_coin_state_list_len(const void* ptr);
@@ -1712,9 +1722,9 @@ extern void go_respond_coin_state_list_free(void* ptr);
 // RespondPuzzleState
 extern void go_respond_puzzle_state_free(void* ptr);
 extern int go_respond_puzzle_state_clone(const void* ptr, void** out);
-extern int go_respond_puzzle_state_new(const void* puzzle_hashes, uint32_t height, const uint8_t* header_hash_ptr, size_t header_hash_len, int is_finished, const void** coin_states_ptrs, size_t coin_states_len, void** out);
+extern int go_respond_puzzle_state_new(const uint8_t** puzzle_hashes_ptrs, const size_t* puzzle_hashes_lens, size_t puzzle_hashes_count, uint32_t height, const uint8_t* header_hash_ptr, size_t header_hash_len, int is_finished, const void** coin_states_ptrs, size_t coin_states_len, void** out);
 extern int go_respond_puzzle_state_get_puzzle_hashes(const void* ptr, void** out);
-extern int go_respond_puzzle_state_set_puzzle_hashes(void* ptr, const void* value);
+extern int go_respond_puzzle_state_set_puzzle_hashes(void* ptr, const uint8_t** value_ptrs, const size_t* value_lens, size_t value_count);
 extern int go_respond_puzzle_state_get_height(const void* ptr, uint32_t* out);
 extern int go_respond_puzzle_state_set_height(void* ptr, uint32_t value);
 extern int go_respond_puzzle_state_get_header_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
@@ -2024,21 +2034,21 @@ extern void go_parsed_nft_list_free(void* ptr);
 // NftMetadata
 extern void go_nft_metadata_free(void* ptr);
 extern int go_nft_metadata_clone(const void* ptr, void** out);
-extern int go_nft_metadata_new(uint64_t edition_number, uint64_t edition_total, const void* data_uris, const uint8_t* data_hash_ptr, size_t data_hash_len, const void* metadata_uris, const uint8_t* metadata_hash_ptr, size_t metadata_hash_len, const void* license_uris, const uint8_t* license_hash_ptr, size_t license_hash_len, void** out);
+extern int go_nft_metadata_new(uint64_t edition_number, uint64_t edition_total, const char** data_uris_ptrs, const size_t* data_uris_lens, size_t data_uris_count, const uint8_t* data_hash_ptr, size_t data_hash_len, const char** metadata_uris_ptrs, const size_t* metadata_uris_lens, size_t metadata_uris_count, const uint8_t* metadata_hash_ptr, size_t metadata_hash_len, const char** license_uris_ptrs, const size_t* license_uris_lens, size_t license_uris_count, const uint8_t* license_hash_ptr, size_t license_hash_len, void** out);
 extern int go_nft_metadata_get_edition_number(const void* ptr, uint64_t* out);
 extern int go_nft_metadata_set_edition_number(void* ptr, uint64_t value);
 extern int go_nft_metadata_get_edition_total(const void* ptr, uint64_t* out);
 extern int go_nft_metadata_set_edition_total(void* ptr, uint64_t value);
 extern int go_nft_metadata_get_data_uris(const void* ptr, void** out);
-extern int go_nft_metadata_set_data_uris(void* ptr, const void* value);
+extern int go_nft_metadata_set_data_uris(void* ptr, const char** value_ptrs, const size_t* value_lens, size_t value_count);
 extern int go_nft_metadata_get_data_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
 extern int go_nft_metadata_set_data_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
 extern int go_nft_metadata_get_metadata_uris(const void* ptr, void** out);
-extern int go_nft_metadata_set_metadata_uris(void* ptr, const void* value);
+extern int go_nft_metadata_set_metadata_uris(void* ptr, const char** value_ptrs, const size_t* value_lens, size_t value_count);
 extern int go_nft_metadata_get_metadata_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
 extern int go_nft_metadata_set_metadata_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
 extern int go_nft_metadata_get_license_uris(const void* ptr, void** out);
-extern int go_nft_metadata_set_license_uris(void* ptr, const void* value);
+extern int go_nft_metadata_set_license_uris(void* ptr, const char** value_ptrs, const size_t* value_lens, size_t value_count);
 extern int go_nft_metadata_get_license_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
 extern int go_nft_metadata_set_license_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
 extern size_t go_nft_metadata_list_len(const void* ptr);
@@ -2353,7 +2363,7 @@ extern int go_streaming_puzzle_info_amount_to_be_paid(const void* ptr, uint64_t 
 extern int go_streaming_puzzle_info_get_hint(const uint8_t* recipient_ptr, size_t recipient_len, uint8_t** out_ptr, size_t* out_len);
 extern int go_streaming_puzzle_info_get_launch_hints(const void* ptr, void** out);
 extern int go_streaming_puzzle_info_inner_puzzle_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
-extern int go_streaming_puzzle_info_from_memos(const void* memos, void** out);
+extern int go_streaming_puzzle_info_from_memos(const uint8_t** memos_ptrs, const size_t* memos_lens, size_t memos_count, void** out);
 extern size_t go_streaming_puzzle_info_list_len(const void* ptr);
 extern int go_streaming_puzzle_info_list_get(const void* ptr, size_t index, void** out);
 extern void go_streaming_puzzle_info_list_free(void* ptr);
@@ -2526,11 +2536,11 @@ extern void go_p_2_parent_coin_list_free(void* ptr);
 // P2ParentCoinChildParseResult
 extern void go_p_2_parent_coin_child_parse_result_free(void* ptr);
 extern int go_p_2_parent_coin_child_parse_result_clone(const void* ptr, void** out);
-extern int go_p_2_parent_coin_child_parse_result_new(const void* p2_parent_coin, const void* memos, void** out);
+extern int go_p_2_parent_coin_child_parse_result_new(const void* p2_parent_coin, const uint8_t** memos_ptrs, const size_t* memos_lens, size_t memos_count, void** out);
 extern int go_p_2_parent_coin_child_parse_result_get_p_2_parent_coin(const void* ptr, void** out);
 extern int go_p_2_parent_coin_child_parse_result_set_p_2_parent_coin(void* ptr, const void* value);
 extern int go_p_2_parent_coin_child_parse_result_get_memos(const void* ptr, void** out);
-extern int go_p_2_parent_coin_child_parse_result_set_memos(void* ptr, const void* value);
+extern int go_p_2_parent_coin_child_parse_result_set_memos(void* ptr, const uint8_t** value_ptrs, const size_t* value_lens, size_t value_count);
 extern size_t go_p_2_parent_coin_child_parse_result_list_len(const void* ptr);
 extern int go_p_2_parent_coin_child_parse_result_list_get(const void* ptr, size_t index, void** out);
 extern void go_p_2_parent_coin_child_parse_result_list_free(void* ptr);
@@ -2927,11 +2937,11 @@ extern int go_rpc_client_get_blocks(const void* ptr, uint32_t start, uint32_t en
 extern int go_rpc_client_get_block_spends(const void* ptr, const uint8_t* header_hash_ptr, size_t header_hash_len, void** out);
 extern int go_rpc_client_get_coin_record_by_name(const void* ptr, const uint8_t* name_ptr, size_t name_len, void** out);
 extern int go_rpc_client_get_coin_records_by_hint(const void* ptr, const uint8_t* hint_ptr, size_t hint_len, uint32_t start_height, int start_height_is_some, uint32_t end_height, int end_height_is_some, int include_spent_coins, int include_spent_coins_is_some, void** out);
-extern int go_rpc_client_get_coin_records_by_hints(const void* ptr, const void* hints, uint32_t start_height, int start_height_is_some, uint32_t end_height, int end_height_is_some, int include_spent_coins, int include_spent_coins_is_some, void** out);
-extern int go_rpc_client_get_coin_records_by_names(const void* ptr, const void* names, uint32_t start_height, int start_height_is_some, uint32_t end_height, int end_height_is_some, int include_spent_coins, int include_spent_coins_is_some, void** out);
-extern int go_rpc_client_get_coin_records_by_parent_ids(const void* ptr, const void* parent_ids, uint32_t start_height, int start_height_is_some, uint32_t end_height, int end_height_is_some, int include_spent_coins, int include_spent_coins_is_some, void** out);
+extern int go_rpc_client_get_coin_records_by_hints(const void* ptr, const uint8_t** hints_ptrs, const size_t* hints_lens, size_t hints_count, uint32_t start_height, int start_height_is_some, uint32_t end_height, int end_height_is_some, int include_spent_coins, int include_spent_coins_is_some, void** out);
+extern int go_rpc_client_get_coin_records_by_names(const void* ptr, const uint8_t** names_ptrs, const size_t* names_lens, size_t names_count, uint32_t start_height, int start_height_is_some, uint32_t end_height, int end_height_is_some, int include_spent_coins, int include_spent_coins_is_some, void** out);
+extern int go_rpc_client_get_coin_records_by_parent_ids(const void* ptr, const uint8_t** parent_ids_ptrs, const size_t* parent_ids_lens, size_t parent_ids_count, uint32_t start_height, int start_height_is_some, uint32_t end_height, int end_height_is_some, int include_spent_coins, int include_spent_coins_is_some, void** out);
 extern int go_rpc_client_get_coin_records_by_puzzle_hash(const void* ptr, const uint8_t* puzzle_hash_ptr, size_t puzzle_hash_len, uint32_t start_height, int start_height_is_some, uint32_t end_height, int end_height_is_some, int include_spent_coins, int include_spent_coins_is_some, void** out);
-extern int go_rpc_client_get_coin_records_by_puzzle_hashes(const void* ptr, const void* puzzle_hashes, uint32_t start_height, int start_height_is_some, uint32_t end_height, int end_height_is_some, int include_spent_coins, int include_spent_coins_is_some, void** out);
+extern int go_rpc_client_get_coin_records_by_puzzle_hashes(const void* ptr, const uint8_t** puzzle_hashes_ptrs, const size_t* puzzle_hashes_lens, size_t puzzle_hashes_count, uint32_t start_height, int start_height_is_some, uint32_t end_height, int end_height_is_some, int include_spent_coins, int include_spent_coins_is_some, void** out);
 extern int go_rpc_client_get_puzzle_and_solution(const void* ptr, const uint8_t* coin_id_ptr, size_t coin_id_len, uint32_t height, int height_is_some, void** out);
 extern int go_rpc_client_push_tx(const void* ptr, const void* spend_bundle, void** out);
 extern int go_rpc_client_get_network_info(const void* ptr, void** out);
@@ -3020,11 +3030,11 @@ extern void go_sync_state_list_free(void* ptr);
 // AdditionsAndRemovalsResponse
 extern void go_additions_and_removals_response_free(void* ptr);
 extern int go_additions_and_removals_response_clone(const void* ptr, void** out);
-extern int go_additions_and_removals_response_new(const void* additions, const void* removals, const char* error, int success, void** out);
+extern int go_additions_and_removals_response_new(const void** additions_ptrs, size_t additions_len, const void** removals_ptrs, size_t removals_len, const char* error, int success, void** out);
 extern int go_additions_and_removals_response_get_additions(const void* ptr, void** out);
-extern int go_additions_and_removals_response_set_additions(void* ptr, const void* value);
+extern int go_additions_and_removals_response_set_additions(void* ptr, const void** value_ptrs, size_t value_len);
 extern int go_additions_and_removals_response_get_removals(const void* ptr, void** out);
-extern int go_additions_and_removals_response_set_removals(void* ptr, const void* value);
+extern int go_additions_and_removals_response_set_removals(void* ptr, const void** value_ptrs, size_t value_len);
 extern int go_additions_and_removals_response_get_error(const void* ptr, char** out);
 extern int go_additions_and_removals_response_set_error(void* ptr, const char* value);
 extern int go_additions_and_removals_response_get_success(const void* ptr, int* out);
@@ -3078,9 +3088,9 @@ extern void go_get_block_record_by_height_response_list_free(void* ptr);
 // GetBlockRecordsResponse
 extern void go_get_block_records_response_free(void* ptr);
 extern int go_get_block_records_response_clone(const void* ptr, void** out);
-extern int go_get_block_records_response_new(const void* block_records, const char* error, int success, void** out);
+extern int go_get_block_records_response_new(const void** block_records_ptrs, size_t block_records_len, const char* error, int success, void** out);
 extern int go_get_block_records_response_get_block_records(const void* ptr, void** out);
-extern int go_get_block_records_response_set_block_records(void* ptr, const void* value);
+extern int go_get_block_records_response_set_block_records(void* ptr, const void** value_ptrs, size_t value_len);
 extern int go_get_block_records_response_get_error(const void* ptr, char** out);
 extern int go_get_block_records_response_set_error(void* ptr, const char* value);
 extern int go_get_block_records_response_get_success(const void* ptr, int* out);
@@ -3092,9 +3102,9 @@ extern void go_get_block_records_response_list_free(void* ptr);
 // GetBlocksResponse
 extern void go_get_blocks_response_free(void* ptr);
 extern int go_get_blocks_response_clone(const void* ptr, void** out);
-extern int go_get_blocks_response_new(const void* blocks, const char* error, int success, void** out);
+extern int go_get_blocks_response_new(const void** blocks_ptrs, size_t blocks_len, const char* error, int success, void** out);
 extern int go_get_blocks_response_get_blocks(const void* ptr, void** out);
-extern int go_get_blocks_response_set_blocks(void* ptr, const void* value);
+extern int go_get_blocks_response_set_blocks(void* ptr, const void** value_ptrs, size_t value_len);
 extern int go_get_blocks_response_get_error(const void* ptr, char** out);
 extern int go_get_blocks_response_set_error(void* ptr, const char* value);
 extern int go_get_blocks_response_get_success(const void* ptr, int* out);
@@ -3106,9 +3116,9 @@ extern void go_get_blocks_response_list_free(void* ptr);
 // GetBlockSpendsResponse
 extern void go_get_block_spends_response_free(void* ptr);
 extern int go_get_block_spends_response_clone(const void* ptr, void** out);
-extern int go_get_block_spends_response_new(const void* block_spends, const char* error, int success, void** out);
+extern int go_get_block_spends_response_new(const void** block_spends_ptrs, size_t block_spends_len, const char* error, int success, void** out);
 extern int go_get_block_spends_response_get_block_spends(const void* ptr, void** out);
-extern int go_get_block_spends_response_set_block_spends(void* ptr, const void* value);
+extern int go_get_block_spends_response_set_block_spends(void* ptr, const void** value_ptrs, size_t value_len);
 extern int go_get_block_spends_response_get_error(const void* ptr, char** out);
 extern int go_get_block_spends_response_set_error(void* ptr, const char* value);
 extern int go_get_block_spends_response_get_success(const void* ptr, int* out);
@@ -3134,9 +3144,9 @@ extern void go_get_coin_record_response_list_free(void* ptr);
 // GetCoinRecordsResponse
 extern void go_get_coin_records_response_free(void* ptr);
 extern int go_get_coin_records_response_clone(const void* ptr, void** out);
-extern int go_get_coin_records_response_new(const void* coin_records, const char* error, int success, void** out);
+extern int go_get_coin_records_response_new(const void** coin_records_ptrs, size_t coin_records_len, const char* error, int success, void** out);
 extern int go_get_coin_records_response_get_coin_records(const void* ptr, void** out);
-extern int go_get_coin_records_response_set_coin_records(void* ptr, const void* value);
+extern int go_get_coin_records_response_set_coin_records(void* ptr, const void** value_ptrs, size_t value_len);
 extern int go_get_coin_records_response_get_error(const void* ptr, char** out);
 extern int go_get_coin_records_response_set_error(void* ptr, const char* value);
 extern int go_get_coin_records_response_get_success(const void* ptr, int* out);
@@ -3208,9 +3218,9 @@ extern void go_get_mempool_item_response_list_free(void* ptr);
 // GetMempoolItemsResponse
 extern void go_get_mempool_items_response_free(void* ptr);
 extern int go_get_mempool_items_response_clone(const void* ptr, void** out);
-extern int go_get_mempool_items_response_new(const void* mempool_items, const char* error, int success, void** out);
+extern int go_get_mempool_items_response_new(const void** mempool_items_ptrs, size_t mempool_items_len, const char* error, int success, void** out);
 extern int go_get_mempool_items_response_get_mempool_items(const void* ptr, void** out);
-extern int go_get_mempool_items_response_set_mempool_items(void* ptr, const void* value);
+extern int go_get_mempool_items_response_set_mempool_items(void* ptr, const void** value_ptrs, size_t value_len);
 extern int go_get_mempool_items_response_get_error(const void* ptr, char** out);
 extern int go_get_mempool_items_response_set_error(void* ptr, const char* value);
 extern int go_get_mempool_items_response_get_success(const void* ptr, int* out);
@@ -3254,7 +3264,7 @@ extern void go_mempool_item_list_free(void* ptr);
 // FullBlock
 extern void go_full_block_free(void* ptr);
 extern int go_full_block_clone(const void* ptr, void** out);
-extern int go_full_block_new(const void** finished_sub_slots_ptrs, size_t finished_sub_slots_len, const void* reward_chain_block, const void* challenge_chain_sp_proof, const void* challenge_chain_ip_proof, const void* reward_chain_sp_proof, const void* reward_chain_ip_proof, const void* infused_challenge_chain_ip_proof, const void* foliage, const void* foliage_transaction_block, const void* transactions_info, const uint8_t* transactions_generator_ptr, size_t transactions_generator_len, const void* transactions_generator_ref_list, void** out);
+extern int go_full_block_new(const void** finished_sub_slots_ptrs, size_t finished_sub_slots_len, const void* reward_chain_block, const void* challenge_chain_sp_proof, const void* challenge_chain_ip_proof, const void* reward_chain_sp_proof, const void* reward_chain_ip_proof, const void* infused_challenge_chain_ip_proof, const void* foliage, const void* foliage_transaction_block, const void* transactions_info, const uint8_t* transactions_generator_ptr, size_t transactions_generator_len, const uint32_t* transactions_generator_ref_list_ptr, size_t transactions_generator_ref_list_len, void** out);
 extern int go_full_block_get_finished_sub_slots(const void* ptr, void** out);
 extern int go_full_block_set_finished_sub_slots(void* ptr, const void** value_ptrs, size_t value_len);
 extern int go_full_block_get_reward_chain_block(const void* ptr, void** out);
@@ -3277,8 +3287,8 @@ extern int go_full_block_get_transactions_info(const void* ptr, void** out);
 extern int go_full_block_set_transactions_info(void* ptr, const void* value);
 extern int go_full_block_get_transactions_generator(const void* ptr, uint8_t** out_ptr, size_t* out_len);
 extern int go_full_block_set_transactions_generator(void* ptr, const uint8_t* value_ptr, size_t value_len);
-extern int go_full_block_get_transactions_generator_ref_list(const void* ptr, void** out);
-extern int go_full_block_set_transactions_generator_ref_list(void* ptr, const void* value);
+extern int go_full_block_get_transactions_generator_ref_list(const void* ptr, uint32_t** out_ptr, size_t* out_len);
+extern int go_full_block_set_transactions_generator_ref_list(void* ptr, const uint32_t* value_ptr, size_t value_len);
 extern size_t go_full_block_list_len(const void* ptr);
 extern int go_full_block_list_get(const void* ptr, size_t index, void** out);
 extern void go_full_block_list_free(void* ptr);
@@ -3516,7 +3526,7 @@ extern void go_pool_target_list_free(void* ptr);
 // BlockRecord
 extern void go_block_record_free(void* ptr);
 extern int go_block_record_clone(const void* ptr, void** out);
-extern int go_block_record_new(const uint8_t* header_hash_ptr, size_t header_hash_len, const uint8_t* prev_hash_ptr, size_t prev_hash_len, uint32_t height, const uint8_t* weight_ptr, size_t weight_len, const uint8_t* total_iters_ptr, size_t total_iters_len, uint8_t signage_point_index, const uint8_t* challenge_vdf_output_ptr, size_t challenge_vdf_output_len, const uint8_t* infused_challenge_vdf_output_ptr, size_t infused_challenge_vdf_output_len, const uint8_t* reward_infusion_new_challenge_ptr, size_t reward_infusion_new_challenge_len, const uint8_t* challenge_block_info_hash_ptr, size_t challenge_block_info_hash_len, uint64_t sub_slot_iters, const uint8_t* pool_puzzle_hash_ptr, size_t pool_puzzle_hash_len, const uint8_t* farmer_puzzle_hash_ptr, size_t farmer_puzzle_hash_len, uint64_t required_iters, uint8_t deficit, int overflow, uint32_t prev_transaction_block_height, uint64_t timestamp, int timestamp_is_some, const uint8_t* prev_transaction_block_hash_ptr, size_t prev_transaction_block_hash_len, uint64_t fees, int fees_is_some, const void* reward_claims_incorporated, const void* finished_challenge_slot_hashes, const void* finished_infused_challenge_slot_hashes, const void* finished_reward_slot_hashes, const void* sub_epoch_summary_included, void** out);
+extern int go_block_record_new(const uint8_t* header_hash_ptr, size_t header_hash_len, const uint8_t* prev_hash_ptr, size_t prev_hash_len, uint32_t height, const uint8_t* weight_ptr, size_t weight_len, const uint8_t* total_iters_ptr, size_t total_iters_len, uint8_t signage_point_index, const uint8_t* challenge_vdf_output_ptr, size_t challenge_vdf_output_len, const uint8_t* infused_challenge_vdf_output_ptr, size_t infused_challenge_vdf_output_len, const uint8_t* reward_infusion_new_challenge_ptr, size_t reward_infusion_new_challenge_len, const uint8_t* challenge_block_info_hash_ptr, size_t challenge_block_info_hash_len, uint64_t sub_slot_iters, const uint8_t* pool_puzzle_hash_ptr, size_t pool_puzzle_hash_len, const uint8_t* farmer_puzzle_hash_ptr, size_t farmer_puzzle_hash_len, uint64_t required_iters, uint8_t deficit, int overflow, uint32_t prev_transaction_block_height, uint64_t timestamp, int timestamp_is_some, const uint8_t* prev_transaction_block_hash_ptr, size_t prev_transaction_block_hash_len, uint64_t fees, int fees_is_some, const void** reward_claims_incorporated_ptrs, size_t reward_claims_incorporated_len, const uint8_t** finished_challenge_slot_hashes_ptrs, const size_t* finished_challenge_slot_hashes_lens, size_t finished_challenge_slot_hashes_count, const uint8_t** finished_infused_challenge_slot_hashes_ptrs, const size_t* finished_infused_challenge_slot_hashes_lens, size_t finished_infused_challenge_slot_hashes_count, const uint8_t** finished_reward_slot_hashes_ptrs, const size_t* finished_reward_slot_hashes_lens, size_t finished_reward_slot_hashes_count, const void* sub_epoch_summary_included, void** out);
 extern int go_block_record_get_header_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
 extern int go_block_record_set_header_hash(void* ptr, const uint8_t* value_ptr, size_t value_len);
 extern int go_block_record_get_prev_hash(const void* ptr, uint8_t** out_ptr, size_t* out_len);
@@ -3558,13 +3568,13 @@ extern int go_block_record_set_prev_transaction_block_hash(void* ptr, const uint
 extern int go_block_record_get_fees(const void* ptr, uint64_t* out, int* out_is_some);
 extern int go_block_record_set_fees(void* ptr, uint64_t value, int value_is_some);
 extern int go_block_record_get_reward_claims_incorporated(const void* ptr, void** out);
-extern int go_block_record_set_reward_claims_incorporated(void* ptr, const void* value);
+extern int go_block_record_set_reward_claims_incorporated(void* ptr, const void** value_ptrs, size_t value_len);
 extern int go_block_record_get_finished_challenge_slot_hashes(const void* ptr, void** out);
-extern int go_block_record_set_finished_challenge_slot_hashes(void* ptr, const void* value);
+extern int go_block_record_set_finished_challenge_slot_hashes(void* ptr, const uint8_t** value_ptrs, const size_t* value_lens, size_t value_count);
 extern int go_block_record_get_finished_infused_challenge_slot_hashes(const void* ptr, void** out);
-extern int go_block_record_set_finished_infused_challenge_slot_hashes(void* ptr, const void* value);
+extern int go_block_record_set_finished_infused_challenge_slot_hashes(void* ptr, const uint8_t** value_ptrs, const size_t* value_lens, size_t value_count);
 extern int go_block_record_get_finished_reward_slot_hashes(const void* ptr, void** out);
-extern int go_block_record_set_finished_reward_slot_hashes(void* ptr, const void* value);
+extern int go_block_record_set_finished_reward_slot_hashes(void* ptr, const uint8_t** value_ptrs, const size_t* value_lens, size_t value_count);
 extern int go_block_record_get_sub_epoch_summary_included(const void* ptr, void** out);
 extern int go_block_record_set_sub_epoch_summary_included(void* ptr, const void* value);
 extern size_t go_block_record_list_len(const void* ptr);
@@ -3694,8 +3704,8 @@ extern int go_simulator_hinted_coins(const void* ptr, const uint8_t* hint_ptr, s
 extern int go_simulator_coin_spend(const void* ptr, const uint8_t* coin_id_ptr, size_t coin_id_len, void** out);
 extern int go_simulator_spend_coins(const void* ptr, const void** coin_spends_ptrs, size_t coin_spends_len, const void** secret_keys_ptrs, size_t secret_keys_len);
 extern int go_simulator_new_transaction(const void* ptr, const void* spend_bundle);
-extern int go_simulator_lookup_coin_ids(const void* ptr, const void* coin_ids, void** out);
-extern int go_simulator_lookup_puzzle_hashes(const void* ptr, const void* puzzle_hashes, int include_hints, void** out);
+extern int go_simulator_lookup_coin_ids(const void* ptr, const uint8_t** coin_ids_ptrs, const size_t* coin_ids_lens, size_t coin_ids_count, void** out);
+extern int go_simulator_lookup_puzzle_hashes(const void* ptr, const uint8_t** puzzle_hashes_ptrs, const size_t* puzzle_hashes_lens, size_t puzzle_hashes_count, int include_hints, void** out);
 extern int go_simulator_unspent_coins(const void* ptr, const uint8_t* puzzle_hash_ptr, size_t puzzle_hash_len, int include_hints, void** out);
 extern int go_simulator_create_block(const void* ptr);
 extern size_t go_simulator_list_len(const void* ptr);
@@ -3765,7 +3775,7 @@ extern int go_bytes_equal(const uint8_t* lhs_ptr, size_t lhs_len, const uint8_t*
 extern int go_tree_hash_atom(const uint8_t* atom_ptr, size_t atom_len, uint8_t** out_ptr, size_t* out_len);
 extern int go_tree_hash_pair(const uint8_t* first_ptr, size_t first_len, const uint8_t* rest_ptr, size_t rest_len, uint8_t** out_ptr, size_t* out_len);
 extern int go_sha_256(const uint8_t* value_ptr, size_t value_len, uint8_t** out_ptr, size_t* out_len);
-extern int go_curry_tree_hash(const uint8_t* program_ptr, size_t program_len, const void* args, uint8_t** out_ptr, size_t* out_len);
+extern int go_curry_tree_hash(const uint8_t* program_ptr, size_t program_len, const uint8_t** args_ptrs, const size_t* args_lens, size_t args_count, uint8_t** out_ptr, size_t* out_len);
 extern int go_generate_bytes(uint32_t bytes, uint8_t** out_ptr, size_t* out_len);
 extern int go_select_coins(const void** coins_ptrs, size_t coins_len, uint64_t amount, void** out);
 extern int go_spend_bundle_cost(const void** coin_spends_ptrs, size_t coin_spends_len, uint64_t* out);
@@ -3777,6 +3787,20 @@ extern int go_spend_bundle_cost(const void** coin_spends_ptrs, size_t coin_spend
 #cgo nocallback go_free_bytes
 #cgo noescape go_free_string
 #cgo nocallback go_free_string
+#cgo noescape go_string_list_len
+#cgo nocallback go_string_list_len
+#cgo noescape go_string_list_get
+#cgo nocallback go_string_list_get
+#cgo noescape go_string_list_free
+#cgo nocallback go_string_list_free
+#cgo noescape go_bytes_list_len
+#cgo nocallback go_bytes_list_len
+#cgo noescape go_bytes_list_get
+#cgo nocallback go_bytes_list_get
+#cgo noescape go_bytes_list_free
+#cgo nocallback go_bytes_list_free
+#cgo noescape go_free_prim_list
+#cgo nocallback go_free_prim_list
 #cgo noescape go_spends_free
 #cgo nocallback go_spends_free
 #cgo noescape go_spends_clone
@@ -7273,6 +7297,12 @@ extern int go_spend_bundle_cost(const void** coin_spends_ptrs, size_t coin_spend
 #cgo nocallback go_clawback_puzzle_hash
 #cgo noescape go_clawback_get_remark_condition
 #cgo nocallback go_clawback_get_remark_condition
+#cgo noescape go_clawback_list_len
+#cgo nocallback go_clawback_list_len
+#cgo noescape go_clawback_list_get
+#cgo nocallback go_clawback_list_get
+#cgo noescape go_clawback_list_free
+#cgo nocallback go_clawback_list_free
 #cgo noescape go_medieval_vault_hint_free
 #cgo nocallback go_medieval_vault_hint_free
 #cgo noescape go_medieval_vault_hint_clone
@@ -8421,6 +8451,12 @@ extern int go_spend_bundle_cost(const void** coin_spends_ptrs, size_t coin_spend
 #cgo nocallback go_coin_record_get_timestamp
 #cgo noescape go_coin_record_set_timestamp
 #cgo nocallback go_coin_record_set_timestamp
+#cgo noescape go_coin_record_list_len
+#cgo nocallback go_coin_record_list_len
+#cgo noescape go_coin_record_list_get
+#cgo nocallback go_coin_record_list_get
+#cgo noescape go_coin_record_list_free
+#cgo nocallback go_coin_record_list_free
 #cgo noescape go_mempool_item_free
 #cgo nocallback go_mempool_item_free
 #cgo noescape go_mempool_item_clone
@@ -8435,6 +8471,12 @@ extern int go_spend_bundle_cost(const void** coin_spends_ptrs, size_t coin_spend
 #cgo nocallback go_mempool_item_get_fee
 #cgo noescape go_mempool_item_set_fee
 #cgo nocallback go_mempool_item_set_fee
+#cgo noescape go_mempool_item_list_len
+#cgo nocallback go_mempool_item_list_len
+#cgo noescape go_mempool_item_list_get
+#cgo nocallback go_mempool_item_list_get
+#cgo noescape go_mempool_item_list_free
+#cgo nocallback go_mempool_item_list_free
 #cgo noescape go_full_block_free
 #cgo nocallback go_full_block_free
 #cgo noescape go_full_block_clone
@@ -8489,6 +8531,12 @@ extern int go_spend_bundle_cost(const void** coin_spends_ptrs, size_t coin_spend
 #cgo nocallback go_full_block_get_transactions_generator_ref_list
 #cgo noescape go_full_block_set_transactions_generator_ref_list
 #cgo nocallback go_full_block_set_transactions_generator_ref_list
+#cgo noescape go_full_block_list_len
+#cgo nocallback go_full_block_list_len
+#cgo noescape go_full_block_list_get
+#cgo nocallback go_full_block_list_get
+#cgo noescape go_full_block_list_free
+#cgo nocallback go_full_block_list_free
 #cgo noescape go_end_of_sub_slot_bundle_free
 #cgo nocallback go_end_of_sub_slot_bundle_free
 #cgo noescape go_end_of_sub_slot_bundle_clone
@@ -8931,6 +8979,12 @@ extern int go_spend_bundle_cost(const void** coin_spends_ptrs, size_t coin_spend
 #cgo nocallback go_block_record_get_sub_epoch_summary_included
 #cgo noescape go_block_record_set_sub_epoch_summary_included
 #cgo nocallback go_block_record_set_sub_epoch_summary_included
+#cgo noescape go_block_record_list_len
+#cgo nocallback go_block_record_list_len
+#cgo noescape go_block_record_list_get
+#cgo nocallback go_block_record_list_get
+#cgo noescape go_block_record_list_free
+#cgo nocallback go_block_record_list_free
 #cgo noescape go_proof_of_space_free
 #cgo nocallback go_proof_of_space_free
 #cgo noescape go_proof_of_space_clone
@@ -9435,7 +9489,7 @@ func (o *Spends) AddNft(nft *Nft) error {
 }
 
 // P2PuzzleHashes returns the pay-to puzzle hashes of all coins added to the transaction.
-func (o *Spends) P2PuzzleHashes() (unsafe.Pointer, error) {
+func (o *Spends) P2PuzzleHashes() ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -9453,11 +9507,23 @@ func (o *Spends) P2PuzzleHashes() (unsafe.Pointer, error) {
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
 }
 
 // NonSettlementCoinIds returns the coin IDs of all non-settlement coins (coins that need signing).
-func (o *Spends) NonSettlementCoinIds() (unsafe.Pointer, error) {
+func (o *Spends) NonSettlementCoinIds() ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -9475,7 +9541,19 @@ func (o *Spends) NonSettlementCoinIds() (unsafe.Pointer, error) {
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
 }
 
 // AddOptionalCondition adds a condition that will be included if the coin it's attached to is spent.
@@ -9572,7 +9650,7 @@ func (o *Spends) SelectedXchAmount() (uint64, error) {
 }
 
 // SelectedAssetIds returns the asset IDs of all CAT types added to the transaction.
-func (o *Spends) SelectedAssetIds() (unsafe.Pointer, error) {
+func (o *Spends) SelectedAssetIds() ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -9590,7 +9668,19 @@ func (o *Spends) SelectedAssetIds() (unsafe.Pointer, error) {
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
 }
 
 // SelectedCatAmount returns the total amount of CAT coins for the given asset ID.
@@ -11719,7 +11809,7 @@ func (o *SecretKey) DeriveHardened(index uint32) (*SecretKey, error) {
 }
 
 // DeriveUnhardenedPath computes the derive unhardened path for the given path.
-func (o *SecretKey) DeriveUnhardenedPath(path unsafe.Pointer) (*SecretKey, error) {
+func (o *SecretKey) DeriveUnhardenedPath(path []uint32) (*SecretKey, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -11730,9 +11820,14 @@ func (o *SecretKey) DeriveUnhardenedPath(path unsafe.Pointer) (*SecretKey, error
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	var pathPtr *C.uint32_t
+	if len(path) > 0 {
+		pathPtr = (*C.uint32_t)(unsafe.Pointer(&path[0]))
+	}
+	pathLen := C.size_t(len(path))
 
 	var out unsafe.Pointer
-	ret := C.go_secret_key_derive_unhardened_path(o.ptr, path, &out)
+	ret := C.go_secret_key_derive_unhardened_path(o.ptr, pathPtr, pathLen, &out)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
@@ -11743,7 +11838,7 @@ func (o *SecretKey) DeriveUnhardenedPath(path unsafe.Pointer) (*SecretKey, error
 }
 
 // DeriveHardenedPath computes the derive hardened path for the given path.
-func (o *SecretKey) DeriveHardenedPath(path unsafe.Pointer) (*SecretKey, error) {
+func (o *SecretKey) DeriveHardenedPath(path []uint32) (*SecretKey, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -11754,9 +11849,14 @@ func (o *SecretKey) DeriveHardenedPath(path unsafe.Pointer) (*SecretKey, error) 
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	var pathPtr *C.uint32_t
+	if len(path) > 0 {
+		pathPtr = (*C.uint32_t)(unsafe.Pointer(&path[0]))
+	}
+	pathLen := C.size_t(len(path))
 
 	var out unsafe.Pointer
-	ret := C.go_secret_key_derive_hardened_path(o.ptr, path, &out)
+	ret := C.go_secret_key_derive_hardened_path(o.ptr, pathPtr, pathLen, &out)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
@@ -11916,7 +12016,7 @@ func NewPublicKeyAggregate(publicKeys []*PublicKey) (*PublicKey, error) {
 }
 
 // PublicKeyAggregateVerify verifies an aggregate signature against multiple public keys and messages.
-func PublicKeyAggregateVerify(publicKeys []*PublicKey, messages unsafe.Pointer, signature *Signature) (bool, error) {
+func PublicKeyAggregateVerify(publicKeys []*PublicKey, messages [][]byte, signature *Signature) (bool, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	for i, item := range publicKeys {
@@ -11936,9 +12036,24 @@ func PublicKeyAggregateVerify(publicKeys []*PublicKey, messages unsafe.Pointer, 
 		publicKeysPtrsC = &publicKeysPtrs[0]
 	}
 	publicKeysLen := C.size_t(len(publicKeys))
+	messagesPtrs := make([]*C.uint8_t, len(messages))
+	messagesLens := make([]C.size_t, len(messages))
+	for i, b := range messages {
+		if len(b) > 0 {
+			messagesPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		messagesLens[i] = C.size_t(len(b))
+	}
+	var messagesPtrsC **C.uint8_t
+	var messagesLensC *C.size_t
+	if len(messages) > 0 {
+		messagesPtrsC = &messagesPtrs[0]
+		messagesLensC = &messagesLens[0]
+	}
+	messagesCount := C.size_t(len(messages))
 
 	var cOut C.int
-	ret := C.go_public_key_aggregate_verify((*unsafe.Pointer)(unsafe.Pointer(publicKeysPtrsC)), publicKeysLen, messages, signature.ptr, &cOut)
+	ret := C.go_public_key_aggregate_verify((*unsafe.Pointer)(unsafe.Pointer(publicKeysPtrsC)), publicKeysLen, messagesPtrsC, messagesLensC, messagesCount, signature.ptr, &cOut)
 	runtime.KeepAlive(publicKeys)
 	runtime.KeepAlive(signature)
 	if ret != 0 {
@@ -12106,7 +12221,7 @@ func (o *PublicKey) DeriveUnhardened(index uint32) (*PublicKey, error) {
 }
 
 // DeriveUnhardenedPath computes the derive unhardened path for the given path.
-func (o *PublicKey) DeriveUnhardenedPath(path unsafe.Pointer) (*PublicKey, error) {
+func (o *PublicKey) DeriveUnhardenedPath(path []uint32) (*PublicKey, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -12117,9 +12232,14 @@ func (o *PublicKey) DeriveUnhardenedPath(path unsafe.Pointer) (*PublicKey, error
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	var pathPtr *C.uint32_t
+	if len(path) > 0 {
+		pathPtr = (*C.uint32_t)(unsafe.Pointer(&path[0]))
+	}
+	pathLen := C.size_t(len(path))
 
 	var out unsafe.Pointer
-	ret := C.go_public_key_derive_unhardened_path(o.ptr, path, &out)
+	ret := C.go_public_key_derive_unhardened_path(o.ptr, pathPtr, pathLen, &out)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
@@ -13209,7 +13329,7 @@ func (o *ParsedPayment) Clone() (*ParsedPayment, error) {
 }
 
 // NewParsedPayment creates a new [ParsedPayment] with the given field values.
-func NewParsedPayment(transferType *TransferType, assetId []byte, hiddenPuzzleHash []byte, p2PuzzleHash []byte, coin *Coin, clawback *ClawbackV2, memos unsafe.Pointer) (*ParsedPayment, error) {
+func NewParsedPayment(transferType *TransferType, assetId []byte, hiddenPuzzleHash []byte, p2PuzzleHash []byte, coin *Coin, clawback *ClawbackV2, memos []string) (*ParsedPayment, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if transferType == nil {
@@ -13225,9 +13345,22 @@ func NewParsedPayment(transferType *TransferType, assetId []byte, hiddenPuzzleHa
 	if clawback != nil {
 		clawbackPtr = clawback.ptr
 	}
+	memosPtrs := make([]*C.char, len(memos))
+	memosLens := make([]C.size_t, len(memos))
+	for i, s := range memos {
+		memosPtrs[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))
+		memosLens[i] = C.size_t(len(s))
+	}
+	var memosPtrsC **C.char
+	var memosLensC *C.size_t
+	if len(memos) > 0 {
+		memosPtrsC = &memosPtrs[0]
+		memosLensC = &memosLens[0]
+	}
+	memosCount := C.size_t(len(memos))
 
 	var out unsafe.Pointer
-	ret := C.go_parsed_payment_new(transferType.ptr, assetIdPtr, assetIdLen, hiddenPuzzleHashPtr, hiddenPuzzleHashLen, p2PuzzleHashPtr, p2PuzzleHashLen, coin.ptr, clawbackPtr, memos, &out)
+	ret := C.go_parsed_payment_new(transferType.ptr, assetIdPtr, assetIdLen, hiddenPuzzleHashPtr, hiddenPuzzleHashLen, p2PuzzleHashPtr, p2PuzzleHashLen, coin.ptr, clawbackPtr, memosPtrsC, memosLensC, memosCount, &out)
 	runtime.KeepAlive(transferType)
 	runtime.KeepAlive(coin)
 	runtime.KeepAlive(clawback)
@@ -13531,7 +13664,7 @@ func (o *ParsedPayment) SetClawback(value *ClawbackV2) error {
 }
 
 // Memos returns the Memos field of the [ParsedPayment].
-func (o *ParsedPayment) Memos() (unsafe.Pointer, error) {
+func (o *ParsedPayment) Memos() ([]string, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -13548,11 +13681,23 @@ func (o *ParsedPayment) Memos() (unsafe.Pointer, error) {
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_string_list_len(out)
+	result := make([]string, listLen)
+	for i := range result {
+		var sPtr *C.char
+		var sLen C.size_t
+		if ret := C.go_string_list_get(out, C.size_t(i), &sPtr, &sLen); ret != 0 {
+			C.go_string_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoStringN(sPtr, C.int(sLen))
+	}
+	C.go_string_list_free(out)
+	return result, nil
 }
 
 // SetMemos updates the Memos field of the [ParsedPayment].
-func (o *ParsedPayment) SetMemos(value unsafe.Pointer) error {
+func (o *ParsedPayment) SetMemos(value []string) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -13563,8 +13708,21 @@ func (o *ParsedPayment) SetMemos(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]*C.char, len(value))
+	valueLens := make([]C.size_t, len(value))
+	for i, s := range value {
+		valuePtrs[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))
+		valueLens[i] = C.size_t(len(s))
+	}
+	var valuePtrsC **C.char
+	var valueLensC *C.size_t
+	if len(value) > 0 {
+		valuePtrsC = &valuePtrs[0]
+		valueLensC = &valueLens[0]
+	}
+	valueCount := C.size_t(len(value))
 
-	ret := C.go_parsed_payment_set_memos(o.ptr, value)
+	ret := C.go_parsed_payment_set_memos(o.ptr, valuePtrsC, valueLensC, valueCount)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -13628,7 +13786,7 @@ func (o *ParsedNftTransfer) Clone() (*ParsedNftTransfer, error) {
 }
 
 // NewParsedNftTransfer creates a new [ParsedNftTransfer] with the given field values.
-func NewParsedNftTransfer(transferType *TransferType, launcherId []byte, p2PuzzleHash []byte, coin *Coin, clawback *ClawbackV2, memos unsafe.Pointer, oldState *NftState, newState *NftState, royaltyPuzzleHash []byte, royaltyBasisPoints uint16, includesUnverifiableUpdates bool) (*ParsedNftTransfer, error) {
+func NewParsedNftTransfer(transferType *TransferType, launcherId []byte, p2PuzzleHash []byte, coin *Coin, clawback *ClawbackV2, memos []string, oldState *NftState, newState *NftState, royaltyPuzzleHash []byte, royaltyBasisPoints uint16, includesUnverifiableUpdates bool) (*ParsedNftTransfer, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if transferType == nil {
@@ -13649,10 +13807,23 @@ func NewParsedNftTransfer(transferType *TransferType, launcherId []byte, p2Puzzl
 	if clawback != nil {
 		clawbackPtr = clawback.ptr
 	}
+	memosPtrs := make([]*C.char, len(memos))
+	memosLens := make([]C.size_t, len(memos))
+	for i, s := range memos {
+		memosPtrs[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))
+		memosLens[i] = C.size_t(len(s))
+	}
+	var memosPtrsC **C.char
+	var memosLensC *C.size_t
+	if len(memos) > 0 {
+		memosPtrsC = &memosPtrs[0]
+		memosLensC = &memosLens[0]
+	}
+	memosCount := C.size_t(len(memos))
 	royaltyPuzzleHashPtr, royaltyPuzzleHashLen := bytesToPtr(royaltyPuzzleHash)
 
 	var out unsafe.Pointer
-	ret := C.go_parsed_nft_transfer_new(transferType.ptr, launcherIdPtr, launcherIdLen, p2PuzzleHashPtr, p2PuzzleHashLen, coin.ptr, clawbackPtr, memos, oldState.ptr, newState.ptr, royaltyPuzzleHashPtr, royaltyPuzzleHashLen, C.uint16_t(royaltyBasisPoints), boolToInt(includesUnverifiableUpdates), &out)
+	ret := C.go_parsed_nft_transfer_new(transferType.ptr, launcherIdPtr, launcherIdLen, p2PuzzleHashPtr, p2PuzzleHashLen, coin.ptr, clawbackPtr, memosPtrsC, memosLensC, memosCount, oldState.ptr, newState.ptr, royaltyPuzzleHashPtr, royaltyPuzzleHashLen, C.uint16_t(royaltyBasisPoints), boolToInt(includesUnverifiableUpdates), &out)
 	runtime.KeepAlive(transferType)
 	runtime.KeepAlive(coin)
 	runtime.KeepAlive(clawback)
@@ -13906,7 +14077,7 @@ func (o *ParsedNftTransfer) SetClawback(value *ClawbackV2) error {
 }
 
 // Memos returns the Memos field of the [ParsedNftTransfer].
-func (o *ParsedNftTransfer) Memos() (unsafe.Pointer, error) {
+func (o *ParsedNftTransfer) Memos() ([]string, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -13923,11 +14094,23 @@ func (o *ParsedNftTransfer) Memos() (unsafe.Pointer, error) {
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_string_list_len(out)
+	result := make([]string, listLen)
+	for i := range result {
+		var sPtr *C.char
+		var sLen C.size_t
+		if ret := C.go_string_list_get(out, C.size_t(i), &sPtr, &sLen); ret != 0 {
+			C.go_string_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoStringN(sPtr, C.int(sLen))
+	}
+	C.go_string_list_free(out)
+	return result, nil
 }
 
 // SetMemos updates the Memos field of the [ParsedNftTransfer].
-func (o *ParsedNftTransfer) SetMemos(value unsafe.Pointer) error {
+func (o *ParsedNftTransfer) SetMemos(value []string) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -13938,8 +14121,21 @@ func (o *ParsedNftTransfer) SetMemos(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]*C.char, len(value))
+	valueLens := make([]C.size_t, len(value))
+	for i, s := range value {
+		valuePtrs[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))
+		valueLens[i] = C.size_t(len(s))
+	}
+	var valuePtrsC **C.char
+	var valueLensC *C.size_t
+	if len(value) > 0 {
+		valuePtrsC = &valuePtrs[0]
+		valueLensC = &valueLens[0]
+	}
+	valueCount := C.size_t(len(value))
 
-	ret := C.go_parsed_nft_transfer_set_memos(o.ptr, value)
+	ret := C.go_parsed_nft_transfer_set_memos(o.ptr, valuePtrsC, valueLensC, valueCount)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -17118,7 +17314,7 @@ func (o *Clvm) UpdateNftMetadata(updaterPuzzleReveal *Program, updaterSolution *
 }
 
 // UpdateDataStoreMerkleRoot creates a condition that updates a DataLayer store's merkle root hash.
-func (o *Clvm) UpdateDataStoreMerkleRoot(newMerkleRoot []byte, memos unsafe.Pointer) (*Program, error) {
+func (o *Clvm) UpdateDataStoreMerkleRoot(newMerkleRoot []byte, memos [][]byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -17130,9 +17326,24 @@ func (o *Clvm) UpdateDataStoreMerkleRoot(newMerkleRoot []byte, memos unsafe.Poin
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	newMerkleRootPtr, newMerkleRootLen := bytesToPtr(newMerkleRoot)
+	memosPtrs := make([]*C.uint8_t, len(memos))
+	memosLens := make([]C.size_t, len(memos))
+	for i, b := range memos {
+		if len(b) > 0 {
+			memosPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		memosLens[i] = C.size_t(len(b))
+	}
+	var memosPtrsC **C.uint8_t
+	var memosLensC *C.size_t
+	if len(memos) > 0 {
+		memosPtrsC = &memosPtrs[0]
+		memosLensC = &memosLens[0]
+	}
+	memosCount := C.size_t(len(memos))
 
 	var out unsafe.Pointer
-	ret := C.go_clvm_update_data_store_merkle_root(o.ptr, newMerkleRootPtr, newMerkleRootLen, memos, &out)
+	ret := C.go_clvm_update_data_store_merkle_root(o.ptr, newMerkleRootPtr, newMerkleRootLen, memosPtrsC, memosLensC, memosCount, &out)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
@@ -27928,13 +28139,28 @@ func (o *UpdateDataStoreMerkleRoot) Clone() (*UpdateDataStoreMerkleRoot, error) 
 }
 
 // NewUpdateDataStoreMerkleRoot creates a new [UpdateDataStoreMerkleRoot] with the given field values.
-func NewUpdateDataStoreMerkleRoot(newMerkleRoot []byte, memos unsafe.Pointer) (*UpdateDataStoreMerkleRoot, error) {
+func NewUpdateDataStoreMerkleRoot(newMerkleRoot []byte, memos [][]byte) (*UpdateDataStoreMerkleRoot, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	newMerkleRootPtr, newMerkleRootLen := bytesToPtr(newMerkleRoot)
+	memosPtrs := make([]*C.uint8_t, len(memos))
+	memosLens := make([]C.size_t, len(memos))
+	for i, b := range memos {
+		if len(b) > 0 {
+			memosPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		memosLens[i] = C.size_t(len(b))
+	}
+	var memosPtrsC **C.uint8_t
+	var memosLensC *C.size_t
+	if len(memos) > 0 {
+		memosPtrsC = &memosPtrs[0]
+		memosLensC = &memosLens[0]
+	}
+	memosCount := C.size_t(len(memos))
 
 	var out unsafe.Pointer
-	ret := C.go_update_data_store_merkle_root_new(newMerkleRootPtr, newMerkleRootLen, memos, &out)
+	ret := C.go_update_data_store_merkle_root_new(newMerkleRootPtr, newMerkleRootLen, memosPtrsC, memosLensC, memosCount, &out)
 	if ret != 0 {
 		return nil, lastError()
 	}
@@ -27990,7 +28216,7 @@ func (o *UpdateDataStoreMerkleRoot) SetNewMerkleRoot(value []byte) error {
 }
 
 // Memos returns the Memos field of the [UpdateDataStoreMerkleRoot].
-func (o *UpdateDataStoreMerkleRoot) Memos() (unsafe.Pointer, error) {
+func (o *UpdateDataStoreMerkleRoot) Memos() ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -28007,11 +28233,23 @@ func (o *UpdateDataStoreMerkleRoot) Memos() (unsafe.Pointer, error) {
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
 }
 
 // SetMemos updates the Memos field of the [UpdateDataStoreMerkleRoot].
-func (o *UpdateDataStoreMerkleRoot) SetMemos(value unsafe.Pointer) error {
+func (o *UpdateDataStoreMerkleRoot) SetMemos(value [][]byte) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -28022,8 +28260,23 @@ func (o *UpdateDataStoreMerkleRoot) SetMemos(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]*C.uint8_t, len(value))
+	valueLens := make([]C.size_t, len(value))
+	for i, b := range value {
+		if len(b) > 0 {
+			valuePtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		valueLens[i] = C.size_t(len(b))
+	}
+	var valuePtrsC **C.uint8_t
+	var valueLensC *C.size_t
+	if len(value) > 0 {
+		valuePtrsC = &valuePtrs[0]
+		valueLensC = &valueLens[0]
+	}
+	valueCount := C.size_t(len(value))
 
-	ret := C.go_update_data_store_merkle_root_set_memos(o.ptr, value)
+	ret := C.go_update_data_store_merkle_root_set_memos(o.ptr, valuePtrsC, valueLensC, valueCount)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -31845,16 +32098,31 @@ func (o *MemberConfig) WithRestrictions(restrictions []*Restriction) (*MemberCon
 }
 
 // MOfNHash computes the custody hash for an M-of-N multisig configuration.
-func MOfNHash(config *MemberConfig, required uint32, items unsafe.Pointer) ([]byte, error) {
+func MOfNHash(config *MemberConfig, required uint32, items [][]byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if config == nil {
 		return nil, fmt.Errorf("config must not be nil")
 	}
+	itemsPtrs := make([]*C.uint8_t, len(items))
+	itemsLens := make([]C.size_t, len(items))
+	for i, b := range items {
+		if len(b) > 0 {
+			itemsPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		itemsLens[i] = C.size_t(len(b))
+	}
+	var itemsPtrsC **C.uint8_t
+	var itemsLensC *C.size_t
+	if len(items) > 0 {
+		itemsPtrsC = &itemsPtrs[0]
+		itemsLensC = &itemsLens[0]
+	}
+	itemsCount := C.size_t(len(items))
 
 	var outPtr *C.uint8_t
 	var outLen C.size_t
-	ret := C.go_m_of_n_hash(config.ptr, C.uint32_t(required), items, &outPtr, &outLen)
+	ret := C.go_m_of_n_hash(config.ptr, C.uint32_t(required), itemsPtrsC, itemsLensC, itemsCount, &outPtr, &outLen)
 	runtime.KeepAlive(config)
 	if ret != 0 {
 		return nil, lastError()
@@ -32474,7 +32742,7 @@ func (o *MipsSpend) SpendVault(vault *Vault) error {
 }
 
 // MOfN adds an M-of-N multisig layer to the spend, specifying which branch of the Merkle tree is being revealed.
-func (o *MipsSpend) MOfN(config *MemberConfig, required uint32, items unsafe.Pointer) error {
+func (o *MipsSpend) MOfN(config *MemberConfig, required uint32, items [][]byte) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -32488,8 +32756,23 @@ func (o *MipsSpend) MOfN(config *MemberConfig, required uint32, items unsafe.Poi
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	itemsPtrs := make([]*C.uint8_t, len(items))
+	itemsLens := make([]C.size_t, len(items))
+	for i, b := range items {
+		if len(b) > 0 {
+			itemsPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		itemsLens[i] = C.size_t(len(b))
+	}
+	var itemsPtrsC **C.uint8_t
+	var itemsLensC *C.size_t
+	if len(items) > 0 {
+		itemsPtrsC = &itemsPtrs[0]
+		itemsLensC = &itemsLens[0]
+	}
+	itemsCount := C.size_t(len(items))
 
-	ret := C.go_mips_spend_m_of_n(o.ptr, config.ptr, C.uint32_t(required), items)
+	ret := C.go_mips_spend_m_of_n(o.ptr, config.ptr, C.uint32_t(required), itemsPtrsC, itemsLensC, itemsCount)
 	runtime.KeepAlive(o)
 	runtime.KeepAlive(config)
 	if ret != 0 {
@@ -36315,7 +36598,7 @@ func NewPeerConnect(networkId string, socketAddr string, connector *Connector, o
 }
 
 // RequestCoinState requests the state of specific coins by their IDs, optionally subscribing to future updates.
-func (o *Peer) RequestCoinState(coinIds unsafe.Pointer, previousHeight *uint32, headerHash []byte, subscribe bool) (*RespondCoinState, error) {
+func (o *Peer) RequestCoinState(coinIds [][]byte, previousHeight *uint32, headerHash []byte, subscribe bool) (*RespondCoinState, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -36326,6 +36609,21 @@ func (o *Peer) RequestCoinState(coinIds unsafe.Pointer, previousHeight *uint32, 
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	coinIdsPtrs := make([]*C.uint8_t, len(coinIds))
+	coinIdsLens := make([]C.size_t, len(coinIds))
+	for i, b := range coinIds {
+		if len(b) > 0 {
+			coinIdsPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		coinIdsLens[i] = C.size_t(len(b))
+	}
+	var coinIdsPtrsC **C.uint8_t
+	var coinIdsLensC *C.size_t
+	if len(coinIds) > 0 {
+		coinIdsPtrsC = &coinIdsPtrs[0]
+		coinIdsLensC = &coinIdsLens[0]
+	}
+	coinIdsCount := C.size_t(len(coinIds))
 	var previousHeightVal C.uint32_t
 	var previousHeightIsSome C.int
 	if previousHeight != nil {
@@ -36335,7 +36633,7 @@ func (o *Peer) RequestCoinState(coinIds unsafe.Pointer, previousHeight *uint32, 
 	headerHashPtr, headerHashLen := bytesToPtr(headerHash)
 
 	var out unsafe.Pointer
-	ret := C.go_peer_request_coin_state(o.ptr, coinIds, previousHeightVal, previousHeightIsSome, headerHashPtr, headerHashLen, boolToInt(subscribe), &out)
+	ret := C.go_peer_request_coin_state(o.ptr, coinIdsPtrsC, coinIdsLensC, coinIdsCount, previousHeightVal, previousHeightIsSome, headerHashPtr, headerHashLen, boolToInt(subscribe), &out)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
@@ -36346,7 +36644,7 @@ func (o *Peer) RequestCoinState(coinIds unsafe.Pointer, previousHeight *uint32, 
 }
 
 // RequestPuzzleState requests coins matching specific puzzle hashes with filters, optionally subscribing to updates.
-func (o *Peer) RequestPuzzleState(puzzleHashes unsafe.Pointer, previousHeight *uint32, headerHash []byte, filters *CoinStateFilters, subscribe bool) (*RespondPuzzleState, error) {
+func (o *Peer) RequestPuzzleState(puzzleHashes [][]byte, previousHeight *uint32, headerHash []byte, filters *CoinStateFilters, subscribe bool) (*RespondPuzzleState, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -36360,6 +36658,21 @@ func (o *Peer) RequestPuzzleState(puzzleHashes unsafe.Pointer, previousHeight *u
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	puzzleHashesPtrs := make([]*C.uint8_t, len(puzzleHashes))
+	puzzleHashesLens := make([]C.size_t, len(puzzleHashes))
+	for i, b := range puzzleHashes {
+		if len(b) > 0 {
+			puzzleHashesPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		puzzleHashesLens[i] = C.size_t(len(b))
+	}
+	var puzzleHashesPtrsC **C.uint8_t
+	var puzzleHashesLensC *C.size_t
+	if len(puzzleHashes) > 0 {
+		puzzleHashesPtrsC = &puzzleHashesPtrs[0]
+		puzzleHashesLensC = &puzzleHashesLens[0]
+	}
+	puzzleHashesCount := C.size_t(len(puzzleHashes))
 	var previousHeightVal C.uint32_t
 	var previousHeightIsSome C.int
 	if previousHeight != nil {
@@ -36369,7 +36682,7 @@ func (o *Peer) RequestPuzzleState(puzzleHashes unsafe.Pointer, previousHeight *u
 	headerHashPtr, headerHashLen := bytesToPtr(headerHash)
 
 	var out unsafe.Pointer
-	ret := C.go_peer_request_puzzle_state(o.ptr, puzzleHashes, previousHeightVal, previousHeightIsSome, headerHashPtr, headerHashLen, filters.ptr, boolToInt(subscribe), &out)
+	ret := C.go_peer_request_puzzle_state(o.ptr, puzzleHashesPtrsC, puzzleHashesLensC, puzzleHashesCount, previousHeightVal, previousHeightIsSome, headerHashPtr, headerHashLen, filters.ptr, boolToInt(subscribe), &out)
 	runtime.KeepAlive(o)
 	runtime.KeepAlive(filters)
 	if ret != 0 {
@@ -36406,7 +36719,7 @@ func (o *Peer) RequestPuzzleAndSolution(coinId []byte, height uint32) (*PuzzleSo
 }
 
 // RemoveCoinSubscriptions removes coin state subscriptions, returning the coin IDs that were unsubscribed. Pass nil to remove all.
-func (o *Peer) RemoveCoinSubscriptions(coinIds unsafe.Pointer) (unsafe.Pointer, error) {
+func (o *Peer) RemoveCoinSubscriptions(coinIds [][]byte) ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -36417,18 +36730,45 @@ func (o *Peer) RemoveCoinSubscriptions(coinIds unsafe.Pointer) (unsafe.Pointer, 
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	coinIdsPtrs := make([]*C.uint8_t, len(coinIds))
+	coinIdsLens := make([]C.size_t, len(coinIds))
+	for i, b := range coinIds {
+		if len(b) > 0 {
+			coinIdsPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		coinIdsLens[i] = C.size_t(len(b))
+	}
+	var coinIdsPtrsC **C.uint8_t
+	var coinIdsLensC *C.size_t
+	if len(coinIds) > 0 {
+		coinIdsPtrsC = &coinIdsPtrs[0]
+		coinIdsLensC = &coinIdsLens[0]
+	}
+	coinIdsCount := C.size_t(len(coinIds))
 
 	var out unsafe.Pointer
-	ret := C.go_peer_remove_coin_subscriptions(o.ptr, coinIds, &out)
+	ret := C.go_peer_remove_coin_subscriptions(o.ptr, coinIdsPtrsC, coinIdsLensC, coinIdsCount, &out)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
 }
 
 // RemovePuzzleSubscriptions removes puzzle state subscriptions, returning the puzzle hashes that were unsubscribed. Pass nil to remove all.
-func (o *Peer) RemovePuzzleSubscriptions(puzzleHashes unsafe.Pointer) (unsafe.Pointer, error) {
+func (o *Peer) RemovePuzzleSubscriptions(puzzleHashes [][]byte) ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -36439,14 +36779,41 @@ func (o *Peer) RemovePuzzleSubscriptions(puzzleHashes unsafe.Pointer) (unsafe.Po
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	puzzleHashesPtrs := make([]*C.uint8_t, len(puzzleHashes))
+	puzzleHashesLens := make([]C.size_t, len(puzzleHashes))
+	for i, b := range puzzleHashes {
+		if len(b) > 0 {
+			puzzleHashesPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		puzzleHashesLens[i] = C.size_t(len(b))
+	}
+	var puzzleHashesPtrsC **C.uint8_t
+	var puzzleHashesLensC *C.size_t
+	if len(puzzleHashes) > 0 {
+		puzzleHashesPtrsC = &puzzleHashesPtrs[0]
+		puzzleHashesLensC = &puzzleHashesLens[0]
+	}
+	puzzleHashesCount := C.size_t(len(puzzleHashes))
 
 	var out unsafe.Pointer
-	ret := C.go_peer_remove_puzzle_subscriptions(o.ptr, puzzleHashes, &out)
+	ret := C.go_peer_remove_puzzle_subscriptions(o.ptr, puzzleHashesPtrsC, puzzleHashesLensC, puzzleHashesCount, &out)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
 }
 
 // Next waits for the next event from the peer (new peak or coin state update), or nil if disconnected.
@@ -37219,7 +37586,7 @@ func (o *RespondCoinState) Clone() (*RespondCoinState, error) {
 }
 
 // NewRespondCoinState creates a new [RespondCoinState] with the given field values.
-func NewRespondCoinState(coinIds unsafe.Pointer, coinStates []*CoinState) (*RespondCoinState, error) {
+func NewRespondCoinState(coinIds [][]byte, coinStates []*CoinState) (*RespondCoinState, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	for i, item := range coinStates {
@@ -37227,6 +37594,21 @@ func NewRespondCoinState(coinIds unsafe.Pointer, coinStates []*CoinState) (*Resp
 			return nil, fmt.Errorf("nil item in coinStates at index %d", i)
 		}
 	}
+	coinIdsPtrs := make([]*C.uint8_t, len(coinIds))
+	coinIdsLens := make([]C.size_t, len(coinIds))
+	for i, b := range coinIds {
+		if len(b) > 0 {
+			coinIdsPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		coinIdsLens[i] = C.size_t(len(b))
+	}
+	var coinIdsPtrsC **C.uint8_t
+	var coinIdsLensC *C.size_t
+	if len(coinIds) > 0 {
+		coinIdsPtrsC = &coinIdsPtrs[0]
+		coinIdsLensC = &coinIdsLens[0]
+	}
+	coinIdsCount := C.size_t(len(coinIds))
 	coinStatesPtrs := make([]unsafe.Pointer, len(coinStates))
 	for i, item := range coinStates {
 		coinStatesPtrs[i] = item.ptr
@@ -37238,7 +37620,7 @@ func NewRespondCoinState(coinIds unsafe.Pointer, coinStates []*CoinState) (*Resp
 	coinStatesLen := C.size_t(len(coinStates))
 
 	var out unsafe.Pointer
-	ret := C.go_respond_coin_state_new(coinIds, (*unsafe.Pointer)(unsafe.Pointer(coinStatesPtrsC)), coinStatesLen, &out)
+	ret := C.go_respond_coin_state_new(coinIdsPtrsC, coinIdsLensC, coinIdsCount, (*unsafe.Pointer)(unsafe.Pointer(coinStatesPtrsC)), coinStatesLen, &out)
 	runtime.KeepAlive(coinStates)
 	if ret != 0 {
 		return nil, lastError()
@@ -37249,7 +37631,7 @@ func NewRespondCoinState(coinIds unsafe.Pointer, coinStates []*CoinState) (*Resp
 }
 
 // CoinIds returns the CoinIds field of the [RespondCoinState].
-func (o *RespondCoinState) CoinIds() (unsafe.Pointer, error) {
+func (o *RespondCoinState) CoinIds() ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -37266,11 +37648,23 @@ func (o *RespondCoinState) CoinIds() (unsafe.Pointer, error) {
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
 }
 
 // SetCoinIds updates the CoinIds field of the [RespondCoinState].
-func (o *RespondCoinState) SetCoinIds(value unsafe.Pointer) error {
+func (o *RespondCoinState) SetCoinIds(value [][]byte) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -37281,8 +37675,23 @@ func (o *RespondCoinState) SetCoinIds(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]*C.uint8_t, len(value))
+	valueLens := make([]C.size_t, len(value))
+	for i, b := range value {
+		if len(b) > 0 {
+			valuePtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		valueLens[i] = C.size_t(len(b))
+	}
+	var valuePtrsC **C.uint8_t
+	var valueLensC *C.size_t
+	if len(value) > 0 {
+		valuePtrsC = &valuePtrs[0]
+		valueLensC = &valueLens[0]
+	}
+	valueCount := C.size_t(len(value))
 
-	ret := C.go_respond_coin_state_set_coin_ids(o.ptr, value)
+	ret := C.go_respond_coin_state_set_coin_ids(o.ptr, valuePtrsC, valueLensC, valueCount)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -37409,7 +37818,7 @@ func (o *RespondPuzzleState) Clone() (*RespondPuzzleState, error) {
 }
 
 // NewRespondPuzzleState creates a new [RespondPuzzleState] with the given field values.
-func NewRespondPuzzleState(puzzleHashes unsafe.Pointer, height uint32, headerHash []byte, isFinished bool, coinStates []*CoinState) (*RespondPuzzleState, error) {
+func NewRespondPuzzleState(puzzleHashes [][]byte, height uint32, headerHash []byte, isFinished bool, coinStates []*CoinState) (*RespondPuzzleState, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	for i, item := range coinStates {
@@ -37417,6 +37826,21 @@ func NewRespondPuzzleState(puzzleHashes unsafe.Pointer, height uint32, headerHas
 			return nil, fmt.Errorf("nil item in coinStates at index %d", i)
 		}
 	}
+	puzzleHashesPtrs := make([]*C.uint8_t, len(puzzleHashes))
+	puzzleHashesLens := make([]C.size_t, len(puzzleHashes))
+	for i, b := range puzzleHashes {
+		if len(b) > 0 {
+			puzzleHashesPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		puzzleHashesLens[i] = C.size_t(len(b))
+	}
+	var puzzleHashesPtrsC **C.uint8_t
+	var puzzleHashesLensC *C.size_t
+	if len(puzzleHashes) > 0 {
+		puzzleHashesPtrsC = &puzzleHashesPtrs[0]
+		puzzleHashesLensC = &puzzleHashesLens[0]
+	}
+	puzzleHashesCount := C.size_t(len(puzzleHashes))
 	headerHashPtr, headerHashLen := bytesToPtr(headerHash)
 	coinStatesPtrs := make([]unsafe.Pointer, len(coinStates))
 	for i, item := range coinStates {
@@ -37429,7 +37853,7 @@ func NewRespondPuzzleState(puzzleHashes unsafe.Pointer, height uint32, headerHas
 	coinStatesLen := C.size_t(len(coinStates))
 
 	var out unsafe.Pointer
-	ret := C.go_respond_puzzle_state_new(puzzleHashes, C.uint32_t(height), headerHashPtr, headerHashLen, boolToInt(isFinished), (*unsafe.Pointer)(unsafe.Pointer(coinStatesPtrsC)), coinStatesLen, &out)
+	ret := C.go_respond_puzzle_state_new(puzzleHashesPtrsC, puzzleHashesLensC, puzzleHashesCount, C.uint32_t(height), headerHashPtr, headerHashLen, boolToInt(isFinished), (*unsafe.Pointer)(unsafe.Pointer(coinStatesPtrsC)), coinStatesLen, &out)
 	runtime.KeepAlive(coinStates)
 	if ret != 0 {
 		return nil, lastError()
@@ -37440,7 +37864,7 @@ func NewRespondPuzzleState(puzzleHashes unsafe.Pointer, height uint32, headerHas
 }
 
 // PuzzleHashes returns the PuzzleHashes field of the [RespondPuzzleState].
-func (o *RespondPuzzleState) PuzzleHashes() (unsafe.Pointer, error) {
+func (o *RespondPuzzleState) PuzzleHashes() ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -37457,11 +37881,23 @@ func (o *RespondPuzzleState) PuzzleHashes() (unsafe.Pointer, error) {
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
 }
 
 // SetPuzzleHashes updates the PuzzleHashes field of the [RespondPuzzleState].
-func (o *RespondPuzzleState) SetPuzzleHashes(value unsafe.Pointer) error {
+func (o *RespondPuzzleState) SetPuzzleHashes(value [][]byte) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -37472,8 +37908,23 @@ func (o *RespondPuzzleState) SetPuzzleHashes(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]*C.uint8_t, len(value))
+	valueLens := make([]C.size_t, len(value))
+	for i, b := range value {
+		if len(b) > 0 {
+			valuePtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		valueLens[i] = C.size_t(len(b))
+	}
+	var valuePtrsC **C.uint8_t
+	var valueLensC *C.size_t
+	if len(value) > 0 {
+		valuePtrsC = &valuePtrs[0]
+		valueLensC = &valueLens[0]
+	}
+	valueCount := C.size_t(len(value))
 
-	ret := C.go_respond_puzzle_state_set_puzzle_hashes(o.ptr, value)
+	ret := C.go_respond_puzzle_state_set_puzzle_hashes(o.ptr, valuePtrsC, valueLensC, valueCount)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -38711,7 +39162,7 @@ func (o *Program) Atom() ([]byte, error) {
 }
 
 // List interprets the program as a proper CLVM list, or nil if it is not nil-terminated.
-func (o *Program) List() (unsafe.Pointer, error) {
+func (o *Program) List() ([]*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -38732,11 +39183,23 @@ func (o *Program) List() (unsafe.Pointer, error) {
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_program_list_len(out)
+	result := make([]*Program, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_program_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_program_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Program{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Program).Free)
+	}
+	C.go_program_list_free(out)
+	return result, nil
 }
 
 // ArgList extracts a curried argument list from the program, or nil if the structure does not match.
-func (o *Program) ArgList() (unsafe.Pointer, error) {
+func (o *Program) ArgList() ([]*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -38757,7 +39220,19 @@ func (o *Program) ArgList() (unsafe.Pointer, error) {
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_program_list_len(out)
+	result := make([]*Program, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_program_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_program_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Program{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Program).Free)
+	}
+	C.go_program_list_free(out)
+	return result, nil
 }
 
 // Pair returns the first and rest of a cons pair, or nil if this is an atom.
@@ -40365,7 +40840,7 @@ func (o *Puzzle) ParseCat(coin *Coin, solution *Program) (*ParsedCat, error) {
 }
 
 // ParseChildCats parses the children of a spent CAT coin to extract the resulting CAT coins.
-func (o *Puzzle) ParseChildCats(parentCoin *Coin, parentSolution *Program) (unsafe.Pointer, error) {
+func (o *Puzzle) ParseChildCats(parentCoin *Coin, parentSolution *Program) ([]*Cat, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -40394,7 +40869,19 @@ func (o *Puzzle) ParseChildCats(parentCoin *Coin, parentSolution *Program) (unsa
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_cat_list_len(out)
+	result := make([]*Cat, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_cat_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_cat_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Cat{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Cat).Free)
+	}
+	C.go_cat_list_free(out)
+	return result, nil
 }
 
 // ParseNftInfo attempts to identify this puzzle as an NFT singleton and extract the NFT info and inner puzzle.
@@ -40720,7 +41207,7 @@ func (o *Puzzle) ParseInnerStreamingPuzzle() (*StreamingPuzzleInfo, error) {
 }
 
 // ParseChildClawbacks parses the children of a spent coin to extract any clawback-wrapped outputs.
-func (o *Puzzle) ParseChildClawbacks(parentSolution *Program) (unsafe.Pointer, error) {
+func (o *Puzzle) ParseChildClawbacks(parentSolution *Program) ([]*Clawback, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -40745,7 +41232,19 @@ func (o *Puzzle) ParseChildClawbacks(parentSolution *Program) (unsafe.Pointer, e
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_clawback_list_len(out)
+	result := make([]*Clawback, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_clawback_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_clawback_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Clawback{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Clawback).Free)
+	}
+	C.go_clawback_list_free(out)
+	return result, nil
 }
 
 // ParseBulletin parses a bulletin board coin and its solution to extract the bulletin state and messages.
@@ -43455,15 +43954,54 @@ func (o *NftMetadata) Clone() (*NftMetadata, error) {
 }
 
 // NewNftMetadata creates a new [NftMetadata] with the given field values.
-func NewNftMetadata(editionNumber uint64, editionTotal uint64, dataUris unsafe.Pointer, dataHash []byte, metadataUris unsafe.Pointer, metadataHash []byte, licenseUris unsafe.Pointer, licenseHash []byte) (*NftMetadata, error) {
+func NewNftMetadata(editionNumber uint64, editionTotal uint64, dataUris []string, dataHash []byte, metadataUris []string, metadataHash []byte, licenseUris []string, licenseHash []byte) (*NftMetadata, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	dataUrisPtrs := make([]*C.char, len(dataUris))
+	dataUrisLens := make([]C.size_t, len(dataUris))
+	for i, s := range dataUris {
+		dataUrisPtrs[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))
+		dataUrisLens[i] = C.size_t(len(s))
+	}
+	var dataUrisPtrsC **C.char
+	var dataUrisLensC *C.size_t
+	if len(dataUris) > 0 {
+		dataUrisPtrsC = &dataUrisPtrs[0]
+		dataUrisLensC = &dataUrisLens[0]
+	}
+	dataUrisCount := C.size_t(len(dataUris))
 	dataHashPtr, dataHashLen := bytesToPtr(dataHash)
+	metadataUrisPtrs := make([]*C.char, len(metadataUris))
+	metadataUrisLens := make([]C.size_t, len(metadataUris))
+	for i, s := range metadataUris {
+		metadataUrisPtrs[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))
+		metadataUrisLens[i] = C.size_t(len(s))
+	}
+	var metadataUrisPtrsC **C.char
+	var metadataUrisLensC *C.size_t
+	if len(metadataUris) > 0 {
+		metadataUrisPtrsC = &metadataUrisPtrs[0]
+		metadataUrisLensC = &metadataUrisLens[0]
+	}
+	metadataUrisCount := C.size_t(len(metadataUris))
 	metadataHashPtr, metadataHashLen := bytesToPtr(metadataHash)
+	licenseUrisPtrs := make([]*C.char, len(licenseUris))
+	licenseUrisLens := make([]C.size_t, len(licenseUris))
+	for i, s := range licenseUris {
+		licenseUrisPtrs[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))
+		licenseUrisLens[i] = C.size_t(len(s))
+	}
+	var licenseUrisPtrsC **C.char
+	var licenseUrisLensC *C.size_t
+	if len(licenseUris) > 0 {
+		licenseUrisPtrsC = &licenseUrisPtrs[0]
+		licenseUrisLensC = &licenseUrisLens[0]
+	}
+	licenseUrisCount := C.size_t(len(licenseUris))
 	licenseHashPtr, licenseHashLen := bytesToPtr(licenseHash)
 
 	var out unsafe.Pointer
-	ret := C.go_nft_metadata_new(C.uint64_t(editionNumber), C.uint64_t(editionTotal), dataUris, dataHashPtr, dataHashLen, metadataUris, metadataHashPtr, metadataHashLen, licenseUris, licenseHashPtr, licenseHashLen, &out)
+	ret := C.go_nft_metadata_new(C.uint64_t(editionNumber), C.uint64_t(editionTotal), dataUrisPtrsC, dataUrisLensC, dataUrisCount, dataHashPtr, dataHashLen, metadataUrisPtrsC, metadataUrisLensC, metadataUrisCount, metadataHashPtr, metadataHashLen, licenseUrisPtrsC, licenseUrisLensC, licenseUrisCount, licenseHashPtr, licenseHashLen, &out)
 	if ret != 0 {
 		return nil, lastError()
 	}
@@ -43557,7 +44095,7 @@ func (o *NftMetadata) SetEditionTotal(value uint64) error {
 }
 
 // DataUris returns the DataUris field of the [NftMetadata].
-func (o *NftMetadata) DataUris() (unsafe.Pointer, error) {
+func (o *NftMetadata) DataUris() ([]string, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -43574,11 +44112,23 @@ func (o *NftMetadata) DataUris() (unsafe.Pointer, error) {
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_string_list_len(out)
+	result := make([]string, listLen)
+	for i := range result {
+		var sPtr *C.char
+		var sLen C.size_t
+		if ret := C.go_string_list_get(out, C.size_t(i), &sPtr, &sLen); ret != 0 {
+			C.go_string_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoStringN(sPtr, C.int(sLen))
+	}
+	C.go_string_list_free(out)
+	return result, nil
 }
 
 // SetDataUris updates the DataUris field of the [NftMetadata].
-func (o *NftMetadata) SetDataUris(value unsafe.Pointer) error {
+func (o *NftMetadata) SetDataUris(value []string) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -43589,8 +44139,21 @@ func (o *NftMetadata) SetDataUris(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]*C.char, len(value))
+	valueLens := make([]C.size_t, len(value))
+	for i, s := range value {
+		valuePtrs[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))
+		valueLens[i] = C.size_t(len(s))
+	}
+	var valuePtrsC **C.char
+	var valueLensC *C.size_t
+	if len(value) > 0 {
+		valuePtrsC = &valuePtrs[0]
+		valueLensC = &valueLens[0]
+	}
+	valueCount := C.size_t(len(value))
 
-	ret := C.go_nft_metadata_set_data_uris(o.ptr, value)
+	ret := C.go_nft_metadata_set_data_uris(o.ptr, valuePtrsC, valueLensC, valueCount)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -43648,7 +44211,7 @@ func (o *NftMetadata) SetDataHash(value []byte) error {
 }
 
 // MetadataUris returns the MetadataUris field of the [NftMetadata].
-func (o *NftMetadata) MetadataUris() (unsafe.Pointer, error) {
+func (o *NftMetadata) MetadataUris() ([]string, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -43665,11 +44228,23 @@ func (o *NftMetadata) MetadataUris() (unsafe.Pointer, error) {
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_string_list_len(out)
+	result := make([]string, listLen)
+	for i := range result {
+		var sPtr *C.char
+		var sLen C.size_t
+		if ret := C.go_string_list_get(out, C.size_t(i), &sPtr, &sLen); ret != 0 {
+			C.go_string_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoStringN(sPtr, C.int(sLen))
+	}
+	C.go_string_list_free(out)
+	return result, nil
 }
 
 // SetMetadataUris updates the MetadataUris field of the [NftMetadata].
-func (o *NftMetadata) SetMetadataUris(value unsafe.Pointer) error {
+func (o *NftMetadata) SetMetadataUris(value []string) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -43680,8 +44255,21 @@ func (o *NftMetadata) SetMetadataUris(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]*C.char, len(value))
+	valueLens := make([]C.size_t, len(value))
+	for i, s := range value {
+		valuePtrs[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))
+		valueLens[i] = C.size_t(len(s))
+	}
+	var valuePtrsC **C.char
+	var valueLensC *C.size_t
+	if len(value) > 0 {
+		valuePtrsC = &valuePtrs[0]
+		valueLensC = &valueLens[0]
+	}
+	valueCount := C.size_t(len(value))
 
-	ret := C.go_nft_metadata_set_metadata_uris(o.ptr, value)
+	ret := C.go_nft_metadata_set_metadata_uris(o.ptr, valuePtrsC, valueLensC, valueCount)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -43739,7 +44327,7 @@ func (o *NftMetadata) SetMetadataHash(value []byte) error {
 }
 
 // LicenseUris returns the LicenseUris field of the [NftMetadata].
-func (o *NftMetadata) LicenseUris() (unsafe.Pointer, error) {
+func (o *NftMetadata) LicenseUris() ([]string, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -43756,11 +44344,23 @@ func (o *NftMetadata) LicenseUris() (unsafe.Pointer, error) {
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_string_list_len(out)
+	result := make([]string, listLen)
+	for i := range result {
+		var sPtr *C.char
+		var sLen C.size_t
+		if ret := C.go_string_list_get(out, C.size_t(i), &sPtr, &sLen); ret != 0 {
+			C.go_string_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoStringN(sPtr, C.int(sLen))
+	}
+	C.go_string_list_free(out)
+	return result, nil
 }
 
 // SetLicenseUris updates the LicenseUris field of the [NftMetadata].
-func (o *NftMetadata) SetLicenseUris(value unsafe.Pointer) error {
+func (o *NftMetadata) SetLicenseUris(value []string) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -43771,8 +44371,21 @@ func (o *NftMetadata) SetLicenseUris(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]*C.char, len(value))
+	valueLens := make([]C.size_t, len(value))
+	for i, s := range value {
+		valuePtrs[i] = (*C.char)(unsafe.Pointer(unsafe.StringData(s)))
+		valueLens[i] = C.size_t(len(s))
+	}
+	var valuePtrsC **C.char
+	var valueLensC *C.size_t
+	if len(value) > 0 {
+		valuePtrsC = &valuePtrs[0]
+		valueLensC = &valueLens[0]
+	}
+	valueCount := C.size_t(len(value))
 
-	ret := C.go_nft_metadata_set_license_uris(o.ptr, value)
+	ret := C.go_nft_metadata_set_license_uris(o.ptr, valuePtrsC, valueLensC, valueCount)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -48820,7 +49433,7 @@ func StreamingPuzzleInfoGetHint(recipient []byte) ([]byte, error) {
 }
 
 // GetLaunchHints returns the hint memos to embed when creating a streaming payment coin.
-func (o *StreamingPuzzleInfo) GetLaunchHints() (unsafe.Pointer, error) {
+func (o *StreamingPuzzleInfo) GetLaunchHints() ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -48838,7 +49451,19 @@ func (o *StreamingPuzzleInfo) GetLaunchHints() (unsafe.Pointer, error) {
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
 }
 
 // InnerPuzzleHash computes the inner puzzle hash of the streaming payment puzzle.
@@ -48867,12 +49492,27 @@ func (o *StreamingPuzzleInfo) InnerPuzzleHash() ([]byte, error) {
 }
 
 // StreamingPuzzleInfoFromMemos reconstructs the streaming puzzle info from coin memos, if they match the expected format.
-func StreamingPuzzleInfoFromMemos(memos unsafe.Pointer) (*StreamingPuzzleInfo, error) {
+func StreamingPuzzleInfoFromMemos(memos [][]byte) (*StreamingPuzzleInfo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	memosPtrs := make([]*C.uint8_t, len(memos))
+	memosLens := make([]C.size_t, len(memos))
+	for i, b := range memos {
+		if len(b) > 0 {
+			memosPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		memosLens[i] = C.size_t(len(b))
+	}
+	var memosPtrsC **C.uint8_t
+	var memosLensC *C.size_t
+	if len(memos) > 0 {
+		memosPtrsC = &memosPtrs[0]
+		memosLensC = &memosLens[0]
+	}
+	memosCount := C.size_t(len(memos))
 
 	var out unsafe.Pointer
-	ret := C.go_streaming_puzzle_info_from_memos(memos, &out)
+	ret := C.go_streaming_puzzle_info_from_memos(memosPtrsC, memosLensC, memosCount, &out)
 	if ret != 0 {
 		return nil, lastError()
 	}
@@ -51842,15 +52482,30 @@ func (o *P2ParentCoinChildParseResult) Clone() (*P2ParentCoinChildParseResult, e
 }
 
 // NewP2ParentCoinChildParseResult creates a new [P2ParentCoinChildParseResult] with the given field values.
-func NewP2ParentCoinChildParseResult(p2ParentCoin *P2ParentCoin, memos unsafe.Pointer) (*P2ParentCoinChildParseResult, error) {
+func NewP2ParentCoinChildParseResult(p2ParentCoin *P2ParentCoin, memos [][]byte) (*P2ParentCoinChildParseResult, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if p2ParentCoin == nil {
 		return nil, fmt.Errorf("p2ParentCoin must not be nil")
 	}
+	memosPtrs := make([]*C.uint8_t, len(memos))
+	memosLens := make([]C.size_t, len(memos))
+	for i, b := range memos {
+		if len(b) > 0 {
+			memosPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		memosLens[i] = C.size_t(len(b))
+	}
+	var memosPtrsC **C.uint8_t
+	var memosLensC *C.size_t
+	if len(memos) > 0 {
+		memosPtrsC = &memosPtrs[0]
+		memosLensC = &memosLens[0]
+	}
+	memosCount := C.size_t(len(memos))
 
 	var out unsafe.Pointer
-	ret := C.go_p_2_parent_coin_child_parse_result_new(p2ParentCoin.ptr, memos, &out)
+	ret := C.go_p_2_parent_coin_child_parse_result_new(p2ParentCoin.ptr, memosPtrsC, memosLensC, memosCount, &out)
 	runtime.KeepAlive(p2ParentCoin)
 	if ret != 0 {
 		return nil, lastError()
@@ -51909,7 +52564,7 @@ func (o *P2ParentCoinChildParseResult) SetP2ParentCoin(value *P2ParentCoin) erro
 }
 
 // Memos returns the Memos field of the [P2ParentCoinChildParseResult].
-func (o *P2ParentCoinChildParseResult) Memos() (unsafe.Pointer, error) {
+func (o *P2ParentCoinChildParseResult) Memos() ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -51926,11 +52581,23 @@ func (o *P2ParentCoinChildParseResult) Memos() (unsafe.Pointer, error) {
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
 }
 
 // SetMemos updates the Memos field of the [P2ParentCoinChildParseResult].
-func (o *P2ParentCoinChildParseResult) SetMemos(value unsafe.Pointer) error {
+func (o *P2ParentCoinChildParseResult) SetMemos(value [][]byte) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -51941,8 +52608,23 @@ func (o *P2ParentCoinChildParseResult) SetMemos(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]*C.uint8_t, len(value))
+	valueLens := make([]C.size_t, len(value))
+	for i, b := range value {
+		if len(b) > 0 {
+			valuePtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		valueLens[i] = C.size_t(len(b))
+	}
+	var valuePtrsC **C.uint8_t
+	var valueLensC *C.size_t
+	if len(value) > 0 {
+		valuePtrsC = &valuePtrs[0]
+		valueLensC = &valueLens[0]
+	}
+	valueCount := C.size_t(len(value))
 
-	ret := C.go_p_2_parent_coin_child_parse_result_set_memos(o.ptr, value)
+	ret := C.go_p_2_parent_coin_child_parse_result_set_memos(o.ptr, valuePtrsC, valueLensC, valueCount)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -58595,7 +59277,7 @@ func (o *RpcClient) GetCoinRecordsByHint(hint []byte, startHeight *uint32, endHe
 }
 
 // GetCoinRecordsByHints fetches coin records matching any of the given hints, with optional height and spent filters.
-func (o *RpcClient) GetCoinRecordsByHints(hints unsafe.Pointer, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
+func (o *RpcClient) GetCoinRecordsByHints(hints [][]byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -58606,6 +59288,21 @@ func (o *RpcClient) GetCoinRecordsByHints(hints unsafe.Pointer, startHeight *uin
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	hintsPtrs := make([]*C.uint8_t, len(hints))
+	hintsLens := make([]C.size_t, len(hints))
+	for i, b := range hints {
+		if len(b) > 0 {
+			hintsPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		hintsLens[i] = C.size_t(len(b))
+	}
+	var hintsPtrsC **C.uint8_t
+	var hintsLensC *C.size_t
+	if len(hints) > 0 {
+		hintsPtrsC = &hintsPtrs[0]
+		hintsLensC = &hintsLens[0]
+	}
+	hintsCount := C.size_t(len(hints))
 	var startHeightVal C.uint32_t
 	var startHeightIsSome C.int
 	if startHeight != nil {
@@ -58626,7 +59323,7 @@ func (o *RpcClient) GetCoinRecordsByHints(hints unsafe.Pointer, startHeight *uin
 	}
 
 	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_coin_records_by_hints(o.ptr, hints, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
+	ret := C.go_rpc_client_get_coin_records_by_hints(o.ptr, hintsPtrsC, hintsLensC, hintsCount, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
@@ -58637,7 +59334,7 @@ func (o *RpcClient) GetCoinRecordsByHints(hints unsafe.Pointer, startHeight *uin
 }
 
 // GetCoinRecordsByNames fetches coin records for the given coin IDs, with optional height and spent filters.
-func (o *RpcClient) GetCoinRecordsByNames(names unsafe.Pointer, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
+func (o *RpcClient) GetCoinRecordsByNames(names [][]byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -58648,6 +59345,21 @@ func (o *RpcClient) GetCoinRecordsByNames(names unsafe.Pointer, startHeight *uin
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	namesPtrs := make([]*C.uint8_t, len(names))
+	namesLens := make([]C.size_t, len(names))
+	for i, b := range names {
+		if len(b) > 0 {
+			namesPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		namesLens[i] = C.size_t(len(b))
+	}
+	var namesPtrsC **C.uint8_t
+	var namesLensC *C.size_t
+	if len(names) > 0 {
+		namesPtrsC = &namesPtrs[0]
+		namesLensC = &namesLens[0]
+	}
+	namesCount := C.size_t(len(names))
 	var startHeightVal C.uint32_t
 	var startHeightIsSome C.int
 	if startHeight != nil {
@@ -58668,7 +59380,7 @@ func (o *RpcClient) GetCoinRecordsByNames(names unsafe.Pointer, startHeight *uin
 	}
 
 	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_coin_records_by_names(o.ptr, names, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
+	ret := C.go_rpc_client_get_coin_records_by_names(o.ptr, namesPtrsC, namesLensC, namesCount, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
@@ -58679,7 +59391,7 @@ func (o *RpcClient) GetCoinRecordsByNames(names unsafe.Pointer, startHeight *uin
 }
 
 // GetCoinRecordsByParentIds fetches coin records created by the given parent coin IDs, with optional height and spent filters.
-func (o *RpcClient) GetCoinRecordsByParentIds(parentIds unsafe.Pointer, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
+func (o *RpcClient) GetCoinRecordsByParentIds(parentIds [][]byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -58690,6 +59402,21 @@ func (o *RpcClient) GetCoinRecordsByParentIds(parentIds unsafe.Pointer, startHei
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	parentIdsPtrs := make([]*C.uint8_t, len(parentIds))
+	parentIdsLens := make([]C.size_t, len(parentIds))
+	for i, b := range parentIds {
+		if len(b) > 0 {
+			parentIdsPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		parentIdsLens[i] = C.size_t(len(b))
+	}
+	var parentIdsPtrsC **C.uint8_t
+	var parentIdsLensC *C.size_t
+	if len(parentIds) > 0 {
+		parentIdsPtrsC = &parentIdsPtrs[0]
+		parentIdsLensC = &parentIdsLens[0]
+	}
+	parentIdsCount := C.size_t(len(parentIds))
 	var startHeightVal C.uint32_t
 	var startHeightIsSome C.int
 	if startHeight != nil {
@@ -58710,7 +59437,7 @@ func (o *RpcClient) GetCoinRecordsByParentIds(parentIds unsafe.Pointer, startHei
 	}
 
 	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_coin_records_by_parent_ids(o.ptr, parentIds, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
+	ret := C.go_rpc_client_get_coin_records_by_parent_ids(o.ptr, parentIdsPtrsC, parentIdsLensC, parentIdsCount, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
@@ -58764,7 +59491,7 @@ func (o *RpcClient) GetCoinRecordsByPuzzleHash(puzzleHash []byte, startHeight *u
 }
 
 // GetCoinRecordsByPuzzleHashes fetches coin records locked to any of the given puzzle hashes, with optional height and spent filters.
-func (o *RpcClient) GetCoinRecordsByPuzzleHashes(puzzleHashes unsafe.Pointer, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
+func (o *RpcClient) GetCoinRecordsByPuzzleHashes(puzzleHashes [][]byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -58775,6 +59502,21 @@ func (o *RpcClient) GetCoinRecordsByPuzzleHashes(puzzleHashes unsafe.Pointer, st
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	puzzleHashesPtrs := make([]*C.uint8_t, len(puzzleHashes))
+	puzzleHashesLens := make([]C.size_t, len(puzzleHashes))
+	for i, b := range puzzleHashes {
+		if len(b) > 0 {
+			puzzleHashesPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		puzzleHashesLens[i] = C.size_t(len(b))
+	}
+	var puzzleHashesPtrsC **C.uint8_t
+	var puzzleHashesLensC *C.size_t
+	if len(puzzleHashes) > 0 {
+		puzzleHashesPtrsC = &puzzleHashesPtrs[0]
+		puzzleHashesLensC = &puzzleHashesLens[0]
+	}
+	puzzleHashesCount := C.size_t(len(puzzleHashes))
 	var startHeightVal C.uint32_t
 	var startHeightIsSome C.int
 	if startHeight != nil {
@@ -58795,7 +59537,7 @@ func (o *RpcClient) GetCoinRecordsByPuzzleHashes(puzzleHashes unsafe.Pointer, st
 	}
 
 	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_coin_records_by_puzzle_hashes(o.ptr, puzzleHashes, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
+	ret := C.go_rpc_client_get_coin_records_by_puzzle_hashes(o.ptr, puzzleHashesPtrsC, puzzleHashesLensC, puzzleHashesCount, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
@@ -60270,9 +61012,27 @@ func (o *AdditionsAndRemovalsResponse) Clone() (*AdditionsAndRemovalsResponse, e
 }
 
 // NewAdditionsAndRemovalsResponse creates a new [AdditionsAndRemovalsResponse] with the given field values.
-func NewAdditionsAndRemovalsResponse(additions unsafe.Pointer, removals unsafe.Pointer, error *string, success bool) (*AdditionsAndRemovalsResponse, error) {
+func NewAdditionsAndRemovalsResponse(additions []*CoinRecord, removals []*CoinRecord, error *string, success bool) (*AdditionsAndRemovalsResponse, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	additionsPtrs := make([]unsafe.Pointer, len(additions))
+	for i, item := range additions {
+		additionsPtrs[i] = item.ptr
+	}
+	var additionsPtrsC *unsafe.Pointer
+	if len(additionsPtrs) > 0 {
+		additionsPtrsC = &additionsPtrs[0]
+	}
+	additionsLen := C.size_t(len(additions))
+	removalsPtrs := make([]unsafe.Pointer, len(removals))
+	for i, item := range removals {
+		removalsPtrs[i] = item.ptr
+	}
+	var removalsPtrsC *unsafe.Pointer
+	if len(removalsPtrs) > 0 {
+		removalsPtrsC = &removalsPtrs[0]
+	}
+	removalsLen := C.size_t(len(removals))
 	var cError *C.char
 	if error != nil {
 		cError = C.CString(*error)
@@ -60280,7 +61040,7 @@ func NewAdditionsAndRemovalsResponse(additions unsafe.Pointer, removals unsafe.P
 	}
 
 	var out unsafe.Pointer
-	ret := C.go_additions_and_removals_response_new(additions, removals, cError, boolToInt(success), &out)
+	ret := C.go_additions_and_removals_response_new((*unsafe.Pointer)(unsafe.Pointer(additionsPtrsC)), additionsLen, (*unsafe.Pointer)(unsafe.Pointer(removalsPtrsC)), removalsLen, cError, boolToInt(success), &out)
 	if ret != 0 {
 		return nil, lastError()
 	}
@@ -60290,7 +61050,7 @@ func NewAdditionsAndRemovalsResponse(additions unsafe.Pointer, removals unsafe.P
 }
 
 // Additions returns the Additions field of the [AdditionsAndRemovalsResponse].
-func (o *AdditionsAndRemovalsResponse) Additions() (unsafe.Pointer, error) {
+func (o *AdditionsAndRemovalsResponse) Additions() ([]*CoinRecord, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -60310,11 +61070,23 @@ func (o *AdditionsAndRemovalsResponse) Additions() (unsafe.Pointer, error) {
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_coin_record_list_len(out)
+	result := make([]*CoinRecord, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_coin_record_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_coin_record_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &CoinRecord{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*CoinRecord).Free)
+	}
+	C.go_coin_record_list_free(out)
+	return result, nil
 }
 
 // SetAdditions updates the Additions field of the [AdditionsAndRemovalsResponse].
-func (o *AdditionsAndRemovalsResponse) SetAdditions(value unsafe.Pointer) error {
+func (o *AdditionsAndRemovalsResponse) SetAdditions(value []*CoinRecord) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -60325,8 +61097,17 @@ func (o *AdditionsAndRemovalsResponse) SetAdditions(value unsafe.Pointer) error 
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
 
-	ret := C.go_additions_and_removals_response_set_additions(o.ptr, value)
+	ret := C.go_additions_and_removals_response_set_additions(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -60335,7 +61116,7 @@ func (o *AdditionsAndRemovalsResponse) SetAdditions(value unsafe.Pointer) error 
 }
 
 // Removals returns the Removals field of the [AdditionsAndRemovalsResponse].
-func (o *AdditionsAndRemovalsResponse) Removals() (unsafe.Pointer, error) {
+func (o *AdditionsAndRemovalsResponse) Removals() ([]*CoinRecord, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -60355,11 +61136,23 @@ func (o *AdditionsAndRemovalsResponse) Removals() (unsafe.Pointer, error) {
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_coin_record_list_len(out)
+	result := make([]*CoinRecord, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_coin_record_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_coin_record_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &CoinRecord{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*CoinRecord).Free)
+	}
+	C.go_coin_record_list_free(out)
+	return result, nil
 }
 
 // SetRemovals updates the Removals field of the [AdditionsAndRemovalsResponse].
-func (o *AdditionsAndRemovalsResponse) SetRemovals(value unsafe.Pointer) error {
+func (o *AdditionsAndRemovalsResponse) SetRemovals(value []*CoinRecord) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -60370,8 +61163,17 @@ func (o *AdditionsAndRemovalsResponse) SetRemovals(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
 
-	ret := C.go_additions_and_removals_response_set_removals(o.ptr, value)
+	ret := C.go_additions_and_removals_response_set_removals(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -61204,9 +62006,18 @@ func (o *GetBlockRecordsResponse) Clone() (*GetBlockRecordsResponse, error) {
 }
 
 // NewGetBlockRecordsResponse creates a new [GetBlockRecordsResponse] with the given field values.
-func NewGetBlockRecordsResponse(blockRecords unsafe.Pointer, error *string, success bool) (*GetBlockRecordsResponse, error) {
+func NewGetBlockRecordsResponse(blockRecords []*BlockRecord, error *string, success bool) (*GetBlockRecordsResponse, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	blockRecordsPtrs := make([]unsafe.Pointer, len(blockRecords))
+	for i, item := range blockRecords {
+		blockRecordsPtrs[i] = item.ptr
+	}
+	var blockRecordsPtrsC *unsafe.Pointer
+	if len(blockRecordsPtrs) > 0 {
+		blockRecordsPtrsC = &blockRecordsPtrs[0]
+	}
+	blockRecordsLen := C.size_t(len(blockRecords))
 	var cError *C.char
 	if error != nil {
 		cError = C.CString(*error)
@@ -61214,7 +62025,7 @@ func NewGetBlockRecordsResponse(blockRecords unsafe.Pointer, error *string, succ
 	}
 
 	var out unsafe.Pointer
-	ret := C.go_get_block_records_response_new(blockRecords, cError, boolToInt(success), &out)
+	ret := C.go_get_block_records_response_new((*unsafe.Pointer)(unsafe.Pointer(blockRecordsPtrsC)), blockRecordsLen, cError, boolToInt(success), &out)
 	if ret != 0 {
 		return nil, lastError()
 	}
@@ -61224,7 +62035,7 @@ func NewGetBlockRecordsResponse(blockRecords unsafe.Pointer, error *string, succ
 }
 
 // BlockRecords returns the BlockRecords field of the [GetBlockRecordsResponse].
-func (o *GetBlockRecordsResponse) BlockRecords() (unsafe.Pointer, error) {
+func (o *GetBlockRecordsResponse) BlockRecords() ([]*BlockRecord, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -61244,11 +62055,23 @@ func (o *GetBlockRecordsResponse) BlockRecords() (unsafe.Pointer, error) {
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_block_record_list_len(out)
+	result := make([]*BlockRecord, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_block_record_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_block_record_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &BlockRecord{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*BlockRecord).Free)
+	}
+	C.go_block_record_list_free(out)
+	return result, nil
 }
 
 // SetBlockRecords updates the BlockRecords field of the [GetBlockRecordsResponse].
-func (o *GetBlockRecordsResponse) SetBlockRecords(value unsafe.Pointer) error {
+func (o *GetBlockRecordsResponse) SetBlockRecords(value []*BlockRecord) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -61259,8 +62082,17 @@ func (o *GetBlockRecordsResponse) SetBlockRecords(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
 
-	ret := C.go_get_block_records_response_set_block_records(o.ptr, value)
+	ret := C.go_get_block_records_response_set_block_records(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -61418,9 +62250,18 @@ func (o *GetBlocksResponse) Clone() (*GetBlocksResponse, error) {
 }
 
 // NewGetBlocksResponse creates a new [GetBlocksResponse] with the given field values.
-func NewGetBlocksResponse(blocks unsafe.Pointer, error *string, success bool) (*GetBlocksResponse, error) {
+func NewGetBlocksResponse(blocks []*FullBlock, error *string, success bool) (*GetBlocksResponse, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	blocksPtrs := make([]unsafe.Pointer, len(blocks))
+	for i, item := range blocks {
+		blocksPtrs[i] = item.ptr
+	}
+	var blocksPtrsC *unsafe.Pointer
+	if len(blocksPtrs) > 0 {
+		blocksPtrsC = &blocksPtrs[0]
+	}
+	blocksLen := C.size_t(len(blocks))
 	var cError *C.char
 	if error != nil {
 		cError = C.CString(*error)
@@ -61428,7 +62269,7 @@ func NewGetBlocksResponse(blocks unsafe.Pointer, error *string, success bool) (*
 	}
 
 	var out unsafe.Pointer
-	ret := C.go_get_blocks_response_new(blocks, cError, boolToInt(success), &out)
+	ret := C.go_get_blocks_response_new((*unsafe.Pointer)(unsafe.Pointer(blocksPtrsC)), blocksLen, cError, boolToInt(success), &out)
 	if ret != 0 {
 		return nil, lastError()
 	}
@@ -61438,7 +62279,7 @@ func NewGetBlocksResponse(blocks unsafe.Pointer, error *string, success bool) (*
 }
 
 // Blocks returns the Blocks field of the [GetBlocksResponse].
-func (o *GetBlocksResponse) Blocks() (unsafe.Pointer, error) {
+func (o *GetBlocksResponse) Blocks() ([]*FullBlock, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -61458,11 +62299,23 @@ func (o *GetBlocksResponse) Blocks() (unsafe.Pointer, error) {
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_full_block_list_len(out)
+	result := make([]*FullBlock, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_full_block_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_full_block_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &FullBlock{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*FullBlock).Free)
+	}
+	C.go_full_block_list_free(out)
+	return result, nil
 }
 
 // SetBlocks updates the Blocks field of the [GetBlocksResponse].
-func (o *GetBlocksResponse) SetBlocks(value unsafe.Pointer) error {
+func (o *GetBlocksResponse) SetBlocks(value []*FullBlock) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -61473,8 +62326,17 @@ func (o *GetBlocksResponse) SetBlocks(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
 
-	ret := C.go_get_blocks_response_set_blocks(o.ptr, value)
+	ret := C.go_get_blocks_response_set_blocks(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -61632,9 +62494,18 @@ func (o *GetBlockSpendsResponse) Clone() (*GetBlockSpendsResponse, error) {
 }
 
 // NewGetBlockSpendsResponse creates a new [GetBlockSpendsResponse] with the given field values.
-func NewGetBlockSpendsResponse(blockSpends unsafe.Pointer, error *string, success bool) (*GetBlockSpendsResponse, error) {
+func NewGetBlockSpendsResponse(blockSpends []*CoinSpend, error *string, success bool) (*GetBlockSpendsResponse, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	blockSpendsPtrs := make([]unsafe.Pointer, len(blockSpends))
+	for i, item := range blockSpends {
+		blockSpendsPtrs[i] = item.ptr
+	}
+	var blockSpendsPtrsC *unsafe.Pointer
+	if len(blockSpendsPtrs) > 0 {
+		blockSpendsPtrsC = &blockSpendsPtrs[0]
+	}
+	blockSpendsLen := C.size_t(len(blockSpends))
 	var cError *C.char
 	if error != nil {
 		cError = C.CString(*error)
@@ -61642,7 +62513,7 @@ func NewGetBlockSpendsResponse(blockSpends unsafe.Pointer, error *string, succes
 	}
 
 	var out unsafe.Pointer
-	ret := C.go_get_block_spends_response_new(blockSpends, cError, boolToInt(success), &out)
+	ret := C.go_get_block_spends_response_new((*unsafe.Pointer)(unsafe.Pointer(blockSpendsPtrsC)), blockSpendsLen, cError, boolToInt(success), &out)
 	if ret != 0 {
 		return nil, lastError()
 	}
@@ -61652,7 +62523,7 @@ func NewGetBlockSpendsResponse(blockSpends unsafe.Pointer, error *string, succes
 }
 
 // BlockSpends returns the BlockSpends field of the [GetBlockSpendsResponse].
-func (o *GetBlockSpendsResponse) BlockSpends() (unsafe.Pointer, error) {
+func (o *GetBlockSpendsResponse) BlockSpends() ([]*CoinSpend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -61672,11 +62543,23 @@ func (o *GetBlockSpendsResponse) BlockSpends() (unsafe.Pointer, error) {
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_coin_spend_list_len(out)
+	result := make([]*CoinSpend, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_coin_spend_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_coin_spend_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &CoinSpend{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*CoinSpend).Free)
+	}
+	C.go_coin_spend_list_free(out)
+	return result, nil
 }
 
 // SetBlockSpends updates the BlockSpends field of the [GetBlockSpendsResponse].
-func (o *GetBlockSpendsResponse) SetBlockSpends(value unsafe.Pointer) error {
+func (o *GetBlockSpendsResponse) SetBlockSpends(value []*CoinSpend) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -61687,8 +62570,17 @@ func (o *GetBlockSpendsResponse) SetBlockSpends(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
 
-	ret := C.go_get_block_spends_response_set_block_spends(o.ptr, value)
+	ret := C.go_get_block_spends_response_set_block_spends(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -62071,9 +62963,18 @@ func (o *GetCoinRecordsResponse) Clone() (*GetCoinRecordsResponse, error) {
 }
 
 // NewGetCoinRecordsResponse creates a new [GetCoinRecordsResponse] with the given field values.
-func NewGetCoinRecordsResponse(coinRecords unsafe.Pointer, error *string, success bool) (*GetCoinRecordsResponse, error) {
+func NewGetCoinRecordsResponse(coinRecords []*CoinRecord, error *string, success bool) (*GetCoinRecordsResponse, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	coinRecordsPtrs := make([]unsafe.Pointer, len(coinRecords))
+	for i, item := range coinRecords {
+		coinRecordsPtrs[i] = item.ptr
+	}
+	var coinRecordsPtrsC *unsafe.Pointer
+	if len(coinRecordsPtrs) > 0 {
+		coinRecordsPtrsC = &coinRecordsPtrs[0]
+	}
+	coinRecordsLen := C.size_t(len(coinRecords))
 	var cError *C.char
 	if error != nil {
 		cError = C.CString(*error)
@@ -62081,7 +62982,7 @@ func NewGetCoinRecordsResponse(coinRecords unsafe.Pointer, error *string, succes
 	}
 
 	var out unsafe.Pointer
-	ret := C.go_get_coin_records_response_new(coinRecords, cError, boolToInt(success), &out)
+	ret := C.go_get_coin_records_response_new((*unsafe.Pointer)(unsafe.Pointer(coinRecordsPtrsC)), coinRecordsLen, cError, boolToInt(success), &out)
 	if ret != 0 {
 		return nil, lastError()
 	}
@@ -62091,7 +62992,7 @@ func NewGetCoinRecordsResponse(coinRecords unsafe.Pointer, error *string, succes
 }
 
 // CoinRecords returns the CoinRecords field of the [GetCoinRecordsResponse].
-func (o *GetCoinRecordsResponse) CoinRecords() (unsafe.Pointer, error) {
+func (o *GetCoinRecordsResponse) CoinRecords() ([]*CoinRecord, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -62111,11 +63012,23 @@ func (o *GetCoinRecordsResponse) CoinRecords() (unsafe.Pointer, error) {
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_coin_record_list_len(out)
+	result := make([]*CoinRecord, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_coin_record_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_coin_record_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &CoinRecord{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*CoinRecord).Free)
+	}
+	C.go_coin_record_list_free(out)
+	return result, nil
 }
 
 // SetCoinRecords updates the CoinRecords field of the [GetCoinRecordsResponse].
-func (o *GetCoinRecordsResponse) SetCoinRecords(value unsafe.Pointer) error {
+func (o *GetCoinRecordsResponse) SetCoinRecords(value []*CoinRecord) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -62126,8 +63039,17 @@ func (o *GetCoinRecordsResponse) SetCoinRecords(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
 
-	ret := C.go_get_coin_records_response_set_coin_records(o.ptr, value)
+	ret := C.go_get_coin_records_response_set_coin_records(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -63283,9 +64205,18 @@ func (o *GetMempoolItemsResponse) Clone() (*GetMempoolItemsResponse, error) {
 }
 
 // NewGetMempoolItemsResponse creates a new [GetMempoolItemsResponse] with the given field values.
-func NewGetMempoolItemsResponse(mempoolItems unsafe.Pointer, error *string, success bool) (*GetMempoolItemsResponse, error) {
+func NewGetMempoolItemsResponse(mempoolItems []*MempoolItem, error *string, success bool) (*GetMempoolItemsResponse, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	mempoolItemsPtrs := make([]unsafe.Pointer, len(mempoolItems))
+	for i, item := range mempoolItems {
+		mempoolItemsPtrs[i] = item.ptr
+	}
+	var mempoolItemsPtrsC *unsafe.Pointer
+	if len(mempoolItemsPtrs) > 0 {
+		mempoolItemsPtrsC = &mempoolItemsPtrs[0]
+	}
+	mempoolItemsLen := C.size_t(len(mempoolItems))
 	var cError *C.char
 	if error != nil {
 		cError = C.CString(*error)
@@ -63293,7 +64224,7 @@ func NewGetMempoolItemsResponse(mempoolItems unsafe.Pointer, error *string, succ
 	}
 
 	var out unsafe.Pointer
-	ret := C.go_get_mempool_items_response_new(mempoolItems, cError, boolToInt(success), &out)
+	ret := C.go_get_mempool_items_response_new((*unsafe.Pointer)(unsafe.Pointer(mempoolItemsPtrsC)), mempoolItemsLen, cError, boolToInt(success), &out)
 	if ret != 0 {
 		return nil, lastError()
 	}
@@ -63303,7 +64234,7 @@ func NewGetMempoolItemsResponse(mempoolItems unsafe.Pointer, error *string, succ
 }
 
 // MempoolItems returns the MempoolItems field of the [GetMempoolItemsResponse].
-func (o *GetMempoolItemsResponse) MempoolItems() (unsafe.Pointer, error) {
+func (o *GetMempoolItemsResponse) MempoolItems() ([]*MempoolItem, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -63323,11 +64254,23 @@ func (o *GetMempoolItemsResponse) MempoolItems() (unsafe.Pointer, error) {
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_mempool_item_list_len(out)
+	result := make([]*MempoolItem, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_mempool_item_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_mempool_item_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &MempoolItem{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*MempoolItem).Free)
+	}
+	C.go_mempool_item_list_free(out)
+	return result, nil
 }
 
 // SetMempoolItems updates the MempoolItems field of the [GetMempoolItemsResponse].
-func (o *GetMempoolItemsResponse) SetMempoolItems(value unsafe.Pointer) error {
+func (o *GetMempoolItemsResponse) SetMempoolItems(value []*MempoolItem) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -63338,8 +64281,17 @@ func (o *GetMempoolItemsResponse) SetMempoolItems(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
 
-	ret := C.go_get_mempool_items_response_set_mempool_items(o.ptr, value)
+	ret := C.go_get_mempool_items_response_set_mempool_items(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -63993,7 +64945,7 @@ func (o *FullBlock) Clone() (*FullBlock, error) {
 }
 
 // NewFullBlock creates a new [FullBlock] with the given field values.
-func NewFullBlock(finishedSubSlots []*EndOfSubSlotBundle, rewardChainBlock *RewardChainBlock, challengeChainSpProof *VDFProof, challengeChainIpProof *VDFProof, rewardChainSpProof *VDFProof, rewardChainIpProof *VDFProof, infusedChallengeChainIpProof *VDFProof, foliage *Foliage, foliageTransactionBlock *FoliageTransactionBlock, transactionsInfo *TransactionsInfo, transactionsGenerator []byte, transactionsGeneratorRefList unsafe.Pointer) (*FullBlock, error) {
+func NewFullBlock(finishedSubSlots []*EndOfSubSlotBundle, rewardChainBlock *RewardChainBlock, challengeChainSpProof *VDFProof, challengeChainIpProof *VDFProof, rewardChainSpProof *VDFProof, rewardChainIpProof *VDFProof, infusedChallengeChainIpProof *VDFProof, foliage *Foliage, foliageTransactionBlock *FoliageTransactionBlock, transactionsInfo *TransactionsInfo, transactionsGenerator []byte, transactionsGeneratorRefList []uint32) (*FullBlock, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	for i, item := range finishedSubSlots {
@@ -64043,9 +64995,14 @@ func NewFullBlock(finishedSubSlots []*EndOfSubSlotBundle, rewardChainBlock *Rewa
 		transactionsInfoPtr = transactionsInfo.ptr
 	}
 	transactionsGeneratorPtr, transactionsGeneratorLen := bytesToPtr(transactionsGenerator)
+	var transactionsGeneratorRefListPtr *C.uint32_t
+	if len(transactionsGeneratorRefList) > 0 {
+		transactionsGeneratorRefListPtr = (*C.uint32_t)(unsafe.Pointer(&transactionsGeneratorRefList[0]))
+	}
+	transactionsGeneratorRefListLen := C.size_t(len(transactionsGeneratorRefList))
 
 	var out unsafe.Pointer
-	ret := C.go_full_block_new((*unsafe.Pointer)(unsafe.Pointer(finishedSubSlotsPtrsC)), finishedSubSlotsLen, rewardChainBlock.ptr, challengeChainSpProofPtr, challengeChainIpProof.ptr, rewardChainSpProofPtr, rewardChainIpProof.ptr, infusedChallengeChainIpProofPtr, foliage.ptr, foliageTransactionBlockPtr, transactionsInfoPtr, transactionsGeneratorPtr, transactionsGeneratorLen, transactionsGeneratorRefList, &out)
+	ret := C.go_full_block_new((*unsafe.Pointer)(unsafe.Pointer(finishedSubSlotsPtrsC)), finishedSubSlotsLen, rewardChainBlock.ptr, challengeChainSpProofPtr, challengeChainIpProof.ptr, rewardChainSpProofPtr, rewardChainIpProof.ptr, infusedChallengeChainIpProofPtr, foliage.ptr, foliageTransactionBlockPtr, transactionsInfoPtr, transactionsGeneratorPtr, transactionsGeneratorLen, transactionsGeneratorRefListPtr, transactionsGeneratorRefListLen, &out)
 	runtime.KeepAlive(finishedSubSlots)
 	runtime.KeepAlive(rewardChainBlock)
 	runtime.KeepAlive(challengeChainSpProof)
@@ -64624,7 +65581,7 @@ func (o *FullBlock) SetTransactionsGenerator(value []byte) error {
 }
 
 // TransactionsGeneratorRefList returns the TransactionsGeneratorRefList field of the [FullBlock].
-func (o *FullBlock) TransactionsGeneratorRefList() (unsafe.Pointer, error) {
+func (o *FullBlock) TransactionsGeneratorRefList() ([]uint32, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -64635,17 +65592,25 @@ func (o *FullBlock) TransactionsGeneratorRefList() (unsafe.Pointer, error) {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	var out unsafe.Pointer
-	ret := C.go_full_block_get_transactions_generator_ref_list(o.ptr, &out)
+	var outPtr *C.uint32_t
+	var outLen C.size_t
+	ret := C.go_full_block_get_transactions_generator_ref_list(o.ptr, &outPtr, &outLen)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	if outLen == 0 {
+		return nil, nil
+	}
+	result := make([]uint32, outLen)
+	src := unsafe.Slice((*uint32)(unsafe.Pointer(outPtr)), outLen)
+	copy(result, src)
+	C.go_free_prim_list(unsafe.Pointer(outPtr), outLen, C.size_t(unsafe.Sizeof(*outPtr)))
+	return result, nil
 }
 
 // SetTransactionsGeneratorRefList updates the TransactionsGeneratorRefList field of the [FullBlock].
-func (o *FullBlock) SetTransactionsGeneratorRefList(value unsafe.Pointer) error {
+func (o *FullBlock) SetTransactionsGeneratorRefList(value []uint32) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -64656,8 +65621,13 @@ func (o *FullBlock) SetTransactionsGeneratorRefList(value unsafe.Pointer) error 
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	var valuePtr *C.uint32_t
+	if len(value) > 0 {
+		valuePtr = (*C.uint32_t)(unsafe.Pointer(&value[0]))
+	}
+	valueLen := C.size_t(len(value))
 
-	ret := C.go_full_block_set_transactions_generator_ref_list(o.ptr, value)
+	ret := C.go_full_block_set_transactions_generator_ref_list(o.ptr, valuePtr, valueLen)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -68761,7 +69731,7 @@ func (o *BlockRecord) Clone() (*BlockRecord, error) {
 }
 
 // NewBlockRecord creates a new [BlockRecord] with the given field values.
-func NewBlockRecord(headerHash []byte, prevHash []byte, height uint32, weight *big.Int, totalIters *big.Int, signagePointIndex uint8, challengeVdfOutput []byte, infusedChallengeVdfOutput []byte, rewardInfusionNewChallenge []byte, challengeBlockInfoHash []byte, subSlotIters uint64, poolPuzzleHash []byte, farmerPuzzleHash []byte, requiredIters uint64, deficit uint8, overflow bool, prevTransactionBlockHeight uint32, timestamp *uint64, prevTransactionBlockHash []byte, fees *uint64, rewardClaimsIncorporated unsafe.Pointer, finishedChallengeSlotHashes unsafe.Pointer, finishedInfusedChallengeSlotHashes unsafe.Pointer, finishedRewardSlotHashes unsafe.Pointer, subEpochSummaryIncluded *SubEpochSummary) (*BlockRecord, error) {
+func NewBlockRecord(headerHash []byte, prevHash []byte, height uint32, weight *big.Int, totalIters *big.Int, signagePointIndex uint8, challengeVdfOutput []byte, infusedChallengeVdfOutput []byte, rewardInfusionNewChallenge []byte, challengeBlockInfoHash []byte, subSlotIters uint64, poolPuzzleHash []byte, farmerPuzzleHash []byte, requiredIters uint64, deficit uint8, overflow bool, prevTransactionBlockHeight uint32, timestamp *uint64, prevTransactionBlockHash []byte, fees *uint64, rewardClaimsIncorporated []*Coin, finishedChallengeSlotHashes [][]byte, finishedInfusedChallengeSlotHashes [][]byte, finishedRewardSlotHashes [][]byte, subEpochSummaryIncluded *SubEpochSummary) (*BlockRecord, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	headerHashPtr, headerHashLen := bytesToPtr(headerHash)
@@ -68789,13 +69759,67 @@ func NewBlockRecord(headerHash []byte, prevHash []byte, height uint32, weight *b
 		feesVal = C.uint64_t(*fees)
 		feesIsSome = 1
 	}
+	rewardClaimsIncorporatedPtrs := make([]unsafe.Pointer, len(rewardClaimsIncorporated))
+	for i, item := range rewardClaimsIncorporated {
+		rewardClaimsIncorporatedPtrs[i] = item.ptr
+	}
+	var rewardClaimsIncorporatedPtrsC *unsafe.Pointer
+	if len(rewardClaimsIncorporatedPtrs) > 0 {
+		rewardClaimsIncorporatedPtrsC = &rewardClaimsIncorporatedPtrs[0]
+	}
+	rewardClaimsIncorporatedLen := C.size_t(len(rewardClaimsIncorporated))
+	finishedChallengeSlotHashesPtrs := make([]*C.uint8_t, len(finishedChallengeSlotHashes))
+	finishedChallengeSlotHashesLens := make([]C.size_t, len(finishedChallengeSlotHashes))
+	for i, b := range finishedChallengeSlotHashes {
+		if len(b) > 0 {
+			finishedChallengeSlotHashesPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		finishedChallengeSlotHashesLens[i] = C.size_t(len(b))
+	}
+	var finishedChallengeSlotHashesPtrsC **C.uint8_t
+	var finishedChallengeSlotHashesLensC *C.size_t
+	if len(finishedChallengeSlotHashes) > 0 {
+		finishedChallengeSlotHashesPtrsC = &finishedChallengeSlotHashesPtrs[0]
+		finishedChallengeSlotHashesLensC = &finishedChallengeSlotHashesLens[0]
+	}
+	finishedChallengeSlotHashesCount := C.size_t(len(finishedChallengeSlotHashes))
+	finishedInfusedChallengeSlotHashesPtrs := make([]*C.uint8_t, len(finishedInfusedChallengeSlotHashes))
+	finishedInfusedChallengeSlotHashesLens := make([]C.size_t, len(finishedInfusedChallengeSlotHashes))
+	for i, b := range finishedInfusedChallengeSlotHashes {
+		if len(b) > 0 {
+			finishedInfusedChallengeSlotHashesPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		finishedInfusedChallengeSlotHashesLens[i] = C.size_t(len(b))
+	}
+	var finishedInfusedChallengeSlotHashesPtrsC **C.uint8_t
+	var finishedInfusedChallengeSlotHashesLensC *C.size_t
+	if len(finishedInfusedChallengeSlotHashes) > 0 {
+		finishedInfusedChallengeSlotHashesPtrsC = &finishedInfusedChallengeSlotHashesPtrs[0]
+		finishedInfusedChallengeSlotHashesLensC = &finishedInfusedChallengeSlotHashesLens[0]
+	}
+	finishedInfusedChallengeSlotHashesCount := C.size_t(len(finishedInfusedChallengeSlotHashes))
+	finishedRewardSlotHashesPtrs := make([]*C.uint8_t, len(finishedRewardSlotHashes))
+	finishedRewardSlotHashesLens := make([]C.size_t, len(finishedRewardSlotHashes))
+	for i, b := range finishedRewardSlotHashes {
+		if len(b) > 0 {
+			finishedRewardSlotHashesPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		finishedRewardSlotHashesLens[i] = C.size_t(len(b))
+	}
+	var finishedRewardSlotHashesPtrsC **C.uint8_t
+	var finishedRewardSlotHashesLensC *C.size_t
+	if len(finishedRewardSlotHashes) > 0 {
+		finishedRewardSlotHashesPtrsC = &finishedRewardSlotHashesPtrs[0]
+		finishedRewardSlotHashesLensC = &finishedRewardSlotHashesLens[0]
+	}
+	finishedRewardSlotHashesCount := C.size_t(len(finishedRewardSlotHashes))
 	var subEpochSummaryIncludedPtr unsafe.Pointer
 	if subEpochSummaryIncluded != nil {
 		subEpochSummaryIncludedPtr = subEpochSummaryIncluded.ptr
 	}
 
 	var out unsafe.Pointer
-	ret := C.go_block_record_new(headerHashPtr, headerHashLen, prevHashPtr, prevHashLen, C.uint32_t(height), weightPtr, weightLen, totalItersPtr, totalItersLen, C.uint8_t(signagePointIndex), challengeVdfOutputPtr, challengeVdfOutputLen, infusedChallengeVdfOutputPtr, infusedChallengeVdfOutputLen, rewardInfusionNewChallengePtr, rewardInfusionNewChallengeLen, challengeBlockInfoHashPtr, challengeBlockInfoHashLen, C.uint64_t(subSlotIters), poolPuzzleHashPtr, poolPuzzleHashLen, farmerPuzzleHashPtr, farmerPuzzleHashLen, C.uint64_t(requiredIters), C.uint8_t(deficit), boolToInt(overflow), C.uint32_t(prevTransactionBlockHeight), timestampVal, timestampIsSome, prevTransactionBlockHashPtr, prevTransactionBlockHashLen, feesVal, feesIsSome, rewardClaimsIncorporated, finishedChallengeSlotHashes, finishedInfusedChallengeSlotHashes, finishedRewardSlotHashes, subEpochSummaryIncludedPtr, &out)
+	ret := C.go_block_record_new(headerHashPtr, headerHashLen, prevHashPtr, prevHashLen, C.uint32_t(height), weightPtr, weightLen, totalItersPtr, totalItersLen, C.uint8_t(signagePointIndex), challengeVdfOutputPtr, challengeVdfOutputLen, infusedChallengeVdfOutputPtr, infusedChallengeVdfOutputLen, rewardInfusionNewChallengePtr, rewardInfusionNewChallengeLen, challengeBlockInfoHashPtr, challengeBlockInfoHashLen, C.uint64_t(subSlotIters), poolPuzzleHashPtr, poolPuzzleHashLen, farmerPuzzleHashPtr, farmerPuzzleHashLen, C.uint64_t(requiredIters), C.uint8_t(deficit), boolToInt(overflow), C.uint32_t(prevTransactionBlockHeight), timestampVal, timestampIsSome, prevTransactionBlockHashPtr, prevTransactionBlockHashLen, feesVal, feesIsSome, (*unsafe.Pointer)(unsafe.Pointer(rewardClaimsIncorporatedPtrsC)), rewardClaimsIncorporatedLen, finishedChallengeSlotHashesPtrsC, finishedChallengeSlotHashesLensC, finishedChallengeSlotHashesCount, finishedInfusedChallengeSlotHashesPtrsC, finishedInfusedChallengeSlotHashesLensC, finishedInfusedChallengeSlotHashesCount, finishedRewardSlotHashesPtrsC, finishedRewardSlotHashesLensC, finishedRewardSlotHashesCount, subEpochSummaryIncludedPtr, &out)
 	runtime.KeepAlive(subEpochSummaryIncluded)
 	if ret != 0 {
 		return nil, lastError()
@@ -69722,7 +70746,7 @@ func (o *BlockRecord) SetFees(value *uint64) error {
 }
 
 // RewardClaimsIncorporated returns the RewardClaimsIncorporated field of the [BlockRecord].
-func (o *BlockRecord) RewardClaimsIncorporated() (unsafe.Pointer, error) {
+func (o *BlockRecord) RewardClaimsIncorporated() ([]*Coin, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -69742,11 +70766,23 @@ func (o *BlockRecord) RewardClaimsIncorporated() (unsafe.Pointer, error) {
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_coin_list_len(out)
+	result := make([]*Coin, listLen)
+	for i := range result {
+		var itemPtr unsafe.Pointer
+		if ret := C.go_coin_list_get(out, C.size_t(i), &itemPtr); ret != 0 {
+			C.go_coin_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = &Coin{ptr: itemPtr}
+		runtime.SetFinalizer(result[i], (*Coin).Free)
+	}
+	C.go_coin_list_free(out)
+	return result, nil
 }
 
 // SetRewardClaimsIncorporated updates the RewardClaimsIncorporated field of the [BlockRecord].
-func (o *BlockRecord) SetRewardClaimsIncorporated(value unsafe.Pointer) error {
+func (o *BlockRecord) SetRewardClaimsIncorporated(value []*Coin) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -69757,8 +70793,17 @@ func (o *BlockRecord) SetRewardClaimsIncorporated(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]unsafe.Pointer, len(value))
+	for i, item := range value {
+		valuePtrs[i] = item.ptr
+	}
+	var valuePtrsC *unsafe.Pointer
+	if len(valuePtrs) > 0 {
+		valuePtrsC = &valuePtrs[0]
+	}
+	valueLen := C.size_t(len(value))
 
-	ret := C.go_block_record_set_reward_claims_incorporated(o.ptr, value)
+	ret := C.go_block_record_set_reward_claims_incorporated(o.ptr, (*unsafe.Pointer)(unsafe.Pointer(valuePtrsC)), valueLen)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -69767,7 +70812,7 @@ func (o *BlockRecord) SetRewardClaimsIncorporated(value unsafe.Pointer) error {
 }
 
 // FinishedChallengeSlotHashes returns the FinishedChallengeSlotHashes field of the [BlockRecord].
-func (o *BlockRecord) FinishedChallengeSlotHashes() (unsafe.Pointer, error) {
+func (o *BlockRecord) FinishedChallengeSlotHashes() ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -69787,11 +70832,23 @@ func (o *BlockRecord) FinishedChallengeSlotHashes() (unsafe.Pointer, error) {
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
 }
 
 // SetFinishedChallengeSlotHashes updates the FinishedChallengeSlotHashes field of the [BlockRecord].
-func (o *BlockRecord) SetFinishedChallengeSlotHashes(value unsafe.Pointer) error {
+func (o *BlockRecord) SetFinishedChallengeSlotHashes(value [][]byte) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -69802,8 +70859,23 @@ func (o *BlockRecord) SetFinishedChallengeSlotHashes(value unsafe.Pointer) error
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]*C.uint8_t, len(value))
+	valueLens := make([]C.size_t, len(value))
+	for i, b := range value {
+		if len(b) > 0 {
+			valuePtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		valueLens[i] = C.size_t(len(b))
+	}
+	var valuePtrsC **C.uint8_t
+	var valueLensC *C.size_t
+	if len(value) > 0 {
+		valuePtrsC = &valuePtrs[0]
+		valueLensC = &valueLens[0]
+	}
+	valueCount := C.size_t(len(value))
 
-	ret := C.go_block_record_set_finished_challenge_slot_hashes(o.ptr, value)
+	ret := C.go_block_record_set_finished_challenge_slot_hashes(o.ptr, valuePtrsC, valueLensC, valueCount)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -69812,7 +70884,7 @@ func (o *BlockRecord) SetFinishedChallengeSlotHashes(value unsafe.Pointer) error
 }
 
 // FinishedInfusedChallengeSlotHashes returns the FinishedInfusedChallengeSlotHashes field of the [BlockRecord].
-func (o *BlockRecord) FinishedInfusedChallengeSlotHashes() (unsafe.Pointer, error) {
+func (o *BlockRecord) FinishedInfusedChallengeSlotHashes() ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -69832,11 +70904,23 @@ func (o *BlockRecord) FinishedInfusedChallengeSlotHashes() (unsafe.Pointer, erro
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
 }
 
 // SetFinishedInfusedChallengeSlotHashes updates the FinishedInfusedChallengeSlotHashes field of the [BlockRecord].
-func (o *BlockRecord) SetFinishedInfusedChallengeSlotHashes(value unsafe.Pointer) error {
+func (o *BlockRecord) SetFinishedInfusedChallengeSlotHashes(value [][]byte) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -69847,8 +70931,23 @@ func (o *BlockRecord) SetFinishedInfusedChallengeSlotHashes(value unsafe.Pointer
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]*C.uint8_t, len(value))
+	valueLens := make([]C.size_t, len(value))
+	for i, b := range value {
+		if len(b) > 0 {
+			valuePtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		valueLens[i] = C.size_t(len(b))
+	}
+	var valuePtrsC **C.uint8_t
+	var valueLensC *C.size_t
+	if len(value) > 0 {
+		valuePtrsC = &valuePtrs[0]
+		valueLensC = &valueLens[0]
+	}
+	valueCount := C.size_t(len(value))
 
-	ret := C.go_block_record_set_finished_infused_challenge_slot_hashes(o.ptr, value)
+	ret := C.go_block_record_set_finished_infused_challenge_slot_hashes(o.ptr, valuePtrsC, valueLensC, valueCount)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -69857,7 +70956,7 @@ func (o *BlockRecord) SetFinishedInfusedChallengeSlotHashes(value unsafe.Pointer
 }
 
 // FinishedRewardSlotHashes returns the FinishedRewardSlotHashes field of the [BlockRecord].
-func (o *BlockRecord) FinishedRewardSlotHashes() (unsafe.Pointer, error) {
+func (o *BlockRecord) FinishedRewardSlotHashes() ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -69877,11 +70976,23 @@ func (o *BlockRecord) FinishedRewardSlotHashes() (unsafe.Pointer, error) {
 	if out == nil {
 		return nil, nil
 	}
-	return out, nil
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
 }
 
 // SetFinishedRewardSlotHashes updates the FinishedRewardSlotHashes field of the [BlockRecord].
-func (o *BlockRecord) SetFinishedRewardSlotHashes(value unsafe.Pointer) error {
+func (o *BlockRecord) SetFinishedRewardSlotHashes(value [][]byte) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
 	}
@@ -69892,8 +71003,23 @@ func (o *BlockRecord) SetFinishedRewardSlotHashes(value unsafe.Pointer) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	valuePtrs := make([]*C.uint8_t, len(value))
+	valueLens := make([]C.size_t, len(value))
+	for i, b := range value {
+		if len(b) > 0 {
+			valuePtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		valueLens[i] = C.size_t(len(b))
+	}
+	var valuePtrsC **C.uint8_t
+	var valueLensC *C.size_t
+	if len(value) > 0 {
+		valuePtrsC = &valuePtrs[0]
+		valueLensC = &valueLens[0]
+	}
+	valueCount := C.size_t(len(value))
 
-	ret := C.go_block_record_set_finished_reward_slot_hashes(o.ptr, value)
+	ret := C.go_block_record_set_finished_reward_slot_hashes(o.ptr, valuePtrsC, valueLensC, valueCount)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return lastError()
@@ -71847,7 +72973,7 @@ func (o *Simulator) Children(coinId []byte) ([]*CoinState, error) {
 }
 
 // HintedCoins returns the coin IDs of all coins hinted with the given puzzle hash.
-func (o *Simulator) HintedCoins(hint []byte) (unsafe.Pointer, error) {
+func (o *Simulator) HintedCoins(hint []byte) ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -71866,7 +72992,19 @@ func (o *Simulator) HintedCoins(hint []byte) (unsafe.Pointer, error) {
 	if ret != 0 {
 		return nil, lastError()
 	}
-	return out, nil
+	listLen := C.go_bytes_list_len(out)
+	result := make([][]byte, listLen)
+	for i := range result {
+		var bPtr *C.uint8_t
+		var bLen C.size_t
+		if ret := C.go_bytes_list_get(out, C.size_t(i), &bPtr, &bLen); ret != 0 {
+			C.go_bytes_list_free(out)
+			return nil, lastError()
+		}
+		result[i] = C.GoBytes(unsafe.Pointer(bPtr), C.int(bLen))
+	}
+	C.go_bytes_list_free(out)
+	return result, nil
 }
 
 // CoinSpend returns the coin spend (puzzle reveal + solution) for a spent coin, or nil if not spent.
@@ -71974,7 +73112,7 @@ func (o *Simulator) NewTransaction(spendBundle *SpendBundle) error {
 }
 
 // LookupCoinIds returns the coin states for the given coin IDs.
-func (o *Simulator) LookupCoinIds(coinIds unsafe.Pointer) ([]*CoinState, error) {
+func (o *Simulator) LookupCoinIds(coinIds [][]byte) ([]*CoinState, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -71985,9 +73123,24 @@ func (o *Simulator) LookupCoinIds(coinIds unsafe.Pointer) ([]*CoinState, error) 
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	coinIdsPtrs := make([]*C.uint8_t, len(coinIds))
+	coinIdsLens := make([]C.size_t, len(coinIds))
+	for i, b := range coinIds {
+		if len(b) > 0 {
+			coinIdsPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		coinIdsLens[i] = C.size_t(len(b))
+	}
+	var coinIdsPtrsC **C.uint8_t
+	var coinIdsLensC *C.size_t
+	if len(coinIds) > 0 {
+		coinIdsPtrsC = &coinIdsPtrs[0]
+		coinIdsLensC = &coinIdsLens[0]
+	}
+	coinIdsCount := C.size_t(len(coinIds))
 
 	var out unsafe.Pointer
-	ret := C.go_simulator_lookup_coin_ids(o.ptr, coinIds, &out)
+	ret := C.go_simulator_lookup_coin_ids(o.ptr, coinIdsPtrsC, coinIdsLensC, coinIdsCount, &out)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
@@ -72008,7 +73161,7 @@ func (o *Simulator) LookupCoinIds(coinIds unsafe.Pointer) ([]*CoinState, error) 
 }
 
 // LookupPuzzleHashes returns coin states matching the given puzzle hashes, optionally including hinted coins.
-func (o *Simulator) LookupPuzzleHashes(puzzleHashes unsafe.Pointer, includeHints bool) ([]*CoinState, error) {
+func (o *Simulator) LookupPuzzleHashes(puzzleHashes [][]byte, includeHints bool) ([]*CoinState, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -72019,9 +73172,24 @@ func (o *Simulator) LookupPuzzleHashes(puzzleHashes unsafe.Pointer, includeHints
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	puzzleHashesPtrs := make([]*C.uint8_t, len(puzzleHashes))
+	puzzleHashesLens := make([]C.size_t, len(puzzleHashes))
+	for i, b := range puzzleHashes {
+		if len(b) > 0 {
+			puzzleHashesPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		puzzleHashesLens[i] = C.size_t(len(b))
+	}
+	var puzzleHashesPtrsC **C.uint8_t
+	var puzzleHashesLensC *C.size_t
+	if len(puzzleHashes) > 0 {
+		puzzleHashesPtrsC = &puzzleHashesPtrs[0]
+		puzzleHashesLensC = &puzzleHashesLens[0]
+	}
+	puzzleHashesCount := C.size_t(len(puzzleHashes))
 
 	var out unsafe.Pointer
-	ret := C.go_simulator_lookup_puzzle_hashes(o.ptr, puzzleHashes, boolToInt(includeHints), &out)
+	ret := C.go_simulator_lookup_puzzle_hashes(o.ptr, puzzleHashesPtrsC, puzzleHashesLensC, puzzleHashesCount, boolToInt(includeHints), &out)
 	runtime.KeepAlive(o)
 	if ret != 0 {
 		return nil, lastError()
@@ -73113,14 +74281,29 @@ func Sha256(value []byte) ([]byte, error) {
 }
 
 // CurryTreeHash computes the tree hash of a curried program without materializing the full CLVM tree.
-func CurryTreeHash(program []byte, args unsafe.Pointer) ([]byte, error) {
+func CurryTreeHash(program []byte, args [][]byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	programPtr, programLen := bytesToPtr(program)
+	argsPtrs := make([]*C.uint8_t, len(args))
+	argsLens := make([]C.size_t, len(args))
+	for i, b := range args {
+		if len(b) > 0 {
+			argsPtrs[i] = (*C.uint8_t)(unsafe.Pointer(&b[0]))
+		}
+		argsLens[i] = C.size_t(len(b))
+	}
+	var argsPtrsC **C.uint8_t
+	var argsLensC *C.size_t
+	if len(args) > 0 {
+		argsPtrsC = &argsPtrs[0]
+		argsLensC = &argsLens[0]
+	}
+	argsCount := C.size_t(len(args))
 
 	var outPtr *C.uint8_t
 	var outLen C.size_t
-	ret := C.go_curry_tree_hash(programPtr, programLen, args, &outPtr, &outLen)
+	ret := C.go_curry_tree_hash(programPtr, programLen, argsPtrsC, argsLensC, argsCount, &outPtr, &outLen)
 	if ret != 0 {
 		return nil, lastError()
 	}

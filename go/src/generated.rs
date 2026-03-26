@@ -78,6 +78,88 @@ pub unsafe extern "C" fn go_free_string(ptr: *mut c_char) {
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_string_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<String>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_string_list_get(ptr: *const c_void, index: usize, out_ptr: *mut *const c_char, out_len: *mut usize) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<String>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out_ptr = list[index].as_ptr() as *const c_char;
+        *out_len = list[index].len();
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_string_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<String>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_bytes_list_len(ptr: *const c_void) -> usize {
+    if ptr.is_null() {
+        return 0;
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let list = &*(ptr as *const Vec<Vec<u8>>);
+        list.len()
+    })).unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_bytes_list_get(ptr: *const c_void, index: usize, out_ptr: *mut *const u8, out_len: *mut usize) -> i32 {
+    catch(|| {
+        if ptr.is_null() {
+            return Err(bindy::Error::Custom("null pointer".to_string()));
+        }
+        let list = &*(ptr as *const Vec<Vec<u8>>);
+        if index >= list.len() {
+            return Err(bindy::Error::Custom("index out of bounds".to_string()));
+        }
+        *out_ptr = list[index].as_ptr();
+        *out_len = list[index].len();
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_bytes_list_free(ptr: *mut c_void) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(Box::from_raw(ptr as *mut Vec<Vec<u8>>));
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn go_free_prim_list(ptr: *mut c_void, len: usize, elem_size: usize) {
+    if !ptr.is_null() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let layout = std::alloc::Layout::from_size_align(len * elem_size, elem_size).unwrap();
+            std::alloc::dealloc(ptr as *mut u8, layout);
+        }));
+    }
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_spends_free(ptr: *mut c_void) {
     if !ptr.is_null() {
         drop(Box::from_raw(ptr as *mut chia_sdk_bindings::Spends));
@@ -1414,10 +1496,10 @@ pub unsafe extern "C" fn go_secret_key_derive_hardened(ptr: *const c_void, index
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_secret_key_derive_unhardened_path(ptr: *const c_void, path: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_secret_key_derive_unhardened_path(ptr: *const c_void, path_ptr: *const u32, path_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let result = <chia_sdk_bindings::SecretKey as chia_sdk_bindings::SecretKeyExt>::derive_unhardened_path(&*(ptr as *const chia_sdk_bindings::SecretKey),
-            { if (path).is_null() { return Err(bindy::Error::Custom(format!("path must not be null"))); } (*((path) as *const Vec<_>)).clone() })?;
+            { if path_len > 0 && path_ptr.is_null() { return Err(bindy::Error::Custom(format!("path must not be null"))); } if path_len == 0 { Vec::new() } else { std::slice::from_raw_parts(path_ptr, path_len).to_vec() } })?;
         let boxed: Box<chia_sdk_bindings::SecretKey> = Box::new(result);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
@@ -1425,10 +1507,10 @@ pub unsafe extern "C" fn go_secret_key_derive_unhardened_path(ptr: *const c_void
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_secret_key_derive_hardened_path(ptr: *const c_void, path: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_secret_key_derive_hardened_path(ptr: *const c_void, path_ptr: *const u32, path_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let result = <chia_sdk_bindings::SecretKey as chia_sdk_bindings::SecretKeyExt>::derive_hardened_path(&*(ptr as *const chia_sdk_bindings::SecretKey),
-            { if (path).is_null() { return Err(bindy::Error::Custom(format!("path must not be null"))); } (*((path) as *const Vec<_>)).clone() })?;
+            { if path_len > 0 && path_ptr.is_null() { return Err(bindy::Error::Custom(format!("path must not be null"))); } if path_len == 0 { Vec::new() } else { std::slice::from_raw_parts(path_ptr, path_len).to_vec() } })?;
         let boxed: Box<chia_sdk_bindings::SecretKey> = Box::new(result);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
@@ -1611,10 +1693,10 @@ pub unsafe extern "C" fn go_public_key_derive_unhardened(ptr: *const c_void, ind
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_public_key_derive_unhardened_path(ptr: *const c_void, path: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_public_key_derive_unhardened_path(ptr: *const c_void, path_ptr: *const u32, path_len: usize, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let result = <chia_sdk_bindings::PublicKey as chia_sdk_bindings::PublicKeyExt>::derive_unhardened_path(&*(ptr as *const chia_sdk_bindings::PublicKey),
-            { if (path).is_null() { return Err(bindy::Error::Custom(format!("path must not be null"))); } (*((path) as *const Vec<_>)).clone() })?;
+            { if path_len > 0 && path_ptr.is_null() { return Err(bindy::Error::Custom(format!("path must not be null"))); } if path_len == 0 { Vec::new() } else { std::slice::from_raw_parts(path_ptr, path_len).to_vec() } })?;
         let boxed: Box<chia_sdk_bindings::PublicKey> = Box::new(result);
 *out = Box::into_raw(boxed) as *mut std::ffi::c_void;
         Ok(())
@@ -2223,7 +2305,7 @@ pub unsafe extern "C" fn go_parsed_payment_new(
     p2_puzzle_hash_ptr: *const u8, p2_puzzle_hash_len: usize,
     coin: *const std::ffi::c_void,
     clawback: *const std::ffi::c_void,
-    memos: *const std::ffi::c_void,
+    memos_ptrs: *const *const std::ffi::c_char, memos_lens: *const usize, memos_count: usize,
     out: *mut *mut c_void,
 ) -> i32 {
     catch(|| {
@@ -2234,7 +2316,7 @@ pub unsafe extern "C" fn go_parsed_payment_new(
             p2_puzzle_hash: { if p2_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("p2_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(p2_puzzle_hash_ptr, p2_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
             coin: { if (coin).is_null() { return Err(bindy::Error::Custom(format!("coin must not be null"))); } (*((coin) as *const chia_sdk_bindings::Coin)).clone() },
             clawback: if clawback.is_null() { None } else { Some((*((clawback) as *const chia_sdk_bindings::ClawbackV2)).clone()) },
-            memos: { if (memos).is_null() { return Err(bindy::Error::Custom(format!("memos must not be null"))); } (*((memos) as *const Vec<_>)).clone() }
+            memos: { if memos_count > 0 && memos_ptrs.is_null() { return Err(bindy::Error::Custom(format!("memos must not be null"))); } if memos_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(memos_ptrs, memos_count); let lens = std::slice::from_raw_parts(memos_lens, memos_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } }
         };
         *out = Box::into_raw(Box::new(inner)) as *mut c_void;
         Ok(())
@@ -2393,10 +2475,10 @@ pub unsafe extern "C" fn go_parsed_payment_get_memos(ptr: *const c_void, out: *m
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_payment_set_memos(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_parsed_payment_set_memos(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_char, value_lens: *const usize, value_count: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedPayment);
-        obj.memos = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const Vec<_>)).clone() };
+        obj.memos = { if value_count > 0 && value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } if value_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } };
         Ok(())
     })
 }
@@ -2459,7 +2541,7 @@ pub unsafe extern "C" fn go_parsed_nft_transfer_new(
     p2_puzzle_hash_ptr: *const u8, p2_puzzle_hash_len: usize,
     coin: *const std::ffi::c_void,
     clawback: *const std::ffi::c_void,
-    memos: *const std::ffi::c_void,
+    memos_ptrs: *const *const std::ffi::c_char, memos_lens: *const usize, memos_count: usize,
     old_state: *const std::ffi::c_void,
     new_state: *const std::ffi::c_void,
     royalty_puzzle_hash_ptr: *const u8, royalty_puzzle_hash_len: usize,
@@ -2474,7 +2556,7 @@ pub unsafe extern "C" fn go_parsed_nft_transfer_new(
             p2_puzzle_hash: { if p2_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("p2_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(p2_puzzle_hash_ptr, p2_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
             coin: { if (coin).is_null() { return Err(bindy::Error::Custom(format!("coin must not be null"))); } (*((coin) as *const chia_sdk_bindings::Coin)).clone() },
             clawback: if clawback.is_null() { None } else { Some((*((clawback) as *const chia_sdk_bindings::ClawbackV2)).clone()) },
-            memos: { if (memos).is_null() { return Err(bindy::Error::Custom(format!("memos must not be null"))); } (*((memos) as *const Vec<_>)).clone() },
+            memos: { if memos_count > 0 && memos_ptrs.is_null() { return Err(bindy::Error::Custom(format!("memos must not be null"))); } if memos_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(memos_ptrs, memos_count); let lens = std::slice::from_raw_parts(memos_lens, memos_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } },
             old_state: { if (old_state).is_null() { return Err(bindy::Error::Custom(format!("old_state must not be null"))); } (*((old_state) as *const chia_sdk_bindings::NftState)).clone() },
             new_state: { if (new_state).is_null() { return Err(bindy::Error::Custom(format!("new_state must not be null"))); } (*((new_state) as *const chia_sdk_bindings::NftState)).clone() },
             royalty_puzzle_hash: { if royalty_puzzle_hash_ptr.is_null() { return Err(bindy::Error::Custom(format!("royalty_puzzle_hash must not be null"))); } bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(royalty_puzzle_hash_ptr, royalty_puzzle_hash_len).to_vec(), &bindy::GoContext)? },
@@ -2605,10 +2687,10 @@ pub unsafe extern "C" fn go_parsed_nft_transfer_get_memos(ptr: *const c_void, ou
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_parsed_nft_transfer_set_memos(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_parsed_nft_transfer_set_memos(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_char, value_lens: *const usize, value_count: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::ParsedNftTransfer);
-        obj.memos = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const Vec<_>)).clone() };
+        obj.memos = { if value_count > 0 && value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } if value_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } };
         Ok(())
     })
 }
@@ -16160,20 +16242,20 @@ pub unsafe extern "C" fn go_peer_request_puzzle_and_solution(ptr: *const c_void,
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_peer_remove_coin_subscriptions(ptr: *const c_void, coin_ids: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_peer_remove_coin_subscriptions(ptr: *const c_void, coin_ids_ptrs: *const *const u8, coin_ids_lens: *const usize, coin_ids_count: usize, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::Peer);
-        let result = runtime().block_on(obj.remove_coin_subscriptions(if coin_ids.is_null() { None } else { Some((*(coin_ids as *const Vec<chia_sdk_bindings::Bytes32>)).clone()) }))?;
+        let result = runtime().block_on(obj.remove_coin_subscriptions(if coin_ids_count == 0 && coin_ids_ptrs.is_null() { None } else { Some({ if coin_ids_ptrs.is_null() { return Err(bindy::Error::Custom(format!("coin_ids must not be null"))); } let ptrs = std::slice::from_raw_parts(coin_ids_ptrs, coin_ids_count); let lens = std::slice::from_raw_parts(coin_ids_lens, coin_ids_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? }) }))?;
         *out = Box::into_raw(Box::new(result)) as *mut std::ffi::c_void;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_peer_remove_puzzle_subscriptions(ptr: *const c_void, puzzle_hashes: *const std::ffi::c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_peer_remove_puzzle_subscriptions(ptr: *const c_void, puzzle_hashes_ptrs: *const *const u8, puzzle_hashes_lens: *const usize, puzzle_hashes_count: usize, out: *mut *mut std::ffi::c_void) -> i32 {
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::Peer);
-        let result = runtime().block_on(obj.remove_puzzle_subscriptions(if puzzle_hashes.is_null() { None } else { Some((*(puzzle_hashes as *const Vec<chia_sdk_bindings::Bytes32>)).clone()) }))?;
+        let result = runtime().block_on(obj.remove_puzzle_subscriptions(if puzzle_hashes_count == 0 && puzzle_hashes_ptrs.is_null() { None } else { Some({ if puzzle_hashes_ptrs.is_null() { return Err(bindy::Error::Custom(format!("puzzle_hashes must not be null"))); } let ptrs = std::slice::from_raw_parts(puzzle_hashes_ptrs, puzzle_hashes_count); let lens = std::slice::from_raw_parts(puzzle_hashes_lens, puzzle_hashes_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? }) }))?;
         *out = Box::into_raw(Box::new(result)) as *mut std::ffi::c_void;
         Ok(())
     })
@@ -19971,11 +20053,11 @@ pub unsafe extern "C" fn go_nft_metadata_clone(ptr: *const c_void, out: *mut *mu
 pub unsafe extern "C" fn go_nft_metadata_new(
     edition_number: u64,
     edition_total: u64,
-    data_uris: *const std::ffi::c_void,
+    data_uris_ptrs: *const *const std::ffi::c_char, data_uris_lens: *const usize, data_uris_count: usize,
     data_hash_ptr: *const u8, data_hash_len: usize,
-    metadata_uris: *const std::ffi::c_void,
+    metadata_uris_ptrs: *const *const std::ffi::c_char, metadata_uris_lens: *const usize, metadata_uris_count: usize,
     metadata_hash_ptr: *const u8, metadata_hash_len: usize,
-    license_uris: *const std::ffi::c_void,
+    license_uris_ptrs: *const *const std::ffi::c_char, license_uris_lens: *const usize, license_uris_count: usize,
     license_hash_ptr: *const u8, license_hash_len: usize,
     out: *mut *mut c_void,
 ) -> i32 {
@@ -19983,11 +20065,11 @@ pub unsafe extern "C" fn go_nft_metadata_new(
         let inner = chia_sdk_bindings::NftMetadata {
             edition_number: bindy::IntoRust::<_, _, bindy::Go>::into_rust(edition_number, &bindy::GoContext)?,
             edition_total: bindy::IntoRust::<_, _, bindy::Go>::into_rust(edition_total, &bindy::GoContext)?,
-            data_uris: { if (data_uris).is_null() { return Err(bindy::Error::Custom(format!("data_uris must not be null"))); } (*((data_uris) as *const Vec<_>)).clone() },
+            data_uris: { if data_uris_count > 0 && data_uris_ptrs.is_null() { return Err(bindy::Error::Custom(format!("data_uris must not be null"))); } if data_uris_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(data_uris_ptrs, data_uris_count); let lens = std::slice::from_raw_parts(data_uris_lens, data_uris_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } },
             data_hash: if data_hash_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(data_hash_ptr, data_hash_len).to_vec(), &bindy::GoContext)?) },
-            metadata_uris: { if (metadata_uris).is_null() { return Err(bindy::Error::Custom(format!("metadata_uris must not be null"))); } (*((metadata_uris) as *const Vec<_>)).clone() },
+            metadata_uris: { if metadata_uris_count > 0 && metadata_uris_ptrs.is_null() { return Err(bindy::Error::Custom(format!("metadata_uris must not be null"))); } if metadata_uris_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(metadata_uris_ptrs, metadata_uris_count); let lens = std::slice::from_raw_parts(metadata_uris_lens, metadata_uris_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } },
             metadata_hash: if metadata_hash_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(metadata_hash_ptr, metadata_hash_len).to_vec(), &bindy::GoContext)?) },
-            license_uris: { if (license_uris).is_null() { return Err(bindy::Error::Custom(format!("license_uris must not be null"))); } (*((license_uris) as *const Vec<_>)).clone() },
+            license_uris: { if license_uris_count > 0 && license_uris_ptrs.is_null() { return Err(bindy::Error::Custom(format!("license_uris must not be null"))); } if license_uris_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(license_uris_ptrs, license_uris_count); let lens = std::slice::from_raw_parts(license_uris_lens, license_uris_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } },
             license_hash: if license_hash_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(license_hash_ptr, license_hash_len).to_vec(), &bindy::GoContext)?) }
         };
         *out = Box::into_raw(Box::new(inner)) as *mut c_void;
@@ -20044,10 +20126,10 @@ pub unsafe extern "C" fn go_nft_metadata_get_data_uris(ptr: *const c_void, out: 
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_metadata_set_data_uris(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_nft_metadata_set_data_uris(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_char, value_lens: *const usize, value_count: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::NftMetadata);
-        obj.data_uris = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const Vec<_>)).clone() };
+        obj.data_uris = { if value_count > 0 && value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } if value_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } };
         Ok(())
     })
 }
@@ -20091,10 +20173,10 @@ pub unsafe extern "C" fn go_nft_metadata_get_metadata_uris(ptr: *const c_void, o
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_metadata_set_metadata_uris(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_nft_metadata_set_metadata_uris(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_char, value_lens: *const usize, value_count: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::NftMetadata);
-        obj.metadata_uris = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const Vec<_>)).clone() };
+        obj.metadata_uris = { if value_count > 0 && value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } if value_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } };
         Ok(())
     })
 }
@@ -20138,10 +20220,10 @@ pub unsafe extern "C" fn go_nft_metadata_get_license_uris(ptr: *const c_void, ou
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_nft_metadata_set_license_uris(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_nft_metadata_set_license_uris(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_char, value_lens: *const usize, value_count: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::NftMetadata);
-        obj.license_uris = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const Vec<_>)).clone() };
+        obj.license_uris = { if value_count > 0 && value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } if value_count == 0 { Vec::new() } else { let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| { let s = std::str::from_utf8(std::slice::from_raw_parts(*p as *const u8, *l)) .map_err(|e| bindy::Error::Custom(e.to_string()))?; Ok(s.to_string()) }).collect::<bindy::Result<Vec<String>>>()? } };
         Ok(())
     })
 }
@@ -29482,16 +29564,16 @@ pub unsafe extern "C" fn go_additions_and_removals_response_clone(ptr: *const c_
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_additions_and_removals_response_new(
-    additions: *const std::ffi::c_void,
-    removals: *const std::ffi::c_void,
+    additions_ptrs: *const *const std::ffi::c_void, additions_len: usize,
+    removals_ptrs: *const *const std::ffi::c_void, removals_len: usize,
     error: *const std::ffi::c_char,
     success: i32,
     out: *mut *mut c_void,
 ) -> i32 {
     catch(|| {
         let inner = chia_sdk_bindings::AdditionsAndRemovalsResponse {
-            additions: if additions.is_null() { None } else { Some((*(additions as *const Vec<chia_sdk_bindings::CoinRecord>)).clone()) },
-            removals: if removals.is_null() { None } else { Some((*(removals as *const Vec<chia_sdk_bindings::CoinRecord>)).clone()) },
+            additions: if additions_ptrs.is_null() { None } else { Some({ if additions_ptrs.is_null() { return Err(bindy::Error::Custom(format!("additions must not be null"))); } let ptrs = std::slice::from_raw_parts(additions_ptrs, additions_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("additions element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CoinRecord)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) },
+            removals: if removals_ptrs.is_null() { None } else { Some({ if removals_ptrs.is_null() { return Err(bindy::Error::Custom(format!("removals must not be null"))); } let ptrs = std::slice::from_raw_parts(removals_ptrs, removals_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("removals element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CoinRecord)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) },
             error: if error.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(error).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) },
             success: bindy::IntoRust::<_, _, bindy::Go>::into_rust(success != 0, &bindy::GoContext)?
         };
@@ -29514,10 +29596,10 @@ None => *out = std::ptr::null_mut(),
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_additions_and_removals_response_set_additions(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_additions_and_removals_response_set_additions(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::AdditionsAndRemovalsResponse);
-        obj.additions = if value.is_null() { None } else { Some((*(value as *const Vec<chia_sdk_bindings::CoinRecord>)).clone()) };
+        obj.additions = if value_ptrs.is_null() { None } else { Some({ if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CoinRecord)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) };
         Ok(())
     })
 }
@@ -29536,10 +29618,10 @@ None => *out = std::ptr::null_mut(),
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_additions_and_removals_response_set_removals(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_additions_and_removals_response_set_removals(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::AdditionsAndRemovalsResponse);
-        obj.removals = if value.is_null() { None } else { Some((*(value as *const Vec<chia_sdk_bindings::CoinRecord>)).clone()) };
+        obj.removals = if value_ptrs.is_null() { None } else { Some({ if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CoinRecord)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) };
         Ok(())
     })
 }
@@ -30050,14 +30132,14 @@ pub unsafe extern "C" fn go_get_block_records_response_clone(ptr: *const c_void,
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_get_block_records_response_new(
-    block_records: *const std::ffi::c_void,
+    block_records_ptrs: *const *const std::ffi::c_void, block_records_len: usize,
     error: *const std::ffi::c_char,
     success: i32,
     out: *mut *mut c_void,
 ) -> i32 {
     catch(|| {
         let inner = chia_sdk_bindings::GetBlockRecordsResponse {
-            block_records: if block_records.is_null() { None } else { Some((*(block_records as *const Vec<chia_sdk_bindings::BlockRecord>)).clone()) },
+            block_records: if block_records_ptrs.is_null() { None } else { Some({ if block_records_ptrs.is_null() { return Err(bindy::Error::Custom(format!("block_records must not be null"))); } let ptrs = std::slice::from_raw_parts(block_records_ptrs, block_records_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("block_records element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::BlockRecord)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) },
             error: if error.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(error).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) },
             success: bindy::IntoRust::<_, _, bindy::Go>::into_rust(success != 0, &bindy::GoContext)?
         };
@@ -30080,10 +30162,10 @@ None => *out = std::ptr::null_mut(),
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_get_block_records_response_set_block_records(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_get_block_records_response_set_block_records(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::GetBlockRecordsResponse);
-        obj.block_records = if value.is_null() { None } else { Some((*(value as *const Vec<chia_sdk_bindings::BlockRecord>)).clone()) };
+        obj.block_records = if value_ptrs.is_null() { None } else { Some({ if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::BlockRecord)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) };
         Ok(())
     })
 }
@@ -30186,14 +30268,14 @@ pub unsafe extern "C" fn go_get_blocks_response_clone(ptr: *const c_void, out: *
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_get_blocks_response_new(
-    blocks: *const std::ffi::c_void,
+    blocks_ptrs: *const *const std::ffi::c_void, blocks_len: usize,
     error: *const std::ffi::c_char,
     success: i32,
     out: *mut *mut c_void,
 ) -> i32 {
     catch(|| {
         let inner = chia_sdk_bindings::GetBlocksResponse {
-            blocks: if blocks.is_null() { None } else { Some((*(blocks as *const Vec<chia_sdk_bindings::FullBlock>)).clone()) },
+            blocks: if blocks_ptrs.is_null() { None } else { Some({ if blocks_ptrs.is_null() { return Err(bindy::Error::Custom(format!("blocks must not be null"))); } let ptrs = std::slice::from_raw_parts(blocks_ptrs, blocks_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("blocks element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::FullBlock)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) },
             error: if error.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(error).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) },
             success: bindy::IntoRust::<_, _, bindy::Go>::into_rust(success != 0, &bindy::GoContext)?
         };
@@ -30216,10 +30298,10 @@ None => *out = std::ptr::null_mut(),
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_get_blocks_response_set_blocks(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_get_blocks_response_set_blocks(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::GetBlocksResponse);
-        obj.blocks = if value.is_null() { None } else { Some((*(value as *const Vec<chia_sdk_bindings::FullBlock>)).clone()) };
+        obj.blocks = if value_ptrs.is_null() { None } else { Some({ if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::FullBlock)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) };
         Ok(())
     })
 }
@@ -30322,14 +30404,14 @@ pub unsafe extern "C" fn go_get_block_spends_response_clone(ptr: *const c_void, 
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_get_block_spends_response_new(
-    block_spends: *const std::ffi::c_void,
+    block_spends_ptrs: *const *const std::ffi::c_void, block_spends_len: usize,
     error: *const std::ffi::c_char,
     success: i32,
     out: *mut *mut c_void,
 ) -> i32 {
     catch(|| {
         let inner = chia_sdk_bindings::GetBlockSpendsResponse {
-            block_spends: if block_spends.is_null() { None } else { Some((*(block_spends as *const Vec<chia_sdk_bindings::CoinSpend>)).clone()) },
+            block_spends: if block_spends_ptrs.is_null() { None } else { Some({ if block_spends_ptrs.is_null() { return Err(bindy::Error::Custom(format!("block_spends must not be null"))); } let ptrs = std::slice::from_raw_parts(block_spends_ptrs, block_spends_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("block_spends element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CoinSpend)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) },
             error: if error.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(error).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) },
             success: bindy::IntoRust::<_, _, bindy::Go>::into_rust(success != 0, &bindy::GoContext)?
         };
@@ -30352,10 +30434,10 @@ None => *out = std::ptr::null_mut(),
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_get_block_spends_response_set_block_spends(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_get_block_spends_response_set_block_spends(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::GetBlockSpendsResponse);
-        obj.block_spends = if value.is_null() { None } else { Some((*(value as *const Vec<chia_sdk_bindings::CoinSpend>)).clone()) };
+        obj.block_spends = if value_ptrs.is_null() { None } else { Some({ if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CoinSpend)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) };
         Ok(())
     })
 }
@@ -30594,14 +30676,14 @@ pub unsafe extern "C" fn go_get_coin_records_response_clone(ptr: *const c_void, 
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_get_coin_records_response_new(
-    coin_records: *const std::ffi::c_void,
+    coin_records_ptrs: *const *const std::ffi::c_void, coin_records_len: usize,
     error: *const std::ffi::c_char,
     success: i32,
     out: *mut *mut c_void,
 ) -> i32 {
     catch(|| {
         let inner = chia_sdk_bindings::GetCoinRecordsResponse {
-            coin_records: if coin_records.is_null() { None } else { Some((*(coin_records as *const Vec<chia_sdk_bindings::CoinRecord>)).clone()) },
+            coin_records: if coin_records_ptrs.is_null() { None } else { Some({ if coin_records_ptrs.is_null() { return Err(bindy::Error::Custom(format!("coin_records must not be null"))); } let ptrs = std::slice::from_raw_parts(coin_records_ptrs, coin_records_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("coin_records element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CoinRecord)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) },
             error: if error.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(error).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) },
             success: bindy::IntoRust::<_, _, bindy::Go>::into_rust(success != 0, &bindy::GoContext)?
         };
@@ -30624,10 +30706,10 @@ None => *out = std::ptr::null_mut(),
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_get_coin_records_response_set_coin_records(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_get_coin_records_response_set_coin_records(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::GetCoinRecordsResponse);
-        obj.coin_records = if value.is_null() { None } else { Some((*(value as *const Vec<chia_sdk_bindings::CoinRecord>)).clone()) };
+        obj.coin_records = if value_ptrs.is_null() { None } else { Some({ if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::CoinRecord)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) };
         Ok(())
     })
 }
@@ -31335,14 +31417,14 @@ pub unsafe extern "C" fn go_get_mempool_items_response_clone(ptr: *const c_void,
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn go_get_mempool_items_response_new(
-    mempool_items: *const std::ffi::c_void,
+    mempool_items_ptrs: *const *const std::ffi::c_void, mempool_items_len: usize,
     error: *const std::ffi::c_char,
     success: i32,
     out: *mut *mut c_void,
 ) -> i32 {
     catch(|| {
         let inner = chia_sdk_bindings::GetMempoolItemsResponse {
-            mempool_items: if mempool_items.is_null() { None } else { Some((*(mempool_items as *const Vec<chia_sdk_bindings::MempoolItem>)).clone()) },
+            mempool_items: if mempool_items_ptrs.is_null() { None } else { Some({ if mempool_items_ptrs.is_null() { return Err(bindy::Error::Custom(format!("mempool_items must not be null"))); } let ptrs = std::slice::from_raw_parts(mempool_items_ptrs, mempool_items_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("mempool_items element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::MempoolItem)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) },
             error: if error.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::ffi::CStr::from_ptr(error).to_str().map_err(|e| bindy::Error::Custom(e.to_string()))?.to_string(), &bindy::GoContext)?) },
             success: bindy::IntoRust::<_, _, bindy::Go>::into_rust(success != 0, &bindy::GoContext)?
         };
@@ -31365,10 +31447,10 @@ None => *out = std::ptr::null_mut(),
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_get_mempool_items_response_set_mempool_items(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_get_mempool_items_response_set_mempool_items(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::GetMempoolItemsResponse);
-        obj.mempool_items = if value.is_null() { None } else { Some((*(value as *const Vec<chia_sdk_bindings::MempoolItem>)).clone()) };
+        obj.mempool_items = if value_ptrs.is_null() { None } else { Some({ if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::MempoolItem)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) };
         Ok(())
     })
 }
@@ -31778,7 +31860,7 @@ pub unsafe extern "C" fn go_full_block_new(
     foliage_transaction_block: *const std::ffi::c_void,
     transactions_info: *const std::ffi::c_void,
     transactions_generator_ptr: *const u8, transactions_generator_len: usize,
-    transactions_generator_ref_list: *const std::ffi::c_void,
+    transactions_generator_ref_list_ptr: *const u32, transactions_generator_ref_list_len: usize,
     out: *mut *mut c_void,
 ) -> i32 {
     catch(|| {
@@ -31794,7 +31876,7 @@ pub unsafe extern "C" fn go_full_block_new(
             foliage_transaction_block: if foliage_transaction_block.is_null() { None } else { Some((*((foliage_transaction_block) as *const chia_sdk_bindings::FoliageTransactionBlock)).clone()) },
             transactions_info: if transactions_info.is_null() { None } else { Some((*((transactions_info) as *const chia_sdk_bindings::TransactionsInfo)).clone()) },
             transactions_generator: if transactions_generator_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(transactions_generator_ptr, transactions_generator_len).to_vec(), &bindy::GoContext)?) },
-            transactions_generator_ref_list: { if (transactions_generator_ref_list).is_null() { return Err(bindy::Error::Custom(format!("transactions_generator_ref_list must not be null"))); } (*((transactions_generator_ref_list) as *const Vec<_>)).clone() }
+            transactions_generator_ref_list: { if transactions_generator_ref_list_len > 0 && transactions_generator_ref_list_ptr.is_null() { return Err(bindy::Error::Custom(format!("transactions_generator_ref_list must not be null"))); } if transactions_generator_ref_list_len == 0 { Vec::new() } else { std::slice::from_raw_parts(transactions_generator_ref_list_ptr, transactions_generator_ref_list_len).to_vec() } }
         };
         *out = Box::into_raw(Box::new(inner)) as *mut c_void;
         Ok(())
@@ -32041,20 +32123,22 @@ pub unsafe extern "C" fn go_full_block_set_transactions_generator(ptr: *mut c_vo
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_full_block_get_transactions_generator_ref_list(ptr: *const c_void, out: *mut *mut std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_full_block_get_transactions_generator_ref_list(ptr: *const c_void, out_ptr: *mut *mut u32, out_len: *mut usize) -> i32 {
     catch(|| {
         let obj = &*(ptr as *const chia_sdk_bindings::FullBlock);
         let val = obj.transactions_generator_ref_list.clone();
-        *out = Box::into_raw(Box::new(val)) as *mut std::ffi::c_void;
+        let boxed = val.into_boxed_slice();
+*out_len = boxed.len();
+*out_ptr = Box::into_raw(boxed) as *mut u32;
         Ok(())
     })
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_full_block_set_transactions_generator_ref_list(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_full_block_set_transactions_generator_ref_list(ptr: *mut c_void, value_ptr: *const u32, value_len: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::FullBlock);
-        obj.transactions_generator_ref_list = { if (value).is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } (*((value) as *const Vec<_>)).clone() };
+        obj.transactions_generator_ref_list = { if value_len > 0 && value_ptr.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } if value_len == 0 { Vec::new() } else { std::slice::from_raw_parts(value_ptr, value_len).to_vec() } };
         Ok(())
     })
 }
@@ -34447,10 +34531,10 @@ pub unsafe extern "C" fn go_block_record_new(
     timestamp: u64, timestamp_is_some: i32,
     prev_transaction_block_hash_ptr: *const u8, prev_transaction_block_hash_len: usize,
     fees: u64, fees_is_some: i32,
-    reward_claims_incorporated: *const std::ffi::c_void,
-    finished_challenge_slot_hashes: *const std::ffi::c_void,
-    finished_infused_challenge_slot_hashes: *const std::ffi::c_void,
-    finished_reward_slot_hashes: *const std::ffi::c_void,
+    reward_claims_incorporated_ptrs: *const *const std::ffi::c_void, reward_claims_incorporated_len: usize,
+    finished_challenge_slot_hashes_ptrs: *const *const u8, finished_challenge_slot_hashes_lens: *const usize, finished_challenge_slot_hashes_count: usize,
+    finished_infused_challenge_slot_hashes_ptrs: *const *const u8, finished_infused_challenge_slot_hashes_lens: *const usize, finished_infused_challenge_slot_hashes_count: usize,
+    finished_reward_slot_hashes_ptrs: *const *const u8, finished_reward_slot_hashes_lens: *const usize, finished_reward_slot_hashes_count: usize,
     sub_epoch_summary_included: *const std::ffi::c_void,
     out: *mut *mut c_void,
 ) -> i32 {
@@ -34476,10 +34560,10 @@ pub unsafe extern "C" fn go_block_record_new(
             timestamp: if timestamp_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(timestamp, &bindy::GoContext)?) } else { None },
             prev_transaction_block_hash: if prev_transaction_block_hash_ptr.is_null() { None } else { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(prev_transaction_block_hash_ptr, prev_transaction_block_hash_len).to_vec(), &bindy::GoContext)?) },
             fees: if fees_is_some != 0 { Some(bindy::IntoRust::<_, _, bindy::Go>::into_rust(fees, &bindy::GoContext)?) } else { None },
-            reward_claims_incorporated: if reward_claims_incorporated.is_null() { None } else { Some((*(reward_claims_incorporated as *const Vec<chia_sdk_bindings::Coin>)).clone()) },
-            finished_challenge_slot_hashes: if finished_challenge_slot_hashes.is_null() { None } else { Some((*(finished_challenge_slot_hashes as *const Vec<chia_sdk_bindings::Bytes32>)).clone()) },
-            finished_infused_challenge_slot_hashes: if finished_infused_challenge_slot_hashes.is_null() { None } else { Some((*(finished_infused_challenge_slot_hashes as *const Vec<chia_sdk_bindings::Bytes32>)).clone()) },
-            finished_reward_slot_hashes: if finished_reward_slot_hashes.is_null() { None } else { Some((*(finished_reward_slot_hashes as *const Vec<chia_sdk_bindings::Bytes32>)).clone()) },
+            reward_claims_incorporated: if reward_claims_incorporated_ptrs.is_null() { None } else { Some({ if reward_claims_incorporated_ptrs.is_null() { return Err(bindy::Error::Custom(format!("reward_claims_incorporated must not be null"))); } let ptrs = std::slice::from_raw_parts(reward_claims_incorporated_ptrs, reward_claims_incorporated_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("reward_claims_incorporated element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Coin)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) },
+            finished_challenge_slot_hashes: if finished_challenge_slot_hashes_count == 0 && finished_challenge_slot_hashes_ptrs.is_null() { None } else { Some({ if finished_challenge_slot_hashes_ptrs.is_null() { return Err(bindy::Error::Custom(format!("finished_challenge_slot_hashes must not be null"))); } let ptrs = std::slice::from_raw_parts(finished_challenge_slot_hashes_ptrs, finished_challenge_slot_hashes_count); let lens = std::slice::from_raw_parts(finished_challenge_slot_hashes_lens, finished_challenge_slot_hashes_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? }) },
+            finished_infused_challenge_slot_hashes: if finished_infused_challenge_slot_hashes_count == 0 && finished_infused_challenge_slot_hashes_ptrs.is_null() { None } else { Some({ if finished_infused_challenge_slot_hashes_ptrs.is_null() { return Err(bindy::Error::Custom(format!("finished_infused_challenge_slot_hashes must not be null"))); } let ptrs = std::slice::from_raw_parts(finished_infused_challenge_slot_hashes_ptrs, finished_infused_challenge_slot_hashes_count); let lens = std::slice::from_raw_parts(finished_infused_challenge_slot_hashes_lens, finished_infused_challenge_slot_hashes_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? }) },
+            finished_reward_slot_hashes: if finished_reward_slot_hashes_count == 0 && finished_reward_slot_hashes_ptrs.is_null() { None } else { Some({ if finished_reward_slot_hashes_ptrs.is_null() { return Err(bindy::Error::Custom(format!("finished_reward_slot_hashes must not be null"))); } let ptrs = std::slice::from_raw_parts(finished_reward_slot_hashes_ptrs, finished_reward_slot_hashes_count); let lens = std::slice::from_raw_parts(finished_reward_slot_hashes_lens, finished_reward_slot_hashes_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? }) },
             sub_epoch_summary_included: if sub_epoch_summary_included.is_null() { None } else { Some((*((sub_epoch_summary_included) as *const chia_sdk_bindings::SubEpochSummary)).clone()) }
         };
         *out = Box::into_raw(Box::new(inner)) as *mut c_void;
@@ -34943,10 +35027,10 @@ None => *out = std::ptr::null_mut(),
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_block_record_set_reward_claims_incorporated(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_block_record_set_reward_claims_incorporated(ptr: *mut c_void, value_ptrs: *const *const std::ffi::c_void, value_len: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::BlockRecord);
-        obj.reward_claims_incorporated = if value.is_null() { None } else { Some((*(value as *const Vec<chia_sdk_bindings::Coin>)).clone()) };
+        obj.reward_claims_incorporated = if value_ptrs.is_null() { None } else { Some({ if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_len); ptrs.iter().map(|p| { if (*p).is_null() { return Err(bindy::Error::Custom(format!("value element must not be null"))); } Ok((*((*p) as *const chia_sdk_bindings::Coin)).clone()) }).collect::<bindy::Result<Vec<_>>>()? }) };
         Ok(())
     })
 }
@@ -34965,10 +35049,10 @@ None => *out = std::ptr::null_mut(),
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_block_record_set_finished_challenge_slot_hashes(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_block_record_set_finished_challenge_slot_hashes(ptr: *mut c_void, value_ptrs: *const *const u8, value_lens: *const usize, value_count: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::BlockRecord);
-        obj.finished_challenge_slot_hashes = if value.is_null() { None } else { Some((*(value as *const Vec<chia_sdk_bindings::Bytes32>)).clone()) };
+        obj.finished_challenge_slot_hashes = if value_count == 0 && value_ptrs.is_null() { None } else { Some({ if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? }) };
         Ok(())
     })
 }
@@ -34987,10 +35071,10 @@ None => *out = std::ptr::null_mut(),
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_block_record_set_finished_infused_challenge_slot_hashes(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_block_record_set_finished_infused_challenge_slot_hashes(ptr: *mut c_void, value_ptrs: *const *const u8, value_lens: *const usize, value_count: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::BlockRecord);
-        obj.finished_infused_challenge_slot_hashes = if value.is_null() { None } else { Some((*(value as *const Vec<chia_sdk_bindings::Bytes32>)).clone()) };
+        obj.finished_infused_challenge_slot_hashes = if value_count == 0 && value_ptrs.is_null() { None } else { Some({ if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? }) };
         Ok(())
     })
 }
@@ -35009,10 +35093,10 @@ None => *out = std::ptr::null_mut(),
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn go_block_record_set_finished_reward_slot_hashes(ptr: *mut c_void, value: *const std::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn go_block_record_set_finished_reward_slot_hashes(ptr: *mut c_void, value_ptrs: *const *const u8, value_lens: *const usize, value_count: usize) -> i32 {
     catch(|| {
         let obj = &mut *(ptr as *mut chia_sdk_bindings::BlockRecord);
-        obj.finished_reward_slot_hashes = if value.is_null() { None } else { Some((*(value as *const Vec<chia_sdk_bindings::Bytes32>)).clone()) };
+        obj.finished_reward_slot_hashes = if value_count == 0 && value_ptrs.is_null() { None } else { Some({ if value_ptrs.is_null() { return Err(bindy::Error::Custom(format!("value must not be null"))); } let ptrs = std::slice::from_raw_parts(value_ptrs, value_count); let lens = std::slice::from_raw_parts(value_lens, value_count); ptrs.iter().zip(lens.iter()).map(|(p, l)| bindy::IntoRust::<_, _, bindy::Go>::into_rust(std::slice::from_raw_parts(*p, *l).to_vec(), &bindy::GoContext) ).collect::<bindy::Result<Vec<_>>>()? }) };
         Ok(())
     })
 }

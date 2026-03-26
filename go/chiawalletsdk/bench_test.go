@@ -3,7 +3,6 @@ package chiawalletsdk
 import (
 	"crypto/sha256"
 	"testing"
-	"unsafe"
 )
 
 // ── BLS Cryptography ────────────────────────────────────────────────────
@@ -595,57 +594,5 @@ func BenchmarkBatchCatIssuance_1(b *testing.B)  { benchmarkBatchCatIssuance(b, 1
 func BenchmarkBatchCatIssuance_10(b *testing.B) { benchmarkBatchCatIssuance(b, 10) }
 func BenchmarkBatchCatIssuance_25(b *testing.B) { benchmarkBatchCatIssuance(b, 25) }
 
-func benchmarkBatchNftMint(b *testing.B, n int) {
-	sim, _ := SimulatorNew()
-	defer sim.Free()
-
-	for i := 0; i < b.N; i++ {
-		totalAmount := uint64(n + 100)
-		pair, _ := sim.Bls(totalAmount)
-		sk, _ := pair.Sk()
-		coin, _ := pair.Coin()
-		puzzleHash, _ := pair.PuzzleHash()
-
-		clvm, _ := ClvmNew()
-		spends, _ := SpendsNew(clvm, puzzleHash)
-		spends.AddXch(coin)
-
-		updaterPh := make([]byte, 32)
-		actions := make([]*Action, 0, n+1)
-		for j := 0; j < n; j++ {
-			nftMeta, _ := NewNftMetadata(uint64(j+1), uint64(n), unsafe.Pointer(nil), nil, unsafe.Pointer(nil), nil, unsafe.Pointer(nil), nil)
-			metadata, _ := clvm.NftMetadata(nftMeta)
-			nftMeta.Free()
-			mint, _ := NewActionMintNft(clvm, metadata, updaterPh, puzzleHash, 300, 1, nil)
-			metadata.Free()
-			actions = append(actions, mint)
-		}
-		fee, _ := NewActionFee(100)
-		actions = append(actions, fee)
-
-		deltas, _ := spends.Apply(actions)
-		finished, _ := spends.Prepare(deltas)
-		outputs, _ := finished.Spend()
-		coinSpends, _ := clvm.CoinSpends()
-		sim.SpendCoins(coinSpends, []*SecretKey{sk})
-
-		for _, cs := range coinSpends {
-			cs.Free()
-		}
-		outputs.Free()
-		finished.Free()
-		deltas.Free()
-		for _, a := range actions {
-			a.Free()
-		}
-		spends.Free()
-		clvm.Free()
-		coin.Free()
-		sk.Free()
-		pair.Free()
-	}
-}
-
-func BenchmarkBatchNftMint_1(b *testing.B)  { benchmarkBatchNftMint(b, 1) }
-func BenchmarkBatchNftMint_10(b *testing.B) { benchmarkBatchNftMint(b, 10) }
-func BenchmarkBatchNftMint_25(b *testing.B) { benchmarkBatchNftMint(b, 25) }
+// NOTE: NFT minting benchmarks are not yet possible because NewNftMetadata
+// requires Vec<String> parameters which have no Go constructor.
