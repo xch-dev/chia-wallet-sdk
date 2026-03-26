@@ -396,11 +396,13 @@ func BenchmarkXchSpendAndConfirm(b *testing.B) {
 	defer sim.Free()
 
 	for i := 0; i < b.N; i++ {
+		b.StopTimer()
 		pair, _ := sim.Bls(1_000_000)
 		sk, _ := pair.Sk()
 		pk, _ := pair.Pk()
 		coin, _ := pair.Coin()
 		puzzleHash, _ := pair.PuzzleHash()
+		b.StartTimer()
 
 		clvm, _ := ClvmNew()
 		cc, _ := clvm.CreateCoin(puzzleHash, 999_900, nil)
@@ -433,12 +435,14 @@ func BenchmarkMultiCoinConsolidation(b *testing.B) {
 	defer sim.Free()
 
 	for i := 0; i < b.N; i++ {
+		b.StopTimer()
 		pairs := make([]*BlsPairWithCoin, 5)
 		sks := make([]*SecretKey, 5)
 		for j := 0; j < 5; j++ {
 			pairs[j], _ = sim.Bls(200_000)
 			sks[j], _ = pairs[j].Sk()
 		}
+		b.StartTimer()
 
 		destPh, _ := pairs[0].PuzzleHash()
 		clvm, _ := ClvmNew()
@@ -494,11 +498,13 @@ func benchmarkBatchXchSend(b *testing.B, n int) {
 	defer sim.Free()
 
 	for i := 0; i < b.N; i++ {
+		b.StopTimer()
 		totalAmount := uint64(n*100_000 + 100)
 		pair, _ := sim.Bls(totalAmount)
 		sk, _ := pair.Sk()
 		coin, _ := pair.Coin()
 		puzzleHash, _ := pair.PuzzleHash()
+		b.StartTimer()
 
 		clvm, _ := ClvmNew()
 		spends, _ := SpendsNew(clvm, puzzleHash)
@@ -549,11 +555,13 @@ func benchmarkBatchCatIssuance(b *testing.B, n int) {
 	defer sim.Free()
 
 	for i := 0; i < b.N; i++ {
+		b.StopTimer()
 		totalAmount := uint64(n*1000 + 100)
 		pair, _ := sim.Bls(totalAmount)
 		sk, _ := pair.Sk()
 		coin, _ := pair.Coin()
 		puzzleHash, _ := pair.PuzzleHash()
+		b.StartTimer()
 
 		clvm, _ := ClvmNew()
 		spends, _ := SpendsNew(clvm, puzzleHash)
@@ -594,5 +602,66 @@ func BenchmarkBatchCatIssuance_1(b *testing.B)  { benchmarkBatchCatIssuance(b, 1
 func BenchmarkBatchCatIssuance_10(b *testing.B) { benchmarkBatchCatIssuance(b, 10) }
 func BenchmarkBatchCatIssuance_25(b *testing.B) { benchmarkBatchCatIssuance(b, 25) }
 
-// NOTE: NFT minting benchmarks are not yet possible because NewNftMetadata
-// requires Vec<String> parameters which have no Go constructor.
+func benchmarkBatchNftMint(b *testing.B, n int) {
+	sim, _ := SimulatorNew()
+	defer sim.Free()
+
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		totalAmount := uint64(n + 100)
+		pair, _ := sim.Bls(totalAmount)
+		sk, _ := pair.Sk()
+		coin, _ := pair.Coin()
+		puzzleHash, _ := pair.PuzzleHash()
+		b.StartTimer()
+
+		clvm, _ := ClvmNew()
+		spends, _ := SpendsNew(clvm, puzzleHash)
+		spends.AddXch(coin)
+
+		updater, _ := clvm.NftMetadataUpdaterDefault()
+		updaterHash, _ := updater.TreeHash()
+
+		actions := make([]*Action, 0, n+1)
+		for j := 0; j < n; j++ {
+			metadata, _ := NewNftMetadata(
+				uint64(j+1), uint64(n),
+				[]string{"https://example.com/nft.png"},
+				nil, nil, nil, nil, nil,
+			)
+			metadataProgram, _ := clvm.NftMetadata(metadata)
+			mint, _ := NewActionMintNft(clvm, metadataProgram, updaterHash, puzzleHash, 0, 1, nil)
+			actions = append(actions, mint)
+			metadataProgram.Free()
+			metadata.Free()
+		}
+		fee, _ := NewActionFee(100)
+		actions = append(actions, fee)
+
+		deltas, _ := spends.Apply(actions)
+		finished, _ := spends.Prepare(deltas)
+		outputs, _ := finished.Spend()
+		coinSpends, _ := clvm.CoinSpends()
+		sim.SpendCoins(coinSpends, []*SecretKey{sk})
+
+		for _, cs := range coinSpends {
+			cs.Free()
+		}
+		outputs.Free()
+		finished.Free()
+		deltas.Free()
+		for _, a := range actions {
+			a.Free()
+		}
+		updater.Free()
+		spends.Free()
+		clvm.Free()
+		coin.Free()
+		sk.Free()
+		pair.Free()
+	}
+}
+
+func BenchmarkBatchNftMint_1(b *testing.B)  { benchmarkBatchNftMint(b, 1) }
+func BenchmarkBatchNftMint_10(b *testing.B) { benchmarkBatchNftMint(b, 10) }
+func BenchmarkBatchNftMint_25(b *testing.B) { benchmarkBatchNftMint(b, 25) }
