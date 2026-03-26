@@ -1,6 +1,6 @@
 // Package chiawalletsdk provides Go bindings for the Chia Wallet SDK.
 //
-// This package uses CGo to call into a Rust shared library that
+// This package uses CGo to call into a Rust static library that
 // implements the core Chia blockchain wallet functionality. Build the
 // library first with:
 //
@@ -48,9 +48,8 @@
 // # Thread safety
 //
 // All types are safe for concurrent use from multiple goroutines.
-// The underlying Rust types use Arc<Mutex<T>> for internal
-// synchronization, and each Go wrapper includes a sync.RWMutex that
-// serializes Close/Free against concurrent method calls.
+// Each Go wrapper includes a sync.RWMutex that serializes
+// Close/Free against concurrent method calls.
 //
 // Concurrent method calls on the same object are allowed — they
 // acquire a shared read lock and the Rust mutex handles serialization.
