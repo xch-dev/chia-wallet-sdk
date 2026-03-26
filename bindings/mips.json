@@ -1,6 +1,7 @@
 {
   "Vault": {
     "type": "class",
+    "doc": "represents a MIPS vault singleton coin with its lineage proof and configuration info.",
     "new": true,
     "fields": {
       "coin": "Coin",
@@ -9,6 +10,7 @@
     },
     "methods": {
       "child": {
+        "doc": "computes the expected child vault after a spend with the given custody hash and amount.",
         "args": {
           "custody_hash": "TreeHash",
           "amount": "u64"
@@ -19,6 +21,7 @@
   },
   "VaultInfo": {
     "type": "class",
+    "doc": "holds the launcher ID and current custody hash that define a MIPS vault's identity and access control.",
     "new": true,
     "remote": true,
     "fields": {
@@ -28,6 +31,7 @@
   },
   "MemberConfig": {
     "type": "class",
+    "doc": "configures a MIPS vault member with its signing nonce, top-level status, and spending restrictions.",
     "fields": {
       "top_level": "bool",
       "nonce": "u32",
@@ -35,21 +39,25 @@
     },
     "methods": {
       "new": {
+        "doc": "creates a default MemberConfig with top_level false, nonce 0, and no restrictions.",
         "type": "constructor"
       },
       "with_top_level": {
+        "doc": "returns a copy of this config with the top-level flag set (true if this member is the root signer).",
         "args": {
           "top_level": "bool"
         },
         "return": "MemberConfig"
       },
       "with_nonce": {
+        "doc": "returns a copy of this config with the given nonce, used to differentiate members with the same key.",
         "args": {
           "nonce": "u32"
         },
         "return": "MemberConfig"
       },
       "with_restrictions": {
+        "doc": "returns a copy of this config with the given spending restrictions applied to the member.",
         "args": {
           "restrictions": "Vec<Restriction>"
         },
@@ -69,7 +77,7 @@
   },
   "k1_member_hash": {
     "type": "function",
-    "doc": "computes the custody hash for a secp256k1 member.",
+    "doc": "computes the custody hash for a secp256k1 member, used for Bitcoin-compatible vault signing.",
     "args": {
       "config": "MemberConfig",
       "public_key": "K1PublicKey",
@@ -79,7 +87,7 @@
   },
   "r1_member_hash": {
     "type": "function",
-    "doc": "computes the custody hash for a secp256r1 member.",
+    "doc": "computes the custody hash for a secp256r1 (P-256) member, used for passkey-compatible vault signing.",
     "args": {
       "config": "MemberConfig",
       "public_key": "R1PublicKey",
@@ -89,7 +97,7 @@
   },
   "bls_member_hash": {
     "type": "function",
-    "doc": "computes the custody hash for a BLS member.",
+    "doc": "computes the custody hash for a BLS member, used for standard Chia key vault signing.",
     "args": {
       "config": "MemberConfig",
       "public_key": "PublicKey",
@@ -99,7 +107,7 @@
   },
   "passkey_member_hash": {
     "type": "function",
-    "doc": "computes the custody hash for a passkey (WebAuthn) member.",
+    "doc": "computes the custody hash for a passkey (WebAuthn) member, used for browser-based vault authentication.",
     "args": {
       "config": "MemberConfig",
       "public_key": "R1PublicKey",
@@ -109,6 +117,7 @@
   },
   "singleton_member_hash": {
     "type": "function",
+    "doc": "computes the custody hash for a singleton member, allowing another singleton to authorize vault spends.",
     "args": {
       "config": "MemberConfig",
       "launcher_id": "Bytes32",
@@ -118,6 +127,7 @@
   },
   "fixed_member_hash": {
     "type": "function",
+    "doc": "computes the custody hash for a fixed-puzzle member that always runs a specific puzzle.",
     "args": {
       "config": "MemberConfig",
       "fixed_puzzle_hash": "Bytes32"
@@ -126,6 +136,7 @@
   },
   "custom_member_hash": {
     "type": "function",
+    "doc": "computes the custody hash for a custom member with an arbitrary inner puzzle hash.",
     "args": {
       "config": "MemberConfig",
       "inner_hash": "TreeHash"
@@ -134,6 +145,7 @@
   },
   "Restriction": {
     "type": "class",
+    "doc": "represents a spending restriction applied to a MIPS vault member, constraining what actions the member can authorize.",
     "new": true,
     "fields": {
       "kind": "RestrictionKind",
@@ -142,6 +154,7 @@
   },
   "RestrictionKind": {
     "type": "enum",
+    "doc": "specifies the type of MIPS vault restriction: validating member conditions, restricting delegated puzzle hashes, or wrapping delegated puzzles.",
     "values": [
       "MemberCondition",
       "DelegatedPuzzleHash",
@@ -150,6 +163,7 @@
   },
   "timelock_restriction": {
     "type": "function",
+    "doc": "creates a restriction that enforces a minimum timelock (in seconds) before the member can authorize a spend.",
     "args": {
       "timelock": "u64"
     },
@@ -157,6 +171,7 @@
   },
   "force_1_of_2_restriction": {
     "type": "function",
+    "doc": "creates a restriction that forces a 1-of-2 structure, used for vault recovery where one side can override the other.",
     "args": {
       "left_side_subtree_hash": "Bytes32",
       "nonce": "u32",
@@ -167,6 +182,7 @@
   },
   "prevent_condition_opcode_restriction": {
     "type": "function",
+    "doc": "creates a restriction that prevents the member from emitting conditions with the given opcode.",
     "args": {
       "condition_opcode": "u16"
     },
@@ -174,27 +190,33 @@
   },
   "prevent_multiple_create_coins_restriction": {
     "type": "function",
+    "doc": "creates a restriction that prevents the member from creating more than one output coin per spend.",
     "return": "Restriction"
   },
   "prevent_vault_side_effects_restriction": {
     "type": "function",
+    "doc": "creates a set of restrictions that prevent common vault side effects like announcements and multiple create coins.",
     "return": "Vec<Restriction>"
   },
   "MipsSpend": {
     "type": "class",
+    "doc": "builds the spend reveal for a MIPS vault by composing member proofs, M-of-N paths, and restriction layers.",
     "methods": {
       "spend": {
+        "doc": "finalizes the MIPS spend and returns a Spend (puzzle reveal + solution) for the given custody hash.",
         "args": {
           "custody_hash": "TreeHash"
         },
         "return": "Spend"
       },
       "spend_vault": {
+        "doc": "applies this MIPS spend to a vault coin, producing the coin spend for inclusion in a transaction.",
         "args": {
           "vault": "Vault"
         }
       },
       "m_of_n": {
+        "doc": "adds an M-of-N multisig layer to the spend, specifying which branch of the Merkle tree is being revealed.",
         "args": {
           "config": "MemberConfig",
           "required": "u32",
@@ -202,6 +224,7 @@
         }
       },
       "k1_member": {
+        "doc": "adds a secp256k1 member signature to the spend for Bitcoin-compatible vault authorization.",
         "args": {
           "config": "MemberConfig",
           "public_key": "K1PublicKey",
@@ -210,6 +233,7 @@
         }
       },
       "r1_member": {
+        "doc": "adds a secp256r1 (P-256) member signature to the spend.",
         "args": {
           "config": "MemberConfig",
           "public_key": "R1PublicKey",
@@ -218,6 +242,7 @@
         }
       },
       "bls_member": {
+        "doc": "adds a BLS member to the spend (the BLS signature is aggregated separately into the spend bundle).",
         "args": {
           "config": "MemberConfig",
           "public_key": "PublicKey",
@@ -225,6 +250,7 @@
         }
       },
       "passkey_member": {
+        "doc": "adds a passkey (WebAuthn) member to the spend with the authenticator data and client JSON from the browser.",
         "args": {
           "config": "MemberConfig",
           "public_key": "R1PublicKey",
@@ -236,6 +262,7 @@
         }
       },
       "singleton_member": {
+        "doc": "adds a singleton member to the spend, proving that the authorizing singleton exists at the given state.",
         "args": {
           "config": "MemberConfig",
           "launcher_id": "Bytes32",
@@ -245,23 +272,27 @@
         }
       },
       "fixed_puzzle_member": {
+        "doc": "adds a fixed-puzzle member to the spend that always runs the same predetermined puzzle.",
         "args": {
           "config": "MemberConfig",
           "fixed_puzzle_hash": "Bytes32"
         }
       },
       "custom_member": {
+        "doc": "adds a custom member to the spend with an arbitrary puzzle reveal and solution.",
         "args": {
           "config": "MemberConfig",
           "spend": "Spend"
         }
       },
       "timelock": {
+        "doc": "applies a timelock restriction to the spend, asserting the required seconds have elapsed.",
         "args": {
           "timelock": "u64"
         }
       },
       "force_1_of_2_restricted_variable": {
+        "doc": "applies the force-1-of-2 restriction for vault recovery, replacing the right-side member hash.",
         "args": {
           "left_side_subtree_hash": "Bytes32",
           "nonce": "u32",
@@ -271,16 +302,22 @@
         }
       },
       "prevent_condition_opcode": {
+        "doc": "applies a restriction that prevents emitting conditions with the given opcode.",
         "args": {
           "condition_opcode": "u16"
         }
       },
-      "prevent_multiple_create_coins": {},
-      "prevent_vault_side_effects": {}
+      "prevent_multiple_create_coins": {
+        "doc": "applies a restriction that prevents creating more than one output coin."
+      },
+      "prevent_vault_side_effects": {
+        "doc": "applies all standard vault side-effect prevention restrictions."
+      }
     }
   },
   "VaultMint": {
     "type": "class",
+    "doc": "holds the result of minting a new MIPS vault, including the vault singleton and any parent conditions needed.",
     "new": true,
     "fields": {
       "vault": "Vault",
@@ -289,6 +326,7 @@
   },
   "wrapped_delegated_puzzle_hash": {
     "type": "function",
+    "doc": "computes the puzzle hash of a delegated puzzle after wrapping it with the given restrictions.",
     "args": {
       "restrictions": "Vec<Restriction>",
       "delegated_puzzle_hash": "TreeHash"
@@ -297,18 +335,21 @@
   },
   "MipsMemo": {
     "type": "class",
+    "doc": "represents a MIPS vault memo attached to coin hints, encoding the vault's inner puzzle structure for wallet discovery.",
     "new": true,
     "fields": {
       "inner_puzzle": "InnerPuzzleMemo"
     },
     "methods": {
       "inner_puzzle_hash": {
+        "doc": "computes the inner puzzle hash from this memo, used to verify vault coin puzzle hashes.",
         "return": "TreeHash"
       }
     }
   },
   "InnerPuzzleMemo": {
     "type": "class",
+    "doc": "encodes a MIPS vault member or M-of-N structure as a memo, including nonce and restriction info.",
     "new": true,
     "fields": {
       "nonce": "u32",
@@ -317,6 +358,7 @@
     },
     "methods": {
       "inner_puzzle_hash": {
+        "doc": "computes the inner puzzle hash from this memo structure with the given top-level flag.",
         "args": {
           "top_level": "bool"
         },
@@ -326,6 +368,7 @@
   },
   "RestrictionMemo": {
     "type": "class",
+    "doc": "encodes a MIPS vault restriction as a memo for wallet discovery and puzzle hash reconstruction.",
     "new": true,
     "fields": {
       "member_condition_validator": "bool",
@@ -334,6 +377,7 @@
     },
     "methods": {
       "force_1_of_2_restricted_variable": {
+        "doc": "creates a restriction memo for the force-1-of-2 recovery restriction.",
         "type": "factory",
         "args": {
           "clvm": "Clvm",
@@ -344,6 +388,7 @@
         }
       },
       "enforce_delegated_puzzle_wrappers": {
+        "doc": "creates a restriction memo that enforces a list of delegated puzzle wrappers.",
         "type": "factory",
         "args": {
           "clvm": "Clvm",
@@ -351,6 +396,7 @@
         }
       },
       "timelock": {
+        "doc": "creates a restriction memo for a timelock restriction with the given duration in seconds.",
         "type": "factory",
         "args": {
           "clvm": "Clvm",
@@ -362,6 +408,7 @@
   },
   "WrapperMemo": {
     "type": "class",
+    "doc": "encodes a delegated puzzle wrapper restriction as a memo for MIPS vault discovery.",
     "new": true,
     "fields": {
       "puzzle_hash": "Bytes32",
@@ -369,6 +416,7 @@
     },
     "methods": {
       "prevent_vault_side_effects": {
+        "doc": "creates wrapper memos for all standard vault side-effect prevention wrappers.",
         "type": "static",
         "args": {
           "clvm": "Clvm",
@@ -377,24 +425,28 @@
         "return": "Vec<WrapperMemo>"
       },
       "force_coin_announcement": {
+        "doc": "creates a wrapper memo that forces a coin announcement in every vault spend.",
         "type": "factory",
         "args": {
           "clvm": "Clvm"
         }
       },
       "force_coin_message": {
+        "doc": "creates a wrapper memo that forces a coin message (CHIP-0025) in every vault spend.",
         "type": "factory",
         "args": {
           "clvm": "Clvm"
         }
       },
       "prevent_multiple_create_coins": {
+        "doc": "creates a wrapper memo that prevents creating more than one output coin.",
         "type": "factory",
         "args": {
           "clvm": "Clvm"
         }
       },
       "timelock": {
+        "doc": "creates a wrapper memo that enforces a minimum timelock in seconds.",
         "type": "factory",
         "args": {
           "clvm": "Clvm",
@@ -403,6 +455,7 @@
         }
       },
       "prevent_condition_opcode": {
+        "doc": "creates a wrapper memo that prevents emitting conditions with the given opcode.",
         "type": "factory",
         "args": {
           "clvm": "Clvm",
@@ -414,6 +467,7 @@
   },
   "Force1of2RestrictedVariableMemo": {
     "type": "class",
+    "doc": "holds the parameters for a force-1-of-2 restriction memo used in MIPS vault recovery configuration.",
     "new": true,
     "fields": {
       "left_side_subtree_hash": "Bytes32",
@@ -424,32 +478,39 @@
   },
   "MemoKind": {
     "type": "class",
+    "doc": "represents the kind of MIPS vault inner puzzle memo: either a single member or an M-of-N multisig.",
     "methods": {
       "member": {
+        "doc": "creates a MemoKind for a single vault member.",
         "type": "factory",
         "args": {
           "member": "MemberMemo"
         }
       },
       "m_of_n": {
+        "doc": "creates a MemoKind for an M-of-N multisig structure.",
         "type": "factory",
         "args": {
           "m_of_n": "MofNMemo"
         }
       },
       "as_member": {
+        "doc": "returns the member memo if this is a single member kind, or nil otherwise.",
         "return": "Option<MemberMemo>"
       },
       "as_m_of_n": {
+        "doc": "returns the M-of-N memo if this is a multisig kind, or nil otherwise.",
         "return": "Option<MofNMemo>"
       },
       "inner_puzzle_hash": {
+        "doc": "computes the inner puzzle hash from this memo kind.",
         "return": "TreeHash"
       }
     }
   },
   "MemberMemo": {
     "type": "class",
+    "doc": "encodes a single MIPS vault member as a memo, including the member puzzle hash and key/config data.",
     "new": true,
     "fields": {
       "puzzle_hash": "Bytes32",
@@ -457,6 +518,7 @@
     },
     "methods": {
       "k1": {
+        "doc": "creates a member memo for a secp256k1 (Bitcoin-compatible) signer.",
         "type": "factory",
         "args": {
           "clvm": "Clvm",
@@ -466,6 +528,7 @@
         }
       },
       "r1": {
+        "doc": "creates a member memo for a secp256r1 (P-256) signer.",
         "type": "factory",
         "args": {
           "clvm": "Clvm",
@@ -475,6 +538,7 @@
         }
       },
       "bls": {
+        "doc": "creates a member memo for a BLS (standard Chia) signer.",
         "type": "factory",
         "args": {
           "clvm": "Clvm",
@@ -485,6 +549,7 @@
         }
       },
       "passkey": {
+        "doc": "creates a member memo for a passkey (WebAuthn) signer.",
         "type": "factory",
         "args": {
           "clvm": "Clvm",
@@ -494,6 +559,7 @@
         }
       },
       "singleton": {
+        "doc": "creates a member memo for a singleton-based signer identified by its launcher ID.",
         "type": "factory",
         "args": {
           "clvm": "Clvm",
@@ -503,6 +569,7 @@
         }
       },
       "fixed_puzzle": {
+        "doc": "creates a member memo for a fixed-puzzle signer that always runs the same puzzle.",
         "type": "factory",
         "args": {
           "clvm": "Clvm",
@@ -514,6 +581,7 @@
   },
   "MofNMemo": {
     "type": "class",
+    "doc": "encodes an M-of-N multisig structure as a memo, listing the required threshold and all member sub-memos.",
     "new": true,
     "fields": {
       "required": "u32",
@@ -521,47 +589,57 @@
     },
     "methods": {
       "inner_puzzle_hash": {
+        "doc": "computes the M-of-N inner puzzle hash from the required threshold and member hashes.",
         "return": "TreeHash"
       }
     }
   },
   "MipsMemoContext": {
     "type": "class",
+    "doc": "accumulates known keys, timelocks, and opcodes to help parse and reconstruct MIPS vault memos from on-chain hints.",
     "methods": {
       "new": {
+        "doc": "creates an empty MIPS memo parsing context.",
         "type": "constructor"
       },
       "add_k1": {
+        "doc": "registers a known secp256k1 public key for memo parsing.",
         "args": {
           "public_key": "K1PublicKey"
         }
       },
       "add_r1": {
+        "doc": "registers a known secp256r1 public key for memo parsing.",
         "args": {
           "public_key": "R1PublicKey"
         }
       },
       "add_bls": {
+        "doc": "registers a known BLS public key for memo parsing.",
         "args": {
           "public_key": "PublicKey"
         }
       },
       "add_hash": {
+        "doc": "registers a known puzzle hash for memo parsing.",
         "args": {
           "hash": "Bytes32"
         }
       },
       "add_timelock": {
+        "doc": "registers a known timelock duration (in seconds) for memo parsing.",
         "args": {
           "timelock": "u64"
         }
       },
       "add_opcode": {
+        "doc": "registers a known condition opcode for memo parsing.",
         "args": {
           "opcode": "u16"
         }
       },
       "add_singleton_mode": {
+        "doc": "registers a known singleton mode byte for memo parsing.",
         "args": {
           "mode": "u8"
         }

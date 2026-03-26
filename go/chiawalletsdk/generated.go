@@ -9278,7 +9278,7 @@ func bigIntFromSignedBytes(b []byte) *big.Int {
 	return n
 }
 
-// Spends wraps a Rust Spends value behind an opaque pointer.
+// Spends is the high-level transaction builder that accumulates coins and applies actions to produce a spend bundle.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -9333,7 +9333,7 @@ func (o *Spends) Clone() (*Spends, error) {
 	return clone, nil
 }
 
-// SpendsNew is a static method on [Spends].
+// SpendsNew creates a new transaction builder with the given CLVM allocator and change puzzle hash.
 func SpendsNew(clvm *Clvm, changePuzzleHash []byte) (*Spends, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -9353,7 +9353,7 @@ func SpendsNew(clvm *Clvm, changePuzzleHash []byte) (*Spends, error) {
 	return obj, nil
 }
 
-// AddXch calls [Spends]'s AddXch method.
+// AddXch adds a standard XCH coin as an input to the transaction.
 func (o *Spends) AddXch(coin *Coin) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -9378,7 +9378,7 @@ func (o *Spends) AddXch(coin *Coin) error {
 	return nil
 }
 
-// AddCat calls [Spends]'s AddCat method.
+// AddCat adds a CAT (Chia Asset Token) coin as an input to the transaction.
 func (o *Spends) AddCat(cat *Cat) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -9403,7 +9403,7 @@ func (o *Spends) AddCat(cat *Cat) error {
 	return nil
 }
 
-// AddNft calls [Spends]'s AddNft method.
+// AddNft adds an NFT singleton as an input to the transaction.
 func (o *Spends) AddNft(nft *Nft) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -9428,7 +9428,7 @@ func (o *Spends) AddNft(nft *Nft) error {
 	return nil
 }
 
-// P2PuzzleHashes calls [Spends]'s P2PuzzleHashes method.
+// P2PuzzleHashes returns the pay-to puzzle hashes of all coins added to the transaction.
 func (o *Spends) P2PuzzleHashes() (unsafe.Pointer, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -9450,7 +9450,7 @@ func (o *Spends) P2PuzzleHashes() (unsafe.Pointer, error) {
 	return out, nil
 }
 
-// NonSettlementCoinIds calls [Spends]'s NonSettlementCoinIds method.
+// NonSettlementCoinIds returns the coin IDs of all non-settlement coins (coins that need signing).
 func (o *Spends) NonSettlementCoinIds() (unsafe.Pointer, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -9472,7 +9472,7 @@ func (o *Spends) NonSettlementCoinIds() (unsafe.Pointer, error) {
 	return out, nil
 }
 
-// AddOptionalCondition calls [Spends]'s AddOptionalCondition method.
+// AddOptionalCondition adds a condition that will be included if the coin it's attached to is spent.
 func (o *Spends) AddOptionalCondition(condition *Program) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -9497,7 +9497,7 @@ func (o *Spends) AddOptionalCondition(condition *Program) error {
 	return nil
 }
 
-// AddRequiredCondition calls [Spends]'s AddRequiredCondition method.
+// AddRequiredCondition adds a condition that must be included in the transaction regardless of coin selection.
 func (o *Spends) AddRequiredCondition(condition *Program) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -9522,7 +9522,7 @@ func (o *Spends) AddRequiredCondition(condition *Program) error {
 	return nil
 }
 
-// DisableSettlementAssertions calls [Spends]'s DisableSettlementAssertions method.
+// DisableSettlementAssertions disables the automatic concurrent spend assertions between settlement and non-settlement coins.
 func (o *Spends) DisableSettlementAssertions() error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -9543,7 +9543,7 @@ func (o *Spends) DisableSettlementAssertions() error {
 	return nil
 }
 
-// SelectedXchAmount calls [Spends]'s SelectedXchAmount method.
+// SelectedXchAmount returns the total amount of XCH coins added to the transaction.
 func (o *Spends) SelectedXchAmount() (uint64, error) {
 	if o == nil {
 		return 0, fmt.Errorf("object is nil or already freed")
@@ -9565,7 +9565,7 @@ func (o *Spends) SelectedXchAmount() (uint64, error) {
 	return uint64(cOut), nil
 }
 
-// SelectedAssetIds calls [Spends]'s SelectedAssetIds method.
+// SelectedAssetIds returns the asset IDs of all CAT types added to the transaction.
 func (o *Spends) SelectedAssetIds() (unsafe.Pointer, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -9587,7 +9587,7 @@ func (o *Spends) SelectedAssetIds() (unsafe.Pointer, error) {
 	return out, nil
 }
 
-// SelectedCatAmount calls [Spends]'s SelectedCatAmount method.
+// SelectedCatAmount returns the total amount of CAT coins for the given asset ID.
 func (o *Spends) SelectedCatAmount(assetId []byte) (uint64, error) {
 	if o == nil {
 		return 0, fmt.Errorf("object is nil or already freed")
@@ -9610,7 +9610,7 @@ func (o *Spends) SelectedCatAmount(assetId []byte) (uint64, error) {
 	return uint64(cOut), nil
 }
 
-// Apply calls [Spends]'s Apply method.
+// Apply applies a list of actions (send, settle, mint, etc.) and returns the resulting balance deltas per asset.
 func (o *Spends) Apply(actions []*Action) (*Deltas, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -9649,7 +9649,7 @@ func (o *Spends) Apply(actions []*Action) (*Deltas, error) {
 	return obj, nil
 }
 
-// Prepare calls [Spends]'s Prepare method.
+// Prepare finalizes the transaction by computing coin spends from the applied deltas, returning spends ready for signing.
 func (o *Spends) Prepare(deltas *Deltas) (*FinishedSpends, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -9677,7 +9677,7 @@ func (o *Spends) Prepare(deltas *Deltas) (*FinishedSpends, error) {
 	return obj, nil
 }
 
-// FinishedSpends wraps a Rust FinishedSpends value behind an opaque pointer.
+// FinishedSpends holds the finalized coin spends ready for signing and submission.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -9732,7 +9732,7 @@ func (o *FinishedSpends) Clone() (*FinishedSpends, error) {
 	return clone, nil
 }
 
-// PendingSpends calls [FinishedSpends]'s PendingSpends method.
+// PendingSpends returns the list of pending spends that need puzzle reveals and signatures.
 func (o *FinishedSpends) PendingSpends() ([]*PendingSpend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -9766,7 +9766,7 @@ func (o *FinishedSpends) PendingSpends() ([]*PendingSpend, error) {
 	return result, nil
 }
 
-// Insert calls [FinishedSpends]'s Insert method.
+// Insert inserts a custom puzzle reveal and solution for a specific coin by its ID.
 func (o *FinishedSpends) Insert(coinId []byte, spend *Spend) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -9792,7 +9792,7 @@ func (o *FinishedSpends) Insert(coinId []byte, spend *Spend) error {
 	return nil
 }
 
-// Spend calls [FinishedSpends]'s Spend method.
+// Spend builds the final coin spends and returns the output coins grouped by asset type.
 func (o *FinishedSpends) Spend() (*Outputs, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -9816,7 +9816,7 @@ func (o *FinishedSpends) Spend() (*Outputs, error) {
 	return obj, nil
 }
 
-// PendingSpend wraps a Rust PendingSpend value behind an opaque pointer.
+// PendingSpend represents a coin that has been selected for spending but still needs its puzzle reveal provided.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -9871,7 +9871,7 @@ func (o *PendingSpend) Clone() (*PendingSpend, error) {
 	return clone, nil
 }
 
-// P2PuzzleHash calls [PendingSpend]'s P2PuzzleHash method.
+// P2PuzzleHash returns the pay-to puzzle hash that controls this coin.
 func (o *PendingSpend) P2PuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -9896,7 +9896,7 @@ func (o *PendingSpend) P2PuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// Coin calls [PendingSpend]'s Coin method.
+// Coin returns the underlying coin being spent.
 func (o *PendingSpend) Coin() (*Coin, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -9920,7 +9920,7 @@ func (o *PendingSpend) Coin() (*Coin, error) {
 	return obj, nil
 }
 
-// Conditions calls [PendingSpend]'s Conditions method.
+// Conditions returns the conditions that have been assigned to this coin's spend.
 func (o *PendingSpend) Conditions() ([]*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -9954,7 +9954,7 @@ func (o *PendingSpend) Conditions() ([]*Program, error) {
 	return result, nil
 }
 
-// AsXch calls [PendingSpend]'s AsXch method.
+// AsXch returns the coin as a standard XCH coin, or nil if it is a different asset type.
 func (o *PendingSpend) AsXch() (*Coin, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -9981,7 +9981,7 @@ func (o *PendingSpend) AsXch() (*Coin, error) {
 	return obj, nil
 }
 
-// AsCat calls [PendingSpend]'s AsCat method.
+// AsCat returns the coin as a CAT, or nil if it is not a CAT.
 func (o *PendingSpend) AsCat() (*Cat, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -10008,7 +10008,7 @@ func (o *PendingSpend) AsCat() (*Cat, error) {
 	return obj, nil
 }
 
-// AsDid calls [PendingSpend]'s AsDid method.
+// AsDid returns the coin as a DID singleton, or nil if it is not a DID.
 func (o *PendingSpend) AsDid() (*Did, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -10035,7 +10035,7 @@ func (o *PendingSpend) AsDid() (*Did, error) {
 	return obj, nil
 }
 
-// AsNft calls [PendingSpend]'s AsNft method.
+// AsNft returns the coin as an NFT singleton, or nil if it is not an NFT.
 func (o *PendingSpend) AsNft() (*Nft, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -10062,7 +10062,7 @@ func (o *PendingSpend) AsNft() (*Nft, error) {
 	return obj, nil
 }
 
-// AsOption calls [PendingSpend]'s AsOption method.
+// AsOption returns the coin as an option contract, or nil if it is not an option.
 func (o *PendingSpend) AsOption() (*OptionContract, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -10089,7 +10089,7 @@ func (o *PendingSpend) AsOption() (*OptionContract, error) {
 	return obj, nil
 }
 
-// Action wraps a Rust Action value behind an opaque pointer.
+// Action represents a high-level transaction action such as sending coins, settling offers, minting NFTs, or issuing CATs.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -10144,7 +10144,7 @@ func (o *Action) Clone() (*Action, error) {
 	return clone, nil
 }
 
-// NewActionSend creates a new [Action] via the Send factory.
+// NewActionSend creates an action that sends coins to the given puzzle hash with the specified amount and optional memos.
 func NewActionSend(id *Id, puzzleHash []byte, amount uint64, memos *Program) (*Action, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -10169,7 +10169,7 @@ func NewActionSend(id *Id, puzzleHash []byte, amount uint64, memos *Program) (*A
 	return obj, nil
 }
 
-// NewActionSettle creates a new [Action] via the Settle factory.
+// NewActionSettle creates an action that settles an offer by producing a notarized payment for atomic swap.
 func NewActionSettle(id *Id, notarizedPayment *NotarizedPayment) (*Action, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -10192,7 +10192,7 @@ func NewActionSettle(id *Id, notarizedPayment *NotarizedPayment) (*Action, error
 	return obj, nil
 }
 
-// NewActionIssueCat creates a new [Action] via the IssueCat factory.
+// NewActionIssueCat creates an action that issues new CAT tokens using a custom TAIL program.
 func NewActionIssueCat(tailSpend *Spend, hiddenPuzzleHash []byte, amount uint64) (*Action, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -10212,7 +10212,7 @@ func NewActionIssueCat(tailSpend *Spend, hiddenPuzzleHash []byte, amount uint64)
 	return obj, nil
 }
 
-// NewActionSingleIssueCat creates a new [Action] via the SingleIssueCat factory.
+// NewActionSingleIssueCat creates an action that issues new CAT tokens using a single-issuance TAIL (one-time minting).
 func NewActionSingleIssueCat(hiddenPuzzleHash []byte, amount uint64) (*Action, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -10228,7 +10228,7 @@ func NewActionSingleIssueCat(hiddenPuzzleHash []byte, amount uint64) (*Action, e
 	return obj, nil
 }
 
-// NewActionRunTail creates a new [Action] via the RunTail factory.
+// NewActionRunTail creates an action that runs a CAT's TAIL program to validate supply changes (minting or melting).
 func NewActionRunTail(id *Id, tailSpend *Spend, supplyDelta *Delta) (*Action, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -10255,7 +10255,7 @@ func NewActionRunTail(id *Id, tailSpend *Spend, supplyDelta *Delta) (*Action, er
 	return obj, nil
 }
 
-// NewActionMintNft creates a new [Action] via the MintNft factory.
+// NewActionMintNft creates an action that mints a new NFT with the given metadata, royalty info, and amount.
 func NewActionMintNft(clvm *Clvm, metadata *Program, metadataUpdaterPuzzleHash []byte, royaltyPuzzleHash []byte, royaltyBasisPoints uint16, amount uint64, parentId *Id) (*Action, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -10285,7 +10285,7 @@ func NewActionMintNft(clvm *Clvm, metadata *Program, metadataUpdaterPuzzleHash [
 	return obj, nil
 }
 
-// NewActionUpdateNft creates a new [Action] via the UpdateNft factory.
+// NewActionUpdateNft creates an action that updates an NFT's metadata and optionally transfers it to a new owner.
 func NewActionUpdateNft(id *Id, metadataUpdateSpends []*Spend, transfer *TransferNftById) (*Action, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -10324,7 +10324,7 @@ func NewActionUpdateNft(id *Id, metadataUpdateSpends []*Spend, transfer *Transfe
 	return obj, nil
 }
 
-// NewActionFee creates a new [Action] via the Fee factory.
+// NewActionFee creates an action that reserves a transaction fee from the XCH inputs.
 func NewActionFee(amount uint64) (*Action, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -10339,7 +10339,7 @@ func NewActionFee(amount uint64) (*Action, error) {
 	return obj, nil
 }
 
-// Deltas wraps a Rust Deltas value behind an opaque pointer.
+// Deltas holds the balance changes (input vs output) per asset after applying actions to a transaction.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -10394,7 +10394,7 @@ func (o *Deltas) Clone() (*Deltas, error) {
 	return clone, nil
 }
 
-// DeltasFromActions is a static method on [Deltas].
+// DeltasFromActions computes the balance deltas from a list of actions without applying them to a transaction.
 func DeltasFromActions(actions []*Action) (*Deltas, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -10424,7 +10424,7 @@ func DeltasFromActions(actions []*Action) (*Deltas, error) {
 	return obj, nil
 }
 
-// Get calls [Deltas]'s Get method.
+// Get returns the balance delta for the given asset ID, or nil if the asset is not involved.
 func (o *Deltas) Get(id *Id) (*Delta, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -10455,7 +10455,7 @@ func (o *Deltas) Get(id *Id) (*Delta, error) {
 	return obj, nil
 }
 
-// IsNeeded calls [Deltas]'s IsNeeded method.
+// IsNeeded reports whether the given asset ID requires coins to be selected (has a positive input delta).
 func (o *Deltas) IsNeeded(id *Id) (bool, error) {
 	if o == nil {
 		return false, fmt.Errorf("object is nil or already freed")
@@ -10481,7 +10481,7 @@ func (o *Deltas) IsNeeded(id *Id) (bool, error) {
 	return cOut != 0, nil
 }
 
-// Ids calls [Deltas]'s Ids method.
+// Ids returns all asset IDs involved in the deltas.
 func (o *Deltas) Ids() ([]*Id, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -10515,7 +10515,7 @@ func (o *Deltas) Ids() ([]*Id, error) {
 	return result, nil
 }
 
-// Delta wraps a Rust Delta value behind an opaque pointer.
+// Delta represents the input and output balance for a single asset type in a transaction.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -10669,7 +10669,7 @@ func (o *Delta) SetOutput(value uint64) error {
 	return nil
 }
 
-// Id wraps a Rust Id value behind an opaque pointer.
+// Id identifies an asset type in the action system: XCH, an existing CAT/NFT by asset ID, or a newly minted asset by index.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -10724,7 +10724,7 @@ func (o *Id) Clone() (*Id, error) {
 	return clone, nil
 }
 
-// NewIdXch creates a new [Id] via the Xch factory.
+// NewIdXch creates an ID representing standard XCH.
 func NewIdXch() (*Id, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -10739,7 +10739,7 @@ func NewIdXch() (*Id, error) {
 	return obj, nil
 }
 
-// NewIdExisting creates a new [Id] via the Existing factory.
+// NewIdExisting creates an ID representing an existing CAT or NFT by its asset ID (TAIL hash or launcher ID).
 func NewIdExisting(assetId []byte) (*Id, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -10755,7 +10755,7 @@ func NewIdExisting(assetId []byte) (*Id, error) {
 	return obj, nil
 }
 
-// NewIdNew creates a new [Id] via the New factory.
+// NewIdNew creates an ID representing a newly minted asset by its index in the current transaction.
 func NewIdNew(index uint) (*Id, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -10770,7 +10770,7 @@ func NewIdNew(index uint) (*Id, error) {
 	return obj, nil
 }
 
-// IsXch calls [Id]'s IsXch method.
+// IsXch reports whether this ID represents standard XCH.
 func (o *Id) IsXch() (bool, error) {
 	if o == nil {
 		return false, fmt.Errorf("object is nil or already freed")
@@ -10792,7 +10792,7 @@ func (o *Id) IsXch() (bool, error) {
 	return cOut != 0, nil
 }
 
-// AsExisting calls [Id]'s AsExisting method.
+// AsExisting returns the asset ID if this represents an existing asset, or nil if it is XCH or a new mint.
 func (o *Id) AsExisting() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -10820,7 +10820,7 @@ func (o *Id) AsExisting() ([]byte, error) {
 	return result, nil
 }
 
-// AsNew calls [Id]'s AsNew method.
+// AsNew returns the mint index if this represents a newly minted asset, or nil otherwise.
 func (o *Id) AsNew() (*uint, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -10847,7 +10847,7 @@ func (o *Id) AsNew() (*uint, error) {
 	return &v, nil
 }
 
-// Equals calls [Id]'s Equals method.
+// Equals reports whether two asset IDs refer to the same asset.
 func (o *Id) Equals(id *Id) (bool, error) {
 	if o == nil {
 		return false, fmt.Errorf("object is nil or already freed")
@@ -10873,7 +10873,7 @@ func (o *Id) Equals(id *Id) (bool, error) {
 	return cOut != 0, nil
 }
 
-// Outputs wraps a Rust Outputs value behind an opaque pointer.
+// Outputs holds the output coins produced by a finalized transaction, grouped by asset type.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -10928,7 +10928,7 @@ func (o *Outputs) Clone() (*Outputs, error) {
 	return clone, nil
 }
 
-// Xch calls [Outputs]'s Xch method.
+// Xch returns the output XCH coins (including change coins).
 func (o *Outputs) Xch() ([]*Coin, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -10962,7 +10962,7 @@ func (o *Outputs) Xch() ([]*Coin, error) {
 	return result, nil
 }
 
-// Cats calls [Outputs]'s Cats method.
+// Cats returns the asset IDs of all CAT types in the output.
 func (o *Outputs) Cats() ([]*Id, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -10996,7 +10996,7 @@ func (o *Outputs) Cats() ([]*Id, error) {
 	return result, nil
 }
 
-// Cat calls [Outputs]'s Cat method.
+// Cat returns the output CAT coins for the given asset ID.
 func (o *Outputs) Cat(id *Id) ([]*Cat, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -11034,7 +11034,7 @@ func (o *Outputs) Cat(id *Id) ([]*Cat, error) {
 	return result, nil
 }
 
-// Nfts calls [Outputs]'s Nfts method.
+// Nfts returns the asset IDs of all NFTs in the output.
 func (o *Outputs) Nfts() ([]*Id, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -11068,7 +11068,7 @@ func (o *Outputs) Nfts() ([]*Id, error) {
 	return result, nil
 }
 
-// Nft calls [Outputs]'s Nft method.
+// Nft returns the output NFT for the given asset ID.
 func (o *Outputs) Nft(id *Id) (*Nft, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -11096,7 +11096,7 @@ func (o *Outputs) Nft(id *Id) (*Nft, error) {
 	return obj, nil
 }
 
-// TransferNftById wraps a Rust TransferNftById value behind an opaque pointer.
+// TransferNftById specifies an NFT transfer destination including the new owner DID and royalty trade prices.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -11590,8 +11590,8 @@ func NewSecretKeyFromBytes(bytes []byte) (*SecretKey, error) {
 	return obj, nil
 }
 
-// ToBytes returns the 32-byte representation of the secret key.
-func (o *SecretKey) ToBytes() ([]byte, error) {
+// Bytes returns the 32-byte representation of the secret key.
+func (o *SecretKey) Bytes() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -11712,7 +11712,7 @@ func (o *SecretKey) DeriveHardened(index uint32) (*SecretKey, error) {
 	return obj, nil
 }
 
-// DeriveUnhardenedPath calls [SecretKey]'s DeriveUnhardenedPath method.
+// DeriveUnhardenedPath computes the derive unhardened path for the given path.
 func (o *SecretKey) DeriveUnhardenedPath(path unsafe.Pointer) (*SecretKey, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -11736,7 +11736,7 @@ func (o *SecretKey) DeriveUnhardenedPath(path unsafe.Pointer) (*SecretKey, error
 	return obj, nil
 }
 
-// DeriveHardenedPath calls [SecretKey]'s DeriveHardenedPath method.
+// DeriveHardenedPath computes the derive hardened path for the given path.
 func (o *SecretKey) DeriveHardenedPath(path unsafe.Pointer) (*SecretKey, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -11760,7 +11760,7 @@ func (o *SecretKey) DeriveHardenedPath(path unsafe.Pointer) (*SecretKey, error) 
 	return obj, nil
 }
 
-// DeriveSynthetic calls [SecretKey]'s DeriveSynthetic method.
+// DeriveSynthetic returns the derive synthetic of the [SecretKey].
 func (o *SecretKey) DeriveSynthetic() (*SecretKey, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -11784,7 +11784,7 @@ func (o *SecretKey) DeriveSynthetic() (*SecretKey, error) {
 	return obj, nil
 }
 
-// DeriveSyntheticHidden calls [SecretKey]'s DeriveSyntheticHidden method.
+// DeriveSyntheticHidden computes the derive synthetic hidden for the given hiddenPuzzleHash.
 func (o *SecretKey) DeriveSyntheticHidden(hiddenPuzzleHash []byte) (*SecretKey, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -11957,8 +11957,8 @@ func NewPublicKeyFromBytes(bytes []byte) (*PublicKey, error) {
 	return obj, nil
 }
 
-// ToBytes returns the 48-byte representation of the public key.
-func (o *PublicKey) ToBytes() ([]byte, error) {
+// Bytes returns the 48-byte representation of the public key.
+func (o *PublicKey) Bytes() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -12075,7 +12075,7 @@ func (o *PublicKey) IsValid() (bool, error) {
 	return cOut != 0, nil
 }
 
-// DeriveUnhardened calls [PublicKey]'s DeriveUnhardened method.
+// DeriveUnhardened computes the derive unhardened for the given index.
 func (o *PublicKey) DeriveUnhardened(index uint32) (*PublicKey, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -12099,7 +12099,7 @@ func (o *PublicKey) DeriveUnhardened(index uint32) (*PublicKey, error) {
 	return obj, nil
 }
 
-// DeriveUnhardenedPath calls [PublicKey]'s DeriveUnhardenedPath method.
+// DeriveUnhardenedPath computes the derive unhardened path for the given path.
 func (o *PublicKey) DeriveUnhardenedPath(path unsafe.Pointer) (*PublicKey, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -12123,7 +12123,7 @@ func (o *PublicKey) DeriveUnhardenedPath(path unsafe.Pointer) (*PublicKey, error
 	return obj, nil
 }
 
-// DeriveSynthetic calls [PublicKey]'s DeriveSynthetic method.
+// DeriveSynthetic returns the derive synthetic of the [PublicKey].
 func (o *PublicKey) DeriveSynthetic() (*PublicKey, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -12147,7 +12147,7 @@ func (o *PublicKey) DeriveSynthetic() (*PublicKey, error) {
 	return obj, nil
 }
 
-// DeriveSyntheticHidden calls [PublicKey]'s DeriveSyntheticHidden method.
+// DeriveSyntheticHidden computes the derive synthetic hidden for the given hiddenPuzzleHash.
 func (o *PublicKey) DeriveSyntheticHidden(hiddenPuzzleHash []byte) (*PublicKey, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -12288,8 +12288,8 @@ func NewSignatureFromBytes(bytes []byte) (*Signature, error) {
 	return obj, nil
 }
 
-// ToBytes returns the 96-byte representation of the signature.
-func (o *Signature) ToBytes() ([]byte, error) {
+// Bytes returns the 96-byte representation of the signature.
+func (o *Signature) Bytes() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -12357,7 +12357,7 @@ func (o *Signature) IsValid() (bool, error) {
 	return cOut != 0, nil
 }
 
-// VaultSpendReveal wraps a Rust VaultSpendReveal value behind an opaque pointer.
+// VaultSpendReveal holds the clear signing reveal data for a vault spend: launcher ID, custody hash, and the delegated spend.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -12573,7 +12573,7 @@ func (o *VaultSpendReveal) SetDelegatedSpend(value *Spend) error {
 	return nil
 }
 
-// VaultTransaction wraps a Rust VaultTransaction value behind an opaque pointer.
+// VaultTransaction represents a parsed vault transaction for clear signing display, showing payments, NFT transfers, fees, and custody changes.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -13147,7 +13147,7 @@ func (o *VaultTransaction) SetDelegatedPuzzleHash(value []byte) error {
 	return nil
 }
 
-// ParsedPayment wraps a Rust ParsedPayment value behind an opaque pointer.
+// ParsedPayment represents a parsed payment in a vault transaction: the transfer type, asset, destination, amount, and optional clawback.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -13566,7 +13566,7 @@ func (o *ParsedPayment) SetMemos(value unsafe.Pointer) error {
 	return nil
 }
 
-// ParsedNftTransfer wraps a Rust ParsedNftTransfer value behind an opaque pointer.
+// ParsedNftTransfer represents a parsed NFT transfer in a vault transaction, including old/new state, royalty info, and metadata changes.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -14167,7 +14167,7 @@ func (o *ParsedNftTransfer) SetIncludesUnverifiableUpdates(value bool) error {
 	return nil
 }
 
-// NftState wraps a Rust NftState value behind an opaque pointer.
+// NftState captures the state of an NFT at a point in time: parsed metadata, updater puzzle hash, and DID owner.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -14390,7 +14390,7 @@ func (o *NftState) SetOwner(value []byte) error {
 	return nil
 }
 
-// TransferType represents a Rust TransferType enum value behind an opaque pointer.
+// TransferType classifies the type of transfer in a clear signing transaction: sent, burned, offered, received, or updated.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Use the NewTransferType* constructors or [NewTransferTypeFromInt] to create instances.
@@ -14490,7 +14490,7 @@ func NewTransferTypeUpdated() (*TransferType, error) {
 	return NewTransferTypeFromInt(4)
 }
 
-// DropCoin wraps a Rust DropCoin value behind an opaque pointer.
+// DropCoin represents a coin that is dropped (destroyed without a recipient) in a vault transaction.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -14649,7 +14649,7 @@ func (o *DropCoin) SetAmount(value uint64) error {
 	return nil
 }
 
-// CalculateVaultPuzzleMessage is a standalone binding function.
+// CalculateVaultPuzzleMessage computes the message bytes for a vault clear signing puzzle-level signature.
 func CalculateVaultPuzzleMessage(delegatedPuzzleHash []byte, vaultPuzzleHash []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -14667,7 +14667,7 @@ func CalculateVaultPuzzleMessage(delegatedPuzzleHash []byte, vaultPuzzleHash []b
 	return result, nil
 }
 
-// CalculateVaultCoinMessage is a standalone binding function.
+// CalculateVaultCoinMessage computes the message bytes for a vault clear signing coin-level signature.
 func CalculateVaultCoinMessage(delegatedPuzzleHash []byte, vaultCoinId []byte, genesisChallenge []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -14686,7 +14686,7 @@ func CalculateVaultCoinMessage(delegatedPuzzleHash []byte, vaultCoinId []byte, g
 	return result, nil
 }
 
-// CalculateVaultStartRecoveryMessage is a standalone binding function.
+// CalculateVaultStartRecoveryMessage computes the message bytes for initiating a vault recovery with the given parameters.
 func CalculateVaultStartRecoveryMessage(delegatedPuzzleHash []byte, leftSideSubtreeHash []byte, recoveryTimelock uint64, vaultCoinId []byte, genesisChallenge []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -14706,7 +14706,7 @@ func CalculateVaultStartRecoveryMessage(delegatedPuzzleHash []byte, leftSideSubt
 	return result, nil
 }
 
-// Clvm wraps a Rust Clvm value behind an opaque pointer.
+// Clvm is the CLVM allocator and transaction builder. It manages memory for Chialisp programs and accumulates coin spends for a transaction.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -14761,7 +14761,7 @@ func (o *Clvm) Clone() (*Clvm, error) {
 	return clone, nil
 }
 
-// ClvmNew is a static method on [Clvm].
+// ClvmNew creates a new CLVM allocator and transaction context.
 func ClvmNew() (*Clvm, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -14776,7 +14776,7 @@ func ClvmNew() (*Clvm, error) {
 	return obj, nil
 }
 
-// AddCoinSpend calls [Clvm]'s AddCoinSpend method.
+// AddCoinSpend adds a pre-built coin spend to the transaction being constructed.
 func (o *Clvm) AddCoinSpend(coinSpend *CoinSpend) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -14801,7 +14801,7 @@ func (o *Clvm) AddCoinSpend(coinSpend *CoinSpend) error {
 	return nil
 }
 
-// SpendCoin calls [Clvm]'s SpendCoin method.
+// SpendCoin spends a coin by combining it with a puzzle reveal and solution, adding it to the transaction.
 func (o *Clvm) SpendCoin(coin *Coin, spend *Spend) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -14830,7 +14830,7 @@ func (o *Clvm) SpendCoin(coin *Coin, spend *Spend) error {
 	return nil
 }
 
-// CoinSpends calls [Clvm]'s CoinSpends method.
+// CoinSpends returns all coin spends accumulated in this transaction context.
 func (o *Clvm) CoinSpends() ([]*CoinSpend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -14864,7 +14864,7 @@ func (o *Clvm) CoinSpends() ([]*CoinSpend, error) {
 	return result, nil
 }
 
-// Parse calls [Clvm]'s Parse method.
+// Parse parses a Chialisp source string into a CLVM program.
 func (o *Clvm) Parse(program string) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -14889,7 +14889,7 @@ func (o *Clvm) Parse(program string) (*Program, error) {
 	return obj, nil
 }
 
-// Deserialize calls [Clvm]'s Deserialize method.
+// Deserialize deserializes a binary-encoded CLVM program.
 func (o *Clvm) Deserialize(value []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -14914,7 +14914,7 @@ func (o *Clvm) Deserialize(value []byte) (*Program, error) {
 	return obj, nil
 }
 
-// DeserializeWithBackrefs calls [Clvm]'s DeserializeWithBackrefs method.
+// DeserializeWithBackrefs deserializes a CLVM program that uses backref compression (CHIP-0002).
 func (o *Clvm) DeserializeWithBackrefs(value []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -14939,7 +14939,7 @@ func (o *Clvm) DeserializeWithBackrefs(value []byte) (*Program, error) {
 	return obj, nil
 }
 
-// Cache calls [Clvm]'s Cache method.
+// Cache caches a serialized program by its tree hash for efficient reuse across spends.
 func (o *Clvm) Cache(modHash []byte, value []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -14965,7 +14965,7 @@ func (o *Clvm) Cache(modHash []byte, value []byte) (*Program, error) {
 	return obj, nil
 }
 
-// Pair calls [Clvm]'s Pair method.
+// Pair creates a CLVM cons pair (the fundamental compound structure in Chialisp).
 func (o *Clvm) Pair(first *Program, rest *Program) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -14997,7 +14997,7 @@ func (o *Clvm) Pair(first *Program, rest *Program) (*Program, error) {
 	return obj, nil
 }
 
-// Nil calls [Clvm]'s Nil method.
+// Nil returns the CLVM nil value, representing an empty list or false.
 func (o *Clvm) Nil() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15021,7 +15021,7 @@ func (o *Clvm) Nil() (*Program, error) {
 	return obj, nil
 }
 
-// Int calls [Clvm]'s Int method.
+// Int allocates an integer as a CLVM atom.
 func (o *Clvm) Int(value []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15046,7 +15046,7 @@ func (o *Clvm) Int(value []byte) (*Program, error) {
 	return obj, nil
 }
 
-// BoundCheckedNumber calls [Clvm]'s BoundCheckedNumber method.
+// BoundCheckedNumber allocates a floating-point number as a CLVM atom, with bounds checking to prevent overflow.
 func (o *Clvm) BoundCheckedNumber(value float64) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15070,7 +15070,7 @@ func (o *Clvm) BoundCheckedNumber(value float64) (*Program, error) {
 	return obj, nil
 }
 
-// String calls [Clvm]'s String method.
+// String allocates a UTF-8 string as a CLVM atom.
 func (o *Clvm) String(value string) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15095,7 +15095,7 @@ func (o *Clvm) String(value string) (*Program, error) {
 	return obj, nil
 }
 
-// Bool calls [Clvm]'s Bool method.
+// Bool allocates a boolean as a CLVM program (nil for false, 1 for true).
 func (o *Clvm) Bool(value bool) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15119,7 +15119,7 @@ func (o *Clvm) Bool(value bool) (*Program, error) {
 	return obj, nil
 }
 
-// Atom calls [Clvm]'s Atom method.
+// Atom allocates raw bytes as a CLVM atom.
 func (o *Clvm) Atom(value []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15144,7 +15144,7 @@ func (o *Clvm) Atom(value []byte) (*Program, error) {
 	return obj, nil
 }
 
-// List calls [Clvm]'s List method.
+// List creates a proper CLVM list from a slice of programs, terminated by nil.
 func (o *Clvm) List(value []*Program) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15183,7 +15183,7 @@ func (o *Clvm) List(value []*Program) (*Program, error) {
 	return obj, nil
 }
 
-// DelegatedSpend calls [Clvm]'s DelegatedSpend method.
+// DelegatedSpend creates a delegated spend from a list of conditions, for use inside standard or inner puzzles.
 func (o *Clvm) DelegatedSpend(conditions []*Program) (*Spend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15222,7 +15222,7 @@ func (o *Clvm) DelegatedSpend(conditions []*Program) (*Spend, error) {
 	return obj, nil
 }
 
-// StandardSpend calls [Clvm]'s StandardSpend method.
+// StandardSpend wraps an inner spend in the standard transaction puzzle (p2_delegated_puzzle_or_hidden_puzzle) for the given synthetic key.
 func (o *Clvm) StandardSpend(syntheticKey *PublicKey, spend *Spend) (*Spend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15254,7 +15254,7 @@ func (o *Clvm) StandardSpend(syntheticKey *PublicKey, spend *Spend) (*Spend, err
 	return obj, nil
 }
 
-// SpendStandardCoin calls [Clvm]'s SpendStandardCoin method.
+// SpendStandardCoin spends a standard XCH coin using the given synthetic key and inner spend, adding it to the transaction.
 func (o *Clvm) SpendStandardCoin(coin *Coin, syntheticKey *PublicKey, spend *Spend) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -15287,7 +15287,7 @@ func (o *Clvm) SpendStandardCoin(coin *Coin, syntheticKey *PublicKey, spend *Spe
 	return nil
 }
 
-// SettlementSpend calls [Clvm]'s SettlementSpend method.
+// SettlementSpend creates a settlement puzzle spend for atomic swaps, paying to the given notarized payments.
 func (o *Clvm) SettlementSpend(notarizedPayments []*NotarizedPayment) (*Spend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15326,7 +15326,7 @@ func (o *Clvm) SettlementSpend(notarizedPayments []*NotarizedPayment) (*Spend, e
 	return obj, nil
 }
 
-// SpendSettlementCoin calls [Clvm]'s SpendSettlementCoin method.
+// SpendSettlementCoin spends a settlement coin in an offer with the given notarized payments.
 func (o *Clvm) SpendSettlementCoin(coin *Coin, notarizedPayments []*NotarizedPayment) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -15366,7 +15366,7 @@ func (o *Clvm) SpendSettlementCoin(coin *Coin, notarizedPayments []*NotarizedPay
 	return nil
 }
 
-// SpendCats calls [Clvm]'s SpendCats method.
+// SpendCats spends one or more CAT (Chia Asset Token) coins together, enforcing the TAIL rules and lineage proofs.
 func (o *Clvm) SpendCats(catSpends []*CatSpend) ([]*Cat, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15415,7 +15415,7 @@ func (o *Clvm) SpendCats(catSpends []*CatSpend) ([]*Cat, error) {
 	return result, nil
 }
 
-// MintNfts calls [Clvm]'s MintNfts method.
+// MintNfts mints new NFTs as children of the given parent coin, returning the minted NFT singletons.
 func (o *Clvm) MintNfts(parentCoinId []byte, nftMints []*NftMint) (*MintedNfts, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15455,7 +15455,7 @@ func (o *Clvm) MintNfts(parentCoinId []byte, nftMints []*NftMint) (*MintedNfts, 
 	return obj, nil
 }
 
-// SpendNft calls [Clvm]'s SpendNft method.
+// SpendNft spends an NFT singleton with the given inner spend (for transfer, metadata update, etc.), returning the updated NFT state.
 func (o *Clvm) SpendNft(nft *Nft, innerSpend *Spend) (*Nft, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15487,7 +15487,7 @@ func (o *Clvm) SpendNft(nft *Nft, innerSpend *Spend) (*Nft, error) {
 	return obj, nil
 }
 
-// CreateEveDid calls [Clvm]'s CreateEveDid method.
+// CreateEveDid creates the initial (eve) DID singleton from a parent coin, establishing a new decentralized identity on chain.
 func (o *Clvm) CreateEveDid(parentCoinId []byte, p2PuzzleHash []byte) (*CreatedDid, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15513,7 +15513,7 @@ func (o *Clvm) CreateEveDid(parentCoinId []byte, p2PuzzleHash []byte) (*CreatedD
 	return obj, nil
 }
 
-// SpendDid calls [Clvm]'s SpendDid method.
+// SpendDid spends a DID singleton with the given inner spend, returning the updated DID state or nil if melted.
 func (o *Clvm) SpendDid(did *Did, innerSpend *Spend) (*Did, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15548,7 +15548,7 @@ func (o *Clvm) SpendDid(did *Did, innerSpend *Spend) (*Did, error) {
 	return obj, nil
 }
 
-// SpendOption calls [Clvm]'s SpendOption method.
+// SpendOption spends an option contract with the given inner spend, returning the updated contract state or nil if exercised.
 func (o *Clvm) SpendOption(option *OptionContract, innerSpend *Spend) (*OptionContract, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15583,7 +15583,7 @@ func (o *Clvm) SpendOption(option *OptionContract, innerSpend *Spend) (*OptionCo
 	return obj, nil
 }
 
-// SpendStreamedAsset calls [Clvm]'s SpendStreamedAsset method.
+// SpendStreamedAsset spends a streamed (vesting) asset, either claiming unlocked funds or clawing back the remainder.
 func (o *Clvm) SpendStreamedAsset(streamedAsset *StreamedAsset, paymentTime uint64, clawback bool) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -15608,7 +15608,7 @@ func (o *Clvm) SpendStreamedAsset(streamedAsset *StreamedAsset, paymentTime uint
 	return nil
 }
 
-// MintVault calls [Clvm]'s MintVault method.
+// MintVault mints a new MIPS vault singleton with the given custody hash and memos.
 func (o *Clvm) MintVault(parentCoinId []byte, custodyHash []byte, memos *Program) (*VaultMint, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15638,7 +15638,7 @@ func (o *Clvm) MintVault(parentCoinId []byte, custodyHash []byte, memos *Program
 	return obj, nil
 }
 
-// CreateBulletin calls [Clvm]'s CreateBulletin method.
+// CreateBulletin creates a bulletin board singleton for publishing on-chain messages.
 func (o *Clvm) CreateBulletin(parentCoinId []byte, hiddenPuzzleHash []byte, messages []*BulletinMessage) (*CreatedBulletin, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15679,7 +15679,7 @@ func (o *Clvm) CreateBulletin(parentCoinId []byte, hiddenPuzzleHash []byte, mess
 	return obj, nil
 }
 
-// MipsSpend calls [Clvm]'s MipsSpend method.
+// MipsSpend creates a MIPS vault spend that wraps a delegated spend with the vault's custody rules.
 func (o *Clvm) MipsSpend(coin *Coin, delegatedSpend *Spend) (*MipsSpend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15711,7 +15711,7 @@ func (o *Clvm) MipsSpend(coin *Coin, delegatedSpend *Spend) (*MipsSpend, error) 
 	return obj, nil
 }
 
-// NftMetadata calls [Clvm]'s NftMetadata method.
+// NftMetadata encodes NFT metadata (data URIs, metadata URIs, license URIs, etc.) as a CLVM program.
 func (o *Clvm) NftMetadata(value *NftMetadata) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15739,7 +15739,7 @@ func (o *Clvm) NftMetadata(value *NftMetadata) (*Program, error) {
 	return obj, nil
 }
 
-// MipsMemo calls [Clvm]'s MipsMemo method.
+// MipsMemo encodes a MIPS vault memo as a CLVM program for embedding in coin hints.
 func (o *Clvm) MipsMemo(value *MipsMemo) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15767,7 +15767,7 @@ func (o *Clvm) MipsMemo(value *MipsMemo) (*Program, error) {
 	return obj, nil
 }
 
-// InnerPuzzleMemo calls [Clvm]'s InnerPuzzleMemo method.
+// InnerPuzzleMemo encodes an inner puzzle memo as a CLVM program.
 func (o *Clvm) InnerPuzzleMemo(value *InnerPuzzleMemo) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15795,7 +15795,7 @@ func (o *Clvm) InnerPuzzleMemo(value *InnerPuzzleMemo) (*Program, error) {
 	return obj, nil
 }
 
-// RestrictionMemo calls [Clvm]'s RestrictionMemo method.
+// RestrictionMemo encodes a vault restriction memo as a CLVM program.
 func (o *Clvm) RestrictionMemo(value *RestrictionMemo) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15823,7 +15823,7 @@ func (o *Clvm) RestrictionMemo(value *RestrictionMemo) (*Program, error) {
 	return obj, nil
 }
 
-// WrapperMemo calls [Clvm]'s WrapperMemo method.
+// WrapperMemo encodes a vault wrapper memo as a CLVM program.
 func (o *Clvm) WrapperMemo(value *WrapperMemo) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15851,7 +15851,7 @@ func (o *Clvm) WrapperMemo(value *WrapperMemo) (*Program, error) {
 	return obj, nil
 }
 
-// Force1Of2RestrictedVariableMemo calls [Clvm]'s Force1Of2RestrictedVariableMemo method.
+// Force1Of2RestrictedVariableMemo encodes a force-1-of-2 restricted variable memo as a CLVM program.
 func (o *Clvm) Force1Of2RestrictedVariableMemo(value *Force1of2RestrictedVariableMemo) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15879,7 +15879,7 @@ func (o *Clvm) Force1Of2RestrictedVariableMemo(value *Force1of2RestrictedVariabl
 	return obj, nil
 }
 
-// MemoKind calls [Clvm]'s MemoKind method.
+// MemoKind encodes a memo kind tag as a CLVM program.
 func (o *Clvm) MemoKind(value *MemoKind) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15907,7 +15907,7 @@ func (o *Clvm) MemoKind(value *MemoKind) (*Program, error) {
 	return obj, nil
 }
 
-// MemberMemo calls [Clvm]'s MemberMemo method.
+// MemberMemo encodes a vault member memo as a CLVM program.
 func (o *Clvm) MemberMemo(value *MemberMemo) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15935,7 +15935,7 @@ func (o *Clvm) MemberMemo(value *MemberMemo) (*Program, error) {
 	return obj, nil
 }
 
-// MOfNMemo calls [Clvm]'s MOfNMemo method.
+// MOfNMemo encodes an M-of-N multisig configuration memo as a CLVM program.
 func (o *Clvm) MOfNMemo(value *MofNMemo) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15963,7 +15963,7 @@ func (o *Clvm) MOfNMemo(value *MofNMemo) (*Program, error) {
 	return obj, nil
 }
 
-// OptionMetadata calls [Clvm]'s OptionMetadata method.
+// OptionMetadata encodes option contract metadata as a CLVM program.
 func (o *Clvm) OptionMetadata(value *OptionMetadata) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -15991,7 +15991,7 @@ func (o *Clvm) OptionMetadata(value *OptionMetadata) (*Program, error) {
 	return obj, nil
 }
 
-// Payment calls [Clvm]'s Payment method.
+// Payment encodes a payment (puzzle hash, amount, and optional memos) as a CLVM program.
 func (o *Clvm) Payment(value *Payment) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16019,7 +16019,7 @@ func (o *Clvm) Payment(value *Payment) (*Program, error) {
 	return obj, nil
 }
 
-// NotarizedPayment calls [Clvm]'s NotarizedPayment method.
+// NotarizedPayment encodes a notarized payment (used in offer settlements) as a CLVM program.
 func (o *Clvm) NotarizedPayment(value *NotarizedPayment) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16047,7 +16047,7 @@ func (o *Clvm) NotarizedPayment(value *NotarizedPayment) (*Program, error) {
 	return obj, nil
 }
 
-// Remark calls [Clvm]'s Remark method.
+// Remark creates a REMARK condition that embeds arbitrary data in the spend without affecting validation.
 func (o *Clvm) Remark(rest *Program) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16075,7 +16075,7 @@ func (o *Clvm) Remark(rest *Program) (*Program, error) {
 	return obj, nil
 }
 
-// AggSigParent calls [Clvm]'s AggSigParent method.
+// AggSigParent creates an AGG_SIG_PARENT condition requiring a BLS signature scoped to the parent coin ID.
 func (o *Clvm) AggSigParent(publicKey *PublicKey, message []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16104,7 +16104,7 @@ func (o *Clvm) AggSigParent(publicKey *PublicKey, message []byte) (*Program, err
 	return obj, nil
 }
 
-// AggSigPuzzle calls [Clvm]'s AggSigPuzzle method.
+// AggSigPuzzle creates an AGG_SIG_PUZZLE condition requiring a BLS signature scoped to the puzzle hash.
 func (o *Clvm) AggSigPuzzle(publicKey *PublicKey, message []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16133,7 +16133,7 @@ func (o *Clvm) AggSigPuzzle(publicKey *PublicKey, message []byte) (*Program, err
 	return obj, nil
 }
 
-// AggSigAmount calls [Clvm]'s AggSigAmount method.
+// AggSigAmount creates an AGG_SIG_AMOUNT condition requiring a BLS signature scoped to the coin amount.
 func (o *Clvm) AggSigAmount(publicKey *PublicKey, message []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16162,7 +16162,7 @@ func (o *Clvm) AggSigAmount(publicKey *PublicKey, message []byte) (*Program, err
 	return obj, nil
 }
 
-// AggSigPuzzleAmount calls [Clvm]'s AggSigPuzzleAmount method.
+// AggSigPuzzleAmount creates an AGG_SIG_PUZZLE_AMOUNT condition requiring a BLS signature scoped to the puzzle hash and amount.
 func (o *Clvm) AggSigPuzzleAmount(publicKey *PublicKey, message []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16191,7 +16191,7 @@ func (o *Clvm) AggSigPuzzleAmount(publicKey *PublicKey, message []byte) (*Progra
 	return obj, nil
 }
 
-// AggSigParentAmount calls [Clvm]'s AggSigParentAmount method.
+// AggSigParentAmount creates an AGG_SIG_PARENT_AMOUNT condition requiring a BLS signature scoped to the parent coin ID and amount.
 func (o *Clvm) AggSigParentAmount(publicKey *PublicKey, message []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16220,7 +16220,7 @@ func (o *Clvm) AggSigParentAmount(publicKey *PublicKey, message []byte) (*Progra
 	return obj, nil
 }
 
-// AggSigParentPuzzle calls [Clvm]'s AggSigParentPuzzle method.
+// AggSigParentPuzzle creates an AGG_SIG_PARENT_PUZZLE condition requiring a BLS signature scoped to the parent coin ID and puzzle hash.
 func (o *Clvm) AggSigParentPuzzle(publicKey *PublicKey, message []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16249,7 +16249,7 @@ func (o *Clvm) AggSigParentPuzzle(publicKey *PublicKey, message []byte) (*Progra
 	return obj, nil
 }
 
-// AggSigUnsafe calls [Clvm]'s AggSigUnsafe method.
+// AggSigUnsafe creates an AGG_SIG_UNSAFE condition requiring a BLS signature with no domain separation. Use with caution.
 func (o *Clvm) AggSigUnsafe(publicKey *PublicKey, message []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16278,7 +16278,7 @@ func (o *Clvm) AggSigUnsafe(publicKey *PublicKey, message []byte) (*Program, err
 	return obj, nil
 }
 
-// AggSigMe calls [Clvm]'s AggSigMe method.
+// AggSigMe creates an AGG_SIG_ME condition requiring a BLS signature scoped to the full coin ID.
 func (o *Clvm) AggSigMe(publicKey *PublicKey, message []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16307,7 +16307,7 @@ func (o *Clvm) AggSigMe(publicKey *PublicKey, message []byte) (*Program, error) 
 	return obj, nil
 }
 
-// CreateCoin calls [Clvm]'s CreateCoin method.
+// CreateCoin creates a CREATE_COIN condition that produces a new coin with the given puzzle hash, amount, and optional memos.
 func (o *Clvm) CreateCoin(puzzleHash []byte, amount uint64, memos *Program) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16337,7 +16337,7 @@ func (o *Clvm) CreateCoin(puzzleHash []byte, amount uint64, memos *Program) (*Pr
 	return obj, nil
 }
 
-// ReserveFee calls [Clvm]'s ReserveFee method.
+// ReserveFee creates a RESERVE_FEE condition that requires the transaction to include at least the given fee.
 func (o *Clvm) ReserveFee(amount uint64) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16361,7 +16361,7 @@ func (o *Clvm) ReserveFee(amount uint64) (*Program, error) {
 	return obj, nil
 }
 
-// CreateCoinAnnouncement calls [Clvm]'s CreateCoinAnnouncement method.
+// CreateCoinAnnouncement creates a CREATE_COIN_ANNOUNCEMENT condition for inter-coin communication within a spend bundle.
 func (o *Clvm) CreateCoinAnnouncement(message []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16386,7 +16386,7 @@ func (o *Clvm) CreateCoinAnnouncement(message []byte) (*Program, error) {
 	return obj, nil
 }
 
-// CreatePuzzleAnnouncement calls [Clvm]'s CreatePuzzleAnnouncement method.
+// CreatePuzzleAnnouncement creates a CREATE_PUZZLE_ANNOUNCEMENT condition for inter-coin communication scoped to the puzzle hash.
 func (o *Clvm) CreatePuzzleAnnouncement(message []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16411,7 +16411,7 @@ func (o *Clvm) CreatePuzzleAnnouncement(message []byte) (*Program, error) {
 	return obj, nil
 }
 
-// AssertCoinAnnouncement calls [Clvm]'s AssertCoinAnnouncement method.
+// AssertCoinAnnouncement creates an ASSERT_COIN_ANNOUNCEMENT condition that requires a matching coin announcement in the spend bundle.
 func (o *Clvm) AssertCoinAnnouncement(announcementId []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16436,7 +16436,7 @@ func (o *Clvm) AssertCoinAnnouncement(announcementId []byte) (*Program, error) {
 	return obj, nil
 }
 
-// AssertPuzzleAnnouncement calls [Clvm]'s AssertPuzzleAnnouncement method.
+// AssertPuzzleAnnouncement creates an ASSERT_PUZZLE_ANNOUNCEMENT condition that requires a matching puzzle announcement in the spend bundle.
 func (o *Clvm) AssertPuzzleAnnouncement(announcementId []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16461,7 +16461,7 @@ func (o *Clvm) AssertPuzzleAnnouncement(announcementId []byte) (*Program, error)
 	return obj, nil
 }
 
-// AssertConcurrentSpend calls [Clvm]'s AssertConcurrentSpend method.
+// AssertConcurrentSpend creates an ASSERT_CONCURRENT_SPEND condition requiring another coin to be spent in the same block.
 func (o *Clvm) AssertConcurrentSpend(coinId []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16486,7 +16486,7 @@ func (o *Clvm) AssertConcurrentSpend(coinId []byte) (*Program, error) {
 	return obj, nil
 }
 
-// AssertConcurrentPuzzle calls [Clvm]'s AssertConcurrentPuzzle method.
+// AssertConcurrentPuzzle creates an ASSERT_CONCURRENT_PUZZLE condition requiring a coin with this puzzle hash to be spent in the same block.
 func (o *Clvm) AssertConcurrentPuzzle(puzzleHash []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16511,7 +16511,7 @@ func (o *Clvm) AssertConcurrentPuzzle(puzzleHash []byte) (*Program, error) {
 	return obj, nil
 }
 
-// AssertSecondsRelative calls [Clvm]'s AssertSecondsRelative method.
+// AssertSecondsRelative creates an ASSERT_SECONDS_RELATIVE condition requiring the given number of seconds since coin creation.
 func (o *Clvm) AssertSecondsRelative(seconds uint64) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16535,7 +16535,7 @@ func (o *Clvm) AssertSecondsRelative(seconds uint64) (*Program, error) {
 	return obj, nil
 }
 
-// AssertSecondsAbsolute calls [Clvm]'s AssertSecondsAbsolute method.
+// AssertSecondsAbsolute creates an ASSERT_SECONDS_ABSOLUTE condition requiring the blockchain timestamp to be at least the given value.
 func (o *Clvm) AssertSecondsAbsolute(seconds uint64) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16559,7 +16559,7 @@ func (o *Clvm) AssertSecondsAbsolute(seconds uint64) (*Program, error) {
 	return obj, nil
 }
 
-// AssertHeightRelative calls [Clvm]'s AssertHeightRelative method.
+// AssertHeightRelative creates an ASSERT_HEIGHT_RELATIVE condition requiring the given number of blocks since coin creation.
 func (o *Clvm) AssertHeightRelative(height uint32) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16583,7 +16583,7 @@ func (o *Clvm) AssertHeightRelative(height uint32) (*Program, error) {
 	return obj, nil
 }
 
-// AssertHeightAbsolute calls [Clvm]'s AssertHeightAbsolute method.
+// AssertHeightAbsolute creates an ASSERT_HEIGHT_ABSOLUTE condition requiring the blockchain height to be at least the given value.
 func (o *Clvm) AssertHeightAbsolute(height uint32) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16607,7 +16607,7 @@ func (o *Clvm) AssertHeightAbsolute(height uint32) (*Program, error) {
 	return obj, nil
 }
 
-// AssertBeforeSecondsRelative calls [Clvm]'s AssertBeforeSecondsRelative method.
+// AssertBeforeSecondsRelative creates an ASSERT_BEFORE_SECONDS_RELATIVE condition requiring the spend to occur within the given seconds since coin creation.
 func (o *Clvm) AssertBeforeSecondsRelative(seconds uint64) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16631,7 +16631,7 @@ func (o *Clvm) AssertBeforeSecondsRelative(seconds uint64) (*Program, error) {
 	return obj, nil
 }
 
-// AssertBeforeSecondsAbsolute calls [Clvm]'s AssertBeforeSecondsAbsolute method.
+// AssertBeforeSecondsAbsolute creates an ASSERT_BEFORE_SECONDS_ABSOLUTE condition requiring the spend to occur before the given timestamp.
 func (o *Clvm) AssertBeforeSecondsAbsolute(seconds uint64) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16655,7 +16655,7 @@ func (o *Clvm) AssertBeforeSecondsAbsolute(seconds uint64) (*Program, error) {
 	return obj, nil
 }
 
-// AssertBeforeHeightRelative calls [Clvm]'s AssertBeforeHeightRelative method.
+// AssertBeforeHeightRelative creates an ASSERT_BEFORE_HEIGHT_RELATIVE condition requiring the spend to occur within the given blocks since coin creation.
 func (o *Clvm) AssertBeforeHeightRelative(height uint32) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16679,7 +16679,7 @@ func (o *Clvm) AssertBeforeHeightRelative(height uint32) (*Program, error) {
 	return obj, nil
 }
 
-// AssertBeforeHeightAbsolute calls [Clvm]'s AssertBeforeHeightAbsolute method.
+// AssertBeforeHeightAbsolute creates an ASSERT_BEFORE_HEIGHT_ABSOLUTE condition requiring the spend to occur before the given block height.
 func (o *Clvm) AssertBeforeHeightAbsolute(height uint32) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16703,7 +16703,7 @@ func (o *Clvm) AssertBeforeHeightAbsolute(height uint32) (*Program, error) {
 	return obj, nil
 }
 
-// AssertMyCoinId calls [Clvm]'s AssertMyCoinId method.
+// AssertMyCoinId creates an ASSERT_MY_COIN_ID condition that validates the coin's own ID.
 func (o *Clvm) AssertMyCoinId(coinId []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16728,7 +16728,7 @@ func (o *Clvm) AssertMyCoinId(coinId []byte) (*Program, error) {
 	return obj, nil
 }
 
-// AssertMyParentId calls [Clvm]'s AssertMyParentId method.
+// AssertMyParentId creates an ASSERT_MY_PARENT_ID condition that validates the coin's parent coin ID.
 func (o *Clvm) AssertMyParentId(parentId []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16753,7 +16753,7 @@ func (o *Clvm) AssertMyParentId(parentId []byte) (*Program, error) {
 	return obj, nil
 }
 
-// AssertMyPuzzleHash calls [Clvm]'s AssertMyPuzzleHash method.
+// AssertMyPuzzleHash creates an ASSERT_MY_PUZZLEHASH condition that validates the coin's own puzzle hash.
 func (o *Clvm) AssertMyPuzzleHash(puzzleHash []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16778,7 +16778,7 @@ func (o *Clvm) AssertMyPuzzleHash(puzzleHash []byte) (*Program, error) {
 	return obj, nil
 }
 
-// AssertMyAmount calls [Clvm]'s AssertMyAmount method.
+// AssertMyAmount creates an ASSERT_MY_AMOUNT condition that validates the coin's own amount.
 func (o *Clvm) AssertMyAmount(amount uint64) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16802,7 +16802,7 @@ func (o *Clvm) AssertMyAmount(amount uint64) (*Program, error) {
 	return obj, nil
 }
 
-// AssertMyBirthSeconds calls [Clvm]'s AssertMyBirthSeconds method.
+// AssertMyBirthSeconds creates an ASSERT_MY_BIRTH_SECONDS condition that validates the timestamp when the coin was created.
 func (o *Clvm) AssertMyBirthSeconds(seconds uint64) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16826,7 +16826,7 @@ func (o *Clvm) AssertMyBirthSeconds(seconds uint64) (*Program, error) {
 	return obj, nil
 }
 
-// AssertMyBirthHeight calls [Clvm]'s AssertMyBirthHeight method.
+// AssertMyBirthHeight creates an ASSERT_MY_BIRTH_HEIGHT condition that validates the block height when the coin was created.
 func (o *Clvm) AssertMyBirthHeight(height uint32) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16850,7 +16850,7 @@ func (o *Clvm) AssertMyBirthHeight(height uint32) (*Program, error) {
 	return obj, nil
 }
 
-// AssertEphemeral calls [Clvm]'s AssertEphemeral method.
+// AssertEphemeral creates an ASSERT_EPHEMERAL condition requiring the coin to be created and spent within the same block.
 func (o *Clvm) AssertEphemeral() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16874,7 +16874,7 @@ func (o *Clvm) AssertEphemeral() (*Program, error) {
 	return obj, nil
 }
 
-// SendMessage calls [Clvm]'s SendMessage method.
+// SendMessage creates a SEND_MESSAGE condition (CHIP-0025) for cross-coin communication with the given mode and message.
 func (o *Clvm) SendMessage(mode uint8, message []byte, data []*Program) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16914,7 +16914,7 @@ func (o *Clvm) SendMessage(mode uint8, message []byte, data []*Program) (*Progra
 	return obj, nil
 }
 
-// ReceiveMessage calls [Clvm]'s ReceiveMessage method.
+// ReceiveMessage creates a RECEIVE_MESSAGE condition (CHIP-0025) to receive a cross-coin message with the given mode and content.
 func (o *Clvm) ReceiveMessage(mode uint8, message []byte, data []*Program) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16954,7 +16954,7 @@ func (o *Clvm) ReceiveMessage(mode uint8, message []byte, data []*Program) (*Pro
 	return obj, nil
 }
 
-// Softfork calls [Clvm]'s Softfork method.
+// Softfork creates a SOFTFORK condition for forward-compatible consensus rule extensions, consuming the given cost.
 func (o *Clvm) Softfork(cost uint64, rest *Program) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -16982,7 +16982,7 @@ func (o *Clvm) Softfork(cost uint64, rest *Program) (*Program, error) {
 	return obj, nil
 }
 
-// MeltSingleton calls [Clvm]'s MeltSingleton method.
+// MeltSingleton creates a condition that destroys a singleton, permanently removing it from the coin set.
 func (o *Clvm) MeltSingleton() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17006,7 +17006,7 @@ func (o *Clvm) MeltSingleton() (*Program, error) {
 	return obj, nil
 }
 
-// TransferNft calls [Clvm]'s TransferNft method.
+// TransferNft creates NFT transfer conditions including royalty trade price information and the new owner's singleton.
 func (o *Clvm) TransferNft(launcherId []byte, tradePrices []*TradePrice, singletonInnerPuzzleHash []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17047,7 +17047,7 @@ func (o *Clvm) TransferNft(launcherId []byte, tradePrices []*TradePrice, singlet
 	return obj, nil
 }
 
-// RunCatTail calls [Clvm]'s RunCatTail method.
+// RunCatTail creates a condition that runs a CAT's TAIL (Token And Asset Issuance Limiter) program to validate issuance rules.
 func (o *Clvm) RunCatTail(program *Program, solution *Program) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17079,7 +17079,7 @@ func (o *Clvm) RunCatTail(program *Program, solution *Program) (*Program, error)
 	return obj, nil
 }
 
-// UpdateNftMetadata calls [Clvm]'s UpdateNftMetadata method.
+// UpdateNftMetadata creates a condition that updates an NFT's on-chain metadata using the updater puzzle.
 func (o *Clvm) UpdateNftMetadata(updaterPuzzleReveal *Program, updaterSolution *Program) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17111,7 +17111,7 @@ func (o *Clvm) UpdateNftMetadata(updaterPuzzleReveal *Program, updaterSolution *
 	return obj, nil
 }
 
-// UpdateDataStoreMerkleRoot calls [Clvm]'s UpdateDataStoreMerkleRoot method.
+// UpdateDataStoreMerkleRoot creates a condition that updates a DataLayer store's merkle root hash.
 func (o *Clvm) UpdateDataStoreMerkleRoot(newMerkleRoot []byte, memos unsafe.Pointer) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17136,7 +17136,7 @@ func (o *Clvm) UpdateDataStoreMerkleRoot(newMerkleRoot []byte, memos unsafe.Poin
 	return obj, nil
 }
 
-// ParseChildStreamedAsset calls [Clvm]'s ParseChildStreamedAsset method.
+// ParseChildStreamedAsset parses a coin spend to extract the child streamed (vesting) asset state.
 func (o *Clvm) ParseChildStreamedAsset(coinSpend *CoinSpend) (*StreamedAssetParsingResult, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17164,7 +17164,7 @@ func (o *Clvm) ParseChildStreamedAsset(coinSpend *CoinSpend) (*StreamedAssetPars
 	return obj, nil
 }
 
-// ParseChildMedievalVault calls [Clvm]'s ParseChildMedievalVault method.
+// ParseChildMedievalVault parses a coin spend to extract the child medieval vault state, if present.
 func (o *Clvm) ParseChildMedievalVault(coinSpend *CoinSpend) (*MedievalVault, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17195,7 +17195,7 @@ func (o *Clvm) ParseChildMedievalVault(coinSpend *CoinSpend) (*MedievalVault, er
 	return obj, nil
 }
 
-// SpendMedievalVault calls [Clvm]'s SpendMedievalVault method.
+// SpendMedievalVault spends a medieval vault with the given public keys, conditions, and genesis challenge.
 func (o *Clvm) SpendMedievalVault(medievalVault *MedievalVault, usedPubkeys []*PublicKey, conditions []*Program, genesisChallenge []byte) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -17251,7 +17251,7 @@ func (o *Clvm) SpendMedievalVault(medievalVault *MedievalVault, usedPubkeys []*P
 	return nil
 }
 
-// SpendMedievalVaultUnsafe calls [Clvm]'s SpendMedievalVaultUnsafe method.
+// SpendMedievalVaultUnsafe spends a medieval vault with a raw delegated spend, bypassing condition building. Use with caution.
 func (o *Clvm) SpendMedievalVaultUnsafe(medievalVault *MedievalVault, usedPubkeys []*PublicKey, delegatedSpend *Spend) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -17295,7 +17295,7 @@ func (o *Clvm) SpendMedievalVaultUnsafe(medievalVault *MedievalVault, usedPubkey
 	return nil
 }
 
-// MedievalVaultRekeyDelegatedPuzzle calls [Clvm]'s MedievalVaultRekeyDelegatedPuzzle method.
+// MedievalVaultRekeyDelegatedPuzzle creates the delegated puzzle for rekeying a medieval vault to new M-of-N parameters.
 func (o *Clvm) MedievalVaultRekeyDelegatedPuzzle(launcherId []byte, newM uint, newPubkeys []*PublicKey, coinId []byte, genesisChallenge []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17337,7 +17337,7 @@ func (o *Clvm) MedievalVaultRekeyDelegatedPuzzle(launcherId []byte, newM uint, n
 	return obj, nil
 }
 
-// MedievalVaultSendMessageDelegatedPuzzle calls [Clvm]'s MedievalVaultSendMessageDelegatedPuzzle method.
+// MedievalVaultSendMessageDelegatedPuzzle creates the delegated puzzle for sending a cross-vault message from a medieval vault.
 func (o *Clvm) MedievalVaultSendMessageDelegatedPuzzle(message []byte, receiverLauncherId []byte, myCoin *Coin, myInfo *MedievalVaultInfo, genesisChallenge []byte) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17372,7 +17372,7 @@ func (o *Clvm) MedievalVaultSendMessageDelegatedPuzzle(message []byte, receiverL
 	return obj, nil
 }
 
-// RewardDistributorFromSpend calls [Clvm]'s RewardDistributorFromSpend method.
+// RewardDistributorFromSpend parses a coin spend to reconstruct a reward distributor's state, if it matches the expected format.
 func (o *Clvm) RewardDistributorFromSpend(spend *CoinSpend, reserveLineageProof *LineageProof, constants *RewardDistributorConstants) (*RewardDistributor, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17412,7 +17412,7 @@ func (o *Clvm) RewardDistributorFromSpend(spend *CoinSpend, reserveLineageProof 
 	return obj, nil
 }
 
-// RewardDistributorFromParentSpend calls [Clvm]'s RewardDistributorFromParentSpend method.
+// RewardDistributorFromParentSpend reconstructs a reward distributor's state from its parent coin's spend.
 func (o *Clvm) RewardDistributorFromParentSpend(parentSpend *CoinSpend, constants *RewardDistributorConstants) (*RewardDistributor, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17447,7 +17447,7 @@ func (o *Clvm) RewardDistributorFromParentSpend(parentSpend *CoinSpend, constant
 	return obj, nil
 }
 
-// RewardDistributorFromEveCoinSpend calls [Clvm]'s RewardDistributorFromEveCoinSpend method.
+// RewardDistributorFromEveCoinSpend reconstructs a reward distributor from its initial (eve) coin spend and genesis state.
 func (o *Clvm) RewardDistributorFromEveCoinSpend(constants *RewardDistributorConstants, initialState *RewardDistributorState, eveCoinSpend *CoinSpend, reserveParentId []byte, reserveLineageProof *LineageProof) (*RewardDistributorInfoFromEveCoin, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17491,7 +17491,7 @@ func (o *Clvm) RewardDistributorFromEveCoinSpend(constants *RewardDistributorCon
 	return obj, nil
 }
 
-// LaunchRewardDistributor calls [Clvm]'s LaunchRewardDistributor method.
+// LaunchRewardDistributor creates the coin spends to launch a new reward distributor from an offer, configuring epochs and CAT refund.
 func (o *Clvm) LaunchRewardDistributor(offer *SpendBundle, firstEpochStart uint64, catRefundPuzzleHash []byte, constants *RewardDistributorConstants, mainnet bool, comment string) (*RewardDistributorLaunchResult, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17525,7 +17525,7 @@ func (o *Clvm) LaunchRewardDistributor(offer *SpendBundle, firstEpochStart uint6
 	return obj, nil
 }
 
-// CreateOfferSecurityCoin calls [Clvm]'s CreateOfferSecurityCoin method.
+// CreateOfferSecurityCoin creates a security coin for an offer to prevent unauthorized spend bundle manipulation.
 func (o *Clvm) CreateOfferSecurityCoin(offer *SpendBundle) (*OfferSecurityCoinDetails, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17553,7 +17553,7 @@ func (o *Clvm) CreateOfferSecurityCoin(offer *SpendBundle) (*OfferSecurityCoinDe
 	return obj, nil
 }
 
-// SpendOfferSecurityCoin calls [Clvm]'s SpendOfferSecurityCoin method.
+// SpendOfferSecurityCoin spends an offer security coin with the given conditions, returning the required BLS signature.
 func (o *Clvm) SpendOfferSecurityCoin(securityCoinDetails *OfferSecurityCoinDetails, conditions []*Program, mainnet bool) (*Signature, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17596,7 +17596,7 @@ func (o *Clvm) SpendOfferSecurityCoin(securityCoinDetails *OfferSecurityCoinDeta
 	return obj, nil
 }
 
-// SpendSettlementNft calls [Clvm]'s SpendSettlementNft method.
+// SpendSettlementNft spends a settlement NFT from an offer, transferring it to the destination puzzle hash.
 func (o *Clvm) SpendSettlementNft(offer *SpendBundle, nftLauncherId []byte, nonce []byte, destinationPuzzleHash []byte) (*SettlementNftSpendResult, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17627,7 +17627,7 @@ func (o *Clvm) SpendSettlementNft(offer *SpendBundle, nftLauncherId []byte, nonc
 	return obj, nil
 }
 
-// OfferSettlementCats calls [Clvm]'s OfferSettlementCats method.
+// OfferSettlementCats extracts the settlement CAT coins from an offer spend bundle for a given asset ID.
 func (o *Clvm) OfferSettlementCats(offer *SpendBundle, assetId []byte) ([]*Cat, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17666,7 +17666,7 @@ func (o *Clvm) OfferSettlementCats(offer *SpendBundle, assetId []byte) ([]*Cat, 
 	return result, nil
 }
 
-// OfferSettlementNft calls [Clvm]'s OfferSettlementNft method.
+// OfferSettlementNft extracts the settlement NFT from an offer spend bundle for a given launcher ID.
 func (o *Clvm) OfferSettlementNft(offer *SpendBundle, nftLauncherId []byte) (*Nft, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17698,7 +17698,7 @@ func (o *Clvm) OfferSettlementNft(offer *SpendBundle, nftLauncherId []byte) (*Nf
 	return obj, nil
 }
 
-// ParseVaultTransaction calls [Clvm]'s ParseVaultTransaction method.
+// ParseVaultTransaction parses a vault spend reveal and its associated coin spends into a structured vault transaction.
 func (o *Clvm) ParseVaultTransaction(vault *VaultSpendReveal, coinSpends []*CoinSpend) (*VaultTransaction, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17741,7 +17741,7 @@ func (o *Clvm) ParseVaultTransaction(vault *VaultSpendReveal, coinSpends []*Coin
 	return obj, nil
 }
 
-// AcsTransferProgram calls [Clvm]'s AcsTransferProgram method.
+// AcsTransferProgram returns the acs transfer program of the [Clvm].
 func (o *Clvm) AcsTransferProgram() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17765,7 +17765,7 @@ func (o *Clvm) AcsTransferProgram() (*Program, error) {
 	return obj, nil
 }
 
-// AugmentedCondition calls [Clvm]'s AugmentedCondition method.
+// AugmentedCondition returns the augmented condition of the [Clvm].
 func (o *Clvm) AugmentedCondition() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17789,7 +17789,7 @@ func (o *Clvm) AugmentedCondition() (*Program, error) {
 	return obj, nil
 }
 
-// BlockProgramZero calls [Clvm]'s BlockProgramZero method.
+// BlockProgramZero returns the block program zero of the [Clvm].
 func (o *Clvm) BlockProgramZero() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17813,7 +17813,7 @@ func (o *Clvm) BlockProgramZero() (*Program, error) {
 	return obj, nil
 }
 
-// CatPuzzle calls [Clvm]'s CatPuzzle method.
+// CatPuzzle returns the cat puzzle of the [Clvm].
 func (o *Clvm) CatPuzzle() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17837,7 +17837,7 @@ func (o *Clvm) CatPuzzle() (*Program, error) {
 	return obj, nil
 }
 
-// ChialispDeserialisation calls [Clvm]'s ChialispDeserialisation method.
+// ChialispDeserialisation returns the chialisp deserialisation of the [Clvm].
 func (o *Clvm) ChialispDeserialisation() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17861,7 +17861,7 @@ func (o *Clvm) ChialispDeserialisation() (*Program, error) {
 	return obj, nil
 }
 
-// ConditionsWFeeAnnounce calls [Clvm]'s ConditionsWFeeAnnounce method.
+// ConditionsWFeeAnnounce returns the conditions wfee announce of the [Clvm].
 func (o *Clvm) ConditionsWFeeAnnounce() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17885,7 +17885,7 @@ func (o *Clvm) ConditionsWFeeAnnounce() (*Program, error) {
 	return obj, nil
 }
 
-// CovenantLayer calls [Clvm]'s CovenantLayer method.
+// CovenantLayer returns the covenant layer of the [Clvm].
 func (o *Clvm) CovenantLayer() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17909,7 +17909,7 @@ func (o *Clvm) CovenantLayer() (*Program, error) {
 	return obj, nil
 }
 
-// CreateNftLauncherFromDid calls [Clvm]'s CreateNftLauncherFromDid method.
+// CreateNftLauncherFromDid returns the create nft launcher from did of the [Clvm].
 func (o *Clvm) CreateNftLauncherFromDid() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17933,7 +17933,7 @@ func (o *Clvm) CreateNftLauncherFromDid() (*Program, error) {
 	return obj, nil
 }
 
-// CredentialRestriction calls [Clvm]'s CredentialRestriction method.
+// CredentialRestriction returns the credential restriction of the [Clvm].
 func (o *Clvm) CredentialRestriction() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17957,7 +17957,7 @@ func (o *Clvm) CredentialRestriction() (*Program, error) {
 	return obj, nil
 }
 
-// DaoCatEve calls [Clvm]'s DaoCatEve method.
+// DaoCatEve returns the dao cat eve of the [Clvm].
 func (o *Clvm) DaoCatEve() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -17981,7 +17981,7 @@ func (o *Clvm) DaoCatEve() (*Program, error) {
 	return obj, nil
 }
 
-// DaoCatLauncher calls [Clvm]'s DaoCatLauncher method.
+// DaoCatLauncher returns the dao cat launcher of the [Clvm].
 func (o *Clvm) DaoCatLauncher() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18005,7 +18005,7 @@ func (o *Clvm) DaoCatLauncher() (*Program, error) {
 	return obj, nil
 }
 
-// DaoFinishedState calls [Clvm]'s DaoFinishedState method.
+// DaoFinishedState returns the dao finished state of the [Clvm].
 func (o *Clvm) DaoFinishedState() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18029,7 +18029,7 @@ func (o *Clvm) DaoFinishedState() (*Program, error) {
 	return obj, nil
 }
 
-// DaoLockup calls [Clvm]'s DaoLockup method.
+// DaoLockup returns the dao lockup of the [Clvm].
 func (o *Clvm) DaoLockup() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18053,7 +18053,7 @@ func (o *Clvm) DaoLockup() (*Program, error) {
 	return obj, nil
 }
 
-// DaoProposal calls [Clvm]'s DaoProposal method.
+// DaoProposal returns the dao proposal of the [Clvm].
 func (o *Clvm) DaoProposal() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18077,7 +18077,7 @@ func (o *Clvm) DaoProposal() (*Program, error) {
 	return obj, nil
 }
 
-// DaoProposalTimer calls [Clvm]'s DaoProposalTimer method.
+// DaoProposalTimer returns the dao proposal timer of the [Clvm].
 func (o *Clvm) DaoProposalTimer() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18101,7 +18101,7 @@ func (o *Clvm) DaoProposalTimer() (*Program, error) {
 	return obj, nil
 }
 
-// DaoProposalValidator calls [Clvm]'s DaoProposalValidator method.
+// DaoProposalValidator returns the dao proposal validator of the [Clvm].
 func (o *Clvm) DaoProposalValidator() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18125,7 +18125,7 @@ func (o *Clvm) DaoProposalValidator() (*Program, error) {
 	return obj, nil
 }
 
-// DaoSpendP2Singleton calls [Clvm]'s DaoSpendP2Singleton method.
+// DaoSpendP2Singleton returns the dao spend P2 singleton of the [Clvm].
 func (o *Clvm) DaoSpendP2Singleton() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18149,7 +18149,7 @@ func (o *Clvm) DaoSpendP2Singleton() (*Program, error) {
 	return obj, nil
 }
 
-// DaoTreasury calls [Clvm]'s DaoTreasury method.
+// DaoTreasury returns the dao treasury of the [Clvm].
 func (o *Clvm) DaoTreasury() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18173,7 +18173,7 @@ func (o *Clvm) DaoTreasury() (*Program, error) {
 	return obj, nil
 }
 
-// DaoUpdateProposal calls [Clvm]'s DaoUpdateProposal method.
+// DaoUpdateProposal returns the dao update proposal of the [Clvm].
 func (o *Clvm) DaoUpdateProposal() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18197,7 +18197,7 @@ func (o *Clvm) DaoUpdateProposal() (*Program, error) {
 	return obj, nil
 }
 
-// DecompressCoinSpendEntry calls [Clvm]'s DecompressCoinSpendEntry method.
+// DecompressCoinSpendEntry returns the decompress coin spend entry of the [Clvm].
 func (o *Clvm) DecompressCoinSpendEntry() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18221,7 +18221,7 @@ func (o *Clvm) DecompressCoinSpendEntry() (*Program, error) {
 	return obj, nil
 }
 
-// DecompressCoinSpendEntryWithPrefix calls [Clvm]'s DecompressCoinSpendEntryWithPrefix method.
+// DecompressCoinSpendEntryWithPrefix returns the decompress coin spend entry with prefix of the [Clvm].
 func (o *Clvm) DecompressCoinSpendEntryWithPrefix() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18245,7 +18245,7 @@ func (o *Clvm) DecompressCoinSpendEntryWithPrefix() (*Program, error) {
 	return obj, nil
 }
 
-// DecompressPuzzle calls [Clvm]'s DecompressPuzzle method.
+// DecompressPuzzle returns the decompress puzzle of the [Clvm].
 func (o *Clvm) DecompressPuzzle() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18269,7 +18269,7 @@ func (o *Clvm) DecompressPuzzle() (*Program, error) {
 	return obj, nil
 }
 
-// DelegatedTail calls [Clvm]'s DelegatedTail method.
+// DelegatedTail returns the delegated tail of the [Clvm].
 func (o *Clvm) DelegatedTail() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18293,7 +18293,7 @@ func (o *Clvm) DelegatedTail() (*Program, error) {
 	return obj, nil
 }
 
-// DidInnerpuzzle calls [Clvm]'s DidInnerpuzzle method.
+// DidInnerpuzzle returns the did innerpuzzle of the [Clvm].
 func (o *Clvm) DidInnerpuzzle() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18317,7 +18317,7 @@ func (o *Clvm) DidInnerpuzzle() (*Program, error) {
 	return obj, nil
 }
 
-// EmlCovenantMorpher calls [Clvm]'s EmlCovenantMorpher method.
+// EmlCovenantMorpher returns the eml covenant morpher of the [Clvm].
 func (o *Clvm) EmlCovenantMorpher() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18341,7 +18341,7 @@ func (o *Clvm) EmlCovenantMorpher() (*Program, error) {
 	return obj, nil
 }
 
-// EmlTransferProgramCovenantAdapter calls [Clvm]'s EmlTransferProgramCovenantAdapter method.
+// EmlTransferProgramCovenantAdapter returns the eml transfer program covenant adapter of the [Clvm].
 func (o *Clvm) EmlTransferProgramCovenantAdapter() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18365,7 +18365,7 @@ func (o *Clvm) EmlTransferProgramCovenantAdapter() (*Program, error) {
 	return obj, nil
 }
 
-// EmlUpdateMetadataWithDid calls [Clvm]'s EmlUpdateMetadataWithDid method.
+// EmlUpdateMetadataWithDid returns the eml update metadata with did of the [Clvm].
 func (o *Clvm) EmlUpdateMetadataWithDid() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18389,7 +18389,7 @@ func (o *Clvm) EmlUpdateMetadataWithDid() (*Program, error) {
 	return obj, nil
 }
 
-// EverythingWithSignature calls [Clvm]'s EverythingWithSignature method.
+// EverythingWithSignature returns the everything with signature of the [Clvm].
 func (o *Clvm) EverythingWithSignature() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18413,7 +18413,7 @@ func (o *Clvm) EverythingWithSignature() (*Program, error) {
 	return obj, nil
 }
 
-// ExigentMetadataLayer calls [Clvm]'s ExigentMetadataLayer method.
+// ExigentMetadataLayer returns the exigent metadata layer of the [Clvm].
 func (o *Clvm) ExigentMetadataLayer() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18437,7 +18437,7 @@ func (o *Clvm) ExigentMetadataLayer() (*Program, error) {
 	return obj, nil
 }
 
-// FlagProofsChecker calls [Clvm]'s FlagProofsChecker method.
+// FlagProofsChecker returns the flag proofs checker of the [Clvm].
 func (o *Clvm) FlagProofsChecker() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18461,7 +18461,7 @@ func (o *Clvm) FlagProofsChecker() (*Program, error) {
 	return obj, nil
 }
 
-// GenesisByCoinId calls [Clvm]'s GenesisByCoinId method.
+// GenesisByCoinId returns the genesis by coin id of the [Clvm].
 func (o *Clvm) GenesisByCoinId() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18485,7 +18485,7 @@ func (o *Clvm) GenesisByCoinId() (*Program, error) {
 	return obj, nil
 }
 
-// GenesisByCoinIdOrSingleton calls [Clvm]'s GenesisByCoinIdOrSingleton method.
+// GenesisByCoinIdOrSingleton returns the genesis by coin id or singleton of the [Clvm].
 func (o *Clvm) GenesisByCoinIdOrSingleton() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18509,7 +18509,7 @@ func (o *Clvm) GenesisByCoinIdOrSingleton() (*Program, error) {
 	return obj, nil
 }
 
-// GenesisByPuzzleHash calls [Clvm]'s GenesisByPuzzleHash method.
+// GenesisByPuzzleHash returns the genesis by puzzle hash of the [Clvm].
 func (o *Clvm) GenesisByPuzzleHash() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18533,7 +18533,7 @@ func (o *Clvm) GenesisByPuzzleHash() (*Program, error) {
 	return obj, nil
 }
 
-// GraftrootDlOffers calls [Clvm]'s GraftrootDlOffers method.
+// GraftrootDlOffers returns the graftroot dl offers of the [Clvm].
 func (o *Clvm) GraftrootDlOffers() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18557,7 +18557,7 @@ func (o *Clvm) GraftrootDlOffers() (*Program, error) {
 	return obj, nil
 }
 
-// NftIntermediateLauncher calls [Clvm]'s NftIntermediateLauncher method.
+// NftIntermediateLauncher returns the nft intermediate launcher of the [Clvm].
 func (o *Clvm) NftIntermediateLauncher() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18581,7 +18581,7 @@ func (o *Clvm) NftIntermediateLauncher() (*Program, error) {
 	return obj, nil
 }
 
-// NftMetadataUpdaterDefault calls [Clvm]'s NftMetadataUpdaterDefault method.
+// NftMetadataUpdaterDefault returns the nft metadata updater default of the [Clvm].
 func (o *Clvm) NftMetadataUpdaterDefault() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18605,7 +18605,7 @@ func (o *Clvm) NftMetadataUpdaterDefault() (*Program, error) {
 	return obj, nil
 }
 
-// NftMetadataUpdaterUpdateable calls [Clvm]'s NftMetadataUpdaterUpdateable method.
+// NftMetadataUpdaterUpdateable returns the nft metadata updater updateable of the [Clvm].
 func (o *Clvm) NftMetadataUpdaterUpdateable() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18629,7 +18629,7 @@ func (o *Clvm) NftMetadataUpdaterUpdateable() (*Program, error) {
 	return obj, nil
 }
 
-// NftOwnershipLayer calls [Clvm]'s NftOwnershipLayer method.
+// NftOwnershipLayer returns the nft ownership layer of the [Clvm].
 func (o *Clvm) NftOwnershipLayer() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18653,7 +18653,7 @@ func (o *Clvm) NftOwnershipLayer() (*Program, error) {
 	return obj, nil
 }
 
-// NftOwnershipTransferProgramOneWayClaimWithRoyalties calls [Clvm]'s NftOwnershipTransferProgramOneWayClaimWithRoyalties method.
+// NftOwnershipTransferProgramOneWayClaimWithRoyalties returns the nft ownership transfer program one way claim with royalties of the [Clvm].
 func (o *Clvm) NftOwnershipTransferProgramOneWayClaimWithRoyalties() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18677,7 +18677,7 @@ func (o *Clvm) NftOwnershipTransferProgramOneWayClaimWithRoyalties() (*Program, 
 	return obj, nil
 }
 
-// NftStateLayer calls [Clvm]'s NftStateLayer method.
+// NftStateLayer returns the nft state layer of the [Clvm].
 func (o *Clvm) NftStateLayer() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18701,7 +18701,7 @@ func (o *Clvm) NftStateLayer() (*Program, error) {
 	return obj, nil
 }
 
-// Notification calls [Clvm]'s Notification method.
+// Notification returns the notification of the [Clvm].
 func (o *Clvm) Notification() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18725,7 +18725,7 @@ func (o *Clvm) Notification() (*Program, error) {
 	return obj, nil
 }
 
-// P21OfN calls [Clvm]'s P21OfN method.
+// P21OfN returns the p21 of N of the [Clvm].
 func (o *Clvm) P21OfN() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18749,7 +18749,7 @@ func (o *Clvm) P21OfN() (*Program, error) {
 	return obj, nil
 }
 
-// P2AnnouncedDelegatedPuzzle calls [Clvm]'s P2AnnouncedDelegatedPuzzle method.
+// P2AnnouncedDelegatedPuzzle returns the p2 announced delegated puzzle of the [Clvm].
 func (o *Clvm) P2AnnouncedDelegatedPuzzle() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18773,7 +18773,7 @@ func (o *Clvm) P2AnnouncedDelegatedPuzzle() (*Program, error) {
 	return obj, nil
 }
 
-// P2Conditions calls [Clvm]'s P2Conditions method.
+// P2Conditions returns the p2 conditions of the [Clvm].
 func (o *Clvm) P2Conditions() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18797,7 +18797,7 @@ func (o *Clvm) P2Conditions() (*Program, error) {
 	return obj, nil
 }
 
-// P2DelegatedConditions calls [Clvm]'s P2DelegatedConditions method.
+// P2DelegatedConditions returns the p2 delegated conditions of the [Clvm].
 func (o *Clvm) P2DelegatedConditions() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18821,7 +18821,7 @@ func (o *Clvm) P2DelegatedConditions() (*Program, error) {
 	return obj, nil
 }
 
-// P2DelegatedPuzzle calls [Clvm]'s P2DelegatedPuzzle method.
+// P2DelegatedPuzzle returns the p2 delegated puzzle of the [Clvm].
 func (o *Clvm) P2DelegatedPuzzle() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18845,7 +18845,7 @@ func (o *Clvm) P2DelegatedPuzzle() (*Program, error) {
 	return obj, nil
 }
 
-// P2DelegatedPuzzleOrHiddenPuzzle calls [Clvm]'s P2DelegatedPuzzleOrHiddenPuzzle method.
+// P2DelegatedPuzzleOrHiddenPuzzle returns the p2 delegated puzzle or hidden puzzle of the [Clvm].
 func (o *Clvm) P2DelegatedPuzzleOrHiddenPuzzle() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18869,7 +18869,7 @@ func (o *Clvm) P2DelegatedPuzzleOrHiddenPuzzle() (*Program, error) {
 	return obj, nil
 }
 
-// P2MOfNDelegateDirect calls [Clvm]'s P2MOfNDelegateDirect method.
+// P2MOfNDelegateDirect returns the p2 mof ndelegate direct of the [Clvm].
 func (o *Clvm) P2MOfNDelegateDirect() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18893,7 +18893,7 @@ func (o *Clvm) P2MOfNDelegateDirect() (*Program, error) {
 	return obj, nil
 }
 
-// P2Parent calls [Clvm]'s P2Parent method.
+// P2Parent returns the p2 parent of the [Clvm].
 func (o *Clvm) P2Parent() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18917,7 +18917,7 @@ func (o *Clvm) P2Parent() (*Program, error) {
 	return obj, nil
 }
 
-// P2PuzzleHash calls [Clvm]'s P2PuzzleHash method.
+// P2PuzzleHash returns the p2 puzzle hash of the [Clvm].
 func (o *Clvm) P2PuzzleHash() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18941,7 +18941,7 @@ func (o *Clvm) P2PuzzleHash() (*Program, error) {
 	return obj, nil
 }
 
-// P2Singleton calls [Clvm]'s P2Singleton method.
+// P2Singleton returns the p2 singleton of the [Clvm].
 func (o *Clvm) P2Singleton() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18965,7 +18965,7 @@ func (o *Clvm) P2Singleton() (*Program, error) {
 	return obj, nil
 }
 
-// P2SingletonAggregator calls [Clvm]'s P2SingletonAggregator method.
+// P2SingletonAggregator returns the p2 singleton aggregator of the [Clvm].
 func (o *Clvm) P2SingletonAggregator() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -18989,7 +18989,7 @@ func (o *Clvm) P2SingletonAggregator() (*Program, error) {
 	return obj, nil
 }
 
-// P2SingletonOrDelayedPuzzleHash calls [Clvm]'s P2SingletonOrDelayedPuzzleHash method.
+// P2SingletonOrDelayedPuzzleHash returns the p2 singleton or delayed puzzle hash of the [Clvm].
 func (o *Clvm) P2SingletonOrDelayedPuzzleHash() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19013,7 +19013,7 @@ func (o *Clvm) P2SingletonOrDelayedPuzzleHash() (*Program, error) {
 	return obj, nil
 }
 
-// P2SingletonViaDelegatedPuzzle calls [Clvm]'s P2SingletonViaDelegatedPuzzle method.
+// P2SingletonViaDelegatedPuzzle returns the p2 singleton via delegated puzzle of the [Clvm].
 func (o *Clvm) P2SingletonViaDelegatedPuzzle() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19037,7 +19037,7 @@ func (o *Clvm) P2SingletonViaDelegatedPuzzle() (*Program, error) {
 	return obj, nil
 }
 
-// PoolMemberInnerpuzzle calls [Clvm]'s PoolMemberInnerpuzzle method.
+// PoolMemberInnerpuzzle returns the pool member innerpuzzle of the [Clvm].
 func (o *Clvm) PoolMemberInnerpuzzle() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19061,7 +19061,7 @@ func (o *Clvm) PoolMemberInnerpuzzle() (*Program, error) {
 	return obj, nil
 }
 
-// PoolWaitingroomInnerpuzzle calls [Clvm]'s PoolWaitingroomInnerpuzzle method.
+// PoolWaitingroomInnerpuzzle returns the pool waitingroom innerpuzzle of the [Clvm].
 func (o *Clvm) PoolWaitingroomInnerpuzzle() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19085,7 +19085,7 @@ func (o *Clvm) PoolWaitingroomInnerpuzzle() (*Program, error) {
 	return obj, nil
 }
 
-// RevocationLayer calls [Clvm]'s RevocationLayer method.
+// RevocationLayer returns the revocation layer of the [Clvm].
 func (o *Clvm) RevocationLayer() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19109,7 +19109,7 @@ func (o *Clvm) RevocationLayer() (*Program, error) {
 	return obj, nil
 }
 
-// RomBootstrapGenerator calls [Clvm]'s RomBootstrapGenerator method.
+// RomBootstrapGenerator returns the rom bootstrap generator of the [Clvm].
 func (o *Clvm) RomBootstrapGenerator() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19133,7 +19133,7 @@ func (o *Clvm) RomBootstrapGenerator() (*Program, error) {
 	return obj, nil
 }
 
-// SettlementPayment calls [Clvm]'s SettlementPayment method.
+// SettlementPayment returns the settlement payment of the [Clvm].
 func (o *Clvm) SettlementPayment() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19157,7 +19157,7 @@ func (o *Clvm) SettlementPayment() (*Program, error) {
 	return obj, nil
 }
 
-// SingletonLauncher calls [Clvm]'s SingletonLauncher method.
+// SingletonLauncher returns the singleton launcher of the [Clvm].
 func (o *Clvm) SingletonLauncher() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19181,7 +19181,7 @@ func (o *Clvm) SingletonLauncher() (*Program, error) {
 	return obj, nil
 }
 
-// SingletonTopLayer calls [Clvm]'s SingletonTopLayer method.
+// SingletonTopLayer returns the singleton top layer of the [Clvm].
 func (o *Clvm) SingletonTopLayer() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19205,7 +19205,7 @@ func (o *Clvm) SingletonTopLayer() (*Program, error) {
 	return obj, nil
 }
 
-// SingletonTopLayerV11 calls [Clvm]'s SingletonTopLayerV11 method.
+// SingletonTopLayerV11 returns the singleton top layer V11 of the [Clvm].
 func (o *Clvm) SingletonTopLayerV11() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19229,7 +19229,7 @@ func (o *Clvm) SingletonTopLayerV11() (*Program, error) {
 	return obj, nil
 }
 
-// StandardVcRevocationPuzzle calls [Clvm]'s StandardVcRevocationPuzzle method.
+// StandardVcRevocationPuzzle returns the standard vc revocation puzzle of the [Clvm].
 func (o *Clvm) StandardVcRevocationPuzzle() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19253,7 +19253,7 @@ func (o *Clvm) StandardVcRevocationPuzzle() (*Program, error) {
 	return obj, nil
 }
 
-// StdParentMorpher calls [Clvm]'s StdParentMorpher method.
+// StdParentMorpher returns the std parent morpher of the [Clvm].
 func (o *Clvm) StdParentMorpher() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19277,7 +19277,7 @@ func (o *Clvm) StdParentMorpher() (*Program, error) {
 	return obj, nil
 }
 
-// OptionContract calls [Clvm]'s OptionContract method.
+// OptionContract returns the option contract of the [Clvm].
 func (o *Clvm) OptionContract() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19301,7 +19301,7 @@ func (o *Clvm) OptionContract() (*Program, error) {
 	return obj, nil
 }
 
-// P2CurriedPuzzle calls [Clvm]'s P2CurriedPuzzle method.
+// P2CurriedPuzzle returns the p2 curried puzzle of the [Clvm].
 func (o *Clvm) P2CurriedPuzzle() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19325,7 +19325,7 @@ func (o *Clvm) P2CurriedPuzzle() (*Program, error) {
 	return obj, nil
 }
 
-// BlsMember calls [Clvm]'s BlsMember method.
+// BlsMember returns the bls member of the [Clvm].
 func (o *Clvm) BlsMember() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19349,7 +19349,7 @@ func (o *Clvm) BlsMember() (*Program, error) {
 	return obj, nil
 }
 
-// BlsTaprootMember calls [Clvm]'s BlsTaprootMember method.
+// BlsTaprootMember returns the bls taproot member of the [Clvm].
 func (o *Clvm) BlsTaprootMember() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19373,7 +19373,7 @@ func (o *Clvm) BlsTaprootMember() (*Program, error) {
 	return obj, nil
 }
 
-// FixedPuzzleMember calls [Clvm]'s FixedPuzzleMember method.
+// FixedPuzzleMember returns the fixed puzzle member of the [Clvm].
 func (o *Clvm) FixedPuzzleMember() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19397,7 +19397,7 @@ func (o *Clvm) FixedPuzzleMember() (*Program, error) {
 	return obj, nil
 }
 
-// K1MemberPuzzleAssert calls [Clvm]'s K1MemberPuzzleAssert method.
+// K1MemberPuzzleAssert returns the k1 member puzzle assert of the [Clvm].
 func (o *Clvm) K1MemberPuzzleAssert() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19421,7 +19421,7 @@ func (o *Clvm) K1MemberPuzzleAssert() (*Program, error) {
 	return obj, nil
 }
 
-// K1Member calls [Clvm]'s K1Member method.
+// K1Member returns the k1 member of the [Clvm].
 func (o *Clvm) K1Member() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19445,7 +19445,7 @@ func (o *Clvm) K1Member() (*Program, error) {
 	return obj, nil
 }
 
-// PasskeyMemberPuzzleAssert calls [Clvm]'s PasskeyMemberPuzzleAssert method.
+// PasskeyMemberPuzzleAssert returns the passkey member puzzle assert of the [Clvm].
 func (o *Clvm) PasskeyMemberPuzzleAssert() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19469,7 +19469,7 @@ func (o *Clvm) PasskeyMemberPuzzleAssert() (*Program, error) {
 	return obj, nil
 }
 
-// PasskeyMember calls [Clvm]'s PasskeyMember method.
+// PasskeyMember returns the passkey member of the [Clvm].
 func (o *Clvm) PasskeyMember() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19493,7 +19493,7 @@ func (o *Clvm) PasskeyMember() (*Program, error) {
 	return obj, nil
 }
 
-// R1MemberPuzzleAssert calls [Clvm]'s R1MemberPuzzleAssert method.
+// R1MemberPuzzleAssert returns the r1 member puzzle assert of the [Clvm].
 func (o *Clvm) R1MemberPuzzleAssert() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19517,7 +19517,7 @@ func (o *Clvm) R1MemberPuzzleAssert() (*Program, error) {
 	return obj, nil
 }
 
-// R1Member calls [Clvm]'s R1Member method.
+// R1Member returns the r1 member of the [Clvm].
 func (o *Clvm) R1Member() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19541,7 +19541,7 @@ func (o *Clvm) R1Member() (*Program, error) {
 	return obj, nil
 }
 
-// SingletonMember calls [Clvm]'s SingletonMember method.
+// SingletonMember returns the singleton member of the [Clvm].
 func (o *Clvm) SingletonMember() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19565,7 +19565,7 @@ func (o *Clvm) SingletonMember() (*Program, error) {
 	return obj, nil
 }
 
-// EnforceDelegatedPuzzleWrappers calls [Clvm]'s EnforceDelegatedPuzzleWrappers method.
+// EnforceDelegatedPuzzleWrappers returns the enforce delegated puzzle wrappers of the [Clvm].
 func (o *Clvm) EnforceDelegatedPuzzleWrappers() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19589,7 +19589,7 @@ func (o *Clvm) EnforceDelegatedPuzzleWrappers() (*Program, error) {
 	return obj, nil
 }
 
-// Force1Of2RestrictedVariable calls [Clvm]'s Force1Of2RestrictedVariable method.
+// Force1Of2RestrictedVariable returns the force1 of2 restricted variable of the [Clvm].
 func (o *Clvm) Force1Of2RestrictedVariable() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19613,7 +19613,7 @@ func (o *Clvm) Force1Of2RestrictedVariable() (*Program, error) {
 	return obj, nil
 }
 
-// ForceAssertCoinAnnouncement calls [Clvm]'s ForceAssertCoinAnnouncement method.
+// ForceAssertCoinAnnouncement returns the force assert coin announcement of the [Clvm].
 func (o *Clvm) ForceAssertCoinAnnouncement() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19637,7 +19637,7 @@ func (o *Clvm) ForceAssertCoinAnnouncement() (*Program, error) {
 	return obj, nil
 }
 
-// ForceCoinMessage calls [Clvm]'s ForceCoinMessage method.
+// ForceCoinMessage returns the force coin message of the [Clvm].
 func (o *Clvm) ForceCoinMessage() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19661,7 +19661,7 @@ func (o *Clvm) ForceCoinMessage() (*Program, error) {
 	return obj, nil
 }
 
-// PreventConditionOpcode calls [Clvm]'s PreventConditionOpcode method.
+// PreventConditionOpcode returns the prevent condition opcode of the [Clvm].
 func (o *Clvm) PreventConditionOpcode() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19685,7 +19685,7 @@ func (o *Clvm) PreventConditionOpcode() (*Program, error) {
 	return obj, nil
 }
 
-// PreventMultipleCreateCoins calls [Clvm]'s PreventMultipleCreateCoins method.
+// PreventMultipleCreateCoins returns the prevent multiple create coins of the [Clvm].
 func (o *Clvm) PreventMultipleCreateCoins() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19709,7 +19709,7 @@ func (o *Clvm) PreventMultipleCreateCoins() (*Program, error) {
 	return obj, nil
 }
 
-// Timelock calls [Clvm]'s Timelock method.
+// Timelock returns the timelock of the [Clvm].
 func (o *Clvm) Timelock() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19733,7 +19733,7 @@ func (o *Clvm) Timelock() (*Program, error) {
 	return obj, nil
 }
 
-// AddDelegatedPuzzleWrapper calls [Clvm]'s AddDelegatedPuzzleWrapper method.
+// AddDelegatedPuzzleWrapper returns the add delegated puzzle wrapper of the [Clvm].
 func (o *Clvm) AddDelegatedPuzzleWrapper() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19757,7 +19757,7 @@ func (o *Clvm) AddDelegatedPuzzleWrapper() (*Program, error) {
 	return obj, nil
 }
 
-// DelegatedPuzzleFeeder calls [Clvm]'s DelegatedPuzzleFeeder method.
+// DelegatedPuzzleFeeder returns the delegated puzzle feeder of the [Clvm].
 func (o *Clvm) DelegatedPuzzleFeeder() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19781,7 +19781,7 @@ func (o *Clvm) DelegatedPuzzleFeeder() (*Program, error) {
 	return obj, nil
 }
 
-// Restrictions calls [Clvm]'s Restrictions method.
+// Restrictions returns the restrictions of the [Clvm].
 func (o *Clvm) Restrictions() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19805,7 +19805,7 @@ func (o *Clvm) Restrictions() (*Program, error) {
 	return obj, nil
 }
 
-// IndexWrapper calls [Clvm]'s IndexWrapper method.
+// IndexWrapper returns the index wrapper of the [Clvm].
 func (o *Clvm) IndexWrapper() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19829,7 +19829,7 @@ func (o *Clvm) IndexWrapper() (*Program, error) {
 	return obj, nil
 }
 
-// MOfN calls [Clvm]'s MOfN method.
+// MOfN returns the mOf N of the [Clvm].
 func (o *Clvm) MOfN() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19853,7 +19853,7 @@ func (o *Clvm) MOfN() (*Program, error) {
 	return obj, nil
 }
 
-// NOfN calls [Clvm]'s NOfN method.
+// NOfN returns the nOf N of the [Clvm].
 func (o *Clvm) NOfN() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19877,7 +19877,7 @@ func (o *Clvm) NOfN() (*Program, error) {
 	return obj, nil
 }
 
-// OneOfN calls [Clvm]'s OneOfN method.
+// OneOfN returns the one of N of the [Clvm].
 func (o *Clvm) OneOfN() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -19901,7 +19901,7 @@ func (o *Clvm) OneOfN() (*Program, error) {
 	return obj, nil
 }
 
-// Output wraps a Rust Output value behind an opaque pointer.
+// Output holds the result of running a CLVM program: the output value and the execution cost.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -20065,7 +20065,7 @@ func (o *Output) SetCost(value uint64) error {
 	return nil
 }
 
-// Pair wraps a Rust Pair value behind an opaque pointer.
+// Pair represents a CLVM cons pair with first and rest elements.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -20239,7 +20239,7 @@ func (o *Pair) SetRest(value *Program) error {
 	return nil
 }
 
-// CurriedProgram wraps a Rust CurriedProgram value behind an opaque pointer.
+// CurriedProgram represents an uncurried CLVM program: the base module and the list of curried arguments.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -20439,7 +20439,7 @@ func (o *CurriedProgram) SetArgs(value []*Program) error {
 	return nil
 }
 
-// Proof wraps a Rust Proof value behind an opaque pointer.
+// Proof represents a singleton lineage proof with an optional inner puzzle hash (nil for eve spends).
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -20648,8 +20648,8 @@ func (o *Proof) SetParentAmount(value uint64) error {
 	return nil
 }
 
-// ToLineageProof calls [Proof]'s ToLineageProof method.
-func (o *Proof) ToLineageProof() (*LineageProof, error) {
+// LineageProof converts to a LineageProof if the inner puzzle hash is present, or nil for eve proofs.
+func (o *Proof) LineageProof() (*LineageProof, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -20675,7 +20675,7 @@ func (o *Proof) ToLineageProof() (*LineageProof, error) {
 	return obj, nil
 }
 
-// LineageProof wraps a Rust LineageProof value behind an opaque pointer.
+// LineageProof represents a full singleton lineage proof with all fields required (non-eve spends).
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -20881,8 +20881,8 @@ func (o *LineageProof) SetParentAmount(value uint64) error {
 	return nil
 }
 
-// ToProof calls [LineageProof]'s ToProof method.
-func (o *LineageProof) ToProof() (*Proof, error) {
+// Proof converts to a Proof, which can represent both eve and non-eve lineage proofs.
+func (o *LineageProof) Proof() (*Proof, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -20905,7 +20905,7 @@ func (o *LineageProof) ToProof() (*Proof, error) {
 	return obj, nil
 }
 
-// OfferSecurityCoinDetails wraps a Rust OfferSecurityCoinDetails value behind an opaque pointer.
+// OfferSecurityCoinDetails holds the security coin and its secret key used to ensure offer settlement atomicity.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -21079,7 +21079,7 @@ func (o *OfferSecurityCoinDetails) SetSecurityCoinSk(value *SecretKey) error {
 	return nil
 }
 
-// SettlementNftSpendResult wraps a Rust SettlementNftSpendResult value behind an opaque pointer.
+// SettlementNftSpendResult holds the result of settling an NFT in an offer: the updated NFT and security conditions to include.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -21926,8 +21926,8 @@ func (o *SpendBundle) SetAggregatedSignature(value *Signature) error {
 	return nil
 }
 
-// ToBytes serializes the spend bundle to bytes.
-func (o *SpendBundle) ToBytes() ([]byte, error) {
+// Bytes serializes the spend bundle to bytes.
+func (o *SpendBundle) Bytes() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -22406,7 +22406,7 @@ func (o *Spend) SetSolution(value *Program) error {
 	return nil
 }
 
-// Remark wraps a Rust Remark value behind an opaque pointer.
+// Remark represents a REMARK condition (opcode 1) that attaches arbitrary data to a coin spend without affecting consensus.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -22528,7 +22528,7 @@ func (o *Remark) SetRest(value *Program) error {
 	return nil
 }
 
-// AggSigParent wraps a Rust AggSigParent value behind an opaque pointer.
+// AggSigParent represents an AGG_SIG_PARENT condition that requires a BLS signature bound to the parent coin ID.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -22697,7 +22697,7 @@ func (o *AggSigParent) SetMessage(value []byte) error {
 	return nil
 }
 
-// AggSigPuzzle wraps a Rust AggSigPuzzle value behind an opaque pointer.
+// AggSigPuzzle represents an AGG_SIG_PUZZLE condition that requires a BLS signature bound to the puzzle hash.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -22866,7 +22866,7 @@ func (o *AggSigPuzzle) SetMessage(value []byte) error {
 	return nil
 }
 
-// AggSigAmount wraps a Rust AggSigAmount value behind an opaque pointer.
+// AggSigAmount represents an AGG_SIG_AMOUNT condition that requires a BLS signature bound to the coin amount.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -23035,7 +23035,7 @@ func (o *AggSigAmount) SetMessage(value []byte) error {
 	return nil
 }
 
-// AggSigPuzzleAmount wraps a Rust AggSigPuzzleAmount value behind an opaque pointer.
+// AggSigPuzzleAmount represents an AGG_SIG_PUZZLE_AMOUNT condition that requires a BLS signature bound to both puzzle hash and amount.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -23204,7 +23204,7 @@ func (o *AggSigPuzzleAmount) SetMessage(value []byte) error {
 	return nil
 }
 
-// AggSigParentAmount wraps a Rust AggSigParentAmount value behind an opaque pointer.
+// AggSigParentAmount represents an AGG_SIG_PARENT_AMOUNT condition that requires a BLS signature bound to both parent ID and amount.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -23373,7 +23373,7 @@ func (o *AggSigParentAmount) SetMessage(value []byte) error {
 	return nil
 }
 
-// AggSigParentPuzzle wraps a Rust AggSigParentPuzzle value behind an opaque pointer.
+// AggSigParentPuzzle represents an AGG_SIG_PARENT_PUZZLE condition that requires a BLS signature bound to both parent ID and puzzle hash.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -23542,7 +23542,7 @@ func (o *AggSigParentPuzzle) SetMessage(value []byte) error {
 	return nil
 }
 
-// AggSigUnsafe wraps a Rust AggSigUnsafe value behind an opaque pointer.
+// AggSigUnsafe represents an AGG_SIG_UNSAFE condition that requires a BLS signature on the raw message without domain separation.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -23711,7 +23711,7 @@ func (o *AggSigUnsafe) SetMessage(value []byte) error {
 	return nil
 }
 
-// AggSigMe wraps a Rust AggSigMe value behind an opaque pointer.
+// AggSigMe represents an AGG_SIG_ME condition that requires a BLS signature bound to the coin ID and genesis challenge.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -23880,7 +23880,7 @@ func (o *AggSigMe) SetMessage(value []byte) error {
 	return nil
 }
 
-// CreateCoin wraps a Rust CreateCoin value behind an opaque pointer.
+// CreateCoin represents a CREATE_COIN condition that creates a new coin with the given puzzle hash, amount, and optional memos.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -24095,7 +24095,7 @@ func (o *CreateCoin) SetMemos(value *Program) error {
 	return nil
 }
 
-// ReserveFee wraps a Rust ReserveFee value behind an opaque pointer.
+// ReserveFee represents a RESERVE_FEE condition that reserves a minimum transaction fee from this coin's spend.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -24207,7 +24207,7 @@ func (o *ReserveFee) SetAmount(value uint64) error {
 	return nil
 }
 
-// CreateCoinAnnouncement wraps a Rust CreateCoinAnnouncement value behind an opaque pointer.
+// CreateCoinAnnouncement represents a CREATE_COIN_ANNOUNCEMENT condition that broadcasts a message from this coin.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -24324,7 +24324,7 @@ func (o *CreateCoinAnnouncement) SetMessage(value []byte) error {
 	return nil
 }
 
-// CreatePuzzleAnnouncement wraps a Rust CreatePuzzleAnnouncement value behind an opaque pointer.
+// CreatePuzzleAnnouncement represents a CREATE_PUZZLE_ANNOUNCEMENT condition that broadcasts a message from this puzzle hash.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -24441,7 +24441,7 @@ func (o *CreatePuzzleAnnouncement) SetMessage(value []byte) error {
 	return nil
 }
 
-// AssertCoinAnnouncement wraps a Rust AssertCoinAnnouncement value behind an opaque pointer.
+// AssertCoinAnnouncement represents an ASSERT_COIN_ANNOUNCEMENT condition that requires a specific coin announcement to exist.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -24558,7 +24558,7 @@ func (o *AssertCoinAnnouncement) SetAnnouncementId(value []byte) error {
 	return nil
 }
 
-// AssertPuzzleAnnouncement wraps a Rust AssertPuzzleAnnouncement value behind an opaque pointer.
+// AssertPuzzleAnnouncement represents an ASSERT_PUZZLE_ANNOUNCEMENT condition that requires a specific puzzle announcement to exist.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -24675,7 +24675,7 @@ func (o *AssertPuzzleAnnouncement) SetAnnouncementId(value []byte) error {
 	return nil
 }
 
-// AssertConcurrentSpend wraps a Rust AssertConcurrentSpend value behind an opaque pointer.
+// AssertConcurrentSpend represents an ASSERT_CONCURRENT_SPEND condition that requires another coin to be spent in the same block.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -24792,7 +24792,7 @@ func (o *AssertConcurrentSpend) SetCoinId(value []byte) error {
 	return nil
 }
 
-// AssertConcurrentPuzzle wraps a Rust AssertConcurrentPuzzle value behind an opaque pointer.
+// AssertConcurrentPuzzle represents an ASSERT_CONCURRENT_PUZZLE condition that requires a coin with the given puzzle hash to be spent concurrently.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -24909,7 +24909,7 @@ func (o *AssertConcurrentPuzzle) SetPuzzleHash(value []byte) error {
 	return nil
 }
 
-// AssertSecondsRelative wraps a Rust AssertSecondsRelative value behind an opaque pointer.
+// AssertSecondsRelative represents an ASSERT_SECONDS_RELATIVE condition that requires a minimum time to have passed since the coin was created.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -25021,7 +25021,7 @@ func (o *AssertSecondsRelative) SetSeconds(value uint64) error {
 	return nil
 }
 
-// AssertSecondsAbsolute wraps a Rust AssertSecondsAbsolute value behind an opaque pointer.
+// AssertSecondsAbsolute represents an ASSERT_SECONDS_ABSOLUTE condition that requires the block timestamp to be at least the given value.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -25133,7 +25133,7 @@ func (o *AssertSecondsAbsolute) SetSeconds(value uint64) error {
 	return nil
 }
 
-// AssertHeightRelative wraps a Rust AssertHeightRelative value behind an opaque pointer.
+// AssertHeightRelative represents an ASSERT_HEIGHT_RELATIVE condition that requires a minimum number of blocks since the coin was created.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -25245,7 +25245,7 @@ func (o *AssertHeightRelative) SetHeight(value uint32) error {
 	return nil
 }
 
-// AssertHeightAbsolute wraps a Rust AssertHeightAbsolute value behind an opaque pointer.
+// AssertHeightAbsolute represents an ASSERT_HEIGHT_ABSOLUTE condition that requires the block height to be at least the given value.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -25357,7 +25357,7 @@ func (o *AssertHeightAbsolute) SetHeight(value uint32) error {
 	return nil
 }
 
-// AssertBeforeSecondsRelative wraps a Rust AssertBeforeSecondsRelative value behind an opaque pointer.
+// AssertBeforeSecondsRelative represents an ASSERT_BEFORE_SECONDS_RELATIVE condition that requires the spend to occur before a relative time.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -25469,7 +25469,7 @@ func (o *AssertBeforeSecondsRelative) SetSeconds(value uint64) error {
 	return nil
 }
 
-// AssertBeforeSecondsAbsolute wraps a Rust AssertBeforeSecondsAbsolute value behind an opaque pointer.
+// AssertBeforeSecondsAbsolute represents an ASSERT_BEFORE_SECONDS_ABSOLUTE condition that requires the spend to occur before an absolute timestamp.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -25581,7 +25581,7 @@ func (o *AssertBeforeSecondsAbsolute) SetSeconds(value uint64) error {
 	return nil
 }
 
-// AssertBeforeHeightRelative wraps a Rust AssertBeforeHeightRelative value behind an opaque pointer.
+// AssertBeforeHeightRelative represents an ASSERT_BEFORE_HEIGHT_RELATIVE condition that requires the spend to occur before a relative block height.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -25693,7 +25693,7 @@ func (o *AssertBeforeHeightRelative) SetHeight(value uint32) error {
 	return nil
 }
 
-// AssertBeforeHeightAbsolute wraps a Rust AssertBeforeHeightAbsolute value behind an opaque pointer.
+// AssertBeforeHeightAbsolute represents an ASSERT_BEFORE_HEIGHT_ABSOLUTE condition that requires the spend to occur before an absolute block height.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -25805,7 +25805,7 @@ func (o *AssertBeforeHeightAbsolute) SetHeight(value uint32) error {
 	return nil
 }
 
-// AssertMyCoinId wraps a Rust AssertMyCoinId value behind an opaque pointer.
+// AssertMyCoinId represents an ASSERT_MY_COIN_ID condition that verifies the spending coin's ID matches the expected value.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -25922,7 +25922,7 @@ func (o *AssertMyCoinId) SetCoinId(value []byte) error {
 	return nil
 }
 
-// AssertMyParentId wraps a Rust AssertMyParentId value behind an opaque pointer.
+// AssertMyParentId represents an ASSERT_MY_PARENT_ID condition that verifies the spending coin's parent ID.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -26039,7 +26039,7 @@ func (o *AssertMyParentId) SetParentId(value []byte) error {
 	return nil
 }
 
-// AssertMyPuzzleHash wraps a Rust AssertMyPuzzleHash value behind an opaque pointer.
+// AssertMyPuzzleHash represents an ASSERT_MY_PUZZLEHASH condition that verifies the spending coin's puzzle hash.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -26156,7 +26156,7 @@ func (o *AssertMyPuzzleHash) SetPuzzleHash(value []byte) error {
 	return nil
 }
 
-// AssertMyAmount wraps a Rust AssertMyAmount value behind an opaque pointer.
+// AssertMyAmount represents an ASSERT_MY_AMOUNT condition that verifies the spending coin's amount.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -26268,7 +26268,7 @@ func (o *AssertMyAmount) SetAmount(value uint64) error {
 	return nil
 }
 
-// AssertMyBirthSeconds wraps a Rust AssertMyBirthSeconds value behind an opaque pointer.
+// AssertMyBirthSeconds represents an ASSERT_MY_BIRTH_SECONDS condition that verifies the timestamp when the coin was created.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -26380,7 +26380,7 @@ func (o *AssertMyBirthSeconds) SetSeconds(value uint64) error {
 	return nil
 }
 
-// AssertMyBirthHeight wraps a Rust AssertMyBirthHeight value behind an opaque pointer.
+// AssertMyBirthHeight represents an ASSERT_MY_BIRTH_HEIGHT condition that verifies the block height when the coin was created.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -26492,7 +26492,7 @@ func (o *AssertMyBirthHeight) SetHeight(value uint32) error {
 	return nil
 }
 
-// AssertEphemeral wraps a Rust AssertEphemeral value behind an opaque pointer.
+// AssertEphemeral represents an ASSERT_EPHEMERAL condition that requires the coin to be created and spent in the same block.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -26562,7 +26562,7 @@ func NewAssertEphemeral() (*AssertEphemeral, error) {
 	return obj, nil
 }
 
-// SendMessage wraps a Rust SendMessage value behind an opaque pointer.
+// SendMessage represents a SEND_MESSAGE condition (CHIP-0025) that sends a cross-coin message with a mode and data.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -26799,7 +26799,7 @@ func (o *SendMessage) SetData(value []*Program) error {
 	return nil
 }
 
-// ReceiveMessage wraps a Rust ReceiveMessage value behind an opaque pointer.
+// ReceiveMessage represents a RECEIVE_MESSAGE condition (CHIP-0025) that receives a cross-coin message with a mode and data.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -27036,7 +27036,7 @@ func (o *ReceiveMessage) SetData(value []*Program) error {
 	return nil
 }
 
-// Softfork wraps a Rust Softfork value behind an opaque pointer.
+// Softfork represents a SOFTFORK condition that reserves cost for future consensus rule changes.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -27200,7 +27200,7 @@ func (o *Softfork) SetRest(value *Program) error {
 	return nil
 }
 
-// MeltSingleton wraps a Rust MeltSingleton value behind an opaque pointer.
+// MeltSingleton represents a condition that permanently destroys a singleton by melting it.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -27270,7 +27270,7 @@ func NewMeltSingleton() (*MeltSingleton, error) {
 	return obj, nil
 }
 
-// TransferNft wraps a Rust TransferNft value behind an opaque pointer.
+// TransferNft represents an NFT transfer condition that changes the DID owner and includes trade prices for royalty calculation.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -27518,7 +27518,7 @@ func (o *TransferNft) SetSingletonInnerPuzzleHash(value []byte) error {
 	return nil
 }
 
-// RunCatTail wraps a Rust RunCatTail value behind an opaque pointer.
+// RunCatTail represents a RUN_CAT_TAIL condition that executes a CAT's TAIL program to validate supply changes.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -27692,7 +27692,7 @@ func (o *RunCatTail) SetSolution(value *Program) error {
 	return nil
 }
 
-// UpdateNftMetadata wraps a Rust UpdateNftMetadata value behind an opaque pointer.
+// UpdateNftMetadata represents an NFT metadata update condition that runs the metadata updater puzzle with a solution.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -27866,7 +27866,7 @@ func (o *UpdateNftMetadata) SetUpdaterSolution(value *Program) error {
 	return nil
 }
 
-// UpdateDataStoreMerkleRoot wraps a Rust UpdateDataStoreMerkleRoot value behind an opaque pointer.
+// UpdateDataStoreMerkleRoot represents a DataLayer merkle root update condition that sets the new root hash with optional memos.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -28025,7 +28025,7 @@ func (o *UpdateDataStoreMerkleRoot) SetMemos(value unsafe.Pointer) error {
 	return nil
 }
 
-// TradePrice wraps a Rust TradePrice value behind an opaque pointer.
+// TradePrice represents a trade price entry for NFT royalty calculation: the trade amount and the settlement puzzle hash.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -28184,7 +28184,7 @@ func (o *TradePrice) SetPuzzleHash(value []byte) error {
 	return nil
 }
 
-// Constants wraps a Rust Constants value behind an opaque pointer.
+// Constants provides access to Chia network constants such as genesis challenge, AGG_SIG_ME prefix, and other consensus parameters.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -28239,7 +28239,7 @@ func (o *Constants) Clone() (*Constants, error) {
 	return clone, nil
 }
 
-// ConstantsAcsTransferProgram is a static method on [Constants].
+// ConstantsAcsTransferProgram returns the acs transfer program.
 func ConstantsAcsTransferProgram() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28255,7 +28255,7 @@ func ConstantsAcsTransferProgram() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsAcsTransferProgramHash is a static method on [Constants].
+// ConstantsAcsTransferProgramHash returns the acs transfer program hash.
 func ConstantsAcsTransferProgramHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28271,7 +28271,7 @@ func ConstantsAcsTransferProgramHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsAugmentedCondition is a static method on [Constants].
+// ConstantsAugmentedCondition returns the augmented condition.
 func ConstantsAugmentedCondition() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28287,7 +28287,7 @@ func ConstantsAugmentedCondition() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsAugmentedConditionHash is a static method on [Constants].
+// ConstantsAugmentedConditionHash returns the augmented condition hash.
 func ConstantsAugmentedConditionHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28303,7 +28303,7 @@ func ConstantsAugmentedConditionHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsBlockProgramZero is a static method on [Constants].
+// ConstantsBlockProgramZero returns the block program zero.
 func ConstantsBlockProgramZero() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28319,7 +28319,7 @@ func ConstantsBlockProgramZero() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsBlockProgramZeroHash is a static method on [Constants].
+// ConstantsBlockProgramZeroHash returns the block program zero hash.
 func ConstantsBlockProgramZeroHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28335,7 +28335,7 @@ func ConstantsBlockProgramZeroHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsCatPuzzle is a static method on [Constants].
+// ConstantsCatPuzzle returns the cat puzzle.
 func ConstantsCatPuzzle() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28351,7 +28351,7 @@ func ConstantsCatPuzzle() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsCatPuzzleHash is a static method on [Constants].
+// ConstantsCatPuzzleHash returns the cat puzzle hash.
 func ConstantsCatPuzzleHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28367,7 +28367,7 @@ func ConstantsCatPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsChialispDeserialisation is a static method on [Constants].
+// ConstantsChialispDeserialisation returns the chialisp deserialisation.
 func ConstantsChialispDeserialisation() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28383,7 +28383,7 @@ func ConstantsChialispDeserialisation() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsChialispDeserialisationHash is a static method on [Constants].
+// ConstantsChialispDeserialisationHash returns the chialisp deserialisation hash.
 func ConstantsChialispDeserialisationHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28399,7 +28399,7 @@ func ConstantsChialispDeserialisationHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsConditionsWFeeAnnounce is a static method on [Constants].
+// ConstantsConditionsWFeeAnnounce returns the conditions wfee announce.
 func ConstantsConditionsWFeeAnnounce() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28415,7 +28415,7 @@ func ConstantsConditionsWFeeAnnounce() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsConditionsWFeeAnnounceHash is a static method on [Constants].
+// ConstantsConditionsWFeeAnnounceHash returns the conditions wfee announce hash.
 func ConstantsConditionsWFeeAnnounceHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28431,7 +28431,7 @@ func ConstantsConditionsWFeeAnnounceHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsCovenantLayer is a static method on [Constants].
+// ConstantsCovenantLayer returns the covenant layer.
 func ConstantsCovenantLayer() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28447,7 +28447,7 @@ func ConstantsCovenantLayer() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsCovenantLayerHash is a static method on [Constants].
+// ConstantsCovenantLayerHash returns the covenant layer hash.
 func ConstantsCovenantLayerHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28463,7 +28463,7 @@ func ConstantsCovenantLayerHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsCreateNftLauncherFromDid is a static method on [Constants].
+// ConstantsCreateNftLauncherFromDid returns the create nft launcher from did.
 func ConstantsCreateNftLauncherFromDid() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28479,7 +28479,7 @@ func ConstantsCreateNftLauncherFromDid() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsCreateNftLauncherFromDidHash is a static method on [Constants].
+// ConstantsCreateNftLauncherFromDidHash returns the create nft launcher from did hash.
 func ConstantsCreateNftLauncherFromDidHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28495,7 +28495,7 @@ func ConstantsCreateNftLauncherFromDidHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsCredentialRestriction is a static method on [Constants].
+// ConstantsCredentialRestriction returns the credential restriction.
 func ConstantsCredentialRestriction() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28511,7 +28511,7 @@ func ConstantsCredentialRestriction() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsCredentialRestrictionHash is a static method on [Constants].
+// ConstantsCredentialRestrictionHash returns the credential restriction hash.
 func ConstantsCredentialRestrictionHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28527,7 +28527,7 @@ func ConstantsCredentialRestrictionHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoCatEve is a static method on [Constants].
+// ConstantsDaoCatEve returns the dao cat eve.
 func ConstantsDaoCatEve() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28543,7 +28543,7 @@ func ConstantsDaoCatEve() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoCatEveHash is a static method on [Constants].
+// ConstantsDaoCatEveHash returns the dao cat eve hash.
 func ConstantsDaoCatEveHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28559,7 +28559,7 @@ func ConstantsDaoCatEveHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoCatLauncher is a static method on [Constants].
+// ConstantsDaoCatLauncher returns the dao cat launcher.
 func ConstantsDaoCatLauncher() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28575,7 +28575,7 @@ func ConstantsDaoCatLauncher() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoCatLauncherHash is a static method on [Constants].
+// ConstantsDaoCatLauncherHash returns the dao cat launcher hash.
 func ConstantsDaoCatLauncherHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28591,7 +28591,7 @@ func ConstantsDaoCatLauncherHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoFinishedState is a static method on [Constants].
+// ConstantsDaoFinishedState returns the dao finished state.
 func ConstantsDaoFinishedState() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28607,7 +28607,7 @@ func ConstantsDaoFinishedState() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoFinishedStateHash is a static method on [Constants].
+// ConstantsDaoFinishedStateHash returns the dao finished state hash.
 func ConstantsDaoFinishedStateHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28623,7 +28623,7 @@ func ConstantsDaoFinishedStateHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoLockup is a static method on [Constants].
+// ConstantsDaoLockup returns the dao lockup.
 func ConstantsDaoLockup() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28639,7 +28639,7 @@ func ConstantsDaoLockup() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoLockupHash is a static method on [Constants].
+// ConstantsDaoLockupHash returns the dao lockup hash.
 func ConstantsDaoLockupHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28655,7 +28655,7 @@ func ConstantsDaoLockupHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoProposal is a static method on [Constants].
+// ConstantsDaoProposal returns the dao proposal.
 func ConstantsDaoProposal() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28671,7 +28671,7 @@ func ConstantsDaoProposal() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoProposalHash is a static method on [Constants].
+// ConstantsDaoProposalHash returns the dao proposal hash.
 func ConstantsDaoProposalHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28687,7 +28687,7 @@ func ConstantsDaoProposalHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoProposalTimer is a static method on [Constants].
+// ConstantsDaoProposalTimer returns the dao proposal timer.
 func ConstantsDaoProposalTimer() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28703,7 +28703,7 @@ func ConstantsDaoProposalTimer() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoProposalTimerHash is a static method on [Constants].
+// ConstantsDaoProposalTimerHash returns the dao proposal timer hash.
 func ConstantsDaoProposalTimerHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28719,7 +28719,7 @@ func ConstantsDaoProposalTimerHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoProposalValidator is a static method on [Constants].
+// ConstantsDaoProposalValidator returns the dao proposal validator.
 func ConstantsDaoProposalValidator() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28735,7 +28735,7 @@ func ConstantsDaoProposalValidator() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoProposalValidatorHash is a static method on [Constants].
+// ConstantsDaoProposalValidatorHash returns the dao proposal validator hash.
 func ConstantsDaoProposalValidatorHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28751,7 +28751,7 @@ func ConstantsDaoProposalValidatorHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoSpendP2Singleton is a static method on [Constants].
+// ConstantsDaoSpendP2Singleton returns the dao spend P2 singleton.
 func ConstantsDaoSpendP2Singleton() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28767,7 +28767,7 @@ func ConstantsDaoSpendP2Singleton() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoSpendP2SingletonHash is a static method on [Constants].
+// ConstantsDaoSpendP2SingletonHash returns the dao spend P2 singleton hash.
 func ConstantsDaoSpendP2SingletonHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28783,7 +28783,7 @@ func ConstantsDaoSpendP2SingletonHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoTreasury is a static method on [Constants].
+// ConstantsDaoTreasury returns the dao treasury.
 func ConstantsDaoTreasury() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28799,7 +28799,7 @@ func ConstantsDaoTreasury() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoTreasuryHash is a static method on [Constants].
+// ConstantsDaoTreasuryHash returns the dao treasury hash.
 func ConstantsDaoTreasuryHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28815,7 +28815,7 @@ func ConstantsDaoTreasuryHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoUpdateProposal is a static method on [Constants].
+// ConstantsDaoUpdateProposal returns the dao update proposal.
 func ConstantsDaoUpdateProposal() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28831,7 +28831,7 @@ func ConstantsDaoUpdateProposal() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDaoUpdateProposalHash is a static method on [Constants].
+// ConstantsDaoUpdateProposalHash returns the dao update proposal hash.
 func ConstantsDaoUpdateProposalHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28847,7 +28847,7 @@ func ConstantsDaoUpdateProposalHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDecompressCoinSpendEntry is a static method on [Constants].
+// ConstantsDecompressCoinSpendEntry returns the decompress coin spend entry.
 func ConstantsDecompressCoinSpendEntry() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28863,7 +28863,7 @@ func ConstantsDecompressCoinSpendEntry() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDecompressCoinSpendEntryHash is a static method on [Constants].
+// ConstantsDecompressCoinSpendEntryHash returns the decompress coin spend entry hash.
 func ConstantsDecompressCoinSpendEntryHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28879,7 +28879,7 @@ func ConstantsDecompressCoinSpendEntryHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDecompressCoinSpendEntryWithPrefix is a static method on [Constants].
+// ConstantsDecompressCoinSpendEntryWithPrefix returns the decompress coin spend entry with prefix.
 func ConstantsDecompressCoinSpendEntryWithPrefix() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28895,7 +28895,7 @@ func ConstantsDecompressCoinSpendEntryWithPrefix() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDecompressCoinSpendEntryWithPrefixHash is a static method on [Constants].
+// ConstantsDecompressCoinSpendEntryWithPrefixHash returns the decompress coin spend entry with prefix hash.
 func ConstantsDecompressCoinSpendEntryWithPrefixHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28911,7 +28911,7 @@ func ConstantsDecompressCoinSpendEntryWithPrefixHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDecompressPuzzle is a static method on [Constants].
+// ConstantsDecompressPuzzle returns the decompress puzzle.
 func ConstantsDecompressPuzzle() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28927,7 +28927,7 @@ func ConstantsDecompressPuzzle() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDecompressPuzzleHash is a static method on [Constants].
+// ConstantsDecompressPuzzleHash returns the decompress puzzle hash.
 func ConstantsDecompressPuzzleHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28943,7 +28943,7 @@ func ConstantsDecompressPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDelegatedTail is a static method on [Constants].
+// ConstantsDelegatedTail returns the delegated tail.
 func ConstantsDelegatedTail() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28959,7 +28959,7 @@ func ConstantsDelegatedTail() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDelegatedTailHash is a static method on [Constants].
+// ConstantsDelegatedTailHash returns the delegated tail hash.
 func ConstantsDelegatedTailHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28975,7 +28975,7 @@ func ConstantsDelegatedTailHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDidInnerpuzzle is a static method on [Constants].
+// ConstantsDidInnerpuzzle returns the did innerpuzzle.
 func ConstantsDidInnerpuzzle() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -28991,7 +28991,7 @@ func ConstantsDidInnerpuzzle() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDidInnerpuzzleHash is a static method on [Constants].
+// ConstantsDidInnerpuzzleHash returns the did innerpuzzle hash.
 func ConstantsDidInnerpuzzleHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29007,7 +29007,7 @@ func ConstantsDidInnerpuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsEmlCovenantMorpher is a static method on [Constants].
+// ConstantsEmlCovenantMorpher returns the eml covenant morpher.
 func ConstantsEmlCovenantMorpher() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29023,7 +29023,7 @@ func ConstantsEmlCovenantMorpher() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsEmlCovenantMorpherHash is a static method on [Constants].
+// ConstantsEmlCovenantMorpherHash returns the eml covenant morpher hash.
 func ConstantsEmlCovenantMorpherHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29039,7 +29039,7 @@ func ConstantsEmlCovenantMorpherHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsEmlTransferProgramCovenantAdapter is a static method on [Constants].
+// ConstantsEmlTransferProgramCovenantAdapter returns the eml transfer program covenant adapter.
 func ConstantsEmlTransferProgramCovenantAdapter() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29055,7 +29055,7 @@ func ConstantsEmlTransferProgramCovenantAdapter() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsEmlTransferProgramCovenantAdapterHash is a static method on [Constants].
+// ConstantsEmlTransferProgramCovenantAdapterHash returns the eml transfer program covenant adapter hash.
 func ConstantsEmlTransferProgramCovenantAdapterHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29071,7 +29071,7 @@ func ConstantsEmlTransferProgramCovenantAdapterHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsEmlUpdateMetadataWithDid is a static method on [Constants].
+// ConstantsEmlUpdateMetadataWithDid returns the eml update metadata with did.
 func ConstantsEmlUpdateMetadataWithDid() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29087,7 +29087,7 @@ func ConstantsEmlUpdateMetadataWithDid() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsEmlUpdateMetadataWithDidHash is a static method on [Constants].
+// ConstantsEmlUpdateMetadataWithDidHash returns the eml update metadata with did hash.
 func ConstantsEmlUpdateMetadataWithDidHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29103,7 +29103,7 @@ func ConstantsEmlUpdateMetadataWithDidHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsEverythingWithSignature is a static method on [Constants].
+// ConstantsEverythingWithSignature returns the everything with signature.
 func ConstantsEverythingWithSignature() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29119,7 +29119,7 @@ func ConstantsEverythingWithSignature() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsEverythingWithSignatureHash is a static method on [Constants].
+// ConstantsEverythingWithSignatureHash returns the everything with signature hash.
 func ConstantsEverythingWithSignatureHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29135,7 +29135,7 @@ func ConstantsEverythingWithSignatureHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsExigentMetadataLayer is a static method on [Constants].
+// ConstantsExigentMetadataLayer returns the exigent metadata layer.
 func ConstantsExigentMetadataLayer() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29151,7 +29151,7 @@ func ConstantsExigentMetadataLayer() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsExigentMetadataLayerHash is a static method on [Constants].
+// ConstantsExigentMetadataLayerHash returns the exigent metadata layer hash.
 func ConstantsExigentMetadataLayerHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29167,7 +29167,7 @@ func ConstantsExigentMetadataLayerHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsFlagProofsChecker is a static method on [Constants].
+// ConstantsFlagProofsChecker returns the flag proofs checker.
 func ConstantsFlagProofsChecker() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29183,7 +29183,7 @@ func ConstantsFlagProofsChecker() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsFlagProofsCheckerHash is a static method on [Constants].
+// ConstantsFlagProofsCheckerHash returns the flag proofs checker hash.
 func ConstantsFlagProofsCheckerHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29199,7 +29199,7 @@ func ConstantsFlagProofsCheckerHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsGenesisByCoinId is a static method on [Constants].
+// ConstantsGenesisByCoinId returns the genesis by coin id.
 func ConstantsGenesisByCoinId() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29215,7 +29215,7 @@ func ConstantsGenesisByCoinId() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsGenesisByCoinIdHash is a static method on [Constants].
+// ConstantsGenesisByCoinIdHash returns the genesis by coin id hash.
 func ConstantsGenesisByCoinIdHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29231,7 +29231,7 @@ func ConstantsGenesisByCoinIdHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsGenesisByCoinIdOrSingleton is a static method on [Constants].
+// ConstantsGenesisByCoinIdOrSingleton returns the genesis by coin id or singleton.
 func ConstantsGenesisByCoinIdOrSingleton() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29247,7 +29247,7 @@ func ConstantsGenesisByCoinIdOrSingleton() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsGenesisByCoinIdOrSingletonHash is a static method on [Constants].
+// ConstantsGenesisByCoinIdOrSingletonHash returns the genesis by coin id or singleton hash.
 func ConstantsGenesisByCoinIdOrSingletonHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29263,7 +29263,7 @@ func ConstantsGenesisByCoinIdOrSingletonHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsGenesisByPuzzleHash is a static method on [Constants].
+// ConstantsGenesisByPuzzleHash returns the genesis by puzzle hash.
 func ConstantsGenesisByPuzzleHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29279,7 +29279,7 @@ func ConstantsGenesisByPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsGenesisByPuzzleHashHash is a static method on [Constants].
+// ConstantsGenesisByPuzzleHashHash returns the genesis by puzzle hash hash.
 func ConstantsGenesisByPuzzleHashHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29295,7 +29295,7 @@ func ConstantsGenesisByPuzzleHashHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsGraftrootDlOffers is a static method on [Constants].
+// ConstantsGraftrootDlOffers returns the graftroot dl offers.
 func ConstantsGraftrootDlOffers() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29311,7 +29311,7 @@ func ConstantsGraftrootDlOffers() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsGraftrootDlOffersHash is a static method on [Constants].
+// ConstantsGraftrootDlOffersHash returns the graftroot dl offers hash.
 func ConstantsGraftrootDlOffersHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29327,7 +29327,7 @@ func ConstantsGraftrootDlOffersHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsNftIntermediateLauncher is a static method on [Constants].
+// ConstantsNftIntermediateLauncher returns the nft intermediate launcher.
 func ConstantsNftIntermediateLauncher() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29343,7 +29343,7 @@ func ConstantsNftIntermediateLauncher() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsNftIntermediateLauncherHash is a static method on [Constants].
+// ConstantsNftIntermediateLauncherHash returns the nft intermediate launcher hash.
 func ConstantsNftIntermediateLauncherHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29359,7 +29359,7 @@ func ConstantsNftIntermediateLauncherHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsNftMetadataUpdaterDefault is a static method on [Constants].
+// ConstantsNftMetadataUpdaterDefault returns the nft metadata updater default.
 func ConstantsNftMetadataUpdaterDefault() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29375,7 +29375,7 @@ func ConstantsNftMetadataUpdaterDefault() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsNftMetadataUpdaterDefaultHash is a static method on [Constants].
+// ConstantsNftMetadataUpdaterDefaultHash returns the nft metadata updater default hash.
 func ConstantsNftMetadataUpdaterDefaultHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29391,7 +29391,7 @@ func ConstantsNftMetadataUpdaterDefaultHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsNftMetadataUpdaterUpdateable is a static method on [Constants].
+// ConstantsNftMetadataUpdaterUpdateable returns the nft metadata updater updateable.
 func ConstantsNftMetadataUpdaterUpdateable() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29407,7 +29407,7 @@ func ConstantsNftMetadataUpdaterUpdateable() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsNftMetadataUpdaterUpdateableHash is a static method on [Constants].
+// ConstantsNftMetadataUpdaterUpdateableHash returns the nft metadata updater updateable hash.
 func ConstantsNftMetadataUpdaterUpdateableHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29423,7 +29423,7 @@ func ConstantsNftMetadataUpdaterUpdateableHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsNftOwnershipLayer is a static method on [Constants].
+// ConstantsNftOwnershipLayer returns the nft ownership layer.
 func ConstantsNftOwnershipLayer() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29439,7 +29439,7 @@ func ConstantsNftOwnershipLayer() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsNftOwnershipLayerHash is a static method on [Constants].
+// ConstantsNftOwnershipLayerHash returns the nft ownership layer hash.
 func ConstantsNftOwnershipLayerHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29455,7 +29455,7 @@ func ConstantsNftOwnershipLayerHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsNftOwnershipTransferProgramOneWayClaimWithRoyalties is a static method on [Constants].
+// ConstantsNftOwnershipTransferProgramOneWayClaimWithRoyalties returns the nft ownership transfer program one way claim with royalties.
 func ConstantsNftOwnershipTransferProgramOneWayClaimWithRoyalties() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29471,7 +29471,7 @@ func ConstantsNftOwnershipTransferProgramOneWayClaimWithRoyalties() ([]byte, err
 	return result, nil
 }
 
-// ConstantsNftOwnershipTransferProgramOneWayClaimWithRoyaltiesHash is a static method on [Constants].
+// ConstantsNftOwnershipTransferProgramOneWayClaimWithRoyaltiesHash returns the nft ownership transfer program one way claim with royalties hash.
 func ConstantsNftOwnershipTransferProgramOneWayClaimWithRoyaltiesHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29487,7 +29487,7 @@ func ConstantsNftOwnershipTransferProgramOneWayClaimWithRoyaltiesHash() ([]byte,
 	return result, nil
 }
 
-// ConstantsNftStateLayer is a static method on [Constants].
+// ConstantsNftStateLayer returns the nft state layer.
 func ConstantsNftStateLayer() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29503,7 +29503,7 @@ func ConstantsNftStateLayer() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsNftStateLayerHash is a static method on [Constants].
+// ConstantsNftStateLayerHash returns the nft state layer hash.
 func ConstantsNftStateLayerHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29519,7 +29519,7 @@ func ConstantsNftStateLayerHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsNotification is a static method on [Constants].
+// ConstantsNotification returns the notification.
 func ConstantsNotification() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29535,7 +29535,7 @@ func ConstantsNotification() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsNotificationHash is a static method on [Constants].
+// ConstantsNotificationHash returns the notification hash.
 func ConstantsNotificationHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29551,7 +29551,7 @@ func ConstantsNotificationHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP21OfN is a static method on [Constants].
+// ConstantsP21OfN returns the p21 of N.
 func ConstantsP21OfN() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29567,7 +29567,7 @@ func ConstantsP21OfN() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP21OfNHash is a static method on [Constants].
+// ConstantsP21OfNHash returns the p21 of nhash.
 func ConstantsP21OfNHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29583,7 +29583,7 @@ func ConstantsP21OfNHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2AnnouncedDelegatedPuzzle is a static method on [Constants].
+// ConstantsP2AnnouncedDelegatedPuzzle returns the p2 announced delegated puzzle.
 func ConstantsP2AnnouncedDelegatedPuzzle() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29599,7 +29599,7 @@ func ConstantsP2AnnouncedDelegatedPuzzle() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2AnnouncedDelegatedPuzzleHash is a static method on [Constants].
+// ConstantsP2AnnouncedDelegatedPuzzleHash returns the p2 announced delegated puzzle hash.
 func ConstantsP2AnnouncedDelegatedPuzzleHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29615,7 +29615,7 @@ func ConstantsP2AnnouncedDelegatedPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2Conditions is a static method on [Constants].
+// ConstantsP2Conditions returns the p2 conditions.
 func ConstantsP2Conditions() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29631,7 +29631,7 @@ func ConstantsP2Conditions() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2ConditionsHash is a static method on [Constants].
+// ConstantsP2ConditionsHash returns the p2 conditions hash.
 func ConstantsP2ConditionsHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29647,7 +29647,7 @@ func ConstantsP2ConditionsHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2DelegatedConditions is a static method on [Constants].
+// ConstantsP2DelegatedConditions returns the p2 delegated conditions.
 func ConstantsP2DelegatedConditions() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29663,7 +29663,7 @@ func ConstantsP2DelegatedConditions() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2DelegatedConditionsHash is a static method on [Constants].
+// ConstantsP2DelegatedConditionsHash returns the p2 delegated conditions hash.
 func ConstantsP2DelegatedConditionsHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29679,7 +29679,7 @@ func ConstantsP2DelegatedConditionsHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2DelegatedPuzzle is a static method on [Constants].
+// ConstantsP2DelegatedPuzzle returns the p2 delegated puzzle.
 func ConstantsP2DelegatedPuzzle() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29695,7 +29695,7 @@ func ConstantsP2DelegatedPuzzle() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2DelegatedPuzzleHash is a static method on [Constants].
+// ConstantsP2DelegatedPuzzleHash returns the p2 delegated puzzle hash.
 func ConstantsP2DelegatedPuzzleHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29711,7 +29711,7 @@ func ConstantsP2DelegatedPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2DelegatedPuzzleOrHiddenPuzzle is a static method on [Constants].
+// ConstantsP2DelegatedPuzzleOrHiddenPuzzle returns the p2 delegated puzzle or hidden puzzle.
 func ConstantsP2DelegatedPuzzleOrHiddenPuzzle() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29727,7 +29727,7 @@ func ConstantsP2DelegatedPuzzleOrHiddenPuzzle() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2DelegatedPuzzleOrHiddenPuzzleHash is a static method on [Constants].
+// ConstantsP2DelegatedPuzzleOrHiddenPuzzleHash returns the p2 delegated puzzle or hidden puzzle hash.
 func ConstantsP2DelegatedPuzzleOrHiddenPuzzleHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29743,7 +29743,7 @@ func ConstantsP2DelegatedPuzzleOrHiddenPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2MOfNDelegateDirect is a static method on [Constants].
+// ConstantsP2MOfNDelegateDirect returns the p2 mof ndelegate direct.
 func ConstantsP2MOfNDelegateDirect() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29759,7 +29759,7 @@ func ConstantsP2MOfNDelegateDirect() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2MOfNDelegateDirectHash is a static method on [Constants].
+// ConstantsP2MOfNDelegateDirectHash returns the p2 mof ndelegate direct hash.
 func ConstantsP2MOfNDelegateDirectHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29775,7 +29775,7 @@ func ConstantsP2MOfNDelegateDirectHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2Parent is a static method on [Constants].
+// ConstantsP2Parent returns the p2 parent.
 func ConstantsP2Parent() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29791,7 +29791,7 @@ func ConstantsP2Parent() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2ParentHash is a static method on [Constants].
+// ConstantsP2ParentHash returns the p2 parent hash.
 func ConstantsP2ParentHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29807,7 +29807,7 @@ func ConstantsP2ParentHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2PuzzleHash is a static method on [Constants].
+// ConstantsP2PuzzleHash returns the p2 puzzle hash.
 func ConstantsP2PuzzleHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29823,7 +29823,7 @@ func ConstantsP2PuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2PuzzleHashHash is a static method on [Constants].
+// ConstantsP2PuzzleHashHash returns the p2 puzzle hash hash.
 func ConstantsP2PuzzleHashHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29839,7 +29839,7 @@ func ConstantsP2PuzzleHashHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2Singleton is a static method on [Constants].
+// ConstantsP2Singleton returns the p2 singleton.
 func ConstantsP2Singleton() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29855,7 +29855,7 @@ func ConstantsP2Singleton() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2SingletonHash is a static method on [Constants].
+// ConstantsP2SingletonHash returns the p2 singleton hash.
 func ConstantsP2SingletonHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29871,7 +29871,7 @@ func ConstantsP2SingletonHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2SingletonAggregator is a static method on [Constants].
+// ConstantsP2SingletonAggregator returns the p2 singleton aggregator.
 func ConstantsP2SingletonAggregator() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29887,7 +29887,7 @@ func ConstantsP2SingletonAggregator() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2SingletonAggregatorHash is a static method on [Constants].
+// ConstantsP2SingletonAggregatorHash returns the p2 singleton aggregator hash.
 func ConstantsP2SingletonAggregatorHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29903,7 +29903,7 @@ func ConstantsP2SingletonAggregatorHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2SingletonOrDelayedPuzzleHash is a static method on [Constants].
+// ConstantsP2SingletonOrDelayedPuzzleHash returns the p2 singleton or delayed puzzle hash.
 func ConstantsP2SingletonOrDelayedPuzzleHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29919,7 +29919,7 @@ func ConstantsP2SingletonOrDelayedPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2SingletonOrDelayedPuzzleHashHash is a static method on [Constants].
+// ConstantsP2SingletonOrDelayedPuzzleHashHash returns the p2 singleton or delayed puzzle hash hash.
 func ConstantsP2SingletonOrDelayedPuzzleHashHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29935,7 +29935,7 @@ func ConstantsP2SingletonOrDelayedPuzzleHashHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2SingletonViaDelegatedPuzzle is a static method on [Constants].
+// ConstantsP2SingletonViaDelegatedPuzzle returns the p2 singleton via delegated puzzle.
 func ConstantsP2SingletonViaDelegatedPuzzle() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29951,7 +29951,7 @@ func ConstantsP2SingletonViaDelegatedPuzzle() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2SingletonViaDelegatedPuzzleHash is a static method on [Constants].
+// ConstantsP2SingletonViaDelegatedPuzzleHash returns the p2 singleton via delegated puzzle hash.
 func ConstantsP2SingletonViaDelegatedPuzzleHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29967,7 +29967,7 @@ func ConstantsP2SingletonViaDelegatedPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsPoolMemberInnerpuzzle is a static method on [Constants].
+// ConstantsPoolMemberInnerpuzzle returns the pool member innerpuzzle.
 func ConstantsPoolMemberInnerpuzzle() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29983,7 +29983,7 @@ func ConstantsPoolMemberInnerpuzzle() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsPoolMemberInnerpuzzleHash is a static method on [Constants].
+// ConstantsPoolMemberInnerpuzzleHash returns the pool member innerpuzzle hash.
 func ConstantsPoolMemberInnerpuzzleHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -29999,7 +29999,7 @@ func ConstantsPoolMemberInnerpuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsPoolWaitingroomInnerpuzzle is a static method on [Constants].
+// ConstantsPoolWaitingroomInnerpuzzle returns the pool waitingroom innerpuzzle.
 func ConstantsPoolWaitingroomInnerpuzzle() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30015,7 +30015,7 @@ func ConstantsPoolWaitingroomInnerpuzzle() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsPoolWaitingroomInnerpuzzleHash is a static method on [Constants].
+// ConstantsPoolWaitingroomInnerpuzzleHash returns the pool waitingroom innerpuzzle hash.
 func ConstantsPoolWaitingroomInnerpuzzleHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30031,7 +30031,7 @@ func ConstantsPoolWaitingroomInnerpuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsRevocationLayer is a static method on [Constants].
+// ConstantsRevocationLayer returns the revocation layer.
 func ConstantsRevocationLayer() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30047,7 +30047,7 @@ func ConstantsRevocationLayer() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsRevocationLayerHash is a static method on [Constants].
+// ConstantsRevocationLayerHash returns the revocation layer hash.
 func ConstantsRevocationLayerHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30063,7 +30063,7 @@ func ConstantsRevocationLayerHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsRomBootstrapGenerator is a static method on [Constants].
+// ConstantsRomBootstrapGenerator returns the rom bootstrap generator.
 func ConstantsRomBootstrapGenerator() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30079,7 +30079,7 @@ func ConstantsRomBootstrapGenerator() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsRomBootstrapGeneratorHash is a static method on [Constants].
+// ConstantsRomBootstrapGeneratorHash returns the rom bootstrap generator hash.
 func ConstantsRomBootstrapGeneratorHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30095,7 +30095,7 @@ func ConstantsRomBootstrapGeneratorHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsSettlementPayment is a static method on [Constants].
+// ConstantsSettlementPayment returns the settlement payment.
 func ConstantsSettlementPayment() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30111,7 +30111,7 @@ func ConstantsSettlementPayment() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsSettlementPaymentHash is a static method on [Constants].
+// ConstantsSettlementPaymentHash returns the settlement payment hash.
 func ConstantsSettlementPaymentHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30127,7 +30127,7 @@ func ConstantsSettlementPaymentHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsSingletonLauncher is a static method on [Constants].
+// ConstantsSingletonLauncher returns the singleton launcher.
 func ConstantsSingletonLauncher() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30143,7 +30143,7 @@ func ConstantsSingletonLauncher() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsSingletonLauncherHash is a static method on [Constants].
+// ConstantsSingletonLauncherHash returns the singleton launcher hash.
 func ConstantsSingletonLauncherHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30159,7 +30159,7 @@ func ConstantsSingletonLauncherHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsSingletonTopLayer is a static method on [Constants].
+// ConstantsSingletonTopLayer returns the singleton top layer.
 func ConstantsSingletonTopLayer() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30175,7 +30175,7 @@ func ConstantsSingletonTopLayer() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsSingletonTopLayerHash is a static method on [Constants].
+// ConstantsSingletonTopLayerHash returns the singleton top layer hash.
 func ConstantsSingletonTopLayerHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30191,7 +30191,7 @@ func ConstantsSingletonTopLayerHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsSingletonTopLayerV11 is a static method on [Constants].
+// ConstantsSingletonTopLayerV11 returns the singleton top layer V11.
 func ConstantsSingletonTopLayerV11() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30207,7 +30207,7 @@ func ConstantsSingletonTopLayerV11() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsSingletonTopLayerV11Hash is a static method on [Constants].
+// ConstantsSingletonTopLayerV11Hash returns the singleton top layer V11 hash.
 func ConstantsSingletonTopLayerV11Hash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30223,7 +30223,7 @@ func ConstantsSingletonTopLayerV11Hash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsStandardVcRevocationPuzzle is a static method on [Constants].
+// ConstantsStandardVcRevocationPuzzle returns the standard vc revocation puzzle.
 func ConstantsStandardVcRevocationPuzzle() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30239,7 +30239,7 @@ func ConstantsStandardVcRevocationPuzzle() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsStandardVcRevocationPuzzleHash is a static method on [Constants].
+// ConstantsStandardVcRevocationPuzzleHash returns the standard vc revocation puzzle hash.
 func ConstantsStandardVcRevocationPuzzleHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30255,7 +30255,7 @@ func ConstantsStandardVcRevocationPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsStdParentMorpher is a static method on [Constants].
+// ConstantsStdParentMorpher returns the std parent morpher.
 func ConstantsStdParentMorpher() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30271,7 +30271,7 @@ func ConstantsStdParentMorpher() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsStdParentMorpherHash is a static method on [Constants].
+// ConstantsStdParentMorpherHash returns the std parent morpher hash.
 func ConstantsStdParentMorpherHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30287,7 +30287,7 @@ func ConstantsStdParentMorpherHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsOptionContract is a static method on [Constants].
+// ConstantsOptionContract returns the option contract.
 func ConstantsOptionContract() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30303,7 +30303,7 @@ func ConstantsOptionContract() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsOptionContractHash is a static method on [Constants].
+// ConstantsOptionContractHash returns the option contract hash.
 func ConstantsOptionContractHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30319,7 +30319,7 @@ func ConstantsOptionContractHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2CurriedPuzzle is a static method on [Constants].
+// ConstantsP2CurriedPuzzle returns the p2 curried puzzle.
 func ConstantsP2CurriedPuzzle() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30335,7 +30335,7 @@ func ConstantsP2CurriedPuzzle() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsP2CurriedPuzzleHash is a static method on [Constants].
+// ConstantsP2CurriedPuzzleHash returns the p2 curried puzzle hash.
 func ConstantsP2CurriedPuzzleHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30351,7 +30351,7 @@ func ConstantsP2CurriedPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsBlsMember is a static method on [Constants].
+// ConstantsBlsMember returns the bls member.
 func ConstantsBlsMember() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30367,7 +30367,7 @@ func ConstantsBlsMember() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsBlsMemberHash is a static method on [Constants].
+// ConstantsBlsMemberHash returns the bls member hash.
 func ConstantsBlsMemberHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30383,7 +30383,7 @@ func ConstantsBlsMemberHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsBlsTaprootMember is a static method on [Constants].
+// ConstantsBlsTaprootMember returns the bls taproot member.
 func ConstantsBlsTaprootMember() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30399,7 +30399,7 @@ func ConstantsBlsTaprootMember() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsBlsTaprootMemberHash is a static method on [Constants].
+// ConstantsBlsTaprootMemberHash returns the bls taproot member hash.
 func ConstantsBlsTaprootMemberHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30415,7 +30415,7 @@ func ConstantsBlsTaprootMemberHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsFixedPuzzleMember is a static method on [Constants].
+// ConstantsFixedPuzzleMember returns the fixed puzzle member.
 func ConstantsFixedPuzzleMember() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30431,7 +30431,7 @@ func ConstantsFixedPuzzleMember() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsFixedPuzzleMemberHash is a static method on [Constants].
+// ConstantsFixedPuzzleMemberHash returns the fixed puzzle member hash.
 func ConstantsFixedPuzzleMemberHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30447,7 +30447,7 @@ func ConstantsFixedPuzzleMemberHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsK1MemberPuzzleAssert is a static method on [Constants].
+// ConstantsK1MemberPuzzleAssert returns the k1 member puzzle assert.
 func ConstantsK1MemberPuzzleAssert() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30463,7 +30463,7 @@ func ConstantsK1MemberPuzzleAssert() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsK1MemberPuzzleAssertHash is a static method on [Constants].
+// ConstantsK1MemberPuzzleAssertHash returns the k1 member puzzle assert hash.
 func ConstantsK1MemberPuzzleAssertHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30479,7 +30479,7 @@ func ConstantsK1MemberPuzzleAssertHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsK1Member is a static method on [Constants].
+// ConstantsK1Member returns the k1 member.
 func ConstantsK1Member() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30495,7 +30495,7 @@ func ConstantsK1Member() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsK1MemberHash is a static method on [Constants].
+// ConstantsK1MemberHash returns the k1 member hash.
 func ConstantsK1MemberHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30511,7 +30511,7 @@ func ConstantsK1MemberHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsPasskeyMemberPuzzleAssert is a static method on [Constants].
+// ConstantsPasskeyMemberPuzzleAssert returns the passkey member puzzle assert.
 func ConstantsPasskeyMemberPuzzleAssert() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30527,7 +30527,7 @@ func ConstantsPasskeyMemberPuzzleAssert() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsPasskeyMemberPuzzleAssertHash is a static method on [Constants].
+// ConstantsPasskeyMemberPuzzleAssertHash returns the passkey member puzzle assert hash.
 func ConstantsPasskeyMemberPuzzleAssertHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30543,7 +30543,7 @@ func ConstantsPasskeyMemberPuzzleAssertHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsPasskeyMember is a static method on [Constants].
+// ConstantsPasskeyMember returns the passkey member.
 func ConstantsPasskeyMember() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30559,7 +30559,7 @@ func ConstantsPasskeyMember() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsPasskeyMemberHash is a static method on [Constants].
+// ConstantsPasskeyMemberHash returns the passkey member hash.
 func ConstantsPasskeyMemberHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30575,7 +30575,7 @@ func ConstantsPasskeyMemberHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsR1MemberPuzzleAssert is a static method on [Constants].
+// ConstantsR1MemberPuzzleAssert returns the r1 member puzzle assert.
 func ConstantsR1MemberPuzzleAssert() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30591,7 +30591,7 @@ func ConstantsR1MemberPuzzleAssert() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsR1MemberPuzzleAssertHash is a static method on [Constants].
+// ConstantsR1MemberPuzzleAssertHash returns the r1 member puzzle assert hash.
 func ConstantsR1MemberPuzzleAssertHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30607,7 +30607,7 @@ func ConstantsR1MemberPuzzleAssertHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsR1Member is a static method on [Constants].
+// ConstantsR1Member returns the r1 member.
 func ConstantsR1Member() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30623,7 +30623,7 @@ func ConstantsR1Member() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsR1MemberHash is a static method on [Constants].
+// ConstantsR1MemberHash returns the r1 member hash.
 func ConstantsR1MemberHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30639,7 +30639,7 @@ func ConstantsR1MemberHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsSingletonMember is a static method on [Constants].
+// ConstantsSingletonMember returns the singleton member.
 func ConstantsSingletonMember() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30655,7 +30655,7 @@ func ConstantsSingletonMember() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsSingletonMemberHash is a static method on [Constants].
+// ConstantsSingletonMemberHash returns the singleton member hash.
 func ConstantsSingletonMemberHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30671,7 +30671,7 @@ func ConstantsSingletonMemberHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsEnforceDelegatedPuzzleWrappers is a static method on [Constants].
+// ConstantsEnforceDelegatedPuzzleWrappers returns the enforce delegated puzzle wrappers.
 func ConstantsEnforceDelegatedPuzzleWrappers() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30687,7 +30687,7 @@ func ConstantsEnforceDelegatedPuzzleWrappers() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsEnforceDelegatedPuzzleWrappersHash is a static method on [Constants].
+// ConstantsEnforceDelegatedPuzzleWrappersHash returns the enforce delegated puzzle wrappers hash.
 func ConstantsEnforceDelegatedPuzzleWrappersHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30703,7 +30703,7 @@ func ConstantsEnforceDelegatedPuzzleWrappersHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsForce1Of2RestrictedVariable is a static method on [Constants].
+// ConstantsForce1Of2RestrictedVariable returns the force1 of2 restricted variable.
 func ConstantsForce1Of2RestrictedVariable() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30719,7 +30719,7 @@ func ConstantsForce1Of2RestrictedVariable() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsForce1Of2RestrictedVariableHash is a static method on [Constants].
+// ConstantsForce1Of2RestrictedVariableHash returns the force1 of2 restricted variable hash.
 func ConstantsForce1Of2RestrictedVariableHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30735,7 +30735,7 @@ func ConstantsForce1Of2RestrictedVariableHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsForceAssertCoinAnnouncement is a static method on [Constants].
+// ConstantsForceAssertCoinAnnouncement returns the force assert coin announcement.
 func ConstantsForceAssertCoinAnnouncement() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30751,7 +30751,7 @@ func ConstantsForceAssertCoinAnnouncement() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsForceAssertCoinAnnouncementHash is a static method on [Constants].
+// ConstantsForceAssertCoinAnnouncementHash returns the force assert coin announcement hash.
 func ConstantsForceAssertCoinAnnouncementHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30767,7 +30767,7 @@ func ConstantsForceAssertCoinAnnouncementHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsForceCoinMessage is a static method on [Constants].
+// ConstantsForceCoinMessage returns the force coin message.
 func ConstantsForceCoinMessage() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30783,7 +30783,7 @@ func ConstantsForceCoinMessage() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsForceCoinMessageHash is a static method on [Constants].
+// ConstantsForceCoinMessageHash returns the force coin message hash.
 func ConstantsForceCoinMessageHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30799,7 +30799,7 @@ func ConstantsForceCoinMessageHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsPreventConditionOpcode is a static method on [Constants].
+// ConstantsPreventConditionOpcode returns the prevent condition opcode.
 func ConstantsPreventConditionOpcode() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30815,7 +30815,7 @@ func ConstantsPreventConditionOpcode() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsPreventConditionOpcodeHash is a static method on [Constants].
+// ConstantsPreventConditionOpcodeHash returns the prevent condition opcode hash.
 func ConstantsPreventConditionOpcodeHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30831,7 +30831,7 @@ func ConstantsPreventConditionOpcodeHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsPreventMultipleCreateCoins is a static method on [Constants].
+// ConstantsPreventMultipleCreateCoins returns the prevent multiple create coins.
 func ConstantsPreventMultipleCreateCoins() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30847,7 +30847,7 @@ func ConstantsPreventMultipleCreateCoins() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsPreventMultipleCreateCoinsHash is a static method on [Constants].
+// ConstantsPreventMultipleCreateCoinsHash returns the prevent multiple create coins hash.
 func ConstantsPreventMultipleCreateCoinsHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30863,7 +30863,7 @@ func ConstantsPreventMultipleCreateCoinsHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsTimelock is a static method on [Constants].
+// ConstantsTimelock returns the timelock.
 func ConstantsTimelock() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30879,7 +30879,7 @@ func ConstantsTimelock() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsTimelockHash is a static method on [Constants].
+// ConstantsTimelockHash returns the timelock hash.
 func ConstantsTimelockHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30895,7 +30895,7 @@ func ConstantsTimelockHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsAddDelegatedPuzzleWrapper is a static method on [Constants].
+// ConstantsAddDelegatedPuzzleWrapper returns the add delegated puzzle wrapper.
 func ConstantsAddDelegatedPuzzleWrapper() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30911,7 +30911,7 @@ func ConstantsAddDelegatedPuzzleWrapper() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsAddDelegatedPuzzleWrapperHash is a static method on [Constants].
+// ConstantsAddDelegatedPuzzleWrapperHash returns the add delegated puzzle wrapper hash.
 func ConstantsAddDelegatedPuzzleWrapperHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30927,7 +30927,7 @@ func ConstantsAddDelegatedPuzzleWrapperHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDelegatedPuzzleFeeder is a static method on [Constants].
+// ConstantsDelegatedPuzzleFeeder returns the delegated puzzle feeder.
 func ConstantsDelegatedPuzzleFeeder() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30943,7 +30943,7 @@ func ConstantsDelegatedPuzzleFeeder() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsDelegatedPuzzleFeederHash is a static method on [Constants].
+// ConstantsDelegatedPuzzleFeederHash returns the delegated puzzle feeder hash.
 func ConstantsDelegatedPuzzleFeederHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30959,7 +30959,7 @@ func ConstantsDelegatedPuzzleFeederHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsRestrictions is a static method on [Constants].
+// ConstantsRestrictions returns the restrictions.
 func ConstantsRestrictions() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30975,7 +30975,7 @@ func ConstantsRestrictions() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsRestrictionsHash is a static method on [Constants].
+// ConstantsRestrictionsHash returns the restrictions hash.
 func ConstantsRestrictionsHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -30991,7 +30991,7 @@ func ConstantsRestrictionsHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsIndexWrapper is a static method on [Constants].
+// ConstantsIndexWrapper returns the index wrapper.
 func ConstantsIndexWrapper() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31007,7 +31007,7 @@ func ConstantsIndexWrapper() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsIndexWrapperHash is a static method on [Constants].
+// ConstantsIndexWrapperHash returns the index wrapper hash.
 func ConstantsIndexWrapperHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31023,7 +31023,7 @@ func ConstantsIndexWrapperHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsMOfN is a static method on [Constants].
+// ConstantsMOfN returns the mOf N.
 func ConstantsMOfN() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31039,7 +31039,7 @@ func ConstantsMOfN() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsMOfNHash is a static method on [Constants].
+// ConstantsMOfNHash returns the mOf nhash.
 func ConstantsMOfNHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31055,7 +31055,7 @@ func ConstantsMOfNHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsNOfN is a static method on [Constants].
+// ConstantsNOfN returns the nOf N.
 func ConstantsNOfN() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31071,7 +31071,7 @@ func ConstantsNOfN() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsNOfNHash is a static method on [Constants].
+// ConstantsNOfNHash returns the nOf nhash.
 func ConstantsNOfNHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31087,7 +31087,7 @@ func ConstantsNOfNHash() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsOneOfN is a static method on [Constants].
+// ConstantsOneOfN returns the one of N.
 func ConstantsOneOfN() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31103,7 +31103,7 @@ func ConstantsOneOfN() ([]byte, error) {
 	return result, nil
 }
 
-// ConstantsOneOfNHash is a static method on [Constants].
+// ConstantsOneOfNHash returns the one of nhash.
 func ConstantsOneOfNHash() ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31119,7 +31119,7 @@ func ConstantsOneOfNHash() ([]byte, error) {
 	return result, nil
 }
 
-// Vault wraps a Rust Vault value behind an opaque pointer.
+// Vault represents a MIPS vault singleton coin with its lineage proof and configuration info.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -31345,7 +31345,7 @@ func (o *Vault) SetInfo(value *VaultInfo) error {
 	return nil
 }
 
-// Child calls [Vault]'s Child method.
+// Child computes the expected child vault after a spend with the given custody hash and amount.
 func (o *Vault) Child(custodyHash []byte, amount uint64) (*Vault, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -31370,7 +31370,7 @@ func (o *Vault) Child(custodyHash []byte, amount uint64) (*Vault, error) {
 	return obj, nil
 }
 
-// VaultInfo wraps a Rust VaultInfo value behind an opaque pointer.
+// VaultInfo holds the launcher ID and current custody hash that define a MIPS vault's identity and access control.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -31534,7 +31534,7 @@ func (o *VaultInfo) SetCustodyHash(value []byte) error {
 	return nil
 }
 
-// MemberConfig wraps a Rust MemberConfig value behind an opaque pointer.
+// MemberConfig configures a MIPS vault member with its signing nonce, top-level status, and spending restrictions.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -31736,7 +31736,7 @@ func (o *MemberConfig) SetRestrictions(value []*Restriction) error {
 	return nil
 }
 
-// MemberConfigNew is a static method on [MemberConfig].
+// MemberConfigNew creates a default MemberConfig with top_level false, nonce 0, and no restrictions.
 func MemberConfigNew() (*MemberConfig, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31751,7 +31751,7 @@ func MemberConfigNew() (*MemberConfig, error) {
 	return obj, nil
 }
 
-// WithTopLevel calls [MemberConfig]'s WithTopLevel method.
+// WithTopLevel returns a copy of this config with the top-level flag set (true if this member is the root signer).
 func (o *MemberConfig) WithTopLevel(topLevel bool) (*MemberConfig, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -31775,7 +31775,7 @@ func (o *MemberConfig) WithTopLevel(topLevel bool) (*MemberConfig, error) {
 	return obj, nil
 }
 
-// WithNonce calls [MemberConfig]'s WithNonce method.
+// WithNonce returns a copy of this config with the given nonce, used to differentiate members with the same key.
 func (o *MemberConfig) WithNonce(nonce uint32) (*MemberConfig, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -31799,7 +31799,7 @@ func (o *MemberConfig) WithNonce(nonce uint32) (*MemberConfig, error) {
 	return obj, nil
 }
 
-// WithRestrictions calls [MemberConfig]'s WithRestrictions method.
+// WithRestrictions returns a copy of this config with the given spending restrictions applied to the member.
 func (o *MemberConfig) WithRestrictions(restrictions []*Restriction) (*MemberConfig, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -31858,7 +31858,7 @@ func MOfNHash(config *MemberConfig, required uint32, items unsafe.Pointer) ([]by
 	return result, nil
 }
 
-// K1MemberHash computes the custody hash for a secp256k1 member.
+// K1MemberHash computes the custody hash for a secp256k1 member, used for Bitcoin-compatible vault signing.
 func K1MemberHash(config *MemberConfig, publicKey *K1PublicKey, fastForward bool) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31882,7 +31882,7 @@ func K1MemberHash(config *MemberConfig, publicKey *K1PublicKey, fastForward bool
 	return result, nil
 }
 
-// R1MemberHash computes the custody hash for a secp256r1 member.
+// R1MemberHash computes the custody hash for a secp256r1 (P-256) member, used for passkey-compatible vault signing.
 func R1MemberHash(config *MemberConfig, publicKey *R1PublicKey, fastForward bool) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31906,7 +31906,7 @@ func R1MemberHash(config *MemberConfig, publicKey *R1PublicKey, fastForward bool
 	return result, nil
 }
 
-// BlsMemberHash computes the custody hash for a BLS member.
+// BlsMemberHash computes the custody hash for a BLS member, used for standard Chia key vault signing.
 func BlsMemberHash(config *MemberConfig, publicKey *PublicKey, fastForward bool) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31930,7 +31930,7 @@ func BlsMemberHash(config *MemberConfig, publicKey *PublicKey, fastForward bool)
 	return result, nil
 }
 
-// PasskeyMemberHash computes the custody hash for a passkey (WebAuthn) member.
+// PasskeyMemberHash computes the custody hash for a passkey (WebAuthn) member, used for browser-based vault authentication.
 func PasskeyMemberHash(config *MemberConfig, publicKey *R1PublicKey, fastForward bool) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31954,7 +31954,7 @@ func PasskeyMemberHash(config *MemberConfig, publicKey *R1PublicKey, fastForward
 	return result, nil
 }
 
-// SingletonMemberHash is a standalone binding function.
+// SingletonMemberHash computes the custody hash for a singleton member, allowing another singleton to authorize vault spends.
 func SingletonMemberHash(config *MemberConfig, launcherId []byte, fastForward bool) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31975,7 +31975,7 @@ func SingletonMemberHash(config *MemberConfig, launcherId []byte, fastForward bo
 	return result, nil
 }
 
-// FixedMemberHash is a standalone binding function.
+// FixedMemberHash computes the custody hash for a fixed-puzzle member that always runs a specific puzzle.
 func FixedMemberHash(config *MemberConfig, fixedPuzzleHash []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -31996,7 +31996,7 @@ func FixedMemberHash(config *MemberConfig, fixedPuzzleHash []byte) ([]byte, erro
 	return result, nil
 }
 
-// CustomMemberHash is a standalone binding function.
+// CustomMemberHash computes the custody hash for a custom member with an arbitrary inner puzzle hash.
 func CustomMemberHash(config *MemberConfig, innerHash []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -32017,7 +32017,7 @@ func CustomMemberHash(config *MemberConfig, innerHash []byte) ([]byte, error) {
 	return result, nil
 }
 
-// Restriction wraps a Rust Restriction value behind an opaque pointer.
+// Restriction represents a spending restriction applied to a MIPS vault member, constraining what actions the member can authorize.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -32186,7 +32186,7 @@ func (o *Restriction) SetPuzzleHash(value []byte) error {
 	return nil
 }
 
-// RestrictionKind represents a Rust RestrictionKind enum value behind an opaque pointer.
+// RestrictionKind specifies the type of MIPS vault restriction: validating member conditions, restricting delegated puzzle hashes, or wrapping delegated puzzles.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Use the NewRestrictionKind* constructors or [NewRestrictionKindFromInt] to create instances.
@@ -32274,7 +32274,7 @@ func NewRestrictionKindDelegatedPuzzleWrapper() (*RestrictionKind, error) {
 	return NewRestrictionKindFromInt(2)
 }
 
-// TimelockRestriction is a standalone binding function.
+// TimelockRestriction creates a restriction that enforces a minimum timelock (in seconds) before the member can authorize a spend.
 func TimelockRestriction(timelock uint64) (*Restriction, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -32289,7 +32289,7 @@ func TimelockRestriction(timelock uint64) (*Restriction, error) {
 	return obj, nil
 }
 
-// Force1Of2Restriction is a standalone binding function.
+// Force1Of2Restriction creates a restriction that forces a 1-of-2 structure, used for vault recovery where one side can override the other.
 func Force1Of2Restriction(leftSideSubtreeHash []byte, nonce uint32, memberValidatorListHash []byte, delegatedPuzzleValidatorListHash []byte) (*Restriction, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -32307,7 +32307,7 @@ func Force1Of2Restriction(leftSideSubtreeHash []byte, nonce uint32, memberValida
 	return obj, nil
 }
 
-// PreventConditionOpcodeRestriction is a standalone binding function.
+// PreventConditionOpcodeRestriction creates a restriction that prevents the member from emitting conditions with the given opcode.
 func PreventConditionOpcodeRestriction(conditionOpcode uint16) (*Restriction, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -32322,7 +32322,7 @@ func PreventConditionOpcodeRestriction(conditionOpcode uint16) (*Restriction, er
 	return obj, nil
 }
 
-// PreventMultipleCreateCoinsRestriction is a standalone binding function.
+// PreventMultipleCreateCoinsRestriction creates a restriction that prevents the member from creating more than one output coin per spend.
 func PreventMultipleCreateCoinsRestriction() (*Restriction, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -32337,7 +32337,7 @@ func PreventMultipleCreateCoinsRestriction() (*Restriction, error) {
 	return obj, nil
 }
 
-// PreventVaultSideEffectsRestriction is a standalone binding function.
+// PreventVaultSideEffectsRestriction creates a set of restrictions that prevent common vault side effects like announcements and multiple create coins.
 func PreventVaultSideEffectsRestriction() ([]*Restriction, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -32362,7 +32362,7 @@ func PreventVaultSideEffectsRestriction() ([]*Restriction, error) {
 	return result, nil
 }
 
-// MipsSpend wraps a Rust MipsSpend value behind an opaque pointer.
+// MipsSpend builds the spend reveal for a MIPS vault by composing member proofs, M-of-N paths, and restriction layers.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -32417,7 +32417,7 @@ func (o *MipsSpend) Clone() (*MipsSpend, error) {
 	return clone, nil
 }
 
-// Spend calls [MipsSpend]'s Spend method.
+// Spend finalizes the MIPS spend and returns a Spend (puzzle reveal + solution) for the given custody hash.
 func (o *MipsSpend) Spend(custodyHash []byte) (*Spend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -32442,7 +32442,7 @@ func (o *MipsSpend) Spend(custodyHash []byte) (*Spend, error) {
 	return obj, nil
 }
 
-// SpendVault calls [MipsSpend]'s SpendVault method.
+// SpendVault applies this MIPS spend to a vault coin, producing the coin spend for inclusion in a transaction.
 func (o *MipsSpend) SpendVault(vault *Vault) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -32467,7 +32467,7 @@ func (o *MipsSpend) SpendVault(vault *Vault) error {
 	return nil
 }
 
-// MOfN calls [MipsSpend]'s MOfN method.
+// MOfN adds an M-of-N multisig layer to the spend, specifying which branch of the Merkle tree is being revealed.
 func (o *MipsSpend) MOfN(config *MemberConfig, required uint32, items unsafe.Pointer) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -32492,7 +32492,7 @@ func (o *MipsSpend) MOfN(config *MemberConfig, required uint32, items unsafe.Poi
 	return nil
 }
 
-// K1Member calls [MipsSpend]'s K1Member method.
+// K1Member adds a secp256k1 member signature to the spend for Bitcoin-compatible vault authorization.
 func (o *MipsSpend) K1Member(config *MemberConfig, publicKey *K1PublicKey, signature *K1Signature, fastForward bool) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -32525,7 +32525,7 @@ func (o *MipsSpend) K1Member(config *MemberConfig, publicKey *K1PublicKey, signa
 	return nil
 }
 
-// R1Member calls [MipsSpend]'s R1Member method.
+// R1Member adds a secp256r1 (P-256) member signature to the spend.
 func (o *MipsSpend) R1Member(config *MemberConfig, publicKey *R1PublicKey, signature *R1Signature, fastForward bool) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -32558,7 +32558,7 @@ func (o *MipsSpend) R1Member(config *MemberConfig, publicKey *R1PublicKey, signa
 	return nil
 }
 
-// BlsMember calls [MipsSpend]'s BlsMember method.
+// BlsMember adds a BLS member to the spend (the BLS signature is aggregated separately into the spend bundle).
 func (o *MipsSpend) BlsMember(config *MemberConfig, publicKey *PublicKey, fastForward bool) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -32587,7 +32587,7 @@ func (o *MipsSpend) BlsMember(config *MemberConfig, publicKey *PublicKey, fastFo
 	return nil
 }
 
-// PasskeyMember calls [MipsSpend]'s PasskeyMember method.
+// PasskeyMember adds a passkey (WebAuthn) member to the spend with the authenticator data and client JSON from the browser.
 func (o *MipsSpend) PasskeyMember(config *MemberConfig, publicKey *R1PublicKey, signature *R1Signature, authenticatorData []byte, clientDataJson []byte, challengeIndex uint32, fastForward bool) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -32622,7 +32622,7 @@ func (o *MipsSpend) PasskeyMember(config *MemberConfig, publicKey *R1PublicKey, 
 	return nil
 }
 
-// SingletonMember calls [MipsSpend]'s SingletonMember method.
+// SingletonMember adds a singleton member to the spend, proving that the authorizing singleton exists at the given state.
 func (o *MipsSpend) SingletonMember(config *MemberConfig, launcherId []byte, fastForward bool, singletonInnerPuzzleHash []byte, singletonAmount uint64) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -32649,7 +32649,7 @@ func (o *MipsSpend) SingletonMember(config *MemberConfig, launcherId []byte, fas
 	return nil
 }
 
-// FixedPuzzleMember calls [MipsSpend]'s FixedPuzzleMember method.
+// FixedPuzzleMember adds a fixed-puzzle member to the spend that always runs the same predetermined puzzle.
 func (o *MipsSpend) FixedPuzzleMember(config *MemberConfig, fixedPuzzleHash []byte) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -32675,7 +32675,7 @@ func (o *MipsSpend) FixedPuzzleMember(config *MemberConfig, fixedPuzzleHash []by
 	return nil
 }
 
-// CustomMember calls [MipsSpend]'s CustomMember method.
+// CustomMember adds a custom member to the spend with an arbitrary puzzle reveal and solution.
 func (o *MipsSpend) CustomMember(config *MemberConfig, spend *Spend) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -32704,7 +32704,7 @@ func (o *MipsSpend) CustomMember(config *MemberConfig, spend *Spend) error {
 	return nil
 }
 
-// Timelock calls [MipsSpend]'s Timelock method.
+// Timelock applies a timelock restriction to the spend, asserting the required seconds have elapsed.
 func (o *MipsSpend) Timelock(timelock uint64) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -32725,7 +32725,7 @@ func (o *MipsSpend) Timelock(timelock uint64) error {
 	return nil
 }
 
-// Force1Of2RestrictedVariable calls [MipsSpend]'s Force1Of2RestrictedVariable method.
+// Force1Of2RestrictedVariable applies the force-1-of-2 restriction for vault recovery, replacing the right-side member hash.
 func (o *MipsSpend) Force1Of2RestrictedVariable(leftSideSubtreeHash []byte, nonce uint32, memberValidatorListHash []byte, delegatedPuzzleValidatorListHash []byte, newRightSideMemberHash []byte) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -32750,7 +32750,7 @@ func (o *MipsSpend) Force1Of2RestrictedVariable(leftSideSubtreeHash []byte, nonc
 	return nil
 }
 
-// PreventConditionOpcode calls [MipsSpend]'s PreventConditionOpcode method.
+// PreventConditionOpcode applies a restriction that prevents emitting conditions with the given opcode.
 func (o *MipsSpend) PreventConditionOpcode(conditionOpcode uint16) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -32771,7 +32771,7 @@ func (o *MipsSpend) PreventConditionOpcode(conditionOpcode uint16) error {
 	return nil
 }
 
-// PreventMultipleCreateCoins calls [MipsSpend]'s PreventMultipleCreateCoins method.
+// PreventMultipleCreateCoins applies a restriction that prevents creating more than one output coin.
 func (o *MipsSpend) PreventMultipleCreateCoins() error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -32792,7 +32792,7 @@ func (o *MipsSpend) PreventMultipleCreateCoins() error {
 	return nil
 }
 
-// PreventVaultSideEffects calls [MipsSpend]'s PreventVaultSideEffects method.
+// PreventVaultSideEffects applies all standard vault side-effect prevention restrictions.
 func (o *MipsSpend) PreventVaultSideEffects() error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -32813,7 +32813,7 @@ func (o *MipsSpend) PreventVaultSideEffects() error {
 	return nil
 }
 
-// VaultMint wraps a Rust VaultMint value behind an opaque pointer.
+// VaultMint holds the result of minting a new MIPS vault, including the vault singleton and any parent conditions needed.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -33013,7 +33013,7 @@ func (o *VaultMint) SetParentConditions(value []*Program) error {
 	return nil
 }
 
-// WrappedDelegatedPuzzleHash is a standalone binding function.
+// WrappedDelegatedPuzzleHash computes the puzzle hash of a delegated puzzle after wrapping it with the given restrictions.
 func WrappedDelegatedPuzzleHash(restrictions []*Restriction, delegatedPuzzleHash []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -33045,7 +33045,7 @@ func WrappedDelegatedPuzzleHash(restrictions []*Restriction, delegatedPuzzleHash
 	return result, nil
 }
 
-// MipsMemo wraps a Rust MipsMemo value behind an opaque pointer.
+// MipsMemo represents a MIPS vault memo attached to coin hints, encoding the vault's inner puzzle structure for wallet discovery.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -33167,7 +33167,7 @@ func (o *MipsMemo) SetInnerPuzzle(value *InnerPuzzleMemo) error {
 	return nil
 }
 
-// InnerPuzzleHash calls [MipsMemo]'s InnerPuzzleHash method.
+// InnerPuzzleHash computes the inner puzzle hash from this memo, used to verify vault coin puzzle hashes.
 func (o *MipsMemo) InnerPuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -33192,7 +33192,7 @@ func (o *MipsMemo) InnerPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// InnerPuzzleMemo wraps a Rust InnerPuzzleMemo value behind an opaque pointer.
+// InnerPuzzleMemo encodes a MIPS vault member or M-of-N structure as a memo, including nonce and restriction info.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -33434,7 +33434,7 @@ func (o *InnerPuzzleMemo) SetKind(value *MemoKind) error {
 	return nil
 }
 
-// InnerPuzzleHash calls [InnerPuzzleMemo]'s InnerPuzzleHash method.
+// InnerPuzzleHash computes the inner puzzle hash from this memo structure with the given top-level flag.
 func (o *InnerPuzzleMemo) InnerPuzzleHash(topLevel bool) ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -33459,7 +33459,7 @@ func (o *InnerPuzzleMemo) InnerPuzzleHash(topLevel bool) ([]byte, error) {
 	return result, nil
 }
 
-// RestrictionMemo wraps a Rust RestrictionMemo value behind an opaque pointer.
+// RestrictionMemo encodes a MIPS vault restriction as a memo for wallet discovery and puzzle hash reconstruction.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -33670,7 +33670,7 @@ func (o *RestrictionMemo) SetMemo(value *Program) error {
 	return nil
 }
 
-// NewRestrictionMemoForce1Of2RestrictedVariable creates a new [RestrictionMemo] via the Force1Of2RestrictedVariable factory.
+// NewRestrictionMemoForce1Of2RestrictedVariable creates a restriction memo for the force-1-of-2 recovery restriction.
 func NewRestrictionMemoForce1Of2RestrictedVariable(clvm *Clvm, leftSideSubtreeHash []byte, nonce uint32, memberValidatorListHash []byte, delegatedPuzzleValidatorListHash []byte) (*RestrictionMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -33692,7 +33692,7 @@ func NewRestrictionMemoForce1Of2RestrictedVariable(clvm *Clvm, leftSideSubtreeHa
 	return obj, nil
 }
 
-// NewRestrictionMemoEnforceDelegatedPuzzleWrappers creates a new [RestrictionMemo] via the EnforceDelegatedPuzzleWrappers factory.
+// NewRestrictionMemoEnforceDelegatedPuzzleWrappers creates a restriction memo that enforces a list of delegated puzzle wrappers.
 func NewRestrictionMemoEnforceDelegatedPuzzleWrappers(clvm *Clvm, wrapperMemos []*WrapperMemo) (*RestrictionMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -33726,7 +33726,7 @@ func NewRestrictionMemoEnforceDelegatedPuzzleWrappers(clvm *Clvm, wrapperMemos [
 	return obj, nil
 }
 
-// NewRestrictionMemoTimelock creates a new [RestrictionMemo] via the Timelock factory.
+// NewRestrictionMemoTimelock creates a restriction memo for a timelock restriction with the given duration in seconds.
 func NewRestrictionMemoTimelock(clvm *Clvm, seconds uint64, reveal bool) (*RestrictionMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -33745,7 +33745,7 @@ func NewRestrictionMemoTimelock(clvm *Clvm, seconds uint64, reveal bool) (*Restr
 	return obj, nil
 }
 
-// WrapperMemo wraps a Rust WrapperMemo value behind an opaque pointer.
+// WrapperMemo encodes a delegated puzzle wrapper restriction as a memo for MIPS vault discovery.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -33914,7 +33914,7 @@ func (o *WrapperMemo) SetMemo(value *Program) error {
 	return nil
 }
 
-// WrapperMemoPreventVaultSideEffects is a static method on [WrapperMemo].
+// WrapperMemoPreventVaultSideEffects creates wrapper memos for all standard vault side-effect prevention wrappers.
 func WrapperMemoPreventVaultSideEffects(clvm *Clvm, reveal bool) ([]*WrapperMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -33943,7 +33943,7 @@ func WrapperMemoPreventVaultSideEffects(clvm *Clvm, reveal bool) ([]*WrapperMemo
 	return result, nil
 }
 
-// NewWrapperMemoForceCoinAnnouncement creates a new [WrapperMemo] via the ForceCoinAnnouncement factory.
+// NewWrapperMemoForceCoinAnnouncement creates a wrapper memo that forces a coin announcement in every vault spend.
 func NewWrapperMemoForceCoinAnnouncement(clvm *Clvm) (*WrapperMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -33962,7 +33962,7 @@ func NewWrapperMemoForceCoinAnnouncement(clvm *Clvm) (*WrapperMemo, error) {
 	return obj, nil
 }
 
-// NewWrapperMemoForceCoinMessage creates a new [WrapperMemo] via the ForceCoinMessage factory.
+// NewWrapperMemoForceCoinMessage creates a wrapper memo that forces a coin message (CHIP-0025) in every vault spend.
 func NewWrapperMemoForceCoinMessage(clvm *Clvm) (*WrapperMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -33981,7 +33981,7 @@ func NewWrapperMemoForceCoinMessage(clvm *Clvm) (*WrapperMemo, error) {
 	return obj, nil
 }
 
-// NewWrapperMemoPreventMultipleCreateCoins creates a new [WrapperMemo] via the PreventMultipleCreateCoins factory.
+// NewWrapperMemoPreventMultipleCreateCoins creates a wrapper memo that prevents creating more than one output coin.
 func NewWrapperMemoPreventMultipleCreateCoins(clvm *Clvm) (*WrapperMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -34000,7 +34000,7 @@ func NewWrapperMemoPreventMultipleCreateCoins(clvm *Clvm) (*WrapperMemo, error) 
 	return obj, nil
 }
 
-// NewWrapperMemoTimelock creates a new [WrapperMemo] via the Timelock factory.
+// NewWrapperMemoTimelock creates a wrapper memo that enforces a minimum timelock in seconds.
 func NewWrapperMemoTimelock(clvm *Clvm, seconds uint64, reveal bool) (*WrapperMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -34019,7 +34019,7 @@ func NewWrapperMemoTimelock(clvm *Clvm, seconds uint64, reveal bool) (*WrapperMe
 	return obj, nil
 }
 
-// NewWrapperMemoPreventConditionOpcode creates a new [WrapperMemo] via the PreventConditionOpcode factory.
+// NewWrapperMemoPreventConditionOpcode creates a wrapper memo that prevents emitting conditions with the given opcode.
 func NewWrapperMemoPreventConditionOpcode(clvm *Clvm, opcode uint16, reveal bool) (*WrapperMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -34038,7 +34038,7 @@ func NewWrapperMemoPreventConditionOpcode(clvm *Clvm, opcode uint16, reveal bool
 	return obj, nil
 }
 
-// Force1of2RestrictedVariableMemo wraps a Rust Force1of2RestrictedVariableMemo value behind an opaque pointer.
+// Force1of2RestrictedVariableMemo holds the parameters for a force-1-of-2 restriction memo used in MIPS vault recovery configuration.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -34291,7 +34291,7 @@ func (o *Force1of2RestrictedVariableMemo) SetDelegatedPuzzleValidatorListHash(va
 	return nil
 }
 
-// MemoKind wraps a Rust MemoKind value behind an opaque pointer.
+// MemoKind represents the kind of MIPS vault inner puzzle memo: either a single member or an M-of-N multisig.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -34346,7 +34346,7 @@ func (o *MemoKind) Clone() (*MemoKind, error) {
 	return clone, nil
 }
 
-// NewMemoKindMember creates a new [MemoKind] via the Member factory.
+// NewMemoKindMember creates a MemoKind for a single vault member.
 func NewMemoKindMember(member *MemberMemo) (*MemoKind, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -34365,7 +34365,7 @@ func NewMemoKindMember(member *MemberMemo) (*MemoKind, error) {
 	return obj, nil
 }
 
-// NewMemoKindMOfN creates a new [MemoKind] via the MOfN factory.
+// NewMemoKindMOfN creates a MemoKind for an M-of-N multisig structure.
 func NewMemoKindMOfN(mOfN *MofNMemo) (*MemoKind, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -34384,7 +34384,7 @@ func NewMemoKindMOfN(mOfN *MofNMemo) (*MemoKind, error) {
 	return obj, nil
 }
 
-// AsMember calls [MemoKind]'s AsMember method.
+// AsMember returns the member memo if this is a single member kind, or nil otherwise.
 func (o *MemoKind) AsMember() (*MemberMemo, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -34411,7 +34411,7 @@ func (o *MemoKind) AsMember() (*MemberMemo, error) {
 	return obj, nil
 }
 
-// AsMOfN calls [MemoKind]'s AsMOfN method.
+// AsMOfN returns the M-of-N memo if this is a multisig kind, or nil otherwise.
 func (o *MemoKind) AsMOfN() (*MofNMemo, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -34438,7 +34438,7 @@ func (o *MemoKind) AsMOfN() (*MofNMemo, error) {
 	return obj, nil
 }
 
-// InnerPuzzleHash calls [MemoKind]'s InnerPuzzleHash method.
+// InnerPuzzleHash computes the inner puzzle hash from this memo kind.
 func (o *MemoKind) InnerPuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -34463,7 +34463,7 @@ func (o *MemoKind) InnerPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// MemberMemo wraps a Rust MemberMemo value behind an opaque pointer.
+// MemberMemo encodes a single MIPS vault member as a memo, including the member puzzle hash and key/config data.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -34632,7 +34632,7 @@ func (o *MemberMemo) SetMemo(value *Program) error {
 	return nil
 }
 
-// NewMemberMemoK1 creates a new [MemberMemo] via the K1 factory.
+// NewMemberMemoK1 creates a member memo for a secp256k1 (Bitcoin-compatible) signer.
 func NewMemberMemoK1(clvm *Clvm, publicKey *K1PublicKey, fastForward bool, reveal bool) (*MemberMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -34655,7 +34655,7 @@ func NewMemberMemoK1(clvm *Clvm, publicKey *K1PublicKey, fastForward bool, revea
 	return obj, nil
 }
 
-// NewMemberMemoR1 creates a new [MemberMemo] via the R1 factory.
+// NewMemberMemoR1 creates a member memo for a secp256r1 (P-256) signer.
 func NewMemberMemoR1(clvm *Clvm, publicKey *R1PublicKey, fastForward bool, reveal bool) (*MemberMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -34678,7 +34678,7 @@ func NewMemberMemoR1(clvm *Clvm, publicKey *R1PublicKey, fastForward bool, revea
 	return obj, nil
 }
 
-// NewMemberMemoBls creates a new [MemberMemo] via the Bls factory.
+// NewMemberMemoBls creates a member memo for a BLS (standard Chia) signer.
 func NewMemberMemoBls(clvm *Clvm, publicKey *PublicKey, fastForward bool, taproot bool, reveal bool) (*MemberMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -34701,7 +34701,7 @@ func NewMemberMemoBls(clvm *Clvm, publicKey *PublicKey, fastForward bool, taproo
 	return obj, nil
 }
 
-// NewMemberMemoPasskey creates a new [MemberMemo] via the Passkey factory.
+// NewMemberMemoPasskey creates a member memo for a passkey (WebAuthn) signer.
 func NewMemberMemoPasskey(clvm *Clvm, publicKey *R1PublicKey, fastForward bool, reveal bool) (*MemberMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -34724,7 +34724,7 @@ func NewMemberMemoPasskey(clvm *Clvm, publicKey *R1PublicKey, fastForward bool, 
 	return obj, nil
 }
 
-// NewMemberMemoSingleton creates a new [MemberMemo] via the Singleton factory.
+// NewMemberMemoSingleton creates a member memo for a singleton-based signer identified by its launcher ID.
 func NewMemberMemoSingleton(clvm *Clvm, launcherId []byte, fastForward bool, reveal bool) (*MemberMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -34744,7 +34744,7 @@ func NewMemberMemoSingleton(clvm *Clvm, launcherId []byte, fastForward bool, rev
 	return obj, nil
 }
 
-// NewMemberMemoFixedPuzzle creates a new [MemberMemo] via the FixedPuzzle factory.
+// NewMemberMemoFixedPuzzle creates a member memo for a fixed-puzzle signer that always runs the same puzzle.
 func NewMemberMemoFixedPuzzle(clvm *Clvm, puzzleHash []byte, reveal bool) (*MemberMemo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -34764,7 +34764,7 @@ func NewMemberMemoFixedPuzzle(clvm *Clvm, puzzleHash []byte, reveal bool) (*Memb
 	return obj, nil
 }
 
-// MofNMemo wraps a Rust MofNMemo value behind an opaque pointer.
+// MofNMemo encodes an M-of-N multisig structure as a memo, listing the required threshold and all member sub-memos.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -34954,7 +34954,7 @@ func (o *MofNMemo) SetItems(value []*InnerPuzzleMemo) error {
 	return nil
 }
 
-// InnerPuzzleHash calls [MofNMemo]'s InnerPuzzleHash method.
+// InnerPuzzleHash computes the M-of-N inner puzzle hash from the required threshold and member hashes.
 func (o *MofNMemo) InnerPuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -34979,7 +34979,7 @@ func (o *MofNMemo) InnerPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// MipsMemoContext wraps a Rust MipsMemoContext value behind an opaque pointer.
+// MipsMemoContext accumulates known keys, timelocks, and opcodes to help parse and reconstruct MIPS vault memos from on-chain hints.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -35034,7 +35034,7 @@ func (o *MipsMemoContext) Clone() (*MipsMemoContext, error) {
 	return clone, nil
 }
 
-// MipsMemoContextNew is a static method on [MipsMemoContext].
+// MipsMemoContextNew creates an empty MIPS memo parsing context.
 func MipsMemoContextNew() (*MipsMemoContext, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -35049,7 +35049,7 @@ func MipsMemoContextNew() (*MipsMemoContext, error) {
 	return obj, nil
 }
 
-// AddK1 calls [MipsMemoContext]'s AddK1 method.
+// AddK1 registers a known secp256k1 public key for memo parsing.
 func (o *MipsMemoContext) AddK1(publicKey *K1PublicKey) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -35074,7 +35074,7 @@ func (o *MipsMemoContext) AddK1(publicKey *K1PublicKey) error {
 	return nil
 }
 
-// AddR1 calls [MipsMemoContext]'s AddR1 method.
+// AddR1 registers a known secp256r1 public key for memo parsing.
 func (o *MipsMemoContext) AddR1(publicKey *R1PublicKey) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -35099,7 +35099,7 @@ func (o *MipsMemoContext) AddR1(publicKey *R1PublicKey) error {
 	return nil
 }
 
-// AddBls calls [MipsMemoContext]'s AddBls method.
+// AddBls registers a known BLS public key for memo parsing.
 func (o *MipsMemoContext) AddBls(publicKey *PublicKey) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -35124,7 +35124,7 @@ func (o *MipsMemoContext) AddBls(publicKey *PublicKey) error {
 	return nil
 }
 
-// AddHash calls [MipsMemoContext]'s AddHash method.
+// AddHash registers a known puzzle hash for memo parsing.
 func (o *MipsMemoContext) AddHash(hash []byte) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -35146,7 +35146,7 @@ func (o *MipsMemoContext) AddHash(hash []byte) error {
 	return nil
 }
 
-// AddTimelock calls [MipsMemoContext]'s AddTimelock method.
+// AddTimelock registers a known timelock duration (in seconds) for memo parsing.
 func (o *MipsMemoContext) AddTimelock(timelock uint64) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -35167,7 +35167,7 @@ func (o *MipsMemoContext) AddTimelock(timelock uint64) error {
 	return nil
 }
 
-// AddOpcode calls [MipsMemoContext]'s AddOpcode method.
+// AddOpcode registers a known condition opcode for memo parsing.
 func (o *MipsMemoContext) AddOpcode(opcode uint16) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -35188,7 +35188,7 @@ func (o *MipsMemoContext) AddOpcode(opcode uint16) error {
 	return nil
 }
 
-// AddSingletonMode calls [MipsMemoContext]'s AddSingletonMode method.
+// AddSingletonMode registers a known singleton mode byte for memo parsing.
 func (o *MipsMemoContext) AddSingletonMode(mode uint8) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -35325,8 +35325,8 @@ func MnemonicVerify(mnemonic string) (bool, error) {
 	return cOut != 0, nil
 }
 
-// ToString returns the mnemonic as a space-separated word string.
-func (o *Mnemonic) ToString() (string, error) {
+// String returns the mnemonic as a space-separated word string.
+func (o *Mnemonic) String() (string, error) {
 	if o == nil {
 		return "", fmt.Errorf("object is nil or already freed")
 	}
@@ -35349,8 +35349,8 @@ func (o *Mnemonic) ToString() (string, error) {
 	return result, nil
 }
 
-// ToEntropy returns the raw entropy bytes underlying the mnemonic.
-func (o *Mnemonic) ToEntropy() ([]byte, error) {
+// Entropy returns the raw entropy bytes underlying the mnemonic.
+func (o *Mnemonic) Entropy() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -35400,7 +35400,7 @@ func (o *Mnemonic) ToSeed(password string) ([]byte, error) {
 	return result, nil
 }
 
-// EncodeOffer is a standalone binding function.
+// EncodeOffer serializes a spend bundle into the standard Chia offer file format (bech32m-encoded string).
 func EncodeOffer(spendBundle *SpendBundle) (string, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -35419,7 +35419,7 @@ func EncodeOffer(spendBundle *SpendBundle) (string, error) {
 	return result, nil
 }
 
-// DecodeOffer is a standalone binding function.
+// DecodeOffer deserializes a Chia offer file string (bech32m-encoded) back into a spend bundle.
 func DecodeOffer(offer string) (*SpendBundle, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -35435,7 +35435,7 @@ func DecodeOffer(offer string) (*SpendBundle, error) {
 	return obj, nil
 }
 
-// NotarizedPayment wraps a Rust NotarizedPayment value behind an opaque pointer.
+// NotarizedPayment represents a notarized payment used in Chia offers, binding a nonce to a list of payments for atomic swap settlement.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -35630,7 +35630,7 @@ func (o *NotarizedPayment) SetPayments(value []*Payment) error {
 	return nil
 }
 
-// Payment wraps a Rust Payment value behind an opaque pointer.
+// Payment represents a single payment output in an offer: a destination puzzle hash, amount, and optional memos.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -35845,7 +35845,7 @@ func (o *Payment) SetMemos(value *Program) error {
 	return nil
 }
 
-// Certificate wraps a Rust Certificate value behind an opaque pointer.
+// Certificate holds a TLS certificate and private key in PEM format for authenticating peer connections.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -36008,7 +36008,7 @@ func (o *Certificate) SetKeyPem(value string) error {
 	return nil
 }
 
-// NewCertificateLoad creates a new [Certificate] via the Load factory.
+// NewCertificateLoad loads a TLS certificate and key from PEM files on disk.
 func NewCertificateLoad(certPath string, keyPath string) (*Certificate, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -36026,7 +36026,7 @@ func NewCertificateLoad(certPath string, keyPath string) (*Certificate, error) {
 	return obj, nil
 }
 
-// NewCertificateGenerate creates a new [Certificate] via the Generate factory.
+// NewCertificateGenerate generates a new self-signed TLS certificate and key pair for peer connections.
 func NewCertificateGenerate() (*Certificate, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -36041,7 +36041,7 @@ func NewCertificateGenerate() (*Certificate, error) {
 	return obj, nil
 }
 
-// Connector wraps a Rust Connector value behind an opaque pointer.
+// Connector manages TLS connections to Chia full nodes using a certificate for authentication.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -36096,7 +36096,7 @@ func (o *Connector) Clone() (*Connector, error) {
 	return clone, nil
 }
 
-// ConnectorNew is a static method on [Connector].
+// ConnectorNew creates a new TLS connector from the given certificate.
 func ConnectorNew(cert *Certificate) (*Connector, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -36115,7 +36115,7 @@ func ConnectorNew(cert *Certificate) (*Connector, error) {
 	return obj, nil
 }
 
-// PeerOptions wraps a Rust PeerOptions value behind an opaque pointer.
+// PeerOptions configures peer connection behavior such as rate limiting.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -36212,7 +36212,7 @@ func (o *PeerOptions) SetRateLimitFactor(value float64) error {
 	return nil
 }
 
-// PeerOptionsNew is a static method on [PeerOptions].
+// PeerOptionsNew creates default peer options.
 func PeerOptionsNew() (*PeerOptions, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -36227,7 +36227,7 @@ func PeerOptionsNew() (*PeerOptions, error) {
 	return obj, nil
 }
 
-// Peer wraps a Rust Peer value behind an opaque pointer.
+// Peer represents a connection to a Chia full node for querying coin state, puzzle state, and subscribing to updates.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -36282,7 +36282,7 @@ func (o *Peer) Clone() (*Peer, error) {
 	return clone, nil
 }
 
-// NewPeerConnect creates a new [Peer] via the Connect factory.
+// NewPeerConnect connects to a Chia full node at the given address using TLS.
 func NewPeerConnect(networkId string, socketAddr string, connector *Connector, options *PeerOptions) (*Peer, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -36308,7 +36308,7 @@ func NewPeerConnect(networkId string, socketAddr string, connector *Connector, o
 	return obj, nil
 }
 
-// RequestCoinState calls [Peer]'s RequestCoinState method.
+// RequestCoinState requests the state of specific coins by their IDs, optionally subscribing to future updates.
 func (o *Peer) RequestCoinState(coinIds unsafe.Pointer, previousHeight *uint32, headerHash []byte, subscribe bool) (*RespondCoinState, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -36339,7 +36339,7 @@ func (o *Peer) RequestCoinState(coinIds unsafe.Pointer, previousHeight *uint32, 
 	return obj, nil
 }
 
-// RequestPuzzleState calls [Peer]'s RequestPuzzleState method.
+// RequestPuzzleState requests coins matching specific puzzle hashes with filters, optionally subscribing to updates.
 func (o *Peer) RequestPuzzleState(puzzleHashes unsafe.Pointer, previousHeight *uint32, headerHash []byte, filters *CoinStateFilters, subscribe bool) (*RespondPuzzleState, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -36374,7 +36374,7 @@ func (o *Peer) RequestPuzzleState(puzzleHashes unsafe.Pointer, previousHeight *u
 	return obj, nil
 }
 
-// RequestPuzzleAndSolution calls [Peer]'s RequestPuzzleAndSolution method.
+// RequestPuzzleAndSolution requests the puzzle reveal and solution for a spent coin at a specific height.
 func (o *Peer) RequestPuzzleAndSolution(coinId []byte, height uint32) (*PuzzleSolutionResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -36399,7 +36399,7 @@ func (o *Peer) RequestPuzzleAndSolution(coinId []byte, height uint32) (*PuzzleSo
 	return obj, nil
 }
 
-// RemoveCoinSubscriptions calls [Peer]'s RemoveCoinSubscriptions method.
+// RemoveCoinSubscriptions removes coin state subscriptions, returning the coin IDs that were unsubscribed. Pass nil to remove all.
 func (o *Peer) RemoveCoinSubscriptions(coinIds unsafe.Pointer) (unsafe.Pointer, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -36421,7 +36421,7 @@ func (o *Peer) RemoveCoinSubscriptions(coinIds unsafe.Pointer) (unsafe.Pointer, 
 	return out, nil
 }
 
-// RemovePuzzleSubscriptions calls [Peer]'s RemovePuzzleSubscriptions method.
+// RemovePuzzleSubscriptions removes puzzle state subscriptions, returning the puzzle hashes that were unsubscribed. Pass nil to remove all.
 func (o *Peer) RemovePuzzleSubscriptions(puzzleHashes unsafe.Pointer) (unsafe.Pointer, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -36443,7 +36443,7 @@ func (o *Peer) RemovePuzzleSubscriptions(puzzleHashes unsafe.Pointer) (unsafe.Po
 	return out, nil
 }
 
-// Next calls [Peer]'s Next method.
+// Next waits for the next event from the peer (new peak or coin state update), or nil if disconnected.
 func (o *Peer) Next() (*Event, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -36470,7 +36470,7 @@ func (o *Peer) Next() (*Event, error) {
 	return obj, nil
 }
 
-// Event wraps a Rust Event value behind an opaque pointer.
+// Event represents an event received from a connected peer: either a new peak notification or a coin state update.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -36627,7 +36627,7 @@ func (o *Event) SetCoinStateUpdate(value *CoinStateUpdate) error {
 	return nil
 }
 
-// NewPeakWallet wraps a Rust NewPeakWallet value behind an opaque pointer.
+// NewPeakWallet notifies the wallet of a new blockchain peak with the header hash, height, weight, and fork point.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -36878,7 +36878,7 @@ func (o *NewPeakWallet) SetForkPointWithPreviousPeak(value uint32) error {
 	return nil
 }
 
-// CoinStateUpdate wraps a Rust CoinStateUpdate value behind an opaque pointer.
+// CoinStateUpdate notifies the wallet of coin state changes at a specific height, including the fork height and affected coins.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -37157,7 +37157,7 @@ func (o *CoinStateUpdate) SetItems(value []*CoinState) error {
 	return nil
 }
 
-// RespondCoinState wraps a Rust RespondCoinState value behind an opaque pointer.
+// RespondCoinState holds the response to a coin state request: the queried coin IDs and their current states.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -37347,7 +37347,7 @@ func (o *RespondCoinState) SetCoinStates(value []*CoinState) error {
 	return nil
 }
 
-// RespondPuzzleState wraps a Rust RespondPuzzleState value behind an opaque pointer.
+// RespondPuzzleState holds the response to a puzzle state request: matching coins, the sync height, and whether pagination is complete.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -37668,7 +37668,7 @@ func (o *RespondPuzzleState) SetCoinStates(value []*CoinState) error {
 	return nil
 }
 
-// PuzzleSolutionResponse wraps a Rust PuzzleSolutionResponse value behind an opaque pointer.
+// PuzzleSolutionResponse holds the puzzle reveal and solution for a spent coin, as returned by the full node.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -37921,7 +37921,7 @@ func (o *PuzzleSolutionResponse) SetSolution(value []byte) error {
 	return nil
 }
 
-// CoinStateFilters wraps a Rust CoinStateFilters value behind an opaque pointer.
+// CoinStateFilters filters for puzzle state requests: include/exclude spent or unspent coins, hinted coins, and minimum amount.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -38159,7 +38159,7 @@ func (o *CoinStateFilters) SetMinAmount(value uint64) error {
 	return nil
 }
 
-// Program wraps a Rust Program value behind an opaque pointer.
+// Program represents a CLVM program node, which is either an atom (leaf) or a cons pair (branch) in the Chialisp expression tree.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -38214,7 +38214,7 @@ func (o *Program) Clone() (*Program, error) {
 	return clone, nil
 }
 
-// Compile calls [Program]'s Compile method.
+// Compile compiles and runs the program as Chialisp, returning the output and cost.
 func (o *Program) Compile() (*Output, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38238,7 +38238,7 @@ func (o *Program) Compile() (*Output, error) {
 	return obj, nil
 }
 
-// Unparse calls [Program]'s Unparse method.
+// Unparse converts the CLVM program back into a human-readable Chialisp string.
 func (o *Program) Unparse() (string, error) {
 	if o == nil {
 		return "", fmt.Errorf("object is nil or already freed")
@@ -38262,7 +38262,7 @@ func (o *Program) Unparse() (string, error) {
 	return result, nil
 }
 
-// Serialize calls [Program]'s Serialize method.
+// Serialize serializes the program into the standard CLVM binary format.
 func (o *Program) Serialize() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38287,7 +38287,7 @@ func (o *Program) Serialize() ([]byte, error) {
 	return result, nil
 }
 
-// SerializeWithBackrefs calls [Program]'s SerializeWithBackrefs method.
+// SerializeWithBackrefs serializes the program using CLVM backref compression (CHIP-0002) for smaller output.
 func (o *Program) SerializeWithBackrefs() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38312,7 +38312,7 @@ func (o *Program) SerializeWithBackrefs() ([]byte, error) {
 	return result, nil
 }
 
-// Run calls [Program]'s Run method.
+// Run executes this program as a puzzle with the given solution, enforcing the cost limit and optional mempool rules.
 func (o *Program) Run(solution *Program, maxCost uint64, mempoolMode bool) (*Output, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38340,7 +38340,7 @@ func (o *Program) Run(solution *Program, maxCost uint64, mempoolMode bool) (*Out
 	return obj, nil
 }
 
-// Curry calls [Program]'s Curry method.
+// Curry curries arguments into this program, binding them as fixed parameters (standard Chialisp currying).
 func (o *Program) Curry(args []*Program) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38379,7 +38379,7 @@ func (o *Program) Curry(args []*Program) (*Program, error) {
 	return obj, nil
 }
 
-// Uncurry calls [Program]'s Uncurry method.
+// Uncurry attempts to uncurry the program, extracting the base module and its curried arguments.
 func (o *Program) Uncurry() (*CurriedProgram, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38406,7 +38406,7 @@ func (o *Program) Uncurry() (*CurriedProgram, error) {
 	return obj, nil
 }
 
-// TreeHash calls [Program]'s TreeHash method.
+// TreeHash computes the SHA-256 tree hash of the program, which uniquely identifies its structure.
 func (o *Program) TreeHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38431,7 +38431,7 @@ func (o *Program) TreeHash() ([]byte, error) {
 	return result, nil
 }
 
-// IsAtom calls [Program]'s IsAtom method.
+// IsAtom reports whether the program is an atom (leaf node) rather than a cons pair.
 func (o *Program) IsAtom() (bool, error) {
 	if o == nil {
 		return false, fmt.Errorf("object is nil or already freed")
@@ -38453,7 +38453,7 @@ func (o *Program) IsAtom() (bool, error) {
 	return cOut != 0, nil
 }
 
-// IsPair calls [Program]'s IsPair method.
+// IsPair reports whether the program is a cons pair rather than an atom.
 func (o *Program) IsPair() (bool, error) {
 	if o == nil {
 		return false, fmt.Errorf("object is nil or already freed")
@@ -38475,7 +38475,7 @@ func (o *Program) IsPair() (bool, error) {
 	return cOut != 0, nil
 }
 
-// IsNull calls [Program]'s IsNull method.
+// IsNull reports whether the program is nil (the empty atom, representing false or an empty list).
 func (o *Program) IsNull() (bool, error) {
 	if o == nil {
 		return false, fmt.Errorf("object is nil or already freed")
@@ -38497,7 +38497,7 @@ func (o *Program) IsNull() (bool, error) {
 	return cOut != 0, nil
 }
 
-// Length calls [Program]'s Length method.
+// Length returns the length of the program when interpreted as a proper CLVM list.
 func (o *Program) Length() (uint32, error) {
 	if o == nil {
 		return 0, fmt.Errorf("object is nil or already freed")
@@ -38519,7 +38519,7 @@ func (o *Program) Length() (uint32, error) {
 	return uint32(cOut), nil
 }
 
-// First calls [Program]'s First method.
+// First returns the first element (car) of a cons pair. Fails if the program is an atom.
 func (o *Program) First() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38543,7 +38543,7 @@ func (o *Program) First() (*Program, error) {
 	return obj, nil
 }
 
-// Rest calls [Program]'s Rest method.
+// Rest returns the rest element (cdr) of a cons pair. Fails if the program is an atom.
 func (o *Program) Rest() (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38567,8 +38567,8 @@ func (o *Program) Rest() (*Program, error) {
 	return obj, nil
 }
 
-// ToInt calls [Program]'s ToInt method.
-func (o *Program) ToInt() ([]byte, error) {
+// Int interprets the atom as a signed big integer, or nil if this is a pair.
+func (o *Program) Int() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -38595,8 +38595,8 @@ func (o *Program) ToInt() ([]byte, error) {
 	return result, nil
 }
 
-// ToBoundCheckedNumber calls [Program]'s ToBoundCheckedNumber method.
-func (o *Program) ToBoundCheckedNumber() (*float64, error) {
+// BoundCheckedNumber interprets the atom as a bounds-checked floating-point number, or nil if invalid.
+func (o *Program) BoundCheckedNumber() (*float64, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -38622,8 +38622,8 @@ func (o *Program) ToBoundCheckedNumber() (*float64, error) {
 	return &v, nil
 }
 
-// ToString calls [Program]'s ToString method.
-func (o *Program) ToString() (*string, error) {
+// String interprets the atom as a UTF-8 string, or nil if this is a pair or not valid UTF-8.
+func (o *Program) String() (*string, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -38649,8 +38649,8 @@ func (o *Program) ToString() (*string, error) {
 	return &s, nil
 }
 
-// ToBool calls [Program]'s ToBool method.
-func (o *Program) ToBool() (*bool, error) {
+// Bool interprets the program as a boolean (nil is false, anything else is true), or nil if ambiguous.
+func (o *Program) Bool() (*bool, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -38676,8 +38676,8 @@ func (o *Program) ToBool() (*bool, error) {
 	return &v, nil
 }
 
-// ToAtom calls [Program]'s ToAtom method.
-func (o *Program) ToAtom() ([]byte, error) {
+// Atom returns the raw bytes of the atom, or nil if this is a pair.
+func (o *Program) Atom() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -38704,8 +38704,8 @@ func (o *Program) ToAtom() ([]byte, error) {
 	return result, nil
 }
 
-// ToList calls [Program]'s ToList method.
-func (o *Program) ToList() (unsafe.Pointer, error) {
+// List interprets the program as a proper CLVM list, or nil if it is not nil-terminated.
+func (o *Program) List() (unsafe.Pointer, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -38729,8 +38729,8 @@ func (o *Program) ToList() (unsafe.Pointer, error) {
 	return out, nil
 }
 
-// ToArgList calls [Program]'s ToArgList method.
-func (o *Program) ToArgList() (unsafe.Pointer, error) {
+// ArgList extracts a curried argument list from the program, or nil if the structure does not match.
+func (o *Program) ArgList() (unsafe.Pointer, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -38754,8 +38754,8 @@ func (o *Program) ToArgList() (unsafe.Pointer, error) {
 	return out, nil
 }
 
-// ToPair calls [Program]'s ToPair method.
-func (o *Program) ToPair() (*Pair, error) {
+// Pair returns the first and rest of a cons pair, or nil if this is an atom.
+func (o *Program) Pair() (*Pair, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -38781,7 +38781,7 @@ func (o *Program) ToPair() (*Pair, error) {
 	return obj, nil
 }
 
-// Puzzle calls [Program]'s Puzzle method.
+// Puzzle identifies the puzzle type (standard, CAT, NFT, DID, etc.) by analyzing the program structure.
 func (o *Program) Puzzle() (*Puzzle, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38805,7 +38805,7 @@ func (o *Program) Puzzle() (*Puzzle, error) {
 	return obj, nil
 }
 
-// ParseNftMetadata calls [Program]'s ParseNftMetadata method.
+// ParseNftMetadata attempts to parse the program as NFT metadata (data URIs, metadata URIs, license URIs, etc.).
 func (o *Program) ParseNftMetadata() (*NftMetadata, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38832,7 +38832,7 @@ func (o *Program) ParseNftMetadata() (*NftMetadata, error) {
 	return obj, nil
 }
 
-// ParseRemark calls [Program]'s ParseRemark method.
+// ParseRemark attempts to parse the program as a REMARK condition.
 func (o *Program) ParseRemark() (*Remark, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38859,7 +38859,7 @@ func (o *Program) ParseRemark() (*Remark, error) {
 	return obj, nil
 }
 
-// ParseAggSigParent calls [Program]'s ParseAggSigParent method.
+// ParseAggSigParent attempts to parse the program as an AGG_SIG_PARENT condition.
 func (o *Program) ParseAggSigParent() (*AggSigParent, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38886,7 +38886,7 @@ func (o *Program) ParseAggSigParent() (*AggSigParent, error) {
 	return obj, nil
 }
 
-// ParseAggSigPuzzle calls [Program]'s ParseAggSigPuzzle method.
+// ParseAggSigPuzzle attempts to parse the program as an AGG_SIG_PUZZLE condition.
 func (o *Program) ParseAggSigPuzzle() (*AggSigPuzzle, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38913,7 +38913,7 @@ func (o *Program) ParseAggSigPuzzle() (*AggSigPuzzle, error) {
 	return obj, nil
 }
 
-// ParseAggSigAmount calls [Program]'s ParseAggSigAmount method.
+// ParseAggSigAmount attempts to parse the program as an AGG_SIG_AMOUNT condition.
 func (o *Program) ParseAggSigAmount() (*AggSigAmount, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38940,7 +38940,7 @@ func (o *Program) ParseAggSigAmount() (*AggSigAmount, error) {
 	return obj, nil
 }
 
-// ParseAggSigPuzzleAmount calls [Program]'s ParseAggSigPuzzleAmount method.
+// ParseAggSigPuzzleAmount attempts to parse the program as an AGG_SIG_PUZZLE_AMOUNT condition.
 func (o *Program) ParseAggSigPuzzleAmount() (*AggSigPuzzleAmount, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38967,7 +38967,7 @@ func (o *Program) ParseAggSigPuzzleAmount() (*AggSigPuzzleAmount, error) {
 	return obj, nil
 }
 
-// ParseAggSigParentAmount calls [Program]'s ParseAggSigParentAmount method.
+// ParseAggSigParentAmount attempts to parse the program as an AGG_SIG_PARENT_AMOUNT condition.
 func (o *Program) ParseAggSigParentAmount() (*AggSigParentAmount, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -38994,7 +38994,7 @@ func (o *Program) ParseAggSigParentAmount() (*AggSigParentAmount, error) {
 	return obj, nil
 }
 
-// ParseAggSigParentPuzzle calls [Program]'s ParseAggSigParentPuzzle method.
+// ParseAggSigParentPuzzle attempts to parse the program as an AGG_SIG_PARENT_PUZZLE condition.
 func (o *Program) ParseAggSigParentPuzzle() (*AggSigParentPuzzle, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39021,7 +39021,7 @@ func (o *Program) ParseAggSigParentPuzzle() (*AggSigParentPuzzle, error) {
 	return obj, nil
 }
 
-// ParseAggSigUnsafe calls [Program]'s ParseAggSigUnsafe method.
+// ParseAggSigUnsafe attempts to parse the program as an AGG_SIG_UNSAFE condition.
 func (o *Program) ParseAggSigUnsafe() (*AggSigUnsafe, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39048,7 +39048,7 @@ func (o *Program) ParseAggSigUnsafe() (*AggSigUnsafe, error) {
 	return obj, nil
 }
 
-// ParseAggSigMe calls [Program]'s ParseAggSigMe method.
+// ParseAggSigMe attempts to parse the program as an AGG_SIG_ME condition.
 func (o *Program) ParseAggSigMe() (*AggSigMe, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39075,7 +39075,7 @@ func (o *Program) ParseAggSigMe() (*AggSigMe, error) {
 	return obj, nil
 }
 
-// ParseCreateCoin calls [Program]'s ParseCreateCoin method.
+// ParseCreateCoin attempts to parse the program as a CREATE_COIN condition.
 func (o *Program) ParseCreateCoin() (*CreateCoin, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39102,7 +39102,7 @@ func (o *Program) ParseCreateCoin() (*CreateCoin, error) {
 	return obj, nil
 }
 
-// ParseReserveFee calls [Program]'s ParseReserveFee method.
+// ParseReserveFee attempts to parse the program as a RESERVE_FEE condition.
 func (o *Program) ParseReserveFee() (*ReserveFee, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39129,7 +39129,7 @@ func (o *Program) ParseReserveFee() (*ReserveFee, error) {
 	return obj, nil
 }
 
-// ParseCreateCoinAnnouncement calls [Program]'s ParseCreateCoinAnnouncement method.
+// ParseCreateCoinAnnouncement attempts to parse the program as a CREATE_COIN_ANNOUNCEMENT condition.
 func (o *Program) ParseCreateCoinAnnouncement() (*CreateCoinAnnouncement, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39156,7 +39156,7 @@ func (o *Program) ParseCreateCoinAnnouncement() (*CreateCoinAnnouncement, error)
 	return obj, nil
 }
 
-// ParseCreatePuzzleAnnouncement calls [Program]'s ParseCreatePuzzleAnnouncement method.
+// ParseCreatePuzzleAnnouncement attempts to parse the program as a CREATE_PUZZLE_ANNOUNCEMENT condition.
 func (o *Program) ParseCreatePuzzleAnnouncement() (*CreatePuzzleAnnouncement, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39183,7 +39183,7 @@ func (o *Program) ParseCreatePuzzleAnnouncement() (*CreatePuzzleAnnouncement, er
 	return obj, nil
 }
 
-// ParseAssertCoinAnnouncement calls [Program]'s ParseAssertCoinAnnouncement method.
+// ParseAssertCoinAnnouncement attempts to parse the program as an ASSERT_COIN_ANNOUNCEMENT condition.
 func (o *Program) ParseAssertCoinAnnouncement() (*AssertCoinAnnouncement, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39210,7 +39210,7 @@ func (o *Program) ParseAssertCoinAnnouncement() (*AssertCoinAnnouncement, error)
 	return obj, nil
 }
 
-// ParseAssertPuzzleAnnouncement calls [Program]'s ParseAssertPuzzleAnnouncement method.
+// ParseAssertPuzzleAnnouncement attempts to parse the program as an ASSERT_PUZZLE_ANNOUNCEMENT condition.
 func (o *Program) ParseAssertPuzzleAnnouncement() (*AssertPuzzleAnnouncement, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39237,7 +39237,7 @@ func (o *Program) ParseAssertPuzzleAnnouncement() (*AssertPuzzleAnnouncement, er
 	return obj, nil
 }
 
-// ParseAssertConcurrentSpend calls [Program]'s ParseAssertConcurrentSpend method.
+// ParseAssertConcurrentSpend attempts to parse the program as an ASSERT_CONCURRENT_SPEND condition.
 func (o *Program) ParseAssertConcurrentSpend() (*AssertConcurrentSpend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39264,7 +39264,7 @@ func (o *Program) ParseAssertConcurrentSpend() (*AssertConcurrentSpend, error) {
 	return obj, nil
 }
 
-// ParseAssertConcurrentPuzzle calls [Program]'s ParseAssertConcurrentPuzzle method.
+// ParseAssertConcurrentPuzzle attempts to parse the program as an ASSERT_CONCURRENT_PUZZLE condition.
 func (o *Program) ParseAssertConcurrentPuzzle() (*AssertConcurrentPuzzle, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39291,7 +39291,7 @@ func (o *Program) ParseAssertConcurrentPuzzle() (*AssertConcurrentPuzzle, error)
 	return obj, nil
 }
 
-// ParseAssertSecondsRelative calls [Program]'s ParseAssertSecondsRelative method.
+// ParseAssertSecondsRelative attempts to parse the program as an ASSERT_SECONDS_RELATIVE condition.
 func (o *Program) ParseAssertSecondsRelative() (*AssertSecondsRelative, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39318,7 +39318,7 @@ func (o *Program) ParseAssertSecondsRelative() (*AssertSecondsRelative, error) {
 	return obj, nil
 }
 
-// ParseAssertSecondsAbsolute calls [Program]'s ParseAssertSecondsAbsolute method.
+// ParseAssertSecondsAbsolute attempts to parse the program as an ASSERT_SECONDS_ABSOLUTE condition.
 func (o *Program) ParseAssertSecondsAbsolute() (*AssertSecondsAbsolute, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39345,7 +39345,7 @@ func (o *Program) ParseAssertSecondsAbsolute() (*AssertSecondsAbsolute, error) {
 	return obj, nil
 }
 
-// ParseAssertHeightRelative calls [Program]'s ParseAssertHeightRelative method.
+// ParseAssertHeightRelative attempts to parse the program as an ASSERT_HEIGHT_RELATIVE condition.
 func (o *Program) ParseAssertHeightRelative() (*AssertHeightRelative, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39372,7 +39372,7 @@ func (o *Program) ParseAssertHeightRelative() (*AssertHeightRelative, error) {
 	return obj, nil
 }
 
-// ParseAssertHeightAbsolute calls [Program]'s ParseAssertHeightAbsolute method.
+// ParseAssertHeightAbsolute attempts to parse the program as an ASSERT_HEIGHT_ABSOLUTE condition.
 func (o *Program) ParseAssertHeightAbsolute() (*AssertHeightAbsolute, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39399,7 +39399,7 @@ func (o *Program) ParseAssertHeightAbsolute() (*AssertHeightAbsolute, error) {
 	return obj, nil
 }
 
-// ParseAssertBeforeSecondsRelative calls [Program]'s ParseAssertBeforeSecondsRelative method.
+// ParseAssertBeforeSecondsRelative attempts to parse the program as an ASSERT_BEFORE_SECONDS_RELATIVE condition.
 func (o *Program) ParseAssertBeforeSecondsRelative() (*AssertBeforeSecondsRelative, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39426,7 +39426,7 @@ func (o *Program) ParseAssertBeforeSecondsRelative() (*AssertBeforeSecondsRelati
 	return obj, nil
 }
 
-// ParseAssertBeforeSecondsAbsolute calls [Program]'s ParseAssertBeforeSecondsAbsolute method.
+// ParseAssertBeforeSecondsAbsolute attempts to parse the program as an ASSERT_BEFORE_SECONDS_ABSOLUTE condition.
 func (o *Program) ParseAssertBeforeSecondsAbsolute() (*AssertBeforeSecondsAbsolute, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39453,7 +39453,7 @@ func (o *Program) ParseAssertBeforeSecondsAbsolute() (*AssertBeforeSecondsAbsolu
 	return obj, nil
 }
 
-// ParseAssertBeforeHeightRelative calls [Program]'s ParseAssertBeforeHeightRelative method.
+// ParseAssertBeforeHeightRelative attempts to parse the program as an ASSERT_BEFORE_HEIGHT_RELATIVE condition.
 func (o *Program) ParseAssertBeforeHeightRelative() (*AssertBeforeHeightRelative, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39480,7 +39480,7 @@ func (o *Program) ParseAssertBeforeHeightRelative() (*AssertBeforeHeightRelative
 	return obj, nil
 }
 
-// ParseAssertBeforeHeightAbsolute calls [Program]'s ParseAssertBeforeHeightAbsolute method.
+// ParseAssertBeforeHeightAbsolute attempts to parse the program as an ASSERT_BEFORE_HEIGHT_ABSOLUTE condition.
 func (o *Program) ParseAssertBeforeHeightAbsolute() (*AssertBeforeHeightAbsolute, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39507,7 +39507,7 @@ func (o *Program) ParseAssertBeforeHeightAbsolute() (*AssertBeforeHeightAbsolute
 	return obj, nil
 }
 
-// ParseAssertMyCoinId calls [Program]'s ParseAssertMyCoinId method.
+// ParseAssertMyCoinId attempts to parse the program as an ASSERT_MY_COIN_ID condition.
 func (o *Program) ParseAssertMyCoinId() (*AssertMyCoinId, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39534,7 +39534,7 @@ func (o *Program) ParseAssertMyCoinId() (*AssertMyCoinId, error) {
 	return obj, nil
 }
 
-// ParseAssertMyParentId calls [Program]'s ParseAssertMyParentId method.
+// ParseAssertMyParentId attempts to parse the program as an ASSERT_MY_PARENT_ID condition.
 func (o *Program) ParseAssertMyParentId() (*AssertMyParentId, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39561,7 +39561,7 @@ func (o *Program) ParseAssertMyParentId() (*AssertMyParentId, error) {
 	return obj, nil
 }
 
-// ParseAssertMyPuzzleHash calls [Program]'s ParseAssertMyPuzzleHash method.
+// ParseAssertMyPuzzleHash attempts to parse the program as an ASSERT_MY_PUZZLEHASH condition.
 func (o *Program) ParseAssertMyPuzzleHash() (*AssertMyPuzzleHash, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39588,7 +39588,7 @@ func (o *Program) ParseAssertMyPuzzleHash() (*AssertMyPuzzleHash, error) {
 	return obj, nil
 }
 
-// ParseAssertMyAmount calls [Program]'s ParseAssertMyAmount method.
+// ParseAssertMyAmount attempts to parse the program as an ASSERT_MY_AMOUNT condition.
 func (o *Program) ParseAssertMyAmount() (*AssertMyAmount, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39615,7 +39615,7 @@ func (o *Program) ParseAssertMyAmount() (*AssertMyAmount, error) {
 	return obj, nil
 }
 
-// ParseAssertMyBirthSeconds calls [Program]'s ParseAssertMyBirthSeconds method.
+// ParseAssertMyBirthSeconds attempts to parse the program as an ASSERT_MY_BIRTH_SECONDS condition.
 func (o *Program) ParseAssertMyBirthSeconds() (*AssertMyBirthSeconds, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39642,7 +39642,7 @@ func (o *Program) ParseAssertMyBirthSeconds() (*AssertMyBirthSeconds, error) {
 	return obj, nil
 }
 
-// ParseAssertMyBirthHeight calls [Program]'s ParseAssertMyBirthHeight method.
+// ParseAssertMyBirthHeight attempts to parse the program as an ASSERT_MY_BIRTH_HEIGHT condition.
 func (o *Program) ParseAssertMyBirthHeight() (*AssertMyBirthHeight, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39669,7 +39669,7 @@ func (o *Program) ParseAssertMyBirthHeight() (*AssertMyBirthHeight, error) {
 	return obj, nil
 }
 
-// ParseAssertEphemeral calls [Program]'s ParseAssertEphemeral method.
+// ParseAssertEphemeral attempts to parse the program as an ASSERT_EPHEMERAL condition.
 func (o *Program) ParseAssertEphemeral() (*AssertEphemeral, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39696,7 +39696,7 @@ func (o *Program) ParseAssertEphemeral() (*AssertEphemeral, error) {
 	return obj, nil
 }
 
-// ParseSendMessage calls [Program]'s ParseSendMessage method.
+// ParseSendMessage attempts to parse the program as a SEND_MESSAGE condition (CHIP-0025).
 func (o *Program) ParseSendMessage() (*SendMessage, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39723,7 +39723,7 @@ func (o *Program) ParseSendMessage() (*SendMessage, error) {
 	return obj, nil
 }
 
-// ParseReceiveMessage calls [Program]'s ParseReceiveMessage method.
+// ParseReceiveMessage attempts to parse the program as a RECEIVE_MESSAGE condition (CHIP-0025).
 func (o *Program) ParseReceiveMessage() (*ReceiveMessage, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39750,7 +39750,7 @@ func (o *Program) ParseReceiveMessage() (*ReceiveMessage, error) {
 	return obj, nil
 }
 
-// ParseSoftfork calls [Program]'s ParseSoftfork method.
+// ParseSoftfork attempts to parse the program as a SOFTFORK condition.
 func (o *Program) ParseSoftfork() (*Softfork, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39777,7 +39777,7 @@ func (o *Program) ParseSoftfork() (*Softfork, error) {
 	return obj, nil
 }
 
-// ParseMeltSingleton calls [Program]'s ParseMeltSingleton method.
+// ParseMeltSingleton attempts to parse the program as a melt singleton condition.
 func (o *Program) ParseMeltSingleton() (*MeltSingleton, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39804,7 +39804,7 @@ func (o *Program) ParseMeltSingleton() (*MeltSingleton, error) {
 	return obj, nil
 }
 
-// ParseTransferNft calls [Program]'s ParseTransferNft method.
+// ParseTransferNft attempts to parse the program as an NFT transfer condition with royalty info.
 func (o *Program) ParseTransferNft() (*TransferNft, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39831,7 +39831,7 @@ func (o *Program) ParseTransferNft() (*TransferNft, error) {
 	return obj, nil
 }
 
-// ParseRunCatTail calls [Program]'s ParseRunCatTail method.
+// ParseRunCatTail attempts to parse the program as a RUN_CAT_TAIL condition.
 func (o *Program) ParseRunCatTail() (*RunCatTail, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39858,7 +39858,7 @@ func (o *Program) ParseRunCatTail() (*RunCatTail, error) {
 	return obj, nil
 }
 
-// ParseUpdateNftMetadata calls [Program]'s ParseUpdateNftMetadata method.
+// ParseUpdateNftMetadata attempts to parse the program as an NFT metadata update condition.
 func (o *Program) ParseUpdateNftMetadata() (*UpdateNftMetadata, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39885,7 +39885,7 @@ func (o *Program) ParseUpdateNftMetadata() (*UpdateNftMetadata, error) {
 	return obj, nil
 }
 
-// ParseUpdateDataStoreMerkleRoot calls [Program]'s ParseUpdateDataStoreMerkleRoot method.
+// ParseUpdateDataStoreMerkleRoot attempts to parse the program as a DataLayer merkle root update condition.
 func (o *Program) ParseUpdateDataStoreMerkleRoot() (*UpdateDataStoreMerkleRoot, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39912,7 +39912,7 @@ func (o *Program) ParseUpdateDataStoreMerkleRoot() (*UpdateDataStoreMerkleRoot, 
 	return obj, nil
 }
 
-// ParseOptionMetadata calls [Program]'s ParseOptionMetadata method.
+// ParseOptionMetadata attempts to parse the program as option contract metadata.
 func (o *Program) ParseOptionMetadata() (*OptionMetadata, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39939,7 +39939,7 @@ func (o *Program) ParseOptionMetadata() (*OptionMetadata, error) {
 	return obj, nil
 }
 
-// ParsePayment calls [Program]'s ParsePayment method.
+// ParsePayment attempts to parse the program as a payment (puzzle hash, amount, memos).
 func (o *Program) ParsePayment() (*Payment, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39966,7 +39966,7 @@ func (o *Program) ParsePayment() (*Payment, error) {
 	return obj, nil
 }
 
-// ParseNotarizedPayment calls [Program]'s ParseNotarizedPayment method.
+// ParseNotarizedPayment attempts to parse the program as a notarized payment used in offer settlements.
 func (o *Program) ParseNotarizedPayment() (*NotarizedPayment, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -39993,7 +39993,7 @@ func (o *Program) ParseNotarizedPayment() (*NotarizedPayment, error) {
 	return obj, nil
 }
 
-// ParseRewardDistributorLauncherSolution calls [Program]'s ParseRewardDistributorLauncherSolution method.
+// ParseRewardDistributorLauncherSolution attempts to parse the program as a reward distributor launcher solution, extracting configuration info.
 func (o *Program) ParseRewardDistributorLauncherSolution(launcherCoin *Coin) (*RewardDistributorLauncherSolutionInfo, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40024,7 +40024,7 @@ func (o *Program) ParseRewardDistributorLauncherSolution(launcherCoin *Coin) (*R
 	return obj, nil
 }
 
-// Puzzle wraps a Rust Puzzle value behind an opaque pointer.
+// Puzzle represents a parsed Chia puzzle, including its hash, curried arguments, and the module it was identified as.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -40296,7 +40296,7 @@ func (o *Puzzle) SetArgs(value *Program) error {
 	return nil
 }
 
-// ParseCatInfo calls [Puzzle]'s ParseCatInfo method.
+// ParseCatInfo attempts to identify this puzzle as a CAT outer layer and extract the asset ID and inner puzzle.
 func (o *Puzzle) ParseCatInfo() (*ParsedCatInfo, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40323,7 +40323,7 @@ func (o *Puzzle) ParseCatInfo() (*ParsedCatInfo, error) {
 	return obj, nil
 }
 
-// ParseCat calls [Puzzle]'s ParseCat method.
+// ParseCat parses a CAT coin and its solution to extract the full CAT state including lineage proof.
 func (o *Puzzle) ParseCat(coin *Coin, solution *Program) (*ParsedCat, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40358,7 +40358,7 @@ func (o *Puzzle) ParseCat(coin *Coin, solution *Program) (*ParsedCat, error) {
 	return obj, nil
 }
 
-// ParseChildCats calls [Puzzle]'s ParseChildCats method.
+// ParseChildCats parses the children of a spent CAT coin to extract the resulting CAT coins.
 func (o *Puzzle) ParseChildCats(parentCoin *Coin, parentSolution *Program) (unsafe.Pointer, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40391,7 +40391,7 @@ func (o *Puzzle) ParseChildCats(parentCoin *Coin, parentSolution *Program) (unsa
 	return out, nil
 }
 
-// ParseNftInfo calls [Puzzle]'s ParseNftInfo method.
+// ParseNftInfo attempts to identify this puzzle as an NFT singleton and extract the NFT info and inner puzzle.
 func (o *Puzzle) ParseNftInfo() (*ParsedNftInfo, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40418,7 +40418,7 @@ func (o *Puzzle) ParseNftInfo() (*ParsedNftInfo, error) {
 	return obj, nil
 }
 
-// ParseNft calls [Puzzle]'s ParseNft method.
+// ParseNft parses an NFT coin and its solution to extract the full NFT state.
 func (o *Puzzle) ParseNft(coin *Coin, solution *Program) (*ParsedNft, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40453,7 +40453,7 @@ func (o *Puzzle) ParseNft(coin *Coin, solution *Program) (*ParsedNft, error) {
 	return obj, nil
 }
 
-// ParseChildNft calls [Puzzle]'s ParseChildNft method.
+// ParseChildNft parses the child of a spent NFT to extract the updated NFT state.
 func (o *Puzzle) ParseChildNft(parentCoin *Coin, parentSolution *Program) (*Nft, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40488,7 +40488,7 @@ func (o *Puzzle) ParseChildNft(parentCoin *Coin, parentSolution *Program) (*Nft,
 	return obj, nil
 }
 
-// ParseDidInfo calls [Puzzle]'s ParseDidInfo method.
+// ParseDidInfo attempts to identify this puzzle as a DID singleton and extract the DID info and inner puzzle.
 func (o *Puzzle) ParseDidInfo() (*ParsedDidInfo, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40515,7 +40515,7 @@ func (o *Puzzle) ParseDidInfo() (*ParsedDidInfo, error) {
 	return obj, nil
 }
 
-// ParseDid calls [Puzzle]'s ParseDid method.
+// ParseDid parses a DID coin and its solution to extract the full DID state.
 func (o *Puzzle) ParseDid(coin *Coin, solution *Program) (*ParsedDid, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40550,7 +40550,7 @@ func (o *Puzzle) ParseDid(coin *Coin, solution *Program) (*ParsedDid, error) {
 	return obj, nil
 }
 
-// ParseChildDid calls [Puzzle]'s ParseChildDid method.
+// ParseChildDid parses the child of a spent DID to extract the updated DID state.
 func (o *Puzzle) ParseChildDid(parentCoin *Coin, parentSolution *Program, coin *Coin) (*Did, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40589,7 +40589,7 @@ func (o *Puzzle) ParseChildDid(parentCoin *Coin, parentSolution *Program, coin *
 	return obj, nil
 }
 
-// ParseOptionInfo calls [Puzzle]'s ParseOptionInfo method.
+// ParseOptionInfo attempts to identify this puzzle as an option contract singleton and extract its info.
 func (o *Puzzle) ParseOptionInfo() (*ParsedOptionInfo, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40616,7 +40616,7 @@ func (o *Puzzle) ParseOptionInfo() (*ParsedOptionInfo, error) {
 	return obj, nil
 }
 
-// ParseOption calls [Puzzle]'s ParseOption method.
+// ParseOption parses an option contract coin and its solution to extract the full option state.
 func (o *Puzzle) ParseOption(coin *Coin, solution *Program) (*ParsedOption, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40651,7 +40651,7 @@ func (o *Puzzle) ParseOption(coin *Coin, solution *Program) (*ParsedOption, erro
 	return obj, nil
 }
 
-// ParseChildOption calls [Puzzle]'s ParseChildOption method.
+// ParseChildOption parses the child of a spent option contract to extract the updated option state.
 func (o *Puzzle) ParseChildOption(parentCoin *Coin, parentSolution *Program) (*OptionContract, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40686,7 +40686,7 @@ func (o *Puzzle) ParseChildOption(parentCoin *Coin, parentSolution *Program) (*O
 	return obj, nil
 }
 
-// ParseInnerStreamingPuzzle calls [Puzzle]'s ParseInnerStreamingPuzzle method.
+// ParseInnerStreamingPuzzle attempts to identify this puzzle as a streaming (vesting) inner puzzle and extract its parameters.
 func (o *Puzzle) ParseInnerStreamingPuzzle() (*StreamingPuzzleInfo, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40713,7 +40713,7 @@ func (o *Puzzle) ParseInnerStreamingPuzzle() (*StreamingPuzzleInfo, error) {
 	return obj, nil
 }
 
-// ParseChildClawbacks calls [Puzzle]'s ParseChildClawbacks method.
+// ParseChildClawbacks parses the children of a spent coin to extract any clawback-wrapped outputs.
 func (o *Puzzle) ParseChildClawbacks(parentSolution *Program) (unsafe.Pointer, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40742,7 +40742,7 @@ func (o *Puzzle) ParseChildClawbacks(parentSolution *Program) (unsafe.Pointer, e
 	return out, nil
 }
 
-// ParseBulletin calls [Puzzle]'s ParseBulletin method.
+// ParseBulletin parses a bulletin board coin and its solution to extract the bulletin state and messages.
 func (o *Puzzle) ParseBulletin(coin *Coin, solution *Program) (*Bulletin, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40777,7 +40777,7 @@ func (o *Puzzle) ParseBulletin(coin *Coin, solution *Program) (*Bulletin, error)
 	return obj, nil
 }
 
-// ParseChildP2Parent calls [Puzzle]'s ParseChildP2Parent method.
+// ParseChildP2Parent parses the children of a spent coin to find pay-to-parent-coin outputs.
 func (o *Puzzle) ParseChildP2Parent(parentCoin *Coin, parentSolution *Program) (*P2ParentCoinChildParseResult, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -40812,7 +40812,7 @@ func (o *Puzzle) ParseChildP2Parent(parentCoin *Coin, parentSolution *Program) (
 	return obj, nil
 }
 
-// StreamedAssetParsingResult wraps a Rust StreamedAssetParsingResult value behind an opaque pointer.
+// StreamedAssetParsingResult holds the result of parsing a streamed asset, including whether the last spend was a clawback.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -41022,7 +41022,7 @@ func (o *StreamedAssetParsingResult) SetLastPaymentAmountIfClawback(value uint64
 	return nil
 }
 
-// Cat wraps a Rust Cat value behind an opaque pointer.
+// Cat represents a CAT (Chia Asset Token) coin with its lineage proof and asset information.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -41252,7 +41252,7 @@ func (o *Cat) SetInfo(value *CatInfo) error {
 	return nil
 }
 
-// ChildLineageProof calls [Cat]'s ChildLineageProof method.
+// ChildLineageProof computes the lineage proof that child CAT coins will need to reference this coin.
 func (o *Cat) ChildLineageProof() (*LineageProof, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -41276,7 +41276,7 @@ func (o *Cat) ChildLineageProof() (*LineageProof, error) {
 	return obj, nil
 }
 
-// Child calls [Cat]'s Child method.
+// Child creates an expected child CAT coin with the given inner puzzle hash and amount.
 func (o *Cat) Child(p2PuzzleHash []byte, amount uint64) (*Cat, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -41301,7 +41301,7 @@ func (o *Cat) Child(p2PuzzleHash []byte, amount uint64) (*Cat, error) {
 	return obj, nil
 }
 
-// UnrevocableChild calls [Cat]'s UnrevocableChild method.
+// UnrevocableChild creates an expected child CAT coin without the revocation layer.
 func (o *Cat) UnrevocableChild(p2PuzzleHash []byte, amount uint64) (*Cat, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -41326,7 +41326,7 @@ func (o *Cat) UnrevocableChild(p2PuzzleHash []byte, amount uint64) (*Cat, error)
 	return obj, nil
 }
 
-// CatInfo wraps a Rust CatInfo value behind an opaque pointer.
+// CatInfo holds the identifying information for a CAT: the asset ID (TAIL hash), optional hidden puzzle hash, and inner puzzle hash.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -41540,7 +41540,7 @@ func (o *CatInfo) SetP2PuzzleHash(value []byte) error {
 	return nil
 }
 
-// InnerPuzzleHash calls [CatInfo]'s InnerPuzzleHash method.
+// InnerPuzzleHash computes the inner puzzle hash of the CAT (inside the CAT outer layer).
 func (o *CatInfo) InnerPuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -41565,7 +41565,7 @@ func (o *CatInfo) InnerPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// PuzzleHash calls [CatInfo]'s PuzzleHash method.
+// PuzzleHash computes the full puzzle hash of the CAT coin (outer CAT layer wrapping the inner puzzle).
 func (o *CatInfo) PuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -41590,7 +41590,7 @@ func (o *CatInfo) PuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// CatSpend wraps a Rust CatSpend value behind an opaque pointer.
+// CatSpend pairs a CAT coin with its inner spend for use in a batch CAT transaction.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -41783,7 +41783,7 @@ func (o *CatSpend) SetHidden(value bool) error {
 	return nil
 }
 
-// CatSpendNew is a static method on [CatSpend].
+// CatSpendNew creates a new CAT spend pairing a CAT coin with its inner spend.
 func CatSpendNew(cat *Cat, spend *Spend) (*CatSpend, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -41806,7 +41806,7 @@ func CatSpendNew(cat *Cat, spend *Spend) (*CatSpend, error) {
 	return obj, nil
 }
 
-// NewCatSpendRevoke creates a new [CatSpend] via the Revoke factory.
+// NewCatSpendRevoke creates a CAT spend that revokes the hidden puzzle, converting a revocable CAT to a standard CAT.
 func NewCatSpendRevoke(cat *Cat, spend *Spend) (*CatSpend, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -41829,7 +41829,7 @@ func NewCatSpendRevoke(cat *Cat, spend *Spend) (*CatSpend, error) {
 	return obj, nil
 }
 
-// ParsedCatInfo wraps a Rust ParsedCatInfo value behind an opaque pointer.
+// ParsedCatInfo holds the parsed CAT info and inner puzzle extracted from a CAT puzzle.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -42007,7 +42007,7 @@ func (o *ParsedCatInfo) SetP2Puzzle(value *Puzzle) error {
 	return nil
 }
 
-// ParsedCat wraps a Rust ParsedCat value behind an opaque pointer.
+// ParsedCat holds the fully parsed CAT state including the inner puzzle and solution.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -42233,7 +42233,7 @@ func (o *ParsedCat) SetP2Solution(value *Program) error {
 	return nil
 }
 
-// Nft wraps a Rust Nft value behind an opaque pointer.
+// Nft represents an NFT singleton coin with its lineage proof and metadata.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -42459,7 +42459,7 @@ func (o *Nft) SetInfo(value *NftInfo) error {
 	return nil
 }
 
-// ChildProof calls [Nft]'s ChildProof method.
+// ChildProof computes the lineage proof that the child NFT will need to reference this coin.
 func (o *Nft) ChildProof() (*Proof, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -42483,7 +42483,7 @@ func (o *Nft) ChildProof() (*Proof, error) {
 	return obj, nil
 }
 
-// Child calls [Nft]'s Child method.
+// Child creates an expected child NFT with updated inner puzzle hash, owner, and metadata.
 func (o *Nft) Child(p2PuzzleHash []byte, currentOwner []byte, metadata *Program) (*Nft, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -42513,7 +42513,7 @@ func (o *Nft) Child(p2PuzzleHash []byte, currentOwner []byte, metadata *Program)
 	return obj, nil
 }
 
-// ChildWith calls [Nft]'s ChildWith method.
+// ChildWith creates an expected child NFT with the given NftInfo, preserving the lineage proof.
 func (o *Nft) ChildWith(info *NftInfo) (*Nft, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -42541,7 +42541,7 @@ func (o *Nft) ChildWith(info *NftInfo) (*Nft, error) {
 	return obj, nil
 }
 
-// NftInfo wraps a Rust NftInfo value behind an opaque pointer.
+// NftInfo holds the identifying information for an NFT: launcher ID, metadata, royalty settings, and current owner DID.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -42943,7 +42943,7 @@ func (o *NftInfo) SetP2PuzzleHash(value []byte) error {
 	return nil
 }
 
-// InnerPuzzleHash calls [NftInfo]'s InnerPuzzleHash method.
+// InnerPuzzleHash computes the inner puzzle hash of the NFT (inside the singleton and NFT layers).
 func (o *NftInfo) InnerPuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -42968,7 +42968,7 @@ func (o *NftInfo) InnerPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// PuzzleHash calls [NftInfo]'s PuzzleHash method.
+// PuzzleHash computes the full puzzle hash of the NFT singleton coin.
 func (o *NftInfo) PuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -42993,7 +42993,7 @@ func (o *NftInfo) PuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ParsedNftInfo wraps a Rust ParsedNftInfo value behind an opaque pointer.
+// ParsedNftInfo holds the parsed NFT info and inner puzzle extracted from an NFT puzzle.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -43167,7 +43167,7 @@ func (o *ParsedNftInfo) SetP2Puzzle(value *Puzzle) error {
 	return nil
 }
 
-// ParsedNft wraps a Rust ParsedNft value behind an opaque pointer.
+// ParsedNft holds the fully parsed NFT state including the inner puzzle and solution.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -43393,7 +43393,7 @@ func (o *ParsedNft) SetP2Solution(value *Program) error {
 	return nil
 }
 
-// NftMetadata wraps a Rust NftMetadata value behind an opaque pointer.
+// NftMetadata holds the standard NFT metadata fields: edition info, data/metadata/license URIs and hashes.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -43823,7 +43823,7 @@ func (o *NftMetadata) SetLicenseHash(value []byte) error {
 	return nil
 }
 
-// MetadataUpdate wraps a Rust MetadataUpdate value behind an opaque pointer.
+// MetadataUpdate represents a single URI addition to NFT metadata (data, metadata, or license URI).
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -43991,7 +43991,7 @@ func (o *MetadataUpdate) SetUri(value string) error {
 	return nil
 }
 
-// UriKind represents a Rust UriKind enum value behind an opaque pointer.
+// UriKind specifies the type of URI being added to NFT metadata.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Use the NewUriKind* constructors or [NewUriKindFromInt] to create instances.
@@ -44079,7 +44079,7 @@ func NewUriKindLicense() (*UriKind, error) {
 	return NewUriKindFromInt(2)
 }
 
-// NftMint wraps a Rust NftMint value behind an opaque pointer.
+// NftMint holds the parameters for minting a new NFT: metadata, royalty settings, and destination.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -44440,7 +44440,7 @@ func (o *NftMint) SetTransferCondition(value *TransferNft) error {
 	return nil
 }
 
-// MintedNfts wraps a Rust MintedNfts value behind an opaque pointer.
+// MintedNfts holds the result of minting NFTs: the new NFT singletons and conditions for the parent coin.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -44666,7 +44666,7 @@ func (o *MintedNfts) SetParentConditions(value []*Program) error {
 	return nil
 }
 
-// Did wraps a Rust Did value behind an opaque pointer.
+// Did represents a DID (Decentralized Identity) singleton coin on the Chia blockchain.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -44892,7 +44892,7 @@ func (o *Did) SetInfo(value *DidInfo) error {
 	return nil
 }
 
-// ChildProof calls [Did]'s ChildProof method.
+// ChildProof computes the lineage proof that the child DID will need to reference this coin.
 func (o *Did) ChildProof() (*Proof, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -44916,7 +44916,7 @@ func (o *Did) ChildProof() (*Proof, error) {
 	return obj, nil
 }
 
-// Child calls [Did]'s Child method.
+// Child creates an expected child DID with updated inner puzzle hash and metadata.
 func (o *Did) Child(p2PuzzleHash []byte, metadata *Program) (*Did, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -44945,7 +44945,7 @@ func (o *Did) Child(p2PuzzleHash []byte, metadata *Program) (*Did, error) {
 	return obj, nil
 }
 
-// ChildWith calls [Did]'s ChildWith method.
+// ChildWith creates an expected child DID with the given DidInfo, preserving the lineage proof.
 func (o *Did) ChildWith(info *DidInfo) (*Did, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -44973,7 +44973,7 @@ func (o *Did) ChildWith(info *DidInfo) (*Did, error) {
 	return obj, nil
 }
 
-// DidInfo wraps a Rust DidInfo value behind an opaque pointer.
+// DidInfo holds the identifying information for a DID: launcher ID, recovery list, metadata, and inner puzzle hash.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -45281,7 +45281,7 @@ func (o *DidInfo) SetP2PuzzleHash(value []byte) error {
 	return nil
 }
 
-// InnerPuzzleHash calls [DidInfo]'s InnerPuzzleHash method.
+// InnerPuzzleHash computes the inner puzzle hash of the DID (inside the singleton layer).
 func (o *DidInfo) InnerPuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -45306,7 +45306,7 @@ func (o *DidInfo) InnerPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// PuzzleHash calls [DidInfo]'s PuzzleHash method.
+// PuzzleHash computes the full puzzle hash of the DID singleton coin.
 func (o *DidInfo) PuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -45331,7 +45331,7 @@ func (o *DidInfo) PuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ParsedDidInfo wraps a Rust ParsedDidInfo value behind an opaque pointer.
+// ParsedDidInfo holds the parsed DID info and inner puzzle extracted from a DID puzzle.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -45505,7 +45505,7 @@ func (o *ParsedDidInfo) SetP2Puzzle(value *Puzzle) error {
 	return nil
 }
 
-// ParsedDid wraps a Rust ParsedDid value behind an opaque pointer.
+// ParsedDid holds the fully parsed DID state including the optional inner spend.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -45683,7 +45683,7 @@ func (o *ParsedDid) SetP2Spend(value *ParsedDidSpend) error {
 	return nil
 }
 
-// ParsedDidSpend wraps a Rust ParsedDidSpend value behind an opaque pointer.
+// ParsedDidSpend holds the inner puzzle and solution extracted from a DID spend.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -45857,7 +45857,7 @@ func (o *ParsedDidSpend) SetSolution(value *Program) error {
 	return nil
 }
 
-// CreatedDid wraps a Rust CreatedDid value behind an opaque pointer.
+// CreatedDid holds the result of creating an eve DID: the new DID singleton and conditions for the parent coin.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -46057,7 +46057,7 @@ func (o *CreatedDid) SetParentConditions(value []*Program) error {
 	return nil
 }
 
-// OptionContract wraps a Rust OptionContract value behind an opaque pointer.
+// OptionContract represents an on-chain option contract singleton that can be exercised or expire.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -46283,7 +46283,7 @@ func (o *OptionContract) SetInfo(value *OptionInfo) error {
 	return nil
 }
 
-// ChildProof calls [OptionContract]'s ChildProof method.
+// ChildProof computes the lineage proof that the child option will need to reference this coin.
 func (o *OptionContract) ChildProof() (*Proof, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -46307,7 +46307,7 @@ func (o *OptionContract) ChildProof() (*Proof, error) {
 	return obj, nil
 }
 
-// Child calls [OptionContract]'s Child method.
+// Child creates an expected child option contract with the given inner puzzle hash.
 func (o *OptionContract) Child(p2PuzzleHash []byte) (*OptionContract, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -46332,7 +46332,7 @@ func (o *OptionContract) Child(p2PuzzleHash []byte) (*OptionContract, error) {
 	return obj, nil
 }
 
-// ChildWith calls [OptionContract]'s ChildWith method.
+// ChildWith creates an expected child option contract with the given OptionInfo.
 func (o *OptionContract) ChildWith(info *OptionInfo) (*OptionContract, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -46360,7 +46360,7 @@ func (o *OptionContract) ChildWith(info *OptionInfo) (*OptionContract, error) {
 	return obj, nil
 }
 
-// OptionInfo wraps a Rust OptionInfo value behind an opaque pointer.
+// OptionInfo holds the identifying information for an option contract: launcher ID, underlying coin, and delegated puzzle hash.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -46618,7 +46618,7 @@ func (o *OptionInfo) SetP2PuzzleHash(value []byte) error {
 	return nil
 }
 
-// InnerPuzzleHash calls [OptionInfo]'s InnerPuzzleHash method.
+// InnerPuzzleHash computes the inner puzzle hash of the option contract.
 func (o *OptionInfo) InnerPuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -46643,7 +46643,7 @@ func (o *OptionInfo) InnerPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// PuzzleHash calls [OptionInfo]'s PuzzleHash method.
+// PuzzleHash computes the full puzzle hash of the option contract singleton.
 func (o *OptionInfo) PuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -46668,7 +46668,7 @@ func (o *OptionInfo) PuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ParsedOptionInfo wraps a Rust ParsedOptionInfo value behind an opaque pointer.
+// ParsedOptionInfo holds the parsed option contract info and inner puzzle.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -46842,7 +46842,7 @@ func (o *ParsedOptionInfo) SetP2Puzzle(value *Puzzle) error {
 	return nil
 }
 
-// ParsedOption wraps a Rust ParsedOption value behind an opaque pointer.
+// ParsedOption holds the fully parsed option contract state including the inner puzzle and solution.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -47068,7 +47068,7 @@ func (o *ParsedOption) SetP2Solution(value *Program) error {
 	return nil
 }
 
-// OptionUnderlying wraps a Rust OptionUnderlying value behind an opaque pointer.
+// OptionUnderlying represents the underlying asset locked in an option contract, including strike price and expiration.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -47368,7 +47368,7 @@ func (o *OptionUnderlying) SetStrikeType(value *OptionType) error {
 	return nil
 }
 
-// ExerciseSpend calls [OptionUnderlying]'s ExerciseSpend method.
+// ExerciseSpend creates the spend to exercise the option, releasing the underlying asset to the holder.
 func (o *OptionUnderlying) ExerciseSpend(clvm *Clvm, singletonInnerPuzzleHash []byte, singletonAmount uint64) (*Spend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -47397,7 +47397,7 @@ func (o *OptionUnderlying) ExerciseSpend(clvm *Clvm, singletonInnerPuzzleHash []
 	return obj, nil
 }
 
-// ClawbackSpend calls [OptionUnderlying]'s ClawbackSpend method.
+// ClawbackSpend creates the spend to claw back the underlying asset after the option expires.
 func (o *OptionUnderlying) ClawbackSpend(spend *Spend) (*Spend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -47425,7 +47425,7 @@ func (o *OptionUnderlying) ClawbackSpend(spend *Spend) (*Spend, error) {
 	return obj, nil
 }
 
-// PuzzleHash calls [OptionUnderlying]'s PuzzleHash method.
+// PuzzleHash computes the puzzle hash of the underlying asset coin.
 func (o *OptionUnderlying) PuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -47450,7 +47450,7 @@ func (o *OptionUnderlying) PuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// DelegatedPuzzleHash calls [OptionUnderlying]'s DelegatedPuzzleHash method.
+// DelegatedPuzzleHash computes the delegated puzzle hash used to link the option singleton to the underlying.
 func (o *OptionUnderlying) DelegatedPuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -47475,7 +47475,7 @@ func (o *OptionUnderlying) DelegatedPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// OptionMetadata wraps a Rust OptionMetadata value behind an opaque pointer.
+// OptionMetadata holds the metadata stored in an option contract singleton: expiration time and strike type.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -47639,7 +47639,7 @@ func (o *OptionMetadata) SetStrikeType(value *OptionType) error {
 	return nil
 }
 
-// OptionType wraps a Rust OptionType value behind an opaque pointer.
+// OptionType represents the strike price type for an option contract: XCH, CAT, revocable CAT, or NFT.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -47694,7 +47694,7 @@ func (o *OptionType) Clone() (*OptionType, error) {
 	return clone, nil
 }
 
-// NewOptionTypeXch creates a new [OptionType] via the Xch factory.
+// NewOptionTypeXch creates an XCH strike price with the given amount.
 func NewOptionTypeXch(amount uint64) (*OptionType, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -47709,7 +47709,7 @@ func NewOptionTypeXch(amount uint64) (*OptionType, error) {
 	return obj, nil
 }
 
-// NewOptionTypeCat creates a new [OptionType] via the Cat factory.
+// NewOptionTypeCat creates a CAT strike price with the given asset ID and amount.
 func NewOptionTypeCat(assetId []byte, amount uint64) (*OptionType, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -47725,7 +47725,7 @@ func NewOptionTypeCat(assetId []byte, amount uint64) (*OptionType, error) {
 	return obj, nil
 }
 
-// NewOptionTypeRevocableCat creates a new [OptionType] via the RevocableCat factory.
+// NewOptionTypeRevocableCat creates a revocable CAT strike price with the given asset ID, hidden puzzle hash, and amount.
 func NewOptionTypeRevocableCat(assetId []byte, hiddenPuzzleHash []byte, amount uint64) (*OptionType, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -47742,7 +47742,7 @@ func NewOptionTypeRevocableCat(assetId []byte, hiddenPuzzleHash []byte, amount u
 	return obj, nil
 }
 
-// NewOptionTypeNft creates a new [OptionType] via the Nft factory.
+// NewOptionTypeNft creates an NFT strike price with the given launcher ID, settlement puzzle hash, and amount.
 func NewOptionTypeNft(launcherId []byte, settlementPuzzleHash []byte, amount uint64) (*OptionType, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -47759,8 +47759,8 @@ func NewOptionTypeNft(launcherId []byte, settlementPuzzleHash []byte, amount uin
 	return obj, nil
 }
 
-// ToXch calls [OptionType]'s ToXch method.
-func (o *OptionType) ToXch() (*OptionTypeXch, error) {
+// Xch returns the XCH strike parameters if this is an XCH option, or nil otherwise.
+func (o *OptionType) Xch() (*OptionTypeXch, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -47786,8 +47786,8 @@ func (o *OptionType) ToXch() (*OptionTypeXch, error) {
 	return obj, nil
 }
 
-// ToCat calls [OptionType]'s ToCat method.
-func (o *OptionType) ToCat() (*OptionTypeCat, error) {
+// Cat returns the CAT strike parameters if this is a CAT option, or nil otherwise.
+func (o *OptionType) Cat() (*OptionTypeCat, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -47813,8 +47813,8 @@ func (o *OptionType) ToCat() (*OptionTypeCat, error) {
 	return obj, nil
 }
 
-// ToRevocableCat calls [OptionType]'s ToRevocableCat method.
-func (o *OptionType) ToRevocableCat() (*OptionTypeRevocableCat, error) {
+// RevocableCat returns the revocable CAT strike parameters if this is a revocable CAT option, or nil otherwise.
+func (o *OptionType) RevocableCat() (*OptionTypeRevocableCat, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -47840,8 +47840,8 @@ func (o *OptionType) ToRevocableCat() (*OptionTypeRevocableCat, error) {
 	return obj, nil
 }
 
-// ToNft calls [OptionType]'s ToNft method.
-func (o *OptionType) ToNft() (*OptionTypeNft, error) {
+// Nft returns the NFT strike parameters if this is an NFT option, or nil otherwise.
+func (o *OptionType) Nft() (*OptionTypeNft, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -47867,7 +47867,7 @@ func (o *OptionType) ToNft() (*OptionTypeNft, error) {
 	return obj, nil
 }
 
-// OptionTypeXch wraps a Rust OptionTypeXch value behind an opaque pointer.
+// OptionTypeXch holds the XCH strike price amount for an option contract.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -47964,7 +47964,7 @@ func (o *OptionTypeXch) SetAmount(value uint64) error {
 	return nil
 }
 
-// OptionTypeCat wraps a Rust OptionTypeCat value behind an opaque pointer.
+// OptionTypeCat holds the CAT strike price parameters for an option contract.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -48107,7 +48107,7 @@ func (o *OptionTypeCat) SetAmount(value uint64) error {
 	return nil
 }
 
-// OptionTypeRevocableCat wraps a Rust OptionTypeRevocableCat value behind an opaque pointer.
+// OptionTypeRevocableCat holds the revocable CAT strike price parameters for an option contract.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -48296,7 +48296,7 @@ func (o *OptionTypeRevocableCat) SetAmount(value uint64) error {
 	return nil
 }
 
-// OptionTypeNft wraps a Rust OptionTypeNft value behind an opaque pointer.
+// OptionTypeNft holds the NFT strike price parameters for an option contract.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -48485,7 +48485,7 @@ func (o *OptionTypeNft) SetAmount(value uint64) error {
 	return nil
 }
 
-// StandardPuzzleHash is a standalone binding function.
+// StandardPuzzleHash computes the puzzle hash of the standard transaction puzzle for the given synthetic key.
 func StandardPuzzleHash(syntheticKey *PublicKey) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -48505,7 +48505,7 @@ func StandardPuzzleHash(syntheticKey *PublicKey) ([]byte, error) {
 	return result, nil
 }
 
-// CatPuzzleHash is a standalone binding function.
+// CatPuzzleHash computes the full CAT puzzle hash from the asset ID and inner puzzle hash.
 func CatPuzzleHash(assetId []byte, innerPuzzleHash []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -48523,7 +48523,7 @@ func CatPuzzleHash(assetId []byte, innerPuzzleHash []byte) ([]byte, error) {
 	return result, nil
 }
 
-// StreamingPuzzleInfo wraps a Rust StreamingPuzzleInfo value behind an opaque pointer.
+// StreamingPuzzleInfo holds the parameters of a streaming (vesting) payment puzzle: recipient, clawback, timing, and payment state.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -48774,7 +48774,7 @@ func (o *StreamingPuzzleInfo) SetLastPaymentTime(value uint64) error {
 	return nil
 }
 
-// AmountToBePaid calls [StreamingPuzzleInfo]'s AmountToBePaid method.
+// AmountToBePaid calculates the amount that can be claimed at the given payment time based on the vesting schedule.
 func (o *StreamingPuzzleInfo) AmountToBePaid(myCoinAmount uint64, paymentTime uint64) (uint64, error) {
 	if o == nil {
 		return 0, fmt.Errorf("object is nil or already freed")
@@ -48796,7 +48796,7 @@ func (o *StreamingPuzzleInfo) AmountToBePaid(myCoinAmount uint64, paymentTime ui
 	return uint64(cOut), nil
 }
 
-// StreamingPuzzleInfoGetHint is a static method on [StreamingPuzzleInfo].
+// StreamingPuzzleInfoGetHint computes the hint used to discover streaming payment coins for the given recipient.
 func StreamingPuzzleInfoGetHint(recipient []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -48813,7 +48813,7 @@ func StreamingPuzzleInfoGetHint(recipient []byte) ([]byte, error) {
 	return result, nil
 }
 
-// GetLaunchHints calls [StreamingPuzzleInfo]'s GetLaunchHints method.
+// GetLaunchHints returns the hint memos to embed when creating a streaming payment coin.
 func (o *StreamingPuzzleInfo) GetLaunchHints() (unsafe.Pointer, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -48835,7 +48835,7 @@ func (o *StreamingPuzzleInfo) GetLaunchHints() (unsafe.Pointer, error) {
 	return out, nil
 }
 
-// InnerPuzzleHash calls [StreamingPuzzleInfo]'s InnerPuzzleHash method.
+// InnerPuzzleHash computes the inner puzzle hash of the streaming payment puzzle.
 func (o *StreamingPuzzleInfo) InnerPuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -48860,7 +48860,7 @@ func (o *StreamingPuzzleInfo) InnerPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// StreamingPuzzleInfoFromMemos is a static method on [StreamingPuzzleInfo].
+// StreamingPuzzleInfoFromMemos reconstructs the streaming puzzle info from coin memos, if they match the expected format.
 func StreamingPuzzleInfoFromMemos(memos unsafe.Pointer) (*StreamingPuzzleInfo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -48878,7 +48878,7 @@ func StreamingPuzzleInfoFromMemos(memos unsafe.Pointer) (*StreamingPuzzleInfo, e
 	return obj, nil
 }
 
-// StreamedAsset wraps a Rust StreamedAsset value behind an opaque pointer.
+// StreamedAsset represents a streaming (vesting) asset coin, which can be XCH or a CAT.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -49158,7 +49158,7 @@ func (o *StreamedAsset) SetInfo(value *StreamingPuzzleInfo) error {
 	return nil
 }
 
-// NewStreamedAssetXch creates a new [StreamedAsset] via the Xch factory.
+// NewStreamedAssetXch creates a streamed XCH asset from the given coin and streaming info.
 func NewStreamedAssetXch(coin *Coin, info *StreamingPuzzleInfo) (*StreamedAsset, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -49181,7 +49181,7 @@ func NewStreamedAssetXch(coin *Coin, info *StreamingPuzzleInfo) (*StreamedAsset,
 	return obj, nil
 }
 
-// NewStreamedAssetCat creates a new [StreamedAsset] via the Cat factory.
+// NewStreamedAssetCat creates a streamed CAT asset from the given coin, asset ID, lineage proof, and streaming info.
 func NewStreamedAssetCat(coin *Coin, assetId []byte, proof *LineageProof, info *StreamingPuzzleInfo) (*StreamedAsset, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -49209,7 +49209,7 @@ func NewStreamedAssetCat(coin *Coin, assetId []byte, proof *LineageProof, info *
 	return obj, nil
 }
 
-// ClawbackV2 wraps a Rust ClawbackV2 value behind an opaque pointer.
+// ClawbackV2 represents a v2 clawback coin that can be reclaimed by the sender within a time window or claimed by the receiver after.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -49499,7 +49499,7 @@ func (o *ClawbackV2) SetHinted(value bool) error {
 	return nil
 }
 
-// ClawbackV2FromMemo is a static method on [ClawbackV2].
+// ClawbackV2FromMemo reconstructs a v2 clawback from its coin memo and expected parameters.
 func ClawbackV2FromMemo(memo *Program, receiverPuzzleHash []byte, amount uint64, hinted bool, expectedPuzzleHash []byte) (*ClawbackV2, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -49523,7 +49523,7 @@ func ClawbackV2FromMemo(memo *Program, receiverPuzzleHash []byte, amount uint64,
 	return obj, nil
 }
 
-// SenderSpend calls [ClawbackV2]'s SenderSpend method.
+// SenderSpend wraps an inner spend to reclaim the clawback coin as the sender (before the timelock expires).
 func (o *ClawbackV2) SenderSpend(spend *Spend) (*Spend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -49551,7 +49551,7 @@ func (o *ClawbackV2) SenderSpend(spend *Spend) (*Spend, error) {
 	return obj, nil
 }
 
-// ReceiverSpend calls [ClawbackV2]'s ReceiverSpend method.
+// ReceiverSpend wraps an inner spend to claim the clawback coin as the receiver (after the timelock expires).
 func (o *ClawbackV2) ReceiverSpend(spend *Spend) (*Spend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -49579,7 +49579,7 @@ func (o *ClawbackV2) ReceiverSpend(spend *Spend) (*Spend, error) {
 	return obj, nil
 }
 
-// PushThroughSpend calls [ClawbackV2]'s PushThroughSpend method.
+// PushThroughSpend creates a spend that pushes the clawback coin through to the receiver after the timelock.
 func (o *ClawbackV2) PushThroughSpend(clvm *Clvm) (*Spend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -49607,7 +49607,7 @@ func (o *ClawbackV2) PushThroughSpend(clvm *Clvm) (*Spend, error) {
 	return obj, nil
 }
 
-// PuzzleHash calls [ClawbackV2]'s PuzzleHash method.
+// PuzzleHash computes the puzzle hash of this clawback coin.
 func (o *ClawbackV2) PuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -49632,7 +49632,7 @@ func (o *ClawbackV2) PuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// Memo calls [ClawbackV2]'s Memo method.
+// Memo encodes the clawback parameters as a CLVM memo for embedding in coin hints.
 func (o *ClawbackV2) Memo(clvm *Clvm) (*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -49660,7 +49660,7 @@ func (o *ClawbackV2) Memo(clvm *Clvm) (*Program, error) {
 	return obj, nil
 }
 
-// Clawback wraps a Rust Clawback value behind an opaque pointer.
+// Clawback represents a v1 clawback coin with a timelock, sender, and receiver puzzle hashes.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -49866,7 +49866,7 @@ func (o *Clawback) SetReceiverPuzzleHash(value []byte) error {
 	return nil
 }
 
-// SenderSpend calls [Clawback]'s SenderSpend method.
+// SenderSpend wraps an inner spend to reclaim the clawback coin as the sender (before the timelock expires).
 func (o *Clawback) SenderSpend(spend *Spend) (*Spend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -49894,7 +49894,7 @@ func (o *Clawback) SenderSpend(spend *Spend) (*Spend, error) {
 	return obj, nil
 }
 
-// ReceiverSpend calls [Clawback]'s ReceiverSpend method.
+// ReceiverSpend wraps an inner spend to claim the clawback coin as the receiver (after the timelock expires).
 func (o *Clawback) ReceiverSpend(spend *Spend) (*Spend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -49922,7 +49922,7 @@ func (o *Clawback) ReceiverSpend(spend *Spend) (*Spend, error) {
 	return obj, nil
 }
 
-// PuzzleHash calls [Clawback]'s PuzzleHash method.
+// PuzzleHash computes the puzzle hash of this clawback coin.
 func (o *Clawback) PuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -49947,7 +49947,7 @@ func (o *Clawback) PuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// GetRemarkCondition calls [Clawback]'s GetRemarkCondition method.
+// GetRemarkCondition creates the REMARK condition that identifies this coin as a clawback for wallet discovery.
 func (o *Clawback) GetRemarkCondition(clvm *Clvm) (*Remark, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -49975,7 +49975,7 @@ func (o *Clawback) GetRemarkCondition(clvm *Clvm) (*Remark, error) {
 	return obj, nil
 }
 
-// MedievalVaultHint wraps a Rust MedievalVaultHint value behind an opaque pointer.
+// MedievalVaultHint holds the hint data for discovering medieval vault coins: launcher ID, threshold, and public keys.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -50212,7 +50212,7 @@ func (o *MedievalVaultHint) SetPublicKeyList(value []*PublicKey) error {
 	return nil
 }
 
-// MedievalVaultInfo wraps a Rust MedievalVaultInfo value behind an opaque pointer.
+// MedievalVaultInfo holds the configuration of a medieval vault: launcher ID, M-of-N threshold, and the list of BLS public keys.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -50449,7 +50449,7 @@ func (o *MedievalVaultInfo) SetPublicKeyList(value []*PublicKey) error {
 	return nil
 }
 
-// InnerPuzzleHash calls [MedievalVaultInfo]'s InnerPuzzleHash method.
+// InnerPuzzleHash computes the inner puzzle hash of the medieval vault.
 func (o *MedievalVaultInfo) InnerPuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -50474,7 +50474,7 @@ func (o *MedievalVaultInfo) InnerPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// PuzzleHash calls [MedievalVaultInfo]'s PuzzleHash method.
+// PuzzleHash computes the full puzzle hash of the medieval vault singleton.
 func (o *MedievalVaultInfo) PuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -50499,7 +50499,7 @@ func (o *MedievalVaultInfo) PuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// MedievalVaultInfoFromHint is a static method on [MedievalVaultInfo].
+// MedievalVaultInfoFromHint reconstructs vault info from a discovered vault hint.
 func MedievalVaultInfoFromHint(hint *MedievalVaultHint) (*MedievalVaultInfo, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -50518,8 +50518,8 @@ func MedievalVaultInfoFromHint(hint *MedievalVaultHint) (*MedievalVaultInfo, err
 	return obj, nil
 }
 
-// ToHint calls [MedievalVaultInfo]'s ToHint method.
-func (o *MedievalVaultInfo) ToHint() (*MedievalVaultHint, error) {
+// Hint converts the vault info into a hint for coin discovery.
+func (o *MedievalVaultInfo) Hint() (*MedievalVaultHint, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -50542,7 +50542,7 @@ func (o *MedievalVaultInfo) ToHint() (*MedievalVaultHint, error) {
 	return obj, nil
 }
 
-// MedievalVault wraps a Rust MedievalVault value behind an opaque pointer.
+// MedievalVault represents a medieval vault singleton — a BLS M-of-N multisig vault on the Chia blockchain.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -50768,7 +50768,7 @@ func (o *MedievalVault) SetInfo(value *MedievalVaultInfo) error {
 	return nil
 }
 
-// Child calls [MedievalVault]'s Child method.
+// Child creates an expected child vault after a rekey operation with new M-of-N parameters.
 func (o *MedievalVault) Child(newM uint, newPublicKeyList []*PublicKey) (*MedievalVault, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -50807,7 +50807,7 @@ func (o *MedievalVault) Child(newM uint, newPublicKeyList []*PublicKey) (*Mediev
 	return obj, nil
 }
 
-// Bulletin wraps a Rust Bulletin value behind an opaque pointer.
+// Bulletin represents an on-chain bulletin board singleton for publishing messages.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -51054,7 +51054,7 @@ func (o *Bulletin) SetMessages(value []*BulletinMessage) error {
 	return nil
 }
 
-// Conditions calls [Bulletin]'s Conditions method.
+// Conditions generates the CLVM conditions needed to post the bulletin's messages on-chain.
 func (o *Bulletin) Conditions(clvm *Clvm) ([]*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -51092,7 +51092,7 @@ func (o *Bulletin) Conditions(clvm *Clvm) ([]*Program, error) {
 	return result, nil
 }
 
-// Spend calls [Bulletin]'s Spend method.
+// Spend spends the bulletin singleton with the given inner spend, posting its messages.
 func (o *Bulletin) Spend(spend *Spend) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -51117,7 +51117,7 @@ func (o *Bulletin) Spend(spend *Spend) error {
 	return nil
 }
 
-// BulletinMessage wraps a Rust BulletinMessage value behind an opaque pointer.
+// BulletinMessage represents a single message in a bulletin board, with a topic and content string.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -51280,7 +51280,7 @@ func (o *BulletinMessage) SetContent(value string) error {
 	return nil
 }
 
-// CreatedBulletin wraps a Rust CreatedBulletin value behind an opaque pointer.
+// CreatedBulletin holds the result of creating a bulletin: the new bulletin singleton and conditions for the parent coin.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -51480,7 +51480,7 @@ func (o *CreatedBulletin) SetParentConditions(value []*Program) error {
 	return nil
 }
 
-// BulletinPuzzleHash is a standalone binding function.
+// BulletinPuzzleHash computes the puzzle hash of a bulletin board singleton for the given hidden puzzle hash.
 func BulletinPuzzleHash(hiddenPuzzleHash []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -51497,7 +51497,7 @@ func BulletinPuzzleHash(hiddenPuzzleHash []byte) ([]byte, error) {
 	return result, nil
 }
 
-// P2ParentCoin wraps a Rust P2ParentCoin value behind an opaque pointer.
+// P2ParentCoin represents a pay-to-parent-coin puzzle, where a coin can only be spent by its parent coin's owner.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -51721,7 +51721,7 @@ func (o *P2ParentCoin) SetProof(value *LineageProof) error {
 	return nil
 }
 
-// P2ParentCoinInnerPuzzleHash is a static method on [P2ParentCoin].
+// P2ParentCoinInnerPuzzleHash computes the inner puzzle hash of the pay-to-parent-coin puzzle for the given asset ID.
 func P2ParentCoinInnerPuzzleHash(assetId []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -51738,7 +51738,7 @@ func P2ParentCoinInnerPuzzleHash(assetId []byte) ([]byte, error) {
 	return result, nil
 }
 
-// P2ParentCoinPuzzleHash is a static method on [P2ParentCoin].
+// P2ParentCoinPuzzleHash computes the full puzzle hash of the pay-to-parent-coin for the given asset ID.
 func P2ParentCoinPuzzleHash(assetId []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -51755,7 +51755,7 @@ func P2ParentCoinPuzzleHash(assetId []byte) ([]byte, error) {
 	return result, nil
 }
 
-// Spend calls [P2ParentCoin]'s Spend method.
+// Spend spends the pay-to-parent-coin with a delegated spend from the parent's owner.
 func (o *P2ParentCoin) Spend(delegatedSpend *Spend) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -51780,7 +51780,7 @@ func (o *P2ParentCoin) Spend(delegatedSpend *Spend) error {
 	return nil
 }
 
-// P2ParentCoinChildParseResult wraps a Rust P2ParentCoinChildParseResult value behind an opaque pointer.
+// P2ParentCoinChildParseResult holds a parsed pay-to-parent-coin child and its associated memos.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -52026,7 +52026,7 @@ func NewRewardDistributorTypeNft() (*RewardDistributorType, error) {
 	return NewRewardDistributorTypeFromInt(1)
 }
 
-// RewardDistributorConstants wraps a Rust RewardDistributorConstants value behind an opaque pointer.
+// RewardDistributorConstants holds the immutable configuration parameters for a reward distributor singleton.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -52640,7 +52640,7 @@ func (o *RewardDistributorConstants) SetReserveFullPuzzleHash(value []byte) erro
 	return nil
 }
 
-// NewRewardDistributorConstantsWithoutLauncherId creates a new [RewardDistributorConstants] via the WithoutLauncherId factory.
+// NewRewardDistributorConstantsWithoutLauncherId creates reward distributor constants before the launcher ID is known (pre-launch).
 func NewRewardDistributorConstantsWithoutLauncherId(rewardDistributorType *RewardDistributorType, managerOrCollectionDidLauncherId []byte, feePayoutPuzzleHash []byte, epochSeconds uint64, maxSecondsOffset uint64, payoutThreshold uint64, feeBps uint64, withdrawalShareBps uint64, reserveAssetId []byte) (*RewardDistributorConstants, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -52662,7 +52662,7 @@ func NewRewardDistributorConstantsWithoutLauncherId(rewardDistributorType *Rewar
 	return obj, nil
 }
 
-// WithLauncherId calls [RewardDistributorConstants]'s WithLauncherId method.
+// WithLauncherId returns a copy of these constants with the launcher ID filled in after launch.
 func (o *RewardDistributorConstants) WithLauncherId(launcherId []byte) (*RewardDistributorConstants, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -52687,7 +52687,7 @@ func (o *RewardDistributorConstants) WithLauncherId(launcherId []byte) (*RewardD
 	return obj, nil
 }
 
-// RoundRewardInfo wraps a Rust RoundRewardInfo value behind an opaque pointer.
+// RoundRewardInfo tracks the cumulative payout and remaining rewards for the current distribution round.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -52841,7 +52841,7 @@ func (o *RoundRewardInfo) SetRemainingRewards(value uint64) error {
 	return nil
 }
 
-// RoundTimeInfo wraps a Rust RoundTimeInfo value behind an opaque pointer.
+// RoundTimeInfo tracks the timing state of a reward distribution round (last update and epoch end timestamps).
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -52995,7 +52995,7 @@ func (o *RoundTimeInfo) SetEpochEnd(value uint64) error {
 	return nil
 }
 
-// RewardDistributorState wraps a Rust RewardDistributorState value behind an opaque pointer.
+// RewardDistributorState holds the mutable state of a reward distributor: total reserves, active shares, and current round info.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -53253,7 +53253,7 @@ func (o *RewardDistributorState) SetRoundTimeInfo(value *RoundTimeInfo) error {
 	return nil
 }
 
-// RewardDistributorLauncherSolutionInfo wraps a Rust RewardDistributorLauncherSolutionInfo value behind an opaque pointer.
+// RewardDistributorLauncherSolutionInfo holds the parsed information from a reward distributor launcher solution: constants, initial state, and eve coin.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -53479,7 +53479,7 @@ func (o *RewardDistributorLauncherSolutionInfo) SetCoin(value *Coin) error {
 	return nil
 }
 
-// RewardDistributorFinishedSpendResult wraps a Rust RewardDistributorFinishedSpendResult value behind an opaque pointer.
+// RewardDistributorFinishedSpendResult holds the result of finishing a reward distributor spend: the updated distributor and the aggregated signature.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -53653,7 +53653,7 @@ func (o *RewardDistributorFinishedSpendResult) SetSignature(value *Signature) er
 	return nil
 }
 
-// RewardDistributorRewardSlotValue wraps a Rust RewardDistributorRewardSlotValue value behind an opaque pointer.
+// RewardDistributorRewardSlotValue holds the value stored in a reward slot: the epoch start time, initialization flag, and reward amount.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -53849,7 +53849,7 @@ func (o *RewardDistributorRewardSlotValue) SetRewards(value uint64) error {
 	return nil
 }
 
-// RewardSlot wraps a Rust RewardSlot value behind an opaque pointer.
+// RewardSlot represents a reward slot coin in the reward distributor, tracking rewards available for a specific epoch.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -54136,7 +54136,7 @@ func (o *RewardSlot) SetValue(value *RewardDistributorRewardSlotValue) error {
 	return nil
 }
 
-// NewRewardSlotNew creates a new [RewardSlot] via the New factory.
+// NewRewardSlotNew creates a new RewardSlot from its lineage proof, distributor launcher ID, and slot value.
 func NewRewardSlotNew(proof *LineageProof, launcherId []byte, value *RewardDistributorRewardSlotValue) (*RewardSlot, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -54160,7 +54160,7 @@ func NewRewardSlotNew(proof *LineageProof, launcherId []byte, value *RewardDistr
 	return obj, nil
 }
 
-// ValueHash calls [RewardSlot]'s ValueHash method.
+// ValueHash returns the hash of this slot's value, used for on-chain verification.
 func (o *RewardSlot) ValueHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -54185,7 +54185,7 @@ func (o *RewardSlot) ValueHash() ([]byte, error) {
 	return result, nil
 }
 
-// RewardDistributorCommitmentSlotValue wraps a Rust RewardDistributorCommitmentSlotValue value behind an opaque pointer.
+// RewardDistributorCommitmentSlotValue holds the value stored in a commitment slot: epoch start, clawback puzzle hash, and committed reward amount.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -54386,7 +54386,7 @@ func (o *RewardDistributorCommitmentSlotValue) SetRewards(value uint64) error {
 	return nil
 }
 
-// CommitmentSlot wraps a Rust CommitmentSlot value behind an opaque pointer.
+// CommitmentSlot represents a commitment slot coin that locks incentive rewards for a specific epoch in the distributor.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -54673,7 +54673,7 @@ func (o *CommitmentSlot) SetValue(value *RewardDistributorCommitmentSlotValue) e
 	return nil
 }
 
-// NewCommitmentSlotNew creates a new [CommitmentSlot] via the New factory.
+// NewCommitmentSlotNew creates a new CommitmentSlot from its lineage proof, distributor launcher ID, and slot value.
 func NewCommitmentSlotNew(proof *LineageProof, launcherId []byte, value *RewardDistributorCommitmentSlotValue) (*CommitmentSlot, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -54697,7 +54697,7 @@ func NewCommitmentSlotNew(proof *LineageProof, launcherId []byte, value *RewardD
 	return obj, nil
 }
 
-// ValueHash calls [CommitmentSlot]'s ValueHash method.
+// ValueHash returns the hash of this slot's value, used for on-chain verification.
 func (o *CommitmentSlot) ValueHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -54722,7 +54722,7 @@ func (o *CommitmentSlot) ValueHash() ([]byte, error) {
 	return result, nil
 }
 
-// RewardDistributorEntrySlotValue wraps a Rust RewardDistributorEntrySlotValue value behind an opaque pointer.
+// RewardDistributorEntrySlotValue holds the value stored in an entry slot: the staker's payout puzzle hash, initial cumulative payout, and share count.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -54923,7 +54923,7 @@ func (o *RewardDistributorEntrySlotValue) SetShares(value uint64) error {
 	return nil
 }
 
-// EntrySlot wraps a Rust EntrySlot value behind an opaque pointer.
+// EntrySlot represents an entry slot coin for a staker in the reward distributor, tracking their shares and payout state.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -55210,7 +55210,7 @@ func (o *EntrySlot) SetValue(value *RewardDistributorEntrySlotValue) error {
 	return nil
 }
 
-// NewEntrySlotNew creates a new [EntrySlot] via the New factory.
+// NewEntrySlotNew creates a new EntrySlot from its lineage proof, distributor launcher ID, and slot value.
 func NewEntrySlotNew(proof *LineageProof, launcherId []byte, value *RewardDistributorEntrySlotValue) (*EntrySlot, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -55234,7 +55234,7 @@ func NewEntrySlotNew(proof *LineageProof, launcherId []byte, value *RewardDistri
 	return obj, nil
 }
 
-// ValueHash calls [EntrySlot]'s ValueHash method.
+// ValueHash returns the hash of this slot's value, used for on-chain verification.
 func (o *EntrySlot) ValueHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -55259,7 +55259,7 @@ func (o *EntrySlot) ValueHash() ([]byte, error) {
 	return result, nil
 }
 
-// RewardDistributorInitiatePayoutResult wraps a Rust RewardDistributorInitiatePayoutResult value behind an opaque pointer.
+// RewardDistributorInitiatePayoutResult holds the result of initiating a reward payout: the conditions to include and the payout amount.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -55419,7 +55419,7 @@ func (o *RewardDistributorInitiatePayoutResult) SetPayoutAmount(value uint64) er
 	return nil
 }
 
-// RewardDistributorNewEpochResult wraps a Rust RewardDistributorNewEpochResult value behind an opaque pointer.
+// RewardDistributorNewEpochResult holds the result of starting a new epoch: the conditions to include and the epoch fee amount.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -55579,7 +55579,7 @@ func (o *RewardDistributorNewEpochResult) SetEpochFee(value uint64) error {
 	return nil
 }
 
-// RewardDistributorWithdrawIncentivesResult wraps a Rust RewardDistributorWithdrawIncentivesResult value behind an opaque pointer.
+// RewardDistributorWithdrawIncentivesResult holds the result of withdrawing committed incentives: the conditions and the withdrawn amount.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -55739,7 +55739,7 @@ func (o *RewardDistributorWithdrawIncentivesResult) SetWithdrawnAmount(value uin
 	return nil
 }
 
-// RewardDistributorRemoveEntryResult wraps a Rust RewardDistributorRemoveEntryResult value behind an opaque pointer.
+// RewardDistributorRemoveEntryResult holds the result of removing a staker entry: the conditions and the final payment amount.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -55899,7 +55899,7 @@ func (o *RewardDistributorRemoveEntryResult) SetLastPaymentAmount(value uint64) 
 	return nil
 }
 
-// IntermediaryCoinProof wraps a Rust IntermediaryCoinProof value behind an opaque pointer.
+// IntermediaryCoinProof proves an intermediary coin in the NFT launcher proof chain for NFT-based reward distributors.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -56058,7 +56058,7 @@ func (o *IntermediaryCoinProof) SetAmount(value uint64) error {
 	return nil
 }
 
-// NftLauncherProof wraps a Rust NftLauncherProof value behind an opaque pointer.
+// NftLauncherProof proves that an NFT belongs to a specific DID collection, used for NFT-based staking authorization.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -56258,7 +56258,7 @@ func (o *NftLauncherProof) SetIntermediaryCoinProofs(value []*IntermediaryCoinPr
 	return nil
 }
 
-// RewardDistributorStakeResult wraps a Rust RewardDistributorStakeResult value behind an opaque pointer.
+// RewardDistributorStakeResult holds the result of staking an NFT: conditions, a notarized payment for the reserve, and the updated NFT.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -56472,7 +56472,7 @@ func (o *RewardDistributorStakeResult) SetNewNft(value *Nft) error {
 	return nil
 }
 
-// RewardDistributorUnstakeResult wraps a Rust RewardDistributorUnstakeResult value behind an opaque pointer.
+// RewardDistributorUnstakeResult holds the result of unstaking an NFT: the conditions and the payment amount returned to the staker.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -56632,7 +56632,7 @@ func (o *RewardDistributorUnstakeResult) SetPaymentAmount(value uint64) error {
 	return nil
 }
 
-// RewardDistributorLaunchResult wraps a Rust RewardDistributorLaunchResult value behind an opaque pointer.
+// RewardDistributorLaunchResult holds the result of launching a new reward distributor: security keys, the distributor, first epoch slot, and refunded CAT.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -56962,7 +56962,7 @@ func (o *RewardDistributorLaunchResult) SetRefundedCat(value *Cat) error {
 	return nil
 }
 
-// RewardDistributorInfoFromLauncher wraps a Rust RewardDistributorInfoFromLauncher value behind an opaque pointer.
+// RewardDistributorInfoFromLauncher holds the parsed reward distributor info from a launcher coin: constants, initial state, and eve singleton.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -57188,7 +57188,7 @@ func (o *RewardDistributorInfoFromLauncher) SetEveSingleton(value *Coin) error {
 	return nil
 }
 
-// RewardDistributorInfoFromEveCoin wraps a Rust RewardDistributorInfoFromEveCoin value behind an opaque pointer.
+// RewardDistributorInfoFromEveCoin holds the parsed reward distributor info from the eve coin: the distributor and its first reward slot.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -57362,7 +57362,7 @@ func (o *RewardDistributorInfoFromEveCoin) SetFirstRewardSlot(value *RewardSlot)
 	return nil
 }
 
-// RewardDistributor wraps a Rust RewardDistributor value behind an opaque pointer.
+// RewardDistributor represents a reward distributor singleton that manages epoch-based reward distribution to stakers.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -57417,7 +57417,7 @@ func (o *RewardDistributor) Clone() (*RewardDistributor, error) {
 	return clone, nil
 }
 
-// Coin calls [RewardDistributor]'s Coin method.
+// Coin returns the current coin of the reward distributor singleton.
 func (o *RewardDistributor) Coin() (*Coin, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57441,7 +57441,7 @@ func (o *RewardDistributor) Coin() (*Coin, error) {
 	return obj, nil
 }
 
-// Proof calls [RewardDistributor]'s Proof method.
+// Proof returns the lineage proof for the reward distributor singleton.
 func (o *RewardDistributor) Proof() (*Proof, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57465,7 +57465,7 @@ func (o *RewardDistributor) Proof() (*Proof, error) {
 	return obj, nil
 }
 
-// State calls [RewardDistributor]'s State method.
+// State returns the current mutable state of the reward distributor.
 func (o *RewardDistributor) State() (*RewardDistributorState, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57489,7 +57489,7 @@ func (o *RewardDistributor) State() (*RewardDistributorState, error) {
 	return obj, nil
 }
 
-// Constants calls [RewardDistributor]'s Constants method.
+// Constants returns the immutable configuration constants of the reward distributor.
 func (o *RewardDistributor) Constants() (*RewardDistributorConstants, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57513,7 +57513,7 @@ func (o *RewardDistributor) Constants() (*RewardDistributorConstants, error) {
 	return obj, nil
 }
 
-// InnerPuzzleHash calls [RewardDistributor]'s InnerPuzzleHash method.
+// InnerPuzzleHash returns the inner puzzle hash of the reward distributor singleton.
 func (o *RewardDistributor) InnerPuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57538,7 +57538,7 @@ func (o *RewardDistributor) InnerPuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// PuzzleHash calls [RewardDistributor]'s PuzzleHash method.
+// PuzzleHash returns the full puzzle hash (including singleton wrapper) of the reward distributor.
 func (o *RewardDistributor) PuzzleHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57563,7 +57563,7 @@ func (o *RewardDistributor) PuzzleHash() ([]byte, error) {
 	return result, nil
 }
 
-// ReserveCoin calls [RewardDistributor]'s ReserveCoin method.
+// ReserveCoin returns the CAT reserve coin held by the reward distributor.
 func (o *RewardDistributor) ReserveCoin() (*Coin, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57587,7 +57587,7 @@ func (o *RewardDistributor) ReserveCoin() (*Coin, error) {
 	return obj, nil
 }
 
-// ReserveAssetId calls [RewardDistributor]'s ReserveAssetId method.
+// ReserveAssetId returns the asset ID (TAIL hash) of the CAT used as the reserve token.
 func (o *RewardDistributor) ReserveAssetId() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57612,7 +57612,7 @@ func (o *RewardDistributor) ReserveAssetId() ([]byte, error) {
 	return result, nil
 }
 
-// ReserveProof calls [RewardDistributor]'s ReserveProof method.
+// ReserveProof returns the lineage proof for the reserve CAT coin.
 func (o *RewardDistributor) ReserveProof() (*LineageProof, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57636,7 +57636,7 @@ func (o *RewardDistributor) ReserveProof() (*LineageProof, error) {
 	return obj, nil
 }
 
-// PendingCreatedRewardSlots calls [RewardDistributor]'s PendingCreatedRewardSlots method.
+// PendingCreatedRewardSlots returns reward slots that were created during the current spend but not yet confirmed.
 func (o *RewardDistributor) PendingCreatedRewardSlots() ([]*RewardSlot, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57670,7 +57670,7 @@ func (o *RewardDistributor) PendingCreatedRewardSlots() ([]*RewardSlot, error) {
 	return result, nil
 }
 
-// PendingCreatedCommitmentSlots calls [RewardDistributor]'s PendingCreatedCommitmentSlots method.
+// PendingCreatedCommitmentSlots returns commitment slots that were created during the current spend but not yet confirmed.
 func (o *RewardDistributor) PendingCreatedCommitmentSlots() ([]*CommitmentSlot, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57704,7 +57704,7 @@ func (o *RewardDistributor) PendingCreatedCommitmentSlots() ([]*CommitmentSlot, 
 	return result, nil
 }
 
-// PendingCreatedEntrySlots calls [RewardDistributor]'s PendingCreatedEntrySlots method.
+// PendingCreatedEntrySlots returns entry slots that were created during the current spend but not yet confirmed.
 func (o *RewardDistributor) PendingCreatedEntrySlots() ([]*EntrySlot, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57738,7 +57738,7 @@ func (o *RewardDistributor) PendingCreatedEntrySlots() ([]*EntrySlot, error) {
 	return result, nil
 }
 
-// PendingSignature calls [RewardDistributor]'s PendingSignature method.
+// PendingSignature returns the BLS signature accumulated during the current spend for security assertions.
 func (o *RewardDistributor) PendingSignature() (*Signature, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57762,7 +57762,7 @@ func (o *RewardDistributor) PendingSignature() (*Signature, error) {
 	return obj, nil
 }
 
-// RewardDistributorReserveFullPuzzleHash is a static method on [RewardDistributor].
+// RewardDistributorReserveFullPuzzleHash computes the full puzzle hash of the reserve CAT for a given distributor and nonce.
 func RewardDistributorReserveFullPuzzleHash(assetId []byte, distributorLauncherId []byte, nonce uint64) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -57780,7 +57780,7 @@ func RewardDistributorReserveFullPuzzleHash(assetId []byte, distributorLauncherI
 	return result, nil
 }
 
-// RewardDistributorParseLauncherSolution is a static method on [RewardDistributor].
+// RewardDistributorParseLauncherSolution parses a reward distributor launcher solution to extract the configuration and initial state.
 func RewardDistributorParseLauncherSolution(launcherCoin *Coin, launcherSolution *Program) (*RewardDistributorInfoFromLauncher, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -57806,7 +57806,7 @@ func RewardDistributorParseLauncherSolution(launcherCoin *Coin, launcherSolution
 	return obj, nil
 }
 
-// FinishSpend calls [RewardDistributor]'s FinishSpend method.
+// FinishSpend finalizes the current reward distributor spend, returning the updated distributor and aggregated signature.
 func (o *RewardDistributor) FinishSpend(otherCatSpends []*CatSpend) (*RewardDistributorFinishedSpendResult, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57845,7 +57845,7 @@ func (o *RewardDistributor) FinishSpend(otherCatSpends []*CatSpend) (*RewardDist
 	return obj, nil
 }
 
-// AddIncentives calls [RewardDistributor]'s AddIncentives method.
+// AddIncentives adds incentive rewards to the distributor's reserve, returning the conditions to include.
 func (o *RewardDistributor) AddIncentives(amount uint64) ([]*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57879,7 +57879,7 @@ func (o *RewardDistributor) AddIncentives(amount uint64) ([]*Program, error) {
 	return result, nil
 }
 
-// CommitIncentives calls [RewardDistributor]'s CommitIncentives method.
+// CommitIncentives commits incentive rewards to a specific epoch via a reward slot, creating a commitment slot.
 func (o *RewardDistributor) CommitIncentives(rewardSlot *RewardSlot, epochStart uint64, clawbackPh []byte, rewardsToAdd uint64) ([]*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57918,7 +57918,7 @@ func (o *RewardDistributor) CommitIncentives(rewardSlot *RewardSlot, epochStart 
 	return result, nil
 }
 
-// InitiatePayout calls [RewardDistributor]'s InitiatePayout method.
+// InitiatePayout initiates a reward payout to a staker based on their entry slot's accumulated rewards.
 func (o *RewardDistributor) InitiatePayout(entrySlot *EntrySlot) (*RewardDistributorInitiatePayoutResult, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57946,7 +57946,7 @@ func (o *RewardDistributor) InitiatePayout(entrySlot *EntrySlot) (*RewardDistrib
 	return obj, nil
 }
 
-// NewEpoch calls [RewardDistributor]'s NewEpoch method.
+// NewEpoch transitions the distributor to a new epoch, collecting the epoch fee and resetting reward tracking.
 func (o *RewardDistributor) NewEpoch(rewardSlot *RewardSlot) (*RewardDistributorNewEpochResult, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -57974,7 +57974,7 @@ func (o *RewardDistributor) NewEpoch(rewardSlot *RewardSlot) (*RewardDistributor
 	return obj, nil
 }
 
-// Sync calls [RewardDistributor]'s Sync method.
+// Sync syncs the distributor's reward calculations to the given timestamp.
 func (o *RewardDistributor) Sync(updateTime uint64) ([]*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58008,7 +58008,7 @@ func (o *RewardDistributor) Sync(updateTime uint64) ([]*Program, error) {
 	return result, nil
 }
 
-// WithdrawIncentives calls [RewardDistributor]'s WithdrawIncentives method.
+// WithdrawIncentives withdraws previously committed incentives using the commitment slot and reward slot proofs.
 func (o *RewardDistributor) WithdrawIncentives(commitmentSlot *CommitmentSlot, rewardSlot *RewardSlot) (*RewardDistributorWithdrawIncentivesResult, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58040,7 +58040,7 @@ func (o *RewardDistributor) WithdrawIncentives(commitmentSlot *CommitmentSlot, r
 	return obj, nil
 }
 
-// AddEntry calls [RewardDistributor]'s AddEntry method.
+// AddEntry adds a new staker entry to the distributor with the given payout address, share count, and manager proof.
 func (o *RewardDistributor) AddEntry(payoutPuzzleHash []byte, shares uint64, managerSingletonInnerPuzzleHash []byte) ([]*Program, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58076,7 +58076,7 @@ func (o *RewardDistributor) AddEntry(payoutPuzzleHash []byte, shares uint64, man
 	return result, nil
 }
 
-// RemoveEntry calls [RewardDistributor]'s RemoveEntry method.
+// RemoveEntry removes a staker entry from the distributor, paying out any remaining rewards.
 func (o *RewardDistributor) RemoveEntry(entrySlot *EntrySlot, managerSingletonInnerPuzzleHash []byte) (*RewardDistributorRemoveEntryResult, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58105,7 +58105,7 @@ func (o *RewardDistributor) RemoveEntry(entrySlot *EntrySlot, managerSingletonIn
 	return obj, nil
 }
 
-// Stake calls [RewardDistributor]'s Stake method.
+// Stake stakes an NFT into the distributor, locking it and creating an entry slot for reward accrual.
 func (o *RewardDistributor) Stake(currentNft *Nft, nftLauncherProof *NftLauncherProof, entryCustodyPuzzleHash []byte) (*RewardDistributorStakeResult, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58138,7 +58138,7 @@ func (o *RewardDistributor) Stake(currentNft *Nft, nftLauncherProof *NftLauncher
 	return obj, nil
 }
 
-// Unstake calls [RewardDistributor]'s Unstake method.
+// Unstake unstakes an NFT from the distributor, unlocking it and paying out accumulated rewards.
 func (o *RewardDistributor) Unstake(entrySlot *EntrySlot, lockedNft *Nft) (*RewardDistributorUnstakeResult, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58170,7 +58170,7 @@ func (o *RewardDistributor) Unstake(entrySlot *EntrySlot, lockedNft *Nft) (*Rewa
 	return obj, nil
 }
 
-// RewardDistributorLockedNftHint is a static method on [RewardDistributor].
+// RewardDistributorLockedNftHint computes the hint used to identify locked NFTs belonging to this distributor.
 func RewardDistributorLockedNftHint(distributorLauncherId []byte, custodyPuzzleHash []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -58188,7 +58188,7 @@ func RewardDistributorLockedNftHint(distributorLauncherId []byte, custodyPuzzleH
 	return result, nil
 }
 
-// RpcClient wraps a Rust RpcClient value behind an opaque pointer.
+// RpcClient is an HTTP client for the Chia full node RPC API.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -58243,7 +58243,7 @@ func (o *RpcClient) Clone() (*RpcClient, error) {
 	return clone, nil
 }
 
-// RpcClientNew is a static method on [RpcClient].
+// RpcClientNew creates a new RPC client connecting to the given coinset API URL.
 func RpcClientNew(coinsetUrl string) (*RpcClient, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -58259,7 +58259,7 @@ func RpcClientNew(coinsetUrl string) (*RpcClient, error) {
 	return obj, nil
 }
 
-// NewRpcClientTestnet11 creates a new [RpcClient] via the Testnet11 factory.
+// NewRpcClientTestnet11 creates a new RPC client connected to the Chia testnet11 network.
 func NewRpcClientTestnet11() (*RpcClient, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -58274,7 +58274,7 @@ func NewRpcClientTestnet11() (*RpcClient, error) {
 	return obj, nil
 }
 
-// NewRpcClientMainnet creates a new [RpcClient] via the Mainnet factory.
+// NewRpcClientMainnet creates a new RPC client connected to the Chia mainnet.
 func NewRpcClientMainnet() (*RpcClient, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -58289,7 +58289,7 @@ func NewRpcClientMainnet() (*RpcClient, error) {
 	return obj, nil
 }
 
-// NewRpcClientLocal creates a new [RpcClient] via the Local factory.
+// NewRpcClientLocal creates a new RPC client connecting to a local full node using TLS client certificates.
 func NewRpcClientLocal(certBytes []byte, keyBytes []byte) (*RpcClient, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -58306,7 +58306,7 @@ func NewRpcClientLocal(certBytes []byte, keyBytes []byte) (*RpcClient, error) {
 	return obj, nil
 }
 
-// NewRpcClientLocalWithUrl creates a new [RpcClient] via the LocalWithUrl factory.
+// NewRpcClientLocalWithUrl creates a new RPC client connecting to a local full node at the given URL using TLS client certificates.
 func NewRpcClientLocalWithUrl(baseUrl string, certBytes []byte, keyBytes []byte) (*RpcClient, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -58324,7 +58324,7 @@ func NewRpcClientLocalWithUrl(baseUrl string, certBytes []byte, keyBytes []byte)
 	return obj, nil
 }
 
-// GetBlockchainState calls [RpcClient]'s GetBlockchainState method.
+// GetBlockchainState fetches the current blockchain state including peak, sync status, mempool info, and network space.
 func (o *RpcClient) GetBlockchainState() (*BlockchainStateResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58348,7 +58348,7 @@ func (o *RpcClient) GetBlockchainState() (*BlockchainStateResponse, error) {
 	return obj, nil
 }
 
-// GetAdditionsAndRemovals calls [RpcClient]'s GetAdditionsAndRemovals method.
+// GetAdditionsAndRemovals fetches the coins created (additions) and spent (removals) in the block with the given header hash.
 func (o *RpcClient) GetAdditionsAndRemovals(headerHash []byte) (*AdditionsAndRemovalsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58373,7 +58373,7 @@ func (o *RpcClient) GetAdditionsAndRemovals(headerHash []byte) (*AdditionsAndRem
 	return obj, nil
 }
 
-// GetBlock calls [RpcClient]'s GetBlock method.
+// GetBlock fetches the full block data for the given header hash.
 func (o *RpcClient) GetBlock(headerHash []byte) (*GetBlockResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58398,7 +58398,7 @@ func (o *RpcClient) GetBlock(headerHash []byte) (*GetBlockResponse, error) {
 	return obj, nil
 }
 
-// GetBlockRecord calls [RpcClient]'s GetBlockRecord method.
+// GetBlockRecord fetches the block record (lightweight metadata) for the given header hash.
 func (o *RpcClient) GetBlockRecord(headerHash []byte) (*GetBlockRecordResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58423,7 +58423,7 @@ func (o *RpcClient) GetBlockRecord(headerHash []byte) (*GetBlockRecordResponse, 
 	return obj, nil
 }
 
-// GetBlockRecordByHeight calls [RpcClient]'s GetBlockRecordByHeight method.
+// GetBlockRecordByHeight fetches the block record at the given block height.
 func (o *RpcClient) GetBlockRecordByHeight(height uint32) (*GetBlockRecordResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58447,7 +58447,7 @@ func (o *RpcClient) GetBlockRecordByHeight(height uint32) (*GetBlockRecordRespon
 	return obj, nil
 }
 
-// GetBlockRecords calls [RpcClient]'s GetBlockRecords method.
+// GetBlockRecords fetches block records for the given height range [start, end).
 func (o *RpcClient) GetBlockRecords(startHeight uint32, endHeight uint32) (*GetBlockRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58471,7 +58471,7 @@ func (o *RpcClient) GetBlockRecords(startHeight uint32, endHeight uint32) (*GetB
 	return obj, nil
 }
 
-// GetBlocks calls [RpcClient]'s GetBlocks method.
+// GetBlocks fetches full blocks for the given height range [start, end), with options to exclude header hashes and reorged blocks.
 func (o *RpcClient) GetBlocks(start uint32, end uint32, excludeHeaderHash bool, excludeReorged bool) (*GetBlocksResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58495,7 +58495,7 @@ func (o *RpcClient) GetBlocks(start uint32, end uint32, excludeHeaderHash bool, 
 	return obj, nil
 }
 
-// GetBlockSpends calls [RpcClient]'s GetBlockSpends method.
+// GetBlockSpends fetches all coin spends (puzzle reveals and solutions) in the block with the given header hash.
 func (o *RpcClient) GetBlockSpends(headerHash []byte) (*GetBlockSpendsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58520,7 +58520,7 @@ func (o *RpcClient) GetBlockSpends(headerHash []byte) (*GetBlockSpendsResponse, 
 	return obj, nil
 }
 
-// GetCoinRecordByName calls [RpcClient]'s GetCoinRecordByName method.
+// GetCoinRecordByName fetches a coin record by its coin ID (name).
 func (o *RpcClient) GetCoinRecordByName(name []byte) (*GetCoinRecordResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58545,7 +58545,7 @@ func (o *RpcClient) GetCoinRecordByName(name []byte) (*GetCoinRecordResponse, er
 	return obj, nil
 }
 
-// GetCoinRecordsByHint calls [RpcClient]'s GetCoinRecordsByHint method.
+// GetCoinRecordsByHint fetches coin records matching the given hint (typically a puzzle hash used as a memo), with optional height and spent filters.
 func (o *RpcClient) GetCoinRecordsByHint(hint []byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58588,7 +58588,7 @@ func (o *RpcClient) GetCoinRecordsByHint(hint []byte, startHeight *uint32, endHe
 	return obj, nil
 }
 
-// GetCoinRecordsByHints calls [RpcClient]'s GetCoinRecordsByHints method.
+// GetCoinRecordsByHints fetches coin records matching any of the given hints, with optional height and spent filters.
 func (o *RpcClient) GetCoinRecordsByHints(hints unsafe.Pointer, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58630,7 +58630,7 @@ func (o *RpcClient) GetCoinRecordsByHints(hints unsafe.Pointer, startHeight *uin
 	return obj, nil
 }
 
-// GetCoinRecordsByNames calls [RpcClient]'s GetCoinRecordsByNames method.
+// GetCoinRecordsByNames fetches coin records for the given coin IDs, with optional height and spent filters.
 func (o *RpcClient) GetCoinRecordsByNames(names unsafe.Pointer, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58672,7 +58672,7 @@ func (o *RpcClient) GetCoinRecordsByNames(names unsafe.Pointer, startHeight *uin
 	return obj, nil
 }
 
-// GetCoinRecordsByParentIds calls [RpcClient]'s GetCoinRecordsByParentIds method.
+// GetCoinRecordsByParentIds fetches coin records created by the given parent coin IDs, with optional height and spent filters.
 func (o *RpcClient) GetCoinRecordsByParentIds(parentIds unsafe.Pointer, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58714,7 +58714,7 @@ func (o *RpcClient) GetCoinRecordsByParentIds(parentIds unsafe.Pointer, startHei
 	return obj, nil
 }
 
-// GetCoinRecordsByPuzzleHash calls [RpcClient]'s GetCoinRecordsByPuzzleHash method.
+// GetCoinRecordsByPuzzleHash fetches coin records locked to the given puzzle hash, with optional height and spent filters.
 func (o *RpcClient) GetCoinRecordsByPuzzleHash(puzzleHash []byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58757,7 +58757,7 @@ func (o *RpcClient) GetCoinRecordsByPuzzleHash(puzzleHash []byte, startHeight *u
 	return obj, nil
 }
 
-// GetCoinRecordsByPuzzleHashes calls [RpcClient]'s GetCoinRecordsByPuzzleHashes method.
+// GetCoinRecordsByPuzzleHashes fetches coin records locked to any of the given puzzle hashes, with optional height and spent filters.
 func (o *RpcClient) GetCoinRecordsByPuzzleHashes(puzzleHashes unsafe.Pointer, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58799,7 +58799,7 @@ func (o *RpcClient) GetCoinRecordsByPuzzleHashes(puzzleHashes unsafe.Pointer, st
 	return obj, nil
 }
 
-// GetPuzzleAndSolution calls [RpcClient]'s GetPuzzleAndSolution method.
+// GetPuzzleAndSolution fetches the puzzle reveal and solution for a spent coin by its ID and optional height.
 func (o *RpcClient) GetPuzzleAndSolution(coinId []byte, height *uint32) (*GetPuzzleAndSolutionResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58830,7 +58830,7 @@ func (o *RpcClient) GetPuzzleAndSolution(coinId []byte, height *uint32) (*GetPuz
 	return obj, nil
 }
 
-// PushTx calls [RpcClient]'s PushTx method.
+// PushTx submits a signed spend bundle to the mempool for inclusion in the blockchain.
 func (o *RpcClient) PushTx(spendBundle *SpendBundle) (*PushTxResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58858,7 +58858,7 @@ func (o *RpcClient) PushTx(spendBundle *SpendBundle) (*PushTxResponse, error) {
 	return obj, nil
 }
 
-// GetNetworkInfo calls [RpcClient]'s GetNetworkInfo method.
+// GetNetworkInfo fetches the network name, prefix, and genesis challenge of the connected node.
 func (o *RpcClient) GetNetworkInfo() (*GetNetworkInfoResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58882,7 +58882,7 @@ func (o *RpcClient) GetNetworkInfo() (*GetNetworkInfoResponse, error) {
 	return obj, nil
 }
 
-// GetMempoolItemByTxId calls [RpcClient]'s GetMempoolItemByTxId method.
+// GetMempoolItemByTxId fetches a mempool item by its transaction ID (spend bundle hash).
 func (o *RpcClient) GetMempoolItemByTxId(txId []byte) (*GetMempoolItemResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58907,7 +58907,7 @@ func (o *RpcClient) GetMempoolItemByTxId(txId []byte) (*GetMempoolItemResponse, 
 	return obj, nil
 }
 
-// GetMempoolItemsByCoinName calls [RpcClient]'s GetMempoolItemsByCoinName method.
+// GetMempoolItemsByCoinName fetches mempool items that spend or create the given coin.
 func (o *RpcClient) GetMempoolItemsByCoinName(coinName []byte) (*GetMempoolItemsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -58932,7 +58932,7 @@ func (o *RpcClient) GetMempoolItemsByCoinName(coinName []byte) (*GetMempoolItems
 	return obj, nil
 }
 
-// BlockchainStateResponse wraps a Rust BlockchainStateResponse value behind an opaque pointer.
+// BlockchainStateResponse is the response from the get_blockchain_state RPC endpoint.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -59157,7 +59157,7 @@ func (o *BlockchainStateResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// BlockchainState wraps a Rust BlockchainState value behind an opaque pointer.
+// BlockchainState holds the current state of the blockchain including peak, sync status, and mempool info.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -59858,7 +59858,7 @@ func (o *BlockchainState) SetSync(value *SyncState) error {
 	return nil
 }
 
-// MempoolMinFees wraps a Rust MempoolMinFees value behind an opaque pointer.
+// MempoolMinFees holds the minimum fee thresholds for mempool inclusion at various cost levels.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -59970,7 +59970,7 @@ func (o *MempoolMinFees) SetCost5000000(value uint64) error {
 	return nil
 }
 
-// SyncState wraps a Rust SyncState value behind an opaque pointer.
+// SyncState holds the node's synchronization status and progress.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -60208,7 +60208,7 @@ func (o *SyncState) SetSynced(value bool) error {
 	return nil
 }
 
-// AdditionsAndRemovalsResponse wraps a Rust AdditionsAndRemovalsResponse value behind an opaque pointer.
+// AdditionsAndRemovalsResponse is the response from the get_additions_and_removals RPC endpoint.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -60467,7 +60467,7 @@ func (o *AdditionsAndRemovalsResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// GetBlockResponse wraps a Rust GetBlockResponse value behind an opaque pointer.
+// GetBlockResponse is the response from the get_block RPC endpoint.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -60692,7 +60692,7 @@ func (o *GetBlockResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// GetBlockRecordResponse wraps a Rust GetBlockRecordResponse value behind an opaque pointer.
+// GetBlockRecordResponse is the response from the get_block_record RPC endpoint.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -60917,7 +60917,7 @@ func (o *GetBlockRecordResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// GetBlockRecordByHeightResponse wraps a Rust GetBlockRecordByHeightResponse value behind an opaque pointer.
+// GetBlockRecordByHeightResponse is the response from the get_block_record_by_height RPC endpoint.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -61142,7 +61142,7 @@ func (o *GetBlockRecordByHeightResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// GetBlockRecordsResponse wraps a Rust GetBlockRecordsResponse value behind an opaque pointer.
+// GetBlockRecordsResponse is the response from the get_block_records RPC endpoint.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -61356,7 +61356,7 @@ func (o *GetBlockRecordsResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// GetBlocksResponse wraps a Rust GetBlocksResponse value behind an opaque pointer.
+// GetBlocksResponse is the response from the get_blocks RPC endpoint.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -61570,7 +61570,7 @@ func (o *GetBlocksResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// GetBlockSpendsResponse wraps a Rust GetBlockSpendsResponse value behind an opaque pointer.
+// GetBlockSpendsResponse is the response from the get_block_spends RPC endpoint.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -61784,7 +61784,7 @@ func (o *GetBlockSpendsResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// GetCoinRecordResponse wraps a Rust GetCoinRecordResponse value behind an opaque pointer.
+// GetCoinRecordResponse is the response from the get_coin_record_by_name RPC endpoint.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -62009,7 +62009,7 @@ func (o *GetCoinRecordResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// GetCoinRecordsResponse wraps a Rust GetCoinRecordsResponse value behind an opaque pointer.
+// GetCoinRecordsResponse is the response from coin record query RPC endpoints.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -62223,7 +62223,7 @@ func (o *GetCoinRecordsResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// GetPuzzleAndSolutionResponse wraps a Rust GetPuzzleAndSolutionResponse value behind an opaque pointer.
+// GetPuzzleAndSolutionResponse is the response from the get_puzzle_and_solution RPC endpoint.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -62448,7 +62448,7 @@ func (o *GetPuzzleAndSolutionResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// PushTxResponse wraps a Rust PushTxResponse value behind an opaque pointer.
+// PushTxResponse is the response from the push_tx RPC endpoint.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -62663,7 +62663,7 @@ func (o *PushTxResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// GetNetworkInfoResponse wraps a Rust GetNetworkInfoResponse value behind an opaque pointer.
+// GetNetworkInfoResponse is the response from the get_network_info RPC endpoint.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -62996,7 +62996,7 @@ func (o *GetNetworkInfoResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// GetMempoolItemResponse wraps a Rust GetMempoolItemResponse value behind an opaque pointer.
+// GetMempoolItemResponse is the response from the get_mempool_item_by_tx_id RPC endpoint.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -63221,7 +63221,7 @@ func (o *GetMempoolItemResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// GetMempoolItemsResponse wraps a Rust GetMempoolItemsResponse value behind an opaque pointer.
+// GetMempoolItemsResponse is the response from the get_mempool_items_by_coin_name RPC endpoint.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -63435,7 +63435,7 @@ func (o *GetMempoolItemsResponse) SetSuccess(value bool) error {
 	return nil
 }
 
-// CoinRecord wraps a Rust CoinRecord value behind an opaque pointer.
+// CoinRecord represents the on-chain record of a coin, including its creation height, spend status, and timestamp.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -63767,7 +63767,7 @@ func (o *CoinRecord) SetTimestamp(value uint64) error {
 	return nil
 }
 
-// MempoolItem wraps a Rust MempoolItem value behind an opaque pointer.
+// MempoolItem represents a pending transaction in the mempool, including its spend bundle and fee.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -63931,7 +63931,7 @@ func (o *MempoolItem) SetFee(value uint64) error {
 	return nil
 }
 
-// FullBlock wraps a Rust FullBlock value behind an opaque pointer.
+// FullBlock represents a complete Chia block including VDF proofs, foliage, and transaction data.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -64659,7 +64659,7 @@ func (o *FullBlock) SetTransactionsGeneratorRefList(value unsafe.Pointer) error 
 	return nil
 }
 
-// EndOfSubSlotBundle wraps a Rust EndOfSubSlotBundle value behind an opaque pointer.
+// EndOfSubSlotBundle holds the VDF chain data at the end of a sub-slot in the Chia consensus.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -64941,7 +64941,7 @@ func (o *EndOfSubSlotBundle) SetProofs(value *SubSlotProofs) error {
 	return nil
 }
 
-// ChallengeChainSubSlot wraps a Rust ChallengeChainSubSlot value behind an opaque pointer.
+// ChallengeChainSubSlot holds the challenge chain VDF output and difficulty adjustments at the end of a sub-slot.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -65281,7 +65281,7 @@ func (o *ChallengeChainSubSlot) SetNewDifficulty(value *uint64) error {
 	return nil
 }
 
-// InfusedChallengeChainSubSlot wraps a Rust InfusedChallengeChainSubSlot value behind an opaque pointer.
+// InfusedChallengeChainSubSlot holds the infused challenge chain VDF output at the end of a sub-slot.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -65403,7 +65403,7 @@ func (o *InfusedChallengeChainSubSlot) SetInfusedChallengeChainEndOfSlotVdf(valu
 	return nil
 }
 
-// RewardChainSubSlot wraps a Rust RewardChainSubSlot value behind an opaque pointer.
+// RewardChainSubSlot holds the reward chain VDF output and deficit at the end of a sub-slot.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -65664,7 +65664,7 @@ func (o *RewardChainSubSlot) SetDeficit(value uint8) error {
 	return nil
 }
 
-// SubSlotProofs wraps a Rust SubSlotProofs value behind an opaque pointer.
+// SubSlotProofs holds the VDF proofs for the challenge, infused challenge, and reward chains at a sub-slot boundary.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -65894,7 +65894,7 @@ func (o *SubSlotProofs) SetRewardChainSlotProof(value *VDFProof) error {
 	return nil
 }
 
-// VDFInfo wraps a Rust VDFInfo value behind an opaque pointer.
+// VDFInfo holds a Verifiable Delay Function result: the challenge, number of iterations, and output.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -66100,7 +66100,7 @@ func (o *VDFInfo) SetOutput(value []byte) error {
 	return nil
 }
 
-// VDFProof wraps a Rust VDFProof value behind an opaque pointer.
+// VDFProof holds the proof for a Verifiable Delay Function computation.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -66301,7 +66301,7 @@ func (o *VDFProof) SetNormalizedToIdentity(value bool) error {
 	return nil
 }
 
-// TransactionsInfo wraps a Rust TransactionsInfo value behind an opaque pointer.
+// TransactionsInfo holds the transaction metadata for a block, including the aggregated signature, fees, and cost.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -66679,7 +66679,7 @@ func (o *TransactionsInfo) SetRewardClaimsIncorporated(value []*Coin) error {
 	return nil
 }
 
-// RewardChainBlock wraps a Rust RewardChainBlock value behind an opaque pointer.
+// RewardChainBlock holds the reward chain data for a block, including weight, height, proof of space, and VDF outputs.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -67500,7 +67500,7 @@ func (o *RewardChainBlock) SetIsTransactionBlock(value bool) error {
 	return nil
 }
 
-// FoliageTransactionBlock wraps a Rust FoliageTransactionBlock value behind an opaque pointer.
+// FoliageTransactionBlock holds the transaction-specific foliage data including timestamp, filter hash, and merkle roots.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -67847,7 +67847,7 @@ func (o *FoliageTransactionBlock) SetTransactionsInfoHash(value []byte) error {
 	return nil
 }
 
-// FoliageBlockData wraps a Rust FoliageBlockData value behind an opaque pointer.
+// FoliageBlockData holds the foliage block data including pool target and farmer reward info.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -68166,7 +68166,7 @@ func (o *FoliageBlockData) SetExtensionData(value []byte) error {
 	return nil
 }
 
-// Foliage wraps a Rust Foliage value behind an opaque pointer.
+// Foliage holds the foliage data that links blocks in the chain and commits to transaction data.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -68540,7 +68540,7 @@ func (o *Foliage) SetFoliageTransactionBlockSignature(value *Signature) error {
 	return nil
 }
 
-// PoolTarget wraps a Rust PoolTarget value behind an opaque pointer.
+// PoolTarget identifies the pool that should receive farming rewards.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -68699,7 +68699,7 @@ func (o *PoolTarget) SetMaxHeight(value uint32) error {
 	return nil
 }
 
-// BlockRecord wraps a Rust BlockRecord value behind an opaque pointer.
+// BlockRecord holds lightweight metadata about a block, including height, weight, timestamps, and farmer info.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -69946,7 +69946,7 @@ func (o *BlockRecord) SetSubEpochSummaryIncluded(value *SubEpochSummary) error {
 	return nil
 }
 
-// ProofOfSpace wraps a Rust ProofOfSpace value behind an opaque pointer.
+// ProofOfSpace holds the proof of space for a block, including the plot public key and proof bytes.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -70310,7 +70310,7 @@ func (o *ProofOfSpace) SetProof(value []byte) error {
 	return nil
 }
 
-// SubEpochSummary wraps a Rust SubEpochSummary value behind an opaque pointer.
+// SubEpochSummary holds the summary of a sub-epoch, including difficulty and sub-slot iteration adjustments.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -70684,7 +70684,7 @@ func (o *SubEpochSummary) SetChallengeMerkleRoot(value []byte) error {
 	return nil
 }
 
-// K1SecretKey wraps a Rust K1SecretKey value behind an opaque pointer.
+// K1SecretKey represents a secp256k1 secret key, used for Bitcoin-compatible signing (e.g., MIPS vaults).
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -70739,7 +70739,7 @@ func (o *K1SecretKey) Clone() (*K1SecretKey, error) {
 	return clone, nil
 }
 
-// NewK1SecretKeyFromBytes creates a new [K1SecretKey] via the FromBytes factory.
+// NewK1SecretKeyFromBytes creates a secp256k1 secret key from its 32-byte representation.
 func NewK1SecretKeyFromBytes(bytes []byte) (*K1SecretKey, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -70755,8 +70755,8 @@ func NewK1SecretKeyFromBytes(bytes []byte) (*K1SecretKey, error) {
 	return obj, nil
 }
 
-// ToBytes calls [K1SecretKey]'s ToBytes method.
-func (o *K1SecretKey) ToBytes() ([]byte, error) {
+// Bytes returns the 32-byte representation of the secret key.
+func (o *K1SecretKey) Bytes() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -70780,7 +70780,7 @@ func (o *K1SecretKey) ToBytes() ([]byte, error) {
 	return result, nil
 }
 
-// PublicKey calls [K1SecretKey]'s PublicKey method.
+// PublicKey returns the corresponding secp256k1 public key.
 func (o *K1SecretKey) PublicKey() (*K1PublicKey, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -70804,7 +70804,7 @@ func (o *K1SecretKey) PublicKey() (*K1PublicKey, error) {
 	return obj, nil
 }
 
-// SignPrehashed calls [K1SecretKey]'s SignPrehashed method.
+// SignPrehashed signs a pre-hashed 32-byte message, returning a secp256k1 signature.
 func (o *K1SecretKey) SignPrehashed(prehashed []byte) (*K1Signature, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -70829,7 +70829,7 @@ func (o *K1SecretKey) SignPrehashed(prehashed []byte) (*K1Signature, error) {
 	return obj, nil
 }
 
-// K1PublicKey wraps a Rust K1PublicKey value behind an opaque pointer.
+// K1PublicKey represents a compressed secp256k1 public key (33 bytes).
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -70884,7 +70884,7 @@ func (o *K1PublicKey) Clone() (*K1PublicKey, error) {
 	return clone, nil
 }
 
-// NewK1PublicKeyFromBytes creates a new [K1PublicKey] via the FromBytes factory.
+// NewK1PublicKeyFromBytes creates a secp256k1 public key from its 33-byte compressed representation.
 func NewK1PublicKeyFromBytes(bytes []byte) (*K1PublicKey, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -70900,8 +70900,8 @@ func NewK1PublicKeyFromBytes(bytes []byte) (*K1PublicKey, error) {
 	return obj, nil
 }
 
-// ToBytes calls [K1PublicKey]'s ToBytes method.
-func (o *K1PublicKey) ToBytes() ([]byte, error) {
+// Bytes returns the 33-byte compressed representation of the public key.
+func (o *K1PublicKey) Bytes() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -70925,7 +70925,7 @@ func (o *K1PublicKey) ToBytes() ([]byte, error) {
 	return result, nil
 }
 
-// Fingerprint calls [K1PublicKey]'s Fingerprint method.
+// Fingerprint returns the 4-byte fingerprint of the public key.
 func (o *K1PublicKey) Fingerprint() (uint32, error) {
 	if o == nil {
 		return 0, fmt.Errorf("object is nil or already freed")
@@ -70947,7 +70947,7 @@ func (o *K1PublicKey) Fingerprint() (uint32, error) {
 	return uint32(cOut), nil
 }
 
-// VerifyPrehashed calls [K1PublicKey]'s VerifyPrehashed method.
+// VerifyPrehashed verifies a secp256k1 signature against a pre-hashed message.
 func (o *K1PublicKey) VerifyPrehashed(prehashed []byte, signature *K1Signature) (bool, error) {
 	if o == nil {
 		return false, fmt.Errorf("object is nil or already freed")
@@ -70974,7 +70974,7 @@ func (o *K1PublicKey) VerifyPrehashed(prehashed []byte, signature *K1Signature) 
 	return cOut != 0, nil
 }
 
-// K1Signature wraps a Rust K1Signature value behind an opaque pointer.
+// K1Signature represents a secp256k1 ECDSA signature (64 bytes, compact format).
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -71029,7 +71029,7 @@ func (o *K1Signature) Clone() (*K1Signature, error) {
 	return clone, nil
 }
 
-// NewK1SignatureFromBytes creates a new [K1Signature] via the FromBytes factory.
+// NewK1SignatureFromBytes creates a secp256k1 signature from its 64-byte compact representation.
 func NewK1SignatureFromBytes(bytes []byte) (*K1Signature, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -71045,8 +71045,8 @@ func NewK1SignatureFromBytes(bytes []byte) (*K1Signature, error) {
 	return obj, nil
 }
 
-// ToBytes calls [K1Signature]'s ToBytes method.
-func (o *K1Signature) ToBytes() ([]byte, error) {
+// Bytes returns the 64-byte compact representation of the signature.
+func (o *K1Signature) Bytes() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -71070,7 +71070,7 @@ func (o *K1Signature) ToBytes() ([]byte, error) {
 	return result, nil
 }
 
-// R1SecretKey wraps a Rust R1SecretKey value behind an opaque pointer.
+// R1SecretKey represents a secp256r1 (P-256) secret key, used for passkey/WebAuthn signing (e.g., MIPS vaults).
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -71125,7 +71125,7 @@ func (o *R1SecretKey) Clone() (*R1SecretKey, error) {
 	return clone, nil
 }
 
-// NewR1SecretKeyFromBytes creates a new [R1SecretKey] via the FromBytes factory.
+// NewR1SecretKeyFromBytes creates a secp256r1 secret key from its 32-byte representation.
 func NewR1SecretKeyFromBytes(bytes []byte) (*R1SecretKey, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -71141,8 +71141,8 @@ func NewR1SecretKeyFromBytes(bytes []byte) (*R1SecretKey, error) {
 	return obj, nil
 }
 
-// ToBytes calls [R1SecretKey]'s ToBytes method.
-func (o *R1SecretKey) ToBytes() ([]byte, error) {
+// Bytes returns the 32-byte representation of the secret key.
+func (o *R1SecretKey) Bytes() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -71166,7 +71166,7 @@ func (o *R1SecretKey) ToBytes() ([]byte, error) {
 	return result, nil
 }
 
-// PublicKey calls [R1SecretKey]'s PublicKey method.
+// PublicKey returns the corresponding secp256r1 public key.
 func (o *R1SecretKey) PublicKey() (*R1PublicKey, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -71190,7 +71190,7 @@ func (o *R1SecretKey) PublicKey() (*R1PublicKey, error) {
 	return obj, nil
 }
 
-// SignPrehashed calls [R1SecretKey]'s SignPrehashed method.
+// SignPrehashed signs a pre-hashed 32-byte message, returning a secp256r1 signature.
 func (o *R1SecretKey) SignPrehashed(prehashed []byte) (*R1Signature, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -71215,7 +71215,7 @@ func (o *R1SecretKey) SignPrehashed(prehashed []byte) (*R1Signature, error) {
 	return obj, nil
 }
 
-// R1PublicKey wraps a Rust R1PublicKey value behind an opaque pointer.
+// R1PublicKey represents a compressed secp256r1 (P-256) public key (33 bytes).
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -71270,7 +71270,7 @@ func (o *R1PublicKey) Clone() (*R1PublicKey, error) {
 	return clone, nil
 }
 
-// NewR1PublicKeyFromBytes creates a new [R1PublicKey] via the FromBytes factory.
+// NewR1PublicKeyFromBytes creates a secp256r1 public key from its 33-byte compressed representation.
 func NewR1PublicKeyFromBytes(bytes []byte) (*R1PublicKey, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -71286,8 +71286,8 @@ func NewR1PublicKeyFromBytes(bytes []byte) (*R1PublicKey, error) {
 	return obj, nil
 }
 
-// ToBytes calls [R1PublicKey]'s ToBytes method.
-func (o *R1PublicKey) ToBytes() ([]byte, error) {
+// Bytes returns the 33-byte compressed representation of the public key.
+func (o *R1PublicKey) Bytes() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -71311,7 +71311,7 @@ func (o *R1PublicKey) ToBytes() ([]byte, error) {
 	return result, nil
 }
 
-// Fingerprint calls [R1PublicKey]'s Fingerprint method.
+// Fingerprint returns the 4-byte fingerprint of the public key.
 func (o *R1PublicKey) Fingerprint() (uint32, error) {
 	if o == nil {
 		return 0, fmt.Errorf("object is nil or already freed")
@@ -71333,7 +71333,7 @@ func (o *R1PublicKey) Fingerprint() (uint32, error) {
 	return uint32(cOut), nil
 }
 
-// VerifyPrehashed calls [R1PublicKey]'s VerifyPrehashed method.
+// VerifyPrehashed verifies a secp256r1 signature against a pre-hashed message.
 func (o *R1PublicKey) VerifyPrehashed(prehashed []byte, signature *R1Signature) (bool, error) {
 	if o == nil {
 		return false, fmt.Errorf("object is nil or already freed")
@@ -71360,7 +71360,7 @@ func (o *R1PublicKey) VerifyPrehashed(prehashed []byte, signature *R1Signature) 
 	return cOut != 0, nil
 }
 
-// R1Signature wraps a Rust R1Signature value behind an opaque pointer.
+// R1Signature represents a secp256r1 (P-256) ECDSA signature (64 bytes, compact format).
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -71415,7 +71415,7 @@ func (o *R1Signature) Clone() (*R1Signature, error) {
 	return clone, nil
 }
 
-// NewR1SignatureFromBytes creates a new [R1Signature] via the FromBytes factory.
+// NewR1SignatureFromBytes creates a secp256r1 signature from its 64-byte compact representation.
 func NewR1SignatureFromBytes(bytes []byte) (*R1Signature, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -71431,8 +71431,8 @@ func NewR1SignatureFromBytes(bytes []byte) (*R1Signature, error) {
 	return obj, nil
 }
 
-// ToBytes calls [R1Signature]'s ToBytes method.
-func (o *R1Signature) ToBytes() ([]byte, error) {
+// Bytes returns the 64-byte compact representation of the signature.
+func (o *R1Signature) Bytes() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
@@ -71456,7 +71456,7 @@ func (o *R1Signature) ToBytes() ([]byte, error) {
 	return result, nil
 }
 
-// Simulator wraps a Rust Simulator value behind an opaque pointer.
+// Simulator provides a local in-memory Chia blockchain simulator for testing transactions without a real network.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -71511,7 +71511,7 @@ func (o *Simulator) Clone() (*Simulator, error) {
 	return clone, nil
 }
 
-// SimulatorNew is a static method on [Simulator].
+// SimulatorNew creates a new simulator with a random seed.
 func SimulatorNew() (*Simulator, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -71526,7 +71526,7 @@ func SimulatorNew() (*Simulator, error) {
 	return obj, nil
 }
 
-// NewSimulatorWithSeed creates a new [Simulator] via the WithSeed factory.
+// NewSimulatorWithSeed creates a new simulator with a deterministic seed for reproducible tests.
 func NewSimulatorWithSeed(seed uint64) (*Simulator, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -71541,7 +71541,7 @@ func NewSimulatorWithSeed(seed uint64) (*Simulator, error) {
 	return obj, nil
 }
 
-// Height calls [Simulator]'s Height method.
+// Height returns the current block height of the simulated chain.
 func (o *Simulator) Height() (uint32, error) {
 	if o == nil {
 		return 0, fmt.Errorf("object is nil or already freed")
@@ -71563,7 +71563,7 @@ func (o *Simulator) Height() (uint32, error) {
 	return uint32(cOut), nil
 }
 
-// NextTimestamp calls [Simulator]'s NextTimestamp method.
+// NextTimestamp returns the timestamp that will be used for the next block.
 func (o *Simulator) NextTimestamp() (uint64, error) {
 	if o == nil {
 		return 0, fmt.Errorf("object is nil or already freed")
@@ -71585,7 +71585,7 @@ func (o *Simulator) NextTimestamp() (uint64, error) {
 	return uint64(cOut), nil
 }
 
-// HeaderHash calls [Simulator]'s HeaderHash method.
+// HeaderHash returns the header hash of the current peak block.
 func (o *Simulator) HeaderHash() ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -71610,7 +71610,7 @@ func (o *Simulator) HeaderHash() ([]byte, error) {
 	return result, nil
 }
 
-// HeaderHashOf calls [Simulator]'s HeaderHashOf method.
+// HeaderHashOf returns the header hash at the given height, or nil if the height doesn't exist.
 func (o *Simulator) HeaderHashOf(height uint32) ([]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -71638,7 +71638,7 @@ func (o *Simulator) HeaderHashOf(height uint32) ([]byte, error) {
 	return result, nil
 }
 
-// InsertCoin calls [Simulator]'s InsertCoin method.
+// InsertCoin inserts a coin directly into the simulator's coin set as an unspent coin.
 func (o *Simulator) InsertCoin(coin *Coin) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -71663,7 +71663,7 @@ func (o *Simulator) InsertCoin(coin *Coin) error {
 	return nil
 }
 
-// NewCoin calls [Simulator]'s NewCoin method.
+// NewCoin creates and inserts a new coin with the given puzzle hash and amount, returning the coin.
 func (o *Simulator) NewCoin(puzzleHash []byte, amount uint64) (*Coin, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -71688,7 +71688,7 @@ func (o *Simulator) NewCoin(puzzleHash []byte, amount uint64) (*Coin, error) {
 	return obj, nil
 }
 
-// Bls calls [Simulator]'s Bls method.
+// Bls creates a BLS key pair and a coin locked to its standard puzzle hash with the given amount.
 func (o *Simulator) Bls(amount uint64) (*BlsPairWithCoin, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -71712,7 +71712,7 @@ func (o *Simulator) Bls(amount uint64) (*BlsPairWithCoin, error) {
 	return obj, nil
 }
 
-// SetNextTimestamp calls [Simulator]'s SetNextTimestamp method.
+// SetNextTimestamp sets the exact timestamp for the next block.
 func (o *Simulator) SetNextTimestamp(time uint64) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -71733,7 +71733,7 @@ func (o *Simulator) SetNextTimestamp(time uint64) error {
 	return nil
 }
 
-// PassTime calls [Simulator]'s PassTime method.
+// PassTime advances the next block timestamp by the given number of seconds.
 func (o *Simulator) PassTime(time uint64) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -71754,7 +71754,7 @@ func (o *Simulator) PassTime(time uint64) error {
 	return nil
 }
 
-// HintCoin calls [Simulator]'s HintCoin method.
+// HintCoin adds a hint for a coin, allowing it to be discovered by puzzle hash lookups with hints enabled.
 func (o *Simulator) HintCoin(coinId []byte, hint []byte) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -71777,7 +71777,7 @@ func (o *Simulator) HintCoin(coinId []byte, hint []byte) error {
 	return nil
 }
 
-// CoinState calls [Simulator]'s CoinState method.
+// CoinState returns the current state of a coin by its ID, or nil if the coin doesn't exist.
 func (o *Simulator) CoinState(coinId []byte) (*CoinState, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -71805,7 +71805,7 @@ func (o *Simulator) CoinState(coinId []byte) (*CoinState, error) {
 	return obj, nil
 }
 
-// Children calls [Simulator]'s Children method.
+// Children returns the child coin states created by spending the coin with the given ID.
 func (o *Simulator) Children(coinId []byte) ([]*CoinState, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -71840,7 +71840,7 @@ func (o *Simulator) Children(coinId []byte) ([]*CoinState, error) {
 	return result, nil
 }
 
-// HintedCoins calls [Simulator]'s HintedCoins method.
+// HintedCoins returns the coin IDs of all coins hinted with the given puzzle hash.
 func (o *Simulator) HintedCoins(hint []byte) (unsafe.Pointer, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -71863,7 +71863,7 @@ func (o *Simulator) HintedCoins(hint []byte) (unsafe.Pointer, error) {
 	return out, nil
 }
 
-// CoinSpend calls [Simulator]'s CoinSpend method.
+// CoinSpend returns the coin spend (puzzle reveal + solution) for a spent coin, or nil if not spent.
 func (o *Simulator) CoinSpend(coinId []byte) (*CoinSpend, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -71891,7 +71891,7 @@ func (o *Simulator) CoinSpend(coinId []byte) (*CoinSpend, error) {
 	return obj, nil
 }
 
-// SpendCoins calls [Simulator]'s SpendCoins method.
+// SpendCoins spends coins using the given coin spends and BLS secret keys for signing, then creates a block.
 func (o *Simulator) SpendCoins(coinSpends []*CoinSpend, secretKeys []*SecretKey) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -71942,7 +71942,7 @@ func (o *Simulator) SpendCoins(coinSpends []*CoinSpend, secretKeys []*SecretKey)
 	return nil
 }
 
-// NewTransaction calls [Simulator]'s NewTransaction method.
+// NewTransaction submits a complete spend bundle (coin spends + aggregated signature) and creates a block.
 func (o *Simulator) NewTransaction(spendBundle *SpendBundle) error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -71967,7 +71967,7 @@ func (o *Simulator) NewTransaction(spendBundle *SpendBundle) error {
 	return nil
 }
 
-// LookupCoinIds calls [Simulator]'s LookupCoinIds method.
+// LookupCoinIds returns the coin states for the given coin IDs.
 func (o *Simulator) LookupCoinIds(coinIds unsafe.Pointer) ([]*CoinState, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -72001,7 +72001,7 @@ func (o *Simulator) LookupCoinIds(coinIds unsafe.Pointer) ([]*CoinState, error) 
 	return result, nil
 }
 
-// LookupPuzzleHashes calls [Simulator]'s LookupPuzzleHashes method.
+// LookupPuzzleHashes returns coin states matching the given puzzle hashes, optionally including hinted coins.
 func (o *Simulator) LookupPuzzleHashes(puzzleHashes unsafe.Pointer, includeHints bool) ([]*CoinState, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -72035,7 +72035,7 @@ func (o *Simulator) LookupPuzzleHashes(puzzleHashes unsafe.Pointer, includeHints
 	return result, nil
 }
 
-// UnspentCoins calls [Simulator]'s UnspentCoins method.
+// UnspentCoins returns all unspent coins matching the given puzzle hash, optionally including hinted coins.
 func (o *Simulator) UnspentCoins(puzzleHash []byte, includeHints bool) ([]*Coin, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
@@ -72070,7 +72070,7 @@ func (o *Simulator) UnspentCoins(puzzleHash []byte, includeHints bool) ([]*Coin,
 	return result, nil
 }
 
-// CreateBlock calls [Simulator]'s CreateBlock method.
+// CreateBlock creates a new block at the current height, confirming all pending transactions.
 func (o *Simulator) CreateBlock() error {
 	if o == nil {
 		return fmt.Errorf("object is nil or already freed")
@@ -72091,7 +72091,7 @@ func (o *Simulator) CreateBlock() error {
 	return nil
 }
 
-// BlsPair wraps a Rust BlsPair value behind an opaque pointer.
+// BlsPair holds a BLS secret key and its corresponding public key, used for testing.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -72265,7 +72265,7 @@ func (o *BlsPair) SetPk(value *PublicKey) error {
 	return nil
 }
 
-// NewBlsPairFromSeed creates a new [BlsPair] via the FromSeed factory.
+// NewBlsPairFromSeed derives a BLS key pair from a deterministic seed value.
 func NewBlsPairFromSeed(seed uint64) (*BlsPair, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -72280,7 +72280,7 @@ func NewBlsPairFromSeed(seed uint64) (*BlsPair, error) {
 	return obj, nil
 }
 
-// BlsPairManyFromSeed is a static method on [BlsPair].
+// BlsPairManyFromSeed derives multiple BLS key pairs from a seed, each with a unique derivation index.
 func BlsPairManyFromSeed(seed uint64, count uint32) ([]*BlsPair, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -72305,7 +72305,7 @@ func BlsPairManyFromSeed(seed uint64, count uint32) ([]*BlsPair, error) {
 	return result, nil
 }
 
-// BlsPairWithCoin wraps a Rust BlsPairWithCoin value behind an opaque pointer.
+// BlsPairWithCoin holds a BLS key pair along with its standard puzzle hash and a funded coin, used for testing.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -72578,7 +72578,7 @@ func (o *BlsPairWithCoin) SetCoin(value *Coin) error {
 	return nil
 }
 
-// K1Pair wraps a Rust K1Pair value behind an opaque pointer.
+// K1Pair holds a secp256k1 secret key and its corresponding public key, used for testing MIPS vault signing.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -72752,7 +72752,7 @@ func (o *K1Pair) SetPk(value *K1PublicKey) error {
 	return nil
 }
 
-// NewK1PairFromSeed creates a new [K1Pair] via the FromSeed factory.
+// NewK1PairFromSeed derives a secp256k1 key pair from a deterministic seed value.
 func NewK1PairFromSeed(seed uint64) (*K1Pair, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -72767,7 +72767,7 @@ func NewK1PairFromSeed(seed uint64) (*K1Pair, error) {
 	return obj, nil
 }
 
-// K1PairManyFromSeed is a static method on [K1Pair].
+// K1PairManyFromSeed derives multiple secp256k1 key pairs from a seed, each with a unique derivation index.
 func K1PairManyFromSeed(seed uint64, count uint32) ([]*K1Pair, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -72792,7 +72792,7 @@ func K1PairManyFromSeed(seed uint64, count uint32) ([]*K1Pair, error) {
 	return result, nil
 }
 
-// R1Pair wraps a Rust R1Pair value behind an opaque pointer.
+// R1Pair holds a secp256r1 (P-256) secret key and its corresponding public key, used for testing passkey/WebAuthn signing.
 //
 // All methods are safe for concurrent use from multiple goroutines.
 // Call [Free] or [Close] to release the underlying memory, or rely on the
@@ -72966,7 +72966,7 @@ func (o *R1Pair) SetPk(value *R1PublicKey) error {
 	return nil
 }
 
-// NewR1PairFromSeed creates a new [R1Pair] via the FromSeed factory.
+// NewR1PairFromSeed derives a secp256r1 key pair from a deterministic seed value.
 func NewR1PairFromSeed(seed uint64) (*R1Pair, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -72981,7 +72981,7 @@ func NewR1PairFromSeed(seed uint64) (*R1Pair, error) {
 	return obj, nil
 }
 
-// R1PairManyFromSeed is a static method on [R1Pair].
+// R1PairManyFromSeed derives multiple secp256r1 key pairs from a seed, each with a unique derivation index.
 func R1PairManyFromSeed(seed uint64, count uint32) ([]*R1Pair, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -73006,7 +73006,7 @@ func R1PairManyFromSeed(seed uint64, count uint32) ([]*R1Pair, error) {
 	return result, nil
 }
 
-// FromHex is a standalone binding function.
+// FromHex decodes a hexadecimal string into raw bytes.
 func FromHex(value string) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -73023,7 +73023,7 @@ func FromHex(value string) ([]byte, error) {
 	return result, nil
 }
 
-// ToHex is a standalone binding function.
+// ToHex encodes raw bytes as a hexadecimal string.
 func ToHex(value []byte) (string, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -73039,7 +73039,7 @@ func ToHex(value []byte) (string, error) {
 	return result, nil
 }
 
-// BytesEqual is a standalone binding function.
+// BytesEqual reports whether two byte slices are equal.
 func BytesEqual(lhs []byte, rhs []byte) (bool, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -73054,7 +73054,7 @@ func BytesEqual(lhs []byte, rhs []byte) (bool, error) {
 	return cOut != 0, nil
 }
 
-// TreeHashAtom is a standalone binding function.
+// TreeHashAtom computes the CLVM tree hash of an atom (leaf node): SHA-256 of 0x01 prepended to the atom bytes.
 func TreeHashAtom(atom []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -73071,7 +73071,7 @@ func TreeHashAtom(atom []byte) ([]byte, error) {
 	return result, nil
 }
 
-// TreeHashPair is a standalone binding function.
+// TreeHashPair computes the CLVM tree hash of a cons pair: SHA-256 of 0x02 prepended to the concatenation of the two child hashes.
 func TreeHashPair(first []byte, rest []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -73089,7 +73089,7 @@ func TreeHashPair(first []byte, rest []byte) ([]byte, error) {
 	return result, nil
 }
 
-// Sha256 is a standalone binding function.
+// Sha256 computes the SHA-256 hash of the given bytes.
 func Sha256(value []byte) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -73106,7 +73106,7 @@ func Sha256(value []byte) ([]byte, error) {
 	return result, nil
 }
 
-// CurryTreeHash is a standalone binding function.
+// CurryTreeHash computes the tree hash of a curried program without materializing the full CLVM tree.
 func CurryTreeHash(program []byte, args unsafe.Pointer) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -73123,7 +73123,7 @@ func CurryTreeHash(program []byte, args unsafe.Pointer) ([]byte, error) {
 	return result, nil
 }
 
-// GenerateBytes is a standalone binding function.
+// GenerateBytes generates cryptographically random bytes of the specified length.
 func GenerateBytes(bytes uint32) ([]byte, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -73139,7 +73139,7 @@ func GenerateBytes(bytes uint32) ([]byte, error) {
 	return result, nil
 }
 
-// SelectCoins is a standalone binding function.
+// SelectCoins selects the smallest set of coins that meets or exceeds the target amount using a knapsack algorithm.
 func SelectCoins(coins []*Coin, amount uint64) ([]*Coin, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -73179,7 +73179,7 @@ func SelectCoins(coins []*Coin, amount uint64) ([]*Coin, error) {
 	return result, nil
 }
 
-// SpendBundleCost is a standalone binding function.
+// SpendBundleCost computes the total CLVM execution cost of the given coin spends.
 func SpendBundleCost(coinSpends []*CoinSpend) (uint64, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()

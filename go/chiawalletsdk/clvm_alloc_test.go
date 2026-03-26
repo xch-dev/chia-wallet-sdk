@@ -15,7 +15,7 @@ func TestAllocInt(t *testing.T) {
 	}
 	defer p.Free()
 
-	n, err := p.ToInt()
+	n, err := p.Int()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestAllocBool(t *testing.T) {
 	}
 	defer p.Free()
 
-	b, err := p.ToBool()
+	b, err := p.Bool()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestAllocString(t *testing.T) {
 	}
 	defer p.Free()
 
-	s, err := p.ToString()
+	s, err := p.String()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestAllocBytes(t *testing.T) {
 	}
 	defer p.Free()
 
-	atom, err := p.ToAtom()
+	atom, err := p.Atom()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +202,7 @@ func TestAllocPublicKey(t *testing.T) {
 	}
 	defer p.Free()
 
-	atom, _ := p.ToAtom()
+	atom, _ := p.Atom()
 	if len(atom) != 48 {
 		t.Fatalf("expected 48-byte BLS public key atom, got %d bytes", len(atom))
 	}

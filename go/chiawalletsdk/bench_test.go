@@ -171,7 +171,7 @@ func BenchmarkMnemonicToSeed(b *testing.B) {
 func BenchmarkMnemonicVerify(b *testing.B) {
 	m, _ := NewMnemonicGenerate(true)
 	defer m.Free()
-	s, _ := m.ToString()
+	s, _ := m.String()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		MnemonicVerify(s)
@@ -354,7 +354,7 @@ func BenchmarkSpendBundleSerialize(b *testing.B) {
 	defer sb.Free()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sb.ToBytes()
+		sb.Bytes()
 	}
 }
 
@@ -367,7 +367,7 @@ func BenchmarkSpendBundleDeserialize(b *testing.B) {
 	defer sig.Free()
 	sb, _ := NewSpendBundle([]*CoinSpend{cs}, sig)
 	defer sb.Free()
-	data, _ := sb.ToBytes()
+	data, _ := sb.Bytes()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		sb2, _ := NewSpendBundleFromBytes(data)

@@ -1,6 +1,7 @@
 {
   "Puzzle": {
     "type": "class",
+    "doc": "represents a parsed Chia puzzle, including its hash, curried arguments, and the module it was identified as.",
     "new": true,
     "fields": {
       "puzzle_hash": "Bytes32",
@@ -10,9 +11,11 @@
     },
     "methods": {
       "parse_cat_info": {
+        "doc": "attempts to identify this puzzle as a CAT outer layer and extract the asset ID and inner puzzle.",
         "return": "Option<ParsedCatInfo>"
       },
       "parse_cat": {
+        "doc": "parses a CAT coin and its solution to extract the full CAT state including lineage proof.",
         "args": {
           "coin": "Coin",
           "solution": "Program"
@@ -20,6 +23,7 @@
         "return": "Option<ParsedCat>"
       },
       "parse_child_cats": {
+        "doc": "parses the children of a spent CAT coin to extract the resulting CAT coins.",
         "args": {
           "parent_coin": "Coin",
           "parent_solution": "Program"
@@ -27,9 +31,11 @@
         "return": "Option<Vec<Cat>>"
       },
       "parse_nft_info": {
+        "doc": "attempts to identify this puzzle as an NFT singleton and extract the NFT info and inner puzzle.",
         "return": "Option<ParsedNftInfo>"
       },
       "parse_nft": {
+        "doc": "parses an NFT coin and its solution to extract the full NFT state.",
         "args": {
           "coin": "Coin",
           "solution": "Program"
@@ -37,6 +43,7 @@
         "return": "Option<ParsedNft>"
       },
       "parse_child_nft": {
+        "doc": "parses the child of a spent NFT to extract the updated NFT state.",
         "args": {
           "parent_coin": "Coin",
           "parent_solution": "Program"
@@ -44,9 +51,11 @@
         "return": "Option<Nft>"
       },
       "parse_did_info": {
+        "doc": "attempts to identify this puzzle as a DID singleton and extract the DID info and inner puzzle.",
         "return": "Option<ParsedDidInfo>"
       },
       "parse_did": {
+        "doc": "parses a DID coin and its solution to extract the full DID state.",
         "args": {
           "coin": "Coin",
           "solution": "Program"
@@ -54,6 +63,7 @@
         "return": "Option<ParsedDid>"
       },
       "parse_child_did": {
+        "doc": "parses the child of a spent DID to extract the updated DID state.",
         "args": {
           "parent_coin": "Coin",
           "parent_solution": "Program",
@@ -62,9 +72,11 @@
         "return": "Option<Did>"
       },
       "parse_option_info": {
+        "doc": "attempts to identify this puzzle as an option contract singleton and extract its info.",
         "return": "Option<ParsedOptionInfo>"
       },
       "parse_option": {
+        "doc": "parses an option contract coin and its solution to extract the full option state.",
         "args": {
           "coin": "Coin",
           "solution": "Program"
@@ -72,6 +84,7 @@
         "return": "Option<ParsedOption>"
       },
       "parse_child_option": {
+        "doc": "parses the child of a spent option contract to extract the updated option state.",
         "args": {
           "parent_coin": "Coin",
           "parent_solution": "Program"
@@ -79,15 +92,18 @@
         "return": "Option<OptionContract>"
       },
       "parse_inner_streaming_puzzle": {
+        "doc": "attempts to identify this puzzle as a streaming (vesting) inner puzzle and extract its parameters.",
         "return": "Option<StreamingPuzzleInfo>"
       },
       "parse_child_clawbacks": {
+        "doc": "parses the children of a spent coin to extract any clawback-wrapped outputs.",
         "args": {
           "parent_solution": "Program"
         },
         "return": "Option<Vec<Clawback>>"
       },
       "parse_bulletin": {
+        "doc": "parses a bulletin board coin and its solution to extract the bulletin state and messages.",
         "args": {
           "coin": "Coin",
           "solution": "Program"
@@ -95,6 +111,7 @@
         "return": "Option<Bulletin>"
       },
       "parse_child_p2_parent": {
+        "doc": "parses the children of a spent coin to find pay-to-parent-coin outputs.",
         "args": {
           "parent_coin": "Coin",
           "parent_solution": "Program"
@@ -105,6 +122,7 @@
   },
   "StreamedAssetParsingResult": {
     "type": "class",
+    "doc": "holds the result of parsing a streamed asset, including whether the last spend was a clawback.",
     "new": true,
     "fields": {
       "streamed_asset": "Option<StreamedAsset>",
@@ -114,6 +132,7 @@
   },
   "Cat": {
     "type": "class",
+    "doc": "represents a CAT (Chia Asset Token) coin with its lineage proof and asset information.",
     "remote": true,
     "new": true,
     "fields": {
@@ -123,9 +142,11 @@
     },
     "methods": {
       "child_lineage_proof": {
+        "doc": "computes the lineage proof that child CAT coins will need to reference this coin.",
         "return": "LineageProof"
       },
       "child": {
+        "doc": "creates an expected child CAT coin with the given inner puzzle hash and amount.",
         "args": {
           "p2_puzzle_hash": "Bytes32",
           "amount": "u64"
@@ -133,6 +154,7 @@
         "return": "Cat"
       },
       "unrevocable_child": {
+        "doc": "creates an expected child CAT coin without the revocation layer.",
         "args": {
           "p2_puzzle_hash": "Bytes32",
           "amount": "u64"
@@ -143,6 +165,7 @@
   },
   "CatInfo": {
     "type": "class",
+    "doc": "holds the identifying information for a CAT: the asset ID (TAIL hash), optional hidden puzzle hash, and inner puzzle hash.",
     "remote": true,
     "new": true,
     "fields": {
@@ -152,15 +175,18 @@
     },
     "methods": {
       "inner_puzzle_hash": {
+        "doc": "computes the inner puzzle hash of the CAT (inside the CAT outer layer).",
         "return": "TreeHash"
       },
       "puzzle_hash": {
+        "doc": "computes the full puzzle hash of the CAT coin (outer CAT layer wrapping the inner puzzle).",
         "return": "TreeHash"
       }
     }
   },
   "CatSpend": {
     "type": "class",
+    "doc": "pairs a CAT coin with its inner spend for use in a batch CAT transaction.",
     "fields": {
       "cat": "Cat",
       "spend": "Spend",
@@ -168,6 +194,7 @@
     },
     "methods": {
       "new": {
+        "doc": "creates a new CAT spend pairing a CAT coin with its inner spend.",
         "type": "constructor",
         "args": {
           "cat": "Cat",
@@ -175,6 +202,7 @@
         }
       },
       "revoke": {
+        "doc": "creates a CAT spend that revokes the hidden puzzle, converting a revocable CAT to a standard CAT.",
         "type": "factory",
         "args": {
           "cat": "Cat",
@@ -185,6 +213,7 @@
   },
   "ParsedCatInfo": {
     "type": "class",
+    "doc": "holds the parsed CAT info and inner puzzle extracted from a CAT puzzle.",
     "new": true,
     "fields": {
       "info": "CatInfo",
@@ -193,6 +222,7 @@
   },
   "ParsedCat": {
     "type": "class",
+    "doc": "holds the fully parsed CAT state including the inner puzzle and solution.",
     "new": true,
     "fields": {
       "cat": "Cat",
@@ -202,6 +232,7 @@
   },
   "Nft": {
     "type": "class",
+    "doc": "represents an NFT singleton coin with its lineage proof and metadata.",
     "new": true,
     "fields": {
       "coin": "Coin",
@@ -210,9 +241,11 @@
     },
     "methods": {
       "child_proof": {
+        "doc": "computes the lineage proof that the child NFT will need to reference this coin.",
         "return": "Proof"
       },
       "child": {
+        "doc": "creates an expected child NFT with updated inner puzzle hash, owner, and metadata.",
         "args": {
           "p2_puzzle_hash": "Bytes32",
           "current_owner": "Option<Bytes32>",
@@ -221,6 +254,7 @@
         "return": "Nft"
       },
       "child_with": {
+        "doc": "creates an expected child NFT with the given NftInfo, preserving the lineage proof.",
         "args": {
           "info": "NftInfo"
         },
@@ -230,6 +264,7 @@
   },
   "NftInfo": {
     "type": "class",
+    "doc": "holds the identifying information for an NFT: launcher ID, metadata, royalty settings, and current owner DID.",
     "new": true,
     "fields": {
       "launcher_id": "Bytes32",
@@ -242,15 +277,18 @@
     },
     "methods": {
       "inner_puzzle_hash": {
+        "doc": "computes the inner puzzle hash of the NFT (inside the singleton and NFT layers).",
         "return": "TreeHash"
       },
       "puzzle_hash": {
+        "doc": "computes the full puzzle hash of the NFT singleton coin.",
         "return": "TreeHash"
       }
     }
   },
   "ParsedNftInfo": {
     "type": "class",
+    "doc": "holds the parsed NFT info and inner puzzle extracted from an NFT puzzle.",
     "new": true,
     "fields": {
       "info": "NftInfo",
@@ -259,6 +297,7 @@
   },
   "ParsedNft": {
     "type": "class",
+    "doc": "holds the fully parsed NFT state including the inner puzzle and solution.",
     "new": true,
     "fields": {
       "nft": "Nft",
@@ -268,6 +307,7 @@
   },
   "NftMetadata": {
     "type": "class",
+    "doc": "holds the standard NFT metadata fields: edition info, data/metadata/license URIs and hashes.",
     "new": true,
     "remote": true,
     "fields": {
@@ -283,6 +323,7 @@
   },
   "MetadataUpdate": {
     "type": "class",
+    "doc": "represents a single URI addition to NFT metadata (data, metadata, or license URI).",
     "new": true,
     "remote": true,
     "fields": {
@@ -292,6 +333,7 @@
   },
   "UriKind": {
     "type": "enum",
+    "doc": "specifies the type of URI being added to NFT metadata.",
     "values": [
       "Data",
       "Metadata",
@@ -300,6 +342,7 @@
   },
   "NftMint": {
     "type": "class",
+    "doc": "holds the parameters for minting a new NFT: metadata, royalty settings, and destination.",
     "new": true,
     "fields": {
       "metadata": "Program",
@@ -312,6 +355,7 @@
   },
   "MintedNfts": {
     "type": "class",
+    "doc": "holds the result of minting NFTs: the new NFT singletons and conditions for the parent coin.",
     "new": true,
     "fields": {
       "nfts": "Vec<Nft>",
@@ -320,6 +364,7 @@
   },
   "Did": {
     "type": "class",
+    "doc": "represents a DID (Decentralized Identity) singleton coin on the Chia blockchain.",
     "new": true,
     "fields": {
       "coin": "Coin",
@@ -328,9 +373,11 @@
     },
     "methods": {
       "child_proof": {
+        "doc": "computes the lineage proof that the child DID will need to reference this coin.",
         "return": "Proof"
       },
       "child": {
+        "doc": "creates an expected child DID with updated inner puzzle hash and metadata.",
         "args": {
           "p2_puzzle_hash": "Bytes32",
           "metadata": "Program"
@@ -338,6 +385,7 @@
         "return": "Did"
       },
       "child_with": {
+        "doc": "creates an expected child DID with the given DidInfo, preserving the lineage proof.",
         "args": {
           "info": "DidInfo"
         },
@@ -347,6 +395,7 @@
   },
   "DidInfo": {
     "type": "class",
+    "doc": "holds the identifying information for a DID: launcher ID, recovery list, metadata, and inner puzzle hash.",
     "new": true,
     "fields": {
       "launcher_id": "Bytes32",
@@ -357,15 +406,18 @@
     },
     "methods": {
       "inner_puzzle_hash": {
+        "doc": "computes the inner puzzle hash of the DID (inside the singleton layer).",
         "return": "TreeHash"
       },
       "puzzle_hash": {
+        "doc": "computes the full puzzle hash of the DID singleton coin.",
         "return": "TreeHash"
       }
     }
   },
   "ParsedDidInfo": {
     "type": "class",
+    "doc": "holds the parsed DID info and inner puzzle extracted from a DID puzzle.",
     "new": true,
     "fields": {
       "info": "DidInfo",
@@ -374,6 +426,7 @@
   },
   "ParsedDid": {
     "type": "class",
+    "doc": "holds the fully parsed DID state including the optional inner spend.",
     "new": true,
     "fields": {
       "did": "Did",
@@ -382,6 +435,7 @@
   },
   "ParsedDidSpend": {
     "type": "class",
+    "doc": "holds the inner puzzle and solution extracted from a DID spend.",
     "new": true,
     "fields": {
       "puzzle": "Puzzle",
@@ -390,6 +444,7 @@
   },
   "CreatedDid": {
     "type": "class",
+    "doc": "holds the result of creating an eve DID: the new DID singleton and conditions for the parent coin.",
     "new": true,
     "fields": {
       "did": "Did",
@@ -398,6 +453,7 @@
   },
   "OptionContract": {
     "type": "class",
+    "doc": "represents an on-chain option contract singleton that can be exercised or expire.",
     "new": true,
     "fields": {
       "coin": "Coin",
@@ -406,15 +462,18 @@
     },
     "methods": {
       "child_proof": {
+        "doc": "computes the lineage proof that the child option will need to reference this coin.",
         "return": "Proof"
       },
       "child": {
+        "doc": "creates an expected child option contract with the given inner puzzle hash.",
         "args": {
           "p2_puzzle_hash": "Bytes32"
         },
         "return": "OptionContract"
       },
       "child_with": {
+        "doc": "creates an expected child option contract with the given OptionInfo.",
         "args": {
           "info": "OptionInfo"
         },
@@ -424,6 +483,7 @@
   },
   "OptionInfo": {
     "type": "class",
+    "doc": "holds the identifying information for an option contract: launcher ID, underlying coin, and delegated puzzle hash.",
     "new": true,
     "remote": true,
     "fields": {
@@ -434,15 +494,18 @@
     },
     "methods": {
       "inner_puzzle_hash": {
+        "doc": "computes the inner puzzle hash of the option contract.",
         "return": "TreeHash"
       },
       "puzzle_hash": {
+        "doc": "computes the full puzzle hash of the option contract singleton.",
         "return": "TreeHash"
       }
     }
   },
   "ParsedOptionInfo": {
     "type": "class",
+    "doc": "holds the parsed option contract info and inner puzzle.",
     "new": true,
     "fields": {
       "info": "OptionInfo",
@@ -451,6 +514,7 @@
   },
   "ParsedOption": {
     "type": "class",
+    "doc": "holds the fully parsed option contract state including the inner puzzle and solution.",
     "new": true,
     "fields": {
       "option": "OptionContract",
@@ -460,6 +524,7 @@
   },
   "OptionUnderlying": {
     "type": "class",
+    "doc": "represents the underlying asset locked in an option contract, including strike price and expiration.",
     "new": true,
     "remote": true,
     "fields": {
@@ -471,6 +536,7 @@
     },
     "methods": {
       "exercise_spend": {
+        "doc": "creates the spend to exercise the option, releasing the underlying asset to the holder.",
         "args": {
           "clvm": "Clvm",
           "singleton_inner_puzzle_hash": "Bytes32",
@@ -479,21 +545,25 @@
         "return": "Spend"
       },
       "clawback_spend": {
+        "doc": "creates the spend to claw back the underlying asset after the option expires.",
         "args": {
           "spend": "Spend"
         },
         "return": "Spend"
       },
       "puzzle_hash": {
+        "doc": "computes the puzzle hash of the underlying asset coin.",
         "return": "TreeHash"
       },
       "delegated_puzzle_hash": {
+        "doc": "computes the delegated puzzle hash used to link the option singleton to the underlying.",
         "return": "TreeHash"
       }
     }
   },
   "OptionMetadata": {
     "type": "class",
+    "doc": "holds the metadata stored in an option contract singleton: expiration time and strike type.",
     "new": true,
     "remote": true,
     "fields": {
@@ -503,9 +573,11 @@
   },
   "OptionType": {
     "type": "class",
+    "doc": "represents the strike price type for an option contract: XCH, CAT, revocable CAT, or NFT.",
     "remote": true,
     "methods": {
       "xch": {
+        "doc": "creates an XCH strike price with the given amount.",
         "type": "factory",
         "args": {
           "amount": "u64"
@@ -513,6 +585,7 @@
         "return": "OptionType"
       },
       "cat": {
+        "doc": "creates a CAT strike price with the given asset ID and amount.",
         "type": "factory",
         "args": {
           "asset_id": "Bytes32",
@@ -521,6 +594,7 @@
         "return": "OptionType"
       },
       "revocable_cat": {
+        "doc": "creates a revocable CAT strike price with the given asset ID, hidden puzzle hash, and amount.",
         "type": "factory",
         "args": {
           "asset_id": "Bytes32",
@@ -530,6 +604,7 @@
         "return": "OptionType"
       },
       "nft": {
+        "doc": "creates an NFT strike price with the given launcher ID, settlement puzzle hash, and amount.",
         "type": "factory",
         "args": {
           "launcher_id": "Bytes32",
@@ -539,27 +614,33 @@
         "return": "OptionType"
       },
       "to_xch": {
+        "doc": "returns the XCH strike parameters if this is an XCH option, or nil otherwise.",
         "return": "Option<OptionTypeXch>"
       },
       "to_cat": {
+        "doc": "returns the CAT strike parameters if this is a CAT option, or nil otherwise.",
         "return": "Option<OptionTypeCat>"
       },
       "to_revocable_cat": {
+        "doc": "returns the revocable CAT strike parameters if this is a revocable CAT option, or nil otherwise.",
         "return": "Option<OptionTypeRevocableCat>"
       },
       "to_nft": {
+        "doc": "returns the NFT strike parameters if this is an NFT option, or nil otherwise.",
         "return": "Option<OptionTypeNft>"
       }
     }
   },
   "OptionTypeXch": {
     "type": "class",
+    "doc": "holds the XCH strike price amount for an option contract.",
     "fields": {
       "amount": "u64"
     }
   },
   "OptionTypeCat": {
     "type": "class",
+    "doc": "holds the CAT strike price parameters for an option contract.",
     "fields": {
       "asset_id": "Bytes32",
       "amount": "u64"
@@ -567,6 +648,7 @@
   },
   "OptionTypeRevocableCat": {
     "type": "class",
+    "doc": "holds the revocable CAT strike price parameters for an option contract.",
     "fields": {
       "asset_id": "Bytes32",
       "hidden_puzzle_hash": "Bytes32",
@@ -575,6 +657,7 @@
   },
   "OptionTypeNft": {
     "type": "class",
+    "doc": "holds the NFT strike price parameters for an option contract.",
     "fields": {
       "launcher_id": "Bytes32",
       "settlement_puzzle_hash": "Bytes32",
@@ -583,6 +666,7 @@
   },
   "standard_puzzle_hash": {
     "type": "function",
+    "doc": "computes the puzzle hash of the standard transaction puzzle for the given synthetic key.",
     "args": {
       "synthetic_key": "PublicKey"
     },
@@ -590,6 +674,7 @@
   },
   "cat_puzzle_hash": {
     "type": "function",
+    "doc": "computes the full CAT puzzle hash from the asset ID and inner puzzle hash.",
     "args": {
       "asset_id": "Bytes32",
       "inner_puzzle_hash": "Bytes32"
@@ -598,6 +683,7 @@
   },
   "StreamingPuzzleInfo": {
     "type": "class",
+    "doc": "holds the parameters of a streaming (vesting) payment puzzle: recipient, clawback, timing, and payment state.",
     "new": true,
     "remote": true,
     "fields": {
@@ -608,6 +694,7 @@
     },
     "methods": {
       "amount_to_be_paid": {
+        "doc": "calculates the amount that can be claimed at the given payment time based on the vesting schedule.",
         "args": {
           "my_coin_amount": "u64",
           "payment_time": "u64"
@@ -615,6 +702,7 @@
         "return": "u64"
       },
       "get_hint": {
+        "doc": "computes the hint used to discover streaming payment coins for the given recipient.",
         "type": "static",
         "args": {
           "recipient": "Bytes32"
@@ -622,12 +710,15 @@
         "return": "Bytes32"
       },
       "get_launch_hints": {
+        "doc": "returns the hint memos to embed when creating a streaming payment coin.",
         "return": "Vec<Bytes>"
       },
       "inner_puzzle_hash": {
+        "doc": "computes the inner puzzle hash of the streaming payment puzzle.",
         "return": "Bytes32"
       },
       "from_memos": {
+        "doc": "reconstructs the streaming puzzle info from coin memos, if they match the expected format.",
         "type": "static",
         "args": {
           "memos": "Vec<Bytes>"
@@ -638,6 +729,7 @@
   },
   "StreamedAsset": {
     "type": "class",
+    "doc": "represents a streaming (vesting) asset coin, which can be XCH or a CAT.",
     "new": true,
     "remote": true,
     "fields": {
@@ -648,6 +740,7 @@
     },
     "methods": {
       "xch": {
+        "doc": "creates a streamed XCH asset from the given coin and streaming info.",
         "type": "factory",
         "args": {
           "coin": "Coin",
@@ -655,6 +748,7 @@
         }
       },
       "cat": {
+        "doc": "creates a streamed CAT asset from the given coin, asset ID, lineage proof, and streaming info.",
         "type": "factory",
         "args": {
           "coin": "Coin",
@@ -667,6 +761,7 @@
   },
   "ClawbackV2": {
     "type": "class",
+    "doc": "represents a v2 clawback coin that can be reclaimed by the sender within a time window or claimed by the receiver after.",
     "new": true,
     "remote": true,
     "fields": {
@@ -678,6 +773,7 @@
     },
     "methods": {
       "from_memo": {
+        "doc": "reconstructs a v2 clawback from its coin memo and expected parameters.",
         "type": "static",
         "args": {
           "memo": "Program",
@@ -689,27 +785,32 @@
         "return": "Option<ClawbackV2>"
       },
       "sender_spend": {
+        "doc": "wraps an inner spend to reclaim the clawback coin as the sender (before the timelock expires).",
         "args": {
           "spend": "Spend"
         },
         "return": "Spend"
       },
       "receiver_spend": {
+        "doc": "wraps an inner spend to claim the clawback coin as the receiver (after the timelock expires).",
         "args": {
           "spend": "Spend"
         },
         "return": "Spend"
       },
       "push_through_spend": {
+        "doc": "creates a spend that pushes the clawback coin through to the receiver after the timelock.",
         "args": {
           "clvm": "Clvm"
         },
         "return": "Spend"
       },
       "puzzle_hash": {
+        "doc": "computes the puzzle hash of this clawback coin.",
         "return": "TreeHash"
       },
       "memo": {
+        "doc": "encodes the clawback parameters as a CLVM memo for embedding in coin hints.",
         "args": {
           "clvm": "Clvm"
         },
@@ -719,6 +820,7 @@
   },
   "Clawback": {
     "type": "class",
+    "doc": "represents a v1 clawback coin with a timelock, sender, and receiver puzzle hashes.",
     "new": true,
     "remote": true,
     "fields": {
@@ -728,21 +830,25 @@
     },
     "methods": {
       "sender_spend": {
+        "doc": "wraps an inner spend to reclaim the clawback coin as the sender (before the timelock expires).",
         "args": {
           "spend": "Spend"
         },
         "return": "Spend"
       },
       "receiver_spend": {
+        "doc": "wraps an inner spend to claim the clawback coin as the receiver (after the timelock expires).",
         "args": {
           "spend": "Spend"
         },
         "return": "Spend"
       },
       "puzzle_hash": {
+        "doc": "computes the puzzle hash of this clawback coin.",
         "return": "TreeHash"
       },
       "get_remark_condition": {
+        "doc": "creates the REMARK condition that identifies this coin as a clawback for wallet discovery.",
         "args": {
           "clvm": "Clvm"
         },
@@ -752,6 +858,7 @@
   },
   "MedievalVaultHint": {
     "type": "class",
+    "doc": "holds the hint data for discovering medieval vault coins: launcher ID, threshold, and public keys.",
     "new": true,
     "remote": true,
     "fields": {
@@ -762,6 +869,7 @@
   },
   "MedievalVaultInfo": {
     "type": "class",
+    "doc": "holds the configuration of a medieval vault: launcher ID, M-of-N threshold, and the list of BLS public keys.",
     "new": true,
     "remote": true,
     "fields": {
@@ -771,12 +879,15 @@
     },
     "methods": {
       "inner_puzzle_hash": {
+        "doc": "computes the inner puzzle hash of the medieval vault.",
         "return": "TreeHash"
       },
       "puzzle_hash": {
+        "doc": "computes the full puzzle hash of the medieval vault singleton.",
         "return": "TreeHash"
       },
       "from_hint": {
+        "doc": "reconstructs vault info from a discovered vault hint.",
         "type": "static",
         "args": {
           "hint": "MedievalVaultHint"
@@ -784,12 +895,14 @@
         "return": "MedievalVaultInfo"
       },
       "to_hint": {
+        "doc": "converts the vault info into a hint for coin discovery.",
         "return": "MedievalVaultHint"
       }
     }
   },
   "MedievalVault": {
     "type": "class",
+    "doc": "represents a medieval vault singleton — a BLS M-of-N multisig vault on the Chia blockchain.",
     "new": true,
     "fields": {
       "coin": "Coin",
@@ -798,6 +911,7 @@
     },
     "methods": {
       "child": {
+        "doc": "creates an expected child vault after a rekey operation with new M-of-N parameters.",
         "args": {
           "new_m": "usize",
           "new_public_key_list": "Vec<PublicKey>"
@@ -808,6 +922,7 @@
   },
   "Bulletin": {
     "type": "class",
+    "doc": "represents an on-chain bulletin board singleton for publishing messages.",
     "new": true,
     "remote": true,
     "fields": {
@@ -817,12 +932,14 @@
     },
     "methods": {
       "conditions": {
+        "doc": "generates the CLVM conditions needed to post the bulletin's messages on-chain.",
         "args": {
           "clvm": "Clvm"
         },
         "return": "Vec<Program>"
       },
       "spend": {
+        "doc": "spends the bulletin singleton with the given inner spend, posting its messages.",
         "args": {
           "spend": "Spend"
         }
@@ -831,6 +948,7 @@
   },
   "BulletinMessage": {
     "type": "class",
+    "doc": "represents a single message in a bulletin board, with a topic and content string.",
     "new": true,
     "remote": true,
     "fields": {
@@ -840,6 +958,7 @@
   },
   "CreatedBulletin": {
     "type": "class",
+    "doc": "holds the result of creating a bulletin: the new bulletin singleton and conditions for the parent coin.",
     "new": true,
     "fields": {
       "bulletin": "Bulletin",
@@ -848,6 +967,7 @@
   },
   "bulletin_puzzle_hash": {
     "type": "function",
+    "doc": "computes the puzzle hash of a bulletin board singleton for the given hidden puzzle hash.",
     "args": {
       "hidden_puzzle_hash": "Bytes32"
     },
@@ -855,6 +975,7 @@
   },
   "P2ParentCoin": {
     "type": "class",
+    "doc": "represents a pay-to-parent-coin puzzle, where a coin can only be spent by its parent coin's owner.",
     "new": true,
     "remote": true,
     "fields": {
@@ -864,6 +985,7 @@
     },
     "methods": {
       "inner_puzzle_hash": {
+        "doc": "computes the inner puzzle hash of the pay-to-parent-coin puzzle for the given asset ID.",
         "type": "static",
         "args": {
           "asset_id": "Option<Bytes32>"
@@ -871,6 +993,7 @@
         "return": "TreeHash"
       },
       "puzzle_hash": {
+        "doc": "computes the full puzzle hash of the pay-to-parent-coin for the given asset ID.",
         "type": "static",
         "args": {
           "asset_id": "Option<Bytes32>"
@@ -878,6 +1001,7 @@
         "return": "TreeHash"
       },
       "spend": {
+        "doc": "spends the pay-to-parent-coin with a delegated spend from the parent's owner.",
         "args": {
           "delegated_spend": "Spend"
         }
@@ -886,6 +1010,7 @@
   },
   "P2ParentCoinChildParseResult": {
     "type": "class",
+    "doc": "holds a parsed pay-to-parent-coin child and its associated memos.",
     "new": true,
     "fields": {
       "p2_parent_coin": "P2ParentCoin",

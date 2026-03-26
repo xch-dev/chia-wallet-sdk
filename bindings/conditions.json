@@ -1,6 +1,7 @@
 {
   "Remark": {
     "type": "class",
+    "doc": "represents a REMARK condition (opcode 1) that attaches arbitrary data to a coin spend without affecting consensus.",
     "new": true,
     "fields": {
       "rest": "Program"
@@ -8,6 +9,7 @@
   },
   "AggSigParent": {
     "type": "class",
+    "doc": "represents an AGG_SIG_PARENT condition that requires a BLS signature bound to the parent coin ID.",
     "new": true,
     "fields": {
       "public_key": "PublicKey",
@@ -16,6 +18,7 @@
   },
   "AggSigPuzzle": {
     "type": "class",
+    "doc": "represents an AGG_SIG_PUZZLE condition that requires a BLS signature bound to the puzzle hash.",
     "new": true,
     "fields": {
       "public_key": "PublicKey",
@@ -24,6 +27,7 @@
   },
   "AggSigAmount": {
     "type": "class",
+    "doc": "represents an AGG_SIG_AMOUNT condition that requires a BLS signature bound to the coin amount.",
     "new": true,
     "fields": {
       "public_key": "PublicKey",
@@ -32,6 +36,7 @@
   },
   "AggSigPuzzleAmount": {
     "type": "class",
+    "doc": "represents an AGG_SIG_PUZZLE_AMOUNT condition that requires a BLS signature bound to both puzzle hash and amount.",
     "new": true,
     "fields": {
       "public_key": "PublicKey",
@@ -40,6 +45,7 @@
   },
   "AggSigParentAmount": {
     "type": "class",
+    "doc": "represents an AGG_SIG_PARENT_AMOUNT condition that requires a BLS signature bound to both parent ID and amount.",
     "new": true,
     "fields": {
       "public_key": "PublicKey",
@@ -48,6 +54,7 @@
   },
   "AggSigParentPuzzle": {
     "type": "class",
+    "doc": "represents an AGG_SIG_PARENT_PUZZLE condition that requires a BLS signature bound to both parent ID and puzzle hash.",
     "new": true,
     "fields": {
       "public_key": "PublicKey",
@@ -56,6 +63,7 @@
   },
   "AggSigUnsafe": {
     "type": "class",
+    "doc": "represents an AGG_SIG_UNSAFE condition that requires a BLS signature on the raw message without domain separation.",
     "new": true,
     "fields": {
       "public_key": "PublicKey",
@@ -64,6 +72,7 @@
   },
   "AggSigMe": {
     "type": "class",
+    "doc": "represents an AGG_SIG_ME condition that requires a BLS signature bound to the coin ID and genesis challenge.",
     "new": true,
     "fields": {
       "public_key": "PublicKey",
@@ -72,6 +81,7 @@
   },
   "CreateCoin": {
     "type": "class",
+    "doc": "represents a CREATE_COIN condition that creates a new coin with the given puzzle hash, amount, and optional memos.",
     "new": true,
     "fields": {
       "puzzle_hash": "Bytes32",
@@ -81,6 +91,7 @@
   },
   "ReserveFee": {
     "type": "class",
+    "doc": "represents a RESERVE_FEE condition that reserves a minimum transaction fee from this coin's spend.",
     "new": true,
     "fields": {
       "amount": "u64"
@@ -88,6 +99,7 @@
   },
   "CreateCoinAnnouncement": {
     "type": "class",
+    "doc": "represents a CREATE_COIN_ANNOUNCEMENT condition that broadcasts a message from this coin.",
     "new": true,
     "fields": {
       "message": "Bytes"
@@ -95,6 +107,7 @@
   },
   "CreatePuzzleAnnouncement": {
     "type": "class",
+    "doc": "represents a CREATE_PUZZLE_ANNOUNCEMENT condition that broadcasts a message from this puzzle hash.",
     "new": true,
     "fields": {
       "message": "Bytes"
@@ -102,6 +115,7 @@
   },
   "AssertCoinAnnouncement": {
     "type": "class",
+    "doc": "represents an ASSERT_COIN_ANNOUNCEMENT condition that requires a specific coin announcement to exist.",
     "new": true,
     "fields": {
       "announcement_id": "Bytes32"
@@ -109,6 +123,7 @@
   },
   "AssertPuzzleAnnouncement": {
     "type": "class",
+    "doc": "represents an ASSERT_PUZZLE_ANNOUNCEMENT condition that requires a specific puzzle announcement to exist.",
     "new": true,
     "fields": {
       "announcement_id": "Bytes32"
@@ -116,6 +131,7 @@
   },
   "AssertConcurrentSpend": {
     "type": "class",
+    "doc": "represents an ASSERT_CONCURRENT_SPEND condition that requires another coin to be spent in the same block.",
     "new": true,
     "fields": {
       "coin_id": "Bytes32"
@@ -123,6 +139,7 @@
   },
   "AssertConcurrentPuzzle": {
     "type": "class",
+    "doc": "represents an ASSERT_CONCURRENT_PUZZLE condition that requires a coin with the given puzzle hash to be spent concurrently.",
     "new": true,
     "fields": {
       "puzzle_hash": "Bytes32"
@@ -130,6 +147,7 @@
   },
   "AssertSecondsRelative": {
     "type": "class",
+    "doc": "represents an ASSERT_SECONDS_RELATIVE condition that requires a minimum time to have passed since the coin was created.",
     "new": true,
     "fields": {
       "seconds": "u64"
@@ -137,6 +155,7 @@
   },
   "AssertSecondsAbsolute": {
     "type": "class",
+    "doc": "represents an ASSERT_SECONDS_ABSOLUTE condition that requires the block timestamp to be at least the given value.",
     "new": true,
     "fields": {
       "seconds": "u64"
@@ -144,6 +163,7 @@
   },
   "AssertHeightRelative": {
     "type": "class",
+    "doc": "represents an ASSERT_HEIGHT_RELATIVE condition that requires a minimum number of blocks since the coin was created.",
     "new": true,
     "fields": {
       "height": "u32"
@@ -151,6 +171,7 @@
   },
   "AssertHeightAbsolute": {
     "type": "class",
+    "doc": "represents an ASSERT_HEIGHT_ABSOLUTE condition that requires the block height to be at least the given value.",
     "new": true,
     "fields": {
       "height": "u32"
@@ -158,6 +179,7 @@
   },
   "AssertBeforeSecondsRelative": {
     "type": "class",
+    "doc": "represents an ASSERT_BEFORE_SECONDS_RELATIVE condition that requires the spend to occur before a relative time.",
     "new": true,
     "fields": {
       "seconds": "u64"
@@ -165,6 +187,7 @@
   },
   "AssertBeforeSecondsAbsolute": {
     "type": "class",
+    "doc": "represents an ASSERT_BEFORE_SECONDS_ABSOLUTE condition that requires the spend to occur before an absolute timestamp.",
     "new": true,
     "fields": {
       "seconds": "u64"
@@ -172,6 +195,7 @@
   },
   "AssertBeforeHeightRelative": {
     "type": "class",
+    "doc": "represents an ASSERT_BEFORE_HEIGHT_RELATIVE condition that requires the spend to occur before a relative block height.",
     "new": true,
     "fields": {
       "height": "u32"
@@ -179,6 +203,7 @@
   },
   "AssertBeforeHeightAbsolute": {
     "type": "class",
+    "doc": "represents an ASSERT_BEFORE_HEIGHT_ABSOLUTE condition that requires the spend to occur before an absolute block height.",
     "new": true,
     "fields": {
       "height": "u32"
@@ -186,6 +211,7 @@
   },
   "AssertMyCoinId": {
     "type": "class",
+    "doc": "represents an ASSERT_MY_COIN_ID condition that verifies the spending coin's ID matches the expected value.",
     "new": true,
     "fields": {
       "coin_id": "Bytes32"
@@ -193,6 +219,7 @@
   },
   "AssertMyParentId": {
     "type": "class",
+    "doc": "represents an ASSERT_MY_PARENT_ID condition that verifies the spending coin's parent ID.",
     "new": true,
     "fields": {
       "parent_id": "Bytes32"
@@ -200,6 +227,7 @@
   },
   "AssertMyPuzzleHash": {
     "type": "class",
+    "doc": "represents an ASSERT_MY_PUZZLEHASH condition that verifies the spending coin's puzzle hash.",
     "new": true,
     "fields": {
       "puzzle_hash": "Bytes32"
@@ -207,6 +235,7 @@
   },
   "AssertMyAmount": {
     "type": "class",
+    "doc": "represents an ASSERT_MY_AMOUNT condition that verifies the spending coin's amount.",
     "new": true,
     "fields": {
       "amount": "u64"
@@ -214,6 +243,7 @@
   },
   "AssertMyBirthSeconds": {
     "type": "class",
+    "doc": "represents an ASSERT_MY_BIRTH_SECONDS condition that verifies the timestamp when the coin was created.",
     "new": true,
     "fields": {
       "seconds": "u64"
@@ -221,6 +251,7 @@
   },
   "AssertMyBirthHeight": {
     "type": "class",
+    "doc": "represents an ASSERT_MY_BIRTH_HEIGHT condition that verifies the block height when the coin was created.",
     "new": true,
     "fields": {
       "height": "u32"
@@ -228,10 +259,12 @@
   },
   "AssertEphemeral": {
     "type": "class",
+    "doc": "represents an ASSERT_EPHEMERAL condition that requires the coin to be created and spent in the same block.",
     "new": true
   },
   "SendMessage": {
     "type": "class",
+    "doc": "represents a SEND_MESSAGE condition (CHIP-0025) that sends a cross-coin message with a mode and data.",
     "new": true,
     "fields": {
       "mode": "u8",
@@ -241,6 +274,7 @@
   },
   "ReceiveMessage": {
     "type": "class",
+    "doc": "represents a RECEIVE_MESSAGE condition (CHIP-0025) that receives a cross-coin message with a mode and data.",
     "new": true,
     "fields": {
       "mode": "u8",
@@ -250,6 +284,7 @@
   },
   "Softfork": {
     "type": "class",
+    "doc": "represents a SOFTFORK condition that reserves cost for future consensus rule changes.",
     "new": true,
     "fields": {
       "cost": "u64",
@@ -258,11 +293,13 @@
   },
   "MeltSingleton": {
     "type": "class",
+    "doc": "represents a condition that permanently destroys a singleton by melting it.",
     "new": true,
     "fields": {}
   },
   "TransferNft": {
     "type": "class",
+    "doc": "represents an NFT transfer condition that changes the DID owner and includes trade prices for royalty calculation.",
     "new": true,
     "fields": {
       "launcher_id": "Option<Bytes32>",
@@ -272,6 +309,7 @@
   },
   "RunCatTail": {
     "type": "class",
+    "doc": "represents a RUN_CAT_TAIL condition that executes a CAT's TAIL program to validate supply changes.",
     "new": true,
     "fields": {
       "program": "Program",
@@ -280,6 +318,7 @@
   },
   "UpdateNftMetadata": {
     "type": "class",
+    "doc": "represents an NFT metadata update condition that runs the metadata updater puzzle with a solution.",
     "new": true,
     "fields": {
       "updater_puzzle_reveal": "Program",
@@ -288,6 +327,7 @@
   },
   "UpdateDataStoreMerkleRoot": {
     "type": "class",
+    "doc": "represents a DataLayer merkle root update condition that sets the new root hash with optional memos.",
     "new": true,
     "fields": {
       "new_merkle_root": "Bytes32",
@@ -296,6 +336,7 @@
   },
   "TradePrice": {
     "type": "class",
+    "doc": "represents a trade price entry for NFT royalty calculation: the trade amount and the settlement puzzle hash.",
     "new": true,
     "remote": true,
     "fields": {

@@ -1108,6 +1108,212 @@ impl GoGen {
         classify(ty, &self.mappings, &self.classes, &self.enums)
     }
 
+    /// Convert a PascalCase name into a lowercase spaced form for use in doc comments.
+    /// e.g. "AddCoinSpend" → "add coin spend", "P2PuzzleHashes" → "P2 puzzle hashes".
+    fn humanize(pascal: &str) -> String {
+        let mut words = Vec::new();
+        let mut cur = String::new();
+        for ch in pascal.chars() {
+            if ch.is_ascii_uppercase() && !cur.is_empty() {
+                // Don't split consecutive uppercase (e.g. "P2" stays together)
+                if cur.chars().last().map_or(false, |c| c.is_ascii_lowercase() || c.is_ascii_digit()) {
+                    words.push(cur);
+                    cur = String::new();
+                }
+            }
+            cur.push(ch);
+        }
+        if !cur.is_empty() {
+            words.push(cur);
+        }
+        if words.is_empty() {
+            return pascal.to_string();
+        }
+        // Lowercase all words except those that look like acronyms/identifiers (all-uppercase + digits)
+        words
+            .iter()
+            .enumerate()
+            .map(|(i, w)| {
+                let is_acronym = w.len() <= 3
+                    && w.chars()
+                        .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit());
+                if is_acronym && i > 0 {
+                    w.to_string()
+                } else if i == 0 {
+                    let mut chars = w.chars();
+                    match chars.next() {
+                        Some(first) => {
+                            first.to_lowercase().to_string() + &chars.as_str().to_string()
+                        }
+                        None => String::new(),
+                    }
+                } else {
+                    w.to_lowercase()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    /// Generate a smart fallback doc comment for a method based on its signature.
+    fn generate_method_doc(
+        class_name: &str,
+        method_name: &str,     // original snake_case
+        go_name: &str,         // PascalCase Go name
+        method: &Method,
+        is_instance: bool,
+    ) -> String {
+        let has_return = method.ret.is_some()
+            || matches!(
+                method.kind,
+                MethodKind::Factory | MethodKind::AsyncFactory | MethodKind::Constructor
+            );
+        let is_bool_return = method
+            .ret
+            .as_deref()
+            .map_or(false, |r| r == "bool");
+        let has_args = !method.args.is_empty();
+
+        // 0. "new" constructors (static kind but named "new")
+        if method_name == "new" {
+            if has_args {
+                let arg_names: Vec<String> = method
+                    .args
+                    .keys()
+                    .map(|a| a.to_case(Case::Camel))
+                    .collect();
+                return format!(
+                    "creates a new [{class_name}] with the given {}.",
+                    arg_names.join(", ")
+                );
+            }
+            return format!("creates a new [{class_name}].");
+        }
+
+        // 1. Boolean predicates: is_*, has_*
+        if is_bool_return && (method_name.starts_with("is_") || method_name.starts_with("has_")) {
+            let predicate = if method_name.starts_with("is_") {
+                &method_name[3..]
+            } else {
+                &method_name[4..]
+            };
+            let human = Self::humanize(&predicate.to_case(Case::Pascal));
+            return format!("reports whether the [{class_name}] is {human}.");
+        }
+
+        // 2. to_* converters (instance, has return, no extra args)
+        if is_instance && has_return && !has_args && method_name.starts_with("to_") {
+            let target = &method_name[3..];
+            let human = Self::humanize(&target.to_case(Case::Pascal));
+            return format!("returns the {human} representation of the [{class_name}].");
+        }
+
+        // 3. Getters (instance, no args, has return)
+        if is_instance && has_return && !has_args {
+            let human = Self::humanize(go_name);
+            return format!("returns the {human} of the [{class_name}].");
+        }
+
+        // 4. Instance actions with args
+        if is_instance && has_args {
+            let human = Self::humanize(go_name);
+            let arg_names: Vec<String> = method
+                .args
+                .keys()
+                .map(|a| a.to_case(Case::Camel))
+                .collect();
+            if has_return {
+                return format!(
+                    "computes the {human} for the given {}.",
+                    arg_names.join(", ")
+                );
+            }
+            return format!(
+                "performs {human} with the given {}.",
+                arg_names.join(", ")
+            );
+        }
+
+        // 5. Static / factory methods with args
+        if !is_instance && has_args {
+            let human = Self::humanize(go_name);
+            let arg_names: Vec<String> = method
+                .args
+                .keys()
+                .map(|a| a.to_case(Case::Camel))
+                .collect();
+            if has_return {
+                return format!(
+                    "computes the {human} for the given {}.",
+                    arg_names.join(", ")
+                );
+            }
+            return format!(
+                "performs {human} with the given {}.",
+                arg_names.join(", ")
+            );
+        }
+
+        // 6. Static, no args, has return
+        if !is_instance && has_return && !has_args {
+            let human = Self::humanize(go_name);
+            return format!("returns the {human}.");
+        }
+
+        // 7. Fallback
+        let human = Self::humanize(go_name);
+        format!("performs {human} on the [{class_name}].")
+    }
+
+    /// Generate a smart fallback doc comment for a standalone function.
+    fn generate_function_doc(
+        go_name: &str,
+        args: &IndexMap<String, String>,
+        ret: &Option<String>,
+    ) -> String {
+        let has_return = ret.is_some();
+        let has_args = !args.is_empty();
+
+        if has_args {
+            let arg_names: Vec<String> = args
+                .keys()
+                .map(|a| a.to_case(Case::Camel))
+                .collect();
+            let human = Self::humanize(go_name);
+            if has_return {
+                return format!(
+                    "computes the {human} for the given {}.",
+                    arg_names.join(", ")
+                );
+            }
+            return format!(
+                "performs {human} with the given {}.",
+                arg_names.join(", ")
+            );
+        }
+
+        let human = Self::humanize(go_name);
+        if has_return {
+            format!("returns the {human}.")
+        } else {
+            format!("performs {human}.")
+        }
+    }
+
+    /// Rename a PascalCase Go method name to idiomatic Go conventions.
+    /// Only applies to instance converter methods (To* with no extra args).
+    fn go_rename_method(pascal: &str, is_instance: bool, has_args: bool) -> String {
+        if !is_instance || has_args {
+            return pascal.to_string();
+        }
+        if let Some(rest) = pascal.strip_prefix("To") {
+            if !rest.is_empty() && rest.chars().next().unwrap().is_ascii_uppercase() {
+                return rest.to_string();
+            }
+        }
+        pascal.to_string()
+    }
+
     fn go_type(&self, kind: &FfiKind) -> String {
         match kind {
             FfiKind::Void => String::new(),
@@ -1244,7 +1450,7 @@ func bigIntFromSignedBytes(b []byte) *big.Int {
         // Go struct
         let type_doc = match doc {
             Some(d) => format!("// {name} {d}"),
-            None => format!("// {name} wraps a Rust {name} value behind an opaque pointer."),
+            None => format!("// {name} represents a {name} in the Chia wallet SDK."),
         };
         self.body.push_str(&format!(
             r#"{type_doc}
@@ -1562,8 +1768,6 @@ func (o *{class_name}) {go_name}(value {go_ty}) error {{
     fn write_method(&mut self, class_name: &str, mname: &str, method: &Method) {
         let snake = class_name.to_case(Case::Snake);
         let method_snake = mname.to_case(Case::Snake);
-        let go_method_name = mname.to_case(Case::Pascal);
-
         let is_instance = matches!(
             method.kind,
             MethodKind::Normal | MethodKind::Async | MethodKind::ToString
@@ -1571,6 +1775,11 @@ func (o *{class_name}) {go_name}(value {go_ty}) error {{
         let is_factory = matches!(
             method.kind,
             MethodKind::Factory | MethodKind::AsyncFactory
+        );
+        let go_method_name = Self::go_rename_method(
+            &mname.to_case(Case::Pascal),
+            is_instance,
+            !method.args.is_empty(),
         );
 
         let ret_type_str = method.ret.as_deref().unwrap_or(
@@ -1689,7 +1898,10 @@ func (o *{class_name}) {go_name}(value {go_ty}) error {{
         // Determine if this is a method or function
         let method_doc = match &method.doc {
             Some(d) => format!("// {go_method_name} {d}"),
-            None => format!("// {go_method_name} calls [{class_name}]'s {go_method_name} method."),
+            None => {
+                let doc = Self::generate_method_doc(class_name, mname, &go_method_name, method, is_instance);
+                format!("// {go_method_name} {doc}")
+            }
         };
 
         if is_instance {
@@ -1757,7 +1969,10 @@ func (o *{class_name}) {go_method_name}({go_params_str}) ({go_ret_ty}, error) {{
             if is_void {
                 let static_doc = match &method.doc {
                     Some(d) => format!("// {func_name} {d}"),
-                    None => format!("// {func_name} is a static method on [{class_name}]."),
+                    None => {
+                        let doc = Self::generate_method_doc(class_name, mname, &go_method_name, method, false);
+                        format!("// {func_name} {doc}")
+                    }
                 };
                 self.body.push_str(&format!(
                     r#"{static_doc}
@@ -1781,7 +1996,8 @@ func {func_name}({go_params_str}) error {{
                     None => if is_factory {
                         format!("// {func_name} creates a new [{class_name}] via the {go_method_name} factory.")
                     } else {
-                        format!("// {func_name} is a static method on [{class_name}].")
+                        let doc = Self::generate_method_doc(class_name, mname, &go_method_name, method, false);
+                        format!("// {func_name} {doc}")
                     },
                 };
                 self.body.push_str(&format!(
@@ -1828,7 +2044,7 @@ func {func_name}({go_params_str}) ({go_ret_ty}, error) {{
         // Go enum as struct with ptr (like classes, since Rust uses opaque pointers)
         let enum_doc = match doc {
             Some(d) => format!("// {name} {d}"),
-            None => format!("// {name} represents a Rust {name} enum value behind an opaque pointer."),
+            None => format!("// {name} represents a {name} variant."),
         };
         self.body.push_str(&format!(
             r#"{enum_doc}
@@ -2027,7 +2243,10 @@ func New{name}{go_name}() (*{name}, error) {{
 
         let func_doc = match doc {
             Some(d) => format!("// {go_name} {d}"),
-            None => format!("// {go_name} is a standalone binding function."),
+            None => {
+                let doc = Self::generate_function_doc(&go_name, args, ret);
+                format!("// {go_name} {doc}")
+            }
         };
 
         if is_void {

@@ -23,9 +23,9 @@ func TestSecretKeyFromSeed(t *testing.T) {
 	}
 	defer pk.Free()
 
-	pkBytes, err := pk.ToBytes()
+	pkBytes, err := pk.Bytes()
 	if err != nil {
-		t.Fatalf("ToBytes: %v", err)
+		t.Fatalf("Bytes: %v", err)
 	}
 	if len(pkBytes) != 48 {
 		t.Fatalf("expected 48 bytes, got %d", len(pkBytes))
@@ -41,9 +41,9 @@ func TestSecretKeyRoundtrip(t *testing.T) {
 	}
 	defer sk.Free()
 
-	skBytes, err := sk.ToBytes()
+	skBytes, err := sk.Bytes()
 	if err != nil {
-		t.Fatalf("ToBytes: %v", err)
+		t.Fatalf("Bytes: %v", err)
 	}
 	if len(skBytes) != 32 {
 		t.Fatalf("expected 32 bytes, got %d", len(skBytes))
@@ -55,9 +55,9 @@ func TestSecretKeyRoundtrip(t *testing.T) {
 	}
 	defer sk2.Free()
 
-	skBytes2, err := sk2.ToBytes()
+	skBytes2, err := sk2.Bytes()
 	if err != nil {
-		t.Fatalf("ToBytes: %v", err)
+		t.Fatalf("Bytes: %v", err)
 	}
 	if !bytes.Equal(skBytes, skBytes2) {
 		t.Fatal("secret key bytes should match after roundtrip")
@@ -79,11 +79,11 @@ func TestSecretKeyDerivation(t *testing.T) {
 	}
 	defer child.Free()
 
-	childBytes, err := child.ToBytes()
+	childBytes, err := child.Bytes()
 	if err != nil {
 		t.Fatalf("child ToBytes: %v", err)
 	}
-	skBytes, err := sk.ToBytes()
+	skBytes, err := sk.Bytes()
 	if err != nil {
 		t.Fatalf("sk ToBytes: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestSecretKeyDerivation(t *testing.T) {
 	}
 	defer child2.Free()
 
-	child2Bytes, err := child2.ToBytes()
+	child2Bytes, err := child2.Bytes()
 	if err != nil {
 		t.Fatalf("child2 ToBytes: %v", err)
 	}
@@ -121,11 +121,11 @@ func TestSyntheticKeyDerivation(t *testing.T) {
 	}
 	defer synth.Free()
 
-	synthBytes, err := synth.ToBytes()
+	synthBytes, err := synth.Bytes()
 	if err != nil {
-		t.Fatalf("ToBytes: %v", err)
+		t.Fatalf("Bytes: %v", err)
 	}
-	skBytes, err := sk.ToBytes()
+	skBytes, err := sk.Bytes()
 	if err != nil {
 		t.Fatalf("sk ToBytes: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestBlsSignAndVerify(t *testing.T) {
 	}
 	defer sig.Free()
 
-	sigBytes, err := sig.ToBytes()
+	sigBytes, err := sig.Bytes()
 	if err != nil {
 		t.Fatalf("sig ToBytes: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestSignatureAggregation(t *testing.T) {
 	}
 	defer aggSig.Free()
 
-	aggSigBytes, err := aggSig.ToBytes()
+	aggSigBytes, err := aggSig.Bytes()
 	if err != nil {
 		t.Fatalf("aggSig ToBytes: %v", err)
 	}
@@ -257,9 +257,9 @@ func TestPublicKeyAggregation(t *testing.T) {
 	}
 	defer aggPk.Free()
 
-	aggBytes, err := aggPk.ToBytes()
+	aggBytes, err := aggPk.Bytes()
 	if err != nil {
-		t.Fatalf("ToBytes: %v", err)
+		t.Fatalf("Bytes: %v", err)
 	}
 	if len(aggBytes) != 48 {
 		t.Fatalf("expected 48 bytes, got %d", len(aggBytes))
@@ -357,8 +357,8 @@ func TestPublicKeyUnhardenedDerivation(t *testing.T) {
 	childPkFromSk, _ := childSk.PublicKey()
 	defer childPkFromSk.Free()
 
-	pkBytes, _ := childPk.ToBytes()
-	pkFromSkBytes, _ := childPkFromSk.ToBytes()
+	pkBytes, _ := childPk.Bytes()
+	pkFromSkBytes, _ := childPkFromSk.Bytes()
 	if !bytes.Equal(pkBytes, pkFromSkBytes) {
 		t.Fatal("unhardened PK derivation should match SK derivation")
 	}
@@ -373,7 +373,7 @@ func TestSignatureRoundtrip(t *testing.T) {
 	sig, _ := sk.Sign([]byte("test"))
 	defer sig.Free()
 
-	sigBytes, _ := sig.ToBytes()
+	sigBytes, _ := sig.Bytes()
 
 	sig2, err := NewSignatureFromBytes(sigBytes)
 	if err != nil {
@@ -381,7 +381,7 @@ func TestSignatureRoundtrip(t *testing.T) {
 	}
 	defer sig2.Free()
 
-	sigBytes2, _ := sig2.ToBytes()
+	sigBytes2, _ := sig2.Bytes()
 	if !bytes.Equal(sigBytes, sigBytes2) {
 		t.Fatal("signature bytes should survive roundtrip")
 	}
@@ -404,9 +404,9 @@ func TestK1KeyPair(t *testing.T) {
 	}
 	defer pk.Free()
 
-	pkBytes, err := pk.ToBytes()
+	pkBytes, err := pk.Bytes()
 	if err != nil {
-		t.Fatalf("ToBytes: %v", err)
+		t.Fatalf("Bytes: %v", err)
 	}
 	if len(pkBytes) != 33 {
 		t.Fatalf("expected 33 byte compressed K1 pubkey, got %d", len(pkBytes))
@@ -437,7 +437,7 @@ func TestK1SignAndVerify(t *testing.T) {
 	}
 	defer sig.Free()
 
-	sigBytes, err := sig.ToBytes()
+	sigBytes, err := sig.Bytes()
 	if err != nil {
 		t.Fatalf("sig ToBytes: %v", err)
 	}
@@ -469,14 +469,14 @@ func TestK1KeyRoundtrip(t *testing.T) {
 	sk, _ := NewK1SecretKeyFromBytes(skBytes[:])
 	defer sk.Free()
 
-	exported, _ := sk.ToBytes()
+	exported, _ := sk.Bytes()
 	sk2, err := NewK1SecretKeyFromBytes(exported)
 	if err != nil {
 		t.Fatalf("NewK1SecretKeyFromBytes roundtrip: %v", err)
 	}
 	defer sk2.Free()
 
-	exported2, _ := sk2.ToBytes()
+	exported2, _ := sk2.Bytes()
 	if !bytes.Equal(exported, exported2) {
 		t.Fatal("K1 secret key roundtrip failed")
 	}
@@ -491,9 +491,9 @@ func TestMnemonic24Words(t *testing.T) {
 	}
 	defer mnemonic.Free()
 
-	s, err := mnemonic.ToString()
+	s, err := mnemonic.String()
 	if err != nil {
-		t.Fatalf("ToString: %v", err)
+		t.Fatalf("String: %v", err)
 	}
 
 	words := splitWords(s)
@@ -509,9 +509,9 @@ func TestMnemonic12Words(t *testing.T) {
 	}
 	defer mnemonic.Free()
 
-	s, err := mnemonic.ToString()
+	s, err := mnemonic.String()
 	if err != nil {
-		t.Fatalf("ToString: %v", err)
+		t.Fatalf("String: %v", err)
 	}
 
 	words := splitWords(s)
@@ -524,7 +524,7 @@ func TestMnemonicRoundtrip(t *testing.T) {
 	mnemonic, _ := NewMnemonicGenerate(true)
 	defer mnemonic.Free()
 
-	s, _ := mnemonic.ToString()
+	s, _ := mnemonic.String()
 
 	ok, err := MnemonicVerify(s)
 	if err != nil {
@@ -541,7 +541,7 @@ func TestMnemonicRoundtrip(t *testing.T) {
 	}
 	defer m2.Free()
 
-	s2, _ := m2.ToString()
+	s2, _ := m2.String()
 	if s != s2 {
 		t.Fatal("mnemonic roundtrip failed")
 	}
@@ -573,9 +573,9 @@ func TestMnemonicEntropy(t *testing.T) {
 	mnemonic, _ := NewMnemonicGenerate(true)
 	defer mnemonic.Free()
 
-	entropy, err := mnemonic.ToEntropy()
+	entropy, err := mnemonic.Entropy()
 	if err != nil {
-		t.Fatalf("ToEntropy: %v", err)
+		t.Fatalf("Entropy: %v", err)
 	}
 	if len(entropy) != 32 {
 		t.Fatalf("expected 32 byte entropy for 24 words, got %d", len(entropy))
@@ -588,8 +588,8 @@ func TestMnemonicEntropy(t *testing.T) {
 	}
 	defer m2.Free()
 
-	s1, _ := mnemonic.ToString()
-	s2, _ := m2.ToString()
+	s1, _ := mnemonic.String()
+	s2, _ := m2.String()
 	if s1 != s2 {
 		t.Fatal("mnemonic from entropy should match original")
 	}
@@ -860,9 +860,9 @@ func TestSpendBundleCreation(t *testing.T) {
 	}
 
 	// Test serialization roundtrip
-	sbBytes, err := sb.ToBytes()
+	sbBytes, err := sb.Bytes()
 	if err != nil {
-		t.Fatalf("ToBytes: %v", err)
+		t.Fatalf("Bytes: %v", err)
 	}
 	if len(sbBytes) == 0 {
 		t.Fatal("spend bundle bytes should not be empty")
@@ -1617,9 +1617,9 @@ func TestConcurrentMethodCalls(t *testing.T) {
 	for range 20 {
 		wg.Go(func() {
 			for range 50 {
-				b, err := sk.ToBytes()
+				b, err := sk.Bytes()
 				if err != nil {
-					t.Errorf("ToBytes: %v", err)
+					t.Errorf("Bytes: %v", err)
 					return
 				}
 				if len(b) != 32 {
@@ -1668,7 +1668,7 @@ func TestConcurrentCloseWhileUsing(t *testing.T) {
 	// Goroutine 1: repeatedly read
 	wg.Go(func() {
 		for range 100 {
-			_, _ = sk.ToBytes() // may return error after close, that's fine
+			_, _ = sk.Bytes() // may return error after close, that's fine
 		}
 	})
 
@@ -1689,7 +1689,7 @@ func TestUseAfterClose(t *testing.T) {
 	sk.Close()
 
 	// Should return error, not panic
-	_, err = sk.ToBytes()
+	_, err = sk.Bytes()
 	if err == nil {
 		t.Fatal("expected error for use after close")
 	}
@@ -1731,9 +1731,9 @@ func TestConcurrentClone(t *testing.T) {
 				return
 			}
 			defer clone.Close()
-			b, err := clone.ToBytes()
+			b, err := clone.Bytes()
 			if err != nil {
-				t.Errorf("ToBytes on clone: %v", err)
+				t.Errorf("Bytes on clone: %v", err)
 				return
 			}
 			if len(b) != 32 {

@@ -176,7 +176,7 @@ func (o *CurriedProgram) clvmAlloc(c *Clvm) (*Program, error) {
 // ── Key types → atom ────────────────────────────────────────────────────
 
 func (o *PublicKey) clvmAlloc(c *Clvm) (*Program, error) {
-	b, err := o.ToBytes()
+	b, err := o.Bytes()
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func (o *PublicKey) clvmAlloc(c *Clvm) (*Program, error) {
 }
 
 func (o *Signature) clvmAlloc(c *Clvm) (*Program, error) {
-	b, err := o.ToBytes()
+	b, err := o.Bytes()
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +192,7 @@ func (o *Signature) clvmAlloc(c *Clvm) (*Program, error) {
 }
 
 func (o *K1PublicKey) clvmAlloc(c *Clvm) (*Program, error) {
-	b, err := o.ToBytes()
+	b, err := o.Bytes()
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +200,7 @@ func (o *K1PublicKey) clvmAlloc(c *Clvm) (*Program, error) {
 }
 
 func (o *K1Signature) clvmAlloc(c *Clvm) (*Program, error) {
-	b, err := o.ToBytes()
+	b, err := o.Bytes()
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +208,7 @@ func (o *K1Signature) clvmAlloc(c *Clvm) (*Program, error) {
 }
 
 func (o *R1PublicKey) clvmAlloc(c *Clvm) (*Program, error) {
-	b, err := o.ToBytes()
+	b, err := o.Bytes()
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +216,7 @@ func (o *R1PublicKey) clvmAlloc(c *Clvm) (*Program, error) {
 }
 
 func (o *R1Signature) clvmAlloc(c *Clvm) (*Program, error) {
-	b, err := o.ToBytes()
+	b, err := o.Bytes()
 	if err != nil {
 		return nil, err
 	}

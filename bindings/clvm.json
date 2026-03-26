@@ -1,43 +1,52 @@
 {
   "Clvm": {
     "type": "class",
+    "doc": "is the CLVM allocator and transaction builder. It manages memory for Chialisp programs and accumulates coin spends for a transaction.",
     "methods": {
       "new": {
+        "doc": "creates a new CLVM allocator and transaction context.",
         "type": "constructor"
       },
       "add_coin_spend": {
+        "doc": "adds a pre-built coin spend to the transaction being constructed.",
         "args": {
           "coin_spend": "CoinSpend"
         }
       },
       "spend_coin": {
+        "doc": "spends a coin by combining it with a puzzle reveal and solution, adding it to the transaction.",
         "args": {
           "coin": "Coin",
           "spend": "Spend"
         }
       },
       "coin_spends": {
+        "doc": "returns all coin spends accumulated in this transaction context.",
         "return": "Vec<CoinSpend>"
       },
       "parse": {
+        "doc": "parses a Chialisp source string into a CLVM program.",
         "args": {
           "program": "String"
         },
         "return": "Program"
       },
       "deserialize": {
+        "doc": "deserializes a binary-encoded CLVM program.",
         "args": {
           "value": "SerializedProgram"
         },
         "return": "Program"
       },
       "deserialize_with_backrefs": {
+        "doc": "deserializes a CLVM program that uses backref compression (CHIP-0002).",
         "args": {
           "value": "SerializedProgram"
         },
         "return": "Program"
       },
       "cache": {
+        "doc": "caches a serialized program by its tree hash for efficient reuse across spends.",
         "args": {
           "mod_hash": "Bytes32",
           "value": "SerializedProgram"
@@ -45,6 +54,7 @@
         "return": "Program"
       },
       "alloc": {
+        "doc": "allocates a typed value as a CLVM program in the allocator.",
         "stub_only": true,
         "args": {
           "value": "ClvmType"
@@ -52,6 +62,7 @@
         "return": "Program"
       },
       "pair": {
+        "doc": "creates a CLVM cons pair (the fundamental compound structure in Chialisp).",
         "args": {
           "first": "Program",
           "rest": "Program"
@@ -59,51 +70,60 @@
         "return": "Program"
       },
       "nil": {
+        "doc": "returns the CLVM nil value, representing an empty list or false.",
         "return": "Program"
       },
       "int": {
+        "doc": "allocates an integer as a CLVM atom.",
         "args": {
           "value": "BigInt"
         },
         "return": "Program"
       },
       "bound_checked_number": {
+        "doc": "allocates a floating-point number as a CLVM atom, with bounds checking to prevent overflow.",
         "args": {
           "value": "f64"
         },
         "return": "Program"
       },
       "string": {
+        "doc": "allocates a UTF-8 string as a CLVM atom.",
         "args": {
           "value": "String"
         },
         "return": "Program"
       },
       "bool": {
+        "doc": "allocates a boolean as a CLVM program (nil for false, 1 for true).",
         "args": {
           "value": "bool"
         },
         "return": "Program"
       },
       "atom": {
+        "doc": "allocates raw bytes as a CLVM atom.",
         "args": {
           "value": "Bytes"
         },
         "return": "Program"
       },
       "list": {
+        "doc": "creates a proper CLVM list from a slice of programs, terminated by nil.",
         "args": {
           "value": "Vec<Program>"
         },
         "return": "Program"
       },
       "delegated_spend": {
+        "doc": "creates a delegated spend from a list of conditions, for use inside standard or inner puzzles.",
         "args": {
           "conditions": "Vec<Program>"
         },
         "return": "Spend"
       },
       "standard_spend": {
+        "doc": "wraps an inner spend in the standard transaction puzzle (p2_delegated_puzzle_or_hidden_puzzle) for the given synthetic key.",
         "args": {
           "synthetic_key": "PublicKey",
           "spend": "Spend"
@@ -111,6 +131,7 @@
         "return": "Spend"
       },
       "spend_standard_coin": {
+        "doc": "spends a standard XCH coin using the given synthetic key and inner spend, adding it to the transaction.",
         "args": {
           "coin": "Coin",
           "synthetic_key": "PublicKey",
@@ -118,24 +139,28 @@
         }
       },
       "settlement_spend": {
+        "doc": "creates a settlement puzzle spend for atomic swaps, paying to the given notarized payments.",
         "args": {
           "notarized_payments": "Vec<NotarizedPayment>"
         },
         "return": "Spend"
       },
       "spend_settlement_coin": {
+        "doc": "spends a settlement coin in an offer with the given notarized payments.",
         "args": {
           "coin": "Coin",
           "notarized_payments": "Vec<NotarizedPayment>"
         }
       },
       "spend_cats": {
+        "doc": "spends one or more CAT (Chia Asset Token) coins together, enforcing the TAIL rules and lineage proofs.",
         "args": {
           "cat_spends": "Vec<CatSpend>"
         },
         "return": "Vec<Cat>"
       },
       "mint_nfts": {
+        "doc": "mints new NFTs as children of the given parent coin, returning the minted NFT singletons.",
         "args": {
           "parent_coin_id": "Bytes32",
           "nft_mints": "Vec<NftMint>"
@@ -143,6 +168,7 @@
         "return": "MintedNfts"
       },
       "spend_nft": {
+        "doc": "spends an NFT singleton with the given inner spend (for transfer, metadata update, etc.), returning the updated NFT state.",
         "args": {
           "nft": "Nft",
           "inner_spend": "Spend"
@@ -150,6 +176,7 @@
         "return": "Nft"
       },
       "create_eve_did": {
+        "doc": "creates the initial (eve) DID singleton from a parent coin, establishing a new decentralized identity on chain.",
         "args": {
           "parent_coin_id": "Bytes32",
           "p2_puzzle_hash": "Bytes32"
@@ -157,6 +184,7 @@
         "return": "CreatedDid"
       },
       "spend_did": {
+        "doc": "spends a DID singleton with the given inner spend, returning the updated DID state or nil if melted.",
         "args": {
           "did": "Did",
           "inner_spend": "Spend"
@@ -164,6 +192,7 @@
         "return": "Option<Did>"
       },
       "spend_option": {
+        "doc": "spends an option contract with the given inner spend, returning the updated contract state or nil if exercised.",
         "args": {
           "option": "OptionContract",
           "inner_spend": "Spend"
@@ -171,6 +200,7 @@
         "return": "Option<OptionContract>"
       },
       "spend_streamed_asset": {
+        "doc": "spends a streamed (vesting) asset, either claiming unlocked funds or clawing back the remainder.",
         "args": {
           "streamed_asset": "StreamedAsset",
           "payment_time": "u64",
@@ -178,6 +208,7 @@
         }
       },
       "mint_vault": {
+        "doc": "mints a new MIPS vault singleton with the given custody hash and memos.",
         "args": {
           "parent_coin_id": "Bytes32",
           "custody_hash": "TreeHash",
@@ -186,6 +217,7 @@
         "return": "VaultMint"
       },
       "create_bulletin": {
+        "doc": "creates a bulletin board singleton for publishing on-chain messages.",
         "args": {
           "parent_coin_id": "Bytes32",
           "hidden_puzzle_hash": "Bytes32",
@@ -194,6 +226,7 @@
         "return": "CreatedBulletin"
       },
       "mips_spend": {
+        "doc": "creates a MIPS vault spend that wraps a delegated spend with the vault's custody rules.",
         "args": {
           "coin": "Coin",
           "delegated_spend": "Spend"
@@ -201,84 +234,98 @@
         "return": "MipsSpend"
       },
       "nft_metadata": {
+        "doc": "encodes NFT metadata (data URIs, metadata URIs, license URIs, etc.) as a CLVM program.",
         "args": {
           "value": "NftMetadata"
         },
         "return": "Program"
       },
       "mips_memo": {
+        "doc": "encodes a MIPS vault memo as a CLVM program for embedding in coin hints.",
         "args": {
           "value": "MipsMemo"
         },
         "return": "Program"
       },
       "inner_puzzle_memo": {
+        "doc": "encodes an inner puzzle memo as a CLVM program.",
         "args": {
           "value": "InnerPuzzleMemo"
         },
         "return": "Program"
       },
       "restriction_memo": {
+        "doc": "encodes a vault restriction memo as a CLVM program.",
         "args": {
           "value": "RestrictionMemo"
         },
         "return": "Program"
       },
       "wrapper_memo": {
+        "doc": "encodes a vault wrapper memo as a CLVM program.",
         "args": {
           "value": "WrapperMemo"
         },
         "return": "Program"
       },
       "force_1_of_2_restricted_variable_memo": {
+        "doc": "encodes a force-1-of-2 restricted variable memo as a CLVM program.",
         "args": {
           "value": "Force1of2RestrictedVariableMemo"
         },
         "return": "Program"
       },
       "memo_kind": {
+        "doc": "encodes a memo kind tag as a CLVM program.",
         "args": {
           "value": "MemoKind"
         },
         "return": "Program"
       },
       "member_memo": {
+        "doc": "encodes a vault member memo as a CLVM program.",
         "args": {
           "value": "MemberMemo"
         },
         "return": "Program"
       },
       "m_of_n_memo": {
+        "doc": "encodes an M-of-N multisig configuration memo as a CLVM program.",
         "args": {
           "value": "MofNMemo"
         },
         "return": "Program"
       },
       "option_metadata": {
+        "doc": "encodes option contract metadata as a CLVM program.",
         "args": {
           "value": "OptionMetadata"
         },
         "return": "Program"
       },
       "payment": {
+        "doc": "encodes a payment (puzzle hash, amount, and optional memos) as a CLVM program.",
         "args": {
           "value": "Payment"
         },
         "return": "Program"
       },
       "notarized_payment": {
+        "doc": "encodes a notarized payment (used in offer settlements) as a CLVM program.",
         "args": {
           "value": "NotarizedPayment"
         },
         "return": "Program"
       },
       "remark": {
+        "doc": "creates a REMARK condition that embeds arbitrary data in the spend without affecting validation.",
         "args": {
           "rest": "Program"
         },
         "return": "Program"
       },
       "agg_sig_parent": {
+        "doc": "creates an AGG_SIG_PARENT condition requiring a BLS signature scoped to the parent coin ID.",
         "args": {
           "public_key": "PublicKey",
           "message": "Bytes"
@@ -286,6 +333,7 @@
         "return": "Program"
       },
       "agg_sig_puzzle": {
+        "doc": "creates an AGG_SIG_PUZZLE condition requiring a BLS signature scoped to the puzzle hash.",
         "args": {
           "public_key": "PublicKey",
           "message": "Bytes"
@@ -293,6 +341,7 @@
         "return": "Program"
       },
       "agg_sig_amount": {
+        "doc": "creates an AGG_SIG_AMOUNT condition requiring a BLS signature scoped to the coin amount.",
         "args": {
           "public_key": "PublicKey",
           "message": "Bytes"
@@ -300,6 +349,7 @@
         "return": "Program"
       },
       "agg_sig_puzzle_amount": {
+        "doc": "creates an AGG_SIG_PUZZLE_AMOUNT condition requiring a BLS signature scoped to the puzzle hash and amount.",
         "args": {
           "public_key": "PublicKey",
           "message": "Bytes"
@@ -307,6 +357,7 @@
         "return": "Program"
       },
       "agg_sig_parent_amount": {
+        "doc": "creates an AGG_SIG_PARENT_AMOUNT condition requiring a BLS signature scoped to the parent coin ID and amount.",
         "args": {
           "public_key": "PublicKey",
           "message": "Bytes"
@@ -314,6 +365,7 @@
         "return": "Program"
       },
       "agg_sig_parent_puzzle": {
+        "doc": "creates an AGG_SIG_PARENT_PUZZLE condition requiring a BLS signature scoped to the parent coin ID and puzzle hash.",
         "args": {
           "public_key": "PublicKey",
           "message": "Bytes"
@@ -321,6 +373,7 @@
         "return": "Program"
       },
       "agg_sig_unsafe": {
+        "doc": "creates an AGG_SIG_UNSAFE condition requiring a BLS signature with no domain separation. Use with caution.",
         "args": {
           "public_key": "PublicKey",
           "message": "Bytes"
@@ -328,6 +381,7 @@
         "return": "Program"
       },
       "agg_sig_me": {
+        "doc": "creates an AGG_SIG_ME condition requiring a BLS signature scoped to the full coin ID.",
         "args": {
           "public_key": "PublicKey",
           "message": "Bytes"
@@ -335,6 +389,7 @@
         "return": "Program"
       },
       "create_coin": {
+        "doc": "creates a CREATE_COIN condition that produces a new coin with the given puzzle hash, amount, and optional memos.",
         "args": {
           "puzzle_hash": "Bytes32",
           "amount": "u64",
@@ -343,135 +398,158 @@
         "return": "Program"
       },
       "reserve_fee": {
+        "doc": "creates a RESERVE_FEE condition that requires the transaction to include at least the given fee.",
         "args": {
           "amount": "u64"
         },
         "return": "Program"
       },
       "create_coin_announcement": {
+        "doc": "creates a CREATE_COIN_ANNOUNCEMENT condition for inter-coin communication within a spend bundle.",
         "args": {
           "message": "Bytes"
         },
         "return": "Program"
       },
       "create_puzzle_announcement": {
+        "doc": "creates a CREATE_PUZZLE_ANNOUNCEMENT condition for inter-coin communication scoped to the puzzle hash.",
         "args": {
           "message": "Bytes"
         },
         "return": "Program"
       },
       "assert_coin_announcement": {
+        "doc": "creates an ASSERT_COIN_ANNOUNCEMENT condition that requires a matching coin announcement in the spend bundle.",
         "args": {
           "announcement_id": "Bytes32"
         },
         "return": "Program"
       },
       "assert_puzzle_announcement": {
+        "doc": "creates an ASSERT_PUZZLE_ANNOUNCEMENT condition that requires a matching puzzle announcement in the spend bundle.",
         "args": {
           "announcement_id": "Bytes32"
         },
         "return": "Program"
       },
       "assert_concurrent_spend": {
+        "doc": "creates an ASSERT_CONCURRENT_SPEND condition requiring another coin to be spent in the same block.",
         "args": {
           "coin_id": "Bytes32"
         },
         "return": "Program"
       },
       "assert_concurrent_puzzle": {
+        "doc": "creates an ASSERT_CONCURRENT_PUZZLE condition requiring a coin with this puzzle hash to be spent in the same block.",
         "args": {
           "puzzle_hash": "Bytes32"
         },
         "return": "Program"
       },
       "assert_seconds_relative": {
+        "doc": "creates an ASSERT_SECONDS_RELATIVE condition requiring the given number of seconds since coin creation.",
         "args": {
           "seconds": "u64"
         },
         "return": "Program"
       },
       "assert_seconds_absolute": {
+        "doc": "creates an ASSERT_SECONDS_ABSOLUTE condition requiring the blockchain timestamp to be at least the given value.",
         "args": {
           "seconds": "u64"
         },
         "return": "Program"
       },
       "assert_height_relative": {
+        "doc": "creates an ASSERT_HEIGHT_RELATIVE condition requiring the given number of blocks since coin creation.",
         "args": {
           "height": "u32"
         },
         "return": "Program"
       },
       "assert_height_absolute": {
+        "doc": "creates an ASSERT_HEIGHT_ABSOLUTE condition requiring the blockchain height to be at least the given value.",
         "args": {
           "height": "u32"
         },
         "return": "Program"
       },
       "assert_before_seconds_relative": {
+        "doc": "creates an ASSERT_BEFORE_SECONDS_RELATIVE condition requiring the spend to occur within the given seconds since coin creation.",
         "args": {
           "seconds": "u64"
         },
         "return": "Program"
       },
       "assert_before_seconds_absolute": {
+        "doc": "creates an ASSERT_BEFORE_SECONDS_ABSOLUTE condition requiring the spend to occur before the given timestamp.",
         "args": {
           "seconds": "u64"
         },
         "return": "Program"
       },
       "assert_before_height_relative": {
+        "doc": "creates an ASSERT_BEFORE_HEIGHT_RELATIVE condition requiring the spend to occur within the given blocks since coin creation.",
         "args": {
           "height": "u32"
         },
         "return": "Program"
       },
       "assert_before_height_absolute": {
+        "doc": "creates an ASSERT_BEFORE_HEIGHT_ABSOLUTE condition requiring the spend to occur before the given block height.",
         "args": {
           "height": "u32"
         },
         "return": "Program"
       },
       "assert_my_coin_id": {
+        "doc": "creates an ASSERT_MY_COIN_ID condition that validates the coin's own ID.",
         "args": {
           "coin_id": "Bytes32"
         },
         "return": "Program"
       },
       "assert_my_parent_id": {
+        "doc": "creates an ASSERT_MY_PARENT_ID condition that validates the coin's parent coin ID.",
         "args": {
           "parent_id": "Bytes32"
         },
         "return": "Program"
       },
       "assert_my_puzzle_hash": {
+        "doc": "creates an ASSERT_MY_PUZZLEHASH condition that validates the coin's own puzzle hash.",
         "args": {
           "puzzle_hash": "Bytes32"
         },
         "return": "Program"
       },
       "assert_my_amount": {
+        "doc": "creates an ASSERT_MY_AMOUNT condition that validates the coin's own amount.",
         "args": {
           "amount": "u64"
         },
         "return": "Program"
       },
       "assert_my_birth_seconds": {
+        "doc": "creates an ASSERT_MY_BIRTH_SECONDS condition that validates the timestamp when the coin was created.",
         "args": {
           "seconds": "u64"
         },
         "return": "Program"
       },
       "assert_my_birth_height": {
+        "doc": "creates an ASSERT_MY_BIRTH_HEIGHT condition that validates the block height when the coin was created.",
         "args": {
           "height": "u32"
         },
         "return": "Program"
       },
       "assert_ephemeral": {
+        "doc": "creates an ASSERT_EPHEMERAL condition requiring the coin to be created and spent within the same block.",
         "return": "Program"
       },
       "send_message": {
+        "doc": "creates a SEND_MESSAGE condition (CHIP-0025) for cross-coin communication with the given mode and message.",
         "args": {
           "mode": "u8",
           "message": "Bytes",
@@ -480,6 +558,7 @@
         "return": "Program"
       },
       "receive_message": {
+        "doc": "creates a RECEIVE_MESSAGE condition (CHIP-0025) to receive a cross-coin message with the given mode and content.",
         "args": {
           "mode": "u8",
           "message": "Bytes",
@@ -488,6 +567,7 @@
         "return": "Program"
       },
       "softfork": {
+        "doc": "creates a SOFTFORK condition for forward-compatible consensus rule extensions, consuming the given cost.",
         "args": {
           "cost": "u64",
           "rest": "Program"
@@ -495,9 +575,11 @@
         "return": "Program"
       },
       "melt_singleton": {
+        "doc": "creates a condition that destroys a singleton, permanently removing it from the coin set.",
         "return": "Program"
       },
       "transfer_nft": {
+        "doc": "creates NFT transfer conditions including royalty trade price information and the new owner's singleton.",
         "args": {
           "launcher_id": "Option<Bytes32>",
           "trade_prices": "Vec<TradePrice>",
@@ -506,6 +588,7 @@
         "return": "Program"
       },
       "run_cat_tail": {
+        "doc": "creates a condition that runs a CAT's TAIL (Token And Asset Issuance Limiter) program to validate issuance rules.",
         "args": {
           "program": "Program",
           "solution": "Program"
@@ -513,6 +596,7 @@
         "return": "Program"
       },
       "update_nft_metadata": {
+        "doc": "creates a condition that updates an NFT's on-chain metadata using the updater puzzle.",
         "args": {
           "updater_puzzle_reveal": "Program",
           "updater_solution": "Program"
@@ -520,6 +604,7 @@
         "return": "Program"
       },
       "update_data_store_merkle_root": {
+        "doc": "creates a condition that updates a DataLayer store's merkle root hash.",
         "args": {
           "new_merkle_root": "Bytes32",
           "memos": "Vec<Bytes>"
@@ -527,18 +612,21 @@
         "return": "Program"
       },
       "parse_child_streamed_asset": {
+        "doc": "parses a coin spend to extract the child streamed (vesting) asset state.",
         "args": {
           "coin_spend": "CoinSpend"
         },
         "return": "StreamedAssetParsingResult"
       },
       "parse_child_medieval_vault": {
+        "doc": "parses a coin spend to extract the child medieval vault state, if present.",
         "args": {
           "coin_spend": "CoinSpend"
         },
         "return": "Option<MedievalVault>"
       },
       "spend_medieval_vault": {
+        "doc": "spends a medieval vault with the given public keys, conditions, and genesis challenge.",
         "args": {
           "medieval_vault": "MedievalVault",
           "used_pubkeys": "Vec<PublicKey>",
@@ -547,6 +635,7 @@
         }
       },
       "spend_medieval_vault_unsafe": {
+        "doc": "spends a medieval vault with a raw delegated spend, bypassing condition building. Use with caution.",
         "args": {
           "medieval_vault": "MedievalVault",
           "used_pubkeys": "Vec<PublicKey>",
@@ -554,6 +643,7 @@
         }
       },
       "medieval_vault_rekey_delegated_puzzle": {
+        "doc": "creates the delegated puzzle for rekeying a medieval vault to new M-of-N parameters.",
         "args": {
           "launcher_id": "Bytes32",
           "new_m": "usize",
@@ -564,6 +654,7 @@
         "return": "Program"
       },
       "medieval_vault_send_message_delegated_puzzle": {
+        "doc": "creates the delegated puzzle for sending a cross-vault message from a medieval vault.",
         "args": {
           "message": "Bytes",
           "receiver_launcher_id": "Bytes32",
@@ -574,6 +665,7 @@
         "return": "Program"
       },
       "reward_distributor_from_spend": {
+        "doc": "parses a coin spend to reconstruct a reward distributor's state, if it matches the expected format.",
         "args": {
           "spend": "CoinSpend",
           "reserve_lineage_proof": "Option<LineageProof>",
@@ -582,6 +674,7 @@
         "return": "Option<RewardDistributor>"
       },
       "reward_distributor_from_parent_spend": {
+        "doc": "reconstructs a reward distributor's state from its parent coin's spend.",
         "args": {
           "parent_spend": "CoinSpend",
           "constants": "RewardDistributorConstants"
@@ -589,6 +682,7 @@
         "return": "Option<RewardDistributor>"
       },
       "reward_distributor_from_eve_coin_spend": {
+        "doc": "reconstructs a reward distributor from its initial (eve) coin spend and genesis state.",
         "args": {
           "constants": "RewardDistributorConstants",
           "initial_state": "RewardDistributorState",
@@ -599,6 +693,7 @@
         "return": "Option<RewardDistributorInfoFromEveCoin>"
       },
       "launch_reward_distributor": {
+        "doc": "creates the coin spends to launch a new reward distributor from an offer, configuring epochs and CAT refund.",
         "args": {
           "offer": "SpendBundle",
           "first_epoch_start": "u64",
@@ -610,12 +705,14 @@
         "return": "RewardDistributorLaunchResult"
       },
       "create_offer_security_coin": {
+        "doc": "creates a security coin for an offer to prevent unauthorized spend bundle manipulation.",
         "args": {
           "offer": "SpendBundle"
         },
         "return": "OfferSecurityCoinDetails"
       },
       "spend_offer_security_coin": {
+        "doc": "spends an offer security coin with the given conditions, returning the required BLS signature.",
         "args": {
           "security_coin_details": "OfferSecurityCoinDetails",
           "conditions": "Vec<Program>",
@@ -624,6 +721,7 @@
         "return": "Signature"
       },
       "spend_settlement_nft": {
+        "doc": "spends a settlement NFT from an offer, transferring it to the destination puzzle hash.",
         "args": {
           "offer": "SpendBundle",
           "nft_launcher_id": "Bytes32",
@@ -633,6 +731,7 @@
         "return": "SettlementNftSpendResult"
       },
       "offer_settlement_cats": {
+        "doc": "extracts the settlement CAT coins from an offer spend bundle for a given asset ID.",
         "args": {
           "offer": "SpendBundle",
           "asset_id": "Bytes32"
@@ -640,6 +739,7 @@
         "return": "Vec<Cat>"
       },
       "offer_settlement_nft": {
+        "doc": "extracts the settlement NFT from an offer spend bundle for a given launcher ID.",
         "args": {
           "offer": "SpendBundle",
           "nft_launcher_id": "Bytes32"
@@ -647,6 +747,7 @@
         "return": "Option<Nft>"
       },
       "parse_vault_transaction": {
+        "doc": "parses a vault spend reveal and its associated coin spends into a structured vault transaction.",
         "args": {
           "vault": "VaultSpendReveal",
           "coin_spends": "Vec<CoinSpend>"

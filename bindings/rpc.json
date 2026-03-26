@@ -1,20 +1,25 @@
 {
   "RpcClient": {
     "type": "class",
+    "doc": "is an HTTP client for the Chia full node RPC API.",
     "methods": {
       "new": {
+        "doc": "creates a new RPC client connecting to the given coinset API URL.",
         "type": "constructor",
         "args": {
           "coinset_url": "String"
         }
       },
       "testnet11": {
+        "doc": "creates a new RPC client connected to the Chia testnet11 network.",
         "type": "factory"
       },
       "mainnet": {
+        "doc": "creates a new RPC client connected to the Chia mainnet.",
         "type": "factory"
       },
       "local": {
+        "doc": "creates a new RPC client connecting to a local full node using TLS client certificates.",
         "type": "factory",
         "no_wasm": true,
         "args": {
@@ -23,6 +28,7 @@
         }
       },
       "local_with_url": {
+        "doc": "creates a new RPC client connecting to a local full node at the given URL using TLS client certificates.",
         "type": "factory",
         "no_wasm": true,
         "args": {
@@ -32,10 +38,12 @@
         }
       },
       "get_blockchain_state": {
+        "doc": "fetches the current blockchain state including peak, sync status, mempool info, and network space.",
         "type": "async",
         "return": "BlockchainStateResponse"
       },
       "get_additions_and_removals": {
+        "doc": "fetches the coins created (additions) and spent (removals) in the block with the given header hash.",
         "type": "async",
         "args": {
           "header_hash": "Bytes32"
@@ -43,6 +51,7 @@
         "return": "AdditionsAndRemovalsResponse"
       },
       "get_block": {
+        "doc": "fetches the full block data for the given header hash.",
         "type": "async",
         "args": {
           "header_hash": "Bytes32"
@@ -50,6 +59,7 @@
         "return": "GetBlockResponse"
       },
       "get_block_record": {
+        "doc": "fetches the block record (lightweight metadata) for the given header hash.",
         "type": "async",
         "args": {
           "header_hash": "Bytes32"
@@ -57,6 +67,7 @@
         "return": "GetBlockRecordResponse"
       },
       "get_block_record_by_height": {
+        "doc": "fetches the block record at the given block height.",
         "type": "async",
         "args": {
           "height": "u32"
@@ -64,6 +75,7 @@
         "return": "GetBlockRecordByHeightResponse"
       },
       "get_block_records": {
+        "doc": "fetches block records for the given height range [start, end).",
         "type": "async",
         "args": {
           "start_height": "u32",
@@ -72,6 +84,7 @@
         "return": "GetBlockRecordsResponse"
       },
       "get_blocks": {
+        "doc": "fetches full blocks for the given height range [start, end), with options to exclude header hashes and reorged blocks.",
         "type": "async",
         "args": {
           "start": "u32",
@@ -82,6 +95,7 @@
         "return": "GetBlocksResponse"
       },
       "get_block_spends": {
+        "doc": "fetches all coin spends (puzzle reveals and solutions) in the block with the given header hash.",
         "type": "async",
         "args": {
           "header_hash": "Bytes32"
@@ -89,6 +103,7 @@
         "return": "GetBlockSpendsResponse"
       },
       "get_coin_record_by_name": {
+        "doc": "fetches a coin record by its coin ID (name).",
         "type": "async",
         "args": {
           "name": "Bytes32"
@@ -96,6 +111,7 @@
         "return": "GetCoinRecordByNameResponse"
       },
       "get_coin_records_by_hint": {
+        "doc": "fetches coin records matching the given hint (typically a puzzle hash used as a memo), with optional height and spent filters.",
         "type": "async",
         "args": {
           "hint": "Bytes32",
@@ -106,6 +122,7 @@
         "return": "GetCoinRecordsResponse"
       },
       "get_coin_records_by_hints": {
+        "doc": "fetches coin records matching any of the given hints, with optional height and spent filters.",
         "type": "async",
         "args": {
           "hints": "Vec<Bytes32>",
@@ -116,6 +133,7 @@
         "return": "GetCoinRecordsResponse"
       },
       "get_coin_records_by_names": {
+        "doc": "fetches coin records for the given coin IDs, with optional height and spent filters.",
         "type": "async",
         "args": {
           "names": "Vec<Bytes32>",
@@ -126,6 +144,7 @@
         "return": "GetCoinRecordsResponse"
       },
       "get_coin_records_by_parent_ids": {
+        "doc": "fetches coin records created by the given parent coin IDs, with optional height and spent filters.",
         "type": "async",
         "args": {
           "parent_ids": "Vec<Bytes32>",
@@ -136,6 +155,7 @@
         "return": "GetCoinRecordsResponse"
       },
       "get_coin_records_by_puzzle_hash": {
+        "doc": "fetches coin records locked to the given puzzle hash, with optional height and spent filters.",
         "type": "async",
         "args": {
           "puzzle_hash": "Bytes32",
@@ -146,6 +166,7 @@
         "return": "GetCoinRecordsResponse"
       },
       "get_coin_records_by_puzzle_hashes": {
+        "doc": "fetches coin records locked to any of the given puzzle hashes, with optional height and spent filters.",
         "type": "async",
         "args": {
           "puzzle_hashes": "Vec<Bytes32>",
@@ -156,6 +177,7 @@
         "return": "GetCoinRecordsResponse"
       },
       "get_puzzle_and_solution": {
+        "doc": "fetches the puzzle reveal and solution for a spent coin by its ID and optional height.",
         "type": "async",
         "args": {
           "coin_id": "Bytes32",
@@ -164,6 +186,7 @@
         "return": "GetPuzzleAndSolutionResponse"
       },
       "push_tx": {
+        "doc": "submits a signed spend bundle to the mempool for inclusion in the blockchain.",
         "type": "async",
         "args": {
           "spend_bundle": "SpendBundle"
@@ -171,10 +194,12 @@
         "return": "PushTxResponse"
       },
       "get_network_info": {
+        "doc": "fetches the network name, prefix, and genesis challenge of the connected node.",
         "type": "async",
         "return": "GetNetworkInfoResponse"
       },
       "get_mempool_item_by_tx_id": {
+        "doc": "fetches a mempool item by its transaction ID (spend bundle hash).",
         "type": "async",
         "args": {
           "tx_id": "Bytes32"
@@ -182,6 +207,7 @@
         "return": "GetMempoolItemResponse"
       },
       "get_mempool_items_by_coin_name": {
+        "doc": "fetches mempool items that spend or create the given coin.",
         "type": "async",
         "args": {
           "coin_name": "Bytes32"
@@ -192,6 +218,7 @@
   },
   "BlockchainStateResponse": {
     "type": "class",
+    "doc": "is the response from the get_blockchain_state RPC endpoint.",
     "new": true,
     "remote": true,
     "fields": {
@@ -202,6 +229,7 @@
   },
   "BlockchainState": {
     "type": "class",
+    "doc": "holds the current state of the blockchain including peak, sync status, and mempool info.",
     "new": true,
     "remote": true,
     "fields": {
@@ -223,6 +251,7 @@
   },
   "MempoolMinFees": {
     "type": "class",
+    "doc": "holds the minimum fee thresholds for mempool inclusion at various cost levels.",
     "new": true,
     "remote": true,
     "fields": {
@@ -231,6 +260,7 @@
   },
   "SyncState": {
     "type": "class",
+    "doc": "holds the node's synchronization status and progress.",
     "new": true,
     "remote": true,
     "fields": {
@@ -242,6 +272,7 @@
   },
   "AdditionsAndRemovalsResponse": {
     "type": "class",
+    "doc": "is the response from the get_additions_and_removals RPC endpoint.",
     "new": true,
     "remote": true,
     "fields": {
@@ -253,6 +284,7 @@
   },
   "GetBlockResponse": {
     "type": "class",
+    "doc": "is the response from the get_block RPC endpoint.",
     "new": true,
     "remote": true,
     "fields": {
@@ -263,6 +295,7 @@
   },
   "GetBlockRecordResponse": {
     "type": "class",
+    "doc": "is the response from the get_block_record RPC endpoint.",
     "new": true,
     "remote": true,
     "fields": {
@@ -273,6 +306,7 @@
   },
   "GetBlockRecordByHeightResponse": {
     "type": "class",
+    "doc": "is the response from the get_block_record_by_height RPC endpoint.",
     "new": true,
     "remote": true,
     "fields": {
@@ -283,6 +317,7 @@
   },
   "GetBlockRecordsResponse": {
     "type": "class",
+    "doc": "is the response from the get_block_records RPC endpoint.",
     "new": true,
     "remote": true,
     "fields": {
@@ -293,6 +328,7 @@
   },
   "GetBlocksResponse": {
     "type": "class",
+    "doc": "is the response from the get_blocks RPC endpoint.",
     "new": true,
     "remote": true,
     "fields": {
@@ -303,6 +339,7 @@
   },
   "GetBlockSpendsResponse": {
     "type": "class",
+    "doc": "is the response from the get_block_spends RPC endpoint.",
     "new": true,
     "remote": true,
     "fields": {
@@ -313,6 +350,7 @@
   },
   "GetCoinRecordResponse": {
     "type": "class",
+    "doc": "is the response from the get_coin_record_by_name RPC endpoint.",
     "new": true,
     "remote": true,
     "fields": {
@@ -323,6 +361,7 @@
   },
   "GetCoinRecordsResponse": {
     "type": "class",
+    "doc": "is the response from coin record query RPC endpoints.",
     "new": true,
     "remote": true,
     "fields": {
@@ -333,6 +372,7 @@
   },
   "GetPuzzleAndSolutionResponse": {
     "type": "class",
+    "doc": "is the response from the get_puzzle_and_solution RPC endpoint.",
     "new": true,
     "remote": true,
     "fields": {
@@ -343,6 +383,7 @@
   },
   "PushTxResponse": {
     "type": "class",
+    "doc": "is the response from the push_tx RPC endpoint.",
     "new": true,
     "remote": true,
     "fields": {
@@ -353,6 +394,7 @@
   },
   "GetNetworkInfoResponse": {
     "type": "class",
+    "doc": "is the response from the get_network_info RPC endpoint.",
     "new": true,
     "remote": true,
     "fields": {
@@ -365,6 +407,7 @@
   },
   "GetMempoolItemResponse": {
     "type": "class",
+    "doc": "is the response from the get_mempool_item_by_tx_id RPC endpoint.",
     "new": true,
     "remote": true,
     "fields": {
@@ -375,6 +418,7 @@
   },
   "GetMempoolItemsResponse": {
     "type": "class",
+    "doc": "is the response from the get_mempool_items_by_coin_name RPC endpoint.",
     "new": true,
     "remote": true,
     "fields": {
@@ -385,6 +429,7 @@
   },
   "CoinRecord": {
     "type": "class",
+    "doc": "represents the on-chain record of a coin, including its creation height, spend status, and timestamp.",
     "new": true,
     "remote": true,
     "fields": {
@@ -398,6 +443,7 @@
   },
   "MempoolItem": {
     "type": "class",
+    "doc": "represents a pending transaction in the mempool, including its spend bundle and fee.",
     "new": true,
     "remote": true,
     "fields": {
@@ -407,6 +453,7 @@
   },
   "FullBlock": {
     "type": "class",
+    "doc": "represents a complete Chia block including VDF proofs, foliage, and transaction data.",
     "new": true,
     "remote": true,
     "fields": {
@@ -426,6 +473,7 @@
   },
   "EndOfSubSlotBundle": {
     "type": "class",
+    "doc": "holds the VDF chain data at the end of a sub-slot in the Chia consensus.",
     "new": true,
     "remote": true,
     "fields": {
@@ -437,6 +485,7 @@
   },
   "ChallengeChainSubSlot": {
     "type": "class",
+    "doc": "holds the challenge chain VDF output and difficulty adjustments at the end of a sub-slot.",
     "new": true,
     "remote": true,
     "fields": {
@@ -449,6 +498,7 @@
   },
   "InfusedChallengeChainSubSlot": {
     "type": "class",
+    "doc": "holds the infused challenge chain VDF output at the end of a sub-slot.",
     "new": true,
     "remote": true,
     "fields": {
@@ -457,6 +507,7 @@
   },
   "RewardChainSubSlot": {
     "type": "class",
+    "doc": "holds the reward chain VDF output and deficit at the end of a sub-slot.",
     "new": true,
     "remote": true,
     "fields": {
@@ -468,6 +519,7 @@
   },
   "SubSlotProofs": {
     "type": "class",
+    "doc": "holds the VDF proofs for the challenge, infused challenge, and reward chains at a sub-slot boundary.",
     "new": true,
     "remote": true,
     "fields": {
@@ -478,6 +530,7 @@
   },
   "VDFInfo": {
     "type": "class",
+    "doc": "holds a Verifiable Delay Function result: the challenge, number of iterations, and output.",
     "new": true,
     "remote": true,
     "fields": {
@@ -488,6 +541,7 @@
   },
   "VDFProof": {
     "type": "class",
+    "doc": "holds the proof for a Verifiable Delay Function computation.",
     "new": true,
     "remote": true,
     "fields": {
@@ -498,6 +552,7 @@
   },
   "TransactionsInfo": {
     "type": "class",
+    "doc": "holds the transaction metadata for a block, including the aggregated signature, fees, and cost.",
     "new": true,
     "remote": true,
     "fields": {
@@ -511,6 +566,7 @@
   },
   "RewardChainBlock": {
     "type": "class",
+    "doc": "holds the reward chain data for a block, including weight, height, proof of space, and VDF outputs.",
     "new": true,
     "remote": true,
     "fields": {
@@ -533,6 +589,7 @@
   },
   "FoliageTransactionBlock": {
     "type": "class",
+    "doc": "holds the transaction-specific foliage data including timestamp, filter hash, and merkle roots.",
     "new": true,
     "remote": true,
     "fields": {
@@ -546,6 +603,7 @@
   },
   "FoliageBlockData": {
     "type": "class",
+    "doc": "holds the foliage block data including pool target and farmer reward info.",
     "new": true,
     "remote": true,
     "fields": {
@@ -558,6 +616,7 @@
   },
   "Foliage": {
     "type": "class",
+    "doc": "holds the foliage data that links blocks in the chain and commits to transaction data.",
     "new": true,
     "remote": true,
     "fields": {
@@ -571,6 +630,7 @@
   },
   "PoolTarget": {
     "type": "class",
+    "doc": "identifies the pool that should receive farming rewards.",
     "new": true,
     "remote": true,
     "fields": {
@@ -580,6 +640,7 @@
   },
   "BlockRecord": {
     "type": "class",
+    "doc": "holds lightweight metadata about a block, including height, weight, timestamps, and farmer info.",
     "new": true,
     "remote": true,
     "fields": {
@@ -612,6 +673,7 @@
   },
   "ProofOfSpace": {
     "type": "class",
+    "doc": "holds the proof of space for a block, including the plot public key and proof bytes.",
     "new": true,
     "remote": true,
     "fields": {
@@ -625,6 +687,7 @@
   },
   "SubEpochSummary": {
     "type": "class",
+    "doc": "holds the summary of a sub-epoch, including difficulty and sub-slot iteration adjustments.",
     "new": true,
     "remote": true,
     "fields": {
