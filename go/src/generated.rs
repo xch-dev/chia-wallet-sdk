@@ -153,8 +153,15 @@ pub unsafe extern "C" fn go_bytes_list_free(ptr: *mut c_void) {
 pub unsafe extern "C" fn go_free_prim_list(ptr: *mut c_void, len: usize, elem_size: usize) {
     if !ptr.is_null() {
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let layout = std::alloc::Layout::from_size_align(len * elem_size, elem_size).unwrap();
-            std::alloc::dealloc(ptr as *mut u8, layout);
+            // Reconstruct the Box<[T]> that was created via into_boxed_slice() + Box::into_raw().
+            // We match on elem_size to recover the correct type and alignment.
+            match elem_size {
+                1 => drop(Box::from_raw(std::slice::from_raw_parts_mut(ptr as *mut u8, len))),
+                2 => drop(Box::from_raw(std::slice::from_raw_parts_mut(ptr as *mut u16, len))),
+                4 => drop(Box::from_raw(std::slice::from_raw_parts_mut(ptr as *mut u32, len))),
+                8 => drop(Box::from_raw(std::slice::from_raw_parts_mut(ptr as *mut u64, len))),
+                _ => unreachable!("unsupported prim element size: {elem_size}"),
+            }
         }));
     }
 }
