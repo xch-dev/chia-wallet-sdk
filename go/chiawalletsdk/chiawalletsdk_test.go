@@ -3,6 +3,7 @@ package chiawalletsdk
 import (
 	"bytes"
 	"crypto/sha256"
+	"sync"
 	"testing"
 )
 
@@ -1486,6 +1487,230 @@ func TestDoubleFree(t *testing.T) {
 
 	sk.Free()
 	sk.Free() // second free should be no-op
+}
+
+func TestCloseIdempotent(t *testing.T) {
+	seed := make([]byte, 32)
+	sk, err := NewSecretKeyFromSeed(seed)
+	if err != nil {
+		t.Fatalf("NewSecretKeyFromSeed: %v", err)
+	}
+
+	if err := sk.Close(); err != nil {
+		t.Fatalf("first Close: %v", err)
+	}
+	if err := sk.Close(); err != nil {
+		t.Fatalf("second Close: %v", err)
+	}
+
+	coin, err := NewCoin(make([]byte, 32), make([]byte, 32), 100)
+	if err != nil {
+		t.Fatalf("NewCoin: %v", err)
+	}
+	if err := coin.Close(); err != nil {
+		t.Fatalf("coin Close: %v", err)
+	}
+	if err := coin.Close(); err != nil {
+		t.Fatalf("coin double Close: %v", err)
+	}
+}
+
+func TestCloseNilSafety(t *testing.T) {
+	var sk *SecretKey
+	if err := sk.Close(); err != nil {
+		t.Fatalf("nil SecretKey Close: %v", err)
+	}
+
+	var coin *Coin
+	if err := coin.Close(); err != nil {
+		t.Fatalf("nil Coin Close: %v", err)
+	}
+
+	var clvm *Clvm
+	if err := clvm.Close(); err != nil {
+		t.Fatalf("nil Clvm Close: %v", err)
+	}
+}
+
+func TestCloseImplementsIoCloser(t *testing.T) {
+	seed := make([]byte, 32)
+	sk, err := NewSecretKeyFromSeed(seed)
+	if err != nil {
+		t.Fatalf("NewSecretKeyFromSeed: %v", err)
+	}
+
+	// Compile-time check: *SecretKey satisfies io.Closer
+	var closer interface{ Close() error } = sk
+	if err := closer.Close(); err != nil {
+		t.Fatalf("Close via interface: %v", err)
+	}
+}
+
+// ── Error Paths ─────────────────────────────────────────────────────────
+
+func TestInvalidSeedLength(t *testing.T) {
+	// Too short
+	_, err := NewSecretKeyFromSeed(make([]byte, 16))
+	if err == nil {
+		t.Fatal("expected error for 16-byte seed")
+	}
+
+	// Empty
+	_, err = NewSecretKeyFromSeed(nil)
+	if err == nil {
+		t.Fatal("expected error for nil seed")
+	}
+}
+
+func TestInvalidKeyBytes(t *testing.T) {
+	// Invalid public key bytes (wrong length)
+	_, err := NewPublicKeyFromBytes(make([]byte, 10))
+	if err == nil {
+		t.Fatal("expected error for 10-byte public key")
+	}
+
+	// Invalid secret key bytes (wrong length)
+	_, err = NewSecretKeyFromBytes(make([]byte, 10))
+	if err == nil {
+		t.Fatal("expected error for 10-byte secret key")
+	}
+
+	// Invalid signature bytes (wrong length)
+	_, err = NewSignatureFromBytes(make([]byte, 10))
+	if err == nil {
+		t.Fatal("expected error for 10-byte signature")
+	}
+}
+
+func TestInvalidMnemonic(t *testing.T) {
+	_, err := MnemonicNew("not a valid mnemonic phrase at all")
+	if err == nil {
+		t.Fatal("expected error for invalid mnemonic")
+	}
+}
+
+func TestInvalidAddress(t *testing.T) {
+	_, err := NewAddressDecode("notavalidaddress")
+	if err == nil {
+		t.Fatal("expected error for invalid address")
+	}
+}
+
+func TestInvalidOfferDecode(t *testing.T) {
+	_, err := DecodeOffer("not_a_valid_offer_string")
+	if err == nil {
+		t.Fatal("expected error for invalid offer string")
+	}
+}
+
+// ── Concurrency ─────────────────────────────────────────────────────────
+
+func TestConcurrentMethodCalls(t *testing.T) {
+	seed := make([]byte, 32)
+	sk, err := NewSecretKeyFromSeed(seed)
+	if err != nil {
+		t.Fatalf("NewSecretKeyFromSeed: %v", err)
+	}
+	defer sk.Close()
+
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Go(func() {
+			for range 50 {
+				b, err := sk.ToBytes()
+				if err != nil {
+					t.Errorf("ToBytes: %v", err)
+					return
+				}
+				if len(b) != 32 {
+					t.Errorf("expected 32 bytes, got %d", len(b))
+					return
+				}
+			}
+		})
+	}
+	wg.Wait()
+}
+
+func TestConcurrentClvmMethodCalls(t *testing.T) {
+	clvm, err := ClvmNew()
+	if err != nil {
+		t.Fatalf("ClvmNew: %v", err)
+	}
+	defer clvm.Close()
+
+	var wg sync.WaitGroup
+	for range 10 {
+		wg.Go(func() {
+			for range 20 {
+				p, err := clvm.Nil()
+				if err != nil {
+					t.Errorf("Nil: %v", err)
+					return
+				}
+				p.Close()
+			}
+		})
+	}
+	wg.Wait()
+}
+
+func TestConcurrentCloseWhileUsing(t *testing.T) {
+	seed := make([]byte, 32)
+	seed[0] = 99
+	sk, err := NewSecretKeyFromSeed(seed)
+	if err != nil {
+		t.Fatalf("NewSecretKeyFromSeed: %v", err)
+	}
+
+	var wg sync.WaitGroup
+
+	// Goroutine 1: repeatedly read
+	wg.Go(func() {
+		for range 100 {
+			_, _ = sk.ToBytes() // may return error after close, that's fine
+		}
+	})
+
+	// Goroutine 2: close after a few iterations
+	wg.Go(func() {
+		sk.Close()
+	})
+
+	wg.Wait()
+}
+
+func TestUseAfterClose(t *testing.T) {
+	seed := make([]byte, 32)
+	sk, err := NewSecretKeyFromSeed(seed)
+	if err != nil {
+		t.Fatalf("NewSecretKeyFromSeed: %v", err)
+	}
+	sk.Close()
+
+	// Should return error, not panic
+	_, err = sk.ToBytes()
+	if err == nil {
+		t.Fatal("expected error for use after close")
+	}
+
+	_, err = sk.PublicKey()
+	if err == nil {
+		t.Fatal("expected error for use after close")
+	}
+}
+
+func TestConcurrentDoubleFree(t *testing.T) {
+	seed := make([]byte, 32)
+	sk, _ := NewSecretKeyFromSeed(seed)
+
+	var wg sync.WaitGroup
+	for range 10 {
+		wg.Go(func() {
+			sk.Free()
+		})
+	}
+	wg.Wait()
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────

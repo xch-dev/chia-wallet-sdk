@@ -5,6 +5,7 @@
 
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::sync::OnceLock;
+use chia_sdk_bindings::*;
 
 thread_local! {
     static LAST_ERROR: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };

@@ -613,6 +613,7 @@ impl RustGen {
 
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::sync::OnceLock;
+use chia_sdk_bindings::*;
 
 thread_local! {
     static LAST_ERROR: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
@@ -1085,6 +1086,7 @@ pub unsafe extern "C" fn go_{snake}({params_str}) -> i32 {{
 struct GoGen {
     externs: String,
     body: String,
+    c_func_names: Vec<String>,
     mappings: IndexMap<String, String>,
     classes: HashSet<String>,
     enums: HashSet<String>,
@@ -1095,6 +1097,7 @@ impl GoGen {
         Self {
             externs: String::new(),
             body: String::new(),
+            c_func_names: Vec::new(),
             mappings,
             classes,
             enums,
@@ -1152,6 +1155,12 @@ extern void go_free_bytes(uint8_t* ptr, size_t len);
 extern void go_free_string(char* ptr);
 "#,
         );
+        self.c_func_names.extend([
+            "go_last_error_length".to_string(),
+            "go_last_error_message".to_string(),
+            "go_free_bytes".to_string(),
+            "go_free_string".to_string(),
+        ]);
 
         self.body.push_str(
             r#"
@@ -1229,6 +1238,8 @@ func bigIntFromSignedBytes(b []byte) *big.Int {
         self.externs.push_str(&format!(
             "extern int go_{snake}_clone(const void* ptr, void** out);\n"
         ));
+        self.c_func_names.push(format!("go_{snake}_free"));
+        self.c_func_names.push(format!("go_{snake}_clone"));
 
         // Go struct
         let type_doc = match doc {
@@ -1238,24 +1249,45 @@ func bigIntFromSignedBytes(b []byte) *big.Int {
         self.body.push_str(&format!(
             r#"{type_doc}
 //
-// Call [Free] to release the underlying memory, or rely on the attached
-// runtime finalizer for automatic cleanup.
+// All methods are safe for concurrent use from multiple goroutines.
+// Call [Free] or [Close] to release the underlying memory, or rely on the
+// attached runtime finalizer for automatic cleanup.
 type {name} struct {{
 	ptr unsafe.Pointer
+	mu  sync.RWMutex
 }}
 
 // Free releases the underlying Rust object.
 // Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
 func (o *{name}) Free() {{
-	if o != nil && o.ptr != nil {{
-		C.go_{snake}_free(o.ptr)
-		o.ptr = nil
+	if o == nil {{
+		return
 	}}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {{
+		return
+	}}
+	C.go_{snake}_free(o.ptr)
+	o.ptr = nil
+}}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *{name}) Close() error {{
+	o.Free()
+	return nil
 }}
 
 // Clone returns a deep copy of the {name}.
 func (o *{name}) Clone() (*{name}, error) {{
-	if o == nil || o.ptr == nil {{
+	if o == nil {{
+		return nil, fmt.Errorf("object is nil or already freed")
+	}}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {{
 		return nil, fmt.Errorf("object is nil or already freed")
 	}}
 	runtime.LockOSThread()
@@ -1305,6 +1337,9 @@ func (o *{name}) Clone() (*{name}, error) {{
         self.externs.push_str(&format!(
             "extern void go_{snake}_list_free(void* ptr);\n"
         ));
+        self.c_func_names.push(format!("go_{snake}_list_len"));
+        self.c_func_names.push(format!("go_{snake}_list_get"));
+        self.c_func_names.push(format!("go_{snake}_list_free"));
     }
 
     fn write_constructor(&mut self, name: &str, fields: &IndexMap<String, String>) {
@@ -1321,6 +1356,7 @@ func (o *{name}) Clone() (*{name}, error) {{
             "extern int go_{snake}_new({});\n",
             c_params.join(", ")
         ));
+        self.c_func_names.push(format!("go_{snake}_new"));
 
         // Go function
         let mut go_params = Vec::new();
@@ -1368,6 +1404,9 @@ func (o *{name}) Clone() (*{name}, error) {{
                     nil_check_lines.push(format!(
                         "for i, item := range {go_name} {{\n\t\tif item == nil {{\n\t\t\treturn nil, fmt.Errorf(\"nil item in {go_name} at index %d\", i)\n\t\t}}\n\t}}"
                     ));
+                    keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
+                }
+                FfiKind::Opt(inner) if matches!(inner.as_ref(), FfiKind::Class(_) | FfiKind::Enum(_)) => {
                     keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
                 }
                 _ => {}
@@ -1425,6 +1464,7 @@ func New{name}({go_params_str}) (*{name}, error) {{
             "extern int go_{snake}_get_{field_snake}({});\n",
             c_params.join(", ")
         ));
+        self.c_func_names.push(format!("go_{snake}_get_{field_snake}"));
 
         // Go getter
         let (out_decl, call_out, result_expr) = self.c_to_go_output(&kind);
@@ -1432,7 +1472,12 @@ func New{name}({go_params_str}) (*{name}, error) {{
         self.body.push_str(&format!(
             r#"// {go_name} returns the {go_name} field of the [{class_name}].
 func (o *{class_name}) {go_name}() ({go_ty}, error) {{
-	if o == nil || o.ptr == nil {{
+	if o == nil {{
+		return {zero}, fmt.Errorf("object is nil or already freed")
+	}}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {{
 		return {zero}, fmt.Errorf("object is nil or already freed")
 	}}
 	runtime.LockOSThread()
@@ -1465,6 +1510,7 @@ func (o *{class_name}) {go_name}() ({go_ty}, error) {{
             "extern int go_{snake}_set_{field_snake}({});\n",
             c_params.join(", ")
         ));
+        self.c_func_names.push(format!("go_{snake}_set_{field_snake}"));
 
         // Go setter
         let go_ty = self.go_type(&kind);
@@ -1489,7 +1535,12 @@ func (o *{class_name}) {go_name}() ({go_ty}, error) {{
         self.body.push_str(&format!(
             r#"// {go_name} updates the {field_pascal} field of the [{class_name}].
 func (o *{class_name}) {go_name}(value {go_ty}) error {{
-	if o == nil || o.ptr == nil {{
+	if o == nil {{
+		return fmt.Errorf("object is nil or already freed")
+	}}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {{
 		return fmt.Errorf("object is nil or already freed")
 	}}
 	{value_nil_check}runtime.LockOSThread()
@@ -1550,6 +1601,7 @@ func (o *{class_name}) {go_name}(value {go_ty}) error {{
             "extern int go_{snake}_{method_snake}({});\n",
             c_params.join(", ")
         ));
+        self.c_func_names.push(format!("go_{snake}_{method_snake}"));
 
         // Go function
         let mut go_params = Vec::new();
@@ -1615,6 +1667,9 @@ func (o *{class_name}) {go_name}(value {go_ty}) error {{
                     ));
                     keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
                 }
+                FfiKind::Opt(inner) if matches!(inner.as_ref(), FfiKind::Class(_) | FfiKind::Enum(_)) => {
+                    keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
+                }
                 _ => {}
             }
         }
@@ -1642,7 +1697,12 @@ func (o *{class_name}) {go_name}(value {go_ty}) error {{
                 self.body.push_str(&format!(
                     r#"{method_doc}
 func (o *{class_name}) {go_method_name}({go_params_str}) error {{
-	if o == nil || o.ptr == nil {{
+	if o == nil {{
+		return fmt.Errorf("object is nil or already freed")
+	}}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {{
 		return fmt.Errorf("object is nil or already freed")
 	}}
 	{nil_checks_str}runtime.LockOSThread()
@@ -1662,7 +1722,12 @@ func (o *{class_name}) {go_method_name}({go_params_str}) error {{
                 self.body.push_str(&format!(
                     r#"{method_doc}
 func (o *{class_name}) {go_method_name}({go_params_str}) ({go_ret_ty}, error) {{
-	if o == nil || o.ptr == nil {{
+	if o == nil {{
+		return {zero}, fmt.Errorf("object is nil or already freed")
+	}}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {{
 		return {zero}, fmt.Errorf("object is nil or already freed")
 	}}
 	{nil_checks_str}runtime.LockOSThread()
@@ -1756,6 +1821,9 @@ func {func_name}({go_params_str}) ({go_ret_ty}, error) {{
         self.externs.push_str(&format!(
             "extern void go_{snake}_free(void* ptr);\n"
         ));
+        self.c_func_names.push(format!("go_{snake}_to_int"));
+        self.c_func_names.push(format!("go_{snake}_from_int"));
+        self.c_func_names.push(format!("go_{snake}_free"));
 
         // Go enum as struct with ptr (like classes, since Rust uses opaque pointers)
         let enum_doc = match doc {
@@ -1765,23 +1833,44 @@ func {func_name}({go_params_str}) ({go_ret_ty}, error) {{
         self.body.push_str(&format!(
             r#"{enum_doc}
 //
+// All methods are safe for concurrent use from multiple goroutines.
 // Use the New{name}* constructors or [New{name}FromInt] to create instances.
 type {name} struct {{
 	ptr unsafe.Pointer
+	mu  sync.RWMutex
 }}
 
 // Free releases the underlying Rust object.
 // Calling Free more than once or on a nil receiver is safe and has no effect.
+// Free blocks until any concurrent method calls complete.
 func (o *{name}) Free() {{
-	if o != nil && o.ptr != nil {{
-		C.go_{snake}_free(o.ptr)
-		o.ptr = nil
+	if o == nil {{
+		return
 	}}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ptr == nil {{
+		return
+	}}
+	C.go_{snake}_free(o.ptr)
+	o.ptr = nil
+}}
+
+// Close implements [io.Closer] by releasing the underlying resource.
+// It is safe to call Close multiple times and concurrently with other methods.
+func (o *{name}) Close() error {{
+	o.Free()
+	return nil
 }}
 
 // ToInt returns the integer value of this enum variant.
 func (o *{name}) ToInt() (int, error) {{
-	if o == nil || o.ptr == nil {{
+	if o == nil {{
+		return 0, fmt.Errorf("object is nil or already freed")
+	}}
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	if o.ptr == nil {{
 		return 0, fmt.Errorf("object is nil or already freed")
 	}}
 	runtime.LockOSThread()
@@ -1861,6 +1950,7 @@ func New{name}{go_name}() (*{name}, error) {{
             "extern int go_{snake}({});\n",
             c_params.join(", ")
         ));
+        self.c_func_names.push(format!("go_{snake}"));
 
         // Go function
         let mut go_params = Vec::new();
@@ -1914,6 +2004,9 @@ func New{name}{go_name}() (*{name}, error) {{
                     nil_check_lines.push(format!(
                         "for i, item := range {go_name} {{\n\t\tif item == nil {{\n\t\t\t{err_return_prefix} fmt.Errorf(\"nil item in {go_name} at index %d\", i)\n\t\t}}\n\t}}"
                     ));
+                    keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
+                }
+                FfiKind::Opt(inner) if matches!(inner.as_ref(), FfiKind::Class(_) | FfiKind::Enum(_)) => {
                     keep_alive_lines.push(format!("runtime.KeepAlive({go_name})"));
                 }
                 _ => {}
@@ -2580,6 +2673,16 @@ fn main() {
     go_file.push_str("#include <stdlib.h>\n");
     go_file.push_str("#include <stdint.h>\n\n");
     go_file.push_str(&go.externs);
+
+    // Emit noescape/nocallback directives only for C functions actually called from Go code.
+    // The Rust FFI functions never call back into Go and copy all Go data immediately.
+    for fname in &go.c_func_names {
+        if go.body.contains(&format!("C.{fname}(")) {
+            go_file.push_str(&format!("#cgo noescape {fname}\n"));
+            go_file.push_str(&format!("#cgo nocallback {fname}\n"));
+        }
+    }
+
     go_file.push_str("*/\n");
     go_file.push_str("import \"C\"\n");
     go_file.push_str("import (\n");
@@ -2588,6 +2691,7 @@ fn main() {
         go_file.push_str("\t\"math/big\"\n");
     }
     go_file.push_str("\t\"runtime\"\n");
+    go_file.push_str("\t\"sync\"\n");
     go_file.push_str("\t\"unsafe\"\n");
     go_file.push_str(")\n\n");
     go_file.push_str("func boolToInt(b bool) C.int {\n");
