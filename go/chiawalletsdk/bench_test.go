@@ -3,6 +3,7 @@ package chiawalletsdk
 import (
 	"crypto/sha256"
 	"testing"
+	"unsafe"
 )
 
 // ── BLS Cryptography ────────────────────────────────────────────────────
@@ -225,27 +226,7 @@ func BenchmarkCoinId(b *testing.B) {
 	}
 }
 
-func BenchmarkCoinClone(b *testing.B) {
-	c, _ := NewCoin(make([]byte, 32), make([]byte, 32), 1000)
-	defer c.Free()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		cl, _ := c.Clone()
-		cl.Free()
-	}
-}
-
 // ── CLVM / Program ──────────────────────────────────────────────────────
-
-func BenchmarkClvmNil(b *testing.B) {
-	clvm, _ := ClvmNew()
-	defer clvm.Free()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		p, _ := clvm.Nil()
-		p.Free()
-	}
-}
 
 func BenchmarkClvmPair(b *testing.B) {
 	clvm, _ := ClvmNew()
@@ -409,34 +390,23 @@ func BenchmarkOfferDecode(b *testing.B) {
 	}
 }
 
-// ── Simulator ───────────────────────────────────────────────────────────
+// ── End-to-end: XCH spend (low-level API) ───────────────────────────────
 
-func BenchmarkSimulatorNewCoin(b *testing.B) {
+func BenchmarkXchSpendAndConfirm(b *testing.B) {
 	sim, _ := SimulatorNew()
 	defer sim.Free()
-	ph := make([]byte, 32)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		c, _ := sim.NewCoin(ph, 1000)
-		c.Free()
-	}
-}
 
-// ── End-to-end: full XCH spend ──────────────────────────────────────────
-
-func BenchmarkFullXchSpend(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		sim, _ := SimulatorNew()
-		pair, _ := sim.Bls(1000000)
+		pair, _ := sim.Bls(1_000_000)
 		sk, _ := pair.Sk()
 		pk, _ := pair.Pk()
 		coin, _ := pair.Coin()
+		puzzleHash, _ := pair.PuzzleHash()
 
 		clvm, _ := ClvmNew()
-		destPh := make([]byte, 32)
-		destPh[0] = byte(i)
-		cc, _ := clvm.CreateCoin(destPh, 1000000, nil)
-		delegated, _ := clvm.DelegatedSpend([]*Program{cc})
+		cc, _ := clvm.CreateCoin(puzzleHash, 999_900, nil)
+		fee, _ := clvm.ReserveFee(100)
+		delegated, _ := clvm.DelegatedSpend([]*Program{cc, fee})
 		spend, _ := clvm.StandardSpend(pk, delegated)
 		clvm.SpendCoin(coin, spend)
 		coinSpends, _ := clvm.CoinSpends()
@@ -447,12 +417,235 @@ func BenchmarkFullXchSpend(b *testing.B) {
 		}
 		spend.Free()
 		delegated.Free()
+		fee.Free()
 		cc.Free()
 		clvm.Free()
 		coin.Free()
 		pk.Free()
 		sk.Free()
 		pair.Free()
-		sim.Free()
 	}
 }
+
+// ── End-to-end: multi-coin consolidation (low-level API) ────────────────
+
+func BenchmarkMultiCoinConsolidation(b *testing.B) {
+	sim, _ := SimulatorNew()
+	defer sim.Free()
+
+	for i := 0; i < b.N; i++ {
+		pairs := make([]*BlsPairWithCoin, 5)
+		sks := make([]*SecretKey, 5)
+		for j := 0; j < 5; j++ {
+			pairs[j], _ = sim.Bls(200_000)
+			sks[j], _ = pairs[j].Sk()
+		}
+
+		destPh, _ := pairs[0].PuzzleHash()
+		clvm, _ := ClvmNew()
+
+		for j := 0; j < 5; j++ {
+			pk, _ := pairs[j].Pk()
+			coin, _ := pairs[j].Coin()
+
+			var conditions []*Program
+			if j == 0 {
+				cc, _ := clvm.CreateCoin(destPh, 999_900, nil)
+				fee, _ := clvm.ReserveFee(100)
+				conditions = []*Program{cc, fee}
+			} else {
+				coinId, _ := pairs[0].Coin()
+				cid, _ := coinId.CoinId()
+				assert, _ := clvm.AssertConcurrentSpend(cid)
+				conditions = []*Program{assert}
+				coinId.Free()
+			}
+			delegated, _ := clvm.DelegatedSpend(conditions)
+			spend, _ := clvm.StandardSpend(pk, delegated)
+			clvm.SpendCoin(coin, spend)
+
+			for _, c := range conditions {
+				c.Free()
+			}
+			spend.Free()
+			delegated.Free()
+			pk.Free()
+			coin.Free()
+		}
+
+		coinSpends, _ := clvm.CoinSpends()
+		sim.SpendCoins(coinSpends, sks)
+
+		for _, cs := range coinSpends {
+			cs.Free()
+		}
+		clvm.Free()
+		for j := 0; j < 5; j++ {
+			sks[j].Free()
+			pairs[j].Free()
+		}
+	}
+}
+
+// ── Scaled workloads (Action/Spends API) ────────────────────────────────
+// These benchmarks use the recommended high-level API and test scaling.
+
+func benchmarkBatchXchSend(b *testing.B, n int) {
+	sim, _ := SimulatorNew()
+	defer sim.Free()
+
+	for i := 0; i < b.N; i++ {
+		totalAmount := uint64(n*100_000 + 100)
+		pair, _ := sim.Bls(totalAmount)
+		sk, _ := pair.Sk()
+		coin, _ := pair.Coin()
+		puzzleHash, _ := pair.PuzzleHash()
+
+		clvm, _ := ClvmNew()
+		spends, _ := SpendsNew(clvm, puzzleHash)
+		spends.AddXch(coin)
+
+		actions := make([]*Action, 0, n+1)
+		xchId, _ := NewIdXch()
+		for j := 0; j < n; j++ {
+			destPh := make([]byte, 32)
+			destPh[0] = byte(j)
+			destPh[1] = byte(j >> 8)
+			send, _ := NewActionSend(xchId, destPh, 100_000, nil)
+			actions = append(actions, send)
+		}
+		fee, _ := NewActionFee(100)
+		actions = append(actions, fee)
+
+		deltas, _ := spends.Apply(actions)
+		finished, _ := spends.Prepare(deltas)
+		outputs, _ := finished.Spend()
+		coinSpends, _ := clvm.CoinSpends()
+		sim.SpendCoins(coinSpends, []*SecretKey{sk})
+
+		for _, cs := range coinSpends {
+			cs.Free()
+		}
+		outputs.Free()
+		finished.Free()
+		deltas.Free()
+		for _, a := range actions {
+			a.Free()
+		}
+		xchId.Free()
+		spends.Free()
+		clvm.Free()
+		coin.Free()
+		sk.Free()
+		pair.Free()
+	}
+}
+
+func BenchmarkBatchXchSend_1(b *testing.B)   { benchmarkBatchXchSend(b, 1) }
+func BenchmarkBatchXchSend_10(b *testing.B)  { benchmarkBatchXchSend(b, 10) }
+func BenchmarkBatchXchSend_100(b *testing.B) { benchmarkBatchXchSend(b, 100) }
+
+func benchmarkBatchCatIssuance(b *testing.B, n int) {
+	sim, _ := SimulatorNew()
+	defer sim.Free()
+
+	for i := 0; i < b.N; i++ {
+		totalAmount := uint64(n*1000 + 100)
+		pair, _ := sim.Bls(totalAmount)
+		sk, _ := pair.Sk()
+		coin, _ := pair.Coin()
+		puzzleHash, _ := pair.PuzzleHash()
+
+		clvm, _ := ClvmNew()
+		spends, _ := SpendsNew(clvm, puzzleHash)
+		spends.AddXch(coin)
+
+		actions := make([]*Action, 0, n+1)
+		for j := 0; j < n; j++ {
+			issueCat, _ := NewActionSingleIssueCat(puzzleHash, 1000)
+			actions = append(actions, issueCat)
+		}
+		fee, _ := NewActionFee(100)
+		actions = append(actions, fee)
+
+		deltas, _ := spends.Apply(actions)
+		finished, _ := spends.Prepare(deltas)
+		outputs, _ := finished.Spend()
+		coinSpends, _ := clvm.CoinSpends()
+		sim.SpendCoins(coinSpends, []*SecretKey{sk})
+
+		for _, cs := range coinSpends {
+			cs.Free()
+		}
+		outputs.Free()
+		finished.Free()
+		deltas.Free()
+		for _, a := range actions {
+			a.Free()
+		}
+		spends.Free()
+		clvm.Free()
+		coin.Free()
+		sk.Free()
+		pair.Free()
+	}
+}
+
+func BenchmarkBatchCatIssuance_1(b *testing.B)  { benchmarkBatchCatIssuance(b, 1) }
+func BenchmarkBatchCatIssuance_10(b *testing.B) { benchmarkBatchCatIssuance(b, 10) }
+func BenchmarkBatchCatIssuance_25(b *testing.B) { benchmarkBatchCatIssuance(b, 25) }
+
+func benchmarkBatchNftMint(b *testing.B, n int) {
+	sim, _ := SimulatorNew()
+	defer sim.Free()
+
+	for i := 0; i < b.N; i++ {
+		totalAmount := uint64(n + 100)
+		pair, _ := sim.Bls(totalAmount)
+		sk, _ := pair.Sk()
+		coin, _ := pair.Coin()
+		puzzleHash, _ := pair.PuzzleHash()
+
+		clvm, _ := ClvmNew()
+		spends, _ := SpendsNew(clvm, puzzleHash)
+		spends.AddXch(coin)
+
+		updaterPh := make([]byte, 32)
+		actions := make([]*Action, 0, n+1)
+		for j := 0; j < n; j++ {
+			nftMeta, _ := NewNftMetadata(uint64(j+1), uint64(n), unsafe.Pointer(nil), nil, unsafe.Pointer(nil), nil, unsafe.Pointer(nil), nil)
+			metadata, _ := clvm.NftMetadata(nftMeta)
+			nftMeta.Free()
+			mint, _ := NewActionMintNft(clvm, metadata, updaterPh, puzzleHash, 300, 1, nil)
+			metadata.Free()
+			actions = append(actions, mint)
+		}
+		fee, _ := NewActionFee(100)
+		actions = append(actions, fee)
+
+		deltas, _ := spends.Apply(actions)
+		finished, _ := spends.Prepare(deltas)
+		outputs, _ := finished.Spend()
+		coinSpends, _ := clvm.CoinSpends()
+		sim.SpendCoins(coinSpends, []*SecretKey{sk})
+
+		for _, cs := range coinSpends {
+			cs.Free()
+		}
+		outputs.Free()
+		finished.Free()
+		deltas.Free()
+		for _, a := range actions {
+			a.Free()
+		}
+		spends.Free()
+		clvm.Free()
+		coin.Free()
+		sk.Free()
+		pair.Free()
+	}
+}
+
+func BenchmarkBatchNftMint_1(b *testing.B)  { benchmarkBatchNftMint(b, 1) }
+func BenchmarkBatchNftMint_10(b *testing.B) { benchmarkBatchNftMint(b, 10) }
+func BenchmarkBatchNftMint_25(b *testing.B) { benchmarkBatchNftMint(b, 25) }
