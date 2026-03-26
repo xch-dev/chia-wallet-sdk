@@ -2,7 +2,13 @@
 package chiawalletsdk
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/../target/release -lchia_wallet_sdk_go
+#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/libs/linux_amd64 -lchia_wallet_sdk_go -lm -ldl -lpthread
+#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/libs/linux_arm64 -lchia_wallet_sdk_go -lm -ldl -lpthread
+#cgo android,arm64 LDFLAGS: -L${SRCDIR}/libs/android_arm64 -lchia_wallet_sdk_go -lm -ldl
+#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/libs/darwin_amd64 -lchia_wallet_sdk_go -framework Security -framework CoreFoundation
+#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/libs/darwin_arm64 -lchia_wallet_sdk_go -framework Security -framework CoreFoundation
+#cgo windows,amd64 LDFLAGS: -L${SRCDIR}/libs/windows_amd64 -lchia_wallet_sdk_go -lws2_32 -lbcrypt -luserenv -lntdll
+#cgo windows,arm64 LDFLAGS: -L${SRCDIR}/libs/windows_arm64 -lchia_wallet_sdk_go -lws2_32 -lbcrypt -luserenv -lntdll
 #include <stdlib.h>
 #include <stdint.h>
 
