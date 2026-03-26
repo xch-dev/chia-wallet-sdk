@@ -59,6 +59,7 @@
   },
   "m_of_n_hash": {
     "type": "function",
+    "doc": "computes the custody hash for an M-of-N multisig configuration.",
     "args": {
       "config": "MemberConfig",
       "required": "u32",
@@ -68,6 +69,7 @@
   },
   "k1_member_hash": {
     "type": "function",
+    "doc": "computes the custody hash for a secp256k1 member.",
     "args": {
       "config": "MemberConfig",
       "public_key": "K1PublicKey",
@@ -77,6 +79,7 @@
   },
   "r1_member_hash": {
     "type": "function",
+    "doc": "computes the custody hash for a secp256r1 member.",
     "args": {
       "config": "MemberConfig",
       "public_key": "R1PublicKey",
@@ -86,6 +89,7 @@
   },
   "bls_member_hash": {
     "type": "function",
+    "doc": "computes the custody hash for a BLS member.",
     "args": {
       "config": "MemberConfig",
       "public_key": "PublicKey",
@@ -95,6 +99,7 @@
   },
   "passkey_member_hash": {
     "type": "function",
+    "doc": "computes the custody hash for a passkey (WebAuthn) member.",
     "args": {
       "config": "MemberConfig",
       "public_key": "R1PublicKey",

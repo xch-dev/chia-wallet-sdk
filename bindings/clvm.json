@@ -254,6 +254,24 @@
         },
         "return": "Program"
       },
+      "option_metadata": {
+        "args": {
+          "value": "OptionMetadata"
+        },
+        "return": "Program"
+      },
+      "payment": {
+        "args": {
+          "value": "Payment"
+        },
+        "return": "Program"
+      },
+      "notarized_payment": {
+        "args": {
+          "value": "NotarizedPayment"
+        },
+        "return": "Program"
+      },
       "remark": {
         "args": {
           "rest": "Program"

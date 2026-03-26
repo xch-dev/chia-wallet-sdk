@@ -21,7 +21,9 @@ members = [
     "napi",
     "wasm",
     "pyo3",
-    "pyo3/stub-generator"
+    "pyo3/stub-generator",
+    "go",
+    "go/codegen"
 ]
 
 [workspace.package]

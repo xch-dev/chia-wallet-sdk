@@ -1,8 +1,12 @@
 {
   "RewardDistributorType": {
     "type": "enum",
+    "doc": "specifies whether a reward distributor is manager-controlled or NFT-based.",
     "remote": true,
-    "values": ["Manager", "Nft"]
+    "values": [
+      "Manager",
+      "Nft"
+    ]
   },
   "RewardDistributorConstants": {
     "type": "class",

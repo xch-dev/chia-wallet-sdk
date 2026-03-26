@@ -68,7 +68,13 @@
   },
   "TransferType": {
     "type": "enum",
-    "values": ["Sent", "Burned", "Offered", "Received", "Updated"]
+    "values": [
+      "Sent",
+      "Burned",
+      "Offered",
+      "Received",
+      "Updated"
+    ]
   },
   "DropCoin": {
     "type": "class",

@@ -271,6 +271,16 @@
       "success": "bool"
     }
   },
+  "GetBlockRecordByHeightResponse": {
+    "type": "class",
+    "new": true,
+    "remote": true,
+    "fields": {
+      "block_record": "Option<BlockRecord>",
+      "error": "Option<String>",
+      "success": "bool"
+    }
+  },
   "GetBlockRecordsResponse": {
     "type": "class",
     "new": true,
