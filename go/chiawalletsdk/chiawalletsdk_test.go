@@ -1713,6 +1713,78 @@ func TestConcurrentDoubleFree(t *testing.T) {
 	wg.Wait()
 }
 
+func TestConcurrentClone(t *testing.T) {
+	seed := make([]byte, 32)
+	seed[0] = 42
+	sk, err := NewSecretKeyFromSeed(seed)
+	if err != nil {
+		t.Fatalf("NewSecretKeyFromSeed: %v", err)
+	}
+	defer sk.Close()
+
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Go(func() {
+			clone, err := sk.Clone()
+			if err != nil {
+				t.Errorf("Clone: %v", err)
+				return
+			}
+			defer clone.Close()
+			b, err := clone.ToBytes()
+			if err != nil {
+				t.Errorf("ToBytes on clone: %v", err)
+				return
+			}
+			if len(b) != 32 {
+				t.Errorf("expected 32 bytes, got %d", len(b))
+			}
+		})
+	}
+	wg.Wait()
+}
+
+func TestConcurrentProgramMethods(t *testing.T) {
+	clvm, err := ClvmNew()
+	if err != nil {
+		t.Fatalf("ClvmNew: %v", err)
+	}
+	defer clvm.Close()
+
+	prog, err := clvm.Nil()
+	if err != nil {
+		t.Fatalf("Nil: %v", err)
+	}
+	defer prog.Close()
+
+	var wg sync.WaitGroup
+	for range 15 {
+		wg.Go(func() {
+			for range 20 {
+				h, err := prog.TreeHash()
+				if err != nil {
+					t.Errorf("TreeHash: %v", err)
+					return
+				}
+				if len(h) != 32 {
+					t.Errorf("expected 32 byte hash, got %d", len(h))
+					return
+				}
+				b, err := prog.Serialize()
+				if err != nil {
+					t.Errorf("Serialize: %v", err)
+					return
+				}
+				if len(b) == 0 {
+					t.Error("expected non-empty serialization")
+					return
+				}
+			}
+		})
+	}
+	wg.Wait()
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 func splitWords(s string) []string {
