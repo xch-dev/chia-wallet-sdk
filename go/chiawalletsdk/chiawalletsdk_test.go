@@ -535,9 +535,9 @@ func TestMnemonicRoundtrip(t *testing.T) {
 	}
 
 	// Parse it back
-	m2, err := MnemonicNew(s)
+	m2, err := NewMnemonic(s)
 	if err != nil {
-		t.Fatalf("MnemonicNew: %v", err)
+		t.Fatalf("NewMnemonic: %v", err)
 	}
 	defer m2.Free()
 
@@ -886,9 +886,9 @@ func TestSpendBundleCreation(t *testing.T) {
 // ── CLVM / Program ──────────────────────────────────────────────────────
 
 func TestClvmBasics(t *testing.T) {
-	clvm, err := ClvmNew()
+	clvm, err := NewClvm()
 	if err != nil {
-		t.Fatalf("ClvmNew: %v", err)
+		t.Fatalf("NewClvm: %v", err)
 	}
 	defer clvm.Free()
 
@@ -906,7 +906,7 @@ func TestClvmBasics(t *testing.T) {
 }
 
 func TestClvmParseSexp(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	// Parse a simple atom
@@ -923,7 +923,7 @@ func TestClvmParseSexp(t *testing.T) {
 }
 
 func TestClvmPair(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	nilProg, _ := clvm.Nil()
@@ -943,7 +943,7 @@ func TestClvmPair(t *testing.T) {
 }
 
 func TestClvmDeserialize(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	// Deserialize nil
@@ -960,7 +960,7 @@ func TestClvmDeserialize(t *testing.T) {
 }
 
 func TestProgramTreeHash(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	nilProg, _ := clvm.Nil()
@@ -987,9 +987,9 @@ func TestProgramTreeHash(t *testing.T) {
 // ── Simulator ───────────────────────────────────────────────────────────
 
 func TestSimulatorBasics(t *testing.T) {
-	sim, err := SimulatorNew()
+	sim, err := NewSimulator()
 	if err != nil {
-		t.Fatalf("SimulatorNew: %v", err)
+		t.Fatalf("NewSimulator: %v", err)
 	}
 	defer sim.Free()
 
@@ -1023,8 +1023,8 @@ func TestSimulatorWithSeed(t *testing.T) {
 	}
 }
 
-func TestSimulatorNewCoin(t *testing.T) {
-	sim, _ := SimulatorNew()
+func TestNewSimulatorCoin(t *testing.T) {
+	sim, _ := NewSimulator()
 	defer sim.Free()
 
 	puzzleHash := make([]byte, 32)
@@ -1048,7 +1048,7 @@ func TestSimulatorNewCoin(t *testing.T) {
 }
 
 func TestSimulatorInsertCoin(t *testing.T) {
-	sim, _ := SimulatorNew()
+	sim, _ := NewSimulator()
 	defer sim.Free()
 
 	coin, _ := NewCoin(make([]byte, 32), make([]byte, 32), 500)
@@ -1075,7 +1075,7 @@ func TestSimulatorInsertCoin(t *testing.T) {
 }
 
 func TestSimulatorBls(t *testing.T) {
-	sim, _ := SimulatorNew()
+	sim, _ := NewSimulator()
 	defer sim.Free()
 
 	pair, err := sim.Bls(2000000000000)
@@ -1105,7 +1105,7 @@ func TestSimulatorBls(t *testing.T) {
 }
 
 func TestSimulatorTimestamp(t *testing.T) {
-	sim, _ := SimulatorNew()
+	sim, _ := NewSimulator()
 	defer sim.Free()
 
 	ts, _ := sim.NextTimestamp()
@@ -1124,7 +1124,7 @@ func TestSimulatorTimestamp(t *testing.T) {
 // ── Simulator Spending ──────────────────────────────────────────────────
 
 func TestSimulatorSpendXch(t *testing.T) {
-	sim, _ := SimulatorNew()
+	sim, _ := NewSimulator()
 	defer sim.Free()
 
 	// Create a BLS key pair with a coin
@@ -1140,7 +1140,7 @@ func TestSimulatorSpendXch(t *testing.T) {
 	coin, _ := pair.Coin()
 	defer coin.Free()
 
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	// Build a simple spend: send all to a new puzzle hash
@@ -1216,9 +1216,9 @@ func TestIdTypes(t *testing.T) {
 	defer xchId.Free()
 
 	// New asset ID
-	newId, err := NewIdNew(0)
+	newId, err := NewId(0)
 	if err != nil {
-		t.Fatalf("NewIdNew: %v", err)
+		t.Fatalf("NewId: %v", err)
 	}
 	defer newId.Free()
 
@@ -1325,7 +1325,7 @@ func TestConstants(t *testing.T) {
 // ── CLVM Conditions ─────────────────────────────────────────────────────
 
 func TestClvmConditions(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	// CreateCoin
@@ -1374,7 +1374,7 @@ func TestClvmConditions(t *testing.T) {
 }
 
 func TestClvmAssertHeight(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	// AssertHeightAbsolute
@@ -1407,7 +1407,7 @@ func TestClvmAssertHeight(t *testing.T) {
 }
 
 func TestClvmRemark(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	nilProg, _ := clvm.Nil()
@@ -1502,9 +1502,9 @@ func buildPendingSpends(t *testing.T, clvm *Clvm, finished *FinishedSpends, pk *
 }
 
 func TestActionXchSend(t *testing.T) {
-	sim, err := SimulatorNew()
+	sim, err := NewSimulator()
 	if err != nil {
-		t.Fatalf("SimulatorNew: %v", err)
+		t.Fatalf("NewSimulator: %v", err)
 	}
 	defer sim.Close()
 
@@ -1522,12 +1522,12 @@ func TestActionXchSend(t *testing.T) {
 	defer coin.Close()
 	puzzleHash, _ := pair.PuzzleHash()
 
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Close()
 
-	spends, err := SpendsNew(clvm, puzzleHash)
+	spends, err := NewSpends(clvm, puzzleHash)
 	if err != nil {
-		t.Fatalf("SpendsNew: %v", err)
+		t.Fatalf("NewSpends: %v", err)
 	}
 	defer spends.Close()
 	spends.AddXch(coin)
@@ -1593,9 +1593,9 @@ func TestActionXchSend(t *testing.T) {
 // ── Action System: CAT Issuance ─────────────────────────────────────────
 
 func TestActionCatIssuance(t *testing.T) {
-	sim, err := SimulatorNew()
+	sim, err := NewSimulator()
 	if err != nil {
-		t.Fatalf("SimulatorNew: %v", err)
+		t.Fatalf("NewSimulator: %v", err)
 	}
 	defer sim.Close()
 
@@ -1613,12 +1613,12 @@ func TestActionCatIssuance(t *testing.T) {
 	defer coin.Close()
 	puzzleHash, _ := pair.PuzzleHash()
 
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Close()
 
-	spends, err := SpendsNew(clvm, puzzleHash)
+	spends, err := NewSpends(clvm, puzzleHash)
 	if err != nil {
-		t.Fatalf("SpendsNew: %v", err)
+		t.Fatalf("NewSpends: %v", err)
 	}
 	defer spends.Close()
 	spends.AddXch(coin)
@@ -1696,9 +1696,9 @@ func TestActionCatIssuance(t *testing.T) {
 }
 
 func TestActionNftMint(t *testing.T) {
-	sim, err := SimulatorNew()
+	sim, err := NewSimulator()
 	if err != nil {
-		t.Fatalf("SimulatorNew: %v", err)
+		t.Fatalf("NewSimulator: %v", err)
 	}
 	defer sim.Close()
 
@@ -1716,7 +1716,7 @@ func TestActionNftMint(t *testing.T) {
 	defer coin.Close()
 	puzzleHash, _ := pair.PuzzleHash()
 
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Close()
 
 	// Create NFT metadata with Vec<String> parameters
@@ -1778,9 +1778,9 @@ func TestActionNftMint(t *testing.T) {
 		t.Fatalf("TreeHash: %v", err)
 	}
 
-	spends, err := SpendsNew(clvm, puzzleHash)
+	spends, err := NewSpends(clvm, puzzleHash)
 	if err != nil {
-		t.Fatalf("SpendsNew: %v", err)
+		t.Fatalf("NewSpends: %v", err)
 	}
 	defer spends.Close()
 	spends.AddXch(coin)
@@ -1963,7 +1963,7 @@ func TestInvalidKeyBytes(t *testing.T) {
 }
 
 func TestInvalidMnemonic(t *testing.T) {
-	_, err := MnemonicNew("not a valid mnemonic phrase at all")
+	_, err := NewMnemonic("not a valid mnemonic phrase at all")
 	if err == nil {
 		t.Fatal("expected error for invalid mnemonic")
 	}
@@ -2013,9 +2013,9 @@ func TestConcurrentMethodCalls(t *testing.T) {
 }
 
 func TestConcurrentClvmMethodCalls(t *testing.T) {
-	clvm, err := ClvmNew()
+	clvm, err := NewClvm()
 	if err != nil {
-		t.Fatalf("ClvmNew: %v", err)
+		t.Fatalf("NewClvm: %v", err)
 	}
 	defer clvm.Close()
 
@@ -2125,9 +2125,9 @@ func TestConcurrentClone(t *testing.T) {
 }
 
 func TestConcurrentProgramMethods(t *testing.T) {
-	clvm, err := ClvmNew()
+	clvm, err := NewClvm()
 	if err != nil {
-		t.Fatalf("ClvmNew: %v", err)
+		t.Fatalf("NewClvm: %v", err)
 	}
 	defer clvm.Close()
 

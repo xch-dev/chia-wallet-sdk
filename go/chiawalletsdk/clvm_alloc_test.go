@@ -6,7 +6,7 @@ import (
 )
 
 func TestAllocInt(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	p, err := clvm.Alloc(ClvmInt(42))
@@ -26,7 +26,7 @@ func TestAllocInt(t *testing.T) {
 }
 
 func TestAllocBigInt(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	big := &big.Int{}
@@ -44,7 +44,7 @@ func TestAllocBigInt(t *testing.T) {
 }
 
 func TestAllocBool(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	p, err := clvm.Alloc(ClvmBool(true))
@@ -63,7 +63,7 @@ func TestAllocBool(t *testing.T) {
 }
 
 func TestAllocString(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	p, err := clvm.Alloc(ClvmString("hello"))
@@ -82,7 +82,7 @@ func TestAllocString(t *testing.T) {
 }
 
 func TestAllocBytes(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	data := []byte{0xca, 0xfe}
@@ -102,7 +102,7 @@ func TestAllocBytes(t *testing.T) {
 }
 
 func TestAllocNil(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	p, err := clvm.Alloc(ClvmNil{})
@@ -118,7 +118,7 @@ func TestAllocNil(t *testing.T) {
 }
 
 func TestAllocProgram(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	original, _ := clvm.Nil()
@@ -137,7 +137,7 @@ func TestAllocProgram(t *testing.T) {
 }
 
 func TestAllocPair(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	first, _ := clvm.Int([]byte{1})
@@ -161,7 +161,7 @@ func TestAllocPair(t *testing.T) {
 }
 
 func TestAllocCurriedProgram(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	// (1) as a trivial program
@@ -187,7 +187,7 @@ func TestAllocCurriedProgram(t *testing.T) {
 }
 
 func TestAllocPublicKey(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	seed := make([]byte, 32)
@@ -209,7 +209,7 @@ func TestAllocPublicKey(t *testing.T) {
 }
 
 func TestAllocCreateCoin(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	ph := make([]byte, 32)
@@ -234,7 +234,7 @@ func TestAllocCreateCoin(t *testing.T) {
 }
 
 func TestAllocReserveFee(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	rf, _ := NewReserveFee(500)
@@ -253,7 +253,7 @@ func TestAllocReserveFee(t *testing.T) {
 }
 
 func TestAllocAssertEphemeral(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	ae, _ := NewAssertEphemeral()
@@ -272,7 +272,7 @@ func TestAllocAssertEphemeral(t *testing.T) {
 }
 
 func TestAllocMeltSingleton(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	ms, _ := NewMeltSingleton()
@@ -291,7 +291,7 @@ func TestAllocMeltSingleton(t *testing.T) {
 }
 
 func TestAllocClvmList(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	p, err := clvm.Alloc(ClvmList{ClvmInt(1), ClvmInt(2), ClvmInt(3)})
@@ -342,7 +342,7 @@ func TestAllocClvmList(t *testing.T) {
 }
 
 func TestAllocClvmPairValue(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	p, err := clvm.Alloc(ClvmPairValue{
@@ -361,7 +361,7 @@ func TestAllocClvmPairValue(t *testing.T) {
 }
 
 func TestAllocNestedList(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	// Nested structure: [[1, 2], [3, 4]]
@@ -389,7 +389,7 @@ func TestAllocNestedList(t *testing.T) {
 }
 
 func TestAllocPayment(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	ph := make([]byte, 32)
@@ -413,7 +413,7 @@ func TestAllocPayment(t *testing.T) {
 }
 
 func TestAllocNotarizedPayment(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	ph := make([]byte, 32)
@@ -441,7 +441,7 @@ func TestAllocNotarizedPayment(t *testing.T) {
 }
 
 func TestAllocOptionMetadata(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	optType, _ := NewOptionTypeXch(1000)
@@ -465,7 +465,7 @@ func TestAllocOptionMetadata(t *testing.T) {
 }
 
 func TestAllocRoundtrip(t *testing.T) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 
 	// Create a condition, alloc it, serialize, verify non-empty

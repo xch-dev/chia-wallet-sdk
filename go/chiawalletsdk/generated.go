@@ -9393,8 +9393,8 @@ func (o *Spends) Clone() (*Spends, error) {
 	return clone, nil
 }
 
-// SpendsNew creates a new transaction builder with the given CLVM allocator and change puzzle hash.
-func SpendsNew(clvm *Clvm, changePuzzleHash []byte) (*Spends, error) {
+// NewSpends creates a new transaction builder with the given CLVM allocator and change puzzle hash.
+func NewSpends(clvm *Clvm, changePuzzleHash []byte) (*Spends, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if clvm == nil {
@@ -10851,8 +10851,8 @@ func NewIdExisting(assetId []byte) (*Id, error) {
 	return obj, nil
 }
 
-// NewIdNew creates an ID representing a newly minted asset by its index in the current transaction.
-func NewIdNew(index uint) (*Id, error) {
+// NewId creates an ID representing a newly minted asset by its index in the current transaction.
+func NewId(index uint) (*Id, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -14963,8 +14963,8 @@ func (o *Clvm) Clone() (*Clvm, error) {
 	return clone, nil
 }
 
-// ClvmNew creates a new CLVM allocator and transaction context.
-func ClvmNew() (*Clvm, error) {
+// NewClvm creates a new CLVM allocator and transaction context.
+func NewClvm() (*Clvm, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -31995,8 +31995,8 @@ func (o *MemberConfig) SetRestrictions(value []*Restriction) error {
 	return nil
 }
 
-// MemberConfigNew creates a default MemberConfig with top_level false, nonce 0, and no restrictions.
-func MemberConfigNew() (*MemberConfig, error) {
+// NewMemberConfig creates a default MemberConfig with top_level false, nonce 0, and no restrictions.
+func NewMemberConfig() (*MemberConfig, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -35323,8 +35323,8 @@ func (o *MipsMemoContext) Clone() (*MipsMemoContext, error) {
 	return clone, nil
 }
 
-// MipsMemoContextNew creates an empty MIPS memo parsing context.
-func MipsMemoContextNew() (*MipsMemoContext, error) {
+// NewMipsMemoContext creates an empty MIPS memo parsing context.
+func NewMipsMemoContext() (*MipsMemoContext, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -35553,8 +35553,8 @@ func (o *Mnemonic) Clone() (*Mnemonic, error) {
 	return clone, nil
 }
 
-// MnemonicNew parses a mnemonic from a space-separated word string.
-func MnemonicNew(mnemonic string) (*Mnemonic, error) {
+// NewMnemonic parses a mnemonic from a space-separated word string.
+func NewMnemonic(mnemonic string) (*Mnemonic, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cMnemonic := C.CString(mnemonic)
@@ -36385,8 +36385,8 @@ func (o *Connector) Clone() (*Connector, error) {
 	return clone, nil
 }
 
-// ConnectorNew creates a new TLS connector from the given certificate.
-func ConnectorNew(cert *Certificate) (*Connector, error) {
+// NewConnector creates a new TLS connector from the given certificate.
+func NewConnector(cert *Certificate) (*Connector, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if cert == nil {
@@ -36501,8 +36501,8 @@ func (o *PeerOptions) SetRateLimitFactor(value float64) error {
 	return nil
 }
 
-// PeerOptionsNew creates default peer options.
-func PeerOptionsNew() (*PeerOptions, error) {
+// NewPeerOptions creates default peer options.
+func NewPeerOptions() (*PeerOptions, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -42288,8 +42288,8 @@ func (o *CatSpend) SetHidden(value bool) error {
 	return nil
 }
 
-// CatSpendNew creates a new CAT spend pairing a CAT coin with its inner spend.
-func CatSpendNew(cat *Cat, spend *Spend) (*CatSpend, error) {
+// NewCatSpend creates a new CAT spend pairing a CAT coin with its inner spend.
+func NewCatSpend(cat *Cat, spend *Spend) (*CatSpend, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if cat == nil {
@@ -54824,8 +54824,8 @@ func (o *RewardSlot) SetValue(value *RewardDistributorRewardSlotValue) error {
 	return nil
 }
 
-// NewRewardSlotNew creates a new RewardSlot from its lineage proof, distributor launcher ID, and slot value.
-func NewRewardSlotNew(proof *LineageProof, launcherId []byte, value *RewardDistributorRewardSlotValue) (*RewardSlot, error) {
+// NewRewardSlot creates a new RewardSlot from its lineage proof, distributor launcher ID, and slot value.
+func NewRewardSlot(proof *LineageProof, launcherId []byte, value *RewardDistributorRewardSlotValue) (*RewardSlot, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if proof == nil {
@@ -55361,8 +55361,8 @@ func (o *CommitmentSlot) SetValue(value *RewardDistributorCommitmentSlotValue) e
 	return nil
 }
 
-// NewCommitmentSlotNew creates a new CommitmentSlot from its lineage proof, distributor launcher ID, and slot value.
-func NewCommitmentSlotNew(proof *LineageProof, launcherId []byte, value *RewardDistributorCommitmentSlotValue) (*CommitmentSlot, error) {
+// NewCommitmentSlot creates a new CommitmentSlot from its lineage proof, distributor launcher ID, and slot value.
+func NewCommitmentSlot(proof *LineageProof, launcherId []byte, value *RewardDistributorCommitmentSlotValue) (*CommitmentSlot, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if proof == nil {
@@ -55898,8 +55898,8 @@ func (o *EntrySlot) SetValue(value *RewardDistributorEntrySlotValue) error {
 	return nil
 }
 
-// NewEntrySlotNew creates a new EntrySlot from its lineage proof, distributor launcher ID, and slot value.
-func NewEntrySlotNew(proof *LineageProof, launcherId []byte, value *RewardDistributorEntrySlotValue) (*EntrySlot, error) {
+// NewEntrySlot creates a new EntrySlot from its lineage proof, distributor launcher ID, and slot value.
+func NewEntrySlot(proof *LineageProof, launcherId []byte, value *RewardDistributorEntrySlotValue) (*EntrySlot, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if proof == nil {
@@ -58931,8 +58931,8 @@ func (o *RpcClient) Clone() (*RpcClient, error) {
 	return clone, nil
 }
 
-// RpcClientNew creates a new RPC client connecting to the given coinset API URL.
-func RpcClientNew(coinsetUrl string) (*RpcClient, error) {
+// NewRpcClient creates a new RPC client connecting to the given coinset API URL.
+func NewRpcClient(coinsetUrl string) (*RpcClient, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cCoinsetUrl := C.CString(coinsetUrl)
@@ -72643,8 +72643,8 @@ func (o *Simulator) Clone() (*Simulator, error) {
 	return clone, nil
 }
 
-// SimulatorNew creates a new simulator with a random seed.
-func SimulatorNew() (*Simulator, error) {
+// NewSimulator creates a new simulator with a random seed.
+func NewSimulator() (*Simulator, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 

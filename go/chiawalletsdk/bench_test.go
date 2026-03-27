@@ -228,7 +228,7 @@ func BenchmarkCoinId(b *testing.B) {
 // ── CLVM / Program ──────────────────────────────────────────────────────
 
 func BenchmarkClvmPair(b *testing.B) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 	nilp, _ := clvm.Nil()
 	defer nilp.Free()
@@ -240,7 +240,7 @@ func BenchmarkClvmPair(b *testing.B) {
 }
 
 func BenchmarkProgramSerialize(b *testing.B) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 	nilp, _ := clvm.Nil()
 	defer nilp.Free()
@@ -253,7 +253,7 @@ func BenchmarkProgramSerialize(b *testing.B) {
 }
 
 func BenchmarkProgramDeserialize(b *testing.B) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 	data := []byte{0xff, 0x80, 0x80}
 	b.ResetTimer()
@@ -264,7 +264,7 @@ func BenchmarkProgramDeserialize(b *testing.B) {
 }
 
 func BenchmarkProgramTreeHash(b *testing.B) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 	nilp, _ := clvm.Nil()
 	defer nilp.Free()
@@ -275,7 +275,7 @@ func BenchmarkProgramTreeHash(b *testing.B) {
 }
 
 func BenchmarkClvmCreateCoin(b *testing.B) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 	ph := make([]byte, 32)
 	b.ResetTimer()
@@ -288,7 +288,7 @@ func BenchmarkClvmCreateCoin(b *testing.B) {
 // ── Conditions ──────────────────────────────────────────────────────────
 
 func BenchmarkDelegatedSpend(b *testing.B) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 	ph := make([]byte, 32)
 	cc, _ := clvm.CreateCoin(ph, 1000, nil)
@@ -302,7 +302,7 @@ func BenchmarkDelegatedSpend(b *testing.B) {
 }
 
 func BenchmarkStandardSpend(b *testing.B) {
-	clvm, _ := ClvmNew()
+	clvm, _ := NewClvm()
 	defer clvm.Free()
 	seed := make([]byte, 32)
 	sk, _ := NewSecretKeyFromSeed(seed)
@@ -392,7 +392,7 @@ func BenchmarkOfferDecode(b *testing.B) {
 // ── End-to-end: XCH spend (low-level API) ───────────────────────────────
 
 func BenchmarkXchSpendAndConfirm(b *testing.B) {
-	sim, _ := SimulatorNew()
+	sim, _ := NewSimulator()
 	defer sim.Free()
 
 	for i := 0; i < b.N; i++ {
@@ -404,7 +404,7 @@ func BenchmarkXchSpendAndConfirm(b *testing.B) {
 		puzzleHash, _ := pair.PuzzleHash()
 		b.StartTimer()
 
-		clvm, _ := ClvmNew()
+		clvm, _ := NewClvm()
 		cc, _ := clvm.CreateCoin(puzzleHash, 999_900, nil)
 		fee, _ := clvm.ReserveFee(100)
 		delegated, _ := clvm.DelegatedSpend([]*Program{cc, fee})
@@ -431,7 +431,7 @@ func BenchmarkXchSpendAndConfirm(b *testing.B) {
 // ── End-to-end: multi-coin consolidation (low-level API) ────────────────
 
 func BenchmarkMultiCoinConsolidation(b *testing.B) {
-	sim, _ := SimulatorNew()
+	sim, _ := NewSimulator()
 	defer sim.Free()
 
 	for i := 0; i < b.N; i++ {
@@ -445,7 +445,7 @@ func BenchmarkMultiCoinConsolidation(b *testing.B) {
 		b.StartTimer()
 
 		destPh, _ := pairs[0].PuzzleHash()
-		clvm, _ := ClvmNew()
+		clvm, _ := NewClvm()
 
 		for j := 0; j < 5; j++ {
 			pk, _ := pairs[j].Pk()
@@ -494,7 +494,7 @@ func BenchmarkMultiCoinConsolidation(b *testing.B) {
 // These benchmarks use the recommended high-level API and test scaling.
 
 func benchmarkBatchXchSend(b *testing.B, n int) {
-	sim, _ := SimulatorNew()
+	sim, _ := NewSimulator()
 	defer sim.Free()
 
 	for i := 0; i < b.N; i++ {
@@ -506,8 +506,8 @@ func benchmarkBatchXchSend(b *testing.B, n int) {
 		puzzleHash, _ := pair.PuzzleHash()
 		b.StartTimer()
 
-		clvm, _ := ClvmNew()
-		spends, _ := SpendsNew(clvm, puzzleHash)
+		clvm, _ := NewClvm()
+		spends, _ := NewSpends(clvm, puzzleHash)
 		spends.AddXch(coin)
 
 		actions := make([]*Action, 0, n+1)
@@ -551,7 +551,7 @@ func BenchmarkBatchXchSend_10(b *testing.B)  { benchmarkBatchXchSend(b, 10) }
 func BenchmarkBatchXchSend_100(b *testing.B) { benchmarkBatchXchSend(b, 100) }
 
 func benchmarkBatchCatIssuance(b *testing.B, n int) {
-	sim, _ := SimulatorNew()
+	sim, _ := NewSimulator()
 	defer sim.Free()
 
 	for i := 0; i < b.N; i++ {
@@ -563,8 +563,8 @@ func benchmarkBatchCatIssuance(b *testing.B, n int) {
 		puzzleHash, _ := pair.PuzzleHash()
 		b.StartTimer()
 
-		clvm, _ := ClvmNew()
-		spends, _ := SpendsNew(clvm, puzzleHash)
+		clvm, _ := NewClvm()
+		spends, _ := NewSpends(clvm, puzzleHash)
 		spends.AddXch(coin)
 
 		actions := make([]*Action, 0, n+1)
@@ -603,7 +603,7 @@ func BenchmarkBatchCatIssuance_10(b *testing.B) { benchmarkBatchCatIssuance(b, 1
 func BenchmarkBatchCatIssuance_25(b *testing.B) { benchmarkBatchCatIssuance(b, 25) }
 
 func benchmarkBatchNftMint(b *testing.B, n int) {
-	sim, _ := SimulatorNew()
+	sim, _ := NewSimulator()
 	defer sim.Free()
 
 	for i := 0; i < b.N; i++ {
@@ -615,8 +615,8 @@ func benchmarkBatchNftMint(b *testing.B, n int) {
 		puzzleHash, _ := pair.PuzzleHash()
 		b.StartTimer()
 
-		clvm, _ := ClvmNew()
-		spends, _ := SpendsNew(clvm, puzzleHash)
+		clvm, _ := NewClvm()
+		spends, _ := NewSpends(clvm, puzzleHash)
 		spends.AddXch(coin)
 
 		updater, _ := clvm.NftMetadataUpdaterDefault()

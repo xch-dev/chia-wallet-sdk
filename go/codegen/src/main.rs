@@ -2106,7 +2106,9 @@ func (o *{class_name}) {go_method_name}({go_params_str}) ({go_ret_ty}, error) {{
             }
         } else {
             // Static / Factory - generate as package-level function
-            let func_name = if is_factory {
+            let func_name = if mname == "new" {
+                format!("New{class_name}")
+            } else if is_factory {
                 format!("New{class_name}{go_method_name}")
             } else {
                 format!("{class_name}{go_method_name}")

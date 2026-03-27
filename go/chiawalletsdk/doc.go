@@ -12,7 +12,7 @@
 // accumulates coin spends. Use it to build programs, parse conditions,
 // and construct transactions:
 //
-//	clvm, _ := chiawalletsdk.ClvmNew()
+//	clvm, _ := chiawalletsdk.NewClvm()
 //	defer clvm.Close()
 //
 // Cryptographic primitives are provided by [SecretKey], [PublicKey],
