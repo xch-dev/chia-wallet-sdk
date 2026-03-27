@@ -1922,6 +1922,10 @@ func (o *{class_name}) {go_name}(value {go_ty}) error {{
             method.kind,
             MethodKind::Factory | MethodKind::AsyncFactory
         );
+        let is_async = matches!(
+            method.kind,
+            MethodKind::Async | MethodKind::AsyncFactory
+        );
         let go_method_name = Self::go_rename_method(
             &mname.to_case(Case::Pascal),
             is_instance,
@@ -1989,6 +1993,10 @@ func (o *{class_name}) {go_name}(value {go_ty}) error {{
 
         let pre_str = pre_call.join("\n\t");
         let post_str = post_call.join("\n\t");
+        // Async methods get ctx as first parameter
+        if is_async {
+            go_params.insert(0, "ctx context.Context".to_string());
+        }
         let go_params_str = go_params.join(", ");
         let call_args_str = call_args.join(", ");
 
@@ -2051,7 +2059,93 @@ func (o *{class_name}) {go_name}(value {go_ty}) error {{
         };
 
         if is_instance {
-            if is_void {
+            if is_async {
+                // Async instance methods: goroutine + select for context.Context support
+                if is_void {
+                    self.body.push_str(&format!(
+                        r#"{method_doc}
+func (o *{class_name}) {go_method_name}({go_params_str}) error {{
+	if o == nil {{
+		return fmt.Errorf("object is nil or already freed")
+	}}
+	{nil_checks_str}o.mu.RLock()
+	if o.ptr == nil {{
+		o.mu.RUnlock()
+		return fmt.Errorf("object is nil or already freed")
+	}}
+	type asyncResult struct {{ err error }}
+	ch := make(chan asyncResult, 1)
+	go func() {{
+		defer o.mu.RUnlock()
+		err := func() error {{
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			{pre_str}
+			{post_str}
+			ret := C.go_{snake}_{method_snake}({call_args_str}){keep_alive_str}
+			if ret != 0 {{
+				return lastError()
+			}}
+			return nil
+		}}()
+		ch <- asyncResult{{err: err}}
+	}}()
+	select {{
+	case <-ctx.Done():
+		return ctx.Err()
+	case r := <-ch:
+		return r.err
+	}}
+}}
+
+"#
+                    ));
+                } else {
+                    self.body.push_str(&format!(
+                        r#"{method_doc}
+func (o *{class_name}) {go_method_name}({go_params_str}) ({go_ret_ty}, error) {{
+	if o == nil {{
+		return {zero}, fmt.Errorf("object is nil or already freed")
+	}}
+	{nil_checks_str}o.mu.RLock()
+	if o.ptr == nil {{
+		o.mu.RUnlock()
+		return {zero}, fmt.Errorf("object is nil or already freed")
+	}}
+	type asyncResult struct {{
+		val {go_ret_ty}
+		err error
+	}}
+	ch := make(chan asyncResult, 1)
+	go func() {{
+		defer o.mu.RUnlock()
+		val, err := func() ({go_ret_ty}, error) {{
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			{pre_str}
+			{post_str}
+			{out_decl}
+			ret := C.go_{snake}_{method_snake}({call_args_str}){keep_alive_str}
+			if ret != 0 {{
+				return {zero}, lastError()
+			}}
+			{result_expr}
+		}}()
+		ch <- asyncResult{{val: val, err: err}}
+	}}()
+	select {{
+	case <-ctx.Done():
+		return {zero}, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}}
+}}
+
+"#,
+                        zero = self.go_zero(&ret_kind),
+                    ));
+                }
+            } else if is_void {
                 self.body.push_str(&format!(
                     r#"{method_doc}
 func (o *{class_name}) {go_method_name}({go_params_str}) error {{
@@ -2114,7 +2208,91 @@ func (o *{class_name}) {go_method_name}({go_params_str}) ({go_ret_ty}, error) {{
                 format!("{class_name}{go_method_name}")
             };
 
-            if is_void {
+            if is_async {
+                // Async static/factory methods: goroutine + select for context.Context support
+                if is_void {
+                    let static_doc = match &method.doc {
+                        Some(d) => format!("// {func_name} {d}"),
+                        None => {
+                            let doc = Self::generate_method_doc(class_name, mname, &go_method_name, method, false);
+                            format!("// {func_name} {doc}")
+                        }
+                    };
+                    self.body.push_str(&format!(
+                        r#"{static_doc}
+func {func_name}({go_params_str}) error {{
+	{nil_checks_str}type asyncResult struct {{ err error }}
+	ch := make(chan asyncResult, 1)
+	go func() {{
+		err := func() error {{
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			{pre_str}
+			{post_str}
+			ret := C.go_{snake}_{method_snake}({call_args_str}){keep_alive_str}
+			if ret != 0 {{
+				return lastError()
+			}}
+			return nil
+		}}()
+		ch <- asyncResult{{err: err}}
+	}}()
+	select {{
+	case <-ctx.Done():
+		return ctx.Err()
+	case r := <-ch:
+		return r.err
+	}}
+}}
+
+"#
+                    ));
+                } else {
+                    let doc = match &method.doc {
+                        Some(d) => format!("// {func_name} {d}"),
+                        None => if is_factory {
+                            format!("// {func_name} creates a new [{class_name}] via the {go_method_name} factory.")
+                        } else {
+                            let doc = Self::generate_method_doc(class_name, mname, &go_method_name, method, false);
+                            format!("// {func_name} {doc}")
+                        },
+                    };
+                    self.body.push_str(&format!(
+                        r#"{doc}
+func {func_name}({go_params_str}) ({go_ret_ty}, error) {{
+	{nil_checks_str}type asyncResult struct {{
+		val {go_ret_ty}
+		err error
+	}}
+	ch := make(chan asyncResult, 1)
+	go func() {{
+		val, err := func() ({go_ret_ty}, error) {{
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			{pre_str}
+			{post_str}
+			{out_decl}
+			ret := C.go_{snake}_{method_snake}({call_args_str}){keep_alive_str}
+			if ret != 0 {{
+				return {zero}, lastError()
+			}}
+			{result_expr}
+		}}()
+		ch <- asyncResult{{val: val, err: err}}
+	}}()
+	select {{
+	case <-ctx.Done():
+		return {zero}, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}}
+}}
+
+"#,
+                        zero = self.go_zero(&ret_kind),
+                    ));
+                }
+            } else if is_void {
                 let static_doc = match &method.doc {
                     Some(d) => format!("// {func_name} {d}"),
                     None => {
@@ -3269,6 +3447,7 @@ fn main() {
     go_file.push_str("*/\n");
     go_file.push_str("import \"C\"\n");
     go_file.push_str("import (\n");
+    go_file.push_str("\t\"context\"\n");
     go_file.push_str("\t\"fmt\"\n");
     if needs_big {
         go_file.push_str("\t\"math/big\"\n");

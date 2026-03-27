@@ -9274,6 +9274,7 @@ extern int go_spend_bundle_cost(const void** coin_spends_ptrs, size_t coin_spend
 */
 import "C"
 import (
+	"context"
 	"fmt"
 	"math/big"
 	"runtime"
@@ -36572,44 +36573,68 @@ func (o *Peer) Clone() (*Peer, error) {
 }
 
 // NewPeerConnect connects to a Chia full node at the given address using TLS.
-func NewPeerConnect(networkId string, socketAddr string, connector *Connector, options *PeerOptions) (*Peer, error) {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+func NewPeerConnect(ctx context.Context, networkId string, socketAddr string, connector *Connector, options *PeerOptions) (*Peer, error) {
 	if connector == nil {
 		return nil, fmt.Errorf("connector must not be nil")
 	}
 	if options == nil {
 		return nil, fmt.Errorf("options must not be nil")
 	}
-	cNetworkId := C.CString(networkId)
+	type asyncResult struct {
+		val *Peer
+		err error
+	}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		val, err := func() (*Peer, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			cNetworkId := C.CString(networkId)
 	cSocketAddr := C.CString(socketAddr)
-	defer C.free(unsafe.Pointer(cNetworkId))
+			defer C.free(unsafe.Pointer(cNetworkId))
 	defer C.free(unsafe.Pointer(cSocketAddr))
-	var out unsafe.Pointer
-	ret := C.go_peer_connect(cNetworkId, cSocketAddr, connector.ptr, options.ptr, &out)
+			var out unsafe.Pointer
+			ret := C.go_peer_connect(cNetworkId, cSocketAddr, connector.ptr, options.ptr, &out)
 	runtime.KeepAlive(connector)
 	runtime.KeepAlive(options)
-	if ret != 0 {
-		return nil, lastError()
-	}
-	obj := &Peer{ptr: out}
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &Peer{ptr: out}
 	runtime.SetFinalizer(obj, (*Peer).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // RequestCoinState requests the state of specific coins by their IDs, optionally subscribing to future updates.
-func (o *Peer) RequestCoinState(coinIds [][]byte, previousHeight *uint32, headerHash []byte, subscribe bool) (*RespondCoinState, error) {
+func (o *Peer) RequestCoinState(ctx context.Context, coinIds [][]byte, previousHeight *uint32, headerHash []byte, subscribe bool) (*RespondCoinState, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	coinIdsPtrs := make([]*C.uint8_t, len(coinIds))
+	type asyncResult struct {
+		val *RespondCoinState
+		err error
+	}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*RespondCoinState, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			coinIdsPtrs := make([]*C.uint8_t, len(coinIds))
 	coinIdsLens := make([]C.size_t, len(coinIds))
 	for i, b := range coinIds {
 		if len(b) > 0 {
@@ -36632,33 +36657,50 @@ func (o *Peer) RequestCoinState(coinIds [][]byte, previousHeight *uint32, header
 	}
 	headerHashPtr, headerHashLen := bytesToPtr(headerHash)
 
-	var out unsafe.Pointer
-	ret := C.go_peer_request_coin_state(o.ptr, coinIdsPtrsC, coinIdsLensC, coinIdsCount, previousHeightVal, previousHeightIsSome, headerHashPtr, headerHashLen, boolToInt(subscribe), &out)
+			var out unsafe.Pointer
+			ret := C.go_peer_request_coin_state(o.ptr, coinIdsPtrsC, coinIdsLensC, coinIdsCount, previousHeightVal, previousHeightIsSome, headerHashPtr, headerHashLen, boolToInt(subscribe), &out)
 	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
-	}
-	obj := &RespondCoinState{ptr: out}
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &RespondCoinState{ptr: out}
 	runtime.SetFinalizer(obj, (*RespondCoinState).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // RequestPuzzleState requests coins matching specific puzzle hashes with filters, optionally subscribing to updates.
-func (o *Peer) RequestPuzzleState(puzzleHashes [][]byte, previousHeight *uint32, headerHash []byte, filters *CoinStateFilters, subscribe bool) (*RespondPuzzleState, error) {
+func (o *Peer) RequestPuzzleState(ctx context.Context, puzzleHashes [][]byte, previousHeight *uint32, headerHash []byte, filters *CoinStateFilters, subscribe bool) (*RespondPuzzleState, error) {
 	if o == nil {
-		return nil, fmt.Errorf("object is nil or already freed")
-	}
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-	if o.ptr == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	if filters == nil {
 		return nil, fmt.Errorf("filters must not be nil")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	puzzleHashesPtrs := make([]*C.uint8_t, len(puzzleHashes))
+	o.mu.RLock()
+	if o.ptr == nil {
+		o.mu.RUnlock()
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	type asyncResult struct {
+		val *RespondPuzzleState
+		err error
+	}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*RespondPuzzleState, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			puzzleHashesPtrs := make([]*C.uint8_t, len(puzzleHashes))
 	puzzleHashesLens := make([]C.size_t, len(puzzleHashes))
 	for i, b := range puzzleHashes {
 		if len(b) > 0 {
@@ -36681,56 +36723,90 @@ func (o *Peer) RequestPuzzleState(puzzleHashes [][]byte, previousHeight *uint32,
 	}
 	headerHashPtr, headerHashLen := bytesToPtr(headerHash)
 
-	var out unsafe.Pointer
-	ret := C.go_peer_request_puzzle_state(o.ptr, puzzleHashesPtrsC, puzzleHashesLensC, puzzleHashesCount, previousHeightVal, previousHeightIsSome, headerHashPtr, headerHashLen, filters.ptr, boolToInt(subscribe), &out)
+			var out unsafe.Pointer
+			ret := C.go_peer_request_puzzle_state(o.ptr, puzzleHashesPtrsC, puzzleHashesLensC, puzzleHashesCount, previousHeightVal, previousHeightIsSome, headerHashPtr, headerHashLen, filters.ptr, boolToInt(subscribe), &out)
 	runtime.KeepAlive(o)
 	runtime.KeepAlive(filters)
-	if ret != 0 {
-		return nil, lastError()
-	}
-	obj := &RespondPuzzleState{ptr: out}
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &RespondPuzzleState{ptr: out}
 	runtime.SetFinalizer(obj, (*RespondPuzzleState).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // RequestPuzzleAndSolution requests the puzzle reveal and solution for a spent coin at a specific height.
-func (o *Peer) RequestPuzzleAndSolution(coinId []byte, height uint32) (*PuzzleSolutionResponse, error) {
+func (o *Peer) RequestPuzzleAndSolution(ctx context.Context, coinId []byte, height uint32) (*PuzzleSolutionResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	coinIdPtr, coinIdLen := bytesToPtr(coinId)
-
-	var out unsafe.Pointer
-	ret := C.go_peer_request_puzzle_and_solution(o.ptr, coinIdPtr, coinIdLen, C.uint32_t(height), &out)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	type asyncResult struct {
+		val *PuzzleSolutionResponse
+		err error
 	}
-	obj := &PuzzleSolutionResponse{ptr: out}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*PuzzleSolutionResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			coinIdPtr, coinIdLen := bytesToPtr(coinId)
+
+			var out unsafe.Pointer
+			ret := C.go_peer_request_puzzle_and_solution(o.ptr, coinIdPtr, coinIdLen, C.uint32_t(height), &out)
+	runtime.KeepAlive(o)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &PuzzleSolutionResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*PuzzleSolutionResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // RemoveCoinSubscriptions removes coin state subscriptions, returning the coin IDs that were unsubscribed. Pass nil to remove all.
-func (o *Peer) RemoveCoinSubscriptions(coinIds [][]byte) ([][]byte, error) {
+func (o *Peer) RemoveCoinSubscriptions(ctx context.Context, coinIds [][]byte) ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	coinIdsPtrs := make([]*C.uint8_t, len(coinIds))
+	type asyncResult struct {
+		val [][]byte
+		err error
+	}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() ([][]byte, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			coinIdsPtrs := make([]*C.uint8_t, len(coinIds))
 	coinIdsLens := make([]C.size_t, len(coinIds))
 	for i, b := range coinIds {
 		if len(b) > 0 {
@@ -36746,13 +36822,13 @@ func (o *Peer) RemoveCoinSubscriptions(coinIds [][]byte) ([][]byte, error) {
 	}
 	coinIdsCount := C.size_t(len(coinIds))
 
-	var out unsafe.Pointer
-	ret := C.go_peer_remove_coin_subscriptions(o.ptr, coinIdsPtrsC, coinIdsLensC, coinIdsCount, &out)
+			var out unsafe.Pointer
+			ret := C.go_peer_remove_coin_subscriptions(o.ptr, coinIdsPtrsC, coinIdsLensC, coinIdsCount, &out)
 	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
-	}
-	listLen := C.go_bytes_list_len(out)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			listLen := C.go_bytes_list_len(out)
 	result := make([][]byte, listLen)
 	for i := range result {
 		var bPtr *C.uint8_t
@@ -36765,21 +36841,38 @@ func (o *Peer) RemoveCoinSubscriptions(coinIds [][]byte) ([][]byte, error) {
 	}
 	C.go_bytes_list_free(out)
 	return result, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // RemovePuzzleSubscriptions removes puzzle state subscriptions, returning the puzzle hashes that were unsubscribed. Pass nil to remove all.
-func (o *Peer) RemovePuzzleSubscriptions(puzzleHashes [][]byte) ([][]byte, error) {
+func (o *Peer) RemovePuzzleSubscriptions(ctx context.Context, puzzleHashes [][]byte) ([][]byte, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	puzzleHashesPtrs := make([]*C.uint8_t, len(puzzleHashes))
+	type asyncResult struct {
+		val [][]byte
+		err error
+	}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() ([][]byte, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			puzzleHashesPtrs := make([]*C.uint8_t, len(puzzleHashes))
 	puzzleHashesLens := make([]C.size_t, len(puzzleHashes))
 	for i, b := range puzzleHashes {
 		if len(b) > 0 {
@@ -36795,13 +36888,13 @@ func (o *Peer) RemovePuzzleSubscriptions(puzzleHashes [][]byte) ([][]byte, error
 	}
 	puzzleHashesCount := C.size_t(len(puzzleHashes))
 
-	var out unsafe.Pointer
-	ret := C.go_peer_remove_puzzle_subscriptions(o.ptr, puzzleHashesPtrsC, puzzleHashesLensC, puzzleHashesCount, &out)
+			var out unsafe.Pointer
+			ret := C.go_peer_remove_puzzle_subscriptions(o.ptr, puzzleHashesPtrsC, puzzleHashesLensC, puzzleHashesCount, &out)
 	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
-	}
-	listLen := C.go_bytes_list_len(out)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			listLen := C.go_bytes_list_len(out)
 	result := make([][]byte, listLen)
 	for i := range result {
 		var bPtr *C.uint8_t
@@ -36814,33 +36907,59 @@ func (o *Peer) RemovePuzzleSubscriptions(puzzleHashes [][]byte) ([][]byte, error
 	}
 	C.go_bytes_list_free(out)
 	return result, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // Next waits for the next event from the peer (new peak or coin state update), or nil if disconnected.
-func (o *Peer) Next() (*Event, error) {
+func (o *Peer) Next(ctx context.Context) (*Event, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	var out unsafe.Pointer
-	ret := C.go_peer_next(o.ptr, &out)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	type asyncResult struct {
+		val *Event
+		err error
 	}
-	if out == nil {
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*Event, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+
+			var out unsafe.Pointer
+			ret := C.go_peer_next(o.ptr, &out)
+	runtime.KeepAlive(o)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			if out == nil {
 		return nil, nil
 	}
 	obj := &Event{ptr: out}
 	runtime.SetFinalizer(obj, (*Event).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // Event represents an event received from a connected peer: either a new peak notification or a coin state update.
@@ -59013,239 +59132,400 @@ func NewRpcClientLocalWithUrl(baseUrl string, certBytes []byte, keyBytes []byte)
 }
 
 // GetBlockchainState fetches the current blockchain state including peak, sync status, mempool info, and network space.
-func (o *RpcClient) GetBlockchainState() (*BlockchainStateResponse, error) {
+func (o *RpcClient) GetBlockchainState(ctx context.Context) (*BlockchainStateResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_blockchain_state(o.ptr, &out)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	type asyncResult struct {
+		val *BlockchainStateResponse
+		err error
 	}
-	obj := &BlockchainStateResponse{ptr: out}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*BlockchainStateResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_blockchain_state(o.ptr, &out)
+	runtime.KeepAlive(o)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &BlockchainStateResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*BlockchainStateResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetAdditionsAndRemovals fetches the coins created (additions) and spent (removals) in the block with the given header hash.
-func (o *RpcClient) GetAdditionsAndRemovals(headerHash []byte) (*AdditionsAndRemovalsResponse, error) {
+func (o *RpcClient) GetAdditionsAndRemovals(ctx context.Context, headerHash []byte) (*AdditionsAndRemovalsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	headerHashPtr, headerHashLen := bytesToPtr(headerHash)
-
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_additions_and_removals(o.ptr, headerHashPtr, headerHashLen, &out)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	type asyncResult struct {
+		val *AdditionsAndRemovalsResponse
+		err error
 	}
-	obj := &AdditionsAndRemovalsResponse{ptr: out}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*AdditionsAndRemovalsResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			headerHashPtr, headerHashLen := bytesToPtr(headerHash)
+
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_additions_and_removals(o.ptr, headerHashPtr, headerHashLen, &out)
+	runtime.KeepAlive(o)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &AdditionsAndRemovalsResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*AdditionsAndRemovalsResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetBlock fetches the full block data for the given header hash.
-func (o *RpcClient) GetBlock(headerHash []byte) (*GetBlockResponse, error) {
+func (o *RpcClient) GetBlock(ctx context.Context, headerHash []byte) (*GetBlockResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	headerHashPtr, headerHashLen := bytesToPtr(headerHash)
-
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_block(o.ptr, headerHashPtr, headerHashLen, &out)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	type asyncResult struct {
+		val *GetBlockResponse
+		err error
 	}
-	obj := &GetBlockResponse{ptr: out}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetBlockResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			headerHashPtr, headerHashLen := bytesToPtr(headerHash)
+
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_block(o.ptr, headerHashPtr, headerHashLen, &out)
+	runtime.KeepAlive(o)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetBlockResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetBlockResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetBlockRecord fetches the block record (lightweight metadata) for the given header hash.
-func (o *RpcClient) GetBlockRecord(headerHash []byte) (*GetBlockRecordResponse, error) {
+func (o *RpcClient) GetBlockRecord(ctx context.Context, headerHash []byte) (*GetBlockRecordResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	headerHashPtr, headerHashLen := bytesToPtr(headerHash)
-
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_block_record(o.ptr, headerHashPtr, headerHashLen, &out)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	type asyncResult struct {
+		val *GetBlockRecordResponse
+		err error
 	}
-	obj := &GetBlockRecordResponse{ptr: out}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetBlockRecordResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			headerHashPtr, headerHashLen := bytesToPtr(headerHash)
+
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_block_record(o.ptr, headerHashPtr, headerHashLen, &out)
+	runtime.KeepAlive(o)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetBlockRecordResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetBlockRecordResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetBlockRecordByHeight fetches the block record at the given block height.
-func (o *RpcClient) GetBlockRecordByHeight(height uint32) (*GetBlockRecordResponse, error) {
+func (o *RpcClient) GetBlockRecordByHeight(ctx context.Context, height uint32) (*GetBlockRecordResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_block_record_by_height(o.ptr, C.uint32_t(height), &out)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	type asyncResult struct {
+		val *GetBlockRecordResponse
+		err error
 	}
-	obj := &GetBlockRecordResponse{ptr: out}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetBlockRecordResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_block_record_by_height(o.ptr, C.uint32_t(height), &out)
+	runtime.KeepAlive(o)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetBlockRecordResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetBlockRecordResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetBlockRecords fetches block records for the given height range [start, end).
-func (o *RpcClient) GetBlockRecords(startHeight uint32, endHeight uint32) (*GetBlockRecordsResponse, error) {
+func (o *RpcClient) GetBlockRecords(ctx context.Context, startHeight uint32, endHeight uint32) (*GetBlockRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_block_records(o.ptr, C.uint32_t(startHeight), C.uint32_t(endHeight), &out)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	type asyncResult struct {
+		val *GetBlockRecordsResponse
+		err error
 	}
-	obj := &GetBlockRecordsResponse{ptr: out}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetBlockRecordsResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_block_records(o.ptr, C.uint32_t(startHeight), C.uint32_t(endHeight), &out)
+	runtime.KeepAlive(o)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetBlockRecordsResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetBlockRecordsResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetBlocks fetches full blocks for the given height range [start, end), with options to exclude header hashes and reorged blocks.
-func (o *RpcClient) GetBlocks(start uint32, end uint32, excludeHeaderHash bool, excludeReorged bool) (*GetBlocksResponse, error) {
+func (o *RpcClient) GetBlocks(ctx context.Context, start uint32, end uint32, excludeHeaderHash bool, excludeReorged bool) (*GetBlocksResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_blocks(o.ptr, C.uint32_t(start), C.uint32_t(end), boolToInt(excludeHeaderHash), boolToInt(excludeReorged), &out)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	type asyncResult struct {
+		val *GetBlocksResponse
+		err error
 	}
-	obj := &GetBlocksResponse{ptr: out}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetBlocksResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_blocks(o.ptr, C.uint32_t(start), C.uint32_t(end), boolToInt(excludeHeaderHash), boolToInt(excludeReorged), &out)
+	runtime.KeepAlive(o)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetBlocksResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetBlocksResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetBlockSpends fetches all coin spends (puzzle reveals and solutions) in the block with the given header hash.
-func (o *RpcClient) GetBlockSpends(headerHash []byte) (*GetBlockSpendsResponse, error) {
+func (o *RpcClient) GetBlockSpends(ctx context.Context, headerHash []byte) (*GetBlockSpendsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	headerHashPtr, headerHashLen := bytesToPtr(headerHash)
-
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_block_spends(o.ptr, headerHashPtr, headerHashLen, &out)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	type asyncResult struct {
+		val *GetBlockSpendsResponse
+		err error
 	}
-	obj := &GetBlockSpendsResponse{ptr: out}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetBlockSpendsResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			headerHashPtr, headerHashLen := bytesToPtr(headerHash)
+
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_block_spends(o.ptr, headerHashPtr, headerHashLen, &out)
+	runtime.KeepAlive(o)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetBlockSpendsResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetBlockSpendsResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetCoinRecordByName fetches a coin record by its coin ID (name).
-func (o *RpcClient) GetCoinRecordByName(name []byte) (*GetCoinRecordResponse, error) {
+func (o *RpcClient) GetCoinRecordByName(ctx context.Context, name []byte) (*GetCoinRecordResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	namePtr, nameLen := bytesToPtr(name)
-
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_coin_record_by_name(o.ptr, namePtr, nameLen, &out)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	type asyncResult struct {
+		val *GetCoinRecordResponse
+		err error
 	}
-	obj := &GetCoinRecordResponse{ptr: out}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetCoinRecordResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			namePtr, nameLen := bytesToPtr(name)
+
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_coin_record_by_name(o.ptr, namePtr, nameLen, &out)
+	runtime.KeepAlive(o)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetCoinRecordResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetCoinRecordResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetCoinRecordsByHint fetches coin records matching the given hint (typically a puzzle hash used as a memo), with optional height and spent filters.
-func (o *RpcClient) GetCoinRecordsByHint(hint []byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
+func (o *RpcClient) GetCoinRecordsByHint(ctx context.Context, hint []byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	hintPtr, hintLen := bytesToPtr(hint)
+	type asyncResult struct {
+		val *GetCoinRecordsResponse
+		err error
+	}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetCoinRecordsResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			hintPtr, hintLen := bytesToPtr(hint)
 	var startHeightVal C.uint32_t
 	var startHeightIsSome C.int
 	if startHeight != nil {
@@ -59265,30 +59545,47 @@ func (o *RpcClient) GetCoinRecordsByHint(hint []byte, startHeight *uint32, endHe
 		includeSpentCoinsIsSome = 1
 	}
 
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_coin_records_by_hint(o.ptr, hintPtr, hintLen, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_coin_records_by_hint(o.ptr, hintPtr, hintLen, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
 	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
-	}
-	obj := &GetCoinRecordsResponse{ptr: out}
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetCoinRecordsResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetCoinRecordsResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetCoinRecordsByHints fetches coin records matching any of the given hints, with optional height and spent filters.
-func (o *RpcClient) GetCoinRecordsByHints(hints [][]byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
+func (o *RpcClient) GetCoinRecordsByHints(ctx context.Context, hints [][]byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	hintsPtrs := make([]*C.uint8_t, len(hints))
+	type asyncResult struct {
+		val *GetCoinRecordsResponse
+		err error
+	}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetCoinRecordsResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			hintsPtrs := make([]*C.uint8_t, len(hints))
 	hintsLens := make([]C.size_t, len(hints))
 	for i, b := range hints {
 		if len(b) > 0 {
@@ -59322,30 +59619,47 @@ func (o *RpcClient) GetCoinRecordsByHints(hints [][]byte, startHeight *uint32, e
 		includeSpentCoinsIsSome = 1
 	}
 
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_coin_records_by_hints(o.ptr, hintsPtrsC, hintsLensC, hintsCount, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_coin_records_by_hints(o.ptr, hintsPtrsC, hintsLensC, hintsCount, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
 	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
-	}
-	obj := &GetCoinRecordsResponse{ptr: out}
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetCoinRecordsResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetCoinRecordsResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetCoinRecordsByNames fetches coin records for the given coin IDs, with optional height and spent filters.
-func (o *RpcClient) GetCoinRecordsByNames(names [][]byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
+func (o *RpcClient) GetCoinRecordsByNames(ctx context.Context, names [][]byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	namesPtrs := make([]*C.uint8_t, len(names))
+	type asyncResult struct {
+		val *GetCoinRecordsResponse
+		err error
+	}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetCoinRecordsResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			namesPtrs := make([]*C.uint8_t, len(names))
 	namesLens := make([]C.size_t, len(names))
 	for i, b := range names {
 		if len(b) > 0 {
@@ -59379,30 +59693,47 @@ func (o *RpcClient) GetCoinRecordsByNames(names [][]byte, startHeight *uint32, e
 		includeSpentCoinsIsSome = 1
 	}
 
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_coin_records_by_names(o.ptr, namesPtrsC, namesLensC, namesCount, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_coin_records_by_names(o.ptr, namesPtrsC, namesLensC, namesCount, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
 	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
-	}
-	obj := &GetCoinRecordsResponse{ptr: out}
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetCoinRecordsResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetCoinRecordsResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetCoinRecordsByParentIds fetches coin records created by the given parent coin IDs, with optional height and spent filters.
-func (o *RpcClient) GetCoinRecordsByParentIds(parentIds [][]byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
+func (o *RpcClient) GetCoinRecordsByParentIds(ctx context.Context, parentIds [][]byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	parentIdsPtrs := make([]*C.uint8_t, len(parentIds))
+	type asyncResult struct {
+		val *GetCoinRecordsResponse
+		err error
+	}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetCoinRecordsResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			parentIdsPtrs := make([]*C.uint8_t, len(parentIds))
 	parentIdsLens := make([]C.size_t, len(parentIds))
 	for i, b := range parentIds {
 		if len(b) > 0 {
@@ -59436,30 +59767,47 @@ func (o *RpcClient) GetCoinRecordsByParentIds(parentIds [][]byte, startHeight *u
 		includeSpentCoinsIsSome = 1
 	}
 
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_coin_records_by_parent_ids(o.ptr, parentIdsPtrsC, parentIdsLensC, parentIdsCount, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_coin_records_by_parent_ids(o.ptr, parentIdsPtrsC, parentIdsLensC, parentIdsCount, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
 	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
-	}
-	obj := &GetCoinRecordsResponse{ptr: out}
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetCoinRecordsResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetCoinRecordsResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetCoinRecordsByPuzzleHash fetches coin records locked to the given puzzle hash, with optional height and spent filters.
-func (o *RpcClient) GetCoinRecordsByPuzzleHash(puzzleHash []byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
+func (o *RpcClient) GetCoinRecordsByPuzzleHash(ctx context.Context, puzzleHash []byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	puzzleHashPtr, puzzleHashLen := bytesToPtr(puzzleHash)
+	type asyncResult struct {
+		val *GetCoinRecordsResponse
+		err error
+	}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetCoinRecordsResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			puzzleHashPtr, puzzleHashLen := bytesToPtr(puzzleHash)
 	var startHeightVal C.uint32_t
 	var startHeightIsSome C.int
 	if startHeight != nil {
@@ -59479,30 +59827,47 @@ func (o *RpcClient) GetCoinRecordsByPuzzleHash(puzzleHash []byte, startHeight *u
 		includeSpentCoinsIsSome = 1
 	}
 
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_coin_records_by_puzzle_hash(o.ptr, puzzleHashPtr, puzzleHashLen, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_coin_records_by_puzzle_hash(o.ptr, puzzleHashPtr, puzzleHashLen, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
 	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
-	}
-	obj := &GetCoinRecordsResponse{ptr: out}
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetCoinRecordsResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetCoinRecordsResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetCoinRecordsByPuzzleHashes fetches coin records locked to any of the given puzzle hashes, with optional height and spent filters.
-func (o *RpcClient) GetCoinRecordsByPuzzleHashes(puzzleHashes [][]byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
+func (o *RpcClient) GetCoinRecordsByPuzzleHashes(ctx context.Context, puzzleHashes [][]byte, startHeight *uint32, endHeight *uint32, includeSpentCoins *bool) (*GetCoinRecordsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	puzzleHashesPtrs := make([]*C.uint8_t, len(puzzleHashes))
+	type asyncResult struct {
+		val *GetCoinRecordsResponse
+		err error
+	}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetCoinRecordsResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			puzzleHashesPtrs := make([]*C.uint8_t, len(puzzleHashes))
 	puzzleHashesLens := make([]C.size_t, len(puzzleHashes))
 	for i, b := range puzzleHashes {
 		if len(b) > 0 {
@@ -59536,30 +59901,47 @@ func (o *RpcClient) GetCoinRecordsByPuzzleHashes(puzzleHashes [][]byte, startHei
 		includeSpentCoinsIsSome = 1
 	}
 
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_coin_records_by_puzzle_hashes(o.ptr, puzzleHashesPtrsC, puzzleHashesLensC, puzzleHashesCount, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_coin_records_by_puzzle_hashes(o.ptr, puzzleHashesPtrsC, puzzleHashesLensC, puzzleHashesCount, startHeightVal, startHeightIsSome, endHeightVal, endHeightIsSome, includeSpentCoinsVal, includeSpentCoinsIsSome, &out)
 	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
-	}
-	obj := &GetCoinRecordsResponse{ptr: out}
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetCoinRecordsResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetCoinRecordsResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetPuzzleAndSolution fetches the puzzle reveal and solution for a spent coin by its ID and optional height.
-func (o *RpcClient) GetPuzzleAndSolution(coinId []byte, height *uint32) (*GetPuzzleAndSolutionResponse, error) {
+func (o *RpcClient) GetPuzzleAndSolution(ctx context.Context, coinId []byte, height *uint32) (*GetPuzzleAndSolutionResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	coinIdPtr, coinIdLen := bytesToPtr(coinId)
+	type asyncResult struct {
+		val *GetPuzzleAndSolutionResponse
+		err error
+	}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetPuzzleAndSolutionResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			coinIdPtr, coinIdLen := bytesToPtr(coinId)
 	var heightVal C.uint32_t
 	var heightIsSome C.int
 	if height != nil {
@@ -59567,117 +59949,194 @@ func (o *RpcClient) GetPuzzleAndSolution(coinId []byte, height *uint32) (*GetPuz
 		heightIsSome = 1
 	}
 
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_puzzle_and_solution(o.ptr, coinIdPtr, coinIdLen, heightVal, heightIsSome, &out)
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_puzzle_and_solution(o.ptr, coinIdPtr, coinIdLen, heightVal, heightIsSome, &out)
 	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
-	}
-	obj := &GetPuzzleAndSolutionResponse{ptr: out}
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetPuzzleAndSolutionResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetPuzzleAndSolutionResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // PushTx submits a signed spend bundle to the mempool for inclusion in the blockchain.
-func (o *RpcClient) PushTx(spendBundle *SpendBundle) (*PushTxResponse, error) {
+func (o *RpcClient) PushTx(ctx context.Context, spendBundle *SpendBundle) (*PushTxResponse, error) {
 	if o == nil {
-		return nil, fmt.Errorf("object is nil or already freed")
-	}
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-	if o.ptr == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	if spendBundle == nil {
 		return nil, fmt.Errorf("spendBundle must not be nil")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
+	o.mu.RLock()
+	if o.ptr == nil {
+		o.mu.RUnlock()
+		return nil, fmt.Errorf("object is nil or already freed")
+	}
+	type asyncResult struct {
+		val *PushTxResponse
+		err error
+	}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*PushTxResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
 
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_push_tx(o.ptr, spendBundle.ptr, &out)
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_push_tx(o.ptr, spendBundle.ptr, &out)
 	runtime.KeepAlive(o)
 	runtime.KeepAlive(spendBundle)
-	if ret != 0 {
-		return nil, lastError()
-	}
-	obj := &PushTxResponse{ptr: out}
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &PushTxResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*PushTxResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetNetworkInfo fetches the network name, prefix, and genesis challenge of the connected node.
-func (o *RpcClient) GetNetworkInfo() (*GetNetworkInfoResponse, error) {
+func (o *RpcClient) GetNetworkInfo(ctx context.Context) (*GetNetworkInfoResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_network_info(o.ptr, &out)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	type asyncResult struct {
+		val *GetNetworkInfoResponse
+		err error
 	}
-	obj := &GetNetworkInfoResponse{ptr: out}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetNetworkInfoResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_network_info(o.ptr, &out)
+	runtime.KeepAlive(o)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetNetworkInfoResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetNetworkInfoResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetMempoolItemByTxId fetches a mempool item by its transaction ID (spend bundle hash).
-func (o *RpcClient) GetMempoolItemByTxId(txId []byte) (*GetMempoolItemResponse, error) {
+func (o *RpcClient) GetMempoolItemByTxId(ctx context.Context, txId []byte) (*GetMempoolItemResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	txIdPtr, txIdLen := bytesToPtr(txId)
-
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_mempool_item_by_tx_id(o.ptr, txIdPtr, txIdLen, &out)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	type asyncResult struct {
+		val *GetMempoolItemResponse
+		err error
 	}
-	obj := &GetMempoolItemResponse{ptr: out}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetMempoolItemResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			txIdPtr, txIdLen := bytesToPtr(txId)
+
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_mempool_item_by_tx_id(o.ptr, txIdPtr, txIdLen, &out)
+	runtime.KeepAlive(o)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetMempoolItemResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetMempoolItemResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // GetMempoolItemsByCoinName fetches mempool items that spend or create the given coin.
-func (o *RpcClient) GetMempoolItemsByCoinName(coinName []byte) (*GetMempoolItemsResponse, error) {
+func (o *RpcClient) GetMempoolItemsByCoinName(ctx context.Context, coinName []byte) (*GetMempoolItemsResponse, error) {
 	if o == nil {
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
 	o.mu.RLock()
-	defer o.mu.RUnlock()
 	if o.ptr == nil {
+		o.mu.RUnlock()
 		return nil, fmt.Errorf("object is nil or already freed")
 	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	coinNamePtr, coinNameLen := bytesToPtr(coinName)
-
-	var out unsafe.Pointer
-	ret := C.go_rpc_client_get_mempool_items_by_coin_name(o.ptr, coinNamePtr, coinNameLen, &out)
-	runtime.KeepAlive(o)
-	if ret != 0 {
-		return nil, lastError()
+	type asyncResult struct {
+		val *GetMempoolItemsResponse
+		err error
 	}
-	obj := &GetMempoolItemsResponse{ptr: out}
+	ch := make(chan asyncResult, 1)
+	go func() {
+		defer o.mu.RUnlock()
+		val, err := func() (*GetMempoolItemsResponse, error) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			coinNamePtr, coinNameLen := bytesToPtr(coinName)
+
+			var out unsafe.Pointer
+			ret := C.go_rpc_client_get_mempool_items_by_coin_name(o.ptr, coinNamePtr, coinNameLen, &out)
+	runtime.KeepAlive(o)
+			if ret != 0 {
+				return nil, lastError()
+			}
+			obj := &GetMempoolItemsResponse{ptr: out}
 	runtime.SetFinalizer(obj, (*GetMempoolItemsResponse).Free)
 	return obj, nil
+		}()
+		ch <- asyncResult{val: val, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
 // BlockchainStateResponse is the response from the get_blockchain_state RPC endpoint.
