@@ -25,7 +25,7 @@ thiserror = { workspace = true }
 napi = { workspace = true, default-features = false, optional = true, features = ["napi6"] }
 pyo3 = { workspace = true, optional = true }
 js-sys = { workspace = true, optional = true }
-uniffi = { version = "0.28", features = ["tokio"], optional = true }
+uniffi = { workspace = true, optional = true }
 chia-protocol = { workspace = true }
 chia-traits = { workspace = true }
 bip39 = { workspace = true }
