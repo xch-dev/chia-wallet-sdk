@@ -61,7 +61,8 @@
   },
   "uniffi": {
     "{bytes}": "Vec<u8>",
-    "{bigint}": "String"
+    "{bigint}": "String",
+    "{usize}": "u32"
   },
   "clvm_types": [
     "Program",

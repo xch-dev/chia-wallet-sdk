@@ -1,7 +1,32 @@
+use std::sync::Arc;
+
 use crate::{Error, FromRust, IntoRust, Result, impl_self};
 use chia_protocol::{Bytes, BytesImpl, ClassgroupElement, Program};
 use clvm_utils::TreeHash;
 use num_bigint::BigInt;
+
+// Blanket Arc adapter: wraps/unwraps Arc around types that implement FromRust/IntoRust.
+// This allows Vec<Arc<T>> and Option<Arc<T>> to work through the existing blanket impls.
+impl<T, C, U> FromRust<T, C, Uniffi> for Arc<U>
+where
+    U: FromRust<T, C, Uniffi>,
+{
+    fn from_rust(value: T, context: &C) -> Result<Self> {
+        Ok(Arc::new(U::from_rust(value, context)?))
+    }
+}
+
+impl<T, C, U> IntoRust<T, C, Uniffi> for Arc<U>
+where
+    U: Clone + IntoRust<T, C, Uniffi>,
+{
+    fn into_rust(self, context: &C) -> Result<T> {
+        match Arc::try_unwrap(self) {
+            Ok(inner) => inner.into_rust(context),
+            Err(arc) => (*arc).clone().into_rust(context),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Uniffi;
@@ -66,8 +91,18 @@ impl<T> IntoRust<u128, T, Uniffi> for String {
 impl_self!(i64);
 impl_self!(i128);
 
-// usize — keep native (maps to u64 in UniFFI via {usize} group).
-// The blanket impl_self!(usize) in lib.rs covers this; no additional impl needed here.
+// usize → u32 for UniFFI (UniFFI doesn't support usize natively).
+impl<T> FromRust<usize, T, Uniffi> for u32 {
+    fn from_rust(value: usize, _context: &T) -> Result<Self> {
+        u32::try_from(value).map_err(|_| Error::Custom(format!("usize {value} does not fit in u32")))
+    }
+}
+
+impl<T> IntoRust<usize, T, Uniffi> for u32 {
+    fn into_rust(self, _context: &T) -> Result<usize> {
+        Ok(self as usize)
+    }
+}
 
 // --- Bytes types → Vec<u8> (same pattern as pyo3_impls.rs) ---
 

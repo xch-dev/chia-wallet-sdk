@@ -61,7 +61,7 @@ pub enum Error {
     #[error("Driver error: {0}")]
     Driver(#[from] DriverError),
 
-    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
     #[error("Client error: {0}")]
     Client(#[from] chia_sdk_client::ClientError),
 
@@ -74,7 +74,7 @@ pub enum Error {
     #[error("Reject puzzle solution: {0:?}")]
     RejectPuzzleSolution(RejectPuzzleSolution),
 
-    #[cfg(any(feature = "napi", feature = "pyo3"))]
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
     #[error("SSL error: {0}")]
     Ssl(#[from] chia_ssl::Error),
 

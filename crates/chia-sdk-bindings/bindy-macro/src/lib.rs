@@ -1791,6 +1791,7 @@ pub fn bindy_uniffi(input: TokenStream) -> TokenStream {
                 };
 
                 let mut method_tokens = quote!();
+                let mut static_fn_tokens = quote!();
 
                 // Methods from JSON schema
                 for (method_name, method) in methods {
@@ -1831,14 +1832,14 @@ pub fn bindy_uniffi(input: TokenStream) -> TokenStream {
                                 pub fn #method_ident(
                                     #( #arg_idents: #arg_types ),*
                                 ) -> Result<std::sync::Arc<Self>, ChiaError> {
-                                    Ok(std::sync::Arc::new(Self(
+                                    Ok(std::sync::Arc::new(
                                         bindy::FromRust::<_, _, bindy::Uniffi>::from_rust(
                                             #fully_qualified_ident::#method_ident(
                                                 #( bindy::IntoRust::<_, _, bindy::Uniffi>::into_rust(#arg_idents, &bindy::UniffiContext)? ),*
                                             )?,
                                             &bindy::UniffiContext
                                         )?
-                                    )))
+                                    ))
                                 }
                             });
                         }
@@ -1848,14 +1849,14 @@ pub fn bindy_uniffi(input: TokenStream) -> TokenStream {
                                 pub async fn #method_ident(
                                     #( #arg_idents: #arg_types ),*
                                 ) -> Result<std::sync::Arc<Self>, ChiaError> {
-                                    Ok(std::sync::Arc::new(Self(
+                                    Ok(std::sync::Arc::new(
                                         bindy::FromRust::<_, _, bindy::Uniffi>::from_rust(
                                             #fully_qualified_ident::#method_ident(
                                                 #( bindy::IntoRust::<_, _, bindy::Uniffi>::into_rust(#arg_idents, &bindy::UniffiContext)? ),*
                                             ).await?,
                                             &bindy::UniffiContext
                                         )?
-                                    )))
+                                    ))
                                 }
                             });
                         }
@@ -1876,8 +1877,17 @@ pub fn bindy_uniffi(input: TokenStream) -> TokenStream {
                             });
                         }
                         MethodKind::Static => {
-                            method_tokens.extend(quote! {
-                                pub fn #method_ident(
+                            // UniFFI 0.28 does not support associated functions (static methods
+                            // without &self) inside #[uniffi::export] impl blocks. Emit them as
+                            // standalone free functions with a name prefixed by the class name in
+                            // snake_case to avoid collisions.
+                            let fn_name = Ident::new(
+                                &format!("{}_{}", name.to_case(Case::Snake), method_name),
+                                Span::mixed_site(),
+                            );
+                            static_fn_tokens.extend(quote! {
+                                #[uniffi::export]
+                                pub fn #fn_name(
                                     #( #arg_idents: #arg_types ),*
                                 ) -> Result<#ret, ChiaError> {
                                     Ok(bindy::FromRust::<_, _, bindy::Uniffi>::from_rust(
@@ -1959,7 +1969,7 @@ pub fn bindy_uniffi(input: TokenStream) -> TokenStream {
                 }
 
                 output.extend(quote! {
-                    #[derive(uniffi::Object)]
+                    #[derive(Clone, uniffi::Object)]
                     pub struct #bound_ident(#rust_struct_ident);
 
                     #[uniffi::export]
@@ -1968,19 +1978,22 @@ pub fn bindy_uniffi(input: TokenStream) -> TokenStream {
                         #field_tokens
                     }
 
-                    impl<T> bindy::FromRust<#rust_struct_ident, T, bindy::Uniffi>
-                        for std::sync::Arc<#bound_ident>
+                    // Static methods emitted as free functions (UniFFI 0.28 limitation)
+                    #static_fn_tokens
+
+                    impl bindy::FromRust<#rust_struct_ident, bindy::UniffiContext, bindy::Uniffi>
+                        for #bound_ident
                     {
-                        fn from_rust(value: #rust_struct_ident, _context: &T) -> bindy::Result<Self> {
-                            Ok(std::sync::Arc::new(#bound_ident(value)))
+                        fn from_rust(value: #rust_struct_ident, _context: &bindy::UniffiContext) -> bindy::Result<Self> {
+                            Ok(#bound_ident(value))
                         }
                     }
 
-                    impl<T> bindy::IntoRust<#rust_struct_ident, T, bindy::Uniffi>
-                        for std::sync::Arc<#bound_ident>
+                    impl bindy::IntoRust<#rust_struct_ident, bindy::UniffiContext, bindy::Uniffi>
+                        for #bound_ident
                     {
-                        fn into_rust(self, _context: &T) -> bindy::Result<#rust_struct_ident> {
-                            Ok((*self).0.clone())
+                        fn into_rust(self, _context: &bindy::UniffiContext) -> bindy::Result<#rust_struct_ident> {
+                            Ok(self.0.clone())
                         }
                     }
                 });
@@ -1998,16 +2011,16 @@ pub fn bindy_uniffi(input: TokenStream) -> TokenStream {
                         #( #value_idents ),*
                     }
 
-                    impl<T> bindy::FromRust<#rust_ident, T, bindy::Uniffi> for #bound_ident {
-                        fn from_rust(value: #rust_ident, _context: &T) -> bindy::Result<Self> {
+                    impl bindy::FromRust<#rust_ident, bindy::UniffiContext, bindy::Uniffi> for #bound_ident {
+                        fn from_rust(value: #rust_ident, _context: &bindy::UniffiContext) -> bindy::Result<Self> {
                             Ok(match value {
                                 #( #rust_ident::#value_idents => Self::#value_idents ),*
                             })
                         }
                     }
 
-                    impl<T> bindy::IntoRust<#rust_ident, T, bindy::Uniffi> for #bound_ident {
-                        fn into_rust(self, _context: &T) -> bindy::Result<#rust_ident> {
+                    impl bindy::IntoRust<#rust_ident, bindy::UniffiContext, bindy::Uniffi> for #bound_ident {
+                        fn into_rust(self, _context: &bindy::UniffiContext) -> bindy::Result<#rust_ident> {
                             Ok(match self {
                                 #( Self::#value_idents => #rust_ident::#value_idents ),*
                             })
