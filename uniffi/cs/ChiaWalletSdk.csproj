@@ -24,6 +24,10 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>ChiaWalletSdkTests</_Parameter1>
     </AssemblyAttribute>
+    <!-- Allow the chia.wallet.dotnet test project to access internal members -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Chia.Wallet.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>
