@@ -14,6 +14,9 @@ bindy_macro::bindy_uniffi!("bindings.json");
 // requires manual dispatch. Here we implement it using the macro-generated ClvmType enum.
 #[uniffi::export]
 impl Clvm {
+    // Unlike the Python backend which accepts dynamic types (None, int, bool, str, bytes, list, tuple),
+    // the UniFFI backend uses a statically-typed ClvmType enum. To allocate nil/int/bool/string/bytes
+    // use the Clvm helper methods directly: nil(), int(), bool_(), string(), atom(), pair(), list().
     pub fn alloc(&self, value: ClvmType) -> Result<Arc<Program>, ChiaError> {
         let result = match value {
             ClvmType::Program { value } => (*value).0.clone(),

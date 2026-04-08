@@ -1036,7 +1036,6 @@ dependencies = [
  "bindy",
  "bindy-macro",
  "chia-sdk-bindings",
- "num-bigint",
  "openssl",
  "openssl-sys",
  "uniffi",
