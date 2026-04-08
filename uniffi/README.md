@@ -40,7 +40,9 @@ This tool generates the C# source file from the compiled library. Install it onc
 ```bash
 cargo install uniffi-bindgen-cs \
   --git https://github.com/NordSecurity/uniffi-bindgen-cs \
-  --tag v0.8.0+v0.28.0
+  --tag v0.9.2+v0.28.3
+
+dotnet tool install -g csharpier'
 ```
 
 ---
@@ -49,22 +51,25 @@ cargo install uniffi-bindgen-cs \
 
 ```bash
 # macOS
-uniffi-bindgen-cs generate \
-  --library target/release/libchia_wallet_sdk.dylib \
+uniffi-bindgen-cs \
+  --library \
   --out-dir uniffi/cs \
-  --config uniffi/uniffi.toml
+  --config uniffi/uniffi.toml \
+  target/release/libchia_wallet_sdk.dylib
 
 # Linux
-uniffi-bindgen-cs generate \
-  --library target/release/libchia_wallet_sdk.so \
+uniffi-bindgen-cs \
+  --library \
   --out-dir uniffi/cs \
-  --config uniffi/uniffi.toml
+  --config uniffi/uniffi.toml \
+  target/release/libchia_wallet_sdk.so
 
 # Windows
-uniffi-bindgen-cs generate \
-  --library target/release/chia_wallet_sdk.dll \
+uniffi-bindgen-cs \
+  --library \
   --out-dir uniffi/cs \
-  --config uniffi/uniffi.toml
+  --config uniffi/uniffi.toml \
+  target/release/chia_wallet_sdk.dll
 ```
 
 This produces `uniffi/cs/chia_wallet_sdk.cs` — a single self-contained C# file that includes all types, P/Invoke declarations, and marshalling logic.
