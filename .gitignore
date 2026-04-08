@@ -5,3 +5,7 @@ cobertura.xml
 venv/
 *.costs
 *.bin
+
+# NuGet native staging (CI-only, never committed)
+uniffi/cs/runtimes/
+nuget-out/
