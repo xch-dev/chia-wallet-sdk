@@ -1,4 +1,5 @@
 #![allow(clippy::too_many_arguments)]
+// UniFFI's setup_scaffolding! macro emits raw FFI extern blocks which require unsafe.
 #![allow(unsafe_code)]
 
 use std::sync::Arc;
