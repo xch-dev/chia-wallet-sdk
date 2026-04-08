@@ -7,6 +7,9 @@ mod wasm_impls;
 #[cfg(feature = "pyo3")]
 mod pyo3_impls;
 
+#[cfg(feature = "uniffi")]
+mod uniffi_impls;
+
 use clvmr::error::EvalErr;
 #[cfg(feature = "napi")]
 pub use napi_impls::*;
@@ -16,6 +19,9 @@ pub use wasm_impls::*;
 
 #[cfg(feature = "pyo3")]
 pub use pyo3_impls::*;
+
+#[cfg(feature = "uniffi")]
+pub use uniffi_impls::*;
 
 use std::{net::AddrParseError, string::FromUtf8Error};
 
