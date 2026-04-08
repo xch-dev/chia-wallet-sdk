@@ -20,6 +20,10 @@
 
   <ItemGroup>
     <Compile Include="chia_wallet_sdk.cs" />
+    <!-- Allow the test project to access internal members of the generated bindings -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>ChiaWalletSdkTests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>

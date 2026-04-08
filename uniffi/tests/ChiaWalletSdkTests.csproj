@@ -17,12 +17,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Include generated bindings in the same assembly (required for internal access) -->
-    <Compile Include="../cs/chia_wallet_sdk.cs" />
+    <ProjectReference Include="../cs/ChiaWalletSdk.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Copy the native library to the test output directory -->
+    <!-- Copy the native library to the test output directory for local runs -->
     <None Include="../../target/release/libchia_wallet_sdk.dylib"
           Condition="Exists('../../target/release/libchia_wallet_sdk.dylib')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -36,43 +35,5 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-
-
-  <!--
-    Workaround for uniffi-bindgen-cs bug: Clvm.String(string) shadows System.String
-    inside the Clvm class body, causing CS0119 on the generated lifecycle guard lines.
-    This inline task patches the two affected call sites before every compile so the
-    fix survives regeneration automatically. Pure .NET — no external tools required.
-    See: https://github.com/NordSecurity/uniffi-bindgen-cs (upstream bug)
-  -->
-  <UsingTask TaskName="ReplaceInFile" TaskFactory="RoslynCodeTaskFactory"
-             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
-    <ParameterGroup>
-      <FilePath     ParameterType="System.String" Required="true" />
-      <OldValue     ParameterType="System.String" Required="true" />
-      <NewValue     ParameterType="System.String" Required="true" />
-    </ParameterGroup>
-    <Task>
-      <Using Namespace="System.IO" />
-      <Code Type="Fragment" Language="cs"><![CDATA[
-        var content = File.ReadAllText(FilePath);
-        var patched = content.Replace(OldValue, NewValue);
-        if (content != patched)
-          File.WriteAllText(FilePath, patched);
-      ]]></Code>
-    </Task>
-  </UsingTask>
-
-  <Target Name="PatchClvmStringAmbiguity" BeforeTargets="CoreCompile">
-    <PropertyGroup>
-      <_BindingsFile>$(MSBuildThisFileDirectory)../cs/chia_wallet_sdk.cs</_BindingsFile>
-    </PropertyGroup>
-    <ReplaceInFile FilePath="$(_BindingsFile)"
-                  OldValue="new System.ObjectDisposedException(String.Format("
-                  NewValue="new System.ObjectDisposedException(System.String.Format(" />
-    <ReplaceInFile FilePath="$(_BindingsFile)"
-                  OldValue="new System.OverflowException(String.Format("
-                  NewValue="new System.OverflowException(System.String.Format(" />
-  </Target>
 
 </Project>
