@@ -267,4 +267,4 @@ uniffi-bindgen-cs generate \
 # 3. Replace the .cs file in your project
 ```
 
-No manual patches needed — the test project's `PatchClvmStringAmbiguity` MSBuild target automatically fixes a name-shadowing bug in the generated code on every compile. (Root cause: `Clvm.String(string)` shadows `System.String` inside the class body, causing the generated lifecycle guards to fail. Tracked upstream at [NordSecurity/uniffi-bindgen-cs](https://github.com/NordSecurity/uniffi-bindgen-cs).)
+No manual patches needed — the `PatchClvmStringAmbiguity` MSBuild target in `ChiaWalletSdk.csproj` automatically fixes a name-shadowing bug in the generated code on every compile. (Root cause: `Clvm.String(string)` shadows `System.String` inside the class body, causing the generated lifecycle guards to fail. Tracked upstream at [NordSecurity/uniffi-bindgen-cs](https://github.com/NordSecurity/uniffi-bindgen-cs).)
