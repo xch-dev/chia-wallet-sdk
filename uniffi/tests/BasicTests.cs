@@ -132,7 +132,7 @@ public class BasicTests
         Assert.True(ChiaWalletSdkMethods.BytesEqual(clvm.Nil().TreeHash(), uncurried.GetProgram().TreeHash()));
         var args = uncurried.GetArgs();
         Assert.NotNull(args);
-        var uncurriedArgs = args.Select(p => p.ToInt()).ToList();
+        var uncurriedArgs = args.Select(p => p.ToInt()!).ToList();
         var expectedArgs = Enumerable.Range(0, 10).Select(i => i.ToString()).ToList();
         Assert.Equal(expectedArgs, uncurriedArgs);
     }
