@@ -22,6 +22,12 @@
     <Compile Include="chia_wallet_sdk.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Native libraries staged by CI into runtimes/ before dotnet pack.
+         MSBuild glob silently produces no items when the directory does not exist locally. -->
+    <None Include="runtimes/**/*" Pack="true" PackagePath="%(Identity)" />
+  </ItemGroup>
+
   <!--
     Workaround for uniffi-bindgen-cs bug: Clvm.String(string) shadows System.String
     inside the Clvm class body, causing CS0119 on the generated lifecycle guard lines.
@@ -30,7 +36,7 @@
     See: https://github.com/NordSecurity/uniffi-bindgen-cs (upstream bug)
   -->
   <UsingTask TaskName="ReplaceInFile" TaskFactory="RoslynCodeTaskFactory"
-             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+             AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
       <FilePath     ParameterType="System.String" Required="true" />
       <OldValue     ParameterType="System.String" Required="true" />
