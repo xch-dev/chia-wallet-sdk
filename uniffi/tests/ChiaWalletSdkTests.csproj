@@ -37,4 +37,22 @@
     </None>
   </ItemGroup>
 
+
+  <!--
+    Workaround for uniffi-bindgen-cs bug: Clvm.String(string) shadows System.String
+    inside the Clvm class body, causing CS0119 on the generated lifecycle guard lines.
+    This target patches the two affected lines before every compile so the fix survives
+    regeneration automatically.
+    See: https://github.com/NordSecurity/uniffi-bindgen-cs (upstream bug)
+  -->
+  <Target Name="PatchClvmStringAmbiguity" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <_BindingsFile>$(MSBuildThisFileDirectory)../cs/chia_wallet_sdk.cs</_BindingsFile>
+    </PropertyGroup>
+    <Exec Command="sed -i '' 's/ObjectDisposedException(String\.Format/ObjectDisposedException(System.String.Format/g; s/OverflowException(String\.Format/OverflowException(System.String.Format/g' &quot;$(_BindingsFile)&quot;"
+          Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Exec Command="sed -i 's/ObjectDisposedException(String\.Format/ObjectDisposedException(System.String.Format/g; s/OverflowException(String\.Format/OverflowException(System.String.Format/g' &quot;$(_BindingsFile)&quot;"
+          Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </Target>
+
 </Project>

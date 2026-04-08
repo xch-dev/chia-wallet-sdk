@@ -257,14 +257,7 @@ uniffi-bindgen-cs generate \
   --out-dir uniffi/cs \
   --config uniffi/uniffi.toml
 
-# 3. Apply required patch to the generated file
-sed -i '' 's/String\.Format/System.String.Format/g' uniffi/cs/chia_wallet_sdk.cs
+# 3. Replace the .cs file in your project
 ```
 
-This patch fixes a name-shadowing bug in the generated code (the `Clvm` class has a method named `String` which shadows `System.String` in the class body).
-
-```bash
-# 4. Replace the .cs file in your project
-```
-
-No other manual changes to the C# source are needed — it is entirely generated.
+No manual patches needed — the test project's `PatchClvmStringAmbiguity` MSBuild target automatically fixes a name-shadowing bug in the generated code on every compile. (Root cause: `Clvm.String(string)` shadows `System.String` inside the class body, causing the generated lifecycle guards to fail. Tracked upstream at [NordSecurity/uniffi-bindgen-cs](https://github.com/NordSecurity/uniffi-bindgen-cs).)
