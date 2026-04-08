@@ -28,6 +28,10 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Chia.Wallet.Tests</_Parameter1>
     </AssemblyAttribute>
+    <!-- Allow the Chia.Wallet.Cli project to access internal members -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Chia.Wallet.Cli</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>
