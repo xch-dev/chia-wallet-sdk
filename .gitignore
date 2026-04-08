@@ -9,3 +9,6 @@ venv/
 # NuGet native staging (CI-only, never committed)
 uniffi/cs/runtimes/
 nuget-out/
+
+# Local dev scripts
+pack-local.sh
