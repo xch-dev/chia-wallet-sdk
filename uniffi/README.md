@@ -41,8 +41,6 @@ This tool generates the C# source file from the compiled library. Install it onc
 cargo install uniffi-bindgen-cs \
   --git https://github.com/NordSecurity/uniffi-bindgen-cs \
   --tag v0.9.2+v0.28.3
-
-dotnet tool install -g csharpier'
 ```
 
 ---
@@ -124,6 +122,30 @@ var clvm = new Clvm();
 // amounts like coin.amount are strings; parse with BigInteger
 BigInteger amount = BigInteger.Parse(someAmountString);
 ```
+
+---
+
+## Running the Tests
+
+An xUnit test suite in `uniffi/tests/` exercises the core binding surface — CLVM, keys, coins, addresses, and conditions.
+
+### Prerequisites
+
+Build the native library first (required before `dotnet test` can load it):
+
+```bash
+# From the repo root
+cargo build -p chia-wallet-sdk-cs --release
+```
+
+### Run
+
+```bash
+cd uniffi/tests
+dotnet test
+```
+
+All 13 tests should pass.
 
 ---
 
@@ -235,7 +257,14 @@ uniffi-bindgen-cs generate \
   --out-dir uniffi/cs \
   --config uniffi/uniffi.toml
 
-# 3. Replace the .cs file in your project
+# 3. Apply required patch to the generated file
+sed -i '' 's/String\.Format/System.String.Format/g' uniffi/cs/chia_wallet_sdk.cs
 ```
 
-No manual changes to the C# source are needed — it is entirely generated.
+This patch fixes a name-shadowing bug in the generated code (the `Clvm` class has a method named `String` which shadows `System.String` in the class body).
+
+```bash
+# 4. Replace the .cs file in your project
+```
+
+No other manual changes to the C# source are needed — it is entirely generated.
