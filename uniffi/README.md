@@ -1,18 +1,41 @@
 # chia-wallet-sdk C# Bindings
 
-This crate generates a native library for use with C# via [UniFFI](https://mozilla.github.io/uniffi-rs/).
+C# (and .NET) bindings for the [Chia Wallet SDK](https://github.com/xch-dev/chia-wallet-sdk), generated via [UniFFI](https://mozilla.github.io/uniffi-rs/) and [uniffi-bindgen-cs](https://github.com/NordSecurity/uniffi-bindgen-cs).
 
-## Building
+The Rust library exposes the full SDK surface — BLS keys, addresses, CLVM, coins, conditions, offers, puzzles, RPC, and more — as a native shared library that C# loads via P/Invoke through the UniFFI scaffolding layer.
+
+---
+
+## Prerequisites
+
+- Rust toolchain (1.81+) — [rustup.rs](https://rustup.rs)
+- .NET 6+ SDK — [dot.net](https://dotnet.microsoft.com)
+- `uniffi-bindgen-cs` — installed once per machine (see below)
+
+---
+
+## Step 1: Build the Native Library
 
 ```bash
+# From the repo root
 cargo build -p chia-wallet-sdk-cs --release
 ```
 
-The compiled library will be at `target/release/libchia_wallet_sdk.{dylib,so,dll}` depending on platform.
+Output location by platform:
 
-## Generating C# Bindings
+| Platform | File |
+|----------|------|
+| macOS | `target/release/libchia_wallet_sdk.dylib` |
+| Linux | `target/release/libchia_wallet_sdk.so` |
+| Windows | `target/release/chia_wallet_sdk.dll` |
 
-Install `uniffi-bindgen-cs` matching the UniFFI version in use (`0.28`):
+A debug build (`--release` omitted) is faster to compile but slower at runtime.
+
+---
+
+## Step 2: Install `uniffi-bindgen-cs`
+
+This tool generates the C# source file from the compiled library. Install it once; the version **must match** the `uniffi` crate version used here (`0.28`).
 
 ```bash
 cargo install uniffi-bindgen-cs \
@@ -20,7 +43,9 @@ cargo install uniffi-bindgen-cs \
   --tag v0.8.0+v0.28.0
 ```
 
-Then generate the C# source:
+---
+
+## Step 3: Generate the C# Source
 
 ```bash
 # macOS
@@ -34,26 +59,178 @@ uniffi-bindgen-cs generate \
   --library target/release/libchia_wallet_sdk.so \
   --out-dir uniffi/cs \
   --config uniffi/uniffi.toml
+
+# Windows
+uniffi-bindgen-cs generate \
+  --library target/release/chia_wallet_sdk.dll \
+  --out-dir uniffi/cs \
+  --config uniffi/uniffi.toml
 ```
 
-The generated C# file at `uniffi/cs/chia_wallet_sdk.cs` can be included in any .NET project.
+This produces `uniffi/cs/chia_wallet_sdk.cs` — a single self-contained C# file that includes all types, P/Invoke declarations, and marshalling logic.
 
-## Type Mapping
+Re-run this step any time the Rust library is rebuilt after API changes.
 
-| Rust type | C# type |
-|-----------|---------|
-| `Vec<u8>` (bytes) | `byte[]` |
-| `u64`, `u128`, `BigInt` | `string` (parse with `BigInteger.Parse()`) |
-| `bool` | `bool` |
-| `String` | `string` |
-| `Option<T>` | nullable |
-| `Vec<T>` | `List<T>` |
-| Rust struct (Class) | C# class |
-| Rust enum | C# enum |
+---
+
+## Step 4: Use in a .NET Project
+
+1. Copy `chia_wallet_sdk.cs` and the native library into your project.
+2. Ensure the native library is in the output directory (set `Copy to Output Directory` in your `.csproj` or add it to the build pipeline).
+3. Add a project reference or include the `.cs` file directly:
+
+```xml
+<!-- .csproj -->
+<ItemGroup>
+  <Compile Include="path/to/chia_wallet_sdk.cs" />
+  <None Include="path/to/libchia_wallet_sdk.dylib">
+    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+  </None>
+</ItemGroup>
+```
+
+Everything lives in the `ChiaWalletSdk` namespace.
+
+---
+
+## Quick Start
+
+```csharp
+using ChiaWalletSdk;
+using System.Numerics;
+
+// Generate a BLS key from a seed phrase
+var mnemonic = Mnemonic.Generate();
+var seed = mnemonic.ToSeed("");
+var secretKey = SecretKey.FromSeed(seed);
+var publicKey = secretKey.PublicKey();
+
+// Encode a puzzle hash as a Chia address
+var puzzleHash = /* 32-byte array */ new byte[32];
+var address = new Address(puzzleHash, "xch");
+Console.WriteLine(address.Encode());   // "xch1..."
+
+// Decode an address back to a puzzle hash
+var decoded = Address.Decode("xch1...");
+byte[] ph = decoded.GetPuzzleHash();
+
+// Work with amounts — bigint values come back as strings
+var clvm = new Clvm();
+// amounts like coin.amount are strings; parse with BigInteger
+BigInteger amount = BigInteger.Parse(someAmountString);
+```
+
+---
+
+## API Surface
+
+The bindings cover the full SDK:
+
+| Module | Classes / Functions |
+|--------|-------------------|
+| BLS keys | `SecretKey`, `PublicKey`, `Signature`, `AggregateSignature` |
+| Secp keys | `K1SecretKey`, `K1PublicKey`, `K1Signature`, `R1SecretKey`, `R1PublicKey`, `R1Signature` |
+| Address | `Address` |
+| Mnemonic | `Mnemonic` |
+| Coin | `Coin`, `CoinSpend`, `CoinState` |
+| CLVM | `Clvm`, `Program`, `CurriedProgram`, `Spend` |
+| Conditions | `CreateCoin`, `AggSigMe`, `ReserveFee`, … (47 condition types) |
+| Puzzles | `StandardPuzzle`, `CatPuzzle`, `NftPuzzle`, `DlPuzzle`, `SingletonPuzzle`, … |
+| Offers | `Offer`, `ParsedOffer` |
+| RPC | `RpcClient` (async) |
+| Simulator | `Simulator` (async, testing) |
+| Utils | `sha256`, `hash_to_g2`, … |
+| Constants | `Constants` (puzzle hashes for all built-in puzzles) |
+
+---
+
+## Type Mapping Reference
+
+| Rust type | C# type | Notes |
+|-----------|---------|-------|
+| `Vec<u8>` / bytes types | `byte[]` | Puzzle hashes, keys, signatures |
+| `u64`, `u128`, `BigInt` | `string` | Parse with `BigInteger.Parse()` |
+| `u8`–`u32`, `i8`–`i32` | native int types | Passed through directly |
+| `usize` | `uint` | Mapped to `u32` |
+| `f64` | `double` | |
+| `bool` | `bool` | |
+| `String` | `string` | |
+| `Option<T>` | `T?` (nullable) | |
+| `Vec<T>` | `List<T>` | |
+| Rust struct / class | C# class | Reference-counted via `Arc` |
+| Rust enum | C# enum | |
+
+### BigInt / amounts
+
+Chia amounts, heights, and arbitrary-precision integers are all passed as decimal strings. On the C# side:
+
+```csharp
+// Rust returns u64/u128/BigInt → string
+string amountStr = coin.GetAmount();
+BigInteger amount = BigInteger.Parse(amountStr);
+
+// Passing back in
+string newAmount = (amount + 1).ToString();
+```
+
+---
+
+## Async Methods
+
+Async methods (RPC calls, simulator) return `Task<T>` in C#. They run on the Rust tokio runtime bridged through UniFFI:
+
+```csharp
+var client = await RpcClient.New("https://api.coinset.org");
+var state = await client.GetBlockchainState();
+```
+
+---
+
+## Architecture
+
+```
+bindings/*.json          ← single source of truth for the API surface
+       ↓
+bindy_uniffi! macro      ← generates #[derive(uniffi::Object)] / #[uniffi::export]
+       ↓
+uniffi/ crate            ← cdylib: setup_scaffolding! + generated + hand-written alloc
+       ↓  cargo build
+libchia_wallet_sdk.dylib ← native shared library
+       ↓  uniffi-bindgen-cs
+chia_wallet_sdk.cs       ← C# source with all types and P/Invoke bindings
+```
+
+The same `bindings/*.json` schemas also drive the Node.js (`napi/`), WebAssembly (`wasm/`), and Python (`pyo3/`) backends. Adding a method to a JSON schema automatically adds it to all four backends.
+
+---
 
 ## Known Limitations
 
-- `BigInt`/`u128`/`u64` are passed as strings; use `System.Numerics.BigInteger.Parse()` on the C# side.
-- `Clvm.Alloc()` requires a typed `ClvmType` enum value (unlike Python which accepts dynamic types).
-- Field setters (`SetField()`) return a new object with the field changed (immutable update pattern).
-- `uniffi-bindgen-cs` version must stay in sync with the `uniffi` crate version (currently `0.28`).
+| Limitation | Details |
+|------------|---------|
+| BigInt as string | `u64`/`u128`/`BigInt` map to `string`; parse with `BigInteger.Parse()`. A typed UniFFI custom type could improve this in a future version. |
+| `Clvm.Alloc()` is typed | Unlike Python, which accepts `None`/`int`/`bool`/`str`/`bytes`/`list` dynamically, the C# `Alloc` takes a `ClvmType` enum. Use `Clvm.Nil()`, `Clvm.Int()`, `Clvm.Atom()` etc. for primitive values. |
+| Field setters are immutable | `SetField(value)` returns a new object with the field changed; the original is unchanged. Use the return value. |
+| Version pinning | `uniffi-bindgen-cs` must match the `uniffi` crate version (`0.28`). Check the tag when upgrading. |
+| No static methods on objects | UniFFI 0.28 does not support non-`self` associated functions in `impl` blocks. These are exposed as free functions prefixed with the class name (e.g. `constants_puzzle_name()`). |
+
+---
+
+## Rebuilding After SDK Updates
+
+When the SDK version bumps or new API is added:
+
+```bash
+# 1. Rebuild the native library
+cargo build -p chia-wallet-sdk-cs --release
+
+# 2. Regenerate C# source
+uniffi-bindgen-cs generate \
+  --library target/release/libchia_wallet_sdk.dylib \
+  --out-dir uniffi/cs \
+  --config uniffi/uniffi.toml
+
+# 3. Replace the .cs file in your project
+```
+
+No manual changes to the C# source are needed — it is entirely generated.
