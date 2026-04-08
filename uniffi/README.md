@@ -78,19 +78,26 @@ Re-run this step any time the Rust library is rebuilt after API changes.
 
 ## Step 4: Use in a .NET Project
 
-1. Copy `chia_wallet_sdk.cs` and the native library into your project.
-2. Ensure the native library is in the output directory (set `Copy to Output Directory` in your `.csproj` or add it to the build pipeline).
-3. Add a project reference or include the `.cs` file directly:
+### Option A — Via NuGet (recommended)
+
+```bash
+dotnet add package ChiaWalletSdk
+```
+
+The package bundles the native library for each supported platform; no manual copy step is needed.
+
+### Option B — In-repo via ProjectReference
+
+If you are working inside a clone of this repository, reference the library project directly:
 
 ```xml
 <!-- .csproj -->
 <ItemGroup>
-  <Compile Include="path/to/chia_wallet_sdk.cs" />
-  <None Include="path/to/libchia_wallet_sdk.dylib">
-    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-  </None>
+  <ProjectReference Include="path/to/uniffi/cs/ChiaWalletSdk.csproj" />
 </ItemGroup>
 ```
+
+Ensure the native library is in the output directory (set `Copy to Output Directory` in your `.csproj` or add it to the build pipeline).
 
 Everything lives in the `ChiaWalletSdk` namespace.
 
