@@ -41,18 +41,38 @@
   <!--
     Workaround for uniffi-bindgen-cs bug: Clvm.String(string) shadows System.String
     inside the Clvm class body, causing CS0119 on the generated lifecycle guard lines.
-    This target patches the two affected lines before every compile so the fix survives
-    regeneration automatically.
+    This inline task patches the two affected call sites before every compile so the
+    fix survives regeneration automatically. Pure .NET — no external tools required.
     See: https://github.com/NordSecurity/uniffi-bindgen-cs (upstream bug)
   -->
+  <UsingTask TaskName="ReplaceInFile" TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <FilePath     ParameterType="System.String" Required="true" />
+      <OldValue     ParameterType="System.String" Required="true" />
+      <NewValue     ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        var content = File.ReadAllText(FilePath);
+        var patched = content.Replace(OldValue, NewValue);
+        if (content != patched)
+          File.WriteAllText(FilePath, patched);
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
   <Target Name="PatchClvmStringAmbiguity" BeforeTargets="CoreCompile">
     <PropertyGroup>
       <_BindingsFile>$(MSBuildThisFileDirectory)../cs/chia_wallet_sdk.cs</_BindingsFile>
     </PropertyGroup>
-    <Exec Command="sed -i '' 's/ObjectDisposedException(String\.Format/ObjectDisposedException(System.String.Format/g; s/OverflowException(String\.Format/OverflowException(System.String.Format/g' &quot;$(_BindingsFile)&quot;"
-          Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
-    <Exec Command="sed -i 's/ObjectDisposedException(String\.Format/ObjectDisposedException(System.String.Format/g; s/OverflowException(String\.Format/OverflowException(System.String.Format/g' &quot;$(_BindingsFile)&quot;"
-          Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="new System.ObjectDisposedException(String.Format("
+                  NewValue="new System.ObjectDisposedException(System.String.Format(" />
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="new System.OverflowException(String.Format("
+                  NewValue="new System.OverflowException(System.String.Format(" />
   </Target>
 
 </Project>
