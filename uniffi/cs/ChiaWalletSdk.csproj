@@ -15,6 +15,7 @@
     <RepositoryUrl>https://github.com/dkackman/chia-wallet-sdk</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>chia;blockchain;wallet;sdk</PackageTags>
+    <PackageReadmeFile>PACKAGE_README.md</PackageReadmeFile>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
 
@@ -30,6 +31,7 @@
     <!-- Native libraries staged by CI into runtimes/ before dotnet pack.
          MSBuild glob silently produces no items when the directory does not exist locally. -->
     <None Include="runtimes/**/*" Pack="true" PackagePath="%(Identity)" />
+    <None Include="PACKAGE_README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 
   <!--
@@ -134,6 +136,14 @@
     <ReplaceInFile FilePath="$(_BindingsFile)"
                   OldValue="new System.OverflowException(String.Format("
                   NewValue="new System.OverflowException(System.String.Format(" />
+    <!-- Fix CS0114: Mnemonic.ToString() hides object.ToString() — add override -->
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="public string ToString() {"
+                  NewValue="public override string ToString() {" />
+    <!-- Fix CS0114: Program.ToString() returns string? so it can't override — add new -->
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="public string? ToString() {"
+                  NewValue="public new string? ToString() {" />
   </Target>
 
 </Project>
