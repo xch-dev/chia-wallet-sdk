@@ -13,6 +13,14 @@ use chia_ssl::ChiaCertificate;
 use chia_traits::Streamable;
 use tokio::sync::{Mutex, mpsc::Receiver};
 
+// UniFFI's C# async bridge polls Rust futures without a Tokio runtime context.
+// napi-rs and pyo3-async-runtimes provide their own, so this is only needed for uniffi.
+#[cfg(feature = "uniffi")]
+static TOKIO_RUNTIME: std::sync::LazyLock<tokio::runtime::Runtime> =
+    std::sync::LazyLock::new(|| {
+        tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime")
+    });
+
 #[derive(Clone)]
 pub struct Certificate {
     pub cert_pem: String,
@@ -93,13 +101,31 @@ impl Peer {
         connector: Connector,
         options: PeerOptions,
     ) -> Result<Self> {
+        let socket_addr = socket_addr.parse()?;
+        let sdk_options = SdkPeerOptions {
+            rate_limit_factor: options.rate_limit_factor,
+        };
+
+        // UniFFI's C# async bridge polls Rust futures without a Tokio runtime context.
+        // Spawning onto a dedicated runtime ensures tokio::spawn (used internally by
+        // Peer) can find a reactor. napi-rs and pyo3-async-runtimes provide their own.
+        #[cfg(feature = "uniffi")]
+        let (peer, receiver) = TOKIO_RUNTIME
+            .spawn(connect_peer(
+                network_id,
+                connector.0.clone(),
+                socket_addr,
+                sdk_options,
+            ))
+            .await
+            .map_err(|e| bindy::Error::Custom(e.to_string()))??;
+
+        #[cfg(not(feature = "uniffi"))]
         let (peer, receiver) = connect_peer(
             network_id,
             connector.0.clone(),
-            socket_addr.parse()?,
-            SdkPeerOptions {
-                rate_limit_factor: options.rate_limit_factor,
-            },
+            socket_addr,
+            sdk_options,
         )
         .await?;
 
