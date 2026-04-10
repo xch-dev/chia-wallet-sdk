@@ -26,6 +26,7 @@ mod offer;
 mod program;
 mod puzzle;
 mod rpc;
+mod runtime;
 mod secp;
 mod simulator;
 mod utils;
