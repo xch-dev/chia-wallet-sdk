@@ -91,16 +91,16 @@ impl<T> IntoRust<u128, T, Uniffi> for String {
 impl_self!(i64);
 impl_self!(i128);
 
-// usize → u32 for UniFFI (UniFFI doesn't support usize natively).
-impl<T> FromRust<usize, T, Uniffi> for u32 {
+// usize → u64 for UniFFI (UniFFI doesn't support usize natively).
+impl<T> FromRust<usize, T, Uniffi> for u64 {
     fn from_rust(value: usize, _context: &T) -> Result<Self> {
-        u32::try_from(value).map_err(|_| Error::Custom(format!("usize {value} does not fit in u32")))
+        Ok(value as u64)
     }
 }
 
-impl<T> IntoRust<usize, T, Uniffi> for u32 {
+impl<T> IntoRust<usize, T, Uniffi> for u64 {
     fn into_rust(self, _context: &T) -> Result<usize> {
-        Ok(self as usize)
+        usize::try_from(self).map_err(|_| Error::Custom(format!("u64 {self} does not fit in usize")))
     }
 }
 

@@ -6,13 +6,15 @@ use js_sys::Uint8Array;
 use js_sys::wasm_bindgen::{JsCast, UnwrapThrowExt};
 use num_bigint::BigInt;
 
-use crate::{Error, FromRust, IntoRust, Result};
+use crate::{Error, FromRust, IntoRust, Result, impl_self};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Wasm;
 
 #[derive(Debug, Clone, Copy)]
 pub struct WasmContext;
+
+impl_self!(usize);
 
 impl<T> FromRust<(), T, Wasm> for () {
     fn from_rust(value: (), _context: &T) -> Result<Self> {

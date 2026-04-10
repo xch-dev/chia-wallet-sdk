@@ -62,7 +62,7 @@
   "uniffi": {
     "{bytes}": "Vec<u8>",
     "{bigint}": "String",
-    "{usize}": "u32"
+    "{usize}": "u64"
   },
   "clvm_types": [
     "Program",
