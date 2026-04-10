@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Numerics;
 using Xunit;
-using uniffi.chia_wallet_sdk;
 
 namespace ChiaWalletSdk.Tests;
 

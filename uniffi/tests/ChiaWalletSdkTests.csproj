@@ -28,6 +28,10 @@
           Condition="Exists('../../target/release/libchia_wallet_sdk.dylib')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="../../target/aarch64-apple-darwin/release/libchia_wallet_sdk.dylib"
+          Condition="Exists('../../target/aarch64-apple-darwin/release/libchia_wallet_sdk.dylib')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="../../target/release/libchia_wallet_sdk.so"
           Condition="Exists('../../target/release/libchia_wallet_sdk.so')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
