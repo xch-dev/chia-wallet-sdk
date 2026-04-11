@@ -109,7 +109,22 @@ jobs:
           name: native-linux-x64
           path: uniffi/cs/runtimes/linux-x64/native
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install uniffi-bindgen-cs
+        run: cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag v0.9.2+v0.28.3
+
+      - name: Generate C# bindings
+        run: |
+          uniffi-bindgen-cs \
+            --library \
+            --out-dir uniffi/cs \
+            --config uniffi/uniffi.toml \
+            uniffi/cs/runtimes/linux-x64/native/libchia_wallet_sdk.so
+
       - name: Determine version
+
         id: version
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
