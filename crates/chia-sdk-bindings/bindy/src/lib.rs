@@ -179,6 +179,9 @@ impl_self!(u16);
 impl_self!(i16);
 impl_self!(u32);
 impl_self!(i32);
+impl_self!(i64);
+impl_self!(i128);
+impl_self!(usize);
 impl_self!(f64);
 impl_self!(String);
 

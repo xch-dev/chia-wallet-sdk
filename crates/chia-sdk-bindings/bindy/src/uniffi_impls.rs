@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{Error, FromRust, IntoRust, Result, impl_self};
+use crate::{Error, FromRust, IntoRust, Result};
 use chia_protocol::{Bytes, BytesImpl, ClassgroupElement, Program};
 use clvm_utils::TreeHash;
 use num_bigint::BigInt;
@@ -88,10 +88,6 @@ impl<T> IntoRust<u128, T, Uniffi> for String {
             .map_err(|_| Error::Custom(format!("cannot parse '{self}' as u128")))
     }
 }
-
-// i64 and i128 — native UniFFI types, pass through as-is.
-impl_self!(i64);
-impl_self!(i128);
 
 // usize → u64 for UniFFI (UniFFI doesn't support usize natively).
 impl<T> FromRust<usize, T, Uniffi> for u64 {

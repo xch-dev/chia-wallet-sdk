@@ -144,6 +144,10 @@
     <ReplaceInFile FilePath="$(_BindingsFile)"
                   OldValue="public string? ToString() {"
                   NewValue="public new string? ToString() {" />
+    <!-- Fix CS1586/CS0178: jagged array allocation for sequence<bytes> has dimensions reversed -->
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="new byte[][(length)]"
+                  NewValue="new byte[length][]" />
   </Target>
 
 </Project>

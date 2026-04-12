@@ -35,12 +35,12 @@ A debug build (`--release` omitted) is faster to compile but slower at runtime.
 
 ## Step 2: Install `uniffi-bindgen-cs`
 
-This tool generates the C# source file from the compiled library. Install it once; the version **must match** the `uniffi` crate version used here (`0.28`).
+This tool generates the C# source file from the compiled library. Install it once; the version **must match** the `uniffi` crate version used here (`0.29`).
 
 ```bash
 cargo install uniffi-bindgen-cs \
   --git https://github.com/NordSecurity/uniffi-bindgen-cs \
-  --tag v0.9.2+v0.28.3
+  --tag v0.10.0+v0.29.4
 ```
 
 ---
@@ -245,8 +245,8 @@ The same `bindings/*.json` schemas also drive the Node.js (`napi/`), WebAssembly
 | BigInt as string | `u64`/`u128`/`BigInt` map to `string`; parse with `BigInteger.Parse()`. A typed UniFFI custom type could improve this in a future version. |
 | `Clvm.Alloc()` is typed | Unlike Python, which accepts `None`/`int`/`bool`/`str`/`bytes`/`list` dynamically, the C# `Alloc` takes a `ClvmType` enum. Use `Clvm.Nil()`, `Clvm.Int()`, `Clvm.Atom()` etc. for primitive values. |
 | Field setters are immutable | `SetField(value)` returns a new object with the field changed; the original is unchanged. Use the return value. |
-| Version pinning | `uniffi-bindgen-cs` must match the `uniffi` crate version (`0.28`). Check the tag when upgrading. |
-| No static methods on objects | UniFFI 0.28 does not support non-`self` associated functions in `impl` blocks. These are exposed as free functions prefixed with the class name (e.g. `constants_puzzle_name()`). |
+| Version pinning | `uniffi-bindgen-cs` must match the `uniffi` crate version (`0.29`). Check the tag when upgrading. |
+| No static methods on objects | UniFFI 0.29 does not support non-`self` associated functions in `impl` blocks. These are exposed as free functions prefixed with the class name (e.g. `constants_puzzle_name()`). |
 
 ---
 

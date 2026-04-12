@@ -15,11 +15,8 @@ pub struct Pyo3;
 #[derive(Debug, Clone, Copy)]
 pub struct Pyo3Context;
 
-impl_self!(usize);
 impl_self!(u64);
-impl_self!(i64);
 impl_self!(u128);
-impl_self!(i128);
 impl_self!(BigInt);
 
 impl<T> FromRust<(), T, Pyo3> for () {

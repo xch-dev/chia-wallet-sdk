@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using Xunit;
 
@@ -123,7 +122,7 @@ public class BasicTests
     public void CurryRoundtrip()
     {
         var clvm = new Clvm();
-        var items = Enumerable.Range(0, 10).Select(i => clvm.Int(i.ToString())).ToList();
+        var items = Enumerable.Range(0, 10).Select(i => clvm.Int(i.ToString())).ToArray();
         var curried = clvm.Nil().Curry(items);
         var uncurried = curried.Uncurry();
         Assert.NotNull(uncurried);
@@ -139,7 +138,7 @@ public class BasicTests
     public void AllocMultipleTypes()
     {
         var clvm = new Clvm();
-        var program = clvm.List(new List<Program>
+        var program = clvm.List(new Program[]
         {
             clvm.Nil(),
             clvm.Alloc(new ClvmType.PublicKey(PublicKey.Infinity())),
@@ -167,7 +166,7 @@ public class BasicTests
         var puzzleHash = new byte[32];
         Array.Fill(puzzleHash, (byte)0xff);
 
-        var memos = clvm.List(new List<Program> { clvm.Atom(puzzleHash) });
+        var memos = clvm.List(new Program[] { clvm.Atom(puzzleHash) });
         var condition = clvm.CreateCoin(puzzleHash, "1", memos);
         var parsed = condition.ParseCreateCoin();
 
