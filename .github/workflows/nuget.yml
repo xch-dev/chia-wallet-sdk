@@ -29,11 +29,6 @@ jobs:
             artifact-name: native-osx-arm64
             rid: osx-arm64
             lib-name: libchia_wallet_sdk.dylib
-          - host: macos-15-intel
-            target: x86_64-apple-darwin
-            artifact-name: native-osx-x64
-            rid: osx-x64
-            lib-name: libchia_wallet_sdk.dylib
           - host: windows-latest
             target: x86_64-pc-windows-msvc
             artifact-name: native-win-x64
