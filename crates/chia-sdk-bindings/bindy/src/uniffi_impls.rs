@@ -71,7 +71,8 @@ impl<T> FromRust<u64, T, Uniffi> for String {
 
 impl<T> IntoRust<u64, T, Uniffi> for String {
     fn into_rust(self, _context: &T) -> Result<u64> {
-        self.parse().map_err(|_| Error::Custom(format!("cannot parse '{self}' as u64")))
+        self.parse()
+            .map_err(|_| Error::Custom(format!("cannot parse '{self}' as u64")))
     }
 }
 
@@ -83,7 +84,8 @@ impl<T> FromRust<u128, T, Uniffi> for String {
 
 impl<T> IntoRust<u128, T, Uniffi> for String {
     fn into_rust(self, _context: &T) -> Result<u128> {
-        self.parse().map_err(|_| Error::Custom(format!("cannot parse '{self}' as u128")))
+        self.parse()
+            .map_err(|_| Error::Custom(format!("cannot parse '{self}' as u128")))
     }
 }
 
@@ -100,7 +102,8 @@ impl<T> FromRust<usize, T, Uniffi> for u64 {
 
 impl<T> IntoRust<usize, T, Uniffi> for u64 {
     fn into_rust(self, _context: &T) -> Result<usize> {
-        usize::try_from(self).map_err(|_| Error::Custom(format!("u64 {self} does not fit in usize")))
+        usize::try_from(self)
+            .map_err(|_| Error::Custom(format!("u64 {self} does not fit in usize")))
     }
 }
 
@@ -115,7 +118,10 @@ impl<T, const N: usize> FromRust<BytesImpl<N>, T, Uniffi> for Vec<u8> {
 impl<T, const N: usize> IntoRust<BytesImpl<N>, T, Uniffi> for Vec<u8> {
     fn into_rust(self, _context: &T) -> Result<BytesImpl<N>> {
         if self.len() != N {
-            return Err(Error::WrongLength { expected: N, found: self.len() });
+            return Err(Error::WrongLength {
+                expected: N,
+                found: self.len(),
+            });
         }
         Ok(self.try_into().unwrap())
     }
@@ -130,7 +136,10 @@ impl<T> FromRust<ClassgroupElement, T, Uniffi> for Vec<u8> {
 impl<T> IntoRust<ClassgroupElement, T, Uniffi> for Vec<u8> {
     fn into_rust(self, _context: &T) -> Result<ClassgroupElement> {
         if self.len() != 100 {
-            return Err(Error::WrongLength { expected: 100, found: self.len() });
+            return Err(Error::WrongLength {
+                expected: 100,
+                found: self.len(),
+            });
         }
         Ok(ClassgroupElement::new(self.try_into().unwrap()))
     }
@@ -145,7 +154,10 @@ impl<T> FromRust<TreeHash, T, Uniffi> for Vec<u8> {
 impl<T> IntoRust<TreeHash, T, Uniffi> for Vec<u8> {
     fn into_rust(self, _context: &T) -> Result<TreeHash> {
         if self.len() != 32 {
-            return Err(Error::WrongLength { expected: 32, found: self.len() });
+            return Err(Error::WrongLength {
+                expected: 32,
+                found: self.len(),
+            });
         }
         Ok(TreeHash::new(self.try_into().unwrap()))
     }

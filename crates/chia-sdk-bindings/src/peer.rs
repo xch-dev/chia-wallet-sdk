@@ -101,13 +101,7 @@ impl Peer {
         };
 
         let (peer, receiver) = spawn_on_runtime(async move {
-            Ok(connect_peer(
-                network_id,
-                connector.0.clone(),
-                socket_addr,
-                sdk_options,
-            )
-            .await?)
+            Ok(connect_peer(network_id, connector.0.clone(), socket_addr, sdk_options).await?)
         })
         .await?;
 
@@ -172,9 +166,9 @@ impl Peer {
         coin_ids: Option<Vec<Bytes32>>,
     ) -> Result<Vec<Bytes32>> {
         let peer = self.0.clone();
-        spawn_on_runtime(async move {
-            Ok(peer.remove_coin_subscriptions(coin_ids).await?.coin_ids)
-        })
+        spawn_on_runtime(
+            async move { Ok(peer.remove_coin_subscriptions(coin_ids).await?.coin_ids) },
+        )
         .await
     }
 

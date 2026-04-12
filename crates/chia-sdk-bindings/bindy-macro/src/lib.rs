@@ -1781,7 +1781,13 @@ pub fn bindy_uniffi(input: TokenStream) -> TokenStream {
         let bound_ident = Ident::new(name, Span::mixed_site());
 
         match binding {
-            Binding::Class { new, remote, methods, fields, no_wasm: _ } => {
+            Binding::Class {
+                new,
+                remote,
+                methods,
+                fields,
+                no_wasm: _,
+            } => {
                 let rust_struct_ident = quote!( #entrypoint::#bound_ident );
                 let fully_qualified_ident = if *remote {
                     let ext_ident = Ident::new(&format!("{name}Ext"), Span::mixed_site());
@@ -1808,16 +1814,16 @@ pub fn bindy_uniffi(input: TokenStream) -> TokenStream {
                     let arg_types = method
                         .args
                         .values()
-                        .map(|v| {
-                            parse_str::<Type>(&apply_mappings(v, &mappings)).unwrap()
-                        })
+                        .map(|v| parse_str::<Type>(&apply_mappings(v, &mappings)).unwrap())
                         .collect::<Vec<_>>();
 
                     // For Factory/Constructor, return Arc<Self>; otherwise map the return type
                     let ret_str = if method.ret.is_none()
                         && matches!(
                             method.kind,
-                            MethodKind::Constructor | MethodKind::Factory | MethodKind::AsyncFactory
+                            MethodKind::Constructor
+                                | MethodKind::Factory
+                                | MethodKind::AsyncFactory
                         ) {
                         "std::sync::Arc<Self>".to_string()
                     } else {
@@ -1927,8 +1933,7 @@ pub fn bindy_uniffi(input: TokenStream) -> TokenStream {
                     let field_ident = Ident::new(field_name, Span::mixed_site());
                     let get_ident = Ident::new(&format!("get_{field_name}"), Span::mixed_site());
                     let set_ident = Ident::new(&format!("set_{field_name}"), Span::mixed_site());
-                    let field_ty =
-                        parse_str::<Type>(&apply_mappings(ty, &mappings)).unwrap();
+                    let field_ty = parse_str::<Type>(&apply_mappings(ty, &mappings)).unwrap();
 
                     field_tokens.extend(quote! {
                         pub fn #get_ident(&self) -> Result<#field_ty, ChiaError> {

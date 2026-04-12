@@ -293,9 +293,7 @@ impl RpcClient {
         coin_name: Bytes32,
     ) -> Result<GetMempoolItemsResponse> {
         let client = self.0.clone();
-        spawn_on_runtime(async move {
-            Ok(client.get_mempool_items_by_coin_name(coin_name).await?)
-        })
-        .await
+        spawn_on_runtime(async move { Ok(client.get_mempool_items_by_coin_name(coin_name).await?) })
+            .await
     }
 }
