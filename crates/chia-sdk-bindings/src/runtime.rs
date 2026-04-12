@@ -24,8 +24,7 @@ where
 #[cfg(not(feature = "uniffi"))]
 pub(crate) async fn spawn_on_runtime<F, T>(future: F) -> Result<T>
 where
-    F: std::future::Future<Output = Result<T>> + Send + 'static,
-    T: Send + 'static,
+    F: std::future::Future<Output = Result<T>>,
 {
     future.await
 }
