@@ -42,3 +42,6 @@ clvm-traits = { workspace = true }
 clvm-utils = { workspace = true }
 signature = { workspace = true }
 num-bigint = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = ["uniffi"]

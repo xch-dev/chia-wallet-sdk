@@ -32,5 +32,8 @@ openssl-sys = { version = "0.9.108", features = ["vendored"] }
 openssl = { version = "0.10.73", features = ["vendored"] }
 openssl-sys = { version = "0.9.108", features = ["vendored"] }
 
+[package.metadata.cargo-machete]
+ignored = ["bindy", "chia-sdk-bindings"]
+
 [lints]
 workspace = true
