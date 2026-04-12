@@ -53,7 +53,9 @@ case "$TARGET" in
     echo "Unrecognized target triple: $TARGET" >&2; exit 1 ;;
 esac
 
-LIB_NAME="libchia_wallet_sdk.$LIB_EXT"
+# Windows DLLs have no "lib" prefix; all other platforms do.
+LIB_PREFIX=$( [ "$LIB_EXT" = "dll" ] && echo "" || echo "lib" )
+LIB_NAME="${LIB_PREFIX}chia_wallet_sdk.$LIB_EXT"
 LIB_PATH="$SCRIPT_DIR/../target/$TARGET/release/$LIB_NAME"
 
 echo "Building native library for $TARGET..."
