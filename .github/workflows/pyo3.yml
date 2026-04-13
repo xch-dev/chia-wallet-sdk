@@ -42,7 +42,9 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          # uniffi introduced a transitive dependency on openssl, which causes the build to fail 
+          # on musllinux. Disable sccache for now to get the build to pass
+          # sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
           working-directory: pyo3
           before-script-linux: |
@@ -187,6 +189,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Test
         run: |
