@@ -208,9 +208,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
       - name: Check type stubs
         run: |
           cargo run -p pyo3-stub-generator
