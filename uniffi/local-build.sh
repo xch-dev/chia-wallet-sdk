@@ -56,11 +56,11 @@ esac
 # Windows DLLs have no "lib" prefix; all other platforms do.
 LIB_PREFIX=$( [ "$LIB_EXT" = "dll" ] && echo "" || echo "lib" )
 LIB_NAME="${LIB_PREFIX}chia_wallet_sdk.$LIB_EXT"
-LIB_PATH="$SCRIPT_DIR/../target/$TARGET/release/$LIB_NAME"
+LIB_PATH="$SCRIPT_DIR/../target/$TARGET/release-cs/$LIB_NAME"
 
 echo "Building native library for $TARGET..."
 cd ..
-cargo build --release -p chia-wallet-sdk-cs --target "$TARGET"
+cargo build --profile release-cs -p chia-wallet-sdk-cs --target "$TARGET"
 cd "$SCRIPT_DIR"
 
 echo "Generating C# bindings..."

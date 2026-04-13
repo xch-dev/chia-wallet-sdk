@@ -192,3 +192,10 @@ rue-lir = "0.6.0"
 [profile.release]
 lto = true
 strip = "symbols"
+
+# Used by the uniffi-bindgen-cs generate step — strip = "none" is required
+# because uniffi reads UNIFFI_META_* symbols from the static symbol table,
+# which strip = "symbols" removes. See mozilla/uniffi-rs#2520.
+[profile.release-cs]
+inherits = "release"
+strip = "none"

@@ -40,34 +40,25 @@ jobs:
           key: x86_64-unknown-linux-gnu-cargo-ubuntu-latest-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build native library (linux-x64)
-        run: cargo build --release -p chia-wallet-sdk-cs --target x86_64-unknown-linux-gnu
+        run: cargo build --profile release-cs -p chia-wallet-sdk-cs --target x86_64-unknown-linux-gnu
 
       - name: Install uniffi-bindgen-cs
         run: cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag v0.10.0+v0.29.4
 
       - name: Generate C# bindings
         run: |
-          echo "--- uniffi-bindgen-cs version ---"
-          uniffi-bindgen-cs --version
-          echo "--- UNIFFI_META symbols (what bindgen looks for) ---"
-          nm target/x86_64-unknown-linux-gnu/release/libchia_wallet_sdk.so 2>/dev/null | grep UNIFFI_META | head -20 || echo "(none found)"
-          echo "--- dynamic uniffi symbols ---"
-          nm -D target/x86_64-unknown-linux-gnu/release/libchia_wallet_sdk.so 2>/dev/null | grep uniffi | head -5 || true
-          echo "--- running bindgen (stderr captured) ---"
           uniffi-bindgen-cs \
             --library \
             --out-dir uniffi/cs \
             --config uniffi/uniffi.toml \
-            target/x86_64-unknown-linux-gnu/release/libchia_wallet_sdk.so 2>&1 || true
-          echo "--- output directory contents ---"
-          ls -la uniffi/cs/
+            target/x86_64-unknown-linux-gnu/release-cs/libchia_wallet_sdk.so
           test -f uniffi/cs/chia_wallet_sdk.cs || { echo "ERROR: chia_wallet_sdk.cs was not generated"; exit 1; }
 
       - name: Upload linux-x64 native artifact
         uses: actions/upload-artifact@v4
         with:
           name: native-linux-x64
-          path: target/x86_64-unknown-linux-gnu/release/libchia_wallet_sdk.so
+          path: target/x86_64-unknown-linux-gnu/release-cs/libchia_wallet_sdk.so
           if-no-files-found: error
 
       - name: Upload C# bindings artifact
