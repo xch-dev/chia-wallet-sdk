@@ -13,3 +13,4 @@ nuget-out/
 
 # Local dev scripts
 pack-local.sh
+.remember/
