@@ -29,17 +29,7 @@ jobs:
         with:
           targets: x86_64-unknown-linux-gnu
 
-      - name: Cache cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: x86_64-unknown-linux-gnu-cargo-ubuntu-latest-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Build native library (linux-x64)
+      - name: Build native library (linux-x64, symbols intact for bindgen)
         run: cargo build --profile release-cs -p chia-wallet-sdk-cs --target x86_64-unknown-linux-gnu
 
       - name: Install uniffi-bindgen-cs
@@ -54,13 +44,6 @@ jobs:
             target/x86_64-unknown-linux-gnu/release-cs/libchia_wallet_sdk.so
           test -f uniffi/cs/chia_wallet_sdk.cs || { echo "ERROR: chia_wallet_sdk.cs was not generated"; exit 1; }
 
-      - name: Upload linux-x64 native artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: native-linux-x64
-          path: target/x86_64-unknown-linux-gnu/release-cs/libchia_wallet_sdk.so
-          if-no-files-found: error
-
       - name: Upload C# bindings artifact
         uses: actions/upload-artifact@v7
         with:
@@ -74,6 +57,10 @@ jobs:
       fail-fast: false
       matrix:
         settings:
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact-name: native-linux-x64
+            lib-name: libchia_wallet_sdk.so
           - host: macos-latest
             target: aarch64-apple-darwin
             artifact-name: native-osx-arm64
