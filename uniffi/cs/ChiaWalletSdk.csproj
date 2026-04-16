@@ -1,0 +1,153 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- NuGet metadata -->
+    <PackageId>ChiaWalletSdk</PackageId>
+    <Version>0.33.0</Version>
+    <Authors>dkackman</Authors>
+    <Description>C# bindings for the Chia Wallet SDK — a Rust library for building Chia blockchain wallets.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/dkackman/chia-wallet-sdk</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/dkackman/chia-wallet-sdk</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>chia;blockchain;wallet;sdk</PackageTags>
+    <PackageReadmeFile>PACKAGE_README.md</PackageReadmeFile>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="chia_wallet_sdk.cs" />
+    <!-- Allow the bindings project's own test project to access internal members -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>ChiaWalletSdkTests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Native libraries staged by CI into runtimes/ before dotnet pack.
+         MSBuild glob silently produces no items when the directory does not exist locally. -->
+    <None Include="runtimes/**/*" Pack="true" PackagePath="%(Identity)" />
+    <None Include="PACKAGE_README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <!--
+    Workaround for uniffi-bindgen-cs bug: Clvm.String(string) shadows System.String
+    inside the Clvm class body, causing CS0119 on the generated lifecycle guard lines.
+    This inline task patches the two affected call sites before every compile so the
+    fix survives regeneration automatically. Pure .NET — no external tools required.
+    See: https://github.com/NordSecurity/uniffi-bindgen-cs (upstream bug)
+  -->
+  <UsingTask TaskName="ReplaceInFile" TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <FilePath     ParameterType="System.String" Required="true" />
+      <OldValue     ParameterType="System.String" Required="true" />
+      <NewValue     ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        var content = File.ReadAllText(FilePath);
+        var patched = content.Replace(OldValue, NewValue);
+        if (content != patched)
+          File.WriteAllText(FilePath, patched);
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <!--
+    uniffi-bindgen-cs emits all types as `internal`. This target promotes the
+    public API surface to `public` so that NuGet consumers can actually use
+    the package without InternalsVisibleTo.  FFI plumbing (RustBuffer,
+    FfiConverter*, _UniFFIAsync, Uniffi*Exception, etc.) stays internal because
+    those declarations either use different patterns or live on non-top-level lines.
+
+    Domain types match:  internal class Foo : IFoo, IDisposable
+    Interfaces match:    internal interface IFoo
+    Records match:       internal record Foo
+    Static class:        internal static class ChiaWalletSdkMethods
+    Error type:          internal class ChiaException
+
+    See: https://github.com/NordSecurity/uniffi-bindgen-cs/issues/122
+  -->
+  <Target Name="PatchTypeVisibility" BeforeTargets="PatchClvmStringAmbiguity;CoreCompile">
+    <PropertyGroup>
+      <_BindingsFile>$(MSBuildThisFileDirectory)chia_wallet_sdk.cs</_BindingsFile>
+    </PropertyGroup>
+    <!-- Domain classes: internal class Foo : IFoo, IDisposable -->
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="internal class "
+                  NewValue="public class " />
+    <!-- Interfaces: internal interface IFoo -->
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="internal interface "
+                  NewValue="public interface " />
+    <!-- Records: internal record ClvmType -->
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="internal record "
+                  NewValue="public record " />
+    <!-- Static classes: internal static class ChiaWalletSdkMethods -->
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="internal static class ChiaWalletSdkMethods"
+                  NewValue="public static class ChiaWalletSdkMethods" />
+    <!-- Enums: internal enum Foo -->
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="internal enum "
+                  NewValue="public enum " />
+    <!-- Keep FFI plumbing internal by reverting specific over-promotions -->
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="public class UndeclaredErrorException"
+                  NewValue="internal class UndeclaredErrorException" />
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="public class PanicException"
+                  NewValue="internal class PanicException" />
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="public class AllocationException"
+                  NewValue="internal class AllocationException" />
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="public class InternalException"
+                  NewValue="internal class InternalException" />
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="public class InvalidEnumException"
+                  NewValue="internal class InvalidEnumException" />
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="public class UniffiContractVersionException"
+                  NewValue="internal class UniffiContractVersionException" />
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="public class UniffiContractChecksumException"
+                  NewValue="internal class UniffiContractChecksumException" />
+    <!-- Keep FFI structs/abstract classes/async internal -->
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="public static class _UniFFIAsync"
+                  NewValue="internal static class _UniFFIAsync" />
+  </Target>
+
+  <Target Name="PatchClvmStringAmbiguity" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <_BindingsFile>$(MSBuildThisFileDirectory)chia_wallet_sdk.cs</_BindingsFile>
+    </PropertyGroup>
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="new System.ObjectDisposedException(String.Format("
+                  NewValue="new System.ObjectDisposedException(System.String.Format(" />
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="new System.OverflowException(String.Format("
+                  NewValue="new System.OverflowException(System.String.Format(" />
+    <!-- Fix CS0114: Mnemonic.ToString() hides object.ToString() — add override -->
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="public string ToString() {"
+                  NewValue="public override string ToString() {" />
+    <!-- Fix CS0114: Program.ToString() returns string? so it can't override — add new -->
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="public string? ToString() {"
+                  NewValue="public new string? ToString() {" />
+    <!-- Fix CS1586/CS0178: jagged array allocation for sequence<bytes> has dimensions reversed -->
+    <ReplaceInFile FilePath="$(_BindingsFile)"
+                  OldValue="new byte[][(length)]"
+                  NewValue="new byte[length][]" />
+  </Target>
+
+</Project>

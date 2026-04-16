@@ -5,3 +5,12 @@ cobertura.xml
 venv/
 *.costs
 *.bin
+
+# NuGet native staging and generated bindings (CI-only, never committed)
+uniffi/cs/runtimes/
+uniffi/cs/chia_wallet_sdk.cs
+nuget-out/
+
+# Local dev scripts
+pack-local.sh
+.remember/

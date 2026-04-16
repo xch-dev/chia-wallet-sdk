@@ -1,0 +1,201 @@
+name: NuGet
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow_ref, github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Generate C# bindings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Build native library (linux-x64, symbols intact for bindgen)
+        run: cargo build --profile release-cs -p chia-wallet-sdk-cs --target x86_64-unknown-linux-gnu
+
+      - name: Install uniffi-bindgen-cs
+        run: cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs --tag v0.10.0+v0.29.4
+
+      - name: Generate C# bindings
+        run: |
+          uniffi-bindgen-cs \
+            --library \
+            --out-dir uniffi/cs \
+            --config uniffi/uniffi.toml \
+            target/x86_64-unknown-linux-gnu/release-cs/libchia_wallet_sdk.so
+          test -f uniffi/cs/chia_wallet_sdk.cs || { echo "ERROR: chia_wallet_sdk.cs was not generated"; exit 1; }
+
+      - name: Upload C# bindings artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cs-bindings
+          path: uniffi/cs/chia_wallet_sdk.cs
+          if-no-files-found: error
+
+  build:
+    name: Build native - ${{ matrix.settings.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact-name: native-linux-x64
+            lib-name: libchia_wallet_sdk.so
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            artifact-name: native-osx-arm64
+            lib-name: libchia_wallet_sdk.dylib
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            artifact-name: native-osx-x64
+            lib-name: libchia_wallet_sdk.dylib
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact-name: native-win-x64
+            lib-name: chia_wallet_sdk.dll
+          # - host: ubuntu-latest
+          #   target: x86_64-unknown-linux-musl
+          #   artifact-name: native-linux-musl-x64
+          #   lib-name: libchia_wallet_sdk.so
+          #   use_cross: true
+    runs-on: ${{ matrix.settings.host }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cross
+        if: matrix.settings.use_cross
+        uses: taiki-e/install-action@cross
+
+      - name: Build native library
+        run: ${{ matrix.settings.use_cross && 'cross' || 'cargo' }} build --release -p chia-wallet-sdk-cs --target ${{ matrix.settings.target }}
+
+      - name: Upload native artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.settings.artifact-name }}
+          path: target/${{ matrix.settings.target }}/release/${{ matrix.settings.lib-name }}
+          if-no-files-found: error
+
+  pack:
+    name: Pack NuGet
+    runs-on: ubuntu-latest
+    needs: [generate, build]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.x'
+
+      - name: Download C# bindings
+        uses: actions/download-artifact@v8
+        with:
+          name: cs-bindings
+          path: uniffi/cs
+
+      - name: Download osx-arm64 artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: native-osx-arm64
+          path: uniffi/cs/runtimes/osx-arm64/native
+
+      - name: Download osx-x64 artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: native-osx-x64
+          path: uniffi/cs/runtimes/osx-x64/native
+
+      - name: Download win-x64 artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: native-win-x64
+          path: uniffi/cs/runtimes/win-x64/native
+
+      - name: Download linux-x64 artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: native-linux-x64
+          path: uniffi/cs/runtimes/linux-x64/native
+
+      # - name: Download linux-musl-x64 artifact
+      #   uses: actions/download-artifact@v8
+      #   with:
+      #     name: native-linux-musl-x64
+      #     path: uniffi/cs/runtimes/linux-musl-x64/native
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0-dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pack
+        run: dotnet pack uniffi/cs/ChiaWalletSdk.csproj -c Release -o ./nuget-out -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Upload nupkg artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuget-package
+          path: nuget-out/*.nupkg
+          if-no-files-found: error
+
+  publish:
+    name: Publish to NuGet.org
+    runs-on: ubuntu-latest
+    needs: pack
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+    steps:
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.x'
+
+      - name: Download nupkg artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: nuget-package
+          path: nuget-out
+
+      - name: Publish to NuGet.org
+        run: dotnet nuget push nuget-out/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
