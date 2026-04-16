@@ -73,6 +73,10 @@ jobs:
             target: x86_64-pc-windows-msvc
             artifact-name: native-win-x64
             lib-name: chia_wallet_sdk.dll
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact-name: native-linux-musl-x64
+            lib-name: libchia_wallet_sdk.so
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v6
@@ -91,6 +95,10 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install musl tools
+        if: contains(matrix.settings.target, 'musl')
+        run: sudo apt-get install -y musl-tools
 
       - name: Build native library
         run: cargo build --release -p chia-wallet-sdk-cs --target ${{ matrix.settings.target }}
