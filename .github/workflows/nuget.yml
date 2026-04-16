@@ -152,6 +152,12 @@ jobs:
           name: native-linux-x64
           path: uniffi/cs/runtimes/linux-x64/native
 
+      - name: Download linux-musl-x64 artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: native-linux-musl-x64
+          path: uniffi/cs/runtimes/linux-musl-x64/native
+
       - name: Determine version
         id: version
         run: |
