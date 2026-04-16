@@ -73,11 +73,11 @@ jobs:
             target: x86_64-pc-windows-msvc
             artifact-name: native-win-x64
             lib-name: chia_wallet_sdk.dll
-          - host: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-            artifact-name: native-linux-musl-x64
-            lib-name: libchia_wallet_sdk.so
-            use_cross: true
+          # - host: ubuntu-latest
+          #   target: x86_64-unknown-linux-musl
+          #   artifact-name: native-linux-musl-x64
+          #   lib-name: libchia_wallet_sdk.so
+          #   use_cross: true
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v6
@@ -153,11 +153,11 @@ jobs:
           name: native-linux-x64
           path: uniffi/cs/runtimes/linux-x64/native
 
-      - name: Download linux-musl-x64 artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: native-linux-musl-x64
-          path: uniffi/cs/runtimes/linux-musl-x64/native
+      # - name: Download linux-musl-x64 artifact
+      #   uses: actions/download-artifact@v8
+      #   with:
+      #     name: native-linux-musl-x64
+      #     path: uniffi/cs/runtimes/linux-musl-x64/native
 
       - name: Determine version
         id: version
