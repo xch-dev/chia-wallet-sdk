@@ -45,6 +45,7 @@
   },
   "ava": {
     "timeout": "3m",
+    "cache": false,
     "extensions": [
       "ts"
     ],
