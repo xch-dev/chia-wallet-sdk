@@ -161,10 +161,9 @@ mod inner {
             &self,
             service: &str,
         ) -> Result<broadcast::Receiver<DaemonEvent>, DaemonError> {
-            self.register_service(service).await?;
-
             let mut subs = self.0.subscriptions.lock().await;
             if !subs.iter().any(|s| s == service) {
+                self.register_service(service).await?;
                 subs.push(service.to_string());
             }
 
