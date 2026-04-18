@@ -657,6 +657,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "chia-sdk-daemon"
+version = "0.33.0"
+dependencies = [
+ "chia-sdk-client",
+ "chia-sdk-coinset",
+ "futures-util",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "tungstenite",
+]
+
+[[package]]
 name = "chia-sdk-derive"
 version = "0.33.0"
 dependencies = [

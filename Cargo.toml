@@ -113,6 +113,7 @@ chia-sdk-types = { version = "0.33.0", path = "./crates/chia-sdk-types" }
 chia-sdk-derive = { version = "0.33.0", path = "./crates/chia-sdk-types/derive" }
 chia-sdk-utils = { version = "0.33.0", path = "./crates/chia-sdk-utils" }
 chia-sdk-coinset = { version = "0.33.0", path = "./crates/chia-sdk-coinset" }
+chia-sdk-daemon = { version = "0.33.0", path = "./crates/chia-sdk-daemon" }
 chia-sdk-bindings = { version = "0.33.0", path = "./crates/chia-sdk-bindings" }
 bindy = { version = "0.33.0", path = "./crates/chia-sdk-bindings/bindy" }
 bindy-macro = { version = "0.33.0", path = "./crates/chia-sdk-bindings/bindy-macro" }
