@@ -19,4 +19,7 @@ pub enum DaemonError {
 
     #[error("Failed to receive response")]
     ReceiveFailed,
+
+    #[error("Reconnection failed after {0} attempts")]
+    ReconnectFailed(u32),
 }
