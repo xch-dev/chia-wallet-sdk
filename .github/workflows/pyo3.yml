@@ -42,7 +42,9 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          # sccache causes "No such file or directory" errors in manylinux containers
+          # because the container's Rust toolchain layout differs from what sccache expects
+          # sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: manylinux_2_28
           working-directory: pyo3
           before-script-linux: |
@@ -84,8 +86,8 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
-          # TODO: The container does not have the proper toolchain or toolchain version installed
-          # This causes CI issues, so for now this caching is disabled to get the build to pass
+          # sccache causes "No such file or directory" errors in manylinux/musllinux containers
+          # because the container's Rust toolchain layout differs from what sccache expects
           # sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
           working-directory: pyo3
