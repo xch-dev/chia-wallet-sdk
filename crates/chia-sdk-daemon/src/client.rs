@@ -134,8 +134,14 @@ mod inner {
 
             let client = Self(inner);
 
-            // Register own origin first, then track it for reconnection
-            client.register_service(&client.0.origin.clone()).await?;
+            // Register own origin first, then track it for reconnection.
+            // If this fails, clean up the reader task so we don't leak it.
+            if let Err(e) = client.register_service(&client.0.origin.clone()).await {
+                if let Some(handle) = client.0.reader_handle.lock().await.take() {
+                    handle.abort();
+                }
+                return Err(e);
+            }
             client
                 .0
                 .subscriptions
