@@ -35,7 +35,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           cache-dependency-path: wasm/pnpm-lock.yaml
           architecture: x64
@@ -63,11 +63,6 @@ jobs:
         with:
           name: npm-pkg
           path: ./wasm/pkg/*-*.tgz
-
-      - name: Ensure we have a new enough npm version for trusted publishing
-        run: |
-          npm install -g npm
-          npm --version
 
       - name: Publish
         if: startsWith(github.event.ref, 'refs/tags')
