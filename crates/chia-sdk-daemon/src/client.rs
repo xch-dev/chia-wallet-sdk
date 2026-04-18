@@ -279,7 +279,7 @@ mod inner {
         }
 
         async fn reconnect_inner(inner: Arc<DaemonClientInner>) -> Result<(), DaemonError> {
-            inner.connected.send(false).ok();
+            inner.connected.send_modify(|val| *val = false);
 
             // Drain all pending requests so callers get immediate ReceiveFailed
             // instead of hanging until their individual timeouts expire.
@@ -362,7 +362,7 @@ mod inner {
                             }
                         }
 
-                        inner.connected.send(true).ok();
+                        inner.connected.send_modify(|val| *val = true);
                         inner.reconnect_tx.send(()).ok();
 
                         info!("Reconnected to daemon successfully");
