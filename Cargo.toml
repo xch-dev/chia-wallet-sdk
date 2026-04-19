@@ -72,8 +72,8 @@ workspace = true
 [features]
 chip-0035 = ["chia-sdk-driver/chip-0035", "chia-sdk-types/chip-0035"]
 offer-compression = ["chia-sdk-driver/offer-compression"]
-native-tls = ["chia-sdk-client/native-tls", "chia-sdk-coinset/native-tls"]
-rustls = ["chia-sdk-client/rustls", "chia-sdk-coinset/rustls"]
+native-tls = ["chia-sdk-client/native-tls", "chia-sdk-coinset/native-tls", "chia-sdk-daemon/native-tls"]
+rustls = ["chia-sdk-client/rustls", "chia-sdk-coinset/rustls", "chia-sdk-daemon/rustls"]
 peer-simulator = ["chia-sdk-test/peer-simulator"]
 action-layer = ["chia-sdk-types/action-layer", "chia-sdk-driver/action-layer"]
 
@@ -85,6 +85,7 @@ chia-sdk-test = { workspace = true, features = ["serde"] }
 chia-sdk-types = { workspace = true }
 chia-sdk-utils = { workspace = true }
 chia-sdk-coinset = { workspace = true }
+chia-sdk-daemon = { workspace = true }
 chia-protocol = { workspace = true, features = ["serde"] }
 chia-bls = { workspace = true, features = ["serde"] }
 chia-secp = { workspace = true }
@@ -113,6 +114,7 @@ chia-sdk-types = { version = "0.33.0", path = "./crates/chia-sdk-types" }
 chia-sdk-derive = { version = "0.33.0", path = "./crates/chia-sdk-types/derive" }
 chia-sdk-utils = { version = "0.33.0", path = "./crates/chia-sdk-utils" }
 chia-sdk-coinset = { version = "0.33.0", path = "./crates/chia-sdk-coinset" }
+chia-sdk-daemon = { version = "0.33.0", path = "./crates/chia-sdk-daemon" }
 chia-sdk-bindings = { version = "0.33.0", path = "./crates/chia-sdk-bindings" }
 bindy = { version = "0.33.0", path = "./crates/chia-sdk-bindings/bindy" }
 bindy-macro = { version = "0.33.0", path = "./crates/chia-sdk-bindings/bindy-macro" }
