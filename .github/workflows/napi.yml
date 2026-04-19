@@ -47,7 +47,7 @@ jobs:
           - host: macos-latest
             target: aarch64-apple-darwin
             build: pnpm build:macos-arm64
-          - host: linux-arm64
+          - host: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             docker: quay.io/pypa/manylinux_2_28_aarch64
             build: |
@@ -249,7 +249,7 @@ jobs:
           - "20"
           - "22"
           - "24"
-    runs-on: linux-arm64
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: pnpm/action-setup@v4
         with:
