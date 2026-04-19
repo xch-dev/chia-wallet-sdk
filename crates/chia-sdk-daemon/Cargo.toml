@@ -4,7 +4,7 @@ version = "0.33.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Chia daemon websocket client with RPC support via ChiaRpcClient trait."
-authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
+authors = ["Brandon Haggstrom <me@rigidnetwork.com>", "Chris Marslender <chrismarslender@gmail.com>"]
 homepage = "https://github.com/xch-dev/chia-wallet-sdk"
 repository = "https://github.com/xch-dev/chia-wallet-sdk"
 readme = { workspace = true }
