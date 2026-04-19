@@ -46,6 +46,8 @@
   "ava": {
     "timeout": "3m",
     "cache": false,
+    "verbose": true,
+    "workerThreads": false,
     "extensions": [
       "ts"
     ],
