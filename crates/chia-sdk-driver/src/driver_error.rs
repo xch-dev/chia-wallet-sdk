@@ -130,4 +130,19 @@ pub enum DriverError {
 
     #[error("missing vault coin spend in transaction reveal")]
     MissingVaultCoinSpend,
+
+    #[error("invalid delegated spend format")]
+    InvalidDelegatedSpendFormat,
+
+    #[error("invalid vault message format")]
+    InvalidVaultMessageFormat,
+
+    #[error("puzzle hash mismatch for coin spend")]
+    WrongPuzzleHash,
+
+    #[error("nested clawbacks are not allowed")]
+    NestedClawback,
+
+    #[error("invalid custody for linked spend")]
+    InvalidLinkedCustody,
 }

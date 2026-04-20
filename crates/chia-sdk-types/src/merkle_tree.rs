@@ -74,6 +74,11 @@ impl MerkleTree {
         self.root
     }
 
+    /// Get the leaves of the merkle tree.
+    pub fn leaves(&self) -> Vec<Bytes32> {
+        self.proofs.keys().cloned().collect()
+    }
+
     /// Get the proof for a given leaf, if it exists in the tree.
     pub fn proof(&self, leaf: Bytes32) -> Option<MerkleProof> {
         self.proofs.get(&leaf).cloned()
