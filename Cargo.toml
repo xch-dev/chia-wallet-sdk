@@ -118,7 +118,7 @@ chia-sdk-daemon = { version = "0.33.0", path = "./crates/chia-sdk-daemon" }
 chia-sdk-bindings = { version = "0.33.0", path = "./crates/chia-sdk-bindings" }
 bindy = { version = "0.33.0", path = "./crates/chia-sdk-bindings/bindy" }
 bindy-macro = { version = "0.33.0", path = "./crates/chia-sdk-bindings/bindy-macro" }
-chia-ssl = "0.36.1"
+chia-ssl = "0.42.0"
 chia-protocol = "0.36.1"
 chia-consensus = "0.36.1"
 chia-traits = "0.36.1"
