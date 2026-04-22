@@ -9,7 +9,7 @@ use clvm_traits::{ToClvm, clvm_quote};
 use clvm_utils::{ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::{ClawbackV2, DriverError, Puzzle};
+use crate::{AssetInfo, ClawbackV2, DriverError, Puzzle, RequestedPayments};
 
 #[derive(Debug, Clone)]
 pub enum RevealedP2Puzzle {
@@ -29,11 +29,48 @@ pub struct Facts {
     expiration_time: u64,
     reserved_fees: u128,
     coin_spends: HashMap<Bytes32, RevealedCoinSpend>,
+    requested_payments: RequestedPayments,
     p2_puzzles: HashMap<TreeHash, RevealedP2Puzzle>,
     asserted_puzzle_announcements: HashSet<Bytes32>,
 }
 
 impl Facts {
+    pub fn extend(&mut self, other: &Facts) {
+        self.update_expiration_time(other.expiration_time);
+        self.reserved_fees += other.reserved_fees;
+        self.coin_spends.extend(other.coin_spends.clone());
+        self.requested_payments
+            .extend(other.requested_payments.clone());
+        self.p2_puzzles.extend(other.p2_puzzles.clone());
+        self.asserted_puzzle_announcements
+            .extend(other.asserted_puzzle_announcements.clone());
+    }
+
+    pub fn expiration_time(&self) -> u64 {
+        self.expiration_time
+    }
+
+    pub fn reserved_fees(&self) -> u128 {
+        self.reserved_fees
+    }
+
+    pub fn coin_spend(&self, coin_id: Bytes32) -> Option<&RevealedCoinSpend> {
+        self.coin_spends.get(&coin_id)
+    }
+
+    pub fn requested_payments(&self) -> &RequestedPayments {
+        &self.requested_payments
+    }
+
+    pub fn p2_puzzle(&self, puzzle_hash: Bytes32) -> Option<&RevealedP2Puzzle> {
+        self.p2_puzzles.get(&puzzle_hash.into())
+    }
+
+    pub fn is_puzzle_announcement_asserted(&self, announcement_id: Bytes32) -> bool {
+        self.asserted_puzzle_announcements
+            .contains(&announcement_id)
+    }
+
     /// All coins that are sent messages from the primary vault (the one being signed for) in the transaction
     /// must be revealed. The coin spend is used to determine both the conditions that the spends output, and
     /// the type of asset being sent.
@@ -41,6 +78,10 @@ impl Facts {
     /// In some cases, it's insufficient to only reveal the coin spend. For example, if it's a clawback coin,
     /// you must reveal the clawback itself as well. Otherwise, there's no way to verify if the coin won't
     /// consume the message while doing something other than the delegated puzzle's conditions you expect.
+    ///
+    /// This also records requested payments (i.e., coin spends with a parent coin id of 32 zeros), which are
+    /// used to determine what would be paid to us if the announcement from the settlement puzzle were to be
+    /// asserted. Note that requested payments are ignored if they aren't asserted.
     pub fn reveal_coin_spend(
         &mut self,
         allocator: &mut Allocator,
@@ -54,6 +95,12 @@ impl Facts {
         // This prevents spoofing what will happen as a result of the coin spend being included in the transaction.
         if coin_spend.coin.puzzle_hash != puzzle.curried_puzzle_hash().into() {
             return Err(DriverError::WrongPuzzleHash);
+        }
+
+        if coin_spend.coin.parent_coin_info == Bytes32::default() {
+            // We can throw away asset info here, since we're not interested in taking the offer.
+            self.requested_payments
+                .parse(allocator, &mut AssetInfo::new(), puzzle, solution)?;
         }
 
         self.coin_spends.insert(
@@ -105,13 +152,5 @@ impl Facts {
     /// Adds an announcement id to the set of asserted puzzle announcements.
     pub fn assert_puzzle_announcement(&mut self, announcement_id: Bytes32) {
         self.asserted_puzzle_announcements.insert(announcement_id);
-    }
-
-    pub fn coin_spend(&self, coin_id: Bytes32) -> Option<&RevealedCoinSpend> {
-        self.coin_spends.get(&coin_id)
-    }
-
-    pub fn p2_puzzle(&self, puzzle_hash: Bytes32) -> Option<&RevealedP2Puzzle> {
-        self.p2_puzzles.get(&puzzle_hash.into())
     }
 }

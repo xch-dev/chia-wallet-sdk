@@ -5,12 +5,15 @@ use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 use num_bigint::BigInt;
 
-use crate::{DriverError, Facts, Spend, parse_linked_spend, parse_vault_message};
+use crate::{
+    DriverError, Facts, LinkedSpendSummary, Spend, parse_linked_spend, parse_vault_message,
+};
 
 #[derive(Debug, Clone)]
 pub struct VaultSpendSummary {
     pub child: Option<VaultOutput>,
     pub drop_coins: Vec<DropCoin>,
+    pub linked_spends: Vec<LinkedSpendSummary>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -35,6 +38,7 @@ pub fn parse_vault_delegated_spend(
 
     let mut child = None;
     let mut drop_coins = Vec::new();
+    let mut linked_spends = Vec::new();
 
     for condition in conditions {
         match condition {
@@ -75,7 +79,8 @@ pub fn parse_vault_delegated_spend(
                 // These coins are considered "linked", meaning that their conditions should also be treated as fact if
                 // they can be validated to be impossible to circumvent.
                 let vault_message = parse_vault_message(allocator, condition)?;
-                parse_linked_spend(facts, allocator, vault_message)?;
+                let summary = parse_linked_spend(facts, allocator, vault_message)?;
+                linked_spends.push(summary);
             }
             Condition::Other(condition) => {
                 let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(allocator, condition)?;
@@ -91,5 +96,20 @@ pub fn parse_vault_delegated_spend(
         }
     }
 
-    Ok(VaultSpendSummary { child, drop_coins })
+    for linked_spend in &linked_spends {
+        // If the transaction expires before or at the same time as the facts of the spend expire,
+        // we can extend the facts with the facts of the spend, because should hold.
+        if linked_spend
+            .fact_expiration_time
+            .is_none_or(|time| facts.expiration_time() <= time)
+        {
+            facts.extend(&linked_spend.facts);
+        }
+    }
+
+    Ok(VaultSpendSummary {
+        child,
+        drop_coins,
+        linked_spends,
+    })
 }
