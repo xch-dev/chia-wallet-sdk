@@ -22,10 +22,28 @@ pub struct VaultOutput {
     pub amount: u64,
 }
 
+impl VaultOutput {
+    pub fn new(custody_hash: Bytes32, amount: u64) -> Self {
+        Self {
+            custody_hash,
+            amount,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DropCoin {
     pub puzzle_hash: Bytes32,
     pub amount: u64,
+}
+
+impl DropCoin {
+    pub fn new(puzzle_hash: Bytes32, amount: u64) -> Self {
+        Self {
+            puzzle_hash,
+            amount,
+        }
+    }
 }
 
 pub fn parse_vault_delegated_spend(

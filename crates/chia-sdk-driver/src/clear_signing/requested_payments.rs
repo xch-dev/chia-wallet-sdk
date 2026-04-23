@@ -1,9 +1,10 @@
+use chia_protocol::Bytes32;
 use chia_puzzle_types::offer::NotarizedPayment;
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{announcement_id, tree_hash_notarized_payment};
 use clvmr::Allocator;
 
-use crate::{CatAssetInfo, CatInfo, DriverError, Facts, NftAssetInfo, NftInfo, SingletonInfo};
+use crate::{CatInfo, DriverError, Facts, HashedPtr, NftInfo, SingletonInfo};
 
 #[derive(Debug, Clone)]
 pub struct AssertedRequestedPayment {
@@ -11,11 +12,20 @@ pub struct AssertedRequestedPayment {
     pub notarized_payment: NotarizedPayment,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestedAsset {
     Xch,
-    Cat(CatAssetInfo),
-    Nft(NftAssetInfo),
+    Cat {
+        asset_id: Bytes32,
+        hidden_puzzle_hash: Option<Bytes32>,
+    },
+    Nft {
+        launcher_id: Bytes32,
+        metadata: HashedPtr,
+        metadata_updater_puzzle_hash: Bytes32,
+        royalty_puzzle_hash: Bytes32,
+        royalty_basis_points: u16,
+    },
 }
 
 pub fn parse_asserted_requested_payments(
@@ -56,7 +66,10 @@ pub fn parse_asserted_requested_payments(
 
             if facts.is_puzzle_announcement_asserted(announcement_id) {
                 payments.push(AssertedRequestedPayment {
-                    asset: RequestedAsset::Cat(*info),
+                    asset: RequestedAsset::Cat {
+                        asset_id,
+                        hidden_puzzle_hash: info.hidden_puzzle_hash,
+                    },
                     notarized_payment: notarized_payment.clone(),
                 });
             }
@@ -84,7 +97,13 @@ pub fn parse_asserted_requested_payments(
 
             if facts.is_puzzle_announcement_asserted(announcement_id) {
                 payments.push(AssertedRequestedPayment {
-                    asset: RequestedAsset::Nft(*info),
+                    asset: RequestedAsset::Nft {
+                        launcher_id,
+                        metadata: info.metadata,
+                        metadata_updater_puzzle_hash: info.metadata_updater_puzzle_hash,
+                        royalty_puzzle_hash: info.royalty_puzzle_hash,
+                        royalty_basis_points: info.royalty_basis_points,
+                    },
                     notarized_payment: notarized_payment.clone(),
                 });
             }

@@ -143,17 +143,15 @@ pub fn parse_linked_spend(
                 facts.add_reserved_fees(condition.amount);
             }
             Condition::CreateCoin(condition) => {
-                let child_coin = Coin::new(
-                    spend.coin.coin_id(),
-                    condition.puzzle_hash,
-                    condition.amount,
-                );
-
                 match &asset {
                     // All XCH children are considered to be XCH by default.
                     ParsedAsset::Xch(_) => {
                         children.push(ParsedChild {
-                            asset: ParsedAsset::Xch(child_coin),
+                            asset: ParsedAsset::Xch(Coin::new(
+                                spend.coin.coin_id(),
+                                condition.puzzle_hash,
+                                condition.amount,
+                            )),
                             memos: parse_memos(allocator, *condition, false),
                         });
                     }
@@ -167,7 +165,7 @@ pub fn parse_linked_spend(
                                 spend.puzzle,
                                 spend.solution,
                             )?
-                            .filter(|nft| nft.coin.coin_id() == child_coin.coin_id()) else {
+                            else {
                                 return Err(DriverError::MissingChild);
                             };
 
@@ -177,17 +175,18 @@ pub fn parse_linked_spend(
                             });
                         } else {
                             children.push(ParsedChild {
-                                asset: ParsedAsset::Xch(child_coin),
+                                asset: ParsedAsset::Xch(Coin::new(
+                                    spend.coin.coin_id(),
+                                    condition.puzzle_hash,
+                                    condition.amount,
+                                )),
                                 memos: parse_memos(allocator, *condition, false),
                             });
                         }
                     }
                     // CATs never output anything other than CAT children.
                     ParsedAsset::Cat(_) => {
-                        if let Some(cat) = cats
-                            .get(child_index)
-                            .filter(|cat| cat.coin.coin_id() == child_coin.coin_id())
-                        {
+                        if let Some(cat) = cats.get(child_index) {
                             children.push(ParsedChild {
                                 asset: ParsedAsset::Cat(*cat),
                                 memos: parse_memos(allocator, *condition, true),
