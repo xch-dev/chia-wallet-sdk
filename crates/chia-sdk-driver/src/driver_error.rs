@@ -145,4 +145,7 @@ pub enum DriverError {
 
     #[error("invalid custody for linked spend")]
     InvalidLinkedCustody,
+
+    #[error("the transaction is not guaranteed to expire when its clawed back spends expire")]
+    UnguaranteedClawBack,
 }

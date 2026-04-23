@@ -11,7 +11,6 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct InnerSpend {
-    pub p2_puzzle_hash: Bytes32,
     pub clawback: Option<ClawbackInfo>,
     pub custody: Option<CustodyInfo>,
 }
@@ -31,14 +30,16 @@ pub enum ClawbackPath {
 
 #[derive(Debug, Clone)]
 pub enum CustodyInfo {
-    P2Singleton {
-        launcher_id: Bytes32,
-        nonce: usize,
-        conditions: Vec<Condition>,
-    },
-    DelegatedConditions {
-        conditions: Vec<Condition>,
-    },
+    P2Singleton(P2SingletonInfo),
+    DelegatedConditions(Vec<Condition>),
+}
+
+#[derive(Debug, Clone)]
+pub struct P2SingletonInfo {
+    pub launcher_id: Bytes32,
+    pub nonce: usize,
+    pub conditions: Vec<Condition>,
+    pub p2_puzzle_hash: Bytes32,
 }
 
 type P2SingletonLayers = IndexWrapperLayer<usize, DelegatedPuzzleFeederLayer<SingletonMemberLayer>>;
@@ -63,13 +64,13 @@ pub fn parse_inner_spend(
             <match_quote!(Vec<Condition>)>::from_clvm(allocator, delegated_spend.puzzle)?;
 
         Ok(InnerSpend {
-            p2_puzzle_hash,
             clawback: None,
-            custody: Some(CustodyInfo::P2Singleton {
+            custody: Some(CustodyInfo::P2Singleton(P2SingletonInfo {
                 launcher_id: puzzle.inner_puzzle.inner_puzzle.launcher_id,
                 nonce: puzzle.nonce,
                 conditions,
-            }),
+                p2_puzzle_hash,
+            })),
         })
     } else if let Some(p2_puzzle) = facts.p2_puzzle(puzzle.curried_puzzle_hash().into()) {
         match p2_puzzle {
@@ -103,7 +104,6 @@ pub fn parse_inner_spend(
                 };
 
                 let mut result = InnerSpend {
-                    p2_puzzle_hash,
                     clawback: Some(ClawbackInfo {
                         clawback: *clawback,
                         path,
@@ -126,16 +126,12 @@ pub fn parse_inner_spend(
                 Ok(result)
             }
             RevealedP2Puzzle::DelegatedConditions(conditions) => Ok(InnerSpend {
-                p2_puzzle_hash,
                 clawback: None,
-                custody: Some(CustodyInfo::DelegatedConditions {
-                    conditions: conditions.clone(),
-                }),
+                custody: Some(CustodyInfo::DelegatedConditions(conditions.clone())),
             }),
         }
     } else {
         Ok(InnerSpend {
-            p2_puzzle_hash,
             clawback: None,
             custody: None,
         })

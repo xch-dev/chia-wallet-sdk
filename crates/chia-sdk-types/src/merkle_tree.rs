@@ -76,7 +76,7 @@ impl MerkleTree {
 
     /// Get the leaves of the merkle tree.
     pub fn leaves(&self) -> Vec<Bytes32> {
-        self.proofs.keys().cloned().collect()
+        self.proofs.keys().copied().collect()
     }
 
     /// Get the proof for a given leaf, if it exists in the tree.

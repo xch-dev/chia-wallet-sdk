@@ -26,28 +26,49 @@ pub struct RevealedCoinSpend {
 
 #[derive(Debug, Default, Clone)]
 pub struct Facts {
-    expiration_time: u64,
+    expiration_time: Option<u64>,
+    required_expiration_time: Option<u64>,
     reserved_fees: u128,
     coin_spends: HashMap<Bytes32, RevealedCoinSpend>,
     requested_payments: RequestedPayments,
+    asset_info: AssetInfo,
     p2_puzzles: HashMap<TreeHash, RevealedP2Puzzle>,
     asserted_puzzle_announcements: HashSet<Bytes32>,
 }
 
 impl Facts {
-    pub fn extend(&mut self, other: &Facts) {
-        self.update_expiration_time(other.expiration_time);
+    pub fn extend(&mut self, other: &Facts) -> Result<(), DriverError> {
+        if let Some(time) = other.expiration_time {
+            self.update_expiration_time(time);
+        }
+
+        if let Some(time) = other.required_expiration_time {
+            self.update_required_expiration_time(time);
+        }
+
         self.reserved_fees += other.reserved_fees;
+
         self.coin_spends.extend(other.coin_spends.clone());
+
         self.requested_payments
             .extend(other.requested_payments.clone());
+
+        self.asset_info.extend(other.asset_info.clone())?;
+
         self.p2_puzzles.extend(other.p2_puzzles.clone());
+
         self.asserted_puzzle_announcements
             .extend(other.asserted_puzzle_announcements.clone());
+
+        Ok(())
     }
 
-    pub fn expiration_time(&self) -> u64 {
+    pub fn expiration_time(&self) -> Option<u64> {
         self.expiration_time
+    }
+
+    pub fn required_expiration_time(&self) -> Option<u64> {
+        self.required_expiration_time
     }
 
     pub fn reserved_fees(&self) -> u128 {
@@ -60,6 +81,10 @@ impl Facts {
 
     pub fn requested_payments(&self) -> &RequestedPayments {
         &self.requested_payments
+    }
+
+    pub fn asset_info(&self) -> &AssetInfo {
+        &self.asset_info
     }
 
     pub fn p2_puzzle(&self, puzzle_hash: Bytes32) -> Option<&RevealedP2Puzzle> {
@@ -100,7 +125,7 @@ impl Facts {
         if coin_spend.coin.parent_coin_info == Bytes32::default() {
             // We can throw away asset info here, since we're not interested in taking the offer.
             self.requested_payments
-                .parse(allocator, &mut AssetInfo::new(), puzzle, solution)?;
+                .parse(allocator, &mut self.asset_info, puzzle, solution)?;
         }
 
         self.coin_spends.insert(
@@ -141,7 +166,19 @@ impl Facts {
     /// the given time. This is used to ensure that the transaction will not be valid after the given
     /// time (i.e., after a clawback expires).
     pub fn update_expiration_time(&mut self, expiration_time: u64) {
-        self.expiration_time = min(self.expiration_time, expiration_time);
+        if let Some(old_time) = self.expiration_time {
+            self.expiration_time = Some(min(old_time, expiration_time));
+        } else {
+            self.expiration_time = Some(expiration_time);
+        }
+    }
+
+    pub fn update_required_expiration_time(&mut self, required_expiration_time: u64) {
+        if let Some(old_time) = self.required_expiration_time {
+            self.required_expiration_time = Some(min(old_time, required_expiration_time));
+        } else {
+            self.required_expiration_time = Some(required_expiration_time);
+        }
     }
 
     /// Adds to the total reserved fees, from coins that have been validated to be linked.

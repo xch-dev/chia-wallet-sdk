@@ -5,17 +5,16 @@ use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    Cat, ClawbackPath, ClawbackV2, CustodyInfo, DriverError, Facts, InnerSpend, Nft, VaultMessage,
-    parse_inner_spend,
+    Cat, ClawbackInfo, ClawbackPath, ClawbackV2, CustodyInfo, DriverError, Facts, Nft,
+    P2SingletonInfo, VaultMessage, parse_inner_spend,
 };
 
 #[derive(Debug, Clone)]
 pub struct LinkedSpendSummary {
     pub asset: ParsedAsset,
-    pub inner_spend: InnerSpend,
+    pub clawback: Option<ClawbackInfo>,
+    pub p2_singleton: P2SingletonInfo,
     pub children: Vec<ParsedChild>,
-    pub facts: Facts,
-    pub fact_expiration_time: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -23,6 +22,16 @@ pub enum ParsedAsset {
     Cat(Cat),
     Nft(Nft),
     Xch(Coin),
+}
+
+impl ParsedAsset {
+    pub fn coin(&self) -> Coin {
+        match self {
+            Self::Cat(cat) => cat.coin,
+            Self::Nft(nft) => nft.coin,
+            Self::Xch(coin) => *coin,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -39,15 +48,13 @@ pub struct ParsedMemos {
 }
 
 pub fn parse_linked_spend(
-    facts: &Facts,
+    facts: &mut Facts,
     allocator: &mut Allocator,
     vault_message: VaultMessage,
 ) -> Result<LinkedSpendSummary, DriverError> {
     let Some(spend) = facts.coin_spend(vault_message.spent_coin_id).copied() else {
         return Err(DriverError::MissingSpend);
     };
-
-    let mut linked_facts = Facts::default();
 
     // The default is to treat the spend as XCH if we don't have a more complex asset to try and parse.
     let mut asset = ParsedAsset::Xch(spend.coin);
@@ -70,19 +77,24 @@ pub fn parse_linked_spend(
 
     let inner_spend = parse_inner_spend(facts, allocator, inner_puzzle, inner_solution)?;
 
-    let Some(CustodyInfo::P2Singleton {
-        // We don't need to check the launcher id, since we know that this coin must receive a
-        // message from the vault spend in order for the transaction to be valid. Thus, the launcher
-        // id of the vault must be identical to the launcher id of this coin.
-        launcher_id: _,
+    let Some(CustodyInfo::P2Singleton(
+        p2_singleton_info @ P2SingletonInfo {
+            // We don't need to check the launcher id, since we know that this coin must receive a
+            // message from the vault spend in order for the transaction to be valid. Thus, the launcher
+            // id of the vault must be identical to the launcher id of this coin.
+            launcher_id: _,
 
-        // There's also no reason to check the nonce used for the coin, since it's owned by the vault
-        // regardless.
-        nonce: _,
+            // There's also no reason to check the nonce used for the coin, since it's owned by the vault
+            // regardless.
+            nonce: _,
 
-        // We are only really interested in the conditions of the custody spend.
-        conditions,
-    }) = &inner_spend.custody
+            // We are only really interested in the conditions of the custody spend.
+            conditions,
+
+            // The p2 puzzle hash is derived from the launcher id and nonce anyways. It's here for convenience.
+            p2_puzzle_hash: _,
+        },
+    )) = &inner_spend.custody
     else {
         return Err(DriverError::InvalidLinkedCustody);
     };
@@ -90,12 +102,16 @@ pub fn parse_linked_spend(
     // If we're clawing a coin back, we need to keep track of its expiration time.
     // This will be used to ensure that the clawback won't expire before the rest of
     // the transaction. If it might, the facts of this spend will be disregarded.
-    let mut fact_expiration_time = None;
+    let mut required_expiration_time = None;
 
     if let Some(clawback_info) = &inner_spend.clawback
         && clawback_info.path == ClawbackPath::Sender
     {
-        fact_expiration_time = Some(clawback_info.clawback.seconds);
+        required_expiration_time = Some(clawback_info.clawback.seconds);
+    }
+
+    if let Some(required_expiration_time) = required_expiration_time {
+        facts.update_required_expiration_time(required_expiration_time);
     }
 
     // Now, we should be able to assume that the conditions will be output if the transaction is valid.
@@ -113,18 +129,18 @@ pub fn parse_linked_spend(
     for condition in conditions {
         match condition {
             Condition::AssertPuzzleAnnouncement(condition) => {
-                linked_facts.assert_puzzle_announcement(condition.announcement_id);
+                facts.assert_puzzle_announcement(condition.announcement_id);
             }
             Condition::AssertBeforeSecondsAbsolute(condition) => {
                 // We shouldn't allow a claw back spend to say when the transaction will expire.
                 // Otherwise, it could pretend that it's impossible for the clawback to expire
                 // before the transaction expires, which would be a security vulnerability.
-                if fact_expiration_time.is_none() {
-                    linked_facts.update_expiration_time(condition.seconds);
+                if required_expiration_time.is_none() {
+                    facts.update_expiration_time(condition.seconds);
                 }
             }
             Condition::ReserveFee(condition) => {
-                linked_facts.add_reserved_fees(condition.amount);
+                facts.add_reserved_fees(condition.amount);
             }
             Condition::CreateCoin(condition) => {
                 let child_coin = Coin::new(
@@ -191,10 +207,9 @@ pub fn parse_linked_spend(
 
     Ok(LinkedSpendSummary {
         asset,
-        inner_spend,
+        clawback: inner_spend.clawback,
+        p2_singleton: p2_singleton_info.clone(),
         children,
-        facts: linked_facts,
-        fact_expiration_time,
     })
 }
 

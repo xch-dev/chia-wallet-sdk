@@ -96,15 +96,15 @@ pub fn parse_vault_delegated_spend(
         }
     }
 
-    for linked_spend in &linked_spends {
-        // If the transaction expires before or at the same time as the facts of the spend expire,
-        // we can extend the facts with the facts of the spend, because should hold.
-        if linked_spend
-            .fact_expiration_time
-            .is_none_or(|time| facts.expiration_time() <= time)
-        {
-            facts.extend(&linked_spend.facts);
-        }
+    // If the transaction expires after the required expiration time of the spend,
+    // we can't guarantee that the transaction will expire when the spend expires,
+    // which is a security vulnerability.
+    if facts.required_expiration_time().is_some_and(|required| {
+        facts
+            .expiration_time()
+            .is_none_or(|expiration| expiration > required)
+    }) {
+        return Err(DriverError::UnguaranteedClawBack);
     }
 
     Ok(VaultSpendSummary {
