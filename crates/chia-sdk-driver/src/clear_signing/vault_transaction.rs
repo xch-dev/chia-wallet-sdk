@@ -1,9 +1,12 @@
-use chia_protocol::CoinSpend;
+use chia_protocol::{Bytes32, CoinSpend};
+use chia_sdk_types::{Mod, puzzles::SingletonMember};
+use clvm_utils::tree_hash;
 use clvmr::Allocator;
 
 use crate::{
     AssertedRequestedPayment, ClawbackV2, DriverError, DropCoin, Facts, LinkedSpendSummary, Spend,
-    VaultOutput, VaultSpendSummary, parse_asserted_requested_payments, parse_vault_delegated_spend,
+    VaultOutput, VaultSpendSummary, mips_puzzle_hash, parse_asserted_requested_payments,
+    parse_vault_delegated_spend,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -31,6 +34,10 @@ pub struct VaultTransaction {
     /// If this is greater than or equal to the fee paid, you can be sure that the XCH spent for fees will not be
     /// maliciously redirected for some other purpose by the submitter of the transaction after signing.
     pub reserved_fee: u64,
+    /// The known p2 puzzle hashes of the vault, based on revealed nonces (the first address is included by default).
+    pub p2_puzzle_hashes: Vec<Bytes32>,
+    /// The delegated puzzle hash that is being signed for.
+    pub delegated_puzzle_hash: Bytes32,
 }
 
 impl VaultTransaction {
@@ -42,6 +49,8 @@ impl VaultTransaction {
     ) -> Result<Self, DriverError> {
         let mut facts = Facts::default();
 
+        facts.reveal_vault_nonce(0);
+
         for coin_spend in coin_spends {
             facts.reveal_coin_spend(allocator, &coin_spend)?;
         }
@@ -51,14 +60,16 @@ impl VaultTransaction {
         }
 
         let summary = parse_vault_delegated_spend(&mut facts, allocator, delegated_spend)?;
+        let delegated_puzzle_hash = tree_hash(allocator, delegated_spend.puzzle).into();
 
-        Self::from_vault_spend_summary(&facts, allocator, summary)
+        Self::from_vault_spend_summary(&facts, allocator, summary, delegated_puzzle_hash)
     }
 
     pub fn from_vault_spend_summary(
         facts: &Facts,
         allocator: &Allocator,
         summary: VaultSpendSummary,
+        delegated_puzzle_hash: Bytes32,
     ) -> Result<Self, DriverError> {
         let reserved_fee = facts.reserved_fees().try_into()?;
 
@@ -74,8 +85,8 @@ impl VaultTransaction {
         }
 
         let fee_paid = (input_amount - output_amount).try_into()?;
-
         let received_payments = parse_asserted_requested_payments(facts, allocator)?;
+        let p2_puzzle_hashes = calculate_p2_puzzle_hashes(facts, &summary.linked_spends)?;
 
         Ok(Self {
             vault_child: summary.child,
@@ -84,8 +95,48 @@ impl VaultTransaction {
             received_payments,
             fee_paid,
             reserved_fee,
+            p2_puzzle_hashes,
+            delegated_puzzle_hash,
         })
     }
+}
+
+fn calculate_p2_puzzle_hashes(
+    facts: &Facts,
+    linked_spends: &[LinkedSpendSummary],
+) -> Result<Vec<Bytes32>, DriverError> {
+    let mut launcher_id = None;
+
+    for spend in linked_spends {
+        let Some(launcher_id) = launcher_id else {
+            launcher_id = Some(spend.p2_singleton.launcher_id);
+            continue;
+        };
+
+        if launcher_id != spend.p2_singleton.launcher_id {
+            return Err(DriverError::ConflictingVaultLauncherIds);
+        }
+    }
+
+    let Some(launcher_id) = launcher_id else {
+        return Ok(vec![]);
+    };
+
+    let mut p2_puzzle_hashes = Vec::new();
+
+    for nonce in facts.vault_nonces() {
+        p2_puzzle_hashes.push(
+            mips_puzzle_hash(
+                nonce,
+                vec![],
+                SingletonMember::new(launcher_id).curry_tree_hash(),
+                true,
+            )
+            .into(),
+        );
+    }
+
+    Ok(p2_puzzle_hashes)
 }
 
 #[cfg(test)]
@@ -98,7 +149,7 @@ mod tests {
     use chia_sdk_test::Simulator;
     use rstest::rstest;
 
-    use crate::{Action, Id, ParsedAsset, SpendContext, TestVault};
+    use crate::{Action, Id, ParsedAsset, ParsedChild, SpendContext, TestVault};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum AssetKind {
@@ -146,8 +197,24 @@ mod tests {
         })
     }
 
+    fn check_child_asset(
+        child: &ParsedChild,
+        asset_id: Option<Bytes32>,
+        hidden_puzzle_hash: Option<Bytes32>,
+    ) {
+        if let Some(asset_id) = asset_id {
+            let ParsedAsset::Cat(cat) = child.asset else {
+                panic!("Expected CAT child");
+            };
+            assert_eq!(cat.info.asset_id, asset_id);
+            assert_eq!(cat.info.hidden_puzzle_hash, hidden_puzzle_hash);
+        } else {
+            assert!(matches!(child.asset, ParsedAsset::Xch(_)));
+        }
+    }
+
     #[rstest]
-    fn test_clear_signing_sent(
+    fn test_clear_signing_transfer(
         #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
         #[values(0, 100)] fee: u64,
     ) -> Result<()> {
@@ -196,16 +263,7 @@ mod tests {
 
         let child = &spend.children[0];
 
-        if let Some(asset_id) = asset_id {
-            let ParsedAsset::Cat(cat) = child.asset else {
-                panic!("Expected CAT child");
-            };
-            assert_eq!(cat.info.asset_id, asset_id);
-            assert_eq!(cat.info.hidden_puzzle_hash, hidden_puzzle_hash);
-        } else {
-            assert!(matches!(child.asset, ParsedAsset::Xch(_)));
-        }
-
+        check_child_asset(child, asset_id, hidden_puzzle_hash);
         assert_eq!(child.memos.p2_puzzle_hash, bob.puzzle_hash());
         assert_eq!(child.asset.coin().amount, 1000);
 

@@ -64,7 +64,7 @@ pub fn parse_vault_delegated_spend(
                 facts.assert_puzzle_announcement(condition.announcement_id);
             }
             Condition::AssertBeforeSecondsAbsolute(condition) => {
-                facts.update_expiration_time(condition.seconds);
+                facts.update_actual_expiration_time(condition.seconds);
             }
             Condition::ReserveFee(condition) => {
                 facts.add_reserved_fees(condition.amount);
@@ -119,7 +119,7 @@ pub fn parse_vault_delegated_spend(
     // which is a security vulnerability.
     if facts.required_expiration_time().is_some_and(|required| {
         facts
-            .expiration_time()
+            .actual_expiration_time()
             .is_none_or(|expiration| expiration > required)
     }) {
         return Err(DriverError::UnguaranteedClawBack);

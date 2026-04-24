@@ -136,7 +136,7 @@ pub fn parse_linked_spend(
                 // Otherwise, it could pretend that it's impossible for the clawback to expire
                 // before the transaction expires, which would be a security vulnerability.
                 if required_expiration_time.is_none() {
-                    facts.update_expiration_time(condition.seconds);
+                    facts.update_actual_expiration_time(condition.seconds);
                 }
             }
             Condition::ReserveFee(condition) => {
@@ -185,8 +185,16 @@ pub fn parse_linked_spend(
                         }
                     }
                     // CATs never output anything other than CAT children.
-                    ParsedAsset::Cat(_) => {
+                    ParsedAsset::Cat(parent) => {
                         if let Some(cat) = cats.get(child_index) {
+                            // This prevents an attack where someone tricks you into spending a CAT, sending it
+                            // back to you, and wrapping it in a revocation layer that they control.
+                            if cat.info.hidden_puzzle_hash.is_some()
+                                && parent.info.hidden_puzzle_hash.is_none()
+                            {
+                                return Err(DriverError::RevocableChild);
+                            }
+
                             children.push(ParsedChild {
                                 asset: ParsedAsset::Cat(*cat),
                                 memos: parse_memos(allocator, *condition, true),

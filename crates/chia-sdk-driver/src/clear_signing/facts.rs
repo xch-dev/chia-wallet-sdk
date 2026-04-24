@@ -26,7 +26,7 @@ pub struct RevealedCoinSpend {
 
 #[derive(Debug, Default, Clone)]
 pub struct Facts {
-    expiration_time: Option<u64>,
+    actual_expiration_time: Option<u64>,
     required_expiration_time: Option<u64>,
     reserved_fees: u128,
     coin_spends: HashMap<Bytes32, RevealedCoinSpend>,
@@ -34,12 +34,13 @@ pub struct Facts {
     asset_info: AssetInfo,
     p2_puzzles: HashMap<TreeHash, RevealedP2Puzzle>,
     asserted_puzzle_announcements: HashSet<Bytes32>,
+    vault_nonces: HashSet<usize>,
 }
 
 impl Facts {
     pub fn extend(&mut self, other: &Facts) -> Result<(), DriverError> {
-        if let Some(time) = other.expiration_time {
-            self.update_expiration_time(time);
+        if let Some(time) = other.actual_expiration_time {
+            self.update_actual_expiration_time(time);
         }
 
         if let Some(time) = other.required_expiration_time {
@@ -60,11 +61,13 @@ impl Facts {
         self.asserted_puzzle_announcements
             .extend(other.asserted_puzzle_announcements.clone());
 
+        self.vault_nonces.extend(other.vault_nonces.clone());
+
         Ok(())
     }
 
-    pub fn expiration_time(&self) -> Option<u64> {
-        self.expiration_time
+    pub fn actual_expiration_time(&self) -> Option<u64> {
+        self.actual_expiration_time
     }
 
     pub fn required_expiration_time(&self) -> Option<u64> {
@@ -94,6 +97,10 @@ impl Facts {
     pub fn is_puzzle_announcement_asserted(&self, announcement_id: Bytes32) -> bool {
         self.asserted_puzzle_announcements
             .contains(&announcement_id)
+    }
+
+    pub fn vault_nonces(&self) -> impl Iterator<Item = usize> {
+        self.vault_nonces.iter().copied()
     }
 
     /// All coins that are sent messages from the primary vault (the one being signed for) in the transaction
@@ -165,14 +172,17 @@ impl Facts {
     /// Updates the transaction's expiration time to the minimum of the current expiration time and
     /// the given time. This is used to ensure that the transaction will not be valid after the given
     /// time (i.e., after a clawback expires).
-    pub fn update_expiration_time(&mut self, expiration_time: u64) {
-        if let Some(old_time) = self.expiration_time {
-            self.expiration_time = Some(min(old_time, expiration_time));
+    pub fn update_actual_expiration_time(&mut self, expiration_time: u64) {
+        if let Some(old_time) = self.actual_expiration_time {
+            self.actual_expiration_time = Some(min(old_time, expiration_time));
         } else {
-            self.expiration_time = Some(expiration_time);
+            self.actual_expiration_time = Some(expiration_time);
         }
     }
 
+    /// Updates the required expiration time to the minimum of the current required expiration time and
+    /// the given time. This is used to ensure that the transaction will not be valid after the given
+    /// time (i.e., after a clawback expires).
     pub fn update_required_expiration_time(&mut self, required_expiration_time: u64) {
         if let Some(old_time) = self.required_expiration_time {
             self.required_expiration_time = Some(min(old_time, required_expiration_time));
@@ -189,5 +199,10 @@ impl Facts {
     /// Adds an announcement id to the set of asserted puzzle announcements.
     pub fn assert_puzzle_announcement(&mut self, announcement_id: Bytes32) {
         self.asserted_puzzle_announcements.insert(announcement_id);
+    }
+
+    /// Adds a vault nonce to the set of vault nonces to derive p2 puzzle hashes for.
+    pub fn reveal_vault_nonce(&mut self, nonce: usize) {
+        self.vault_nonces.insert(nonce);
     }
 }

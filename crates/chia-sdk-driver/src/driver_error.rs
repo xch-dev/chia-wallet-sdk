@@ -148,4 +148,10 @@ pub enum DriverError {
 
     #[error("the transaction is not guaranteed to expire when its clawed back spends expire")]
     UnguaranteedClawBack,
+
+    #[error("child is wrapped in unexpected revocation layer")]
+    RevocableChild,
+
+    #[error("conflicting vault launcher ids")]
+    ConflictingVaultLauncherIds,
 }
