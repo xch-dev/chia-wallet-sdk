@@ -34,6 +34,8 @@ pub struct VaultTransaction {
     /// If this is greater than or equal to the fee paid, you can be sure that the XCH spent for fees will not be
     /// maliciously redirected for some other purpose by the submitter of the transaction after signing.
     pub reserved_fee: u64,
+    /// The launcher id of the vault, based on the spends authorized by the delegated spend.
+    pub launcher_id: Bytes32,
     /// The known p2 puzzle hashes of the vault, based on revealed nonces (the first address is included by default).
     pub p2_puzzle_hashes: Vec<Bytes32>,
     /// The delegated puzzle hash that is being signed for.
@@ -86,7 +88,8 @@ impl VaultTransaction {
 
         let fee_paid = (input_amount - output_amount).try_into()?;
         let received_payments = parse_asserted_requested_payments(facts, allocator)?;
-        let p2_puzzle_hashes = calculate_p2_puzzle_hashes(facts, &summary.linked_spends)?;
+        let launcher_id = find_launcher_id(&summary.linked_spends)?;
+        let p2_puzzle_hashes = calculate_p2_puzzle_hashes(facts, launcher_id);
 
         Ok(Self {
             vault_child: summary.child,
@@ -95,16 +98,14 @@ impl VaultTransaction {
             received_payments,
             fee_paid,
             reserved_fee,
+            launcher_id,
             p2_puzzle_hashes,
             delegated_puzzle_hash,
         })
     }
 }
 
-fn calculate_p2_puzzle_hashes(
-    facts: &Facts,
-    linked_spends: &[LinkedSpendSummary],
-) -> Result<Vec<Bytes32>, DriverError> {
+fn find_launcher_id(linked_spends: &[LinkedSpendSummary]) -> Result<Bytes32, DriverError> {
     let mut launcher_id = None;
 
     for spend in linked_spends {
@@ -119,9 +120,13 @@ fn calculate_p2_puzzle_hashes(
     }
 
     let Some(launcher_id) = launcher_id else {
-        return Ok(vec![]);
+        return Err(DriverError::MissingLinkedSpends);
     };
 
+    Ok(launcher_id)
+}
+
+fn calculate_p2_puzzle_hashes(facts: &Facts, launcher_id: Bytes32) -> Vec<Bytes32> {
     let mut p2_puzzle_hashes = Vec::new();
 
     for nonce in facts.vault_nonces() {
@@ -136,7 +141,7 @@ fn calculate_p2_puzzle_hashes(
         );
     }
 
-    Ok(p2_puzzle_hashes)
+    p2_puzzle_hashes
 }
 
 #[cfg(test)]
@@ -147,6 +152,7 @@ mod tests {
     use chia_protocol::Bytes32;
     use chia_puzzle_types::Memos;
     use chia_sdk_test::Simulator;
+    use clvm_utils::ToTreeHash;
     use rstest::rstest;
 
     use crate::{Action, Id, ParsedAsset, ParsedChild, SpendContext, TestVault};
@@ -214,6 +220,26 @@ mod tests {
     }
 
     #[rstest]
+    fn test_clear_signing_vault_child() -> Result<()> {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+        let result = alice.spend(&mut sim, &mut ctx, &[])?;
+
+        let tx =
+            VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+
+        assert_eq!(
+            tx.vault_child,
+            Some(VaultOutput::new(alice.custody_hash().into(), 1))
+        );
+
+        Ok(())
+    }
+
+    #[rstest]
     fn test_clear_signing_transfer(
         #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
         #[values(0, 100)] fee: u64,
@@ -222,7 +248,7 @@ mod tests {
         let mut ctx = SpendContext::new();
 
         let alice = TestVault::mint(&mut sim, &mut ctx, 1000 + fee)?;
-        let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+        let bob_puzzle_hash = "bob".tree_hash().into();
 
         let IssuedAsset {
             id,
@@ -234,18 +260,13 @@ mod tests {
             &mut sim,
             &mut ctx,
             &[
-                Action::send(id, bob.puzzle_hash(), 1000, Memos::None),
+                Action::send(id, bob_puzzle_hash, 1000, Memos::None),
                 Action::fee(fee),
             ],
         )?;
 
         let tx =
             VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
-
-        assert_eq!(
-            tx.vault_child,
-            Some(VaultOutput::new(alice.custody_hash().into(), 1))
-        );
 
         assert_eq!(tx.fee_paid, fee);
         assert_eq!(tx.reserved_fee, fee);
@@ -264,7 +285,7 @@ mod tests {
         let child = &spend.children[0];
 
         check_child_asset(child, asset_id, hidden_puzzle_hash);
-        assert_eq!(child.memos.p2_puzzle_hash, bob.puzzle_hash());
+        assert_eq!(child.memos.p2_puzzle_hash, bob_puzzle_hash);
         assert_eq!(child.asset.coin().amount, 1000);
 
         Ok(())

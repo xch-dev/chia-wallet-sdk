@@ -152,6 +152,9 @@ pub enum DriverError {
     #[error("child is wrapped in unexpected revocation layer")]
     RevocableChild,
 
+    #[error("cannot sign vault transaction with no linked spends")]
+    MissingLinkedSpends,
+
     #[error("conflicting vault launcher ids")]
     ConflictingVaultLauncherIds,
 }
