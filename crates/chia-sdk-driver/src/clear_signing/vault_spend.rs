@@ -1,12 +1,13 @@
 use chia_consensus::opcodes::SEND_MESSAGE;
 use chia_protocol::Bytes32;
-use chia_sdk_types::{Condition, run_puzzle};
+use chia_sdk_types::Condition;
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 use num_bigint::BigInt;
 
 use crate::{
-    DriverError, Facts, LinkedSpendSummary, Spend, parse_linked_spend, parse_vault_message,
+    DriverError, Facts, LinkedSpendSummary, Spend, parse_delegated_spend, parse_linked_spend,
+    parse_vault_message,
 };
 
 #[derive(Debug, Clone)]
@@ -51,8 +52,7 @@ pub fn parse_vault_delegated_spend(
     allocator: &mut Allocator,
     delegated_spend: Spend,
 ) -> Result<VaultSpendSummary, DriverError> {
-    let output = run_puzzle(allocator, delegated_spend.puzzle, delegated_spend.solution)?;
-    let conditions = Vec::<Condition>::from_clvm(allocator, output)?;
+    let conditions = parse_delegated_spend(allocator, delegated_spend)?;
 
     let mut child = None;
     let mut drop_coins = Vec::new();
