@@ -18,7 +18,10 @@ pub struct VaultTransaction {
     pub vault_child: Option<VaultOutput>,
     /// Coins which were created as outputs of the vault singleton spend itself, for example to mint NFTs.
     pub drop_coins: Vec<DropCoin>,
+    /// The spends (and their children) which were authorized by the vault.
     pub spends: Vec<LinkedSpendSummary>,
+    /// Requested payments which were both revealed and asserted by the vault spend. These are assets which are going
+    /// to be received when and if the transaction is confirmed on-chain.
     pub received_payments: Vec<AssertedRequestedPayment>,
     /// Total fees (different between input and output amounts) paid by coin spends authorized by the vault.
     /// If the transaction is signed, the fee is guaranteed to be at least this amount, unless it's not reserved.
@@ -104,7 +107,7 @@ mod tests {
         RevocableCat,
     }
 
-    struct Asset {
+    struct IssuedAsset {
         id: Id,
         asset_id: Option<Bytes32>,
         hidden_puzzle_hash: Option<Bytes32>,
@@ -115,7 +118,7 @@ mod tests {
         ctx: &mut SpendContext,
         alice: &TestVault,
         asset_kind: AssetKind,
-    ) -> Result<Asset> {
+    ) -> Result<IssuedAsset> {
         let hidden_puzzle_hash = if matches!(asset_kind, AssetKind::RevocableCat) {
             Some(Bytes32::default())
         } else {
@@ -136,7 +139,7 @@ mod tests {
             (Id::Xch, None)
         };
 
-        Ok(Asset {
+        Ok(IssuedAsset {
             id,
             asset_id,
             hidden_puzzle_hash,
@@ -154,7 +157,7 @@ mod tests {
         let alice = TestVault::mint(&mut sim, &mut ctx, 1000 + fee)?;
         let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
 
-        let Asset {
+        let IssuedAsset {
             id,
             asset_id,
             hidden_puzzle_hash,
