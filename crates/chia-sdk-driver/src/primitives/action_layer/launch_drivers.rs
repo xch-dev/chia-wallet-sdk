@@ -1009,12 +1009,12 @@ mod tests {
         // check refund action created/spent slots function
         let created_slots = catalog.pending_spend.created_slots.clone();
         let spent_slots = catalog.pending_spend.spent_slots.clone();
-        if slot.is_some() {
+        if let Some(slot) = slot {
             assert_eq!(created_slots.len(), 1);
-            assert_eq!(created_slots[0], slot.unwrap().info.value);
+            assert_eq!(created_slots[0], slot.info.value);
 
             assert_eq!(spent_slots.len(), 1);
-            assert_eq!(spent_slots[0], slot.unwrap().info.value);
+            assert_eq!(spent_slots[0], slot.info.value);
         } else {
             assert_eq!(created_slots.len(), 0);
             assert_eq!(spent_slots.len(), 0);
@@ -1715,7 +1715,7 @@ mod tests {
             let handle = if i == 0 {
                 "aa0".to_string()
             } else {
-                "aa".to_string() + &"a".repeat(i).to_string() + &i.to_string()
+                "aa".to_string() + &"a".repeat(i) + &i.to_string()
             };
             let handle_hash = handle.tree_hash().into();
 
