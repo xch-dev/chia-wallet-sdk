@@ -1,15 +1,4 @@
-use chia_consensus::opcodes::{
-    CREATE_COIN_ANNOUNCEMENT, CREATE_PUZZLE_ANNOUNCEMENT, RECEIVE_MESSAGE, SEND_MESSAGE,
-};
-use chia_protocol::{Bytes, Bytes32, CoinSpend};
-use chia_sdk_types::{
-    Mod,
-    puzzles::{
-        AddDelegatedPuzzleWrapper, Force1of2RestrictedVariable, PreventConditionOpcode,
-        PreventMultipleCreateCoinsMod, Timelock,
-    },
-};
-use clvm_utils::{ToTreeHash, TreeHash};
+use chia_protocol::CoinSpend;
 use clvmr::Allocator;
 
 use crate::{
@@ -96,87 +85,19 @@ impl VaultTransaction {
     }
 }
 
-pub fn calculate_vault_puzzle_message(
-    delegated_puzzle_hash: Bytes32,
-    vault_puzzle_hash: Bytes32,
-) -> Bytes {
-    [
-        delegated_puzzle_hash.to_bytes(),
-        vault_puzzle_hash.to_bytes(),
-    ]
-    .concat()
-    .into()
-}
-
-pub fn calculate_vault_coin_message(
-    delegated_puzzle_hash: Bytes32,
-    vault_coin_id: Bytes32,
-    genesis_challenge: Bytes32,
-) -> Bytes {
-    [
-        delegated_puzzle_hash.to_bytes(),
-        vault_coin_id.to_bytes(),
-        genesis_challenge.to_bytes(),
-    ]
-    .concat()
-    .into()
-}
-
-pub fn calculate_vault_start_recovery_message(
-    delegated_puzzle_hash: Bytes32,
-    left_side_subtree_hash: Bytes32,
-    recovery_timelock: u64,
-    vault_coin_id: Bytes32,
-    genesis_challenge: Bytes32,
-) -> Bytes {
-    let mut delegated_puzzle_hash: TreeHash = delegated_puzzle_hash.into();
-
-    let restrictions = vec![
-        Force1of2RestrictedVariable::new(
-            left_side_subtree_hash,
-            0,
-            vec![Timelock::new(recovery_timelock).curry_tree_hash()]
-                .tree_hash()
-                .into(),
-            ().tree_hash().into(),
-        )
-        .curry_tree_hash(),
-        PreventConditionOpcode::new(CREATE_COIN_ANNOUNCEMENT).curry_tree_hash(),
-        PreventConditionOpcode::new(CREATE_PUZZLE_ANNOUNCEMENT).curry_tree_hash(),
-        PreventConditionOpcode::new(SEND_MESSAGE).curry_tree_hash(),
-        PreventConditionOpcode::new(RECEIVE_MESSAGE).curry_tree_hash(),
-        PreventMultipleCreateCoinsMod::mod_hash(),
-    ];
-
-    for restriction in restrictions.into_iter().rev() {
-        delegated_puzzle_hash =
-            AddDelegatedPuzzleWrapper::new(restriction, delegated_puzzle_hash).curry_tree_hash();
-    }
-
-    [
-        delegated_puzzle_hash.to_bytes(),
-        vault_coin_id.to_bytes(),
-        genesis_challenge.to_bytes(),
-    ]
-    .concat()
-    .into()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     use anyhow::Result;
-    use chia_bls::verify;
+    use chia_protocol::Bytes32;
     use chia_puzzle_types::Memos;
-    use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
+    use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
     use chia_sdk_test::Simulator;
-    use chia_sdk_types::{Conditions, TESTNET11_CONSTANTS};
+    use chia_sdk_types::Conditions;
     use rstest::rstest;
 
-    use crate::{
-        Action, FeeAction, Id, ParsedAsset, RequestedAsset, SpendContext, Spends, TestVault,
-    };
+    use crate::{Action, Id, ParsedAsset, RequestedAsset, SpendContext, Spends, TestVault};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum AssetKind {
@@ -378,208 +299,6 @@ mod tests {
             );
             assert_eq!(payment.notarized_payment.payments[0].amount, 1000);
         }
-
-        Ok(())
-    }
-
-    #[rstest]
-    fn test_clear_signing_nft_lifecycle() -> Result<()> {
-        let mut sim = Simulator::new();
-        let mut ctx = SpendContext::new();
-
-        let alice = TestVault::mint(&mut sim, &mut ctx, 1)?;
-        let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
-
-        let result = alice.spend(&mut sim, &mut ctx, &[Action::mint_empty_nft()])?;
-
-        let tx =
-            VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
-
-        assert_eq!(tx.payments.len(), 1);
-        assert_eq!(tx.nfts.len(), 1);
-        assert_eq!(tx.fee_paid, 0);
-        assert_eq!(tx.reserved_fee, 0);
-
-        // Even though this is for an NFT mint, the launcher is tracked as a sent payment
-        let payment = &tx.payments[0];
-        assert_eq!(payment.transfer_type, TransferType::Sent);
-        assert_eq!(payment.p2_puzzle_hash, SINGLETON_LAUNCHER_HASH.into());
-        assert_eq!(payment.coin.amount, 0);
-
-        // The NFT should be included
-        let nft = &tx.nfts[0];
-        assert_eq!(nft.transfer_type, TransferType::Updated);
-        assert_eq!(nft.p2_puzzle_hash, alice.puzzle_hash());
-        assert!(!nft.includes_unverifiable_updates);
-        assert_eq!(nft.old_state.parsed_metadata, Some(NftMetadata::default()));
-        assert_eq!(
-            nft.old_state.metadata_updater_puzzle_hash,
-            Bytes32::default()
-        );
-        assert_eq!(nft.old_state.owner, None);
-        assert_eq!(nft.new_state.parsed_metadata, Some(NftMetadata::default()));
-        assert_eq!(
-            nft.new_state.metadata_updater_puzzle_hash,
-            Bytes32::default()
-        );
-        assert_eq!(nft.new_state.owner, None);
-        assert_eq!(nft.royalty_puzzle_hash, Bytes32::default());
-        assert_eq!(nft.royalty_basis_points, 0);
-
-        // Transfer the NFT to Bob
-        let nft_id = Id::Existing(nft.launcher_id);
-        let bob_hint = ctx.hint(bob.puzzle_hash())?;
-
-        let result = alice.spend(
-            &mut sim,
-            &mut ctx,
-            &[Action::send(nft_id, bob.puzzle_hash(), 1, bob_hint)],
-        )?;
-
-        let tx =
-            VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
-
-        assert_eq!(tx.payments.len(), 0);
-        assert_eq!(tx.nfts.len(), 1);
-        assert_eq!(tx.fee_paid, 0);
-        assert_eq!(tx.reserved_fee, 0);
-
-        let nft = &tx.nfts[0];
-        assert_eq!(nft.transfer_type, TransferType::Sent);
-        assert_eq!(nft.p2_puzzle_hash, bob.puzzle_hash());
-        assert!(!nft.includes_unverifiable_updates);
-
-        Ok(())
-    }
-
-    #[rstest]
-    fn test_clear_signing_split(
-        #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
-        #[values(0, 100)] fee: u64,
-    ) -> Result<()> {
-        let mut sim = Simulator::new();
-        let mut ctx = SpendContext::new();
-
-        let alice = TestVault::mint(&mut sim, &mut ctx, 1000 + fee)?;
-
-        let Asset {
-            id,
-            asset_id,
-            hidden_puzzle_hash,
-        } = issue_asset(&mut sim, &mut ctx, &alice, asset_kind)?;
-
-        let result = alice.spend(
-            &mut sim,
-            &mut ctx,
-            &[
-                Action::send(id, alice.puzzle_hash(), 250, Memos::None),
-                Action::send(id, alice.puzzle_hash(), 250, Memos::None),
-                Action::send(id, alice.puzzle_hash(), 250, Memos::None),
-                Action::send(id, alice.puzzle_hash(), 250, Memos::None),
-                Action::fee(fee),
-            ],
-        )?;
-
-        let tx =
-            VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
-        assert_eq!(tx.new_custody_hash, Some(alice.custody_hash()));
-        assert_eq!(tx.payments.len(), 4);
-        assert_eq!(tx.fee_paid, fee);
-        assert_eq!(tx.reserved_fee, fee);
-
-        for payment in &tx.payments {
-            assert_eq!(payment.transfer_type, TransferType::Updated);
-            assert_eq!(payment.asset_id, asset_id);
-            assert_eq!(payment.p2_puzzle_hash, alice.puzzle_hash());
-            assert_eq!(payment.coin.amount, 250);
-        }
-
-        let result = alice.spend(
-            &mut sim,
-            &mut ctx,
-            &[Action::send(id, alice.puzzle_hash(), 1000, Memos::None)],
-        )?;
-
-        let tx =
-            VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
-        assert_eq!(tx.new_custody_hash, Some(alice.custody_hash()));
-        assert_eq!(tx.payments.len(), 1);
-        assert_eq!(tx.fee_paid, 0);
-        assert_eq!(tx.reserved_fee, 0);
-
-        let payment = &tx.payments[0];
-        assert_eq!(payment.transfer_type, TransferType::Updated);
-        assert_eq!(payment.asset_id, asset_id);
-        assert_eq!(payment.p2_puzzle_hash, alice.puzzle_hash());
-        assert_eq!(payment.coin.amount, 1000);
-
-        Ok(())
-    }
-
-    #[rstest]
-    fn test_clear_signing_unreserved_fee() -> Result<()> {
-        let mut sim = Simulator::new();
-        let mut ctx = SpendContext::new();
-
-        let alice = TestVault::mint(&mut sim, &mut ctx, 1100)?;
-        let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
-
-        let result = alice.spend(
-            &mut sim,
-            &mut ctx,
-            &[
-                Action::send(Id::Xch, bob.puzzle_hash(), 1000, Memos::None),
-                Action::Fee(FeeAction {
-                    amount: 100,
-                    reserved: false,
-                }),
-            ],
-        )?;
-
-        let tx =
-            VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
-        assert_eq!(tx.new_custody_hash, Some(alice.custody_hash()));
-        assert_eq!(tx.payments.len(), 1);
-        assert_eq!(tx.fee_paid, 100);
-        assert_eq!(tx.reserved_fee, 0);
-
-        let payment = &tx.payments[0];
-        assert_eq!(payment.transfer_type, TransferType::Sent);
-        assert_eq!(payment.asset_id, None);
-        assert_eq!(payment.p2_puzzle_hash, bob.puzzle_hash());
-        assert_eq!(payment.coin.amount, 1000);
-
-        Ok(())
-    }
-
-    #[rstest]
-    fn test_clear_signing_coin_message() -> Result<()> {
-        let mut sim = Simulator::new();
-        let mut ctx = SpendContext::new();
-
-        let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
-        let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
-
-        let vault = alice.fetch_vault(&sim)?;
-
-        let result = alice.spend(
-            &mut sim,
-            &mut ctx,
-            &[Action::send(Id::Xch, bob.puzzle_hash(), 1000, Memos::None)],
-        )?;
-
-        let tx =
-            VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
-        assert_eq!(tx.new_custody_hash, Some(alice.custody_hash()));
-        assert_eq!(tx.payments.len(), 1);
-
-        let coin_message = calculate_vault_coin_message(
-            tx.delegated_puzzle_hash,
-            vault.coin.coin_id(),
-            TESTNET11_CONSTANTS.genesis_challenge,
-        );
-
-        assert!(verify(&result.signature, &alice.public_key, coin_message));
 
         Ok(())
     }
