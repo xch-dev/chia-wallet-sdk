@@ -1,20 +1,26 @@
 {
   "Program": {
     "type": "class",
+    "doc": "represents a CLVM program node, which is either an atom (leaf) or a cons pair (branch) in the Chialisp expression tree.",
     "methods": {
       "compile": {
+        "doc": "compiles and runs the program as Chialisp, returning the output and cost.",
         "return": "Output"
       },
       "unparse": {
+        "doc": "converts the CLVM program back into a human-readable Chialisp string.",
         "return": "String"
       },
       "serialize": {
+        "doc": "serializes the program into the standard CLVM binary format.",
         "return": "SerializedProgram"
       },
       "serialize_with_backrefs": {
+        "doc": "serializes the program using CLVM backref compression (CHIP-0002) for smaller output.",
         "return": "SerializedProgram"
       },
       "run": {
+        "doc": "executes this program as a puzzle with the given solution, enforcing the cost limit and optional mempool rules.",
         "args": {
           "solution": "Program",
           "max_cost": "u64",
@@ -23,196 +29,259 @@
         "return": "Output"
       },
       "curry": {
+        "doc": "curries arguments into this program, binding them as fixed parameters (standard Chialisp currying).",
         "args": {
           "args": "Vec<Program>"
         },
         "return": "Program"
       },
       "uncurry": {
+        "doc": "attempts to uncurry the program, extracting the base module and its curried arguments.",
         "return": "Option<CurriedProgram>"
       },
       "tree_hash": {
+        "doc": "computes the SHA-256 tree hash of the program, which uniquely identifies its structure.",
         "return": "TreeHash"
       },
       "is_atom": {
+        "doc": "reports whether the program is an atom (leaf node) rather than a cons pair.",
         "return": "bool"
       },
       "is_pair": {
+        "doc": "reports whether the program is a cons pair rather than an atom.",
         "return": "bool"
       },
       "is_null": {
+        "doc": "reports whether the program is nil (the empty atom, representing false or an empty list).",
         "return": "bool"
       },
       "length": {
+        "doc": "returns the length of the program when interpreted as a proper CLVM list.",
         "return": "u32"
       },
       "first": {
+        "doc": "returns the first element (car) of a cons pair. Fails if the program is an atom.",
         "return": "Program"
       },
       "rest": {
+        "doc": "returns the rest element (cdr) of a cons pair. Fails if the program is an atom.",
         "return": "Program"
       },
       "to_int": {
+        "doc": "interprets the atom as a signed big integer, or nil if this is a pair.",
         "return": "Option<BigInt>"
       },
       "to_bound_checked_number": {
+        "doc": "interprets the atom as a bounds-checked floating-point number, or nil if invalid.",
         "return": "Option<f64>"
       },
       "to_string": {
+        "doc": "interprets the atom as a UTF-8 string, or nil if this is a pair or not valid UTF-8.",
         "type": "to_string",
         "return": "Option<String>"
       },
       "to_bool": {
+        "doc": "interprets the program as a boolean (nil is false, anything else is true), or nil if ambiguous.",
         "return": "Option<bool>"
       },
       "to_atom": {
+        "doc": "returns the raw bytes of the atom, or nil if this is a pair.",
         "return": "Option<Bytes>"
       },
       "to_list": {
+        "doc": "interprets the program as a proper CLVM list, or nil if it is not nil-terminated.",
         "return": "Option<Vec<Program>>"
       },
       "to_arg_list": {
+        "doc": "extracts a curried argument list from the program, or nil if the structure does not match.",
         "return": "Option<Vec<Program>>"
       },
       "to_pair": {
+        "doc": "returns the first and rest of a cons pair, or nil if this is an atom.",
         "return": "Option<Pair>"
       },
       "puzzle": {
+        "doc": "identifies the puzzle type (standard, CAT, NFT, DID, etc.) by analyzing the program structure.",
         "return": "Puzzle"
       },
       "parse_nft_metadata": {
+        "doc": "attempts to parse the program as NFT metadata (data URIs, metadata URIs, license URIs, etc.).",
         "return": "Option<NftMetadata>"
       },
       "parse_remark": {
+        "doc": "attempts to parse the program as a REMARK condition.",
         "return": "Option<Remark>"
       },
       "parse_agg_sig_parent": {
+        "doc": "attempts to parse the program as an AGG_SIG_PARENT condition.",
         "return": "Option<AggSigParent>"
       },
       "parse_agg_sig_puzzle": {
+        "doc": "attempts to parse the program as an AGG_SIG_PUZZLE condition.",
         "return": "Option<AggSigPuzzle>"
       },
       "parse_agg_sig_amount": {
+        "doc": "attempts to parse the program as an AGG_SIG_AMOUNT condition.",
         "return": "Option<AggSigAmount>"
       },
       "parse_agg_sig_puzzle_amount": {
+        "doc": "attempts to parse the program as an AGG_SIG_PUZZLE_AMOUNT condition.",
         "return": "Option<AggSigPuzzleAmount>"
       },
       "parse_agg_sig_parent_amount": {
+        "doc": "attempts to parse the program as an AGG_SIG_PARENT_AMOUNT condition.",
         "return": "Option<AggSigParentAmount>"
       },
       "parse_agg_sig_parent_puzzle": {
+        "doc": "attempts to parse the program as an AGG_SIG_PARENT_PUZZLE condition.",
         "return": "Option<AggSigParentPuzzle>"
       },
       "parse_agg_sig_unsafe": {
+        "doc": "attempts to parse the program as an AGG_SIG_UNSAFE condition.",
         "return": "Option<AggSigUnsafe>"
       },
       "parse_agg_sig_me": {
+        "doc": "attempts to parse the program as an AGG_SIG_ME condition.",
         "return": "Option<AggSigMe>"
       },
       "parse_create_coin": {
+        "doc": "attempts to parse the program as a CREATE_COIN condition.",
         "return": "Option<CreateCoin>"
       },
       "parse_reserve_fee": {
+        "doc": "attempts to parse the program as a RESERVE_FEE condition.",
         "return": "Option<ReserveFee>"
       },
       "parse_create_coin_announcement": {
+        "doc": "attempts to parse the program as a CREATE_COIN_ANNOUNCEMENT condition.",
         "return": "Option<CreateCoinAnnouncement>"
       },
       "parse_create_puzzle_announcement": {
+        "doc": "attempts to parse the program as a CREATE_PUZZLE_ANNOUNCEMENT condition.",
         "return": "Option<CreatePuzzleAnnouncement>"
       },
       "parse_assert_coin_announcement": {
+        "doc": "attempts to parse the program as an ASSERT_COIN_ANNOUNCEMENT condition.",
         "return": "Option<AssertCoinAnnouncement>"
       },
       "parse_assert_puzzle_announcement": {
+        "doc": "attempts to parse the program as an ASSERT_PUZZLE_ANNOUNCEMENT condition.",
         "return": "Option<AssertPuzzleAnnouncement>"
       },
       "parse_assert_concurrent_spend": {
+        "doc": "attempts to parse the program as an ASSERT_CONCURRENT_SPEND condition.",
         "return": "Option<AssertConcurrentSpend>"
       },
       "parse_assert_concurrent_puzzle": {
+        "doc": "attempts to parse the program as an ASSERT_CONCURRENT_PUZZLE condition.",
         "return": "Option<AssertConcurrentPuzzle>"
       },
       "parse_assert_seconds_relative": {
+        "doc": "attempts to parse the program as an ASSERT_SECONDS_RELATIVE condition.",
         "return": "Option<AssertSecondsRelative>"
       },
       "parse_assert_seconds_absolute": {
+        "doc": "attempts to parse the program as an ASSERT_SECONDS_ABSOLUTE condition.",
         "return": "Option<AssertSecondsAbsolute>"
       },
       "parse_assert_height_relative": {
+        "doc": "attempts to parse the program as an ASSERT_HEIGHT_RELATIVE condition.",
         "return": "Option<AssertHeightRelative>"
       },
       "parse_assert_height_absolute": {
+        "doc": "attempts to parse the program as an ASSERT_HEIGHT_ABSOLUTE condition.",
         "return": "Option<AssertHeightAbsolute>"
       },
       "parse_assert_before_seconds_relative": {
+        "doc": "attempts to parse the program as an ASSERT_BEFORE_SECONDS_RELATIVE condition.",
         "return": "Option<AssertBeforeSecondsRelative>"
       },
       "parse_assert_before_seconds_absolute": {
+        "doc": "attempts to parse the program as an ASSERT_BEFORE_SECONDS_ABSOLUTE condition.",
         "return": "Option<AssertBeforeSecondsAbsolute>"
       },
       "parse_assert_before_height_relative": {
+        "doc": "attempts to parse the program as an ASSERT_BEFORE_HEIGHT_RELATIVE condition.",
         "return": "Option<AssertBeforeHeightRelative>"
       },
       "parse_assert_before_height_absolute": {
+        "doc": "attempts to parse the program as an ASSERT_BEFORE_HEIGHT_ABSOLUTE condition.",
         "return": "Option<AssertBeforeHeightAbsolute>"
       },
       "parse_assert_my_coin_id": {
+        "doc": "attempts to parse the program as an ASSERT_MY_COIN_ID condition.",
         "return": "Option<AssertMyCoinId>"
       },
       "parse_assert_my_parent_id": {
+        "doc": "attempts to parse the program as an ASSERT_MY_PARENT_ID condition.",
         "return": "Option<AssertMyParentId>"
       },
       "parse_assert_my_puzzle_hash": {
+        "doc": "attempts to parse the program as an ASSERT_MY_PUZZLEHASH condition.",
         "return": "Option<AssertMyPuzzleHash>"
       },
       "parse_assert_my_amount": {
+        "doc": "attempts to parse the program as an ASSERT_MY_AMOUNT condition.",
         "return": "Option<AssertMyAmount>"
       },
       "parse_assert_my_birth_seconds": {
+        "doc": "attempts to parse the program as an ASSERT_MY_BIRTH_SECONDS condition.",
         "return": "Option<AssertMyBirthSeconds>"
       },
       "parse_assert_my_birth_height": {
+        "doc": "attempts to parse the program as an ASSERT_MY_BIRTH_HEIGHT condition.",
         "return": "Option<AssertMyBirthHeight>"
       },
       "parse_assert_ephemeral": {
+        "doc": "attempts to parse the program as an ASSERT_EPHEMERAL condition.",
         "return": "Option<AssertEphemeral>"
       },
       "parse_send_message": {
+        "doc": "attempts to parse the program as a SEND_MESSAGE condition (CHIP-0025).",
         "return": "Option<SendMessage>"
       },
       "parse_receive_message": {
+        "doc": "attempts to parse the program as a RECEIVE_MESSAGE condition (CHIP-0025).",
         "return": "Option<ReceiveMessage>"
       },
       "parse_softfork": {
+        "doc": "attempts to parse the program as a SOFTFORK condition.",
         "return": "Option<Softfork>"
       },
       "parse_melt_singleton": {
+        "doc": "attempts to parse the program as a melt singleton condition.",
         "return": "Option<MeltSingleton>"
       },
       "parse_transfer_nft": {
+        "doc": "attempts to parse the program as an NFT transfer condition with royalty info.",
         "return": "Option<TransferNft>"
       },
       "parse_run_cat_tail": {
+        "doc": "attempts to parse the program as a RUN_CAT_TAIL condition.",
         "return": "Option<RunCatTail>"
       },
       "parse_update_nft_metadata": {
+        "doc": "attempts to parse the program as an NFT metadata update condition.",
         "return": "Option<UpdateNftMetadata>"
       },
       "parse_update_data_store_merkle_root": {
+        "doc": "attempts to parse the program as a DataLayer merkle root update condition.",
         "return": "Option<UpdateDataStoreMerkleRoot>"
       },
       "parse_option_metadata": {
+        "doc": "attempts to parse the program as option contract metadata.",
         "return": "Option<OptionMetadata>"
       },
       "parse_payment": {
+        "doc": "attempts to parse the program as a payment (puzzle hash, amount, memos).",
         "return": "Option<Payment>"
       },
       "parse_notarized_payment": {
+        "doc": "attempts to parse the program as a notarized payment used in offer settlements.",
         "return": "Option<NotarizedPayment>"
       },
       "parse_reward_distributor_launcher_solution": {
+        "doc": "attempts to parse the program as a reward distributor launcher solution, extracting configuration info.",
         "args": {
           "launcher_coin": "Coin"
         },

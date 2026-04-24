@@ -1,39 +1,47 @@
 {
   "SecretKey": {
     "type": "class",
+    "doc": "represents a BLS12-381 secret key used for signing messages.",
     "remote": true,
     "methods": {
       "from_seed": {
+        "doc": "derives a secret key from a seed (typically from a mnemonic).",
         "type": "factory",
         "args": {
           "seed": "Bytes"
         }
       },
       "from_bytes": {
+        "doc": "creates a secret key from its 32-byte representation.",
         "type": "factory",
         "args": {
           "bytes": "Bytes32"
         }
       },
       "to_bytes": {
+        "doc": "returns the 32-byte representation of the secret key.",
         "return": "Bytes32"
       },
       "public_key": {
+        "doc": "returns the corresponding public key.",
         "return": "PublicKey"
       },
       "sign": {
+        "doc": "signs a message and returns the BLS signature.",
         "args": {
           "message": "Bytes"
         },
         "return": "Signature"
       },
       "derive_unhardened": {
+        "doc": "derives an unhardened child key at the given index.",
         "args": {
           "index": "u32"
         },
         "return": "SecretKey"
       },
       "derive_hardened": {
+        "doc": "derives a hardened child key at the given index.",
         "args": {
           "index": "u32"
         },
@@ -64,18 +72,22 @@
   },
   "PublicKey": {
     "type": "class",
+    "doc": "represents a BLS12-381 public key used for verifying signatures.",
     "remote": true,
     "methods": {
       "infinity": {
+        "doc": "creates the identity (point at infinity) public key.",
         "type": "factory"
       },
       "aggregate": {
+        "doc": "aggregates multiple public keys into one.",
         "type": "factory",
         "args": {
           "public_keys": "Vec<PublicKey>"
         }
       },
       "aggregate_verify": {
+        "doc": "verifies an aggregate signature against multiple public keys and messages.",
         "type": "static",
         "args": {
           "public_keys": "Vec<PublicKey>",
@@ -85,15 +97,18 @@
         "return": "bool"
       },
       "from_bytes": {
+        "doc": "creates a public key from its 48-byte representation.",
         "type": "factory",
         "args": {
           "bytes": "Bytes48"
         }
       },
       "to_bytes": {
+        "doc": "returns the 48-byte representation of the public key.",
         "return": "Bytes48"
       },
       "verify": {
+        "doc": "verifies a signature against a message using this public key.",
         "args": {
           "message": "Bytes",
           "signature": "Signature"
@@ -101,12 +116,15 @@
         "return": "bool"
       },
       "fingerprint": {
+        "doc": "returns the 4-byte fingerprint of the public key.",
         "return": "u32"
       },
       "is_infinity": {
+        "doc": "returns whether this is the identity (point at infinity) key.",
         "return": "bool"
       },
       "is_valid": {
+        "doc": "returns whether this public key is a valid point on the BLS12-381 curve.",
         "return": "bool"
       },
       "derive_unhardened": {
@@ -134,30 +152,37 @@
   },
   "Signature": {
     "type": "class",
+    "doc": "represents a BLS12-381 signature.",
     "remote": true,
     "methods": {
       "infinity": {
+        "doc": "creates the identity (point at infinity) signature.",
         "type": "factory"
       },
       "aggregate": {
+        "doc": "aggregates multiple signatures into one.",
         "type": "factory",
         "args": {
           "signatures": "Vec<Signature>"
         }
       },
       "from_bytes": {
+        "doc": "creates a signature from its 96-byte representation.",
         "type": "factory",
         "args": {
           "bytes": "Bytes96"
         }
       },
       "to_bytes": {
+        "doc": "returns the 96-byte representation of the signature.",
         "return": "Bytes96"
       },
       "is_infinity": {
+        "doc": "returns whether this is the identity (point at infinity) signature.",
         "return": "bool"
       },
       "is_valid": {
+        "doc": "returns whether this signature is a valid point on the BLS12-381 curve.",
         "return": "bool"
       }
     }

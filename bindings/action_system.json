@@ -1,8 +1,10 @@
 {
   "Spends": {
     "type": "class",
+    "doc": "is the high-level transaction builder that accumulates coins and applies actions to produce a spend bundle.",
     "methods": {
       "new": {
+        "doc": "creates a new transaction builder with the given CLVM allocator and change puzzle hash.",
         "args": {
           "clvm": "Clvm",
           "change_puzzle_hash": "Bytes32"
@@ -10,56 +12,70 @@
         "type": "constructor"
       },
       "add_xch": {
+        "doc": "adds a standard XCH coin as an input to the transaction.",
         "args": {
           "coin": "Coin"
         }
       },
       "add_cat": {
+        "doc": "adds a CAT (Chia Asset Token) coin as an input to the transaction.",
         "args": {
           "cat": "Cat"
         }
       },
       "add_nft": {
+        "doc": "adds an NFT singleton as an input to the transaction.",
         "args": {
           "nft": "Nft"
         }
       },
       "p2_puzzle_hashes": {
+        "doc": "returns the pay-to puzzle hashes of all coins added to the transaction.",
         "return": "Vec<Bytes32>"
       },
       "non_settlement_coin_ids": {
+        "doc": "returns the coin IDs of all non-settlement coins (coins that need signing).",
         "return": "Vec<Bytes32>"
       },
       "add_optional_condition": {
+        "doc": "adds a condition that will be included if the coin it's attached to is spent.",
         "args": {
           "condition": "Program"
         }
       },
       "add_required_condition": {
+        "doc": "adds a condition that must be included in the transaction regardless of coin selection.",
         "args": {
           "condition": "Program"
         }
       },
-      "disable_settlement_assertions": {},
+      "disable_settlement_assertions": {
+        "doc": "disables the automatic concurrent spend assertions between settlement and non-settlement coins."
+      },
       "selected_xch_amount": {
+        "doc": "returns the total amount of XCH coins added to the transaction.",
         "return": "u64"
       },
       "selected_asset_ids": {
+        "doc": "returns the asset IDs of all CAT types added to the transaction.",
         "return": "Vec<Bytes32>"
       },
       "selected_cat_amount": {
+        "doc": "returns the total amount of CAT coins for the given asset ID.",
         "args": {
           "asset_id": "Bytes32"
         },
         "return": "u64"
       },
       "apply": {
+        "doc": "applies a list of actions (send, settle, mint, etc.) and returns the resulting balance deltas per asset.",
         "args": {
           "actions": "Vec<Action>"
         },
         "return": "Deltas"
       },
       "prepare": {
+        "doc": "finalizes the transaction by computing coin spends from the applied deltas, returning spends ready for signing.",
         "args": {
           "deltas": "Deltas"
         },
@@ -69,54 +85,69 @@
   },
   "FinishedSpends": {
     "type": "class",
+    "doc": "holds the finalized coin spends ready for signing and submission.",
     "methods": {
       "pending_spends": {
+        "doc": "returns the list of pending spends that need puzzle reveals and signatures.",
         "return": "Vec<PendingSpend>"
       },
       "insert": {
+        "doc": "inserts a custom puzzle reveal and solution for a specific coin by its ID.",
         "args": {
           "coin_id": "Bytes32",
           "spend": "Spend"
         }
       },
       "spend": {
+        "doc": "builds the final coin spends and returns the output coins grouped by asset type.",
         "return": "Outputs"
       }
     }
   },
   "PendingSpend": {
     "type": "class",
+    "doc": "represents a coin that has been selected for spending but still needs its puzzle reveal provided.",
     "methods": {
       "p2_puzzle_hash": {
+        "doc": "returns the pay-to puzzle hash that controls this coin.",
         "return": "Bytes32"
       },
       "coin": {
+        "doc": "returns the underlying coin being spent.",
         "return": "Coin"
       },
       "conditions": {
+        "doc": "returns the conditions that have been assigned to this coin's spend.",
         "return": "Vec<Program>"
       },
       "as_xch": {
+        "doc": "returns the coin as a standard XCH coin, or nil if it is a different asset type.",
         "return": "Option<Coin>"
       },
       "as_cat": {
+        "doc": "returns the coin as a CAT, or nil if it is not a CAT.",
         "return": "Option<Cat>"
       },
       "as_did": {
+        "doc": "returns the coin as a DID singleton, or nil if it is not a DID.",
         "return": "Option<Did>"
       },
       "as_nft": {
+        "doc": "returns the coin as an NFT singleton, or nil if it is not an NFT.",
         "return": "Option<Nft>"
       },
       "as_option": {
+        "doc": "returns the coin as an option contract, or nil if it is not an option.",
         "return": "Option<OptionContract>"
       }
     }
   },
   "Action": {
     "type": "class",
+    "doc": "represents a high-level transaction action such as sending coins, settling offers, minting NFTs, or issuing CATs.",
     "methods": {
       "send": {
+        "doc": "creates an action that sends coins to the given puzzle hash with the specified amount and optional memos.",
         "type": "factory",
         "args": {
           "id": "Id",
@@ -126,6 +157,7 @@
         }
       },
       "settle": {
+        "doc": "creates an action that settles an offer by producing a notarized payment for atomic swap.",
         "type": "factory",
         "args": {
           "id": "Id",
@@ -133,6 +165,7 @@
         }
       },
       "issue_cat": {
+        "doc": "creates an action that issues new CAT tokens using a custom TAIL program.",
         "type": "factory",
         "args": {
           "tail_spend": "Spend",
@@ -141,6 +174,7 @@
         }
       },
       "single_issue_cat": {
+        "doc": "creates an action that issues new CAT tokens using a single-issuance TAIL (one-time minting).",
         "type": "factory",
         "args": {
           "hidden_puzzle_hash": "Option<Bytes32>",
@@ -148,6 +182,7 @@
         }
       },
       "run_tail": {
+        "doc": "creates an action that runs a CAT's TAIL program to validate supply changes (minting or melting).",
         "type": "factory",
         "args": {
           "id": "Id",
@@ -156,6 +191,7 @@
         }
       },
       "mint_nft": {
+        "doc": "creates an action that mints a new NFT with the given metadata, royalty info, and amount.",
         "type": "factory",
         "args": {
           "clvm": "Clvm",
@@ -168,6 +204,7 @@
         }
       },
       "update_nft": {
+        "doc": "creates an action that updates an NFT's metadata and optionally transfers it to a new owner.",
         "type": "factory",
         "args": {
           "id": "Id",
@@ -176,6 +213,7 @@
         }
       },
       "fee": {
+        "doc": "creates an action that reserves a transaction fee from the XCH inputs.",
         "type": "factory",
         "args": {
           "amount": "u64"
@@ -185,8 +223,10 @@
   },
   "Deltas": {
     "type": "class",
+    "doc": "holds the balance changes (input vs output) per asset after applying actions to a transaction.",
     "methods": {
       "from_actions": {
+        "doc": "computes the balance deltas from a list of actions without applying them to a transaction.",
         "type": "static",
         "args": {
           "actions": "Vec<Action>"
@@ -194,24 +234,28 @@
         "return": "Deltas"
       },
       "get": {
+        "doc": "returns the balance delta for the given asset ID, or nil if the asset is not involved.",
         "args": {
           "id": "Id"
         },
         "return": "Option<Delta>"
       },
       "is_needed": {
+        "doc": "reports whether the given asset ID requires coins to be selected (has a positive input delta).",
         "args": {
           "id": "Id"
         },
         "return": "bool"
       },
       "ids": {
+        "doc": "returns all asset IDs involved in the deltas.",
         "return": "Vec<Id>"
       }
     }
   },
   "Delta": {
     "type": "class",
+    "doc": "represents the input and output balance for a single asset type in a transaction.",
     "new": true,
     "remote": true,
     "fields": {
@@ -221,32 +265,40 @@
   },
   "Id": {
     "type": "class",
+    "doc": "identifies an asset type in the action system: XCH, an existing CAT/NFT by asset ID, or a newly minted asset by index.",
     "methods": {
       "xch": {
+        "doc": "creates an ID representing standard XCH.",
         "type": "factory"
       },
       "existing": {
+        "doc": "creates an ID representing an existing CAT or NFT by its asset ID (TAIL hash or launcher ID).",
         "type": "factory",
         "args": {
           "asset_id": "Bytes32"
         }
       },
       "new": {
+        "doc": "creates an ID representing a newly minted asset by its index in the current transaction.",
         "type": "factory",
         "args": {
           "index": "usize"
         }
       },
       "is_xch": {
+        "doc": "reports whether this ID represents standard XCH.",
         "return": "bool"
       },
       "as_existing": {
+        "doc": "returns the asset ID if this represents an existing asset, or nil if it is XCH or a new mint.",
         "return": "Option<Bytes32>"
       },
       "as_new": {
+        "doc": "returns the mint index if this represents a newly minted asset, or nil otherwise.",
         "return": "Option<usize>"
       },
       "equals": {
+        "doc": "reports whether two asset IDs refer to the same asset.",
         "args": {
           "id": "Id"
         },
@@ -256,23 +308,29 @@
   },
   "Outputs": {
     "type": "class",
+    "doc": "holds the output coins produced by a finalized transaction, grouped by asset type.",
     "methods": {
       "xch": {
+        "doc": "returns the output XCH coins (including change coins).",
         "return": "Vec<Coin>"
       },
       "cats": {
+        "doc": "returns the asset IDs of all CAT types in the output.",
         "return": "Vec<Id>"
       },
       "cat": {
+        "doc": "returns the output CAT coins for the given asset ID.",
         "args": {
           "id": "Id"
         },
         "return": "Vec<Cat>"
       },
       "nfts": {
+        "doc": "returns the asset IDs of all NFTs in the output.",
         "return": "Vec<Id>"
       },
       "nft": {
+        "doc": "returns the output NFT for the given asset ID.",
         "args": {
           "id": "Id"
         },
@@ -282,6 +340,7 @@
   },
   "TransferNftById": {
     "type": "class",
+    "doc": "specifies an NFT transfer destination including the new owner DID and royalty trade prices.",
     "new": true,
     "fields": {
       "owner_id": "Option<Id>",

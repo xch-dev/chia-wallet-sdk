@@ -1,6 +1,7 @@
 {
   "Certificate": {
     "type": "class",
+    "doc": "holds a TLS certificate and private key in PEM format for authenticating peer connections.",
     "no_wasm": true,
     "new": true,
     "fields": {
@@ -9,6 +10,7 @@
     },
     "methods": {
       "load": {
+        "doc": "loads a TLS certificate and key from PEM files on disk.",
         "type": "factory",
         "args": {
           "cert_path": "String",
@@ -16,15 +18,18 @@
         }
       },
       "generate": {
+        "doc": "generates a new self-signed TLS certificate and key pair for peer connections.",
         "type": "factory"
       }
     }
   },
   "Connector": {
     "type": "class",
+    "doc": "manages TLS connections to Chia full nodes using a certificate for authentication.",
     "no_wasm": true,
     "methods": {
       "new": {
+        "doc": "creates a new TLS connector from the given certificate.",
         "type": "constructor",
         "args": {
           "cert": "Certificate"
@@ -34,12 +39,14 @@
   },
   "PeerOptions": {
     "type": "class",
+    "doc": "configures peer connection behavior such as rate limiting.",
     "no_wasm": true,
     "fields": {
       "rate_limit_factor": "f64"
     },
     "methods": {
       "new": {
+        "doc": "creates default peer options.",
         "type": "constructor",
         "return": "PeerOptions"
       }
@@ -47,9 +54,11 @@
   },
   "Peer": {
     "type": "class",
+    "doc": "represents a connection to a Chia full node for querying coin state, puzzle state, and subscribing to updates.",
     "no_wasm": true,
     "methods": {
       "connect": {
+        "doc": "connects to a Chia full node at the given address using TLS.",
         "type": "async_factory",
         "args": {
           "network_id": "String",
@@ -59,6 +68,7 @@
         }
       },
       "request_coin_state": {
+        "doc": "requests the state of specific coins by their IDs, optionally subscribing to future updates.",
         "type": "async",
         "args": {
           "coin_ids": "Vec<Bytes32>",
@@ -69,6 +79,7 @@
         "return": "RespondCoinState"
       },
       "request_puzzle_state": {
+        "doc": "requests coins matching specific puzzle hashes with filters, optionally subscribing to updates.",
         "type": "async",
         "args": {
           "puzzle_hashes": "Vec<Bytes32>",
@@ -80,6 +91,7 @@
         "return": "RespondPuzzleState"
       },
       "request_puzzle_and_solution": {
+        "doc": "requests the puzzle reveal and solution for a spent coin at a specific height.",
         "type": "async",
         "args": {
           "coin_id": "Bytes32",
@@ -88,6 +100,7 @@
         "return": "PuzzleSolutionResponse"
       },
       "remove_coin_subscriptions": {
+        "doc": "removes coin state subscriptions, returning the coin IDs that were unsubscribed. Pass nil to remove all.",
         "type": "async",
         "args": {
           "coin_ids": "Option<Vec<Bytes32>>"
@@ -95,6 +108,7 @@
         "return": "Vec<Bytes32>"
       },
       "remove_puzzle_subscriptions": {
+        "doc": "removes puzzle state subscriptions, returning the puzzle hashes that were unsubscribed. Pass nil to remove all.",
         "type": "async",
         "args": {
           "puzzle_hashes": "Option<Vec<Bytes32>>"
@@ -102,6 +116,7 @@
         "return": "Vec<Bytes32>"
       },
       "next": {
+        "doc": "waits for the next event from the peer (new peak or coin state update), or nil if disconnected.",
         "type": "async",
         "return": "Option<Event>"
       }
@@ -109,6 +124,7 @@
   },
   "Event": {
     "type": "class",
+    "doc": "represents an event received from a connected peer: either a new peak notification or a coin state update.",
     "no_wasm": true,
     "fields": {
       "new_peak_wallet": "Option<NewPeakWallet>",
@@ -117,6 +133,7 @@
   },
   "NewPeakWallet": {
     "type": "class",
+    "doc": "notifies the wallet of a new blockchain peak with the header hash, height, weight, and fork point.",
     "no_wasm": true,
     "remote": true,
     "new": true,
@@ -129,6 +146,7 @@
   },
   "CoinStateUpdate": {
     "type": "class",
+    "doc": "notifies the wallet of coin state changes at a specific height, including the fork height and affected coins.",
     "no_wasm": true,
     "remote": true,
     "new": true,
@@ -141,6 +159,7 @@
   },
   "RespondCoinState": {
     "type": "class",
+    "doc": "holds the response to a coin state request: the queried coin IDs and their current states.",
     "no_wasm": true,
     "remote": true,
     "new": true,
@@ -151,6 +170,7 @@
   },
   "RespondPuzzleState": {
     "type": "class",
+    "doc": "holds the response to a puzzle state request: matching coins, the sync height, and whether pagination is complete.",
     "no_wasm": true,
     "remote": true,
     "new": true,
@@ -164,6 +184,7 @@
   },
   "PuzzleSolutionResponse": {
     "type": "class",
+    "doc": "holds the puzzle reveal and solution for a spent coin, as returned by the full node.",
     "no_wasm": true,
     "remote": true,
     "new": true,
@@ -176,6 +197,7 @@
   },
   "CoinStateFilters": {
     "type": "class",
+    "doc": "filters for puzzle state requests: include/exclude spent or unspent coins, hinted coins, and minimum amount.",
     "no_wasm": true,
     "remote": true,
     "new": true,

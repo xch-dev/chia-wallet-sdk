@@ -1,0 +1,37 @@
+[package]
+publish = false
+name = "go-codegen"
+version = "0.0.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "Code generator for Go bindings of the Chia Wallet SDK."
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "go-codegen"
+path = "src/main.rs"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+indexmap = { workspace = true, features = ["serde"] }
+convert_case = { workspace = true }
+chia-sdk-bindings = { workspace = true }
+
+[target.aarch64-unknown-linux-gnu.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }
+
+[target.aarch64-unknown-linux-musl.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }
+
+[target.x86_64-unknown-linux-gnu.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }
+
+[target.x86_64-unknown-linux-musl.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }

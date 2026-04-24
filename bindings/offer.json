@@ -1,6 +1,7 @@
 {
   "encode_offer": {
     "type": "function",
+    "doc": "serializes a spend bundle into the standard Chia offer file format (bech32m-encoded string).",
     "args": {
       "spend_bundle": "SpendBundle"
     },
@@ -8,6 +9,7 @@
   },
   "decode_offer": {
     "type": "function",
+    "doc": "deserializes a Chia offer file string (bech32m-encoded) back into a spend bundle.",
     "args": {
       "offer": "String"
     },
@@ -15,6 +17,7 @@
   },
   "NotarizedPayment": {
     "type": "class",
+    "doc": "represents a notarized payment used in Chia offers, binding a nonce to a list of payments for atomic swap settlement.",
     "new": true,
     "fields": {
       "nonce": "Bytes32",
@@ -23,6 +26,7 @@
   },
   "Payment": {
     "type": "class",
+    "doc": "represents a single payment output in an offer: a destination puzzle hash, amount, and optional memos.",
     "new": true,
     "fields": {
       "puzzle_hash": "Bytes32",
