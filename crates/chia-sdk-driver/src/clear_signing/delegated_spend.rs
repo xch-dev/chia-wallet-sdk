@@ -5,6 +5,12 @@ use clvmr::Allocator;
 
 use crate::{DriverError, HashedPtr, Spend};
 
+/// A delegated spend can technically be any puzzle and solution. The puzzle is the only
+/// thing that gets signed, so the solution allows malleability in behavior if needed.
+/// However, for the purposes of clear signing, we don't *want* malleability. We want the
+/// conditions that are output to be static. So in lieu of needing this flexibility in the
+/// future, we extract out the standard quoted conditions format rather than running the
+/// delegated spend to get its output. This ensures that the conditions are a fixed list.
 pub fn parse_delegated_spend(
     allocator: &Allocator,
     delegated_spend: Spend,
