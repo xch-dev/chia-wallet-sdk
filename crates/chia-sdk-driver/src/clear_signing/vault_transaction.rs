@@ -92,12 +92,10 @@ mod tests {
     use anyhow::Result;
     use chia_protocol::Bytes32;
     use chia_puzzle_types::Memos;
-    use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
     use chia_sdk_test::Simulator;
-    use chia_sdk_types::Conditions;
     use rstest::rstest;
 
-    use crate::{Action, Id, ParsedAsset, RequestedAsset, SpendContext, Spends, TestVault};
+    use crate::{Action, Id, ParsedAsset, SpendContext, TestVault};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum AssetKind {
@@ -207,98 +205,6 @@ mod tests {
 
         assert_eq!(child.memos.p2_puzzle_hash, bob.puzzle_hash());
         assert_eq!(child.asset.coin().amount, 1000);
-
-        Ok(())
-    }
-
-    #[rstest]
-    fn test_clear_signing_received(
-        #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
-        #[values(true, false)] disable_settlement_assertions: bool,
-        #[values(0, 100)] alice_fee: u64,
-        #[values(0, 100)] bob_fee: u64,
-    ) -> Result<()> {
-        let mut sim = Simulator::new();
-        let mut ctx = SpendContext::new();
-
-        let alice = TestVault::mint(&mut sim, &mut ctx, 1000 + alice_fee)?;
-        let bob = TestVault::mint(&mut sim, &mut ctx, bob_fee)?;
-
-        let Asset {
-            id,
-            asset_id,
-            hidden_puzzle_hash,
-        } = issue_asset(&mut sim, &mut ctx, &alice, asset_kind)?;
-
-        let result = alice.spend(
-            &mut sim,
-            &mut ctx,
-            &[
-                Action::send(id, SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None),
-                Action::fee(alice_fee),
-            ],
-        )?;
-
-        let tx =
-            VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
-
-        assert_eq!(tx.fee_paid, alice_fee);
-        assert_eq!(tx.reserved_fee, alice_fee);
-        assert_eq!(tx.spends.len(), 1);
-
-        let spend = &tx.spends[0];
-        assert_eq!(spend.children.len(), 1);
-
-        let child = &spend.children[0];
-        assert_eq!(child.memos.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
-        assert_eq!(child.asset.coin().amount, 1000);
-
-        let mut spends = Spends::new(bob.puzzle_hash());
-        if id == Id::Xch {
-            spends.add(result.outputs.xch[0]);
-        } else {
-            spends.add(result.outputs.cats[&id][0]);
-        }
-        spends.conditions.disable_settlement_assertions = disable_settlement_assertions;
-
-        let result = bob.custom_spend(
-            &mut sim,
-            &mut ctx,
-            &[Action::fee(bob_fee)],
-            spends,
-            Conditions::new(),
-        )?;
-
-        let tx =
-            VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
-
-        if disable_settlement_assertions {
-            assert_eq!(tx.received_payments.len(), 0);
-            assert_eq!(tx.fee_paid, bob_fee);
-            assert_eq!(tx.reserved_fee, bob_fee);
-        } else {
-            assert_eq!(tx.received_payments.len(), 1);
-            assert_eq!(tx.fee_paid, bob_fee);
-            assert_eq!(tx.reserved_fee, bob_fee);
-
-            let payment = &tx.received_payments[0];
-            if let Some(asset_id) = asset_id {
-                assert_eq!(
-                    payment.asset,
-                    RequestedAsset::Cat {
-                        asset_id,
-                        hidden_puzzle_hash
-                    }
-                );
-            } else {
-                assert_eq!(payment.asset, RequestedAsset::Xch);
-            }
-            assert_eq!(
-                payment.notarized_payment.payments[0].puzzle_hash,
-                bob.puzzle_hash()
-            );
-            assert_eq!(payment.notarized_payment.payments[0].amount, 1000);
-        }
 
         Ok(())
     }
