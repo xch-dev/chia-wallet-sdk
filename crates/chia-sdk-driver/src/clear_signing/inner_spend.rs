@@ -1,12 +1,10 @@
 use chia_protocol::Bytes32;
 use chia_sdk_types::Condition;
-use clvm_traits::{FromClvm, match_quote};
-use clvm_utils::tree_hash;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    ClawbackV2, DelegatedPuzzleFeederLayer, DriverError, Facts, HashedPtr, IndexWrapperLayer,
-    Layer, P2OneOfManyLayer, Puzzle, RevealedP2Puzzle, SingletonMemberLayer, Spend,
+    ClawbackV2, DelegatedPuzzleFeederLayer, DriverError, Facts, IndexWrapperLayer, Layer,
+    P2OneOfManyLayer, Puzzle, RevealedP2Puzzle, SingletonMemberLayer, Spend, parse_delegated_spend,
 };
 
 #[derive(Debug, Clone)]
@@ -55,13 +53,7 @@ pub fn parse_inner_spend(
     if let Some(puzzle) = P2SingletonLayers::parse_puzzle(allocator, puzzle)? {
         let solution = P2SingletonLayers::parse_solution(allocator, solution)?;
         let delegated_spend = Spend::new(solution.delegated_puzzle, solution.delegated_solution);
-
-        if tree_hash(allocator, delegated_spend.solution) != HashedPtr::NIL.tree_hash() {
-            return Err(DriverError::InvalidDelegatedSpendFormat);
-        }
-
-        let (_, conditions) =
-            <match_quote!(Vec<Condition>)>::from_clvm(allocator, delegated_spend.puzzle)?;
+        let conditions = parse_delegated_spend(allocator, delegated_spend)?;
 
         Ok(InnerSpend {
             clawback: None,
