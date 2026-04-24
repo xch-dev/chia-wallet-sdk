@@ -24,3 +24,32 @@ pub fn parse_delegated_spend(
 
     Ok(conditions)
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use chia_sdk_test::BlsPair;
+    use chia_sdk_types::Conditions;
+
+    use crate::{SpendContext, SpendWithConditions, StandardLayer};
+
+    use super::*;
+
+    #[test]
+    fn test_clear_signing_delegated_spend() -> Result<()> {
+        let mut ctx = SpendContext::new();
+
+        let pair = BlsPair::new(1337);
+        let spend =
+            StandardLayer::new(pair.pk).spend_with_conditions(&mut ctx, Conditions::new())?;
+
+        let result = parse_delegated_spend(&ctx, spend);
+
+        assert!(matches!(
+            result,
+            Err(DriverError::InvalidDelegatedSpendFormat)
+        ));
+
+        Ok(())
+    }
+}

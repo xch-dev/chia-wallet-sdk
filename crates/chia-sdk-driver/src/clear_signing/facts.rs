@@ -206,3 +206,8 @@ impl Facts {
         self.vault_nonces.insert(nonce);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+}
