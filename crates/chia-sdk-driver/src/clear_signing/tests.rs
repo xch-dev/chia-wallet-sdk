@@ -112,6 +112,7 @@ fn test_clear_signing_vault_info() -> Result<()> {
 
     let tx = VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
 
+    // Because we spent another coin, we know the launcher id and p2 puzzle hashes.
     assert_eq!(tx.launcher_id, Some(alice.info.launcher_id));
     assert_eq!(tx.p2_puzzle_hashes, vec![alice.puzzle_hash]);
     assert_eq!(tx.spends.len(), 1);
@@ -162,6 +163,51 @@ fn test_clear_signing_self_transfer(
     assert_eq!(child.memos.clawback, None);
     assert_eq!(child.memos.p2_puzzle_hash, alice.puzzle_hash);
     assert_eq!(child.memos.human_readable_memos, vec!["Hello, world!"]);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_intermediate_p2_singleton() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[
+            Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None),
+            Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None),
+        ],
+    )?;
+
+    let tx = VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+
+    assert_eq!(tx.spends.len(), 2);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.children.len(), 2);
+
+    let child_1 = &spend.children[0];
+    assert_eq!(child_1.asset.coin().amount, 1);
+    assert_eq!(child_1.memos.p2_puzzle_hash, alice.puzzle_hash);
+
+    let intermediate_child = &spend.children[1];
+    assert_eq!(intermediate_child.asset.coin().amount, 0);
+    assert_eq!(intermediate_child.memos.p2_puzzle_hash, alice.puzzle_hash);
+
+    let intermediate_spend = &tx.spends[1];
+    assert_eq!(intermediate_spend.children.len(), 1);
+    assert_eq!(
+        intermediate_spend.asset.coin().coin_id(),
+        intermediate_child.asset.coin().coin_id()
+    );
+
+    let child_2 = &intermediate_spend.children[0];
+    assert_eq!(child_2.asset.coin().amount, 1);
+    assert_eq!(child_2.memos.p2_puzzle_hash, alice.puzzle_hash);
 
     Ok(())
 }
