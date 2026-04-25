@@ -17,3 +17,6 @@ pub use signing::*;
 pub use vault_message::*;
 pub use vault_spend::*;
 pub use vault_transaction::*;
+
+#[cfg(test)]
+mod tests;
