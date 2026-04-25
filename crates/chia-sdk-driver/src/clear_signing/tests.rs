@@ -1,11 +1,14 @@
 use anyhow::Result;
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::Memos;
 use chia_sdk_test::Simulator;
-use clvm_utils::ToTreeHash;
+use chia_sdk_types::{Condition, Conditions};
+use clvm_utils::{ToTreeHash, tree_hash};
 use rstest::rstest;
 
-use crate::{Action, Id, ParsedAsset, SpendContext, TestVault, VaultOutput, VaultTransaction};
+use crate::{
+    Action, Deltas, Id, ParsedAsset, SpendContext, Spends, TestVault, VaultOutput, VaultTransaction,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AssetKind {
@@ -197,6 +200,67 @@ fn test_clear_signing_intermediate_p2_singleton() -> Result<()> {
     let intermediate_child = &spend.children[1];
     assert_eq!(intermediate_child.asset.coin().amount, 0);
     assert_eq!(intermediate_child.memos.p2_puzzle_hash, alice.puzzle_hash);
+
+    let intermediate_spend = &tx.spends[1];
+    assert_eq!(intermediate_spend.children.len(), 1);
+    assert_eq!(
+        intermediate_spend.asset.coin().coin_id(),
+        intermediate_child.asset.coin().coin_id()
+    );
+
+    let child_2 = &intermediate_spend.children[0];
+    assert_eq!(child_2.asset.coin().amount, 1);
+    assert_eq!(child_2.memos.p2_puzzle_hash, alice.puzzle_hash);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_intermediate_delegated_conditions() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+
+    let delegated_spend =
+        ctx.delegated_spend(Conditions::new().create_coin(alice.puzzle_hash, 1, Memos::None))?;
+    let puzzle_hash = tree_hash(&ctx, delegated_spend.puzzle).into();
+
+    let actions = [
+        Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None),
+        Action::send(Id::Xch, puzzle_hash, 1, Memos::None),
+    ];
+
+    let mut spends = Spends::new(alice.puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let input_coin_id = spends.xch.items[0].asset.coin_id();
+    let intermediate_coin = Coin::new(input_coin_id, puzzle_hash, 1);
+
+    ctx.spend(intermediate_coin, delegated_spend)?;
+    spends
+        .conditions
+        .required
+        .push(Condition::assert_concurrent_spend(
+            intermediate_coin.coin_id(),
+        ));
+
+    let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+
+    let tx = VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+
+    assert_eq!(tx.spends.len(), 2);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.children.len(), 2);
+
+    let child_1 = &spend.children[0];
+    assert_eq!(child_1.asset.coin().amount, 1);
+    assert_eq!(child_1.memos.p2_puzzle_hash, alice.puzzle_hash);
+
+    let intermediate_child = &spend.children[1];
+    assert_eq!(intermediate_child.asset.coin().amount, 0);
+    assert_eq!(intermediate_child.memos.p2_puzzle_hash, puzzle_hash);
 
     let intermediate_spend = &tx.spends[1];
     assert_eq!(intermediate_spend.children.len(), 1);
