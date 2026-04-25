@@ -85,8 +85,8 @@ pub fn parse_linked_spend(
             launcher_id: _,
 
             // There's also no reason to check the nonce used for the coin, since it's owned by the vault
-            // regardless.
-            nonce: _,
+            // regardless. But we can reveal it to the facts, so that we can derive the p2 puzzle hash later.
+            nonce,
 
             // We are only really interested in the conditions of the custody spend.
             conditions,
@@ -98,6 +98,8 @@ pub fn parse_linked_spend(
     else {
         return Err(DriverError::InvalidLinkedCustody);
     };
+
+    facts.reveal_vault_nonce(*nonce);
 
     // If we're clawing a coin back, we need to keep track of its expiration time.
     // This will be used to ensure that the clawback won't expire before the rest of
