@@ -81,20 +81,17 @@ impl TestVault {
         ctx: &mut SpendContext,
         actions: &[Action],
     ) -> Result<TransactionData> {
-        let spends = Spends::new(self.puzzle_hash);
+        let mut spends = Spends::new(self.puzzle_hash);
+        self.select_coins(sim, &mut spends, &Deltas::from_actions(actions))?;
         self.custom_spend(sim, ctx, actions, spends, Conditions::new())
     }
 
-    pub fn custom_spend(
+    pub fn select_coins(
         &self,
-        sim: &mut Simulator,
-        ctx: &mut SpendContext,
-        actions: &[Action],
-        mut spends: Spends,
-        mut vault_conditions: Conditions,
-    ) -> Result<TransactionData> {
-        let deltas = Deltas::from_actions(actions);
-
+        sim: &Simulator,
+        spends: &mut Spends,
+        deltas: &Deltas,
+    ) -> Result<()> {
         for &id in deltas.ids() {
             let delta = deltas.get(&id).copied().unwrap_or_default();
 
@@ -142,8 +139,18 @@ impl TestVault {
             }
         }
 
-        let deltas = spends.apply(ctx, actions)?;
+        Ok(())
+    }
 
+    pub fn custom_spend(
+        &self,
+        sim: &mut Simulator,
+        ctx: &mut SpendContext,
+        actions: &[Action],
+        mut spends: Spends,
+        mut vault_conditions: Conditions,
+    ) -> Result<TransactionData> {
+        let deltas = spends.apply(ctx, actions)?;
         let spends = spends.prepare(ctx, &deltas, Relation::None)?;
 
         let mut coin_spends = HashMap::new();
