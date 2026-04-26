@@ -2,8 +2,10 @@ use std::collections::HashMap;
 
 use chia_protocol::{Bytes32, CoinSpend};
 use chia_sdk_types::{Mod, puzzles::SingletonMember};
+use clvm_traits::{ToClvm, clvm_quote};
 use clvm_utils::tree_hash;
 use clvmr::Allocator;
+use indexmap::IndexSet;
 
 use crate::{
     AssertedRequestedPayment, ClawbackInfo, ClawbackV2, CustodyInfo, DriverError, DropCoin, Facts,
@@ -90,6 +92,13 @@ pub fn parse_vault_transaction(
             return Err(DriverError::InvalidLinkedCustody);
         };
 
+        let delegated_puzzle = clvm_quote!(conditions).to_clvm(allocator)?;
+        let delegated_puzzle_hash = tree_hash(allocator, delegated_puzzle);
+
+        if delegated_puzzle_hash != message.delegated_puzzle_hash.into() {
+            return Err(DriverError::WrongConditions);
+        }
+
         if let Some(time) = parsed_spend.required_expiration_time {
             facts.update_required_expiration_time(time);
         }
@@ -109,6 +118,69 @@ pub fn parse_vault_transaction(
             custody,
             children,
         });
+    }
+
+    let mut stack: IndexSet<Bytes32> = verified_spends
+        .iter()
+        .flat_map(|spend| {
+            spend
+                .children
+                .iter()
+                .map(|child| child.asset.coin().coin_id())
+        })
+        .collect();
+
+    while let Some(coin_id) = stack.pop() {
+        if !facts.is_spend_asserted(coin_id) {
+            continue;
+        }
+
+        let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
+            return Err(DriverError::MissingSpend);
+        };
+
+        let Some(spend) = reveals.coin_spend(coin_id) else {
+            return Err(DriverError::MissingSpend);
+        };
+
+        let Some(custody) = parsed_spend.custody else {
+            return Err(DriverError::InvalidLinkedCustody);
+        };
+
+        let CustodyInfo::DelegatedConditions(conditions) = &custody else {
+            return Err(DriverError::InvalidLinkedCustody);
+        };
+
+        if let Some(time) = parsed_spend.required_expiration_time {
+            facts.update_required_expiration_time(time);
+        }
+
+        let children = parse_children(
+            &mut facts,
+            allocator,
+            &parsed_spend.asset,
+            spend,
+            conditions,
+            parsed_spend.required_expiration_time.is_some(),
+        )?;
+
+        verified_spends.push(VerifiedSpend {
+            asset: parsed_spend.asset,
+            clawback: parsed_spend.clawback,
+            custody,
+            children,
+        });
+    }
+
+    // If the transaction expires after the required expiration time of the spend,
+    // we can't guarantee that the transaction will expire when the spend expires,
+    // which is a security vulnerability.
+    if facts.required_expiration_time().is_some_and(|required| {
+        facts
+            .actual_expiration_time()
+            .is_none_or(|expiration| expiration > required)
+    }) {
+        return Err(DriverError::UnguaranteedClawBack);
     }
 
     let delegated_puzzle_hash = tree_hash(allocator, delegated_spend.puzzle).into();

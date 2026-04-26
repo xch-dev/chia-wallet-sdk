@@ -151,4 +151,7 @@ pub enum DriverError {
 
     #[error("conflicting vault launcher ids")]
     ConflictingVaultLauncherIds,
+
+    #[error("conditions do not match message")]
+    WrongConditions,
 }

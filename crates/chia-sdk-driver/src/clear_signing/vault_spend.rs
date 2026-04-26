@@ -110,17 +110,6 @@ pub fn parse_vault_delegated_spend(
         }
     }
 
-    // If the transaction expires after the required expiration time of the spend,
-    // we can't guarantee that the transaction will expire when the spend expires,
-    // which is a security vulnerability.
-    if facts.required_expiration_time().is_some_and(|required| {
-        facts
-            .actual_expiration_time()
-            .is_none_or(|expiration| expiration > required)
-    }) {
-        return Err(DriverError::UnguaranteedClawBack);
-    }
-
     Ok(VaultSpendSummary {
         child,
         drop_coins,
