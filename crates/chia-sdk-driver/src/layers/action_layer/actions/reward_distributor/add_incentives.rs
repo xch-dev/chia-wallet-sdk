@@ -65,7 +65,7 @@ impl RewardDistributorAddIncentivesAction {
                 distributor.coin.puzzle_hash,
                 RewardDistributorCreatedAnnouncementPrefix::add_incentives(
                     amount,
-                    my_state.round_time_info.epoch_end,
+                    my_state.round_time_info.last_update,
                 ),
             ));
 

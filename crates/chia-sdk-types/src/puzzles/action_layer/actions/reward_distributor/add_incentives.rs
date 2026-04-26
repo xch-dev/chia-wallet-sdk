@@ -15,7 +15,7 @@ pub const REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE: [u8; 247] = hex!(
     04ff27ffff04ffff11ffff10ff57ff2f80ff3f80ffff04ff81b7ffff04ffff04
     ff820277ffff10ff820377ffff12ffff11ff2fff3f80ff0b808080ff8201f780
     808080ffff04ffff04ffff013effff04ffff0effff0169ffff0bffff0102ffff
-    0bffff0101ff2f80ffff0bffff0101ff8203f7808080ff808080ffff04ffff04
+    0bffff0101ff2f80ffff0bffff0101ff8202f7808080ff808080ffff04ffff04
     ffff0181d6ffff04ffff0133ffff04ff02ffff04ff3fffff04ffff04ff02ff80
     80ff808080808080ff80808080ffff01ff088080ff0180
     "
@@ -23,7 +23,7 @@ pub const REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE: [u8; 247] = hex!(
 
 pub const REWARD_DISTRIBUTOR_ADD_INCENTIVES_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    b696b29055d73c5f514eaff390c51d4e64adbc0ff13b8e9a280330b7be372de6
+    01146475a5ece9f0625beb4a82298e37dc864a3c162e7533585967517b37bee7
     "
 ));
 

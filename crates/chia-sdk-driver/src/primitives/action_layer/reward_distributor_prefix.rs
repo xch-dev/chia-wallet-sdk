@@ -33,10 +33,10 @@ pub fn prefix_hash(prefix: u8, hash: TreeHash) -> Vec<u8> {
 }
 
 impl RewardDistributorCreatedAnnouncementPrefix {
-    pub fn add_incentives(amount: u64, epoch_end: u64) -> Vec<u8> {
+    pub fn add_incentives(amount: u64, epoch_last_update: u64) -> Vec<u8> {
         prefix_hash(
             Self::AddIncentives as u8,
-            clvm_tuple!(amount, epoch_end).tree_hash(),
+            clvm_tuple!(amount, epoch_last_update).tree_hash(),
         )
     }
 
