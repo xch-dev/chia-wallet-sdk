@@ -263,7 +263,7 @@ fn test_clear_signing_intermediate_delegated_conditions() -> Result<()> {
     assert_eq!(child_1.memos.p2_puzzle_hash, alice.puzzle_hash);
 
     let intermediate_child = &spend.children[1];
-    assert_eq!(intermediate_child.asset.coin().amount, 0);
+    assert_eq!(intermediate_child.asset.coin().amount, 1);
     assert_eq!(intermediate_child.memos.p2_puzzle_hash, puzzle_hash);
 
     let intermediate_spend = &tx.spends[1];

@@ -60,6 +60,9 @@ pub fn parse_vault_delegated_spend(
             Condition::AssertPuzzleAnnouncement(condition) => {
                 facts.assert_puzzle_announcement(condition.announcement_id);
             }
+            Condition::AssertConcurrentSpend(condition) => {
+                facts.assert_spend(condition.coin_id);
+            }
             Condition::AssertBeforeSecondsAbsolute(condition) => {
                 facts.update_actual_expiration_time(condition.seconds);
             }

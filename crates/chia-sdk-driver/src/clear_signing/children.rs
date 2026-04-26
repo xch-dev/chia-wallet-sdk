@@ -37,6 +37,9 @@ pub fn parse_children(
             Condition::AssertPuzzleAnnouncement(condition) => {
                 facts.assert_puzzle_announcement(condition.announcement_id);
             }
+            Condition::AssertConcurrentSpend(condition) => {
+                facts.assert_spend(condition.coin_id);
+            }
             Condition::AssertBeforeSecondsAbsolute(condition) => {
                 // We shouldn't allow a claw back spend to say when the transaction will expire.
                 // Otherwise, it could pretend that it's impossible for the clawback to expire
