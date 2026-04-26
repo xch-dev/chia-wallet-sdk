@@ -22,14 +22,13 @@ pub fn parse_children(
 ) -> Result<Vec<ParsedChild>, DriverError> {
     // Now, we should be able to assume that the conditions will be output if the transaction is valid.
     let mut children = Vec::new();
-    let mut child_index = 0;
 
     // We should parse CAT children up front, so that we can hydrate their details when adding children later.
-    let cats = if matches!(asset, ParsedAsset::Cat(_)) {
+    let mut cats = if matches!(asset, ParsedAsset::Cat(_)) {
         Cat::parse_children(allocator, spend.coin, spend.puzzle, spend.solution)?
             .unwrap_or_default()
     } else {
-        vec![]
+        return Err(DriverError::MissingChild);
     };
 
     for condition in conditions {
@@ -95,27 +94,22 @@ pub fn parse_children(
                     }
                     // CATs never output anything other than CAT children.
                     ParsedAsset::Cat(parent) => {
-                        if let Some(cat) = cats.get(child_index) {
-                            // This prevents an attack where someone tricks you into spending a CAT, sending it
-                            // back to you, and wrapping it in a revocation layer that they control.
-                            if cat.info.hidden_puzzle_hash.is_some()
-                                && parent.info.hidden_puzzle_hash.is_none()
-                            {
-                                return Err(DriverError::RevocableChild);
-                            }
+                        let cat = cats.remove(0);
 
-                            children.push(ParsedChild {
-                                asset: ParsedAsset::Cat(*cat),
-                                memos: parse_memos(allocator, *condition, true),
-                            });
-                        } else {
-                            return Err(DriverError::MissingChild);
+                        // This prevents an attack where someone tricks you into spending a CAT, sending it
+                        // back to you, and wrapping it in a revocation layer that they control.
+                        if cat.info.hidden_puzzle_hash.is_some()
+                            && parent.info.hidden_puzzle_hash.is_none()
+                        {
+                            return Err(DriverError::RevocableChild);
                         }
+
+                        children.push(ParsedChild {
+                            asset: ParsedAsset::Cat(cat),
+                            memos: parse_memos(allocator, *condition, true),
+                        });
                     }
                 }
-
-                // This is for indexing into the CAT children.
-                child_index += 1;
             }
             _ => {}
         }
