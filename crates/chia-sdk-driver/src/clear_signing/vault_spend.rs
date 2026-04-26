@@ -5,16 +5,13 @@ use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 use num_bigint::BigInt;
 
-use crate::{
-    DriverError, Facts, LinkedSpendSummary, Spend, parse_delegated_spend, parse_linked_spend,
-    parse_vault_message,
-};
+use crate::{DriverError, Facts, Spend, VaultMessage, parse_delegated_spend, parse_vault_message};
 
 #[derive(Debug, Clone)]
 pub struct VaultSpendSummary {
     pub child: Option<VaultOutput>,
     pub drop_coins: Vec<DropCoin>,
-    pub linked_spends: Vec<LinkedSpendSummary>,
+    pub messages: Vec<VaultMessage>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -56,7 +53,7 @@ pub fn parse_vault_delegated_spend(
 
     let mut child = None;
     let mut drop_coins = Vec::new();
-    let mut linked_spends = Vec::new();
+    let mut messages = Vec::new();
 
     for condition in conditions {
         match condition {
@@ -97,8 +94,7 @@ pub fn parse_vault_delegated_spend(
                 // These coins are considered "linked", meaning that their conditions should also be treated as fact if
                 // they can be validated to be impossible to circumvent.
                 let vault_message = parse_vault_message(allocator, condition)?;
-                let summary = parse_linked_spend(facts, allocator, vault_message)?;
-                linked_spends.push(summary);
+                messages.push(vault_message);
             }
             Condition::Other(condition) => {
                 let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(allocator, condition)?;
@@ -128,6 +124,6 @@ pub fn parse_vault_delegated_spend(
     Ok(VaultSpendSummary {
         child,
         drop_coins,
-        linked_spends,
+        messages,
     })
 }

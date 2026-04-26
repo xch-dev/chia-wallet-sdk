@@ -1,12 +1,14 @@
+use std::collections::HashMap;
+
 use chia_protocol::{Bytes32, CoinSpend};
 use chia_sdk_types::{Mod, puzzles::SingletonMember};
 use clvm_utils::tree_hash;
 use clvmr::Allocator;
 
 use crate::{
-    AssertedRequestedPayment, ClawbackV2, DriverError, DropCoin, Facts, LinkedSpendSummary, Spend,
-    VaultOutput, VaultSpendSummary, mips_puzzle_hash, parse_asserted_requested_payments,
-    parse_vault_delegated_spend,
+    AssertedRequestedPayment, ClawbackInfo, ClawbackV2, CustodyInfo, DriverError, DropCoin, Facts,
+    P2SingletonInfo, ParsedAsset, ParsedChild, Reveals, Spend, VaultOutput, mips_puzzle_hash,
+    parse_asserted_requested_payments, parse_children, parse_spend, parse_vault_delegated_spend,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -22,7 +24,7 @@ pub struct VaultTransaction {
     /// Coins which were created as outputs of the vault singleton spend itself, for example to mint NFTs.
     pub drop_coins: Vec<DropCoin>,
     /// The spends (and their children) which were authorized by the vault.
-    pub spends: Vec<LinkedSpendSummary>,
+    pub spends: Vec<VerifiedSpend>,
     /// Requested payments which were both revealed and asserted by the vault spend. These are assets which are going
     /// to be received when and if the transaction is confirmed on-chain.
     pub received_payments: Vec<AssertedRequestedPayment>,
@@ -43,83 +45,127 @@ pub struct VaultTransaction {
     pub delegated_puzzle_hash: Bytes32,
 }
 
-impl VaultTransaction {
-    pub fn parse(
-        allocator: &mut Allocator,
-        delegated_spend: Spend,
-        coin_spends: Vec<CoinSpend>,
-        spent_clawbacks: Vec<ClawbackV2>,
-    ) -> Result<Self, DriverError> {
-        let mut facts = Facts::default();
-
-        facts.reveal_vault_nonce(0);
-
-        for coin_spend in coin_spends {
-            facts.reveal_coin_spend(allocator, &coin_spend)?;
-        }
-
-        for clawback in spent_clawbacks {
-            facts.reveal_clawback(clawback);
-        }
-
-        let summary = parse_vault_delegated_spend(&mut facts, allocator, delegated_spend)?;
-        let delegated_puzzle_hash = tree_hash(allocator, delegated_spend.puzzle).into();
-
-        Self::from_vault_spend_summary(&facts, allocator, summary, delegated_puzzle_hash)
-    }
-
-    pub fn from_vault_spend_summary(
-        facts: &Facts,
-        allocator: &Allocator,
-        summary: VaultSpendSummary,
-        delegated_puzzle_hash: Bytes32,
-    ) -> Result<Self, DriverError> {
-        let reserved_fee = facts.reserved_fees().try_into()?;
-
-        let mut input_amount = 0;
-        let mut output_amount = 0;
-
-        for spend in &summary.linked_spends {
-            input_amount += u128::from(spend.asset.coin().amount);
-
-            for child in &spend.children {
-                output_amount += u128::from(child.asset.coin().amount);
-            }
-        }
-
-        let fee_paid = (input_amount - output_amount).try_into()?;
-        let received_payments = parse_asserted_requested_payments(facts, allocator)?;
-        let launcher_id = find_launcher_id(&summary.linked_spends)?;
-        let p2_puzzle_hashes = if let Some(launcher_id) = launcher_id {
-            calculate_p2_puzzle_hashes(facts, launcher_id)
-        } else {
-            Vec::new()
-        };
-
-        Ok(Self {
-            vault_child: summary.child,
-            drop_coins: summary.drop_coins,
-            spends: summary.linked_spends,
-            received_payments,
-            fee_paid,
-            reserved_fee,
-            launcher_id,
-            p2_puzzle_hashes,
-            delegated_puzzle_hash,
-        })
-    }
+#[derive(Debug, Clone)]
+pub struct VerifiedSpend {
+    pub asset: ParsedAsset,
+    pub clawback: Option<ClawbackInfo>,
+    pub custody: CustodyInfo,
+    pub children: Vec<ParsedChild>,
 }
 
-fn find_launcher_id(linked_spends: &[LinkedSpendSummary]) -> Result<Option<Bytes32>, DriverError> {
+pub fn parse_vault_transaction(
+    allocator: &mut Allocator,
+    delegated_spend: Spend,
+    coin_spends: Vec<CoinSpend>,
+    spent_clawbacks: Vec<ClawbackV2>,
+) -> Result<VaultTransaction, DriverError> {
+    let mut facts = Facts::default();
+
+    let reveals = Reveals::from_spends(allocator, coin_spends, spent_clawbacks)?;
+    let vault_spend = parse_vault_delegated_spend(&mut facts, allocator, delegated_spend)?;
+
+    let mut parsed_spends = HashMap::new();
+
+    for spend in reveals.coin_spends() {
+        let parsed_spend = parse_spend(&reveals, allocator, spend)?;
+        parsed_spends.insert(spend.coin.coin_id(), parsed_spend);
+    }
+
+    let mut verified_spends = Vec::new();
+
+    for message in vault_spend.messages {
+        let Some(parsed_spend) = parsed_spends.remove(&message.spent_coin_id) else {
+            return Err(DriverError::MissingSpend);
+        };
+
+        let Some(spend) = reveals.coin_spend(message.spent_coin_id) else {
+            return Err(DriverError::MissingSpend);
+        };
+
+        let Some(custody) = parsed_spend.custody else {
+            return Err(DriverError::InvalidLinkedCustody);
+        };
+
+        let CustodyInfo::P2Singleton(P2SingletonInfo { conditions, .. }) = &custody else {
+            return Err(DriverError::InvalidLinkedCustody);
+        };
+
+        if let Some(time) = parsed_spend.required_expiration_time {
+            facts.update_required_expiration_time(time);
+        }
+
+        let children = parse_children(
+            &mut facts,
+            allocator,
+            &parsed_spend.asset,
+            spend,
+            conditions,
+            parsed_spend.required_expiration_time.is_some(),
+        )?;
+
+        verified_spends.push(VerifiedSpend {
+            asset: parsed_spend.asset,
+            clawback: parsed_spend.clawback,
+            custody,
+            children,
+        });
+    }
+
+    let delegated_puzzle_hash = tree_hash(allocator, delegated_spend.puzzle).into();
+
+    let reserved_fee = facts.reserved_fees().try_into()?;
+
+    let mut input_amount = 0;
+    let mut output_amount = 0;
+
+    for spend in &verified_spends {
+        input_amount += u128::from(spend.asset.coin().amount);
+
+        for child in &spend.children {
+            output_amount += u128::from(child.asset.coin().amount);
+        }
+    }
+
+    let fee_paid = (input_amount - output_amount).try_into()?;
+    let received_payments = parse_asserted_requested_payments(&reveals, &facts, allocator)?;
+    let launcher_id = find_launcher_id(&verified_spends)?;
+    let p2_puzzle_hashes = if let Some(launcher_id) = launcher_id {
+        calculate_p2_puzzle_hashes(&reveals, launcher_id)
+    } else {
+        Vec::new()
+    };
+
+    Ok(VaultTransaction {
+        vault_child: vault_spend.child,
+        drop_coins: vault_spend.drop_coins,
+        spends: verified_spends,
+        received_payments,
+        fee_paid,
+        reserved_fee,
+        launcher_id,
+        p2_puzzle_hashes,
+        delegated_puzzle_hash,
+    })
+}
+
+fn find_launcher_id(spends: &[VerifiedSpend]) -> Result<Option<Bytes32>, DriverError> {
     let mut launcher_id = None;
 
-    for spend in linked_spends {
-        let Some(launcher_id) = launcher_id else {
-            launcher_id = Some(spend.p2_singleton.launcher_id);
+    for spend in spends {
+        let CustodyInfo::P2Singleton(P2SingletonInfo {
+            launcher_id: spend_launcher_id,
+            ..
+        }) = &spend.custody
+        else {
             continue;
         };
 
-        if launcher_id != spend.p2_singleton.launcher_id {
+        let Some(launcher_id) = launcher_id else {
+            launcher_id = Some(*spend_launcher_id);
+            continue;
+        };
+
+        if launcher_id != *spend_launcher_id {
             return Err(DriverError::ConflictingVaultLauncherIds);
         }
     }
@@ -127,10 +173,10 @@ fn find_launcher_id(linked_spends: &[LinkedSpendSummary]) -> Result<Option<Bytes
     Ok(launcher_id)
 }
 
-fn calculate_p2_puzzle_hashes(facts: &Facts, launcher_id: Bytes32) -> Vec<Bytes32> {
+fn calculate_p2_puzzle_hashes(reveals: &Reveals, launcher_id: Bytes32) -> Vec<Bytes32> {
     let mut p2_puzzle_hashes = Vec::new();
 
-    for nonce in facts.vault_nonces() {
+    for nonce in reveals.vault_nonces() {
         p2_puzzle_hashes.push(
             mips_puzzle_hash(
                 nonce,

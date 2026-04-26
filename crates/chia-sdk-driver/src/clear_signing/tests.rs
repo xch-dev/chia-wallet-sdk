@@ -7,7 +7,8 @@ use clvm_utils::{ToTreeHash, tree_hash};
 use rstest::rstest;
 
 use crate::{
-    Action, Deltas, Id, ParsedAsset, SpendContext, Spends, TestVault, VaultOutput, VaultTransaction,
+    Action, CustodyInfo, Deltas, Id, ParsedAsset, SpendContext, Spends, TestVault, VaultOutput,
+    parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,7 +86,7 @@ fn test_clear_signing_vault_child() -> Result<()> {
 
     let result = alice.spend(&mut sim, &mut ctx, &[])?;
 
-    let tx = VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
 
     assert_eq!(
         tx.vault_child,
@@ -113,7 +114,7 @@ fn test_clear_signing_vault_info() -> Result<()> {
         &[Action::send(Id::Xch, alice.puzzle_hash, 1, Memos::None)],
     )?;
 
-    let tx = VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
 
     // Because we spent another coin, we know the launcher id and p2 puzzle hashes.
     assert_eq!(tx.launcher_id, Some(alice.info.launcher_id));
@@ -146,7 +147,7 @@ fn test_clear_signing_self_transfer(
         &[Action::send(id, alice.puzzle_hash, 42, memos)],
     )?;
 
-    let tx = VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
 
     assert_eq!(tx.spends.len(), 1);
 
@@ -154,9 +155,12 @@ fn test_clear_signing_self_transfer(
 
     check_asset(&spend.asset, asset_id, hidden_puzzle_hash, 42);
     assert!(spend.clawback.is_none());
-    assert_eq!(spend.p2_singleton.launcher_id, alice.info.launcher_id);
-    assert_eq!(spend.p2_singleton.nonce, 0);
-    assert_eq!(spend.p2_singleton.p2_puzzle_hash, alice.puzzle_hash);
+    let CustodyInfo::P2Singleton(p2_singleton) = &spend.custody else {
+        panic!("Expected P2 singleton custody");
+    };
+    assert_eq!(p2_singleton.launcher_id, alice.info.launcher_id);
+    assert_eq!(p2_singleton.nonce, 0);
+    assert_eq!(p2_singleton.p2_puzzle_hash, alice.puzzle_hash);
     assert_eq!(spend.children.len(), 1);
 
     let child = &spend.children[0];
@@ -186,7 +190,7 @@ fn test_clear_signing_intermediate_p2_singleton() -> Result<()> {
         ],
     )?;
 
-    let tx = VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
 
     assert_eq!(tx.spends.len(), 2);
 
@@ -247,7 +251,7 @@ fn test_clear_signing_intermediate_delegated_conditions() -> Result<()> {
 
     let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
 
-    let tx = VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
 
     assert_eq!(tx.spends.len(), 2);
 
@@ -302,7 +306,7 @@ fn test_clear_signing_transfer(
         ],
     )?;
 
-    let tx = VaultTransaction::parse(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
 
     assert_eq!(tx.fee_paid, fee);
     assert_eq!(tx.reserved_fee, fee);

@@ -4,7 +4,7 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{announcement_id, tree_hash_notarized_payment};
 use clvmr::Allocator;
 
-use crate::{CatInfo, DriverError, Facts, HashedPtr, NftInfo, SingletonInfo};
+use crate::{CatInfo, DriverError, Facts, HashedPtr, NftInfo, Reveals, SingletonInfo};
 
 #[derive(Debug, Clone)]
 pub struct AssertedRequestedPayment {
@@ -29,13 +29,14 @@ pub enum RequestedAsset {
 }
 
 pub fn parse_asserted_requested_payments(
+    reveals: &Reveals,
     facts: &Facts,
     allocator: &Allocator,
 ) -> Result<Vec<AssertedRequestedPayment>, DriverError> {
     let mut payments = Vec::new();
 
-    let requested_payments = facts.requested_payments();
-    let asset_info = facts.asset_info();
+    let requested_payments = reveals.requested_payments();
+    let asset_info = reveals.asset_info();
 
     for notarized_payment in &requested_payments.xch {
         let hash = tree_hash_notarized_payment(allocator, notarized_payment);

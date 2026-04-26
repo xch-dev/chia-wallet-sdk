@@ -128,9 +128,6 @@ pub enum DriverError {
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 
-    #[error("missing vault coin spend in transaction reveal")]
-    MissingVaultCoinSpend,
-
     #[error("invalid delegated spend format")]
     InvalidDelegatedSpendFormat,
 

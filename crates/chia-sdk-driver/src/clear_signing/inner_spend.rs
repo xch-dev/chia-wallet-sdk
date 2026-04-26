@@ -3,8 +3,9 @@ use chia_sdk_types::Condition;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    ClawbackV2, DelegatedPuzzleFeederLayer, DriverError, Facts, IndexWrapperLayer, Layer,
-    P2OneOfManyLayer, Puzzle, RevealedP2Puzzle, SingletonMemberLayer, Spend, parse_delegated_spend,
+    ClawbackV2, DelegatedPuzzleFeederLayer, DriverError, IndexWrapperLayer, Layer,
+    P2OneOfManyLayer, Puzzle, RevealedP2Puzzle, Reveals, SingletonMemberLayer, Spend,
+    parse_delegated_spend,
 };
 
 #[derive(Debug, Clone)]
@@ -43,7 +44,7 @@ pub struct P2SingletonInfo {
 type P2SingletonLayers = IndexWrapperLayer<usize, DelegatedPuzzleFeederLayer<SingletonMemberLayer>>;
 
 pub fn parse_inner_spend(
-    facts: &Facts,
+    reveals: &Reveals,
     allocator: &Allocator,
     puzzle: Puzzle,
     solution: NodePtr,
@@ -64,7 +65,7 @@ pub fn parse_inner_spend(
                 p2_puzzle_hash,
             })),
         })
-    } else if let Some(p2_puzzle) = facts.p2_puzzle(puzzle.curried_puzzle_hash().into()) {
+    } else if let Some(p2_puzzle) = reveals.p2_puzzle(puzzle.curried_puzzle_hash()) {
         match p2_puzzle {
             RevealedP2Puzzle::Clawback(clawback) => {
                 let solution = P2OneOfManyLayer::parse_solution(allocator, solution)?;
@@ -106,7 +107,7 @@ pub fn parse_inner_spend(
                 if path != ClawbackPath::PushThrough {
                     let solution_puzzle = Puzzle::parse(allocator, solution.puzzle);
                     let inner_spend =
-                        parse_inner_spend(facts, allocator, solution_puzzle, solution.solution)?;
+                        parse_inner_spend(reveals, allocator, solution_puzzle, solution.solution)?;
 
                     if inner_spend.clawback.is_some() {
                         return Err(DriverError::NestedClawback);
@@ -117,11 +118,14 @@ pub fn parse_inner_spend(
 
                 Ok(result)
             }
-            RevealedP2Puzzle::DelegatedConditions(conditions) => Ok(InnerSpend {
-                clawback: None,
-                custody: Some(CustodyInfo::DelegatedConditions(conditions.clone())),
-            }),
         }
+    } else if let Ok(conditions) =
+        parse_delegated_spend(allocator, Spend::new(puzzle.ptr(), solution))
+    {
+        Ok(InnerSpend {
+            clawback: None,
+            custody: Some(CustodyInfo::DelegatedConditions(conditions)),
+        })
     } else {
         Ok(InnerSpend {
             clawback: None,
