@@ -1,17 +1,18 @@
 use std::collections::HashMap;
 
 use chia_protocol::{Bytes32, CoinSpend};
-use chia_sdk_types::{Mod, puzzles::SingletonMember};
+use chia_sdk_types::{Condition, Mod, puzzles::SingletonMember};
 use clvm_traits::{ToClvm, clvm_quote};
 use clvm_utils::tree_hash;
 use clvmr::Allocator;
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 
 use crate::{
     AssertedRequestedPayment, ClawbackInfo, ClawbackV2, CustodyInfo, DriverError, DropCoin, Facts,
-    P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild, ParsedSpend, Reveals,
-    Spend, VaultMessage, VaultOutput, mips_puzzle_hash, parse_asserted_requested_payments,
-    parse_children, parse_spend, parse_vault_delegated_spend,
+    Issuance, IssuanceKind, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild,
+    ParsedSpend, Reveals, Spend, VaultMessage, VaultOutput, mips_puzzle_hash,
+    parse_asserted_requested_payments, parse_cat_extra_delta, parse_children, parse_run_cat_tails,
+    parse_spend, parse_vault_delegated_spend,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -28,6 +29,10 @@ pub struct VaultTransaction {
     pub drop_coins: Vec<DropCoin>,
     /// The spends (and their children) which were authorized by the vault.
     pub spends: Vec<VerifiedSpend>,
+    /// CAT supply changes (mints or melts) authorized by spends in this transaction. Each issuance
+    /// records the coin id of the spend that emitted the `RunCatTail` condition, so callers can
+    /// match it back to the corresponding `VerifiedSpend` by coin id if they want to.
+    pub issuances: Vec<Issuance>,
     /// Requested payments which were both revealed and asserted by the vault spend. These are assets which are going
     /// to be received when and if the transaction is confirmed on-chain.
     pub received_payments: Vec<AssertedRequestedPayment>,
@@ -74,16 +79,30 @@ pub fn parse_vault_transaction(
         parsed_spends.insert(spend.coin.coin_id(), parsed_spend);
     }
 
-    let mut verified_spends = Vec::new();
-
+    // Group messages by their target coin id, preserving the order of first occurrence so that the
+    // resulting verified spends still appear in the order the user authorized them. This lets one
+    // coin receive multiple messages — for example a CAT eve coin receiving both a custody message
+    // for its inner p2 puzzle and a TAIL message for its `EverythingWithSingleton` issuance.
+    let mut messages_by_coin: IndexMap<Bytes32, Vec<VaultMessage>> = IndexMap::new();
     for message in vault_spend.messages {
+        messages_by_coin
+            .entry(message.spent_coin_id)
+            .or_default()
+            .push(message);
+    }
+
+    let mut verified_spends = Vec::new();
+    let mut issuances: Vec<Issuance> = Vec::new();
+
+    for (coin_id, messages) in messages_by_coin {
         let verified_spend = verify_spend(
             &reveals,
             &mut facts,
             allocator,
             &mut parsed_spends,
-            message.spent_coin_id,
-            Some(message),
+            coin_id,
+            &messages,
+            &mut issuances,
         )?;
 
         verified_spends.push(verified_spend);
@@ -110,7 +129,8 @@ pub fn parse_vault_transaction(
             allocator,
             &mut parsed_spends,
             coin_id,
-            None,
+            &[],
+            &mut issuances,
         )?;
 
         for child in &verified_spend.children {
@@ -159,6 +179,7 @@ pub fn parse_vault_transaction(
         vault_child: vault_spend.child,
         drop_coins: vault_spend.drop_coins,
         spends: verified_spends,
+        issuances,
         received_payments,
         fee_paid,
         reserved_fee,
@@ -174,7 +195,8 @@ fn verify_spend(
     allocator: &mut Allocator,
     parsed_spends: &mut HashMap<Bytes32, ParsedSpend>,
     coin_id: Bytes32,
-    message: Option<VaultMessage>,
+    messages: &[VaultMessage],
+    issuances: &mut Vec<Issuance>,
 ) -> Result<VerifiedSpend, DriverError> {
     let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
         return Err(DriverError::MissingSpend);
@@ -188,30 +210,104 @@ fn verify_spend(
         return Err(DriverError::InvalidLinkedCustody);
     };
 
-    let conditions = if let Some(message) = message {
-        let (CustodyInfo::P2Singleton(P2SingletonInfo { conditions, .. })
+    // Pull the trusted inner conditions out of the custody. This requires the custody to be one
+    // of the recognized types: P2 singleton, P2 conditions or singleton, or top-level delegated
+    // conditions. Any other custody type means we can't see the inner conditions, so we can't
+    // verify what the spend will produce (or whether it issues a CAT), and the spend must be
+    // rejected. This is also what guarantees that any `RunCatTail` we find here can't be
+    // substituted with something else (e.g. a `ReceiveMessage`) without invalidating the user's
+    // signature.
+    let conditions: &[Condition] = match &custody {
+        CustodyInfo::P2Singleton(P2SingletonInfo { conditions, .. })
         | CustodyInfo::P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo {
             conditions, ..
-        })) = &custody
-        else {
+        })
+        | CustodyInfo::DelegatedConditions(conditions) => conditions,
+    };
+
+    // Custody type rules:
+    //   * Messaged spends must use one of the singleton-message-receiving custody types.
+    //   * Chained spends (no message) must use top-level delegated conditions.
+    if messages.is_empty() {
+        if !matches!(custody, CustodyInfo::DelegatedConditions(_)) {
             return Err(DriverError::InvalidLinkedCustody);
-        };
+        }
+    } else if !matches!(
+        custody,
+        CustodyInfo::P2Singleton(_) | CustodyInfo::P2ConditionsOrSingleton(_)
+    ) {
+        return Err(DriverError::InvalidLinkedCustody);
+    }
 
+    // The hash of the conditions, used to match custody-auth messages.
+    let conditions_hash = if matches!(
+        custody,
+        CustodyInfo::P2Singleton(_) | CustodyInfo::P2ConditionsOrSingleton(_)
+    ) {
         let delegated_puzzle = clvm_quote!(conditions).to_clvm(allocator)?;
-        let delegated_puzzle_hash = tree_hash(allocator, delegated_puzzle);
+        Some(tree_hash(allocator, delegated_puzzle))
+    } else {
+        None
+    };
 
-        if delegated_puzzle_hash != message.delegated_puzzle_hash.into() {
-            return Err(DriverError::WrongConditions);
+    // Find every TAIL invocation in the trusted inner conditions. Only meaningful for CAT spends —
+    // the CAT layer is what runs the TAIL, so for non-CAT assets a `RunCatTail` condition has no
+    // effect and we ignore it.
+    let tail_invocations = if matches!(parsed_spend.asset, ParsedAsset::Cat(_)) {
+        parse_run_cat_tails(allocator, conditions)?
+    } else {
+        Vec::new()
+    };
+
+    // Match each vault message to either a custody-auth slot or a TAIL-auth slot, one-to-one. A
+    // message that doesn't match anything is a fatal error: silently authorizing a message we
+    // don't understand is exactly the security hole the clear signer exists to prevent.
+    //
+    // We don't need to verify that an `EverythingWithSingleton` TAIL's curried `singleton_struct_hash`
+    // matches this vault — the vault is the sender of the `SendMessage`, so consensus will only
+    // pair it with a `RECEIVE_MESSAGE` that names the vault's full puzzle hash as sender. If the
+    // TAIL is for a different singleton, the transaction is invalid and won't be confirmed.
+    let mut tail_matched = vec![false; tail_invocations.len()];
+    let mut custody_matched = false;
+
+    for message in messages {
+        if let Some(hash) = conditions_hash
+            && message.message.len() == 32
+            && message.message.as_ref() == hash.as_ref()
+        {
+            if custody_matched {
+                return Err(DriverError::DuplicateVaultMessage);
+            }
+            custody_matched = true;
+            continue;
         }
 
-        conditions
-    } else {
-        let CustodyInfo::DelegatedConditions(conditions) = &custody else {
-            return Err(DriverError::InvalidLinkedCustody);
-        };
+        let mut matched = false;
+        for (index, invocation) in tail_invocations.iter().enumerate() {
+            if tail_matched[index] {
+                continue;
+            }
 
-        conditions
-    };
+            // Only `EverythingWithSingleton` TAILs accept vault messages.
+            if !matches!(invocation.kind, IssuanceKind::Singleton { .. }) {
+                continue;
+            }
+
+            tail_matched[index] = true;
+            matched = true;
+            break;
+        }
+
+        if !matched {
+            return Err(DriverError::UnmatchedVaultMessage);
+        }
+    }
+
+    // Messaged spends require a custody-auth message: the inner p2 puzzle's RECEIVE_MESSAGE
+    // wouldn't be satisfied otherwise, and the spend wouldn't actually run.
+    if !messages.is_empty() && !custody_matched {
+        return Err(DriverError::WrongConditions);
+    }
 
     if let Some(time) = parsed_spend.required_expiration_time {
         facts.update_required_expiration_time(time);
@@ -225,6 +321,29 @@ fn verify_spend(
         conditions,
         parsed_spend.required_expiration_time.is_some(),
     )?;
+
+    // Record an Issuance for every TAIL invocation in this spend. Because the surrounding
+    // conditions are pinned by custody, the issuance is guaranteed to happen as described — the
+    // submitter cannot rewrite the `RunCatTail` into a `ReceiveMessage` (or anything else) without
+    // invalidating the signature.
+    if let ParsedAsset::Cat(cat) = &parsed_spend.asset
+        && !tail_invocations.is_empty()
+    {
+        // `extra_delta` is taken from the CAT layer's outer solution, not derived from this coin's
+        // conditions in isolation: in a multi-coin ring, the TAIL is run by exactly one coin and
+        // sees the *ring-wide* delta, which is committed in that coin's solution.
+        let delta = parse_cat_extra_delta(allocator, spend.solution)?;
+
+        for invocation in &tail_invocations {
+            issuances.push(Issuance {
+                coin_id,
+                asset_id: invocation.asset_id,
+                hidden_puzzle_hash: cat.info.hidden_puzzle_hash,
+                delta,
+                kind: invocation.kind,
+            });
+        }
+    }
 
     Ok(VerifiedSpend {
         asset: parsed_spend.asset,
