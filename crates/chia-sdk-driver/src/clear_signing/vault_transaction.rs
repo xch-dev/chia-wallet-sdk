@@ -216,20 +216,14 @@ fn verify_spend(
     };
 
     if messages.is_empty() {
-        if !matches!(custody, CustodyInfo::DelegatedConditions(_)) {
+        if custody.receives_message() {
             return Err(DriverError::InvalidLinkedCustody);
         }
-    } else if !matches!(
-        custody,
-        CustodyInfo::P2Singleton(_) | CustodyInfo::P2ConditionsOrSingleton(_)
-    ) {
+    } else if !custody.receives_message() {
         return Err(DriverError::InvalidLinkedCustody);
     }
 
-    let conditions_hash = if matches!(
-        custody,
-        CustodyInfo::P2Singleton(_) | CustodyInfo::P2ConditionsOrSingleton(_)
-    ) {
+    let conditions_hash = if custody.receives_message() {
         let delegated_puzzle = clvm_quote!(conditions).to_clvm(allocator)?;
         Some(tree_hash(allocator, delegated_puzzle))
     } else {

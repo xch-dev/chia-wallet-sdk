@@ -38,6 +38,15 @@ pub enum CustodyInfo {
     P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo),
 }
 
+impl CustodyInfo {
+    pub fn receives_message(&self) -> bool {
+        matches!(
+            self,
+            Self::P2Singleton(_) | Self::P2ConditionsOrSingleton(_)
+        )
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct P2SingletonInfo {
     pub launcher_id: Bytes32,
