@@ -79,10 +79,6 @@ pub fn parse_vault_transaction(
         parsed_spends.insert(spend.coin.coin_id(), parsed_spend);
     }
 
-    // Group messages by their target coin id, preserving the order of first occurrence so that the
-    // resulting verified spends still appear in the order the user authorized them. This lets one
-    // coin receive multiple messages — for example a CAT eve coin receiving both a custody message
-    // for its inner p2 puzzle and a TAIL message for its `EverythingWithSingleton` issuance.
     let mut messages_by_coin: IndexMap<Bytes32, Vec<VaultMessage>> = IndexMap::new();
     for message in vault_spend.messages {
         messages_by_coin
@@ -210,13 +206,6 @@ fn verify_spend(
         return Err(DriverError::InvalidLinkedCustody);
     };
 
-    // Pull the trusted inner conditions out of the custody. This requires the custody to be one
-    // of the recognized types: P2 singleton, P2 conditions or singleton, or top-level delegated
-    // conditions. Any other custody type means we can't see the inner conditions, so we can't
-    // verify what the spend will produce (or whether it issues a CAT), and the spend must be
-    // rejected. This is also what guarantees that any `RunCatTail` we find here can't be
-    // substituted with something else (e.g. a `ReceiveMessage`) without invalidating the user's
-    // signature.
     let conditions: &[Condition] = match &custody {
         CustodyInfo::P2Singleton(P2SingletonInfo { conditions, .. })
         | CustodyInfo::P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo {
@@ -225,9 +214,6 @@ fn verify_spend(
         | CustodyInfo::DelegatedConditions(conditions) => conditions,
     };
 
-    // Custody type rules:
-    //   * Messaged spends must use one of the singleton-message-receiving custody types.
-    //   * Chained spends (no message) must use top-level delegated conditions.
     if messages.is_empty() {
         if !matches!(custody, CustodyInfo::DelegatedConditions(_)) {
             return Err(DriverError::InvalidLinkedCustody);
@@ -239,7 +225,6 @@ fn verify_spend(
         return Err(DriverError::InvalidLinkedCustody);
     }
 
-    // The hash of the conditions, used to match custody-auth messages.
     let conditions_hash = if matches!(
         custody,
         CustodyInfo::P2Singleton(_) | CustodyInfo::P2ConditionsOrSingleton(_)
@@ -250,23 +235,12 @@ fn verify_spend(
         None
     };
 
-    // Find every TAIL invocation in the trusted inner conditions. Only meaningful for CAT spends —
-    // the CAT layer is what runs the TAIL, so for non-CAT assets a `RunCatTail` condition has no
-    // effect and we ignore it.
     let tail_invocations = if matches!(parsed_spend.asset, ParsedAsset::Cat(_)) {
         parse_run_cat_tails(allocator, conditions)?
     } else {
         Vec::new()
     };
 
-    // Match each vault message to either a custody-auth slot or a TAIL-auth slot, one-to-one. A
-    // message that doesn't match anything is a fatal error: silently authorizing a message we
-    // don't understand is exactly the security hole the clear signer exists to prevent.
-    //
-    // We don't need to verify that an `EverythingWithSingleton` TAIL's curried `singleton_struct_hash`
-    // matches this vault — the vault is the sender of the `SendMessage`, so consensus will only
-    // pair it with a `RECEIVE_MESSAGE` that names the vault's full puzzle hash as sender. If the
-    // TAIL is for a different singleton, the transaction is invalid and won't be confirmed.
     let mut tail_matched = vec![false; tail_invocations.len()];
     let mut custody_matched = false;
 
@@ -288,7 +262,6 @@ fn verify_spend(
                 continue;
             }
 
-            // Only `EverythingWithSingleton` TAILs accept vault messages.
             if !matches!(invocation.kind, IssuanceKind::Singleton { .. }) {
                 continue;
             }
@@ -303,8 +276,6 @@ fn verify_spend(
         }
     }
 
-    // Messaged spends require a custody-auth message: the inner p2 puzzle's RECEIVE_MESSAGE
-    // wouldn't be satisfied otherwise, and the spend wouldn't actually run.
     if !messages.is_empty() && !custody_matched {
         return Err(DriverError::WrongConditions);
     }
@@ -322,16 +293,9 @@ fn verify_spend(
         parsed_spend.required_expiration_time.is_some(),
     )?;
 
-    // Record an Issuance for every TAIL invocation in this spend. Because the surrounding
-    // conditions are pinned by custody, the issuance is guaranteed to happen as described — the
-    // submitter cannot rewrite the `RunCatTail` into a `ReceiveMessage` (or anything else) without
-    // invalidating the signature.
     if let ParsedAsset::Cat(cat) = &parsed_spend.asset
         && !tail_invocations.is_empty()
     {
-        // `extra_delta` is taken from the CAT layer's outer solution, not derived from this coin's
-        // conditions in isolation: in a multi-coin ring, the TAIL is run by exactly one coin and
-        // sees the *ring-wide* delta, which is committed in that coin's solution.
         let delta = parse_cat_extra_delta(allocator, spend.solution)?;
 
         for invocation in &tail_invocations {
