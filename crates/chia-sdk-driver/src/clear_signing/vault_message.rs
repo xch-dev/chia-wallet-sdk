@@ -8,9 +8,6 @@ use crate::DriverError;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VaultMessage {
     pub spent_coin_id: Bytes32,
-    /// The raw message bytes. Different receivers (an inner p2 puzzle vs. a CAT TAIL) interpret
-    /// these bytes differently, so the message is kept opaque at parse time and matched against
-    /// candidate receivers later, in the spend verification pass.
     pub message: Bytes,
 }
 
