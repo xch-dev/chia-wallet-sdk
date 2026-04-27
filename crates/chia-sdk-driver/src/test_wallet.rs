@@ -225,10 +225,6 @@ impl TestVault {
         let outputs = spends.spend(ctx, coin_spends)?;
         let coin_spends = ctx.take();
 
-        // After `Cat::spend_all` runs above, every CAT spend that uses an
-        // `EverythingWithSingleton` TAIL curried for this vault has the corresponding
-        // `extra_delta` committed in its CAT layer solution. Walk the finalized coin spends and
-        // emit one `SendMessage` from the vault per such TAIL run, with that delta as the body.
         let tail_messages = vault_tail_messages(ctx, self.info.launcher_id, &coin_spends)?;
         for message in tail_messages {
             vault_conditions.push(message);
@@ -393,13 +389,6 @@ fn fetch_vault(sim: &Simulator, launcher_id: Bytes32, custody_hash: Bytes32) -> 
     ))
 }
 
-/// For each CAT ring with a `RunCatTail(EverythingWithSingleton)` matching the given vault, return
-/// the coin id of the TAIL-running coin and the bytes the vault must include as the body of its
-/// `SendMessage` so that the TAIL's `RECEIVE_MESSAGE` is satisfied.
-/// For each finalized CAT coin spend that runs an `EverythingWithSingleton` TAIL curried for the
-/// given vault, return the `SendMessage` the vault must include in its delegated spend so the
-/// TAIL's `RECEIVE_MESSAGE` can be paired by consensus. The body of each message is read straight
-/// off the CAT layer's `extra_delta` so we never have to reproduce its ring math here.
 fn vault_tail_messages(
     ctx: &mut SpendContext,
     launcher_id: Bytes32,
@@ -414,24 +403,19 @@ fn vault_tail_messages(
         let puzzle = Puzzle::parse(ctx, puzzle);
         let solution = coin_spend.solution.to_clvm(ctx)?;
 
-        // Skip non-CAT spends.
         let Some((_cat, inner_puzzle, inner_solution)) =
             Cat::parse(ctx, coin_spend.coin, puzzle, solution)?
         else {
             continue;
         };
 
-        // Run the inner spend to get its conditions, then look for the TAIL the CAT layer ran.
         let output = ctx.run(inner_puzzle.ptr(), inner_solution)?;
         let conditions: Vec<Condition> = ctx.extract(output)?;
 
-        // The CAT layer only runs the first `RunCatTail` it encounters.
         let Some(run_cat_tail) = conditions.iter().find_map(Condition::as_run_cat_tail) else {
             continue;
         };
 
-        // Only `EverythingWithSingleton` TAILs receive a message; only ones curried for *this*
-        // vault would pair with a `SendMessage` the vault could plausibly emit.
         let Some(curried) = CurriedPuzzle::parse(ctx, run_cat_tail.program) else {
             continue;
         };
@@ -443,7 +427,6 @@ fn vault_tail_messages(
             continue;
         }
 
-        // The CAT layer's outer solution carries the `extra_delta` it handed to the TAIL.
         let cat_solution = CatSolution::<NodePtr>::from_clvm(ctx, solution)?;
         let extra_delta_ptr = ctx.alloc(&cat_solution.extra_delta)?;
         let extra_delta_bytes: Bytes = ctx.atom(extra_delta_ptr).as_ref().to_vec().into();
