@@ -2,10 +2,10 @@ use std::{collections::HashMap, slice};
 
 use anyhow::{Result, anyhow};
 use chia_bls::{PublicKey, SecretKey, Signature};
-use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{
     EveProof, LineageProof, Memos, Proof,
-    cat::CatArgs,
+    cat::{CatArgs, CatSolution},
     offer::SettlementPaymentsSolution,
     singleton::{SingletonArgs, SingletonStruct},
 };
@@ -17,15 +17,14 @@ use chia_sdk_types::{
     puzzles::{BlsMember, EverythingWithSingletonTailArgs, RevocationArgs},
 };
 use chia_sdk_utils::select_coins;
-use clvm_traits::ToClvm;
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
     Action, Cat, CurriedPuzzle, Deltas, Id, InnerPuzzleSpend, Launcher, Layer, MipsSpend, Nft,
-    Outputs, P2ConditionsOrSingleton, P2Singleton, Puzzle, Relation, SettlementLayer,
-    SpendableAsset, Spend, SpendContext, SpendKind, Spends, StandardLayer, Vault, VaultInfo,
-    mips_puzzle_hash,
+    Outputs, P2ConditionsOrSingleton, P2Singleton, Puzzle, Relation, SettlementLayer, Spend,
+    SpendContext, SpendKind, Spends, StandardLayer, Vault, VaultInfo, mips_puzzle_hash,
 };
 
 #[derive(Debug, Clone)]
@@ -169,23 +168,9 @@ impl TestVault {
         let deltas = spends.apply(ctx, actions)?;
         let spends = spends.prepare(ctx, &deltas, Relation::None)?;
 
-        // Pre-compute the per-CAT-ring TAIL messages this vault must send. The CAT layer hands
-        // `extra_delta = -total_ring_delta` to the TAIL puzzle of the coin that runs it; for an
-        // `EverythingWithSingleton` TAIL, that delta is also the body of the `RECEIVE_MESSAGE` the
-        // TAIL emits. We mirror `Cat::spend_all`'s ring math here so we can emit the matching
-        // `SendMessage` from the vault before the cat ring is finalized.
-        let unspent = spends.unspent();
-        let tail_messages = compute_singleton_tail_messages(ctx, self.info.launcher_id, &unspent)?;
-        for (coin_id, message_bytes) in tail_messages {
-            let mode = MessageFlags::PUZZLE.encode(MessageSide::Sender)
-                | MessageFlags::COIN.encode(MessageSide::Receiver);
-            let coin_id_node = ctx.alloc(&coin_id)?;
-            vault_conditions.push(SendMessage::new(mode, message_bytes, vec![coin_id_node]));
-        }
-
         let mut coin_spends = HashMap::new();
 
-        for (asset, kind) in unspent {
+        for (asset, kind) in spends.unspent() {
             match kind {
                 SpendKind::Conditions(spend) => {
                     let delegated_spend = ctx.delegated_spend(spend.finish())?;
@@ -239,6 +224,15 @@ impl TestVault {
 
         let outputs = spends.spend(ctx, coin_spends)?;
         let coin_spends = ctx.take();
+
+        // After `Cat::spend_all` runs above, every CAT spend that uses an
+        // `EverythingWithSingleton` TAIL curried for this vault has the corresponding
+        // `extra_delta` committed in its CAT layer solution. Walk the finalized coin spends and
+        // emit one `SendMessage` from the vault per such TAIL run, with that delta as the body.
+        let tail_messages = vault_tail_messages(ctx, self.info.launcher_id, &coin_spends)?;
+        for message in tail_messages {
+            vault_conditions.push(message);
+        }
 
         let vault = self.fetch_vault(sim)?;
 
@@ -402,86 +396,62 @@ fn fetch_vault(sim: &Simulator, launcher_id: Bytes32, custody_hash: Bytes32) -> 
 /// For each CAT ring with a `RunCatTail(EverythingWithSingleton)` matching the given vault, return
 /// the coin id of the TAIL-running coin and the bytes the vault must include as the body of its
 /// `SendMessage` so that the TAIL's `RECEIVE_MESSAGE` is satisfied.
-fn compute_singleton_tail_messages(
+/// For each finalized CAT coin spend that runs an `EverythingWithSingleton` TAIL curried for the
+/// given vault, return the `SendMessage` the vault must include in its delegated spend so the
+/// TAIL's `RECEIVE_MESSAGE` can be paired by consensus. The body of each message is read straight
+/// off the CAT layer's `extra_delta` so we never have to reproduce its ring math here.
+fn vault_tail_messages(
     ctx: &mut SpendContext,
     launcher_id: Bytes32,
-    unspent: &[(SpendableAsset, SpendKind)],
-) -> Result<Vec<(Bytes32, chia_protocol::Bytes)>> {
-    let expected_struct_hash: Bytes32 = SingletonStruct::new(launcher_id).tree_hash().into();
-
-    // Group CAT spends by asset id so we can compute a single ring delta per asset id.
-    let mut rings: HashMap<Bytes32, Vec<(Bytes32, &Conditions)>> = HashMap::new();
-
-    for (asset, kind) in unspent {
-        let SpendableAsset::Cat(cat) = asset else {
-            continue;
-        };
-        let SpendKind::Conditions(conditions) = kind else {
-            continue;
-        };
-        rings
-            .entry(cat.info.asset_id)
-            .or_default()
-            .push((cat.coin.coin_id(), conditions.conditions()));
-    }
+    coin_spends: &[CoinSpend],
+) -> Result<Vec<SendMessage<NodePtr>>, anyhow::Error> {
+    let expected_struct_hash = SingletonStruct::new(launcher_id).tree_hash();
 
     let mut messages = Vec::new();
 
-    for (_asset_id, items) in rings {
-        let mut total_delta: i128 = 0;
-        let mut tail_coin_and_program: Option<(Bytes32, NodePtr)> = None;
-        let mut amounts_by_coin: HashMap<Bytes32, u64> = HashMap::new();
-        let mut output_total_by_coin: HashMap<Bytes32, i128> = HashMap::new();
+    for coin_spend in coin_spends {
+        let puzzle = coin_spend.puzzle_reveal.to_clvm(ctx)?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+        let solution = coin_spend.solution.to_clvm(ctx)?;
 
-        for (coin_id, conditions) in &items {
-            let mut output_total: i128 = 0;
-            for condition in conditions.iter() {
-                match condition {
-                    Condition::CreateCoin(cc) => output_total += i128::from(cc.amount),
-                    Condition::RunCatTail(rct) if tail_coin_and_program.is_none() => {
-                        tail_coin_and_program = Some((*coin_id, rct.program));
-                    }
-                    _ => {}
-                }
-            }
-            output_total_by_coin.insert(*coin_id, output_total);
-        }
-
-        for (coin_id, _) in &items {
-            // Find the input amount for this coin id via the unspent items.
-            for (asset, _) in unspent {
-                if let SpendableAsset::Cat(cat) = asset
-                    && cat.coin.coin_id() == *coin_id
-                {
-                    amounts_by_coin.insert(*coin_id, cat.coin.amount);
-                    let output = output_total_by_coin.get(coin_id).copied().unwrap_or(0);
-                    total_delta += i128::from(cat.coin.amount) - output;
-                    break;
-                }
-            }
-        }
-
-        let Some((tail_coin_id, tail_program)) = tail_coin_and_program else {
+        // Skip non-CAT spends.
+        let Some((_cat, inner_puzzle, inner_solution)) =
+            Cat::parse(ctx, coin_spend.coin, puzzle, solution)?
+        else {
             continue;
         };
 
-        // Only emit a message if the TAIL is `EverythingWithSingleton` curried for this vault.
-        let Some(curried) = CurriedPuzzle::parse(&*ctx, tail_program) else {
+        // Run the inner spend to get its conditions, then look for the TAIL the CAT layer ran.
+        let output = ctx.run(inner_puzzle.ptr(), inner_solution)?;
+        let conditions: Vec<Condition> = ctx.extract(output)?;
+
+        // The CAT layer only runs the first `RunCatTail` it encounters.
+        let Some(run_cat_tail) = conditions.iter().find_map(Condition::as_run_cat_tail) else {
+            continue;
+        };
+
+        // Only `EverythingWithSingleton` TAILs receive a message; only ones curried for *this*
+        // vault would pair with a `SendMessage` the vault could plausibly emit.
+        let Some(curried) = CurriedPuzzle::parse(ctx, run_cat_tail.program) else {
             continue;
         };
         if curried.mod_hash != EverythingWithSingletonTailArgs::mod_hash() {
             continue;
         }
         let args = ctx.extract::<EverythingWithSingletonTailArgs>(curried.args)?;
-        if args.singleton_struct_hash != expected_struct_hash {
+        if args.singleton_struct_hash != expected_struct_hash.into() {
             continue;
         }
 
-        let extra_delta: i128 = -total_delta;
-        let extra_delta_node = ctx.alloc(&extra_delta)?;
-        let extra_delta_bytes: Vec<u8> = ctx.atom(extra_delta_node).as_ref().to_vec();
+        // The CAT layer's outer solution carries the `extra_delta` it handed to the TAIL.
+        let cat_solution = CatSolution::<NodePtr>::from_clvm(ctx, solution)?;
+        let extra_delta_ptr = ctx.alloc(&cat_solution.extra_delta)?;
+        let extra_delta_bytes: Bytes = ctx.atom(extra_delta_ptr).as_ref().to_vec().into();
 
-        messages.push((tail_coin_id, extra_delta_bytes.into()));
+        let mode = MessageFlags::PUZZLE.encode(MessageSide::Sender)
+            | MessageFlags::COIN.encode(MessageSide::Receiver);
+        let coin_id_ptr = ctx.alloc(&coin_spend.coin.coin_id())?;
+        messages.push(SendMessage::new(mode, extra_delta_bytes, vec![coin_id_ptr]));
     }
 
     Ok(messages)
