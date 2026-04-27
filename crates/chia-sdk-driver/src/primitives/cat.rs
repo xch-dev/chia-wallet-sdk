@@ -7,7 +7,7 @@ use chia_puzzle_types::{
 use chia_sdk_types::{
     Condition, Conditions,
     conditions::{CreateCoin, RunCatTail},
-    puzzles::{EverythingWithSingletonTailArgs, RevocationSolution},
+    puzzles::RevocationSolution,
     run_puzzle,
 };
 use clvm_traits::FromClvm;
@@ -90,27 +90,6 @@ impl Cat {
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Vec<Cat>), DriverError> {
         let tail = ctx.curry(EverythingWithSignatureTailArgs::new(public_key))?;
-
-        Self::issue(
-            ctx,
-            parent_coin_id,
-            hidden_puzzle_hash,
-            amount,
-            RunCatTail::new(tail, NodePtr::NIL),
-            extra_conditions,
-        )
-    }
-
-    pub fn singleton_issuance(
-        ctx: &mut SpendContext,
-        parent_coin_id: Bytes32,
-        launcher_id: Bytes32,
-        nonce: usize,
-        hidden_puzzle_hash: Option<Bytes32>,
-        amount: u64,
-        extra_conditions: Conditions,
-    ) -> Result<(Conditions, Vec<Cat>), DriverError> {
-        let tail = ctx.curry(EverythingWithSingletonTailArgs::new(launcher_id, nonce))?;
 
         Self::issue(
             ctx,
