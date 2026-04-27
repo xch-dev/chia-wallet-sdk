@@ -8,8 +8,8 @@ use clvm_utils::{ToTreeHash, tree_hash};
 use rstest::rstest;
 
 use crate::{
-    Action, CustodyInfo, Deltas, DropCoin, FeeAction, Id, Nft, ParsedAsset, SpendContext, Spends,
-    TestVault, VaultOutput, parse_vault_transaction,
+    Action, BURN_PUZZLE_HASH, CustodyInfo, Deltas, DropCoin, FeeAction, Id, Nft, ParsedAsset,
+    SpendContext, Spends, TestVault, VaultOutput, parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -532,6 +532,41 @@ fn test_clear_signing_mint_nft() -> Result<()> {
     let child_nft = unwrap_nft(&nft_spend.children[0].asset);
     assert_eq!(child_nft.info.launcher_id, parent_nft.info.launcher_id);
     assert_eq!(child_nft.info.p2_puzzle_hash, alice.p2_puzzle_hash);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_transfer_nft() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1)?;
+
+    let result = alice.spend(&mut sim, &mut ctx, &[Action::mint_empty_nft()])?;
+    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let nft = unwrap_nft(&tx.spends[1].children[0].asset);
+
+    let hint = ctx.hint(BURN_PUZZLE_HASH)?;
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(
+            Id::Existing(nft.info.launcher_id),
+            BURN_PUZZLE_HASH,
+            1,
+            hint,
+        )],
+    )?;
+    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+
+    assert_eq!(tx.spends.len(), 1);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.children.len(), 1);
+
+    let child_nft = unwrap_nft(&spend.children[0].asset);
+    assert_eq!(child_nft.info.p2_puzzle_hash, BURN_PUZZLE_HASH);
 
     Ok(())
 }
