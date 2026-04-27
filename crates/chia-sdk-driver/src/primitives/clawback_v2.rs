@@ -15,7 +15,7 @@ pub type PushThroughPath = (
     match_list!(AssertSecondsAbsolute, CreateCoin<[Bytes32; 1]>),
 );
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ClawbackV2 {
     pub sender_puzzle_hash: Bytes32,
     pub receiver_puzzle_hash: Bytes32,
