@@ -461,9 +461,10 @@ mod tests {
                 None,
             )
         } else {
-            let (issue_cat, cats) = Cat::issue_with_coin(
+            let (issue_cat, cats) = Cat::single_issuance(
                 &mut ctx,
                 minter_bls.coin.coin_id(),
+                None,
                 minter_bls.coin.amount,
                 Conditions::new().create_coin(
                     minter_bls.puzzle_hash,
