@@ -7,8 +7,8 @@ use clvm_utils::{ToTreeHash, tree_hash};
 use rstest::rstest;
 
 use crate::{
-    Action, CustodyInfo, Deltas, FeeAction, Id, ParsedAsset, SpendContext, Spends, TestVault,
-    VaultOutput, parse_vault_transaction,
+    Action, CustodyInfo, Deltas, DropCoin, FeeAction, Id, ParsedAsset, SpendContext, Spends,
+    TestVault, VaultOutput, parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -120,6 +120,25 @@ fn test_clear_signing_vault_info() -> Result<()> {
     assert_eq!(tx.launcher_id, Some(alice.info.launcher_id));
     assert_eq!(tx.p2_puzzle_hashes, vec![alice.p2_puzzle_hash]);
     assert_eq!(tx.spends.len(), 1);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_drop_coins() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let spends = Spends::new(alice.p2_puzzle_hash);
+    let vault_conditions = Conditions::new().create_coin(Bytes32::default(), 0, Memos::None);
+    let result = alice.custom_spend(&mut sim, &mut ctx, &[], spends, vault_conditions)?;
+
+    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+
+    assert_eq!(tx.spends.len(), 0);
+    assert_eq!(tx.drop_coins, [DropCoin::new(Bytes32::default(), 0)]);
 
     Ok(())
 }
