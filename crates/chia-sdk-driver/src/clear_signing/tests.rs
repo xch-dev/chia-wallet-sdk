@@ -3,13 +3,16 @@ use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::Memos;
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_test::Simulator;
-use chia_sdk_types::{Condition, Conditions};
+use chia_sdk_types::{
+    Condition, Conditions,
+    puzzles::{EverythingWithSingletonTailArgs, EverythingWithSingletonTailSolution},
+};
 use clvm_utils::{ToTreeHash, tree_hash};
 use rstest::rstest;
 
 use crate::{
     Action, BURN_PUZZLE_HASH, CustodyInfo, Deltas, DropCoin, FeeAction, Id, Nft, ParsedAsset,
-    SpendContext, Spends, TestVault, VaultOutput, parse_vault_transaction,
+    Spend, SpendContext, Spends, TestVault, VaultOutput, parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,10 +42,22 @@ fn issue_asset(
     };
 
     let (id, asset_id) = if let AssetKind::Cat | AssetKind::RevocableCat = asset_kind {
+        let tail_puzzle = ctx.curry(EverythingWithSingletonTailArgs::new(
+            alice.info.launcher_id,
+            0,
+        ))?;
+        let tail_solution = ctx.alloc(&EverythingWithSingletonTailSolution::new(
+            alice.info.custody_hash.into(),
+        ))?;
+
         let result = alice.spend(
             sim,
             ctx,
-            &[Action::single_issue_cat(hidden_puzzle_hash, amount)],
+            &[Action::issue_cat(
+                Spend::new(tail_puzzle, tail_solution),
+                hidden_puzzle_hash,
+                amount,
+            )],
         )?;
 
         let asset_id = result.outputs.cats[0][0].info.asset_id;

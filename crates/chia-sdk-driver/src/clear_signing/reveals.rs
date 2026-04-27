@@ -6,6 +6,7 @@ use chia_sdk_types::{Condition, Mod, puzzles::SingletonMember};
 use clvm_traits::{FromClvm, ToClvm, clvm_quote};
 use clvm_utils::{ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
+use indexmap::IndexMap;
 use num_bigint::BigInt;
 
 use crate::{
@@ -34,7 +35,7 @@ pub struct RevealedCoinSpend {
 
 #[derive(Debug, Default, Clone)]
 pub struct Reveals {
-    coin_spends: HashMap<Bytes32, RevealedCoinSpend>,
+    coin_spends: IndexMap<Bytes32, RevealedCoinSpend>,
     p2_puzzles: HashMap<TreeHash, RevealedP2Puzzle>,
     requested_payments: RequestedPayments,
     asset_info: AssetInfo,

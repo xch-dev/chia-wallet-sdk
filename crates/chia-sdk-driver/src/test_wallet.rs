@@ -189,20 +189,17 @@ impl TestVault {
                         .get(&asset.p2_puzzle_hash().into())
                         .expect("unknown p2 puzzle");
 
-                    let singleton_inner_puzzle_hash =
-                        vault_custody_puzzle_hash(self.secret_key.public_key()).into();
-
                     let spend = match p2_puzzle {
                         TestP2Puzzle::P2Singleton(p2_singleton) => p2_singleton.spend(
                             ctx,
-                            singleton_inner_puzzle_hash,
+                            self.info.custody_hash.into(),
                             1,
                             delegated_spend,
                         )?,
                         TestP2Puzzle::P2ConditionsOrSingleton(p2_conditions_or_singleton) => {
                             p2_conditions_or_singleton.p2_singleton_spend(
                                 ctx,
-                                singleton_inner_puzzle_hash,
+                                self.info.custody_hash.into(),
                                 1,
                                 delegated_spend,
                             )?
