@@ -25,10 +25,15 @@ pub fn parse_children(
 
     // We should parse CAT children up front, so that we can hydrate their details when adding children later.
     let mut cats = if matches!(asset, ParsedAsset::Cat(_)) {
-        Cat::parse_children(allocator, spend.coin, spend.puzzle, spend.solution)?
-            .unwrap_or_default()
+        if let Some(cats) =
+            Cat::parse_children(allocator, spend.coin, spend.puzzle, spend.solution)?
+        {
+            cats
+        } else {
+            return Err(DriverError::MissingChild);
+        }
     } else {
-        return Err(DriverError::MissingChild);
+        Vec::new()
     };
 
     for condition in conditions {

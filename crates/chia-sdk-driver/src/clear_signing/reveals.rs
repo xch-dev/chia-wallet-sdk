@@ -1,15 +1,28 @@
 use std::collections::{HashMap, HashSet};
 
+use chia_consensus::opcodes::RECEIVE_MESSAGE;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use clvm_traits::ToClvm;
-use clvm_utils::{ToTreeHash, TreeHash};
+use chia_sdk_types::{Condition, Mod, puzzles::SingletonMember};
+use clvm_traits::{FromClvm, ToClvm, clvm_quote};
+use clvm_utils::{ToTreeHash, TreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
+use num_bigint::BigInt;
 
-use crate::{AssetInfo, ClawbackV2, DriverError, Puzzle, RequestedPayments};
+use crate::{
+    AssetInfo, ClawbackV2, DriverError, MofN, Puzzle, RequestedPayments, mips_puzzle_hash,
+};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum RevealedP2Puzzle {
     Clawback(ClawbackV2),
+    P2ConditionsOrSingleton(P2ConditionsOrSingletonReveal),
+}
+
+#[derive(Debug, Clone)]
+pub struct P2ConditionsOrSingletonReveal {
+    pub launcher_id: Bytes32,
+    pub nonce: usize,
+    pub fixed_conditions: Vec<Condition>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -97,6 +110,60 @@ impl Reveals {
     pub fn reveal_clawback(&mut self, clawback: ClawbackV2) {
         self.p2_puzzles
             .insert(clawback.tree_hash(), RevealedP2Puzzle::Clawback(clawback));
+    }
+
+    /// Reveals a p2 conditions or singleton puzzle, so that we can look it up by p2 puzzle hash.
+    pub fn reveal_p2_conditions_or_singleton(
+        &mut self,
+        allocator: &mut Allocator,
+        launcher_id: Bytes32,
+        nonce: usize,
+        fixed_conditions: Vec<Condition>,
+    ) -> Result<(), DriverError> {
+        for condition in &fixed_conditions {
+            match condition {
+                Condition::ReceiveMessage(_) => {
+                    return Err(DriverError::ReceiveMessageConditionsNotAllowed);
+                }
+                Condition::Other(condition) => {
+                    let (opcode, _) = <(BigInt, NodePtr)>::from_clvm(allocator, *condition)?;
+
+                    if opcode == BigInt::from(RECEIVE_MESSAGE) {
+                        return Err(DriverError::ReceiveMessageConditionsNotAllowed);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let puzzle = clvm_quote!(&fixed_conditions).to_clvm(allocator)?;
+        let delegated_spend_hash = tree_hash(allocator, puzzle);
+
+        let fixed_conditions_hash = mips_puzzle_hash(0, vec![], delegated_spend_hash, false);
+        let p2_singleton_hash = mips_puzzle_hash(
+            nonce,
+            vec![],
+            SingletonMember::new(launcher_id).curry_tree_hash(),
+            false,
+        );
+
+        let p2_puzzle_hash = mips_puzzle_hash(
+            0,
+            vec![],
+            MofN::new(1, vec![fixed_conditions_hash, p2_singleton_hash]).inner_puzzle_hash(),
+            true,
+        );
+
+        self.p2_puzzles.insert(
+            p2_puzzle_hash,
+            RevealedP2Puzzle::P2ConditionsOrSingleton(P2ConditionsOrSingletonReveal {
+                launcher_id,
+                nonce,
+                fixed_conditions,
+            }),
+        );
+
+        Ok(())
     }
 
     /// Adds a vault nonce to the set of vault nonces to derive p2 puzzle hashes for.

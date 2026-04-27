@@ -9,8 +9,9 @@ use indexmap::IndexSet;
 
 use crate::{
     AssertedRequestedPayment, ClawbackInfo, ClawbackV2, CustodyInfo, DriverError, DropCoin, Facts,
-    P2SingletonInfo, ParsedAsset, ParsedChild, Reveals, Spend, VaultOutput, mips_puzzle_hash,
-    parse_asserted_requested_payments, parse_children, parse_spend, parse_vault_delegated_spend,
+    P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild, Reveals, Spend,
+    VaultOutput, mips_puzzle_hash, parse_asserted_requested_payments, parse_children, parse_spend,
+    parse_vault_delegated_spend,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -88,7 +89,11 @@ pub fn parse_vault_transaction(
             return Err(DriverError::InvalidLinkedCustody);
         };
 
-        let CustodyInfo::P2Singleton(P2SingletonInfo { conditions, .. }) = &custody else {
+        let (CustodyInfo::P2Singleton(P2SingletonInfo { conditions, .. })
+        | CustodyInfo::P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo {
+            conditions, ..
+        })) = &custody
+        else {
             return Err(DriverError::InvalidLinkedCustody);
         };
 
@@ -164,6 +169,10 @@ pub fn parse_vault_transaction(
             parsed_spend.required_expiration_time.is_some(),
         )?;
 
+        for child in &children {
+            stack.insert(child.asset.coin().coin_id());
+        }
+
         verified_spends.push(VerifiedSpend {
             asset: parsed_spend.asset,
             clawback: parsed_spend.clawback,
@@ -224,10 +233,14 @@ fn find_launcher_id(spends: &[VerifiedSpend]) -> Result<Option<Bytes32>, DriverE
     let mut launcher_id = None;
 
     for spend in spends {
-        let CustodyInfo::P2Singleton(P2SingletonInfo {
+        let (CustodyInfo::P2Singleton(P2SingletonInfo {
             launcher_id: spend_launcher_id,
             ..
-        }) = &spend.custody
+        })
+        | CustodyInfo::P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo {
+            launcher_id: spend_launcher_id,
+            ..
+        })) = &spend.custody
         else {
             continue;
         };

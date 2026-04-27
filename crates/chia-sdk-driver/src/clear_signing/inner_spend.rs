@@ -1,5 +1,9 @@
 use chia_protocol::Bytes32;
-use chia_sdk_types::Condition;
+use chia_sdk_types::{
+    Condition,
+    puzzles::{DelegatedPuzzleFeederSolution, OneOfNSolution, SingletonMemberSolution},
+};
+use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
@@ -31,10 +35,19 @@ pub enum ClawbackPath {
 pub enum CustodyInfo {
     P2Singleton(P2SingletonInfo),
     DelegatedConditions(Vec<Condition>),
+    P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo),
 }
 
 #[derive(Debug, Clone)]
 pub struct P2SingletonInfo {
+    pub launcher_id: Bytes32,
+    pub nonce: usize,
+    pub conditions: Vec<Condition>,
+    pub p2_puzzle_hash: Bytes32,
+}
+
+#[derive(Debug, Clone)]
+pub struct P2ConditionsOrSingletonInfo {
     pub launcher_id: Bytes32,
     pub nonce: usize,
     pub conditions: Vec<Condition>,
@@ -117,6 +130,29 @@ pub fn parse_inner_spend(
                 }
 
                 Ok(result)
+            }
+            RevealedP2Puzzle::P2ConditionsOrSingleton(info) => {
+                let solution = DelegatedPuzzleFeederSolution::<
+                    NodePtr,
+                    NodePtr,
+                    OneOfNSolution<NodePtr, SingletonMemberSolution>,
+                >::from_clvm(allocator, solution)?;
+
+                let delegated_spend =
+                    Spend::new(solution.delegated_puzzle, solution.delegated_solution);
+                let conditions = parse_delegated_spend(allocator, delegated_spend)?;
+
+                Ok(InnerSpend {
+                    clawback: None,
+                    custody: Some(CustodyInfo::P2ConditionsOrSingleton(
+                        P2ConditionsOrSingletonInfo {
+                            launcher_id: info.launcher_id,
+                            nonce: info.nonce,
+                            conditions,
+                            p2_puzzle_hash,
+                        },
+                    )),
+                })
             }
         }
     } else if let Ok(conditions) =
