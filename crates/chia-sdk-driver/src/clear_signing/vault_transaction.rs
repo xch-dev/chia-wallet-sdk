@@ -1,18 +1,19 @@
 use std::collections::HashMap;
 
 use chia_protocol::{Bytes32, CoinSpend};
+use chia_puzzle_types::cat::CatSolution;
 use chia_sdk_types::{Condition, Mod, puzzles::SingletonMember};
-use clvm_traits::{ToClvm, clvm_quote};
+use clvm_traits::{FromClvm, ToClvm, clvm_quote};
 use clvm_utils::tree_hash;
-use clvmr::Allocator;
+use clvmr::{Allocator, NodePtr};
 use indexmap::{IndexMap, IndexSet};
 
 use crate::{
     AssertedRequestedPayment, ClawbackInfo, ClawbackV2, CustodyInfo, DriverError, DropCoin, Facts,
     Issuance, IssuanceKind, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild,
     ParsedSpend, Reveals, Spend, VaultMessage, VaultOutput, mips_puzzle_hash,
-    parse_asserted_requested_payments, parse_cat_extra_delta, parse_children, parse_run_cat_tails,
-    parse_spend, parse_vault_delegated_spend,
+    parse_asserted_requested_payments, parse_children, parse_run_cat_tails, parse_spend,
+    parse_vault_delegated_spend,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -296,14 +297,14 @@ fn verify_spend(
     if let ParsedAsset::Cat(cat) = &parsed_spend.asset
         && !tail_invocations.is_empty()
     {
-        let delta = parse_cat_extra_delta(allocator, spend.solution)?;
+        let cat_solution = CatSolution::<NodePtr>::from_clvm(allocator, spend.solution)?;
 
         for invocation in &tail_invocations {
             issuances.push(Issuance {
                 coin_id,
                 asset_id: invocation.asset_id,
                 hidden_puzzle_hash: cat.info.hidden_puzzle_hash,
-                delta,
+                extra_delta: cat_solution.extra_delta,
                 kind: invocation.kind,
             });
         }

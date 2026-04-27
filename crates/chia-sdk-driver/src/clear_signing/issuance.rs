@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_puzzle_types::{cat::CatSolution, singleton::SingletonStruct};
+use chia_puzzle_types::singleton::SingletonStruct;
 use chia_sdk_types::{Condition, Mod, puzzles::EverythingWithSingletonTailArgs};
 use clvm_traits::FromClvm;
 use clvm_utils::{ToTreeHash, tree_hash};
@@ -12,7 +12,7 @@ pub struct Issuance {
     pub coin_id: Bytes32,
     pub asset_id: Bytes32,
     pub hidden_puzzle_hash: Option<Bytes32>,
-    pub delta: i64,
+    pub extra_delta: i64,
     pub kind: IssuanceKind,
 }
 
@@ -79,12 +79,4 @@ fn classify_tail(allocator: &Allocator, tail: NodePtr) -> Result<IssuanceKind, D
         singleton_struct_hash: args.singleton_struct_hash,
         nonce: args.nonce,
     })
-}
-
-pub fn parse_cat_extra_delta(
-    allocator: &Allocator,
-    outer_cat_solution: NodePtr,
-) -> Result<i64, DriverError> {
-    let solution = CatSolution::<NodePtr>::from_clvm(allocator, outer_cat_solution)?;
-    Ok(solution.extra_delta)
 }
