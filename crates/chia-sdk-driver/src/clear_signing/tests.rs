@@ -1,13 +1,14 @@
 use anyhow::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::Memos;
+use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_test::Simulator;
 use chia_sdk_types::{Condition, Conditions};
 use clvm_utils::{ToTreeHash, tree_hash};
 use rstest::rstest;
 
 use crate::{
-    Action, CustodyInfo, Deltas, DropCoin, FeeAction, Id, ParsedAsset, SpendContext, Spends,
+    Action, CustodyInfo, Deltas, DropCoin, FeeAction, Id, Nft, ParsedAsset, SpendContext, Spends,
     TestVault, VaultOutput, parse_vault_transaction,
 };
 
@@ -75,6 +76,13 @@ fn check_asset(
     }
 
     assert_eq!(asset.coin().amount, amount);
+}
+
+fn unwrap_nft(asset: &ParsedAsset) -> &Nft {
+    let ParsedAsset::Nft(nft) = asset else {
+        panic!("Expected NFT asset");
+    };
+    nft
 }
 
 #[rstest]
@@ -493,6 +501,37 @@ fn test_clear_signing_transfer(
 
     check_asset(&child.asset, asset_id, hidden_puzzle_hash, 1000);
     assert_eq!(child.memos.p2_puzzle_hash, bob_puzzle_hash);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_mint_nft() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1)?;
+
+    let result = alice.spend(&mut sim, &mut ctx, &[Action::mint_empty_nft()])?;
+
+    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+
+    assert_eq!(tx.spends.len(), 2);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.children.len(), 1);
+
+    let child = &spend.children[0];
+    assert_eq!(child.asset.coin().amount, 0);
+    assert_eq!(child.memos.p2_puzzle_hash, SINGLETON_LAUNCHER_HASH.into());
+
+    let nft_spend = &tx.spends[1];
+    let parent_nft = unwrap_nft(&nft_spend.asset);
+    assert_eq!(nft_spend.children.len(), 1);
+
+    let child_nft = unwrap_nft(&nft_spend.children[0].asset);
+    assert_eq!(child_nft.info.launcher_id, parent_nft.info.launcher_id);
+    assert_eq!(child_nft.info.p2_puzzle_hash, alice.p2_puzzle_hash);
 
     Ok(())
 }
