@@ -11,9 +11,9 @@ use indexmap::{IndexMap, IndexSet};
 use crate::{
     AssertedRequestedPayment, ClawbackInfo, ClawbackV2, CustodyInfo, DriverError, DropCoin, Facts,
     Issuance, IssuanceKind, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild,
-    ParsedSpend, Reveals, Spend, VaultMessage, VaultOutput, mips_puzzle_hash,
-    parse_asserted_requested_payments, parse_children, parse_run_cat_tail, parse_spend,
-    parse_vault_delegated_spend,
+    ParsedSpend, Reveals, Spend, VaultMessage, VaultOutput, get_extra_delta_message,
+    mips_puzzle_hash, parse_asserted_requested_payments, parse_children, parse_run_cat_tail,
+    parse_spend, parse_vault_delegated_spend,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -232,6 +232,19 @@ fn verify_spend(
         None
     };
 
+    let issuance = if let Some(run_cat_tail) = run_cat_tail {
+        let cat_solution = CatSolution::<NodePtr>::from_clvm(allocator, spend.solution)?;
+
+        Some(Issuance {
+            coin_id,
+            asset_id: run_cat_tail.asset_id,
+            extra_delta: cat_solution.extra_delta,
+            kind: run_cat_tail.kind,
+        })
+    } else {
+        None
+    };
+
     let mut tail_matched = false;
     let mut custody_matched = false;
 
@@ -244,11 +257,9 @@ fn verify_spend(
             }
 
             custody_matched = true;
-        } else if let Some(run_cat_tail) = run_cat_tail
-            && matches!(
-                run_cat_tail.kind,
-                IssuanceKind::EverythingWithSingleton { .. }
-            )
+        } else if let Some(issuance) = issuance
+            && matches!(issuance.kind, IssuanceKind::EverythingWithSingleton { .. })
+            && message.data == get_extra_delta_message(issuance.extra_delta)
         {
             if tail_matched {
                 return Err(DriverError::DuplicateVaultMessage);
@@ -277,15 +288,8 @@ fn verify_spend(
         parsed_spend.required_expiration_time.is_some(),
     )?;
 
-    if let Some(run_cat_tail) = run_cat_tail {
-        let cat_solution = CatSolution::<NodePtr>::from_clvm(allocator, spend.solution)?;
-
-        issuances.push(Issuance {
-            coin_id,
-            asset_id: run_cat_tail.asset_id,
-            extra_delta: cat_solution.extra_delta,
-            kind: run_cat_tail.kind,
-        });
+    if let Some(issuance) = issuance {
+        issuances.push(issuance);
     }
 
     Ok(VerifiedSpend {

@@ -1,6 +1,6 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::{Condition, Mod, puzzles::EverythingWithSingletonTailArgs};
-use clvm_traits::FromClvm;
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::tree_hash;
 use clvmr::{Allocator, NodePtr};
 
@@ -62,4 +62,10 @@ fn classify_tail(allocator: &Allocator, tail: NodePtr) -> Result<IssuanceKind, D
         singleton_struct_hash: args.singleton_struct_hash,
         nonce: args.nonce,
     })
+}
+
+pub fn get_extra_delta_message(extra_delta: i64) -> Bytes {
+    let mut allocator = Allocator::new();
+    let ptr = extra_delta.to_clvm(&mut allocator).unwrap();
+    allocator.atom(ptr).as_ref().to_vec().into()
 }
