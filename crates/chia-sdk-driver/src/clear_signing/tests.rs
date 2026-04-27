@@ -7,8 +7,8 @@ use clvm_utils::{ToTreeHash, tree_hash};
 use rstest::rstest;
 
 use crate::{
-    Action, CustodyInfo, Deltas, Id, ParsedAsset, SpendContext, Spends, TestVault, VaultOutput,
-    parse_vault_transaction,
+    Action, CustodyInfo, Deltas, FeeAction, Id, ParsedAsset, SpendContext, Spends, TestVault,
+    VaultOutput, parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -120,6 +120,42 @@ fn test_clear_signing_vault_info() -> Result<()> {
     assert_eq!(tx.launcher_id, Some(alice.info.launcher_id));
     assert_eq!(tx.p2_puzzle_hashes, vec![alice.p2_puzzle_hash]);
     assert_eq!(tx.spends.len(), 1);
+
+    Ok(())
+}
+
+#[rstest]
+#[case(0, 0)]
+#[case(10, 0)]
+#[case(10, 10)]
+#[case(20, 0)]
+#[case(20, 10)]
+#[case(20, 20)]
+fn test_clear_signing_reserved_fee(#[case] fee_paid: u64, #[case] reserved_fee: u64) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 50)?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[
+            Action::Fee(FeeAction {
+                amount: reserved_fee,
+                reserved: true,
+            }),
+            Action::Fee(FeeAction {
+                amount: fee_paid - reserved_fee,
+                reserved: false,
+            }),
+        ],
+    )?;
+
+    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+
+    assert_eq!(tx.fee_paid, fee_paid);
+    assert_eq!(tx.reserved_fee, reserved_fee);
 
     Ok(())
 }
