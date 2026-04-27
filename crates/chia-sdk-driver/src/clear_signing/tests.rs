@@ -223,7 +223,9 @@ fn test_clear_signing_intermediate_p2_singleton() -> Result<()> {
 }
 
 #[rstest]
-fn test_clear_signing_intermediate_delegated_conditions() -> Result<()> {
+fn test_clear_signing_intermediate_delegated_conditions(
+    #[values(false, true)] asserted: bool,
+) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
@@ -245,18 +247,21 @@ fn test_clear_signing_intermediate_delegated_conditions() -> Result<()> {
     let intermediate_coin = Coin::new(input_coin_id, puzzle_hash, 1);
 
     ctx.spend(intermediate_coin, delegated_spend)?;
-    spends
-        .conditions
-        .required
-        .push(Condition::assert_concurrent_spend(
-            intermediate_coin.coin_id(),
-        ));
+
+    if asserted {
+        spends
+            .conditions
+            .required
+            .push(Condition::assert_concurrent_spend(
+                intermediate_coin.coin_id(),
+            ));
+    }
 
     let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
 
     let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
 
-    assert_eq!(tx.spends.len(), 2);
+    assert_eq!(tx.spends.len(), if asserted { 2 } else { 1 });
 
     let spend = &tx.spends[0];
     assert_eq!(spend.children.len(), 2);
@@ -269,16 +274,120 @@ fn test_clear_signing_intermediate_delegated_conditions() -> Result<()> {
     assert_eq!(intermediate_child.asset.coin().amount, 1);
     assert_eq!(intermediate_child.memos.p2_puzzle_hash, puzzle_hash);
 
-    let intermediate_spend = &tx.spends[1];
-    assert_eq!(intermediate_spend.children.len(), 1);
+    if asserted {
+        let intermediate_spend = &tx.spends[1];
+        assert_eq!(intermediate_spend.children.len(), 1);
+        assert_eq!(
+            intermediate_spend.asset.coin().coin_id(),
+            intermediate_child.asset.coin().coin_id()
+        );
+
+        let child_2 = &intermediate_spend.children[0];
+        assert_eq!(child_2.asset.coin().amount, 1);
+        assert_eq!(child_2.memos.p2_puzzle_hash, alice.p2_puzzle_hash);
+    }
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_chained_delegated_conditions(
+    #[values(false, true)] root_asserted: bool,
+    #[values(false, true)] chained_asserted: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+
+    let chained_delegated_spend =
+        ctx.delegated_spend(Conditions::new().create_coin(alice.p2_puzzle_hash, 1, Memos::None))?;
+    let chained_puzzle_hash = tree_hash(&ctx, chained_delegated_spend.puzzle).into();
+
+    let root_delegated_spend =
+        ctx.delegated_spend(Conditions::new().create_coin(chained_puzzle_hash, 1, Memos::None))?;
+    let root_puzzle_hash = tree_hash(&ctx, root_delegated_spend.puzzle).into();
+
+    let actions = [
+        Action::send(Id::Xch, alice.p2_puzzle_hash, 1, Memos::None),
+        Action::send(Id::Xch, root_puzzle_hash, 1, Memos::None),
+    ];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let input_coin_id = spends.xch.items[0].asset.coin_id();
+    let root_coin = Coin::new(input_coin_id, root_puzzle_hash, 1);
+    let chained_coin = Coin::new(root_coin.coin_id(), chained_puzzle_hash, 1);
+
+    ctx.spend(root_coin, root_delegated_spend)?;
+    ctx.spend(chained_coin, chained_delegated_spend)?;
+
+    if root_asserted {
+        spends
+            .conditions
+            .required
+            .push(Condition::assert_concurrent_spend(root_coin.coin_id()));
+    }
+
+    if chained_asserted {
+        spends
+            .conditions
+            .required
+            .push(Condition::assert_concurrent_spend(chained_coin.coin_id()));
+    }
+
+    let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+
+    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+
     assert_eq!(
-        intermediate_spend.asset.coin().coin_id(),
-        intermediate_child.asset.coin().coin_id()
+        tx.spends.len(),
+        if root_asserted && chained_asserted {
+            3
+        } else if root_asserted {
+            2
+        } else {
+            1
+        }
     );
 
-    let child_2 = &intermediate_spend.children[0];
-    assert_eq!(child_2.asset.coin().amount, 1);
-    assert_eq!(child_2.memos.p2_puzzle_hash, alice.p2_puzzle_hash);
+    let spend = &tx.spends[0];
+    assert_eq!(spend.children.len(), 2);
+
+    let child_1 = &spend.children[0];
+    assert_eq!(child_1.asset.coin().amount, 1);
+    assert_eq!(child_1.memos.p2_puzzle_hash, alice.p2_puzzle_hash);
+
+    let root_child = &spend.children[1];
+    assert_eq!(root_child.asset.coin().amount, 1);
+    assert_eq!(root_child.memos.p2_puzzle_hash, root_puzzle_hash);
+
+    if root_asserted {
+        let root_spend = &tx.spends[1];
+        assert_eq!(root_spend.children.len(), 1);
+        assert_eq!(
+            root_spend.asset.coin().coin_id(),
+            root_child.asset.coin().coin_id()
+        );
+
+        let chained_child = &root_spend.children[0];
+        assert_eq!(chained_child.asset.coin().amount, 1);
+        assert_eq!(chained_child.memos.p2_puzzle_hash, chained_puzzle_hash);
+
+        if chained_asserted {
+            let chained_spend = &tx.spends[2];
+            assert_eq!(chained_spend.children.len(), 1);
+            assert_eq!(
+                chained_spend.asset.coin().coin_id(),
+                chained_child.asset.coin().coin_id()
+            );
+
+            let child_2 = &chained_spend.children[0];
+            assert_eq!(child_2.asset.coin().amount, 1);
+            assert_eq!(child_2.memos.p2_puzzle_hash, alice.p2_puzzle_hash);
+        }
+    }
 
     Ok(())
 }

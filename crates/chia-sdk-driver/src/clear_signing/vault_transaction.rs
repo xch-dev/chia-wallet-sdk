@@ -9,9 +9,9 @@ use indexmap::IndexSet;
 
 use crate::{
     AssertedRequestedPayment, ClawbackInfo, ClawbackV2, CustodyInfo, DriverError, DropCoin, Facts,
-    P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild, Reveals, Spend,
-    VaultOutput, mips_puzzle_hash, parse_asserted_requested_payments, parse_children, parse_spend,
-    parse_vault_delegated_spend,
+    P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild, ParsedSpend, Reveals,
+    Spend, VaultMessage, VaultOutput, mips_puzzle_hash, parse_asserted_requested_payments,
+    parse_children, parse_spend, parse_vault_delegated_spend,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -77,52 +77,16 @@ pub fn parse_vault_transaction(
     let mut verified_spends = Vec::new();
 
     for message in vault_spend.messages {
-        let Some(parsed_spend) = parsed_spends.remove(&message.spent_coin_id) else {
-            return Err(DriverError::MissingSpend);
-        };
-
-        let Some(spend) = reveals.coin_spend(message.spent_coin_id) else {
-            return Err(DriverError::MissingSpend);
-        };
-
-        let Some(custody) = parsed_spend.custody else {
-            return Err(DriverError::InvalidLinkedCustody);
-        };
-
-        let (CustodyInfo::P2Singleton(P2SingletonInfo { conditions, .. })
-        | CustodyInfo::P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo {
-            conditions, ..
-        })) = &custody
-        else {
-            return Err(DriverError::InvalidLinkedCustody);
-        };
-
-        let delegated_puzzle = clvm_quote!(conditions).to_clvm(allocator)?;
-        let delegated_puzzle_hash = tree_hash(allocator, delegated_puzzle);
-
-        if delegated_puzzle_hash != message.delegated_puzzle_hash.into() {
-            return Err(DriverError::WrongConditions);
-        }
-
-        if let Some(time) = parsed_spend.required_expiration_time {
-            facts.update_required_expiration_time(time);
-        }
-
-        let children = parse_children(
+        let verified_spend = verify_spend(
+            &reveals,
             &mut facts,
             allocator,
-            &parsed_spend.asset,
-            spend,
-            conditions,
-            parsed_spend.required_expiration_time.is_some(),
+            &mut parsed_spends,
+            message.spent_coin_id,
+            Some(message),
         )?;
 
-        verified_spends.push(VerifiedSpend {
-            asset: parsed_spend.asset,
-            clawback: parsed_spend.clawback,
-            custody,
-            children,
-        });
+        verified_spends.push(verified_spend);
     }
 
     let mut stack: IndexSet<Bytes32> = verified_spends
@@ -140,45 +104,20 @@ pub fn parse_vault_transaction(
             continue;
         }
 
-        let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
-            return Err(DriverError::MissingSpend);
-        };
-
-        let Some(spend) = reveals.coin_spend(coin_id) else {
-            return Err(DriverError::MissingSpend);
-        };
-
-        let Some(custody) = parsed_spend.custody else {
-            return Err(DriverError::InvalidLinkedCustody);
-        };
-
-        let CustodyInfo::DelegatedConditions(conditions) = &custody else {
-            return Err(DriverError::InvalidLinkedCustody);
-        };
-
-        if let Some(time) = parsed_spend.required_expiration_time {
-            facts.update_required_expiration_time(time);
-        }
-
-        let children = parse_children(
+        let verified_spend = verify_spend(
+            &reveals,
             &mut facts,
             allocator,
-            &parsed_spend.asset,
-            spend,
-            conditions,
-            parsed_spend.required_expiration_time.is_some(),
+            &mut parsed_spends,
+            coin_id,
+            None,
         )?;
 
-        for child in &children {
+        for child in &verified_spend.children {
             stack.insert(child.asset.coin().coin_id());
         }
 
-        verified_spends.push(VerifiedSpend {
-            asset: parsed_spend.asset,
-            clawback: parsed_spend.clawback,
-            custody,
-            children,
-        });
+        verified_spends.push(verified_spend);
     }
 
     // If the transaction expires after the required expiration time of the spend,
@@ -226,6 +165,72 @@ pub fn parse_vault_transaction(
         launcher_id,
         p2_puzzle_hashes,
         delegated_puzzle_hash,
+    })
+}
+
+fn verify_spend(
+    reveals: &Reveals,
+    facts: &mut Facts,
+    allocator: &mut Allocator,
+    parsed_spends: &mut HashMap<Bytes32, ParsedSpend>,
+    coin_id: Bytes32,
+    message: Option<VaultMessage>,
+) -> Result<VerifiedSpend, DriverError> {
+    let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
+        return Err(DriverError::MissingSpend);
+    };
+
+    let Some(spend) = reveals.coin_spend(coin_id) else {
+        return Err(DriverError::MissingSpend);
+    };
+
+    let Some(custody) = parsed_spend.custody else {
+        return Err(DriverError::InvalidLinkedCustody);
+    };
+
+    let conditions = if let Some(message) = message {
+        let (CustodyInfo::P2Singleton(P2SingletonInfo { conditions, .. })
+        | CustodyInfo::P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo {
+            conditions, ..
+        })) = &custody
+        else {
+            return Err(DriverError::InvalidLinkedCustody);
+        };
+
+        let delegated_puzzle = clvm_quote!(conditions).to_clvm(allocator)?;
+        let delegated_puzzle_hash = tree_hash(allocator, delegated_puzzle);
+
+        if delegated_puzzle_hash != message.delegated_puzzle_hash.into() {
+            return Err(DriverError::WrongConditions);
+        }
+
+        conditions
+    } else {
+        let CustodyInfo::DelegatedConditions(conditions) = &custody else {
+            return Err(DriverError::InvalidLinkedCustody);
+        };
+
+        conditions
+    };
+
+    if let Some(time) = parsed_spend.required_expiration_time {
+        facts.update_required_expiration_time(time);
+    }
+
+    let children = parse_children(
+        facts,
+        allocator,
+        &parsed_spend.asset,
+        spend,
+        conditions,
+        parsed_spend.required_expiration_time.is_some(),
+    )?;
+
+    Ok(VerifiedSpend {
+        asset: parsed_spend.asset,
+        clawback: parsed_spend.clawback,
+        custody,
+        children,
     })
 }
 
