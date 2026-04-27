@@ -12,17 +12,17 @@ use chia_sdk_test::{Simulator, sign_transaction};
 use chia_sdk_types::{
     Conditions, MessageFlags, MessageSide, Mod,
     conditions::{CreateCoin, SendMessage},
-    puzzles::{BlsMember, RevocationArgs, SingletonMember, SingletonMemberSolution},
+    puzzles::{BlsMember, RevocationArgs},
 };
 use chia_sdk_utils::select_coins;
 use clvm_traits::ToClvm;
-use clvm_utils::TreeHash;
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    Action, Cat, Deltas, Id, InnerPuzzleSpend, Launcher, Layer, MipsSpend, Nft, Outputs, Puzzle,
-    Relation, SettlementLayer, Spend, SpendContext, SpendKind, Spends, StandardLayer, Vault,
-    VaultInfo, mips_puzzle_hash,
+    Action, Cat, Deltas, Id, InnerPuzzleSpend, Launcher, Layer, MipsSpend, Nft, Outputs,
+    P2ConditionsOrSingleton, P2Singleton, Puzzle, Relation, SettlementLayer, Spend, SpendContext,
+    SpendKind, Spends, StandardLayer, Vault, VaultInfo, mips_puzzle_hash,
 };
 
 #[derive(Debug, Clone)]
@@ -34,12 +34,19 @@ pub struct TransactionData {
     pub signature: Signature,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum TestP2Puzzle {
+    P2ConditionsOrSingleton(P2ConditionsOrSingleton),
+    P2Singleton(P2Singleton),
+}
+
 #[derive(Debug, Clone)]
 pub struct TestVault {
     pub info: VaultInfo,
-    pub puzzle_hash: Bytes32,
+    pub p2_puzzle_hash: Bytes32,
     pub secret_key: SecretKey,
     pub public_key: PublicKey,
+    pub p2_puzzles: HashMap<TreeHash, TestP2Puzzle>,
 }
 
 impl TestVault {
@@ -53,11 +60,16 @@ impl TestVault {
             (),
         )?;
 
-        let puzzle_hash = vault_p2_puzzle_hash(vault.info.launcher_id).into();
+        let mut p2_puzzles = HashMap::new();
+
+        let p2_singleton = P2Singleton::new(vault.info.launcher_id, 0);
+        let p2_puzzle_hash = p2_singleton.tree_hash();
+
+        p2_puzzles.insert(p2_puzzle_hash, TestP2Puzzle::P2Singleton(p2_singleton));
 
         if balance > 0 {
             parent_conditions.push(CreateCoin::new(
-                puzzle_hash,
+                p2_puzzle_hash.into(),
                 pair.coin.amount - 1,
                 Memos::None,
             ));
@@ -69,9 +81,10 @@ impl TestVault {
 
         Ok(Self {
             info: vault.info,
-            puzzle_hash,
+            p2_puzzle_hash: p2_puzzle_hash.into(),
             secret_key: pair.sk,
             public_key: pair.pk,
+            p2_puzzles,
         })
     }
 
@@ -81,7 +94,7 @@ impl TestVault {
         ctx: &mut SpendContext,
         actions: &[Action],
     ) -> Result<TransactionData> {
-        let mut spends = Spends::new(self.puzzle_hash);
+        let mut spends = Spends::new(self.p2_puzzle_hash);
         self.select_coins(sim, &mut spends, &Deltas::from_actions(actions))?;
         self.custom_spend(sim, ctx, actions, spends, Conditions::new())
     }
@@ -171,21 +184,30 @@ impl TestVault {
                         vec![coin_id],
                     ));
 
-                    let mut mips_spend = MipsSpend::new(delegated_spend);
+                    let p2_puzzle = self
+                        .p2_puzzles
+                        .get(&asset.p2_puzzle_hash().into())
+                        .expect("unknown p2 puzzle");
 
-                    let puzzle = ctx.curry(SingletonMember::new(self.info.launcher_id))?;
-                    let solution = ctx.alloc(&SingletonMemberSolution::new(
-                        vault_custody_puzzle_hash(self.secret_key.public_key()).into(),
-                        1,
-                    ))?;
-                    let custody_hash = vault_p2_puzzle_hash(self.info.launcher_id);
+                    let singleton_inner_puzzle_hash =
+                        vault_custody_puzzle_hash(self.secret_key.public_key()).into();
 
-                    mips_spend.members.insert(
-                        custody_hash,
-                        InnerPuzzleSpend::new(0, vec![], Spend::new(puzzle, solution)),
-                    );
-
-                    let spend = mips_spend.spend(ctx, custody_hash)?;
+                    let spend = match p2_puzzle {
+                        TestP2Puzzle::P2Singleton(p2_singleton) => p2_singleton.spend(
+                            ctx,
+                            singleton_inner_puzzle_hash,
+                            1,
+                            delegated_spend,
+                        )?,
+                        TestP2Puzzle::P2ConditionsOrSingleton(p2_conditions_or_singleton) => {
+                            p2_conditions_or_singleton.p2_singleton_spend(
+                                ctx,
+                                singleton_inner_puzzle_hash,
+                                1,
+                                delegated_spend,
+                            )?
+                        }
+                    };
 
                     coin_spends.insert(asset.coin().coin_id(), spend);
                 }
@@ -249,32 +271,36 @@ impl TestVault {
         fetch_vault(sim, self.info.launcher_id, self.info.custody_hash.into())
     }
 
-    pub fn puzzle_hash(&self) -> Bytes32 {
-        self.puzzle_hash
-    }
-
-    pub fn launcher_id(&self) -> Bytes32 {
-        self.info.launcher_id
-    }
-
-    pub fn custody_hash(&self) -> TreeHash {
-        self.info.custody_hash
-    }
-
     fn fetch_xch(&self, sim: &Simulator) -> Vec<Coin> {
-        sim.unspent_coins(self.puzzle_hash, false)
+        self.p2_puzzles
+            .keys()
+            .flat_map(|&p2_puzzle_hash| sim.unspent_coins(p2_puzzle_hash.into(), false))
+            .collect()
     }
 
     fn fetch_cat_coins(&self, sim: &Simulator, asset_id: Bytes32) -> Vec<Coin> {
+        self.p2_puzzles
+            .keys()
+            .flat_map(|&p2_puzzle_hash| {
+                Self::fetch_cat_coins_for_p2_puzzle_hash(sim, p2_puzzle_hash.into(), asset_id)
+            })
+            .collect()
+    }
+
+    fn fetch_cat_coins_for_p2_puzzle_hash(
+        sim: &Simulator,
+        p2_puzzle_hash: Bytes32,
+        asset_id: Bytes32,
+    ) -> Vec<Coin> {
         let non_revocable = sim.unspent_coins(
-            CatArgs::curry_tree_hash(asset_id, self.puzzle_hash.into()).into(),
+            CatArgs::curry_tree_hash(asset_id, p2_puzzle_hash.into()).into(),
             false,
         );
 
         let revocable = sim.unspent_coins(
             CatArgs::curry_tree_hash(
                 asset_id,
-                RevocationArgs::new(Bytes32::default(), self.puzzle_hash).curry_tree_hash(),
+                RevocationArgs::new(Bytes32::default(), p2_puzzle_hash).curry_tree_hash(),
             )
             .into(),
             false,
@@ -284,17 +310,11 @@ impl TestVault {
     }
 
     fn fetch_hinted_coins(&self, sim: &Simulator) -> Vec<Coin> {
-        sim.unspent_coins(self.puzzle_hash, true)
+        self.p2_puzzles
+            .keys()
+            .flat_map(|&p2_puzzle_hash| sim.unspent_coins(p2_puzzle_hash.into(), true))
+            .collect()
     }
-}
-
-fn vault_p2_puzzle_hash(launcher_id: Bytes32) -> TreeHash {
-    mips_puzzle_hash(
-        0,
-        vec![],
-        SingletonMember::new(launcher_id).curry_tree_hash(),
-        true,
-    )
 }
 
 fn vault_custody_puzzle_hash(pk: PublicKey) -> TreeHash {
