@@ -25,10 +25,6 @@ impl ConditionsSpend {
         }
     }
 
-    pub fn conditions(&self) -> &Conditions {
-        &self.conditions
-    }
-
     pub fn finish(self) -> Conditions {
         self.conditions
     }
