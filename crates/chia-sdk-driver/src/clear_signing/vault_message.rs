@@ -8,7 +8,7 @@ use crate::DriverError;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VaultMessage {
     pub spent_coin_id: Bytes32,
-    pub message: Bytes,
+    pub data: Bytes,
 }
 
 /// We intentionally expect a pretty rigid format here, out of an abundance of caution.
@@ -29,6 +29,6 @@ pub fn parse_vault_message(
 
     Ok(VaultMessage {
         spent_coin_id: coin_id,
-        message: condition.message,
+        data: condition.message,
     })
 }

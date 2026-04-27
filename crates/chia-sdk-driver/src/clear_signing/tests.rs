@@ -616,18 +616,19 @@ fn test_clear_signing_cat_issuance(
 
     let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
 
-    // The issuance must be recorded once, with the right asset id and kind.
     assert_eq!(tx.issuances.len(), 1);
+
     let issuance = &tx.issuances[0];
     assert_eq!(issuance.asset_id, expected_asset_id);
-    assert_eq!(issuance.hidden_puzzle_hash, hidden_puzzle_hash);
-    let IssuanceKind::Singleton {
+
+    let IssuanceKind::EverythingWithSingleton {
         singleton_struct_hash,
         nonce,
     } = issuance.kind
     else {
-        panic!("Expected Singleton issuance kind");
+        panic!("wrong issuance kind");
     };
+
     assert_eq!(
         singleton_struct_hash,
         SingletonStruct::new(alice.info.launcher_id)
@@ -636,7 +637,6 @@ fn test_clear_signing_cat_issuance(
     );
     assert_eq!(nonce, 0);
 
-    // The issuance's `coin_id` must point at the eve CAT spend that emitted the RunCatTail.
     let cat_spend = tx
         .spends
         .iter()

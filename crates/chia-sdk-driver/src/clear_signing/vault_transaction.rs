@@ -12,7 +12,7 @@ use crate::{
     AssertedRequestedPayment, ClawbackInfo, ClawbackV2, CustodyInfo, DriverError, DropCoin, Facts,
     Issuance, IssuanceKind, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild,
     ParsedSpend, Reveals, Spend, VaultMessage, VaultOutput, mips_puzzle_hash,
-    parse_asserted_requested_payments, parse_children, parse_run_cat_tails, parse_spend,
+    parse_asserted_requested_payments, parse_children, parse_run_cat_tail, parse_spend,
     parse_vault_delegated_spend,
 };
 
@@ -236,43 +236,36 @@ fn verify_spend(
         None
     };
 
-    let tail_invocations = if matches!(parsed_spend.asset, ParsedAsset::Cat(_)) {
-        parse_run_cat_tails(allocator, conditions)?
+    let run_cat_tail = if matches!(parsed_spend.asset, ParsedAsset::Cat(_)) {
+        parse_run_cat_tail(allocator, conditions)?
     } else {
-        Vec::new()
+        None
     };
 
-    let mut tail_matched = vec![false; tail_invocations.len()];
+    let mut tail_matched = false;
     let mut custody_matched = false;
 
     for message in messages {
         if let Some(hash) = conditions_hash
-            && message.message.len() == 32
-            && message.message.as_ref() == hash.as_ref()
+            && message.data.as_ref() == hash.as_ref()
         {
             if custody_matched {
                 return Err(DriverError::DuplicateVaultMessage);
             }
+
             custody_matched = true;
-            continue;
-        }
-
-        let mut matched = false;
-        for (index, invocation) in tail_invocations.iter().enumerate() {
-            if tail_matched[index] {
-                continue;
+        } else if let Some(run_cat_tail) = run_cat_tail
+            && matches!(
+                run_cat_tail.kind,
+                IssuanceKind::EverythingWithSingleton { .. }
+            )
+        {
+            if tail_matched {
+                return Err(DriverError::DuplicateVaultMessage);
             }
 
-            if !matches!(invocation.kind, IssuanceKind::Singleton { .. }) {
-                continue;
-            }
-
-            tail_matched[index] = true;
-            matched = true;
-            break;
-        }
-
-        if !matched {
+            tail_matched = true;
+        } else {
             return Err(DriverError::UnmatchedVaultMessage);
         }
     }
@@ -294,20 +287,15 @@ fn verify_spend(
         parsed_spend.required_expiration_time.is_some(),
     )?;
 
-    if let ParsedAsset::Cat(cat) = &parsed_spend.asset
-        && !tail_invocations.is_empty()
-    {
+    if let Some(run_cat_tail) = run_cat_tail {
         let cat_solution = CatSolution::<NodePtr>::from_clvm(allocator, spend.solution)?;
 
-        for invocation in &tail_invocations {
-            issuances.push(Issuance {
-                coin_id,
-                asset_id: invocation.asset_id,
-                hidden_puzzle_hash: cat.info.hidden_puzzle_hash,
-                extra_delta: cat_solution.extra_delta,
-                kind: invocation.kind,
-            });
-        }
+        issuances.push(Issuance {
+            coin_id,
+            asset_id: run_cat_tail.asset_id,
+            extra_delta: cat_solution.extra_delta,
+            kind: run_cat_tail.kind,
+        });
     }
 
     Ok(VerifiedSpend {
