@@ -116,7 +116,7 @@ pub fn parse_vault_transaction(
         .collect();
 
     while let Some(coin_id) = stack.pop() {
-        if !facts.is_spend_asserted(coin_id) {
+        if !facts.is_spend_asserted(coin_id) || !parsed_spends.contains_key(&coin_id) {
             continue;
         }
 
@@ -215,11 +215,7 @@ fn verify_spend(
         | CustodyInfo::DelegatedConditions(conditions) => conditions,
     };
 
-    if messages.is_empty() {
-        if custody.receives_message() {
-            return Err(DriverError::InvalidLinkedCustody);
-        }
-    } else if !custody.receives_message() {
+    if messages.is_empty() && custody.receives_message() {
         return Err(DriverError::InvalidLinkedCustody);
     }
 
@@ -264,7 +260,7 @@ fn verify_spend(
         }
     }
 
-    if !messages.is_empty() && !custody_matched {
+    if custody.receives_message() && !custody_matched {
         return Err(DriverError::WrongConditions);
     }
 
