@@ -92,16 +92,16 @@ impl Reveals {
             // We can throw away asset info here, since we're not interested in taking the offer.
             self.requested_payments
                 .parse(allocator, &mut self.asset_info, puzzle, solution)?;
+        } else {
+            self.coin_spends.insert(
+                coin_spend.coin.coin_id(),
+                RevealedCoinSpend {
+                    coin: coin_spend.coin,
+                    puzzle,
+                    solution,
+                },
+            );
         }
-
-        self.coin_spends.insert(
-            coin_spend.coin.coin_id(),
-            RevealedCoinSpend {
-                coin: coin_spend.coin,
-                puzzle,
-                solution,
-            },
-        );
 
         Ok(())
     }

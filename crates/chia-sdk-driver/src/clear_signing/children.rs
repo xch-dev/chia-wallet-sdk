@@ -48,7 +48,7 @@ pub fn parse_children(
                 // We shouldn't allow a claw back spend to say when the transaction will expire.
                 // Otherwise, it could pretend that it's impossible for the clawback to expire
                 // before the transaction expires, which would be a security vulnerability.
-                if is_claw_back {
+                if !is_claw_back {
                     facts.update_actual_expiration_time(condition.seconds);
                 }
             }

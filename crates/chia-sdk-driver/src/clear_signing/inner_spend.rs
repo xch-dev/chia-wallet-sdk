@@ -7,9 +7,9 @@ use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    ClawbackV2, DelegatedPuzzleFeederLayer, DriverError, IndexWrapperLayer, Layer,
-    P2OneOfManyLayer, Puzzle, RevealedP2Puzzle, Reveals, SingletonMemberLayer, Spend,
-    parse_delegated_spend,
+    AugmentedConditionLayer, ClawbackV2, DelegatedPuzzleFeederLayer, DriverError,
+    IndexWrapperLayer, Layer, P2OneOfManyLayer, Puzzle, RevealedP2Puzzle, Reveals,
+    SingletonMemberLayer, Spend, parse_delegated_spend,
 };
 
 #[derive(Debug, Clone)]
@@ -117,10 +117,27 @@ pub fn parse_inner_spend(
                     custody: None,
                 };
 
-                if path != ClawbackPath::PushThrough {
-                    let solution_puzzle = Puzzle::parse(allocator, solution.puzzle);
-                    let inner_spend =
-                        parse_inner_spend(reveals, allocator, solution_puzzle, solution.solution)?;
+                let solution_puzzle = Puzzle::parse(allocator, solution.puzzle);
+
+                if path != ClawbackPath::PushThrough
+                    && let Some(augmented_condition_puzzle) =
+                        AugmentedConditionLayer::<NodePtr, Puzzle>::parse_puzzle(
+                            allocator,
+                            solution_puzzle,
+                        )?
+                {
+                    let augmented_condition_solution =
+                        AugmentedConditionLayer::<NodePtr, Puzzle>::parse_solution(
+                            allocator,
+                            solution.solution,
+                        )?;
+
+                    let inner_spend = parse_inner_spend(
+                        reveals,
+                        allocator,
+                        augmented_condition_puzzle.inner_puzzle,
+                        augmented_condition_solution.inner_solution,
+                    )?;
 
                     if inner_spend.clawback.is_some() {
                         return Err(DriverError::NestedClawback);
