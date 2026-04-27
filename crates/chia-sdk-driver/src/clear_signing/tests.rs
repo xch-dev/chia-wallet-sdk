@@ -1,6 +1,6 @@
 use anyhow::Result;
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::Memos;
+use chia_puzzle_types::{Memos, singleton::SingletonStruct};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_test::Simulator;
 use chia_sdk_types::{
@@ -11,8 +11,9 @@ use clvm_utils::{ToTreeHash, tree_hash};
 use rstest::rstest;
 
 use crate::{
-    Action, BURN_PUZZLE_HASH, CustodyInfo, Deltas, DropCoin, FeeAction, Id, Nft, ParsedAsset,
-    Spend, SpendContext, Spends, TestVault, VaultOutput, parse_vault_transaction,
+    Action, BURN_PUZZLE_HASH, Cat, CatInfo, CatSpend, CustodyInfo, Deltas, DropCoin, FeeAction, Id,
+    IssuanceKind, Nft, ParsedAsset, Spend, SpendContext, Spends, TestVault, VaultOutput,
+    parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -582,6 +583,147 @@ fn test_clear_signing_transfer_nft() -> Result<()> {
 
     let child_nft = unwrap_nft(&spend.children[0].asset);
     assert_eq!(child_nft.info.p2_puzzle_hash, BURN_PUZZLE_HASH);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_p2_singleton_cat_issuance(
+    #[values(None, Some(Bytes32::default()))] hidden_puzzle_hash: Option<Bytes32>,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    let tail_puzzle = ctx.curry(EverythingWithSingletonTailArgs::new(
+        alice.info.launcher_id,
+        0,
+    ))?;
+    let tail_solution = ctx.alloc(&EverythingWithSingletonTailSolution::new(
+        alice.info.custody_hash.into(),
+    ))?;
+    let expected_asset_id: Bytes32 = ctx.tree_hash(tail_puzzle).into();
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::issue_cat(
+            Spend::new(tail_puzzle, tail_solution),
+            hidden_puzzle_hash,
+            1000,
+        )],
+    )?;
+
+    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+
+    assert_eq!(tx.issuances.len(), 1);
+
+    let issuance = &tx.issuances[0];
+    assert_eq!(issuance.asset_id, expected_asset_id);
+
+    let IssuanceKind::EverythingWithSingleton {
+        singleton_struct_hash,
+        nonce,
+    } = issuance.kind
+    else {
+        panic!("wrong issuance kind");
+    };
+
+    assert_eq!(
+        singleton_struct_hash,
+        SingletonStruct::new(alice.info.launcher_id)
+            .tree_hash()
+            .into()
+    );
+    assert_eq!(nonce, 0);
+
+    let cat_spend = tx
+        .spends
+        .iter()
+        .find(|spend| matches!(spend.asset, ParsedAsset::Cat(_)))
+        .expect("expected the eve cat spend to be verified");
+    assert_eq!(cat_spend.asset.coin().coin_id(), issuance.coin_id);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_delegated_conditions_cat_issuance() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    let tail_puzzle = ctx.curry(EverythingWithSingletonTailArgs::new(
+        alice.info.launcher_id,
+        0,
+    ))?;
+    let tail_solution = ctx.alloc(&EverythingWithSingletonTailSolution::new(
+        alice.info.custody_hash.into(),
+    ))?;
+    let asset_id: Bytes32 = ctx.tree_hash(tail_puzzle).into();
+
+    let hint = ctx.hint(alice.p2_puzzle_hash)?;
+    let eve_conditions = Conditions::new()
+        .run_cat_tail(tail_puzzle, tail_solution)
+        .create_coin(alice.p2_puzzle_hash, 1000, hint);
+    let delegated_spend = ctx.delegated_spend(eve_conditions)?;
+    let delegated_puzzle_hash = tree_hash(&ctx, delegated_spend.puzzle).into();
+    let eve_info = CatInfo::new(asset_id, None, delegated_puzzle_hash);
+
+    let actions = [Action::send(
+        Id::Xch,
+        eve_info.puzzle_hash().into(),
+        1000,
+        Memos::None,
+    )];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let input_coin_id = spends.xch.items[0].asset.coin_id();
+    let eve_coin = Coin::new(input_coin_id, eve_info.puzzle_hash().into(), 1000);
+    let eve = Cat::new(eve_coin, None, eve_info);
+
+    Cat::spend_all(&mut ctx, &[CatSpend::new(eve, delegated_spend)])?;
+
+    spends
+        .conditions
+        .required
+        .push(Condition::assert_concurrent_spend(eve_coin.coin_id()));
+
+    let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+
+    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+
+    assert_eq!(tx.issuances.len(), 1);
+
+    let issuance = &tx.issuances[0];
+    assert_eq!(issuance.asset_id, asset_id);
+
+    let IssuanceKind::EverythingWithSingleton {
+        singleton_struct_hash,
+        nonce,
+    } = issuance.kind
+    else {
+        panic!("wrong issuance kind");
+    };
+
+    assert_eq!(
+        singleton_struct_hash,
+        SingletonStruct::new(alice.info.launcher_id)
+            .tree_hash()
+            .into()
+    );
+    assert_eq!(nonce, 0);
+
+    let cat_spend = tx
+        .spends
+        .iter()
+        .find(|spend| matches!(spend.asset, ParsedAsset::Cat(_)))
+        .expect("expected the eve cat spend to be verified");
+    assert_eq!(cat_spend.asset.coin().coin_id(), issuance.coin_id);
 
     Ok(())
 }

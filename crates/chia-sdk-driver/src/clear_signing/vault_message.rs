@@ -1,14 +1,14 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::{MessageFlags, MessageSide, conditions::SendMessage};
 use clvm_traits::FromClvm;
 use clvmr::{Allocator, NodePtr};
 
 use crate::DriverError;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VaultMessage {
     pub spent_coin_id: Bytes32,
-    pub delegated_puzzle_hash: Bytes32,
+    pub data: Bytes,
 }
 
 /// We intentionally expect a pretty rigid format here, out of an abundance of caution.
@@ -26,10 +26,9 @@ pub fn parse_vault_message(
     }
 
     let coin_id = Bytes32::from_clvm(allocator, condition.data[0])?;
-    let delegated_puzzle_hash = condition.message.try_into()?;
 
     Ok(VaultMessage {
         spent_coin_id: coin_id,
-        delegated_puzzle_hash,
+        data: condition.message,
     })
 }

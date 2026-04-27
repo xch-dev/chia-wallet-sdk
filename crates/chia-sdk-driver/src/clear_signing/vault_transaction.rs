@@ -1,17 +1,19 @@
 use std::collections::HashMap;
 
 use chia_protocol::{Bytes32, CoinSpend};
-use chia_sdk_types::{Mod, puzzles::SingletonMember};
-use clvm_traits::{ToClvm, clvm_quote};
+use chia_puzzle_types::cat::CatSolution;
+use chia_sdk_types::{Condition, Mod, puzzles::SingletonMember};
+use clvm_traits::{FromClvm, ToClvm, clvm_quote};
 use clvm_utils::tree_hash;
-use clvmr::Allocator;
-use indexmap::IndexSet;
+use clvmr::{Allocator, NodePtr};
+use indexmap::{IndexMap, IndexSet};
 
 use crate::{
     AssertedRequestedPayment, ClawbackInfo, ClawbackV2, CustodyInfo, DriverError, DropCoin, Facts,
-    P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild, ParsedSpend, Reveals,
-    Spend, VaultMessage, VaultOutput, mips_puzzle_hash, parse_asserted_requested_payments,
-    parse_children, parse_spend, parse_vault_delegated_spend,
+    Issuance, IssuanceKind, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild,
+    ParsedSpend, Reveals, Spend, VaultMessage, VaultOutput, get_extra_delta_message,
+    mips_puzzle_hash, parse_asserted_requested_payments, parse_children, parse_run_cat_tail,
+    parse_spend, parse_vault_delegated_spend,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -28,6 +30,10 @@ pub struct VaultTransaction {
     pub drop_coins: Vec<DropCoin>,
     /// The spends (and their children) which were authorized by the vault.
     pub spends: Vec<VerifiedSpend>,
+    /// CAT supply changes (mints or melts) authorized by spends in this transaction. Each issuance
+    /// records the coin id of the spend that emitted the `RunCatTail` condition, so callers can
+    /// match it back to the corresponding `VerifiedSpend` by coin id if they want to.
+    pub issuances: Vec<Issuance>,
     /// Requested payments which were both revealed and asserted by the vault spend. These are assets which are going
     /// to be received when and if the transaction is confirmed on-chain.
     pub received_payments: Vec<AssertedRequestedPayment>,
@@ -74,16 +80,26 @@ pub fn parse_vault_transaction(
         parsed_spends.insert(spend.coin.coin_id(), parsed_spend);
     }
 
-    let mut verified_spends = Vec::new();
-
+    let mut messages_by_coin: IndexMap<Bytes32, Vec<VaultMessage>> = IndexMap::new();
     for message in vault_spend.messages {
+        messages_by_coin
+            .entry(message.spent_coin_id)
+            .or_default()
+            .push(message);
+    }
+
+    let mut verified_spends = Vec::new();
+    let mut issuances: Vec<Issuance> = Vec::new();
+
+    for (coin_id, messages) in messages_by_coin {
         let verified_spend = verify_spend(
             &reveals,
             &mut facts,
             allocator,
             &mut parsed_spends,
-            message.spent_coin_id,
-            Some(message),
+            coin_id,
+            &messages,
+            &mut issuances,
         )?;
 
         verified_spends.push(verified_spend);
@@ -100,7 +116,7 @@ pub fn parse_vault_transaction(
         .collect();
 
     while let Some(coin_id) = stack.pop() {
-        if !facts.is_spend_asserted(coin_id) {
+        if !facts.is_spend_asserted(coin_id) || !parsed_spends.contains_key(&coin_id) {
             continue;
         }
 
@@ -110,7 +126,8 @@ pub fn parse_vault_transaction(
             allocator,
             &mut parsed_spends,
             coin_id,
-            None,
+            &[],
+            &mut issuances,
         )?;
 
         for child in &verified_spend.children {
@@ -159,6 +176,7 @@ pub fn parse_vault_transaction(
         vault_child: vault_spend.child,
         drop_coins: vault_spend.drop_coins,
         spends: verified_spends,
+        issuances,
         received_payments,
         fee_paid,
         reserved_fee,
@@ -174,7 +192,8 @@ fn verify_spend(
     allocator: &mut Allocator,
     parsed_spends: &mut HashMap<Bytes32, ParsedSpend>,
     coin_id: Bytes32,
-    message: Option<VaultMessage>,
+    messages: &[VaultMessage],
+    issuances: &mut Vec<Issuance>,
 ) -> Result<VerifiedSpend, DriverError> {
     let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
         return Err(DriverError::MissingSpend);
@@ -188,30 +207,73 @@ fn verify_spend(
         return Err(DriverError::InvalidLinkedCustody);
     };
 
-    let conditions = if let Some(message) = message {
-        let (CustodyInfo::P2Singleton(P2SingletonInfo { conditions, .. })
+    let conditions: &[Condition] = match &custody {
+        CustodyInfo::P2Singleton(P2SingletonInfo { conditions, .. })
         | CustodyInfo::P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo {
             conditions, ..
-        })) = &custody
-        else {
-            return Err(DriverError::InvalidLinkedCustody);
-        };
-
-        let delegated_puzzle = clvm_quote!(conditions).to_clvm(allocator)?;
-        let delegated_puzzle_hash = tree_hash(allocator, delegated_puzzle);
-
-        if delegated_puzzle_hash != message.delegated_puzzle_hash.into() {
-            return Err(DriverError::WrongConditions);
-        }
-
-        conditions
-    } else {
-        let CustodyInfo::DelegatedConditions(conditions) = &custody else {
-            return Err(DriverError::InvalidLinkedCustody);
-        };
-
-        conditions
+        })
+        | CustodyInfo::DelegatedConditions(conditions) => conditions,
     };
+
+    if messages.is_empty() && custody.receives_message() {
+        return Err(DriverError::InvalidLinkedCustody);
+    }
+
+    let conditions_hash = if custody.receives_message() {
+        let delegated_puzzle = clvm_quote!(conditions).to_clvm(allocator)?;
+        Some(tree_hash(allocator, delegated_puzzle))
+    } else {
+        None
+    };
+
+    let run_cat_tail = if matches!(parsed_spend.asset, ParsedAsset::Cat(_)) {
+        parse_run_cat_tail(allocator, conditions)?
+    } else {
+        None
+    };
+
+    let issuance = if let Some(run_cat_tail) = run_cat_tail {
+        let cat_solution = CatSolution::<NodePtr>::from_clvm(allocator, spend.solution)?;
+
+        Some(Issuance {
+            coin_id,
+            asset_id: run_cat_tail.asset_id,
+            extra_delta: cat_solution.extra_delta,
+            kind: run_cat_tail.kind,
+        })
+    } else {
+        None
+    };
+
+    let mut tail_matched = false;
+    let mut custody_matched = false;
+
+    for message in messages {
+        if let Some(hash) = conditions_hash
+            && message.data.as_ref() == hash.as_ref()
+        {
+            if custody_matched {
+                return Err(DriverError::DuplicateVaultMessage);
+            }
+
+            custody_matched = true;
+        } else if let Some(issuance) = issuance
+            && matches!(issuance.kind, IssuanceKind::EverythingWithSingleton { .. })
+            && message.data == get_extra_delta_message(issuance.extra_delta)
+        {
+            if tail_matched {
+                return Err(DriverError::DuplicateVaultMessage);
+            }
+
+            tail_matched = true;
+        } else {
+            return Err(DriverError::UnmatchedVaultMessage);
+        }
+    }
+
+    if custody.receives_message() && !custody_matched {
+        return Err(DriverError::WrongConditions);
+    }
 
     if let Some(time) = parsed_spend.required_expiration_time {
         facts.update_required_expiration_time(time);
@@ -225,6 +287,10 @@ fn verify_spend(
         conditions,
         parsed_spend.required_expiration_time.is_some(),
     )?;
+
+    if let Some(issuance) = issuance {
+        issuances.push(issuance);
+    }
 
     Ok(VerifiedSpend {
         asset: parsed_spend.asset,

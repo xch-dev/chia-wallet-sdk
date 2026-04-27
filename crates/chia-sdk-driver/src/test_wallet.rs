@@ -2,27 +2,29 @@ use std::{collections::HashMap, slice};
 
 use anyhow::{Result, anyhow};
 use chia_bls::{PublicKey, SecretKey, Signature};
-use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{
-    EveProof, LineageProof, Memos, Proof, cat::CatArgs, offer::SettlementPaymentsSolution,
-    singleton::SingletonArgs,
+    EveProof, LineageProof, Memos, Proof,
+    cat::{CatArgs, CatSolution},
+    offer::SettlementPaymentsSolution,
+    singleton::{SingletonArgs, SingletonStruct},
 };
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_test::{Simulator, sign_transaction};
 use chia_sdk_types::{
-    Conditions, MessageFlags, MessageSide, Mod,
+    Condition, Conditions, MessageFlags, MessageSide, Mod,
     conditions::{CreateCoin, SendMessage},
-    puzzles::{BlsMember, RevocationArgs},
+    puzzles::{BlsMember, EverythingWithSingletonTailArgs, RevocationArgs},
 };
 use chia_sdk_utils::select_coins;
-use clvm_traits::ToClvm;
+use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    Action, Cat, Deltas, Id, InnerPuzzleSpend, Launcher, Layer, MipsSpend, Nft, Outputs,
-    P2ConditionsOrSingleton, P2Singleton, Puzzle, Relation, SettlementLayer, Spend, SpendContext,
-    SpendKind, Spends, StandardLayer, Vault, VaultInfo, mips_puzzle_hash,
+    Action, Cat, CurriedPuzzle, Deltas, Id, InnerPuzzleSpend, Launcher, Layer, MipsSpend, Nft,
+    Outputs, P2ConditionsOrSingleton, P2Singleton, Puzzle, Relation, SettlementLayer, Spend,
+    SpendContext, SpendKind, Spends, StandardLayer, Vault, VaultInfo, mips_puzzle_hash,
 };
 
 #[derive(Debug, Clone)]
@@ -223,6 +225,11 @@ impl TestVault {
         let outputs = spends.spend(ctx, coin_spends)?;
         let coin_spends = ctx.take();
 
+        let tail_messages = vault_tail_messages(ctx, self.info.launcher_id, &coin_spends)?;
+        for message in tail_messages {
+            vault_conditions.push(message);
+        }
+
         let vault = self.fetch_vault(sim)?;
 
         let delegated_spend = ctx.delegated_spend(vault_conditions.create_coin(
@@ -380,6 +387,57 @@ fn fetch_vault(sim: &Simulator, launcher_id: Bytes32, custody_hash: Bytes32) -> 
         proof,
         VaultInfo::new(launcher_id, custody_hash.into()),
     ))
+}
+
+fn vault_tail_messages(
+    ctx: &mut SpendContext,
+    launcher_id: Bytes32,
+    coin_spends: &[CoinSpend],
+) -> Result<Vec<SendMessage<NodePtr>>, anyhow::Error> {
+    let expected_struct_hash = SingletonStruct::new(launcher_id).tree_hash();
+
+    let mut messages = Vec::new();
+
+    for coin_spend in coin_spends {
+        let puzzle = coin_spend.puzzle_reveal.to_clvm(ctx)?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+        let solution = coin_spend.solution.to_clvm(ctx)?;
+
+        let Some((_cat, inner_puzzle, inner_solution)) =
+            Cat::parse(ctx, coin_spend.coin, puzzle, solution)?
+        else {
+            continue;
+        };
+
+        let output = ctx.run(inner_puzzle.ptr(), inner_solution)?;
+        let conditions: Vec<Condition> = ctx.extract(output)?;
+
+        let Some(run_cat_tail) = conditions.iter().find_map(Condition::as_run_cat_tail) else {
+            continue;
+        };
+
+        let Some(curried) = CurriedPuzzle::parse(ctx, run_cat_tail.program) else {
+            continue;
+        };
+        if curried.mod_hash != EverythingWithSingletonTailArgs::mod_hash() {
+            continue;
+        }
+        let args = ctx.extract::<EverythingWithSingletonTailArgs>(curried.args)?;
+        if args.singleton_struct_hash != expected_struct_hash.into() {
+            continue;
+        }
+
+        let cat_solution = CatSolution::<NodePtr>::from_clvm(ctx, solution)?;
+        let extra_delta_ptr = ctx.alloc(&cat_solution.extra_delta)?;
+        let extra_delta_bytes: Bytes = ctx.atom(extra_delta_ptr).as_ref().to_vec().into();
+
+        let mode = MessageFlags::PUZZLE.encode(MessageSide::Sender)
+            | MessageFlags::COIN.encode(MessageSide::Receiver);
+        let coin_id_ptr = ctx.alloc(&coin_spend.coin.coin_id())?;
+        messages.push(SendMessage::new(mode, extra_delta_bytes, vec![coin_id_ptr]));
+    }
+
+    Ok(messages)
 }
 
 fn try_fetch_nft(sim: &Simulator, coin: Coin) -> Result<Option<Nft>> {
