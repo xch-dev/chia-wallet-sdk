@@ -1,18 +1,38 @@
-use chia_protocol::Coin;
+use chia_protocol::{Bytes32, Coin};
+use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::Condition;
 use clvmr::Allocator;
 
 use crate::{
-    Cat, DriverError, Facts, Nft, ParsedAsset, ParsedMemos, RevealedCoinSpend, parse_memos,
+    BURN_PUZZLE_HASH, Cat, DriverError, Facts, Nft, ParsedAsset, ParsedMemos, RevealedCoinSpend,
+    RevealedP2Puzzle, Reveals, parse_memos,
 };
 
 #[derive(Debug, Clone)]
 pub struct ParsedChild {
     pub asset: ParsedAsset,
     pub memos: ParsedMemos,
+    pub transfer_type: TransferType,
+}
+
+#[derive(Debug, Clone)]
+pub enum TransferType {
+    Sent,
+    Burned,
+    Offered,
+    OfferPreSplit(OfferPreSplitInfo),
+}
+
+#[derive(Debug, Clone)]
+pub struct OfferPreSplitInfo {
+    pub launcher_id: Bytes32,
+    pub nonce: usize,
+    pub fixed_conditions: Vec<Condition>,
+    pub settlement_amount: u64,
 }
 
 pub fn parse_children(
+    reveals: &Reveals,
     facts: &mut Facts,
     allocator: &mut Allocator,
     asset: &ParsedAsset,
@@ -59,13 +79,17 @@ pub fn parse_children(
                 match &asset {
                     // All XCH children are considered to be XCH by default.
                     ParsedAsset::Xch(_) => {
+                        let memos = parse_memos(allocator, *condition, false);
+                        let transfer_type = calculate_transfer_type(reveals, &memos);
+
                         children.push(ParsedChild {
                             asset: ParsedAsset::Xch(Coin::new(
                                 spend.coin.coin_id(),
                                 condition.puzzle_hash,
                                 condition.amount,
                             )),
-                            memos: parse_memos(allocator, *condition, false),
+                            memos,
+                            transfer_type,
                         });
                     }
                     // For NFTs, even amount children are XCH coins. If the amount is odd, it's the
@@ -82,18 +106,26 @@ pub fn parse_children(
                                 return Err(DriverError::MissingChild);
                             };
 
+                            let memos = parse_memos(allocator, *condition, true);
+                            let transfer_type = calculate_transfer_type(reveals, &memos);
+
                             children.push(ParsedChild {
                                 asset: ParsedAsset::Nft(nft),
-                                memos: parse_memos(allocator, *condition, true),
+                                memos,
+                                transfer_type,
                             });
                         } else {
+                            let memos = parse_memos(allocator, *condition, false);
+                            let transfer_type = calculate_transfer_type(reveals, &memos);
+
                             children.push(ParsedChild {
                                 asset: ParsedAsset::Xch(Coin::new(
                                     spend.coin.coin_id(),
                                     condition.puzzle_hash,
                                     condition.amount,
                                 )),
-                                memos: parse_memos(allocator, *condition, false),
+                                memos,
+                                transfer_type,
                             });
                         }
                     }
@@ -109,9 +141,13 @@ pub fn parse_children(
                             return Err(DriverError::RevocableChild);
                         }
 
+                        let memos = parse_memos(allocator, *condition, true);
+                        let transfer_type = calculate_transfer_type(reveals, &memos);
+
                         children.push(ParsedChild {
                             asset: ParsedAsset::Cat(cat),
-                            memos: parse_memos(allocator, *condition, true),
+                            memos,
+                            transfer_type,
                         });
                     }
                 }
@@ -121,4 +157,34 @@ pub fn parse_children(
     }
 
     Ok(children)
+}
+
+fn calculate_transfer_type(reveals: &Reveals, memos: &ParsedMemos) -> TransferType {
+    if memos.p2_puzzle_hash == BURN_PUZZLE_HASH {
+        TransferType::Burned
+    } else if memos.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
+        TransferType::Offered
+    } else if memos.clawback.is_none()
+        && let Some(RevealedP2Puzzle::P2ConditionsOrSingleton(p2_puzzle)) =
+            reveals.p2_puzzle(memos.p2_puzzle_hash.into())
+    {
+        let mut settlement_amount = 0;
+
+        for condition in &p2_puzzle.fixed_conditions {
+            if let Some(condition) = condition.as_create_coin()
+                && condition.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
+            {
+                settlement_amount += condition.amount;
+            }
+        }
+
+        TransferType::OfferPreSplit(OfferPreSplitInfo {
+            launcher_id: p2_puzzle.launcher_id,
+            nonce: p2_puzzle.nonce,
+            fixed_conditions: p2_puzzle.fixed_conditions.clone(),
+            settlement_amount,
+        })
+    } else {
+        TransferType::Sent
+    }
 }
