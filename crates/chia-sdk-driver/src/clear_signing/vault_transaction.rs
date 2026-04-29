@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use chia_protocol::{Bytes32, CoinSpend};
 use chia_puzzle_types::cat::CatSolution;
@@ -10,7 +10,8 @@ use indexmap::{IndexMap, IndexSet};
 
 use crate::{
     AssertedRequestedPayment, ClawbackInfo, ClawbackV2, CustodyInfo, DriverError, DropCoin, Facts,
-    Issuance, IssuanceKind, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild,
+    Issuance, IssuanceKind, LinkedOffer, OfferPreSplitInfo, P2ConditionsOrSingletonInfo,
+    P2ConditionsOrSingletonRevealInput, P2PuzzleType, P2SingletonInfo, ParsedAsset, ParsedChild,
     ParsedSpend, Reveals, Spend, VaultMessage, VaultOutput, get_extra_delta_message,
     mips_puzzle_hash, parse_asserted_requested_payments, parse_children, parse_run_cat_tail,
     parse_spend, parse_vault_delegated_spend,
@@ -34,6 +35,12 @@ pub struct VaultTransaction {
     /// records the coin id of the spend that emitted the `RunCatTail` condition, so callers can
     /// match it back to the corresponding `VerifiedSpend` by coin id if they want to.
     pub issuances: Vec<Issuance>,
+    /// If this transaction creates one or more offer pre-split coins, this rolls them up into a
+    /// description of the future offer. Per-leg details (the individual pre-split children) live
+    /// on the children themselves via [`P2PuzzleType::OfferPreSplit`].
+    ///
+    /// `None` means the transaction does not link any offer pre-split coins.
+    pub linked_offer: Option<LinkedOffer>,
     /// Requested payments which were both revealed and asserted by the vault spend. These are assets which are going
     /// to be received when and if the transaction is confirmed on-chain.
     pub received_payments: Vec<AssertedRequestedPayment>,
@@ -67,10 +74,16 @@ pub fn parse_vault_transaction(
     delegated_spend: Spend,
     coin_spends: Vec<CoinSpend>,
     spent_clawbacks: Vec<ClawbackV2>,
+    p2_conditions_or_singletons: Vec<P2ConditionsOrSingletonRevealInput>,
 ) -> Result<VaultTransaction, DriverError> {
     let mut facts = Facts::default();
 
-    let reveals = Reveals::from_spends(allocator, coin_spends, spent_clawbacks)?;
+    let reveals = Reveals::from_spends(
+        allocator,
+        coin_spends,
+        spent_clawbacks,
+        p2_conditions_or_singletons,
+    )?;
     let vault_spend = parse_vault_delegated_spend(&mut facts, allocator, delegated_spend)?;
 
     let mut parsed_spends = HashMap::new();
@@ -172,11 +185,14 @@ pub fn parse_vault_transaction(
         Vec::new()
     };
 
+    let linked_offer = build_linked_offer(&verified_spends, launcher_id, &reveals, allocator)?;
+
     Ok(VaultTransaction {
         vault_child: vault_spend.child,
         drop_coins: vault_spend.drop_coins,
         spends: verified_spends,
         issuances,
+        linked_offer,
         received_payments,
         fee_paid,
         reserved_fee,
@@ -282,6 +298,7 @@ fn verify_spend(
     let children = parse_children(
         facts,
         allocator,
+        reveals,
         &parsed_spend.asset,
         spend,
         conditions,
@@ -345,4 +362,115 @@ fn calculate_p2_puzzle_hashes(reveals: &Reveals, launcher_id: Bytes32) -> Vec<By
     }
 
     p2_puzzle_hashes
+}
+
+/// Aggregate every offer pre-split child across all verified spends into a single [`LinkedOffer`],
+/// rejecting transactions whose pre-split coins disagree about the future offer.
+fn build_linked_offer(
+    spends: &[VerifiedSpend],
+    launcher_id: Option<Bytes32>,
+    reveals: &Reveals,
+    allocator: &Allocator,
+) -> Result<Option<LinkedOffer>, DriverError> {
+    // Collect each pre-split leg with its parent input amount and asset kind. We carry the amount
+    // and "is XCH" flag separately so the per-leg fee check below doesn't have to re-walk children.
+    let mut legs: Vec<(u64, bool, &OfferPreSplitInfo)> = Vec::new();
+    for spend in spends {
+        for child in &spend.children {
+            if let P2PuzzleType::OfferPreSplit(info) = &child.p2_puzzle_type {
+                let is_xch = matches!(child.asset, ParsedAsset::Xch(_));
+                legs.push((child.asset.coin().amount, is_xch, info));
+            }
+        }
+    }
+
+    if legs.is_empty() {
+        return Ok(None);
+    }
+
+    // Every leg's launcher id must agree with the main launcher id discovered from the verified
+    // spends. A pre-split coin pointing at a different vault isn't ours to cancel and shouldn't
+    // be surfaced as our offer.
+    let main_launcher = launcher_id.ok_or(DriverError::LinkedOfferLauncherMismatch)?;
+    for (_, _, info) in &legs {
+        if info.launcher_id != main_launcher {
+            return Err(DriverError::LinkedOfferLauncherMismatch);
+        }
+    }
+
+    // Each XCH leg's fixed conditions must balance: the sum of its `CreateCoin` amounts plus its
+    // `ReserveFee` amounts must equal the parent's input amount. The reserve-fee total is the
+    // amount we'll surface to the user, so it has to be accurate. CAT legs are skipped because
+    // `ReserveFee` is an XCH-only concept.
+    let mut reserved_fee: u64 = 0;
+    for (input_amount, is_xch, info) in &legs {
+        if !*is_xch {
+            continue;
+        }
+
+        let mut output_total: u64 = 0;
+        let mut leg_reserve_fee: u64 = 0;
+        for condition in &info.fixed_conditions {
+            match condition {
+                Condition::CreateCoin(create_coin) => {
+                    output_total = output_total
+                        .checked_add(create_coin.amount)
+                        .ok_or(DriverError::LinkedOfferFeeMismatch)?;
+                }
+                Condition::ReserveFee(rf) => {
+                    leg_reserve_fee = leg_reserve_fee
+                        .checked_add(rf.amount)
+                        .ok_or(DriverError::LinkedOfferFeeMismatch)?;
+                }
+                _ => {}
+            }
+        }
+
+        let expected_fee = input_amount
+            .checked_sub(output_total)
+            .ok_or(DriverError::LinkedOfferFeeMismatch)?;
+
+        if leg_reserve_fee != expected_fee {
+            return Err(DriverError::LinkedOfferFeeMismatch);
+        }
+
+        reserved_fee = reserved_fee
+            .checked_add(leg_reserve_fee)
+            .ok_or(DriverError::LinkedOfferFeeMismatch)?;
+    }
+
+    // All legs must assert the same set of puzzle announcements — that's how we know they really
+    // describe a single offer. We compare by content (HashSet equality) so ordering and within-leg
+    // duplicates don't trigger spurious mismatches.
+    let baseline = announcement_set(legs[0].2);
+    for (_, _, info) in legs.iter().skip(1) {
+        if announcement_set(info) != baseline {
+            return Err(DriverError::LinkedOfferAnnouncementMismatch);
+        }
+    }
+
+    // Match the offer's announcement set against the requested payments revealed in the
+    // transaction. We feed `parse_asserted_requested_payments` an offer-local `Facts` so that
+    // the transaction's main `received_payments` aren't conflated with the offer's.
+    let mut offer_facts = Facts::default();
+    for announcement_id in baseline {
+        offer_facts.assert_puzzle_announcement(announcement_id);
+    }
+
+    let requested_payments = parse_asserted_requested_payments(reveals, &offer_facts, allocator)?;
+
+    Ok(Some(LinkedOffer {
+        reserved_fee,
+        requested_payments,
+    }))
+}
+
+fn announcement_set(info: &OfferPreSplitInfo) -> HashSet<Bytes32> {
+    info.fixed_conditions
+        .iter()
+        .filter_map(|condition| match condition {
+            Condition::AssertPuzzleAnnouncement(c) => Some(c.announcement_id),
+            _ => None,
+        })
+        .collect()
 }

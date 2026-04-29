@@ -24,6 +24,19 @@ pub struct P2ConditionsOrSingletonReveal {
     pub launcher_id: Bytes32,
     pub nonce: usize,
     pub fixed_conditions: Vec<Condition>,
+    /// Tree hash of `clvm_quote!(fixed_conditions)`. Cached at reveal time so callers don't have
+    /// to re-serialize the conditions to recover it.
+    pub fixed_delegated_puzzle_hash: Bytes32,
+}
+
+/// Input to [`Reveals::reveal_p2_conditions_or_singleton`] / [`parse_vault_transaction`] for
+/// supplying a `P2ConditionsOrSingleton` puzzle the parser should recognize. The cached delegated
+/// puzzle hash is computed by the parser, not by the caller.
+#[derive(Debug, Clone)]
+pub struct P2ConditionsOrSingletonRevealInput {
+    pub launcher_id: Bytes32,
+    pub nonce: usize,
+    pub fixed_conditions: Vec<Condition>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -47,6 +60,7 @@ impl Reveals {
         allocator: &mut Allocator,
         coin_spends: Vec<CoinSpend>,
         spent_clawbacks: Vec<ClawbackV2>,
+        p2_conditions_or_singletons: Vec<P2ConditionsOrSingletonRevealInput>,
     ) -> Result<Self, DriverError> {
         let mut reveals = Self::default();
 
@@ -58,6 +72,15 @@ impl Reveals {
 
         for clawback in spent_clawbacks {
             reveals.reveal_clawback(clawback);
+        }
+
+        for input in p2_conditions_or_singletons {
+            reveals.reveal_p2_conditions_or_singleton(
+                allocator,
+                input.launcher_id,
+                input.nonce,
+                input.fixed_conditions,
+            )?;
         }
 
         Ok(reveals)
@@ -161,6 +184,7 @@ impl Reveals {
                 launcher_id,
                 nonce,
                 fixed_conditions,
+                fixed_delegated_puzzle_hash: delegated_spend_hash.into(),
             }),
         );
 

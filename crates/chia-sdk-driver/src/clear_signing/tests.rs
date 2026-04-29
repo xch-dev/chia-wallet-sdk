@@ -1,19 +1,27 @@
 use anyhow::Result;
-use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::{Memos, singleton::SingletonStruct};
-use chia_puzzles::SINGLETON_LAUNCHER_HASH;
+use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_puzzle_types::{
+    Memos,
+    offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},
+    singleton::SingletonStruct,
+};
+use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
 use chia_sdk_test::Simulator;
 use chia_sdk_types::{
-    Condition, Conditions,
+    Condition, Conditions, announcement_id,
+    conditions::{AssertPuzzleAnnouncement, CreateCoin, ReserveFee},
     puzzles::{EverythingWithSingletonTailArgs, EverythingWithSingletonTailSolution},
+    tree_hash_notarized_payment,
 };
+use clvm_traits::{ToClvm, clvm_quote};
 use clvm_utils::{ToTreeHash, tree_hash};
 use rstest::rstest;
 
 use crate::{
-    Action, BURN_PUZZLE_HASH, Cat, CatInfo, CatSpend, CustodyInfo, Deltas, DropCoin, FeeAction, Id,
-    IssuanceKind, Nft, ParsedAsset, Spend, SpendContext, Spends, TestVault, VaultOutput,
-    parse_vault_transaction,
+    Action, BURN_PUZZLE_HASH, Cat, CatInfo, CatSpend, CustodyInfo, Deltas, DriverError, DropCoin,
+    FeeAction, Id, IssuanceKind, Layer, Nft, OfferPreSplitInfo, P2ConditionsOrSingleton,
+    P2ConditionsOrSingletonRevealInput, P2PuzzleType, ParsedAsset, RequestedAsset, SettlementLayer,
+    Spend, SpendContext, Spends, TestVault, VaultOutput, parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,7 +118,13 @@ fn test_clear_signing_vault_child() -> Result<()> {
 
     let result = alice.spend(&mut sim, &mut ctx, &[])?;
 
-    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
 
     assert_eq!(
         tx.vault_child,
@@ -138,7 +152,13 @@ fn test_clear_signing_vault_info() -> Result<()> {
         &[Action::send(Id::Xch, alice.p2_puzzle_hash, 1, Memos::None)],
     )?;
 
-    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
 
     // Because we spent another coin, we know the launcher id and p2 puzzle hashes.
     assert_eq!(tx.launcher_id, Some(alice.info.launcher_id));
@@ -159,7 +179,13 @@ fn test_clear_signing_drop_coins() -> Result<()> {
     let vault_conditions = Conditions::new().create_coin(Bytes32::default(), 0, Memos::None);
     let result = alice.custom_spend(&mut sim, &mut ctx, &[], spends, vault_conditions)?;
 
-    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
 
     assert_eq!(tx.spends.len(), 0);
     assert_eq!(tx.drop_coins, [DropCoin::new(Bytes32::default(), 0)]);
@@ -195,7 +221,13 @@ fn test_clear_signing_reserved_fee(#[case] fee_paid: u64, #[case] reserved_fee: 
         ],
     )?;
 
-    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
 
     assert_eq!(tx.fee_paid, fee_paid);
     assert_eq!(tx.reserved_fee, reserved_fee);
@@ -226,7 +258,13 @@ fn test_clear_signing_self_transfer(
         &[Action::send(id, alice.p2_puzzle_hash, 42, memos)],
     )?;
 
-    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
 
     assert_eq!(tx.spends.len(), 1);
 
@@ -269,7 +307,13 @@ fn test_clear_signing_intermediate_p2_singleton() -> Result<()> {
         ],
     )?;
 
-    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
 
     assert_eq!(tx.spends.len(), 2);
 
@@ -338,7 +382,13 @@ fn test_clear_signing_intermediate_delegated_conditions(
 
     let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
 
-    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
 
     assert_eq!(tx.spends.len(), if asserted { 2 } else { 1 });
 
@@ -418,7 +468,13 @@ fn test_clear_signing_chained_delegated_conditions(
 
     let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
 
-    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
 
     assert_eq!(
         tx.spends.len(),
@@ -497,7 +553,13 @@ fn test_clear_signing_transfer(
         ],
     )?;
 
-    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
 
     assert_eq!(tx.fee_paid, fee);
     assert_eq!(tx.reserved_fee, fee);
@@ -530,7 +592,13 @@ fn test_clear_signing_mint_nft() -> Result<()> {
 
     let result = alice.spend(&mut sim, &mut ctx, &[Action::mint_empty_nft()])?;
 
-    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
 
     assert_eq!(tx.spends.len(), 2);
 
@@ -560,7 +628,13 @@ fn test_clear_signing_transfer_nft() -> Result<()> {
     let alice = TestVault::mint(&mut sim, &mut ctx, 1)?;
 
     let result = alice.spend(&mut sim, &mut ctx, &[Action::mint_empty_nft()])?;
-    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
     let nft = unwrap_nft(&tx.spends[1].children[0].asset);
 
     let hint = ctx.hint(BURN_PUZZLE_HASH)?;
@@ -574,7 +648,13 @@ fn test_clear_signing_transfer_nft() -> Result<()> {
             hint,
         )],
     )?;
-    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
 
     assert_eq!(tx.spends.len(), 1);
 
@@ -615,7 +695,13 @@ fn test_clear_signing_p2_singleton_cat_issuance(
         )],
     )?;
 
-    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
 
     assert_eq!(tx.issuances.len(), 1);
 
@@ -695,7 +781,13 @@ fn test_clear_signing_delegated_conditions_cat_issuance() -> Result<()> {
 
     let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
 
-    let tx = parse_vault_transaction(&mut ctx, result.delegated_spend, result.coin_spends, vec![])?;
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
 
     assert_eq!(tx.issuances.len(), 1);
 
@@ -724,6 +816,354 @@ fn test_clear_signing_delegated_conditions_cat_issuance() -> Result<()> {
         .find(|spend| matches!(spend.asset, ParsedAsset::Cat(_)))
         .expect("expected the eve cat spend to be verified");
     assert_eq!(cat_spend.asset.coin().coin_id(), issuance.coin_id);
+
+    Ok(())
+}
+
+// =============================================================================================
+// Offer pre-split tests
+// =============================================================================================
+
+/// Compute the curried `P2ConditionsOrSingleton` puzzle hash for the given vault and fixed
+/// conditions, and the cached delegated puzzle hash that the parser stores on the reveal.
+fn p2_conditions_or_singleton_hash(
+    ctx: &mut SpendContext,
+    launcher_id: Bytes32,
+    nonce: usize,
+    fixed_conditions: &[Condition],
+) -> Result<(Bytes32, Bytes32)> {
+    let quoted = clvm_quote!(fixed_conditions).to_clvm(ctx)?;
+    let fixed_delegated_puzzle_hash: Bytes32 = tree_hash(ctx, quoted).into();
+    let p2cs = P2ConditionsOrSingleton::new(launcher_id, nonce, fixed_delegated_puzzle_hash);
+    Ok((p2cs.tree_hash().into(), fixed_delegated_puzzle_hash))
+}
+
+/// Build a settlement-puzzle reveal (parent_coin_info = 0) that the parser can use to resolve
+/// asserted requested payments. We return a free-standing [`CoinSpend`] instead of pushing into
+/// the [`SpendContext`] so the simulator never sees this synthetic reveal — its job is purely to
+/// describe the offer's requested side to `parse_vault_transaction`.
+fn settlement_payment_reveal(
+    ctx: &mut SpendContext,
+    notarized_payment: NotarizedPayment,
+) -> Result<CoinSpend> {
+    let puzzle = SettlementLayer.construct_puzzle(ctx)?;
+    let solution = SettlementLayer.construct_solution(
+        ctx,
+        SettlementPaymentsSolution::new(vec![notarized_payment]),
+    )?;
+    let puzzle_reveal = ctx.serialize(&puzzle)?;
+    let solution = ctx.serialize(&solution)?;
+    let coin = Coin::new(Bytes32::default(), SETTLEMENT_PAYMENT_HASH.into(), 0);
+    Ok(CoinSpend::new(coin, puzzle_reveal, solution))
+}
+
+#[rstest]
+#[case(0)]
+#[case(123)]
+fn test_clear_signing_offer_pre_split_xch(#[case] fee: u64) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let amount: u64 = 1000;
+    let settlement_amount: u64 = amount - fee;
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, amount)?;
+
+    // The offer requests 100 XCH paid back to alice's p2 puzzle hash.
+    let np = NotarizedPayment::new(
+        Bytes32::new([7; 32]),
+        vec![Payment::new(alice.p2_puzzle_hash, 100, Memos::None)],
+    );
+    let np_hash = tree_hash_notarized_payment(&ctx, &np);
+    let asserted_announcement = announcement_id(SETTLEMENT_PAYMENT_HASH.into(), np_hash);
+
+    // Pre-split fixed conditions: pay `settlement_amount` to settlement, reserve `fee` if any,
+    // and assert the requested payment will be paid back.
+    let mut fixed_conditions = vec![
+        Condition::CreateCoin(CreateCoin::new(
+            SETTLEMENT_PAYMENT_HASH.into(),
+            settlement_amount,
+            Memos::None,
+        )),
+        Condition::AssertPuzzleAnnouncement(AssertPuzzleAnnouncement {
+            announcement_id: asserted_announcement,
+        }),
+    ];
+    if fee > 0 {
+        fixed_conditions.push(Condition::ReserveFee(ReserveFee::new(fee)));
+    }
+
+    let nonce = 0;
+    let (p2cs_hash, _) = p2_conditions_or_singleton_hash(
+        &mut ctx,
+        alice.info.launcher_id,
+        nonce,
+        &fixed_conditions,
+    )?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, p2cs_hash, amount, Memos::None)],
+    )?;
+
+    // Build a settlement reveal *after* the simulator has accepted the real transaction so it
+    // doesn't try to validate this synthetic parent-zero spend.
+    let mut coin_spends = result.coin_spends;
+    coin_spends.push(settlement_payment_reveal(&mut ctx, np.clone())?);
+
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        coin_spends,
+        vec![],
+        vec![P2ConditionsOrSingletonRevealInput {
+            launcher_id: alice.info.launcher_id,
+            nonce,
+            fixed_conditions: fixed_conditions.clone(),
+        }],
+    )?;
+
+    let linked_offer = tx
+        .linked_offer
+        .as_ref()
+        .expect("expected a linked offer to be reported");
+    assert_eq!(linked_offer.reserved_fee, fee);
+    assert_eq!(linked_offer.requested_payments.len(), 1);
+    assert!(matches!(
+        linked_offer.requested_payments[0].asset,
+        RequestedAsset::Xch
+    ));
+    assert_eq!(
+        linked_offer.requested_payments[0].notarized_payment.nonce,
+        np.nonce
+    );
+
+    // The pre-split should not be folded into the main transaction's `received_payments` /
+    // `reserved_fee` — those are for the current transaction, not the future offer.
+    assert!(tx.received_payments.is_empty());
+    assert_eq!(tx.reserved_fee, 0);
+
+    // The pre-split child should carry the OfferPreSplit classification.
+    let pre_split = tx
+        .spends
+        .iter()
+        .flat_map(|spend| spend.children.iter())
+        .find(|child| matches!(child.p2_puzzle_type, P2PuzzleType::OfferPreSplit(_)))
+        .expect("expected the pre-split child to be classified as OfferPreSplit");
+
+    let P2PuzzleType::OfferPreSplit(OfferPreSplitInfo {
+        launcher_id,
+        nonce: info_nonce,
+        settlement_amount: info_settlement_amount,
+        ..
+    }) = &pre_split.p2_puzzle_type
+    else {
+        unreachable!();
+    };
+    assert_eq!(*launcher_id, alice.info.launcher_id);
+    assert_eq!(*info_nonce, nonce);
+    assert_eq!(*info_settlement_amount, settlement_amount);
+    assert_eq!(pre_split.asset.coin().amount, amount);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_recognizes_settlement_and_burn() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[
+            Action::send(Id::Xch, SETTLEMENT_PAYMENT_HASH.into(), 1, Memos::None),
+            Action::send(Id::Xch, BURN_PUZZLE_HASH, 1, Memos::None),
+        ],
+    )?;
+
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![],
+    )?;
+
+    let kinds: Vec<_> = tx
+        .spends
+        .iter()
+        .flat_map(|spend| spend.children.iter())
+        .map(|child| match &child.p2_puzzle_type {
+            P2PuzzleType::Offered => "offered",
+            P2PuzzleType::Burned => "burned",
+            P2PuzzleType::OfferPreSplit(_) => "pre_split",
+            P2PuzzleType::Unknown => "unknown",
+        })
+        .collect();
+
+    assert!(kinds.contains(&"offered"));
+    assert!(kinds.contains(&"burned"));
+    assert!(tx.linked_offer.is_none());
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_offer_pre_split_launcher_mismatch() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    // Use a different launcher id than alice's vault.
+    let other_launcher = Bytes32::new([99; 32]);
+
+    let fixed_conditions = vec![Condition::CreateCoin(CreateCoin::new(
+        SETTLEMENT_PAYMENT_HASH.into(),
+        1000,
+        Memos::None,
+    ))];
+
+    let nonce = 0;
+    let (p2cs_hash, _) =
+        p2_conditions_or_singleton_hash(&mut ctx, other_launcher, nonce, &fixed_conditions)?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, p2cs_hash, 1000, Memos::None)],
+    )?;
+
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![P2ConditionsOrSingletonRevealInput {
+            launcher_id: other_launcher,
+            nonce,
+            fixed_conditions,
+        }],
+    );
+
+    assert!(matches!(tx, Err(DriverError::LinkedOfferLauncherMismatch)));
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_offer_pre_split_unbalanced_fee() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    // Settlement amount of 900 with no `ReserveFee` for the missing 100 — the pre-split spend
+    // wouldn't balance, so we should refuse to surface this as a real linked offer.
+    let fixed_conditions = vec![Condition::CreateCoin(CreateCoin::new(
+        SETTLEMENT_PAYMENT_HASH.into(),
+        900,
+        Memos::None,
+    ))];
+
+    let nonce = 0;
+    let (p2cs_hash, _) = p2_conditions_or_singleton_hash(
+        &mut ctx,
+        alice.info.launcher_id,
+        nonce,
+        &fixed_conditions,
+    )?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, p2cs_hash, 1000, Memos::None)],
+    )?;
+
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![P2ConditionsOrSingletonRevealInput {
+            launcher_id: alice.info.launcher_id,
+            nonce,
+            fixed_conditions,
+        }],
+    );
+
+    assert!(matches!(tx, Err(DriverError::LinkedOfferFeeMismatch)));
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_offer_pre_split_announcement_mismatch() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2000)?;
+
+    // Two pre-split coins, each valid on its own but with disagreeing announcement sets, which
+    // means they really describe two different offers — a state we refuse to surface as one.
+    let mk_fixed = |announcement: Bytes32| -> Vec<Condition> {
+        vec![
+            Condition::CreateCoin(CreateCoin::new(
+                SETTLEMENT_PAYMENT_HASH.into(),
+                1000,
+                Memos::None,
+            )),
+            Condition::AssertPuzzleAnnouncement(AssertPuzzleAnnouncement {
+                announcement_id: announcement,
+            }),
+        ]
+    };
+
+    let fixed_a = mk_fixed(Bytes32::new([1; 32]));
+    let fixed_b = mk_fixed(Bytes32::new([2; 32]));
+
+    let nonce = 0;
+    let (hash_a, _) =
+        p2_conditions_or_singleton_hash(&mut ctx, alice.info.launcher_id, nonce, &fixed_a)?;
+    let (hash_b, _) =
+        p2_conditions_or_singleton_hash(&mut ctx, alice.info.launcher_id, nonce, &fixed_b)?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[
+            Action::send(Id::Xch, hash_a, 1000, Memos::None),
+            Action::send(Id::Xch, hash_b, 1000, Memos::None),
+        ],
+    )?;
+
+    let tx = parse_vault_transaction(
+        &mut ctx,
+        result.delegated_spend,
+        result.coin_spends,
+        vec![],
+        vec![
+            P2ConditionsOrSingletonRevealInput {
+                launcher_id: alice.info.launcher_id,
+                nonce,
+                fixed_conditions: fixed_a,
+            },
+            P2ConditionsOrSingletonRevealInput {
+                launcher_id: alice.info.launcher_id,
+                nonce,
+                fixed_conditions: fixed_b,
+            },
+        ],
+    );
+
+    assert!(matches!(
+        tx,
+        Err(DriverError::LinkedOfferAnnouncementMismatch)
+    ));
 
     Ok(())
 }
