@@ -69,13 +69,11 @@ impl TestVault {
 
         p2_puzzles.insert(p2_puzzle_hash, TestP2Puzzle::P2Singleton(p2_singleton));
 
-        if balance > 0 {
-            parent_conditions.push(CreateCoin::new(
-                p2_puzzle_hash.into(),
-                pair.coin.amount - 1,
-                Memos::None,
-            ));
-        }
+        parent_conditions.push(CreateCoin::new(
+            p2_puzzle_hash.into(),
+            pair.coin.amount - 1,
+            Memos::None,
+        ));
 
         p2.spend(ctx, pair.coin, parent_conditions)?;
 
@@ -110,47 +108,44 @@ impl TestVault {
         for &id in deltas.ids() {
             let delta = deltas.get(&id).copied().unwrap_or_default();
 
-            let mut required_amount = delta.output.saturating_sub(delta.input);
+            let required_amount = delta.output.saturating_sub(delta.input);
 
-            if deltas.is_needed(&id) && required_amount == 0 {
-                required_amount = 1;
+            if required_amount == 0 && !deltas.is_needed(&id) {
+                continue;
             }
 
-            if required_amount > 0 {
-                match id {
-                    Id::Xch => {
-                        for coin in select_coins(self.fetch_xch(sim), required_amount)? {
-                            spends.add(coin);
-                        }
+            match id {
+                Id::Xch => {
+                    for coin in select_coins(self.fetch_xch(sim), required_amount)? {
+                        spends.add(coin);
                     }
-                    Id::Existing(asset_id) => {
-                        let mut is_nft = false;
-
-                        for coin in self.fetch_hinted_coins(sim) {
-                            let nft = try_fetch_nft(sim, coin)?;
-
-                            if let Some(nft) = nft
-                                && nft.info.launcher_id == asset_id
-                            {
-                                is_nft = true;
-                                spends.add(nft);
-                                break;
-                            }
-                        }
-
-                        if is_nft {
-                            continue;
-                        }
-
-                        for coin in
-                            select_coins(self.fetch_cat_coins(sim, asset_id), required_amount)?
-                        {
-                            let cat = fetch_cat(sim, coin)?;
-                            spends.add(cat);
-                        }
-                    }
-                    Id::New(_) => {}
                 }
+                Id::Existing(asset_id) => {
+                    let mut is_nft = false;
+
+                    for coin in self.fetch_hinted_coins(sim) {
+                        let nft = try_fetch_nft(sim, coin)?;
+
+                        if let Some(nft) = nft
+                            && nft.info.launcher_id == asset_id
+                        {
+                            is_nft = true;
+                            spends.add(nft);
+                            break;
+                        }
+                    }
+
+                    if is_nft {
+                        continue;
+                    }
+
+                    for coin in select_coins(self.fetch_cat_coins(sim, asset_id), required_amount)?
+                    {
+                        let cat = fetch_cat(sim, coin)?;
+                        spends.add(cat);
+                    }
+                }
+                Id::New(_) => {}
             }
         }
 

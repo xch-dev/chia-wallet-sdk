@@ -4,16 +4,16 @@ use chia_puzzle_types::{Memos, singleton::SingletonStruct};
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_test::Simulator;
 use chia_sdk_types::{
-    Condition, Conditions,
+    Condition, Conditions, MessageFlags, MessageSide,
     puzzles::{EverythingWithSingletonTailArgs, EverythingWithSingletonTailSolution},
 };
 use clvm_utils::{ToTreeHash, tree_hash};
 use rstest::rstest;
 
 use crate::{
-    Action, BURN_PUZZLE_HASH, Cat, CatInfo, CatSpend, CustodyInfo, Deltas, DropCoin, FeeAction, Id,
-    IssuanceKind, Nft, ParsedAsset, Reveals, Spend, SpendContext, Spends, TestVault, VaultOutput,
-    parse_vault_transaction,
+    Action, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo, CatSpend, CustodyInfo,
+    Deltas, DropCoin, FeeAction, Id, IssuanceKind, Nft, ParsedAsset, Reveals, Spend, SpendContext,
+    SpendKind, Spends, TestP2Puzzle, TestVault, VaultOutput, parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -738,6 +738,83 @@ fn test_clear_signing_delegated_conditions_cat_issuance() -> Result<()> {
         .find(|spend| matches!(spend.asset, ParsedAsset::Cat(_)))
         .expect("expected the eve cat spend to be verified");
     assert_eq!(cat_spend.asset.coin().coin_id(), issuance.coin_id);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_bulletin() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    let mut deltas = Deltas::new();
+    deltas.set_needed(Id::Xch);
+    alice.select_coins(&sim, &mut spends, &deltas)?;
+
+    let parent_coin_id = spends.xch.items[0].asset.coin_id();
+    let messages = vec![
+        BulletinMessage::new("First".to_string(), "This is the first message".to_string()),
+        BulletinMessage::new(
+            "Second".to_string(),
+            "This is the second message".to_string(),
+        ),
+    ];
+
+    let (parent_conditions, bulletin) =
+        Bulletin::create(parent_coin_id, alice.p2_puzzle_hash, messages)?;
+
+    let SpendKind::Conditions(kind) = &mut spends.xch.items[0].kind else {
+        panic!("expected conditions spend");
+    };
+
+    kind.add_conditions(parent_conditions);
+
+    let TestP2Puzzle::P2Singleton(p2_singleton) = alice.p2_puzzles[&alice.p2_puzzle_hash.into()]
+    else {
+        panic!("expected p2 singleton");
+    };
+
+    let bulletin_conditions = bulletin.conditions(&mut ctx)?;
+    let delegated_spend = ctx.delegated_spend(bulletin_conditions)?;
+    let delegated_puzzle_hash = tree_hash(&ctx, delegated_spend.puzzle);
+    let p2_spend =
+        p2_singleton.spend(&mut ctx, alice.info.custody_hash.into(), 1, delegated_spend)?;
+    bulletin.spend(&mut ctx, p2_spend)?;
+
+    let vault_conditions = Conditions::new().send_message(
+        MessageFlags::PUZZLE.encode(MessageSide::Sender)
+            | MessageFlags::COIN.encode(MessageSide::Receiver),
+        delegated_puzzle_hash.to_vec().into(),
+        vec![ctx.alloc(&bulletin.coin.coin_id())?],
+    );
+    let result = alice.custom_spend(&mut sim, &mut ctx, &[], spends, vault_conditions)?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.coin_spends)?;
+    let tx = parse_vault_transaction(&reveals, &mut ctx, result.delegated_spend)?;
+
+    assert_eq!(tx.spends.len(), 2);
+
+    // The second spend is actually the parent that created the bulletin, due to the ordering of spends above.
+    let spend = &tx.spends[1];
+
+    assert_eq!(spend.children.len(), 1);
+
+    let child = &spend.children[0];
+
+    // The child is not parsed as a bulletin here, but since it's ephemeral and 0 amount it probably doesn't matter much.
+    // We can revisit this later if it's necessary to parse this.
+    check_asset(&child.asset, None, None, 0);
+    assert_eq!(child.memos.clawback, None);
+    assert_eq!(child.memos.p2_puzzle_hash, bulletin.coin.puzzle_hash);
+
+    // The first spend is the bulletin itself, and the more interesting thing to check.
+    let ParsedAsset::Bulletin(parsed) = &tx.spends[0].asset else {
+        panic!("Expected bulletin asset");
+    };
+    assert_eq!(parsed, &bulletin);
 
     Ok(())
 }
