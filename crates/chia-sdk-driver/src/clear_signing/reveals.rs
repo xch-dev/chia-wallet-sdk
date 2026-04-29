@@ -33,7 +33,7 @@ pub struct RevealedCoinSpend {
     pub solution: NodePtr,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Reveals {
     coin_spends: IndexMap<Bytes32, RevealedCoinSpend>,
     p2_puzzles: HashMap<TreeHash, RevealedP2Puzzle>,
@@ -42,22 +42,31 @@ pub struct Reveals {
     vault_nonces: HashSet<usize>,
 }
 
+impl Default for Reveals {
+    fn default() -> Self {
+        let mut vault_nonces = HashSet::new();
+
+        vault_nonces.insert(0);
+
+        Self {
+            coin_spends: IndexMap::new(),
+            p2_puzzles: HashMap::new(),
+            requested_payments: RequestedPayments::default(),
+            asset_info: AssetInfo::default(),
+            vault_nonces,
+        }
+    }
+}
+
 impl Reveals {
-    pub fn from_spends(
+    pub fn from_coin_spends(
         allocator: &mut Allocator,
-        coin_spends: Vec<CoinSpend>,
-        spent_clawbacks: Vec<ClawbackV2>,
+        coin_spends: &[CoinSpend],
     ) -> Result<Self, DriverError> {
         let mut reveals = Self::default();
 
-        reveals.reveal_vault_nonce(0);
-
         for coin_spend in coin_spends {
-            reveals.reveal_coin_spend(allocator, &coin_spend)?;
-        }
-
-        for clawback in spent_clawbacks {
-            reveals.reveal_clawback(clawback);
+            reveals.reveal_coin_spend(allocator, coin_spend)?;
         }
 
         Ok(reveals)

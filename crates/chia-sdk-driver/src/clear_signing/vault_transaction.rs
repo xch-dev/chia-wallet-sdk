@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use chia_protocol::{Bytes32, CoinSpend};
+use chia_protocol::Bytes32;
 use chia_puzzle_types::cat::CatSolution;
+use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{Condition, Mod, puzzles::SingletonMember};
 use clvm_traits::{FromClvm, ToClvm, clvm_quote};
 use clvm_utils::tree_hash;
@@ -9,9 +10,9 @@ use clvmr::{Allocator, NodePtr};
 use indexmap::{IndexMap, IndexSet};
 
 use crate::{
-    AssertedRequestedPayment, ClawbackInfo, ClawbackV2, CustodyInfo, DriverError, DropCoin, Facts,
-    Issuance, IssuanceKind, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild,
-    ParsedSpend, Reveals, Spend, VaultMessage, VaultOutput, get_extra_delta_message,
+    AssertedRequestedPayment, ClawbackInfo, CustodyInfo, DriverError, DropCoin, Facts, Issuance,
+    IssuanceKind, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild,
+    ParsedSpend, Reveals, Spend, TransferType, VaultMessage, VaultOutput, get_extra_delta_message,
     mips_puzzle_hash, parse_asserted_requested_payments, parse_children, parse_run_cat_tail,
     parse_spend, parse_vault_delegated_spend,
 };
@@ -37,6 +38,12 @@ pub struct VaultTransaction {
     /// Requested payments which were both revealed and asserted by the vault spend. These are assets which are going
     /// to be received when and if the transaction is confirmed on-chain.
     pub received_payments: Vec<AssertedRequestedPayment>,
+    /// If this transaction creates one or more offer pre-split coins, this rolls them up into a
+    /// description of the future offer. Per-leg details (the individual pre-split amounts) live
+    /// in the children's transfer type field.
+    ///
+    /// [`None`] means the transaction does not link any offer pre-split coins.
+    pub linked_offer: Option<LinkedOffer>,
     /// Total fees (different between input and output amounts) paid by coin spends authorized by the vault.
     /// If the transaction is signed, the fee is guaranteed to be at least this amount, unless it's not reserved.
     /// The reason to include unreserved fees is to make it clear that the XCH is leaving the vault due to this transaction.
@@ -62,21 +69,25 @@ pub struct VerifiedSpend {
     pub children: Vec<ParsedChild>,
 }
 
+#[derive(Debug, Clone)]
+pub struct LinkedOffer {
+    pub reserved_fee: u64,
+    pub requested_payments: Vec<AssertedRequestedPayment>,
+}
+
 pub fn parse_vault_transaction(
+    reveals: &Reveals,
     allocator: &mut Allocator,
     delegated_spend: Spend,
-    coin_spends: Vec<CoinSpend>,
-    spent_clawbacks: Vec<ClawbackV2>,
 ) -> Result<VaultTransaction, DriverError> {
     let mut facts = Facts::default();
 
-    let reveals = Reveals::from_spends(allocator, coin_spends, spent_clawbacks)?;
     let vault_spend = parse_vault_delegated_spend(&mut facts, allocator, delegated_spend)?;
 
     let mut parsed_spends = HashMap::new();
 
     for spend in reveals.coin_spends() {
-        let parsed_spend = parse_spend(&reveals, allocator, spend)?;
+        let parsed_spend = parse_spend(reveals, allocator, spend)?;
         parsed_spends.insert(spend.coin.coin_id(), parsed_spend);
     }
 
@@ -93,7 +104,7 @@ pub fn parse_vault_transaction(
 
     for (coin_id, messages) in messages_by_coin {
         let verified_spend = verify_spend(
-            &reveals,
+            reveals,
             &mut facts,
             allocator,
             &mut parsed_spends,
@@ -121,7 +132,7 @@ pub fn parse_vault_transaction(
         }
 
         let verified_spend = verify_spend(
-            &reveals,
+            reveals,
             &mut facts,
             allocator,
             &mut parsed_spends,
@@ -164,13 +175,15 @@ pub fn parse_vault_transaction(
     }
 
     let fee_paid = (input_amount - output_amount).try_into()?;
-    let received_payments = parse_asserted_requested_payments(&reveals, &facts, allocator)?;
+    let received_payments = parse_asserted_requested_payments(reveals, &facts, allocator)?;
     let launcher_id = find_launcher_id(&verified_spends)?;
     let p2_puzzle_hashes = if let Some(launcher_id) = launcher_id {
-        calculate_p2_puzzle_hashes(&reveals, launcher_id)
+        calculate_p2_puzzle_hashes(reveals, launcher_id)
     } else {
         Vec::new()
     };
+
+    let linked_offer = build_linked_offer(reveals, allocator, &verified_spends, launcher_id)?;
 
     Ok(VaultTransaction {
         vault_child: vault_spend.child,
@@ -178,6 +191,7 @@ pub fn parse_vault_transaction(
         spends: verified_spends,
         issuances,
         received_payments,
+        linked_offer,
         fee_paid,
         reserved_fee,
         launcher_id,
@@ -280,6 +294,7 @@ fn verify_spend(
     }
 
     let children = parse_children(
+        reveals,
         facts,
         allocator,
         &parsed_spend.asset,
@@ -345,4 +360,79 @@ fn calculate_p2_puzzle_hashes(reveals: &Reveals, launcher_id: Bytes32) -> Vec<By
     }
 
     p2_puzzle_hashes
+}
+
+fn build_linked_offer(
+    reveals: &Reveals,
+    allocator: &Allocator,
+    spends: &[VerifiedSpend],
+    expected_launcher_id: Option<Bytes32>,
+) -> Result<Option<LinkedOffer>, DriverError> {
+    let mut linked_offer = LinkedOffer {
+        reserved_fee: 0,
+        requested_payments: vec![],
+    };
+    let mut has_offer = false;
+    let mut found_puzzle_assertions = None;
+
+    for spend in spends {
+        for child in &spend.children {
+            let TransferType::OfferPreSplit(info) = &child.transfer_type else {
+                continue;
+            };
+
+            has_offer = true;
+
+            if expected_launcher_id != Some(info.launcher_id) {
+                return Err(DriverError::WrongLinkedOfferLauncherId);
+            }
+
+            let mut reserved_fee = 0;
+            let mut puzzle_assertions = HashSet::new();
+
+            for condition in &info.fixed_conditions {
+                match condition {
+                    Condition::CreateCoin(condition) => {
+                        if condition.puzzle_hash != SETTLEMENT_PAYMENT_HASH.into() {
+                            return Err(DriverError::InvalidLinkedOfferPayment);
+                        }
+                    }
+                    Condition::ReserveFee(condition) => {
+                        reserved_fee += condition.amount;
+                    }
+                    Condition::AssertPuzzleAnnouncement(condition) => {
+                        puzzle_assertions.insert(condition.announcement_id);
+                    }
+                    _ => {}
+                }
+            }
+
+            if child.asset.coin().amount != info.settlement_amount + reserved_fee {
+                return Err(DriverError::WrongOfferPreSplitOutput);
+            }
+
+            linked_offer.reserved_fee += reserved_fee;
+
+            if let Some(found_puzzle_assertions) = &found_puzzle_assertions {
+                if found_puzzle_assertions != &puzzle_assertions {
+                    return Err(DriverError::ConflictingLinkedOfferPuzzleAssertions);
+                }
+            } else {
+                found_puzzle_assertions = Some(puzzle_assertions);
+            }
+        }
+    }
+
+    if let Some(found_puzzle_assertions) = found_puzzle_assertions {
+        let mut offer_facts = Facts::default();
+
+        for announcement_id in found_puzzle_assertions {
+            offer_facts.assert_puzzle_announcement(announcement_id);
+        }
+
+        linked_offer.requested_payments =
+            parse_asserted_requested_payments(reveals, &offer_facts, allocator)?;
+    }
+
+    Ok(has_offer.then_some(linked_offer))
 }

@@ -163,4 +163,16 @@ pub enum DriverError {
 
     #[error("multiple vault messages matched the same custody slot")]
     DuplicateVaultMessage,
+
+    #[error("wrong linked offer launcher id")]
+    WrongLinkedOfferLauncherId,
+
+    #[error("linked offer coin creates non-settlement payment")]
+    InvalidLinkedOfferPayment,
+
+    #[error("offer pre-split coin has the wrong output amount")]
+    WrongOfferPreSplitOutput,
+
+    #[error("conflicting puzzle assertions in linked offer")]
+    ConflictingLinkedOfferPuzzleAssertions,
 }
