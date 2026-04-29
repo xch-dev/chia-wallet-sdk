@@ -77,8 +77,8 @@ pub fn parse_children(
             }
             Condition::CreateCoin(condition) => {
                 match &asset {
-                    // All XCH children are considered to be XCH by default.
-                    ParsedAsset::Xch(_) => {
+                    // All XCH and bulletin children are considered to be XCH.
+                    ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_) => {
                         let memos = parse_memos(allocator, *condition, false);
                         let transfer_type = calculate_transfer_type(reveals, &memos);
 

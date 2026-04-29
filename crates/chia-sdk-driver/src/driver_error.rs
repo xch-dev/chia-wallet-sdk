@@ -175,4 +175,7 @@ pub enum DriverError {
 
     #[error("conflicting puzzle assertions in linked offer")]
     ConflictingLinkedOfferPuzzleAssertions,
+
+    #[error("missing required bulletin conditions")]
+    MissingBulletinConditions,
 }

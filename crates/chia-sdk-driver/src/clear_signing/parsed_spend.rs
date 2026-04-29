@@ -2,8 +2,8 @@ use chia_protocol::Coin;
 use clvmr::Allocator;
 
 use crate::{
-    Cat, ClawbackInfo, ClawbackPath, CustodyInfo, DriverError, Nft, RevealedCoinSpend, Reveals,
-    parse_inner_spend,
+    Bulletin, Cat, ClawbackInfo, ClawbackPath, CustodyInfo, DriverError, Nft, RevealedCoinSpend,
+    Reveals, parse_inner_spend,
 };
 
 #[derive(Debug, Clone)]
@@ -14,11 +14,12 @@ pub struct ParsedSpend {
     pub required_expiration_time: Option<u64>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum ParsedAsset {
     Cat(Cat),
     Nft(Nft),
     Xch(Coin),
+    Bulletin(Bulletin),
 }
 
 impl ParsedAsset {
@@ -27,6 +28,7 @@ impl ParsedAsset {
             Self::Cat(cat) => cat.coin,
             Self::Nft(nft) => nft.coin,
             Self::Xch(coin) => *coin,
+            Self::Bulletin(bulletin) => bulletin.coin,
         }
     }
 }
@@ -51,6 +53,12 @@ pub fn parse_spend(
         Nft::parse(allocator, spend.coin, spend.puzzle, spend.solution)?
     {
         asset = ParsedAsset::Nft(nft);
+        inner_puzzle = parsed_inner_puzzle;
+        inner_solution = parsed_inner_solution;
+    } else if let Some((bulletin, parsed_inner_puzzle, parsed_inner_solution)) =
+        Bulletin::parse(allocator, spend.coin, spend.puzzle, spend.solution)?
+    {
+        asset = ParsedAsset::Bulletin(bulletin);
         inner_puzzle = parsed_inner_puzzle;
         inner_solution = parsed_inner_solution;
     }
