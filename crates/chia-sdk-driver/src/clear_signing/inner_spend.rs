@@ -18,10 +18,16 @@ pub struct InnerSpend {
     pub custody: Option<CustodyInfo>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClawbackInfo {
     pub clawback: ClawbackV2,
     pub path: ClawbackPath,
+}
+
+impl ClawbackInfo {
+    pub fn new(clawback: ClawbackV2, path: ClawbackPath) -> Self {
+        Self { clawback, path }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -22,9 +22,10 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    Action, Cat, CurriedPuzzle, Deltas, Id, InnerPuzzleSpend, Launcher, Layer, MipsSpend, Nft,
-    Outputs, P2ConditionsOrSingleton, P2Singleton, Puzzle, Relation, SettlementLayer, Spend,
-    SpendContext, SpendKind, Spends, StandardLayer, Vault, VaultInfo, mips_puzzle_hash,
+    Action, Cat, ClawbackV2, CurriedPuzzle, Deltas, Id, InnerPuzzleSpend, Launcher, Layer,
+    MipsSpend, Nft, Outputs, P2ConditionsOrSingleton, P2Singleton, Puzzle, Relation,
+    SettlementLayer, Spend, SpendContext, SpendKind, Spends, StandardLayer, Vault, VaultInfo,
+    mips_puzzle_hash,
 };
 
 #[derive(Debug, Clone)]
@@ -40,6 +41,7 @@ pub struct TransactionData {
 pub enum TestP2Puzzle {
     P2ConditionsOrSingleton(P2ConditionsOrSingleton),
     P2Singleton(P2Singleton),
+    Clawback(ClawbackV2),
 }
 
 #[derive(Debug, Clone)]
@@ -181,27 +183,12 @@ impl TestVault {
                         vec![coin_id],
                     ));
 
-                    let p2_puzzle = self
-                        .p2_puzzles
-                        .get(&asset.p2_puzzle_hash().into())
-                        .expect("unknown p2 puzzle");
-
-                    let spend = match p2_puzzle {
-                        TestP2Puzzle::P2Singleton(p2_singleton) => p2_singleton.spend(
-                            ctx,
-                            self.info.custody_hash.into(),
-                            1,
-                            delegated_spend,
-                        )?,
-                        TestP2Puzzle::P2ConditionsOrSingleton(p2_conditions_or_singleton) => {
-                            p2_conditions_or_singleton.p2_singleton_spend(
-                                ctx,
-                                self.info.custody_hash.into(),
-                                1,
-                                delegated_spend,
-                            )?
-                        }
-                    };
+                    let spend = self.spend_p2_puzzle(
+                        ctx,
+                        asset.p2_puzzle_hash(),
+                        delegated_spend,
+                        sim.next_timestamp(),
+                    )?;
 
                     coin_spends.insert(asset.coin().coin_id(), spend);
                 }
@@ -313,6 +300,54 @@ impl TestVault {
             .keys()
             .flat_map(|&p2_puzzle_hash| sim.unspent_coins(p2_puzzle_hash.into(), true))
             .collect()
+    }
+
+    fn spend_p2_puzzle(
+        &self,
+        ctx: &mut SpendContext,
+        p2_puzzle_hash: Bytes32,
+        delegated_spend: Spend,
+        timestamp: u64,
+    ) -> Result<Spend> {
+        let p2_puzzle = self
+            .p2_puzzles
+            .get(&p2_puzzle_hash.into())
+            .expect("unknown p2 puzzle");
+
+        Ok(match p2_puzzle {
+            TestP2Puzzle::P2Singleton(p2_singleton) => {
+                p2_singleton.spend(ctx, self.info.custody_hash.into(), 1, delegated_spend)?
+            }
+            TestP2Puzzle::P2ConditionsOrSingleton(p2_conditions_or_singleton) => {
+                p2_conditions_or_singleton.p2_singleton_spend(
+                    ctx,
+                    self.info.custody_hash.into(),
+                    1,
+                    delegated_spend,
+                )?
+            }
+            TestP2Puzzle::Clawback(clawback) => {
+                if timestamp < clawback.seconds {
+                    let inner_spend = self.spend_p2_puzzle(
+                        ctx,
+                        clawback.sender_puzzle_hash,
+                        delegated_spend,
+                        timestamp,
+                    )?;
+
+                    clawback.sender_spend(ctx, inner_spend)?
+                } else {
+                    let inner_spend = self.spend_p2_puzzle(
+                        ctx,
+                        clawback.receiver_puzzle_hash,
+                        delegated_spend,
+                        timestamp,
+                    )?;
+
+                    clawback.receiver_spend(ctx, inner_spend)?
+                }
+            }
+        })
     }
 }
 
