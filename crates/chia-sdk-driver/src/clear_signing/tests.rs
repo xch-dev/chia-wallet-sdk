@@ -1,7 +1,7 @@
 use anyhow::Result;
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{Memos, singleton::SingletonStruct};
-use chia_puzzles::SINGLETON_LAUNCHER_HASH;
+use chia_puzzles::{SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
 use chia_sdk_test::Simulator;
 use chia_sdk_types::{
     Condition, Conditions, MessageFlags, MessageSide,
@@ -15,7 +15,7 @@ use crate::{
     Action, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo, CatSpend, ClawbackInfo,
     ClawbackPath, ClawbackV2, CustodyInfo, Deltas, DriverError, DropCoin, FeeAction, Id,
     IssuanceKind, Nft, ParsedAsset, Reveals, Spend, SpendContext, SpendKind, Spends, TestP2Puzzle,
-    TestVault, VaultOutput, parse_vault_transaction,
+    TestVault, TransferType, VaultOutput, parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1070,6 +1070,40 @@ fn test_clear_signing_unrevealed_clawback() -> Result<()> {
         result.unwrap_err(),
         DriverError::InvalidLinkedCustody
     ));
+
+    Ok(())
+}
+
+#[rstest]
+#[case(Bytes32::default(), TransferType::Sent)]
+#[case(BURN_PUZZLE_HASH, TransferType::Burned)]
+#[case(SETTLEMENT_PAYMENT_HASH.into(), TransferType::Offered)]
+fn test_clear_signing_transfer_type(
+    #[case] p2_puzzle_hash: Bytes32,
+    #[case] transfer_type: TransferType,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1)?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, p2_puzzle_hash, 1, Memos::None)],
+    )?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.coin_spends)?;
+    let tx = parse_vault_transaction(&reveals, &mut ctx, result.delegated_spend)?;
+
+    assert_eq!(tx.spends.len(), 1);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.children.len(), 1);
+
+    let child = &spend.children[0];
+    assert_eq!(child.memos.p2_puzzle_hash, p2_puzzle_hash);
+    assert_eq!(child.transfer_type, transfer_type);
 
     Ok(())
 }

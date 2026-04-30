@@ -15,7 +15,7 @@ pub struct ParsedChild {
     pub transfer_type: TransferType,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransferType {
     Sent,
     Burned,
@@ -23,7 +23,7 @@ pub enum TransferType {
     OfferPreSplit(OfferPreSplitInfo),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OfferPreSplitInfo {
     pub launcher_id: Bytes32,
     pub nonce: usize,
