@@ -128,6 +128,54 @@ pub enum DriverError {
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 
-    #[error("missing vault coin spend in transaction reveal")]
-    MissingVaultCoinSpend,
+    #[error("invalid delegated spend format")]
+    InvalidDelegatedSpendFormat,
+
+    #[error("invalid vault message format")]
+    InvalidVaultMessageFormat,
+
+    #[error("puzzle hash mismatch for coin spend")]
+    WrongPuzzleHash,
+
+    #[error("nested clawbacks are not allowed")]
+    NestedClawback,
+
+    #[error("invalid custody for linked spend")]
+    InvalidLinkedCustody,
+
+    #[error("the transaction is not guaranteed to expire when its clawed back spends expire")]
+    UnguaranteedClawBack,
+
+    #[error("child is wrapped in unexpected revocation layer")]
+    RevocableChild,
+
+    #[error("conflicting vault launcher ids")]
+    ConflictingVaultLauncherIds,
+
+    #[error("conditions do not match message")]
+    WrongConditions,
+
+    #[error("receive message conditions are not allowed in p2 conditions or singleton puzzles")]
+    ReceiveMessageConditionsNotAllowed,
+
+    #[error("vault message did not match any custody auth or TAIL invocation")]
+    UnmatchedVaultMessage,
+
+    #[error("multiple vault messages matched the same custody slot")]
+    DuplicateVaultMessage,
+
+    #[error("wrong linked offer launcher id")]
+    WrongLinkedOfferLauncherId,
+
+    #[error("linked offer coin creates non-settlement payment")]
+    InvalidLinkedOfferPayment,
+
+    #[error("offer pre-split coin has the wrong output amount")]
+    WrongOfferPreSplitOutput,
+
+    #[error("conflicting puzzle assertions in linked offer")]
+    ConflictingLinkedOfferPuzzleAssertions,
+
+    #[error("missing required bulletin conditions")]
+    MissingBulletinConditions,
 }

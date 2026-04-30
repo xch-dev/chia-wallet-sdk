@@ -1009,12 +1009,12 @@ mod tests {
         // check refund action created/spent slots function
         let created_slots = catalog.pending_spend.created_slots.clone();
         let spent_slots = catalog.pending_spend.spent_slots.clone();
-        if slot.is_some() {
+        if let Some(slot) = slot {
             assert_eq!(created_slots.len(), 1);
-            assert_eq!(created_slots[0], slot.unwrap().info.value);
+            assert_eq!(created_slots[0], slot.info.value);
 
             assert_eq!(spent_slots.len(), 1);
-            assert_eq!(spent_slots[0], slot.unwrap().info.value);
+            assert_eq!(spent_slots[0], slot.info.value);
         } else {
             assert_eq!(created_slots.len(), 0);
             assert_eq!(spent_slots.len(), 0);
@@ -1102,9 +1102,10 @@ mod tests {
         let minter_bls = sim.bls(payment_cat_amount);
         let minter_p2 = StandardLayer::new(minter_bls.pk);
 
-        let (issue_cat, payment_cat) = Cat::issue_with_coin(
+        let (issue_cat, payment_cat) = Cat::single_issuance(
             ctx,
             minter_bls.coin.coin_id(),
+            None,
             payment_cat_amount,
             Conditions::new().create_coin(minter_bls.puzzle_hash, payment_cat_amount, Memos::None),
         )?;
@@ -1389,9 +1390,10 @@ mod tests {
         let minter2_bls = sim.bls(alternative_payment_cat_amount);
         let minter_p2_2 = StandardLayer::new(minter2_bls.pk);
 
-        let (issue_cat, alternative_payment_cat) = Cat::issue_with_coin(
+        let (issue_cat, alternative_payment_cat) = Cat::single_issuance(
             ctx,
             minter2_bls.coin.coin_id(),
+            None,
             alternative_payment_cat_amount,
             Conditions::new().create_coin(
                 minter2_bls.puzzle_hash,
@@ -1617,9 +1619,10 @@ mod tests {
         let minter_bls = sim.bls(payment_cat_amount);
         let minter_p2 = StandardLayer::new(minter_bls.pk);
 
-        let (issue_cat, payment_cat) = Cat::issue_with_coin(
+        let (issue_cat, payment_cat) = Cat::single_issuance(
             ctx,
             minter_bls.coin.coin_id(),
+            None,
             payment_cat_amount,
             Conditions::new().create_coin(minter_bls.puzzle_hash, payment_cat_amount, Memos::None),
         )?;
@@ -1715,7 +1718,7 @@ mod tests {
             let handle = if i == 0 {
                 "aa0".to_string()
             } else {
-                "aa".to_string() + &"a".repeat(i).to_string() + &i.to_string()
+                "aa".to_string() + &"a".repeat(i) + &i.to_string()
             };
             let handle_hash = handle.tree_hash().into();
 
@@ -2321,9 +2324,10 @@ mod tests {
             let minter2 = sim.bls(alternative_payment_cat_amount);
             let minter_p2_2 = StandardLayer::new(minter2.pk);
 
-            let (issue_cat, alternative_payment_cat) = Cat::issue_with_coin(
+            let (issue_cat, alternative_payment_cat) = Cat::single_issuance(
                 ctx,
                 minter2.coin.coin_id(),
+                None,
                 alternative_payment_cat_amount,
                 Conditions::new().create_coin(
                     minter2.puzzle_hash,
@@ -2547,9 +2551,10 @@ mod tests {
         let cat_minter = sim.bls(cat_amount);
         let cat_minter_p2 = StandardLayer::new(cat_minter.pk);
 
-        let (issue_cat, source_cat) = Cat::issue_with_coin(
+        let (issue_cat, source_cat) = Cat::single_issuance(
             ctx,
             cat_minter.coin.coin_id(),
+            None,
             cat_amount,
             Conditions::new().create_coin(cat_minter.puzzle_hash, cat_amount, Memos::None),
         )?;

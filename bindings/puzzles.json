@@ -92,7 +92,7 @@
           "coin": "Coin",
           "solution": "Program"
         },
-        "return": "Option<Bulletin>"
+        "return": "Option<ParsedBulletin>"
       },
       "parse_child_p2_parent": {
         "args": {
@@ -838,6 +838,15 @@
     "fields": {
       "bulletin": "Bulletin",
       "parent_conditions": "Vec<Program>"
+    }
+  },
+  "ParsedBulletin": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "bulletin": "Bulletin",
+      "p2_puzzle": "Puzzle",
+      "p2_solution": "Program"
     }
   },
   "bulletin_puzzle_hash": {

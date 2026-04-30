@@ -2,27 +2,30 @@ use std::{collections::HashMap, slice};
 
 use anyhow::{Result, anyhow};
 use chia_bls::{PublicKey, SecretKey, Signature};
-use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{
-    EveProof, LineageProof, Memos, Proof, cat::CatArgs, offer::SettlementPaymentsSolution,
-    singleton::SingletonArgs,
+    EveProof, LineageProof, Memos, Proof,
+    cat::{CatArgs, CatSolution},
+    offer::SettlementPaymentsSolution,
+    singleton::{SingletonArgs, SingletonStruct},
 };
 use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_test::{Simulator, sign_transaction};
 use chia_sdk_types::{
-    Conditions, MessageFlags, MessageSide, Mod,
+    Condition, Conditions, MessageFlags, MessageSide, Mod,
     conditions::{CreateCoin, SendMessage},
-    puzzles::{BlsMember, RevocationArgs, SingletonMember, SingletonMemberSolution},
+    puzzles::{BlsMember, EverythingWithSingletonTailArgs, RevocationArgs},
 };
 use chia_sdk_utils::select_coins;
-use clvm_traits::ToClvm;
-use clvm_utils::TreeHash;
+use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
 
 use crate::{
-    Action, Cat, Deltas, Id, InnerPuzzleSpend, Launcher, Layer, MipsSpend, Nft, Outputs, Puzzle,
-    Relation, SettlementLayer, Spend, SpendContext, SpendKind, Spends, StandardLayer, Vault,
-    VaultInfo, mips_puzzle_hash,
+    Action, Cat, ClawbackV2, CurriedPuzzle, Deltas, Id, InnerPuzzleSpend, Launcher, Layer,
+    MipsSpend, Nft, Outputs, P2ConditionsOrSingleton, P2Singleton, Puzzle, Relation,
+    SettlementLayer, Spend, SpendContext, SpendKind, Spends, StandardLayer, Vault, VaultInfo,
+    mips_puzzle_hash,
 };
 
 #[derive(Debug, Clone)]
@@ -34,12 +37,20 @@ pub struct TransactionData {
     pub signature: Signature,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum TestP2Puzzle {
+    P2ConditionsOrSingleton(P2ConditionsOrSingleton),
+    P2Singleton(P2Singleton),
+    Clawback(ClawbackV2),
+}
+
 #[derive(Debug, Clone)]
 pub struct TestVault {
     pub info: VaultInfo,
-    pub puzzle_hash: Bytes32,
+    pub p2_puzzle_hash: Bytes32,
     pub secret_key: SecretKey,
     pub public_key: PublicKey,
+    pub p2_puzzles: HashMap<TreeHash, TestP2Puzzle>,
 }
 
 impl TestVault {
@@ -53,15 +64,18 @@ impl TestVault {
             (),
         )?;
 
-        let puzzle_hash = vault_p2_puzzle_hash(vault.info.launcher_id).into();
+        let mut p2_puzzles = HashMap::new();
 
-        if balance > 0 {
-            parent_conditions.push(CreateCoin::new(
-                puzzle_hash,
-                pair.coin.amount - 1,
-                Memos::None,
-            ));
-        }
+        let p2_singleton = P2Singleton::new(vault.info.launcher_id, 0);
+        let p2_puzzle_hash = p2_singleton.tree_hash();
+
+        p2_puzzles.insert(p2_puzzle_hash, TestP2Puzzle::P2Singleton(p2_singleton));
+
+        parent_conditions.push(CreateCoin::new(
+            p2_puzzle_hash.into(),
+            pair.coin.amount - 1,
+            Memos::None,
+        ));
 
         p2.spend(ctx, pair.coin, parent_conditions)?;
 
@@ -69,9 +83,10 @@ impl TestVault {
 
         Ok(Self {
             info: vault.info,
-            puzzle_hash,
+            p2_puzzle_hash: p2_puzzle_hash.into(),
             secret_key: pair.sk,
             public_key: pair.pk,
+            p2_puzzles,
         })
     }
 
@@ -81,8 +96,62 @@ impl TestVault {
         ctx: &mut SpendContext,
         actions: &[Action],
     ) -> Result<TransactionData> {
-        let spends = Spends::new(self.puzzle_hash);
+        let mut spends = Spends::new(self.p2_puzzle_hash);
+        self.select_coins(sim, &mut spends, &Deltas::from_actions(actions))?;
         self.custom_spend(sim, ctx, actions, spends, Conditions::new())
+    }
+
+    pub fn select_coins(
+        &self,
+        sim: &Simulator,
+        spends: &mut Spends,
+        deltas: &Deltas,
+    ) -> Result<()> {
+        for &id in deltas.ids() {
+            let delta = deltas.get(&id).copied().unwrap_or_default();
+
+            let required_amount = delta.output.saturating_sub(delta.input);
+
+            if required_amount == 0 && !deltas.is_needed(&id) {
+                continue;
+            }
+
+            match id {
+                Id::Xch => {
+                    for coin in select_coins(self.fetch_xch(sim), required_amount)? {
+                        spends.add(coin);
+                    }
+                }
+                Id::Existing(asset_id) => {
+                    let mut is_nft = false;
+
+                    for coin in self.fetch_hinted_coins(sim) {
+                        let nft = try_fetch_nft(sim, coin)?;
+
+                        if let Some(nft) = nft
+                            && nft.info.launcher_id == asset_id
+                        {
+                            is_nft = true;
+                            spends.add(nft);
+                            break;
+                        }
+                    }
+
+                    if is_nft {
+                        continue;
+                    }
+
+                    for coin in select_coins(self.fetch_cat_coins(sim, asset_id), required_amount)?
+                    {
+                        let cat = fetch_cat(sim, coin)?;
+                        spends.add(cat);
+                    }
+                }
+                Id::New(_) => {}
+            }
+        }
+
+        Ok(())
     }
 
     pub fn custom_spend(
@@ -93,57 +162,7 @@ impl TestVault {
         mut spends: Spends,
         mut vault_conditions: Conditions,
     ) -> Result<TransactionData> {
-        let deltas = Deltas::from_actions(actions);
-
-        for &id in deltas.ids() {
-            let delta = deltas.get(&id).copied().unwrap_or_default();
-
-            let mut required_amount = delta.output.saturating_sub(delta.input);
-
-            if deltas.is_needed(&id) && required_amount == 0 {
-                required_amount = 1;
-            }
-
-            if required_amount > 0 {
-                match id {
-                    Id::Xch => {
-                        for coin in select_coins(self.fetch_xch(sim), required_amount)? {
-                            spends.add(coin);
-                        }
-                    }
-                    Id::Existing(asset_id) => {
-                        let mut is_nft = false;
-
-                        for coin in self.fetch_hinted_coins(sim) {
-                            let nft = try_fetch_nft(sim, coin)?;
-
-                            if let Some(nft) = nft
-                                && nft.info.launcher_id == asset_id
-                            {
-                                is_nft = true;
-                                spends.add(nft);
-                                break;
-                            }
-                        }
-
-                        if is_nft {
-                            continue;
-                        }
-
-                        for coin in
-                            select_coins(self.fetch_cat_coins(sim, asset_id), required_amount)?
-                        {
-                            let cat = fetch_cat(sim, coin)?;
-                            spends.add(cat);
-                        }
-                    }
-                    Id::New(_) => {}
-                }
-            }
-        }
-
         let deltas = spends.apply(ctx, actions)?;
-
         let spends = spends.prepare(ctx, &deltas, Relation::None)?;
 
         let mut coin_spends = HashMap::new();
@@ -164,21 +183,12 @@ impl TestVault {
                         vec![coin_id],
                     ));
 
-                    let mut mips_spend = MipsSpend::new(delegated_spend);
-
-                    let puzzle = ctx.curry(SingletonMember::new(self.info.launcher_id))?;
-                    let solution = ctx.alloc(&SingletonMemberSolution::new(
-                        vault_custody_puzzle_hash(self.secret_key.public_key()).into(),
-                        1,
-                    ))?;
-                    let custody_hash = vault_p2_puzzle_hash(self.info.launcher_id);
-
-                    mips_spend.members.insert(
-                        custody_hash,
-                        InnerPuzzleSpend::new(0, vec![], Spend::new(puzzle, solution)),
-                    );
-
-                    let spend = mips_spend.spend(ctx, custody_hash)?;
+                    let spend = self.spend_p2_puzzle(
+                        ctx,
+                        asset.p2_puzzle_hash(),
+                        delegated_spend,
+                        sim.next_timestamp(),
+                    )?;
 
                     coin_spends.insert(asset.coin().coin_id(), spend);
                 }
@@ -196,6 +206,11 @@ impl TestVault {
 
         let outputs = spends.spend(ctx, coin_spends)?;
         let coin_spends = ctx.take();
+
+        let tail_messages = vault_tail_messages(ctx, self.info.launcher_id, &coin_spends)?;
+        for message in tail_messages {
+            vault_conditions.push(message);
+        }
 
         let vault = self.fetch_vault(sim)?;
 
@@ -242,32 +257,36 @@ impl TestVault {
         fetch_vault(sim, self.info.launcher_id, self.info.custody_hash.into())
     }
 
-    pub fn puzzle_hash(&self) -> Bytes32 {
-        self.puzzle_hash
-    }
-
-    pub fn launcher_id(&self) -> Bytes32 {
-        self.info.launcher_id
-    }
-
-    pub fn custody_hash(&self) -> TreeHash {
-        self.info.custody_hash
-    }
-
     fn fetch_xch(&self, sim: &Simulator) -> Vec<Coin> {
-        sim.unspent_coins(self.puzzle_hash, false)
+        self.p2_puzzles
+            .keys()
+            .flat_map(|&p2_puzzle_hash| sim.unspent_coins(p2_puzzle_hash.into(), false))
+            .collect()
     }
 
     fn fetch_cat_coins(&self, sim: &Simulator, asset_id: Bytes32) -> Vec<Coin> {
+        self.p2_puzzles
+            .keys()
+            .flat_map(|&p2_puzzle_hash| {
+                Self::fetch_cat_coins_for_p2_puzzle_hash(sim, p2_puzzle_hash.into(), asset_id)
+            })
+            .collect()
+    }
+
+    fn fetch_cat_coins_for_p2_puzzle_hash(
+        sim: &Simulator,
+        p2_puzzle_hash: Bytes32,
+        asset_id: Bytes32,
+    ) -> Vec<Coin> {
         let non_revocable = sim.unspent_coins(
-            CatArgs::curry_tree_hash(asset_id, self.puzzle_hash.into()).into(),
+            CatArgs::curry_tree_hash(asset_id, p2_puzzle_hash.into()).into(),
             false,
         );
 
         let revocable = sim.unspent_coins(
             CatArgs::curry_tree_hash(
                 asset_id,
-                RevocationArgs::new(Bytes32::default(), self.puzzle_hash).curry_tree_hash(),
+                RevocationArgs::new(Bytes32::default(), p2_puzzle_hash).curry_tree_hash(),
             )
             .into(),
             false,
@@ -277,17 +296,59 @@ impl TestVault {
     }
 
     fn fetch_hinted_coins(&self, sim: &Simulator) -> Vec<Coin> {
-        sim.unspent_coins(self.puzzle_hash, true)
+        self.p2_puzzles
+            .keys()
+            .flat_map(|&p2_puzzle_hash| sim.unspent_coins(p2_puzzle_hash.into(), true))
+            .collect()
     }
-}
 
-fn vault_p2_puzzle_hash(launcher_id: Bytes32) -> TreeHash {
-    mips_puzzle_hash(
-        0,
-        vec![],
-        SingletonMember::new(launcher_id).curry_tree_hash(),
-        true,
-    )
+    fn spend_p2_puzzle(
+        &self,
+        ctx: &mut SpendContext,
+        p2_puzzle_hash: Bytes32,
+        delegated_spend: Spend,
+        timestamp: u64,
+    ) -> Result<Spend> {
+        let p2_puzzle = self
+            .p2_puzzles
+            .get(&p2_puzzle_hash.into())
+            .expect("unknown p2 puzzle");
+
+        Ok(match p2_puzzle {
+            TestP2Puzzle::P2Singleton(p2_singleton) => {
+                p2_singleton.spend(ctx, self.info.custody_hash.into(), 1, delegated_spend)?
+            }
+            TestP2Puzzle::P2ConditionsOrSingleton(p2_conditions_or_singleton) => {
+                p2_conditions_or_singleton.p2_singleton_spend(
+                    ctx,
+                    self.info.custody_hash.into(),
+                    1,
+                    delegated_spend,
+                )?
+            }
+            TestP2Puzzle::Clawback(clawback) => {
+                if timestamp < clawback.seconds {
+                    let inner_spend = self.spend_p2_puzzle(
+                        ctx,
+                        clawback.sender_puzzle_hash,
+                        delegated_spend,
+                        timestamp,
+                    )?;
+
+                    clawback.sender_spend(ctx, inner_spend)?
+                } else {
+                    let inner_spend = self.spend_p2_puzzle(
+                        ctx,
+                        clawback.receiver_puzzle_hash,
+                        delegated_spend,
+                        timestamp,
+                    )?;
+
+                    clawback.receiver_spend(ctx, inner_spend)?
+                }
+            }
+        })
+    }
 }
 
 fn vault_custody_puzzle_hash(pk: PublicKey) -> TreeHash {
@@ -356,6 +417,57 @@ fn fetch_vault(sim: &Simulator, launcher_id: Bytes32, custody_hash: Bytes32) -> 
         proof,
         VaultInfo::new(launcher_id, custody_hash.into()),
     ))
+}
+
+fn vault_tail_messages(
+    ctx: &mut SpendContext,
+    launcher_id: Bytes32,
+    coin_spends: &[CoinSpend],
+) -> Result<Vec<SendMessage<NodePtr>>, anyhow::Error> {
+    let expected_struct_hash = SingletonStruct::new(launcher_id).tree_hash();
+
+    let mut messages = Vec::new();
+
+    for coin_spend in coin_spends {
+        let puzzle = coin_spend.puzzle_reveal.to_clvm(ctx)?;
+        let puzzle = Puzzle::parse(ctx, puzzle);
+        let solution = coin_spend.solution.to_clvm(ctx)?;
+
+        let Some((_cat, inner_puzzle, inner_solution)) =
+            Cat::parse(ctx, coin_spend.coin, puzzle, solution)?
+        else {
+            continue;
+        };
+
+        let output = ctx.run(inner_puzzle.ptr(), inner_solution)?;
+        let conditions: Vec<Condition> = ctx.extract(output)?;
+
+        let Some(run_cat_tail) = conditions.iter().find_map(Condition::as_run_cat_tail) else {
+            continue;
+        };
+
+        let Some(curried) = CurriedPuzzle::parse(ctx, run_cat_tail.program) else {
+            continue;
+        };
+        if curried.mod_hash != EverythingWithSingletonTailArgs::mod_hash() {
+            continue;
+        }
+        let args = ctx.extract::<EverythingWithSingletonTailArgs>(curried.args)?;
+        if args.singleton_struct_hash != expected_struct_hash.into() {
+            continue;
+        }
+
+        let cat_solution = CatSolution::<NodePtr>::from_clvm(ctx, solution)?;
+        let extra_delta_ptr = ctx.alloc(&cat_solution.extra_delta)?;
+        let extra_delta_bytes: Bytes = ctx.atom(extra_delta_ptr).as_ref().to_vec().into();
+
+        let mode = MessageFlags::PUZZLE.encode(MessageSide::Sender)
+            | MessageFlags::COIN.encode(MessageSide::Receiver);
+        let coin_id_ptr = ctx.alloc(&coin_spend.coin.coin_id())?;
+        messages.push(SendMessage::new(mode, extra_delta_bytes, vec![coin_id_ptr]));
+    }
+
+    Ok(messages)
 }
 
 fn try_fetch_nft(sim: &Simulator, coin: Coin) -> Result<Option<Nft>> {
