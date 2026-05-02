@@ -141,10 +141,11 @@ impl RpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         Ok(self
             .0
-            .get_coin_records_by_hint(hint, start_height, end_height, include_spent_coins)
+            .get_coin_records_by_hint(hint, start_height, end_height, include_spent_coins, cursor)
             .await?)
     }
 
@@ -154,10 +155,11 @@ impl RpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         Ok(self
             .0
-            .get_coin_records_by_hints(hints, start_height, end_height, include_spent_coins)
+            .get_coin_records_by_hints(hints, start_height, end_height, include_spent_coins, cursor)
             .await?)
     }
 
@@ -167,10 +169,11 @@ impl RpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         Ok(self
             .0
-            .get_coin_records_by_names(names, start_height, end_height, include_spent_coins)
+            .get_coin_records_by_names(names, start_height, end_height, include_spent_coins, cursor)
             .await?)
     }
 
@@ -180,6 +183,7 @@ impl RpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         Ok(self
             .0
@@ -188,6 +192,7 @@ impl RpcClient {
                 start_height,
                 end_height,
                 include_spent_coins,
+                cursor,
             )
             .await?)
     }
@@ -198,6 +203,7 @@ impl RpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         Ok(self
             .0
@@ -206,6 +212,7 @@ impl RpcClient {
                 start_height,
                 end_height,
                 include_spent_coins,
+                cursor,
             )
             .await?)
     }
@@ -216,6 +223,7 @@ impl RpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         Ok(self
             .0
@@ -224,6 +232,7 @@ impl RpcClient {
                 start_height,
                 end_height,
                 include_spent_coins,
+                cursor,
             )
             .await?)
     }
