@@ -71,6 +71,7 @@ workspace = true
 
 [features]
 chip-0035 = ["chia-sdk-driver/chip-0035", "chia-sdk-types/chip-0035"]
+chip-0037 = ["chia-sdk-driver/chip-0037", "chia-sdk-types/chip-0037"]
 offer-compression = ["chia-sdk-driver/offer-compression"]
 native-tls = ["chia-sdk-client/native-tls", "chia-sdk-coinset/native-tls", "chia-sdk-daemon/native-tls"]
 rustls = ["chia-sdk-client/rustls", "chia-sdk-coinset/rustls", "chia-sdk-daemon/rustls"]
@@ -175,6 +176,7 @@ wasm-bindgen-futures = "0.4.50"
 wasm-bindgen-derive = "0.3.0"
 getrandom = "0.3.4"
 sha2 = "0.10.9"
+sha3 = "0.10.8"
 pyo3 = "0.23.5"
 js-sys = "0.3.77"
 parking_lot = "0.12.5"
