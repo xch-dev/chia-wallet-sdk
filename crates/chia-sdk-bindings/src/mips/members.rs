@@ -1,13 +1,13 @@
 use bindy::Result;
 use chia_bls::PublicKey;
 use chia_protocol::Bytes32;
-use chia_sdk_driver::{MofN, mips_puzzle_hash};
+use chia_sdk_driver::{MofN, P2Eip712MessageLayer, mips_puzzle_hash};
 use chia_sdk_types::{
     Mod,
     puzzles::{
-        BlsMember, BlsMemberPuzzleAssert, FixedPuzzleMember, K1Member, K1MemberPuzzleAssert,
-        PasskeyMember, PasskeyMemberPuzzleAssert, R1Member, R1MemberPuzzleAssert, SingletonMember,
-        SingletonMemberWithMode,
+        BlsMember, BlsMemberPuzzleAssert, Eip712Member, FixedPuzzleMember, K1Member,
+        K1MemberPuzzleAssert, PasskeyMember, PasskeyMemberPuzzleAssert, R1Member,
+        R1MemberPuzzleAssert, SingletonMember, SingletonMemberWithMode,
     },
 };
 use clvm_utils::TreeHash;
@@ -148,6 +148,24 @@ pub fn fixed_member_hash(config: MemberConfig, fixed_puzzle_hash: Bytes32) -> Re
     member_hash(
         config,
         FixedPuzzleMember::new(fixed_puzzle_hash).curry_tree_hash(),
+    )
+}
+
+/// MIPS member hash for an EIP-712-controlled secp256k1 key (CHIP-0037).
+///
+/// `genesis_challenge` is the network's genesis challenge; the helper derives
+/// the matching CHIP-0037 prefix-and-domain-separator and type hash so callers
+/// don't have to compute the EIP-712 envelope themselves.
+pub fn eip712_member_hash(
+    config: MemberConfig,
+    genesis_challenge: Bytes32,
+    public_key: K1PublicKey,
+) -> Result<TreeHash> {
+    let prefix_and_domain = P2Eip712MessageLayer::prefix_and_domain_separator(genesis_challenge);
+    let type_hash = P2Eip712MessageLayer::type_hash();
+    member_hash(
+        config,
+        Eip712Member::new(prefix_and_domain, type_hash, public_key.0).curry_tree_hash(),
     )
 }
 
