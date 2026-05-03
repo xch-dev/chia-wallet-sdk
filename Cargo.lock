@@ -853,6 +853,7 @@ dependencies = [
  "rue-lir",
  "rue-options",
  "serde",
+ "sha3",
  "thiserror 2.0.17",
 ]
 
