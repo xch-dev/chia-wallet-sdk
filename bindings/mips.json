@@ -119,6 +119,15 @@
     },
     "return": "TreeHash"
   },
+  "eip712_member_hash": {
+    "type": "function",
+    "args": {
+      "config": "MemberConfig",
+      "genesis_challenge": "Bytes32",
+      "public_key": "K1PublicKey"
+    },
+    "return": "TreeHash"
+  },
   "custom_member_hash": {
     "type": "function",
     "args": {
