@@ -1,7 +1,11 @@
 use bindy::Result;
 use chia_protocol::{Bytes32, BytesImpl};
 use chia_sdk_driver::P2Eip712MessageLayer;
-use chia_sdk_types::puzzles::Eip712PrefixAndDomainSeparator;
+use chia_sdk_types::Mod;
+use chia_sdk_types::puzzles::{Eip712Member, Eip712PrefixAndDomainSeparator};
+use clvm_utils::TreeHash;
+
+use crate::K1PublicKey;
 
 /// CHIP-0037 EIP-712 type hash for the canonical
 /// `ChiaCoinSpend(bytes32 coin_id,bytes32 delegated_puzzle_hash)` schema.
@@ -54,4 +58,27 @@ pub fn eip712_hash_to_sign(
         coin_id,
         delegated_puzzle_hash,
     ))
+}
+
+/// Compute the bare ``Eip712Member::curry_tree_hash`` — the puzzle hash of an
+/// `Eip712Member` curried with `(prefix_and_domain_separator, type_hash,
+/// public_key)` and **no MIPS wrapper layer**.
+///
+/// Use this when the `Eip712Member` sits directly as a leaf in a hand-rolled
+/// admin / one-of-N structure that walks its own leaf list (e.g. the
+/// `populis_protocol` `admin_authority_v2` inner puzzle, which checks
+/// `(= (sha256tree approving_member_reveal) <leaf_in_admin>)` on the bare
+/// curried `Eip712Member`).
+///
+/// Use [`eip712_member_hash`](crate::eip712_member_hash) instead when the
+/// `Eip712Member` is one leaf among many in a CHIP-0043 `m_of_n` / `n_of_n` /
+/// `one_of_n` MIPS quorum tree — that helper additionally wraps with the
+/// `index_wrapper` / restriction layers required by the quorum dispatcher.
+pub fn eip712_member_inner_puzzle_hash(
+    genesis_challenge: Bytes32,
+    public_key: K1PublicKey,
+) -> Result<TreeHash> {
+    let prefix_and_domain = P2Eip712MessageLayer::prefix_and_domain_separator(genesis_challenge);
+    let type_hash = P2Eip712MessageLayer::type_hash();
+    Ok(Eip712Member::new(prefix_and_domain, type_hash, public_key.0).curry_tree_hash())
 }

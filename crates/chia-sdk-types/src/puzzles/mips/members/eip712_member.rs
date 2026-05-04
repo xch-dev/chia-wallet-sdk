@@ -1,8 +1,12 @@
+use std::borrow::Cow;
+
 use chia_protocol::Bytes32;
 use chia_secp::{K1PublicKey, K1Signature};
 use clvm_traits::{FromClvm, ToClvm};
+use clvm_utils::TreeHash;
+use hex_literal::hex;
 
-use crate::{Compilation, compile_chialisp, puzzles::Eip712PrefixAndDomainSeparator};
+use crate::{Mod, puzzles::Eip712PrefixAndDomainSeparator};
 
 /// A CHIP-0043 MIPS member puzzle controlled by an Ethereum-style secp256k1
 /// key that signs the canonical CHIP-0037 EIP-712 digest of
@@ -33,7 +37,31 @@ impl Eip712Member {
     }
 }
 
-compile_chialisp!(Eip712Member = EIP712_MEMBER, "eip712_member.clsp");
+/// Compiled bytes of `eip712_member.clsp`, embedded at build time.
+///
+/// We embed the precompiled puzzle (rather than using `compile_chialisp!`)
+/// so the `Mod` impl is fully `no_std`-compatible and works in WASM,
+/// where the runtime file I/O `compile_chialisp!` performs at first use
+/// is unsupported.
+pub const EIP712_MEMBER: [u8; 171] = *include_bytes!("../../../../eip712_member.clvm");
+
+/// Tree hash of [`EIP712_MEMBER`].  Verified against
+/// `populis_protocol`'s `_eip712_member_mod_hash` (which calls
+/// `Program(eip712_member.clsp).get_tree_hash()` via the chia-blockchain
+/// CLVM tooling) — must stay byte-identical or downstream admin-record
+/// leaf hashes drift.
+pub const EIP712_MEMBER_HASH: [u8; 32] =
+    hex!("7d44a0b6c6168287239ad5b63d20bc1d863e49418af6820e6bde97edd6243548");
+
+impl Mod for Eip712Member {
+    fn mod_reveal() -> Cow<'static, [u8]> {
+        Cow::Borrowed(&EIP712_MEMBER)
+    }
+
+    fn mod_hash() -> TreeHash {
+        TreeHash::new(EIP712_MEMBER_HASH)
+    }
+}
 
 /// Member-specific solution carried by an [`Eip712Member`] spend.
 ///
