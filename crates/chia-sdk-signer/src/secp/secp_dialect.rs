@@ -35,7 +35,7 @@ impl<T> SecpDialect<T> {
     }
 }
 
-impl<T> Dialect for SecpDialect<T>
+impl<T> Dialect for SecpDialect<&T>
 where
     T: Dialect,
 {
@@ -138,7 +138,8 @@ mod tests {
         )
         .to_clvm(&mut a)?;
 
-        let dialect = SecpDialect::new(ChiaDialect::new(0));
+        let dialect = ChiaDialect::new(0);
+        let dialect = SecpDialect::new(&dialect);
 
         let reduction = run_program(&mut a, &dialect, program, NodePtr::NIL, u64::MAX).unwrap();
         let mut collected = dialect.collect();
