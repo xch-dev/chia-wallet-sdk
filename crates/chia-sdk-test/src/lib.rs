@@ -1,6 +1,7 @@
 mod announcements;
 mod benchmark;
 mod error;
+mod full_node_simulator;
 mod key_pairs;
 mod simulator;
 mod transaction;
@@ -9,6 +10,7 @@ mod validate_clvm_and_signature;
 pub use announcements::*;
 pub use benchmark::*;
 pub use error::*;
+pub use full_node_simulator::*;
 pub use key_pairs::*;
 pub use simulator::*;
 pub use transaction::*;

@@ -451,6 +451,7 @@ module.exports.FoliageTransactionBlock = nativeBinding.FoliageTransactionBlock
 module.exports.Force1Of2RestrictedVariableMemo = nativeBinding.Force1Of2RestrictedVariableMemo
 module.exports.Force1of2RestrictedVariableMemo = nativeBinding.Force1of2RestrictedVariableMemo
 module.exports.FullBlock = nativeBinding.FullBlock
+module.exports.FullNodeSimulator = nativeBinding.FullNodeSimulator
 module.exports.GetBlockRecordResponse = nativeBinding.GetBlockRecordResponse
 module.exports.GetBlockRecordsResponse = nativeBinding.GetBlockRecordsResponse
 module.exports.GetBlockResponse = nativeBinding.GetBlockResponse
