@@ -1,21 +1,29 @@
 use std::collections::HashSet;
 
+use bip39::Mnemonic;
+use chia_bls::{SecretKey, master_to_wallet_unhardened};
 use chia_consensus::validation_error::ErrorCode;
 use chia_protocol::{BlockRecord, Bytes32, ClassgroupElement, Coin, CoinSpend, SpendBundle};
+use chia_puzzle_types::{DeriveSynthetic, standard::StandardArgs};
 use chia_sdk_coinset::{
     AdditionsAndRemovalsResponse, BlockchainState, BlockchainStateResponse, CoinRecord,
-    GetBlockRecordResponse, GetBlockRecordsResponse, GetBlockSpendsResponse,
-    GetCoinRecordResponse, GetCoinRecordsResponse, GetMempoolItemResponse,
-    GetMempoolItemsResponse, GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem,
-    MempoolMinFees, PushTxResponse, SyncState,
+    GetBlockRecordResponse, GetBlockRecordsResponse, GetBlockSpendsResponse, GetCoinRecordResponse,
+    GetCoinRecordsResponse, GetMempoolItemResponse, GetMempoolItemsResponse,
+    GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem, MempoolMinFees,
+    PushTxResponse, SyncState,
 };
 use chia_sdk_types::TESTNET11_CONSTANTS;
+use chia_sha2::Sha256;
 use clvmr::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
 use indexmap::{IndexMap, IndexSet};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
 use crate::{SimulatorError, validate_clvm_and_signature};
+
+const PREFARM_COIN_AMOUNT: u64 = 10_500_000_000_000_000_000;
+const BLOCK_REWARD_AMOUNT: u64 = 2_000_000_000_000;
+const PREFARM_WALLET_INDEX: u32 = 1;
 
 #[derive(Debug, Clone)]
 pub struct FullNodeSimulator {
@@ -30,6 +38,8 @@ pub struct FullNodeSimulator {
     coin_hints: IndexMap<Bytes32, Bytes32>,
     mempool: IndexMap<Bytes32, ValidatedBundle>,
     farming_puzzle_hash: Bytes32,
+    prefarm_secret_key: SecretKey,
+    prefarm_puzzle_hash: Bytes32,
     node_id: Bytes32,
     events: Vec<FullNodeSimulatorEvent>,
 }
@@ -94,11 +104,31 @@ impl FullNodeSimulator {
     }
 
     pub fn with_seed(seed: u64) -> Self {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        Self::with_secret_key_and_rng(
+            Self::secret_key_from_seed(seed),
+            ChaCha8Rng::seed_from_u64(seed),
+        )
+    }
+
+    pub fn with_secret_key(root_secret_key: SecretKey) -> Self {
+        let mut seed = [0; 32];
+        seed.copy_from_slice(&root_secret_key.to_bytes());
+        Self::with_secret_key_and_rng(root_secret_key, ChaCha8Rng::from_seed(seed))
+    }
+
+    fn with_secret_key_and_rng(root_secret_key: SecretKey, mut rng: ChaCha8Rng) -> Self {
+        let prefarm_secret_key =
+            master_to_wallet_unhardened(&root_secret_key, PREFARM_WALLET_INDEX).derive_synthetic();
+        let prefarm_puzzle_hash =
+            StandardArgs::curry_tree_hash(prefarm_secret_key.public_key()).into();
         let mut node_id = [0; 32];
         rng.fill(&mut node_id);
 
         let genesis_hash = Bytes32::default();
+        let prefarm_coins = vec![
+            Self::reward_coin(genesis_hash, 0, 0, prefarm_puzzle_hash, PREFARM_COIN_AMOUNT),
+            Self::reward_coin(genesis_hash, 0, 1, prefarm_puzzle_hash, PREFARM_COIN_AMOUNT),
+        ];
         let genesis_record = Self::make_block_record(
             genesis_hash,
             Bytes32::default(),
@@ -107,14 +137,16 @@ impl FullNodeSimulator {
             Bytes32::default(),
             0,
             0,
-            Bytes32::default(),
+            prefarm_puzzle_hash,
+            prefarm_coins.clone(),
         );
+        let additions = prefarm_coins.iter().map(Coin::coin_id).collect::<Vec<_>>();
         let mut blocks = IndexMap::new();
         blocks.insert(
             genesis_hash,
             SimBlock {
                 record: genesis_record,
-                additions: Vec::new(),
+                additions: additions.clone(),
                 removals: Vec::new(),
                 spends: Vec::new(),
                 transactions: Vec::new(),
@@ -122,6 +154,19 @@ impl FullNodeSimulator {
                 added_hints: Vec::new(),
             },
         );
+        let mut coins = IndexMap::new();
+        for coin in prefarm_coins {
+            coins.insert(
+                coin.coin_id(),
+                SimCoinRecord {
+                    coin,
+                    coinbase: true,
+                    confirmed_block_index: 0,
+                    spent_block_index: None,
+                    timestamp: 0,
+                },
+            );
+        }
 
         Self {
             rng,
@@ -130,11 +175,13 @@ impl FullNodeSimulator {
             header_hashes: vec![genesis_hash],
             blocks,
             orphaned_blocks: IndexMap::new(),
-            coins: IndexMap::new(),
+            coins,
             coin_spends: IndexMap::new(),
             coin_hints: IndexMap::new(),
             mempool: IndexMap::new(),
-            farming_puzzle_hash: Bytes32::default(),
+            farming_puzzle_hash: prefarm_puzzle_hash,
+            prefarm_secret_key,
+            prefarm_puzzle_hash,
             node_id: node_id.into(),
             events: Vec::new(),
         }
@@ -172,6 +219,14 @@ impl FullNodeSimulator {
         self.farming_puzzle_hash
     }
 
+    pub fn get_prefarm_secret_key(&self) -> SecretKey {
+        self.prefarm_secret_key.clone()
+    }
+
+    pub fn get_prefarm_puzzle_hash(&self) -> Bytes32 {
+        self.prefarm_puzzle_hash
+    }
+
     pub fn set_farming_ph(&mut self, puzzle_hash: Bytes32) {
         self.farming_puzzle_hash = puzzle_hash;
     }
@@ -191,6 +246,7 @@ impl FullNodeSimulator {
                     0,
                     0,
                     self.farming_puzzle_hash,
+                    Vec::new(),
                 )
             });
 
@@ -471,7 +527,10 @@ impl FullNodeSimulator {
 
     pub fn get_mempool_item_by_tx_id(&self, tx_id: Bytes32) -> GetMempoolItemResponse {
         GetMempoolItemResponse {
-            mempool_item: self.mempool.get(&tx_id).map(ValidatedBundle::to_mempool_item),
+            mempool_item: self
+                .mempool
+                .get(&tx_id)
+                .map(ValidatedBundle::to_mempool_item),
             error: None,
             success: true,
         }
@@ -503,10 +562,17 @@ impl FullNodeSimulator {
     pub fn revert_blocks(&mut self, blocks: u32) -> Vec<Bytes32> {
         let reverted = self.revert_canonical_blocks(blocks);
         self.requeue_transactions(reverted.iter().flat_map(|block| block.transactions.clone()));
-        reverted.iter().map(|block| block.record.header_hash).collect()
+        reverted
+            .iter()
+            .map(|block| block.record.header_hash)
+            .collect()
     }
 
-    pub fn reorg_blocks(&mut self, num_of_blocks_to_rev: u32, num_of_new_blocks: u32) -> Vec<BlockRecord> {
+    pub fn reorg_blocks(
+        &mut self,
+        num_of_blocks_to_rev: u32,
+        num_of_new_blocks: u32,
+    ) -> Vec<BlockRecord> {
         let old_peak_hash = self.header_hash();
         let reverted = self.revert_canonical_blocks(num_of_blocks_to_rev);
         let fork_height = self.height;
@@ -642,7 +708,9 @@ impl FullNodeSimulator {
             .try_into()
             .unwrap_or(u64::MAX);
         if fee < conds.reserve_fee {
-            return Err(SimulatorError::Validation(ErrorCode::ReserveFeeConditionFailed));
+            return Err(SimulatorError::Validation(
+                ErrorCode::ReserveFeeConditionFailed,
+            ));
         }
 
         Ok(ValidatedBundle {
@@ -727,6 +795,16 @@ impl FullNodeSimulator {
         let mut previous_coin_records = Vec::new();
         let mut added_hints = Vec::new();
         let mut fees = 0_u64;
+        let reward_coin = Self::reward_coin(
+            header_hash,
+            height,
+            0,
+            self.farming_puzzle_hash,
+            BLOCK_REWARD_AMOUNT,
+        );
+        let reward_coin_id = reward_coin.coin_id();
+        self.insert_coin_record(reward_coin, true, height, timestamp);
+        additions.push(reward_coin_id);
 
         for item in included {
             fees = fees.saturating_add(item.fee);
@@ -761,10 +839,12 @@ impl FullNodeSimulator {
             previous_header_hash,
             height,
             timestamp,
-            self.header_hash_of(height.saturating_sub(1)).unwrap_or_default(),
+            self.header_hash_of(height.saturating_sub(1))
+                .unwrap_or_default(),
             fees,
             height.saturating_sub(1),
             self.farming_puzzle_hash,
+            vec![reward_coin],
         );
         let block = SimBlock {
             record: record.clone(),
@@ -898,6 +978,36 @@ impl FullNodeSimulator {
         bytes.into()
     }
 
+    fn secret_key_from_seed(seed: u64) -> SecretKey {
+        let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        let entropy: [u8; 32] = rng.random();
+        let mnemonic = Mnemonic::from_entropy(&entropy).expect("32 bytes is valid BIP39 entropy");
+        SecretKey::from_seed(&mnemonic.to_seed(""))
+    }
+
+    fn reward_coin(
+        header_hash: Bytes32,
+        height: u32,
+        index: u8,
+        puzzle_hash: Bytes32,
+        amount: u64,
+    ) -> Coin {
+        Coin::new(
+            Self::reward_parent_id(header_hash, height, index),
+            puzzle_hash,
+            amount,
+        )
+    }
+
+    fn reward_parent_id(header_hash: Bytes32, height: u32, index: u8) -> Bytes32 {
+        let mut hasher = Sha256::new();
+        hasher.update(b"chia-sdk-full-node-simulator-reward");
+        hasher.update(header_hash.to_bytes());
+        hasher.update(height.to_be_bytes());
+        hasher.update([index]);
+        hasher.finalize().into()
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn make_block_record(
         header_hash: Bytes32,
@@ -908,6 +1018,7 @@ impl FullNodeSimulator {
         fees: u64,
         prev_transaction_block_height: u32,
         farming_puzzle_hash: Bytes32,
+        reward_claims_incorporated: Vec<Coin>,
     ) -> BlockRecord {
         BlockRecord::new(
             header_hash,
@@ -930,7 +1041,7 @@ impl FullNodeSimulator {
             Some(timestamp),
             Some(prev_transaction_block_hash),
             Some(fees),
-            Some(Vec::new()),
+            Some(reward_claims_incorporated),
             None,
             None,
             None,
@@ -963,8 +1074,9 @@ impl ValidatedBundle {
 
 #[cfg(test)]
 mod tests {
-    use chia_bls::Signature;
+    use chia_bls::{SecretKey, Signature, master_to_wallet_unhardened};
     use chia_protocol::{Coin, CoinSpend, SpendBundle};
+    use chia_puzzle_types::{DeriveSynthetic, standard::StandardArgs};
     use chia_sdk_types::conditions::{CreateCoin, Memos};
     use clvmr::NodePtr;
 
@@ -982,14 +1094,65 @@ mod tests {
             vec![CoinSpend::new(
                 coin,
                 puzzle_reveal,
-                to_program([CreateCoin::<NodePtr>::new(
-                    puzzle_hash,
-                    amount,
-                    Memos::None,
-                )])?,
+                to_program([CreateCoin::<NodePtr>::new(puzzle_hash, amount, Memos::None)])?,
             )],
             Signature::default(),
         ))
+    }
+
+    #[test]
+    fn genesis_contains_prefarm_rewards() {
+        let sim = FullNodeSimulator::new();
+        let prefarm_puzzle_hash = sim.get_prefarm_puzzle_hash();
+        assert_eq!(sim.height(), 0);
+        assert_eq!(sim.get_farming_ph(), prefarm_puzzle_hash);
+
+        let prefarm_records = sim
+            .get_coin_records_by_puzzle_hash(prefarm_puzzle_hash, None, None, None)
+            .coin_records
+            .unwrap();
+        assert_eq!(prefarm_records.len(), 2);
+        assert!(prefarm_records.iter().all(|record| record.coinbase));
+        assert!(prefarm_records.iter().all(|record| !record.spent));
+        assert_eq!(
+            prefarm_records
+                .iter()
+                .map(|record| u128::from(record.coin.amount))
+                .sum::<u128>(),
+            21_000_000_000_000_000_000_u128
+        );
+
+        let genesis = sim.get_block_record_by_height(0).block_record.unwrap();
+        let reward_claims = genesis.reward_claims_incorporated.unwrap();
+        assert_eq!(reward_claims.len(), 2);
+        assert_eq!(
+            reward_claims
+                .iter()
+                .map(|coin| u128::from(coin.amount))
+                .sum::<u128>(),
+            21_000_000_000_000_000_000_u128
+        );
+        assert!(
+            reward_claims
+                .iter()
+                .all(|coin| coin.puzzle_hash == prefarm_puzzle_hash)
+        );
+    }
+
+    #[test]
+    fn explicit_secret_key_derives_prefarm_wallet_index_one() {
+        let root_secret_key = SecretKey::from_seed(&[42; 32]);
+        let sim = FullNodeSimulator::with_secret_key(root_secret_key.clone());
+        let expected_secret_key =
+            master_to_wallet_unhardened(&root_secret_key, 1).derive_synthetic();
+        let expected_puzzle_hash =
+            StandardArgs::curry_tree_hash(expected_secret_key.public_key()).into();
+
+        assert_eq!(sim.get_prefarm_puzzle_hash(), expected_puzzle_hash);
+        assert_eq!(
+            sim.get_prefarm_secret_key().to_bytes(),
+            expected_secret_key.to_bytes()
+        );
     }
 
     #[test]
@@ -1001,11 +1164,25 @@ mod tests {
 
         let response = sim.push_tx(spend_bundle);
         assert!(response.success);
-        assert_eq!(sim.get_blockchain_state().blockchain_state.unwrap().mempool_size, 1);
+        assert_eq!(
+            sim.get_blockchain_state()
+                .blockchain_state
+                .unwrap()
+                .mempool_size,
+            1
+        );
 
-        let record = sim.get_coin_record_by_name(coin.coin_id()).coin_record.unwrap();
+        let record = sim
+            .get_coin_record_by_name(coin.coin_id())
+            .coin_record
+            .unwrap();
         assert!(!record.spent);
-        assert!(sim.get_block_spends(sim.header_hash()).block_spends.unwrap().is_empty());
+        assert!(
+            sim.get_block_spends(sim.header_hash())
+                .block_spends
+                .unwrap()
+                .is_empty()
+        );
 
         Ok(())
     }
@@ -1022,34 +1199,122 @@ mod tests {
         let records = sim.farm_block(1);
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].height, 1);
-        assert_eq!(sim.get_blockchain_state().blockchain_state.unwrap().mempool_size, 0);
+        let reward_claims = records[0].reward_claims_incorporated.clone().unwrap();
+        assert_eq!(reward_claims.len(), 1);
+        assert_eq!(reward_claims[0].amount, BLOCK_REWARD_AMOUNT);
+        assert_eq!(reward_claims[0].puzzle_hash, sim.get_prefarm_puzzle_hash());
+        assert_eq!(
+            sim.get_blockchain_state()
+                .blockchain_state
+                .unwrap()
+                .mempool_size,
+            0
+        );
 
-        let spent = sim.get_coin_record_by_name(coin.coin_id()).coin_record.unwrap();
+        let spent = sim
+            .get_coin_record_by_name(coin.coin_id())
+            .coin_record
+            .unwrap();
         assert!(spent.spent);
         assert_eq!(spent.spent_block_index, 1);
 
-        let created = sim.get_coin_record_by_name(child.coin_id()).coin_record.unwrap();
+        let created = sim
+            .get_coin_record_by_name(child.coin_id())
+            .coin_record
+            .unwrap();
         assert!(!created.spent);
         assert_eq!(created.confirmed_block_index, 1);
 
-        let spends = sim.get_block_spends(records[0].header_hash).block_spends.unwrap();
+        let spends = sim
+            .get_block_spends(records[0].header_hash)
+            .block_spends
+            .unwrap();
         assert_eq!(spends.len(), 1);
 
         let events = sim.drain_events();
-        assert!(matches!(events.as_slice(), [FullNodeSimulatorEvent::Block { height: 1, .. }]));
+        assert!(matches!(
+            events.as_slice(),
+            [FullNodeSimulatorEvent::Block {
+                height: 1,
+                additions,
+                ..
+            }] if additions.iter().any(|record| record.coin.coin_id() == reward_claims[0].coin_id())
+        ));
 
         Ok(())
     }
 
     #[test]
+    fn set_farming_ph_changes_future_reward_destination() {
+        let mut sim = FullNodeSimulator::new();
+        let (new_farming_ph, _) = to_puzzle(99).unwrap();
+        sim.set_farming_ph(new_farming_ph);
+
+        let record = sim.farm_block(1).pop().unwrap();
+        let reward_claims = record.reward_claims_incorporated.unwrap();
+        assert_eq!(reward_claims.len(), 1);
+        assert_eq!(reward_claims[0].amount, BLOCK_REWARD_AMOUNT);
+        assert_eq!(reward_claims[0].puzzle_hash, new_farming_ph);
+    }
+
+    #[test]
+    fn revert_removes_farmed_reward() {
+        let mut sim = FullNodeSimulator::new();
+        let reward = sim
+            .farm_block(1)
+            .pop()
+            .unwrap()
+            .reward_claims_incorporated
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert!(
+            sim.get_coin_record_by_name(reward.coin_id())
+                .coin_record
+                .is_some()
+        );
+
+        sim.revert_blocks(1);
+        assert!(
+            sim.get_coin_record_by_name(reward.coin_id())
+                .coin_record
+                .is_none()
+        );
+    }
+
+    #[test]
     fn reorg_replaces_peak_and_emits_reorg() {
         let mut sim = FullNodeSimulator::new();
-        let old_peak = sim.farm_block(2).last().unwrap().header_hash;
+        let old_blocks = sim.farm_block(2);
+        let old_peak = old_blocks.last().unwrap().header_hash;
+        let old_reward = old_blocks
+            .last()
+            .unwrap()
+            .reward_claims_incorporated
+            .clone()
+            .unwrap()
+            .pop()
+            .unwrap();
 
         let new_blocks = sim.reorg_blocks(1, 2);
         assert_eq!(new_blocks.len(), 2);
         assert_ne!(sim.header_hash(), old_peak);
         assert_eq!(sim.height(), 3);
+        assert!(
+            sim.get_coin_record_by_name(old_reward.coin_id())
+                .coin_record
+                .is_none()
+        );
+        let orphan = sim.get_block_record(old_peak).block_record.unwrap();
+        assert_eq!(
+            orphan.reward_claims_incorporated.unwrap()[0].coin_id(),
+            old_reward.coin_id()
+        );
+        assert!(
+            new_blocks
+                .iter()
+                .all(|block| block.reward_claims_incorporated.as_ref().unwrap().len() == 1)
+        );
 
         let events = sim.drain_events();
         assert!(events.iter().any(|event| {

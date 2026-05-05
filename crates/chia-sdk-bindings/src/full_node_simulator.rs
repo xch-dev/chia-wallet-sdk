@@ -1,12 +1,13 @@
 use std::sync::{Arc, Mutex};
 
 use bindy::Result;
+use chia_bls::SecretKey;
 use chia_protocol::{BlockRecord, Bytes32, Coin, SpendBundle};
 use chia_sdk_coinset::{
     AdditionsAndRemovalsResponse, BlockchainStateResponse, GetBlockRecordResponse,
-    GetBlockRecordsResponse, GetBlockSpendsResponse, GetCoinRecordResponse,
-    GetCoinRecordsResponse, GetMempoolItemResponse, GetMempoolItemsResponse,
-    GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, PushTxResponse,
+    GetBlockRecordsResponse, GetBlockSpendsResponse, GetCoinRecordResponse, GetCoinRecordsResponse,
+    GetMempoolItemResponse, GetMempoolItemsResponse, GetNetworkInfoResponse,
+    GetPuzzleAndSolutionResponse, PushTxResponse,
 };
 
 pub use chia_sdk_test::FullNodeSimulatorEvent;
@@ -22,6 +23,12 @@ impl FullNodeSimulator {
     pub fn with_seed(seed: u64) -> Result<Self> {
         Ok(Self(Arc::new(Mutex::new(
             chia_sdk_test::FullNodeSimulator::with_seed(seed),
+        ))))
+    }
+
+    pub fn with_secret_key(secret_key: SecretKey) -> Result<Self> {
+        Ok(Self(Arc::new(Mutex::new(
+            chia_sdk_test::FullNodeSimulator::with_secret_key(secret_key),
         ))))
     }
 
@@ -48,6 +55,14 @@ impl FullNodeSimulator {
 
     pub fn get_farming_ph(&self) -> Result<Bytes32> {
         Ok(self.0.lock().unwrap().get_farming_ph())
+    }
+
+    pub fn get_prefarm_secret_key(&self) -> Result<SecretKey> {
+        Ok(self.0.lock().unwrap().get_prefarm_secret_key())
+    }
+
+    pub fn get_prefarm_puzzle_hash(&self) -> Result<Bytes32> {
+        Ok(self.0.lock().unwrap().get_prefarm_puzzle_hash())
     }
 
     pub fn set_farming_ph(&self, puzzle_hash: Bytes32) -> Result<()> {
