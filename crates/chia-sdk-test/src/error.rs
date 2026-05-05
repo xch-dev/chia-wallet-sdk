@@ -17,4 +17,7 @@ pub enum SimulatorError {
 
     #[error("Missing key")]
     MissingKey,
+
+    #[error("{0}")]
+    Custom(String),
 }

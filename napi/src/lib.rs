@@ -3,6 +3,7 @@
 
 use bindy::{FromRust, IntoRust, NapiParamContext, NapiReturnContext};
 use napi::bindgen_prelude::*;
+use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 
 bindy_macro::bindy_napi!("bindings.json");
@@ -168,4 +169,492 @@ fn alloc<'a>(
             ClvmType::Payment(value) => clvm.payment(value.0.clone())?,
         }),
     }
+}
+
+#[napi(object)]
+#[derive(Debug)]
+pub struct FullNodeSimulatorEventPayload {
+    pub r#type: String,
+    pub height: Option<u32>,
+    pub header_hash: Option<String>,
+    pub previous_header_hash: Option<String>,
+    pub additions: Vec<String>,
+    pub removals: Vec<String>,
+    pub fork_height: Option<u32>,
+    pub old_peak_hash: Option<String>,
+    pub new_peak_hash: Option<String>,
+    pub reverted_header_hashes: Vec<String>,
+    pub new_header_hashes: Vec<String>,
+}
+
+#[napi]
+pub struct FullNodeSimulator {
+    inner: chia_sdk_bindings::FullNodeSimulator,
+    event_callback: Option<ThreadsafeFunction<FullNodeSimulatorEventPayload>>,
+}
+
+impl std::fmt::Debug for FullNodeSimulator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FullNodeSimulator").finish_non_exhaustive()
+    }
+}
+
+#[napi]
+impl FullNodeSimulator {
+    #[napi(constructor)]
+    pub fn new() -> Result<Self> {
+        Ok(Self {
+            inner: chia_sdk_bindings::FullNodeSimulator::new()?,
+            event_callback: None,
+        })
+    }
+
+    #[napi(factory)]
+    pub fn with_seed(seed: BigInt) -> Result<Self> {
+        Ok(Self {
+            inner: chia_sdk_bindings::FullNodeSimulator::with_seed(seed.into_rust(&NapiParamContext)?)?,
+            event_callback: None,
+        })
+    }
+
+    #[napi]
+    pub fn on_event(
+        &mut self,
+        callback: ThreadsafeFunction<FullNodeSimulatorEventPayload>,
+    ) -> Result<()> {
+        self.event_callback = Some(callback);
+        Ok(())
+    }
+
+    #[napi]
+    pub fn drain_events(&self) -> Result<Vec<FullNodeSimulatorEventPayload>> {
+        Ok(self
+            .inner
+            .drain_events()?
+            .into_iter()
+            .map(event_payload)
+            .collect())
+    }
+
+    #[napi]
+    pub fn height(&self) -> Result<u32> {
+        Ok(self.inner.height()?)
+    }
+
+    #[napi]
+    pub fn header_hash(&self, env: Env) -> Result<Buffer> {
+        Ok(FromRust::from_rust(
+            self.inner.header_hash()?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn header_hash_of(&self, env: Env, height: u32) -> Result<Option<Buffer>> {
+        Ok(FromRust::from_rust(
+            self.inner.header_hash_of(height)?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn insert_coin(&mut self, coin: ClassInstance<'_, Coin>) -> Result<()> {
+        self.inner.insert_coin(coin.into_rust(&NapiParamContext)?)?;
+        self.emit_events();
+        Ok(())
+    }
+
+    #[napi]
+    pub fn new_coin(&mut self, env: Env, puzzle_hash: Uint8Array, amount: BigInt) -> Result<Coin> {
+        let coin = self.inner.new_coin(
+            puzzle_hash.into_rust(&NapiParamContext)?,
+            amount.into_rust(&NapiParamContext)?,
+        )?;
+        self.emit_events();
+        Ok(FromRust::from_rust(coin, &NapiReturnContext(env))?)
+    }
+
+    #[napi]
+    pub fn get_farming_ph(&self, env: Env) -> Result<Buffer> {
+        Ok(FromRust::from_rust(
+            self.inner.get_farming_ph()?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn set_farming_ph(&mut self, puzzle_hash: Uint8Array) -> Result<()> {
+        self.inner
+            .set_farming_ph(puzzle_hash.into_rust(&NapiParamContext)?)?;
+        Ok(())
+    }
+
+    #[napi]
+    pub fn get_blockchain_state(&self, env: Env) -> Result<BlockchainStateResponse> {
+        Ok(FromRust::from_rust(
+            self.inner.get_blockchain_state()?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_network_info(&self, env: Env) -> Result<GetNetworkInfoResponse> {
+        Ok(FromRust::from_rust(
+            self.inner.get_network_info()?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_aggsig_additional_data(&self, env: Env) -> Result<Buffer> {
+        Ok(FromRust::from_rust(
+            self.inner.get_aggsig_additional_data()?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_block_record(
+        &self,
+        env: Env,
+        header_hash: Uint8Array,
+    ) -> Result<GetBlockRecordResponse> {
+        Ok(FromRust::from_rust(
+            self.inner
+                .get_block_record(header_hash.into_rust(&NapiParamContext)?)?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_block_record_by_height(
+        &self,
+        env: Env,
+        height: u32,
+    ) -> Result<GetBlockRecordResponse> {
+        Ok(FromRust::from_rust(
+            self.inner.get_block_record_by_height(height)?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_block_records(
+        &self,
+        env: Env,
+        start: u32,
+        end: u32,
+    ) -> Result<GetBlockRecordsResponse> {
+        Ok(FromRust::from_rust(
+            self.inner.get_block_records(start, end)?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_additions_and_removals(
+        &self,
+        env: Env,
+        header_hash: Uint8Array,
+    ) -> Result<AdditionsAndRemovalsResponse> {
+        Ok(FromRust::from_rust(
+            self.inner
+                .get_additions_and_removals(header_hash.into_rust(&NapiParamContext)?)?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_block_spends(
+        &self,
+        env: Env,
+        header_hash: Uint8Array,
+    ) -> Result<GetBlockSpendsResponse> {
+        Ok(FromRust::from_rust(
+            self.inner
+                .get_block_spends(header_hash.into_rust(&NapiParamContext)?)?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_coin_record_by_name(
+        &self,
+        env: Env,
+        name: Uint8Array,
+    ) -> Result<GetCoinRecordResponse> {
+        Ok(FromRust::from_rust(
+            self.inner
+                .get_coin_record_by_name(name.into_rust(&NapiParamContext)?)?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_coin_records_by_names(
+        &self,
+        env: Env,
+        names: Vec<Uint8Array>,
+        start_height: Option<u32>,
+        end_height: Option<u32>,
+        include_spent_coins: Option<bool>,
+    ) -> Result<GetCoinRecordsResponse> {
+        Ok(FromRust::from_rust(
+            self.inner.get_coin_records_by_names(
+                names.into_rust(&NapiParamContext)?,
+                start_height,
+                end_height,
+                include_spent_coins,
+            )?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_coin_records_by_hint(
+        &self,
+        env: Env,
+        hint: Uint8Array,
+        start_height: Option<u32>,
+        end_height: Option<u32>,
+        include_spent_coins: Option<bool>,
+    ) -> Result<GetCoinRecordsResponse> {
+        Ok(FromRust::from_rust(
+            self.inner.get_coin_records_by_hint(
+                hint.into_rust(&NapiParamContext)?,
+                start_height,
+                end_height,
+                include_spent_coins,
+            )?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_coin_records_by_hints(
+        &self,
+        env: Env,
+        hints: Vec<Uint8Array>,
+        start_height: Option<u32>,
+        end_height: Option<u32>,
+        include_spent_coins: Option<bool>,
+    ) -> Result<GetCoinRecordsResponse> {
+        Ok(FromRust::from_rust(
+            self.inner.get_coin_records_by_hints(
+                hints.into_rust(&NapiParamContext)?,
+                start_height,
+                end_height,
+                include_spent_coins,
+            )?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_coin_records_by_parent_ids(
+        &self,
+        env: Env,
+        parent_ids: Vec<Uint8Array>,
+        start_height: Option<u32>,
+        end_height: Option<u32>,
+        include_spent_coins: Option<bool>,
+    ) -> Result<GetCoinRecordsResponse> {
+        Ok(FromRust::from_rust(
+            self.inner.get_coin_records_by_parent_ids(
+                parent_ids.into_rust(&NapiParamContext)?,
+                start_height,
+                end_height,
+                include_spent_coins,
+            )?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_coin_records_by_puzzle_hash(
+        &self,
+        env: Env,
+        puzzle_hash: Uint8Array,
+        start_height: Option<u32>,
+        end_height: Option<u32>,
+        include_spent_coins: Option<bool>,
+    ) -> Result<GetCoinRecordsResponse> {
+        Ok(FromRust::from_rust(
+            self.inner.get_coin_records_by_puzzle_hash(
+                puzzle_hash.into_rust(&NapiParamContext)?,
+                start_height,
+                end_height,
+                include_spent_coins,
+            )?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_coin_records_by_puzzle_hashes(
+        &self,
+        env: Env,
+        puzzle_hashes: Vec<Uint8Array>,
+        start_height: Option<u32>,
+        end_height: Option<u32>,
+        include_spent_coins: Option<bool>,
+    ) -> Result<GetCoinRecordsResponse> {
+        Ok(FromRust::from_rust(
+            self.inner.get_coin_records_by_puzzle_hashes(
+                puzzle_hashes.into_rust(&NapiParamContext)?,
+                start_height,
+                end_height,
+                include_spent_coins,
+            )?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_puzzle_and_solution(
+        &self,
+        env: Env,
+        coin_id: Uint8Array,
+        height: Option<u32>,
+    ) -> Result<GetPuzzleAndSolutionResponse> {
+        Ok(FromRust::from_rust(
+            self.inner
+                .get_puzzle_and_solution(coin_id.into_rust(&NapiParamContext)?, height)?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn push_tx(
+        &mut self,
+        env: Env,
+        spend_bundle: ClassInstance<'_, SpendBundle>,
+    ) -> Result<PushTxResponse> {
+        let response = self
+            .inner
+            .push_tx(spend_bundle.into_rust(&NapiParamContext)?)?;
+        self.emit_events();
+        Ok(FromRust::from_rust(response, &NapiReturnContext(env))?)
+    }
+
+    #[napi]
+    pub fn get_mempool_item_by_tx_id(
+        &self,
+        env: Env,
+        tx_id: Uint8Array,
+    ) -> Result<GetMempoolItemResponse> {
+        Ok(FromRust::from_rust(
+            self.inner
+                .get_mempool_item_by_tx_id(tx_id.into_rust(&NapiParamContext)?)?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_mempool_items_by_coin_name(
+        &self,
+        env: Env,
+        coin_name: Uint8Array,
+    ) -> Result<GetMempoolItemsResponse> {
+        Ok(FromRust::from_rust(
+            self.inner
+                .get_mempool_items_by_coin_name(coin_name.into_rust(&NapiParamContext)?)?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn farm_block(&mut self, env: Env, blocks: u32) -> Result<Vec<BlockRecord>> {
+        let records = self.inner.farm_block(blocks)?;
+        self.emit_events();
+        Ok(FromRust::from_rust(records, &NapiReturnContext(env))?)
+    }
+
+    #[napi]
+    pub fn revert_blocks(&mut self, env: Env, blocks: u32) -> Result<Vec<Buffer>> {
+        let reverted = self.inner.revert_blocks(blocks)?;
+        self.emit_events();
+        Ok(FromRust::from_rust(reverted, &NapiReturnContext(env))?)
+    }
+
+    #[napi]
+    pub fn reorg_blocks(
+        &mut self,
+        env: Env,
+        num_of_blocks_to_rev: u32,
+        num_of_new_blocks: u32,
+    ) -> Result<Vec<BlockRecord>> {
+        let records = self
+            .inner
+            .reorg_blocks(num_of_blocks_to_rev, num_of_new_blocks)?;
+        self.emit_events();
+        Ok(FromRust::from_rust(records, &NapiReturnContext(env))?)
+    }
+}
+
+impl FullNodeSimulator {
+    fn emit_events(&mut self) {
+        let Some(callback) = &self.event_callback else {
+            return;
+        };
+        let Ok(events) = self.inner.drain_events() else {
+            return;
+        };
+        for event in events {
+            callback.call(Ok(event_payload(event)), ThreadsafeFunctionCallMode::NonBlocking);
+        }
+    }
+}
+
+fn event_payload(event: chia_sdk_bindings::FullNodeSimulatorEvent) -> FullNodeSimulatorEventPayload {
+    match event {
+        chia_sdk_bindings::FullNodeSimulatorEvent::Block {
+            height,
+            header_hash,
+            previous_header_hash,
+            additions,
+            removals,
+        } => FullNodeSimulatorEventPayload {
+            r#type: "block".to_string(),
+            height: Some(height),
+            header_hash: Some(hex32(header_hash)),
+            previous_header_hash: Some(hex32(previous_header_hash)),
+            additions: additions
+                .into_iter()
+                .map(|record| hex32(record.coin.coin_id()))
+                .collect(),
+            removals: removals
+                .into_iter()
+                .map(|record| hex32(record.coin.coin_id()))
+                .collect(),
+            fork_height: None,
+            old_peak_hash: None,
+            new_peak_hash: None,
+            reverted_header_hashes: Vec::new(),
+            new_header_hashes: Vec::new(),
+        },
+        chia_sdk_bindings::FullNodeSimulatorEvent::Reorg {
+            fork_height,
+            old_peak_hash,
+            new_peak_hash,
+            reverted_header_hashes,
+            new_header_hashes,
+        } => FullNodeSimulatorEventPayload {
+            r#type: "reorg".to_string(),
+            height: None,
+            header_hash: None,
+            previous_header_hash: None,
+            additions: Vec::new(),
+            removals: Vec::new(),
+            fork_height: Some(fork_height),
+            old_peak_hash: Some(hex32(old_peak_hash)),
+            new_peak_hash: Some(hex32(new_peak_hash)),
+            reverted_header_hashes: reverted_header_hashes.into_iter().map(hex32).collect(),
+            new_header_hashes: new_header_hashes.into_iter().map(hex32).collect(),
+        },
+    }
+}
+
+fn hex32(bytes: chia_sdk_bindings::Bytes32) -> String {
+    format!("0x{}", hex::encode(bytes.to_bytes()))
 }

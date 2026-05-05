@@ -54,6 +54,7 @@ bip39 = { workspace = true }
 anyhow = { workspace = true }
 chia-sdk-types = { workspace = true }
 chia-sdk-signer = { workspace = true }
+chia-sdk-coinset = { workspace = true }
 hex = { workspace = true }
 tracing = { workspace = true, optional = true }
 itertools = { workspace = true, optional = true }
