@@ -238,7 +238,6 @@ mod tests {
     #[test]
     fn test_softfork_cost() -> anyhow::Result<()> {
         let mut ctx = SpendContext::new();
-        let ctx = &mut ctx;
         // Equivalent CLVM source:
         //   (mod (PREFIX_AND_DOMAIN_SEPARATOR TYPE_HASH my_id delegated_puzzle_hash signed_hash)
         //     (if (= (keccak256 PREFIX_AND_DOMAIN_SEPARATOR
@@ -246,7 +245,7 @@ mod tests {
         //            signed_hash) () (x)))
         let puzzle_bytes =
             hex!("ff02ffff03ffff09ffff3eff02ffff3eff05ff0bff178080ff2f80ff80ffff01ff088080ff0180");
-        let puzzle_ptr = node_from_bytes(&mut **ctx, puzzle_bytes.as_slice())?;
+        let puzzle_ptr = node_from_bytes(&mut ctx, puzzle_bytes.as_slice())?;
         let solution_ptr = vec![
             // PREFIX_AND_DOMAIN_SEPARATOR (testnet/mainnet-independent fixture)
             Bytes::new(
@@ -270,10 +269,10 @@ mod tests {
                 hex!("9f61fdf6077c3eeb96eaa4dd450b11ba3ae17746a2c304388218137972c7ba4c").to_vec(),
             ),
         ]
-        .to_clvm(&mut **ctx)?;
+        .to_clvm(&mut *ctx)?;
 
         let Reduction(cost, _) = clvmr::run_program(
-            &mut **ctx,
+            &mut ctx,
             &clvmr::ChiaDialect::new(ENABLE_KECCAK_OPS_OUTSIDE_GUARD),
             puzzle_ptr,
             solution_ptr,
@@ -338,8 +337,7 @@ mod tests {
         } else {
             let err = sim
                 .spend_coins(ctx.take(), &[])
-                .err()
-                .expect("spend should fail when signed_hash is wrong");
+                .expect_err("spend should fail when signed_hash is wrong");
             let msg = err.to_string();
             assert!(
                 msg.contains("clvm raise") || msg.to_lowercase().contains("raise"),
