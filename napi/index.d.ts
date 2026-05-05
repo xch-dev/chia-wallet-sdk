@@ -1205,8 +1205,9 @@ export declare class FullBlock {
 }
 
 export declare class FullNodeSimulator {
-  constructor()
+  constructor(secretKey?: SecretKey | undefined | null)
   static withSeed(seed: bigint): FullNodeSimulator
+  static withSecretKey(secretKey: SecretKey): FullNodeSimulator
   onEvent(callback: ((err: Error | null, arg: FullNodeSimulatorEventPayload) => any)): void
   drainEvents(): Array<FullNodeSimulatorEventPayload>
   height(): number
@@ -1215,6 +1216,8 @@ export declare class FullNodeSimulator {
   insertCoin(coin: Coin): void
   newCoin(puzzleHash: Uint8Array, amount: bigint): Coin
   getFarmingPh(): Buffer
+  getPrefarmSecretKey(): SecretKey
+  getPrefarmPuzzleHash(): Buffer
   setFarmingPh(puzzleHash: Uint8Array): void
   getBlockchainState(): BlockchainStateResponse
   getNetworkInfo(): GetNetworkInfoResponse

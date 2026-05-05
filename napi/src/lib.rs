@@ -202,9 +202,15 @@ impl std::fmt::Debug for FullNodeSimulator {
 #[napi]
 impl FullNodeSimulator {
     #[napi(constructor)]
-    pub fn new() -> Result<Self> {
+    pub fn new(secret_key: Option<ClassInstance<'_, SecretKey>>) -> Result<Self> {
+        let inner = match secret_key {
+            Some(secret_key) => chia_sdk_bindings::FullNodeSimulator::with_secret_key(
+                secret_key.into_rust(&NapiParamContext)?,
+            )?,
+            None => chia_sdk_bindings::FullNodeSimulator::new()?,
+        };
         Ok(Self {
-            inner: chia_sdk_bindings::FullNodeSimulator::new()?,
+            inner,
             event_callback: None,
         })
     }
@@ -212,7 +218,19 @@ impl FullNodeSimulator {
     #[napi(factory)]
     pub fn with_seed(seed: BigInt) -> Result<Self> {
         Ok(Self {
-            inner: chia_sdk_bindings::FullNodeSimulator::with_seed(seed.into_rust(&NapiParamContext)?)?,
+            inner: chia_sdk_bindings::FullNodeSimulator::with_seed(
+                seed.into_rust(&NapiParamContext)?,
+            )?,
+            event_callback: None,
+        })
+    }
+
+    #[napi(factory)]
+    pub fn with_secret_key(secret_key: ClassInstance<'_, SecretKey>) -> Result<Self> {
+        Ok(Self {
+            inner: chia_sdk_bindings::FullNodeSimulator::with_secret_key(
+                secret_key.into_rust(&NapiParamContext)?,
+            )?,
             event_callback: None,
         })
     }
@@ -278,6 +296,22 @@ impl FullNodeSimulator {
     pub fn get_farming_ph(&self, env: Env) -> Result<Buffer> {
         Ok(FromRust::from_rust(
             self.inner.get_farming_ph()?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_prefarm_secret_key(&self, env: Env) -> Result<SecretKey> {
+        Ok(FromRust::from_rust(
+            self.inner.get_prefarm_secret_key()?,
+            &NapiReturnContext(env),
+        )?)
+    }
+
+    #[napi]
+    pub fn get_prefarm_puzzle_hash(&self, env: Env) -> Result<Buffer> {
+        Ok(FromRust::from_rust(
+            self.inner.get_prefarm_puzzle_hash()?,
             &NapiReturnContext(env),
         )?)
     }
@@ -601,12 +635,17 @@ impl FullNodeSimulator {
             return;
         };
         for event in events {
-            callback.call(Ok(event_payload(event)), ThreadsafeFunctionCallMode::NonBlocking);
+            callback.call(
+                Ok(event_payload(event)),
+                ThreadsafeFunctionCallMode::NonBlocking,
+            );
         }
     }
 }
 
-fn event_payload(event: chia_sdk_bindings::FullNodeSimulatorEvent) -> FullNodeSimulatorEventPayload {
+fn event_payload(
+    event: chia_sdk_bindings::FullNodeSimulatorEvent,
+) -> FullNodeSimulatorEventPayload {
     match event {
         chia_sdk_bindings::FullNodeSimulatorEvent::Block {
             height,
