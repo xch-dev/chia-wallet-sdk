@@ -21,10 +21,10 @@ pyo3 = ["dep:chia-sdk-client", "dep:chia-ssl", "dep:tokio", "bindy/pyo3"]
 
 [dependencies]
 chia-sdk-utils = { workspace = true }
-chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-layer"] }
+chia-sdk-driver = { workspace = true, features = ["offer-compression", "action-layer", "chip-0037"] }
 chia-sdk-coinset = { workspace = true, features = ["native-tls"] }
 chia-sdk-test = { workspace = true }
-chia-sdk-types = { workspace = true }
+chia-sdk-types = { workspace = true, features = ["chip-0037"] }
 chia-sdk-client = { workspace = true, optional = true, features = ["native-tls"] }
 chia-ssl = { workspace = true, optional = true }
 chia-protocol = { workspace = true }

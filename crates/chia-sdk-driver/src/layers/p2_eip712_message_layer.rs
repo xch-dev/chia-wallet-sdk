@@ -85,6 +85,22 @@ impl P2Eip712MessageLayer {
     /// `digest = keccak256(prefix_and_domain || keccak256(type_hash || coin_id
     /// || delegated_puzzle_hash))`
     pub fn hash_to_sign(&self, coin_id: Bytes32, delegated_puzzle_hash: Bytes32) -> Bytes32 {
+        Self::compute_hash_to_sign(
+            &self.prefix_and_domain_separator,
+            coin_id,
+            delegated_puzzle_hash,
+        )
+    }
+
+    /// Static variant of [`Self::hash_to_sign`] that doesn't require a layer
+    /// instance (and therefore doesn't need a public key); useful for callers
+    /// that already hold the curried `prefix_and_domain_separator` directly,
+    /// such as bindings or off-chain helpers.
+    pub fn compute_hash_to_sign(
+        prefix_and_domain_separator: &Eip712PrefixAndDomainSeparator,
+        coin_id: Bytes32,
+        delegated_puzzle_hash: Bytes32,
+    ) -> Bytes32 {
         let mut to_hash = Vec::with_capacity(96);
         to_hash.extend_from_slice(&Self::type_hash());
         to_hash.extend_from_slice(&coin_id);
@@ -92,7 +108,7 @@ impl P2Eip712MessageLayer {
         let message_hash = Keccak256::digest(&to_hash);
 
         let mut to_hash = Vec::with_capacity(34 + 32);
-        to_hash.extend_from_slice(&self.prefix_and_domain_separator);
+        to_hash.extend_from_slice(prefix_and_domain_separator);
         to_hash.extend_from_slice(&message_hash);
 
         Bytes32::new(Keccak256::digest(&to_hash).into())

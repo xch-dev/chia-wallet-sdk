@@ -1,0 +1,31 @@
+{
+  "eip712_type_hash": {
+    "type": "function",
+    "args": {},
+    "return": "Bytes32"
+  },
+  "eip712_domain_separator": {
+    "type": "function",
+    "args": {
+      "genesis_challenge": "Bytes32"
+    },
+    "return": "Bytes32"
+  },
+  "eip712_hash_to_sign": {
+    "type": "function",
+    "args": {
+      "genesis_challenge": "Bytes32",
+      "coin_id": "Bytes32",
+      "delegated_puzzle_hash": "Bytes32"
+    },
+    "return": "Bytes32"
+  },
+  "eip712_member_inner_puzzle_hash": {
+    "type": "function",
+    "args": {
+      "genesis_challenge": "Bytes32",
+      "public_key": "K1PublicKey"
+    },
+    "return": "TreeHash"
+  }
+}
