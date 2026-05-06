@@ -15,7 +15,7 @@ use crate::{
     Action, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo, CatSpend, ClawbackInfo,
     ClawbackPath, ClawbackV2, CustodyInfo, Deltas, DriverError, DropCoin, FeeAction, Id,
     IssuanceKind, Nft, ParsedAsset, Reveals, Spend, SpendContext, SpendKind, Spends, TestP2Puzzle,
-    TestVault, TransferType, VaultOutput, parse_vault_transaction,
+    TestVault, TransferType, VaultOutput, iter_final_children, parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -374,6 +374,9 @@ fn test_clear_signing_intermediate_delegated_conditions(
         assert_eq!(child_2.asset.coin().amount, 1);
         assert_eq!(child_2.memos.p2_puzzle_hash, alice.p2_puzzle_hash);
     }
+
+    let final_children = iter_final_children(&tx.spends);
+    assert_eq!(final_children.count(), 2);
 
     Ok(())
 }
