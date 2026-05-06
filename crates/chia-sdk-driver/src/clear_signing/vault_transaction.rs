@@ -69,7 +69,7 @@ pub struct VerifiedSpend {
     pub children: Vec<ParsedChild>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LinkedOffer {
     pub reserved_fee: u64,
     pub requested_payments: Vec<AssertedRequestedPayment>,

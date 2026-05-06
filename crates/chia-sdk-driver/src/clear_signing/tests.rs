@@ -7,15 +7,16 @@ use chia_sdk_types::{
     Condition, Conditions, MessageFlags, MessageSide,
     puzzles::{EverythingWithSingletonTailArgs, EverythingWithSingletonTailSolution},
 };
-use clvm_traits::clvm_list;
+use clvm_traits::{clvm_list, clvm_quote};
 use clvm_utils::{ToTreeHash, tree_hash};
 use rstest::rstest;
 
 use crate::{
     Action, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo, CatSpend, ClawbackInfo,
     ClawbackPath, ClawbackV2, CustodyInfo, Deltas, DriverError, DropCoin, FeeAction, Id,
-    IssuanceKind, Nft, ParsedAsset, Reveals, Spend, SpendContext, SpendKind, Spends, TestP2Puzzle,
-    TestVault, TransferType, VaultOutput, iter_final_children, parse_vault_transaction,
+    IssuanceKind, LinkedOffer, Nft, OfferPreSplitInfo, P2ConditionsOrSingleton, ParsedAsset,
+    Reveals, Spend, SpendContext, SpendKind, Spends, TestP2Puzzle, TestVault, TransferType,
+    VaultOutput, iter_final_children, parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1107,6 +1108,87 @@ fn test_clear_signing_transfer_type(
     let child = &spend.children[0];
     assert_eq!(child.memos.p2_puzzle_hash, p2_puzzle_hash);
     assert_eq!(child.transfer_type, transfer_type);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_p2_conditions_or_singleton_fixed(
+    #[values(false, true)] revealed_up_front: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let mut alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    let conditions = Conditions::new()
+        .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 750, Memos::None)
+        .reserve_fee(250);
+    let conditions_hash = ctx
+        .alloc_hashed(&clvm_quote!(&conditions))?
+        .tree_hash()
+        .into();
+    let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, conditions_hash);
+
+    alice
+        .p2_puzzles
+        .insert(p2.tree_hash(), TestP2Puzzle::P2ConditionsOrSingleton(p2));
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(
+            Id::Xch,
+            p2.tree_hash().into(),
+            1000,
+            Memos::None,
+        )],
+    )?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.coin_spends)?;
+
+    if revealed_up_front {
+        reveals.reveal_p2_conditions_or_singleton(
+            &mut ctx,
+            p2.launcher_id,
+            p2.nonce,
+            conditions.clone().into_vec(),
+        )?;
+    }
+
+    let tx = parse_vault_transaction(&reveals, &mut ctx, result.delegated_spend)?;
+
+    assert_eq!(tx.spends.len(), 1);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.children.len(), 1);
+
+    let child = &spend.children[0];
+    assert_eq!(child.memos.p2_puzzle_hash, p2.tree_hash().into());
+
+    if revealed_up_front {
+        assert_eq!(
+            child.transfer_type,
+            TransferType::OfferPreSplit(OfferPreSplitInfo {
+                launcher_id: p2.launcher_id,
+                nonce: p2.nonce,
+                fixed_conditions: conditions.into_vec(),
+                settlement_amount: 750,
+            })
+        );
+
+        assert_eq!(
+            tx.linked_offer,
+            Some(LinkedOffer {
+                requested_payments: vec![],
+                reserved_fee: 250,
+            })
+        );
+    } else {
+        assert_eq!(child.transfer_type, TransferType::Sent);
+
+        assert_eq!(tx.linked_offer, None);
+    }
 
     Ok(())
 }

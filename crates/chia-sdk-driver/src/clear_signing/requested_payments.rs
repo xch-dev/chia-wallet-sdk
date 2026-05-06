@@ -6,7 +6,7 @@ use clvmr::Allocator;
 
 use crate::{CatInfo, DriverError, Facts, HashedPtr, NftInfo, Reveals, SingletonInfo};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssertedRequestedPayment {
     pub asset: RequestedAsset,
     pub notarized_payment: NotarizedPayment,
