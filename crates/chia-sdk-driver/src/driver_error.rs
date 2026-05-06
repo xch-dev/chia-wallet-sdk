@@ -140,13 +140,13 @@ pub enum DriverError {
     #[error("nested clawbacks are not allowed")]
     NestedClawback,
 
-    #[error("invalid custody for linked spend")]
+    #[error("linked spend has unknown custody puzzle but was sent a message")]
     InvalidLinkedCustody,
 
     #[error("the transaction is not guaranteed to expire when its clawed back spends expire")]
     UnguaranteedClawBack,
 
-    #[error("child is wrapped in unexpected revocation layer")]
+    #[error("the revocation layer of the child does not match the parent")]
     RevocableChild,
 
     #[error("conflicting vault launcher ids")]
@@ -160,6 +160,9 @@ pub enum DriverError {
 
     #[error("vault message did not match any custody auth or TAIL invocation")]
     UnmatchedVaultMessage,
+
+    #[error("missing message for linked custody puzzle")]
+    MissingVaultMessage,
 
     #[error("multiple vault messages matched the same custody slot")]
     DuplicateVaultMessage,

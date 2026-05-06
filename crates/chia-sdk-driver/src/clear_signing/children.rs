@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::Condition;
@@ -48,12 +50,12 @@ pub fn parse_children(
         if let Some(cats) =
             Cat::parse_children(allocator, spend.coin, spend.puzzle, spend.solution)?
         {
-            cats
+            VecDeque::from(cats)
         } else {
             return Err(DriverError::MissingChild);
         }
     } else {
-        Vec::new()
+        VecDeque::new()
     };
 
     for condition in conditions {
@@ -131,13 +133,11 @@ pub fn parse_children(
                     }
                     // CATs never output anything other than CAT children.
                     ParsedAsset::Cat(parent) => {
-                        let cat = cats.remove(0);
+                        let cat = cats.pop_front().ok_or(DriverError::MissingChild)?;
 
                         // This prevents an attack where someone tricks you into spending a CAT, sending it
                         // back to you, and wrapping it in a revocation layer that they control.
-                        if cat.info.hidden_puzzle_hash.is_some()
-                            && parent.info.hidden_puzzle_hash.is_none()
-                        {
+                        if cat.info.hidden_puzzle_hash != parent.info.hidden_puzzle_hash {
                             return Err(DriverError::RevocableChild);
                         }
 

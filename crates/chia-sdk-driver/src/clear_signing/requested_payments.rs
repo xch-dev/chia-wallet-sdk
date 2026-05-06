@@ -52,9 +52,9 @@ pub fn parse_asserted_requested_payments(
 
     for (&asset_id, notarized_payments) in &requested_payments.cats {
         for notarized_payment in notarized_payments {
-            let info = asset_info
-                .cat(asset_id)
-                .ok_or(DriverError::MissingAssetInfo)?;
+            let Some(info) = asset_info.cat(asset_id) else {
+                continue;
+            };
 
             let hash = tree_hash_notarized_payment(allocator, notarized_payment);
             let puzzle_hash = CatInfo::new(
@@ -79,9 +79,9 @@ pub fn parse_asserted_requested_payments(
 
     for (&launcher_id, notarized_payments) in &requested_payments.nfts {
         for notarized_payment in notarized_payments {
-            let info = asset_info
-                .nft(launcher_id)
-                .ok_or(DriverError::MissingAssetInfo)?;
+            let Some(info) = asset_info.nft(launcher_id) else {
+                continue;
+            };
 
             let hash = tree_hash_notarized_payment(allocator, notarized_payment);
             let puzzle_hash = NftInfo::new(

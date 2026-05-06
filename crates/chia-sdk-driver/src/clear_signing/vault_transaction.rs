@@ -12,9 +12,9 @@ use indexmap::{IndexMap, IndexSet};
 use crate::{
     AssertedRequestedPayment, ClawbackInfo, CustodyInfo, DriverError, DropCoin, Facts, Issuance,
     IssuanceKind, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild,
-    ParsedSpend, Reveals, Spend, TransferType, VaultMessage, VaultOutput, get_extra_delta_message,
-    mips_puzzle_hash, parse_asserted_requested_payments, parse_children, parse_run_cat_tail,
-    parse_spend, parse_vault_delegated_spend,
+    ParsedSpend, RevealedCoinSpend, Reveals, Spend, TransferType, VaultMessage, VaultOutput,
+    get_extra_delta_message, mips_puzzle_hash, parse_asserted_requested_payments, parse_children,
+    parse_run_cat_tail, parse_spend, parse_vault_delegated_spend,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -103,15 +103,25 @@ pub fn parse_vault_transaction(
     let mut issuances: Vec<Issuance> = Vec::new();
 
     for (coin_id, messages) in messages_by_coin {
-        let verified_spend = verify_spend(
+        let spend = reveals
+            .coin_spend(coin_id)
+            .ok_or(DriverError::MissingSpend)?;
+        let parsed_spend = parsed_spends
+            .remove(&coin_id)
+            .ok_or(DriverError::MissingSpend)?;
+
+        let Some(verified_spend) = verify_spend(
             reveals,
             &mut facts,
             allocator,
-            &mut parsed_spends,
-            coin_id,
+            spend,
+            parsed_spend,
             &messages,
             &mut issuances,
-        )?;
+        )?
+        else {
+            return Err(DriverError::InvalidLinkedCustody);
+        };
 
         verified_spends.push(verified_spend);
     }
@@ -127,19 +137,30 @@ pub fn parse_vault_transaction(
         .collect();
 
     while let Some(coin_id) = stack.pop() {
-        if !facts.is_spend_asserted(coin_id) || !parsed_spends.contains_key(&coin_id) {
+        if !facts.is_spend_asserted(coin_id) {
             continue;
         }
 
-        let verified_spend = verify_spend(
+        let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
+            continue;
+        };
+
+        let spend = reveals
+            .coin_spend(coin_id)
+            .ok_or(DriverError::MissingSpend)?;
+
+        let Some(verified_spend) = verify_spend(
             reveals,
             &mut facts,
             allocator,
-            &mut parsed_spends,
-            coin_id,
+            spend,
+            parsed_spend,
             &[],
             &mut issuances,
-        )?;
+        )?
+        else {
+            continue;
+        };
 
         for child in &verified_spend.children {
             stack.insert(child.asset.coin().coin_id());
@@ -204,21 +225,13 @@ fn verify_spend(
     reveals: &Reveals,
     facts: &mut Facts,
     allocator: &mut Allocator,
-    parsed_spends: &mut HashMap<Bytes32, ParsedSpend>,
-    coin_id: Bytes32,
+    spend: &RevealedCoinSpend,
+    parsed_spend: ParsedSpend,
     messages: &[VaultMessage],
     issuances: &mut Vec<Issuance>,
-) -> Result<VerifiedSpend, DriverError> {
-    let Some(parsed_spend) = parsed_spends.remove(&coin_id) else {
-        return Err(DriverError::MissingSpend);
-    };
-
-    let Some(spend) = reveals.coin_spend(coin_id) else {
-        return Err(DriverError::MissingSpend);
-    };
-
+) -> Result<Option<VerifiedSpend>, DriverError> {
     let Some(custody) = parsed_spend.custody else {
-        return Err(DriverError::InvalidLinkedCustody);
+        return Ok(None);
     };
 
     let conditions: &[Condition] = match &custody {
@@ -230,7 +243,7 @@ fn verify_spend(
     };
 
     if messages.is_empty() && custody.receives_message() {
-        return Err(DriverError::InvalidLinkedCustody);
+        return Err(DriverError::MissingVaultMessage);
     }
 
     let conditions_hash = if custody.receives_message() {
@@ -250,7 +263,7 @@ fn verify_spend(
         let cat_solution = CatSolution::<NodePtr>::from_clvm(allocator, spend.solution)?;
 
         Some(Issuance {
-            coin_id,
+            coin_id: spend.coin.coin_id(),
             asset_id: run_cat_tail.asset_id,
             extra_delta: cat_solution.extra_delta,
             kind: run_cat_tail.kind,
@@ -307,12 +320,12 @@ fn verify_spend(
         issuances.push(issuance);
     }
 
-    Ok(VerifiedSpend {
+    Ok(Some(VerifiedSpend {
         asset: parsed_spend.asset,
         clawback: parsed_spend.clawback,
         custody,
         children,
-    })
+    }))
 }
 
 fn find_launcher_id(spends: &[VerifiedSpend]) -> Result<Option<Bytes32>, DriverError> {
@@ -435,4 +448,16 @@ fn build_linked_offer(
     }
 
     Ok(has_offer.then_some(linked_offer))
+}
+
+pub fn iter_final_children(spends: &[VerifiedSpend]) -> impl Iterator<Item = &ParsedChild> {
+    let spent_coin_ids: HashSet<Bytes32> = spends
+        .iter()
+        .map(|spend| spend.asset.coin().coin_id())
+        .collect();
+
+    spends
+        .iter()
+        .flat_map(|spend| spend.children.iter())
+        .filter(move |child| !spent_coin_ids.contains(&child.asset.coin().coin_id()))
 }
