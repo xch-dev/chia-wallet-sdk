@@ -46,44 +46,7 @@ impl P2ConditionsOrSingleton {
         singleton_amount: u64,
         delegated_spend: Spend,
     ) -> Result<Spend, DriverError> {
-        self.spend_impl(
-            ctx,
-            singleton_inner_puzzle_hash,
-            singleton_amount,
-            delegated_spend,
-            false,
-        )
-    }
-
-    pub fn fixed_spend(
-        &self,
-        ctx: &mut SpendContext,
-        singleton_inner_puzzle_hash: Bytes32,
-        singleton_amount: u64,
-        delegated_spend: Spend,
-    ) -> Result<Spend, DriverError> {
-        self.spend_impl(
-            ctx,
-            singleton_inner_puzzle_hash,
-            singleton_amount,
-            delegated_spend,
-            true,
-        )
-    }
-
-    fn spend_impl(
-        &self,
-        ctx: &mut SpendContext,
-        singleton_inner_puzzle_hash: Bytes32,
-        singleton_amount: u64,
-        delegated_spend: Spend,
-        is_fixed: bool,
-    ) -> Result<Spend, DriverError> {
-        let mut mips = MipsSpend::new(if is_fixed {
-            Spend::new(NodePtr::NIL, NodePtr::NIL)
-        } else {
-            delegated_spend
-        });
+        let mut mips = MipsSpend::new(delegated_spend);
 
         let fixed_hash = self.fixed_path_hash();
         let p2_singleton_hash = self.p2_singleton_path_hash();
@@ -94,23 +57,40 @@ impl P2ConditionsOrSingleton {
             InnerPuzzleSpend::m_of_n(0, vec![], 1, vec![fixed_hash, p2_singleton_hash]),
         );
 
-        if is_fixed {
-            mips.members.insert(
-                fixed_hash,
-                InnerPuzzleSpend::new(0, vec![], delegated_spend),
-            );
-        } else {
-            let puzzle = ctx.curry(SingletonMember::new(self.launcher_id))?;
-            let solution = ctx.alloc(&SingletonMemberSolution::new(
-                singleton_inner_puzzle_hash,
-                singleton_amount,
-            ))?;
+        let puzzle = ctx.curry(SingletonMember::new(self.launcher_id))?;
+        let solution = ctx.alloc(&SingletonMemberSolution::new(
+            singleton_inner_puzzle_hash,
+            singleton_amount,
+        ))?;
 
-            mips.members.insert(
-                p2_singleton_hash,
-                InnerPuzzleSpend::new(self.nonce, vec![], Spend::new(puzzle, solution)),
-            );
-        }
+        mips.members.insert(
+            p2_singleton_hash,
+            InnerPuzzleSpend::new(self.nonce, vec![], Spend::new(puzzle, solution)),
+        );
+
+        mips.spend(ctx, custody_hash)
+    }
+
+    pub fn fixed_spend(
+        &self,
+        ctx: &mut SpendContext,
+        delegated_spend: Spend,
+    ) -> Result<Spend, DriverError> {
+        let mut mips = MipsSpend::new(Spend::new(NodePtr::NIL, NodePtr::NIL));
+
+        let fixed_hash = self.fixed_path_hash();
+        let p2_singleton_hash = self.p2_singleton_path_hash();
+        let custody_hash = self.tree_hash();
+
+        mips.members.insert(
+            custody_hash,
+            InnerPuzzleSpend::m_of_n(0, vec![], 1, vec![fixed_hash, p2_singleton_hash]),
+        );
+
+        mips.members.insert(
+            fixed_hash,
+            InnerPuzzleSpend::new(0, vec![], delegated_spend),
+        );
 
         mips.spend(ctx, custody_hash)
     }

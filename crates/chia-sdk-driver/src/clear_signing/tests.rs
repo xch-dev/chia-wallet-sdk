@@ -7,7 +7,7 @@ use chia_sdk_types::{
     Condition, Conditions, MessageFlags, MessageSide,
     puzzles::{EverythingWithSingletonTailArgs, EverythingWithSingletonTailSolution},
 };
-use clvm_traits::{clvm_list, clvm_quote};
+use clvm_traits::clvm_list;
 use clvm_utils::{ToTreeHash, tree_hash};
 use rstest::rstest;
 
@@ -1113,7 +1113,7 @@ fn test_clear_signing_transfer_type(
 }
 
 #[rstest]
-fn test_clear_signing_p2_conditions_or_singleton_fixed(
+fn test_clear_signing_create_p2_conditions_or_singleton(
     #[values(false, true)] revealed_up_front: bool,
 ) -> Result<()> {
     let mut sim = Simulator::new();
@@ -1124,10 +1124,8 @@ fn test_clear_signing_p2_conditions_or_singleton_fixed(
     let conditions = Conditions::new()
         .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 750, Memos::None)
         .reserve_fee(250);
-    let conditions_hash = ctx
-        .alloc_hashed(&clvm_quote!(&conditions))?
-        .tree_hash()
-        .into();
+    let delegated_spend = ctx.delegated_spend(conditions.clone())?;
+    let conditions_hash = ctx.tree_hash(delegated_spend.puzzle).into();
     let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, conditions_hash);
 
     alice
@@ -1189,6 +1187,60 @@ fn test_clear_signing_p2_conditions_or_singleton_fixed(
 
         assert_eq!(tx.linked_offer, None);
     }
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_spend_p2_conditions_or_singleton_fixed() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let mut alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let conditions = Conditions::new()
+        .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 750, Memos::None)
+        .reserve_fee(250);
+    let delegated_spend = ctx.delegated_spend(conditions.clone())?;
+    let conditions_hash = ctx.tree_hash(delegated_spend.puzzle).into();
+    let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, conditions_hash);
+
+    alice
+        .p2_puzzles
+        .insert(p2.tree_hash(), TestP2Puzzle::P2ConditionsOrSingleton(p2));
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(
+            Id::Xch,
+            p2.tree_hash().into(),
+            1000,
+            Memos::None,
+        )],
+    )?;
+
+    let coin = result.outputs.xch[0];
+
+    let mut spends = Spends::new(bob.p2_puzzle_hash);
+
+    let fixed_spend = p2.fixed_spend(&mut ctx, delegated_spend)?;
+    ctx.spend(coin, fixed_spend)?;
+
+    spends.add(Coin::new(
+        coin.coin_id(),
+        SETTLEMENT_PAYMENT_HASH.into(),
+        750,
+    ));
+
+    let result = bob.custom_spend(&mut sim, &mut ctx, &[], spends, Conditions::new())?;
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.coin_spends)?;
+    let tx = parse_vault_transaction(&reveals, &mut ctx, result.delegated_spend)?;
+
+    println!("t: {:#?}", tx);
+
+    panic!("X");
 
     Ok(())
 }

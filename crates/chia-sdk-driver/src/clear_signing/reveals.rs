@@ -99,9 +99,7 @@ impl Reveals {
         }
 
         if coin_spend.coin.parent_coin_info == Bytes32::default() {
-            // We can throw away asset info here, since we're not interested in taking the offer.
-            self.requested_payments
-                .parse(allocator, &mut self.asset_info, puzzle, solution)?;
+            self.reveal_settlement_payment(allocator, puzzle, solution)?;
         } else {
             self.coin_spends.insert(
                 coin_spend.coin.coin_id(),
@@ -112,6 +110,25 @@ impl Reveals {
                 },
             );
         }
+
+        Ok(())
+    }
+
+    /// Reveals settlement payment spends, which are used to determine what would be paid to us if
+    /// the announcement from the settlement puzzle were to be asserted. Note that requested payments
+    /// are ignored if they aren't asserted.
+    pub fn reveal_settlement_payment(
+        &mut self,
+        allocator: &mut Allocator,
+        outer_puzzle: Puzzle,
+        inner_settlement_solution: NodePtr,
+    ) -> Result<(), DriverError> {
+        self.requested_payments.parse(
+            allocator,
+            &mut self.asset_info,
+            outer_puzzle,
+            inner_settlement_solution,
+        )?;
 
         Ok(())
     }
