@@ -155,9 +155,6 @@ pub enum DriverError {
     #[error("conditions do not match message")]
     WrongConditions,
 
-    #[error("receive message conditions are not allowed in p2 conditions or singleton puzzles")]
-    ReceiveMessageConditionsNotAllowed,
-
     #[error("vault message did not match any custody auth or TAIL invocation")]
     UnmatchedVaultMessage,
 

@@ -165,12 +165,13 @@ fn calculate_transfer_type(reveals: &Reveals, memos: &ParsedMemos) -> TransferTy
     } else if memos.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
         TransferType::Offered
     } else if memos.clawback.is_none()
-        && let Some(RevealedP2Puzzle::P2ConditionsOrSingleton(p2_puzzle)) =
+        && let Some(RevealedP2Puzzle::P2ConditionsOrSingleton(reveal)) =
             reveals.p2_puzzle(memos.p2_puzzle_hash.into())
+        && let Some(fixed_conditions) = &reveal.fixed_conditions
     {
         let mut settlement_amount = 0;
 
-        for condition in &p2_puzzle.fixed_conditions {
+        for condition in fixed_conditions {
             if let Some(condition) = condition.as_create_coin()
                 && condition.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
             {
@@ -179,9 +180,9 @@ fn calculate_transfer_type(reveals: &Reveals, memos: &ParsedMemos) -> TransferTy
         }
 
         TransferType::OfferPreSplit(OfferPreSplitInfo {
-            launcher_id: p2_puzzle.launcher_id,
-            nonce: p2_puzzle.nonce,
-            fixed_conditions: p2_puzzle.fixed_conditions.clone(),
+            launcher_id: reveal.p2.launcher_id,
+            nonce: reveal.p2.nonce,
+            fixed_conditions: fixed_conditions.clone(),
             settlement_amount,
         })
     } else {

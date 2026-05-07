@@ -178,8 +178,8 @@ pub fn parse_inner_spend(
                     clawback: None,
                     custody: Some(CustodyInfo::P2ConditionsOrSingleton(
                         P2ConditionsOrSingletonInfo {
-                            launcher_id: info.launcher_id,
-                            nonce: info.nonce,
+                            launcher_id: info.p2.launcher_id,
+                            nonce: info.p2.nonce,
                             conditions,
                             p2_puzzle_hash,
                         },

@@ -1146,12 +1146,7 @@ fn test_clear_signing_create_p2_conditions_or_singleton(
     let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.coin_spends)?;
 
     if revealed_up_front {
-        reveals.reveal_p2_conditions_or_singleton(
-            &mut ctx,
-            p2.launcher_id,
-            p2.nonce,
-            conditions.clone().into_vec(),
-        )?;
+        reveals.reveal_p2_conditions_or_singleton(p2, Some(conditions.clone().into_vec()));
     }
 
     let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
@@ -1260,6 +1255,63 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_fixed() -> Result<()> {
     let payment = &payment.notarized_payment.payments[0];
     assert_eq!(payment.puzzle_hash, bob.p2_puzzle_hash);
     assert_eq!(payment.amount, 750);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_spend_p2_conditions_or_singleton_vault() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let mut alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    let conditions = Conditions::new()
+        .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 750, Memos::None)
+        .reserve_fee(250);
+    let delegated_spend = ctx.delegated_spend(conditions.clone())?;
+    let conditions_hash = ctx.tree_hash(delegated_spend.puzzle).into();
+    let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, conditions_hash);
+
+    alice
+        .p2_puzzles
+        .insert(p2.tree_hash(), TestP2Puzzle::P2ConditionsOrSingleton(p2));
+
+    let _ = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(
+            Id::Xch,
+            p2.tree_hash().into(),
+            1000,
+            Memos::None,
+        )],
+    )?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(
+            Id::Xch,
+            alice.p2_puzzle_hash,
+            1000,
+            Memos::None,
+        )],
+    )?;
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.coin_spends)?;
+    reveals.reveal_p2_conditions_or_singleton(p2, None);
+    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+
+    assert_eq!(tx.spends.len(), 1);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.asset.coin().amount, 1000);
+    assert_eq!(spend.asset.coin().puzzle_hash, p2.tree_hash().into());
+    assert_eq!(spend.children.len(), 1);
+
+    let child = &spend.children[0];
+    assert_eq!(child.asset.coin().amount, 1000);
+    assert_eq!(child.memos.p2_puzzle_hash, alice.p2_puzzle_hash);
 
     Ok(())
 }
