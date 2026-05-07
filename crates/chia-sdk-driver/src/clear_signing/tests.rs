@@ -1288,16 +1288,23 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_vault() -> Result<()> {
         )],
     )?;
 
-    let result = alice.spend(
-        &mut sim,
-        &mut ctx,
-        &[Action::send(
-            Id::Xch,
-            alice.p2_puzzle_hash,
-            1000,
-            Memos::None,
-        )],
-    )?;
+    let actions = [Action::send(
+        Id::Xch,
+        alice.p2_puzzle_hash,
+        1000,
+        Memos::None,
+    )];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    spends
+        .conditions
+        .required
+        .push(Condition::assert_my_coin_id(
+            spends.xch.items[0].asset.coin_id(),
+        ));
+    let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+
     let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.coin_spends)?;
     reveals.reveal_p2_conditions_or_singleton(p2, None);
     let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;

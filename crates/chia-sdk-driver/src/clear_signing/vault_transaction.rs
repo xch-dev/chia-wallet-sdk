@@ -242,6 +242,12 @@ fn verify_spend(
         | CustodyInfo::DelegatedConditions(conditions) => conditions,
     };
 
+    if matches!(&custody, CustodyInfo::P2ConditionsOrSingleton(_))
+        && !conditions.contains(&Condition::assert_my_coin_id(spend.coin.coin_id()))
+    {
+        return Err(DriverError::MissingP2ConditionsOrSingletonAssertion);
+    }
+
     if messages.is_empty() && custody.receives_message() {
         return Err(DriverError::MissingVaultMessage);
     }

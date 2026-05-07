@@ -178,4 +178,9 @@ pub enum DriverError {
 
     #[error("missing required bulletin conditions")]
     MissingBulletinConditions,
+
+    #[error(
+        "p2 conditions or singleton spend is missing AssertMyCoinId condition to prevent swapping the spend path"
+    )]
+    MissingP2ConditionsOrSingletonAssertion,
 }
