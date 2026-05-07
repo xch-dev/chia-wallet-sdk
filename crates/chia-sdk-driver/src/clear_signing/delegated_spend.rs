@@ -1,9 +1,8 @@
 use chia_sdk_types::Condition;
 use clvm_traits::{FromClvm, match_quote};
-use clvm_utils::tree_hash;
 use clvmr::Allocator;
 
-use crate::{DriverError, HashedPtr, Spend};
+use crate::{DriverError, Spend};
 
 /// A delegated spend can technically be any puzzle and solution. The puzzle is the only
 /// thing that gets signed, so the solution allows malleability in behavior if needed.
@@ -15,12 +14,9 @@ pub fn parse_delegated_spend(
     allocator: &Allocator,
     delegated_spend: Spend,
 ) -> Result<Vec<Condition>, DriverError> {
-    if tree_hash(allocator, delegated_spend.solution) != HashedPtr::NIL.tree_hash() {
-        return Err(DriverError::InvalidDelegatedSpendFormat);
-    }
-
     let (_, conditions) =
-        <match_quote!(Vec<Condition>)>::from_clvm(allocator, delegated_spend.puzzle)?;
+        <match_quote!(Vec<Condition>)>::from_clvm(allocator, delegated_spend.puzzle)
+            .map_err(|_| DriverError::InvalidDelegatedSpendFormat)?;
 
     Ok(conditions)
 }
