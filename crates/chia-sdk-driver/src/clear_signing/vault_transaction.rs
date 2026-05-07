@@ -76,7 +76,7 @@ pub struct LinkedOffer {
 }
 
 pub fn parse_vault_transaction(
-    reveals: &Reveals,
+    mut reveals: Reveals,
     allocator: &mut Allocator,
     delegated_spend: Spend,
 ) -> Result<VaultTransaction, DriverError> {
@@ -86,8 +86,8 @@ pub fn parse_vault_transaction(
 
     let mut parsed_spends = HashMap::new();
 
-    for spend in reveals.coin_spends() {
-        let parsed_spend = parse_spend(reveals, allocator, spend)?;
+    for spend in reveals.coin_spends().copied().collect::<Vec<_>>() {
+        let parsed_spend = parse_spend(&mut reveals, allocator, &spend)?;
         parsed_spends.insert(spend.coin.coin_id(), parsed_spend);
     }
 
@@ -111,7 +111,7 @@ pub fn parse_vault_transaction(
             .ok_or(DriverError::MissingSpend)?;
 
         let Some(verified_spend) = verify_spend(
-            reveals,
+            &reveals,
             &mut facts,
             allocator,
             spend,
@@ -150,7 +150,7 @@ pub fn parse_vault_transaction(
             .ok_or(DriverError::MissingSpend)?;
 
         let Some(verified_spend) = verify_spend(
-            reveals,
+            &reveals,
             &mut facts,
             allocator,
             spend,
@@ -196,15 +196,15 @@ pub fn parse_vault_transaction(
     }
 
     let fee_paid = (input_amount - output_amount).try_into()?;
-    let received_payments = parse_asserted_requested_payments(reveals, &facts, allocator)?;
+    let received_payments = parse_asserted_requested_payments(&reveals, &facts, allocator)?;
     let launcher_id = find_launcher_id(&verified_spends)?;
     let p2_puzzle_hashes = if let Some(launcher_id) = launcher_id {
-        calculate_p2_puzzle_hashes(reveals, launcher_id)
+        calculate_p2_puzzle_hashes(&reveals, launcher_id)
     } else {
         Vec::new()
     };
 
-    let linked_offer = build_linked_offer(reveals, allocator, &verified_spends, launcher_id)?;
+    let linked_offer = build_linked_offer(&reveals, allocator, &verified_spends, launcher_id)?;
 
     Ok(VaultTransaction {
         vault_child: vault_spend.child,

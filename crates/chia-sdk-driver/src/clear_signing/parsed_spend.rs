@@ -1,4 +1,5 @@
 use chia_protocol::Coin;
+use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use clvmr::Allocator;
 
 use crate::{
@@ -34,7 +35,7 @@ impl ParsedAsset {
 }
 
 pub fn parse_spend(
-    reveals: &Reveals,
+    reveals: &mut Reveals,
     allocator: &mut Allocator,
     spend: &RevealedCoinSpend,
 ) -> Result<ParsedSpend, DriverError> {
@@ -61,6 +62,10 @@ pub fn parse_spend(
         asset = ParsedAsset::Bulletin(bulletin);
         inner_puzzle = parsed_inner_puzzle;
         inner_solution = parsed_inner_solution;
+    }
+
+    if inner_puzzle.curried_puzzle_hash() == SETTLEMENT_PAYMENT_HASH.into() {
+        reveals.reveal_settlement_payment(allocator, spend.puzzle, inner_solution)?;
     }
 
     let inner_spend = parse_inner_spend(reveals, allocator, inner_puzzle, inner_solution)?;
