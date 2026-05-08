@@ -301,9 +301,9 @@ impl FullNodeSimulator {
     }
 
     #[napi]
-    pub fn get_prefarm_secret_key(&self, env: Env) -> Result<SecretKey> {
+    pub fn get_master_secret_key(&self, env: Env) -> Result<SecretKey> {
         Ok(FromRust::from_rust(
-            self.inner.get_prefarm_secret_key()?,
+            self.inner.get_master_secret_key()?,
             &NapiReturnContext(env),
         )?)
     }

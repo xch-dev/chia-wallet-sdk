@@ -1216,7 +1216,7 @@ export declare class FullNodeSimulator {
   insertCoin(coin: Coin): void
   newCoin(puzzleHash: Uint8Array, amount: bigint): Coin
   getFarmingPh(): Buffer
-  getPrefarmSecretKey(): SecretKey
+  getMasterSecretKey(): SecretKey
   getPrefarmPuzzleHash(): Buffer
   setFarmingPh(puzzleHash: Uint8Array): void
   getBlockchainState(): BlockchainStateResponse
