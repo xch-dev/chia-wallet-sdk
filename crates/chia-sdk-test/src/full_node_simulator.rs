@@ -36,6 +36,7 @@ pub struct FullNodeSimulator {
     coin_spends: IndexMap<Bytes32, CoinSpend>,
     coin_hints: IndexMap<Bytes32, Bytes32>,
     mempool: IndexMap<Bytes32, ValidatedBundle>,
+    autofarm: bool,
     farming_puzzle_hash: Bytes32,
     master_secret_key: SecretKey,
     prefarm_puzzle_hash: Bytes32,
@@ -127,8 +128,20 @@ impl FullNodeSimulator {
 
         let genesis_hash = Bytes32::default();
         let prefarm_coins = vec![
-            Self::reward_coin(genesis_hash, genesis_height, 0, prefarm_puzzle_hash, 18375000000000000000),
-            Self::reward_coin(genesis_hash, genesis_height, 1, prefarm_puzzle_hash, 2625000000000000000),
+            Self::reward_coin(
+                genesis_hash,
+                genesis_height,
+                0,
+                prefarm_puzzle_hash,
+                18375000000000000000,
+            ),
+            Self::reward_coin(
+                genesis_hash,
+                genesis_height,
+                1,
+                prefarm_puzzle_hash,
+                2625000000000000000,
+            ),
         ];
         let genesis_record = Self::make_block_record(
             genesis_hash,
@@ -180,6 +193,7 @@ impl FullNodeSimulator {
             coin_spends: IndexMap::new(),
             coin_hints: IndexMap::new(),
             mempool: IndexMap::new(),
+            autofarm: true,
             farming_puzzle_hash: prefarm_puzzle_hash,
             master_secret_key: root_secret_key,
             prefarm_puzzle_hash,
@@ -197,7 +211,9 @@ impl FullNodeSimulator {
     }
 
     pub fn header_hash_of(&self, height: u32) -> Option<Bytes32> {
-        self.header_hashes.get((height as usize).saturating_sub(1)).copied()
+        self.header_hashes
+            .get((height as usize).saturating_sub(1))
+            .copied()
     }
 
     pub fn drain_events(&mut self) -> Vec<FullNodeSimulatorEvent> {
@@ -230,6 +246,14 @@ impl FullNodeSimulator {
 
     pub fn set_farming_ph(&mut self, puzzle_hash: Bytes32) {
         self.farming_puzzle_hash = puzzle_hash;
+    }
+
+    pub fn get_autofarm(&self) -> bool {
+        self.autofarm
+    }
+
+    pub fn set_autofarm(&mut self, autofarm: bool) {
+        self.autofarm = autofarm;
     }
 
     pub fn get_blockchain_state(&self) -> BlockchainStateResponse {
@@ -499,6 +523,9 @@ impl FullNodeSimulator {
     pub fn push_tx(&mut self, spend_bundle: SpendBundle) -> PushTxResponse {
         let tx_id = spend_bundle.name();
         if self.mempool.contains_key(&tx_id) {
+            if self.autofarm {
+                self.farm_block(1);
+            }
             return PushTxResponse {
                 status: "SUCCESS".to_string(),
                 error: None,
@@ -518,6 +545,9 @@ impl FullNodeSimulator {
         };
 
         self.mempool.insert(tx_id, validated);
+        if self.autofarm {
+            self.farm_block(1);
+        }
 
         PushTxResponse {
             status: "SUCCESS".to_string(),
@@ -1172,8 +1202,7 @@ mod tests {
     fn explicit_secret_key_derives_prefarm_wallet_index_one() {
         let root_secret_key = SecretKey::from_seed(&[42; 32]);
         let sim = FullNodeSimulator::with_secret_key(root_secret_key.clone());
-        let expected_secret_key =
-            master_to_wallet_hardened(&root_secret_key, 1).derive_synthetic();
+        let expected_secret_key = master_to_wallet_hardened(&root_secret_key, 1).derive_synthetic();
         let expected_puzzle_hash =
             StandardArgs::curry_tree_hash(expected_secret_key.public_key()).into();
 
@@ -1181,12 +1210,13 @@ mod tests {
     }
 
     #[test]
-    fn push_tx_does_not_mutate_until_farmed() -> anyhow::Result<()> {
+    fn push_tx_autofarms_by_default() -> anyhow::Result<()> {
         let mut sim = FullNodeSimulator::new();
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
         let coin = sim.new_coin(puzzle_hash, 100);
         let spend_bundle = spend_to_child(coin, puzzle_reveal, puzzle_hash, 99)?;
 
+        assert!(sim.get_autofarm());
         let response = sim.push_tx(spend_bundle);
         assert!(response.success);
         assert_eq!(
@@ -1194,19 +1224,22 @@ mod tests {
                 .blockchain_state
                 .unwrap()
                 .mempool_size,
-            1
+            0
         );
 
         let record = sim
             .get_coin_record_by_name(coin.coin_id())
             .coin_record
             .unwrap();
-        assert!(!record.spent);
-        assert!(
+        assert!(record.spent);
+        assert_eq!(record.spent_block_index, 2);
+        assert_eq!(sim.height(), 2);
+        assert_eq!(
             sim.get_block_spends(sim.header_hash())
                 .block_spends
                 .unwrap()
-                .is_empty()
+                .len(),
+            1
         );
 
         Ok(())
@@ -1215,6 +1248,7 @@ mod tests {
     #[test]
     fn farm_block_includes_mempool_and_emits_event() -> anyhow::Result<()> {
         let mut sim = FullNodeSimulator::new();
+        sim.set_autofarm(false);
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
         let coin = sim.new_coin(puzzle_hash, 100);
         let child = Coin::new(coin.coin_id(), puzzle_hash, 99);
@@ -1285,6 +1319,7 @@ mod tests {
     #[test]
     fn push_tx_accepts_ephemeral_spends_in_same_bundle() -> anyhow::Result<()> {
         let mut sim = FullNodeSimulator::new();
+        sim.set_autofarm(false);
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
         let parent = sim.new_coin(puzzle_hash, 100);
         let child = Coin::new(parent.coin_id(), puzzle_hash, 99);
@@ -1324,6 +1359,40 @@ mod tests {
             .unwrap();
         assert!(!grandchild_record.spent);
         assert_eq!(grandchild_record.confirmed_block_index, 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn autofarm_can_be_turned_off_and_on() -> anyhow::Result<()> {
+        let mut sim = FullNodeSimulator::new();
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+        let coin = sim.new_coin(puzzle_hash, 100);
+        let spend_bundle = spend_to_child(coin, puzzle_reveal, puzzle_hash, 99)?;
+
+        sim.set_autofarm(false);
+        assert!(!sim.get_autofarm());
+        assert!(sim.push_tx(spend_bundle.clone()).success);
+        assert_eq!(
+            sim.get_blockchain_state()
+                .blockchain_state
+                .unwrap()
+                .mempool_size,
+            1
+        );
+        assert_eq!(sim.height(), 1);
+
+        sim.set_autofarm(true);
+        assert!(sim.get_autofarm());
+        assert!(sim.push_tx(spend_bundle).success);
+        assert_eq!(sim.height(), 2);
+        assert_eq!(
+            sim.get_blockchain_state()
+                .blockchain_state
+                .unwrap()
+                .mempool_size,
+            0
+        );
 
         Ok(())
     }
