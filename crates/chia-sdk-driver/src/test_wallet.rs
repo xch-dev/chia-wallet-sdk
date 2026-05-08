@@ -101,6 +101,17 @@ impl TestVault {
         self.custom_spend(sim, ctx, actions, spends, Conditions::new())
     }
 
+    pub fn partial_spend(
+        &self,
+        sim: &mut Simulator,
+        ctx: &mut SpendContext,
+        actions: &[Action],
+    ) -> Result<TransactionData> {
+        let mut spends = Spends::new(self.p2_puzzle_hash);
+        self.select_coins(sim, &mut spends, &Deltas::from_actions(actions))?;
+        self.partial_custom_spend(sim, ctx, actions, spends, Conditions::new())
+    }
+
     pub fn custom_spend(
         &self,
         sim: &mut Simulator,

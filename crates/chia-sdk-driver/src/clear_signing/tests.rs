@@ -1329,7 +1329,7 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_vault() -> Result<()> {
 }
 
 #[rstest]
-fn test_clear_signing_offer_1_to_1() -> Result<()> {
+fn test_clear_signing_offer() -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
@@ -1437,6 +1437,88 @@ fn test_clear_signing_offer_1_to_1() -> Result<()> {
     assert_eq!(xch_payment.notarized_payment, notarized_payment);
 
     let cat_payment = &tx.received_payments[1];
+    assert_eq!(
+        cat_payment.asset,
+        RequestedAsset::Cat {
+            asset_id: asset_id.unwrap(),
+            hidden_puzzle_hash: None,
+        }
+    );
+    assert_eq!(cat_payment.notarized_payment.payments.len(), 1);
+
+    let cat_payment = &cat_payment.notarized_payment.payments[0];
+    assert_eq!(cat_payment.puzzle_hash, bob.p2_puzzle_hash);
+    assert_eq!(cat_payment.amount, 1000);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_single_sided_offer() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let IssuedAsset { id, asset_id, .. } =
+        issue_asset(&mut sim, &mut ctx, &alice, AssetKind::Cat, 1000)?;
+
+    // Make the offer
+    let result = alice.partial_spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(
+            id,
+            SETTLEMENT_PAYMENT_HASH.into(),
+            1000,
+            Memos::None,
+        )],
+    )?;
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+
+    assert_eq!(tx.spends.len(), 1);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.children.len(), 1);
+
+    let child = &spend.children[0];
+    assert_eq!(child.asset.coin().amount, 1000);
+    assert_eq!(child.memos.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
+
+    assert_eq!(tx.received_payments.len(), 0);
+
+    // Take the offer
+    let settlement_cat = result.outputs.cats[0][0];
+    let maker_bundle = result.spend_bundle;
+
+    let actions = [];
+
+    let mut spends = Spends::new(bob.p2_puzzle_hash);
+    spends.add(settlement_cat);
+    bob.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let result =
+        bob.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+
+    sim.new_transaction(SpendBundle::new(
+        [maker_bundle.coin_spends, result.spend_bundle.coin_spends].concat(),
+        maker_bundle.aggregated_signature + &result.spend_bundle.aggregated_signature,
+    ))?;
+
+    assert_eq!(tx.fee_paid, 1); // TODO: This isn't ideal
+    assert_eq!(tx.reserved_fee, 0);
+    assert_eq!(tx.spends.len(), 1);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.children.len(), 0);
+
+    assert_eq!(tx.received_payments.len(), 1);
+
+    let cat_payment = &tx.received_payments[0];
     assert_eq!(
         cat_payment.asset,
         RequestedAsset::Cat {
