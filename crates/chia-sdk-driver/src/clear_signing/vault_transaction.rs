@@ -195,7 +195,7 @@ pub fn parse_vault_transaction(
         }
     }
 
-    let fee_paid = (input_amount - output_amount).try_into()?;
+    let fee_paid = input_amount.saturating_sub(output_amount).try_into()?;
     let received_payments = parse_asserted_requested_payments(&reveals, &facts, allocator)?;
     let launcher_id = find_launcher_id(&verified_spends)?;
     let p2_puzzle_hashes = if let Some(launcher_id) = launcher_id {
