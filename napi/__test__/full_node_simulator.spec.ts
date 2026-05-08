@@ -35,16 +35,20 @@ test("full node simulator exposes prefarm rewards", (t) => {
 test("full node simulator derives prefarm from explicit secret key", (t) => {
   const rootSecretKey = SecretKey.fromSeed(Buffer.alloc(32, 42));
   const expectedPrefarmSecretKey = rootSecretKey
-    .deriveUnhardenedPath([12381, 8444, 2, 1])
+    .deriveHardenedPath([12381, 8444, 2, 1])
     .deriveSynthetic();
   const expectedPrefarmPuzzleHash = standardPuzzleHash(
     expectedPrefarmSecretKey.publicKey()
   );
 
   const sim = new FullNodeSimulator(rootSecretKey);
+  const derivedPrefarmSecretKey = sim
+    .getMasterSecretKey()
+    .deriveHardenedPath([12381, 8444, 2, 1])
+    .deriveSynthetic();
   t.true(
     bytesEqual(
-      sim.getPrefarmSecretKey().toBytes(),
+      derivedPrefarmSecretKey.toBytes(),
       expectedPrefarmSecretKey.toBytes()
     )
   );
@@ -64,4 +68,15 @@ test("full node simulator includes farmed rewards in block records", (t) => {
   t.truthy(rewardRecord);
   t.true(rewardRecord!.coinbase);
   t.false(rewardRecord!.spent);
+});
+
+test("full node simulator autofarm defaults on and can be toggled", (t) => {
+  const sim = new FullNodeSimulator();
+  t.true(sim.getAutofarm());
+
+  sim.setAutofarm(false);
+  t.false(sim.getAutofarm());
+
+  sim.setAutofarm(true);
+  t.true(sim.getAutofarm());
 });

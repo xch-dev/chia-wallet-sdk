@@ -70,6 +70,15 @@ impl FullNodeSimulator {
         Ok(())
     }
 
+    pub fn get_autofarm(&self) -> Result<bool> {
+        Ok(self.0.lock().unwrap().get_autofarm())
+    }
+
+    pub fn set_autofarm(&self, autofarm: bool) -> Result<()> {
+        self.0.lock().unwrap().set_autofarm(autofarm);
+        Ok(())
+    }
+
     pub fn get_blockchain_state(&self) -> Result<BlockchainStateResponse> {
         Ok(self.0.lock().unwrap().get_blockchain_state())
     }

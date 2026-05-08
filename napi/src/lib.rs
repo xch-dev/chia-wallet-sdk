@@ -324,6 +324,17 @@ impl FullNodeSimulator {
     }
 
     #[napi]
+    pub fn get_autofarm(&self) -> Result<bool> {
+        Ok(self.inner.get_autofarm()?)
+    }
+
+    #[napi]
+    pub fn set_autofarm(&mut self, autofarm: bool) -> Result<()> {
+        self.inner.set_autofarm(autofarm)?;
+        Ok(())
+    }
+
+    #[napi]
     pub fn get_blockchain_state(&self, env: Env) -> Result<BlockchainStateResponse> {
         Ok(FromRust::from_rust(
             self.inner.get_blockchain_state()?,
