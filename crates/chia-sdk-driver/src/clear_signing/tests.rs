@@ -9,7 +9,9 @@ use chia_puzzles::{SETTLEMENT_PAYMENT, SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCH
 use chia_sdk_test::Simulator;
 use chia_sdk_types::{
     Condition, Conditions, MessageFlags, MessageSide, announcement_id,
-    puzzles::{EverythingWithSingletonTailArgs, EverythingWithSingletonTailSolution},
+    puzzles::{
+        EverythingWithSingletonTailArgs, EverythingWithSingletonTailSolution, SettlementPayment,
+    },
     tree_hash_notarized_payment,
 };
 use clvm_traits::clvm_list;
@@ -17,11 +19,12 @@ use clvm_utils::{ToTreeHash, tree_hash};
 use rstest::rstest;
 
 use crate::{
-    Action, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo, CatSpend, ClawbackInfo,
-    ClawbackPath, ClawbackV2, CustodyInfo, Deltas, DriverError, DropCoin, FeeAction, Id,
-    IssuanceKind, LinkedOffer, Nft, OfferPreSplitInfo, P2ConditionsOrSingleton, ParsedAsset,
-    RequestedAsset, Reveals, Spend, SpendContext, SpendKind, Spends, TestP2Puzzle, TestVault,
-    TransferType, VaultOutput, iter_final_children, parse_vault_transaction,
+    Action, AssertedRequestedPayment, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo,
+    CatSpend, ClawbackInfo, ClawbackPath, ClawbackV2, CustodyInfo, Deltas, DriverError, DropCoin,
+    FeeAction, Id, IssuanceKind, LinkedOffer, Nft, OfferPreSplitInfo, P2ConditionsOrSingleton,
+    ParsedAsset, Puzzle, RequestedAsset, Reveals, Spend, SpendContext, SpendKind, Spends,
+    TestP2Puzzle, TestVault, TransferType, VaultOutput, iter_final_children,
+    parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1639,6 +1642,151 @@ fn test_clear_signing_single_sided_offer() -> Result<()> {
     let cat_payment = &cat_payment.notarized_payment.payments[0];
     assert_eq!(cat_payment.puzzle_hash, bob.p2_puzzle_hash);
     assert_eq!(cat_payment.amount, 1000);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_pre_split_offer() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    let IssuedAsset { id, asset_id, .. } =
+        issue_asset(&mut sim, &mut ctx, &alice, AssetKind::Cat, 1000)?;
+
+    let notarized_payment = NotarizedPayment::new(
+        Bytes32::default(),
+        vec![Payment::new(alice.p2_puzzle_hash, 1000, Memos::None)],
+    );
+
+    let notarized_payment_hash = tree_hash_notarized_payment(&ctx, &notarized_payment);
+
+    let settlement_puzzle = ctx.alloc_mod::<SettlementPayment>()?;
+    let settlement_puzzle = Puzzle::parse(&ctx, settlement_puzzle);
+    let settlement_solution = ctx.alloc(&SettlementPaymentsSolution::new(vec![
+        notarized_payment.clone(),
+    ]))?;
+
+    let conditions = Conditions::new()
+        .create_coin(SETTLEMENT_PAYMENT_HASH.into(), 750, Memos::None)
+        .assert_puzzle_announcement(announcement_id(
+            SETTLEMENT_PAYMENT_HASH.into(),
+            notarized_payment_hash,
+        ));
+    let delegated_spend = ctx.delegated_spend(conditions.clone())?;
+    let delegated_puzzle_hash = ctx.tree_hash(delegated_spend.puzzle).into();
+
+    let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, delegated_puzzle_hash);
+
+    // Make the offer
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(id, p2.tree_hash().into(), 750, Memos::None)],
+    )?;
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_p2_conditions_or_singleton(p2, Some(conditions.clone().into_vec()));
+    reveals.reveal_settlement_payment(&mut ctx, settlement_puzzle, settlement_solution)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.spends.len(), 1);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.children.len(), 2);
+
+    let child = &spend.children[0];
+    assert_eq!(child.asset.coin().amount, 750);
+    assert_eq!(child.memos.p2_puzzle_hash, p2.tree_hash().into());
+    assert_eq!(
+        child.transfer_type,
+        TransferType::OfferPreSplit(OfferPreSplitInfo {
+            launcher_id: p2.launcher_id,
+            nonce: p2.nonce,
+            fixed_conditions: conditions.into_vec(),
+            settlement_amount: 750,
+        })
+    );
+
+    let child = &spend.children[1];
+    assert_eq!(child.asset.coin().amount, 250);
+    assert_eq!(child.memos.p2_puzzle_hash, alice.p2_puzzle_hash);
+
+    assert_eq!(tx.received_payments.len(), 0);
+
+    assert_eq!(
+        tx.linked_offer,
+        Some(LinkedOffer {
+            requested_payments: vec![AssertedRequestedPayment {
+                asset: RequestedAsset::Xch,
+                notarized_payment: notarized_payment.clone(),
+            }],
+            reserved_fee: 0,
+        })
+    );
+
+    // Take the offer
+    let pre_split_cat = result.outputs.cats[0][0];
+
+    let fixed_spend = p2.fixed_spend(&mut ctx, delegated_spend)?;
+    let settlement_cats = Cat::spend_all(&mut ctx, &[CatSpend::new(pre_split_cat, fixed_spend)])?;
+
+    let actions = [Action::settle(Id::Xch, notarized_payment.clone())];
+
+    let mut spends = Spends::new(bob.p2_puzzle_hash);
+
+    for settlement_cat in settlement_cats {
+        spends.add(settlement_cat);
+    }
+
+    bob.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let result = bob.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        bob.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.fee_paid, 1000); // TODO: This isn't ideal
+    assert_eq!(tx.reserved_fee, 0);
+    assert_eq!(tx.spends.len(), 1);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.children.len(), 1);
+
+    let child = &spend.children[0];
+    assert_eq!(child.asset.coin().amount, 0);
+    assert_eq!(child.memos.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
+
+    assert_eq!(tx.received_payments.len(), 2);
+
+    let xch_payment = &tx.received_payments[0];
+    assert_eq!(xch_payment.asset, RequestedAsset::Xch);
+    assert_eq!(xch_payment.notarized_payment, notarized_payment);
+
+    let cat_payment = &tx.received_payments[1];
+    assert_eq!(
+        cat_payment.asset,
+        RequestedAsset::Cat {
+            asset_id: asset_id.unwrap(),
+            hidden_puzzle_hash: None,
+        }
+    );
+    assert_eq!(cat_payment.notarized_payment.payments.len(), 1);
+
+    let cat_payment = &cat_payment.notarized_payment.payments[0];
+    assert_eq!(cat_payment.puzzle_hash, bob.p2_puzzle_hash);
+    assert_eq!(cat_payment.amount, 750);
 
     Ok(())
 }
