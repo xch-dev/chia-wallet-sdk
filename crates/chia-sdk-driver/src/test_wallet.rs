@@ -32,7 +32,7 @@ use crate::{
 pub struct TransactionData {
     pub outputs: Outputs,
     pub delegated_spend: Spend,
-    pub coin_spends: Vec<CoinSpend>,
+    pub spend_bundle: SpendBundle,
     pub vault_spend: CoinSpend,
     pub signature: Signature,
 }
@@ -101,6 +101,19 @@ impl TestVault {
         self.custom_spend(sim, ctx, actions, spends, Conditions::new())
     }
 
+    pub fn custom_spend(
+        &self,
+        sim: &mut Simulator,
+        ctx: &mut SpendContext,
+        actions: &[Action],
+        spends: Spends,
+        conditions: Conditions,
+    ) -> Result<TransactionData> {
+        let result = self.partial_custom_spend(sim, ctx, actions, spends, conditions)?;
+        sim.new_transaction(result.spend_bundle.clone())?;
+        Ok(result)
+    }
+
     pub fn select_coins(
         &self,
         sim: &Simulator,
@@ -154,7 +167,7 @@ impl TestVault {
         Ok(())
     }
 
-    pub fn custom_spend(
+    pub fn partial_custom_spend(
         &self,
         sim: &mut Simulator,
         ctx: &mut SpendContext,
@@ -242,12 +255,10 @@ impl TestVault {
         let signature = sign_transaction(&bundle_coin_spends, slice::from_ref(&self.secret_key))?;
         let spend_bundle = SpendBundle::new(bundle_coin_spends, signature.clone());
 
-        sim.new_transaction(spend_bundle)?;
-
         Ok(TransactionData {
             outputs,
             delegated_spend,
-            coin_spends,
+            spend_bundle,
             vault_spend,
             signature,
         })
