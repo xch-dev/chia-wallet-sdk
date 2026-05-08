@@ -1642,3 +1642,70 @@ fn test_clear_signing_single_sided_offer() -> Result<()> {
 
     Ok(())
 }
+
+#[rstest]
+fn test_clear_signing_wrong_launcher_id() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, bob.p2_puzzle_hash, 1000, Memos::None)],
+    )?;
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.spends.len(), 1);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.asset.coin().amount, 1000);
+    assert_eq!(spend.asset.coin().puzzle_hash, alice.p2_puzzle_hash);
+    assert_eq!(spend.children.len(), 1);
+
+    let child = &spend.children[0];
+    assert_eq!(child.asset.coin().amount, 1000);
+    assert_eq!(child.memos.p2_puzzle_hash, bob.p2_puzzle_hash);
+
+    let alice_coin_spends = result.spend_bundle.coin_spends;
+
+    let result = bob.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(
+            Id::Xch,
+            alice.p2_puzzle_hash,
+            1000,
+            Memos::None,
+        )],
+    )?;
+    let coin_spends = [alice_coin_spends, result.spend_bundle.coin_spends].concat();
+    let reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        bob.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.spends.len(), 1);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.asset.coin().amount, 1000);
+    assert_eq!(spend.asset.coin().puzzle_hash, bob.p2_puzzle_hash);
+    assert_eq!(spend.children.len(), 1);
+
+    let child = &spend.children[0];
+    assert_eq!(child.asset.coin().amount, 1000);
+    assert_eq!(child.memos.p2_puzzle_hash, alice.p2_puzzle_hash);
+
+    Ok(())
+}
