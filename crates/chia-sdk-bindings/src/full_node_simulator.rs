@@ -57,8 +57,8 @@ impl FullNodeSimulator {
         Ok(self.0.lock().unwrap().get_farming_ph())
     }
 
-    pub fn get_prefarm_secret_key(&self) -> Result<SecretKey> {
-        Ok(self.0.lock().unwrap().get_prefarm_secret_key())
+    pub fn get_master_secret_key(&self) -> Result<SecretKey> {
+        Ok(self.0.lock().unwrap().get_master_secret_key())
     }
 
     pub fn get_prefarm_puzzle_hash(&self) -> Result<Bytes32> {
