@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 
 use chia_protocol::Bytes32;
 use chia_puzzle_types::cat::CatSolution;
-use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{Condition, Mod, puzzles::SingletonMember};
 use clvm_traits::{FromClvm, ToClvm, clvm_quote};
 use clvm_utils::tree_hash;
@@ -11,10 +10,11 @@ use indexmap::{IndexMap, IndexSet};
 
 use crate::{
     AssertedRequestedPayment, ClawbackInfo, CustodyInfo, DriverError, DropCoin, Facts, Issuance,
-    IssuanceKind, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset, ParsedChild,
-    ParsedSpend, RevealedCoinSpend, Reveals, Spend, TransferType, VaultMessage, VaultOutput,
-    get_extra_delta_message, mips_puzzle_hash, parse_asserted_requested_payments, parse_children,
-    parse_run_cat_tail, parse_spend, parse_vault_delegated_spend,
+    IssuanceKind, LinkedOffer, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset,
+    ParsedChild, ParsedSpend, RevealedCoinSpend, Reveals, Spend, VaultMessage, VaultOutput,
+    build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
+    parse_asserted_requested_payments, parse_children, parse_run_cat_tail, parse_spend,
+    parse_vault_delegated_spend,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -64,12 +64,6 @@ pub struct VerifiedSpend {
     pub clawback: Option<ClawbackInfo>,
     pub custody: CustodyInfo,
     pub children: Vec<ParsedChild>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LinkedOffer {
-    pub reserved_fee: u64,
-    pub requested_payments: Vec<AssertedRequestedPayment>,
 }
 
 pub fn parse_vault_transaction(
@@ -212,7 +206,6 @@ pub fn parse_vault_transaction(
     let fee_paid = input_amount.saturating_sub(output_amount).try_into()?;
     let received_payments = parse_asserted_requested_payments(&reveals, &facts, allocator)?;
     let p2_puzzle_hashes = calculate_p2_puzzle_hashes(&reveals, launcher_id);
-
     let linked_offer = build_linked_offer(&reveals, allocator, &verified_spends, launcher_id)?;
 
     Ok(VaultTransaction {
@@ -358,81 +351,6 @@ fn calculate_p2_puzzle_hashes(reveals: &Reveals, launcher_id: Bytes32) -> Vec<By
     }
 
     p2_puzzle_hashes
-}
-
-fn build_linked_offer(
-    reveals: &Reveals,
-    allocator: &Allocator,
-    spends: &[VerifiedSpend],
-    expected_launcher_id: Bytes32,
-) -> Result<Option<LinkedOffer>, DriverError> {
-    let mut linked_offer = LinkedOffer {
-        reserved_fee: 0,
-        requested_payments: vec![],
-    };
-    let mut has_offer = false;
-    let mut found_puzzle_assertions = None;
-
-    for spend in spends {
-        for child in &spend.children {
-            let TransferType::OfferPreSplit(info) = &child.transfer_type else {
-                continue;
-            };
-
-            has_offer = true;
-
-            if expected_launcher_id != info.launcher_id {
-                return Err(DriverError::WrongLinkedOfferLauncherId);
-            }
-
-            let mut reserved_fee = 0;
-            let mut puzzle_assertions = HashSet::new();
-
-            for condition in &info.fixed_conditions {
-                match condition {
-                    Condition::CreateCoin(condition) => {
-                        if condition.puzzle_hash != SETTLEMENT_PAYMENT_HASH.into() {
-                            return Err(DriverError::InvalidLinkedOfferPayment);
-                        }
-                    }
-                    Condition::ReserveFee(condition) => {
-                        reserved_fee += condition.amount;
-                    }
-                    Condition::AssertPuzzleAnnouncement(condition) => {
-                        puzzle_assertions.insert(condition.announcement_id);
-                    }
-                    _ => {}
-                }
-            }
-
-            if child.asset.coin().amount != info.settlement_amount + reserved_fee {
-                return Err(DriverError::WrongOfferPreSplitOutput);
-            }
-
-            linked_offer.reserved_fee += reserved_fee;
-
-            if let Some(found_puzzle_assertions) = &found_puzzle_assertions {
-                if found_puzzle_assertions != &puzzle_assertions {
-                    return Err(DriverError::ConflictingLinkedOfferPuzzleAssertions);
-                }
-            } else {
-                found_puzzle_assertions = Some(puzzle_assertions);
-            }
-        }
-    }
-
-    if let Some(found_puzzle_assertions) = found_puzzle_assertions {
-        let mut offer_facts = Facts::default();
-
-        for announcement_id in found_puzzle_assertions {
-            offer_facts.assert_puzzle_announcement(announcement_id);
-        }
-
-        linked_offer.requested_payments =
-            parse_asserted_requested_payments(reveals, &offer_facts, allocator)?;
-    }
-
-    Ok(has_offer.then_some(linked_offer))
 }
 
 pub fn iter_final_children(spends: &[VerifiedSpend]) -> impl Iterator<Item = &ParsedChild> {
