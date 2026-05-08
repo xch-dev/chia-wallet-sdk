@@ -119,41 +119,19 @@ fn test_clear_signing_vault_child() -> Result<()> {
     let result = alice.spend(&mut sim, &mut ctx, &[])?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(
         tx.vault_child,
         Some(VaultOutput::new(alice.info.custody_hash.into(), 1))
     );
-
-    // We don't know the launcher id or p2 puzzle hashes, since there were no other spends to reveal them.
-    assert_eq!(tx.launcher_id, None);
-    assert_eq!(tx.p2_puzzle_hashes.len(), 0);
-    assert_eq!(tx.spends.len(), 0);
-
-    Ok(())
-}
-
-#[rstest]
-fn test_clear_signing_vault_info() -> Result<()> {
-    let mut sim = Simulator::new();
-    let mut ctx = SpendContext::new();
-
-    let alice = TestVault::mint(&mut sim, &mut ctx, 1)?;
-
-    let result = alice.spend(
-        &mut sim,
-        &mut ctx,
-        &[Action::send(Id::Xch, alice.p2_puzzle_hash, 1, Memos::None)],
-    )?;
-
-    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
-
-    // Because we spent another coin, we know the launcher id and p2 puzzle hashes.
-    assert_eq!(tx.launcher_id, Some(alice.info.launcher_id));
     assert_eq!(tx.p2_puzzle_hashes, vec![alice.p2_puzzle_hash]);
-    assert_eq!(tx.spends.len(), 1);
+    assert_eq!(tx.spends.len(), 0);
 
     Ok(())
 }
@@ -170,7 +148,12 @@ fn test_clear_signing_drop_coins() -> Result<()> {
     let result = alice.custom_spend(&mut sim, &mut ctx, &[], spends, vault_conditions)?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), 0);
     assert_eq!(tx.drop_coins, [DropCoin::new(Bytes32::default(), 0)]);
@@ -207,7 +190,12 @@ fn test_clear_signing_reserved_fee(#[case] fee_paid: u64, #[case] reserved_fee: 
     )?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.fee_paid, fee_paid);
     assert_eq!(tx.reserved_fee, reserved_fee);
@@ -239,7 +227,12 @@ fn test_clear_signing_self_transfer(
     )?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), 1);
 
@@ -283,7 +276,12 @@ fn test_clear_signing_intermediate_p2_singleton() -> Result<()> {
     )?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), 2);
 
@@ -353,7 +351,12 @@ fn test_clear_signing_intermediate_delegated_conditions(
     let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), if asserted { 2 } else { 1 });
 
@@ -437,7 +440,12 @@ fn test_clear_signing_chained_delegated_conditions(
     let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(
         tx.spends.len(),
@@ -517,7 +525,12 @@ fn test_clear_signing_transfer(
     )?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.fee_paid, fee);
     assert_eq!(tx.reserved_fee, fee);
@@ -551,7 +564,12 @@ fn test_clear_signing_mint_nft() -> Result<()> {
     let result = alice.spend(&mut sim, &mut ctx, &[Action::mint_empty_nft()])?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), 2);
 
@@ -582,7 +600,12 @@ fn test_clear_signing_transfer_nft() -> Result<()> {
 
     let result = alice.spend(&mut sim, &mut ctx, &[Action::mint_empty_nft()])?;
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
     let nft = unwrap_nft(&tx.spends[1].children[0].asset);
 
     let hint = ctx.hint(BURN_PUZZLE_HASH)?;
@@ -597,7 +620,12 @@ fn test_clear_signing_transfer_nft() -> Result<()> {
         )],
     )?;
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), 1);
 
@@ -639,7 +667,12 @@ fn test_clear_signing_p2_singleton_cat_issuance(
     )?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.issuances.len(), 1);
 
@@ -720,7 +753,12 @@ fn test_clear_signing_delegated_conditions_cat_issuance() -> Result<()> {
     let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.issuances.len(), 1);
 
@@ -804,7 +842,12 @@ fn test_clear_signing_bulletin() -> Result<()> {
     let result = alice.custom_spend(&mut sim, &mut ctx, &[], spends, vault_conditions)?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), 2);
 
@@ -862,7 +905,12 @@ fn test_clear_signing_create_clawback(
     )?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), 1);
 
@@ -921,7 +969,12 @@ fn test_clear_signing_claw_back(
 
     let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
     reveals.reveal_clawback(clawback);
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), 1);
 
@@ -985,7 +1038,12 @@ fn test_clear_signing_spend_clawback(
 
     let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
     reveals.reveal_clawback(clawback);
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        bob.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), 1);
 
@@ -1034,7 +1092,12 @@ fn test_clear_signing_unasserted_claw_back_timestamp() -> Result<()> {
 
     let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
     reveals.reveal_clawback(clawback);
-    let result = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend);
+    let result = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    );
 
     assert!(matches!(
         result.unwrap_err(),
@@ -1073,7 +1136,12 @@ fn test_clear_signing_unrevealed_clawback() -> Result<()> {
     let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let result = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend);
+    let result = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    );
 
     assert!(matches!(
         result.unwrap_err(),
@@ -1103,7 +1171,12 @@ fn test_clear_signing_transfer_type(
     )?;
 
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), 1);
 
@@ -1154,7 +1227,12 @@ fn test_clear_signing_create_p2_conditions_or_singleton(
         reveals.reveal_p2_conditions_or_singleton(p2, Some(conditions.clone().into_vec()));
     }
 
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), 1);
 
@@ -1236,7 +1314,12 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_fixed() -> Result<()> {
 
     let result = bob.custom_spend(&mut sim, &mut ctx, &[], spends, Conditions::new())?;
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        bob.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     // This is because the intermediate coin used to assert the puzzle announcement has an amount of 1.
     // It was created by the settlement coin itself, so it's unknown where this coin came from.
@@ -1312,7 +1395,12 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_vault() -> Result<()> {
 
     let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
     reveals.reveal_p2_conditions_or_singleton(p2, None);
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), 1);
 
@@ -1382,7 +1470,12 @@ fn test_clear_signing_offer() -> Result<()> {
     ]
     .concat();
     let reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), 1);
 
@@ -1412,7 +1505,12 @@ fn test_clear_signing_offer() -> Result<()> {
     let result =
         bob.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        bob.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     sim.new_transaction(SpendBundle::new(
         [maker_bundle.coin_spends, result.spend_bundle.coin_spends].concat(),
@@ -1476,7 +1574,12 @@ fn test_clear_signing_single_sided_offer() -> Result<()> {
         )],
     )?;
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     assert_eq!(tx.spends.len(), 1);
 
@@ -1502,7 +1605,12 @@ fn test_clear_signing_single_sided_offer() -> Result<()> {
     let result =
         bob.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
     let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    let tx = parse_vault_transaction(reveals, &mut ctx, result.delegated_spend)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        bob.info.launcher_id,
+        result.delegated_spend,
+    )?;
 
     sim.new_transaction(SpendBundle::new(
         [maker_bundle.coin_spends, result.spend_bundle.coin_spends].concat(),

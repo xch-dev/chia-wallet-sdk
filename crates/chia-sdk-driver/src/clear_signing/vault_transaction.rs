@@ -52,9 +52,6 @@ pub struct VaultTransaction {
     /// If this is greater than or equal to the fee paid, you can be sure that the XCH spent for fees will not be
     /// maliciously redirected for some other purpose by the submitter of the transaction after signing.
     pub reserved_fee: u64,
-    /// The launcher id of the vault, based on the spends authorized by the delegated spend. If there were no other spends,
-    /// this is unknowable, unless the signer has this information stored somewhere locally.
-    pub launcher_id: Option<Bytes32>,
     /// The known p2 puzzle hashes of the vault, based on revealed nonces (the first address is included by default).
     pub p2_puzzle_hashes: Vec<Bytes32>,
     /// The delegated puzzle hash that is being signed for.
@@ -78,6 +75,7 @@ pub struct LinkedOffer {
 pub fn parse_vault_transaction(
     mut reveals: Reveals,
     allocator: &mut Allocator,
+    launcher_id: Bytes32,
     delegated_spend: Spend,
 ) -> Result<VaultTransaction, DriverError> {
     let mut facts = Facts::default();
@@ -88,6 +86,22 @@ pub fn parse_vault_transaction(
 
     for spend in reveals.coin_spends().copied().collect::<Vec<_>>() {
         let parsed_spend = parse_spend(&mut reveals, allocator, &spend)?;
+
+        if let Some(
+            CustodyInfo::P2Singleton(P2SingletonInfo {
+                launcher_id: spend_launcher_id,
+                ..
+            })
+            | CustodyInfo::P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo {
+                launcher_id: spend_launcher_id,
+                ..
+            }),
+        ) = &parsed_spend.custody
+            && spend_launcher_id != &launcher_id
+        {
+            continue;
+        }
+
         parsed_spends.insert(spend.coin.coin_id(), parsed_spend);
     }
 
@@ -197,12 +211,7 @@ pub fn parse_vault_transaction(
 
     let fee_paid = input_amount.saturating_sub(output_amount).try_into()?;
     let received_payments = parse_asserted_requested_payments(&reveals, &facts, allocator)?;
-    let launcher_id = find_launcher_id(&verified_spends)?;
-    let p2_puzzle_hashes = if let Some(launcher_id) = launcher_id {
-        calculate_p2_puzzle_hashes(&reveals, launcher_id)
-    } else {
-        Vec::new()
-    };
+    let p2_puzzle_hashes = calculate_p2_puzzle_hashes(&reveals, launcher_id);
 
     let linked_offer = build_linked_offer(&reveals, allocator, &verified_spends, launcher_id)?;
 
@@ -215,7 +224,6 @@ pub fn parse_vault_transaction(
         linked_offer,
         fee_paid,
         reserved_fee,
-        launcher_id,
         p2_puzzle_hashes,
         delegated_puzzle_hash,
     })
@@ -334,35 +342,6 @@ fn verify_spend(
     }))
 }
 
-fn find_launcher_id(spends: &[VerifiedSpend]) -> Result<Option<Bytes32>, DriverError> {
-    let mut launcher_id = None;
-
-    for spend in spends {
-        let (CustodyInfo::P2Singleton(P2SingletonInfo {
-            launcher_id: spend_launcher_id,
-            ..
-        })
-        | CustodyInfo::P2ConditionsOrSingleton(P2ConditionsOrSingletonInfo {
-            launcher_id: spend_launcher_id,
-            ..
-        })) = &spend.custody
-        else {
-            continue;
-        };
-
-        let Some(launcher_id) = launcher_id else {
-            launcher_id = Some(*spend_launcher_id);
-            continue;
-        };
-
-        if launcher_id != *spend_launcher_id {
-            return Err(DriverError::ConflictingVaultLauncherIds);
-        }
-    }
-
-    Ok(launcher_id)
-}
-
 fn calculate_p2_puzzle_hashes(reveals: &Reveals, launcher_id: Bytes32) -> Vec<Bytes32> {
     let mut p2_puzzle_hashes = Vec::new();
 
@@ -385,7 +364,7 @@ fn build_linked_offer(
     reveals: &Reveals,
     allocator: &Allocator,
     spends: &[VerifiedSpend],
-    expected_launcher_id: Option<Bytes32>,
+    expected_launcher_id: Bytes32,
 ) -> Result<Option<LinkedOffer>, DriverError> {
     let mut linked_offer = LinkedOffer {
         reserved_fee: 0,
@@ -402,7 +381,7 @@ fn build_linked_offer(
 
             has_offer = true;
 
-            if expected_launcher_id != Some(info.launcher_id) {
+            if expected_launcher_id != info.launcher_id {
                 return Err(DriverError::WrongLinkedOfferLauncherId);
             }
 
