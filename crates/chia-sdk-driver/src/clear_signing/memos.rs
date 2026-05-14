@@ -1,19 +1,22 @@
 use chia_protocol::Bytes32;
 use chia_puzzle_types::Memos;
-use chia_sdk_types::conditions::CreateCoin;
-use clvm_traits::FromClvm;
+use chia_sdk_types::{Condition, conditions::CreateCoin};
+use clvm_traits::{FromClvm, clvm_quote};
+use clvm_utils::{ToTreeHash, tree_hash};
 use clvmr::{Allocator, NodePtr};
 
-use crate::ClawbackV2;
+use crate::{ClawbackV2, RevealedP2Puzzle, Reveals};
 
 #[derive(Debug, Clone)]
 pub struct ParsedMemos {
     pub p2_puzzle_hash: Bytes32,
     pub clawback: Option<ClawbackV2>,
     pub human_readable_memos: Vec<String>,
+    pub fixed_conditions: Option<Vec<Condition>>,
 }
 
 pub fn parse_memos(
+    reveals: &Reveals,
     allocator: &Allocator,
     p2_create_coin: CreateCoin<NodePtr>,
     requires_hint: bool,
@@ -24,6 +27,7 @@ pub fn parse_memos(
             p2_puzzle_hash: p2_create_coin.puzzle_hash,
             clawback: None,
             human_readable_memos: Vec::new(),
+            fixed_conditions: None,
         };
     };
 
@@ -44,6 +48,26 @@ pub fn parse_memos(
             p2_puzzle_hash: clawback.receiver_puzzle_hash,
             clawback: Some(clawback),
             human_readable_memos: parse_memo_list(allocator, rest),
+            fixed_conditions: None,
+        };
+    }
+
+    // If we're parsing a p2 conditions or singleton, we can try to parse the fixed conditions.
+    if let Some(RevealedP2Puzzle::P2ConditionsOrSingleton(p2_conditions_or_singleton)) =
+        reveals.p2_puzzle(p2_create_coin.puzzle_hash.into())
+        && let Ok((_hint, (memo, rest))) =
+            <(Bytes32, (NodePtr, NodePtr))>::from_clvm(allocator, memos)
+        && let Ok(conditions) = Vec::<Condition>::from_clvm(allocator, memo)
+        && clvm_quote!(tree_hash(allocator, memo)).tree_hash()
+            == p2_conditions_or_singleton
+                .fixed_delegated_puzzle_hash
+                .into()
+    {
+        return ParsedMemos {
+            p2_puzzle_hash: p2_create_coin.puzzle_hash,
+            clawback: None,
+            human_readable_memos: parse_memo_list(allocator, rest),
+            fixed_conditions: Some(conditions),
         };
     }
 
@@ -53,6 +77,7 @@ pub fn parse_memos(
             p2_puzzle_hash: p2_create_coin.puzzle_hash,
             clawback: None,
             human_readable_memos: parse_memo_list(allocator, rest),
+            fixed_conditions: None,
         };
     }
 
@@ -61,6 +86,7 @@ pub fn parse_memos(
         p2_puzzle_hash: p2_create_coin.puzzle_hash,
         clawback: None,
         human_readable_memos: parse_memo_list(allocator, memos),
+        fixed_conditions: None,
     }
 }
 

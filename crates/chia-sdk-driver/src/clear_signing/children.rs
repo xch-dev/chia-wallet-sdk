@@ -81,7 +81,7 @@ pub fn parse_children(
                 match &asset {
                     // All XCH and bulletin children are considered to be XCH.
                     ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_) => {
-                        let memos = parse_memos(allocator, *condition, false);
+                        let memos = parse_memos(reveals, allocator, *condition, false);
                         let transfer_type = calculate_transfer_type(reveals, &memos);
 
                         children.push(ParsedChild {
@@ -108,7 +108,7 @@ pub fn parse_children(
                                 return Err(DriverError::MissingChild);
                             };
 
-                            let memos = parse_memos(allocator, *condition, true);
+                            let memos = parse_memos(reveals, allocator, *condition, true);
                             let transfer_type = calculate_transfer_type(reveals, &memos);
 
                             children.push(ParsedChild {
@@ -117,7 +117,7 @@ pub fn parse_children(
                                 transfer_type,
                             });
                         } else {
-                            let memos = parse_memos(allocator, *condition, false);
+                            let memos = parse_memos(reveals, allocator, *condition, false);
                             let transfer_type = calculate_transfer_type(reveals, &memos);
 
                             children.push(ParsedChild {
@@ -141,7 +141,7 @@ pub fn parse_children(
                             return Err(DriverError::RevocableChild);
                         }
 
-                        let memos = parse_memos(allocator, *condition, true);
+                        let memos = parse_memos(reveals, allocator, *condition, true);
                         let transfer_type = calculate_transfer_type(reveals, &memos);
 
                         children.push(ParsedChild {
@@ -167,7 +167,7 @@ fn calculate_transfer_type(reveals: &Reveals, memos: &ParsedMemos) -> TransferTy
     } else if memos.clawback.is_none()
         && let Some(RevealedP2Puzzle::P2ConditionsOrSingleton(reveal)) =
             reveals.p2_puzzle(memos.p2_puzzle_hash.into())
-        && let Some(fixed_conditions) = &reveal.fixed_conditions
+        && let Some(fixed_conditions) = &memos.fixed_conditions
     {
         let mut settlement_amount = 0;
 
@@ -180,8 +180,8 @@ fn calculate_transfer_type(reveals: &Reveals, memos: &ParsedMemos) -> TransferTy
         }
 
         TransferType::OfferPreSplit(OfferPreSplitInfo {
-            launcher_id: reveal.p2.launcher_id,
-            nonce: reveal.p2.nonce,
+            launcher_id: reveal.launcher_id,
+            nonce: reveal.nonce,
             fixed_conditions: fixed_conditions.clone(),
             settlement_amount,
         })

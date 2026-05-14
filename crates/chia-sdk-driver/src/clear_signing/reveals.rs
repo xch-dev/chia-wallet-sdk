@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
 use chia_protocol::{Bytes32, Coin, CoinSpend};
-use chia_sdk_types::Condition;
 use clvm_traits::ToClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
@@ -11,16 +10,10 @@ use crate::{
     AssetInfo, ClawbackV2, DriverError, P2ConditionsOrSingleton, Puzzle, RequestedPayments,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum RevealedP2Puzzle {
     Clawback(ClawbackV2),
-    P2ConditionsOrSingleton(P2ConditionsOrSingletonReveal),
-}
-
-#[derive(Debug, Clone)]
-pub struct P2ConditionsOrSingletonReveal {
-    pub p2: P2ConditionsOrSingleton,
-    pub fixed_conditions: Option<Vec<Condition>>,
+    P2ConditionsOrSingleton(P2ConditionsOrSingleton),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -137,17 +130,10 @@ impl Reveals {
     }
 
     /// Reveals a p2 conditions or singleton puzzle, so that we can look it up by p2 puzzle hash.
-    pub fn reveal_p2_conditions_or_singleton(
-        &mut self,
-        p2: P2ConditionsOrSingleton,
-        fixed_conditions: Option<Vec<Condition>>,
-    ) {
+    pub fn reveal_p2_conditions_or_singleton(&mut self, p2: P2ConditionsOrSingleton) {
         self.p2_puzzles.insert(
             p2.tree_hash(),
-            RevealedP2Puzzle::P2ConditionsOrSingleton(P2ConditionsOrSingletonReveal {
-                p2,
-                fixed_conditions,
-            }),
+            RevealedP2Puzzle::P2ConditionsOrSingleton(p2),
         );
     }
 

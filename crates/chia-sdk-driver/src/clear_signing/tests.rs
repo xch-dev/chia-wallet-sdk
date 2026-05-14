@@ -1208,6 +1208,7 @@ fn test_clear_signing_create_p2_conditions_or_singleton(
     let delegated_spend = ctx.delegated_spend(conditions.clone())?;
     let conditions_hash = ctx.tree_hash(delegated_spend.puzzle).into();
     let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, conditions_hash);
+    let memos = ctx.memos(&clvm_list!(alice.p2_puzzle_hash, &conditions))?;
 
     alice
         .p2_puzzles
@@ -1216,18 +1217,13 @@ fn test_clear_signing_create_p2_conditions_or_singleton(
     let result = alice.spend(
         &mut sim,
         &mut ctx,
-        &[Action::send(
-            Id::Xch,
-            p2.tree_hash().into(),
-            1000,
-            Memos::None,
-        )],
+        &[Action::send(Id::Xch, p2.tree_hash().into(), 1000, memos)],
     )?;
 
     let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
 
     if revealed_up_front {
-        reveals.reveal_p2_conditions_or_singleton(p2, Some(conditions.clone().into_vec()));
+        reveals.reveal_p2_conditions_or_singleton(p2);
     }
 
     let tx = parse_vault_transaction(
@@ -1363,6 +1359,7 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_vault() -> Result<()> {
     let delegated_spend = ctx.delegated_spend(conditions.clone())?;
     let conditions_hash = ctx.tree_hash(delegated_spend.puzzle).into();
     let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, conditions_hash);
+    let memos = ctx.memos(&clvm_list!(alice.p2_puzzle_hash, &conditions))?;
 
     alice
         .p2_puzzles
@@ -1371,12 +1368,7 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_vault() -> Result<()> {
     let _ = alice.spend(
         &mut sim,
         &mut ctx,
-        &[Action::send(
-            Id::Xch,
-            p2.tree_hash().into(),
-            1000,
-            Memos::None,
-        )],
+        &[Action::send(Id::Xch, p2.tree_hash().into(), 1000, memos)],
     )?;
 
     let actions = [Action::send(
@@ -1397,7 +1389,7 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_vault() -> Result<()> {
     let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
 
     let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    reveals.reveal_p2_conditions_or_singleton(p2, None);
+    reveals.reveal_p2_conditions_or_singleton(p2);
     let tx = parse_vault_transaction(
         reveals,
         &mut ctx,
@@ -1680,15 +1672,16 @@ fn test_clear_signing_pre_split_offer() -> Result<()> {
     let delegated_puzzle_hash = ctx.tree_hash(delegated_spend.puzzle).into();
 
     let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, delegated_puzzle_hash);
+    let memos = ctx.memos(&clvm_list!(alice.p2_puzzle_hash, &conditions))?;
 
     // Make the offer
     let result = alice.spend(
         &mut sim,
         &mut ctx,
-        &[Action::send(id, p2.tree_hash().into(), 750, Memos::None)],
+        &[Action::send(id, p2.tree_hash().into(), 750, memos)],
     )?;
     let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
-    reveals.reveal_p2_conditions_or_singleton(p2, Some(conditions.clone().into_vec()));
+    reveals.reveal_p2_conditions_or_singleton(p2);
     reveals.reveal_settlement_payment(&mut ctx, settlement_puzzle, settlement_solution)?;
     let tx = parse_vault_transaction(
         reveals,
