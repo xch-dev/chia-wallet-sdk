@@ -46,10 +46,10 @@ pub fn build_linked_offer(
 
             for condition in &info.fixed_conditions {
                 match condition {
-                    Condition::CreateCoin(condition) => {
-                        if condition.puzzle_hash != SETTLEMENT_PAYMENT_HASH.into() {
-                            return Err(DriverError::InvalidLinkedOfferPayment);
-                        }
+                    Condition::CreateCoin(condition)
+                        if condition.puzzle_hash != SETTLEMENT_PAYMENT_HASH.into() =>
+                    {
+                        return Err(DriverError::InvalidLinkedOfferPayment);
                     }
                     Condition::ReserveFee(condition) => {
                         reserved_fee += condition.amount;
