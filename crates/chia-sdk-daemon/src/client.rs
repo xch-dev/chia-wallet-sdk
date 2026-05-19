@@ -91,8 +91,7 @@ mod inner {
 
             let nanos = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_nanos())
-                .unwrap_or(0);
+                .map_or(0, |d| d.as_nanos());
             let origin = format!("chia-wallet-sdk-{nanos}");
 
             let (connected_tx, _) = watch::channel(true);
@@ -423,8 +422,9 @@ mod inner {
                     String::from_utf8(bin).map_err(|_| DaemonError::ConnectionClosed)?
                 }
                 tungstenite::Message::Close(..) => break,
-                tungstenite::Message::Ping(..) | tungstenite::Message::Pong(..) => continue,
-                _ => continue,
+                tungstenite::Message::Ping(..)
+                | tungstenite::Message::Pong(..)
+                | tungstenite::Message::Frame(..) => continue,
             };
 
             let response: WebsocketResponse = match serde_json::from_str(&text) {
