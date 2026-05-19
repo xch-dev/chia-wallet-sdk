@@ -1271,13 +1271,17 @@ export declare class GetCoinRecordResponse {
 
 export declare class GetCoinRecordsResponse {
   clone(): GetCoinRecordsResponse
-  constructor(coinRecords: Array<CoinRecord> | undefined | null, error: string | undefined | null, success: boolean)
+  constructor(coinRecords: Array<CoinRecord> | undefined | null, error: string | undefined | null, success: boolean, truncated?: boolean | undefined | null, nextCursor?: string | undefined | null)
   get coinRecords(): Array<CoinRecord> | null
   set coinRecords(value?: Array<CoinRecord> | undefined | null)
   get error(): string | null
   set error(value?: string | undefined | null)
   get success(): boolean
   set success(value: boolean)
+  get truncated(): boolean | null
+  set truncated(value?: boolean | undefined | null)
+  get nextCursor(): string | null
+  set nextCursor(value?: string | undefined | null)
 }
 
 export declare class GetMempoolItemResponse {
@@ -2631,12 +2635,12 @@ export declare class RpcClient {
   getBlocks(start: number, end: number, excludeHeaderHash: boolean, excludeReorged: boolean): Promise<GetBlocksResponse>
   getBlockSpends(headerHash: Uint8Array): Promise<GetBlockSpendsResponse>
   getCoinRecordByName(name: Uint8Array): Promise<GetCoinRecordResponse>
-  getCoinRecordsByHint(hint: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByHints(hints: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByNames(names: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByParentIds(parentIds: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByPuzzleHash(puzzleHash: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
-  getCoinRecordsByPuzzleHashes(puzzleHashes: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByHint(hint: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null, cursor?: string | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByHints(hints: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null, cursor?: string | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByNames(names: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null, cursor?: string | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByParentIds(parentIds: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null, cursor?: string | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByPuzzleHash(puzzleHash: Uint8Array, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null, cursor?: string | undefined | null): Promise<GetCoinRecordsResponse>
+  getCoinRecordsByPuzzleHashes(puzzleHashes: Array<Uint8Array>, startHeight?: number | undefined | null, endHeight?: number | undefined | null, includeSpentCoins?: boolean | undefined | null, cursor?: string | undefined | null): Promise<GetCoinRecordsResponse>
   getPuzzleAndSolution(coinId: Uint8Array, height?: number | undefined | null): Promise<GetPuzzleAndSolutionResponse>
   pushTx(spendBundle: SpendBundle): Promise<PushTxResponse>
   getNetworkInfo(): Promise<GetNetworkInfoResponse>
