@@ -488,6 +488,7 @@ export declare class ClawbackV2 {
 export declare class Clvm {
   clone(): Clvm
   constructor()
+  reset(): void
   addCoinSpend(coinSpend: CoinSpend): void
   spendCoin(coin: Coin, spend: Spend): void
   coinSpends(): Array<CoinSpend>
@@ -673,7 +674,6 @@ export declare class Clvm {
   mOfN(): Program
   nOfN(): Program
   oneOfN(): Program
-  reset(): void
   alloc(value: any): Program
 }
 

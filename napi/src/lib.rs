@@ -16,11 +16,6 @@ impl Clvm {
             &NapiReturnContext(env),
         )?)
     }
-
-    #[napi]
-    pub fn reset(&self) -> Result<()> {
-        Ok(self.0.reset()?)
-    }
 }
 
 pub type Value<'a> =
