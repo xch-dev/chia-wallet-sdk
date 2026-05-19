@@ -45,13 +45,13 @@ pub const MAX_CLVM_SMALL_INTEGER: i64 = 67_108_863;
 // We use an Arc because we need to be able to share the SpendContext with the Program class
 // And we use a Mutex because we need to retain mutability even while Program instances exist
 #[derive(Clone)]
-pub struct Clvm(pub(crate) Arc<Mutex<SpendContext>>, Arc<Mutex<Checkpoint>>);
+pub struct Clvm(pub(crate) Arc<Mutex<SpendContext>>, Arc<Checkpoint>);
 
 impl Default for Clvm {
     fn default() -> Self {
         let ctx = SpendContext::new();
         let checkpoint = ctx.checkpoint();
-        Self(Arc::new(Mutex::new(ctx)), Arc::new(Mutex::new(checkpoint)))
+        Self(Arc::new(Mutex::new(ctx)), Arc::new(checkpoint))
     }
 }
 
@@ -62,8 +62,7 @@ impl Clvm {
 
     pub fn reset(&self) -> Result<()> {
         let mut ctx = self.0.lock().unwrap();
-        let checkpoint = self.1.lock().unwrap();
-        ctx.reset(&checkpoint);
+        ctx.reset(&self.1);
         Ok(())
     }
 
