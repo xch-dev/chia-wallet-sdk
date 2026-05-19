@@ -14,8 +14,9 @@ use chia_sdk_types::{
     },
     tree_hash_notarized_payment,
 };
-use clvm_traits::clvm_list;
+use clvm_traits::{ToClvm, clvm_list};
 use clvm_utils::{ToTreeHash, tree_hash};
+use hex_literal::hex;
 use rstest::rstest;
 
 use crate::{
@@ -1207,7 +1208,11 @@ fn test_clear_signing_create_p2_conditions_or_singleton(
         .reserve_fee(250);
     let delegated_spend = ctx.delegated_spend(conditions.clone())?;
     let conditions_hash = ctx.tree_hash(delegated_spend.puzzle).into();
-    let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, conditions_hash);
+    let p2 = P2ConditionsOrSingleton::from_quoted_conditions_hash(
+        alice.info.launcher_id,
+        0,
+        conditions_hash,
+    );
     let memos = ctx.memos(&clvm_list!(alice.p2_puzzle_hash, &conditions))?;
 
     alice
@@ -1281,7 +1286,11 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_fixed() -> Result<()> {
         .reserve_fee(250);
     let delegated_spend = ctx.delegated_spend(conditions.clone())?;
     let conditions_hash = ctx.tree_hash(delegated_spend.puzzle).into();
-    let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, conditions_hash);
+    let p2 = P2ConditionsOrSingleton::from_quoted_conditions_hash(
+        alice.info.launcher_id,
+        0,
+        conditions_hash,
+    );
 
     alice
         .p2_puzzles
@@ -1358,7 +1367,11 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_vault() -> Result<()> {
         .reserve_fee(250);
     let delegated_spend = ctx.delegated_spend(conditions.clone())?;
     let conditions_hash = ctx.tree_hash(delegated_spend.puzzle).into();
-    let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, conditions_hash);
+    let p2 = P2ConditionsOrSingleton::from_quoted_conditions_hash(
+        alice.info.launcher_id,
+        0,
+        conditions_hash,
+    );
     let memos = ctx.memos(&clvm_list!(alice.p2_puzzle_hash, &conditions))?;
 
     alice
@@ -1671,7 +1684,11 @@ fn test_clear_signing_pre_split_offer() -> Result<()> {
     let delegated_spend = ctx.delegated_spend(conditions.clone())?;
     let delegated_puzzle_hash = ctx.tree_hash(delegated_spend.puzzle).into();
 
-    let p2 = P2ConditionsOrSingleton::new(alice.info.launcher_id, 0, delegated_puzzle_hash);
+    let p2 = P2ConditionsOrSingleton::from_quoted_conditions_hash(
+        alice.info.launcher_id,
+        0,
+        delegated_puzzle_hash,
+    );
     let memos = ctx.memos(&clvm_list!(alice.p2_puzzle_hash, &conditions))?;
 
     // Make the offer

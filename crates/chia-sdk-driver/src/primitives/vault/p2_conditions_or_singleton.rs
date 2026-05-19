@@ -14,20 +14,36 @@ use crate::{
 pub struct P2ConditionsOrSingleton {
     pub launcher_id: Bytes32,
     pub nonce: usize,
-    pub fixed_delegated_puzzle_hash: Bytes32,
+    pub fixed_conditions_hash: Bytes32,
 }
 
 impl P2ConditionsOrSingleton {
-    pub fn new(launcher_id: Bytes32, nonce: usize, fixed_delegated_puzzle_hash: Bytes32) -> Self {
+    pub fn new(launcher_id: Bytes32, nonce: usize, fixed_conditions_hash: Bytes32) -> Self {
         Self {
             launcher_id,
             nonce,
-            fixed_delegated_puzzle_hash,
+            fixed_conditions_hash,
+        }
+    }
+
+    pub fn fixed_conditions_hash(quoted_conditions_hash: Bytes32) -> Bytes32 {
+        mips_puzzle_hash(0, vec![], quoted_conditions_hash.into(), false).into()
+    }
+
+    pub fn from_quoted_conditions_hash(
+        launcher_id: Bytes32,
+        nonce: usize,
+        quoted_conditions_hash: Bytes32,
+    ) -> Self {
+        Self {
+            launcher_id,
+            nonce,
+            fixed_conditions_hash: Self::fixed_conditions_hash(quoted_conditions_hash),
         }
     }
 
     pub fn fixed_path_hash(&self) -> TreeHash {
-        mips_puzzle_hash(0, vec![], self.fixed_delegated_puzzle_hash.into(), false)
+        self.fixed_conditions_hash.into()
     }
 
     pub fn p2_singleton_path_hash(&self) -> TreeHash {
