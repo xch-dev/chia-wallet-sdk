@@ -863,7 +863,7 @@ fn test_clear_signing_bulletin() -> Result<()> {
 
     // The child is not parsed as a bulletin here, but since it's ephemeral and 0 amount it probably doesn't matter much.
     // We can revisit this later if it's necessary to parse this.
-    check_asset(&child.asset, None, None, 0);
+    assert_eq!(child.asset, ParsedAsset::Bulletin(bulletin.clone()));
     assert_eq!(child.memos.clawback, None);
     assert_eq!(child.memos.p2_puzzle_hash, bulletin.coin.puzzle_hash);
 

@@ -15,7 +15,7 @@ pub struct ParsedSpend {
     pub required_expiration_time: Option<u64>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParsedAsset {
     Cat(Cat),
     Nft(Nft),

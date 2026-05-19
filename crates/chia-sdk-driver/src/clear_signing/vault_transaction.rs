@@ -208,6 +208,25 @@ pub fn parse_vault_transaction(
     let p2_puzzle_hashes = calculate_p2_puzzle_hashes(&reveals, launcher_id);
     let linked_offer = build_linked_offer(&reveals, allocator, &verified_spends, launcher_id)?;
 
+    // Hydrate ephemerally spent bulletin children.
+    let mut bulletins = HashMap::new();
+
+    for spend in &verified_spends {
+        if let ParsedAsset::Bulletin(bulletin) = &spend.asset {
+            bulletins.insert(bulletin.coin.coin_id(), bulletin.clone());
+        }
+    }
+
+    for spend in &mut verified_spends {
+        for child in &mut spend.children {
+            if matches!(child.asset, ParsedAsset::Xch(_))
+                && let Some(bulletin) = bulletins.remove(&child.asset.coin().coin_id())
+            {
+                child.asset = ParsedAsset::Bulletin(bulletin);
+            }
+        }
+    }
+
     Ok(VaultTransaction {
         vault_child: vault_spend.child,
         drop_coins: vault_spend.drop_coins,

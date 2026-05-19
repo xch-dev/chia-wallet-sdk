@@ -79,6 +79,7 @@ pub fn parse_children(
             Condition::CreateCoin(condition) => {
                 match &asset {
                     // All XCH and bulletin children are considered to be XCH.
+                    // However, ephemeral bulletin children are hydrated later based on the spend.
                     ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_) => {
                         let memos = parse_memos(reveals, allocator, *condition, false);
                         let transfer_type = calculate_transfer_type(reveals, &memos);
