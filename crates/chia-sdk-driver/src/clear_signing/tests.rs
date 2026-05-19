@@ -14,9 +14,8 @@ use chia_sdk_types::{
     },
     tree_hash_notarized_payment,
 };
-use clvm_traits::{ToClvm, clvm_list};
+use clvm_traits::clvm_list;
 use clvm_utils::{ToTreeHash, tree_hash};
-use hex_literal::hex;
 use rstest::rstest;
 
 use crate::{
