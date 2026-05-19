@@ -673,6 +673,7 @@ export declare class Clvm {
   mOfN(): Program
   nOfN(): Program
   oneOfN(): Program
+  reset(): void
   alloc(value: any): Program
 }
 
