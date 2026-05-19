@@ -572,10 +572,10 @@ fn parse_our_conditions(
 
         for condition in conditions {
             match condition {
-                Condition::AssertPuzzleAnnouncement(condition) => {
-                    if our_coin_ids.contains(&coin_id) {
-                        puzzle_assertion_ids.insert(condition.announcement_id);
-                    }
+                Condition::AssertPuzzleAnnouncement(condition)
+                    if our_coin_ids.contains(&coin_id) =>
+                {
+                    puzzle_assertion_ids.insert(condition.announcement_id);
                 }
                 Condition::CreateCoin(condition) => {
                     all_created_coin_ids.insert(
