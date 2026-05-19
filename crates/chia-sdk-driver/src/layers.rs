@@ -42,6 +42,16 @@ mod datalayer;
 #[cfg(feature = "chip-0035")]
 pub use datalayer::*;
 
+#[cfg(feature = "chip-0037")]
+mod p2_controller_puzzle_layer;
+#[cfg(feature = "chip-0037")]
+mod p2_eip712_message_layer;
+
+#[cfg(feature = "chip-0037")]
+pub use p2_controller_puzzle_layer::*;
+#[cfg(feature = "chip-0037")]
+pub use p2_eip712_message_layer::*;
+
 #[cfg(feature = "action-layer")]
 mod action_layer;
 

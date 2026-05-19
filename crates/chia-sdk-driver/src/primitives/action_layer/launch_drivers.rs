@@ -1223,7 +1223,7 @@ mod tests {
             )?;
 
             // call the 'register' action on CATalog
-            slots.sort_unstable_by(|a, b| a.info.value.cmp(&b.info.value));
+            slots.sort_unstable_by_key(|slot| slot.info.value);
 
             let slot_value_to_insert =
                 CatalogSlotValue::new(tail_hash.into(), Bytes32::default(), Bytes32::default());

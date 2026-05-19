@@ -139,16 +139,18 @@ pub trait ChiaRpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> {
-        self.make_post_request(
-            "get_coin_records_by_hint",
-            serde_json::json!({
-                "hint": format!("0x{}", hex::encode(hint.to_bytes())),
-                "start_height": start_height,
-                "end_height": end_height,
-                "include_spent_coins": include_spent_coins,
-            }),
-        )
+        let mut body = serde_json::json!({
+            "hint": format!("0x{}", hex::encode(hint.to_bytes())),
+            "start_height": start_height,
+            "end_height": end_height,
+            "include_spent_coins": include_spent_coins,
+        });
+        if let Some(cursor) = cursor {
+            body["cursor"] = serde_json::json!(cursor);
+        }
+        self.make_post_request("get_coin_records_by_hint", body)
     }
 
     fn get_coin_records_by_hints(
@@ -157,16 +159,18 @@ pub trait ChiaRpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> {
-        self.make_post_request(
-            "get_coin_records_by_hints",
-            serde_json::json!({
-                "hints": hints.iter().map(|hint| format!("0x{}", hex::encode(hint.to_bytes()))).collect::<Vec<String>>(),
-                "start_height": start_height,
-                "end_height": end_height,
-                "include_spent_coins": include_spent_coins,
-            }),
-        )
+        let mut body = serde_json::json!({
+            "hints": hints.iter().map(|hint| format!("0x{}", hex::encode(hint.to_bytes()))).collect::<Vec<String>>(),
+            "start_height": start_height,
+            "end_height": end_height,
+            "include_spent_coins": include_spent_coins,
+        });
+        if let Some(cursor) = cursor {
+            body["cursor"] = serde_json::json!(cursor);
+        }
+        self.make_post_request("get_coin_records_by_hints", body)
     }
 
     fn get_coin_records_by_names(
@@ -175,16 +179,18 @@ pub trait ChiaRpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> {
-        self.make_post_request(
-            "get_coin_records_by_names",
-            serde_json::json!({
-                "names": names.iter().map(|name| format!("0x{}", hex::encode(name.to_bytes()))).collect::<Vec<String>>(),
-                "start_height": start_height,
-                "end_height": end_height,
-                "include_spent_coins": include_spent_coins,
-            }),
-        )
+        let mut body = serde_json::json!({
+            "names": names.iter().map(|name| format!("0x{}", hex::encode(name.to_bytes()))).collect::<Vec<String>>(),
+            "start_height": start_height,
+            "end_height": end_height,
+            "include_spent_coins": include_spent_coins,
+        });
+        if let Some(cursor) = cursor {
+            body["cursor"] = serde_json::json!(cursor);
+        }
+        self.make_post_request("get_coin_records_by_names", body)
     }
 
     fn get_coin_records_by_parent_ids(
@@ -193,16 +199,18 @@ pub trait ChiaRpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> {
-        self.make_post_request(
-            "get_coin_records_by_parent_ids",
-            serde_json::json!({
-                "parent_ids": parent_ids.iter().map(|parent_id| format!("0x{}", hex::encode(parent_id.to_bytes()))).collect::<Vec<String>>(),
-                "start_height": start_height,
-                "end_height": end_height,
-                "include_spent_coins": include_spent_coins,
-            }),
-        )
+        let mut body = serde_json::json!({
+            "parent_ids": parent_ids.iter().map(|parent_id| format!("0x{}", hex::encode(parent_id.to_bytes()))).collect::<Vec<String>>(),
+            "start_height": start_height,
+            "end_height": end_height,
+            "include_spent_coins": include_spent_coins,
+        });
+        if let Some(cursor) = cursor {
+            body["cursor"] = serde_json::json!(cursor);
+        }
+        self.make_post_request("get_coin_records_by_parent_ids", body)
     }
 
     fn get_coin_records_by_puzzle_hash(
@@ -211,16 +219,18 @@ pub trait ChiaRpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> {
-        self.make_post_request(
-            "get_coin_records_by_puzzle_hash",
-            serde_json::json!({
-                "puzzle_hash": format!("0x{}", hex::encode(puzzle_hash.to_bytes())),
-                "start_height": start_height,
-                "end_height": end_height,
-                "include_spent_coins": include_spent_coins,
-            }),
-        )
+        let mut body = serde_json::json!({
+            "puzzle_hash": format!("0x{}", hex::encode(puzzle_hash.to_bytes())),
+            "start_height": start_height,
+            "end_height": end_height,
+            "include_spent_coins": include_spent_coins,
+        });
+        if let Some(cursor) = cursor {
+            body["cursor"] = serde_json::json!(cursor);
+        }
+        self.make_post_request("get_coin_records_by_puzzle_hash", body)
     }
 
     fn get_coin_records_by_puzzle_hashes(
@@ -229,16 +239,18 @@ pub trait ChiaRpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> impl Future<Output = Result<GetCoinRecordsResponse, Self::Error>> {
-        self.make_post_request(
-            "get_coin_records_by_puzzle_hashes",
-            serde_json::json!({
-                "puzzle_hashes": puzzle_hashes.iter().map(|puzzle_hash| format!("0x{}", hex::encode(puzzle_hash.to_bytes()))).collect::<Vec<String>>(),
-                "start_height": start_height,
-                "end_height": end_height,
-                "include_spent_coins": include_spent_coins,
-            }),
-        )
+        let mut body = serde_json::json!({
+            "puzzle_hashes": puzzle_hashes.iter().map(|puzzle_hash| format!("0x{}", hex::encode(puzzle_hash.to_bytes()))).collect::<Vec<String>>(),
+            "start_height": start_height,
+            "end_height": end_height,
+            "include_spent_coins": include_spent_coins,
+        });
+        if let Some(cursor) = cursor {
+            body["cursor"] = serde_json::json!(cursor);
+        }
+        self.make_post_request("get_coin_records_by_puzzle_hashes", body)
     }
 
     fn get_puzzle_and_solution(

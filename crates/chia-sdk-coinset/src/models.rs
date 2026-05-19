@@ -98,6 +98,14 @@ pub struct GetCoinRecordsResponse {
     pub coin_records: Option<Vec<CoinRecord>>,
     pub error: Option<String>,
     pub success: bool,
+    /// Set to `true` by coinset when the response was truncated due to the
+    /// server's `scan_max_keys_per_stream` limit. Not present in Chia full
+    /// node responses.
+    pub truncated: Option<bool>,
+    /// Cursor for fetching the next page. Only present when `truncated`
+    /// is `true`. Pass this value back in the request's `cursor` field to
+    /// resume from where the previous response left off.
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]

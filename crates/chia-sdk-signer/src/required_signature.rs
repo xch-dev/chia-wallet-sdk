@@ -4,6 +4,7 @@ use clvm_traits::{FromClvm, ToClvm};
 use clvmr::{
     Allocator, ChiaDialect, ENABLE_KECCAK_OPS_OUTSIDE_GUARD, dialect::Dialect, run_program,
 };
+use colored::Colorize;
 use rue_lir::DebugDialect;
 
 use crate::{
@@ -26,18 +27,24 @@ impl RequiredSignature {
         constants: &AggSigConstants,
     ) -> Result<Vec<Self>, SignerError> {
         if is_debug_dialect_enabled() {
-            Self::from_coin_spend_with_dialect(
-                allocator,
-                coin_spend,
-                constants,
-                DebugDialect::new(ENABLE_KECCAK_OPS_OUTSIDE_GUARD, false),
-            )
+            let dialect = DebugDialect::new(ENABLE_KECCAK_OPS_OUTSIDE_GUARD, false);
+
+            let result =
+                Self::from_coin_spend_with_dialect(allocator, coin_spend, constants, &dialect);
+
+            if result.is_err() {
+                for item in dialect.log() {
+                    eprintln!("{}: {}", item.srcloc.cyan().bold(), item.message);
+                }
+            }
+
+            result
         } else {
             Self::from_coin_spend_with_dialect(
                 allocator,
                 coin_spend,
                 constants,
-                ChiaDialect::new(0),
+                &ChiaDialect::new(0),
             )
         }
     }
@@ -46,7 +53,7 @@ impl RequiredSignature {
         allocator: &mut Allocator,
         coin_spend: &CoinSpend,
         constants: &AggSigConstants,
-        dialect: D,
+        dialect: &D,
     ) -> Result<Vec<Self>, SignerError> {
         let puzzle = coin_spend.puzzle_reveal.to_clvm(allocator)?;
         let solution = coin_spend.solution.to_clvm(allocator)?;
