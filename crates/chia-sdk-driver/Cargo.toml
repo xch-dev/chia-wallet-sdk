@@ -19,6 +19,7 @@ workspace = true
 
 [features]
 chip-0035 = ["chia-sdk-types/chip-0035"]
+chip-0037 = ["chia-sdk-types/chip-0037", "dep:sha3"]
 action-layer = ["chia-sdk-types/action-layer"]
 offer-compression = ["dep:flate2", "dep:chia-sdk-utils"]
 
@@ -43,6 +44,7 @@ bigdecimal = { workspace = true }
 chia-sdk-utils = { workspace = true, optional = true }
 chia-traits = {workspace = true }
 flate2 = { workspace = true, features = ["zlib-ng-compat"], optional = true }
+sha3 = { workspace = true, optional = true }
 indexmap = { workspace = true }
 chia_streamable_macro = { workspace = true }
 rand = { workspace = true }
