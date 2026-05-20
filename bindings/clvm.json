@@ -5,6 +5,7 @@
       "new": {
         "type": "constructor"
       },
+      "reset": {},
       "add_coin_spend": {
         "args": {
           "coin_spend": "CoinSpend"
