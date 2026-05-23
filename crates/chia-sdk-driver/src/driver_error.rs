@@ -173,9 +173,6 @@ pub enum DriverError {
     #[error("offer pre-split coin has the wrong output amount")]
     WrongOfferPreSplitOutput,
 
-    #[error("conflicting puzzle assertions in linked offer")]
-    ConflictingLinkedOfferPuzzleAssertions,
-
     #[error("missing required bulletin conditions")]
     MissingBulletinConditions,
 

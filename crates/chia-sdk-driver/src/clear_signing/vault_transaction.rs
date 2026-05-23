@@ -310,7 +310,7 @@ fn verify_spend(
             }
 
             custody_matched = true;
-        } else if let Some(issuance) = issuance
+        } else if let Some(issuance) = &issuance
             && matches!(issuance.kind, IssuanceKind::EverythingWithSingleton { .. })
             && message.data == get_extra_delta_message(issuance.extra_delta)
         {

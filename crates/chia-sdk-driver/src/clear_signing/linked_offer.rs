@@ -27,7 +27,7 @@ pub fn build_linked_offer(
         requested_payments: vec![],
     };
     let mut has_offer = false;
-    let mut found_puzzle_assertions = None;
+    let mut found_puzzle_assertions: Option<HashSet<Bytes32>> = None;
 
     for spend in spends {
         for child in &spend.children {
@@ -68,9 +68,10 @@ pub fn build_linked_offer(
             linked_offer.reserved_fee += reserved_fee;
 
             if let Some(found_puzzle_assertions) = &found_puzzle_assertions {
-                if found_puzzle_assertions != &puzzle_assertions {
-                    return Err(DriverError::ConflictingLinkedOfferPuzzleAssertions);
-                }
+                puzzle_assertions = found_puzzle_assertions
+                    .intersection(&puzzle_assertions)
+                    .copied()
+                    .collect();
             } else {
                 found_puzzle_assertions = Some(puzzle_assertions);
             }

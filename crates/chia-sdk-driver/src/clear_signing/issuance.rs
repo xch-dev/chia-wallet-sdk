@@ -1,4 +1,4 @@
-use chia_protocol::{Bytes, Bytes32};
+use chia_protocol::{Bytes, Bytes32, Program};
 use chia_sdk_types::{Condition, Mod, puzzles::EverythingWithSingletonTailArgs};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::tree_hash;
@@ -6,7 +6,7 @@ use clvmr::{Allocator, NodePtr};
 
 use crate::{CurriedPuzzle, DriverError};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Issuance {
     pub coin_id: Bytes32,
     pub asset_id: Bytes32,
@@ -14,16 +14,16 @@ pub struct Issuance {
     pub kind: IssuanceKind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IssuanceKind {
     EverythingWithSingleton {
         singleton_struct_hash: Bytes32,
-        nonce: usize,
+        nonce: Bytes,
     },
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct RunCatTailInvocation {
     pub asset_id: Bytes32,
     pub kind: IssuanceKind,

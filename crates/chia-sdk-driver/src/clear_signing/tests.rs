@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program, SpendBundle};
 use chia_puzzle_types::{
     Memos,
     offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},
@@ -56,7 +56,7 @@ fn issue_asset(
     let (id, asset_id) = if let AssetKind::Cat | AssetKind::RevocableCat = asset_kind {
         let tail_puzzle = ctx.curry(EverythingWithSingletonTailArgs::new(
             alice.info.launcher_id,
-            0,
+            Bytes::default(),
         ))?;
         let tail_solution = ctx.alloc(&EverythingWithSingletonTailSolution::new(
             alice.info.custody_hash.into(),
@@ -652,7 +652,7 @@ fn test_clear_signing_p2_singleton_cat_issuance(
 
     let tail_puzzle = ctx.curry(EverythingWithSingletonTailArgs::new(
         alice.info.launcher_id,
-        0,
+        Bytes::default(),
     ))?;
     let tail_solution = ctx.alloc(&EverythingWithSingletonTailSolution::new(
         alice.info.custody_hash.into(),
@@ -685,18 +685,18 @@ fn test_clear_signing_p2_singleton_cat_issuance(
     let IssuanceKind::EverythingWithSingleton {
         singleton_struct_hash,
         nonce,
-    } = issuance.kind
+    } = &issuance.kind
     else {
         panic!("wrong issuance kind");
     };
 
     assert_eq!(
-        singleton_struct_hash,
+        *singleton_struct_hash,
         SingletonStruct::new(alice.info.launcher_id)
             .tree_hash()
             .into()
     );
-    assert_eq!(nonce, 0);
+    assert_eq!(nonce, &Bytes::default());
 
     let cat_spend = tx
         .spends
@@ -717,7 +717,7 @@ fn test_clear_signing_delegated_conditions_cat_issuance() -> Result<()> {
 
     let tail_puzzle = ctx.curry(EverythingWithSingletonTailArgs::new(
         alice.info.launcher_id,
-        0,
+        Bytes::default(),
     ))?;
     let tail_solution = ctx.alloc(&EverythingWithSingletonTailSolution::new(
         alice.info.custody_hash.into(),
@@ -771,18 +771,18 @@ fn test_clear_signing_delegated_conditions_cat_issuance() -> Result<()> {
     let IssuanceKind::EverythingWithSingleton {
         singleton_struct_hash,
         nonce,
-    } = issuance.kind
+    } = &issuance.kind
     else {
         panic!("wrong issuance kind");
     };
 
     assert_eq!(
-        singleton_struct_hash,
+        *singleton_struct_hash,
         SingletonStruct::new(alice.info.launcher_id)
             .tree_hash()
             .into()
     );
-    assert_eq!(nonce, 0);
+    assert_eq!(nonce, &Bytes::default());
 
     let cat_spend = tx
         .spends
