@@ -1,4 +1,4 @@
-use chia_protocol::{Bytes, Bytes32, Program};
+use chia_protocol::{Bytes, Bytes32};
 use chia_sdk_types::{Condition, Mod, puzzles::EverythingWithSingletonTailArgs};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::tree_hash;

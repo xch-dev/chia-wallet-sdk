@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, Program, SpendBundle};
+use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{
     Memos,
     offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},
