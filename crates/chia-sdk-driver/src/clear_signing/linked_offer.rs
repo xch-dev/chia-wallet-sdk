@@ -67,8 +67,8 @@ pub fn build_linked_offer(
 
             linked_offer.reserved_fee += reserved_fee;
 
-            if let Some(found_puzzle_assertions) = &found_puzzle_assertions {
-                puzzle_assertions = found_puzzle_assertions
+            if let Some(found_puzzle_assertions) = &mut found_puzzle_assertions {
+                *found_puzzle_assertions = found_puzzle_assertions
                     .intersection(&puzzle_assertions)
                     .copied()
                     .collect();
