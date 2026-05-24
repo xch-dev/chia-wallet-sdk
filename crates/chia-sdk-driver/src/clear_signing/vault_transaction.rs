@@ -5,14 +5,14 @@ use chia_puzzle_types::cat::CatSolution;
 use chia_sdk_types::{Condition, Mod, puzzles::SingletonMember};
 use clvm_traits::{FromClvm, ToClvm, clvm_quote};
 use clvm_utils::tree_hash;
-use clvmr::{Allocator, NodePtr};
+use clvmr::NodePtr;
 use indexmap::{IndexMap, IndexSet};
 
 use crate::{
     AssertedRequestedPayment, ClawbackInfo, CustodyInfo, DriverError, DropCoin, Facts, Issuance,
     IssuanceKind, LinkedOffer, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset,
-    ParsedChild, ParsedSpend, RevealedCoinSpend, Reveals, Spend, VaultMessage, VaultOutput,
-    build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
+    ParsedChild, ParsedSpend, RevealedCoinSpend, Reveals, Spend, SpendContext, VaultMessage,
+    VaultOutput, build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
     parse_asserted_requested_payments, parse_children, parse_run_cat_tail, parse_spend,
     parse_vault_delegated_spend,
 };
@@ -68,18 +68,18 @@ pub struct VerifiedSpend {
 
 pub fn parse_vault_transaction(
     mut reveals: Reveals,
-    allocator: &mut Allocator,
+    ctx: &mut SpendContext,
     launcher_id: Bytes32,
     delegated_spend: Spend,
 ) -> Result<VaultTransaction, DriverError> {
     let mut facts = Facts::default();
 
-    let vault_spend = parse_vault_delegated_spend(&mut facts, allocator, delegated_spend)?;
+    let vault_spend = parse_vault_delegated_spend(&mut facts, ctx, delegated_spend)?;
 
     let mut parsed_spends = HashMap::new();
 
     for spend in reveals.coin_spends().copied().collect::<Vec<_>>() {
-        let parsed_spend = parse_spend(&mut reveals, allocator, &spend)?;
+        let parsed_spend = parse_spend(&mut reveals, ctx, &spend)?;
 
         if let Some(
             CustodyInfo::P2Singleton(P2SingletonInfo {
@@ -111,7 +111,7 @@ pub fn parse_vault_transaction(
     let mut issuances: Vec<Issuance> = Vec::new();
 
     for (coin_id, messages) in messages_by_coin {
-        let spend = reveals
+        let spend = *reveals
             .coin_spend(coin_id)
             .ok_or(DriverError::MissingSpend)?;
         let parsed_spend = parsed_spends
@@ -119,9 +119,9 @@ pub fn parse_vault_transaction(
             .ok_or(DriverError::MissingSpend)?;
 
         let Some(verified_spend) = verify_spend(
-            &reveals,
+            &mut reveals,
             &mut facts,
-            allocator,
+            ctx,
             spend,
             parsed_spend,
             &messages,
@@ -153,14 +153,14 @@ pub fn parse_vault_transaction(
             continue;
         };
 
-        let spend = reveals
+        let spend = *reveals
             .coin_spend(coin_id)
             .ok_or(DriverError::MissingSpend)?;
 
         let Some(verified_spend) = verify_spend(
-            &reveals,
+            &mut reveals,
             &mut facts,
-            allocator,
+            ctx,
             spend,
             parsed_spend,
             &[],
@@ -188,7 +188,7 @@ pub fn parse_vault_transaction(
         return Err(DriverError::UnguaranteedClawBack);
     }
 
-    let delegated_puzzle_hash = tree_hash(allocator, delegated_spend.puzzle).into();
+    let delegated_puzzle_hash = tree_hash(ctx, delegated_spend.puzzle).into();
 
     let reserved_fee = facts.reserved_fees().try_into()?;
 
@@ -204,9 +204,9 @@ pub fn parse_vault_transaction(
     }
 
     let fee_paid = input_amount.saturating_sub(output_amount).try_into()?;
-    let received_payments = parse_asserted_requested_payments(&reveals, &facts, allocator)?;
+    let received_payments = parse_asserted_requested_payments(&reveals, &facts, ctx)?;
     let p2_puzzle_hashes = calculate_p2_puzzle_hashes(&reveals, launcher_id);
-    let linked_offer = build_linked_offer(&reveals, allocator, &verified_spends, launcher_id)?;
+    let linked_offer = build_linked_offer(&reveals, ctx, &verified_spends, launcher_id)?;
 
     // Hydrate ephemerally spent bulletin children.
     let mut bulletins = HashMap::new();
@@ -242,10 +242,10 @@ pub fn parse_vault_transaction(
 }
 
 fn verify_spend(
-    reveals: &Reveals,
+    reveals: &mut Reveals,
     facts: &mut Facts,
-    allocator: &mut Allocator,
-    spend: &RevealedCoinSpend,
+    allocator: &mut SpendContext,
+    spend: RevealedCoinSpend,
     parsed_spend: ParsedSpend,
     messages: &[VaultMessage],
     issuances: &mut Vec<Issuance>,

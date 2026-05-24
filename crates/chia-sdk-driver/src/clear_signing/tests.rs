@@ -5,10 +5,14 @@ use chia_puzzle_types::{
     offer::{NotarizedPayment, Payment, SettlementPaymentsSolution},
     singleton::SingletonStruct,
 };
-use chia_puzzles::{SETTLEMENT_PAYMENT, SETTLEMENT_PAYMENT_HASH, SINGLETON_LAUNCHER_HASH};
+use chia_puzzles::{
+    NFT_METADATA_UPDATER_DEFAULT_HASH, SETTLEMENT_PAYMENT, SETTLEMENT_PAYMENT_HASH,
+    SINGLETON_LAUNCHER_HASH,
+};
 use chia_sdk_test::Simulator;
 use chia_sdk_types::{
     Condition, Conditions, MessageFlags, MessageSide, announcement_id,
+    conditions::TradePrice,
     puzzles::{
         EverythingWithSingletonTailArgs, EverythingWithSingletonTailSolution, SettlementPayment,
     },
@@ -21,10 +25,10 @@ use rstest::rstest;
 use crate::{
     Action, AssertedRequestedPayment, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo,
     CatSpend, ClawbackInfo, ClawbackPath, ClawbackV2, CustodyInfo, Deltas, DriverError, DropCoin,
-    FeeAction, Id, IssuanceKind, LinkedOffer, Nft, OfferPreSplitInfo, P2ConditionsOrSingleton,
-    ParsedAsset, Puzzle, RequestedAsset, Reveals, Spend, SpendContext, SpendKind, Spends,
-    TestP2Puzzle, TestVault, TransferType, VaultOutput, iter_final_children,
-    parse_vault_transaction,
+    FeeAction, HashedPtr, Id, IssuanceKind, LinkedOffer, Nft, OfferPreSplitInfo,
+    P2ConditionsOrSingleton, ParsedAsset, Puzzle, RequestedAsset, Reveals, Spend, SpendContext,
+    SpendKind, Spends, TestP2Puzzle, TestVault, TransferNftById, TransferType, VaultOutput,
+    iter_final_children, parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1554,6 +1558,213 @@ fn test_clear_signing_offer() -> Result<()> {
     let cat_payment = &cat_payment.notarized_payment.payments[0];
     assert_eq!(cat_payment.puzzle_hash, bob.p2_puzzle_hash);
     assert_eq!(cat_payment.amount, 1000);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_nft_offer() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 1030)?;
+
+    // Mint an NFT
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::mint_nft(
+            HashedPtr::NIL,
+            NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
+            alice.p2_puzzle_hash,
+            300,
+            1,
+        )],
+    )?;
+    let nft = result.outputs.nfts[0];
+
+    let notarized_payment = NotarizedPayment::new(
+        Bytes32::default(),
+        vec![Payment::new(alice.p2_puzzle_hash, 1000, Memos::None)],
+    );
+
+    let notarized_payment_hash = tree_hash_notarized_payment(&ctx, &notarized_payment);
+
+    let settlement_solution = ctx.alloc(&SettlementPaymentsSolution::new(vec![
+        notarized_payment.clone(),
+    ]))?;
+
+    let requested_payment = CoinSpend::new(
+        Coin::new(Bytes32::default(), SETTLEMENT_PAYMENT_HASH.into(), 1000),
+        SETTLEMENT_PAYMENT.to_vec().into(),
+        ctx.serialize(&settlement_solution)?,
+    );
+
+    let royalty_payment = NotarizedPayment::new(
+        nft.info.launcher_id,
+        vec![Payment::new(
+            nft.info.royalty_puzzle_hash,
+            30,
+            ctx.hint(nft.info.royalty_puzzle_hash)?,
+        )],
+    );
+
+    let royalty_payment_hash = tree_hash_notarized_payment(&ctx, &royalty_payment);
+
+    // Make the offer
+    let actions = [
+        Action::update_nft(
+            Id::Existing(nft.info.launcher_id),
+            vec![],
+            Some(TransferNftById::new(
+                None,
+                vec![TradePrice::new(1000, SETTLEMENT_PAYMENT_HASH.into())],
+            )),
+        ),
+        Action::send(
+            Id::Existing(nft.info.launcher_id),
+            SETTLEMENT_PAYMENT_HASH.into(),
+            1,
+            Memos::None,
+        ),
+    ];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    spends
+        .conditions
+        .required
+        .push(Condition::assert_puzzle_announcement(announcement_id(
+            SETTLEMENT_PAYMENT_HASH.into(),
+            notarized_payment_hash,
+        )));
+    spends
+        .conditions
+        .required
+        .push(Condition::assert_puzzle_announcement(announcement_id(
+            SETTLEMENT_PAYMENT_HASH.into(),
+            royalty_payment_hash,
+        )));
+
+    let result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+    let coin_spends = [
+        result.spend_bundle.coin_spends.clone(),
+        vec![requested_payment],
+    ]
+    .concat();
+    let reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.spends.len(), 1);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.children.len(), 1);
+
+    let child = &spend.children[0];
+    assert_eq!(child.memos.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
+
+    assert_eq!(tx.received_payments.len(), 2);
+
+    let xch_payment = &tx.received_payments[0];
+    assert_eq!(xch_payment.asset, RequestedAsset::Xch);
+    assert_eq!(xch_payment.notarized_payment, notarized_payment);
+
+    let xch_royalty_payment = &tx.received_payments[1];
+    assert_eq!(xch_royalty_payment.asset, RequestedAsset::Xch);
+    assert_eq!(
+        xch_royalty_payment.notarized_payment.nonce,
+        nft.info.launcher_id
+    );
+
+    let xch_royalty_payment = &xch_royalty_payment.notarized_payment.payments[0];
+    assert_eq!(
+        xch_royalty_payment.puzzle_hash,
+        nft.info.royalty_puzzle_hash
+    );
+    assert_eq!(xch_royalty_payment.amount, 30);
+
+    // Take the offer
+    let settlement_nft = result.outputs.nfts[0];
+    let maker_bundle = result.spend_bundle;
+
+    let actions = [
+        Action::settle(Id::Xch, notarized_payment.clone()),
+        Action::settle(Id::Xch, royalty_payment.clone()),
+    ];
+
+    let mut spends = Spends::new(bob.p2_puzzle_hash);
+    spends.add(settlement_nft);
+    bob.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let result =
+        bob.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        bob.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    sim.new_transaction(SpendBundle::new(
+        [maker_bundle.coin_spends, result.spend_bundle.coin_spends].concat(),
+        maker_bundle.aggregated_signature + &result.spend_bundle.aggregated_signature,
+    ))?;
+
+    assert_eq!(tx.fee_paid, 1030); // TODO: This isn't ideal
+    assert_eq!(tx.reserved_fee, 0);
+    assert_eq!(tx.spends.len(), 1);
+
+    let spend = &tx.spends[0];
+    assert_eq!(spend.children.len(), 1);
+
+    let child = &spend.children[0];
+    assert_eq!(child.asset.coin().amount, 0);
+    assert_eq!(child.memos.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
+
+    assert_eq!(tx.received_payments.len(), 3);
+
+    let xch_payment = &tx.received_payments[0];
+    assert_eq!(xch_payment.asset, RequestedAsset::Xch);
+    assert_eq!(xch_payment.notarized_payment, notarized_payment);
+
+    let xch_royalty_payment = &tx.received_payments[1];
+    assert_eq!(xch_royalty_payment.asset, RequestedAsset::Xch);
+    assert_eq!(
+        xch_royalty_payment.notarized_payment.nonce,
+        nft.info.launcher_id
+    );
+
+    let xch_royalty_payment = &xch_royalty_payment.notarized_payment.payments[0];
+    assert_eq!(
+        xch_royalty_payment.puzzle_hash,
+        nft.info.royalty_puzzle_hash
+    );
+    assert_eq!(xch_royalty_payment.amount, 30);
+
+    let nft_payment = &tx.received_payments[2];
+    assert_eq!(
+        nft_payment.asset,
+        RequestedAsset::Nft {
+            launcher_id: nft.info.launcher_id,
+            metadata: nft.info.metadata,
+            metadata_updater_puzzle_hash: nft.info.metadata_updater_puzzle_hash,
+            royalty_puzzle_hash: nft.info.royalty_puzzle_hash,
+            royalty_basis_points: nft.info.royalty_basis_points,
+        }
+    );
+    assert_eq!(nft_payment.notarized_payment.payments.len(), 1);
+
+    let nft_payment = &nft_payment.notarized_payment.payments[0];
+    assert_eq!(nft_payment.puzzle_hash, bob.p2_puzzle_hash);
+    assert_eq!(nft_payment.amount, 1);
 
     Ok(())
 }

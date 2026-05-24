@@ -1,13 +1,13 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 
 use chia_protocol::{Bytes32, Coin};
+use chia_puzzle_types::offer::{NotarizedPayment, Payment, SettlementPaymentsSolution};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::Condition;
-use clvmr::Allocator;
+use chia_sdk_types::{Condition, puzzles::SettlementPayment};
 
 use crate::{
-    BURN_PUZZLE_HASH, Cat, DriverError, Facts, Nft, ParsedAsset, ParsedMemos, RevealedCoinSpend,
-    RevealedP2Puzzle, Reveals, parse_memos,
+    BURN_PUZZLE_HASH, Cat, CatInfo, DriverError, Facts, Nft, ParsedAsset, ParsedMemos, Puzzle,
+    RevealedCoinSpend, RevealedP2Puzzle, Reveals, SpendContext, calculate_nft_royalty, parse_memos,
 };
 
 #[derive(Debug, Clone)]
@@ -34,11 +34,11 @@ pub struct OfferPreSplitInfo {
 }
 
 pub fn parse_children(
-    reveals: &Reveals,
+    reveals: &mut Reveals,
     facts: &mut Facts,
-    allocator: &mut Allocator,
+    ctx: &mut SpendContext,
     asset: &ParsedAsset,
-    spend: &RevealedCoinSpend,
+    spend: RevealedCoinSpend,
     conditions: &[Condition],
     is_claw_back: bool,
 ) -> Result<Vec<ParsedChild>, DriverError> {
@@ -47,9 +47,7 @@ pub fn parse_children(
 
     // We should parse CAT children up front, so that we can hydrate their details when adding children later.
     let mut cats = if matches!(asset, ParsedAsset::Cat(_)) {
-        if let Some(cats) =
-            Cat::parse_children(allocator, spend.coin, spend.puzzle, spend.solution)?
-        {
+        if let Some(cats) = Cat::parse_children(ctx, spend.coin, spend.puzzle, spend.solution)? {
             VecDeque::from(cats)
         } else {
             return Err(DriverError::MissingChild);
@@ -66,13 +64,12 @@ pub fn parse_children(
             Condition::AssertConcurrentSpend(condition) => {
                 facts.assert_spend(condition.coin_id);
             }
-            Condition::AssertBeforeSecondsAbsolute(condition)
-                // We shouldn't allow a claw back spend to say when the transaction will expire.
-                // Otherwise, it could pretend that it's impossible for the clawback to expire
-                // before the transaction expires, which would be a security vulnerability.
-                if !is_claw_back => {
-                    facts.update_actual_expiration_time(condition.seconds);
-                }
+            // We shouldn't allow a claw back spend to say when the transaction will expire.
+            // Otherwise, it could pretend that it's impossible for the clawback to expire
+            // before the transaction expires, which would be a security vulnerability.
+            Condition::AssertBeforeSecondsAbsolute(condition) if !is_claw_back => {
+                facts.update_actual_expiration_time(condition.seconds);
+            }
             Condition::ReserveFee(condition) => {
                 facts.add_reserved_fees(condition.amount);
             }
@@ -81,7 +78,7 @@ pub fn parse_children(
                     // All XCH and bulletin children are considered to be XCH.
                     // However, ephemeral bulletin children are hydrated later based on the spend.
                     ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_) => {
-                        let memos = parse_memos(reveals, allocator, *condition, false);
+                        let memos = parse_memos(reveals, ctx, *condition, false);
                         let transfer_type = calculate_transfer_type(reveals, &memos);
 
                         children.push(ParsedChild {
@@ -98,17 +95,13 @@ pub fn parse_children(
                     // next NFT singleton coin in the lineage.
                     ParsedAsset::Nft(_) => {
                         if condition.amount % 2 == 1 {
-                            let Some(nft) = Nft::parse_child(
-                                allocator,
-                                spend.coin,
-                                spend.puzzle,
-                                spend.solution,
-                            )?
+                            let Some(nft) =
+                                Nft::parse_child(ctx, spend.coin, spend.puzzle, spend.solution)?
                             else {
                                 return Err(DriverError::MissingChild);
                             };
 
-                            let memos = parse_memos(reveals, allocator, *condition, true);
+                            let memos = parse_memos(reveals, ctx, *condition, true);
                             let transfer_type = calculate_transfer_type(reveals, &memos);
 
                             children.push(ParsedChild {
@@ -117,7 +110,7 @@ pub fn parse_children(
                                 transfer_type,
                             });
                         } else {
-                            let memos = parse_memos(reveals, allocator, *condition, false);
+                            let memos = parse_memos(reveals, ctx, *condition, false);
                             let transfer_type = calculate_transfer_type(reveals, &memos);
 
                             children.push(ParsedChild {
@@ -141,7 +134,7 @@ pub fn parse_children(
                             return Err(DriverError::RevocableChild);
                         }
 
-                        let memos = parse_memos(reveals, allocator, *condition, true);
+                        let memos = parse_memos(reveals, ctx, *condition, true);
                         let transfer_type = calculate_transfer_type(reveals, &memos);
 
                         children.push(ParsedChild {
@@ -149,6 +142,65 @@ pub fn parse_children(
                             memos,
                             transfer_type,
                         });
+                    }
+                }
+            }
+            Condition::TransferNft(condition)
+                if let ParsedAsset::Nft(parent_nft) = asset
+                    && parent_nft.info.royalty_basis_points > 0 =>
+            {
+                let cats: HashMap<Bytes32, CatInfo> = reveals
+                    .asset_info()
+                    .cats()
+                    .filter_map(|&asset_id| {
+                        let hidden_puzzle_hash =
+                            reveals.asset_info().cat(asset_id)?.hidden_puzzle_hash;
+                        let cat_info = CatInfo::new(
+                            asset_id,
+                            hidden_puzzle_hash,
+                            SETTLEMENT_PAYMENT_HASH.into(),
+                        );
+                        Some((cat_info.puzzle_hash().into(), cat_info))
+                    })
+                    .collect();
+
+                let hint = ctx.hint(parent_nft.info.royalty_puzzle_hash)?;
+
+                for trade_price in &condition.trade_prices {
+                    let royalty_amount = calculate_nft_royalty(
+                        trade_price.amount,
+                        parent_nft.info.royalty_basis_points,
+                    );
+
+                    let notarized_payment = NotarizedPayment::new(
+                        parent_nft.info.launcher_id,
+                        vec![Payment::new(
+                            parent_nft.info.royalty_puzzle_hash,
+                            royalty_amount,
+                            hint,
+                        )],
+                    );
+
+                    let inner_settlement_solution =
+                        ctx.alloc(&SettlementPaymentsSolution::new(vec![notarized_payment]))?;
+
+                    if trade_price.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
+                        let outer_puzzle = ctx.alloc_mod::<SettlementPayment>()?;
+                        let outer_puzzle = Puzzle::parse(ctx, outer_puzzle);
+                        reveals.reveal_settlement_payment(
+                            ctx,
+                            outer_puzzle,
+                            inner_settlement_solution,
+                        )?;
+                    } else if let Some(cat_info) = cats.get(&trade_price.puzzle_hash) {
+                        let p2_puzzle = ctx.alloc_mod::<SettlementPayment>()?;
+                        let outer_puzzle = cat_info.construct_puzzle(ctx, p2_puzzle)?;
+                        let outer_puzzle = Puzzle::parse(ctx, outer_puzzle);
+                        reveals.reveal_settlement_payment(
+                            ctx,
+                            outer_puzzle,
+                            inner_settlement_solution,
+                        )?;
                     }
                 }
             }
