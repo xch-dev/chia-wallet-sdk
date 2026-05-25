@@ -80,7 +80,7 @@ pub fn parse_children(
                     ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_) => {
                         let memos = parse_memos(reveals, ctx, *condition, false);
                         let transfer_type =
-                            calculate_transfer_type(reveals, &memos, spend.coin.amount);
+                            calculate_transfer_type(reveals, &memos, condition.amount);
 
                         children.push(ParsedChild {
                             asset: ParsedAsset::Xch(Coin::new(
@@ -104,7 +104,7 @@ pub fn parse_children(
 
                             let memos = parse_memos(reveals, ctx, *condition, true);
                             let transfer_type =
-                                calculate_transfer_type(reveals, &memos, spend.coin.amount);
+                                calculate_transfer_type(reveals, &memos, condition.amount);
 
                             children.push(ParsedChild {
                                 asset: ParsedAsset::Nft(nft),
@@ -114,7 +114,7 @@ pub fn parse_children(
                         } else {
                             let memos = parse_memos(reveals, ctx, *condition, false);
                             let transfer_type =
-                                calculate_transfer_type(reveals, &memos, spend.coin.amount);
+                                calculate_transfer_type(reveals, &memos, condition.amount);
 
                             children.push(ParsedChild {
                                 asset: ParsedAsset::Xch(Coin::new(
@@ -139,7 +139,7 @@ pub fn parse_children(
 
                         let memos = parse_memos(reveals, ctx, *condition, true);
                         let transfer_type =
-                            calculate_transfer_type(reveals, &memos, spend.coin.amount);
+                            calculate_transfer_type(reveals, &memos, condition.amount);
 
                         children.push(ParsedChild {
                             asset: ParsedAsset::Cat(cat),
