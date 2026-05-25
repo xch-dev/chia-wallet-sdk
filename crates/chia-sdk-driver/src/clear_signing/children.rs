@@ -79,7 +79,8 @@ pub fn parse_children(
                     // However, ephemeral bulletin children are hydrated later based on the spend.
                     ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_) => {
                         let memos = parse_memos(reveals, ctx, *condition, false);
-                        let transfer_type = calculate_transfer_type(reveals, &memos);
+                        let transfer_type =
+                            calculate_transfer_type(reveals, &memos, spend.coin.amount);
 
                         children.push(ParsedChild {
                             asset: ParsedAsset::Xch(Coin::new(
@@ -102,7 +103,8 @@ pub fn parse_children(
                             };
 
                             let memos = parse_memos(reveals, ctx, *condition, true);
-                            let transfer_type = calculate_transfer_type(reveals, &memos);
+                            let transfer_type =
+                                calculate_transfer_type(reveals, &memos, spend.coin.amount);
 
                             children.push(ParsedChild {
                                 asset: ParsedAsset::Nft(nft),
@@ -111,7 +113,8 @@ pub fn parse_children(
                             });
                         } else {
                             let memos = parse_memos(reveals, ctx, *condition, false);
-                            let transfer_type = calculate_transfer_type(reveals, &memos);
+                            let transfer_type =
+                                calculate_transfer_type(reveals, &memos, spend.coin.amount);
 
                             children.push(ParsedChild {
                                 asset: ParsedAsset::Xch(Coin::new(
@@ -135,7 +138,8 @@ pub fn parse_children(
                         }
 
                         let memos = parse_memos(reveals, ctx, *condition, true);
-                        let transfer_type = calculate_transfer_type(reveals, &memos);
+                        let transfer_type =
+                            calculate_transfer_type(reveals, &memos, spend.coin.amount);
 
                         children.push(ParsedChild {
                             asset: ParsedAsset::Cat(cat),
@@ -211,7 +215,11 @@ pub fn parse_children(
     Ok(children)
 }
 
-fn calculate_transfer_type(reveals: &Reveals, memos: &ParsedMemos) -> TransferType {
+fn calculate_transfer_type(
+    reveals: &Reveals,
+    memos: &ParsedMemos,
+    input_amount: u64,
+) -> TransferType {
     if memos.p2_puzzle_hash == BURN_PUZZLE_HASH {
         TransferType::Burned
     } else if memos.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
@@ -221,13 +229,11 @@ fn calculate_transfer_type(reveals: &Reveals, memos: &ParsedMemos) -> TransferTy
             reveals.p2_puzzle(memos.p2_puzzle_hash.into())
         && let Some(fixed_conditions) = &memos.fixed_conditions
     {
-        let mut settlement_amount = 0;
+        let mut reserved_fee = 0;
 
         for condition in fixed_conditions {
-            if let Some(condition) = condition.as_create_coin()
-                && condition.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into()
-            {
-                settlement_amount += condition.amount;
+            if let Condition::ReserveFee(condition) = condition {
+                reserved_fee += condition.amount;
             }
         }
 
@@ -235,7 +241,7 @@ fn calculate_transfer_type(reveals: &Reveals, memos: &ParsedMemos) -> TransferTy
             launcher_id: reveal.launcher_id,
             nonce: reveal.nonce,
             fixed_conditions: fixed_conditions.clone(),
-            settlement_amount,
+            settlement_amount: input_amount.saturating_sub(reserved_fee),
         })
     } else {
         TransferType::Sent

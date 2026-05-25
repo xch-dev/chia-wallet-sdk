@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use chia_protocol::Bytes32;
-use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::Condition;
 use clvmr::Allocator;
 
@@ -46,11 +45,6 @@ pub fn build_linked_offer(
 
             for condition in &info.fixed_conditions {
                 match condition {
-                    Condition::CreateCoin(condition)
-                        if condition.puzzle_hash != SETTLEMENT_PAYMENT_HASH.into() =>
-                    {
-                        return Err(DriverError::InvalidLinkedOfferPayment);
-                    }
                     Condition::ReserveFee(condition) => {
                         reserved_fee += condition.amount;
                     }
@@ -59,10 +53,6 @@ pub fn build_linked_offer(
                     }
                     _ => {}
                 }
-            }
-
-            if child.asset.coin().amount != info.settlement_amount + reserved_fee {
-                return Err(DriverError::WrongOfferPreSplitOutput);
             }
 
             linked_offer.reserved_fee += reserved_fee;

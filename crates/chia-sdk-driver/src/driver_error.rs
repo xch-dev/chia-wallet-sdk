@@ -167,12 +167,6 @@ pub enum DriverError {
     #[error("wrong linked offer launcher id")]
     WrongLinkedOfferLauncherId,
 
-    #[error("linked offer coin creates non-settlement payment")]
-    InvalidLinkedOfferPayment,
-
-    #[error("offer pre-split coin has the wrong output amount")]
-    WrongOfferPreSplitOutput,
-
     #[error("missing required bulletin conditions")]
     MissingBulletinConditions,
 
