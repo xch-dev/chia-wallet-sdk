@@ -1,13 +1,12 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 
 use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::offer::{NotarizedPayment, Payment, SettlementPaymentsSolution};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::{Condition, puzzles::SettlementPayment};
+use chia_sdk_types::Condition;
 
 use crate::{
-    BURN_PUZZLE_HASH, Cat, CatInfo, DriverError, Facts, Nft, ParsedAsset, ParsedMemos, Puzzle,
-    RevealedCoinSpend, RevealedP2Puzzle, Reveals, SpendContext, calculate_nft_royalty, parse_memos,
+    BURN_PUZZLE_HASH, Cat, DriverError, Facts, Nft, ParsedAsset, ParsedMemos, RevealedCoinSpend,
+    RevealedP2Puzzle, Reveals, SpendContext, parse_memos,
 };
 
 #[derive(Debug, Clone)]
@@ -146,65 +145,6 @@ pub fn parse_children(
                             memos,
                             transfer_type,
                         });
-                    }
-                }
-            }
-            Condition::TransferNft(condition)
-                if let ParsedAsset::Nft(parent_nft) = asset
-                    && parent_nft.info.royalty_basis_points > 0 =>
-            {
-                let cats: HashMap<Bytes32, CatInfo> = reveals
-                    .asset_info()
-                    .cats()
-                    .filter_map(|&asset_id| {
-                        let hidden_puzzle_hash =
-                            reveals.asset_info().cat(asset_id)?.hidden_puzzle_hash;
-                        let cat_info = CatInfo::new(
-                            asset_id,
-                            hidden_puzzle_hash,
-                            SETTLEMENT_PAYMENT_HASH.into(),
-                        );
-                        Some((cat_info.puzzle_hash().into(), cat_info))
-                    })
-                    .collect();
-
-                let hint = ctx.hint(parent_nft.info.royalty_puzzle_hash)?;
-
-                for trade_price in &condition.trade_prices {
-                    let royalty_amount = calculate_nft_royalty(
-                        trade_price.amount,
-                        parent_nft.info.royalty_basis_points,
-                    );
-
-                    let notarized_payment = NotarizedPayment::new(
-                        parent_nft.info.launcher_id,
-                        vec![Payment::new(
-                            parent_nft.info.royalty_puzzle_hash,
-                            royalty_amount,
-                            hint,
-                        )],
-                    );
-
-                    let inner_settlement_solution =
-                        ctx.alloc(&SettlementPaymentsSolution::new(vec![notarized_payment]))?;
-
-                    if trade_price.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into() {
-                        let outer_puzzle = ctx.alloc_mod::<SettlementPayment>()?;
-                        let outer_puzzle = Puzzle::parse(ctx, outer_puzzle);
-                        reveals.reveal_settlement_payment(
-                            ctx,
-                            outer_puzzle,
-                            inner_settlement_solution,
-                        )?;
-                    } else if let Some(cat_info) = cats.get(&trade_price.puzzle_hash) {
-                        let p2_puzzle = ctx.alloc_mod::<SettlementPayment>()?;
-                        let outer_puzzle = cat_info.construct_puzzle(ctx, p2_puzzle)?;
-                        let outer_puzzle = Puzzle::parse(ctx, outer_puzzle);
-                        reveals.reveal_settlement_payment(
-                            ctx,
-                            outer_puzzle,
-                            inner_settlement_solution,
-                        )?;
                     }
                 }
             }

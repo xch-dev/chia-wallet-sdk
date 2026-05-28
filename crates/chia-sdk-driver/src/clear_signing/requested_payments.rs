@@ -1,5 +1,7 @@
+use std::collections::HashSet;
+
 use chia_protocol::Bytes32;
-use chia_puzzle_types::offer::NotarizedPayment;
+use chia_puzzle_types::offer::{NotarizedPayment, Payment};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{announcement_id, tree_hash_notarized_payment};
 use clvmr::Allocator;
@@ -7,13 +9,26 @@ use clvmr::Allocator;
 use crate::{CatInfo, DriverError, Facts, HashedPtr, NftInfo, Reveals, SingletonInfo};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AssertedRequestedPayment {
-    pub asset: RequestedAsset,
+pub struct AssertedNotarizedPayment {
+    pub asset: ClearSigningAsset,
     pub notarized_payment: NotarizedPayment,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssertedPayment {
+    pub asset: ClearSigningAsset,
+    pub nonce: Bytes32,
+    pub payment: Payment,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SplitAssertedPayments {
+    pub received_payments: Vec<AssertedPayment>,
+    pub external_payments: Vec<AssertedPayment>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RequestedAsset {
+pub enum ClearSigningAsset {
     Xch,
     Cat {
         asset_id: Bytes32,
@@ -28,12 +43,42 @@ pub enum RequestedAsset {
     },
 }
 
+pub fn split_asserted_payments(
+    asserted_payments: &[AssertedNotarizedPayment],
+    p2_puzzle_hashes: &HashSet<Bytes32>,
+) -> SplitAssertedPayments {
+    let mut received_payments = Vec::new();
+    let mut external_payments = Vec::new();
+
+    for asserted_notarized_payment in asserted_payments {
+        for payment in &asserted_notarized_payment.notarized_payment.payments {
+            let asserted_payment = AssertedPayment {
+                asset: asserted_notarized_payment.asset,
+                nonce: asserted_notarized_payment.notarized_payment.nonce,
+                payment: payment.clone(),
+            };
+
+            if p2_puzzle_hashes.contains(&asserted_payment.payment.puzzle_hash) {
+                received_payments.push(asserted_payment);
+            } else {
+                external_payments.push(asserted_payment);
+            }
+        }
+    }
+
+    SplitAssertedPayments {
+        received_payments,
+        external_payments,
+    }
+}
+
 pub fn parse_asserted_requested_payments(
     reveals: &Reveals,
     facts: &Facts,
     allocator: &Allocator,
-) -> Result<Vec<AssertedRequestedPayment>, DriverError> {
+) -> Result<Vec<AssertedNotarizedPayment>, DriverError> {
     let mut payments = Vec::new();
+    let mut seen_announcements = HashSet::new();
 
     let requested_payments = reveals.requested_payments();
     let asset_info = reveals.asset_info();
@@ -42,11 +87,15 @@ pub fn parse_asserted_requested_payments(
         let hash = tree_hash_notarized_payment(allocator, notarized_payment);
         let announcement_id = announcement_id(SETTLEMENT_PAYMENT_HASH.into(), hash);
 
-        if facts.is_puzzle_announcement_asserted(announcement_id) {
-            payments.push(AssertedRequestedPayment {
-                asset: RequestedAsset::Xch,
-                notarized_payment: notarized_payment.clone(),
-            });
+        let payment = AssertedNotarizedPayment {
+            asset: ClearSigningAsset::Xch,
+            notarized_payment: notarized_payment.clone(),
+        };
+
+        if facts.is_puzzle_announcement_asserted(announcement_id)
+            && seen_announcements.insert(announcement_id)
+        {
+            payments.push(payment);
         }
     }
 
@@ -65,14 +114,18 @@ pub fn parse_asserted_requested_payments(
             .puzzle_hash();
             let announcement_id = announcement_id(puzzle_hash.into(), hash);
 
-            if facts.is_puzzle_announcement_asserted(announcement_id) {
-                payments.push(AssertedRequestedPayment {
-                    asset: RequestedAsset::Cat {
-                        asset_id,
-                        hidden_puzzle_hash: info.hidden_puzzle_hash,
-                    },
-                    notarized_payment: notarized_payment.clone(),
-                });
+            let payment = AssertedNotarizedPayment {
+                asset: ClearSigningAsset::Cat {
+                    asset_id,
+                    hidden_puzzle_hash: info.hidden_puzzle_hash,
+                },
+                notarized_payment: notarized_payment.clone(),
+            };
+
+            if facts.is_puzzle_announcement_asserted(announcement_id)
+                && seen_announcements.insert(announcement_id)
+            {
+                payments.push(payment);
             }
         }
     }
@@ -96,17 +149,21 @@ pub fn parse_asserted_requested_payments(
             .puzzle_hash();
             let announcement_id = announcement_id(puzzle_hash.into(), hash);
 
-            if facts.is_puzzle_announcement_asserted(announcement_id) {
-                payments.push(AssertedRequestedPayment {
-                    asset: RequestedAsset::Nft {
-                        launcher_id,
-                        metadata: info.metadata,
-                        metadata_updater_puzzle_hash: info.metadata_updater_puzzle_hash,
-                        royalty_puzzle_hash: info.royalty_puzzle_hash,
-                        royalty_basis_points: info.royalty_basis_points,
-                    },
-                    notarized_payment: notarized_payment.clone(),
-                });
+            let payment = AssertedNotarizedPayment {
+                asset: ClearSigningAsset::Nft {
+                    launcher_id,
+                    metadata: info.metadata,
+                    metadata_updater_puzzle_hash: info.metadata_updater_puzzle_hash,
+                    royalty_puzzle_hash: info.royalty_puzzle_hash,
+                    royalty_basis_points: info.royalty_basis_points,
+                },
+                notarized_payment: notarized_payment.clone(),
+            };
+
+            if facts.is_puzzle_announcement_asserted(announcement_id)
+                && seen_announcements.insert(announcement_id)
+            {
+                payments.push(payment);
             }
         }
     }

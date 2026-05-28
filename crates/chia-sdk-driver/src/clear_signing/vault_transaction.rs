@@ -9,12 +9,12 @@ use clvmr::NodePtr;
 use indexmap::{IndexMap, IndexSet};
 
 use crate::{
-    AssertedRequestedPayment, ClawbackInfo, CustodyInfo, DriverError, DropCoin, Facts, Issuance,
-    IssuanceKind, LinkedOffer, P2ConditionsOrSingletonInfo, P2SingletonInfo, ParsedAsset,
-    ParsedChild, ParsedSpend, RevealedCoinSpend, Reveals, Spend, SpendContext, VaultMessage,
-    VaultOutput, build_linked_offer, get_extra_delta_message, mips_puzzle_hash,
-    parse_asserted_requested_payments, parse_children, parse_run_cat_tail, parse_spend,
-    parse_vault_delegated_spend,
+    AssertedNotarizedPayment, AssertedPayment, ClawbackInfo, ClearSigningAsset, CustodyInfo,
+    DriverError, DropCoin, Facts, Issuance, IssuanceKind, LinkedOffer, P2ConditionsOrSingletonInfo,
+    P2SingletonInfo, ParsedAsset, ParsedChild, ParsedSpend, RevealedCoinSpend, Reveals, Spend,
+    SpendContext, VaultMessage, VaultOutput, build_linked_offer, get_extra_delta_message,
+    mips_puzzle_hash, parse_asserted_requested_payments, parse_children, parse_run_cat_tail,
+    parse_spend, parse_vault_delegated_spend, split_asserted_payments,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -35,27 +35,37 @@ pub struct VaultTransaction {
     /// records the coin id of the spend that emitted the `RunCatTail` condition, so callers can
     /// match it back to the corresponding `VerifiedSpend` by coin id if they want to.
     pub issuances: Vec<Issuance>,
-    /// Requested payments which were both revealed and asserted by the vault spend. These are assets which are going
-    /// to be received when and if the transaction is confirmed on-chain.
-    pub received_payments: Vec<AssertedRequestedPayment>,
+    /// Settlement payments which were both revealed and asserted by the transaction.
+    pub asserted_payments: Vec<AssertedNotarizedPayment>,
+    /// Individual asserted payment outputs whose puzzle hash matches one of the vault's known p2 puzzle hashes.
+    pub received_payments: Vec<AssertedPayment>,
+    /// Individual asserted payment outputs whose puzzle hash doesn't match one of the vault's known p2 puzzle hashes.
+    /// These are not necessarily paid by the vault, but the transaction requires them to happen.
+    pub external_payments: Vec<AssertedPayment>,
+    /// Per-asset value flow for verified spends and asserted payments.
+    pub asset_flows: Vec<AssetFlow>,
     /// If this transaction creates one or more offer pre-split coins, this rolls them up into a
     /// description of the future offer. Per-leg details (the individual pre-split amounts) live
     /// in the children's transfer type field.
     ///
     /// [`None`] means the transaction does not link any offer pre-split coins.
     pub linked_offer: Option<LinkedOffer>,
-    /// Total fees (different between input and output amounts) paid by coin spends authorized by the vault.
-    /// If the transaction is signed, the fee is guaranteed to be at least this amount, unless it's not reserved.
-    /// The reason to include unreserved fees is to make it clear that the XCH is leaving the vault due to this transaction.
-    pub fee_paid: u64,
     /// The amount of fees reserved by coin spends authorized by the vault.
-    /// If this is greater than or equal to the fee paid, you can be sure that the XCH spent for fees will not be
-    /// maliciously redirected for some other purpose by the submitter of the transaction after signing.
     pub reserved_fee: u64,
     /// The known p2 puzzle hashes of the vault, based on revealed nonces (the first address is included by default).
     pub p2_puzzle_hashes: Vec<Bytes32>,
     /// The delegated puzzle hash that is being signed for.
     pub delegated_puzzle_hash: Bytes32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AssetFlow {
+    pub asset: ClearSigningAsset,
+    pub input_amount: u64,
+    pub output_amount: u64,
+    pub received_amount: u64,
+    pub paid_amount: u64,
+    pub unaccounted_amount: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -190,23 +200,18 @@ pub fn parse_vault_transaction(
 
     let delegated_puzzle_hash = tree_hash(ctx, delegated_spend.puzzle).into();
 
-    let reserved_fee = facts.reserved_fees().try_into()?;
-
-    let mut input_amount = 0;
-    let mut output_amount = 0;
-
-    for spend in &verified_spends {
-        input_amount += u128::from(spend.asset.coin().amount);
-
-        for child in &spend.children {
-            output_amount += u128::from(child.asset.coin().amount);
-        }
-    }
-
-    let fee_paid = input_amount.saturating_sub(output_amount).try_into()?;
-    let received_payments = parse_asserted_requested_payments(&reveals, &facts, ctx)?;
     let p2_puzzle_hashes = calculate_p2_puzzle_hashes(&reveals, launcher_id);
-    let linked_offer = build_linked_offer(&reveals, ctx, &verified_spends, launcher_id)?;
+    let p2_puzzle_hash_set = p2_puzzle_hashes.iter().copied().collect();
+    let reserved_fee = facts.reserved_fees().try_into()?;
+    let asserted_payments = parse_asserted_requested_payments(&reveals, &facts, ctx)?;
+    let split_payments = split_asserted_payments(&asserted_payments, &p2_puzzle_hash_set);
+    let linked_offer = build_linked_offer(
+        &reveals,
+        ctx,
+        &verified_spends,
+        launcher_id,
+        &p2_puzzle_hash_set,
+    )?;
 
     // Hydrate ephemerally spent bulletin children.
     let mut bulletins = HashMap::new();
@@ -227,14 +232,23 @@ pub fn parse_vault_transaction(
         }
     }
 
+    let asset_flows = build_asset_flows(
+        &verified_spends,
+        &split_payments.received_payments,
+        &split_payments.external_payments,
+        reserved_fee,
+    );
+
     Ok(VaultTransaction {
         vault_child: vault_spend.child,
         drop_coins: vault_spend.drop_coins,
         spends: verified_spends,
         issuances,
-        received_payments,
+        asserted_payments,
+        received_payments: split_payments.received_payments,
+        external_payments: split_payments.external_payments,
+        asset_flows,
         linked_offer,
-        fee_paid,
         reserved_fee,
         p2_puzzle_hashes,
         delegated_puzzle_hash,
@@ -352,6 +366,131 @@ fn verify_spend(
         custody,
         children,
     }))
+}
+
+#[derive(Debug, Clone)]
+struct AssetFlowTotals {
+    asset: ClearSigningAsset,
+    input_amount: u64,
+    output_amount: u64,
+    received_amount: u64,
+    paid_amount: u64,
+}
+
+fn build_asset_flows(
+    spends: &[VerifiedSpend],
+    received_payments: &[AssertedPayment],
+    external_payments: &[AssertedPayment],
+    reserved_fee: u64,
+) -> Vec<AssetFlow> {
+    let spend_coin_ids: HashSet<Bytes32> = spends
+        .iter()
+        .map(|spend| spend.asset.coin().coin_id())
+        .collect();
+    let child_coin_ids: HashSet<Bytes32> = spends
+        .iter()
+        .flat_map(|spend| spend.children.iter())
+        .map(|child| child.asset.coin().coin_id())
+        .collect();
+
+    let mut flows = IndexMap::<Option<Bytes32>, AssetFlowTotals>::new();
+
+    for spend in spends {
+        if !child_coin_ids.contains(&spend.asset.coin().coin_id()) {
+            asset_flow_mut(&mut flows, asset_from_parsed(&spend.asset)).input_amount +=
+                spend.asset.coin().amount;
+        }
+
+        for child in &spend.children {
+            if !spend_coin_ids.contains(&child.asset.coin().coin_id()) {
+                asset_flow_mut(&mut flows, asset_from_parsed(&child.asset)).output_amount +=
+                    child.asset.coin().amount;
+            }
+        }
+    }
+
+    for asserted_payment in received_payments {
+        asset_flow_mut(&mut flows, asserted_payment.asset).received_amount +=
+            asserted_payment.payment.amount;
+    }
+
+    for asserted_payment in external_payments {
+        asset_flow_mut(&mut flows, asserted_payment.asset).paid_amount +=
+            asserted_payment.payment.amount;
+    }
+
+    flows
+        .into_values()
+        .filter_map(|flow| {
+            let unaccounted_amount = flow
+                .input_amount
+                .saturating_sub(flow.output_amount)
+                .saturating_sub(flow.paid_amount)
+                .saturating_sub(if matches!(flow.asset, ClearSigningAsset::Xch) {
+                    reserved_fee
+                } else {
+                    0
+                });
+
+            let include = flow.input_amount > 0
+                || flow.output_amount > 0
+                || flow.received_amount > 0
+                || flow.paid_amount > 0;
+
+            include.then_some((flow, unaccounted_amount))
+        })
+        .map(|(flow, unaccounted_amount)| AssetFlow {
+            asset: flow.asset,
+            input_amount: flow.input_amount,
+            output_amount: flow.output_amount,
+            received_amount: flow.received_amount,
+            paid_amount: flow.paid_amount,
+            unaccounted_amount,
+        })
+        .collect()
+}
+
+fn asset_flow_mut(
+    flows: &mut IndexMap<Option<Bytes32>, AssetFlowTotals>,
+    asset: ClearSigningAsset,
+) -> &mut AssetFlowTotals {
+    flows
+        .entry(asset_flow_key(asset))
+        .or_insert_with(|| AssetFlowTotals {
+            asset,
+            input_amount: 0,
+            output_amount: 0,
+            received_amount: 0,
+            paid_amount: 0,
+        })
+}
+
+fn asset_flow_key(asset: ClearSigningAsset) -> Option<Bytes32> {
+    match asset {
+        ClearSigningAsset::Xch => None,
+        ClearSigningAsset::Cat { asset_id, .. }
+        | ClearSigningAsset::Nft {
+            launcher_id: asset_id,
+            ..
+        } => Some(asset_id),
+    }
+}
+
+fn asset_from_parsed(asset: &ParsedAsset) -> ClearSigningAsset {
+    match asset {
+        ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_) => ClearSigningAsset::Xch,
+        ParsedAsset::Cat(cat) => ClearSigningAsset::Cat {
+            asset_id: cat.info.asset_id,
+            hidden_puzzle_hash: cat.info.hidden_puzzle_hash,
+        },
+        ParsedAsset::Nft(nft) => ClearSigningAsset::Nft {
+            launcher_id: nft.info.launcher_id,
+            metadata: nft.info.metadata,
+            metadata_updater_puzzle_hash: nft.info.metadata_updater_puzzle_hash,
+            royalty_puzzle_hash: nft.info.royalty_puzzle_hash,
+            royalty_basis_points: nft.info.royalty_basis_points,
+        },
+    }
 }
 
 fn calculate_p2_puzzle_hashes(reveals: &Reveals, launcher_id: Bytes32) -> Vec<Bytes32> {

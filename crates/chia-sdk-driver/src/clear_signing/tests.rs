@@ -23,12 +23,12 @@ use clvm_utils::{ToTreeHash, tree_hash};
 use rstest::rstest;
 
 use crate::{
-    Action, AssertedRequestedPayment, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo,
-    CatSpend, ClawbackInfo, ClawbackPath, ClawbackV2, CustodyInfo, Deltas, DriverError, DropCoin,
-    FeeAction, HashedPtr, Id, IssuanceKind, LinkedOffer, Nft, OfferPreSplitInfo,
-    P2ConditionsOrSingleton, ParsedAsset, Puzzle, RequestedAsset, Reveals, Spend, SpendContext,
-    SpendKind, Spends, TestP2Puzzle, TestVault, TransferNftById, TransferType, VaultOutput,
-    iter_final_children, parse_vault_transaction,
+    Action, AssetFlow, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo, CatSpend,
+    ClawbackInfo, ClawbackPath, ClawbackV2, ClearSigningAsset, CustodyInfo, Deltas, DriverError,
+    DropCoin, FeeAction, HashedPtr, Id, IssuanceKind, LinkedOffer, Nft, OfferPreSplitInfo,
+    P2ConditionsOrSingleton, ParsedAsset, Puzzle, Reveals, Spend, SpendContext, SpendKind, Spends,
+    TestP2Puzzle, TestVault, TransferNftById, TransferType, VaultOutput, iter_final_children,
+    parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,6 +116,10 @@ fn unwrap_nft(asset: &ParsedAsset) -> &Nft {
     nft
 }
 
+fn asset_flow(flows: &[AssetFlow], asset: ClearSigningAsset) -> Option<&AssetFlow> {
+    flows.iter().find(|flow| flow.asset == asset)
+}
+
 #[rstest]
 fn test_clear_signing_vault_child() -> Result<()> {
     let mut sim = Simulator::new();
@@ -175,7 +179,10 @@ fn test_clear_signing_drop_coins() -> Result<()> {
 #[case(20, 0)]
 #[case(20, 10)]
 #[case(20, 20)]
-fn test_clear_signing_reserved_fee(#[case] fee_paid: u64, #[case] reserved_fee: u64) -> Result<()> {
+fn test_clear_signing_reserved_fee(
+    #[case] total_fee: u64,
+    #[case] reserved_fee: u64,
+) -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
 
@@ -190,7 +197,7 @@ fn test_clear_signing_reserved_fee(#[case] fee_paid: u64, #[case] reserved_fee: 
                 reserved: true,
             }),
             Action::Fee(FeeAction {
-                amount: fee_paid - reserved_fee,
+                amount: total_fee - reserved_fee,
                 reserved: false,
             }),
         ],
@@ -204,7 +211,12 @@ fn test_clear_signing_reserved_fee(#[case] fee_paid: u64, #[case] reserved_fee: 
         result.delegated_spend,
     )?;
 
-    assert_eq!(tx.fee_paid, fee_paid);
+    assert_eq!(
+        asset_flow(&tx.asset_flows, ClearSigningAsset::Xch)
+            .map(|flow| flow.unaccounted_amount)
+            .unwrap_or(0),
+        total_fee - reserved_fee
+    );
     assert_eq!(tx.reserved_fee, reserved_fee);
 
     Ok(())
@@ -539,7 +551,12 @@ fn test_clear_signing_transfer(
         result.delegated_spend,
     )?;
 
-    assert_eq!(tx.fee_paid, fee);
+    assert_eq!(
+        asset_flow(&tx.asset_flows, ClearSigningAsset::Xch)
+            .map(|flow| flow.unaccounted_amount)
+            .unwrap_or(0),
+        0
+    );
     assert_eq!(tx.reserved_fee, fee);
     assert_eq!(
         tx.spends.len(),
@@ -1263,7 +1280,7 @@ fn test_clear_signing_create_p2_conditions_or_singleton(
         assert_eq!(
             tx.linked_offer,
             Some(LinkedOffer {
-                requested_payments: vec![],
+                received_payments: vec![],
                 reserved_fee: 250,
             })
         );
@@ -1332,12 +1349,10 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_fixed() -> Result<()> {
         result.delegated_spend,
     )?;
 
-    // This is because the intermediate coin used to assert the puzzle announcement has an amount of 1.
-    // It was created by the settlement coin itself, so it's unknown where this coin came from.
-    // Even though it's ephemeral and not technically a fee being paid, it gets counted here conservatively.
-    assert_eq!(tx.fee_paid, 1);
-
-    // We didn't actually pay any fees, so this should be 0.
+    assert_eq!(
+        asset_flow(&tx.asset_flows, ClearSigningAsset::Xch).map(|flow| flow.unaccounted_amount),
+        Some(1)
+    );
     assert_eq!(tx.reserved_fee, 0);
 
     assert_eq!(tx.spends.len(), 1);
@@ -1345,10 +1360,12 @@ fn test_clear_signing_spend_p2_conditions_or_singleton_fixed() -> Result<()> {
     let spend = &tx.spends[0];
     assert_eq!(spend.children.len(), 0);
 
+    assert_eq!(tx.asserted_payments.len(), 1);
     assert_eq!(tx.received_payments.len(), 1);
+    assert_eq!(tx.external_payments.len(), 0);
 
-    let payment = &tx.received_payments[0];
-    assert_eq!(payment.asset, RequestedAsset::Xch);
+    let payment = &tx.asserted_payments[0];
+    assert_eq!(payment.asset, ClearSigningAsset::Xch);
     assert_eq!(payment.notarized_payment.payments.len(), 1);
 
     let payment = &payment.notarized_payment.payments[0];
@@ -1477,7 +1494,7 @@ fn test_clear_signing_offer() -> Result<()> {
         alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
     let coin_spends = [
         result.spend_bundle.coin_spends.clone(),
-        vec![requested_payment],
+        vec![requested_payment.clone(), requested_payment],
     ]
     .concat();
     let reveals = Reveals::from_coin_spends(&mut ctx, &coin_spends)?;
@@ -1497,10 +1514,12 @@ fn test_clear_signing_offer() -> Result<()> {
     assert_eq!(child.asset.coin().amount, 1000);
     assert_eq!(child.memos.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
 
+    assert_eq!(tx.asserted_payments.len(), 1);
     assert_eq!(tx.received_payments.len(), 1);
+    assert_eq!(tx.external_payments.len(), 0);
 
-    let payment = &tx.received_payments[0];
-    assert_eq!(payment.asset, RequestedAsset::Xch);
+    let payment = &tx.asserted_payments[0];
+    assert_eq!(payment.asset, ClearSigningAsset::Xch);
     assert_eq!(payment.notarized_payment, notarized_payment);
 
     // Take the offer
@@ -1528,7 +1547,9 @@ fn test_clear_signing_offer() -> Result<()> {
         maker_bundle.aggregated_signature + &result.spend_bundle.aggregated_signature,
     ))?;
 
-    assert_eq!(tx.fee_paid, 1000); // TODO: This isn't ideal
+    let xch_flow = asset_flow(&tx.asset_flows, ClearSigningAsset::Xch).unwrap();
+    assert_eq!(xch_flow.paid_amount, 1000);
+    assert_eq!(xch_flow.unaccounted_amount, 0);
     assert_eq!(tx.reserved_fee, 0);
     assert_eq!(tx.spends.len(), 1);
 
@@ -1539,16 +1560,18 @@ fn test_clear_signing_offer() -> Result<()> {
     assert_eq!(child.asset.coin().amount, 0);
     assert_eq!(child.memos.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
 
-    assert_eq!(tx.received_payments.len(), 2);
+    assert_eq!(tx.asserted_payments.len(), 2);
+    assert_eq!(tx.received_payments.len(), 1);
+    assert_eq!(tx.external_payments.len(), 1);
 
-    let xch_payment = &tx.received_payments[0];
-    assert_eq!(xch_payment.asset, RequestedAsset::Xch);
+    let xch_payment = &tx.asserted_payments[0];
+    assert_eq!(xch_payment.asset, ClearSigningAsset::Xch);
     assert_eq!(xch_payment.notarized_payment, notarized_payment);
 
-    let cat_payment = &tx.received_payments[1];
+    let cat_payment = &tx.asserted_payments[1];
     assert_eq!(
         cat_payment.asset,
-        RequestedAsset::Cat {
+        ClearSigningAsset::Cat {
             asset_id: asset_id.unwrap(),
             hidden_puzzle_hash: None,
         }
@@ -1558,6 +1581,9 @@ fn test_clear_signing_offer() -> Result<()> {
     let cat_payment = &cat_payment.notarized_payment.payments[0];
     assert_eq!(cat_payment.puzzle_hash, bob.p2_puzzle_hash);
     assert_eq!(cat_payment.amount, 1000);
+
+    assert_eq!(tx.external_payments[0].payment.amount, 1000);
+    assert_eq!(tx.received_payments[0].payment.amount, 1000);
 
     Ok(())
 }
@@ -1670,25 +1696,13 @@ fn test_clear_signing_nft_offer() -> Result<()> {
     let child = &spend.children[0];
     assert_eq!(child.memos.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
 
-    assert_eq!(tx.received_payments.len(), 2);
+    assert_eq!(tx.asserted_payments.len(), 1);
+    assert_eq!(tx.received_payments.len(), 1);
+    assert_eq!(tx.external_payments.len(), 0);
 
-    let xch_payment = &tx.received_payments[0];
-    assert_eq!(xch_payment.asset, RequestedAsset::Xch);
+    let xch_payment = &tx.asserted_payments[0];
+    assert_eq!(xch_payment.asset, ClearSigningAsset::Xch);
     assert_eq!(xch_payment.notarized_payment, notarized_payment);
-
-    let xch_royalty_payment = &tx.received_payments[1];
-    assert_eq!(xch_royalty_payment.asset, RequestedAsset::Xch);
-    assert_eq!(
-        xch_royalty_payment.notarized_payment.nonce,
-        nft.info.launcher_id
-    );
-
-    let xch_royalty_payment = &xch_royalty_payment.notarized_payment.payments[0];
-    assert_eq!(
-        xch_royalty_payment.puzzle_hash,
-        nft.info.royalty_puzzle_hash
-    );
-    assert_eq!(xch_royalty_payment.amount, 30);
 
     // Take the offer
     let settlement_nft = result.outputs.nfts[0];
@@ -1718,7 +1732,9 @@ fn test_clear_signing_nft_offer() -> Result<()> {
         maker_bundle.aggregated_signature + &result.spend_bundle.aggregated_signature,
     ))?;
 
-    assert_eq!(tx.fee_paid, 1030); // TODO: This isn't ideal
+    let xch_flow = asset_flow(&tx.asset_flows, ClearSigningAsset::Xch).unwrap();
+    assert_eq!(xch_flow.paid_amount, 1030);
+    assert_eq!(xch_flow.unaccounted_amount, 0);
     assert_eq!(tx.reserved_fee, 0);
     assert_eq!(tx.spends.len(), 1);
 
@@ -1729,14 +1745,16 @@ fn test_clear_signing_nft_offer() -> Result<()> {
     assert_eq!(child.asset.coin().amount, 0);
     assert_eq!(child.memos.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
 
-    assert_eq!(tx.received_payments.len(), 3);
+    assert_eq!(tx.asserted_payments.len(), 3);
+    assert_eq!(tx.received_payments.len(), 1);
+    assert_eq!(tx.external_payments.len(), 2);
 
-    let xch_payment = &tx.received_payments[0];
-    assert_eq!(xch_payment.asset, RequestedAsset::Xch);
+    let xch_payment = &tx.asserted_payments[0];
+    assert_eq!(xch_payment.asset, ClearSigningAsset::Xch);
     assert_eq!(xch_payment.notarized_payment, notarized_payment);
 
-    let xch_royalty_payment = &tx.received_payments[1];
-    assert_eq!(xch_royalty_payment.asset, RequestedAsset::Xch);
+    let xch_royalty_payment = &tx.asserted_payments[1];
+    assert_eq!(xch_royalty_payment.asset, ClearSigningAsset::Xch);
     assert_eq!(
         xch_royalty_payment.notarized_payment.nonce,
         nft.info.launcher_id
@@ -1749,10 +1767,10 @@ fn test_clear_signing_nft_offer() -> Result<()> {
     );
     assert_eq!(xch_royalty_payment.amount, 30);
 
-    let nft_payment = &tx.received_payments[2];
+    let nft_payment = &tx.asserted_payments[2];
     assert_eq!(
         nft_payment.asset,
-        RequestedAsset::Nft {
+        ClearSigningAsset::Nft {
             launcher_id: nft.info.launcher_id,
             metadata: nft.info.metadata,
             metadata_updater_puzzle_hash: nft.info.metadata_updater_puzzle_hash,
@@ -1765,6 +1783,10 @@ fn test_clear_signing_nft_offer() -> Result<()> {
     let nft_payment = &nft_payment.notarized_payment.payments[0];
     assert_eq!(nft_payment.puzzle_hash, bob.p2_puzzle_hash);
     assert_eq!(nft_payment.amount, 1);
+
+    assert_eq!(tx.external_payments[0].payment.amount, 1000);
+    assert_eq!(tx.external_payments[1].payment.amount, 30);
+    assert_eq!(tx.received_payments[0].payment.amount, 1);
 
     Ok(())
 }
@@ -1808,7 +1830,9 @@ fn test_clear_signing_single_sided_offer() -> Result<()> {
     assert_eq!(child.asset.coin().amount, 1000);
     assert_eq!(child.memos.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
 
+    assert_eq!(tx.asserted_payments.len(), 0);
     assert_eq!(tx.received_payments.len(), 0);
+    assert_eq!(tx.external_payments.len(), 0);
 
     // Take the offer
     let settlement_cat = result.outputs.cats[0][0];
@@ -1835,19 +1859,28 @@ fn test_clear_signing_single_sided_offer() -> Result<()> {
         maker_bundle.aggregated_signature + &result.spend_bundle.aggregated_signature,
     ))?;
 
-    assert_eq!(tx.fee_paid, 1); // TODO: This isn't ideal
+    let cat_asset = ClearSigningAsset::Cat {
+        asset_id: asset_id.unwrap(),
+        hidden_puzzle_hash: None,
+    };
+    assert_eq!(
+        asset_flow(&tx.asset_flows, cat_asset).map(|flow| flow.unaccounted_amount),
+        Some(1)
+    );
     assert_eq!(tx.reserved_fee, 0);
     assert_eq!(tx.spends.len(), 1);
 
     let spend = &tx.spends[0];
     assert_eq!(spend.children.len(), 0);
 
+    assert_eq!(tx.asserted_payments.len(), 1);
     assert_eq!(tx.received_payments.len(), 1);
+    assert_eq!(tx.external_payments.len(), 0);
 
-    let cat_payment = &tx.received_payments[0];
+    let cat_payment = &tx.asserted_payments[0];
     assert_eq!(
         cat_payment.asset,
-        RequestedAsset::Cat {
+        ClearSigningAsset::Cat {
             asset_id: asset_id.unwrap(),
             hidden_puzzle_hash: None,
         }
@@ -1939,17 +1972,27 @@ fn test_clear_signing_pre_split_offer() -> Result<()> {
     assert_eq!(child.asset.coin().amount, 250);
     assert_eq!(child.memos.p2_puzzle_hash, alice.p2_puzzle_hash);
 
+    assert_eq!(tx.asserted_payments.len(), 0);
     assert_eq!(tx.received_payments.len(), 0);
+    assert_eq!(tx.external_payments.len(), 0);
 
+    assert_eq!(tx.linked_offer.as_ref().unwrap().reserved_fee, 0);
+    assert_eq!(tx.linked_offer.as_ref().unwrap().received_payments.len(), 1);
     assert_eq!(
-        tx.linked_offer,
-        Some(LinkedOffer {
-            requested_payments: vec![AssertedRequestedPayment {
-                asset: RequestedAsset::Xch,
-                notarized_payment: notarized_payment.clone(),
-            }],
-            reserved_fee: 0,
-        })
+        tx.linked_offer.as_ref().unwrap().received_payments[0].asset,
+        ClearSigningAsset::Xch
+    );
+    assert_eq!(
+        tx.linked_offer.as_ref().unwrap().received_payments[0]
+            .payment
+            .amount,
+        1000
+    );
+    assert_eq!(
+        tx.linked_offer.as_ref().unwrap().received_payments[0]
+            .payment
+            .puzzle_hash,
+        alice.p2_puzzle_hash
     );
 
     // Take the offer
@@ -1977,7 +2020,9 @@ fn test_clear_signing_pre_split_offer() -> Result<()> {
         result.delegated_spend,
     )?;
 
-    assert_eq!(tx.fee_paid, 1000); // TODO: This isn't ideal
+    let xch_flow = asset_flow(&tx.asset_flows, ClearSigningAsset::Xch).unwrap();
+    assert_eq!(xch_flow.paid_amount, 1000);
+    assert_eq!(xch_flow.unaccounted_amount, 0);
     assert_eq!(tx.reserved_fee, 0);
     assert_eq!(tx.spends.len(), 1);
 
@@ -1988,16 +2033,18 @@ fn test_clear_signing_pre_split_offer() -> Result<()> {
     assert_eq!(child.asset.coin().amount, 0);
     assert_eq!(child.memos.p2_puzzle_hash, SETTLEMENT_PAYMENT_HASH.into());
 
-    assert_eq!(tx.received_payments.len(), 2);
+    assert_eq!(tx.asserted_payments.len(), 2);
+    assert_eq!(tx.received_payments.len(), 1);
+    assert_eq!(tx.external_payments.len(), 1);
 
-    let xch_payment = &tx.received_payments[0];
-    assert_eq!(xch_payment.asset, RequestedAsset::Xch);
+    let xch_payment = &tx.asserted_payments[0];
+    assert_eq!(xch_payment.asset, ClearSigningAsset::Xch);
     assert_eq!(xch_payment.notarized_payment, notarized_payment);
 
-    let cat_payment = &tx.received_payments[1];
+    let cat_payment = &tx.asserted_payments[1];
     assert_eq!(
         cat_payment.asset,
-        RequestedAsset::Cat {
+        ClearSigningAsset::Cat {
             asset_id: asset_id.unwrap(),
             hidden_puzzle_hash: None,
         }
@@ -2007,6 +2054,9 @@ fn test_clear_signing_pre_split_offer() -> Result<()> {
     let cat_payment = &cat_payment.notarized_payment.payments[0];
     assert_eq!(cat_payment.puzzle_hash, bob.p2_puzzle_hash);
     assert_eq!(cat_payment.amount, 750);
+
+    assert_eq!(tx.external_payments[0].payment.amount, 1000);
+    assert_eq!(tx.received_payments[0].payment.amount, 750);
 
     Ok(())
 }
