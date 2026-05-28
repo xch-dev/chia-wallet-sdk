@@ -5,14 +5,14 @@ use chia_sdk_types::Condition;
 use clvmr::Allocator;
 
 use crate::{
-    AssertedRequestedPayment, DriverError, Facts, Reveals, TransferType, VerifiedSpend,
-    parse_asserted_requested_payments,
+    AssertedPayment, DriverError, Facts, Reveals, TransferType, VerifiedSpend,
+    parse_asserted_requested_payments, split_asserted_payments,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LinkedOffer {
     pub reserved_fee: u64,
-    pub requested_payments: Vec<AssertedRequestedPayment>,
+    pub received_payments: Vec<AssertedPayment>,
 }
 
 pub fn build_linked_offer(
@@ -20,10 +20,11 @@ pub fn build_linked_offer(
     allocator: &Allocator,
     spends: &[VerifiedSpend],
     expected_launcher_id: Bytes32,
+    p2_puzzle_hashes: &HashSet<Bytes32>,
 ) -> Result<Option<LinkedOffer>, DriverError> {
     let mut linked_offer = LinkedOffer {
         reserved_fee: 0,
-        requested_payments: vec![],
+        received_payments: vec![],
     };
     let mut has_offer = false;
     let mut found_puzzle_assertions: Option<HashSet<Bytes32>> = None;
@@ -75,8 +76,10 @@ pub fn build_linked_offer(
             offer_facts.assert_puzzle_announcement(announcement_id);
         }
 
-        linked_offer.requested_payments =
+        let asserted_payments =
             parse_asserted_requested_payments(reveals, &offer_facts, allocator)?;
+        linked_offer.received_payments =
+            split_asserted_payments(&asserted_payments, p2_puzzle_hashes).received_payments;
     }
 
     Ok(has_offer.then_some(linked_offer))
