@@ -53,12 +53,13 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 # and OptionTypeNft struct types. Rename the constructors to resolve the conflict.
 Write-Host "Patching naming collisions..."
 $Generated = Join-Path $ScriptDir "chia_wallet_sdk" "chia_wallet_sdk.go"
-(Get-Content $Generated) `
-    -replace '^func OptionTypeCat\(',         'func NewOptionTypeFromCat(' `
-    -replace '^func OptionTypeNft\(',         'func NewOptionTypeFromNft(' `
-    -replace '^func OptionTypeRevocableCat\(','func NewOptionTypeFromRevocableCat(' `
-    -replace '^func OptionTypeXch\(',         'func NewOptionTypeFromXch(' |
-    Set-Content $Generated
+$content = [System.IO.File]::ReadAllText($Generated)
+$content = $content `
+    -replace '(?m)^func OptionTypeCat\(',          'func NewOptionTypeFromCat(' `
+    -replace '(?m)^func OptionTypeNft\(',          'func NewOptionTypeFromNft(' `
+    -replace '(?m)^func OptionTypeRevocableCat\(', 'func NewOptionTypeFromRevocableCat(' `
+    -replace '(?m)^func OptionTypeXch\(',          'func NewOptionTypeFromXch('
+[System.IO.File]::WriteAllText($Generated, $content)
 
 Write-Host "Staging native library..."
 $OutDir = Join-Path $ScriptDir "chia_wallet_sdk"

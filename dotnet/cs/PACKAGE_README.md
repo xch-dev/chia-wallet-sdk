@@ -75,6 +75,6 @@ var state = await client.GetBlockchainState();
 
 ## More Information
 
-- [Source & full documentation](https://github.com/dkackman/chia-wallet-sdk/tree/main/uniffi)
+- [Source & full documentation](https://github.com/dkackman/chia-wallet-sdk/tree/main/dotnet)
 - [Upstream Chia Wallet SDK](https://github.com/xch-dev/chia-wallet-sdk)
 - License: Apache-2.0

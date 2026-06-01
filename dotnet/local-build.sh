@@ -58,10 +58,19 @@ LIB_PREFIX=$( [ "$LIB_EXT" = "dll" ] && echo "" || echo "lib" )
 LIB_NAME="${LIB_PREFIX}chia_wallet_sdk.$LIB_EXT"
 LIB_PATH="$SCRIPT_DIR/../target/$TARGET/release-cs/$LIB_NAME"
 
+UNIFFI_BINDGEN_CS_TAG="v0.10.0+v0.29.4"
+
 echo "Building native library for $TARGET..."
 cd ..
 cargo build --profile release-cs -p chia-wallet-sdk-cs --target "$TARGET"
 cd "$SCRIPT_DIR"
+
+if ! command -v uniffi-bindgen-cs &>/dev/null; then
+  echo "Installing uniffi-bindgen-cs $UNIFFI_BINDGEN_CS_TAG..."
+  cargo install uniffi-bindgen-cs \
+    --git https://github.com/NordSecurity/uniffi-bindgen-cs \
+    --tag "$UNIFFI_BINDGEN_CS_TAG"
+fi
 
 echo "Generating C# bindings..."
 uniffi-bindgen-cs \

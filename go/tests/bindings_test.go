@@ -82,10 +82,12 @@ func TestAlloc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rcNil1.Destroy()
 	rcNil2, err := clvm.Nil()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rcNil2.Destroy()
 	runCatTail, err := chia.NewRunCatTail(rcNil1, rcNil2)
 	if err != nil {
 		t.Fatal(err)

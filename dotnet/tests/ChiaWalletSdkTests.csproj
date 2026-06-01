@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsPackable>false</IsPackable>
@@ -26,16 +26,32 @@
           Condition="Exists('../../target/release/libchia_wallet_sdk.dylib')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="../../target/release-cs/libchia_wallet_sdk.dylib"
+          Condition="Exists('../../target/release-cs/libchia_wallet_sdk.dylib')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="../../target/aarch64-apple-darwin/release/libchia_wallet_sdk.dylib"
           Condition="Exists('../../target/aarch64-apple-darwin/release/libchia_wallet_sdk.dylib')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../target/aarch64-apple-darwin/release-cs/libchia_wallet_sdk.dylib"
+          Condition="Exists('../../target/aarch64-apple-darwin/release-cs/libchia_wallet_sdk.dylib')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="../../target/release/libchia_wallet_sdk.so"
           Condition="Exists('../../target/release/libchia_wallet_sdk.so')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="../../target/release-cs/libchia_wallet_sdk.so"
+          Condition="Exists('../../target/release-cs/libchia_wallet_sdk.so')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="../../target/release/chia_wallet_sdk.dll"
           Condition="Exists('../../target/release/chia_wallet_sdk.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../target/release-cs/chia_wallet_sdk.dll"
+          Condition="Exists('../../target/release-cs/chia_wallet_sdk.dll')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

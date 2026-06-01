@@ -102,13 +102,13 @@ jobs:
         uses: taiki-e/install-action@cross
 
       - name: Build native library
-        run: ${{ matrix.settings.use_cross && 'cross' || 'cargo' }} build --release -p chia-wallet-sdk-cs --target ${{ matrix.settings.target }}
+        run: ${{ matrix.settings.use_cross && 'cross' || 'cargo' }} build --profile release-cs -p chia-wallet-sdk-cs --target ${{ matrix.settings.target }}
 
       - name: Upload native artifact
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.settings.artifact-name }}
-          path: target/${{ matrix.settings.target }}/release/${{ matrix.settings.lib-name }}
+          path: target/${{ matrix.settings.target }}/release-cs/${{ matrix.settings.lib-name }}
           if-no-files-found: error
 
   pack:
