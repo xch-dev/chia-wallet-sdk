@@ -11,6 +11,9 @@ uniffi/cs/runtimes/
 uniffi/cs/chia_wallet_sdk.cs
 nuget-out/
 
+# Go generated bindings and native library (CI-only, never committed)
+go/chia_wallet_sdk/
+
 # Local dev scripts
 pack-local.sh
 .remember/

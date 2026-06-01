@@ -1059,6 +1059,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "chia-wallet-sdk-go"
+version = "0.33.0"
+dependencies = [
+ "bindy",
+ "bindy-macro",
+ "chia-sdk-bindings",
+ "openssl",
+ "openssl-sys",
+ "uniffi",
+]
+
+[[package]]
 name = "chia-wallet-sdk-napi"
 version = "0.0.0"
 dependencies = [

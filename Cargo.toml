@@ -23,6 +23,7 @@ members = [
     "pyo3",
     "pyo3/stub-generator",
     "uniffi",
+    "go",
 ]
 
 [workspace.package]
@@ -202,5 +203,10 @@ strip = "symbols"
 # because uniffi reads UNIFFI_META_* symbols from the static symbol table,
 # which strip = "symbols" removes. See mozilla/uniffi-rs#2520.
 [profile.release-cs]
+inherits = "release"
+strip = "none"
+
+# Same requirement applies to the uniffi-bindgen-go generate step.
+[profile.release-go]
 inherits = "release"
 strip = "none"
