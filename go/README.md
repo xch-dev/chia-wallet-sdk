@@ -30,7 +30,7 @@ cd go
 After running, the `go/chia_wallet_sdk/` directory contains:
 
 | File | Description |
-|------|-------------|
+| ---- | ----------- |
 | `chia_wallet_sdk.go` | All generated Go types, functions, and CGo glue |
 | `chia_wallet_sdk.h` | C header required at CGo compile time |
 | `libchia_wallet_sdk.dylib` / `.so` / `.dll` | Native shared library |
@@ -51,7 +51,7 @@ cargo build --profile release-go -p chia-wallet-sdk-go --target aarch64-apple-da
 Output by platform:
 
 | Platform | File |
-|----------|------|
+| -------- | ---- |
 | macOS | `target/<target>/release-go/libchia_wallet_sdk.dylib` |
 | Linux | `target/<target>/release-go/libchia_wallet_sdk.so` |
 | Windows | `target/<target>/release-go/chia_wallet_sdk.dll` |
@@ -85,7 +85,7 @@ This writes `go/chia_wallet_sdk/chia_wallet_sdk.go` and `go/chia_wallet_sdk/chia
 The generated code uses `#include <chia_wallet_sdk.h>` and links against `libchia_wallet_sdk`. The linker must be able to find the shared library. The simplest approach during development is to set `CGO_LDFLAGS`:
 
 ```bash
-export CGO_LDFLAGS="-L/path/to/chia-wallet-sdk/go/chia_wallet_sdk"
+export CGO_LDFLAGS="-L/path/to/chia-wallet-sdk/go/chia_wallet_sdk -lchia_wallet_sdk"
 go build ./...
 ```
 
@@ -201,7 +201,7 @@ func main() {
 The bindings cover the full SDK:
 
 | Module | Types / Functions |
-|--------|------------------|
+| ------ | ----------------- |
 | BLS keys | `SecretKey`, `PublicKey`, `Signature`, `AggregateSignature` |
 | Secp keys | `K1SecretKey`, `K1PublicKey`, `K1Signature`, `R1SecretKey`, `R1PublicKey`, `R1Signature` |
 | Address | `Address`, `AddressDecode` |
@@ -221,7 +221,7 @@ The bindings cover the full SDK:
 ## Type Mapping Reference
 
 | Rust type | Go type | Notes |
-|-----------|---------|-------|
+| --------- | ------- | ----- |
 | `Vec<u8>` / bytes types | `[]byte` | Puzzle hashes, keys, signatures |
 | `u64`, `u128`, `BigInt` | `string` | Parse with `new(big.Int).SetString(s, 10)` |
 | `u8`–`u32` | `uint8`–`uint32` | |
@@ -278,7 +278,7 @@ defer state.Destroy()
 
 ## Architecture
 
-```
+```text
 bindings/*.json          ← single source of truth for the API surface
        ↓
 bindy_uniffi! macro      ← generates #[derive(uniffi::Object)] / #[uniffi::export]
@@ -297,7 +297,7 @@ The same `bindings/*.json` schemas also drive the C# (`uniffi/`), Node.js (`napi
 ## Known Limitations
 
 | Limitation | Details |
-|------------|---------|
+| ---------- | ------- |
 | BigInt as string | `u64`/`u128`/`BigInt` map to `string`; parse with `math/big`. |
 | Manual `Destroy()` | Rust objects must be explicitly destroyed; the Go GC does not reach Rust heap allocations. |
 | `Clvm.Alloc()` is typed | Unlike Python, which accepts dynamic types, `Alloc` takes a `ClvmType` enum. Use `NewClvm()` helper methods — `Nil()`, `Int()`, `Atom()`, etc. — for primitive values. |

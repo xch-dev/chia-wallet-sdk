@@ -48,6 +48,18 @@ Write-Host "Generating Go bindings..."
 uniffi-bindgen-go --library $LibPath --out-dir $ScriptDir
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+# uniffi-bindgen-go generates OptionType factory constructors as OptionTypeCat(),
+# OptionTypeNft(), etc., which collide with the separately-generated OptionTypeCat
+# and OptionTypeNft struct types. Rename the constructors to resolve the conflict.
+Write-Host "Patching naming collisions..."
+$Generated = Join-Path $ScriptDir "chia_wallet_sdk" "chia_wallet_sdk.go"
+(Get-Content $Generated) `
+    -replace '^func OptionTypeCat\(',         'func NewOptionTypeFromCat(' `
+    -replace '^func OptionTypeNft\(',         'func NewOptionTypeFromNft(' `
+    -replace '^func OptionTypeRevocableCat\(','func NewOptionTypeFromRevocableCat(' `
+    -replace '^func OptionTypeXch\(',         'func NewOptionTypeFromXch(' |
+    Set-Content $Generated
+
 Write-Host "Staging native library..."
 $OutDir = Join-Path $ScriptDir "chia_wallet_sdk"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
@@ -57,5 +69,5 @@ Write-Host ""
 Write-Host "Go bindings generated in: $OutDir"
 Write-Host ""
 Write-Host "To build a Go project using these bindings, set CGO_LDFLAGS:"
-Write-Host "  `$env:CGO_LDFLAGS = `"-L$OutDir`""
+Write-Host "  `$env:CGO_LDFLAGS = `"-L$OutDir -lchia_wallet_sdk`""
 Write-Host "  go build ./..."

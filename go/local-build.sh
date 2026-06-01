@@ -58,6 +58,19 @@ uniffi-bindgen-go \
   --library "$LIB_PATH" \
   --out-dir "$SCRIPT_DIR"
 
+# uniffi-bindgen-go generates OptionType factory constructors as OptionTypeCat(),
+# OptionTypeNft(), etc., which collide with the separately-generated OptionTypeCat
+# and OptionTypeNft struct types. Rename the constructors to resolve the conflict.
+echo "Patching naming collisions..."
+GENERATED="$SCRIPT_DIR/chia_wallet_sdk/chia_wallet_sdk.go"
+sed -i.bak \
+  -e 's/^func OptionTypeCat(/func NewOptionTypeFromCat(/' \
+  -e 's/^func OptionTypeNft(/func NewOptionTypeFromNft(/' \
+  -e 's/^func OptionTypeRevocableCat(/func NewOptionTypeFromRevocableCat(/' \
+  -e 's/^func OptionTypeXch(/func NewOptionTypeFromXch(/' \
+  "$GENERATED"
+rm -f "$GENERATED.bak"
+
 echo "Staging native library..."
 mkdir -p "$SCRIPT_DIR/chia_wallet_sdk"
 cp "$LIB_PATH" "$SCRIPT_DIR/chia_wallet_sdk/"
@@ -67,7 +80,7 @@ echo "Go bindings generated in: $SCRIPT_DIR/chia_wallet_sdk/"
 echo ""
 echo "To build a Go project using these bindings, the linker must find the native"
 echo "library. Set CGO_LDFLAGS when building from outside this directory:"
-echo "  CGO_LDFLAGS=\"-L\$(realpath $SCRIPT_DIR/chia_wallet_sdk)\" go build ./..."
+echo "  CGO_LDFLAGS=\"-L\$(realpath $SCRIPT_DIR/chia_wallet_sdk) -lchia_wallet_sdk\" go build ./..."
 echo ""
 echo "Or install the library system-wide (macOS example):"
 echo "  sudo cp $SCRIPT_DIR/chia_wallet_sdk/$LIB_NAME /usr/local/lib/"
