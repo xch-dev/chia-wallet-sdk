@@ -11,10 +11,11 @@ use chia_puzzles::{
 };
 use chia_sdk_test::Simulator;
 use chia_sdk_types::{
-    Condition, Conditions, MessageFlags, MessageSide, announcement_id,
+    Condition, Conditions, MessageFlags, MessageSide, Mod, announcement_id,
     conditions::TradePrice,
     puzzles::{
-        EverythingWithSingletonTailArgs, EverythingWithSingletonTailSolution, SettlementPayment,
+        EverythingWithSingletonTailArgs, EverythingWithSingletonTailSolution, RevocationArgs,
+        SettlementPayment,
     },
     tree_hash_notarized_payment,
 };
@@ -213,8 +214,7 @@ fn test_clear_signing_reserved_fee(
 
     assert_eq!(
         asset_flow(&tx.asset_flows, ClearSigningAsset::Xch)
-            .map(|flow| flow.unaccounted_amount)
-            .unwrap_or(0),
+            .map_or(0, |flow| flow.unaccounted_amount),
         total_fee - reserved_fee
     );
     assert_eq!(tx.reserved_fee, reserved_fee);
@@ -553,8 +553,7 @@ fn test_clear_signing_transfer(
 
     assert_eq!(
         asset_flow(&tx.asset_flows, ClearSigningAsset::Xch)
-            .map(|flow| flow.unaccounted_amount)
-            .unwrap_or(0),
+            .map_or(0, |flow| flow.unaccounted_amount),
         0
     );
     assert_eq!(tx.reserved_fee, fee);
@@ -1210,6 +1209,110 @@ fn test_clear_signing_transfer_type(
     let child = &spend.children[0];
     assert_eq!(child.memos.p2_puzzle_hash, p2_puzzle_hash);
     assert_eq!(child.transfer_type, transfer_type);
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_revocable_cat_child_uses_unwrapped_p2_puzzle_hash() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1)?;
+    let child_p2_puzzle_hash = SETTLEMENT_PAYMENT_HASH.into();
+
+    let tail_puzzle = ctx.curry(EverythingWithSingletonTailArgs::new(
+        alice.info.launcher_id,
+        Bytes::default(),
+    ))?;
+    let tail_solution = ctx.alloc(&EverythingWithSingletonTailSolution::new(
+        alice.info.custody_hash.into(),
+    ))?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::issue_cat(
+            Spend::new(tail_puzzle, tail_solution),
+            Some(alice.p2_puzzle_hash),
+            1,
+        )],
+    )?;
+    let cat = result.outputs.cats[0][0];
+
+    let revocable_child_puzzle_hash =
+        RevocationArgs::new(alice.p2_puzzle_hash, child_p2_puzzle_hash)
+            .curry_tree_hash()
+            .into();
+    let conditions = Conditions::new().create_coin(
+        revocable_child_puzzle_hash,
+        1,
+        ctx.hint(child_p2_puzzle_hash)?,
+    );
+    let delegated_spend = ctx.delegated_spend(conditions)?;
+    let delegated_puzzle_hash = ctx.tree_hash(delegated_spend.puzzle);
+
+    let TestP2Puzzle::P2Singleton(p2_singleton) = alice.p2_puzzles[&alice.p2_puzzle_hash.into()]
+    else {
+        panic!("expected p2 singleton");
+    };
+    let p2_spend =
+        p2_singleton.spend(&mut ctx, alice.info.custody_hash.into(), 1, delegated_spend)?;
+
+    Cat::spend_all(&mut ctx, &[CatSpend::revoke(cat, p2_spend)])?;
+
+    let mode = MessageFlags::PUZZLE.encode(MessageSide::Sender)
+        | MessageFlags::COIN.encode(MessageSide::Receiver);
+    let coin_id = ctx.alloc(&cat.coin.coin_id())?;
+    let vault_conditions =
+        Conditions::new().send_message(mode, delegated_puzzle_hash.to_vec().into(), vec![coin_id]);
+
+    let result = alice.custom_spend(
+        &mut sim,
+        &mut ctx,
+        &[],
+        Spends::new(alice.p2_puzzle_hash),
+        vault_conditions,
+    )?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.spends.len(), 1);
+
+    let spend = &tx.spends[0];
+    check_asset(
+        &spend.asset,
+        Some(cat.info.asset_id),
+        Some(alice.p2_puzzle_hash),
+        1,
+    );
+    assert_eq!(spend.children.len(), 1);
+
+    let child = &spend.children[0];
+    let expected_child_info = CatInfo::new(
+        cat.info.asset_id,
+        Some(alice.p2_puzzle_hash),
+        child_p2_puzzle_hash,
+    );
+
+    check_asset(
+        &child.asset,
+        Some(cat.info.asset_id),
+        Some(alice.p2_puzzle_hash),
+        1,
+    );
+    assert_eq!(
+        child.asset.coin().puzzle_hash,
+        expected_child_info.puzzle_hash().into()
+    );
+    assert_eq!(child.memos.p2_puzzle_hash, child_p2_puzzle_hash);
+    assert_eq!(child.transfer_type, TransferType::Offered);
 
     Ok(())
 }

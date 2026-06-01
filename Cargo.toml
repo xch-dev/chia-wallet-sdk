@@ -65,6 +65,7 @@ must_use_candidate = "allow"
 cargo_common_metadata = "allow"
 result_large_err = "allow"
 format_push_string = "allow"
+implicit_hasher = "allow"
 
 [lints]
 workspace = true

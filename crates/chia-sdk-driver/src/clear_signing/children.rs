@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
-use chia_sdk_types::Condition;
+use chia_sdk_types::{Condition, conditions::CreateCoin};
 
 use crate::{
     BURN_PUZZLE_HASH, Cat, DriverError, Facts, Nft, ParsedAsset, ParsedMemos, RevealedCoinSpend,
@@ -136,7 +136,16 @@ pub fn parse_children(
                             return Err(DriverError::RevocableChild);
                         }
 
-                        let memos = parse_memos(reveals, ctx, *condition, true);
+                        let memos = parse_memos(
+                            reveals,
+                            ctx,
+                            CreateCoin::new(
+                                cat.info.p2_puzzle_hash,
+                                condition.amount,
+                                condition.memos,
+                            ),
+                            true,
+                        );
                         let transfer_type =
                             calculate_transfer_type(reveals, &memos, condition.amount);
 
