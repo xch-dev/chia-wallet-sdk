@@ -159,8 +159,7 @@ impl RpcClient {
     ) -> Result<GetCoinRecordsResponse> {
         let client = self.0.clone();
         spawn_on_runtime(async move {
-            Ok(self
-                .0
+            Ok(client
                 .get_coin_records_by_hint(
                     hint,
                     start_height,
