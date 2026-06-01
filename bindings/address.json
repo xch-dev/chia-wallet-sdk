@@ -1,6 +1,7 @@
 {
   "Address": {
     "type": "class",
+    "doc": "represents a bech32m-encoded Chia address with a puzzle hash and network prefix.",
     "new": true,
     "fields": {
       "puzzle_hash": "Bytes32",
@@ -8,9 +9,11 @@
     },
     "methods": {
       "encode": {
+        "doc": "encodes the address as a bech32m string.",
         "return": "String"
       },
       "decode": {
+        "doc": "decodes a bech32m address string into an Address.",
         "type": "factory",
         "args": {
           "address": "String"

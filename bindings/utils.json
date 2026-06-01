@@ -1,6 +1,7 @@
 {
   "from_hex": {
     "type": "function",
+    "doc": "decodes a hexadecimal string into raw bytes.",
     "args": {
       "value": "String"
     },
@@ -8,6 +9,7 @@
   },
   "to_hex": {
     "type": "function",
+    "doc": "encodes raw bytes as a hexadecimal string.",
     "args": {
       "value": "Bytes"
     },
@@ -15,6 +17,7 @@
   },
   "bytes_equal": {
     "type": "function",
+    "doc": "reports whether two byte slices are equal.",
     "args": {
       "lhs": "Bytes",
       "rhs": "Bytes"
@@ -23,6 +26,7 @@
   },
   "tree_hash_atom": {
     "type": "function",
+    "doc": "computes the CLVM tree hash of an atom (leaf node): SHA-256 of 0x01 prepended to the atom bytes.",
     "args": {
       "atom": "Bytes"
     },
@@ -30,6 +34,7 @@
   },
   "tree_hash_pair": {
     "type": "function",
+    "doc": "computes the CLVM tree hash of a cons pair: SHA-256 of 0x02 prepended to the concatenation of the two child hashes.",
     "args": {
       "first": "Bytes32",
       "rest": "Bytes32"
@@ -38,6 +43,7 @@
   },
   "sha256": {
     "type": "function",
+    "doc": "computes the SHA-256 hash of the given bytes.",
     "args": {
       "value": "Bytes"
     },
@@ -45,6 +51,7 @@
   },
   "curry_tree_hash": {
     "type": "function",
+    "doc": "computes the tree hash of a curried program without materializing the full CLVM tree.",
     "args": {
       "program": "Bytes32",
       "args": "Vec<Bytes32>"
@@ -53,6 +60,7 @@
   },
   "generate_bytes": {
     "type": "function",
+    "doc": "generates cryptographically random bytes of the specified length.",
     "args": {
       "bytes": "u32"
     },
@@ -60,6 +68,7 @@
   },
   "select_coins": {
     "type": "function",
+    "doc": "selects the smallest set of coins that meets or exceeds the target amount using a knapsack algorithm.",
     "args": {
       "coins": "Vec<Coin>",
       "amount": "u64"
@@ -68,6 +77,7 @@
   },
   "spend_bundle_cost": {
     "type": "function",
+    "doc": "computes the total CLVM execution cost of the given coin spends.",
     "args": {
       "coin_spends": "Vec<CoinSpend>"
     },

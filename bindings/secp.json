@@ -1,20 +1,25 @@
 {
   "K1SecretKey": {
     "type": "class",
+    "doc": "represents a secp256k1 secret key, used for Bitcoin-compatible signing (e.g., MIPS vaults).",
     "methods": {
       "from_bytes": {
+        "doc": "creates a secp256k1 secret key from its 32-byte representation.",
         "type": "factory",
         "args": {
           "bytes": "Bytes32"
         }
       },
       "to_bytes": {
+        "doc": "returns the 32-byte representation of the secret key.",
         "return": "Bytes32"
       },
       "public_key": {
+        "doc": "returns the corresponding secp256k1 public key.",
         "return": "K1PublicKey"
       },
       "sign_prehashed": {
+        "doc": "signs a pre-hashed 32-byte message, returning a secp256k1 signature.",
         "args": {
           "prehashed": "Bytes32"
         },
@@ -24,20 +29,25 @@
   },
   "K1PublicKey": {
     "type": "class",
+    "doc": "represents a compressed secp256k1 public key (33 bytes).",
     "methods": {
       "from_bytes": {
+        "doc": "creates a secp256k1 public key from its 33-byte compressed representation.",
         "type": "factory",
         "args": {
           "bytes": "BytesImpl<33>"
         }
       },
       "to_bytes": {
+        "doc": "returns the 33-byte compressed representation of the public key.",
         "return": "BytesImpl<33>"
       },
       "fingerprint": {
+        "doc": "returns the 4-byte fingerprint of the public key.",
         "return": "u32"
       },
       "verify_prehashed": {
+        "doc": "verifies a secp256k1 signature against a pre-hashed message.",
         "args": {
           "prehashed": "Bytes32",
           "signature": "K1Signature"
@@ -48,34 +58,42 @@
   },
   "K1Signature": {
     "type": "class",
+    "doc": "represents a secp256k1 ECDSA signature (64 bytes, compact format).",
     "methods": {
       "from_bytes": {
+        "doc": "creates a secp256k1 signature from its 64-byte compact representation.",
         "type": "factory",
         "args": {
           "bytes": "BytesImpl<64>"
         }
       },
       "to_bytes": {
+        "doc": "returns the 64-byte compact representation of the signature.",
         "return": "BytesImpl<64>"
       }
     }
   },
   "R1SecretKey": {
     "type": "class",
+    "doc": "represents a secp256r1 (P-256) secret key, used for passkey/WebAuthn signing (e.g., MIPS vaults).",
     "methods": {
       "from_bytes": {
+        "doc": "creates a secp256r1 secret key from its 32-byte representation.",
         "type": "factory",
         "args": {
           "bytes": "Bytes32"
         }
       },
       "to_bytes": {
+        "doc": "returns the 32-byte representation of the secret key.",
         "return": "Bytes32"
       },
       "public_key": {
+        "doc": "returns the corresponding secp256r1 public key.",
         "return": "R1PublicKey"
       },
       "sign_prehashed": {
+        "doc": "signs a pre-hashed 32-byte message, returning a secp256r1 signature.",
         "args": {
           "prehashed": "Bytes32"
         },
@@ -85,20 +103,25 @@
   },
   "R1PublicKey": {
     "type": "class",
+    "doc": "represents a compressed secp256r1 (P-256) public key (33 bytes).",
     "methods": {
       "from_bytes": {
+        "doc": "creates a secp256r1 public key from its 33-byte compressed representation.",
         "type": "factory",
         "args": {
           "bytes": "BytesImpl<33>"
         }
       },
       "to_bytes": {
+        "doc": "returns the 33-byte compressed representation of the public key.",
         "return": "BytesImpl<33>"
       },
       "fingerprint": {
+        "doc": "returns the 4-byte fingerprint of the public key.",
         "return": "u32"
       },
       "verify_prehashed": {
+        "doc": "verifies a secp256r1 signature against a pre-hashed message.",
         "args": {
           "prehashed": "Bytes32",
           "signature": "R1Signature"
@@ -109,14 +132,17 @@
   },
   "R1Signature": {
     "type": "class",
+    "doc": "represents a secp256r1 (P-256) ECDSA signature (64 bytes, compact format).",
     "methods": {
       "from_bytes": {
+        "doc": "creates a secp256r1 signature from its 64-byte compact representation.",
         "type": "factory",
         "args": {
           "bytes": "BytesImpl<64>"
         }
       },
       "to_bytes": {
+        "doc": "returns the 64-byte compact representation of the signature.",
         "return": "BytesImpl<64>"
       }
     }

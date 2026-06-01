@@ -1,6 +1,7 @@
 {
   "VaultSpendReveal": {
     "type": "class",
+    "doc": "holds the clear signing reveal data for a vault spend: launcher ID, custody hash, and the delegated spend.",
     "new": true,
     "fields": {
       "launcher_id": "Bytes32",
@@ -10,6 +11,7 @@
   },
   "VaultTransaction": {
     "type": "class",
+    "doc": "represents a parsed vault transaction for clear signing display, showing payments, NFT transfers, fees, and custody changes.",
     "new": true,
     "remote": true,
     "fields": {
@@ -26,6 +28,7 @@
   },
   "ParsedPayment": {
     "type": "class",
+    "doc": "represents a parsed payment in a vault transaction: the transfer type, asset, destination, amount, and optional clawback.",
     "new": true,
     "remote": true,
     "fields": {
@@ -40,6 +43,7 @@
   },
   "ParsedNftTransfer": {
     "type": "class",
+    "doc": "represents a parsed NFT transfer in a vault transaction, including old/new state, royalty info, and metadata changes.",
     "new": true,
     "remote": true,
     "fields": {
@@ -58,6 +62,7 @@
   },
   "NftState": {
     "type": "class",
+    "doc": "captures the state of an NFT at a point in time: parsed metadata, updater puzzle hash, and DID owner.",
     "new": true,
     "remote": true,
     "fields": {
@@ -68,10 +73,18 @@
   },
   "TransferType": {
     "type": "enum",
-    "values": ["Sent", "Burned", "Offered", "Received", "Updated"]
+    "doc": "classifies the type of transfer in a clear signing transaction: sent, burned, offered, received, or updated.",
+    "values": [
+      "Sent",
+      "Burned",
+      "Offered",
+      "Received",
+      "Updated"
+    ]
   },
   "DropCoin": {
     "type": "class",
+    "doc": "represents a coin that is dropped (destroyed without a recipient) in a vault transaction.",
     "new": true,
     "remote": true,
     "fields": {
@@ -81,6 +94,7 @@
   },
   "calculate_vault_puzzle_message": {
     "type": "function",
+    "doc": "computes the message bytes for a vault clear signing puzzle-level signature.",
     "args": {
       "delegated_puzzle_hash": "Bytes32",
       "vault_puzzle_hash": "Bytes32"
@@ -89,6 +103,7 @@
   },
   "calculate_vault_coin_message": {
     "type": "function",
+    "doc": "computes the message bytes for a vault clear signing coin-level signature.",
     "args": {
       "delegated_puzzle_hash": "Bytes32",
       "vault_coin_id": "Bytes32",
@@ -98,6 +113,7 @@
   },
   "calculate_vault_start_recovery_message": {
     "type": "function",
+    "doc": "computes the message bytes for initiating a vault recovery with the given parameters.",
     "args": {
       "delegated_puzzle_hash": "Bytes32",
       "left_side_subtree_hash": "Bytes32",

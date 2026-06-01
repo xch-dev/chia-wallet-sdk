@@ -1,6 +1,7 @@
 {
   "Coin": {
     "type": "class",
+    "doc": "represents a coin on the Chia blockchain, identified by its parent coin info, puzzle hash, and amount.",
     "new": true,
     "remote": true,
     "fields": {
@@ -10,12 +11,14 @@
     },
     "methods": {
       "coin_id": {
+        "doc": "computes the unique coin ID by hashing the parent coin info, puzzle hash, and amount.",
         "return": "Bytes32"
       }
     }
   },
   "CoinSpend": {
     "type": "class",
+    "doc": "represents a spent coin, including the puzzle reveal and solution.",
     "new": true,
     "remote": true,
     "fields": {
@@ -26,6 +29,7 @@
   },
   "SpendBundle": {
     "type": "class",
+    "doc": "represents a bundle of coin spends with an aggregated BLS signature.",
     "new": true,
     "remote": true,
     "fields": {
@@ -34,9 +38,11 @@
     },
     "methods": {
       "to_bytes": {
+        "doc": "serializes the spend bundle to bytes.",
         "return": "Bytes"
       },
       "from_bytes": {
+        "doc": "deserializes a spend bundle from bytes.",
         "type": "factory",
         "args": {
           "bytes": "Bytes"
@@ -44,12 +50,14 @@
         "return": "SpendBundle"
       },
       "hash": {
+        "doc": "computes the hash of the spend bundle.",
         "return": "Bytes32"
       }
     }
   },
   "CoinState": {
     "type": "class",
+    "doc": "represents the on-chain state of a coin, including its creation and spend heights.",
     "remote": true,
     "new": true,
     "fields": {
@@ -60,6 +68,7 @@
   },
   "Spend": {
     "type": "class",
+    "doc": "represents a puzzle and solution pair for spending a coin.",
     "new": true,
     "fields": {
       "puzzle": "Program",

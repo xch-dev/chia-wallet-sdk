@@ -1,26 +1,31 @@
 {
   "Mnemonic": {
     "type": "class",
+    "doc": "represents a BIP-39 mnemonic phrase used for key derivation.",
     "methods": {
       "new": {
+        "doc": "parses a mnemonic from a space-separated word string.",
         "type": "constructor",
         "args": {
           "mnemonic": "String"
         }
       },
       "from_entropy": {
+        "doc": "creates a mnemonic from raw entropy bytes.",
         "type": "factory",
         "args": {
           "entropy": "Bytes"
         }
       },
       "generate": {
+        "doc": "generates a random mnemonic (12 words if false, 24 words if true).",
         "type": "factory",
         "args": {
           "use_24": "bool"
         }
       },
       "verify": {
+        "doc": "checks whether a mnemonic string is valid.",
         "type": "static",
         "args": {
           "mnemonic": "String"
@@ -28,13 +33,16 @@
         "return": "bool"
       },
       "to_string": {
+        "doc": "returns the mnemonic as a space-separated word string.",
         "type": "to_string",
         "return": "String"
       },
       "to_entropy": {
+        "doc": "returns the raw entropy bytes underlying the mnemonic.",
         "return": "Bytes"
       },
       "to_seed": {
+        "doc": "derives a seed from the mnemonic using the given password.",
         "args": {
           "password": "String"
         },

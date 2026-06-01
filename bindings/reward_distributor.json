@@ -1,11 +1,16 @@
 {
   "RewardDistributorType": {
     "type": "enum",
+    "doc": "specifies whether a reward distributor is manager-controlled or NFT-based.",
     "remote": true,
-    "values": ["Manager", "Nft"]
+    "values": [
+      "Manager",
+      "Nft"
+    ]
   },
   "RewardDistributorConstants": {
     "type": "class",
+    "doc": "holds the immutable configuration parameters for a reward distributor singleton.",
     "new": true,
     "remote": true,
     "fields": {
@@ -24,6 +29,7 @@
     },
     "methods": {
       "without_launcher_id": {
+        "doc": "creates reward distributor constants before the launcher ID is known (pre-launch).",
         "type": "factory",
         "args": {
           "reward_distributor_type": "RewardDistributorType",
@@ -38,6 +44,7 @@
         }
       },
       "with_launcher_id": {
+        "doc": "returns a copy of these constants with the launcher ID filled in after launch.",
         "args": {
           "launcher_id": "Bytes32"
         },
@@ -47,6 +54,7 @@
   },
   "RoundRewardInfo": {
     "type": "class",
+    "doc": "tracks the cumulative payout and remaining rewards for the current distribution round.",
     "new": true,
     "remote": true,
     "fields": {
@@ -56,6 +64,7 @@
   },
   "RoundTimeInfo": {
     "type": "class",
+    "doc": "tracks the timing state of a reward distribution round (last update and epoch end timestamps).",
     "new": true,
     "remote": true,
     "fields": {
@@ -65,6 +74,7 @@
   },
   "RewardDistributorState": {
     "type": "class",
+    "doc": "holds the mutable state of a reward distributor: total reserves, active shares, and current round info.",
     "new": true,
     "remote": true,
     "fields": {
@@ -76,6 +86,7 @@
   },
   "RewardDistributorLauncherSolutionInfo": {
     "type": "class",
+    "doc": "holds the parsed information from a reward distributor launcher solution: constants, initial state, and eve coin.",
     "new": true,
     "fields": {
       "constants": "RewardDistributorConstants",
@@ -85,6 +96,7 @@
   },
   "RewardDistributorFinishedSpendResult": {
     "type": "class",
+    "doc": "holds the result of finishing a reward distributor spend: the updated distributor and the aggregated signature.",
     "new": true,
     "fields": {
       "new_distributor": "RewardDistributor",
@@ -93,6 +105,7 @@
   },
   "RewardDistributorRewardSlotValue": {
     "type": "class",
+    "doc": "holds the value stored in a reward slot: the epoch start time, initialization flag, and reward amount.",
     "new": true,
     "remote": true,
     "fields": {
@@ -103,6 +116,7 @@
   },
   "RewardSlot": {
     "type": "class",
+    "doc": "represents a reward slot coin in the reward distributor, tracking rewards available for a specific epoch.",
     "fields": {
       "coin": "Coin",
       "proof": "LineageProof",
@@ -112,6 +126,7 @@
     },
     "methods": {
       "new": {
+        "doc": "creates a new RewardSlot from its lineage proof, distributor launcher ID, and slot value.",
         "type": "factory",
         "args": {
           "proof": "LineageProof",
@@ -120,12 +135,14 @@
         }
       },
       "value_hash": {
+        "doc": "returns the hash of this slot's value, used for on-chain verification.",
         "return": "Bytes32"
       }
     }
   },
   "RewardDistributorCommitmentSlotValue": {
     "type": "class",
+    "doc": "holds the value stored in a commitment slot: epoch start, clawback puzzle hash, and committed reward amount.",
     "new": true,
     "remote": true,
     "fields": {
@@ -136,6 +153,7 @@
   },
   "CommitmentSlot": {
     "type": "class",
+    "doc": "represents a commitment slot coin that locks incentive rewards for a specific epoch in the distributor.",
     "fields": {
       "coin": "Coin",
       "proof": "LineageProof",
@@ -145,6 +163,7 @@
     },
     "methods": {
       "new": {
+        "doc": "creates a new CommitmentSlot from its lineage proof, distributor launcher ID, and slot value.",
         "type": "factory",
         "args": {
           "proof": "LineageProof",
@@ -153,12 +172,14 @@
         }
       },
       "value_hash": {
+        "doc": "returns the hash of this slot's value, used for on-chain verification.",
         "return": "Bytes32"
       }
     }
   },
   "RewardDistributorEntrySlotValue": {
     "type": "class",
+    "doc": "holds the value stored in an entry slot: the staker's payout puzzle hash, initial cumulative payout, and share count.",
     "new": true,
     "remote": true,
     "fields": {
@@ -169,6 +190,7 @@
   },
   "EntrySlot": {
     "type": "class",
+    "doc": "represents an entry slot coin for a staker in the reward distributor, tracking their shares and payout state.",
     "fields": {
       "coin": "Coin",
       "proof": "LineageProof",
@@ -178,6 +200,7 @@
     },
     "methods": {
       "new": {
+        "doc": "creates a new EntrySlot from its lineage proof, distributor launcher ID, and slot value.",
         "type": "factory",
         "args": {
           "proof": "LineageProof",
@@ -186,12 +209,14 @@
         }
       },
       "value_hash": {
+        "doc": "returns the hash of this slot's value, used for on-chain verification.",
         "return": "Bytes32"
       }
     }
   },
   "RewardDistributorInitiatePayoutResult": {
     "type": "class",
+    "doc": "holds the result of initiating a reward payout: the conditions to include and the payout amount.",
     "fields": {
       "conditions": "Vec<Program>",
       "payout_amount": "u64"
@@ -199,6 +224,7 @@
   },
   "RewardDistributorNewEpochResult": {
     "type": "class",
+    "doc": "holds the result of starting a new epoch: the conditions to include and the epoch fee amount.",
     "fields": {
       "conditions": "Vec<Program>",
       "epoch_fee": "u64"
@@ -206,6 +232,7 @@
   },
   "RewardDistributorWithdrawIncentivesResult": {
     "type": "class",
+    "doc": "holds the result of withdrawing committed incentives: the conditions and the withdrawn amount.",
     "fields": {
       "conditions": "Vec<Program>",
       "withdrawn_amount": "u64"
@@ -213,6 +240,7 @@
   },
   "RewardDistributorRemoveEntryResult": {
     "type": "class",
+    "doc": "holds the result of removing a staker entry: the conditions and the final payment amount.",
     "fields": {
       "conditions": "Vec<Program>",
       "last_payment_amount": "u64"
@@ -220,6 +248,7 @@
   },
   "IntermediaryCoinProof": {
     "type": "class",
+    "doc": "proves an intermediary coin in the NFT launcher proof chain for NFT-based reward distributors.",
     "new": true,
     "remote": true,
     "fields": {
@@ -229,6 +258,7 @@
   },
   "NftLauncherProof": {
     "type": "class",
+    "doc": "proves that an NFT belongs to a specific DID collection, used for NFT-based staking authorization.",
     "new": true,
     "remote": true,
     "fields": {
@@ -238,6 +268,7 @@
   },
   "RewardDistributorStakeResult": {
     "type": "class",
+    "doc": "holds the result of staking an NFT: conditions, a notarized payment for the reserve, and the updated NFT.",
     "fields": {
       "conditions": "Vec<Program>",
       "notarized_payment": "NotarizedPayment",
@@ -246,6 +277,7 @@
   },
   "RewardDistributorUnstakeResult": {
     "type": "class",
+    "doc": "holds the result of unstaking an NFT: the conditions and the payment amount returned to the staker.",
     "fields": {
       "conditions": "Vec<Program>",
       "payment_amount": "u64"
@@ -253,6 +285,7 @@
   },
   "RewardDistributorLaunchResult": {
     "type": "class",
+    "doc": "holds the result of launching a new reward distributor: security keys, the distributor, first epoch slot, and refunded CAT.",
     "new": true,
     "fields": {
       "security_signature": "Signature",
@@ -264,6 +297,7 @@
   },
   "RewardDistributorInfoFromLauncher": {
     "type": "class",
+    "doc": "holds the parsed reward distributor info from a launcher coin: constants, initial state, and eve singleton.",
     "new": true,
     "fields": {
       "constants": "RewardDistributorConstants",
@@ -273,6 +307,7 @@
   },
   "RewardDistributorInfoFromEveCoin": {
     "type": "class",
+    "doc": "holds the parsed reward distributor info from the eve coin: the distributor and its first reward slot.",
     "new": true,
     "fields": {
       "distributor": "RewardDistributor",
@@ -281,47 +316,62 @@
   },
   "RewardDistributor": {
     "type": "class",
+    "doc": "represents a reward distributor singleton that manages epoch-based reward distribution to stakers.",
     "methods": {
       "coin": {
+        "doc": "returns the current coin of the reward distributor singleton.",
         "return": "Coin"
       },
       "proof": {
+        "doc": "returns the lineage proof for the reward distributor singleton.",
         "return": "Proof"
       },
       "state": {
+        "doc": "returns the current mutable state of the reward distributor.",
         "return": "RewardDistributorState"
       },
       "constants": {
+        "doc": "returns the immutable configuration constants of the reward distributor.",
         "return": "RewardDistributorConstants"
       },
       "inner_puzzle_hash": {
+        "doc": "returns the inner puzzle hash of the reward distributor singleton.",
         "return": "TreeHash"
       },
       "puzzle_hash": {
+        "doc": "returns the full puzzle hash (including singleton wrapper) of the reward distributor.",
         "return": "TreeHash"
       },
       "reserve_coin": {
+        "doc": "returns the CAT reserve coin held by the reward distributor.",
         "return": "Coin"
       },
       "reserve_asset_id": {
+        "doc": "returns the asset ID (TAIL hash) of the CAT used as the reserve token.",
         "return": "Bytes32"
       },
       "reserve_proof": {
+        "doc": "returns the lineage proof for the reserve CAT coin.",
         "return": "LineageProof"
       },
       "pending_created_reward_slots": {
+        "doc": "returns reward slots that were created during the current spend but not yet confirmed.",
         "return": "Vec<RewardSlot>"
       },
       "pending_created_commitment_slots": {
+        "doc": "returns commitment slots that were created during the current spend but not yet confirmed.",
         "return": "Vec<CommitmentSlot>"
       },
       "pending_created_entry_slots": {
+        "doc": "returns entry slots that were created during the current spend but not yet confirmed.",
         "return": "Vec<EntrySlot>"
       },
       "pending_signature": {
+        "doc": "returns the BLS signature accumulated during the current spend for security assertions.",
         "return": "Signature"
       },
       "reserve_full_puzzle_hash": {
+        "doc": "computes the full puzzle hash of the reserve CAT for a given distributor and nonce.",
         "type": "static",
         "args": {
           "asset_id": "Bytes32",
@@ -331,6 +381,7 @@
         "return": "TreeHash"
       },
       "parse_launcher_solution": {
+        "doc": "parses a reward distributor launcher solution to extract the configuration and initial state.",
         "type": "static",
         "args": {
           "launcher_coin": "Coin",
@@ -339,18 +390,21 @@
         "return": "Option<RewardDistributorInfoFromLauncher>"
       },
       "finish_spend": {
+        "doc": "finalizes the current reward distributor spend, returning the updated distributor and aggregated signature.",
         "args": {
           "other_cat_spends": "Vec<CatSpend>"
         },
         "return": "RewardDistributorFinishedSpendResult"
       },
       "add_incentives": {
+        "doc": "adds incentive rewards to the distributor's reserve, returning the conditions to include.",
         "args": {
           "amount": "u64"
         },
         "return": "Vec<Program>"
       },
       "commit_incentives": {
+        "doc": "commits incentive rewards to a specific epoch via a reward slot, creating a commitment slot.",
         "args": {
           "reward_slot": "RewardSlot",
           "epoch_start": "u64",
@@ -360,24 +414,28 @@
         "return": "Vec<Program>"
       },
       "initiate_payout": {
+        "doc": "initiates a reward payout to a staker based on their entry slot's accumulated rewards.",
         "args": {
           "entry_slot": "EntrySlot"
         },
         "return": "RewardDistributorInitiatePayoutResult"
       },
       "new_epoch": {
+        "doc": "transitions the distributor to a new epoch, collecting the epoch fee and resetting reward tracking.",
         "args": {
           "reward_slot": "RewardSlot"
         },
         "return": "RewardDistributorNewEpochResult"
       },
       "sync": {
+        "doc": "syncs the distributor's reward calculations to the given timestamp.",
         "args": {
           "update_time": "u64"
         },
         "return": "Vec<Program>"
       },
       "withdraw_incentives": {
+        "doc": "withdraws previously committed incentives using the commitment slot and reward slot proofs.",
         "args": {
           "commitment_slot": "CommitmentSlot",
           "reward_slot": "RewardSlot"
@@ -385,6 +443,7 @@
         "return": "RewardDistributorWithdrawIncentivesResult"
       },
       "add_entry": {
+        "doc": "adds a new staker entry to the distributor with the given payout address, share count, and manager proof.",
         "args": {
           "payout_puzzle_hash": "Bytes32",
           "shares": "u64",
@@ -393,6 +452,7 @@
         "return": "Vec<Program>"
       },
       "remove_entry": {
+        "doc": "removes a staker entry from the distributor, paying out any remaining rewards.",
         "args": {
           "entry_slot": "EntrySlot",
           "manager_singleton_inner_puzzle_hash": "Bytes32"
@@ -400,6 +460,7 @@
         "return": "RewardDistributorRemoveEntryResult"
       },
       "stake": {
+        "doc": "stakes an NFT into the distributor, locking it and creating an entry slot for reward accrual.",
         "args": {
           "current_nft": "Nft",
           "nft_launcher_proof": "NftLauncherProof",
@@ -408,6 +469,7 @@
         "return": "RewardDistributorStakeResult"
       },
       "unstake": {
+        "doc": "unstakes an NFT from the distributor, unlocking it and paying out accumulated rewards.",
         "args": {
           "entry_slot": "EntrySlot",
           "locked_nft": "Nft"
@@ -415,6 +477,7 @@
         "return": "RewardDistributorUnstakeResult"
       },
       "locked_nft_hint": {
+        "doc": "computes the hint used to identify locked NFTs belonging to this distributor.",
         "type": "static",
         "args": {
           "distributor_launcher_id": "Bytes32",

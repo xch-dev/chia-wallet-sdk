@@ -1,0 +1,161 @@
+name: Go
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow_ref, github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            go_platform: linux_amd64
+          - host: linux-arm64
+            target: aarch64-unknown-linux-gnu
+            go_platform: linux_arm64
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            go_platform: darwin_amd64
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            go_platform: darwin_arm64
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            go_platform: windows_amd64
+          - host: windows-latest
+            target: aarch64-pc-windows-msvc
+            go_platform: windows_arm64
+          - host: ubuntu-latest
+            target: aarch64-linux-android
+            go_platform: android_arm64
+    name: Build - ${{ matrix.target }}
+    runs-on: ${{ matrix.host }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ matrix.target }}-cargo-go
+
+      - name: Build static library
+        run: cargo build --release -p chia-wallet-sdk-go --target ${{ matrix.target }}
+
+      - name: Upload artifact (unix)
+        if: runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lib-${{ matrix.go_platform }}
+          path: target/${{ matrix.target }}/release/libchia_wallet_sdk_go.a
+          if-no-files-found: error
+
+      - name: Upload artifact (windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lib-${{ matrix.go_platform }}
+          path: target/${{ matrix.target }}/release/chia_wallet_sdk_go.lib
+          if-no-files-found: error
+
+  test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host: ubuntu-latest
+            go_platform: linux_amd64
+          - host: macos-latest
+            go_platform: darwin_arm64
+          - host: windows-latest
+            go_platform: windows_amd64
+    name: Test - ${{ matrix.go_platform }}
+    runs-on: ${{ matrix.host }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/chiawalletsdk/go.mod
+
+      - name: Download library
+        uses: actions/download-artifact@v4
+        with:
+          name: lib-${{ matrix.go_platform }}
+          path: go/chiawalletsdk/libs/${{ matrix.go_platform }}/
+
+      - name: Rename lib for Windows
+        if: runner.os == 'Windows'
+        run: |
+          mv go/chiawalletsdk/libs/${{ matrix.go_platform }}/chia_wallet_sdk_go.lib go/chiawalletsdk/libs/${{ matrix.go_platform }}/libchia_wallet_sdk_go.a
+        shell: bash
+
+      - name: Run tests
+        working-directory: go/chiawalletsdk
+        run: go test -v ./...
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download all lib artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Place libraries
+        run: |
+          for dir in artifacts/lib-*; do
+            platform=$(basename "$dir" | sed 's/lib-//')
+            mkdir -p go/chiawalletsdk/libs/$platform
+            cp "$dir"/* go/chiawalletsdk/libs/$platform/
+          done
+
+      - name: Rename Windows libs
+        run: |
+          for dir in go/chiawalletsdk/libs/windows_*/; do
+            if [ -f "$dir/chia_wallet_sdk_go.lib" ]; then
+              mv "$dir/chia_wallet_sdk_go.lib" "$dir/libchia_wallet_sdk_go.a"
+            fi
+          done
+
+      - name: Commit and tag for Go module
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add go/chiawalletsdk/libs/
+          git commit -m "Update Go prebuilt libraries for ${GITHUB_REF_NAME}"
+          VERSION=${GITHUB_REF_NAME#v}
+          git tag "go/chiawalletsdk/v${VERSION}"
+          git push origin HEAD --tags
