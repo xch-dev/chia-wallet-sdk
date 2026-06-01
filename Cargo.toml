@@ -24,6 +24,7 @@ members = [
     "pyo3/stub-generator",
     "dotnet",
     "go",
+    "cpp",
 ]
 
 [workspace.package]
@@ -208,5 +209,10 @@ strip = "none"
 
 # Same requirement applies to the uniffi-bindgen-go generate step.
 [profile.release-go]
+inherits = "release"
+strip = "none"
+
+# Same requirement applies to the uniffi-bindgen-cpp generate step.
+[profile.release-cpp]
 inherits = "release"
 strip = "none"

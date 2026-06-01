@@ -1722,6 +1722,21 @@ fn function_args(
 
 #[proc_macro]
 pub fn bindy_uniffi(input: TokenStream) -> TokenStream {
+    bindy_uniffi_impl(input, true)
+}
+
+/// Same as [`bindy_uniffi`], but omits all async methods and async factories.
+///
+/// `uniffi-bindgen-cpp` does not support async functions, so the C++ backend uses this
+/// variant. Async-only surface (e.g. `RpcClient` request methods, `Peer`) is dropped;
+/// the synchronous constructors/factories of those classes are still generated. The Go
+/// and C# backends keep using [`bindy_uniffi`] and are unaffected.
+#[proc_macro]
+pub fn bindy_uniffi_sync(input: TokenStream) -> TokenStream {
+    bindy_uniffi_impl(input, false)
+}
+
+fn bindy_uniffi_impl(input: TokenStream, include_async: bool) -> TokenStream {
     let input = syn::parse_macro_input!(input as LitStr).value();
     let (bindy, bindings) = load_bindings(&input);
 
@@ -1803,6 +1818,14 @@ pub fn bindy_uniffi(input: TokenStream) -> TokenStream {
                 for (method_name, method) in methods {
                     if method.stub_only {
                         continue; // alloc and others marked stub_only are hand-written
+                    }
+
+                    // The C++ backend (uniffi-bindgen-cpp) cannot generate async functions,
+                    // so the bindy_uniffi_sync! variant drops them entirely.
+                    if !include_async
+                        && matches!(method.kind, MethodKind::Async | MethodKind::AsyncFactory)
+                    {
+                        continue;
                     }
 
                     let method_ident = Ident::new(method_name, Span::mixed_site());

@@ -1047,6 +1047,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "chia-wallet-sdk-cpp"
+version = "0.33.0"
+dependencies = [
+ "bindy",
+ "bindy-macro",
+ "chia-sdk-bindings",
+ "openssl",
+ "openssl-sys",
+ "uniffi",
+]
+
+[[package]]
 name = "chia-wallet-sdk-cs"
 version = "0.33.0"
 dependencies = [
