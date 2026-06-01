@@ -290,7 +290,7 @@ libchia_wallet_sdk.dylib ← native shared library
 chia_wallet_sdk.go       ← Go package with all types and CGo bindings
 ```
 
-The same `bindings/*.json` schemas also drive the C# (`uniffi/`), Node.js (`napi/`), WebAssembly (`wasm/`), and Python (`pyo3/`) backends. Adding a method to a JSON schema automatically adds it to all backends.
+The same `bindings/*.json` schemas also drive the C# (`dotnet/`), Node.js (`napi/`), WebAssembly (`wasm/`), and Python (`pyo3/`) backends. Adding a method to a JSON schema automatically adds it to all backends.
 
 ---
 

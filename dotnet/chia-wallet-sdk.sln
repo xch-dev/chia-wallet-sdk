@@ -1,0 +1,32 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChiaWalletSdk", "cs\ChiaWalletSdk.csproj", "{C41A9FCF-60EF-705D-F213-E8FC5BDF7A42}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChiaWalletSdkTests", "tests\ChiaWalletSdkTests.csproj", "{338878C0-E927-E5BA-61D6-8125848A1B21}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C41A9FCF-60EF-705D-F213-E8FC5BDF7A42}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C41A9FCF-60EF-705D-F213-E8FC5BDF7A42}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C41A9FCF-60EF-705D-F213-E8FC5BDF7A42}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C41A9FCF-60EF-705D-F213-E8FC5BDF7A42}.Release|Any CPU.Build.0 = Release|Any CPU
+		{338878C0-E927-E5BA-61D6-8125848A1B21}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{338878C0-E927-E5BA-61D6-8125848A1B21}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{338878C0-E927-E5BA-61D6-8125848A1B21}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{338878C0-E927-E5BA-61D6-8125848A1B21}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {241A5A30-0330-4A8B-A036-5E520709F419}
+	EndGlobalSection
+EndGlobal

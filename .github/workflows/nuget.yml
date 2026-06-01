@@ -39,16 +39,16 @@ jobs:
         run: |
           uniffi-bindgen-cs \
             --library \
-            --out-dir uniffi/cs \
-            --config uniffi/uniffi.toml \
+            --out-dir dotnet/cs \
+            --config dotnet/uniffi.toml \
             target/x86_64-unknown-linux-gnu/release-cs/libchia_wallet_sdk.so
-          test -f uniffi/cs/chia_wallet_sdk.cs || { echo "ERROR: chia_wallet_sdk.cs was not generated"; exit 1; }
+          test -f dotnet/cs/chia_wallet_sdk.cs || { echo "ERROR: chia_wallet_sdk.cs was not generated"; exit 1; }
 
       - name: Upload C# bindings artifact
         uses: actions/upload-artifact@v7
         with:
           name: cs-bindings
-          path: uniffi/cs/chia_wallet_sdk.cs
+          path: dotnet/cs/chia_wallet_sdk.cs
           if-no-files-found: error
 
   build:
@@ -127,37 +127,37 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: cs-bindings
-          path: uniffi/cs
+          path: dotnet/cs
 
       - name: Download osx-arm64 artifact
         uses: actions/download-artifact@v8
         with:
           name: native-osx-arm64
-          path: uniffi/cs/runtimes/osx-arm64/native
+          path: dotnet/cs/runtimes/osx-arm64/native
 
       - name: Download osx-x64 artifact
         uses: actions/download-artifact@v8
         with:
           name: native-osx-x64
-          path: uniffi/cs/runtimes/osx-x64/native
+          path: dotnet/cs/runtimes/osx-x64/native
 
       - name: Download win-x64 artifact
         uses: actions/download-artifact@v8
         with:
           name: native-win-x64
-          path: uniffi/cs/runtimes/win-x64/native
+          path: dotnet/cs/runtimes/win-x64/native
 
       - name: Download linux-x64 artifact
         uses: actions/download-artifact@v8
         with:
           name: native-linux-x64
-          path: uniffi/cs/runtimes/linux-x64/native
+          path: dotnet/cs/runtimes/linux-x64/native
 
       # - name: Download linux-musl-x64 artifact
       #   uses: actions/download-artifact@v8
       #   with:
       #     name: native-linux-musl-x64
-      #     path: uniffi/cs/runtimes/linux-musl-x64/native
+      #     path: dotnet/cs/runtimes/linux-musl-x64/native
 
       - name: Determine version
         id: version
@@ -169,7 +169,7 @@ jobs:
           fi
 
       - name: Pack
-        run: dotnet pack uniffi/cs/ChiaWalletSdk.csproj -c Release -o ./nuget-out -p:Version=${{ steps.version.outputs.version }}
+        run: dotnet pack dotnet/cs/ChiaWalletSdk.csproj -c Release -o ./nuget-out -p:Version=${{ steps.version.outputs.version }}
 
       - name: Upload nupkg artifact
         uses: actions/upload-artifact@v7

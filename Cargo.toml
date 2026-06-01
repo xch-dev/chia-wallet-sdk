@@ -22,7 +22,7 @@ members = [
     "wasm",
     "pyo3",
     "pyo3/stub-generator",
-    "uniffi",
+    "dotnet",
     "go",
 ]
 
