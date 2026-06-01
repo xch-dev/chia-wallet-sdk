@@ -1,0 +1,151 @@
+name: Go
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('{0}-{1}', github.workflow_ref, github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Generate Go bindings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: x86_64-unknown-linux-gnu-cargo-ubuntu-latest-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build native library (linux-x64, symbols intact for bindgen)
+        run: cargo build --profile release-go -p chia-wallet-sdk-go --target x86_64-unknown-linux-gnu
+
+      - name: Install uniffi-bindgen-go
+        run: cargo install uniffi-bindgen-go --git https://github.com/NordSecurity/uniffi-bindgen-go --tag v0.5.0+v0.29.5
+
+      - name: Generate Go bindings
+        run: |
+          uniffi-bindgen-go \
+            --library target/x86_64-unknown-linux-gnu/release-go/libchia_wallet_sdk.so \
+            --out-dir go
+          test -f go/chia_wallet_sdk/chia_wallet_sdk.go || { echo "ERROR: chia_wallet_sdk.go was not generated"; exit 1; }
+
+      - name: Patch naming collisions
+        run: |
+          sed -i \
+            -e 's/^func OptionTypeCat(/func NewOptionTypeFromCat(/' \
+            -e 's/^func OptionTypeNft(/func NewOptionTypeFromNft(/' \
+            -e 's/^func OptionTypeRevocableCat(/func NewOptionTypeFromRevocableCat(/' \
+            -e 's/^func OptionTypeXch(/func NewOptionTypeFromXch(/' \
+            go/chia_wallet_sdk/chia_wallet_sdk.go
+
+      - name: Upload Go bindings artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-bindings
+          path: go/chia_wallet_sdk/chia_wallet_sdk.go
+          if-no-files-found: error
+
+  build:
+    name: Build native - ${{ matrix.settings.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact-name: native-linux-x64
+            lib-name: libchia_wallet_sdk.so
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            artifact-name: native-osx-arm64
+            lib-name: libchia_wallet_sdk.dylib
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            artifact-name: native-osx-x64
+            lib-name: libchia_wallet_sdk.dylib
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact-name: native-win-x64
+            lib-name: chia_wallet_sdk.dll
+    runs-on: ${{ matrix.settings.host }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build native library
+        run: cargo build --profile release-go -p chia-wallet-sdk-go --target ${{ matrix.settings.target }}
+
+      - name: Upload native artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.settings.artifact-name }}
+          path: target/${{ matrix.settings.target }}/release-go/${{ matrix.settings.lib-name }}
+          if-no-files-found: error
+
+  test:
+    name: Test Go bindings
+    runs-on: ubuntu-latest
+    needs: [generate, build]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+
+      - name: Download Go bindings
+        uses: actions/download-artifact@v8
+        with:
+          name: go-bindings
+          path: go/chia_wallet_sdk
+
+      - name: Download linux-x64 native library
+        uses: actions/download-artifact@v8
+        with:
+          name: native-linux-x64
+          path: go/chia_wallet_sdk
+
+      - name: Run Go tests
+        working-directory: go
+        env:
+          CGO_LDFLAGS: "-L${{ github.workspace }}/go/chia_wallet_sdk"
+          LD_LIBRARY_PATH: "${{ github.workspace }}/go/chia_wallet_sdk"
+        run: go test ./tests/...
