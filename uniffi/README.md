@@ -9,7 +9,7 @@ The Rust library exposes the full SDK surface — BLS keys, addresses, CLVM, coi
 ## Prerequisites
 
 - Rust toolchain (1.81+) — [rustup.rs](https://rustup.rs)
-- .NET 6+ SDK — [dot.net](https://dotnet.microsoft.com)
+- .NET 8+ SDK — [dot.net](https://dotnet.microsoft.com)
 - `uniffi-bindgen-cs` — installed once per machine (see below)
 
 ---
