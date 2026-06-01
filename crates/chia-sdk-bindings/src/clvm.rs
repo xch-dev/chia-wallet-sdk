@@ -21,6 +21,7 @@ use clvm_traits::{ToClvm, clvm_quote};
 use clvm_utils::TreeHash;
 use clvmr::{
     NodePtr,
+    allocator::Checkpoint,
     serde::{node_from_bytes, node_from_bytes_backrefs},
 };
 use num_bigint::BigInt;
@@ -43,12 +44,26 @@ pub const MAX_CLVM_SMALL_INTEGER: i64 = 67_108_863;
 
 // We use an Arc because we need to be able to share the SpendContext with the Program class
 // And we use a Mutex because we need to retain mutability even while Program instances exist
-#[derive(Default, Clone)]
-pub struct Clvm(pub(crate) Arc<Mutex<SpendContext>>);
+#[derive(Clone)]
+pub struct Clvm(pub(crate) Arc<Mutex<SpendContext>>, Arc<Checkpoint>);
+
+impl Default for Clvm {
+    fn default() -> Self {
+        let ctx = SpendContext::new();
+        let checkpoint = ctx.checkpoint();
+        Self(Arc::new(Mutex::new(ctx)), Arc::new(checkpoint))
+    }
+}
 
 impl Clvm {
     pub fn new() -> Result<Self> {
         Ok(Self::default())
+    }
+
+    pub fn reset(&self) -> Result<()> {
+        let mut ctx = self.0.lock().unwrap();
+        ctx.reset(&self.1);
+        Ok(())
     }
 
     pub fn add_coin_spend(&self, coin_spend: CoinSpend) -> Result<()> {

@@ -155,11 +155,19 @@ impl RpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         let client = self.0.clone();
         spawn_on_runtime(async move {
-            Ok(client
-                .get_coin_records_by_hint(hint, start_height, end_height, include_spent_coins)
+            Ok(self
+                .0
+                .get_coin_records_by_hint(
+                    hint,
+                    start_height,
+                    end_height,
+                    include_spent_coins,
+                    cursor,
+                )
                 .await?)
         })
         .await
@@ -171,11 +179,18 @@ impl RpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         let client = self.0.clone();
         spawn_on_runtime(async move {
             Ok(client
-                .get_coin_records_by_hints(hints, start_height, end_height, include_spent_coins)
+                .get_coin_records_by_hints(
+                    hints,
+                    start_height,
+                    end_height,
+                    include_spent_coins,
+                    cursor,
+                )
                 .await?)
         })
         .await
@@ -187,11 +202,18 @@ impl RpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         let client = self.0.clone();
         spawn_on_runtime(async move {
             Ok(client
-                .get_coin_records_by_names(names, start_height, end_height, include_spent_coins)
+                .get_coin_records_by_names(
+                    names,
+                    start_height,
+                    end_height,
+                    include_spent_coins,
+                    cursor,
+                )
                 .await?)
         })
         .await
@@ -203,6 +225,7 @@ impl RpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         let client = self.0.clone();
         spawn_on_runtime(async move {
@@ -212,6 +235,7 @@ impl RpcClient {
                     start_height,
                     end_height,
                     include_spent_coins,
+                    cursor,
                 )
                 .await?)
         })
@@ -224,6 +248,7 @@ impl RpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         let client = self.0.clone();
         spawn_on_runtime(async move {
@@ -233,6 +258,7 @@ impl RpcClient {
                     start_height,
                     end_height,
                     include_spent_coins,
+                    cursor,
                 )
                 .await?)
         })
@@ -245,6 +271,7 @@ impl RpcClient {
         start_height: Option<u32>,
         end_height: Option<u32>,
         include_spent_coins: Option<bool>,
+        cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
         let client = self.0.clone();
         spawn_on_runtime(async move {
@@ -254,6 +281,7 @@ impl RpcClient {
                     start_height,
                     end_height,
                     include_spent_coins,
+                    cursor,
                 )
                 .await?)
         })
