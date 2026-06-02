@@ -1384,6 +1384,7 @@ fn test_clear_signing_create_p2_conditions_or_singleton(
             tx.linked_offer,
             Some(LinkedOffer {
                 received_payments: vec![],
+                external_payments: vec![],
                 reserved_fee: 250,
             })
         );

@@ -13,6 +13,7 @@ use crate::{
 pub struct LinkedOffer {
     pub reserved_fee: u64,
     pub received_payments: Vec<AssertedPayment>,
+    pub external_payments: Vec<AssertedPayment>,
 }
 
 pub fn build_linked_offer(
@@ -25,6 +26,7 @@ pub fn build_linked_offer(
     let mut linked_offer = LinkedOffer {
         reserved_fee: 0,
         received_payments: vec![],
+        external_payments: vec![],
     };
     let mut has_offer = false;
     let mut found_puzzle_assertions: Option<HashSet<Bytes32>> = None;
@@ -78,8 +80,9 @@ pub fn build_linked_offer(
 
         let asserted_payments =
             parse_asserted_requested_payments(reveals, &offer_facts, allocator)?;
-        linked_offer.received_payments =
-            split_asserted_payments(&asserted_payments, p2_puzzle_hashes).received_payments;
+        let split_payments = split_asserted_payments(&asserted_payments, p2_puzzle_hashes);
+        linked_offer.received_payments = split_payments.received_payments;
+        linked_offer.external_payments = split_payments.external_payments;
     }
 
     Ok(has_offer.then_some(linked_offer))
