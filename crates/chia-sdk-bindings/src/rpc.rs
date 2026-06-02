@@ -50,6 +50,27 @@ impl ChiaRpcClient for RpcClientImpl {
     }
 }
 
+/// Opt-in timeout configuration for an [`RpcClient`]. All values are in milliseconds;
+/// `None` (the default) leaves the corresponding timeout unbounded.
+#[derive(Clone)]
+pub struct RpcClientOptions {
+    pub timeout_ms: Option<u32>,
+    pub connect_timeout_ms: Option<u32>,
+}
+
+impl RpcClientOptions {
+    fn to_client_options(&self) -> chia_sdk_coinset::ClientOptions {
+        chia_sdk_coinset::ClientOptions {
+            timeout: self
+                .timeout_ms
+                .map(|ms| std::time::Duration::from_millis(u64::from(ms))),
+            connect_timeout: self
+                .connect_timeout_ms
+                .map(|ms| std::time::Duration::from_millis(u64::from(ms))),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct RpcClient(Arc<RpcClientImpl>);
 
@@ -57,6 +78,12 @@ impl RpcClient {
     pub fn new(base_url: String) -> Result<Self> {
         Ok(Self(Arc::new(RpcClientImpl::Coinset(
             chia_sdk_coinset::CoinsetClient::new(base_url),
+        ))))
+    }
+
+    pub fn new_with_options(base_url: String, options: RpcClientOptions) -> Result<Self> {
+        Ok(Self(Arc::new(RpcClientImpl::Coinset(
+            chia_sdk_coinset::CoinsetClient::with_options(base_url, options.to_client_options())?,
         ))))
     }
 
@@ -80,9 +107,41 @@ impl RpcClient {
     }
 
     #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+    pub fn local_with_options(
+        cert_bytes: Bytes,
+        key_bytes: Bytes,
+        options: RpcClientOptions,
+    ) -> Result<Self> {
+        Ok(Self(Arc::new(RpcClientImpl::FullNode(
+            chia_sdk_coinset::FullNodeClient::new_with_options(
+                &cert_bytes,
+                &key_bytes,
+                options.to_client_options(),
+            )?,
+        ))))
+    }
+
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
     pub fn local_with_url(base_url: String, cert_bytes: Bytes, key_bytes: Bytes) -> Result<Self> {
         Ok(Self(Arc::new(RpcClientImpl::FullNode(
             chia_sdk_coinset::FullNodeClient::with_base_url(base_url, &cert_bytes, &key_bytes)?,
+        ))))
+    }
+
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+    pub fn local_with_url_and_options(
+        base_url: String,
+        cert_bytes: Bytes,
+        key_bytes: Bytes,
+        options: RpcClientOptions,
+    ) -> Result<Self> {
+        Ok(Self(Arc::new(RpcClientImpl::FullNode(
+            chia_sdk_coinset::FullNodeClient::with_options(
+                base_url,
+                &cert_bytes,
+                &key_bytes,
+                options.to_client_options(),
+            )?,
         ))))
     }
 

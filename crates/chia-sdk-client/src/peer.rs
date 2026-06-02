@@ -36,12 +36,20 @@ type Response<T, E> = std::result::Result<T, E>;
 #[derive(Debug, Clone, Copy)]
 pub struct PeerOptions {
     pub rate_limit_factor: f64,
+    /// Timeout for establishing the connection (websocket connect + handshake).
+    /// `None` (the default) leaves it unbounded.
+    pub connect_timeout: Option<Duration>,
+    /// Timeout for each request/response round-trip. `None` (the default) leaves
+    /// requests unbounded.
+    pub request_timeout: Option<Duration>,
 }
 
 impl Default for PeerOptions {
     fn default() -> Self {
         Self {
             rate_limit_factor: 0.6,
+            connect_timeout: None,
+            request_timeout: None,
         }
     }
 }
@@ -56,6 +64,7 @@ struct PeerInner {
     requests: Arc<RequestMap>,
     socket_addr: SocketAddr,
     outbound_rate_limiter: Mutex<RateLimiter>,
+    request_timeout: Option<Duration>,
 }
 
 impl Peer {
@@ -77,9 +86,16 @@ impl Peer {
         connector: Connector,
         options: PeerOptions,
     ) -> Result<(Self, mpsc::Receiver<Message>), ClientError> {
-        let (ws, _) =
-            tokio_tungstenite::connect_async_tls_with_config(uri, None, false, Some(connector))
-                .await?;
+        let connect =
+            tokio_tungstenite::connect_async_tls_with_config(uri, None, false, Some(connector));
+
+        let (ws, _) = match options.connect_timeout {
+            Some(duration) => tokio::time::timeout(duration, connect)
+                .await
+                .map_err(|_| ClientError::Timeout(duration))??,
+            None => connect.await?,
+        };
+
         Self::from_websocket(ws, options)
     }
 
@@ -128,6 +144,7 @@ impl Peer {
                 options.rate_limit_factor,
                 V2_RATE_LIMITS.clone(),
             )),
+            request_timeout: options.request_timeout,
         }));
 
         Ok((peer, receiver))
@@ -312,7 +329,12 @@ impl Peer {
         })
         .await?;
 
-        Ok(receiver.await?)
+        match self.0.request_timeout {
+            Some(duration) => Ok(tokio::time::timeout(duration, receiver)
+                .await
+                .map_err(|_| ClientError::Timeout(duration))??),
+            None => Ok(receiver.await?),
+        }
     }
 
     async fn send_raw(&self, message: Message) -> Result<(), ClientError> {

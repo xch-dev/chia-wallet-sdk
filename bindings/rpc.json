@@ -1,4 +1,18 @@
 {
+  "set_request_timeout": {
+    "type": "function",
+    "args": {
+      "timeout_ms": "Option<u32>"
+    }
+  },
+  "RpcClientOptions": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "timeout_ms": "Option<u32>",
+      "connect_timeout_ms": "Option<u32>"
+    }
+  },
   "RpcClient": {
     "type": "class",
     "methods": {
@@ -6,6 +20,13 @@
         "type": "constructor",
         "args": {
           "coinset_url": "String"
+        }
+      },
+      "new_with_options": {
+        "type": "factory",
+        "args": {
+          "coinset_url": "String",
+          "options": "RpcClientOptions"
         }
       },
       "testnet11": {
@@ -22,6 +43,15 @@
           "key_bytes": "Bytes"
         }
       },
+      "local_with_options": {
+        "type": "factory",
+        "no_wasm": true,
+        "args": {
+          "cert_bytes": "Bytes",
+          "key_bytes": "Bytes",
+          "options": "RpcClientOptions"
+        }
+      },
       "local_with_url": {
         "type": "factory",
         "no_wasm": true,
@@ -29,6 +59,16 @@
           "base_url": "String",
           "cert_bytes": "Bytes",
           "key_bytes": "Bytes"
+        }
+      },
+      "local_with_url_and_options": {
+        "type": "factory",
+        "no_wasm": true,
+        "args": {
+          "base_url": "String",
+          "cert_bytes": "Bytes",
+          "key_bytes": "Bytes",
+          "options": "RpcClientOptions"
         }
       },
       "get_blockchain_state": {

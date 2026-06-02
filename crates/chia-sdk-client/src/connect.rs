@@ -15,6 +15,8 @@ pub async fn connect_peer(
     socket_addr: SocketAddr,
     options: PeerOptions,
 ) -> Result<(Peer, mpsc::Receiver<Message>), ClientError> {
+    let connect_timeout = options.connect_timeout;
+
     let (peer, mut receiver) = Peer::connect(socket_addr, connector, options).await?;
 
     peer.send(Handshake {
@@ -31,7 +33,14 @@ pub async fn connect_peer(
     })
     .await?;
 
-    let Some(message) = receiver.recv().await else {
+    let handshake_response = match connect_timeout {
+        Some(duration) => tokio::time::timeout(duration, receiver.recv())
+            .await
+            .map_err(|_| ClientError::Timeout(duration))?,
+        None => receiver.recv().await,
+    };
+
+    let Some(message) = handshake_response else {
         return Err(ClientError::MissingHandshake);
     };
 

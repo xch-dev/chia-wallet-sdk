@@ -55,6 +55,8 @@ impl Connector {
 #[derive(Clone)]
 pub struct PeerOptions {
     pub rate_limit_factor: f64,
+    pub connect_timeout_ms: Option<u32>,
+    pub request_timeout_ms: Option<u32>,
 }
 
 impl PeerOptions {
@@ -62,6 +64,8 @@ impl PeerOptions {
         let options = SdkPeerOptions::default();
         Ok(Self {
             rate_limit_factor: options.rate_limit_factor,
+            connect_timeout_ms: None,
+            request_timeout_ms: None,
         })
     }
 }
@@ -98,6 +102,12 @@ impl Peer {
         let socket_addr = socket_addr.parse()?;
         let sdk_options = SdkPeerOptions {
             rate_limit_factor: options.rate_limit_factor,
+            connect_timeout: options
+                .connect_timeout_ms
+                .map(|ms| std::time::Duration::from_millis(u64::from(ms))),
+            request_timeout: options
+                .request_timeout_ms
+                .map(|ms| std::time::Duration::from_millis(u64::from(ms))),
         };
 
         let (peer, receiver) = spawn_on_runtime(async move {

@@ -1,7 +1,7 @@
 use reqwest::Client;
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::ChiaRpcClient;
+use crate::{ChiaRpcClient, ClientOptions};
 
 #[derive(Debug, Clone)]
 pub struct CoinsetClient {
@@ -15,6 +15,14 @@ impl CoinsetClient {
             base_url,
             client: Client::new(),
         }
+    }
+
+    /// Creates a client with opt-in [`ClientOptions`] (e.g. request timeouts).
+    pub fn with_options(base_url: String, options: ClientOptions) -> reqwest::Result<Self> {
+        Ok(Self {
+            base_url,
+            client: options.apply(Client::builder()).build()?,
+        })
     }
 
     pub fn testnet11() -> Self {
