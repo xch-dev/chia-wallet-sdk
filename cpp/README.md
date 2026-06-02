@@ -158,12 +158,11 @@ The bindings cover the full SDK:
 | Conditions | `CreateCoin`, `AggSigMe`, `ReserveFee`, … (47 condition types) |
 | Puzzles | `StandardPuzzle`, `CatPuzzle`, `NftPuzzle`, `DlPuzzle`, `SingletonPuzzle`, … |
 | Offers | `Offer`, `ParsedOffer` |
+| RPC | `RpcClient` (blocking — see *Async / RPC*) |
+| Peer protocol | `Peer`, `Connector`, `Certificate` (blocking) |
 | Simulator | `Simulator` (testing) |
 | Utils | `sha256`, `hash_to_g2`, … |
 | Constants | `Constants` (puzzle hashes for all built-in puzzles) |
-
-> **Not available:** async surfaces — `RpcClient` request methods and the peer-protocol
-> classes (`Peer`, `Connector`) — are omitted. See *Async / RPC* below.
 
 ---
 
@@ -198,18 +197,22 @@ out of scope — no manual `Destroy()` call is required (unlike the Go backend).
 
 ## Async / RPC
 
-`uniffi-bindgen-cpp` does **not** support async functions. The C++ backend is generated
-with the `bindy_uniffi_sync!` macro, which omits every async method and async factory.
-In practice this means:
+`uniffi-bindgen-cpp` does **not** support async functions. Rather than drop the async
+surface, the C++ backend is generated with the `bindy_uniffi_sync!` macro, which exposes
+every `async` method and async factory as an ordinary **blocking** call. Each one drives
+the underlying future to completion on a shared Tokio runtime
+(`chia_sdk_bindings::block_on`) before returning.
 
-- `RpcClient` can be constructed (`init`, `mainnet`, `testnet11`, `local`), but its
-  request methods (`get_blockchain_state`, etc.) are not generated.
-- The peer-protocol classes (`Peer`, `Connector`, `Certificate`) are omitted.
+```cpp
+auto client = RpcClient::mainnet();
+auto state = client->get_blockchain_state();   // blocks until the HTTP request completes
+std::cout << (state->get_success() ? "ok" : "failed") << "\n";
+```
 
-The synchronous surface — CLVM, keys, addresses, coins, conditions, offers, puzzles,
-the simulator, utils, and constants — is fully available. If async networking is needed
-from C++, call the coinset HTTP API directly or use one of the async-capable backends
-(Go, C#, Node.js, Python).
+Because these calls block the calling thread, run them on a worker thread if you need the
+caller to stay responsive. This applies to `RpcClient` request methods and to the
+peer-protocol classes (`Peer.connect`, `Peer.next`, etc.). The Go and C# backends keep
+the native async API (Go: blocking; C#: `Task<T>`); only the C++ surface is synchronous.
 
 ---
 
@@ -219,7 +222,7 @@ from C++, call the coinset HTTP API directly or use one of the async-capable bac
 bindings/*.json           ← single source of truth for the API surface
        ↓
 bindy_uniffi_sync! macro  ← generates #[derive(uniffi::Object)] / #[uniffi::export]
-       ↓                      (the `_sync` variant drops async methods for C++)
+       ↓                      (the `_sync` variant turns async methods into blocking calls)
 cpp/ crate                ← cdylib: setup_scaffolding! + generated + hand-written alloc
        ↓  cargo build --profile release-cpp
 libchia_wallet_sdk.dylib ← native shared library
@@ -241,7 +244,7 @@ schema automatically adds it to all backends.
 | `Clvm.alloc()` is typed | Unlike Python, which accepts dynamic types, `alloc` takes a `ClvmType` variant. Use the `Clvm` helper methods — `nil()`, `int()`, `atom()`, etc. — for primitive values. |
 | Field setters return new objects | `set_field(value)` returns a new object with the field changed; the original is unchanged. Use the return value. |
 | No `--config` in library mode | The namespace is fixed to `chia_wallet_sdk` by the UniFFI component name. |
-| No async surface | `uniffi-bindgen-cpp` cannot generate async functions, so RPC request methods and the peer-protocol classes are omitted (see *Async / RPC*). |
+| Async is blocking | `uniffi-bindgen-cpp` cannot generate async functions, so async methods (RPC, peer protocol) are exposed as blocking calls that run on a shared Tokio runtime (see *Async / RPC*). Run them off the main thread if responsiveness matters. |
 | Generated-code patches | Two `uniffi-bindgen-cpp` defects are patched after generation: `Clvm::bool`/`int` → `bool_`/`int_` (reserved keywords), and the `VDFInfo`/`VDFProof` forward declarations → `VdfInfo`/`VdfProof` (acronym casing). Handled automatically by `local-build.sh`. |
 | C++20 required | The generated code uses C++20 features. |
 

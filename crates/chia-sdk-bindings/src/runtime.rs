@@ -28,3 +28,16 @@ where
 {
     future.await
 }
+
+/// Drives an async binding method to completion synchronously on the shared Tokio runtime.
+///
+/// Used by the `bindy_uniffi_sync!` macro (the C++ backend), since `uniffi-bindgen-cpp`
+/// cannot generate async functions. Must be called from a foreign (non-async) thread; the
+/// inner future spawns its work onto the same runtime via [`spawn_on_runtime`].
+#[cfg(feature = "uniffi")]
+pub fn block_on<F, T>(future: F) -> Result<T>
+where
+    F: std::future::Future<Output = Result<T>>,
+{
+    TOKIO_RUNTIME.block_on(future)
+}

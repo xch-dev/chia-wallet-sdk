@@ -52,6 +52,11 @@ pub use secp::*;
 pub use simulator::*;
 pub use utils::*;
 
+// Exposed for the bindy_uniffi_sync! macro (C++ backend), which turns async binding
+// methods into blocking calls. Other backends use the native async path.
+#[cfg(feature = "uniffi")]
+pub use runtime::block_on;
+
 #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 mod peer;
 

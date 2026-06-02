@@ -1725,12 +1725,13 @@ pub fn bindy_uniffi(input: TokenStream) -> TokenStream {
     bindy_uniffi_impl(input, true)
 }
 
-/// Same as [`bindy_uniffi`], but omits all async methods and async factories.
+/// Same as [`bindy_uniffi`], but exposes async methods and async factories as blocking
+/// (synchronous) calls.
 ///
 /// `uniffi-bindgen-cpp` does not support async functions, so the C++ backend uses this
-/// variant. Async-only surface (e.g. `RpcClient` request methods, `Peer`) is dropped;
-/// the synchronous constructors/factories of those classes are still generated. The Go
-/// and C# backends keep using [`bindy_uniffi`] and are unaffected.
+/// variant. Each `async`/`async_factory` method is generated as a plain `fn` that drives
+/// the future to completion on the shared Tokio runtime via `chia_sdk_bindings::block_on`.
+/// The Go and C# backends keep using [`bindy_uniffi`] (true async) and are unaffected.
 #[proc_macro]
 pub fn bindy_uniffi_sync(input: TokenStream) -> TokenStream {
     bindy_uniffi_impl(input, false)
@@ -1820,14 +1821,6 @@ fn bindy_uniffi_impl(input: TokenStream, include_async: bool) -> TokenStream {
                         continue; // alloc and others marked stub_only are hand-written
                     }
 
-                    // The C++ backend (uniffi-bindgen-cpp) cannot generate async functions,
-                    // so the bindy_uniffi_sync! variant drops them entirely.
-                    if !include_async
-                        && matches!(method.kind, MethodKind::Async | MethodKind::AsyncFactory)
-                    {
-                        continue;
-                    }
-
                     let method_ident = Ident::new(method_name, Span::mixed_site());
                     let arg_idents = method
                         .args
@@ -1872,7 +1865,7 @@ fn bindy_uniffi_impl(input: TokenStream, include_async: bool) -> TokenStream {
                                 }
                             });
                         }
-                        MethodKind::AsyncFactory => {
+                        MethodKind::AsyncFactory if include_async => {
                             method_tokens.extend(quote! {
                                 #[uniffi::constructor]
                                 pub async fn #method_ident(
@@ -1885,6 +1878,25 @@ fn bindy_uniffi_impl(input: TokenStream, include_async: bool) -> TokenStream {
                                             ).await?,
                                             &bindy::UniffiContext
                                         )?
+                                    ))
+                                }
+                            });
+                        }
+                        // C++ (uniffi-bindgen-cpp) cannot generate async functions, so the
+                        // bindy_uniffi_sync! variant exposes async factories as blocking calls
+                        // that drive the future to completion on the shared Tokio runtime.
+                        MethodKind::AsyncFactory => {
+                            method_tokens.extend(quote! {
+                                #[uniffi::constructor]
+                                pub fn #method_ident(
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> Result<std::sync::Arc<Self>, ChiaError> {
+                                    #( let #arg_idents = bindy::IntoRust::<_, _, bindy::Uniffi>::into_rust(#arg_idents, &bindy::UniffiContext)?; )*
+                                    let __value = #entrypoint::block_on(async move {
+                                        #fully_qualified_ident::#method_ident( #( #arg_idents ),* ).await
+                                    })?;
+                                    Ok(std::sync::Arc::new(
+                                        bindy::FromRust::<_, _, bindy::Uniffi>::from_rust(__value, &bindy::UniffiContext)?
                                     ))
                                 }
                             });
@@ -1932,7 +1944,7 @@ fn bindy_uniffi_impl(input: TokenStream, include_async: bool) -> TokenStream {
                         // compile because clone_of_self.method() calls the inherent method, not the
                         // extension trait. No remote class currently has async methods in the schemas,
                         // but if one is added this arm must use fully_qualified_ident instead.
-                        MethodKind::Async => {
+                        MethodKind::Async if include_async => {
                             method_tokens.extend(quote! {
                                 pub async fn #method_ident(
                                     &self,
@@ -1944,6 +1956,24 @@ fn bindy_uniffi_impl(input: TokenStream, include_async: bool) -> TokenStream {
                                         clone_of_self.#method_ident( #( #arg_idents ),* ).await?,
                                         &bindy::UniffiContext
                                     )?)
+                                }
+                            });
+                        }
+                        // C++ (uniffi-bindgen-cpp) cannot generate async functions, so the
+                        // bindy_uniffi_sync! variant exposes async methods as blocking calls that
+                        // drive the future to completion on the shared Tokio runtime.
+                        MethodKind::Async => {
+                            method_tokens.extend(quote! {
+                                pub fn #method_ident(
+                                    &self,
+                                    #( #arg_idents: #arg_types ),*
+                                ) -> Result<#ret, ChiaError> {
+                                    let clone_of_self = self.0.clone();
+                                    #( let #arg_idents = bindy::IntoRust::<_, _, bindy::Uniffi>::into_rust(#arg_idents, &bindy::UniffiContext)?; )*
+                                    let __value = #entrypoint::block_on(async move {
+                                        clone_of_self.#method_ident( #( #arg_idents ),* ).await
+                                    })?;
+                                    Ok(bindy::FromRust::<_, _, bindy::Uniffi>::from_rust(__value, &bindy::UniffiContext)?)
                                 }
                             });
                         }
