@@ -249,8 +249,9 @@ schema automatically adds it to all backends.
 
 ## Running the Tests
 
-The `cpp/tests/` directory contains a small CMake project that exercises the core binding
-surface (CLVM serialization).
+The `cpp/tests/` directory contains a CMake project whose suite mirrors the C# tests in
+`dotnet/tests/BasicTests.cs` (hex/bytes utils, coin IDs, CLVM atom/string/int/pair
+round-trips, public keys, serialization, currying, `alloc`, and condition parsing).
 
 ```bash
 # 1. Generate bindings + native library

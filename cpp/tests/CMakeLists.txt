@@ -15,11 +15,11 @@ if(NOT EXISTS "${BINDINGS_DIR}/chia_wallet_sdk.cpp")
     "Run ../local-build.sh first (from the cpp/ directory).")
 endif()
 
-add_executable(alloc_test
-  alloc_test.cpp
+add_executable(sdk_tests
+  sdk_tests.cpp
   "${BINDINGS_DIR}/chia_wallet_sdk.cpp")
 
-target_include_directories(alloc_test PRIVATE "${BINDINGS_DIR}")
+target_include_directories(sdk_tests PRIVATE "${BINDINGS_DIR}")
 
 # Link the staged native shared library (libchia_wallet_sdk.{dylib,so} / chia_wallet_sdk.dll).
 find_library(CHIA_WALLET_SDK_LIB
@@ -31,16 +31,33 @@ if(NOT CHIA_WALLET_SDK_LIB)
   message(FATAL_ERROR "Native library not found in ${BINDINGS_DIR}. Run ../local-build.sh first.")
 endif()
 
-target_link_libraries(alloc_test PRIVATE "${CHIA_WALLET_SDK_LIB}")
+target_link_libraries(sdk_tests PRIVATE "${CHIA_WALLET_SDK_LIB}")
 
 enable_testing()
-add_test(NAME alloc_test COMMAND alloc_test)
 
-# Ensure the loader can find the shared library at test time.
+# One ctest entry per logical test, kept in sync with kTests in sdk_tests.cpp.
+set(TEST_NAMES
+  to_hex_from_hex_roundtrip
+  bytes_equal_equal
+  bytes_equal_not_equal
+  coin_id_known_value
+  atom_roundtrip
+  string_roundtrip
+  int_roundtrip
+  pair_roundtrip
+  public_key_roundtrip
+  clvm_serialization
+  curry_roundtrip
+  alloc_multiple_types
+  create_and_parse_condition)
+
 if(APPLE)
-  set_tests_properties(alloc_test PROPERTIES
-    ENVIRONMENT "DYLD_LIBRARY_PATH=${BINDINGS_DIR}")
+  set(LOADER_ENV "DYLD_LIBRARY_PATH=${BINDINGS_DIR}")
 else()
-  set_tests_properties(alloc_test PROPERTIES
-    ENVIRONMENT "LD_LIBRARY_PATH=${BINDINGS_DIR}")
+  set(LOADER_ENV "LD_LIBRARY_PATH=${BINDINGS_DIR}")
 endif()
+
+foreach(test_name IN LISTS TEST_NAMES)
+  add_test(NAME ${test_name} COMMAND sdk_tests ${test_name})
+  set_tests_properties(${test_name} PROPERTIES ENVIRONMENT "${LOADER_ENV}")
+endforeach()
