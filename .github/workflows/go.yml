@@ -148,6 +148,6 @@ jobs:
       - name: Run Go tests
         working-directory: go
         env:
-          CGO_LDFLAGS: "-L${{ github.workspace }}/go/chia_wallet_sdk"
+          CGO_LDFLAGS: "-L${{ github.workspace }}/go/chia_wallet_sdk -lchia_wallet_sdk"
           LD_LIBRARY_PATH: "${{ github.workspace }}/go/chia_wallet_sdk"
         run: go test ./tests/...
