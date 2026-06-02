@@ -1,10 +1,4 @@
 {
-  "set_blocking_call_timeout": {
-    "type": "function",
-    "args": {
-      "timeout_ms": "Option<u32>"
-    }
-  },
   "RpcClientOptions": {
     "type": "class",
     "new": true,
@@ -32,8 +26,20 @@
       "testnet11": {
         "type": "factory"
       },
+      "testnet11_with_options": {
+        "type": "factory",
+        "args": {
+          "options": "RpcClientOptions"
+        }
+      },
       "mainnet": {
         "type": "factory"
+      },
+      "mainnet_with_options": {
+        "type": "factory",
+        "args": {
+          "options": "RpcClientOptions"
+        }
       },
       "local": {
         "type": "factory",

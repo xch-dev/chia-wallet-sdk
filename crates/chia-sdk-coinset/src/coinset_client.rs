@@ -9,6 +9,9 @@ pub struct CoinsetClient {
     client: Client,
 }
 
+const TESTNET11_URL: &str = "https://testnet11.api.coinset.org";
+const MAINNET_URL: &str = "https://api.coinset.org";
+
 impl CoinsetClient {
     pub fn new(base_url: String) -> Self {
         Self {
@@ -26,11 +29,21 @@ impl CoinsetClient {
     }
 
     pub fn testnet11() -> Self {
-        Self::new("https://testnet11.api.coinset.org".to_string())
+        Self::new(TESTNET11_URL.to_string())
+    }
+
+    /// Creates a testnet11 client with opt-in [`ClientOptions`] (e.g. request timeouts).
+    pub fn testnet11_with_options(options: ClientOptions) -> reqwest::Result<Self> {
+        Self::with_options(TESTNET11_URL.to_string(), options)
     }
 
     pub fn mainnet() -> Self {
-        Self::new("https://api.coinset.org".to_string())
+        Self::new(MAINNET_URL.to_string())
+    }
+
+    /// Creates a mainnet client with opt-in [`ClientOptions`] (e.g. request timeouts).
+    pub fn mainnet_with_options(options: ClientOptions) -> reqwest::Result<Self> {
+        Self::with_options(MAINNET_URL.to_string(), options)
     }
 }
 

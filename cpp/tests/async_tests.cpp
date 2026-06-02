@@ -32,11 +32,10 @@ bool is_network_error(const std::string& msg) {
 
 int main() {
     try {
-        // Bound the synchronous block_on bridge so a hung peer/endpoint surfaces as a
-        // timeout (treated as a network skip below) instead of blocking forever.
-        set_blocking_call_timeout(30000); // 30s
-
-        auto rpc = RpcClient::mainnet();
+        // Bound the request so a hung endpoint surfaces as a timeout (treated as a
+        // network skip below) instead of blocking forever.
+        auto options = RpcClientOptions::init(/*timeout_ms=*/30000, /*connect_timeout_ms=*/10000);
+        auto rpc = RpcClient::mainnet_with_options(options);
         auto response = rpc->get_blockchain_state();
 
         if (!response->get_success()) {

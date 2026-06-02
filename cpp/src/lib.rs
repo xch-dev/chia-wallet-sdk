@@ -9,7 +9,10 @@ uniffi::setup_scaffolding!("chia_wallet_sdk");
 
 // Generate all bindings from the JSON schemas.
 // The C++ backend uses the `_sync` variant because uniffi-bindgen-cpp does not support
-// async functions; async methods (e.g. RpcClient request methods, Peer) are omitted.
+// async functions. Async methods (e.g. RpcClient request methods, Peer) are therefore
+// exposed as blocking calls that drive the future to completion on a shared Tokio runtime.
+// Bound them with the client-level timeouts (RpcClientOptions / PeerOptions); there is no
+// global backstop.
 bindy_macro::bindy_uniffi_sync!("bindings.json");
 
 // Hand-written alloc method for Clvm.

@@ -93,9 +93,21 @@ impl RpcClient {
         ))))
     }
 
+    pub fn testnet11_with_options(options: RpcClientOptions) -> Result<Self> {
+        Ok(Self(Arc::new(RpcClientImpl::Coinset(
+            chia_sdk_coinset::CoinsetClient::testnet11_with_options(options.to_client_options())?,
+        ))))
+    }
+
     pub fn mainnet() -> Result<Self> {
         Ok(Self(Arc::new(RpcClientImpl::Coinset(
             chia_sdk_coinset::CoinsetClient::mainnet(),
+        ))))
+    }
+
+    pub fn mainnet_with_options(options: RpcClientOptions) -> Result<Self> {
+        Ok(Self(Arc::new(RpcClientImpl::Coinset(
+            chia_sdk_coinset::CoinsetClient::mainnet_with_options(options.to_client_options())?,
         ))))
     }
 
