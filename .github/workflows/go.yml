@@ -65,7 +65,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: go-bindings
-          path: go/chia_wallet_sdk/chia_wallet_sdk.go
+          path: |
+            go/chia_wallet_sdk/chia_wallet_sdk.go
+            go/chia_wallet_sdk/chia_wallet_sdk.h
           if-no-files-found: error
 
   build:
