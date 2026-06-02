@@ -11,6 +11,7 @@ static BLOCK_ON_TIMEOUT_MS: AtomicU64 = AtomicU64::new(0);
 
 /// Sets a process-wide backstop timeout for the synchronous binding bridge.
 ///
+/// This is the internal setter behind the public `set_blocking_call_timeout` binding.
 /// Passing `None` (or a zero duration) disables it, restoring the default behavior
 /// of blocking until the future completes. Affects only the synchronous (C++)
 /// backend, which drives futures to completion via [`block_on`].

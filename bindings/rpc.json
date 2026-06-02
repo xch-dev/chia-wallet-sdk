@@ -1,5 +1,5 @@
 {
-  "set_request_timeout": {
+  "set_blocking_call_timeout": {
     "type": "function",
     "args": {
       "timeout_ms": "Option<u32>"
