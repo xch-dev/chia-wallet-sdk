@@ -61,3 +61,16 @@ foreach(test_name IN LISTS TEST_NAMES)
   add_test(NAME ${test_name} COMMAND sdk_tests ${test_name})
   set_tests_properties(${test_name} PROPERTIES ENVIRONMENT "${LOADER_ENV}")
 endforeach()
+
+# Async integration tests (network-dependent, run manually via build-and-test-async.sh)
+add_executable(async_sdk_tests
+  async_tests.cpp
+  "${BINDINGS_DIR}/chia_wallet_sdk.cpp")
+
+target_include_directories(async_sdk_tests PRIVATE "${BINDINGS_DIR}")
+target_link_libraries(async_sdk_tests PRIVATE "${CHIA_WALLET_SDK_LIB}")
+
+add_test(NAME async_get_blockchain_state COMMAND async_sdk_tests)
+set_tests_properties(async_get_blockchain_state PROPERTIES
+  ENVIRONMENT "${LOADER_ENV}"
+  LABELS "integration")
