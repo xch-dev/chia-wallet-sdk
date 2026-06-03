@@ -14,20 +14,6 @@ impl FullNodeClient {
         Self::with_base_url("https://localhost:8555".to_string(), cert_bytes, key_bytes)
     }
 
-    /// Creates a client for the default local node with opt-in [`ClientOptions`].
-    pub fn new_with_options(
-        cert_bytes: &[u8],
-        key_bytes: &[u8],
-        options: ClientOptions,
-    ) -> reqwest::Result<Self> {
-        Self::with_options(
-            "https://localhost:8555".to_string(),
-            cert_bytes,
-            key_bytes,
-            options,
-        )
-    }
-
     pub fn with_base_url(
         base_url: String,
         cert_bytes: &[u8],

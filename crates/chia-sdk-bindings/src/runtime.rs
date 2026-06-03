@@ -1,4 +1,13 @@
+use std::time::Duration;
+
 use bindy::Result;
+
+/// Converts a binding-facing `Option<u32>` milliseconds value into a `Duration`.
+/// Used to bridge the bindings (which expose `u32` ms for FFI portability) to the
+/// SDK layer (which takes `Duration`).
+pub(crate) fn ms_to_duration(ms: Option<u32>) -> Option<Duration> {
+    ms.map(|ms| Duration::from_millis(u64::from(ms)))
+}
 
 // UniFFI's C# async bridge polls Rust futures without a Tokio runtime context.
 // napi-rs and pyo3-async-runtimes provide their own, so this is only needed for uniffi.
@@ -18,7 +27,7 @@ where
     TOKIO_RUNTIME
         .spawn(future)
         .await
-        .map_err(|e| bindy::Error::Custom(e.to_string()))?
+        .map_err(|e| bindy::Error::Custom(format!("task join failed: {e}")))?
 }
 
 #[cfg(not(feature = "uniffi"))]

@@ -32,18 +32,8 @@ impl CoinsetClient {
         Self::new(TESTNET11_URL.to_string())
     }
 
-    /// Creates a testnet11 client with opt-in [`ClientOptions`] (e.g. request timeouts).
-    pub fn testnet11_with_options(options: ClientOptions) -> reqwest::Result<Self> {
-        Self::with_options(TESTNET11_URL.to_string(), options)
-    }
-
     pub fn mainnet() -> Self {
         Self::new(MAINNET_URL.to_string())
-    }
-
-    /// Creates a mainnet client with opt-in [`ClientOptions`] (e.g. request timeouts).
-    pub fn mainnet_with_options(options: ClientOptions) -> reqwest::Result<Self> {
-        Self::with_options(MAINNET_URL.to_string(), options)
     }
 }
 

@@ -36,8 +36,10 @@ type Response<T, E> = std::result::Result<T, E>;
 #[derive(Debug, Clone, Copy)]
 pub struct PeerOptions {
     pub rate_limit_factor: f64,
-    /// Timeout for establishing the connection (websocket connect + handshake).
-    /// `None` (the default) leaves it unbounded.
+    /// Total wall-clock budget for establishing a connection. In [`connect_peer`](crate::connect_peer)
+    /// this bounds the combined websocket TLS connect plus the chia handshake exchange;
+    /// in [`Peer::connect_full_uri`] (used directly without the handshake wrapper) it bounds
+    /// just the websocket connect. `None` (the default) leaves it unbounded.
     pub connect_timeout: Option<Duration>,
     /// Timeout for each request/response round-trip. `None` (the default) leaves
     /// requests unbounded.

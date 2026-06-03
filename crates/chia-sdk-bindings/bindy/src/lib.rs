@@ -63,7 +63,13 @@ pub enum Error {
 
     #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
     #[error("Client error: {0}")]
-    Client(#[from] chia_sdk_client::ClientError),
+    Client(chia_sdk_client::ClientError),
+
+    /// Connection or request exceeded its configured timeout. The string includes
+    /// the duration when known. Binding consumers can pattern-match on this variant
+    /// (or substring-match "Timeout:" in the display) to drive retry logic.
+    #[error("Timeout: {0}")]
+    Timeout(String),
 
     #[error("Reject coin state: {0:?}")]
     RejectCoinState(RejectCoinState),
@@ -136,13 +142,38 @@ pub enum Error {
     Custom(String),
 
     #[error("Reqwest error: {0}")]
-    Reqwest(#[from] reqwest::Error),
+    Reqwest(reqwest::Error),
 
     #[error("Streamable error: {0}")]
     Streamable(#[from] chia_traits::Error),
 
     #[error("Coin selection error: {0}")]
     CoinSelection(#[from] chia_sdk_utils::CoinSelectionError),
+}
+
+// Manual `From` impls route timeout errors to the structured `Error::Timeout` variant
+// so binding consumers can discriminate them from generic Client/Reqwest errors.
+
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+impl From<chia_sdk_client::ClientError> for Error {
+    fn from(value: chia_sdk_client::ClientError) -> Self {
+        match value {
+            chia_sdk_client::ClientError::Timeout(duration) => {
+                Self::Timeout(format!("operation timed out after {duration:?}"))
+            }
+            other => Self::Client(other),
+        }
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(value: reqwest::Error) -> Self {
+        if value.is_timeout() {
+            Self::Timeout(value.to_string())
+        } else {
+            Self::Reqwest(value)
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

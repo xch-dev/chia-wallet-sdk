@@ -17,14 +17,16 @@ using namespace chia_wallet_sdk;
 
 namespace {
 
+// Heuristic: treat failures that look like real network unavailability as a skip,
+// not a test failure. Kept narrow on purpose — overly broad substrings (like "request")
+// would mask genuine programming bugs that incidentally surface a similar word.
 bool is_network_error(const std::string& msg) {
     auto lower = msg;
     std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
-    return lower.find("connect") != std::string::npos ||
-           lower.find("timeout") != std::string::npos ||
+    return lower.find("timeout:") != std::string::npos ||
+           lower.find("connect") != std::string::npos ||
            lower.find("network") != std::string::npos ||
            lower.find("dns") != std::string::npos ||
-           lower.find("request") != std::string::npos ||
            lower.find("host") != std::string::npos;
 }
 
@@ -34,8 +36,8 @@ int main() {
     try {
         // Bound the request so a hung endpoint surfaces as a timeout (treated as a
         // network skip below) instead of blocking forever.
-        auto options = RpcClientOptions::init(/*timeout_ms=*/30000, /*connect_timeout_ms=*/10000);
-        auto rpc = RpcClient::mainnet_with_options(options);
+        auto options = RpcClientOptions::init(/*request_timeout_ms=*/30000, /*connect_timeout_ms=*/10000);
+        auto rpc = RpcClient::mainnet()->with_options(options);
         auto response = rpc->get_blockchain_state();
 
         if (!response->get_success()) {

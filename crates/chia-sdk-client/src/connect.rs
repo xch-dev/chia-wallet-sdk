@@ -17,55 +17,60 @@ pub async fn connect_peer(
 ) -> Result<(Peer, mpsc::Receiver<Message>), ClientError> {
     let connect_timeout = options.connect_timeout;
 
-    let (peer, mut receiver) = Peer::connect(socket_addr, connector, options).await?;
+    // `connect_timeout` is a single budget covering both the websocket connect and the
+    // chia handshake exchange. The inner `Peer::connect` also honors it for direct
+    // (non-handshake) callers; in this path it is bounded by the outer timeout below.
+    let inner = async move {
+        let (peer, mut receiver) = Peer::connect(socket_addr, connector, options).await?;
 
-    peer.send(Handshake {
-        network_id: network_id.clone(),
-        protocol_version: "0.0.37".to_string(),
-        software_version: "0.0.0".to_string(),
-        server_port: 0,
-        node_type: NodeType::Wallet,
-        capabilities: vec![
-            (1, "1".to_string()),
-            (2, "1".to_string()),
-            (3, "1".to_string()),
-        ],
-    })
-    .await?;
+        peer.send(Handshake {
+            network_id: network_id.clone(),
+            protocol_version: "0.0.37".to_string(),
+            software_version: "0.0.0".to_string(),
+            server_port: 0,
+            node_type: NodeType::Wallet,
+            capabilities: vec![
+                (1, "1".to_string()),
+                (2, "1".to_string()),
+                (3, "1".to_string()),
+            ],
+        })
+        .await?;
 
-    let handshake_response = match connect_timeout {
-        Some(duration) => tokio::time::timeout(duration, receiver.recv())
+        let Some(message) = receiver.recv().await else {
+            return Err(ClientError::MissingHandshake);
+        };
+
+        if message.msg_type != ProtocolMessageTypes::Handshake {
+            return Err(ClientError::InvalidResponse(
+                vec![ProtocolMessageTypes::Handshake],
+                message.msg_type,
+            ));
+        }
+
+        let handshake = Handshake::from_bytes(&message.data)?;
+
+        if handshake.node_type != NodeType::FullNode {
+            return Err(ClientError::WrongNodeType(
+                NodeType::FullNode,
+                handshake.node_type,
+            ));
+        }
+
+        if handshake.network_id != network_id {
+            return Err(ClientError::WrongNetwork(
+                network_id.clone(),
+                handshake.network_id,
+            ));
+        }
+
+        Ok((peer, receiver))
+    };
+
+    match connect_timeout {
+        Some(duration) => tokio::time::timeout(duration, inner)
             .await
             .map_err(|_| ClientError::Timeout(duration))?,
-        None => receiver.recv().await,
-    };
-
-    let Some(message) = handshake_response else {
-        return Err(ClientError::MissingHandshake);
-    };
-
-    if message.msg_type != ProtocolMessageTypes::Handshake {
-        return Err(ClientError::InvalidResponse(
-            vec![ProtocolMessageTypes::Handshake],
-            message.msg_type,
-        ));
+        None => inner.await,
     }
-
-    let handshake = Handshake::from_bytes(&message.data)?;
-
-    if handshake.node_type != NodeType::FullNode {
-        return Err(ClientError::WrongNodeType(
-            NodeType::FullNode,
-            handshake.node_type,
-        ));
-    }
-
-    if handshake.network_id != network_id {
-        return Err(ClientError::WrongNetwork(
-            network_id.clone(),
-            handshake.network_id,
-        ));
-    }
-
-    Ok((peer, receiver))
 }

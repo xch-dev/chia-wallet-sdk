@@ -3,7 +3,7 @@
     "type": "class",
     "new": true,
     "fields": {
-      "timeout_ms": "Option<u32>",
+      "request_timeout_ms": "Option<u32>",
       "connect_timeout_ms": "Option<u32>"
     }
   },
@@ -16,30 +16,11 @@
           "coinset_url": "String"
         }
       },
-      "new_with_options": {
-        "type": "factory",
-        "args": {
-          "coinset_url": "String",
-          "options": "RpcClientOptions"
-        }
-      },
       "testnet11": {
         "type": "factory"
       },
-      "testnet11_with_options": {
-        "type": "factory",
-        "args": {
-          "options": "RpcClientOptions"
-        }
-      },
       "mainnet": {
         "type": "factory"
-      },
-      "mainnet_with_options": {
-        "type": "factory",
-        "args": {
-          "options": "RpcClientOptions"
-        }
       },
       "local": {
         "type": "factory",
@@ -47,15 +28,6 @@
         "args": {
           "cert_bytes": "Bytes",
           "key_bytes": "Bytes"
-        }
-      },
-      "local_with_options": {
-        "type": "factory",
-        "no_wasm": true,
-        "args": {
-          "cert_bytes": "Bytes",
-          "key_bytes": "Bytes",
-          "options": "RpcClientOptions"
         }
       },
       "local_with_url": {
@@ -67,15 +39,11 @@
           "key_bytes": "Bytes"
         }
       },
-      "local_with_url_and_options": {
-        "type": "factory",
-        "no_wasm": true,
+      "with_options": {
         "args": {
-          "base_url": "String",
-          "cert_bytes": "Bytes",
-          "key_bytes": "Bytes",
           "options": "RpcClientOptions"
-        }
+        },
+        "return": "RpcClient"
       },
       "get_blockchain_state": {
         "type": "async",

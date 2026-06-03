@@ -13,7 +13,7 @@ use chia_ssl::ChiaCertificate;
 use chia_traits::Streamable;
 use tokio::sync::{Mutex, mpsc::Receiver};
 
-use crate::runtime::spawn_on_runtime;
+use crate::runtime::{ms_to_duration, spawn_on_runtime};
 
 #[derive(Clone)]
 pub struct Certificate {
@@ -52,6 +52,12 @@ impl Connector {
     }
 }
 
+/// Opt-in configuration for a [`Peer`]. Timeout values are in milliseconds.
+///
+/// `connect_timeout_ms` is a single budget covering the websocket TLS connect plus the
+/// chia handshake exchange; `None` leaves it unbounded. `request_timeout_ms` bounds each
+/// request/response round-trip on the established connection; `None` leaves requests
+/// unbounded.
 #[derive(Clone)]
 pub struct PeerOptions {
     pub rate_limit_factor: f64,
@@ -102,12 +108,8 @@ impl Peer {
         let socket_addr = socket_addr.parse()?;
         let sdk_options = SdkPeerOptions {
             rate_limit_factor: options.rate_limit_factor,
-            connect_timeout: options
-                .connect_timeout_ms
-                .map(|ms| std::time::Duration::from_millis(u64::from(ms))),
-            request_timeout: options
-                .request_timeout_ms
-                .map(|ms| std::time::Duration::from_millis(u64::from(ms))),
+            connect_timeout: ms_to_duration(options.connect_timeout_ms),
+            request_timeout: ms_to_duration(options.request_timeout_ms),
         };
 
         let (peer, receiver) = spawn_on_runtime(async move {
