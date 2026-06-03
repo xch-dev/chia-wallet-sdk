@@ -10,7 +10,7 @@ usage() {
   exit 1
 }
 
-VERSION="0.0.4-local"
+VERSION="0.33.0-dotnet.2"
 TARGET="aarch64-apple-darwin"
 
 while getopts ":v:t:h" opt; do

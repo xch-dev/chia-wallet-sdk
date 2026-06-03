@@ -11,7 +11,7 @@ use chia_sdk_coinset::{
 };
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::runtime::{ms_to_duration, spawn_on_runtime};
+use crate::runtime::ms_to_duration;
 
 #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 use chia_protocol::Bytes;
@@ -188,40 +188,33 @@ impl RpcClient {
     }
 
     pub async fn get_blockchain_state(&self) -> Result<BlockchainStateResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move { Ok(client.get_blockchain_state().await?) }).await
+        Ok(self.inner.get_blockchain_state().await?)
     }
 
     pub async fn get_additions_and_removals(
         &self,
         header_hash: Bytes32,
     ) -> Result<AdditionsAndRemovalsResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move { Ok(client.get_additions_and_removals(header_hash).await?) })
-            .await
+        Ok(self.inner.get_additions_and_removals(header_hash).await?)
     }
 
     pub async fn get_block(&self, header_hash: Bytes32) -> Result<GetBlockResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move { Ok(client.get_block(header_hash).await?) }).await
+        Ok(self.inner.get_block(header_hash).await?)
     }
 
     pub async fn get_block_record(&self, header_hash: Bytes32) -> Result<GetBlockRecordResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move { Ok(client.get_block_record(header_hash).await?) }).await
+        Ok(self.inner.get_block_record(header_hash).await?)
     }
 
     pub async fn get_block_record_by_height(
         &self,
         height: u32,
     ) -> Result<GetBlockRecordByHeightResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move { Ok(client.get_block_record_by_height(height).await?) }).await
+        Ok(self.inner.get_block_record_by_height(height).await?)
     }
 
     pub async fn get_block_records(&self, start: u32, end: u32) -> Result<GetBlockRecordsResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move { Ok(client.get_block_records(start, end).await?) }).await
+        Ok(self.inner.get_block_records(start, end).await?)
     }
 
     pub async fn get_blocks(
@@ -231,23 +224,18 @@ impl RpcClient {
         exclude_header_hash: bool,
         exclude_reorged: bool,
     ) -> Result<GetBlocksResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move {
-            Ok(client
-                .get_blocks(start, end, exclude_header_hash, exclude_reorged)
-                .await?)
-        })
-        .await
+        Ok(self
+            .inner
+            .get_blocks(start, end, exclude_header_hash, exclude_reorged)
+            .await?)
     }
 
     pub async fn get_block_spends(&self, header_hash: Bytes32) -> Result<GetBlockSpendsResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move { Ok(client.get_block_spends(header_hash).await?) }).await
+        Ok(self.inner.get_block_spends(header_hash).await?)
     }
 
     pub async fn get_coin_record_by_name(&self, name: Bytes32) -> Result<GetCoinRecordResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move { Ok(client.get_coin_record_by_name(name).await?) }).await
+        Ok(self.inner.get_coin_record_by_name(name).await?)
     }
 
     pub async fn get_coin_records_by_hint(
@@ -258,19 +246,16 @@ impl RpcClient {
         include_spent_coins: Option<bool>,
         cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move {
-            Ok(client
-                .get_coin_records_by_hint(
-                    hint,
-                    start_height,
-                    end_height,
-                    include_spent_coins,
-                    cursor,
-                )
-                .await?)
-        })
-        .await
+        Ok(self
+            .inner
+            .get_coin_records_by_hint(
+                hint,
+                start_height,
+                end_height,
+                include_spent_coins,
+                cursor,
+            )
+            .await?)
     }
 
     pub async fn get_coin_records_by_hints(
@@ -281,19 +266,16 @@ impl RpcClient {
         include_spent_coins: Option<bool>,
         cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move {
-            Ok(client
-                .get_coin_records_by_hints(
-                    hints,
-                    start_height,
-                    end_height,
-                    include_spent_coins,
-                    cursor,
-                )
-                .await?)
-        })
-        .await
+        Ok(self
+            .inner
+            .get_coin_records_by_hints(
+                hints,
+                start_height,
+                end_height,
+                include_spent_coins,
+                cursor,
+            )
+            .await?)
     }
 
     pub async fn get_coin_records_by_names(
@@ -304,19 +286,16 @@ impl RpcClient {
         include_spent_coins: Option<bool>,
         cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move {
-            Ok(client
-                .get_coin_records_by_names(
-                    names,
-                    start_height,
-                    end_height,
-                    include_spent_coins,
-                    cursor,
-                )
-                .await?)
-        })
-        .await
+        Ok(self
+            .inner
+            .get_coin_records_by_names(
+                names,
+                start_height,
+                end_height,
+                include_spent_coins,
+                cursor,
+            )
+            .await?)
     }
 
     pub async fn get_coin_records_by_parent_ids(
@@ -327,19 +306,16 @@ impl RpcClient {
         include_spent_coins: Option<bool>,
         cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move {
-            Ok(client
-                .get_coin_records_by_parent_ids(
-                    parent_ids,
-                    start_height,
-                    end_height,
-                    include_spent_coins,
-                    cursor,
-                )
-                .await?)
-        })
-        .await
+        Ok(self
+            .inner
+            .get_coin_records_by_parent_ids(
+                parent_ids,
+                start_height,
+                end_height,
+                include_spent_coins,
+                cursor,
+            )
+            .await?)
     }
 
     pub async fn get_coin_records_by_puzzle_hash(
@@ -350,19 +326,16 @@ impl RpcClient {
         include_spent_coins: Option<bool>,
         cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move {
-            Ok(client
-                .get_coin_records_by_puzzle_hash(
-                    puzzle_hash,
-                    start_height,
-                    end_height,
-                    include_spent_coins,
-                    cursor,
-                )
-                .await?)
-        })
-        .await
+        Ok(self
+            .inner
+            .get_coin_records_by_puzzle_hash(
+                puzzle_hash,
+                start_height,
+                end_height,
+                include_spent_coins,
+                cursor,
+            )
+            .await?)
     }
 
     pub async fn get_coin_records_by_puzzle_hashes(
@@ -373,19 +346,16 @@ impl RpcClient {
         include_spent_coins: Option<bool>,
         cursor: Option<String>,
     ) -> Result<GetCoinRecordsResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move {
-            Ok(client
-                .get_coin_records_by_puzzle_hashes(
-                    puzzle_hashes,
-                    start_height,
-                    end_height,
-                    include_spent_coins,
-                    cursor,
-                )
-                .await?)
-        })
-        .await
+        Ok(self
+            .inner
+            .get_coin_records_by_puzzle_hashes(
+                puzzle_hashes,
+                start_height,
+                end_height,
+                include_spent_coins,
+                cursor,
+            )
+            .await?)
     }
 
     pub async fn get_puzzle_and_solution(
@@ -393,35 +363,28 @@ impl RpcClient {
         coin_id: Bytes32,
         height: Option<u32>,
     ) -> Result<GetPuzzleAndSolutionResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move { Ok(client.get_puzzle_and_solution(coin_id, height).await?) })
-            .await
+        Ok(self.inner.get_puzzle_and_solution(coin_id, height).await?)
     }
 
     pub async fn push_tx(&self, spend_bundle: SpendBundle) -> Result<PushTxResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move { Ok(client.push_tx(spend_bundle).await?) }).await
+        Ok(self.inner.push_tx(spend_bundle).await?)
     }
 
     pub async fn get_network_info(&self) -> Result<GetNetworkInfoResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move { Ok(client.get_network_info().await?) }).await
+        Ok(self.inner.get_network_info().await?)
     }
 
     pub async fn get_mempool_item_by_tx_id(
         &self,
         tx_id: Bytes32,
     ) -> Result<GetMempoolItemResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move { Ok(client.get_mempool_item_by_tx_id(tx_id).await?) }).await
+        Ok(self.inner.get_mempool_item_by_tx_id(tx_id).await?)
     }
 
     pub async fn get_mempool_items_by_coin_name(
         &self,
         coin_name: Bytes32,
     ) -> Result<GetMempoolItemsResponse> {
-        let client = self.inner.clone();
-        spawn_on_runtime(async move { Ok(client.get_mempool_items_by_coin_name(coin_name).await?) })
-            .await
+        Ok(self.inner.get_mempool_items_by_coin_name(coin_name).await?)
     }
 }

@@ -12,7 +12,11 @@ public class AsyncTests
     {
         try
         {
-            var rpc = RpcClient.Mainnet();
+            var options = new RpcClientOptions(
+                requestTimeoutMs: 30_000,   // whole-request budget: connect + send + receive
+                connectTimeoutMs: null);   // just the connection phase
+
+            var rpc = RpcClient.Mainnet().WithOptions(options);
             var response = await rpc.GetBlockchainState();
             Assert.True(response.GetSuccess(), "success should be true");
             Assert.NotNull(response.GetBlockchainState());

@@ -13,7 +13,7 @@ use chia_ssl::ChiaCertificate;
 use chia_traits::Streamable;
 use tokio::sync::{Mutex, mpsc::Receiver};
 
-use crate::runtime::{ms_to_duration, spawn_on_runtime};
+use crate::runtime::ms_to_duration;
 
 #[derive(Clone)]
 pub struct Certificate {
@@ -112,10 +112,8 @@ impl Peer {
             request_timeout: ms_to_duration(options.request_timeout_ms),
         };
 
-        let (peer, receiver) = spawn_on_runtime(async move {
-            Ok(connect_peer(network_id, connector.0.clone(), socket_addr, sdk_options).await?)
-        })
-        .await?;
+        let (peer, receiver) =
+            connect_peer(network_id, connector.0.clone(), socket_addr, sdk_options).await?;
 
         Ok(Self(peer, Arc::new(Mutex::new(receiver))))
     }
@@ -127,13 +125,10 @@ impl Peer {
         header_hash: Bytes32,
         subscribe: bool,
     ) -> Result<RespondCoinState> {
-        let peer = self.0.clone();
-        spawn_on_runtime(async move {
-            peer.request_coin_state(coin_ids, previous_height, header_hash, subscribe)
-                .await?
-                .map_err(bindy::Error::RejectCoinState)
-        })
-        .await
+        self.0
+            .request_coin_state(coin_ids, previous_height, header_hash, subscribe)
+            .await?
+            .map_err(bindy::Error::RejectCoinState)
     }
 
     pub async fn request_puzzle_state(
@@ -144,9 +139,8 @@ impl Peer {
         filters: CoinStateFilters,
         subscribe: bool,
     ) -> Result<RespondPuzzleState> {
-        let peer = self.0.clone();
-        spawn_on_runtime(async move {
-            peer.request_puzzle_state(
+        self.0
+            .request_puzzle_state(
                 puzzle_hashes,
                 previous_height,
                 header_hash,
@@ -155,8 +149,6 @@ impl Peer {
             )
             .await?
             .map_err(bindy::Error::RejectPuzzleState)
-        })
-        .await
     }
 
     pub async fn request_puzzle_and_solution(
@@ -164,66 +156,52 @@ impl Peer {
         coin_id: Bytes32,
         height: u32,
     ) -> Result<PuzzleSolutionResponse> {
-        let peer = self.0.clone();
-        spawn_on_runtime(async move {
-            peer.request_puzzle_and_solution(coin_id, height)
-                .await?
-                .map_err(bindy::Error::RejectPuzzleSolution)
-        })
-        .await
+        self.0
+            .request_puzzle_and_solution(coin_id, height)
+            .await?
+            .map_err(bindy::Error::RejectPuzzleSolution)
     }
 
     pub async fn remove_coin_subscriptions(
         &self,
         coin_ids: Option<Vec<Bytes32>>,
     ) -> Result<Vec<Bytes32>> {
-        let peer = self.0.clone();
-        spawn_on_runtime(
-            async move { Ok(peer.remove_coin_subscriptions(coin_ids).await?.coin_ids) },
-        )
-        .await
+        Ok(self.0.remove_coin_subscriptions(coin_ids).await?.coin_ids)
     }
 
     pub async fn remove_puzzle_subscriptions(
         &self,
         puzzle_hashes: Option<Vec<Bytes32>>,
     ) -> Result<Vec<Bytes32>> {
-        let peer = self.0.clone();
-        spawn_on_runtime(async move {
-            Ok(peer
-                .remove_puzzle_subscriptions(puzzle_hashes)
-                .await?
-                .puzzle_hashes)
-        })
-        .await
+        Ok(self
+            .0
+            .remove_puzzle_subscriptions(puzzle_hashes)
+            .await?
+            .puzzle_hashes)
     }
 
     pub async fn next(&self) -> Result<Option<Event>> {
-        let receiver = self.1.clone();
-        spawn_on_runtime(async move {
-            let mut receiver = receiver.lock().await;
+        let mut receiver = self.1.lock().await;
 
-            while let Some(message) = receiver.recv().await {
-                match message.msg_type {
-                    ProtocolMessageTypes::NewPeakWallet => {
-                        return Ok(Some(Event {
-                            new_peak_wallet: Some(NewPeakWallet::from_bytes(&message.data)?),
-                            coin_state_update: None,
-                        }));
-                    }
-                    ProtocolMessageTypes::CoinStateUpdate => {
-                        return Ok(Some(Event {
-                            new_peak_wallet: None,
-                            coin_state_update: Some(CoinStateUpdate::from_bytes(&message.data)?),
-                        }));
-                    }
-                    _ => {}
+        while let Some(message) = receiver.recv().await {
+            match message.msg_type {
+                ProtocolMessageTypes::NewPeakWallet => {
+                    return Ok(Some(Event {
+                        new_peak_wallet: Some(NewPeakWallet::from_bytes(&message.data)?),
+                        coin_state_update: None,
+                    }));
                 }
+                ProtocolMessageTypes::CoinStateUpdate => {
+                    return Ok(Some(Event {
+                        new_peak_wallet: None,
+                        coin_state_update: Some(CoinStateUpdate::from_bytes(&message.data)?),
+                    }));
+                }
+                _ => {}
             }
+        }
 
-            Ok(None)
-        })
-        .await
+        Ok(None)
     }
 }
 

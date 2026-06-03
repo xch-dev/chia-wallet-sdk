@@ -1815,6 +1815,16 @@ fn bindy_uniffi_impl(input: TokenStream, include_async: bool) -> TokenStream {
                 let mut method_tokens = quote!();
                 let mut static_fn_tokens = quote!();
 
+                // Whether the generated impl block ends up containing any async fns. Used
+                // below to decide whether to tag the `#[uniffi::export]` with
+                // `async_runtime = "tokio"` — UniFFI rejects that attribute on impl blocks
+                // that have no async methods.
+                let has_async_method = include_async
+                    && methods.values().any(|m| {
+                        !m.stub_only
+                            && matches!(m.kind, MethodKind::Async | MethodKind::AsyncFactory)
+                    });
+
                 // Methods from JSON schema
                 for (method_name, method) in methods {
                     if method.stub_only {
@@ -2026,11 +2036,20 @@ fn bindy_uniffi_impl(input: TokenStream, include_async: bool) -> TokenStream {
                     });
                 }
 
+                // When the generated impl block exposes any async methods (Go/C# backends),
+                // tag the block with `async_runtime = "tokio"` so UniFFI wraps each polled
+                // future in `async_compat::Compat`
+                let export_attr = if has_async_method {
+                    quote!( #[uniffi::export(async_runtime = "tokio")] )
+                } else {
+                    quote!( #[uniffi::export] )
+                };
+
                 output.extend(quote! {
                     #[derive(Clone, uniffi::Object)]
                     pub struct #bound_ident(#rust_struct_ident);
 
-                    #[uniffi::export]
+                    #export_attr
                     impl #bound_ident {
                         #method_tokens
                         #field_tokens
