@@ -52,6 +52,7 @@ jobs:
           cargo build --release --all-features
           cargo build --release -p chia-sdk-driver
           cargo build --release -p chia-sdk-driver --all-features
+          cargo build --release -p chia-sdk-driver -F chip-0057
           cargo build --release -p chia-sdk-client
           cargo build --release -p chia-sdk-client --all-features
           cargo build --release -p chia-sdk-coinset
@@ -60,9 +61,12 @@ jobs:
           cargo build --release -p chia-sdk-signer
           cargo build --release -p chia-sdk-test
           cargo build --release -p chia-sdk-test --all-features
+          cargo build --release -p chia-sdk-test -F chip-0057
           cargo build --release -p chia-sdk-types
           cargo build --release -p chia-sdk-types --all-features
+          cargo build --release -p chia-sdk-types -F chip-0057
           cargo build --release -p chia-sdk-utils
+          cargo build --release -p chia-sdk-utils -F chip-0057
           cargo build --release -p chia-sdk-bindings -F napi
           cargo build --release -p chia-sdk-bindings -F wasm
           cargo build --release -p chia-sdk-bindings -F pyo3

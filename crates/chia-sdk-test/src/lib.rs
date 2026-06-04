@@ -6,6 +6,9 @@ mod simulator;
 mod transaction;
 mod validate_clvm_and_signature;
 
+#[cfg(feature = "chip-0057")]
+pub mod silent_payments;
+
 pub use announcements::*;
 pub use benchmark::*;
 pub use error::*;
