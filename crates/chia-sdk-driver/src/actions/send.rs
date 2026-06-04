@@ -37,8 +37,10 @@ impl SpendAction for SendAction {
         spends: &mut Spends,
         _index: usize,
     ) -> Result<(), DriverError> {
-        let output = Output::new(self.puzzle_hash, self.amount);
-        let create_coin = CreateCoin::new(self.puzzle_hash, self.amount, self.memos);
+        let puzzle_hash = self.puzzle_hash;
+
+        let output = Output::new(puzzle_hash, self.amount);
+        let create_coin = CreateCoin::new(puzzle_hash, self.amount, self.memos);
 
         if matches!(self.id, Id::Xch) {
             let source = spends.xch.output_source(ctx, &output)?;
@@ -96,7 +98,7 @@ impl SpendAction for SendAction {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use chia_protocol::Coin;
+    use chia_protocol::{Bytes32, Coin};
     use chia_puzzle_types::standard::StandardArgs;
     use chia_sdk_test::{BlsPair, Simulator};
     use indexmap::indexmap;

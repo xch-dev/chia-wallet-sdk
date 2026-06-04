@@ -937,7 +937,7 @@ mod tests {
             &mut sim,
             &mut ctx,
             &[
-                Action::send(id, SETTLEMENT_PAYMENT_HASH.into(), 1000, Memos::None),
+                Action::send(id, Bytes32::new(SETTLEMENT_PAYMENT_HASH), 1000, Memos::None),
                 Action::fee(alice_fee),
             ],
         )?;
