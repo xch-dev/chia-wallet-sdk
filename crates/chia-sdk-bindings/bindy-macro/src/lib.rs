@@ -1185,6 +1185,45 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                         .map(|v| parse_str::<Type>(apply_mappings(v, &mappings).as_str()).unwrap())
                         .collect::<Vec<_>>();
 
+                    // Detect `Option<T>` parameters (using the raw descriptor
+                    // type so we can match before mappings rewrite the form).
+                    // pyo3 requires explicit `arg=None` defaults to expose
+                    // optional parameters; without this, `Option<T>` shows up
+                    // as a required positional arg at the Python call site,
+                    // breaking ergonomic optional-arg call shapes.
+                    //
+                    // Only emit `=None` for the *trailing* run of Option args
+                    // — pyo3 forbids required positional params after an
+                    // optional param, so an Option in a middle slot must stay
+                    // required at the call site.
+                    let arg_is_optional = method
+                        .args
+                        .values()
+                        .map(|v| v.trim_start().starts_with("Option<"))
+                        .collect::<Vec<_>>();
+
+                    // Find the boundary where trailing Options begin.
+                    let mut trailing_start = arg_is_optional.len();
+                    for (i, is_opt) in arg_is_optional.iter().enumerate().rev() {
+                        if *is_opt {
+                            trailing_start = i;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    let signature_args = arg_idents
+                        .iter()
+                        .enumerate()
+                        .map(|(i, ident)| {
+                            if i >= trailing_start {
+                                quote!(#ident = None)
+                            } else {
+                                quote!(#ident)
+                            }
+                        })
+                        .collect::<Vec<_>>();
+
                     let ret = parse_str::<Type>(
                         apply_mappings(
                             method.ret.as_deref().unwrap_or(
@@ -1216,7 +1255,7 @@ pub fn bindy_pyo3(input: TokenStream) -> TokenStream {
                     if !matches!(method.kind, MethodKind::ToString) {
                         pyo3_attr = quote! {
                             #pyo3_attr
-                            #[pyo3(signature = (#(#arg_idents),*))]
+                            #[pyo3(signature = (#(#signature_args),*))]
                         };
                     }
 
