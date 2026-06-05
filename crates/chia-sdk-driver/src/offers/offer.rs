@@ -487,7 +487,7 @@ mod tests {
             &mut ctx,
             &[Action::send(
                 Id::Existing(alice_nft.info.launcher_id),
-                SETTLEMENT_PAYMENT_HASH.into(),
+                Bytes32::new(SETTLEMENT_PAYMENT_HASH),
                 1,
                 Memos::None,
             )],

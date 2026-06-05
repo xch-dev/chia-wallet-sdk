@@ -5,7 +5,7 @@ use chia_bls::SecretKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, SpendBundle};
 use chia_sdk_test::SimulatorConfig;
 
-use crate::BlsPairWithCoin;
+use crate::{BlsPairWithCoin, TweakData};
 
 #[derive(Default, Clone)]
 pub struct Simulator(Arc<Mutex<chia_sdk_test::Simulator>>);
@@ -82,6 +82,43 @@ impl Simulator {
 
     pub fn coin_spend(&self, coin_id: Bytes32) -> Result<Option<CoinSpend>> {
         Ok(self.0.lock().unwrap().coin_spend(coin_id))
+    }
+
+    /// Construct a [`TweakData`] from one block of the simulator's history
+    /// (CHIP-0057 silent-payments test helper).
+    ///
+    /// Wraps `chia_sdk_test::silent_payments::tweak_data_from_simulator_block`,
+    /// converting the driver-side `TweakData` into the binding-facade
+    /// [`TweakData`] via the existing `From` impl in `crate::silent_payments`.
+    pub fn tweak_data_from_block(&self, height: u32) -> Result<TweakData> {
+        Ok(
+            chia_sdk_test::silent_payments::tweak_data_from_simulator_block(
+                &self.0.lock().unwrap(),
+                height,
+            )
+            .into(),
+        )
+    }
+
+    /// Return every coin spend that resolved at `height` (binding facade).
+    ///
+    /// Thin wrapper over `chia_sdk_test::Simulator::block_spends(height)` —
+    /// returns the block's removals as a `Vec<CoinSpend>` suitable for
+    /// passing to `SilentPayments::tweak_data_from_block_spends`. Returns
+    /// an empty vector when no spends resolved at `height`.
+    pub fn block_spends(&self, height: u32) -> Result<Vec<CoinSpend>> {
+        Ok(self.0.lock().unwrap().block_spends(height))
+    }
+
+    /// Return every coin created at `height` (binding facade).
+    ///
+    /// Thin wrapper over `chia_sdk_test::Simulator::block_outputs(height)` —
+    /// returns the block's additions as a `Vec<Coin>` suitable for pairing
+    /// with `block_spends` when calling
+    /// `SilentPayments::tweak_data_from_block_spends`. Returns an empty
+    /// vector when no coins were created at `height`.
+    pub fn block_outputs(&self, height: u32) -> Result<Vec<Coin>> {
+        Ok(self.0.lock().unwrap().block_outputs(height))
     }
 
     pub fn spend_coins(

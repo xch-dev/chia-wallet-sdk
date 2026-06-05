@@ -1,5 +1,8 @@
 pub mod puzzles;
 
+#[cfg(feature = "chip-0057")]
+pub mod silent_payments;
+
 mod condition;
 mod constants;
 mod load_clvm;

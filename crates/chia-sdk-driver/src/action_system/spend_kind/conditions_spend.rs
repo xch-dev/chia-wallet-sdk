@@ -25,6 +25,15 @@ impl ConditionsSpend {
         }
     }
 
+    /// Read-only access to the accumulated conditions list.
+    ///
+    /// Useful for introspection in tests and instrumentation — for example,
+    /// verifying that a higher-level action emitted a particular opcode on a
+    /// particular spend before the spend is consumed by [`Self::finish`].
+    pub fn conditions_ref(&self) -> &Conditions {
+        &self.conditions
+    }
+
     pub fn finish(self) -> Conditions {
         self.conditions
     }

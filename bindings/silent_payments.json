@@ -1,0 +1,213 @@
+{
+  "SilentPaymentNetwork": {
+    "type": "enum",
+    "values": ["Mainnet", "Testnet"]
+  },
+  "SilentPaymentAddress": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "scan_pk": "PublicKey",
+      "spend_pk": "PublicKey",
+      "network": "SilentPaymentNetwork"
+    },
+    "methods": {
+      "encode": {
+        "return": "String"
+      },
+      "decode": {
+        "type": "factory",
+        "args": {
+          "address": "String"
+        }
+      }
+    }
+  },
+  "SilentPaymentKeys": {
+    "type": "class",
+    "methods": {
+      "from_mnemonic": {
+        "type": "factory",
+        "args": {
+          "mnemonic": "Mnemonic"
+        }
+      },
+      "from_secret_keys": {
+        "type": "factory",
+        "args": {
+          "scan_sk": "SecretKey",
+          "spend_sk": "SecretKey"
+        }
+      },
+      "scan_sk": {
+        "return": "SecretKey"
+      },
+      "spend_sk": {
+        "return": "SecretKey"
+      },
+      "scan_pk": {
+        "return": "PublicKey"
+      },
+      "spend_pk": {
+        "return": "PublicKey"
+      },
+      "unlabeled_address": {
+        "args": {
+          "network": "SilentPaymentNetwork"
+        },
+        "return": "SilentPaymentAddress"
+      },
+      "labeled_address": {
+        "args": {
+          "network": "SilentPaymentNetwork",
+          "m": "u32"
+        },
+        "return": "SilentPaymentAddress"
+      }
+    }
+  },
+  "LabelRegistry": {
+    "type": "class",
+    "methods": {
+      "new": {
+        "type": "constructor"
+      },
+      "register": {
+        "args": {
+          "scan_sk": "SecretKey",
+          "m": "u32"
+        }
+      },
+      "forward": {
+        "args": {
+          "m": "u32"
+        },
+        "return": "Option<PublicKey>"
+      },
+      "lookup": {
+        "args": {
+          "label_pk": "PublicKey"
+        },
+        "return": "Option<u32>"
+      },
+      "len": {
+        "return": "u32"
+      },
+      "is_empty": {
+        "return": "bool"
+      }
+    }
+  },
+  "OutputMeta": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "puzzle_hash": "Bytes32",
+      "coin_id": "Bytes32",
+      "amount": "u64",
+      "parent_coin_id": "Bytes32"
+    }
+  },
+  "TweakData": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "tweak_points": "Vec<PublicKey>",
+      "outputs": "Vec<OutputMeta>"
+    }
+  },
+  "DetectedSpCoin": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "coin_id": "Bytes32",
+      "puzzle_hash": "Bytes32",
+      "amount": "u64",
+      "parent_coin_id": "Bytes32",
+      "onetime_sk": "SecretKey",
+      "k": "u32",
+      "label": "Option<u32>"
+    }
+  },
+  "ScalarField": {
+    "type": "class",
+    "methods": {
+      "from_bytes": {
+        "type": "factory",
+        "args": {
+          "bytes": "Bytes32"
+        }
+      },
+      "to_bytes": {
+        "return": "Bytes32"
+      }
+    }
+  },
+  "SilentPaymentRegisteredKey": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "p2_puzzle_hash": "Bytes32",
+      "public_key": "PublicKey"
+    }
+  },
+  "SilentPaymentRegisteredSecretKey": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "p2_puzzle_hash": "Bytes32",
+      "secret_key": "SecretKey"
+    }
+  },
+  "SilentPayments": {
+    "type": "class",
+    "methods": {
+      "scan_from_tweaks": {
+        "type": "static",
+        "args": {
+          "scan_sk": "SecretKey",
+          "spend_sk": "SecretKey",
+          "spend_pk": "PublicKey",
+          "data": "TweakData",
+          "labels": "LabelRegistry",
+          "k_max": "u32"
+        },
+        "return": "Vec<DetectedSpCoin>"
+      },
+      "derive_one_time_puzzle_hash": {
+        "type": "static",
+        "args": {
+          "scan_pk": "PublicKey",
+          "spend_pk": "PublicKey",
+          "aggregated_sender_sk": "ScalarField",
+          "input_hash": "ScalarField",
+          "k": "u32"
+        },
+        "return": "Bytes32"
+      },
+      "compute_input_hash": {
+        "type": "static",
+        "args": {
+          "coin_ids": "Vec<Bytes32>",
+          "aggregated_sender_pk": "PublicKey"
+        },
+        "return": "ScalarField"
+      },
+      "aggregate_sender_sks": {
+        "type": "static",
+        "args": {
+          "sks": "Vec<SecretKey>"
+        },
+        "return": "ScalarField"
+      },
+      "tweak_data_from_block_spends": {
+        "type": "static",
+        "args": {
+          "coin_spends": "Vec<CoinSpend>",
+          "additions": "Vec<Coin>"
+        },
+        "return": "TweakData"
+      }
+    }
+  }
+}

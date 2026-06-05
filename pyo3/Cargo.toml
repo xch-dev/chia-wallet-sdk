@@ -1,7 +1,21 @@
 [package]
 publish = false
 name = "chia-wallet-sdk-py"
-version = "0.33.0"
+# PEP 440 local-version segment carries the SDK *content* git short-hash into the
+# built wheel's metadata so importlib.metadata.version("chia_wallet_sdk") returns
+# "0.33.0+g64588fba". This short-hash identifies the SDK source the wheel compiles
+# (commit 64588fba, "cargo fmt SP send-action files" — the latest commit touching
+# compiled source for the non-breaking SP-send action change: Action::send reverts
+# to a concrete Bytes32 puzzle-hash destination and SP send is gated behind the
+# dedicated Action::silent_payment_send action, with SendDestination deleted; this
+# is the latest compiled-content commit on top of 84ca133e/b2a77f68 which landed the
+# binding-level revert + new action); the fork's own HEAD also includes later
+# test-only commits, recorded separately in silent-payments/BUILD.md.
+# The silent-payments freshness gate (tests/conftest.py) parses the +g<hash> segment
+# to prove the loaded .so matches the pinned content commit (Open Question 1
+# resolution; pyproject.toml declares dynamic=["version"], so maturin sources the
+# wheel version from this [package].version).
+version = "0.33.0+g64588fba"
 edition = "2024"
 
 [lib]

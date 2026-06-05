@@ -5,6 +5,8 @@ use chia_puzzle_types::{
 };
 use hex_literal::hex;
 
+#[cfg(feature = "chip-0057")]
+use crate::SilentPaymentSendAction;
 use crate::{
     CreateDidAction, Delta, Deltas, DriverError, FeeAction, HashedPtr, Id, IssueCatAction,
     MeltSingletonAction, MintNftAction, MintOptionAction, OptionType, RunTailAction, SendAction,
@@ -29,9 +31,12 @@ pub enum Action {
     MintOption(MintOptionAction),
     MeltSingleton(MeltSingletonAction),
     Fee(FeeAction),
+    #[cfg(feature = "chip-0057")]
+    SilentPaymentSend(SilentPaymentSendAction),
 }
 
 impl Action {
+    /// Construct a send action targeting a literal puzzle hash.
     pub fn send(id: Id, puzzle_hash: Bytes32, amount: u64, memos: Memos) -> Self {
         Self::Send(SendAction::new(id, puzzle_hash, amount, memos))
     }
@@ -222,6 +227,15 @@ impl Action {
     pub fn fee(amount: u64) -> Self {
         Self::Fee(FeeAction::new(amount))
     }
+
+    #[cfg(feature = "chip-0057")]
+    pub fn silent_payment_send(
+        recipient: chia_sdk_utils::silent_payments::SilentPaymentAddress,
+        amount: u64,
+        memos: Memos,
+    ) -> Self {
+        Self::SilentPaymentSend(SilentPaymentSendAction::new(recipient, amount, memos))
+    }
 }
 
 pub trait SpendAction {
@@ -249,6 +263,8 @@ impl SpendAction for Action {
             Action::MintOption(action) => action.calculate_delta(deltas, index),
             Action::MeltSingleton(action) => action.calculate_delta(deltas, index),
             Action::Fee(action) => action.calculate_delta(deltas, index),
+            #[cfg(feature = "chip-0057")]
+            Action::SilentPaymentSend(action) => action.calculate_delta(deltas, index),
         }
     }
 
@@ -270,6 +286,8 @@ impl SpendAction for Action {
             Action::MintOption(action) => action.spend(ctx, spends, index),
             Action::MeltSingleton(action) => action.spend(ctx, spends, index),
             Action::Fee(action) => action.spend(ctx, spends, index),
+            #[cfg(feature = "chip-0057")]
+            Action::SilentPaymentSend(action) => action.spend(ctx, spends, index),
         }
     }
 }

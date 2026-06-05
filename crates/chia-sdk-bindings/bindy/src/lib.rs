@@ -22,7 +22,7 @@ use std::{net::AddrParseError, string::FromUtf8Error};
 use chia_protocol::{RejectCoinState, RejectPuzzleSolution, RejectPuzzleState};
 use chia_sdk_driver::DriverError;
 use chia_sdk_test::SimulatorError;
-use chia_sdk_utils::Bech32Error;
+use chia_sdk_utils::{Bech32Error, silent_payments::SilentPaymentError};
 use clvm_traits::{FromClvmError, ToClvmError};
 
 use num_bigint::{BigInt, ParseBigIntError, TryFromBigIntError};
@@ -42,6 +42,9 @@ pub enum Error {
 
     #[error("Bech32 error: {0}")]
     Bech32(#[from] Bech32Error),
+
+    #[error("Silent payment error: {0}")]
+    SilentPayment(#[from] SilentPaymentError),
 
     #[error("Hex error: {0}")]
     Hex(#[from] hex::FromHexError),

@@ -17,6 +17,7 @@ workspace = true
 [features]
 chip-0035 = []
 chip-0037 = []
+chip-0057 = []
 action-layer = []
 
 [dependencies]
@@ -32,6 +33,7 @@ clvm-traits = { workspace = true, features = ["chia-secp"] }
 clvm-utils = { workspace = true }
 clvmr = { workspace = true }
 hex-literal = { workspace = true }
+num-bigint = { workspace = true }
 thiserror = { workspace = true }
 chialisp = { workspace = true }
 rue-compiler = { workspace = true }
