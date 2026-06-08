@@ -53,6 +53,19 @@ int main() {
         }
 
         std::cout << "async_get_blockchain_state passed\n";
+
+        // Second Coinset call over the same timeout-bounded client.
+        auto network_info = rpc->get_network_info();
+        if (!network_info->get_success()) {
+            std::cerr << "FAILED: get_network_info returned success=false\n";
+            return 1;
+        }
+        if (!network_info->get_network_name().has_value()) {
+            std::cerr << "FAILED: network_name is empty\n";
+            return 1;
+        }
+
+        std::cout << "async_get_network_info passed\n";
         return 0;
     } catch (const std::exception& e) {
         if (is_network_error(e.what())) {
