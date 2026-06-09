@@ -12,9 +12,9 @@ use crate::{
     AssertedNotarizedPayment, AssertedPayment, ClawbackInfo, ClearSigningAsset, CustodyInfo,
     DriverError, DropCoin, Facts, Issuance, IssuanceKind, LinkedOffer, P2ConditionsOrSingletonInfo,
     P2SingletonInfo, ParsedAsset, ParsedChild, ParsedSpend, RevealedCoinSpend, Reveals, Spend,
-    SpendContext, VaultMessage, VaultOutput, build_linked_offer, get_extra_delta_message,
-    mips_puzzle_hash, parse_asserted_requested_payments, parse_children, parse_run_cat_tail,
-    parse_spend, parse_vault_delegated_spend, split_asserted_payments,
+    SpendContext, TransferType, VaultMessage, VaultOutput, build_linked_offer,
+    get_extra_delta_message, mips_puzzle_hash, parse_asserted_requested_payments, parse_children,
+    parse_run_cat_tail, parse_spend, parse_vault_delegated_spend, split_asserted_payments,
 };
 
 /// The purpose of this is to provide sufficient information to verify what is happening to a vault and its assets
@@ -402,7 +402,9 @@ fn build_asset_flows(
         }
 
         for child in &spend.children {
-            if !spend_coin_ids.contains(&child.asset.coin().coin_id()) {
+            if !spend_coin_ids.contains(&child.asset.coin().coin_id())
+                && child.transfer_type != TransferType::Offered
+            {
                 asset_flow_mut(&mut flows, asset_from_parsed(&child.asset)).output_amount +=
                     child.asset.coin().amount;
             }

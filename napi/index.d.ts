@@ -1857,13 +1857,15 @@ export declare class ParsedBulletin {
 
 export declare class ParsedCat {
   clone(): ParsedCat
-  constructor(cat: Cat, p2Puzzle: Puzzle, p2Solution: Program)
+  constructor(cat: Cat, p2Puzzle: Puzzle, p2Solution: Program, revoked: boolean)
   get cat(): Cat
   set cat(value: Cat)
   get p2Puzzle(): Puzzle
   set p2Puzzle(value: Puzzle)
   get p2Solution(): Program
   set p2Solution(value: Program)
+  get revoked(): boolean
+  set revoked(value: boolean)
 }
 
 export declare class ParsedCatInfo {

@@ -455,13 +455,11 @@ fn vault_tail_messages(
         let puzzle = Puzzle::parse(ctx, puzzle);
         let solution = coin_spend.solution.to_clvm(ctx)?;
 
-        let Some((_cat, inner_puzzle, inner_solution)) =
-            Cat::parse(ctx, coin_spend.coin, puzzle, solution)?
-        else {
+        let Some(parsed) = Cat::parse(ctx, coin_spend.coin, puzzle, solution)? else {
             continue;
         };
 
-        let output = ctx.run(inner_puzzle.ptr(), inner_solution)?;
+        let output = ctx.run(parsed.p2_puzzle.ptr(), parsed.p2_solution)?;
         let conditions: Vec<Condition> = ctx.extract(output)?;
 
         let Some(run_cat_tail) = conditions.iter().find_map(Condition::as_run_cat_tail) else {

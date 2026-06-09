@@ -197,7 +197,8 @@
     "fields": {
       "cat": "Cat",
       "p2_puzzle": "Puzzle",
-      "p2_solution": "Program"
+      "p2_solution": "Program",
+      "revoked": "bool"
     }
   },
   "Nft": {

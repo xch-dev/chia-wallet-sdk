@@ -18,10 +18,12 @@ use crate::{CatLayer, DriverError, Layer, Puzzle, RevocationLayer, Spend, SpendC
 
 mod cat_info;
 mod cat_spend;
+mod parsed_cat;
 mod single_cat_spend;
 
 pub use cat_info::*;
 pub use cat_spend::*;
+pub use parsed_cat::*;
 pub use single_cat_spend::*;
 
 /// Contains all information needed to spend the outer puzzles of CAT coins.
@@ -326,7 +328,7 @@ impl Cat {
         coin: Coin,
         puzzle: Puzzle,
         solution: NodePtr,
-    ) -> Result<Option<(Self, Puzzle, NodePtr)>, DriverError> {
+    ) -> Result<Option<ParsedCat>, DriverError> {
         let Some(cat_layer) = CatLayer::<Puzzle>::parse_puzzle(allocator, puzzle)? else {
             return Ok(None);
         };
@@ -338,7 +340,7 @@ impl Cat {
             let revocation_solution =
                 RevocationLayer::parse_solution(allocator, cat_solution.inner_puzzle_solution)?;
 
-            let info = Self::new(
+            let cat = Self::new(
                 coin,
                 cat_solution.lineage_proof,
                 CatInfo::new(
@@ -348,13 +350,14 @@ impl Cat {
                 ),
             );
 
-            Ok(Some((
-                info,
-                Puzzle::parse(allocator, revocation_solution.puzzle),
-                revocation_solution.solution,
-            )))
+            Ok(Some(ParsedCat {
+                cat,
+                p2_puzzle: Puzzle::parse(allocator, revocation_solution.puzzle),
+                p2_solution: revocation_solution.solution,
+                revoked: revocation_solution.hidden,
+            }))
         } else {
-            let info = Self::new(
+            let cat = Self::new(
                 coin,
                 cat_solution.lineage_proof,
                 CatInfo::new(
@@ -364,11 +367,12 @@ impl Cat {
                 ),
             );
 
-            Ok(Some((
-                info,
-                cat_layer.inner_puzzle,
-                cat_solution.inner_puzzle_solution,
-            )))
+            Ok(Some(ParsedCat {
+                cat,
+                p2_puzzle: cat_layer.inner_puzzle,
+                p2_solution: cat_solution.inner_puzzle_solution,
+                revoked: false,
+            }))
         }
     }
 

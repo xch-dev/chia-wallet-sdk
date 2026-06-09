@@ -44,12 +44,10 @@ pub fn parse_spend(
     let mut inner_puzzle = spend.puzzle;
     let mut inner_solution = spend.solution;
 
-    if let Some((cat, parsed_inner_puzzle, parsed_inner_solution)) =
-        Cat::parse(allocator, spend.coin, spend.puzzle, spend.solution)?
-    {
-        asset = ParsedAsset::Cat(cat);
-        inner_puzzle = parsed_inner_puzzle;
-        inner_solution = parsed_inner_solution;
+    if let Some(parsed) = Cat::parse(allocator, spend.coin, spend.puzzle, spend.solution)? {
+        asset = ParsedAsset::Cat(parsed.cat);
+        inner_puzzle = parsed.p2_puzzle;
+        inner_solution = parsed.p2_solution;
     } else if let Some((nft, parsed_inner_puzzle, parsed_inner_solution)) =
         Nft::parse(allocator, spend.coin, spend.puzzle, spend.solution)?
     {
