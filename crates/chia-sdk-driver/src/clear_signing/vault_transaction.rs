@@ -74,6 +74,7 @@ pub struct VerifiedSpend {
     pub clawback: Option<ClawbackInfo>,
     pub custody: CustodyInfo,
     pub children: Vec<ParsedChild>,
+    pub revoked: bool,
 }
 
 pub fn parse_vault_transaction(
@@ -365,6 +366,7 @@ fn verify_spend(
         clawback: parsed_spend.clawback,
         custody,
         children,
+        revoked: parsed_spend.revoked,
     }))
 }
 

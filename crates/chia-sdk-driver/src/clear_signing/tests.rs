@@ -567,6 +567,7 @@ fn test_clear_signing_transfer(
     );
 
     let spend = &tx.spends.last().unwrap();
+    assert!(!spend.revoked);
     assert_eq!(spend.children.len(), 1);
 
     let child = &spend.children[0];
@@ -1293,6 +1294,7 @@ fn test_clear_signing_revocable_cat_child_uses_unwrapped_p2_puzzle_hash() -> Res
         1,
     );
     assert_eq!(spend.children.len(), 1);
+    assert!(spend.revoked);
 
     let child = &spend.children[0];
     let expected_child_info = CatInfo::new(

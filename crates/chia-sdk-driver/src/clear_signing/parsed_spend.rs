@@ -13,6 +13,7 @@ pub struct ParsedSpend {
     pub clawback: Option<ClawbackInfo>,
     pub custody: Option<CustodyInfo>,
     pub required_expiration_time: Option<u64>,
+    pub revoked: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,11 +44,13 @@ pub fn parse_spend(
     let mut asset = ParsedAsset::Xch(spend.coin);
     let mut inner_puzzle = spend.puzzle;
     let mut inner_solution = spend.solution;
+    let mut revoked = false;
 
     if let Some(parsed) = Cat::parse(allocator, spend.coin, spend.puzzle, spend.solution)? {
         asset = ParsedAsset::Cat(parsed.cat);
         inner_puzzle = parsed.p2_puzzle;
         inner_solution = parsed.p2_solution;
+        revoked = parsed.revoked;
     } else if let Some((nft, parsed_inner_puzzle, parsed_inner_solution)) =
         Nft::parse(allocator, spend.coin, spend.puzzle, spend.solution)?
     {
@@ -84,5 +87,6 @@ pub fn parse_spend(
         clawback: inner_spend.clawback,
         custody: inner_spend.custody,
         required_expiration_time,
+        revoked,
     })
 }
