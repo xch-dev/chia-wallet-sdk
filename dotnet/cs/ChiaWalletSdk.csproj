@@ -44,9 +44,10 @@
   <UsingTask TaskName="ReplaceInFile" TaskFactory="RoslynCodeTaskFactory"
              AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
-      <FilePath     ParameterType="System.String" Required="true" />
-      <OldValue     ParameterType="System.String" Required="true" />
-      <NewValue     ParameterType="System.String" Required="true" />
+      <FilePath      ParameterType="System.String" Required="true" />
+      <OldValue      ParameterType="System.String" Required="true" />
+      <NewValue      ParameterType="System.String" Required="true" />
+      <FailIfMissing ParameterType="System.Boolean" Required="false" />
     </ParameterGroup>
     <Task>
       <Using Namespace="System.IO" />
@@ -55,6 +56,8 @@
         var patched = content.Replace(OldValue, NewValue);
         if (content != patched)
           File.WriteAllText(FilePath, patched);
+        else if (FailIfMissing)
+          Log.LogError("ReplaceInFile: required pattern '{0}' not found in {1}. The uniffi-bindgen-cs output format likely changed; review the post-processing patches.", OldValue, FilePath);
       ]]></Code>
     </Task>
   </UsingTask>
@@ -63,9 +66,10 @@
   <UsingTask TaskName="ReplaceInFileRegex" TaskFactory="RoslynCodeTaskFactory"
              AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
-      <FilePath     ParameterType="System.String" Required="true" />
-      <Pattern      ParameterType="System.String" Required="true" />
-      <Replacement  ParameterType="System.String" Required="true" />
+      <FilePath      ParameterType="System.String" Required="true" />
+      <Pattern       ParameterType="System.String" Required="true" />
+      <Replacement   ParameterType="System.String" Required="true" />
+      <FailIfMissing ParameterType="System.Boolean" Required="false" />
     </ParameterGroup>
     <Task>
       <Using Namespace="System.IO" />
@@ -75,6 +79,8 @@
         var patched = Regex.Replace(content, Pattern, Replacement);
         if (content != patched)
           File.WriteAllText(FilePath, patched);
+        else if (FailIfMissing)
+          Log.LogError("ReplaceInFileRegex: required pattern '{0}' not found in {1}. The uniffi-bindgen-cs output format likely changed; review the post-processing patches.", Pattern, FilePath);
       ]]></Code>
     </Task>
   </UsingTask>
@@ -98,10 +104,14 @@
     <PropertyGroup>
       <_BindingsFile>$(MSBuildThisFileDirectory)chia_wallet_sdk.cs</_BindingsFile>
     </PropertyGroup>
-    <!-- Domain classes: internal class Foo : IFoo, IDisposable -->
+    <!-- Domain classes: internal class Foo : IFoo, IDisposable.
+         FailIfMissing: domain classes are always emitted; a zero-match here means the
+         generator output changed and the package would otherwise ship with an all-internal
+         (unusable) API surface yet still build green. Fail loudly instead. -->
     <ReplaceInFile FilePath="$(_BindingsFile)"
                   OldValue="internal class "
-                  NewValue="public class " />
+                  NewValue="public class "
+                  FailIfMissing="true" />
     <!-- Interfaces: internal interface IFoo -->
     <ReplaceInFile FilePath="$(_BindingsFile)"
                   OldValue="internal interface "
@@ -110,10 +120,11 @@
     <ReplaceInFile FilePath="$(_BindingsFile)"
                   OldValue="internal record "
                   NewValue="public record " />
-    <!-- Static classes: internal static class ChiaWalletSdkMethods -->
+    <!-- Static classes: internal static class ChiaWalletSdkMethods (always emitted) -->
     <ReplaceInFile FilePath="$(_BindingsFile)"
                   OldValue="internal static class ChiaWalletSdkMethods"
-                  NewValue="public static class ChiaWalletSdkMethods" />
+                  NewValue="public static class ChiaWalletSdkMethods"
+                  FailIfMissing="true" />
     <!-- Enums: internal enum Foo -->
     <ReplaceInFile FilePath="$(_BindingsFile)"
                   OldValue="internal enum "
