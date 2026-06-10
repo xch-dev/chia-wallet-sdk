@@ -338,13 +338,14 @@ impl Peer {
             // (its sender is only purged lazily on the next `insert`) and can be reused by a
             // later request before the peer's delayed response arrives — at which point that
             // stale response would be delivered to the unrelated newer request.
-            Some(duration) => match tokio::time::timeout(duration, receiver).await {
-                Ok(result) => Ok(result?),
-                Err(_) => {
+            Some(duration) => {
+                if let Ok(result) = tokio::time::timeout(duration, receiver).await {
+                    Ok(result?)
+                } else {
                     self.0.requests.remove(id).await;
                     Err(ClientError::Timeout(duration))
                 }
-            },
+            }
             None => Ok(receiver.await?),
         }
     }
@@ -423,4 +424,49 @@ async fn handle_inbound_messages(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use tokio::net::TcpListener;
+    use tokio_tungstenite::{accept_async, connect_async};
+
+    /// A request that times out must be removed from the `RequestMap`. Otherwise its id
+    /// stays allocated (purged only lazily on the next `insert`) and can be reused by a
+    /// later request before the peer's delayed response arrives — which would route that
+    /// stale response to the unrelated newer request.
+    #[tokio::test]
+    async fn request_timeout_frees_request_id() {
+        // Server that completes the websocket handshake but never sends a response.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let _ws = accept_async(stream).await.unwrap();
+            // Hold the connection open without ever responding.
+            std::future::pending::<()>().await;
+        });
+
+        let (ws, _) = connect_async(format!("ws://{addr}")).await.unwrap();
+        let options = PeerOptions {
+            request_timeout: Some(Duration::from_millis(100)),
+            ..Default::default()
+        };
+        let (peer, _receiver) = Peer::from_websocket(ws, options).unwrap();
+
+        // Issue a request the server will never answer; it must time out.
+        let result = peer.request_children(Bytes32::default()).await;
+        assert!(
+            matches!(result, Err(ClientError::Timeout(_))),
+            "expected timeout, got {result:?}"
+        );
+
+        // The timed-out request must have been removed from the map, so the id is free
+        // again rather than lingering until the next `insert`.
+        assert_eq!(peer.0.requests.len().await, 0);
+
+        server.abort();
+    }
 }

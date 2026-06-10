@@ -58,4 +58,9 @@ impl RequestMap {
     pub(crate) async fn remove(&self, id: u16) -> Option<Request> {
         self.items.lock().await.remove(&id)
     }
+
+    #[cfg(test)]
+    pub(crate) async fn len(&self) -> usize {
+        self.items.lock().await.len()
+    }
 }
