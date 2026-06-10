@@ -324,17 +324,27 @@ impl Peer {
     {
         let (sender, receiver) = oneshot::channel();
 
+        let id = self.0.requests.insert(sender).await;
+
         self.send_raw(Message {
             msg_type: T::msg_type(),
-            id: Some(self.0.requests.insert(sender).await),
+            id: Some(id),
             data: body.to_bytes()?.into(),
         })
         .await?;
 
         match self.0.request_timeout {
-            Some(duration) => Ok(tokio::time::timeout(duration, receiver)
-                .await
-                .map_err(|_| ClientError::Timeout(duration))??),
+            // On timeout the request id must be removed from the map. Otherwise it stays
+            // (its sender is only purged lazily on the next `insert`) and can be reused by a
+            // later request before the peer's delayed response arrives — at which point that
+            // stale response would be delivered to the unrelated newer request.
+            Some(duration) => match tokio::time::timeout(duration, receiver).await {
+                Ok(result) => Ok(result?),
+                Err(_) => {
+                    self.0.requests.remove(id).await;
+                    Err(ClientError::Timeout(duration))
+                }
+            },
             None => Ok(receiver.await?),
         }
     }
