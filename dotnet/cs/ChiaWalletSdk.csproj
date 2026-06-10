@@ -47,7 +47,6 @@
       <FilePath      ParameterType="System.String" Required="true" />
       <OldValue      ParameterType="System.String" Required="true" />
       <NewValue      ParameterType="System.String" Required="true" />
-      <FailIfMissing ParameterType="System.Boolean" Required="false" />
     </ParameterGroup>
     <Task>
       <Using Namespace="System.IO" />
@@ -56,8 +55,6 @@
         var patched = content.Replace(OldValue, NewValue);
         if (content != patched)
           File.WriteAllText(FilePath, patched);
-        else if (FailIfMissing)
-          Log.LogError("ReplaceInFile: required pattern '{0}' not found in {1}. The uniffi-bindgen-cs output format likely changed; review the post-processing patches.", OldValue, FilePath);
       ]]></Code>
     </Task>
   </UsingTask>
@@ -69,7 +66,6 @@
       <FilePath      ParameterType="System.String" Required="true" />
       <Pattern       ParameterType="System.String" Required="true" />
       <Replacement   ParameterType="System.String" Required="true" />
-      <FailIfMissing ParameterType="System.Boolean" Required="false" />
     </ParameterGroup>
     <Task>
       <Using Namespace="System.IO" />
@@ -79,8 +75,29 @@
         var patched = Regex.Replace(content, Pattern, Replacement);
         if (content != patched)
           File.WriteAllText(FilePath, patched);
-        else if (FailIfMissing)
-          Log.LogError("ReplaceInFileRegex: required pattern '{0}' not found in {1}. The uniffi-bindgen-cs output format likely changed; review the post-processing patches.", Pattern, FilePath);
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <!--
+    Idempotent post-condition check for the visibility patches. Asserts the *desired end
+    state* is present rather than that a particular `internal `->`public ` replacement
+    fired. The bindings file persists across builds (e.g. `dotnet pack` then `dotnet test`),
+    so the promotions run again on an already-public file where the `internal ` patterns are
+    legitimately gone — checking the post-condition stays correct in that case, while still
+    failing loudly if a uniffi-bindgen-cs format change leaves the public API internal.
+  -->
+  <UsingTask TaskName="AssertFileContains" TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <FilePath ParameterType="System.String" Required="true" />
+      <Needle   ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        if (!File.ReadAllText(FilePath).Contains(Needle))
+          Log.LogError("AssertFileContains: expected '{0}' in {1} after post-processing. The uniffi-bindgen-cs output format likely changed; review the visibility patches.", Needle, FilePath);
       ]]></Code>
     </Task>
   </UsingTask>
@@ -104,14 +121,10 @@
     <PropertyGroup>
       <_BindingsFile>$(MSBuildThisFileDirectory)chia_wallet_sdk.cs</_BindingsFile>
     </PropertyGroup>
-    <!-- Domain classes: internal class Foo : IFoo, IDisposable.
-         FailIfMissing: domain classes are always emitted; a zero-match here means the
-         generator output changed and the package would otherwise ship with an all-internal
-         (unusable) API surface yet still build green. Fail loudly instead. -->
+    <!-- Domain classes: internal class Foo : IFoo, IDisposable -->
     <ReplaceInFile FilePath="$(_BindingsFile)"
                   OldValue="internal class "
-                  NewValue="public class "
-                  FailIfMissing="true" />
+                  NewValue="public class " />
     <!-- Interfaces: internal interface IFoo -->
     <ReplaceInFile FilePath="$(_BindingsFile)"
                   OldValue="internal interface "
@@ -120,11 +133,10 @@
     <ReplaceInFile FilePath="$(_BindingsFile)"
                   OldValue="internal record "
                   NewValue="public record " />
-    <!-- Static classes: internal static class ChiaWalletSdkMethods (always emitted) -->
+    <!-- Static classes: internal static class ChiaWalletSdkMethods -->
     <ReplaceInFile FilePath="$(_BindingsFile)"
                   OldValue="internal static class ChiaWalletSdkMethods"
-                  NewValue="public static class ChiaWalletSdkMethods"
-                  FailIfMissing="true" />
+                  NewValue="public static class ChiaWalletSdkMethods" />
     <!-- Enums: internal enum Foo -->
     <ReplaceInFile FilePath="$(_BindingsFile)"
                   OldValue="internal enum "
@@ -155,6 +167,13 @@
     <ReplaceInFile FilePath="$(_BindingsFile)"
                   OldValue="public static class _UniFFIAsync"
                   NewValue="internal static class _UniFFIAsync" />
+    <!-- Tripwire: confirm the public API surface is actually public after patching. These
+         anchors (the global-functions class and a core domain type) are stable across
+         regenerations; a failure means uniffi-bindgen-cs changed its declaration format and
+         the patches above silently no longer apply (which would otherwise ship an unusable,
+         all-internal package on a green build). -->
+    <AssertFileContains FilePath="$(_BindingsFile)" Needle="public static class ChiaWalletSdkMethods" />
+    <AssertFileContains FilePath="$(_BindingsFile)" Needle="public class Clvm " />
   </Target>
 
   <Target Name="PatchClvmStringAmbiguity" BeforeTargets="CoreCompile">
