@@ -156,6 +156,20 @@ fn cat_asset_flow(flows: &[AssetFlow]) -> &AssetFlow {
         .unwrap()
 }
 
+fn nft_asset_flow<'a>(flows: &'a [AssetFlow], nft: &Nft) -> &'a AssetFlow {
+    asset_flow(
+        flows,
+        ClearSigningAsset::Nft {
+            launcher_id: nft.info.launcher_id,
+            metadata: nft.info.metadata,
+            metadata_updater_puzzle_hash: nft.info.metadata_updater_puzzle_hash,
+            royalty_puzzle_hash: nft.info.royalty_puzzle_hash,
+            royalty_basis_points: nft.info.royalty_basis_points,
+        },
+    )
+    .unwrap()
+}
+
 #[rstest]
 fn test_clear_signing_vault_child() -> Result<()> {
     let mut sim = Simulator::new();
@@ -792,6 +806,12 @@ fn test_clear_signing_mint_nft() -> Result<()> {
     let child_nft = unwrap_nft(&nft_spend.children[0].asset);
     assert_eq!(child_nft.info.launcher_id, parent_nft.info.launcher_id);
     assert_eq!(child_nft.info.p2_puzzle_hash, alice.p2_puzzle_hash);
+
+    let xch = xch_asset_flow(&tx.asset_flows);
+    assert_eq!(xch.unaccounted_amount, 0);
+
+    let nft = nft_asset_flow(&tx.asset_flows, child_nft);
+    assert_eq!(nft.unaccounted_amount, 0);
 
     Ok(())
 }

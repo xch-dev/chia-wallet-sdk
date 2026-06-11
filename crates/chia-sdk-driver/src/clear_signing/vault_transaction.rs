@@ -439,6 +439,15 @@ fn build_asset_flows(
             asserted_payment.payment.amount;
     }
 
+    for spend in spends {
+        if matches!(spend.asset, ParsedAsset::Nft(_))
+            && xch_child_coin_ids.contains(&spend.asset.coin().parent_coin_info)
+        {
+            asset_flow_mut(&mut flows, ClearSigningAsset::Xch).melted_amount +=
+                spend.asset.coin().amount;
+        }
+    }
+
     for issuance in issuances {
         let Some(spend) = spend_by_coin_id.get(&issuance.coin_id) else {
             continue;
