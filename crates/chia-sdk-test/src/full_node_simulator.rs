@@ -15,13 +15,13 @@ use chia_sdk_coinset::{
     GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem, MempoolMinFees,
     PushTxResponse, SyncState,
 };
-use chia_sdk_types::{default_constants};
+use chia_sdk_types::default_constants;
 use chia_sha2::Sha256;
 use clvmr::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
+use hex_literal::hex;
 use indexmap::{IndexMap, IndexSet};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use hex_literal::hex;
 
 use crate::{SimulatorError, validate_clvm_and_signature};
 
@@ -545,7 +545,7 @@ impl FullNodeSimulator {
             };
         }
 
-        let validated = match self.validate_bundle(spend_bundle, true) {
+        let validated = match self.validate_bundle(spend_bundle) {
             Ok(validated) => validated,
             Err(error) => {
                 return PushTxResponse {
@@ -556,7 +556,14 @@ impl FullNodeSimulator {
             }
         };
 
-        self.mempool.insert(tx_id, validated);
+        if let Err(error) = self.insert_mempool_item(tx_id, validated) {
+            return PushTxResponse {
+                status: "FAILED".to_string(),
+                error: Some(error.to_string()),
+                success: false,
+            };
+        }
+
         if self.autofarm {
             self.farm_block(1);
         }
@@ -566,6 +573,41 @@ impl FullNodeSimulator {
             error: None,
             success: true,
         }
+    }
+
+    fn insert_mempool_item(
+        &mut self,
+        tx_id: Bytes32,
+        validated: ValidatedBundle,
+    ) -> Result<(), SimulatorError> {
+        let conflicting_tx_ids = self.conflicting_mempool_tx_ids(&validated);
+        if !conflicting_tx_ids.is_empty() {
+            let conflicting_removals = conflicting_tx_ids
+                .iter()
+                .filter_map(|tx_id| self.mempool.get(tx_id))
+                .flat_map(|item| item.removals.iter().copied())
+                .collect::<IndexSet<_>>();
+            let conflicting_fees = conflicting_tx_ids
+                .iter()
+                .filter_map(|tx_id| self.mempool.get(tx_id))
+                .map(|item| item.fee)
+                .sum::<u64>();
+            let replacement = conflicting_removals
+                .iter()
+                .all(|coin_id| validated.removals.contains(coin_id))
+                && validated.fee > conflicting_fees;
+
+            if !replacement {
+                return Err(SimulatorError::Validation(ErrorCode::MempoolConflict));
+            }
+
+            for tx_id in conflicting_tx_ids {
+                self.mempool.swap_remove(&tx_id);
+            }
+        }
+
+        self.mempool.insert(tx_id, validated);
+        Ok(())
     }
 
     pub fn get_mempool_item_by_tx_id(&self, tx_id: Bytes32) -> GetMempoolItemResponse {
@@ -651,7 +693,6 @@ impl FullNodeSimulator {
     fn validate_bundle(
         &self,
         spend_bundle: SpendBundle,
-        check_mempool: bool,
     ) -> Result<ValidatedBundle, SimulatorError> {
         if spend_bundle.coin_spends.is_empty() {
             return Err(SimulatorError::Validation(ErrorCode::InvalidSpendBundle));
@@ -735,15 +776,6 @@ impl FullNodeSimulator {
                 }
 
                 self.validate_relative_conditions(spend, record)?;
-
-                if check_mempool
-                    && self
-                        .mempool
-                        .values()
-                        .any(|item| item.removals.contains(&coin_id))
-                {
-                    return Err(SimulatorError::Validation(ErrorCode::DoubleSpend));
-                }
             } else if additions.contains_key(&coin_id) {
                 let ephemeral_coin_record = SimCoinRecord {
                     coin,
@@ -778,6 +810,18 @@ impl FullNodeSimulator {
             cost: conds.cost,
             fee,
         })
+    }
+
+    fn conflicting_mempool_tx_ids(&self, validated: &ValidatedBundle) -> Vec<Bytes32> {
+        self.mempool
+            .iter()
+            .filter(|(_, item)| {
+                item.removals
+                    .iter()
+                    .any(|coin_id| validated.removals.contains(coin_id))
+            })
+            .map(|(tx_id, _)| *tx_id)
+            .collect()
     }
 
     fn validate_relative_conditions(
@@ -826,7 +870,7 @@ impl FullNodeSimulator {
         let mut included = Vec::new();
         let mut spent_in_block = IndexSet::new();
         for (tx_id, item) in self.mempool.clone() {
-            let Ok(validated) = self.validate_bundle(item.spend_bundle.clone(), false) else {
+            let Ok(validated) = self.validate_bundle(item.spend_bundle.clone()) else {
                 continue;
             };
             if validated
@@ -982,8 +1026,8 @@ impl FullNodeSimulator {
             if self.mempool.contains_key(&tx_id) {
                 continue;
             }
-            if let Ok(validated) = self.validate_bundle(spend_bundle, true) {
-                self.mempool.insert(tx_id, validated);
+            if let Ok(validated) = self.validate_bundle(spend_bundle) {
+                let _ = self.insert_mempool_item(tx_id, validated);
             }
         }
     }
@@ -1405,6 +1449,106 @@ mod tests {
                 .unwrap()
                 .mempool_size,
             0
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn push_tx_rejects_mempool_conflict() -> anyhow::Result<()> {
+        let mut sim = FullNodeSimulator::new();
+        sim.set_autofarm(false);
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+        let coin = sim.new_coin(puzzle_hash, 100);
+        let first = spend_to_child(coin, puzzle_reveal.clone(), puzzle_hash, 98)?;
+        let conflicting = spend_to_child(coin, puzzle_reveal, puzzle_hash, 99)?;
+
+        assert!(sim.push_tx(first).success);
+        let response = sim.push_tx(conflicting);
+
+        assert!(!response.success);
+        assert_eq!(
+            response.error.as_deref(),
+            Some("Validation error: MempoolConflict")
+        );
+        assert_eq!(
+            sim.get_blockchain_state()
+                .blockchain_state
+                .unwrap()
+                .mempool_size,
+            1
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn push_tx_replaces_mempool_conflict_with_higher_fee_superset() -> anyhow::Result<()> {
+        let mut sim = FullNodeSimulator::new();
+        sim.set_autofarm(false);
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+        let coin = sim.new_coin(puzzle_hash, 100);
+        let first = spend_to_child(coin, puzzle_reveal.clone(), puzzle_hash, 99)?;
+        let replacement = spend_to_child(coin, puzzle_reveal, puzzle_hash, 98)?;
+        let first_tx_id = first.name();
+        let replacement_tx_id = replacement.name();
+
+        assert!(sim.push_tx(first).success);
+        assert!(sim.push_tx(replacement).success);
+
+        assert!(
+            sim.get_mempool_item_by_tx_id(first_tx_id)
+                .mempool_item
+                .is_none()
+        );
+        assert!(
+            sim.get_mempool_item_by_tx_id(replacement_tx_id)
+                .mempool_item
+                .is_some()
+        );
+        assert_eq!(
+            sim.get_blockchain_state()
+                .blockchain_state
+                .unwrap()
+                .mempool_size,
+            1
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn push_tx_does_not_replace_conflict_that_is_not_a_superset() -> anyhow::Result<()> {
+        let mut sim = FullNodeSimulator::new();
+        sim.set_autofarm(false);
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+        let coin_a = sim.new_coin(puzzle_hash, 100);
+        let coin_b = sim.new_coin(puzzle_hash, 100);
+        let first_spend_a = spend_to_child(coin_a, puzzle_reveal.clone(), puzzle_hash, 99)?;
+        let first_spend_b = spend_to_child(coin_b, puzzle_reveal.clone(), puzzle_hash, 99)?;
+        let first = SpendBundle::new(
+            vec![
+                first_spend_a.coin_spends[0].clone(),
+                first_spend_b.coin_spends[0].clone(),
+            ],
+            Signature::default(),
+        );
+        let conflicting = spend_to_child(coin_a, puzzle_reveal, puzzle_hash, 50)?;
+
+        assert!(sim.push_tx(first).success);
+        let response = sim.push_tx(conflicting);
+
+        assert!(!response.success);
+        assert_eq!(
+            response.error.as_deref(),
+            Some("Validation error: MempoolConflict")
+        );
+        assert_eq!(
+            sim.get_blockchain_state()
+                .blockchain_state
+                .unwrap()
+                .mempool_size,
+            1
         );
 
         Ok(())
