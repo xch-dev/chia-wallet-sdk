@@ -25,11 +25,11 @@ use rstest::rstest;
 
 use crate::{
     Action, AssetFlow, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo, CatSpend,
-    ClawbackInfo, ClawbackPath, ClawbackV2, ClearSigningAsset, CustodyInfo, Deltas, DriverError,
-    DropCoin, FeeAction, HashedPtr, Id, IssuanceKind, LinkedOffer, Nft, OfferPreSplitInfo,
-    P2ConditionsOrSingleton, ParsedAsset, Puzzle, Reveals, Spend, SpendContext, SpendKind, Spends,
-    TestP2Puzzle, TestVault, TransferNftById, TransferType, VaultOutput, iter_final_children,
-    parse_vault_transaction,
+    ClawbackInfo, ClawbackPath, ClawbackV2, ClearSigningAsset, CustodyInfo, Delta, Deltas,
+    DriverError, DropCoin, FeeAction, HashedPtr, Id, IssuanceKind, LinkedOffer, Nft,
+    OfferPreSplitInfo, P2ConditionsOrSingleton, ParsedAsset, Puzzle, Reveals, Spend, SpendContext,
+    SpendKind, Spends, TestP2Puzzle, TestVault, TransferNftById, TransferType, VaultOutput,
+    iter_final_children, parse_vault_transaction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -119,6 +119,20 @@ fn unwrap_nft(asset: &ParsedAsset) -> &Nft {
 
 fn asset_flow(flows: &[AssetFlow], asset: ClearSigningAsset) -> Option<&AssetFlow> {
     flows.iter().find(|flow| flow.asset == asset)
+}
+
+fn xch_asset_flow(flows: &[AssetFlow]) -> &AssetFlow {
+    flows
+        .iter()
+        .find(|flow| matches!(flow.asset, ClearSigningAsset::Xch))
+        .unwrap()
+}
+
+fn cat_asset_flow(flows: &[AssetFlow]) -> &AssetFlow {
+    flows
+        .iter()
+        .find(|flow| matches!(flow.asset, ClearSigningAsset::Cat { .. }))
+        .unwrap()
 }
 
 #[rstest]
@@ -574,6 +588,81 @@ fn test_clear_signing_transfer(
 
     check_asset(&child.asset, asset_id, hidden_puzzle_hash, 1000);
     assert_eq!(child.memos.p2_puzzle_hash, bob_puzzle_hash);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_melt() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    let IssuedAsset { id, .. } = issue_asset(&mut sim, &mut ctx, &alice, AssetKind::Cat, 900)?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(id, alice.p2_puzzle_hash, 900, Memos::None)],
+    )?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    let cat = cat_asset_flow(&tx.asset_flows);
+
+    assert_eq!(cat.input_amount, 900);
+    assert_eq!(cat.output_amount, 900);
+    assert_eq!(cat.unaccounted_amount, 0);
+
+    let tail_puzzle = ctx.curry(EverythingWithSingletonTailArgs::new(
+        alice.info.launcher_id,
+        Bytes::default(),
+    ))?;
+    let tail_solution = ctx.alloc(&EverythingWithSingletonTailSolution::new(
+        alice.info.custody_hash.into(),
+    ))?;
+    let tail_spend = Spend::new(tail_puzzle, tail_solution);
+    let supply_delta = Delta::new(0, 750);
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+
+    let actions = [Action::run_tail(id, tail_spend, supply_delta)];
+
+    let mut deltas = Deltas::from_actions(&actions);
+    deltas.set_needed(Id::Xch);
+    alice.select_coins(&sim, &mut spends, &deltas)?;
+
+    let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    let xch = xch_asset_flow(&tx.asset_flows);
+    let cat = cat_asset_flow(&tx.asset_flows);
+
+    assert_eq!(xch.input_amount, 100);
+    assert_eq!(xch.output_amount, 850);
+    assert_eq!(xch.issued_amount, 750);
+    assert_eq!(xch.melted_amount, 0);
+    assert_eq!(xch.unaccounted_amount, 0);
+
+    assert_eq!(cat.input_amount, 900);
+    assert_eq!(cat.output_amount, 150);
+    assert_eq!(cat.issued_amount, 0);
+    assert_eq!(cat.melted_amount, 750);
+    assert_eq!(cat.unaccounted_amount, 0);
 
     Ok(())
 }

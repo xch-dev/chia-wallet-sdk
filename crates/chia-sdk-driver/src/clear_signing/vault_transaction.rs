@@ -63,6 +63,8 @@ pub struct AssetFlow {
     pub asset: ClearSigningAsset,
     pub input_amount: u64,
     pub output_amount: u64,
+    pub issued_amount: u64,
+    pub melted_amount: u64,
     pub received_amount: u64,
     pub paid_amount: u64,
     pub unaccounted_amount: u64,
@@ -237,6 +239,7 @@ pub fn parse_vault_transaction(
         &verified_spends,
         &split_payments.received_payments,
         &split_payments.external_payments,
+        &issuances,
         reserved_fee,
     );
 
@@ -375,6 +378,8 @@ struct AssetFlowTotals {
     asset: ClearSigningAsset,
     input_amount: u64,
     output_amount: u64,
+    issued_amount: u64,
+    melted_amount: u64,
     received_amount: u64,
     paid_amount: u64,
 }
@@ -383,6 +388,7 @@ fn build_asset_flows(
     spends: &[VerifiedSpend],
     received_payments: &[AssertedPayment],
     external_payments: &[AssertedPayment],
+    issuances: &[Issuance],
     reserved_fee: u64,
 ) -> Vec<AssetFlow> {
     let spend_coin_ids: HashSet<Bytes32> = spends
@@ -423,12 +429,30 @@ fn build_asset_flows(
             asserted_payment.payment.amount;
     }
 
+    for issuance in issuances {
+        let Some(flow) = flows.get_mut(&Some(issuance.asset_id)) else {
+            continue;
+        };
+
+        if issuance.extra_delta > 0 {
+            let amount = u64::try_from(issuance.extra_delta).unwrap();
+            flow.issued_amount += amount;
+            asset_flow_mut(&mut flows, ClearSigningAsset::Xch).melted_amount += amount;
+        } else if issuance.extra_delta < 0 {
+            let amount = u64::try_from(-issuance.extra_delta).unwrap();
+            flow.melted_amount += amount;
+            asset_flow_mut(&mut flows, ClearSigningAsset::Xch).issued_amount += amount;
+        }
+    }
+
     flows
         .into_values()
         .filter_map(|flow| {
             let unaccounted_amount = flow
                 .input_amount
+                .saturating_add(flow.issued_amount)
                 .saturating_sub(flow.output_amount)
+                .saturating_sub(flow.melted_amount)
                 .saturating_sub(flow.paid_amount)
                 .saturating_sub(if matches!(flow.asset, ClearSigningAsset::Xch) {
                     reserved_fee
@@ -439,7 +463,9 @@ fn build_asset_flows(
             let include = flow.input_amount > 0
                 || flow.output_amount > 0
                 || flow.received_amount > 0
-                || flow.paid_amount > 0;
+                || flow.paid_amount > 0
+                || flow.issued_amount > 0
+                || flow.melted_amount > 0;
 
             include.then_some((flow, unaccounted_amount))
         })
@@ -447,6 +473,8 @@ fn build_asset_flows(
             asset: flow.asset,
             input_amount: flow.input_amount,
             output_amount: flow.output_amount,
+            issued_amount: flow.issued_amount,
+            melted_amount: flow.melted_amount,
             received_amount: flow.received_amount,
             paid_amount: flow.paid_amount,
             unaccounted_amount,
@@ -464,6 +492,8 @@ fn asset_flow_mut(
             asset,
             input_amount: 0,
             output_amount: 0,
+            issued_amount: 0,
+            melted_amount: 0,
             received_amount: 0,
             paid_amount: 0,
         })
