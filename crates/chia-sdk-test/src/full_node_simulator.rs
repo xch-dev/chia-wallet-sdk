@@ -5,7 +5,12 @@ use std::{
 
 use bip39::Mnemonic;
 use chia_bls::{SecretKey, master_to_wallet_hardened};
-use chia_consensus::validation_error::ErrorCode;
+use chia_consensus::{
+    conditions::{ELIGIBLE_FOR_DEDUP, ELIGIBLE_FOR_FF},
+    fast_forward::fast_forward_singleton,
+    flags::COMPUTE_FINGERPRINT,
+    validation_error::ErrorCode,
+};
 use chia_protocol::{BlockRecord, Bytes32, ClassgroupElement, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{DeriveSynthetic, standard::StandardArgs};
 use chia_sdk_coinset::{
@@ -17,7 +22,9 @@ use chia_sdk_coinset::{
 };
 use chia_sdk_types::default_constants;
 use chia_sha2::Sha256;
-use clvmr::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
+use clvmr::{
+    Allocator, ENABLE_KECCAK_OPS_OUTSIDE_GUARD, serde::node_from_bytes, serde::node_to_bytes,
+};
 use hex_literal::hex;
 use indexmap::{IndexMap, IndexSet};
 use rand::{Rng, SeedableRng};
@@ -77,9 +84,17 @@ struct ValidatedBundle {
     spend_bundle: SpendBundle,
     removals: Vec<Bytes32>,
     additions: Vec<(Coin, Option<Bytes32>)>,
-    coin_spends: Vec<CoinSpend>,
+    spends: IndexMap<Bytes32, ValidatedSpend>,
     cost: u64,
     fee: u64,
+}
+
+#[derive(Debug, Clone)]
+struct ValidatedSpend {
+    coin_spend: CoinSpend,
+    flags: u32,
+    fingerprint: Option<Bytes32>,
+    additions: Vec<(Coin, Option<Bytes32>)>,
 }
 
 #[derive(Debug, Clone)]
@@ -532,46 +547,86 @@ impl FullNodeSimulator {
         }
     }
 
-    pub fn push_tx(&mut self, spend_bundle: SpendBundle) -> PushTxResponse {
-        let tx_id = spend_bundle.name();
-        if self.mempool.contains_key(&tx_id) {
-            if self.autofarm {
-                self.farm_block(1);
-            }
-            return PushTxResponse {
-                status: "SUCCESS".to_string(),
-                error: None,
-                success: true,
-            };
-        }
+    pub fn push_tx(&mut self, mut spend_bundle: SpendBundle) -> PushTxResponse {
+        let max_fast_forward_attempts: usize = 64;
+        let mut fast_forward_attempts: usize = 0;
 
-        let validated = match self.validate_bundle(spend_bundle) {
-            Ok(validated) => validated,
-            Err(error) => {
+        loop {
+            let tx_id = spend_bundle.name();
+            if self.mempool.contains_key(&tx_id) {
+                if self.autofarm {
+                    self.farm_block(1);
+                }
                 return PushTxResponse {
-                    status: "FAILED".to_string(),
-                    error: Some(error.to_string()),
-                    success: false,
+                    status: "SUCCESS".to_string(),
+                    error: None,
+                    success: true,
                 };
             }
-        };
 
-        if let Err(error) = self.insert_mempool_item(tx_id, validated) {
-            return PushTxResponse {
-                status: "FAILED".to_string(),
-                error: Some(error.to_string()),
-                success: false,
+            let validated = match self.validate_bundle(spend_bundle.clone()) {
+                Ok(validated) => validated,
+                Err(SimulatorError::Validation(ErrorCode::DoubleSpend))
+                    if fast_forward_attempts < max_fast_forward_attempts =>
+                {
+                    let Some(rewritten) = self.try_fast_forward_settled_bundle(&spend_bundle)
+                    else {
+                        return PushTxResponse {
+                            status: "FAILED".to_string(),
+                            error: Some(
+                                SimulatorError::Validation(ErrorCode::DoubleSpend).to_string(),
+                            ),
+                            success: false,
+                        };
+                    };
+                    fast_forward_attempts = fast_forward_attempts.saturating_add(1);
+                    spend_bundle = rewritten;
+                    continue;
+                }
+                Err(error) => {
+                    return PushTxResponse {
+                        status: "FAILED".to_string(),
+                        error: Some(error.to_string()),
+                        success: false,
+                    };
+                }
             };
-        }
 
-        if self.autofarm {
-            self.farm_block(1);
-        }
+            match self.insert_mempool_item(tx_id, validated.clone()) {
+                Ok(()) => {
+                    if self.autofarm {
+                        self.farm_block(1);
+                    }
 
-        PushTxResponse {
-            status: "SUCCESS".to_string(),
-            error: None,
-            success: true,
+                    return PushTxResponse {
+                        status: "SUCCESS".to_string(),
+                        error: None,
+                        success: true,
+                    };
+                }
+                Err(SimulatorError::Validation(ErrorCode::MempoolConflict))
+                    if fast_forward_attempts < max_fast_forward_attempts =>
+                {
+                    let Some(rewritten) = self.try_fast_forward_bundle(&validated) else {
+                        return PushTxResponse {
+                            status: "FAILED".to_string(),
+                            error: Some(
+                                SimulatorError::Validation(ErrorCode::MempoolConflict).to_string(),
+                            ),
+                            success: false,
+                        };
+                    };
+                    fast_forward_attempts = fast_forward_attempts.saturating_add(1);
+                    spend_bundle = rewritten;
+                }
+                Err(error) => {
+                    return PushTxResponse {
+                        status: "FAILED".to_string(),
+                        error: Some(error.to_string()),
+                        success: false,
+                    };
+                }
+            }
         }
     }
 
@@ -608,6 +663,151 @@ impl FullNodeSimulator {
 
         self.mempool.insert(tx_id, validated);
         Ok(())
+    }
+
+    fn try_fast_forward_bundle(&self, validated: &ValidatedBundle) -> Option<SpendBundle> {
+        for (coin_id, spend) in &validated.spends {
+            if (spend.flags & ELIGIBLE_FOR_FF) == 0 {
+                continue;
+            }
+
+            for mempool_item in self.mempool.values() {
+                if !mempool_item.removals.contains(coin_id) {
+                    continue;
+                }
+
+                let Some(conflicting_spend) = mempool_item.spends.get(coin_id) else {
+                    continue;
+                };
+
+                let Some((new_coin, _)) = conflicting_spend.additions.iter().find(|(coin, _)| {
+                    coin.parent_coin_info == *coin_id
+                        && coin.puzzle_hash == spend.coin_spend.coin.puzzle_hash
+                        && coin.amount == spend.coin_spend.coin.amount
+                        && (coin.amount & 1) == 1
+                }) else {
+                    continue;
+                };
+
+                let Some(new_coin_spend) = Self::fast_forward_coin_spend(
+                    &spend.coin_spend,
+                    *new_coin,
+                    conflicting_spend.coin_spend.coin,
+                ) else {
+                    continue;
+                };
+
+                let mut coin_spends = validated.spend_bundle.coin_spends.clone();
+                let Some(existing_spend) = coin_spends
+                    .iter_mut()
+                    .find(|existing| existing.coin.coin_id() == *coin_id)
+                else {
+                    continue;
+                };
+
+                *existing_spend = new_coin_spend;
+                return Some(SpendBundle::new(
+                    coin_spends,
+                    validated.spend_bundle.aggregated_signature.clone(),
+                ));
+            }
+        }
+
+        None
+    }
+
+    fn try_fast_forward_settled_bundle(&self, spend_bundle: &SpendBundle) -> Option<SpendBundle> {
+        let constants = default_constants(SIMULATOR_GENESIS_CHALLENGE, SIMULATOR_GENESIS_CHALLENGE);
+        let conds = validate_clvm_and_signature(
+            spend_bundle,
+            11_000_000_000 / 2,
+            &constants,
+            ENABLE_KECCAK_OPS_OUTSIDE_GUARD | COMPUTE_FINGERPRINT,
+        )
+        .ok()?;
+
+        let mut coin_spends = spend_bundle.coin_spends.clone();
+        let mut rewrote_any = false;
+
+        for spend in &conds.spends {
+            let Some(record) = self.coins.get(&spend.coin_id) else {
+                continue;
+            };
+            if record.spent_block_index.is_none() {
+                continue;
+            }
+
+            let Some(index) = coin_spends
+                .iter()
+                .position(|coin_spend| coin_spend.coin.coin_id() == spend.coin_id)
+            else {
+                continue;
+            };
+
+            let mut rewritten = coin_spends[index].clone();
+            loop {
+                if (rewritten.coin.amount & 1) == 0 {
+                    break;
+                }
+                let Some(current_record) = self.coins.get(&rewritten.coin.coin_id()) else {
+                    break;
+                };
+                if current_record.spent_block_index.is_none() {
+                    break;
+                }
+                let next_coin = Coin::new(
+                    rewritten.coin.coin_id(),
+                    rewritten.coin.puzzle_hash,
+                    rewritten.coin.amount,
+                );
+                let Some(next_record) = self.coins.get(&next_coin.coin_id()) else {
+                    break;
+                };
+                let Some(next_spend) =
+                    Self::fast_forward_coin_spend(&rewritten, next_record.coin, rewritten.coin)
+                else {
+                    break;
+                };
+                rewritten = next_spend;
+                rewrote_any = true;
+            }
+
+            coin_spends[index] = rewritten;
+        }
+
+        if !rewrote_any {
+            return None;
+        }
+
+        Some(SpendBundle::new(
+            coin_spends,
+            spend_bundle.aggregated_signature.clone(),
+        ))
+    }
+
+    fn fast_forward_coin_spend(
+        coin_spend: &CoinSpend,
+        new_coin: Coin,
+        new_parent: Coin,
+    ) -> Option<CoinSpend> {
+        let mut allocator = Allocator::new_limited(500_000_000);
+        let puzzle = node_from_bytes(&mut allocator, coin_spend.puzzle_reveal.as_slice()).ok()?;
+        let solution = node_from_bytes(&mut allocator, coin_spend.solution.as_slice()).ok()?;
+        let new_solution = fast_forward_singleton(
+            &mut allocator,
+            puzzle,
+            solution,
+            &coin_spend.coin,
+            &new_coin,
+            &new_parent,
+        )
+        .ok()?;
+        let new_solution_bytes = node_to_bytes(&allocator, new_solution).ok()?;
+        Some(CoinSpend::new(
+            new_coin,
+            coin_spend.puzzle_reveal.clone(),
+            new_solution_bytes.into(),
+        ))
     }
 
     pub fn get_mempool_item_by_tx_id(&self, tx_id: Bytes32) -> GetMempoolItemResponse {
@@ -703,7 +903,7 @@ impl FullNodeSimulator {
             &spend_bundle,
             11_000_000_000 / 2,
             &constants,
-            ENABLE_KECCAK_OPS_OUTSIDE_GUARD,
+            ENABLE_KECCAK_OPS_OUTSIDE_GUARD | COMPUTE_FINGERPRINT,
         )
         .map_err(SimulatorError::Validation)?;
 
@@ -746,12 +946,19 @@ impl FullNodeSimulator {
             return Err(SimulatorError::Validation(ErrorCode::InvalidSpendBundle));
         }
 
+        let bundle_coin_spends = spend_bundle
+            .coin_spends
+            .iter()
+            .map(|spend| (spend.coin.coin_id(), spend.clone()))
+            .collect::<IndexMap<_, _>>();
+
         let mut removals = IndexSet::new();
         let mut additions = IndexMap::new();
+        let mut spends = IndexMap::new();
 
         for spend in &conds.spends {
-            let coin = Coin::new(spend.parent_id, spend.puzzle_hash, spend.coin_amount);
-            let coin_id = coin.coin_id();
+            let coin_id = spend.coin_id;
+            let mut spend_additions = Vec::new();
 
             for (puzzle_hash, amount, hint) in &spend.create_coin {
                 let coin = Coin::new(coin_id, *puzzle_hash, *amount);
@@ -759,13 +966,33 @@ impl FullNodeSimulator {
                     .as_ref()
                     .filter(|bytes| bytes.len() == 32)
                     .and_then(|bytes| Bytes32::try_from(bytes.as_ref()).ok());
+                spend_additions.push((coin, parsed_hint));
                 additions.insert(coin.coin_id(), (coin, parsed_hint));
             }
+
+            let Some(coin_spend) = bundle_coin_spends.get(&coin_id).cloned() else {
+                return Err(SimulatorError::Validation(ErrorCode::InvalidSpendBundle));
+            };
+
+            let fingerprint = if (spend.flags & ELIGIBLE_FOR_DEDUP) != 0 {
+                Bytes32::try_from(spend.fingerprint.as_ref()).ok()
+            } else {
+                None
+            };
+
+            spends.insert(
+                coin_id,
+                ValidatedSpend {
+                    coin_spend,
+                    flags: spend.flags,
+                    fingerprint,
+                    additions: spend_additions,
+                },
+            );
         }
 
         for spend in &conds.spends {
-            let coin = Coin::new(spend.parent_id, spend.puzzle_hash, spend.coin_amount);
-            let coin_id = coin.coin_id();
+            let coin_id = spend.coin_id;
             if !removals.insert(coin_id) {
                 return Err(SimulatorError::Validation(ErrorCode::DoubleSpend));
             }
@@ -777,6 +1004,21 @@ impl FullNodeSimulator {
 
                 self.validate_relative_conditions(spend, record)?;
             } else if additions.contains_key(&coin_id) {
+                let coin = additions
+                    .get(&coin_id)
+                    .map(|(coin, _)| *coin)
+                    .unwrap_or_else(|| {
+                        Coin::new(spend.parent_id, spend.puzzle_hash, spend.coin_amount)
+                    });
+                let ephemeral_coin_record = SimCoinRecord {
+                    coin,
+                    coinbase: false,
+                    confirmed_block_index: self.height,
+                    spent_block_index: None,
+                    timestamp: self.next_timestamp,
+                };
+                self.validate_relative_conditions(spend, &ephemeral_coin_record)?;
+            } else if let Some(coin) = self.mempool_addition_coin(coin_id) {
                 let ephemeral_coin_record = SimCoinRecord {
                     coin,
                     coinbase: false,
@@ -803,25 +1045,55 @@ impl FullNodeSimulator {
         }
 
         Ok(ValidatedBundle {
-            coin_spends: spend_bundle.coin_spends.clone(),
             spend_bundle,
             removals: removals.into_iter().collect(),
             additions: additions.into_values().collect(),
+            spends,
             cost: conds.cost,
             fee,
         })
     }
 
+    fn mempool_addition_coin(&self, coin_id: Bytes32) -> Option<Coin> {
+        self.mempool
+            .values()
+            .flat_map(|item| item.additions.iter().map(|(coin, _)| *coin))
+            .find(|coin| coin.coin_id() == coin_id)
+    }
+
     fn conflicting_mempool_tx_ids(&self, validated: &ValidatedBundle) -> Vec<Bytes32> {
         self.mempool
             .iter()
-            .filter(|(_, item)| {
-                item.removals
-                    .iter()
-                    .any(|coin_id| validated.removals.contains(coin_id))
-            })
+            .filter(|(_, item)| self.has_non_dedup_overlap(validated, item))
             .map(|(tx_id, _)| *tx_id)
             .collect()
+    }
+
+    fn has_non_dedup_overlap(&self, lhs: &ValidatedBundle, rhs: &ValidatedBundle) -> bool {
+        lhs.removals.iter().any(|coin_id| {
+            rhs.removals.contains(coin_id) && !Self::removal_is_dedup_compatible(lhs, rhs, *coin_id)
+        })
+    }
+
+    fn removal_is_dedup_compatible(
+        lhs: &ValidatedBundle,
+        rhs: &ValidatedBundle,
+        coin_id: Bytes32,
+    ) -> bool {
+        let Some(lhs_spend) = lhs.spends.get(&coin_id) else {
+            return false;
+        };
+        let Some(rhs_spend) = rhs.spends.get(&coin_id) else {
+            return false;
+        };
+        Self::spends_are_dedup_compatible(lhs_spend, rhs_spend)
+    }
+
+    fn spends_are_dedup_compatible(lhs: &ValidatedSpend, rhs: &ValidatedSpend) -> bool {
+        (lhs.flags & ELIGIBLE_FOR_DEDUP) != 0
+            && (rhs.flags & ELIGIBLE_FOR_DEDUP) != 0
+            && lhs.fingerprint.is_some()
+            && lhs.fingerprint == rhs.fingerprint
     }
 
     fn validate_relative_conditions(
@@ -868,19 +1140,31 @@ impl FullNodeSimulator {
 
         let mut included_tx_ids = Vec::new();
         let mut included = Vec::new();
-        let mut spent_in_block = IndexSet::new();
+        let mut included_spends_by_coin = IndexMap::<Bytes32, ValidatedSpend>::new();
         for (tx_id, item) in self.mempool.clone() {
             let Ok(validated) = self.validate_bundle(item.spend_bundle.clone()) else {
                 continue;
             };
-            if validated
-                .removals
-                .iter()
-                .any(|coin_id| spent_in_block.contains(coin_id))
-            {
+            let has_conflict = validated.removals.iter().any(|coin_id| {
+                let Some(existing_spend) = included_spends_by_coin.get(coin_id) else {
+                    return false;
+                };
+                let Some(new_spend) = validated.spends.get(coin_id) else {
+                    return true;
+                };
+                !Self::spends_are_dedup_compatible(existing_spend, new_spend)
+            });
+            if has_conflict {
                 continue;
             }
-            spent_in_block.extend(validated.removals.iter().copied());
+            for coin_id in &validated.removals {
+                let Some(spend) = validated.spends.get(coin_id) else {
+                    continue;
+                };
+                included_spends_by_coin
+                    .entry(*coin_id)
+                    .or_insert_with(|| spend.clone());
+            }
             included_tx_ids.push(tx_id);
             included.push(validated);
         }
@@ -896,6 +1180,9 @@ impl FullNodeSimulator {
         let mut previous_coin_records = Vec::new();
         let mut added_hints = Vec::new();
         let mut fees = 0_u64;
+        let mut applied_removals = IndexSet::new();
+        let mut applied_additions = IndexSet::new();
+        let mut applied_spends = IndexSet::new();
         let reward_coin = Self::reward_coin(
             header_hash,
             height,
@@ -910,7 +1197,6 @@ impl FullNodeSimulator {
         for item in included {
             fees = fees.saturating_add(item.fee);
             transactions.push(item.spend_bundle);
-            spends.extend(item.coin_spends);
             let ephemeral_removals = item
                 .additions
                 .iter()
@@ -920,6 +1206,9 @@ impl FullNodeSimulator {
 
             for coin_id in item.removals {
                 if let Some(record) = self.coins.get_mut(&coin_id) {
+                    if !applied_removals.insert(coin_id) {
+                        continue;
+                    }
                     previous_coin_records.push((coin_id, *record));
                     record.spent_block_index = Some(height);
                     removals.push(coin_id);
@@ -930,6 +1219,9 @@ impl FullNodeSimulator {
 
             for (coin, hint) in item.additions {
                 let coin_id = coin.coin_id();
+                if !applied_additions.insert(coin_id) {
+                    continue;
+                }
                 self.insert_coin_record(coin, false, height, timestamp);
                 if let Some(hint) = hint {
                     self.coin_hints.insert(coin_id, hint);
@@ -939,9 +1231,18 @@ impl FullNodeSimulator {
             }
 
             for coin_id in pending_ephemeral_removals {
+                if !applied_removals.insert(coin_id) {
+                    continue;
+                }
                 if let Some(record) = self.coins.get_mut(&coin_id) {
                     record.spent_block_index = Some(height);
                     removals.push(coin_id);
+                }
+            }
+
+            for (coin_id, spend) in item.spends {
+                if applied_spends.insert(coin_id) {
+                    spends.push(spend.coin_spend);
                 }
             }
         }
@@ -1192,9 +1493,16 @@ impl ValidatedBundle {
 mod tests {
     use chia_bls::{SecretKey, Signature};
     use chia_protocol::{Coin, CoinSpend, SpendBundle};
-    use chia_puzzle_types::{DeriveSynthetic, standard::StandardArgs};
+    use chia_puzzle_types::{
+        DeriveSynthetic, LineageProof, Proof,
+        singleton::{SingletonArgs, SingletonSolution},
+        standard::StandardArgs,
+    };
+    use chia_sdk_types::Mod;
     use chia_sdk_types::conditions::{CreateCoin, Memos};
-    use clvmr::NodePtr;
+    use clvm_traits::ToClvm;
+    use clvm_utils::CurriedProgram;
+    use clvmr::{Allocator, NodePtr, serde::node_from_bytes, serde::node_to_bytes};
 
     use crate::{FullNodeSimulatorEvent, to_program, to_puzzle};
 
@@ -1213,6 +1521,53 @@ mod tests {
                 to_program([CreateCoin::<NodePtr>::new(puzzle_hash, amount, Memos::None)])?,
             )],
             Signature::default(),
+        ))
+    }
+
+    fn singleton_spend_to_child(
+        coin: Coin,
+        launcher_id: Bytes32,
+        inner_puzzle_reveal: chia_protocol::Program,
+        lineage_proof: LineageProof,
+        child_puzzle_hash: Bytes32,
+        child_amount: u64,
+        hint: Option<Bytes32>,
+    ) -> anyhow::Result<CoinSpend> {
+        let mut allocator = Allocator::new_limited(500_000_000);
+        let memos = if let Some(hint) = hint {
+            let hint_atom = allocator.new_atom(hint.as_ref())?;
+            let memo_list = allocator.new_pair(hint_atom, NodePtr::NIL)?;
+            Memos::Some(memo_list)
+        } else {
+            Memos::None
+        };
+        let inner_solution = [CreateCoin::<NodePtr>::new(
+            child_puzzle_hash,
+            child_amount,
+            memos,
+        )]
+        .to_clvm(&mut allocator)?;
+        let singleton_mod = node_from_bytes(
+            &mut allocator,
+            SingletonArgs::<NodePtr>::mod_reveal().as_ref(),
+        )?;
+        let inner_puzzle = node_from_bytes(&mut allocator, inner_puzzle_reveal.as_slice())?;
+        let singleton_puzzle = CurriedProgram {
+            program: singleton_mod,
+            args: SingletonArgs::new(launcher_id, inner_puzzle),
+        }
+        .to_clvm(&mut allocator)?;
+        let singleton_solution = SingletonSolution {
+            lineage_proof: Proof::Lineage(lineage_proof),
+            amount: coin.amount,
+            inner_solution,
+        }
+        .to_clvm(&mut allocator)?;
+
+        Ok(CoinSpend::new(
+            coin,
+            node_to_bytes(&allocator, singleton_puzzle)?.into(),
+            node_to_bytes(&allocator, singleton_solution)?.into(),
         ))
     }
 
@@ -1550,6 +1905,212 @@ mod tests {
                 .mempool_size,
             1
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn push_tx_allows_dedup_compatible_mempool_overlap() -> anyhow::Result<()> {
+        let mut sim = FullNodeSimulator::new();
+        sim.set_autofarm(false);
+        let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
+        let shared_coin = sim.new_coin(puzzle_hash, 100);
+        let extra_coin = sim.new_coin(puzzle_hash, 100);
+        let shared_spend = spend_to_child(shared_coin, puzzle_reveal.clone(), puzzle_hash, 100)?;
+        let extra_spend = spend_to_child(extra_coin, puzzle_reveal, puzzle_hash, 99)?;
+        let second_bundle = SpendBundle::new(
+            vec![
+                shared_spend.coin_spends[0].clone(),
+                extra_spend.coin_spends[0].clone(),
+            ],
+            Signature::default(),
+        );
+
+        assert!(sim.push_tx(shared_spend).success);
+        assert!(sim.push_tx(second_bundle).success);
+        assert_eq!(
+            sim.get_blockchain_state()
+                .blockchain_state
+                .unwrap()
+                .mempool_size,
+            2
+        );
+
+        sim.farm_block(1);
+        let spends = sim
+            .get_block_spends(sim.header_hash())
+            .block_spends
+            .unwrap();
+        assert_eq!(spends.len(), 2);
+        assert_eq!(
+            spends
+                .iter()
+                .filter(|spend| spend.coin.coin_id() == shared_coin.coin_id())
+                .count(),
+            1
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn try_fast_forward_rewrites_singleton_spend_against_mempool_item() -> anyhow::Result<()> {
+        let mut sim = FullNodeSimulator::new();
+        let (inner_puzzle_hash, inner_puzzle_reveal) = to_puzzle(1)?;
+        let launcher_id: Bytes32 = [7; 32].into();
+        let singleton_puzzle_hash: Bytes32 =
+            SingletonArgs::curry_tree_hash(launcher_id, inner_puzzle_hash.into()).into();
+        let parent_coin = Coin::new([9; 32].into(), singleton_puzzle_hash, 101);
+        let singleton_coin = Coin::new(parent_coin.coin_id(), singleton_puzzle_hash, 101);
+        let lineage_proof = LineageProof {
+            parent_parent_coin_info: parent_coin.parent_coin_info,
+            parent_inner_puzzle_hash: inner_puzzle_hash,
+            parent_amount: parent_coin.amount,
+        };
+        sim.insert_coin(singleton_coin);
+
+        let first_singleton_spend = singleton_spend_to_child(
+            singleton_coin,
+            launcher_id,
+            inner_puzzle_reveal.clone(),
+            lineage_proof,
+            singleton_puzzle_hash,
+            singleton_coin.amount,
+            None,
+        )?;
+        let fast_forward_hint: Bytes32 = [8; 32].into();
+        let second_singleton_spend = singleton_spend_to_child(
+            singleton_coin,
+            launcher_id,
+            inner_puzzle_reveal.clone(),
+            lineage_proof,
+            singleton_puzzle_hash,
+            singleton_coin.amount,
+            Some(fast_forward_hint),
+        )?;
+        let child_coin = Coin::new(
+            singleton_coin.coin_id(),
+            singleton_coin.puzzle_hash,
+            singleton_coin.amount,
+        );
+        let first_tx = SpendBundle::new(vec![first_singleton_spend.clone()], Signature::default());
+        sim.mempool.insert(
+            first_tx.name(),
+            ValidatedBundle {
+                spend_bundle: first_tx,
+                removals: vec![singleton_coin.coin_id()],
+                additions: vec![(child_coin, None)],
+                spends: IndexMap::from([(
+                    singleton_coin.coin_id(),
+                    ValidatedSpend {
+                        coin_spend: first_singleton_spend,
+                        flags: ELIGIBLE_FOR_FF,
+                        fingerprint: None,
+                        additions: vec![(child_coin, None)],
+                    },
+                )]),
+                cost: 0,
+                fee: 0,
+            },
+        );
+
+        let candidate_bundle =
+            SpendBundle::new(vec![second_singleton_spend.clone()], Signature::default());
+        let rewritten = sim
+            .try_fast_forward_bundle(&ValidatedBundle {
+                spend_bundle: candidate_bundle.clone(),
+                removals: vec![singleton_coin.coin_id()],
+                additions: Vec::new(),
+                spends: IndexMap::from([(
+                    singleton_coin.coin_id(),
+                    ValidatedSpend {
+                        coin_spend: second_singleton_spend,
+                        flags: ELIGIBLE_FOR_FF,
+                        fingerprint: None,
+                        additions: Vec::new(),
+                    },
+                )]),
+                cost: 0,
+                fee: 0,
+            })
+            .expect("singleton spend should be fast-forwarded");
+        assert!(
+            rewritten
+                .coin_spends
+                .iter()
+                .any(|spend| spend.coin.coin_id() == child_coin.coin_id())
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn push_tx_fast_forwards_already_settled_singleton_spend() -> anyhow::Result<()> {
+        let mut sim = FullNodeSimulator::new();
+        let (inner_puzzle_hash, inner_puzzle_reveal) = to_puzzle(1)?;
+        let launcher_id: Bytes32 = [11; 32].into();
+        let singleton_puzzle_hash: Bytes32 =
+            SingletonArgs::curry_tree_hash(launcher_id, inner_puzzle_hash.into()).into();
+        let parent_coin = Coin::new([13; 32].into(), singleton_puzzle_hash, 101);
+        let singleton_coin = Coin::new(parent_coin.coin_id(), singleton_puzzle_hash, 101);
+        let lineage_proof = LineageProof {
+            parent_parent_coin_info: parent_coin.parent_coin_info,
+            parent_inner_puzzle_hash: inner_puzzle_hash,
+            parent_amount: parent_coin.amount,
+        };
+        sim.insert_coin(singleton_coin);
+        let child_coin = Coin::new(
+            singleton_coin.coin_id(),
+            singleton_coin.puzzle_hash,
+            singleton_coin.amount,
+        );
+        sim.insert_coin(child_coin);
+        sim.coins
+            .get_mut(&singleton_coin.coin_id())
+            .unwrap()
+            .spent_block_index = Some(2);
+
+        let stale_singleton_spend = singleton_spend_to_child(
+            singleton_coin,
+            launcher_id,
+            inner_puzzle_reveal.clone(),
+            lineage_proof,
+            singleton_puzzle_hash,
+            singleton_coin.amount,
+            Some([14; 32].into()),
+        )?;
+        let stale_bundle = SpendBundle::new(vec![stale_singleton_spend], Signature::default());
+        assert!(
+            FullNodeSimulator::fast_forward_coin_spend(
+                &stale_bundle.coin_spends[0],
+                child_coin,
+                singleton_coin,
+            )
+            .is_some()
+        );
+        let maybe_rewritten = sim.try_fast_forward_settled_bundle(&stale_bundle);
+        assert!(maybe_rewritten.is_some());
+        let rewritten = maybe_rewritten.unwrap();
+        assert_eq!(
+            rewritten.coin_spends[0].coin.coin_id(),
+            child_coin.coin_id()
+        );
+
+        let response = sim.push_tx(stale_bundle);
+        assert!(response.success, "{response:?}");
+
+        let child_record = sim
+            .get_coin_record_by_name(child_coin.coin_id())
+            .coin_record
+            .unwrap();
+        assert!(child_record.spent);
+
+        let last_spends = sim
+            .get_block_spends(sim.header_hash())
+            .block_spends
+            .unwrap();
+        assert_eq!(last_spends.len(), 1);
+        assert_eq!(last_spends[0].coin.coin_id(), child_coin.coin_id());
 
         Ok(())
     }
