@@ -771,6 +771,7 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "hex",
+ "hex-literal",
  "indexmap",
  "itertools 0.13.0",
  "prettytable-rs",

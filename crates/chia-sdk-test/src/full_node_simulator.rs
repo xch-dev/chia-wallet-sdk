@@ -1,4 +1,7 @@
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use bip39::Mnemonic;
 use chia_bls::{SecretKey, master_to_wallet_hardened};
@@ -12,17 +15,22 @@ use chia_sdk_coinset::{
     GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem, MempoolMinFees,
     PushTxResponse, SyncState,
 };
-use chia_sdk_types::TESTNET11_CONSTANTS;
+use chia_sdk_types::{default_constants};
 use chia_sha2::Sha256;
 use clvmr::ENABLE_KECCAK_OPS_OUTSIDE_GUARD;
 use indexmap::{IndexMap, IndexSet};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use hex_literal::hex;
 
 use crate::{SimulatorError, validate_clvm_and_signature};
 
 const BLOCK_REWARD_AMOUNT: u64 = 2_000_000_000_000;
 const PREFARM_WALLET_INDEX: u32 = 1;
+
+const SIMULATOR_GENESIS_CHALLENGE: Bytes32 = Bytes32::new(hex!(
+    "eb8c4d20b322be8d9fddbf9412016bdffe9a2901d7edb0e364e94266d0e095f7"
+));
 
 #[derive(Debug, Clone)]
 pub struct FullNodeSimulator {
@@ -125,6 +133,10 @@ impl FullNodeSimulator {
         rng.fill(&mut node_id);
 
         let genesis_height = 1;
+        let genesis_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
 
         let genesis_hash = Bytes32::default();
         let prefarm_coins = vec![
@@ -147,7 +159,7 @@ impl FullNodeSimulator {
             genesis_hash,
             Bytes32::default(),
             genesis_height,
-            0,
+            genesis_timestamp,
             Bytes32::default(),
             0,
             0,
@@ -177,7 +189,7 @@ impl FullNodeSimulator {
                     coinbase: true,
                     confirmed_block_index: genesis_height,
                     spent_block_index: None,
-                    timestamp: 0,
+                    timestamp: genesis_timestamp,
                 },
             );
         }
@@ -185,7 +197,7 @@ impl FullNodeSimulator {
         Self {
             rng,
             height: genesis_height,
-            next_timestamp: 1,
+            next_timestamp: genesis_timestamp.saturating_add(1),
             header_hashes: vec![genesis_hash],
             blocks,
             orphaned_blocks: IndexMap::new(),
@@ -304,16 +316,16 @@ impl FullNodeSimulator {
 
     pub fn get_network_info(&self) -> GetNetworkInfoResponse {
         GetNetworkInfoResponse {
-            network_name: Some("testnet11".to_string()),
+            network_name: Some("simulator0".to_string()),
             network_prefix: Some("txch".to_string()),
-            genesis_challenge: Some(TESTNET11_CONSTANTS.genesis_challenge),
+            genesis_challenge: Some(SIMULATOR_GENESIS_CHALLENGE),
             error: None,
             success: true,
         }
     }
 
     pub fn get_aggsig_additional_data(&self) -> Bytes32 {
-        TESTNET11_CONSTANTS.agg_sig_me_additional_data
+        SIMULATOR_GENESIS_CHALLENGE
     }
 
     pub fn get_block_record(&self, header_hash: Bytes32) -> GetBlockRecordResponse {
@@ -645,10 +657,11 @@ impl FullNodeSimulator {
             return Err(SimulatorError::Validation(ErrorCode::InvalidSpendBundle));
         }
 
+        let constants = default_constants(SIMULATOR_GENESIS_CHALLENGE, SIMULATOR_GENESIS_CHALLENGE);
         let conds = validate_clvm_and_signature(
             &spend_bundle,
             11_000_000_000 / 2,
-            &TESTNET11_CONSTANTS,
+            &constants,
             ENABLE_KECCAK_OPS_OUTSIDE_GUARD,
         )
         .map_err(SimulatorError::Validation)?;
