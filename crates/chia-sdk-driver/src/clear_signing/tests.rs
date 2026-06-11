@@ -77,8 +77,29 @@ fn issue_asset(
             )],
         )?;
 
+        let reveals = Reveals::from_coin_spends(ctx, &result.spend_bundle.coin_spends)?;
+        let tx =
+            parse_vault_transaction(reveals, ctx, alice.info.launcher_id, result.delegated_spend)?;
+
         let asset_id = result.outputs.cats[0][0].info.asset_id;
         let id = Id::Existing(asset_id);
+
+        assert_eq!(tx.issuances.len(), 1);
+
+        let issuance = &tx.issuances[0];
+        assert_eq!(issuance.asset_id, asset_id);
+        assert_eq!(issuance.extra_delta, 0);
+
+        let xch = xch_asset_flow(&tx.asset_flows);
+        assert_eq!(xch.issued_amount, 0);
+        assert_eq!(xch.melted_amount, amount);
+        assert_eq!(xch.unaccounted_amount, 0);
+
+        let cat = cat_asset_flow(&tx.asset_flows);
+        assert_eq!(cat.issued_amount, amount);
+        assert_eq!(cat.melted_amount, 0);
+        assert_eq!(cat.unaccounted_amount, 0);
+
         (id, Some(asset_id))
     } else {
         (Id::Xch, None)

@@ -395,12 +395,18 @@ fn build_asset_flows(
     issuances: &[Issuance],
     reserved_fee: u64,
 ) -> Vec<AssetFlow> {
-    let spend_coin_ids: HashSet<Bytes32> = spends
-        .iter()
-        .map(|spend| spend.asset.coin().coin_id())
-        .collect();
     let child_coin_ids: HashSet<Bytes32> = spends
         .iter()
+        .flat_map(|spend| spend.children.iter())
+        .map(|child| child.asset.coin().coin_id())
+        .collect();
+    let spend_by_coin_id: HashMap<Bytes32, &VerifiedSpend> = spends
+        .iter()
+        .map(|spend| (spend.asset.coin().coin_id(), spend))
+        .collect();
+    let xch_child_coin_ids: HashSet<Bytes32> = spends
+        .iter()
+        .filter(|spend| matches!(spend.asset, ParsedAsset::Xch(_) | ParsedAsset::Bulletin(_)))
         .flat_map(|spend| spend.children.iter())
         .map(|child| child.asset.coin().coin_id())
         .collect();
@@ -414,7 +420,7 @@ fn build_asset_flows(
         }
 
         for child in &spend.children {
-            if !spend_coin_ids.contains(&child.asset.coin().coin_id())
+            if !spend_by_coin_id.contains_key(&child.asset.coin().coin_id())
                 && child.transfer_type != TransferType::Offered
             {
                 asset_flow_mut(&mut flows, asset_from_parsed(&child.asset)).output_amount +=
@@ -434,17 +440,33 @@ fn build_asset_flows(
     }
 
     for issuance in issuances {
-        let Some(flow) = flows.get_mut(&Some(issuance.asset_id)) else {
+        let Some(spend) = spend_by_coin_id.get(&issuance.coin_id) else {
             continue;
         };
 
+        let ParsedAsset::Cat(cat) = &spend.asset else {
+            continue;
+        };
+
+        if cat.info.asset_id != issuance.asset_id {
+            continue;
+        }
+
+        let cat_asset = asset_from_parsed(&spend.asset);
+
+        if xch_child_coin_ids.contains(&issuance.coin_id) {
+            let amount = spend.asset.coin().amount;
+            asset_flow_mut(&mut flows, cat_asset).issued_amount += amount;
+            asset_flow_mut(&mut flows, ClearSigningAsset::Xch).melted_amount += amount;
+        }
+
         if issuance.extra_delta > 0 {
             let amount = u64::try_from(issuance.extra_delta).unwrap();
-            flow.issued_amount += amount;
+            asset_flow_mut(&mut flows, cat_asset).issued_amount += amount;
             asset_flow_mut(&mut flows, ClearSigningAsset::Xch).melted_amount += amount;
         } else if issuance.extra_delta < 0 {
             let amount = u64::try_from(-issuance.extra_delta).unwrap();
-            flow.melted_amount += amount;
+            asset_flow_mut(&mut flows, cat_asset).melted_amount += amount;
             asset_flow_mut(&mut flows, ClearSigningAsset::Xch).issued_amount += amount;
         }
     }
