@@ -668,6 +668,77 @@ fn test_clear_signing_melt() -> Result<()> {
 }
 
 #[rstest]
+fn test_clear_signing_run_tail_increases_cat_supply() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2000)?;
+
+    let IssuedAsset { id, .. } = issue_asset(&mut sim, &mut ctx, &alice, AssetKind::Cat, 900)?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(id, alice.p2_puzzle_hash, 900, Memos::None)],
+    )?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    let cat = cat_asset_flow(&tx.asset_flows);
+
+    assert_eq!(cat.input_amount, 900);
+    assert_eq!(cat.output_amount, 900);
+    assert_eq!(cat.unaccounted_amount, 0);
+
+    let tail_puzzle = ctx.curry(EverythingWithSingletonTailArgs::new(
+        alice.info.launcher_id,
+        Bytes::default(),
+    ))?;
+    let tail_solution = ctx.alloc(&EverythingWithSingletonTailSolution::new(
+        alice.info.custody_hash.into(),
+    ))?;
+    let tail_spend = Spend::new(tail_puzzle, tail_solution);
+    let supply_delta = Delta::new(750, 0);
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::run_tail(id, tail_spend, supply_delta)],
+    )?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    let xch = xch_asset_flow(&tx.asset_flows);
+    let cat = cat_asset_flow(&tx.asset_flows);
+
+    assert_eq!(xch.input_amount, 1100);
+    assert_eq!(xch.output_amount, 350);
+    assert_eq!(xch.issued_amount, 0);
+    assert_eq!(xch.melted_amount, 750);
+    assert_eq!(xch.unaccounted_amount, 0);
+
+    assert_eq!(cat.input_amount, 900);
+    assert_eq!(cat.output_amount, 1650);
+    assert_eq!(cat.issued_amount, 750);
+    assert_eq!(cat.melted_amount, 0);
+    assert_eq!(cat.unaccounted_amount, 0);
+
+    Ok(())
+}
+
+#[rstest]
 fn test_clear_signing_mint_nft() -> Result<()> {
     let mut sim = Simulator::new();
     let mut ctx = SpendContext::new();
