@@ -223,6 +223,105 @@ fn test_clear_signing_drop_coins() -> Result<()> {
 }
 
 #[rstest]
+fn test_clear_signing_xch_funded_drop_coin() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+
+    let actions = [Action::Fee(FeeAction {
+        amount: 2,
+        reserved: false,
+    })];
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let drop_coin = DropCoin::new(Bytes32::default(), 2);
+    let vault_conditions =
+        Conditions::new().create_coin(drop_coin.puzzle_hash, drop_coin.amount, Memos::None);
+    let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.drop_coins, [drop_coin]);
+
+    let xch = xch_asset_flow(&tx.asset_flows);
+    assert_eq!(xch.unaccounted_amount, 0);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_mint_two_nfts_from_drop_coin() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+
+    let actions = [Action::Fee(FeeAction {
+        amount: 2,
+        reserved: false,
+    })];
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let drop_coin = DropCoin::new(alice.p2_puzzle_hash, 2);
+    let vault_conditions =
+        Conditions::new().create_coin(drop_coin.puzzle_hash, drop_coin.amount, Memos::None);
+    let result = alice.custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+    assert_eq!(tx.drop_coins, [drop_coin]);
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::mint_empty_nft(), Action::mint_empty_nft()],
+    )?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    let xch = xch_asset_flow(&tx.asset_flows);
+    assert_eq!(xch.input_amount, 2);
+    assert_eq!(xch.melted_amount, 2);
+    assert_eq!(xch.unaccounted_amount, 0);
+
+    let nfts: Vec<&Nft> = tx
+        .spends
+        .iter()
+        .filter_map(|spend| match &spend.asset {
+            ParsedAsset::Nft(_) => Some(unwrap_nft(&spend.children[0].asset)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(nfts.len(), 2);
+
+    for nft in nfts {
+        assert_eq!(nft_asset_flow(&tx.asset_flows, nft).unaccounted_amount, 0);
+    }
+
+    Ok(())
+}
+
+#[rstest]
 #[case(0, 0)]
 #[case(10, 0)]
 #[case(10, 10)]

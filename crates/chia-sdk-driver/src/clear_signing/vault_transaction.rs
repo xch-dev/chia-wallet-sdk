@@ -243,6 +243,7 @@ pub fn parse_vault_transaction(
         &verified_spends,
         &split_payments.received_payments,
         &split_payments.external_payments,
+        &vault_spend.drop_coins,
         &issuances,
         reserved_fee,
     );
@@ -392,6 +393,7 @@ fn build_asset_flows(
     spends: &[VerifiedSpend],
     received_payments: &[AssertedPayment],
     external_payments: &[AssertedPayment],
+    drop_coins: &[DropCoin],
     issuances: &[Issuance],
     reserved_fee: u64,
 ) -> Vec<AssetFlow> {
@@ -437,6 +439,10 @@ fn build_asset_flows(
     for asserted_payment in external_payments {
         asset_flow_mut(&mut flows, asserted_payment.asset).paid_amount +=
             asserted_payment.payment.amount;
+    }
+
+    for drop_coin in drop_coins {
+        asset_flow_mut(&mut flows, ClearSigningAsset::Xch).output_amount += drop_coin.amount;
     }
 
     for spend in spends {
