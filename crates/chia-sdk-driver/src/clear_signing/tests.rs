@@ -1980,8 +1980,14 @@ fn test_clear_signing_nft_offer() -> Result<()> {
     assert_eq!(nft_payment.amount, 1);
 
     assert_eq!(tx.external_payments[0].payment.amount, 1000);
+    assert_eq!(tx.external_payments[0].royalty_basis_points, None);
     assert_eq!(tx.external_payments[1].payment.amount, 30);
+    assert_eq!(
+        tx.external_payments[1].royalty_basis_points,
+        Some(nft.info.royalty_basis_points)
+    );
     assert_eq!(tx.received_payments[0].payment.amount, 1);
+    assert_eq!(tx.received_payments[0].royalty_basis_points, None);
 
     Ok(())
 }

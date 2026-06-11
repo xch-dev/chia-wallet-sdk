@@ -207,7 +207,11 @@ pub fn parse_vault_transaction(
     let p2_puzzle_hash_set = p2_puzzle_hashes.iter().copied().collect();
     let reserved_fee = facts.reserved_fees().try_into()?;
     let asserted_payments = parse_asserted_requested_payments(&reveals, &facts, ctx)?;
-    let split_payments = split_asserted_payments(&asserted_payments, &p2_puzzle_hash_set);
+    let split_payments = split_asserted_payments(
+        &asserted_payments,
+        &p2_puzzle_hash_set,
+        reveals.asset_info(),
+    );
     let linked_offer = build_linked_offer(
         &reveals,
         ctx,

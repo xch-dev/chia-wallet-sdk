@@ -80,7 +80,8 @@ pub fn build_linked_offer(
 
         let asserted_payments =
             parse_asserted_requested_payments(reveals, &offer_facts, allocator)?;
-        let split_payments = split_asserted_payments(&asserted_payments, p2_puzzle_hashes);
+        let split_payments =
+            split_asserted_payments(&asserted_payments, p2_puzzle_hashes, reveals.asset_info());
         linked_offer.received_payments = split_payments.received_payments;
         linked_offer.external_payments = split_payments.external_payments;
     }

@@ -6,7 +6,7 @@ use chia_puzzles::SETTLEMENT_PAYMENT_HASH;
 use chia_sdk_types::{announcement_id, tree_hash_notarized_payment};
 use clvmr::Allocator;
 
-use crate::{CatInfo, DriverError, Facts, HashedPtr, NftInfo, Reveals, SingletonInfo};
+use crate::{AssetInfo, CatInfo, DriverError, Facts, HashedPtr, NftInfo, Reveals, SingletonInfo};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssertedNotarizedPayment {
@@ -19,6 +19,7 @@ pub struct AssertedPayment {
     pub asset: ClearSigningAsset,
     pub nonce: Bytes32,
     pub payment: Payment,
+    pub royalty_basis_points: Option<u16>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,16 +47,24 @@ pub enum ClearSigningAsset {
 pub fn split_asserted_payments(
     asserted_payments: &[AssertedNotarizedPayment],
     p2_puzzle_hashes: &HashSet<Bytes32>,
+    asset_info: &AssetInfo,
 ) -> SplitAssertedPayments {
     let mut received_payments = Vec::new();
     let mut external_payments = Vec::new();
 
     for asserted_notarized_payment in asserted_payments {
         for payment in &asserted_notarized_payment.notarized_payment.payments {
+            let royalty_basis_points = royalty_basis_points(
+                asset_info,
+                asserted_notarized_payment.notarized_payment.nonce,
+                payment,
+            );
+
             let asserted_payment = AssertedPayment {
                 asset: asserted_notarized_payment.asset,
                 nonce: asserted_notarized_payment.notarized_payment.nonce,
                 payment: payment.clone(),
+                royalty_basis_points,
             };
 
             if p2_puzzle_hashes.contains(&asserted_payment.payment.puzzle_hash) {
@@ -70,6 +79,12 @@ pub fn split_asserted_payments(
         received_payments,
         external_payments,
     }
+}
+
+fn royalty_basis_points(asset_info: &AssetInfo, nonce: Bytes32, payment: &Payment) -> Option<u16> {
+    let nft = asset_info.nft(nonce)?;
+
+    (payment.puzzle_hash == nft.royalty_puzzle_hash).then_some(nft.royalty_basis_points)
 }
 
 pub fn parse_asserted_requested_payments(
