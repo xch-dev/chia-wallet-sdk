@@ -64,6 +64,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Setup MSVC
+        if: ${{ runner.os == 'Windows' }}
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - uses: pnpm/action-setup@v5
         with:
           version: 9
