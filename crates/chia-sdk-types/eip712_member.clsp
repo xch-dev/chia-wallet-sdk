@@ -1,0 +1,43 @@
+; eip712_member.clsp -- MIPS01 member puzzle for EIP-712-controlled keys.
+;
+; Approves a delegated puzzle when the curried Ethereum-style key has signed
+; the EIP-712 digest of the canonical CHIP-0037 schema:
+;
+;     ChiaCoinSpend(bytes32 coin_id, bytes32 delegated_puzzle_hash)
+;
+; The signed digest is reconstructed inside softfork extension 1 (which
+; activates the keccak256 operator from CHIP-0036). Both the EIP-712
+; reconstruction and the secp256k1_verify call return () on success and raise
+; on failure, so the (all (not ...) (not ...)) gate collapses two successes
+; into a truthy value and any failure aborts the spend before the if runs.
+;
+; CHIP-0037 (EIP-712 wallet support):
+;   https://github.com/Chia-Network/chips/blob/main/CHIPs/chip-0037.md
+; CHIP-0043 (Managed Inner Puzzle Spec / MIPS01):
+;   https://github.com/Chia-Network/chips/blob/main/CHIPs/chip-0043.md
+
+(mod (PREFIX_AND_DOMAIN_SEPARATOR TYPE_HASH PUBKEY    ; curried by Eip712Member
+      Delegated_Puzzle_Hash                            ; truth from M-of-N parent
+      my_id signed_hash signature)                     ; member-specific solution
+
+  ; ASSERT_MY_COIN_ID is condition opcode 73 (per chialisp/condition_codes.clib).
+  ; Inlined to avoid needing a clib include search path at compile time.
+  (defconstant ASSERT_MY_COIN_ID 73)
+
+  (if (all
+        (not (secp256k1_verify PUBKEY signed_hash signature))
+        (not (softfork
+                (q . 2745)  ; pinned softfork cost (matches CHIP-0037 fixture)
+                (q . 1)     ; softfork extension 1 (CHIP-0036 keccak256)
+                (mod
+                  (PREFIX_AND_DOMAIN_SEPARATOR TYPE_HASH my_id
+                   delegated_puzzle_hash signed_hash)
+                  (if (= (keccak256 PREFIX_AND_DOMAIN_SEPARATOR
+                                    (keccak256 TYPE_HASH my_id delegated_puzzle_hash))
+                         signed_hash)
+                      ()
+                      (x)))
+                (list PREFIX_AND_DOMAIN_SEPARATOR TYPE_HASH my_id
+                      Delegated_Puzzle_Hash signed_hash))))
+      (list (list ASSERT_MY_COIN_ID my_id))
+      (x)))
