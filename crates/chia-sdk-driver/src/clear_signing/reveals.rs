@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use clvm_traits::ToClvm;
@@ -29,12 +29,12 @@ pub struct Reveals {
     p2_puzzles: HashMap<TreeHash, RevealedP2Puzzle>,
     requested_payments: RequestedPayments,
     asset_info: AssetInfo,
-    vault_nonces: HashSet<usize>,
+    vault_nonces: BTreeSet<usize>,
 }
 
 impl Default for Reveals {
     fn default() -> Self {
-        let mut vault_nonces = HashSet::new();
+        let mut vault_nonces = BTreeSet::new();
 
         vault_nonces.insert(0);
 
