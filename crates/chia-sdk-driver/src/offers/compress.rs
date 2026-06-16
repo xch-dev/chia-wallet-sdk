@@ -14,7 +14,7 @@ use flate2::{
 };
 use hex_literal::hex;
 
-use crate::DriverError;
+use crate::{DriverError, Offer, SpendContext};
 
 pub fn compress_offer(spend_bundle: &SpendBundle) -> Result<Vec<u8>, DriverError> {
     compress_offer_bytes(&spend_bundle.to_bytes()?)
@@ -30,6 +30,13 @@ pub fn encode_offer(spend_bundle: &SpendBundle) -> Result<String, DriverError> {
 
 pub fn decode_offer(text: &str) -> Result<SpendBundle, DriverError> {
     decompress_offer(&Bech32::decode(text)?.expect_prefix("offer")?)
+}
+
+pub fn validate_offer_str(text: &str) -> Result<(), DriverError> {
+    let spend_bundle = decode_offer(text)?;
+    let mut ctx = SpendContext::new();
+    Offer::from_spend_bundle(&mut ctx, &spend_bundle)?;
+    Ok(())
 }
 
 const CAT_PUZZLE_V1: [u8; 1420] = hex!(
@@ -173,8 +180,13 @@ pub fn zlib_decompress(input: &[u8], zdict: &[u8]) -> Result<Vec<u8>, DriverErro
 
 #[cfg(test)]
 mod tests {
+    use chia_bls::Signature;
+    use chia_protocol::Bytes32;
     use chia_protocol::SpendBundle;
+    use chia_puzzle_types::offer::{NotarizedPayment, Payment};
     use chia_traits::Streamable;
+
+    use crate::{AssetInfo, Offer, RequestedPayments, SpendContext};
 
     use super::*;
 
@@ -230,5 +242,29 @@ mod tests {
             .expect_prefix("offer")
             .unwrap();
         assert_eq!(offer, decoded.as_slice());
+    }
+
+    #[test]
+    fn test_validate_offer_str() {
+        let mut ctx = SpendContext::new();
+
+        let mut requested_payments = RequestedPayments::new();
+        requested_payments.xch.push(NotarizedPayment::new(
+            Bytes32::new([1; 32]),
+            vec![Payment::new(Bytes32::new([2; 32]), 42, Default::default())],
+        ));
+
+        let offer = Offer::from_input_spend_bundle(
+            &mut ctx,
+            SpendBundle::new(Vec::new(), Signature::default()),
+            requested_payments,
+            AssetInfo::new(),
+        )
+        .unwrap();
+
+        let encoded = encode_offer(&offer.to_spend_bundle(&mut ctx).unwrap()).unwrap();
+
+        validate_offer_str(&encoded).unwrap();
+        assert!(validate_offer_str("not-an-offer").is_err());
     }
 }
