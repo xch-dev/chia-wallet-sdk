@@ -341,9 +341,10 @@ mod tests {
             }
             Type::Cat => {
                 let hint = ctx.hint(SETTLEMENT_PAYMENT_HASH.into())?;
-                let (issue_cat, cats) = Cat::issue_with_coin(
+                let (issue_cat, cats) = Cat::single_issuance(
                     ctx,
                     strike_parent_coin.coin_id(),
+                    None,
                     strike_amount,
                     Conditions::new().create_coin(
                         SETTLEMENT_PAYMENT_HASH.into(),
@@ -367,9 +368,10 @@ mod tests {
                     RevocationArgs::new(Bytes32::default(), SETTLEMENT_PAYMENT_HASH.into())
                         .curry_tree_hash()
                         .into();
-                let (issue_cat, cats) = Cat::issue_with_coin(
+                let (issue_cat, cats) = Cat::single_issuance(
                     ctx,
                     strike_parent_coin.coin_id(),
+                    None,
                     strike_amount,
                     Conditions::new().create_coin(revocation_settlement_hash, strike_amount, hint),
                 )?;
@@ -458,9 +460,10 @@ mod tests {
             }
             Type::Cat => {
                 let hint = ctx.hint(p2_option)?;
-                let (issue_cat, cats) = Cat::issue_with_coin(
+                let (issue_cat, cats) = Cat::single_issuance(
                     ctx,
                     underlying_parent_coin.coin_id(),
+                    None,
                     underlying_amount,
                     Conditions::new().create_coin(p2_option, underlying_amount, hint),
                 )?;
@@ -472,9 +475,10 @@ mod tests {
                 let revocation_p2_option = RevocationArgs::new(Bytes32::default(), p2_option)
                     .curry_tree_hash()
                     .into();
-                let (issue_cat, cats) = Cat::issue_with_coin(
+                let (issue_cat, cats) = Cat::single_issuance(
                     ctx,
                     underlying_parent_coin.coin_id(),
+                    None,
                     underlying_amount,
                     Conditions::new().create_coin(revocation_p2_option, underlying_amount, hint),
                 )?;

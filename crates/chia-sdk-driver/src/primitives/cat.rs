@@ -18,10 +18,12 @@ use crate::{CatLayer, DriverError, Layer, Puzzle, RevocationLayer, Spend, SpendC
 
 mod cat_info;
 mod cat_spend;
+mod parsed_cat;
 mod single_cat_spend;
 
 pub use cat_info::*;
 pub use cat_spend::*;
+pub use parsed_cat::*;
 pub use single_cat_spend::*;
 
 /// Contains all information needed to spend the outer puzzles of CAT coins.
@@ -62,9 +64,10 @@ impl Cat {
         }
     }
 
-    pub fn issue_with_coin(
+    pub fn single_issuance(
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
+        hidden_puzzle_hash: Option<Bytes32>,
         amount: u64,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Vec<Cat>), DriverError> {
@@ -73,17 +76,18 @@ impl Cat {
         Self::issue(
             ctx,
             parent_coin_id,
-            None,
+            hidden_puzzle_hash,
             amount,
             RunCatTail::new(tail, NodePtr::NIL),
             extra_conditions,
         )
     }
 
-    pub fn issue_with_key(
+    pub fn multi_issuance(
         ctx: &mut SpendContext,
         parent_coin_id: Bytes32,
         public_key: PublicKey,
+        hidden_puzzle_hash: Option<Bytes32>,
         amount: u64,
         extra_conditions: Conditions,
     ) -> Result<(Conditions, Vec<Cat>), DriverError> {
@@ -92,46 +96,7 @@ impl Cat {
         Self::issue(
             ctx,
             parent_coin_id,
-            None,
-            amount,
-            RunCatTail::new(tail, NodePtr::NIL),
-            extra_conditions,
-        )
-    }
-
-    pub fn issue_revocable_with_coin(
-        ctx: &mut SpendContext,
-        parent_coin_id: Bytes32,
-        hidden_puzzle_hash: Bytes32,
-        amount: u64,
-        extra_conditions: Conditions,
-    ) -> Result<(Conditions, Vec<Cat>), DriverError> {
-        let tail = ctx.curry(GenesisByCoinIdTailArgs::new(parent_coin_id))?;
-
-        Self::issue(
-            ctx,
-            parent_coin_id,
-            Some(hidden_puzzle_hash),
-            amount,
-            RunCatTail::new(tail, NodePtr::NIL),
-            extra_conditions,
-        )
-    }
-
-    pub fn issue_revocable_with_key(
-        ctx: &mut SpendContext,
-        parent_coin_id: Bytes32,
-        public_key: PublicKey,
-        hidden_puzzle_hash: Bytes32,
-        amount: u64,
-        extra_conditions: Conditions,
-    ) -> Result<(Conditions, Vec<Cat>), DriverError> {
-        let tail = ctx.curry(EverythingWithSignatureTailArgs::new(public_key))?;
-
-        Self::issue(
-            ctx,
-            parent_coin_id,
-            Some(hidden_puzzle_hash),
+            hidden_puzzle_hash,
             amount,
             RunCatTail::new(tail, NodePtr::NIL),
             extra_conditions,
@@ -363,7 +328,7 @@ impl Cat {
         coin: Coin,
         puzzle: Puzzle,
         solution: NodePtr,
-    ) -> Result<Option<(Self, Puzzle, NodePtr)>, DriverError> {
+    ) -> Result<Option<ParsedCat>, DriverError> {
         let Some(cat_layer) = CatLayer::<Puzzle>::parse_puzzle(allocator, puzzle)? else {
             return Ok(None);
         };
@@ -375,7 +340,7 @@ impl Cat {
             let revocation_solution =
                 RevocationLayer::parse_solution(allocator, cat_solution.inner_puzzle_solution)?;
 
-            let info = Self::new(
+            let cat = Self::new(
                 coin,
                 cat_solution.lineage_proof,
                 CatInfo::new(
@@ -385,13 +350,14 @@ impl Cat {
                 ),
             );
 
-            Ok(Some((
-                info,
-                Puzzle::parse(allocator, revocation_solution.puzzle),
-                revocation_solution.solution,
-            )))
+            Ok(Some(ParsedCat {
+                cat,
+                p2_puzzle: Puzzle::parse(allocator, revocation_solution.puzzle),
+                p2_solution: revocation_solution.solution,
+                revoked: revocation_solution.hidden,
+            }))
         } else {
-            let info = Self::new(
+            let cat = Self::new(
                 coin,
                 cat_solution.lineage_proof,
                 CatInfo::new(
@@ -401,11 +367,12 @@ impl Cat {
                 ),
             );
 
-            Ok(Some((
-                info,
-                cat_layer.inner_puzzle,
-                cat_solution.inner_puzzle_solution,
-            )))
+            Ok(Some(ParsedCat {
+                cat,
+                p2_puzzle: cat_layer.inner_puzzle,
+                p2_solution: cat_solution.inner_puzzle_solution,
+                revoked: false,
+            }))
         }
     }
 
@@ -544,9 +511,10 @@ mod tests {
         let alice_p2 = StandardLayer::new(alice.pk);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, cats) = Cat::issue_with_coin(
+        let (issue_cat, cats) = Cat::single_issuance(
             ctx,
             alice.coin.coin_id(),
+            None,
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
@@ -574,10 +542,11 @@ mod tests {
         let alice_p2 = StandardLayer::new(alice.pk);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, cats) = Cat::issue_with_key(
+        let (issue_cat, cats) = Cat::multi_issuance(
             ctx,
             alice.coin.coin_id(),
             alice.pk,
+            None,
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
@@ -604,9 +573,10 @@ mod tests {
         let alice_p2 = StandardLayer::new(alice.pk);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, cats) = Cat::issue_with_coin(
+        let (issue_cat, cats) = Cat::single_issuance(
             ctx,
             alice.coin.coin_id(),
+            None,
             0,
             Conditions::new().create_coin(alice.puzzle_hash, 0, memos),
         )?;
@@ -644,7 +614,7 @@ mod tests {
         let alice_p2 = StandardLayer::new(alice.pk);
 
         let (issue_cat, _cats) =
-            Cat::issue_with_coin(ctx, alice.coin.coin_id(), 1, Conditions::new())?;
+            Cat::single_issuance(ctx, alice.coin.coin_id(), None, 1, Conditions::new())?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
         assert_eq!(
@@ -666,9 +636,10 @@ mod tests {
         let alice_p2 = StandardLayer::new(alice.pk);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, _cats) = Cat::issue_with_coin(
+        let (issue_cat, _cats) = Cat::single_issuance(
             ctx,
             alice.coin.coin_id(),
+            None,
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 2, memos),
         )?;
@@ -715,7 +686,7 @@ mod tests {
         }
 
         let (issue_cat, mut cats) =
-            Cat::issue_with_coin(ctx, alice.coin.coin_id(), sum, conditions)?;
+            Cat::single_issuance(ctx, alice.coin.coin_id(), None, sum, conditions)?;
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
         sim.spend_coins(ctx.take(), slice::from_ref(&alice.sk))?;
@@ -760,9 +731,10 @@ mod tests {
 
         let memos = ctx.hint(alice.puzzle_hash)?;
         let custom_memos = ctx.hint(custom_p2_puzzle_hash)?;
-        let (issue_cat, cats) = Cat::issue_with_coin(
+        let (issue_cat, cats) = Cat::single_issuance(
             ctx,
             alice.coin.coin_id(),
+            None,
             2,
             Conditions::new()
                 .create_coin(alice.puzzle_hash, 1, memos)
@@ -806,7 +778,7 @@ mod tests {
         let conditions = Conditions::new().create_coin(alice.puzzle_hash, 10000, hint);
 
         let (issue_cat, cats) =
-            Cat::issue_with_key(ctx, alice.coin.coin_id(), alice.pk, 10000, conditions)?;
+            Cat::multi_issuance(ctx, alice.coin.coin_id(), alice.pk, None, 10000, conditions)?;
 
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
@@ -847,7 +819,7 @@ mod tests {
             .create_coin(alice.puzzle_hash, 1000, hint);
 
         let (issue_cat, cats) =
-            Cat::issue_with_key(ctx, alice.coin.coin_id(), alice.pk, 10000, conditions)?;
+            Cat::multi_issuance(ctx, alice.coin.coin_id(), alice.pk, None, 10000, conditions)?;
 
         alice_p2.spend(ctx, alice.coin, issue_cat)?;
 
@@ -896,11 +868,11 @@ mod tests {
         let asset_id = EverythingWithSignatureTailArgs::curry_tree_hash(alice.pk).into();
         let hint = ctx.hint(bob.puzzle_hash)?;
 
-        let (issue_cat, cats) = Cat::issue_revocable_with_key(
+        let (issue_cat, cats) = Cat::multi_issuance(
             &mut ctx,
             alice.coin.coin_id(),
             alice.pk,
-            alice.puzzle_hash,
+            Some(alice.puzzle_hash),
             10,
             Conditions::new().create_coin(bob.puzzle_hash, 10, hint),
         )?;

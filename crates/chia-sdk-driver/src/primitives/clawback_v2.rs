@@ -15,7 +15,7 @@ pub type PushThroughPath = (
     match_list!(AssertSecondsAbsolute, CreateCoin<[Bytes32; 1]>),
 );
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ClawbackV2 {
     pub sender_puzzle_hash: Bytes32,
     pub receiver_puzzle_hash: Bytes32,
@@ -537,9 +537,10 @@ mod tests {
         let bob = sim.bls(0);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, cats) = Cat::issue_with_coin(
+        let (issue_cat, cats) = Cat::single_issuance(
             &mut ctx,
             alice.coin.coin_id(),
+            None,
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
@@ -592,9 +593,10 @@ mod tests {
         let bob = sim.bls(0);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, cats) = Cat::issue_with_coin(
+        let (issue_cat, cats) = Cat::single_issuance(
             &mut ctx,
             alice.coin.coin_id(),
+            None,
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
@@ -648,9 +650,10 @@ mod tests {
         let p2_bob = StandardLayer::new(bob.pk);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, cats) = Cat::issue_with_coin(
+        let (issue_cat, cats) = Cat::single_issuance(
             &mut ctx,
             alice.coin.coin_id(),
+            None,
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;
@@ -707,9 +710,10 @@ mod tests {
         let bob = sim.bls(0);
 
         let memos = ctx.hint(alice.puzzle_hash)?;
-        let (issue_cat, cats) = Cat::issue_with_coin(
+        let (issue_cat, cats) = Cat::single_issuance(
             &mut ctx,
             alice.coin.coin_id(),
+            None,
             1,
             Conditions::new().create_coin(alice.puzzle_hash, 1, memos),
         )?;

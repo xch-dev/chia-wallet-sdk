@@ -394,7 +394,7 @@ impl Offer {
             .extend(other.spend_bundle.coin_spends);
         self.spend_bundle.aggregated_signature += &other.spend_bundle.aggregated_signature;
         self.offered_coins.extend(other.offered_coins)?;
-        self.requested_payments.extend(other.requested_payments)?;
+        self.requested_payments.extend(other.requested_payments);
         self.asset_info.extend(other.asset_info)?;
 
         Ok(())

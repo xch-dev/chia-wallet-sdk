@@ -102,7 +102,7 @@ jobs:
     strategy:
       matrix:
         platform:
-          - runner: windows-latest
+          - runner: windows-2022
             target: x64
     steps:
       - uses: actions/checkout@v6
@@ -110,6 +110,10 @@ jobs:
         with:
           python-version: 3.x
           architecture: ${{ matrix.platform.target }}
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:

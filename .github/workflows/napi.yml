@@ -35,7 +35,7 @@ jobs:
           - host: macos-latest
             target: x86_64-apple-darwin
             build: pnpm build:macos-x64
-          - host: windows-latest
+          - host: windows-2022
             build: pnpm build:windows-x64
             target: x86_64-pc-windows-msvc
           - host: ubuntu-latest
@@ -63,6 +63,12 @@ jobs:
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v6
+
+      - name: Setup MSVC
+        if: ${{ runner.os == 'Windows' }}
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
       - uses: pnpm/action-setup@v5
         with:
@@ -121,7 +127,11 @@ jobs:
 
       - name: Build
         run: ${{ matrix.settings.build }}
-        if: ${{ !matrix.settings.docker }}
+        if: ${{ !matrix.settings.docker && runner.os == 'Windows' }}
+
+      - name: Build
+        run: ${{ matrix.settings.build }}
+        if: ${{ !matrix.settings.docker && runner.os != 'Windows' }}
         shell: bash
 
       - name: Upload artifact
@@ -144,7 +154,7 @@ jobs:
         settings:
           - host: macos-latest
             target: x86_64-apple-darwin
-          - host: windows-latest
+          - host: windows-2022
             target: x86_64-pc-windows-msvc
         node:
           - "20"

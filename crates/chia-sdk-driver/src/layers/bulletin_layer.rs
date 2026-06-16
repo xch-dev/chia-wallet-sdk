@@ -45,7 +45,7 @@ where
         let args = IndexWrapperArgs::<NodePtr, NodePtr>::from_clvm(allocator, puzzle.args)?;
 
         if BulletinNonce::from_clvm(allocator, args.nonce).is_err() {
-            return Err(DriverError::InvalidModHash);
+            return Ok(None);
         }
 
         let Some(inner_puzzle) =

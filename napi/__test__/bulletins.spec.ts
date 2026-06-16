@@ -10,19 +10,19 @@ test("issues and spends a cat", (t) => {
   const created = clvm.createBulletin(alice.coin.coinId(), alice.puzzleHash, [
     new BulletinMessage(
       "animals/rabbit/vienna-blue",
-      "The Vienna Blue rabbit breed originally comes from Austria."
+      "The Vienna Blue rabbit breed originally comes from Austria.",
     ),
   ]);
 
   clvm.spendStandardCoin(
     alice.coin,
     alice.pk,
-    clvm.delegatedSpend(created.parentConditions)
+    clvm.delegatedSpend(created.parentConditions),
   );
 
   const bulletinSpend = clvm.standardSpend(
     alice.pk,
-    clvm.delegatedSpend(created.bulletin.conditions(clvm))
+    clvm.delegatedSpend(created.bulletin.conditions(clvm)),
   );
 
   created.bulletin.spend(bulletinSpend);
@@ -32,7 +32,7 @@ test("issues and spends a cat", (t) => {
   sim.spendCoins(coinSpends, [alice.sk]);
 
   const coinSpend = coinSpends.find((spend) =>
-    spend.coin.coinId().equals(created.bulletin.coin.coinId())
+    spend.coin.coinId().equals(created.bulletin.coin.coinId()),
   );
   if (!coinSpend) {
     throw new Error("Coin spend not found");
@@ -41,10 +41,12 @@ test("issues and spends a cat", (t) => {
   const puzzle = clvm.deserialize(coinSpend.puzzleReveal).puzzle();
   const solution = clvm.deserialize(coinSpend.solution);
 
-  const bulletin = puzzle.parseBulletin(coinSpend.coin, solution);
-  if (!bulletin) {
+  const parsed = puzzle.parseBulletin(coinSpend.coin, solution);
+  if (!parsed) {
     throw new Error("Bulletin not found");
   }
+
+  const { bulletin } = parsed;
 
   t.is(bulletin.messages.length, created.bulletin.messages.length);
 
@@ -55,16 +57,16 @@ test("issues and spends a cat", (t) => {
 
   t.is(
     bulletin.coin.coinId().toString("hex"),
-    created.bulletin.coin.coinId().toString("hex")
+    created.bulletin.coin.coinId().toString("hex"),
   );
 
   t.is(
     bulletin.hiddenPuzzleHash.toString("hex"),
-    created.bulletin.hiddenPuzzleHash.toString("hex")
+    created.bulletin.hiddenPuzzleHash.toString("hex"),
   );
 
   t.is(
     bulletin.coin.puzzleHash.toString("hex"),
-    bulletinPuzzleHash(bulletin.hiddenPuzzleHash).toString("hex")
+    bulletinPuzzleHash(bulletin.hiddenPuzzleHash).toString("hex"),
   );
 });
