@@ -365,6 +365,9 @@ fn verify_spend(
         parsed_spend.required_expiration_time.is_some(),
     )?;
 
+    // Issuances are either:
+    // 1. Invalid, in which case the transaction will atomically fail because this spend is verified
+    // 2. Valid, in which case the information is correct
     if let Some(issuance) = issuance {
         issuances.push(issuance);
     }
