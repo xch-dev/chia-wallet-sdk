@@ -161,6 +161,10 @@ pub fn parse_children(
         }
     }
 
+    if !cats.is_empty() {
+        return Err(DriverError::MissingChild);
+    }
+
     Ok(children)
 }
 
