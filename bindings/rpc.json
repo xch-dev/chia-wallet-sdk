@@ -1,4 +1,12 @@
 {
+  "RpcClientOptions": {
+    "type": "class",
+    "new": true,
+    "fields": {
+      "request_timeout_ms": "Option<u32>",
+      "connect_timeout_ms": "Option<u32>"
+    }
+  },
   "RpcClient": {
     "type": "class",
     "methods": {
@@ -30,6 +38,12 @@
           "cert_bytes": "Bytes",
           "key_bytes": "Bytes"
         }
+      },
+      "with_options": {
+        "args": {
+          "options": "RpcClientOptions"
+        },
+        "return": "RpcClient"
       },
       "get_blockchain_state": {
         "type": "async",
