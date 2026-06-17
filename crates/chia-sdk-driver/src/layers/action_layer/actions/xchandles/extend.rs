@@ -75,6 +75,7 @@ impl XchandlesExtendAction {
         let current_expiration = solution.pricing_puzzle_and_solution.solution.1 .0;
 
         Ok(XchandlesHandleSlotValue::new(
+            solution.counter,
             solution
                 .pricing_puzzle_and_solution
                 .solution
@@ -117,6 +118,7 @@ impl XchandlesExtendAction {
              .0;
 
         Ok(XchandlesHandleSlotValue::new(
+            solution.counter + 1,
             handle.tree_hash().into(),
             solution.neighbors.left_value,
             solution.neighbors.right_value,
@@ -152,6 +154,7 @@ impl XchandlesExtendAction {
 
         let slot = registry.actual_handle_slot(slot);
         let action_solution = ctx.alloc(&XchandlesExtendActionSolution {
+            counter: slot.info.value.counter,
             pricing_puzzle_and_solution: PuzzleAndSolution::new(
                 pricing_puzzle_reveal,
                 XchandlesPricingSolution {

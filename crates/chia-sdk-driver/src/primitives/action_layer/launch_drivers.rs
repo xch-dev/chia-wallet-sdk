@@ -1816,6 +1816,7 @@ mod tests {
             slots.sort_unstable_by(|a, b| a.info.value.cmp(&b.info.value));
 
             let slot_value_to_insert = XchandlesHandleSlotValue::new(
+                0,
                 handle_hash,
                 Bytes32::default(),
                 Bytes32::default(),

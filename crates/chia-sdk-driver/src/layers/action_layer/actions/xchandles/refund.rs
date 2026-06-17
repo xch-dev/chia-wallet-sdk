@@ -91,7 +91,13 @@ impl XchandlesRefundAction {
     pub fn created_slot_value(
         spent_slot_value: Option<XchandlesHandleSlotValue>,
     ) -> Option<XchandlesHandleSlotValue> {
-        spent_slot_value // nothing changed; just oracle
+        if let Some(mut created_slot_value) = spent_slot_value {
+            created_slot_value.counter += 1;
+
+            Some(created_slot_value)
+        } else {
+            None
+        }
     }
 
     pub fn spend(

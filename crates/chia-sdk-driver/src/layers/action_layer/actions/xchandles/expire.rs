@@ -107,6 +107,7 @@ impl XchandlesExpireAction {
              .0;
 
         Ok(XchandlesHandleSlotValue::new(
+            solution.counter,
             handle.tree_hash().into(),
             solution.neighbors.left_value,
             solution.neighbors.right_value,
@@ -140,6 +141,7 @@ impl XchandlesExpireAction {
         )?;
 
         Ok(XchandlesHandleSlotValue::new(
+            solution.counter + 1,
             handle.tree_hash().into(),
             solution.neighbors.left_value,
             solution.neighbors.right_value,
@@ -183,6 +185,7 @@ impl XchandlesExpireAction {
         let expire_args =
             XchandlesExpirePricingPuzzle::from_info(ctx, base_handle_price, registration_period)?;
         let action_solution = XchandlesExpireActionSolution {
+            counter: slot.info.value.counter,
             expired_handle_pricing_puzzle_and_solution: PuzzleAndSolution::new(
                 ctx.curry(expire_args)?,
                 XchandlesPricingSolution {

@@ -58,7 +58,10 @@ impl XchandlesOracleAction {
     pub fn created_slot_value(
         spent_slot_value: XchandlesHandleSlotValue,
     ) -> XchandlesHandleSlotValue {
-        spent_slot_value
+        let mut created_slot_value = spent_slot_value;
+        created_slot_value.counter += 1;
+
+        created_slot_value
     }
 
     pub fn spend(

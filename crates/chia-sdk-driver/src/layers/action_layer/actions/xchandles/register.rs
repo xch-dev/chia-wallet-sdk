@@ -94,6 +94,7 @@ impl XchandlesRegisterAction {
 
         Ok([
             XchandlesHandleSlotValue::new(
+                solution.left_rest_of_slot.this_counter,
                 solution.neighbors.left_value,
                 solution.left_rest_of_slot.this_this_value,
                 solution.neighbors.right_value,
@@ -102,6 +103,7 @@ impl XchandlesRegisterAction {
                 solution.left_rest_of_slot.this_data.resolved_launcher_id,
             ),
             XchandlesHandleSlotValue::new(
+                solution.right_rest_of_slot.this_counter,
                 solution.neighbors.right_value,
                 solution.neighbors.left_value,
                 solution.right_rest_of_slot.this_this_value,
@@ -135,6 +137,7 @@ impl XchandlesRegisterAction {
 
         Ok([
             XchandlesHandleSlotValue::new(
+                solution.left_rest_of_slot.this_counter + 1,
                 solution.neighbors.left_value,
                 solution.left_rest_of_slot.this_this_value,
                 solution.handle_hash,
@@ -143,6 +146,7 @@ impl XchandlesRegisterAction {
                 solution.left_rest_of_slot.this_data.resolved_launcher_id,
             ),
             XchandlesHandleSlotValue::new(
+                0,
                 solution.handle_hash,
                 solution.neighbors.left_value,
                 solution.neighbors.right_value,
@@ -154,6 +158,7 @@ impl XchandlesRegisterAction {
                     .resolved_launcher_id,
             ),
             XchandlesHandleSlotValue::new(
+                solution.right_rest_of_slot.this_counter + 1,
                 solution.neighbors.right_value,
                 solution.handle_hash,
                 solution.right_rest_of_slot.this_this_value,
@@ -236,11 +241,13 @@ impl XchandlesRegisterAction {
                 },
             ),
             left_rest_of_slot: XchandlesRestOfSlot::new(
+                left_slot.info.value.counter,
                 left_slot.info.value.neighbors.left_value,
                 left_slot.info.value.expiration,
                 left_slot.info.value.rest_data(),
             ),
             right_rest_of_slot: XchandlesRestOfSlot::new(
+                right_slot.info.value.counter,
                 right_slot.info.value.neighbors.right_value,
                 right_slot.info.value.expiration,
                 right_slot.info.value.rest_data(),

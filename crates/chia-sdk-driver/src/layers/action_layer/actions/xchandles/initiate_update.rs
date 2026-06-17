@@ -80,8 +80,10 @@ impl XchandlesInitiateUpdateAction {
     ) -> Result<(XchandlesHandleSlotValue, XchandlesUpdateSlotValue), DriverError> {
         let solution = ctx.extract::<XchandlesInitiateUpdateActionSolution>(solution)?;
 
+        let mut new_slot_value = solution.current_slot_value;
+        new_slot_value.counter += 1;
         Ok((
-            solution.current_slot_value,
+            new_slot_value,
             XchandlesUpdateSlotValue::new(
                 Coin::new(
                     solution.current_owner.parent_coin_info,

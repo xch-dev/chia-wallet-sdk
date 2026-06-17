@@ -81,10 +81,13 @@ impl XchandlesExecuteUpdateAction {
     ) -> Result<XchandlesHandleSlotValue, DriverError> {
         let solution = ctx.extract::<XchandlesExecuteUpdateActionSolution>(solution)?;
 
-        Ok(solution.current_slot_value.with_data(
-            solution.new_data.owner_launcher_id,
-            solution.new_data.resolved_launcher_id,
-        ))
+        Ok(solution
+            .current_slot_value
+            .with_data(
+                solution.new_data.owner_launcher_id,
+                solution.new_data.resolved_launcher_id,
+            )
+            .with_counter(solution.current_slot_value.counter + 1))
     }
 
     // returns:

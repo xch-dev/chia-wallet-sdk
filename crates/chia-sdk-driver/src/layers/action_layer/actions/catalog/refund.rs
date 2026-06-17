@@ -91,7 +91,12 @@ impl CatalogRefundAction {
         ctx: &SpendContext,
         solution: NodePtr,
     ) -> Result<Option<CatalogSlotValue>, DriverError> {
-        self.spent_slot_value(ctx, solution)
+        if let Some(mut val) = self.spent_slot_value(ctx, solution)? {
+            val.counter += 1;
+            Ok(Some(val))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn spend(
