@@ -142,10 +142,12 @@ impl XchandlesRegistry {
                 action_spend.solution,
             )?);
         } else if raw_action_hash == oracle_action_hash {
-            let slot_value = XchandlesOracleAction::spent_slot_value(ctx, action_spend.solution)?;
+            let spent_slot_value =
+                XchandlesOracleAction::spent_slot_value(ctx, action_spend.solution)?;
+            let created_slot_value = XchandlesOracleAction::created_slot_value(spent_slot_value);
 
-            spent_handle_slots.push(slot_value);
-            created_handle_slots.push(slot_value);
+            spent_handle_slots.push(spent_slot_value);
+            created_handle_slots.push(created_slot_value);
         } else if raw_action_hash == initiate_update_action_hash {
             spent_handle_slots.push(XchandlesInitiateUpdateAction::spent_slot_value(
                 ctx,
@@ -171,11 +173,16 @@ impl XchandlesRegistry {
                 action_spend.solution,
             )?);
         } else if raw_action_hash == refund_action_hash {
-            if let Some(slot_value) =
+            if let Some(spent_slot_value) =
                 XchandlesRefundAction::spent_slot_value(ctx, action_spend.solution)?
             {
-                spent_handle_slots.push(slot_value);
-                created_handle_slots.push(slot_value);
+                spent_handle_slots.push(spent_slot_value);
+
+                if let Some(created_slot_value) =
+                    XchandlesRefundAction::created_slot_value(Some(spent_slot_value))
+                {
+                    created_handle_slots.push(created_slot_value);
+                }
             }
         } else if raw_action_hash == expire_action_hash {
             spent_handle_slots.push(XchandlesExpireAction::spent_slot_value(

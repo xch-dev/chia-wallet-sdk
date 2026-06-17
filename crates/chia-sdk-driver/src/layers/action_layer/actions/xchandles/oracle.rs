@@ -77,12 +77,13 @@ impl XchandlesOracleAction {
 
         registry.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
-        let new_slot = Self::created_slot_value(slot.info.value);
+        // let _new_slot = Self::created_slot_value(slot.info.value);
 
         // spend slot
+        let slot_value_hash = slot.info.value.tree_hash();
         slot.spend(ctx, registry.info.inner_puzzle_hash().into())?;
 
-        let oracle_ann = XchandlesRegistryCreatedAnnouncementPrefix::oracle(new_slot.tree_hash());
+        let oracle_ann = XchandlesRegistryCreatedAnnouncementPrefix::oracle(slot_value_hash);
         Ok(Conditions::new()
             .assert_puzzle_announcement(announcement_id(registry.coin.puzzle_hash, oracle_ann)))
     }
