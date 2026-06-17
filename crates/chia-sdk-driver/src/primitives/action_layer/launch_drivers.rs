@@ -1014,10 +1014,12 @@ mod tests {
         )?;
 
         // check refund action created/spent slots function
-        let created_slots = catalog.pending_spend.created_slots.clone();
+        let mut created_slots = catalog.pending_spend.created_slots.clone();
         let spent_slots = catalog.pending_spend.spent_slots.clone();
         if slot.is_some() {
             assert_eq!(created_slots.len(), 1);
+
+            created_slots[0].counter -= 1; // created slot will have its counter increased by 1
             assert_eq!(created_slots[0], slot.unwrap().info.value);
 
             assert_eq!(spent_slots.len(), 1);
