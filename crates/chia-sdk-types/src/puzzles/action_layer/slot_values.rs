@@ -147,6 +147,7 @@ pub struct XchandlesDataValue {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesHandleSlotValue {
+    pub counter: u64,
     pub handle_hash: Bytes32,
     pub neighbors: SlotNeigborsInfo,
     pub expiration: u64,
@@ -156,6 +157,7 @@ pub struct XchandlesHandleSlotValue {
 
 impl XchandlesHandleSlotValue {
     pub fn new(
+        counter: u64,
         handle_hash: Bytes32,
         left_handle_hash: Bytes32,
         right_handle_hash: Bytes32,
@@ -164,6 +166,7 @@ impl XchandlesHandleSlotValue {
         resolved_launcher_id: Bytes32,
     ) -> Self {
         Self {
+            counter,
             handle_hash,
             neighbors: SlotNeigborsInfo {
                 left_value: left_handle_hash,
@@ -184,6 +187,7 @@ impl XchandlesHandleSlotValue {
 
     pub fn initial_left_end() -> Self {
         XchandlesHandleSlotValue::new(
+            0,
             SLOT32_MIN_VALUE.into(),
             SLOT32_MIN_VALUE.into(),
             SLOT32_MAX_VALUE.into(),
@@ -195,6 +199,7 @@ impl XchandlesHandleSlotValue {
 
     pub fn initial_right_end() -> Self {
         XchandlesHandleSlotValue::new(
+            0,
             SLOT32_MAX_VALUE.into(),
             SLOT32_MIN_VALUE.into(),
             SLOT32_MAX_VALUE.into(),
@@ -207,6 +212,7 @@ impl XchandlesHandleSlotValue {
     #[must_use]
     pub fn with_neighbors(self, left_handle_hash: Bytes32, right_handle_hash: Bytes32) -> Self {
         Self {
+            counter: self.counter,
             handle_hash: self.handle_hash,
             neighbors: SlotNeigborsInfo {
                 left_value: left_handle_hash,
@@ -221,6 +227,7 @@ impl XchandlesHandleSlotValue {
     #[must_use]
     pub fn with_expiration(self, expiration: u64) -> Self {
         Self {
+            counter: self.counter,
             handle_hash: self.handle_hash,
             neighbors: self.neighbors,
             expiration,
@@ -232,6 +239,7 @@ impl XchandlesHandleSlotValue {
     #[must_use]
     pub fn with_data(self, owner_launcher_id: Bytes32, resolved_launcher_id: Bytes32) -> Self {
         Self {
+            counter: self.counter,
             handle_hash: self.handle_hash,
             neighbors: self.neighbors,
             expiration: self.expiration,
@@ -239,17 +247,33 @@ impl XchandlesHandleSlotValue {
             resolved_launcher_id,
         }
     }
+
+    #[must_use]
+    pub fn with_counter(self, counter: u64) -> Self {
+        Self {
+            counter,
+            handle_hash: self.handle_hash,
+            neighbors: self.neighbors,
+            expiration: self.expiration,
+            owner_launcher_id: self.owner_launcher_id,
+            resolved_launcher_id: self.resolved_launcher_id,
+        }
+    }
 }
 
 impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for XchandlesHandleSlotValue {
     fn from_clvm(decoder: &D, node: N) -> Result<Self, FromClvmError> {
         #[allow(clippy::type_complexity)]
-        let ((handle_hash, (left, right)), (expiration, (owner_launcher_id, resolved_launcher_id))): (
-            (Bytes32, (Bytes32, Bytes32)),
-            (u64, (Bytes32, Bytes32)),
+        let (
+            counter,
+            ((handle_hash, (left, right)), (expiration, (owner_launcher_id, resolved_launcher_id))),
+        ): (
+            u64,
+            ((Bytes32, (Bytes32, Bytes32)), (u64, (Bytes32, Bytes32))),
         ) = FromClvm::from_clvm(decoder, node)?;
 
         Ok(Self::new(
+            counter,
             handle_hash,
             left,
             right,
@@ -263,13 +287,16 @@ impl<N, D: ClvmDecoder<Node = N>> FromClvm<D> for XchandlesHandleSlotValue {
 impl<N, E: ClvmEncoder<Node = N>> ToClvm<E> for XchandlesHandleSlotValue {
     fn to_clvm(&self, encoder: &mut E) -> Result<N, ToClvmError> {
         let obj = clvm_tuple!(
+            self.counter,
             clvm_tuple!(
-                self.handle_hash,
-                clvm_tuple!(self.neighbors.left_value, self.neighbors.right_value)
-            ),
-            clvm_tuple!(
-                self.expiration,
-                clvm_tuple!(self.owner_launcher_id, self.resolved_launcher_id)
+                clvm_tuple!(
+                    self.handle_hash,
+                    clvm_tuple!(self.neighbors.left_value, self.neighbors.right_value)
+                ),
+                clvm_tuple!(
+                    self.expiration,
+                    clvm_tuple!(self.owner_launcher_id, self.resolved_launcher_id)
+                ),
             ),
         );
 

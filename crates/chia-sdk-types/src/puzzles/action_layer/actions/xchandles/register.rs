@@ -13,7 +13,7 @@ use crate::{
     Mod,
 };
 
-pub const XCHANDLES_REGISTER_PUZZLE: [u8; 1418] = hex!(
+pub const XCHANDLES_REGISTER_PUZZLE: [u8; 1478] = hex!(
     // Rue
     "
     ff02ffff01ff02ffff01ff02ffff03ffff22ffff22ffff22ffff22ffff22ffff
@@ -23,50 +23,52 @@ pub const XCHANDLES_REGISTER_PUZZLE: [u8; 1418] = hex!(
     8213ff80808080ffff01ff02ffff01ff02ffff01ff04ff8202ffffff04ffff04
     ffff0151ffff04ff82afffff808080ffff04ffff04ffff0142ffff04ffff0112
     ffff04ff80ffff04ffff02ff57ffff04ff81f7ffff04ff82017fffff04ffff0b
-    ffff0101ffff02ff27ffff04ff27ffff04ffff04ff8213ffffff04ff829fffff
-    821bff8080ff82dfff80808080ff8080808080ff8080808080ffff04ffff04ff
-    ff0142ffff04ffff0112ffff04ff80ffff04ffff02ff57ffff04ff81f7ffff04
-    ff82017fffff04ffff0bffff0101ffff02ff27ffff04ff27ffff04ffff04ff82
-    1bffffff04ff8213ffff83013fff8080ff8301bfff80808080ff8080808080ff
+    ffff0101ffff02ff27ffff04ff27ffff04ff829fffffff04ffff04ff8213ffff
+    ff04ff83015fffff821bff8080ff8301dfff8080808080ff8080808080ff8080
+    808080ffff04ffff04ffff0142ffff04ffff0112ffff04ff80ffff04ffff02ff
+    57ffff04ff81f7ffff04ff82017fffff04ffff0bffff0101ffff02ff27ffff04
+    ff27ffff04ff83013fffffff04ffff04ff821bffffff04ff8213ffff8302bfff
+    8080ff8303bfff8080808080ff8080808080ff8080808080ffff04ffff02ff81
+    b7ffff04ffff04ff57ff81f780ffff04ff82017fffff02ff27ffff04ff27ffff
+    04ff80ffff04ffff04ff8205ffff820bff80ffff04ffff10ff82afffff1b80ff
+    8302ffff8080808080808080ffff04ffff02ff81b7ffff04ffff04ff57ff81f7
+    80ffff04ff82017fffff02ff27ffff04ff27ffff04ffff10ff829fffffff0101
+    80ffff04ffff04ff8213ffffff04ff83015fffff8205ff8080ff8301dfff8080
     8080808080ffff04ffff02ff81b7ffff04ffff04ff57ff81f780ffff04ff8201
-    7fffff02ff27ffff04ff27ffff04ffff04ff8205ffff820bff80ffff04ffff10
-    ff82afffff1b80ff8302ffff80808080808080ffff04ffff02ff81b7ffff04ff
-    ff04ff57ff81f780ffff04ff82017fffff02ff27ffff04ff27ffff04ffff04ff
-    8213ffffff04ff829fffff8205ff8080ff82dfff808080808080ffff04ffff02
-    ff81b7ffff04ffff04ff57ff81f780ffff04ff82017fffff02ff27ffff04ff27
-    ffff04ffff04ff821bffffff04ff8205ffff83013fff8080ff8301bfff808080
-    808080ffff04ffff04ffff0142ffff04ffff0113ffff04ffff0101ffff04ff02
-    ffff04ff13ff808080808080ffff04ffff04ffff013effff04ffff0effff0172
-    ff0280ff808080ffff04ffff04ffff0143ffff04ffff0112ffff04ffff0effff
-    0161ff0280ffff04ff09ff8080808080ffff03ffff09ff09ff0d80ff80ffff04
-    ffff04ffff0143ffff04ffff0112ffff04ffff0effff0162ff0280ffff04ff0d
-    ff8080808080ff80808080808080808080808080ffff04ffff02ff8213ffffff
-    04ffff02ff2bffff04ff7bffff04ff5fffff04ff8302ffffffff04ffff0bffff
-    0101ffff02ff13ffff04ff13ffff04ffff04ffff04ff82057fff821bff80ffff
-    04ff820b7fff8237ff8080ffff04ffff04ff830177ffff8303ffff80ff83017f
-    ff8080808080ff808080808080ff821bff8080ff018080ffff04ffff04ffff02
-    ff15ffff04ff3dffff04ff0bffff04ffff02ff09ffff04ff09ffff04ff0bffff
-    04ff83013fffff1780808080ffff04ff829fffff808080808080ffff02ff15ff
-    ff04ff3dffff04ff0bffff04ffff02ff09ffff04ff09ffff04ff0bffff04ff83
-    01bfffff1780808080ffff04ff82dfffff80808080808080ff018080ffff01ff
-    088080ff0180ffff04ffff02ff8209ffff820dff80ff018080ffff04ffff04ff
-    ff01ff02ffff03ffff07ff0380ffff01ff0bffff0102ffff02ff02ffff04ff02
-    ff058080ffff02ff02ffff04ff02ff07808080ffff01ff0bffff0101ff038080
-    ff0180ffff04ffff01ff0bffff0102ffff0bffff0182010280ffff0bffff0102
-    ffff0bffff0102ffff0bffff0182010180ff0580ffff0bffff0102ffff02ff02
-    ffff04ff02ff078080ffff0bffff010180808080ffff04ffff01ff04ffff0133
-    ffff04ffff02ff04ffff04ff06ffff04ff05ffff04ffff0bffff0101ff0780ff
-    8080808080ffff04ff80ffff04ffff04ff05ff8080ff8080808080ffff01ff02
-    ffff03ff03ffff01ff0bffff0102ffff0bffff0182010480ffff0bffff0102ff
-    ff0bffff0102ffff0bffff0182010180ff0580ffff0bffff0102ffff02ff02ff
-    ff04ff02ff078080ffff0bffff010180808080ffff01ff0bffff018201018080
-    ff0180808080ff018080
+    7fffff02ff27ffff04ff27ffff04ffff10ff83013fffffff010180ffff04ffff
+    04ff821bffffff04ff8205ffff8302bfff8080ff8303bfff80808080808080ff
+    ff04ffff04ffff0142ffff04ffff0113ffff04ffff0101ffff04ff02ffff04ff
+    13ff808080808080ffff04ffff04ffff013effff04ffff0effff0172ff0280ff
+    808080ffff04ffff04ffff0143ffff04ffff0112ffff04ffff0effff0161ff02
+    80ffff04ff09ff8080808080ffff03ffff09ff09ff0d80ff80ffff04ffff04ff
+    ff0143ffff04ffff0112ffff04ffff0effff0162ff0280ffff04ff0dff808080
+    8080ff80808080808080808080808080ffff04ffff02ff8213ffffff04ffff02
+    ff2bffff04ff7bffff04ff5fffff04ff8302ffffffff04ffff0bffff0101ffff
+    02ff13ffff04ff13ffff04ffff04ffff04ff82057fff821bff80ffff04ff820b
+    7fff8237ff8080ffff04ffff04ff830177ffff8303ffff80ff83017fff808080
+    8080ff808080808080ff821bff8080ff018080ffff04ffff04ffff02ff15ffff
+    04ff3dffff04ff0bffff04ffff02ff09ffff04ff09ffff04ff0bffff04ff8301
+    3fffff1780808080ffff04ff829fffff808080808080ffff02ff15ffff04ff3d
+    ffff04ff0bffff04ffff02ff09ffff04ff09ffff04ff0bffff04ff8301bfffff
+    1780808080ffff04ff82dfffff80808080808080ff018080ffff01ff088080ff
+    0180ffff04ffff02ff8209ffff820dff80ff018080ffff04ffff04ffff01ff02
+    ffff03ffff07ff0380ffff01ff0bffff0102ffff02ff02ffff04ff02ff058080
+    ffff02ff02ffff04ff02ff07808080ffff01ff0bffff0101ff038080ff0180ff
+    ff04ffff01ff0bffff0102ffff0bffff0182010280ffff0bffff0102ffff0bff
+    ff0102ffff0bffff0182010180ff0580ffff0bffff0102ffff02ff02ffff04ff
+    02ff078080ffff0bffff010180808080ffff04ffff01ff04ffff0133ffff04ff
+    ff02ff04ffff04ff06ffff04ff05ffff04ffff0bffff0101ff0780ff80808080
+    80ffff04ff80ffff04ffff04ff05ff8080ff8080808080ffff01ff02ffff03ff
+    03ffff01ff0bffff0102ffff0bffff0182010480ffff0bffff0102ffff0bffff
+    0102ffff0bffff0182010180ff0580ffff0bffff0102ffff02ff02ffff04ff02
+    ff078080ffff0bffff010180808080ffff01ff0bffff018201018080ff018080
+    8080ff018080
     "
 );
 
 pub const XCHANDLES_REGISTER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    d92df0bed260d231ebbc9a23768c22e1852b21c3659861b9e542a79c8377e263
+    150ae295efe60fa049b87cff5c05c0031fa768959ba466b425ef5a58b4a95ee8
     "
 ));
 
@@ -82,6 +84,7 @@ pub struct XchandlesRegisterActionArgs {
 #[derive(FromClvm, ToClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct XchandlesRestOfSlot {
+    pub this_counter: u64,
     pub this_this_value: Bytes32, // left_left_value or right_right_value
     pub this_expiration: u64,     // left_expiration or right_expiration
     #[clvm(rest)]
@@ -90,11 +93,13 @@ pub struct XchandlesRestOfSlot {
 
 impl XchandlesRestOfSlot {
     pub fn new(
+        this_counter: u64,
         this_this_value: Bytes32,
         this_expiration: u64,
         this_data: XchandlesDataValue,
     ) -> Self {
         Self {
+            this_counter,
             this_this_value,
             this_expiration,
             this_data,
