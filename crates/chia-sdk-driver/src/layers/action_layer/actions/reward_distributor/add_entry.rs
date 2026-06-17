@@ -88,6 +88,7 @@ impl RewardDistributorAddEntryAction {
         let solution = ctx.extract::<RewardDistributorAddEntryActionSolution>(solution)?;
 
         Ok(RewardDistributorEntrySlotValue {
+            counter: 0,
             payout_puzzle_hash: solution.entry_payout_puzzle_hash,
             initial_cumulative_payout: state.round_reward_info.cumulative_payout,
             shares: solution.entry_shares,

@@ -56,8 +56,9 @@ pub struct RewardDistributorStakeActionArgs<LP> {
 #[clvm(list)]
 pub struct RewardDistributorStakeActionSolution<LPS> {
     pub lock_puzzle_solution: LPS,
+    pub existing_slot_counter: i128,
     pub entry_custody_puzzle_hash: Bytes32,
-    pub existing_slot_cumulative_payout: i128,
+    pub existing_slot_cumulative_payout: u128,
     #[clvm(rest)]
     pub existing_slot_shares: u64,
 }

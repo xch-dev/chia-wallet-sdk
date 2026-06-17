@@ -56,6 +56,7 @@ pub struct RewardDistributorWithdrawIncentivesActionArgs {
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorWithdrawIncentivesActionSolution {
+    pub reward_slot_counter: u64,
     pub reward_slot_epoch_time: u64,
     pub withdrawal_share: u64,
     pub clawback_ph: Bytes32,

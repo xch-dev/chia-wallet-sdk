@@ -84,17 +84,20 @@ impl RewardDistributorCommitIncentivesAction {
 
         if solution.slot_epoch_time == solution.epoch_start {
             reward_slot_values.push(RewardDistributorRewardSlotValue {
+                counter: solution.slot_counter + 1,
                 epoch_start: solution.epoch_start,
                 next_epoch_initialized: solution.slot_next_epoch_initialized,
                 rewards: solution.slot_total_rewards + solution.rewards_to_add,
             });
         } else {
             reward_slot_values.push(RewardDistributorRewardSlotValue {
+                counter: solution.slot_counter + 1,
                 epoch_start: solution.slot_epoch_time,
                 next_epoch_initialized: true,
                 rewards: solution.slot_total_rewards,
             });
             reward_slot_values.push(RewardDistributorRewardSlotValue {
+                counter: 0,
                 epoch_start: solution.epoch_start,
                 next_epoch_initialized: false,
                 rewards: solution.rewards_to_add,
@@ -104,6 +107,7 @@ impl RewardDistributorCommitIncentivesAction {
             let end_epoch_time = solution.epoch_start;
             while end_epoch_time > start_epoch_time {
                 reward_slot_values.push(RewardDistributorRewardSlotValue {
+                    counter: 0,
                     epoch_start: start_epoch_time,
                     next_epoch_initialized: true,
                     rewards: 0,
@@ -123,6 +127,7 @@ impl RewardDistributorCommitIncentivesAction {
         let solution = ctx.extract::<RewardDistributorCommitIncentivesActionSolution>(solution)?;
 
         Ok(RewardDistributorRewardSlotValue {
+            counter: solution.slot_counter,
             epoch_start: solution.slot_epoch_time,
             next_epoch_initialized: solution.slot_next_epoch_initialized,
             rewards: solution.slot_total_rewards,
@@ -155,6 +160,7 @@ impl RewardDistributorCommitIncentivesAction {
 
         // spend self
         let action_solution = ctx.alloc(&RewardDistributorCommitIncentivesActionSolution {
+            slot_counter: reward_slot.info.value.counter,
             slot_epoch_time: reward_slot.info.value.epoch_start,
             slot_next_epoch_initialized: reward_slot.info.value.next_epoch_initialized,
             slot_total_rewards: reward_slot.info.value.rewards,

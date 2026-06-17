@@ -124,6 +124,7 @@ impl RewardDistributorRefreshAction {
             .iter()
             .map(|e| {
                 Ok(RewardDistributorEntrySlotValue {
+                    counter: e.existing_slot_value.counter + 1,
                     payout_puzzle_hash: e.existing_slot_value.payout_puzzle_hash,
                     initial_cumulative_payout: state.round_reward_info.cumulative_payout,
                     shares: u64::try_from(

@@ -216,6 +216,7 @@ impl RewardDistributorStakeAction {
         let (new_shares, _conds): (u64, NodePtr) = ctx.extract(lock_puzzle_output)?;
 
         Ok(RewardDistributorEntrySlotValue {
+            counter: u64::try_from(solution.existing_slot_counter + 1)?,
             payout_puzzle_hash: solution.entry_custody_puzzle_hash,
             initial_cumulative_payout: state.round_reward_info.cumulative_payout,
             shares: solution.existing_slot_shares + new_shares,
@@ -228,12 +229,11 @@ impl RewardDistributorStakeAction {
     ) -> Result<Option<RewardDistributorEntrySlotValue>, DriverError> {
         let solution = ctx.extract::<RewardDistributorStakeActionSolution<NodePtr>>(solution)?;
 
-        if solution.existing_slot_cumulative_payout != -1i128 {
+        if solution.existing_slot_counter != -1i128 {
             return Ok(Some(RewardDistributorEntrySlotValue {
+                counter: u64::try_from(solution.existing_slot_counter)?,
                 payout_puzzle_hash: solution.entry_custody_puzzle_hash,
-                initial_cumulative_payout: u128::try_from(
-                    solution.existing_slot_cumulative_payout,
-                )?,
+                initial_cumulative_payout: solution.existing_slot_cumulative_payout,
                 shares: solution.existing_slot_shares,
             }));
         }
@@ -328,10 +328,13 @@ impl RewardDistributorStakeAction {
         };
         let action_solution = ctx.alloc(&RewardDistributorStakeActionSolution {
             lock_puzzle_solution,
+            existing_slot_counter: existing_slot
+                .as_ref()
+                .map_or(-1i128, |s| i128::from(s.info.value.counter)),
             entry_custody_puzzle_hash,
             existing_slot_cumulative_payout: existing_slot
                 .as_ref()
-                .map_or(-1i128, |s| s.info.value.initial_cumulative_payout as i128),
+                .map_or(0, |s| s.info.value.initial_cumulative_payout),
             existing_slot_shares: existing_slot.as_ref().map_or(0, |s| s.info.value.shares),
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
@@ -475,10 +478,13 @@ impl RewardDistributorStakeAction {
         };
         let action_solution = ctx.alloc(&RewardDistributorStakeActionSolution {
             lock_puzzle_solution,
+            existing_slot_counter: existing_slot
+                .as_ref()
+                .map_or(-1i128, |s| s.info.value.counter as i128),
             entry_custody_puzzle_hash,
             existing_slot_cumulative_payout: existing_slot
                 .as_ref()
-                .map_or(-1i128, |s| s.info.value.initial_cumulative_payout as i128),
+                .map_or(0, |s| s.info.value.initial_cumulative_payout),
             existing_slot_shares: existing_slot.as_ref().map_or(0, |s| s.info.value.shares),
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;
@@ -572,10 +578,13 @@ impl RewardDistributorStakeAction {
         };
         let action_solution = ctx.alloc(&RewardDistributorStakeActionSolution {
             lock_puzzle_solution,
+            existing_slot_counter: existing_slot
+                .as_ref()
+                .map_or(-1i128, |s| s.info.value.counter as i128),
             entry_custody_puzzle_hash,
             existing_slot_cumulative_payout: existing_slot
                 .as_ref()
-                .map_or(-1i128, |s| s.info.value.initial_cumulative_payout as i128),
+                .map_or(0, |s| s.info.value.initial_cumulative_payout),
             existing_slot_shares: existing_slot.as_ref().map_or(0, |s| s.info.value.shares),
         })?;
         let action_puzzle = self.construct_puzzle(ctx)?;

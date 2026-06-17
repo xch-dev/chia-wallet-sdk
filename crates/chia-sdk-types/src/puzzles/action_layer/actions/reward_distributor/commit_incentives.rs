@@ -65,6 +65,7 @@ pub struct RewardDistributorCommitIncentivesActionArgs {
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorCommitIncentivesActionSolution {
+    pub slot_counter: u64,
     pub slot_epoch_time: u64,
     pub slot_next_epoch_initialized: bool,
     pub slot_total_rewards: u64,

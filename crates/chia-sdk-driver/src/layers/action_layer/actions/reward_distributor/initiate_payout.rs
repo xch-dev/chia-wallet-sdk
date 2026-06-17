@@ -97,6 +97,7 @@ impl RewardDistributorInitiatePayoutAction {
         let solution = ctx.extract::<RewardDistributorInitiatePayoutActionSolution>(solution)?;
 
         Ok(RewardDistributorEntrySlotValue {
+            counter: solution.slot_counter + 1,
             payout_puzzle_hash: solution.entry_payout_puzzle_hash,
             initial_cumulative_payout: current_state.round_reward_info.cumulative_payout,
             shares: solution.entry_shares,
@@ -110,6 +111,7 @@ impl RewardDistributorInitiatePayoutAction {
         let solution = ctx.extract::<RewardDistributorInitiatePayoutActionSolution>(solution)?;
 
         Ok(RewardDistributorEntrySlotValue {
+            counter: solution.slot_counter,
             payout_puzzle_hash: solution.entry_payout_puzzle_hash,
             initial_cumulative_payout: solution.entry_initial_cumulative_payout,
             shares: solution.entry_shares,
@@ -147,6 +149,7 @@ impl RewardDistributorInitiatePayoutAction {
 
         // spend self
         let action_solution = ctx.alloc(&RewardDistributorInitiatePayoutActionSolution {
+            slot_counter: entry_slot.info.value.counter,
             entry_payout_amount: withdrawal_amount,
             entry_payout_puzzle_hash: entry_slot.info.value.payout_puzzle_hash,
             entry_initial_cumulative_payout: entry_slot.info.value.initial_cumulative_payout,

@@ -123,6 +123,7 @@ impl Mod for RewardDistributorInitiatePayoutWithApprovalActionArgs {
 #[derive(FromClvm, ToClvm, Copy, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorInitiatePayoutActionSolution {
+    pub slot_counter: u64,
     pub entry_payout_amount: u64,
     pub entry_payout_puzzle_hash: Bytes32,
     pub payout_rounding_error: u128,

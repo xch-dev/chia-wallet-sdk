@@ -368,6 +368,7 @@ impl RewardDistributorSlotNonce {
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorRewardSlotValue {
+    pub counter: u64,
     pub epoch_start: u64,
     pub next_epoch_initialized: bool,
     #[clvm(rest)]
@@ -386,6 +387,7 @@ pub struct RewardDistributorCommitmentSlotValue {
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorEntrySlotValue {
+    pub counter: u64,
     pub payout_puzzle_hash: Bytes32,
     pub initial_cumulative_payout: u128,
     #[clvm(rest)]

@@ -518,6 +518,7 @@ impl RewardDistributor {
         }
 
         let slot_value = RewardDistributorRewardSlotValue {
+            counter: 0,
             epoch_start: initial_state.round_time_info.epoch_end,
             next_epoch_initialized: false,
             rewards: 0,

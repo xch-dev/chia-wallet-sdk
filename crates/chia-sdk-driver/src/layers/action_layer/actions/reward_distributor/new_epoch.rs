@@ -87,6 +87,7 @@ impl RewardDistributorNewEpochAction {
         let solution = ctx.extract::<RewardDistributorNewEpochActionSolution>(solution)?;
 
         Ok(RewardDistributorRewardSlotValue {
+            counter: solution.slot_counter + 1,
             epoch_start: solution.slot_epoch_time,
             next_epoch_initialized: solution.slot_next_epoch_initialized,
             rewards: solution.slot_total_rewards,
@@ -100,6 +101,7 @@ impl RewardDistributorNewEpochAction {
         let solution = ctx.extract::<RewardDistributorNewEpochActionSolution>(solution)?;
 
         Ok(RewardDistributorRewardSlotValue {
+            counter: solution.slot_counter,
             epoch_start: solution.slot_epoch_time,
             next_epoch_initialized: solution.slot_next_epoch_initialized,
             rewards: solution.slot_total_rewards,
@@ -137,6 +139,7 @@ impl RewardDistributorNewEpochAction {
 
         // spend self
         let action_solution = ctx.alloc(&RewardDistributorNewEpochActionSolution {
+            slot_counter: reward_slot.info.value.counter,
             slot_epoch_time: reward_slot.info.value.epoch_start,
             slot_next_epoch_initialized: reward_slot.info.value.next_epoch_initialized,
             slot_total_rewards: reward_slot.info.value.rewards,

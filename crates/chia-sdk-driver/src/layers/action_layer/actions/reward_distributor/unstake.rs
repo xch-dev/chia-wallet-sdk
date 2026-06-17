@@ -207,6 +207,7 @@ impl RewardDistributorUnstakeAction {
         }
 
         Ok(Some(RewardDistributorEntrySlotValue {
+            counter: solution.entry_slot.counter + 1,
             payout_puzzle_hash: solution.entry_slot.payout_puzzle_hash,
             initial_cumulative_payout: solution.entry_slot.initial_cumulative_payout,
             shares: solution.entry_slot.shares - removed_shares,

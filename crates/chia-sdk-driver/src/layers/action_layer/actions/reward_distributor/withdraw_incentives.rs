@@ -70,6 +70,7 @@ impl RewardDistributorWithdrawIncentivesAction {
         let withdrawal_share = solution.committed_value * withdrawal_share_bps / 10000;
 
         let new_reward_slot_value = RewardDistributorRewardSlotValue {
+            counter: solution.reward_slot_counter + 1,
             epoch_start: solution.reward_slot_epoch_time,
             next_epoch_initialized: solution.reward_slot_next_epoch_initialized,
             rewards: solution.reward_slot_total_rewards - withdrawal_share,
@@ -92,6 +93,7 @@ impl RewardDistributorWithdrawIncentivesAction {
             ctx.extract::<RewardDistributorWithdrawIncentivesActionSolution>(solution)?;
 
         let old_reward_slot_value = RewardDistributorRewardSlotValue {
+            counter: solution.reward_slot_counter,
             epoch_start: solution.reward_slot_epoch_time,
             next_epoch_initialized: solution.reward_slot_next_epoch_initialized,
             rewards: solution.reward_slot_total_rewards,
@@ -134,6 +136,7 @@ impl RewardDistributorWithdrawIncentivesAction {
 
         // spend self
         let action_solution = ctx.alloc(&RewardDistributorWithdrawIncentivesActionSolution {
+            reward_slot_counter: reward_slot.info.value.counter,
             reward_slot_epoch_time: reward_slot.info.value.epoch_start,
             reward_slot_next_epoch_initialized: reward_slot.info.value.next_epoch_initialized,
             reward_slot_total_rewards: reward_slot.info.value.rewards,

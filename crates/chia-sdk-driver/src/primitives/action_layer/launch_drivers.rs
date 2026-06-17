@@ -661,6 +661,7 @@ pub fn launch_reward_distributor(
     let target_inner_puzzle_hash = target_info.clone().inner_puzzle_hash();
 
     let slot_value = RewardDistributorRewardSlotValue {
+        counter: 0,
         epoch_start: first_epoch_start,
         next_epoch_initialized: false,
         rewards: 0,
