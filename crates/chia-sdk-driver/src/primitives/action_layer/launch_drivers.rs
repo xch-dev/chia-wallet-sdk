@@ -1232,7 +1232,7 @@ mod tests {
             slots.sort_unstable_by(|a, b| a.info.value.cmp(&b.info.value));
 
             let slot_value_to_insert =
-                CatalogSlotValue::new(tail_hash.into(), Bytes32::default(), Bytes32::default());
+                CatalogSlotValue::new(0, tail_hash.into(), Bytes32::default(), Bytes32::default());
 
             let mut left_slot: Option<Slot<CatalogSlotValue>> = None;
             let mut right_slot: Option<Slot<CatalogSlotValue>> = None;

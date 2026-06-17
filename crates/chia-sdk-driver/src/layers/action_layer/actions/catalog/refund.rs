@@ -80,6 +80,7 @@ impl CatalogRefundAction {
         let params = CatalogRefundActionSolution::<NodePtr, ()>::from_clvm(ctx, solution)?;
 
         Ok(params.neighbors.map(|neighbors| CatalogSlotValue {
+            counter: params.slot_counter,
             asset_id: params.other_precommit_data.tail_hash,
             neighbors,
         }))
@@ -119,10 +120,15 @@ impl CatalogRefundAction {
         precommit_coin.spend(ctx, PrecommitSpendMode::REFUND, spender_inner_puzzle_hash)?;
 
         // if there's a slot, spend it
-        if let Some(slot) = slot {
+        let counter = if let Some(slot) = slot {
             let slot = catalog.actual_slot(slot);
+            let c = slot.info.value.counter;
             slot.spend(ctx, spender_inner_puzzle_hash)?;
-        }
+
+            c
+        } else {
+            0
+        };
 
         // then, create action spend
         let cat_maker_args = DefaultCatMakerArgs::new(precommit_coin.asset_id.tree_hash().into());
@@ -143,6 +149,7 @@ impl CatalogRefundAction {
             ),
             precommit_amount: precommit_coin.coin.amount,
             neighbors,
+            slot_counter: counter,
         };
         let action_solution = action_solution.to_clvm(ctx)?;
         let action_puzzle = self.construct_puzzle(ctx)?;

@@ -94,11 +94,13 @@ impl CatalogRegisterAction {
 
         Ok([
             CatalogSlotValue::new(
+                params.left_data.this_counter,
                 params.left_data.this_tail_hash,
                 params.left_data.this_this_tail_hash,
                 params.right_data.this_tail_hash,
             ),
             CatalogSlotValue::new(
+                params.right_data.this_counter,
                 params.right_data.this_tail_hash,
                 params.left_data.this_tail_hash,
                 params.right_data.this_this_tail_hash,
@@ -115,16 +117,19 @@ impl CatalogRegisterAction {
 
         Ok([
             CatalogSlotValue::new(
+                params.left_data.this_counter + 1,
                 params.left_data.this_tail_hash,
                 params.left_data.this_this_tail_hash,
                 params.other_precommit_data.tail_hash,
             ),
             CatalogSlotValue::new(
+                0,
                 params.other_precommit_data.tail_hash,
                 params.left_data.this_tail_hash,
                 params.right_data.this_tail_hash,
             ),
             CatalogSlotValue::new(
+                params.right_data.this_counter + 1,
                 params.right_data.this_tail_hash,
                 params.other_precommit_data.tail_hash,
                 params.right_data.this_this_tail_hash,
@@ -187,10 +192,12 @@ impl CatalogRegisterAction {
                 precommit_coin.refund_puzzle_hash.tree_hash().into(),
             ),
             left_data: CatalogDoubleTailHashData::new(
+                left_slot.info.value.counter,
                 left_slot.info.value.asset_id,
                 left_slot.info.value.neighbors.left_value,
             ),
             right_data: CatalogDoubleTailHashData::new(
+                right_slot.info.value.counter,
                 right_slot.info.value.asset_id,
                 right_slot.info.value.neighbors.right_value,
             ),

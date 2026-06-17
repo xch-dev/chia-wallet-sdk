@@ -60,14 +60,21 @@ pub struct SlotNeigborsInfo {
 #[derive(ToClvm, FromClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct CatalogSlotValue {
+    pub counter: u64,
     pub asset_id: Bytes32,
     #[clvm(rest)]
     pub neighbors: SlotNeigborsInfo,
 }
 
 impl CatalogSlotValue {
-    pub fn new(asset_id: Bytes32, left_asset_id: Bytes32, right_asset_id: Bytes32) -> Self {
+    pub fn new(
+        counter: u64,
+        asset_id: Bytes32,
+        left_asset_id: Bytes32,
+        right_asset_id: Bytes32,
+    ) -> Self {
         Self {
+            counter,
             asset_id,
             neighbors: SlotNeigborsInfo {
                 left_value: left_asset_id,
@@ -78,6 +85,7 @@ impl CatalogSlotValue {
 
     pub fn initial_left_end() -> Self {
         Self::new(
+            0,
             SLOT32_MIN_VALUE.into(),
             SLOT32_MIN_VALUE.into(),
             SLOT32_MAX_VALUE.into(),
@@ -86,6 +94,7 @@ impl CatalogSlotValue {
 
     pub fn initial_right_end() -> Self {
         Self::new(
+            0,
             SLOT32_MAX_VALUE.into(),
             SLOT32_MIN_VALUE.into(),
             SLOT32_MAX_VALUE.into(),

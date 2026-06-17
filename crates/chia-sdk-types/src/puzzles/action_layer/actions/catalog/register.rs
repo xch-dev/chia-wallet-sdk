@@ -96,10 +96,10 @@ impl NftPack {
     }
 }
 
-pub const CATALOG_REGISTER_PUZZLE: [u8; 1404] = hex!(
+pub const CATALOG_REGISTER_PUZZLE: [u8; 1458] = hex!(
     "
-    ff02ffff01ff02ffff03ffff22ffff22ffff0aff820bffff82027f80ffff0aff
-    8204ffff820bff8080ffff09ffff02ff04ffff04ff04ff8209ff8080ff82015f
+    ff02ffff01ff02ffff03ffff22ffff22ffff0aff820bffff82057f80ffff0aff
+    820affff820bff8080ffff09ffff02ff04ffff04ff04ff8209ff8080ff82015f
     8080ffff01ff02ffff01ff04ff81bfffff04ffff04ffff0133ffff04ff02ffff
     04ff80ff80808080ffff04ffff02ff7dffff04ffff04ff09ffff04ff15ff5d80
     80ffff04ff0bffff04ffff30ffff30ff82017fff02ff8080ff43ffff010180ff
@@ -107,47 +107,49 @@ pub const CATALOG_REGISTER_PUZZLE: [u8; 1404] = hex!(
     ff04ffff013effff04ffff0effff0172ffff02ff09ffff04ff09ffff04ff8217
     ffff822fff80808080ff808080ffff04ffff04ffff0142ffff04ffff0112ffff
     04ff80ffff04ffff02ff15ffff04ff5dffff04ff5fffff04ffff0bffff0101ff
-    ff02ff09ffff04ff09ffff04ff8204ffffff04ff8206ffff8209ff8080808080
-    ff8080808080ff8080808080ffff04ffff04ffff0142ffff04ffff0112ffff04
-    ff80ffff04ffff02ff15ffff04ff5dffff04ff5fffff04ffff0bffff0101ffff
-    02ff09ffff04ff09ffff04ff8209ffffff04ff8204ffff820dff8080808080ff
-    8080808080ff8080808080ffff04ffff02ff2dffff04ffff04ff15ff5d80ffff
-    04ff5fffff02ff09ffff04ff09ffff04ff8217ffffff04ff8204ffff8209ff80
-    808080808080ffff04ffff02ff2dffff04ffff04ff15ff5d80ffff04ff5fffff
-    02ff09ffff04ff09ffff04ff8204ffffff04ff8206ffff8217ff808080808080
-    80ffff04ffff02ff2dffff04ffff04ff15ff5d80ffff04ff5fffff02ff09ffff
-    04ff09ffff04ff8209ffffff04ff8217ffff820dff80808080808080ffff04ff
-    ff04ffff0142ffff04ffff0113ffff04ffff0101ffff04ffff02ff8213ffffff
-    04ffff02ff15ffff04ff5dffff04ff2fffff04ff823fffffff04ffff0bffff01
-    02ff8217ffffff0bffff0101ffff02ff09ffff04ff09ffff04ff822fffffff04
-    ff8202bfff821bff808080808080ff808080808080ff821bff8080ffff04ff82
-    03bfff808080808080ff808080808080808080808080ffff04ffff02ff0affff
-    04ff2effff04ff0bffff04ffff0bffff0101ff820bff80ff8080808080ff0180
-    80ffff01ff088080ff0180ffff04ffff04ffff01ff02ffff03ffff07ff0380ff
-    ff01ff0bffff0102ffff02ff02ffff04ff02ff058080ffff02ff02ffff04ff02
-    ff07808080ffff01ff0bffff0101ff038080ff0180ffff04ffff01ff0bffff01
-    02ffff0bffff0182010280ffff0bffff0102ffff0bffff0102ffff0bffff0182
-    010180ff0580ffff0bffff0102ffff02ff02ffff04ff02ff078080ffff0bffff
-    010180808080ffff04ffff01ff04ffff0133ffff04ffff02ff04ffff04ff06ff
-    ff04ff05ffff04ffff0bffff0101ff0780ff8080808080ffff04ff80ffff04ff
-    ff04ff05ff8080ff8080808080ffff04ffff01ff02ffff03ff03ffff01ff0bff
-    ff0102ffff0bffff0182010480ffff0bffff0102ffff0bffff0102ffff0bffff
-    0182010180ff0580ffff0bffff0102ffff02ff02ffff04ff02ff078080ffff0b
-    ffff010180808080ffff01ff0bffff018201018080ff0180ffff01ff02ffff01
-    ff04ffff0140ffff04ffff30ff17ffff02ff15ffff04ff1dffff04ff63ffff04
-    ff02ffff04ffff02ff15ffff04ff1dffff04ff53ffff04ffff0bffff0101ff53
-    80ffff04ffff0bffff010180ffff04ff73ffff04ffff02ff15ffff04ff1dffff
-    04ff4bffff04ffff0bffff0101ff4b80ffff04ffff0bffff010180ffff04ffff
-    02ff15ffff04ff1dffff04ff6bffff04ff02ffff04ff5bffff04ffff0bffff01
-    01ff7b80ff80808080808080ffff04ff1fff8080808080808080ff8080808080
-    808080ff808080808080ffff010180ff808080ffff04ffff02ff04ffff04ff04
-    ffff04ff31ffff04ff0bff2180808080ff01808080808080ff018080
+    ff02ff09ffff04ff09ffff04ff8204ffffff04ff820affffff04ff820effff82
+    15ff808080808080ff8080808080ff8080808080ffff04ffff04ffff0142ffff
+    04ffff0112ffff04ff80ffff04ffff02ff15ffff04ff5dffff04ff5fffff04ff
+    ff0bffff0101ffff02ff09ffff04ff09ffff04ff8209ffffff04ff8215ffffff
+    04ff820affff821dff808080808080ff8080808080ff8080808080ffff04ffff
+    02ff2dffff04ffff04ff15ff5d80ffff04ff5fffff02ff09ffff04ff09ffff04
+    ff80ffff04ff8217ffffff04ff820affff8215ff8080808080808080ffff04ff
+    ff02ff2dffff04ffff04ff15ff5d80ffff04ff5fffff02ff09ffff04ff09ffff
+    04ffff10ff8204ffffff010180ffff04ff820affffff04ff820effff8217ff80
+    80808080808080ffff04ffff02ff2dffff04ffff04ff15ff5d80ffff04ff5fff
+    ff02ff09ffff04ff09ffff04ffff10ff8209ffffff010180ffff04ff8215ffff
+    ff04ff8217ffff821dff8080808080808080ffff04ffff04ffff0142ffff04ff
+    ff0113ffff04ffff0101ffff04ffff02ff8213ffffff04ffff02ff15ffff04ff
+    5dffff04ff2fffff04ff823fffffff04ffff0bffff0102ff8217ffffff0bffff
+    0101ffff02ff09ffff04ff09ffff04ff822fffffff04ff8202bfff821bff8080
+    80808080ff808080808080ff821bff8080ffff04ff8203bfff808080808080ff
+    808080808080808080808080ffff04ffff02ff0affff04ff2effff04ff0bffff
+    04ffff0bffff0101ff820bff80ff8080808080ff018080ffff01ff088080ff01
+    80ffff04ffff04ffff01ff02ffff03ffff07ff0380ffff01ff0bffff0102ffff
+    02ff02ffff04ff02ff058080ffff02ff02ffff04ff02ff07808080ffff01ff0b
+    ffff0101ff038080ff0180ffff04ffff01ff0bffff0102ffff0bffff01820102
+    80ffff0bffff0102ffff0bffff0102ffff0bffff0182010180ff0580ffff0bff
+    ff0102ffff02ff02ffff04ff02ff078080ffff0bffff010180808080ffff04ff
+    ff01ff04ffff0133ffff04ffff02ff04ffff04ff06ffff04ff05ffff04ffff0b
+    ffff0101ff0780ff8080808080ffff04ff80ffff04ffff04ff05ff8080ff8080
+    808080ffff04ffff01ff02ffff03ff03ffff01ff0bffff0102ffff0bffff0182
+    010480ffff0bffff0102ffff0bffff0102ffff0bffff0182010180ff0580ffff
+    0bffff0102ffff02ff02ffff04ff02ff078080ffff0bffff010180808080ffff
+    01ff0bffff018201018080ff0180ffff01ff02ffff01ff04ffff0140ffff04ff
+    ff30ff17ffff02ff15ffff04ff1dffff04ff63ffff04ff02ffff04ffff02ff15
+    ffff04ff1dffff04ff53ffff04ffff0bffff0101ff5380ffff04ffff0bffff01
+    0180ffff04ff73ffff04ffff02ff15ffff04ff1dffff04ff4bffff04ffff0bff
+    ff0101ff4b80ffff04ffff0bffff010180ffff04ffff02ff15ffff04ff1dffff
+    04ff6bffff04ff02ffff04ff5bffff04ffff0bffff0101ff7b80ff8080808080
+    8080ffff04ff1fff8080808080808080ff8080808080808080ff808080808080
+    ffff010180ff808080ffff04ffff02ff04ffff04ff04ffff04ff31ffff04ff0b
+    ff2180808080ff01808080808080ff018080
     "
 );
 
 pub const CATALOG_REGISTER_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    058016cb3d9c0e84d7e8b2f410420bf31f970afd079593bfd2bffbcf264992ff
+    3a612b0a170d9caae93d369f1b9015d473f8754adcaed649314707ca69378e85
     "
 ));
 
@@ -177,14 +179,16 @@ impl<P, S> PuzzleAndSolution<P, S> {
 #[derive(FromClvm, ToClvm, Debug, Clone, Copy, PartialEq, Eq)]
 #[clvm(list)]
 pub struct CatalogDoubleTailHashData {
+    pub this_counter: u64,       // this slot's counters
     pub this_tail_hash: Bytes32, // left_tail_hash or right_tail_hash
     #[clvm(rest)]
     pub this_this_tail_hash: Bytes32, // left_left_tail_hash or right_right_tail_hash
 }
 
 impl CatalogDoubleTailHashData {
-    pub fn new(this_tail_hash: Bytes32, this_this_tail_hash: Bytes32) -> Self {
+    pub fn new(this_counter: u64, this_tail_hash: Bytes32, this_this_tail_hash: Bytes32) -> Self {
         Self {
+            this_counter,
             this_tail_hash,
             this_this_tail_hash,
         }

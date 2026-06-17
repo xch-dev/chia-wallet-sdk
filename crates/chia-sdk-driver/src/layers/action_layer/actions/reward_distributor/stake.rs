@@ -480,7 +480,7 @@ impl RewardDistributorStakeAction {
             lock_puzzle_solution,
             existing_slot_counter: existing_slot
                 .as_ref()
-                .map_or(-1i128, |s| s.info.value.counter as i128),
+                .map_or(-1i128, |s| i128::from(s.info.value.counter)),
             entry_custody_puzzle_hash,
             existing_slot_cumulative_payout: existing_slot
                 .as_ref()
@@ -580,7 +580,7 @@ impl RewardDistributorStakeAction {
             lock_puzzle_solution,
             existing_slot_counter: existing_slot
                 .as_ref()
-                .map_or(-1i128, |s| s.info.value.counter as i128),
+                .map_or(-1i128, |s| i128::from(s.info.value.counter)),
             entry_custody_puzzle_hash,
             existing_slot_cumulative_payout: existing_slot
                 .as_ref()
