@@ -34,5 +34,15 @@ console_error_panic_hook = { workspace = true }
 [package.metadata.cargo-machete]
 ignored = ["chia-sdk-bindings", "getrandom", "wasm-bindgen-futures", "js-sys"]
 
+# Optimize for smallest WASM size (release profile used by wasm-pack build)
+[profile.release]
+opt-level = "z"
+lto = true
+strip = "symbols"
+
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = false
+# Binaryen wasm-opt; -Oz prioritizes size over speed.
+# Enable features used by Rust/LLVM output so the validator accepts them:
+# - bulk-memory-opt: memory.copy, memory.fill
+# - nontrapping-float-to-int: i32.trunc_sat_f64_u, i64.trunc_sat_f64_s, etc.
+wasm-opt = ["-Oz", "--enable-bulk-memory-opt", "--enable-nontrapping-float-to-int"]
