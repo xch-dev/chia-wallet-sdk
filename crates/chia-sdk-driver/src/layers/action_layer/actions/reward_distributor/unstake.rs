@@ -276,11 +276,9 @@ impl RewardDistributorUnstakeAction {
             })?;
 
             let hint = ctx.hint(entry_slot.info.value.payout_puzzle_hash)?;
-            let delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
-                entry_slot.info.value.payout_puzzle_hash,
-                1,
-                hint,
-            )))?;
+            let delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new()
+                .create_coin(entry_slot.info.value.payout_puzzle_hash, 1, hint,)
+                .assert_height_relative(0)))?;
             let nft_inner_solution = nft_p2.construct_solution(
                 ctx,
                 P2DelegatedBySingletonLayerSolution::<NodePtr, NodePtr> {
@@ -363,11 +361,13 @@ impl RewardDistributorUnstakeAction {
         })?;
 
         let hint = ctx.hint(entry_slot.info.value.payout_puzzle_hash)?;
-        let delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
-            entry_slot.info.value.payout_puzzle_hash,
-            locked_cat_coin.amount,
-            hint,
-        )))?;
+        let delegated_puzzle = ctx.alloc(&clvm_quote!(Conditions::new()
+            .create_coin(
+                entry_slot.info.value.payout_puzzle_hash,
+                locked_cat_coin.amount,
+                hint,
+            )
+            .assert_height_relative(0)))?;
         let cat_inner_solution = cat_p2.construct_solution(
             ctx,
             P2DelegatedBySingletonLayerSolution::<NodePtr, NodePtr> {

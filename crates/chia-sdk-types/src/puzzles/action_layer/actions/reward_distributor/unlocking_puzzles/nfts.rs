@@ -11,7 +11,7 @@ use hex_literal::hex;
 
 use crate::{puzzles::NONCE_WRAPPER_PUZZLE_HASH, Mod};
 
-pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE: [u8; 761] = hex!(
+pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE: [u8; 781] = hex!(
     // Rue
     "
     ff02ffff01ff02ff16ffff04ffff04ff04ffff04ff0affff04ff1eff16808080
@@ -24,26 +24,27 @@ pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE: [u8; 761] = hex!(
     ffff01ff02ff1effff04ff02ffff04ff05ffff04ff1bffff04ffff10ff17ff82
     07f380ffff04ffff04ffff0142ffff04ffff0117ffff04ffff02ff04ffff04ff
     04ffff04ffff0101ffff04ffff04ffff0133ffff04ff8205fdffff04ffff0101
-    ffff04ffff04ff8205fdff8080ff8080808080ff8080808080ffff04ffff30ff
-    53ffff02ff0affff04ff16ffff04ff09ffff04ffff02ff04ffff04ff04ffff04
-    ff09ffff04ff23ff1580808080ffff04ffff02ff0affff04ff16ffff04ff2dff
-    ff04ffff0bffff0101ff2d80ffff04ff81b3ffff04ff820173ffff04ffff02ff
-    0affff04ff16ffff04ff5dffff04ffff0bffff0101ff5d80ffff04ffff0bffff
-    0101ff8202f380ffff04ff8205f3ffff04ffff02ff0affff04ff16ffff04ff81
-    bdffff04ffff02ff04ffff04ff04ffff04ff8205fdff8207f3808080ffff04ff
-    82017dff808080808080ff8080808080808080ff8080808080808080ff808080
-    808080ffff010180ff8080808080ffff04ffff04ffff0143ffff04ffff0112ff
-    ff04ffff0effff0175ff2380ffff04ff8205fdff8080808080ff1f8080808080
-    8080ffff010f80ff0180ffff01ff02ffff03ff03ffff01ff0bffff0102ffff0b
-    ffff0182010480ffff0bffff0102ffff0bffff0102ffff0bffff0182010180ff
-    0580ffff0bffff0102ffff02ff02ffff04ff02ff078080ffff0bffff01018080
-    8080ffff01ff0bffff018201018080ff0180808080ff018080
+    ffff04ffff04ff8205fdff8080ff8080808080ffff04ffff04ffff0152ffff04
+    ff80ff808080ff808080808080ffff04ffff30ff53ffff02ff0affff04ff16ff
+    ff04ff09ffff04ffff02ff04ffff04ff04ffff04ff09ffff04ff23ff15808080
+    80ffff04ffff02ff0affff04ff16ffff04ff2dffff04ffff0bffff0101ff2d80
+    ffff04ff81b3ffff04ff820173ffff04ffff02ff0affff04ff16ffff04ff5dff
+    ff04ffff0bffff0101ff5d80ffff04ffff0bffff0101ff8202f380ffff04ff82
+    05f3ffff04ffff02ff0affff04ff16ffff04ff81bdffff04ffff02ff04ffff04
+    ff04ffff04ff8205fdff8207f3808080ffff04ff82017dff808080808080ff80
+    80808080808080ff8080808080808080ff808080808080ffff010180ff808080
+    8080ffff04ffff04ffff0143ffff04ffff0112ffff04ffff0effff0175ff2380
+    ffff04ff8205fdff8080808080ff1f80808080808080ffff010f80ff0180ffff
+    01ff02ffff03ff03ffff01ff0bffff0102ffff0bffff0182010480ffff0bffff
+    0102ffff0bffff0102ffff0bffff0182010180ff0580ffff0bffff0102ffff02
+    ff02ffff04ff02ff078080ffff0bffff010180808080ffff01ff0bffff018201
+    018080ff0180808080ff018080
     "
 );
 
 pub const REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    da2fdfa627640bfca5f0ecebf0b26c133aaa37983b2d305d5f0880117e873b44
+    03adc8471a329f91e34be6318767b3d675a444112e4d06a5e363b6b867ba9723
     "
 ));
 

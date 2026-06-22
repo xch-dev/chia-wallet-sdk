@@ -7,31 +7,31 @@ use hex_literal::hex;
 
 use crate::{puzzles::NONCE_WRAPPER_PUZZLE_HASH, Mod};
 
-pub const REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE: [u8; 485] = hex!(
+pub const REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE: [u8; 505] = hex!(
     // Rue
     "
     ff02ffff01ff02ffff03ff2fffff01ff0880ffff01ff04ff8202ffffff04ffff
     04ffff0142ffff04ffff0117ffff04ffff02ff04ffff04ff04ffff04ffff0101
     ffff04ffff04ffff0133ffff04ff5fffff04ff82017fffff04ffff04ff5fff80
-    80ff8080808080ff8080808080ffff04ffff30ff81bfffff02ff05ffff04ffff
-    0bffff0102ffff0bffff0182010280ffff0bffff0102ffff0bffff0102ffff0b
-    ffff0182010180ff0b80ffff0bffff0102ffff02ff06ffff04ff06ffff04ffff
-    02ff04ffff04ff04ffff04ff5fff8202ff808080ffff04ff17ff8080808080ff
-    ff0bffff010180808080ff8203ff8080ff82017f80ff8080808080ffff04ffff
-    04ffff0143ffff04ffff0112ffff04ffff0effff0175ff81bf80ffff04ff5fff
-    8080808080ff8080808080ff0180ffff04ffff04ffff01ff02ffff03ffff07ff
-    0380ffff01ff0bffff0102ffff02ff02ffff04ff02ff058080ffff02ff02ffff
-    04ff02ff07808080ffff01ff0bffff0101ff038080ff0180ffff01ff02ffff03
-    ff03ffff01ff0bffff0102ffff0bffff0182010480ffff0bffff0102ffff0bff
-    ff0102ffff0bffff0182010180ff0580ffff0bffff0102ffff02ff02ffff04ff
-    02ff078080ffff0bffff010180808080ffff01ff0bffff018201018080ff0180
-    80ff018080
+    80ff8080808080ffff04ffff04ffff0152ffff04ff80ff808080ff8080808080
+    80ffff04ffff30ff81bfffff02ff05ffff04ffff0bffff0102ffff0bffff0182
+    010280ffff0bffff0102ffff0bffff0102ffff0bffff0182010180ff0b80ffff
+    0bffff0102ffff02ff06ffff04ff06ffff04ffff02ff04ffff04ff04ffff04ff
+    5fff8202ff808080ffff04ff17ff8080808080ffff0bffff010180808080ff82
+    03ff8080ff82017f80ff8080808080ffff04ffff04ffff0143ffff04ffff0112
+    ffff04ffff0effff0175ff81bf80ffff04ff5fff8080808080ff8080808080ff
+    0180ffff04ffff04ffff01ff02ffff03ffff07ff0380ffff01ff0bffff0102ff
+    ff02ff02ffff04ff02ff058080ffff02ff02ffff04ff02ff07808080ffff01ff
+    0bffff0101ff038080ff0180ffff01ff02ffff03ff03ffff01ff0bffff0102ff
+    ff0bffff0182010480ffff0bffff0102ffff0bffff0102ffff0bffff01820101
+    80ff0580ffff0bffff0102ffff02ff02ffff04ff02ff078080ffff0bffff0101
+    80808080ffff01ff0bffff018201018080ff018080ff018080
     "
 );
 
 pub const REWARD_DISTRIBUTOR_CAT_UNLOCKING_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
     "
-    04a695fd5022813b022b0d530bbb7fe35318ebdd421c568155f35f512fb50fa1
+    1ecefdd54a9a19465093100907161bde96d51f92b6ee44d0a9b131b05b0c707d
     "
 ));
 
