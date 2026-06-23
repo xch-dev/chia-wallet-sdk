@@ -4932,7 +4932,7 @@ mod tests {
             nonce: p2_cat.coin.coin_id(),
             inner_puzzle: clawback_inner_puzzle_hash.into(),
         }
-        .tree_hash();
+        .curry_tree_hash();
         let _secure_conditions = registry
             .new_action::<RewardDistributorCommitIncentivesAction>()
             .spend(
