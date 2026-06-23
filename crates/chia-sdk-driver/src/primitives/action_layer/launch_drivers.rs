@@ -770,7 +770,8 @@ mod tests {
     use chia_sdk_types::{
         puzzles::{
             AnyMetadataUpdater, CatNftMetadata, CompactCoinProof, DelegatedStateActionSolution,
-            IntermediaryCoinProof, NftLauncherProof, XchandlesFactorPricingPuzzleArgs,
+            IntermediaryCoinProof, NftLauncherProof, P2NextRewardDistributorEpochArgs,
+            P2NextRewardDistributorEpochSolution, XchandlesFactorPricingPuzzleArgs,
             XchandlesPricingSolution, ANY_METADATA_UPDATER_HASH,
         },
         MerkleTree, TESTNET11_CONSTANTS,
@@ -4590,6 +4591,415 @@ mod tests {
                 RewardDistributorTestType::Cat => "cat",
             }
         )));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_p2_next_reward_distributor_epoch() -> anyhow::Result<()> {
+        let ctx = &mut SpendContext::new();
+        let mut sim = Simulator::new();
+        let mut benchmark = Benchmark::new("P2 Next Reward Distributor Epoch".to_string());
+
+        // Launch reward token CAT
+        let cat_amount = 10_000_000_000;
+        let cat_minter = sim.bls(cat_amount);
+        let cat_minter_p2 = StandardLayer::new(cat_minter.pk);
+
+        let (issue_cat, source_cat) = Cat::issue_with_coin(
+            ctx,
+            cat_minter.coin.coin_id(),
+            cat_amount,
+            Conditions::new().create_coin(cat_minter.puzzle_hash, cat_amount, Memos::None),
+        )?;
+        cat_minter_p2.spend(ctx, cat_minter.coin, issue_cat)?;
+
+        let source_cat = source_cat[0];
+        sim.spend_coins(ctx.take(), slice::from_ref(&cat_minter.sk))?;
+
+        // No need to launch manager singleton :)
+
+        let manager_launcher_id: Bytes32 = "manager_launcher_id".tree_hash().into();
+
+        // setup config
+        let constants = RewardDistributorConstants::without_launcher_id(
+            RewardDistributorType::Managed {
+                manager_singleton_launcher_id: manager_launcher_id,
+            },
+            Bytes32::new([1; 32]),
+            1000,
+            u64::MAX, // precision
+            300,
+            42,
+            false,
+            420,  // 4.2% fee
+            9000, // 90% of the amount deposited will be returned
+            source_cat.info.asset_id,
+        );
+
+        // Create source offer
+        let offer_amount = 1;
+        let launcher_bls = sim.bls(offer_amount);
+        let offer_spend = StandardLayer::new(launcher_bls.pk).spend_with_conditions(
+            ctx,
+            Conditions::new().create_coin(
+                SETTLEMENT_PAYMENT_HASH.into(),
+                offer_amount,
+                Memos::None,
+            ),
+        )?;
+
+        let puzzle_reveal = ctx.serialize(&offer_spend.puzzle)?;
+        let solution = ctx.serialize(&offer_spend.solution)?;
+
+        let cat_minter_inner_puzzle = clvm_quote!(Conditions::new().create_coin(
+            SETTLEMENT_PAYMENT_HASH.into(),
+            source_cat.coin.amount,
+            Memos::None
+        ))
+        .to_clvm(ctx)?;
+        let source_cat_inner_spend = cat_minter_p2.delegated_inner_spend(
+            ctx,
+            Spend {
+                puzzle: cat_minter_inner_puzzle,
+                solution: NodePtr::NIL,
+            },
+        )?;
+        source_cat.spend(
+            ctx,
+            SingleCatSpend {
+                prev_coin_id: source_cat.coin.coin_id(),
+                next_coin_proof: CoinProof {
+                    parent_coin_info: source_cat.coin.parent_coin_info,
+                    inner_puzzle_hash: cat_minter.puzzle_hash,
+                    amount: source_cat.coin.amount,
+                },
+                prev_subtotal: 0,
+                extra_delta: 0,
+                p2_spend: source_cat_inner_spend,
+                revoke: false,
+            },
+        )?;
+        let spends = ctx.take();
+        let cat_offer_spend = spends
+            .iter()
+            .find(|s| s.coin.coin_id() == source_cat.coin.coin_id())
+            .unwrap()
+            .clone();
+        for spend in spends {
+            if spend.coin.coin_id() != source_cat.coin.coin_id() {
+                ctx.insert(spend);
+            }
+        }
+
+        let agg_sig = sign_standard_transaction(
+            ctx,
+            launcher_bls.coin,
+            offer_spend,
+            &launcher_bls.sk,
+            &TESTNET11_CONSTANTS,
+        )?;
+        let offer = Offer::from_spend_bundle(
+            ctx,
+            &SpendBundle {
+                coin_spends: vec![
+                    CoinSpend::new(launcher_bls.coin, puzzle_reveal, solution),
+                    cat_offer_spend,
+                ],
+                aggregated_signature: agg_sig,
+            },
+        )?;
+
+        // Launch the reward distributor
+        let first_epoch_start = 1234;
+        let (_, security_sk, mut registry, first_epoch_slot, mut source_cat) =
+            launch_reward_distributor(
+                ctx,
+                &offer,
+                first_epoch_start,
+                source_cat.info.p2_puzzle_hash,
+                constants,
+                &TESTNET11_CONSTANTS,
+                "yak yak yak",
+            )?;
+
+        sim.spend_coins(
+            ctx.take(),
+            &[
+                launcher_bls.sk.clone(),
+                security_sk.clone(),
+                cat_minter.sk.clone(),
+            ],
+        )?;
+
+        sim.set_next_timestamp(first_epoch_start + 1)?;
+        assert!(sim.coin_state(source_cat.coin.coin_id()).is_some());
+
+        // commit incentives for second epoch (this will create the reward slot for 2nd epoch - not benchmarked)
+        let rewards_to_add = constants.epoch_seconds;
+        let second_epoch_start = first_epoch_start + constants.epoch_seconds;
+        let secure_conditions = registry
+            .new_action::<RewardDistributorCommitIncentivesAction>()
+            .spend(
+                ctx,
+                &mut registry,
+                first_epoch_slot,
+                second_epoch_start,
+                cat_minter.puzzle_hash,
+                rewards_to_add,
+            )?;
+        let first_commitment_slot = registry.created_slot_value_to_slot(
+            registry.pending_spend.created_commitment_slots[0],
+            RewardDistributorSlotNonce::COMMITMENT,
+        );
+        let incentive_slots = registry
+            .pending_spend
+            .created_reward_slots
+            .iter()
+            .map(|s| registry.created_slot_value_to_slot(*s, RewardDistributorSlotNonce::REWARD))
+            .collect::<Vec<_>>();
+
+        // spend reserve and source cat together so deltas add up
+        let hint = ctx.hint(cat_minter.puzzle_hash)?;
+        let source_cat_spend = CatSpend::new(
+            source_cat,
+            cat_minter_p2.spend_with_conditions(
+                ctx,
+                secure_conditions.create_coin(
+                    cat_minter.puzzle_hash,
+                    source_cat.coin.amount - rewards_to_add,
+                    hint,
+                ),
+            )?,
+        );
+
+        registry = registry.finish_spend(ctx, vec![source_cat_spend])?.0;
+        sim.spend_coins(ctx.take(), slice::from_ref(&cat_minter.sk))?;
+        source_cat = source_cat.child(
+            cat_minter.puzzle_hash,
+            source_cat.coin.amount - rewards_to_add,
+        );
+        assert!(sim
+            .coin_state(first_commitment_slot.coin.coin_id())
+            .is_some());
+        for incentive_slot in &incentive_slots {
+            assert!(sim.coin_state(incentive_slot.coin.coin_id()).is_some());
+        }
+
+        assert_eq!(
+            first_commitment_slot.info.value.epoch_start,
+            second_epoch_start
+        );
+        assert_eq!(first_commitment_slot.info.value.rewards, rewards_to_add);
+
+        let second_epoch_reward_slot = incentive_slots.last().unwrap().clone();
+
+        assert_eq!(
+            second_epoch_reward_slot.info.value.epoch_start,
+            second_epoch_start
+        );
+        assert_eq!(second_epoch_reward_slot.info.value.rewards, rewards_to_add);
+        assert!(!second_epoch_reward_slot.info.value.next_epoch_initialized);
+        assert_eq!(second_epoch_reward_slot.info.value.counter, 0);
+
+        // commit incentives for second epoch (benchmarked)
+        let secure_conditions = registry
+            .new_action::<RewardDistributorCommitIncentivesAction>()
+            .spend(
+                ctx,
+                &mut registry,
+                second_epoch_reward_slot,
+                second_epoch_start,
+                cat_minter.puzzle_hash,
+                rewards_to_add,
+            )?;
+        let second_commitment_slot = registry.created_slot_value_to_slot(
+            registry.pending_spend.created_commitment_slots[0],
+            RewardDistributorSlotNonce::COMMITMENT,
+        );
+        let mut incentive_slots = registry
+            .pending_spend
+            .created_reward_slots
+            .iter()
+            .map(|s| registry.created_slot_value_to_slot(*s, RewardDistributorSlotNonce::REWARD))
+            .collect::<Vec<_>>();
+
+        // spend reserve and source cat together so deltas add up
+        let hint = ctx.hint(cat_minter.puzzle_hash)?;
+        assert!(source_cat.coin.amount > rewards_to_add);
+        let source_cat_spend = CatSpend::new(
+            source_cat,
+            cat_minter_p2.spend_with_conditions(
+                ctx,
+                secure_conditions.create_coin(
+                    cat_minter.puzzle_hash,
+                    source_cat.coin.amount - rewards_to_add,
+                    hint,
+                ),
+            )?,
+        );
+
+        registry = registry.finish_spend(ctx, vec![source_cat_spend])?.0;
+        // sim.spend_coins(ctx.take(), slice::from_ref(&cat_minter.sk))?;
+        let spends = ctx.take();
+        benchmark.add_spends(
+            ctx,
+            &mut sim,
+            spends,
+            "commit_incentives_without_p2",
+            slice::from_ref(&cat_minter.sk),
+        )?;
+        source_cat = source_cat.child(
+            cat_minter.puzzle_hash,
+            source_cat.coin.amount - rewards_to_add,
+        );
+        assert!(sim
+            .coin_state(second_commitment_slot.coin.coin_id())
+            .is_some());
+        for incentive_slot in &incentive_slots {
+            assert!(sim.coin_state(incentive_slot.coin.coin_id()).is_some());
+        }
+
+        assert_eq!(
+            second_commitment_slot.info.value.epoch_start,
+            second_epoch_start
+        );
+        assert_eq!(second_commitment_slot.info.value.rewards, rewards_to_add);
+
+        let second_epoch_reward_slot = incentive_slots.last().unwrap().clone();
+
+        assert_eq!(
+            second_epoch_reward_slot.info.value.epoch_start,
+            second_epoch_start
+        );
+        assert_eq!(
+            second_epoch_reward_slot.info.value.rewards,
+            rewards_to_add * 2
+        );
+        assert!(!second_epoch_reward_slot.info.value.next_epoch_initialized);
+        assert_eq!(second_epoch_reward_slot.info.value.counter, 1);
+
+        // create p2_next_reward_distributor_epoch coin
+        let clawback_inner_puzzle_hash = Bytes32::new([0; 32]);
+        let p2_args = P2NextRewardDistributorEpochArgs::new(
+            clawback_inner_puzzle_hash.tree_hash(),
+            SingletonStruct::new(registry.info.constants.launcher_id).tree_hash(),
+            first_epoch_start,
+            constants.epoch_seconds,
+        );
+        let p2_inner_puzzle_hash = p2_args.curry_tree_hash();
+
+        assert!(source_cat.coin.amount > rewards_to_add);
+        let cat_minter_inner_puzzle = clvm_quote!(Conditions::new()
+            .create_coin(
+                cat_minter.puzzle_hash,
+                source_cat.coin.amount - rewards_to_add,
+                Memos::None
+            )
+            .create_coin(p2_inner_puzzle_hash.into(), rewards_to_add, Memos::None))
+        .to_clvm(ctx)?;
+        let source_cat_inner_spend = cat_minter_p2.delegated_inner_spend(
+            ctx,
+            Spend {
+                puzzle: cat_minter_inner_puzzle,
+                solution: NodePtr::NIL,
+            },
+        )?;
+        source_cat.spend(
+            ctx,
+            SingleCatSpend {
+                prev_coin_id: source_cat.coin.coin_id(),
+                next_coin_proof: CoinProof {
+                    parent_coin_info: source_cat.coin.parent_coin_info,
+                    inner_puzzle_hash: cat_minter.puzzle_hash,
+                    amount: source_cat.coin.amount,
+                },
+                prev_subtotal: 0,
+                extra_delta: 0,
+                p2_spend: source_cat_inner_spend,
+                revoke: false,
+            },
+        )?;
+
+        sim.spend_coins(ctx.take(), slice::from_ref(&cat_minter.sk))?;
+        let p2_cat = source_cat.child(p2_inner_puzzle_hash.into(), rewards_to_add);
+
+        assert!(sim.coin_state(p2_cat.coin.coin_id()).is_some());
+
+        // commit incentives for second epoch using the p2 coin
+        let _secure_conditions = registry
+            .new_action::<RewardDistributorCommitIncentivesAction>()
+            .spend(
+                ctx,
+                &mut registry,
+                second_epoch_reward_slot,
+                second_epoch_start,
+                clawback_inner_puzzle_hash,
+                rewards_to_add,
+            )?;
+        let third_commitment_slot = registry.created_slot_value_to_slot(
+            registry.pending_spend.created_commitment_slots[0],
+            RewardDistributorSlotNonce::COMMITMENT,
+        );
+        let new_incentive_slots = registry
+            .pending_spend
+            .created_reward_slots
+            .iter()
+            .map(|s| registry.created_slot_value_to_slot(*s, RewardDistributorSlotNonce::REWARD))
+            .collect::<Vec<_>>();
+
+        let new_value_keys = new_incentive_slots
+            .iter()
+            .map(|s| s.info.value.epoch_start)
+            .collect::<Vec<_>>();
+        incentive_slots.retain(|s| !new_value_keys.contains(&s.info.value.epoch_start));
+        incentive_slots.extend(new_incentive_slots);
+
+        // spend reserve and p2 together so deltas add up
+        let p2_inner_puzzle = ctx.curry(p2_args)?;
+        let p2_inner_solution = ctx.alloc(&P2NextRewardDistributorEpochSolution {
+            next_epoch_start: second_epoch_start,
+            my_id: p2_cat.coin.coin_id(),
+            my_amount: rewards_to_add,
+            reward_distributor_inner_puzzle_hash: registry.info.inner_puzzle_hash().into(),
+        })?;
+        let p2_cat_spend =
+            CatSpend::new(source_cat, Spend::new(p2_inner_puzzle, p2_inner_solution));
+
+        let _registry = registry.finish_spend(ctx, vec![p2_cat_spend])?.0;
+        // sim.spend_coins(ctx.take(), [])?;
+        let spends = ctx.take();
+        benchmark.add_spends(ctx, &mut sim, spends, "commit_incentives_with_p2", &[])?;
+
+        // source_cat = source_cat.child(
+        //     cat_minter.puzzle_hash,
+        //     source_cat.coin.amount - rewards_to_add,
+        // );
+        assert!(sim
+            .coin_state(third_commitment_slot.coin.coin_id())
+            .is_some());
+        for incentive_slot in &incentive_slots {
+            assert!(sim.coin_state(incentive_slot.coin.coin_id()).is_some());
+        }
+
+        assert_eq!(
+            third_commitment_slot.info.value.epoch_start,
+            second_epoch_start
+        );
+        assert_eq!(third_commitment_slot.info.value.rewards, rewards_to_add);
+
+        let second_epoch_reward_slot = incentive_slots.last().unwrap().clone();
+
+        assert_eq!(
+            second_epoch_reward_slot.info.value.epoch_start,
+            second_epoch_start
+        );
+        assert_eq!(
+            second_epoch_reward_slot.info.value.rewards,
+            rewards_to_add * 3
+        );
+        assert!(!second_epoch_reward_slot.info.value.next_epoch_initialized);
+        assert_eq!(second_epoch_reward_slot.info.value.counter, 2);
 
         Ok(())
     }
