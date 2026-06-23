@@ -103,6 +103,7 @@ struct ValidatedSpend {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum FullNodeSimulatorEvent {
     Block {
         height: u32,
@@ -520,6 +521,18 @@ impl FullNodeSimulator {
         include_spent_coins: Option<bool>,
     ) -> GetCoinRecordsResponse {
         let puzzle_hashes: HashSet<Bytes32> = puzzle_hashes.into_iter().collect();
+        let matching_count = self
+            .coins
+            .values()
+            .filter(|record| puzzle_hashes.contains(&record.coin.puzzle_hash))
+            .count();
+        eprintln!(
+            "[DEBUG-SIM-RESTORE] simulator.get_coin_records_by_puzzle_hashes puzzle_hashes={:?} include_spent_coins={:?} total_coins={} matching_coins={}",
+            puzzle_hashes,
+            include_spent_coins,
+            self.coins.len(),
+            matching_count,
+        );
         self.records_response(
             self.coins
                 .values()
@@ -749,7 +762,7 @@ impl FullNodeSimulator {
             .filter(|record| include_spent || record.spent_block_index.is_none())
             .filter(|record| {
                 start_height.is_none_or(|start| record.confirmed_block_index >= start)
-                    && end_height.is_none_or(|end| record.confirmed_block_index <= end)
+                    && end_height.is_none_or(|end| record.confirmed_block_index < end)
             })
             .map(|record| record.to_coin_record())
             .collect();

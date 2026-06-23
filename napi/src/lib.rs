@@ -193,6 +193,12 @@ pub struct FullNodeSimulator {
     event_callback: Option<ThreadsafeFunction<FullNodeSimulatorEventPayload>>,
 }
 
+#[napi]
+#[derive(Debug)]
+pub struct FullNodeSimulatorServer {
+    inner: chia_sdk_bindings::FullNodeSimulatorServer,
+}
+
 impl std::fmt::Debug for FullNodeSimulator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FullNodeSimulator").finish_non_exhaustive()
@@ -252,6 +258,13 @@ impl FullNodeSimulator {
             .into_iter()
             .map(event_payload)
             .collect())
+    }
+
+    #[napi]
+    pub async fn start_server(&self) -> Result<FullNodeSimulatorServer> {
+        Ok(FullNodeSimulatorServer {
+            inner: self.inner.start_server().await?,
+        })
     }
 
     #[napi]
@@ -634,6 +647,19 @@ impl FullNodeSimulator {
             .reorg_blocks(num_of_blocks_to_rev, num_of_new_blocks)?;
         self.emit_events();
         Ok(FromRust::from_rust(records, &NapiReturnContext(env))?)
+    }
+}
+
+#[napi]
+impl FullNodeSimulatorServer {
+    #[napi(getter)]
+    pub fn url(&self) -> Result<String> {
+        Ok(self.inner.url()?)
+    }
+
+    #[napi]
+    pub fn close(&mut self) -> Result<()> {
+        Ok(self.inner.close()?)
     }
 }
 

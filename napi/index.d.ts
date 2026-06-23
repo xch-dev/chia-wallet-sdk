@@ -1210,6 +1210,7 @@ export declare class FullNodeSimulator {
   static withSecretKey(secretKey: SecretKey): FullNodeSimulator
   onEvent(callback: ((err: Error | null, arg: FullNodeSimulatorEventPayload) => any)): void
   drainEvents(): Array<FullNodeSimulatorEventPayload>
+  startServer(): Promise<FullNodeSimulatorServer>
   height(): number
   headerHash(): Buffer
   headerHashOf(height: number): Buffer | null
@@ -1243,6 +1244,11 @@ export declare class FullNodeSimulator {
   farmBlock(blocks: number): Array<BlockRecord>
   revertBlocks(blocks: number): Array<Buffer>
   reorgBlocks(numOfBlocksToRev: number, numOfNewBlocks: number): Array<BlockRecord>
+}
+
+export declare class FullNodeSimulatorServer {
+  get url(): string
+  close(): void
 }
 
 export declare class GetBlockRecordResponse {

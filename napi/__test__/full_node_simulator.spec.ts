@@ -2,8 +2,13 @@ import test from "ava";
 
 import {
   bytesEqual,
+  Clvm,
+  CoinSpend,
   FullNodeSimulator,
+  RpcClient,
   SecretKey,
+  SpendBundle,
+  Signature,
   standardPuzzleHash,
 } from "../index.js";
 
@@ -79,4 +84,43 @@ test("full node simulator autofarm defaults on and can be toggled", (t) => {
 
   sim.setAutofarm(true);
   t.true(sim.getAutofarm());
+});
+
+test("full node simulator can serve rpc over http", async (t) => {
+  const sim = new FullNodeSimulator();
+  const server = await sim.startServer();
+
+  try {
+    const rpc = new RpcClient(server.url);
+    const networkInfo = await rpc.getNetworkInfo();
+    t.true(networkInfo.success);
+    t.is(networkInfo.networkName, "simulator0");
+
+    const clvm = new Clvm();
+    const puzzle = clvm.parse("1");
+    const puzzleHash = puzzle.treeHash();
+    sim.setAutofarm(false);
+    const coin = sim.newCoin(puzzleHash, 100n);
+
+    const spendBundle = new SpendBundle(
+      [
+        new CoinSpend(
+          coin,
+          puzzle.serialize(),
+          clvm
+            .parse(`((51 0x${Buffer.from(puzzleHash).toString("hex")} 99))`)
+            .serialize()
+        ),
+      ],
+      Signature.infinity()
+    );
+
+    const pushResponse = await rpc.pushTx(spendBundle);
+    t.true(pushResponse.success, pushResponse.error ?? undefined);
+
+    const state = await rpc.getBlockchainState();
+    t.is(state.blockchainState?.mempoolSize, 1);
+  } finally {
+    server.close();
+  }
 });
