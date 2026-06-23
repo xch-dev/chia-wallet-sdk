@@ -15,6 +15,12 @@ categories = { workspace = true }
 workspace = true
 
 [features]
+full-node-simulator-http = [
+    "serde",
+    "dep:axum",
+    "dep:serde_json",
+    "dep:tokio",
+]
 peer-simulator = [
     "dep:tracing",
     "dep:itertools",
@@ -54,7 +60,9 @@ bip39 = { workspace = true }
 anyhow = { workspace = true }
 chia-sdk-types = { workspace = true }
 chia-sdk-signer = { workspace = true }
+chia-sdk-coinset = { workspace = true }
 hex = { workspace = true }
+hex-literal = { workspace = true }
 tracing = { workspace = true, optional = true }
 itertools = { workspace = true, optional = true }
 signature = { workspace = true, optional = true }
@@ -66,6 +74,11 @@ futures-util = { workspace = true, optional = true }
 prettytable-rs = {workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 bincode = { workspace = true, features = ["serde"], optional = true }
+axum = { version = "0.8.9", optional = true }
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+reqwest.workspace = true
 
 [package.metadata.cargo-machete]
 ignored = ["prettytable-rs"]
