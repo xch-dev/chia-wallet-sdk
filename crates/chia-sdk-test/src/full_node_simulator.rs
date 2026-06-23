@@ -521,18 +521,6 @@ impl FullNodeSimulator {
         include_spent_coins: Option<bool>,
     ) -> GetCoinRecordsResponse {
         let puzzle_hashes: HashSet<Bytes32> = puzzle_hashes.into_iter().collect();
-        let matching_count = self
-            .coins
-            .values()
-            .filter(|record| puzzle_hashes.contains(&record.coin.puzzle_hash))
-            .count();
-        eprintln!(
-            "[DEBUG-SIM-RESTORE] simulator.get_coin_records_by_puzzle_hashes puzzle_hashes={:?} include_spent_coins={:?} total_coins={} matching_coins={}",
-            puzzle_hashes,
-            include_spent_coins,
-            self.coins.len(),
-            matching_count,
-        );
         self.records_response(
             self.coins
                 .values()
