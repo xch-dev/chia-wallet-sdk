@@ -264,7 +264,7 @@ async fn get_coin_records_by_puzzle_hash(
         request.puzzle_hash,
         request.start_height,
         request.end_height,
-        Some(request.include_spent_coins.unwrap_or(true)),
+        request.include_spent_coins,
     ))
 }
 
@@ -276,7 +276,7 @@ async fn get_coin_records_by_puzzle_hashes(
         request.puzzle_hashes,
         request.start_height,
         request.end_height,
-        Some(request.include_spent_coins.unwrap_or(true)),
+        request.include_spent_coins,
     ))
 }
 
@@ -297,7 +297,10 @@ async fn push_tx(
     Json(request): Json<PushTxRequest>,
 ) -> Json<serde_json::Value> {
     let spend_name = request.spend_bundle.name();
-    let response = simulator.lock().unwrap().push_tx(request.spend_bundle);
+    let response = simulator
+        .lock()
+        .unwrap()
+        .push_tx_detailed(request.spend_bundle);
     Json(push_tx_response_body(spend_name, response))
 }
 
