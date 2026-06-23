@@ -84,6 +84,12 @@ struct SimCoinRecord {
     timestamp: u64,
 }
 
+#[derive(Debug)]
+pub struct FullNodeSimulatorPushTxResponse {
+    pub response: PushTxResponse,
+    pub error: Option<SimulatorError>,
+}
+
 #[derive(Debug, Clone)]
 struct ValidatedBundle {
     spend_bundle: SpendBundle,
@@ -119,6 +125,28 @@ pub enum FullNodeSimulatorEvent {
         reverted_header_hashes: Vec<Bytes32>,
         new_header_hashes: Vec<Bytes32>,
     },
+}
+
+fn push_tx_success() -> FullNodeSimulatorPushTxResponse {
+    FullNodeSimulatorPushTxResponse {
+        response: PushTxResponse {
+            status: "SUCCESS".to_string(),
+            error: None,
+            success: true,
+        },
+        error: None,
+    }
+}
+
+fn push_tx_failure(error: SimulatorError) -> FullNodeSimulatorPushTxResponse {
+    FullNodeSimulatorPushTxResponse {
+        response: PushTxResponse {
+            status: "FAILED".to_string(),
+            error: Some(error.to_string()),
+            success: false,
+        },
+        error: Some(error),
+    }
 }
 
 impl Default for FullNodeSimulator {
@@ -553,7 +581,14 @@ impl FullNodeSimulator {
         }
     }
 
-    pub fn push_tx(&mut self, mut spend_bundle: SpendBundle) -> PushTxResponse {
+    pub fn push_tx(&mut self, spend_bundle: SpendBundle) -> PushTxResponse {
+        self.push_tx_detailed(spend_bundle).response
+    }
+
+    pub fn push_tx_detailed(
+        &mut self,
+        mut spend_bundle: SpendBundle,
+    ) -> FullNodeSimulatorPushTxResponse {
         let max_fast_forward_attempts: usize = 64;
         let mut fast_forward_attempts: usize = 0;
 
@@ -563,11 +598,7 @@ impl FullNodeSimulator {
                 if self.autofarm {
                     self.farm_block(1);
                 }
-                return PushTxResponse {
-                    status: "SUCCESS".to_string(),
-                    error: None,
-                    success: true,
-                };
+                return push_tx_success();
             }
 
             let validated = match self.validate_bundle(spend_bundle.clone()) {
@@ -577,24 +608,14 @@ impl FullNodeSimulator {
                 {
                     let Some(rewritten) = self.try_fast_forward_settled_bundle(&spend_bundle)
                     else {
-                        return PushTxResponse {
-                            status: "FAILED".to_string(),
-                            error: Some(
-                                SimulatorError::Validation(ErrorCode::DoubleSpend).to_string(),
-                            ),
-                            success: false,
-                        };
+                        return push_tx_failure(SimulatorError::Validation(ErrorCode::DoubleSpend));
                     };
                     fast_forward_attempts = fast_forward_attempts.saturating_add(1);
                     spend_bundle = rewritten;
                     continue;
                 }
                 Err(error) => {
-                    return PushTxResponse {
-                        status: "FAILED".to_string(),
-                        error: Some(error.to_string()),
-                        success: false,
-                    };
+                    return push_tx_failure(error);
                 }
             };
 
@@ -604,33 +625,21 @@ impl FullNodeSimulator {
                         self.farm_block(1);
                     }
 
-                    return PushTxResponse {
-                        status: "SUCCESS".to_string(),
-                        error: None,
-                        success: true,
-                    };
+                    return push_tx_success();
                 }
                 Err(SimulatorError::Validation(ErrorCode::MempoolConflict))
                     if fast_forward_attempts < max_fast_forward_attempts =>
                 {
                     let Some(rewritten) = self.try_fast_forward_bundle(&validated) else {
-                        return PushTxResponse {
-                            status: "FAILED".to_string(),
-                            error: Some(
-                                SimulatorError::Validation(ErrorCode::MempoolConflict).to_string(),
-                            ),
-                            success: false,
-                        };
+                        return push_tx_failure(SimulatorError::Validation(
+                            ErrorCode::MempoolConflict,
+                        ));
                     };
                     fast_forward_attempts = fast_forward_attempts.saturating_add(1);
                     spend_bundle = rewritten;
                 }
                 Err(error) => {
-                    return PushTxResponse {
-                        status: "FAILED".to_string(),
-                        error: Some(error.to_string()),
-                        success: false,
-                    };
+                    return push_tx_failure(error);
                 }
             }
         }

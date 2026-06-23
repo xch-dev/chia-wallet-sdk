@@ -1,22 +1,24 @@
+use chia_consensus::validation_error::ErrorCode;
 use chia_protocol::Bytes32;
-use chia_sdk_coinset::PushTxResponse;
+
+use crate::{FullNodeSimulatorPushTxResponse, SimulatorError};
 
 pub(super) fn push_tx_response_body(
     spend_name: Bytes32,
-    response: PushTxResponse,
+    result: FullNodeSimulatorPushTxResponse,
 ) -> serde_json::Value {
-    if response.success {
+    if result.response.success {
         return serde_json::json!({
-            "status": response.status,
+            "status": result.response.status,
             "error": null,
             "success": true,
         });
     }
 
-    let error_name = response
+    let error_name = result
         .error
-        .as_deref()
-        .and_then(push_tx_error_name)
+        .as_ref()
+        .map(push_tx_error_name)
         .unwrap_or("UNKNOWN");
     if error_name == "MEMPOOL_CONFLICT" {
         return serde_json::json!({
@@ -42,24 +44,27 @@ pub(super) fn push_tx_response_body(
     })
 }
 
-fn push_tx_error_name(error: &str) -> Option<&'static str> {
-    let error_code = error.strip_prefix("Validation error: ")?;
-    Some(match error_code {
-        "CostExceeded" => "BLOCK_COST_EXCEEDS_MAX",
-        "MempoolConflict" => "MEMPOOL_CONFLICT",
-        "InvalidSpendBundle" => "INVALID_SPEND_BUNDLE",
-        "DoubleSpend" => "DOUBLE_SPEND",
-        "UnknownUnspent" => "UNKNOWN_UNSPENT",
-        "BadAggregateSignature" => "BAD_AGGREGATE_SIGNATURE",
-        "ReserveFeeConditionFailed" => "RESERVE_FEE_CONDITION_FAILED",
-        "AssertHeightAbsoluteFailed" => "ASSERT_HEIGHT_ABSOLUTE_FAILED",
-        "AssertSecondsAbsoluteFailed" => "ASSERT_SECONDS_ABSOLUTE_FAILED",
-        "AssertBeforeHeightAbsoluteFailed" => "ASSERT_BEFORE_HEIGHT_ABSOLUTE_FAILED",
-        "AssertBeforeSecondsAbsoluteFailed" => "ASSERT_BEFORE_SECONDS_ABSOLUTE_FAILED",
-        "AssertHeightRelativeFailed" => "ASSERT_HEIGHT_RELATIVE_FAILED",
-        "AssertSecondsRelativeFailed" => "ASSERT_SECONDS_RELATIVE_FAILED",
-        "AssertBeforeHeightRelativeFailed" => "ASSERT_BEFORE_HEIGHT_RELATIVE_FAILED",
-        "AssertBeforeSecondsRelativeFailed" => "ASSERT_BEFORE_SECONDS_RELATIVE_FAILED",
+fn push_tx_error_name(error: &SimulatorError) -> &'static str {
+    let SimulatorError::Validation(error_code) = error else {
+        return "UNKNOWN";
+    };
+
+    match error_code {
+        ErrorCode::CostExceeded => "BLOCK_COST_EXCEEDS_MAX",
+        ErrorCode::MempoolConflict => "MEMPOOL_CONFLICT",
+        ErrorCode::InvalidSpendBundle => "INVALID_SPEND_BUNDLE",
+        ErrorCode::DoubleSpend => "DOUBLE_SPEND",
+        ErrorCode::UnknownUnspent => "UNKNOWN_UNSPENT",
+        ErrorCode::BadAggregateSignature => "BAD_AGGREGATE_SIGNATURE",
+        ErrorCode::ReserveFeeConditionFailed => "RESERVE_FEE_CONDITION_FAILED",
+        ErrorCode::AssertHeightAbsoluteFailed => "ASSERT_HEIGHT_ABSOLUTE_FAILED",
+        ErrorCode::AssertSecondsAbsoluteFailed => "ASSERT_SECONDS_ABSOLUTE_FAILED",
+        ErrorCode::AssertBeforeHeightAbsoluteFailed => "ASSERT_BEFORE_HEIGHT_ABSOLUTE_FAILED",
+        ErrorCode::AssertBeforeSecondsAbsoluteFailed => "ASSERT_BEFORE_SECONDS_ABSOLUTE_FAILED",
+        ErrorCode::AssertHeightRelativeFailed => "ASSERT_HEIGHT_RELATIVE_FAILED",
+        ErrorCode::AssertSecondsRelativeFailed => "ASSERT_SECONDS_RELATIVE_FAILED",
+        ErrorCode::AssertBeforeHeightRelativeFailed => "ASSERT_BEFORE_HEIGHT_RELATIVE_FAILED",
+        ErrorCode::AssertBeforeSecondsRelativeFailed => "ASSERT_BEFORE_SECONDS_RELATIVE_FAILED",
         _ => "UNKNOWN",
-    })
+    }
 }
