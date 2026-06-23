@@ -1,6 +1,5 @@
 use std::{
     net::SocketAddr,
-    ops::Deref,
     sync::{Arc, Mutex},
 };
 
@@ -13,16 +12,7 @@ use super::{handlers::router, state::SharedSimulator};
 #[derive(Debug)]
 pub struct FullNodeSimulatorServer {
     addr: SocketAddr,
-    simulator: SharedSimulator,
     join_handle: JoinHandle<()>,
-}
-
-impl Deref for FullNodeSimulatorServer {
-    type Target = Mutex<FullNodeSimulator>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.simulator
-    }
 }
 
 impl FullNodeSimulatorServer {
@@ -38,11 +28,7 @@ impl FullNodeSimulatorServer {
             let _ = axum::serve(listener, app).await;
         });
 
-        Ok(Self {
-            addr,
-            simulator,
-            join_handle,
-        })
+        Ok(Self { addr, join_handle })
     }
 
     pub fn addr(&self) -> SocketAddr {
