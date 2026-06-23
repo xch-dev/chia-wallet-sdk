@@ -8,6 +8,7 @@ mod default_finalizer;
 mod name_nft_metadata;
 mod p2_delegated_by_singleton;
 mod p2_m_of_n_delegate_direct;
+mod p2_next_reward_distributor_epoch;
 mod precommit_layer;
 mod reserve_finalizer;
 mod slot;
@@ -27,6 +28,7 @@ pub use default_finalizer::*;
 pub use name_nft_metadata::*;
 pub use p2_delegated_by_singleton::*;
 pub use p2_m_of_n_delegate_direct::*;
+pub use p2_next_reward_distributor_epoch::*;
 pub use precommit_layer::*;
 pub use reserve_finalizer::*;
 pub use slot::*;
@@ -94,6 +96,7 @@ mod tests {
         assert_puzzle_hash!(REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE => REWARD_DISTRIBUTOR_NFTS_FROM_DID_LOCKING_PUZZLE_HASH);
         assert_puzzle_hash!(REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE => REWARD_DISTRIBUTOR_NFTS_UNLOCKING_PUZZLE_HASH);
         assert_puzzle_hash!(REWARD_DISTRIBUTOR_REFRESH_NFTS_FROM_DL_PUZZLE => REWARD_DISTRIBUTOR_REFRESH_NFTS_FROM_DL_PUZZLE_HASH);
+        assert_puzzle_hash!(P2_NEXT_REWARD_DISTRIBUTOR_EPOCH_PUZZLE => P2_NEXT_REWARD_DISTRIBUTOR_EPOCH_PUZZLE_HASH);
         Ok(())
     }
 }
