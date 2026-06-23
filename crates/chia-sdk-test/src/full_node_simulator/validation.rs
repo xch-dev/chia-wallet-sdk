@@ -73,16 +73,6 @@ impl FullNodeSimulator {
 
             for (puzzle_hash, amount, hint) in &spend.create_coin {
                 let coin = Coin::new(coin_id, *puzzle_hash, *amount);
-                if *amount == 100_000 {
-                    eprintln!(
-                        "[DEBUG-SIM-RESTORE] validate_bundle create_coin parent_coin_id={:?} amount={} puzzle_hash={:?} child_coin_id={:?} hint={:?}",
-                        coin_id,
-                        amount,
-                        puzzle_hash,
-                        coin.coin_id(),
-                        hint,
-                    );
-                }
                 let parsed_hint = hint
                     .as_ref()
                     .filter(|bytes| bytes.len() == 32)
