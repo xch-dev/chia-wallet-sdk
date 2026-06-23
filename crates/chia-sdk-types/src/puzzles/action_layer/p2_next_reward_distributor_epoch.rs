@@ -40,7 +40,7 @@ pub const P2_NEXT_REWARD_DISTRIBUTOR_EPOCH_PUZZLE_HASH: TreeHash = TreeHash::new
 pub struct P2NextRewardDistributorEpochArgs {
     pub singleton_mod_hash: Bytes32,
     pub nonce_mod_hash: Bytes32,
-    pub clawback_inner_puzzle_hash_hash: Bytes32,
+    pub clawback_inner_puzzle_hash: Bytes32,
     pub reward_distributor_singleton_struct_hash: Bytes32,
     pub reward_distributor_first_epoch_start: u64,
     pub reward_distributor_epoch_seconds: u64,
@@ -48,7 +48,7 @@ pub struct P2NextRewardDistributorEpochArgs {
 
 impl P2NextRewardDistributorEpochArgs {
     pub fn new(
-        clawback_inner_puzzle_hash_hash: TreeHash,
+        clawback_inner_puzzle_hash: Bytes32,
         reward_distributor_singleton_struct_hash: TreeHash,
         reward_distributor_first_epoch_start: u64,
         reward_distributor_epoch_seconds: u64,
@@ -56,7 +56,7 @@ impl P2NextRewardDistributorEpochArgs {
         Self {
             singleton_mod_hash: SINGLETON_TOP_LAYER_V1_1_HASH.into(),
             nonce_mod_hash: NONCE_WRAPPER_PUZZLE_HASH.into(),
-            clawback_inner_puzzle_hash_hash: clawback_inner_puzzle_hash_hash.into(),
+            clawback_inner_puzzle_hash,
             reward_distributor_singleton_struct_hash: reward_distributor_singleton_struct_hash
                 .into(),
             reward_distributor_first_epoch_start,

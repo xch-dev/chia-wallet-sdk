@@ -4883,7 +4883,7 @@ mod tests {
         // create p2_next_reward_distributor_epoch coin
         let clawback_inner_puzzle_hash = Bytes32::new([0; 32]);
         let p2_args = P2NextRewardDistributorEpochArgs::new(
-            clawback_inner_puzzle_hash.tree_hash(),
+            clawback_inner_puzzle_hash,
             SingletonStruct::new(registry.info.constants.launcher_id).tree_hash(),
             first_epoch_start,
             constants.epoch_seconds,
@@ -4928,10 +4928,9 @@ mod tests {
         assert!(sim.coin_state(p2_cat.coin.coin_id()).is_some());
 
         // commit incentives for second epoch using the p2 coin
-        let clawback_inner_puzzle_hash: TreeHash = clawback_inner_puzzle_hash.into();
-        let clawback_ph = NonceWrapperArgs {
+        let clawback_ph = NonceWrapperArgs::<Bytes32, TreeHash> {
             nonce: p2_cat.coin.coin_id(),
-            inner_puzzle: clawback_inner_puzzle_hash,
+            inner_puzzle: clawback_inner_puzzle_hash.into(),
         }
         .tree_hash();
         let _secure_conditions = registry
