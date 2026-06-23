@@ -2,6 +2,8 @@ mod announcements;
 mod benchmark;
 mod error;
 mod full_node_simulator;
+#[cfg(feature = "full-node-simulator-http")]
+mod full_node_simulator_http;
 mod key_pairs;
 mod simulator;
 mod transaction;
@@ -11,6 +13,8 @@ pub use announcements::*;
 pub use benchmark::*;
 pub use error::*;
 pub use full_node_simulator::*;
+#[cfg(feature = "full-node-simulator-http")]
+pub use full_node_simulator_http::*;
 pub use key_pairs::*;
 pub use simulator::*;
 pub use transaction::*;

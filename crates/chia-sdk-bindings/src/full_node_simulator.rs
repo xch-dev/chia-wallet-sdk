@@ -15,6 +15,10 @@ pub use chia_sdk_test::FullNodeSimulatorEvent;
 #[derive(Clone, Default)]
 pub struct FullNodeSimulator(Arc<Mutex<chia_sdk_test::FullNodeSimulator>>);
 
+#[cfg(feature = "napi")]
+#[derive(Debug)]
+pub struct FullNodeSimulatorServer(Option<chia_sdk_test::FullNodeSimulatorServer>);
+
 impl FullNodeSimulator {
     pub fn new() -> Result<Self> {
         Ok(Self::default())
@@ -265,5 +269,31 @@ impl FullNodeSimulator {
 
     pub fn drain_events(&self) -> Result<Vec<FullNodeSimulatorEvent>> {
         Ok(self.0.lock().unwrap().drain_events())
+    }
+
+    #[cfg(feature = "napi")]
+    pub async fn start_server(&self) -> Result<FullNodeSimulatorServer> {
+        Ok(FullNodeSimulatorServer(Some(
+            chia_sdk_test::FullNodeSimulatorServer::with_simulator(self.0.clone())
+                .await
+                .map_err(|error| bindy::Error::Custom(error.to_string()))?,
+        )))
+    }
+}
+
+#[cfg(feature = "napi")]
+impl FullNodeSimulatorServer {
+    pub fn url(&self) -> Result<String> {
+        let Some(server) = &self.0 else {
+            return Err(bindy::Error::Custom(
+                "full node simulator server is closed".to_string(),
+            ));
+        };
+        Ok(server.url())
+    }
+
+    pub fn close(&mut self) -> Result<()> {
+        self.0.take();
+        Ok(())
     }
 }

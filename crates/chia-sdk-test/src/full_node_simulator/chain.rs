@@ -88,6 +88,16 @@ impl FullNodeSimulator {
 
             for (coin, hint) in item.additions {
                 let coin_id = coin.coin_id();
+                if coin.amount == 100_000 {
+                    eprintln!(
+                        "[DEBUG-SIM-RESTORE] create_block_from_mempool addition amount={} puzzle_hash={:?} coin_id={:?} height={} duplicate={}",
+                        coin.amount,
+                        coin.puzzle_hash,
+                        coin_id,
+                        height,
+                        applied_additions.contains(&coin_id),
+                    );
+                }
                 if !applied_additions.insert(coin_id) {
                     continue;
                 }
