@@ -1,10 +1,15 @@
+use std::sync::{Arc, Mutex};
+
 use chia_bls::Signature;
+use chia_consensus::validation_error::ErrorCode;
 use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_sdk_coinset::{ChiaRpcClient, CoinsetClient, PushTxResponse};
 use chia_sdk_types::conditions::{CreateCoin, Memos};
 use clvmr::NodePtr;
 
-use crate::{to_program, to_puzzle};
+use crate::{
+    FullNodeSimulator, FullNodeSimulatorPushTxResponse, SimulatorError, to_program, to_puzzle,
+};
 
 use super::{
     push_tx::push_tx_response_body,
@@ -263,7 +268,8 @@ async fn get_coin_records_by_puzzle_hashes_uses_exclusive_end_height() -> anyhow
 }
 
 #[tokio::test]
-async fn get_coin_records_by_puzzle_hashes_defaults_to_historical_outputs() -> anyhow::Result<()> {
+async fn get_coin_records_by_puzzle_hashes_passes_through_include_spent_coins() -> anyhow::Result<()>
+{
     let server = FullNodeSimulatorServer::new().await?;
     let client = CoinsetClient::new(server.url());
     let http = reqwest::Client::new();
@@ -322,16 +328,41 @@ async fn get_coin_records_by_puzzle_hashes_defaults_to_historical_outputs() -> a
         .send()
         .await?;
 
-    let default_records = client
+    let omitted_records = client
         .get_coin_records_by_puzzle_hashes(vec![historical_puzzle_hash], None, None, None, None)
         .await?
         .coin_records
         .unwrap();
     assert!(
-        default_records
+        omitted_records
             .iter()
-            .any(|record| record.coin == historical_coin && record.spent)
+            .all(|record| record.coin != historical_coin)
     );
+
+    let null_records = http
+        .post(format!(
+            "{}/get_coin_records_by_puzzle_hashes",
+            server.url()
+        ))
+        .json(&serde_json::json!({
+            "puzzle_hashes": [historical_puzzle_hash],
+            "include_spent_coins": null,
+        }))
+        .send()
+        .await?
+        .json::<serde_json::Value>()
+        .await?;
+    let null_records = null_records
+        .get("coin_records")
+        .and_then(|records| records.as_array())
+        .unwrap();
+    assert!(null_records.iter().all(|record| {
+        record
+            .get("coin")
+            .and_then(|coin| coin.get("amount"))
+            .and_then(|amount| amount.as_u64())
+            != Some(historical_coin.amount)
+    }));
 
     let unspent_only_records = client
         .get_coin_records_by_puzzle_hashes(
@@ -348,6 +379,91 @@ async fn get_coin_records_by_puzzle_hashes_defaults_to_historical_outputs() -> a
         unspent_only_records
             .iter()
             .all(|record| record.coin != historical_coin)
+    );
+
+    let include_spent_records = client
+        .get_coin_records_by_puzzle_hashes(
+            vec![historical_puzzle_hash],
+            None,
+            None,
+            Some(true),
+            None,
+        )
+        .await?
+        .coin_records
+        .unwrap();
+    assert!(
+        include_spent_records
+            .iter()
+            .any(|record| record.coin == historical_coin && record.spent)
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn shared_simulator_is_used_by_direct_and_http_apis() -> anyhow::Result<()> {
+    let simulator = Arc::new(Mutex::new(FullNodeSimulator::new()));
+    let server = FullNodeSimulatorServer::with_simulator(simulator.clone()).await?;
+    let (puzzle_hash, _) = to_puzzle(1)?;
+
+    let coin = simulator.lock().unwrap().new_coin(puzzle_hash, 42);
+    let response = CoinsetClient::new(server.url())
+        .get_coin_record_by_name(coin.coin_id())
+        .await?;
+
+    assert_eq!(response.coin_record.unwrap().coin, coin);
+    assert!(
+        simulator
+            .lock()
+            .unwrap()
+            .get_coin_record_by_name(coin.coin_id())
+            .coin_record
+            .is_some()
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn unsupported_endpoints_and_cursor_policy_are_explicit() -> anyhow::Result<()> {
+    let server = FullNodeSimulatorServer::new().await?;
+    let http = reqwest::Client::new();
+
+    let unsupported = http
+        .post(format!("{}/get_block", server.url()))
+        .json(&serde_json::json!({ "header_hash": Bytes32::default() }))
+        .send()
+        .await?
+        .json::<serde_json::Value>()
+        .await?;
+    assert_eq!(
+        unsupported.get("success"),
+        Some(&serde_json::Value::Bool(false))
+    );
+    assert_eq!(
+        unsupported.get("error"),
+        Some(&serde_json::Value::String(
+            "get_block is not supported by FullNodeSimulator".to_string()
+        ))
+    );
+
+    let cursor_ignored = http
+        .post(format!(
+            "{}/get_coin_records_by_puzzle_hashes",
+            server.url()
+        ))
+        .json(&serde_json::json!({
+            "puzzle_hashes": [Bytes32::default()],
+            "cursor": "ignored",
+        }))
+        .send()
+        .await?
+        .json::<serde_json::Value>()
+        .await?;
+    assert_eq!(
+        cursor_ignored.get("success"),
+        Some(&serde_json::Value::Bool(true))
     );
 
     Ok(())
@@ -428,10 +544,13 @@ async fn push_tx_returns_pending_for_mempool_conflict() -> anyhow::Result<()> {
 fn push_tx_response_maps_cost_exceeded_to_block_cost_exceeds_max() {
     let body = push_tx_response_body(
         Bytes32::default(),
-        PushTxResponse {
-            status: "FAILED".to_string(),
-            error: Some("Validation error: CostExceeded".to_string()),
-            success: false,
+        FullNodeSimulatorPushTxResponse {
+            response: PushTxResponse {
+                status: "FAILED".to_string(),
+                error: Some(SimulatorError::Validation(ErrorCode::CostExceeded).to_string()),
+                success: false,
+            },
+            error: Some(SimulatorError::Validation(ErrorCode::CostExceeded)),
         },
     );
 
