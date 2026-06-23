@@ -4963,8 +4963,7 @@ mod tests {
             my_amount: rewards_to_add,
             reward_distributor_inner_puzzle_hash: registry.info.inner_puzzle_hash().into(),
         })?;
-        let p2_cat_spend =
-            CatSpend::new(source_cat, Spend::new(p2_inner_puzzle, p2_inner_solution));
+        let p2_cat_spend = CatSpend::new(p2_cat, Spend::new(p2_inner_puzzle, p2_inner_solution));
 
         let _registry = registry.finish_spend(ctx, vec![p2_cat_spend])?.0;
         // sim.spend_coins(ctx.take(), [])?;
