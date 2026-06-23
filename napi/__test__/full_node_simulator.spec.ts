@@ -75,15 +75,29 @@ test("full node simulator includes farmed rewards in block records", (t) => {
   t.false(rewardRecord!.spent);
 });
 
-test("full node simulator autofarm defaults on and can be toggled", (t) => {
+test("full node simulator push tx waits for manual farming", (t) => {
   const sim = new FullNodeSimulator();
-  t.true(sim.getAutofarm());
+  const clvm = new Clvm();
+  const puzzle = clvm.parse("1");
+  const puzzleHash = puzzle.treeHash();
+  const coin = sim.newCoin(puzzleHash, 100n);
 
-  sim.setAutofarm(false);
-  t.false(sim.getAutofarm());
+  const spendBundle = new SpendBundle(
+    [
+      new CoinSpend(
+        coin,
+        puzzle.serialize(),
+        clvm.parse(`((51 0x${Buffer.from(puzzleHash).toString("hex")} 99))`).serialize()
+      ),
+    ],
+    Signature.infinity()
+  );
 
-  sim.setAutofarm(true);
-  t.true(sim.getAutofarm());
+  t.true(sim.pushTx(spendBundle).success);
+  t.is(sim.getBlockchainState().blockchainState?.mempoolSize, 1);
+
+  sim.farmBlock(1);
+  t.is(sim.getBlockchainState().blockchainState?.mempoolSize, 0);
 });
 
 test("full node simulator can serve rpc over http", async (t) => {
@@ -99,7 +113,6 @@ test("full node simulator can serve rpc over http", async (t) => {
     const clvm = new Clvm();
     const puzzle = clvm.parse("1");
     const puzzleHash = puzzle.treeHash();
-    sim.setAutofarm(false);
     const coin = sim.newCoin(puzzleHash, 100n);
 
     const spendBundle = new SpendBundle(

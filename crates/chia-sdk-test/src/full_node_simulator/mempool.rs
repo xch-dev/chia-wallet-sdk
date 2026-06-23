@@ -106,7 +106,6 @@ mod tests {
     #[test]
     fn push_tx_rejects_mempool_conflict() -> anyhow::Result<()> {
         let mut sim = FullNodeSimulator::new();
-        sim.set_autofarm(false);
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
         let coin = sim.new_coin(puzzle_hash, 100);
         let first = spend_to_child(coin, puzzle_reveal.clone(), puzzle_hash, 98)?;
@@ -134,7 +133,6 @@ mod tests {
     #[test]
     fn push_tx_replaces_mempool_conflict_with_higher_fee_superset() -> anyhow::Result<()> {
         let mut sim = FullNodeSimulator::new();
-        sim.set_autofarm(false);
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
         let coin = sim.new_coin(puzzle_hash, 100);
         let first = spend_to_child(coin, puzzle_reveal.clone(), puzzle_hash, 99)?;
@@ -169,7 +167,6 @@ mod tests {
     #[test]
     fn push_tx_does_not_replace_conflict_that_is_not_a_superset() -> anyhow::Result<()> {
         let mut sim = FullNodeSimulator::new();
-        sim.set_autofarm(false);
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
         let coin_a = sim.new_coin(puzzle_hash, 100);
         let coin_b = sim.new_coin(puzzle_hash, 100);
@@ -206,7 +203,6 @@ mod tests {
     #[test]
     fn push_tx_allows_dedup_compatible_mempool_overlap() -> anyhow::Result<()> {
         let mut sim = FullNodeSimulator::new();
-        sim.set_autofarm(false);
         let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
         let shared_coin = sim.new_coin(puzzle_hash, 100);
         let extra_coin = sim.new_coin(puzzle_hash, 100);
