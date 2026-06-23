@@ -770,13 +770,14 @@ mod tests {
     use chia_sdk_types::{
         puzzles::{
             AnyMetadataUpdater, CatNftMetadata, CompactCoinProof, DelegatedStateActionSolution,
-            IntermediaryCoinProof, NftLauncherProof, P2NextRewardDistributorEpochArgs,
-            P2NextRewardDistributorEpochSolution, XchandlesFactorPricingPuzzleArgs,
-            XchandlesPricingSolution, ANY_METADATA_UPDATER_HASH,
+            IntermediaryCoinProof, NftLauncherProof, NonceWrapperArgs,
+            P2NextRewardDistributorEpochArgs, P2NextRewardDistributorEpochSolution,
+            XchandlesFactorPricingPuzzleArgs, XchandlesPricingSolution, ANY_METADATA_UPDATER_HASH,
         },
         MerkleTree, TESTNET11_CONSTANTS,
     };
     use clvm_traits::clvm_list;
+    use clvm_utils::TreeHash;
     use clvmr::Allocator;
     use hex_literal::hex;
 
@@ -4927,6 +4928,12 @@ mod tests {
         assert!(sim.coin_state(p2_cat.coin.coin_id()).is_some());
 
         // commit incentives for second epoch using the p2 coin
+        let clawback_inner_puzzle_hash: TreeHash = clawback_inner_puzzle_hash.into();
+        let clawback_ph = NonceWrapperArgs {
+            nonce: p2_cat.coin.coin_id(),
+            inner_puzzle: clawback_inner_puzzle_hash,
+        }
+        .tree_hash();
         let _secure_conditions = registry
             .new_action::<RewardDistributorCommitIncentivesAction>()
             .spend(
@@ -4934,7 +4941,7 @@ mod tests {
                 &mut registry,
                 second_epoch_reward_slot,
                 second_epoch_start,
-                clawback_inner_puzzle_hash,
+                clawback_ph.into(),
                 rewards_to_add,
             )?;
         let third_commitment_slot = registry.created_slot_value_to_slot(
