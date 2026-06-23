@@ -14,10 +14,7 @@ use crate::{
 use super::{
     push_tx::push_tx_response_body,
     server::FullNodeSimulatorServer,
-    types::{
-        GetAggsigAdditionalDataResponse, SimFarmBlockResponse, SimNewCoinResponse,
-        SimSuccessResponse,
-    },
+    types::{GetAggsigAdditionalDataResponse, SimFarmBlockResponse, SimNewCoinResponse},
 };
 
 #[tokio::test]
@@ -47,15 +44,6 @@ async fn rpc_client_can_drive_http_simulator() -> anyhow::Result<()> {
     let additional_data = aggsig_response.additional_data.unwrap();
     assert_eq!(additional_data.len(), 64);
     assert!(!additional_data.starts_with("0x"));
-
-    let response = http
-        .post(format!("{}/sim/set_autofarm", server.url()))
-        .json(&serde_json::json!({ "autofarm": false }))
-        .send()
-        .await?
-        .json::<SimSuccessResponse>()
-        .await?;
-    assert!(response.success);
 
     let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
     let new_coin = http
@@ -212,10 +200,6 @@ async fn get_coin_records_by_puzzle_hashes_uses_exclusive_end_height() -> anyhow
     let server = FullNodeSimulatorServer::new().await?;
     let client = CoinsetClient::new(server.url());
     let http = reqwest::Client::new();
-    http.post(format!("{}/sim/set_autofarm", server.url()))
-        .json(&serde_json::json!({ "autofarm": false }))
-        .send()
-        .await?;
 
     let (parent_puzzle_hash, parent_puzzle_reveal) = to_puzzle(1)?;
     let (child_puzzle_hash, _) = to_puzzle(2)?;
@@ -273,10 +257,6 @@ async fn get_coin_records_by_puzzle_hashes_passes_through_include_spent_coins() 
     let server = FullNodeSimulatorServer::new().await?;
     let client = CoinsetClient::new(server.url());
     let http = reqwest::Client::new();
-    http.post(format!("{}/sim/set_autofarm", server.url()))
-        .json(&serde_json::json!({ "autofarm": false }))
-        .send()
-        .await?;
 
     let (historical_puzzle_hash, historical_puzzle_reveal) = to_puzzle(1)?;
     let parent = http
@@ -473,10 +453,6 @@ async fn unsupported_endpoints_and_cursor_policy_are_explicit() -> anyhow::Resul
 async fn push_tx_returns_pending_for_mempool_conflict() -> anyhow::Result<()> {
     let server = FullNodeSimulatorServer::new().await?;
     let http = reqwest::Client::new();
-    http.post(format!("{}/sim/set_autofarm", server.url()))
-        .json(&serde_json::json!({ "autofarm": false }))
-        .send()
-        .await?;
 
     let (puzzle_hash, puzzle_reveal) = to_puzzle(1)?;
     let coin = http

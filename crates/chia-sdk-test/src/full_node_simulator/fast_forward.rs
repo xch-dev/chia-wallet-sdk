@@ -363,6 +363,7 @@ mod tests {
 
         let response = sim.push_tx(stale_bundle);
         assert!(response.success, "{response:?}");
+        sim.farm_block(1);
 
         let child_record = sim
             .get_coin_record_by_name(child_coin.coin_id())

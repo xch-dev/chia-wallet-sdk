@@ -14,9 +14,9 @@ use super::{
         GetAggsigAdditionalDataResponse, HeaderHashRequest, HeightRequest, HintRequest,
         HintsRequest, InsertCoinRequest, NameRequest, NamesRequest, NewCoinRequest,
         ParentIdsRequest, PushTxRequest, PuzzleAndSolutionRequest, PuzzleHashRequest,
-        PuzzleHashesRequest, ReorgBlocksRequest, RevertBlocksRequest, SetAutofarmRequest,
-        SetFarmingPhRequest, SimEventsResponse, SimFarmBlockResponse, SimNewCoinResponse,
-        SimRevertBlocksResponse, SimSuccessResponse, TxIdRequest,
+        PuzzleHashesRequest, ReorgBlocksRequest, RevertBlocksRequest, SetFarmingPhRequest,
+        SimEventsResponse, SimFarmBlockResponse, SimNewCoinResponse, SimRevertBlocksResponse,
+        SimSuccessResponse, TxIdRequest,
     },
 };
 
@@ -78,7 +78,6 @@ pub(super) fn router(simulator: SharedSimulator) -> Router {
         .route("/sim/reorg_blocks", post(sim_reorg_blocks))
         .route("/sim/new_coin", post(sim_new_coin))
         .route("/sim/insert_coin", post(sim_insert_coin))
-        .route("/sim/set_autofarm", post(sim_set_autofarm))
         .route("/sim/set_farming_ph", post(sim_set_farming_ph))
         .route("/sim/drain_events", post(sim_drain_events))
         .with_state(simulator)
@@ -379,14 +378,6 @@ async fn sim_insert_coin(
     Json(request): Json<InsertCoinRequest>,
 ) -> Json<SimSuccessResponse> {
     simulator.lock().unwrap().insert_coin(request.coin);
-    Json(SimSuccessResponse { success: true })
-}
-
-async fn sim_set_autofarm(
-    State(simulator): State<SharedSimulator>,
-    Json(request): Json<SetAutofarmRequest>,
-) -> Json<SimSuccessResponse> {
-    simulator.lock().unwrap().set_autofarm(request.autofarm);
     Json(SimSuccessResponse { success: true })
 }
 

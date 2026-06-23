@@ -148,11 +148,6 @@ pub(super) struct InsertCoinRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub(super) struct SetAutofarmRequest {
-    pub(super) autofarm: bool,
-}
-
-#[derive(Debug, Deserialize)]
 pub(super) struct SetFarmingPhRequest {
     pub(super) puzzle_hash: Bytes32,
 }
