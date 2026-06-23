@@ -5006,6 +5006,7 @@ mod tests {
         assert!(!second_epoch_reward_slot.info.value.next_epoch_initialized);
         assert_eq!(second_epoch_reward_slot.info.value.counter, 2);
 
+        benchmark.print_summary(Some("p2_next_reward_distributor_epoch.costs"));
         Ok(())
     }
 }
