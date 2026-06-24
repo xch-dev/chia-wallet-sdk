@@ -16,6 +16,8 @@ use crate::{
     XchandlesRegistryReceivedMessagePrefix,
 };
 
+use super::{coin_id_from_owner_proof, XchandlesExecuteUpdateActionLog};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesExecuteUpdateAction {
     pub launcher_id: Bytes32,
@@ -57,37 +59,37 @@ impl XchandlesExecuteUpdateAction {
         ctx.curry(Self::new_args(self.launcher_id))
     }
 
-    pub fn spent_slot_values(
+    pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
-    ) -> Result<(XchandlesHandleSlotValue, XchandlesUpdateSlotValue), DriverError> {
+    ) -> Result<XchandlesExecuteUpdateActionLog, DriverError> {
         let solution = ctx.extract::<XchandlesExecuteUpdateActionSolution>(solution)?;
 
-        Ok((
-            solution.current_slot_value,
-            XchandlesUpdateSlotValue::new(
-                solution.current_owner.parent_coin_info,
-                solution.min_execution_height,
-                solution.current_slot_value.handle_hash,
-                solution.new_data.owner_launcher_id,
-                solution.new_data.resolved_launcher_id,
-            ),
-        ))
-    }
-
-    pub fn created_slot_value(
-        ctx: &mut SpendContext,
-        solution: NodePtr,
-    ) -> Result<XchandlesHandleSlotValue, DriverError> {
-        let solution = ctx.extract::<XchandlesExecuteUpdateActionSolution>(solution)?;
-
-        Ok(solution
-            .current_slot_value
+        let spent_handle_slot = solution.current_slot_value;
+        let spent_update_slot = XchandlesUpdateSlotValue::new(
+            solution.current_owner.parent_coin_info,
+            solution.min_execution_height,
+            solution.current_slot_value.handle_hash,
+            solution.new_data.owner_launcher_id,
+            solution.new_data.resolved_launcher_id,
+        );
+        let created_slot = spent_handle_slot
             .with_data(
                 solution.new_data.owner_launcher_id,
                 solution.new_data.resolved_launcher_id,
             )
-            .with_counter(solution.current_slot_value.counter + 1))
+            .with_counter(spent_handle_slot.counter + 1);
+        let owner_coin_id = coin_id_from_owner_proof(
+            solution.current_owner,
+            solution.current_slot_value.owner_launcher_id,
+        );
+
+        Ok(XchandlesExecuteUpdateActionLog {
+            spent_handle_slot,
+            spent_update_slot,
+            created_slot,
+            owner_coin_id,
+        })
     }
 
     // returns:

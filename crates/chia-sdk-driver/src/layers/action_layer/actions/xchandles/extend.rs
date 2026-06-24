@@ -10,7 +10,7 @@ use chia_sdk_types::{
     },
     Conditions, Mod,
 };
-use clvm_traits::{clvm_tuple, FromClvm};
+use clvm_traits::clvm_tuple;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
@@ -18,6 +18,8 @@ use crate::{
     DriverError, SingletonAction, Slot, Spend, SpendContext, XchandlesConstants, XchandlesRegistry,
     XchandlesRegistryCreatedAnnouncementPrefix,
 };
+
+use super::{run_pricing_output, XchandlesExtendActionLog};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesExtendAction {
@@ -60,72 +62,47 @@ impl XchandlesExtendAction {
         ctx.curry(Self::new_args(self.launcher_id, self.payout_puzzle_hash))
     }
 
-    pub fn spent_slot_value(
+    pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
-    ) -> Result<XchandlesHandleSlotValue, DriverError> {
-        let solution = ctx.extract::<XchandlesExtendActionSolution<
-            NodePtr,
-            (u64, (u64, (String, NodePtr))),
-            NodePtr,
-            NodePtr,
-        >>(solution)?;
+    ) -> Result<XchandlesExtendActionLog, DriverError> {
+        let solution =
+            ctx.extract::<XchandlesExtendActionSolution<NodePtr, NodePtr, NodePtr, ()>>(solution)?;
 
-        // current expiration is the second truth given to a pricing puzzle
-        let current_expiration = solution.pricing_puzzle_and_solution.solution.1 .0;
-
-        Ok(XchandlesHandleSlotValue::new(
+        let pricing_solution =
+            ctx.extract::<XchandlesPricingSolution>(solution.pricing_puzzle_and_solution.solution)?;
+        let spent_slot = XchandlesHandleSlotValue::new(
             solution.counter,
-            solution
-                .pricing_puzzle_and_solution
-                .solution
-                .1
-                 .1
-                 .0
-                .tree_hash()
-                .into(),
+            pricing_solution.handle.tree_hash().into(),
             solution.neighbors.left_value,
             solution.neighbors.right_value,
-            current_expiration,
+            pricing_solution.current_expiration,
             solution.rest.owner_launcher_id,
             solution.rest.resolved_launcher_id,
-        ))
-    }
+        );
 
-    pub fn created_slot_value(
-        ctx: &mut SpendContext,
-        solution: NodePtr,
-    ) -> Result<XchandlesHandleSlotValue, DriverError> {
-        let solution = ctx
-            .extract::<XchandlesExtendActionSolution<NodePtr, NodePtr, NodePtr, NodePtr>>(
-                solution,
-            )?;
-
-        let pricing_output = ctx.run(
+        let (total_price, registered_time) = run_pricing_output(
+            ctx,
             solution.pricing_puzzle_and_solution.puzzle,
             solution.pricing_puzzle_and_solution.solution,
         )?;
-        let registration_time_delta = <(NodePtr, u64)>::from_clvm(ctx, pricing_output)?.1;
 
-        let (_, (_, (handle, _))) = ctx.extract::<(NodePtr, (NodePtr, (String, NodePtr)))>(
-            solution.pricing_puzzle_and_solution.solution,
-        )?;
-
-        // current expiration is the second truth given to a pricing puzzle
-        let current_expiration = ctx
-            .extract::<(NodePtr, (u64, NodePtr))>(solution.pricing_puzzle_and_solution.solution)?
-            .1
-             .0;
-
-        Ok(XchandlesHandleSlotValue::new(
+        let created_slot = XchandlesHandleSlotValue::new(
             solution.counter + 1,
-            handle.tree_hash().into(),
+            spent_slot.handle_hash,
             solution.neighbors.left_value,
             solution.neighbors.right_value,
-            current_expiration + registration_time_delta,
+            pricing_solution.current_expiration + registered_time,
             solution.rest.owner_launcher_id,
             solution.rest.resolved_launcher_id,
-        ))
+        );
+
+        Ok(XchandlesExtendActionLog {
+            spent_slot,
+            created_slot,
+            total_price,
+            registered_time,
+        })
     }
 
     #[allow(clippy::too_many_arguments)]

@@ -12,7 +12,7 @@ use chia_sdk_types::{
     },
     Conditions, Mod,
 };
-use clvm_traits::{FromClvm, ToClvm};
+use clvm_traits::ToClvm;
 use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
@@ -20,7 +20,10 @@ use crate::{
     DriverError, PrecommitCoin, PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
     XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
     XchandlesRegistryCreatedAnnouncementPrefix, XchandlesRegistryReceivedMessagePrefix,
+    XchandlesRegistryState,
 };
+
+use super::{run_pricing_output, XchandlesExpireActionLog, XchandlesPrecommitValueLog};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesExpireAction {
@@ -81,77 +84,74 @@ impl XchandlesExpireAction {
         ))
     }
 
-    pub fn spent_slot_value(
-        ctx: &SpendContext,
-        solution: NodePtr,
-    ) -> Result<XchandlesHandleSlotValue, DriverError> {
-        // truths for epired solution are: Buy_Time, Current_Expiration, Handle
-        let solution = XchandlesExpireActionSolution::<
-            NodePtr,
-            NodePtr,
-            NodePtr,
-            (NodePtr, (u64, (String, NodePtr))),
-            NodePtr,
-        >::from_clvm(ctx, solution)?;
-
-        let handle = solution
-            .expired_handle_pricing_puzzle_and_solution
-            .solution
-            .1
-             .1
-             .0;
-        let current_expiration = solution
-            .expired_handle_pricing_puzzle_and_solution
-            .solution
-            .1
-             .0;
-
-        Ok(XchandlesHandleSlotValue::new(
-            solution.counter,
-            handle.tree_hash().into(),
-            solution.neighbors.left_value,
-            solution.neighbors.right_value,
-            current_expiration,
-            solution.old_rest.owner_launcher_id,
-            solution.old_rest.resolved_launcher_id,
-        ))
-    }
-
-    pub fn created_slot_value(
+    pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
-    ) -> Result<XchandlesHandleSlotValue, DriverError> {
+        state: XchandlesRegistryState,
+    ) -> Result<XchandlesExpireActionLog, DriverError> {
         let solution = ctx.extract::<XchandlesExpireActionSolution<
             NodePtr,
             NodePtr,
             NodePtr,
             NodePtr,
-            NodePtr,
+            Bytes32,
         >>(solution)?;
 
-        let pricing_output = ctx.run(
+        let pricing_solution = ctx.extract::<XchandlesPricingSolution>(
+            solution.expired_handle_pricing_puzzle_and_solution.solution,
+        )?;
+
+        let spent_slot = XchandlesHandleSlotValue::new(
+            solution.counter,
+            pricing_solution.handle.tree_hash().into(),
+            solution.neighbors.left_value,
+            solution.neighbors.right_value,
+            pricing_solution.current_expiration,
+            solution.old_rest.owner_launcher_id,
+            solution.old_rest.resolved_launcher_id,
+        );
+
+        let (total_price, registered_time) = run_pricing_output(
+            ctx,
             solution.expired_handle_pricing_puzzle_and_solution.puzzle,
             solution.expired_handle_pricing_puzzle_and_solution.solution,
         )?;
-        let registration_time_delta = <(NodePtr, u64)>::from_clvm(ctx, pricing_output)?.1;
 
-        // truths are: Buy_Time, Current_Expiration, Handle
-        let (buy_time, (_, (handle, _))) = ctx.extract::<(u64, (NodePtr, (String, NodePtr)))>(
-            solution.expired_handle_pricing_puzzle_and_solution.solution,
-        )?;
-
-        Ok(XchandlesHandleSlotValue::new(
+        let created_slot = XchandlesHandleSlotValue::new(
             solution.counter + 1,
-            handle.tree_hash().into(),
+            spent_slot.handle_hash,
             solution.neighbors.left_value,
             solution.neighbors.right_value,
-            buy_time + registration_time_delta,
+            pricing_solution.buy_time + registered_time,
             solution.other_precommit_data.launcher_ids.owner_launcher_id,
             solution
                 .other_precommit_data
                 .launcher_ids
                 .resolved_launcher_id,
-        ))
+        );
+
+        let handle = pricing_solution.handle.clone();
+        let precommit_value = XchandlesPrecommitValueLog::new(
+            state.cat_maker_puzzle_hash,
+            (),
+            state.expired_handle_pricing_puzzle_hash,
+            pricing_solution,
+            handle,
+            solution.other_precommit_data.refund_and_secret.secret,
+            solution.other_precommit_data.launcher_ids.owner_launcher_id,
+            solution
+                .other_precommit_data
+                .launcher_ids
+                .resolved_launcher_id,
+        );
+
+        Ok(XchandlesExpireActionLog {
+            spent_slot,
+            created_slot,
+            precommit_value,
+            total_price,
+            registered_time,
+        })
     }
 
     // returns:
@@ -319,6 +319,8 @@ impl XchandlesExpirePricingPuzzle {
 
 #[cfg(test)]
 mod tests {
+    use clvm_traits::{FromClvm, ToClvm};
+
     use super::*;
 
     #[derive(FromClvm, ToClvm, Debug, Copy, Clone, PartialEq, Eq)]

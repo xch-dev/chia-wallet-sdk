@@ -1,5 +1,5 @@
 use chia_protocol::Bytes32;
-use chia_puzzle_types::singleton::SingletonStruct;
+use chia_puzzle_types::singleton::{SingletonArgs, SingletonStruct};
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
     announcement_id,
@@ -20,6 +20,8 @@ use crate::{
     XchandlesConstants, XchandlesPrecommitValue, XchandlesRegistry,
     XchandlesRegistryCreatedAnnouncementPrefix, XchandlesRegistryReceivedMessagePrefix,
 };
+
+use super::{run_pricing_output, XchandlesRegisterActionLog};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesRegisterAction {
@@ -80,44 +82,10 @@ impl XchandlesRegisterAction {
         ))
     }
 
-    pub fn spent_slot_values(
-        ctx: &SpendContext,
-        solution: NodePtr,
-    ) -> Result<[XchandlesHandleSlotValue; 2], DriverError> {
-        let solution = XchandlesRegisterActionSolution::<
-            NodePtr,
-            NodePtr,
-            NodePtr,
-            NodePtr,
-            NodePtr,
-        >::from_clvm(ctx, solution)?;
-
-        Ok([
-            XchandlesHandleSlotValue::new(
-                solution.left_rest_of_slot.this_counter,
-                solution.neighbors.left_value,
-                solution.left_rest_of_slot.this_this_value,
-                solution.neighbors.right_value,
-                solution.left_rest_of_slot.this_expiration,
-                solution.left_rest_of_slot.this_data.owner_launcher_id,
-                solution.left_rest_of_slot.this_data.resolved_launcher_id,
-            ),
-            XchandlesHandleSlotValue::new(
-                solution.right_rest_of_slot.this_counter,
-                solution.neighbors.right_value,
-                solution.neighbors.left_value,
-                solution.right_rest_of_slot.this_this_value,
-                solution.right_rest_of_slot.this_expiration,
-                solution.right_rest_of_slot.this_data.owner_launcher_id,
-                solution.right_rest_of_slot.this_data.resolved_launcher_id,
-            ),
-        ])
-    }
-
-    pub fn created_slot_values(
+    pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
-    ) -> Result<[XchandlesHandleSlotValue; 3], DriverError> {
+    ) -> Result<XchandlesRegisterActionLog, DriverError> {
         let solution = XchandlesRegisterActionSolution::<
             NodePtr,
             NodePtr,
@@ -126,47 +94,109 @@ impl XchandlesRegisterAction {
             NodePtr,
         >::from_clvm(ctx, solution)?;
 
-        let pricing_output = ctx.run(
+        let spent_left_slot = XchandlesHandleSlotValue::new(
+            solution.left_rest_of_slot.this_counter,
+            solution.neighbors.left_value,
+            solution.left_rest_of_slot.this_this_value,
+            solution.neighbors.right_value,
+            solution.left_rest_of_slot.this_expiration,
+            solution.left_rest_of_slot.this_data.owner_launcher_id,
+            solution.left_rest_of_slot.this_data.resolved_launcher_id,
+        );
+        let spent_right_slot = XchandlesHandleSlotValue::new(
+            solution.right_rest_of_slot.this_counter,
+            solution.neighbors.right_value,
+            solution.neighbors.left_value,
+            solution.right_rest_of_slot.this_this_value,
+            solution.right_rest_of_slot.this_expiration,
+            solution.right_rest_of_slot.this_data.owner_launcher_id,
+            solution.right_rest_of_slot.this_data.resolved_launcher_id,
+        );
+
+        let pricing_solution =
+            ctx.extract::<XchandlesPricingSolution>(solution.pricing_puzzle_and_solution.solution)?;
+
+        let (total_price, registered_time) = run_pricing_output(
+            ctx,
             solution.pricing_puzzle_and_solution.puzzle,
             solution.pricing_puzzle_and_solution.solution,
         )?;
-        let registration_time_delta = <(NodePtr, u64)>::from_clvm(ctx, pricing_output)?.1;
 
-        let (start_time, _) =
-            ctx.extract::<(u64, NodePtr)>(solution.pricing_puzzle_and_solution.solution)?;
+        let created_left_slot = XchandlesHandleSlotValue::new(
+            solution.left_rest_of_slot.this_counter + 1,
+            solution.neighbors.left_value,
+            solution.left_rest_of_slot.this_this_value,
+            solution.handle_hash,
+            solution.left_rest_of_slot.this_expiration,
+            solution.left_rest_of_slot.this_data.owner_launcher_id,
+            solution.left_rest_of_slot.this_data.resolved_launcher_id,
+        );
+        let created_handle_slot = XchandlesHandleSlotValue::new(
+            0,
+            solution.handle_hash,
+            solution.neighbors.left_value,
+            solution.neighbors.right_value,
+            pricing_solution.buy_time + registered_time,
+            solution.other_precommit_data.launcher_ids.owner_launcher_id,
+            solution
+                .other_precommit_data
+                .launcher_ids
+                .resolved_launcher_id,
+        );
+        let created_right_slot = XchandlesHandleSlotValue::new(
+            solution.right_rest_of_slot.this_counter + 1,
+            solution.neighbors.right_value,
+            solution.handle_hash,
+            solution.right_rest_of_slot.this_this_value,
+            solution.right_rest_of_slot.this_expiration,
+            solution.right_rest_of_slot.this_data.owner_launcher_id,
+            solution.right_rest_of_slot.this_data.resolved_launcher_id,
+        );
 
-        Ok([
-            XchandlesHandleSlotValue::new(
-                solution.left_rest_of_slot.this_counter + 1,
-                solution.neighbors.left_value,
-                solution.left_rest_of_slot.this_this_value,
-                solution.handle_hash,
-                solution.left_rest_of_slot.this_expiration,
-                solution.left_rest_of_slot.this_data.owner_launcher_id,
-                solution.left_rest_of_slot.this_data.resolved_launcher_id,
-            ),
-            XchandlesHandleSlotValue::new(
-                0,
-                solution.handle_hash,
-                solution.neighbors.left_value,
-                solution.neighbors.right_value,
-                start_time + registration_time_delta,
-                solution.other_precommit_data.launcher_ids.owner_launcher_id,
-                solution
+        let owner_full_puzzle_hash = SingletonArgs::curry_tree_hash(
+            solution.other_precommit_data.launcher_ids.owner_launcher_id,
+            solution
+                .data_puzzle_hashes
+                .new_owner_inner_puzzle_hash
+                .into(),
+        )
+        .into();
+
+        let resolved_full_puzzle_hash =
+            if solution.other_precommit_data.launcher_ids.owner_launcher_id
+                == solution
                     .other_precommit_data
                     .launcher_ids
-                    .resolved_launcher_id,
-            ),
-            XchandlesHandleSlotValue::new(
-                solution.right_rest_of_slot.this_counter + 1,
-                solution.neighbors.right_value,
-                solution.handle_hash,
-                solution.right_rest_of_slot.this_this_value,
-                solution.right_rest_of_slot.this_expiration,
-                solution.right_rest_of_slot.this_data.owner_launcher_id,
-                solution.right_rest_of_slot.this_data.resolved_launcher_id,
-            ),
-        ])
+                    .resolved_launcher_id
+            {
+                None
+            } else {
+                Some(
+                    SingletonArgs::curry_tree_hash(
+                        solution
+                            .other_precommit_data
+                            .launcher_ids
+                            .resolved_launcher_id,
+                        solution
+                            .data_puzzle_hashes
+                            .new_resolved_inner_puzzle_hash
+                            .into(),
+                    )
+                    .into(),
+                )
+            };
+
+        Ok(XchandlesRegisterActionLog {
+            spent_left_slot,
+            spent_right_slot,
+            created_left_slot,
+            created_handle_slot,
+            created_right_slot,
+            total_price,
+            registered_time,
+            owner_full_puzzle_hash,
+            resolved_full_puzzle_hash,
+        })
     }
 
     // return:

@@ -3,7 +3,8 @@ use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzle_types::singleton::{LauncherSolution, SingletonArgs, SingletonSolution};
 use chia_puzzle_types::{LineageProof, Proof};
 use chia_sdk_types::puzzles::{
-    SlotInfo, XchandlesHandleSlotValue, XchandlesSlotNonce, XchandlesUpdateSlotValue,
+    DelegatedStateActionSolution, SlotInfo, XchandlesHandleSlotValue, XchandlesSlotNonce,
+    XchandlesUpdateSlotValue,
 };
 use clvm_traits::{clvm_tuple, match_tuple};
 use clvm_utils::ToTreeHash;
@@ -12,9 +13,9 @@ use clvmr::NodePtr;
 use crate::{
     eve_singleton_inner_puzzle, ActionLayer, ActionLayerSolution, ActionSingleton,
     DelegatedStateAction, DriverError, Layer, Puzzle, SingletonAction, Spend, SpendContext,
-    XchandlesExecuteUpdateAction, XchandlesExpireAction, XchandlesExtendAction,
-    XchandlesInitiateUpdateAction, XchandlesOracleAction, XchandlesRefundAction,
-    XchandlesRegisterAction,
+    XchandlesActionLog, XchandlesDelegatedStateActionLog, XchandlesExecuteUpdateAction,
+    XchandlesExpireAction, XchandlesExtendAction, XchandlesInitiateUpdateAction,
+    XchandlesOracleAction, XchandlesRefundAction, XchandlesRegisterAction,
 };
 
 use super::{Slot, XchandlesConstants, XchandlesRegistryInfo, XchandlesRegistryState};
@@ -26,6 +27,8 @@ pub struct XchandlesPendingSpendInfo {
     pub spent_update_slots: Vec<XchandlesUpdateSlotValue>,
     pub created_handle_slots: Vec<XchandlesHandleSlotValue>,
     pub created_update_slots: Vec<XchandlesUpdateSlotValue>,
+
+    pub logs: Vec<XchandlesActionLog>,
 
     pub latest_state: (NodePtr, XchandlesRegistryState),
 
@@ -40,6 +43,7 @@ impl XchandlesPendingSpendInfo {
             created_update_slots: vec![],
             spent_handle_slots: vec![],
             spent_update_slots: vec![],
+            logs: vec![],
             latest_state: (NodePtr::NIL, latest_state),
             signature: Signature::default(),
         }
@@ -82,6 +86,7 @@ impl XchandlesRegistry {
     ) -> Result<
         (
             (NodePtr, XchandlesRegistryState), // pending state
+            XchandlesActionLog,                // action log
             Vec<XchandlesHandleSlotValue>,     // created handle slot values
             Vec<XchandlesUpdateSlotValue>,     // created update slot values
             Vec<XchandlesHandleSlotValue>,     // spent handle slot values
@@ -93,6 +98,8 @@ impl XchandlesRegistry {
         let mut created_update_slots = vec![];
         let mut spent_handle_slots = vec![];
         let mut spent_update_slots = vec![];
+
+        let state = current_state_and_ephemeral.1;
 
         let expire_action = XchandlesExpireAction::from_constants(&constants);
         let expire_action_hash = expire_action.tree_hash();
@@ -132,83 +139,94 @@ impl XchandlesRegistry {
 
         let raw_action_hash = ctx.tree_hash(action_spend.puzzle);
 
-        if raw_action_hash == extend_action_hash {
-            spent_handle_slots.push(XchandlesExtendAction::spent_slot_value(
+        let log = if raw_action_hash == extend_action_hash {
+            let action_log = XchandlesActionLog::Extend(XchandlesExtendAction::get_log(
                 ctx,
                 action_spend.solution,
             )?);
-            created_handle_slots.push(XchandlesExtendAction::created_slot_value(
-                ctx,
-                action_spend.solution,
-            )?);
+            action_log.extend_spent_handle_slots(&mut spent_handle_slots);
+            action_log.extend_created_handle_slots(&mut created_handle_slots);
+
+            Some(action_log)
         } else if raw_action_hash == oracle_action_hash {
-            let spent_slot_value =
-                XchandlesOracleAction::spent_slot_value(ctx, action_spend.solution)?;
-            let created_slot_value = XchandlesOracleAction::created_slot_value(spent_slot_value);
+            let action_log = XchandlesActionLog::Oracle(XchandlesOracleAction::get_log(
+                ctx,
+                action_spend.solution,
+            )?);
+            action_log.extend_spent_handle_slots(&mut spent_handle_slots);
+            action_log.extend_created_handle_slots(&mut created_handle_slots);
 
-            spent_handle_slots.push(spent_slot_value);
-            created_handle_slots.push(created_slot_value);
+            Some(action_log)
         } else if raw_action_hash == initiate_update_action_hash {
-            spent_handle_slots.push(XchandlesInitiateUpdateAction::spent_slot_value(
-                ctx,
-                action_spend.solution,
-            )?);
+            let action_log = XchandlesActionLog::InitiateUpdate(
+                XchandlesInitiateUpdateAction::get_log(ctx, action_spend.solution, &constants)?,
+            );
+            action_log.extend_spent_handle_slots(&mut spent_handle_slots);
+            action_log.extend_created_handle_slots(&mut created_handle_slots);
+            action_log.extend_created_update_slots(&mut created_update_slots);
 
-            let (created_handle_slot_value, created_update_slot_value) =
-                XchandlesInitiateUpdateAction::created_slot_values(
-                    ctx,
-                    action_spend.solution,
-                    constants.relative_block_height,
-                )?;
-            created_handle_slots.push(created_handle_slot_value);
-            created_update_slots.push(created_update_slot_value);
+            Some(action_log)
         } else if raw_action_hash == execute_update_action_hash {
-            let (spent_handle_slot_value, spent_update_slot_value) =
-                XchandlesExecuteUpdateAction::spent_slot_values(ctx, action_spend.solution)?;
-            spent_handle_slots.push(spent_handle_slot_value);
-            spent_update_slots.push(spent_update_slot_value);
+            let action_log = XchandlesActionLog::ExecuteUpdate(
+                XchandlesExecuteUpdateAction::get_log(ctx, action_spend.solution)?,
+            );
+            action_log.extend_spent_handle_slots(&mut spent_handle_slots);
+            action_log.extend_spent_update_slots(&mut spent_update_slots);
+            action_log.extend_created_handle_slots(&mut created_handle_slots);
 
-            created_handle_slots.push(XchandlesExecuteUpdateAction::created_slot_value(
-                ctx,
-                action_spend.solution,
-            )?);
+            Some(action_log)
         } else if raw_action_hash == refund_action_hash {
-            if let Some(spent_slot_value) =
-                XchandlesRefundAction::spent_slot_value(ctx, action_spend.solution)?
-            {
-                spent_handle_slots.push(spent_slot_value);
+            let action_log = XchandlesActionLog::Refund(XchandlesRefundAction::get_log(
+                ctx,
+                action_spend.solution,
+            )?);
+            action_log.extend_spent_handle_slots(&mut spent_handle_slots);
+            action_log.extend_created_handle_slots(&mut created_handle_slots);
 
-                if let Some(created_slot_value) =
-                    XchandlesRefundAction::created_slot_value(Some(spent_slot_value))
-                {
-                    created_handle_slots.push(created_slot_value);
-                }
-            }
+            Some(action_log)
         } else if raw_action_hash == expire_action_hash {
-            spent_handle_slots.push(XchandlesExpireAction::spent_slot_value(
+            let action_log = XchandlesActionLog::Expire(XchandlesExpireAction::get_log(
                 ctx,
                 action_spend.solution,
+                state,
             )?);
-            created_handle_slots.push(XchandlesExpireAction::created_slot_value(
-                ctx,
-                action_spend.solution,
-            )?);
+            action_log.extend_spent_handle_slots(&mut spent_handle_slots);
+            action_log.extend_created_handle_slots(&mut created_handle_slots);
+
+            Some(action_log)
         } else if raw_action_hash == register_action_hash {
-            spent_handle_slots.extend(XchandlesRegisterAction::spent_slot_values(
+            let action_log = XchandlesActionLog::Register(XchandlesRegisterAction::get_log(
                 ctx,
                 action_spend.solution,
             )?);
-            created_handle_slots.extend(XchandlesRegisterAction::created_slot_values(
-                ctx,
-                action_spend.solution,
-            )?);
-        } else if raw_action_hash != delegated_state_action_hash {
+            action_log.extend_spent_handle_slots(&mut spent_handle_slots);
+            action_log.extend_created_handle_slots(&mut created_handle_slots);
+
+            Some(action_log)
+        } else if raw_action_hash == delegated_state_action_hash {
             // delegated state action has no effect on slots
+            let sol = ctx.extract::<DelegatedStateActionSolution<XchandlesRegistryState>>(
+                action_spend.solution,
+            )?;
+
+            Some(XchandlesActionLog::DelegatedState(
+                XchandlesDelegatedStateActionLog {
+                    old_state: current_state_and_ephemeral.1,
+                    new_state: sol.new_state,
+                },
+            ))
+        } else {
+            None
+        };
+
+        let Some(log) = log else {
+            // unknown action - very strange case!
             return Err(DriverError::InvalidMerkleProof);
-        }
+        };
 
         Ok((
             new_state_and_ephemeral,
+            log,
             created_handle_slots,
             created_update_slots,
             spent_handle_slots,
@@ -226,6 +244,7 @@ impl XchandlesRegistry {
         let mut created_update_slots = vec![];
         let mut spent_handle_slots = vec![];
         let mut spent_update_slots = vec![];
+        let mut logs = vec![];
 
         let mut state_incl_ephemeral: (NodePtr, XchandlesRegistryState) =
             (NodePtr::NIL, initial_state);
@@ -242,10 +261,11 @@ impl XchandlesRegistry {
             )?;
 
             state_incl_ephemeral = res.0;
-            created_handle_slots.extend(res.1);
-            created_update_slots.extend(res.2);
-            spent_handle_slots.extend(res.3);
-            spent_update_slots.extend(res.4);
+            logs.push(res.1);
+            created_handle_slots.extend(res.2);
+            created_update_slots.extend(res.3);
+            spent_handle_slots.extend(res.4);
+            spent_update_slots.extend(res.5);
         }
 
         Ok(XchandlesPendingSpendInfo {
@@ -254,6 +274,7 @@ impl XchandlesRegistry {
             created_update_slots,
             spent_handle_slots,
             spent_update_slots,
+            logs,
             latest_state: state_incl_ephemeral,
             signature: Signature::default(),
         })
@@ -612,10 +633,11 @@ impl XchandlesRegistry {
         )?;
 
         self.pending_spend.latest_state = res.0;
-        self.pending_spend.created_handle_slots.extend(res.1);
-        self.pending_spend.created_update_slots.extend(res.2);
-        self.pending_spend.spent_handle_slots.extend(res.3);
-        self.pending_spend.spent_update_slots.extend(res.4);
+        self.pending_spend.logs.push(res.1);
+        self.pending_spend.created_handle_slots.extend(res.2);
+        self.pending_spend.created_update_slots.extend(res.3);
+        self.pending_spend.spent_handle_slots.extend(res.4);
+        self.pending_spend.spent_update_slots.extend(res.5);
         self.pending_spend.actions.push(action_spend);
 
         Ok(())

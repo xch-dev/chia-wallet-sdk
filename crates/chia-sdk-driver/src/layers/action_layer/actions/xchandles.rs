@@ -1,3 +1,4 @@
+mod action_log;
 mod execute_update;
 mod expire;
 mod extend;
@@ -6,6 +7,7 @@ mod oracle;
 mod refund;
 mod register;
 
+pub use action_log::*;
 pub use execute_update::*;
 pub use expire::*;
 pub use extend::*;

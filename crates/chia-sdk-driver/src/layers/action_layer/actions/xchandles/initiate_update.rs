@@ -1,5 +1,4 @@
-use chia_protocol::{Bytes32, Coin};
-use chia_puzzle_types::singleton::SingletonArgs;
+use chia_protocol::Bytes32;
 use chia_puzzles::{SINGLETON_LAUNCHER_HASH, SINGLETON_TOP_LAYER_V1_1_HASH};
 use chia_sdk_types::{
     puzzles::{
@@ -16,6 +15,8 @@ use crate::{
     DriverError, SingletonAction, Slot, Spend, SpendContext, XchandlesConstants, XchandlesRegistry,
     XchandlesRegistryReceivedMessagePrefix,
 };
+
+use super::{coin_id_from_owner_proof, XchandlesInitiateUpdateActionLog};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesInitiateUpdateAction {
@@ -64,43 +65,33 @@ impl XchandlesInitiateUpdateAction {
         ctx.curry(Self::new_args(self.launcher_id, self.relative_block_height))
     }
 
-    pub fn spent_slot_value(
+    pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
-    ) -> Result<XchandlesHandleSlotValue, DriverError> {
+        constants: &XchandlesConstants,
+    ) -> Result<XchandlesInitiateUpdateActionLog, DriverError> {
         let solution = ctx.extract::<XchandlesInitiateUpdateActionSolution>(solution)?;
 
-        Ok(solution.current_slot_value)
-    }
+        let spent_slot = solution.current_slot_value;
+        let created_handle_slot = spent_slot.with_counter(spent_slot.counter + 1);
+        let initiator_coin_id = coin_id_from_owner_proof(
+            solution.current_owner,
+            solution.current_slot_value.owner_launcher_id,
+        );
+        let created_update_slot = XchandlesUpdateSlotValue::new(
+            initiator_coin_id,
+            solution.min_height + constants.relative_block_height,
+            solution.current_slot_value.handle_hash,
+            solution.new_data.owner_launcher_id,
+            solution.new_data.resolved_launcher_id,
+        );
 
-    pub fn created_slot_values(
-        ctx: &mut SpendContext,
-        solution: NodePtr,
-        relative_block_height: u32,
-    ) -> Result<(XchandlesHandleSlotValue, XchandlesUpdateSlotValue), DriverError> {
-        let solution = ctx.extract::<XchandlesInitiateUpdateActionSolution>(solution)?;
-
-        let mut new_slot_value = solution.current_slot_value;
-        new_slot_value.counter += 1;
-        Ok((
-            new_slot_value,
-            XchandlesUpdateSlotValue::new(
-                Coin::new(
-                    solution.current_owner.parent_coin_info,
-                    SingletonArgs::curry_tree_hash(
-                        solution.current_slot_value.owner_launcher_id,
-                        solution.current_owner.inner_puzzle_hash.into(),
-                    )
-                    .into(),
-                    solution.current_owner.amount,
-                )
-                .coin_id(),
-                solution.min_height + relative_block_height,
-                solution.current_slot_value.handle_hash,
-                solution.new_data.owner_launcher_id,
-                solution.new_data.resolved_launcher_id,
-            ),
-        ))
+        Ok(XchandlesInitiateUpdateActionLog {
+            spent_slot,
+            created_handle_slot,
+            created_update_slot,
+            initiator_coin_id,
+        })
     }
 
     #[allow(clippy::too_many_arguments)]

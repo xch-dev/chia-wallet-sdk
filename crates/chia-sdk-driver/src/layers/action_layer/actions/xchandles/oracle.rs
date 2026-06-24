@@ -12,6 +12,8 @@ use crate::{
     XchandlesRegistryCreatedAnnouncementPrefix,
 };
 
+use super::XchandlesOracleActionLog;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XchandlesOracleAction {
     pub launcher_id: Bytes32,
@@ -46,22 +48,17 @@ impl XchandlesOracleAction {
         ctx.curry(Self::new_args(self.launcher_id))
     }
 
-    pub fn spent_slot_value(
+    pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
-    ) -> Result<XchandlesHandleSlotValue, DriverError> {
-        let slot_value = ctx.extract::<XchandlesHandleSlotValue>(solution)?;
+    ) -> Result<XchandlesOracleActionLog, DriverError> {
+        let spent_slot = ctx.extract::<XchandlesHandleSlotValue>(solution)?;
+        let created_slot = spent_slot.with_counter(spent_slot.counter + 1);
 
-        Ok(slot_value)
-    }
-
-    pub fn created_slot_value(
-        spent_slot_value: XchandlesHandleSlotValue,
-    ) -> XchandlesHandleSlotValue {
-        let mut created_slot_value = spent_slot_value;
-        created_slot_value.counter += 1;
-
-        created_slot_value
+        Ok(XchandlesOracleActionLog {
+            spent_slot,
+            created_slot,
+        })
     }
 
     pub fn spend(
