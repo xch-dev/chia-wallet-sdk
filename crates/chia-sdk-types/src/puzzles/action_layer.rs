@@ -15,8 +15,6 @@ mod slot;
 mod slot_values;
 mod state_scheduler;
 mod uniqueness_prelauncher;
-mod verification_asserter;
-mod verification_layer;
 
 pub use action_layer_puzzle::*;
 pub use actions::*;
@@ -35,8 +33,6 @@ pub use slot::*;
 pub use slot_values::*;
 pub use state_scheduler::*;
 pub use uniqueness_prelauncher::*;
-pub use verification_asserter::*;
-pub use verification_layer::*;
 
 #[cfg(test)]
 mod tests {
@@ -55,7 +51,6 @@ mod tests {
         assert_puzzle_hash!(PRECOMMIT_LAYER_PUZZLE => PRECOMMIT_LAYER_PUZZLE_HASH);
         assert_puzzle_hash!(SLOT_PUZZLE => SLOT_PUZZLE_HASH);
         assert_puzzle_hash!(ANY_METADATA_UPDATER => ANY_METADATA_UPDATER_HASH);
-        assert_puzzle_hash!(VERIFICATION_LAYER_PUZZLE => VERIFICATION_LAYER_PUZZLE_HASH);
         assert_puzzle_hash!(XCHANDLES_REGISTER_PUZZLE => XCHANDLES_REGISTER_PUZZLE_HASH);
         assert_puzzle_hash!(XCHANDLES_INITIATE_UPDATE_PUZZLE => XCHANDLES_INITIATE_UPDATE_PUZZLE_HASH);
         assert_puzzle_hash!(XCHANDLES_EXECUTE_UPDATE_PUZZLE => XCHANDLES_EXECUTE_UPDATE_PUZZLE_HASH);
@@ -86,8 +81,6 @@ mod tests {
             RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM =>
                 RESERVE_FINALIZER_DEFAULT_RESERVE_AMOUNT_FROM_STATE_PROGRAM_HASH
         );
-        assert_puzzle_hash!(VERIFICATION_ASSERTER_PUZZLE => VERIFICATION_ASSERTER_PUZZLE_HASH);
-        assert_puzzle_hash!(CATALOG_VERIFICATION_MAKER_PUZZLE => CATALOG_VERIFICATION_MAKER_PUZZLE_HASH);
         assert_puzzle_hash!(REVOCABLE_CAT_MAKER_PUZZLE => REVOCABLE_CAT_MAKER_PUZZLE_HASH);
         assert_puzzle_hash!(XCH_CAT_MAKER_PUZZLE => XCH_CAT_MAKER_PUZZLE_HASH);
         assert_puzzle_hash!(REWARD_DISTRIBUTOR_CAT_LOCKING_PUZZLE => REWARD_DISTRIBUTOR_CAT_LOCKING_PUZZLE_HASH);

@@ -7,7 +7,6 @@ mod p2_delegated_by_singleton_layer;
 mod precommit_layer;
 mod singleton_action;
 mod state_scheduler_layer;
-mod verification_layer;
 
 pub use action_layer::*;
 pub use actions::*;
@@ -17,4 +16,3 @@ pub use p2_delegated_by_singleton_layer::*;
 pub use precommit_layer::*;
 pub use singleton_action::*;
 pub use state_scheduler_layer::*;
-pub use verification_layer::*;
