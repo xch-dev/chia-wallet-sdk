@@ -147,7 +147,7 @@ impl XchandlesRegistry {
             action_log.extend_spent_handle_slots(&mut spent_handle_slots);
             action_log.extend_created_handle_slots(&mut created_handle_slots);
 
-            Some(action_log)
+            action_log
         } else if raw_action_hash == oracle_action_hash {
             let action_log = XchandlesActionLog::Oracle(XchandlesOracleAction::get_log(
                 ctx,
@@ -156,7 +156,7 @@ impl XchandlesRegistry {
             action_log.extend_spent_handle_slots(&mut spent_handle_slots);
             action_log.extend_created_handle_slots(&mut created_handle_slots);
 
-            Some(action_log)
+            action_log
         } else if raw_action_hash == initiate_update_action_hash {
             let action_log = XchandlesActionLog::InitiateUpdate(
                 XchandlesInitiateUpdateAction::get_log(ctx, action_spend.solution, &constants)?,
@@ -165,7 +165,7 @@ impl XchandlesRegistry {
             action_log.extend_created_handle_slots(&mut created_handle_slots);
             action_log.extend_created_update_slots(&mut created_update_slots);
 
-            Some(action_log)
+            action_log
         } else if raw_action_hash == execute_update_action_hash {
             let action_log = XchandlesActionLog::ExecuteUpdate(
                 XchandlesExecuteUpdateAction::get_log(ctx, action_spend.solution)?,
@@ -174,7 +174,7 @@ impl XchandlesRegistry {
             action_log.extend_spent_update_slots(&mut spent_update_slots);
             action_log.extend_created_handle_slots(&mut created_handle_slots);
 
-            Some(action_log)
+            action_log
         } else if raw_action_hash == refund_action_hash {
             let action_log = XchandlesActionLog::Refund(XchandlesRefundAction::get_log(
                 ctx,
@@ -183,7 +183,7 @@ impl XchandlesRegistry {
             action_log.extend_spent_handle_slots(&mut spent_handle_slots);
             action_log.extend_created_handle_slots(&mut created_handle_slots);
 
-            Some(action_log)
+            action_log
         } else if raw_action_hash == expire_action_hash {
             let action_log = XchandlesActionLog::Expire(XchandlesExpireAction::get_log(
                 ctx,
@@ -193,7 +193,7 @@ impl XchandlesRegistry {
             action_log.extend_spent_handle_slots(&mut spent_handle_slots);
             action_log.extend_created_handle_slots(&mut created_handle_slots);
 
-            Some(action_log)
+            action_log
         } else if raw_action_hash == register_action_hash {
             let action_log = XchandlesActionLog::Register(XchandlesRegisterAction::get_log(
                 ctx,
@@ -202,25 +202,18 @@ impl XchandlesRegistry {
             action_log.extend_spent_handle_slots(&mut spent_handle_slots);
             action_log.extend_created_handle_slots(&mut created_handle_slots);
 
-            Some(action_log)
+            action_log
         } else if raw_action_hash == delegated_state_action_hash {
             // delegated state action has no effect on slots
             let sol = ctx.extract::<DelegatedStateActionSolution<XchandlesRegistryState>>(
                 action_spend.solution,
             )?;
 
-            Some(XchandlesActionLog::DelegatedState(
-                XchandlesDelegatedStateActionLog {
-                    old_state: current_state_and_ephemeral.1,
-                    new_state: sol.new_state,
-                },
-            ))
+            XchandlesActionLog::DelegatedState(XchandlesDelegatedStateActionLog {
+                old_state: current_state_and_ephemeral.1,
+                new_state: sol.new_state,
+            })
         } else {
-            None
-        };
-
-        let Some(log) = log else {
-            // unknown action - very strange case!
             return Err(DriverError::InvalidMerkleProof);
         };
 

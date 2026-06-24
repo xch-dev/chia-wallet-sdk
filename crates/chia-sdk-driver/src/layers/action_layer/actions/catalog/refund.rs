@@ -15,9 +15,11 @@ use clvmr::NodePtr;
 
 use crate::{
     CatalogPrecommitValue, CatalogRegistry, CatalogRegistryConstants,
-    CatalogRegistryCreatedAnnouncementPrefix, DriverError, PrecommitCoin, PrecommitLayer,
-    SingletonAction, Slot, Spend, SpendContext,
+    CatalogRegistryCreatedAnnouncementPrefix, CatalogRegistryState, DriverError, PrecommitCoin,
+    PrecommitLayer, SingletonAction, Slot, Spend, SpendContext,
 };
+
+use super::CatalogRefundActionLog;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CatalogRefundAction {
@@ -72,31 +74,43 @@ impl CatalogRefundAction {
         ))
     }
 
-    pub fn spent_slot_value(
-        &self,
-        ctx: &SpendContext,
+    pub fn get_log(
+        ctx: &mut SpendContext,
         solution: NodePtr,
-    ) -> Result<Option<CatalogSlotValue>, DriverError> {
+        state: CatalogRegistryState,
+    ) -> Result<CatalogRefundActionLog, DriverError> {
         let params = CatalogRefundActionSolution::<NodePtr, ()>::from_clvm(ctx, solution)?;
 
-        Ok(params.neighbors.map(|neighbors| CatalogSlotValue {
-            counter: params.slot_counter,
-            asset_id: params.other_precommit_data.tail_hash,
-            neighbors,
-        }))
-    }
+        let cat_maker_hash = ctx
+            .tree_hash(params.precommited_cat_maker_and_solution.puzzle)
+            .into();
 
-    pub fn created_slot_value(
-        &self,
-        ctx: &SpendContext,
-        solution: NodePtr,
-    ) -> Result<Option<CatalogSlotValue>, DriverError> {
-        if let Some(mut val) = self.spent_slot_value(ctx, solution)? {
-            val.counter += 1;
-            Ok(Some(val))
+        let slots_spent = state.registration_price == params.precommit_amount
+            && state.cat_maker_puzzle_hash == cat_maker_hash
+            && params.neighbors.is_some();
+
+        let spent_slot = if slots_spent {
+            Some(CatalogSlotValue {
+                counter: params.slot_counter,
+                asset_id: params.other_precommit_data.tail_hash,
+                neighbors: params.neighbors.unwrap(),
+            })
         } else {
-            Ok(None)
-        }
+            None
+        };
+
+        let created_slot = spent_slot.map(|mut slot| {
+            slot.counter += 1;
+            slot
+        });
+
+        Ok(CatalogRefundActionLog {
+            spent_slot,
+            created_slot,
+            registered_tail_hash: params.other_precommit_data.tail_hash,
+            registered_initial_inner_puzzle_hash: params.other_precommit_data.initial_nft_owner_ph,
+            precommit_amount: params.precommit_amount,
+        })
     }
 
     pub fn spend(

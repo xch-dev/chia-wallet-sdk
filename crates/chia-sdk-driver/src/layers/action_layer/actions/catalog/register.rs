@@ -1,5 +1,6 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::singleton::SingletonStruct;
+use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_sdk_types::{
     announcement_id,
     puzzles::{
@@ -18,6 +19,8 @@ use crate::{
     CatalogRegistryCreatedAnnouncementPrefix, DriverError, HashedPtr, PrecommitCoin,
     PrecommitLayer, SingletonAction, Slot, Spend, SpendContext, UniquenessPrelauncher,
 };
+
+use super::CatalogRegisterActionLog;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CatalogRegisterAction {
@@ -85,56 +88,64 @@ impl CatalogRegisterAction {
         ))
     }
 
-    pub fn spent_slot_values(
-        &self,
+    pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
-    ) -> Result<[CatalogSlotValue; 2], DriverError> {
+        registration_price: u64,
+    ) -> Result<CatalogRegisterActionLog, DriverError> {
         let params = CatalogRegisterActionSolution::<NodePtr, ()>::from_clvm(ctx, solution)?;
 
-        Ok([
-            CatalogSlotValue::new(
-                params.left_data.this_counter,
-                params.left_data.this_tail_hash,
-                params.left_data.this_this_tail_hash,
-                params.right_data.this_tail_hash,
-            ),
-            CatalogSlotValue::new(
-                params.right_data.this_counter,
-                params.right_data.this_tail_hash,
-                params.left_data.this_tail_hash,
-                params.right_data.this_this_tail_hash,
-            ),
-        ])
-    }
+        let spent_left_slot = CatalogSlotValue::new(
+            params.left_data.this_counter,
+            params.left_data.this_tail_hash,
+            params.left_data.this_this_tail_hash,
+            params.right_data.this_tail_hash,
+        );
+        let spent_right_slot = CatalogSlotValue::new(
+            params.right_data.this_counter,
+            params.right_data.this_tail_hash,
+            params.left_data.this_tail_hash,
+            params.right_data.this_this_tail_hash,
+        );
 
-    pub fn created_slot_values(
-        &self,
-        ctx: &SpendContext,
-        solution: NodePtr,
-    ) -> Result<[CatalogSlotValue; 3], DriverError> {
-        let params = CatalogRegisterActionSolution::<NodePtr, ()>::from_clvm(ctx, solution)?;
+        let tail_hash = params.other_precommit_data.tail_hash;
+        let created_left_slot = CatalogSlotValue::new(
+            params.left_data.this_counter + 1,
+            params.left_data.this_tail_hash,
+            params.left_data.this_this_tail_hash,
+            tail_hash,
+        );
+        let created_tail_slot = CatalogSlotValue::new(
+            0,
+            tail_hash,
+            params.left_data.this_tail_hash,
+            params.right_data.this_tail_hash,
+        );
+        let created_right_slot = CatalogSlotValue::new(
+            params.right_data.this_counter + 1,
+            params.right_data.this_tail_hash,
+            tail_hash,
+            params.right_data.this_this_tail_hash,
+        );
 
-        Ok([
-            CatalogSlotValue::new(
-                params.left_data.this_counter + 1,
-                params.left_data.this_tail_hash,
-                params.left_data.this_this_tail_hash,
-                params.other_precommit_data.tail_hash,
-            ),
-            CatalogSlotValue::new(
-                0,
-                params.other_precommit_data.tail_hash,
-                params.left_data.this_tail_hash,
-                params.right_data.this_tail_hash,
-            ),
-            CatalogSlotValue::new(
-                params.right_data.this_counter + 1,
-                params.right_data.this_tail_hash,
-                params.other_precommit_data.tail_hash,
-                params.right_data.this_this_tail_hash,
-            ),
-        ])
+        let prelauncher_full_puzzle_hash =
+            UniquenessPrelauncher::<Bytes32>::puzzle_hash(tail_hash.tree_hash()).into();
+        let prelauncher_id = Coin::new(params.my_id, prelauncher_full_puzzle_hash, 0).coin_id();
+        let launcher_id = Coin::new(prelauncher_id, SINGLETON_LAUNCHER_HASH.into(), 1).coin_id();
+
+        Ok(CatalogRegisterActionLog {
+            spent_left_slot,
+            spent_right_slot,
+            created_left_slot,
+            created_tail_slot,
+            created_right_slot,
+            prelauncher_full_puzzle_hash,
+            prelauncher_id,
+            launcher_id,
+            registered_tail_hash: tail_hash,
+            registered_initial_inner_puzzle_hash: params.other_precommit_data.initial_nft_owner_ph,
+            precommit_amount: registration_price,
+        })
     }
 
     #[allow(clippy::too_many_arguments)]
