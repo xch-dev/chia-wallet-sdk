@@ -8,7 +8,8 @@ use clvmr::NodePtr;
 
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
-    RewardDistributorCreatedAnnouncementPrefix, SingletonAction, Spend, SpendContext,
+    RewardDistributorCreatedAnnouncementPrefix, RewardDistributorSyncActionLog,
+    RewardDistributorStateTransition, SingletonAction, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,6 +30,19 @@ impl SingletonAction<RewardDistributor> for RewardDistributorSyncAction {
 impl RewardDistributorSyncAction {
     fn construct_puzzle(ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         ctx.alloc_mod::<RewardDistributorSyncActionArgs>()
+    }
+
+    pub fn get_log(
+        ctx: &SpendContext,
+        solution: NodePtr,
+        changes: RewardDistributorStateTransition,
+    ) -> Result<RewardDistributorSyncActionLog, DriverError> {
+        let solution = ctx.extract::<RewardDistributorSyncActionSolution>(solution)?;
+
+        Ok(RewardDistributorSyncActionLog {
+            update_time: solution.update_time,
+            changes,
+        })
     }
 
     pub fn spend(

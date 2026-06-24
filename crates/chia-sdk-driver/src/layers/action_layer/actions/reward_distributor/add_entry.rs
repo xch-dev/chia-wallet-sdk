@@ -12,9 +12,9 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, RewardDistributor, RewardDistributorConstants,
-    RewardDistributorReceivedMessagePrefix, RewardDistributorState, RewardDistributorType,
-    SingletonAction, Slot, Spend, SpendContext,
+    DriverError, RewardDistributor, RewardDistributorAddEntryActionLog, RewardDistributorConstants,
+    RewardDistributorReceivedMessagePrefix, RewardDistributorStateTransition,
+    RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,18 +80,22 @@ impl RewardDistributorAddEntryAction {
         ))
     }
 
-    pub fn created_slot_value(
+    pub fn get_log(
         ctx: &SpendContext,
-        state: &RewardDistributorState,
         solution: NodePtr,
-    ) -> Result<RewardDistributorEntrySlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorAddEntryActionSolution>(solution)?;
+        changes: RewardDistributorStateTransition,
+    ) -> Result<RewardDistributorAddEntryActionLog, DriverError> {
+        let params = ctx.extract::<RewardDistributorAddEntryActionSolution>(solution)?;
 
-        Ok(RewardDistributorEntrySlotValue {
-            counter: 0,
-            payout_puzzle_hash: solution.entry_payout_puzzle_hash,
-            initial_cumulative_payout: state.round_reward_info.cumulative_payout,
-            shares: solution.entry_shares,
+        Ok(RewardDistributorAddEntryActionLog {
+            created_entry_slot: RewardDistributorEntrySlotValue {
+                counter: 0,
+                payout_puzzle_hash: params.entry_payout_puzzle_hash,
+                initial_cumulative_payout: changes.old_state.round_reward_info.cumulative_payout,
+                shares: params.entry_shares,
+            },
+            manager_singleton_inner_puzzle_hash: params.manager_singleton_inner_puzzle_hash,
+            changes,
         })
     }
 

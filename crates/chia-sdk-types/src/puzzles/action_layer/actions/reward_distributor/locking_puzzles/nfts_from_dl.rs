@@ -95,7 +95,7 @@ pub struct StakeNftFromDlInfo {
     pub nft_inclusion_proof: MerkleProof,
 }
 
-#[derive(FromClvm, ToClvm, Debug, PartialEq, Eq)]
+#[derive(FromClvm, ToClvm, Debug, Clone, PartialEq, Eq)]
 #[clvm(list)]
 pub struct RewardDistributorNftsFromDlLockingPuzzleSolution {
     pub my_id: Bytes32,

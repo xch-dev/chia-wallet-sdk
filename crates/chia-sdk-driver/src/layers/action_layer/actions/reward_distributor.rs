@@ -1,3 +1,4 @@
+mod action_log;
 mod add_entry;
 mod add_incentives;
 mod commit_incentives;
@@ -10,6 +11,7 @@ mod sync;
 mod unstake;
 mod withdraw_incentives;
 
+pub use action_log::*;
 pub use add_entry::*;
 pub use add_incentives::*;
 pub use commit_incentives::*;

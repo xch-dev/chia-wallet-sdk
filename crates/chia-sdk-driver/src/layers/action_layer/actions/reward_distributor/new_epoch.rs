@@ -12,7 +12,8 @@ use clvmr::NodePtr;
 
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
-    RewardDistributorCreatedAnnouncementPrefix, SingletonAction, Slot, Spend, SpendContext,
+    RewardDistributorCreatedAnnouncementPrefix, RewardDistributorNewEpochActionLog,
+    RewardDistributorStateTransition, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,31 +81,28 @@ impl RewardDistributorNewEpochAction {
         ))
     }
 
-    pub fn created_slot_value(
+    pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
-    ) -> Result<RewardDistributorRewardSlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorNewEpochActionSolution>(solution)?;
+        changes: RewardDistributorStateTransition,
+    ) -> Result<RewardDistributorNewEpochActionLog, DriverError> {
+        let params = ctx.extract::<RewardDistributorNewEpochActionSolution>(solution)?;
 
-        Ok(RewardDistributorRewardSlotValue {
-            counter: solution.slot_counter + 1,
-            epoch_start: solution.slot_epoch_time,
-            next_epoch_initialized: solution.slot_next_epoch_initialized,
-            rewards: solution.slot_total_rewards,
-        })
-    }
-
-    pub fn spent_slot_value(
-        ctx: &SpendContext,
-        solution: NodePtr,
-    ) -> Result<RewardDistributorRewardSlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorNewEpochActionSolution>(solution)?;
-
-        Ok(RewardDistributorRewardSlotValue {
-            counter: solution.slot_counter,
-            epoch_start: solution.slot_epoch_time,
-            next_epoch_initialized: solution.slot_next_epoch_initialized,
-            rewards: solution.slot_total_rewards,
+        Ok(RewardDistributorNewEpochActionLog {
+            spent_reward_slot: RewardDistributorRewardSlotValue {
+                counter: params.slot_counter,
+                epoch_start: params.slot_epoch_time,
+                next_epoch_initialized: params.slot_next_epoch_initialized,
+                rewards: params.slot_total_rewards,
+            },
+            created_reward_slot: RewardDistributorRewardSlotValue {
+                counter: params.slot_counter + 1,
+                epoch_start: params.slot_epoch_time,
+                next_epoch_initialized: params.slot_next_epoch_initialized,
+                rewards: params.slot_total_rewards,
+            },
+            epoch_total_rewards: params.epoch_total_rewards,
+            changes,
         })
     }
 

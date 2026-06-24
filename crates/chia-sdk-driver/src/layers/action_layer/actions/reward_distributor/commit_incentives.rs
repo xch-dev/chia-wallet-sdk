@@ -12,8 +12,9 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, RewardDistributor, RewardDistributorConstants,
-    RewardDistributorCreatedAnnouncementPrefix, SingletonAction, Slot, Spend, SpendContext,
+    DriverError, RewardDistributor, RewardDistributorCommitIncentivesActionLog,
+    RewardDistributorConstants, RewardDistributorCreatedAnnouncementPrefix,
+    RewardDistributorStateTransition, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,52 +62,47 @@ impl RewardDistributorCommitIncentivesAction {
         ctx.curry(Self::new_args(self.launcher_id, self.epoch_seconds))
     }
 
-    pub fn created_slot_values(
+    pub fn get_log(
         ctx: &SpendContext,
-        epoch_seconds: u64,
         solution: NodePtr,
-    ) -> Result<
-        (
-            RewardDistributorCommitmentSlotValue,
-            Vec<RewardDistributorRewardSlotValue>,
-        ),
-        DriverError,
-    > {
-        let solution = ctx.extract::<RewardDistributorCommitIncentivesActionSolution>(solution)?;
+        changes: RewardDistributorStateTransition,
+        epoch_seconds: u64,
+    ) -> Result<RewardDistributorCommitIncentivesActionLog, DriverError> {
+        let params = ctx.extract::<RewardDistributorCommitIncentivesActionSolution>(solution)?;
 
-        let commitment_slot_value = RewardDistributorCommitmentSlotValue {
-            epoch_start: solution.epoch_start,
-            clawback_ph: solution.clawback_ph,
-            rewards: solution.rewards_to_add,
+        let created_commitment_slot = RewardDistributorCommitmentSlotValue {
+            epoch_start: params.epoch_start,
+            clawback_ph: params.clawback_ph,
+            rewards: params.rewards_to_add,
         };
 
-        let mut reward_slot_values = vec![];
+        let mut created_reward_slots = vec![];
 
-        if solution.slot_epoch_time == solution.epoch_start {
-            reward_slot_values.push(RewardDistributorRewardSlotValue {
-                counter: solution.slot_counter + 1,
-                epoch_start: solution.epoch_start,
-                next_epoch_initialized: solution.slot_next_epoch_initialized,
-                rewards: solution.slot_total_rewards + solution.rewards_to_add,
+        if params.slot_epoch_time == params.epoch_start {
+            created_reward_slots.push(RewardDistributorRewardSlotValue {
+                counter: params.slot_counter + 1,
+                epoch_start: params.epoch_start,
+                next_epoch_initialized: params.slot_next_epoch_initialized,
+                rewards: params.slot_total_rewards + params.rewards_to_add,
             });
         } else {
-            reward_slot_values.push(RewardDistributorRewardSlotValue {
-                counter: solution.slot_counter + 1,
-                epoch_start: solution.slot_epoch_time,
+            created_reward_slots.push(RewardDistributorRewardSlotValue {
+                counter: params.slot_counter + 1,
+                epoch_start: params.slot_epoch_time,
                 next_epoch_initialized: true,
-                rewards: solution.slot_total_rewards,
+                rewards: params.slot_total_rewards,
             });
-            reward_slot_values.push(RewardDistributorRewardSlotValue {
+            created_reward_slots.push(RewardDistributorRewardSlotValue {
                 counter: 0,
-                epoch_start: solution.epoch_start,
+                epoch_start: params.epoch_start,
                 next_epoch_initialized: false,
-                rewards: solution.rewards_to_add,
+                rewards: params.rewards_to_add,
             });
 
-            let mut start_epoch_time = solution.slot_epoch_time + epoch_seconds;
-            let end_epoch_time = solution.epoch_start;
+            let mut start_epoch_time = params.slot_epoch_time + epoch_seconds;
+            let end_epoch_time = params.epoch_start;
             while end_epoch_time > start_epoch_time {
-                reward_slot_values.push(RewardDistributorRewardSlotValue {
+                created_reward_slots.push(RewardDistributorRewardSlotValue {
                     counter: 0,
                     epoch_start: start_epoch_time,
                     next_epoch_initialized: true,
@@ -117,20 +113,16 @@ impl RewardDistributorCommitIncentivesAction {
             }
         }
 
-        Ok((commitment_slot_value, reward_slot_values))
-    }
-
-    pub fn spent_slot_value(
-        ctx: &SpendContext,
-        solution: NodePtr,
-    ) -> Result<RewardDistributorRewardSlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorCommitIncentivesActionSolution>(solution)?;
-
-        Ok(RewardDistributorRewardSlotValue {
-            counter: solution.slot_counter,
-            epoch_start: solution.slot_epoch_time,
-            next_epoch_initialized: solution.slot_next_epoch_initialized,
-            rewards: solution.slot_total_rewards,
+        Ok(RewardDistributorCommitIncentivesActionLog {
+            spent_reward_slot: RewardDistributorRewardSlotValue {
+                counter: params.slot_counter,
+                epoch_start: params.slot_epoch_time,
+                next_epoch_initialized: params.slot_next_epoch_initialized,
+                rewards: params.slot_total_rewards,
+            },
+            created_commitment_slot,
+            created_reward_slots,
+            changes,
         })
     }
 

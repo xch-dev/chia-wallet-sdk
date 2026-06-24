@@ -1,8 +1,8 @@
-use chia_protocol::Bytes32;
+use chia_protocol::{Bytes32, Coin};
 use chia_puzzle_types::{
     nft::NftRoyaltyTransferPuzzleArgs,
     offer::{NotarizedPayment, Payment},
-    singleton::SingletonStruct,
+    singleton::{SingletonArgs, SingletonStruct},
 };
 use chia_sdk_types::{
     announcement_id,
@@ -18,15 +18,16 @@ use chia_sdk_types::{
     },
     Conditions, MerkleProof, Mod,
 };
-use clvm_traits::clvm_tuple;
+use clvm_traits::{clvm_tuple, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
-use clvmr::NodePtr;
+use clvmr::{Allocator, NodePtr};
 
 use crate::{
     Asset, Cat, CatMaker, DriverError, HashedPtr, Nft, RewardDistributor,
     RewardDistributorConstants, RewardDistributorCreatedAnnouncementPrefix,
-    RewardDistributorReceivedMessagePrefix, RewardDistributorState, RewardDistributorType,
-    SingletonAction, Slot, Spend, SpendContext,
+    RewardDistributorNftStakeEntry, RewardDistributorReceivedMessagePrefix,
+    RewardDistributorStakeActionLog, RewardDistributorState, RewardDistributorStateTransition,
+    RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,6 +59,110 @@ impl SingletonAction<RewardDistributor> for RewardDistributorStakeAction {
 }
 
 impl RewardDistributorStakeAction {
+    pub fn nft_launcher_id_from_proof(
+        did_launcher_id: Bytes32,
+        proof: &NftLauncherProof,
+    ) -> Bytes32 {
+        let mut coin_id = Coin::new(
+            proof.did_proof.parent_parent_coin_info,
+            SingletonArgs::curry_tree_hash(
+                did_launcher_id,
+                proof.did_proof.parent_inner_puzzle_hash.into(),
+            )
+            .into(),
+            proof.did_proof.parent_amount,
+        )
+        .coin_id();
+
+        for intermediary in proof.intermediary_coin_proofs.iter().rev() {
+            coin_id =
+                Coin::new(coin_id, intermediary.full_puzzle_hash, intermediary.amount).coin_id();
+        }
+
+        coin_id
+    }
+
+    fn nft_entries_from_stake_lock_solution(
+        ctx: &SpendContext,
+        lock_puzzle_solution: NodePtr,
+        distributor_type: RewardDistributorType,
+    ) -> Result<Option<Vec<RewardDistributorNftStakeEntry>>, DriverError> {
+        match distributor_type {
+            RewardDistributorType::NftCollection {
+                collection_did_launcher_id,
+            } => {
+                let lock_solution = ctx
+                    .extract::<RewardDistributorNftsFromDidLockingPuzzleSolution>(
+                        lock_puzzle_solution,
+                    )?;
+                let entries = lock_solution
+                    .nft_infos
+                    .iter()
+                    .map(|info| {
+                        (
+                            Self::nft_launcher_id_from_proof(
+                                collection_did_launcher_id,
+                                &info.nft_launcher_proof,
+                            ),
+                            1,
+                        )
+                    })
+                    .collect();
+                Ok(Some(entries))
+            }
+            RewardDistributorType::CuratedNft { .. } => {
+                let lock_solution = ctx
+                    .extract::<RewardDistributorNftsFromDlLockingPuzzleSolution>(
+                        lock_puzzle_solution,
+                    )?;
+                Ok(Some(
+                    lock_solution
+                        .nft_infos
+                        .iter()
+                        .map(|info: &StakeNftFromDlInfo| (info.nft_launcher_id, info.nft_shares))
+                        .collect(),
+                ))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn cat_amount_from_stake_lock_solution(
+        ctx: &SpendContext,
+        lock_puzzle_solution: NodePtr,
+        distributor_type: RewardDistributorType,
+    ) -> Result<Option<u64>, DriverError> {
+        match distributor_type {
+            RewardDistributorType::Cat { .. } => {
+                let lock_solution = ctx
+                    .extract::<RewardDistributorCatLockingPuzzleSolution<NodePtr>>(
+                        lock_puzzle_solution,
+                    )?;
+                Ok(Some(lock_solution.cat_amount))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn stake_cat_and_nft_from_solution(
+        ctx: &SpendContext,
+        solution: NodePtr,
+        distributor_type: RewardDistributorType,
+    ) -> Result<(Option<u64>, Option<Vec<RewardDistributorNftStakeEntry>>), DriverError> {
+        let solution = ctx.extract::<RewardDistributorStakeActionSolution<NodePtr>>(solution)?;
+        let cat_amount = Self::cat_amount_from_stake_lock_solution(
+            ctx,
+            solution.lock_puzzle_solution,
+            distributor_type,
+        )?;
+        let nft_entries = Self::nft_entries_from_stake_lock_solution(
+            ctx,
+            solution.lock_puzzle_solution,
+            distributor_type,
+        )?;
+        Ok((cat_amount, nft_entries))
+    }
+
     pub fn new_args(
         ctx: &mut SpendContext,
         launcher_id: Bytes32,
@@ -195,20 +300,21 @@ impl RewardDistributorStakeAction {
         ctx.curry(args)
     }
 
-    pub fn created_slot_value(
+    pub fn created_slot_value<LPS>(
         ctx: &mut SpendContext,
         state: &RewardDistributorState,
         distributor_type: RewardDistributorType,
-        solution: NodePtr,
-    ) -> Result<RewardDistributorEntrySlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorStakeActionSolution<NodePtr>>(solution)?;
-
+        solution: &RewardDistributorStakeActionSolution<LPS>,
+    ) -> Result<RewardDistributorEntrySlotValue, DriverError>
+    where
+        LPS: ToClvm<Allocator> + Clone,
+    {
         let lock_puzzle = Self::new_args(ctx, Bytes32::default(), 1, distributor_type)?.lock_puzzle;
         let actual_lock_solution = ctx.alloc(&(
             1,
             (
                 solution.entry_custody_puzzle_hash,
-                solution.lock_puzzle_solution,
+                solution.lock_puzzle_solution.clone(),
             ),
         ))?;
 
@@ -223,22 +329,39 @@ impl RewardDistributorStakeAction {
         })
     }
 
-    pub fn spent_slot_value(
+    pub fn get_log(
         ctx: &mut SpendContext,
         solution: NodePtr,
-    ) -> Result<Option<RewardDistributorEntrySlotValue>, DriverError> {
-        let solution = ctx.extract::<RewardDistributorStakeActionSolution<NodePtr>>(solution)?;
+        changes: RewardDistributorStateTransition,
+        distributor_type: RewardDistributorType,
+    ) -> Result<RewardDistributorStakeActionLog, DriverError> {
+        let stake_solution =
+            ctx.extract::<RewardDistributorStakeActionSolution<NodePtr>>(solution)?;
 
-        if solution.existing_slot_counter != -1i128 {
-            return Ok(Some(RewardDistributorEntrySlotValue {
-                counter: u64::try_from(solution.existing_slot_counter)?,
-                payout_puzzle_hash: solution.entry_custody_puzzle_hash,
-                initial_cumulative_payout: solution.existing_slot_cumulative_payout,
-                shares: solution.existing_slot_shares,
-            }));
-        }
+        let spent_entry_slot = if stake_solution.existing_slot_counter == -1i128 {
+            None
+        } else {
+            Some(RewardDistributorEntrySlotValue {
+                counter: u64::try_from(stake_solution.existing_slot_counter)?,
+                payout_puzzle_hash: stake_solution.entry_custody_puzzle_hash,
+                initial_cumulative_payout: stake_solution.existing_slot_cumulative_payout,
+                shares: stake_solution.existing_slot_shares,
+            })
+        };
 
-        Ok(None)
+        let created_entry_slot =
+            Self::created_slot_value(ctx, &changes.old_state, distributor_type, &stake_solution)?;
+
+        let (cat_amount, nft_entries) =
+            Self::stake_cat_and_nft_from_solution(ctx, solution, distributor_type)?;
+
+        Ok(RewardDistributorStakeActionLog {
+            spent_entry_slot,
+            created_entry_slot,
+            cat_amount,
+            nft_entries,
+            changes,
+        })
     }
 
     #[allow(clippy::cast_possible_wrap)]
@@ -326,7 +449,7 @@ impl RewardDistributorStakeAction {
             my_id: distributor.coin.coin_id(),
             nft_infos,
         };
-        let action_solution = ctx.alloc(&RewardDistributorStakeActionSolution {
+        let action_solution = &RewardDistributorStakeActionSolution {
             lock_puzzle_solution,
             existing_slot_counter: existing_slot
                 .as_ref()
@@ -336,7 +459,7 @@ impl RewardDistributorStakeAction {
                 .as_ref()
                 .map_or(0, |s| s.info.value.initial_cumulative_payout),
             existing_slot_shares: existing_slot.as_ref().map_or(0, |s| s.info.value.shares),
-        })?;
+        };
         let action_puzzle = self.construct_puzzle(ctx)?;
 
         // if needed, spend existing slot
@@ -369,6 +492,7 @@ impl RewardDistributorStakeAction {
             distributor.coin.puzzle_hash,
             RewardDistributorCreatedAnnouncementPrefix::stake_slot(new_slot_value.tree_hash()),
         ));
+        let action_solution = ctx.alloc(&action_solution)?;
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         Ok((security_conditions, notarized_payments, created_nfts))
@@ -476,7 +600,7 @@ impl RewardDistributorStakeAction {
             dl_metadata_updater_hash_hash,
             dl_inner_puzzle_hash,
         };
-        let action_solution = ctx.alloc(&RewardDistributorStakeActionSolution {
+        let action_solution = RewardDistributorStakeActionSolution {
             lock_puzzle_solution,
             existing_slot_counter: existing_slot
                 .as_ref()
@@ -486,7 +610,7 @@ impl RewardDistributorStakeAction {
                 .as_ref()
                 .map_or(0, |s| s.info.value.initial_cumulative_payout),
             existing_slot_shares: existing_slot.as_ref().map_or(0, |s| s.info.value.shares),
-        })?;
+        };
         let action_puzzle = self.construct_puzzle(ctx)?;
 
         // if needed, spend existing slot
@@ -512,12 +636,13 @@ impl RewardDistributorStakeAction {
             ctx,
             &distributor.pending_spend.latest_state.1,
             self.distributor_type,
-            action_solution,
+            &action_solution,
         )?;
         security_conditions = security_conditions.assert_puzzle_announcement(announcement_id(
             distributor.coin.puzzle_hash,
             RewardDistributorCreatedAnnouncementPrefix::stake_slot(new_slot_value.tree_hash()),
         ));
+        let action_solution = ctx.alloc(&action_solution)?;
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         Ok((security_conditions, notarized_payments, created_nfts))
@@ -576,7 +701,7 @@ impl RewardDistributorStakeAction {
             cat_amount: offered_cat.amount(),
             cat_maker_solution_rest: (),
         };
-        let action_solution = ctx.alloc(&RewardDistributorStakeActionSolution {
+        let action_solution = RewardDistributorStakeActionSolution {
             lock_puzzle_solution,
             existing_slot_counter: existing_slot
                 .as_ref()
@@ -586,7 +711,7 @@ impl RewardDistributorStakeAction {
                 .as_ref()
                 .map_or(0, |s| s.info.value.initial_cumulative_payout),
             existing_slot_shares: existing_slot.as_ref().map_or(0, |s| s.info.value.shares),
-        })?;
+        };
         let action_puzzle = self.construct_puzzle(ctx)?;
 
         // if needed, spend existing slot
@@ -612,12 +737,13 @@ impl RewardDistributorStakeAction {
             ctx,
             &distributor.pending_spend.latest_state.1,
             self.distributor_type,
-            action_solution,
+            &action_solution,
         )?;
         security_conditions = security_conditions.assert_puzzle_announcement(announcement_id(
             distributor.coin.puzzle_hash,
             RewardDistributorCreatedAnnouncementPrefix::stake_slot(new_slot_value.tree_hash()),
         ));
+        let action_solution = ctx.alloc(&action_solution)?;
         distributor.insert_action_spend(ctx, Spend::new(action_puzzle, action_solution))?;
 
         Ok((

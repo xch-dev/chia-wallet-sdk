@@ -12,7 +12,9 @@ use clvmr::NodePtr;
 
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
-    RewardDistributorReceivedMessagePrefix, SingletonAction, Slot, Spend, SpendContext,
+    RewardDistributorReceivedMessagePrefix, RewardDistributorStateTransition,
+    RewardDistributorWithdrawIncentivesActionLog, SingletonAction,
+    Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,51 +62,35 @@ impl RewardDistributorWithdrawIncentivesAction {
         ctx.curry(Self::new_args(self.launcher_id, self.withdrawal_share_bps))
     }
 
-    pub fn created_slot_value(
+    pub fn get_log(
         ctx: &SpendContext,
+        solution: NodePtr,
+        changes: RewardDistributorStateTransition,
         withdrawal_share_bps: u64,
-        solution: NodePtr,
-    ) -> Result<RewardDistributorRewardSlotValue, DriverError> {
-        let solution =
-            ctx.extract::<RewardDistributorWithdrawIncentivesActionSolution>(solution)?;
-        let withdrawal_share = solution.committed_value * withdrawal_share_bps / 10000;
+    ) -> Result<RewardDistributorWithdrawIncentivesActionLog, DriverError> {
+        let params = ctx.extract::<RewardDistributorWithdrawIncentivesActionSolution>(solution)?;
+        let withdrawal_share = params.committed_value * withdrawal_share_bps / 10000;
 
-        let new_reward_slot_value = RewardDistributorRewardSlotValue {
-            counter: solution.reward_slot_counter + 1,
-            epoch_start: solution.reward_slot_epoch_time,
-            next_epoch_initialized: solution.reward_slot_next_epoch_initialized,
-            rewards: solution.reward_slot_total_rewards - withdrawal_share,
-        };
-
-        Ok(new_reward_slot_value)
-    }
-
-    pub fn spent_slot_values(
-        ctx: &SpendContext,
-        solution: NodePtr,
-    ) -> Result<
-        (
-            RewardDistributorRewardSlotValue,
-            RewardDistributorCommitmentSlotValue,
-        ),
-        DriverError,
-    > {
-        let solution =
-            ctx.extract::<RewardDistributorWithdrawIncentivesActionSolution>(solution)?;
-
-        let old_reward_slot_value = RewardDistributorRewardSlotValue {
-            counter: solution.reward_slot_counter,
-            epoch_start: solution.reward_slot_epoch_time,
-            next_epoch_initialized: solution.reward_slot_next_epoch_initialized,
-            rewards: solution.reward_slot_total_rewards,
-        };
-        let commitment_slot_value = RewardDistributorCommitmentSlotValue {
-            epoch_start: solution.reward_slot_epoch_time,
-            clawback_ph: solution.clawback_ph,
-            rewards: solution.committed_value,
-        };
-
-        Ok((old_reward_slot_value, commitment_slot_value))
+        Ok(RewardDistributorWithdrawIncentivesActionLog {
+            spent_reward_slot: RewardDistributorRewardSlotValue {
+                counter: params.reward_slot_counter,
+                epoch_start: params.reward_slot_epoch_time,
+                next_epoch_initialized: params.reward_slot_next_epoch_initialized,
+                rewards: params.reward_slot_total_rewards,
+            },
+            spent_commitment_slot: RewardDistributorCommitmentSlotValue {
+                epoch_start: params.reward_slot_epoch_time,
+                clawback_ph: params.clawback_ph,
+                rewards: params.committed_value,
+            },
+            created_reward_slot: RewardDistributorRewardSlotValue {
+                counter: params.reward_slot_counter + 1,
+                epoch_start: params.reward_slot_epoch_time,
+                next_epoch_initialized: params.reward_slot_next_epoch_initialized,
+                rewards: params.reward_slot_total_rewards - withdrawal_share,
+            },
+            changes,
+        })
     }
 
     pub fn spend(

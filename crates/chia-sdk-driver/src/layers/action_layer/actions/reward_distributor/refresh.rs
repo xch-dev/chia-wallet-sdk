@@ -1,4 +1,5 @@
 use chia_protocol::Bytes32;
+use chia_puzzle_types::singleton::SingletonArgs;
 use chia_puzzle_types::{nft::NftRoyaltyTransferPuzzleArgs, singleton::SingletonStruct};
 use chia_sdk_types::{
     announcement_id,
@@ -17,8 +18,9 @@ use clvmr::NodePtr;
 
 use crate::{
     DriverError, Layer, Nft, P2DelegatedBySingletonLayer, RewardDistributor,
-    RewardDistributorConstants, RewardDistributorCreatedAnnouncementPrefix, RewardDistributorState,
-    RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
+    RewardDistributorConstants, RewardDistributorCreatedAnnouncementPrefix,
+    RewardDistributorRefreshNftsFromDlActionLog, RewardDistributorStateTransition, RewardDistributorType, SingletonAction, Slot, Spend,
+    SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,41 +114,47 @@ impl RewardDistributorRefreshAction {
     }
 
     #[allow(clippy::cast_sign_loss)]
-    pub fn created_slot_values(
+    pub fn get_log(
         ctx: &mut SpendContext,
-        state: &RewardDistributorState,
         solution: NodePtr,
-    ) -> Result<Vec<RewardDistributorEntrySlotValue>, DriverError> {
-        let solution = ctx.extract::<RewardDistributorRefreshNftsFromDlActionSolution>(solution)?;
+        changes: RewardDistributorStateTransition,
+        store_launcher_id: Bytes32,
+    ) -> Result<RewardDistributorRefreshNftsFromDlActionLog, DriverError> {
+        let params = ctx.extract::<RewardDistributorRefreshNftsFromDlActionSolution>(solution)?;
 
-        solution
+        let spent_entry_slots = params
+            .slots_and_nfts
+            .iter()
+            .map(|e| e.existing_slot_value)
+            .collect();
+        let created_entry_slots = params
             .slots_and_nfts
             .iter()
             .map(|e| {
                 Ok(RewardDistributorEntrySlotValue {
                     counter: e.existing_slot_value.counter + 1,
                     payout_puzzle_hash: e.existing_slot_value.payout_puzzle_hash,
-                    initial_cumulative_payout: state.round_reward_info.cumulative_payout,
+                    initial_cumulative_payout: changes.old_state.round_reward_info.cumulative_payout,
                     shares: u64::try_from(
                         i128::from(e.existing_slot_value.shares)
                             + i128::from(e.nfts_total_shares_delta),
                     )?,
                 })
             })
-            .collect::<Result<Vec<_>, DriverError>>()
-    }
+            .collect::<Result<Vec<_>, DriverError>>()?;
 
-    pub fn spent_slot_values(
-        ctx: &mut SpendContext,
-        solution: NodePtr,
-    ) -> Result<Vec<RewardDistributorEntrySlotValue>, DriverError> {
-        let solution = ctx.extract::<RewardDistributorRefreshNftsFromDlActionSolution>(solution)?;
-
-        Ok(solution
-            .slots_and_nfts
-            .iter()
-            .map(|e| e.existing_slot_value)
-            .collect())
+        Ok(RewardDistributorRefreshNftsFromDlActionLog {
+            spent_entry_slots,
+            created_entry_slots,
+            dl_root_hash: params.dl_root_hash,
+            dl_inner_puzzle_hash: params.dl_info.dl_inner_puzzle_hash,
+            dl_full_puzzle_hash: SingletonArgs::curry_tree_hash(
+                store_launcher_id,
+                params.dl_info.dl_inner_puzzle_hash.into(),
+            )
+            .into(),
+            changes,
+        })
     }
 
     #[allow(clippy::too_many_arguments)]

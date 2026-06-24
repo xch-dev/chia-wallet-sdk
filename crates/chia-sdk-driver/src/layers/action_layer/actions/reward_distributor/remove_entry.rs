@@ -14,7 +14,8 @@ use clvmr::NodePtr;
 
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
-    RewardDistributorReceivedMessagePrefix, RewardDistributorType, SingletonAction, Slot, Spend,
+    RewardDistributorReceivedMessagePrefix, RewardDistributorRemoveEntryActionLog,
+    RewardDistributorStateTransition, RewardDistributorType, SingletonAction, Slot, Spend,
     SpendContext,
 };
 
@@ -132,12 +133,17 @@ impl RewardDistributorRemoveEntryAction {
         Ok((remove_entry_conditions, entry_payout_amount))
     }
 
-    pub fn spent_slot_value(
+    pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
-    ) -> Result<RewardDistributorEntrySlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorRemoveEntryActionSolution>(solution)?;
+        changes: RewardDistributorStateTransition,
+    ) -> Result<RewardDistributorRemoveEntryActionLog, DriverError> {
+        let params = ctx.extract::<RewardDistributorRemoveEntryActionSolution>(solution)?;
 
-        Ok(solution.entry_slot)
+        Ok(RewardDistributorRemoveEntryActionLog {
+            spent_entry_slot: params.entry_slot,
+            manager_singleton_inner_puzzle_hash: params.manager_singleton_inner_puzzle_hash,
+            changes,
+        })
     }
 }

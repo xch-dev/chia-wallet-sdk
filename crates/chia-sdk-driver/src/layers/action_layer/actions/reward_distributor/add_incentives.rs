@@ -10,8 +10,9 @@ use clvm_utils::{ToTreeHash, TreeHash};
 use clvmr::NodePtr;
 
 use crate::{
-    DriverError, RewardDistributor, RewardDistributorConstants,
-    RewardDistributorCreatedAnnouncementPrefix, SingletonAction, Spend, SpendContext,
+    DriverError, RewardDistributor, RewardDistributorAddIncentivesActionLog,
+    RewardDistributorConstants, RewardDistributorCreatedAnnouncementPrefix,
+    RewardDistributorStateTransition, SingletonAction, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,6 +49,20 @@ impl RewardDistributorAddIncentivesAction {
             fee_payout_puzzle_hash: self.fee_payout_puzzle_hash,
             fee_bps: self.fee_bps,
             precision: self.precision,
+        })
+    }
+
+    pub fn get_log(
+        ctx: &SpendContext,
+        solution: NodePtr,
+        changes: RewardDistributorStateTransition,
+    ) -> Result<RewardDistributorAddIncentivesActionLog, DriverError> {
+        let solution = ctx.extract::<RewardDistributorAddIncentivesActionSolution>(solution)?;
+
+        Ok(RewardDistributorAddIncentivesActionLog {
+            amount: solution.amount,
+            manager_fee: solution.manager_fee,
+            changes,
         })
     }
 

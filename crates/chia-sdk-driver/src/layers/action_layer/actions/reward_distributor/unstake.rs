@@ -6,8 +6,8 @@ use chia_sdk_types::{
         P2DelegatedBySingletonLayerSolution, RewardDistributorCatUnlockingPuzzleArgs,
         RewardDistributorCatUnlockingPuzzleSolution, RewardDistributorEntryPayoutInfo,
         RewardDistributorEntrySlotValue, RewardDistributorNftsUnlockingPuzzleArgs,
-        RewardDistributorSlotNonce, RewardDistributorUnstakeActionArgs,
-        RewardDistributorUnstakeActionSolution,
+        RewardDistributorNftsUnlockingPuzzleSolution, RewardDistributorSlotNonce,
+        RewardDistributorUnstakeActionArgs, RewardDistributorUnstakeActionSolution,
     },
     Conditions, Mod,
 };
@@ -17,8 +17,10 @@ use clvmr::NodePtr;
 
 use crate::{
     Cat, CatMaker, CatSpend, DriverError, Layer, Nft, P2DelegatedBySingletonLayer,
-    RewardDistributor, RewardDistributorConstants, RewardDistributorReceivedMessagePrefix,
-    RewardDistributorType, SingletonAction, Slot, Spend, SpendContext,
+    RewardDistributor, RewardDistributorConstants, RewardDistributorNftStakeEntry,
+    RewardDistributorReceivedMessagePrefix, RewardDistributorStateTransition,
+    RewardDistributorType, RewardDistributorUnstakeActionLog, SingletonAction, Slot, Spend,
+    SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +55,34 @@ impl SingletonAction<RewardDistributor> for RewardDistributorUnstakeAction {
 }
 
 impl RewardDistributorUnstakeAction {
+    fn unstake_cat_and_nft_from_solution(
+        ctx: &SpendContext,
+        unlock_puzzle_solution: NodePtr,
+        distributor_type: RewardDistributorType,
+    ) -> Result<(Option<u64>, Option<Vec<RewardDistributorNftStakeEntry>>), DriverError> {
+        match distributor_type {
+            RewardDistributorType::Cat { .. } => {
+                let unlock_solution = ctx
+                    .extract::<RewardDistributorCatUnlockingPuzzleSolution<NodePtr>>(
+                        unlock_puzzle_solution,
+                    )?;
+                Ok((Some(unlock_solution.cat_amount), None))
+            }
+            RewardDistributorType::NftCollection { .. }
+            | RewardDistributorType::CuratedNft { .. } => {
+                let unlock_infos = ctx.extract::<RewardDistributorNftsUnlockingPuzzleSolution>(
+                    unlock_puzzle_solution,
+                )?;
+                let entries = unlock_infos
+                    .iter()
+                    .map(|info| (info.nft_launcher_id, info.nft_shares))
+                    .collect();
+                Ok((None, Some(entries)))
+            }
+            RewardDistributorType::Managed { .. } => Ok((None, None)),
+        }
+    }
+
     pub fn unlock_puzzle(
         ctx: &mut SpendContext,
         launcher_id: Bytes32,
@@ -173,23 +203,16 @@ impl RewardDistributorUnstakeAction {
         ctx.curry(args)
     }
 
-    pub fn spent_slot_value(
-        ctx: &SpendContext,
-        solution: NodePtr,
-    ) -> Result<RewardDistributorEntrySlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorUnstakeActionSolution<NodePtr>>(solution)?;
-
-        Ok(solution.entry_slot)
-    }
-
-    pub fn created_slot_value(
+    pub fn get_log(
         ctx: &mut SpendContext,
+        solution: NodePtr,
+        changes: RewardDistributorStateTransition,
         launcher_id: Bytes32,
         distributor_type: RewardDistributorType,
         ephemeral_state: NodePtr,
-        solution: NodePtr,
-    ) -> Result<Option<RewardDistributorEntrySlotValue>, DriverError> {
+    ) -> Result<RewardDistributorUnstakeActionLog, DriverError> {
         let solution = ctx.extract::<RewardDistributorUnstakeActionSolution<NodePtr>>(solution)?;
+
         let actual_unlock_solution = ctx.alloc(&clvm_tuple!(
             ephemeral_state,
             clvm_tuple!(
@@ -202,16 +225,30 @@ impl RewardDistributorUnstakeAction {
         let unlock_puzzle_result = ctx.run(unlock_puzzle, actual_unlock_solution)?;
         let removed_shares = ctx.extract::<(u64, NodePtr)>(unlock_puzzle_result)?.0;
 
-        if solution.entry_slot.shares == removed_shares {
-            return Ok(None);
-        }
+        let created_entry_slot = if solution.entry_slot.shares == removed_shares {
+            None
+        } else {
+            Some(RewardDistributorEntrySlotValue {
+                counter: solution.entry_slot.counter + 1,
+                payout_puzzle_hash: solution.entry_slot.payout_puzzle_hash,
+                initial_cumulative_payout: solution.entry_slot.initial_cumulative_payout,
+                shares: solution.entry_slot.shares - removed_shares,
+            })
+        };
 
-        Ok(Some(RewardDistributorEntrySlotValue {
-            counter: solution.entry_slot.counter + 1,
-            payout_puzzle_hash: solution.entry_slot.payout_puzzle_hash,
-            initial_cumulative_payout: solution.entry_slot.initial_cumulative_payout,
-            shares: solution.entry_slot.shares - removed_shares,
-        }))
+        let (cat_amount, nft_entries) = Self::unstake_cat_and_nft_from_solution(
+            ctx,
+            solution.unlock_puzzle_solution,
+            distributor_type,
+        )?;
+
+        Ok(RewardDistributorUnstakeActionLog {
+            spent_entry_slot: solution.entry_slot,
+            created_entry_slot,
+            cat_amount,
+            nft_entries,
+            changes,
+        })
     }
 
     pub fn spend_for_locked_nfts(

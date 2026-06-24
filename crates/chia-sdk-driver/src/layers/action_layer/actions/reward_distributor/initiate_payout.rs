@@ -13,8 +13,9 @@ use clvmr::NodePtr;
 
 use crate::{
     DriverError, RewardDistributor, RewardDistributorConstants,
-    RewardDistributorCreatedAnnouncementPrefix, RewardDistributorReceivedMessagePrefix,
-    RewardDistributorState, SingletonAction, Slot, Spend, SpendContext,
+    RewardDistributorCreatedAnnouncementPrefix, RewardDistributorInitiatePayoutActionLog,
+    RewardDistributorReceivedMessagePrefix, RewardDistributorStateTransition,
+    SingletonAction, Slot, Spend, SpendContext,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,32 +90,29 @@ impl RewardDistributorInitiatePayoutAction {
         }
     }
 
-    pub fn created_slot_value(
-        ctx: &SpendContext,
-        current_state: &RewardDistributorState,
-        solution: NodePtr,
-    ) -> Result<RewardDistributorEntrySlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorInitiatePayoutActionSolution>(solution)?;
-
-        Ok(RewardDistributorEntrySlotValue {
-            counter: solution.slot_counter + 1,
-            payout_puzzle_hash: solution.entry_payout_puzzle_hash,
-            initial_cumulative_payout: current_state.round_reward_info.cumulative_payout,
-            shares: solution.entry_shares,
-        })
-    }
-
-    pub fn spent_slot_value(
+    pub fn get_log(
         ctx: &SpendContext,
         solution: NodePtr,
-    ) -> Result<RewardDistributorEntrySlotValue, DriverError> {
-        let solution = ctx.extract::<RewardDistributorInitiatePayoutActionSolution>(solution)?;
+        changes: RewardDistributorStateTransition,
+    ) -> Result<RewardDistributorInitiatePayoutActionLog, DriverError> {
+        let params = ctx.extract::<RewardDistributorInitiatePayoutActionSolution>(solution)?;
 
-        Ok(RewardDistributorEntrySlotValue {
-            counter: solution.slot_counter,
-            payout_puzzle_hash: solution.entry_payout_puzzle_hash,
-            initial_cumulative_payout: solution.entry_initial_cumulative_payout,
-            shares: solution.entry_shares,
+        Ok(RewardDistributorInitiatePayoutActionLog {
+            spent_entry_slot: RewardDistributorEntrySlotValue {
+                counter: params.slot_counter,
+                payout_puzzle_hash: params.entry_payout_puzzle_hash,
+                initial_cumulative_payout: params.entry_initial_cumulative_payout,
+                shares: params.entry_shares,
+            },
+            created_entry_slot: RewardDistributorEntrySlotValue {
+                counter: params.slot_counter + 1,
+                payout_puzzle_hash: params.entry_payout_puzzle_hash,
+                initial_cumulative_payout: changes.old_state.round_reward_info.cumulative_payout,
+                shares: params.entry_shares,
+            },
+            entry_payout_amount: params.entry_payout_amount,
+            payout_rounding_error: params.payout_rounding_error,
+            changes,
         })
     }
 

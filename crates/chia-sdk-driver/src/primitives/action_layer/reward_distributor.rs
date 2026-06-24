@@ -17,12 +17,14 @@ use clvmr::NodePtr;
 
 use crate::{
     ActionLayer, ActionLayerSolution, ActionSingleton, Cat, CatSpend, DriverError, Layer, Puzzle,
-    RewardDistributorAddEntryAction, RewardDistributorAddIncentivesAction,
-    RewardDistributorCommitIncentivesAction, RewardDistributorInitiatePayoutAction,
-    RewardDistributorNewEpochAction, RewardDistributorRefreshAction,
-    RewardDistributorRemoveEntryAction, RewardDistributorStakeAction, RewardDistributorSyncAction,
-    RewardDistributorUnstakeAction, RewardDistributorWithdrawIncentivesAction, SingletonAction,
-    SingletonLayer, Slot, Spend, SpendContext,
+    RewardDistributorActionLog, RewardDistributorAddEntryAction,
+    RewardDistributorAddIncentivesAction, RewardDistributorCommitIncentivesAction,
+    RewardDistributorInitiatePayoutAction, RewardDistributorNewEpochAction,
+    RewardDistributorRefreshAction, RewardDistributorRemoveEntryAction,
+    RewardDistributorStakeAction, RewardDistributorStateTransition, RewardDistributorSyncAction,
+    RewardDistributorType, RewardDistributorUnstakeAction,
+    RewardDistributorWithdrawIncentivesAction, SingletonAction, SingletonLayer, Slot, Spend,
+    SpendContext,
 };
 
 use super::{Reserve, RewardDistributorConstants, RewardDistributorInfo, RewardDistributorState};
@@ -38,6 +40,8 @@ pub struct RewardDistributorPendingSpendInfo {
     pub created_reward_slots: Vec<RewardDistributorRewardSlotValue>,
     pub created_commitment_slots: Vec<RewardDistributorCommitmentSlotValue>,
     pub created_entry_slots: Vec<RewardDistributorEntrySlotValue>,
+
+    pub logs: Vec<RewardDistributorActionLog>,
 
     pub latest_state: (NodePtr, RewardDistributorState),
 
@@ -55,6 +59,7 @@ impl RewardDistributorPendingSpendInfo {
             spent_reward_slots: vec![],
             spent_commitment_slots: vec![],
             spent_entry_slots: vec![],
+            logs: vec![],
             latest_state: (NodePtr::NIL, latest_state),
             signature: Signature::default(),
             other_cats: vec![],
@@ -73,6 +78,8 @@ impl RewardDistributorPendingSpendInfo {
         self.created_commitment_slots
             .extend(delta.created_commitment_slots);
         self.created_entry_slots.extend(delta.created_entry_slots);
+
+        self.logs.extend(delta.logs);
 
         self.latest_state = delta.latest_state;
 
@@ -166,108 +173,111 @@ impl RewardDistributor {
         let (new_state_and_ephemeral, _) =
             ctx.extract::<match_tuple!((NodePtr, RewardDistributorState), NodePtr)>(output)?;
 
+        let changes = RewardDistributorStateTransition {
+            old_state: current_state_and_ephemeral.1,
+            new_state: new_state_and_ephemeral.1,
+        };
+
         let raw_action_hash = ctx.tree_hash(action_spend.puzzle);
 
-        if raw_action_hash == new_epoch_hash {
-            created_reward_slots.push(RewardDistributorNewEpochAction::created_slot_value(
+        let log = if raw_action_hash == new_epoch_hash {
+            RewardDistributorActionLog::NewEpoch(RewardDistributorNewEpochAction::get_log(
                 ctx,
                 action_spend.solution,
-            )?);
-            spent_reward_slots.push(RewardDistributorNewEpochAction::spent_slot_value(
-                ctx,
-                action_spend.solution,
-            )?);
+                changes,
+            )?)
         } else if raw_action_hash == commit_incentives_hash {
-            let (comm, rews) = RewardDistributorCommitIncentivesAction::created_slot_values(
-                ctx,
-                constants.epoch_seconds,
-                action_spend.solution,
-            )?;
-
-            created_commitment_slots.push(comm);
-            created_reward_slots.extend(rews);
-            spent_reward_slots.push(RewardDistributorCommitIncentivesAction::spent_slot_value(
-                ctx,
-                action_spend.solution,
-            )?);
+            RewardDistributorActionLog::CommitIncentives(
+                RewardDistributorCommitIncentivesAction::get_log(
+                    ctx,
+                    action_spend.solution,
+                    changes,
+                    constants.epoch_seconds,
+                )?,
+            )
         } else if raw_action_hash == add_entry_hash {
-            created_entry_slots.push(RewardDistributorAddEntryAction::created_slot_value(
+            RewardDistributorActionLog::AddEntry(RewardDistributorAddEntryAction::get_log(
                 ctx,
-                &current_state_and_ephemeral.1,
                 action_spend.solution,
-            )?);
+                changes,
+            )?)
         } else if raw_action_hash == stake_hash {
-            if let Some(spent_entry_slot) =
-                RewardDistributorStakeAction::spent_slot_value(ctx, action_spend.solution)?
-            {
-                spent_entry_slots.push(spent_entry_slot);
-            }
-
-            created_entry_slots.push(RewardDistributorStakeAction::created_slot_value(
+            RewardDistributorActionLog::Stake(RewardDistributorStakeAction::get_log(
                 ctx,
-                &current_state_and_ephemeral.1,
+                action_spend.solution,
+                changes,
                 constants.reward_distributor_type,
-                action_spend.solution,
-            )?);
+            )?)
         } else if raw_action_hash == remove_entry_hash {
-            spent_entry_slots.push(RewardDistributorRemoveEntryAction::spent_slot_value(
+            RewardDistributorActionLog::RemoveEntry(RewardDistributorRemoveEntryAction::get_log(
                 ctx,
                 action_spend.solution,
-            )?);
+                changes,
+            )?)
         } else if raw_action_hash == unstake_hash {
-            if let Some(created_entry_slot) = RewardDistributorUnstakeAction::created_slot_value(
+            RewardDistributorActionLog::Unstake(RewardDistributorUnstakeAction::get_log(
                 ctx,
+                action_spend.solution,
+                changes,
                 constants.launcher_id,
                 constants.reward_distributor_type,
                 current_state_and_ephemeral.0,
-                action_spend.solution,
-            )? {
-                created_entry_slots.push(created_entry_slot);
-            }
-
-            spent_entry_slots.push(RewardDistributorUnstakeAction::spent_slot_value(
-                ctx,
-                action_spend.solution,
-            )?);
+            )?)
         } else if raw_action_hash == withdraw_incentives_hash {
-            let (rew, cmt) = RewardDistributorWithdrawIncentivesAction::spent_slot_values(
-                ctx,
-                action_spend.solution,
-            )?;
-
-            spent_reward_slots.push(rew);
-            spent_commitment_slots.push(cmt);
-            created_reward_slots.push(
-                RewardDistributorWithdrawIncentivesAction::created_slot_value(
+            RewardDistributorActionLog::WithdrawIncentives(
+                RewardDistributorWithdrawIncentivesAction::get_log(
                     ctx,
-                    constants.withdrawal_share_bps,
                     action_spend.solution,
+                    changes,
+                    constants.withdrawal_share_bps,
                 )?,
-            );
+            )
         } else if raw_action_hash == initiate_payout_hash {
-            created_entry_slots.push(RewardDistributorInitiatePayoutAction::created_slot_value(
-                ctx,
-                &current_state_and_ephemeral.1,
-                action_spend.solution,
-            )?);
-            spent_entry_slots.push(RewardDistributorInitiatePayoutAction::spent_slot_value(
-                ctx,
-                action_spend.solution,
-            )?);
+            RewardDistributorActionLog::InitiatePayout(
+                RewardDistributorInitiatePayoutAction::get_log(
+                    ctx,
+                    action_spend.solution,
+                    changes,
+                )?,
+            )
         } else if raw_action_hash == refresh_hash {
-            created_entry_slots.extend(RewardDistributorRefreshAction::created_slot_values(
+            let RewardDistributorType::CuratedNft {
+                store_launcher_id, ..
+            } = constants.reward_distributor_type
+            else {
+                return Err(DriverError::InvalidMerkleProof);
+            };
+
+            RewardDistributorActionLog::RefreshNftsFromDl(RewardDistributorRefreshAction::get_log(
                 ctx,
-                &current_state_and_ephemeral.1,
                 action_spend.solution,
-            )?);
-            spent_entry_slots.extend(RewardDistributorRefreshAction::spent_slot_values(
+                changes,
+                store_launcher_id,
+            )?)
+        } else if raw_action_hash == add_incentives_hash {
+            RewardDistributorActionLog::AddIncentives(
+                RewardDistributorAddIncentivesAction::get_log(ctx, action_spend.solution, changes)?,
+            )
+        } else if raw_action_hash == sync_hash {
+            RewardDistributorActionLog::Sync(RewardDistributorSyncAction::get_log(
                 ctx,
                 action_spend.solution,
-            )?);
-        } else if raw_action_hash != add_incentives_hash && raw_action_hash != sync_hash {
-            // delegated state action has no effect on slots
+                changes,
+            )?)
+        } else {
             return Err(DriverError::InvalidMerkleProof);
-        }
+        };
+
+        log.extend_spent_slots(
+            &mut spent_reward_slots,
+            &mut spent_commitment_slots,
+            &mut spent_entry_slots,
+        );
+        log.extend_created_slots(
+            &mut created_reward_slots,
+            &mut created_commitment_slots,
+            &mut created_entry_slots,
+        );
 
         Ok(RewardDistributorPendingSpendInfo {
             actions: vec![action_spend],
@@ -277,6 +287,7 @@ impl RewardDistributor {
             created_reward_slots,
             created_commitment_slots,
             created_entry_slots,
+            logs: vec![log],
             latest_state: new_state_and_ephemeral,
             signature: Signature::default(),
             other_cats: vec![],
