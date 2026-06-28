@@ -1,5 +1,5 @@
 use chia_bls::Signature;
-use chia_protocol::{Bytes32, Coin, CoinSpend};
+use chia_protocol::{Bytes32, Coin, CoinSpend, SpendBundle};
 use chia_puzzle_types::{singleton::SingletonSolution, LineageProof, Proof};
 use chia_sdk_types::puzzles::{CatalogSlotValue, DelegatedStateActionSolution, SlotInfo};
 use clvm_traits::{clvm_tuple, match_tuple};
@@ -143,6 +143,7 @@ impl CatalogRegistry {
         inner_solution: NodePtr,
         initial_state: CatalogRegistryState,
         constants: CatalogRegistryConstants,
+        signature: Signature,
     ) -> Result<CatalogPendingSpendInfo, DriverError> {
         let mut created_slots = vec![];
         let mut spent_slots = vec![];
@@ -174,7 +175,7 @@ impl CatalogRegistry {
             spent_slots,
             logs,
             latest_state: state_incl_ephemeral,
-            signature: Signature::default(),
+            signature,
         })
     }
 
@@ -186,21 +187,32 @@ impl CatalogRegistry {
         ctx: &mut SpendContext,
         spend: &CoinSpend,
         constants: CatalogRegistryConstants,
+        signature: Signature,
     ) -> Result<Option<Self>, DriverError> {
         let coin = spend.coin;
+
+        if coin.amount != 1 {
+            return Ok(None);
+        }
+
         let puzzle_ptr = ctx.alloc(&spend.puzzle_reveal)?;
         let puzzle = Puzzle::parse(ctx, puzzle_ptr);
-        let solution_ptr = ctx.alloc(&spend.solution)?;
 
         let Some(info) = CatalogRegistryInfo::parse(ctx, puzzle, constants)? else {
             return Ok(None);
         };
 
+        let solution_ptr = ctx.alloc(&spend.solution)?;
         let solution = ctx.extract::<SingletonSolution<NodePtr>>(solution_ptr)?;
         let proof = solution.lineage_proof;
 
-        let pending_spend =
-            Self::pending_info_from_spend(ctx, solution.inner_solution, info.state, constants)?;
+        let pending_spend = Self::pending_info_from_spend(
+            ctx,
+            solution.inner_solution,
+            info.state,
+            constants,
+            signature,
+        )?;
 
         Ok(Some(CatalogRegistry {
             coin,
@@ -226,7 +238,8 @@ impl CatalogRegistry {
     where
         Self: Sized,
     {
-        let Some(parent_registry) = CatalogRegistry::from_spend(ctx, parent_spend, constants)?
+        let Some(parent_registry) =
+            CatalogRegistry::from_spend(ctx, parent_spend, constants, Signature::default())?
         else {
             return Ok(None);
         };
@@ -260,6 +273,29 @@ impl CatalogRegistry {
             info: new_info,
             pending_spend: CatalogPendingSpendInfo::new(new_info.state),
         }
+    }
+
+    pub fn from_mempool_item(
+        ctx: &mut SpendContext,
+        mempool_item: SpendBundle,
+        constants: CatalogRegistryConstants,
+    ) -> Result<Option<Self>, DriverError> {
+        let mut registry = None;
+
+        for spend in mempool_item.coin_spends {
+            if let Some(parsed_registry) = Self::from_spend(
+                ctx,
+                &spend,
+                constants,
+                mempool_item.aggregated_signature.clone(),
+            )? {
+                registry = Some(parsed_registry);
+            } else {
+                ctx.insert(spend);
+            }
+        }
+
+        Ok(registry)
     }
 }
 
